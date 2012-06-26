@@ -6,6 +6,7 @@ samba (2:3.6.6-1) UNRELEASED; urgency=low
   * Remove DHCP hook. Closes: #652942, #629406, #649100
   * Don't reload smbd when running from inetd. Closes: #678741 
   * Don't start smbd when guest account doesn't exist. Closes: #653382
+  * Only export public symbols in libsmbclient and libwbclient.
 
   [ Christian Perrier ]
   * New upstream version

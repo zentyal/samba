@@ -20,3 +20,4 @@ waf-as-source.patch
 smbtorture-manpage.patch
 libutil_drop_AI_ADDRCONFIG.patch
 shadow_copy2_backport.patch
+only_export_public_symbols.patch

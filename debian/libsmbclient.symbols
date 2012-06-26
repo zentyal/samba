@@ -5612,8 +5612,8 @@ libsmbclient.so.0 libsmbclient #MINVER#
  ndr_size_security_ace@Base 2:3.6.5
  ndr_size_security_acl@Base 2:3.6.5
  ndr_size_security_descriptor@Base 2:3.6.5
- ndr_size_security_token@Base 2:3.6.6-1
- ndr_size_security_unix_token@Base 2:3.6.6-1
+ ndr_size_security_token@Base 2:3.6.6
+ ndr_size_security_unix_token@Base 2:3.6.6
  ndr_size_spoolss_DeviceMode@Base 2:3.6.5
  ndr_size_spoolss_DriverDirectoryInfo1@Base 2:3.6.5
  ndr_size_spoolss_DriverDirectoryInfo@Base 2:3.6.5
@@ -6184,12 +6184,12 @@ libsmbclient.so.0 libsmbclient #MINVER#
  regval_ctr_get_seqnum@Base 2:3.6.5
  regval_ctr_getvalue@Base 2:3.6.5
  regval_ctr_init@Base 2:3.6.5
-#MISSING: 2:3.6.6-1# regval_ctr_key_exists@Base 2:3.6.5
+#MISSING: 2:3.6.6# regval_ctr_key_exists@Base 2:3.6.5
  regval_ctr_numvals@Base 2:3.6.5
  regval_ctr_set_seqnum@Base 2:3.6.5
  regval_ctr_specific_value@Base 2:3.6.5
- regval_ctr_value_byname@Base 2:3.6.6-1
- regval_ctr_value_exists@Base 2:3.6.6-1
+ regval_ctr_value_byname@Base 2:3.6.6
+ regval_ctr_value_exists@Base 2:3.6.6
  regval_data_p@Base 2:3.6.5
  regval_dword@Base 2:3.6.5
  regval_name@Base 2:3.6.5
@@ -6388,7 +6388,7 @@ libsmbclient.so.0 libsmbclient #MINVER#
  server_role_str@Base 2:3.6.5
  serverid_deregister@Base 2:3.6.5
  serverid_exists@Base 2:3.6.5
- serverid_get_random_unique_id@Base 2:3.6.6-1
+ serverid_get_random_unique_id@Base 2:3.6.6
  serverid_parent_init@Base 2:3.6.5
  serverid_register@Base 2:3.6.5
  serverid_register_msg_flags@Base 2:3.6.5

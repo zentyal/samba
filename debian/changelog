@@ -1,10 +1,14 @@
-samba (2:3.6.5-8) UNRELEASED; urgency=low
+samba (2:3.6.6-1) UNRELEASED; urgency=low
 
+  [ Ivo De Decker ]
   * Only enable swat in inetd.conf on first install. Closes: #658245 
   * Minor lintian fixes. 
   * Remove DHCP hook. Closes: #652942, #629406, #649100
   * Don't reload smbd when running from inetd. Closes: #678741 
   * Don't start smbd when guest account doesn't exist. Closes: #653382
+
+  [ Christian Perrier ]
+  * New upstream version
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Tue, 19 Jun 2012 23:11:23 +0200
 

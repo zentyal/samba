@@ -50,6 +50,27 @@ configure_smb_conf() {
 		        s/^\([[:space:]]*\)encrypt passwords[[:space:]]*=.*/\1encrypt passwords = ${ENCRYPT_PASSWORDS}/i" \
 		"$CONFIG"
 
+	# Install DHCP support
+	db_get samba-common/dhcp
+	if [ "$RET" = true ] && \
+	   ! grep -q dhcp.conf "$CONFIG"
+	then
+		sed -i -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
+			/^[[:space:]]*\[global\]/,/^[[:space:]]*\[/ {
+				/wins server[[:space:]]*=/a \\
+\\
+# If we receive WINS server info from DHCP, override the options above. \\
+   include = /etc/samba/dhcp.conf
+}" "$CONFIG"
+	elif [ "$RET" != true ]; then
+		sed -i -e '
+		/^#[[:space:]]*If we receive WINS server info from DHCP, override the options above/d
+		/^#*[[:space:]]*include[[:space:]]*=[[:space:]]*\/etc\/samba\/dhcp.conf/,/[^[:space:]]/ {
+			/^#*[[:space:]]*include[[:space:]]*=[[:space:]]*\/etc\/samba\/dhcp.conf/d
+			/^[[:space:]]*$/d
+		}' "$CONFIG"
+	fi
+
 }
 
 
@@ -84,13 +105,3 @@ fi
 db_stop
 
 #DEBHELPER#
-
-if [ "$1" = "configure" ] && [ -n "$2" ] &&
-	dpkg --compare-versions "$2" lt '2:3.6.5-8~'
-then
-	# workaround for #584185
-	# rmdir will fail if dir not empty
-	rmdir /etc/dhcp3/dhclient-enter-hooks.d || true
-	rmdir /etc/dhcp3 || true
-fi
-

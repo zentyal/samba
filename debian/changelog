@@ -1,8 +1,8 @@
-samba (2:3.6.6-2) UNRELEASED; urgency=low
+samba (2:3.6.6-2) unstable; urgency=low
 
   * Restore the DHCP hook.
 
- -- Steve Langasek <vorlon@debian.org>  Wed, 27 Jun 2012 09:27:13 -0700
+ -- Steve Langasek <vorlon@debian.org>  Wed, 27 Jun 2012 09:31:15 -0700
 
 samba (2:3.6.6-1) unstable; urgency=low
 

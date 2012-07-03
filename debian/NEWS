@@ -1,6 +1,6 @@
 samba (2:3.6.5-2) unstable; urgency=low
 
-  * NSS modules have been split out from libpam-winbind to
+    NSS modules have been split out from libpam-winbind to
     libnss-winbind.
     
     If Recommends: installs are disabled on your system you may need
@@ -12,7 +12,7 @@ samba (2:3.6.5-2) unstable; urgency=low
 
 samba (2:3.5.11~dfsg-3) unstable; urgency=low
 
-  * PAM modules and NSS modules have been split out from the winbind
+    PAM modules and NSS modules have been split out from the winbind
     package into libpam-winbind.
     
     If Recommends: installs are disabled on your system you may need
@@ -23,7 +23,7 @@ samba (2:3.5.11~dfsg-3) unstable; urgency=low
 
 samba (2:3.4.0-1) unstable; urgency=low
 
-  * Default passdb backend changed in samba 3.4.0 and above
+    Default passdb backend changed in samba 3.4.0 and above
   
     Beginning with samba 3.4.0, the default setting for "passdb
     backend" changed from "smbpasswd" to "tdbsam".
@@ -46,7 +46,7 @@ samba (2:3.4.0-1) unstable; urgency=low
 
 samba (3.0.27a-2) unstable; urgency=low
 
-  * Weak authentication methods are disabled by default
+    Weak authentication methods are disabled by default
 
     Beginning with this version, plaintext authentication is disabled for
     clients and lanman authentication is disabled for both clients and
@@ -74,7 +74,7 @@ samba (3.0.27a-2) unstable; urgency=low
 
 samba (3.0.26a-2) unstable; urgency=low
 
-  * Default printing system has changed from BSD to CUPS
+    Default printing system has changed from BSD to CUPS
 
     Previous versions of this package were configured to use BSD lpr as the
     default printing system.  With this version of Samba, the default has

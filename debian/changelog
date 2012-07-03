@@ -1,3 +1,67 @@
+samba (2:3.6.6-2) unstable; urgency=low
+
+  * Restore the DHCP hook.
+
+ -- Steve Langasek <vorlon@debian.org>  Wed, 27 Jun 2012 09:31:15 -0700
+
+samba (2:3.6.6-1) unstable; urgency=low
+
+  [ Ivo De Decker ]
+  * Only enable swat in inetd.conf on first install. Closes: #658245 
+  * Minor lintian fixes. 
+  * Remove DHCP hook. Closes: #652942, #629406, #649100
+  * Don't reload smbd when running from inetd. Closes: #678741 
+  * Don't start smbd when guest account doesn't exist. Closes: #653382
+  * Only export public symbols in libsmbclient and libwbclient.
+
+  [ Christian Perrier ]
+  * New upstream version
+
+ -- Christian Perrier <bubulle@debian.org>  Wed, 27 Jun 2012 06:03:17 +0200
+
+samba (2:3.6.5-7) unstable; urgency=low
+
+  * Allow installing smbclient package together with newer versions of
+    samba4-clients, which no longer ship the smbclient and nmblookup
+    binaries.
+
+ -- Jelmer Vernooij <jelmer@debian.org>  Mon, 11 Jun 2012 13:19:24 +0200
+
+samba (2:3.6.5-6) unstable; urgency=high
+
+  [ Ivo De Decker ]
+  * Update symbols file for linux-only symbols in libsmbclient. This should
+    fix the FTBFS on kfreebsd and hurd. Closes: #676170
+  * Enable ctdb for non-linux archs. 
+  * Remove old if-up script during upgrade.
+
+ -- Christian Perrier <bubulle@debian.org>  Wed, 06 Jun 2012 19:10:02 +0200
+
+samba (2:3.6.5-5) unstable; urgency=low
+
+  [ Christian Perrier ]
+  * Make libpam-winbind depend on libnss-winbind.
+
+  [ Ivo De Decker ]
+  * Update symbols file for libsmbclient and libwbclient0
+  * Add lintian overrides for examples in samba-doc
+  * libpam-winbind: change Depends on libnss-winbind to Recommends
+  * libnss-winbind: Suggests libpam-winbind
+  * Update package description for winbind, libpam-winbind and libnss-winbind
+    to better reflect their content
+  * Backport vfs_shadow_copy2 from master, to allow shadow copy to work
+    without wide links
+
+  [ Luk Claes ]
+  * Ship wbclient.pc file in multiarch safe directory (Closes: #674215).
+
+  [ Sam Morris ]
+  * Add libutil_drop_AI_ADDRCONFIG.patch  that allows running nmbd when
+    no network interfaces have been assigned an address, therefore
+    removing the need for an if-up script. Closes: #640668,#640508
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 03 Jun 2012 20:00:56 +0200
+
 samba (2:3.6.5-3~bpo60+1) squeeze-backports; urgency=low
 
   * Backport to squeeze.
@@ -13,7 +77,7 @@ samba (2:3.6.5-3) unstable; urgency=low
 
   [ Christian Perrier ]
   * Add Breaks and Replaces on libpam-winbind for newly created
-    libnss-winbind. Thanks to Clin Watson for pointing this and shame
+    libnss-winbind. Thanks to Colin Watson for pointing this and shame
     on me for not properly checking the transition. Closes: #673122
 
  -- Christian Perrier <bubulle@debian.org>  Thu, 17 May 2012 10:34:38 +0200

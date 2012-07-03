@@ -3,7 +3,7 @@ libwbclient.so.0 libwbclient0 #MINVER#
  wbcAllocateUid@Base 2:3.2.0
  wbcAuthenticateUser@Base 2:3.2.0
  wbcAuthenticateUserEx@Base 2:3.2.0
- wbcChangeTrustCredentials@Base 2:3.5.0~pre2                                                                                  
+ wbcChangeTrustCredentials@Base 2:3.5.0~pre2
  wbcCheckTrustCredentials@Base 2:3.2.0
  wbcDcInfo@Base 2:3.6.0~pre3
  wbcDomainInfo@Base 2:3.2.0

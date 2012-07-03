@@ -52,11 +52,11 @@ conf_args = \
 		--disable-avahi \
 		--without-libtdb \
 		--enable-external-libtdb \
-		--disable-smbtorture4
+		--disable-smbtorture4 \
+		--with-ctdb=/usr --with-cluster-support=yes
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
   conf_args += \
-		--with-ctdb=/usr --with-cluster-support=yes \
 		--with-acl-support \
 		--with-quotas \
 		--without-cifsupcall          
@@ -96,13 +96,13 @@ override_dh_auto_install:
 	mkdir -p $(DESTDIR)/usr/share/pam-configs
 	install -m 0644 debian/libpam-smbpass.pam-config $(DESTDIR)/usr/share/pam-configs/smbpasswd-migrate
 	install -m 0644 debian/winbind.pam-config $(DESTDIR)/usr/share/pam-configs/winbind
+	mkdir -p $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig
+	install -m 0644 source3/pkgconfig/wbclient.pc $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig
 
 	# Install samba-common's conffiles - they'll get moved later to their
 	# correct place by dh_install
 	mkdir -p $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d
 	install -m755 debian/samba-common.dhcp $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d/samba
-	mkdir -p $(DESTDIR)/etc/network/if-up.d
-	install -o root -g root debian/samba.if-up $(DESTDIR)/etc/network/if-up.d/samba
 
 override_dh_installpam:
 	dh_installpam --name=samba

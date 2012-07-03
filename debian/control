@@ -4,14 +4,14 @@ Priority: optional
 Maintainer: Debian Samba Maintainers <pkg-samba-maint@lists.alioth.debian.org>
 Uploaders: Steve Langasek <vorlon@debian.org>, Christian Perrier <bubulle@debian.org>, Noèl Köthe <noel@debian.org>, Jelmer Vernooij <jelmer@debian.org>
 Build-Depends: debhelper (>= 8), libpam0g-dev, libreadline-dev,
-	libcups2-dev | libcupsys2-dev,
+	libcups2-dev,
 	libacl1-dev [linux-any],
 	libkrb5-dev, libldap2-dev , po-debconf, libpopt-dev, uuid-dev,
 	libtalloc-dev (>= 2.0.1-1~bpo50+1),
 	libtdb-dev (>= 1.2.6~),
 	libcap-dev [linux-any],
 	libkeyutils-dev [linux-any],
-	libctdb-dev (>= 1.10+git20110412) [linux-any],
+	libctdb-dev (>= 1.10+git20110412),
 	pkg-config
 Build-Conflicts: libfam-dev,python-ldb,python-ldb-dev
 Standards-Version: 3.9.3
@@ -21,6 +21,7 @@ Vcs-Svn: svn://svn.debian.org/svn/pkg-samba/trunk/samba
 
 Package: samba
 Architecture: any
+Pre-Depends: ${misc:Pre-Depends}
 Depends: samba-common (= ${source:Version}), libwbclient0 (= ${binary:Version}),${shlibs:Depends}, ${misc:Depends}, libpam-runtime (>= 1.0.1-11), libpam-modules, lsb-base (>= 3.2-13), procps, update-inetd, adduser
 Recommends: logrotate, tdb-tools
 Suggests: openbsd-inetd | inet-superserver, smbldap-tools, ldb-tools, ctdb
@@ -56,6 +57,7 @@ Description: common files used by both the Samba server and client
 Package: samba-common
 Architecture: all
 Multi-Arch: foreign
+Pre-Depends: ${misc:Pre-Depends}
 Depends: ucf, ${misc:Depends}
 Replaces: samba (<< 3.0.20b-1), samba4-common (<< 4.0.0~alpha7-1)
 Conflicts: samba4-common (<< 4.0.0~alpha7-1)
@@ -85,7 +87,7 @@ Depends: samba-common (= ${source:Version}), ${shlibs:Depends}, ${misc:Depends}
 Replaces: samba (<< 2.999+3.0.alpha21-4), smbget
 Provides: samba-client
 Suggests: cifs-utils
-Conflicts: samba4-clients
+Conflicts: samba4-clients (<< 4.0.0~beta1+dfsg1-1)
 Description: command-line SMB/CIFS clients for Unix
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with
@@ -195,9 +197,12 @@ Description: Samba nameservice integration server
  .
  This package provides winbindd, a daemon which integrates authentication
  and directory service (user/group lookup) mechanisms from a Windows
- domain on a Linux system.  User/group lookups are configured via
- /etc/nsswitch.conf, and authentication is integrated using the winbind
- module for PAM.
+ domain on a Linux system.
+ .
+ Winbind based user/group lookups via /etc/nsswitch.conf can be enabled via
+ the libnss-winbind package. Winbind based Windows domain authentication can
+ be enabled via the libpam-winbind package.
+ 
 
 Package: libpam-winbind
 Section: net
@@ -206,6 +211,8 @@ Architecture: any
 Multi-Arch: same
 Pre-Depends: ${misc:Pre-Depends}
 Depends: ${shlibs:Depends}, ${misc:Depends}, winbind (= ${binary:Version}), libwbclient0 (= ${binary:Version}), samba-common (= ${source:Version}), libpam-runtime (>= 1.0.1-6), libpam0g
+Recommends: libnss-winbind
+Recommends: libnss-winbind
 Breaks: winbind (<< 2:3.5.11~dfsg-3)
 Replaces: samba (<= 2.2.3-2), winbind (<< 2:3.5.11~dfsg-3)
 Description: Windows domain authentication integration plugin
@@ -215,9 +222,8 @@ Description: Windows domain authentication integration plugin
  as an NT4-style domain controller, and can integrate with both NT4 domains
  and Active Directory realms as a member server.
  .
- This package provides pam_winbind, a plugin that integrates
- with a local winbindd server to provide Windows domain authentication and
- user/group name lookups to the system.
+ This package provides pam_winbind, a plugin that integrates with a local
+ winbindd server to provide Windows domain authentication to the system.
 
 Package: libnss-winbind
 Section: net
@@ -228,6 +234,7 @@ Pre-Depends: ${misc:Pre-Depends}
 Depends: ${shlibs:Depends}, ${misc:Depends}, winbind (= ${binary:Version}), libwbclient0 (= ${binary:Version}), samba-common (= ${source:Version})
 Breaks: libpam-winbind (<< 2:3.6.5-2), winbind (<< 2:3.5.11~dfsg-3)
 Replaces: libpam-winbind (<< 2:3.6.5-2), samba (<= 2.2.3-2), winbind (<< 2:3.5.11~dfsg-3)
+Suggests: libpam-winbind
 Description: Samba nameservice integration plugins
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with
@@ -236,9 +243,9 @@ Description: Samba nameservice integration plugins
  and Active Directory realms as a member server.
  .
  This package provides nss_winbind, a plugin that integrates
- with a local winbindd server to provide Windows domain authentication and
- user/group name lookups to the system; and nss_wins, which provides
- hostname lookups via both the NBNS and NetBIOS broadcast protocols.
+ with a local winbindd server to provide user/group name lookups to the
+ system; and nss_wins, which provides hostname lookups via both the NBNS and
+ NetBIOS broadcast protocols.
 
 Package: samba-dbg
 Section: debug

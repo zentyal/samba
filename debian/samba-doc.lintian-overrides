@@ -1,0 +1,3 @@
+# the documentation package should not have a dependency for examples
+samba-doc: script-uses-perl4-libs-without-dep usr/share/doc/samba-doc/examples/printer-accounting/hp5-redir:13 getopts.pl
+samba-doc: script-uses-perl4-libs-without-dep usr/share/doc/samba-doc/examples/printer-accounting/lp-acct:13 getopts.pl

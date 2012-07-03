@@ -212,7 +212,6 @@ Multi-Arch: same
 Pre-Depends: ${misc:Pre-Depends}
 Depends: ${shlibs:Depends}, ${misc:Depends}, winbind (= ${binary:Version}), libwbclient0 (= ${binary:Version}), samba-common (= ${source:Version}), libpam-runtime (>= 1.0.1-6), libpam0g
 Recommends: libnss-winbind
-Recommends: libnss-winbind
 Breaks: winbind (<< 2:3.5.11~dfsg-3)
 Replaces: samba (<= 2.2.3-2), winbind (<< 2:3.5.11~dfsg-3)
 Description: Windows domain authentication integration plugin

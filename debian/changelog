@@ -1,9 +1,9 @@
-samba (2:3.6.6-2~bpo60+1) squeeze-backports-UNRELEASED; urgency=low
+samba (2:3.6.6-2~bpo60+1) squeeze-backports; urgency=low
 
   * Backport to squeeze
   * Build-Depend on debhelper >= 8~ (squeeze compatibility)
 
- -- Christian Perrier <bubulle@debian.org>  Tue, 03 Jul 2012 14:23:07 +0200
+ -- Christian Perrier <bubulle@debian.org>  Tue, 03 Jul 2012 14:24:44 +0200
 
 samba (2:3.6.6-2) unstable; urgency=low
 

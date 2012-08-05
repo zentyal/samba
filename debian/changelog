@@ -1,3 +1,11 @@
+samba (2:3.6.6-3) unstable; urgency=low
+
+  [ Ansgar Burchardt ]
+  * debian/rules: Use xz compression for binary packages.
+    Closes: #683899
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 05 Aug 2012 12:19:12 +0200
+
 samba (2:3.6.6-2) unstable; urgency=low
 
   * Restore the DHCP hook.

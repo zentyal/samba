@@ -1,3 +1,9 @@
+samba (2:3.6.9-1) experimental; urgency=low
+
+  * New upstream release
+
+ -- Christian Perrier <bubulle@debian.org>  Thu, 01 Nov 2012 08:17:29 +0100
+
 samba (2:3.6.8-1) experimental; urgency=low
 
   * New upstream release.

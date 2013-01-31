@@ -1,3 +1,11 @@
+samba (2:3.6.6-5) unstable; urgency=high
+
+  * Security update
+  * CVE-2013-0213: Clickjacking issue in SWAT
+  * CVE-2013-0214: Potential XSRF in SWAT
+
+ -- Christian Perrier <bubulle@debian.org>  Wed, 30 Jan 2013 18:49:32 +0100
+
 samba (2:3.6.6-4) unstable; urgency=low
 
   * Fix printers tdb migration by including an upstream fix

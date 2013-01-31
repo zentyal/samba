@@ -501,7 +501,6 @@ _PUBLIC_ enum ndr_err_code ndr_push_security_acl(struct ndr_push *ndr, int ndr_f
 
 _PUBLIC_ enum ndr_err_code ndr_pull_security_acl(struct ndr_pull *ndr, int ndr_flags, struct security_acl *r)
 {
-	uint32_t size_aces_0 = 0;
 	uint32_t cntr_aces_0;
 	TALLOC_CTX *_mem_save_aces_0;
 	if (ndr_flags & NDR_SCALARS) {
@@ -512,21 +511,19 @@ _PUBLIC_ enum ndr_err_code ndr_pull_security_acl(struct ndr_pull *ndr, int ndr_f
 		if (r->num_aces > 1000) {
 			return ndr_pull_error(ndr, NDR_ERR_RANGE, "value out of range");
 		}
-		size_aces_0 = r->num_aces;
-		NDR_PULL_ALLOC_N(ndr, r->aces, size_aces_0);
+		NDR_PULL_ALLOC_N(ndr, r->aces, r->num_aces);
 		_mem_save_aces_0 = NDR_PULL_GET_MEM_CTX(ndr);
 		NDR_PULL_SET_MEM_CTX(ndr, r->aces, 0);
-		for (cntr_aces_0 = 0; cntr_aces_0 < size_aces_0; cntr_aces_0++) {
+		for (cntr_aces_0 = 0; cntr_aces_0 < r->num_aces; cntr_aces_0++) {
 			NDR_CHECK(ndr_pull_security_ace(ndr, NDR_SCALARS, &r->aces[cntr_aces_0]));
 		}
 		NDR_PULL_SET_MEM_CTX(ndr, _mem_save_aces_0, 0);
 		NDR_CHECK(ndr_pull_trailer_align(ndr, 4));
 	}
 	if (ndr_flags & NDR_BUFFERS) {
-		size_aces_0 = r->num_aces;
 		_mem_save_aces_0 = NDR_PULL_GET_MEM_CTX(ndr);
 		NDR_PULL_SET_MEM_CTX(ndr, r->aces, 0);
-		for (cntr_aces_0 = 0; cntr_aces_0 < size_aces_0; cntr_aces_0++) {
+		for (cntr_aces_0 = 0; cntr_aces_0 < r->num_aces; cntr_aces_0++) {
 			NDR_CHECK(ndr_pull_security_ace(ndr, NDR_BUFFERS, &r->aces[cntr_aces_0]));
 		}
 		NDR_PULL_SET_MEM_CTX(ndr, _mem_save_aces_0, 0);
@@ -901,7 +898,6 @@ _PUBLIC_ enum ndr_err_code ndr_pull_security_token(struct ndr_pull *ndr, int ndr
 	uint32_t _ptr_group_sid;
 	TALLOC_CTX *_mem_save_group_sid_0;
 	uint32_t _ptr_sids;
-	uint32_t size_sids_0 = 0;
 	uint32_t cntr_sids_0;
 	TALLOC_CTX *_mem_save_sids_0;
 	TALLOC_CTX *_mem_save_sids_1;
@@ -923,11 +919,10 @@ _PUBLIC_ enum ndr_err_code ndr_pull_security_token(struct ndr_pull *ndr, int ndr
 		}
 		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &r->num_sids));
 		NDR_CHECK(ndr_pull_array_size(ndr, &r->sids));
-		size_sids_0 = ndr_get_array_size(ndr, &r->sids);
-		NDR_PULL_ALLOC_N(ndr, r->sids, size_sids_0);
+		NDR_PULL_ALLOC_N(ndr, r->sids, ndr_get_array_size(ndr, &r->sids));
 		_mem_save_sids_0 = NDR_PULL_GET_MEM_CTX(ndr);
 		NDR_PULL_SET_MEM_CTX(ndr, r->sids, 0);
-		for (cntr_sids_0 = 0; cntr_sids_0 < size_sids_0; cntr_sids_0++) {
+		for (cntr_sids_0 = 0; cntr_sids_0 < r->num_sids; cntr_sids_0++) {
 			NDR_CHECK(ndr_pull_generic_ptr(ndr, &_ptr_sids));
 			if (_ptr_sids) {
 				NDR_PULL_ALLOC(ndr, r->sids[cntr_sids_0]);
@@ -961,10 +956,9 @@ _PUBLIC_ enum ndr_err_code ndr_pull_security_token(struct ndr_pull *ndr, int ndr
 			NDR_CHECK(ndr_pull_dom_sid(ndr, NDR_SCALARS, r->group_sid));
 			NDR_PULL_SET_MEM_CTX(ndr, _mem_save_group_sid_0, 0);
 		}
-		size_sids_0 = ndr_get_array_size(ndr, &r->sids);
 		_mem_save_sids_0 = NDR_PULL_GET_MEM_CTX(ndr);
 		NDR_PULL_SET_MEM_CTX(ndr, r->sids, 0);
-		for (cntr_sids_0 = 0; cntr_sids_0 < size_sids_0; cntr_sids_0++) {
+		for (cntr_sids_0 = 0; cntr_sids_0 < r->num_sids; cntr_sids_0++) {
 			if (r->sids[cntr_sids_0]) {
 				_mem_save_sids_1 = NDR_PULL_GET_MEM_CTX(ndr);
 				NDR_PULL_SET_MEM_CTX(ndr, r->sids[cntr_sids_0], 0);

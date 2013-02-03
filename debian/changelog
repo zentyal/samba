@@ -1,3 +1,9 @@
+samba (2:3.6.6-5~bpo60+1) squeeze-backports; urgency=low
+
+  * Backport to squeeze
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 03 Feb 2013 08:04:50 +0100
+
 samba (2:3.6.6-5) unstable; urgency=high
 
   * Security update

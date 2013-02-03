@@ -21,7 +21,7 @@ Vcs-Svn: svn://svn.debian.org/svn/pkg-samba/trunk/samba
 
 Package: samba
 Architecture: any
-Pre-Depends: ${misc:Pre-Depends}
+Pre-Depends: ${misc:Pre-Depends}, dpkg (>= 1.15.6~)
 Depends: samba-common (= ${source:Version}), libwbclient0 (= ${binary:Version}),${shlibs:Depends}, ${misc:Depends}, libpam-runtime (>= 1.0.1-11), libpam-modules, lsb-base (>= 3.2-13), procps, update-inetd, adduser
 Recommends: logrotate, tdb-tools
 Suggests: openbsd-inetd | inet-superserver, smbldap-tools, ldb-tools, ctdb
@@ -45,6 +45,7 @@ Package: samba-common-bin
 Architecture: any
 Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends}, samba-common (>= 2:3.4.0~pre1-2)
+Pre-Depends: dpkg (>= 1.15.6~)
 Replaces: samba (<< 3.0.20b-1), samba-common (<< 2:3.4.0~pre1-2)
 Description: common files used by both the Samba server and client
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
@@ -57,7 +58,7 @@ Description: common files used by both the Samba server and client
 Package: samba-common
 Architecture: all
 Multi-Arch: foreign
-Pre-Depends: ${misc:Pre-Depends}
+Pre-Depends: ${misc:Pre-Depends}, dpkg (>= 1.15.6~)
 Depends: ucf, ${misc:Depends}
 Replaces: samba (<< 3.0.20b-1), samba4-common (<< 4.0.0~alpha7-1)
 Conflicts: samba4-common (<< 4.0.0~alpha7-1)
@@ -72,6 +73,7 @@ Description: common files used by both the Samba server and client
 Package: samba-tools
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
+Pre-Depends: dpkg (>= 1.15.6~)
 Conflicts: samba4, samba4-testsuite
 Description: Samba testing utilities
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
@@ -84,6 +86,7 @@ Description: Samba testing utilities
 Package: smbclient
 Architecture: any
 Depends: samba-common (= ${source:Version}), ${shlibs:Depends}, ${misc:Depends}
+Pre-Depends: dpkg (>= 1.15.6~)
 Replaces: samba (<< 2.999+3.0.alpha21-4), smbget
 Provides: samba-client
 Suggests: cifs-utils
@@ -101,6 +104,7 @@ Description: command-line SMB/CIFS clients for Unix
 Package: swat
 Architecture: any
 Depends: samba (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}, openbsd-inetd | inet-superserver
+Pre-Depends: dpkg (>= 1.15.6~)
 Recommends: samba-doc (= ${source:Version})
 Description: Samba Web Administration Tool
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
@@ -121,6 +125,7 @@ Section: doc
 Architecture: all
 Suggests: samba-doc-pdf
 Depends: ${misc:Depends}
+Pre-Depends: dpkg (>= 1.15.6~)
 Description: Samba documentation
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with
@@ -133,6 +138,7 @@ Package: samba-doc-pdf
 Section: doc
 Architecture: all
 Depends: ${misc:Depends}
+Pre-Depends: dpkg (>= 1.15.6~)
 Description: Samba documentation in PDF format
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with
@@ -147,6 +153,7 @@ Architecture: any
 Multi-Arch: same
 Depends: ${shlibs:Depends}, samba-common (= ${source:Version}), ${misc:Depends},
 	 libpam-runtime (>= 1.0.1-6)
+Pre-Depends: dpkg (>= 1.15.6~)
 Suggests: samba
 Description: pluggable authentication module for Samba
  This is a module for PAM that enables a system administrator to migrate
@@ -161,7 +168,7 @@ Section: libs
 Priority: optional
 Architecture: any
 Multi-Arch: same
-Pre-Depends: ${misc:Pre-Depends}
+Pre-Depends: ${misc:Pre-Depends}, dpkg (>= 1.15.6~)
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: shared library for communication with SMB/CIFS servers
  This package provides a shared library that enables client applications
@@ -174,6 +181,7 @@ Priority: extra
 Architecture: any
 Multi-Arch: same
 Depends: libsmbclient (= ${binary:Version}), ${misc:Depends}
+Pre-Depends: dpkg (>= 1.15.6~)
 Description: development files for libsmbclient
  This package provides the development files (static library and headers)
  required for building applications against libsmbclient, a library that
@@ -186,6 +194,7 @@ Priority: optional
 Architecture: any
 Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends}, libwbclient0 (= ${binary:Version}), samba-common (= ${source:Version}), lsb-base (>= 3.0-6), adduser
+Pre-Depends: dpkg (>= 1.15.6~)
 Recommends: libpam-winbind, libnss-winbind
 Replaces: samba (<= 2.2.3-2)
 Description: Samba nameservice integration server
@@ -209,7 +218,7 @@ Section: net
 Priority: optional
 Architecture: any
 Multi-Arch: same
-Pre-Depends: ${misc:Pre-Depends}
+Pre-Depends: ${misc:Pre-Depends}, dpkg (>= 1.15.6~)
 Depends: ${shlibs:Depends}, ${misc:Depends}, winbind (= ${binary:Version}), libwbclient0 (= ${binary:Version}), samba-common (= ${source:Version}), libpam-runtime (>= 1.0.1-6), libpam0g
 Recommends: libnss-winbind
 Breaks: winbind (<< 2:3.5.11~dfsg-3)
@@ -229,7 +238,7 @@ Section: net
 Priority: optional
 Architecture: any
 Multi-Arch: same
-Pre-Depends: ${misc:Pre-Depends}
+Pre-Depends: dpkg (>= 1.15.6~)
 Depends: ${shlibs:Depends}, ${misc:Depends}, winbind (= ${binary:Version}), libwbclient0 (= ${binary:Version}), samba-common (= ${source:Version})
 Breaks: libpam-winbind (<< 2:3.6.5-2), winbind (<< 2:3.5.11~dfsg-3)
 Replaces: libpam-winbind (<< 2:3.6.5-2), samba (<= 2.2.3-2), winbind (<< 2:3.5.11~dfsg-3)
@@ -251,6 +260,7 @@ Section: debug
 Priority: extra
 Architecture: any
 Depends: samba (= ${binary:Version}), ${misc:Depends}
+Pre-Depends: dpkg (>= 1.15.6~)
 Description: Samba debugging symbols
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with
@@ -265,7 +275,7 @@ Section: libs
 Priority: optional
 Architecture: any
 Multi-Arch: same
-Pre-Depends: ${misc:Pre-Depends}
+Pre-Depends: ${misc:Pre-Depends}, dpkg (>= 1.15.6~)
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Breaks:
  libpam-smbpass (<< 2:3.4.1),
@@ -291,6 +301,7 @@ Priority: optional
 Architecture: any
 Multi-Arch: same
 Depends: ${shlibs:Depends}, ${misc:Depends}, libwbclient0 (= ${binary:Version})
+Pre-Depends: dpkg (>= 1.15.6~)
 Description: Samba winbind client library - development files
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with

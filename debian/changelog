@@ -1,3 +1,27 @@
+samba (2:3.6.6-5) unstable; urgency=high
+
+  * Security update
+  * CVE-2013-0213: Clickjacking issue in SWAT
+  * CVE-2013-0214: Potential XSRF in SWAT
+
+ -- Christian Perrier <bubulle@debian.org>  Wed, 30 Jan 2013 18:49:32 +0100
+
+samba (2:3.6.6-4) unstable; urgency=low
+
+  * Fix printers tdb migration by including an upstream fix
+    from 3.6.7 (upstream bug #9026)
+    Closes: #696675
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 05 Jan 2013 12:42:02 +0100
+
+samba (2:3.6.6-3) unstable; urgency=low
+
+  [ Ansgar Burchardt ]
+  * debian/rules: Use xz compression for binary packages.
+    Closes: #683899
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 05 Aug 2012 12:19:12 +0200
+
 samba (2:3.6.6-2~bpo60+1) squeeze-backports; urgency=low
 
   * Backport to squeeze

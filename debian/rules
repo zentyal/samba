@@ -143,3 +143,6 @@ override_dh_makeshlibs:
 
 override_dh_compress:
 	dh_compress -XWHATSNEW.txt
+
+override_dh_builddeb:
+	dh_builddeb -- -Zxz

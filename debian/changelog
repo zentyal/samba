@@ -5,6 +5,7 @@ samba (2:3.6.12-1) UNRELEASED; urgency=low
     - CVE-2013-0213: Clickjacking issue in SWAT
     - CVE-2013-0214: Potential XSRF in SWAT
   * New upstream release
+  * Install pkgconfig file in libsmbclient-dev. Closes: #700643
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Sat, 16 Feb 2013 18:57:19 +0100
 

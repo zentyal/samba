@@ -97,6 +97,7 @@ override_dh_auto_install:
 	install -m 0644 debian/winbind.pam-config $(DESTDIR)/usr/share/pam-configs/winbind
 	mkdir -p $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig
 	install -m 0644 source3/pkgconfig/wbclient.pc $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig
+	install -m 0644 source3/pkgconfig/smbclient.pc $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig
 
 	# Install samba-common's conffiles - they'll get moved later to their
 	# correct place by dh_install

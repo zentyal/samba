@@ -1,3 +1,4 @@
 usr/lib/*/libsmbclient.a
 usr/lib/*/libsmbclient.so
 usr/include/libsmbclient.h
+usr/lib/*/pkgconfig/smbclient.pc

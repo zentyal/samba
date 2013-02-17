@@ -1,4 +1,4 @@
-samba (2:3.6.12-1) UNRELEASED; urgency=low
+samba (2:3.6.12-1) experimental; urgency=low
 
   * Team upload.
   * Security update, fixing the following issues:
@@ -7,7 +7,7 @@ samba (2:3.6.12-1) UNRELEASED; urgency=low
   * New upstream release
   * Install pkgconfig file in libsmbclient-dev. Closes: #700643
 
- -- Ivo De Decker <ivo.dedecker@ugent.be>  Sat, 16 Feb 2013 18:57:19 +0100
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Sun, 17 Feb 2013 22:25:34 +0100
 
 samba (2:3.6.10-1) experimental; urgency=low
 

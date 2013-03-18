@@ -23,12 +23,12 @@ Index: samba/docs/manpages/smbspool.8
 ===================================================================
 --- samba.orig/docs/manpages/smbspool.8
 +++ samba/docs/manpages/smbspool.8
-@@ -114,7 +114,7 @@
+@@ -123,7 +123,7 @@
  .sp -1
  .IP \(bu 2.3
  .\}
--The user argument (argv[2]) contains the print user\'s name and is presently not used by smbspool\&.
-+The user argument (argv[2]) contains the print user\'s name and is presently not used by smbspool except in Kerberos environments to access the user\'s ticket cache\&.
+-The user argument (argv[2]) contains the print user\*(Aqs name and is presently not used by smbspool\&.
++The user argument (argv[2]) contains the print user\*(Aqs name and is presently not used by smbspool except in Kerberos environments to access the user\*(Aqs ticket cache\&.
  .RE
  .sp
  .RS 4

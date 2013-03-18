@@ -9,11 +9,11 @@ Author: Steve Langasek <vorlon@debian.org>
 Bug-Debian: http://bugs.debian.org/281181
 Forwarded: no
 
-Index: experimental/source3/Makefile.in
+Index: samba/source3/Makefile.in
 ===================================================================
---- experimental.orig/source3/Makefile.in
-+++ experimental/source3/Makefile.in
-@@ -2281,7 +2281,7 @@
+--- samba.orig/source3/Makefile.in
++++ samba/source3/Makefile.in
+@@ -2501,7 +2501,7 @@
  
  $(LIBSMBCLIENT_SHARED_TARGET_SONAME): $(BINARY_PREREQS) $(LIBSMBCLIENT_OBJ) $(LIBSMBCLIENT_THREAD_OBJ) $(LIBSMBCLIENT_SYMS) $(LIBTALLOC) $(LIBTDB) $(LIBWBCLIENT)
  	@echo Linking shared library $@

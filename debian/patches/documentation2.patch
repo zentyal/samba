@@ -207,13 +207,13 @@ Index: samba/docs/manpages/nmbd.8
 ===================================================================
 --- samba.orig/docs/manpages/nmbd.8
 +++ samba/docs/manpages/nmbd.8
-@@ -252,8 +252,7 @@
+@@ -261,8 +261,7 @@
  \fBsmbd\fR(8),
  \fBsmb.conf\fR(5),
  \fBsmbclient\fR(1),
 -\fBtestparm\fR(1),
--\fBtestprns\fR(1), and the Internet RFC\'s
-+\fBtestparm\fR(1), and the Internet RFC\'s
+-\fBtestprns\fR(1), and the Internet RFC\*(Aqs
++\fBtestparm\fR(1), and the Internet RFC\*(Aqs
  rfc1001\&.txt,
  rfc1002\&.txt\&. In addition the CIFS (formerly SMB) specification is available as a link from the Web page
  http://samba\&.org/cifs/\&.
@@ -221,7 +221,7 @@ Index: samba/docs/manpages/samba.7
 ===================================================================
 --- samba.orig/docs/manpages/samba.7
 +++ samba/docs/manpages/samba.7
-@@ -60,15 +60,6 @@
+@@ -69,15 +69,6 @@
  configuration file\&.
  .RE
  .PP
@@ -237,7 +237,7 @@ Index: samba/docs/manpages/samba.7
  \fBsmbstatus\fR(1)
  .RS 4
  The
-@@ -102,7 +93,7 @@
+@@ -111,7 +102,7 @@
  .RS 4
  The
  smbsh
@@ -250,7 +250,7 @@ Index: samba/docs/manpages/smb.conf.5
 ===================================================================
 --- samba.orig/docs/manpages/smb.conf.5
 +++ samba/docs/manpages/smb.conf.5
-@@ -11021,8 +11021,7 @@
+@@ -11036,8 +11036,7 @@
  \fBnmbd\fR(8),
  \fBsmbclient\fR(1),
  \fBnmblookup\fR(1),
@@ -264,13 +264,13 @@ Index: samba/docs/manpages/smbd.8
 ===================================================================
 --- samba.orig/docs/manpages/smbd.8
 +++ samba/docs/manpages/smbd.8
-@@ -370,8 +370,7 @@
+@@ -379,8 +379,7 @@
  \fBnmbd\fR(8),
  \fBsmb.conf\fR(5),
  \fBsmbclient\fR(1),
 -\fBtestparm\fR(1),
--\fBtestprns\fR(1), and the Internet RFC\'s
-+\fBtestparm\fR(1), and the Internet RFC\'s
+-\fBtestprns\fR(1), and the Internet RFC\*(Aqs
++\fBtestparm\fR(1), and the Internet RFC\*(Aqs
  rfc1001\&.txt,
  rfc1002\&.txt\&. In addition the CIFS (formerly SMB) specification is available as a link from the Web page
  http://samba\&.org/cifs/\&.

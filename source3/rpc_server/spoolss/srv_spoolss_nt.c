@@ -4442,7 +4442,8 @@ static WERROR enum_all_printers_info_1_name(TALLOC_CTX *mem_ctx,
 
 	DEBUG(4,("enum_all_printers_info_1_name\n"));
 
-	if ((servername[0] == '\\') && (servername[1] == '\\')) {
+	if (servername != NULL &&
+	    (servername[0] == '\\') && (servername[1] == '\\')) {
 		s = servername + 2;
 	}
 
@@ -4477,7 +4478,8 @@ static WERROR enum_all_printers_info_1_network(TALLOC_CTX *mem_ctx,
 	   listed. Windows responds to this call with a
 	   WERR_CAN_NOT_COMPLETE so we should do the same. */
 
-	if (servername[0] == '\\' && servername[1] == '\\') {
+	if (servername != NULL &&
+	    (servername[0] == '\\') && (servername[1] == '\\')) {
 		 s = servername + 2;
 	}
 
@@ -5607,6 +5609,7 @@ WERROR _spoolss_GetPrinterDriver2(struct pipes_struct *p,
 {
 	struct printer_handle *printer;
 	WERROR result;
+	uint32_t version = r->in.client_major_version;
 
 	int snum;
 
@@ -5631,13 +5634,19 @@ WERROR _spoolss_GetPrinterDriver2(struct pipes_struct *p,
 		return WERR_BADFID;
 	}
 
+	if (r->in.client_major_version == SPOOLSS_DRIVER_VERSION_2012) {
+		DEBUG(3,("_spoolss_GetPrinterDriver2: v4 driver requested, "
+			"downgrading to v3\n"));
+		version = SPOOLSS_DRIVER_VERSION_200X;
+	}
+
 	result = construct_printer_driver_info_level(p->mem_ctx,
 						     get_session_info_system(),
 						     p->msg_ctx,
 						     r->in.level, r->out.info,
 						     snum, printer->servername,
 						     r->in.architecture,
-						     r->in.client_major_version);
+						     version);
 	if (!W_ERROR_IS_OK(result)) {
 		TALLOC_FREE(r->out.info);
 		return result;

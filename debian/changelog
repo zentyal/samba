@@ -1,10 +1,10 @@
-samba (2:3.6.13-1) UNRELEASED; urgency=low
+samba (2:3.6.13-1) experimental; urgency=low
 
   * Team upload.
   * New upstream release
   * samba: Suggests winbind. Closes: #689857
 
- -- Ivo De Decker <ivo.dedecker@ugent.be>  Mon, 18 Mar 2013 19:45:11 +0100
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Mon, 18 Mar 2013 21:29:58 +0100
 
 samba (2:3.6.12-1) experimental; urgency=low
 

@@ -24,7 +24,7 @@ Architecture: any
 Pre-Depends: ${misc:Pre-Depends}, dpkg (>= 1.15.6~)
 Depends: samba-common (= ${source:Version}), libwbclient0 (= ${binary:Version}),${shlibs:Depends}, ${misc:Depends}, libpam-runtime (>= 1.0.1-11), libpam-modules, lsb-base (>= 3.2-13), procps, update-inetd, adduser
 Recommends: logrotate, tdb-tools
-Suggests: openbsd-inetd | inet-superserver, smbldap-tools, ldb-tools, ctdb
+Suggests: openbsd-inetd | inet-superserver, smbldap-tools, ldb-tools, ctdb, winbind
 Replaces: samba-common (<= 2.0.5a-2)
 Conflicts: samba4 (<< 4.0.0~alpha6-2)
 Description: SMB/CIFS file, print, and login server for Unix

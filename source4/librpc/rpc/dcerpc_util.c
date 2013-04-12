@@ -270,7 +270,6 @@ struct composite_context *dcerpc_epm_map_binding_send(TALLOC_CTX *mem_ctx,
 
 					composite_done(c);
 					return c;
-
 				} else {
 					talloc_free(default_binding);
 				}
@@ -590,6 +589,11 @@ struct composite_context *dcerpc_pipe_auth_send(struct dcerpc_pipe *p,
 		return c;
 	}
 
+	if (conn->transport.transport == NCACN_HTTP) {
+		c->status = NT_STATUS_OK;
+		composite_done(c);
+		return c;
+	}
 
 	/* Perform an authenticated DCE-RPC bind
 	 */

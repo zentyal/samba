@@ -589,12 +589,6 @@ struct composite_context *dcerpc_pipe_auth_send(struct dcerpc_pipe *p,
 		return c;
 	}
 
-	if (conn->transport.transport == NCACN_HTTP) {
-		c->status = NT_STATUS_OK;
-		composite_done(c);
-		return c;
-	}
-
 	/* Perform an authenticated DCE-RPC bind
 	 */
 	if (!(conn->flags & (DCERPC_SIGN|DCERPC_SEAL))) {

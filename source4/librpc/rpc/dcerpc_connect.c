@@ -358,18 +358,6 @@ struct pipe_http_state {
 };
 
 /*
-  Receive result of pipe open request on http
-*/
-NTSTATUS dcerpc_pipe_open_http_recv(struct composite_context *c)
-{
-	NTSTATUS status;
-	status = composite_wait(c);
-
-	talloc_free(c);
-	return status;
-}
-
-/*
   Stage 2 of ncacn_http: rpc pipe opened (or not)
 */
 static void continue_pipe_open_ncacn_http(struct composite_context *ctx)
@@ -418,17 +406,12 @@ static struct composite_context* dcerpc_pipe_connect_ncacn_http_send(TALLOC_CTX 
 	return c;
 }
 
-/*
-  Receive result of a rpc connection to a rpc pipe on HTTP
-*/
 static NTSTATUS dcerpc_pipe_connect_ncacn_http_recv(struct composite_context *c)
 {
 	NTSTATUS status = composite_wait(c);
-
 	talloc_free(c);
 	return status;
 }
-
 
 struct pipe_unix_state {
 	struct dcerpc_pipe_connect io;
@@ -791,6 +774,9 @@ static void continue_pipe_connect(struct composite_context *c, struct pipe_conne
 		composite_error(c, NT_STATUS_NO_MEMORY);
 		return;
 	}
+
+	if (s->pipe->conn->transport.transport == NCACN_HTTP)
+		return;
 
 	auth_bind_req = dcerpc_pipe_auth_send(s->pipe, s->binding, s->table,
 					      s->credentials, s->lp_ctx);

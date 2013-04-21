@@ -1,3 +1,15 @@
+samba (2:3.6.13-2) UNRELEASED; urgency=low
+
+  * Team upload.
+  * Move binary files out of /etc/samba to /var/lib/samba,
+    where they belong according to the FHS:
+    - schannel_store.tdb
+    - idmap2.tdb
+    - MACHINE.sid
+    Closes: #454770
+
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Sun, 21 Apr 2013 11:54:11 +0200
+
 samba (2:3.6.13-1) experimental; urgency=low
 
   * Team upload.

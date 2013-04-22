@@ -363,7 +363,7 @@ struct pipe_http_state {
 static void continue_pipe_open_ncacn_http(struct composite_context *ctx)
 {
 	struct composite_context *c = talloc_get_type(ctx->async.private_data,
-						      struct composite_context);
+			struct composite_context);
 
 	/* receive result of named pipe open request on tcp/ip */
 	c->status = dcerpc_pipe_open_http_recv(ctx);
@@ -378,6 +378,8 @@ static struct composite_context* dcerpc_pipe_connect_ncacn_http_send(TALLOC_CTX 
 	struct composite_context *c;
 	struct pipe_http_state *s;
 	struct composite_context *pipe_req;
+
+	DEBUG(9, ("%s: Opening pipe\n", __func__));
 
 	/* composite context allocation and setup */
 	c = composite_create(mem_ctx, io->pipe->conn->event_ctx);
@@ -402,15 +404,14 @@ static struct composite_context* dcerpc_pipe_connect_ncacn_http_send(TALLOC_CTX 
 			s->target_hostname,
 			s->port,
 			io->resolve_ctx);
+	if (composite_nomem(pipe_req, c)) return c;
 	composite_continue(c, pipe_req, continue_pipe_open_ncacn_http, c);
 	return c;
 }
 
 static NTSTATUS dcerpc_pipe_connect_ncacn_http_recv(struct composite_context *c)
 {
-	NTSTATUS status = composite_wait(c);
-	talloc_free(c);
-	return status;
+	return composite_wait_free(c);
 }
 
 struct pipe_unix_state {
@@ -636,6 +637,7 @@ static void continue_connect(struct composite_context *c, struct pipe_connect_st
 		return;
 
 	case NCACN_HTTP:
+		DEBUG(9, ("%s: Opening pipe\n", __func__));
 		ncacn_http_req = dcerpc_pipe_connect_ncacn_http_send(c, &pc);
 		composite_continue(c, ncacn_http_req, continue_pipe_connect_ncacn_http, c);
 		return;
@@ -775,8 +777,11 @@ static void continue_pipe_connect(struct composite_context *c, struct pipe_conne
 		return;
 	}
 
-	if (s->pipe->conn->transport.transport == NCACN_HTTP)
+	if (s->pipe->conn->transport.transport == NCACN_HTTP) {
+		c->status = NT_STATUS_OK;
+		composite_done(c);
 		return;
+	}
 
 	auth_bind_req = dcerpc_pipe_auth_send(s->pipe, s->binding, s->table,
 					      s->credentials, s->lp_ctx);
@@ -884,7 +889,7 @@ _PUBLIC_ struct composite_context* dcerpc_pipe_connect_b_send(TALLOC_CTX *parent
 		}
 		break;
 	case NCACN_HTTP:
-		binding->endpoint = "443";
+		binding->endpoint = "80";
 		break;
 	default:
 		break;

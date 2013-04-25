@@ -825,6 +825,7 @@ bld.SAMBA3_SUBSYSTEM('samba3util',
 
 bld.SAMBA3_SUBSYSTEM('samba3core',
                    source=LIB_SRC,
+                   public_headers='../source3/include/talloc_dict.h',
                    deps='''
                         samba3util
                         LIBTSOCKET

@@ -22,6 +22,7 @@
 #include "includes.h"
 #include "lib/events/events.h"
 #include "lib/socket/socket.h"
+#include "lib/tsocket/tsocket.h"
 #include "lib/stream/packet.h"
 #include "libcli/composite/composite.h"
 #include "librpc/rpc/dcerpc.h"
@@ -36,6 +37,7 @@ struct http_virtual_channel {
 	struct socket_context *sock;
 	struct packet_context *packet;
 	struct tstream_context *stream;
+	struct tevent_queue *send_queue;
 	uint32_t pending_reads;
 
 	uint32_t bytes_sent;					/* Channels are limited and must be recycled */
@@ -76,6 +78,88 @@ struct pipe_open_state {
 
 	struct http_private *http;				/* Protocol control structure */
 };
+
+struct open_channel_state
+{
+	struct http_request *request;
+	struct http_request *response;
+};
+
+void open_channel_in_done(struct tevent_req *subreq)
+{
+	struct composite_context *c = tevent_req_callback_data(subreq,
+			struct composite_context);
+	struct open_channel_state *state = talloc_get_type(c->private_data,
+			struct open_channel_state);
+
+	DEBUG(9, ("%s: Retrieving HTTP request status\n", __func__));
+	TALLOC_FREE(subreq);
+	//c->status = //dcerpc_http_open_channel_in_recv(subreq);
+	switch(state->response->response_code) {
+	case 200:
+		c->status = NT_STATUS_OK;
+		break;
+	case 401:
+		composite_error(c, NT_STATUS_GENERIC_NOT_MAPPED);
+		return;
+	default:
+		composite_error(c, NT_STATUS_GENERIC_NOT_MAPPED);
+		return;
+	}
+	composite_done(c);
+}
+
+struct composite_context *dcerpc_http_open_channel_in_send(
+		TALLOC_CTX *mem_ctx,
+		struct dcecli_connection *conn)
+{
+	struct composite_context *c;
+	struct tevent_req *subreq;
+	struct open_channel_state *state;
+	struct http_private *http;
+
+	DEBUG(9, ("%s: Opening channel IN\n", __func__));
+
+	/* composite context allocation and setup */
+	c = composite_create(mem_ctx, conn->event_ctx);
+	if (c == NULL) return NULL;
+
+	state = talloc_zero(c, struct open_channel_state);
+	if (composite_nomem(state, c)) return c;
+	c->private_data = state;
+
+	/* Assign private state fields */
+	http = (struct http_private *)conn->transport.private_data;
+	subreq = http_send_request_send(
+			mem_ctx,
+			conn->event_ctx,
+			http->channel_in.stream,
+			http->channel_in.send_queue,
+			http->server_name,
+			HTTP_REQ_RPC_IN_DATA,
+			"/rpc/rpcproxy.dll",
+			NULL);
+	if (composite_nomem(subreq, c)) return c;
+	tevent_req_set_callback(subreq, open_channel_in_done, c);
+
+	return c;
+}
+
+NTSTATUS dcerpc_http_open_channel_in_recv(struct composite_context *ctx)
+{
+	return composite_wait_free(ctx);
+}
+
+void continue_open_channel_in(struct composite_context *ctx)
+{
+	struct composite_context *c = talloc_get_type(ctx->async.private_data,
+			struct composite_context);
+
+	DEBUG(9, ("%s: Retrieving open channel IN call status\n", __func__));
+	c->status = dcerpc_http_open_channel_in_recv(ctx);
+	if (!composite_is_ok(c)) return;
+	composite_done(c);
+}
 
 /**
  * Called when a IO is triggered by the events system
@@ -271,13 +355,14 @@ static const char *sock_target_hostname(struct dcecli_connection *p)
 
 static void continue_socket_in_connect(struct composite_context *ctx)
 {
-	struct dcecli_connection *conn;
-	struct http_private *http;
-
 	struct composite_context *c = talloc_get_type(ctx->async.private_data,
 			struct composite_context);
 	struct pipe_open_socket_state *s = talloc_get_type(c->private_data,
 			struct pipe_open_socket_state);
+	struct http_private *http = talloc_get_type(s->http,
+			struct http_private);
+	struct dcecli_connection *conn = talloc_get_type(s->conn,
+			struct dcecli_connection);
 
 	c->status = socket_connect_recv(ctx);
 	if (!NT_STATUS_IS_OK(c->status)) {
@@ -291,9 +376,14 @@ static void continue_socket_in_connect(struct composite_context *ctx)
 
 	DEBUG(9, ("%s: Socket for IN channel opened\n", __func__));
 
-	/* make it easier to write a function calls */
-	conn = s->conn;
-	http = s->http;
+	/* Create the send queue */
+	DEBUG(9, ("%s: Creating send queue for IN channel\n", __func__));
+	http->channel_in.send_queue = tevent_queue_create(http, "channel IN send queue");
+	if (!http->channel_in.send_queue) {
+		composite_error(c, NT_STATUS_NO_MEMORY);
+		DEBUG(0, ("%s: tevent_queue_create(%s)\n", __func__, nt_errstr(c->status)));
+		return;
+	}
 
 	/* fill in the transport methods */
 	conn->transport.transport    = NCACN_HTTP;
@@ -313,6 +403,19 @@ static void continue_socket_in_connect(struct composite_context *ctx)
 	conn->transport.shutdown_pipe   = sock_shutdown_pipe;
 	conn->transport.peer_name       = sock_peer_name;
 	conn->transport.target_hostname = sock_target_hostname;
+
+	/* Abstract the socket to stream */
+	DEBUG(9, ("%s: Creating stream abstraction for IN channel\n", __func__));
+	int ret = tstream_bsd_existing_socket(http,
+			socket_get_fd(http->channel_in.sock),
+			&http->channel_in.stream);
+	if (ret == -1) {
+		NTSTATUS status = map_nt_error_from_unix_common(errno);
+		DEBUG(0, ("%s: failed to setup tstream: %s\n", __func__,
+				nt_errstr(status)));
+		return;
+	}
+	socket_set_flags(http->channel_in.sock, SOCKET_FLAG_NOCLOSE);
 
 	/* Initialize packet interface */
 	http->channel_in.packet = packet_init(http);
@@ -513,8 +616,6 @@ static void continue_open_socket_out(struct composite_context *ctx)
 			struct composite_context);
 	struct pipe_open_state *s = talloc_get_type(c->private_data,
 			struct pipe_open_state);
-	struct http_private *http = talloc_get_type(s->http,
-			struct http_private);
 
 	/* receive result socket open request */
 	c->status = dcerpc_pipe_open_socket_out_recv(ctx);
@@ -544,14 +645,10 @@ static void continue_open_socket_out(struct composite_context *ctx)
 	}
 
 	DEBUG(9, ("%s: Sockets opened\n", __func__));
-	composite_done(c);
 
-	//struct tevent_req *open_channel_in = http_send_request_send();
-	//tevent_req_set_callback(open_channel_in, open_channel_in_done, http);
-	/* At this point, both sockets are open. Send RPC_DATA_IN HTTP request*/
-//	struct composite_context *open_channel_in_req;
-//	open_channel_in_req = dcerpc_pipe_open_channel_in_send(c, s->conn);
-//	composite_continue(c, open_channel_in_req, continue_open_channel_in, c);
+	struct composite_context *open_channel_in;
+	open_channel_in = dcerpc_http_open_channel_in_send(c, s->conn);
+	composite_continue(c, open_channel_in, continue_open_channel_in, c);
 }
 
 static void continue_open_socket_in(struct composite_context *ctx)

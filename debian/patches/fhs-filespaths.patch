@@ -63,3 +63,47 @@ Index: samba/docs/manpages/smb.conf.5
  .sp
  Default:
  \fI\fIprivate dir\fR\fR\fI = \fR\fI${prefix}/private\fR\fI \fR
+--- a/libcli/auth/schannel_state_tdb.c
++++ b/libcli/auth/schannel_state_tdb.c
+@@ -40,7 +40,7 @@
+ 					     const char *private_dir)
+ {
+ 	struct tdb_wrap *tdb_sc = NULL;
+-	char *fname = talloc_asprintf(mem_ctx, "%s/schannel_store.tdb", private_dir);
++	char *fname = talloc_asprintf(mem_ctx, "%s/schannel_store.tdb", get_dyn_STATEDIR());
+ 
+ 	if (!fname) {
+ 		return NULL;
+--- a/source3/passdb/machine_sid.c
++++ b/source3/passdb/machine_sid.c
+@@ -132,7 +132,7 @@
+ 	}
+ 
+ 	/* check for an old MACHINE.SID file for backwards compatibility */
+-	if (asprintf(&fname, "%s/MACHINE.SID", lp_private_dir()) == -1) {
++	if (asprintf(&fname, "%s/MACHINE.SID", lp_statedir()) == -1) {
+ 		SAFE_FREE(sam_sid);
+ 		return NULL;
+ 	}
+--- a/source3/utils/net_idmap.c
++++ b/source3/utils/net_idmap.c
+@@ -75,7 +75,7 @@
+ 		dbfile = lp_parm_talloc_string(-1, "tdb", "idmap2.tdb", NULL);
+ 		if (dbfile == NULL) {
+ 			dbfile = talloc_asprintf(talloc_tos(), "%s/idmap2.tdb",
+-						 lp_private_dir());
++						 lp_statedir());
+ 		}
+ 		if (dbfile == NULL) {
+ 			d_fprintf(stderr, _("Out of memory!\n"));
+--- a/source3/winbindd/idmap_tdb2.c
++++ b/source3/winbindd/idmap_tdb2.c
+@@ -108,7 +108,7 @@
+ 		return NT_STATUS_OK;
+ 	}
+ 
+-	db_path = talloc_asprintf(NULL, "%s/idmap2.tdb", lp_private_dir());
++	db_path = talloc_asprintf(NULL, "%s/idmap2.tdb", lp_statedir());
+ 	NT_STATUS_HAVE_NO_MEMORY(db_path);
+ 
+ 	/* Open idmap repository */

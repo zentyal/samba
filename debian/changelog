@@ -1,8 +1,9 @@
-samba (2:3.6.6-6~bpo60+1) UNRELEASED; urgency=low
+samba (2:3.6.6-6~bpo60+1) squeeze-backports; urgency=low
 
   * Backport to squeeze
+  * No xz compression for deb archive.
 
- -- Christian Perrier <bubulle@debian.org>  Sat, 27 Apr 2013 16:44:10 +0200
+ -- Christian Perrier <bubulle@debian.org>  Sat, 27 Apr 2013 16:44:59 +0200
 
 samba (2:3.6.6-6) unstable; urgency=low
 

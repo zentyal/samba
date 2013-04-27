@@ -1,3 +1,9 @@
+samba (2:3.6.6-6~bpo60+1) UNRELEASED; urgency=low
+
+  * Backport to squeeze
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 27 Apr 2013 16:44:10 +0200
+
 samba (2:3.6.6-6) unstable; urgency=low
 
   * Team upload.

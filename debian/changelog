@@ -1,3 +1,10 @@
+samba (2:4.0.3+dfsg1-2.0) UNRELEASED; urgency=low
+
+  * Non-maintainer upload.
+  * Converted to full AD DC package
+
+ -- Andrew Bartlett <abartlet@samba.org>  Mon, 05 May 2013 11:12:19 +1100
+
 samba (2:3.6.14-1) unstable; urgency=low
 
   * Team upload.

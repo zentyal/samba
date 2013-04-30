@@ -8,7 +8,6 @@ documentation2.patch
 documentation.patch
 fhs-filespaths.patch
 installswat.sh.patch
-only_export_public_symbols.patch
 pam-examples.patch
 README_nosmbldap-tools.patch
 shadow_copy2_backport.patch

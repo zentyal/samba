@@ -13,7 +13,6 @@ README_nosmbldap-tools.patch
 smbclient-pager.patch
 smbtar-bashism.patch
 smbtorture-manpage.patch
-undefined-symbols.patch
 usershare.patch
 VERSION.patch
 waf-as-source.patch

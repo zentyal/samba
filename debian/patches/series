@@ -10,7 +10,6 @@ fhs-filespaths.patch
 installswat.sh.patch
 pam-examples.patch
 README_nosmbldap-tools.patch
-shadow_copy2_backport.patch
 smbclient-pager.patch
 smbtar-bashism.patch
 smbtorture-manpage.patch

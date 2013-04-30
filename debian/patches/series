@@ -15,4 +15,3 @@ smbtar-bashism.patch
 smbtorture-manpage.patch
 usershare.patch
 VERSION.patch
-waf-as-source.patch

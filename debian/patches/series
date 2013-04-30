@@ -8,7 +8,6 @@ documentation2.patch
 documentation.patch
 fhs-filespaths.patch
 installswat.sh.patch
-libutil_drop_AI_ADDRCONFIG.patch
 only_export_public_symbols.patch
 pam-examples.patch
 README_nosmbldap-tools.patch

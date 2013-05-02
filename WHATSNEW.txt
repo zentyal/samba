@@ -1,4 +1,104 @@
                    ==============================
+                   Release Notes for Samba 3.6.14
+                           April 29, 2013
+                   ==============================
+
+
+This is is the latest stable release of Samba 3.6.
+
+Major enhancements in Samba 3.6.14 include:
+
+o  Certain xattrs cause Windows error 0x800700FF (bug #9130).
+
+Changes since 3.6.13:
+---------------------
+
+o   Jeremy Allison <jra@samba.org>
+    * BUG 9130: Certain xattrs cause Windows error 0x800700FF.
+    * BUG 9724: Use is_encrypted_packet() function correctly inside server.
+    * BUG 9733: Fix 'smbcontrol close-share' is not working.
+    * BUG 9747: Make sure that we only propogate the INHERITED flag when we are
+      allowed to.
+    * BUG 9748: Remove unneeded fstat system call from hot read path.
+    * BUG 9811: Fix bug in old create temp SMB request. Only use VFS functions.
+
+
+o   David Disseldorp <ddiss@samba.org>
+    * BUG 9650: New or deleted CUPS printerqueues are not recognized by Samba.
+    * BUG 9807: wbinfo: Fix segfault in wbinfo_pam_logon.
+
+
+o   Volker Lendecke <vl@samba.org>
+    * BUG 9727: wkssvc: Fix NULL pointer dereference.
+    * BUG 9736: smbd: Tune "dir" a bit.
+    * BUG 9775: Fix segfault for "artificial" conn_structs.
+    * BUG 9809: RHEL SPEC: Package dbwrap_tool man page.
+
+
+o   Andreas Schneider <asn@samba.org>
+    * BUG 9139: Fix the username map optimization.
+    * BUG 9699: Fix adding case sensitive spn.
+    * BUG 9723: Add a tool to migrate latin1 printing tdbs to registry.
+    * BUG 9735: Fix Winbind separator in upn to username conversion.
+    * BUG 9766: Cache name_to_sid/sid_to_name correctly.
+
+
+Note about upgrading from older versions:
+-----------------------------------------
+
+It is still the case that there are printing tdbs (ntprinting.tdb, ntforms.tdb,
+ntdrivers.tdb) which are in latin1 or other encodings. When updating from
+Samba 3.5 or earlier to Samba 3.6 or 4.0 these tdbs need to be migrated to our
+new registry based printing management.  This means during the migration we
+also need to do charset conversion. This can only been done manually cause we don't
+know in which encoding the tdb is. You have to specify the correct code page
+for the conversion, see iconv -l and Wikipedia [1] for the available codepages.
+The mostly used one is Windows Latin1 which is CP1252.
+
+We've extended the 'net printing dump' and 'net printing migrate' commands to
+define the encoding of the tdb. So you can correctly view the tdb with:
+
+  net printing dump encoding=CP1252 /path/to/ntprinters.tdb
+
+or migrate it with e.g.:
+
+  net printing migrate encoding=CP1252 /path/to/ntprinters.tdb
+
+If you migrate printers we suggest you do it in the following order.
+
+ntforms.tdb
+ntdrivers.tdb
+ntprinting.tdb
+
+Don't forget to rename, move or delete these files in /var/lib/samba after the
+migration.
+
+[1] https://en.wikipedia.org/wiki/Code_page
+
+
+######################################################################
+Reporting bugs & Development Discussion
+#######################################
+
+Please discuss this release on the samba-technical mailing list or by
+joining the #samba-technical IRC channel on irc.freenode.net.
+
+If you do report problems then please try to send high quality
+feedback. If you don't provide vital information to help us track down
+the problem then you will probably be ignored.  All bug reports should
+be filed under the Samba 3.6 product in the project's Bugzilla
+database (https://bugzilla.samba.org/).
+
+
+======================================================================
+== Our Code, Our Bugs, Our Responsibility.
+== The Samba Team
+======================================================================
+
+Release notes for older releases follow:
+----------------------------------------
+
+                   ==============================
                    Release Notes for Samba 3.6.13
                            March 18, 2013
                    ==============================
@@ -94,8 +194,9 @@ database (https://bugzilla.samba.org/).
 == The Samba Team
 ======================================================================
 
-Release notes for older releases follow:
-----------------------------------------
+
+----------------------------------------------------------------------
+
 
                    ==============================
                    Release Notes for Samba 3.6.12

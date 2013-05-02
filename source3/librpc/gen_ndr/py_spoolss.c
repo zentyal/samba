@@ -31872,8 +31872,8 @@ void initspoolss(void)
 	PyModule_AddObject(m, "PRINTER_STATUS_BUSY", PyInt_FromLong(PRINTER_STATUS_BUSY));
 	PyModule_AddObject(m, "SPOOL_REG_PRINTMAXRESOLUTIONSUPPORTED", PyString_FromString("printMaxResolutionSupported"));
 	PyModule_AddObject(m, "PRINTER_DRIVER_PACKAGE_AWARE", PyInt_FromLong(PRINTER_DRIVER_PACKAGE_AWARE));
-	PyModule_AddObject(m, "DMPAPER_PENV_10", PyInt_FromLong(DMPAPER_PENV_10));
 	PyModule_AddObject(m, "JOB_NOTIFY_FIELD_TOTAL_PAGES", PyInt_FromLong(JOB_NOTIFY_FIELD_TOTAL_PAGES));
+	PyModule_AddObject(m, "DMPAPER_PENV_10", PyInt_FromLong(DMPAPER_PENV_10));
 	PyModule_AddObject(m, "PRINTER_STATUS_PAPER_JAM", PyInt_FromLong(PRINTER_STATUS_PAPER_JAM));
 	PyModule_AddObject(m, "SPOOLSS_DM_PS_FEED_DIRECTION_SHORT_EDGE_FIRST", PyInt_FromLong(SPOOLSS_DM_PS_FEED_DIRECTION_SHORT_EDGE_FIRST));
 	PyModule_AddObject(m, "SERVER_ALL_ACCESS", PyInt_FromLong(SEC_STD_REQUIRED|SERVER_ACCESS_ADMINISTER|SERVER_ACCESS_ENUMERATE));
@@ -31939,8 +31939,8 @@ void initspoolss(void)
 	PyModule_AddObject(m, "SPOOLSS_DRIVER_VERSION_9X", PyInt_FromLong(SPOOLSS_DRIVER_VERSION_9X));
 	PyModule_AddObject(m, "SPOOLSS_JOB_CONTROL_RESUME", PyInt_FromLong(SPOOLSS_JOB_CONTROL_RESUME));
 	PyModule_AddObject(m, "PRINTER_NOTIFY_FIELD_ATTRIBUTES", PyInt_FromLong(PRINTER_NOTIFY_FIELD_ATTRIBUTES));
-	PyModule_AddObject(m, "SPOOL_REG_OPERATINGSYSTEM", PyString_FromString("operatingSystem"));
 	PyModule_AddObject(m, "MAXDEVICENAME", PyInt_FromLong(32));
+	PyModule_AddObject(m, "SPOOL_REG_OPERATINGSYSTEM", PyString_FromString("operatingSystem"));
 	PyModule_AddObject(m, "PORT_STATUS_NO_TONER", PyInt_FromLong(PORT_STATUS_NO_TONER));
 	PyModule_AddObject(m, "DMDITHER_LINEART", PyInt_FromLong(DMDITHER_LINEART));
 	PyModule_AddObject(m, "DMPAPER_PENV_3_ROTATED", PyInt_FromLong(DMPAPER_PENV_3_ROTATED));

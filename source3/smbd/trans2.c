@@ -328,6 +328,15 @@ static struct ea_list *get_ea_list_from_file(TALLOC_CTX *mem_ctx, connection_str
 			return NULL;
 		}
 
+		if (listp->ea.value.length == 0) {
+			/*
+			 * We can never return a zero length EA.
+			 * Windows reports the EA's as corrupted.
+			 */
+			TALLOC_FREE(listp);
+			continue;
+		}
+
 		push_ascii_fstring(dos_ea_name, listp->ea.name);
 
 		*pea_total_len +=
@@ -411,6 +420,7 @@ static NTSTATUS fill_ea_chained_buffer(TALLOC_CTX *mem_ctx,
 {
 	uint8_t *p = (uint8_t *)pdata;
 	uint8_t *last_start = NULL;
+	bool store_data = (pdata != NULL);
 
 	*ret_data_size = 0;
 
@@ -422,8 +432,9 @@ static NTSTATUS fill_ea_chained_buffer(TALLOC_CTX *mem_ctx,
 		size_t dos_namelen;
 		fstring dos_ea_name;
 		size_t this_size;
+		size_t pad = 0;
 
-		if (last_start) {
+		if (last_start && store_data) {
 			SIVAL(last_start, 0, PTR_DIFF(p, last_start));
 		}
 		last_start = p;
@@ -440,7 +451,7 @@ static NTSTATUS fill_ea_chained_buffer(TALLOC_CTX *mem_ctx,
 		this_size = 0x08 + dos_namelen + 1 + ea_list->ea.value.length;
 
 		if (ea_list->next) {
-			size_t pad = 4 - (this_size % 4);
+			pad = (4 - (this_size % 4)) % 4;
 			this_size += pad;
 		}
 
@@ -449,12 +460,19 @@ static NTSTATUS fill_ea_chained_buffer(TALLOC_CTX *mem_ctx,
 		}
 
 		/* We know we have room. */
-		SIVAL(p, 0x00, 0); /* next offset */
-		SCVAL(p, 0x04, ea_list->ea.flags);
-		SCVAL(p, 0x05, dos_namelen);
-		SSVAL(p, 0x06, ea_list->ea.value.length);
-		fstrcpy((char *)(p+0x08), dos_ea_name);
-		memcpy(p + 0x08 + dos_namelen + 1, ea_list->ea.value.data, ea_list->ea.value.length);
+		if (store_data) {
+			SIVAL(p, 0x00, 0); /* next offset */
+			SCVAL(p, 0x04, ea_list->ea.flags);
+			SCVAL(p, 0x05, dos_namelen);
+			SSVAL(p, 0x06, ea_list->ea.value.length);
+			fstrcpy((char *)(p+0x08), dos_ea_name);
+			memcpy(p + 0x08 + dos_namelen + 1, ea_list->ea.value.data, ea_list->ea.value.length);
+			if (pad) {
+				memset(p + 0x08 + dos_namelen + 1 + ea_list->ea.value.length,
+					'\0',
+					pad);
+			}
+		}
 
 		total_data_size -= this_size;
 		p += this_size;
@@ -468,13 +486,38 @@ static NTSTATUS fill_ea_chained_buffer(TALLOC_CTX *mem_ctx,
 static unsigned int estimate_ea_size(connection_struct *conn, files_struct *fsp, const char *fname)
 {
 	size_t total_ea_len = 0;
+	struct ea_list *ea_list = NULL;
 	TALLOC_CTX *mem_ctx = NULL;
 
 	if (!lp_ea_support(SNUM(conn))) {
 		return 0;
 	}
 	mem_ctx = talloc_tos();
-	(void)get_ea_list_from_file(mem_ctx, conn, fsp, fname, &total_ea_len);
+	ea_list = get_ea_list_from_file(mem_ctx, conn, fsp, fname, &total_ea_len);
+	if (ea_list == NULL) {
+		return 0;
+	}
+	if(conn->sconn->using_smb2) {
+		NTSTATUS status;
+		unsigned int ret_data_size;
+		/*
+		 * We're going to be using fill_ea_chained_buffer() to
+		 * marshall EA's - this size is significantly larger
+		 * than the SMB1 buffer. Re-calculate the size without
+		 * marshalling.
+		 */
+		status = fill_ea_chained_buffer(mem_ctx,
+						NULL,
+						65535,
+						&ret_data_size,
+						conn,
+						ea_list);
+		if (!NT_STATUS_IS_OK(status)) {
+			ret_data_size = 0;
+		}
+		total_ea_len = ret_data_size;
+	}
+
 	return total_ea_len;
 }
 

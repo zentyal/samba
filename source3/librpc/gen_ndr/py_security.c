@@ -2089,8 +2089,8 @@ void initsecurity(void)
 	PyModule_AddObject(m, "SEC_ACE_TYPE_SYSTEM_ALARM", PyInt_FromLong(SEC_ACE_TYPE_SYSTEM_ALARM));
 	PyModule_AddObject(m, "SEC_RIGHTS_DIR_PRIV_RESTORE", PyInt_FromLong(SEC_RIGHTS_PRIV_RESTORE|SEC_DIR_ADD_FILE|SEC_DIR_ADD_SUBDIR));
 	PyModule_AddObject(m, "SEC_GROUP_FROM_PARENT", PyInt_FromLong(SEC_GROUP_FROM_PARENT));
-	PyModule_AddObject(m, "DOMAIN_RID_LOGON", PyInt_FromLong(9));
 	PyModule_AddObject(m, "SID_WORLD", PyString_FromString("S-1-1-0"));
+	PyModule_AddObject(m, "DOMAIN_RID_LOGON", PyInt_FromLong(9));
 	PyModule_AddObject(m, "SEC_STD_READ_CONTROL", PyInt_FromLong(0x00020000));
 	PyModule_AddObject(m, "SEC_MASK_GENERIC", PyInt_FromLong(0xF0000000));
 	PyModule_AddObject(m, "SEC_GENERIC_READ", PyInt_FromLong(0x80000000));

@@ -7,7 +7,6 @@ bug_604768_upstream_7826_fix-WHATSNEW-link.patch
 documentation2.patch
 documentation.patch
 fhs-filespaths.patch
-installswat.sh.patch
 pam-examples.patch
 README_nosmbldap-tools.patch
 smbclient-pager.patch

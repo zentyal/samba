@@ -109,9 +109,6 @@ then
 	install -d -m 1770 -g sambashare /var/lib/samba/usershares
 fi
 
-update-alternatives --install /usr/bin/smbstatus smbstatus /usr/bin/smbstatus.samba3 10 \
-	--slave /usr/share/man/man1/smbstatus.1.gz smbstatus.1.gz /usr/share/man/man1/smbstatus.samba3.1.gz
-
 #DEBHELPER#
 
 exit 0

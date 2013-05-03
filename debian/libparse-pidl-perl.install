@@ -1,0 +1,5 @@
+usr/bin/pidl
+usr/share/man/man1/pidl.1p
+usr/share/man/man3/*.3pm
+usr/share/perl5/Parse/Pidl
+usr/share/perl5/Parse/Pidl.pm

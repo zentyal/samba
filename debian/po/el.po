@@ -11,189 +11,238 @@
 #    Developers do not need to manually edit POT or PO files.
 #
 # QUAD-nrg.net <yodesy@quad-nrg.net>, 2006.
-# Konstantinos Margaritis <markos@codex.gr>, 2010.
-# Konstantinos Margaritis <markos@debian.org>, 2010.
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_el\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
-"PO-Revision-Date: 2010-11-23 15:27+0200\n"
-"Last-Translator: Konstantinos Margaritis <markos@debian.org>\n"
-"Language-Team: American English <debian-l10n-greek@lists.debian.org>\n"
+"Report-Msgid-Bugs-To: samba4@packages.debian.org\n"
+"POT-Creation-Date: 2012-11-06 21:27+0100\n"
+"PO-Revision-Date: 2007-03-16 11:29+0200\n"
+"Last-Translator: galaxico\n"
+"Language-Team:  <en@li.org>\n"
 "Language: \n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: Lokalize 1.0\n"
+"X-Generator: KBabel 1.11.4\n"
 "Plural-Forms:  nplurals=2; plural=(n != 1);\n"
 
-#. Type: title
+#. Type: boolean
 #. Description
-#: ../samba-common.templates:1001
-msgid "Samba server and utilities"
+#: ../samba4.templates:1001
+msgid "Upgrade from Samba 3?"
 msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:2001
-msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr ""
-"Τροποποίηση του smb.conf ώστε να χρησιμοποιεί τις ρυθμίσεις WINS από τον "
-"server DHCP;"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:2001
+#: ../samba4.templates:1001
 msgid ""
-"If your computer gets IP address information from a DHCP server on the "
-"network, the DHCP server may also provide information about WINS servers "
-"(\"NetBIOS name servers\") present on the network.  This requires a change "
-"to your smb.conf file so that DHCP-provided WINS settings will automatically "
-"be read from /etc/samba/dhcp.conf."
+"It is possible to migrate the existing configuration files from Samba 3 to "
+"Samba 4. This is likely to fail for complex setups, but should provide a "
+"good starting point for most existing installations."
 msgstr ""
-"Αν ο υπολογιστής σας παίρνει πληροφορίες για την διεύθυνση IP από έναν "
-"server DHCP στο δίκτυο, ο server DHCP μπορεί επίσης να δώσει πληροφορίες "
-"σχετικά με server WINS (\"NetBIOS name servers\") που υπάρχουν στο δίκτυο. "
-"Αυτό απαιτεί μια αλλαγή στο αρχείο σας smb.conf ώστε ρυθμίσεις για τον "
-"server WINS που παρέχονται από τον εξυπηρετητή DHCP να διαβάζονται αυτόματα "
-"από από το αρχείο /etc/samba/dhcp.conf."
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:2001
+#: ../samba4.templates:2001
+msgid "Server role"
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba4.templates:2001
 msgid ""
-"The dhcp3-client package must be installed to take advantage of this feature."
+"Domain controllers manage NT4-style or Active Directory domains and provide "
+"services such as identity management and domain logons. Each domain needs to "
+"have a at least one domain controller."
 msgstr ""
-"Για να εκμεταλλευτείτε αυτό το γνώρισμα θα πρέπει να εγκαταστήσετε το πακέτο "
-"dhcp3-client."
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:3001
-msgid "Configure smb.conf automatically?"
-msgstr "Αυτόματη ρύθμιση του αρχείου smb.conf;"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:3001
+#: ../samba4.templates:2001
 msgid ""
-"The rest of the configuration of Samba deals with questions that affect "
-"parameters in /etc/samba/smb.conf, which is the file used to configure the "
-"Samba programs (nmbd and smbd). Your current smb.conf contains an \"include"
-"\" line or an option that spans multiple lines, which could confuse the "
-"automated configuration process and require you to edit your smb.conf by "
-"hand to get it working again."
+"Member servers can be part of a NT4-style or Active Directory domain but do "
+"not provide any domain services. Workstations and file or print servers are "
+"usually regular domain members."
 msgstr ""
-"Το υπόλοιπο της ρύθμισης της υπηρεσίας Samba έχει να κάνει με ερωτήσεις που "
-"επηρεάζουν παραμέτρους στο αρχείο etc/samba/smb.conf, που είναι το αρχείο "
-"που χρησιμοποιείται για την ρύθμιση των προγραμμάτων της Samba (nmbd και "
-"smbd). To παρόν αρχείο σας smb.conf περιέχει μια γραμμή 'include' ή μια "
-"επιλογή που εκτείνεται σε πολλαπλές γραμμές, που θα μπορούσαν να μπερδέψουν "
-"την διαδικασία της αυτόματης ρύθμισης και απαιτούν την διόρθωση του αρχείου "
-"smb.conf από σας με το χέρι ώστε να ξαναγίνει λειτουργικό."
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:3001
+#: ../samba4.templates:2001
 msgid ""
-"If you do not choose this option, you will have to handle any configuration "
-"changes yourself, and will not be able to take advantage of periodic "
-"configuration enhancements."
+"A standalone server can not be used in a domain and only supports file "
+"sharing and Windows for Workgroups-style logins."
 msgstr ""
-"Αν δεν διαλέξετε αυτή την επιλογή , θα πρέπει να χειριστείτε τις όποιες "
-"αλλαγές στις ρυθμίσεις μόνοι σας και δεν θα είστε σε θέση να εκμεταλλευτείτε "
-"τις βελτιώσεις που κατά καιρούς γίνονται σε αυτές."
+
+#. Type: select
+#. Description
+#: ../samba4.templates:2001
+msgid ""
+"If no server role is specified, the Samba server will not be provisioned, so "
+"this can be done manually by the user."
+msgstr ""
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:4001
-msgid "Workgroup/Domain Name:"
-msgstr "Όνομα Ομάδας Εργασίας/Τομέα:"
+#: ../samba4.templates:3001
+msgid "Realm name:"
+msgstr ""
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:4001
+#: ../samba4.templates:3001
 msgid ""
-"Please specify the workgroup for this system.  This setting controls which "
-"workgroup the system will appear in when used as a server, the default "
-"workgroup to be used when browsing with various frontends, and the domain "
-"name used with the \"security=domain\" setting."
-msgstr ""
-"Παρακαλώ προσδιορίστε το όνομα της ομάδας εργασίας (workgroup) του "
-"συστήματος.  Η παράμετρος αυτή ελέγχει την ομάδα εργασίας με την οποία θα "
-"εμφανίζεται το σύστημα ως εξυπηρετητής, την προκαθορισμένη ομάδα εργασίας "
-"κατά την περιήγηση με διάφορα προγράμματα, και το όνομα του τομέα που "
-"χρησιμοποιείται στην ρύθμιση security=domain."
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Να χρησιμοποιηθεί κρυπτογράφηση των κωδικών πρόσβασης;"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Όλες οι πρόσφατες εκδόσεις των πελατών Windows επικοινωνούν με τους "
-"εξυπηρετητές SMB/CIFS χρησιμοποιώντας κρυπτογραφημένους κωδικούς πρόσβασης. "
-"Αν θέλετε να χρησιμοποιήσετε μη κρυπτογραφημένους κωδικούς θα πρέπει να "
-"αλλάξετε μια παράμετρο στο registry των Windows."
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Η ενεργοποίηση αυτής της επιλογής συνιστάται έντονα καθώς πλέον δεν υπάρχει "
-"υποστήριξη για μη κρυπτογραφημένους κωδικούς σε προϊόντα Microsoft Windows. "
-"Αν την επιλέξετε, βεβαιωθείτε ότι έχετε ένα έγκυρο αρχείο /etc/samba/"
-"smbpasswd και ότι ορίζετε κωδικούς πρόσβασης σ' αυτό για κάθε χρήστη με τη "
-"χρήση της εντολήςsmbpasswd."
-
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
+"Please specify the Kerberos realm for the domain that this domain controller "
+"controls."
 msgstr ""
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "δαίμονες"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
+#. Type: string
 #. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Πώς θέλετε να εκτελείται η υπηρεσία Samba;"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
+#: ../samba4.templates:3001
+msgid "Usually this is the a capitalized version of your DNS hostname."
 msgstr ""
-"Ο δαίμονας της υπηρεσίας Samba μπορεί να τρέχει σαν ένας συνηθισμένος "
-"δαίμονας ή από τον inetd. Η εκτέλεσή του σαν συνηθισμένου δαίμονα είναι η "
-"συνιστώμενη προσέγγιση."
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid "New password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid "If this field is left blank, a random password will be generated."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid "A password can be set later by running, as root:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid " $ samba-tool user setpassword administrator"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:5001
+msgid "Repeat password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba4.templates:6001
+msgid "Password input error"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba4.templates:6001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr ""
+
+#, fuzzy
+#~| msgid ""
+#~| "If you do not choose this option, you will have to handle any "
+#~| "configuration changes yourself, and will not be able to take advantage "
+#~| "of periodic configuration enhancements."
+#~ msgid ""
+#~ "If you do not choose this option, Samba will be left unconfigured, and "
+#~ "you will have to configure it yourself."
+#~ msgstr ""
+#~ "Αν δεν διαλέξετε αυτή την επιλογή , θα πρέπει να χειριστείτε τις όποιες "
+#~ "αλλαγές στις ρυθμίσεις μόνοι σας και δεν θα είστε σε θέση να "
+#~ "εκμεταλλευτείτε τις βελτιώσεις που κατά καιρούς γίνονται σε αυτές."
+
+#, fuzzy
+#~| msgid "Workgroup/Domain Name:"
+#~ msgid "Domain Name:"
+#~ msgstr "Όνομα Ομάδας Εργασίας/Τομέα:"
+
+#, fuzzy
+#~| msgid ""
+#~| "Please specify the workgroup you want this server to appear to be in "
+#~| "when queried by clients. Note that this parameter also controls the "
+#~| "domain name used with the security=domain setting."
+#~ msgid ""
+#~ "Please specify the domain you want this server to appear to be in when "
+#~ "queried by clients."
+#~ msgstr ""
+#~ "Παρακαλώ προσδιορίστε το όνομα της ομάδας εργασίας (workgroup) στην οποία "
+#~ "θέλετε να εμφανίζει αυτός ο εξυπηρετητής ότι ανήκει όταν ερωτάται από "
+#~ "τους πελάτες. Σημειώστε ότι αυτή η παράμετρος ελέγχει επίσης το όνομα του "
+#~ "τομέα που χρησιμοποιείται στην ρύθμιση security=domain."
+
+#~ msgid "Modify smb.conf to use WINS settings from DHCP?"
+#~ msgstr ""
+#~ "Τροποποίηση του smb.conf ώστε να χρησιμοποιεί τις ρυθμίσεις WINS από τον "
+#~ "server DHCP;"
+
+#~ msgid ""
+#~ "If your computer gets IP address information from a DHCP server on the "
+#~ "network, the DHCP server may also provide information about WINS servers "
+#~ "(\"NetBIOS name servers\") present on the network.  This requires a "
+#~ "change to your smb.conf file so that DHCP-provided WINS settings will "
+#~ "automatically be read from /etc/samba/dhcp.conf."
+#~ msgstr ""
+#~ "Αν ο υπολογιστής σας παίρνει πληροφορίες για την διεύθυνση IP από έναν "
+#~ "server DHCP στο δίκτυο, ο server DHCP μπορεί επίσης να δώσει πληροφορίες "
+#~ "σχετικά με server WINS (\"NetBIOS name servers\") που υπάρχουν στο "
+#~ "δίκτυο. Αυτό απαιτεί μια αλλαγή στο αρχείο σας smb.conf ώστε ρυθμίσεις "
+#~ "για τον server WINS που παρέχονται από τον εξυπηρετητή DHCP να "
+#~ "διαβάζονται αυτόματα από από το αρχείο /etc/samba/dhcp.conf."
+
+#~ msgid ""
+#~ "The dhcp3-client package must be installed to take advantage of this "
+#~ "feature."
+#~ msgstr ""
+#~ "Για να εκμεταλλευτείτε αυτό το γνώρισμα θα πρέπει να εγκαταστήσετε το "
+#~ "πακέτο dhcp3-client."
+
+#~ msgid "Configure smb.conf automatically?"
+#~ msgstr "Αυτόματη ρύθμιση του αρχείου smb.conf;"
+
+#~ msgid ""
+#~ "The rest of the configuration of Samba deals with questions that affect "
+#~ "parameters in /etc/samba/smb.conf, which is the file used to configure "
+#~ "the Samba programs (nmbd and smbd). Your current smb.conf contains an "
+#~ "'include' line or an option that spans multiple lines, which could "
+#~ "confuse the automated configuration process and require you to edit your "
+#~ "smb.conf by hand to get it working again."
+#~ msgstr ""
+#~ "Το υπόλοιπο της ρύθμισης της υπηρεσίας Samba έχει να κάνει με ερωτήσεις "
+#~ "που επηρεάζουν παραμέτρους στο αρχείο etc/samba/smb.conf, που είναι το "
+#~ "αρχείο που χρησιμοποιείται για την ρύθμιση των προγραμμάτων της Samba "
+#~ "(nmbd και smbd). To παρόν αρχείο σας smb.conf περιέχει μια γραμμή "
+#~ "'include' ή μια επιλογή που εκτείνεται σε πολλαπλές γραμμές, που θα "
+#~ "μπορούσαν να μπερδέψουν την διαδικασία της αυτόματης ρύθμισης και "
+#~ "απαιτούν την διόρθωση του αρχείου smb.conf από σας με το χέρι ώστε να "
+#~ "ξαναγίνει λειτουργικό."
+
+#~ msgid "Use password encryption?"
+#~ msgstr "Να χρησιμοποιηθεί κρυπτογράφηση των κωδικών πρόσβασης;"
+
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB servers using encrypted "
+#~ "passwords. If you want to use clear text passwords you will need to "
+#~ "change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Όλες οι πρόσφατες εκδόσεις των πελατών Windows επικοινωνούν με τους "
+#~ "εξυπηρετητές SMB χρησιμοποιώντας κρυπτογραφημένους κωδικούς πρόσβασης. Αν "
+#~ "θέλετε να χρησιμοποιήσετε μη κρυπτογραφημένους κωδικούς θα πρέπει να "
+#~ "αλλάξετε μια παράμετρο στο registry των Windows."
+
+#~ msgid ""
+#~ "Enabling this option is highly recommended. If you do, make sure you have "
+#~ "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
+#~ "each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Η ενεργοποίηση αυτής της επιλογής συνιστάται έντονα. Αν την κάνετε, "
+#~ "βεβαιωθείτε ότι έχετε ένα έγκυρο αρχείο /etc/samba/smbpasswd και ότι "
+#~ "ορίζετε κωδικούς πρόσβασης σ' αυτό για κάθε χρήστη που χρησιμοποιεί την "
+#~ "εντολή smbpasswd."
 
 #~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
 #~ msgstr ""
@@ -224,11 +273,28 @@ msgstr ""
 #~ "χρησιμοποιούν μη κρυπτογραφημένους κωδικούς πρόσβασης."
 
 #~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
+#~ "See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
+#~ "package for more details."
 #~ msgstr ""
 #~ "Δείτε το αρχείο usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html από το "
 #~ "πακέτο samba-doc για περισσότερες λεπτομέρειες."
+
+#~ msgid "daemons"
+#~ msgstr "δαίμονες"
+
+#~ msgid "inetd"
+#~ msgstr "inetd"
+
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Πώς θέλετε να εκτελείται η υπηρεσία Samba;"
+
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Ο δαίμονας της υπηρεσίας Samba μπορεί να τρέχει σαν ένας συνηθισμένος "
+#~ "δαίμονας ή από τον inetd. Η εκτέλεσή του σαν συνηθισμένου δαίμονα είναι η "
+#~ "συνιστώμενη προσέγγιση."
 
 #~ msgid "Chaining passdb backends is not supported"
 #~ msgstr "Η αλύσωση των backend των passdb δεν υποστηρίζεται"

@@ -1,0 +1,5 @@
+usr/bin/samba-tool
+usr/sbin/samba_kcc
+usr/share/samba/addshare.py
+usr/share/samba/setoption.py
+usr/share/man/man8/samba-tool.8

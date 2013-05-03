@@ -16,8 +16,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: eu\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba4@packages.debian.org\n"
+"POT-Creation-Date: 2012-11-06 21:27+0100\n"
 "PO-Revision-Date: 2007-04-07 23:18+0200\n"
 "Last-Translator: Piarres Beobide <pi@beobide.net>\n"
 "Language-Team: librezale <librezale@librezale.org>\n"
@@ -28,162 +28,212 @@ msgstr ""
 "X-Generator: KBabel 1.11.4\n"
 "Plural-Forms: nplurals=2; plural=(n != 1)\n"
 
-#. Type: title
+#. Type: boolean
 #. Description
-#: ../samba-common.templates:1001
-msgid "Samba server and utilities"
+#: ../samba4.templates:1001
+msgid "Upgrade from Samba 3?"
 msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:2001
-msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr "smb.conf WINS ezarpenak DHCP-tik jasotzeko eraldatu?"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:2001
+#: ../samba4.templates:1001
 msgid ""
-"If your computer gets IP address information from a DHCP server on the "
-"network, the DHCP server may also provide information about WINS servers "
-"(\"NetBIOS name servers\") present on the network.  This requires a change "
-"to your smb.conf file so that DHCP-provided WINS settings will automatically "
-"be read from /etc/samba/dhcp.conf."
+"It is possible to migrate the existing configuration files from Samba 3 to "
+"Samba 4. This is likely to fail for complex setups, but should provide a "
+"good starting point for most existing installations."
 msgstr ""
-"Zure sistemak IP helbidea sareko DHCP zerbitzari batetatik jasoaz gero, "
-"zerbitzari horrek sareko WINS (\"NetBIOS name servers\") zerbitzarien datuak "
-"eman ditzake.  Honek smb.conf fitxategian aldaketa bat behar du DHCP bidezko "
-"WINS ezarpenak /etc/samba/dhcp.conf-etik irakurtzeko."
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:2001
+#: ../samba4.templates:2001
+msgid "Server role"
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba4.templates:2001
 msgid ""
-"The dhcp3-client package must be installed to take advantage of this feature."
+"Domain controllers manage NT4-style or Active Directory domains and provide "
+"services such as identity management and domain logons. Each domain needs to "
+"have a at least one domain controller."
 msgstr ""
-"Ezaugarri honetaz baliatzeko dhcp3-client bezeroa instalaturik izan behar "
-"duzu."
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:3001
-msgid "Configure smb.conf automatically?"
-msgstr "Smb.conf automatikoki konfiguratu?"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:3001
+#: ../samba4.templates:2001
 msgid ""
-"The rest of the configuration of Samba deals with questions that affect "
-"parameters in /etc/samba/smb.conf, which is the file used to configure the "
-"Samba programs (nmbd and smbd). Your current smb.conf contains an \"include"
-"\" line or an option that spans multiple lines, which could confuse the "
-"automated configuration process and require you to edit your smb.conf by "
-"hand to get it working again."
+"Member servers can be part of a NT4-style or Active Directory domain but do "
+"not provide any domain services. Workstations and file or print servers are "
+"usually regular domain members."
 msgstr ""
-"Konfigurazioaren hurrengo atalak /etc/samba/smb.conf fitxategiari dagozkion "
-"ezarpenenak dira, honek Samba programak (smbd eta nmbd) konfiguratzen ditu. "
-"Zure smb.conf fitxategiak 'include' lerro bat edo lerro bat baino luzeago "
-"den aukera bat badu, horregatik konfigurazio automatiko fitxategia honda "
-"daiteke, zuk eskuz konpondu beharko duzularik."
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:3001
+#: ../samba4.templates:2001
 msgid ""
-"If you do not choose this option, you will have to handle any configuration "
-"changes yourself, and will not be able to take advantage of periodic "
-"configuration enhancements."
+"A standalone server can not be used in a domain and only supports file "
+"sharing and Windows for Workgroups-style logins."
 msgstr ""
-"Aukera hau ez erabiliaz gero, konfigurazioko edozein aldaketa eskuz egin "
-"beharko duzu eta ezingo duzu konfigurazio aldaketa automatikoez baliatu."
+
+#. Type: select
+#. Description
+#: ../samba4.templates:2001
+msgid ""
+"If no server role is specified, the Samba server will not be provisioned, so "
+"this can be done manually by the user."
+msgstr ""
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:4001
-msgid "Workgroup/Domain Name:"
-msgstr "Lan Talde/Domeinu izena:"
+#: ../samba4.templates:3001
+msgid "Realm name:"
+msgstr ""
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:4001
+#: ../samba4.templates:3001
 msgid ""
-"Please specify the workgroup for this system.  This setting controls which "
-"workgroup the system will appear in when used as a server, the default "
-"workgroup to be used when browsing with various frontends, and the domain "
-"name used with the \"security=domain\" setting."
-msgstr ""
-"Mesedez zehaztu sistema honetarako lan-taldea. Ezarpen honek sistema "
-"zerbitzari moduan erabiltzean agertuko den lan-taldea, zenbait interfaze "
-"bidez bistaratzean erabiliko den lehenetsitako lan-taldea eta "
-"\"security=domain\" ezarpenak erabiltzen duen domeinu izena kontrolatzen "
-"ditu."
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Zifraturiko pasahitzak erabili?"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Windows bezero berri guztiek SMB zerbitzariekiko harremanak zifraturiko "
-"pasahitzak erabiliaz egiten dituzte. Testu laueko pasahitzak erabili nahi "
-"izanez gero parametro bat aldatu behar duzu Windows erregistroan."
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Aukera hau gaitzea oso gomendagarri da testu laueko pasahitzen onarpena ez "
-"bait da aurrerantzean mantendurik egongo Microsoft produktuetan. Erabiltzea "
-"hautatuaz gero ziurtatu baliozko /etc/samba/smbpasswd fitxategi bat duzula "
-"eta pasahitzak smbpasswd programaren bidez ezarri dituzula."
-
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
+"Please specify the Kerberos realm for the domain that this domain controller "
+"controls."
 msgstr ""
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "deabruak"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
+#. Type: string
 #. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Nola nahi duzu Samba abiaraztea?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
+#: ../samba4.templates:3001
+msgid "Usually this is the a capitalized version of your DNS hostname."
 msgstr ""
-"Samba smbd zerbitzua deabru arrunt edo inted bidez abiarazi daiteke. Deabru "
-"bezala abiaraztea gomendatzen da."
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid "New password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid "If this field is left blank, a random password will be generated."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid "A password can be set later by running, as root:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid " $ samba-tool user setpassword administrator"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:5001
+msgid "Repeat password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba4.templates:6001
+msgid "Password input error"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba4.templates:6001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr ""
+
+#, fuzzy
+#~| msgid ""
+#~| "If you do not choose this option, you will have to handle any "
+#~| "configuration changes yourself, and will not be able to take advantage "
+#~| "of periodic configuration enhancements."
+#~ msgid ""
+#~ "If you do not choose this option, Samba will be left unconfigured, and "
+#~ "you will have to configure it yourself."
+#~ msgstr ""
+#~ "Aukera hau ez erabili ezkero, konfigurazioko edozein aldaketa eskuz egin "
+#~ "beharko duzu eta ezingo duzu konfigurazio aldaketa automatikoez baliatu."
+
+#, fuzzy
+#~| msgid "Workgroup/Domain Name:"
+#~ msgid "Domain Name:"
+#~ msgstr "Lan Talde/Domeinu izena?"
+
+#, fuzzy
+#~| msgid ""
+#~| "Please specify the workgroup you want this server to appear to be in "
+#~| "when queried by clients. Note that this parameter also controls the "
+#~| "domain name used with the security=domain setting."
+#~ msgid ""
+#~ "Please specify the domain you want this server to appear to be in when "
+#~ "queried by clients."
+#~ msgstr ""
+#~ "Mesede ezarri zure zerbitzariari sareko bezeroek galdetzean bistaraziko "
+#~ "duen lan taldea. Kontutan izan parametro honek security=domain ezarpeneko "
+#~ "domeinu izena ere ezartzen duela."
+
+#~ msgid "Modify smb.conf to use WINS settings from DHCP?"
+#~ msgstr "smb.conf WINS ezarpenak DHCP-tik jasotzeko eraldatu?"
+
+#~ msgid ""
+#~ "If your computer gets IP address information from a DHCP server on the "
+#~ "network, the DHCP server may also provide information about WINS servers "
+#~ "(\"NetBIOS name servers\") present on the network.  This requires a "
+#~ "change to your smb.conf file so that DHCP-provided WINS settings will "
+#~ "automatically be read from /etc/samba/dhcp.conf."
+#~ msgstr ""
+#~ "Zure sistemak IP helbidea sareko DHCP zerbitzari batetatik jaso ezkero, "
+#~ "zerbitzari horrek sareko WINS (\"NetBIOS name servers\") zerbitzarien "
+#~ "datuak eman ditzake.  Honek smb.conf fitxategian aldaketa bat behar du "
+#~ "DHCP bidezko WINS ezarpenak /etc/samba/dhcp.conf-etik irakurtzeko."
+
+#~ msgid ""
+#~ "The dhcp3-client package must be installed to take advantage of this "
+#~ "feature."
+#~ msgstr ""
+#~ "Ezaugarri honetaz baliatzeko dhcp3-client bezeroa instalaturik izan behar "
+#~ "duzu."
+
+#~ msgid "Configure smb.conf automatically?"
+#~ msgstr "Smb.conf automatikoki konfiguratu?"
+
+#~ msgid ""
+#~ "The rest of the configuration of Samba deals with questions that affect "
+#~ "parameters in /etc/samba/smb.conf, which is the file used to configure "
+#~ "the Samba programs (nmbd and smbd). Your current smb.conf contains an "
+#~ "'include' line or an option that spans multiple lines, which could "
+#~ "confuse the automated configuration process and require you to edit your "
+#~ "smb.conf by hand to get it working again."
+#~ msgstr ""
+#~ "Konfigurazioaren hurrengo atalak /etc/samba/smb.conf fitxategiari "
+#~ "dagozkion ezarpenenak dira, honek Samba programak (smbd eta nmbd) "
+#~ "konfiguratzen ditu. Zure smb.conf fitxategiak 'include' lerro bat edo "
+#~ "lerro bat baino luzeago den aukera bat badu, horregatik konfigurazio "
+#~ "automatiko fitxategia honda daiteke, zuk eskuz konpondu beharko duzularik."
+
+#~ msgid "Use password encryption?"
+#~ msgstr "Zifraturiko pasahitzak erabili?"
+
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB servers using encrypted "
+#~ "passwords. If you want to use clear text passwords you will need to "
+#~ "change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Windows bezero berrienek SMB zerbitzariekiko harremanak zifraturiko "
+#~ "pasahitzak erabiliaz egiten dituzte. Testu laueko pasahitzak erabili nahi "
+#~ "izan ezkero parametro bat aldatu behar duzu Windows erregistroan."
+
+#~ msgid ""
+#~ "Enabling this option is highly recommended. If you do, make sure you have "
+#~ "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
+#~ "each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Aukera hau erabiltzea oso gomendagarri da. Erabiltzea hautatu ezkero "
+#~ "ziurtatu baliozko /etc/samba/smbpasswd fitxategi bat duzula eta "
+#~ "pasahitzak smbpasswd programaren bidez ezarri dituzula."
 
 #~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
 #~ msgstr "/var/lib/samba/passdb.tdb pasahitz datubase berria sortu?"
@@ -207,15 +257,31 @@ msgstr ""
 #~ "If you do not create it, you will have to reconfigure Samba (and probably "
 #~ "your client machines) to use plaintext passwords."
 #~ msgstr ""
-#~ "Fitxategi hau ez sortuaz gero beharrezkoa da Samba (eta ziurrenik Windows "
-#~ "bezeroak) zifratu gabeko pasahitzak erabiltzeko konfiguratzea."
+#~ " Fitxategi hau ez sortu ezkero beharrezkoa da Samba (eta ziurrenik "
+#~ "Windows bezeroak) zifratu gabeko pasahitzak erabiltzeko konfiguratzea."
 
 #~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
+#~ "See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
+#~ "package for more details."
 #~ msgstr ""
-#~ "Samba-doc paketeko /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-"
-#~ "Guide/pwencrypt.html begiratu argibide gehiagorako."
+#~ "Samba-doc paketeko /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html "
+#~ "begiratu argibide gehiagorako"
+
+#~ msgid "daemons"
+#~ msgstr "deabruak"
+
+#~ msgid "inetd"
+#~ msgstr "inetd"
+
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Nola nahi duzu Samba abiaraztea?"
+
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Samba smbd zerbitzua deabru arrunt edo inted bidez abiarazi daiteke. "
+#~ "Deabru bezala abiaraztea gomendatzen da."
 
 #~ msgid "Chaining passdb backends is not supported"
 #~ msgstr "\"passbd\" motore kateatzea ez da onartzen"

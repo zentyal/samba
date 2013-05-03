@@ -13,10 +13,10 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
-"PO-Revision-Date: 2011-05-12 18:19+0900\n"
+"Project-Id-Version: samba4\n"
+"Report-Msgid-Bugs-To: samba4@packages.debian.org\n"
+"POT-Creation-Date: 2012-11-06 21:27+0100\n"
+"PO-Revision-Date: 2012-02-15 22:49+0900\n"
 "Last-Translator: Kenshi Muto <kmuto@debian.org>\n"
 "Language-Team: Japanese <debian-japanese@lists.debian.org>\n"
 "Language: ja\n"
@@ -24,191 +24,132 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#. Type: title
+#. Type: boolean
 #. Description
-#: ../samba-common.templates:1001
-msgid "Samba server and utilities"
-msgstr "Samba サーバおよびユーティリティ"
+#: ../samba4.templates:1001
+msgid "Upgrade from Samba 3?"
+msgstr "Samba 3 からアップグレードしますか?"
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:2001
-msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr "DHCP から WINS 設定を使うよう smb.conf を変更しますか?"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:2001
+#: ../samba4.templates:1001
 msgid ""
-"If your computer gets IP address information from a DHCP server on the "
-"network, the DHCP server may also provide information about WINS servers "
-"(\"NetBIOS name servers\") present on the network.  This requires a change "
-"to your smb.conf file so that DHCP-provided WINS settings will automatically "
-"be read from /etc/samba/dhcp.conf."
+"It is possible to migrate the existing configuration files from Samba 3 to "
+"Samba 4. This is likely to fail for complex setups, but should provide a "
+"good starting point for most existing installations."
 msgstr ""
-"あなたのコンピュータがネットワーク上の DHCP サーバから IP アドレス情報を取得"
-"しているのであれば、DHCP サーバはネットワーク上にある WINS サーバ (NetBIOS "
-"ネームサーバ) についての情報を提供することもできます。DHCP で提供される WINS "
-"設定は /etc/samba/dhcp.conf から自動的に読み込まれるため、smb.conf ファイルを"
-"変更する必要があります。"
+"Samba 3 から Samba 4 に既存の設定ファイルを移行することが可能です。これは、複"
+"雑なセットアップでは失敗することはあるものの、大半の既存のインストール状態に"
+"とって良い開始点を提供することになります。"
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:2001
+#: ../samba4.templates:2001
+msgid "Server role"
+msgstr "サーバロール"
+
+#. Type: select
+#. Description
+#: ../samba4.templates:2001
 msgid ""
-"The dhcp3-client package must be installed to take advantage of this feature."
+"Domain controllers manage NT4-style or Active Directory domains and provide "
+"services such as identity management and domain logons. Each domain needs to "
+"have a at least one domain controller."
 msgstr ""
-"この機能を使うためには、dhcp3-client パッケージがインストールされている必要が"
-"あります。"
+"ドメインコントローラは NT4 スタイルまたは Active Directory ドメインを管理し、"
+"認証管理やドメインログオンなどのサービスを提供します。各ドメインは少なくとも "
+"1 つのドメインコントローラを持つ必要があります。"
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:3001
-msgid "Configure smb.conf automatically?"
-msgstr "自動的に smb.conf を設定しますか?"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:3001
+#: ../samba4.templates:2001
 msgid ""
-"The rest of the configuration of Samba deals with questions that affect "
-"parameters in /etc/samba/smb.conf, which is the file used to configure the "
-"Samba programs (nmbd and smbd). Your current smb.conf contains an \"include"
-"\" line or an option that spans multiple lines, which could confuse the "
-"automated configuration process and require you to edit your smb.conf by "
-"hand to get it working again."
+"Member servers can be part of a NT4-style or Active Directory domain but do "
+"not provide any domain services. Workstations and file or print servers are "
+"usually regular domain members."
 msgstr ""
-"Samba の設定の残りの部分は、Samba プログラム (nmbd および smbd) を設定するの"
-"に使うファイル /etc/samba/smb.conf にあるパラメータに影響する質問です。現在"
-"の smb.conf は、'include' 行または複数行にまたがるオプションを含んでいます。"
-"これは自動設定処理を混乱させる可能性があり、再びそれが作動するようにすべく "
-"smb.conf の手動での修正を必要とします。"
+"メンバサーバは、NT4 スタイルまたは Active Directory ドメインの一部になること"
+"ができますが、ドメインサービスは何も提供しません。ワークステーションおよび"
+"ファイル/プリントサーバは通常、普通のドメインメンバです。"
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:3001
+#: ../samba4.templates:2001
 msgid ""
-"If you do not choose this option, you will have to handle any configuration "
-"changes yourself, and will not be able to take advantage of periodic "
-"configuration enhancements."
+"A standalone server can not be used in a domain and only supports file "
+"sharing and Windows for Workgroups-style logins."
 msgstr ""
-"この選択肢で「いいえ」と答えると、すべての設定の変更をあなた自身が面倒を見る"
-"必要があります。これは定期的な設定改善には向いていません。"
+"スタンドアロンサーバは、ドメインでは利用できず、ファイル共有および Windows "
+"for Workgroups スタイルのログインのみをサポートします。"
+
+#. Type: select
+#. Description
+#: ../samba4.templates:2001
+msgid ""
+"If no server role is specified, the Samba server will not be provisioned, so "
+"this can be done manually by the user."
+msgstr ""
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:4001
-msgid "Workgroup/Domain Name:"
-msgstr "ワークグループ/ドメイン名:"
+#: ../samba4.templates:3001
+msgid "Realm name:"
+msgstr "レルム名:"
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:4001
+#: ../samba4.templates:3001
 msgid ""
-"Please specify the workgroup for this system.  This setting controls which "
-"workgroup the system will appear in when used as a server, the default "
-"workgroup to be used when browsing with various frontends, and the domain "
-"name used with the \"security=domain\" setting."
+"Please specify the Kerberos realm for the domain that this domain controller "
+"controls."
 msgstr ""
-"このシステムのワークグループを指定してください。この設定は、システムがサーバ"
-"として使われるときにどのワークグループとして現れるか、いくつかのフロントエン"
-"ドでブラウジングされたときに使われるデフォルトのワークグループ、そして"
-"\"security=domain\" 設定が使われたときのドメイン名を制御します。"
+"このドメインコントローラが制御するドメインの Kerberos レルムを指定してくださ"
+"い。"
 
-#. Type: boolean
+#. Type: string
 #. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "パスワードの暗号化を使いますか?"
+#: ../samba4.templates:3001
+msgid "Usually this is the a capitalized version of your DNS hostname."
+msgstr "通常これは、あなたの DNS ホスト名の大文字版です。"
 
-#. Type: boolean
+#. Type: password
 #. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
+#: ../samba4.templates:4001
+msgid "New password for the Samba \"administrator\" user:"
 msgstr ""
-"ほとんどの Windows クライアントは暗号化されたパスワードを使って SMB/CIFS サー"
-"バとやり取りします。クリアテキストパスワードを使いたい場合は、あなたの "
-"Windows のレジストリにあるパラメータを変更する必要があります。"
 
-#. Type: boolean
+#. Type: password
 #. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
+#: ../samba4.templates:4001
+msgid "If this field is left blank, a random password will be generated."
 msgstr ""
-"プレインテキストパスワードのサポートはもう Microsoft Windows 製品では保守され"
-"ていないので、ここで「はい」と答えることを強くお勧めします。この場合、有効"
-"な /etc/samba/smbpasswd ファイルがあることを確認し、各ユーザのパスワードは "
-"smbpasswd コマンドを使って設定してください。"
 
-#. Type: title
+#. Type: password
 #. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr "Samba サーバ"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "デーモン"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "どのように Samba を実行したいですか?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
+#: ../samba4.templates:4001
+msgid "A password can be set later by running, as root:"
 msgstr ""
-"Samba デーモン smbd は通常のデーモンとしての実行または inetd からの実行ができ"
-"ます。デーモンとして実行するのがお勧めの手段です。"
 
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr ""
-#~ "Samba パスワードデータベース /var/lib/samba/passdb.tdb を作成しますか?"
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid " $ samba-tool user setpassword administrator"
+msgstr ""
 
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "Windows のほとんどのバージョンのデフォルトとの互換性のために、Samba を暗号"
-#~ "化パスワードを使うように設定する必要があります。これはユーザのパスワード"
-#~ "を /etc/passwd とは別のファイルに格納することを必要とします。このファイル"
-#~ "は自動的に作成することができますが、パスワードは手動で (smbpasswd を使っ"
-#~ "て) 追加しなければならず、将来に渡って最新状態を保ち続けるよう整えておく必"
-#~ "要があります。"
+#. Type: password
+#. Description
+#: ../samba4.templates:5001
+msgid "Repeat password for the Samba \"administrator\" user:"
+msgstr ""
 
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "このファイルを作成しない場合、プレインテキストパスワードを使うよう Samba "
-#~ "(およびおそらくあなたのクライアントマシン) の再設定が必要です。"
+#. Type: error
+#. Description
+#: ../samba4.templates:6001
+msgid "Password input error"
+msgstr ""
 
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "詳細については、samba-doc パッケージにある /usr/share/doc/samba-doc/"
-#~ "htmldocs/ENCRYPTION.html を参照してください。"
+#. Type: error
+#. Description
+#: ../samba4.templates:6001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr ""

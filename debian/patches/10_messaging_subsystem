@@ -1,0 +1,16 @@
+diff --git a/source4/lib/messaging/wscript_build b/source4/lib/messaging/wscript_build
+index 4f352a7..969bf31 100644
+--- a/source4/lib/messaging/wscript_build
++++ b/source4/lib/messaging/wscript_build
+@@ -1,10 +1,9 @@
+ #!/usr/bin/env python
+ 
+ 
+-bld.SAMBA_LIBRARY('MESSAGING',
++bld.SAMBA_SUBSYSTEM('MESSAGING',
+ 	source='messaging.c',
+ 	public_deps='samba-util tdb-wrap NDR_IRPC UNIX_PRIVS util_tdb cluster ndr samba_socket dcerpc',
+-                  private_library=True
+ 	)
+ 
+ 

@@ -1,0 +1,9 @@
+# Upstream Samba 4 is very strict about minimum versions of libraries, but allows
+# looser checking using the --minimum-library-versions option to configure.
+#
+# This file specifies what upstream versions are equivalent to each other, so that
+# this package can be installed with older versions.
+
+[talloc]
+2.0.2 = 2.0.1
+2.0.3 = 2.0.1

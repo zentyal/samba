@@ -10,14 +10,16 @@
 #         or http://www.debian.org/intl/l10n/po-debconf/README-trans#
 #    Developers do not need to manually edit POT or PO files.
 #
-# Eddy Petrișor <eddy.petrisor@gmail.com>, 2006, 2007, 2008.
+# Eddy Petrișor <eddy.petrisor@gmail.com>, 2006.
+# Eddy Petrișor <eddy.petrisor@gmail.com>, 2007.
+# Igor Stirbu <igor.stirbu@gmail.com>, 2008.
 msgid ""
 msgstr ""
-"Project-Id-Version: samba/debian/po/ro.po\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
-"PO-Revision-Date: 2008-06-29 19:42+0300\n"
-"Last-Translator: Eddy Petrișor <eddy.petrisor@gmail.com>\n"
+"Project-Id-Version: ro\n"
+"Report-Msgid-Bugs-To: samba4@packages.debian.org\n"
+"POT-Creation-Date: 2012-11-06 21:27+0100\n"
+"PO-Revision-Date: 2008-06-18 14:30+0300\n"
+"Last-Translator: Igor Stirbu <igor.stirbu@gmail.com>\n"
 "Language-Team: Romanian <debian-l10n-romanian@lists.debian.org>\n"
 "Language: ro\n"
 "MIME-Version: 1.0\n"
@@ -27,195 +29,166 @@ msgstr ""
 "Plural-Forms:  nplurals=3; plural=n==1 ? 0 : (n==0 || (n%100 > 0 && n%100 < "
 "20)) ? 1 : 2;\n"
 
-#. Type: title
+#. Type: boolean
 #. Description
-#: ../samba-common.templates:1001
-msgid "Samba server and utilities"
-msgstr ""
+#: ../samba4.templates:1001
+msgid "Upgrade from Samba 3?"
+msgstr "Actualizare de la Samba 3?"
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:2001
-msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr "Se modifică smb.conf pentru a folosi configurațiile WINS din DHCP?"
-
-# RO: prefer să nu folosesc termeni de genul „calculatorul dvs.”; de multe ori nu e cazul și sună mai puțin profesional.
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:2001
+#: ../samba4.templates:1001
 msgid ""
-"If your computer gets IP address information from a DHCP server on the "
-"network, the DHCP server may also provide information about WINS servers "
-"(\"NetBIOS name servers\") present on the network.  This requires a change "
-"to your smb.conf file so that DHCP-provided WINS settings will automatically "
-"be read from /etc/samba/dhcp.conf."
+"It is possible to migrate the existing configuration files from Samba 3 to "
+"Samba 4. This is likely to fail for complex setups, but should provide a "
+"good starting point for most existing installations."
 msgstr ""
-"Dacă acest calculator primește informațiile IP (de configurare a rețelei) de "
-"la un server DHCP din rețea, acel server ar putea să ofere informații și "
-"despre serverele WINS („Serverele NetBIOS de nume”) prezente în rețea. Acest "
-"lucru necesită o schimbare a fișierului smb.conf astfel încât configurațiile "
-"WINS oferite prin DHCP vor fi citite automat din /etc/samba/dhcp.conf."
+"Este posibil ca fișierele de configurare existente pentru Samba 3 să fie "
+"migrate la Samba 4. Probabil, pentru configurații complexe, conversia va "
+"eșua, dar pentru majoritatea instalărilor rezultatul ar trebui să reprezinte "
+"un bun punct de plecare."
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:2001
+#: ../samba4.templates:2001
+msgid "Server role"
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba4.templates:2001
 msgid ""
-"The dhcp3-client package must be installed to take advantage of this feature."
+"Domain controllers manage NT4-style or Active Directory domains and provide "
+"services such as identity management and domain logons. Each domain needs to "
+"have a at least one domain controller."
 msgstr ""
-"Pachetul dhcp3-client trebuie să fie instalat pentru a beneficia de această "
-"facilitate."
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:3001
-msgid "Configure smb.conf automatically?"
-msgstr "Se configurează smb.conf automat?"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:3001
+#: ../samba4.templates:2001
 msgid ""
-"The rest of the configuration of Samba deals with questions that affect "
-"parameters in /etc/samba/smb.conf, which is the file used to configure the "
-"Samba programs (nmbd and smbd). Your current smb.conf contains an \"include"
-"\" line or an option that spans multiple lines, which could confuse the "
-"automated configuration process and require you to edit your smb.conf by "
-"hand to get it working again."
+"Member servers can be part of a NT4-style or Active Directory domain but do "
+"not provide any domain services. Workstations and file or print servers are "
+"usually regular domain members."
 msgstr ""
-"Restul configurației Samba tratează întrebările care afectează parametrii "
-"din /etc/samba/smb.conf, fișierul utilizat pentru a configura programele "
-"Samba (nmbd și smbd). Actualul fișier smb.conf conține o linie „include” sau "
-"o opțiune care se desfășoară de-a lungul a mai multor linii, lucru care ar "
-"putea să creeze confuzie în procesul de configurare automată și ar putea "
-"duce la necesitatea editării manuale a fișierului smb.conf pentru a-l face "
-"din nou funcțional."
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:3001
+#: ../samba4.templates:2001
 msgid ""
-"If you do not choose this option, you will have to handle any configuration "
-"changes yourself, and will not be able to take advantage of periodic "
-"configuration enhancements."
+"A standalone server can not be used in a domain and only supports file "
+"sharing and Windows for Workgroups-style logins."
 msgstr ""
-"Dacă nu selectați aceasta opțiune, va trebui să gestionați personal orice "
-"schimbare a configurației și nu veți putea beneficia de îmbunătățirile "
-"periodice ale configurației."
+
+#. Type: select
+#. Description
+#: ../samba4.templates:2001
+msgid ""
+"If no server role is specified, the Samba server will not be provisioned, so "
+"this can be done manually by the user."
+msgstr ""
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:4001
-msgid "Workgroup/Domain Name:"
-msgstr "Grupul de lucru/Numele de domeniu:"
+#: ../samba4.templates:3001
+#, fuzzy
+#| msgid "Realm:"
+msgid "Realm name:"
+msgstr "Domeniu:"
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:4001
-#, fuzzy
+#: ../samba4.templates:3001
 msgid ""
-"Please specify the workgroup for this system.  This setting controls which "
-"workgroup the system will appear in when used as a server, the default "
-"workgroup to be used when browsing with various frontends, and the domain "
-"name used with the \"security=domain\" setting."
-msgstr ""
-"Vă rugăm să specificați grupul de lucru de care acest server va aparține "
-"când va fi chestionat de clienți. A se reține că acest parametru controlează "
-"și numele de domeniu folosit cu opțiunea security=domain."
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Se folosesc parole criptate? "
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-#, fuzzy
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Cei mai recenți clienți Windows comunică cu serverele SMB folosind parole "
-"criptate. Dacă doriți să folosiți parole necriptate, va trebui să schimbați "
-"un parametru în registrul de configurare Windows."
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-#, fuzzy
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Activarea acestei opțiuni este recomandată în mod deosebit. Dacă o activați, "
-"asigurați-vă că fișierul /etc/samba/smbpasswd este valid și că aveți "
-"configurată o parolă pentru fiecare utilizator (folosind comanda smbpasswd)."
-
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
+"Please specify the Kerberos realm for the domain that this domain controller "
+"controls."
 msgstr ""
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "demoni"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
+#. Type: string
 #. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Cum doriți să rulați Samba?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
+#: ../samba4.templates:3001
+msgid "Usually this is the a capitalized version of your DNS hostname."
 msgstr ""
-"Demonul Samba smbd poate rula ca un demon normal sau din inetd. Rularea ca "
-"demon este recomandată."
 
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr "Se creează baza de date cu parole /var/lib/samba/passdb.tdb?"
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid "New password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid "If this field is left blank, a random password will be generated."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid "A password can be set later by running, as root:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid " $ samba-tool user setpassword administrator"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:5001
+msgid "Repeat password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba4.templates:6001
+msgid "Password input error"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba4.templates:6001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr ""
+
+#~ msgid "Set up Samba 4 as a PDC?"
+#~ msgstr "Se configurează Samba 4 ca PDC?"
 
 #~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
+#~ "If you do not choose this option, Samba will be left unconfigured, and "
+#~ "you will have to configure it yourself."
 #~ msgstr ""
-#~ "Pentru compatibilitate cu majoritatea versiunilor de Windows, Samba "
-#~ "trebuie să fie configurată să folosească parole criptate. Acest lucru "
-#~ "necesită ca parolele utilizatorilor să fie stocate în alt fișier decât /"
-#~ "etc/passwd.  Acest fișier poate fi creat automat, dar parolele trebuie să "
-#~ "fie adăugate manual prin rularea comenzii smbpasswd și, în viitor, "
-#~ "trebuie ținut la zi."
+#~ "Dacă nu selectați această opțiune, serviciul Samba va rămâne neconfigurat "
+#~ "și va trebui să-l configurați manual."
 
 #~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
+#~ "Even when using this option, you will need to set up DNS such that it "
+#~ "serves the data from the zone file in that directory before you can use "
+#~ "the Active Directory domain."
 #~ msgstr ""
-#~ "Dacă nu-l creați, va trebui să reconfigurați Samba (probabil și "
-#~ "calculatoarele client) să folosească parole necriptate."
+#~ "Chiar dacă se utilizează această opțiune, va trebui să configurați "
+#~ "serviciul DNS să servească datele din fișierul de zonă în acel director "
+#~ "înainte de a putea utiliza domeniul Active Directory."
 
 #~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
+#~ "Please specify the Kerberos realm this server will be in. In many cases,  "
+#~ "this will be the same as the DNS domain name."
 #~ msgstr ""
-#~ "A se vedea /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/"
-#~ "pwencrypt.html din pachetul samba-doc pentru mai multe detalii."
+#~ "Precizați domeniul Kerberos de care va aparține acest server. În multe "
+#~ "cazuri acesta va fi la fel cu domeniul DNS."
+
+#~| msgid "Workgroup/Domain Name:"
+#~ msgid "Domain Name:"
+#~ msgstr "Numele de domeniu:"
+
+#~| msgid ""
+#~| "Please specify the workgroup you want this server to appear to be in "
+#~| "when queried by clients. Note that this parameter also controls the "
+#~| "domain name used with the security=domain setting."
+#~ msgid ""
+#~ "Please specify the domain you want this server to appear to be in when "
+#~ "queried by clients."
+#~ msgstr ""
+#~ "Precizați domeniul de care acest server va aparține când va fi chestionat "
+#~ "de clienți."

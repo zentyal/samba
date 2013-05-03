@@ -1,0 +1,6 @@
+usr/lib/*/libsamba-hostconfig.so.*
+usr/lib/*/samba/libcluster.so
+usr/lib/*/samba/libnetif.so
+usr/lib/*/samba/libserver-role.so
+usr/lib/*/samba/libshares.so
+usr/lib/*/samba/libtdb-wrap.so

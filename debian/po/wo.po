@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: wo\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba4@packages.debian.org\n"
+"POT-Creation-Date: 2012-11-06 21:27+0100\n"
 "PO-Revision-Date: 2007-04-30 18:13+0000\n"
 "Last-Translator: Mouhamadou Mamoune Mbacke <mouhamadoumamoune@gmail.com>\n"
 "Language-Team: Wolof\n"
@@ -25,163 +25,214 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "X-Generator: KBabel 1.11.4\n"
 
-#. Type: title
+#. Type: boolean
 #. Description
-#: ../samba-common.templates:1001
-msgid "Samba server and utilities"
+#: ../samba4.templates:1001
+msgid "Upgrade from Samba 3?"
 msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:2001
-msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr "Ndax nu soppi smb.con ba muy jëfandikoo komfiguraasioŋ bu DHCP?"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:2001
+#: ../samba4.templates:1001
 msgid ""
-"If your computer gets IP address information from a DHCP server on the "
-"network, the DHCP server may also provide information about WINS servers "
-"(\"NetBIOS name servers\") present on the network.  This requires a change "
-"to your smb.conf file so that DHCP-provided WINS settings will automatically "
-"be read from /etc/samba/dhcp.conf."
+"It is possible to migrate the existing configuration files from Samba 3 to "
+"Samba 4. This is likely to fail for complex setups, but should provide a "
+"good starting point for most existing installations."
 msgstr ""
-"Bu fekkee sa kompiyutar mi ngi ame adrees IP ci ab serwóor DHCP bu ne ci "
-"resóo bi, kon serwóor DHCP bi man na yitam di joxe ay xamle yu aju ci "
-"serwóor WINS yi (\"NetBIOS name servers\") yi nekk ci resóo bi. Loolu nak "
-"dana laaj ak coppat ci sa fiise smb.conf, ngir ba komfiguraasioŋ yi DHCP bi "
-"di joxe ñukoy jaŋgale sune boppu ci fiise /etc/samba/dhcp.conf"
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:2001
-msgid ""
-"The dhcp3-client package must be installed to take advantage of this feature."
-msgstr "Paket bu dhcp3-client nak wareesna koo istale ngir jariñoo defiin wii."
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:3001
-msgid "Configure smb.conf automatically?"
-msgstr "Ndax ñu komfigureel smb.conf sunu boppu?"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:3001
-msgid ""
-"The rest of the configuration of Samba deals with questions that affect "
-"parameters in /etc/samba/smb.conf, which is the file used to configure the "
-"Samba programs (nmbd and smbd). Your current smb.conf contains an \"include"
-"\" line or an option that spans multiple lines, which could confuse the "
-"automated configuration process and require you to edit your smb.conf by "
-"hand to get it working again."
+#: ../samba4.templates:2001
+msgid "Server role"
 msgstr ""
-"Li des ci komfiguraasioŋ bu samba ay laaj la yu aju ci parameetar yu /etc/"
-"samba/smb.conf, nga xam ne mooy fiise biñuy jëfandikoo ngir komfigure "
-"prograam yu samba (nmbd ak smbd). Sa fiise smb.conf bii nga yore fii mune, "
-"amna aw bind wu 'include' walla ab tann bu tallalu ci ay bind yu bare, ta "
-"loolu man naa jaxase komfiguraasioŋ otomatik bi, ba taxna danga koy wara "
-"soppi ak sa loxo, ngir léppu awaat yoon."
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:3001
+#: ../samba4.templates:2001
 msgid ""
-"If you do not choose this option, you will have to handle any configuration "
-"changes yourself, and will not be able to take advantage of periodic "
-"configuration enhancements."
+"Domain controllers manage NT4-style or Active Directory domains and provide "
+"services such as identity management and domain logons. Each domain needs to "
+"have a at least one domain controller."
 msgstr ""
-"Bu fekkee tannoo lii, kon bépp coppat booy def ci komfiguraasioŋ bi danga "
-"koy defal sa boppu, ta kon doo mana jariñu ci rafetal ak jekkal yiñuy farala "
-"def ci komfiguraasioŋ bi."
+
+#. Type: select
+#. Description
+#: ../samba4.templates:2001
+msgid ""
+"Member servers can be part of a NT4-style or Active Directory domain but do "
+"not provide any domain services. Workstations and file or print servers are "
+"usually regular domain members."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba4.templates:2001
+msgid ""
+"A standalone server can not be used in a domain and only supports file "
+"sharing and Windows for Workgroups-style logins."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba4.templates:2001
+msgid ""
+"If no server role is specified, the Samba server will not be provisioned, so "
+"this can be done manually by the user."
+msgstr ""
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:4001
-msgid "Workgroup/Domain Name:"
-msgstr "Grup bu liggéey/Turu domen:"
+#: ../samba4.templates:3001
+msgid "Realm name:"
+msgstr ""
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:4001
+#: ../samba4.templates:3001
+msgid ""
+"Please specify the Kerberos realm for the domain that this domain controller "
+"controls."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba4.templates:3001
+msgid "Usually this is the a capitalized version of your DNS hostname."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid "New password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid "If this field is left blank, a random password will be generated."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid "A password can be set later by running, as root:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid " $ samba-tool user setpassword administrator"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:5001
+msgid "Repeat password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba4.templates:6001
+msgid "Password input error"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba4.templates:6001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr ""
+
 #, fuzzy
-msgid ""
-"Please specify the workgroup for this system.  This setting controls which "
-"workgroup the system will appear in when used as a server, the default "
-"workgroup to be used when browsing with various frontends, and the domain "
-"name used with the \"security=domain\" setting."
-msgstr ""
-"Joxeel grup bu liggéey binga bëgg serwóor bii di mel ne ci bokk buko ay "
-"kiliyaŋ di laaj. Nga bayyi xel ne parameetar bii mooy konturle yitam turu "
-"domen biñuy jëfandikoo ci komfiguraasioŋ bu security=domain."
+#~| msgid ""
+#~| "If you do not choose this option, you will have to handle any "
+#~| "configuration changes yourself, and will not be able to take advantage "
+#~| "of periodic configuration enhancements."
+#~ msgid ""
+#~ "If you do not choose this option, Samba will be left unconfigured, and "
+#~ "you will have to configure it yourself."
+#~ msgstr ""
+#~ "Bu fekkee tannoo lii, kon bépp coppat booy def ci komfiguraasioŋ bi danga "
+#~ "koy defal sa boppu, ta kon doo mana jariñu ci rafetal ak jekkal yiñuy "
+#~ "farala def ci komfiguraasioŋ bi."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Ndax ñu kiripte baatujall yi?"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Mbooleem kiliyaŋ yu Windows yu yees yi buñuy jokkoo ak SMB dañuy jëfandikoo "
-"baatijall yuñu kiripte. Boo bëggée jëfandikoo baatijall yu tekst yu leer, "
-"kon dangay wara soppi ab parameetar ci register bu Windows."
+#~| msgid "Workgroup/Domain Name:"
+#~ msgid "Domain Name:"
+#~ msgstr "Grup bu liggéey/Turu domen:"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Ñoongi deŋkaane bubaax nga tann lii. Boo ko defee, na nga wóorlu ne amnga ab "
-"fiise /etc/samba/smbpasswd bu baax, ta nga def foofa baatujall bu "
-"jëfandikukat yéppu. Dangay jëfandikoo komaand bu smbpasswd."
+#~| msgid ""
+#~| "Please specify the workgroup you want this server to appear to be in "
+#~| "when queried by clients. Note that this parameter also controls the "
+#~| "domain name used with the security=domain setting."
+#~ msgid ""
+#~ "Please specify the domain you want this server to appear to be in when "
+#~ "queried by clients."
+#~ msgstr ""
+#~ "Joxeel grup bu liggéey binga bëgg serwóor bii di mel ne ci bokk buko ay "
+#~ "kiliyaŋ di laaj. Nga bayyi xel ne parameetar bii mooy konturle yitam turu "
+#~ "domen biñuy jëfandikoo ci komfiguraasioŋ bu security=domain."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
+#~ msgid "Modify smb.conf to use WINS settings from DHCP?"
+#~ msgstr "Ndax nu soppi smb.con ba muy jëfandikoo komfiguraasioŋ bu DHCP?"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "daemon yi"
+#~ msgid ""
+#~ "If your computer gets IP address information from a DHCP server on the "
+#~ "network, the DHCP server may also provide information about WINS servers "
+#~ "(\"NetBIOS name servers\") present on the network.  This requires a "
+#~ "change to your smb.conf file so that DHCP-provided WINS settings will "
+#~ "automatically be read from /etc/samba/dhcp.conf."
+#~ msgstr ""
+#~ "Bu fekkee sa kompiyutar mi ngi ame adrees IP ci ab serwóor DHCP bu ne ci "
+#~ "resóo bi, kon serwóor DHCP bi man na yitam di joxe ay xamle yu aju ci "
+#~ "serwóor WINS yi (\"NetBIOS name servers\") yi nekk ci resóo bi. Loolu nak "
+#~ "dana laaj ak coppat ci sa fiise smb.conf, ngir ba komfiguraasioŋ yi DHCP "
+#~ "bi di joxe ñukoy jaŋgale sune boppu ci fiise /etc/samba/dhcp.conf"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
+#~ msgid ""
+#~ "The dhcp3-client package must be installed to take advantage of this "
+#~ "feature."
+#~ msgstr ""
+#~ "Paket bu dhcp3-client nak wareesna koo istale ngir jariñoo defiin wii."
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Nan nga bëgga doxale samba?"
+#~ msgid "Configure smb.conf automatically?"
+#~ msgstr "Ndax ñu komfigureel smb.conf sunu boppu?"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Daemon bu Samba smbd maneesna koo doxal ne ab deamon normaal, maneesna koo "
-"doxale yit ak inetd. Liñuy deŋkaane nak mooy doxalko muy ab daemon."
+#~ msgid ""
+#~ "The rest of the configuration of Samba deals with questions that affect "
+#~ "parameters in /etc/samba/smb.conf, which is the file used to configure "
+#~ "the Samba programs (nmbd and smbd). Your current smb.conf contains an "
+#~ "'include' line or an option that spans multiple lines, which could "
+#~ "confuse the automated configuration process and require you to edit your "
+#~ "smb.conf by hand to get it working again."
+#~ msgstr ""
+#~ "Li des ci komfiguraasioŋ bu samba ay laaj la yu aju ci parameetar yu /etc/"
+#~ "samba/smb.conf, nga xam ne mooy fiise biñuy jëfandikoo ngir komfigure "
+#~ "prograam yu samba (nmbd ak smbd). Sa fiise smb.conf bii nga yore fii "
+#~ "mune, amna aw bind wu 'include' walla ab tann bu tallalu ci ay bind yu "
+#~ "bare, ta loolu man naa jaxase komfiguraasioŋ otomatik bi, ba taxna danga "
+#~ "koy wara soppi ak sa loxo, ngir léppu awaat yoon."
+
+#~ msgid "Use password encryption?"
+#~ msgstr "Ndax ñu kiripte baatujall yi?"
+
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB servers using encrypted "
+#~ "passwords. If you want to use clear text passwords you will need to "
+#~ "change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Mbooleem kiliyaŋ yu Windows yu yees yi buñuy jokkoo ak SMB dañuy "
+#~ "jëfandikoo baatijall yuñu kiripte. Boo bëggée jëfandikoo baatijall yu "
+#~ "tekst yu leer, kon dangay wara soppi ab parameetar ci register bu Windows."
+
+#~ msgid ""
+#~ "Enabling this option is highly recommended. If you do, make sure you have "
+#~ "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
+#~ "each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Ñoongi deŋkaane bubaax nga tann lii. Boo ko defee, na nga wóorlu ne amnga "
+#~ "ab fiise /etc/samba/smbpasswd bu baax, ta nga def foofa baatujall bu "
+#~ "jëfandikukat yéppu. Dangay jëfandikoo komaand bu smbpasswd."
 
 #~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
 #~ msgstr ""
@@ -210,11 +261,27 @@ msgstr ""
 #~ "text)."
 
 #~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
+#~ "See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
+#~ "package for more details."
 #~ msgstr ""
-#~ "Xoolal /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/"
-#~ "pwencrypt.html bi nekk ci paket bu samba-doc, ngir am yaneen leeral."
+#~ "Xoolal /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html bi nekk ci paket "
+#~ "bu samba-doc, ngir am yaneen leeral."
+
+#~ msgid "daemons"
+#~ msgstr "daemon yi"
+
+#~ msgid "inetd"
+#~ msgstr "inetd"
+
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Nan nga bëgga doxale samba?"
+
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Daemon bu Samba smbd maneesna koo doxal ne ab deamon normaal, maneesna "
+#~ "koo doxale yit ak inetd. Liñuy deŋkaane nak mooy doxalko muy ab daemon."
 
 #~ msgid "Chaining passdb backends is not supported"
 #~ msgstr "Ceene passdb backends manula nekk"

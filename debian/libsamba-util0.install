@@ -1,0 +1,13 @@
+usr/lib/*/libsamba-util.so.*
+usr/lib/*/libtevent-util.so.*
+usr/lib/*/samba/libasn1util.so
+usr/lib/*/samba/liberrors.so
+usr/lib/*/samba/libevents.so
+usr/lib/*/samba/libflag_mapping.so
+usr/lib/*/samba/libiniparser.so
+usr/lib/*/samba/libinterfaces.so
+usr/lib/*/samba/libsamba-modules.so
+usr/lib/*/samba/libsamba3-util.so
+usr/lib/*/samba/libsmbpasswdparser.so
+usr/lib/*/samba/libutil_tdb.so
+usr/lib/*/samba/libutil_setid.so

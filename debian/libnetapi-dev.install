@@ -1,0 +1,3 @@
+usr/include/samba-4.0/netapi.h
+usr/lib/*/pkgconfig/netapi.pc
+usr/lib/*/libnetapi.so

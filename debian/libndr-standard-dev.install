@@ -1,0 +1,11 @@
+usr/include/samba-4.0/gen_ndr/auth.h
+usr/include/samba-4.0/gen_ndr/krb5pac.h
+usr/include/samba-4.0/gen_ndr/ndr_krb5pac.h
+usr/include/samba-4.0/gen_ndr/ndr_nbt.h
+usr/include/samba-4.0/ndr/ndr_nbt.h
+usr/lib/*/libndr-krb5pac.so
+usr/lib/*/libndr-nbt.so
+usr/lib/*/libndr-standard.so
+usr/lib/*/pkgconfig/ndr_krb5pac.pc
+usr/lib/*/pkgconfig/ndr_nbt.pc
+usr/lib/*/pkgconfig/ndr_standard.pc

@@ -1,0 +1,3 @@
+usr/include/samba-4.0/dcerpc_server.h
+usr/lib/*/libdcerpc-server.so
+usr/lib/*/pkgconfig/dcerpc_server.pc

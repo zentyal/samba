@@ -1,0 +1,4 @@
+usr/lib/*/libsamdb.so.*
+usr/lib/*/samba/libldb-cmdline.so
+usr/lib/*/samba/libldbsamba.so
+usr/lib/*/samba/libsamdb-common.so

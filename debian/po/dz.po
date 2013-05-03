@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_po.pot\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba4@packages.debian.org\n"
+"POT-Creation-Date: 2012-11-06 21:27+0100\n"
 "PO-Revision-Date: 2007-03-13 02:22+0530\n"
 "Last-Translator: translator <pemai_jurmey@hotmail.com>\n"
 "Language-Team: dzongkha <pgeyleg@dit.gov.bt>\n"
@@ -28,164 +28,214 @@ msgstr ""
 "X-Poedit-Country: bhutan\n"
 "X-Poedit-SourceCharset: utf-8\n"
 
-#. Type: title
+#. Type: boolean
 #. Description
-#: ../samba-common.templates:1001
-msgid "Samba server and utilities"
+#: ../samba4.templates:1001
+msgid "Upgrade from Samba 3?"
 msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:2001
-msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr ""
-"ཌི་ཨེཅ་སི་པི་ནང་ལས་ ཌབ་ལུ་ཨའི་ཨེན་ཨེསི་སྒྲིག་སྟངས་ཚུ་ལག་ལེན་འདབ་ནི་ལུ་ smb.conf ལེགས་བཅོས་འབད་ནི་"
-"ཨིན་ན་?"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:2001
+#: ../samba4.templates:1001
 msgid ""
-"If your computer gets IP address information from a DHCP server on the "
-"network, the DHCP server may also provide information about WINS servers "
-"(\"NetBIOS name servers\") present on the network.  This requires a change "
-"to your smb.conf file so that DHCP-provided WINS settings will automatically "
-"be read from /etc/samba/dhcp.conf."
+"It is possible to migrate the existing configuration files from Samba 3 to "
+"Samba 4. This is likely to fail for complex setups, but should provide a "
+"good starting point for most existing installations."
 msgstr ""
-"ག་དེམ་ཅིག་འབད་ ཁྱོད་ཀྱི་གློག་རིག་གིས་ཡོངས་འབྲེལ་གུའི་ཌི་ཨེཅ་སི་པི་སར་བར་ནང་ལས་ ཨའི་པི་ཁ་བྱང་བརྡ་དོན་"
-"འཐོབ་པ་ཅིན་ ཌི་ཨེཅ་སི་པི་སར་བར་གིས་ཡང་ ཡོངས་འབྲེལ་གུ་ཡོད་པའི་ ཌབ་ལུ་ཨའི་ཨེན་ཨེསི་སར་བརསི་ "
-"(\"NetBIOS name servers\")གི་སྐོར་ལས་བརྡ་དོན་བྱིན་འོང་། འདི་གི་དོན་ལུ་ ཁྱོད་རའི་ smb.conf "
-"ཡིག་སྣོད་བསྒྱུར་བཅོས་འབད་དགོཔ་ཨིན་ དེ་འབད་བ་ཅིན་ བྱིན་ཡོད་པའི་ཌི་ཨེཅ་སི་པི་ ཌབ་ལུ་ཨའི་ཨེན་ཨེསི་སྒྲིག་"
-"སྟངས་འདི་ རང་བཞིན་གྱིས་ /etc/samba/dhcp.conf ནང་ལས་ལྷག་འོང་།"
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:2001
+#: ../samba4.templates:2001
+msgid "Server role"
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba4.templates:2001
 msgid ""
-"The dhcp3-client package must be installed to take advantage of this feature."
+"Domain controllers manage NT4-style or Active Directory domains and provide "
+"services such as identity management and domain logons. Each domain needs to "
+"have a at least one domain controller."
 msgstr ""
-"ཌི་ཨེཅ་སི་པི་༣-ཞབས་ཏོག་སྤྱོད་མི་ཐུམ་སྒྲིལ་འདི་ ཁྱད་རྣམ་འདི་གི་ཕན་ཐོགས་ལུ་གཞི་བཙུགས་འབད་དགོཔ་ཨིན།"
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:3001
-msgid "Configure smb.conf automatically?"
-msgstr "smb.conf འདི་རང་བཞིན་གྱིས་རིམ་སྒྲིག་འབད་ནི་ཨིན་ན?"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:3001
+#: ../samba4.templates:2001
 msgid ""
-"The rest of the configuration of Samba deals with questions that affect "
-"parameters in /etc/samba/smb.conf, which is the file used to configure the "
-"Samba programs (nmbd and smbd). Your current smb.conf contains an \"include"
-"\" line or an option that spans multiple lines, which could confuse the "
-"automated configuration process and require you to edit your smb.conf by "
-"hand to get it working again."
+"Member servers can be part of a NT4-style or Active Directory domain but do "
+"not provide any domain services. Workstations and file or print servers are "
+"usually regular domain members."
 msgstr ""
-"སམ་བ་གི་རིམ་སྒྲིག་གཞན་མི་ཚུ་ འདྲི་བ་དང་འབྲེལཝ་ལས་ /etc/samba/smb.conf ནང་ཚད་བཟུང་ལུ་ཕན་"
-"གནོད་འབྱུངམ་ཨིན་ འདི་ཡང་སམ་བ་ལས་རིམ་ (nmbd and smbd)ཚུ་རིམ་སྒྲིག་འབད་ནི་ལུ་དགོ་པའི་ཡིག་སྣོད་"
-"ཨིན། ཁྱོད་ཀྱི་ད་ལྟོའི་ smb.conf ནང་ལུ་ 'include'གྲལ་ཐིག་ ཡངན་ འཕར་ཚད་འགྱོ་མི་གྲལ་ཐིག་སྣ་མང་གི་"
-"གདམ་ཁ་ཚུ་ཡོདཔ་ཨིན་ དེ་གིས་ རང་བཞིན་ཅན་གྱི་རིམ་སྒྲིག་ལས་སྦྱོར་འདི་ མགུ་འཐོམ་བཅུགཔ་ཨིནམ་དང་ ལོག་སྟེ་ལཱ་"
-"འབད་ནིའི་དོན་ལུ་ ལག་པའི་ཐོག་ལས་ ཁྱོད་རའི་smb.conf ཞུན་དག་འབད་དགོཔ་ཨིན། "
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:3001
+#: ../samba4.templates:2001
 msgid ""
-"If you do not choose this option, you will have to handle any configuration "
-"changes yourself, and will not be able to take advantage of periodic "
-"configuration enhancements."
+"A standalone server can not be used in a domain and only supports file "
+"sharing and Windows for Workgroups-style logins."
 msgstr ""
-"ཁྱོད་ཀྱིས་ གདམ་ཁ་འདི་མ་གདམ་པ་ཅིན་ རིམ་སྒྲིག་གི་འགྱུར་བ་གང་རུང་ཅིག་ ཁྱོད་རང་གིས་ལེགས་སྐྱོང་འཐབ་དགོཔ་"
-"དང་ དུས་མཚམས་རིམ་སྒྲིག་གོང་སྤེལ་གྱི་ཁེ་ཕན་འཐོབ་མི་ཚུགས།"
+
+#. Type: select
+#. Description
+#: ../samba4.templates:2001
+msgid ""
+"If no server role is specified, the Samba server will not be provisioned, so "
+"this can be done manually by the user."
+msgstr ""
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:4001
-msgid "Workgroup/Domain Name:"
-msgstr "ལཱ་གི་སྡེ་ཚན་/ཌོ་མེན་མིང་:"
+#: ../samba4.templates:3001
+msgid "Realm name:"
+msgstr ""
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:4001
+#: ../samba4.templates:3001
+msgid ""
+"Please specify the Kerberos realm for the domain that this domain controller "
+"controls."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba4.templates:3001
+msgid "Usually this is the a capitalized version of your DNS hostname."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid "New password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid "If this field is left blank, a random password will be generated."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid "A password can be set later by running, as root:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid " $ samba-tool user setpassword administrator"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:5001
+msgid "Repeat password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba4.templates:6001
+msgid "Password input error"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba4.templates:6001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr ""
+
 #, fuzzy
-msgid ""
-"Please specify the workgroup for this system.  This setting controls which "
-"workgroup the system will appear in when used as a server, the default "
-"workgroup to be used when browsing with various frontends, and the domain "
-"name used with the \"security=domain\" setting."
-msgstr ""
-"ཞབས་ཏོག་སྤྱོད་མི་གིས་འདྲི་དཔྱད་འབདཝ་ད་ དེ་ནང་ལུ་སར་བར་འབྱུང་ནི་ཨིན་པའི་ལཱ་གི་སྡེ་ཚན་འདི་གསལ་བཀོད་"
-"འབད་གནང་། ཚད་བཟུང་འདི་གིས་ སྲུང་སྐྱོབ་=ཌཱ་མཱེན་སྒྲིག་སྟངས་དང་གཅིག་ཁར་ལག་ལེན་འཐབ་ཡོད་པའི་ཌཱ་མཱེན་མིང་"
-"ཡང་ ཚད་འཛིན་འབདཝ་ཨིནམ་དྲན་དགོ"
+#~| msgid ""
+#~| "If you do not choose this option, you will have to handle any "
+#~| "configuration changes yourself, and will not be able to take advantage "
+#~| "of periodic configuration enhancements."
+#~ msgid ""
+#~ "If you do not choose this option, Samba will be left unconfigured, and "
+#~ "you will have to configure it yourself."
+#~ msgstr ""
+#~ "ཁྱོད་ཀྱིས་ གདམ་ཁ་འདི་མ་གདམ་པ་ཅིན་ རིམ་སྒྲིག་གི་འགྱུར་བ་གང་རུང་ཅིག་ ཁྱོད་རང་གིས་ལེགས་སྐྱོང་འཐབ་"
+#~ "དགོཔ་དང་ དུས་མཚམས་རིམ་སྒྲིག་གོང་སྤེལ་གྱི་ཁེ་ཕན་འཐོབ་མི་ཚུགས།"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "ཆོག་ཡིག་གསང་བཟོ་ལགལེན་འཐབ་ནི་ཨིན་ན?"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"ཝིན་ཌཱསི་ཞབས་ཏོག་སྤྱོད་མི་མང་ཤོས་ཅིག་གིས་ གསང་བཟོས་ཆོག་ཡིག་ལག་ལེན་གྱི་ཐོག་ལས་ ཨེསི་ཨེམ་བི་སར་བརསི་"
-"དང་གཅིག་ཁར་བརྒྱུད་འབྲེལ་འཐབ་ཨིན། ཁྱོད་ཀྱིས་ ཚིག་ཡིག་ཆོག་ཡིག་གསལ་ཏོག་ཏོ་ཅིག་ལག་ལེན་འཐབ་དགོ་མནོ་བ་"
-"ཅིན་ ཁྱོད་རའི་ཝིན་ཌཱསི་ཐོ་བཀོད་ནང་ལུ་ཚད་བཟུང་ཅིག་བསྒྱུར་བཅོས་འབད་དགོ"
+#~| msgid "Workgroup/Domain Name:"
+#~ msgid "Domain Name:"
+#~ msgstr "ལཱ་གི་སྡེ་ཚན་/ཌོ་མེན་མིང་:"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"གདམ་ཁ་ལྕོགས་ཅན་བཟོ་མི་འདི་གིས་ གནམ་མེད་ས་མེད་འོས་སྦྱོར་འབད་ནི་ཨིན། དེ་འབད་ནི་ཨིན་པ་ཅིན་ ཁྱོད་ལུ་"
-"ནུས་ལྡན་གྱི་/etc/samba/smbpasswd ཡིག་སྣོད་ཅིག་དགོཔ་དང་ འ་ནི་འདི་ཁྱོད་ཀྱིས་ smbpasswd བརྡ་བཀོད་"
-"ལག་ལེན་གྱི་ཐོག་ལས་ ལག་ལེན་པ་རེ་བཞིན་གྱི་དོན་ལས་ དེ་ནང་ལུ་ཆོག་ཡིག་གཞི་སྒྲིག་འབད། "
+#~| msgid ""
+#~| "Please specify the workgroup you want this server to appear to be in "
+#~| "when queried by clients. Note that this parameter also controls the "
+#~| "domain name used with the security=domain setting."
+#~ msgid ""
+#~ "Please specify the domain you want this server to appear to be in when "
+#~ "queried by clients."
+#~ msgstr ""
+#~ "ཞབས་ཏོག་སྤྱོད་མི་གིས་འདྲི་དཔྱད་འབདཝ་ད་ དེ་ནང་ལུ་སར་བར་འབྱུང་ནི་ཨིན་པའི་ལཱ་གི་སྡེ་ཚན་འདི་གསལ་"
+#~ "བཀོད་འབད་གནང་། ཚད་བཟུང་འདི་གིས་ སྲུང་སྐྱོབ་=ཌཱ་མཱེན་སྒྲིག་སྟངས་དང་གཅིག་ཁར་ལག་ལེན་འཐབ་ཡོད་པའི་"
+#~ "ཌཱ་མཱེན་མིང་ཡང་ ཚད་འཛིན་འབདཝ་ཨིནམ་དྲན་དགོ"
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
+#~ msgid "Modify smb.conf to use WINS settings from DHCP?"
+#~ msgstr ""
+#~ "ཌི་ཨེཅ་སི་པི་ནང་ལས་ ཌབ་ལུ་ཨའི་ཨེན་ཨེསི་སྒྲིག་སྟངས་ཚུ་ལག་ལེན་འདབ་ནི་ལུ་ smb.conf ལེགས་བཅོས་"
+#~ "འབད་ནི་ཨིན་ན་?"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "ཌེ་མཱོནསི་"
+#~ msgid ""
+#~ "If your computer gets IP address information from a DHCP server on the "
+#~ "network, the DHCP server may also provide information about WINS servers "
+#~ "(\"NetBIOS name servers\") present on the network.  This requires a "
+#~ "change to your smb.conf file so that DHCP-provided WINS settings will "
+#~ "automatically be read from /etc/samba/dhcp.conf."
+#~ msgstr ""
+#~ "ག་དེམ་ཅིག་འབད་ ཁྱོད་ཀྱི་གློག་རིག་གིས་ཡོངས་འབྲེལ་གུའི་ཌི་ཨེཅ་སི་པི་སར་བར་ནང་ལས་ ཨའི་པི་ཁ་བྱང་བརྡ་"
+#~ "དོན་འཐོབ་པ་ཅིན་ ཌི་ཨེཅ་སི་པི་སར་བར་གིས་ཡང་ ཡོངས་འབྲེལ་གུ་ཡོད་པའི་ ཌབ་ལུ་ཨའི་ཨེན་ཨེསི་སར་བརསི་ "
+#~ "(\"NetBIOS name servers\")གི་སྐོར་ལས་བརྡ་དོན་བྱིན་འོང་། འདི་གི་དོན་ལུ་ ཁྱོད་རའི་ smb."
+#~ "conf ཡིག་སྣོད་བསྒྱུར་བཅོས་འབད་དགོཔ་ཨིན་ དེ་འབད་བ་ཅིན་ བྱིན་ཡོད་པའི་ཌི་ཨེཅ་སི་པི་ ཌབ་ལུ་ཨའི་ཨེན་"
+#~ "ཨེསི་སྒྲིག་སྟངས་འདི་ རང་བཞིན་གྱིས་ /etc/samba/dhcp.conf ནང་ལས་ལྷག་འོང་།"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
+#~ msgid ""
+#~ "The dhcp3-client package must be installed to take advantage of this "
+#~ "feature."
+#~ msgstr ""
+#~ "ཌི་ཨེཅ་སི་པི་༣-ཞབས་ཏོག་སྤྱོད་མི་ཐུམ་སྒྲིལ་འདི་ ཁྱད་རྣམ་འདི་གི་ཕན་ཐོགས་ལུ་གཞི་བཙུགས་འབད་དགོཔ་ཨིན།"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "ཁྱོད་ཀྱིས་ སམ་བ་འདི་ག་དེ་སྦེ་གཡོག་བཀོལ་དགོ་མནོཝ་སྨོ?"
+#~ msgid "Configure smb.conf automatically?"
+#~ msgstr "smb.conf འདི་རང་བཞིན་གྱིས་རིམ་སྒྲིག་འབད་ནི་ཨིན་ན?"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"སམ་བ་ཌེ་མཱོན་smbdའདི་ སྤྱིར་བཏང་ཌེ་མཱོན་སྦེ་ ཡང་ན་ inetdནང་ལས་ གཡོག་བཀོལ་ཚུགས། ཌེ་མཱོན་སྦེ་གཡོག་"
-"བཀོལ་མི་འདི་ འོས་སྦྱོར་འབད་ཡོད་པའི་རྩར་ལེན་ཨིན།"
+#~ msgid ""
+#~ "The rest of the configuration of Samba deals with questions that affect "
+#~ "parameters in /etc/samba/smb.conf, which is the file used to configure "
+#~ "the Samba programs (nmbd and smbd). Your current smb.conf contains an "
+#~ "'include' line or an option that spans multiple lines, which could "
+#~ "confuse the automated configuration process and require you to edit your "
+#~ "smb.conf by hand to get it working again."
+#~ msgstr ""
+#~ "སམ་བ་གི་རིམ་སྒྲིག་གཞན་མི་ཚུ་ འདྲི་བ་དང་འབྲེལཝ་ལས་ /etc/samba/smb.conf ནང་ཚད་བཟུང་ལུ་ཕན་"
+#~ "གནོད་འབྱུངམ་ཨིན་ འདི་ཡང་སམ་བ་ལས་རིམ་ (nmbd and smbd)ཚུ་རིམ་སྒྲིག་འབད་ནི་ལུ་དགོ་པའི་ཡིག་སྣོད་"
+#~ "ཨིན། ཁྱོད་ཀྱི་ད་ལྟོའི་ smb.conf ནང་ལུ་ 'include'གྲལ་ཐིག་ ཡངན་ འཕར་ཚད་འགྱོ་མི་གྲལ་ཐིག་སྣ་མང་"
+#~ "གི་གདམ་ཁ་ཚུ་ཡོདཔ་ཨིན་ དེ་གིས་ རང་བཞིན་ཅན་གྱི་རིམ་སྒྲིག་ལས་སྦྱོར་འདི་ མགུ་འཐོམ་བཅུགཔ་ཨིནམ་དང་ "
+#~ "ལོག་སྟེ་ལཱ་འབད་ནིའི་དོན་ལུ་ ལག་པའི་ཐོག་ལས་ ཁྱོད་རའི་smb.conf ཞུན་དག་འབད་དགོཔ་ཨིན། "
+
+#~ msgid "Use password encryption?"
+#~ msgstr "ཆོག་ཡིག་གསང་བཟོ་ལགལེན་འཐབ་ནི་ཨིན་ན?"
+
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB servers using encrypted "
+#~ "passwords. If you want to use clear text passwords you will need to "
+#~ "change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "ཝིན་ཌཱསི་ཞབས་ཏོག་སྤྱོད་མི་མང་ཤོས་ཅིག་གིས་ གསང་བཟོས་ཆོག་ཡིག་ལག་ལེན་གྱི་ཐོག་ལས་ ཨེསི་ཨེམ་བི་སར་"
+#~ "བརསི་དང་གཅིག་ཁར་བརྒྱུད་འབྲེལ་འཐབ་ཨིན། ཁྱོད་ཀྱིས་ ཚིག་ཡིག་ཆོག་ཡིག་གསལ་ཏོག་ཏོ་ཅིག་ལག་ལེན་འཐབ་དགོ་"
+#~ "མནོ་བ་ཅིན་ ཁྱོད་རའི་ཝིན་ཌཱསི་ཐོ་བཀོད་ནང་ལུ་ཚད་བཟུང་ཅིག་བསྒྱུར་བཅོས་འབད་དགོ"
+
+#~ msgid ""
+#~ "Enabling this option is highly recommended. If you do, make sure you have "
+#~ "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
+#~ "each user using the smbpasswd command."
+#~ msgstr ""
+#~ "གདམ་ཁ་ལྕོགས་ཅན་བཟོ་མི་འདི་གིས་ གནམ་མེད་ས་མེད་འོས་སྦྱོར་འབད་ནི་ཨིན། དེ་འབད་ནི་ཨིན་པ་ཅིན་ ཁྱོད་"
+#~ "ལུ་ནུས་ལྡན་གྱི་/etc/samba/smbpasswd ཡིག་སྣོད་ཅིག་དགོཔ་དང་ འ་ནི་འདི་ཁྱོད་ཀྱིས་ smbpasswd "
+#~ "བརྡ་བཀོད་ལག་ལེན་གྱི་ཐོག་ལས་ ལག་ལེན་པ་རེ་བཞིན་གྱི་དོན་ལས་ དེ་ནང་ལུ་ཆོག་ཡིག་གཞི་སྒྲིག་འབད། "
 
 #~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
 #~ msgstr ""
@@ -212,11 +262,27 @@ msgstr ""
 #~ "རའི་ཞབས་ཏོག་སྤྱོད་མིའི་མ་འཕྲུལ་)འདི་ ལོག་རིམ་སྒྲིག་འབད་དགོ"
 
 #~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
+#~ "See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
+#~ "package for more details."
 #~ msgstr ""
 #~ "ཁ་གསལ་མཁྱེན་ནིའི་དོན་ལུ་ སམ་བ་-ཌོཀ་ཐུམ་སྒྲིལ་ནང་ལས་ /usr/share/doc/samba-doc/"
 #~ "htmldocs/ENCRYPTION.html ལུ་ལྟ།"
+
+#~ msgid "daemons"
+#~ msgstr "ཌེ་མཱོནསི་"
+
+#~ msgid "inetd"
+#~ msgstr "inetd"
+
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "ཁྱོད་ཀྱིས་ སམ་བ་འདི་ག་དེ་སྦེ་གཡོག་བཀོལ་དགོ་མནོཝ་སྨོ?"
+
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "སམ་བ་ཌེ་མཱོན་smbdའདི་ སྤྱིར་བཏང་ཌེ་མཱོན་སྦེ་ ཡང་ན་ inetdནང་ལས་ གཡོག་བཀོལ་ཚུགས། ཌེ་མཱོན་སྦེ་"
+#~ "གཡོག་བཀོལ་མི་འདི་ འོས་སྦྱོར་འབད་ཡོད་པའི་རྩར་ལེན་ཨིན།"
 
 #~ msgid "Chaining passdb backends is not supported"
 #~ msgstr "རྒྱུན་ཐག་ passdb རྒྱབ་མཐའ་འདི་ རྒྱབ་སྐྱོར་མ་འབད་བས་"

@@ -13,8 +13,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba4@packages.debian.org\n"
+"POT-Creation-Date: 2012-11-06 21:27+0100\n"
 "PO-Revision-Date: 2007-03-13 21:25+0100\n"
 "Last-Translator: Elian Myftiu <elian.myftiu@gmail.com>\n"
 "Language-Team: Debian L10n Albanian <debian-l10n-albanian@lists.debian.org>\n"
@@ -23,164 +23,216 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#. Type: title
+#. Type: boolean
 #. Description
-#: ../samba-common.templates:1001
-msgid "Samba server and utilities"
+#: ../samba4.templates:1001
+msgid "Upgrade from Samba 3?"
 msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:2001
-msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr "Ta ndryshoj smb.conf për të përdorur rregullimet WINS nga DHCP?"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:2001
+#: ../samba4.templates:1001
 msgid ""
-"If your computer gets IP address information from a DHCP server on the "
-"network, the DHCP server may also provide information about WINS servers "
-"(\"NetBIOS name servers\") present on the network.  This requires a change "
-"to your smb.conf file so that DHCP-provided WINS settings will automatically "
-"be read from /etc/samba/dhcp.conf."
+"It is possible to migrate the existing configuration files from Samba 3 to "
+"Samba 4. This is likely to fail for complex setups, but should provide a "
+"good starting point for most existing installations."
 msgstr ""
-"Nëse kompjuteri yt pajiset me adrese IP nga një shërbyes DHCP në rrjet, "
-"shërbyesi DHCP mundet gjithashtu të japë të dhëna rreth shërbyesve WINS "
-"(\"shërbyesa emri NetBIOS\") që ndodhen në rrjet.  Kjo ka nevojë për një "
-"ndryshim në skedën tënde smb.conf në mënyrë të tillë që rregullimet WINS që "
-"vijnë me DHCP të lexohen automatikisht nga /etc/samba/dhcp.conf."
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:2001
+#: ../samba4.templates:2001
+msgid "Server role"
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba4.templates:2001
 msgid ""
-"The dhcp3-client package must be installed to take advantage of this feature."
+"Domain controllers manage NT4-style or Active Directory domains and provide "
+"services such as identity management and domain logons. Each domain needs to "
+"have a at least one domain controller."
 msgstr ""
-"Duhet instaluar paketa dhcp3-client për të patur përparësi mbi këtë veti."
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:3001
-msgid "Configure smb.conf automatically?"
-msgstr "Ta konfiguroj smb.conf automatikisht?"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:3001
+#: ../samba4.templates:2001
 msgid ""
-"The rest of the configuration of Samba deals with questions that affect "
-"parameters in /etc/samba/smb.conf, which is the file used to configure the "
-"Samba programs (nmbd and smbd). Your current smb.conf contains an \"include"
-"\" line or an option that spans multiple lines, which could confuse the "
-"automated configuration process and require you to edit your smb.conf by "
-"hand to get it working again."
+"Member servers can be part of a NT4-style or Active Directory domain but do "
+"not provide any domain services. Workstations and file or print servers are "
+"usually regular domain members."
 msgstr ""
-"Pjesa e mbetur e konfigurimit Samba ka të bëjë me pyetje që prekin parametra "
-"në /etc/samba/smb.conf, e cili është skeda që përdoret për të konfiguruar "
-"programet Samba (nmbd dhe smbd). smb.conf yt i tanishëm përmban një rresht "
-"'include' ose një mundësi që tendos rreshta të shumëfishtë, të cilët mund të "
-"hutojnë proçesin automatik të konfigurimit dhe të të kërkojë ta ndryshosh "
-"skedarin tënd smb.conf dorazi dhe ta vesh në punë sërish."
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:3001
+#: ../samba4.templates:2001
 msgid ""
-"If you do not choose this option, you will have to handle any configuration "
-"changes yourself, and will not be able to take advantage of periodic "
-"configuration enhancements."
+"A standalone server can not be used in a domain and only supports file "
+"sharing and Windows for Workgroups-style logins."
 msgstr ""
-"Nëse nuk zgjedh këtë mundësi, do të duhet të kryesh çdo ndryshim konfigurimi "
-"vetë, dhe nuk do kesh rastin të përfitosh nga përmirësime periodike "
-"konfigurimi."
+
+#. Type: select
+#. Description
+#: ../samba4.templates:2001
+msgid ""
+"If no server role is specified, the Samba server will not be provisioned, so "
+"this can be done manually by the user."
+msgstr ""
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:4001
-msgid "Workgroup/Domain Name:"
-msgstr "Grup Pune/Emër Zone:"
+#: ../samba4.templates:3001
+msgid "Realm name:"
+msgstr ""
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:4001
+#: ../samba4.templates:3001
+msgid ""
+"Please specify the Kerberos realm for the domain that this domain controller "
+"controls."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba4.templates:3001
+msgid "Usually this is the a capitalized version of your DNS hostname."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid "New password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid "If this field is left blank, a random password will be generated."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid "A password can be set later by running, as root:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid " $ samba-tool user setpassword administrator"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:5001
+msgid "Repeat password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba4.templates:6001
+msgid "Password input error"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba4.templates:6001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr ""
+
 #, fuzzy
-msgid ""
-"Please specify the workgroup for this system.  This setting controls which "
-"workgroup the system will appear in when used as a server, the default "
-"workgroup to be used when browsing with various frontends, and the domain "
-"name used with the \"security=domain\" setting."
-msgstr ""
-"Të lutem saktëso grupin e punës ku dëshiron që ky shërbyes të shfaqet kur të "
-"pyetet nga klientë. Vër re që ky parametër kontrollon gjithashtu emrin e "
-"zonës së përdorur me rregullimet security=domain."
+#~| msgid ""
+#~| "If you do not choose this option, you will have to handle any "
+#~| "configuration changes yourself, and will not be able to take advantage "
+#~| "of periodic configuration enhancements."
+#~ msgid ""
+#~ "If you do not choose this option, Samba will be left unconfigured, and "
+#~ "you will have to configure it yourself."
+#~ msgstr ""
+#~ "Nëse nuk zgjedh këtë mundësi, do të duhet të kryesh çdo ndryshim "
+#~ "konfigurimi vetë, dhe nuk do kesh rastin të përfitosh nga përmirësime "
+#~ "periodike konfigurimi."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Të përdor kriptim fjalëkalimi?"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Të tërë klientët e fundit Windows komunikojnë me shërbyes SMB duke përdorur "
-"fjalëkalime të kriptuar. Nëse dëshiron të përdorësh fjalëkalime të qarta "
-"tekstualë do të duhet të ndryshosh një parametër në regjistrin tënd Windows."
+#~| msgid "Workgroup/Domain Name:"
+#~ msgid "Domain Name:"
+#~ msgstr "Grup Pune/Emër Zone:"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Aktivizimi i kësaj mundësie këshillohet fuqimisht. Nëse e bën, sigurohu që "
-"ke një skedar të vlefshëm /etc/samba/smbpasswd dhe që i cakton fjalëkalimet "
-"atje për secilin përdorues duke përdorur komandën smbpasswd."
+#~| msgid ""
+#~| "Please specify the workgroup you want this server to appear to be in "
+#~| "when queried by clients. Note that this parameter also controls the "
+#~| "domain name used with the security=domain setting."
+#~ msgid ""
+#~ "Please specify the domain you want this server to appear to be in when "
+#~ "queried by clients."
+#~ msgstr ""
+#~ "Të lutem saktëso grupin e punës ku dëshiron që ky shërbyes të shfaqet kur "
+#~ "të pyetet nga klientë. Vër re që ky parametër kontrollon gjithashtu emrin "
+#~ "e zonës së përdorur me rregullimet security=domain."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
+#~ msgid "Modify smb.conf to use WINS settings from DHCP?"
+#~ msgstr "Ta ndryshoj smb.conf për të përdorur rregullimet WINS nga DHCP?"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "daemons"
+#~ msgid ""
+#~ "If your computer gets IP address information from a DHCP server on the "
+#~ "network, the DHCP server may also provide information about WINS servers "
+#~ "(\"NetBIOS name servers\") present on the network.  This requires a "
+#~ "change to your smb.conf file so that DHCP-provided WINS settings will "
+#~ "automatically be read from /etc/samba/dhcp.conf."
+#~ msgstr ""
+#~ "Nëse kompjuteri yt pajiset me adrese IP nga një shërbyes DHCP në rrjet, "
+#~ "shërbyesi DHCP mundet gjithashtu të japë të dhëna rreth shërbyesve WINS "
+#~ "(\"shërbyesa emri NetBIOS\") që ndodhen në rrjet.  Kjo ka nevojë për një "
+#~ "ndryshim në skedën tënde smb.conf në mënyrë të tillë që rregullimet WINS "
+#~ "që vijnë me DHCP të lexohen automatikisht nga /etc/samba/dhcp.conf."
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
+#~ msgid ""
+#~ "The dhcp3-client package must be installed to take advantage of this "
+#~ "feature."
+#~ msgstr ""
+#~ "Duhet instaluar paketa dhcp3-client për të patur përparësi mbi këtë veti."
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Si dëshiron të xhirojë Samba?"
+#~ msgid "Configure smb.conf automatically?"
+#~ msgstr "Ta konfiguroj smb.conf automatikisht?"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Daemon Samba smbd mund të xhirojë si një daemon normal ose nga inetd. "
-"Rekomandohet puna si daemon."
+#~ msgid ""
+#~ "The rest of the configuration of Samba deals with questions that affect "
+#~ "parameters in /etc/samba/smb.conf, which is the file used to configure "
+#~ "the Samba programs (nmbd and smbd). Your current smb.conf contains an "
+#~ "'include' line or an option that spans multiple lines, which could "
+#~ "confuse the automated configuration process and require you to edit your "
+#~ "smb.conf by hand to get it working again."
+#~ msgstr ""
+#~ "Pjesa e mbetur e konfigurimit Samba ka të bëjë me pyetje që prekin "
+#~ "parametra në /etc/samba/smb.conf, e cili është skeda që përdoret për të "
+#~ "konfiguruar programet Samba (nmbd dhe smbd). smb.conf yt i tanishëm "
+#~ "përmban një rresht 'include' ose një mundësi që tendos rreshta të "
+#~ "shumëfishtë, të cilët mund të hutojnë proçesin automatik të konfigurimit "
+#~ "dhe të të kërkojë ta ndryshosh skedarin tënd smb.conf dorazi dhe ta vesh "
+#~ "në punë sërish."
+
+#~ msgid "Use password encryption?"
+#~ msgstr "Të përdor kriptim fjalëkalimi?"
+
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB servers using encrypted "
+#~ "passwords. If you want to use clear text passwords you will need to "
+#~ "change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Të tërë klientët e fundit Windows komunikojnë me shërbyes SMB duke "
+#~ "përdorur fjalëkalime të kriptuar. Nëse dëshiron të përdorësh fjalëkalime "
+#~ "të qarta tekstualë do të duhet të ndryshosh një parametër në regjistrin "
+#~ "tënd Windows."
+
+#~ msgid ""
+#~ "Enabling this option is highly recommended. If you do, make sure you have "
+#~ "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
+#~ "each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Aktivizimi i kësaj mundësie këshillohet fuqimisht. Nëse e bën, sigurohu "
+#~ "që ke një skedar të vlefshëm /etc/samba/smbpasswd dhe që i cakton "
+#~ "fjalëkalimet atje për secilin përdorues duke përdorur komandën smbpasswd."
 
 #~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
 #~ msgstr "Të krijoj bazë të dhënash fjalëkalimi, /var/lib/samba/passdb.tdb?"
@@ -207,11 +259,27 @@ msgstr ""
 #~ "kompjuterët klientë) për të përdorur fjalëkalime tekstualë të qartë."
 
 #~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
+#~ "See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
+#~ "package for more details."
 #~ msgstr ""
-#~ "Shih /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html nga paketa samba-doc për hollësi të mëtejshme."
+#~ "Shih /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html nga paketa samba-"
+#~ "doc për hollësi të mëtejshme."
+
+#~ msgid "daemons"
+#~ msgstr "daemons"
+
+#~ msgid "inetd"
+#~ msgstr "inetd"
+
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Si dëshiron të xhirojë Samba?"
+
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Daemon Samba smbd mund të xhirojë si një daemon normal ose nga inetd. "
+#~ "Rekomandohet puna si daemon."
 
 #~ msgid "Chaining passdb backends is not supported"
 #~ msgstr "Vargëzimi i passdb nuk suportohet"

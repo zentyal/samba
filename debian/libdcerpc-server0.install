@@ -1,0 +1,4 @@
+usr/lib/*/libdcerpc-server.so.*
+usr/lib/*/samba/libLIBWBCLIENT_OLD.so
+usr/lib/*/samba/libauth4.so
+usr/lib/*/samba/libauth_unix_token.so

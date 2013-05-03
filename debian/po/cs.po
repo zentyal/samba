@@ -13,10 +13,10 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
-"PO-Revision-Date: 2011-05-20 18:41+0200\n"
+"Project-Id-Version: samba4\n"
+"Report-Msgid-Bugs-To: samba4@packages.debian.org\n"
+"POT-Creation-Date: 2012-11-06 21:27+0100\n"
+"PO-Revision-Date: 2012-02-12 09:21+0100\n"
 "Last-Translator: Miroslav Kure <kurem@debian.cz>\n"
 "Language-Team: Czech <debian-l10n-czech@lists.debian.org>\n"
 "Language: cs\n"
@@ -24,163 +24,237 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#. Type: title
+#. Type: boolean
 #. Description
-#: ../samba-common.templates:1001
-msgid "Samba server and utilities"
-msgstr "Samba server a nástroje"
+#: ../samba4.templates:1001
+msgid "Upgrade from Samba 3?"
+msgstr "Přejít ze Samby 3?"
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:2001
-msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr "Upravit smb.conf, aby používal WINS nastavení z DHCP?"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:2001
+#: ../samba4.templates:1001
 msgid ""
-"If your computer gets IP address information from a DHCP server on the "
-"network, the DHCP server may also provide information about WINS servers "
-"(\"NetBIOS name servers\") present on the network.  This requires a change "
-"to your smb.conf file so that DHCP-provided WINS settings will automatically "
-"be read from /etc/samba/dhcp.conf."
+"It is possible to migrate the existing configuration files from Samba 3 to "
+"Samba 4. This is likely to fail for complex setups, but should provide a "
+"good starting point for most existing installations."
 msgstr ""
-"Pokud váš počítač získává IP adresu z DHCP serveru, může vám tento server "
-"nabízet také informace o WINS serverech (jmenných serverech NetBIOSu), které "
-"jsou dostupné ve vaší síti. To vyžaduje zásah do souboru smb.conf, kde se "
-"nastaví, aby se informace o WINS serverech načítaly ze souboru /etc/samba/"
-"dhcp.conf."
+"Stávající konfigurační soubory Samby 3 je možno převést do Samby 4. Převod "
+"složitějších nastavení nejspíše selže, avšak pro většinu instalací by měl "
+"poskytnout solidní základ."
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:2001
+#: ../samba4.templates:2001
+msgid "Server role"
+msgstr "Role serveru"
+
+#. Type: select
+#. Description
+#: ../samba4.templates:2001
 msgid ""
-"The dhcp3-client package must be installed to take advantage of this feature."
+"Domain controllers manage NT4-style or Active Directory domains and provide "
+"services such as identity management and domain logons. Each domain needs to "
+"have a at least one domain controller."
 msgstr ""
-"Pro využití této vlastnosti musíte mít nainstalovaný balík dhcp3-client."
+"Doménové řadiče spravují domény typu NT4 nebo Active Directory a poskytují "
+"služby typu správa identit a přihlášení do domény. Každá doména musí mít "
+"alespoň jeden doménový řadič."
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:3001
-msgid "Configure smb.conf automatically?"
-msgstr "Konfigurovat smb.conf automaticky?"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:3001
+#: ../samba4.templates:2001
 msgid ""
-"The rest of the configuration of Samba deals with questions that affect "
-"parameters in /etc/samba/smb.conf, which is the file used to configure the "
-"Samba programs (nmbd and smbd). Your current smb.conf contains an \"include"
-"\" line or an option that spans multiple lines, which could confuse the "
-"automated configuration process and require you to edit your smb.conf by "
-"hand to get it working again."
+"Member servers can be part of a NT4-style or Active Directory domain but do "
+"not provide any domain services. Workstations and file or print servers are "
+"usually regular domain members."
 msgstr ""
-"Zbytek konfigurace Samby se zabývá otázkami, které mění parametry v /etc/"
-"samba/smb.conf, což je soubor používaný pro nastavení programů nmbd a smbd "
-"(dohromady tvoří Sambu). Váš stávající smb.conf obsahuje řádek „include“ "
-"nebo volbu, která se táhne přes více řádků, což může zmást proces "
-"automatického nastavení a může způsobit, že pro znovuzprovoznění Samby "
-"budete muset upravit smb.conf ručně."
+"Členské servery mohou být součástí domény typu NT4 nebo Active Directory, "
+"ale samy neposkytují žádné doménové služby. Typicky to bývají běžné pracovní "
+"stanice nebo souborové a tiskové servery."
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:3001
+#: ../samba4.templates:2001
 msgid ""
-"If you do not choose this option, you will have to handle any configuration "
-"changes yourself, and will not be able to take advantage of periodic "
-"configuration enhancements."
+"A standalone server can not be used in a domain and only supports file "
+"sharing and Windows for Workgroups-style logins."
 msgstr ""
-"Pokud tuto možnost nepovolíte, budete muset zvládnout všechna nastavení sami "
-"a nebudete moci využívat výhod pravidelných vylepšení tohoto souboru."
+"Samostatný server nelze použít v doméně a podporuje pouze sdílení souborů a "
+"přihlašování ve stylu Windows for Workgroups."
+
+#. Type: select
+#. Description
+#: ../samba4.templates:2001
+msgid ""
+"If no server role is specified, the Samba server will not be provisioned, so "
+"this can be done manually by the user."
+msgstr ""
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:4001
-msgid "Workgroup/Domain Name:"
-msgstr "Skupina/název domény:"
+#: ../samba4.templates:3001
+msgid "Realm name:"
+msgstr "Název říše:"
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:4001
+#: ../samba4.templates:3001
 msgid ""
-"Please specify the workgroup for this system.  This setting controls which "
-"workgroup the system will appear in when used as a server, the default "
-"workgroup to be used when browsing with various frontends, and the domain "
-"name used with the \"security=domain\" setting."
+"Please specify the Kerberos realm for the domain that this domain controller "
+"controls."
 msgstr ""
-"Zadejte jméno skupiny, do které má počítač patřit. Při použití počítače v "
-"roli serveru se klientům bude jevit, že server patří do zadané skupiny. "
-"Jméno skupiny se také použije jako výchozí skupina v různých programech pro "
-"procházení sítí. A konečně tento parametr určuje název domény v případech, "
-"kdy používáte nastavení „security=domain“."
+"Zadejte název kerberovy říše pro doménu, kterou spravuje tento doménový "
+"řadič."
 
-#. Type: boolean
+#. Type: string
 #. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Použít šifrování hesel?"
+#: ../samba4.templates:3001
+msgid "Usually this is the a capitalized version of your DNS hostname."
+msgstr "Obvykle to bývá DNS jméno počítače napsané velkými písmeny."
 
-#. Type: boolean
+#. Type: password
 #. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
+#: ../samba4.templates:4001
+msgid "New password for the Samba \"administrator\" user:"
 msgstr ""
-"Všichni současní windowsoví klienti používají pro komunikaci se SMB/CIFS "
-"servery šifrovaná hesla. Pokud chcete použít hesla nešifrovaná, musíte "
-"změnit jeden parametr v registrech systému Windows."
 
-#. Type: boolean
+#. Type: password
 #. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
+#: ../samba4.templates:4001
+msgid "If this field is left blank, a random password will be generated."
 msgstr ""
-"Povolení této volby je silně doporučeno, protože podpora nešifrovaných hesel "
-"již není v Microsoft Windows dále udržována. Dáte-li na naši radu, měli "
-"byste se ujistit, že máte platný soubor /etc/samba/smbpasswd a že v něm "
-"nastavíte hesla všech uživatelů příkazem smbpasswd."
 
-#. Type: title
+#. Type: password
 #. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr "Samba server"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "démoni"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Jak chcete spouštět Sambu?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
+#: ../samba4.templates:4001
+msgid "A password can be set later by running, as root:"
 msgstr ""
-"Server Samby smbd může běžet jako obyčejný daemon (doporučeno), nebo se může "
-"spouštět z inetd."
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid " $ samba-tool user setpassword administrator"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:5001
+msgid "Repeat password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba4.templates:6001
+msgid "Password input error"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba4.templates:6001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr ""
+
+#~ msgid "Set up Samba 4 as a PDC?"
+#~ msgstr "Nastavit Sambu 4 jako PDC?"
+
+#~ msgid ""
+#~ "If you do not choose this option, Samba will be left unconfigured, and "
+#~ "you will have to configure it yourself."
+#~ msgstr ""
+#~ "Pokud tuto možnost nepovolíte, zůstane Samba nenakonfigurovaná a všechna "
+#~ "nastavení budete muset zvládnout sami."
+
+#~ msgid ""
+#~ "Even when using this option, you will need to set up DNS such that it "
+#~ "serves the data from the zone file in that directory before you can use "
+#~ "the Active Directory domain."
+#~ msgstr ""
+#~ "I když tuto volbu vyberete, pořád budete muset před používáním Active "
+#~ "Directory domény nastavit DNS server tak, aby vracel data ze zónového "
+#~ "souboru v daném adresáři."
+
+#~ msgid ""
+#~ "Please specify the Kerberos realm this server will be in. In many cases,  "
+#~ "this will be the same as the DNS domain name."
+#~ msgstr ""
+#~ "Zadejte prosím kerberovu říši, do které bude tento server patřit. V mnoha "
+#~ "případech je říše shodná s doménovým DNS jménem."
+
+#~| msgid "Workgroup/Domain Name:"
+#~ msgid "Domain Name:"
+#~ msgstr "Doména:"
+
+#~| msgid ""
+#~| "Please specify the workgroup you want this server to appear to be in "
+#~| "when queried by clients. Note that this parameter also controls the "
+#~| "domain name used with the security=domain setting."
+#~ msgid ""
+#~ "Please specify the domain you want this server to appear to be in when "
+#~ "queried by clients."
+#~ msgstr ""
+#~ "Zadejte prosím jméno domény, do které má server patřit (resp. se to tak "
+#~ "bude jevit klientům)."
+
+#~ msgid "Modify smb.conf to use WINS settings from DHCP?"
+#~ msgstr "Upravit smb.conf, aby používal WINS nastavení z DHCP?"
+
+#~ msgid ""
+#~ "If your computer gets IP address information from a DHCP server on the "
+#~ "network, the DHCP server may also provide information about WINS servers "
+#~ "(\"NetBIOS name servers\") present on the network.  This requires a "
+#~ "change to your smb.conf file so that DHCP-provided WINS settings will "
+#~ "automatically be read from /etc/samba/dhcp.conf."
+#~ msgstr ""
+#~ "Pokud váš počítač získává IP adresu z DHCP serveru, může vám tento server "
+#~ "nabízet také informace o WINS serverech (jmenných serverech NetBIOSu), "
+#~ "které jsou dostupné ve vaší síti. To vyžaduje zásah do souboru smb.conf, "
+#~ "kde se nastaví, aby se informace o WINS serverech načítaly ze souboru /"
+#~ "etc/samba/dhcp.conf."
+
+#~ msgid ""
+#~ "The dhcp3-client package must be installed to take advantage of this "
+#~ "feature."
+#~ msgstr ""
+#~ "Pro využití této vlastnosti musíte mít nainstalovaný balík dhcp3-client."
+
+#~ msgid "Configure smb.conf automatically?"
+#~ msgstr "Konfigurovat smb.conf automaticky?"
+
+#~ msgid ""
+#~ "The rest of the configuration of Samba deals with questions that affect "
+#~ "parameters in /etc/samba/smb.conf, which is the file used to configure "
+#~ "the Samba programs (nmbd and smbd). Your current smb.conf contains an "
+#~ "'include' line or an option that spans multiple lines, which could "
+#~ "confuse the automated configuration process and require you to edit your "
+#~ "smb.conf by hand to get it working again."
+#~ msgstr ""
+#~ "Zbytek konfigurace Samby se zabývá otázkami, které mění parametry v /etc/"
+#~ "samba/smb.conf, což je soubor používaný pro nastavení programů nmbd a "
+#~ "smbd (dohromady tvoří Sambu). Váš stávající smb.conf obsahuje řádek "
+#~ "'include' nebo volbu, která se táhne přes více řádků, což může zmást "
+#~ "proces automatického nastavení a může způsobit, že pro znovuzprovoznění "
+#~ "Samby budete muset upravit smb.conf ručně."
+
+#~ msgid "Use password encryption?"
+#~ msgstr "Použít šifrování hesel?"
+
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB servers using encrypted "
+#~ "passwords. If you want to use clear text passwords you will need to "
+#~ "change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Všichni současní windowsoví klienti používají pro komunikaci se SMB "
+#~ "servery šifrovaná hesla. Pokud chcete použít hesla nešifrovaná, musíte "
+#~ "změnit jeden parametr v registrech systému Windows."
+
+#~ msgid ""
+#~ "Enabling this option is highly recommended. If you do, make sure you have "
+#~ "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
+#~ "each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Povolení této volby je silně doporučeno. Dáte-li na naši radu, měli byste "
+#~ "se ujistit, že máte platný soubor /etc/samba/smbpasswd a že v něm "
+#~ "nastavíte hesla všech uživatelů příkazem smbpasswd."
 
 #~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
 #~ msgstr "Vytvořit databázi hesel /var/lib/samba/passdb.tdb?"
@@ -206,11 +280,27 @@ msgstr ""
 #~ "také klienty), aby používali nešifrovaná hesla."
 
 #~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
+#~ "See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
+#~ "package for more details."
 #~ msgstr ""
 #~ "Podrobnosti naleznete v souboru /usr/share/doc/samba-doc/htmldocs/"
 #~ "ENCRYPTION.html z balíku samba-doc."
+
+#~ msgid "daemons"
+#~ msgstr "démoni"
+
+#~ msgid "inetd"
+#~ msgstr "inetd"
+
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Jak chcete spouštět Sambu?"
+
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Server Samby smbd může běžet jako obyčejný daemon (doporučeno), nebo se "
+#~ "může spouštět z inetd."
 
 #~ msgid "Chaining passdb backends is not supported"
 #~ msgstr "Řetězení backendů passdb není podporováno"
@@ -221,10 +311,10 @@ msgstr ""
 #~ "conf file contains a passdb backend parameter consisting of a list of "
 #~ "backends.  The new version of samba will not work until you correct this."
 #~ msgstr ""
-#~ "Počínaje verzi 3.0.23 již Samba v parametru „passdb backend“ nepodporuje "
-#~ "řetězení několika backendů. Zdá se, že váš soubor smb.conf obsahuje v "
-#~ "parametru passdb backend několik backendů. Dokud to neopravíte, nová "
-#~ "verze Samby nebude fungovat."
+#~ "Počínaje verzi 3.0.23 již Samba v parametru \"passdb backend\" "
+#~ "nepodporuje řetězení několika backendů. Zdá se, že váš soubor smb.conf "
+#~ "obsahuje v parametru passdb backend několik backendů. Dokud to "
+#~ "neopravíte, nová verze Samby nebude fungovat."
 
 #~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
 #~ msgstr "Přesunout /etc/samba/smbpasswd do /var/lib/samba/passdb.tdb?"

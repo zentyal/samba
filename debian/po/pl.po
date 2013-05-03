@@ -1,15 +1,14 @@
-# translation of samba_2:3.2.3-1_pl_2008-09-12.po to polski
-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
-# This file is distributed under the same license as the PACKAGE package.
+# Translation of samba4 debconf templates to Polish.
+# Copyright (C) 2011
+# This file is distributed under the same license as the samba4 package.
 #
-# Tomasz Majbaum <genobis@genobis.pl>, 2008.
 # Michał Kułach <michal.kulach@gmail.com>, 2012.
 msgid ""
 msgstr ""
-"Project-Id-Version: samba_2:3.2.3-1_pl_2008-09-12\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
-"PO-Revision-Date: 2012-01-28 17:59+0100\n"
+"Project-Id-Version: \n"
+"Report-Msgid-Bugs-To: samba4@packages.debian.org\n"
+"POT-Creation-Date: 2012-11-06 21:27+0100\n"
+"PO-Revision-Date: 2012-02-11 19:28+0100\n"
 "Last-Translator: Michał Kułach <michal.kulach@gmail.com>\n"
 "Language-Team: Polish <debian-l10n-polish@lists.debian.org>\n"
 "Language: \n"
@@ -20,195 +19,133 @@ msgstr ""
 "Plural-Forms: nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 "
 "|| n%100>=20) ? 1 : 2);\n"
 
-#. Type: title
+#. Type: boolean
 #. Description
-#: ../samba-common.templates:1001
-msgid "Samba server and utilities"
-msgstr "Serwer i narzędzia Samba"
+#: ../samba4.templates:1001
+msgid "Upgrade from Samba 3?"
+msgstr "Zaktualizować z Samby 3? "
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:2001
-msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr "Czy zmienić smb.conf tak, by używał ustawień WINS z DHCP?"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:2001
+#: ../samba4.templates:1001
 msgid ""
-"If your computer gets IP address information from a DHCP server on the "
-"network, the DHCP server may also provide information about WINS servers "
-"(\"NetBIOS name servers\") present on the network.  This requires a change "
-"to your smb.conf file so that DHCP-provided WINS settings will automatically "
-"be read from /etc/samba/dhcp.conf."
+"It is possible to migrate the existing configuration files from Samba 3 to "
+"Samba 4. This is likely to fail for complex setups, but should provide a "
+"good starting point for most existing installations."
 msgstr ""
-"Jeżeli ten komputer pobiera informacje o adresie IP z serwera DHCP przez "
-"sieć, serwer DHCP może również dostarczać informacji na temat serwerów WINS "
-"(\"serwerów nazw NetBIOS\") obecnych w sieci. Wymaga to zmiany w pliku smb."
-"conf, aby dostarczone przez DHCP ustawienia WINS były automatycznie "
-"odczytywane z /etc/samba/dhcp.conf."
+"Można przenieść istniejące pliki konfiguracyjne z Samby 3 do Samby 4. "
+"Istnieje duże prawdopodobieństwo, że nie powiedzie się to w przypadku "
+"skomplikowanej konfiguracji, ale powinno zapewnić dobry początek dla "
+"większości istniejących instalacji."
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:2001
+#: ../samba4.templates:2001
+msgid "Server role"
+msgstr "Rola serwera"
+
+#. Type: select
+#. Description
+#: ../samba4.templates:2001
 msgid ""
-"The dhcp3-client package must be installed to take advantage of this feature."
+"Domain controllers manage NT4-style or Active Directory domains and provide "
+"services such as identity management and domain logons. Each domain needs to "
+"have a at least one domain controller."
 msgstr ""
-"Aby móc skorzystać z tej funkcjonalności, musi być zainstalowany pakiet "
-"dhcp3-client."
+"Kontrolery domen zarządzają domenami w stylu NT4 lub Active Directory i "
+"udostępniają usługi takie jak zarządzanie tożsamością i domeny logowania. "
+"Każda domena musi mieć przynajmniej jeden kontroler domeny."
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:3001
-msgid "Configure smb.conf automatically?"
-msgstr "Czy automatycznie skonfigurować smb.conf?"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:3001
+#: ../samba4.templates:2001
 msgid ""
-"The rest of the configuration of Samba deals with questions that affect "
-"parameters in /etc/samba/smb.conf, which is the file used to configure the "
-"Samba programs (nmbd and smbd). Your current smb.conf contains an \"include"
-"\" line or an option that spans multiple lines, which could confuse the "
-"automated configuration process and require you to edit your smb.conf by "
-"hand to get it working again."
+"Member servers can be part of a NT4-style or Active Directory domain but do "
+"not provide any domain services. Workstations and file or print servers are "
+"usually regular domain members."
 msgstr ""
-"Pozostała część konfiguracji Samby związana jest z pytaniami wpływającymi na "
-"parametry w /etc/samba/smb.conf, który jest plikiem używanym do konfiguracji "
-"programów Samby (nmbd i smbd). Obecny smb.conf zawiera wiersz \"include\", "
-"bądź opcję obejmującą wiele wierszy, co może przeszkodzić procesowi "
-"zautomatyzowanej konfiguracji i wymagać od użytkownika ręcznej edycji pliku "
-"smb.conf, by mógł znowu być używany."
+"Serwery członkowskie mogą być częścią domeny w stylu NT4 lub Active "
+"Directory, ale nie zapewniają żadnych usług domenowych. Stacje robocze i "
+"serwery plików lub druku są z reguły zwykłymi członkami domeny."
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:3001
+#: ../samba4.templates:2001
 msgid ""
-"If you do not choose this option, you will have to handle any configuration "
-"changes yourself, and will not be able to take advantage of periodic "
-"configuration enhancements."
+"A standalone server can not be used in a domain and only supports file "
+"sharing and Windows for Workgroups-style logins."
 msgstr ""
-"Jeżeli ta opcja nie zostanie wybrana, konieczne będzie samodzielnie "
-"zajmowanie się przez użytkownika wszelkimi zmianami konfiguracji i nie "
-"będzie można korzystać z okresowych jej ulepszeń."
+"Samodzielny serwer nie może być używany w domenie i obsługuje wyłącznie "
+"dzielenie się plikami oraz loginy w stylu Windows for Workgroups."
+
+#. Type: select
+#. Description
+#: ../samba4.templates:2001
+msgid ""
+"If no server role is specified, the Samba server will not be provisioned, so "
+"this can be done manually by the user."
+msgstr ""
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:4001
-msgid "Workgroup/Domain Name:"
-msgstr "Nazwa grupy roboczej/domeny:"
+#: ../samba4.templates:3001
+msgid "Realm name:"
+msgstr "Nazwa dziedziny:"
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:4001
+#: ../samba4.templates:3001
 msgid ""
-"Please specify the workgroup for this system.  This setting controls which "
-"workgroup the system will appear in when used as a server, the default "
-"workgroup to be used when browsing with various frontends, and the domain "
-"name used with the \"security=domain\" setting."
+"Please specify the Kerberos realm for the domain that this domain controller "
+"controls."
 msgstr ""
-"Proszę określić grupę roboczą systemu. To ustawienie określa grupę roboczą, "
-"w której pojawi się system, jeśli będzie użyty w roli serwera; domyślną "
-"grupę roboczą, która będzie użyta podczas przeglądania z poziomu różnych "
-"interfejsów oraz nazwę domeny używaną w ustawieniu \"security=domain\"."
+"Proszę podać dziedzinę Kerberos (ang. realm) do domeny którą kontroluje ten "
+"kontroler domen."
 
-#. Type: boolean
+#. Type: string
 #. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Czy używać szyfrowania haseł?"
+#: ../samba4.templates:3001
+msgid "Usually this is the a capitalized version of your DNS hostname."
+msgstr "Z reguły jest to pisana dużymi literami nazwa DNS komputera."
 
-#. Type: boolean
+#. Type: password
 #. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
+#: ../samba4.templates:4001
+msgid "New password for the Samba \"administrator\" user:"
 msgstr ""
-"Wszystkie współczesne klienty Windows komunikują się z serwerami SMB/CIFS "
-"używając zaszyfrowanych haseł. Aby używać haseł w postaci otwartego tekstu, "
-"konieczna będzie zmiana odpowiedniego parametru w rejestrze Windows."
 
-#. Type: boolean
+#. Type: password
 #. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
+#: ../samba4.templates:4001
+msgid "If this field is left blank, a random password will be generated."
 msgstr ""
-"Włączenie tej opcji jest wysoce zalecane, ponieważ obsługa haseł w otwartym "
-"tekście nie jest dłużej zapewniana przez systemy Microsoft Windows. W takim "
-"przypadku należy upewnić się, że plik /etc/samba/smbpasswd jest poprawny i "
-"że zostaną w nim ustawione hasła dla każdego użytkownika korzystającego z "
-"polecenia smbpasswd."
 
-#. Type: title
+#. Type: password
 #. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr "Serwer Samba"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "demon"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "W jaki sposób Samba ma być uruchamiana?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
+#: ../samba4.templates:4001
+msgid "A password can be set later by running, as root:"
 msgstr ""
-"Demon Samby smbd może działać jako zwykły demon, albo z poziomu inetd. "
-"Zalecane jest uruchomienie demona."
 
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr "Utworzyć bazę haseł samby, /var/lib/samba/passdb.tdb?"
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid " $ samba-tool user setpassword administrator"
+msgstr ""
 
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "Aby zachować zgodność z domyślnymi ustawieniami większości wersji "
-#~ "Windows, Samba musi korzystać z szyfrowanych haseł. W związku z tym, "
-#~ "hasła użytkowników muszą być przechowywane w innym pliku niż /etc/passwd. "
-#~ "Ten plik może zostać utworzony automatycznie, ale hasła muszą być "
-#~ "dodawane ręcznie za pomocą polecenia smbpasswd, a w przyszłości na "
-#~ "bieżąco uaktualniane."
+#. Type: password
+#. Description
+#: ../samba4.templates:5001
+msgid "Repeat password for the Samba \"administrator\" user:"
+msgstr ""
 
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "Jeżeli plik nie zostanie utworzony, konieczne będzie przekonfigurowanie "
-#~ "Samby (i prawdopodobnie komputerów klienckich) do używania haseł w "
-#~ "postaci otwartego tekstu."
+#. Type: error
+#. Description
+#: ../samba4.templates:6001
+msgid "Password input error"
+msgstr ""
 
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "Proszę zapoznać się z plikiem /usr/share/doc/samba-doc/htmldocs/Samba3-"
-#~ "Developers-Guide/pwencrypt.html z pakietu samba-doc, aby poznać więcej "
-#~ "szczegółów."
+#. Type: error
+#. Description
+#: ../samba4.templates:6001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr ""

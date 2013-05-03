@@ -1,13 +1,13 @@
 # Vietnamese translation for Samba.
-# Copyright © 2009 Free Software Foundation, Inc.
-# Clytie Siddall <clytie@riverland.net.au>, 2005-2009.
+# Copyright © 2008 Free Software Foundation, Inc.
+# Clytie Siddall <clytie@riverland.net.au>, 2005-2008.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: samba 3.2\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
-"PO-Revision-Date: 2009-02-15 15:57+1030\n"
+"Project-Id-Version: samba4 4.0.0~alpha4~20080617-1\n"
+"Report-Msgid-Bugs-To: samba4@packages.debian.org\n"
+"POT-Creation-Date: 2012-11-06 21:27+0100\n"
+"PO-Revision-Date: 2008-06-17 18:40+0930\n"
 "Last-Translator: Clytie Siddall <clytie@riverland.net.au>\n"
 "Language-Team: Vietnamese <vi-VN@googlegroups.com>\n"
 "Language: vi\n"
@@ -15,193 +15,167 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: LocFactoryEditor 1.8\n"
+"X-Generator: LocFactoryEditor 1.7b3\n"
 
-#. Type: title
+#. Type: boolean
 #. Description
-#: ../samba-common.templates:1001
-msgid "Samba server and utilities"
+#: ../samba4.templates:1001
+msgid "Upgrade from Samba 3?"
+msgstr "Nâng cấp từ Samba 3 không?"
+
+#. Type: boolean
+#. Description
+#: ../samba4.templates:1001
+msgid ""
+"It is possible to migrate the existing configuration files from Samba 3 to "
+"Samba 4. This is likely to fail for complex setups, but should provide a "
+"good starting point for most existing installations."
+msgstr ""
+"Có thể nâng cấp các tập tin cấu hình đã tồn tại từ Samba phiên bản 3 lên "
+"Samba phiên bản 4. Rất có thể không thành công đối với thiết lập phức tạp, "
+"nhưng nên cung cấp một điểm bắt đầu hữu ích cho phần lớn bản cài đặt đã có."
+
+#. Type: select
+#. Description
+#: ../samba4.templates:2001
+msgid "Server role"
 msgstr ""
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:2001
-msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr "Sửa đổi « smb.conf » để dùng thiết lập WINS từ DHCP ?"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:2001
+#: ../samba4.templates:2001
 msgid ""
-"If your computer gets IP address information from a DHCP server on the "
-"network, the DHCP server may also provide information about WINS servers "
-"(\"NetBIOS name servers\") present on the network.  This requires a change "
-"to your smb.conf file so that DHCP-provided WINS settings will automatically "
-"be read from /etc/samba/dhcp.conf."
+"Domain controllers manage NT4-style or Active Directory domains and provide "
+"services such as identity management and domain logons. Each domain needs to "
+"have a at least one domain controller."
 msgstr ""
-"Nếu máy tính của bạn lấy thông tin địa chỉ IP từ một trình phục vụ DHCP nằm "
-"trên mạng, trình phục vụ DHCP có lẽ cũng có khả năng cung cấp thông tin về "
-"trình phục vụ WINS (« NetBIOS name servers ») cũng nằm trên mạng. Dịch vụ "
-"này cần thiết bạn sửa đổi tập tin « smb.conf » của mình để cho phép thiết "
-"lập WINS do DHCP cung cấp sẽ được đọc tự động từ tập tin « /etc/samba/dhcp."
-"conf »."
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:2001
+#: ../samba4.templates:2001
 msgid ""
-"The dhcp3-client package must be installed to take advantage of this feature."
-msgstr "Để nhớ dịp tính năng này, bạn cần phải cài đặt gói « dhcp3-client »."
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:3001
-msgid "Configure smb.conf automatically?"
-msgstr "Tự động cấu hình « smb.conf » ?"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:3001
-msgid ""
-"The rest of the configuration of Samba deals with questions that affect "
-"parameters in /etc/samba/smb.conf, which is the file used to configure the "
-"Samba programs (nmbd and smbd). Your current smb.conf contains an \"include"
-"\" line or an option that spans multiple lines, which could confuse the "
-"automated configuration process and require you to edit your smb.conf by "
-"hand to get it working again."
+"Member servers can be part of a NT4-style or Active Directory domain but do "
+"not provide any domain services. Workstations and file or print servers are "
+"usually regular domain members."
 msgstr ""
-"Phần còn lại của cấu hình Samba đề cập các câu hỏi về tham số trong tập tin "
-"« /etc/samba/smb.conf », tập tin được dùng để cấu hình các chương trình "
-"Samba (nmbd và smbd). Tập tin « smb.conf » hiện thời chứa một dòng « include "
-"» (gồm) hay một tùy chọn chiếm nhiều dòng, mà có thể gây ra lỗi trong tiến "
-"trình cấu hình tự động thì cần thiết bạn tự sửa đổi tập tin « smb.conf » "
-"mình để kích hoạt lại nó."
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:3001
+#: ../samba4.templates:2001
 msgid ""
-"If you do not choose this option, you will have to handle any configuration "
-"changes yourself, and will not be able to take advantage of periodic "
-"configuration enhancements."
+"A standalone server can not be used in a domain and only supports file "
+"sharing and Windows for Workgroups-style logins."
 msgstr ""
-"Không bật tùy chọn này thì bạn cần phải tự quản lý thay đổi cấu hình nào, và "
-"không thể nhớ dịp sự tăng cường cấu hình định kỳ."
+
+#. Type: select
+#. Description
+#: ../samba4.templates:2001
+msgid ""
+"If no server role is specified, the Samba server will not be provisioned, so "
+"this can be done manually by the user."
+msgstr ""
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:4001
-msgid "Workgroup/Domain Name:"
-msgstr "Tên Nhóm làm việc/Miền:"
+#: ../samba4.templates:3001
+#, fuzzy
+#| msgid "Realm:"
+msgid "Realm name:"
+msgstr "Địa hạt:"
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:4001
+#: ../samba4.templates:3001
 msgid ""
-"Please specify the workgroup for this system.  This setting controls which "
-"workgroup the system will appear in when used as a server, the default "
-"workgroup to be used when browsing with various frontends, and the domain "
-"name used with the \"security=domain\" setting."
-msgstr ""
-"Hãy xác định nhóm làm việc cho hệ thống này. Thiết lập này điều khiển nhóm "
-"làm việc trong đó hệ thống sẽ xuất hiện khi dùng làm trình phục vụ (nhóm làm "
-"việc mặc định được dùng khi duyệt qua giao diện) và tên miền được dùng với "
-"thiết lập « security=domain » (bảo mật=miền)."
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Gửi mật khẩu mật mã ?"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Mọi ứng dụng khách Windows gần đây đều liên lạc với trình phục vụ SMB/CIFS "
-"dùng mật khẩu đã mật mã. Vẫn muốn sử dụng mật khẩu « nhập thô » (không có "
-"mật mã) thì bạn cần phải thay đổi một tham số trong sổ đăng ký (registry) "
-"Windows của mình."
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Rất khuyên bạn bật tùy chọn này, vì hỗ trợ mật khẩu nhập thô không còn được "
-"duy trì lại trong sản phẩm MS Windows. Cũng hãy kiểm tra lại có một tập tin "
-"« /etc/samba/smbpasswd » đúng, và đặt trong nó một mật khẩu cho mỗi người "
-"dùng sẽ sử dụng lệnh smbpasswd."
-
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
+"Please specify the Kerberos realm for the domain that this domain controller "
+"controls."
 msgstr ""
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "trình nền"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
+#. Type: string
 #. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Muốn chạy Samba như thế nào?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
+#: ../samba4.templates:3001
+msgid "Usually this is the a capitalized version of your DNS hostname."
 msgstr ""
-"Trình nền Samba smbd có khả năng chạy làm một trình nền tiêu chuẩn, hoặc từ "
-"inetd. Phương pháp khuyến khích là chạy làm trình nền."
 
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr "Tạo cơ sở dữ liệu mật khẩu samba « /var/lib/samba/passdb.tdb » ?"
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid "New password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid "If this field is left blank, a random password will be generated."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid "A password can be set later by running, as root:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid " $ samba-tool user setpassword administrator"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:5001
+msgid "Repeat password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba4.templates:6001
+msgid "Password input error"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba4.templates:6001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr ""
+
+#~ msgid "Set up Samba 4 as a PDC?"
+#~ msgstr "Thiết lập Samba 4 như là một PDC không?"
 
 #~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
+#~ "If you do not choose this option, Samba will be left unconfigured, and "
+#~ "you will have to configure it yourself."
 #~ msgstr ""
-#~ "Để tương thích với các giá trị mặc định trong hậu hết các phiên bản "
-#~ "Windows, phần mềm Samba phải được cấu hình để sử dụng mật khẩu đã mật mã. "
-#~ "Cấu hình này cần thiết các mật khẩu người dùng được cất giữ trong một tập "
-#~ "tin khác với « /etc/passwd ». Tập tin này có thể được tự động tạo, còn "
-#~ "những mật khẩu phải được thêm thủ công bằng cách chạy smbpaswd; cũng cần "
-#~ "phải cứ cập nhật chúng trong tương lai."
+#~ "Không bật tùy chọn này thì Samba còn lại không có cấu hình: bạn sẽ cần "
+#~ "phải tự cấu hình nó."
 
 #~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
+#~ "Even when using this option, you will need to set up DNS such that it "
+#~ "serves the data from the zone file in that directory before you can use "
+#~ "the Active Directory domain."
 #~ msgstr ""
-#~ "Không tạo tập tin đó thì bạn cần phải cấu hình lại Samba (rất có thể là "
-#~ "cũng cần cấu hình lại mọi máy khách) để sử dụng mật khẩu nhập thô."
+#~ "Ngay cả khi bật tùy chọn này, bạn cần phải thiết lập dịch vụ DNS để phục "
+#~ "vụ dữ liệu từ tập tin khu vực trong thư mục đó, trước khi bạn có khả năng "
+#~ "sử dụng miền Thư mục Hoạt động."
 
 #~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
+#~ "Please specify the Kerberos realm this server will be in. In many cases,  "
+#~ "this will be the same as the DNS domain name."
 #~ msgstr ""
-#~ "Để tìm chi tiết, xem tài liệu « /usr/share/doc/samba-doc/htmldocs/Samba3-"
-#~ "Developers-Guide/pwencrypt.html » từ gói tài liệu samba-doc."
+#~ "Hãy xác định địa hạt Kerberos sẽ chứa máy phục vụ này. Trong nhiều trường "
+#~ "hợp đều, địa hạt trùng với tên miền DNS."
+
+#~| msgid "Workgroup/Domain Name:"
+#~ msgid "Domain Name:"
+#~ msgstr "Tên miền:"
+
+#~| msgid ""
+#~| "Please specify the workgroup you want this server to appear to be in "
+#~| "when queried by clients. Note that this parameter also controls the "
+#~| "domain name used with the security=domain setting."
+#~ msgid ""
+#~ "Please specify the domain you want this server to appear to be in when "
+#~ "queried by clients."
+#~ msgstr ""
+#~ "Hãy xác định miền trong đó bạn muốn máy phục vụ có vẻ nằm khi ứng dụng "
+#~ "khách hỏi."

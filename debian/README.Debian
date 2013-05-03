@@ -1,0 +1,32 @@
+NTP Integration
+---------------
+
+Add the following lines to your NTP configuration::
+
+  ntpsigndsocket /var/run/samba/ntp_signd
+  restrict default mssntp
+
+Bind9 Integration
+-----------------
+
+Add the following line to your bind configuration (e.g.
+/etc/bind/named.conf.local):
+
+   include "/var/lib/samba/private/named.conf";
+
+To enable dynamic DNS updates, add the following lines to your bind
+configuration:
+
+  options {
+    [...]
+    tkey-gssapi-keytab "/var/lib/samba/private/dns.keytab";
+    [...]
+  };
+
+If you enable bind, disable the Samba 4 internal DNS server by adding:
+
+  server services = -dns
+
+to smb.conf.
+
+  -- Jelmer Vernooij <jelmer@debian.org>,  Wed, 11 Oct 2012 02:07:52 +0200

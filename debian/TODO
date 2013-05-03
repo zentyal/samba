@@ -1,0 +1,2 @@
+- Add script to verify that headers are usable through current dependencies
+  (to prevent bugs like #525888)

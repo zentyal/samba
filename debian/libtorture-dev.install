@@ -1,0 +1,3 @@
+usr/include/samba-4.0/torture.h
+usr/lib/*/libtorture.so
+usr/lib/*/pkgconfig/torture.pc

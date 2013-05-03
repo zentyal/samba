@@ -1,0 +1,3 @@
+usr/include/samba-4.0/registry.h
+usr/lib/*/libregistry.so
+usr/lib/*/pkgconfig/registry.pc

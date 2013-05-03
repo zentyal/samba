@@ -1,0 +1,30 @@
+--- debian/control
++++ debian/control
+@@ -23,16 +23,15 @@
+                libgnutls-dev,
+                libheimntlm0-heimdal (>= 1.6~),
+                libldap2-dev,
+                libldb-dev (>= 1:1.1.15~),
+                libpam0g-dev,
+                libparse-yapp-perl,
+                libpopt-dev,
+                libreadline-dev,
+                libsubunit-dev,
+                libtalloc-dev (>= 2.0.8~),
+                libtdb-dev (>= 1.2.11~),
+                libtevent-dev (>= 0.9.17~),
+-               libwbclient-dev,
+                perl,
+                perl-modules,
+                pkg-config,
+@@ -695,7 +819,9 @@
+          python-tdb,
+          ${misc:Depends},
+          ${python:Depends},
+-          ${shlibs:Depends}
++          ${shlibs:Depends},
++          libsamba-hostconfig0 (=${binary:Version}),
++          libsamba-util0 (=${binary:Version})
+ Description: Python bindings for Samba
+  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
+  providing support for cross-platform file sharing with Microsoft Windows, OS X,

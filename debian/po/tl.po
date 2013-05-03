@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba4@packages.debian.org\n"
+"POT-Creation-Date: 2012-11-06 21:27+0100\n"
 "PO-Revision-Date: 2007-03-13 06:13+0800\n"
 "Last-Translator: eric pareja <xenos@upm.edu.ph>\n"
 "Language-Team: Tagalog <debian-tl@banwa.upm.edu.ph>\n"
@@ -24,167 +24,218 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#. Type: title
+#. Type: boolean
 #. Description
-#: ../samba-common.templates:1001
-msgid "Samba server and utilities"
+#: ../samba4.templates:1001
+msgid "Upgrade from Samba 3?"
 msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba-common.templates:2001
-msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr "Baguhin ang smb.conf upang gumamit ng WINS setting mula sa DHCP?"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:2001
+#: ../samba4.templates:1001
 msgid ""
-"If your computer gets IP address information from a DHCP server on the "
-"network, the DHCP server may also provide information about WINS servers "
-"(\"NetBIOS name servers\") present on the network.  This requires a change "
-"to your smb.conf file so that DHCP-provided WINS settings will automatically "
-"be read from /etc/samba/dhcp.conf."
+"It is possible to migrate the existing configuration files from Samba 3 to "
+"Samba 4. This is likely to fail for complex setups, but should provide a "
+"good starting point for most existing installations."
 msgstr ""
-"Kung ang computer ninyo ay kumukuha ng IP address mula sa DHCP server sa "
-"network, ang DHCP server ay maaaring magbigay ng impormasyon tungkol sa mga "
-"WINS server (\"NetBIOS name server\") na nasa network. Kinakailangan nito ng "
-"pagbabago sa inyong talaksang smb.conf upang ang bigay-ng-DHCP na WINS "
-"setting ay awtomatikong babasahin mula sa /etc/samba/dhcp.conf."
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:2001
+#: ../samba4.templates:2001
+msgid "Server role"
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba4.templates:2001
 msgid ""
-"The dhcp3-client package must be installed to take advantage of this feature."
+"Domain controllers manage NT4-style or Active Directory domains and provide "
+"services such as identity management and domain logons. Each domain needs to "
+"have a at least one domain controller."
 msgstr ""
-"Ang paketeng dhcp3-client ay dapat nakaluklok upang mapakinabangan ang "
-"feature na ito."
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:3001
-msgid "Configure smb.conf automatically?"
-msgstr "Awtomatikong isaayos ang smb.conf?"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:3001
+#: ../samba4.templates:2001
 msgid ""
-"The rest of the configuration of Samba deals with questions that affect "
-"parameters in /etc/samba/smb.conf, which is the file used to configure the "
-"Samba programs (nmbd and smbd). Your current smb.conf contains an \"include"
-"\" line or an option that spans multiple lines, which could confuse the "
-"automated configuration process and require you to edit your smb.conf by "
-"hand to get it working again."
+"Member servers can be part of a NT4-style or Active Directory domain but do "
+"not provide any domain services. Workstations and file or print servers are "
+"usually regular domain members."
 msgstr ""
-"Ang natitirang pagsasaayos ng Samba ay may mga katanungan tungkol sa mga "
-"parameter sa /etc/samba/smb.conf, na siyang talaksan na ginagamit sa "
-"pagsaayos ng mga programang Samba (nmbd at smbd). Ang kasalukuyang smb.conf "
-"ninyo ay naglalaman ng 'include' na linya o opsiyon na labis sa isang linya, "
-"na maaaring makalito  sa prosesong pagsaayos na awtomatiko at kakailanganin "
-"ninyong i-edit ang inyong smb.conf ng de kamay upang ito'y umandar muli. "
 
-#. Type: boolean
+#. Type: select
 #. Description
-#: ../samba-common.templates:3001
+#: ../samba4.templates:2001
 msgid ""
-"If you do not choose this option, you will have to handle any configuration "
-"changes yourself, and will not be able to take advantage of periodic "
-"configuration enhancements."
+"A standalone server can not be used in a domain and only supports file "
+"sharing and Windows for Workgroups-style logins."
 msgstr ""
-"Kung hindi ninyo pinili ang opsiyon na ito, kakailanganin ninyong ayusin ang "
-"anumang pagbabagong pagsasaayos, at hindi ninyo mapapakinabangan ang mga "
-"paminsanang pagpapahusay ng pagsasaayos."
+
+#. Type: select
+#. Description
+#: ../samba4.templates:2001
+msgid ""
+"If no server role is specified, the Samba server will not be provisioned, so "
+"this can be done manually by the user."
+msgstr ""
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:4001
-msgid "Workgroup/Domain Name:"
-msgstr "Pangalan ng Workgroup/Domain:"
+#: ../samba4.templates:3001
+msgid "Realm name:"
+msgstr ""
 
 #. Type: string
 #. Description
-#: ../samba-common.templates:4001
+#: ../samba4.templates:3001
+msgid ""
+"Please specify the Kerberos realm for the domain that this domain controller "
+"controls."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba4.templates:3001
+msgid "Usually this is the a capitalized version of your DNS hostname."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid "New password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid "If this field is left blank, a random password will be generated."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid "A password can be set later by running, as root:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:4001
+msgid " $ samba-tool user setpassword administrator"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba4.templates:5001
+msgid "Repeat password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba4.templates:6001
+msgid "Password input error"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba4.templates:6001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr ""
+
 #, fuzzy
-msgid ""
-"Please specify the workgroup for this system.  This setting controls which "
-"workgroup the system will appear in when used as a server, the default "
-"workgroup to be used when browsing with various frontends, and the domain "
-"name used with the \"security=domain\" setting."
-msgstr ""
-"Pakibigay ang workgroup ng server na ito kapag ito ay tinanong ng mga "
-"client. Ang parameter na ito ang siyang nag-co-control ng Domain name na "
-"ginagamit sa security=domain na setting."
+#~| msgid ""
+#~| "If you do not choose this option, you will have to handle any "
+#~| "configuration changes yourself, and will not be able to take advantage "
+#~| "of periodic configuration enhancements."
+#~ msgid ""
+#~ "If you do not choose this option, Samba will be left unconfigured, and "
+#~ "you will have to configure it yourself."
+#~ msgstr ""
+#~ "Kung hindi ninyo pinili ang opsiyon na ito, kakailanganin ninyong ayusin "
+#~ "ang anumang pagbabagong pagsasaayos, at hindi ninyo mapapakinabangan ang "
+#~ "mga paminsanang pagpapahusay ng pagsasaayos."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Gumamit ng encryption sa kontrasenyas?"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Lahat ng mga bagong mga Windows client ay nakikipag-usap sa mga SMB server "
-"na naka-encrypt ang mga kontrasenyas. Kung nais niyong gumamit ng \"clear "
-"text\" na kontrasenyas, kailangan ninyong baguhin ang isang parameter sa "
-"inyong Windows registry."
+#~| msgid "Workgroup/Domain Name:"
+#~ msgid "Domain Name:"
+#~ msgstr "Pangalan ng Workgroup/Domain:"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Ang pag-enable ng opsiyon na ito ay rekomendado. Kung gawin niyo ito, "
-"tiyakin na ang inyong talaksang /etc/samba/smbpasswd ay valid at may "
-"nakatakda kayong kontrasenyas para sa bawat gumagamit na ginamitan ng "
-"smbpasswd na utos."
+#~| msgid ""
+#~| "Please specify the workgroup you want this server to appear to be in "
+#~| "when queried by clients. Note that this parameter also controls the "
+#~| "domain name used with the security=domain setting."
+#~ msgid ""
+#~ "Please specify the domain you want this server to appear to be in when "
+#~ "queried by clients."
+#~ msgstr ""
+#~ "Pakibigay ang workgroup ng server na ito kapag ito ay tinanong ng mga "
+#~ "client. Ang parameter na ito ang siyang nag-co-control ng Domain name na "
+#~ "ginagamit sa security=domain na setting."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
+#~ msgid "Modify smb.conf to use WINS settings from DHCP?"
+#~ msgstr "Baguhin ang smb.conf upang gumamit ng WINS setting mula sa DHCP?"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "mga daemon"
+#~ msgid ""
+#~ "If your computer gets IP address information from a DHCP server on the "
+#~ "network, the DHCP server may also provide information about WINS servers "
+#~ "(\"NetBIOS name servers\") present on the network.  This requires a "
+#~ "change to your smb.conf file so that DHCP-provided WINS settings will "
+#~ "automatically be read from /etc/samba/dhcp.conf."
+#~ msgstr ""
+#~ "Kung ang computer ninyo ay kumukuha ng IP address mula sa DHCP server sa "
+#~ "network, ang DHCP server ay maaaring magbigay ng impormasyon tungkol sa "
+#~ "mga WINS server (\"NetBIOS name server\") na nasa network. Kinakailangan "
+#~ "nito ng pagbabago sa inyong talaksang smb.conf upang ang bigay-ng-DHCP na "
+#~ "WINS setting ay awtomatikong babasahin mula sa /etc/samba/dhcp.conf."
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
+#~ msgid ""
+#~ "The dhcp3-client package must be installed to take advantage of this "
+#~ "feature."
+#~ msgstr ""
+#~ "Ang paketeng dhcp3-client ay dapat nakaluklok upang mapakinabangan ang "
+#~ "feature na ito."
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Paano ninyo gustong patakbuhin ang Samba?"
+#~ msgid "Configure smb.conf automatically?"
+#~ msgstr "Awtomatikong isaayos ang smb.conf?"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Ang daemon na smbd ng Samba ay maaaring patakbuhin bilang normal na daemon o "
-"mula sa inetd. Pagpapatakbo nito bilang daemon ang rekomendado."
+#~ msgid ""
+#~ "The rest of the configuration of Samba deals with questions that affect "
+#~ "parameters in /etc/samba/smb.conf, which is the file used to configure "
+#~ "the Samba programs (nmbd and smbd). Your current smb.conf contains an "
+#~ "'include' line or an option that spans multiple lines, which could "
+#~ "confuse the automated configuration process and require you to edit your "
+#~ "smb.conf by hand to get it working again."
+#~ msgstr ""
+#~ "Ang natitirang pagsasaayos ng Samba ay may mga katanungan tungkol sa mga "
+#~ "parameter sa /etc/samba/smb.conf, na siyang talaksan na ginagamit sa "
+#~ "pagsaayos ng mga programang Samba (nmbd at smbd). Ang kasalukuyang smb."
+#~ "conf ninyo ay naglalaman ng 'include' na linya o opsiyon na labis sa "
+#~ "isang linya, na maaaring makalito  sa prosesong pagsaayos na awtomatiko "
+#~ "at kakailanganin ninyong i-edit ang inyong smb.conf ng de kamay upang "
+#~ "ito'y umandar muli. "
+
+#~ msgid "Use password encryption?"
+#~ msgstr "Gumamit ng encryption sa kontrasenyas?"
+
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB servers using encrypted "
+#~ "passwords. If you want to use clear text passwords you will need to "
+#~ "change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Lahat ng mga bagong mga Windows client ay nakikipag-usap sa mga SMB "
+#~ "server na naka-encrypt ang mga kontrasenyas. Kung nais niyong gumamit ng "
+#~ "\"clear text\" na kontrasenyas, kailangan ninyong baguhin ang isang "
+#~ "parameter sa inyong Windows registry."
+
+#~ msgid ""
+#~ "Enabling this option is highly recommended. If you do, make sure you have "
+#~ "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
+#~ "each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Ang pag-enable ng opsiyon na ito ay rekomendado. Kung gawin niyo ito, "
+#~ "tiyakin na ang inyong talaksang /etc/samba/smbpasswd ay valid at may "
+#~ "nakatakda kayong kontrasenyas para sa bawat gumagamit na ginamitan ng "
+#~ "smbpasswd na utos."
 
 #~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
 #~ msgstr ""
@@ -214,11 +265,27 @@ msgstr ""
 #~ "kontrasenyas."
 
 #~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
+#~ "See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
+#~ "package for more details."
 #~ msgstr ""
-#~ "Basahin ang /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/"
-#~ "pwencrypt.html mula sa paketeng samba-doc para sa karagdagang detalye."
+#~ "Basahin ang /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html mula sa "
+#~ "paketeng samba-doc para sa karagdagang detalye."
+
+#~ msgid "daemons"
+#~ msgstr "mga daemon"
+
+#~ msgid "inetd"
+#~ msgstr "inetd"
+
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Paano ninyo gustong patakbuhin ang Samba?"
+
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Ang daemon na smbd ng Samba ay maaaring patakbuhin bilang normal na "
+#~ "daemon o mula sa inetd. Pagpapatakbo nito bilang daemon ang rekomendado."
 
 #~ msgid "Chaining passdb backends is not supported"
 #~ msgstr "Ang pagdudugtong ng mga backend ng passdb ay hindi suportado"

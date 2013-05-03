@@ -1,0 +1,15 @@
+usr/lib/*/libgensec.so.0*
+usr/lib/*/samba/gensec/*.so
+usr/lib/*/samba/libauth_sam_reply.so
+usr/lib/*/samba/libauthkrb5.so
+usr/lib/*/samba/libcli-ldap-common.so
+usr/lib/*/samba/libcli-ldap.so
+usr/lib/*/samba/libcli-nbt.so
+usr/lib/*/samba/libcli_cldap.so
+usr/lib/*/samba/libcli_smb_common.so
+usr/lib/*/samba/libcliauth.so
+usr/lib/*/samba/libcmdline-credentials.so
+usr/lib/*/samba/libdb-glue.so
+usr/lib/*/samba/libkrb5samba.so
+usr/lib/*/samba/libwinbind-client.so
+usr/lib/*/samba/libsmb_transport.so

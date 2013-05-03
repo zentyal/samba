@@ -1,0 +1,3 @@
+usr/lib/*/ldb
+usr/lib/*/samba/ldb
+usr/lib/*/samba/libdsdb-module.so

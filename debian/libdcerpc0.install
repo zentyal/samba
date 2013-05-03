@@ -1,0 +1,8 @@
+usr/lib/*/libdcerpc-atsvc.so.*
+usr/lib/*/libdcerpc-binding.so.*
+usr/lib/*/libdcerpc-samr.so.*
+usr/lib/*/libdcerpc.so.*
+usr/lib/*/samba/libHDB_SAMBA4.so
+usr/lib/*/samba/libdcerpc-samba.so
+usr/lib/*/samba/libdcerpc-samba4.so
+usr/lib/*/samba/libsamba-net.so

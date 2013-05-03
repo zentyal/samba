@@ -1,0 +1,2 @@
+usr/lib/*/libregistry.so.*
+usr/lib/*/samba/libutil_reg.so

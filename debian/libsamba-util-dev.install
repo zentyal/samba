@@ -1,0 +1,15 @@
+usr/include/samba-4.0/dlinklist.h
+usr/include/samba-4.0/samba_util.h
+usr/include/samba-4.0/util/byteorder.h
+usr/include/samba-4.0/util/data_blob.h
+usr/include/samba-4.0/util/debug.h
+usr/include/samba-4.0/util/memory.h
+usr/include/samba-4.0/util/safe_string.h
+usr/include/samba-4.0/util/string_wrappers.h
+usr/include/samba-4.0/util/talloc_stack.h
+usr/include/samba-4.0/util/tevent_werror.h
+usr/include/samba-4.0/util/time.h
+usr/include/samba-4.0/util/xfile.h
+usr/lib/*/libsamba-util.so
+usr/lib/*/libtevent-util.so
+usr/lib/*/pkgconfig/samba-util.pc

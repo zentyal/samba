@@ -1,0 +1,2 @@
+usr/lib/*/libsamdb.so
+usr/lib/*/pkgconfig/samdb.pc

@@ -1,0 +1,9 @@
+usr/lib/*/libndr-krb5pac.so.*
+usr/lib/*/libndr-nbt.so.0*
+usr/lib/*/libndr-standard.so.*
+usr/lib/*/samba/libndr-samba.so
+usr/lib/*/samba/libndr-samba4.so
+usr/lib/*/samba/libnpa_tstream.so
+usr/lib/*/samba/libsamba-sockets.so
+usr/lib/*/samba/libxattr_tdb.so
+usr/lib/*/samba/libsamba-security.so

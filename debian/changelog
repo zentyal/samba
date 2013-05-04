@@ -1,7 +1,7 @@
 samba (2:4.0.3+dfsg1-2.0) UNRELEASED; urgency=low
 
   * Non-maintainer upload.
-  * Converted to full AD DC package
+  * Converted to full AD DC package on the basis of the 3.6 package
 
  -- Andrew Bartlett <abartlet@samba.org>  Mon, 05 May 2013 11:12:19 +1100
 

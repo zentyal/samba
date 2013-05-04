@@ -314,6 +314,7 @@ Depends: libc6-dev,
          libtalloc-dev,
          libtdb-dev (>= 1.2.11),
          ${misc:Depends}
+Replaces: samba4-dev
 Section: devel
 Description: tools for extending Samba
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
@@ -661,7 +662,9 @@ Depends: python-ldb,
          ${python:Depends},
          ${shlibs:Depends},
          libsamba-hostconfig0 (=${binary:Version}),
-         libsamba-util0 (=${binary:Version})
+         libsamba-util0 (=${binary:Version}),
+         libsmbd0 (=${binary:Version}),
+         libnetapi0 (=${binary:Version})
 Description: Python bindings for Samba
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file sharing with Microsoft Windows, OS X,

@@ -7,11 +7,11 @@ Bug-Debian: http://bugs.debian.org/443230
 Bug-Ubuntu: https://bugs.launchpad.net/ubuntu/+source/samba/+bug/128548
 Forwarded: not-needed
 
-Index: samba/docs/manpages/net.8
+Index: experimental/docs/manpages/net.8
 ===================================================================
---- samba.orig/docs/manpages/net.8
-+++ samba/docs/manpages/net.8
-@@ -947,9 +947,9 @@
+--- experimental.orig/docs/manpages/net.8
++++ experimental/docs/manpages/net.8
+@@ -800,9 +800,9 @@
  .RE
  .SS "USERSHARE"
  .PP
@@ -23,16 +23,16 @@ Index: samba/docs/manpages/net.8
  .PP
  The usershare commands are:
  .RS 4
-Index: samba/source3/param/loadparm.c
+Index: experimental/source3/param/loadparm.c
 ===================================================================
---- samba.orig/source3/param/loadparm.c
-+++ samba/source3/param/loadparm.c
-@@ -5472,7 +5472,7 @@
+--- experimental.orig/source3/param/loadparm.c
++++ experimental/source3/param/loadparm.c
+@@ -1014,7 +1014,7 @@
  	string_set(&Globals.szUsersharePath, s);
  	SAFE_FREE(s);
  	string_set(&Globals.szUsershareTemplateShare, "");
 -	Globals.iUsershareMaxShares = 0;
 +	Globals.iUsershareMaxShares = 100;
  	/* By default disallow sharing of directories not owned by the sharer. */
- 	Globals.bUsershareOwnerOnly = True;
+ 	Globals.bUsershareOwnerOnly = true;
  	/* By default disallow guest access to usershares. */

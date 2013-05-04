@@ -1,0 +1,62 @@
+From adb5d56ca130fd2dbe94d49c631c25b288414516 Mon Sep 17 00:00:00 2001
+From: Andrew Bartlett <abartlet@samba.org>
+Date: Tue, 20 Nov 2012 09:52:27 +1100
+Subject: [PATCH 2/8] lib/replace: Allow OS vendor to assert that getpass() is
+ not 8-char limited
+
+This allows libreplace to be a no-op on Linux.
+
+Ideally this would be a waf test, but this is difficult as we have
+to fake up a full pty environment.  For now, allow a distribution
+to assert it manually.
+
+Andrew Bartlett
+---
+ lib/replace/wscript | 23 ++++++++++++++---------
+ 1 file changed, 14 insertions(+), 9 deletions(-)
+
+diff --git a/lib/replace/wscript b/lib/replace/wscript
+index 9dfa985..af527bc 100644
+--- a/lib/replace/wscript
++++ b/lib/replace/wscript
+@@ -22,6 +22,10 @@ def set_options(opt):
+     opt.BUILTIN_DEFAULT('NONE')
+     opt.PRIVATE_EXTENSION_DEFAULT('')
+     opt.RECURSE('buildtools/wafsamba')
++    opt.add_option('--without-getpass-replacement',
++                   help='disable getpass() replacement (this asserts that the host OS is like Linux, and has an unlimited-length getpass.',
++                   action='store_true', dest='without_getpass_replacement', default=False)
++
+ 
+ @wafsamba.runonce
+ def configure(conf):
+@@ -482,16 +486,17 @@ removeea setea
+                            execute=True):
+             break
+ 
+-    if conf.CHECK_FUNCS('getpass getpassphrase'):
+-        # if we have both, then we prefer getpassphrase
+-        conf.DEFINE('REPLACE_GETPASS_BY_GETPASSPHRASE', 1)
+-        conf.DEFINE('REPLACE_GETPASS', 1)
+-    else:
+-        conf.CHECK_CODE('''#include "getpass.c"
++    if not Options.options.without_getpass_replacement:
++        if conf.CHECK_FUNCS('getpass getpassphrase'):
++            # if we have both, then we prefer getpassphrase
++            conf.DEFINE('REPLACE_GETPASS_BY_GETPASSPHRASE', 1)
++            conf.DEFINE('REPLACE_GETPASS', 1)
++        else:
++            conf.CHECK_CODE('''#include "getpass.c"
+                        int main(void) { return 0; }''',
+-                    addmain=False,
+-                    define='REPLACE_GETPASS',
+-                    cflags='-DNO_CONFIG_H')
++                            addmain=False,
++                            define='REPLACE_GETPASS',
++                            cflags='-DNO_CONFIG_H')
+ 
+     conf.RECURSE('system')
+     conf.SAMBA_CONFIG_H()
+-- 
+1.7.11.7
+

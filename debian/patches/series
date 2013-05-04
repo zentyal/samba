@@ -1,8 +1,6 @@
 bug_221618_precise-64bit-prototype.patch
 bug_598313_upstream_7499-nss_wins-dont-clobber-daemons-logs.patch
 bug_601406_fix-perl-path-in-example.patch
-bug_604768_upstream_7826_drop-using-samba-link.patch
-bug_604768_upstream_7826_fix-WHATSNEW-link.patch
 documentation2.patch
 documentation.patch
 fhs-filespaths.patch

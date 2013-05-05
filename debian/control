@@ -891,6 +891,7 @@ Pre-Depends: ${misc:Pre-Depends}
 Architecture: any
 Depends: samba (=${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
 Enhances: libkrb5-26-heimdal
+Replaces: winbind4
 Description: service to resolve user and group information from Windows NT servers
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file sharing with Microsoft Windows, OS X,

@@ -14,7 +14,6 @@ usr/sbin/samba
 usr/sbin/samba_dnsupdate
 usr/sbin/samba_spnupdate
 usr/sbin/samba_upgradedns
-usr/sbin/samba_upgradeprovision
 usr/share/man/man1/oLschema2ldif.1
 usr/share/man/man8/samba.8
 usr/share/samba/setup

@@ -360,26 +360,29 @@ struct pipe_http_state {
 /*
   Stage 2 of ncacn_http: rpc pipe opened (or not)
 */
-static void continue_pipe_open_ncacn_http(struct composite_context *ctx)
+static void continue_pipe_open_ncacn_http(struct tevent_req *subreq)
 {
-	struct composite_context *c = talloc_get_type(ctx->async.private_data,
-			struct composite_context);
+	struct composite_context *c;
+	//struct pipe_http_state *s;
 
-	/* receive result of named pipe open request on tcp/ip */
-	c->status = dcerpc_pipe_open_http_recv(ctx);
+	c =	tevent_req_callback_data(subreq, struct composite_context);
+	//s = talloc_get_type_abort(c->private_data, struct pipe_http_state);
+
+	/* receive result of RoH connect request */
+	c->status = dcerpc_pipe_open_roh_recv(subreq);
+	TALLOC_FREE(subreq);
+
 	if (!composite_is_ok(c)) return;
 
 	composite_done(c);
 }
 
-static struct composite_context* dcerpc_pipe_connect_ncacn_http_send(TALLOC_CTX *mem_ctx,
-								       struct dcerpc_pipe_connect *io)
+static struct composite_context* dcerpc_pipe_connect_ncacn_http_send(
+		TALLOC_CTX *mem_ctx, struct dcerpc_pipe_connect *io)
 {
 	struct composite_context *c;
 	struct pipe_http_state *s;
-	struct composite_context *pipe_req;
-
-	DEBUG(9, ("%s: Opening pipe\n", __func__));
+	struct tevent_req *subreq;
 
 	/* composite context allocation and setup */
 	c = composite_create(mem_ctx, io->pipe->conn->event_ctx);
@@ -397,15 +400,17 @@ static struct composite_context* dcerpc_pipe_connect_ncacn_http_send(TALLOC_CTX 
 	s->port             = atoi(io->binding->endpoint);
 
 	/* send pipe open request on tcp/ip */
-	pipe_req = dcerpc_pipe_open_http_send(
+	subreq = dcerpc_pipe_open_roh_send(
 			s->io.pipe->conn,
-			s->localaddr,
-			s->host,
+			s->io.pipe->conn,
+			s->io.pipe->conn->event_ctx,
+			s->io.resolve_ctx,
+			s->io.creds,
 			s->target_hostname,
 			s->port,
-			io->resolve_ctx);
-	if (composite_nomem(pipe_req, c)) return c;
-	composite_continue(c, pipe_req, continue_pipe_open_ncacn_http, c);
+			false, false);
+	if (composite_nomem(subreq, c)) return c;
+	tevent_req_set_callback(subreq, continue_pipe_open_ncacn_http, c);
 	return c;
 }
 
@@ -637,7 +642,6 @@ static void continue_connect(struct composite_context *c, struct pipe_connect_st
 		return;
 
 	case NCACN_HTTP:
-		DEBUG(9, ("%s: Opening pipe\n", __func__));
 		ncacn_http_req = dcerpc_pipe_connect_ncacn_http_send(c, &pc);
 		composite_continue(c, ncacn_http_req, continue_pipe_connect_ncacn_http, c);
 		return;

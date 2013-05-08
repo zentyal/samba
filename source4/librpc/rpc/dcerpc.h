@@ -36,6 +36,7 @@ struct tevent_context;
 struct tevent_req;
 struct dcerpc_binding_handle;
 struct tstream_context;
+struct roh_connection;
 
 /*
   this defines a generic security context for signed/sealed dcerpc pipes.

@@ -77,10 +77,7 @@ struct http_request {
 	char *uri;							/* URI after HTTP request was parsed */
 	struct http_uri *uri_elems;			/* uri elements */
 
-	struct http_header *request_headers;
-	struct http_header *response_headers;
-
-	char *response_phrase;
+	struct http_header *headers;
 
 	enum http_request_kind kind;
 	enum http_cmd_type type;
@@ -91,24 +88,26 @@ struct http_request {
 	size_t headers_size;
 	size_t body_size;
 
-	DATA_BLOB *output_buffer;			/* data for request body */
-	DATA_BLOB *input_buffer;			/* response read data */
-
-	DATA_BLOB *body;
+	DATA_BLOB body;
 	int response_code;		/* HTTP Response code */
 	char *response_code_line;	/* Readable response */
 };
 
-struct tevent_req *http_send_request_send(TALLOC_CTX *mem_ctx,
+struct tevent_req *http_send_request_send(
+		TALLOC_CTX *mem_ctx,
 		struct tevent_context *ev,
 		struct tstream_context *stream,
 		struct tevent_queue *send_queue,
-		const char *remote_host,
-		enum http_cmd_type type,
-		const char *uri,
-		DATA_BLOB *data);
+		struct http_request *request);
 
-struct tevent_req *http_read_response_send(TALLOC_CTX *mem_ctx,
+int http_send_request_recv(struct tevent_req *req, int *error);
+
+struct tevent_req *http_read_response_send(
+		TALLOC_CTX *mem_ctx,
 		struct tevent_context *ev,
 		struct tstream_context *stream);
+int http_read_response_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx, struct http_request **response, int *perrno);
+
+int http_add_header(TALLOC_CTX *mem_ctx, struct http_header **headers,
+		const char *key, const char *value);
 #endif /* _HTTP_H_ */

@@ -55,17 +55,9 @@ struct http_read_response_state {
 	size_t max_headers_size;
 
 	DATA_BLOB buffer;
-	struct http_request *request;
-};
-
-struct http_send_request_state {
-	struct tevent_context *ev;
-	struct tstream_context *stream;
-
-	DATA_BLOB buffer;
-	struct iovec iov;
-	struct http_request *request;
-	ssize_t nwritten;
+	struct http_request *response;
+	int ret;
+	int perrno;
 };
 
 struct http_header {
@@ -77,10 +69,9 @@ struct http_header {
 static NTSTATUS http_push_request(TALLOC_CTX *mem_ctx, DATA_BLOB *blob, struct http_request *req);
 static void http_send_request_done(struct tevent_req *subreq);
 
-static void http_read_response_done(struct tevent_req *subreq);
+//static void http_read_response_done(struct tevent_req *subreq);
 
 static int http_remove_header(struct http_header **headers, const char *key);
-static int http_add_header(TALLOC_CTX *mem_ctx, struct http_header **headers, const char *key, const char *value);
 static int http_add_header_internal(TALLOC_CTX *mem_ctx, struct http_header **headers, const char *key, const char *value);
 static int http_header_is_valid_value(const char *value);
 #if 0
@@ -189,7 +180,6 @@ static void http_read_header(struct http_read_response_state *state, struct http
 	}
 }
 #endif
-
 /**
  * Determines if a response should have a body.
  * Follows the rules in RFC 2616 section 4.3.
@@ -226,12 +216,12 @@ static enum http_read_status http_parse_headers(struct http_read_response_state 
 		return HTTP_MORE_DATA_EXPECTED;
 	}
 
-	state->request->headers_size += state->buffer.length;
+	state->response->headers_size += state->buffer.length;
 
 	if (strncasecmp(line, "\r\n", 2) == 0) {
 		DEBUG(9,("%s: All headers read\n", __func__));
 		/* Done reading headers, do the real work */
-		switch (state->request->kind) {
+		switch (state->response->kind) {
 //			case HTTP_REQUEST:
 //				DEBUG(9, ("%s: Checking for post data\n", __func__));
 //				http_get_body(state);
@@ -242,9 +232,9 @@ static enum http_read_status http_parse_headers(struct http_read_response_state 
 //					http_start_read(state);
 //					return;
 //				}
-				if (!http_response_needs_body(state->request)) {
+				if (!http_response_needs_body(state->response)) {
 					DEBUG(9, ("%s: Skipping body for code %d\n", __func__,
-							state->request->response_code));
+							state->response->response_code));
 					// http_connection_done(state);
 				} else {
 					DEBUG(9, ("%s: Start of read body\n", __func__));
@@ -270,7 +260,7 @@ static enum http_read_status http_parse_headers(struct http_read_response_state 
 		return HTTP_DATA_CORRUPTED;
 	}
 
-	if (http_add_header(state, &state->request->response_headers, key, value) == -1) {
+	if (http_add_header(state, &state->response->headers, key, value) == -1) {
 		return HTTP_DATA_CORRUPTED;
 	}
 	free(key);
@@ -306,10 +296,10 @@ static bool http_parse_response_line(struct http_read_response_state *state)
 		DEBUG(0, ("%s: Bad response code '%d'", __func__, code));
 		return false;
 	}
-	state->request->major = major;
-	state->request->minor = minor;
-	state->request->response_code = code;
-	state->request->response_phrase = talloc_strdup(state, msg);
+	state->response->major = major;
+	state->response->minor = minor;
+	state->response->response_code = code;
+	state->response->response_code_line = talloc_strdup(state, msg);
 	free(protocol);
 	free(msg);
 
@@ -326,7 +316,6 @@ static bool http_parse_response_line(struct http_read_response_state *state)
  *   HTTP_DATA_TOO_LONG			on error
  *   HTTP_ALL_DATA_READ			when all headers have been read
  */
-
 static enum http_read_status http_parse_firstline(struct http_read_response_state *state)
 {
 	enum http_read_status status = HTTP_ALL_DATA_READ;
@@ -346,8 +335,8 @@ static enum http_read_status http_parse_firstline(struct http_read_response_stat
 		return HTTP_MORE_DATA_EXPECTED;
 	}
 
-	state->request->headers_size = state->buffer.length;
-	switch (state->request->kind) {
+	state->response->headers_size = state->buffer.length;
+	switch (state->response->kind) {
 //		case HTTP_REQUEST:
 //			if (http_parse_request_line(state, line) == -1)
 //				status = DATA_CORRUPTED;
@@ -468,18 +457,7 @@ static int http_read_response_next_vector(
 	return 0;
 }
 
-static void tstream_readv_pdu_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(subreq,
-				struct tevent_req);
-	struct http_read_response_state *state = tevent_req_data(req,
-				struct http_read_response_state);
-
-	DEBUG(9, ("%s: Response fully retrieved\n", __func__));
-	talloc_free(subreq);
-	tevent_req_done(req);
-}
-
+static void tstream_readv_pdu_done(struct tevent_req *subreq);
 /**
  * Waits for request response
  */
@@ -501,12 +479,12 @@ struct tevent_req *http_read_response_send(TALLOC_CTX *mem_ctx,
 
 	state->max_headers_size = HTTP_MAX_HEADER_SIZE;
 	state->parser_state = HTTP_READING_FIRSTLINE;
-	state->request = talloc_zero(state, struct http_request);
-	if (tevent_req_nomem(state->request, req)) {
+	state->response = talloc_zero(state, struct http_request);
+	if (tevent_req_nomem(state->response, req)) {
 			tevent_req_nterror(req, NT_STATUS_NO_MEMORY);
 			return tevent_req_post(req, ev);
 	}
-	state->request->kind = HTTP_RESPONSE;
+	state->response->kind = HTTP_RESPONSE;
 
 	subreq = tstream_readv_pdu_send(state, ev,
 			stream,
@@ -521,6 +499,55 @@ struct tevent_req *http_read_response_send(TALLOC_CTX *mem_ctx,
 	return req;
 }
 
+static void tstream_readv_pdu_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(subreq,
+				struct tevent_req);
+	struct http_read_response_state *state = tevent_req_data(req,
+				struct http_read_response_state);
+	int ret, sys_errno;
+
+	DEBUG(9, ("%s: Response fully retrieved\n", __func__));
+	ret = tstream_readv_pdu_recv(subreq, &sys_errno);
+	TALLOC_FREE(subreq);
+	if (ret == -1) {
+		tevent_req_error(req, sys_errno);
+		return;
+	}
+	state->ret = ret;
+	tevent_req_done(req);
+}
+
+int http_read_response_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx,
+		struct http_request **response, int *perrno)
+{
+	struct http_read_response_state *state = tevent_req_data(req,
+					struct http_read_response_state);
+	int ret;
+
+	ret = state->ret;
+	*perrno = state->perrno;
+	*response = state->response;
+	talloc_steal(mem_ctx, *response);
+
+	tevent_req_received(req);
+
+	return ret;
+}
+
+
+struct http_send_request_state {
+	struct tevent_context *ev;
+	struct tstream_context *stream;
+	struct http_request *request;
+
+	DATA_BLOB buffer;
+	struct iovec iov;
+
+	ssize_t nwritten;
+	int perrno;
+};
+
 /**
  * Build a HTTP request, send it and get the response
  */
@@ -528,10 +555,7 @@ struct tevent_req *http_send_request_send(TALLOC_CTX *mem_ctx,
 		struct tevent_context *ev,
 		struct tstream_context *stream,
 		struct tevent_queue *send_queue,
-		const char *remote_host,
-		enum http_cmd_type type,
-		const char *uri,
-		DATA_BLOB *data)
+		struct http_request *request)
 {
 	struct tevent_req *req, *subreq;
 	struct http_send_request_state *state;
@@ -543,27 +567,9 @@ struct tevent_req *http_send_request_send(TALLOC_CTX *mem_ctx,
 	if (req == NULL)
 		return NULL;
 
-	state->request = talloc_zero(state, struct http_request);
-	if (tevent_req_nomem(state->request, req)) {
-		tevent_req_nterror(req, NT_STATUS_NO_MEMORY);
-		return tevent_req_post(req, ev);
-	}
-
 	state->ev = ev;
 	state->stream = stream;
-
-	state->request->headers_size = 0;
-	state->request->body_size = 0;
-	state->request->major = '1';
-	state->request->minor = '1';
-	state->request->kind = HTTP_REQUEST;
-	state->request->type = type;
-	state->request->uri = talloc_strdup(state, uri);
-	state->request->remote_host = talloc_strdup(state, remote_host);
-	state->request->request_headers = NULL;
-	state->request->response_headers = NULL;
-	state->request->output_buffer = data;
-	talloc_steal(state, data);
+	state->request = request;
 
 	// Push the request to a data blob
 	status = http_push_request(state, &state->buffer, state->request);
@@ -585,19 +591,6 @@ struct tevent_req *http_send_request_send(TALLOC_CTX *mem_ctx,
 	return req;
 }
 
-static void http_read_response_done(struct tevent_req *subreq)
-{
-	struct tevent_req *req = tevent_req_callback_data(subreq,
-				struct tevent_req);
-	struct http_read_response_state *state = tevent_req_data(req,
-				struct http_read_response_state);
-
-
-	DEBUG(9, ("%s\n", __func__));
-	TALLOC_FREE(subreq);
-	tevent_req_done(req);
-}
-
 static void http_send_request_done(struct tevent_req *subreq)
 {
 	struct tevent_req *req = tevent_req_callback_data(subreq,
@@ -607,6 +600,7 @@ static void http_send_request_done(struct tevent_req *subreq)
 	int err;
 
 	state->nwritten = tstream_writev_queue_recv(subreq, &err);
+	state->perrno = err;
 	TALLOC_FREE(subreq);
 	if (state->nwritten == -1 && err != 0) {
 		tevent_req_werror(req, unix_to_werror(err));
@@ -614,16 +608,36 @@ static void http_send_request_done(struct tevent_req *subreq)
 		return;
 	}
 
-	DEBUG(9, ("%s: Request sent, waiting for response\n", __func__));
-
-	/* Wait for server response */
-	subreq = http_read_response_send(state, state->ev, state->stream);
-	if (tevent_req_nomem(subreq, req)) {
-		return;
-	}
-	tevent_req_set_callback(subreq, http_read_response_done, req);
-	return;
+	tevent_req_done(req);
 }
+
+int http_send_request_recv(struct tevent_req *req, int *perrno)
+{
+	struct http_send_request_state *state = tevent_req_data(req,
+			struct http_send_request_state);
+	int ret;
+
+	ret = state->nwritten;
+	*perrno = state->perrno;
+
+	tevent_req_received(req);
+
+	return ret;
+}
+
+//static void http_read_response_done(struct tevent_req *subreq)
+//{
+//	struct tevent_req *req = tevent_req_callback_data(subreq,
+//				struct tevent_req);
+//	struct http_read_response_state *state = tevent_req_data(req,
+//				struct http_read_response_state);
+//
+//
+//	DEBUG(9, ("%s\n", __func__));
+//	TALLOC_FREE(subreq);
+//	tevent_req_done(req);
+//}
+
 
 /***************************************/
 
@@ -658,29 +672,13 @@ static void http_make_header_request(TALLOC_CTX *mem_ctx, DATA_BLOB *buffer,
 {
 	const char *method;
 
-	http_remove_header(&req->request_headers, "Proxy-Connection");
+	//http_remove_header(&req->headers, "Proxy-Connection");
 
 	/* Generate request line */
 	method = http_method(req->type);
 	const char *str = talloc_asprintf(mem_ctx, "%s %s HTTP/%c.%c\r\n", method,
 			req->uri, req->major, req->minor);
 	data_blob_append(mem_ctx, buffer, str, strlen(str));
-
-	/* Add the content length on a post or put request if missing */
-//	if ((req->type == EVHTTP_REQ_POST || req->type == EVHTTP_REQ_PUT) &&
-//			evhttp_find_header(req->output_headers, "Content-Length") == NULL){
-//		char size[22];
-//		evutil_snprintf(size, sizeof(size), EV_SIZE_FMT,
-//		    EV_SIZE_ARG(evbuffer_get_length(req->output_buffer)));
-//		evhttp_add_header(req->output_headers, "Content-Length", size);
-//	}
-
-	http_add_header(mem_ctx, &req->request_headers, "Accept", "application/rpc");
-	http_add_header(mem_ctx, &req->request_headers, "User-Agent", "MSRPC");
-	http_add_header(mem_ctx, &req->request_headers, "Host", req->remote_host);
-	http_add_header(mem_ctx, &req->request_headers, "Connection", "keep-alive");
-	http_add_header(mem_ctx, &req->request_headers, "Cache-Control", "no-cache");
-	http_add_header(mem_ctx, &req->request_headers, "Content-Length", "0");
 }
 
 /**
@@ -703,7 +701,7 @@ static NTSTATUS http_make_header(TALLOC_CTX *mem_ctx, DATA_BLOB *blob,
 		//http_make_header_response(mem_ctx, req, blob);
 	}
 
-	for (header=req->request_headers; header != NULL; header=header->next) {
+	for (header=req->headers; header != NULL; header=header->next) {
 		const char *header_str = talloc_asprintf(mem_ctx, "%s: %s\r\n",
 				header->key, header->value);
 		size_t len = strlen(header_str);
@@ -718,9 +716,10 @@ static NTSTATUS http_make_header(TALLOC_CTX *mem_ctx, DATA_BLOB *blob,
 	}
 
 	/* Add request body */
-	if (req->output_buffer != NULL && req->output_buffer->length > 0) {
-		if (!data_blob_append(mem_ctx, blob, req->output_buffer->data,
-				req->output_buffer->length)) {
+	DEBUG(9, ("%s: Adding body to request (%zd bytes)\n", __func__, req->body.length));
+	if (req->body.length > 0) {
+		if (!data_blob_append(mem_ctx, blob, req->body.data,
+				req->body.length)) {
 			return NT_STATUS_NO_MEMORY;
 		}
 	}
@@ -745,7 +744,7 @@ static int http_remove_header(struct http_header **headers, const char *key)
 	return -1;
 }
 
-static int http_add_header(TALLOC_CTX *mem_ctx, struct http_header **headers,
+int http_add_header(TALLOC_CTX *mem_ctx, struct http_header **headers,
 		const char *key, const char *value)
 {
 	if (strchr(key, '\r') != NULL || strchr(key, '\n') != NULL) {

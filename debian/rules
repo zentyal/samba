@@ -135,7 +135,7 @@ override_dh_makeshlibs:
 
 override_dh_installinit:
 	if dpkg-vendor --derives-from ubuntu; then \
-		cp debian/samba4.upstart.in debian/samba4.upstart; \
+		cp debian/samba-ad-dc.upstart.in debian/samba-ad-dc.upstart; \
 		dh_installinit --upstart-only; \
 	else \
 		dh_installinit; \

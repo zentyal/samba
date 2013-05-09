@@ -1,4 +1,3 @@
-usr/bin/cifsdd
 usr/bin/smbclient4
 usr/bin/nmblookup4
 usr/share/man/man1/nmblookup4.1

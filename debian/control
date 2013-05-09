@@ -69,19 +69,18 @@ Description: SMB/CIFS file, print, and login server for Unix
  This package is not required for connecting to existing SMB/CIFS servers
  (see smbclient) or for mounting remote filesystems (see cifs-utils).
 
-Package: samba4
+Package: samba-ad-dc
 Architecture: any
 Recommends: attr, bind9 (>= 1:9.5.1), bind9utils, ldb-tools
-Suggests: phpldapadmin, samba-gtk, swat2, ntp
+Suggests: samba-gtk, swat2, ntp
 Enhances: ntp, bind9
 Conflicts: samba (<< 2:3.3.0~rc2-5), samba-tools, libldb1 (<< 1:1.1.15)
-Replaces: libsamdb0 (<< 4.0.0~alpha17~)
+Replaces: libsamdb0 (<< 4.0.0~alpha17~), samba4
 Depends: python,
          python-dnspython,
          python-samba,
          samba-dsdb-modules,
          samba-common-bin (=${binary:Version}),
-         samba4-common-bin (=${binary:Version}),
          tdb-tools,
          ${misc:Depends},
          ${python:Depends},
@@ -183,19 +182,16 @@ Description: common files used by both the Samba server and client
 Package: samba-common-bin
 Architecture: any
 Depends: samba-common (=${source:Version}),
+         python-samba,
          ${misc:Depends},
          ${python:Depends}
 Conflicts: samba (<< 2:3.3.0~rc2-5), samba-common (<< 2:3.3.0~rc2-5)
-Replaces: samba-common (<< 2:3.4.0~pre2-1), samba4-common (<< 4.0.0~alpha7-1)
-Description: Samba 4 common files used by both the server and the client
+Replaces: samba-common (<< 2:3.4.0~pre2-1), samba4-common (<< 4.0.0~alpha7-1), samba4-common-bin
+Description: Samba common files used by both the server and the client
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file sharing with Microsoft Windows, OS X,
  and other Unix systems.  Samba can also function as a domain controller
  or member server in both NT4-style and Active Directory domains.
- .
- These packages contain snapshot versions of Samba 4, the next-generation
- version of Samba. These should be considered _experimental_, and should
- not be used in production.
  .
  This package contains the common files that are used by both the server
  (provided in the samba package) and the client (provided in the samba-clients
@@ -218,27 +214,6 @@ Description: command-line SMB/CIFS clients for Unix
  Windows and Samba servers, including smbclient, smbtar, and smbspool.
  Utilities for mounting shares locally are found in the package
  cifs-utils.
-
-Package: samba4-common-bin
-Architecture: any
-Depends: python-samba (= ${binary:Version}),
-         samba-common (= ${source:Version}),
-         ${misc:Depends},
-         ${python:Depends}
-Replaces: samba-common (<< 2:3.4.0~pre2-1), samba4-common (<< 4.0.0~alpha7-1)
-Description: Samba 4 common files used by both the server and the client
- Samba is an implementation of the SMB/CIFS protocol for Unix systems,
- providing support for cross-platform file sharing with Microsoft Windows, OS X,
- and other Unix systems.  Samba can also function as a domain controller
- or member server in both NT4-style and Active Directory domains.
- .
- These packages contain snapshot versions of Samba 4, the next-generation
- version of Samba. These should be considered _experimental_, and should
- not be used in production.
- .
- This package contains the common files that are used by both the server
- (provided in the samba package) and the client (provided in the samba-clients
- package).
 
 Package: samba4-clients
 Architecture: any

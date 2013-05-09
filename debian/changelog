@@ -3,6 +3,10 @@ samba (2:3.6.15-1) UNRELEASED; urgency=low
   * Team upload.
   * New upstream bugfix release. Closes: #707042
   * Update VCS URL's for new git repo. 
+  * The recommends for the separate libnss-winbind and libpam-winbind
+    packages needed for the upgrade of winbind from squeeze to wheezy are no
+    longer needed. Lowering them to suggests.
+    Closes: #706434, #674853
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Thu, 09 May 2013 10:42:32 +0200
 

@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: smbd
 .\"    Author: [see the "AUTHOR" section]
-.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
-.\"      Date: 02/05/2013
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 04/09/2013
 .\"    Manual: System Administration tools
 .\"    Source: Samba 4.0
 .\"  Language: English
 .\"
-.TH "SMBD" "8" "02/05/2013" "Samba 4\&.0" "System Administration tools"
+.TH "SMBD" "8" "04/09/2013" "Samba 4\&.0" "System Administration tools"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -65,7 +74,7 @@ under process supervisors such as
 supervise
 and
 svscan
-from Daniel J\&. Bernstein\'s
+from Daniel J\&. Bernstein\*(Aqs
 daemontools
 package, or the AIX process monitor\&.
 .RE
@@ -228,7 +237,7 @@ parameter\&. When this is set, the following restrictions apply:
 .sp -1
 .IP \(bu 2.3
 .\}
-\fISession Management\fR: When not using share level security, users must pass PAM\'s session checks before access is granted\&. Note however, that this is bypassed in share level security\&. Note also that some older pam configuration files may need a line added for session support\&.
+\fISession Management\fR: When not using share level security, users must pass PAM\*(Aqs session checks before access is granted\&. Note however, that this is bypassed in share level security\&. Note also that some older pam configuration files may need a line added for session support\&.
 .RE
 .SH "VERSION"
 .PP
@@ -242,7 +251,7 @@ The number and nature of diagnostics available depends on the debug level used b
 Most messages are reasonably self\-explanatory\&. Unfortunately, at the time this man page was created, there are too many diagnostics available in the source code to warrant describing each and every diagnostic\&. At this stage your best bet is still to grep the source code and inspect the conditions that gave rise to the diagnostics you are seeing\&.
 .SH "TDB FILES"
 .PP
-Samba stores it\'s data in several TDB (Trivial Database) files, usually located in
+Samba stores it\*(Aqs data in several TDB (Trivial Database) files, usually located in
 /var/lib/samba\&.
 .PP
 (*) information persistent across restarts (but not necessarily important to backup)\&.
@@ -319,7 +328,7 @@ Windows registry skeleton (connect via regedit\&.exe)
 .PP
 smbXsrv_session_global\&.tdb
 .RS 4
-session information (e\&.g\&. support for \'utmp = yes\')
+session information (e\&.g\&. support for \*(Aqutmp = yes\*(Aq)
 .RE
 .PP
 smbXsrv_tcon_global\&.tdb
@@ -339,17 +348,17 @@ share acls
 .PP
 winbindd_cache\&.tdb
 .RS 4
-winbindd\'s cache of user lists, etc\&.\&.\&.
+winbindd\*(Aqs cache of user lists, etc\&.\&.\&.
 .RE
 .PP
 winbindd_idmap\&.tdb*
 .RS 4
-winbindd\'s local idmap db
+winbindd\*(Aqs local idmap db
 .RE
 .PP
 wins\&.dat*
 .RS 4
-wins database when \'wins support = yes\'
+wins database when \*(Aqwins support = yes\*(Aq
 .RE
 .SH "SIGNALS"
 .PP
@@ -359,7 +368,7 @@ a SIGHUP will cause it to reload its
 smb\&.conf
 configuration file within a short period of time\&.
 .PP
-To shut down a user\'s
+To shut down a user\*(Aqs
 smbd
 process it is recommended that
 SIGKILL (\-9)
@@ -386,7 +395,7 @@ is in a state of waiting for an incoming SMB before issuing them\&. It is possib
 \fBsmb.conf\fR(5),
 \fBsmbclient\fR(1),
 \fBtestparm\fR(1),
-\fBtestprns\fR(1), and the Internet RFC\'s
+\fBtestprns\fR(1), and the Internet RFC\*(Aqs
 rfc1001\&.txt,
 rfc1002\&.txt\&. In addition the CIFS (formerly SMB) specification is available as a link from the Web page
 http://samba\&.org/cifs/\&.

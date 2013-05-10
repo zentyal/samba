@@ -38,6 +38,14 @@ struct poll_event_context {
 	 * picked up yet by poll_event_loop_once
 	 */
 	struct tevent_fd *fresh;
+	/*
+	 * A DLIST for disabled fde's.
+	 */
+	struct tevent_fd *disabled;
+	/*
+	 * one or more events were deleted or disabled
+	 */
+	bool deleted;
 
 	/*
 	 * These two arrays are maintained together.
@@ -55,12 +63,56 @@ struct poll_event_context {
 	int exit_code;
 };
 
+static int poll_event_context_destructor(struct poll_event_context *poll_ev)
+{
+	struct tevent_fd *fd, *fn;
+
+	for (fd = poll_ev->fresh; fd; fd = fn) {
+		fn = fd->next;
+		fd->event_ctx = NULL;
+		DLIST_REMOVE(poll_ev->fresh, fd);
+	}
+
+	for (fd = poll_ev->disabled; fd; fd = fn) {
+		fn = fd->next;
+		fd->event_ctx = NULL;
+		DLIST_REMOVE(poll_ev->disabled, fd);
+	}
+
+	if (poll_ev->signal_fd == -1) {
+		/*
+		 * Non-threaded, no signal pipe
+		 */
+		return 0;
+	}
+
+	close(poll_ev->signal_fd);
+	poll_ev->signal_fd = -1;
+
+	if (poll_ev->num_fds == 0) {
+		return 0;
+	}
+	if (poll_ev->fds[0].fd != -1) {
+		close(poll_ev->fds[0].fd);
+		poll_ev->fds[0].fd = -1;
+	}
+	return 0;
+}
+
 /*
-  create a select_event_context structure.
+  create a poll_event_context structure.
 */
 static int poll_event_context_init(struct tevent_context *ev)
 {
 	struct poll_event_context *poll_ev;
+
+	/*
+	 * we might be called during tevent_re_initialise()
+	 * which means we need to free our old additional_data
+	 * in order to detach old fd events from the
+	 * poll_ev->fresh list
+	 */
+	TALLOC_FREE(ev->additional_data);
 
 	poll_ev = talloc_zero(ev, struct poll_event_context);
 	if (poll_ev == NULL) {
@@ -69,22 +121,7 @@ static int poll_event_context_init(struct tevent_context *ev)
 	poll_ev->ev = ev;
 	poll_ev->signal_fd = -1;
 	ev->additional_data = poll_ev;
-	return 0;
-}
-
-static int poll_event_mt_destructor(struct poll_event_context *poll_ev)
-{
-	if (poll_ev->signal_fd != -1) {
-		close(poll_ev->signal_fd);
-		poll_ev->signal_fd = -1;
-	}
-	if (poll_ev->num_fds == 0) {
-		return 0;
-	}
-	if (poll_ev->fds[0].fd != -1) {
-		close(poll_ev->fds[0].fd);
-		poll_ev->fds[0].fd = -1;
-	}
+	talloc_set_destructor(poll_ev, poll_event_context_destructor);
 	return 0;
 }
 
@@ -140,7 +177,7 @@ static int poll_event_context_init_mt(struct tevent_context *ev)
 
 	poll_ev->num_fds = 1;
 
-	talloc_set_destructor(poll_ev, poll_event_mt_destructor);
+	talloc_set_destructor(poll_ev, poll_event_context_destructor);
 
 	return 0;
 }
@@ -195,18 +232,19 @@ static int poll_event_fd_destructor(struct tevent_fd *fde)
 	poll_ev = talloc_get_type_abort(
 		ev->additional_data, struct poll_event_context);
 
+	if (del_idx == UINT64_MAX) {
+		struct tevent_fd **listp =
+			(struct tevent_fd **)fde->additional_data;
+
+		DLIST_REMOVE((*listp), fde);
+		goto done;
+	}
+
 	poll_ev->fdes[del_idx] = NULL;
+	poll_ev->deleted = true;
 	poll_event_wake_pollthread(poll_ev);
 done:
 	return tevent_common_fd_destructor(fde);
-}
-
-static int poll_fresh_fde_destructor(struct tevent_fd *fde)
-{
-	struct poll_event_context *poll_ev = talloc_get_type_abort(
-		fde->event_ctx->additional_data, struct poll_event_context);
-	DLIST_REMOVE(poll_ev->fresh, fde);
-	return 0;
 }
 
 static void poll_event_schedule_immediate(struct tevent_immediate *im,
@@ -222,6 +260,30 @@ static void poll_event_schedule_immediate(struct tevent_immediate *im,
 	tevent_common_schedule_immediate(im, ev, handler, private_data,
 					 handler_name, location);
 	poll_event_wake_pollthread(poll_ev);
+}
+
+/*
+  Private function called by "standard" backend fallback.
+  Note this only allows fallback to "poll" backend, not "poll-mt".
+*/
+_PRIVATE_ void tevent_poll_event_add_fd_internal(struct tevent_context *ev,
+						 struct tevent_fd *fde)
+{
+	struct poll_event_context *poll_ev = talloc_get_type_abort(
+		ev->additional_data, struct poll_event_context);
+	struct tevent_fd **listp;
+
+	if (fde->flags != 0) {
+		listp = &poll_ev->fresh;
+	} else {
+		listp = &poll_ev->disabled;
+	}
+
+	fde->additional_flags	= UINT64_MAX;
+	fde->additional_data	= listp;
+
+	DLIST_ADD((*listp), fde);
+	talloc_set_destructor(fde, poll_event_fd_destructor);
 }
 
 /*
@@ -256,11 +318,10 @@ static struct tevent_fd *poll_event_add_fd(struct tevent_context *ev,
 	fde->private_data	= private_data;
 	fde->handler_name	= handler_name;
 	fde->location		= location;
-	fde->additional_flags	= 0;
+	fde->additional_flags	= UINT64_MAX;
 	fde->additional_data	= NULL;
 
-	DLIST_ADD(poll_ev->fresh, fde);
-	talloc_set_destructor(fde, poll_fresh_fde_destructor);
+	tevent_poll_event_add_fd_internal(ev, fde);
 	poll_event_wake_pollthread(poll_ev);
 
 	/*
@@ -275,10 +336,46 @@ static struct tevent_fd *poll_event_add_fd(struct tevent_context *ev,
 */
 static void poll_event_set_fd_flags(struct tevent_fd *fde, uint16_t flags)
 {
-	struct poll_event_context *poll_ev = talloc_get_type_abort(
-		fde->event_ctx->additional_data, struct poll_event_context);
+	struct tevent_context *ev = fde->event_ctx;
+	struct poll_event_context *poll_ev;
 	uint64_t idx = fde->additional_flags;
-	uint16_t pollflags = 0;
+	uint16_t pollflags;
+
+	if (ev == NULL) {
+		return;
+	}
+	poll_ev = talloc_get_type_abort(
+		ev->additional_data, struct poll_event_context);
+
+	fde->flags = flags;
+
+	if (idx == UINT64_MAX) {
+		struct tevent_fd **listp =
+			(struct tevent_fd **)fde->additional_data;
+
+		/*
+		 * We move it between the fresh and disabled lists.
+		 */
+		DLIST_REMOVE((*listp), fde);
+		tevent_poll_event_add_fd_internal(ev, fde);
+		poll_event_wake_pollthread(poll_ev);
+		return;
+	}
+
+	if (fde->flags == 0) {
+		/*
+		 * We need to remove it from the array
+		 * and move it to the disabled list.
+		 */
+		poll_ev->fdes[idx] = NULL;
+		poll_ev->deleted = true;
+		DLIST_REMOVE(ev->fd_events, fde);
+		tevent_poll_event_add_fd_internal(ev, fde);
+		poll_event_wake_pollthread(poll_ev);
+		return;
+	}
+
+	pollflags = 0;
 
 	if (flags & TEVENT_FD_READ) {
 		pollflags |= (POLLIN|POLLHUP);
@@ -286,10 +383,8 @@ static void poll_event_set_fd_flags(struct tevent_fd *fde, uint16_t flags)
 	if (flags & TEVENT_FD_WRITE) {
 		pollflags |= (POLLOUT);
 	}
-
 	poll_ev->fds[idx].events = pollflags;
 
-	fde->flags = flags;
 	poll_event_wake_pollthread(poll_ev);
 }
 
@@ -298,6 +393,34 @@ static bool poll_event_setup_fresh(struct tevent_context *ev,
 {
 	struct tevent_fd *fde, *next;
 	unsigned num_fresh, num_fds;
+
+	if (poll_ev->deleted) {
+		unsigned first_fd = (poll_ev->signal_fd != -1) ? 1 : 0;
+		unsigned i;
+
+		for (i=first_fd; i < poll_ev->num_fds;) {
+			fde = poll_ev->fdes[i];
+			if (fde != NULL) {
+				i++;
+				continue;
+			}
+
+			/*
+			 * This fde was talloc_free()'ed. Delete it
+			 * from the arrays
+			 */
+			poll_ev->num_fds -= 1;
+			if (poll_ev->num_fds == i) {
+				break;
+			}
+			poll_ev->fds[i] = poll_ev->fds[poll_ev->num_fds];
+			poll_ev->fdes[i] = poll_ev->fdes[poll_ev->num_fds];
+			if (poll_ev->fdes[i] != NULL) {
+				poll_ev->fdes[i]->additional_flags = i;
+			}
+		}
+	}
+	poll_ev->deleted = false;
 
 	if (poll_ev->fresh == NULL) {
 		return true;
@@ -361,8 +484,6 @@ static bool poll_event_setup_fresh(struct tevent_context *ev,
 		DLIST_REMOVE(poll_ev->fresh, fde);
 		DLIST_ADD(ev->fd_events, fde);
 
-		talloc_set_destructor(fde, poll_event_fd_destructor);
-
 		poll_ev->num_fds += 1;
 	}
 	return true;
@@ -378,7 +499,8 @@ static int poll_event_loop_poll(struct tevent_context *ev,
 		ev->additional_data, struct poll_event_context);
 	int pollrtn;
 	int timeout = -1;
-	unsigned first_fd;
+	int poll_errno;
+	struct tevent_fd *fde = NULL;
 	unsigned i;
 
 	if (ev->signal_events && tevent_common_check_signal(ev)) {
@@ -398,9 +520,10 @@ static int poll_event_loop_poll(struct tevent_context *ev,
 
 	tevent_trace_point_callback(poll_ev->ev, TEVENT_TRACE_BEFORE_WAIT);
 	pollrtn = poll(poll_ev->fds, poll_ev->num_fds, timeout);
+	poll_errno = errno;
 	tevent_trace_point_callback(poll_ev->ev, TEVENT_TRACE_AFTER_WAIT);
 
-	if (pollrtn == -1 && errno == EINTR && ev->signal_events) {
+	if (pollrtn == -1 && poll_errno == EINTR && ev->signal_events) {
 		tevent_common_check_signal(ev);
 		return 0;
 	}
@@ -418,33 +541,40 @@ static int poll_event_loop_poll(struct tevent_context *ev,
 		return 0;
 	}
 
-	first_fd = (poll_ev->signal_fd != -1) ? 1 : 0;
-
 	/* at least one file descriptor is ready - check
 	   which ones and call the handler, being careful to allow
 	   the handler to remove itself when called */
 
-	for (i=first_fd; i<poll_ev->num_fds; i++) {
+	for (fde = ev->fd_events; fde; fde = fde->next) {
+		unsigned idx = fde->additional_flags;
 		struct pollfd *pfd;
-		struct tevent_fd *fde;
 		uint16_t flags = 0;
 
-		fde = poll_ev->fdes[i];
-		if (fde == NULL) {
-			/*
-			 * This fde was talloc_free()'ed. Delete it
-			 * from the arrays
-			 */
-			poll_ev->num_fds -= 1;
-			poll_ev->fds[i] = poll_ev->fds[poll_ev->num_fds];
-			poll_ev->fdes[i] = poll_ev->fdes[poll_ev->num_fds];
-			if (poll_ev->fdes[i] != NULL) {
-				poll_ev->fdes[i]->additional_flags = i;
-			}
+		if (idx == UINT64_MAX) {
 			continue;
 		}
 
-		pfd = &poll_ev->fds[i];
+		pfd = &poll_ev->fds[idx];
+
+		if (pfd->revents & POLLNVAL) {
+			/*
+			 * the socket is dead! this should never
+			 * happen as the socket should have first been
+			 * made readable and that should have removed
+			 * the event, so this must be a bug.
+			 *
+			 * We ignore it here to match the epoll
+			 * behavior.
+			 */
+			tevent_debug(ev, TEVENT_DEBUG_ERROR,
+				     "POLLNVAL on fde[%p] fd[%d] - disabling\n",
+				     fde, pfd->fd);
+			poll_ev->fdes[idx] = NULL;
+			poll_ev->deleted = true;
+			DLIST_REMOVE(ev->fd_events, fde);
+			fde->event_ctx = NULL;
+			continue;
+		}
 
 		if (pfd->revents & (POLLHUP|POLLERR)) {
 			/* If we only wait for TEVENT_FD_WRITE, we
@@ -464,9 +594,38 @@ static int poll_event_loop_poll(struct tevent_context *ev,
 		if (pfd->revents & POLLOUT) {
 			flags |= TEVENT_FD_WRITE;
 		}
+		/*
+		 * Note that fde->flags could be changed when using
+		 * the poll_mt backend together with threads,
+		 * that why we need to check pfd->revents and fde->flags
+		 */
+		flags &= fde->flags;
 		if (flags != 0) {
+			DLIST_DEMOTE(ev->fd_events, fde, struct tevent_fd);
 			fde->handler(ev, fde, flags, fde->private_data);
-			break;
+			return 0;
+		}
+	}
+
+	for (i = 0; i < poll_ev->num_fds; i++) {
+		if (poll_ev->fds[i].revents & POLLNVAL) {
+			/*
+			 * the socket is dead! this should never
+			 * happen as the socket should have first been
+			 * made readable and that should have removed
+			 * the event, so this must be a bug or
+			 * a race in the poll_mt usage.
+			 */
+			fde = poll_ev->fdes[i];
+			tevent_debug(ev, TEVENT_DEBUG_WARNING,
+				     "POLLNVAL on dangling fd[%d] fde[%p] - disabling\n",
+				     poll_ev->fds[i].fd, fde);
+			poll_ev->fdes[i] = NULL;
+			poll_ev->deleted = true;
+			if (fde != NULL) {
+				DLIST_REMOVE(ev->fd_events, fde);
+				fde->event_ctx = NULL;
+			}
 		}
 	}
 
@@ -499,17 +658,47 @@ static int poll_event_loop_once(struct tevent_context *ev,
 	return poll_event_loop_poll(ev, &tval);
 }
 
+static int poll_event_loop_wait(struct tevent_context *ev,
+				const char *location)
+{
+	struct poll_event_context *poll_ev = talloc_get_type_abort(
+		ev->additional_data, struct poll_event_context);
+
+	/*
+	 * loop as long as we have events pending
+	 */
+	while (ev->fd_events ||
+	       ev->timer_events ||
+	       ev->immediate_events ||
+	       ev->signal_events ||
+	       poll_ev->fresh ||
+	       poll_ev->disabled) {
+		int ret;
+		ret = _tevent_loop_once(ev, location);
+		if (ret != 0) {
+			tevent_debug(ev, TEVENT_DEBUG_FATAL,
+				     "_tevent_loop_once() failed: %d - %s\n",
+				     ret, strerror(errno));
+			return ret;
+		}
+	}
+
+	tevent_debug(ev, TEVENT_DEBUG_WARNING,
+		     "poll_event_loop_wait() out of events\n");
+	return 0;
+}
+
 static const struct tevent_ops poll_event_ops = {
 	.context_init		= poll_event_context_init,
 	.add_fd			= poll_event_add_fd,
 	.set_fd_close_fn	= tevent_common_fd_set_close_fn,
 	.get_fd_flags		= tevent_common_fd_get_flags,
 	.set_fd_flags		= poll_event_set_fd_flags,
-	.add_timer		= tevent_common_add_timer,
+	.add_timer		= tevent_common_add_timer_v2,
 	.schedule_immediate	= tevent_common_schedule_immediate,
 	.add_signal		= tevent_common_add_signal,
 	.loop_once		= poll_event_loop_once,
-	.loop_wait		= tevent_common_loop_wait,
+	.loop_wait		= poll_event_loop_wait,
 };
 
 _PRIVATE_ bool tevent_poll_init(void)
@@ -523,11 +712,11 @@ static const struct tevent_ops poll_event_mt_ops = {
 	.set_fd_close_fn	= tevent_common_fd_set_close_fn,
 	.get_fd_flags		= tevent_common_fd_get_flags,
 	.set_fd_flags		= poll_event_set_fd_flags,
-	.add_timer		= tevent_common_add_timer,
+	.add_timer		= tevent_common_add_timer_v2,
 	.schedule_immediate	= poll_event_schedule_immediate,
 	.add_signal		= tevent_common_add_signal,
 	.loop_once		= poll_event_loop_once,
-	.loop_wait		= tevent_common_loop_wait,
+	.loop_wait		= poll_event_loop_wait,
 };
 
 _PRIVATE_ bool tevent_poll_mt_init(void)

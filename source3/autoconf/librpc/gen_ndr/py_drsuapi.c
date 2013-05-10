@@ -20805,8 +20805,8 @@ void initdrsuapi(void)
 	PyModule_AddObject(m, "DRSUAPI_ATTID_gPLink", PyInt_FromLong(DRSUAPI_ATTID_gPLink));
 	PyModule_AddObject(m, "DRSUAPI_DC_INFO_CTR_2", PyInt_FromLong(DRSUAPI_DC_INFO_CTR_2));
 	PyModule_AddObject(m, "DRSUAPI_DS_REPLICA_INFO_REPSTO", PyInt_FromLong(DRSUAPI_DS_REPLICA_INFO_REPSTO));
-	PyModule_AddObject(m, "DRSUAPI_ATTID_profilePath", PyInt_FromLong(DRSUAPI_ATTID_profilePath));
 	PyModule_AddObject(m, "DRSUAPI_DS_NAME_FORMAT_LIST_SERVERS_FOR_DOMAIN_IN_SITE", PyInt_FromLong(DRSUAPI_DS_NAME_FORMAT_LIST_SERVERS_FOR_DOMAIN_IN_SITE));
+	PyModule_AddObject(m, "DRSUAPI_ATTID_profilePath", PyInt_FromLong(DRSUAPI_ATTID_profilePath));
 	PyModule_AddObject(m, "DRSUAPI_SECBUFFER_READONLY", PyInt_FromLong(DRSUAPI_SECBUFFER_READONLY));
 	PyModule_AddObject(m, "DRSUAPI_ATTID_hasMasterNCs", PyInt_FromLong(DRSUAPI_ATTID_hasMasterNCs));
 	PyModule_AddObject(m, "DRSUAPI_EXOP_ERR_FSMO_REFUSING_ROLES", PyInt_FromLong(DRSUAPI_EXOP_ERR_FSMO_REFUSING_ROLES));

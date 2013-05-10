@@ -113,7 +113,7 @@ static NTSTATUS unixdom_connect(struct socket_context *sock,
 		
 		ZERO_STRUCT(srv_addr);
 		srv_addr.sun_family = AF_UNIX;
-		strncpy(srv_addr.sun_path, srv_address->addr, sizeof(srv_addr.sun_path));
+		snprintf(srv_addr.sun_path, sizeof(srv_addr.sun_path), "%s", srv_address->addr);
 
 		ret = connect(sock->fd, (const struct sockaddr *)&srv_addr, sizeof(srv_addr));
 	}
@@ -148,8 +148,8 @@ static NTSTATUS unixdom_listen(struct socket_context *sock,
 		
 		ZERO_STRUCT(my_addr);
 		my_addr.sun_family = AF_UNIX;
-		strncpy(my_addr.sun_path, my_address->addr, sizeof(my_addr.sun_path));
-		
+		snprintf(my_addr.sun_path, sizeof(my_addr.sun_path), "%s", my_address->addr);
+
 		ret = bind(sock->fd, (struct sockaddr *)&my_addr, sizeof(my_addr));
 	}
 	if (ret == -1) {
@@ -263,26 +263,43 @@ static NTSTATUS unixdom_sendto(struct socket_context *sock,
 			       const DATA_BLOB *blob, size_t *sendlen, 
 			       const struct socket_address *dest)
 {
+	struct sockaddr_un srv_addr;
+	const struct sockaddr *sa;
+	socklen_t sa_len;
 	ssize_t len;
+
 	*sendlen = 0;
-		
+
 	if (dest->sockaddr) {
-		len = sendto(sock->fd, blob->data, blob->length, 0, 
-			     dest->sockaddr, dest->sockaddrlen);
+		sa = dest->sockaddr;
+		sa_len = dest->sockaddrlen;
 	} else {
-		struct sockaddr_un srv_addr;
-		
 		if (strlen(dest->addr)+1 > sizeof(srv_addr.sun_path)) {
 			return NT_STATUS_OBJECT_PATH_INVALID;
 		}
-		
+
 		ZERO_STRUCT(srv_addr);
 		srv_addr.sun_family = AF_UNIX;
-		strncpy(srv_addr.sun_path, dest->addr, sizeof(srv_addr.sun_path));
-		
-		len = sendto(sock->fd, blob->data, blob->length, 0, 
-			     (struct sockaddr *)&srv_addr, sizeof(srv_addr));
+		snprintf(srv_addr.sun_path, sizeof(srv_addr.sun_path), "%s",
+			 dest->addr);
+		sa = (struct sockaddr *) &srv_addr;
+		sa_len = sizeof(srv_addr);
 	}
+
+	len = sendto(sock->fd, blob->data, blob->length, 0, sa, sa_len);
+
+	/* retry once */
+	if (len == -1 && errno == EMSGSIZE) {
+		/* round up in 1K increments */
+		int bufsize = ((blob->length + 1023) & (~1023));
+		if (setsockopt(sock->fd, SOL_SOCKET, SO_SNDBUF, &bufsize,
+			       sizeof(bufsize)) == -1)
+		{
+			return map_nt_error_from_unix_common(EMSGSIZE);
+		}
+		len = sendto(sock->fd, blob->data, blob->length, 0, sa, sa_len);
+	}
+
 	if (len == -1) {
 		return map_nt_error_from_unix_common(errno);
 	}	

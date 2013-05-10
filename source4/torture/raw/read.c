@@ -524,12 +524,11 @@ static bool test_readx(struct torture_context *tctx, struct smbcli_state *cli)
 	CHECK_STATUS(status, NT_STATUS_OK);
 	CHECK_VALUE(io.readx.out.remaining, 0xFFFF);
 	CHECK_VALUE(io.readx.out.compaction_mode, 0);
-	if (torture_setting_bool(tctx, "samba3", false) ||
-	    torture_setting_bool(tctx, "samba4", false)) {
+	if (io.readx.out.nread == io.readx.in.maxcnt) {
 		printf("SAMBA: large read extension\n");
 		CHECK_VALUE(io.readx.out.nread, 80000);
 	} else {
-		CHECK_VALUE(io.readx.out.nread, 0);
+		CHECK_VALUE(io.readx.out.nread, 0x10000);
 	}
 	CHECK_BUFFER(buf, seed, io.readx.out.nread);
 
@@ -569,23 +568,16 @@ static bool test_readx(struct torture_context *tctx, struct smbcli_state *cli)
 		io.readx.in.maxcnt = 0x10000;
 		status = smb_raw_read(cli->tree, &io);
 		CHECK_STATUS(status, NT_STATUS_OK);
-		if (torture_setting_bool(tctx, "samba3", false) || 
-		    torture_setting_bool(tctx, "samba4", false)) {
-			printf("SAMBA: large read extension\n");
-			CHECK_VALUE(io.readx.out.nread, 0x10000);
-		} else {
-			CHECK_VALUE(io.readx.out.nread, 0);
-		}
+		CHECK_VALUE(io.readx.out.nread, 0x10000);
 
 		io.readx.in.maxcnt = 0x10001;
 		status = smb_raw_read(cli->tree, &io);
 		CHECK_STATUS(status, NT_STATUS_OK);
-		if (torture_setting_bool(tctx, "samba3", false) ||
-		    torture_setting_bool(tctx, "samba4", false)) {
+		if (io.readx.out.nread == io.readx.in.maxcnt) {
 			printf("SAMBA: large read extension\n");
 			CHECK_VALUE(io.readx.out.nread, 0x10001);
 		} else {
-			CHECK_VALUE(io.readx.out.nread, 0);
+			CHECK_VALUE(io.readx.out.nread, 0x10000);
 		}
 	} else {
 		printf("Server does not support the CAP_LARGE_READX extension\n");

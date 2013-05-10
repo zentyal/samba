@@ -3294,8 +3294,7 @@ void reply_readbraw(struct smb_request *req)
 
 	START_PROFILE(SMBreadbraw);
 
-	if (srv_is_signing_active(sconn) ||
-	    is_encrypted_packet(sconn, req->inbuf)) {
+	if (srv_is_signing_active(sconn) || req->encrypted) {
 		exit_server_cleanly("reply_readbraw: SMB signing/sealing is active - "
 			"raw reads/writes are disallowed.");
 	}
@@ -3667,11 +3666,6 @@ static void send_file_readX(connection_struct *conn, struct smb_request *req,
 	struct lock_struct lock;
 	int saved_errno = 0;
 
-	if(fsp_stat(fsp) == -1) {
-		reply_nterror(req, map_nt_error_from_unix(errno));
-		return;
-	}
-
 	init_strict_lock_struct(fsp, (uint64_t)req->smbpid,
 	    (uint64_t)startpos, (uint64_t)smb_maxcnt, READ_LOCK,
 	    &lock);
@@ -3681,16 +3675,6 @@ static void send_file_readX(connection_struct *conn, struct smb_request *req,
 		return;
 	}
 
-	if (!S_ISREG(fsp->fsp_name->st.st_ex_mode) ||
-			(startpos > fsp->fsp_name->st.st_ex_size)
-			|| (smb_maxcnt > (fsp->fsp_name->st.st_ex_size - startpos))) {
-		/*
-		 * We already know that we would do a short read, so don't
-		 * try the sendfile() path.
-		 */
-		goto nosendfile_read;
-	}
-
 	/*
 	 * We can only use sendfile on a non-chained packet
 	 * but we can use on a non-oplocked file. tridge proved this
@@ -3698,12 +3682,27 @@ static void send_file_readX(connection_struct *conn, struct smb_request *req,
 	 */
 
 	if (!req_is_in_chain(req) &&
-	    !is_encrypted_packet(req->sconn, req->inbuf) &&
+	    !req->encrypted &&
 	    (fsp->base_fsp == NULL) &&
 	    (fsp->wcp == NULL) &&
 	    lp_use_sendfile(SNUM(conn), req->sconn->smb1.signing_state) ) {
 		uint8 headerbuf[smb_size + 12 * 2];
 		DATA_BLOB header;
+
+		if(fsp_stat(fsp) == -1) {
+			reply_nterror(req, map_nt_error_from_unix(errno));
+			goto strict_unlock;
+		}
+
+		if (!S_ISREG(fsp->fsp_name->st.st_ex_mode) ||
+		    (startpos > fsp->fsp_name->st.st_ex_size) ||
+		    (smb_maxcnt > (fsp->fsp_name->st.st_ex_size - startpos))) {
+			/*
+			 * We already know that we would do a short read, so don't
+			 * try the sendfile() path.
+			 */
+			goto nosendfile_read;
+		}
 
 		/*
 		 * Set up the packet header before send. We
@@ -3849,23 +3848,81 @@ nosendfile_read:
 }
 
 /****************************************************************************
- MacOSX clients send large reads without telling us they are going to do that.
- Bug #9572 - File corruption during SMB1 read by Mac OSX 10.8.2 clients
- Allow this if we are talking to a Samba client, or if we told the client
- we supported this.
+ Work out how much space we have for a read return.
 ****************************************************************************/
 
-static bool server_will_accept_large_read(void)
+static size_t calc_max_read_pdu(const struct smb_request *req)
 {
-	/* Samba client ? No problem. */
-	if (get_remote_arch() == RA_SAMBA) {
-		return true;
+	if (req->sconn->conn->protocol < PROTOCOL_NT1) {
+		return req->sconn->smb1.sessions.max_send;
 	}
-	/* Need UNIX extensions. */
+
+	if (!lp_large_readwrite()) {
+		return req->sconn->smb1.sessions.max_send;
+	}
+
+	if (req_is_in_chain(req)) {
+		return req->sconn->smb1.sessions.max_send;
+	}
+
+	if (req->encrypted) {
+		/*
+		 * Don't take encrypted traffic up to the
+		 * limit. There are padding considerations
+		 * that make that tricky.
+		 */
+		return req->sconn->smb1.sessions.max_send;
+	}
+
+	if (srv_is_signing_active(req->sconn)) {
+		return 0x1FFFF;
+	}
+
 	if (!lp_unix_extensions()) {
-		return false;
+		return 0x1FFFF;
 	}
-	return true;
+
+	/*
+	 * We can do ultra-large POSIX reads.
+	 */
+	return 0xFFFFFF;
+}
+
+/****************************************************************************
+ Calculate how big a read can be. Copes with all clients. It's always
+ safe to return a short read - Windows does this.
+****************************************************************************/
+
+static size_t calc_read_size(const struct smb_request *req,
+			     size_t upper_size,
+			     size_t lower_size)
+{
+	size_t max_pdu = calc_max_read_pdu(req);
+	size_t total_size = 0;
+	size_t hdr_len = MIN_SMB_SIZE + VWV(12);
+	size_t max_len = max_pdu - hdr_len;
+
+	/*
+	 * Windows explicitly ignores upper size of 0xFFFF.
+	 * See [MS-SMB].pdf <26> Section 2.2.4.2.1:
+	 * We must do the same as these will never fit even in
+	 * an extended size NetBIOS packet.
+	 */
+	if (upper_size == 0xFFFF) {
+		upper_size = 0;
+	}
+
+	if (req->sconn->conn->protocol < PROTOCOL_NT1) {
+		upper_size = 0;
+	}
+
+	total_size = ((upper_size<<16) | lower_size);
+
+	/*
+	 * LARGE_READX test shows it's always safe to return
+	 * a short read. Windows does so.
+	 */
+	return MIN(total_size, max_len);
 }
 
 /****************************************************************************
@@ -3914,38 +3971,14 @@ void reply_read_and_X(struct smb_request *req)
 	}
 
 	upper_size = SVAL(req->vwv+7, 0);
-	if ((upper_size != 0) && server_will_accept_large_read()) {
+	smb_maxcnt = calc_read_size(req, upper_size, smb_maxcnt);
+	if (smb_maxcnt > (0x1FFFF - (MIN_SMB_SIZE + VWV(12)))) {
 		/*
-		 * This is Samba only behavior (up to Samba 3.6)!
-		 *
-		 * Windows 2008 R2 ignores the upper_size,
-		 * so we do unless unix extentions are active
-		 * or "smbclient" is talking to us.
+		 * This is a heuristic to avoid keeping large
+		 * outgoing buffers around over long-lived aio
+		 * requests.
 		 */
-		smb_maxcnt |= (upper_size<<16);
-		if (upper_size > 1) {
-			/* Can't do this on a chained packet. */
-			if ((CVAL(req->vwv+0, 0) != 0xFF)) {
-				reply_nterror(req, NT_STATUS_NOT_SUPPORTED);
-				END_PROFILE(SMBreadX);
-				return;
-			}
-			/* We currently don't do this on signed or sealed data. */
-			if (srv_is_signing_active(req->sconn) ||
-			    is_encrypted_packet(req->sconn, req->inbuf)) {
-				reply_nterror(req, NT_STATUS_NOT_SUPPORTED);
-				END_PROFILE(SMBreadX);
-				return;
-			}
-			/* Is there room in the reply for this data ? */
-			if (smb_maxcnt > (0xFFFFFF - (smb_size -4 + 12*2)))  {
-				reply_nterror(req,
-					      NT_STATUS_INVALID_PARAMETER);
-				END_PROFILE(SMBreadX);
-				return;
-			}
-			big_readX = True;
-		}
+		big_readX = True;
 	}
 
 	if (req->wct == 12) {

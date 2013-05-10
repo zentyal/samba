@@ -2862,6 +2862,9 @@
 /* Whether telldir takes a const pointer */
 #undef TELLDIR_TAKES_CONST_DIR
 
+/* Max signal number value */
+#undef TEVENT_NUM_SIGNALS
+
 /* The maximum value of the 'time_t' type */
 #undef TIME_T_MAX
 
@@ -2919,6 +2922,18 @@
 
 /* Whether we have valgrind headers */
 #undef VALGRIND
+
+/* The value of `NSIG'. */
+#undef VALUEOF_NSIG
+
+/* The value of `SIGRTMAX'. */
+#undef VALUEOF_SIGRTMAX
+
+/* The value of `SIGRTMIN'. */
+#undef VALUEOF_SIGRTMIN
+
+/* The value of `_NSIG'. */
+#undef VALUEOF__NSIG
 
 /* Whether to include Active Directory support */
 #undef WITH_ADS
@@ -2991,6 +3006,11 @@
 # undef _BSD_TYPES
 #endif
 
+
+/* Enable large inode numbers on Mac OS X 10.5.  */
+#ifndef _DARWIN_USE_64_BIT_INODE
+# define _DARWIN_USE_64_BIT_INODE 1
+#endif
 
 /* Number of bits in a file offset, on hosts where this is settable. */
 #undef _FILE_OFFSET_BITS
@@ -3151,8 +3171,8 @@
 /* Define to `loff_t' if <sys/types.h> does not define. */
 #undef offset_t
 
-/* Whether to build pdb_ldap as shared module */
-#undef pdb_ldap_init
+/* Whether to build pdb_ldapsam as shared module */
+#undef pdb_ldapsam_init
 
 /* Whether to build pdb_smbpasswd as shared module */
 #undef pdb_smbpasswd_init

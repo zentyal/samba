@@ -116,11 +116,11 @@ class Schema(object):
         self.prefixmap_data = b64encode(self.prefixmap_data)
 
         # We don't actually add this ldif, just parse it
-        prefixmap_ldif = "dn: cn=schema\nprefixMap:: %s\n\n" % self.prefixmap_data
-        self.set_from_ldif(prefixmap_ldif, self.schema_data)
+        prefixmap_ldif = "dn: %s\nprefixMap:: %s\n\n" % (self.schemadn, self.prefixmap_data)
+        self.set_from_ldif(prefixmap_ldif, self.schema_data, self.schemadn)
 
-    def set_from_ldif(self, pf, df):
-        dsdb._dsdb_set_schema_from_ldif(self.ldb, pf, df)
+    def set_from_ldif(self, pf, df, dn):
+        dsdb._dsdb_set_schema_from_ldif(self.ldb, pf, df, dn)
 
     def write_to_tmp_ldb(self, schemadb_path):
         self.ldb.connect(url=schemadb_path)
@@ -137,7 +137,7 @@ dn: @INDEXLIST
             self.ldb.add_ldif(self.schema_dn_add)
             self.ldb.modify_ldif(self.schema_dn_modify)
             self.ldb.add_ldif(self.schema_data)
-        except Exception:
+        except:
             self.ldb.transaction_cancel()
             raise
         else:
@@ -155,16 +155,16 @@ dn: @INDEXLIST
         return dsdb._dsdb_convert_schema_to_openldap(self.ldb, target, mapping)
 
 
-# Return a hash with the forward attribute as a key and the back as the value 
+# Return a hash with the forward attribute as a key and the back as the value
 def get_linked_attributes(schemadn,schemaldb):
     attrs = ["linkID", "lDAPDisplayName"]
     res = schemaldb.search(expression="(&(linkID=*)(!(linkID:1.2.840.113556.1.4.803:=1))(objectclass=attributeSchema)(attributeSyntax=2.5.5.1))", base=schemadn, scope=SCOPE_ONELEVEL, attrs=attrs)
     attributes = {}
     for i in range (0, len(res)):
         expression = "(&(objectclass=attributeSchema)(linkID=%d)(attributeSyntax=2.5.5.1))" % (int(res[i]["linkID"][0])+1)
-        target = schemaldb.searchone(basedn=schemadn, 
-                                     expression=expression, 
-                                     attribute="lDAPDisplayName", 
+        target = schemaldb.searchone(basedn=schemadn,
+                                     expression=expression,
+                                     attribute="lDAPDisplayName",
                                      scope=SCOPE_SUBTREE)
         if target is not None:
             attributes[str(res[i]["lDAPDisplayName"])]=str(target)

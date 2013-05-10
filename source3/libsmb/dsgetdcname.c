@@ -24,7 +24,7 @@
 #include "libads/sitename_cache.h"
 #include "../librpc/gen_ndr/ndr_netlogon.h"
 #include "libads/cldap.h"
-#include "libads/dns.h"
+#include "../lib/addns/dnsquery.h"
 #include "libsmb/clidgram.h"
 
 /* 15 minutes */
@@ -32,7 +32,6 @@
 
 struct ip_service_name {
 	struct sockaddr_storage ss;
-	unsigned port;
 	const char *hostname;
 };
 
@@ -340,7 +339,7 @@ static NTSTATUS dsgetdcname_cache_fetch(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_NOT_FOUND;
 	}
 
-	info = TALLOC_ZERO_P(mem_ctx, struct netr_DsRGetDCNameInfo);
+	info = talloc_zero(mem_ctx, struct netr_DsRGetDCNameInfo);
 	if (!info) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -479,6 +478,7 @@ static NTSTATUS discover_dc_netbios(TALLOC_CTX *mem_ctx,
 	int i;
 	struct ip_service_name *dclist = NULL;
 	int count;
+	static const char *resolve_order[] = { "lmhosts", "wins", "bcast", NULL };
 
 	*returned_dclist = NULL;
 	*returned_count = 0;
@@ -493,13 +493,13 @@ static NTSTATUS discover_dc_netbios(TALLOC_CTX *mem_ctx,
 
 	status = internal_resolve_name(domain_name, name_type, NULL,
 				       &iplist, &count,
-				       "lmhosts wins bcast");
+				       resolve_order);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(10,("discover_dc_netbios: failed to find DC\n"));
 		return status;
 	}
 
-	dclist = TALLOC_ZERO_ARRAY(mem_ctx, struct ip_service_name, count);
+	dclist = talloc_zero_array(mem_ctx, struct ip_service_name, count);
 	if (!dclist) {
 		SAFE_FREE(iplist);
 		return NT_STATUS_NO_MEMORY;
@@ -514,7 +514,6 @@ static NTSTATUS discover_dc_netbios(TALLOC_CTX *mem_ctx,
 			       &iplist[i].ss);
 
 		r->ss	= iplist[i].ss;
-		r->port = iplist[i].port;
 		r->hostname = talloc_strdup(mem_ctx, addr);
 		if (!r->hostname) {
 			SAFE_FREE(iplist);
@@ -548,24 +547,38 @@ static NTSTATUS discover_dc_dns(TALLOC_CTX *mem_ctx,
 	int numaddrs = 0;
 	struct ip_service_name *dclist = NULL;
 	int count = 0;
+	const char *dns_hosts_file;
+	char *guid_string;
 
+	dns_hosts_file = lp_parm_const_string(-1, "resolv", "host file", NULL);
 	if (flags & DS_PDC_REQUIRED) {
-		status = ads_dns_query_pdc(mem_ctx, domain_name,
-					   &dcs, &numdcs);
+		status = ads_dns_query_pdc(mem_ctx, dns_hosts_file,
+					   domain_name, &dcs, &numdcs);
 	} else if (flags & DS_GC_SERVER_REQUIRED) {
-		status = ads_dns_query_gcs(mem_ctx, domain_name, site_name,
+		status = ads_dns_query_gcs(mem_ctx, dns_hosts_file,
+					   domain_name, site_name,
 					   &dcs, &numdcs);
 	} else if (flags & DS_KDC_REQUIRED) {
-		status = ads_dns_query_kdcs(mem_ctx, domain_name, site_name,
+		status = ads_dns_query_kdcs(mem_ctx, dns_hosts_file,
+					    domain_name, site_name,
 					    &dcs, &numdcs);
 	} else if (flags & DS_DIRECTORY_SERVICE_REQUIRED) {
-		status = ads_dns_query_dcs(mem_ctx, domain_name, site_name,
+		status = ads_dns_query_dcs(mem_ctx, dns_hosts_file,
+					   domain_name, site_name,
 					   &dcs, &numdcs);
 	} else if (domain_guid) {
-		status = ads_dns_query_dcs_guid(mem_ctx, domain_name,
-						domain_guid, &dcs, &numdcs);
+		guid_string = GUID_string(mem_ctx, domain_guid);
+		if (!guid_string) {
+			return NT_STATUS_NO_MEMORY;
+		}
+
+		status = ads_dns_query_dcs_guid(mem_ctx, dns_hosts_file,
+						domain_name, guid_string,
+						&dcs, &numdcs);
+		TALLOC_FREE(guid_string);
 	} else {
-		status = ads_dns_query_dcs(mem_ctx, domain_name, site_name,
+		status = ads_dns_query_dcs(mem_ctx, dns_hosts_file,
+					   domain_name, site_name,
 					   &dcs, &numdcs);
 	}
 
@@ -581,7 +594,7 @@ static NTSTATUS discover_dc_dns(TALLOC_CTX *mem_ctx,
 		numaddrs += MAX(dcs[i].num_ips,1);
 	}
 
-	dclist = TALLOC_ZERO_ARRAY(mem_ctx,
+	dclist = talloc_zero_array(mem_ctx,
 				   struct ip_service_name,
 				   numaddrs);
 	if (!dclist) {
@@ -598,7 +611,6 @@ static NTSTATUS discover_dc_dns(TALLOC_CTX *mem_ctx,
 
 		struct ip_service_name *r = &dclist[count];
 
-		r->port = dcs[i].port;
 		r->hostname = dcs[i].hostname;
 
 		/* If we don't have an IP list for a name, lookup it up */
@@ -609,7 +621,7 @@ static NTSTATUS discover_dc_dns(TALLOC_CTX *mem_ctx,
 			i++;
 			j = 0;
 		} else {
-			/* use the IP addresses from the SRV sresponse */
+			/* use the IP addresses from the SRV response */
 
 			if (j >= dcs[i].num_ips) {
 				i++;
@@ -623,8 +635,8 @@ static NTSTATUS discover_dc_dns(TALLOC_CTX *mem_ctx,
 
 		/* make sure it is a valid IP.  I considered checking the
 		 * negative connection cache, but this is the wrong place for
-		 * it.  Maybe only as a hac.  After think about it, if all of
-		 * the IP addresses retuend from DNS are dead, what hope does a
+		 * it.  Maybe only as a hack. After think about it, if all of
+		 * the IP addresses returned from DNS are dead, what hope does a
 		 * netbios name lookup have?  The standard reason for falling
 		 * back to netbios lookups is that our DNS server doesn't know
 		 * anything about the DC's   -- jerry */
@@ -662,7 +674,7 @@ static NTSTATUS make_domain_controller_info(TALLOC_CTX *mem_ctx,
 {
 	struct netr_DsRGetDCNameInfo *info;
 
-	info = TALLOC_ZERO_P(mem_ctx, struct netr_DsRGetDCNameInfo);
+	info = talloc_zero(mem_ctx, struct netr_DsRGetDCNameInfo);
 	NT_STATUS_HAVE_NO_MEMORY(info);
 
 	if (dc_unc) {
@@ -864,9 +876,10 @@ static NTSTATUS process_dc_dns(TALLOC_CTX *mem_ctx,
 
 	for (i=0; i<num_dcs; i++) {
 
+
 		DEBUG(10,("LDAP ping to %s\n", dclist[i].hostname));
 
-		if (ads_cldap_netlogon(mem_ctx, dclist[i].hostname,
+		if (ads_cldap_netlogon(mem_ctx, &dclist[i].ss,
 					domain_name,
 					nt_version,
 					&r))
@@ -938,10 +951,8 @@ static NTSTATUS process_dc_netbios(TALLOC_CTX *mem_ctx,
 
 	for (i=0; i<num_dcs; i++) {
 		uint16_t val;
-		int dgm_id;
 
 		generate_random_buffer((uint8_t *)&val, 2);
-		dgm_id = val;
 
 		ip_list.ss = dclist[i].ss;
 		ip_list.port = 0;
@@ -967,7 +978,7 @@ static NTSTATUS process_dc_netbios(TALLOC_CTX *mem_ctx,
 		{
 			struct NETLOGON_SAM_LOGON_RESPONSE_NT40 logon1;
 
-			r = TALLOC_ZERO_P(mem_ctx, struct netlogon_samlogon_response);
+			r = talloc_zero(mem_ctx, struct netlogon_samlogon_response);
 			NT_STATUS_HAVE_NO_MEMORY(r);
 
 			ZERO_STRUCT(logon1);

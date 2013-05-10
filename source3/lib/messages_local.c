@@ -45,7 +45,8 @@
 #include "includes.h"
 #include "system/filesys.h"
 #include "messages.h"
-#include "lib/util/tdb_wrap.h"
+#include "lib/tdb_wrap/tdb_wrap.h"
+#include "lib/param/param.h"
 
 struct messaging_tdb_context {
 	struct messaging_context *msg_ctx;
@@ -76,6 +77,16 @@ static void messaging_tdb_signal_handler(struct tevent_context *ev_ctx,
 	message_dispatch(ctx->msg_ctx);
 }
 
+void *messaging_tdb_event(TALLOC_CTX *mem_ctx, struct messaging_context *msg,
+			  struct tevent_context *ev)
+{
+	struct messaging_tdb_context *msg_tdb = talloc_get_type_abort(
+		msg->local->private_data, struct messaging_tdb_context);
+
+	return tevent_add_signal(ev, mem_ctx, SIGUSR1, 0,
+				 messaging_tdb_signal_handler, msg_tdb);
+}
+
 /****************************************************************************
  Initialise the messaging functions. 
 ****************************************************************************/
@@ -86,13 +97,20 @@ NTSTATUS messaging_tdb_init(struct messaging_context *msg_ctx,
 {
 	struct messaging_backend *result;
 	struct messaging_tdb_context *ctx;
+	struct loadparm_context *lp_ctx;
 
-	if (!(result = TALLOC_P(mem_ctx, struct messaging_backend))) {
+	if (!(result = talloc(mem_ctx, struct messaging_backend))) {
 		DEBUG(0, ("talloc failed\n"));
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	ctx = TALLOC_ZERO_P(result, struct messaging_tdb_context);
+	lp_ctx = loadparm_init_s3(result, loadparm_s3_helpers());
+	if (lp_ctx == NULL) {
+		DEBUG(0, ("loadparm_init_s3 failed\n"));
+		return NT_STATUS_INTERNAL_ERROR;
+	}
+
+	ctx = talloc_zero(result, struct messaging_tdb_context);
 	if (!ctx) {
 		DEBUG(0, ("talloc failed\n"));
 		TALLOC_FREE(result);
@@ -105,7 +123,8 @@ NTSTATUS messaging_tdb_init(struct messaging_context *msg_ctx,
 
 	ctx->tdb = tdb_wrap_open(ctx, lock_path("messages.tdb"), 0,
 				 TDB_CLEAR_IF_FIRST|TDB_DEFAULT|TDB_VOLATILE|TDB_INCOMPATIBLE_HASH,
-				 O_RDWR|O_CREAT,0600);
+				 O_RDWR|O_CREAT,0600, lp_ctx);
+	talloc_unlink(result, lp_ctx);
 
 	if (!ctx->tdb) {
 		NTSTATUS status = map_nt_error_from_unix(errno);
@@ -137,6 +156,13 @@ NTSTATUS messaging_tdb_init(struct messaging_context *msg_ctx,
 bool messaging_tdb_parent_init(TALLOC_CTX *mem_ctx)
 {
 	struct tdb_wrap *db;
+	struct loadparm_context *lp_ctx;
+
+	lp_ctx = loadparm_init_s3(mem_ctx, loadparm_s3_helpers());
+	if (lp_ctx == NULL) {
+		DEBUG(0, ("loadparm_init_s3 failed\n"));
+		return false;
+	}
 
 	/*
 	 * Open the tdb in the parent process (smbd) so that our
@@ -146,7 +172,8 @@ bool messaging_tdb_parent_init(TALLOC_CTX *mem_ctx)
 
 	db = tdb_wrap_open(mem_ctx, lock_path("messages.tdb"), 0,
 			   TDB_CLEAR_IF_FIRST|TDB_DEFAULT|TDB_VOLATILE|TDB_INCOMPATIBLE_HASH,
-			   O_RDWR|O_CREAT,0600);
+			   O_RDWR|O_CREAT,0600, lp_ctx);
+	talloc_unlink(mem_ctx, lp_ctx);
 	if (db == NULL) {
 		DEBUG(1, ("could not open messaging.tdb: %s\n",
 			  strerror(errno)));
@@ -187,7 +214,7 @@ static NTSTATUS messaging_tdb_fetch(TDB_CONTEXT *msg_tdb,
 	DATA_BLOB blob;
 	enum ndr_err_code ndr_err;
 
-	if (!(result = TALLOC_ZERO_P(mem_ctx, struct messaging_array))) {
+	if (!(result = talloc_zero(mem_ctx, struct messaging_array))) {
 		return NT_STATUS_NO_MEMORY;
 	}
 
@@ -200,7 +227,7 @@ static NTSTATUS messaging_tdb_fetch(TDB_CONTEXT *msg_tdb,
 
 	blob = data_blob_const(data.dptr, data.dsize);
 
-	ndr_err = ndr_pull_struct_blob(
+	ndr_err = ndr_pull_struct_blob_all(
 		&blob, result, result,
 		(ndr_pull_flags_fn_t)ndr_pull_messaging_array);
 
@@ -282,6 +309,9 @@ static NTSTATUS message_notify(struct server_id procid)
 	 */
 
 	SMB_ASSERT(pid > 0);
+	if (pid <= 0) {
+		return NT_STATUS_INVALID_HANDLE;
+	}
 
 	if (euid != 0) {
 		/* If we're not root become so to send the message. */
@@ -352,7 +382,7 @@ static NTSTATUS messaging_tdb_send(struct messaging_context *msg_ctx,
 
 	key = message_key_pid(frame, pid);
 
-	if (tdb_chainlock(tdb->tdb, key) == -1) {
+	if (tdb_chainlock(tdb->tdb, key) != 0) {
 		TALLOC_FREE(frame);
 		return NT_STATUS_LOCK_NOT_GRANTED;
 	}
@@ -371,7 +401,7 @@ static NTSTATUS messaging_tdb_send(struct messaging_context *msg_ctx,
 		goto done;
 	}
 
-	if (!(rec = TALLOC_REALLOC_ARRAY(talloc_tos(), msg_array->messages,
+	if (!(rec = talloc_realloc(talloc_tos(), msg_array->messages,
 					 struct messaging_rec,
 					 msg_array->num_messages+1))) {
 		status = NT_STATUS_NO_MEMORY;
@@ -420,7 +450,7 @@ static NTSTATUS retrieve_all_messages(TDB_CONTEXT *msg_tdb,
 	TDB_DATA key = message_key_pid(mem_ctx, id);
 	NTSTATUS status;
 
-	if (tdb_chainlock(msg_tdb, key) == -1) {
+	if (tdb_chainlock(msg_tdb, key) != 0) {
 		TALLOC_FREE(key.dptr);
 		return NT_STATUS_LOCK_NOT_GRANTED;
 	}

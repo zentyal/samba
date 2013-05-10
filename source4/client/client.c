@@ -35,6 +35,8 @@
 #include "lib/events/events.h"
 #include "lib/cmdline/popt_common.h"
 #include "librpc/gen_ndr/ndr_srvsvc_c.h"
+#include "librpc/gen_ndr/ndr_lsa.h"
+#include "librpc/gen_ndr/ndr_security.h"
 #include "libcli/util/clilsa.h"
 #include "system/dir.h"
 #include "system/filesys.h"
@@ -309,12 +311,12 @@ static bool mask_match(struct smbcli_state *c, const char *string,
 		return false;
 	
 	if (is_case_sensitive)
-		return ms_fnmatch(pattern, string, 
+		return ms_fnmatch_protocol(pattern, string, 
 				  c->transport->negotiate.protocol) == 0;
 
 	p2 = strlower_talloc(NULL, pattern);
 	s2 = strlower_talloc(NULL, string);
-	ret = ms_fnmatch(p2, s2, c->transport->negotiate.protocol) == 0;
+	ret = ms_fnmatch_protocol(p2, s2, c->transport->negotiate.protocol) == 0;
 	talloc_free(p2);
 	talloc_free(s2);
 
@@ -473,8 +475,8 @@ static void add_to_do_list_queue(const char* entry)
 	}
 	if (do_list_queue)
 	{
-		safe_strcpy(do_list_queue + do_list_queue_end, entry, 
-			    do_list_queue_size - do_list_queue_end - 1);
+		strlcpy(do_list_queue + do_list_queue_end, entry ? entry : "",
+			    do_list_queue_size - do_list_queue_end);
 		do_list_queue_end = new_end;
 		DEBUG(4,("added %s to do_list_queue (start=%d, end=%d)\n",
 			 entry, (int)do_list_queue_start, (int)do_list_queue_end));
@@ -696,11 +698,12 @@ static int do_get(struct smbclient_context *ctx, char *rname, const char *p_lnam
 	char *lname;
 
 
-	lname = talloc_strdup(ctx, p_lname);
 	GetTimeOfDay(&tp_start);
 
 	if (ctx->lowercase) {
-		strlower(lname);
+		lname = strlower_talloc(ctx, p_lname);
+	} else {
+		lname = talloc_strdup(ctx, p_lname);
 	}
 
 	fnum = smbcli_open(ctx->cli->tree, rname, O_RDONLY, DENY_NONE);
@@ -884,13 +887,14 @@ static void do_mget(struct smbclient_context *ctx, struct clilist_file_info *fin
 
 	ctx->remote_cur_dir = talloc_asprintf_append_buffer(NULL, "%s\\", finfo->name);
 
-	l_fname = talloc_strdup(ctx, finfo->name);
-
-	string_replace(l_fname, '\\', '/');
 	if (ctx->lowercase) {
-		strlower(l_fname);
+		l_fname = strlower_talloc(ctx, finfo->name);
+	} else {
+		l_fname = talloc_strdup(ctx, finfo->name);
 	}
 	
+	string_replace(l_fname, '\\', '/');
+
 	if (!directory_exist(l_fname) &&
 	    mkdir(l_fname, 0777) != 0) {
 		d_printf("failed to create directory %s\n", l_fname);
@@ -2129,18 +2133,75 @@ static int cmd_delprivileges(struct smbclient_context *ctx, const char **args)
 
 
 /****************************************************************************
+open a file
 ****************************************************************************/
 static int cmd_open(struct smbclient_context *ctx, const char **args)
 {
-	char *mask;
-	
+	char *filename;
+	union smb_open io;
+	NTSTATUS status;
+	TALLOC_CTX *tmp_ctx;
+
 	if (!args[1]) {
 		d_printf("open <filename>\n");
 		return 1;
 	}
-	mask = talloc_asprintf(ctx, "%s%s", ctx->remote_cur_dir, args[1]);
+	tmp_ctx = talloc_new(ctx);
 
-	smbcli_open(ctx->cli->tree, mask, O_RDWR, DENY_ALL);
+	filename = talloc_asprintf(tmp_ctx, "%s%s", ctx->remote_cur_dir, args[1]);
+
+	io.generic.level = RAW_OPEN_NTCREATEX;
+	io.ntcreatex.in.root_fid.fnum = 0;
+	io.ntcreatex.in.flags = 0;
+	io.ntcreatex.in.access_mask = SEC_RIGHTS_FILE_ALL;
+	io.ntcreatex.in.create_options = 0;
+	io.ntcreatex.in.file_attr = FILE_ATTRIBUTE_NORMAL;
+	io.ntcreatex.in.share_access = NTCREATEX_SHARE_ACCESS_READ;
+	io.ntcreatex.in.alloc_size = 0;
+	io.ntcreatex.in.open_disposition = NTCREATEX_DISP_OPEN_IF;
+	io.ntcreatex.in.impersonation = NTCREATEX_IMPERSONATION_ANONYMOUS;
+	io.ntcreatex.in.security_flags = 0;
+	io.ntcreatex.in.fname = filename;
+
+	status = smb_raw_open(ctx->cli->tree, tmp_ctx, &io);
+	talloc_free(tmp_ctx);
+
+	if (NT_STATUS_IS_OK(status)) {
+		d_printf("Opened file with fnum %u\n", (unsigned)io.ntcreatex.out.file.fnum);
+	} else {
+		d_printf("Opened failed: %s\n", nt_errstr(status));
+	}
+
+	return 0;
+}
+
+/****************************************************************************
+close a file
+****************************************************************************/
+static int cmd_close(struct smbclient_context *ctx, const char **args)
+{
+	union smb_close io;
+	NTSTATUS status;
+	uint16_t fnum;
+
+	if (!args[1]) {
+		d_printf("close <fnum>\n");
+		return 1;
+	}
+
+	fnum = atoi(args[1]);
+
+	ZERO_STRUCT(io);
+	io.generic.level = RAW_CLOSE_CLOSE;
+	io.close.in.file.fnum = fnum;
+
+	status = smb_raw_close(ctx->cli->tree, &io);
+
+	if (NT_STATUS_IS_OK(status)) {
+		d_printf("Closed file OK\n");
+	} else {
+		d_printf("Close failed: %s\n", nt_errstr(status));
+	}
 
 	return 0;
 }
@@ -2692,6 +2753,7 @@ static struct
   {"mput",cmd_mput,"<mask> put all matching files",{COMPL_REMOTE,COMPL_NONE}},
   {"newer",cmd_newer,"<file> only mget files newer than the specified local file",{COMPL_LOCAL,COMPL_NONE}},
   {"open",cmd_open,"<mask> open a file",{COMPL_REMOTE,COMPL_NONE}},
+  {"close",cmd_close,"<fnum> close a file",{COMPL_NONE,COMPL_NONE}},
   {"privileges",cmd_privileges,"<user> show privileges for a user",{COMPL_NONE,COMPL_NONE}},
   {"print",cmd_print,"<file name> print a file",{COMPL_NONE,COMPL_NONE}},
   {"printmode",cmd_printmode,"<graphics or text> set the print mode",{COMPL_NONE,COMPL_NONE}},
@@ -3122,6 +3184,7 @@ static int do_message_op(const char *netbios_name, const char *desthost,
 	struct nbt_name called, calling;
 	const char *server_name;
 	struct smbcli_state *cli;
+	bool ok;
 
 	make_nbt_name_client(&calling, netbios_name);
 
@@ -3129,17 +3192,18 @@ static int do_message_op(const char *netbios_name, const char *desthost,
 
 	server_name = destip ? destip : desthost;
 
-	if (!(cli = smbcli_state_init(NULL)) ||
-	    !smbcli_socket_connect(cli, server_name, destports,
-				   ev_ctx, resolve_ctx, options,
-                   socket_options)) {
-		d_printf("Connection to %s failed\n", server_name);
+	cli = smbcli_state_init(NULL);
+	if (cli == NULL) {
+		d_printf("smbcli_state_init() failed\n");
 		return 1;
 	}
 
-	if (!smbcli_transport_establish(cli, &calling, &called)) {
-		d_printf("session request failed\n");
-		talloc_free(cli);
+	ok = smbcli_socket_connect(cli, server_name, destports,
+				   ev_ctx, resolve_ctx, options,
+				   socket_options,
+				   &calling, &called);
+	if (!ok) {
+		d_printf("Connection to %s failed\n", server_name);
 		return 1;
 	}
 
@@ -3231,7 +3295,7 @@ static int do_message_op(const char *netbios_name, const char *desthost,
 		}
 	}
 
-	gensec_init(cmdline_lp_ctx);
+	gensec_init();
 
 	if(poptPeekArg(pc)) {
 		char *s = strdup(poptGetArg(pc)); 

@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-#
 # Vampire
 #
 # Copyright Jelmer Vernooij 2010 <jelmer@samba.org>
@@ -29,9 +27,10 @@ from samba.netcmd import (
     CommandError
     )
 
+
 class cmd_vampire(Command):
-    """Join and synchronise a remote AD domain to the local server [server connection needed]"""
-    synopsis = "%prog vampire [options] <domain>"
+    """Join and synchronise a remote AD domain to the local server."""
+    synopsis = "%prog [options] <domain>"
 
     takes_optiongroups = {
         "sambaopts": options.SambaOptions,
@@ -48,7 +47,7 @@ class cmd_vampire(Command):
 
     def run(self, domain, target_dir=None, credopts=None, sambaopts=None, versionopts=None, force=False):
         if not force:
-            raise CommandError("samba-tool vampire is deprecated, please use samba-tool join. Use --force to override")
+            raise CommandError("samba-tool vampire is deprecated, please use samba-tool domain join. Use --force to override")
         lp = sambaopts.get_loadparm()
         creds = credopts.get_credentials(lp)
         net = Net(creds, lp, server=credopts.ipaddress)

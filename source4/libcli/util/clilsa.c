@@ -32,6 +32,7 @@
 #include "librpc/gen_ndr/ndr_lsa.h"
 #include "librpc/gen_ndr/ndr_lsa_c.h"
 #include "libcli/util/clilsa.h"
+#include "libcli/smb/smbXcli_base.h"
 
 struct smblsa_state {
 	struct dcerpc_pipe *pipe;
@@ -68,7 +69,8 @@ static NTSTATUS smblsa_connect(struct smbcli_state *cli)
 
 	/* connect to IPC$ */
 	tcon.generic.level = RAW_TCON_TCONX;
-	tcon.tconx.in.flags = 0;
+	tcon.tconx.in.flags = TCONX_FLAG_EXTENDED_RESPONSE;
+	tcon.tconx.in.flags |= TCONX_FLAG_EXTENDED_SIGNATURES;
 	tcon.tconx.in.password = data_blob(NULL, 0);
 	tcon.tconx.in.path = "ipc$";
 	tcon.tconx.in.device = "IPC";	
@@ -79,7 +81,11 @@ static NTSTATUS smblsa_connect(struct smbcli_state *cli)
 	}
 	lsa->ipc_tree->tid = tcon.tconx.out.tid;
 
-	lsa->pipe = dcerpc_pipe_init(lsa, cli->transport->socket->event.ctx);
+	if (tcon.tconx.out.options & SMB_EXTENDED_SIGNATURES) {
+		smb1cli_session_protect_session_key(cli->session->smbXcli);
+	}
+
+	lsa->pipe = dcerpc_pipe_init(lsa, cli->transport->ev);
 	if (lsa->pipe == NULL) {
 		talloc_free(lsa);
 		return NT_STATUS_NO_MEMORY;

@@ -24,7 +24,8 @@
 #include "registry.h"
 #include "reg_objects.h"
 #include "util_tdb.h"
-#include "dbwrap.h"
+#include "dbwrap/dbwrap.h"
+#include "dbwrap/dbwrap_rbt.h"
 #include "../libcli/registry/util_reg.h"
 
 #undef DBGC_CLASS
@@ -62,7 +63,7 @@ struct regsubkey_ctr {
  context for internal private data.
 
  There is no longer a regval_ctr_intit() and regval_ctr_destroy()
- pair of functions.  Simply TALLOC_ZERO_P() and TALLOC_FREE() the
+ pair of functions.  Simply talloc_zero() and TALLOC_FREE() the
  object.
 
  **********************************************************************/
@@ -169,13 +170,15 @@ static WERROR regsubkey_ctr_index_for_keyname(struct regsubkey_ctr *ctr,
 					      uint32_t *idx)
 {
 	TDB_DATA data;
+	NTSTATUS status;
 
 	if ((ctr == NULL) || (keyname == NULL)) {
 		return WERR_INVALID_PARAM;
 	}
 
-	data = dbwrap_fetch_bystring_upper(ctr->subkeys_hash, ctr, keyname);
-	if (data.dptr == NULL) {
+	status = dbwrap_fetch_bystring_upper(ctr->subkeys_hash, ctr, keyname,
+					     &data);
+	if (!NT_STATUS_IS_OK(status)) {
 		return WERR_NOT_FOUND;
 	}
 
@@ -211,7 +214,7 @@ WERROR regsubkey_ctr_addkey( struct regsubkey_ctr *ctr, const char *keyname )
 		return WERR_OK;
 	}
 
-	if (!(newkeys = TALLOC_REALLOC_ARRAY(ctr, ctr->subkeys, char *,
+	if (!(newkeys = talloc_realloc(ctr, ctr->subkeys, char *,
 					     ctr->num_subkeys+1))) {
 		return WERR_NOMEM;
 	}
@@ -342,60 +345,6 @@ int regval_ctr_numvals(struct regval_ctr *ctr)
 	return ctr->num_values;
 }
 
-/***********************************************************************
- allocate memory for and duplicate a struct regval_blob.
- This is malloc'd memory so the caller should free it when done
- **********************************************************************/
-
-struct regval_blob* dup_registry_value(struct regval_blob *val)
-{
-	struct regval_blob *copy = NULL;
-
-	if ( !val )
-		return NULL;
-
-	if ( !(copy = SMB_MALLOC_P( struct regval_blob)) ) {
-		DEBUG(0,("dup_registry_value: malloc() failed!\n"));
-		return NULL;
-	}
-
-	/* copy all the non-pointer initial data */
-
-	memcpy( copy, val, sizeof(struct regval_blob) );
-
-	copy->size = 0;
-	copy->data_p = NULL;
-
-	if ( val->data_p && val->size )
-	{
-		if ( !(copy->data_p = (uint8_t *)memdup( val->data_p,
-						       val->size )) ) {
-			DEBUG(0,("dup_registry_value: memdup() failed for [%d] "
-				 "bytes!\n", val->size));
-			SAFE_FREE( copy );
-			return NULL;
-		}
-		copy->size = val->size;
-	}
-
-	return copy;
-}
-
-/**********************************************************************
- free the memory allocated to a struct regval_blob
- *********************************************************************/
-
-void free_registry_value(struct regval_blob *val)
-{
-	if ( !val )
-		return;
-
-	SAFE_FREE( val->data_p );
-	SAFE_FREE( val );
-
-	return;
-}
-
 /**********************************************************************
  *********************************************************************/
 
@@ -466,8 +415,8 @@ struct regval_blob *regval_ctr_value_byname(struct regval_ctr *ctr,
 {
 	int i;
 
-	for (i=0; i<ctr->num_values; i++) {
-		if (strequal(ctr->values[i]->valuename,value)) {
+	for (i = 0; i < ctr->num_values; i++) {
+		if (strequal(ctr->values[i]->valuename, value)) {
 			return ctr->values[i];
 		}
 	}
@@ -484,7 +433,7 @@ struct regval_blob *regval_compose(TALLOC_CTX *ctx, const char *name,
 				   uint32_t type,
 				   const uint8_t *data_p, size_t size)
 {
-	struct regval_blob *regval = TALLOC_P(ctx, struct regval_blob);
+	struct regval_blob *regval = talloc(ctx, struct regval_blob);
 
 	if (regval == NULL) {
 		return NULL;
@@ -493,7 +442,7 @@ struct regval_blob *regval_compose(TALLOC_CTX *ctx, const char *name,
 	fstrcpy(regval->valuename, name);
 	regval->type = type;
 	if (size) {
-		regval->data_p = (uint8_t *)TALLOC_MEMDUP(regval, data_p, size);
+		regval->data_p = (uint8_t *)talloc_memdup(regval, data_p, size);
 		if (!regval->data_p) {
 			TALLOC_FREE(regval);
 			return NULL;
@@ -523,9 +472,9 @@ int regval_ctr_addvalue(struct regval_ctr *ctr, const char *name, uint32_t type,
 	/* allocate a slot in the array of pointers */
 
 	if (  ctr->num_values == 0 ) {
-		ctr->values = TALLOC_P( ctr, struct regval_blob *);
+		ctr->values = talloc( ctr, struct regval_blob *);
 	} else {
-		ctr->values = TALLOC_REALLOC_ARRAY(ctr, ctr->values,
+		ctr->values = talloc_realloc(ctr, ctr->values,
 						   struct regval_blob *,
 						   ctr->num_values+1);
 	}

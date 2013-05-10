@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # Samba-specific bits for optparse
 # Copyright (C) Jelmer Vernooij <jelmer@samba.org> 2007
 #
@@ -21,9 +19,11 @@
 
 __docformat__ = "restructuredText"
 
-import optparse, os
+import optparse
+import os
 from samba.credentials import (
     Credentials,
+    AUTO_USE_KERBEROS,
     DONT_USE_KERBEROS,
     MUST_USE_KERBEROS,
     )
@@ -44,36 +44,46 @@ class SambaOptions(optparse.OptionGroup):
                         type=int, metavar="DEBUGLEVEL", help="debug level",
                         callback=self._set_debuglevel)
         self.add_option("--option", action="callback",
-                        type=str, metavar="OPTION", help="set smb.conf option from command line",
+                        type=str, metavar="OPTION",
+                        help="set smb.conf option from command line",
                         callback=self._set_option)
         self.add_option("--realm", action="callback",
                         type=str, metavar="REALM", help="set the realm name",
                         callback=self._set_realm)
         self._configfile = None
         self._lp = LoadParm()
+        self.realm = None
 
     def get_loadparm_path(self):
-        """Return the path to the smb.conf file specified on the command line.  """
+        """Return path to the smb.conf file specified on the command line."""
         return self._configfile
 
     def _load_configfile(self, option, opt_str, arg, parser):
         self._configfile = arg
 
     def _set_debuglevel(self, option, opt_str, arg, parser):
+        if arg < 0:
+            raise optparse.OptionValueError("invalid %s option value: %s" %
+                                            (opt_str, arg))
         self._lp.set('debug level', str(arg))
 
     def _set_realm(self, option, opt_str, arg, parser):
         self._lp.set('realm', arg)
+        self.realm = arg
 
     def _set_option(self, option, opt_str, arg, parser):
         if arg.find('=') == -1:
-            print("--option takes a 'a=b' argument")
-            sys.exit(1)
+            raise optparse.OptionValueError(
+                "--option option takes a 'a=b' argument")
         a = arg.split('=')
-        self._lp.set(a[0], a[1])
+        try:
+            self._lp.set(a[0], a[1])
+        except Exception, e:
+            raise optparse.OptionValueError(
+                "invalid --option option value %r: %s" % (arg, e))
 
     def get_loadparm(self):
-        """Return a loadparm object with data specified on the command line.  """
+        """Return loadparm object with data specified on the command line."""
         if self._configfile is not None:
             self._lp.load(self._configfile)
         elif os.getenv("SMB_CONF_PATH") is not None:
@@ -90,7 +100,7 @@ class VersionOptions(optparse.OptionGroup):
     """Command line option for printing Samba version."""
     def __init__(self, parser):
         optparse.OptionGroup.__init__(self, parser, "Version Options")
-        self.add_option("--version", action="callback",
+        self.add_option("-V", "--version", action="callback",
                 callback=self._display_version,
                 help="Display version number")
 
@@ -100,8 +110,21 @@ class VersionOptions(optparse.OptionGroup):
         sys.exit(0)
 
 
+def parse_kerberos_arg(arg, opt_str):
+    if arg.lower() in ["yes", 'true', '1']:
+        return MUST_USE_KERBEROS
+    elif arg.lower() in ["no", 'false', '0']:
+        return DONT_USE_KERBEROS
+    elif arg.lower() in ["auto"]:
+        return AUTO_USE_KERBEROS
+    else:
+        raise optparse.OptionValueError("invalid %s option value: %s" %
+                                        (opt_str, arg))
+
+
 class CredentialsOptions(optparse.OptionGroup):
     """Command line options for specifying credentials."""
+
     def __init__(self, parser):
         self.no_pass = True
         self.ipaddress = None
@@ -124,7 +147,8 @@ class CredentialsOptions(optparse.OptionGroup):
                         help="Use Kerberos", callback=self._set_kerberos)
         self.add_option("", "--ipaddress", metavar="IPADDRESS",
                         action="callback", type=str,
-                        help="IP address of server", callback=self._set_ipaddress)
+                        help="IP address of server",
+                        callback=self._set_ipaddress)
         self.creds = Credentials()
 
     def _parse_username(self, option, opt_str, arg, parser):
@@ -141,12 +165,7 @@ class CredentialsOptions(optparse.OptionGroup):
         self.ipaddress = arg
 
     def _set_kerberos(self, option, opt_str, arg, parser):
-        if arg.lower() in ["yes", 'true', '1']:
-            self.creds.set_kerberos_state(MUST_USE_KERBEROS)
-        elif arg.lower() in ["no", 'false', '0']:
-            self.creds.set_kerberos_state(DONT_USE_KERBEROS)
-        else:
-            raise optparse.BadOptionErr("invalid kerberos option: %s" % arg)
+        self.creds.set_kerberos_state(parse_kerberos_arg(arg, opt_str))
 
     def _set_simple_bind_dn(self, option, opt_str, arg, parser):
         self.creds.set_bind_dn(arg)
@@ -171,8 +190,10 @@ class CredentialsOptions(optparse.OptionGroup):
 
         return self.creds
 
+
 class CredentialsOptionsDouble(CredentialsOptions):
     """Command line options for specifying credentials of two servers."""
+
     def __init__(self, parser):
         CredentialsOptions.__init__(self, parser)
         self.no_pass2 = True
@@ -180,13 +201,16 @@ class CredentialsOptionsDouble(CredentialsOptions):
                         callback=self._set_simple_bind_dn2, type=str,
                         help="DN to use for a simple bind")
         self.add_option("--password2", metavar="PASSWORD2", action="callback",
-                        help="Password", type=str, callback=self._set_password2)
+                        help="Password", type=str,
+                        callback=self._set_password2)
         self.add_option("--username2", metavar="USERNAME2",
                         action="callback", type=str,
-                        help="Username for second server", callback=self._parse_username2)
+                        help="Username for second server",
+                        callback=self._parse_username2)
         self.add_option("--workgroup2", metavar="WORKGROUP2",
                         action="callback", type=str,
-                        help="Workgroup for second server", callback=self._parse_workgroup2)
+                        help="Workgroup for second server",
+                        callback=self._parse_workgroup2)
         self.add_option("--no-pass2", action="store_true",
                         help="Don't ask for a password for the second server")
         self.add_option("--kerberos2", metavar="KERBEROS2",
@@ -205,10 +229,7 @@ class CredentialsOptionsDouble(CredentialsOptions):
         self.no_pass2 = False
 
     def _set_kerberos2(self, option, opt_str, arg, parser):
-        if bool(arg) or arg.lower() == "yes":
-            self.creds2.set_kerberos_state(MUST_USE_KERBEROS)
-        else:
-            self.creds2.set_kerberos_state(DONT_USE_KERBEROS)
+        self.creds2.set_kerberos_state(parse_kerberos_arg(arg, opt_str))
 
     def _set_simple_bind_dn2(self, option, opt_str, arg, parser):
         self.creds2.set_bind_dn(arg)
@@ -223,7 +244,7 @@ class CredentialsOptionsDouble(CredentialsOptions):
         if guess:
             self.creds2.guess(lp)
         elif not self.creds2.get_username():
-                self.creds2.set_anonymous()
+            self.creds2.set_anonymous()
 
         if self.no_pass2:
             self.creds2.set_cmdline_callbacks()

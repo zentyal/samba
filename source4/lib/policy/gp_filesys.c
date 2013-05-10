@@ -17,15 +17,13 @@
  *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 #include "includes.h"
+#include "system/filesys.h"
 #include "lib/policy/policy.h"
 #include "libcli/raw/smb.h"
 #include "libcli/libcli.h"
 #include "param/param.h"
 #include "libcli/resolve/resolve.h"
 #include "libcli/raw/libcliraw.h"
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
 #include <dirent.h>
 #include <errno.h>
 
@@ -164,10 +162,9 @@ static NTSTATUS gp_cli_connect(struct gp_context *gp_ctx)
 	lpcfg_smbcli_options(gp_ctx->lp_ctx, &options);
 	lpcfg_smbcli_session_options(gp_ctx->lp_ctx, &session_options);
 
-
 	return smbcli_full_connection(gp_ctx,
 			&gp_ctx->cli,
-			gp_ctx->active_dc.name,
+			gp_ctx->active_dc->name,
 			lpcfg_smb_ports(gp_ctx->lp_ctx),
 			"sysvol",
 			NULL,
@@ -417,7 +414,7 @@ static NTSTATUS push_recursive (struct gp_context *gp_ctx, const char *local_pat
 		                                    remote_path, dirent->d_name);
 		NT_STATUS_HAVE_NO_MEMORY(entry_remote_path);
 
-		if (stat(dirent->d_name, &s) != 0) {
+		if (stat(entry_local_path, &s) != 0) {
 			return NT_STATUS_UNSUCCESSFUL;
 		}
 		if (s.st_mode & S_IFDIR) {

@@ -26,6 +26,7 @@
 #include "libads/sitename_cache.h"
 #include "ads.h"
 #include "../librpc/gen_ndr/nbt.h"
+#include "lib/param/loadparm.h"
 
 /**********************************************************************
  Is this our primary domain ?
@@ -129,13 +130,17 @@ static bool ads_dc_name(const char *domain,
 		DEBUG(1,("ads_dc_name: sitename (now \"%s\") keeps changing ???\n",
 			sitename ? sitename : ""));
 		SAFE_FREE(sitename);
+		ads_destroy(&ads);
 		return False;
 	}
 
 	SAFE_FREE(sitename);
 
 	fstrcpy(srv_name, ads->config.ldap_server_name);
-	strupper_m(srv_name);
+	if (!strupper_m(srv_name)) {
+		ads_destroy(&ads);
+		return false;
+	}
 #ifdef HAVE_ADS
 	*dc_ss = ads->ldap.ss;
 #else

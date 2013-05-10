@@ -1,6 +1,5 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
+#
 # Unix SMB/CIFS implementation.
 # Copyright © Jelmer Vernooij <jelmer@samba.org> 2008
 #
@@ -24,7 +23,7 @@
 
 def render_placeholder(environ, start_response):
     status = '200 OK'
-    response_headers = [('Content-type','text/html')]
+    response_headers = [('Content-type', 'text/html')]
     start_response(status, response_headers)
 
     yield "<!doctype html>\n"

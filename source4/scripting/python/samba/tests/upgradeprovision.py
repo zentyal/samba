@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # Unix SMB/CIFS implementation.
 # Copyright (C) Jelmer Vernooij <jelmer@samba.org> 2007-2008
 #
@@ -20,14 +18,14 @@
 """Tests for samba.upgradeprovision."""
 
 import os
-from samba.upgradehelpers import  (usn_in_range, dn_sort,
+from samba.upgradehelpers import (usn_in_range, dn_sort,
                                   get_diff_sddls, update_secrets,
                                   construct_existor_expr)
 
 from samba.tests.provision import create_dummy_secretsdb
 from samba.tests import TestCaseInTempDir
 from samba import Ldb
-from ldb import SCOPE_SUBTREE
+from ldb import SCOPE_BASE
 import samba.tests
 
 def dummymessage(a=None, b=None):
@@ -123,14 +121,12 @@ class UpdateSecretsTests(samba.tests.TestCaseInTempDir):
     def test_update_modules(self):
         empty_db = self._getEmptyDb()
         update_secrets(self.referencedb, empty_db, dummymessage)
-        newmodules = empty_db.search(
-            expression="dn=@MODULES", base="", scope=SCOPE_SUBTREE)
-        refmodules = self.referencedb.search(
-            expression="dn=@MODULES", base="", scope=SCOPE_SUBTREE)
+        newmodules = empty_db.search(base="@MODULES", scope=SCOPE_BASE)
+        refmodules = self.referencedb.search(base="@MODULES", scope=SCOPE_BASE)
         self.assertEquals(newmodules.msgs, refmodules.msgs)
 
     def tearDown(self):
-        for name in ["ref.ldb", "secrets.ldb"]:
+        for name in ["ref.ldb", "secrets.ldb", "secrets.tdb"]:
             path = os.path.join(self.tempdir, name)
             if os.path.exists(path):
                 os.unlink(path)

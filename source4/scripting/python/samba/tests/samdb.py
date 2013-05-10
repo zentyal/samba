@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # Unix SMB/CIFS implementation. Tests for SamDB
 # Copyright (C) Jelmer Vernooij <jelmer@samba.org> 2008
 #
@@ -53,24 +51,24 @@ class SamDBTestCase(TestCaseInTempDir):
         domainsid = security.random_sid()
         path = os.path.join(self.tempdir, "samdb.ldb")
         session_info = system_session()
-        
+
         hostname="foo"
         domain="EXAMPLE"
-        dnsdomain="example.com" 
+        dnsdomain="example.com"
         serverrole="domain controller"
         policyguid_dc = DEFAULT_DC_POLICY_GUID
 
         smbconf = os.path.join(self.tempdir, "smb.conf")
         make_smbconf(smbconf, hostname, domain, dnsdomain,
-                     serverrole, self.tempdir)
+                     self.tempdir, serverrole=serverrole)
 
         self.lp = param.LoadParm()
         self.lp.load(smbconf)
 
-        names = guess_names(lp=self.lp, hostname=hostname, 
-                            domain=domain, dnsdomain=dnsdomain, 
-                            serverrole=serverrole, 
-                            domaindn=self.domaindn, configdn=configdn, 
+        names = guess_names(lp=self.lp, hostname=hostname,
+                            domain=domain, dnsdomain=dnsdomain,
+                            serverrole=serverrole,
+                            domaindn=self.domaindn, configdn=configdn,
                             schemadn=schemadn)
 
         paths = provision_paths_from_lp(self.lp, names.dnsdomain)

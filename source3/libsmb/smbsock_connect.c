@@ -18,10 +18,139 @@
 */
 
 #include "includes.h"
+#include "../lib/async_req/async_sock.h"
 #include "../lib/util/tevent_ntstatus.h"
+#include "../lib/util/tevent_unix.h"
 #include "client.h"
 #include "async_smb.h"
+#include "../libcli/smb/read_smb.h"
 #include "libsmb/nmblib.h"
+
+struct cli_session_request_state {
+	struct tevent_context *ev;
+	int sock;
+	uint32 len_hdr;
+	struct iovec iov[3];
+	uint8_t nb_session_response;
+};
+
+static void cli_session_request_sent(struct tevent_req *subreq);
+static void cli_session_request_recvd(struct tevent_req *subreq);
+
+static struct tevent_req *cli_session_request_send(TALLOC_CTX *mem_ctx,
+					struct tevent_context *ev,
+					int sock,
+					const struct nmb_name *called,
+					const struct nmb_name *calling)
+{
+	struct tevent_req *req, *subreq;
+	struct cli_session_request_state *state;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct cli_session_request_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->ev = ev;
+	state->sock = sock;
+
+	state->iov[1].iov_base = name_mangle(
+		state, called->name, called->name_type);
+	if (tevent_req_nomem(state->iov[1].iov_base, req)) {
+		return tevent_req_post(req, ev);
+	}
+	state->iov[1].iov_len = name_len(
+		(unsigned char *)state->iov[1].iov_base,
+		talloc_get_size(state->iov[1].iov_base));
+
+	state->iov[2].iov_base = name_mangle(
+		state, calling->name, calling->name_type);
+	if (tevent_req_nomem(state->iov[2].iov_base, req)) {
+		return tevent_req_post(req, ev);
+	}
+	state->iov[2].iov_len = name_len(
+		(unsigned char *)state->iov[2].iov_base,
+		talloc_get_size(state->iov[2].iov_base));
+
+	_smb_setlen(((char *)&state->len_hdr),
+		    state->iov[1].iov_len + state->iov[2].iov_len);
+	SCVAL((char *)&state->len_hdr, 0, 0x81);
+
+	state->iov[0].iov_base = &state->len_hdr;
+	state->iov[0].iov_len = sizeof(state->len_hdr);
+
+	subreq = writev_send(state, ev, NULL, sock, true, state->iov, 3);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, cli_session_request_sent, req);
+	return req;
+}
+
+static void cli_session_request_sent(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct cli_session_request_state *state = tevent_req_data(
+		req, struct cli_session_request_state);
+	ssize_t ret;
+	int err;
+
+	ret = writev_recv(subreq, &err);
+	TALLOC_FREE(subreq);
+	if (ret == -1) {
+		tevent_req_error(req, err);
+		return;
+	}
+	subreq = read_smb_send(state, state->ev, state->sock);
+	if (tevent_req_nomem(subreq, req)) {
+		return;
+	}
+	tevent_req_set_callback(subreq, cli_session_request_recvd, req);
+}
+
+static void cli_session_request_recvd(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct cli_session_request_state *state = tevent_req_data(
+		req, struct cli_session_request_state);
+	uint8_t *buf;
+	ssize_t ret;
+	int err;
+
+	ret = read_smb_recv(subreq, talloc_tos(), &buf, &err);
+	TALLOC_FREE(subreq);
+
+	if (ret < 4) {
+		ret = -1;
+		err = EIO;
+	}
+	if (ret == -1) {
+		tevent_req_error(req, err);
+		return;
+	}
+	/*
+	 * In case of an error there is more information in the data
+	 * portion according to RFC1002. We're not subtle enough to
+	 * respond to the different error conditions, so drop the
+	 * error info here.
+	 */
+	state->nb_session_response = CVAL(buf, 0);
+	tevent_req_done(req);
+}
+
+static bool cli_session_request_recv(struct tevent_req *req, int *err, uint8_t *resp)
+{
+	struct cli_session_request_state *state = tevent_req_data(
+		req, struct cli_session_request_state);
+
+	if (tevent_req_is_unix_error(req, err)) {
+		return false;
+	}
+	*resp = state->nb_session_response;
+	return true;
+}
 
 struct nb_connect_state {
 	struct tevent_context *ev;
@@ -62,7 +191,7 @@ static struct tevent_req *nb_connect_send(TALLOC_CTX *mem_ctx,
 
 	talloc_set_destructor(state, nb_connect_state_destructor);
 
-	subreq = open_socket_out_send(state, ev, addr, 139, 5000);
+	subreq = open_socket_out_send(state, ev, addr, NBT_SMB_PORT, 5000);
 	if (tevent_req_nomem(subreq, req)) {
 		return tevent_req_post(req, ev);
 	}
@@ -147,7 +276,7 @@ static void nb_connect_done(struct tevent_req *subreq)
 		make_nmb_name(&state->called, state->called_name, 0x20);
 
 		subreq = open_socket_out_send(state, state->ev, state->addr,
-					      139, 5000);
+					      NBT_SMB_PORT, 5000);
 		if (tevent_req_nomem(subreq, req)) {
 			return;
 		}
@@ -201,7 +330,7 @@ struct tevent_req *smbsock_connect_send(TALLOC_CTX *mem_ctx,
 					const char *calling_name,
 					int calling_type)
 {
-	struct tevent_req *req, *subreq;
+	struct tevent_req *req;
 	struct smbsock_connect_state *state;
 
 	req = tevent_req_create(mem_ctx, &state, struct smbsock_connect_state);
@@ -216,18 +345,23 @@ struct tevent_req *smbsock_connect_send(TALLOC_CTX *mem_ctx,
 	state->called_type =
 		(called_type != -1) ? called_type : 0x20;
 	state->calling_name =
-		(calling_name != NULL) ? calling_name : global_myname();
+		(calling_name != NULL) ? calling_name : lp_netbios_name();
 	state->calling_type =
 		(calling_type != -1) ? calling_type : 0x00;
 
 	talloc_set_destructor(state, smbsock_connect_state_destructor);
 
-	if (port == 139) {
-		subreq = tevent_wakeup_send(state, ev, timeval_set(0, 0));
-		if (tevent_req_nomem(subreq, req)) {
+	if (port == NBT_SMB_PORT) {
+		state->req_139 = nb_connect_send(state, state->ev, state->addr,
+						 state->called_name,
+						 state->called_type,
+						 state->calling_name,
+						 state->calling_type);
+		if (tevent_req_nomem(state->req_139, req)) {
 			return tevent_req_post(req, ev);
 		}
-		tevent_req_set_callback(subreq, smbsock_connect_do_139, req);
+		tevent_req_set_callback(
+			state->req_139, smbsock_connect_connected, req);
 		return req;
 	}
 	if (port != 0) {
@@ -245,7 +379,7 @@ struct tevent_req *smbsock_connect_send(TALLOC_CTX *mem_ctx,
 	 * port==0, try both
 	 */
 
-	state->req_445 = open_socket_out_send(state, ev, addr, 445, 5000);
+	state->req_445 = open_socket_out_send(state, ev, addr, TCP_SMB_PORT, 5000);
 	if (tevent_req_nomem(state->req_445, req)) {
 		return tevent_req_post(req, ev);
 	}
@@ -253,7 +387,7 @@ struct tevent_req *smbsock_connect_send(TALLOC_CTX *mem_ctx,
 				req);
 
 	/*
-	 * After 5 msecs, fire the 139 request
+	 * After 5 msecs, fire the 139 (NBT) request
 	 */
 	state->req_139 = tevent_wakeup_send(
 		state, ev, timeval_current_ofs(0, 5000));
@@ -316,14 +450,14 @@ static void smbsock_connect_connected(struct tevent_req *subreq)
 		status = open_socket_out_recv(subreq, &state->sock);
 		TALLOC_FREE(state->req_445);
 		unfinished_req = state->req_139;
-		state->port = 445;
+		state->port = TCP_SMB_PORT;
 
 	} else if (subreq == state->req_139) {
 
 		status = nb_connect_recv(subreq, &state->sock);
 		TALLOC_FREE(state->req_139);
 		unfinished_req = state->req_445;
-		state->port = 139;
+		state->port = NBT_SMB_PORT;
 
 	} else {
 		tevent_req_nterror(req, NT_STATUS_INTERNAL_ERROR);
@@ -373,11 +507,11 @@ NTSTATUS smbsock_connect(const struct sockaddr_storage *addr, uint16_t port,
 			 int *pfd, uint16_t *ret_port, int sec_timeout)
 {
 	TALLOC_CTX *frame = talloc_stackframe();
-	struct event_context *ev;
+	struct tevent_context *ev;
 	struct tevent_req *req;
 	NTSTATUS status = NT_STATUS_NO_MEMORY;
 
-	ev = event_context_init(frame);
+	ev = tevent_context_init(frame);
 	if (ev == NULL) {
 		goto fail;
 	}
@@ -575,7 +709,7 @@ static void smbsock_any_connect_connected(struct tevent_req *subreq)
 	}
 
 	state->num_received += 1;
-	if (state->num_received <= state->num_addrs) {
+	if (state->num_received < state->num_addrs) {
 		/*
 		 * More addrs pending, wait for the others
 		 */
@@ -622,11 +756,11 @@ NTSTATUS smbsock_any_connect(const struct sockaddr_storage *addrs,
 			     uint16_t *chosen_port)
 {
 	TALLOC_CTX *frame = talloc_stackframe();
-	struct event_context *ev;
+	struct tevent_context *ev;
 	struct tevent_req *req;
 	NTSTATUS status = NT_STATUS_NO_MEMORY;
 
-	ev = event_context_init(frame);
+	ev = tevent_context_init(frame);
 	if (ev == NULL) {
 		goto fail;
 	}

@@ -38,7 +38,7 @@
 #include "krb5_locl.h"
 
 static struct _krb5_key_type keytype_arcfour = {
-    KEYTYPE_ARCFOUR,
+    KRB5_ENCTYPE_ARCFOUR_HMAC_MD5,
     "arcfour",
     128,
     16,
@@ -147,7 +147,7 @@ ARCFOUR_subencrypt(krb5_context context,
     k1_c.checksum.length = sizeof(k1_c_data);
     k1_c.checksum.data   = k1_c_data;
 
-    ret = _krb5_internal_hmac(NULL, c, t, sizeof(t), 0, key, &k1_c);
+    ret = _krb5_internal_hmac(context, c, t, sizeof(t), 0, key, &k1_c);
     if (ret)
 	krb5_abortx(context, "hmac failed");
 
@@ -162,7 +162,7 @@ ARCFOUR_subencrypt(krb5_context context,
     cksum.checksum.length = 16;
     cksum.checksum.data   = data;
 
-    ret = _krb5_internal_hmac(NULL, c, cdata + 16, len - 16, 0, &ke, &cksum);
+    ret = _krb5_internal_hmac(context, c, cdata + 16, len - 16, 0, &ke, &cksum);
     if (ret)
 	krb5_abortx(context, "hmac failed");
 
@@ -172,7 +172,7 @@ ARCFOUR_subencrypt(krb5_context context,
     k3_c.checksum.length = sizeof(k3_c_data);
     k3_c.checksum.data   = k3_c_data;
 
-    ret = _krb5_internal_hmac(NULL, c, data, 16, 0, &ke, &k3_c);
+    ret = _krb5_internal_hmac(context, c, data, 16, 0, &ke, &k3_c);
     if (ret)
 	krb5_abortx(context, "hmac failed");
 
@@ -215,7 +215,7 @@ ARCFOUR_subdecrypt(krb5_context context,
     k1_c.checksum.length = sizeof(k1_c_data);
     k1_c.checksum.data   = k1_c_data;
 
-    ret = _krb5_internal_hmac(NULL, c, t, sizeof(t), 0, key, &k1_c);
+    ret = _krb5_internal_hmac(context, c, t, sizeof(t), 0, key, &k1_c);
     if (ret)
 	krb5_abortx(context, "hmac failed");
 
@@ -230,7 +230,7 @@ ARCFOUR_subdecrypt(krb5_context context,
     k3_c.checksum.length = sizeof(k3_c_data);
     k3_c.checksum.data   = k3_c_data;
 
-    ret = _krb5_internal_hmac(NULL, c, cdata, 16, 0, &ke, &k3_c);
+    ret = _krb5_internal_hmac(context, c, cdata, 16, 0, &ke, &k3_c);
     if (ret)
 	krb5_abortx(context, "hmac failed");
 
@@ -245,7 +245,7 @@ ARCFOUR_subdecrypt(krb5_context context,
     cksum.checksum.length = 16;
     cksum.checksum.data   = cksum_data;
 
-    ret = _krb5_internal_hmac(NULL, c, cdata + 16, len - 16, 0, &ke, &cksum);
+    ret = _krb5_internal_hmac(context, c, cdata + 16, len - 16, 0, &ke, &cksum);
     if (ret)
 	krb5_abortx(context, "hmac failed");
 
@@ -317,7 +317,7 @@ struct _krb5_encryption_type _krb5_enctype_arcfour_hmac_md5 = {
     8,
     &keytype_arcfour,
     &_krb5_checksum_hmac_md5,
-    NULL,
+    &_krb5_checksum_hmac_md5,
     F_SPECIAL,
     ARCFOUR_encrypt,
     0,

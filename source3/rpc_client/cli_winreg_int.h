@@ -22,8 +22,7 @@
 #ifndef CLI_WINREG_INT_H
 #define CLI_WINREG_INT_H
 
-struct dcerpc_binding_handle;
-struct auth_serversupplied_info;
+struct auth_session_info;
 struct dcerpc_binding_handle;
 
 /**
@@ -53,7 +52,7 @@ struct dcerpc_binding_handle;
  *                           code if something gone wrong.
  */
 NTSTATUS dcerpc_winreg_int_openkey(TALLOC_CTX *mem_ctx,
-				   const struct auth_serversupplied_info *server_info,
+				   const struct auth_session_info *server_info,
 				   struct messaging_context *msg_ctx,
 				   struct dcerpc_binding_handle **h,
 				   const char *key,
@@ -89,7 +88,7 @@ NTSTATUS dcerpc_winreg_int_openkey(TALLOC_CTX *mem_ctx,
  *                           code if something gone wrong.
  */
 NTSTATUS dcerpc_winreg_int_hklm_openkey(TALLOC_CTX *mem_ctx,
-					const struct auth_serversupplied_info *session_info,
+					const struct auth_session_info *session_info,
 					struct messaging_context *msg_ctx,
 					struct dcerpc_binding_handle **h,
 					const char *key,

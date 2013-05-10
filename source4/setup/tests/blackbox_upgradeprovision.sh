@@ -12,24 +12,23 @@ shift 1
 
 . `dirname $0`/../../../testprogs/blackbox/subunit.sh
 
+[ ! -d $PREFIX ] && mkdir $PREFIX
+
 upgradeprovision() {
   if [ -d $PREFIX/upgradeprovision ]; then
     rm -fr $PREFIX/upgradeprovision
   fi
-	$PYTHON $SRCDIR/source4/setup/provision --domain=FOO --realm=foo.example.com --targetdir="$PREFIX/upgradeprovision" --server-role="dc"
-	$PYTHON $SRCDIR/source4/scripting/bin/upgradeprovision -s "$PREFIX/upgradeprovision/etc/smb.conf" --debugchange
+	$PYTHON $BINDIR/samba-tool domain provision --domain=FOO --realm=foo.example.com --targetdir="$PREFIX/upgradeprovision" --server-role="dc" --use-ntvfs
+	$PYTHON $BINDIR/samba_upgradeprovision -s "$PREFIX/upgradeprovision/etc/smb.conf" --debugchange
 }
 
 upgradeprovision_full() {
   if [ -d $PREFIX/upgradeprovision_full ]; then
     rm -fr $PREFIX/upgradeprovision_full
   fi
-	$PYTHON $SRCDIR/source4/setup/provision --domain=FOO --realm=foo.example.com --targetdir="$PREFIX/upgradeprovision_full" --server-role="dc"
-	$PYTHON $SRCDIR/source4/scripting/bin/upgradeprovision -s "$PREFIX/upgradeprovision_full/etc/smb.conf" --full --debugchange
+	$PYTHON $BINDIR/samba-tool domain provision --host-name=bar --domain=FOO --realm=foo.example.com --targetdir="$PREFIX/upgradeprovision_full" --server-role="dc" --use-ntvfs
+	$PYTHON $BINDIR/samba_upgradeprovision -s "$PREFIX/upgradeprovision_full/etc/smb.conf" --full --debugchange
 }
-
-testit "upgradeprovision" upgradeprovision
-testit "upgradeprovision_full" upgradeprovision_full
 
 if [ -d $PREFIX/upgradeprovision ]; then
   rm -fr $PREFIX/upgradeprovision
@@ -38,5 +37,8 @@ fi
 if [ -d $PREFIX/upgradeprovision_full ]; then
   rm -fr $PREFIX/upgradeprovision_full
 fi
+
+testit "upgradeprovision" upgradeprovision
+testit "upgradeprovision_full" upgradeprovision_full
 
 exit $failed

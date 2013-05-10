@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # Unix SMB/CIFS implementation.
 # Copyright (C) Jelmer Vernooij <jelmer@samba.org> 2007-2008
 #
@@ -26,18 +24,21 @@ __docformat__ = "restructuredText"
 
 import os
 import sys
+import samba.param
+
 
 def source_tree_topdir():
-    '''return the top level directory (the one containing the source4 directory)'''
-    paths = [ "../../..", "../../../.." ]
+    """Return the top level source directory."""
+    paths = ["../../..", "../../../.."]
     for p in paths:
         topdir = os.path.normpath(os.path.join(os.path.dirname(__file__), p))
         if os.path.exists(os.path.join(topdir, 'source4')):
             return topdir
     raise RuntimeError("unable to find top level source directory")
 
+
 def in_source_tree():
-    '''return True if we are running from within the samba source tree'''
+    """Return True if we are running from within the samba source tree"""
     try:
         topdir = source_tree_topdir()
     except RuntimeError:
@@ -45,9 +46,9 @@ def in_source_tree():
     return True
 
 
-
 import ldb
 from samba._ldb import Ldb as _Ldb
+
 
 class Ldb(_Ldb):
     """Simple Samba-specific LDB subclass that takes care
@@ -77,8 +78,8 @@ class Ldb(_Ldb):
 
         if modules_dir is not None:
             self.set_modules_dir(modules_dir)
-        elif lp is not None:
-            self.set_modules_dir(os.path.join(lp.get("modules dir"), "ldb"))
+        else:
+            self.set_modules_dir(os.path.join(samba.param.modules_dir(), "ldb"))
 
         if session_info is not None:
             self.set_session_info(session_info)
@@ -104,7 +105,7 @@ class Ldb(_Ldb):
         # Allow admins to force non-sync ldb for all databases
         if lp is not None:
             nosync_p = lp.get("nosync", "ldb")
-            if nosync_p is not None and nosync_p == True:
+            if nosync_p is not None and nosync_p:
                 flags |= ldb.FLG_NOSYNC
 
         self.set_create_perms(0600)
@@ -166,7 +167,8 @@ class Ldb(_Ldb):
         # Try to delete user/computer accounts to allow deletion of groups
         self.erase_users_computers(basedn)
 
-        # Delete the 'visible' records, and the invisble 'deleted' records (if this DB supports it)
+        # Delete the 'visible' records, and the invisble 'deleted' records (if
+        # this DB supports it)
         for msg in self.search(basedn, ldb.SCOPE_SUBTREE,
                        "(&(|(objectclass=*)(distinguishedName=*))(!(distinguishedName=@BASEINFO)))",
                        [], controls=["show_deleted:0", "show_recycled:0"]):
@@ -178,7 +180,8 @@ class Ldb(_Ldb):
                     raise
 
         res = self.search(basedn, ldb.SCOPE_SUBTREE,
-            "(&(|(objectclass=*)(distinguishedName=*))(!(distinguishedName=@BASEINFO)))", [], controls=["show_deleted:0", "show_recycled:0"])
+            "(&(|(objectclass=*)(distinguishedName=*))(!(distinguishedName=@BASEINFO)))",
+            [], controls=["show_deleted:0", "show_recycled:0"])
         assert len(res) == 0
 
         # delete the specials
@@ -295,14 +298,18 @@ def setup_file(template, fname, subst_vars=None):
     finally:
         f.close()
 
+MAX_NETBIOS_NAME_LEN = 15
+def is_valid_netbios_char(c):
+    return (c.isalnum() or c in " !#$%&'()-.@^_{}~")
+
 
 def valid_netbios_name(name):
     """Check whether a name is valid as a NetBIOS name. """
     # See crh's book (1.4.1.1)
-    if len(name) > 15:
+    if len(name) > MAX_NETBIOS_NAME_LEN:
         return False
     for x in name:
-        if not x.isalnum() and not x in " !#$%&'()-.@^_{}~":
+        if not is_valid_netbios_char(x):
             return False
     return True
 
@@ -338,7 +345,11 @@ def ensure_external_module(modulename, location):
         import_bundled_package(modulename, location)
 
 
-from samba import _glue
+def dn_from_dns_name(dnsdomain):
+    """return a DN from a DNS name domain/forest root"""
+    return "DC=" + ",DC=".join(dnsdomain.split("."))
+
+import _glue
 version = _glue.version
 interface_ips = _glue.interface_ips
 set_debug_level = _glue.set_debug_level
@@ -348,3 +359,5 @@ nttime2string = _glue.nttime2string
 nttime2unix = _glue.nttime2unix
 unix2nttime = _glue.unix2nttime
 generate_random_password = _glue.generate_random_password
+strcasecmp_m = _glue.strcasecmp_m
+strstr_m = _glue.strstr_m

@@ -23,6 +23,7 @@
 #include "librpc/gen_ndr/ndr_xattr.h"
 #include "../libcli/security/security.h"
 #include "smbd/smbd.h"
+#include "lib/param/loadparm.h"
 
 static uint32_t filter_mode_by_protocol(uint32_t mode)
 {
@@ -170,6 +171,12 @@ static uint32 dos_mode_from_sbuf(connection_struct *conn,
 	int result = 0;
 	enum mapreadonly_options ro_opts = (enum mapreadonly_options)lp_map_readonly(SNUM(conn));
 
+#if defined(UF_IMMUTABLE) && defined(SF_IMMUTABLE)
+	/* if we can find out if a file is immutable we should report it r/o */
+	if (smb_fname->st.st_ex_flags & (UF_IMMUTABLE | SF_IMMUTABLE)) {
+		result |= FILE_ATTRIBUTE_READONLY;
+	}
+#endif
 	if (ro_opts == MAP_READONLY_YES) {
 		/* Original Samba method - map inverse of user "w" bit. */
 		if ((smb_fname->st.st_ex_mode & S_IWUSR) == 0) {
@@ -883,7 +890,7 @@ NTSTATUS file_set_sparse(connection_struct *conn,
 			"on readonly share[%s]\n",
 			smb_fname_str_dbg(fsp->fsp_name),
 			sparse,
-			lp_servicename(SNUM(conn))));
+			lp_servicename(talloc_tos(), SNUM(conn))));
 		return NT_STATUS_MEDIA_WRITE_PROTECTED;
 	}
 

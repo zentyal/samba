@@ -21,8 +21,11 @@
 #include "includes.h"
 #include "libsmb/libsmb.h"
 #include "../lib/util/tevent_ntstatus.h"
-#include "smb_signing.h"
+#include "../libcli/smb/smb_signing.h"
+#include "../libcli/smb/smb_seal.h"
 #include "async_smb.h"
+#include "../libcli/smb/smbXcli_base.h"
+#include "../librpc/ndr/libndr.h"
 
 /*******************************************************************
  Setup the word count and byte count for a client smb message.
@@ -51,384 +54,14 @@ unsigned int cli_set_timeout(struct cli_state *cli, unsigned int timeout)
 }
 
 /****************************************************************************
- Change the port number used to call on.
+ Set the 'backup_intent' flag.
 ****************************************************************************/
 
-void cli_set_port(struct cli_state *cli, int port)
+bool cli_set_backup_intent(struct cli_state *cli, bool flag)
 {
-	cli->port = port;
-}
-
-/****************************************************************************
- convenience routine to find if we negotiated ucs2
-****************************************************************************/
-
-bool cli_ucs2(struct cli_state *cli)
-{
-	return ((cli->capabilities & CAP_UNICODE) != 0);
-}
-
-
-/****************************************************************************
- Read an smb from a fd ignoring all keepalive packets.
- The timeout is in milliseconds
-
- This is exactly the same as receive_smb except that it never returns
- a session keepalive packet (just as receive_smb used to do).
- receive_smb was changed to return keepalives as the oplock processing means this call
- should never go into a blocking read.
-****************************************************************************/
-
-static ssize_t client_receive_smb(struct cli_state *cli, size_t maxlen)
-{
-	size_t len;
-
-	for(;;) {
-		NTSTATUS status;
-
-		set_smb_read_error(&cli->smb_rw_error, SMB_READ_OK);
-
-		status = receive_smb_raw(cli->fd, cli->inbuf, cli->bufsize,
-					cli->timeout, maxlen, &len);
-		if (!NT_STATUS_IS_OK(status)) {
-			DEBUG(10,("client_receive_smb failed\n"));
-			show_msg(cli->inbuf);
-
-			if (NT_STATUS_EQUAL(status, NT_STATUS_END_OF_FILE)) {
-				set_smb_read_error(&cli->smb_rw_error,
-						   SMB_READ_EOF);
-				return -1;
-			}
-
-			if (NT_STATUS_EQUAL(status, NT_STATUS_IO_TIMEOUT)) {
-				set_smb_read_error(&cli->smb_rw_error,
-						   SMB_READ_TIMEOUT);
-				return -1;
-			}
-
-			set_smb_read_error(&cli->smb_rw_error, SMB_READ_ERROR);
-			return -1;
-		}
-
-		/*
-		 * I don't believe len can be < 0 with NT_STATUS_OK
-		 * returned above, but this check doesn't hurt. JRA.
-		 */
-
-		if ((ssize_t)len < 0) {
-			return len;
-		}
-
-		/* Ignore session keepalive packets. */
-		if(CVAL(cli->inbuf,0) != SMBkeepalive) {
-			break;
-		}
-	}
-
-	if (cli_encryption_on(cli)) {
-		NTSTATUS status = cli_decrypt_message(cli);
-		if (!NT_STATUS_IS_OK(status)) {
-			DEBUG(0, ("SMB decryption failed on incoming packet! Error %s\n",
-				nt_errstr(status)));
-			cli->smb_rw_error = SMB_READ_BAD_DECRYPT;
-			return -1;
-		}
-	}
-
-	show_msg(cli->inbuf);
-	return len;
-}
-
-static bool cli_state_set_seqnum(struct cli_state *cli, uint16_t mid, uint32_t seqnum)
-{
-	struct cli_state_seqnum *c;
-
-	for (c = cli->seqnum; c; c = c->next) {
-		if (c->mid == mid) {
-			c->seqnum = seqnum;
-			return true;
-		}
-	}
-
-	c = talloc_zero(cli, struct cli_state_seqnum);
-	if (!c) {
-		return false;
-	}
-
-	c->mid = mid;
-	c->seqnum = seqnum;
-	c->persistent = false;
-	DLIST_ADD_END(cli->seqnum, c, struct cli_state_seqnum *);
-
-	return true;
-}
-
-bool cli_state_seqnum_persistent(struct cli_state *cli,
-				 uint16_t mid)
-{
-	struct cli_state_seqnum *c;
-
-	for (c = cli->seqnum; c; c = c->next) {
-		if (c->mid == mid) {
-			c->persistent = true;
-			return true;
-		}
-	}
-
-	return false;
-}
-
-bool cli_state_seqnum_remove(struct cli_state *cli,
-			     uint16_t mid)
-{
-	struct cli_state_seqnum *c;
-
-	for (c = cli->seqnum; c; c = c->next) {
-		if (c->mid == mid) {
-			DLIST_REMOVE(cli->seqnum, c);
-			TALLOC_FREE(c);
-			return true;
-		}
-	}
-
-	return false;
-}
-
-static uint32_t cli_state_get_seqnum(struct cli_state *cli, uint16_t mid)
-{
-	struct cli_state_seqnum *c;
-
-	for (c = cli->seqnum; c; c = c->next) {
-		if (c->mid == mid) {
-			uint32_t seqnum = c->seqnum;
-			if (!c->persistent) {
-				DLIST_REMOVE(cli->seqnum, c);
-				TALLOC_FREE(c);
-			}
-			return seqnum;
-		}
-	}
-
-	return 0;
-}
-
-/****************************************************************************
- Recv an smb.
-****************************************************************************/
-
-bool cli_receive_smb(struct cli_state *cli)
-{
-	ssize_t len;
-	uint16_t mid;
-	uint32_t seqnum;
-
-	/* fd == -1 causes segfaults -- Tom (tom@ninja.nl) */
-	if (cli->fd == -1)
-		return false; 
-
- again:
-	len = client_receive_smb(cli, 0);
-	
-	if (len > 0) {
-		/* it might be an oplock break request */
-		if (!(CVAL(cli->inbuf, smb_flg) & FLAG_REPLY) &&
-		    CVAL(cli->inbuf,smb_com) == SMBlockingX &&
-		    SVAL(cli->inbuf,smb_vwv6) == 0 &&
-		    SVAL(cli->inbuf,smb_vwv7) == 0) {
-			if (cli->oplock_handler) {
-				int fnum = SVAL(cli->inbuf,smb_vwv2);
-				unsigned char level = CVAL(cli->inbuf,smb_vwv3+1);
-				if (!NT_STATUS_IS_OK(cli->oplock_handler(cli, fnum, level))) {
-					return false;
-				}
-			}
-			/* try to prevent loops */
-			SCVAL(cli->inbuf,smb_com,0xFF);
-			goto again;
-		}
-	}
-
-	/* If the server is not responding, note that now */
-	if (len < 0) {
-		/*
-		 * only log if the connection should still be open and not when
-		 * the connection was closed due to a dropped ip message
-		 */
-		if (cli->fd != -1) {
-			char addr[INET6_ADDRSTRLEN];
-			print_sockaddr(addr, sizeof(addr), &cli->dest_ss);
-			DEBUG(0, ("Receiving SMB: Server %s stopped responding\n",
-				addr));
-			close(cli->fd);
-			cli->fd = -1;
-		}
-		return false;
-	}
-
-	mid = SVAL(cli->inbuf,smb_mid);
-	seqnum = cli_state_get_seqnum(cli, mid);
-
-	if (!cli_check_sign_mac(cli, cli->inbuf, seqnum+1)) {
-		/*
-		 * If we get a signature failure in sessionsetup, then
-		 * the server sometimes just reflects the sent signature
-		 * back to us. Detect this and allow the upper layer to
-		 * retrieve the correct Windows error message.
-		 */
-		if (CVAL(cli->outbuf,smb_com) == SMBsesssetupX &&
-			(smb_len(cli->inbuf) > (smb_ss_field + 8 - 4)) &&
-			(SVAL(cli->inbuf,smb_flg2) & FLAGS2_SMB_SECURITY_SIGNATURES) &&
-			memcmp(&cli->outbuf[smb_ss_field],&cli->inbuf[smb_ss_field],8) == 0 &&
-			cli_is_error(cli)) {
-
-			/*
-			 * Reflected signature on login error. 
-			 * Set bad sig but don't close fd.
-			 */
-			cli->smb_rw_error = SMB_READ_BAD_SIG;
-			return true;
-		}
-
-		DEBUG(0, ("SMB Signature verification failed on incoming packet!\n"));
-		cli->smb_rw_error = SMB_READ_BAD_SIG;
-		close(cli->fd);
-		cli->fd = -1;
-		return false;
-	};
-	return true;
-}
-
-static ssize_t write_socket(int fd, const char *buf, size_t len)
-{
-        ssize_t ret=0;
-
-        DEBUG(6,("write_socket(%d,%d)\n",fd,(int)len));
-        ret = write_data(fd,buf,len);
-
-        DEBUG(6,("write_socket(%d,%d) wrote %d\n",fd,(int)len,(int)ret));
-        if(ret <= 0)
-                DEBUG(0,("write_socket: Error writing %d bytes to socket %d: ERRNO = %s\n",
-                        (int)len, fd, strerror(errno) ));
-
-        return(ret);
-}
-
-/****************************************************************************
- Send an smb to a fd.
-****************************************************************************/
-
-bool cli_send_smb(struct cli_state *cli)
-{
-	size_t len;
-	size_t nwritten=0;
-	ssize_t ret;
-	char *buf_out = cli->outbuf;
-	bool enc_on = cli_encryption_on(cli);
-	uint32_t seqnum;
-
-	/* fd == -1 causes segfaults -- Tom (tom@ninja.nl) */
-	if (cli->fd == -1)
-		return false;
-
-	cli_calculate_sign_mac(cli, cli->outbuf, &seqnum);
-
-	if (!cli_state_set_seqnum(cli, cli->mid, seqnum)) {
-		DEBUG(0,("Failed to store mid[%u]/seqnum[%u]\n",
-			(unsigned int)cli->mid,
-			(unsigned int)seqnum));
-		return false;
-	}
-
-	if (enc_on) {
-		NTSTATUS status = cli_encrypt_message(cli, cli->outbuf,
-						      &buf_out);
-		if (!NT_STATUS_IS_OK(status)) {
-			close(cli->fd);
-			cli->fd = -1;
-			cli->smb_rw_error = SMB_WRITE_ERROR;
-			DEBUG(0,("Error in encrypting client message. Error %s\n",
-				nt_errstr(status) ));
-			return false;
-		}
-	}
-
-	len = smb_len(buf_out) + 4;
-
-	while (nwritten < len) {
-		ret = write_socket(cli->fd,buf_out+nwritten,len - nwritten);
-		if (ret <= 0) {
-			if (enc_on) {
-				cli_free_enc_buffer(cli, buf_out);
-			}
-			close(cli->fd);
-			cli->fd = -1;
-			cli->smb_rw_error = SMB_WRITE_ERROR;
-			DEBUG(0,("Error writing %d bytes to client. %d (%s)\n",
-				(int)len,(int)ret, strerror(errno) ));
-			return false;
-		}
-		nwritten += ret;
-	}
-
-	if (enc_on) {
-		cli_free_enc_buffer(cli, buf_out);
-	}
-
-	/* Increment the mid so we can tell between responses. */
-	cli->mid++;
-	if (!cli->mid)
-		cli->mid++;
-	return true;
-}
-
-/****************************************************************************
- Setup basics in a outgoing packet.
-****************************************************************************/
-
-void cli_setup_packet_buf(struct cli_state *cli, char *buf)
-{
-	uint16 flags2;
-	cli->rap_error = 0;
-	SIVAL(buf,smb_rcls,0);
-	SSVAL(buf,smb_pid,cli->pid);
-	memset(buf+smb_pidhigh, 0, 12);
-	SSVAL(buf,smb_uid,cli->vuid);
-	SSVAL(buf,smb_mid,cli->mid);
-
-	if (cli->protocol <= PROTOCOL_CORE) {
-		return;
-	}
-
-	if (cli->case_sensitive) {
-		SCVAL(buf,smb_flg,0x0);
-	} else {
-		/* Default setting, case insensitive. */
-		SCVAL(buf,smb_flg,0x8);
-	}
-	flags2 = FLAGS2_LONG_PATH_COMPONENTS;
-	if (cli->capabilities & CAP_UNICODE)
-		flags2 |= FLAGS2_UNICODE_STRINGS;
-	if ((cli->capabilities & CAP_DFS) && cli->dfsroot)
-		flags2 |= FLAGS2_DFS_PATHNAMES;
-	if (cli->capabilities & CAP_STATUS32)
-		flags2 |= FLAGS2_32_BIT_ERROR_CODES;
-	if (cli->use_spnego)
-		flags2 |= FLAGS2_EXTENDED_SECURITY;
-	SSVAL(buf,smb_flg2, flags2);
-}
-
-void cli_setup_packet(struct cli_state *cli)
-{
-	cli_setup_packet_buf(cli, cli->outbuf);
-}
-
-/****************************************************************************
- Setup the bcc length of the packet from a pointer to the end of the data.
-****************************************************************************/
-
-void cli_setup_bcc(struct cli_state *cli, void *p)
-{
-	set_message_bcc(cli->outbuf, PTR_DIFF(p, smb_buf(cli->outbuf)));
+	bool old_state = cli->backup_intent;
+	cli->backup_intent = flag;
+	return old_state;
 }
 
 /****************************************************************************
@@ -497,11 +130,20 @@ NTSTATUS cli_init_creds(struct cli_state *cli, const char *username, const char 
  Set the signing state (used from the command line).
 ****************************************************************************/
 
-struct cli_state *cli_initialise_ex(int signing_state)
+struct cli_state *cli_state_create(TALLOC_CTX *mem_ctx,
+				   int fd,
+				   const char *remote_name,
+				   const char *remote_realm,
+				   int signing_state, int flags)
 {
 	struct cli_state *cli = NULL;
-	bool allow_smb_signing = false;
-	bool mandatory_signing = false;
+	bool use_spnego = lp_client_use_spnego();
+	bool force_dos_errors = false;
+	bool force_ascii = false;
+	bool use_level_II_oplocks = false;
+	uint32_t smb1_capabilities = 0;
+	uint32_t smb2_capabilities = 0;
+	struct GUID client_guid = GUID_random();
 
 	/* Check the effective uid - make sure we are not setuid */
 	if (is_setuid_root()) {
@@ -509,107 +151,145 @@ struct cli_state *cli_initialise_ex(int signing_state)
 		return NULL;
 	}
 
-	cli = TALLOC_ZERO_P(NULL, struct cli_state);
+	cli = talloc_zero(mem_ctx, struct cli_state);
 	if (!cli) {
 		return NULL;
+	}
+
+	cli->server_domain = talloc_strdup(cli, "");
+	if (!cli->server_domain) {
+		goto error;
+	}
+	cli->server_os = talloc_strdup(cli, "");
+	if (!cli->server_os) {
+		goto error;
+	}
+	cli->server_type = talloc_strdup(cli, "");
+	if (!cli->server_type) {
+		goto error;
 	}
 
 	cli->dfs_mountpoint = talloc_strdup(cli, "");
 	if (!cli->dfs_mountpoint) {
 		goto error;
 	}
-	cli->port = 0;
-	cli->fd = -1;
-	cli->cnum = -1;
-	cli->pid = (uint16)sys_getpid();
-	cli->mid = 1;
-	cli->vuid = UID_FIELD_INVALID;
-	cli->protocol = PROTOCOL_NT1;
+	cli->raw_status = NT_STATUS_INTERNAL_ERROR;
+	cli->map_dos_errors = true; /* remove this */
 	cli->timeout = 20000; /* Timeout is in milliseconds. */
-	cli->bufsize = CLI_BUFFER_SIZE+4;
-	cli->max_xmit = cli->bufsize;
-	cli->outbuf = (char *)SMB_MALLOC(cli->bufsize+SAFETY_MARGIN);
-	cli->seqnum = 0;
-	cli->inbuf = (char *)SMB_MALLOC(cli->bufsize+SAFETY_MARGIN);
-	cli->oplock_handler = cli_oplock_ack;
 	cli->case_sensitive = false;
-	cli->smb_rw_error = SMB_READ_OK;
-
-	cli->use_spnego = lp_client_use_spnego();
-
-	cli->capabilities = CAP_UNICODE | CAP_STATUS32 | CAP_DFS;
 
 	/* Set the CLI_FORCE_DOSERR environment variable to test
 	   client routines using DOS errors instead of STATUS32
 	   ones.  This intended only as a temporary hack. */	
-	if (getenv("CLI_FORCE_DOSERR"))
-		cli->force_dos_errors = true;
-
-	if (lp_client_signing()) {
-		allow_smb_signing = true;
+	if (getenv("CLI_FORCE_DOSERR")) {
+		force_dos_errors = true;
+	}
+	if (flags & CLI_FULL_CONNECTION_FORCE_DOS_ERRORS) {
+		force_dos_errors = true;
 	}
 
-	if (lp_client_signing() == Required) {
-		mandatory_signing = true;
+	if (getenv("CLI_FORCE_ASCII")) {
+		force_ascii = true;
+	}
+	if (!lp_unicode()) {
+		force_ascii = true;
+	}
+	if (flags & CLI_FULL_CONNECTION_FORCE_ASCII) {
+		force_ascii = true;
 	}
 
-	if (signing_state != Undefined) {
-		allow_smb_signing = true;
+	if (flags & CLI_FULL_CONNECTION_DONT_SPNEGO) {
+		use_spnego = false;
+	} else if (flags & CLI_FULL_CONNECTION_USE_KERBEROS) {
+		cli->use_kerberos = true;
+	}
+	if ((flags & CLI_FULL_CONNECTION_FALLBACK_AFTER_KERBEROS) &&
+	     cli->use_kerberos) {
+		cli->fallback_after_kerberos = true;
 	}
 
-	if (signing_state == false) {
-		allow_smb_signing = false;
-		mandatory_signing = false;
+	if (flags & CLI_FULL_CONNECTION_USE_CCACHE) {
+		cli->use_ccache = true;
 	}
 
-	if (signing_state == Required) {
-		mandatory_signing = true;
+	if (flags & CLI_FULL_CONNECTION_USE_NT_HASH) {
+		cli->pw_nt_hash = true;
 	}
 
-	if (!cli->outbuf || !cli->inbuf)
-                goto error;
+	if (flags & CLI_FULL_CONNECTION_OPLOCKS) {
+		cli->use_oplocks = true;
+	}
+	if (flags & CLI_FULL_CONNECTION_LEVEL_II_OPLOCKS) {
+		use_level_II_oplocks = true;
+	}
 
-	memset(cli->outbuf, 0, cli->bufsize);
-	memset(cli->inbuf, 0, cli->bufsize);
+	if (signing_state == SMB_SIGNING_DEFAULT) {
+		signing_state = lp_client_signing();
+	}
 
+	smb1_capabilities = 0;
+	smb1_capabilities |= CAP_LARGE_FILES;
+	smb1_capabilities |= CAP_NT_SMBS | CAP_RPC_REMOTE_APIS;
+	smb1_capabilities |= CAP_LOCK_AND_READ | CAP_NT_FIND;
+	smb1_capabilities |= CAP_DFS | CAP_W2K_SMBS;
+	smb1_capabilities |= CAP_LARGE_READX|CAP_LARGE_WRITEX;
+	smb1_capabilities |= CAP_LWIO;
 
-#if defined(DEVELOPER)
-	/* just because we over-allocate, doesn't mean it's right to use it */
-	clobber_region(__FUNCTION__, __LINE__, cli->outbuf+cli->bufsize, SAFETY_MARGIN);
-	clobber_region(__FUNCTION__, __LINE__, cli->inbuf+cli->bufsize, SAFETY_MARGIN);
-#endif
+	if (!force_dos_errors) {
+		smb1_capabilities |= CAP_STATUS32;
+	}
 
-	/* initialise signing */
-	cli->signing_state = smb_signing_init(cli,
-					      allow_smb_signing,
-					      mandatory_signing);
-	if (!cli->signing_state) {
+	if (!force_ascii) {
+		smb1_capabilities |= CAP_UNICODE;
+	}
+
+	if (use_spnego) {
+		smb1_capabilities |= CAP_EXTENDED_SECURITY;
+	}
+
+	if (use_level_II_oplocks) {
+		smb1_capabilities |= CAP_LEVEL_II_OPLOCKS;
+	}
+
+	smb2_capabilities = SMB2_CAP_ALL;
+
+	if (remote_realm) {
+		cli->remote_realm = talloc_strdup(cli, remote_realm);
+		if (cli->remote_realm == NULL) {
+			goto error;
+		}
+	}
+
+	cli->conn = smbXcli_conn_create(cli, fd, remote_name,
+					signing_state,
+					smb1_capabilities,
+					&client_guid,
+					smb2_capabilities);
+	if (cli->conn == NULL) {
 		goto error;
 	}
 
-	cli->outgoing = tevent_queue_create(cli, "cli_outgoing");
-	if (cli->outgoing == NULL) {
+	cli->smb1.pid = (uint16_t)getpid();
+	cli->smb1.vc_num = cli->smb1.pid;
+	cli->smb1.tcon = smbXcli_tcon_create(cli);
+	if (cli->smb1.tcon == NULL) {
 		goto error;
 	}
-	cli->pending = NULL;
+	smb1cli_tcon_set_id(cli->smb1.tcon, UINT16_MAX);
+	cli->smb1.session = smbXcli_session_create(cli, cli->conn);
+	if (cli->smb1.session == NULL) {
+		goto error;
+	}
 
 	cli->initialised = 1;
-
 	return cli;
 
         /* Clean up after malloc() error */
 
  error:
 
-        SAFE_FREE(cli->inbuf);
-        SAFE_FREE(cli->outbuf);
 	TALLOC_FREE(cli);
         return NULL;
-}
-
-struct cli_state *cli_initialise(void)
-{
-	return cli_initialise_ex(Undefined);
 }
 
 /****************************************************************************
@@ -641,33 +321,13 @@ static void _cli_shutdown(struct cli_state *cli)
 	 * can remain active on the peer end, until some (long) timeout period
 	 * later.  This tree disconnect forces the peer to clean up, since the
 	 * connection will be going away.
-	 *
-	 * Also, do not do tree disconnect when cli->smb_rw_error is SMB_DO_NOT_DO_TDIS
-	 * the only user for this so far is smbmount which passes opened connection
-	 * down to kernel's smbfs module.
 	 */
-	if ( (cli->cnum != (uint16)-1) && (cli->smb_rw_error != SMB_DO_NOT_DO_TDIS ) ) {
+	if (cli_state_has_tcon(cli)) {
 		cli_tdis(cli);
 	}
-        
-	SAFE_FREE(cli->outbuf);
-	SAFE_FREE(cli->inbuf);
 
-	data_blob_free(&cli->secblob);
-	data_blob_free(&cli->user_session_key);
+	smbXcli_conn_disconnect(cli->conn, NT_STATUS_OK);
 
-	if (cli->fd != -1) {
-		close(cli->fd);
-	}
-	cli->fd = -1;
-	cli->smb_rw_error = SMB_READ_OK;
-
-	/*
-	 * Need to free pending first, they remove themselves
-	 */
-	while (cli->pending) {
-		talloc_free(cli->pending[0]);
-	}
 	TALLOC_FREE(cli);
 }
 
@@ -697,13 +357,14 @@ void cli_shutdown(struct cli_state *cli)
 	_cli_shutdown(cli);
 }
 
-/****************************************************************************
- Set socket options on a open connection.
-****************************************************************************/
-
-void cli_sockopt(struct cli_state *cli, const char *options)
+const char *cli_state_remote_realm(struct cli_state *cli)
 {
-	set_socket_options(cli->fd, options);
+	return cli->remote_realm;
+}
+
+uint16_t cli_state_get_vc_num(struct cli_state *cli)
+{
+	return cli->smb1.vc_num;
 }
 
 /****************************************************************************
@@ -712,8 +373,48 @@ void cli_sockopt(struct cli_state *cli, const char *options)
 
 uint16 cli_setpid(struct cli_state *cli, uint16 pid)
 {
-	uint16 ret = cli->pid;
-	cli->pid = pid;
+	uint16_t ret = cli->smb1.pid;
+	cli->smb1.pid = pid;
+	return ret;
+}
+
+uint16_t cli_getpid(struct cli_state *cli)
+{
+	return cli->smb1.pid;
+}
+
+bool cli_state_has_tcon(struct cli_state *cli)
+{
+	uint16_t tid = cli_state_get_tid(cli);
+
+	if (tid == UINT16_MAX) {
+		return false;
+	}
+
+	return true;
+}
+
+uint16_t cli_state_get_tid(struct cli_state *cli)
+{
+	return smb1cli_tcon_current_id(cli->smb1.tcon);
+}
+
+uint16_t cli_state_set_tid(struct cli_state *cli, uint16_t tid)
+{
+	uint16_t ret = smb1cli_tcon_current_id(cli->smb1.tcon);
+	smb1cli_tcon_set_id(cli->smb1.tcon, tid);
+	return ret;
+}
+
+uint16_t cli_state_get_uid(struct cli_state *cli)
+{
+	return smb1cli_session_current_id(cli->smb1.session);
+}
+
+uint16_t cli_state_set_uid(struct cli_state *cli, uint16_t uid)
+{
+	uint16_t ret = smb1cli_session_current_id(cli->smb1.session);
+	smb1cli_session_set_id(cli->smb1.session, uid);
 	return ret;
 }
 
@@ -726,6 +427,30 @@ bool cli_set_case_sensitive(struct cli_state *cli, bool case_sensitive)
 	bool ret = cli->case_sensitive;
 	cli->case_sensitive = case_sensitive;
 	return ret;
+}
+
+uint32_t cli_state_available_size(struct cli_state *cli, uint32_t ofs)
+{
+	uint32_t ret = smb1cli_conn_max_xmit(cli->conn);
+
+	if (ofs >= ret) {
+		return 0;
+	}
+
+	ret -= ofs;
+
+	return ret;
+}
+
+time_t cli_state_server_time(struct cli_state *cli)
+{
+	NTTIME nt;
+	time_t t;
+
+	nt = smbXcli_conn_server_system_time(cli->conn);
+	t = nt_time_to_unix(nt);
+
+	return t;
 }
 
 struct cli_echo_state {
@@ -772,9 +497,8 @@ static void cli_echo_done(struct tevent_req *subreq)
 	NTSTATUS status;
 	uint32_t num_bytes;
 	uint8_t *bytes;
-	uint8_t *inbuf;
 
-	status = cli_smb_recv(subreq, state, &inbuf, 0, NULL, NULL,
+	status = cli_smb_recv(subreq, state, NULL, 0, NULL, NULL,
 			      &num_bytes, &bytes);
 	if (!NT_STATUS_IS_OK(status)) {
 		tevent_req_nterror(req, status);
@@ -792,7 +516,7 @@ static void cli_echo_done(struct tevent_req *subreq)
 		return;
 	}
 
-	if (!cli_smb_req_set_pending(subreq)) {
+	if (!smbXcli_req_set_pending(subreq)) {
 		tevent_req_nterror(req, NT_STATUS_NO_MEMORY);
 		return;
 	}
@@ -826,7 +550,7 @@ NTSTATUS cli_echo(struct cli_state *cli, uint16_t num_echos, DATA_BLOB data)
 	struct tevent_req *req;
 	NTSTATUS status = NT_STATUS_OK;
 
-	if (cli_has_async_calls(cli)) {
+	if (smbXcli_conn_has_async_calls(cli->conn)) {
 		/*
 		 * Can't use sync call while an async call is in flight
 		 */
@@ -854,9 +578,6 @@ NTSTATUS cli_echo(struct cli_state *cli, uint16_t num_echos, DATA_BLOB data)
 	status = cli_echo_recv(req);
  fail:
 	TALLOC_FREE(frame);
-	if (!NT_STATUS_IS_OK(status)) {
-		cli_set_error(cli, status);
-	}
 	return status;
 }
 
@@ -897,7 +618,7 @@ NTSTATUS cli_smb(TALLOC_CTX *mem_ctx, struct cli_state *cli,
         struct tevent_req *req = NULL;
         NTSTATUS status = NT_STATUS_NO_MEMORY;
 
-        if (cli_has_async_calls(cli)) {
+        if (smbXcli_conn_has_async_calls(cli->conn)) {
                 return NT_STATUS_INVALID_PARAMETER;
         }
         ev = tevent_context_init(mem_ctx);

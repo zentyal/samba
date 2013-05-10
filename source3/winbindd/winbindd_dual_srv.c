@@ -108,34 +108,6 @@ NTSTATUS _wbint_LookupName(struct pipes_struct *p, struct wbint_LookupName *r)
 	return status;
 }
 
-NTSTATUS _wbint_Sid2Uid(struct pipes_struct *p, struct wbint_Sid2Uid *r)
-{
-	uid_t uid;
-	NTSTATUS status;
-
-	status = idmap_sid_to_uid(r->in.dom_name ? r->in.dom_name : "",
-				  r->in.sid, &uid);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-	*r->out.uid = uid;
-	return NT_STATUS_OK;
-}
-
-NTSTATUS _wbint_Sid2Gid(struct pipes_struct *p, struct wbint_Sid2Gid *r)
-{
-	gid_t gid;
-	NTSTATUS status;
-
-	status = idmap_sid_to_gid(r->in.dom_name ? r->in.dom_name : "",
-				  r->in.sid, &gid);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-	*r->out.gid = gid;
-	return NT_STATUS_OK;
-}
-
 NTSTATUS _wbint_Sids2UnixIDs(struct pipes_struct *p,
 			     struct wbint_Sids2UnixIDs *r)
 {
@@ -151,10 +123,10 @@ NTSTATUS _wbint_Sids2UnixIDs(struct pipes_struct *p,
 		struct idmap_domain *dom;
 		uint32_t num_ids;
 
-		dom = idmap_find_domain(d->name.string);
+		dom = idmap_find_domain_with_sid(d->name.string, d->sid);
 		if (dom == NULL) {
-			DEBUG(10, ("idmap domain %s not found\n",
-				   d->name.string));
+			DEBUG(10, ("idmap domain %s:%s not found\n",
+				   d->name.string, sid_string_dbg(d->sid)));
 			continue;
 		}
 
@@ -166,22 +138,22 @@ NTSTATUS _wbint_Sids2UnixIDs(struct pipes_struct *p,
 			}
 		}
 
-		ids = TALLOC_REALLOC_ARRAY(talloc_tos(), ids,
+		ids = talloc_realloc(talloc_tos(), ids,
 					   struct id_map, num_ids);
 		if (ids == NULL) {
 			goto nomem;
 		}
-		id_ptrs = TALLOC_REALLOC_ARRAY(talloc_tos(), id_ptrs,
+		id_ptrs = talloc_realloc(talloc_tos(), id_ptrs,
 					       struct id_map *, num_ids+1);
 		if (id_ptrs == NULL) {
 			goto nomem;
 		}
-		id_idx = TALLOC_REALLOC_ARRAY(talloc_tos(), id_idx,
+		id_idx = talloc_realloc(talloc_tos(), id_idx,
 					      uint32_t, num_ids);
 		if (id_idx == NULL) {
 			goto nomem;
 		}
-		sids = TALLOC_REALLOC_ARRAY(talloc_tos(), sids,
+		sids = talloc_realloc(talloc_tos(), sids,
 					    struct dom_sid, num_ids);
 		if (sids == NULL) {
 			goto nomem;
@@ -189,6 +161,11 @@ NTSTATUS _wbint_Sids2UnixIDs(struct pipes_struct *p,
 
 		num_ids = 0;
 
+		/*
+		 * Convert the input data into a list of
+		 * id_map structs suitable for handing in
+		 * to the idmap sids_to_unixids method.
+		 */
 		for (j=0; j<r->in.ids->num_ids; j++) {
 			struct wbint_TransID *id = &r->in.ids->ids[j];
 
@@ -210,13 +187,19 @@ NTSTATUS _wbint_Sids2UnixIDs(struct pipes_struct *p,
 		DEBUG(10, ("sids_to_unixids returned %s\n",
 			   nt_errstr(status)));
 
+		/*
+		 * Extract the results for handing them back to the caller.
+		 */
 		for (j=0; j<num_ids; j++) {
 			struct wbint_TransID *id = &r->in.ids->ids[id_idx[j]];
 
 			if (ids[j].status != ID_MAPPED) {
+				id->xid.id = UINT32_MAX;
+				id->xid.type = ID_TYPE_NOT_SPECIFIED;
 				continue;
 			}
-			id->unix_id = ids[j].xid.id;
+
+			id->xid = ids[j].xid;
 		}
 	}
 	status = NT_STATUS_OK;
@@ -714,6 +697,11 @@ NTSTATUS _wbint_PingDc(struct pipes_struct *p, struct wbint_PingDc *r)
 	b = netlogon_pipe->binding_handle;
 
 	fstr_sprintf(logon_server, "\\\\%s", domain->dcname);
+	*r->out.dcname = talloc_strdup(p->mem_ctx, domain->dcname);
+	if (r->out.dcname == NULL) {
+		DEBUG(2, ("Could not allocate memory\n"));
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	/*
 	 * This provokes a WERR_NOT_SUPPORTED error message. This is

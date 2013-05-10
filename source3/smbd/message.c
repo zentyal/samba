@@ -51,7 +51,7 @@ static void msg_deliver(struct msg_state *state)
 	fstring alpha_buf;
 	char *s;
 
-	if (! (*lp_msg_command())) {
+	if (! (*lp_msg_command(frame))) {
 		DEBUG(1,("no messaging command specified\n"));
 		goto done;
 	}
@@ -75,7 +75,7 @@ static void msg_deliver(struct msg_state *state)
 
 	if (!convert_string_talloc(talloc_tos(), CH_DOS, CH_UNIX, state->msg,
 				   talloc_get_size(state->msg), (void *)&msg,
-				   &len, true)) {
+				   &len)) {
 		DEBUG(3, ("Conversion failed, delivering message in DOS "
 			  "codepage format\n"));
 		msg = state->msg;
@@ -96,7 +96,7 @@ static void msg_deliver(struct msg_state *state)
 	close(fd);
 
 	/* run the command */
-	s = talloc_strdup(talloc_tos(), lp_msg_command());
+	s = lp_msg_command(frame);
 	if (s == NULL) {
 		goto done;
 	}
@@ -146,7 +146,7 @@ void reply_sends(struct smb_request *req)
 
 	START_PROFILE(SMBsends);
 
-	if (!(*lp_msg_command())) {
+	if (!(*lp_msg_command(talloc_tos()))) {
 		reply_nterror(req, NT_STATUS_REQUEST_NOT_ACCEPTED);
 		END_PROFILE(SMBsends);
 		return;
@@ -194,17 +194,17 @@ void reply_sendstrt(struct smb_request *req)
 
 	START_PROFILE(SMBsendstrt);
 
-	if (!(*lp_msg_command())) {
+	if (!(*lp_msg_command(talloc_tos()))) {
 		reply_nterror(req, NT_STATUS_REQUEST_NOT_ACCEPTED);
 		END_PROFILE(SMBsendstrt);
 		return;
 	}
 
-	TALLOC_FREE(smbd_msg_state);
+	TALLOC_FREE(req->sconn->conn->msg_state);
 
-	smbd_msg_state = TALLOC_ZERO_P(NULL, struct msg_state);
+	req->sconn->conn->msg_state = talloc_zero(NULL, struct msg_state);
 
-	if (smbd_msg_state == NULL) {
+	if (req->sconn->conn->msg_state == NULL) {
 		reply_nterror(req, NT_STATUS_NO_MEMORY);
 		END_PROFILE(SMBsendstrt);
 		return;
@@ -212,14 +212,17 @@ void reply_sendstrt(struct smb_request *req)
 
 	p = (const char *)req->buf+1;
 	p += srvstr_pull_req_talloc(
-		smbd_msg_state, req, &smbd_msg_state->from, p,
+		req->sconn->conn->msg_state, req,
+		&req->sconn->conn->msg_state->from, p,
 		STR_ASCII|STR_TERMINATE) + 1;
 	p += srvstr_pull_req_talloc(
-		smbd_msg_state, req, &smbd_msg_state->to, p,
+		req->sconn->conn->msg_state, req,
+		&req->sconn->conn->msg_state->to, p,
 		STR_ASCII|STR_TERMINATE) + 1;
 
-	DEBUG( 3, ( "SMBsendstrt (from %s to %s)\n", smbd_msg_state->from,
-		    smbd_msg_state->to ) );
+	DEBUG(3, ("SMBsendstrt (from %s to %s)\n",
+		  req->sconn->conn->msg_state->from,
+		  req->sconn->conn->msg_state->to));
 
 	reply_outbuf(req, 0, 0);
 
@@ -241,13 +244,13 @@ void reply_sendtxt(struct smb_request *req)
 
 	START_PROFILE(SMBsendtxt);
 
-	if (! (*lp_msg_command())) {
+	if (! (*lp_msg_command(talloc_tos()))) {
 		reply_nterror(req, NT_STATUS_REQUEST_NOT_ACCEPTED);
 		END_PROFILE(SMBsendtxt);
 		return;
 	}
 
-	if ((smbd_msg_state == NULL) || (req->buflen < 3)) {
+	if ((req->sconn->conn->msg_state == NULL) || (req->buflen < 3)) {
 		reply_nterror(req, NT_STATUS_INVALID_PARAMETER);
 		END_PROFILE(SMBsendtxt);
 		return;
@@ -255,12 +258,13 @@ void reply_sendtxt(struct smb_request *req)
 
 	msg = (const char *)req->buf + 1;
 
-	old_len = talloc_get_size(smbd_msg_state->msg);
+	old_len = talloc_get_size(req->sconn->conn->msg_state->msg);
 
 	len = MIN(SVAL(msg, 0), smbreq_bufrem(req, msg+2));
 
-	tmp = TALLOC_REALLOC_ARRAY(smbd_msg_state, smbd_msg_state->msg,
-				   char, old_len + len);
+	tmp = talloc_realloc(req->sconn->conn->msg_state,
+			     req->sconn->conn->msg_state->msg,
+			     char, old_len + len);
 
 	if (tmp == NULL) {
 		reply_nterror(req, NT_STATUS_NO_MEMORY);
@@ -268,9 +272,9 @@ void reply_sendtxt(struct smb_request *req)
 		return;
 	}
 
-	smbd_msg_state->msg = tmp;
+	req->sconn->conn->msg_state->msg = tmp;
 
-	memcpy(&smbd_msg_state->msg[old_len], msg+2, len);
+	memcpy(&req->sconn->conn->msg_state->msg[old_len], msg+2, len);
 
 	DEBUG( 3, ( "SMBsendtxt\n" ) );
 
@@ -289,7 +293,7 @@ void reply_sendend(struct smb_request *req)
 {
 	START_PROFILE(SMBsendend);
 
-	if (! (*lp_msg_command())) {
+	if (! (*lp_msg_command(talloc_tos()))) {
 		reply_nterror(req, NT_STATUS_REQUEST_NOT_ACCEPTED);
 		END_PROFILE(SMBsendend);
 		return;
@@ -297,9 +301,9 @@ void reply_sendend(struct smb_request *req)
 
 	DEBUG(3,("SMBsendend\n"));
 
-	msg_deliver(smbd_msg_state);
+	msg_deliver(req->sconn->conn->msg_state);
 
-	TALLOC_FREE(smbd_msg_state);
+	TALLOC_FREE(req->sconn->conn->msg_state);
 
 	reply_outbuf(req, 0, 0);
 

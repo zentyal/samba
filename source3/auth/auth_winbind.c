@@ -62,15 +62,9 @@ static NTSTATUS check_winbind_security(const struct auth_context *auth_context,
 	}
 
 	/* Send off request */
+
 	params.account_name	= user_info->client.account_name;
-	/*
-	 * We need to send the domain name from the client to the DC. With
-	 * NTLMv2 the domain name is part of the hashed second challenge,
-	 * if we change the domain name, the DC will fail to verify the
-	 * challenge cause we changed the domain name, this is like a
-	 * man in the middle attack.
-	 */
-	params.domain_name	= user_info->client.domain_name;
+	params.domain_name	= user_info->mapped.domain_name;
 	params.workstation_name	= user_info->workstation_name;
 
 	params.flags		= 0;
@@ -148,7 +142,7 @@ static NTSTATUS auth_init_winbind(struct auth_context *auth_context, const char 
 {
 	struct auth_methods *result;
 
-	result = TALLOC_ZERO_P(auth_context, struct auth_methods);
+	result = talloc_zero(auth_context, struct auth_methods);
 	if (result == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}

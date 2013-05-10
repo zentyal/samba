@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # Unix SMB/CIFS implementation.
 # Copyright (C) Jelmer Vernooij <jelmer@samba.org> 2007-2008
 #
@@ -26,9 +24,9 @@ import shutil
 from samba import param
 from samba.credentials import Credentials
 from samba.auth import system_session
-from samba.provision import getpolicypath
+from samba.provision import getpolicypath,find_provision_key_parameters
 from samba.upgradehelpers import (get_paths, get_ldbs,
-                                 find_provision_key_parameters, identic_rename,
+                                 identic_rename,
                                  updateOEMInfo, getOEMInfo, update_gpo,
                                  delta_update_basesamdb,
                                  update_dns_account_password,
@@ -161,7 +159,8 @@ class UpgradeProvisionWithLdbTestCase(TestCaseInTempDir):
         self.assertNotEquals(oem, "")
 
     def test_update_dns_account(self):
-        update_dns_account_password(self.ldbs.sam, self.ldbs.secrets, self.names)
+        update_dns_account_password(self.ldbs.sam, self.ldbs.secrets,
+            self.names)
 
     def test_updateOEMInfo(self):
         realm = self.lp.get("realm")
@@ -173,7 +172,7 @@ class UpgradeProvisionWithLdbTestCase(TestCaseInTempDir):
         self.assertTrue(re.match(".*upgrade to.*", str(oem2)))
 
     def tearDown(self):
-        for name in ["ref.ldb", "secrets.ldb", "sam.ldb"]:
+        for name in ["ref.ldb", "secrets.ldb", "secrets.tdb", "sam.ldb"]:
             path = os.path.join(self.tempdir, name)
             if os.path.exists(path):
                 os.unlink(path)

@@ -77,7 +77,7 @@ static bool is_internal_domain(const struct dom_sid *sid)
 	if (sid == NULL)
 		return False;
 
-	return (sid_check_is_domain(sid) || sid_check_is_builtin(sid));
+	return (sid_check_is_our_sam(sid) || sid_check_is_builtin(sid));
 }
 
 static bool is_in_internal_domain(const struct dom_sid *sid)
@@ -85,7 +85,7 @@ static bool is_in_internal_domain(const struct dom_sid *sid)
 	if (sid == NULL)
 		return False;
 
-	return (sid_check_is_in_our_domain(sid) || sid_check_is_in_builtin(sid));
+	return (sid_check_is_in_our_sam(sid) || sid_check_is_in_builtin(sid));
 }
 
 
@@ -108,9 +108,9 @@ static struct winbindd_domain *add_trusted_domain(const char *domain_name, const
 		}
 	}
 
-	/* ignore alt_name if we are not in an AD domain */
+	/* use alt_name if available to allow DNS lookups */
 
-	if ( (lp_security() == SEC_ADS) && alt_name && *alt_name) {
+	if (alt_name && *alt_name) {
 		alternative_name = alt_name;
 	}
 
@@ -261,7 +261,7 @@ static void add_trusted_domains( struct winbindd_domain *domain )
 	struct trustdom_state *state;
 	struct tevent_req *req;
 
-	state = TALLOC_ZERO_P(NULL, struct trustdom_state);
+	state = talloc_zero(NULL, struct trustdom_state);
 	if (state == NULL) {
 		DEBUG(0, ("talloc failed\n"));
 		return;
@@ -877,9 +877,7 @@ bool parse_domain_user(const char *domuser, fstring domain, fstring user)
 		domain[PTR_DIFF(p, domuser)] = 0;
 	}
 
-	strupper_m(domain);
-
-	return True;
+	return strupper_m(domain);
 }
 
 bool parse_domain_user_talloc(TALLOC_CTX *mem_ctx, const char *domuser,
@@ -933,7 +931,7 @@ void fill_domain_username(fstring name, const char *domain, const char *user, bo
 	fstring tmp_user;
 
 	fstrcpy(tmp_user, user);
-	strlower_m(tmp_user);
+	(void)strlower_m(tmp_user);
 
 	if (can_assume && assume_domain(domain)) {
 		strlcpy(name, tmp_user, sizeof(fstring));
@@ -956,7 +954,10 @@ char *fill_domain_username_talloc(TALLOC_CTX *mem_ctx,
 	char *tmp_user, *name;
 
 	tmp_user = talloc_strdup(mem_ctx, user);
-	strlower_m(tmp_user);
+	if (!strlower_m(tmp_user)) {
+		TALLOC_FREE(tmp_user);
+		return NULL;
+	}
 
 	if (can_assume && assume_domain(domain)) {
 		name = tmp_user;
@@ -1179,7 +1180,8 @@ bool winbindd_can_contact_domain(struct winbindd_domain *domain)
 	/* We can contact the domain if it is our primary domain */
 
 	if (domain->primary) {
-		return true;
+		ret = true;
+		goto done;
 	}
 
 	/* Trust the TDC cache and not the winbindd_domain flags */
@@ -1187,7 +1189,8 @@ bool winbindd_can_contact_domain(struct winbindd_domain *domain)
 	if ((tdc = wcache_tdc_fetch_domain(frame, domain->name)) == NULL) {
 		DEBUG(10,("winbindd_can_contact_domain: %s not found in cache\n",
 			  domain->name));
-		return false;
+		ret = false;
+		goto done;
 	}
 
 	/* Can always contact a domain that is in out forest */
@@ -1357,6 +1360,15 @@ bool is_domain_online(const struct winbindd_domain *domain)
 	return !is_domain_offline(domain);
 }
 
+/**
+ * Parse an char array into a list of sids.
+ *
+ * The input sidstr should consist of 0-terminated strings
+ * representing sids, separated by newline characters '\n'.
+ * The list is terminated by an empty string, i.e.
+ * character '\0' directly following a character '\n'
+ * (or '\0' right at the start of sidstr).
+ */
 bool parse_sidlist(TALLOC_CTX *mem_ctx, const char *sidstr,
 		   struct dom_sid **sids, uint32_t *num_sids)
 {

@@ -119,7 +119,11 @@ workgroup %s. This is a bug.\n", name, work->work_group));
  
 	fstrcpy(servrec->serv.name,name);
 	fstrcpy(servrec->serv.comment,comment);
-	strupper_m(servrec->serv.name);
+	if (!strupper_m(servrec->serv.name)) {
+		DEBUG(2,("strupper_m %s failed\n", servrec->serv.name));
+		SAFE_FREE(servrec);
+		return NULL;
+	}
 	servrec->serv.type  = servertype;
 
 	update_server_ttl(servrec, ttl);
@@ -355,7 +359,7 @@ void write_browse_list(time_t t, bool force_write)
 
 		/* Output server details, plus what workgroup they're in. */
 		write_browse_list_entry(fp, my_netbios_names(i), stype,
-			string_truncate(lp_serverstring(), MAX_SERVER_STRING_LENGTH), lp_workgroup());
+			string_truncate(lp_serverstring(talloc_tos()), MAX_SERVER_STRING_LENGTH), lp_workgroup());
 	}
 
 	for (subrec = FIRST_SUBNET; subrec ; subrec = NEXT_SUBNET_INCLUDING_UNICAST(subrec)) { 

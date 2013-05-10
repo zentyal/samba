@@ -5,7 +5,7 @@
 
 if [ $# -lt 4 ]; then
 cat <<EOF
-Usage: test_kinit.sh SERVER USERNAME REALM DOMAIN PREFIX
+Usage: test_kinit.sh SERVER USERNAME REALM DOMAIN PREFIX SMBCLIENT
 EOF
 exit 1;
 fi
@@ -17,13 +17,13 @@ DOMAIN=$4
 PREFIX=$5
 ENCTYPE=$6
 PROVDIR=$7
-shift 7
+smbclient=$8
+shift 8
 failed=0
 
-samba4bindir="$BUILDDIR/bin"
+samba4bindir="$BINDIR"
 samba4srcdir="$SRCDIR/source4"
-smbclient="$samba4bindir/smbclient$EXEEXT"
-samba4kinit="$samba4bindir/samba4kinit$EXEEXT"
+samba4kinit="$samba4bindir/samba4kinit"
 
 machineaccountccache="$samba4srcdir/scripting/bin/machineaccountccache"
 
@@ -35,7 +35,7 @@ test_smbclient() {
 	shift
 	shift
 	echo "test: $name"
-	$VALGRIND $smbclient $CONFIGURATION //$SERVER/tmp -c "$cmd" -W "$DOMAIN" $@
+	$VALGRIND $smbclient $CONFIGURATION //$SERVER/tmp -c "$cmd" $@
 	status=$?
 	if [ x$status = x0 ]; then
 		echo "success: $name"

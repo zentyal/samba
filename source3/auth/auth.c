@@ -19,7 +19,7 @@
 
 #include "includes.h"
 #include "auth.h"
-#include "smbd/globals.h"
+#include "../lib/tsocket/tsocket.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_AUTH
@@ -78,12 +78,11 @@ static struct auth_init_function_entry *auth_find_backend_entry(const char *name
  Returns a const char of length 8 bytes.
 ****************************************************************************/
 
-static NTSTATUS get_ntlm_challenge(struct auth_context *auth_context,
-			       uint8_t chal[8])
+NTSTATUS auth_get_ntlm_challenge(struct auth_context *auth_context,
+				 uint8_t chal[8])
 {
-	DATA_BLOB challenge = data_blob_null;
-	const char *challenge_set_by = NULL;
-	auth_methods *auth_method;
+	uchar tmp[8];
+
 
 	if (auth_context->challenge.length) {
 		DEBUG(5, ("get_ntlm_challenge (auth subsystem): returning previous challenge by module %s (normal)\n", 
@@ -92,52 +91,11 @@ static NTSTATUS get_ntlm_challenge(struct auth_context *auth_context,
 		return NT_STATUS_OK;
 	}
 
-	auth_context->challenge_may_be_modified = False;
+	generate_random_buffer(tmp, sizeof(tmp));
+	auth_context->challenge = data_blob_talloc(auth_context,
+						   tmp, sizeof(tmp));
 
-	for (auth_method = auth_context->auth_method_list; auth_method; auth_method = auth_method->next) {
-		if (auth_method->get_chal == NULL) {
-			DEBUG(5, ("auth_get_challenge: module %s did not want to specify a challenge\n", auth_method->name));
-			continue;
-		}
-
-		DEBUG(5, ("auth_get_challenge: getting challenge from module %s\n", auth_method->name));
-		if (challenge_set_by != NULL) {
-			DEBUG(1, ("auth_get_challenge: CONFIGURATION ERROR: authentication method %s has already specified a challenge.  Challenge by %s ignored.\n", 
-				  challenge_set_by, auth_method->name));
-			continue;
-		}
-
-		challenge = auth_method->get_chal(auth_context, &auth_method->private_data,
-						  auth_context);
-		if (!challenge.length) {
-			DEBUG(3, ("auth_get_challenge: getting challenge from authentication method %s FAILED.\n", 
-				  auth_method->name));
-		} else {
-			DEBUG(5, ("auth_get_challenge: successfully got challenge from module %s\n", auth_method->name));
-			auth_context->challenge = challenge;
-			challenge_set_by = auth_method->name;
-			auth_context->challenge_set_method = auth_method;
-		}
-	}
-
-	if (!challenge_set_by) {
-		uchar tmp[8];
-
-		generate_random_buffer(tmp, sizeof(tmp));
-		auth_context->challenge = data_blob_talloc(auth_context,
-							   tmp, sizeof(tmp));
-
-		challenge_set_by = "random";
-		auth_context->challenge_may_be_modified = True;
-	} 
-
-	DEBUG(5, ("auth_context challenge created by %s\n", challenge_set_by));
-	DEBUG(5, ("challenge is: \n"));
-	dump_data(5, auth_context->challenge.data, auth_context->challenge.length);
-
-	SMB_ASSERT(auth_context->challenge.length == 8);
-
-	auth_context->challenge_set_by=challenge_set_by;
+	auth_context->challenge_set_by = "random";
 
 	memcpy(chal, auth_context->challenge.data, 8);
 	return NT_STATUS_OK;
@@ -202,9 +160,9 @@ static bool check_domain_match(const char *user, const char *domain)
  *
  **/
 
-static NTSTATUS check_ntlm_password(const struct auth_context *auth_context,
-				    const struct auth_usersupplied_info *user_info, 
-				    struct auth_serversupplied_info **server_info)
+NTSTATUS auth_check_ntlm_password(const struct auth_context *auth_context,
+				  const struct auth_usersupplied_info *user_info, 
+				  struct auth_serversupplied_info **server_info)
 {
 	/* if all the modules say 'not for me' this is reasonable */
 	NTSTATUS nt_status = NT_STATUS_NO_SUCH_USER;
@@ -284,11 +242,22 @@ static NTSTATUS check_ntlm_password(const struct auth_context *auth_context,
 	if (NT_STATUS_IS_OK(nt_status)) {
 		unix_username = (*server_info)->unix_name;
 		if (!(*server_info)->guest) {
+			const char *rhost;
+
+			if (tsocket_address_is_inet(user_info->remote_host, "ip")) {
+				rhost = tsocket_address_inet_addr_string(user_info->remote_host,
+									 talloc_tos());
+				if (rhost == NULL) {
+					return NT_STATUS_NO_MEMORY;
+				}
+			} else {
+				rhost = "127.0.0.1";
+			}
+
 			/* We might not be root if we are an RPC call */
 			become_root();
-			nt_status = smb_pam_accountcheck(
-				unix_username,
-				smbd_server_conn->client_id.name);
+			nt_status = smb_pam_accountcheck(unix_username,
+							 rhost);
 			unbecome_root();
 
 			if (NT_STATUS_IS_OK(nt_status)) {
@@ -354,9 +323,6 @@ static NTSTATUS make_auth_context(TALLOC_CTX *mem_ctx,
 		DEBUG(0,("make_auth_context: talloc failed!\n"));
 		return NT_STATUS_NO_MEMORY;
 	}
-
-	ctx->check_ntlm_password = check_ntlm_password;
-	ctx->get_ntlm_challenge = get_ntlm_challenge;
 
 	talloc_set_destructor((TALLOC_CTX *)ctx, auth_context_destructor);
 
@@ -427,7 +393,7 @@ static NTSTATUS make_auth_context_text_list(TALLOC_CTX *mem_ctx,
 					    char **text_list)
 {
 	auth_methods *list = NULL;
-	auth_methods *t = NULL;
+	auth_methods *t, *method = NULL;
 	NTSTATUS nt_status;
 
 	if (!text_list) {
@@ -449,7 +415,16 @@ static NTSTATUS make_auth_context_text_list(TALLOC_CTX *mem_ctx,
 
 	(*auth_context)->auth_method_list = list;
 
-	return nt_status;
+	/* Look for the first module to provide a prepare_gensec and
+	 * make_auth4_context hook, and set that if provided */
+	for (method = (*auth_context)->auth_method_list; method; method = method->next) {
+		if (method->prepare_gensec && method->make_auth4_context) {
+			(*auth_context)->prepare_gensec = method->prepare_gensec;
+			(*auth_context)->make_auth4_context = method->make_auth4_context;
+			break;
+		}
+	}
+	return NT_STATUS_OK;
 }
 
 /***************************************************************************
@@ -469,55 +444,39 @@ NTSTATUS make_auth_context_subsystem(TALLOC_CTX *mem_ctx,
 	}
 
 	if (auth_method_list == NULL) {
-		switch (lp_security()) 
+		switch (lp_server_role()) 
 		{
-		case SEC_DOMAIN:
-			DEBUG(5,("Making default auth method list for security=domain\n"));
+		case ROLE_DOMAIN_MEMBER:
+			DEBUG(5,("Making default auth method list for server role = 'domain member'\n"));
 			auth_method_list = str_list_make_v3(
 				talloc_tos(), "guest sam winbind:ntdomain",
 				NULL);
 			break;
-		case SEC_SERVER:
-			DEBUG(5,("Making default auth method list for security=server\n"));
+		case ROLE_DOMAIN_BDC:
+		case ROLE_DOMAIN_PDC:
+			DEBUG(5,("Making default auth method list for DC\n"));
 			auth_method_list = str_list_make_v3(
-				talloc_tos(), "guest sam smbserver",
+				talloc_tos(),
+				"guest sam winbind:trustdomain",
 				NULL);
 			break;
-		case SEC_USER:
-			if (lp_encrypted_passwords()) {	
-				if ((lp_server_role() == ROLE_DOMAIN_PDC) || (lp_server_role() == ROLE_DOMAIN_BDC)) {
-					DEBUG(5,("Making default auth method list for DC, security=user, encrypt passwords = yes\n"));
-					auth_method_list = str_list_make_v3(
-						talloc_tos(),
-						"guest sam winbind:trustdomain",
-						NULL);
-				} else {
-					DEBUG(5,("Making default auth method list for standalone security=user, encrypt passwords = yes\n"));
-					auth_method_list = str_list_make_v3(
+		case ROLE_STANDALONE:
+			DEBUG(5,("Making default auth method list for server role = 'standalone server', encrypt passwords = yes\n"));
+			if (lp_encrypted_passwords()) {
+				auth_method_list = str_list_make_v3(
 						talloc_tos(), "guest sam",
 						NULL);
-				}
 			} else {
-				DEBUG(5,("Making default auth method list for security=user, encrypt passwords = no\n"));
+				DEBUG(5,("Making default auth method list for server role = 'standalone server', encrypt passwords = no\n"));
 				auth_method_list = str_list_make_v3(
 					talloc_tos(), "guest unix", NULL);
 			}
 			break;
-		case SEC_SHARE:
-			if (lp_encrypted_passwords()) {
-				DEBUG(5,("Making default auth method list for security=share, encrypt passwords = yes\n"));
-				auth_method_list = str_list_make_v3(
-					talloc_tos(), "guest sam", NULL);
-			} else {
-				DEBUG(5,("Making default auth method list for security=share, encrypt passwords = no\n"));
-				auth_method_list = str_list_make_v3(
-					talloc_tos(), "guest unix", NULL);
-			}
-			break;
-		case SEC_ADS:
-			DEBUG(5,("Making default auth method list for security=ADS\n"));
+		case ROLE_ACTIVE_DIRECTORY_DC:
+			DEBUG(5,("Making default auth method list for server role = 'active directory domain controller'\n"));
 			auth_method_list = str_list_make_v3(
-				talloc_tos(), "guest sam winbind:ntdomain",
+				talloc_tos(),
+				"samba4",
 				NULL);
 			break;
 		default:

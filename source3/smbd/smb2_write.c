@@ -29,7 +29,6 @@ static struct tevent_req *smbd_smb2_write_send(TALLOC_CTX *mem_ctx,
 					       struct tevent_context *ev,
 					       struct smbd_smb2_request *smb2req,
 					       struct files_struct *in_fsp,
-					       uint32_t in_smbpid,
 					       DATA_BLOB in_data,
 					       uint64_t in_offset,
 					       uint32_t in_flags);
@@ -40,10 +39,7 @@ static void smbd_smb2_request_write_done(struct tevent_req *subreq);
 NTSTATUS smbd_smb2_request_process_write(struct smbd_smb2_request *req)
 {
 	NTSTATUS status;
-	const uint8_t *inhdr;
 	const uint8_t *inbody;
-	int i = req->current_idx;
-	uint32_t in_smbpid;
 	uint16_t in_data_offset;
 	uint32_t in_data_length;
 	DATA_BLOB in_data_buffer;
@@ -58,10 +54,7 @@ NTSTATUS smbd_smb2_request_process_write(struct smbd_smb2_request *req)
 	if (!NT_STATUS_IS_OK(status)) {
 		return smbd_smb2_request_error(req, status);
 	}
-	inhdr = (const uint8_t *)req->in.vector[i+0].iov_base;
-	inbody = (const uint8_t *)req->in.vector[i+1].iov_base;
-
-	in_smbpid = IVAL(inhdr, SMB2_HDR_PID);
+	inbody = SMBD_SMB2_IN_BODY_PTR(req);
 
 	in_data_offset		= SVAL(inbody, 0x02);
 	in_data_length		= IVAL(inbody, 0x04);
@@ -70,11 +63,11 @@ NTSTATUS smbd_smb2_request_process_write(struct smbd_smb2_request *req)
 	in_file_id_volatile	= BVAL(inbody, 0x18);
 	in_flags		= IVAL(inbody, 0x2C);
 
-	if (in_data_offset != (SMB2_HDR_BODY + req->in.vector[i+1].iov_len)) {
+	if (in_data_offset != (SMB2_HDR_BODY + SMBD_SMB2_IN_BODY_LEN(req))) {
 		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
 	}
 
-	if (in_data_length > req->in.vector[i+2].iov_len) {
+	if (in_data_length > SMBD_SMB2_IN_DYN_LEN(req)) {
 		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
 	}
 
@@ -86,17 +79,21 @@ NTSTATUS smbd_smb2_request_process_write(struct smbd_smb2_request *req)
 		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
 	}
 
-	in_data_buffer.data = (uint8_t *)req->in.vector[i+2].iov_base;
+	in_data_buffer.data = SMBD_SMB2_IN_DYN_PTR(req);
 	in_data_buffer.length = in_data_length;
+
+	status = smbd_smb2_request_verify_creditcharge(req, in_data_length);
+	if (!NT_STATUS_IS_OK(status)) {
+		return smbd_smb2_request_error(req, status);
+	}
 
 	in_fsp = file_fsp_smb2(req, in_file_id_persistent, in_file_id_volatile);
 	if (in_fsp == NULL) {
 		return smbd_smb2_request_error(req, NT_STATUS_FILE_CLOSED);
 	}
 
-	subreq = smbd_smb2_write_send(req, req->sconn->smb2.event_ctx,
+	subreq = smbd_smb2_write_send(req, req->sconn->ev_ctx,
 				      req, in_fsp,
-				      in_smbpid,
 				      in_data_buffer,
 				      in_offset,
 				      in_flags);
@@ -105,15 +102,13 @@ NTSTATUS smbd_smb2_request_process_write(struct smbd_smb2_request *req)
 	}
 	tevent_req_set_callback(subreq, smbd_smb2_request_write_done, req);
 
-	return smbd_smb2_request_pending_queue(req, subreq);
+	return smbd_smb2_request_pending_queue(req, subreq, 500);
 }
 
 static void smbd_smb2_request_write_done(struct tevent_req *subreq)
 {
 	struct smbd_smb2_request *req = tevent_req_callback_data(subreq,
 					struct smbd_smb2_request);
-	int i = req->current_idx;
-	uint8_t *outhdr;
 	DATA_BLOB outbody;
 	DATA_BLOB outdyn;
 	uint32_t out_count = 0;
@@ -131,8 +126,6 @@ static void smbd_smb2_request_write_done(struct tevent_req *subreq)
 		}
 		return;
 	}
-
-	outhdr = (uint8_t *)req->out.vector[i].iov_base;
 
 	outbody = data_blob_talloc(req->out.vector, NULL, 0x10);
 	if (outbody.data == NULL) {
@@ -163,6 +156,7 @@ static void smbd_smb2_request_write_done(struct tevent_req *subreq)
 
 struct smbd_smb2_write_state {
 	struct smbd_smb2_request *smb2req;
+	struct smb_request *smbreq;
 	files_struct *fsp;
 	bool write_through;
 	uint32_t in_length;
@@ -172,24 +166,36 @@ struct smbd_smb2_write_state {
 
 static void smbd_smb2_write_pipe_done(struct tevent_req *subreq);
 
-NTSTATUS smb2_write_complete(struct tevent_req *req, ssize_t nwritten, int err)
+static NTSTATUS smb2_write_complete_internal(struct tevent_req *req,
+					     ssize_t nwritten, int err,
+					     bool do_sync)
 {
 	NTSTATUS status;
 	struct smbd_smb2_write_state *state = tevent_req_data(req,
 					struct smbd_smb2_write_state);
 	files_struct *fsp = state->fsp;
 
-	DEBUG(3,("smb2: fnum=[%d/%s] "
+	if (nwritten == -1) {
+		status = map_nt_error_from_unix(err);
+
+		DEBUG(2, ("smb2_write failed: %s, file %s, "
+			  "length=%lu offset=%lu nwritten=-1: %s\n",
+			  fsp_fnum_dbg(fsp),
+			  fsp_str_dbg(fsp),
+			  (unsigned long)state->in_length,
+			  (unsigned long)state->in_offset,
+			  nt_errstr(status)));
+
+		return status;
+	}
+
+	DEBUG(3,("smb2: %s, file %s, "
 		"length=%lu offset=%lu wrote=%lu\n",
-		fsp->fnum,
+		fsp_fnum_dbg(fsp),
 		fsp_str_dbg(fsp),
 		(unsigned long)state->in_length,
 		(unsigned long)state->in_offset,
 		(unsigned long)nwritten));
-
-	if (nwritten == -1) {
-		return map_nt_error_from_unix(err);
-	}
 
 	if ((nwritten == 0) && (state->in_length != 0)) {
 		DEBUG(5,("smb2: write [%s] disk full\n",
@@ -197,12 +203,14 @@ NTSTATUS smb2_write_complete(struct tevent_req *req, ssize_t nwritten, int err)
 		return NT_STATUS_DISK_FULL;
 	}
 
-	status = sync_file(fsp->conn, fsp, state->write_through);
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(5,("smb2: sync_file for %s returned %s\n",
-			fsp_str_dbg(fsp),
-			nt_errstr(status)));
-		return status;
+	if (do_sync) {
+		status = sync_file(fsp->conn, fsp, state->write_through);
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(5,("smb2: sync_file for %s returned %s\n",
+				 fsp_str_dbg(fsp),
+				 nt_errstr(status)));
+			return status;
+		}
 	}
 
 	state->out_count = nwritten;
@@ -210,11 +218,31 @@ NTSTATUS smb2_write_complete(struct tevent_req *req, ssize_t nwritten, int err)
 	return NT_STATUS_OK;
 }
 
+NTSTATUS smb2_write_complete(struct tevent_req *req, ssize_t nwritten, int err)
+{
+	return smb2_write_complete_internal(req, nwritten, err, true);
+}
+
+NTSTATUS smb2_write_complete_nosync(struct tevent_req *req, ssize_t nwritten,
+				    int err)
+{
+	return smb2_write_complete_internal(req, nwritten, err, false);
+}
+
+
+static bool smbd_smb2_write_cancel(struct tevent_req *req)
+{
+	struct smbd_smb2_write_state *state =
+		tevent_req_data(req,
+		struct smbd_smb2_write_state);
+
+	return cancel_smb2_aio(state->smbreq);
+}
+
 static struct tevent_req *smbd_smb2_write_send(TALLOC_CTX *mem_ctx,
 					       struct tevent_context *ev,
 					       struct smbd_smb2_request *smb2req,
 					       struct files_struct *fsp,
-					       uint32_t in_smbpid,
 					       DATA_BLOB in_data,
 					       uint64_t in_offset,
 					       uint32_t in_flags)
@@ -223,7 +251,7 @@ static struct tevent_req *smbd_smb2_write_send(TALLOC_CTX *mem_ctx,
 	struct tevent_req *req = NULL;
 	struct smbd_smb2_write_state *state = NULL;
 	struct smb_request *smbreq = NULL;
-	connection_struct *conn = smb2req->tcon->compat_conn;
+	connection_struct *conn = smb2req->tcon->compat;
 	ssize_t nwritten;
 	struct lock_struct lock;
 
@@ -233,19 +261,20 @@ static struct tevent_req *smbd_smb2_write_send(TALLOC_CTX *mem_ctx,
 		return NULL;
 	}
 	state->smb2req = smb2req;
-	if (in_flags & 0x00000001) {
+	if (in_flags & SMB2_WRITEFLAG_WRITE_THROUGH) {
 		state->write_through = true;
 	}
 	state->in_length = in_data.length;
 	state->out_count = 0;
 
-	DEBUG(10,("smbd_smb2_write: %s - fnum[%d]\n",
-		  fsp_str_dbg(fsp), fsp->fnum));
+	DEBUG(10,("smbd_smb2_write: %s - %s\n",
+		  fsp_str_dbg(fsp), fsp_fnum_dbg(fsp)));
 
 	smbreq = smbd_smb2_fake_smb_request(smb2req);
 	if (tevent_req_nomem(smbreq, req)) {
 		return tevent_req_post(req, ev);
 	}
+	state->smbreq = smbreq;
 
 	state->fsp = fsp;
 
@@ -257,7 +286,7 @@ static struct tevent_req *smbd_smb2_write_send(TALLOC_CTX *mem_ctx,
 			return tevent_req_post(req, ev);
 		}
 
-		subreq = np_write_send(state, smbd_event_context(),
+		subreq = np_write_send(state, ev,
 				       fsp->fake_file_handle,
 				       in_data.data,
 				       in_data.length);
@@ -285,14 +314,10 @@ static struct tevent_req *smbd_smb2_write_send(TALLOC_CTX *mem_ctx,
 
 	if (NT_STATUS_IS_OK(status)) {
 		/*
-		 * Doing an async write. Don't
-		 * send a "gone async" message
-		 * as we expect this to be less
-		 * than the client timeout period.
-		 * JRA. FIXME for offline files..
-		 * FIXME - add cancel code..
+		 * Doing an async write, allow this
+		 * request to be canceled
 		 */
-		smb2req->async = true;
+		tevent_req_set_cancel_fn(req, smbd_smb2_write_cancel);
 		return req;
 	}
 
@@ -304,7 +329,7 @@ static struct tevent_req *smbd_smb2_write_send(TALLOC_CTX *mem_ctx,
 
 	/* Fallback to synchronous. */
 	init_strict_lock_struct(fsp,
-				fsp->fnum,
+				fsp->op->global->open_persistent_id,
 				in_offset,
 				in_data.length,
 				WRITE_LOCK,
@@ -353,6 +378,8 @@ static void smbd_smb2_write_pipe_done(struct tevent_req *subreq)
 	status = np_write_recv(subreq, &nwritten);
 	TALLOC_FREE(subreq);
 	if (!NT_STATUS_IS_OK(status)) {
+		NTSTATUS old = status;
+		status = nt_status_np_pipe(old);
 		tevent_req_nterror(req, status);
 		return;
 	}

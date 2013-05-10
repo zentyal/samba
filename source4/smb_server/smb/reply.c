@@ -27,6 +27,7 @@
 #include "smb_server/smb_server.h"
 #include "ntvfs/ntvfs.h"
 #include "librpc/gen_ndr/ndr_nbt.h"
+#include "libcli/nbt/libnbt.h"
 
 
 /****************************************************************************
@@ -2333,7 +2334,7 @@ void smbsrv_reply_special(struct smbsrv_request *req)
 	SIVAL(buf, 0, 0);
 	
 	switch (msg_type) {
-	case 0x81: /* session request */
+	case NBSSrequest: /* session request */
 		if (req->smb_conn->negotiate.done_nbt_session) {
 			DEBUG(0,("Warning: ignoring secondary session request\n"));
 			return;
@@ -2353,14 +2354,14 @@ void smbsrv_reply_special(struct smbsrv_request *req)
 		
 	case 0x89: /* session keepalive request 
 		      (some old clients produce this?) */
-		SCVAL(buf, 0, SMBkeepalive);
+		SCVAL(buf, 0, NBSSkeepalive);
 		SCVAL(buf, 3, 0);
 		req->out.buffer = buf;
 		req->out.size = 4;
 		smbsrv_send_reply_nosign(req);
 		return;
 		
-	case SMBkeepalive: 
+	case NBSSkeepalive:
 		/* session keepalive - swallow it */
 		talloc_free(req);
 		return;

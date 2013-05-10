@@ -21,6 +21,7 @@
 #include "../lib/util/tevent_ntstatus.h"
 #include "async_smb.h"
 #include "libsmb/libsmb.h"
+#include "../libcli/smb/smbXcli_base.h"
 
 struct cli_message_start_state {
 	uint16_t grp;
@@ -49,12 +50,12 @@ static struct tevent_req *cli_message_start_send(TALLOC_CTX *mem_ctx,
 
 	if (!convert_string_talloc(talloc_tos(), CH_UNIX, CH_DOS,
 				   username, strlen(username)+1,
-				   &utmp, &ulen, true)) {
+				   &utmp, &ulen)) {
 		goto fail;
 	}
 	if (!convert_string_talloc(talloc_tos(), CH_UNIX, CH_DOS,
 				   host, strlen(host)+1,
-				   &htmp, &hlen, true)) {
+				   &htmp, &hlen)) {
 		goto fail;
 	}
 
@@ -96,9 +97,8 @@ static void cli_message_start_done(struct tevent_req *subreq)
 	NTSTATUS status;
 	uint8_t wct;
 	uint16_t *vwv;
-	uint8_t *inbuf;
 
-	status = cli_smb_recv(subreq, state, &inbuf, 0, &wct, &vwv,
+	status = cli_smb_recv(subreq, state, NULL, 0, &wct, &vwv,
 			      NULL, NULL);
 	TALLOC_FREE(subreq);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -156,7 +156,7 @@ static struct tevent_req *cli_message_text_send(TALLOC_CTX *mem_ctx,
 	SSVAL(&state->vwv, 0, grp);
 
 	if (convert_string_talloc(talloc_tos(), CH_UNIX, CH_DOS, msg, msglen,
-				  &tmp, &tmplen, true)) {
+				  &tmp, &tmplen)) {
 		msg = tmp;
 		msglen = tmplen;
 	} else {
@@ -388,7 +388,7 @@ NTSTATUS cli_message(struct cli_state *cli, const char *host,
 	struct tevent_req *req;
 	NTSTATUS status = NT_STATUS_OK;
 
-	if (cli_has_async_calls(cli)) {
+	if (smbXcli_conn_has_async_calls(cli->conn)) {
 		/*
 		 * Can't use sync call while an async call is in flight
 		 */

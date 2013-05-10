@@ -28,11 +28,12 @@
 #include "libcli/libcli.h"
 #include "libcli/resolve/resolve.h"
 #include "lib/util/tevent_ntstatus.h"
+#include "libcli/finddc.h"
 
 struct finddcs_nbt_state {
 	struct tevent_context *ev;
 	struct tevent_req *req;
-	struct messaging_context *msg_ctx;
+	struct imessaging_context *msg_ctx;
 
 	const char *my_netbios_name;
 	const char *domain_name;
@@ -69,7 +70,7 @@ struct tevent_req *finddcs_nbt_send(TALLOC_CTX *mem_ctx,
 				struct dom_sid *domain_sid,
 				struct resolve_context *resolve_ctx,
 				struct tevent_context *event_ctx,
-				struct messaging_context *msg_ctx)
+				struct imessaging_context *msg_ctx)
 {
 	struct finddcs_nbt_state *state;
 	struct nbt_name name;
@@ -283,7 +284,6 @@ NTSTATUS finddcs_nbt_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx,
 		*num_dcs = state->num_dcs;
 		*dcs = talloc_steal(mem_ctx, state->dcs);
 	}
-	talloc_free(req);
 	return status;
 }
 
@@ -294,9 +294,10 @@ NTSTATUS finddcs_nbt(TALLOC_CTX *mem_ctx,
 		 struct dom_sid *domain_sid,
 		 struct resolve_context *resolve_ctx,
 		 struct tevent_context *event_ctx,
-		 struct messaging_context *msg_ctx,
+		 struct imessaging_context *msg_ctx,
 		 int *num_dcs, struct nbt_dc_name **dcs)
 {
+	NTSTATUS status;
 	struct tevent_req *req = finddcs_nbt_send(mem_ctx,
 					      my_netbios_name,
 					      nbt_port,
@@ -304,5 +305,7 @@ NTSTATUS finddcs_nbt(TALLOC_CTX *mem_ctx,
 					      domain_sid,
 					      resolve_ctx,
 					      event_ctx, msg_ctx);
-	return finddcs_nbt_recv(req, mem_ctx, num_dcs, dcs);
+	status = finddcs_nbt_recv(req, mem_ctx, num_dcs, dcs);
+	talloc_free(req);
+	return status;
 }

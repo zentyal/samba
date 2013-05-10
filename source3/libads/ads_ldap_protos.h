@@ -24,10 +24,17 @@
 #ifndef _LIBADS_ADS_LDAP_PROTOS_H_
 #define _LIBADS_ADS_LDAP_PROTOS_H_
 
+#ifdef HAVE_LDAP_INIT_FD
+int ldap_init_fd(ber_socket_t fd, int proto, char *uri, LDAP **ldp);
+#endif
+
 /*
  * Prototypes for ads
  */
 
+LDAP *ldap_open_with_timeout(const char *server,
+			     struct sockaddr_storage *ss,
+			     int port, unsigned int to);
 void ads_msgfree(ADS_STRUCT *ads, LDAPMessage *msg);
 char *ads_get_dn(ADS_STRUCT *ads, TALLOC_CTX *mem_ctx, LDAPMessage *msg);
 
@@ -54,13 +61,6 @@ bool ads_pull_sd(ADS_STRUCT *ads, TALLOC_CTX *mem_ctx,
 		 LDAPMessage *msg, const char *field, struct security_descriptor **sd);
 char *ads_pull_username(ADS_STRUCT *ads, TALLOC_CTX *mem_ctx,
 			LDAPMessage *msg);
-int ads_pull_sids_from_extendeddn(ADS_STRUCT *ads,
-				  TALLOC_CTX *mem_ctx,
-				  LDAPMessage *msg,
-				  const char *field,
-				  enum ads_extended_dn_flags flags,
-				  struct dom_sid **sids);
-
 ADS_STATUS ads_find_machine_acct(ADS_STRUCT *ads, LDAPMessage **res,
 				 const char *machine);
 ADS_STATUS ads_find_printer_on_server(ADS_STRUCT *ads, LDAPMessage **res,

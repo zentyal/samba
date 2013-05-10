@@ -1,20 +1,20 @@
-/* 
+/*
    Unix SMB/CIFS implementation.
 
    test suite for netlogon PAC operations
 
-   Copyright (C) Andrew Bartlett <abartlet@samba.org> 2008
-   
+   Copyright (C) Andrew Bartlett <abartlet@samba.org> 2012
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -42,15 +42,87 @@
 #define TEST_MACHINE_NAME_S2U4SELF_BDC "tests2u4selfbdc"
 #define TEST_MACHINE_NAME_S2U4SELF_WKSTA "tests2u4selfwk"
 
+struct pac_data {
+	struct PAC_SIGNATURE_DATA *pac_srv_sig;
+	struct PAC_SIGNATURE_DATA *pac_kdc_sig;
+};
+
+/* A helper function which avoids touching the local databases to
+ * generate the session info, as we just want to verify the PAC
+ * details, not the full local token */
+static NTSTATUS test_generate_session_info_pac(struct auth4_context *auth_ctx,
+					       TALLOC_CTX *mem_ctx,
+					       struct smb_krb5_context *smb_krb5_context,
+					       DATA_BLOB *pac_blob,
+					       const char *principal_name,
+					       const struct tsocket_address *remote_address,
+					       uint32_t session_info_flags,
+					       struct auth_session_info **session_info)
+{
+	NTSTATUS nt_status;
+	struct auth_user_info_dc *user_info_dc;
+	TALLOC_CTX *tmp_ctx;
+	struct pac_data *pac_data;
+
+	tmp_ctx = talloc_named(mem_ctx, 0, "gensec_gssapi_session_info context");
+	NT_STATUS_HAVE_NO_MEMORY(tmp_ctx);
+
+	auth_ctx->private_data = pac_data = talloc_zero(auth_ctx, struct pac_data);
+
+	pac_data->pac_srv_sig = talloc(tmp_ctx, struct PAC_SIGNATURE_DATA);
+	if (!pac_data->pac_srv_sig) {
+		talloc_free(tmp_ctx);
+		return NT_STATUS_NO_MEMORY;
+	}
+	pac_data->pac_kdc_sig = talloc(tmp_ctx, struct PAC_SIGNATURE_DATA);
+	if (!pac_data->pac_kdc_sig) {
+		talloc_free(tmp_ctx);
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	nt_status = kerberos_pac_blob_to_user_info_dc(tmp_ctx,
+						      *pac_blob,
+						      smb_krb5_context->krb5_context,
+						      &user_info_dc,
+						      pac_data->pac_srv_sig,
+						      pac_data->pac_kdc_sig);
+	if (!NT_STATUS_IS_OK(nt_status)) {
+		talloc_free(tmp_ctx);
+		return nt_status;
+	}
+
+	talloc_steal(pac_data, pac_data->pac_srv_sig);
+	talloc_steal(pac_data, pac_data->pac_kdc_sig);
+
+	if (user_info_dc->info->authenticated) {
+		session_info_flags |= AUTH_SESSION_INFO_AUTHENTICATED;
+	}
+
+	session_info_flags |= AUTH_SESSION_INFO_SIMPLE_PRIVILEGES;
+	nt_status = auth_generate_session_info(mem_ctx,
+					       NULL,
+					       NULL,
+					       user_info_dc, session_info_flags,
+					       session_info);
+	if (!NT_STATUS_IS_OK(nt_status)) {
+		talloc_free(tmp_ctx);
+		return nt_status;
+	}
+
+	talloc_free(tmp_ctx);
+	return nt_status;
+}
+
 /* Check to see if we can pass the PAC across to the NETLOGON server for validation */
 
 /* Also happens to be a really good one-step verfication of our Kerberos stack */
 
-static bool test_PACVerify(struct torture_context *tctx, 
+static bool test_PACVerify(struct torture_context *tctx,
 			   struct dcerpc_pipe *p,
 			   struct cli_credentials *credentials,
 			   enum netr_SchannelType secure_channel_type,
-			   const char *test_machine_name)
+			   const char *test_machine_name,
+			   uint32_t negotiate_flags)
 {
 	NTSTATUS status;
 
@@ -63,29 +135,40 @@ static bool test_PACVerify(struct torture_context *tctx,
 
 	struct netr_GenericInfo generic;
 	struct netr_Authenticator auth, auth2;
-	
+
 	struct netlogon_creds_CredentialState *creds;
 	struct gensec_security *gensec_client_context;
 	struct gensec_security *gensec_server_context;
 
 	DATA_BLOB client_to_server, server_to_client, pac_wrapped, payload;
 	struct PAC_Validate pac_wrapped_struct;
-	
+
 	enum ndr_err_code ndr_err;
 
+	struct auth4_context *auth_context;
 	struct auth_session_info *session_info;
+	struct pac_data *pac_data;
 
 	struct dcerpc_binding_handle *b = p->binding_handle;
 	TALLOC_CTX *tmp_ctx = talloc_new(tctx);
 	torture_assert(tctx, tmp_ctx != NULL, "talloc_new() failed");
 
-	if (!test_SetupCredentials2(p, tctx, NETLOGON_NEG_AUTH2_ADS_FLAGS, 
+	torture_comment(tctx,
+		"Testing PAC Verify (secure_channel_type: %d, machine: %s, negotiate_flags: 0x%08x\n",
+		secure_channel_type, test_machine_name, negotiate_flags);
+
+	if (!test_SetupCredentials2(p, tctx, negotiate_flags,
 				    credentials, secure_channel_type,
 				    &creds)) {
 		return false;
 	}
 
-	status = gensec_client_start(tctx, &gensec_client_context, tctx->ev, 
+	auth_context = talloc_zero(tmp_ctx, struct auth4_context);
+	torture_assert(tctx, auth_context != NULL, "talloc_new() failed");
+
+	auth_context->generate_session_info_pac = test_generate_session_info_pac;
+
+	status = gensec_client_start(tctx, &gensec_client_context,
 				     lpcfg_gensec_settings(tctx, tctx->lp_ctx));
 	torture_assert_ntstatus_ok(tctx, status, "gensec_client_start (client) failed");
 
@@ -97,9 +180,9 @@ static bool test_PACVerify(struct torture_context *tctx,
 	status = gensec_start_mech_by_sasl_name(gensec_client_context, "GSSAPI");
 	torture_assert_ntstatus_ok(tctx, status, "gensec_start_mech_by_sasl_name (client) failed");
 
-	status = gensec_server_start(tctx, tctx->ev, 
+	status = gensec_server_start(tctx,
 				     lpcfg_gensec_settings(tctx, tctx->lp_ctx),
-				     NULL, &gensec_server_context);
+				     auth_context, &gensec_server_context);
 	torture_assert_ntstatus_ok(tctx, status, "gensec_server_start (server) failed");
 
 	status = gensec_set_credentials(gensec_server_context, credentials);
@@ -109,15 +192,15 @@ static bool test_PACVerify(struct torture_context *tctx,
 	torture_assert_ntstatus_ok(tctx, status, "gensec_start_mech_by_sasl_name (server) failed");
 
 	server_to_client = data_blob(NULL, 0);
-	
+
 	do {
 		/* Do a client-server update dance */
-		status = gensec_update(gensec_client_context, tmp_ctx, server_to_client, &client_to_server);
+		status = gensec_update(gensec_client_context, tmp_ctx, tctx->ev, server_to_client, &client_to_server);
 		if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {;
 			torture_assert_ntstatus_ok(tctx, status, "gensec_update (client) failed");
 		}
 
-		status = gensec_update(gensec_server_context, tmp_ctx, client_to_server, &server_to_client);
+		status = gensec_update(gensec_server_context, tmp_ctx, tctx->ev, client_to_server, &server_to_client);
 		if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {;
 			torture_assert_ntstatus_ok(tctx, status, "gensec_update (server) failed");
 		}
@@ -129,32 +212,39 @@ static bool test_PACVerify(struct torture_context *tctx,
 
 	/* Extract the PAC using Samba's code */
 
-	status = gensec_session_info(gensec_server_context, &session_info);
+	status = gensec_session_info(gensec_server_context, gensec_server_context, &session_info);
 	torture_assert_ntstatus_ok(tctx, status, "gensec_session_info failed");
-	torture_assert(tctx, session_info->torture != NULL, "gensec_session_info failed to fill in torture sub struct");
-	torture_assert(tctx, session_info->torture->pac_srv_sig != NULL, "pac_srv_sig not present");
-	torture_assert(tctx, session_info->torture->pac_kdc_sig != NULL, "pac_kdc_sig not present");
 
-	pac_wrapped_struct.ChecksumLength = session_info->torture->pac_srv_sig->signature.length;
-	pac_wrapped_struct.SignatureType = session_info->torture->pac_kdc_sig->type;
-	pac_wrapped_struct.SignatureLength = session_info->torture->pac_kdc_sig->signature.length;
+	pac_data = talloc_get_type(auth_context->private_data, struct pac_data);
+
+	torture_assert(tctx, pac_data != NULL, "gensec_update failed to fill in pac_data in auth_context");
+	torture_assert(tctx, pac_data->pac_srv_sig != NULL, "pac_srv_sig not present");
+	torture_assert(tctx, pac_data->pac_kdc_sig != NULL, "pac_kdc_sig not present");
+
+	pac_wrapped_struct.ChecksumLength = pac_data->pac_srv_sig->signature.length;
+	pac_wrapped_struct.SignatureType = pac_data->pac_kdc_sig->type;
+	pac_wrapped_struct.SignatureLength = pac_data->pac_kdc_sig->signature.length;
 	pac_wrapped_struct.ChecksumAndSignature = payload
-		= data_blob_talloc(tmp_ctx, NULL, 
+		= data_blob_talloc(tmp_ctx, NULL,
 				   pac_wrapped_struct.ChecksumLength
 				   + pac_wrapped_struct.SignatureLength);
-	memcpy(&payload.data[0], 
-	       session_info->torture->pac_srv_sig->signature.data,
+	memcpy(&payload.data[0],
+	       pac_data->pac_srv_sig->signature.data,
 	       pac_wrapped_struct.ChecksumLength);
-	memcpy(&payload.data[pac_wrapped_struct.ChecksumLength], 
-	       session_info->torture->pac_kdc_sig->signature.data,
+	memcpy(&payload.data[pac_wrapped_struct.ChecksumLength],
+	       pac_data->pac_kdc_sig->signature.data,
 	       pac_wrapped_struct.SignatureLength);
 
 	ndr_err = ndr_push_struct_blob(&pac_wrapped, tmp_ctx, &pac_wrapped_struct,
 				       (ndr_push_flags_fn_t)ndr_push_PAC_Validate);
 	torture_assert(tctx, NDR_ERR_CODE_IS_SUCCESS(ndr_err), "ndr_push_struct_blob of PACValidate structure failed");
-		
+
 	torture_assert(tctx, (creds->negotiate_flags & NETLOGON_NEG_ARCFOUR), "not willing to even try a PACValidate without RC4 encryption");
-	netlogon_creds_arcfour_crypt(creds, pac_wrapped.data, pac_wrapped.length);
+	if (creds->negotiate_flags & NETLOGON_NEG_SUPPORTS_AES) {
+		netlogon_creds_aes_encrypt(creds, pac_wrapped.data, pac_wrapped.length);
+	} else {
+		netlogon_creds_arcfour_crypt(creds, pac_wrapped.data, pac_wrapped.length);
+	}
 
 	generic.length = pac_wrapped.length;
 	generic.data = pac_wrapped.data;
@@ -189,7 +279,7 @@ static bool test_PACVerify(struct torture_context *tctx,
 		"LogonSamLogon failed");
 
 	torture_assert_ntstatus_ok(tctx, r.out.result, "LogonSamLogon failed");
-	
+
 	/* This will break the signature nicely (even in the crypto wrapping), check we get a logon failure */
 	generic.data[generic.length-1]++;
 
@@ -209,8 +299,8 @@ static bool test_PACVerify(struct torture_context *tctx,
 		"LogonSamLogon failed");
 
 	torture_assert_ntstatus_equal(tctx, r.out.result, NT_STATUS_LOGON_FAILURE, "LogonSamLogon failed");
-	
-	torture_assert(tctx, netlogon_creds_client_check(creds, &r.out.return_authenticator->cred), 
+
+	torture_assert(tctx, netlogon_creds_client_check(creds, &r.out.return_authenticator->cred),
 		       "Credential chaining failed");
 
 	/* This will break the parsing nicely (even in the crypto wrapping), check we get INVALID_PARAMETER */
@@ -232,36 +322,40 @@ static bool test_PACVerify(struct torture_context *tctx,
 		"LogonSamLogon failed");
 
 	torture_assert_ntstatus_equal(tctx, r.out.result, NT_STATUS_INVALID_PARAMETER, "LogonSamLogon failed");
-	
-	torture_assert(tctx, netlogon_creds_client_check(creds, 
-							 &r.out.return_authenticator->cred), 
+
+	torture_assert(tctx, netlogon_creds_client_check(creds,
+							 &r.out.return_authenticator->cred),
 		       "Credential chaining failed");
 
-	pac_wrapped_struct.ChecksumLength = session_info->torture->pac_srv_sig->signature.length;
-	pac_wrapped_struct.SignatureType = session_info->torture->pac_kdc_sig->type;
-	
+	pac_wrapped_struct.ChecksumLength = pac_data->pac_srv_sig->signature.length;
+	pac_wrapped_struct.SignatureType = pac_data->pac_kdc_sig->type;
+
 	/* Break the SignatureType */
 	pac_wrapped_struct.SignatureType++;
 
-	pac_wrapped_struct.SignatureLength = session_info->torture->pac_kdc_sig->signature.length;
+	pac_wrapped_struct.SignatureLength = pac_data->pac_kdc_sig->signature.length;
 	pac_wrapped_struct.ChecksumAndSignature = payload
-		= data_blob_talloc(tmp_ctx, NULL, 
+		= data_blob_talloc(tmp_ctx, NULL,
 				   pac_wrapped_struct.ChecksumLength
 				   + pac_wrapped_struct.SignatureLength);
-	memcpy(&payload.data[0], 
-	       session_info->torture->pac_srv_sig->signature.data,
+	memcpy(&payload.data[0],
+	       pac_data->pac_srv_sig->signature.data,
 	       pac_wrapped_struct.ChecksumLength);
-	memcpy(&payload.data[pac_wrapped_struct.ChecksumLength], 
-	       session_info->torture->pac_kdc_sig->signature.data,
+	memcpy(&payload.data[pac_wrapped_struct.ChecksumLength],
+	       pac_data->pac_kdc_sig->signature.data,
 	       pac_wrapped_struct.SignatureLength);
-	
+
 	ndr_err = ndr_push_struct_blob(&pac_wrapped, tmp_ctx, &pac_wrapped_struct,
 				       (ndr_push_flags_fn_t)ndr_push_PAC_Validate);
 	torture_assert(tctx, NDR_ERR_CODE_IS_SUCCESS(ndr_err), "ndr_push_struct_blob of PACValidate structure failed");
-	
+
 	torture_assert(tctx, (creds->negotiate_flags & NETLOGON_NEG_ARCFOUR), "not willing to even try a PACValidate without RC4 encryption");
-	netlogon_creds_arcfour_crypt(creds, pac_wrapped.data, pac_wrapped.length);
-	
+	if (creds->negotiate_flags & NETLOGON_NEG_SUPPORTS_AES) {
+		netlogon_creds_aes_encrypt(creds, pac_wrapped.data, pac_wrapped.length);
+	} else {
+		netlogon_creds_arcfour_crypt(creds, pac_wrapped.data, pac_wrapped.length);
+	}
+
 	generic.length = pac_wrapped.length;
 	generic.data = pac_wrapped.data;
 
@@ -276,40 +370,44 @@ static bool test_PACVerify(struct torture_context *tctx,
 	r.in.server_name = talloc_asprintf(tctx, "\\\\%s", dcerpc_server_name(p));
 	r.in.computer_name = cli_credentials_get_workstation(credentials);
 	r.in.validation_level = NetlogonValidationGenericInfo2;
-	
+
 	torture_assert_ntstatus_ok(tctx, dcerpc_netr_LogonSamLogon_r(b, tctx, &r),
 		"LogonSamLogon failed");
-	
+
 	torture_assert_ntstatus_equal(tctx, r.out.result, NT_STATUS_LOGON_FAILURE, "LogonSamLogon failed");
-	
-	torture_assert(tctx, netlogon_creds_client_check(creds, &r.out.return_authenticator->cred), 
+
+	torture_assert(tctx, netlogon_creds_client_check(creds, &r.out.return_authenticator->cred),
 		       "Credential chaining failed");
 
-	pac_wrapped_struct.ChecksumLength = session_info->torture->pac_srv_sig->signature.length;
-	pac_wrapped_struct.SignatureType = session_info->torture->pac_kdc_sig->type;
-	pac_wrapped_struct.SignatureLength = session_info->torture->pac_kdc_sig->signature.length;
+	pac_wrapped_struct.ChecksumLength = pac_data->pac_srv_sig->signature.length;
+	pac_wrapped_struct.SignatureType = pac_data->pac_kdc_sig->type;
+	pac_wrapped_struct.SignatureLength = pac_data->pac_kdc_sig->signature.length;
 
 	pac_wrapped_struct.ChecksumAndSignature = payload
-		= data_blob_talloc(tmp_ctx, NULL, 
+		= data_blob_talloc(tmp_ctx, NULL,
 				   pac_wrapped_struct.ChecksumLength
 				   + pac_wrapped_struct.SignatureLength);
-	memcpy(&payload.data[0], 
-	       session_info->torture->pac_srv_sig->signature.data,
+	memcpy(&payload.data[0],
+	       pac_data->pac_srv_sig->signature.data,
 	       pac_wrapped_struct.ChecksumLength);
-	memcpy(&payload.data[pac_wrapped_struct.ChecksumLength], 
-	       session_info->torture->pac_kdc_sig->signature.data,
+	memcpy(&payload.data[pac_wrapped_struct.ChecksumLength],
+	       pac_data->pac_kdc_sig->signature.data,
 	       pac_wrapped_struct.SignatureLength);
-	
+
 	/* Break the signature length */
 	pac_wrapped_struct.SignatureLength++;
 
 	ndr_err = ndr_push_struct_blob(&pac_wrapped, tmp_ctx, &pac_wrapped_struct,
 				       (ndr_push_flags_fn_t)ndr_push_PAC_Validate);
 	torture_assert(tctx, NDR_ERR_CODE_IS_SUCCESS(ndr_err), "ndr_push_struct_blob of PACValidate structure failed");
-	
+
 	torture_assert(tctx, (creds->negotiate_flags & NETLOGON_NEG_ARCFOUR), "not willing to even try a PACValidate without RC4 encryption");
-	netlogon_creds_arcfour_crypt(creds, pac_wrapped.data, pac_wrapped.length);
-	
+	if (creds->negotiate_flags & NETLOGON_NEG_SUPPORTS_AES) {
+		netlogon_creds_aes_encrypt(creds, pac_wrapped.data, pac_wrapped.length);
+	} else {
+		netlogon_creds_arcfour_crypt(creds, pac_wrapped.data, pac_wrapped.length);
+	}
+
 	generic.length = pac_wrapped.length;
 	generic.data = pac_wrapped.data;
 
@@ -324,30 +422,52 @@ static bool test_PACVerify(struct torture_context *tctx,
 	r.in.server_name = talloc_asprintf(tctx, "\\\\%s", dcerpc_server_name(p));
 	r.in.computer_name = cli_credentials_get_workstation(credentials);
 	r.in.validation_level = NetlogonValidationGenericInfo2;
-	
+
 	torture_assert_ntstatus_ok(tctx, dcerpc_netr_LogonSamLogon_r(b, tctx, &r),
 		"LogonSamLogon failed");
-	
+
 	torture_assert_ntstatus_equal(tctx, r.out.result, NT_STATUS_INVALID_PARAMETER, "LogonSamLogon failed");
-	
-	torture_assert(tctx, netlogon_creds_client_check(creds, &r.out.return_authenticator->cred), 
+
+	torture_assert(tctx, netlogon_creds_client_check(creds, &r.out.return_authenticator->cred),
 		       "Credential chaining failed");
 
 	return true;
 }
 
-static bool test_PACVerify_bdc(struct torture_context *tctx,
-			       struct dcerpc_pipe *p,
-			       struct cli_credentials *credentials)
+static bool test_PACVerify_bdc_arcfour(struct torture_context *tctx,
+				       struct dcerpc_pipe *p,
+				       struct cli_credentials *credentials)
 {
-	return test_PACVerify(tctx, p, credentials, SEC_CHAN_BDC, TEST_MACHINE_NAME_BDC);
+	return test_PACVerify(tctx, p, credentials, SEC_CHAN_BDC,
+			      TEST_MACHINE_NAME_BDC,
+			      NETLOGON_NEG_AUTH2_ADS_FLAGS);
 }
 
-static bool test_PACVerify_workstation(struct torture_context *tctx,
-				  struct dcerpc_pipe *p,
-				  struct cli_credentials *credentials)
+static bool test_PACVerify_bdc_aes(struct torture_context *tctx,
+				   struct dcerpc_pipe *p,
+				   struct cli_credentials *credentials)
 {
-	return test_PACVerify(tctx, p, credentials, SEC_CHAN_WKSTA, TEST_MACHINE_NAME_WKSTA);
+	return test_PACVerify(tctx, p, credentials, SEC_CHAN_BDC,
+			      TEST_MACHINE_NAME_BDC,
+			      NETLOGON_NEG_AUTH2_ADS_FLAGS | NETLOGON_NEG_SUPPORTS_AES);
+}
+
+static bool test_PACVerify_workstation_arcfour(struct torture_context *tctx,
+					       struct dcerpc_pipe *p,
+					       struct cli_credentials *credentials)
+{
+	return test_PACVerify(tctx, p, credentials, SEC_CHAN_WKSTA,
+			      TEST_MACHINE_NAME_WKSTA,
+			      NETLOGON_NEG_AUTH2_ADS_FLAGS);
+}
+
+static bool test_PACVerify_workstation_aes(struct torture_context *tctx,
+					   struct dcerpc_pipe *p,
+					   struct cli_credentials *credentials)
+{
+	return test_PACVerify(tctx, p, credentials, SEC_CHAN_WKSTA,
+			      TEST_MACHINE_NAME_WKSTA,
+			      NETLOGON_NEG_AUTH2_ADS_FLAGS | NETLOGON_NEG_SUPPORTS_AES);
 }
 
 static bool test_PACVerify_workstation_des(struct torture_context *tctx,
@@ -356,6 +476,8 @@ static bool test_PACVerify_workstation_des(struct torture_context *tctx,
 	struct samr_SetUserInfo r;
 	union samr_UserInfo user_info;
 	struct dcerpc_pipe *samr_pipe = torture_join_samr_pipe(join_ctx);
+
+#ifdef AD_DC_BUILD_IS_ENABLED
 	struct smb_krb5_context *smb_krb5_context;
 	krb5_error_code ret;
 
@@ -367,6 +489,9 @@ static bool test_PACVerify_workstation_des(struct torture_context *tctx,
 					 "allow_weak_crypto", NULL) == FALSE) {
 		torture_skip(tctx, "Cannot test DES without [libdefaults] allow_weak_crypto = yes");
 	}
+#else
+	torture_skip(tctx, "Skipping DES test in non-AD DC build");
+#endif
 
 	/* Mark this workstation with DES-only */
 	user_info.info16.acct_flags = ACB_USE_DES_KEY_ONLY | ACB_WSTRUST;
@@ -379,7 +504,9 @@ static bool test_PACVerify_workstation_des(struct torture_context *tctx,
 	torture_assert_ntstatus_ok(tctx, r.out.result,
 		"failed to set DES into account flags");
 
-	return test_PACVerify(tctx, p, credentials, SEC_CHAN_WKSTA, TEST_MACHINE_NAME_WKSTA_DES);
+	return test_PACVerify(tctx, p, credentials, SEC_CHAN_WKSTA,
+			      TEST_MACHINE_NAME_WKSTA_DES,
+			      NETLOGON_NEG_AUTH2_ADS_FLAGS);
 }
 
 
@@ -388,7 +515,8 @@ static bool test_S2U4Self(struct torture_context *tctx,
 			  struct dcerpc_pipe *p,
 			  struct cli_credentials *credentials,
 			  enum netr_SchannelType secure_channel_type,
-			  const char *test_machine_name)
+			  const char *test_machine_name,
+			  uint32_t negotiate_flags)
 {
 	NTSTATUS status;
 	struct dcerpc_binding_handle *b = p->binding_handle;
@@ -407,6 +535,7 @@ static bool test_S2U4Self(struct torture_context *tctx,
 	struct gensec_security *gensec_client_context;
 	struct gensec_security *gensec_server_context;
 
+	struct auth4_context *auth_context;
 	struct auth_session_info *kinit_session_info;
 	struct auth_session_info *s2u4self_session_info;
 	struct auth_user_info_dc *netlogon_user_info_dc;
@@ -422,9 +551,18 @@ static bool test_S2U4Self(struct torture_context *tctx,
 
 	torture_assert(tctx, tmp_ctx != NULL, "talloc_new() failed");
 
+	torture_comment(tctx,
+		"Testing S4U2SELF (secure_channel_type: %d, machine: %s, negotiate_flags: 0x%08x\n",
+		secure_channel_type, test_machine_name, negotiate_flags);
+
+	auth_context = talloc_zero(tmp_ctx, struct auth4_context);
+	torture_assert(tctx, auth_context != NULL, "talloc_new() failed");
+
+	auth_context->generate_session_info_pac = test_generate_session_info_pac;
+
 	/* First, do a normal Kerberos connection */
 
-	status = gensec_client_start(tctx, &gensec_client_context, tctx->ev,
+	status = gensec_client_start(tctx, &gensec_client_context,
 				     lpcfg_gensec_settings(tctx, tctx->lp_ctx));
 	torture_assert_ntstatus_ok(tctx, status, "gensec_client_start (client) failed");
 
@@ -436,9 +574,9 @@ static bool test_S2U4Self(struct torture_context *tctx,
 	status = gensec_start_mech_by_sasl_name(gensec_client_context, "GSSAPI");
 	torture_assert_ntstatus_ok(tctx, status, "gensec_start_mech_by_sasl_name (client) failed");
 
-	status = gensec_server_start(tctx, tctx->ev,
+	status = gensec_server_start(tctx,
 				     lpcfg_gensec_settings(tctx, tctx->lp_ctx),
-				     NULL, &gensec_server_context);
+				     auth_context, &gensec_server_context);
 	torture_assert_ntstatus_ok(tctx, status, "gensec_server_start (server) failed");
 
 	status = gensec_set_credentials(gensec_server_context, credentials);
@@ -451,12 +589,12 @@ static bool test_S2U4Self(struct torture_context *tctx,
 
 	do {
 		/* Do a client-server update dance */
-		status = gensec_update(gensec_client_context, tmp_ctx, server_to_client, &client_to_server);
+		status = gensec_update(gensec_client_context, tmp_ctx, tctx->ev, server_to_client, &client_to_server);
 		if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {;
 			torture_assert_ntstatus_ok(tctx, status, "gensec_update (client) failed");
 		}
 
-		status = gensec_update(gensec_server_context, tmp_ctx, client_to_server, &server_to_client);
+		status = gensec_update(gensec_server_context, tmp_ctx, tctx->ev, client_to_server, &server_to_client);
 		if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {;
 			torture_assert_ntstatus_ok(tctx, status, "gensec_update (server) failed");
 		}
@@ -468,7 +606,7 @@ static bool test_S2U4Self(struct torture_context *tctx,
 
 	/* Extract the PAC using Samba's code */
 
-	status = gensec_session_info(gensec_server_context, &kinit_session_info);
+	status = gensec_session_info(gensec_server_context, gensec_server_context, &kinit_session_info);
 	torture_assert_ntstatus_ok(tctx, status, "gensec_session_info failed");
 
 
@@ -476,10 +614,11 @@ static bool test_S2U4Self(struct torture_context *tctx,
 
 	/* Wipe out any existing ccache */
 	cli_credentials_invalidate_ccache(credentials, CRED_SPECIFIED);
-	cli_credentials_set_target_service(credentials, talloc_asprintf(tmp_ctx, "host/%s", test_machine_name));
-	cli_credentials_set_impersonate_principal(credentials, cli_credentials_get_principal(cmdline_credentials, tmp_ctx));
+	cli_credentials_set_impersonate_principal(credentials,
+			cli_credentials_get_principal(cmdline_credentials, tmp_ctx),
+			talloc_asprintf(tmp_ctx, "host/%s", test_machine_name));
 
-	status = gensec_client_start(tctx, &gensec_client_context, tctx->ev,
+	status = gensec_client_start(tctx, &gensec_client_context,
 				     lpcfg_gensec_settings(tctx, tctx->lp_ctx));
 	torture_assert_ntstatus_ok(tctx, status, "gensec_client_start (client) failed");
 
@@ -492,9 +631,9 @@ static bool test_S2U4Self(struct torture_context *tctx,
 	status = gensec_start_mech_by_sasl_name(gensec_client_context, "GSSAPI");
 	torture_assert_ntstatus_ok(tctx, status, "gensec_start_mech_by_sasl_name (client) failed");
 
-	status = gensec_server_start(tctx, tctx->ev,
+	status = gensec_server_start(tctx,
 				     lpcfg_gensec_settings(tctx, tctx->lp_ctx),
-				     NULL, &gensec_server_context);
+				     auth_context, &gensec_server_context);
 	torture_assert_ntstatus_ok(tctx, status, "gensec_server_start (server) failed");
 
 	status = gensec_set_credentials(gensec_server_context, credentials);
@@ -507,12 +646,12 @@ static bool test_S2U4Self(struct torture_context *tctx,
 
 	do {
 		/* Do a client-server update dance */
-		status = gensec_update(gensec_client_context, tmp_ctx, server_to_client, &client_to_server);
+		status = gensec_update(gensec_client_context, tmp_ctx, tctx->ev, server_to_client, &client_to_server);
 		if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {;
 			torture_assert_ntstatus_ok(tctx, status, "gensec_update (client) failed");
 		}
 
-		status = gensec_update(gensec_server_context, tmp_ctx, client_to_server, &server_to_client);
+		status = gensec_update(gensec_server_context, tmp_ctx, tctx->ev, client_to_server, &server_to_client);
 		if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {;
 			torture_assert_ntstatus_ok(tctx, status, "gensec_update (server) failed");
 		}
@@ -525,11 +664,11 @@ static bool test_S2U4Self(struct torture_context *tctx,
 	/* Don't pollute the remaining tests with the changed credentials */
 	cli_credentials_invalidate_ccache(credentials, CRED_SPECIFIED);
 	cli_credentials_set_target_service(credentials, NULL);
-	cli_credentials_set_impersonate_principal(credentials, NULL);
+	cli_credentials_set_impersonate_principal(credentials, NULL, NULL);
 
 	/* Extract the PAC using Samba's code */
 
-	status = gensec_session_info(gensec_server_context, &s2u4self_session_info);
+	status = gensec_session_info(gensec_server_context, gensec_server_context, &s2u4self_session_info);
 	torture_assert_ntstatus_ok(tctx, status, "gensec_session_info failed");
 
 	cli_credentials_get_ntlm_username_domain(cmdline_credentials, tctx,
@@ -570,12 +709,12 @@ static bool test_S2U4Self(struct torture_context *tctx,
 	r.in.computer_name = cli_credentials_get_workstation(credentials);
 	r.in.credential = &auth;
 	r.in.return_authenticator = &auth2;
-	r.in.logon_level = 2;
+	r.in.logon_level = NetlogonNetworkInformation;
 	r.in.logon = &logon;
 	r.out.validation = &validation;
 	r.out.authoritative = &authoritative;
 
-	if (!test_SetupCredentials2(p, tctx, NETLOGON_NEG_AUTH2_ADS_FLAGS,
+	if (!test_SetupCredentials2(p, tctx, negotiate_flags,
 				    credentials, secure_channel_type,
 				    &creds)) {
 		return false;
@@ -597,6 +736,7 @@ static bool test_S2U4Self(struct torture_context *tctx,
 						      ninfo.identity_info.account_name.string,
 						      r.in.validation_level,
 						      r.out.validation,
+							  true, /* This user was authenticated */
 						      &netlogon_user_info_dc);
 
 	torture_assert_ntstatus_ok(tctx, status, "make_user_info_dc_netlogon_validation failed");
@@ -623,18 +763,40 @@ static bool test_S2U4Self(struct torture_context *tctx,
 	return true;
 }
 
-static bool test_S2U4Self_bdc(struct torture_context *tctx,
-			       struct dcerpc_pipe *p,
-			       struct cli_credentials *credentials)
+static bool test_S2U4Self_bdc_arcfour(struct torture_context *tctx,
+				      struct dcerpc_pipe *p,
+				      struct cli_credentials *credentials)
 {
-	return test_S2U4Self(tctx, p, credentials, SEC_CHAN_BDC, TEST_MACHINE_NAME_S2U4SELF_BDC);
+	return test_S2U4Self(tctx, p, credentials, SEC_CHAN_BDC,
+			     TEST_MACHINE_NAME_S2U4SELF_BDC,
+			     NETLOGON_NEG_AUTH2_ADS_FLAGS);
 }
 
-static bool test_S2U4Self_workstation(struct torture_context *tctx,
+static bool test_S2U4Self_bdc_aes(struct torture_context *tctx,
 				  struct dcerpc_pipe *p,
 				  struct cli_credentials *credentials)
 {
-	return test_S2U4Self(tctx, p, credentials, SEC_CHAN_WKSTA, TEST_MACHINE_NAME_S2U4SELF_WKSTA);
+	return test_S2U4Self(tctx, p, credentials, SEC_CHAN_BDC,
+			     TEST_MACHINE_NAME_S2U4SELF_BDC,
+			     NETLOGON_NEG_AUTH2_ADS_FLAGS | NETLOGON_NEG_SUPPORTS_AES);
+}
+
+static bool test_S2U4Self_workstation_arcfour(struct torture_context *tctx,
+					      struct dcerpc_pipe *p,
+					      struct cli_credentials *credentials)
+{
+	return test_S2U4Self(tctx, p, credentials, SEC_CHAN_WKSTA,
+			     TEST_MACHINE_NAME_S2U4SELF_WKSTA,
+			     NETLOGON_NEG_AUTH2_ADS_FLAGS);
+}
+
+static bool test_S2U4Self_workstation_aes(struct torture_context *tctx,
+					  struct dcerpc_pipe *p,
+					  struct cli_credentials *credentials)
+{
+	return test_S2U4Self(tctx, p, credentials, SEC_CHAN_WKSTA,
+			     TEST_MACHINE_NAME_S2U4SELF_WKSTA,
+			     NETLOGON_NEG_AUTH2_ADS_FLAGS | NETLOGON_NEG_SUPPORTS_AES);
 }
 
 struct torture_suite *torture_rpc_remote_pac(TALLOC_CTX *mem_ctx)
@@ -643,25 +805,41 @@ struct torture_suite *torture_rpc_remote_pac(TALLOC_CTX *mem_ctx)
 	struct torture_rpc_tcase *tcase;
 
 	/* It is important to use different names, so that old entries in our credential cache are not used */
-	tcase = torture_suite_add_machine_bdc_rpc_iface_tcase(suite, "netlogon-bdc",
+	tcase = torture_suite_add_machine_bdc_rpc_iface_tcase(suite, "netr-bdc-arcfour",
 							      &ndr_table_netlogon, TEST_MACHINE_NAME_BDC);
-	torture_rpc_tcase_add_test_creds(tcase, "verify-sig", test_PACVerify_bdc);
+	torture_rpc_tcase_add_test_creds(tcase, "verify-sig-arcfour", test_PACVerify_bdc_arcfour);
 
-	tcase = torture_suite_add_machine_workstation_rpc_iface_tcase(suite, "netlogon-member",
+	tcase = torture_suite_add_machine_bdc_rpc_iface_tcase(suite, "netr-bdc-aes",
+							      &ndr_table_netlogon, TEST_MACHINE_NAME_BDC);
+	torture_rpc_tcase_add_test_creds(tcase, "verify-sig-aes", test_PACVerify_bdc_aes);
+
+	tcase = torture_suite_add_machine_workstation_rpc_iface_tcase(suite, "netr-mem-arcfour",
 								      &ndr_table_netlogon, TEST_MACHINE_NAME_WKSTA);
-	torture_rpc_tcase_add_test_creds(tcase, "verify-sig", test_PACVerify_workstation);
+	torture_rpc_tcase_add_test_creds(tcase, "verify-sig-arcfour", test_PACVerify_workstation_arcfour);
+
+	tcase = torture_suite_add_machine_workstation_rpc_iface_tcase(suite, "netr-mem-aes",
+								      &ndr_table_netlogon, TEST_MACHINE_NAME_WKSTA);
+	torture_rpc_tcase_add_test_creds(tcase, "verify-sig-aes", test_PACVerify_workstation_aes);
 
 	tcase = torture_suite_add_machine_workstation_rpc_iface_tcase(suite, "netlogon-member-des",
 								      &ndr_table_netlogon, TEST_MACHINE_NAME_WKSTA_DES);
 	torture_rpc_tcase_add_test_join(tcase, "verify-sig", test_PACVerify_workstation_des);
 
-	tcase = torture_suite_add_machine_bdc_rpc_iface_tcase(suite, "netlogon-bdc",
+	tcase = torture_suite_add_machine_bdc_rpc_iface_tcase(suite, "netr-bdc-arcfour",
 							      &ndr_table_netlogon, TEST_MACHINE_NAME_S2U4SELF_BDC);
-	torture_rpc_tcase_add_test_creds(tcase, "s2u4self", test_S2U4Self_bdc);
+	torture_rpc_tcase_add_test_creds(tcase, "s2u4self-arcfour", test_S2U4Self_bdc_arcfour);
 
-	tcase = torture_suite_add_machine_workstation_rpc_iface_tcase(suite, "netlogon-member",
+	tcase = torture_suite_add_machine_bdc_rpc_iface_tcase(suite, "netr-bcd-aes",
+							      &ndr_table_netlogon, TEST_MACHINE_NAME_S2U4SELF_BDC);
+	torture_rpc_tcase_add_test_creds(tcase, "s2u4self-aes", test_S2U4Self_bdc_aes);
+
+	tcase = torture_suite_add_machine_workstation_rpc_iface_tcase(suite, "netr-mem-arcfour",
 								      &ndr_table_netlogon, TEST_MACHINE_NAME_S2U4SELF_WKSTA);
+	torture_rpc_tcase_add_test_creds(tcase, "s2u4self-arcfour", test_S2U4Self_workstation_arcfour);
 
-	torture_rpc_tcase_add_test_creds(tcase, "s2u4self", test_S2U4Self_workstation);
+	tcase = torture_suite_add_machine_workstation_rpc_iface_tcase(suite, "netr-mem-aes",
+								      &ndr_table_netlogon, TEST_MACHINE_NAME_S2U4SELF_WKSTA);
+	torture_rpc_tcase_add_test_creds(tcase, "s2u4self-aes", test_S2U4Self_workstation_aes);
+
 	return suite;
 }

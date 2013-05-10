@@ -42,7 +42,7 @@ static WERROR fill_dsrole_dominfo_basic(TALLOC_CTX *ctx,
 
 	DEBUG(10,("fill_dsrole_dominfo_basic: enter\n"));
 
-	basic = TALLOC_ZERO_P(ctx, struct dssetup_DsRolePrimaryDomInfoBasic);
+	basic = talloc_zero(ctx, struct dssetup_DsRolePrimaryDomInfoBasic);
 	if (!basic) {
 		DEBUG(0,("fill_dsrole_dominfo_basic: out of memory\n"));
 		return WERR_NOMEM;
@@ -78,7 +78,9 @@ static WERROR fill_dsrole_dominfo_basic(TALLOC_CTX *ctx,
 		if (!dnsdomain) {
 			return WERR_NOMEM;
 		}
-		strlower_m(dnsdomain);
+		if (!strlower_m(dnsdomain)) {
+			return WERR_INVALID_PARAM;
+		}
 		basic->dns_domain = dnsdomain;
 
 		/* FIXME!! We really should fill in the correct forest
@@ -130,7 +132,7 @@ WERROR _dssetup_DsRoleGetPrimaryDomainInformation(struct pipes_struct *p,
 WERROR _dssetup_DsRoleDnsNameToFlatName(struct pipes_struct *p,
 					struct dssetup_DsRoleDnsNameToFlatName *r)
 {
-	p->rng_fault_state = true;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
@@ -140,7 +142,7 @@ WERROR _dssetup_DsRoleDnsNameToFlatName(struct pipes_struct *p,
 WERROR _dssetup_DsRoleDcAsDc(struct pipes_struct *p,
 			     struct dssetup_DsRoleDcAsDc *r)
 {
-	p->rng_fault_state = true;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
@@ -150,7 +152,7 @@ WERROR _dssetup_DsRoleDcAsDc(struct pipes_struct *p,
 WERROR _dssetup_DsRoleDcAsReplica(struct pipes_struct *p,
 				  struct dssetup_DsRoleDcAsReplica *r)
 {
-	p->rng_fault_state = true;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
@@ -160,7 +162,7 @@ WERROR _dssetup_DsRoleDcAsReplica(struct pipes_struct *p,
 WERROR _dssetup_DsRoleDemoteDc(struct pipes_struct *p,
 			       struct dssetup_DsRoleDemoteDc *r)
 {
-	p->rng_fault_state = true;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
@@ -170,7 +172,7 @@ WERROR _dssetup_DsRoleDemoteDc(struct pipes_struct *p,
 WERROR _dssetup_DsRoleGetDcOperationProgress(struct pipes_struct *p,
 					     struct dssetup_DsRoleGetDcOperationProgress *r)
 {
-	p->rng_fault_state = true;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
@@ -180,7 +182,7 @@ WERROR _dssetup_DsRoleGetDcOperationProgress(struct pipes_struct *p,
 WERROR _dssetup_DsRoleGetDcOperationResults(struct pipes_struct *p,
 					    struct dssetup_DsRoleGetDcOperationResults *r)
 {
-	p->rng_fault_state = true;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
@@ -190,7 +192,7 @@ WERROR _dssetup_DsRoleGetDcOperationResults(struct pipes_struct *p,
 WERROR _dssetup_DsRoleCancel(struct pipes_struct *p,
 			     struct dssetup_DsRoleCancel *r)
 {
-	p->rng_fault_state = true;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
@@ -200,7 +202,7 @@ WERROR _dssetup_DsRoleCancel(struct pipes_struct *p,
 WERROR _dssetup_DsRoleServerSaveStateForUpgrade(struct pipes_struct *p,
 						struct dssetup_DsRoleServerSaveStateForUpgrade *r)
 {
-	p->rng_fault_state = true;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
@@ -210,7 +212,7 @@ WERROR _dssetup_DsRoleServerSaveStateForUpgrade(struct pipes_struct *p,
 WERROR _dssetup_DsRoleUpgradeDownlevelServer(struct pipes_struct *p,
 					     struct dssetup_DsRoleUpgradeDownlevelServer *r)
 {
-	p->rng_fault_state = true;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
@@ -220,6 +222,6 @@ WERROR _dssetup_DsRoleUpgradeDownlevelServer(struct pipes_struct *p,
 WERROR _dssetup_DsRoleAbortDownlevelServerUpgrade(struct pipes_struct *p,
 						  struct dssetup_DsRoleAbortDownlevelServerUpgrade *r)
 {
-	p->rng_fault_state = true;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }

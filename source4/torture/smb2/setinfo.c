@@ -51,7 +51,6 @@ bool torture_smb2_setinfo(struct torture_context *tctx)
 	bool ret = true;
 	struct smb2_handle handle;
 	char *fname;
-	char *fname_new;
 	union smb_fileinfo finfo2;
 	union smb_setfileinfo sfinfo;
 	struct security_ace ace;
@@ -65,7 +64,6 @@ bool torture_smb2_setinfo(struct torture_context *tctx)
 	ZERO_STRUCT(handle);
 	
 	fname = talloc_asprintf(tctx, BASEDIR "fnum_test_%d.txt", n);
-	fname_new = talloc_asprintf(tctx, BASEDIR "fnum_test_new_%d.txt", n);
 
 	if (!torture_smb2_connection(tctx, &tree)) {
 		return false;
@@ -75,7 +73,7 @@ bool torture_smb2_setinfo(struct torture_context *tctx)
 	smb2_util_close(tree, handle); \
 	status = smb2_create_complex_file(tree, fname, &handle); \
 	if (!NT_STATUS_IS_OK(status)) { \
-		torture_result(tctx, TORTURE_ERROR, "(%s) ERROR: open of %s failed (%s)\n", \
+		torture_result(tctx, TORTURE_FAIL, "(%s) ERROR: open of %s failed (%s)\n", \
 		       __location__, fname, nt_errstr(status)); \
 		ret = false; \
 		goto done; \

@@ -23,23 +23,20 @@
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_QUOTA
 
-#ifndef HAVE_SYS_QUOTAS
-#ifdef HAVE_XFS_QUOTAS
-#undef HAVE_XFS_QUOTAS
-#endif
-#endif
+#if defined(HAVE_SYS_QUOTAS) && defined(HAVE_XFS_QUOTAS)
 
-#ifdef HAVE_XFS_QUOTAS
-
-#ifdef HAVE_LINUX_XFS_QUOTAS
-#include "samba_linux_quota.h"
-#ifdef HAVE_LINUX_DQBLK_XFS_H
-#include <linux/dqblk_xfs.h>
-#endif
-#define HAVE_GROUP_QUOTA
-#else /* IRIX */
+#ifdef HAVE_SYS_QUOTA_H
 #include <sys/quota.h> 
 #endif
+
+/* this one should actually come from glibc: */
+/* #include "samba_linux_quota.h" */
+
+#ifdef HAVE_XFS_XQM_H
+#include <xfs/xqm.h>
+#endif
+
+#define HAVE_GROUP_QUOTA
 
 /* on IRIX */
 #ifndef Q_XQUOTAON

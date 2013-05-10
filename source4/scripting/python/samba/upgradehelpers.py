@@ -1,7 +1,5 @@
-#!/usr/bin/env python
-#
 # Helpers for provision stuff
-# Copyright (C) Matthieu Patou <mat@matws.net> 2009-2010
+# Copyright (C) Matthieu Patou <mat@matws.net> 2009-2012
 #
 # Based on provision a Samba4 server by
 # Copyright (C) Jelmer Vernooij <jelmer@samba.org> 2007-2008
@@ -21,26 +19,26 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""Helers used for upgrading between different database formats."""
+"""Helpers used for upgrading between different database formats."""
 
 import os
-import string
 import re
 import shutil
 import samba
 
 from samba import Ldb, version, ntacls
-from samba.dsdb import DS_DOMAIN_FUNCTION_2000
 from ldb import SCOPE_SUBTREE, SCOPE_ONELEVEL, SCOPE_BASE
 import ldb
-from samba.provision import (ProvisionNames, provision_paths_from_lp,
+from samba.provision import (provision_paths_from_lp,
                             getpolicypath, set_gpos_acl, create_gpo_struct,
                             FILL_FULL, provision, ProvisioningError,
                             setsysvolacl, secretsdb_self_join)
-from samba.dcerpc import misc, security, xattr
+from samba.dcerpc import xattr, drsblobs
 from samba.dcerpc.misc import SEC_CHAN_BDC
 from samba.ndr import ndr_unpack
 from samba.samdb import SamDB
+from samba import _glue
+import tempfile
 
 # All the ldb related to registry are commented because the path for them is
 # relative in the provisionPath object
@@ -77,11 +75,12 @@ class ProvisionLDB(object):
         self.hku = None
         self.hklm = None
 
+    def dbs(self):
+        return (self.sam, self.secrets, self.idmap, self.privilege)
+
     def startTransactions(self):
-        self.sam.transaction_start()
-        self.secrets.transaction_start()
-        self.idmap.transaction_start()
-        self.privilege.transaction_start()
+        for db in self.dbs():
+            db.transaction_start()
 # TO BE DONE
 #        self.hkcr.transaction_start()
 #        self.hkcu.transaction_start()
@@ -90,26 +89,11 @@ class ProvisionLDB(object):
 
     def groupedRollback(self):
         ok = True
-        try:
-            self.sam.transaction_cancel()
-        except Exception:
-            ok = False
-
-        try:
-            self.secrets.transaction_cancel()
-        except Exception:
-            ok = False
-
-        try:
-            self.idmap.transaction_cancel()
-        except Exception:
-            ok = False
-
-        try:
-            self.privilege.transaction_cancel()
-        except Exception:
-            ok = False
-
+        for db in self.dbs():
+            try:
+                db.transaction_cancel()
+            except Exception:
+                ok = False
         return ok
 # TO BE DONE
 #        self.hkcr.transaction_cancel()
@@ -119,10 +103,8 @@ class ProvisionLDB(object):
 
     def groupedCommit(self):
         try:
-            self.sam.transaction_prepare_commit()
-            self.secrets.transaction_prepare_commit()
-            self.idmap.transaction_prepare_commit()
-            self.privilege.transaction_prepare_commit()
+            for db in self.dbs():
+                db.transaction_prepare_commit()
         except Exception:
             return self.groupedRollback()
 # TO BE DONE
@@ -131,10 +113,8 @@ class ProvisionLDB(object):
 #        self.hku.transaction_prepare_commit()
 #        self.hklm.transaction_prepare_commit()
         try:
-            self.sam.transaction_commit()
-            self.secrets.transaction_commit()
-            self.idmap.transaction_commit()
-            self.privilege.transaction_commit()
+            for db in self.dbs():
+                db.transaction_commit()
         except Exception:
             return self.groupedRollback()
 
@@ -144,6 +124,7 @@ class ProvisionLDB(object):
 #        self.hku.transaction_commit()
 #        self.hklm.transaction_commit()
         return True
+
 
 def get_ldbs(paths, creds, session, lp):
     """Return LDB object mapped on most important databases
@@ -205,6 +186,8 @@ def get_paths(param, targetdir=None, smbconf=None):
     :param smbconf: Path to the smb.conf file
     :return: A list with the path of important provision objects"""
     if targetdir is not None:
+        if not os.path.exists(targetdir):
+            os.mkdir(targetdir)
         etcdir = os.path.join(targetdir, "etc")
         if not os.path.exists(etcdir):
             os.makedirs(etcdir)
@@ -242,112 +225,6 @@ def update_policyids(names, samdb):
         names.policyid_dc = None
 
 
-def find_provision_key_parameters(samdb, secretsdb, idmapdb, paths, smbconf, lp):
-    """Get key provision parameters (realm, domain, ...) from a given provision
-
-    :param samdb: An LDB object connected to the sam.ldb file
-    :param secretsdb: An LDB object connected to the secrets.ldb file
-    :param idmapdb: An LDB object connected to the idmap.ldb file
-    :param paths: A list of path to provision object
-    :param smbconf: Path to the smb.conf file
-    :param lp: A LoadParm object
-    :return: A list of key provision parameters
-    """
-    names = ProvisionNames()
-    names.adminpass = None
-
-    # NT domain, kerberos realm, root dn, domain dn, domain dns name
-    names.domain = string.upper(lp.get("workgroup"))
-    names.realm = lp.get("realm")
-    basedn = "DC=" + names.realm.replace(".",",DC=")
-    names.dnsdomain = names.realm.lower()
-    names.realm = string.upper(names.realm)
-    # netbiosname
-    # Get the netbiosname first (could be obtained from smb.conf in theory)
-    res = secretsdb.search(expression="(flatname=%s)" %
-                            names.domain,base="CN=Primary Domains",
-                            scope=SCOPE_SUBTREE, attrs=["sAMAccountName"])
-    names.netbiosname = str(res[0]["sAMAccountName"]).replace("$","")
-
-    names.smbconf = smbconf
-
-    # That's a bit simplistic but it's ok as long as we have only 3
-    # partitions
-    current = samdb.search(expression="(objectClass=*)", 
-        base="", scope=SCOPE_BASE,
-        attrs=["defaultNamingContext", "schemaNamingContext",
-               "configurationNamingContext","rootDomainNamingContext"])
-
-    names.configdn = current[0]["configurationNamingContext"]
-    configdn = str(names.configdn)
-    names.schemadn = current[0]["schemaNamingContext"]
-    if not (ldb.Dn(samdb, basedn) == (ldb.Dn(samdb,
-                                       current[0]["defaultNamingContext"][0]))):
-        raise ProvisioningError(("basedn in %s (%s) and from %s (%s)"
-                                 "is not the same ..." % (paths.samdb,
-                                    str(current[0]["defaultNamingContext"][0]),
-                                    paths.smbconf, basedn)))
-
-    names.domaindn=current[0]["defaultNamingContext"]
-    names.rootdn=current[0]["rootDomainNamingContext"]
-    # default site name
-    res3 = samdb.search(expression="(objectClass=*)", 
-        base="CN=Sites," + configdn, scope=SCOPE_ONELEVEL, attrs=["cn"])
-    names.sitename = str(res3[0]["cn"])
-
-    # dns hostname and server dn
-    res4 = samdb.search(expression="(CN=%s)" % names.netbiosname,
-                            base="OU=Domain Controllers,%s" % basedn,
-                            scope=SCOPE_ONELEVEL, attrs=["dNSHostName"])
-    names.hostname = str(res4[0]["dNSHostName"]).replace("." + names.dnsdomain,"")
-
-    server_res = samdb.search(expression="serverReference=%s" % res4[0].dn,
-                                attrs=[], base=configdn)
-    names.serverdn = server_res[0].dn
-
-    # invocation id/objectguid
-    res5 = samdb.search(expression="(objectClass=*)",
-            base="CN=NTDS Settings,%s" % str(names.serverdn), scope=SCOPE_BASE,
-            attrs=["invocationID", "objectGUID"])
-    names.invocation = str(ndr_unpack(misc.GUID, res5[0]["invocationId"][0]))
-    names.ntdsguid = str(ndr_unpack(misc.GUID, res5[0]["objectGUID"][0]))
-
-    # domain guid/sid
-    res6 = samdb.search(expression="(objectClass=*)", base=basedn,
-            scope=SCOPE_BASE, attrs=["objectGUID",
-                "objectSid","msDS-Behavior-Version" ])
-    names.domainguid = str(ndr_unpack(misc.GUID, res6[0]["objectGUID"][0]))
-    names.domainsid = ndr_unpack( security.dom_sid, res6[0]["objectSid"][0])
-    if res6[0].get("msDS-Behavior-Version") is None or \
-        int(res6[0]["msDS-Behavior-Version"][0]) < DS_DOMAIN_FUNCTION_2000:
-        names.domainlevel = DS_DOMAIN_FUNCTION_2000
-    else:
-        names.domainlevel = int(res6[0]["msDS-Behavior-Version"][0])
-
-    # policy guid
-    res7 = samdb.search(expression="(displayName=Default Domain Policy)",
-                        base="CN=Policies,CN=System," + basedn,
-                        scope=SCOPE_ONELEVEL, attrs=["cn","displayName"])
-    names.policyid = str(res7[0]["cn"]).replace("{","").replace("}","")
-    # dc policy guid
-    res8 = samdb.search(expression="(displayName=Default Domain Controllers"
-                                   " Policy)",
-                            base="CN=Policies,CN=System," + basedn,
-                            scope=SCOPE_ONELEVEL, attrs=["cn","displayName"])
-    if len(res8) == 1:
-        names.policyid_dc = str(res8[0]["cn"]).replace("{","").replace("}","")
-    else:
-        names.policyid_dc = None
-    res9 = idmapdb.search(expression="(cn=%s)" %
-                            (security.SID_BUILTIN_ADMINISTRATORS),
-                            attrs=["xidNumber"])
-    if len(res9) == 1:
-        names.wheel_gid = res9[0]["xidNumber"]
-    else:
-        raise ProvisioningError("Unable to find uid/gid for Domain Admins rid")
-    return names
-
-
 def newprovision(names, creds, session, smbconf, provdir, logger):
     """Create a new provision.
 
@@ -365,7 +242,8 @@ def newprovision(names, creds, session, smbconf, provdir, logger):
         shutil.rmtree(provdir)
     os.mkdir(provdir)
     logger.info("Provision stored in %s", provdir)
-    provision(logger, session, creds, smbconf=smbconf,
+    dns_backend="BIND9_DLZ"
+    return provision(logger, session, creds, smbconf=smbconf,
             targetdir=provdir, samdb_fill=FILL_FULL, realm=names.realm,
             domain=names.domain, domainguid=names.domainguid,
             domainsid=str(names.domainsid), ntdsguid=names.ntdsguid,
@@ -373,12 +251,12 @@ def newprovision(names, creds, session, smbconf, provdir, logger):
             hostname=names.netbiosname.lower(), hostip=None, hostip6=None,
             invocationid=names.invocation, adminpass=names.adminpass,
             krbtgtpass=None, machinepass=None, dnspass=None, root=None,
-            nobody=None, wheel=None, users=None,
-            serverrole="domain controller", ldap_backend_extra_port=None,
+            nobody=None, users=None,
+            serverrole="domain controller",
             backend_type=None, ldapadminpass=None, ol_mmr_urls=None,
-            slapd_path=None, setup_ds_path=None, nosync=None,
-            dom_for_fun_level=names.domainlevel,
-            ldap_dryrun_mode=None, useeadb=True)
+            slapd_path=None,
+            dom_for_fun_level=names.domainlevel, dns_backend=dns_backend,
+            useeadb=True, use_ntvfs=True)
 
 
 def dn_sort(x, y):
@@ -469,7 +347,7 @@ def chunck_sddl(sddl):
     return hash
 
 
-def get_diff_sddls(refsddl, cursddl):
+def get_diff_sddls(refsddl, cursddl, checkSacl = True):
     """Get the difference between 2 sddl
 
     This function split the textual representation of ACL into smaller
@@ -477,46 +355,54 @@ def get_diff_sddls(refsddl, cursddl):
 
     :param refsddl: First sddl to compare
     :param cursddl: Second sddl to compare
+    :param checkSacl: If false we skip the sacl checks
     :return: A string that explain difference between sddls
     """
 
     txt = ""
-    hash_new = chunck_sddl(cursddl)
+    hash_cur = chunck_sddl(cursddl)
     hash_ref = chunck_sddl(refsddl)
 
-    if hash_new["owner"] != hash_ref["owner"]:
+    if not hash_cur.has_key("owner"):
+        txt = "\tNo owner in current SD"
+    elif hash_cur["owner"] != hash_ref["owner"]:
         txt = "\tOwner mismatch: %s (in ref) %s" \
-              "(in current)\n" % (hash_ref["owner"], hash_new["owner"])
+              "(in current)\n" % (hash_ref["owner"], hash_cur["owner"])
 
-    if hash_new["group"] != hash_ref["group"]:
+    if not hash_cur.has_key("group"):
+        txt = "%s\tNo group in current SD" % txt
+    elif hash_cur["group"] != hash_ref["group"]:
         txt = "%s\tGroup mismatch: %s (in ref) %s" \
-              "(in current)\n" % (txt, hash_ref["group"], hash_new["group"])
+              "(in current)\n" % (txt, hash_ref["group"], hash_cur["group"])
 
-    for part in ["dacl", "sacl"]:
-        if hash_new.has_key(part) and hash_ref.has_key(part):
+    parts = [ "dacl" ]
+    if checkSacl:
+        parts.append("sacl")
+    for part in parts:
+        if hash_cur.has_key(part) and hash_ref.has_key(part):
 
             # both are present, check if they contain the same ACE
-            h_new = set()
+            h_cur = set()
             h_ref = set()
-            c_new = chunck_acl(hash_new[part])
+            c_cur = chunck_acl(hash_cur[part])
             c_ref = chunck_acl(hash_ref[part])
 
-            for elem in c_new["aces"]:
-                h_new.add(elem)
+            for elem in c_cur["aces"]:
+                h_cur.add(elem)
 
             for elem in c_ref["aces"]:
                 h_ref.add(elem)
 
             for k in set(h_ref):
-                if k in h_new:
-                    h_new.remove(k)
+                if k in h_cur:
+                    h_cur.remove(k)
                     h_ref.remove(k)
 
-            if len(h_new) + len(h_ref) > 0:
+            if len(h_cur) + len(h_ref) > 0:
                 txt = "%s\tPart %s is different between reference" \
                       " and current here is the detail:\n" % (txt, part)
 
-                for item in h_new:
+                for item in h_cur:
                     txt = "%s\t\t%s ACE is not present in the" \
                           " reference\n" % (txt, item)
 
@@ -524,9 +410,9 @@ def get_diff_sddls(refsddl, cursddl):
                     txt = "%s\t\t%s ACE is not present in the" \
                           " current\n" % (txt, item)
 
-        elif hash_new.has_key(part) and not hash_ref.has_key(part):
+        elif hash_cur.has_key(part) and not hash_ref.has_key(part):
             txt = "%s\tReference ACL hasn't a %s part\n" % (txt, part)
-        elif not hash_new.has_key(part) and hash_ref.has_key(part):
+        elif not hash_cur.has_key(part) and hash_ref.has_key(part):
             txt = "%s\tCurrent ACL hasn't a %s part\n" % (txt, part)
 
     return txt
@@ -541,11 +427,9 @@ def update_secrets(newsecrets_ldb, secrets_ldb, messagefunc):
         of the updated provision
     """
 
-    messagefunc(SIMPLE, "update secrets.ldb")
-    reference = newsecrets_ldb.search(expression="dn=@MODULES", base="",
-                                        scope=SCOPE_SUBTREE)
-    current = secrets_ldb.search(expression="dn=@MODULES", base="",
-                                        scope=SCOPE_SUBTREE)
+    messagefunc(SIMPLE, "Update of secrets.ldb")
+    reference = newsecrets_ldb.search(base="@MODULES", scope=SCOPE_BASE)
+    current = secrets_ldb.search(base="@MODULES", scope=SCOPE_BASE)
     assert reference, "Reference modules list can not be empty"
     if len(current) == 0:
         # No modules present
@@ -582,9 +466,9 @@ def update_secrets(newsecrets_ldb, secrets_ldb, messagefunc):
             listPresent.append(hash_new[k])
 
     for entry in listMissing:
-        reference = newsecrets_ldb.search(expression="dn=%s" % entry,
+        reference = newsecrets_ldb.search(expression="distinguishedName=%s" % entry,
                                             base="", scope=SCOPE_SUBTREE)
-        current = secrets_ldb.search(expression="dn=%s" % entry,
+        current = secrets_ldb.search(expression="distinguishedName=%s" % entry,
                                             base="", scope=SCOPE_SUBTREE)
         delta = secrets_ldb.msg_diff(empty, reference[0])
         for att in hashAttrNotCopied:
@@ -597,9 +481,9 @@ def update_secrets(newsecrets_ldb, secrets_ldb, messagefunc):
         secrets_ldb.add(delta)
 
     for entry in listPresent:
-        reference = newsecrets_ldb.search(expression="dn=%s" % entry,
+        reference = newsecrets_ldb.search(expression="distinguishedName=%s" % entry,
                                             base="", scope=SCOPE_SUBTREE)
-        current = secrets_ldb.search(expression="dn=%s" % entry, base="",
+        current = secrets_ldb.search(expression="distinguishedName=%s" % entry, base="",
                                             scope=SCOPE_SUBTREE)
         delta = secrets_ldb.msg_diff(current[0], reference[0])
         for att in hashAttrNotCopied:
@@ -613,9 +497,9 @@ def update_secrets(newsecrets_ldb, secrets_ldb, messagefunc):
                 delta.remove(att)
 
     for entry in listPresent:
-        reference = newsecrets_ldb.search(expression="dn=%s" % entry, base="",
+        reference = newsecrets_ldb.search(expression="distinguishedName=%s" % entry, base="",
                                             scope=SCOPE_SUBTREE)
-        current = secrets_ldb.search(expression="dn=%s" % entry, base="",
+        current = secrets_ldb.search(expression="distinguishedName=%s" % entry, base="",
                                             scope=SCOPE_SUBTREE)
         delta = secrets_ldb.msg_diff(current[0], reference[0])
         for att in hashAttrNotCopied:
@@ -634,7 +518,7 @@ def update_secrets(newsecrets_ldb, secrets_ldb, messagefunc):
     res2 = secrets_ldb.search(expression="(samaccountname=dns)",
                                 scope=SCOPE_SUBTREE, attrs=["dn"])
 
-    if (len(res2) == 1):
+    if len(res2) == 1:
             messagefunc(SIMPLE, "Remove old dns account")
             secrets_ldb.delete(res2[0]["dn"])
 
@@ -649,7 +533,7 @@ def getOEMInfo(samdb, rootdn):
     """
     res = samdb.search(expression="(objectClass=*)", base=str(rootdn),
                             scope=SCOPE_BASE, attrs=["dn", "oEMInformation"])
-    if len(res) > 0:
+    if len(res) > 0 and res[0].get("oEMInformation"):
         info = res[0]["oEMInformation"]
         return info
     else:
@@ -666,7 +550,10 @@ def updateOEMInfo(samdb, rootdn):
     res = samdb.search(expression="(objectClass=*)", base=rootdn,
                             scope=SCOPE_BASE, attrs=["dn", "oEMInformation"])
     if len(res) > 0:
-        info = res[0]["oEMInformation"]
+        if res[0].get("oEMInformation"):
+            info = str(res[0]["oEMInformation"])
+        else:
+            info = ""
         info = "%s, upgrade to %s" % (info, version)
         delta = ldb.Message()
         delta.dn = ldb.Dn(samdb, str(res[0]["dn"]))
@@ -709,22 +596,30 @@ def update_gpo(paths, samdb, names, lp, message, force=0):
     dir = getpolicypath(paths.sysvol, names.dnsdomain, names.policyid_dc)
     if not os.path.isdir(dir):
         create_gpo_struct(dir)
+
+    def acl_error(e):
+        if os.geteuid() == 0:
+            message(ERROR, "Unable to set ACLs on policies related objects: %s" % e)
+        else:
+            message(ERROR, "Unable to set ACLs on policies related objects. "
+                    "ACLs must be set as root if file system ACLs "
+                    "(rather than posix:eadb) are used.")
+
     # We always reinforce acls on GPO folder because they have to be in sync
     # with the one in DS
     try:
         set_gpos_acl(paths.sysvol, names.dnsdomain, names.domainsid,
             names.domaindn, samdb, lp)
     except TypeError, e:
-        message(ERROR, "Unable to set ACLs on policies related objects,"
-                       " if not using posix:eadb, you must be root to do it")
+        acl_error(e)
 
     if resetacls:
        try:
-            setsysvolacl(samdb, paths.netlogon, paths.sysvol, names.wheel_gid,
+            setsysvolacl(samdb, paths.netlogon, paths.sysvol, names.root_gid,
                         names.domainsid, names.dnsdomain, names.domaindn, lp)
        except TypeError, e:
-            message(ERROR, "Unable to set ACLs on sysvol share, if not using"
-                           "posix:eadb, you must be root to do it")
+           acl_error(e)
+
 
 def increment_calculated_keyversion_number(samdb, rootdn, hashDns):
     """For a given hash associating dn and a number, this function will
@@ -783,7 +678,7 @@ def delta_update_basesamdb(refsampath, sampath, creds, session, lp, message):
     reference = refsam.search(expression="")
 
     for refentry in reference:
-        entry = sam.search(expression="dn=%s" % refentry["dn"],
+        entry = sam.search(expression="distinguishedName=%s" % refentry["dn"],
                             scope=SCOPE_SUBTREE)
         if not len(entry):
             delta = sam.msg_diff(empty, refentry)
@@ -903,9 +798,6 @@ def update_dns_account_password(samdb, secrets_ldb, names):
                                                 "msDS-KeyVersionNumber")
 
         secrets_ldb.modify(msg)
-    else:
-        raise ProvisioningError("Unable to find an object"
-                                " with %s" % expression )
 
 def search_constructed_attrs_stored(samdb, rootdn, attrs):
     """Search a given sam DB for calculated attributes that are
@@ -940,6 +832,122 @@ def search_constructed_attrs_stored(samdb, rootdn, attrs):
                     hashAtt[att][str(ent.dn).lower()] = str(ent[att])
 
     return hashAtt
+
+def findprovisionrange(samdb, basedn):
+    """ Find ranges of usn grouped by invocation id and then by timestamp
+        rouned at 1 minute
+
+        :param samdb: An LDB object pointing to the samdb
+        :param basedn: The DN of the forest
+
+        :return: A two level dictionary with invoication id as the
+                first level, timestamp as the second one and then
+                max, min, and number as subkeys, representing respectivily
+                the maximum usn for the range, the minimum usn and the number
+                of object with usn in this range.
+    """
+    nb_obj = 0
+    hash_id = {}
+
+    res = samdb.search(base=basedn, expression="objectClass=*",
+                                    scope=ldb.SCOPE_SUBTREE,
+                                    attrs=["replPropertyMetaData"],
+                                    controls=["search_options:1:2"])
+
+    for e in res:
+        nb_obj = nb_obj + 1
+        obj = ndr_unpack(drsblobs.replPropertyMetaDataBlob,
+                            str(e["replPropertyMetaData"])).ctr
+
+        for o in obj.array:
+            # like a timestamp but with the resolution of 1 minute
+            minutestamp =_glue.nttime2unix(o.originating_change_time)/60
+            hash_ts = hash_id.get(str(o.originating_invocation_id))
+
+            if hash_ts is None:
+                ob = {}
+                ob["min"] = o.originating_usn
+                ob["max"] = o.originating_usn
+                ob["num"] = 1
+                ob["list"] = [str(e.dn)]
+                hash_ts = {}
+            else:
+                ob = hash_ts.get(minutestamp)
+                if ob is None:
+                    ob = {}
+                    ob["min"] = o.originating_usn
+                    ob["max"] = o.originating_usn
+                    ob["num"] = 1
+                    ob["list"] = [str(e.dn)]
+                else:
+                    if ob["min"] > o.originating_usn:
+                        ob["min"] = o.originating_usn
+                    if ob["max"] < o.originating_usn:
+                        ob["max"] = o.originating_usn
+                    if not (str(e.dn) in ob["list"]):
+                        ob["num"] = ob["num"] + 1
+                        ob["list"].append(str(e.dn))
+            hash_ts[minutestamp] = ob
+            hash_id[str(o.originating_invocation_id)] = hash_ts
+
+    return (hash_id, nb_obj)
+
+def print_provision_ranges(dic, limit_print, dest, samdb_path, invocationid):
+    """ print the differents ranges passed as parameter
+
+        :param dic: A dictionnary as returned by findprovisionrange
+        :param limit_print: minimum number of object in a range in order to print it
+        :param dest: Destination directory
+        :param samdb_path: Path to the sam.ldb file
+        :param invoicationid: Invocation ID for the current provision
+    """
+    ldif = ""
+
+    for id in dic:
+        hash_ts = dic[id]
+        sorted_keys = []
+        sorted_keys.extend(hash_ts.keys())
+        sorted_keys.sort()
+
+        kept_record = []
+        for k in sorted_keys:
+            obj = hash_ts[k]
+            if obj["num"] > limit_print:
+                dt = _glue.nttime2string(_glue.unix2nttime(k*60))
+                print "%s # of modification: %d  \tmin: %d max: %d" % (dt , obj["num"],
+                                                                    obj["min"],
+                                                                    obj["max"])
+            if hash_ts[k]["num"] > 600:
+                kept_record.append(k)
+
+        # Let's try to concatenate consecutive block if they are in the almost same minutestamp
+        for i in range(0, len(kept_record)):
+            if i != 0:
+                key1 = kept_record[i]
+                key2 = kept_record[i-1]
+                if key1 - key2 == 1:
+                    # previous record is just 1 minute away from current
+                    if int(hash_ts[key1]["min"]) == int(hash_ts[key2]["max"]) + 1:
+                        # Copy the highest USN in the previous record
+                        # and mark the current as skipped
+                        hash_ts[key2]["max"] = hash_ts[key1]["max"]
+                        hash_ts[key1]["skipped"] = True
+
+        for k in kept_record:
+                obj = hash_ts[k]
+                if obj.get("skipped") is None:
+                    ldif = "%slastProvisionUSN: %d-%d;%s\n" % (ldif, obj["min"],
+                                obj["max"], id)
+
+    if ldif != "":
+        file = tempfile.mktemp(dir=dest, prefix="usnprov", suffix=".ldif")
+        print
+        print "To track the USNs modified/created by provision and upgrade proivsion,"
+        print " the following ranges are proposed to be added to your provision sam.ldb: \n%s" % ldif
+        print "We recommend to review them, and if it's correct to integrate the following ldif: %s in your sam.ldb" % file
+        print "You can load this file like this: ldbadd -H %s %s\n"%(str(samdb_path),file)
+        ldif = "dn: @PROVISION\nprovisionnerID: %s\n%s" % (invocationid, ldif)
+        open(file,'w').write(ldif)
 
 def int64range2str(value):
     """Display the int64 range stored in value as xxx-yyy

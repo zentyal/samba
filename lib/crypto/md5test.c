@@ -18,10 +18,12 @@
 */
 
 #include "replace.h"
-#include "../lib/util/util.h"
+#include "../lib/util/samba_util.h"
 #include "../lib/crypto/crypto.h"
 
 struct torture_context;
+
+bool torture_local_crypto_md5(struct torture_context *torture);
 
 /*
  This uses the test values from rfc1321
@@ -63,7 +65,7 @@ bool torture_local_crypto_md5(struct torture_context *torture)
 	};
 
 	for (i=0; i < ARRAY_SIZE(testarray); i++) {
-		MD5_CTX ctx;
+		struct MD5Context ctx;
 		uint8_t md5[16];
 		int e;
 

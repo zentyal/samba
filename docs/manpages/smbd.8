@@ -1,22 +1,13 @@
 '\" t
 .\"     Title: smbd
 .\"    Author: [see the "AUTHOR" section]
-.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 03/11/2013
+.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
+.\"      Date: 12/11/2012
 .\"    Manual: System Administration tools
-.\"    Source: Samba 3.6
+.\"    Source: Samba 4.0
 .\"  Language: English
 .\"
-.TH "SMBD" "8" "03/11/2013" "Samba 3\&.6" "System Administration tools"
-.\" -----------------------------------------------------------------
-.\" * Define some portability stuff
-.\" -----------------------------------------------------------------
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" http://bugs.debian.org/507673
-.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.ie \n(.g .ds Aq \(aq
-.el       .ds Aq '
+.TH "SMBD" "8" "12/11/2012" "Samba 4\&.0" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -74,7 +65,7 @@ under process supervisors such as
 supervise
 and
 svscan
-from Daniel J\&. Bernstein\*(Aqs
+from Daniel J\&. Bernstein\'s
 daemontools
 package, or the AIX process monitor\&.
 .RE
@@ -130,7 +121,7 @@ Base directory name for log/debug files\&. The extension
 will be appended (e\&.g\&. log\&.smbclient, log\&.smbd, etc\&.\&.\&.)\&. The log file is never removed by the client\&.
 .RE
 .PP
-\-h|\-\-help
+\-?|\-\-help
 .RS 4
 Print a summary of command line options\&.
 .RE
@@ -230,7 +221,7 @@ parameter\&. When this is set, the following restrictions apply:
 .sp -1
 .IP \(bu 2.3
 .\}
-\fISession Management\fR: When not using share level security, users must pass PAM\*(Aqs session checks before access is granted\&. Note however, that this is bypassed in share level security\&. Note also that some older pam configuration files may need a line added for session support\&.
+\fISession Management\fR: When not using share level security, users must pass PAM\'s session checks before access is granted\&. Note however, that this is bypassed in share level security\&. Note also that some older pam configuration files may need a line added for session support\&.
 .RE
 .SH "VERSION"
 .PP
@@ -244,7 +235,7 @@ The number and nature of diagnostics available depends on the debug level used b
 Most messages are reasonably self\-explanatory\&. Unfortunately, at the time this man page was created, there are too many diagnostics available in the source code to warrant describing each and every diagnostic\&. At this stage your best bet is still to grep the source code and inspect the conditions that gave rise to the diagnostics you are seeing\&.
 .SH "TDB FILES"
 .PP
-Samba stores it\*(Aqs data in several TDB (Trivial Database) files, usually located in
+Samba stores it\'s data in several TDB (Trivial Database) files, usually located in
 /var/lib/samba\&.
 .PP
 (*) information persistent across restarts (but not necessarily important to backup)\&.
@@ -262,11 +253,6 @@ byte range locks
 browse\&.dat
 .RS 4
 browse lists
-.RE
-.PP
-connections\&.tdb
-.RS 4
-share connections (used to enforce max connections, etc\&.\&.\&.)
 .RE
 .PP
 gencache\&.tdb
@@ -324,9 +310,19 @@ registry\&.tdb
 Windows registry skeleton (connect via regedit\&.exe)
 .RE
 .PP
-sessionid\&.tdb
+smbXsrv_session_global\&.tdb
 .RS 4
-session information (e\&.g\&. support for \*(Aqutmp = yes\*(Aq)
+session information (e\&.g\&. support for \'utmp = yes\')
+.RE
+.PP
+smbXsrv_tcon_global\&.tdb
+.RS 4
+share connections (used to enforce max connections, etc\&.\&.\&.)
+.RE
+.PP
+smbXsrv_open_global\&.tdb
+.RS 4
+open file handles (used durable handles, etc\&.\&.\&.)
 .RE
 .PP
 share_info\&.tdb*
@@ -336,17 +332,17 @@ share acls
 .PP
 winbindd_cache\&.tdb
 .RS 4
-winbindd\*(Aqs cache of user lists, etc\&.\&.\&.
+winbindd\'s cache of user lists, etc\&.\&.\&.
 .RE
 .PP
 winbindd_idmap\&.tdb*
 .RS 4
-winbindd\*(Aqs local idmap db
+winbindd\'s local idmap db
 .RE
 .PP
 wins\&.dat*
 .RS 4
-wins database when \*(Aqwins support = yes\*(Aq
+wins database when \'wins support = yes\'
 .RE
 .SH "SIGNALS"
 .PP
@@ -356,7 +352,7 @@ a SIGHUP will cause it to reload its
 smb\&.conf
 configuration file within a short period of time\&.
 .PP
-To shut down a user\*(Aqs
+To shut down a user\'s
 smbd
 process it is recommended that
 SIGKILL (\-9)
@@ -383,7 +379,7 @@ is in a state of waiting for an incoming SMB before issuing them\&. It is possib
 \fBsmb.conf\fR(5),
 \fBsmbclient\fR(1),
 \fBtestparm\fR(1),
-\fBtestprns\fR(1), and the Internet RFC\*(Aqs
+\fBtestprns\fR(1), and the Internet RFC\'s
 rfc1001\&.txt,
 rfc1002\&.txt\&. In addition the CIFS (formerly SMB) specification is available as a link from the Web page
 http://samba\&.org/cifs/\&.

@@ -20,12 +20,12 @@
 #include "smbd/smbd.h"
 
 #if defined(HAVE_LINUX_READAHEAD) && ! defined(HAVE_READAHEAD_DECL)
-ssize_t readahead(int fd, off64_t offset, size_t count);
+ssize_t readahead(int fd, off_t offset, size_t count);
 #endif
 
 struct readahead_data {
-	SMB_OFF_T off_bound;
-	SMB_OFF_T len;
+	off_t off_bound;
+	off_t len;
 	bool didmsg;
 };
 
@@ -43,7 +43,7 @@ static ssize_t readahead_sendfile(struct vfs_handle_struct *handle,
 					int tofd,
 					files_struct *fromfsp,
 					const DATA_BLOB *header,
-					SMB_OFF_T offset,
+					off_t offset,
 					size_t count)
 {
 	struct readahead_data *rhd = (struct readahead_data *)handle->data;
@@ -86,7 +86,7 @@ static ssize_t readahead_pread(vfs_handle_struct *handle,
 				files_struct *fsp,
 				void *data,
 				size_t count,
-				SMB_OFF_T offset)
+				off_t offset)
 {
 	struct readahead_data *rhd = (struct readahead_data *)handle->data;
 
@@ -169,8 +169,8 @@ static int readahead_connect(struct vfs_handle_struct *handle,
 }
 
 static struct vfs_fn_pointers vfs_readahead_fns = {
-	.sendfile = readahead_sendfile,
-	.pread = readahead_pread,
+	.sendfile_fn = readahead_sendfile,
+	.pread_fn = readahead_pread,
 	.connect_fn = readahead_connect
 };
 

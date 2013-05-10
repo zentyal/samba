@@ -243,12 +243,12 @@ static int net_getlocalsid(struct net_context *c, int argc, const char **argv)
 		name = argv[0];
         }
 	else {
-		name = global_myname();
+		name = lp_netbios_name();
 	}
 
 	if(!initialize_password_db(false, NULL)) {
-		DEBUG(0, ("WARNING: Could not open passdb - local sid may not reflect passdb\n"
-			  "backend knowledge (such as the sid stored in LDAP)\n"));
+		d_fprintf(stderr, _("WARNING: Could not open passdb\n"));
+		return 1;
 	}
 
 	/* first check to see if we can even access secrets, so we don't
@@ -286,7 +286,7 @@ static int net_setlocalsid(struct net_context *c, int argc, const char **argv)
 		return 1;
 	}
 
-	if (!secrets_store_domain_sid(global_myname(), &sid)) {
+	if (!secrets_store_domain_sid(lp_netbios_name(), &sid)) {
 		DEBUG(0,("Can't store domain SID as a pdc/bdc.\n"));
 		return 1;
 	}
@@ -327,10 +327,8 @@ static int net_getdomainsid(struct net_context *c, int argc, const char **argv)
 	}
 
 	if(!initialize_password_db(false, NULL)) {
-		DEBUG(0, ("WARNING: Could not open passdb - domain SID may "
-			  "not reflect passdb\n"
-			  "backend knowledge (such as the SID stored in "
-			  "LDAP)\n"));
+		d_fprintf(stderr, _("WARNING: Could not open passdb\n"));
+		return 1;
 	}
 
 	/* first check to see if we can even access secrets, so we don't
@@ -346,14 +344,15 @@ static int net_getdomainsid(struct net_context *c, int argc, const char **argv)
 	/* Generate one, if it doesn't exist */
 	get_global_sam_sid();
 
-	if (!secrets_fetch_domain_sid(global_myname(), &domain_sid)) {
-		d_fprintf(stderr, _("Could not fetch local SID\n"));
-		return 1;
+	if (!IS_DC) {
+		if (!secrets_fetch_domain_sid(lp_netbios_name(), &domain_sid)) {
+			d_fprintf(stderr, _("Could not fetch local SID\n"));
+			return 1;
+		}
+		sid_to_fstring(sid_str, &domain_sid);
+		d_printf(_("SID for local machine %s is: %s\n"),
+			 lp_netbios_name(), sid_str);
 	}
-	sid_to_fstring(sid_str, &domain_sid);
-	d_printf(_("SID for local machine %s is: %s\n"),
-		 global_myname(), sid_str);
-
 	if (!secrets_fetch_domain_sid(c->opt_workgroup, &domain_sid)) {
 		d_fprintf(stderr, _("Could not fetch domain SID\n"));
 		return 1;
@@ -820,6 +819,12 @@ static struct functable net_func[] = {
 		{"lock", 0, POPT_ARG_NONE,   &c->opt_lock},
 		{"auto", 'a', POPT_ARG_NONE,   &c->opt_auto},
 		{"repair", 0, POPT_ARG_NONE,   &c->opt_repair},
+		/* Options for 'net registry check'*/
+		{"reg-version", 0, POPT_ARG_INT, &c->opt_reg_version},
+		{"output", 'o', POPT_ARG_STRING, &c->opt_output},
+		{"wipe", 0, POPT_ARG_NONE, &c->opt_wipe},
+		/* Options for 'net registry import' */
+		{"precheck", 0, POPT_ARG_STRING, &c->opt_precheck},
 		POPT_COMMON_SAMBA
 		{ 0, 0, 0, 0}
 	};
@@ -878,7 +883,17 @@ static struct functable net_func[] = {
 		}
 	}
 
-	lp_load(get_dyn_CONFIGFILE(), true, false, false, true);
+	lp_load_global(get_dyn_CONFIGFILE());
+
+#if defined(HAVE_BIND_TEXTDOMAIN_CODESET)
+	/* Bind our gettext results to 'unix charset'
+	   
+	   This ensures that the translations and any embedded strings are in the
+	   same charset.  It won't be the one from the user's locale (we no
+	   longer auto-detect that), but it will be self-consistent.
+	*/
+	bind_textdomain_codeset(MODULE_NAME, lp_unix_charset());
+#endif
 
  	argv_new = (const char **)poptGetArgs(pc);
 
@@ -895,7 +910,7 @@ static struct functable net_func[] = {
 	}
 
 	if (c->opt_requester_name) {
-		set_global_myname(c->opt_requester_name);
+		lp_set_cmdline("netbios name", c->opt_requester_name);
 	}
 
 	if (!c->opt_user_name && getenv("LOGNAME")) {
@@ -933,8 +948,7 @@ static struct functable net_func[] = {
 	/* Failing to init the msg_ctx isn't a fatal error. Only
 	   root-level things (joining/leaving domains etc.) will be denied. */
 
-	c->msg_ctx = messaging_init(c, procid_self(),
-				    event_context_init(c));
+	c->msg_ctx = messaging_init(c, event_context_init(c));
 
 	rc = net_run_function(c, argc_new-1, argv_new+1, "net", net_func);
 

@@ -62,7 +62,7 @@
 
 #define WAIT_FOR_ASYNC_RESPONSE(req) \
 	while (!req->cancel.can_cancel && req->state <= SMB2_REQUEST_RECV) { \
-		if (event_loop_once(req->transport->socket->event.ctx) != 0) { \
+		if (tevent_loop_once(torture->ev) != 0) { \
 			break; \
 		} \
 	}
@@ -1056,12 +1056,13 @@ static bool test_cancel_tdis(struct torture_context *torture,
 	lck.in.file.handle	= h;
 	el[0].flags		= SMB2_LOCK_FLAG_UNLOCK;
 	status = smb2_lock(tree, &lck);
-	if (torture_setting_bool(torture, "samba4", false)) {
-		/* checking if the tcon supplied are still valid
-		 * should happen before you validate a file handle,
-		 * so we should return USER_SESSION_DELETED */
-		CHECK_STATUS(status, NT_STATUS_NETWORK_NAME_DELETED);
-	} else {
+	/*
+	 * Most Windows versions have a strange order to
+	 * verify the session id, tree id and file id.
+	 * (They should be checked in that order, but windows
+	 *  seems to check the file id before the others).
+	 */
+	if (!NT_STATUS_EQUAL(status, NT_STATUS_NETWORK_NAME_DELETED)) {
 		CHECK_STATUS(status, NT_STATUS_FILE_CLOSED);
 	}
 
@@ -1141,12 +1142,13 @@ static bool test_cancel_logoff(struct torture_context *torture,
 	lck.in.file.handle	= h;
 	el[0].flags		= SMB2_LOCK_FLAG_UNLOCK;
 	status = smb2_lock(tree, &lck);
-	if (torture_setting_bool(torture, "samba4", false)) {
-		/* checking if the credential supplied are still valid
-		 * should happen before you validate a file handle,
-		 * so we should return USER_SESSION_DELETED */
-		CHECK_STATUS(status, NT_STATUS_USER_SESSION_DELETED);
-	} else {
+	/*
+	 * Most Windows versions have a strange order to
+	 * verify the session id, tree id and file id.
+	 * (They should be checked in that order, but windows
+	 *  seems to check the file id before the others).
+	 */
+	if (!NT_STATUS_EQUAL(status, NT_STATUS_USER_SESSION_DELETED)) {
 		CHECK_STATUS(status, NT_STATUS_FILE_CLOSED);
 	}
 
@@ -1248,7 +1250,6 @@ static bool test_errorcode(struct torture_context *torture,
 	CHECK_STATUS(status, NT_STATUS_LOCK_NOT_GRANTED);
 
 	/* Demonstrate that the smbpid doesn't matter */
-	tree->session->pid++;
 	lck.in.file.handle	= h;
 	status = smb2_lock(tree, &lck);
 	CHECK_STATUS(status, NT_STATUS_LOCK_NOT_GRANTED);
@@ -1256,7 +1257,6 @@ static bool test_errorcode(struct torture_context *torture,
 	lck.in.file.handle	= h2;
 	status = smb2_lock(tree, &lck);
 	CHECK_STATUS(status, NT_STATUS_LOCK_NOT_GRANTED);
-	tree->session->pid--;
 
 	/* Demonstrate that a 0-byte lock inside the locked range still
 	 * gives the same error. */
@@ -2441,12 +2441,10 @@ static bool test_context(struct torture_context *torture,
 	status = smb2_lock(tree, &lck);
 	CHECK_STATUS(status, NT_STATUS_OK);
 
-	tree->session->pid++;
 	el[0].flags		= SMB2_LOCK_FLAG_UNLOCK;
 	status = smb2_lock(tree, &lck);
 	CHECK_STATUS(status, NT_STATUS_OK);
 
-	tree->session->pid--;
 	el[0].flags		= SMB2_LOCK_FLAG_UNLOCK;
 	status = smb2_lock(tree, &lck);
 	CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
@@ -2608,8 +2606,8 @@ done:
 	return ret;
 }
 
-static NTSTATUS smb2cli_lock(struct smb2_tree *tree, struct smb2_handle h,
-			     uint64_t offset, uint64_t length, bool exclusive)
+static NTSTATUS test_smb2_lock(struct smb2_tree *tree, struct smb2_handle h,
+			       uint64_t offset, uint64_t length, bool exclusive)
 {
 	struct smb2_lock lck;
 	struct smb2_lock_element el[1];
@@ -2632,8 +2630,8 @@ static NTSTATUS smb2cli_lock(struct smb2_tree *tree, struct smb2_handle h,
 	return status;
 }
 
-static NTSTATUS smb2cli_unlock(struct smb2_tree *tree, struct smb2_handle h,
-			       uint64_t offset, uint64_t length)
+static NTSTATUS test_smb2_unlock(struct smb2_tree *tree, struct smb2_handle h,
+				 uint64_t offset, uint64_t length)
 {
 	struct smb2_lock lck;
 	struct smb2_lock_element el[1];
@@ -2693,45 +2691,45 @@ static bool test_overlap(struct torture_context *torture,
 
 	torture_comment(torture, "Testing overlapping locks:\n");
 
-	ret = NT_STATUS_IS_OK(smb2cli_lock(tree, h, 0, 4, true)) &&
-	      NT_STATUS_IS_OK(smb2cli_lock(tree, h, 2, 4, true));
+	ret = NT_STATUS_IS_OK(test_smb2_lock(tree, h, 0, 4, true)) &&
+	      NT_STATUS_IS_OK(test_smb2_lock(tree, h, 2, 4, true));
 	EXPECTED(ret, false);
 	torture_comment(torture, "the same session/handle %s set overlapping "
 				 "exclusive locks\n", ret?"can":"cannot");
 
-	ret = NT_STATUS_IS_OK(smb2cli_lock(tree, h, 10, 4, false)) &&
-	      NT_STATUS_IS_OK(smb2cli_lock(tree, h, 12, 4, false));
+	ret = NT_STATUS_IS_OK(test_smb2_lock(tree, h, 10, 4, false)) &&
+	      NT_STATUS_IS_OK(test_smb2_lock(tree, h, 12, 4, false));
 	EXPECTED(ret, true);
 	torture_comment(torture, "the same session/handle %s set overlapping "
 				 "shared locks\n", ret?"can":"cannot");
 
-	ret = NT_STATUS_IS_OK(smb2cli_lock(tree, h, 20, 4, true)) &&
-	      NT_STATUS_IS_OK(smb2cli_lock(tree2, h3, 22, 4, true));
+	ret = NT_STATUS_IS_OK(test_smb2_lock(tree, h, 20, 4, true)) &&
+	      NT_STATUS_IS_OK(test_smb2_lock(tree2, h3, 22, 4, true));
 	EXPECTED(ret, false);
 	torture_comment(torture, "a different session %s set overlapping "
 				 "exclusive locks\n", ret?"can":"cannot");
 
-	ret = NT_STATUS_IS_OK(smb2cli_lock(tree, h, 30, 4, false)) &&
-	      NT_STATUS_IS_OK(smb2cli_lock(tree2, h3, 32, 4, false));
+	ret = NT_STATUS_IS_OK(test_smb2_lock(tree, h, 30, 4, false)) &&
+	      NT_STATUS_IS_OK(test_smb2_lock(tree2, h3, 32, 4, false));
 	EXPECTED(ret, true);
 	torture_comment(torture, "a different session %s set overlapping "
 				 "shared locks\n", ret?"can":"cannot");
 
-	ret = NT_STATUS_IS_OK(smb2cli_lock(tree, h, 40, 4, true)) &&
-	      NT_STATUS_IS_OK(smb2cli_lock(tree, h2, 42, 4, true));
+	ret = NT_STATUS_IS_OK(test_smb2_lock(tree, h, 40, 4, true)) &&
+	      NT_STATUS_IS_OK(test_smb2_lock(tree, h2, 42, 4, true));
 	EXPECTED(ret, false);
 	torture_comment(torture, "a different handle %s set overlapping "
 				 "exclusive locks\n", ret?"can":"cannot");
 
-	ret = NT_STATUS_IS_OK(smb2cli_lock(tree, h, 50, 4, false)) &&
-	      NT_STATUS_IS_OK(smb2cli_lock(tree, h2, 52, 4, false));
+	ret = NT_STATUS_IS_OK(test_smb2_lock(tree, h, 50, 4, false)) &&
+	      NT_STATUS_IS_OK(test_smb2_lock(tree, h2, 52, 4, false));
 	EXPECTED(ret, true);
 	torture_comment(torture, "a different handle %s set overlapping "
 				 "shared locks\n", ret?"can":"cannot");
 
-	ret = NT_STATUS_IS_OK(smb2cli_lock(tree, h, 110, 4, false)) &&
-	      NT_STATUS_IS_OK(smb2cli_lock(tree, h, 112, 4, false)) &&
-	      NT_STATUS_IS_OK(smb2cli_unlock(tree, h, 110, 6));
+	ret = NT_STATUS_IS_OK(test_smb2_lock(tree, h, 110, 4, false)) &&
+	      NT_STATUS_IS_OK(test_smb2_lock(tree, h, 112, 4, false)) &&
+	      NT_STATUS_IS_OK(test_smb2_unlock(tree, h, 110, 6));
 	EXPECTED(ret, false);
 	torture_comment(torture, "the same handle %s coalesce read locks\n",
 				 ret?"can":"cannot");
@@ -2742,11 +2740,11 @@ static bool test_overlap(struct torture_context *torture,
 	CHECK_STATUS(status, NT_STATUS_OK);
 	status = torture_smb2_testfile(tree, fname, &h2);
 	CHECK_STATUS(status, NT_STATUS_OK);
-	ret = NT_STATUS_IS_OK(smb2cli_lock(tree, h, 0, 8, false)) &&
-	      NT_STATUS_IS_OK(smb2cli_lock(tree, h2, 0, 1, false)) &&
+	ret = NT_STATUS_IS_OK(test_smb2_lock(tree, h, 0, 8, false)) &&
+	      NT_STATUS_IS_OK(test_smb2_lock(tree, h2, 0, 1, false)) &&
 	      NT_STATUS_IS_OK(smb2_util_close(tree, h)) &&
 	      NT_STATUS_IS_OK(torture_smb2_testfile(tree, fname, &h)) &&
-	      NT_STATUS_IS_OK(smb2cli_lock(tree, h, 7, 1, true));
+	      NT_STATUS_IS_OK(test_smb2_lock(tree, h, 7, 1, true));
 	EXPECTED(ret, true);
 	torture_comment(torture, "the server %s have the NT byte range lock "
 				 "bug\n", !ret?"does":"doesn't");

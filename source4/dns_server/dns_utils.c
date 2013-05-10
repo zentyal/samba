@@ -54,8 +54,10 @@ uint8_t werr_to_dns_err(WERROR werr)
 		return DNS_RCODE_NOTAUTH;
 	} else if (W_ERROR_EQUAL(DNS_ERR(NOTZONE), werr)) {
 		return DNS_RCODE_NOTZONE;
+	} else if (W_ERROR_EQUAL(DNS_ERR(BADKEY), werr)) {
+		return DNS_RCODE_BADKEY;
 	}
-	DEBUG(5, ("No mapping exists for %%s\n"));
+	DEBUG(5, ("No mapping exists for %s\n", win_errstr(werr)));
 	return DNS_RCODE_SERVFAIL;
 }
 
@@ -96,6 +98,228 @@ bool dns_name_match(const char *zone, const char *name, size_t *host_part_len)
 	}
 
 	*host_part_len = ni+1;
+
+	return true;
+}
+
+/* Names are equal if they match and there's nothing left over */
+bool dns_name_equal(const char *name1, const char *name2)
+{
+	size_t host_part_len;
+	bool ret = dns_name_match(name1, name2, &host_part_len);
+
+	return ret && (host_part_len == 0);
+}
+
+/*
+  see if two dns records match
+ */
+bool dns_records_match(struct dnsp_DnssrvRpcRecord *rec1,
+		       struct dnsp_DnssrvRpcRecord *rec2)
+{
+	bool status;
+	int i;
+
+	if (rec1->wType != rec2->wType) {
+		return false;
+	}
+
+	/* see if the data matches */
+	switch (rec1->wType) {
+	case DNS_TYPE_A:
+		return strcmp(rec1->data.ipv4, rec2->data.ipv4) == 0;
+	case DNS_TYPE_AAAA:
+		return strcmp(rec1->data.ipv6, rec2->data.ipv6) == 0;
+	case DNS_TYPE_CNAME:
+		return dns_name_equal(rec1->data.cname, rec2->data.cname);
+	case DNS_TYPE_TXT:
+		if (rec1->data.txt.count != rec2->data.txt.count) {
+			return false;
+		}
+		status = true;
+		for (i=0; i<rec1->data.txt.count; i++) {
+			status = status && (strcmp(rec1->data.txt.str[i],
+						rec2->data.txt.str[i]) == 0);
+		}
+		return status;
+	case DNS_TYPE_PTR:
+		return strcmp(rec1->data.ptr, rec2->data.ptr) == 0;
+	case DNS_TYPE_NS:
+		return dns_name_equal(rec1->data.ns, rec2->data.ns);
+
+	case DNS_TYPE_SRV:
+		return rec1->data.srv.wPriority == rec2->data.srv.wPriority &&
+			rec1->data.srv.wWeight  == rec2->data.srv.wWeight &&
+			rec1->data.srv.wPort    == rec2->data.srv.wPort &&
+			dns_name_equal(rec1->data.srv.nameTarget, rec2->data.srv.nameTarget);
+
+	case DNS_TYPE_MX:
+		return rec1->data.mx.wPriority == rec2->data.mx.wPriority &&
+			dns_name_equal(rec1->data.mx.nameTarget, rec2->data.mx.nameTarget);
+
+	case DNS_TYPE_HINFO:
+		return strcmp(rec1->data.hinfo.cpu, rec2->data.hinfo.cpu) == 0 &&
+			strcmp(rec1->data.hinfo.os, rec2->data.hinfo.os) == 0;
+
+	case DNS_TYPE_SOA:
+		return dns_name_equal(rec1->data.soa.mname, rec2->data.soa.mname) &&
+			dns_name_equal(rec1->data.soa.rname, rec2->data.soa.rname) &&
+			rec1->data.soa.serial == rec2->data.soa.serial &&
+			rec1->data.soa.refresh == rec2->data.soa.refresh &&
+			rec1->data.soa.retry == rec2->data.soa.retry &&
+			rec1->data.soa.expire == rec2->data.soa.expire &&
+			rec1->data.soa.minimum == rec2->data.soa.minimum;
+	default:
+		break;
+	}
+
+	return false;
+}
+
+WERROR dns_lookup_records(struct dns_server *dns,
+			  TALLOC_CTX *mem_ctx,
+			  struct ldb_dn *dn,
+			  struct dnsp_DnssrvRpcRecord **records,
+			  uint16_t *rec_count)
+{
+	static const char * const attrs[] = { "dnsRecord", NULL};
+	struct ldb_message_element *el;
+	uint16_t ri;
+	int ret;
+	struct ldb_message *msg = NULL;
+	struct dnsp_DnssrvRpcRecord *recs;
+
+	ret = dsdb_search_one(dns->samdb, mem_ctx, &msg, dn,
+			      LDB_SCOPE_BASE, attrs, 0, "%s", "(objectClass=dnsNode)");
+	if (ret != LDB_SUCCESS) {
+		/* TODO: we need to check if there's a glue record we need to
+		 * create a referral to */
+		return DNS_ERR(NAME_ERROR);
+	}
+
+	el = ldb_msg_find_element(msg, attrs[0]);
+	if (el == NULL) {
+		*records = NULL;
+		*rec_count = 0;
+		return DNS_ERR(NAME_ERROR);
+	}
+
+	recs = talloc_zero_array(mem_ctx, struct dnsp_DnssrvRpcRecord, el->num_values);
+	W_ERROR_HAVE_NO_MEMORY(recs);
+	for (ri = 0; ri < el->num_values; ri++) {
+		struct ldb_val *v = &el->values[ri];
+		enum ndr_err_code ndr_err;
+
+		ndr_err = ndr_pull_struct_blob(v, recs, &recs[ri],
+				(ndr_pull_flags_fn_t)ndr_pull_dnsp_DnssrvRpcRecord);
+		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+			DEBUG(0, ("Failed to grab dnsp_DnssrvRpcRecord\n"));
+			return DNS_ERR(SERVER_FAILURE);
+		}
+	}
+	*records = recs;
+	*rec_count = el->num_values;
+	return WERR_OK;
+}
+
+WERROR dns_replace_records(struct dns_server *dns,
+			   TALLOC_CTX *mem_ctx,
+			   struct ldb_dn *dn,
+			   bool needs_add,
+			   const struct dnsp_DnssrvRpcRecord *records,
+			   uint16_t rec_count)
+{
+	struct ldb_message_element *el;
+	uint16_t i;
+	int ret;
+	struct ldb_message *msg = NULL;
+
+	msg = ldb_msg_new(mem_ctx);
+	W_ERROR_HAVE_NO_MEMORY(msg);
+
+	msg->dn = dn;
+
+	ret = ldb_msg_add_empty(msg, "dnsRecord", LDB_FLAG_MOD_REPLACE, &el);
+	if (ret != LDB_SUCCESS) {
+		return DNS_ERR(SERVER_FAILURE);
+	}
+
+	el->values = talloc_zero_array(el, struct ldb_val, rec_count);
+	if (rec_count > 0) {
+		W_ERROR_HAVE_NO_MEMORY(el->values);
+	}
+
+	for (i = 0; i < rec_count; i++) {
+		static const struct dnsp_DnssrvRpcRecord zero;
+		struct ldb_val *v = &el->values[el->num_values];
+		enum ndr_err_code ndr_err;
+
+		if (memcmp(&records[i], &zero, sizeof(zero)) == 0) {
+			continue;
+		}
+		ndr_err = ndr_push_struct_blob(v, el->values, &records[i],
+				(ndr_push_flags_fn_t)ndr_push_dnsp_DnssrvRpcRecord);
+		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+			DEBUG(0, ("Failed to grab dnsp_DnssrvRpcRecord\n"));
+			return DNS_ERR(SERVER_FAILURE);
+		}
+		el->num_values++;
+	}
+
+
+	if (el->num_values == 0) {
+		if (needs_add) {
+			return WERR_OK;
+		}
+		/* TODO: Delete object? */
+	}
+
+	if (needs_add) {
+		ret = ldb_msg_add_string(msg, "objectClass", "dnsNode");
+		if (ret != LDB_SUCCESS) {
+			return DNS_ERR(SERVER_FAILURE);
+		}
+
+		ret = ldb_add(dns->samdb, msg);
+		if (ret != LDB_SUCCESS) {
+			return DNS_ERR(SERVER_FAILURE);
+		}
+
+		return WERR_OK;
+	}
+
+	ret = ldb_modify(dns->samdb, msg);
+	if (ret != LDB_SUCCESS) {
+		return DNS_ERR(SERVER_FAILURE);
+	}
+
+	return WERR_OK;
+}
+
+bool dns_authorative_for_zone(struct dns_server *dns,
+			      const char *name)
+{
+	const struct dns_server_zone *z;
+	size_t host_part_len = 0;
+
+	if (name == NULL) {
+		return false;
+	}
+
+	if (strcmp(name, "") == 0) {
+		return true;
+	}
+	for (z = dns->zones; z != NULL; z = z->next) {
+		bool match;
+
+		match = dns_name_match(z->name, name, &host_part_len);
+		if (match) {
+			break;
+		}
+	}
+	if (z == NULL) {
+		return false;
+	}
 
 	return true;
 }

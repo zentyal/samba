@@ -20,6 +20,7 @@
 #include "utils/net.h"
 #include "session.h"
 #include "messages.h"
+#include "lib/conn_tdb.h"
 
 int net_status_usage(struct net_context *c, int argc, const char **argv)
 {
@@ -90,12 +91,11 @@ static int net_status_sessions(struct net_context *c, int argc, const char **arg
 	return 0;
 }
 
-static int show_share(struct db_record *rec,
-		      const struct connections_key *key,
+static int show_share(const struct connections_key *key,
 		      const struct connections_data *crec,
 		      void *state)
 {
-	if (crec->cnum == -1)
+	if (crec->cnum == TID_FIELD_INVALID)
 		return 0;
 
 	if (!process_exists(crec->pid)) {
@@ -142,7 +142,7 @@ static int show_share_parseable(const struct connections_key *key,
 	int i;
 	bool guest = true;
 
-	if (crec->cnum == -1)
+	if (crec->cnum == TID_FIELD_INVALID)
 		return 0;
 
 	if (!process_exists(crec->pid)) {
@@ -151,7 +151,7 @@ static int show_share_parseable(const struct connections_key *key,
 
 	for (i=0; i<ids->num_entries; i++) {
 		struct server_id id = ids->entries[i].pid;
-		if (procid_equal(&id, &crec->pid)) {
+		if (serverid_equal(&id, &crec->pid)) {
 			guest = false;
 			break;
 		}
@@ -204,7 +204,7 @@ static int net_status_shares(struct net_context *c, int argc, const char **argv)
 		           "-------------------------------------"
 			   "------------------\n"));
 
-		connections_forall(show_share, NULL);
+		connections_forall_read(show_share, NULL);
 
 		return 0;
 	}

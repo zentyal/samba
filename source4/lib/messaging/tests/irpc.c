@@ -34,7 +34,7 @@ static bool test_debug;
 
 struct irpc_test_data
 {
-	struct messaging_context *msg_ctx1, *msg_ctx2;
+	struct imessaging_context *msg_ctx1, *msg_ctx2;
 	struct tevent_context *ev;
 };
 
@@ -74,7 +74,7 @@ static void deferred_echodata(struct tevent_context *ev, struct tevent_timer *te
 static NTSTATUS irpc_EchoData(struct irpc_message *irpc, struct echo_EchoData *r)
 {
 	irpc->defer_reply = true;
-	event_add_timed(irpc->ev, irpc, timeval_zero(), deferred_echodata, irpc);
+	tevent_add_timer(irpc->ev, irpc, timeval_zero(), deferred_echodata, irpc);
 	return NT_STATUS_OK;
 }
 
@@ -218,14 +218,14 @@ static bool test_speed(struct torture_context *tctx,
 		ping_count++;
 
 		while (ping_count > pong_count + 20) {
-			event_loop_once(data->ev);
+			tevent_loop_once(data->ev);
 		}
 	}
 
 	torture_comment(tctx, "waiting for %d remaining replies (done %d)\n", 
 	       ping_count - pong_count, pong_count);
 	while (timeval_elapsed(&tv) < 30 && pong_count < ping_count) {
-		event_loop_once(data->ev);
+		tevent_loop_once(data->ev);
 	}
 
 	torture_assert_int_equal(tctx, ping_count, pong_count, "ping test failed");
@@ -246,17 +246,17 @@ static bool irpc_setup(struct torture_context *tctx, void **_data)
 
 	data->ev = tctx->ev;
 	torture_assert(tctx, data->msg_ctx1 = 
-		       messaging_init(tctx, 
-				      lpcfg_messaging_path(tctx, tctx->lp_ctx),
+		       imessaging_init(tctx,
+				      tctx->lp_ctx,
 				      cluster_id(0, MSG_ID1),
-				      data->ev),
+				      data->ev, true),
 		       "Failed to init first messaging context");
 
 	torture_assert(tctx, data->msg_ctx2 = 
-		       messaging_init(tctx, 
-				      lpcfg_messaging_path(tctx, tctx->lp_ctx),
+		       imessaging_init(tctx,
+				      tctx->lp_ctx,
 				      cluster_id(0, MSG_ID2), 
-				      data->ev),
+				      data->ev, true),
 		       "Failed to init second messaging context");
 
 	/* register the server side function */

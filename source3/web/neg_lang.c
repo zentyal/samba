@@ -21,6 +21,7 @@
 #include "includes.h"
 #include "web/swat_proto.h"
 #include "intl/lang_tdb.h"
+#include "system/filesys.h"
 
 /*
   during a file download we first check to see if there is a language
@@ -34,7 +35,7 @@ int web_open(const char *fname, int flags, mode_t mode)
 	int fd;
 	if (lang) {
 		if (asprintf(&p, "lang/%s/%s", lang, fname) != -1) {
-			fd = sys_open(p, flags, mode);
+			fd = open(p, flags, mode);
 			free(p);
 			if (fd != -1) {
 				return fd;
@@ -43,7 +44,7 @@ int web_open(const char *fname, int flags, mode_t mode)
 	}
 
 	/* fall through to default name */
-	return sys_open(fname, flags, mode);
+	return open(fname, flags, mode);
 }
 
 

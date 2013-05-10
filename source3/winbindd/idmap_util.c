@@ -60,6 +60,7 @@ NTSTATUS idmap_uid_to_sid(const char *domname, struct dom_sid *sid, uid_t uid)
 	}
 
 backend:
+	ZERO_STRUCT(map);
 	map.sid = sid;
 	map.xid.type = ID_TYPE_UID;
 	map.xid.id = uid;
@@ -73,15 +74,18 @@ backend:
 	if (map.status != ID_MAPPED) {
 		if (winbindd_use_idmap_cache()) {
 			struct dom_sid null_sid;
+			struct unixid id;
+			id.type = ID_TYPE_UID;
+			id.id = uid;
 			ZERO_STRUCT(null_sid);
-			idmap_cache_set_sid2uid(&null_sid, uid);
+			idmap_cache_set_sid2unixid(&null_sid, &id);
 		}
 		DEBUG(10, ("uid [%lu] not mapped\n", (unsigned long)uid));
 		return NT_STATUS_NONE_MAPPED;
 	}
 
 	if (winbindd_use_idmap_cache()) {
-		idmap_cache_set_sid2uid(sid, uid);
+		idmap_cache_set_sid2unixid(sid, &map.xid);
 	}
 
 	return NT_STATUS_OK;
@@ -119,6 +123,7 @@ NTSTATUS idmap_gid_to_sid(const char *domname, struct dom_sid *sid, gid_t gid)
 	}
 
 backend:
+	ZERO_STRUCT(map);
 	map.sid = sid;
 	map.xid.type = ID_TYPE_GID;
 	map.xid.id = gid;
@@ -132,163 +137,20 @@ backend:
 	if (map.status != ID_MAPPED) {
 		if (winbindd_use_idmap_cache()) {
 			struct dom_sid null_sid;
+			struct unixid id;
+			id.type = ID_TYPE_GID;
+			id.id = gid;
 			ZERO_STRUCT(null_sid);
-			idmap_cache_set_sid2gid(&null_sid, gid);
+			idmap_cache_set_sid2unixid(&null_sid, &id);
 		}
 		DEBUG(10, ("gid [%lu] not mapped\n", (unsigned long)gid));
 		return NT_STATUS_NONE_MAPPED;
 	}
 
 	if (winbindd_use_idmap_cache()) {
-		idmap_cache_set_sid2gid(sid, gid);
+		idmap_cache_set_sid2unixid(sid, &map.xid);
 	}
 
-	return NT_STATUS_OK;
-}
-
-/*****************************************************************
- Returns the UID mapped to the given SID.
- If mapping is not possible or SID maps to a GID returns an error.
-*****************************************************************/  
-
-NTSTATUS idmap_sid_to_uid(const char *dom_name, struct dom_sid *sid, uid_t *uid)
-{
-	NTSTATUS ret;
-	struct id_map map;
-	bool expired;
-
-	DEBUG(10,("idmap_sid_to_uid: sid = [%s], domain = '%s'\n",
-		  sid_string_dbg(sid), dom_name));
-
-	if (winbindd_use_idmap_cache()
-	    && idmap_cache_find_sid2uid(sid, uid, &expired)) {
-		DEBUG(10, ("idmap_cache_find_sid2uid found %d%s\n",
-			   (int)(*uid), expired ? " (expired)": ""));
-		if (expired && idmap_is_online()) {
-			DEBUG(10, ("revalidating expired entry\n"));
-			goto backend;
-		}
-		if ((*uid) == -1) {
-			DEBUG(10, ("Returning negative cache entry\n"));
-			return NT_STATUS_NONE_MAPPED;
-		}
-		DEBUG(10, ("Returning positive cache entry\n"));
-		return NT_STATUS_OK;
-	}
-
-backend:
-	map.sid = sid;
-	map.xid.type = ID_TYPE_UID;	
-
-	ret = idmap_backends_sid_to_unixid(dom_name, &map);
-
-	if (!NT_STATUS_IS_OK(ret)) {
-		DEBUG(10, ("idmap_backends_sid_to_unixid failed: %s\n",
-			   nt_errstr(ret)));
-		if (winbindd_use_idmap_cache()) {
-			idmap_cache_set_sid2uid(sid, -1);
-		}
-		return ret;
-	}
-
-	if (map.status != ID_MAPPED) {
-		DEBUG(10, ("sid [%s] is not mapped\n", sid_string_dbg(sid)));
-		if (winbindd_use_idmap_cache()) {
-			idmap_cache_set_sid2uid(sid, -1);
-		}
-		return NT_STATUS_NONE_MAPPED;
-	}
-
-	if (map.xid.type != ID_TYPE_UID) {
-		DEBUG(10, ("sid [%s] not mapped to a uid "
-			   "[%u,%u,%u]\n",
-			   sid_string_dbg(sid),
-			   map.status,
-			   map.xid.type,
-			   map.xid.id));
-		if (winbindd_use_idmap_cache()) {
-			idmap_cache_set_sid2uid(sid, -1);
-		}
-		return NT_STATUS_NONE_MAPPED;
-	}
-
-	*uid = (uid_t)map.xid.id;
-	if (winbindd_use_idmap_cache()) {
-		idmap_cache_set_sid2uid(sid, *uid);
-	}
-	return NT_STATUS_OK;
-}
-
-/*****************************************************************
- Returns the GID mapped to the given SID.
- If mapping is not possible or SID maps to a UID returns an error.
-*****************************************************************/  
-
-NTSTATUS idmap_sid_to_gid(const char *domname, struct dom_sid *sid, gid_t *gid)
-{
-	NTSTATUS ret;
-	struct id_map map;
-	bool expired;
-
-	DEBUG(10,("idmap_sid_to_gid: sid = [%s], domain = '%s'\n",
-		  sid_string_dbg(sid), domname));
-
-	if (winbindd_use_idmap_cache()
-	    && idmap_cache_find_sid2gid(sid, gid, &expired)) {
-		DEBUG(10, ("idmap_cache_find_sid2gid found %d%s\n",
-			   (int)(*gid), expired ? " (expired)": ""));
-		if (expired && idmap_is_online()) {
-			DEBUG(10, ("revalidating expired entry\n"));
-			goto backend;
-		}
-		if ((*gid) == -1) {
-			DEBUG(10, ("Returning negative cache entry\n"));
-			return NT_STATUS_NONE_MAPPED;
-		}
-		DEBUG(10, ("Returning positive cache entry\n"));
-		return NT_STATUS_OK;
-	}
-
-backend:
-	map.sid = sid;
-	map.xid.type = ID_TYPE_GID;
-
-	ret = idmap_backends_sid_to_unixid(domname, &map);
-
-	if (!NT_STATUS_IS_OK(ret)) {
-		DEBUG(10, ("idmap_backends_sid_to_unixid failed: %s\n",
-			   nt_errstr(ret)));
-		if (winbindd_use_idmap_cache()) {
-			idmap_cache_set_sid2gid(sid, -1);
-		}
-		return ret;
-	}
-
-	if (map.status != ID_MAPPED) {
-		DEBUG(10, ("sid [%s] is not mapped\n", sid_string_dbg(sid)));
-		if (winbindd_use_idmap_cache()) {
-			idmap_cache_set_sid2gid(sid, -1);
-		}
-		return NT_STATUS_NONE_MAPPED;
-	}
-
-	if (map.xid.type != ID_TYPE_GID) {
-		DEBUG(10, ("sid [%s] not mapped to a gid "
-			   "[%u,%u,%u]\n",
-			   sid_string_dbg(sid),
-			   map.status,
-			   map.xid.type,
-			   map.xid.id));
-		if (winbindd_use_idmap_cache()) {
-			idmap_cache_set_sid2gid(sid, -1);
-		}
-		return NT_STATUS_NONE_MAPPED;
-	}
-
-	*gid = map.xid.id;
-	if (winbindd_use_idmap_cache()) {
-		idmap_cache_set_sid2gid(sid, *gid);
-	}
 	return NT_STATUS_OK;
 }
 

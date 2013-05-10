@@ -26,6 +26,7 @@
 #include "librpc/rpc/dcerpc.h"
 #include "librpc/rpc/pyrpc_util.h"
 #include "auth/credentials/pycredentials.h"
+#include "auth/gensec/gensec.h"
 
 void initbase(void);
 
@@ -117,6 +118,58 @@ static PyObject *py_iface_transfer_syntax(PyObject *obj, void *closure)
 	return py_ndr_syntax_id(&iface->pipe->transfer_syntax);
 }
 
+static PyObject *py_iface_session_key(PyObject *obj, void *closure)
+{
+	dcerpc_InterfaceObject *iface = (dcerpc_InterfaceObject *)obj;
+	DATA_BLOB session_key;
+
+	NTSTATUS status = dcerpc_fetch_session_key(iface->pipe, &session_key);
+	PyErr_NTSTATUS_IS_ERR_RAISE(status);
+
+	return PyString_FromStringAndSize((const char *)session_key.data, session_key.length);
+}
+
+static PyObject *py_iface_user_session_key(PyObject *obj, void *closure)
+{
+	dcerpc_InterfaceObject *iface = (dcerpc_InterfaceObject *)obj;
+	TALLOC_CTX *mem_ctx;
+	NTSTATUS status;
+	struct gensec_security *security = NULL;
+	DATA_BLOB session_key = data_blob_null;
+	static PyObject *session_key_obj = NULL;
+
+	if (iface->pipe == NULL) {
+		PyErr_SetNTSTATUS(NT_STATUS_NO_USER_SESSION_KEY);
+		return NULL;
+	}
+
+	if (iface->pipe->conn == NULL) {
+		PyErr_SetNTSTATUS(NT_STATUS_NO_USER_SESSION_KEY);
+		return NULL;
+	}
+
+	if (iface->pipe->conn->security_state.generic_state == NULL) {
+		PyErr_SetNTSTATUS(NT_STATUS_NO_USER_SESSION_KEY);
+		return NULL;
+	}
+
+	security = iface->pipe->conn->security_state.generic_state;
+
+	mem_ctx = talloc_new(NULL);
+
+	status = gensec_session_key(security, mem_ctx, &session_key);
+	if (!NT_STATUS_IS_OK(status)) {
+		talloc_free(mem_ctx);
+		PyErr_SetNTSTATUS(status);
+		return NULL;
+	}
+
+	session_key_obj = PyString_FromStringAndSize((const char *)session_key.data,
+						     session_key.length);
+	talloc_free(mem_ctx);
+	return session_key_obj;
+}
+
 static PyGetSetDef dcerpc_interface_getsetters[] = {
 	{ discard_const_p(char, "server_name"), py_iface_server_name, NULL,
 	  discard_const_p(char, "name of the server, if connected over SMB") },
@@ -124,6 +177,10 @@ static PyGetSetDef dcerpc_interface_getsetters[] = {
  	  discard_const_p(char, "syntax id of the abstract syntax") },
 	{ discard_const_p(char, "transfer_syntax"), py_iface_transfer_syntax, NULL, 
  	  discard_const_p(char, "syntax id of the transfersyntax") },
+	{ discard_const_p(char, "session_key"), py_iface_session_key, NULL,
+	  discard_const_p(char, "session key (as used for blob encryption on LSA and SAMR)") },
+	{ discard_const_p(char, "user_session_key"), py_iface_user_session_key, NULL,
+	  discard_const_p(char, "user_session key (as used for blob encryption on DRSUAPI)") },
 	{ NULL }
 };
 
@@ -205,10 +262,9 @@ static PyObject *py_iface_alter_context(PyObject *self, PyObject *args, PyObject
 		return NULL;
 
 	if (py_transfer_syntax == Py_None) {
-		transfer_syntax = ndr_transfer_syntax;
+		transfer_syntax = ndr_transfer_syntax_ndr;
 	} else {
-		if (!ndr_syntax_from_py_object(py_transfer_syntax, 
-					       &transfer_syntax))
+		if (!ndr_syntax_from_py_object(py_transfer_syntax, &transfer_syntax))
 			return NULL;
 	}
 

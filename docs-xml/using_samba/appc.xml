@@ -66,34 +66,6 @@ options.</para>
 </refsynopsisdiv>
 </refentry>
 
-<refentry id="appc-refentry-4">
-<refmeta>
-<refmiscinfo class="allowable values">NT, Win95, WfW</refmiscinfo>
-<refmiscinfo class="default">NT</refmiscinfo>
-</refmeta>
-<refnamediv>
-<refname>[global] announce as = system type</refname>
-</refnamediv>
-<refsynopsisdiv>
-<para>Have Samba announce itself as something other than an NT server. Discouraged because it interferes with serving browse lists.</para>
-
-</refsynopsisdiv>
-</refentry>
-
-<refentry id="appc-refentry-5">
-<refmeta>
-<refmiscinfo class="allowable values">any</refmiscinfo>
-<refmiscinfo class="default">4.2</refmiscinfo>
-</refmeta>
-<refnamediv>
-<refname>[global] announce version = number.number</refname>
-</refnamediv>
-<refsynopsisdiv>
-<para>Instructs Samba to announce itself as an older version SMB server. Discouraged.</para>
-
-</refsynopsisdiv>
-</refentry>
-
 <refentry id="appc-refentry-6">
 <refmeta>
 <refmiscinfo class="allowable values">any shares</refmiscinfo>
@@ -2514,20 +2486,6 @@ compatibility with older-client bugs.</para>
 </refnamediv>
 <refsynopsisdiv>
 <para>Overrides compiled-in path to <filename>smbrun</filename> binary. Avoid changing.</para>
-
-</refsynopsisdiv>
-</refentry>
-
-<refentry id="appc-refentry-179">
-<refmeta>
-<refmiscinfo class="allowable values">YES, NO</refmiscinfo>
-<refmiscinfo class="default">YES</refmiscinfo>
-</refmeta>
-<refnamediv>
-<refname>share modes = boolean</refname>
-</refnamediv>
-<refsynopsisdiv>
-<para>If set to YES, this option supports Windows-style whole-file (deny mode) locks.</para>
 
 </refsynopsisdiv>
 </refentry>

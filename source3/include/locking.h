@@ -39,13 +39,13 @@ enum brl_flavour {WINDOWS_LOCK = 0, POSIX_LOCK = 1};
 
 struct lock_context {
 	uint64_t smblctx;
-	uint16 tid;
+	uint32_t tid;
 	struct server_id pid;
 };
 
 struct files_struct;
 
-#include "../librpc/gen_ndr/file_id.h"
+#include "lib/file_id.h"
 
 struct byte_range_lock {
 	struct files_struct *fsp;
@@ -66,7 +66,7 @@ struct lock_struct {
 	struct lock_context context;
 	br_off start;
 	br_off size;
-	uint16 fnum;
+	uint64_t fnum;
 	enum brl_type lock_type;
 	enum brl_flavour lock_flav;
 };
@@ -96,6 +96,10 @@ struct smbd_lock_element {
 	enum brl_type brltype;
 	uint64_t offset;
 	uint64_t count;
+};
+
+struct share_mode_lock {
+	struct share_mode_data *data;
 };
 
 #endif /* _LOCKING_H_ */

@@ -3,6 +3,7 @@
 
    Copyright (C) Andrew Bartlett <abartlet@samba.org> 2007
    Copyright (C) Simo Sorce <idra@samba.org> 2008
+   Copyright (C) Matthieu Patou <mat@matws.net> 2011
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -45,7 +46,6 @@ struct la_op_store {
 	enum la_op {LA_OP_ADD, LA_OP_DEL} op;
 	struct GUID guid;
 	char *name;
-	char *value;
 };
 
 struct replace_context {
@@ -59,13 +59,63 @@ struct la_context {
 	const struct dsdb_schema *schema;
 	struct ldb_module *module;
 	struct ldb_request *req;
-	struct ldb_dn *add_dn;
-	struct ldb_dn *del_dn;
+	struct ldb_dn *mod_dn;
 	struct replace_context *rc;
 	struct la_op_store *ops;
 	struct ldb_extended *op_response;
 	struct ldb_control **op_controls;
+	/*
+	 * For futur use
+	 * will tell which GC to use for resolving links
+	 */
+	char *gc_dns_name;
 };
+
+
+static int handle_verify_name_control(TALLOC_CTX *ctx, struct ldb_context *ldb,
+					struct ldb_control *control, struct la_context *ac)
+{
+	/*
+	 * If we are a GC let's remove the control,
+	 * if there is a specified GC check that is us.
+	 */
+	struct ldb_verify_name_control *lvnc = (struct ldb_verify_name_control *)control->data;
+	if (samdb_is_gc(ldb)) {
+		/* Because we can't easily talloc a struct ldb_dn*/
+		struct ldb_dn **dn = talloc_array(ctx, struct ldb_dn *, 1);
+		int ret = samdb_server_reference_dn(ldb, ctx, dn);
+		const char *dns;
+
+		if (ret != LDB_SUCCESS) {
+			return ldb_operr(ldb);
+		}
+
+		dns = samdb_dn_to_dnshostname(ldb, ctx, *dn);
+		if (!dns) {
+			return ldb_operr(ldb);
+		}
+		if (!lvnc->gc || strcasecmp(dns, lvnc->gc) == 0) {
+			if (!ldb_save_controls(control, ctx, NULL)) {
+				return ldb_operr(ldb);
+			}
+		} else {
+			control->critical = true;
+		}
+		talloc_free(dn);
+	} else {
+		/* For the moment we don't remove the control is this case in order
+		 * to fail the request. It's better than having the client thinking
+		 * that we honnor its control.
+		 * Hopefully only a very small set of usecase should hit this problem.
+		 */
+		if (lvnc->gc) {
+			ac->gc_dns_name = talloc_strdup(ac, lvnc->gc);
+		}
+		control->critical = true;
+	}
+
+	return LDB_SUCCESS;
+}
 
 static struct la_context *linked_attributes_init(struct ldb_module *module,
 						 struct ldb_request *req)
@@ -106,7 +156,7 @@ static int la_guid_from_dn(struct la_context *ac, struct ldb_dn *dn, struct GUID
 		return ldb_operr(ldb_module_get_ctx(ac->module));
 	}
 
-	ret = dsdb_find_guid_by_dn(ldb_module_get_ctx(ac->module), dn, guid);
+	ret = dsdb_module_guid_by_dn(ac->module, dn, guid, ac->req);
 	if (ret != LDB_SUCCESS) {
 		DEBUG(4,(__location__ ": Failed to find GUID for dn %s\n",
 			 ldb_dn_get_linearized(dn)));
@@ -190,6 +240,7 @@ static int linked_attributes_add(struct ldb_module *module, struct ldb_request *
 	const char *attr_name;
 	struct ldb_control *ctrl;
 	unsigned int i, j;
+	struct ldb_control *control;
 	int ret;
 
 	ldb = ldb_module_get_ctx(module);
@@ -199,22 +250,32 @@ static int linked_attributes_add(struct ldb_module *module, struct ldb_request *
 		return ldb_next_request(module, req);
 	}
 
-	if (!(ctrl = ldb_request_get_control(req, DSDB_CONTROL_APPLY_LINKS))) {
-		/* don't do anything special for linked attributes, repl_meta_data has done it */
-		return ldb_next_request(module, req);
-	}
-	ctrl->critical = false;
-
 	ac = linked_attributes_init(module, req);
 	if (!ac) {
 		return ldb_operr(ldb);
 	}
+
+	control = ldb_request_get_control(req, LDB_CONTROL_VERIFY_NAME_OID);
+	if (control != NULL && control->data != NULL) {
+		ret = handle_verify_name_control(req, ldb, control, ac);
+		if (ret != LDB_SUCCESS) {
+			return ldb_operr(ldb);
+		}
+	}
+
+	if (!(ctrl = ldb_request_get_control(req, DSDB_CONTROL_APPLY_LINKS))) {
+		/* don't do anything special for linked attributes, repl_meta_data has done it */
+		talloc_free(ac);
+		return ldb_next_request(module, req);
+	}
+	ctrl->critical = false;
 
 	if (!ac->schema) {
 		/* without schema, this doesn't make any sense */
 		talloc_free(ac);
 		return ldb_next_request(module, req);
 	}
+
 
 	/* Need to ensure we only have forward links being specified */
 	for (i=0; i < req->op.add.message->num_elements; i++) {
@@ -228,20 +289,18 @@ static int linked_attributes_add(struct ldb_module *module, struct ldb_request *
 					       el->name);
 			return LDB_ERR_OBJECT_CLASS_VIOLATION;
 		}
-		/* We have a valid attribute, now find out if it is a forward link */
-		if ((schema_attr->linkID == 0)) {
+
+		/* this could be a link with no partner, in which case
+		   there is no special work to do */
+		if (schema_attr->linkID == 0) {
 			continue;
 		}
 
-		if ((schema_attr->linkID & 1) == 1) {
-			unsigned int functional_level;
-
-			functional_level = dsdb_functional_level(ldb);
-			SMB_ASSERT(functional_level > DS_DOMAIN_FUNCTION_2000);
-		}
+		/* this part of the code should only be handling forward links */
+		SMB_ASSERT((schema_attr->linkID & 1) == 0);
 
 		/* Even link IDs are for the originating attribute */
-		target_attr = dsdb_attribute_by_linkID(ac->schema, schema_attr->linkID + 1);
+		target_attr = dsdb_attribute_by_linkID(ac->schema, schema_attr->linkID ^ 1);
 		if (!target_attr) {
 			/*
 			 * windows 2003 has a broken schema where
@@ -319,7 +378,7 @@ static int la_mod_search_callback(struct ldb_request *req, struct ldb_reply *are
 						LDB_ERR_OPERATIONS_ERROR);
 		}
 
-		ac->add_dn = ac->del_dn = talloc_steal(ac, ares->message->dn);
+		ac->mod_dn = talloc_steal(ac, ares->message->dn);
 
 		/* We don't populate 'rc' for ADD - it can't be deleting elements anyway */
 		for (i = 0; rc && i < rc->num_elements; i++) {
@@ -345,7 +404,7 @@ static int la_mod_search_callback(struct ldb_request *req, struct ldb_reply *are
 				continue;
 			}
 
-			target_attr = dsdb_attribute_by_linkID(ac->schema, schema_attr->linkID + 1);
+			target_attr = dsdb_attribute_by_linkID(ac->schema, schema_attr->linkID ^ 1);
 			if (!target_attr) {
 				/*
 				 * windows 2003 has a broken schema where
@@ -412,6 +471,7 @@ static int linked_attributes_modify(struct ldb_module *module, struct ldb_reques
 	/* Determine the effect of the modification */
 	/* Apply the modify to the linked entry */
 
+	struct ldb_control *control;
 	struct ldb_context *ldb;
 	unsigned int i, j;
 	struct la_context *ac;
@@ -427,16 +487,25 @@ static int linked_attributes_modify(struct ldb_module *module, struct ldb_reques
 		return ldb_next_request(module, req);
 	}
 
-	if (!(ctrl = ldb_request_get_control(req, DSDB_CONTROL_APPLY_LINKS))) {
-		/* don't do anything special for linked attributes, repl_meta_data has done it */
-		return ldb_next_request(module, req);
-	}
-	ctrl->critical = false;
-
 	ac = linked_attributes_init(module, req);
 	if (!ac) {
 		return ldb_operr(ldb);
 	}
+
+	control = ldb_request_get_control(req, LDB_CONTROL_VERIFY_NAME_OID);
+	if (control != NULL && control->data != NULL) {
+		ret = handle_verify_name_control(req, ldb, control, ac);
+		if (ret != LDB_SUCCESS) {
+			return ldb_operr(ldb);
+		}
+	}
+
+	if (!(ctrl = ldb_request_get_control(req, DSDB_CONTROL_APPLY_LINKS))) {
+		/* don't do anything special for linked attributes, repl_meta_data has done it */
+		talloc_free(ac);
+		return ldb_next_request(module, req);
+	}
+	ctrl->critical = false;
 
 	if (!ac->schema) {
 		/* without schema, this doesn't make any sense */
@@ -468,14 +537,11 @@ static int linked_attributes_modify(struct ldb_module *module, struct ldb_reques
 			continue;
 		}
 
-		if ((schema_attr->linkID & 1) == 1) {
-			unsigned int functional_level;
+		/* this part of the code should only be handling forward links */
+		SMB_ASSERT((schema_attr->linkID & 1) == 0);
 
-			functional_level = dsdb_functional_level(ldb);
-			SMB_ASSERT(functional_level > DS_DOMAIN_FUNCTION_2000);
-		}
 		/* Now find the target attribute */
-		target_attr = dsdb_attribute_by_linkID(ac->schema, schema_attr->linkID + 1);
+		target_attr = dsdb_attribute_by_linkID(ac->schema, schema_attr->linkID ^ 1);
 		if (!target_attr) {
 			/*
 			 * windows 2003 has a broken schema where
@@ -572,9 +638,9 @@ static int linked_attributes_modify(struct ldb_module *module, struct ldb_reques
 
 		/* We need to figure out our own extended DN, to fill in as the backlink target */
 		if (ret == LDB_SUCCESS) {
-			ret = ldb_request_add_control(search_req,
-						      LDB_CONTROL_EXTENDED_DN_OID,
-						      false, NULL);
+			ret = dsdb_request_add_controls(search_req,
+							DSDB_SEARCH_SHOW_DELETED |
+							DSDB_SEARCH_SHOW_EXTENDED_DN);
 		}
 		if (ret == LDB_SUCCESS) {
 			talloc_steal(search_req, attrs);
@@ -867,9 +933,9 @@ static int la_add_callback(struct ldb_request *req, struct ldb_reply *ares)
 		LDB_REQ_SET_LOCATION(search_req);
 
 		if (ret == LDB_SUCCESS) {
-			ret = ldb_request_add_control(search_req,
-						      LDB_CONTROL_EXTENDED_DN_OID,
-						      false, NULL);
+			ret = dsdb_request_add_controls(search_req,
+							DSDB_SEARCH_SHOW_DELETED |
+							DSDB_SEARCH_SHOW_EXTENDED_DN);
 		}
 		if (ret != LDB_SUCCESS) {
 			return ldb_module_done(ac->req, NULL, NULL,
@@ -930,7 +996,7 @@ static int la_down_req(struct la_context *ac)
 static int la_find_dn_target(struct ldb_module *module, struct la_context *ac,
 			     struct GUID *guid, struct ldb_dn **dn)
 {
-	return dsdb_find_dn_by_guid(ldb_module_get_ctx(ac->module), ac, guid, dn);
+	return dsdb_module_dn_by_guid(ac->module, ac, guid, dn, ac->req);
 }
 
 /* apply one la_context op change */
@@ -940,6 +1006,11 @@ static int la_do_op_request(struct ldb_module *module, struct la_context *ac, st
 	struct ldb_message *new_msg;
 	struct ldb_context *ldb;
 	int ret;
+
+	if (ac->mod_dn == NULL) {
+		/* we didn't find the DN that we searched for */
+		return LDB_SUCCESS;
+	}
 
 	ldb = ldb_module_get_ctx(ac->module);
 
@@ -969,11 +1040,7 @@ static int la_do_op_request(struct ldb_module *module, struct la_context *ac, st
 		return ldb_oom(ldb);
 	}
 	ret_el->num_values = 1;
-	if (op->op == LA_OP_ADD) {
-		ret_el->values[0] = data_blob_string_const(ldb_dn_get_extended_linearized(new_msg, ac->add_dn, 1));
-	} else {
-		ret_el->values[0] = data_blob_string_const(ldb_dn_get_extended_linearized(new_msg, ac->del_dn, 1));
-	}
+	ret_el->values[0] = data_blob_string_const(ldb_dn_get_extended_linearized(new_msg, ac->mod_dn, 1));
 
 	/* a backlink should never be single valued. Unfortunately the
 	   exchange schema has a attribute
@@ -996,7 +1063,7 @@ static int la_do_op_request(struct ldb_module *module, struct la_context *ac, st
 
 	ret = dsdb_module_modify(module, new_msg, DSDB_FLAG_NEXT_MODULE, ac->req);
 	if (ret != LDB_SUCCESS) {
-		ldb_debug(ldb, LDB_DEBUG_WARNING, "Failed to apply linked attribute change '%s'\n%s\n",
+		ldb_debug(ldb, LDB_DEBUG_WARNING, __location__ ": failed to apply linked attribute change '%s'\n%s\n",
 			  ldb_errstring(ldb),
 			  ldb_ldif_message_string(ldb, op, LDB_CHANGETYPE_MODIFY, new_msg));
 	}
@@ -1094,12 +1161,27 @@ static int linked_attributes_del_transaction(struct ldb_module *module)
 	return ldb_next_del_trans(module);
 }
 
+static int linked_attributes_ldb_init(struct ldb_module *module)
+{
+	int ret;
+
+	ret = ldb_mod_register_control(module, LDB_CONTROL_VERIFY_NAME_OID);
+	if (ret != LDB_SUCCESS) {
+		ldb_debug(ldb_module_get_ctx(module), LDB_DEBUG_ERROR,
+			"verify_name: Unable to register control with rootdse!\n");
+		return ldb_operr(ldb_module_get_ctx(module));
+	}
+
+	return ldb_next_init(module);
+}
+
 
 static const struct ldb_module_ops ldb_linked_attributes_module_ops = {
 	.name		   = "linked_attributes",
 	.add               = linked_attributes_add,
 	.modify            = linked_attributes_modify,
 	.rename            = linked_attributes_rename,
+	.init_context      = linked_attributes_ldb_init,
 	.start_transaction = linked_attributes_start_transaction,
 	.prepare_commit    = linked_attributes_prepare_commit,
 	.del_transaction   = linked_attributes_del_transaction,

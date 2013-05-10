@@ -34,6 +34,8 @@
 #include "librpc/gen_ndr/ndr_irpc_c.h"
 #include "lib/messaging/irpc.h"
 
+NTSTATUS auth_sam_init(void);
+
 extern const char *user_attrs[];
 extern const char *domain_ref_attrs[];
 
@@ -70,7 +72,7 @@ static NTSTATUS authsam_search_account(TALLOC_CTX *mem_ctx, struct ldb_context *
  Do a specific test for an smb password being correct, given a smb_password and
  the lanman and NT responses.
 ****************************************************************************/
-static NTSTATUS authsam_password_ok(struct auth_context *auth_context,
+static NTSTATUS authsam_password_ok(struct auth4_context *auth_context,
 				    TALLOC_CTX *mem_ctx,
 				    uint16_t acct_flags,
 				    const struct samr_Password *lm_pwd, 
@@ -140,7 +142,7 @@ static NTSTATUS authsam_password_ok(struct auth_context *auth_context,
   send a message to the drepl server telling it to initiate a
   REPL_SECRET getncchanges extended op to fetch the users secrets
  */
-static void auth_sam_trigger_repl_secret(TALLOC_CTX *mem_ctx, struct auth_context *auth_context,
+static void auth_sam_trigger_repl_secret(TALLOC_CTX *mem_ctx, struct auth4_context *auth_context,
 					 struct ldb_dn *user_dn)
 {
 	struct dcerpc_binding_handle *irpc_handle;
@@ -168,7 +170,7 @@ static void auth_sam_trigger_repl_secret(TALLOC_CTX *mem_ctx, struct auth_contex
 }
 
 
-static NTSTATUS authsam_authenticate(struct auth_context *auth_context, 
+static NTSTATUS authsam_authenticate(struct auth4_context *auth_context, 
 				     TALLOC_CTX *mem_ctx, struct ldb_context *sam_ctx, 
 				     struct ldb_dn *domain_dn,
 				     struct ldb_message *msg,
@@ -339,7 +341,7 @@ static NTSTATUS authsam_want_check(struct auth_method_context *ctx,
 			}
 			return NT_STATUS_OK;
 
-		case ROLE_DOMAIN_CONTROLLER:
+		case ROLE_ACTIVE_DIRECTORY_DC:
 			if (!is_local_name && !is_my_domain) {
 				DEBUG(6,("authsam_check_password: %s is not one of my local names or domain name (DC)\n",
 					user_info->mapped.domain_name));
@@ -355,7 +357,7 @@ static NTSTATUS authsam_want_check(struct auth_method_context *ctx,
 				   
 /* Wrapper for the auth subsystem pointer */
 static NTSTATUS authsam_get_user_info_dc_principal_wrapper(TALLOC_CTX *mem_ctx,
-							  struct auth_context *auth_context,
+							  struct auth4_context *auth_context,
 							  const char *principal,
 							  struct ldb_dn *user_dn,
 							  struct auth_user_info_dc **user_info_dc)
@@ -365,7 +367,6 @@ static NTSTATUS authsam_get_user_info_dc_principal_wrapper(TALLOC_CTX *mem_ctx,
 }
 static const struct auth_operations sam_ignoredomain_ops = {
 	.name		           = "sam_ignoredomain",
-	.get_challenge	           = auth_get_challenge_not_implemented,
 	.want_check	           = authsam_ignoredomain_want_check,
 	.check_password	           = authsam_check_password_internals,
 	.get_user_info_dc_principal = authsam_get_user_info_dc_principal_wrapper
@@ -373,13 +374,12 @@ static const struct auth_operations sam_ignoredomain_ops = {
 
 static const struct auth_operations sam_ops = {
 	.name		           = "sam",
-	.get_challenge	           = auth_get_challenge_not_implemented,
 	.want_check	           = authsam_want_check,
 	.check_password	           = authsam_check_password_internals,
 	.get_user_info_dc_principal = authsam_get_user_info_dc_principal_wrapper
 };
 
-_PUBLIC_ NTSTATUS auth_sam_init(void)
+_PUBLIC_ NTSTATUS auth4_sam_init(void)
 {
 	NTSTATUS ret;
 

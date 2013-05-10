@@ -20,7 +20,7 @@
 #ifndef _G_LOCK_H_
 #define _G_LOCK_H_
 
-#include "dbwrap.h"
+#include "dbwrap/dbwrap.h"
 
 struct g_lock_ctx;
 
@@ -29,14 +29,15 @@ enum g_lock_type {
 	G_LOCK_WRITE = 1,
 };
 
-/*
- * Or'ed with g_lock_type
- */
-#define G_LOCK_PENDING (2)
-
 struct g_lock_ctx *g_lock_ctx_init(TALLOC_CTX *mem_ctx,
 				   struct messaging_context *msg);
 
+struct tevent_req *g_lock_lock_send(TALLOC_CTX *mem_ctx,
+				    struct tevent_context *ev,
+				    struct g_lock_ctx *ctx,
+				    const char *name,
+				    enum g_lock_type type);
+NTSTATUS g_lock_lock_recv(struct tevent_req *req);
 NTSTATUS g_lock_lock(struct g_lock_ctx *ctx, const char *name,
 		     enum g_lock_type lock_type, struct timeval timeout);
 NTSTATUS g_lock_unlock(struct g_lock_ctx *ctx, const char *name);
@@ -44,7 +45,7 @@ NTSTATUS g_lock_get(struct g_lock_ctx *ctx, const char *name,
 		struct server_id *pid);
 
 NTSTATUS g_lock_do(const char *name, enum g_lock_type lock_type,
-		   struct timeval timeout, struct server_id self,
+		   struct timeval timeout,
 		   void (*fn)(void *private_data), void *private_data);
 
 int g_lock_locks(struct g_lock_ctx *ctx,

@@ -27,10 +27,8 @@
 
 #include <talloc.h>
 #include <sys/time.h>
-#if _SAMBA_BUILD_ == 4
-#include "../lib/util/util.h" /* for discard_const */
+#include "../lib/util/samba_util.h" /* for discard_const */
 #include "../lib/util/charset/charset.h"
-#endif
 
 /*
   this provides definitions for the libcli/rpc/ MSRPC library
@@ -122,6 +120,7 @@ struct ndr_print {
 #define LIBNDR_FLAG_STR_CONFORMANT	(1<<10)
 #define LIBNDR_FLAG_STR_CHARLEN		(1<<11)
 #define LIBNDR_FLAG_STR_UTF8		(1<<12)
+#define LIBNDR_FLAG_STR_RAW8		(1<<13)
 #define LIBNDR_STRING_FLAGS		(0x7FFC)
 
 /* set if relative pointers should *not* be marshalled in reverse order */
@@ -199,7 +198,8 @@ enum ndr_err_code {
 	NDR_ERR_IPV6ADDRESS,
 	NDR_ERR_INVALID_POINTER,
 	NDR_ERR_UNREAD_BYTES,
-	NDR_ERR_NDR64
+	NDR_ERR_NDR64,
+	NDR_ERR_FLAGS
 };
 
 #define NDR_ERR_CODE_IS_SUCCESS(x) (x == NDR_ERR_SUCCESS)
@@ -217,17 +217,44 @@ enum ndr_compression_alg {
 
 /*
   flags passed to control parse flow
+  These are deliberately in a different range to the NDR_IN/NDR_OUT
+  flags to catch mixups
 */
-#define NDR_SCALARS 1
-#define NDR_BUFFERS 2
+#define NDR_SCALARS    0x100
+#define NDR_BUFFERS    0x200
 
 /*
-  flags passed to ndr_print_*()
+  flags passed to ndr_print_*() and ndr pull/push for functions
+  These are deliberately in a different range to the NDR_SCALARS/NDR_BUFFERS
+  flags to catch mixups
 */
-#define NDR_IN 1
-#define NDR_OUT 2
-#define NDR_BOTH 3
-#define NDR_SET_VALUES 4
+#define NDR_IN         0x10
+#define NDR_OUT        0x20
+#define NDR_BOTH       0x30
+#define NDR_SET_VALUES 0x40
+
+
+#define NDR_PULL_CHECK_FLAGS(ndr, ndr_flags) do { \
+	if ((ndr_flags) & ~(NDR_SCALARS|NDR_BUFFERS)) { \
+		return ndr_pull_error(ndr, NDR_ERR_FLAGS, "Invalid pull struct ndr_flags 0x%x", ndr_flags); \
+	} \
+} while (0)
+
+#define NDR_PUSH_CHECK_FLAGS(ndr, ndr_flags) do { \
+	if ((ndr_flags) & ~(NDR_SCALARS|NDR_BUFFERS)) \
+		return ndr_push_error(ndr, NDR_ERR_FLAGS, "Invalid push struct ndr_flags 0x%x", ndr_flags); \
+} while (0)
+
+#define NDR_PULL_CHECK_FN_FLAGS(ndr, flags) do { \
+	if ((flags) & ~(NDR_BOTH|NDR_SET_VALUES)) { \
+		return ndr_pull_error(ndr, NDR_ERR_FLAGS, "Invalid fn pull flags 0x%x", flags); \
+	} \
+} while (0)
+
+#define NDR_PUSH_CHECK_FN_FLAGS(ndr, flags) do { \
+	if ((flags) & ~(NDR_BOTH|NDR_SET_VALUES)) \
+		return ndr_push_error(ndr, NDR_ERR_FLAGS, "Invalid fn push flags 0x%x", flags); \
+} while (0)
 
 #define NDR_PULL_NEED_BYTES(ndr, n) do { \
 	if (unlikely((n) > ndr->data_size || ndr->offset + (n) > ndr->data_size)) { \
@@ -332,9 +359,9 @@ typedef void (*ndr_print_function_t)(struct ndr_print *, const char *, int, cons
 #include "../libcli/util/error.h"
 #include "librpc/gen_ndr/misc.h"
 
-extern const struct ndr_syntax_id ndr_transfer_syntax;
-extern const struct ndr_syntax_id ndr64_transfer_syntax;
-extern const struct ndr_syntax_id null_ndr_syntax_id;
+extern const struct ndr_syntax_id ndr_transfer_syntax_ndr;
+extern const struct ndr_syntax_id ndr_transfer_syntax_ndr64;
+extern const struct ndr_syntax_id ndr_syntax_id_null;
 
 struct ndr_interface_call_pipe {
 	const char *name;
@@ -380,10 +407,13 @@ struct ndr_interface_list {
 	const struct ndr_interface_table *table;
 };
 
+struct sockaddr_storage;
+
 /*********************************************************************
  Map an NT error code from a NDR error code.
 *********************************************************************/
 NTSTATUS ndr_map_error2ntstatus(enum ndr_err_code ndr_err);
+int ndr_map_error2errno(enum ndr_err_code ndr_err);
 const char *ndr_map_error2string(enum ndr_err_code ndr_err);
 #define ndr_errstr ndr_map_error2string
 
@@ -401,6 +431,7 @@ enum ndr_err_code ndr_pull_dom_sid0(struct ndr_pull *ndr, int ndr_flags, struct 
 void ndr_print_dom_sid0(struct ndr_print *ndr, const char *name, const struct dom_sid *sid);
 size_t ndr_size_dom_sid0(const struct dom_sid *sid, int flags);
 void ndr_print_GUID(struct ndr_print *ndr, const char *name, const struct GUID *guid);
+void ndr_print_sockaddr_storage(struct ndr_print *ndr, const char *name, const struct sockaddr_storage *ss);
 bool ndr_syntax_id_equal(const struct ndr_syntax_id *i1, const struct ndr_syntax_id *i2); 
 enum ndr_err_code ndr_push_struct_blob(DATA_BLOB *blob, TALLOC_CTX *mem_ctx, const void *p, ndr_push_flags_fn_t fn);
 enum ndr_err_code ndr_push_union_blob(DATA_BLOB *blob, TALLOC_CTX *mem_ctx, void *p, uint32_t level, ndr_push_flags_fn_t fn);
@@ -530,9 +561,9 @@ NDR_SCALAR_PROTO(double, double)
 enum ndr_err_code ndr_pull_policy_handle(struct ndr_pull *ndr, int ndr_flags, struct policy_handle *r);
 enum ndr_err_code ndr_push_policy_handle(struct ndr_push *ndr, int ndr_flags, const struct policy_handle *r);
 void ndr_print_policy_handle(struct ndr_print *ndr, const char *name, const struct policy_handle *r);
-bool policy_handle_empty(const struct policy_handle *h);
-bool is_valid_policy_hnd(const struct policy_handle *hnd);
-bool policy_handle_equal(const struct policy_handle *hnd1,
+bool ndr_policy_handle_empty(const struct policy_handle *h);
+#define is_valid_policy_hnd(hnd) (!ndr_policy_handle_empty(hnd))
+bool ndr_policy_handle_equal(const struct policy_handle *hnd1,
 			 const struct policy_handle *hnd2);
 
 void ndr_check_padding(struct ndr_pull *ndr, size_t n);
@@ -583,14 +614,12 @@ NTSTATUS GUID_to_ndr_blob(const struct GUID *guid, TALLOC_CTX *mem_ctx, DATA_BLO
 NTSTATUS GUID_from_ndr_blob(const DATA_BLOB *b, struct GUID *guid);
 NTSTATUS GUID_from_data_blob(const DATA_BLOB *s, struct GUID *guid);
 NTSTATUS GUID_from_string(const char *s, struct GUID *guid);
-NTSTATUS NS_GUID_from_string(const char *s, struct GUID *guid);
 struct GUID GUID_zero(void);
 bool GUID_all_zero(const struct GUID *u);
 int GUID_compare(const struct GUID *u1, const struct GUID *u2);
 char *GUID_string(TALLOC_CTX *mem_ctx, const struct GUID *guid);
 char *GUID_string2(TALLOC_CTX *mem_ctx, const struct GUID *guid);
 char *GUID_hexstring(TALLOC_CTX *mem_ctx, const struct GUID *guid);
-char *NS_GUID_string(TALLOC_CTX *mem_ctx, const struct GUID *guid);
 struct GUID GUID_random(void);
 
 _PUBLIC_ enum ndr_err_code ndr_pull_enum_uint8(struct ndr_pull *ndr, int ndr_flags, uint8_t *v);
@@ -603,5 +632,25 @@ _PUBLIC_ enum ndr_err_code ndr_push_enum_uint32(struct ndr_push *ndr, int ndr_fl
 _PUBLIC_ enum ndr_err_code ndr_push_enum_uint1632(struct ndr_push *ndr, int ndr_flags, uint16_t v);
 
 _PUBLIC_ void ndr_print_bool(struct ndr_print *ndr, const char *name, const bool b);
+
+_PUBLIC_ enum ndr_err_code ndr_push_timespec(struct ndr_push *ndr,
+					     int ndr_flags,
+					     const struct timespec *t);
+_PUBLIC_ enum ndr_err_code ndr_pull_timespec(struct ndr_pull *ndr,
+					     int ndr_flags,
+					     struct timespec *t);
+_PUBLIC_ void ndr_print_timespec(struct ndr_print *ndr, const char *name,
+				 const struct timespec *t);
+
+_PUBLIC_ enum ndr_err_code ndr_push_timeval(struct ndr_push *ndr,
+					    int ndr_flags,
+					    const struct timeval *t);
+_PUBLIC_ enum ndr_err_code ndr_pull_timeval(struct ndr_pull *ndr,
+					    int ndr_flags,
+					    struct timeval *t);
+_PUBLIC_ void ndr_print_timeval(struct ndr_print *ndr, const char *name,
+				const struct timeval *t);
+
+
 
 #endif /* __LIBNDR_H__ */

@@ -6,6 +6,7 @@ import "nbt.idl";
 	uuid("45f52c28-7f9f-101a-b52b-08002b2efabe"),
 	version(1.0),
 	helpstring("WINS Administration Interface1"),
+	helper("../libcli/nbt/libnbt.h"),
 	pointer_default(unique)
 ] interface winsif
 {
@@ -236,8 +237,7 @@ import "nbt.idl";
 		[out,ref] winsif_Address *server_address,
 		/*
 		 * TODO: fix pidl to handles this completly correct...
-		 *       currently it gives a warning about a missing pointer
-		 *       and completely ignores the size_is(80).
+		 *       currently it gives a warning about a missing pointer.
 		 */
 		[out,ref,string,charset(DOS),size_is(80)] uint8 *unc_name
 	);

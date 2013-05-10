@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-#
 # Unix SMB/CIFS implementation.
 # A command to compare differences of objects and attributes between
 # two LDAP servers both running at the same time. It generally compares
@@ -30,14 +28,13 @@ import sys
 import samba
 import samba.getopt as options
 from samba import Ldb
-from samba.ndr import ndr_pack, ndr_unpack
+from samba.ndr import ndr_unpack
 from samba.dcerpc import security
 from ldb import SCOPE_SUBTREE, SCOPE_ONELEVEL, SCOPE_BASE, ERR_NO_SUCH_OBJECT, LdbError
 from samba.netcmd import (
     Command,
     CommandError,
     Option,
-    SuperCommand,
     )
 
 global summary
@@ -47,7 +44,8 @@ class LDAPBase(object):
 
     def __init__(self, host, creds, lp,
                  two=False, quiet=False, descriptor=False, sort_aces=False, verbose=False,
-                 view="section", base="", scope="SUB"):
+                 view="section", base="", scope="SUB",
+                 outf=sys.stdout, errf=sys.stderr):
         ldb_options = []
         samdb_url = host
         if not "://" in host:
@@ -58,6 +56,8 @@ class LDAPBase(object):
         # use 'paged_search' module when connecting remotely
         if samdb_url.lower().startswith("ldap://"):
             ldb_options = ["modules:paged_searches"]
+        self.outf = outf
+        self.errf = errf
         self.ldb = Ldb(url=samdb_url,
                        credentials=creds,
                        lp=lp,
@@ -71,7 +71,10 @@ class LDAPBase(object):
         self.view = view
         self.verbose = verbose
         self.host = host
-        self.base_dn = self.find_basedn()
+        self.base_dn = str(self.ldb.get_default_basedn())
+        self.root_dn = str(self.ldb.get_root_basedn())
+        self.config_dn = str(self.ldb.get_config_basedn())
+        self.schema_dn = str(self.ldb.get_schema_basedn())
         self.domain_netbios = self.find_netbios()
         self.server_names = self.find_servers()
         self.domain_name = re.sub("[Dd][Cc]=", "", self.base_dn).replace(",", ".")
@@ -82,11 +85,15 @@ class LDAPBase(object):
         # Log some domain controller specific place-holers that are being used
         # when compare content of two DCs. Uncomment for DEBUG purposes.
         if self.two_domains and not self.quiet:
-            print "\n* Place-holders for %s:" % self.host
-            print 4*" " + "${DOMAIN_DN}      => %s" % self.base_dn
-            print 4*" " + "${DOMAIN_NETBIOS} => %s" % self.domain_netbios
-            print 4*" " + "${SERVER_NAME}     => %s" % self.server_names
-            print 4*" " + "${DOMAIN_NAME}    => %s" % self.domain_name
+            self.outf.write("\n* Place-holders for %s:\n" % self.host)
+            self.outf.write(4*" " + "${DOMAIN_DN}      => %s\n" %
+                self.base_dn)
+            self.outf.write(4*" " + "${DOMAIN_NETBIOS} => %s\n" %
+                self.domain_netbios)
+            self.outf.write(4*" " + "${SERVER_NAME}     => %s\n" %
+                self.server_names)
+            self.outf.write(4*" " + "${DOMAIN_NAME}    => %s\n" %
+                self.domain_name)
 
     def find_domain_sid(self):
         res = self.ldb.search(base=self.base_dn, expression="(objectClass=*)", scope=SCOPE_BASE)
@@ -95,7 +102,7 @@ class LDAPBase(object):
     def find_servers(self):
         """
         """
-        res = self.ldb.search(base="OU=Domain Controllers,%s" % self.base_dn, \
+        res = self.ldb.search(base="OU=Domain Controllers,%s" % self.base_dn,
                 scope=SCOPE_SUBTREE, expression="(objectClass=computer)", attrs=["cn"])
         assert len(res) > 0
         srv = []
@@ -104,18 +111,12 @@ class LDAPBase(object):
         return srv
 
     def find_netbios(self):
-        res = self.ldb.search(base="CN=Partitions,CN=Configuration,%s" % self.base_dn, \
+        res = self.ldb.search(base="CN=Partitions,%s" % self.config_dn,
                 scope=SCOPE_SUBTREE, attrs=["nETBIOSName"])
         assert len(res) > 0
         for x in res:
             if "nETBIOSName" in x.keys():
                 return x["nETBIOSName"][0]
-
-    def find_basedn(self):
-        res = self.ldb.search(base="", expression="(objectClass=*)", scope=SCOPE_BASE,
-                attrs=["defaultNamingContext"])
-        assert len(res) == 1
-        return res[0]["defaultNamingContext"][0]
 
     def object_exists(self, object_dn):
         res = None
@@ -252,13 +253,13 @@ class LDAPBase(object):
         """ Build dictionary that maps GUID to 'name' attribute found in Schema or Extended-Rights.
         """
         self.guid_map = {}
-        res = self.ldb.search(base="cn=schema,cn=configuration,%s" % self.base_dn, \
-                expression="(schemaIdGuid=*)", scope=SCOPE_SUBTREE, attrs=["schemaIdGuid", "name"])
+        res = self.ldb.search(base=self.schema_dn,
+                              expression="(schemaIdGuid=*)", scope=SCOPE_SUBTREE, attrs=["schemaIdGuid", "name"])
         for item in res:
             self.guid_map[self.guid_as_string(item["schemaIdGuid"]).lower()] = item["name"][0]
         #
-        res = self.ldb.search(base="cn=extended-rights,cn=configuration,%s" % self.base_dn, \
-                expression="(rightsGuid=*)", scope=SCOPE_SUBTREE, attrs=["rightsGuid", "name"])
+        res = self.ldb.search(base="cn=extended-rights,%s" % self.config_dn,
+                              expression="(rightsGuid=*)", scope=SCOPE_SUBTREE, attrs=["rightsGuid", "name"])
         for item in res:
             self.guid_map[str(item["rightsGuid"]).lower()] = item["name"][0]
 
@@ -266,8 +267,8 @@ class LDAPBase(object):
         """ Build dictionary that maps GUID to 'name' attribute found in Schema or Extended-Rights.
         """
         self.sid_map = {}
-        res = self.ldb.search(base="%s" % self.base_dn, \
-                expression="(objectSid=*)", scope=SCOPE_SUBTREE, attrs=["objectSid", "sAMAccountName"])
+        res = self.ldb.search(base=self.base_dn,
+                              expression="(objectSid=*)", scope=SCOPE_SUBTREE, attrs=["objectSid", "sAMAccountName"])
         for item in res:
             try:
                 self.sid_map["%s" % ndr_unpack(security.dom_sid, item["objectSid"][0])] = item["sAMAccountName"][0]
@@ -275,7 +276,9 @@ class LDAPBase(object):
                 pass
 
 class Descriptor(object):
-    def __init__(self, connection, dn):
+    def __init__(self, connection, dn, outf=sys.stdout, errf=sys.stderr):
+        self.outf = outf
+        self.errf = errf
         self.con = connection
         self.dn = dn
         self.sddl = self.con.get_descriptor_sddl(self.dn)
@@ -415,7 +418,10 @@ class Descriptor(object):
         return (self_aces == [] and other_aces == [], res)
 
 class LDAPObject(object):
-    def __init__(self, connection, dn, summary):
+    def __init__(self, connection, dn, summary, filter_list,
+                 outf=sys.stdout, errf=sys.stderr):
+        self.outf = outf
+        self.errf = errf
         self.con = connection
         self.two_domains = self.con.two_domains
         self.quiet = self.con.quiet
@@ -433,11 +439,15 @@ class LDAPObject(object):
                 # Default Naming Context
                 "lastLogon", "lastLogoff", "badPwdCount", "logonCount", "badPasswordTime", "modifiedCount",
                 "operatingSystemVersion","oEMInformation",
+                "ridNextRID", "rIDPreviousAllocationPool",
                 # Configuration Naming Context
                 "repsFrom", "dSCorePropagationData", "msExchServer1HighestUSN",
                 "replUpToDateVector", "repsTo", "whenChanged", "uSNChanged", "uSNCreated",
                 # Schema Naming Context
-                "prefixMap",]
+                "prefixMap"]
+        if filter_list:
+            self.ignore_attributes += filter_list
+
         self.dn_attributes = []
         self.domain_attributes = []
         self.servername_attributes = []
@@ -493,7 +503,7 @@ class LDAPObject(object):
         Log on the screen if there is no --quiet oprion set
         """
         if not self.quiet:
-            print msg
+            self.outf.write(msg+"\n")
 
     def fix_dn(self, s):
         res = "%s" % s
@@ -533,8 +543,8 @@ class LDAPObject(object):
         return self.cmp_attrs(other)
 
     def cmp_desc(self, other):
-        d1 = Descriptor(self.con, self.dn)
-        d2 = Descriptor(other.con, other.dn)
+        d1 = Descriptor(self.con, self.dn, outf=self.outf, errf=self.errf)
+        d2 = Descriptor(other.con, other.dn, outf=self.outf, errf=self.errf)
         if self.con.view == "section":
             res = d1.diff_2(d2)
         elif self.con.view == "collision":
@@ -665,7 +675,11 @@ class LDAPObject(object):
 
 
 class LDAPBundel(object):
-    def __init__(self, connection, context, dn_list=None):
+
+    def __init__(self, connection, context, dn_list=None, filter_list=None,
+                 outf=sys.stdout, errf=sys.stderr):
+        self.outf = outf
+        self.errf = errf
         self.con = connection
         self.two_domains = self.con.two_domains
         self.quiet = self.con.quiet
@@ -677,9 +691,10 @@ class LDAPBundel(object):
         self.summary["df_value_attrs"] = []
         self.summary["known_ignored_dn"] = []
         self.summary["abnormal_ignored_dn"] = []
+        self.filter_list = filter_list
         if dn_list:
             self.dn_list = dn_list
-        elif context.upper() in ["DOMAIN", "CONFIGURATION", "SCHEMA"]:
+        elif context.upper() in ["DOMAIN", "CONFIGURATION", "SCHEMA", "DNSDOMAIN", "DNSFOREST"]:
             self.context = context.upper()
             self.dn_list = self.get_dn_list(context)
         else:
@@ -704,7 +719,7 @@ class LDAPBundel(object):
         Log on the screen if there is no --quiet oprion set
         """
         if not self.quiet:
-            print msg
+            self.outf.write(msg+"\n")
 
     def update_size(self):
         self.size = len(self.dn_list)
@@ -754,7 +769,9 @@ class LDAPBundel(object):
             try:
                 object1 = LDAPObject(connection=self.con,
                                      dn=self.dn_list[index],
-                                     summary=self.summary)
+                                     summary=self.summary,
+                                     filter_list=self.filter_list,
+                                     outf=self.outf, errf=self.errf)
             except LdbError, (enum, estr):
                 if enum == ERR_NO_SUCH_OBJECT:
                     self.log( "\n!!! Object not found: %s" % self.dn_list[index] )
@@ -763,7 +780,9 @@ class LDAPBundel(object):
             try:
                 object2 = LDAPObject(connection=other.con,
                         dn=other.dn_list[index],
-                        summary=other.summary)
+                        summary=other.summary,
+                        filter_list=self.filter_list,
+                        outf=self.outf, errf=self.errf)
             except LdbError, (enum, estr):
                 if enum == ERR_NO_SUCH_OBJECT:
                     self.log( "\n!!! Object not found: %s" % other.dn_list[index] )
@@ -796,11 +815,15 @@ class LDAPBundel(object):
             Parse all DNs and filter those that are 'strange' or abnormal.
         """
         if context.upper() == "DOMAIN":
-            search_base = "%s" % self.con.base_dn
+            search_base = self.con.base_dn
         elif context.upper() == "CONFIGURATION":
-            search_base = "CN=Configuration,%s" % self.con.base_dn
+            search_base = self.con.config_dn
         elif context.upper() == "SCHEMA":
-            search_base = "CN=Schema,CN=Configuration,%s" % self.con.base_dn
+            search_base = self.con.schema_dn
+        elif context.upper() == "DNSDOMAIN":
+            search_base = "DC=DomainDnsZones,%s" % self.con.base_dn
+        elif context.upper() == "DNSFOREST":
+            search_base = "DC=ForestDnsZones,%s" % self.con.root_dn
 
         dn_list = []
         if not self.search_base:
@@ -814,9 +837,11 @@ class LDAPBundel(object):
             self.search_scope = SCOPE_ONELEVEL
         else:
             raise StandardError("Wrong 'scope' given. Choose from: SUB, ONE, BASE")
-        if not self.search_base.upper().endswith(search_base.upper()):
-            raise StandardError("Invalid search base specified: %s" % self.search_base)
-        res = self.con.ldb.search(base=self.search_base, scope=self.search_scope, attrs=["dn"])
+        try:
+            res = self.con.ldb.search(base=self.search_base, scope=self.search_scope, attrs=["dn"])
+        except LdbError, (enum, estr):
+            self.outf.write("Failed search of base=%s\n" % self.search_base)
+            raise
         for x in res:
            dn_list.append(x["dn"].get_linearized())
         #
@@ -837,9 +862,16 @@ class LDAPBundel(object):
             self.log( "".join([str("\n" + 4*" " + x) for x in self.summary["df_value_attrs"]]) )
             self.summary["df_value_attrs"] = []
 
+
 class cmd_ldapcmp(Command):
-    """compare two ldap databases"""
-    synopsis = "ldapcmp URL1 URL2 <domain|configuration|schema> [options]"
+    """Compare two ldap databases."""
+    synopsis = "%prog <URL1> <URL2> (domain|configuration|schema|dnsdomain|dnsforest) [options]"
+
+    takes_optiongroups = {
+        "sambaopts": options.SambaOptions,
+        "versionopts": options.VersionOptions,
+        "credopts": options.CredentialsOptionsDouble,
+    }
 
     takes_optiongroups = {
         "sambaopts": options.SambaOptions,
@@ -868,21 +900,31 @@ class cmd_ldapcmp(Command):
             help="Pass search base that will build DN list for the second DC. Used when --two or when compare two different DNs."),
         Option("--scope", dest="scope", default="SUB",
             help="Pass search scope that builds DN list. Options: SUB, ONE, BASE"),
+        Option("--filter", dest="filter", default="",
+            help="List of comma separated attributes to ignore in the comparision"),
         ]
 
     def run(self, URL1, URL2,
             context1=None, context2=None, context3=None,
-            two=False, quiet=False, verbose=False, descriptor=False, sort_aces=False, view="section",
-            base="", base2="", scope="SUB", credopts=None, sambaopts=None, versionopts=None):
+            two=False, quiet=False, verbose=False, descriptor=False, sort_aces=False,
+            view="section", base="", base2="", scope="SUB", filter="",
+            credopts=None, sambaopts=None, versionopts=None):
+
         lp = sambaopts.get_loadparm()
-        creds = credopts.get_credentials(lp, fallback_machine=True)
+
+        using_ldap = URL1.startswith("ldap") or URL2.startswith("ldap")
+
+        if using_ldap:
+            creds = credopts.get_credentials(lp, fallback_machine=True)
+        else:
+            creds = None
         creds2 = credopts.get_credentials2(lp, guess=False)
         if creds2.is_anonymous():
             creds2 = creds
         else:
             creds2.set_domain("")
             creds2.set_workstation("")
-        if not creds.authentication_requested():
+        if using_ldap and not creds.authentication_requested():
             raise CommandError("You must supply at least one username/password pair")
 
         # make a list of contexts to compare in
@@ -899,7 +941,7 @@ class cmd_ldapcmp(Command):
             for c in [context1, context2, context3]:
                 if c is None:
                     continue
-                if not c.upper() in ["DOMAIN", "CONFIGURATION", "SCHEMA"]:
+                if not c.upper() in ["DOMAIN", "CONFIGURATION", "SCHEMA", "DNSDOMAIN", "DNSFOREST"]:
                     raise CommandError("Incorrect argument: %s" % c)
                 contexts.append(c.upper())
 
@@ -914,33 +956,40 @@ class cmd_ldapcmp(Command):
 
         con1 = LDAPBase(URL1, creds, lp,
                         two=two, quiet=quiet, descriptor=descriptor, sort_aces=sort_aces,
-                        verbose=verbose,view=view, base=base, scope=scope)
+                        verbose=verbose,view=view, base=base, scope=scope,
+                        outf=self.outf, errf=self.errf)
         assert len(con1.base_dn) > 0
 
         con2 = LDAPBase(URL2, creds2, lp,
                         two=two, quiet=quiet, descriptor=descriptor, sort_aces=sort_aces,
-                        verbose=verbose, view=view, base=base2, scope=scope)
+                        verbose=verbose, view=view, base=base2, scope=scope,
+                        outf=self.outf, errf=self.errf)
         assert len(con2.base_dn) > 0
+
+        filter_list = filter.split(",")
 
         status = 0
         for context in contexts:
             if not quiet:
-                print "\n* Comparing [%s] context..." % context
+                self.outf.write("\n* Comparing [%s] context...\n" % context)
 
-            b1 = LDAPBundel(con1, context=context)
-            b2 = LDAPBundel(con2, context=context)
+            b1 = LDAPBundel(con1, context=context, filter_list=filter_list,
+                            outf=self.outf, errf=self.errf)
+            b2 = LDAPBundel(con2, context=context, filter_list=filter_list,
+                            outf=self.outf, errf=self.errf)
 
             if b1 == b2:
                 if not quiet:
-                    print "\n* Result for [%s]: SUCCESS" % context
+                    self.outf.write("\n* Result for [%s]: SUCCESS\n" %
+                        context)
             else:
                 if not quiet:
-                    print "\n* Result for [%s]: FAILURE" % context
+                    self.outf.write("\n* Result for [%s]: FAILURE\n" % context)
                     if not descriptor:
                         assert len(b1.summary["df_value_attrs"]) == len(b2.summary["df_value_attrs"])
                         b2.summary["df_value_attrs"] = []
-                        print "\nSUMMARY"
-                        print "---------"
+                        self.outf.write("\nSUMMARY\n")
+                        self.outf.write("---------\n")
                         b1.print_summary()
                         b2.print_summary()
                 # mark exit status as FAILURE if a least one comparison failed

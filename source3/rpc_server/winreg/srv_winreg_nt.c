@@ -30,6 +30,7 @@
 #include "rpc_misc.h"
 #include "auth.h"
 #include "lib/privileges.h"
+#include "libcli/security/secdesc.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_RPC_SRV
@@ -527,7 +528,7 @@ WERROR _winreg_InitiateSystemShutdownEx(struct pipes_struct *p,
 	int ret = -1;
 	bool can_shutdown = false;
 
-	shutdown_script = talloc_strdup(p->mem_ctx, lp_shutdown_script());
+	shutdown_script = lp_shutdown_script(p->mem_ctx);
 	if (!shutdown_script) {
 		return WERR_NOMEM;
 	}
@@ -541,7 +542,7 @@ WERROR _winreg_InitiateSystemShutdownEx(struct pipes_struct *p,
 		if ( (msg = talloc_strdup(p->mem_ctx, r->in.message->string )) == NULL ) {
 			return WERR_NOMEM;
 		}
-		chkmsg = TALLOC_ARRAY(p->mem_ctx, char, strlen(msg)+1);
+		chkmsg = talloc_array(p->mem_ctx, char, strlen(msg)+1);
 		if (!chkmsg) {
 			return WERR_NOMEM;
 		}
@@ -609,7 +610,7 @@ WERROR _winreg_InitiateSystemShutdownEx(struct pipes_struct *p,
 WERROR _winreg_AbortSystemShutdown(struct pipes_struct *p,
 				   struct winreg_AbortSystemShutdown *r)
 {
-	const char *abort_shutdown_script = lp_abort_shutdown_script();
+	const char *abort_shutdown_script = lp_abort_shutdown_script(talloc_tos());
 	int ret = -1;
 	bool can_shutdown = false;
 
@@ -660,7 +661,7 @@ static int validate_reg_filename(TALLOC_CTX *ctx, char **pp_fname )
 			continue;
 		}
 
-		share_path = lp_pathname(snum);
+		share_path = lp_pathname(talloc_tos(), snum);
 
 		/* make sure we have a path (e.g. [homes] ) */
 		if (strlen(share_path) == 0) {
@@ -711,7 +712,7 @@ WERROR _winreg_RestoreKey(struct pipes_struct *p,
 	}
 
 	DEBUG(2,("_winreg_RestoreKey: Restoring [%s] from %s in share %s\n",
-		 regkey->key->name, fname, lp_servicename(snum) ));
+		 regkey->key->name, fname, lp_servicename(talloc_tos(), snum) ));
 
 	return reg_restorekey(regkey, fname);
 }
@@ -745,7 +746,7 @@ WERROR _winreg_SaveKey(struct pipes_struct *p,
 		return WERR_OBJECT_PATH_INVALID;
 
 	DEBUG(2,("_winreg_SaveKey: Saving [%s] to %s in share %s\n",
-		 regkey->key->name, fname, lp_servicename(snum) ));
+		 regkey->key->name, fname, lp_servicename(talloc_tos(), snum) ));
 
 	return reg_savekey(regkey, fname);
 }
@@ -760,7 +761,7 @@ WERROR _winreg_SaveKeyEx(struct pipes_struct *p,
 	/* fill in your code here if you think this call should
 	   do anything */
 
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
@@ -948,7 +949,7 @@ WERROR _winreg_UnLoadKey(struct pipes_struct *p,
 	/* fill in your code here if you think this call should
 	   do anything */
 
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
@@ -962,7 +963,7 @@ WERROR _winreg_ReplaceKey(struct pipes_struct *p,
 	/* fill in your code here if you think this call should
 	   do anything */
 
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
@@ -976,7 +977,7 @@ WERROR _winreg_LoadKey(struct pipes_struct *p,
 	/* fill in your code here if you think this call should
 	   do anything */
 
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
@@ -1139,6 +1140,6 @@ WERROR _winreg_DeleteKeyEx(struct pipes_struct *p,
 	/* fill in your code here if you think this call should
 	   do anything */
 
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }

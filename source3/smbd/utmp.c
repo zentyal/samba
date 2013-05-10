@@ -115,18 +115,18 @@ Notes:
  */
 
 void sys_utmp_claim(const char *username, const char *hostname,
-			const char *ip_addr_str,
-			const char *id_str, int id_num)
+		    const char *id_str, int id_num)
 {}
 
 void sys_utmp_yield(const char *username, const char *hostname,
-			const char *ip_addr_str,
-			const char *id_str, int id_num)
+		    const char *id_str, int id_num)
 {}
 
 #else /* WITH_UTMP */
 
+#ifdef HAVE_UTMP_H
 #include <utmp.h>
+#endif
 
 #ifdef HAVE_UTMPX_H
 #include <utmpx.h>
@@ -472,22 +472,23 @@ static int ut_id_encode(int i, char *fourbyte)
 	int nbase;
 	const char *ut_id_encstr = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-	fourbyte[0] = 'S';
-	fourbyte[1] = 'M';
-
 /*
- * Encode remaining 2 bytes from 'i'.
  * 'ut_id_encstr' is the character set on which modulo arithmetic is done.
  * Example: digits would produce the base-10 numbers from '001'.
  */
 	nbase = strlen(ut_id_encstr);
 
+	fourbyte[0] = ut_id_encstr[i % nbase];
+	i /= nbase;
+	fourbyte[1] = ut_id_encstr[i % nbase];
+	i /= nbase;
 	fourbyte[3] = ut_id_encstr[i % nbase];
 	i /= nbase;
 	fourbyte[2] = ut_id_encstr[i % nbase];
 	i /= nbase;
 
-	return(i);	/* 0: good; else overflow */
+	/* we do not care about overflows as i is a random number */
+	return 0;
 }
 #endif /* defined(HAVE_UT_UT_ID) */
 
@@ -497,7 +498,6 @@ static int ut_id_encode(int i, char *fourbyte)
 */
 static bool sys_utmp_fill(struct utmp *u,
 			const char *username, const char *hostname,
-			const char *ip_addr_str,
 			const char *id_str, int id_num)
 {
 	struct timeval timeval;
@@ -518,15 +518,10 @@ static bool sys_utmp_fill(struct utmp *u,
 	 * ut_line:
 	 *	If size limit proves troublesome, then perhaps use "ut_id_encode()".
 	 */
-	if (strlen(id_str) > sizeof(u->ut_line)) {
-		DEBUG(1,("id_str [%s] is too long for %lu char utmp field\n",
-			 id_str, (unsigned long)sizeof(u->ut_line)));
-		return False;
-	}
 	utmp_strcpy(u->ut_line, id_str, sizeof(u->ut_line));
 
 #if defined(HAVE_UT_UT_PID)
-	u->ut_pid = sys_getpid();
+	u->ut_pid = getpid();
 #endif
 
 /*
@@ -548,27 +543,6 @@ static bool sys_utmp_fill(struct utmp *u,
 #if defined(HAVE_UT_UT_HOST)
 	utmp_strcpy(u->ut_host, hostname, sizeof(u->ut_host));
 #endif
-#if defined(HAVE_IPV6) && defined(HAVE_UT_UT_ADDR_V6)
-	memset(&u->ut_addr_v6, '\0', sizeof(u->ut_addr_v6));
-	if (ip_addr_str) {
-		struct in6_addr addr;
-		if (inet_pton(AF_INET6, ip_addr_str, &addr) > 0) {
-			memcpy(&u->ut_addr_v6, &addr, sizeof(addr));
-		}
-	}
-#elif defined(HAVE_UT_UT_ADDR)
-	memset(&u->ut_addr, '\0', sizeof(u->ut_addr));
-	if (ip_addr_str) {
-		struct in_addr addr;
-		if (inet_pton(AF_INET, ip_addr_str, &addr) > 0) {
-			memcpy(&u->ut_addr, &addr, sizeof(addr));
-		}
-	}
-	/*
-	 * "(unsigned long) ut_addr" apparently exists on at least HP-UX 10.20.
-	 * Volunteer to implement, please ...
-	 */
-#endif
 
 #if defined(HAVE_UT_UT_ID)
 	if (ut_id_encode(id_num, u->ut_id) != 0) {
@@ -585,8 +559,7 @@ static bool sys_utmp_fill(struct utmp *u,
 ****************************************************************************/
 
 void sys_utmp_yield(const char *username, const char *hostname,
-			const char *ip_addr_str,
-			const char *id_str, int id_num)
+		    const char *id_str, int id_num)
 {
 	struct utmp u;
 
@@ -601,7 +574,7 @@ void sys_utmp_yield(const char *username, const char *hostname,
 	u.ut_type = DEAD_PROCESS;
 #endif
 
-	if (!sys_utmp_fill(&u, username, hostname, ip_addr_str, id_str, id_num))
+	if (!sys_utmp_fill(&u, username, hostname, id_str, id_num))
 		return;
 
 	sys_utmp_update(&u, NULL, False);
@@ -612,8 +585,7 @@ void sys_utmp_yield(const char *username, const char *hostname,
 ****************************************************************************/
 
 void sys_utmp_claim(const char *username, const char *hostname,
-			const char *ip_addr_str,
-			const char *id_str, int id_num)
+		    const char *id_str, int id_num)
 {
 	struct utmp u;
 
@@ -623,7 +595,7 @@ void sys_utmp_claim(const char *username, const char *hostname,
 	u.ut_type = USER_PROCESS;
 #endif
 
-	if (!sys_utmp_fill(&u, username, hostname, ip_addr_str, id_str, id_num))
+	if (!sys_utmp_fill(&u, username, hostname, id_str, id_num))
 		return;
 
 	sys_utmp_update(&u, hostname, True);

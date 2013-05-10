@@ -25,6 +25,7 @@ import os
 
 sys.path.insert(0, "bin/python")
 import samba
+from samba import dsdb
 samba.ensure_external_module("testtools", "testtools")
 samba.ensure_external_module("subunit", "subunit/python")
 
@@ -85,6 +86,13 @@ class DrsBaseTestCase(samba.tests.BlackboxTestCase):
         self.assertEquals(len(res), 1)
         return str(res[0]["dn"])
 
+    def _lost_and_found_dn(self, sam_ldb, nc):
+        wkdn = "<WKGUID=%s,%s>" % (dsdb.DS_GUID_LOSTANDFOUND_CONTAINER, nc)
+        res = sam_ldb.search(base=wkdn,
+                             scope=SCOPE_BASE)
+        self.assertEquals(len(res), 1)
+        return str(res[0]["dn"])
+
     def _make_obj_name(self, prefix):
         return prefix + time.strftime("%s", time.gmtime())
 
@@ -98,13 +106,17 @@ class DrsBaseTestCase(samba.tests.BlackboxTestCase):
         # bin/samba-tool drs <drs_command> <cmdline_auth>
         return "%s drs %s %s" % (samba_tool_cmd, drs_command, cmdline_auth)
 
-    def _net_drs_replicate(self, DC, fromDC, nc_dn=None, forced=True):
+    def _net_drs_replicate(self, DC, fromDC, nc_dn=None, forced=True, local=False, full_sync=False):
         if nc_dn is None:
             nc_dn = self.domain_dn
         # make base command line
         samba_tool_cmdline = self._samba_tool_cmdline("replicate")
         if forced:
             samba_tool_cmdline += " --sync-forced"
+        if local:
+            samba_tool_cmdline += " --local"
+        if full_sync:
+            samba_tool_cmdline += " --full-sync"
         # bin/samba-tool drs replicate <Dest_DC_NAME> <Src_DC_NAME> <Naming Context>
         cmd_line = "%s %s %s %s" % (samba_tool_cmdline, DC, fromDC, nc_dn)
         return self.check_output(cmd_line)

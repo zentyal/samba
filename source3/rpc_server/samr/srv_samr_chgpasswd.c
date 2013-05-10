@@ -67,19 +67,14 @@ static int findpty(char **slave)
 {
 	int master = -1;
 	char *line = NULL;
-	SMB_STRUCT_DIR *dirp = NULL;
+	DIR *dirp = NULL;
 	const char *dpname;
 
 	*slave = NULL;
 
 #if defined(HAVE_GRANTPT)
-#if defined(HAVE_POSIX_OPENPT)
-	master = posix_openpt(O_RDWR|O_NOCTTY);
-#else
 	/* Try to open /dev/ptmx. If that fails, fall through to old method. */
-	master = sys_open("/dev/ptmx", O_RDWR, 0);
-#endif
-	if (master >= 0) {
+	if ((master = open("/dev/ptmx", O_RDWR, 0)) >= 0) {
 		grantpt(master);
 		unlockpt(master);
 		line = (char *)ptsname(master);
@@ -106,7 +101,7 @@ static int findpty(char **slave)
 		return (-1);
 	}
 
-	dirp = sys_opendir("/dev");
+	dirp = opendir("/dev");
 	if (!dirp) {
 		SAFE_FREE(line);
 		return (-1);
@@ -119,16 +114,16 @@ static int findpty(char **slave)
 			       line));
 			line[8] = dpname[3];
 			line[9] = dpname[4];
-			if ((master = sys_open(line, O_RDWR, 0)) >= 0) {
+			if ((master = open(line, O_RDWR, 0)) >= 0) {
 				DEBUG(3, ("pty: opened %s\n", line));
 				line[5] = 't';
 				*slave = line;
-				sys_closedir(dirp);
+				closedir(dirp);
 				return (master);
 			}
 		}
 	}
-	sys_closedir(dirp);
+	closedir(dirp);
 	SAFE_FREE(line);
 	return (-1);
 }
@@ -163,7 +158,7 @@ static int dochild(int master, const char *slavedev, const struct passwd *pass,
 	}
 
 	/* Open slave pty and acquire as new controlling terminal. */
-	if ((slave = sys_open(slavedev, O_RDWR, 0)) < 0)
+	if ((slave = open(slavedev, O_RDWR, 0)) < 0)
 	{
 		DEBUG(3, ("More weirdness, could not open %s\n", slavedev));
 		return (False);
@@ -410,7 +405,7 @@ static bool chat_with_program(char *passwordprogram, const struct passwd *pass,
 
 	CatchChildLeaveStatus();
 
-	if ((pid = sys_fork()) < 0) {
+	if ((pid = fork()) < 0) {
 		DEBUG(3, ("chat_with_program: Cannot fork() child for password change: %s\n", pass->pw_name));
 		SAFE_FREE(slavedev);
 		close(master);
@@ -587,12 +582,12 @@ bool chgpasswd(const char *name, const char *rhost, const struct passwd *pass,
 		return false;
 	}
 
-	passwordprogram = talloc_strdup(ctx, lp_passwd_program());
+	passwordprogram = lp_passwd_program(ctx);
 	if (!passwordprogram || !*passwordprogram) {
 		DEBUG(2, ("chgpasswd: Null password program - no password changing\n"));
 		return false;
 	}
-	chatsequence = talloc_strdup(ctx, lp_passwd_chat());
+	chatsequence = lp_passwd_chat(ctx);
 	if (!chatsequence || !*chatsequence) {
 		DEBUG(2, ("chgpasswd: Null chat sequence - no password changing\n"));
 		return false;
@@ -943,12 +938,12 @@ NTSTATUS check_password_complexity(const char *username,
 	char *cmd;
 
 	/* Use external script to check password complexity */
-	if ((lp_check_password_script() == NULL)
-	    || (*(lp_check_password_script()) == '\0')) {
+	if ((lp_check_password_script(tosctx) == NULL)
+	    || (*(lp_check_password_script(tosctx)) == '\0')) {
 		return NT_STATUS_OK;
 	}
 
-	cmd = talloc_string_sub(tosctx, lp_check_password_script(), "%u",
+	cmd = talloc_string_sub(tosctx, lp_check_password_script(tosctx), "%u",
 				username);
 	if (!cmd) {
 		return NT_STATUS_PASSWORD_RESTRICTION;

@@ -537,18 +537,14 @@ static NTSTATUS dcesrv_lsa_lookup_sid(struct lsa_policy_state *state, TALLOC_CTX
 	return NT_STATUS_OK;
 }
 
-
-/*
-  lsa_LookupSids2
-*/
-NTSTATUS dcesrv_lsa_LookupSids2(struct dcesrv_call_state *dce_call,
-				TALLOC_CTX *mem_ctx,
-				struct lsa_LookupSids2 *r)
+static NTSTATUS dcesrv_lsa_LookupSids_common(struct dcesrv_call_state *dce_call,
+					     TALLOC_CTX *mem_ctx,
+					     struct lsa_policy_state *state,
+					     struct lsa_LookupSids2 *r)
 {
-	struct lsa_policy_state *state;
 	struct lsa_RefDomainList *domains = NULL;
-	uint32_t i;
 	NTSTATUS status = NT_STATUS_OK;
+	uint32_t i;
 
 	if (r->in.level < LSA_LOOKUP_NAMES_ALL ||
 	    r->in.level > LSA_LOOKUP_NAMES_RODC_REFERRAL_TO_FULL_DC) {
@@ -562,11 +558,6 @@ NTSTATUS dcesrv_lsa_LookupSids2(struct dcesrv_call_state *dce_call,
 	   an unknown SID. We could add a SID validator here. (tridge) 
 	   MS-DTYP 2.4.2
 	*/
-
-	status = dcesrv_lsa_get_policy_state(dce_call, mem_ctx, &state);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
 
 	domains = talloc_zero(r->out.domains,  struct lsa_RefDomainList);
 	if (domains == NULL) {
@@ -641,6 +632,31 @@ NTSTATUS dcesrv_lsa_LookupSids2(struct dcesrv_call_state *dce_call,
 	return NT_STATUS_OK;
 }
 
+/*
+  lsa_LookupSids2
+*/
+NTSTATUS dcesrv_lsa_LookupSids2(struct dcesrv_call_state *dce_call,
+				TALLOC_CTX *mem_ctx,
+				struct lsa_LookupSids2 *r)
+{
+	enum dcerpc_transport_t transport = dce_call->conn->endpoint->ep_description->transport;
+	struct lsa_policy_state *state;
+	struct dcesrv_handle *h;
+
+	if (transport != NCACN_NP && transport != NCALRPC) {
+		DCESRV_FAULT(DCERPC_FAULT_ACCESS_DENIED);
+	}
+
+	DCESRV_PULL_HANDLE(h, r->in.handle, LSA_HANDLE_POLICY);
+
+	state = h->data;
+
+	return dcesrv_lsa_LookupSids_common(dce_call,
+					    mem_ctx,
+					    state,
+					    r);
+}
+
 
 /*
   lsa_LookupSids3
@@ -652,47 +668,53 @@ NTSTATUS dcesrv_lsa_LookupSids3(struct dcesrv_call_state *dce_call,
 				TALLOC_CTX *mem_ctx,
 				struct lsa_LookupSids3 *r)
 {
-	struct lsa_LookupSids2 r2;
-	struct lsa_OpenPolicy2 pol;
+	enum dcerpc_transport_t transport = dce_call->conn->endpoint->ep_description->transport;
+	struct dcerpc_auth *auth_info = dce_call->conn->auth_state.auth_info;
+	struct lsa_policy_state *policy_state;
+	struct lsa_LookupSids2 q;
 	NTSTATUS status;
-	struct dcesrv_handle *h;
 
-	ZERO_STRUCT(r2);
-	
-	/* No policy handle on the wire, so make one up here */
-	r2.in.handle = talloc(mem_ctx, struct policy_handle);
-	if (!r2.in.handle) {
-		return NT_STATUS_NO_MEMORY;
+	if (transport != NCACN_IP_TCP) {
+		DCESRV_FAULT(DCERPC_FAULT_ACCESS_DENIED);
 	}
 
-	pol.out.handle = r2.in.handle;
-	pol.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
-	pol.in.attr = NULL;
-	pol.in.system_name = NULL;
-	status = dcesrv_lsa_OpenPolicy2(dce_call, mem_ctx, &pol);
+	/*
+	 * We don't have policy handles on this call. So this must be restricted
+	 * to crypto connections only.
+	 */
+	if (auth_info->auth_type != DCERPC_AUTH_TYPE_SCHANNEL ||
+	    auth_info->auth_level < DCERPC_AUTH_LEVEL_INTEGRITY) {
+		DCESRV_FAULT(DCERPC_FAULT_ACCESS_DENIED);
+	}
+
+	status = dcesrv_lsa_get_policy_state(dce_call, mem_ctx, &policy_state);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
 
-	/* ensure this handle goes away at the end of this call */
-	DCESRV_PULL_HANDLE(h, r2.in.handle, LSA_HANDLE_POLICY);
-	talloc_steal(mem_ctx, h);
+	ZERO_STRUCT(q);
 
-	r2.in.sids     = r->in.sids;
-	r2.in.names    = r->in.names;
-	r2.in.level    = r->in.level;
-	r2.in.count    = r->in.count;
-	r2.in.lookup_options = r->in.lookup_options;
-	r2.in.client_revision = r->in.client_revision;
-	r2.out.count   = r->out.count;
-	r2.out.names   = r->out.names;
-	r2.out.domains = r->out.domains;
+	q.in.handle   = NULL;
+	q.in.sids     = r->in.sids;
+	q.in.names    = r->in.names;
+	q.in.level    = r->in.level;
+	q.in.count    = r->in.count;
+	q.in.lookup_options = r->in.lookup_options;
+	q.in.client_revision = r->in.client_revision;
+	q.out.count   = r->out.count;
+	q.out.names   = r->out.names;
+	q.out.domains = r->out.domains;
 
-	status = dcesrv_lsa_LookupSids2(dce_call, mem_ctx, &r2);
+	status = dcesrv_lsa_LookupSids_common(dce_call,
+					      mem_ctx,
+					      policy_state,
+					      &q);
 
-	r->out.domains = r2.out.domains;
-	r->out.names   = r2.out.names;
-	r->out.count   = r2.out.count;
+	talloc_free(policy_state);
+
+	r->out.count = q.out.count;
+	r->out.names = q.out.names;
+	r->out.domains = q.out.domains;
 
 	return status;
 }
@@ -704,9 +726,14 @@ NTSTATUS dcesrv_lsa_LookupSids3(struct dcesrv_call_state *dce_call,
 NTSTATUS dcesrv_lsa_LookupSids(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 			       struct lsa_LookupSids *r)
 {
+	enum dcerpc_transport_t transport = dce_call->conn->endpoint->ep_description->transport;
 	struct lsa_LookupSids2 r2;
 	NTSTATUS status;
 	uint32_t i;
+
+	if (transport != NCACN_NP && transport != NCALRPC) {
+		DCESRV_FAULT(DCERPC_FAULT_ACCESS_DENIED);
+	}
 
 	ZERO_STRUCT(r2);
 
@@ -750,28 +777,19 @@ NTSTATUS dcesrv_lsa_LookupSids(struct dcesrv_call_state *dce_call, TALLOC_CTX *m
 	return status;
 }
 
-
-/*
-  lsa_LookupNames3
-*/
-NTSTATUS dcesrv_lsa_LookupNames3(struct dcesrv_call_state *dce_call,
-				 TALLOC_CTX *mem_ctx,
-				 struct lsa_LookupNames3 *r)
+static NTSTATUS dcesrv_lsa_LookupNames_common(struct dcesrv_call_state *dce_call,
+					      TALLOC_CTX *mem_ctx,
+					      struct lsa_policy_state *policy_state,
+					      struct lsa_LookupNames3 *r)
 {
-	struct lsa_policy_state *policy_state;
-	struct dcesrv_handle *policy_handle;
-	uint32_t i;
 	struct loadparm_context *lp_ctx = dce_call->conn->dce_ctx->lp_ctx;
 	struct lsa_RefDomainList *domains;
-
-	DCESRV_PULL_HANDLE(policy_handle, r->in.handle, LSA_HANDLE_POLICY);
+	uint32_t i;
 
 	if (r->in.level < LSA_LOOKUP_NAMES_ALL ||
 	    r->in.level > LSA_LOOKUP_NAMES_RODC_REFERRAL_TO_FULL_DC) {
 		return NT_STATUS_INVALID_PARAMETER;
 	}
-
-	policy_state = policy_handle->data;
 
 	*r->out.domains = NULL;
 
@@ -839,6 +857,31 @@ NTSTATUS dcesrv_lsa_LookupNames3(struct dcesrv_call_state *dce_call,
 	return NT_STATUS_OK;
 }
 
+/*
+  lsa_LookupNames3
+*/
+NTSTATUS dcesrv_lsa_LookupNames3(struct dcesrv_call_state *dce_call,
+				 TALLOC_CTX *mem_ctx,
+				 struct lsa_LookupNames3 *r)
+{
+	enum dcerpc_transport_t transport = dce_call->conn->endpoint->ep_description->transport;
+	struct lsa_policy_state *policy_state;
+	struct dcesrv_handle *policy_handle;
+
+	if (transport != NCACN_NP && transport != NCALRPC) {
+		DCESRV_FAULT(DCERPC_FAULT_ACCESS_DENIED);
+	}
+
+	DCESRV_PULL_HANDLE(policy_handle, r->in.handle, LSA_HANDLE_POLICY);
+
+	policy_state = policy_handle->data;
+
+	return dcesrv_lsa_LookupNames_common(dce_call,
+					     mem_ctx,
+					     policy_state,
+					     r);
+}
+
 /* 
   lsa_LookupNames4
 
@@ -848,48 +891,56 @@ NTSTATUS dcesrv_lsa_LookupNames3(struct dcesrv_call_state *dce_call,
 NTSTATUS dcesrv_lsa_LookupNames4(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 				 struct lsa_LookupNames4 *r)
 {
-	struct lsa_LookupNames3 r2;
-	struct lsa_OpenPolicy2 pol;
+	enum dcerpc_transport_t transport = dce_call->conn->endpoint->ep_description->transport;
+	struct dcerpc_auth *auth_info = dce_call->conn->auth_state.auth_info;
+	struct lsa_policy_state *policy_state;
+	struct lsa_LookupNames3 q;
 	NTSTATUS status;
-	struct dcesrv_handle *h;
 
-	ZERO_STRUCT(r2);
-
-	/* No policy handle on the wire, so make one up here */
-	r2.in.handle = talloc(mem_ctx, struct policy_handle);
-	if (!r2.in.handle) {
-		return NT_STATUS_NO_MEMORY;
+	if (transport != NCACN_IP_TCP) {
+		DCESRV_FAULT(DCERPC_FAULT_ACCESS_DENIED);
 	}
 
-	pol.out.handle = r2.in.handle;
-	pol.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
-	pol.in.attr = NULL;
-	pol.in.system_name = NULL;
-	status = dcesrv_lsa_OpenPolicy2(dce_call, mem_ctx, &pol);
+	/*
+	 * We don't have policy handles on this call. So this must be restricted
+	 * to crypto connections only.
+	 */
+	if (auth_info->auth_type != DCERPC_AUTH_TYPE_SCHANNEL ||
+	    auth_info->auth_level < DCERPC_AUTH_LEVEL_INTEGRITY) {
+		DCESRV_FAULT(DCERPC_FAULT_ACCESS_DENIED);
+	}
+
+	status = dcesrv_lsa_get_policy_state(dce_call, mem_ctx, &policy_state);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
 
-	/* ensure this handle goes away at the end of this call */
-	DCESRV_PULL_HANDLE(h, r2.in.handle, LSA_HANDLE_POLICY);
-	talloc_steal(mem_ctx, h);
+	ZERO_STRUCT(q);
 
-	r2.in.num_names = r->in.num_names;
-	r2.in.names = r->in.names;
-	r2.in.level = r->in.level;
-	r2.in.sids = r->in.sids;
-	r2.in.count = r->in.count;
-	r2.in.lookup_options = r->in.lookup_options;
-	r2.in.client_revision = r->in.client_revision;
-	r2.out.domains = r->out.domains;
-	r2.out.sids = r->out.sids;
-	r2.out.count = r->out.count;
-	
-	status = dcesrv_lsa_LookupNames3(dce_call, mem_ctx, &r2);
-	
-	r->out.domains = r2.out.domains;
-	r->out.sids = r2.out.sids;
-	r->out.count = r2.out.count;
+	q.in.handle = NULL;
+	q.in.num_names = r->in.num_names;
+	q.in.names = r->in.names;
+	q.in.level = r->in.level;
+	q.in.sids = r->in.sids;
+	q.in.count = r->in.count;
+	q.in.lookup_options = r->in.lookup_options;
+	q.in.client_revision = r->in.client_revision;
+
+	q.out.count = r->out.count;
+	q.out.sids = r->out.sids;
+	q.out.domains = r->out.domains;
+
+	status = dcesrv_lsa_LookupNames_common(dce_call,
+					       mem_ctx,
+					       policy_state,
+					       &q);
+
+	talloc_free(policy_state);
+
+	r->out.count = q.out.count;
+	r->out.sids = q.out.sids;
+	r->out.domains = q.out.domains;
+
 	return status;
 }
 
@@ -900,11 +951,16 @@ NTSTATUS dcesrv_lsa_LookupNames2(struct dcesrv_call_state *dce_call,
 				 TALLOC_CTX *mem_ctx,
 				 struct lsa_LookupNames2 *r)
 {
+	enum dcerpc_transport_t transport = dce_call->conn->endpoint->ep_description->transport;
 	struct lsa_policy_state *state;
 	struct dcesrv_handle *h;
 	uint32_t i;
 	struct loadparm_context *lp_ctx = dce_call->conn->dce_ctx->lp_ctx;
 	struct lsa_RefDomainList *domains;
+
+	if (transport != NCACN_NP && transport != NCALRPC) {
+		DCESRV_FAULT(DCERPC_FAULT_ACCESS_DENIED);
+	}
 
 	*r->out.domains = NULL;
 
@@ -990,9 +1046,14 @@ NTSTATUS dcesrv_lsa_LookupNames2(struct dcesrv_call_state *dce_call,
 NTSTATUS dcesrv_lsa_LookupNames(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 		       struct lsa_LookupNames *r)
 {
+	enum dcerpc_transport_t transport = dce_call->conn->endpoint->ep_description->transport;
 	struct lsa_LookupNames2 r2;
 	NTSTATUS status;
 	uint32_t i;
+
+	if (transport != NCACN_NP && transport != NCALRPC) {
+		DCESRV_FAULT(DCERPC_FAULT_ACCESS_DENIED);
+	}
 
 	ZERO_STRUCT(r2);
 

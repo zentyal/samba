@@ -254,7 +254,7 @@ static NTSTATUS msrpc_name_to_sid(struct winbindd_domain *domain,
 	name_map_status = normalize_name_unmap(mem_ctx, full_name,
 					       &mapped_name);
 
-	/* Reset the full_name pointer if we mapped anytthing */
+	/* Reset the full_name pointer if we mapped anything */
 
 	if (NT_STATUS_IS_OK(name_map_status) ||
 	    NT_STATUS_EQUAL(name_map_status, NT_STATUS_FILE_RENAMED))
@@ -349,7 +349,7 @@ static NTSTATUS msrpc_rids_to_names(struct winbindd_domain *domain,
 	DEBUG(3, ("msrpc_rids_to_names: domain %s\n", domain->name ));
 
 	if (num_rids) {
-		sids = TALLOC_ARRAY(mem_ctx, struct dom_sid, num_rids);
+		sids = talloc_array(mem_ctx, struct dom_sid, num_rids);
 		if (sids == NULL) {
 			return NT_STATUS_NO_MEMORY;
 		}
@@ -706,9 +706,9 @@ static NTSTATUS msrpc_lookup_groupmem(struct winbindd_domain *domain,
 
 #define MAX_LOOKUP_RIDS 900
 
-        *names = TALLOC_ZERO_ARRAY(mem_ctx, char *, *num_names);
-        *name_types = TALLOC_ZERO_ARRAY(mem_ctx, uint32, *num_names);
-        *sid_mem = TALLOC_ZERO_ARRAY(mem_ctx, struct dom_sid, *num_names);
+        *names = talloc_zero_array(mem_ctx, char *, *num_names);
+        *name_types = talloc_zero_array(mem_ctx, uint32, *num_names);
+        *sid_mem = talloc_zero_array(mem_ctx, struct dom_sid, *num_names);
 
 	for (j=0;j<(*num_names);j++)
 		sid_compose(&(*sid_mem)[j], &domain->sid, rid_mem[j]);
@@ -767,9 +767,9 @@ static NTSTATUS msrpc_lookup_groupmem(struct winbindd_domain *domain,
 
 #ifdef HAVE_LDAP
 
-#include <ldap.h>
+#include "ads.h"
 
-static int get_ldap_seq(const char *server, int port, uint32 *seq)
+static int get_ldap_seq(const char *server, struct sockaddr_storage *ss, int port, uint32 *seq)
 {
 	int ret = -1;
 	struct timeval to;
@@ -785,7 +785,7 @@ static int get_ldap_seq(const char *server, int port, uint32 *seq)
 	 * search timeout doesn't seem to apply to doing an open as well. JRA.
 	 */
 
-	ldp = ldap_open_with_timeout(server, port, lp_ldap_timeout());
+	ldp = ldap_open_with_timeout(server, ss, port, lp_ldap_timeout());
 	if (ldp == NULL)
 		return -1;
 
@@ -794,7 +794,7 @@ static int get_ldap_seq(const char *server, int port, uint32 *seq)
 	to.tv_usec = 0;
 
 	if (ldap_search_st(ldp, "", LDAP_SCOPE_BASE, "(objectclass=*)",
-			   CONST_DISCARD(char **, attrs), 0, &to, &res))
+			   discard_const_p(char *, attrs), 0, &to, &res))
 		goto done;
 
 	if (ldap_count_entries(ldp, res) != 1)
@@ -829,7 +829,7 @@ static int get_ldap_sequence_number(struct winbindd_domain *domain, uint32 *seq)
 	char addr[INET6_ADDRSTRLEN];
 
 	print_sockaddr(addr, sizeof(addr), &domain->dcaddr);
-	if ((ret = get_ldap_seq(addr, LDAP_PORT, seq)) == 0) {
+	if ((ret = get_ldap_seq(addr, &domain->dcaddr, LDAP_PORT, seq)) == 0) {
 		DEBUG(3, ("get_ldap_sequence_number: Retrieved sequence "
 			  "number for Domain (%s) from DC (%s)\n",
 			domain->name, addr));

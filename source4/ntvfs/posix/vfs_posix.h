@@ -131,6 +131,7 @@ struct pvfs_filename {
 	bool has_wildcard;
 	bool exists;          /* true if the base filename exists */
 	bool stream_exists;   /* true if the stream exists */
+	bool allow_override;
 	struct stat st;
 	struct pvfs_dos_fileinfo dos;
 };
@@ -204,7 +205,7 @@ struct pvfs_file {
 	/* a file handle to be used for byte range locking */
 	struct brl_handle *brl_handle;
 
-	/* a count of active locks - used to avoid calling brl_close on
+	/* a count of active locks - used to avoid calling brlock_close on
 	   file close */
 	uint64_t lock_count;
 

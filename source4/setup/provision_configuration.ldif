@@ -1018,8 +1018,9 @@ objectClass: crossRefContainer
 systemFlags: -2147483648
 msDS-Behavior-Version: ${FOREST_FUNCTIONALITY}
 showInAdvancedViewOnly: TRUE
+nTSecurityDescriptor:: ${PARTITIONS_DESCRIPTOR}
 
-# Partitions for DNS are missing since we don't support AD DNS
+# Partitions for DNS are missing here, they are added from provision_dnszones.ldif
 
 dn: CN=Enterprise Configuration,CN=Partitions,${CONFIGDN}
 objectClass: top
@@ -1194,7 +1195,7 @@ dn: CN=Sites,${CONFIGDN}
 objectClass: top
 objectClass: sitesContainer
 systemFlags: -2113929216
-nTSecurityDescriptor:: ${SITES_DESCRIPTOR}
+ntSecurityDescriptor:: ${SITES_DESCRIPTOR}
 
 dn: CN=${DEFAULTSITE},CN=Sites,${CONFIGDN}
 objectClass: top

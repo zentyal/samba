@@ -48,7 +48,7 @@ void _echo_EchoData(struct pipes_struct *p, struct echo_EchoData *r)
 		return;
 	}
 
-	r->out.out_data = TALLOC_ARRAY(p->mem_ctx, uint8, r->in.len);
+	r->out.out_data = talloc_array(p->mem_ctx, uint8, r->in.len);
 	memcpy( r->out.out_data, r->in.in_data, r->in.len );
 	return;
 }
@@ -76,7 +76,7 @@ void _echo_SourceData(struct pipes_struct *p, struct echo_SourceData *r)
 		return;
 	}
 
-	r->out.data = TALLOC_ARRAY(p->mem_ctx, uint8, r->in.len );
+	r->out.data = talloc_array(p->mem_ctx, uint8, r->in.len );
 
 	for (i = 0; i < r->in.len; i++ ) {
 		r->out.data[i] = i & 0xff;
@@ -87,13 +87,13 @@ void _echo_SourceData(struct pipes_struct *p, struct echo_SourceData *r)
 
 void _echo_TestCall(struct pipes_struct *p, struct echo_TestCall *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return;
 }
 
 NTSTATUS _echo_TestCall2(struct pipes_struct *p, struct echo_TestCall2 *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return NT_STATUS_OK;
 }
 
@@ -105,18 +105,18 @@ uint32 _echo_TestSleep(struct pipes_struct *p, struct echo_TestSleep *r)
 
 void _echo_TestEnum(struct pipes_struct *p, struct echo_TestEnum *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return;
 }
 
 void _echo_TestSurrounding(struct pipes_struct *p, struct echo_TestSurrounding *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return;
 }
 
 uint16 _echo_TestDoublePointer(struct pipes_struct *p, struct echo_TestDoublePointer *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return 0;
 }

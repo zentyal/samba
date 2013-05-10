@@ -159,6 +159,16 @@ NTSTATUS se_access_check(const struct security_descriptor *sd,
 	uint32_t i;
 	uint32_t bits_remaining;
 	uint32_t explicitly_denied_bits = 0;
+	/*
+	 * Up until Windows Server 2008, owner always had these rights. Now
+	 * we have to use Owner Rights perms if they are on the file.
+	 *
+	 * In addition we have to accumulate these bits and apply them
+	 * correctly. See bug #8795
+	 */
+	uint32_t owner_rights_allowed = 0;
+	uint32_t owner_rights_denied = 0;
+	bool owner_rights_default = true;
 
 	*access_granted = access_desired;
 	bits_remaining = access_desired;
@@ -176,12 +186,6 @@ NTSTATUS se_access_check(const struct security_descriptor *sd,
 			orig_access_desired,
 			*access_granted,
 			bits_remaining));
-	}
-
-	/* the owner always gets SEC_STD_WRITE_DAC and SEC_STD_READ_CONTROL */
-	if ((bits_remaining & (SEC_STD_WRITE_DAC|SEC_STD_READ_CONTROL)) &&
-	    security_token_has_sid(token, sd->owner_sid)) {
-		bits_remaining &= ~(SEC_STD_WRITE_DAC|SEC_STD_READ_CONTROL);
 	}
 
 	/* a NULL dacl allows access */
@@ -202,6 +206,26 @@ NTSTATUS se_access_check(const struct security_descriptor *sd,
 			continue;
 		}
 
+		/*
+		 * We need the Owner Rights permissions to ensure we
+		 * give or deny the correct permissions to the owner. Replace
+		 * owner_rights with the perms here if it is present.
+		 *
+		 * We don't care if we are not the owner because that is taken
+		 * care of below when we check if our token has the owner SID.
+		 *
+		 */
+		if (dom_sid_equal(&ace->trustee, &global_sid_Owner_Rights)) {
+			if (ace->type == SEC_ACE_TYPE_ACCESS_ALLOWED) {
+				owner_rights_allowed |= ace->access_mask;
+				owner_rights_default = false;
+			} else if (ace->type == SEC_ACE_TYPE_ACCESS_DENIED) {
+				owner_rights_denied |= ace->access_mask;
+				owner_rights_default = false;
+			}
+			continue;
+		}
+
 		if (!security_token_has_sid(token, &ace->trustee)) {
 			continue;
 		}
@@ -219,6 +243,22 @@ NTSTATUS se_access_check(const struct security_descriptor *sd,
 		}
 	}
 
+	/* The owner always gets owner rights as defined above. */
+	if (security_token_has_sid(token, sd->owner_sid)) {
+		if (owner_rights_default) {
+			/*
+			 * Just remove them, no need to check if they are
+			 * there.
+			 */
+			bits_remaining &= ~(SEC_STD_WRITE_DAC |
+						SEC_STD_READ_CONTROL);
+		} else {
+			bits_remaining &= ~owner_rights_allowed;
+			bits_remaining |= owner_rights_denied;
+		}
+	}
+
+	/* Explicitly denied bits always override */
 	bits_remaining |= explicitly_denied_bits;
 
 	/*
@@ -232,16 +272,6 @@ NTSTATUS se_access_check(const struct security_descriptor *sd,
 		} else {
 			return NT_STATUS_PRIVILEGE_NOT_HELD;
 		}
-	}
-
-	/* TODO: remove this, as it is file server specific */
-	if ((bits_remaining & SEC_RIGHTS_PRIV_RESTORE) &&
-	    security_token_has_privilege(token, SEC_PRIV_RESTORE)) {
-		bits_remaining &= ~(SEC_RIGHTS_PRIV_RESTORE);
-	}
-	if ((bits_remaining & SEC_RIGHTS_PRIV_BACKUP) &&
-	    security_token_has_privilege(token, SEC_PRIV_BACKUP)) {
-		bits_remaining &= ~(SEC_RIGHTS_PRIV_BACKUP);
 	}
 
 	if ((bits_remaining & SEC_STD_WRITE_OWNER) &&
@@ -258,6 +288,82 @@ done:
 	return NT_STATUS_OK;
 }
 
+/*
+  The main entry point for access checking FOR THE FILE SERVER ONLY !
+  If returning ACCESS_DENIED this function returns the denied bits in
+  the uint32_t pointed to by the access_granted pointer.
+*/
+NTSTATUS se_file_access_check(const struct security_descriptor *sd,
+			  const struct security_token *token,
+			  bool priv_open_requested,
+			  uint32_t access_desired,
+			  uint32_t *access_granted)
+{
+	uint32_t bits_remaining;
+	NTSTATUS status;
+
+	if (!priv_open_requested) {
+		/* Fall back to generic se_access_check(). */
+		return se_access_check(sd,
+				token,
+				access_desired,
+				access_granted);
+	}
+
+	/*
+	 * We need to handle the maximum allowed flag
+	 * outside of se_access_check(), as we need to
+	 * add in the access allowed by the privileges
+	 * as well.
+	 */
+
+	if (access_desired & SEC_FLAG_MAXIMUM_ALLOWED) {
+		uint32_t orig_access_desired = access_desired;
+
+		access_desired |= access_check_max_allowed(sd, token);
+		access_desired &= ~SEC_FLAG_MAXIMUM_ALLOWED;
+
+		if (security_token_has_privilege(token, SEC_PRIV_BACKUP)) {
+			access_desired |= SEC_RIGHTS_PRIV_BACKUP;
+		}
+
+		if (security_token_has_privilege(token, SEC_PRIV_RESTORE)) {
+			access_desired |= SEC_RIGHTS_PRIV_RESTORE;
+		}
+
+		DEBUG(10,("se_file_access_check: MAX desired = 0x%x "
+			"mapped to 0x%x\n",
+			orig_access_desired,
+			access_desired));
+	}
+
+	status = se_access_check(sd,
+				token,
+				access_desired,
+				access_granted);
+
+	if (!NT_STATUS_EQUAL(status, NT_STATUS_ACCESS_DENIED)) {
+		return status;
+	}
+
+	bits_remaining = *access_granted;
+
+	/* Check if we should override with privileges. */
+	if ((bits_remaining & SEC_RIGHTS_PRIV_BACKUP) &&
+	    security_token_has_privilege(token, SEC_PRIV_BACKUP)) {
+		bits_remaining &= ~(SEC_RIGHTS_PRIV_BACKUP);
+	}
+	if ((bits_remaining & SEC_RIGHTS_PRIV_RESTORE) &&
+	    security_token_has_privilege(token, SEC_PRIV_RESTORE)) {
+		bits_remaining &= ~(SEC_RIGHTS_PRIV_RESTORE);
+	}
+	if (bits_remaining != 0) {
+		*access_granted = bits_remaining;
+		return NT_STATUS_ACCESS_DENIED;
+	}
+
+	return NT_STATUS_OK;
+}
 
 static const struct GUID *get_ace_object_type(struct security_ace *ace)
 {

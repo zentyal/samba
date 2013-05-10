@@ -11,7 +11,6 @@
 
 int main(int argc, char * argv[]) 
 { 
-    int             i;
     int             fd;
     int             ret;
     int             debug = 0;
@@ -87,8 +86,10 @@ int main(int argc, char * argv[])
                    (unsigned long long) statvfsbuf.f_ffree);
             printf("Available Files: %llu\n",
                    (unsigned long long) statvfsbuf.f_favail);
+#ifdef HAVE_FSID_INT
             printf("File System ID: %lu\n",
                    (unsigned long) statvfsbuf.f_fsid);
+#endif
             printf("\n");
 
             printf("Flags: 0x%lx\n", statvfsbuf.f_flag);

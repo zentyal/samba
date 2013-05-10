@@ -28,10 +28,13 @@
 #include "ctdbd_conn.h"
 #include "../lib/util/util_pw.h"
 #include "messages.h"
+#include <ccan/hash/hash.h>
 #include "libcli/security/security.h"
+#include "serverid.h"
 
-extern char *global_clobber_region_function;
-extern unsigned int global_clobber_region_line;
+#ifdef HAVE_SYS_PRCTL_H
+#include <sys/prctl.h>
+#endif
 
 /* Max allowable allococation - 256mb - 0x10000000 */
 #define MAX_ALLOC_SIZE (1024*1024*256)
@@ -76,176 +79,13 @@ void set_Protocol(enum protocol_types  p)
 
 static enum remote_arch_types ra_type = RA_UNKNOWN;
 
-/***********************************************************************
- Definitions for all names.
-***********************************************************************/
-
-static char *smb_scope;
-static int smb_num_netbios_names;
-static char **smb_my_netbios_names;
-
-/***********************************************************************
- Allocate and set scope. Ensure upper case.
-***********************************************************************/
-
-bool set_global_scope(const char *scope)
-{
-	SAFE_FREE(smb_scope);
-	smb_scope = SMB_STRDUP(scope);
-	if (!smb_scope)
-		return False;
-	strupper_m(smb_scope);
-	return True;
-}
-
-/*********************************************************************
- Ensure scope is never null string.
-*********************************************************************/
-
-const char *global_scope(void)
-{
-	if (!smb_scope)
-		set_global_scope("");
-	return smb_scope;
-}
-
-static void free_netbios_names_array(void)
-{
-	int i;
-
-	for (i = 0; i < smb_num_netbios_names; i++)
-		SAFE_FREE(smb_my_netbios_names[i]);
-
-	SAFE_FREE(smb_my_netbios_names);
-	smb_num_netbios_names = 0;
-}
-
-static bool allocate_my_netbios_names_array(size_t number)
-{
-	free_netbios_names_array();
-
-	smb_num_netbios_names = number + 1;
-	smb_my_netbios_names = SMB_MALLOC_ARRAY( char *, smb_num_netbios_names );
-
-	if (!smb_my_netbios_names)
-		return False;
-
-	memset(smb_my_netbios_names, '\0', sizeof(char *) * smb_num_netbios_names);
-	return True;
-}
-
-static bool set_my_netbios_names(const char *name, int i)
-{
-	SAFE_FREE(smb_my_netbios_names[i]);
-
-	smb_my_netbios_names[i] = SMB_STRDUP(name);
-	if (!smb_my_netbios_names[i])
-		return False;
-	strupper_m(smb_my_netbios_names[i]);
-	return True;
-}
-
-/***********************************************************************
- Free memory allocated to global objects
-***********************************************************************/
-
-void gfree_names(void)
-{
-	gfree_netbios_names();
-	SAFE_FREE( smb_scope );
-	free_netbios_names_array();
-	free_local_machine_name();
-}
-
 void gfree_all( void )
 {
 	gfree_names();
 	gfree_loadparm();
-	gfree_case_tables();
 	gfree_charcnv();
 	gfree_interfaces();
 	gfree_debugsyms();
-}
-
-const char *my_netbios_names(int i)
-{
-	return smb_my_netbios_names[i];
-}
-
-bool set_netbios_aliases(const char **str_array)
-{
-	size_t namecount;
-
-	/* Work out the max number of netbios aliases that we have */
-	for( namecount=0; str_array && (str_array[namecount] != NULL); namecount++ )
-		;
-
-	if ( global_myname() && *global_myname())
-		namecount++;
-
-	/* Allocate space for the netbios aliases */
-	if (!allocate_my_netbios_names_array(namecount))
-		return False;
-
-	/* Use the global_myname string first */
-	namecount=0;
-	if ( global_myname() && *global_myname()) {
-		set_my_netbios_names( global_myname(), namecount );
-		namecount++;
-	}
-
-	if (str_array) {
-		size_t i;
-		for ( i = 0; str_array[i] != NULL; i++) {
-			size_t n;
-			bool duplicate = False;
-
-			/* Look for duplicates */
-			for( n=0; n<namecount; n++ ) {
-				if( strequal( str_array[i], my_netbios_names(n) ) ) {
-					duplicate = True;
-					break;
-				}
-			}
-			if (!duplicate) {
-				if (!set_my_netbios_names(str_array[i], namecount))
-					return False;
-				namecount++;
-			}
-		}
-	}
-	return True;
-}
-
-/****************************************************************************
-  Common name initialization code.
-****************************************************************************/
-
-bool init_names(void)
-{
-	int n;
-
-	if (global_myname() == NULL || *global_myname() == '\0') {
-		if (!set_global_myname(myhostname())) {
-			DEBUG( 0, ( "init_names: malloc fail.\n" ) );
-			return False;
-		}
-	}
-
-	if (!set_netbios_aliases(lp_netbios_aliases())) {
-		DEBUG( 0, ( "init_names: malloc fail.\n" ) );
-		return False;
-	}
-
-	set_local_machine_name(global_myname(),false);
-
-	DEBUG( 5, ("Netbios name list:-\n") );
-	for( n=0; my_netbios_names(n); n++ ) {
-		DEBUGADD( 5, ("my_netbios_names[%d]=\"%s\"\n",
-					n, my_netbios_names(n) ) );
-	}
-
-	return( True );
 }
 
 /*******************************************************************
@@ -287,44 +127,40 @@ uint64_t get_file_size_stat(const SMB_STRUCT_STAT *sbuf)
 	return sbuf->st_ex_size;
 }
 
-/*******************************************************************
- Returns the size in bytes of the named file.
-********************************************************************/
+/****************************************************************************
+ Check two stats have identical dev and ino fields.
+****************************************************************************/
 
-SMB_OFF_T get_file_size(char *file_name)
+bool check_same_dev_ino(const SMB_STRUCT_STAT *sbuf1,
+                        const SMB_STRUCT_STAT *sbuf2)
 {
-	SMB_STRUCT_STAT buf;
-	buf.st_ex_size = 0;
-	if (sys_stat(file_name, &buf, false) != 0)
-		return (SMB_OFF_T)-1;
-	return get_file_size_stat(&buf);
+	if (sbuf1->st_ex_dev != sbuf2->st_ex_dev ||
+			sbuf1->st_ex_ino != sbuf2->st_ex_ino) {
+		return false;
+	}
+	return true;
 }
 
-/*******************************************************************
- Return a string representing an attribute for a file.
-********************************************************************/
+/****************************************************************************
+ Check if a stat struct is identical for use.
+****************************************************************************/
 
-char *attrib_string(uint16 mode)
+bool check_same_stat(const SMB_STRUCT_STAT *sbuf1,
+			const SMB_STRUCT_STAT *sbuf2)
 {
-	fstring attrstr;
-
-	attrstr[0] = 0;
-
-	if (mode & FILE_ATTRIBUTE_VOLUME) fstrcat(attrstr,"V");
-	if (mode & FILE_ATTRIBUTE_DIRECTORY) fstrcat(attrstr,"D");
-	if (mode & FILE_ATTRIBUTE_ARCHIVE) fstrcat(attrstr,"A");
-	if (mode & FILE_ATTRIBUTE_HIDDEN) fstrcat(attrstr,"H");
-	if (mode & FILE_ATTRIBUTE_SYSTEM) fstrcat(attrstr,"S");
-	if (mode & FILE_ATTRIBUTE_READONLY) fstrcat(attrstr,"R");
-
-	return talloc_strdup(talloc_tos(), attrstr);
+	if (sbuf1->st_ex_uid != sbuf2->st_ex_uid ||
+			sbuf1->st_ex_gid != sbuf2->st_ex_gid ||
+			!check_same_dev_ino(sbuf1, sbuf2)) {
+		return false;
+	}
+	return true;
 }
 
 /*******************************************************************
  Show a smb message structure.
 ********************************************************************/
 
-void show_msg(char *buf)
+void show_msg(const char *buf)
 {
 	int i;
 	int bcc=0;
@@ -361,34 +197,7 @@ void show_msg(char *buf)
 	if (DEBUGLEVEL < 50)
 		bcc = MIN(bcc, 512);
 
-	dump_data(10, (uint8 *)smb_buf(buf), bcc);	
-}
-
-/*******************************************************************
- Set the length and marker of an encrypted smb packet.
-********************************************************************/
-
-void smb_set_enclen(char *buf,int len,uint16 enc_ctx_num)
-{
-	_smb_setlen(buf,len);
-
-	SCVAL(buf,4,0xFF);
-	SCVAL(buf,5,'E');
-	SSVAL(buf,6,enc_ctx_num);
-}
-
-/*******************************************************************
- Set the length and marker of an smb packet.
-********************************************************************/
-
-void smb_setlen(char *buf,int len)
-{
-	_smb_setlen_large(buf,len);
-
-	SCVAL(buf,4,0xFF);
-	SCVAL(buf,5,'S');
-	SCVAL(buf,6,'M');
-	SCVAL(buf,7,'B');
+	dump_data(10, (const uint8 *)smb_buf_const(buf), bcc);
 }
 
 /*******************************************************************
@@ -413,7 +222,7 @@ ssize_t message_push_blob(uint8 **outbuf, DATA_BLOB blob)
 	size_t newlen = smb_len(*outbuf) + 4 + blob.length;
 	uint8 *tmp;
 
-	if (!(tmp = TALLOC_REALLOC_ARRAY(NULL, *outbuf, uint8, newlen))) {
+	if (!(tmp = talloc_realloc(NULL, *outbuf, uint8, newlen))) {
 		DEBUG(0, ("talloc failed\n"));
 		return -1;
 	}
@@ -541,12 +350,12 @@ char *clean_name(TALLOC_CTX *ctx, const char *s)
  Write data into an fd at a given offset. Ignore seek errors.
 ********************************************************************/
 
-ssize_t write_data_at_offset(int fd, const char *buffer, size_t N, SMB_OFF_T pos)
+ssize_t write_data_at_offset(int fd, const char *buffer, size_t N, off_t pos)
 {
 	size_t total=0;
 	ssize_t ret;
 
-	if (pos == (SMB_OFF_T)-1) {
+	if (pos == (off_t)-1) {
 		return write_data(fd, buffer, N);
 	}
 #if defined(HAVE_PWRITE) || defined(HAVE_PRWITE64)
@@ -568,7 +377,7 @@ ssize_t write_data_at_offset(int fd, const char *buffer, size_t N, SMB_OFF_T pos
 	return (ssize_t)total;
 #else
 	/* Use lseek and write_data. */
-	if (sys_lseek(fd, pos, SEEK_SET) == -1) {
+	if (lseek(fd, pos, SEEK_SET) == -1) {
 		if (errno != ESPIPE) {
 			return -1;
 		}
@@ -577,13 +386,57 @@ ssize_t write_data_at_offset(int fd, const char *buffer, size_t N, SMB_OFF_T pos
 #endif
 }
 
+static int reinit_after_fork_pipe[2] = { -1, -1 };
+
+NTSTATUS init_before_fork(void)
+{
+	int ret;
+
+	ret = pipe(reinit_after_fork_pipe);
+	if (ret == -1) {
+		NTSTATUS status;
+
+		status = map_nt_error_from_unix_common(errno);
+
+		DEBUG(0, ("Error creating child_pipe: %s\n",
+			  nt_errstr(status)));
+
+		return status;
+	}
+
+	return NT_STATUS_OK;
+}
+
+/**
+ * Detect died parent by detecting EOF on the pipe
+ */
+static void reinit_after_fork_pipe_handler(struct tevent_context *ev,
+					   struct tevent_fd *fde,
+					   uint16_t flags,
+					   void *private_data)
+{
+	char c;
+
+	if (sys_read(reinit_after_fork_pipe[0], &c, 1) != 1) {
+		/*
+		 * we have reached EOF on stdin, which means the
+		 * parent has exited. Shutdown the server
+		 */
+		(void)kill(getpid(), SIGTERM);
+	}
+}
+
 
 NTSTATUS reinit_after_fork(struct messaging_context *msg_ctx,
 			   struct event_context *ev_ctx,
-			   struct server_id id,
 			   bool parent_longlived)
 {
 	NTSTATUS status = NT_STATUS_OK;
+
+	if (reinit_after_fork_pipe[1] != -1) {
+		close(reinit_after_fork_pipe[1]);
+		reinit_after_fork_pipe[1] = -1;
+	}
 
 	/* Reset the state of the random
 	 * number generation system, so
@@ -592,7 +445,7 @@ NTSTATUS reinit_after_fork(struct messaging_context *msg_ctx,
 	set_need_random_reseed();
 
 	/* tdb needs special fork handling */
-	if (tdb_reopen_all(parent_longlived ? 1 : 0) == -1) {
+	if (tdb_reopen_all(parent_longlived ? 1 : 0) != 0) {
 		DEBUG(0,("tdb_reopen_all failed.\n"));
 		status = NT_STATUS_OPEN_FAILED;
 		goto done;
@@ -602,12 +455,23 @@ NTSTATUS reinit_after_fork(struct messaging_context *msg_ctx,
 		smb_panic(__location__ ": Failed to re-initialise event context");
 	}
 
+	if (reinit_after_fork_pipe[0] != -1) {
+		struct tevent_fd *fde;
+
+		fde = tevent_add_fd(ev_ctx, ev_ctx /* TALLOC_CTX */,
+				    reinit_after_fork_pipe[0], TEVENT_FD_READ,
+				    reinit_after_fork_pipe_handler, NULL);
+		if (fde == NULL) {
+			smb_panic(__location__ ": Failed to add reinit_after_fork pipe event");
+		}
+	}
+
 	if (msg_ctx) {
 		/*
 		 * For clustering, we need to re-init our ctdbd connection after the
 		 * fork
 		 */
-		status = messaging_reinit(msg_ctx, id);
+		status = messaging_reinit(msg_ctx);
 		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(0,("messaging_reinit() failed: %s\n",
 				 nt_errstr(status)));
@@ -615,149 +479,6 @@ NTSTATUS reinit_after_fork(struct messaging_context *msg_ctx,
 	}
  done:
 	return status;
-}
-
-#if defined(PARANOID_MALLOC_CHECKER)
-
-/****************************************************************************
- Internal malloc wrapper. Externally visible.
-****************************************************************************/
-
-void *malloc_(size_t size)
-{
-	if (size == 0) {
-		return NULL;
-	}
-#undef malloc
-	return malloc(size);
-#define malloc(s) __ERROR_DONT_USE_MALLOC_DIRECTLY
-}
-
-/****************************************************************************
- Internal calloc wrapper. Not externally visible.
-****************************************************************************/
-
-static void *calloc_(size_t count, size_t size)
-{
-	if (size == 0 || count == 0) {
-		return NULL;
-	}
-#undef calloc
-	return calloc(count, size);
-#define calloc(n,s) __ERROR_DONT_USE_CALLOC_DIRECTLY
-}
-
-/****************************************************************************
- Internal realloc wrapper. Not externally visible.
-****************************************************************************/
-
-static void *realloc_(void *ptr, size_t size)
-{
-#undef realloc
-	return realloc(ptr, size);
-#define realloc(p,s) __ERROR_DONT_USE_RELLOC_DIRECTLY
-}
-
-#endif /* PARANOID_MALLOC_CHECKER */
-
-/****************************************************************************
- Type-safe memalign
-****************************************************************************/
-
-void *memalign_array(size_t el_size, size_t align, unsigned int count)
-{
-	if (count >= MAX_ALLOC_SIZE/el_size) {
-		return NULL;
-	}
-
-	return sys_memalign(align, el_size*count);
-}
-
-/****************************************************************************
- Type-safe calloc.
-****************************************************************************/
-
-void *calloc_array(size_t size, size_t nmemb)
-{
-	if (nmemb >= MAX_ALLOC_SIZE/size) {
-		return NULL;
-	}
-	if (size == 0 || nmemb == 0) {
-		return NULL;
-	}
-#if defined(PARANOID_MALLOC_CHECKER)
-	return calloc_(nmemb, size);
-#else
-	return calloc(nmemb, size);
-#endif
-}
-
-/****************************************************************************
- Expand a pointer to be a particular size.
- Note that this version of Realloc has an extra parameter that decides
- whether to free the passed in storage on allocation failure or if the
- new size is zero.
-
- This is designed for use in the typical idiom of :
-
- p = SMB_REALLOC(p, size)
- if (!p) {
-    return error;
- }
-
- and not to have to keep track of the old 'p' contents to free later, nor
- to worry if the size parameter was zero. In the case where NULL is returned
- we guarentee that p has been freed.
-
- If free later semantics are desired, then pass 'free_old_on_error' as False which
- guarentees that the old contents are not freed on error, even if size == 0. To use
- this idiom use :
-
- tmp = SMB_REALLOC_KEEP_OLD_ON_ERROR(p, size);
- if (!tmp) {
-    SAFE_FREE(p);
-    return error;
- } else {
-    p = tmp;
- }
-
- Changes were instigated by Coverity error checking. JRA.
-****************************************************************************/
-
-void *Realloc(void *p, size_t size, bool free_old_on_error)
-{
-	void *ret=NULL;
-
-	if (size == 0) {
-		if (free_old_on_error) {
-			SAFE_FREE(p);
-		}
-		DEBUG(2,("Realloc asked for 0 bytes\n"));
-		return NULL;
-	}
-
-#if defined(PARANOID_MALLOC_CHECKER)
-	if (!p) {
-		ret = (void *)malloc_(size);
-	} else {
-		ret = (void *)realloc_(p,size);
-	}
-#else
-	if (!p) {
-		ret = (void *)malloc(size);
-	} else {
-		ret = (void *)realloc(p,size);
-	}
-#endif
-
-	if (!ret) {
-		if (free_old_on_error && p) {
-			SAFE_FREE(p);
-		}
-		DEBUG(0,("Memory allocation error: failed to expand to %d bytes\n",(int)size));
-	}
-
-	return(ret);
 }
 
 /****************************************************************************
@@ -949,7 +670,7 @@ char *automount_lookup(TALLOC_CTX *ctx, const char *user_name)
 	char *nis_result;     /* yp_match inits this */
 	int nis_result_len;  /* and set this */
 	char *nis_domain;     /* yp_get_default_domain inits this */
-	char *nis_map = (char *)lp_nis_home_map_name();
+	char *nis_map = lp_nis_home_map_name(talloc_tos());
 
 	if ((nis_error = yp_get_default_domain(&nis_domain)) != 0) {
 		DEBUG(3, ("YP Error: %s\n", yperr_string(nis_error)));
@@ -986,26 +707,9 @@ char *automount_lookup(TALLOC_CTX *ctx, const char *user_name)
 #endif /* WITH_NISPLUS_HOME */
 #endif
 
-/****************************************************************************
- Check if a process exists. Does this work on all unixes?
-****************************************************************************/
-
 bool process_exists(const struct server_id pid)
 {
-	if (procid_is_me(&pid)) {
-		return True;
-	}
-
-	if (procid_is_local(&pid)) {
-		return (kill(pid.pid,0) == 0 || errno != ESRCH);
-	}
-
-#ifdef CLUSTER_SUPPORT
-	return ctdbd_process_exists(messaging_ctdbd_connection(),
-				    pid.vnn, pid.pid);
-#else
-	return False;
-#endif
+	return serverid_exists(&pid);
 }
 
 /*******************************************************************
@@ -1087,7 +791,7 @@ gid_t nametogid(const char *name)
 	if ((p != name) && (*p == '\0'))
 		return g;
 
-	grp = sys_getgrnam(name);
+	grp = getgrnam(name);
 	if (grp)
 		return(grp->gr_gid);
 	return (gid_t)-1;
@@ -1097,27 +801,23 @@ gid_t nametogid(const char *name)
  Something really nasty happened - panic !
 ********************************************************************/
 
-void smb_panic(const char *const why)
+void smb_panic_s3(const char *why)
 {
 	char *cmd;
 	int result;
 
-#ifdef DEVELOPER
-	{
-
-		if (global_clobber_region_function) {
-			DEBUG(0,("smb_panic: clobber_region() last called from [%s(%u)]\n",
-					 global_clobber_region_function,
-					 global_clobber_region_line));
-		} 
-	}
-#endif
-
 	DEBUG(0,("PANIC (pid %llu): %s\n",
-		    (unsigned long long)sys_getpid(), why));
+		    (unsigned long long)getpid(), why));
 	log_stack_trace();
 
-	cmd = lp_panic_action();
+#if defined(HAVE_PRCTL) && defined(PR_SET_PTRACER)
+	/*
+	 * Make sure all children can attach a debugger.
+	 */
+	prctl(PR_SET_PTRACER, getpid(), 0, 0, 0);
+#endif
+
+	cmd = lp_panic_action(talloc_tos());
 	if (cmd && *cmd) {
 		DEBUG(0, ("smb_panic(): calling panic action [%s]\n", cmd));
 		result = system(cmd);
@@ -1276,15 +976,15 @@ libunwind_failed:
   A readdir wrapper which just returns the file name.
  ********************************************************************/
 
-const char *readdirname(SMB_STRUCT_DIR *p)
+const char *readdirname(DIR *p)
 {
-	SMB_STRUCT_DIRENT *ptr;
+	struct dirent *ptr;
 	char *dname;
 
 	if (!p)
 		return(NULL);
 
-	ptr = (SMB_STRUCT_DIRENT *)sys_readdir(p);
+	ptr = (struct dirent *)readdir(p);
 	if (!ptr)
 		return(NULL);
 
@@ -1335,7 +1035,7 @@ bool is_in_path(const char *name, name_compare_entry *namelist, bool case_sensit
 			}
 		} else {
 			if((case_sensitive && (strcmp(last_component, namelist->name) == 0))||
-						(!case_sensitive && (StrCaseCmp(last_component, namelist->name) == 0))) {
+						(!case_sensitive && (strcasecmp_m(last_component, namelist->name) == 0))) {
 				DEBUG(8,("is_in_path: match succeeded\n"));
 				return True;
 			}
@@ -1351,24 +1051,30 @@ bool is_in_path(const char *name, name_compare_entry *namelist, bool case_sensit
  passing to is_in_path(). We do this for
  speed so we can pre-parse all the names in the list 
  and don't do it for each call to is_in_path().
- namelist is modified here and is assumed to be 
- a copy owned by the caller.
  We also check if the entry contains a wildcard to
  remove a potentially expensive call to mask_match
  if possible.
 ********************************************************************/
 
-void set_namearray(name_compare_entry **ppname_array, const char *namelist)
+void set_namearray(name_compare_entry **ppname_array, const char *namelist_in)
 {
 	char *name_end;
-	char *nameptr = (char *)namelist;
+	char *namelist;
+	char *nameptr;
 	int num_entries = 0;
 	int i;
 
 	(*ppname_array) = NULL;
 
-	if((nameptr == NULL ) || ((nameptr != NULL) && (*nameptr == '\0'))) 
+	if((namelist_in == NULL ) || ((namelist_in != NULL) && (*namelist_in == '\0'))) 
 		return;
+
+	namelist = talloc_strdup(talloc_tos(), namelist_in);
+	if (namelist == NULL) {
+		DEBUG(0,("set_namearray: talloc fail\n"));
+		return;
+	}
+	nameptr = namelist;
 
 	/* We need to make two passes over the string. The
 		first to count the number of elements, the second
@@ -1395,16 +1101,19 @@ void set_namearray(name_compare_entry **ppname_array, const char *namelist)
 		num_entries++;
 	}
 
-	if(num_entries == 0)
+	if(num_entries == 0) {
+		talloc_free(namelist);
 		return;
+	}
 
 	if(( (*ppname_array) = SMB_MALLOC_ARRAY(name_compare_entry, num_entries + 1)) == NULL) {
 		DEBUG(0,("set_namearray: malloc fail\n"));
+		talloc_free(namelist);
 		return;
 	}
 
 	/* Now copy out the names */
-	nameptr = (char *)namelist;
+	nameptr = namelist;
 	i = 0;
 	while(*nameptr) {
 		if ( *nameptr == '/' ) {
@@ -1426,6 +1135,7 @@ void set_namearray(name_compare_entry **ppname_array, const char *namelist)
 		(*ppname_array)[i].is_wild = ms_has_wild(nameptr);
 		if(((*ppname_array)[i].name = SMB_STRDUP(nameptr)) == NULL) {
 			DEBUG(0,("set_namearray: malloc fail (1)\n"));
+			talloc_free(namelist);
 			return;
 		}
 
@@ -1436,23 +1146,8 @@ void set_namearray(name_compare_entry **ppname_array, const char *namelist)
 
 	(*ppname_array)[i].name = NULL;
 
+	talloc_free(namelist);
 	return;
-}
-
-/****************************************************************************
- Routine to free a namearray.
-****************************************************************************/
-
-void free_namearray(name_compare_entry *name_array)
-{
-	int i;
-
-	if(name_array == NULL)
-		return;
-
-	for(i=0; name_array[i].name!=NULL; i++)
-		SAFE_FREE(name_array[i].name);
-	SAFE_FREE(name_array);
 }
 
 #undef DBGC_CLASS
@@ -1465,9 +1160,9 @@ void free_namearray(name_compare_entry *name_array)
  F_UNLCK in *ptype if the region is unlocked). False if the call failed.
 ****************************************************************************/
 
-bool fcntl_getlock(int fd, SMB_OFF_T *poffset, SMB_OFF_T *pcount, int *ptype, pid_t *ppid)
+bool fcntl_getlock(int fd, off_t *poffset, off_t *pcount, int *ptype, pid_t *ppid)
 {
-	SMB_STRUCT_FLOCK lock;
+	struct flock lock;
 	int ret;
 
 	DEBUG(8,("fcntl_getlock fd=%d offset=%.0f count=%.0f type=%d\n",
@@ -1479,7 +1174,7 @@ bool fcntl_getlock(int fd, SMB_OFF_T *poffset, SMB_OFF_T *pcount, int *ptype, pi
 	lock.l_len = *pcount;
 	lock.l_pid = 0;
 
-	ret = sys_fcntl_ptr(fd,SMB_F_GETLK,&lock);
+	ret = sys_fcntl_ptr(fd,F_GETLK,&lock);
 
 	if (ret == -1) {
 		int sav = errno;
@@ -1519,23 +1214,6 @@ bool is_myname(const char *s)
 		}
 	}
 	DEBUG(8, ("is_myname(\"%s\") returns %d\n", s, ret));
-	return(ret);
-}
-
-/*******************************************************************
- Is the name specified our workgroup/domain.
- Returns true if it is equal, false otherwise.
-********************************************************************/
-
-bool is_myworkgroup(const char *s)
-{
-	bool ret = False;
-
-	if (strequal(s, lp_workgroup())) {
-		ret=True;
-	}
-
-	DEBUG(8, ("is_myworkgroup(\"%s\") returns %d\n", s, ret));
 	return(ret);
 }
 
@@ -1652,8 +1330,9 @@ const char *tab_depth(int level, int depth)
 
 int str_checksum(const char *s)
 {
-	TDB_DATA key = string_tdb_data(s);
-	return tdb_jenkins_hash(&key);
+	if (s == NULL)
+		return 0;
+	return hash(s, strlen(s), 0);
 }
 
 /*****************************************************************
@@ -1802,6 +1481,22 @@ char *myhostname(void)
 	return ret;
 }
 
+/*****************************************************************
+ Get local hostname and cache result.
+*****************************************************************/
+
+char *myhostname_upper(void)
+{
+	char *name;
+	static char *ret;
+	if (ret == NULL) {
+		name = get_myname(talloc_tos());
+		ret = strupper_talloc(NULL, name);
+		talloc_free(name);
+	}
+	return ret;
+}
+
 /**
  * @brief Returns an absolute path to a file concatenating the provided
  * @a rootpath and @a basename
@@ -1847,58 +1542,6 @@ char *lock_path(const char *name)
 }
 
 /**
- * @brief Returns an absolute path to a file in the Samba pid directory.
- *
- * @param name File to find, relative to PIDDIR.
- *
- * @retval Pointer to a talloc'ed string containing the full path.
- **/
-
-char *pid_path(const char *name)
-{
-	return xx_path(name, lp_piddir());
-}
-
-/**
- * @brief Returns an absolute path to a file in the Samba lib directory.
- *
- * @param name File to find, relative to LIBDIR.
- *
- * @retval Pointer to a string containing the full path.
- **/
-
-char *lib_path(const char *name)
-{
-	return talloc_asprintf(talloc_tos(), "%s/%s", get_dyn_LIBDIR(), name);
-}
-
-/**
- * @brief Returns an absolute path to a file in the Samba modules directory.
- *
- * @param name File to find, relative to MODULESDIR.
- *
- * @retval Pointer to a string containing the full path.
- **/
-
-char *modules_path(const char *name)
-{
-	return talloc_asprintf(talloc_tos(), "%s/%s", get_dyn_MODULESDIR(), name);
-}
-
-/**
- * @brief Returns an absolute path to a file in the Samba data directory.
- *
- * @param name File to find, relative to CODEPAGEDIR.
- *
- * @retval Pointer to a talloc'ed string containing the full path.
- **/
-
-char *data_path(const char *name)
-{
-	return talloc_asprintf(talloc_tos(), "%s/%s", get_dyn_CODEPAGEDIR(), name);
-}
-
-/**
  * @brief Returns an absolute path to a file in the Samba state directory.
  *
  * @param name File to find, relative to STATEDIR.
@@ -1922,17 +1565,6 @@ char *state_path(const char *name)
 char *cache_path(const char *name)
 {
 	return xx_path(name, lp_cachedir());
-}
-
-/**
- * @brief Returns the platform specific shared library extension.
- *
- * @retval Pointer to a const char * containing the extension.
- **/
-
-const char *shlib_ext(void)
-{
-	return get_dyn_SHLIBEXT();
 }
 
 /*******************************************************************
@@ -1959,7 +1591,7 @@ bool parent_dirname(TALLOC_CTX *mem_ctx, const char *dir, char **parent,
 
 	len = p-dir;
 
-	if (!(*parent = (char *)TALLOC_MEMDUP(mem_ctx, dir, len+1))) {
+	if (!(*parent = (char *)talloc_memdup(mem_ctx, dir, len+1))) {
 		return False;
 	}
 	(*parent)[len] = '\0';
@@ -2178,8 +1810,14 @@ bool unix_wild_match(const char *pattern, const char *string)
 		TALLOC_FREE(ctx);
 		return false;
 	}
-	strlower_m(p2);
-	strlower_m(s2);
+	if (!strlower_m(p2)) {
+		TALLOC_FREE(ctx);
+		return false;
+	}
+	if (!strlower_m(s2)) {
+		TALLOC_FREE(ctx);
+		return false;
+	}
 
 	/* Remove any *? and ** from the pattern as they are meaningless */
 	for(p = p2; *p; p++) {
@@ -2228,7 +1866,7 @@ bool name_to_fqdn(fstring fqdn, const char *name)
 			}
 		}
 	}
-	if (full && (StrCaseCmp(full, "localhost.localdomain") == 0)) {
+	if (full && (strcasecmp_m(full, "localhost.localdomain") == 0)) {
 		DEBUG(1, ("WARNING: your /etc/hosts file may be broken!\n"));
 		DEBUGADD(1, ("    Specifing the machine hostname for address 127.0.0.1 may lead\n"));
 		DEBUGADD(1, ("    to Kerberos authentication problems as localhost.localdomain\n"));
@@ -2300,7 +1938,7 @@ static uint32 my_vnn = NONCLUSTER_VNN;
 
 void set_my_vnn(uint32 vnn)
 {
-	DEBUG(10, ("vnn pid %d = %u\n", (int)sys_getpid(), (unsigned int)vnn));
+	DEBUG(10, ("vnn pid %d = %u\n", (int)getpid(), (unsigned int)vnn));
 	my_vnn = vnn;
 }
 
@@ -2320,6 +1958,7 @@ struct server_id pid_to_procid(pid_t pid)
 {
 	struct server_id result;
 	result.pid = pid;
+	result.task_id = 0;
 	result.unique_id = my_unique_id;
 	result.vnn = my_vnn;
 	return result;
@@ -2327,27 +1966,56 @@ struct server_id pid_to_procid(pid_t pid)
 
 struct server_id procid_self(void)
 {
-	return pid_to_procid(sys_getpid());
+	return pid_to_procid(getpid());
 }
 
-bool procid_equal(const struct server_id *p1, const struct server_id *p2)
+static struct idr_context *task_id_tree;
+
+static int free_task_id(struct server_id *server_id)
 {
-	if (p1->pid != p2->pid)
-		return False;
-	if (p1->vnn != p2->vnn)
-		return False;
-	return True;
+	idr_remove(task_id_tree, server_id->task_id);
+	return 0;
 }
 
-bool cluster_id_equal(const struct server_id *id1,
-		      const struct server_id *id2)
+/* Return a server_id with a unique task_id element.  Free the
+ * returned pointer to de-allocate the task_id via a talloc destructor
+ * (ie, use talloc_free()) */
+struct server_id *new_server_id_task(TALLOC_CTX *mem_ctx)
 {
-	return procid_equal(id1, id2);
+	struct server_id *server_id;
+	int task_id;
+	if (!task_id_tree) {
+		task_id_tree = idr_init(NULL);
+		if (!task_id_tree) {
+			return NULL;
+		}
+	}
+
+	server_id = talloc(mem_ctx, struct server_id);
+
+	if (!server_id) {
+		return NULL;
+	}
+	*server_id = procid_self();
+
+	/* 0 is the default server_id, so we need to start with 1 */
+	task_id = idr_get_new_above(task_id_tree, server_id, 1, INT32_MAX);
+
+	if (task_id == -1) {
+		talloc_free(server_id);
+		return NULL;
+	}
+
+	talloc_set_destructor(server_id, free_task_id);
+	server_id->task_id = task_id;
+	return server_id;
 }
 
 bool procid_is_me(const struct server_id *pid)
 {
-	if (pid->pid != sys_getpid())
+	if (pid->pid != getpid())
+		return False;
+	if (pid->task_id != 0)
 		return False;
 	if (pid->vnn != my_vnn)
 		return False;
@@ -2356,77 +2024,22 @@ bool procid_is_me(const struct server_id *pid)
 
 struct server_id interpret_pid(const char *pid_string)
 {
-	struct server_id result;
-	int pid;
-	unsigned int vnn;
-	if (sscanf(pid_string, "%u:%d", &vnn, &pid) == 2) {
-		result.vnn = vnn;
-		result.pid = pid;
-	}
-	else if (sscanf(pid_string, "%d", &pid) == 1) {
-		result.vnn = get_my_vnn();
-		result.pid = pid;
-	}
-	else {
-		result.vnn = NONCLUSTER_VNN;
-		result.pid = -1;
-	}
-	/* Assigning to result.pid may have overflowed
-	   Map negative pid to -1: i.e. error */
-	if (result.pid < 0) {
-		result.pid = -1;
-	}
-	result.unique_id = 0;
-	return result;
-}
-
-char *procid_str(TALLOC_CTX *mem_ctx, const struct server_id *pid)
-{
-	if (pid->vnn == NONCLUSTER_VNN) {
-		return talloc_asprintf(mem_ctx,
-				"%d",
-				(int)pid->pid);
-	}
-	else {
-		return talloc_asprintf(mem_ctx,
-					"%u:%d",
-					(unsigned)pid->vnn,
-					(int)pid->pid);
-	}
+	return server_id_from_string(get_my_vnn(), pid_string);
 }
 
 char *procid_str_static(const struct server_id *pid)
 {
-	return procid_str(talloc_tos(), pid);
+	return server_id_str(talloc_tos(), pid);
 }
 
 bool procid_valid(const struct server_id *pid)
 {
-	return (pid->pid != -1);
+	return (pid->pid != (uint64_t)-1);
 }
 
 bool procid_is_local(const struct server_id *pid)
 {
 	return pid->vnn == my_vnn;
-}
-
-/****************************************************************
- Check if offset/length fit into bufsize. Should probably be
- merged with is_offset_safe, but this would require a rewrite
- of lanman.c. Later :-)
-****************************************************************/
-
-bool trans_oob(uint32_t bufsize, uint32_t offset, uint32_t length)
-{
-	if ((offset + length < offset) || (offset + length < length)) {
-		/* wrap */
-		return true;
-	}
-	if ((offset > bufsize) || (offset + length > bufsize)) {
-		/* overflow */
-		return true;
-	}
-	return false;
 }
 
 /****************************************************************
@@ -2536,111 +2149,6 @@ void split_domain_user(TALLOC_CTX *mem_ctx,
 	}
 }
 
-#if 0
-
-Disable these now we have checked all code paths and ensured
-NULL returns on zero request. JRA.
-
-/****************************************************************
- talloc wrapper functions that guarentee a null pointer return
- if size == 0.
-****************************************************************/
-
-#ifndef MAX_TALLOC_SIZE
-#define MAX_TALLOC_SIZE 0x10000000
-#endif
-
-/*
- *    talloc and zero memory.
- *    - returns NULL if size is zero.
- */
-
-void *_talloc_zero_zeronull(const void *ctx, size_t size, const char *name)
-{
-	void *p;
-
-	if (size == 0) {
-		return NULL;
-	}
-
-	p = talloc_named_const(ctx, size, name);
-
-	if (p) {
-		memset(p, '\0', size);
-	}
-
-	return p;
-}
-
-/*
- *   memdup with a talloc.
- *   - returns NULL if size is zero.
- */
-
-void *_talloc_memdup_zeronull(const void *t, const void *p, size_t size, const char *name)
-{
-	void *newp;
-
-	if (size == 0) {
-		return NULL;
-	}
-
-	newp = talloc_named_const(t, size, name);
-	if (newp) {
-		memcpy(newp, p, size);
-	}
-
-	return newp;
-}
-
-/*
- *   alloc an array, checking for integer overflow in the array size.
- *   - returns NULL if count or el_size are zero.
- */
-
-void *_talloc_array_zeronull(const void *ctx, size_t el_size, unsigned count, const char *name)
-{
-	if (count >= MAX_TALLOC_SIZE/el_size) {
-		return NULL;
-	}
-
-	if (el_size == 0 || count == 0) {
-		return NULL;
-	}
-
-	return talloc_named_const(ctx, el_size * count, name);
-}
-
-/*
- *   alloc an zero array, checking for integer overflow in the array size
- *   - returns NULL if count or el_size are zero.
- */
-
-void *_talloc_zero_array_zeronull(const void *ctx, size_t el_size, unsigned count, const char *name)
-{
-	if (count >= MAX_TALLOC_SIZE/el_size) {
-		return NULL;
-	}
-
-	if (el_size == 0 || count == 0) {
-		return NULL;
-	}
-
-	return _talloc_zero(ctx, el_size * count, name);
-}
-
-/*
- *   Talloc wrapper that returns NULL if size == 0.
- */
-void *talloc_zeronull(const void *context, size_t size, const char *name)
-{
-	if (size == 0) {
-		return NULL;
-	}
-	return talloc_named_const(context, size, name);
-}
-#endif
-
 /****************************************************************
  strip off leading '\\' from a hostname
 ****************************************************************/
@@ -2659,17 +2167,6 @@ const char *strip_hostname(const char *s)
 	if (s[0] == '\\') s++;
 
 	return s;
-}
-
-bool tevent_req_poll_ntstatus(struct tevent_req *req,
-			      struct tevent_context *ev,
-			      NTSTATUS *status)
-{
-	bool ret = tevent_req_poll(req, ev);
-	if (!ret) {
-		*status = map_nt_error_from_unix(errno);
-	}
-	return ret;
 }
 
 bool any_nt_status_not_ok(NTSTATUS err1, NTSTATUS err2, NTSTATUS *result)
@@ -2886,4 +2383,34 @@ bool map_open_params_to_ntcreate(const char *smb_base_fname,
 
 	return True;
 
+}
+
+/*************************************************************************
+ Return a talloced copy of a struct security_unix_token. NULL on fail.
+*************************************************************************/
+
+struct security_unix_token *copy_unix_token(TALLOC_CTX *ctx, const struct security_unix_token *tok)
+{
+	struct security_unix_token *cpy;
+
+	cpy = talloc(ctx, struct security_unix_token);
+	if (!cpy) {
+		return NULL;
+	}
+
+	cpy->uid = tok->uid;
+	cpy->gid = tok->gid;
+	cpy->ngroups = tok->ngroups;
+	if (tok->ngroups) {
+		/* Make this a talloc child of cpy. */
+		cpy->groups = (gid_t *)talloc_memdup(
+			cpy, tok->groups, tok->ngroups * sizeof(gid_t));
+		if (!cpy->groups) {
+			TALLOC_FREE(cpy);
+			return NULL;
+		}
+	} else {
+		cpy->groups = NULL;
+	}
+	return cpy;
 }

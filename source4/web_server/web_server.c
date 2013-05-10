@@ -28,6 +28,8 @@
 #include "lib/socket/netif.h"
 #include "param/param.h"
 
+NTSTATUS server_service_web_init(void);
+
 /* don't allow connections to hang around forever */
 #define HTTP_TIMEOUT 120
 
@@ -94,8 +96,8 @@ void websrv_output_headers(struct websrv_context *web, const char *status, struc
 void websrv_output(struct websrv_context *web, void *data, size_t length)
 {
 	data_blob_append(web, &web->output.content, data, length);
-	EVENT_FD_NOT_READABLE(web->conn->event.fde);
-	EVENT_FD_WRITEABLE(web->conn->event.fde);
+	TEVENT_FD_NOT_READABLE(web->conn->event.fde);
+	TEVENT_FD_WRITEABLE(web->conn->event.fde);
 	web->output.output_pending = true;
 }
 
@@ -187,7 +189,7 @@ static void websrv_recv(struct stream_connection *conn, uint16_t flags)
 		if (web->input.partial.length > web->input.content_length) {
 			web->input.partial.data[web->input.content_length] = 0;
 		}
-		EVENT_FD_NOT_READABLE(web->conn->event.fde);
+		TEVENT_FD_NOT_READABLE(web->conn->event.fde);
 
 		/* the reference/unlink code here is quite subtle. It
 		 is needed because the rendering of the web-pages, and
@@ -246,20 +248,19 @@ static void websrv_send(struct stream_connection *conn, uint16_t flags)
 */
 static void websrv_accept(struct stream_connection *conn)
 {
-	struct task_server *task = talloc_get_type(conn->private_data, struct task_server);
-	struct web_server_data *wdata = talloc_get_type(task->private_data, struct web_server_data);
+	struct web_server_data *wdata = talloc_get_type(conn->private_data, struct web_server_data);
 	struct websrv_context *web;
 	struct socket_context *tls_socket;
 
 	web = talloc_zero(conn, struct websrv_context);
 	if (web == NULL) goto failed;
 
-	web->task = task;
+	web->task = wdata->task;
 	web->conn = conn;
 	conn->private_data = web;
 	talloc_set_destructor(web, websrv_destructor);
 
-	event_add_timed(conn->event.ctx, web, 
+	tevent_add_timer(conn->event.ctx, web,
 			timeval_current_ofs(HTTP_TIMEOUT, 0),
 			websrv_timeout, web);
 
@@ -310,6 +311,7 @@ static void websrv_task_init(struct task_server *task)
 	wdata = talloc_zero(task, struct web_server_data);
 	if (wdata == NULL) goto failed;
 
+	wdata->task = task;
 	task->private_data = wdata;
 
 	if (lpcfg_interfaces(task->lp_ctx) && lpcfg_bind_interfaces_only(task->lp_ctx)) {
@@ -317,16 +319,16 @@ static void websrv_task_init(struct task_server *task)
 		int i;
 		struct interface *ifaces;
 
-		load_interfaces(NULL, lpcfg_interfaces(task->lp_ctx), &ifaces);
+		load_interface_list(NULL, task->lp_ctx, &ifaces);
 
-		num_interfaces = iface_count(ifaces);
+		num_interfaces = iface_list_count(ifaces);
 		for(i = 0; i < num_interfaces; i++) {
-			const char *address = iface_n_ip(ifaces, i);
+			const char *address = iface_list_n_ip(ifaces, i);
 			status = stream_setup_socket(task,
 						     task->event_ctx,
 						     task->lp_ctx, model_ops,
 						     &web_stream_ops, 
-						     "ipv4", address, 
+						     "ip", address,
 						     &port, lpcfg_socket_options(task->lp_ctx),
 						     task);
 			if (!NT_STATUS_IS_OK(status)) goto failed;
@@ -334,13 +336,23 @@ static void websrv_task_init(struct task_server *task)
 
 		talloc_free(ifaces);
 	} else {
-		status = stream_setup_socket(task, task->event_ctx,
-					     task->lp_ctx, model_ops,
-					     &web_stream_ops,
-					     "ipv4", lpcfg_socket_address(task->lp_ctx),
-					     &port, lpcfg_socket_options(task->lp_ctx),
-					     task);
-		if (!NT_STATUS_IS_OK(status)) goto failed;
+		const char **wcard;
+		int i;
+		wcard = iface_list_wildcard(task, task->lp_ctx);
+		if (wcard == NULL) {
+			DEBUG(0,("No wildcard addresses available\n"));
+			goto failed;
+		}
+		for (i=0; wcard[i]; i++) {
+			status = stream_setup_socket(task, task->event_ctx,
+						     task->lp_ctx, model_ops,
+						     &web_stream_ops,
+						     "ip", wcard[i],
+						     &port, lpcfg_socket_options(task->lp_ctx),
+						     wdata);
+			if (!NT_STATUS_IS_OK(status)) goto failed;
+		}
+		talloc_free(wcard);
 	}
 
 	wdata->tls_params = tls_initialise(wdata, task->lp_ctx);

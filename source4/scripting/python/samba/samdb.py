@@ -1,11 +1,10 @@
-#!/usr/bin/env python
-
 # Unix SMB/CIFS implementation.
 # Copyright (C) Jelmer Vernooij <jelmer@samba.org> 2007-2010
 # Copyright (C) Matthias Dieter Wallnoefer 2009
 #
 # Based on the original in EJS:
 # Copyright (C) Andrew Tridgell <tridge@samba.org> 2005
+# Copyright (C) Giampaolo Lauria <lauria2@yahoo.com> 2011
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -27,9 +26,11 @@ import samba
 import ldb
 import time
 import base64
+import os
 from samba import dsdb
 from samba.ndr import ndr_unpack, ndr_pack
 from samba.dcerpc import drsblobs, misc
+from samba.common import normalise_int32
 
 __docformat__ = "restructuredText"
 
@@ -46,7 +47,9 @@ class SamDB(samba.Ldb):
         if not auto_connect:
             url = None
         elif url is None and lp is not None:
-            url = lp.get("sam database")
+            url = lp.samdb_url()
+
+        self.url = url
 
         super(SamDB, self).__init__(url=url, lp=lp, modules_dir=modules_dir,
             session_info=session_info, credentials=credentials, flags=flags,
@@ -59,17 +62,35 @@ class SamDB(samba.Ldb):
             dsdb._dsdb_set_am_rodc(self, am_rodc)
 
     def connect(self, url=None, flags=0, options=None):
-        if self.lp is not None:
+        '''connect to the database'''
+        if self.lp is not None and not os.path.exists(url):
             url = self.lp.private_path(url)
+        self.url = url
 
         super(SamDB, self).connect(url=url, flags=flags,
                 options=options)
 
     def am_rodc(self):
+        '''return True if we are an RODC'''
         return dsdb._am_rodc(self)
 
+    def am_pdc(self):
+        '''return True if we are an PDC emulator'''
+        return dsdb._am_pdc(self)
+
     def domain_dn(self):
+        '''return the domain DN'''
         return str(self.get_default_basedn())
+
+    def disable_account(self, search_filter):
+        """Disables an account
+
+        :param search_filter: LDAP filter to find the user (eg
+            samccountname=name)
+        """
+
+        flags = samba.dsdb.UF_ACCOUNTDISABLE
+        self.toggle_userAccountFlags(search_filter, flags, on=True)
 
     def enable_account(self, search_filter):
         """Enables an account
@@ -77,25 +98,53 @@ class SamDB(samba.Ldb):
         :param search_filter: LDAP filter to find the user (eg
             samccountname=name)
         """
+
+        flags = samba.dsdb.UF_ACCOUNTDISABLE | samba.dsdb.UF_PASSWD_NOTREQD
+        self.toggle_userAccountFlags(search_filter, flags, on=False)
+
+    def toggle_userAccountFlags(self, search_filter, flags, flags_str=None,
+                                on=True, strict=False):
+        """Toggle_userAccountFlags
+
+        :param search_filter: LDAP filter to find the user (eg
+            samccountname=name)
+        :param flags: samba.dsdb.UF_* flags
+        :param on: on=True (default) => set, on=False => unset
+        :param strict: strict=False (default) ignore if no action is needed
+                 strict=True raises an Exception if...
+        """
         res = self.search(base=self.domain_dn(), scope=ldb.SCOPE_SUBTREE,
                           expression=search_filter, attrs=["userAccountControl"])
+        if len(res) == 0:
+                raise Exception("Unable to find account where '%s'" % search_filter)
         assert(len(res) == 1)
-        user_dn = res[0].dn
+        account_dn = res[0].dn
 
-        userAccountControl = int(res[0]["userAccountControl"][0])
-        if userAccountControl & 0x2:
-            # remove disabled bit
-            userAccountControl = userAccountControl & ~0x2
-        if userAccountControl & 0x20:
-             # remove 'no password required' bit
-            userAccountControl = userAccountControl & ~0x20
+        old_uac = int(res[0]["userAccountControl"][0])
+        if on:
+            if strict and (old_uac & flags):
+                error = "Account flag(s) '%s' already set" % flags_str
+                raise Exception(error)
+
+            new_uac = old_uac | flags
+        else:
+            if strict and not (old_uac & flags):
+                error = "Account flag(s) '%s' already unset" % flags_str
+                raise Exception(error)
+
+            new_uac = old_uac & ~flags
+
+        if old_uac == new_uac:
+            return
 
         mod = """
 dn: %s
 changetype: modify
-replace: userAccountControl
+delete: userAccountControl
 userAccountControl: %u
-""" % (user_dn, userAccountControl)
+add: userAccountControl
+userAccountControl: %u
+""" % (account_dn, old_uac, new_uac)
         self.modify_ldif(mod)
 
     def force_password_change_at_next_login(self, search_filter):
@@ -106,6 +155,8 @@ userAccountControl: %u
         """
         res = self.search(base=self.domain_dn(), scope=ldb.SCOPE_SUBTREE,
                           expression=search_filter, attrs=[])
+        if len(res) == 0:
+                raise Exception('Unable to find user "%s"' % search_filter)
         assert(len(res) == 1)
         user_dn = res[0].dn
 
@@ -138,7 +189,7 @@ pwdLastSet: 0
             "objectClass": "group"}
 
         if grouptype is not None:
-            ldbmessage["groupType"] = "%d" % grouptype
+            ldbmessage["groupType"] = normalise_int32(grouptype)
 
         if description is not None:
             ldbmessage["description"] = description
@@ -160,7 +211,7 @@ pwdLastSet: 0
         :param groupname: Name of the target group
         """
 
-        groupfilter = "(&(sAMAccountName=%s)(objectCategory=%s,%s))" % (groupname, "CN=Group,CN=Schema,CN=Configuration", self.domain_dn())
+        groupfilter = "(&(sAMAccountName=%s)(objectCategory=%s,%s))" % (ldb.binary_encode(groupname), "CN=Group,CN=Schema,CN=Configuration", self.domain_dn())
         self.transaction_start()
         try:
             targetgroup = self.search(base=self.domain_dn(), scope=ldb.SCOPE_SUBTREE,
@@ -169,24 +220,24 @@ pwdLastSet: 0
                 raise Exception('Unable to find group "%s"' % groupname)
             assert(len(targetgroup) == 1)
             self.delete(targetgroup[0].dn)
-        except Exception:
+        except:
             self.transaction_cancel()
             raise
         else:
             self.transaction_commit()
 
-    def add_remove_group_members(self, groupname, listofmembers,
+    def add_remove_group_members(self, groupname, members,
                                   add_members_operation=True):
         """Adds or removes group members
 
         :param groupname: Name of the target group
-        :param listofmembers: Comma-separated list of group members
+        :param members: list of group members
         :param add_members_operation: Defines if its an add or remove
             operation
         """
 
-        groupfilter = "(&(sAMAccountName=%s)(objectCategory=%s,%s))" % (groupname, "CN=Group,CN=Schema,CN=Configuration", self.domain_dn())
-        groupmembers = listofmembers.split(',')
+        groupfilter = "(&(sAMAccountName=%s)(objectCategory=%s,%s))" % (
+            ldb.binary_encode(groupname), "CN=Group,CN=Schema,CN=Configuration", self.domain_dn())
 
         self.transaction_start()
         try:
@@ -203,9 +254,10 @@ dn: %s
 changetype: modify
 """ % (str(targetgroup[0].dn))
 
-            for member in groupmembers:
+            for member in members:
                 targetmember = self.search(base=self.domain_dn(), scope=ldb.SCOPE_SUBTREE,
-                                    expression="(|(sAMAccountName=%s)(CN=%s))" % (member, member), attrs=[])
+                                    expression="(|(sAMAccountName=%s)(CN=%s))" % (
+                    ldb.binary_encode(member), ldb.binary_encode(member)), attrs=[])
 
                 if len(targetmember) != 1:
                     continue
@@ -225,7 +277,7 @@ member: %s
             if modified is True:
                 self.modify_ldif(addtargettogroup)
 
-        except Exception:
+        except:
             self.transaction_cancel()
             raise
         else:
@@ -349,9 +401,31 @@ member: %s
 
             # Sets the password for it
             if setpassword:
-                self.setpassword("(samAccountName=%s)" % username, password,
+                self.setpassword("(samAccountName=%s)" % ldb.binary_encode(username), password,
                                  force_password_change_at_next_login_req)
-        except Exception:
+        except:
+            self.transaction_cancel()
+            raise
+        else:
+            self.transaction_commit()
+
+
+    def deleteuser(self, username):
+        """Deletes a user
+
+        :param username: Name of the target user
+        """
+
+        filter = "(&(sAMAccountName=%s)(objectCategory=%s,%s))" % (ldb.binary_encode(username), "CN=Person,CN=Schema,CN=Configuration", self.domain_dn())
+        self.transaction_start()
+        try:
+            target = self.search(base=self.domain_dn(), scope=ldb.SCOPE_SUBTREE,
+                                 expression=filter, attrs=[])
+            if len(target) == 0:
+                raise Exception('Unable to find user "%s"' % username)
+            assert(len(target) == 1)
+            self.delete(target[0].dn)
+        except:
             self.transaction_cancel()
             raise
         else:
@@ -386,11 +460,11 @@ unicodePwd:: %s
 
             if force_change_at_next_login:
                 self.force_password_change_at_next_login(
-                  "(dn=" + str(user_dn) + ")")
+                  "(distinguishedName=" + str(user_dn) + ")")
 
             #  modify the userAccountControl to remove the disabled bit
             self.enable_account(search_filter)
-        except Exception:
+        except:
             self.transaction_cancel()
             raise
         else:
@@ -409,6 +483,8 @@ unicodePwd:: %s
             res = self.search(base=self.domain_dn(), scope=ldb.SCOPE_SUBTREE,
                           expression=search_filter,
                           attrs=["userAccountControl", "accountExpires"])
+            if len(res) == 0:
+                raise Exception('Unable to find user "%s"' % search_filter)
             assert(len(res) == 1)
             user_dn = res[0].dn
 
@@ -431,7 +507,7 @@ accountExpires: %u
 """ % (user_dn, userAccountControl, accountExpires)
 
             self.modify_ldif(setexp)
-        except Exception:
+        except:
             self.transaction_cancel()
             raise
         else:
@@ -470,8 +546,30 @@ accountExpires: %u
 
     def get_attid_from_lDAPDisplayName(self, ldap_display_name,
             is_schema_nc=False):
+        '''return the attribute ID for a LDAP attribute as an integer as found in DRSUAPI'''
         return dsdb._dsdb_get_attid_from_lDAPDisplayName(self,
             ldap_display_name, is_schema_nc)
+
+    def get_syntax_oid_from_lDAPDisplayName(self, ldap_display_name):
+        '''return the syntax OID for a LDAP attribute as a string'''
+        return dsdb._dsdb_get_syntax_oid_from_lDAPDisplayName(self, ldap_display_name)
+
+    def get_systemFlags_from_lDAPDisplayName(self, ldap_display_name):
+        '''return the systemFlags for a LDAP attribute as a integer'''
+        return dsdb._dsdb_get_systemFlags_from_lDAPDisplayName(self, ldap_display_name)
+
+    def get_linkId_from_lDAPDisplayName(self, ldap_display_name):
+        '''return the linkID for a LDAP attribute as a integer'''
+        return dsdb._dsdb_get_linkId_from_lDAPDisplayName(self, ldap_display_name)
+
+    def get_lDAPDisplayName_by_attid(self, attid):
+        '''return the lDAPDisplayName from an integer DRS attribute ID'''
+        return dsdb._dsdb_get_lDAPDisplayName_by_attid(self, attid)
+
+    def get_backlink_from_lDAPDisplayName(self, ldap_display_name):
+        '''return the attribute name of the corresponding backlink from the name
+        of a forward link attribute. If there is no backlink return None'''
+        return dsdb._dsdb_get_backlink_from_lDAPDisplayName(self, ldap_display_name)
 
     def set_ntds_settings_dn(self, ntds_settings_dn):
         """Set the NTDS Settings DN, as would be returned on the dsServiceName
@@ -491,17 +589,37 @@ accountExpires: %u
         """Get the server site name"""
         return dsdb._samdb_server_site_name(self)
 
+    def host_dns_name(self):
+        """return the DNS name of this host"""
+        res = self.search(base='', scope=ldb.SCOPE_BASE, attrs=['dNSHostName'])
+        return res[0]['dNSHostName'][0]
+
+    def domain_dns_name(self):
+        """return the DNS name of the domain root"""
+        domain_dn = self.get_default_basedn()
+        return domain_dn.canonical_str().split('/')[0]
+
+    def forest_dns_name(self):
+        """return the DNS name of the forest root"""
+        forest_dn = self.get_root_basedn()
+        return forest_dn.canonical_str().split('/')[0]
+
     def load_partition_usn(self, base_dn):
         return dsdb._dsdb_load_partition_usn(self, base_dn)
 
-    def set_schema(self, schema):
-        self.set_schema_from_ldb(schema.ldb)
+    def set_schema(self, schema, write_indices_and_attributes=True):
+        self.set_schema_from_ldb(schema.ldb, write_indices_and_attributes=write_indices_and_attributes)
 
-    def set_schema_from_ldb(self, ldb_conn):
-        dsdb._dsdb_set_schema_from_ldb(self, ldb_conn)
+    def set_schema_from_ldb(self, ldb_conn, write_indices_and_attributes=True):
+        dsdb._dsdb_set_schema_from_ldb(self, ldb_conn, write_indices_and_attributes)
 
     def dsdb_DsReplicaAttribute(self, ldb, ldap_display_name, ldif_elements):
+        '''convert a list of attribute values to a DRSUAPI DsReplicaAttribute'''
         return dsdb._dsdb_DsReplicaAttribute(ldb, ldap_display_name, ldif_elements)
+
+    def dsdb_normalise_attributes(self, ldb, ldap_display_name, ldif_elements):
+        '''normalise a list of attribute values'''
+        return dsdb._dsdb_normalise_attributes(ldb, ldap_display_name, ldif_elements)
 
     def get_attribute_from_attid(self, attid):
         """ Get from an attid the associated attribute
@@ -542,7 +660,7 @@ accountExpires: %u
             for the given attribute. None if the attribute is not replicated
         """
 
-        res = self.search(expression="dn=%s" % dn,
+        res = self.search(expression="distinguishedName=%s" % dn,
                             scope=ldb.SCOPE_SUBTREE,
                             controls=["search_options:1:2"],
                             attrs=["replPropertyMetaData"])
@@ -564,7 +682,7 @@ accountExpires: %u
 
     def set_attribute_replmetadata_version(self, dn, att, value,
             addifnotexist=False):
-        res = self.search(expression="dn=%s" % dn,
+        res = self.search(expression="distinguishedName=%s" % dn,
                             scope=ldb.SCOPE_SUBTREE,
                             controls=["search_options:1:2"],
                             attrs=["replPropertyMetaData"])
@@ -621,6 +739,12 @@ accountExpires: %u
 
     def get_partitions_dn(self):
         return dsdb._dsdb_get_partitions_dn(self)
+
+    def get_nc_root(self, dn):
+        return dsdb._dsdb_get_nc_root(self, dn)
+
+    def get_wellknown_dn(self, nc_root, wkguid):
+        return dsdb._dsdb_get_wellknown_dn(self, nc_root, wkguid)
 
     def set_minPwdAge(self, value):
         m = ldb.Message()
@@ -711,3 +835,27 @@ accountExpires: %u
         if sd:
             m["nTSecurityDescriptor"] = ndr_pack(sd)
         self.add(m)
+
+    def sequence_number(self, seq_type):
+        """Returns the value of the sequence number according to the requested type
+        :param seq_type: type of sequence number
+         """
+        self.transaction_start()
+        try:
+            seq = super(SamDB, self).sequence_number(seq_type)
+        except:
+            self.transaction_cancel()
+            raise
+        else:
+            self.transaction_commit()
+        return seq
+
+    def get_dsServiceName(self):
+        '''get the NTDS DN from the rootDSE'''
+        res = self.search(base="", scope=ldb.SCOPE_BASE, attrs=["dsServiceName"])
+        return res[0]["dsServiceName"][0]
+
+    def get_serverName(self):
+        '''get the server DN from the rootDSE'''
+        res = self.search(base="", scope=ldb.SCOPE_BASE, attrs=["serverName"])
+        return res[0]["serverName"][0]

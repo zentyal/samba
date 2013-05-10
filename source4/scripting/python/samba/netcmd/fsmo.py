@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-#
 # Changes a FSMO role owner
 #
 # Copyright Nadezhda Ivanova 2009
@@ -27,14 +25,53 @@ from samba.auth import system_session
 from samba.netcmd import (
     Command,
     CommandError,
+    SuperCommand,
     Option,
     )
 from samba.samdb import SamDB
 
-class cmd_fsmo(Command):
-    """Makes the targer DC transfer or seize a fsmo role [server connection needed]"""
+def transfer_role(outf, role, samdb):
+    m = ldb.Message()
+    m.dn = ldb.Dn(samdb, "")
+    if role == "rid":
+        m["becomeRidMaster"]= ldb.MessageElement(
+            "1", ldb.FLAG_MOD_REPLACE,
+            "becomeRidMaster")
+    elif role == "pdc":
+        domain_dn = samdb.domain_dn()
+        res = samdb.search(domain_dn,
+                           scope=ldb.SCOPE_BASE, attrs=["objectSid"])
+        assert len(res) == 1
+        sid = res[0]["objectSid"][0]
+        m["becomePdc"]= ldb.MessageElement(
+            sid, ldb.FLAG_MOD_REPLACE,
+            "becomePdc")
+    elif role == "naming":
+        m["becomeDomainMaster"]= ldb.MessageElement(
+            "1", ldb.FLAG_MOD_REPLACE,
+            "becomeDomainMaster")
+        samdb.modify(m)
+    elif role == "infrastructure":
+        m["becomeInfrastructureMaster"]= ldb.MessageElement(
+            "1", ldb.FLAG_MOD_REPLACE,
+            "becomeInfrastructureMaster")
+    elif role == "schema":
+        m["becomeSchemaMaster"]= ldb.MessageElement(
+            "1", ldb.FLAG_MOD_REPLACE,
+            "becomeSchemaMaster")
+    else:
+        raise CommandError("Invalid FSMO role.")
+    try:
+        samdb.modify(m)
+    except LdbError, (num, msg):
+        raise CommandError("Failed to initiate transfer of '%s' role: %s" % (role, msg))
+    outf.write("FSMO transfer of '%s' role successful\n" % role)
 
-    synopsis = "(show | transfer <options> | seize <options>)"
+
+class cmd_fsmo_seize(Command):
+    """Seize the role."""
+
+    synopsis = "%prog [options]"
 
     takes_optiongroups = {
         "sambaopts": options.SambaOptions,
@@ -43,7 +80,8 @@ class cmd_fsmo(Command):
         }
 
     takes_options = [
-        Option("--host", help="LDB URL for database or target server", type=str),
+        Option("-H", "--URL", help="LDB URL for database or target server", type=str,
+               metavar="URL", dest="H"),
         Option("--force", help="Force seizing of the role without attempting to transfer first.", action="store_true"),
         Option("--role", type="choice", choices=["rid", "pdc", "infrastructure","schema","naming","all"],
                help="""The FSMO role to seize or transfer.\n
@@ -55,40 +93,7 @@ infrastructure=InfrastructureMasterRole\n
 all=all of the above"""),
         ]
 
-    takes_args = ["subcommand"]
-
-    def transfer_role(self, role, samdb):
-        m = ldb.Message()
-        m.dn = ldb.Dn(samdb, "")
-        if role == "rid":
-            m["becomeRidMaster"]= ldb.MessageElement(
-                "1", ldb.FLAG_MOD_REPLACE,
-                "becomeRidMaster")
-        elif role == "pdc":
-            domain_dn = samdb.domain_dn()
-            res = samdb.search(domain_dn,
-                               scope=ldb.SCOPE_BASE, attrs=["objectSid"])
-            assert len(res) == 1
-            sid = res[0]["objectSid"][0]
-            m["becomePdc"]= ldb.MessageElement(
-                sid, ldb.FLAG_MOD_REPLACE,
-                "becomePdc")
-        elif role == "naming":
-            m["becomeDomainMaster"]= ldb.MessageElement(
-                "1", ldb.FLAG_MOD_REPLACE,
-                "becomeDomainMaster")
-            samdb.modify(m)
-        elif role == "infrastructure":
-            m["becomeInfrastructureMaster"]= ldb.MessageElement(
-                "1", ldb.FLAG_MOD_REPLACE,
-                "becomeInfrastructureMaster")
-        elif role == "schema":
-            m["becomeSchemaMaster"]= ldb.MessageElement(
-                "1", ldb.FLAG_MOD_REPLACE,
-                "becomeSchemaMaster")
-        else:
-            raise CommandError("Invalid FSMO role.")
-        samdb.modify(m)
+    takes_args = []
 
     def seize_role(self, role, samdb, force):
         res = samdb.search("",
@@ -96,6 +101,11 @@ all=all of the above"""),
         assert len(res) == 1
         serviceName = res[0]["dsServiceName"][0]
         domain_dn = samdb.domain_dn()
+        self.infrastructure_dn = "CN=Infrastructure," + domain_dn
+        self.naming_dn = "CN=Partitions,%s" % samdb.get_config_basedn()
+        self.schema_dn = str(samdb.get_schema_basedn())
+        self.rid_dn = "CN=RID Manager$,CN=System," + domain_dn
+
         m = ldb.Message()
         if role == "rid":
             m.dn = ldb.Dn(samdb, self.rid_dn)
@@ -113,35 +123,72 @@ all=all of the above"""),
         if force is None:
             self.message("Attempting transfer...")
             try:
-                self.transfer_role(role, samdb)
-            except LdbError, (num, _):
+                transfer_role(self.outf, role, samdb)
+            except CommandError:
             #transfer failed, use the big axe...
-                self.message("Transfer unsuccessfull, seizing...")
+                self.message("Transfer unsuccessful, seizing...")
                 m["fSMORoleOwner"]= ldb.MessageElement(
                     serviceName, ldb.FLAG_MOD_REPLACE,
                     "fSMORoleOwner")
-                samdb.modify(m)
-            else:
-                self.message("Transfer succeeded.")
         else:
             self.message("Will not attempt transfer, seizing...")
             m["fSMORoleOwner"]= ldb.MessageElement(
                 serviceName, ldb.FLAG_MOD_REPLACE,
                 "fSMORoleOwner")
+        try:
             samdb.modify(m)
+        except LdbError, (num, msg):
+            raise CommandError("Failed to initiate role seize of '%s' role: %s" % (role, msg))
+        self.outf.write("FSMO transfer of '%s' role successful\n" % role)
 
-    def run(self, subcommand, force=None, host=None, role=None,
+    def run(self, force=None, H=None, role=None,
             credopts=None, sambaopts=None, versionopts=None):
+
         lp = sambaopts.get_loadparm()
         creds = credopts.get_credentials(lp, fallback_machine=True)
 
-        samdb = SamDB(url=host, session_info=system_session(),
+        samdb = SamDB(url=H, session_info=system_session(),
+                      credentials=creds, lp=lp)
+
+        if role == "all":
+            self.seize_role("rid", samdb, force)
+            self.seize_role("pdc", samdb, force)
+            self.seize_role("naming", samdb, force)
+            self.seize_role("infrastructure", samdb, force)
+            self.seize_role("schema", samdb, force)
+        else:
+            self.seize_role(role, samdb, force)
+
+
+class cmd_fsmo_show(Command):
+    """Show the roles."""
+
+    synopsis = "%prog [options]"
+
+    takes_optiongroups = {
+        "sambaopts": options.SambaOptions,
+        "credopts": options.CredentialsOptions,
+        "versionopts": options.VersionOptions,
+        }
+
+    takes_options = [
+        Option("-H", "--URL", help="LDB URL for database or target server", type=str,
+               metavar="URL", dest="H"),
+        ]
+
+    takes_args = []
+
+    def run(self, H=None, credopts=None, sambaopts=None, versionopts=None):
+        lp = sambaopts.get_loadparm()
+        creds = credopts.get_credentials(lp, fallback_machine=True)
+
+        samdb = SamDB(url=H, session_info=system_session(),
             credentials=creds, lp=lp)
 
         domain_dn = samdb.domain_dn()
         self.infrastructure_dn = "CN=Infrastructure," + domain_dn
-        self.naming_dn = "CN=Partitions,CN=Configuration," + domain_dn
-        self.schema_dn = "CN=Schema,CN=Configuration," + domain_dn
+        self.naming_dn = "CN=Partitions,%s" % samdb.get_config_basedn()
+        self.schema_dn = samdb.get_schema_basedn()
         self.rid_dn = "CN=RID Manager$,CN=System," + domain_dn
 
         res = samdb.search(self.infrastructure_dn,
@@ -169,29 +216,62 @@ all=all of the above"""),
         assert len(res) == 1
         self.ridMaster = res[0]["fSMORoleOwner"][0]
 
-        if subcommand == "show":
-            self.message("InfrastructureMasterRole owner: " + self.infrastructureMaster)
-            self.message("RidAllocationMasterRole owner: " + self.ridMaster)
-            self.message("PdcEmulationMasterRole owner: " + self.pdcEmulator)
-            self.message("DomainNamingMasterRole owner: " + self.namingMaster)
-            self.message("SchemaMasterRole owner: " + self.schemaMaster)
-        elif subcommand == "transfer":
-            if role == "all":
-                self.transfer_role("rid", samdb)
-                self.transfer_role("pdc", samdb)
-                self.transfer_role("naming", samdb)
-                self.transfer_role("infrastructure", samdb)
-                self.transfer_role("schema", samdb)
-            else:
-                self.transfer_role(role, samdb)
-        elif subcommand == "seize":
-            if role == "all":
-                self.seize_role("rid", samdb, force)
-                self.seize_role("pdc", samdb, force)
-                self.seize_role("naming", samdb, force)
-                self.seize_role("infrastructure", samdb, force)
-                self.seize_role("schema", samdb, force)
-            else:
-                self.seize_role(role, samdb, force)
+        self.message("InfrastructureMasterRole owner: " + self.infrastructureMaster)
+        self.message("RidAllocationMasterRole owner: " + self.ridMaster)
+        self.message("PdcEmulationMasterRole owner: " + self.pdcEmulator)
+        self.message("DomainNamingMasterRole owner: " + self.namingMaster)
+        self.message("SchemaMasterRole owner: " + self.schemaMaster)
+
+
+class cmd_fsmo_transfer(Command):
+    """Transfer the role."""
+
+    synopsis = "%prog [options]"
+
+    takes_optiongroups = {
+        "sambaopts": options.SambaOptions,
+        "credopts": options.CredentialsOptions,
+        "versionopts": options.VersionOptions,
+        }
+
+    takes_options = [
+        Option("-H", "--URL", help="LDB URL for database or target server", type=str,
+               metavar="URL", dest="H"),
+        Option("--role", type="choice", choices=["rid", "pdc", "infrastructure","schema","naming","all"],
+               help="""The FSMO role to seize or transfer.\n
+rid=RidAllocationMasterRole\n
+schema=SchemaMasterRole\n
+pdc=PdcEmulationMasterRole\n
+naming=DomainNamingMasterRole\n
+infrastructure=InfrastructureMasterRole\n
+all=all of the above"""),
+        ]
+
+    takes_args = []
+
+    def run(self, force=None, H=None, role=None,
+            credopts=None, sambaopts=None, versionopts=None):
+
+        lp = sambaopts.get_loadparm()
+        creds = credopts.get_credentials(lp, fallback_machine=True)
+
+        samdb = SamDB(url=H, session_info=system_session(),
+                      credentials=creds, lp=lp)
+
+        if role == "all":
+            transfer_role(self.outf, "rid", samdb)
+            transfer_role(self.outf, "pdc", samdb)
+            transfer_role(self.outf, "naming", samdb)
+            transfer_role(self.outf, "infrastructure", samdb)
+            transfer_role(self.outf, "schema", samdb)
         else:
-            raise CommandError("Wrong argument '%s'!" % subcommand)
+            transfer_role(self.outf, role, samdb)
+
+
+class cmd_fsmo(SuperCommand):
+    """Flexible Single Master Operations (FSMO) roles management."""
+
+    subcommands = {}
+    subcommands["seize"] = cmd_fsmo_seize()
+    subcommands["show"] = cmd_fsmo_show()
+    subcommands["transfer"] = cmd_fsmo_transfer()

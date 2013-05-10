@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # Unix SMB/CIFS implementation.
 # Copyright (C) 2008 Kai Blin <kai@samba.org>
 #
@@ -35,13 +33,13 @@ class IDmapDB(samba.Ldb):
 
     def __init__(self, url=None, lp=None, modules_dir=None, session_info=None,
                  credentials=None, flags=0, options=None):
-        """Opens the IDMap Database
+        """Opens the IDMap Database.
+
         For parameter meanings see the super class (samba.Ldb)
         """
-
         self.lp = lp
         if url is None:
-                url = lp.get("idmap database")
+            url = lp.private_path("idmap.ldb")
 
         super(IDmapDB, self).__init__(url=url, lp=lp, modules_dir=modules_dir,
                 session_info=session_info, credentials=credentials, flags=flags,
@@ -51,13 +49,12 @@ class IDmapDB(samba.Ldb):
         super(IDmapDB, self).connect(url=self.lp.private_path(url), flags=flags,
                 options=options)
 
-
     def increment_xid(self):
         """Increment xidNumber, if not present it create and assign it to the lowerBound
 
         :return xid can that be used for SID/unixid mapping
         """
-        res = self.search(expression="dn=CN=CONFIG", base="", 
+        res = self.search(expression="distinguishedName=CN=CONFIG", base="",
                           scope=ldb.SCOPE_SUBTREE)
         id = res[0].get("xidNumber")
         flag = ldb.FLAG_MOD_REPLACE
@@ -99,5 +96,3 @@ cn: %s
 
 """ % (sid, unixid, sid, type_string, sid)
         self.add(self.parse_ldif(mod).next()[1])
-
-

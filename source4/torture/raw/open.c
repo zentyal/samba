@@ -24,6 +24,7 @@
 #include "lib/events/events.h"
 #include "libcli/libcli.h"
 #include "torture/util.h"
+#include "torture/raw/proto.h"
 
 /* enum for whether reads/writes are possible on a file */
 enum rdwr_mode {RDWR_NONE, RDWR_RDONLY, RDWR_WRONLY, RDWR_RDWR};
@@ -129,7 +130,7 @@ static const char *rdwr_string(enum rdwr_mode m)
 	if ((v) != (finfo.all_info.out.field)) { \
 		torture_result(tctx, TORTURE_FAIL, \
 		       "(%s) wrong value for field %s  0x%x - 0x%x\n", \
-		       __location__, #field, (int)v, (int)(finfo.all_info.out.field)); \
+		       __location__, #field, (unsigned int)(v), (unsigned int)(finfo.all_info.out.field)); \
 		dump_all_info(tctx, &finfo); \
 		ret = false; \
 	}} while (0)
@@ -138,7 +139,7 @@ static const char *rdwr_string(enum rdwr_mode m)
 	if ((v) != (correct)) { \
 		torture_result(tctx, TORTURE_FAIL, \
 		       "(%s) wrong value for %s  0x%x - should be 0x%x\n", \
-		       __location__, #v, (int)(v), (int)correct); \
+		       __location__, #v, (unsigned int)(v), (unsigned int)(correct)); \
 		ret = false; \
 	}} while (0)
 
@@ -151,7 +152,7 @@ static const char *rdwr_string(enum rdwr_mode m)
 	status = smb_raw_setpathinfo(cli->tree, &sfinfo); \
 	if (!NT_STATUS_IS_OK(status)) { \
 		torture_warning(tctx, "(%s) Failed to set attrib 0x%x on %s\n", \
-		       __location__, sattrib, fname); \
+		       __location__, (unsigned int)(sattrib), fname); \
 	}} while (0)
 
 /*
@@ -166,9 +167,7 @@ static bool test_open(struct torture_context *tctx, struct smbcli_state *cli)
 	int fnum = -1, fnum2;
 	bool ret = true;
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	io.openold.level = RAW_OPEN_OPEN;
 	io.openold.in.fname = fname;
@@ -300,9 +299,7 @@ static bool test_openx(struct torture_context *tctx, struct smbcli_state *cli)
 		{ OPENX_OPEN_FUNC_TRUNC | OPENX_OPEN_FUNC_CREATE, false, NT_STATUS_OK },
 	};
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	io.openx.level = RAW_OPEN_OPENX;
 	io.openx.in.fname = fname;
@@ -336,7 +333,7 @@ static bool test_openx(struct torture_context *tctx, struct smbcli_state *cli)
 				__location__, nt_errstr(status),
 				nt_errstr(open_funcs[i].correct_status),
 				i, (int)open_funcs[i].with_file,
-				(int)open_funcs[i].open_func);
+				open_funcs[i].open_func);
 			ret = false;
 		}
 		if (NT_STATUS_IS_OK(status)) {
@@ -538,9 +535,7 @@ static bool test_t2open(struct torture_context *tctx, struct smbcli_state *cli)
 		{ OPENX_OPEN_FUNC_TRUNC | OPENX_OPEN_FUNC_CREATE, false, NT_STATUS_OK },
 	};
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	fnum = create_complex_file(cli, tctx, fname1);
 	if (fnum == -1) {
@@ -601,7 +596,7 @@ static bool test_t2open(struct torture_context *tctx, struct smbcli_state *cli)
 				 __location__, nt_errstr(status),
 				nt_errstr(open_funcs[i].correct_status),
 				i, (int)open_funcs[i].with_file,
-				(int)open_funcs[i].open_func);
+				open_funcs[i].open_func);
 			ret = false;
 		}
 		if (NT_STATUS_IS_OK(status)) {
@@ -713,9 +708,7 @@ static bool test_ntcreatex(struct torture_context *tctx, struct smbcli_state *cl
 		{ 6, 	                        false, NT_STATUS_INVALID_PARAMETER },
 	};
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	/* reasonable default parameters */
 	io.generic.level = RAW_OPEN_NTCREATEX;
@@ -896,9 +889,7 @@ static bool test_nttrans_create(struct torture_context *tctx, struct smbcli_stat
 		{ 6, 	                        false, NT_STATUS_INVALID_PARAMETER },
 	};
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	/* reasonable default parameters */
 	io.generic.level = RAW_OPEN_NTTRANS_CREATE;
@@ -1150,9 +1141,7 @@ static bool test_ntcreatex_brlocked(struct torture_context *tctx, struct smbcli_
 	NTSTATUS status;
 	bool ret = true;
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	torture_comment(tctx, "Testing ntcreatex with a byte range locked file\n");
 
@@ -1225,9 +1214,7 @@ static bool test_mknew(struct torture_context *tctx, struct smbcli_state *cli)
 	time_t basetime = (time(NULL) + 3600*24*3) & ~1;
 	union smb_fileinfo finfo;
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	io.mknew.level = RAW_OPEN_MKNEW;
 	io.mknew.in.attrib = 0;
@@ -1282,9 +1269,7 @@ static bool test_create(struct torture_context *tctx, struct smbcli_state *cli)
 	time_t basetime = (time(NULL) + 3600*24*3) & ~1;
 	union smb_fileinfo finfo;
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	io.create.level = RAW_OPEN_CREATE;
 	io.create.in.attrib = 0;
@@ -1340,9 +1325,7 @@ static bool test_ctemp(struct torture_context *tctx, struct smbcli_state *cli)
 	union smb_fileinfo finfo;
 	const char *name, *fname = NULL;
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	io.ctemp.level = RAW_OPEN_CTEMP;
 	io.ctemp.in.attrib = FILE_ATTRIBUTE_HIDDEN;
@@ -1383,9 +1366,7 @@ static bool test_chained(struct torture_context *tctx, struct smbcli_state *cli)
 	const char *buf = "test";
 	char buf2[4];
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	fnum = create_complex_file(cli, tctx, fname);
 
@@ -1441,9 +1422,7 @@ static bool test_no_leading_slash(struct torture_context *tctx, struct smbcli_st
 	bool ret = true;
 	const char *buf = "test";
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	smbcli_unlink(cli->tree, fname);
 
@@ -1490,9 +1469,7 @@ static bool test_openx_over_dir(struct torture_context *tctx, struct smbcli_stat
 	int fnum = -1;
 	bool ret = true;
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	/* Create the Directory */
 	status = create_directory_handle(cli->tree, fname, &d_fnum);
@@ -1632,9 +1609,9 @@ static bool test_raw_open_multi(struct torture_context *tctx, struct smbcli_stat
 			break;
 		}
 
-		if (event_loop_once(tctx->ev) != 0) {
+		if (tevent_loop_once(tctx->ev) != 0) {
 			torture_result(tctx, TORTURE_FAIL,
-				"(%s): event_loop_once failed\n", __location__);
+				"(%s): tevent_loop_once failed\n", __location__);
 			return false;
 		}
 	}
@@ -1662,9 +1639,7 @@ static bool test_open_for_delete(struct torture_context *tctx, struct smbcli_sta
 	int fnum = -1;
 	bool ret = true;
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	/* reasonable default parameters */
 	io.generic.level = RAW_OPEN_NTCREATEX;
@@ -1725,12 +1700,10 @@ static bool test_chained_ntcreatex_readx(struct torture_context *tctx, struct sm
 	const char *buf = "test";
 	char buf2[4];
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	torture_comment(tctx, "Checking RAW_NTCREATEX_READX chained on "
-			      "non-existant file \n");
+			      "non-existent file \n");
 
 	/* ntcreatex parameters */
 	io.generic.level = RAW_OPEN_NTCREATEX_READX;
@@ -1754,7 +1727,7 @@ static bool test_chained_ntcreatex_readx(struct torture_context *tctx, struct sm
 	io.ntcreatexreadx.in.remaining = 0;
 	io.ntcreatexreadx.out.data = (uint8_t *)buf2;
 
-	/* try to open the non-existant file */
+	/* try to open the non-existent file */
 	status = smb_raw_open(cli->tree, mem_ctx, &io);
 	CHECK_STATUS(status, NT_STATUS_OBJECT_NAME_NOT_FOUND);
 	fnum = io.ntcreatexreadx.out.file.fnum;
@@ -1825,9 +1798,7 @@ static bool test_ntcreatex_opendisp_dir(struct torture_context *tctx,
 	io.ntcreatex.in.create_options = NTCREATEX_OPTIONS_DIRECTORY;
 	io.ntcreatex.in.fname = dname;
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	smbcli_rmdir(cli->tree, dname);
 	smbcli_unlink(cli->tree, dname);
@@ -1920,9 +1891,7 @@ static bool test_ntcreatexdir(struct torture_context *tctx,
 
 	};
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	/* setup some base params. */
 	io.generic.level = RAW_OPEN_NTCREATEX;

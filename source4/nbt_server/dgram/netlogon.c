@@ -54,7 +54,7 @@ static void nbtd_netlogon_getdc(struct dgram_mailslot_handler *dgmslot,
 
 	samctx = iface->nbtsrv->sam_ctx;
 
-	if (lpcfg_server_role(iface->nbtsrv->task->lp_ctx) != ROLE_DOMAIN_CONTROLLER
+	if (lpcfg_server_role(iface->nbtsrv->task->lp_ctx) != ROLE_ACTIVE_DIRECTORY_DC
 	    || !samdb_is_pdc(samctx)) {
 		DEBUG(2, ("Not a PDC, so not processing LOGON_PRIMARY_QUERY\n"));
 		return;		
@@ -168,7 +168,7 @@ void nbtd_mailslot_netlogon_handler(struct dgram_mailslot_handler *dgmslot,
 		goto failed;
 	}
 
-	DEBUG(2,("netlogon request to %s from %s:%d\n", 
+	DEBUG(5,("netlogon request to %s from %s:%d\n",
 		 nbt_name_string(netlogon, name), src->addr, src->port));
 	status = dgram_mailslot_netlogon_parse_request(dgmslot, netlogon, packet, netlogon);
 	if (!NT_STATUS_IS_OK(status)) goto failed;

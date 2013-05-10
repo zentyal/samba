@@ -40,7 +40,7 @@ typedef const struct
 } err_code_struct;
 
 /* Dos Error Messages */
-err_code_struct dos_msgs[] = {
+static err_code_struct dos_msgs[] = {
   {"ERRbadfunc",ERRbadfunc,"Invalid function."},
   {"ERRbadfile",ERRbadfile,"File not found."},
   {"ERRbadpath",ERRbadpath,"Directory invalid."},
@@ -79,7 +79,7 @@ err_code_struct dos_msgs[] = {
   {NULL,-1,NULL}};
 
 /* Server Error Messages */
-err_code_struct server_msgs[] = {
+static err_code_struct server_msgs[] = {
   {"ERRerror",1,"Non-specific error code."},
   {"ERRbadpw",2,"Bad password - name/password pair in a Tree Connect or Session Setup are invalid."},
   {"ERRbadtype",3,"reserved."},
@@ -115,7 +115,7 @@ err_code_struct server_msgs[] = {
   {NULL,-1,NULL}};
 
 /* Hard Error Messages */
-err_code_struct hard_msgs[] = {
+static err_code_struct hard_msgs[] = {
   {"ERRnowrite",19,"Attempt to write on write-protected diskette."},
   {"ERRbadunit",20,"Unknown unit."},
   {"ERRnotready",21,"Drive not ready."},
@@ -137,7 +137,7 @@ err_code_struct hard_msgs[] = {
   {NULL,-1,NULL}};
 
 
-const struct
+static const struct
 {
   int code;
   const char *e_class;
@@ -210,48 +210,6 @@ const char *smb_dos_err_class(uint8 e_class)
 
 	result = talloc_asprintf(talloc_tos(), "Error: Unknown class (%d)",
 				 e_class);
-	SMB_ASSERT(result != NULL);
-	return result;
-}
-
-/****************************************************************************
-return a SMB string from an SMB buffer
-****************************************************************************/
-char *smb_dos_errstr(char *inbuf)
-{
-	char *result;
-	int e_class = CVAL(inbuf,smb_rcls);
-	int num = SVAL(inbuf,smb_err);
-	int i,j;
-
-	for (i=0;err_classes[i].e_class;i++)
-		if (err_classes[i].code == e_class) {
-			if (err_classes[i].err_msgs) {
-				err_code_struct *err = err_classes[i].err_msgs;
-				for (j=0;err[j].name;j++)
-					if (num == err[j].code) {
-						if (DEBUGLEVEL > 0)
-							result = talloc_asprintf(
-								talloc_tos(), "%s - %s (%s)",
-								err_classes[i].e_class,
-								err[j].name,err[j].message);
-						else
-							result = talloc_asprintf(
-								talloc_tos(), "%s - %s",
-								err_classes[i].e_class,
-								err[j].name);
-						goto done;
-					}
-			}
-
-			result = talloc_asprintf(talloc_tos(), "%s - %d",
-						 err_classes[i].e_class, num);
-			goto done;
-		}
-
-	result = talloc_asprintf(talloc_tos(), "Error: Unknown error (%d,%d)",
-				 e_class, num);
- done:
 	SMB_ASSERT(result != NULL);
 	return result;
 }

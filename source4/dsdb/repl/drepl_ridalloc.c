@@ -95,7 +95,7 @@ static int drepl_ridalloc_pool_exhausted(struct ldb_context *ldb,
 	*exhausted = false;
 	*_alloc_pool = UINT64_MAX;
 
-	server_dn = ldb_dn_get_parent(tmp_ctx, samdb_ntds_settings_dn(ldb));
+	server_dn = ldb_dn_get_parent(tmp_ctx, samdb_ntds_settings_dn(ldb, tmp_ctx));
 	if (!server_dn) {
 		talloc_free(tmp_ctx);
 		return ldb_operr(ldb);
@@ -103,7 +103,7 @@ static int drepl_ridalloc_pool_exhausted(struct ldb_context *ldb,
 
 	ret = samdb_reference_dn(ldb, tmp_ctx, server_dn, "serverReference", &machine_dn);
 	if (ret != LDB_SUCCESS) {
-		DEBUG(0,(__location__ ": Failed to find serverReference in %s - %s",
+		DEBUG(0,(__location__ ": Failed to find serverReference in %s - %s\n",
 			 ldb_dn_get_linearized(server_dn), ldb_errstring(ldb)));
 		talloc_free(tmp_ctx);
 		return ret;
@@ -117,7 +117,7 @@ static int drepl_ridalloc_pool_exhausted(struct ldb_context *ldb,
 		return LDB_SUCCESS;
 	}
 	if (ret != LDB_SUCCESS) {
-		DEBUG(0,(__location__ ": Failed to find rIDSetReferences in %s - %s",
+		DEBUG(0,(__location__ ": Failed to find rIDSetReferences in %s - %s\n",
 			 ldb_dn_get_linearized(machine_dn), ldb_errstring(ldb)));
 		talloc_free(tmp_ctx);
 		return ret;
@@ -125,7 +125,7 @@ static int drepl_ridalloc_pool_exhausted(struct ldb_context *ldb,
 
 	ret = ldb_search(ldb, tmp_ctx, &res, rid_set_dn, LDB_SCOPE_BASE, attrs, NULL);
 	if (ret != LDB_SUCCESS) {
-		DEBUG(0,(__location__ ": Failed to load RID Set attrs from %s - %s",
+		DEBUG(0,(__location__ ": Failed to load RID Set attrs from %s - %s\n",
 			 ldb_dn_get_linearized(rid_set_dn), ldb_errstring(ldb)));
 		talloc_free(tmp_ctx);
 		return ret;
@@ -168,6 +168,7 @@ WERROR dreplsrv_ridalloc_check_rid_pool(struct dreplsrv_service *service)
 	WERROR werr;
 	int ret;
 	uint64_t alloc_pool;
+	bool is_us;
 
 	if (service->am_rodc) {
 		talloc_free(tmp_ctx);
@@ -194,7 +195,7 @@ WERROR dreplsrv_ridalloc_check_rid_pool(struct dreplsrv_service *service)
 	/* work out who is the RID Manager */
 	ret = samdb_rid_manager_dn(ldb, tmp_ctx, &rid_manager_dn);
 	if (ret != LDB_SUCCESS) {
-		DEBUG(0, (__location__ ": Failed to find RID Manager object - %s", ldb_errstring(ldb)));
+		DEBUG(0, (__location__ ": Failed to find RID Manager object - %s\n", ldb_errstring(ldb)));
 		talloc_free(tmp_ctx);
 		return WERR_DS_DRA_INTERNAL_ERROR;
 	}
@@ -202,13 +203,21 @@ WERROR dreplsrv_ridalloc_check_rid_pool(struct dreplsrv_service *service)
 	/* find the DN of the RID Manager */
 	ret = samdb_reference_dn(ldb, tmp_ctx, rid_manager_dn, "fSMORoleOwner", &fsmo_role_dn);
 	if (ret != LDB_SUCCESS) {
-		DEBUG(0,(__location__ ": Failed to find fSMORoleOwner in RID Manager object - %s",
+		DEBUG(0,(__location__ ": Failed to find fSMORoleOwner in RID Manager object - %s\n",
 			 ldb_errstring(ldb)));
 		talloc_free(tmp_ctx);
 		return WERR_DS_DRA_INTERNAL_ERROR;
 	}
 
-	if (ldb_dn_compare(samdb_ntds_settings_dn(ldb), fsmo_role_dn) == 0) {
+	ret = samdb_dn_is_our_ntdsa(ldb, fsmo_role_dn, &is_us);
+	if (ret != LDB_SUCCESS) {
+		DEBUG(0,(__location__ ": Failed to find detrmine if %s is our ntdsDsa object - %s\n",
+			 ldb_dn_get_linearized(fsmo_role_dn), ldb_errstring(ldb)));
+		talloc_free(tmp_ctx);
+		return WERR_DS_DRA_INTERNAL_ERROR;
+	}
+
+	if (is_us) {
 		/* we are the RID Manager - no need to do a
 		   DRSUAPI_EXOP_FSMO_RID_ALLOC */
 		talloc_free(tmp_ctx);
@@ -236,7 +245,7 @@ WERROR dreplsrv_ridalloc_check_rid_pool(struct dreplsrv_service *service)
 
 /* called by the samldb ldb module to tell us to ask for a new RID
    pool */
-void dreplsrv_allocate_rid(struct messaging_context *msg, void *private_data,
+void dreplsrv_allocate_rid(struct imessaging_context *msg, void *private_data,
 			   uint32_t msg_type,
 			   struct server_id server_id, DATA_BLOB *data)
 {

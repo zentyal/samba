@@ -8,20 +8,22 @@ import os, tarfile, sys, time
 from optparse import OptionParser
 import smtplib
 from email.mime.text import MIMEText
+from distutils.sysconfig import get_python_lib
 
-samba_master = os.getenv('SAMBA_MASTER', 'git://git.samba.org/samba.git')
-samba_master_ssh = os.getenv('SAMBA_MASTER_SSH', 'git+ssh://git.samba.org/data/git/samba.git')
+# This speeds up testing remarkably.
+os.environ['TDB_NO_FSYNC'] = '1'
 
 cleanup_list = []
 
-os.environ['CC'] = "ccache gcc"
-
 builddirs = {
     "samba3"  : "source3",
-    "samba3-waf": "source3",
-    "samba4"  : ".",
-    "ldb"     : "source4/lib/ldb",
+    "samba3-ctdb" : "source3",
+    "samba"  : ".",
+    "samba-ctdb" : ".",
+    "samba-libs"  : ".",
+    "ldb"     : "lib/ldb",
     "tdb"     : "lib/tdb",
+    "ntdb"    : "lib/ntdb",
     "talloc"  : "lib/talloc",
     "replace" : "lib/replace",
     "tevent"  : "lib/tevent",
@@ -31,74 +33,142 @@ builddirs = {
     "retry"   : "."
     }
 
-defaulttasks = [ "samba3", "samba3-waf", "samba4", "ldb", "tdb", "talloc", "replace", "tevent", "pidl" ]
+defaulttasks = [ "samba3", "samba3-ctdb", "samba", "samba-ctdb", "samba-libs", "ldb", "tdb", "ntdb", "talloc", "replace", "tevent", "pidl" ]
 
 tasks = {
     "samba3" : [ ("autogen", "./autogen.sh", "text/plain"),
                  ("configure", "./configure.developer ${PREFIX}", "text/plain"),
                  ("make basics", "make basics", "text/plain"),
-                 ("make", "make -j 4 everything", "text/plain"), # don't use too many processes
+                 # we split 'make -j 4', 'make bin/smbtorture' and 'make -j 4 everything'
+                 # because it makes it much easier to find errors.
+                 ("make", "make -j 4", "text/plain"), # don't use too many processes
+                 ("make bin/smbtorture", "make bin/smbtorture", "text/plain"),
+                 ("make everything", "make -j 4 everything", "text/plain"),
                  ("install", "make install", "text/plain"),
-                 ("test", "TDB_NO_FSYNC=1 make test FAIL_IMMEDIATELY=1", "text/plain"),
+                 ("test", "make test FAIL_IMMEDIATELY=1", "text/plain"),
                  ("check-clean-tree", "../script/clean-source-tree.sh", "text/plain"),
                  ("clean", "make clean", "text/plain") ],
 
-    "samba3-waf" : [ ("autogen", "./autogen-waf.sh", "text/plain"),
-                 ("configure", "./configure.developer ${PREFIX}", "text/plain"),
-                 ("make", "make -j", "text/plain"),
-                 ("install", "make install", "text/plain"),
-                 ("clean", "make clean", "text/plain") ],
+    "samba3-ctdb" : [ ("random-sleep", "../script/random-sleep.sh 60 600", "text/plain"),
+                      ("autogen", "./autogen.sh", "text/plain"),
+                      ("configure", "./configure.developer ${PREFIX} --with-cluster-support --with-ctdb=../ctdb", "text/plain"),
+                      ("make basics", "make basics", "text/plain"),
+                      ("make", "make all", "text/plain"), # don't use too many processes
+                      ("check", "LD_LIBRARY_PATH=./bin ./bin/smbd -b | grep CLUSTER_SUPPORT", "text/plain"),
+                      ("check-clean-tree", "../script/clean-source-tree.sh", "text/plain"),
+                      ("clean", "make clean", "text/plain") ],
 
     # We have 'test' before 'install' because, 'test' should work without 'install'
-    "samba4" : [ ("configure", "./configure.developer ${PREFIX}", "text/plain"),
-                 ("make", "make -j", "text/plain"),
-                 ("test", "TDB_NO_FSYNC=1 make test FAIL_IMMEDIATELY=1", "text/plain"),
-                 ("install", "make install", "text/plain"),
-                 ("check-clean-tree", "script/clean-source-tree.sh", "text/plain"),
-                 ("clean", "make clean", "text/plain") ],
+    "samba" : [ ("configure", "./configure.developer ${PREFIX} --with-selftest-prefix=./bin/ab", "text/plain"),
+                ("make", "make -j", "text/plain"),
+                ("test", "make test FAIL_IMMEDIATELY=1", "text/plain"),
+                ("install", "make install", "text/plain"),
+                ("check-clean-tree", "script/clean-source-tree.sh", "text/plain"),
+                ("clean", "make clean", "text/plain") ],
 
-    "ldb" : [ ("configure", "./configure --enable-developer -C ${PREFIX}", "text/plain"),
-              ("make", "make -j", "text/plain"),
-              ("install", "make install", "text/plain"),
-              ("test", "TDB_NO_FSYNC=1 make test", "text/plain"),
-              ("check-clean-tree", "../../../script/clean-source-tree.sh", "text/plain"),
-              ("distcheck", "make distcheck", "text/plain"),
-              ("clean", "make clean", "text/plain") ],
+    "samba-ctdb" : [ ("random-sleep", "script/random-sleep.sh 60 600", "text/plain"),
 
-    # We don't use TDB_NO_FSYNC=1 here, because we want to test the transaction code
-    "tdb" : [ ("configure", "./configure --enable-developer -C ${PREFIX}", "text/plain"),
-              ("make", "make -j", "text/plain"),
+                     # make sure we have tdb around:
+                     ("tdb-configure", "cd lib/tdb && PYTHONPATH=${PYTHON_PREFIX}/site-packages:$PYTHONPATH PKG_CONFIG_PATH=$PKG_CONFIG_PATH:${PREFIX_DIR}/lib/pkgconfig ./configure --bundled-libraries=NONE --abi-check --enable-debug -C ${PREFIX}", "text/plain"),
+                     ("tdb-make", "cd lib/tdb && make", "text/plain"),
+                     ("tdb-install", "cd lib/tdb && make install", "text/plain"),
+
+                     # install the ctdb headers under the prefix:
+                     ("ctdb-header-install", "cp ./ctdb/include/* ${PREFIX_DIR}/include", "text/plain"),
+                     ("ctdb-header-ls", "ls ${PREFIX_DIR}/include/ctdb.h", "text/plain"),
+
+                     ("configure", "PYTHONPATH=${PYTHON_PREFIX}/site-packages:$PYTHONPATH PKG_CONFIG_PATH=$PKG_CONFIG_PATH:${PREFIX_DIR}/lib/pkgconfig ./configure.developer ${PREFIX} --with-selftest-prefix=./bin/ab --with-cluster-support --with-ctdb-dir=${PREFIX_DIR} --bundled-libraries=!tdb", "text/plain"),
+                     ("make", "make", "text/plain"),
+                     ("check", "./bin/smbd -b | grep CLUSTER_SUPPORT", "text/plain"),
+                     ("install", "make install", "text/plain"),
+                     ("check-clean-tree", "script/clean-source-tree.sh", "text/plain"),
+                     ("clean", "make clean", "text/plain") ],
+
+    "samba-libs" : [
+                      ("random-sleep", "script/random-sleep.sh 60 600", "text/plain"),
+                      ("talloc-configure", "cd lib/talloc && PYTHONPATH=${PYTHON_PREFIX}/site-packages:$PYTHONPATH PKG_CONFIG_PATH=$PKG_CONFIG_PATH:${PREFIX_DIR}/lib/pkgconfig ./configure --bundled-libraries=NONE --abi-check --enable-debug -C ${PREFIX}", "text/plain"),
+                      ("talloc-make", "cd lib/talloc && make", "text/plain"),
+                      ("talloc-install", "cd lib/talloc && make install", "text/plain"),
+
+                      ("tdb-configure", "cd lib/tdb && PYTHONPATH=${PYTHON_PREFIX}/site-packages:$PYTHONPATH PKG_CONFIG_PATH=$PKG_CONFIG_PATH:${PREFIX_DIR}/lib/pkgconfig ./configure --bundled-libraries=NONE --abi-check --enable-debug -C ${PREFIX}", "text/plain"),
+                      ("tdb-make", "cd lib/tdb && make", "text/plain"),
+                      ("tdb-install", "cd lib/tdb && make install", "text/plain"),
+
+                      ("tevent-configure", "cd lib/tevent && PYTHONPATH=${PYTHON_PREFIX}/site-packages:$PYTHONPATH PKG_CONFIG_PATH=$PKG_CONFIG_PATH:${PREFIX_DIR}/lib/pkgconfig ./configure --bundled-libraries=NONE --abi-check --enable-debug -C ${PREFIX}", "text/plain"),
+                      ("tevent-make", "cd lib/tevent && make", "text/plain"),
+                      ("tevent-install", "cd lib/tevent && make install", "text/plain"),
+
+                      ("ldb-configure", "cd lib/ldb && PYTHONPATH=${PYTHON_PREFIX}/site-packages:$PYTHONPATH PKG_CONFIG_PATH=$PKG_CONFIG_PATH:${PREFIX_DIR}/lib/pkgconfig ./configure --bundled-libraries=NONE --abi-check --enable-debug -C ${PREFIX}", "text/plain"),
+                      ("ldb-make", "cd lib/ldb && make", "text/plain"),
+                      ("ldb-install", "cd lib/ldb && make install", "text/plain"),
+
+                      ("configure", "PYTHONPATH=${PYTHON_PREFIX}/site-packages:$PYTHONPATH PKG_CONFIG_PATH=$PKG_CONFIG_PATH:${PREFIX_DIR}/lib/pkgconfig ./configure --bundled-libraries=!talloc,!tdb,!pytdb,!ldb,!pyldb,!tevent,!pytevent --abi-check --enable-debug -C ${PREFIX}", "text/plain"),
+                      ("make", "make", "text/plain"),
+                      ("install", "make install", "text/plain")],
+
+    "ldb" : [
+              ("random-sleep", "../../script/random-sleep.sh 60 600", "text/plain"),
+              ("configure", "./configure --enable-developer -C ${PREFIX}", "text/plain"),
+              ("make", "make", "text/plain"),
               ("install", "make install", "text/plain"),
               ("test", "make test", "text/plain"),
               ("check-clean-tree", "../../script/clean-source-tree.sh", "text/plain"),
               ("distcheck", "make distcheck", "text/plain"),
               ("clean", "make clean", "text/plain") ],
 
-    "talloc" : [ ("configure", "./configure --enable-developer -C ${PREFIX}", "text/plain"),
-                 ("make", "make -j", "text/plain"),
+    "tdb" : [
+              ("random-sleep", "../../script/random-sleep.sh 60 600", "text/plain"),
+              ("configure", "./configure --enable-developer -C ${PREFIX}", "text/plain"),
+              ("make", "make", "text/plain"),
+              ("install", "make install", "text/plain"),
+              ("test", "make test", "text/plain"),
+              ("check-clean-tree", "../../script/clean-source-tree.sh", "text/plain"),
+              ("distcheck", "make distcheck", "text/plain"),
+              ("clean", "make clean", "text/plain") ],
+
+    "ntdb" : [
+               ("random-sleep", "../../script/random-sleep.sh 60 600", "text/plain"),
+               ("configure", "./configure --enable-developer -C ${PREFIX}", "text/plain"),
+               ("make", "make", "text/plain"),
+               ("install", "make install", "text/plain"),
+               ("test", "make test", "text/plain"),
+               ("check-clean-tree", "../../script/clean-source-tree.sh", "text/plain"),
+               ("distcheck", "make distcheck", "text/plain"),
+               ("clean", "make clean", "text/plain") ],
+
+    "talloc" : [
+                 ("random-sleep", "../../script/random-sleep.sh 60 600", "text/plain"),
+                 ("configure", "./configure --enable-developer -C ${PREFIX}", "text/plain"),
+                 ("make", "make", "text/plain"),
                  ("install", "make install", "text/plain"),
                  ("test", "make test", "text/plain"),
                  ("check-clean-tree", "../../script/clean-source-tree.sh", "text/plain"),
                  ("distcheck", "make distcheck", "text/plain"),
                  ("clean", "make clean", "text/plain") ],
 
-    "replace" : [ ("configure", "./configure --enable-developer -C ${PREFIX}", "text/plain"),
-                  ("make", "make -j", "text/plain"),
+    "replace" : [
+                  ("random-sleep", "../../script/random-sleep.sh 60 600", "text/plain"),
+                  ("configure", "./configure --enable-developer -C ${PREFIX}", "text/plain"),
+                  ("make", "make", "text/plain"),
                   ("install", "make install", "text/plain"),
                   ("test", "make test", "text/plain"),
                   ("check-clean-tree", "../../script/clean-source-tree.sh", "text/plain"),
                   ("distcheck", "make distcheck", "text/plain"),
                   ("clean", "make clean", "text/plain") ],
 
-    "tevent" : [ ("configure", "./configure --enable-developer -C ${PREFIX}", "text/plain"),
-                 ("make", "make -j", "text/plain"),
+    "tevent" : [
+                 ("random-sleep", "../../script/random-sleep.sh 60 600", "text/plain"),
+                 ("configure", "./configure --enable-developer -C ${PREFIX}", "text/plain"),
+                 ("make", "make", "text/plain"),
                  ("install", "make install", "text/plain"),
                  ("test", "make test", "text/plain"),
                  ("check-clean-tree", "../../script/clean-source-tree.sh", "text/plain"),
                  ("distcheck", "make distcheck", "text/plain"),
                  ("clean", "make clean", "text/plain") ],
 
-    "pidl" : [ ("configure", "perl Makefile.PL PREFIX=${PREFIX_DIR}", "text/plain"),
+    "pidl" : [
+               ("random-sleep", "../script/random-sleep.sh 60 600", "text/plain"),
+               ("configure", "perl Makefile.PL PREFIX=${PREFIX_DIR}", "text/plain"),
                ("touch", "touch *.yp", "text/plain"),
                ("make", "make", "text/plain"),
                ("test", "make test", "text/plain"),
@@ -110,19 +180,6 @@ tasks = {
     'pass' : [ ("pass", 'echo passing && /bin/true', "text/plain") ],
     'fail' : [ ("fail", 'echo failing && /bin/false', "text/plain") ]
 }
-
-retry_task = [ ( "retry",
-                 '''set -e
-                git remote add -t master master %s
-                git fetch master
-                while :; do
-                  sleep 60
-                  git describe master/master > old_master.desc
-                  git fetch master
-                  git describe master/master > master.desc
-                  diff old_master.desc master.desc
-                done
-               ''' % samba_master, "test/plain" ) ]
 
 def run_cmd(cmd, dir=".", show=None, output=False, checkfail=True):
     if show is None:
@@ -172,6 +229,7 @@ class builder(object):
             self.done = True
             return
         (self.stage, self.cmd, self.output_mime_type) = self.sequence[self.next]
+        self.cmd = self.cmd.replace("${PYTHON_PREFIX}", get_python_lib(standard_lib=1, prefix=self.prefix))
         self.cmd = self.cmd.replace("${PREFIX}", "--prefix=%s" % self.prefix)
         self.cmd = self.cmd.replace("${PREFIX_DIR}", "%s" % self.prefix)
 #        if self.output_mime_type == "text/x-subunit":
@@ -188,7 +246,7 @@ class builder(object):
 class buildlist(object):
     '''handle build of multiple directories'''
 
-    def __init__(self, tasklist, tasknames):
+    def __init__(self, tasklist, tasknames, rebase_url, rebase_branch="master"):
         global tasks
         self.tlist = []
         self.tail_proc = None
@@ -199,6 +257,27 @@ class buildlist(object):
             b = builder(n, tasks[n])
             self.tlist.append(b)
         if options.retry:
+            rebase_remote = "rebaseon"
+            retry_task = [ ("retry",
+                            '''set -e
+                            git remote add -t %s %s %s
+                            git fetch %s
+                            while :; do
+                              sleep 60
+                              git describe %s/%s > old_remote_branch.desc
+                              git fetch %s
+                              git describe %s/%s > remote_branch.desc
+                              diff old_remote_branch.desc remote_branch.desc
+                            done
+                           ''' % (
+                               rebase_branch, rebase_remote, rebase_url,
+                               rebase_remote,
+                               rebase_remote, rebase_branch,
+                               rebase_remote,
+                               rebase_remote, rebase_branch
+                           ),
+                           "test/plain" ) ]
+
             self.retry = builder('retry', retry_task)
             self.need_retry = False
 
@@ -326,34 +405,57 @@ def write_pidfile(fname):
     f.close()
 
 
-def rebase_tree(url):
-    print("Rebasing on %s" % url)
+def rebase_tree(rebase_url, rebase_branch = "master"):
+    rebase_remote = "rebaseon"
+    print("Rebasing on %s" % rebase_url)
     run_cmd("git describe HEAD", show=True, dir=test_master)
-    run_cmd("git remote add -t master master %s" % url, show=True, dir=test_master)
-    run_cmd("git fetch master", show=True, dir=test_master)
+    run_cmd("git remote add -t %s %s %s" %
+            (rebase_branch, rebase_remote, rebase_url),
+            show=True, dir=test_master)
+    run_cmd("git fetch %s" % rebase_remote, show=True, dir=test_master)
     if options.fix_whitespace:
-        run_cmd("git rebase --whitespace=fix master/master", show=True, dir=test_master)
+        run_cmd("git rebase --whitespace=fix %s/%s" %
+                (rebase_remote, rebase_branch),
+                show=True, dir=test_master)
     else:
-        run_cmd("git rebase master/master", show=True, dir=test_master)
-    diff = run_cmd("git --no-pager diff HEAD master/master", dir=test_master, output=True)
+        run_cmd("git rebase %s/%s" %
+                (rebase_remote, rebase_branch),
+                show=True, dir=test_master)
+    diff = run_cmd("git --no-pager diff HEAD %s/%s" %
+                   (rebase_remote, rebase_branch),
+                   dir=test_master, output=True)
     if diff == '':
-        print("No differences between HEAD and master/master - exiting")
+        print("No differences between HEAD and %s/%s - exiting" %
+              (rebase_remote, rebase_branch))
         sys.exit(0)
-    run_cmd("git describe master/master", show=True, dir=test_master)
+    run_cmd("git describe %s/%s" %
+            (rebase_remote, rebase_branch),
+            show=True, dir=test_master)
     run_cmd("git describe HEAD", show=True, dir=test_master)
-    run_cmd("git --no-pager diff --stat HEAD master/master", show=True, dir=test_master)
+    run_cmd("git --no-pager diff --stat HEAD %s/%s" %
+            (rebase_remote, rebase_branch),
+            show=True, dir=test_master)
 
-def push_to(url):
-    print("Pushing to %s" % url)
+def push_to(push_url, push_branch = "master"):
+    push_remote = "pushto"
+    print("Pushing to %s" % push_url)
     if options.mark:
         run_cmd("git config --replace-all core.editor script/commit_mark.sh", dir=test_master)
         run_cmd("git commit --amend -c HEAD", dir=test_master)
         # the notes method doesn't work yet, as metze hasn't allowed refs/notes/* in master
         # run_cmd("EDITOR=script/commit_mark.sh git notes edit HEAD", dir=test_master)
-    run_cmd("git remote add -t master pushto %s" % url, show=True, dir=test_master)
-    run_cmd("git push pushto +HEAD:master", show=True, dir=test_master)
+    run_cmd("git remote add -t %s %s %s" %
+            (push_branch, push_remote, push_url),
+            show=True, dir=test_master)
+    run_cmd("git push %s +HEAD:%s" %
+            (push_remote, push_branch),
+            show=True, dir=test_master)
 
 def_testbase = os.getenv("AUTOBUILD_TESTBASE", "/memdisk/%s" % os.getenv('USER'))
+
+gitroot = find_git_root()
+if gitroot is None:
+    raise Exception("Failed to find git root")
 
 parser = OptionParser()
 parser.add_option("", "--tail", help="show output while running", default=False, action="store_true")
@@ -366,12 +468,8 @@ parser.add_option("", "--verbose", help="show all commands as they are run",
                   default=False, action="store_true")
 parser.add_option("", "--rebase", help="rebase on the given tree before testing",
                   default=None, type='str')
-parser.add_option("", "--rebase-master", help="rebase on %s before testing" % samba_master,
-                  default=False, action='store_true')
 parser.add_option("", "--pushto", help="push to a git url on success",
                   default=None, type='str')
-parser.add_option("", "--push-master", help="push to %s on success" % samba_master_ssh,
-                  default=False, action='store_true')
 parser.add_option("", "--mark", help="add a Tested-By signoff before pushing",
                   default=False, action="store_true")
 parser.add_option("", "--fix-whitespace", help="fix whitespace on rebase",
@@ -384,11 +482,16 @@ parser.add_option("", "--always-email", help="always send email, even on success
                   action="store_true")
 parser.add_option("", "--daemon", help="daemonize after initial setup",
                   action="store_true")
+parser.add_option("", "--branch", help="the branch to work on (default=master)",
+                  default="master", type='str')
+parser.add_option("", "--log-base", help="location where the logs can be found (default=cwd)",
+                  default=gitroot, type='str')
 
-
-def email_failure(status, failed_task, failed_stage, failed_tag, errstr):
+def email_failure(status, failed_task, failed_stage, failed_tag, errstr, log_base=None):
     '''send an email to options.email about the failure'''
     user = os.getenv("USER")
+    if log_base is None:
+        log_base = gitroot
     text = '''
 Dear Developer,
 
@@ -399,25 +502,25 @@ the autobuild has been abandoned. Please fix the error and resubmit.
 
 A summary of the autobuild process is here:
 
-  http://git.samba.org/%s/samba-autobuild/autobuild.log
-''' % (failed_task, errstr, user)
+  %s/autobuild.log
+''' % (failed_task, errstr, log_base)
     
     if failed_task != 'rebase':
         text += '''
 You can see logs of the failed task here:
 
-  http://git.samba.org/%s/samba-autobuild/%s.stdout
-  http://git.samba.org/%s/samba-autobuild/%s.stderr
+  %s/%s.stdout
+  %s/%s.stderr
 
 or you can get full logs of all tasks in this job here:
 
-  http://git.samba.org/%s/samba-autobuild/logs.tar.gz
+  %s/logs.tar.gz
 
 The top commit for the tree that was built was:
 
 %s
 
-''' % (user, failed_tag, user, failed_tag, user, top_commit_msg)
+''' % (log_base, failed_tag, log_base, failed_tag, log_base, top_commit_msg)
     msg = MIMEText(text)
     msg['Subject'] = 'autobuild failure for task %s during %s' % (failed_task, failed_stage)
     msg['From'] = 'autobuild@samba.org'
@@ -428,9 +531,11 @@ The top commit for the tree that was built was:
     s.sendmail(msg['From'], [msg['To']], msg.as_string())
     s.quit()
 
-def email_success():
+def email_success(log_base=None):
     '''send an email to options.email about a successful build'''
     user = os.getenv("USER")
+    if log_base is None:
+        log_base = gitroot
     text = '''
 Dear Developer,
 
@@ -443,9 +548,9 @@ Your autobuild has succeeded.
 
 you can get full logs of all tasks in this job here:
 
-  http://git.samba.org/%s/samba-autobuild/logs.tar.gz
+  %s/logs.tar.gz
 
-''' % user
+''' % log_base
 
     text += '''
 The top commit for the tree that was built was:
@@ -467,15 +572,11 @@ The top commit for the tree that was built was:
 (options, args) = parser.parse_args()
 
 if options.retry:
-    if not options.rebase_master and options.rebase is None:
+    if options.rebase is None:
         raise Exception('You can only use --retry if you also rebase')
 
 testbase = "%s/b%u" % (options.testbase, os.getpid())
 test_master = "%s/master" % testbase
-
-gitroot = find_git_root()
-if gitroot is None:
-    raise Exception("Failed to find git root")
 
 # get the top commit message, for emails
 top_commit_msg = run_cmd("git log -1", dir=gitroot, output=True)
@@ -498,27 +599,29 @@ while True:
         run_cmd("rm -rf %s" % test_master)
         cleanup_list.append(test_master)
         run_cmd("git clone --shared %s %s" % (gitroot, test_master), show=True, dir=gitroot)
-    except:
+    except Exception:
         cleanup()
         raise
 
     try:
         try:
             if options.rebase is not None:
-                rebase_tree(options.rebase)
-            elif options.rebase_master:
-                rebase_tree(samba_master)
-        except:
-            email_failure(-1, 'rebase', 'rebase', 'rebase', 'rebase on master failed')
+                rebase_tree(options.rebase, rebase_branch=options.branch)
+        except Exception:
+            cleanup_list.append(gitroot + "/autobuild.pid")
+            cleanup()
+            email_failure(-1, 'rebase', 'rebase', 'rebase',
+                          'rebase on %s failed' % options.branch,
+                          log_base=options.log_base)
             sys.exit(1)
-        blist = buildlist(tasks, args)
+        blist = buildlist(tasks, args, options.rebase, rebase_branch=options.branch)
         if options.tail:
             blist.start_tail()
         (status, failed_task, failed_stage, failed_tag, errstr) = blist.run()
         if status != 0 or errstr != "retry":
             break
         cleanup()
-    except:
+    except Exception:
         cleanup()
         raise
 
@@ -535,14 +638,12 @@ if status == 0:
         print("Running passcmd: %s" % options.passcmd)
         run_cmd(options.passcmd, dir=test_master)
     if options.pushto is not None:
-        push_to(options.pushto)
-    elif options.push_master:
-        push_to(samba_master_ssh)
+        push_to(options.pushto, push_branch=options.branch)
     if options.keeplogs:
         blist.tarlogs("logs.tar.gz")
         print("Logs in logs.tar.gz")
     if options.always_email:
-        email_success()
+        email_success(log_base=options.log_base)
     blist.remove_logs()
     cleanup()
     print(errstr)
@@ -552,7 +653,7 @@ if status == 0:
 blist.tarlogs("logs.tar.gz")
 
 if options.email is not None:
-    email_failure(status, failed_task, failed_stage, failed_tag, errstr)
+    email_failure(status, failed_task, failed_stage, failed_tag, errstr, log_base=options.log_base)
 
 cleanup()
 print(errstr)

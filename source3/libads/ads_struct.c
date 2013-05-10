@@ -52,10 +52,17 @@ char *ads_build_path(const char *realm, const char *sep, const char *field, int 
 		return NULL;
 	}
 
-	strlcpy(ret,field, len);
+	if (strlcpy(ret,field, len) >= len) {
+		/* Truncate ! */
+		free(r);
+		return NULL;
+	}
 	p=strtok_r(r, sep, &saveptr);
 	if (p) {
-		strlcat(ret, p, len);
+		if (strlcat(ret, p, len) >= len) {
+			free(r);
+			return NULL;
+		}
 
 		while ((p=strtok_r(NULL, sep, &saveptr)) != NULL) {
 			int retval;
@@ -101,7 +108,11 @@ char *ads_build_domain(const char *dn)
 		return NULL;		
 	}	
 
-	strlower_m( dnsdomain );	
+	if (!strlower_m( dnsdomain )) {
+		SAFE_FREE(dnsdomain);
+		return NULL;
+	}
+
 	all_string_sub( dnsdomain, "dc=", "", 0);
 	all_string_sub( dnsdomain, ",", ".", 0 );
 
@@ -190,6 +201,7 @@ void ads_destroy(ADS_STRUCT **ads)
 		SAFE_FREE((*ads)->auth.password);
 		SAFE_FREE((*ads)->auth.user_name);
 		SAFE_FREE((*ads)->auth.kdc_server);
+		SAFE_FREE((*ads)->auth.ccache_name);
 
 		SAFE_FREE((*ads)->config.realm);
 		SAFE_FREE((*ads)->config.bind_path);

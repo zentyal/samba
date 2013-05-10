@@ -40,13 +40,15 @@
 #include "rpc_server/common/common.h"
 #include "param/param.h"
 
+NTSTATUS ntptr_simple_ldb_init(void);
+
 /*
   connect to the SPOOLSS database
   return a ldb_context pointer on success, or NULL on failure
  */
 static struct ldb_context *sptr_db_connect(TALLOC_CTX *mem_ctx, struct tevent_context *ev_ctx, struct loadparm_context *lp_ctx)
 {
-	return ldb_wrap_connect(mem_ctx, ev_ctx, lp_ctx, lpcfg_spoolss_url(lp_ctx), system_session(lp_ctx),
+	return ldb_wrap_connect(mem_ctx, ev_ctx, lp_ctx, "spoolss.ldb", system_session(lp_ctx),
 				NULL, 0);
 }
 

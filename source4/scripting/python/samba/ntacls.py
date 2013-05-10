@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # Unix SMB/CIFS implementation.
 # Copyright (C) Matthieu Patou <mat@matws.net> 2009-2010
 #
@@ -22,9 +20,10 @@
 
 
 import os
-import samba.xattr_native, samba.xattr_tdb
-from samba.dcerpc import security, xattr
+import samba.xattr_native, samba.xattr_tdb, samba.posix_eadb
+from samba.dcerpc import security, xattr, idmap
 from samba.ndr import ndr_pack, ndr_unpack
+from samba.samba3 import smbd
 
 class XattrBackendError(Exception):
     """A generic xattr backend error."""
@@ -33,57 +32,126 @@ class XattrBackendError(Exception):
 def checkset_backend(lp, backend, eadbfile):
     '''return the path to the eadb, or None'''
     if backend is None:
-        return lp.get("posix:eadb")
+        xattr_tdb = lp.get("xattr_tdb:file")
+        if xattr_tdb is not None:
+            return (samba.xattr_tdb, lp.get("xattr_tdb:file"))
+        posix_eadb = lp.get("posix:eadb")
+        if posix_eadb is not None:
+            return (samba.posix_eadb, lp.get("posix:eadb"))
+        return (None, None)
     elif backend == "native":
-        return None
+        return (None, None)
+    elif backend == "eadb":
+        if eadbfile is not None:
+            return (samba.posix_eadb, eadbfile)
+        else:
+            return (samba.posix_eadb, os.path.abspath(os.path.join(lp.get("private dir"), "eadb.tdb")))
     elif backend == "tdb":
         if eadbfile is not None:
-            return eadbfile
+            return (samba.xattr_tdb, eadbfile)
         else:
-            return os.path.abspath(os.path.join(lp.get("private dir"), "eadb.tdb"))
+            return (samba.xattr_tdb, os.path.abspath(os.path.join(lp.get("state dir"), "xattr.tdb")))
     else:
         raise XattrBackendError("Invalid xattr backend choice %s"%backend)
 
 
-def getntacl(lp, file, backend=None, eadbfile=None):
-    eadbname = checkset_backend(lp, backend, eadbfile)
-    if eadbname is not None:
-        try:
-            attribute = samba.xattr_tdb.wrap_getxattr(eadbname, file, 
-                xattr.XATTR_NTACL_NAME)
-        except Exception:
-            # FIXME: Don't catch all exceptions, just those related to opening 
-            # xattrdb
-            print "Fail to open %s" % eadbname
+def getntacl(lp, file, backend=None, eadbfile=None, direct_db_access=True):
+    if direct_db_access:
+        (backend_obj, dbname) = checkset_backend(lp, backend, eadbfile)
+        if dbname is not None:
+            try:
+                attribute = backend_obj.wrap_getxattr(dbname, file,
+                                                      xattr.XATTR_NTACL_NAME)
+            except Exception:
+                # FIXME: Don't catch all exceptions, just those related to opening
+                # xattrdb
+                print "Fail to open %s" % dbname
+                attribute = samba.xattr_native.wrap_getxattr(file,
+                                                             xattr.XATTR_NTACL_NAME)
+        else:
             attribute = samba.xattr_native.wrap_getxattr(file,
-                xattr.XATTR_NTACL_NAME)
+                                                         xattr.XATTR_NTACL_NAME)
+        ntacl = ndr_unpack(xattr.NTACL, attribute)
+        if ntacl.version == 1:
+            return ntacl.info
+        elif ntacl.version == 2:
+            return ntacl.info.sd
+        elif ntacl.version == 3:
+            return ntacl.info.sd
+        elif ntacl.version == 4:
+            return ntacl.info.sd
     else:
-        attribute = samba.xattr_native.wrap_getxattr(file,
-            xattr.XATTR_NTACL_NAME)
-    ntacl = ndr_unpack(xattr.NTACL, attribute)
-    return ntacl
+        return smbd.get_nt_acl(file, security.SECINFO_OWNER | security.SECINFO_GROUP | security.SECINFO_DACL | security.SECINFO_SACL)
 
 
-def setntacl(lp, file, sddl, domsid, backend=None, eadbfile=None):
-    eadbname = checkset_backend(lp, backend, eadbfile)
-    ntacl = xattr.NTACL()
-    ntacl.version = 1
-    sid = security.dom_sid(domsid)
-    sd = security.descriptor.from_sddl(sddl, sid)
-    ntacl.info = sd
-    if eadbname is not None:
-        try:
-            samba.xattr_tdb.wrap_setxattr(eadbname,
-                file, xattr.XATTR_NTACL_NAME, ndr_pack(ntacl))
-        except Exception:
-            # FIXME: Don't catch all exceptions, just those related to opening 
-            # xattrdb
-            print "Fail to open %s" % eadbname
-            samba.xattr_native.wrap_setxattr(file, xattr.XATTR_NTACL_NAME, 
-                ndr_pack(ntacl))
+def setntacl(lp, file, sddl, domsid, backend=None, eadbfile=None, use_ntvfs=True, skip_invalid_chown=False, passdb=None):
+    assert(isinstance(domsid, str) or isinstance(domsid, security.dom_sid))
+    if isinstance(domsid, str):
+        sid = security.dom_sid(domsid)
+    elif isinstance(domsid, security.dom_sid):
+        sid = domsid
+        domsid = str(sid)
+
+    assert(isinstance(sddl, str) or isinstance(sddl, security.descriptor))
+    if isinstance(sddl, str):
+        sd = security.descriptor.from_sddl(sddl, sid)
+    elif isinstance(sddl, security.descriptor):
+        sd = sddl
+        sddl = sd.as_sddl(sid)
+
+    if not use_ntvfs and skip_invalid_chown:
+        # Check if the owner can be resolved as a UID
+        (owner_id, owner_type) = passdb.sid_to_id(sd.owner_sid)
+        if ((owner_type != idmap.ID_TYPE_UID) and (owner_type != idmap.ID_TYPE_BOTH)):
+            # Check if this particular owner SID was domain admins,
+            # because we special-case this as mapping to
+            # 'administrator' instead.
+            if sd.owner_sid == security.dom_sid("%s-%d" % (domsid, security.DOMAIN_RID_ADMINS)):
+                administrator = security.dom_sid("%s-%d" % (domsid, security.DOMAIN_RID_ADMINISTRATOR))
+                (admin_id, admin_type) = passdb.sid_to_id(administrator)
+
+                # Confirm we have a UID for administrator
+                if ((admin_type == idmap.ID_TYPE_UID) or (admin_type == idmap.ID_TYPE_BOTH)):
+
+                    # Set it, changing the owner to 'administrator' rather than domain admins
+                    sd2 = sd
+                    sd2.owner_sid = administrator
+
+                    smbd.set_nt_acl(file, security.SECINFO_OWNER |security.SECINFO_GROUP | security.SECINFO_DACL | security.SECINFO_SACL, sd2)
+
+                    # and then set an NTVFS ACL (which does not set the posix ACL) to pretend the owner really was set
+                    use_ntvfs = True
+                else:
+                    raise XattrBackendError("Unable to find UID for domain administrator %s, got id %d of type %d" % (administrator, admin_id, admin_type))
+            else:
+                # For all other owning users, reset the owner to root
+                # and then set the ACL without changing the owner
+                #
+                # This won't work in test environments, as it tries a real (rather than xattr-based fake) chown
+
+                os.chown(file, 0, 0)
+                smbd.set_nt_acl(file, security.SECINFO_GROUP | security.SECINFO_DACL | security.SECINFO_SACL, sd)
+
+    if use_ntvfs:
+        (backend_obj, dbname) = checkset_backend(lp, backend, eadbfile)
+        ntacl = xattr.NTACL()
+        ntacl.version = 1
+        ntacl.info = sd
+        if dbname is not None:
+            try:
+                backend_obj.wrap_setxattr(dbname,
+                                          file, xattr.XATTR_NTACL_NAME, ndr_pack(ntacl))
+            except Exception:
+                # FIXME: Don't catch all exceptions, just those related to opening
+                # xattrdb
+                print "Fail to open %s" % dbname
+                samba.xattr_native.wrap_setxattr(file, xattr.XATTR_NTACL_NAME,
+                                                 ndr_pack(ntacl))
+        else:
+            samba.xattr_native.wrap_setxattr(file, xattr.XATTR_NTACL_NAME,
+                                             ndr_pack(ntacl))
     else:
-        samba.xattr_native.wrap_setxattr(file, xattr.XATTR_NTACL_NAME,
-                ndr_pack(ntacl))
+        smbd.set_nt_acl(file, security.SECINFO_OWNER | security.SECINFO_GROUP | security.SECINFO_DACL | security.SECINFO_SACL, sd)
 
 
 def ldapmask2filemask(ldm):
@@ -122,14 +190,14 @@ def ldapmask2filemask(ldm):
     filemask = ldm & STANDARD_RIGHTS_ALL
 
     if (ldm & RIGHT_DS_READ_PROPERTY) and (ldm & RIGHT_DS_LIST_CONTENTS):
-        filemask = filemask | (SYNCHRONIZE | FILE_LIST_DIRECTORY |\
-                                FILE_READ_ATTRIBUTES | FILE_READ_EA |\
+        filemask = filemask | (SYNCHRONIZE | FILE_LIST_DIRECTORY |
+                                FILE_READ_ATTRIBUTES | FILE_READ_EA |
                                 FILE_READ_DATA | FILE_EXECUTE)
 
     if ldm & RIGHT_DS_WRITE_PROPERTY:
-        filemask = filemask | (SYNCHRONIZE | FILE_WRITE_DATA |\
-                                FILE_APPEND_DATA | FILE_WRITE_EA |\
-                                FILE_WRITE_ATTRIBUTES | FILE_ADD_FILE |\
+        filemask = filemask | (SYNCHRONIZE | FILE_WRITE_DATA |
+                                FILE_APPEND_DATA | FILE_WRITE_EA |
+                                FILE_WRITE_ATTRIBUTES | FILE_ADD_FILE |
                                 FILE_ADD_SUBDIRECTORY)
 
     if ldm & RIGHT_DS_CREATE_CHILD:
@@ -141,21 +209,19 @@ def ldapmask2filemask(ldm):
     return filemask
 
 
-def dsacl2fsacl(dssddl, domsid):
+def dsacl2fsacl(dssddl, sid, as_sddl=True):
     """
-    
+
     This function takes an the SDDL representation of a DS
     ACL and return the SDDL representation of this ACL adapted
     for files. It's used for Policy object provision
     """
-    sid = security.dom_sid(domsid)
     ref = security.descriptor.from_sddl(dssddl, sid)
     fdescr = security.descriptor()
     fdescr.owner_sid = ref.owner_sid
     fdescr.group_sid = ref.group_sid
     fdescr.type = ref.type
     fdescr.revision = ref.revision
-    fdescr.sacl = ref.sacl
     aces = ref.dacl.aces
     for i in range(0, len(aces)):
         ace = aces[i]
@@ -167,5 +233,8 @@ def dsacl2fsacl(dssddl, domsid):
                 ace.flags = ace.flags | security.SEC_ACE_FLAG_INHERIT_ONLY
             ace.access_mask =  ldapmask2filemask(ace.access_mask)
             fdescr.dacl_add(ace)
+
+    if not as_sddl:
+        return fdescr
 
     return fdescr.as_sddl(sid)

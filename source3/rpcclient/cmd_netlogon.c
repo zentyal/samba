@@ -40,10 +40,34 @@ static WERROR cmd_netlogon_logon_ctrl2(struct rpc_pipe_client *cli,
 	union netr_CONTROL_QUERY_INFORMATION query;
 	const char *domain = lp_workgroup();
 	struct dcerpc_binding_handle *b = cli->binding_handle;
-
-	if (argc > 5) {
+	int i;
+#define fn_code_level(x, item) { x, #x, #item }
+	struct {
+		enum netr_LogonControlCode code;
+		const char *name;
+		const char *argument;
+	} supported_levels[] = {
+		fn_code_level(NETLOGON_CONTROL_REDISCOVER, domain),
+		fn_code_level(NETLOGON_CONTROL_TC_QUERY, domain),
+		fn_code_level(NETLOGON_CONTROL_TRANSPORT_NOTIFY, domain),
+		fn_code_level(NETLOGON_CONTROL_FIND_USER, user),
+		fn_code_level(NETLOGON_CONTROL_CHANGE_PASSWORD, domain),
+		fn_code_level(NETLOGON_CONTROL_TC_VERIFY, domain),
+		fn_code_level(NETLOGON_CONTROL_SET_DBFLAG, debug_level),
+		{0, 0, 0}
+	};
+#undef fn_code_level
+	if ((argc > 5) || (argc < 2)) {
 		fprintf(stderr, "Usage: %s <logon_server> <function_code> "
-			"<level> <domain>\n", argv[0]);
+			"<level:1..4> <argument>\n", argv[0]);
+		fprintf(stderr, "Supported combinations:\n");
+		fprintf(stderr, "function_code\targument\n");
+		for(i=0; supported_levels[i].code; i++) {
+			fprintf(stderr, "%7d\t\t%s\t(%s)\n",
+				supported_levels[i].code,
+				supported_levels[i].argument,
+				supported_levels[i].name);
+		}
 		return WERR_OK;
 	}
 
@@ -66,8 +90,16 @@ static WERROR cmd_netlogon_logon_ctrl2(struct rpc_pipe_client *cli,
 	switch (function_code) {
 		case NETLOGON_CONTROL_REDISCOVER:
 		case NETLOGON_CONTROL_TC_QUERY:
+		case NETLOGON_CONTROL_CHANGE_PASSWORD:
+		case NETLOGON_CONTROL_TRANSPORT_NOTIFY:
+		case NETLOGON_CONTROL_TC_VERIFY:
 			data.domain = domain;
 			break;
+		case NETLOGON_CONTROL_FIND_USER:
+			data.user = domain;
+			break;
+		case NETLOGON_CONTROL_SET_DBFLAG:
+			data.debug_level = atoi(domain);
 		default:
 			break;
 	}
@@ -212,8 +244,6 @@ static WERROR cmd_netlogon_dsr_getdcname(struct rpc_pipe_client *cli,
 	if (argc >= 5)
 		sscanf(argv[4], "%x", &flags);
 
-	debug_dsdcinfo_flags(1,flags);
-
 	result = dcerpc_netr_DsRGetDCName(b, mem_ctx,
 					  server_name,
 					  domain_name,
@@ -273,8 +303,6 @@ static WERROR cmd_netlogon_dsr_getdcnameex(struct rpc_pipe_client *cli,
 	if (argc >= 5) {
 		sscanf(argv[4], "%x", &flags);
 	}
-
-	debug_dsdcinfo_flags(1,flags);
 
 	status = dcerpc_netr_DsRGetDCNameEx(b, mem_ctx,
 					    server_name,
@@ -346,8 +374,6 @@ static WERROR cmd_netlogon_dsr_getdcnameex2(struct rpc_pipe_client *cli,
 	if (argc >= 7) {
 		sscanf(argv[6], "%x", &flags);
 	}
-
-	debug_dsdcinfo_flags(1,flags);
 
 	status = dcerpc_netr_DsRGetDCNameEx2(b, mem_ctx,
 					     server_name,
@@ -583,7 +609,7 @@ static NTSTATUS cmd_netlogon_sam_sync(struct rpc_pipe_client *cli,
 	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
 	NTSTATUS status;
 	const char *logon_server = cli->desthost;
-	const char *computername = global_myname();
+	const char *computername = lp_netbios_name();
 	struct netr_Authenticator credential;
 	struct netr_Authenticator return_authenticator;
 	enum netr_SamDatabaseID database_id = SAM_DATABASE_DOMAIN;
@@ -654,7 +680,7 @@ static NTSTATUS cmd_netlogon_sam_deltas(struct rpc_pipe_client *cli,
 	NTSTATUS status;
 	uint32_t tmp;
 	const char *logon_server = cli->desthost;
-	const char *computername = global_myname();
+	const char *computername = lp_netbios_name();
 	struct netr_Authenticator credential;
 	struct netr_Authenticator return_authenticator;
 	enum netr_SamDatabaseID database_id = SAM_DATABASE_DOMAIN;
@@ -1121,8 +1147,8 @@ static NTSTATUS cmd_netlogon_database_redo(struct rpc_pipe_client *cli,
 	status = rpccli_netlogon_setup_creds(cli,
 					     server_name, /* server name */
 					     lp_workgroup(), /* domain */
-					     global_myname(), /* client name */
-					     global_myname(), /* machine account name */
+					     lp_netbios_name(), /* client name */
+					     lp_netbios_name(), /* machine account name */
 					     trust_passwd_hash,
 					     sec_channel_type,
 					     &neg_flags);
@@ -1141,7 +1167,7 @@ static NTSTATUS cmd_netlogon_database_redo(struct rpc_pipe_client *cli,
 
 	status = dcerpc_netr_DatabaseRedo(b, mem_ctx,
 					  server_name,
-					  global_myname(),
+					  lp_netbios_name(),
 					  &clnt_creds,
 					  &srv_cred,
 					  e,
@@ -1187,7 +1213,7 @@ static NTSTATUS cmd_netlogon_capabilities(struct rpc_pipe_client *cli,
 
 	status = dcerpc_netr_LogonGetCapabilities(b, mem_ctx,
 						  cli->desthost,
-						  global_myname(),
+						  lp_netbios_name(),
 						  &credential,
 						  &return_authenticator,
 						  level,
@@ -1214,28 +1240,28 @@ struct cmd_set netlogon_commands[] = {
 
 	{ "NETLOGON" },
 
-	{ "logonctrl2", RPC_RTYPE_WERROR, NULL, cmd_netlogon_logon_ctrl2, &ndr_table_netlogon.syntax_id, NULL, "Logon Control 2",     "" },
-	{ "getanydcname", RPC_RTYPE_WERROR, NULL, cmd_netlogon_getanydcname, &ndr_table_netlogon.syntax_id, NULL, "Get trusted DC name",     "" },
-	{ "getdcname", RPC_RTYPE_WERROR, NULL, cmd_netlogon_getdcname, &ndr_table_netlogon.syntax_id, NULL, "Get trusted PDC name",     "" },
-	{ "dsr_getdcname", RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_getdcname, &ndr_table_netlogon.syntax_id, NULL, "Get trusted DC name",     "" },
-	{ "dsr_getdcnameex", RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_getdcnameex, &ndr_table_netlogon.syntax_id, NULL, "Get trusted DC name",     "" },
-	{ "dsr_getdcnameex2", RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_getdcnameex2, &ndr_table_netlogon.syntax_id, NULL, "Get trusted DC name",     "" },
-	{ "dsr_getsitename", RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_getsitename, &ndr_table_netlogon.syntax_id, NULL, "Get sitename",     "" },
-	{ "dsr_getforesttrustinfo", RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_getforesttrustinfo, &ndr_table_netlogon.syntax_id, NULL, "Get Forest Trust Info",     "" },
-	{ "logonctrl",  RPC_RTYPE_WERROR, NULL, cmd_netlogon_logon_ctrl, &ndr_table_netlogon.syntax_id, NULL, "Logon Control",       "" },
-	{ "samsync",    RPC_RTYPE_NTSTATUS, cmd_netlogon_sam_sync,    NULL, &ndr_table_netlogon.syntax_id, NULL, "Sam Synchronisation", "" },
-	{ "samdeltas",  RPC_RTYPE_NTSTATUS, cmd_netlogon_sam_deltas,  NULL, &ndr_table_netlogon.syntax_id, NULL, "Query Sam Deltas",    "" },
-	{ "samlogon",   RPC_RTYPE_NTSTATUS, cmd_netlogon_sam_logon,   NULL, &ndr_table_netlogon.syntax_id, NULL, "Sam Logon",           "" },
-	{ "change_trust_pw",   RPC_RTYPE_NTSTATUS, cmd_netlogon_change_trust_pw,   NULL, &ndr_table_netlogon.syntax_id, NULL, "Change Trust Account Password",           "" },
-	{ "gettrustrid", RPC_RTYPE_WERROR, NULL, cmd_netlogon_gettrustrid, &ndr_table_netlogon.syntax_id, NULL, "Get trust rid",     "" },
-	{ "dsr_enumtrustdom", RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_enumtrustdom, &ndr_table_netlogon.syntax_id, NULL, "Enumerate trusted domains",     "" },
-	{ "dsenumdomtrusts",  RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_enumtrustdom, &ndr_table_netlogon.syntax_id, NULL, "Enumerate all trusted domains in an AD forest",     "" },
-	{ "deregisterdnsrecords", RPC_RTYPE_WERROR, NULL, cmd_netlogon_deregisterdnsrecords, &ndr_table_netlogon.syntax_id, NULL, "Deregister DNS records",     "" },
-	{ "netrenumtrusteddomains", RPC_RTYPE_NTSTATUS, cmd_netlogon_enumtrusteddomains, NULL, &ndr_table_netlogon.syntax_id, NULL, "Enumerate trusted domains",     "" },
-	{ "netrenumtrusteddomainsex", RPC_RTYPE_WERROR, NULL, cmd_netlogon_enumtrusteddomainsex, &ndr_table_netlogon.syntax_id, NULL, "Enumerate trusted domains",     "" },
-	{ "getdcsitecoverage", RPC_RTYPE_WERROR, NULL, cmd_netlogon_getdcsitecoverage, &ndr_table_netlogon.syntax_id, NULL, "Get the Site-Coverage from a DC",     "" },
-	{ "database_redo", RPC_RTYPE_NTSTATUS, cmd_netlogon_database_redo, NULL, &ndr_table_netlogon.syntax_id, NULL, "Replicate single object from a DC",     "" },
-	{ "capabilities", RPC_RTYPE_NTSTATUS, cmd_netlogon_capabilities, NULL, &ndr_table_netlogon.syntax_id, NULL, "Return Capabilities",     "" },
+	{ "logonctrl2", RPC_RTYPE_WERROR, NULL, cmd_netlogon_logon_ctrl2, &ndr_table_netlogon, NULL, "Logon Control 2",     "" },
+	{ "getanydcname", RPC_RTYPE_WERROR, NULL, cmd_netlogon_getanydcname, &ndr_table_netlogon, NULL, "Get trusted DC name",     "" },
+	{ "getdcname", RPC_RTYPE_WERROR, NULL, cmd_netlogon_getdcname, &ndr_table_netlogon, NULL, "Get trusted PDC name",     "" },
+	{ "dsr_getdcname", RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_getdcname, &ndr_table_netlogon, NULL, "Get trusted DC name",     "" },
+	{ "dsr_getdcnameex", RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_getdcnameex, &ndr_table_netlogon, NULL, "Get trusted DC name",     "" },
+	{ "dsr_getdcnameex2", RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_getdcnameex2, &ndr_table_netlogon, NULL, "Get trusted DC name",     "" },
+	{ "dsr_getsitename", RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_getsitename, &ndr_table_netlogon, NULL, "Get sitename",     "" },
+	{ "dsr_getforesttrustinfo", RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_getforesttrustinfo, &ndr_table_netlogon, NULL, "Get Forest Trust Info",     "" },
+	{ "logonctrl",  RPC_RTYPE_WERROR, NULL, cmd_netlogon_logon_ctrl, &ndr_table_netlogon, NULL, "Logon Control",       "" },
+	{ "samsync",    RPC_RTYPE_NTSTATUS, cmd_netlogon_sam_sync,    NULL, &ndr_table_netlogon, NULL, "Sam Synchronisation", "" },
+	{ "samdeltas",  RPC_RTYPE_NTSTATUS, cmd_netlogon_sam_deltas,  NULL, &ndr_table_netlogon, NULL, "Query Sam Deltas",    "" },
+	{ "samlogon",   RPC_RTYPE_NTSTATUS, cmd_netlogon_sam_logon,   NULL, &ndr_table_netlogon, NULL, "Sam Logon",           "" },
+	{ "change_trust_pw",   RPC_RTYPE_NTSTATUS, cmd_netlogon_change_trust_pw,   NULL, &ndr_table_netlogon, NULL, "Change Trust Account Password",           "" },
+	{ "gettrustrid", RPC_RTYPE_WERROR, NULL, cmd_netlogon_gettrustrid, &ndr_table_netlogon, NULL, "Get trust rid",     "" },
+	{ "dsr_enumtrustdom", RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_enumtrustdom, &ndr_table_netlogon, NULL, "Enumerate trusted domains",     "" },
+	{ "dsenumdomtrusts",  RPC_RTYPE_WERROR, NULL, cmd_netlogon_dsr_enumtrustdom, &ndr_table_netlogon, NULL, "Enumerate all trusted domains in an AD forest",     "" },
+	{ "deregisterdnsrecords", RPC_RTYPE_WERROR, NULL, cmd_netlogon_deregisterdnsrecords, &ndr_table_netlogon, NULL, "Deregister DNS records",     "" },
+	{ "netrenumtrusteddomains", RPC_RTYPE_NTSTATUS, cmd_netlogon_enumtrusteddomains, NULL, &ndr_table_netlogon, NULL, "Enumerate trusted domains",     "" },
+	{ "netrenumtrusteddomainsex", RPC_RTYPE_WERROR, NULL, cmd_netlogon_enumtrusteddomainsex, &ndr_table_netlogon, NULL, "Enumerate trusted domains",     "" },
+	{ "getdcsitecoverage", RPC_RTYPE_WERROR, NULL, cmd_netlogon_getdcsitecoverage, &ndr_table_netlogon, NULL, "Get the Site-Coverage from a DC",     "" },
+	{ "database_redo", RPC_RTYPE_NTSTATUS, cmd_netlogon_database_redo, NULL, &ndr_table_netlogon, NULL, "Replicate single object from a DC",     "" },
+	{ "capabilities", RPC_RTYPE_NTSTATUS, cmd_netlogon_capabilities, NULL, &ndr_table_netlogon, NULL, "Return Capabilities",     "" },
 
 	{ NULL }
 };

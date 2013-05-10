@@ -27,9 +27,9 @@ Provides: samba = %{version}
 
 Prefix: /usr
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
-BuildRequires: pam-devel, readline-devel, fileutils, libacl-devel, openldap-devel, krb5-devel, cups-devel, e2fsprogs-devel
+BuildRequires: pam-devel, readline-devel, fileutils, libacl-devel, openldap-devel, krb5-devel, cups-devel, e2fsprogs-devel, gettext
 # requirements for building the man pages:
-BuildRequires: libxslt, docbook-utils, docbook-style-xsl
+BuildRequires: libxslt, docbook-utils, docbook-style-xsl, rsync
 BuildRequires: ctdb-devel >= 1.2.25
 
 # Working around perl dependency problem from docs
@@ -45,6 +45,21 @@ BuildRequires: ctdb-devel >= 1.2.25
 %define _libarchdir /usr/%{_libarch}
 
 %define numcpu  %(grep "^processor" /proc/cpuinfo |wc -l | sed -e 's/^0$/1/')
+
+%define with_vfs_gpfs PGPFS_DEFAULT
+%define with_vfs_tsmsm PGPFS_DEFAULT
+
+%if %{with_vfs_tsmsm}
+%define		vfs_tsmsm	,vfs_tsmsm
+%endif
+
+%if %{with_vfs_gpfs}
+%define		vfs_gpfs	,vfs_gpfs
+%endif
+
+%define		vfs_modules %{?vfs_gpfs}%{?vfs_tsmsm}
+
+%define		shared_modules idmap_rid,idmap_ad,idmap_tdb2%{vfs_modules}
 
 %description
 Samba is the protocol by which a lot of PC-related machines share
@@ -83,6 +98,7 @@ Samba-common provides files necessary for both the server and client
 packages of Samba.
 
 
+
 #######################################################################
 %package swat
 Summary: The Samba SMB server configuration program.
@@ -94,15 +110,6 @@ Provides: samba-swat = %{version}-%{release}
 The samba-swat package includes the new SWAT (Samba Web Administration
 Tool), for remotely managing Samba's smb.conf file using your favorite
 Web browser.
-
-%ifarch x86_64 ppc64
-%package winbind-32bit
-Summary:        Samba winbind compatibility package for 32bit apps on 64bit archs
-Group:          Applications/System
-
-%description winbind-32bit
-Compatibility package for 32 bit apps on 64 bit architecures
-%endif
 
 
 #######################################################################
@@ -145,41 +152,30 @@ export CC
 ## always run autogen.sh
 ./autogen.sh
 
-
-##
-## build the files for the winbind-32bit compat package
-## and copy them to a safe location
-##
-%ifarch x86_64 ppc64
-
-# a directory to store the 32bit compatibility modules for later install
-%define _32bit_tmp_dir %{_tmppath}/%{name}-%{version}-32bit
-
-CC_SAVE="$CC"
-CC="$CC -m32"
-
-CFLAGS="$RPM_OPT_FLAGS -O3 -D_GNU_SOURCE -m32" ./configure \
+CFLAGS="$RPM_OPT_FLAGS $EXTRA -D_GNU_SOURCE" ./configure \
 	--prefix=%{_prefix} \
 	--localstatedir=/var \
-        --with-configdir=%{_sysconfdir}/samba \
-        --with-libdir=/usr/lib/samba \
-	--with-pammodulesdir=/lib/security \
-        --with-lockdir=/var/lib/samba \
-        --with-logfilebase=/var/log/samba \
-        --with-mandir=%{_mandir} \
-        --with-piddir=/var/run \
+	--with-configdir=%{_sysconfdir}/samba \
+	--libdir=%{_libarchdir} \
+	--with-modulesdir=%{_libarchdir}/samba \
+	--with-pammodulesdir=/%{_libarch}/security \
+	--with-lockdir=/var/lib/samba \
+	--with-logfilebase=/var/log/samba \
+	--mandir=%{_mandir} \
+	--with-piddir=/var/run \
 	--with-privatedir=%{_sysconfdir}/samba \
 	--disable-cups \
-        --with-acl-support \
+	--with-acl-support \
 	--with-ads \
-        --with-automount \
-        --with-fhs \
+	--with-automount \
+	--enable-fhs \
 	--with-pam_smbpass \
 	--with-libsmbclient \
 	--with-libsmbsharemodes \
-        --without-smbwrapper \
+	--without-smbwrapper \
 	--with-pam \
 	--with-quotas \
+	--with-shared-modules=%{shared_modules} \
 	--with-syslog \
 	--with-utmp \
 	--with-cluster-support \
@@ -187,74 +183,8 @@ CFLAGS="$RPM_OPT_FLAGS -O3 -D_GNU_SOURCE -m32" ./configure \
 	--without-ldb \
 	--without-dnsupdate \
 	--with-aio-support \
-	--disable-merged-build
-
-make showlayout
-
-make samba3-idl
-
-## check for gcc 3.4 or later
-CC_VERSION=`${CC} --version | head -1 | awk '{print $3}'`
-CC_MAJOR=`echo ${CC_VERSION} | cut -d. -f 1`
-CC_MINOR=`echo ${CC_VERSION} | cut -d. -f 2`
-if [ ${CC_MAJOR} -ge 3 ]; then
-        if [ ${CC_MAJOR} -gt 3 -o ${CC_MINOR} -ge 4 ]; then
-                make pch
-        fi
-fi
-
-make -j%{numcpu} %{?_smp_mflags} \
-	nss_modules pam_modules
-
-rm -rf %{_32bit_tmp_dir}
-mkdir %{_32bit_tmp_dir}
-
-mv ../nsswitch/libnss_winbind.so %{_32bit_tmp_dir}/
-mv bin/pam_winbind.so %{_32bit_tmp_dir}/
-mv bin/libtalloc.so* %{_32bit_tmp_dir}/
-mv bin/libtdb.so* %{_32bit_tmp_dir}/
-mv bin/libwbclient.so* %{_32bit_tmp_dir}/
-
-make clean
-
-CC="$CC_SAVE"
-
-%endif
-
-CFLAGS="$RPM_OPT_FLAGS $EXTRA -D_GNU_SOURCE" ./configure \
-	--prefix=%{_prefix} \
-	--localstatedir=/var \
-        --with-configdir=%{_sysconfdir}/samba \
-        --libdir=%{_libarchdir} \
-	--with-modulesdir=%{_libarchdir}/samba \
-	--with-pammodulesdir=%{_libarch}/security \
-        --with-lockdir=/var/lib/samba \
-        --with-logfilebase=/var/log/samba \
-        --with-mandir=%{_mandir} \
-        --with-piddir=/var/run \
-	--with-privatedir=%{_sysconfdir}/samba \
-        --with-sambabook=%{_datadir}/swat/using_samba \
-        --with-swatdir=%{_datadir}/swat \
-	--disable-cups \
-        --with-acl-support \
-	--with-ads \
-        --with-automount \
-        --with-fhs \
-	--with-pam_smbpass \
-	--with-libsmbclient \
-	--with-libsmbsharemodes \
-        --without-smbwrapper \
-	--with-pam \
-	--with-quotas \
-	--with-shared-modules=idmap_rid,idmap_ad,idmap_tdb2,vfs_gpfs,vfs_tsmsm,vfs_gpfs_hsm_notify \
-	--with-syslog \
-	--with-utmp \
-	--with-cluster-support \
-	--with-ctdb=/usr/include \
-	--without-ldb \
-	--without-dnsupdate \
-	--with-aio-support\
-	--disable-merged-build
+	--disable-external-libtalloc \
+	--disable-external-libtdb
 
 make showlayout
 
@@ -274,7 +204,12 @@ make -j %{numcpu} %{?_smp_mflags} \
 
 # check that desired suppor has been compiled into smbd:
 export LD_LIBRARY_PATH=./bin
-for test in HAVE_POSIX_ACLS HAVE_LDAP HAVE_KRB5 HAVE_GPFS CLUSTER_SUPPORT
+
+HAVE_VARS="HAVE_POSIX_ACLS HAVE_LDAP HAVE_KRB5 CLUSTER_SUPPORT"
+%if %{with_vfs_gpfs}
+	HAVE_VARS="${HAVE_VARS} HAVE_GPFS"
+%endif
+for test in ${HAVE_VARS}
 do
 	if ! $(./bin/smbd -b | grep -q $test ) ; then
 		echo "ERROR: '$test' is not in smbd. Build stopped."
@@ -294,7 +229,7 @@ find examples docs -type f | xargs -r chmod -x
 rm -rf $RPM_BUILD_ROOT
 
 # Create the target build directory hierarchy
-mkdir -p $RPM_BUILD_ROOT%{_datadir}/swat/{help,include,using_samba/{figs,gifsa}}
+mkdir -p $RPM_BUILD_ROOT%{_datadir}/samba/swat/{help,include,using_samba/{figs,gifsa}}
 mkdir -p $RPM_BUILD_ROOT%{_includedir}
 mkdir -p $RPM_BUILD_ROOT%{_initrddir}
 mkdir -p $RPM_BUILD_ROOT{%{_libarchdir},%{_includedir}}
@@ -335,23 +270,15 @@ install -m 755 nsswitch/libnss_winbind.so $RPM_BUILD_ROOT/%{_libarch}/libnss_win
 
 cp -p source3/bin/winbind_krb5_locator.so ${RPM_BUILD_ROOT}/%{_libarchdir}/krb5/plugins/libkrb5
 
-# install files for winbind-32bit package
-%ifarch x86_64 ppc64
-
-install -m 755 %{_32bit_tmp_dir}/libnss_winbind.so ${RPM_BUILD_ROOT}/lib/libnss_winbind.so.2
-( cd ${RPM_BUILD_ROOT}/lib; ln -sf libnss_winbind.so.2  libnss_winbind.so )
-
-mv %{_32bit_tmp_dir}/libtalloc* ${RPM_BUILD_ROOT}/usr/lib
-mv %{_32bit_tmp_dir}/libtdb* ${RPM_BUILD_ROOT}/usr/lib
-mv %{_32bit_tmp_dir}/libwbclient* ${RPM_BUILD_ROOT}/usr/lib
-mv %{_32bit_tmp_dir}/pam_winbind.so ${RPM_BUILD_ROOT}/lib/security
-
-rm -rf %{_32bit_tmp_dir}
-
-%endif
 
 ## cleanup
 /bin/rm -rf $RPM_BUILD_ROOT/usr/lib*/samba/security
+
+# remove installed but unpackaged files:
+/bin/rm -f $RPM_BUILD_ROOT/usr/lib*/libtalloc.so
+/bin/rm -f $RPM_BUILD_ROOT/usr/lib*/libtdb.so
+/bin/rm -f $RPM_BUILD_ROOT/usr/lib*/samba/perfcount/pc_test.so
+
 
 # Install the miscellany
 echo 127.0.0.1 localhost > $RPM_BUILD_ROOT%{_sysconfdir}/samba/lmhosts
@@ -361,7 +288,7 @@ install -m644 setup/samba.sysconfig $RPM_BUILD_ROOT%{_sysconfdir}/sysconfig/samb
 install -m755 setup/smb.init $RPM_BUILD_ROOT%{initdir}/smb
 install -m755 setup/winbind.init $RPM_BUILD_ROOT%{initdir}/winbind
 install -m644 setup/samba.pamd $RPM_BUILD_ROOT%{_sysconfdir}/pam.d/samba
-install -m755 setup/smbprint $RPM_BUILD_ROOT%{_bindir}
+install -m755 packaging/printing/smbprint $RPM_BUILD_ROOT%{_bindir}
 install -m644 setup/smbusers $RPM_BUILD_ROOT%{_sysconfdir}/samba/smbusers
 install -m644 setup/smb.conf $RPM_BUILD_ROOT%{_sysconfdir}/samba/smb.conf
 install -m755 source3/script/mksmbpasswd.sh $RPM_BUILD_ROOT%{_bindir}
@@ -481,8 +408,9 @@ exit 0
 %{_libarchdir}/samba/vfs/fake_perms.so
 %{_libarchdir}/samba/vfs/fileid.so
 %{_libarchdir}/samba/vfs/full_audit.so
+%if %{with_vfs_gpfs}
 %{_libarchdir}/samba/vfs/gpfs.so
-%{_libarchdir}/samba/vfs/gpfs_hsm_notify.so
+%endif
 %{_libarchdir}/samba/vfs/linux_xfs_sgid.so
 %{_libarchdir}/samba/vfs/netatalk.so
 %{_libarchdir}/samba/vfs/preopen.so
@@ -497,9 +425,13 @@ exit 0
 %{_libarchdir}/samba/vfs/streams_xattr.so
 %{_libarchdir}/samba/vfs/syncops.so
 %{_libarchdir}/samba/vfs/time_audit.so
+%if %{with_vfs_tsmsm}
 %{_libarchdir}/samba/vfs/tsmsm.so
+%endif
 %{_libarchdir}/samba/vfs/xattr_tdb.so
-
+%{_libarchdir}/samba/vfs/aio_posix.so
+%{_libarchdir}/samba/vfs/aio_pthread.so
+%{_libarchdir}/samba/vfs/media_harmony.so
 
 %{_mandir}/man1/smbcontrol.1*
 %{_mandir}/man1/smbstatus.1*
@@ -510,9 +442,6 @@ exit 0
 %{_mandir}/man8/nmbd.8*
 %{_mandir}/man8/pdbedit.8*
 %{_mandir}/man8/smbd.8*
-%{_mandir}/man8/tdbbackup.8*
-%{_mandir}/man8/tdbdump.8*
-%{_mandir}/man8/tdbtool.8*
 %{_mandir}/man8/eventlogadm.8*
 %{_mandir}/man8/vfs_*.8*
 %{_mandir}/man8/smbta-util.8*
@@ -524,7 +453,6 @@ exit 0
 %defattr(-,root,root)
 %doc README
 %doc COPYING
-%doc Manifest 
 %doc WHATSNEW.txt
 %doc Roadmap
 %doc docs-xml/archives/THANKS
@@ -542,11 +470,11 @@ exit 0
 %files swat
 %defattr(-,root,root)
 %config(noreplace) %{_sysconfdir}/xinetd.d/swat
-%dir %{_datadir}/swat
-%{_datadir}/swat/*
+%dir %{_datadir}/samba/swat
+%{_datadir}/samba/swat/*
 %{_sbindir}/swat
 %{_mandir}/man8/swat.8*
-%attr(755,root,root) %{_libarchdir}/samba/*.msg
+%attr(755,root,root) %{_datadir}/samba/codepages/*.msg
 
 ##########
 
@@ -580,6 +508,7 @@ exit 0
 
 ##########
 
+
 %files common
 %defattr(-,root,root)
 %dir %{_sysconfdir}/samba
@@ -596,18 +525,18 @@ exit 0
 /usr/share/locale/*/LC_MESSAGES/pam_winbind.mo
 /usr/share/locale/*/LC_MESSAGES/net.mo
 
-%{_libarchdir}/samba/charset/CP437.so
-%{_libarchdir}/samba/charset/CP850.so
 %{_libarchdir}/samba/idmap/ad.so
 %{_libarchdir}/samba/idmap/rid.so
 %{_libarchdir}/samba/idmap/tdb2.so
 %{_libarchdir}/samba/idmap/autorid.so
-%{_libarchdir}/samba/lowcase.dat
+%{_libarchdir}/samba/idmap/hash.so
+%{_libarchdir}/samba/nss_info/hash.so
 %{_libarchdir}/samba/nss_info/rfc2307.so
 %{_libarchdir}/samba/nss_info/sfu.so
 %{_libarchdir}/samba/nss_info/sfu20.so
-%{_libarchdir}/samba/upcase.dat
-%{_libarchdir}/samba/valid.dat
+%{_datadir}/samba/codepages/lowcase.dat
+%{_datadir}/samba/codepages/upcase.dat
+%{_datadir}/samba/codepages/valid.dat
 
 %{_includedir}/libsmbclient.h
 %{_libarchdir}/libsmbclient.*
@@ -617,14 +546,8 @@ exit 0
 
 %{_includedir}/netapi.h
 %{_includedir}/wbclient.h
-%{_includedir}/talloc.h
-%{_includedir}/tdb.h
 %{_libarchdir}/libnetapi.so
 %{_libarchdir}/libnetapi.so.0
-%{_libarchdir}/libtalloc.so
-%{_libarchdir}/libtalloc.so.2
-%{_libarchdir}/libtdb.so
-%{_libarchdir}/libtdb.so.1
 %{_libarchdir}/libwbclient.so
 %{_libarchdir}/libwbclient.so.0
 
@@ -656,27 +579,8 @@ exit 0
 %{_mandir}/man8/net.8*
 %{_mandir}/man8/pam_winbind.8*
 %{_mandir}/man7/libsmbclient.7*
-%{_mandir}/man1/ldbadd.1*
-%{_mandir}/man1/ldbdel.1*
-%{_mandir}/man1/ldbedit.1*
-%{_mandir}/man1/ldbmodify.1*
-%{_mandir}/man1/ldbsearch.1*
-%{_mandir}/man1/ldbrename.1*
 %{_mandir}/man7/winbind_krb5_locator.7*
 %{_mandir}/man8/idmap_*.8*
-
-%ifarch x86_64 ppc64
-%files winbind-32bit
-%attr(755,root,root) /lib/libnss_winbind.so
-%attr(755,root,root) /lib/libnss_winbind.so.2
-%attr(755,root,root) /usr/lib/libtalloc.so
-%attr(755,root,root) /usr/lib/libtalloc.so.2
-%attr(755,root,root) /usr/lib/libtdb.so
-%attr(755,root,root) /usr/lib/libtdb.so.1
-%attr(755,root,root) /usr/lib/libwbclient.so
-%attr(755,root,root) /usr/lib/libwbclient.so.0
-%attr(755,root,root) /lib/security/pam_winbind.so
-%endif
 
 
 

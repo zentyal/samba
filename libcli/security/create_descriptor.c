@@ -80,9 +80,30 @@ uint32_t map_generic_rights_ds(uint32_t access_mask)
 * and it does not seem to have any influence */
 static bool object_in_list(struct GUID *object_list, struct GUID *object)
 {
-	return true;
+	size_t i;
+
+	if (object_list == NULL) {
+		return true;
+	}
+
+	if (GUID_all_zero(object)) {
+		return true;
+	}
+
+	for (i=0; ; i++) {
+		if (GUID_all_zero(&object_list[i])) {
+			return false;
+		}
+		if (!GUID_equal(&object_list[i], object)) {
+			continue;
+		}
+
+		return true;
+	}
+
+	return false;
 }
- 
+
 /* returns true if the ACE gontains generic information
  * that needs to be processed additionally */
  
@@ -132,7 +153,6 @@ static struct security_acl *calculate_inherited_from_parent(TALLOC_CTX *mem_ctx,
 	uint32_t i;
 	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
 	struct security_acl *tmp_acl = talloc_zero(mem_ctx, struct security_acl);
-	struct dom_sid *co, *cg;
 	if (!tmp_acl) {
 		return NULL;
 	}
@@ -140,8 +160,6 @@ static struct security_acl *calculate_inherited_from_parent(TALLOC_CTX *mem_ctx,
 	if (!acl) {
 		return NULL;
 	}
-	co = dom_sid_parse_talloc(tmp_ctx,  SID_CREATOR_OWNER);
-	cg = dom_sid_parse_talloc(tmp_ctx,  SID_CREATOR_GROUP);
 
 	for (i=0; i < acl->num_aces; i++) {
 		struct security_ace *ace = &acl->aces[i];
@@ -168,7 +186,13 @@ static struct security_acl *calculate_inherited_from_parent(TALLOC_CTX *mem_ctx,
 
 			if (ace->type == SEC_ACE_TYPE_ACCESS_ALLOWED_OBJECT ||
 			    ace->type == SEC_ACE_TYPE_ACCESS_DENIED_OBJECT) {
-				if (!object_in_list(object_list, &ace->object.object.type.type)) {
+				struct GUID inherited_object = GUID_zero();
+
+				if (ace->object.object.flags & SEC_ACE_INHERITED_OBJECT_TYPE_PRESENT) {
+					inherited_object = ace->object.object.inherited_type.inherited_type;
+				}
+
+				if (!object_in_list(object_list, &inherited_object)) {
 					tmp_acl->aces[tmp_acl->num_aces].flags |= SEC_ACE_FLAG_INHERIT_ONLY;
 				}
 
@@ -217,7 +241,6 @@ static struct security_acl *process_user_acl(TALLOC_CTX *mem_ctx,
 	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
 	struct security_acl *tmp_acl = talloc_zero(tmp_ctx, struct security_acl);
 	struct security_acl *new_acl;
-	struct dom_sid *co, *cg;
 
 	if (!acl)
 		return NULL;
@@ -227,9 +250,6 @@ static struct security_acl *process_user_acl(TALLOC_CTX *mem_ctx,
 
 	tmp_acl->revision = acl->revision;
 	DEBUG(6,(__location__ ": acl revision %d\n", acl->revision));
-
-	co = dom_sid_parse_talloc(tmp_ctx,  SID_CREATOR_OWNER);
-	cg = dom_sid_parse_talloc(tmp_ctx,  SID_CREATOR_GROUP);
 
 	for (i=0; i < acl->num_aces; i++){
 		struct security_ace *ace = &acl->aces[i];

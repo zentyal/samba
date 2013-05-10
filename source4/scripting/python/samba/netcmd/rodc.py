@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-#
 # rodc related commands
 #
 # Copyright Andrew Tridgell 2010
@@ -24,13 +22,13 @@ from samba.samdb import SamDB
 from samba.auth import system_session
 import ldb
 from samba.dcerpc import misc, drsuapi
-from samba.credentials import Credentials
 from samba.drs_utils import drs_Replicate
 
-class cmd_rodc_preload(Command):
-    """Preload one account for an RODC"""
 
-    synopsis = "%prog rodc preload <SID|DN|accountname>"
+class cmd_rodc_preload(Command):
+    """Preload one account for an RODC."""
+
+    synopsis = "%prog (<SID>|<DN>|<accountname>) [options]"
 
     takes_optiongroups = {
         "sambaopts": options.SambaOptions,
@@ -57,16 +55,11 @@ class cmd_rodc_preload(Command):
                                expression="objectclass=user",
                                scope=ldb.SCOPE_BASE, attrs=[])
         else:
-            res = samdb.search(expression="(&(samAccountName=%s)(objectclass=user))" % account,
+            res = samdb.search(expression="(&(samAccountName=%s)(objectclass=user))" % ldb.binary_encode(account),
                                scope=ldb.SCOPE_SUBTREE, attrs=[])
         if len(res) != 1:
             raise Exception("Failed to find account '%s'" % account)
         return str(res[0]["dn"])
-
-
-    def get_dsServiceName(self, samdb):
-        res = samdb.search(base="", scope=ldb.SCOPE_BASE, attrs=["dsServiceName"])
-        return res[0]["dsServiceName"][0]
 
 
     def run(self, account, sambaopts=None,
@@ -88,12 +81,12 @@ class cmd_rodc_preload(Command):
                             credentials=creds, lp=lp)
 
         # work out the source and destination GUIDs
-        dc_ntds_dn = self.get_dsServiceName(samdb)
+        dc_ntds_dn = samdb.get_dsServiceName()
         res = samdb.search(base=dc_ntds_dn, scope=ldb.SCOPE_BASE, attrs=["invocationId"])
         source_dsa_invocation_id = misc.GUID(local_samdb.schema_format_value("objectGUID", res[0]["invocationId"][0]))
 
         dn = self.get_dn(samdb, account)
-        print "Replicating DN %s" % dn
+        self.outf.write("Replicating DN %s\n" % dn)
 
         destination_dsa_guid = misc.GUID(local_samdb.get_ntds_GUID())
 
@@ -109,7 +102,7 @@ class cmd_rodc_preload(Command):
 
 
 class cmd_rodc(SuperCommand):
-    """RODC commands"""
+    """Read-Only Domain Controller (RODC) management."""
 
     subcommands = {}
     subcommands["preload"] = cmd_rodc_preload()

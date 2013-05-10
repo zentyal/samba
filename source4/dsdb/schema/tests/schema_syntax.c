@@ -74,9 +74,9 @@ static bool torture_syntax_add_OR_Name(struct torture_context *tctx,
 	ldif = ldb_ldif_read_string(ldb, &ldif_str);
 	torture_assert(tctx, ldif, "Failed to parse LDIF for authOrig");
 
-	werr = dsdb_attribute_from_ldb(ldb, schema, ldif->msg);
+	werr = dsdb_set_attribute_from_ldb(ldb, schema, ldif->msg);
 	ldb_ldif_read_free(ldb, ldif);
-	torture_assert_werr_ok(tctx, werr, "dsdb_attribute_from_ldb() failed!");
+	torture_assert_werr_ok(tctx, werr, "dsdb_set_attribute_from_ldb() failed!");
 
 	ldb_res = dsdb_set_schema(ldb, schema);
 	torture_assert_int_equal(tctx, ldb_res, LDB_SUCCESS, "dsdb_set_schema() failed");
@@ -205,7 +205,7 @@ static bool torture_dsdb_syntax_tcase_setup(struct torture_context *tctx, void *
 	priv = talloc_zero(tctx, struct torture_dsdb_syntax);
 	torture_assert(tctx, priv, "No memory");
 
-	priv->ldb = provision_get_schema(priv, tctx->lp_ctx, NULL);
+	priv->ldb = provision_get_schema(priv, tctx->lp_ctx, NULL, NULL);
 	torture_assert(tctx, priv->ldb, "Failed to load schema from disk");
 
 	priv->schema = dsdb_get_schema(priv->ldb, NULL);

@@ -42,6 +42,7 @@ static void continue_groupadd_created(struct tevent_req *subreq);
 
 
 struct composite_context* libnet_rpc_groupadd_send(struct dcerpc_pipe *p,
+						   TALLOC_CTX *mem_ctx,
 						   struct libnet_rpc_groupadd *io,
 						   void (*monitor)(struct monitor_msg*))
 {
@@ -51,7 +52,7 @@ struct composite_context* libnet_rpc_groupadd_send(struct dcerpc_pipe *p,
 
 	if (!p || !io) return NULL;
 
-	c = composite_create(p, dcerpc_event_context(p));
+	c = composite_create(mem_ctx, dcerpc_event_context(p));
 	if (c == NULL) return NULL;
 
 	s = talloc_zero(c, struct groupadd_state);
@@ -125,7 +126,7 @@ NTSTATUS libnet_rpc_groupadd(struct dcerpc_pipe *p, TALLOC_CTX *mem_ctx,
 {
 	struct composite_context *c;
 
-	c = libnet_rpc_groupadd_send(p, io, NULL);
+	c = libnet_rpc_groupadd_send(p, mem_ctx, io, NULL);
 	return libnet_rpc_groupadd_recv(c, mem_ctx, io);
 }
 
@@ -149,6 +150,7 @@ static void continue_groupdel_deleted(struct tevent_req *subreq);
 
 
 struct composite_context* libnet_rpc_groupdel_send(struct dcerpc_pipe *p,
+						   TALLOC_CTX *mem_ctx,
 						   struct libnet_rpc_groupdel *io,
 						   void (*monitor)(struct monitor_msg*))
 {
@@ -157,7 +159,7 @@ struct composite_context* libnet_rpc_groupdel_send(struct dcerpc_pipe *p,
 	struct tevent_req *subreq;
 
 	/* composite context allocation and setup */
-	c = composite_create(p, dcerpc_event_context(p));
+	c = composite_create(mem_ctx, dcerpc_event_context(p));
 	if (c == NULL) return NULL;
 
 	s = talloc_zero(c, struct groupdel_state);
@@ -319,6 +321,6 @@ NTSTATUS libnet_rpc_groupdel(struct dcerpc_pipe *p, TALLOC_CTX *mem_ctx,
 {
 	struct composite_context *c;
 
-	c = libnet_rpc_groupdel_send(p, io, NULL);
+	c = libnet_rpc_groupdel_send(p, mem_ctx, io, NULL);
 	return libnet_rpc_groupdel_recv(c, mem_ctx, io);
 }

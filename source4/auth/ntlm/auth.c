@@ -26,12 +26,24 @@
 #include "auth/ntlm/auth_proto.h"
 #include "param/param.h"
 #include "dsdb/samdb/samdb.h"
+#include "libcli/wbclient/wbclient.h"
+#include "lib/util/samba_modules.h"
+#include "auth/credentials/credentials.h"
+#include "system/kerberos.h"
+#include "auth/kerberos/kerberos.h"
+#include "auth/kerberos/kerberos_util.h"
 
+static NTSTATUS auth_generate_session_info_wrapper(struct auth4_context *auth_context,
+						   TALLOC_CTX *mem_ctx,
+                                                  void *server_returned_info,
+						   const char *original_user_name,
+						   uint32_t session_info_flags,
+						   struct auth_session_info **session_info);
 
 /***************************************************************************
  Set a fixed challenge
 ***************************************************************************/
-_PUBLIC_ NTSTATUS auth_context_set_challenge(struct auth_context *auth_ctx, const uint8_t chal[8], const char *set_by) 
+_PUBLIC_ NTSTATUS auth_context_set_challenge(struct auth4_context *auth_ctx, const uint8_t chal[8], const char *set_by) 
 {
 	auth_ctx->challenge.set_by = talloc_strdup(auth_ctx, set_by);
 	NT_STATUS_HAVE_NO_MEMORY(auth_ctx->challenge.set_by);
@@ -42,22 +54,12 @@ _PUBLIC_ NTSTATUS auth_context_set_challenge(struct auth_context *auth_ctx, cons
 	return NT_STATUS_OK;
 }
 
-/***************************************************************************
- Set a fixed challenge
-***************************************************************************/
-_PUBLIC_ bool auth_challenge_may_be_modified(struct auth_context *auth_ctx)
-{
-	return auth_ctx->challenge.may_be_modified;
-}
-
 /****************************************************************************
  Try to get a challenge out of the various authentication modules.
  Returns a const char of length 8 bytes.
 ****************************************************************************/
-_PUBLIC_ NTSTATUS auth_get_challenge(struct auth_context *auth_ctx, uint8_t chal[8])
+_PUBLIC_ NTSTATUS auth_get_challenge(struct auth4_context *auth_ctx, uint8_t chal[8])
 {
-	NTSTATUS nt_status;
-	struct auth_method_context *method;
 
 	if (auth_ctx->challenge.data.length == 8) {
 		DEBUG(5, ("auth_get_challenge: returning previous challenge by module %s (normal)\n", 
@@ -66,29 +68,12 @@ _PUBLIC_ NTSTATUS auth_get_challenge(struct auth_context *auth_ctx, uint8_t chal
 		return NT_STATUS_OK;
 	}
 
-	for (method = auth_ctx->methods; method; method = method->next) {
-		nt_status = method->ops->get_challenge(method, auth_ctx, chal);
-		if (NT_STATUS_EQUAL(nt_status, NT_STATUS_NOT_IMPLEMENTED)) {
-			continue;
-		}
-
-		NT_STATUS_NOT_OK_RETURN(nt_status);
-
-		auth_ctx->challenge.data	= data_blob_talloc(auth_ctx, chal, 8);
-		NT_STATUS_HAVE_NO_MEMORY(auth_ctx->challenge.data.data);
-		auth_ctx->challenge.set_by	= method->ops->name;
-
-		break;
-	}
-
 	if (!auth_ctx->challenge.set_by) {
 		generate_random_buffer(chal, 8);
 
 		auth_ctx->challenge.data		= data_blob_talloc(auth_ctx, chal, 8);
 		NT_STATUS_HAVE_NO_MEMORY(auth_ctx->challenge.data.data);
 		auth_ctx->challenge.set_by		= "random";
-
-		auth_ctx->challenge.may_be_modified	= true;
 	}
 
 	DEBUG(10,("auth_get_challenge: challenge set by %s\n",
@@ -103,24 +88,35 @@ PAC isn't available, and for tokenGroups in the DSDB stack.
 
  Supply either a principal or a DN
 ****************************************************************************/
-_PUBLIC_ NTSTATUS auth_get_user_info_dc_principal(TALLOC_CTX *mem_ctx,
-						 struct auth_context *auth_ctx,
-						 const char *principal,
-						 struct ldb_dn *user_dn,
-						 struct auth_user_info_dc **user_info_dc)
+static NTSTATUS auth_generate_session_info_principal(struct auth4_context *auth_ctx,
+						  TALLOC_CTX *mem_ctx,
+						  const char *principal,
+						  struct ldb_dn *user_dn,
+                                                  uint32_t session_info_flags,
+                                                  struct auth_session_info **session_info)
 {
 	NTSTATUS nt_status;
 	struct auth_method_context *method;
+	struct auth_user_info_dc *user_info_dc;
 
 	for (method = auth_ctx->methods; method; method = method->next) {
 		if (!method->ops->get_user_info_dc_principal) {
 			continue;
 		}
 
-		nt_status = method->ops->get_user_info_dc_principal(mem_ctx, auth_ctx, principal, user_dn, user_info_dc);
+		nt_status = method->ops->get_user_info_dc_principal(mem_ctx, auth_ctx, principal, user_dn, &user_info_dc);
 		if (NT_STATUS_EQUAL(nt_status, NT_STATUS_NOT_IMPLEMENTED)) {
 			continue;
 		}
+		if (!NT_STATUS_IS_OK(nt_status)) {
+			return nt_status;
+		}
+
+		nt_status = auth_generate_session_info_wrapper(auth_ctx, mem_ctx, 
+							       user_info_dc,
+							       user_info_dc->info->account_name,
+							       session_info_flags, session_info);
+		talloc_free(user_info_dc);
 
 		return nt_status;
 	}
@@ -155,7 +151,7 @@ _PUBLIC_ NTSTATUS auth_get_user_info_dc_principal(TALLOC_CTX *mem_ctx,
  *
  **/
 
-_PUBLIC_ NTSTATUS auth_check_password(struct auth_context *auth_ctx,
+_PUBLIC_ NTSTATUS auth_check_password(struct auth4_context *auth_ctx,
 			     TALLOC_CTX *mem_ctx,
 			     const struct auth_usersupplied_info *user_info, 
 			     struct auth_user_info_dc **user_info_dc)
@@ -187,8 +183,40 @@ _PUBLIC_ NTSTATUS auth_check_password(struct auth_context *auth_ctx,
 	return status;
 }
 
+_PUBLIC_ NTSTATUS auth_check_password_wrapper(struct auth4_context *auth_ctx,
+					      TALLOC_CTX *mem_ctx,
+					      const struct auth_usersupplied_info *user_info, 
+					      void **server_returned_info,
+					      DATA_BLOB *user_session_key, DATA_BLOB *lm_session_key)
+{
+	struct auth_user_info_dc *user_info_dc;
+	NTSTATUS status = auth_check_password(auth_ctx, mem_ctx, user_info, &user_info_dc);
+
+	if (NT_STATUS_IS_OK(status)) {
+		*server_returned_info = user_info_dc;
+
+		if (user_session_key) {
+			DEBUG(10, ("Got NT session key of length %u\n",
+				   (unsigned)user_info_dc->user_session_key.length));
+			*user_session_key = user_info_dc->user_session_key;
+			talloc_steal(mem_ctx, user_session_key->data);
+			user_info_dc->user_session_key = data_blob_null;
+		}
+
+		if (lm_session_key) {
+			DEBUG(10, ("Got LM session key of length %u\n",
+				   (unsigned)user_info_dc->lm_session_key.length));
+			*lm_session_key = user_info_dc->lm_session_key;
+			talloc_steal(mem_ctx, lm_session_key->data);
+			user_info_dc->lm_session_key = data_blob_null;
+		}
+	}
+
+	return status;
+}
+
 struct auth_check_password_state {
-	struct auth_context *auth_ctx;
+	struct auth4_context *auth_ctx;
 	const struct auth_usersupplied_info *user_info;
 	struct auth_user_info_dc *user_info_dc;
 	struct auth_method_context *method;
@@ -225,7 +253,7 @@ static void auth_check_password_async_trigger(struct tevent_context *ev,
 
 _PUBLIC_ struct tevent_req *auth_check_password_send(TALLOC_CTX *mem_ctx,
 				struct tevent_context *ev,
-				struct auth_context *auth_ctx,
+				struct auth4_context *auth_ctx,
 				const struct auth_usersupplied_info *user_info)
 {
 	struct tevent_req *req;
@@ -251,7 +279,7 @@ _PUBLIC_ struct tevent_req *auth_check_password_send(TALLOC_CTX *mem_ctx,
 	state->user_info	= user_info;
 
 	if (!user_info->mapped_state) {
-		nt_status = map_user_info(req, lpcfg_workgroup(auth_ctx->lp_ctx),
+		nt_status = map_user_info(auth_ctx->sam_ctx, req, lpcfg_workgroup(auth_ctx->lp_ctx),
 					  user_info, &user_info_tmp);
 		if (tevent_req_nterror(req, nt_status)) {
 			return tevent_req_post(req, ev);
@@ -406,17 +434,94 @@ _PUBLIC_ NTSTATUS auth_check_password_recv(struct tevent_req *req,
 	return NT_STATUS_OK;
 }
 
-/* Wrapper because we don't want to expose all callers to needing to
- * know that session_info is generated from the main ldb */
-static NTSTATUS auth_generate_session_info_wrapper(TALLOC_CTX *mem_ctx,
-						   struct auth_context *auth_context,
-						   struct auth_user_info_dc *user_info_dc,
-						   uint32_t session_info_flags,
-						   struct auth_session_info **session_info)
+ /* Wrapper because we don't want to expose all callers to needing to
+  * know that session_info is generated from the main ldb, and because
+  * we need to break a depenency loop between the DCE/RPC layer and the
+  * generation of unix tokens via IRPC */
+static NTSTATUS auth_generate_session_info_wrapper(struct auth4_context *auth_context,
+						   TALLOC_CTX *mem_ctx,
+						   void *server_returned_info,
+						   const char *original_user_name,
+                                                  uint32_t session_info_flags,
+                                                  struct auth_session_info **session_info)
 {
-	return auth_generate_session_info(mem_ctx, auth_context->lp_ctx,
-					  auth_context->sam_ctx, user_info_dc,
-					  session_info_flags, session_info);
+	NTSTATUS status;
+	struct auth_user_info_dc *user_info_dc = talloc_get_type_abort(server_returned_info, struct auth_user_info_dc);
+
+	if (user_info_dc->info->authenticated) {
+		session_info_flags |= AUTH_SESSION_INFO_AUTHENTICATED;
+	}
+
+	status = auth_generate_session_info(mem_ctx, auth_context->lp_ctx,
+					    auth_context->sam_ctx, user_info_dc,
+					    session_info_flags, session_info);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	if ((session_info_flags & AUTH_SESSION_INFO_UNIX_TOKEN)
+	    && NT_STATUS_IS_OK(status)) {
+		struct wbc_context *wbc_ctx = wbc_init(auth_context,
+						       auth_context->msg_ctx,
+						       auth_context->event_ctx);
+		if (!wbc_ctx) {
+			TALLOC_FREE(*session_info);
+			DEBUG(1, ("Cannot contact winbind to provide unix token\n"));
+			return NT_STATUS_INVALID_SERVER_STATE;
+		}
+		status = auth_session_info_fill_unix(wbc_ctx, auth_context->lp_ctx,
+						     original_user_name, *session_info);
+		if (!NT_STATUS_IS_OK(status)) {
+			TALLOC_FREE(*session_info);
+		}
+		TALLOC_FREE(wbc_ctx);
+	}
+	return status;
+}
+
+/* Wrapper because we don't want to expose all callers to needing to
+ * know anything about the PAC or auth subsystem internal structures
+ * before we output a struct auth session_info */
+static NTSTATUS auth_generate_session_info_pac(struct auth4_context *auth_ctx,
+					       TALLOC_CTX *mem_ctx,
+					       struct smb_krb5_context *smb_krb5_context,
+					       DATA_BLOB *pac_blob,
+					       const char *principal_name,
+					       const struct tsocket_address *remote_address,
+					       uint32_t session_info_flags,
+					       struct auth_session_info **session_info)
+{
+	NTSTATUS status;
+	struct auth_user_info_dc *user_info_dc;
+	TALLOC_CTX *tmp_ctx;
+
+	if (!pac_blob) {
+		return auth_generate_session_info_principal(auth_ctx, mem_ctx, principal_name,
+						       NULL, session_info_flags, session_info);
+	}
+
+	tmp_ctx = talloc_named(mem_ctx, 0, "gensec_gssapi_session_info context");
+	NT_STATUS_HAVE_NO_MEMORY(tmp_ctx);
+
+	status = kerberos_pac_blob_to_user_info_dc(tmp_ctx,
+						   *pac_blob,
+						   smb_krb5_context->krb5_context,
+						   &user_info_dc, NULL, NULL);
+	if (!NT_STATUS_IS_OK(status)) {
+		talloc_free(tmp_ctx);
+		return status;
+	}
+
+	if (user_info_dc->info->authenticated) {
+		session_info_flags |= AUTH_SESSION_INFO_AUTHENTICATED;
+	}
+
+	status = auth_generate_session_info_wrapper(auth_ctx, mem_ctx, 
+						    user_info_dc,
+						    user_info_dc->info->account_name,
+						    session_info_flags, session_info);
+	talloc_free(tmp_ctx);
+	return status;
 }
 
 /***************************************************************************
@@ -425,13 +530,13 @@ static NTSTATUS auth_generate_session_info_wrapper(TALLOC_CTX *mem_ctx,
 ***************************************************************************/
 _PUBLIC_ NTSTATUS auth_context_create_methods(TALLOC_CTX *mem_ctx, const char **methods, 
 					      struct tevent_context *ev,
-					      struct messaging_context *msg,
+					      struct imessaging_context *msg,
 					      struct loadparm_context *lp_ctx,
 					      struct ldb_context *sam_ctx,
-					      struct auth_context **auth_ctx)
+					      struct auth4_context **auth_ctx)
 {
 	int i;
-	struct auth_context *ctx;
+	struct auth4_context *ctx;
 
 	auth4_init();
 
@@ -440,10 +545,8 @@ _PUBLIC_ NTSTATUS auth_context_create_methods(TALLOC_CTX *mem_ctx, const char **
 		return NT_STATUS_INTERNAL_ERROR;
 	}
 
-	ctx = talloc(mem_ctx, struct auth_context);
+	ctx = talloc_zero(mem_ctx, struct auth4_context);
 	NT_STATUS_HAVE_NO_MEMORY(ctx);
-	ctx->challenge.set_by		= NULL;
-	ctx->challenge.may_be_modified	= false;
 	ctx->challenge.data		= data_blob(NULL, 0);
 	ctx->methods			= NULL;
 	ctx->event_ctx			= ev;
@@ -473,12 +576,11 @@ _PUBLIC_ NTSTATUS auth_context_create_methods(TALLOC_CTX *mem_ctx, const char **
 		DLIST_ADD_END(ctx->methods, method, struct auth_method_context *);
 	}
 
-	ctx->check_password = auth_check_password;
-	ctx->get_challenge = auth_get_challenge;
-	ctx->set_challenge = auth_context_set_challenge;
-	ctx->challenge_may_be_modified = auth_challenge_may_be_modified;
-	ctx->get_user_info_dc_principal = auth_get_user_info_dc_principal;
+	ctx->check_ntlm_password = auth_check_password_wrapper;
+	ctx->get_ntlm_challenge = auth_get_challenge;
+	ctx->set_ntlm_challenge = auth_context_set_challenge;
 	ctx->generate_session_info = auth_generate_session_info_wrapper;
+	ctx->generate_session_info_pac = auth_generate_session_info_pac;
 
 	*auth_ctx = ctx;
 
@@ -487,19 +589,22 @@ _PUBLIC_ NTSTATUS auth_context_create_methods(TALLOC_CTX *mem_ctx, const char **
 
 const char **auth_methods_from_lp(TALLOC_CTX *mem_ctx, struct loadparm_context *lp_ctx)
 {
-	const char **auth_methods = NULL;
+	char **auth_methods = NULL;
+
 	switch (lpcfg_server_role(lp_ctx)) {
 	case ROLE_STANDALONE:
-		auth_methods = lpcfg_parm_string_list(mem_ctx, lp_ctx, NULL, "auth methods", "standalone", NULL);
+		auth_methods = str_list_make(mem_ctx, "anonymous sam_ignoredomain", NULL);
 		break;
 	case ROLE_DOMAIN_MEMBER:
-		auth_methods = lpcfg_parm_string_list(mem_ctx, lp_ctx, NULL, "auth methods", "member server", NULL);
+		auth_methods = str_list_make(mem_ctx, "anonymous sam winbind", NULL);
 		break;
-	case ROLE_DOMAIN_CONTROLLER:
-		auth_methods = lpcfg_parm_string_list(mem_ctx, lp_ctx, NULL, "auth methods", "domain controller", NULL);
+	case ROLE_DOMAIN_BDC:
+	case ROLE_DOMAIN_PDC:
+	case ROLE_ACTIVE_DIRECTORY_DC:
+		auth_methods = str_list_make(mem_ctx, "anonymous sam_ignoredomain winbind", NULL);
 		break;
 	}
-	return auth_methods;
+	return (const char **) auth_methods;
 }
 
 /***************************************************************************
@@ -508,9 +613,9 @@ const char **auth_methods_from_lp(TALLOC_CTX *mem_ctx, struct loadparm_context *
 ***************************************************************************/
 _PUBLIC_ NTSTATUS auth_context_create(TALLOC_CTX *mem_ctx,
 			     struct tevent_context *ev,
-			     struct messaging_context *msg,
+			     struct imessaging_context *msg,
 			     struct loadparm_context *lp_ctx,
-			     struct auth_context **auth_ctx)
+			     struct auth4_context **auth_ctx)
 {
 	NTSTATUS status;
 	const char **auth_methods;
@@ -524,32 +629,6 @@ _PUBLIC_ NTSTATUS auth_context_create(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 	status = auth_context_create_methods(mem_ctx, auth_methods, ev, msg, lp_ctx, NULL, auth_ctx);
-	talloc_free(tmp_ctx);
-	return status;
-}
-
-/* Create an auth context from an open LDB.
-
-   This allows us not to re-open the LDB when we need to do a some authentication logic (such as tokenGroups)
-
- */
-NTSTATUS auth_context_create_from_ldb(TALLOC_CTX *mem_ctx, struct ldb_context *ldb, struct auth_context **auth_ctx)
-{
-	NTSTATUS status;
-	const char **auth_methods;
-	struct loadparm_context *lp_ctx = talloc_get_type_abort(ldb_get_opaque(ldb, "loadparm"), struct loadparm_context);
-	struct tevent_context *ev = ldb_get_event_context(ldb);
-
-	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
-	if (!tmp_ctx) {
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	auth_methods = auth_methods_from_lp(tmp_ctx, lp_ctx);
-	if (!auth_methods) {
-		return NT_STATUS_INVALID_PARAMETER;
-	}
-	status = auth_context_create_methods(mem_ctx, auth_methods, ev, NULL, lp_ctx, ldb, auth_ctx);
 	talloc_free(tmp_ctx);
 	return status;
 }
@@ -620,10 +699,10 @@ const struct auth_operations *auth_backend_byname(const char *name)
 const struct auth_critical_sizes *auth_interface_version(void)
 {
 	static const struct auth_critical_sizes critical_sizes = {
-		AUTH_INTERFACE_VERSION,
+		AUTH4_INTERFACE_VERSION,
 		sizeof(struct auth_operations),
 		sizeof(struct auth_method_context),
-		sizeof(struct auth_context),
+		sizeof(struct auth4_context),
 		sizeof(struct auth_usersupplied_info),
 		sizeof(struct auth_user_info_dc)
 	};

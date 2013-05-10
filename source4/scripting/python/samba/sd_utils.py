@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-#
 # Utility methods for security descriptor manipulation
 #
 # Copyright Nadezhda Ivanova 2010 <nivanova@samba.org>
@@ -18,22 +16,24 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+"""Utility methods for security descriptor manipulation."""
+
 import samba
 from ldb import Message, MessageElement, Dn
 from ldb import FLAG_MOD_REPLACE, SCOPE_BASE
 from samba.ndr import ndr_pack, ndr_unpack
 from samba.dcerpc import security
 
-class SDUtils:
-    '''Some utilities for manipulation of security descriptors
-    on objects'''
+
+class SDUtils(object):
+    """Some utilities for manipulation of security descriptors on objects."""
 
     def __init__(self, samdb):
         self.ldb = samdb
         self.domain_sid = security.dom_sid(self.ldb.get_domain_sid())
 
     def modify_sd_on_dn(self, object_dn, sd, controls=None):
-        """ Modify security descriptor using either SDDL string
+        """Modify security descriptor using either SDDL string
             or security.descriptor object
         """
         m = Message()
@@ -60,20 +60,21 @@ class SDUtils:
         return ndr_unpack(security.dom_sid, res[0]["objectSid"][0])
 
     def dacl_add_ace(self, object_dn, ace):
-        """ Adds an ACE to an objects security descriptor
+        """Add an ACE to an objects security descriptor
         """
         desc = self.read_sd_on_dn(object_dn)
         desc_sddl = desc.as_sddl(self.domain_sid)
         if ace in desc_sddl:
             return
         if desc_sddl.find("(") >= 0:
-            desc_sddl = desc_sddl[:desc_sddl.index("(")] + ace + desc_sddl[desc_sddl.index("("):]
+            desc_sddl = (desc_sddl[:desc_sddl.index("(")] + ace +
+                         desc_sddl[desc_sddl.index("("):])
         else:
             desc_sddl = desc_sddl + ace
         self.modify_sd_on_dn(object_dn, desc_sddl)
 
     def get_sd_as_sddl(self, object_dn, controls=None):
-        """ Return object nTSecutiryDescriptor in SDDL format
+        """Return object nTSecutiryDescriptor in SDDL format
         """
         desc = self.read_sd_on_dn(object_dn, controls=controls)
         return desc.as_sddl(self.domain_sid)

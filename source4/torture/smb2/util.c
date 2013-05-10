@@ -23,6 +23,7 @@
 #include "libcli/security/security_descriptor.h"
 #include "libcli/smb2/smb2.h"
 #include "libcli/smb2/smb2_calls.h"
+#include "../libcli/smb/smbXcli_base.h"
 #include "lib/cmdline/popt_common.h"
 #include "system/time.h"
 #include "librpc/gen_ndr/ndr_security.h"
@@ -30,6 +31,7 @@
 #include "libcli/resolve/resolve.h"
 
 #include "torture/torture.h"
+#include "torture/smb2/proto.h"
 
 
 /*
@@ -258,11 +260,94 @@ void torture_smb2_all_info(struct smb2_tree *tree, struct smb2_handle handle)
 	talloc_free(tmp_ctx);	
 }
 
+/**
+ * open a smb2 tree connect
+ */
+bool torture_smb2_tree_connect(struct torture_context *tctx,
+			       struct smb2_session *session,
+			       TALLOC_CTX *mem_ctx,
+			       struct smb2_tree **_tree)
+{
+	NTSTATUS status;
+	const char *host = torture_setting_string(tctx, "host", NULL);
+	const char *share = torture_setting_string(tctx, "share", NULL);
+	struct smb2_tree_connect tcon;
+	struct smb2_tree *tree;
+
+	ZERO_STRUCT(tcon);
+	tcon.in.reserved = 0;
+	tcon.in.path = talloc_asprintf(tctx, "\\\\%s\\%s", host, share);
+	if (tcon.in.path == NULL) {
+		printf("talloc failed\n");
+		return false;
+	}
+
+	status = smb2_tree_connect(session, &tcon);
+	if (!NT_STATUS_IS_OK(status)) {
+		printf("Failed to tree_connect to SMB2 share \\\\%s\\%s - %s\n",
+		       host, share, nt_errstr(status));
+		return false;
+	}
+
+	tree = smb2_tree_init(session, mem_ctx, true);
+	if (tree == NULL) {
+		printf("talloc failed\n");
+		return false;
+	}
+
+	smb2cli_tcon_set_values(tree->smbXcli,
+				tree->session->smbXcli,
+				tcon.out.tid,
+				tcon.out.share_type,
+				tcon.out.flags,
+				tcon.out.capabilities,
+				tcon.out.access_mask);
+
+	*_tree = tree;
+
+	return true;
+}
+
+/**
+ * do a smb2 session setup (without a tree connect)
+ */
+bool torture_smb2_session_setup(struct torture_context *tctx,
+				struct smb2_transport *transport,
+				uint64_t previous_session_id,
+				TALLOC_CTX *mem_ctx,
+				struct smb2_session **_session)
+{
+	NTSTATUS status;
+	struct smb2_session *session;
+	struct cli_credentials *credentials = cmdline_credentials;
+
+	session = smb2_session_init(transport,
+				    lpcfg_gensec_settings(tctx, tctx->lp_ctx),
+				    mem_ctx, true);
+
+	if (session == NULL) {
+		return false;
+	}
+
+	status = smb2_session_setup_spnego(session, credentials,
+					   previous_session_id);
+	if (!NT_STATUS_IS_OK(status)) {
+		printf("session setup failed: %s\n", nt_errstr(status));
+		talloc_free(session);
+		return false;
+	}
+
+	*_session = session;
+
+	return true;
+}
 
 /*
   open a smb2 connection
 */
-bool torture_smb2_connection(struct torture_context *tctx, struct smb2_tree **tree)
+bool torture_smb2_connection_ext(struct torture_context *tctx,
+				 uint64_t previous_session_id,
+				 struct smb2_tree **tree)
 {
 	NTSTATUS status;
 	const char *host = torture_setting_string(tctx, "host", NULL);
@@ -272,12 +357,16 @@ bool torture_smb2_connection(struct torture_context *tctx, struct smb2_tree **tr
 
 	lpcfg_smbcli_options(tctx->lp_ctx, &options);
 
-	status = smb2_connect(tctx, host, 
-						  lpcfg_smb_ports(tctx->lp_ctx),
-						  share, 
-			      lpcfg_resolve_context(tctx->lp_ctx),
-			      credentials, tree, 
-			      tctx->ev, &options,
+	status = smb2_connect_ext(tctx,
+				  host,
+				  lpcfg_smb_ports(tctx->lp_ctx),
+				  share,
+				  lpcfg_resolve_context(tctx->lp_ctx),
+				  credentials,
+				  previous_session_id,
+				  tree,
+				  tctx->ev,
+				  &options,
 				  lpcfg_socket_options(tctx->lp_ctx),
 				  lpcfg_gensec_settings(tctx, tctx->lp_ctx)
 				  );
@@ -289,6 +378,15 @@ bool torture_smb2_connection(struct torture_context *tctx, struct smb2_tree **tr
 	return true;
 }
 
+bool torture_smb2_connection(struct torture_context *tctx, struct smb2_tree **tree)
+{
+	bool ret;
+
+	ret = torture_smb2_connection_ext(tctx, 0, tree);
+
+	return ret;
+}
+
 
 /*
   create and return a handle to a test file
@@ -297,7 +395,6 @@ NTSTATUS torture_smb2_testfile(struct smb2_tree *tree, const char *fname,
 			       struct smb2_handle *handle)
 {
 	struct smb2_create io;
-	struct smb2_read r;
 	NTSTATUS status;
 
 	ZERO_STRUCT(io);
@@ -316,14 +413,6 @@ NTSTATUS torture_smb2_testfile(struct smb2_tree *tree, const char *fname,
 	NT_STATUS_NOT_OK_RETURN(status);
 
 	*handle = io.out.file.handle;
-
-	ZERO_STRUCT(r);
-	r.in.file.handle = *handle;
-	r.in.length      = 5;
-	r.in.offset      = 0;
-
-	// What is the purpose of this? Server returns EOF.
-	smb2_read(tree, tree, &r);
 
 	return NT_STATUS_OK;
 }
@@ -489,7 +578,7 @@ bool smb2_util_verify_attrib(TALLOC_CTX *tctx, struct smb2_tree *tree,
 	status = smb2_getinfo_file(tree, tctx, &q);
 	CHECK_STATUS(status, NT_STATUS_OK);
 
-	q.all_info2.out.attrib &= ~FILE_ATTRIBUTE_ARCHIVE;
+	q.all_info2.out.attrib &= ~(FILE_ATTRIBUTE_ARCHIVE | FILE_ATTRIBUTE_NONINDEXED);
 
 	if (q.all_info2.out.attrib != attrib) {
 		torture_warning(tctx, "%s: attributes don't match! "
@@ -503,4 +592,153 @@ bool smb2_util_verify_attrib(TALLOC_CTX *tctx, struct smb2_tree *tree,
 	return ret;
 }
 
+
+uint32_t smb2_util_lease_state(const char *ls)
+{
+	uint32_t val = 0;
+	int i;
+
+	for (i = 0; i < strlen(ls); i++) {
+		switch (ls[i]) {
+		case 'R':
+			val |= SMB2_LEASE_READ;
+			break;
+		case 'H':
+			val |= SMB2_LEASE_HANDLE;
+			break;
+		case 'W':
+			val |= SMB2_LEASE_WRITE;
+			break;
+		}
+	}
+
+	return val;
+}
+
+
+uint32_t smb2_util_share_access(const char *sharemode)
+{
+	uint32_t val = NTCREATEX_SHARE_ACCESS_NONE; /* 0 */
+	int i;
+
+	for (i = 0; i < strlen(sharemode); i++) {
+		switch(sharemode[i]) {
+		case 'R':
+			val |= NTCREATEX_SHARE_ACCESS_READ;
+			break;
+		case 'W':
+			val |= NTCREATEX_SHARE_ACCESS_WRITE;
+			break;
+		case 'D':
+			val |= NTCREATEX_SHARE_ACCESS_DELETE;
+			break;
+		}
+	}
+
+	return val;
+}
+
+uint8_t smb2_util_oplock_level(const char *op)
+{
+	uint8_t val = SMB2_OPLOCK_LEVEL_NONE;
+	int i;
+
+	for (i = 0; i < strlen(op); i++) {
+		switch (op[i]) {
+		case 's':
+			return SMB2_OPLOCK_LEVEL_II;
+		case 'x':
+			return SMB2_OPLOCK_LEVEL_EXCLUSIVE;
+		case 'b':
+			return SMB2_OPLOCK_LEVEL_BATCH;
+		default:
+			continue;
+		}
+	}
+
+	return val;
+}
+
+/**
+ * Helper functions to fill a smb2_create struct for several
+ * open scenarios.
+ */
+void smb2_generic_create_share(struct smb2_create *io, struct smb2_lease *ls,
+			       bool dir, const char *name, uint32_t disposition,
+			       uint32_t share_access,
+			       uint8_t oplock, uint64_t leasekey,
+			       uint32_t leasestate)
+{
+	ZERO_STRUCT(*io);
+	io->in.security_flags		= 0x00;
+	io->in.oplock_level		= oplock;
+	io->in.impersonation_level	= NTCREATEX_IMPERSONATION_IMPERSONATION;
+	io->in.create_flags		= 0x00000000;
+	io->in.reserved			= 0x00000000;
+	io->in.desired_access		= SEC_RIGHTS_FILE_ALL;
+	io->in.file_attributes		= FILE_ATTRIBUTE_NORMAL;
+	io->in.share_access		= share_access;
+	io->in.create_disposition	= disposition;
+	io->in.create_options		= NTCREATEX_OPTIONS_SEQUENTIAL_ONLY |
+					  NTCREATEX_OPTIONS_ASYNC_ALERT	|
+					  NTCREATEX_OPTIONS_NON_DIRECTORY_FILE |
+					  0x00200000;
+	io->in.fname			= name;
+
+	if (dir) {
+		io->in.create_options = NTCREATEX_OPTIONS_DIRECTORY;
+		io->in.share_access &= ~NTCREATEX_SHARE_ACCESS_DELETE;
+		io->in.file_attributes = FILE_ATTRIBUTE_DIRECTORY;
+		io->in.create_disposition = NTCREATEX_DISP_CREATE;
+	}
+
+	if (ls) {
+		ZERO_STRUCT(*ls);
+		ls->lease_key.data[0] = leasekey;
+		ls->lease_key.data[1] = ~leasekey;
+		ls->lease_state = leasestate;
+		io->in.lease_request = ls;
+	}
+}
+
+void smb2_generic_create(struct smb2_create *io, struct smb2_lease *ls,
+			 bool dir, const char *name, uint32_t disposition,
+			 uint8_t oplock, uint64_t leasekey,
+			 uint32_t leasestate)
+{
+	smb2_generic_create_share(io, ls, dir, name, disposition,
+				  smb2_util_share_access("RWD"),
+				  oplock,
+				  leasekey, leasestate);
+}
+
+void smb2_lease_create_share(struct smb2_create *io, struct smb2_lease *ls,
+			     bool dir, const char *name, uint32_t share_access,
+			     uint64_t leasekey, uint32_t leasestate)
+{
+	smb2_generic_create_share(io, ls, dir, name, NTCREATEX_DISP_OPEN_IF,
+				  share_access, SMB2_OPLOCK_LEVEL_LEASE,
+				  leasekey, leasestate);
+}
+
+void smb2_lease_create(struct smb2_create *io, struct smb2_lease *ls,
+		       bool dir, const char *name, uint64_t leasekey,
+		       uint32_t leasestate)
+{
+	smb2_lease_create_share(io, ls, dir, name,
+				smb2_util_share_access("RWD"),
+				leasekey, leasestate);
+}
+
+void smb2_oplock_create_share(struct smb2_create *io, const char *name,
+			      uint32_t share_access, uint8_t oplock)
+{
+	smb2_generic_create_share(io, NULL, false, name, NTCREATEX_DISP_OPEN_IF,
+				  share_access, oplock, 0, 0);
+}
+void smb2_oplock_create(struct smb2_create *io, const char *name, uint8_t oplock)
+{
+	smb2_oplock_create_share(io, name, smb2_util_share_access("RWD"),
+				 oplock);
+}
 

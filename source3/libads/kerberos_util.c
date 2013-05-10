@@ -21,38 +21,9 @@
 #include "includes.h"
 #include "smb_krb5.h"
 #include "ads.h"
+#include "lib/param/loadparm.h"
 
 #ifdef HAVE_KRB5
-
-/**
- * Set the machine account password
- * @param ads connection to ads server
- * @param hostname machine whose password is being set
- * @param password new password
- * @return status of password change
- **/
-ADS_STATUS ads_set_machine_password(ADS_STRUCT *ads,
-				    const char *machine_account,
-				    const char *password)
-{
-	ADS_STATUS status;
-	char *principal = NULL;
-
-	/*
-	  we need to use the '$' form of the name here (the machine account name),
-	  as otherwise the server might end up setting the password for a user
-	  instead
-	 */
-	if (asprintf(&principal, "%s@%s", machine_account, ads->config.realm) < 0) {
-		return ADS_ERROR_NT(NT_STATUS_NO_MEMORY);
-	}
-
-	status = ads_krb5_set_password(ads->auth.kdc_server, principal,
-				       password, ads->auth.time_offset);
-
-	SAFE_FREE(principal);
-	return status;
-}
 
 /* run kinit to setup our ccache */
 int ads_kinit_password(ADS_STRUCT *ads)
@@ -72,13 +43,13 @@ int ads_kinit_password(ADS_STRUCT *ads)
 		account_name = lp_workgroup();
 	} else {
 		/* always use the sAMAccountName for security = domain */
-		/* global_myname()$@REA.LM */
+		/* lp_netbios_name()$@REA.LM */
 		if ( lp_security() == SEC_DOMAIN ) {
-			fstr_sprintf( acct_name, "%s$", global_myname() );
+			fstr_sprintf( acct_name, "%s$", lp_netbios_name() );
 			account_name = acct_name;
 		}
 		else
-			/* This looks like host/global_myname()@REA.LM */
+			/* This looks like host/lp_netbios_name()@REA.LM */
 			account_name = ads->auth.user_name;
 	}
 
@@ -92,9 +63,11 @@ int ads_kinit_password(ADS_STRUCT *ads)
 		return KRB5_LIBOS_CANTREADPWD;
 	}
 
-	ret = kerberos_kinit_password_ext(s, ads->auth.password, ads->auth.time_offset,
-			&ads->auth.tgt_expire, NULL, NULL, False, False, ads->auth.renewable,
-			NULL);
+	ret = kerberos_kinit_password_ext(s, ads->auth.password,
+					  ads->auth.time_offset,
+					  &ads->auth.tgt_expire, NULL,
+					  ads->auth.ccache_name, false, false,
+					  ads->auth.renewable, NULL);
 
 	if (ret) {
 		DEBUG(0,("kerberos_kinit_password %s failed: %s\n",

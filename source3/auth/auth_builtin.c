@@ -57,7 +57,7 @@ static NTSTATUS auth_init_guest(struct auth_context *auth_context, const char *o
 {
 	struct auth_methods *result;
 
-	result = TALLOC_ZERO_P(auth_context, struct auth_methods);
+	result = talloc_zero(auth_context, struct auth_methods);
 	if (result == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -97,11 +97,15 @@ static NTSTATUS check_name_to_ntstatus_security(const struct auth_context *auth_
 	fstrcpy(user, user_info->client.account_name);
 
 	if (strnequal("NT_STATUS", user, strlen("NT_STATUS"))) {
-		strupper_m(user);
+		if (!strupper_m(user)) {
+			return NT_STATUS_INVALID_PARAMETER;
+		}
 		return nt_status_string_to_code(user);
 	}
 
-	strlower_m(user);
+	if (!strlower_m(user)) {
+		return NT_STATUS_INVALID_PARAMETER;
+	}
 	error_num = strtoul(user, NULL, 16);
 
 	DEBUG(5,("check_name_to_ntstatus_security: Error for user %s was %lx\n", user, error_num));
@@ -117,7 +121,7 @@ static NTSTATUS auth_init_name_to_ntstatus(struct auth_context *auth_context, co
 {
 	struct auth_methods *result;
 
-	result = TALLOC_ZERO_P(auth_context, struct auth_methods);
+	result = talloc_zero(auth_context, struct auth_methods);
 	if (result == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -128,67 +132,12 @@ static NTSTATUS auth_init_name_to_ntstatus(struct auth_context *auth_context, co
 	return NT_STATUS_OK;
 }
 
-/** 
- * Return a 'fixed' challenge instead of a variable one.
- *
- * The idea of this function is to make packet snifs consistant
- * with a fixed challenge, so as to aid debugging.
- *
- * This module is of no value to end-users.
- *
- * This module does not actually authenticate the user, but
- * just pretenteds to need a specified challenge.  
- * This module removes *all* security from the challenge-response system
- *
- * @return NT_STATUS_UNSUCCESSFUL
- **/
-
-static NTSTATUS check_fixed_challenge_security(const struct auth_context *auth_context,
-					       void *my_private_data, 
-					       TALLOC_CTX *mem_ctx,
-					       const struct auth_usersupplied_info *user_info,
-					       struct auth_serversupplied_info **server_info)
-{
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
-
-/****************************************************************************
- Get the challenge out of a password server.
-****************************************************************************/
-
-static DATA_BLOB auth_get_fixed_challenge(const struct auth_context *auth_context,
-					  void **my_private_data, 
-					  TALLOC_CTX *mem_ctx)
-{
-	const char *challenge = "I am a teapot";   
-	return data_blob(challenge, 8);
-}
-
-
-/** Module initialisation function */
-
-static NTSTATUS auth_init_fixed_challenge(struct auth_context *auth_context, const char *param, auth_methods **auth_method) 
-{
-	struct auth_methods *result;
-
-	result = TALLOC_ZERO_P(auth_context, struct auth_methods);
-	if (result == NULL) {
-		return NT_STATUS_NO_MEMORY;
-	}
-	result->auth = check_fixed_challenge_security;
-	result->get_chal = auth_get_fixed_challenge;
-	result->name = "fixed_challenge";
-
-	*auth_method = result;
-	return NT_STATUS_OK;
-}
 #endif /* DEVELOPER */
 
 NTSTATUS auth_builtin_init(void)
 {
 	smb_register_auth(AUTH_INTERFACE_VERSION, "guest", auth_init_guest);
 #ifdef DEVELOPER
-	smb_register_auth(AUTH_INTERFACE_VERSION, "fixed_challenge", auth_init_fixed_challenge);
 	smb_register_auth(AUTH_INTERFACE_VERSION, "name_to_ntstatus", auth_init_name_to_ntstatus);
 #endif
 	return NT_STATUS_OK;

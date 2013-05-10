@@ -21,6 +21,7 @@
 #include "smb_krb5.h"
 #include "secrets.h"
 #include "gse_krb5.h"
+#include "lib/param/loadparm.h"
 
 #ifdef HAVE_KRB5
 
@@ -90,12 +91,15 @@ static krb5_error_code get_host_principal(krb5_context krbctx,
 	char *host_princ_s = NULL;
 	int err;
 
-	err = asprintf(&host_princ_s, "%s$@%s", global_myname(), lp_realm());
+	err = asprintf(&host_princ_s, "%s$@%s", lp_netbios_name(), lp_realm());
 	if (err == -1) {
 		return -1;
 	}
 
-	strlower_m(host_princ_s);
+	if (!strlower_m(host_princ_s)) {
+		SAFE_FREE(host_princ_s);
+		return -1;
+	}
 	ret = smb_krb5_parse_name(krbctx, host_princ_s, host_princ);
 	if (ret) {
 		DEBUG(1, (__location__ ": smb_krb5_parse_name(%s) "
@@ -169,8 +173,8 @@ out:
 #define SRV_MEM_KEYTAB_NAME "MEMORY:cifs_srv_keytab"
 #define CLEARTEXT_PRIV_ENCTYPE -99
 
-static krb5_error_code get_mem_keytab_from_secrets(krb5_context krbctx,
-						   krb5_keytab *keytab)
+static krb5_error_code fill_mem_keytab_from_secrets(krb5_context krbctx,
+						    krb5_keytab *keytab)
 {
 	krb5_error_code ret;
 	char *pwd = NULL;
@@ -193,16 +197,6 @@ static krb5_error_code get_mem_keytab_from_secrets(krb5_context krbctx,
 		return KRB5_LIBOS_CANTREADPWD;
 	}
 	pwd_len = strlen(pwd);
-
-	if (*keytab == NULL) {
-		/* create memory keytab */
-		ret = krb5_kt_resolve(krbctx, SRV_MEM_KEYTAB_NAME, keytab);
-		if (ret) {
-			DEBUG(1, (__location__ ": Failed to get memory "
-				  "keytab!\n"));
-			return ret;
-		}
-	}
 
 	ZERO_STRUCT(kt_entry);
 	ZERO_STRUCT(kt_cursor);
@@ -280,7 +274,7 @@ static krb5_error_code get_mem_keytab_from_secrets(krb5_context krbctx,
 		goto out;
 	}
 
-	pwd_old = secrets_fetch_machine_password(lp_workgroup(), NULL, NULL);
+	pwd_old = secrets_fetch_prev_machine_password(lp_workgroup());
 	if (!pwd_old) {
 		DEBUG(10, (__location__ ": no prev machine password\n"));
 	} else {
@@ -331,55 +325,298 @@ out:
 		krb5_free_principal(krbctx, princ);
 	}
 
+	return ret;
+}
+
+static krb5_error_code fill_mem_keytab_from_system_keytab(krb5_context krbctx,
+							  krb5_keytab *mkeytab)
+{
+	krb5_error_code ret = 0;
+	krb5_keytab keytab = NULL;
+	krb5_kt_cursor kt_cursor;
+	krb5_keytab_entry kt_entry;
+	char *valid_princ_formats[7] = { NULL, NULL, NULL,
+					 NULL, NULL, NULL, NULL };
+	char *entry_princ_s = NULL;
+	fstring my_name, my_fqdn;
+	int i;
+	int err;
+
+	/* Generate the list of principal names which we expect
+	 * clients might want to use for authenticating to the file
+	 * service.  We allow name$,{host,cifs}/{name,fqdn,name.REALM}. */
+
+	fstrcpy(my_name, lp_netbios_name());
+
+	my_fqdn[0] = '\0';
+	name_to_fqdn(my_fqdn, lp_netbios_name());
+
+	err = asprintf(&valid_princ_formats[0],
+			"%s$@%s", my_name, lp_realm());
+	if (err == -1) {
+		ret = ENOMEM;
+		goto out;
+	}
+	err = asprintf(&valid_princ_formats[1],
+			"host/%s@%s", my_name, lp_realm());
+	if (err == -1) {
+		ret = ENOMEM;
+		goto out;
+	}
+	err = asprintf(&valid_princ_formats[2],
+			"host/%s@%s", my_fqdn, lp_realm());
+	if (err == -1) {
+		ret = ENOMEM;
+		goto out;
+	}
+	err = asprintf(&valid_princ_formats[3],
+			"host/%s.%s@%s", my_name, lp_realm(), lp_realm());
+	if (err == -1) {
+		ret = ENOMEM;
+		goto out;
+	}
+	err = asprintf(&valid_princ_formats[4],
+			"cifs/%s@%s", my_name, lp_realm());
+	if (err == -1) {
+		ret = ENOMEM;
+		goto out;
+	}
+	err = asprintf(&valid_princ_formats[5],
+			"cifs/%s@%s", my_fqdn, lp_realm());
+	if (err == -1) {
+		ret = ENOMEM;
+		goto out;
+	}
+	err = asprintf(&valid_princ_formats[6],
+			"cifs/%s.%s@%s", my_name, lp_realm(), lp_realm());
+	if (err == -1) {
+		ret = ENOMEM;
+		goto out;
+	}
+
+	ZERO_STRUCT(kt_entry);
+	ZERO_STRUCT(kt_cursor);
+
+	ret = smb_krb5_open_keytab(krbctx, NULL, false, &keytab);
 	if (ret) {
-		if (*keytab) {
-			krb5_kt_close(krbctx, *keytab);
-			*keytab = NULL;
+		DEBUG(1, (__location__ ": smb_krb5_open_keytab failed (%s)\n",
+			  error_message(ret)));
+		goto out;
+	}
+
+	/*
+	 * Iterate through the keytab.  For each key, if the principal
+	 * name case-insensitively matches one of the allowed formats,
+	 * copy it to the memory keytab.
+	 */
+
+	ret = krb5_kt_start_seq_get(krbctx, keytab, &kt_cursor);
+	if (ret) {
+		DEBUG(1, (__location__ ": krb5_kt_start_seq_get failed (%s)\n",
+			  error_message(ret)));
+		goto out;
+	}
+
+	while ((krb5_kt_next_entry(krbctx, keytab,
+				   &kt_entry, &kt_cursor) == 0)) {
+		ret = smb_krb5_unparse_name(talloc_tos(), krbctx,
+					    kt_entry.principal,
+					    &entry_princ_s);
+		if (ret) {
+			DEBUG(1, (__location__ ": smb_krb5_unparse_name "
+				  "failed (%s)\n", error_message(ret)));
+			goto out;
 		}
+
+		for (i = 0; i < ARRAY_SIZE(valid_princ_formats); i++) {
+
+			if (!strequal(entry_princ_s, valid_princ_formats[i])) {
+				continue;
+			}
+
+			ret = krb5_kt_add_entry(krbctx, *mkeytab, &kt_entry);
+			if (ret) {
+				DEBUG(1, (__location__ ": smb_krb5_unparse_name "
+					  "failed (%s)\n", error_message(ret)));
+				goto out;
+			}
+		}
+
+		/* Free the name we parsed. */
+		TALLOC_FREE(entry_princ_s);
+
+		/* Free the entry we just read. */
+		smb_krb5_kt_free_entry(krbctx, &kt_entry);
+		ZERO_STRUCT(kt_entry);
+	}
+	krb5_kt_end_seq_get(krbctx, keytab, &kt_cursor);
+
+	ZERO_STRUCT(kt_cursor);
+
+out:
+
+	for (i = 0; i < ARRAY_SIZE(valid_princ_formats); i++) {
+		SAFE_FREE(valid_princ_formats[i]);
+	}
+
+	TALLOC_FREE(entry_princ_s);
+
+	{
+		krb5_keytab_entry zero_kt_entry;
+		ZERO_STRUCT(zero_kt_entry);
+		if (memcmp(&zero_kt_entry, &kt_entry,
+			   sizeof(krb5_keytab_entry))) {
+			smb_krb5_kt_free_entry(krbctx, &kt_entry);
+		}
+	}
+
+	{
+		krb5_kt_cursor zero_csr;
+		ZERO_STRUCT(zero_csr);
+		if ((memcmp(&kt_cursor, &zero_csr,
+			    sizeof(krb5_kt_cursor)) != 0) && keytab) {
+			krb5_kt_end_seq_get(krbctx, keytab, &kt_cursor);
+		}
+	}
+
+	if (keytab) {
+		krb5_kt_close(krbctx, keytab);
 	}
 
 	return ret;
 }
 
-static krb5_error_code get_mem_keytab_from_system_keytab(krb5_context krbctx,
-							 krb5_keytab *keytab,
-							 bool verify)
+static krb5_error_code fill_mem_keytab_from_dedicated_keytab(krb5_context krbctx,
+							     krb5_keytab *mkeytab)
 {
-	return KRB5_KT_NOTFOUND;
+	krb5_error_code ret = 0;
+	krb5_keytab keytab = NULL;
+	krb5_kt_cursor kt_cursor;
+	krb5_keytab_entry kt_entry;
+
+	ZERO_STRUCT(kt_entry);
+	ZERO_STRUCT(kt_cursor);
+
+	ret = smb_krb5_open_keytab(krbctx, lp_dedicated_keytab_file(),
+				   false, &keytab);
+	if (ret) {
+		DEBUG(1, (__location__ ": smb_krb5_open_keytab failed (%s)\n",
+			  error_message(ret)));
+		goto out;
+	}
+
+	/*
+	 * Iterate through the keytab.  For each key, if the principal
+	 * name case-insensitively matches one of the allowed formats,
+	 * copy it to the memory keytab.
+	 */
+
+	ret = krb5_kt_start_seq_get(krbctx, keytab, &kt_cursor);
+	if (ret) {
+		DEBUG(1, (__location__ ": krb5_kt_start_seq_get failed (%s)\n",
+			  error_message(ret)));
+		goto out;
+	}
+
+	while ((krb5_kt_next_entry(krbctx, keytab,
+				   &kt_entry, &kt_cursor) == 0)) {
+
+		ret = krb5_kt_add_entry(krbctx, *mkeytab, &kt_entry);
+		if (ret) {
+			DEBUG(1, (__location__ ": smb_krb5_unparse_name "
+				  "failed (%s)\n", error_message(ret)));
+			goto out;
+		}
+
+		/* Free the entry we just read. */
+		smb_krb5_kt_free_entry(krbctx, &kt_entry);
+		ZERO_STRUCT(kt_entry);
+	}
+	krb5_kt_end_seq_get(krbctx, keytab, &kt_cursor);
+
+	ZERO_STRUCT(kt_cursor);
+
+out:
+
+	{
+		krb5_keytab_entry zero_kt_entry;
+		ZERO_STRUCT(zero_kt_entry);
+		if (memcmp(&zero_kt_entry, &kt_entry,
+			   sizeof(krb5_keytab_entry))) {
+			smb_krb5_kt_free_entry(krbctx, &kt_entry);
+		}
+	}
+
+	{
+		krb5_kt_cursor zero_csr;
+		ZERO_STRUCT(zero_csr);
+		if ((memcmp(&kt_cursor, &zero_csr,
+			    sizeof(krb5_kt_cursor)) != 0) && keytab) {
+			krb5_kt_end_seq_get(krbctx, keytab, &kt_cursor);
+		}
+	}
+
+	if (keytab) {
+		krb5_kt_close(krbctx, keytab);
+	}
+
+	return ret;
 }
 
 krb5_error_code gse_krb5_get_server_keytab(krb5_context krbctx,
 					   krb5_keytab *keytab)
 {
-	krb5_error_code ret;
+	krb5_error_code ret = 0;
+	krb5_error_code ret1 = 0;
+	krb5_error_code ret2 = 0;
 
 	*keytab = NULL;
+
+	/* create memory keytab */
+	ret = krb5_kt_resolve(krbctx, SRV_MEM_KEYTAB_NAME, keytab);
+	if (ret) {
+		DEBUG(1, (__location__ ": Failed to get memory "
+			  "keytab!\n"));
+		return ret;
+	}
 
 	switch (lp_kerberos_method()) {
 	default:
 	case KERBEROS_VERIFY_SECRETS:
-		ret = get_mem_keytab_from_secrets(krbctx, keytab);
+		ret = fill_mem_keytab_from_secrets(krbctx, keytab);
 		break;
 	case KERBEROS_VERIFY_SYSTEM_KEYTAB:
-		ret = get_mem_keytab_from_system_keytab(krbctx, keytab, true);
+		ret = fill_mem_keytab_from_system_keytab(krbctx, keytab);
 		break;
 	case KERBEROS_VERIFY_DEDICATED_KEYTAB:
 		/* just use whatever keytab is configured */
-		ret = get_mem_keytab_from_system_keytab(krbctx, keytab, false);
+		ret = fill_mem_keytab_from_dedicated_keytab(krbctx, keytab);
 		break;
 	case KERBEROS_VERIFY_SECRETS_AND_KEYTAB:
-		ret = get_mem_keytab_from_secrets(krbctx, keytab);
-		if (ret) {
+		ret1 = fill_mem_keytab_from_secrets(krbctx, keytab);
+		if (ret1) {
 			DEBUG(3, (__location__ ": Warning! Unable to set mem "
 				  "keytab from secrets!\n"));
 		}
 		/* Now append system keytab keys too */
-		ret = get_mem_keytab_from_system_keytab(krbctx, keytab, true);
-		if (ret) {
+		ret2 = fill_mem_keytab_from_system_keytab(krbctx, keytab);
+		if (ret2) {
 			DEBUG(3, (__location__ ": Warning! Unable to set mem "
-				  "keytab from secrets!\n"));
+				  "keytab from system keytab!\n"));
+		}
+		if (ret1 == 0 || ret2 == 0) {
+			ret = 0;
+		} else {
+			ret = ret1;
 		}
 		break;
+	}
+
+	if (ret) {
+		krb5_kt_close(krbctx, *keytab);
+		*keytab = NULL;
+		DEBUG(1,("%s: Error! Unable to set mem keytab - %d\n",
+			 __location__, ret));
 	}
 
 	return ret;

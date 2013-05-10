@@ -149,9 +149,6 @@ static NTSTATUS pvfs_map_fileinfo(struct pvfs_state *pvfs,
 				  int fd)
 {
 	switch (info->generic.level) {
-	case RAW_FILEINFO_GENERIC:
-		return NT_STATUS_INVALID_LEVEL;
-
 	case RAW_FILEINFO_GETATTR:
 		info->getattr.out.attrib     = name->dos.attrib;
 		info->getattr.out.size       = name->st.st_size;
@@ -225,7 +222,7 @@ static NTSTATUS pvfs_map_fileinfo(struct pvfs_state *pvfs,
 
 	case RAW_FILEINFO_NAME_INFO:
 	case RAW_FILEINFO_NAME_INFORMATION:
-		if (req->ctx->protocol == PROTOCOL_SMB2) {
+		if (req->ctx->protocol >= PROTOCOL_SMB2_02) {
 			/* strange that SMB2 doesn't have this */
 			return NT_STATUS_NOT_SUPPORTED;
 		}
@@ -333,6 +330,12 @@ static NTSTATUS pvfs_map_fileinfo(struct pvfs_state *pvfs,
 							      name->original_name);
 		NT_STATUS_HAVE_NO_MEMORY(info->all_info2.out.fname.s);
 		return NT_STATUS_OK;
+
+	case RAW_FILEINFO_GENERIC:
+	case RAW_FILEINFO_UNIX_BASIC:
+	case RAW_FILEINFO_UNIX_INFO2:
+	case RAW_FILEINFO_UNIX_LINK:
+		return NT_STATUS_INVALID_LEVEL;
 	}
 
 	return NT_STATUS_INVALID_LEVEL;

@@ -68,6 +68,8 @@ struct wbsrv_domain {
 
 	struct dcerpc_pipe *netlogon_pipe;
 	struct dcerpc_binding *netlogon_binding;
+	/* netlogon_creds usage needs to be queued */
+	struct tevent_queue *netlogon_queue;
 };
 
 /*
@@ -104,7 +106,7 @@ struct wbsrv_connection {
 
 #define WBSRV_SAMBA3_SET_STRING(dest, src) do { \
 	memset(dest, 0, sizeof(dest));\
-	safe_strcpy(dest, src, sizeof(dest)-1);\
+	strlcpy((dest), (src) ? (src) : "", sizeof(dest));\
 } while(0)
 
 /*

@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-#
 # Manipulate ACLs on directory objects
 #
 # Copyright (C) Nadezhda Ivanova <nivanova@samba.org> 2010
@@ -44,10 +42,12 @@ from samba.netcmd import (
     Option,
     )
 
-class cmd_ds_acl_set(Command):
-    """Modify access list on a directory object"""
 
-    synopsis = "set --objectdn=objectdn --car=control right --action=[deny|allow] --trusteedn=trustee-dn"
+
+class cmd_dsacl_set(Command):
+    """Modify access list on a directory object."""
+
+    synopsis = "%prog [options]"
     car_help = """ The access control right to allow or deny """
 
     takes_optiongroups = {
@@ -57,8 +57,8 @@ class cmd_ds_acl_set(Command):
         }
 
     takes_options = [
-        Option("--host", help="LDB URL for database or target server",
-            type=str),
+        Option("-H", "--URL", help="LDB URL for database or target server",
+               type=str, metavar="URL", dest="H"),
         Option("--car", type="choice", choices=["change-rid",
                                                 "change-pdc",
                                                 "change-infrastructure",
@@ -132,11 +132,11 @@ class cmd_ds_acl_set(Command):
     def print_new_acl(self, samdb, object_dn):
         desc = self.read_descriptor(samdb, object_dn)
         desc_sddl = desc.as_sddl(self.get_domain_sid(samdb))
-        print "new descriptor for %s:" % object_dn
-        print desc_sddl
+        self.outf.write("new descriptor for %s:\n" % object_dn)
+        self.outf.write(desc_sddl + "\n")
 
     def run(self, car, action, objectdn, trusteedn, sddl,
-            host=None, credopts=None, sambaopts=None, versionopts=None):
+            H=None, credopts=None, sambaopts=None, versionopts=None):
         lp = sambaopts.get_loadparm()
         creds = credopts.get_credentials(lp)
 
@@ -144,7 +144,7 @@ class cmd_ds_acl_set(Command):
                              or objectdn is None or trusteedn is None):
             return self.usage()
 
-        samdb = SamDB(url=host, session_info=system_session(),
+        samdb = SamDB(url=H, session_info=system_session(),
             credentials=creds, lp=lp)
         cars = {'change-rid' : GUID_DRS_CHANGE_RID_MASTER,
                 'change-pdc' : GUID_DRS_CHANGE_PDC,
@@ -175,8 +175,8 @@ class cmd_ds_acl_set(Command):
         self.print_new_acl(samdb, objectdn)
 
 
-class cmd_ds_acl(SuperCommand):
-    """DS ACLs manipulation"""
+class cmd_dsacl(SuperCommand):
+    """DS ACLs manipulation."""
 
     subcommands = {}
-    subcommands["set"] = cmd_ds_acl_set()
+    subcommands["set"] = cmd_dsacl_set()

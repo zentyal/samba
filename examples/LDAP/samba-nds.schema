@@ -35,7 +35,7 @@ attributeTypes: ( 1.3.6.1.4.1.7165.2.1.25 NAME 'sambaNTPassword' DESC 'MD4 hash 
 dn: cn=schema
 changetype: modify
 add: attributetypes
-attributeTypes: ( 1.3.6.1.4.1.7165.2.1.26 NAME 'sambaAcctFlags' DESC 'Account Flags' EQUALITY caseIgnoreIA5Match SUBSTR caseIgnoreSubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.26{16} SINGLE-VALUE )
+attributeTypes: ( 1.3.6.1.4.1.7165.2.1.26 NAME 'sambaAcctFlags' DESC 'Account Flags' EQUALITY caseIgnoreIA5Match SYNTAX 1.3.6.1.4.1.1466.115.121.1.26{16} SINGLE-VALUE )
 
 ##
 ## Password timestamps & policies
@@ -128,7 +128,7 @@ attributeTypes: ( 1.3.6.1.4.1.7165.2.1.47 NAME 'sambaMungedDial' DESC 'Base64 en
 dn: cn=schema
 changetype: modify
 add: attributetypes
-attributeTypes: ( 1.3.6.1.4.1.7165.2.1.54 NAME 'sambaPasswordHistory' DESC 'Concatenated MD4 hashes of the unicode passwords used on this account' EQUALITY caseIgnoreIA5Match SYNTAX 1.3.6.1.4.1.1466.115.121.1.26{1024} )
+attributeTypes: ( 1.3.6.1.4.1.7165.2.1.54 NAME 'sambaPasswordHistory' DESC 'Concatenated MD5 hashes of the salted NT passwords used on this account' EQUALITY caseIgnoreIA5Match SYNTAX 1.3.6.1.4.1.1466.115.121.1.26{1024} )
 
 ##
 ## SID, of any type
@@ -137,7 +137,7 @@ attributeTypes: ( 1.3.6.1.4.1.7165.2.1.54 NAME 'sambaPasswordHistory' DESC 'Conc
 dn: cn=schema
 changetype: modify
 add: attributetypes
-attributeTypes: ( 1.3.6.1.4.1.7165.2.1.20 NAME 'sambaSID' DESC 'Security ID' EQUALITY caseIgnoreIA5Match SUBSTR caseIgnoreSubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.26{64} SINGLE-VALUE )
+attributeTypes: ( 1.3.6.1.4.1.7165.2.1.20 NAME 'sambaSID' DESC 'Security ID' EQUALITY caseIgnoreIA5Match SUBSTR caseExactIA5SubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.26{64} SINGLE-VALUE )
 
 ##
 ## Primary group SID, compatible with ntSid
@@ -287,6 +287,16 @@ attributeTypes: ( 1.3.6.1.4.1.7165.2.1.67 NAME 'sambaRefuseMachinePwdChange' DES
 dn: cn=schema
 changetype: modify
 add: attributetypes
+attributeTypes: ( 1.3.6.1.4.1.7165.2.1.68 NAME 'sambaClearTextPassword' DESC 'Clear text password (used for trusted domain passwords)' EQUALITY octetStringMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.40 )
+
+dn: cn=schema
+changetype: modify
+add: attributetypes
+attributeTypes:  ( 1.3.6.1.4.1.7165.2.1.69 NAME 'sambaPreviousClearTextPassword' DESC 'Previous clear text password (used for trusted domain passwords)' EQUALITY octetStringMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.40 )
+
+dn: cn=schema
+changetype: modify
+add: attributetypes
 attributeTypes: ( 1.3.6.1.4.1.7165.2.1.70 NAME 'sambaTrustType' DESC 'Type of trust' EQUALITY integerMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 SINGLE-VALUE )
 
 dn: cn=schema
@@ -329,6 +339,16 @@ changetype: modify
 add: attributetypes
 attributeTypes: ( 1.3.6.1.4.1.7165.2.1.78 NAME 'sambaTrustForestTrustInfo' DESC 'Forest trust information for a trusted domain object' EQUALITY caseExactMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15{1050} )
 
+dn: cn=schema
+changetype: modify
+add: attributetypes
+attributeTypes: ( 1.3.6.1.4.1.7165.2.1.79 NAME 'sambaTrustPosixOffset' DESC 'POSIX offset of a trust' EQUALITY integerMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 SINGLE-VALUE )
+
+dn: cn=schema
+changetype: modify
+add: attributetypes
+attributeTypes: ( 1.3.6.1.4.1.7165.2.1.80 NAME 'sambaSupportedEncryptionTypes' DESC 'Supported encryption types of a trust' EQUALITY integerMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 SINGLE-VALUE )
+
 #######################################################################
 ##              objectClasses used by Samba 3.0 schema               ##
 #######################################################################
@@ -357,6 +377,16 @@ add: objectClasses
 objectClasses: ( 1.3.6.1.4.1.7165.2.2.14 NAME 'sambaTrustPassword' DESC 'Samba Trust Password' SUP top STRUCTURAL MUST ( sambaDomainName $ sambaNTPassword $ sambaTrustFlags ) MAY ( sambaSID $ sambaPwdLastSet ))
 
 ##
+## Trust password for trusted domains
+## (to be stored beneath the trusting sambaDomain object in the DIT)
+##
+
+dn: cn=schema
+changetype: modify
+add: objectClasses
+objectClasses: ( 1.3.6.1.4.1.7165.2.2.15 NAME 'sambaTrustedDomainPassword' SUP top STRUCTURAL DESC 'Samba Trusted Domain Password' MUST ( sambaDomainName $ sambaSID $ sambaClearTextPassword $ sambaPwdLastSet ) MAY  ( sambaPreviousClearTextPassword ))
+
+##
 ## Whole-of-domain info
 ##
 
@@ -372,22 +402,22 @@ objectClasses: ( 1.3.6.1.4.1.7165.2.2.5 NAME 'sambaDomain' DESC 'Samba Domain In
 dn: cn=schema
 changetype: modify
 add: objectClasses
-objectClasses: ( 1.3.6.1.4.1.7165.2.2.7 NAME 'sambaUnixIdPool' DESC 'Pool for allocating UNIX uids/gids' SUP top AUXILIARY MUST ( uidNumber $ gidNumber ))
+objectClasses: ( 1.3.6.1.4.1.7165.1.2.2.7 NAME 'sambaUnixIdPool' DESC 'Pool for allocating UNIX uids/gids' SUP top AUXILIARY MUST ( uidNumber $ gidNumber ))
 
 dn: cn=schema
 changetype: modify
 add: objectClasses
-objectClasses: ( 1.3.6.1.4.1.7165.2.2.8 NAME 'sambaIdmapEntry' DESC 'Mapping from a SID to an ID' SUP top AUXILIARY MUST ( sambaSID ) MAY ( uidNumber $ gidNumber ))
+objectClasses: ( 1.3.6.1.4.1.7165.1.2.2.8 NAME 'sambaIdmapEntry' DESC 'Mapping from a SID to an ID' SUP top AUXILIARY MUST ( sambaSID ) MAY ( uidNumber $ gidNumber ))
 
 dn: cn=schema
 changetype: modify
 add: objectClasses
-objectClasses: ( 1.3.6.1.4.1.7165.2.2.9 NAME 'sambaSidEntry' DESC 'Structural Class for a SID' SUP top STRUCTURAL MUST ( sambaSID ))
+objectClasses: ( 1.3.6.1.4.1.7165.1.2.2.9 NAME 'sambaSidEntry' DESC 'Structural Class for a SID' SUP top STRUCTURAL MUST ( sambaSID ))
 
 dn: cn=schema
 changetype: modify
 add: objectClasses
-objectClasses: ( 1.3.6.1.4.1.7165.2.2.10 NAME 'sambaConfig' DESC 'Samba Configuration Section' SUP top AUXILIARY MAY ( description ))
+objectClasses: ( 1.3.6.1.4.1.7165.1.2.2.10 NAME 'sambaConfig' DESC 'Samba Configuration Section' SUP top AUXILIARY MAY ( description ))
 
 dn: cn=schema
 changetype: modify
@@ -407,4 +437,4 @@ objectClasses: ( 1.3.6.1.4.1.7165.2.2.13 NAME 'sambaPrivilege' DESC 'Samba Privi
 dn: cn=schema
 changetype: modify
 add: objectClasses
-objectClasses: ( 1.3.6.1.4.1.7165.2.2.16 NAME 'sambaTrustedDomain' SUP top STRUCTURAL DESC 'Samba Trusted Domain Object' MUST ( cn ) MAY ( sambaTrustType $ sambaTrustAttributes $ sambaTrustDirection $ sambaTrustPartner $ sambaFlatName $ sambaTrustAuthOutgoing $ sambaTrustAuthIncoming $ sambaSecurityIdentifier $ sambaTrustForestTrustInfo ) )
+objectClasses: ( 1.3.6.1.4.1.7165.2.2.16 NAME 'sambaTrustedDomain' SUP top STRUCTURAL DESC 'Samba Trusted Domain Object' MUST ( cn ) MAY ( sambaTrustType $ sambaTrustAttributes $ sambaTrustDirection $ sambaTrustPartner $ sambaFlatName $ sambaTrustAuthOutgoing $ sambaTrustAuthIncoming $ sambaSecurityIdentifier $ sambaTrustForestTrustInfo $ sambaTrustPosixOffset $ sambaSupportedEncryptionTypes ) )

@@ -16,13 +16,17 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+#include "includes.h"
+#include "libnet/libnet.h"
 
 struct libnet_export_keytab {
 	struct {
 		const char *keytab_name;
+		const char *principal;
 	} in;
 	struct {
 		const char *error_string;
 	} out;
 };
 
+NTSTATUS libnet_export_keytab(struct libnet_context *ctx, TALLOC_CTX *mem_ctx, struct libnet_export_keytab *r);

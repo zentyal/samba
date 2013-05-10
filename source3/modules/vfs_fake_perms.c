@@ -29,8 +29,6 @@
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_VFS
 
-extern struct current_user current_user;
-
 static int fake_perms_stat(vfs_handle_struct *handle,
 			   struct smb_filename *smb_fname)
 {
@@ -43,18 +41,8 @@ static int fake_perms_stat(vfs_handle_struct *handle,
 		} else {
 			smb_fname->st.st_ex_mode = S_IRWXU;
 		}
-		if (handle->conn->session_info != NULL) {
-			smb_fname->st.st_ex_uid =
-				handle->conn->session_info->utok.uid;
-			smb_fname->st.st_ex_gid =
-				handle->conn->session_info->utok.gid;
-		} else {
-			/*
-			 * Sucks, but current_user is the best we can do here.
-			 */
-			smb_fname->st.st_ex_uid = current_user.ut.uid;
-			smb_fname->st.st_ex_gid = current_user.ut.gid;
-		}
+		smb_fname->st.st_ex_uid = handle->conn->session_info->unix_token->uid;
+		smb_fname->st.st_ex_gid = handle->conn->session_info->unix_token->gid;
 	}
 
 	return ret;
@@ -71,25 +59,15 @@ static int fake_perms_fstat(vfs_handle_struct *handle, files_struct *fsp, SMB_ST
 		} else {
 			sbuf->st_ex_mode = S_IRWXU;
 		}
-		if (handle->conn->session_info != NULL) {
-			sbuf->st_ex_uid =
-				handle->conn->session_info->utok.uid;
-			sbuf->st_ex_gid =
-				handle->conn->session_info->utok.gid;
-		} else {
-			/*
-			 * Sucks, but current_user is the best we can do here.
-			 */
-			sbuf->st_ex_uid = current_user.ut.uid;
-			sbuf->st_ex_gid = current_user.ut.gid;
-		}
+		sbuf->st_ex_uid = handle->conn->session_info->unix_token->uid;
+		sbuf->st_ex_gid = handle->conn->session_info->unix_token->gid;
 	}
 	return ret;
 }
 
 static struct vfs_fn_pointers vfs_fake_perms_fns = {
-	.stat = fake_perms_stat,
-	.fstat = fake_perms_fstat
+	.stat_fn = fake_perms_stat,
+	.fstat_fn = fake_perms_fstat
 };
 
 NTSTATUS vfs_fake_perms_init(void);

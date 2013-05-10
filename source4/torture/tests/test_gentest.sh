@@ -18,8 +18,8 @@ PREFIX=$5
 shift 5
 failed=0
 
-samba4bindir="$BUILDDIR/bin"
-gentest="$samba4bindir/gentest$EXEEXT"
+samba4bindir="$BINDIR"
+gentest="$samba4bindir/gentest"
 
 . `dirname $0`/../../../testprogs/blackbox/subunit.sh
 

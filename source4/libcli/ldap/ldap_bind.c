@@ -27,6 +27,7 @@
 #include "libcli/ldap/ldap_client.h"
 #include "lib/tls/tls.h"
 #include "auth/gensec/gensec.h"
+#include "auth/gensec/gensec_socket.h"
 #include "auth/credentials/credentials.h"
 #include "lib/stream/packet.h"
 #include "param/param.h"
@@ -221,10 +222,9 @@ _PUBLIC_ NTSTATUS ldap_bind_sasl(struct ldap_connection *conn,
 		NULL 
 	};
 
-	gensec_init(lp_ctx);
+	gensec_init();
 
 	status = gensec_client_start(conn, &conn->gensec,
-				     conn->event.event_ctx, 
 				     lpcfg_gensec_settings(conn, lp_ctx));
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("Failed to start GENSEC engine (%s)\n", nt_errstr(status)));
@@ -318,6 +318,7 @@ _PUBLIC_ NTSTATUS ldap_bind_sasl(struct ldap_connection *conn,
 		int result = LDAP_OTHER;
 	
 		status = gensec_update(conn->gensec, tmp_ctx,
+				       conn->event.event_ctx,
 				       input,
 				       &output);
 		/* The status value here, from GENSEC is vital to the security

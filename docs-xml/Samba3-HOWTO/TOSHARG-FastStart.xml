@@ -182,7 +182,8 @@ of the packages that are provided by the operating system vendor or through othe
 <smbconfsection name="[global]"/>
 <smbconfoption name="workgroup">MIDEARTH</smbconfoption>
 <smbconfoption name="netbios name">HOBBIT</smbconfoption>
-<smbconfoption name="security">share</smbconfoption>
+<smbconfoption name="security">user</smbconfoption>
+<smbconfoption name="map to guest">bad user</smbconfoption>
 
 <smbconfsection name="[data]"/>
 <smbconfoption name="comment">Data</smbconfoption>
@@ -220,7 +221,8 @@ Press enter to see a dump of your service definitions
 [global]
 	workgroup = MIDEARTH
 	netbios name = HOBBIT
-	security = share
+	security = user
+	map to guest = bad user
 
 [data]
 	comment = Data
@@ -286,7 +288,8 @@ Added user jackb.
 <smbconfsection name="[global]"/>
 <smbconfoption name="workgroup">MIDEARTH</smbconfoption>
 <smbconfoption name="netbios name">HOBBIT</smbconfoption>
-<smbconfoption name="security">SHARE</smbconfoption>
+<smbconfoption name="security">USER</smbconfoption>
+<smbconfoption name="map to guest">bad user</smbconfoption>
 
 <smbconfsection name="[data]"/>
 <smbconfoption name="comment">Data</smbconfoption>
@@ -340,10 +343,7 @@ Added user jackb.
 <smbconfsection name="[global]"/>
 <smbconfoption name="workgroup">MIDEARTH</smbconfoption>
 <smbconfoption name="netbios name">LUTHIEN</smbconfoption>
-<smbconfoption name="security">share</smbconfoption>
-<smbconfoption name="printcap name">cups</smbconfoption>
-<smbconfoption name="disable spoolss">Yes</smbconfoption>
-<smbconfoption name="show add printer wizard">No</smbconfoption>
+<smbconfoption name="security">user</smbconfoption>
 <smbconfoption name="printing">cups</smbconfoption>
 
 <smbconfsection name="[printers]"/>
@@ -444,10 +444,8 @@ Added user jackb.
 		is the default, and for which the default is to store Microsoft Windows-compatible
 		encrypted passwords in a file called <filename>/etc/samba/smbpasswd</filename>.
 		The default &smb.conf; entry that makes this happen is
-		<smbconfoption name="passdb backend">smbpasswd, guest</smbconfoption>. Since this is the default,
-		it is not necessary to enter it into the configuration file. Note that the guest backend is
-		added to the list of active passdb backends no matter whether it specified directly in Samba configuration
-		file or not.
+		<smbconfoption name="passdb backend">smbpasswd</smbconfoption>. Since this is the default,
+		it is not necessary to enter it into the configuration file.
 		</para>
 
 
@@ -474,8 +472,6 @@ Added user jackb.
 <smbconfsection name="[global]"/>
 <smbconfoption name="workgroup">MIDEARTH</smbconfoption>
 <smbconfoption name="netbios name">OLORIN</smbconfoption>
-<smbconfoption name="printcap name">cups</smbconfoption>
-<smbconfoption name="disable spoolss">Yes</smbconfoption>
 <smbconfoption name="show add printer wizard">No</smbconfoption>
 <smbconfoption name="printing">cups</smbconfoption>
 
@@ -495,7 +491,6 @@ Added user jackb.
 <smbconfsection name="[printers]"/>
 <smbconfoption name="comment">All Printers</smbconfoption>
 <smbconfoption name="path">/var/spool/samba</smbconfoption>
-<smbconfoption name="printer admin">root, maryo</smbconfoption>
 <smbconfoption name="create mask">0600</smbconfoption>
 <smbconfoption name="guest ok">Yes</smbconfoption>
 <smbconfoption name="printable">Yes</smbconfoption>
@@ -729,7 +724,6 @@ smb: \> <userinput>q</userinput>
 <smbconfsection name="[printers]"/>
 <smbconfoption name="comment">All Printers</smbconfoption>
 <smbconfoption name="path">/var/spool/samba</smbconfoption>
-<smbconfoption name="printer admin">root, maryo</smbconfoption>
 <smbconfoption name="create mask">0600</smbconfoption>
 <smbconfoption name="guest ok">Yes</smbconfoption>
 <smbconfoption name="printable">Yes</smbconfoption>
@@ -961,7 +955,6 @@ maryo:x:15000:15003:Mary Orville:/home/MIDEARTH/maryo:/bin/false
 <smbconfsection name="[printers]"/>
 <smbconfoption name="comment">All Printers</smbconfoption>
 <smbconfoption name="path">/var/spool/samba</smbconfoption>
-<smbconfoption name="printer admin">root, maryo</smbconfoption>
 <smbconfoption name="create mask">0600</smbconfoption>
 <smbconfoption name="guest ok">Yes</smbconfoption>
 <smbconfoption name="printable">Yes</smbconfoption>
@@ -971,7 +964,6 @@ maryo:x:15000:15003:Mary Orville:/home/MIDEARTH/maryo:/bin/false
 <smbconfoption name="comment">Printer Drivers Share</smbconfoption>
 <smbconfoption name="path">/var/lib/samba/drivers</smbconfoption>
 <smbconfoption name="write list">maryo, root</smbconfoption>
-<smbconfoption name="printer admin">maryo, root</smbconfoption>
 
 <smbconfcomment>Needed to support domain logons</smbconfcomment>
 <smbconfsection name="[netlogon]"/>

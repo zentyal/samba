@@ -38,6 +38,19 @@
 #include "dsdb/common/util.h"
 
 
+static int subtree_delete_sort(struct ldb_message **m1,
+			       struct ldb_message **m2,
+			       void *private_data)
+{
+	struct ldb_dn *dn1 = (*m1)->dn;
+	struct ldb_dn *dn2 = (*m2)->dn;
+
+	/*
+	 * This sorts in tree order, children first
+	 */
+	return ldb_dn_compare(dn1, dn2);
+}
+
 static int subtree_delete(struct ldb_module *module, struct ldb_request *req)
 {
 	static const char * const attrs[] = { NULL };
@@ -61,34 +74,52 @@ static int subtree_delete(struct ldb_module *module, struct ldb_request *req)
 		talloc_free(res);
 		return ret;
 	}
-	if (res->count > 0) {
-		if (ldb_request_get_control(req, LDB_CONTROL_TREE_DELETE_OID) == NULL) {
-			/* Do not add any DN outputs to this error string!
-			 * Some MMC consoles (eg release 2000) have a strange
-			 * bug and prevent subtree deletes afterwards. */
-			ldb_asprintf_errstring(ldb_module_get_ctx(module),
-					       "subtree_delete: Unable to "
-					       "delete a non-leaf node "
-					       "(it has %u children)!",
-					       res->count);
-			talloc_free(res);
-			return LDB_ERR_NOT_ALLOWED_ON_NON_LEAF;
-		}
+	if (res->count == 0) {
+		talloc_free(res);
+		return ldb_next_request(module, req);
+	}
 
-		/* we need to start from the top since other LDB modules could
-		 * enforce constraints (eg "objectclass" and "samldb" do so). */
-		flags = DSDB_FLAG_TOP_MODULE | DSDB_TREE_DELETE;
-		if (ldb_request_get_control(req, LDB_CONTROL_RELAX_OID) != NULL) {
-			flags |= DSDB_MODIFY_RELAX;
-		}
+	if (ldb_request_get_control(req, LDB_CONTROL_TREE_DELETE_OID) == NULL) {
+		/* Do not add any DN outputs to this error string!
+		 * Some MMC consoles (eg release 2000) have a strange
+		 * bug and prevent subtree deletes afterwards. */
+		ldb_asprintf_errstring(ldb_module_get_ctx(module),
+				       "subtree_delete: Unable to "
+				       "delete a non-leaf node "
+				       "(it has %u children)!",
+				       res->count);
+		talloc_free(res);
+		return LDB_ERR_NOT_ALLOWED_ON_NON_LEAF;
+	}
 
-		for (i = 0; i < res->count; i++) {
-			ret = dsdb_module_del(module, res->msgs[i]->dn, flags, req);
-			if (ret != LDB_SUCCESS) {
-				return ret;
-			}
+	/*
+	 * First we sort the results from the leaf to the root
+	 */
+	LDB_TYPESAFE_QSORT(res->msgs, res->count, NULL,
+			   subtree_delete_sort);
+
+	/*
+	 * we need to start from the top since other LDB modules could
+	 * enforce constraints (eg "objectclass" and "samldb" do so).
+	 *
+	 * We pass DSDB_FLAG_AS_SYSTEM as the acl module above us
+	 * has already checked for SEC_ADS_DELETE_TREE.
+	 */
+	flags = DSDB_FLAG_TOP_MODULE |
+		DSDB_FLAG_AS_SYSTEM |
+		DSDB_FLAG_TRUSTED |
+		DSDB_TREE_DELETE;
+	if (ldb_request_get_control(req, LDB_CONTROL_RELAX_OID) != NULL) {
+		flags |= DSDB_MODIFY_RELAX;
+	}
+
+	for (i = 0; i < res->count; i++) {
+		ret = dsdb_module_del(module, res->msgs[i]->dn, flags, req);
+		if (ret != LDB_SUCCESS) {
+			return ret;
 		}
 	}
+
 	talloc_free(res);
 
 	return ldb_next_request(module, req);

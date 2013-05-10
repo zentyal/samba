@@ -42,6 +42,7 @@ from samba import Ldb, read_and_sub_file, setup_file
 from samba.credentials import Credentials, DONT_USE_KERBEROS
 from samba.schema import Schema
 
+
 class SlapdAlreadyRunning(Exception):
 
     def __init__(self, uri):
@@ -51,7 +52,43 @@ class SlapdAlreadyRunning(Exception):
             self.ldapi_uri)
 
 
+class BackendResult(object):
+
+    def report_logger(self, logger):
+        """Rerport this result to a particular logger.
+
+        """
+        raise NotImplementedError(self.report_logger)
+
+
+class LDAPBackendResult(BackendResult):
+
+    def __init__(self, credentials, slapd_command_escaped, ldapdir):
+        self.credentials = credentials
+        self.slapd_command_escaped = slapd_command_escaped
+        self.ldapdir = ldapdir
+
+    def report_logger(self, logger):
+        if self.credentials.get_bind_dn() is not None:
+            logger.info("LDAP Backend Admin DN: %s" %
+                self.credentials.get_bind_dn())
+        else:
+            logger.info("LDAP Admin User:       %s" %
+                self.credentials.get_username())
+
+        if self.slapd_command_escaped is not None:
+            # now display slapd_command_file.txt to show how slapd must be
+            # started next time
+            logger.info(
+                "Use later the following commandline to start slapd, then Samba:")
+            logger.info(self.slapd_command_escaped)
+            logger.info(
+                "This slapd-Commandline is also stored under: %s/ldap_backend_startup.sh",
+                self.ldapdir)
+
+
 class ProvisionBackend(object):
+
     def __init__(self, backend_type, paths=None, lp=None,
             credentials=None, names=None, logger=None):
         """Provision a backend for samba4"""
@@ -79,7 +116,10 @@ class ProvisionBackend(object):
         raise NotImplementedError(self.shutdown)
 
     def post_setup(self):
-        """Post setup."""
+        """Post setup.
+
+        :return: A BackendResult or None
+        """
         raise NotImplementedError(self.post_setup)
 
 
@@ -133,7 +173,7 @@ class LDAPBackend(ProvisionBackend):
                  credentials=None, names=None, logger=None, domainsid=None,
                  schema=None, hostname=None, ldapadminpass=None,
                  slapd_path=None, ldap_backend_extra_port=None,
-                 ldap_backend_forced_uri=None, ldap_dryrun_mode=False):
+                 ldap_backend_forced_uri=None, ldap_dryrun_mode=True):
 
         super(LDAPBackend, self).__init__(backend_type=backend_type,
                 paths=paths, lp=lp,
@@ -178,9 +218,11 @@ class LDAPBackend(ProvisionBackend):
                 if err != errno.ENOENT:
                     raise
             else:
-                p = f.read()
-                f.close()
-                self.logger.info("Check for slapd Process with PID: %s and terminate it manually." % p)
+                try:
+                    p = f.read()
+                finally:
+                    f.close()
+                self.logger.info("Check for slapd process with PID: %s and terminate it manually." % p)
             raise SlapdAlreadyRunning(self.ldap_uri)
         except LdbError:
             # XXX: We should never be catching all Ldb errors
@@ -278,7 +320,8 @@ class LDAPBackend(ProvisionBackend):
             self.slapd.communicate()
 
     def post_setup(self):
-        pass
+        return LDAPBackendResult(self.credentials, self.slapd_command_escaped,
+                    self.ldapdir)
 
 
 class OpenLDAPBackend(LDAPBackend):
@@ -286,7 +329,7 @@ class OpenLDAPBackend(LDAPBackend):
     def __init__(self, backend_type, paths=None, lp=None,
             credentials=None, names=None, logger=None, domainsid=None,
             schema=None, hostname=None, ldapadminpass=None, slapd_path=None,
-            ldap_backend_extra_port=None, ldap_dryrun_mode=False,
+            ldap_backend_extra_port=None, ldap_dryrun_mode=True,
             ol_mmr_urls=None, nosync=False, ldap_backend_forced_uri=None):
         from samba.provision import setup_path
         super(OpenLDAPBackend, self).__init__( backend_type=backend_type,
@@ -341,7 +384,7 @@ class OpenLDAPBackend(LDAPBackend):
         lnkattr = self.schema.linked_attributes()
         refint_attributes = ""
         memberof_config = "# Generated from Samba4 schema\n"
-        for att in  lnkattr.keys():
+        for att in lnkattr.keys():
             if lnkattr[att] is not None:
                 refint_attributes = refint_attributes + " " + att
 
@@ -495,8 +538,11 @@ class OpenLDAPBackend(LDAPBackend):
         backend_schema = "backend-schema.schema"
 
         f = open(setup_path(mapping), 'r')
-        backend_schema_data = self.schema.convert_to_openldap(
-                "openldap", f.read())
+        try:
+            backend_schema_data = self.schema.convert_to_openldap(
+                    "openldap", f.read())
+        finally:
+            f.close()
         assert backend_schema_data is not None
         f = open(os.path.join(self.ldapdir, backend_schema), 'w')
         try:
@@ -568,7 +614,7 @@ class FDSBackend(LDAPBackend):
     def __init__(self, backend_type, paths=None, lp=None,
             credentials=None, names=None, logger=None, domainsid=None,
             schema=None, hostname=None, ldapadminpass=None, slapd_path=None,
-            ldap_backend_extra_port=None, ldap_dryrun_mode=False, root=None,
+            ldap_backend_extra_port=None, ldap_dryrun_mode=True, root=None,
             setup_ds_path=None):
 
         from samba.provision import setup_path
@@ -659,7 +705,11 @@ class FDSBackend(LDAPBackend):
 
         lnkattr = self.schema.linked_attributes()
 
-        refint_config = open(setup_path("fedorads-refint-delete.ldif"), 'r').read()
+        f = open(setup_path("fedorads-refint-delete.ldif"), 'r')
+        try:
+            refint_config = f.read()
+        finally:
+            f.close()
         memberof_config = ""
         index_config = ""
         argnum = 3
@@ -678,8 +728,16 @@ class FDSBackend(LDAPBackend):
                     setup_path("fedorads-index.ldif"), { "ATTR" : attr })
                 argnum += 1
 
-        open(self.refint_ldif, 'w').write(refint_config)
-        open(self.linked_attrs_ldif, 'w').write(memberof_config)
+        f = open(self.refint_ldif, 'w')
+        try:
+            f.write(refint_config)
+        finally:
+            f.close()
+        f = open(self.linked_attrs_ldif, 'w')
+        try:
+            f.write(memberof_config)
+        finally:
+            f.close()
 
         attrs = ["lDAPDisplayName"]
         res = self.schema.ldb.search(expression="(&(objectclass=attributeSchema)(searchFlags:1.2.840.113556.1.4.803:=1))", base=self.names.schemadn, scope=SCOPE_ONELEVEL, attrs=attrs)
@@ -693,7 +751,11 @@ class FDSBackend(LDAPBackend):
             index_config += read_and_sub_file(
                 setup_path("fedorads-index.ldif"), { "ATTR" : attr })
 
-        open(self.index_ldif, 'w').write(index_config)
+        f = open(self.index_ldif, 'w')
+        try:
+            f.write(index_config)
+        finally:
+            f.close()
 
         setup_file(setup_path("fedorads-samba.ldif"), self.samba_ldif, {
             "SAMBADN": self.sambadn,
@@ -704,8 +766,12 @@ class FDSBackend(LDAPBackend):
         backend_schema = "99_ad.ldif"
 
         # Build a schema file in Fedora DS format
-        backend_schema_data = self.schema.convert_to_openldap("fedora-ds",
-            open(setup_path(mapping), 'r').read())
+        f = open(setup_path(mapping), 'r')
+        try:
+            backend_schema_data = self.schema.convert_to_openldap("fedora-ds",
+                f.read())
+        finally:
+            f.close()
         assert backend_schema_data is not None
         f = open(os.path.join(self.ldapdir, backend_schema), 'w')
         try:
@@ -770,3 +836,5 @@ class FDSBackend(LDAPBackend):
                          self.names.schemadn):
             m.dn = ldb.Dn(ldapi_db, dnstring)
             ldapi_db.modify(m)
+        return LDAPBackendResult(self.credentials, self.slapd_command_escaped,
+            self.ldapdir)

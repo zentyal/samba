@@ -1,25 +1,23 @@
-#!/usr/bin/env python
-
 # Unix SMB/CIFS implementation.
 # Copyright (C) Jelmer Vernooij <jelmer@samba.org> 2007
-#   
+#
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 3 of the License, or
 # (at your option) any later version.
-#   
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-#   
+#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-"""Tests for the Credentials Python bindings. 
+"""Tests for the Credentials Python bindings.
 
-Note that this just tests the bindings work. It does not intend to test 
+Note that this just tests the bindings work. It does not intend to test
 the functionality, that's already done in other tests.
 """
 
@@ -80,7 +78,7 @@ class CredentialsTests(samba.tests.TestCase):
 
     def test_get_nt_hash(self):
         self.creds.set_password("geheim")
-        self.assertEquals('\xc2\xae\x1f\xe6\xe6H\x84cRE>\x81o*\xeb\x93', 
+        self.assertEquals('\xc2\xae\x1f\xe6\xe6H\x84cRE>\x81o*\xeb\x93',
                           self.creds.get_nt_hash())
 
     def test_guess(self):

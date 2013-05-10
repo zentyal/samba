@@ -25,6 +25,24 @@
 #include "smbd/globals.h"
 #include "../libcli/security/security.h"
 
+struct print_file_data {
+	char *svcname;
+	char *docname;
+	char *filename;
+	struct policy_handle handle;
+	uint32_t jobid;
+	uint16 rap_jobid;
+};
+
+uint16_t print_spool_rap_jobid(struct print_file_data *print_file)
+{
+	if (print_file == NULL) {
+		return 0;
+	}
+
+	return print_file->rap_jobid;
+}
+
 void print_spool_terminate(struct connection_struct *conn,
 			   struct print_file_data *print_file);
 
@@ -39,7 +57,7 @@ void print_spool_terminate(struct connection_struct *conn,
 
 NTSTATUS print_spool_open(files_struct *fsp,
 			  const char *fname,
-			  uint16_t current_vuid)
+			  uint64_t current_vuid)
 {
 	NTSTATUS status;
 	TALLOC_CTX *tmp_ctx;
@@ -60,7 +78,7 @@ NTSTATUS print_spool_open(files_struct *fsp,
 		status = NT_STATUS_NO_MEMORY;
 		goto done;
 	}
-	pf->svcname = talloc_strdup(pf, lp_servicename(SNUM(fsp->conn)));
+	pf->svcname = lp_servicename(pf, SNUM(fsp->conn));
 
 	/* the document name is derived from the file name.
 	 * "Remote Downlevel Document" is added in front to
@@ -100,7 +118,8 @@ NTSTATUS print_spool_open(files_struct *fsp,
 	 */
 
 	pf->filename = talloc_asprintf(pf, "%s/%sXXXXXX",
-					lp_pathname(SNUM(fsp->conn)),
+					lp_pathname(talloc_tos(),
+						    SNUM(fsp->conn)),
 					PRINT_SPOOL_PREFIX);
 	if (!pf->filename) {
 		status = NT_STATUS_NO_MEMORY;
@@ -132,7 +151,7 @@ NTSTATUS print_spool_open(files_struct *fsp,
 	status = rpc_pipe_open_interface(fsp->conn,
 					 &ndr_table_spoolss.syntax_id,
 					 fsp->conn->session_info,
-					 &fsp->conn->sconn->client_id,
+					 fsp->conn->sconn->remote_address,
 					 fsp->conn->sconn->msg_ctx,
 					 &fsp->conn->spoolss_pipe);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -194,7 +213,6 @@ NTSTATUS print_spool_open(files_struct *fsp,
 	}
 
 	fsp->file_id = vfs_file_id_from_sbuf(fsp->conn, &fsp->fsp_name->st);
-	fsp->mode = fsp->fsp_name->st.st_ex_mode;
 	fsp->fh->fd = fd;
 
 	fsp->vuid = current_vuid;
@@ -229,7 +247,7 @@ done:
 
 int print_spool_write(files_struct *fsp,
 		      const char *data, uint32_t size,
-		      SMB_OFF_T offset, uint32_t *written)
+		      off_t offset, uint32_t *written)
 {
 	SMB_STRUCT_STAT st;
 	ssize_t n;
@@ -316,7 +334,7 @@ void print_spool_terminate(struct connection_struct *conn,
 	status = rpc_pipe_open_interface(conn,
 					 &ndr_table_spoolss.syntax_id,
 					 conn->session_info,
-					 &conn->sconn->client_id,
+					 conn->sconn->remote_address,
 					 conn->sconn->msg_ctx,
 					 &conn->spoolss_pipe);
 	if (!NT_STATUS_IS_OK(status)) {

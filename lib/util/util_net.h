@@ -74,6 +74,7 @@ bool is_loopback_ip_v4(struct in_addr ip);
 bool is_loopback_addr(const struct sockaddr *pss);
 bool is_zero_addr(const struct sockaddr_storage *pss);
 void zero_ip_v4(struct in_addr *ip);
+bool is_linklocal_addr(const struct sockaddr_storage *pss);
 /**
  Interpret an internet address or name into an IP address in 4 byte form.
 **/
@@ -85,6 +86,7 @@ _PUBLIC_ uint32_t interpret_addr(const char *str);
 _PUBLIC_ struct in_addr interpret_addr2(const char *str);
 
 _PUBLIC_ bool is_ipaddress_v4(const char *str);
+_PUBLIC_ bool is_ipaddress_v6(const char *str);
 
 bool is_address_any(const struct sockaddr *psa);
 bool same_net(const struct sockaddr *ip1,
@@ -107,5 +109,7 @@ char *print_canonical_sockaddr(TALLOC_CTX *ctx,
 const char *client_name(int fd);
 int get_socket_port(int fd);
 const char *client_socket_addr(int fd, char *addr, size_t addr_len);
+
+void set_socket_options(int fd, const char *options);
 
 #endif /* _SAMBA_UTIL_NET_H_ */

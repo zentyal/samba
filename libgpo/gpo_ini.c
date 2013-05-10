@@ -88,7 +88,7 @@ static NTSTATUS convert_file_from_ucs2(TALLOC_CTX *mem_ctx,
 	}
 
 	if (!convert_string_talloc(mem_ctx, CH_UTF16LE, CH_UNIX, data_in, n,
-				   (void *)&data_out, &converted_size, false))
+				   (void *)&data_out, &converted_size))
 	{
 		status = NT_STATUS_INVALID_BUFFER_SIZE;
 		goto out;
@@ -108,7 +108,7 @@ static NTSTATUS convert_file_from_ucs2(TALLOC_CTX *mem_ctx,
 	}
 
 	if (write(tmp_fd, data_out, converted_size) != converted_size) {
-		status = map_nt_error_from_unix(errno);
+		status = map_nt_error_from_unix_common(errno);
 		goto out;
 	}
 

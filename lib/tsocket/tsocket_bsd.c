@@ -812,7 +812,7 @@ static int tdgram_bsd_set_writeable_handler(struct tdgram_bsd *bsds,
 
 struct tdgram_bsd_recvfrom_state {
 	struct tdgram_context *dgram;
-
+	bool first_try;
 	uint8_t *buf;
 	size_t len;
 	struct tsocket_address *src;
@@ -846,6 +846,7 @@ static struct tevent_req *tdgram_bsd_recvfrom_send(TALLOC_CTX *mem_ctx,
 	}
 
 	state->dgram	= dgram;
+	state->first_try= true;
 	state->buf	= NULL;
 	state->len	= 0;
 	state->src	= NULL;
@@ -907,10 +908,13 @@ static void tdgram_bsd_recvfrom_handler(void *private_data)
 	bool retry;
 
 	ret = tsocket_bsd_pending(bsds->fd);
-	if (ret == 0) {
+	if (state->first_try && ret == 0) {
+		state->first_try = false;
 		/* retry later */
 		return;
 	}
+	state->first_try = false;
+
 	err = tsocket_bsd_error_from_errno(ret, errno, &retry);
 	if (retry) {
 		/* retry later */
@@ -920,6 +924,7 @@ static void tdgram_bsd_recvfrom_handler(void *private_data)
 		return;
 	}
 
+	/* note that 'ret' can be 0 here */
 	state->buf = talloc_array(state, uint8_t, ret);
 	if (tevent_req_nomem(state->buf, req)) {
 		return;

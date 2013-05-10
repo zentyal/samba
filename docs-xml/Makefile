@@ -8,10 +8,10 @@ include Makefile.settings
 
 # Docs to build
 MAIN_DOCS = $(patsubst %/index.xml,%,$(wildcard */index.xml))
-MANPAGES3 = $(wildcard $(MANPAGEDIR3)/*.?.xml)
+MANPAGES = $(wildcard $(MANPAGEDIR)/*.?.xml)
 
 # Lists of files to process
-MANPAGES_PLUCKER = $(patsubst $(MANPAGEDIR3)/%.xml,$(PLUCKERDIR)/%.pdb,$(MANPAGES3))
+MANPAGES_PLUCKER = $(patsubst $(MANPAGEDIR)/%.xml,$(PLUCKERDIR)/%.pdb,$(MANPAGES))
 DBLATEX_OPTIONS = -p xslt/latex.xsl -i xslt/latex
 
 DATETIME := $(shell date +%Y%m%d%H%M%S)
@@ -33,30 +33,34 @@ help:
 	@echo " release - Build the docs needed for a Samba release"
 	@echo " all - Build all docs that can be build using the utilities found by configure"
 	@echo " everything - Build all of the above"
-	@echo " pdf,tex,ps,manpages3,txt,pearson,htmlhelp - Build specific output format"
+	@echo " pdf,tex,ps,manpages,txt,pearson,htmlhelp - Build specific output format"
 	@echo " html - Build multi-file HTML versions"
 	@echo " html-single - Build single-file HTML versions"
-	@echo " htmlman3 - Build HTML version of manpages"
+	@echo " htmlman - Build HTML version of manpages"
 	@echo " undocumented - Output list of undocumented smb.conf options"
 	@echo " samples - Extract examples"
 
 $(PDFDIR)/Samba3-ByExample.pdf $(PSDIR)/Samba3-ByExample.ps $(DOCBOOKDIR)/Samba3-ByExample.xml Samba3-ByExample.tex: $(wildcard Samba3-ByExample/*.xml)
 $(PDFDIR)/Samba3-HOWTO.pdf $(PSDIR)/Samba3-HOWTO.ps Samba3-HOWTO.tex $(DOCBOOKDIR)/Samba3-HOWTO.xml: $(wildcard Samba3-HOWTO/*.xml) Samba3-HOWTO-attributions.xml
-Samba3-HOWTO/manpages.xml: $(MANPAGEDIR3)/smb.conf.5.xml
+Samba3-HOWTO/manpages.xml: $(MANPAGEDIR)/smb.conf.5.xml
 $(PDFDIR)/Samba3-Developers-Guide.pdf $(PSDIR)/Samba3-Developers-Guide.ps $(DOCBOOKDIR)/Samba3-Developers-Guide.xml Samba3-Developers-Guide.tex: $(wildcard Samba3-Developers-Guide/*.xml) Samba3-Developers-Guide-attributions.xml
-$(PDFDIR)/Samba4-HOWTO.pdf $(PSDIR)/Samba4-HOWTO.ps Samba4-HOWTO.tex $(DOCBOOKDIR)/Samba4-HOWTO.xml: $(filter-out Samba4-HOWTO/index.xml,$(wildcard Samba4-HOWTO/*.xml)) Samba4-HOWTO-attributions.xml
 
 # Pseudo targets 
 all:: $(TARGETS)
-everything:: manpages3 pdf html-single html htmlman3 txt ps fo htmlhelp pearson 
-release:: manpages3 htmlman3 html pdf 
+everything:: manpages pdf html-single html htmlman txt ps fo htmlhelp pearson
+release:: manpages htmlman html pdf
 clean::
 	@echo "Cleaning up..." 
 	rm -rf $(OUTPUTDIR)/* $(DOCBOOKDIR)
-	rm -f $(patsubst %.svg,%.png,$(wildcard */images/*.svg)) \
-		  $(patsubst %.svg,%.eps,$(wildcard */images/*.svg)) \
-		  $(patsubst %.png,%.eps,$(wildcard */images/*.png))
 	rm -f *-attributions.xml
+	rm -f $(patsubst %.svg,%.png,$(foreach DOC,$(MAIN_DOCS),$($(DOC)-images-latex-dia))) \
+			$(patsubst %.svg,%.pdf,$(foreach DOC,$(MAIN_DOCS),$($(DOC)-images-latex-svg))) \
+			$(patsubst %.svg,%.eps,$(foreach DOC,$(MAIN_DOCS),$($(DOC)-images-latex-svg))) \
+			$(patsubst %.svg,%.png,$(foreach DOC,$(MAIN_DOCS),$($(DOC)-images-latex-svg)))
+	rm -f *-attributions.xml *.d *.tpt *.tex *.loc *.toc *.lof *.glo *.idx *.aux
+	rm -f *-images-html*
+	rm -f *-images-latex-* $(LATEX_FIGURES)
+	rm -f xslt/figures/*pdf
 	rm -f $(SMBDOTCONFDOC)/parameters.*.xml
 	rm -f build/catalog.xml
 
@@ -67,11 +71,11 @@ txt:: $(patsubst %,$(TXTDIR)/%.txt,$(MAIN_DOCS))
 tex:: $(addsuffix .tex,$(MAIN_DOCS))
 texi:: $(patsubst %,$(TEXINFODIR)/%.texi,$(MAIN_DOCS))
 texiinfo:: $(patsubst %,$(TEXINFODIR)/%.info,$(MAIN_DOCS))
-manpages3:: $(patsubst $(MANPAGEDIR3)/%.xml,$(OUTPUTDIR)/manpages-3/%,$(MANPAGES3))
+manpages:: $(patsubst $(MANPAGEDIR)/%.xml,$(OUTPUTDIR)/manpages/%,$(MANPAGES))
 pearson:: $(PEARSONDIR)/Samba3-HOWTO.xml
 pearson-verify:: $(PEARSONDIR)/Samba3-HOWTO.report.html
 plucker:: $(patsubst %,$(PLUCKERDIR)/%.pdb,$(MAIN_DOCS))
-htmlman3:: $(patsubst $(MANPAGEDIR3)/%.xml,$(HTMLDIR)/manpages-3/%.html,$(MANPAGES3)) $(HTMLDIR)/manpages-3/index.html
+htmlman:: $(patsubst $(MANPAGEDIR)/%.xml,$(HTMLDIR)/manpages/%.html,$(MANPAGES)) $(HTMLDIR)/manpages/index.html
 html-single:: $(patsubst %,$(HTMLDIR)/%.html,$(MAIN_DOCS))
 html:: $(patsubst %,$(HTMLDIR)/%/index.html,$(MAIN_DOCS)) $(HTMLDIR)/index.html
 htmlhelp:: $(addprefix $(HTMLHELPDIR)/,$(MAIN_DOCS))
@@ -80,7 +84,7 @@ validate:: $(addsuffix -validate,$(MAIN_DOCS))
 test:: validate
 check:: validate
 
-.PHONY: test check validate
+.PHONY: test check validate manpages
 
 # Intermediate docbook docs
 #
@@ -89,22 +93,22 @@ $(DOCBOOKDIR)/%.xml: %/index.xml xslt/expand-sambadoc.xsl
 	@mkdir -p $(@D)
 	@$(XSLTPROC) --stringparam latex.imagebasedir "$*/"  --stringparam noreference 0  --xinclude --output $@ xslt/expand-sambadoc.xsl $<
 
-$(DOCBOOKDIR)/manpages-3/%.xml: $(MANPAGEDIR3)/%.xml xslt/expand-sambadoc.xsl
+$(DOCBOOKDIR)/manpages/%.xml: $(MANPAGEDIR)/%.xml xslt/expand-sambadoc.xsl
 	@mkdir -p $(@D)
 	$(XSLTPROC) --xinclude --stringparam noreference 0 --output $@ xslt/expand-sambadoc.xsl $<
 
-$(DOCBOOKDIR)/manpages-3/index.xml: $(MANPAGES3) xslt/manpage-summary.xsl
+$(DOCBOOKDIR)/manpages/index.xml: $(MANPAGES) xslt/manpage-summary.xsl
 	@mkdir -p $(@D)
 	echo "<article><variablelist>" > $@
-	$(XSLTPROC) xslt/manpage-summary.xsl $(MANPAGES3) >> $@
+	$(XSLTPROC) xslt/manpage-summary.xsl $(MANPAGES) >> $@
 	@echo "</variablelist></article>" >> $@
 
 # HTML docs
 $(HTMLDIR)/index.html: htmldocs.html
 	@mkdir -p $(@D)
 	cp $< $@
-	
-$(HTMLDIR)/%/index.html: $(DOCBOOKDIR)/%.xml $(HTMLDIR)/%/samba.css xslt/html-chunk.xsl
+
+$(HTMLDIR)/%/index.html: $(DOCBOOKDIR)/%.xml $(HTMLDIR)/%/samba.css xslt/html-chunk.xsl %-images-html-chunks
 	@mkdir -p $(@D)
 	$(XSLTPROC) --stringparam base.dir "$(HTMLDIR)/$*/" xslt/html-chunk.xsl $<
 
@@ -113,16 +117,7 @@ $(OUTPUTDIR)/%/samba.css: xslt/html/samba.css
 	@mkdir -p $(@D)
 	cp $< $@
 
-$(patsubst %,$(HTMLDIR)/%.html,$(MAIN_DOCS)): $(HTMLDIR)/%.html: %-images-png
-
-define IMAGES_TEMPLATE
-$(1)-images-png:: $$(patsubst %.svg,%.png,$$(wildcard $(1)/images/*.svg)) ;
-$(1)-images-eps:: $$(patsubst %.svg,%.eps,$$(wildcard $(1)/images/*.svg)) ;
-$(1)-images-eps:: $$(patsubst %.png,%.eps,$$(wildcard $(1)/images/*.png)) ;
-
-endef
-
-$(eval $(foreach DOC, $(MAIN_DOCS),$(call IMAGES_TEMPLATE,$(DOC))))
+$(patsubst %,$(HTMLDIR)/%.html,$(MAIN_DOCS)): $(HTMLDIR)/%.html: %-images-html-single
 
 $(HTMLDIR)/%.html: $(DOCBOOKDIR)/%.xml $(HTMLDIR)/samba.css xslt/html.xsl 
 	$(XSLTPROC) --output $@ xslt/html.xsl $<
@@ -144,12 +139,47 @@ $(TXTDIR)/%.txt: $(HTMLDIR)/%.html
 	@mkdir -p $(@D)
 	@$(DBLATEX) $(DBLATEX_OPTIONS) -t tex -o $@ $<
 
+# Dependency files
+%.d: $(DOCBOOKDIR)/%.xml xslt/generate-dependencies.xsl
+	@echo "Generating dependency file for $*" 
+	@$(XSLTPROC) --novalid \
+		--stringparam txtbasedir "$(TXTDIR)/$*/" \
+		--stringparam target "$*" \
+		-o $@ xslt/generate-dependencies.xsl $<
+	@echo "$*-images-latex-svg = \$$(wildcard \$$(addsuffix .svg, \$$($*-images-latex)))" >> $@
+	@echo "$*-images-latex-eps: \$$(addsuffix .eps, \$$($*-images-latex))" >> $@
+	@echo "$*-images-latex-pdf: \$$(patsubst %.svg, %.pdf, \$$($*-images-latex-svg))" >> $@
+	@echo "$*-images-latex-png: \$$(filter-out \$$(patsubst %.svg,%.png,\$$($*-images-latex-svg)), \$$(addsuffix .png, \$$($*-images-latex)))" >> $@
+
+	@echo >> $@
+	@echo "\$$(HTMLDIR)/%: $*/%" >> $@
+	@echo "	@mkdir -p \$$(@D)" >> $@
+	@echo "	@cp \$$< \$$@" >> $@
+	@echo >> $@
+	@echo "\$$(HTMLDIR)/$*/%: $*/%" >> $@
+	@echo "	@mkdir -p \$$(@D)" >> $@
+	@echo "	@cp \$$< \$$@" >> $@
+	@echo >> $@
+	@echo "\$$(HTMLHELPDIR)/$*/%: $*/%" >> $@
+	@echo "	@mkdir -p \$$(@D)" >> $@
+	@echo "	@cp \$$< \$$@" >> $@
+	@echo >> $@
+	@echo "$*-images-html-single: \$$(addprefix \$$(HTMLDIR)/, \$$($*-images-html))" >> $@
+	@echo "$*-images-html-chunks: \$$(addprefix \$$(HTMLDIR)/$*/, \$$($*-images-html))" >> $@
+	@echo "$*-images-htmlhelp: \$$(addprefix \$$(HTMLHELPDIR)/$*/, \$$($*-images-html))" >> $@
+
+ifdef OUTPUTDIR 
+ifneq ($(MAKECMDGOALS),clobber)
+-include $(addsuffix .d,$(MAIN_DOCS))
+endif
+endif
+
 # Adobe PDF files  
-$(PDFDIR)/%.pdf: %/index.xml $(PDFDIR) xslt/latex.xsl %-images-png
+$(PDFDIR)/%.pdf: %/index.xml $(PDFDIR) xslt/latex.xsl %-images-latex-png %-images-latex-pdf
 	$(DBLATEX) $(DBLATEX_OPTIONS) -I $*/images -t pdf -o $@ $<
 
 # PostScript files
-$(PSDIR)/%.ps: %/index.xml $(PSDIR) xslt/latex.xsl %-images-eps 
+$(PSDIR)/%.ps: %/index.xml $(PSDIR) xslt/latex.xsl %-images-latex-eps
 	$(DBLATEX) $(DBLATEX_OPTIONS) -I $*/images -t ps -o $@ $<
 
 %.eps: %.svg
@@ -161,7 +191,10 @@ $(PSDIR)/%.ps: %/index.xml $(PSDIR) xslt/latex.xsl %-images-eps
 %.eps: %.png
 	$(PNGTOPNM) $< | $(PNMTOPS) > $@
 
-$(HTMLHELPDIR)/%: $(DOCBOOKDIR)/%.xml %-images-png
+%.pdf: %.svg
+	$(INKSCAPE) -z -f $(abspath $<) --export-pdf=$(abspath $@)
+
+$(HTMLHELPDIR)/%: $(DOCBOOKDIR)/%.xml %-images-htmlhelp
 	$(XSLTPROC) --stringparam htmlhelp.chm $*.chm \
 				--stringparam manifest.in.base.dir "$@/" \
 				--stringparam base.dir "$@/" \
@@ -181,7 +214,7 @@ $(TEXINFODIR)/%.info: $(TEXINFODIR)/%.texi
 	$(MAKEINFO) --no-validate --force -o $@ "$<"
 
 # Manpages
-$(MANPAGEDIR3)/smb.conf.5.xml: parameters
+$(MANPAGEDIR)/smb.conf.5.xml: parameters
 
 # The phony parameters target exists in order to always create the
 # the parameters xml files. Otherwise, when parameters.*.xml does not exist
@@ -211,7 +244,7 @@ $(OUTPUTDIR)/%: $(DOCBOOKDIR)/%.xml xslt/man.xsl
 
 # Individual smb.conf parameters
 smb.conf-chunks: $(patsubst $(SMBDOTCONFDOC)/%.xml,$(HTMLDIR)/smb.conf/%.html,$(wildcard $(SMBDOTCONFDOC)/*/*.xml))
-	
+
 $(HTMLDIR)/smb.conf/%.html: $(SMBDOTCONFDOC)/%.xml
 	@mkdir -p $(@D)
 	$(XSLTPROC) --output $@ xslt/smb.conf-html.xsl $<
@@ -230,9 +263,8 @@ $(PEARSONDIR)/%.report.html: $(PEARSONDIR)/%.xml
 	cd $(<D) && $(XMLLINT) --xinclude --noent --postvalid --noout $(<F)
 
 # Find undocumented parameters
-undocumented: $(SMBDOTCONFDOC)/parameters.all.xml scripts/find_missing_doc.pl scripts/find_missing_manpages.pl
-	$(PERL) scripts/find_missing_doc.pl $(SRCDIR)
-	$(PERL) scripts/find_missing_manpages.pl $(SRCDIR)
+undocumented: $(SMBDOTCONFDOC)/parameters.all.xml scripts/find_missing_manpages
+	$(PERL) scripts/find_missing_manpages $(SRCDIR)/source3
 
 samples: $(DOCBOOKDIR)/Samba3-HOWTO.xml xslt/extract-examples.xsl scripts/indent-smb.conf.pl
 	@mkdir -p examples
@@ -248,6 +280,11 @@ archive: pdf
 # XSL scripts
 xslt/html.xsl: xslt/html-common.xsl 
 xslt/html-chunk.xsl: xslt/html-common.xsl 
+xslt/latex.xsl: 
+xslt/expand-sambadoc.xsl: 
+xslt/generate-attributions.xsl: 
+xslt/man.xsl:
+xslt/pearson.xsl:
 
 distclean clobber:: clean
 	rm -f Makefile.settings config.status config.log

@@ -17,10 +17,11 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "replace.h"
-#include "../lib/util/util.h"
+#include "../lib/util/samba_util.h"
 #include "../lib/crypto/crypto.h"
 
 struct torture_context;
+bool torture_local_crypto_hmacmd5(struct torture_context *torture);
 
 static DATA_BLOB data_blob_repeat_byte(uint8_t byte, size_t length)
 {

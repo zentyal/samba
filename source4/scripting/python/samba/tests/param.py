@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # Unix SMB/CIFS implementation.
 # Copyright (C) Jelmer Vernooij <jelmer@samba.org> 2007
 #
@@ -53,7 +51,7 @@ class LoadParmTestCase(samba.tests.TestCase):
         file = param.LoadParm()
         file.load_default()
 
-    def test_section_nonexistant(self):
+    def test_section_nonexistent(self):
         samba_lp = param.LoadParm()
         samba_lp.load_default()
-        self.assertRaises(KeyError, samba_lp.__getitem__, "nonexistant")
+        self.assertRaises(KeyError, samba_lp.__getitem__, "nonexistent")

@@ -39,9 +39,17 @@ static const struct rid_name_map everyone_users[] = {
 	{ 0, "Everyone" },
 	{ 0, NULL}};
 
+static const struct rid_name_map local_authority_users[] = {
+	{ 0, "Local" },
+	{ 1, "Console Logon" },
+	{ 0, NULL}};
+
 static const struct rid_name_map creator_owner_users[] = {
 	{ 0, "Creator Owner" },
 	{ 1, "Creator Group" },
+	{ 2, "Creator Owner Server" },
+	{ 3, "Creator Group Server" },
+	{ 4, "Owner Rights" },
 	{ 0, NULL}};
 
 static const struct rid_name_map nt_authority_users[] = {
@@ -50,16 +58,16 @@ static const struct rid_name_map nt_authority_users[] = {
 	{  3, "Batch"},
 	{  4, "Interactive"},
 	{  6, "Service"},
-	{  7, "AnonymousLogon"},
 	{  7, "Anonymous Logon"},
 	{  8, "Proxy"},
-	{  9, "ServerLogon"},
+	{  9, "Enterprise Domain Controllers"},
 	{ 10, "Self"},
 	{ 11, "Authenticated Users"},
 	{ 12, "Restricted"},
 	{ 13, "Terminal Server User"},
 	{ 14, "Remote Interactive Logon"},
 	{ 15, "This Organization"},
+	{ 17, "IUSR"},
 	{ 18, "SYSTEM"},
 	{ 19, "Local Service"},
 	{ 20, "Network Service"},
@@ -67,6 +75,7 @@ static const struct rid_name_map nt_authority_users[] = {
 
 static struct sid_name_map_info special_domains[] = {
 	{ &global_sid_World_Domain, "", everyone_users },
+	{ &global_sid_Local_Authority, "", local_authority_users },
 	{ &global_sid_Creator_Owner_Domain, "", creator_owner_users },
 	{ &global_sid_NT_Authority, "NT Authority", nt_authority_users },
 	{ NULL, NULL, NULL }};

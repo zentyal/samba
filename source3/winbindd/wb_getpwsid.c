@@ -23,7 +23,6 @@
 #include "../libcli/security/security.h"
 
 struct wb_getpwsid_state {
-	struct winbindd_domain *user_domain;
 	struct tevent_context *ev;
 	struct dom_sid sid;
 	struct wbint_userinfo *userinfo;
@@ -49,12 +48,6 @@ struct tevent_req *wb_getpwsid_send(TALLOC_CTX *mem_ctx,
 	sid_copy(&state->sid, user_sid);
 	state->ev = ev;
 	state->pw = pw;
-
-	state->user_domain = find_domain_from_sid_noinit(user_sid);
-	if (state->user_domain == NULL) {
-		tevent_req_nterror(req, NT_STATUS_NO_SUCH_USER);
-		return tevent_req_post(req, ev);
-	}
 
 	subreq = wb_queryuser_send(state, ev, &state->sid);
 	if (tevent_req_nomem(subreq, req)) {
@@ -143,10 +136,5 @@ static void wb_getpwsid_done(struct tevent_req *subreq)
 
 NTSTATUS wb_getpwsid_recv(struct tevent_req *req)
 {
-	NTSTATUS status;
-
-	if (tevent_req_is_nterror(req, &status)) {
-		return status;
-	}
-	return NT_STATUS_OK;
+	return tevent_req_simple_recv_ntstatus(req);
 }

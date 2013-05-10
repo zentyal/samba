@@ -23,6 +23,7 @@
 #include "libcli/libcli.h"
 #include "system/filesys.h"
 #include "torture/util.h"
+#include "torture/raw/proto.h"
 
 #define BASEDIR "\\test_notify"
 
@@ -62,8 +63,9 @@ do { \
 /* 
    basic testing of change notify on directories
 */
-static bool test_notify_dir(struct smbcli_state *cli, struct smbcli_state *cli2, 
-			    TALLOC_CTX *mem_ctx)
+static bool test_notify_dir(struct torture_context *mem_ctx,
+			    struct smbcli_state *cli,
+			    struct smbcli_state *cli2)
 {
 	bool ret = true;
 	NTSTATUS status;
@@ -76,6 +78,10 @@ static bool test_notify_dir(struct smbcli_state *cli, struct smbcli_state *cli2,
 
 	printf("TESTING CHANGE NOTIFY ON DIRECTORIES\n");
 		
+	if (!torture_setup_dir(cli, BASEDIR)) {
+		return false;
+	}
+
 	/*
 	  get a handle on the directory
 	*/
@@ -183,7 +189,7 @@ static bool test_notify_dir(struct smbcli_state *cli, struct smbcli_state *cli2,
 	notify.nttrans.in.file.fnum = fnum;
 	req = smb_raw_changenotify_send(cli->tree, &notify);
 
-	status = smbcli_unlink(cli->tree, BASEDIR "\\nonexistant.txt");
+	status = smbcli_unlink(cli->tree, BASEDIR "\\nonexistent.txt");
 	CHECK_STATUS(status, NT_STATUS_OBJECT_NAME_NOT_FOUND);
 
 	/* (1st unlink) as the 2nd notify directly returns,
@@ -213,7 +219,7 @@ static bool test_notify_dir(struct smbcli_state *cli, struct smbcli_state *cli2,
 	printf("(3rd notify) this notify will only see the 1st unlink\n");
 	req = smb_raw_changenotify_send(cli->tree, &notify);
 
-	status = smbcli_unlink(cli->tree, BASEDIR "\\nonexistant.txt");
+	status = smbcli_unlink(cli->tree, BASEDIR "\\nonexistent.txt");
 	CHECK_STATUS(status, NT_STATUS_OBJECT_NAME_NOT_FOUND);
 
 	printf("Testing notify on wildcard unlink for %d files\n", count-1);
@@ -264,6 +270,7 @@ static bool test_notify_dir(struct smbcli_state *cli, struct smbcli_state *cli2,
 
 done:
 	smb_raw_exit(cli->session);
+	smbcli_deltree(cli->tree, BASEDIR);
 	return ret;
 }
 
@@ -302,7 +309,9 @@ static bool check_rename_reply(struct smbcli_state *cli,
 /* 
    testing of recursive change notify
 */
-static bool test_notify_recursive(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
+static bool test_notify_recursive(struct torture_context *mem_ctx,
+				  struct smbcli_state *cli,
+				  struct smbcli_state *cli2)
 {
 	bool ret = true;
 	NTSTATUS status;
@@ -313,6 +322,10 @@ static bool test_notify_recursive(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 
 	printf("TESTING CHANGE NOTIFY WITH RECURSION\n");
 		
+	if (!torture_setup_dir(cli, BASEDIR)) {
+		return false;
+	}
+
 	/*
 	  get a handle on the directory
 	*/
@@ -355,13 +368,19 @@ static bool test_notify_recursive(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 	status = smb_raw_changenotify_recv(req2, mem_ctx, &notify);
 	CHECK_STATUS(status, NT_STATUS_CANCELLED);
 
+	/*
+	 * Make notifies a bit more interesting in a cluster by doing
+	 * the changes against different nodes with --unclist
+	 */
 	smbcli_mkdir(cli->tree, BASEDIR "\\subdir-name");
-	smbcli_mkdir(cli->tree, BASEDIR "\\subdir-name\\subname1");
+	smbcli_mkdir(cli2->tree, BASEDIR "\\subdir-name\\subname1");
 	smbcli_close(cli->tree, 
 		     smbcli_open(cli->tree, BASEDIR "\\subdir-name\\subname2", O_CREAT, 0));
-	smbcli_rename(cli->tree, BASEDIR "\\subdir-name\\subname1", BASEDIR "\\subdir-name\\subname1-r");
+	smbcli_rename(cli2->tree, BASEDIR "\\subdir-name\\subname1",
+		      BASEDIR "\\subdir-name\\subname1-r");
 	smbcli_rename(cli->tree, BASEDIR "\\subdir-name\\subname2", BASEDIR "\\subname2-r");
-	smbcli_rename(cli->tree, BASEDIR "\\subname2-r", BASEDIR "\\subname3-r");
+	smbcli_rename(cli2->tree, BASEDIR "\\subname2-r",
+		      BASEDIR "\\subname3-r");
 
 	notify.nttrans.in.completion_filter = 0;
 	notify.nttrans.in.recursive = true;
@@ -369,7 +388,7 @@ static bool test_notify_recursive(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 	req1 = smb_raw_changenotify_send(cli->tree, &notify);
 
 	smbcli_rmdir(cli->tree, BASEDIR "\\subdir-name\\subname1-r");
-	smbcli_rmdir(cli->tree, BASEDIR "\\subdir-name");
+	smbcli_rmdir(cli2->tree, BASEDIR "\\subdir-name");
 	smbcli_unlink(cli->tree, BASEDIR "\\subname3-r");
 
 	notify.nttrans.in.recursive = false;
@@ -427,13 +446,15 @@ static bool test_notify_recursive(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 
 done:
 	smb_raw_exit(cli->session);
+	smbcli_deltree(cli->tree, BASEDIR);
 	return ret;
 }
 
 /* 
    testing of change notify mask change
 */
-static bool test_notify_mask_change(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
+static bool test_notify_mask_change(struct torture_context *mem_ctx,
+				    struct smbcli_state *cli)
 {
 	bool ret = true;
 	NTSTATUS status;
@@ -443,6 +464,10 @@ static bool test_notify_mask_change(struct smbcli_state *cli, TALLOC_CTX *mem_ct
 	struct smbcli_request *req1, *req2;
 
 	printf("TESTING CHANGE NOTIFY WITH MASK CHANGE\n");
+
+	if (!torture_setup_dir(cli, BASEDIR)) {
+		return false;
+	}
 
 	/*
 	  get a handle on the directory
@@ -544,6 +569,7 @@ static bool test_notify_mask_change(struct smbcli_state *cli, TALLOC_CTX *mem_ct
 
 done:
 	smb_raw_exit(cli->session);
+	smbcli_deltree(cli->tree, BASEDIR);
 	return ret;
 }
 
@@ -551,12 +577,15 @@ done:
 /* 
    testing of mask bits for change notify
 */
-static bool test_notify_mask(struct smbcli_state *cli, struct torture_context *tctx)
+static bool test_notify_mask(struct torture_context *tctx,
+			     struct smbcli_state *cli,
+			     struct smbcli_state *cli2)
 {
 	bool ret = true;
 	NTSTATUS status;
 	union smb_notify notify;
 	union smb_open io;
+	union smb_chkpath chkpath;
 	int fnum, fnum2;
 	uint32_t mask;
 	int i;
@@ -565,6 +594,10 @@ static bool test_notify_mask(struct smbcli_state *cli, struct torture_context *t
 	NTTIME t;
 
 	printf("TESTING CHANGE NOTIFY COMPLETION FILTERS\n");
+
+	if (!torture_setup_dir(cli, BASEDIR)) {
+		return false;
+	}
 
 	tv = timeval_current_ofs(1000, 0);
 	t = timeval_to_nttime(&tv);
@@ -589,6 +622,8 @@ static bool test_notify_mask(struct smbcli_state *cli, struct torture_context *t
 	notify.nttrans.in.buffer_size = 1000;
 	notify.nttrans.in.recursive = true;
 
+	chkpath.chkpath.in.path = "\\";
+
 #define NOTIFY_MASK_TEST(test_name, setup, op, cleanup, Action, expected, nchanges) \
 	do { \
 	smbcli_getatr(cli->tree, test_name, NULL, NULL, NULL); \
@@ -601,6 +636,7 @@ static bool test_notify_mask(struct smbcli_state *cli, struct torture_context *t
 		notify.nttrans.in.file.fnum = fnum;	\
 		notify.nttrans.in.completion_filter = (1<<i); \
 		req = smb_raw_changenotify_send(cli->tree, &notify); \
+		smb_raw_chkpath(cli->tree, &chkpath); \
 		op \
 		smb_msleep(200); smb_raw_ntcancel(req); \
 		status = smb_raw_changenotify_recv(req, tctx, &notify); \
@@ -654,21 +690,21 @@ static bool test_notify_mask(struct smbcli_state *cli, struct torture_context *t
 	printf("Testing mkdir\n");
 	NOTIFY_MASK_TEST("Testing mkdir",;,
 			 smbcli_mkdir(cli->tree, BASEDIR "\\tname1");,
-			 smbcli_rmdir(cli->tree, BASEDIR "\\tname1");,
+			 smbcli_rmdir(cli2->tree, BASEDIR "\\tname1");,
 			 NOTIFY_ACTION_ADDED,
 			 FILE_NOTIFY_CHANGE_DIR_NAME, 1);
 
 	printf("Testing create file\n");
 	NOTIFY_MASK_TEST("Testing create file",;,
 			 smbcli_close(cli->tree, smbcli_open(cli->tree, BASEDIR "\\tname1", O_CREAT, 0));,
-			 smbcli_unlink(cli->tree, BASEDIR "\\tname1");,
+			 smbcli_unlink(cli2->tree, BASEDIR "\\tname1");,
 			 NOTIFY_ACTION_ADDED,
 			 FILE_NOTIFY_CHANGE_FILE_NAME, 1);
 
 	printf("Testing unlink\n");
 	NOTIFY_MASK_TEST("Testing unlink",
 			 smbcli_close(cli->tree, smbcli_open(cli->tree, BASEDIR "\\tname1", O_CREAT, 0));,
-			 smbcli_unlink(cli->tree, BASEDIR "\\tname1");,
+			 smbcli_unlink(cli2->tree, BASEDIR "\\tname1");,
 			 ;,
 			 NOTIFY_ACTION_REMOVED,
 			 FILE_NOTIFY_CHANGE_FILE_NAME, 1);
@@ -676,7 +712,7 @@ static bool test_notify_mask(struct smbcli_state *cli, struct torture_context *t
 	printf("Testing rmdir\n");
 	NOTIFY_MASK_TEST("Testing rmdir",
 			 smbcli_mkdir(cli->tree, BASEDIR "\\tname1");,
-			 smbcli_rmdir(cli->tree, BASEDIR "\\tname1");,
+			 smbcli_rmdir(cli2->tree, BASEDIR "\\tname1");,
 			 ;,
 			 NOTIFY_ACTION_REMOVED,
 			 FILE_NOTIFY_CHANGE_DIR_NAME, 1);
@@ -684,7 +720,7 @@ static bool test_notify_mask(struct smbcli_state *cli, struct torture_context *t
 	printf("Testing rename file\n");
 	NOTIFY_MASK_TEST("Testing rename file",
 			 smbcli_close(cli->tree, smbcli_open(cli->tree, BASEDIR "\\tname1", O_CREAT, 0));,
-			 smbcli_rename(cli->tree, BASEDIR "\\tname1", BASEDIR "\\tname2");,
+			 smbcli_rename(cli2->tree, BASEDIR "\\tname1", BASEDIR "\\tname2");,
 			 smbcli_unlink(cli->tree, BASEDIR "\\tname2");,
 			 NOTIFY_ACTION_OLD_NAME,
 			 FILE_NOTIFY_CHANGE_FILE_NAME|FILE_NOTIFY_CHANGE_ATTRIBUTES|FILE_NOTIFY_CHANGE_CREATION, 2);
@@ -692,7 +728,7 @@ static bool test_notify_mask(struct smbcli_state *cli, struct torture_context *t
 	printf("Testing rename dir\n");
 	NOTIFY_MASK_TEST("Testing rename dir",
 		smbcli_mkdir(cli->tree, BASEDIR "\\tname1");,
-		smbcli_rename(cli->tree, BASEDIR "\\tname1", BASEDIR "\\tname2");,
+		smbcli_rename(cli2->tree, BASEDIR "\\tname1", BASEDIR "\\tname2");,
 		smbcli_rmdir(cli->tree, BASEDIR "\\tname2");,
 		NOTIFY_ACTION_OLD_NAME,
 		FILE_NOTIFY_CHANGE_DIR_NAME, 2);
@@ -700,7 +736,7 @@ static bool test_notify_mask(struct smbcli_state *cli, struct torture_context *t
 	printf("Testing set path attribute\n");
 	NOTIFY_MASK_TEST("Testing set path attribute",
 		smbcli_close(cli->tree, smbcli_open(cli->tree, BASEDIR "\\tname1", O_CREAT, 0));,
-		smbcli_setatr(cli->tree, BASEDIR "\\tname1", FILE_ATTRIBUTE_HIDDEN, 0);,
+		smbcli_setatr(cli2->tree, BASEDIR "\\tname1", FILE_ATTRIBUTE_HIDDEN, 0);,
 		smbcli_unlink(cli->tree, BASEDIR "\\tname1");,
 		NOTIFY_ACTION_MODIFIED,
 		FILE_NOTIFY_CHANGE_ATTRIBUTES, 1);
@@ -708,16 +744,16 @@ static bool test_notify_mask(struct smbcli_state *cli, struct torture_context *t
 	printf("Testing set path write time\n");
 	NOTIFY_MASK_TEST("Testing set path write time",
 		smbcli_close(cli->tree, smbcli_open(cli->tree, BASEDIR "\\tname1", O_CREAT, 0));,
-		smbcli_setatr(cli->tree, BASEDIR "\\tname1", FILE_ATTRIBUTE_NORMAL, 1000);,
+		smbcli_setatr(cli2->tree, BASEDIR "\\tname1", FILE_ATTRIBUTE_NORMAL, 1000);,
 		smbcli_unlink(cli->tree, BASEDIR "\\tname1");,
 		NOTIFY_ACTION_MODIFIED,
 		FILE_NOTIFY_CHANGE_LAST_WRITE, 1);
 
 	printf("Testing set file attribute\n");
 	NOTIFY_MASK_TEST("Testing set file attribute",
-		fnum2 = create_complex_file(cli, tctx, BASEDIR "\\tname1");,
-		smbcli_fsetatr(cli->tree, fnum2, FILE_ATTRIBUTE_HIDDEN, 0, 0, 0, 0);,
-		(smbcli_close(cli->tree, fnum2), smbcli_unlink(cli->tree, BASEDIR "\\tname1"));,
+		fnum2 = create_complex_file(cli2, tctx, BASEDIR "\\tname1");,
+		smbcli_fsetatr(cli2->tree, fnum2, FILE_ATTRIBUTE_HIDDEN, 0, 0, 0, 0);,
+		(smbcli_close(cli2->tree, fnum2), smbcli_unlink(cli2->tree, BASEDIR "\\tname1"));,
 		NOTIFY_ACTION_MODIFIED,
 		FILE_NOTIFY_CHANGE_ATTRIBUTES, 1);
 
@@ -764,29 +800,31 @@ static bool test_notify_mask(struct smbcli_state *cli, struct torture_context *t
 
 	printf("Testing write\n");
 	NOTIFY_MASK_TEST("Testing write",
-		fnum2 = create_complex_file(cli, tctx, BASEDIR "\\tname1");,
-		smbcli_write(cli->tree, fnum2, 1, &c, 10000, 1);,
-		(smbcli_close(cli->tree, fnum2), smbcli_unlink(cli->tree, BASEDIR "\\tname1"));,
+		fnum2 = create_complex_file(cli2, tctx, BASEDIR "\\tname1");,
+		smbcli_write(cli2->tree, fnum2, 1, &c, 10000, 1);,
+		(smbcli_close(cli2->tree, fnum2), smbcli_unlink(cli->tree, BASEDIR "\\tname1"));,
 		NOTIFY_ACTION_MODIFIED,
 		0, 1);
 
 	printf("Testing truncate\n");
 	NOTIFY_MASK_TEST("Testing truncate",
-		fnum2 = create_complex_file(cli, tctx, BASEDIR "\\tname1");,
-		smbcli_ftruncate(cli->tree, fnum2, 10000);,
-		(smbcli_close(cli->tree, fnum2), smbcli_unlink(cli->tree, BASEDIR "\\tname1"));,
+		fnum2 = create_complex_file(cli2, tctx, BASEDIR "\\tname1");,
+		smbcli_ftruncate(cli2->tree, fnum2, 10000);,
+		(smbcli_close(cli2->tree, fnum2), smbcli_unlink(cli2->tree, BASEDIR "\\tname1"));,
 		NOTIFY_ACTION_MODIFIED,
 		FILE_NOTIFY_CHANGE_SIZE | FILE_NOTIFY_CHANGE_ATTRIBUTES, 1);
 
 done:
 	smb_raw_exit(cli->session);
+	smbcli_deltree(cli->tree, BASEDIR);
 	return ret;
 }
 
 /*
   basic testing of change notify on files
 */
-static bool test_notify_file(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
+static bool test_notify_file(struct torture_context *mem_ctx,
+			     struct smbcli_state *cli)
 {
 	NTSTATUS status;
 	bool ret = true;
@@ -798,6 +836,10 @@ static bool test_notify_file(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 	const char *fname = BASEDIR "\\file.txt";
 
 	printf("TESTING CHANGE NOTIFY ON FILES\n");
+
+	if (!torture_setup_dir(cli, BASEDIR)) {
+		return false;
+	}
 
 	io.generic.level = RAW_OPEN_NTCREATEX;
 	io.ntcreatex.in.root_fid.fnum = 0;
@@ -840,13 +882,15 @@ static bool test_notify_file(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 
 done:
 	smb_raw_exit(cli->session);
+	smbcli_deltree(cli->tree, BASEDIR);
 	return ret;
 }
 
 /*
   basic testing of change notifies followed by a tdis
 */
-static bool test_notify_tdis(struct torture_context *tctx)
+static bool test_notify_tdis(struct torture_context *tctx,
+			     struct smbcli_state *cli1)
 {
 	bool ret = true;
 	NTSTATUS status;
@@ -857,6 +901,10 @@ static bool test_notify_tdis(struct torture_context *tctx)
 	struct smbcli_state *cli = NULL;
 
 	printf("TESTING CHANGE NOTIFY FOLLOWED BY TDIS\n");
+
+	if (!torture_setup_dir(cli1, BASEDIR)) {
+		return false;
+	}
 
 	if (!torture_open_connection(&cli, tctx, 0)) {
 		return false;
@@ -902,13 +950,15 @@ static bool test_notify_tdis(struct torture_context *tctx)
 
 done:
 	torture_close_connection(cli);
+	smbcli_deltree(cli1->tree, BASEDIR);
 	return ret;
 }
 
 /*
   basic testing of change notifies followed by a exit
 */
-static bool test_notify_exit(struct torture_context *tctx)
+static bool test_notify_exit(struct torture_context *tctx,
+			     struct smbcli_state *cli1)
 {
 	bool ret = true;
 	NTSTATUS status;
@@ -919,6 +969,10 @@ static bool test_notify_exit(struct torture_context *tctx)
 	struct smbcli_state *cli = NULL;
 
 	printf("TESTING CHANGE NOTIFY FOLLOWED BY EXIT\n");
+
+	if (!torture_setup_dir(cli1, BASEDIR)) {
+		return false;
+	}
 
 	if (!torture_open_connection(&cli, tctx, 0)) {
 		return false;
@@ -963,13 +1017,15 @@ static bool test_notify_exit(struct torture_context *tctx)
 
 done:
 	torture_close_connection(cli);
+	smbcli_deltree(cli1->tree, BASEDIR);
 	return ret;
 }
 
 /*
   basic testing of change notifies followed by a ulogoff
 */
-static bool test_notify_ulogoff(struct torture_context *tctx)
+static bool test_notify_ulogoff(struct torture_context *tctx,
+				struct smbcli_state *cli1)
 {
 	bool ret = true;
 	NTSTATUS status;
@@ -980,6 +1036,10 @@ static bool test_notify_ulogoff(struct torture_context *tctx)
 	struct smbcli_state *cli = NULL;
 
 	printf("TESTING CHANGE NOTIFY FOLLOWED BY ULOGOFF\n");
+
+	if (!torture_setup_dir(cli1, BASEDIR)) {
+		return false;
+	}
 
 	if (!torture_open_connection(&cli, tctx, 0)) {
 		return false;
@@ -1024,6 +1084,7 @@ static bool test_notify_ulogoff(struct torture_context *tctx)
 
 done:
 	torture_close_connection(cli);
+	smbcli_deltree(cli1->tree, BASEDIR);
 	return ret;
 }
 
@@ -1037,7 +1098,8 @@ static void tcp_dis_handler(struct smbcli_transport *t, void *p)
 /*
   basic testing of change notifies followed by tcp disconnect
 */
-static bool test_notify_tcp_dis(struct torture_context *tctx)
+static bool test_notify_tcp_dis(struct torture_context *tctx,
+				struct smbcli_state *cli1)
 {
 	bool ret = true;
 	NTSTATUS status;
@@ -1048,6 +1110,10 @@ static bool test_notify_tcp_dis(struct torture_context *tctx)
 	struct smbcli_state *cli = NULL;
 
 	printf("TESTING CHANGE NOTIFY FOLLOWED BY TCP DISCONNECT\n");
+
+	if (!torture_setup_dir(cli1, BASEDIR)) {
+		return false;
+	}
 
 	if (!torture_open_connection(&cli, tctx, 0)) {
 		return false;
@@ -1090,13 +1156,15 @@ static bool test_notify_tcp_dis(struct torture_context *tctx)
 
 done:
 	torture_close_connection(cli);
+	smbcli_deltree(cli1->tree, BASEDIR);
 	return ret;
 }
 
 /* 
    test setting up two change notify requests on one handle
 */
-static bool test_notify_double(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
+static bool test_notify_double(struct torture_context *mem_ctx,
+			       struct smbcli_state *cli)
 {
 	bool ret = true;
 	NTSTATUS status;
@@ -1107,6 +1175,9 @@ static bool test_notify_double(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 
 	printf("TESTING CHANGE NOTIFY TWICE ON ONE DIRECTORY\n");
 		
+	if (!torture_setup_dir(cli, BASEDIR)) {
+		return false;
+	}
 	/*
 	  get a handle on the directory
 	*/
@@ -1154,6 +1225,7 @@ static bool test_notify_double(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 
 done:
 	smb_raw_exit(cli->session);
+	smbcli_deltree(cli->tree, BASEDIR);
 	return ret;
 }
 
@@ -1161,7 +1233,9 @@ done:
 /* 
    test multiple change notifies at different depths and with/without recursion
 */
-static bool test_notify_tree(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
+static bool test_notify_tree(struct torture_context *mem_ctx,
+			     struct smbcli_state *cli,
+			     struct smbcli_state *cli2)
 {
 	bool ret = true;
 	union smb_notify notify;
@@ -1203,6 +1277,10 @@ static bool test_notify_tree(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 
 	printf("TESTING CHANGE NOTIFY FOR DIFFERENT DEPTHS\n");
 
+	if (!torture_setup_dir(cli, BASEDIR)) {
+		return false;
+	}
+
 	io.generic.level = RAW_OPEN_NTCREATEX;
 	io.ntcreatex.in.root_fid.fnum = 0;
 	io.ntcreatex.in.flags = 0;
@@ -1239,8 +1317,13 @@ static bool test_notify_tree(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 	/* trigger 2 events in each dir */
 	for (i=0;i<ARRAY_SIZE(dirs);i++) {
 		char *path = talloc_asprintf(mem_ctx, "%s\\test.dir", dirs[i].path);
+		/*
+		 * Make notifies a bit more interesting in a cluster
+		 * by doing the changes against different nodes with
+		 * --unclist
+		 */
 		smbcli_mkdir(cli->tree, path);
-		smbcli_rmdir(cli->tree, path);
+		smbcli_rmdir(cli2->tree, path);
 		talloc_free(path);
 	}
 
@@ -1287,6 +1370,7 @@ static bool test_notify_tree(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 
 done:
 	smb_raw_exit(cli->session);
+	smbcli_deltree(cli->tree, BASEDIR);
 	return ret;
 }
 
@@ -1294,7 +1378,8 @@ done:
    Test response when cached server events exceed single NT NOTFIY response
    packet size.
 */
-static bool test_notify_overflow(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
+static bool test_notify_overflow(struct torture_context *mem_ctx,
+				 struct smbcli_state *cli)
 {
 	bool ret = true;
 	NTSTATUS status;
@@ -1306,6 +1391,10 @@ static bool test_notify_overflow(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 	int i;
 
 	printf("TESTING CHANGE NOTIFY EVENT OVERFLOW\n");
+
+	if (!torture_setup_dir(cli, BASEDIR)) {
+		return false;
+	}
 
 	/* get a handle on the directory */
 	io.generic.level = RAW_OPEN_NTCREATEX;
@@ -1365,6 +1454,7 @@ static bool test_notify_overflow(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 
 done:
 	smb_raw_exit(cli->session);
+	smbcli_deltree(cli->tree, BASEDIR);
 	return ret;
 }
 
@@ -1372,7 +1462,8 @@ done:
    Test if notifications are returned for changes to the base directory.
    They shouldn't be.
 */
-static bool test_notify_basedir(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
+static bool test_notify_basedir(struct torture_context *mem_ctx,
+				struct smbcli_state *cli)
 {
 	bool ret = true;
 	NTSTATUS status;
@@ -1382,6 +1473,10 @@ static bool test_notify_basedir(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 	struct smbcli_request *req1;
 
 	printf("TESTING CHANGE NOTIFY BASEDIR EVENTS\n");
+
+	if (!torture_setup_dir(cli, BASEDIR)) {
+		return false;
+	}
 
 	/* get a handle on the directory */
 	io.generic.level = RAW_OPEN_NTCREATEX;
@@ -1431,6 +1526,7 @@ static bool test_notify_basedir(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 
 done:
 	smb_raw_exit(cli->session);
+	smbcli_deltree(cli->tree, BASEDIR);
 	return ret;
 }
 
@@ -1454,7 +1550,7 @@ static struct smbcli_tree *secondary_tcon(struct smbcli_state *cli,
 	tree = smbcli_tree_init(cli->session, tctx, false);
 
 	tcon.generic.level = RAW_TCON_TCONX;
-	tcon.tconx.in.flags = 0;
+	tcon.tconx.in.flags = TCONX_FLAG_EXTENDED_RESPONSE;
 	tcon.tconx.in.password = data_blob(NULL, 0);
 	tcon.tconx.in.path = talloc_asprintf(tctx, "\\\\%s\\%s", host, share);
 	tcon.tconx.in.device = "A:";	
@@ -1475,19 +1571,24 @@ static struct smbcli_tree *secondary_tcon(struct smbcli_state *cli,
 /* 
    very simple change notify test
 */
-static bool test_notify_tcon(struct smbcli_state *cli, struct torture_context *torture)
+static bool test_notify_tcon(struct torture_context *torture,
+			     struct smbcli_state *cli)
 {
 	bool ret = true;
 	NTSTATUS status;
 	union smb_notify notify;
 	union smb_open io;
-	int fnum, fnum2;
+	int fnum;
 	struct smbcli_request *req;
 	extern int torture_numops;
 	struct smbcli_tree *tree = NULL;
 		
 	printf("TESTING SIMPLE CHANGE NOTIFY\n");
 		
+	if (!torture_setup_dir(cli, BASEDIR)) {
+		return false;
+	}
+
 	/*
 	  get a handle on the directory
 	*/
@@ -1510,7 +1611,6 @@ static bool test_notify_tcon(struct smbcli_state *cli, struct torture_context *t
 
 	status = smb_raw_open(cli->tree, torture, &io);
 	CHECK_STATUS(status, NT_STATUS_OK);
-	fnum2 = io.ntcreatex.out.file.fnum;
 
 	/* ask for a change notify,
 	   on file or directory name changes */
@@ -1598,6 +1698,7 @@ static bool test_notify_tcon(struct smbcli_state *cli, struct torture_context *t
 	printf("CHANGE NOTIFY WITH TDIS OK\n");
 done:
 	smb_raw_exit(cli->session);
+	smbcli_deltree(cli->tree, BASEDIR);
 	return ret;
 }
 
@@ -1605,8 +1706,8 @@ done:
 /*
    testing alignment of multiple change notify infos
 */
-static bool test_notify_alignment(struct smbcli_state *cli,
-    struct torture_context *tctx)
+static bool test_notify_alignment(struct torture_context *tctx,
+				  struct smbcli_state *cli)
 {
 	NTSTATUS status;
 	union smb_notify notify;
@@ -1622,6 +1723,10 @@ static bool test_notify_alignment(struct smbcli_state *cli,
 	char *fpath = NULL;
 
 	torture_comment(tctx, "TESTING CHANGE NOTIFY REPLY ALIGNMENT\n");
+
+	if (!torture_setup_dir(cli, BASEDIR)) {
+		return false;
+	}
 
 	/* get a handle on the directory */
 	io.generic.level = RAW_OPEN_NTCREATEX;
@@ -1688,39 +1793,31 @@ static bool test_notify_alignment(struct smbcli_state *cli,
 		    STR_UNICODE);
 	}
 
+	smb_raw_exit(cli->session);
+	smbcli_deltree(cli->tree, BASEDIR);
 	return true;
 }
 
-/*
-   basic testing of change notify
-*/
-bool torture_raw_notify(struct torture_context *torture, 
-			struct smbcli_state *cli, 
-			struct smbcli_state *cli2)
+struct torture_suite *torture_raw_notify(TALLOC_CTX *mem_ctx)
 {
-	bool ret = true;
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "notify");
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_suite_add_1smb_test(suite, "tcon", test_notify_tcon);
+	torture_suite_add_2smb_test(suite, "dir", test_notify_dir);
+	torture_suite_add_2smb_test(suite, "mask", test_notify_mask);
+	torture_suite_add_2smb_test(suite, "recursive", test_notify_recursive);
+	torture_suite_add_1smb_test(suite, "mask_change",
+				    test_notify_mask_change);
+	torture_suite_add_1smb_test(suite, "file", test_notify_file);
+	torture_suite_add_1smb_test(suite, "tdis", test_notify_tdis);
+	torture_suite_add_1smb_test(suite, "exit", test_notify_exit);
+	torture_suite_add_1smb_test(suite, "ulogoff", test_notify_ulogoff);
+	torture_suite_add_1smb_test(suite, "tcp_dis", test_notify_tcp_dis);
+	torture_suite_add_1smb_test(suite, "double", test_notify_double);
+	torture_suite_add_2smb_test(suite, "tree", test_notify_tree);
+	torture_suite_add_1smb_test(suite, "overflow", test_notify_overflow);
+	torture_suite_add_1smb_test(suite, "basedir", test_notify_basedir);
+	torture_suite_add_1smb_test(suite, "alignment", test_notify_alignment);
 
-	ret &= test_notify_tcon(cli, torture);
-	ret &= test_notify_dir(cli, cli2, torture);
-	ret &= test_notify_mask(cli, torture);
-	ret &= test_notify_recursive(cli, torture);
-	ret &= test_notify_mask_change(cli, torture);
-	ret &= test_notify_file(cli, torture);
-	ret &= test_notify_tdis(torture);
-	ret &= test_notify_exit(torture);
-	ret &= test_notify_ulogoff(torture);
-	ret &= test_notify_tcp_dis(torture);
-	ret &= test_notify_double(cli, torture);
-	ret &= test_notify_tree(cli, torture);
-	ret &= test_notify_overflow(cli, torture);
-	ret &= test_notify_basedir(cli, torture);
-	ret &= test_notify_alignment(cli, torture);
-
-	smb_raw_exit(cli->session);
-	smbcli_deltree(cli->tree, BASEDIR);
-	return ret;
+	return suite;
 }

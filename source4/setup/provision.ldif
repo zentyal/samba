@@ -24,6 +24,7 @@ serverState: 1
 showInAdvancedViewOnly: FALSE
 systemFlags: -1946157056
 uASCompat: 1
+nTSecurityDescriptor:: ${BUILTIN_DESCRIPTOR}
 
 dn: CN=Deleted Objects,${DOMAINDN}
 objectClass: top
@@ -45,6 +46,7 @@ systemFlags: -1946157056
 isCriticalSystemObject: TRUE
 showInAdvancedViewOnly: FALSE
 gPLink: [LDAP://CN={${POLICYGUID_DC}},CN=Policies,CN=System,${DOMAINDN};0]
+nTSecurityDescriptor:: ${DOMAIN_CONTROLLERS_DESCRIPTOR}
 
 # Joined DC located in "provision_self_join.ldif"
 
@@ -63,6 +65,7 @@ objectClass: top
 objectClass: infrastructureUpdate
 systemFlags: -1946157056
 isCriticalSystemObject: TRUE
+nTSecurityDescriptor:: ${INFRASTRUCTURE_DESCRIPTOR}
 
 dn: CN=LostAndFound,${DOMAINDN}
 objectClass: top

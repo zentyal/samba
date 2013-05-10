@@ -39,7 +39,6 @@
 #include "librpc/gen_ndr/ndr_security.h"
 #include "param/param.h"
 #include "dsdb/samdb/ldb_modules/util.h"
-#include "dsdb/samdb/ldb_modules/schema.h"
 #include "lib/util/tsort.h"
 #include "system/kerberos.h"
 #include "auth/kerberos/kerberos.h"
@@ -50,14 +49,21 @@ struct extended_access_check_attribute {
 };
 
 struct acl_private {
-	bool acl_perform;
+	bool acl_search;
 	const char **password_attrs;
+	void *cached_schema_ptr;
+	uint64_t cached_schema_metadata_usn;
+	uint64_t cached_schema_loaded_usn;
+	const char **confidential_attrs;
 };
 
 struct acl_context {
 	struct ldb_module *module;
 	struct ldb_request *req;
 	bool am_system;
+	bool am_administrator;
+	bool modify_search;
+	bool constructed_attrs;
 	bool allowedAttributes;
 	bool allowedAttributesEffective;
 	bool allowedChildClasses;
@@ -73,9 +79,12 @@ static int acl_module_init(struct ldb_module *module)
 	struct ldb_context *ldb;
 	struct acl_private *data;
 	int ret;
-	unsigned int i;
+	unsigned int i, n, j;
 	TALLOC_CTX *mem_ctx;
-	static const char *attrs[] = { "passwordAttribute", NULL };
+	static const char * const attrs[] = { "passwordAttribute", NULL };
+	static const char * const secret_attrs[] = {
+		DSDB_SECRET_ATTRIBUTES
+	};
 	struct ldb_result *res;
 	struct ldb_message *msg;
 	struct ldb_message_element *password_attributes;
@@ -89,14 +98,13 @@ static int acl_module_init(struct ldb_module *module)
 		return ldb_operr(ldb);
 	}
 
-	data = talloc(module, struct acl_private);
+	data = talloc_zero(module, struct acl_private);
 	if (data == NULL) {
 		return ldb_oom(ldb);
 	}
 
-	data->password_attrs = NULL;
-	data->acl_perform = lpcfg_parm_bool(ldb_get_opaque(ldb, "loadparm"),
-					 NULL, "acl", "perform", false);
+	data->acl_search = lpcfg_parm_bool(ldb_get_opaque(ldb, "loadparm"),
+					NULL, "acl", "search", true);
 	ldb_module_set_private(module, data);
 
 	mem_ctx = talloc_new(module);
@@ -107,7 +115,9 @@ static int acl_module_init(struct ldb_module *module)
 	ret = dsdb_module_search_dn(module, mem_ctx, &res,
 				    ldb_dn_new(mem_ctx, ldb, "@KLUDGEACL"),
 				    attrs,
-				    DSDB_FLAG_NEXT_MODULE, NULL);
+				    DSDB_FLAG_NEXT_MODULE |
+				    DSDB_FLAG_AS_SYSTEM,
+				    NULL);
 	if (ret != LDB_SUCCESS) {
 		goto done;
 	}
@@ -126,16 +136,44 @@ static int acl_module_init(struct ldb_module *module)
 	if (!password_attributes) {
 		goto done;
 	}
-	data->password_attrs = talloc_array(data, const char *, password_attributes->num_values + 1);
+	data->password_attrs = talloc_array(data, const char *,
+			password_attributes->num_values +
+			ARRAY_SIZE(secret_attrs) + 1);
 	if (!data->password_attrs) {
 		talloc_free(mem_ctx);
 		return ldb_oom(ldb);
 	}
+
+	n = 0;
 	for (i=0; i < password_attributes->num_values; i++) {
-		data->password_attrs[i] = (const char *)password_attributes->values[i].data;
+		data->password_attrs[n] = (const char *)password_attributes->values[i].data;
 		talloc_steal(data->password_attrs, password_attributes->values[i].data);
+		n++;
 	}
-	data->password_attrs[i] = NULL;
+
+	for (i=0; i < ARRAY_SIZE(secret_attrs); i++) {
+		bool found = false;
+
+		for (j=0; j < n; j++) {
+			if (strcasecmp(data->password_attrs[j], secret_attrs[i]) == 0) {
+				found = true;
+				break;
+			}
+		}
+
+		if (found) {
+			continue;
+		}
+
+		data->password_attrs[n] = talloc_strdup(data->password_attrs,
+							secret_attrs[i]);
+		if (data->password_attrs[n] == NULL) {
+			talloc_free(mem_ctx);
+			return ldb_oom(ldb);
+		}
+		n++;
+	}
+	data->password_attrs[n] = NULL;
 
 done:
 	talloc_free(mem_ctx);
@@ -287,6 +325,52 @@ static int acl_childClasses(struct ldb_module *module,
 	return LDB_SUCCESS;
 }
 
+static int acl_check_access_on_class(struct ldb_module *module,
+				     const struct dsdb_schema *schema,
+				     TALLOC_CTX *mem_ctx,
+				     struct security_descriptor *sd,
+				     struct security_token *token,
+				     struct dom_sid *rp_sid,
+				     uint32_t access_mask,
+				     const char *class_name)
+{
+	int ret;
+	NTSTATUS status;
+	uint32_t access_granted;
+	struct object_tree *root = NULL;
+	struct object_tree *new_node = NULL;
+	const struct GUID *guid;
+
+	if (class_name != NULL) {
+		guid = class_schemaid_guid_by_lDAPDisplayName(schema, class_name);
+		if (!guid) {
+			DEBUG(10, ("acl_search: cannot find class %s\n",
+				   class_name));
+			goto fail;
+		}
+		if (!insert_in_object_tree(mem_ctx,
+					   guid, access_mask,
+					   &root, &new_node)) {
+			DEBUG(10, ("acl_search: cannot add to object tree guid\n"));
+			goto fail;
+		}
+	}
+
+	status = sec_access_check_ds(sd, token,
+				     access_mask,
+				     &access_granted,
+				     root,
+				     rp_sid);
+	if (!NT_STATUS_IS_OK(status)) {
+		ret = LDB_ERR_INSUFFICIENT_ACCESS_RIGHTS;
+	} else {
+		ret = LDB_SUCCESS;
+	}
+	return ret;
+fail:
+	return ldb_operr(ldb_module_get_ctx(module));
+}
+
 static int acl_childClassesEffective(struct ldb_module *module,
 				     const struct dsdb_schema *schema,
 				     struct ldb_message *sd_msg,
@@ -339,6 +423,7 @@ static int acl_childClassesEffective(struct ldb_module *module,
 							schema,
 							msg,
 							sd,
+							acl_user_token(module),
 							sid,
 							SEC_ADS_CREATE_CHILD,
 							sclass->possibleInferiors[j]);
@@ -449,13 +534,18 @@ static int acl_validate_spn_value(TALLOC_CTX *mem_ctx,
 	char *instanceName;
 	char *serviceType;
 	char *serviceName;
-	const char *realm;
 	const char *forest_name = samdb_forest_name(ldb, mem_ctx);
 	const char *base_domain = samdb_default_domain_name(ldb, mem_ctx);
 	struct loadparm_context *lp_ctx = talloc_get_type(ldb_get_opaque(ldb, "loadparm"),
 							  struct loadparm_context);
 	bool is_dc = (userAccountControl & UF_SERVER_TRUST_ACCOUNT) ||
 		(userAccountControl & UF_PARTIAL_SECRETS_ACCOUNT);
+
+	if (strcasecmp_m(spn_value, samAccountName) == 0) {
+		/* MacOS X sets this value, and setting an SPN of your
+		 * own samAccountName is both pointless and safe */
+		return LDB_SUCCESS;
+	}
 
 	kerr = smb_krb5_init_context_basic(mem_ctx,
 					   lp_ctx,
@@ -471,9 +561,12 @@ static int acl_validate_spn_value(TALLOC_CTX *mem_ctx,
 		return LDB_ERR_CONSTRAINT_VIOLATION;
 	}
 
+	if (principal->name.name_string.len < 2) {
+		goto fail;
+	}
+
 	instanceName = principal->name.name_string.val[1];
 	serviceType = principal->name.name_string.val[0];
-	realm = krb5_principal_get_realm(krb_ctx, principal);
 	if (principal->name.name_string.len == 3) {
 		serviceName = principal->name.name_string.val[2];
 	} else {
@@ -503,9 +596,10 @@ static int acl_validate_spn_value(TALLOC_CTX *mem_ctx,
 	}
 	/* instanceName can be samAccountName without $ or dnsHostName
 	 * or "ntds_guid._msdcs.forest_domain for DC objects */
-	if (strncasecmp(instanceName, samAccountName, strlen(samAccountName) - 1) == 0) {
+	if (strlen(instanceName) == (strlen(samAccountName) - 1)
+	    && strncasecmp(instanceName, samAccountName, strlen(samAccountName) - 1) == 0) {
 		goto success;
-	} else if (strcasecmp(instanceName, dnsHostName) == 0) {
+	} else if (dnsHostName != NULL && strcasecmp(instanceName, dnsHostName) == 0) {
 		goto success;
 	} else if (is_dc) {
 		const char *guid_str;
@@ -591,7 +685,9 @@ static int acl_check_spn(TALLOC_CTX *mem_ctx,
 				    &acl_res, req->op.mod.message->dn,
 				    acl_attrs,
 				    DSDB_FLAG_NEXT_MODULE |
-				    DSDB_SEARCH_SHOW_DELETED, req);
+				    DSDB_FLAG_AS_SYSTEM |
+				    DSDB_SEARCH_SHOW_RECYCLED,
+				    req);
 	if (ret != LDB_SUCCESS) {
 		talloc_free(tmp_ctx);
 		return ret;
@@ -605,7 +701,8 @@ static int acl_check_spn(TALLOC_CTX *mem_ctx,
 				 &netbios_res, partitions_dn,
 				 LDB_SCOPE_ONELEVEL,
 				 netbios_attrs,
-				 DSDB_FLAG_NEXT_MODULE,
+				 DSDB_FLAG_NEXT_MODULE |
+				 DSDB_FLAG_AS_SYSTEM,
 				 req,
 				 "(ncName=%s)",
 				 ldb_dn_get_linearized(ldb_get_default_basedn(ldb)));
@@ -695,7 +792,9 @@ static int acl_add(struct ldb_module *module, struct ldb_request *req)
 
 	oc_el = ldb_msg_find_element(req->op.add.message, "objectClass");
 	if (!oc_el || oc_el->num_values == 0) {
-		DEBUG(10,("acl:operation error %s\n", ldb_dn_get_linearized(req->op.add.message->dn)));
+		ldb_asprintf_errstring(ldb_module_get_ctx(module),
+				       "acl: unable to find objectClass on %s\n",
+				       ldb_dn_get_linearized(req->op.add.message->dn));
 		return ldb_module_done(req, NULL, NULL, LDB_ERR_OPERATIONS_ERROR);
 	}
 
@@ -850,6 +949,26 @@ static int acl_check_password_rights(TALLOC_CTX *mem_ctx,
 	return ret;
 }
 
+static const struct GUID *get_oc_guid_from_message(const struct dsdb_schema *schema,
+						   struct ldb_message *msg)
+{
+	struct ldb_message_element *oc_el;
+	const struct dsdb_class *object_class;
+
+	oc_el = ldb_msg_find_element(msg, "objectClass");
+	if (!oc_el) {
+		return NULL;
+	}
+
+	object_class = dsdb_get_last_structural_class(schema, oc_el);
+	if (object_class == NULL) {
+		return NULL;
+	}
+
+	return &object_class->schemaIDGUID;
+}
+
+
 static int acl_modify(struct ldb_module *module, struct ldb_request *req)
 {
 	int ret;
@@ -891,7 +1010,10 @@ static int acl_modify(struct ldb_module *module, struct ldb_request *req)
 	}
 	ret = dsdb_module_search_dn(module, tmp_ctx, &acl_res, req->op.mod.message->dn,
 				    acl_attrs,
-				    DSDB_FLAG_NEXT_MODULE, req);
+				    DSDB_FLAG_NEXT_MODULE |
+				    DSDB_FLAG_AS_SYSTEM |
+				    DSDB_SEARCH_SHOW_RECYCLED,
+				    req);
 
 	if (ret != LDB_SUCCESS) {
 		goto fail;
@@ -914,7 +1036,7 @@ static int acl_modify(struct ldb_module *module, struct ldb_request *req)
 		goto success;
 	}
 
-	guid = get_oc_guid_from_message(module, schema, acl_res->msgs[0]);
+	guid = get_oc_guid_from_message(schema, acl_res->msgs[0]);
 	if (!guid) {
 		talloc_free(tmp_ctx);
 		return ldb_error(ldb, LDB_ERR_OPERATIONS_ERROR,
@@ -933,15 +1055,29 @@ static int acl_modify(struct ldb_module *module, struct ldb_request *req)
 							 req->op.mod.message->elements[i].name);
 
 		if (ldb_attr_cmp("nTSecurityDescriptor", req->op.mod.message->elements[i].name) == 0) {
+			uint32_t sd_flags = dsdb_request_sd_flags(req, NULL);
+			uint32_t access_mask = 0;
+
+			if (sd_flags & (SECINFO_OWNER|SECINFO_GROUP)) {
+				access_mask |= SEC_STD_WRITE_OWNER;
+			}
+			if (sd_flags & SECINFO_DACL) {
+				access_mask |= SEC_STD_WRITE_DAC;
+			}
+			if (sd_flags & SECINFO_SACL) {
+				access_mask |= SEC_FLAG_SYSTEM_SECURITY;
+			}
+
 			status = sec_access_check_ds(sd, acl_user_token(module),
-					     SEC_STD_WRITE_DAC,
+					     access_mask,
 					     &access_granted,
 					     NULL,
 					     sid);
 
 			if (!NT_STATUS_IS_OK(status)) {
-				DEBUG(10, ("Object %s has no write dacl access\n",
-					   ldb_dn_get_linearized(req->op.mod.message->dn)));
+				ldb_asprintf_errstring(ldb_module_get_ctx(module),
+						       "Object %s has no write dacl access\n",
+						       ldb_dn_get_linearized(req->op.mod.message->dn));
 				dsdb_acl_debug(sd,
 					       acl_user_token(module),
 					       req->op.mod.message->dn,
@@ -1010,14 +1146,16 @@ static int acl_modify(struct ldb_module *module, struct ldb_request *req)
 			if (!insert_in_object_tree(tmp_ctx,
 						   &attr->attributeSecurityGUID, SEC_ADS_WRITE_PROP,
 						   &new_node, &new_node)) {
-				DEBUG(10, ("acl_modify: cannot add to object tree securityGUID\n"));
+				ldb_asprintf_errstring(ldb_module_get_ctx(module),
+						       "acl_modify: cannot add to object tree securityGUID\n");
 				ret = LDB_ERR_OPERATIONS_ERROR;
 				goto fail;
 			}
 
 			if (!insert_in_object_tree(tmp_ctx,
 						   &attr->schemaIDGUID, SEC_ADS_WRITE_PROP, &new_node, &new_node)) {
-				DEBUG(10, ("acl_modify: cannot add to object tree attributeGUID\n"));
+				ldb_asprintf_errstring(ldb_module_get_ctx(module),
+						       "acl_modify: cannot add to object tree attributeGUID\n");
 				ret = LDB_ERR_OPERATIONS_ERROR;
 				goto fail;
 			}
@@ -1032,13 +1170,14 @@ static int acl_modify(struct ldb_module *module, struct ldb_request *req)
 					     sid);
 
 		if (!NT_STATUS_IS_OK(status)) {
-			DEBUG(10, ("Object %s has no write property access\n",
-				   ldb_dn_get_linearized(req->op.mod.message->dn)));
+			ldb_asprintf_errstring(ldb_module_get_ctx(module),
+					       "Object %s has no write property access\n",
+					       ldb_dn_get_linearized(req->op.mod.message->dn));
 			dsdb_acl_debug(sd,
-				  acl_user_token(module),
-				  req->op.mod.message->dn,
-				  true,
-				  10);
+				       acl_user_token(module),
+				       req->op.mod.message->dn,
+				       true,
+				       10);
 			ret = LDB_ERR_INSUFFICIENT_ACCESS_RIGHTS;
 			goto fail;
 		}
@@ -1090,6 +1229,18 @@ static int acl_delete(struct ldb_module *module, struct ldb_request *req)
 				       LDB_ERR_UNWILLING_TO_PERFORM);
 	}
 	talloc_free(nc_root);
+
+	if (ldb_request_get_control(req, LDB_CONTROL_TREE_DELETE_OID)) {
+		ret = dsdb_module_check_access_on_dn(module, req,
+						     req->op.del.dn,
+						     SEC_ADS_DELETE_TREE, NULL,
+						     req);
+		if (ret != LDB_SUCCESS) {
+			return ret;
+		}
+
+		return ldb_next_request(module, req);
+	}
 
 	/* First check if we have delete object right */
 	ret = dsdb_module_check_access_on_dn(module, req, req->op.del.dn,
@@ -1169,6 +1320,7 @@ static int acl_rename(struct ldb_module *module, struct ldb_request *req)
 	ret = dsdb_module_search_dn(module, tmp_ctx, &acl_res,
 				    req->op.rename.olddn, acl_attrs,
 				    DSDB_FLAG_NEXT_MODULE |
+				    DSDB_FLAG_AS_SYSTEM |
 				    DSDB_SEARCH_SHOW_RECYCLED, req);
 	/* we sould be able to find the parent */
 	if (ret != LDB_SUCCESS) {
@@ -1184,7 +1336,7 @@ static int acl_rename(struct ldb_module *module, struct ldb_request *req)
 		return ldb_operr(ldb);
 	}
 
-	guid = get_oc_guid_from_message(module, schema, acl_res->msgs[0]);
+	guid = get_oc_guid_from_message(schema, acl_res->msgs[0]);
 	if (!insert_in_object_tree(tmp_ctx, guid, SEC_ADS_WRITE_PROP,
 				   &root, &new_node)) {
 		talloc_free(tmp_ctx);
@@ -1231,8 +1383,9 @@ static int acl_rename(struct ldb_module *module, struct ldb_request *req)
 				     sid);
 
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(10, ("Object %s has no wp on name\n",
-			   ldb_dn_get_linearized(req->op.rename.olddn)));
+		ldb_asprintf_errstring(ldb_module_get_ctx(module),
+				       "Object %s has no wp on name\n",
+				       ldb_dn_get_linearized(req->op.rename.olddn));
 		dsdb_acl_debug(sd,
 			  acl_user_token(module),
 			  req->op.rename.olddn,
@@ -1251,16 +1404,19 @@ static int acl_rename(struct ldb_module *module, struct ldb_request *req)
 	/* new parent should have create child */
 	root = NULL;
 	new_node = NULL;
-	guid = get_oc_guid_from_message(module, schema, acl_res->msgs[0]);
+	guid = get_oc_guid_from_message(schema, acl_res->msgs[0]);
 	if (!guid) {
-		DEBUG(10,("acl:renamed object has no object class\n"));
+		ldb_asprintf_errstring(ldb_module_get_ctx(module),
+				       "acl:renamed object has no object class\n");
 		talloc_free(tmp_ctx);
 		return ldb_module_done(req, NULL, NULL,  LDB_ERR_OPERATIONS_ERROR);
 	}
 
 	ret = dsdb_module_check_access_on_dn(module, req, newparent, SEC_ADS_CREATE_CHILD, guid, req);
 	if (ret != LDB_SUCCESS) {
-		DEBUG(10,("acl:access_denied renaming %s", ldb_dn_get_linearized(req->op.rename.olddn)));
+		ldb_asprintf_errstring(ldb_module_get_ctx(module),
+				       "acl:access_denied renaming %s",
+				       ldb_dn_get_linearized(req->op.rename.olddn));
 		talloc_free(tmp_ctx);
 		return ret;
 	}
@@ -1279,7 +1435,8 @@ static int acl_rename(struct ldb_module *module, struct ldb_request *req)
 	/* what about delete child on the current parent */
 	ret = dsdb_module_check_access_on_dn(module, req, oldparent, SEC_ADS_DELETE_CHILD, NULL, req);
 	if (ret != LDB_SUCCESS) {
-		DEBUG(10,("acl:access_denied renaming %s", ldb_dn_get_linearized(req->op.rename.olddn)));
+		ldb_asprintf_errstring(ldb_module_get_ctx(module),
+				       "acl:access_denied renaming %s", ldb_dn_get_linearized(req->op.rename.olddn));
 		talloc_free(tmp_ctx);
 		return ldb_module_done(req, NULL, NULL, ret);
 	}
@@ -1289,9 +1446,65 @@ static int acl_rename(struct ldb_module *module, struct ldb_request *req)
 	return ldb_next_request(module, req);
 }
 
+static int acl_search_update_confidential_attrs(struct acl_context *ac,
+						struct acl_private *data)
+{
+	struct dsdb_attribute *a;
+	uint32_t n = 0;
+
+	if (data->acl_search) {
+		/*
+		 * If acl:search is activated, the acl_read module
+		 * protects confidential attributes.
+		 */
+		return LDB_SUCCESS;
+	}
+
+	if ((ac->schema == data->cached_schema_ptr) &&
+	    (ac->schema->loaded_usn == data->cached_schema_loaded_usn) &&
+	    (ac->schema->metadata_usn == data->cached_schema_metadata_usn))
+	{
+		return LDB_SUCCESS;
+	}
+
+	data->cached_schema_ptr = NULL;
+	data->cached_schema_loaded_usn = 0;
+	data->cached_schema_metadata_usn = 0;
+	TALLOC_FREE(data->confidential_attrs);
+
+	if (ac->schema == NULL) {
+		return LDB_SUCCESS;
+	}
+
+	for (a = ac->schema->attributes; a; a = a->next) {
+		const char **attrs = data->confidential_attrs;
+
+		if (!(a->searchFlags & SEARCH_FLAG_CONFIDENTIAL)) {
+			continue;
+		}
+
+		attrs = talloc_realloc(data, attrs, const char *, n + 2);
+		if (attrs == NULL) {
+			TALLOC_FREE(data->confidential_attrs);
+			return ldb_module_oom(ac->module);
+		}
+
+		attrs[n] = a->lDAPDisplayName;
+		attrs[n+1] = NULL;
+		n++;
+
+		data->confidential_attrs = attrs;
+	}
+
+	data->cached_schema_ptr = ac->schema;
+	data->cached_schema_loaded_usn = ac->schema->loaded_usn;
+	data->cached_schema_metadata_usn = ac->schema->metadata_usn;
+
+	return LDB_SUCCESS;
+}
+
 static int acl_search_callback(struct ldb_request *req, struct ldb_reply *ares)
 {
-	struct ldb_context *ldb;
 	struct acl_context *ac;
 	struct acl_private *data;
 	struct ldb_result *acl_res;
@@ -1306,8 +1519,6 @@ static int acl_search_callback(struct ldb_request *req, struct ldb_reply *ares)
 
 	ac = talloc_get_type(req->context, struct acl_context);
 	data = talloc_get_type(ldb_module_get_private(ac->module), struct acl_private);
-	ldb = ldb_module_get_ctx(ac->module);
-
 	if (!ares) {
 		return ldb_module_done(ac->req, NULL, NULL,
 				       LDB_ERR_OPERATIONS_ERROR);
@@ -1319,57 +1530,95 @@ static int acl_search_callback(struct ldb_request *req, struct ldb_reply *ares)
 
 	switch (ares->type) {
 	case LDB_REPLY_ENTRY:
-		if (ac->allowedAttributes 
-		    || ac->allowedChildClasses
-		    || ac->allowedChildClassesEffective
-		    || ac->allowedAttributesEffective
-		    || ac->sDRightsEffective) {
+		if (ac->constructed_attrs) {
 			ret = dsdb_module_search_dn(ac->module, ac, &acl_res, ares->message->dn, 
 						    acl_attrs,
-						    DSDB_FLAG_NEXT_MODULE, req);
+						    DSDB_FLAG_NEXT_MODULE |
+						    DSDB_FLAG_AS_SYSTEM |
+						    DSDB_SEARCH_SHOW_RECYCLED,
+						    req);
 			if (ret != LDB_SUCCESS) {
 				return ldb_module_done(ac->req, NULL, NULL, ret);
 			}
-			if (ac->allowedAttributes || ac->allowedAttributesEffective) {
-				ret = acl_allowedAttributes(ac->module, ac->schema, acl_res->msgs[0], ares->message, ac);
-				if (ret != LDB_SUCCESS) {
-					return ldb_module_done(ac->req, NULL, NULL, ret);
-				}
-			}
-			if (ac->allowedChildClasses) {
-				ret = acl_childClasses(ac->module, ac->schema, acl_res->msgs[0],
-						       ares->message, "allowedChildClasses");
-				if (ret != LDB_SUCCESS) {
-					return ldb_module_done(ac->req, NULL, NULL, ret);
-				}
-			}
-			if (ac->allowedChildClassesEffective) {
-				ret = acl_childClassesEffective(ac->module, ac->schema,
-								acl_res->msgs[0], ares->message, ac);
-				if (ret != LDB_SUCCESS) {
-					return ldb_module_done(ac->req, NULL, NULL, ret);
-				}
-			}
-			if (ac->sDRightsEffective) {
-				ret = acl_sDRightsEffective(ac->module, 
-							    acl_res->msgs[0], ares->message, ac);
-				if (ret != LDB_SUCCESS) {
-					return ldb_module_done(ac->req, NULL, NULL, ret);
-				}
-			}
 		}
-		if (data && data->password_attrs) {
-			if (!ac->am_system) {
-				for (i = 0; data->password_attrs[i]; i++) {
-					if ((!ac->userPassword) &&
-					    (ldb_attr_cmp(data->password_attrs[i],
-							  "userPassword") == 0))
-						continue;
 
-					ldb_msg_remove_attr(ares->message, data->password_attrs[i]);
-				}
+		if (ac->allowedAttributes || ac->allowedAttributesEffective) {
+			ret = acl_allowedAttributes(ac->module, ac->schema,
+						    acl_res->msgs[0],
+						    ares->message, ac);
+			if (ret != LDB_SUCCESS) {
+				return ldb_module_done(ac->req, NULL, NULL, ret);
 			}
 		}
+
+		if (ac->allowedChildClasses) {
+			ret = acl_childClasses(ac->module, ac->schema,
+					       acl_res->msgs[0],
+					       ares->message,
+					       "allowedChildClasses");
+			if (ret != LDB_SUCCESS) {
+				return ldb_module_done(ac->req, NULL, NULL, ret);
+			}
+		}
+
+		if (ac->allowedChildClassesEffective) {
+			ret = acl_childClassesEffective(ac->module, ac->schema,
+							acl_res->msgs[0],
+							ares->message, ac);
+			if (ret != LDB_SUCCESS) {
+				return ldb_module_done(ac->req, NULL, NULL, ret);
+			}
+		}
+
+		if (ac->sDRightsEffective) {
+			ret = acl_sDRightsEffective(ac->module,
+						    acl_res->msgs[0],
+						    ares->message, ac);
+			if (ret != LDB_SUCCESS) {
+				return ldb_module_done(ac->req, NULL, NULL, ret);
+			}
+		}
+
+		if (data == NULL) {
+			return ldb_module_send_entry(ac->req, ares->message,
+						     ares->controls);
+		}
+
+		if (ac->am_system) {
+			return ldb_module_send_entry(ac->req, ares->message,
+						     ares->controls);
+		}
+
+		if (data->password_attrs != NULL) {
+			for (i = 0; data->password_attrs[i]; i++) {
+				if ((!ac->userPassword) &&
+				    (ldb_attr_cmp(data->password_attrs[i],
+						  "userPassword") == 0))
+				{
+						continue;
+				}
+
+				ldb_msg_remove_attr(ares->message, data->password_attrs[i]);
+			}
+		}
+
+		if (ac->am_administrator) {
+			return ldb_module_send_entry(ac->req, ares->message,
+						     ares->controls);
+		}
+
+		ret = acl_search_update_confidential_attrs(ac, data);
+		if (ret != LDB_SUCCESS) {
+			return ret;
+		}
+
+		if (data->confidential_attrs != NULL) {
+			for (i = 0; data->confidential_attrs[i]; i++) {
+				ldb_msg_remove_attr(ares->message,
+						    data->confidential_attrs[i]);
+			}
+		}
+
 		return ldb_module_send_entry(ac->req, ares->message, ares->controls);
 
 	case LDB_REPLY_REFERRAL:
@@ -1387,6 +1636,7 @@ static int acl_search(struct ldb_module *module, struct ldb_request *req)
 {
 	struct ldb_context *ldb;
 	struct acl_context *ac;
+	struct ldb_parse_tree *down_tree;
 	struct ldb_request *down_req;
 	struct acl_private *data;
 	int ret;
@@ -1403,6 +1653,9 @@ static int acl_search(struct ldb_module *module, struct ldb_request *req)
 	ac->module = module;
 	ac->req = req;
 	ac->am_system = dsdb_module_am_system(module);
+	ac->am_administrator = dsdb_module_am_administrator(module);
+	ac->constructed_attrs = false;
+	ac->modify_search = true;
 	ac->allowedAttributes = ldb_attr_in_list(req->op.search.attrs, "allowedAttributes");
 	ac->allowedAttributesEffective = ldb_attr_in_list(req->op.search.attrs, "allowedAttributesEffective");
 	ac->allowedChildClasses = ldb_attr_in_list(req->op.search.attrs, "allowedChildClasses");
@@ -1411,30 +1664,61 @@ static int acl_search(struct ldb_module *module, struct ldb_request *req)
 	ac->userPassword = dsdb_user_password_support(module, ac, req);
 	ac->schema = dsdb_get_schema(ldb, ac);
 
-	/* replace any attributes in the parse tree that are private,
-	   so we don't allow a search for 'userPassword=penguin',
-	   just as we would not allow that attribute to be returned */
-	if (ac->am_system) {
-		/* FIXME: We should copy the tree and keep the original unmodified. */
-		/* remove password attributes */
-		if (data && data->password_attrs) {
-			for (i = 0; data->password_attrs[i]; i++) {
-				if ((!ac->userPassword) &&
-				    (ldb_attr_cmp(data->password_attrs[i],
-						  "userPassword") == 0))
-						continue;
+	ac->constructed_attrs |= ac->allowedAttributes;
+	ac->constructed_attrs |= ac->allowedChildClasses;
+	ac->constructed_attrs |= ac->allowedChildClassesEffective;
+	ac->constructed_attrs |= ac->allowedAttributesEffective;
+	ac->constructed_attrs |= ac->sDRightsEffective;
 
-				ldb_parse_tree_attr_replace(req->op.search.tree,
-							    data->password_attrs[i],
-							    "kludgeACLredactedattribute");
+	if (data == NULL) {
+		ac->modify_search = false;
+	}
+	if (ac->am_system) {
+		ac->modify_search = false;
+	}
+
+	if (!ac->constructed_attrs && !ac->modify_search) {
+		return ldb_next_request(module, req);
+	}
+
+	ret = acl_search_update_confidential_attrs(ac, data);
+	if (ret != LDB_SUCCESS) {
+		return ret;
+	}
+
+	down_tree = ldb_parse_tree_copy_shallow(ac, req->op.search.tree);
+	if (down_tree == NULL) {
+		return ldb_oom(ldb);
+	}
+
+	if (!ac->am_system && data->password_attrs) {
+		for (i = 0; data->password_attrs[i]; i++) {
+			if ((!ac->userPassword) &&
+			    (ldb_attr_cmp(data->password_attrs[i],
+					  "userPassword") == 0))
+			{
+				continue;
 			}
+
+			ldb_parse_tree_attr_replace(down_tree,
+						    data->password_attrs[i],
+						    "kludgeACLredactedattribute");
 		}
 	}
+
+	if (!ac->am_system && !ac->am_administrator && data->confidential_attrs) {
+		for (i = 0; data->confidential_attrs[i]; i++) {
+			ldb_parse_tree_attr_replace(down_tree,
+						    data->confidential_attrs[i],
+						    "kludgeACLredactedattribute");
+		}
+	}
+
 	ret = ldb_build_search_req_ex(&down_req,
 				      ldb, ac,
 				      req->op.search.base,
 				      req->op.search.scope,
-				      req->op.search.tree,
+				      down_tree,
 				      req->op.search.attrs,
 				      req->controls,
 				      ac, acl_search_callback,

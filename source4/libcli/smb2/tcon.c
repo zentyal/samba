@@ -22,6 +22,7 @@
 #include "includes.h"
 #include "libcli/smb2/smb2.h"
 #include "libcli/smb2/smb2_calls.h"
+#include "../libcli/smb/smbXcli_base.h"
 
 /*
   initialise a smb2_session structure
@@ -40,24 +41,30 @@ struct smb2_tree *smb2_tree_init(struct smb2_session *session,
 	} else {
 		tree->session = talloc_reference(tree, session);
 	}
+
+	tree->smbXcli = smbXcli_tcon_create(tree);
+	if (tree->smbXcli == NULL) {
+		talloc_free(tree);
+		return NULL;
+	}
+
 	return tree;
 }
 
 /*
   send a tree connect
 */
-struct smb2_request *smb2_tree_connect_send(struct smb2_tree *tree, 
+struct smb2_request *smb2_tree_connect_send(struct smb2_session *session,
 					    struct smb2_tree_connect *io)
 {
 	struct smb2_request *req;
 	NTSTATUS status;
 
-	req = smb2_request_init(tree->session->transport, SMB2_OP_TCON, 
+	req = smb2_request_init(session->transport, SMB2_OP_TCON,
 				0x08, true, 0);
 	if (req == NULL) return NULL;
 
-	SBVAL(req->out.hdr,  SMB2_HDR_SESSION_ID, tree->session->uid);
-	req->session = tree->session;
+	req->session = session;
 
 	SSVAL(req->out.body, 0x02, io->in.reserved);
 	status = smb2_push_o16s16_string(&req->out, 0x04, io->in.path);
@@ -105,8 +112,8 @@ NTSTATUS smb2_tree_connect_recv(struct smb2_request *req, struct smb2_tree_conne
 /*
   sync tree connect request
 */
-NTSTATUS smb2_tree_connect(struct smb2_tree *tree, struct smb2_tree_connect *io)
+NTSTATUS smb2_tree_connect(struct smb2_session *session, struct smb2_tree_connect *io)
 {
-	struct smb2_request *req = smb2_tree_connect_send(tree, io);
+	struct smb2_request *req = smb2_tree_connect_send(session, io);
 	return smb2_tree_connect_recv(req, io);
 }

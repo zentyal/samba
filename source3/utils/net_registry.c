@@ -30,11 +30,13 @@
 #include "registry/reg_backend_db.h"
 #include "registry/reg_import.h"
 #include "registry/reg_format.h"
+#include "registry/reg_api_util.h"
 #include <assert.h>
 #include "../libcli/security/display_sec.h"
 #include "../libcli/security/sddl.h"
 #include "../libcli/registry/util_reg.h"
 #include "passdb/machine_sid.h"
+#include "net_registry_check.h"
 
 /*
  *
@@ -122,16 +124,17 @@ done:
 	return werr;
 }
 
-static WERROR registry_enumkey(struct registry_key* parent, const char* keyname, bool recursive)
+static WERROR registry_enumkey(struct registry_key *parent, const char *keyname,
+			       bool recursive)
 {
 	WERROR werr;
 	TALLOC_CTX *ctx = talloc_stackframe();
-	char*  subkey_name;
+	char *subkey_name;
 	NTTIME modtime;
 	uint32_t count;
-	char* valname = NULL;
+	char *valname = NULL;
 	struct registry_value *valvalue = NULL;
-	struct registry_key* key = NULL;
+	struct registry_key *key = NULL;
 
 	werr = reg_openkey(ctx, parent, keyname, REG_KEY_READ, &key);
 	if (!W_ERROR_IS_OK(werr)) {
@@ -202,7 +205,7 @@ static int net_registry_enumerate(struct net_context *c, int argc,
 {
 	WERROR werr;
 	struct registry_key *key = NULL;
-	char* name = NULL;
+	char *name = NULL;
 	TALLOC_CTX *ctx = talloc_stackframe();
 	int ret = -1;
 
@@ -236,7 +239,7 @@ static int net_registry_enumerate_recursive(struct net_context *c, int argc,
 {
 	WERROR werr;
 	struct registry_key *key = NULL;
-	char* name = NULL;
+	char *name = NULL;
 	TALLOC_CTX *ctx = talloc_stackframe();
 	int ret = -1;
 
@@ -641,7 +644,7 @@ static int net_registry_increment(struct net_context *c, int argc,
 	}
 
 	status = g_lock_do("registry_increment_lock", G_LOCK_WRITE,
-			   timeval_set(600, 0), procid_self(),
+			   timeval_set(600, 0),
 			   net_registry_increment_fn, &state);
 	if (!NT_STATUS_IS_OK(status)) {
 		d_fprintf(stderr, _("g_lock_do failed: %s\n"),
@@ -908,18 +911,18 @@ struct import_ctx {
 };
 
 
-static WERROR import_create_key(struct import_ctx* ctx,
-				struct registry_key* parent,
-				const char* name, void** pkey, bool* existing)
+static WERROR import_create_key(struct import_ctx *ctx,
+				struct registry_key *parent,
+				const char *name, void **pkey, bool *existing)
 {
 	WERROR werr;
-	void* mem_ctx = talloc_new(ctx->mem_ctx);
+	TALLOC_CTX *mem_ctx = talloc_new(ctx->mem_ctx);
 
-	struct registry_key* key = NULL;
+	struct registry_key *key = NULL;
 	enum winreg_CreateAction action;
 
 	if (parent == NULL) {
-		char* subkeyname = NULL;
+		char *subkeyname = NULL;
 		werr = open_hive(mem_ctx, name, REG_KEY_WRITE,
 			 &parent, &subkeyname);
 		if (!W_ERROR_IS_OK(werr)) {
@@ -958,20 +961,20 @@ done:
 	return werr;
 }
 
-static WERROR import_close_key(struct import_ctx* ctx,
-			       struct registry_key* key)
+static WERROR import_close_key(struct import_ctx *ctx,
+			       struct registry_key *key)
 {
 	return WERR_OK;
 }
 
-static WERROR import_delete_key(struct import_ctx* ctx,
-				struct registry_key* parent, const char* name)
+static WERROR import_delete_key(struct import_ctx *ctx,
+				struct registry_key *parent, const char *name)
 {
 	WERROR werr;
-	void* mem_ctx = talloc_new(talloc_tos());
+	TALLOC_CTX *mem_ctx = talloc_new(talloc_tos());
 
 	if (parent == NULL) {
-		char* subkeyname = NULL;
+		char *subkeyname = NULL;
 		werr = open_hive(mem_ctx, name, REG_KEY_WRITE,
 			 &parent, &subkeyname);
 		if (!W_ERROR_IS_OK(werr)) {
@@ -984,8 +987,8 @@ static WERROR import_delete_key(struct import_ctx* ctx,
 
 	werr = reg_deletekey_recursive(parent, name);
 	if (!W_ERROR_IS_OK(werr)) {
-		d_fprintf(stderr, "reg_deletekey_recursive %s: %s\n", _("failed"),
-			  win_errstr(werr));
+		d_fprintf(stderr, "reg_deletekey_recursive %s: %s\n",
+			  _("failed"), win_errstr(werr));
 		goto done;
 	}
 
@@ -994,9 +997,9 @@ done:
 	return werr;
 }
 
-static WERROR import_create_val (struct import_ctx* ctx,
-				 struct registry_key* parent, const char* name,
-				 const struct registry_value* value)
+static WERROR import_create_val (struct import_ctx *ctx,
+				 struct registry_key *parent, const char *name,
+				 const struct registry_value *value)
 {
 	WERROR werr;
 
@@ -1012,7 +1015,9 @@ static WERROR import_create_val (struct import_ctx* ctx,
 	return werr;
 }
 
-static WERROR import_delete_val (struct import_ctx* ctx, struct registry_key* parent, const char* name) {
+static WERROR import_delete_val (struct import_ctx *ctx,
+				 struct registry_key *parent, const char *name)
+{
 	WERROR werr;
 
 	if (parent == NULL) {
@@ -1028,11 +1033,200 @@ static WERROR import_delete_val (struct import_ctx* ctx, struct registry_key* pa
 	return werr;
 }
 
+struct precheck_ctx {
+	TALLOC_CTX *mem_ctx;
+	bool failed;
+};
 
-static int net_registry_import(struct net_context *c, int argc,
-			       const char **argv)
+static WERROR precheck_create_key(struct precheck_ctx *ctx,
+				  struct registry_key *parent,
+				  const char *name, void **pkey, bool *existing)
 {
-	struct import_ctx import_ctx;
+	WERROR werr;
+	TALLOC_CTX *frame = talloc_stackframe();
+	struct registry_key *key = NULL;
+
+	if (parent == NULL) {
+		char *subkeyname = NULL;
+		werr = open_hive(frame, name, REG_KEY_READ,
+				 &parent, &subkeyname);
+		if (!W_ERROR_IS_OK(werr)) {
+			d_printf("Precheck: open_hive of [%s] failed: %s\n",
+				 name, win_errstr(werr));
+			goto done;
+		}
+		name = subkeyname;
+	}
+
+	werr = reg_openkey(frame, parent, name, 0, &key);
+	if (!W_ERROR_IS_OK(werr)) {
+		d_printf("Precheck: openkey [%s] failed: %s\n",
+			 name, win_errstr(werr));
+		goto done;
+	}
+
+	if (existing != NULL) {
+		*existing = true;
+	}
+
+	if (pkey != NULL) {
+		*pkey = talloc_steal(ctx->mem_ctx, key);
+	}
+
+done:
+	talloc_free(frame);
+	ctx->failed = !W_ERROR_IS_OK(werr);
+	return werr;
+}
+
+static WERROR precheck_close_key(struct precheck_ctx *ctx,
+				 struct registry_key *key)
+{
+	talloc_free(key);
+	return WERR_OK;
+}
+
+static WERROR precheck_delete_key(struct precheck_ctx *ctx,
+				  struct registry_key *parent, const char *name)
+{
+	WERROR werr;
+	TALLOC_CTX *frame = talloc_stackframe();
+	struct registry_key *key;
+
+	if (parent == NULL) {
+		char *subkeyname = NULL;
+		werr = open_hive(frame, name, REG_KEY_READ,
+				 &parent, &subkeyname);
+		if (!W_ERROR_IS_OK(werr)) {
+			d_printf("Precheck: open_hive of [%s] failed: %s\n",
+				 name, win_errstr(werr));
+			goto done;
+		}
+		name = subkeyname;
+	}
+
+	werr = reg_openkey(ctx->mem_ctx, parent, name, 0, &key);
+	if (W_ERROR_IS_OK(werr)) {
+		d_printf("Precheck: key [%s\\%s] should not exist\n",
+			 parent->key->name, name);
+		werr = WERR_FILE_EXISTS;
+	} else if (W_ERROR_EQUAL(werr, WERR_BADFILE)) {
+		werr = WERR_OK;
+	} else {
+		d_printf("Precheck: openkey [%s\\%s] failed: %s\n",
+			 parent->key->name, name, win_errstr(werr));
+	}
+
+done:
+	talloc_free(frame);
+	ctx->failed = !W_ERROR_IS_OK(werr);
+	return werr;
+}
+
+static WERROR precheck_create_val(struct precheck_ctx *ctx,
+				  struct registry_key *parent,
+				  const char *name,
+				  const struct registry_value *value)
+{
+	TALLOC_CTX *frame = talloc_stackframe();
+	struct registry_value *old;
+	WERROR werr;
+
+	SMB_ASSERT(parent);
+
+	werr = reg_queryvalue(frame, parent, name, &old);
+	if (!W_ERROR_IS_OK(werr)) {
+		d_printf("Precheck: queryvalue \"%s\" of [%s] failed: %s\n",
+			 name, parent->key->name, win_errstr(werr));
+		goto done;
+	}
+	if (registry_value_cmp(value, old) != 0) {
+		d_printf("Precheck: unexpected value \"%s\" of key [%s]\n",
+			 name, parent->key->name);
+		ctx->failed = true;
+	}
+done:
+	talloc_free(frame);
+	return werr;
+}
+
+static WERROR precheck_delete_val(struct precheck_ctx *ctx,
+				  struct registry_key *parent,
+				  const char *name)
+{
+	TALLOC_CTX *frame = talloc_stackframe();
+	struct registry_value *old;
+	WERROR werr;
+
+	SMB_ASSERT(parent);
+
+	werr = reg_queryvalue(frame, parent, name, &old);
+	if (W_ERROR_IS_OK(werr)) {
+		d_printf("Precheck: value \"%s\" of key [%s] should not exist\n",
+			 name, parent->key->name);
+		werr = WERR_FILE_EXISTS;
+	} else if (W_ERROR_EQUAL(werr, WERR_BADFILE)) {
+		werr = WERR_OK;
+	} else {
+		printf("Precheck: queryvalue \"%s\" of key [%s] failed: %s\n",
+		       name, parent->key->name, win_errstr(werr));
+	}
+
+	talloc_free(frame);
+	ctx->failed = !W_ERROR_IS_OK(werr);
+	return werr;
+}
+
+static bool import_precheck(const char *fname, const char *parse_options)
+{
+	TALLOC_CTX *mem_ctx = talloc_tos();
+	struct precheck_ctx precheck_ctx = {
+		.mem_ctx = mem_ctx,
+		.failed = false,
+	};
+	struct reg_import_callback precheck_callback = {
+		.openkey     = NULL,
+		.closekey    = (reg_import_callback_closekey_t)&precheck_close_key,
+		.createkey   = (reg_import_callback_createkey_t)&precheck_create_key,
+		.deletekey   = (reg_import_callback_deletekey_t)&precheck_delete_key,
+		.deleteval   = (reg_import_callback_deleteval_t)&precheck_delete_val,
+		.setval      = {
+			.registry_value = (reg_import_callback_setval_registry_value_t)
+		                          &precheck_create_val,
+		},
+		.setval_type = REGISTRY_VALUE,
+		.data        = &precheck_ctx
+	};
+	struct reg_parse_callback *parse_callback;
+	int ret;
+
+	if (!fname) {
+		return true;
+	}
+
+	parse_callback = reg_import_adapter(mem_ctx, precheck_callback);
+	if (parse_callback == NULL) {
+		d_printf("talloc failed\n");
+		return false;
+	}
+
+	ret = reg_parse_file(fname, parse_callback, parse_options);
+
+	if (ret < 0 || precheck_ctx.failed) {
+		d_printf("Precheck failed\n");
+		return false;
+	}
+	return true;
+}
+
+static int import_with_precheck_action(const char *import_fname,
+				       const char *precheck_fname,
+				       const char *parse_options)
+{
+	TALLOC_CTX *frame = talloc_stackframe();
+	struct import_ctx import_ctx = {
+		.mem_ctx = frame,
+	};
 	struct reg_import_callback import_callback = {
 		.openkey     = NULL,
 		.closekey    = (reg_import_callback_closekey_t)&import_close_key,
@@ -1046,8 +1240,34 @@ static int net_registry_import(struct net_context *c, int argc,
 		.setval_type = REGISTRY_VALUE,
 		.data        = &import_ctx
 	};
+	struct reg_parse_callback *parse_callback;
+	int ret = -1;
+	bool precheck_ok;
 
-	int ret;
+	precheck_ok = import_precheck(precheck_fname, parse_options);
+	if (!precheck_ok) {
+		goto done;
+	}
+
+	parse_callback = reg_import_adapter(frame, import_callback);
+	if (parse_callback == NULL) {
+		d_printf("talloc failed\n");
+		goto done;
+	}
+
+	ret = reg_parse_file(import_fname, parse_callback, parse_options);
+
+done:
+	talloc_free(frame);
+	return ret;
+}
+
+static int net_registry_import(struct net_context *c, int argc,
+			       const char **argv)
+{
+	const char *parse_options =  (argc > 1) ? argv[1] : NULL;
+	int ret = -1;
+	WERROR werr;
 
 	if (argc < 1 || argc > 2 || c->display_usage) {
 		d_printf("%s\n%s",
@@ -1059,27 +1279,45 @@ static int net_registry_import(struct net_context *c, int argc,
 		return -1;
 	}
 
-	ZERO_STRUCT(import_ctx);
-	import_ctx.mem_ctx = talloc_stackframe();
-
-	regdb_open();
-	regdb_transaction_start();
-
-	ret = reg_parse_file(argv[0],
-			     reg_import_adapter(import_ctx.mem_ctx,
-						import_callback),
-			     (argc > 1) ? argv[1] : NULL
-		);
-	if (ret < 0) {
-		d_printf("reg_parse_file failed: transaction canceled\n");
-		regdb_transaction_cancel();
-	} else{
-		regdb_transaction_commit();
+	werr = regdb_open();
+	if (!W_ERROR_IS_OK(werr)) {
+		d_printf("Failed to open regdb: %s\n", win_errstr(werr));
+		return -1;
 	}
 
-	regdb_close();
-	talloc_free(import_ctx.mem_ctx);
+	werr = regdb_transaction_start();
+	if (!W_ERROR_IS_OK(werr)) {
+		d_printf("Failed to start transaction on regdb: %s\n",
+			 win_errstr(werr));
+		goto done;
+	}
 
+	ret = import_with_precheck_action(argv[0], c->opt_precheck,
+					  parse_options);
+
+	if (ret < 0) {
+		d_printf("Transaction canceled!\n");
+		regdb_transaction_cancel();
+		goto done;
+	}
+
+	SMB_ASSERT(ret == 0);
+
+	if (c->opt_testmode) {
+		d_printf("Testmode: not committing changes.\n");
+		regdb_transaction_cancel();
+		goto done;
+	}
+
+	werr = regdb_transaction_commit();
+	if (!W_ERROR_IS_OK(werr)) {
+		d_printf("Failed to commit transaction on regdb: %s\n",
+			 win_errstr(werr));
+		ret = -1;
+	}
+
+done:
+	regdb_close();
 	return ret;
 }
 /**@}*/
@@ -1092,8 +1330,8 @@ static int net_registry_import(struct net_context *c, int argc,
  * @{
  */
 
-static int registry_export(TALLOC_CTX *ctx, /*const*/ struct registry_key* key,
-			   struct reg_format* f)
+static int registry_export(TALLOC_CTX *ctx, /*const*/ struct registry_key *key,
+			   struct reg_format *f)
 {
 	int ret=-1;
 	WERROR werr;
@@ -1102,7 +1340,6 @@ static int registry_export(TALLOC_CTX *ctx, /*const*/ struct registry_key* key,
 	struct registry_value *valvalue = NULL;
 	char *valname = NULL;
 
-	struct registry_key* subkey = NULL;
 	char *subkey_name = NULL;
 	NTTIME modtime = 0;
 
@@ -1128,6 +1365,8 @@ static int registry_export(TALLOC_CTX *ctx, /*const*/ struct registry_key* key,
 		     W_ERROR_IS_OK(werr);
 	     count++)
 	{
+		struct registry_key *subkey = NULL;
+
 		werr = reg_openkey(ctx, key, subkey_name, REG_KEY_READ,
 				   &subkey);
 		if (!W_ERROR_IS_OK(werr)) {
@@ -1137,6 +1376,7 @@ static int registry_export(TALLOC_CTX *ctx, /*const*/ struct registry_key* key,
 		}
 
 		registry_export(ctx, subkey, f);
+		TALLOC_FREE(subkey);
 	}
 	if (!W_ERROR_EQUAL(WERR_NO_MORE_ITEMS, werr)) {
 		d_fprintf(stderr, _("reg_enumkey failed: %s\n"),
@@ -1155,7 +1395,7 @@ static int net_registry_export(struct net_context *c, int argc,
 	WERROR werr;
 	struct registry_key *key = NULL;
 	TALLOC_CTX *ctx = talloc_stackframe();
-	struct reg_format* f=NULL;
+	struct reg_format *f=NULL;
 
 	if (argc < 2 || argc > 3 || c->display_usage) {
 		d_printf("%s\n%s",
@@ -1199,9 +1439,9 @@ static int net_registry_convert(struct net_context *c, int argc,
 			       const char **argv)
 {
 	int ret;
-	void* mem_ctx;
-	const char* in_opt  = NULL;
-	const char* out_opt = NULL;
+	TALLOC_CTX *mem_ctx;
+	const char *in_opt  = NULL;
+	const char *out_opt = NULL;
 
 	if (argc < 2 || argc > 4|| c->display_usage) {
 		d_printf("%s\n%s",
@@ -1240,6 +1480,54 @@ static int net_registry_convert(struct net_context *c, int argc,
 	return ret;
 }
 /**@}*/
+
+static int net_registry_check(struct net_context *c, int argc,
+			      const char **argv)
+{
+	const char *dbfile;
+	struct check_options opts;
+
+	if (argc > 1|| c->display_usage) {
+		d_printf("%s\n%s",
+			 _("Usage:"),
+			 _("net registry check  [-vraTfl] [-o <ODB>] [--wipe] [<TDB>]\n"
+			   "  Check a registry database.\n"
+			   "    -v|--verbose\t be verbose\n"
+			   "    -r|--repair\t\t interactive repair mode\n"
+			   "    -a|--auto\t\t noninteractive repair mode\n"
+			   "    -T|--test\t\t dry run\n"
+			   "    -f|--force\t\t force\n"
+			   "    -l|--lock\t\t lock <TDB> while doing the check\n"
+			   "    -o|--output=<ODB>\t output database\n"
+			   "    --reg-version=n\t assume database format version {n|1,2,3}\n"
+			   "    --wipe\t\t create a new database from scratch\n"
+			   "    --db=<TDB>\t\t registry database to open\n"));
+		return c->display_usage ? 0 : -1;
+	}
+
+	dbfile = c->opt_db ? c->opt_db : (
+		(argc > 0) ? argv[0] :
+		state_path("registry.tdb"));
+	if (dbfile == NULL) {
+		return -1;
+	}
+
+	opts = (struct check_options) {
+		.lock = c->opt_lock || c->opt_long_list_entries,
+		.test = c->opt_testmode,
+		.automatic = c->opt_auto,
+		.verbose = c->opt_verbose,
+		.force = c->opt_force,
+		.repair = c->opt_repair || c->opt_reboot,
+		.version = c->opt_reg_version,
+		.output  = c->opt_output,
+		.wipe = c->opt_wipe,
+		.implicit_db = (c->opt_db == NULL) && (argc == 0),
+	};
+
+	return net_registry_check_db(dbfile, &opts);
+}
+
 
 /******************************************************************************/
 
@@ -1384,11 +1672,25 @@ int net_registry(struct net_context *c, int argc, const char **argv)
 			N_("net registry convert\n"
 			   "    Convert .reg file")
 		},
+		{
+			"check",
+			net_registry_check,
+			NET_TRANSPORT_LOCAL,
+			N_("Check a registry database"),
+			N_("net registry check\n"
+			   "    Check a registry database")
+		},
 	{ NULL, NULL, 0, NULL, NULL }
 	};
 
-	if (!W_ERROR_IS_OK(registry_init_basic())) {
-		return -1;
+	if (!c->display_usage
+	    && argc > 0
+	    && (strcasecmp_m(argv[0], "convert") != 0)
+	    && (strcasecmp_m(argv[0], "check") != 0))
+	{
+		if (!W_ERROR_IS_OK(registry_init_basic())) {
+			return -1;
+		}
 	}
 
 	ret = net_run_function(c, argc, argv, "net registry", func);

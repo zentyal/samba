@@ -1,21 +1,21 @@
-/* 
+/*
    Unix SMB/CIFS implementation.
 
    code to manipulate domain credentials
 
    Copyright (C) Andrew Tridgell 1997-2003
    Copyright (C) Andrew Bartlett <abartlet@samba.org> 2004
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -30,7 +30,17 @@ static void netlogon_creds_step_crypt(struct netlogon_creds_CredentialState *cre
 				      const struct netr_Credential *in,
 				      struct netr_Credential *out)
 {
-	des_crypt112(out->data, in->data, creds->session_key, 1);
+	if (creds->negotiate_flags & NETLOGON_NEG_SUPPORTS_AES) {
+		AES_KEY key;
+		uint8_t iv[AES_BLOCK_SIZE];
+
+		AES_set_encrypt_key(creds->session_key, 128, &key);
+		ZERO_STRUCT(iv);
+
+		aes_cfb8_encrypt(in->data, out->data, 8, &key, iv, AES_ENCRYPT);
+	} else {
+		des_crypt112(out->data, in->data, creds->session_key, 1);
+	}
 }
 
 /*
@@ -69,13 +79,13 @@ static void netlogon_creds_init_128bit(struct netlogon_creds_CredentialState *cr
 {
 	unsigned char zero[4], tmp[16];
 	HMACMD5Context ctx;
-	MD5_CTX md5;
+	struct MD5Context md5;
 
 	ZERO_STRUCT(creds->session_key);
 
 	memset(zero, 0, sizeof(zero));
 
-	hmac_md5_init_rfc2104(machine_password->hash, sizeof(machine_password->hash), &ctx);	
+	hmac_md5_init_rfc2104(machine_password->hash, sizeof(machine_password->hash), &ctx);
 	MD5Init(&md5);
 	MD5Update(&md5, zero, sizeof(zero));
 	MD5Update(&md5, client_challenge->data, 8);
@@ -83,6 +93,34 @@ static void netlogon_creds_init_128bit(struct netlogon_creds_CredentialState *cr
 	MD5Final(tmp, &md5);
 	hmac_md5_update(tmp, sizeof(tmp), &ctx);
 	hmac_md5_final(creds->session_key, &ctx);
+}
+
+/*
+  initialise the credentials state for AES/HMAC-SHA256-style 128 bit session keys
+
+  this call is made after the netr_ServerReqChallenge call
+*/
+static void netlogon_creds_init_hmac_sha256(struct netlogon_creds_CredentialState *creds,
+					    const struct netr_Credential *client_challenge,
+					    const struct netr_Credential *server_challenge,
+					    const struct samr_Password *machine_password)
+{
+	struct HMACSHA256Context ctx;
+	uint8_t digest[SHA256_DIGEST_LENGTH];
+
+	ZERO_STRUCT(creds->session_key);
+
+	hmac_sha256_init(machine_password->hash,
+			 sizeof(machine_password->hash),
+			 &ctx);
+	hmac_sha256_update(client_challenge->data, 8, &ctx);
+	hmac_sha256_update(server_challenge->data, 8, &ctx);
+	hmac_sha256_final(digest, &ctx);
+
+	memcpy(creds->session_key, digest, sizeof(creds->session_key));
+
+	ZERO_STRUCT(digest);
+	ZERO_STRUCT(ctx);
 }
 
 static void netlogon_creds_first_step(struct netlogon_creds_CredentialState *creds,
@@ -104,7 +142,7 @@ static void netlogon_creds_step(struct netlogon_creds_CredentialState *creds)
 {
 	struct netr_Credential time_cred;
 
-	DEBUG(5,("\tseed        %08x:%08x\n", 
+	DEBUG(5,("\tseed        %08x:%08x\n",
 		 IVAL(creds->seed.data, 0), IVAL(creds->seed.data, 4)));
 
 	SIVAL(time_cred.data, 0, IVAL(creds->seed.data, 0) + creds->sequence);
@@ -114,18 +152,18 @@ static void netlogon_creds_step(struct netlogon_creds_CredentialState *creds)
 
 	netlogon_creds_step_crypt(creds, &time_cred, &creds->client);
 
-	DEBUG(5,("\tCLIENT      %08x:%08x\n", 
+	DEBUG(5,("\tCLIENT      %08x:%08x\n",
 		 IVAL(creds->client.data, 0), IVAL(creds->client.data, 4)));
 
 	SIVAL(time_cred.data, 0, IVAL(creds->seed.data, 0) + creds->sequence + 1);
 	SIVAL(time_cred.data, 4, IVAL(creds->seed.data, 4));
 
-	DEBUG(5,("\tseed+time+1 %08x:%08x\n", 
+	DEBUG(5,("\tseed+time+1 %08x:%08x\n",
 		 IVAL(time_cred.data, 0), IVAL(time_cred.data, 4)));
 
 	netlogon_creds_step_crypt(creds, &time_cred, &creds->server);
 
-	DEBUG(5,("\tSERVER      %08x:%08x\n", 
+	DEBUG(5,("\tSERVER      %08x:%08x\n",
 		 IVAL(creds->server.data, 0), IVAL(creds->server.data, 4)));
 
 	creds->seed = time_cred;
@@ -184,6 +222,34 @@ void netlogon_creds_arcfour_crypt(struct netlogon_creds_CredentialState *creds, 
 	data_blob_free(&session_key);
 }
 
+/*
+  AES encrypt a password buffer using the session key
+*/
+void netlogon_creds_aes_encrypt(struct netlogon_creds_CredentialState *creds, uint8_t *data, size_t len)
+{
+	AES_KEY key;
+	uint8_t iv[AES_BLOCK_SIZE];
+
+	AES_set_encrypt_key(creds->session_key, 128, &key);
+	ZERO_STRUCT(iv);
+
+	aes_cfb8_encrypt(data, data, len, &key, iv, AES_ENCRYPT);
+}
+
+/*
+  AES decrypt a password buffer using the session key
+*/
+void netlogon_creds_aes_decrypt(struct netlogon_creds_CredentialState *creds, uint8_t *data, size_t len)
+{
+	AES_KEY key;
+	uint8_t iv[AES_BLOCK_SIZE];
+
+	AES_set_encrypt_key(creds->session_key, 128, &key);
+	ZERO_STRUCT(iv);
+
+	aes_cfb8_encrypt(data, data, len, &key, iv, AES_DECRYPT);
+}
+
 /*****************************************************************
 The above functions are common to the client and server interface
 next comes the client specific functions
@@ -193,10 +259,10 @@ next comes the client specific functions
   initialise the credentials chain and return the first client
   credentials
 */
- 
-struct netlogon_creds_CredentialState *netlogon_creds_client_init(TALLOC_CTX *mem_ctx, 
+
+struct netlogon_creds_CredentialState *netlogon_creds_client_init(TALLOC_CTX *mem_ctx,
 								  const char *client_account,
-								  const char *client_computer_name, 
+								  const char *client_computer_name,
 								  const struct netr_Credential *client_challenge,
 								  const struct netr_Credential *server_challenge,
 								  const struct samr_Password *machine_password,
@@ -204,11 +270,11 @@ struct netlogon_creds_CredentialState *netlogon_creds_client_init(TALLOC_CTX *me
 								  uint32_t negotiate_flags)
 {
 	struct netlogon_creds_CredentialState *creds = talloc_zero(mem_ctx, struct netlogon_creds_CredentialState);
-	
+
 	if (!creds) {
 		return NULL;
 	}
-	
+
 	creds->sequence = time(NULL);
 	creds->negotiate_flags = negotiate_flags;
 
@@ -227,7 +293,12 @@ struct netlogon_creds_CredentialState *netlogon_creds_client_init(TALLOC_CTX *me
 	dump_data_pw("Server chall", server_challenge->data, sizeof(server_challenge->data));
 	dump_data_pw("Machine Pass", machine_password->hash, sizeof(machine_password->hash));
 
-	if (negotiate_flags & NETLOGON_NEG_128BIT) {
+	if (negotiate_flags & NETLOGON_NEG_SUPPORTS_AES) {
+		netlogon_creds_init_hmac_sha256(creds,
+						client_challenge,
+						server_challenge,
+						machine_password);
+	} else if (negotiate_flags & NETLOGON_NEG_STRONG_KEYS) {
 		netlogon_creds_init_128bit(creds, client_challenge, server_challenge, machine_password);
 	} else {
 		netlogon_creds_init_64bit(creds, client_challenge, server_challenge, machine_password);
@@ -246,7 +317,7 @@ struct netlogon_creds_CredentialState *netlogon_creds_client_init(TALLOC_CTX *me
   initialise the credentials structure with only a session key.  The caller better know what they are doing!
  */
 
-struct netlogon_creds_CredentialState *netlogon_creds_client_init_session_key(TALLOC_CTX *mem_ctx, 
+struct netlogon_creds_CredentialState *netlogon_creds_client_init_session_key(TALLOC_CTX *mem_ctx,
 									      const uint8_t session_key[16])
 {
 	struct netlogon_creds_CredentialState *creds;
@@ -255,7 +326,7 @@ struct netlogon_creds_CredentialState *netlogon_creds_client_init_session_key(TA
 	if (!creds) {
 		return NULL;
 	}
-	
+
 	memcpy(creds->session_key, session_key, 16);
 
 	return creds;
@@ -265,12 +336,12 @@ struct netlogon_creds_CredentialState *netlogon_creds_client_init_session_key(TA
   step the credentials to the next element in the chain, updating the
   current client and server credentials and the seed
 
-  produce the next authenticator in the sequence ready to send to 
+  produce the next authenticator in the sequence ready to send to
   the server
 */
 void netlogon_creds_client_authenticator(struct netlogon_creds_CredentialState *creds,
 				struct netr_Authenticator *next)
-{	
+{
 	creds->sequence += 2;
 	netlogon_creds_step(creds);
 
@@ -284,7 +355,7 @@ void netlogon_creds_client_authenticator(struct netlogon_creds_CredentialState *
 bool netlogon_creds_client_check(struct netlogon_creds_CredentialState *creds,
 			const struct netr_Credential *received_credentials)
 {
-	if (!received_credentials || 
+	if (!received_credentials ||
 	    memcmp(received_credentials->data, creds->server.data, 8) != 0) {
 		DEBUG(2,("credentials check failed\n"));
 		return false;
@@ -317,9 +388,9 @@ static bool netlogon_creds_server_check_internal(const struct netlogon_creds_Cre
   initialise the credentials chain and return the first server
   credentials
 */
-struct netlogon_creds_CredentialState *netlogon_creds_server_init(TALLOC_CTX *mem_ctx, 
+struct netlogon_creds_CredentialState *netlogon_creds_server_init(TALLOC_CTX *mem_ctx,
 								  const char *client_account,
-								  const char *client_computer_name, 
+								  const char *client_computer_name,
 								  uint16_t secure_channel_type,
 								  const struct netr_Credential *client_challenge,
 								  const struct netr_Credential *server_challenge,
@@ -328,15 +399,19 @@ struct netlogon_creds_CredentialState *netlogon_creds_server_init(TALLOC_CTX *me
 								  struct netr_Credential *credentials_out,
 								  uint32_t negotiate_flags)
 {
-	
+
 	struct netlogon_creds_CredentialState *creds = talloc_zero(mem_ctx, struct netlogon_creds_CredentialState);
-	
+
 	if (!creds) {
 		return NULL;
 	}
-	
+
 	creds->negotiate_flags = negotiate_flags;
 	creds->secure_channel_type = secure_channel_type;
+
+	dump_data_pw("Client chall", client_challenge->data, sizeof(client_challenge->data));
+	dump_data_pw("Server chall", server_challenge->data, sizeof(server_challenge->data));
+	dump_data_pw("Machine Pass", machine_password->hash, sizeof(machine_password->hash));
 
 	creds->computer_name = talloc_strdup(creds, client_computer_name);
 	if (!creds->computer_name) {
@@ -349,15 +424,26 @@ struct netlogon_creds_CredentialState *netlogon_creds_server_init(TALLOC_CTX *me
 		return NULL;
 	}
 
-	if (negotiate_flags & NETLOGON_NEG_128BIT) {
-		netlogon_creds_init_128bit(creds, client_challenge, server_challenge, 
+	if (negotiate_flags & NETLOGON_NEG_SUPPORTS_AES) {
+		netlogon_creds_init_hmac_sha256(creds,
+						client_challenge,
+						server_challenge,
+						machine_password);
+	} else if (negotiate_flags & NETLOGON_NEG_STRONG_KEYS) {
+		netlogon_creds_init_128bit(creds, client_challenge, server_challenge,
 					   machine_password);
 	} else {
-		netlogon_creds_init_64bit(creds, client_challenge, server_challenge, 
+		netlogon_creds_init_64bit(creds, client_challenge, server_challenge,
 					  machine_password);
 	}
 
 	netlogon_creds_first_step(creds, client_challenge, server_challenge);
+
+	dump_data_pw("Session key", creds->session_key, 16);
+	dump_data_pw("Client Credential ", creds->client.data, 8);
+	dump_data_pw("Server Credential ", creds->server.data, 8);
+
+	dump_data_pw("Credentials in", credentials_in->data, sizeof(credentials_in->data));
 
 	/* And before we leak information about the machine account
 	 * password, check that they got the first go right */
@@ -368,12 +454,14 @@ struct netlogon_creds_CredentialState *netlogon_creds_server_init(TALLOC_CTX *me
 
 	*credentials_out = creds->server;
 
+	dump_data_pw("Credentials out", credentials_out->data, sizeof(credentials_out->data));
+
 	return creds;
 }
 
 NTSTATUS netlogon_creds_server_step_check(struct netlogon_creds_CredentialState *creds,
 				 struct netr_Authenticator *received_authenticator,
-				 struct netr_Authenticator *return_authenticator) 
+				 struct netr_Authenticator *return_authenticator)
 {
 	if (!received_authenticator || !return_authenticator) {
 		return NT_STATUS_INVALID_PARAMETER;
@@ -399,7 +487,7 @@ NTSTATUS netlogon_creds_server_step_check(struct netlogon_creds_CredentialState 
 
 void netlogon_creds_decrypt_samlogon(struct netlogon_creds_CredentialState *creds,
 			    uint16_t validation_level,
-			    union netr_Validation *validation) 
+			    union netr_Validation *validation)
 {
 	static const char zeros[16];
 
@@ -432,28 +520,42 @@ void netlogon_creds_decrypt_samlogon(struct netlogon_creds_CredentialState *cred
 	/* find and decyrpt the session keys, return in parameters above */
 	if (validation_level == 6) {
 		/* they aren't encrypted! */
-	} else if (creds->negotiate_flags & NETLOGON_NEG_ARCFOUR) {
-		if (memcmp(base->key.key, zeros,  
+	} else if (creds->negotiate_flags & NETLOGON_NEG_SUPPORTS_AES) {
+		if (memcmp(base->key.key, zeros,
 			   sizeof(base->key.key)) != 0) {
-			netlogon_creds_arcfour_crypt(creds, 
-					    base->key.key, 
+			netlogon_creds_aes_decrypt(creds,
+					    base->key.key,
 					    sizeof(base->key.key));
 		}
-			
-		if (memcmp(base->LMSessKey.key, zeros,  
+
+		if (memcmp(base->LMSessKey.key, zeros,
 			   sizeof(base->LMSessKey.key)) != 0) {
-			netlogon_creds_arcfour_crypt(creds, 
-					    base->LMSessKey.key, 
+			netlogon_creds_aes_decrypt(creds,
+					    base->LMSessKey.key,
+					    sizeof(base->LMSessKey.key));
+		}
+	} else if (creds->negotiate_flags & NETLOGON_NEG_ARCFOUR) {
+		if (memcmp(base->key.key, zeros,
+			   sizeof(base->key.key)) != 0) {
+			netlogon_creds_arcfour_crypt(creds,
+					    base->key.key,
+					    sizeof(base->key.key));
+		}
+
+		if (memcmp(base->LMSessKey.key, zeros,
+			   sizeof(base->LMSessKey.key)) != 0) {
+			netlogon_creds_arcfour_crypt(creds,
+					    base->LMSessKey.key,
 					    sizeof(base->LMSessKey.key));
 		}
 	} else {
-		if (memcmp(base->LMSessKey.key, zeros,  
+		if (memcmp(base->LMSessKey.key, zeros,
 			   sizeof(base->LMSessKey.key)) != 0) {
-			netlogon_creds_des_decrypt_LMKey(creds, 
+			netlogon_creds_des_decrypt_LMKey(creds,
 						&base->LMSessKey);
 		}
 	}
-}	
+}
 
 /*
   copy a netlogon_creds_CredentialState struct

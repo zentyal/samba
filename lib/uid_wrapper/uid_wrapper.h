@@ -1,5 +1,6 @@
 /*
    Copyright (C) Andrew Tridgell 2009
+   Copyright (c) 2011      Andreas Schneider <asn@samba.org>
  
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,23 +22,49 @@
 
 int uwrap_enabled(void);
 int uwrap_seteuid(uid_t euid);
+int uwrap_setreuid(uid_t reuid, uid_t euid);
+int uwrap_setresuid(uid_t reuid, uid_t euid, uid_t suid);
 uid_t uwrap_geteuid(void);
 int uwrap_setegid(gid_t egid);
+int uwrap_setregid(gid_t rgid, gid_t egid);
+int uwrap_setresgid(gid_t regid, gid_t egid, gid_t sgid);
 uid_t uwrap_getegid(void);
 int uwrap_setgroups(size_t size, const gid_t *list);
 int uwrap_getgroups(int size, gid_t *list);
 uid_t uwrap_getuid(void);
 gid_t uwrap_getgid(void);
 
-#ifdef seteuid
-#undef seteuid
-#endif
-#define seteuid	uwrap_seteuid
+#ifdef UID_WRAPPER_REPLACE
 
-#ifdef setegid
-#undef setegid
+#ifdef samba_seteuid
+#undef samba_seteuid
 #endif
-#define setegid	uwrap_setegid
+#define samba_seteuid	uwrap_seteuid
+
+#ifdef samba_setreuid
+#undef samba_setreuid
+#endif
+#define samba_setreuid	uwrap_setreuid
+
+#ifdef samba_setresuid
+#undef samba_setresuid
+#endif
+#define samba_setresuid	uwrap_setresuid
+
+#ifdef samba_setegid
+#undef samba_setegid
+#endif
+#define samba_setegid	uwrap_setegid
+
+#ifdef samba_setregid
+#undef samba_setregid
+#endif
+#define samba_setregid	uwrap_setregid
+
+#ifdef samba_setresgid
+#undef samba_setresgid
+#endif
+#define samba_setresgid	uwrap_setresgid
 
 #ifdef geteuid
 #undef geteuid
@@ -49,10 +76,10 @@ gid_t uwrap_getgid(void);
 #endif
 #define getegid	uwrap_getegid
 
-#ifdef setgroups
-#undef setgroups
+#ifdef samba_setgroups
+#undef samba_setgroups
 #endif
-#define setgroups uwrap_setgroups
+#define samba_setgroups uwrap_setgroups
 
 #ifdef getgroups
 #undef getgroups
@@ -69,5 +96,6 @@ gid_t uwrap_getgid(void);
 #endif
 #define getgid	uwrap_getgid
 
-#endif
+#endif /* UID_WRAPPER_REPLACE */
+#endif /* uwrap_enabled */
 #endif /* __UID_WRAPPER_H__ */

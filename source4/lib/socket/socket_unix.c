@@ -25,6 +25,7 @@
 #include "system/network.h"
 #include "system/filesys.h"
 
+_PUBLIC_ const struct socket_ops *socket_unixdom_ops(enum socket_type type);
 
 
 /*
@@ -32,7 +33,7 @@
 */
 static NTSTATUS unixdom_error(int ernum)
 {
-	return map_nt_error_from_unix(ernum);
+	return map_nt_error_from_unix_common(ernum);
 }
 
 static NTSTATUS unixdom_init(struct socket_context *sock)
@@ -52,11 +53,13 @@ static NTSTATUS unixdom_init(struct socket_context *sock)
 
 	sock->fd = socket(PF_UNIX, type, 0);
 	if (sock->fd == -1) {
-		return map_nt_error_from_unix(errno);
+		return map_nt_error_from_unix_common(errno);
 	}
 	sock->private_data = NULL;
 
 	sock->backend_name = "unix";
+
+	smb_set_close_on_exec(sock->fd);
 
 	return NT_STATUS_OK;
 }
@@ -75,16 +78,16 @@ static NTSTATUS unixdom_connect_complete(struct socket_context *sock, uint32_t f
 	   for non-blocking connect */
 	ret = getsockopt(sock->fd, SOL_SOCKET, SO_ERROR, &error, &len);
 	if (ret == -1) {
-		return map_nt_error_from_unix(errno);
+		return map_nt_error_from_unix_common(errno);
 	}
 	if (error != 0) {
-		return map_nt_error_from_unix(error);
+		return map_nt_error_from_unix_common(error);
 	}
 
 	if (!(flags & SOCKET_FLAG_BLOCK)) {
 		ret = set_blocking(sock->fd, false);
 		if (ret == -1) {
-			return map_nt_error_from_unix(errno);
+			return map_nt_error_from_unix_common(errno);
 		}
 	}
 
@@ -193,9 +196,11 @@ static NTSTATUS unixdom_accept(struct socket_context *sock,
 		int ret = set_blocking(new_fd, false);
 		if (ret == -1) {
 			close(new_fd);
-			return map_nt_error_from_unix(errno);
+			return map_nt_error_from_unix_common(errno);
 		}
 	}
+
+	smb_set_close_on_exec(new_fd);
 
 	(*new_sock) = talloc(NULL, struct socket_context);
 	if (!(*new_sock)) {
@@ -279,7 +284,7 @@ static NTSTATUS unixdom_sendto(struct socket_context *sock,
 			     (struct sockaddr *)&srv_addr, sizeof(srv_addr));
 	}
 	if (len == -1) {
-		return map_nt_error_from_unix(errno);
+		return map_nt_error_from_unix_common(errno);
 	}	
 
 	*sendlen = len;
@@ -389,7 +394,7 @@ static NTSTATUS unixdom_pending(struct socket_context *sock, size_t *npending)
 		*npending = value;
 		return NT_STATUS_OK;
 	}
-	return map_nt_error_from_unix(errno);
+	return map_nt_error_from_unix_common(errno);
 }
 
 static const struct socket_ops unixdom_ops = {

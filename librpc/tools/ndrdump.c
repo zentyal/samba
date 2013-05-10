@@ -23,10 +23,8 @@
 #include "system/locale.h"
 #include "librpc/ndr/libndr.h"
 #include "librpc/ndr/ndr_table.h"
-#if (_SAMBA_BUILD_ >= 4)
 #include "lib/cmdline/popt_common.h"
 #include "param/param.h"
-#endif
 
 static const struct ndr_interface_call *find_function(
 	const struct ndr_interface_table *p,
@@ -127,14 +125,9 @@ static const struct ndr_interface_table *load_iface_from_plugin(const char *plug
 	return p;
 }
 
-static void printf_cb(const char *buf, void *private_data)
-{
-	printf("%s", buf);
-}
-
 static void ndrdump_data(uint8_t *d, uint32_t l, bool force)
 {
-	dump_data_cb(d, l, !force, printf_cb, NULL);
+	dump_data_file(d, l, !force, stdout);
 }
 
 static NTSTATUS ndrdump_pull_and_print_pipes(const char *function,
@@ -219,8 +212,8 @@ static NTSTATUS ndrdump_pull_and_print_pipes(const char *function,
 		POPT_COMMON_VERSION
 		{ NULL }
 	};
-	struct ndr_interface_call_pipes *in_pipes = NULL;
-	struct ndr_interface_call_pipes *out_pipes = NULL;
+	const struct ndr_interface_call_pipes *in_pipes = NULL;
+	const struct ndr_interface_call_pipes *out_pipes = NULL;
 
 	ndr_table_init();
 

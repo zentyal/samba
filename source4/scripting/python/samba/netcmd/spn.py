@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-#
 # spn management
 #
 # Copyright Matthieu Patou mat@samba.org 2010
@@ -20,10 +18,10 @@
 
 import samba.getopt as options
 import ldb
-import re
 from samba import provision
 from samba.samdb import SamDB
 from samba.auth import system_session
+from samba.netcmd.common import _get_user_realm_domain
 from samba.netcmd import (
     Command,
     CommandError,
@@ -31,30 +29,11 @@ from samba.netcmd import (
     Option
     )
 
-def _get_user_realm_domain(user):
-    """ get the realm or the domain and the base user
-        from user like:
-        * username
-        * DOMAIN\username
-        * username@REALM
-    """
-    baseuser = user
-    realm = ""
-    domain = ""
-    m = re.match(r"(\w+)\\(\w+$)", user)
-    if m:
-        domain = m.group(1)
-        baseuser = m.group(2)
-        return (baseuser.lower(), domain.upper(), realm)
-    m = re.match(r"(\w+)@(\w+)", user)
-    if m:
-        baseuser = m.group(1)
-        realm = m.group(2)
-    return (baseuser.lower(), domain, realm.upper())
 
 class cmd_spn_list(Command):
     """List spns of a given user."""
-    synopsis = "%prog spn list <user>"
+
+    synopsis = "%prog <user> [options]"
 
     takes_optiongroups = {
         "sambaopts": options.SambaOptions,
@@ -73,27 +52,31 @@ class cmd_spn_list(Command):
         # TODO once I understand how, use the domain info to naildown
         # to the correct domain
         (cleaneduser, realm, domain) = _get_user_realm_domain(user)
-        print cleaneduser
-        res = sam.search(expression="samaccountname=%s" % cleaneduser,
-                            scope=ldb.SCOPE_SUBTREE,
-                            attrs=["servicePrincipalName"])
+        self.outf.write(cleaneduser+"\n")
+        res = sam.search(
+            expression="samaccountname=%s" % ldb.binary_encode(cleaneduser),
+            scope=ldb.SCOPE_SUBTREE, attrs=["servicePrincipalName"])
         if len(res) >0:
             spns = res[0].get("servicePrincipalName")
             found = False
             flag = ldb.FLAG_MOD_ADD
-            if spns != None:
-                print "User %s has the following servicePrincipalName: " %  str(res[0].dn)
+            if spns is not None:
+                self.outf.write(
+                    "User %s has the following servicePrincipalName: \n" %
+                    res[0].dn)
                 for e in spns:
-                    print "\t %s" % (str(e))
-
+                    self.outf.write("\t %s\n" % e)
             else:
-                print "User %s has no servicePrincipalName" % str(res[0].dn)
+                self.outf.write("User %s has no servicePrincipalName" %
+                    res[0].dn)
         else:
             raise CommandError("User %s not found" % user)
 
+
 class cmd_spn_add(Command):
     """Create a new spn."""
-    synopsis = "%prog spn add [--force] <name> <user>"
+
+    synopsis = "%prog <name> <user> [options]"
 
     takes_optiongroups = {
         "sambaopts": options.SambaOptions,
@@ -101,28 +84,29 @@ class cmd_spn_add(Command):
         "versionopts": options.VersionOptions,
         }
     takes_options = [
-        Option("--force", help="Force the addition of the spn"\
+        Option("--force", help="Force the addition of the spn"
                                " even it exists already", action="store_true"),
             ]
     takes_args = ["name", "user"]
 
-    def run(self, name, user,  force=False, credopts=None, sambaopts=None, versionopts=None):
+    def run(self, name, user,  force=False, credopts=None, sambaopts=None,
+            versionopts=None):
         lp = sambaopts.get_loadparm()
         creds = credopts.get_credentials(lp)
         paths = provision.provision_paths_from_lp(lp, lp.get("realm"))
         sam = SamDB(paths.samdb, session_info=system_session(),
                     credentials=creds, lp=lp)
-        res = sam.search(expression="servicePrincipalName=%s" % name,
-                            scope=ldb.SCOPE_SUBTREE,
-                            )
-        if len(res) != 0  and not force:
+        res = sam.search(
+            expression="servicePrincipalName=%s" % ldb.binary_encode(name),
+            scope=ldb.SCOPE_SUBTREE)
+        if len(res) != 0 and not force:
             raise CommandError("Service principal %s already"
                                    " affected to another user" % name)
 
         (cleaneduser, realm, domain) = _get_user_realm_domain(user)
-        res = sam.search(expression="samaccountname=%s" % cleaneduser,
-                            scope=ldb.SCOPE_SUBTREE,
-                            attrs=["servicePrincipalName"])
+        res = sam.search(
+            expression="samaccountname=%s" % ldb.binary_encode(cleaneduser),
+            scope=ldb.SCOPE_SUBTREE, attrs=["servicePrincipalName"])
         if len(res) >0:
             res[0].dn
             msg = ldb.Message()
@@ -130,7 +114,7 @@ class cmd_spn_add(Command):
             tab = []
             found = False
             flag = ldb.FLAG_MOD_ADD
-            if spns != None:
+            if spns is not None:
                 for e in spns:
                     if str(e) == name:
                         found = True
@@ -151,7 +135,8 @@ class cmd_spn_add(Command):
 
 class cmd_spn_delete(Command):
     """Delete a spn."""
-    synopsis = "%prog spn delete <name> [user]"
+
+    synopsis = "%prog <name> [user] [options]"
 
     takes_optiongroups = {
         "sambaopts": options.SambaOptions,
@@ -161,15 +146,17 @@ class cmd_spn_delete(Command):
 
     takes_args = ["name", "user?"]
 
-    def run(self, name, user=None, credopts=None, sambaopts=None, versionopts=None):
+    def run(self, name, user=None, credopts=None, sambaopts=None,
+            versionopts=None):
         lp = sambaopts.get_loadparm()
         creds = credopts.get_credentials(lp)
         paths = provision.provision_paths_from_lp(lp, lp.get("realm"))
         sam = SamDB(paths.samdb, session_info=system_session(),
                     credentials=creds, lp=lp)
-        res = sam.search(expression="servicePrincipalName=%s" % name,
-                            scope=ldb.SCOPE_SUBTREE,
-                            attrs=["servicePrincipalName", "samAccountName"])
+        res = sam.search(
+            expression="servicePrincipalName=%s" % ldb.binary_encode(name),
+            scope=ldb.SCOPE_SUBTREE,
+            attrs=["servicePrincipalName", "samAccountName"])
         if len(res) >0:
             result = None
             if user is not None:
@@ -185,8 +172,8 @@ class cmd_spn_delete(Command):
                     listUser = ""
                     for r in res:
                         listUser = "%s\n%s" % (listUser, str(r.dn))
-                    raise CommandError("More than one user has the spn %s "\
-                           "and no specific user was specified, list of users"\
+                    raise CommandError("More than one user has the spn %s "
+                           "and no specific user was specified, list of users"
                            " with this spn:%s" % (name, listUser))
                 else:
                     result=res[0]
@@ -195,7 +182,7 @@ class cmd_spn_delete(Command):
             msg = ldb.Message()
             spns = result.get("servicePrincipalName")
             tab = []
-            if spns != None:
+            if spns is not None:
                 for e in spns:
                     if str(e) != name:
                         tab.append(str(e))
@@ -207,8 +194,9 @@ class cmd_spn_delete(Command):
         else:
             raise CommandError("Service principal %s not affected" % name)
 
+
 class cmd_spn(SuperCommand):
-    """SPN management [server connection needed]"""
+    """Service Principal Name (SPN) management."""
 
     subcommands = {}
     subcommands["add"] = cmd_spn_add()

@@ -32,18 +32,7 @@
 #include "param/param.h"
 #include "ldb_wrap.h"
 
-#ifdef HAVE_SETPROCTITLE
-#ifdef HAVE_SETPROCTITLE_H
-#include <setproctitle.h>
-#endif
-#else
-#define setproctitle none_setproctitle
-static int none_setproctitle(const char *fmt, ...) PRINTF_ATTRIBUTE(1, 2);
-static int none_setproctitle(const char *fmt, ...)
-{
-	return 0;
-}
-#endif
+NTSTATUS process_model_onefork_init(void);
 
 /*
   called when the process model is selected
@@ -118,7 +107,7 @@ static void onefork_new_task(struct tevent_context *ev,
 	/* setup this new connection: process will bind to it's sockets etc */
 	new_task_fn(ev, lp_ctx, cluster_id(pid, 0), private_data);
 
-	event_loop_wait(ev);
+	tevent_loop_wait(ev);
 
 	talloc_free(ev);
 	exit(0);

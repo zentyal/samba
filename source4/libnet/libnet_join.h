@@ -43,6 +43,7 @@ struct libnet_JoinDomain {
 		enum libnet_JoinDomain_level level;
 		uint32_t  acct_type;
 		bool recreate_account;
+		const char *account_pass;
 	} in;
 
 	struct {
@@ -63,12 +64,12 @@ struct libnet_JoinDomain {
 	} out;
 };
 
-struct libnet_Join {
+struct libnet_Join_member {
 	struct {
 		const char *domain_name;
 		const char *netbios_name;
-		enum netr_SchannelType join_type;
 		enum libnet_Join_level level;
+		const char *account_pass;
 	} in;
 	
 	struct {

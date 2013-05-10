@@ -415,7 +415,7 @@ msgid "  net getdomainsid"
 msgstr ""
 
 #: ../../utils/net.c:663
-msgid "Display the maximul RID currently used"
+msgid "Display the maximum RID currently used"
 msgstr "Die höchste verwendete RID anzeigen"
 
 #: ../../utils/net.c:664
@@ -904,7 +904,7 @@ msgstr ""
 msgid "Disabled account for '%s' in realm '%s'\n"
 msgstr ""
 
-#. Based on what we requseted, we shouldn't get here, but if
+#. Based on what we requested, we shouldn't get here, but if
 #. we did, it means the secrets were removed, and therefore
 #. we have left the domain
 #: ../../utils/net_ads.c:1006
@@ -2094,19 +2094,19 @@ msgstr ""
 
 #: ../../utils/net_conf.c:105
 msgid "net conf delshare <sharename>\n"
-msgstr "net conf showshare <sharename>\n"
+msgstr ""
 
 #: ../../utils/net_conf.c:114
 msgid " net conf setparm <section> <param> <value>\n"
-msgstr " net conf setparm <section> <param> <value>\n"
+msgstr ""
 
 #: ../../utils/net_conf.c:123
 msgid " net conf getparm <section> <param>\n"
-msgstr " net conf setparm <section> <param> <value>\n"
+msgstr ""
 
 #: ../../utils/net_conf.c:132
 msgid " net conf delparm <section> <param>\n"
-msgstr " net conf setparm <section> <param> <value>\n"
+msgstr ""
 
 #: ../../utils/net_conf.c:141
 msgid " net conf getincludes <section>\n"
@@ -2114,7 +2114,7 @@ msgstr ""
 
 #: ../../utils/net_conf.c:150
 msgid " net conf setincludes <section> [<filename>]*\n"
-msgstr " net conf setparm <section> <param> <value>\n"
+msgstr ""
 
 #: ../../utils/net_conf.c:159
 msgid " net conf delincludes <section>\n"

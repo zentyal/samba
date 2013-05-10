@@ -29,192 +29,83 @@
 #include "includes.h"
 #include "smbd/smbd.h"
 #include "smbd/globals.h"
-#include "dbwrap.h"
+#include "dbwrap/dbwrap.h"
 #include "session.h"
 #include "auth.h"
+#include "../lib/tsocket/tsocket.h"
+#include "../libcli/security/security.h"
+#include "messages.h"
 
 /********************************************************************
  called when a session is created
 ********************************************************************/
 
-bool session_claim(struct smbd_server_connection *sconn, user_struct *vuser)
+bool session_claim(struct smbXsrv_session *session)
 {
-	struct server_id pid = sconn_server_id(sconn);
-	TDB_DATA data;
-	int i = 0;
-	struct sessionid sessionid;
-	fstring keystr;
-	struct db_record *rec;
-	NTSTATUS status;
-
-	vuser->session_keystr = NULL;
+	struct auth_session_info *session_info =
+		session->global->auth_session_info;
+	const char *username;
+	const char *hostname;
+	unsigned int id_num;
+	fstring id_str;
 
 	/* don't register sessions for the guest user - its just too
 	   expensive to go through pam session code for browsing etc */
-	if (vuser->session_info->guest) {
-		return True;
+	if (security_session_user_level(session_info, NULL) < SECURITY_USER) {
+		return true;
 	}
 
-	if (!sessionid_init()) {
-		return False;
-	}
+	id_num = session->global->session_global_id;
 
-	ZERO_STRUCT(sessionid);
+	snprintf(id_str, sizeof(id_str), "smb/%u", id_num);
 
-	data.dptr = NULL;
-	data.dsize = 0;
+	/* Make clear that we require the optional unix_token in the source3 code */
+	SMB_ASSERT(session_info->unix_token);
 
-	if (lp_utmp()) {
+	username = session_info->unix_info->unix_name;
+	hostname = session->global->channels[0].remote_name;
 
-		for (i=1;i<MAX_SESSION_ID;i++) {
-
-			/*
-			 * This is very inefficient and needs fixing -- vl
-			 */
-
-			struct server_id sess_pid;
-
-			snprintf(keystr, sizeof(keystr), "ID/%d", i);
-
-			rec = sessionid_fetch_record(NULL, keystr);
-			if (rec == NULL) {
-				DEBUG(1, ("Could not lock \"%s\"\n", keystr));
-				return False;
-			}
-
-			if (rec->value.dsize != sizeof(sessionid)) {
-				DEBUG(1, ("Re-using invalid record\n"));
-				break;
-			}
-
-			memcpy(&sess_pid,
-			       ((char *)rec->value.dptr)
-			       + offsetof(struct sessionid, pid),
-			       sizeof(sess_pid));
-
-			if (!process_exists(sess_pid)) {
-				DEBUG(5, ("%s has died -- re-using session\n",
-					  procid_str_static(&sess_pid)));
-				break;
-			}
-
-			TALLOC_FREE(rec);
-		}
-
-		if (i == MAX_SESSION_ID) {
-			SMB_ASSERT(rec == NULL);
-			DEBUG(1,("session_claim: out of session IDs "
-				 "(max is %d)\n", MAX_SESSION_ID));
-			return False;
-		}
-
-		snprintf(sessionid.id_str, sizeof(sessionid.id_str),
-			 SESSION_UTMP_TEMPLATE, i);
-	} else
-	{
-		snprintf(keystr, sizeof(keystr), "ID/%s/%u",
-			 procid_str_static(&pid), vuser->vuid);
-
-		rec = sessionid_fetch_record(NULL, keystr);
-		if (rec == NULL) {
-			DEBUG(1, ("Could not lock \"%s\"\n", keystr));
-			return False;
-		}
-
-		snprintf(sessionid.id_str, sizeof(sessionid.id_str),
-			 SESSION_TEMPLATE, (long unsigned int)sys_getpid(),
-			 vuser->vuid);
-	}
-
-	SMB_ASSERT(rec != NULL);
-
-	/* If 'hostname lookup' == yes, then do the DNS lookup.  This is
-           needed because utmp and PAM both expect DNS names
-
-	   client_name() handles this case internally.
-	*/
-
-	fstrcpy(sessionid.username, vuser->session_info->unix_name);
-	fstrcpy(sessionid.hostname, sconn->client_id.name);
-	sessionid.id_num = i;  /* Only valid for utmp sessions */
-	sessionid.pid = pid;
-	sessionid.uid = vuser->session_info->utok.uid;
-	sessionid.gid = vuser->session_info->utok.gid;
-	fstrcpy(sessionid.remote_machine, get_remote_machine_name());
-	fstrcpy(sessionid.ip_addr_str, sconn->client_id.addr);
-	sessionid.connect_start = time(NULL);
-
-	if (!smb_pam_claim_session(sessionid.username, sessionid.id_str,
-				   sessionid.hostname)) {
+	if (!smb_pam_claim_session(username, id_str, hostname)) {
 		DEBUG(1,("pam_session rejected the session for %s [%s]\n",
-				sessionid.username, sessionid.id_str));
-
-		TALLOC_FREE(rec);
-		return False;
-	}
-
-	data.dptr = (uint8 *)&sessionid;
-	data.dsize = sizeof(sessionid);
-
-	status = rec->store(rec, data, TDB_REPLACE);
-
-	TALLOC_FREE(rec);
-
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(1,("session_claim: unable to create session id "
-			 "record: %s\n", nt_errstr(status)));
-		return False;
+				username, id_str));
+		return false;
 	}
 
 	if (lp_utmp()) {
-		sys_utmp_claim(sessionid.username, sessionid.hostname,
-			       sessionid.ip_addr_str,
-			       sessionid.id_str, sessionid.id_num);
+		sys_utmp_claim(username, hostname, id_str, id_num);
 	}
 
-	vuser->session_keystr = talloc_strdup(vuser, keystr);
-	if (!vuser->session_keystr) {
-		DEBUG(0, ("session_claim:  talloc_strdup() failed for session_keystr\n"));
-		return False;
-	}
-	return True;
+	return true;
 }
 
 /********************************************************************
  called when a session is destroyed
 ********************************************************************/
 
-void session_yield(user_struct *vuser)
+void session_yield(struct smbXsrv_session *session)
 {
-	struct sessionid sessionid;
-	struct db_record *rec;
+	struct auth_session_info *session_info =
+		session->global->auth_session_info;
+	const char *username;
+	const char *hostname;
+	unsigned int id_num;
+	fstring id_str = "";
 
-	if (!vuser->session_keystr) {
-		return;
-	}
+	id_num = session->global->session_global_id;
 
-	rec = sessionid_fetch_record(NULL, vuser->session_keystr);
-	if (rec == NULL) {
-		return;
-	}
+	snprintf(id_str, sizeof(id_str), "smb/%u", id_num);
 
-	if (rec->value.dsize != sizeof(sessionid))
-		return;
+	/* Make clear that we require the optional unix_token in the source3 code */
+	SMB_ASSERT(session_info->unix_token);
 
-	memcpy(&sessionid, rec->value.dptr, sizeof(sessionid));
+	username = session_info->unix_info->unix_name;
+	hostname = session->global->channels[0].remote_name;
 
 	if (lp_utmp()) {
-		sys_utmp_yield(sessionid.username, sessionid.hostname, 
-			       sessionid.ip_addr_str,
-			       sessionid.id_str, sessionid.id_num);
+		sys_utmp_yield(username, hostname, id_str, id_num);
 	}
 
-	smb_pam_close_session(sessionid.username, sessionid.id_str,
-			      sessionid.hostname);
-
-	rec->delete_rec(rec);
-
-	TALLOC_FREE(rec);
+	smb_pam_close_session(username, id_str, hostname);
 }
 
 /********************************************************************
@@ -231,7 +122,7 @@ static int gather_sessioninfo(const char *key, struct sessionid *session,
 {
 	struct session_list *sesslist = (struct session_list *)private_data;
 
-	sesslist->sessions = TALLOC_REALLOC_ARRAY(
+	sesslist->sessions = talloc_realloc(
 		sesslist->mem_ctx, sesslist->sessions, struct sessionid,
 		sesslist->count+1);
 
@@ -257,14 +148,14 @@ static int gather_sessioninfo(const char *key, struct sessionid *session,
 int list_sessions(TALLOC_CTX *mem_ctx, struct sessionid **session_list)
 {
 	struct session_list sesslist;
-	int ret;
+	NTSTATUS status;
 
 	sesslist.mem_ctx = mem_ctx;
 	sesslist.count = 0;
 	sesslist.sessions = NULL;
 
-	ret = sessionid_traverse_read(gather_sessioninfo, (void *) &sesslist);
-	if (ret == -1) {
+	status = sessionid_traverse_read(gather_sessioninfo, (void *) &sesslist);
+	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(3, ("Session traverse failed\n"));
 		SAFE_FREE(sesslist.sessions);
 		*session_list = NULL;

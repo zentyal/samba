@@ -26,6 +26,8 @@
 #include "system/filesys.h"
 #include "cluster/cluster.h"
 
+NTSTATUS process_model_single_init(void);
+
 /*
   called when the process model is selected
 */
@@ -90,7 +92,7 @@ static void single_new_task(struct tevent_context *ev,
        
 	/* We use 1 so we cannot collide in with cluster ids generated
 	 * in the accept connection above, and unlikly to collide with
-	 * PIDs from process modal standard (don't run samba as
+	 * PIDs from process model standard (don't run samba as
 	 * init) */
 	new_task(ev, lp_ctx, cluster_id(1, taskid++), private_data);
 }

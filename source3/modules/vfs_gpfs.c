@@ -33,11 +33,20 @@
 #include "nfs4_acls.h"
 #include "vfs_gpfs.h"
 #include "system/filesys.h"
+#include "auth.h"
+#include "lib/util/tevent_unix.h"
 
 struct gpfs_config_data {
 	bool sharemodes;
 	bool leases;
 	bool hsm;
+	bool syncio;
+	bool winattr;
+	bool ftruncate;
+	bool getrealfilename;
+	bool dfreequota;
+	bool prealloc;
+	bool acl;
 };
 
 
@@ -46,6 +55,7 @@ static int vfs_gpfs_kernel_flock(vfs_handle_struct *handle, files_struct *fsp,
 {
 
 	struct gpfs_config_data *config;
+	int ret = 0;
 
 	SMB_VFS_HANDLE_GET_DATA(handle, config,
 				struct gpfs_config_data,
@@ -57,12 +67,12 @@ static int vfs_gpfs_kernel_flock(vfs_handle_struct *handle, files_struct *fsp,
 
 	if (config->sharemodes
 		&& !set_gpfs_sharemode(fsp, access_mask, fsp->share_access)) {
-		return -1;
+		ret = -1;
 	}
 
 	END_PROFILE(syscall_kernel_flock);
 
-	return 0;
+	return ret;
 }
 
 static int vfs_gpfs_close(vfs_handle_struct *handle, files_struct *fsp)
@@ -91,19 +101,13 @@ static int vfs_gpfs_setlease(vfs_handle_struct *handle, files_struct *fsp,
 				struct gpfs_config_data,
 				return -1);
 
-	START_PROFILE(syscall_linux_setlease);
-
 	if (linux_set_lease_sighandler(fsp->fh->fd) == -1)
 		return -1;
 
+	START_PROFILE(syscall_linux_setlease);
+
 	if (config->leases) {
 		ret = set_gpfs_lease(fsp->fh->fd,leasetype);
-	}
-
-	if (ret < 0) {
-		/* This must have come from GPFS not being available */
-		/* or some other error, hence call the default */
-		ret = linux_setlease(fsp->fh->fd, leasetype);
 	}
 
 	END_PROFILE(syscall_linux_setlease);
@@ -122,6 +126,16 @@ static int vfs_gpfs_get_real_filename(struct vfs_handle_struct *handle,
 	char real_pathname[PATH_MAX+1];
 	int buflen;
 	bool mangled;
+	struct gpfs_config_data *config;
+
+	SMB_VFS_HANDLE_GET_DATA(handle, config,
+				struct gpfs_config_data,
+				return -1);
+
+	if (!config->getrealfilename) {
+		return SMB_VFS_NEXT_GET_REAL_FILENAME(handle, path, name,
+						      mem_ctx, found_name);
+	}
 
 	mangled = mangle_is_mangled(name, handle->conn->params);
 	if (mangled) {
@@ -184,7 +198,7 @@ static int vfs_gpfs_get_real_filename(struct vfs_handle_struct *handle,
 
 static void gpfs_dumpacl(int level, struct gpfs_acl *gacl)
 {
-	int	i;
+	gpfs_aclCount_t i;
 	if (gacl==NULL)
 	{
 		DEBUG(0, ("gpfs acl is NULL\n"));
@@ -220,7 +234,7 @@ static struct gpfs_acl *gpfs_getacl_alloc(const char *fname, gpfs_aclType_t type
 	acl->acl_version = 0;
 	acl->acl_type = type;
 
-	ret = smbd_gpfs_getacl((char *)fname, GPFS_GETACL_STRUCT | GPFS_ACL_SAMBA, acl);
+	ret = smbd_gpfs_getacl((char *)fname, GPFS_GETACL_STRUCT, acl);
 	if ((ret != 0) && (errno == ENOSPC)) {
 		struct gpfs_acl *new_acl = (struct gpfs_acl *)TALLOC_SIZE(
 			mem_ctx, acl->acl_len + sizeof(struct gpfs_acl));
@@ -235,7 +249,7 @@ static struct gpfs_acl *gpfs_getacl_alloc(const char *fname, gpfs_aclType_t type
 		new_acl->acl_type = acl->acl_type;
 		acl = new_acl;
 
-		ret = smbd_gpfs_getacl((char *)fname, GPFS_GETACL_STRUCT | GPFS_ACL_SAMBA, acl);
+		ret = smbd_gpfs_getacl((char *)fname, GPFS_GETACL_STRUCT, acl);
 	}
 	if (ret != 0)
 	{
@@ -254,7 +268,7 @@ static struct gpfs_acl *gpfs_getacl_alloc(const char *fname, gpfs_aclType_t type
  */
 static int gpfs_get_nfs4_acl(const char *fname, SMB4ACL_T **ppacl)
 {
-	int i;
+	gpfs_aclCount_t i;
 	struct gpfs_acl *gacl = NULL;
 	DEBUG(10, ("gpfs_get_nfs4_acl invoked for %s\n", fname));
 
@@ -269,6 +283,7 @@ static int gpfs_get_nfs4_acl(const char *fname, SMB4ACL_T **ppacl)
 	if (gacl->acl_type != GPFS_ACL_TYPE_NFS4) {
 		DEBUG(10, ("Got non-nfsv4 acl\n"));
 		/* Retry with POSIX ACLs check */
+		talloc_free(gacl);
 		return 1;
 	}
 
@@ -334,20 +349,32 @@ static int gpfs_get_nfs4_acl(const char *fname, SMB4ACL_T **ppacl)
 
 static NTSTATUS gpfsacl_fget_nt_acl(vfs_handle_struct *handle,
 	files_struct *fsp, uint32 security_info,
+	TALLOC_CTX *mem_ctx,
 	struct security_descriptor **ppdesc)
 {
 	SMB4ACL_T *pacl = NULL;
 	int	result;
+	struct gpfs_config_data *config;
 
 	*ppdesc = NULL;
+
+	SMB_VFS_HANDLE_GET_DATA(handle, config,
+				struct gpfs_config_data,
+				return NT_STATUS_INTERNAL_ERROR);
+
+	if (!config->acl) {
+		return SMB_VFS_NEXT_FGET_NT_ACL(handle, fsp, security_info,
+						mem_ctx, ppdesc);
+	}
+
 	result = gpfs_get_nfs4_acl(fsp->fsp_name->base_name, &pacl);
 
 	if (result == 0)
-		return smb_fget_nt_acl_nfs4(fsp, security_info, ppdesc, pacl);
+		return smb_fget_nt_acl_nfs4(fsp, security_info, mem_ctx, ppdesc, pacl);
 
 	if (result > 0) {
 		DEBUG(10, ("retrying with posix acl...\n"));
-		return posix_fget_nt_acl(fsp, security_info, ppdesc);
+		return posix_fget_nt_acl(fsp, security_info, mem_ctx, ppdesc);
 	}
 
 	/* GPFS ACL was not read, something wrong happened, error code is set in errno */
@@ -356,20 +383,34 @@ static NTSTATUS gpfsacl_fget_nt_acl(vfs_handle_struct *handle,
 
 static NTSTATUS gpfsacl_get_nt_acl(vfs_handle_struct *handle,
 	const char *name,
-	uint32 security_info, struct security_descriptor **ppdesc)
+	uint32 security_info,
+	TALLOC_CTX *mem_ctx, struct security_descriptor **ppdesc)
 {
 	SMB4ACL_T *pacl = NULL;
 	int	result;
+	struct gpfs_config_data *config;
 
 	*ppdesc = NULL;
+
+	SMB_VFS_HANDLE_GET_DATA(handle, config,
+				struct gpfs_config_data,
+				return NT_STATUS_INTERNAL_ERROR);
+
+	if (!config->acl) {
+		return SMB_VFS_NEXT_GET_NT_ACL(handle, name, security_info,
+					       mem_ctx, ppdesc);
+	}
+
 	result = gpfs_get_nfs4_acl(name, &pacl);
 
 	if (result == 0)
-		return smb_get_nt_acl_nfs4(handle->conn, name, security_info, ppdesc, pacl);
+		return smb_get_nt_acl_nfs4(handle->conn, name, security_info,
+					   mem_ctx, ppdesc, pacl);
 
 	if (result > 0) {
 		DEBUG(10, ("retrying with posix acl...\n"));
-		return posix_get_nt_acl(handle->conn, name, security_info, ppdesc);
+		return posix_get_nt_acl(handle->conn, name, security_info,
+					mem_ctx, ppdesc);
 	}
 
 	/* GPFS ACL was not read, something wrong happened, error code is set in errno */
@@ -384,8 +425,8 @@ static bool gpfsacl_process_smbacl(files_struct *fsp, SMB4ACL_T *smbacl)
 	struct gpfs_acl *gacl;
 	TALLOC_CTX *mem_ctx  = talloc_tos();
 
-	gacl_len = sizeof(struct gpfs_acl) +
-		(smb_get_naces(smbacl)-1)*sizeof(gpfs_ace_v4_t);
+	gacl_len = offsetof(gpfs_acl_t, ace_v4) + smb_get_naces(smbacl) *
+		sizeof(gpfs_ace_v4_t);
 
 	gacl = (struct gpfs_acl *)TALLOC_SIZE(mem_ctx, gacl_len);
 	if (gacl == NULL) {
@@ -502,21 +543,38 @@ static NTSTATUS gpfsacl_set_nt_acl_internal(files_struct *fsp, uint32 security_i
 
 static NTSTATUS gpfsacl_fset_nt_acl(vfs_handle_struct *handle, files_struct *fsp, uint32 security_info_sent, const struct security_descriptor *psd)
 {
+	struct gpfs_config_data *config;
+
+	SMB_VFS_HANDLE_GET_DATA(handle, config,
+				struct gpfs_config_data,
+				return NT_STATUS_INTERNAL_ERROR);
+
+	if (!config->acl) {
+		return SMB_VFS_NEXT_FSET_NT_ACL(handle, fsp, security_info_sent, psd);
+	}
+
 	return gpfsacl_set_nt_acl_internal(fsp, security_info_sent, psd);
 }
 
-static SMB_ACL_T gpfs2smb_acl(const struct gpfs_acl *pacl)
+static SMB_ACL_T gpfs2smb_acl(const struct gpfs_acl *pacl, TALLOC_CTX *mem_ctx)
 {
 	SMB_ACL_T result;
-	int i;
+	gpfs_aclCount_t i;
 
-	result = sys_acl_init(pacl->acl_nace);
+	result = sys_acl_init(mem_ctx);
 	if (result == NULL) {
 		errno = ENOMEM;
 		return NULL;
 	}
 
 	result->count = pacl->acl_nace;
+	result->acl = talloc_realloc(result, result->acl, struct smb_acl_entry,
+				     result->count);
+	if (result->acl == NULL) {
+		TALLOC_FREE(result);
+		errno = ENOMEM;
+		return NULL;
+	}
 
 	for (i=0; i<pacl->acl_nace; i++) {
 		struct smb_acl_entry *ace = &result->acl[i];
@@ -529,14 +587,14 @@ static SMB_ACL_T gpfs2smb_acl(const struct gpfs_acl *pacl)
 		switch (g_ace->ace_type) {
 		case GPFS_ACL_USER:
 			ace->a_type = SMB_ACL_USER;
-			ace->uid = (uid_t)g_ace->ace_who;
+			ace->info.user.uid = (uid_t)g_ace->ace_who;
 			break;
 		case GPFS_ACL_USER_OBJ:
 			ace->a_type = SMB_ACL_USER_OBJ;
 			break;
 		case GPFS_ACL_GROUP:
 			ace->a_type = SMB_ACL_GROUP;
-			ace->gid = (gid_t)g_ace->ace_who;
+			ace->info.group.gid = (gid_t)g_ace->ace_who;
 			break;
 		case GPFS_ACL_GROUP_OBJ:
  			ace->a_type = SMB_ACL_GROUP_OBJ;
@@ -550,8 +608,8 @@ static SMB_ACL_T gpfs2smb_acl(const struct gpfs_acl *pacl)
 		default:
 			DEBUG(10, ("Got invalid ace_type: %d\n",
 				   g_ace->ace_type));
+			TALLOC_FREE(result);
 			errno = EINVAL;
-			SAFE_FREE(result);
 			return NULL;
 		}
 
@@ -570,7 +628,8 @@ static SMB_ACL_T gpfs2smb_acl(const struct gpfs_acl *pacl)
 	return result;
 }
 
-static SMB_ACL_T gpfsacl_get_posix_acl(const char *path, gpfs_aclType_t type)
+static SMB_ACL_T gpfsacl_get_posix_acl(const char *path, gpfs_aclType_t type,
+				       TALLOC_CTX *mem_ctx)
 {
 	struct gpfs_acl *pacl;
 	SMB_ACL_T result = NULL;
@@ -597,24 +656,38 @@ static SMB_ACL_T gpfsacl_get_posix_acl(const char *path, gpfs_aclType_t type)
 		   pacl->acl_len, pacl->acl_level, pacl->acl_version,
 		   pacl->acl_nace));
 
-	result = gpfs2smb_acl(pacl);
+	result = gpfs2smb_acl(pacl, mem_ctx);
 	if (result != NULL) {
 		errno = 0;
 	}
 
  done:
 
+	if (pacl != NULL) {
+		talloc_free(pacl);
+	}
 	if (errno != 0) {
-		SAFE_FREE(result);
+		TALLOC_FREE(result);
 	}
 	return result;	
 }
 
 static SMB_ACL_T gpfsacl_sys_acl_get_file(vfs_handle_struct *handle,
 					  const char *path_p,
-					  SMB_ACL_TYPE_T type)
+					  SMB_ACL_TYPE_T type,
+					  TALLOC_CTX *mem_ctx)
 {
 	gpfs_aclType_t gpfs_type;
+	struct gpfs_config_data *config;
+
+	SMB_VFS_HANDLE_GET_DATA(handle, config,
+				struct gpfs_config_data,
+				return NULL);
+
+	if (!config->acl) {
+		return SMB_VFS_NEXT_SYS_ACL_GET_FILE(handle, path_p,
+						     type, mem_ctx);
+	}
 
 	switch(type) {
 	case SMB_ACL_TYPE_ACCESS:
@@ -628,14 +701,25 @@ static SMB_ACL_T gpfsacl_sys_acl_get_file(vfs_handle_struct *handle,
 		smb_panic("exiting");
 	}
 
-	return gpfsacl_get_posix_acl(path_p, gpfs_type);
+	return gpfsacl_get_posix_acl(path_p, gpfs_type, mem_ctx);
 }
 
 static SMB_ACL_T gpfsacl_sys_acl_get_fd(vfs_handle_struct *handle,
-					files_struct *fsp)
+					files_struct *fsp,
+					TALLOC_CTX *mem_ctx)
 {
+	struct gpfs_config_data *config;
+
+	SMB_VFS_HANDLE_GET_DATA(handle, config,
+				struct gpfs_config_data,
+				return NULL);
+
+	if (!config->acl) {
+		return SMB_VFS_NEXT_SYS_ACL_GET_FD(handle, fsp, mem_ctx);
+	}
+
 	return gpfsacl_get_posix_acl(fsp->fsp_name->base_name,
-				     GPFS_ACL_TYPE_ACCESS);
+				     GPFS_ACL_TYPE_ACCESS, mem_ctx);
 }
 
 static struct gpfs_acl *smb2gpfs_acl(const SMB_ACL_T pacl,
@@ -644,16 +728,11 @@ static struct gpfs_acl *smb2gpfs_acl(const SMB_ACL_T pacl,
 	gpfs_aclLen_t len;
 	struct gpfs_acl *result;
 	int i;
-	union gpfs_ace_union
-	{
-		gpfs_ace_v1_t  ace_v1[1]; /* when GPFS_ACL_VERSION_POSIX */
-		gpfs_ace_v4_t  ace_v4[1]; /* when GPFS_ACL_VERSION_NFS4  */
-	};
 
 	DEBUG(10, ("smb2gpfs_acl: Got ACL with %d entries\n", pacl->count));
 
-	len = sizeof(struct gpfs_acl) - sizeof(union gpfs_ace_union) +
-		(pacl->count)*sizeof(gpfs_ace_v1_t);
+	len = offsetof(gpfs_acl_t, ace_v1) + (pacl->count) *
+		sizeof(gpfs_ace_v1_t);
 
 	result = (struct gpfs_acl *)SMB_MALLOC(len);
 	if (result == NULL) {
@@ -680,7 +759,7 @@ static struct gpfs_acl *smb2gpfs_acl(const SMB_ACL_T pacl,
 		switch(ace->a_type) {
 		case SMB_ACL_USER:
 			g_ace->ace_type = GPFS_ACL_USER;
-			g_ace->ace_who = (gpfs_uid_t)ace->uid;
+			g_ace->ace_who = (gpfs_uid_t)ace->info.user.uid;
 			break;
 		case SMB_ACL_USER_OBJ:
 			g_ace->ace_type = GPFS_ACL_USER_OBJ;
@@ -689,7 +768,7 @@ static struct gpfs_acl *smb2gpfs_acl(const SMB_ACL_T pacl,
 			break;
 		case SMB_ACL_GROUP:
 			g_ace->ace_type = GPFS_ACL_GROUP;
-			g_ace->ace_who = (gpfs_uid_t)ace->gid;
+			g_ace->ace_who = (gpfs_uid_t)ace->info.group.gid;
 			break;
 		case SMB_ACL_GROUP_OBJ:
 			g_ace->ace_type = GPFS_ACL_GROUP_OBJ;
@@ -732,6 +811,15 @@ static int gpfsacl_sys_acl_set_file(vfs_handle_struct *handle,
 {
 	struct gpfs_acl *gpfs_acl;
 	int result;
+	struct gpfs_config_data *config;
+
+	SMB_VFS_HANDLE_GET_DATA(handle, config,
+				struct gpfs_config_data,
+				return -1);
+
+	if (!config->acl) {
+		return SMB_VFS_NEXT_SYS_ACL_SET_FILE(handle, name, type, theacl);
+	}
 
 	gpfs_acl = smb2gpfs_acl(theacl, type);
 	if (gpfs_acl == NULL) {
@@ -748,6 +836,16 @@ static int gpfsacl_sys_acl_set_fd(vfs_handle_struct *handle,
 				  files_struct *fsp,
 				  SMB_ACL_T theacl)
 {
+	struct gpfs_config_data *config;
+
+	SMB_VFS_HANDLE_GET_DATA(handle, config,
+				struct gpfs_config_data,
+				return -1);
+
+	if (!config->acl) {
+		return SMB_VFS_NEXT_SYS_ACL_SET_FD(handle, fsp, theacl);
+	}
+
 	return gpfsacl_sys_acl_set_file(handle, fsp->fsp_name->base_name,
 					SMB_ACL_TYPE_ACCESS, theacl);
 }
@@ -755,6 +853,16 @@ static int gpfsacl_sys_acl_set_fd(vfs_handle_struct *handle,
 static int gpfsacl_sys_acl_delete_def_file(vfs_handle_struct *handle,
 					   const char *path)
 {
+	struct gpfs_config_data *config;
+
+	SMB_VFS_HANDLE_GET_DATA(handle, config,
+				struct gpfs_config_data,
+				return -1);
+
+	if (!config->acl) {
+		return SMB_VFS_NEXT_SYS_ACL_DELETE_DEF_FILE(handle, path);
+	}
+
 	errno = ENOTSUP;
 	return -1;
 }
@@ -945,6 +1053,16 @@ static int gpfs_set_xattr(struct vfs_handle_struct *handle,  const char *path,
         unsigned int dosmode=0;
         struct gpfs_winattr attrs;
         int ret = 0;
+	struct gpfs_config_data *config;
+
+	SMB_VFS_HANDLE_GET_DATA(handle, config,
+				struct gpfs_config_data,
+				return -1);
+
+	if (!config->winattr) {
+		DEBUG(10, ("gpfs_set_xattr:name is %s -> next\n",name));
+		return SMB_VFS_NEXT_SETXATTR(handle,path,name,value,size,flags);
+	}
 
         DEBUG(10, ("gpfs_set_xattr: %s \n",path));
 
@@ -999,7 +1117,7 @@ static int gpfs_set_xattr(struct vfs_handle_struct *handle,  const char *path,
 	}
 
 
-        ret = set_gpfs_winattrs(CONST_DISCARD(char *, path),
+        ret = set_gpfs_winattrs(discard_const_p(char, path),
 				GPFS_WINATTR_SET_ATTRS, &attrs);
         if ( ret == -1){
 		if (errno == ENOSYS) {
@@ -1021,6 +1139,16 @@ static ssize_t gpfs_get_xattr(struct vfs_handle_struct *handle,  const char *pat
         unsigned int dosmode = 0;
         struct gpfs_winattr attrs;
         int ret = 0;
+	struct gpfs_config_data *config;
+
+	SMB_VFS_HANDLE_GET_DATA(handle, config,
+				struct gpfs_config_data,
+				return -1);
+
+	if (!config->winattr) {
+		DEBUG(10, ("gpfs_get_xattr:name is %s -> next\n",name));
+		return SMB_VFS_NEXT_GETXATTR(handle,path,name,value,size);
+	}
 
         DEBUG(10, ("gpfs_get_xattr: %s \n",path));
 
@@ -1030,7 +1158,7 @@ static ssize_t gpfs_get_xattr(struct vfs_handle_struct *handle,  const char *pat
                 return SMB_VFS_NEXT_GETXATTR(handle,path,name,value,size);
         }
 
-        ret = get_gpfs_winattrs(CONST_DISCARD(char *, path), &attrs);
+        ret = get_gpfs_winattrs(discard_const_p(char, path), &attrs);
         if ( ret == -1){
 		if (errno == ENOSYS) {
 			return SMB_VFS_NEXT_GETXATTR(handle, path, name, value,
@@ -1074,19 +1202,30 @@ static int vfs_gpfs_stat(struct vfs_handle_struct *handle,
 	char *fname = NULL;
 	NTSTATUS status;
 	int ret;
+	struct gpfs_config_data *config;
+
+	SMB_VFS_HANDLE_GET_DATA(handle, config,
+				struct gpfs_config_data,
+				return -1);
 
 	ret = SMB_VFS_NEXT_STAT(handle, smb_fname);
 	if (ret == -1) {
 		return -1;
 	}
+
+	if (!config->winattr) {
+		return 0;
+	}
+
 	status = get_full_smb_filename(talloc_tos(), smb_fname, &fname);
 	if (!NT_STATUS_IS_OK(status)) {
 		errno = map_errno_from_nt_status(status);
 		return -1;
 	}
-	ret = get_gpfs_winattrs(CONST_DISCARD(char *, fname), &attrs);
+	ret = get_gpfs_winattrs(discard_const_p(char, fname), &attrs);
 	TALLOC_FREE(fname);
 	if (ret == 0) {
+		smb_fname->st.st_ex_calculated_birthtime = false;
 		smb_fname->st.st_ex_btime.tv_sec = attrs.creationTime.tv_sec;
 		smb_fname->st.st_ex_btime.tv_nsec = attrs.creationTime.tv_nsec;
 		smb_fname->st.vfs_private = attrs.winAttrs;
@@ -1099,6 +1238,11 @@ static int vfs_gpfs_fstat(struct vfs_handle_struct *handle,
 {
 	struct gpfs_winattr attrs;
 	int ret;
+	struct gpfs_config_data *config;
+
+	SMB_VFS_HANDLE_GET_DATA(handle, config,
+				struct gpfs_config_data,
+				return -1);
 
 	ret = SMB_VFS_NEXT_FSTAT(handle, fsp, sbuf);
 	if (ret == -1) {
@@ -1107,8 +1251,13 @@ static int vfs_gpfs_fstat(struct vfs_handle_struct *handle,
 	if ((fsp->fh == NULL) || (fsp->fh->fd == -1)) {
 		return 0;
 	}
+	if (!config->winattr) {
+		return 0;
+	}
+
 	ret = smbd_fget_gpfs_winattrs(fsp->fh->fd, &attrs);
 	if (ret == 0) {
+		sbuf->st_ex_calculated_birthtime = false;
 		sbuf->st_ex_btime.tv_sec = attrs.creationTime.tv_sec;
 		sbuf->st_ex_btime.tv_nsec = attrs.creationTime.tv_nsec;
 	}
@@ -1122,19 +1271,29 @@ static int vfs_gpfs_lstat(struct vfs_handle_struct *handle,
 	char *path = NULL;
 	NTSTATUS status;
 	int ret;
+	struct gpfs_config_data *config;
+
+	SMB_VFS_HANDLE_GET_DATA(handle, config,
+				struct gpfs_config_data,
+				return -1);
 
 	ret = SMB_VFS_NEXT_LSTAT(handle, smb_fname);
 	if (ret == -1) {
 		return -1;
 	}
+	if (!config->winattr) {
+		return 0;
+	}
+
 	status = get_full_smb_filename(talloc_tos(), smb_fname, &path);
 	if (!NT_STATUS_IS_OK(status)) {
 		errno = map_errno_from_nt_status(status);
 		return -1;
 	}
-	ret = get_gpfs_winattrs(CONST_DISCARD(char *, path), &attrs);
+	ret = get_gpfs_winattrs(discard_const_p(char, path), &attrs);
 	TALLOC_FREE(path);
 	if (ret == 0) {
+		smb_fname->st.st_ex_calculated_birthtime = false;
 		smb_fname->st.st_ex_btime.tv_sec = attrs.creationTime.tv_sec;
 		smb_fname->st.st_ex_btime.tv_nsec = attrs.creationTime.tv_nsec;
 		smb_fname->st.vfs_private = attrs.winAttrs;
@@ -1151,10 +1310,19 @@ static int vfs_gpfs_ntimes(struct vfs_handle_struct *handle,
         int ret;
         char *path = NULL;
         NTSTATUS status;
+	struct gpfs_config_data *config;
+
+	SMB_VFS_HANDLE_GET_DATA(handle, config,
+				struct gpfs_config_data,
+				return -1);
 
         ret = SMB_VFS_NEXT_NTIMES(handle, smb_fname, ft);
         if(ret == -1){
-                DEBUG(1,("vfs_gpfs_ntimes: SMB_VFS_NEXT_NTIMES failed\n"));
+		/* don't complain if access was denied */
+		if (errno != EPERM && errno != EACCES) {
+			DEBUG(1,("vfs_gpfs_ntimes: SMB_VFS_NEXT_NTIMES failed:"
+				 "%s", strerror(errno)));
+		}
                 return -1;
         }
 
@@ -1162,6 +1330,10 @@ static int vfs_gpfs_ntimes(struct vfs_handle_struct *handle,
                 DEBUG(10,("vfs_gpfs_ntimes:Create Time is NULL\n"));
                 return 0;
         }
+
+	if (!config->winattr) {
+		return 0;
+	}
 
         status = get_full_smb_filename(talloc_tos(), smb_fname, &path);
         if (!NT_STATUS_IS_OK(status)) {
@@ -1173,7 +1345,7 @@ static int vfs_gpfs_ntimes(struct vfs_handle_struct *handle,
         attrs.creationTime.tv_sec = ft->create_time.tv_sec;
         attrs.creationTime.tv_nsec = ft->create_time.tv_nsec;
 
-        ret = set_gpfs_winattrs(CONST_DISCARD(char *, path),
+        ret = set_gpfs_winattrs(discard_const_p(char, path),
                                 GPFS_WINATTR_SET_CREATION_TIME, &attrs);
         if(ret == -1 && errno != ENOSYS){
                 DEBUG(1,("vfs_gpfs_ntimes: set GPFS ntimes failed %d\n",ret));
@@ -1183,10 +1355,55 @@ static int vfs_gpfs_ntimes(struct vfs_handle_struct *handle,
 
 }
 
+static int vfs_gpfs_fallocate(struct vfs_handle_struct *handle,
+		       struct files_struct *fsp, enum vfs_fallocate_mode mode,
+		       off_t offset, off_t len)
+{
+	int ret;
+	struct gpfs_config_data *config;
+
+	SMB_VFS_HANDLE_GET_DATA(handle, config,
+				struct gpfs_config_data,
+				return -1);
+
+	if (!config->prealloc) {
+		/* you should better not run fallocate() on GPFS at all */
+		errno = ENOTSUP;
+		return -1;
+	}
+
+	if (mode == VFS_FALLOCATE_KEEP_SIZE) {
+		DEBUG(10, ("Unsupported VFS_FALLOCATE_KEEP_SIZE\n"));
+		errno = ENOTSUP;
+		return -1;
+	}
+
+	ret = smbd_gpfs_prealloc(fsp->fh->fd, offset, len);
+
+	if (ret == -1 && errno != ENOSYS) {
+		DEBUG(0, ("GPFS prealloc failed: %s\n", strerror(errno)));
+	} else if (ret == -1 && errno == ENOSYS) {
+		DEBUG(10, ("GPFS prealloc not supported.\n"));
+	} else {
+		DEBUG(10, ("GPFS prealloc succeeded.\n"));
+	}
+
+	return ret;
+}
+
 static int vfs_gpfs_ftruncate(vfs_handle_struct *handle, files_struct *fsp,
-				SMB_OFF_T len)
+				off_t len)
 {
 	int result;
+	struct gpfs_config_data *config;
+
+	SMB_VFS_HANDLE_GET_DATA(handle, config,
+				struct gpfs_config_data,
+				return -1);
+
+	if (!config->ftruncate) {
+		return SMB_VFS_NEXT_FTRUNCATE(handle, fsp, len);
+	}
 
 	result = smbd_gpfs_ftruncate(fsp->fh->fd, len);
 	if ((result == -1) && (errno == ENOSYS)) {
@@ -1202,6 +1419,15 @@ static bool vfs_gpfs_is_offline(struct vfs_handle_struct *handle,
 	struct gpfs_winattr attrs;
 	char *path = NULL;
 	NTSTATUS status;
+	struct gpfs_config_data *config;
+
+	SMB_VFS_HANDLE_GET_DATA(handle, config,
+				struct gpfs_config_data,
+				return -1);
+
+	if (!config->winattr) {
+		return SMB_VFS_NEXT_IS_OFFLINE(handle, fname, sbuf);
+	}
 
 	status = get_full_smb_filename(talloc_tos(), fname, &path);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -1238,7 +1464,7 @@ static bool vfs_gpfs_aio_force(struct vfs_handle_struct *handle,
 
 static ssize_t vfs_gpfs_sendfile(vfs_handle_struct *handle, int tofd,
 				 files_struct *fsp, const DATA_BLOB *hdr,
-				 SMB_OFF_T offset, size_t n)
+				 off_t offset, size_t n)
 {
 	if ((fsp->fsp_name->st.vfs_private & GPFS_WINATTR_OFFLINE) != 0) {
 		errno = ENOSYS;
@@ -1247,14 +1473,15 @@ static ssize_t vfs_gpfs_sendfile(vfs_handle_struct *handle, int tofd,
 	return SMB_VFS_NEXT_SENDFILE(handle, tofd, fsp, hdr, offset, n);
 }
 
-int vfs_gpfs_connect(struct vfs_handle_struct *handle, const char *service,
-			const char *user)
+static int vfs_gpfs_connect(struct vfs_handle_struct *handle,
+			    const char *service, const char *user)
 {
 	struct gpfs_config_data *config;
+	int ret;
 
 	smbd_gpfs_lib_init();
 
-	int ret = SMB_VFS_NEXT_CONNECT(handle, service, user);
+	ret = SMB_VFS_NEXT_CONNECT(handle, service, user);
 
 	if (ret < 0) {
 		return ret;
@@ -1263,7 +1490,8 @@ int vfs_gpfs_connect(struct vfs_handle_struct *handle, const char *service,
 	config = talloc_zero(handle->conn, struct gpfs_config_data);
 	if (!config) {
 		SMB_VFS_NEXT_DISCONNECT(handle);
-		DEBUG(0, ("talloc_zero() failed\n")); return -1;
+		DEBUG(0, ("talloc_zero() failed\n"));
+		return -1;
 	}
 
 	config->sharemodes = lp_parm_bool(SNUM(handle->conn), "gpfs",
@@ -1275,11 +1503,200 @@ int vfs_gpfs_connect(struct vfs_handle_struct *handle, const char *service,
 	config->hsm = lp_parm_bool(SNUM(handle->conn), "gpfs",
 				   "hsm", false);
 
+	config->syncio = lp_parm_bool(SNUM(handle->conn), "gpfs",
+				      "syncio", false);
+
+	config->winattr = lp_parm_bool(SNUM(handle->conn), "gpfs",
+				       "winattr", false);
+
+	config->ftruncate = lp_parm_bool(SNUM(handle->conn), "gpfs",
+					 "ftruncate", true);
+
+	config->getrealfilename = lp_parm_bool(SNUM(handle->conn), "gpfs",
+					       "getrealfilename", true);
+
+	config->dfreequota = lp_parm_bool(SNUM(handle->conn), "gpfs",
+					  "dfreequota", false);
+
+	config->prealloc = lp_parm_bool(SNUM(handle->conn), "gpfs",
+				   "prealloc", true);
+
+	config->acl = lp_parm_bool(SNUM(handle->conn), "gpfs", "acl", true);
+
 	SMB_VFS_HANDLE_SET_DATA(handle, config,
 				NULL, struct gpfs_config_data,
 				return -1);
 
+	if (config->leases) {
+		/*
+		 * GPFS lease code is based on kernel oplock code
+		 * so make sure it is turned on
+		 */
+		if (!lp_kernel_oplocks(SNUM(handle->conn))) {
+			DEBUG(5, ("Enabling kernel oplocks for "
+				  "gpfs:leases to work\n"));
+			lp_do_parameter(SNUM(handle->conn), "kernel oplocks",
+					"true");
+		}
+
+		/*
+		 * as the kernel does not properly support Level II oplocks
+		 * and GPFS leases code is based on kernel infrastructure, we
+		 * need to turn off Level II oplocks if gpfs:leases is enabled
+		 */
+		if (lp_level2_oplocks(SNUM(handle->conn))) {
+			DEBUG(5, ("gpfs:leases are enabled, disabling "
+				  "Level II oplocks\n"));
+			lp_do_parameter(SNUM(handle->conn), "level2 oplocks",
+					"false");
+		}
+	}
+
 	return 0;
+}
+
+static int vfs_gpfs_get_quotas(const char *path, uid_t uid, gid_t gid,
+			       int *fset_id,
+			       struct gpfs_quotaInfo *qi_user,
+			       struct gpfs_quotaInfo *qi_group,
+			       struct gpfs_quotaInfo *qi_fset)
+{
+	int err;
+	char *dir_path;
+	bool b;
+
+	/*
+	 * We want to always use the directory to get the fileset id,
+	 * because files might have a share mode. We also do not want
+	 * to get the parent directory when there is already a
+	 * directory to avoid stepping in a different fileset.  The
+	 * path passed here is currently either "." or a filename, so
+	 * this is ok. The proper solution would be having a way to
+	 * query the fileset id without opening the file.
+	 */
+	b = parent_dirname(talloc_tos(), path, &dir_path, NULL);
+	if (!b) {
+		errno = ENOMEM;
+		return -1;
+	}
+
+	DEBUG(10, ("path %s, directory %s\n", path, dir_path));
+
+	err = get_gpfs_fset_id(dir_path, fset_id);
+	if (err) {
+		DEBUG(0, ("Get fset id failed path %s, dir %s, errno %d.\n",
+			  path, dir_path, errno));
+		return err;
+	}
+
+	err = get_gpfs_quota(path, GPFS_USRQUOTA, uid, qi_user);
+	if (err) {
+		return err;
+	}
+
+	err = get_gpfs_quota(path, GPFS_GRPQUOTA, gid, qi_group);
+	if (err) {
+		return err;
+	}
+
+	err = get_gpfs_quota(path, GPFS_FILESETQUOTA, *fset_id, qi_fset);
+	if (err) {
+		return err;
+	}
+
+	return 0;
+}
+
+static void vfs_gpfs_disk_free_quota(struct gpfs_quotaInfo qi, time_t cur_time,
+				     uint64_t *dfree, uint64_t *dsize)
+{
+	uint64_t usage, limit;
+
+	/*
+	 * The quota reporting is done in units of 1024 byte blocks, but
+	 * sys_fsusage uses units of 512 byte blocks, adjust the block number
+	 * accordingly. Also filter possibly negative usage counts from gpfs.
+	 */
+	usage = qi.blockUsage < 0 ? 0 : (uint64_t)qi.blockUsage * 2;
+	limit = (uint64_t)qi.blockHardLimit * 2;
+
+	/*
+	 * When the grace time for the exceeded soft block quota has been
+	 * exceeded, the soft block quota becomes an additional hard limit.
+	 */
+	if (qi.blockSoftLimit &&
+	    qi.blockGraceTime && cur_time > qi.blockGraceTime) {
+		/* report disk as full */
+		*dfree = 0;
+		*dsize = MIN(*dsize, usage);
+	}
+
+	if (!qi.blockHardLimit)
+		return;
+
+	if (usage >= limit) {
+		/* report disk as full */
+		*dfree = 0;
+		*dsize = MIN(*dsize, usage);
+
+	} else {
+		/* limit has not been reached, determine "free space" */
+		*dfree = MIN(*dfree, limit - usage);
+		*dsize = MIN(*dsize, limit);
+	}
+}
+
+static uint64_t vfs_gpfs_disk_free(vfs_handle_struct *handle, const char *path,
+				   bool small_query, uint64_t *bsize,
+				   uint64_t *dfree, uint64_t *dsize)
+{
+	struct security_unix_token *utok;
+	struct gpfs_quotaInfo qi_user, qi_group, qi_fset;
+	struct gpfs_config_data *config;
+	int err, fset_id;
+	time_t cur_time;
+
+	SMB_VFS_HANDLE_GET_DATA(handle, config, struct gpfs_config_data,
+				return (uint64_t)-1);
+	if (!config->dfreequota) {
+		return SMB_VFS_NEXT_DISK_FREE(handle, path, small_query,
+					      bsize, dfree, dsize);
+	}
+
+	err = sys_fsusage(path, dfree, dsize);
+	if (err) {
+		DEBUG (0, ("Could not get fs usage, errno %d\n", errno));
+		return SMB_VFS_NEXT_DISK_FREE(handle, path, small_query,
+					      bsize, dfree, dsize);
+	}
+
+	/* sys_fsusage returns units of 512 bytes */
+	*bsize = 512;
+
+	DEBUG(10, ("fs dfree %llu, dsize %llu\n",
+		   (unsigned long long)*dfree, (unsigned long long)*dsize));
+
+	utok = handle->conn->session_info->unix_token;
+	err = vfs_gpfs_get_quotas(path, utok->uid, utok->gid, &fset_id,
+				  &qi_user, &qi_group, &qi_fset);
+	if (err) {
+		return SMB_VFS_NEXT_DISK_FREE(handle, path, small_query,
+					      bsize, dfree, dsize);
+	}
+
+	cur_time = time(NULL);
+
+	/* Adjust free space and size according to quota limits. */
+	vfs_gpfs_disk_free_quota(qi_user, cur_time, dfree, dsize);
+	vfs_gpfs_disk_free_quota(qi_group, cur_time, dfree, dsize);
+
+	/* Id 0 indicates the default quota, not an actual quota */
+	if (fset_id != 0) {
+		vfs_gpfs_disk_free_quota(qi_fset, cur_time, dfree, dsize);
+	}
+
+	disk_norm(small_query, bsize, dfree, dsize);
+	return *dfree;
 }
 
 static uint32_t vfs_gpfs_capabilities(struct vfs_handle_struct *handle,
@@ -1304,42 +1721,238 @@ static int vfs_gpfs_open(struct vfs_handle_struct *handle,
 			 struct smb_filename *smb_fname, files_struct *fsp,
 			 int flags, mode_t mode)
 {
-	if (lp_parm_bool(fsp->conn->params->service, "gpfs", "syncio",
-			 false)) {
+	struct gpfs_config_data *config;
+
+	SMB_VFS_HANDLE_GET_DATA(handle, config,
+				struct gpfs_config_data,
+				return -1);
+
+	if (config->syncio) {
 		flags |= O_SYNC;
 	}
 	return SMB_VFS_NEXT_OPEN(handle, smb_fname, fsp, flags, mode);
 }
 
+static ssize_t vfs_gpfs_pread(vfs_handle_struct *handle, files_struct *fsp,
+			      void *data, size_t n, off_t offset)
+{
+	ssize_t ret;
+
+	ret = SMB_VFS_NEXT_PREAD(handle, fsp, data, n, offset);
+
+	DEBUG(10, ("vfs_private = %x\n",
+		   (unsigned int)fsp->fsp_name->st.vfs_private));
+
+	if ((ret != -1) &&
+	    ((fsp->fsp_name->st.vfs_private & GPFS_WINATTR_OFFLINE) != 0)) {
+		fsp->fsp_name->st.vfs_private &= ~GPFS_WINATTR_OFFLINE;
+		notify_fname(handle->conn, NOTIFY_ACTION_MODIFIED,
+			     FILE_NOTIFY_CHANGE_ATTRIBUTES,
+			     fsp->fsp_name->base_name);
+	}
+
+	return ret;
+}
+
+struct vfs_gpfs_pread_state {
+	struct files_struct *fsp;
+	ssize_t ret;
+	int err;
+};
+
+static void vfs_gpfs_pread_done(struct tevent_req *subreq);
+
+static struct tevent_req *vfs_gpfs_pread_send(struct vfs_handle_struct *handle,
+					      TALLOC_CTX *mem_ctx,
+					      struct tevent_context *ev,
+					      struct files_struct *fsp,
+					      void *data, size_t n,
+					      off_t offset)
+{
+	struct tevent_req *req, *subreq;
+	struct vfs_gpfs_pread_state *state;
+
+	req = tevent_req_create(mem_ctx, &state, struct vfs_gpfs_pread_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->fsp = fsp;
+	subreq = SMB_VFS_NEXT_PREAD_SEND(state, ev, handle, fsp, data,
+					 n, offset);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, vfs_gpfs_pread_done, req);
+	return req;
+}
+
+static void vfs_gpfs_pread_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct vfs_gpfs_pread_state *state = tevent_req_data(
+		req, struct vfs_gpfs_pread_state);
+
+	state->ret = SMB_VFS_PREAD_RECV(subreq, &state->err);
+	TALLOC_FREE(subreq);
+	tevent_req_done(req);
+}
+
+static ssize_t vfs_gpfs_pread_recv(struct tevent_req *req, int *err)
+{
+	struct vfs_gpfs_pread_state *state = tevent_req_data(
+		req, struct vfs_gpfs_pread_state);
+	struct files_struct *fsp = state->fsp;
+
+	if (tevent_req_is_unix_error(req, err)) {
+		return -1;
+	}
+	*err = state->err;
+
+	DEBUG(10, ("vfs_private = %x\n",
+		   (unsigned int)fsp->fsp_name->st.vfs_private));
+
+	if ((state->ret != -1) &&
+	    ((fsp->fsp_name->st.vfs_private & GPFS_WINATTR_OFFLINE) != 0)) {
+		fsp->fsp_name->st.vfs_private &= ~GPFS_WINATTR_OFFLINE;
+		DEBUG(10, ("sending notify\n"));
+		notify_fname(fsp->conn, NOTIFY_ACTION_MODIFIED,
+			     FILE_NOTIFY_CHANGE_ATTRIBUTES,
+			     fsp->fsp_name->base_name);
+	}
+
+	return state->ret;
+}
+
+static ssize_t vfs_gpfs_pwrite(vfs_handle_struct *handle, files_struct *fsp,
+			       const void *data, size_t n, off_t offset)
+{
+	ssize_t ret;
+
+	ret = SMB_VFS_NEXT_PWRITE(handle, fsp, data, n, offset);
+
+	DEBUG(10, ("vfs_private = %x\n",
+		   (unsigned int)fsp->fsp_name->st.vfs_private));
+
+	if ((ret != -1) &&
+	    ((fsp->fsp_name->st.vfs_private & GPFS_WINATTR_OFFLINE) != 0)) {
+		fsp->fsp_name->st.vfs_private &= ~GPFS_WINATTR_OFFLINE;
+		notify_fname(handle->conn, NOTIFY_ACTION_MODIFIED,
+			     FILE_NOTIFY_CHANGE_ATTRIBUTES,
+			     fsp->fsp_name->base_name);
+	}
+
+	return ret;
+}
+
+struct vfs_gpfs_pwrite_state {
+	struct files_struct *fsp;
+	ssize_t ret;
+	int err;
+};
+
+static void vfs_gpfs_pwrite_done(struct tevent_req *subreq);
+
+static struct tevent_req *vfs_gpfs_pwrite_send(
+	struct vfs_handle_struct *handle,
+	TALLOC_CTX *mem_ctx,
+	struct tevent_context *ev,
+	struct files_struct *fsp,
+	const void *data, size_t n,
+	off_t offset)
+{
+	struct tevent_req *req, *subreq;
+	struct vfs_gpfs_pwrite_state *state;
+
+	req = tevent_req_create(mem_ctx, &state, struct vfs_gpfs_pwrite_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->fsp = fsp;
+	subreq = SMB_VFS_NEXT_PWRITE_SEND(state, ev, handle, fsp, data,
+					 n, offset);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, vfs_gpfs_pwrite_done, req);
+	return req;
+}
+
+static void vfs_gpfs_pwrite_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct vfs_gpfs_pwrite_state *state = tevent_req_data(
+		req, struct vfs_gpfs_pwrite_state);
+
+	state->ret = SMB_VFS_PWRITE_RECV(subreq, &state->err);
+	TALLOC_FREE(subreq);
+	tevent_req_done(req);
+}
+
+static ssize_t vfs_gpfs_pwrite_recv(struct tevent_req *req, int *err)
+{
+	struct vfs_gpfs_pwrite_state *state = tevent_req_data(
+		req, struct vfs_gpfs_pwrite_state);
+	struct files_struct *fsp = state->fsp;
+
+	if (tevent_req_is_unix_error(req, err)) {
+		return -1;
+	}
+	*err = state->err;
+
+	DEBUG(10, ("vfs_private = %x\n",
+		   (unsigned int)fsp->fsp_name->st.vfs_private));
+
+	if ((state->ret != -1) &&
+	    ((fsp->fsp_name->st.vfs_private & GPFS_WINATTR_OFFLINE) != 0)) {
+		fsp->fsp_name->st.vfs_private &= ~GPFS_WINATTR_OFFLINE;
+		DEBUG(10, ("sending notify\n"));
+		notify_fname(fsp->conn, NOTIFY_ACTION_MODIFIED,
+			     FILE_NOTIFY_CHANGE_ATTRIBUTES,
+			     fsp->fsp_name->base_name);
+	}
+
+	return state->ret;
+}
+
 
 static struct vfs_fn_pointers vfs_gpfs_fns = {
 	.connect_fn = vfs_gpfs_connect,
-	.fs_capabilities = vfs_gpfs_capabilities,
-	.kernel_flock = vfs_gpfs_kernel_flock,
-        .linux_setlease = vfs_gpfs_setlease,
-        .get_real_filename = vfs_gpfs_get_real_filename,
-        .fget_nt_acl = gpfsacl_fget_nt_acl,
-        .get_nt_acl = gpfsacl_get_nt_acl,
-        .fset_nt_acl = gpfsacl_fset_nt_acl,
-        .sys_acl_get_file = gpfsacl_sys_acl_get_file,
-        .sys_acl_get_fd = gpfsacl_sys_acl_get_fd,
-        .sys_acl_set_file = gpfsacl_sys_acl_set_file,
-        .sys_acl_set_fd = gpfsacl_sys_acl_set_fd,
-        .sys_acl_delete_def_file = gpfsacl_sys_acl_delete_def_file,
-        .chmod = vfs_gpfs_chmod,
-        .fchmod = vfs_gpfs_fchmod,
-        .close_fn = vfs_gpfs_close,
-        .setxattr = gpfs_set_xattr,
-        .getxattr = gpfs_get_xattr,
-        .stat = vfs_gpfs_stat,
-        .fstat = vfs_gpfs_fstat,
-        .lstat = vfs_gpfs_lstat,
-	.ntimes = vfs_gpfs_ntimes,
-	.is_offline = vfs_gpfs_is_offline,
-	.aio_force = vfs_gpfs_aio_force,
-	.sendfile = vfs_gpfs_sendfile,
+	.disk_free_fn = vfs_gpfs_disk_free,
+	.fs_capabilities_fn = vfs_gpfs_capabilities,
+	.kernel_flock_fn = vfs_gpfs_kernel_flock,
+	.linux_setlease_fn = vfs_gpfs_setlease,
+	.get_real_filename_fn = vfs_gpfs_get_real_filename,
+	.fget_nt_acl_fn = gpfsacl_fget_nt_acl,
+	.get_nt_acl_fn = gpfsacl_get_nt_acl,
+	.fset_nt_acl_fn = gpfsacl_fset_nt_acl,
+	.sys_acl_get_file_fn = gpfsacl_sys_acl_get_file,
+	.sys_acl_get_fd_fn = gpfsacl_sys_acl_get_fd,
+	.sys_acl_set_file_fn = gpfsacl_sys_acl_set_file,
+	.sys_acl_set_fd_fn = gpfsacl_sys_acl_set_fd,
+	.sys_acl_delete_def_file_fn = gpfsacl_sys_acl_delete_def_file,
+	.chmod_fn = vfs_gpfs_chmod,
+	.fchmod_fn = vfs_gpfs_fchmod,
+	.close_fn = vfs_gpfs_close,
+	.setxattr_fn = gpfs_set_xattr,
+	.getxattr_fn = gpfs_get_xattr,
+	.stat_fn = vfs_gpfs_stat,
+	.fstat_fn = vfs_gpfs_fstat,
+	.lstat_fn = vfs_gpfs_lstat,
+	.ntimes_fn = vfs_gpfs_ntimes,
+	.is_offline_fn = vfs_gpfs_is_offline,
+	.aio_force_fn = vfs_gpfs_aio_force,
+	.sendfile_fn = vfs_gpfs_sendfile,
+	.fallocate_fn = vfs_gpfs_fallocate,
 	.open_fn = vfs_gpfs_open,
-	.ftruncate = vfs_gpfs_ftruncate
+	.pread_fn = vfs_gpfs_pread,
+	.pread_send_fn = vfs_gpfs_pread_send,
+	.pread_recv_fn = vfs_gpfs_pread_recv,
+	.pwrite_fn = vfs_gpfs_pwrite,
+	.pwrite_send_fn = vfs_gpfs_pwrite_send,
+	.pwrite_recv_fn = vfs_gpfs_pwrite_recv,
+	.ftruncate_fn = vfs_gpfs_ftruncate
 };
 
 NTSTATUS vfs_gpfs_init(void);

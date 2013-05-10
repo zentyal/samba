@@ -46,7 +46,7 @@ const char *my_sam_name(void)
 {
        /* Standalone servers can only use the local netbios name */
        if ( lp_server_role() == ROLE_STANDALONE )
-               return global_myname();
+               return lp_netbios_name();
 
        /* Default to the DOMAIN name when not specified */
        return lp_workgroup();
@@ -74,7 +74,7 @@ struct samu *samu_new( TALLOC_CTX *ctx )
 {
 	struct samu *user;
 
-	if ( !(user = TALLOC_ZERO_P( ctx, struct samu )) ) {
+	if ( !(user = talloc_zero( ctx, struct samu )) ) {
 		DEBUG(0,("samuser_new: Talloc failed!\n"));
 		return NULL;
 	}
@@ -93,7 +93,6 @@ struct samu *samu_new( TALLOC_CTX *ctx )
 	user->pass_can_change_time  = (time_t)0;
 	user->logoff_time           = get_time_t_max();
 	user->kickoff_time          = get_time_t_max();
-	user->pass_must_change_time = get_time_t_max();
 	user->fields_present        = 0x00ffffff;
 	user->logon_divs = 168; 	/* hours per week */
 	user->hours_len = 21; 		/* 21 times 8 bits = 168 */
@@ -146,10 +145,11 @@ static int count_commas(const char *str)
  attributes and a user SID.
 *********************************************************************/
 
-static NTSTATUS samu_set_unix_internal(struct samu *user, const struct passwd *pwd, bool create)
+static NTSTATUS samu_set_unix_internal(struct pdb_methods *methods,
+				       struct samu *user, const struct passwd *pwd, bool create)
 {
 	const char *guest_account = lp_guestaccount();
-	const char *domain = global_myname();
+	const char *domain = lp_netbios_name();
 	char *fullname;
 	uint32_t urid;
 
@@ -246,11 +246,11 @@ static NTSTATUS samu_set_unix_internal(struct samu *user, const struct passwd *p
 	   initialized and will fill in these fields later (such as from a 
 	   netr_SamInfo3 structure) */
 
-	if ( create && (pdb_capabilities() & PDB_CAP_STORE_RIDS)) {
+	if ( create && (methods->capabilities(methods) & PDB_CAP_STORE_RIDS)) {
 		uint32_t user_rid;
 		struct dom_sid user_sid;
 
-		if ( !pdb_new_rid( &user_rid ) ) {
+		if ( !methods->new_rid(methods, &user_rid) ) {
 			DEBUG(3, ("Could not allocate a new RID\n"));
 			return NT_STATUS_ACCESS_DENIED;
 		}
@@ -282,12 +282,13 @@ static NTSTATUS samu_set_unix_internal(struct samu *user, const struct passwd *p
 
 NTSTATUS samu_set_unix(struct samu *user, const struct passwd *pwd)
 {
-	return samu_set_unix_internal( user, pwd, False );
+	return samu_set_unix_internal( NULL, user, pwd, False );
 }
 
-NTSTATUS samu_alloc_rid_unix(struct samu *user, const struct passwd *pwd)
+NTSTATUS samu_alloc_rid_unix(struct pdb_methods *methods,
+			     struct samu *user, const struct passwd *pwd)
 {
-	return samu_set_unix_internal( user, pwd, True );
+	return samu_set_unix_internal( methods, user, pwd, True );
 }
 
 /**********************************************************
@@ -380,14 +381,12 @@ uint32_t pdb_decode_acct_ctrl(const char *p)
 void pdb_sethexpwd(char p[33], const unsigned char *pwd, uint32_t acct_ctrl)
 {
 	if (pwd != NULL) {
-		int i;
-		for (i = 0; i < 16; i++)
-			slprintf(&p[i*2], 3, "%02X", pwd[i]);
+		hex_encode_buf(p, pwd, 16);
 	} else {
 		if (acct_ctrl & ACB_PWNOTREQ)
-			safe_strcpy(p, "NO PASSWORDXXXXXXXXXXXXXXXXXXXXX", 32);
+			strlcpy(p, "NO PASSWORDXXXXXXXXXXXXXXXXXXXXX", 33);
 		else
-			safe_strcpy(p, "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", 32);
+			strlcpy(p, "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", 33);
 	}
 }
 
@@ -431,12 +430,9 @@ bool pdb_gethexpwd(const char *p, unsigned char *pwd)
 void pdb_sethexhours(char *p, const unsigned char *hours)
 {
 	if (hours != NULL) {
-		int i;
-		for (i = 0; i < 21; i++) {
-			slprintf(&p[i*2], 3, "%02X", hours[i]);
-		}
+		hex_encode_buf(p, hours, 21);
 	} else {
-		safe_strcpy(p, "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF", 43);
+		strlcpy(p, "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF", 44);
 	}
 }
 
@@ -589,7 +585,7 @@ bool algorithmic_pdb_rid_is_user(uint32_t rid)
 bool lookup_global_sam_name(const char *name, int flags, uint32_t *rid,
 			    enum lsa_SidType *type)
 {
-	GROUP_MAP map;
+	GROUP_MAP *map;
 	bool ret;
 
 	/* Windows treats "MACHINE\None" as a special name for 
@@ -627,7 +623,7 @@ bool lookup_global_sam_name(const char *name, int flags, uint32_t *rid,
 		TALLOC_FREE(sam_account);
 
 		if (ret) {
-			if (!sid_check_is_in_our_domain(&user_sid)) {
+			if (!sid_check_is_in_our_sam(&user_sid)) {
 				DEBUG(0, ("User %s with invalid SID %s in passdb\n",
 					  name, sid_string_dbg(&user_sid)));
 				return False;
@@ -643,24 +639,32 @@ bool lookup_global_sam_name(const char *name, int flags, uint32_t *rid,
 	 * Maybe it is a group ?
 	 */
 
+	map = talloc_zero(NULL, GROUP_MAP);
+	if (!map) {
+		return false;
+	}
+
 	become_root();
-	ret = pdb_getgrnam(&map, name);
+	ret = pdb_getgrnam(map, name);
 	unbecome_root();
 
  	if (!ret) {
+		TALLOC_FREE(map);
 		return False;
 	}
 
 	/* BUILTIN groups are looked up elsewhere */
-	if (!sid_check_is_in_our_domain(&map.sid)) {
+	if (!sid_check_is_in_our_sam(&map->sid)) {
 		DEBUG(10, ("Found group %s (%s) not in our domain -- "
-			   "ignoring.", name, sid_string_dbg(&map.sid)));
+			   "ignoring.", name, sid_string_dbg(&map->sid)));
+		TALLOC_FREE(map);
 		return False;
 	}
 
 	/* yes it's a mapped group */
-	sid_peek_rid(&map.sid, rid);
-	*type = map.sid_name_use;
+	sid_peek_rid(&map->sid, rid);
+	*type = map->sid_name_use;
+	TALLOC_FREE(map);
 	return True;
 }
 
@@ -1018,7 +1022,6 @@ static bool init_samu_from_buffer_v0(struct samu *sampass, uint8_t *buf, uint32_
 	pdb_set_logoff_time(sampass, logoff_time, PDB_SET);
 	pdb_set_kickoff_time(sampass, kickoff_time, PDB_SET);
 	pdb_set_pass_can_change_time(sampass, pass_can_change_time, PDB_SET);
-	pdb_set_pass_must_change_time(sampass, pass_must_change_time, PDB_SET);
 	pdb_set_pass_last_set_time(sampass, pass_last_set_time, PDB_SET);
 
 	pdb_set_username(sampass, username, PDB_SET); 
@@ -1209,7 +1212,6 @@ static bool init_samu_from_buffer_v1(struct samu *sampass, uint8_t *buf, uint32_
 	/* Change from V0 is addition of bad_password_time field. */
 	pdb_set_bad_password_time(sampass, bad_password_time, PDB_SET);
 	pdb_set_pass_can_change_time(sampass, pass_can_change_time, PDB_SET);
-	pdb_set_pass_must_change_time(sampass, pass_must_change_time, PDB_SET);
 	pdb_set_pass_last_set_time(sampass, pass_last_set_time, PDB_SET);
 
 	pdb_set_username(sampass, username, PDB_SET); 
@@ -1400,7 +1402,6 @@ static bool init_samu_from_buffer_v2(struct samu *sampass, uint8_t *buf, uint32_
 	pdb_set_kickoff_time(sampass, kickoff_time, PDB_SET);
 	pdb_set_bad_password_time(sampass, bad_password_time, PDB_SET);
 	pdb_set_pass_can_change_time(sampass, pass_can_change_time, PDB_SET);
-	pdb_set_pass_must_change_time(sampass, pass_must_change_time, PDB_SET);
 	pdb_set_pass_last_set_time(sampass, pass_last_set_time, PDB_SET);
 
 	pdb_set_username(sampass, username, PDB_SET); 
@@ -1636,7 +1637,6 @@ static bool init_samu_from_buffer_v3(struct samu *sampass, uint8_t *buf, uint32_
 	pdb_set_kickoff_time(sampass, convert_uint32_t_to_time_t(kickoff_time), PDB_SET);
 	pdb_set_bad_password_time(sampass, convert_uint32_t_to_time_t(bad_password_time), PDB_SET);
 	pdb_set_pass_can_change_time(sampass, convert_uint32_t_to_time_t(pass_can_change_time), PDB_SET);
-	pdb_set_pass_must_change_time(sampass, convert_uint32_t_to_time_t(pass_must_change_time), PDB_SET);
 	pdb_set_pass_last_set_time(sampass, convert_uint32_t_to_time_t(pass_last_set_time), PDB_SET);
 
 	pdb_set_username(sampass, username, PDB_SET); 
@@ -2355,7 +2355,7 @@ bool get_trust_pw_clear(const char *domain, char **ret_pwd,
 	if (pwd != NULL) {
 		*ret_pwd = pwd;
 		if (account_name != NULL) {
-			*account_name = global_myname();
+			*account_name = lp_netbios_name();
 		}
 
 		return true;
@@ -2393,7 +2393,7 @@ bool get_trust_pw_hash(const char *domain, uint8_t ret_pwd[16],
 							channel))
 	{
 		if (account_name != NULL) {
-			*account_name = global_myname();
+			*account_name = lp_netbios_name();
 		}
 
 		return true;

@@ -5,7 +5,7 @@
 
 if [ $# -lt 5 ]; then
 cat <<EOF
-Usage: test_kinit.sh SERVER USERNAME PASSWORD REALM DOMAIN PREFIX
+Usage: test_kinit.sh SERVER USERNAME PASSWORD REALM DOMAIN PREFIX ENCTYPE SMBCLINET
 EOF
 exit 1;
 fi
@@ -17,19 +17,19 @@ REALM=$4
 DOMAIN=$5
 PREFIX=$6
 ENCTYPE=$7
-shift 7
+smbclient=$8
+shift 8
 failed=0
 
-samba4bindir="$BUILDDIR/bin"
+samba4bindir="$BINDIR"
 samba4srcdir="$SRCDIR/source4"
-smbclient="$samba4bindir/smbclient$EXEEXT"
-samba4kinit="$samba4bindir/samba4kinit$EXEEXT"
-samba_tool="$samba4bindir/samba-tool$EXEEXT"
-ldbmodify="$samba4bindir/ldbmodify$EXEEXT"
-ldbsearch="$samba4bindir/ldbsearch$EXEEXT"
-rkpty="$samba4bindir/rkpty$EXEEXT"
-samba4kpasswd="$samba4bindir/samba4kpasswd$EXEEXT"
-enableaccount="$samba_tool enableaccount"
+samba4kinit="$samba4bindir/samba4kinit"
+samba_tool="$samba4bindir/samba-tool"
+ldbmodify="$samba4bindir/ldbmodify"
+ldbsearch="$samba4bindir/ldbsearch"
+rkpty="$samba4bindir/rkpty"
+samba4kpasswd="$samba4bindir/samba4kpasswd"
+enableaccount="$samba_tool user enable"
 machineaccountccache="$samba4srcdir/scripting/bin/machineaccountccache"
 
 . `dirname $0`/subunit.sh
@@ -40,7 +40,7 @@ test_smbclient() {
 	shift
 	shift
 	echo "test: $name"
-	$VALGRIND $smbclient $CONFIGURATION //$SERVER/tmp -c "$cmd" -W "$DOMAIN" $@
+	$VALGRIND $smbclient $CONFIGURATION //$SERVER/tmp -c "$cmd" $@
 	status=$?
 	if [ x$status = x0 ]; then
 		echo "success: $name"

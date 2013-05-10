@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # Blackbox tests for "samba-tool drs" command
 # Copyright (C) Kamen Mazdrashki <kamenim@samba.org> 2011
 #
@@ -19,7 +17,6 @@
 
 """Blackbox tests for samba-tool drs."""
 
-import os
 import samba.tests
 
 

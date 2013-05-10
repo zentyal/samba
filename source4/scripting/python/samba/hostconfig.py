@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # Unix SMB/CIFS implementation.
 # Copyright (C) Jelmer Vernooij <jelmer@samba.org> 2008
 #
@@ -37,7 +35,7 @@ class Hostconfig(object):
         :param session_info: Session info to use
         :param credentials: Credentials to access the SamDB with
         """
-        return SamDB(url=self.lp.get("sam database"),
+        return SamDB(url=self.lp.samdb_url(),
                      session_info=session_info, credentials=credentials,
                      lp=self.lp)
 

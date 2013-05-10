@@ -135,7 +135,7 @@ static DNS_ERROR dns_udp_open( const char *nameserver,
 /********************************************************************
 ********************************************************************/
 
-DNS_ERROR dns_open_connection( const char *nameserver, int32 dwType,
+DNS_ERROR dns_open_connection( const char *nameserver, int32_t dwType,
 		    TALLOC_CTX *mem_ctx,
 		    struct dns_connection **conn )
 {
@@ -149,7 +149,7 @@ DNS_ERROR dns_open_connection( const char *nameserver, int32 dwType,
 	return ERROR_DNS_INVALID_PARAMETER;
 }
 
-static DNS_ERROR write_all(int fd, uint8 *data, size_t len)
+static DNS_ERROR write_all(int fd, uint8_t *data, size_t len)
 {
 	size_t total = 0;
 
@@ -173,10 +173,10 @@ static DNS_ERROR write_all(int fd, uint8 *data, size_t len)
 static DNS_ERROR dns_send_tcp(struct dns_connection *conn,
 			      const struct dns_buffer *buf)
 {
-	uint16 len = htons(buf->offset);
+	uint16_t len = htons(buf->offset);
 	DNS_ERROR err;
 
-	err = write_all(conn->s, (uint8 *)&len, sizeof(len));
+	err = write_all(conn->s, (uint8_t *)&len, sizeof(len));
 	if (!ERR_DNS_IS_OK(err)) return err;
 
 	return write_all(conn->s, buf->data, buf->offset);
@@ -211,7 +211,7 @@ DNS_ERROR dns_send(struct dns_connection *conn, const struct dns_buffer *buf)
 	return ERROR_DNS_INVALID_PARAMETER;
 }
 
-static DNS_ERROR read_all(int fd, uint8 *data, size_t len)
+static DNS_ERROR read_all(int fd, uint8_t *data, size_t len)
 {
 	size_t total = 0;
 
@@ -248,13 +248,13 @@ static DNS_ERROR dns_receive_tcp(TALLOC_CTX *mem_ctx,
 {
 	struct dns_buffer *buf;
 	DNS_ERROR err;
-	uint16 len;
+	uint16_t len;
 
-	if (!(buf = TALLOC_ZERO_P(mem_ctx, struct dns_buffer))) {
+	if (!(buf = talloc_zero(mem_ctx, struct dns_buffer))) {
 		return ERROR_DNS_NO_MEMORY;
 	}
 
-	err = read_all(conn->s, (uint8 *)&len, sizeof(len));
+	err = read_all(conn->s, (uint8_t *)&len, sizeof(len));
 	if (!ERR_DNS_IS_OK(err)) {
 		return err;
 	}
@@ -262,7 +262,7 @@ static DNS_ERROR dns_receive_tcp(TALLOC_CTX *mem_ctx,
 	buf->size = ntohs(len);
 
 	if (buf->size) {
-		if (!(buf->data = TALLOC_ARRAY(buf, uint8, buf->size))) {
+		if (!(buf->data = talloc_array(buf, uint8_t, buf->size))) {
 			TALLOC_FREE(buf);
 			return ERROR_DNS_NO_MEMORY;
 		}
@@ -287,7 +287,7 @@ static DNS_ERROR dns_receive_udp(TALLOC_CTX *mem_ctx,
 	struct dns_buffer *buf;
 	ssize_t received;
 
-	if (!(buf = TALLOC_ZERO_P(mem_ctx, struct dns_buffer))) {
+	if (!(buf = talloc_zero(mem_ctx, struct dns_buffer))) {
 		return ERROR_DNS_NO_MEMORY;
 	}
 
@@ -295,7 +295,7 @@ static DNS_ERROR dns_receive_udp(TALLOC_CTX *mem_ctx,
 	 * UDP based DNS can only be 512 bytes
 	 */
 
-	if (!(buf->data = TALLOC_ARRAY(buf, uint8, 512))) {
+	if (!(buf->data = talloc_array(buf, uint8_t, 512))) {
 		TALLOC_FREE(buf);
 		return ERROR_DNS_NO_MEMORY;
 	}
@@ -340,7 +340,7 @@ DNS_ERROR dns_transaction(TALLOC_CTX *mem_ctx, struct dns_connection *conn,
 	struct dns_buffer *buf = NULL;
 	DNS_ERROR err;
 
-	err = dns_marshall_request(conn, req, &buf);
+	err = dns_marshall_request(mem_ctx, req, &buf);
 	if (!ERR_DNS_IS_OK(err)) goto error;
 
 	err = dns_send(conn, buf);

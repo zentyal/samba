@@ -4,27 +4,28 @@
 
 if [ $# -lt 7 ]; then
 cat <<EOF
-Usage: test_smbclient_s3.sh SERVER SERVER_IP USERNAME PASSWORD USERID LOCAL_PATH PREFIX
+Usage: test_smbclient_s3.sh SERVER SERVER_IP DOMAIN USERNAME PASSWORD USERID LOCAL_PATH PREFIX SMBCLIENT WBINFO
 EOF
 exit 1;
 fi
 
-SERVER="$1"
-SERVER_IP="$2"
-USERNAME="$3"
-PASSWORD="$4"
-USERID="$5"
-LOCAL_PATH="$6"
-PREFIX="$7"
-SMBCLIENT="$VALGRIND ${SMBCLIENT:-$BINDIR/smbclient}"
-WBINFO="$VALGRIND ${WBINFO:-$BINDIR/wbinfo}"
-shift 7
+SERVER="${1}"
+SERVER_IP="${2}"
+DOMAIN="${3}"
+USERNAME="${4}"
+PASSWORD="${5}"
+USERID="${6}"
+LOCAL_PATH="${7}"
+PREFIX="${8}"
+SMBCLIENT="${9}"
+WBINFO="${10}"
+SMBCLIENT="$VALGRIND ${SMBCLIENT}"
+WBINFO="$VALGRIND ${WBINFO}"
+shift 10
 ADDARGS="$*"
 
-test x"$TEST_FUNCTIONS_SH" != x"INCLUDED" && {
 incdir=`dirname $0`/../../../testprogs/blackbox
 . $incdir/subunit.sh
-}
 
 failed=0
 
@@ -133,7 +134,7 @@ EOF
 # Test creating a good symlink and deleting it by path.
 test_good_symlink()
 {
-    tmpfile=/tmp/smbclient.in.$$
+    tmpfile=$PREFIX/smbclient.in.$$
     slink_name="$LOCAL_PATH/slink"
     slink_target="$LOCAL_PATH/slink_target"
 
@@ -183,7 +184,7 @@ EOF
 test_read_only_dir()
 {
     prompt="NT_STATUS_ACCESS_DENIED making remote directory"
-    tmpfile=/tmp/smbclient.in.$$
+    tmpfile=$PREFIX/smbclient.in.$$
 
 ##
 ## We can't do this as non-root. We always have rights to
@@ -219,6 +220,7 @@ EOF
     if [ $ret != 0 ] ; then
 	echo "$out"
 	echo "failed writing into read-only directory with error $ret"
+
 	false
 	return
     fi
@@ -236,11 +238,55 @@ EOF
     fi
 }
 
+
+# Test sending a message
+test_message()
+{
+    tmpfile=$PREFIX/message_in.$$
+
+    cat > $tmpfile <<EOF
+Test message from pid $$
+EOF
+
+    cmd='$SMBCLIENT "$@" -U$USERNAME%$PASSWORD -M $SERVER -p 139 $ADDARGS -n msgtest < $tmpfile 2>&1'
+    eval echo "$cmd"
+    out=`eval $cmd`
+    ret=$?
+
+    if [ $ret != 0 ] ; then
+	echo "$out"
+	echo "failed sending message to $SERVER with error $ret"
+	false
+	rm -f $tmpfile
+	return
+    fi
+
+    # The server writes this into a file message.msgtest, via message.%m to test the % sub code
+    cmd='$SMBCLIENT "$@" -U$USERNAME%$PASSWORD //$SERVER/tmpguest -p 139 $ADDARGS -c "get message.msgtest $PREFIX/message_out.$$" 2>&1'
+    eval echo "$cmd"
+    out=`eval $cmd`
+    ret=$?
+
+    if [ $ret != 0 ] ; then
+	echo "$out"
+	echo "failed getting sent message from $SERVER with error $ret"
+	false
+	return
+    fi
+
+    if [ cmp $PREFIX/message_out.$$ $tmpfile != 0 ] ; then
+	echo "failed comparison of message from $SERVER"
+	false
+	return
+    fi
+    true
+}
+
 # Test reading an owner-only file (logon as guest) fails.
 test_owner_only_file()
 {
     prompt="NT_STATUS_ACCESS_DENIED opening remote file"
-    tmpfile=/tmp/smbclient.in.$$
+    tmpfile=$PREFIX/smbclient.in.$$
 
 ##
 ## We can't do this as non-root. We always have rights to
@@ -296,7 +342,7 @@ EOF
 # Test accessing an msdfs path.
 test_msdfs_link()
 {
-    tmpfile=/tmp/smbclient.in.$$
+    tmpfile=$PREFIX/smbclient.in.$$
     prompt="  msdfs-target  "
 
     cat > $tmpfile <<EOF
@@ -366,6 +412,14 @@ EOF
 test_ccache_access()
 {
     $WBINFO --ccache-save="${USERNAME}%${PASSWORD}"
+    ret=$?
+
+    if [ $ret != 0 ] ; then
+	echo "wbinfo failed to store creds in cache (user='${USERNAME}', pass='${PASSWORD}')"
+	false
+	return
+    fi
+
     $SMBCLIENT //$SERVER_IP/tmp -C -U "${USERNAME}%" \
 	-c quit 2>&1
     ret=$?
@@ -377,6 +431,14 @@ test_ccache_access()
     fi
 
     $WBINFO --ccache-save="${USERNAME}%GarBage"
+    ret=$?
+
+    if [ $ret != 0 ] ; then
+	echo "wbinfo failed to store creds in cache (user='${USERNAME}', pass='GarBage')"
+	false
+	return
+    fi
+
     $SMBCLIENT //$SERVER_IP/tmp -C -U "${USERNAME}%" \
 	-c quit 2>&1
     ret=$?
@@ -388,6 +450,43 @@ test_ccache_access()
     fi
 
     $WBINFO --logoff
+}
+
+# Test authenticating using the winbind ccache
+test_auth_file()
+{
+    tmpfile=$PREFIX/smbclient.in.$$
+    cat > $tmpfile <<EOF
+username=${USERNAME}
+password=${PASSWORD}
+domain=${DOMAIN}
+EOF
+    $SMBCLIENT //$SERVER_IP/tmp --authentication-file=$tmpfile \
+	-c quit 2>&1
+    ret=$?
+    rm $tmpfile
+
+    if [ $ret != 0 ] ; then
+	echo "smbclient failed to use auth file"
+	false
+	return
+    fi
+
+    cat > $tmpfile <<EOF
+username=${USERNAME}
+password=xxxx
+domain=${DOMAIN}
+EOF
+    $SMBCLIENT //$SERVER_IP/tmp --authentication-file=$tmpfile\
+	-c quit 2>&1
+    ret=$?
+    rm $tmpfile
+
+    if [ $ret -eq 0 ] ; then
+	echo "smbclient succeeded with wrong auth file credentials"
+	false
+	return
+    fi
 }
 
 LOGDIR_PREFIX=test_smbclient_s3
@@ -443,6 +542,14 @@ testit "Accessing an MS-DFS link" \
 
 testit "ccache access works for smbclient" \
     test_ccache_access || \
+    failed=`expr $failed + 1`
+
+testit "sending a message to the remote server" \
+    test_message || \
+    failed=`expr $failed + 1`
+
+testit "using an authentication file" \
+    test_auth_file || \
     failed=`expr $failed + 1`
 
 testit "rm -rf $LOGDIR" \

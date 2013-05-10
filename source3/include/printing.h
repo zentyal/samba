@@ -24,6 +24,8 @@
    This file defines the low-level printing system interfaces used by the
    SAMBA printing subsystem.
 */
+#include "tdb_compat.h"
+#include "lib/param/loadparm.h"
 
 /* Extra fields above "LPQ_PRINTING" are used to map extra NT status codes. */
 
@@ -161,9 +163,6 @@ extern struct printif	iprint_printif;
 /* There can be this many printing tdb's open, plus any locked ones. */
 #define MAX_PRINT_DBS_OPEN 1
 
-struct TDB_DATA;
-struct tdb_context;
-
 struct tdb_print_db {
 	struct tdb_print_db *next, *prev;
 	struct tdb_context *tdb;
@@ -181,15 +180,16 @@ struct tdb_print_db {
 
 NTSTATUS print_spool_open(files_struct *fsp,
 			  const char *fname,
-			  uint16_t current_vuid);
+			  uint64_t current_vuid);
 
 int print_spool_write(files_struct *fsp, const char *data, uint32_t size,
-		      SMB_OFF_T offset, uint32_t *written);
+		      off_t offset, uint32_t *written);
 
 void print_spool_end(files_struct *fsp, enum file_close_type close_type);
 
 void print_spool_terminate(struct connection_struct *conn,
 			   struct print_file_data *print_file);
+uint16_t print_spool_rap_jobid(struct print_file_data *print_file);
 
 /* The following definitions come from printing/printing.c  */
 
@@ -204,13 +204,13 @@ bool print_job_set_name(struct tevent_context *ev,
 			struct messaging_context *msg_ctx,
 			const char *sharename, uint32 jobid, const char *name);
 bool print_job_get_name(TALLOC_CTX *mem_ctx, const char *sharename, uint32_t jobid, char **name);
-WERROR print_job_delete(const struct auth_serversupplied_info *server_info,
+WERROR print_job_delete(const struct auth_session_info *server_info,
 			struct messaging_context *msg_ctx,
 			int snum, uint32_t jobid);
-WERROR print_job_pause(const struct auth_serversupplied_info *server_info,
+WERROR print_job_pause(const struct auth_session_info *server_info,
 		     struct messaging_context *msg_ctx,
 		     int snum, uint32 jobid);
-WERROR print_job_resume(const struct auth_serversupplied_info *server_info,
+WERROR print_job_resume(const struct auth_session_info *server_info,
 		      struct messaging_context *msg_ctx,
 		      int snum, uint32 jobid);
 ssize_t print_job_write(struct tevent_context *ev,
@@ -218,7 +218,7 @@ ssize_t print_job_write(struct tevent_context *ev,
 			int snum, uint32 jobid, const char *buf, size_t size);
 int print_queue_length(struct messaging_context *msg_ctx, int snum,
 		       print_status_struct *pstatus);
-WERROR print_job_start(const struct auth_serversupplied_info *server_info,
+WERROR print_job_start(const struct auth_session_info *server_info,
 		       struct messaging_context *msg_ctx,
 		       const char *clientmachine,
 		       int snum, const char *docname, const char *filename,
@@ -230,18 +230,16 @@ NTSTATUS print_job_end(struct messaging_context *msg_ctx, int snum,
 int print_queue_status(struct messaging_context *msg_ctx, int snum,
 		       print_queue_struct **ppqueue,
 		       print_status_struct *status);
-WERROR print_queue_pause(const struct auth_serversupplied_info *server_info,
+WERROR print_queue_pause(const struct auth_session_info *server_info,
 			 struct messaging_context *msg_ctx, int snum);
-WERROR print_queue_resume(const struct auth_serversupplied_info *server_info,
+WERROR print_queue_resume(const struct auth_session_info *server_info,
 			  struct messaging_context *msg_ctx, int snum);
-WERROR print_queue_purge(const struct auth_serversupplied_info *server_info,
+WERROR print_queue_purge(const struct auth_session_info *server_info,
 			 struct messaging_context *msg_ctx, int snum);
 uint16 pjobid_to_rap(const char* sharename, uint32 jobid);
 bool rap_to_pjobid(uint16 rap_jobid, fstring sharename, uint32 *pjobid);
 void rap_jobid_delete(const char* sharename, uint32 jobid);
 bool print_backend_init(struct messaging_context *msg_ctx);
-void start_background_queue(struct tevent_context *ev,
-			    struct messaging_context *msg);
 void printing_end(void);
 
 /* The following definitions come from printing/lpq_parse.c  */
@@ -255,7 +253,7 @@ bool parse_lpq_entry(enum printing_types printing_type,char *line,
 struct tdb_print_db *get_print_db_byname(const char *printername);
 void release_print_db( struct tdb_print_db *pdb);
 void close_all_print_db(void);
-struct TDB_DATA get_printer_notify_pid_list(struct tdb_context *tdb, const char *printer_name, bool cleanlist);
+TDB_DATA get_printer_notify_pid_list(struct tdb_context *tdb, const char *printer_name, bool cleanlist);
 
 void print_queue_receive(struct messaging_context *msg,
 				void *private_data,

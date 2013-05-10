@@ -29,36 +29,9 @@
 #include "libcli/raw/smb.h"
 #include "param/param.h"
 
-#if HAVE_SYS_INOTIFY_H
 #include <sys/inotify.h>
-#else
-/* for older glibc varients - we can remove this eventually */
-#include <linux/inotify.h>
-#include <asm/unistd.h>
 
-#ifndef HAVE_INOTIFY_INIT
-/*
-  glibc doesn't define these functions yet (as of March 2006)
-*/
-static int inotify_init(void)
-{
-	return syscall(__NR_inotify_init);
-}
-
-static int inotify_add_watch(int fd, const char *path, __u32 mask)
-{
-	return syscall(__NR_inotify_add_watch, fd, path, mask);
-}
-
-static int inotify_rm_watch(int fd, int wd)
-{
-	return syscall(__NR_inotify_rm_watch, fd, wd);
-}
-#endif
-#endif
-
-
-/* older glibc headers don't have these defines either */
+/* glibc < 2.5 headers don't have these defines */
 #ifndef IN_ONLYDIR
 #define IN_ONLYDIR 0x01000000
 #endif
@@ -258,7 +231,7 @@ static NTSTATUS inotify_setup(struct sys_notify_context *ctx)
 	if (in->fd == -1) {
 		DEBUG(0,("Failed to init inotify - %s\n", strerror(errno)));
 		talloc_free(in);
-		return map_nt_error_from_unix(errno);
+		return map_nt_error_from_unix_common(errno);
 	}
 	in->ctx = ctx;
 	in->watches = NULL;
@@ -274,7 +247,7 @@ static NTSTATUS inotify_setup(struct sys_notify_context *ctx)
 		}
 		DEBUG(0,("Failed to tevent_add_fd() - %s\n", strerror(errno)));
 		talloc_free(in);
-		return map_nt_error_from_unix(errno);
+		return map_nt_error_from_unix_common(errno);
 	}
 
 	tevent_fd_set_auto_close(fde);
@@ -373,7 +346,7 @@ static NTSTATUS inotify_watch(struct sys_notify_context *ctx,
 	wd = inotify_add_watch(in->fd, e->path, mask);
 	if (wd == -1) {
 		e->filter = filter;
-		return map_nt_error_from_unix(errno);
+		return map_nt_error_from_unix_common(errno);
 	}
 
 	w = talloc(in, struct inotify_watch_context);

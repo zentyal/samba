@@ -21,7 +21,7 @@ def SAMBA_PYTHON(bld, name,
                  realname=None,
                  cflags='',
                  includes='',
-                 init_function_sentinal=None,
+                 init_function_sentinel=None,
                  local_include=True,
                  vars=None,
                  enabled=True):
@@ -29,27 +29,15 @@ def SAMBA_PYTHON(bld, name,
 
     # when we support static python modules we'll need to gather
     # the list from all the SAMBA_PYTHON() targets
-    if init_function_sentinal is not None:
-        cflags += '-DSTATIC_LIBPYTHON_MODULES=%s' % init_function_sentinal
+    if init_function_sentinel is not None:
+        cflags += '-DSTATIC_LIBPYTHON_MODULES=%s' % init_function_sentinel
 
     source = bld.EXPAND_VARIABLES(source, vars=vars)
 
-    if realname is None:
-        # a SAMBA_PYTHON target without a realname is just a
-        # library with pyembed=True
-        bld.SAMBA_LIBRARY(name,
-                          source=source,
-                          deps=deps,
-                          public_deps=public_deps,
-                          includes=includes,
-                          cflags=cflags,
-                          local_include=local_include,
-                          vars=vars,
-                          pyembed=True,
-                          enabled=enabled)
-        return
-
-    link_name = 'python/%s' % realname
+    if realname is not None:
+        link_name = 'python/%s' % realname
+    else:
+        link_name = None
 
     bld.SAMBA_LIBRARY(name,
                       source=source,
@@ -57,13 +45,14 @@ def SAMBA_PYTHON(bld, name,
                       public_deps=public_deps,
                       includes=includes,
                       cflags=cflags,
-                      realname=realname,
                       local_include=local_include,
                       vars=vars,
+                      realname=realname,
                       link_name=link_name,
-                      pyembed=True,
+                      pyext=True,
                       target_type='PYTHON',
                       install_path='${PYTHONARCHDIR}',
+                      allow_undefined_symbols=True,
                       enabled=enabled)
 
 Build.BuildContext.SAMBA_PYTHON = SAMBA_PYTHON

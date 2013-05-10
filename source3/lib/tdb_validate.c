@@ -51,7 +51,7 @@ static int tdb_validate_child(struct tdb_context *tdb,
 	 * but I don't want to change all the callers...
 	 */
 	ret = tdb_check(tdb, NULL, NULL);
-	if (ret == -1) {
+	if (ret != 0) {
 		v_status.tdb_error = True;
 		v_status.success = False;
 		goto out;
@@ -71,7 +71,7 @@ static int tdb_validate_child(struct tdb_context *tdb,
 	num_entries = tdb_traverse(tdb, validate_fn, (void *)&v_status);
 	if (!v_status.success) {
 		goto out;
-	} else if (num_entries == -1) {
+	} else if (num_entries < 0) {
 		v_status.tdb_error = True;
 		v_status.success = False;
 		goto out;
@@ -116,7 +116,7 @@ int tdb_validate(struct tdb_context *tdb, tdb_validate_data_func validate_fn)
 	 * just let the child panic. we catch the signal. */
 
 	DEBUG(10, ("tdb_validate: forking to let child do validation.\n"));
-	child_pid = sys_fork();
+	child_pid = fork();
 	if (child_pid == 0) {
 		/* child code */
 		DEBUG(10, ("tdb_validate (validation child): created\n"));
@@ -289,8 +289,12 @@ static int tdb_backup(TALLOC_CTX *ctx, const char *src_path,
 	}
 
 	unlink(tmp_path);
-	dst_tdb = tdb_open_log(tmp_path,
-			       hash_size ? hash_size : tdb_hash_size(src_tdb),
+
+	if (!hash_size) {
+		hash_size = tdb_hash_size(src_tdb);
+	}
+
+	dst_tdb = tdb_open_log(tmp_path, hash_size,
 			       TDB_DEFAULT, O_RDWR | O_CREAT | O_EXCL,
 			       st.st_mode & 0777);
 	if (dst_tdb == NULL) {

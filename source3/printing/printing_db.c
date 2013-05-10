@@ -20,6 +20,7 @@
 */
 
 #include "includes.h"
+#include "system/passwd.h" /* uid_wrapper */
 #include "system/filesys.h"
 #include "printing.h"
 #include "util_tdb.h"
@@ -160,7 +161,7 @@ void close_all_print_db(void)
  messages. data needs freeing on exit.
 ****************************************************************************/
 
-struct TDB_DATA get_printer_notify_pid_list(struct tdb_context *tdb, const char *printer_name, bool cleanlist)
+TDB_DATA get_printer_notify_pid_list(struct tdb_context *tdb, const char *printer_name, bool cleanlist)
 {
 	TDB_DATA data;
 	size_t i;
@@ -192,7 +193,7 @@ struct TDB_DATA get_printer_notify_pid_list(struct tdb_context *tdb, const char 
 	for( i = 0; i < data.dsize; i += 8) {
 		pid_t pid = (pid_t)IVAL(data.dptr, i);
 
-		if (pid == sys_getpid())
+		if (pid == getpid())
 			continue;
 
 		/* Entry is dead if process doesn't exist or refcount is zero. */

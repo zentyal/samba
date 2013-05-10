@@ -114,6 +114,7 @@ static void tevent_backend_init(void)
 {
 	tevent_select_init();
 	tevent_poll_init();
+	tevent_poll_mt_init();
 	tevent_standard_init();
 #ifdef HAVE_EPOLL
 	tevent_epoll_init();
@@ -185,6 +186,17 @@ int tevent_common_context_destructor(struct tevent_context *ev)
 		tevent_cleanup_pending_signal_handlers(se);
 	}
 
+	/* removing nesting hook or we get an abort when nesting is
+	 * not allowed. -- SSS
+	 * Note that we need to leave the allowed flag at its current
+	 * value, otherwise the use in tevent_re_initialise() will
+	 * leave the event context with allowed forced to false, which
+	 * will break users that expect nesting to be allowed
+	 */
+	ev->nesting.level = 0;
+	ev->nesting.hook_fn = NULL;
+	ev->nesting.hook_private = NULL;
+
 	return 0;
 }
 
@@ -199,8 +211,9 @@ int tevent_common_context_destructor(struct tevent_context *ev)
 
   NOTE: use tevent_context_init() inside of samba!
 */
-static struct tevent_context *tevent_context_init_ops(TALLOC_CTX *mem_ctx,
-						      const struct tevent_ops *ops)
+struct tevent_context *tevent_context_init_ops(TALLOC_CTX *mem_ctx,
+					       const struct tevent_ops *ops,
+					       void *additional_data)
 {
 	struct tevent_context *ev;
 	int ret;
@@ -211,6 +224,7 @@ static struct tevent_context *tevent_context_init_ops(TALLOC_CTX *mem_ctx,
 	talloc_set_destructor(ev, tevent_common_context_destructor);
 
 	ev->ops = ops;
+	ev->additional_data = additional_data;
 
 	ret = ev->ops->context_init(ev);
 	if (ret != 0) {
@@ -242,7 +256,7 @@ struct tevent_context *tevent_context_init_byname(TALLOC_CTX *mem_ctx,
 
 	for (e=tevent_backends;e;e=e->next) {
 		if (strcmp(name, e->name) == 0) {
-			return tevent_context_init_ops(mem_ctx, e->ops);
+			return tevent_context_init_ops(mem_ctx, e->ops, NULL);
 		}
 	}
 	return NULL;
@@ -391,7 +405,6 @@ struct tevent_immediate *_tevent_create_immediate(TALLOC_CTX *mem_ctx,
 
 /*
   schedule an immediate event
-  return NULL on failure
 */
 void _tevent_schedule_immediate(struct tevent_immediate *im,
 				struct tevent_context *ev,

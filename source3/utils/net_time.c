@@ -20,49 +20,37 @@
 #include "utils/net.h"
 #include "libsmb/nmblib.h"
 #include "libsmb/libsmb.h"
+#include "../libcli/smb/smbXcli_base.h"
 
 /*
   return the time on a server. This does not require any authentication
 */
-static time_t cli_servertime(const char *host, struct sockaddr_storage *pss, int *zone)
+static time_t cli_servertime(const char *host,
+			     const struct sockaddr_storage *dest_ss,
+			     int *zone)
 {
-	struct nmb_name calling, called;
 	time_t ret = 0;
 	struct cli_state *cli = NULL;
 	NTSTATUS status;
 
-	cli = cli_initialise();
-	if (!cli) {
-		goto done;
-	}
-
-	status = cli_connect(cli, host, pss);
+	status = cli_connect_nb(host, dest_ss, 0, 0x20, lp_netbios_name(),
+				SMB_SIGNING_DEFAULT, 0, &cli);
 	if (!NT_STATUS_IS_OK(status)) {
 		fprintf(stderr, _("Can't contact server %s. Error %s\n"),
 			host, nt_errstr(status));
 		goto done;
 	}
 
-	make_nmb_name(&calling, global_myname(), 0x0);
-	if (host) {
-		make_nmb_name(&called, host, 0x20);
-	} else {
-		make_nmb_name(&called, "*SMBSERVER", 0x20);
-	}
-
-	if (!cli_session_request(cli, &calling, &called)) {
-		fprintf(stderr, _("Session request failed\n"));
-		goto done;
-	}
-	status = cli_negprot(cli);
+	status = smbXcli_negprot(cli->conn, cli->timeout, PROTOCOL_CORE,
+				 PROTOCOL_NT1);
 	if (!NT_STATUS_IS_OK(status)) {
 		fprintf(stderr, _("Protocol negotiation failed: %s\n"),
 			nt_errstr(status));
 		goto done;
 	}
 
-	ret = cli->servertime;
-	if (zone) *zone = cli->serverzone;
+	ret = cli_state_server_time(cli);
+	if (zone) *zone = smb1cli_conn_server_time_zone(cli->conn);
 
 done:
 	if (cli) {

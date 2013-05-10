@@ -23,6 +23,7 @@
 #include "system/filesys.h"
 #include "libcli/libcli.h"
 #include "torture/util.h"
+#include "torture/raw/proto.h"
 
 #define CHECK_STATUS(status, correct) do { \
 	if (!NT_STATUS_EQUAL(status, correct)) { \
@@ -99,9 +100,7 @@ static bool test_read(struct torture_context *tctx, struct smbcli_state *cli)
 		return true;
 	}
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	printf("Testing RAW_READ_READ\n");
 	io.generic.level = RAW_READ_READ;
@@ -231,9 +230,7 @@ static bool test_lockread(struct torture_context *tctx,
 
 	buf = talloc_zero_array(tctx, uint8_t, maxsize);
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	printf("Testing RAW_READ_LOCKREAD\n");
 	io.generic.level = RAW_READ_LOCKREAD;
@@ -376,9 +373,7 @@ static bool test_readx(struct torture_context *tctx, struct smbcli_state *cli)
 
 	buf = talloc_zero_array(tctx, uint8_t, maxsize);
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	printf("Testing RAW_READ_READX\n");
 	
@@ -664,9 +659,7 @@ static bool test_readbraw(struct torture_context *tctx,
 
 	buf = talloc_zero_array(tctx, uint8_t, maxsize);
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	printf("Testing RAW_READ_READBRAW\n");
 	
@@ -838,9 +831,7 @@ static bool test_read_for_execute(struct torture_context *tctx,
 
 	buf = talloc_zero_array(tctx, uint8_t, maxsize);
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	printf("Testing RAW_READ_READX with read_for_execute\n");
 

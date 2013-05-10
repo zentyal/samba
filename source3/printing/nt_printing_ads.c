@@ -39,7 +39,7 @@ static void store_printer_guid(struct messaging_context *msg_ctx,
 			       const char *printer, struct GUID guid)
 {
 	TALLOC_CTX *tmp_ctx;
-	struct auth_serversupplied_info *session_info = NULL;
+	struct auth_session_info *session_info = NULL;
 	const char *guid_str;
 	DATA_BLOB blob;
 	NTSTATUS status;
@@ -87,86 +87,6 @@ done:
 	talloc_free(tmp_ctx);
 }
 
-static WERROR nt_printer_info_to_mods(TALLOC_CTX *ctx,
-				      struct spoolss_PrinterInfo2 *info2,
-				      ADS_MODLIST *mods)
-{
-	char *info_str;
-
-	ads_mod_str(ctx, mods, SPOOL_REG_PRINTERNAME, info2->sharename);
-	ads_mod_str(ctx, mods, SPOOL_REG_SHORTSERVERNAME, global_myname());
-	ads_mod_str(ctx, mods, SPOOL_REG_SERVERNAME, get_mydnsfullname());
-
-	info_str = talloc_asprintf(ctx, "\\\\%s\\%s",
-				   get_mydnsfullname(), info2->sharename);
-	if (info_str == NULL) {
-		return WERR_NOMEM;
-	}
-	ads_mod_str(ctx, mods, SPOOL_REG_UNCNAME, info_str);
-
-	info_str = talloc_asprintf(ctx, "%d", 4);
-	if (info_str == NULL) {
-		return WERR_NOMEM;
-	}
-	ads_mod_str(ctx, mods, SPOOL_REG_VERSIONNUMBER, info_str);
-
-	/* empty strings in the mods list result in an attrubute error */
-	if (strlen(info2->drivername) != 0)
-		ads_mod_str(ctx, mods, SPOOL_REG_DRIVERNAME, info2->drivername);
-	if (strlen(info2->location) != 0)
-		ads_mod_str(ctx, mods, SPOOL_REG_LOCATION, info2->location);
-	if (strlen(info2->comment) != 0)
-		ads_mod_str(ctx, mods, SPOOL_REG_DESCRIPTION, info2->comment);
-	if (strlen(info2->portname) != 0)
-		ads_mod_str(ctx, mods, SPOOL_REG_PORTNAME, info2->portname);
-	if (strlen(info2->sepfile) != 0)
-		ads_mod_str(ctx, mods, SPOOL_REG_PRINTSEPARATORFILE, info2->sepfile);
-
-	info_str = talloc_asprintf(ctx, "%u", info2->starttime);
-	if (info_str == NULL) {
-		return WERR_NOMEM;
-	}
-	ads_mod_str(ctx, mods, SPOOL_REG_PRINTSTARTTIME, info_str);
-
-	info_str = talloc_asprintf(ctx, "%u", info2->untiltime);
-	if (info_str == NULL) {
-		return WERR_NOMEM;
-	}
-	ads_mod_str(ctx, mods, SPOOL_REG_PRINTENDTIME, info_str);
-
-	info_str = talloc_asprintf(ctx, "%u", info2->priority);
-	if (info_str == NULL) {
-		return WERR_NOMEM;
-	}
-	ads_mod_str(ctx, mods, SPOOL_REG_PRIORITY, info_str);
-
-	if (info2->attributes & PRINTER_ATTRIBUTE_KEEPPRINTEDJOBS) {
-		ads_mod_str(ctx, mods, SPOOL_REG_PRINTKEEPPRINTEDJOBS, "TRUE");
-	} else {
-		ads_mod_str(ctx, mods, SPOOL_REG_PRINTKEEPPRINTEDJOBS, "FALSE");
-	}
-
-	switch (info2->attributes & 0x3) {
-	case 0:
-		ads_mod_str(ctx, mods, SPOOL_REG_PRINTSPOOLING,
-			    SPOOL_REGVAL_PRINTWHILESPOOLING);
-		break;
-	case 1:
-		ads_mod_str(ctx, mods, SPOOL_REG_PRINTSPOOLING,
-			    SPOOL_REGVAL_PRINTAFTERSPOOLED);
-		break;
-	case 2:
-		ads_mod_str(ctx, mods, SPOOL_REG_PRINTSPOOLING,
-			    SPOOL_REGVAL_PRINTDIRECT);
-		break;
-	default:
-		DEBUG(3, ("unsupported printer attributes %x\n",
-			  info2->attributes));
-	}
-
-	return WERR_OK;
-}
-
 static WERROR nt_printer_publish_ads(struct messaging_context *msg_ctx,
 				     ADS_STRUCT *ads,
 				     struct spoolss_PrinterInfo2 *pinfo2)
@@ -192,23 +112,17 @@ static WERROR nt_printer_publish_ads(struct messaging_context *msg_ctx,
 	DEBUG(5, ("publishing printer %s\n", printer));
 
 	/* figure out where to publish */
-	ads_rc = ads_find_machine_acct(ads, &res, global_myname());
-	if (!ADS_ERR_OK(ads_rc)) {
-		DEBUG(0, ("failed to find machine account for %s\n",
-			  global_myname()));
-		TALLOC_FREE(ctx);
-		return WERR_NOT_FOUND;
-	}
+	ads_find_machine_acct(ads, &res, lp_netbios_name());
 
 	/* We use ldap_get_dn here as we need the answer
 	 * in utf8 to call ldap_explode_dn(). JRA. */
 
 	srv_dn_utf8 = ldap_get_dn((LDAP *)ads->ldap.ld, (LDAPMessage *)res);
-	ads_msgfree(ads, res);
 	if (!srv_dn_utf8) {
 		TALLOC_FREE(ctx);
 		return WERR_SERVER_UNAVAILABLE;
 	}
+	ads_msgfree(ads, res);
 	srv_cn_utf8 = ldap_explode_dn(srv_dn_utf8, 1);
 	if (!srv_cn_utf8) {
 		TALLOC_FREE(ctx);
@@ -253,15 +167,12 @@ static WERROR nt_printer_publish_ads(struct messaging_context *msg_ctx,
 	mods = ads_init_mods(ctx);
 
 	if (mods == NULL) {
+		SAFE_FREE(prt_dn);
 		TALLOC_FREE(ctx);
 		return WERR_NOMEM;
 	}
 
-	win_rc = nt_printer_info_to_mods(ctx, pinfo2, &mods);
-	if (!W_ERROR_IS_OK(win_rc)) {
-		TALLOC_FREE(ctx);
-		return win_rc;
-	}
+	ads_mod_str(ctx, &mods, SPOOL_REG_PRINTERNAME, printer);
 
 	/* publish it */
 	ads_rc = ads_mod_printer_entry(ads, prt_dn, ctx, &mods);
@@ -304,7 +215,7 @@ static WERROR nt_printer_unpublish_ads(ADS_STRUCT *ads,
 
 	/* remove the printer from the directory */
 	ads_rc = ads_find_printer_on_server(ads, &res,
-					    printer, global_myname());
+					    printer, lp_netbios_name());
 
 	if (ADS_ERR_OK(ads_rc) && res && ads_count_replies(ads, res)) {
 		prt_dn = ads_get_dn(ads, talloc_tos(), res);
@@ -333,7 +244,7 @@ static WERROR nt_printer_unpublish_ads(ADS_STRUCT *ads,
  ***************************************************************************/
 
 WERROR nt_printer_publish(TALLOC_CTX *mem_ctx,
-			  const struct auth_serversupplied_info *session_info,
+			  const struct auth_session_info *session_info,
 			  struct messaging_context *msg_ctx,
 			  struct spoolss_PrinterInfo2 *pinfo2,
 			  int action)
@@ -415,7 +326,7 @@ WERROR check_published_printers(struct messaging_context *msg_ctx)
 	int snum;
 	int n_services = lp_numservices();
 	TALLOC_CTX *tmp_ctx = NULL;
-	struct auth_serversupplied_info *session_info = NULL;
+	struct auth_session_info *session_info = NULL;
 	struct spoolss_PrinterInfo2 *pinfo2;
 	NTSTATUS status;
 	WERROR result;
@@ -455,7 +366,7 @@ WERROR check_published_printers(struct messaging_context *msg_ctx)
 		}
 
 		result = winreg_get_printer_internal(tmp_ctx, session_info, msg_ctx,
-					    lp_servicename(snum),
+					    lp_servicename(talloc_tos(), snum),
 					    &pinfo2);
 		if (!W_ERROR_IS_OK(result)) {
 			continue;
@@ -477,9 +388,11 @@ done:
 }
 
 bool is_printer_published(TALLOC_CTX *mem_ctx,
-			  const struct auth_serversupplied_info *session_info,
+			  const struct auth_session_info *session_info,
 			  struct messaging_context *msg_ctx,
-			  const char *servername, char *printer, struct GUID *guid,
+			  const char *servername,
+			  const char *printer,
+			  struct GUID *guid,
 			  struct spoolss_PrinterInfo2 **info2)
 {
 	struct spoolss_PrinterInfo2 *pinfo2 = NULL;
@@ -558,7 +471,7 @@ done:
 }
 #else
 WERROR nt_printer_publish(TALLOC_CTX *mem_ctx,
-			  const struct auth_serversupplied_info *session_info,
+			  const struct auth_session_info *session_info,
 			  struct messaging_context *msg_ctx,
 			  struct spoolss_PrinterInfo2 *pinfo2,
 			  int action)
@@ -572,9 +485,11 @@ WERROR check_published_printers(struct messaging_context *msg_ctx)
 }
 
 bool is_printer_published(TALLOC_CTX *mem_ctx,
-			  const struct auth_serversupplied_info *session_info,
+			  const struct auth_session_info *session_info,
 			  struct messaging_context *msg_ctx,
-			  const char *servername, char *printer, struct GUID *guid,
+			  const char *servername,
+			  const char *printer,
+			  struct GUID *guid,
 			  struct spoolss_PrinterInfo2 **info2)
 {
 	return False;

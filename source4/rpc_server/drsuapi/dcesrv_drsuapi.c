@@ -25,6 +25,7 @@
 #include "rpc_server/dcerpc_server.h"
 #include "rpc_server/common/common.h"
 #include "dsdb/samdb/samdb.h"
+#include "dsdb/common/util.h"
 #include "libcli/security/security.h"
 #include "libcli/security/session.h"
 #include "rpc_server/drsuapi/dcesrv_drsuapi.h"
@@ -123,7 +124,7 @@ static WERROR dcesrv_drsuapi_DsBind(struct dcesrv_call_state *dce_call, TALLOC_C
 	/*
 	 * lookup the local servers Replication Epoch
 	 */
-	ntds_dn = samdb_ntds_settings_dn(b_state->sam_ctx);
+	ntds_dn = samdb_ntds_settings_dn(b_state->sam_ctx, mem_ctx);
 	W_ERROR_HAVE_NO_MEMORY(ntds_dn);
 
 	ret = ldb_search(b_state->sam_ctx, mem_ctx, &ntds_res,
@@ -219,7 +220,7 @@ static WERROR dcesrv_drsuapi_DsBind(struct dcesrv_call_state *dce_call, TALLOC_C
 	/*
 	 * allocate the return bind_info
 	 */
-	bind_info = talloc(mem_ctx, struct drsuapi_DsBindInfoCtr);
+	bind_info = talloc_zero(mem_ctx, struct drsuapi_DsBindInfoCtr);
 	W_ERROR_HAVE_NO_MEMORY(bind_info);
 
 	bind_info->length	= 28;
@@ -440,7 +441,6 @@ static WERROR dcesrv_drsuapi_DsCrackNames(struct dcesrv_call_state *dce_call, TA
 			case DRSUAPI_DS_NAME_FORMAT_LIST_DOMAINS:
 			case DRSUAPI_DS_NAME_FORMAT_MAP_SCHEMA_GUID:
 			case DRSUAPI_DS_NAME_FORMAT_NT4_ACCOUNT_NAME_SANS_DOMAIN:
-			case DRSUAPI_DS_NAME_FORMAT_LIST_INFO_FOR_SERVER:
 			case DRSUAPI_DS_NAME_FORMAT_LIST_SERVERS_FOR_DOMAIN_IN_SITE:
 			case DRSUAPI_DS_NAME_FORMAT_LIST_DOMAINS_IN_SITE:
 			case DRSUAPI_DS_NAME_FORMAT_LIST_SERVERS_IN_SITE:
@@ -448,6 +448,8 @@ static WERROR dcesrv_drsuapi_DsCrackNames(struct dcesrv_call_state *dce_call, TA
 				DEBUG(0, ("DsCrackNames: Unsupported operation requested: %X",
 					  r->in.req->req1.format_offered));
 				return WERR_OK;
+			case DRSUAPI_DS_NAME_FORMAT_LIST_INFO_FOR_SERVER:
+				return dcesrv_drsuapi_ListInfoServer(b_state->sam_ctx, mem_ctx, &r->in.req->req1, &r->out.ctr->ctr1);
 			case DRSUAPI_DS_NAME_FORMAT_LIST_ROLES:
 				return dcesrv_drsuapi_ListRoles(b_state->sam_ctx, mem_ctx,
 								&r->in.req->req1, &r->out.ctr->ctr1);
@@ -502,7 +504,7 @@ static WERROR dcesrv_drsuapi_DsRemoveDSServer(struct dcesrv_call_state *dce_call
 		}
 
 		if (r->in.req->req1.commit) {
-			ret = ldb_delete(b_state->sam_ctx, ntds_dn);
+			ret = dsdb_delete(b_state->sam_ctx, ntds_dn, DSDB_TREE_DELETE);
 			if (ret != LDB_SUCCESS) {
 				return WERR_FOOBAR;
 			}
@@ -575,13 +577,8 @@ static WERROR dcesrv_drsuapi_DsGetDomainControllerInfo_1(struct drsuapi_bind_sta
 	unsigned int i;
 
 	*r->out.level_out = r->in.req->req1.level;
-	r->out.ctr = talloc(mem_ctx, union drsuapi_DsGetDCInfoCtr);
+	r->out.ctr = talloc_zero(mem_ctx, union drsuapi_DsGetDCInfoCtr);
 	W_ERROR_HAVE_NO_MEMORY(r->out.ctr);
-
-	sites_dn = samdb_sites_dn(b_state->sam_ctx, mem_ctx);
-	if (!sites_dn) {
-		return WERR_DS_OBJ_NOT_FOUND;
-	}
 
 	switch (*r->out.level_out) {
 	case -1:
@@ -595,6 +592,11 @@ static WERROR dcesrv_drsuapi_DsGetDomainControllerInfo_1(struct drsuapi_bind_sta
 		break;
 	default:
 		return WERR_UNKNOWN_LEVEL;
+	}
+
+	sites_dn = samdb_sites_dn(b_state->sam_ctx, mem_ctx);
+	if (!sites_dn) {
+		return WERR_DS_OBJ_NOT_FOUND;
 	}
 
 	ret = ldb_search(b_state->sam_ctx, mem_ctx, &res, sites_dn, LDB_SCOPE_SUBTREE, attrs,
@@ -806,7 +808,9 @@ static WERROR dcesrv_drsuapi_DsExecuteKCC(struct dcesrv_call_state *dce_call, TA
 	if (!W_ERROR_IS_OK(status)) {
 		return status;
 	}
-
+	if (r->in.req->ctr1.taskID != 0) {
+		return WERR_INVALID_PARAM;
+	}
 	dcesrv_irpc_forward_rpc_call(dce_call, mem_ctx, r, NDR_DRSUAPI_DSEXECUTEKCC,
 				     &ndr_table_drsuapi, "kccsrv", "DsExecuteKCC",
 				     IRPC_CALL_TIMEOUT);

@@ -48,7 +48,7 @@ lp = sambaopts.get_loadparm()
 creds = credopts.get_credentials(lp)
 
 
-class SchemaTests(unittest.TestCase):
+class SchemaTests(samba.tests.TestCase):
 
     def setUp(self):
         super(SchemaTests, self).setUp()
@@ -94,6 +94,15 @@ isSingleValued: TRUE
 systemOnly: FALSE
 """
         self.ldb.add_ldif(ldif)
+        # We must do a schemaUpdateNow otherwise it's not 100% sure that the schema
+        # will contain the new attribute
+        ldif = """
+dn:
+changetype: modify
+add: schemaUpdateNow
+schemaUpdateNow: 1
+"""
+        self.ldb.modify_ldif(ldif)
 
         # Search for created attribute
         res = []
@@ -246,7 +255,7 @@ instanceType: 4
         delete_force(self.ldb, "ou=%s,%s" % (object_name, self.base_dn))
 
 
-class SchemaTests_msDS_IntId(unittest.TestCase):
+class SchemaTests_msDS_IntId(samba.tests.TestCase):
 
     def setUp(self):
         super(SchemaTests_msDS_IntId, self).setUp()
@@ -518,7 +527,7 @@ systemOnly: FALSE
                 self.assertTrue("msDS-IntId" not in ldb_msg)
 
 
-class SchemaTests_msDS_isRODC(unittest.TestCase):
+class SchemaTests_msDS_isRODC(samba.tests.TestCase):
 
     def setUp(self):
         super(SchemaTests_msDS_isRODC, self).setUp()

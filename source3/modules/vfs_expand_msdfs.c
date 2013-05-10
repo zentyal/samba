@@ -23,6 +23,7 @@
 #include "../librpc/gen_ndr/ndr_netlogon.h"
 #include "smbd/globals.h"
 #include "auth.h"
+#include "../lib/tsocket/tsocket.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_VFS
@@ -117,6 +118,7 @@ static char *expand_msdfs_target(TALLOC_CTX *ctx,
 	int filename_len = 0;
 	char *targethost = NULL;
 	char *new_target = NULL;
+	char *raddr;
 
 	if (filename_start == NULL) {
 		DEBUG(10, ("No filename start in %s\n", target));
@@ -139,8 +141,14 @@ static char *expand_msdfs_target(TALLOC_CTX *ctx,
 
 	DEBUG(10, ("Expanding from table [%s]\n", mapfilename));
 
+	raddr = tsocket_address_inet_addr_string(conn->sconn->remote_address,
+						 ctx);
+	if (raddr == NULL) {
+		return NULL;
+	}
+
 	targethost = read_target_host(
-		ctx, conn->sconn->client_id.addr, mapfilename);
+		ctx, raddr, mapfilename);
 	if (targethost == NULL) {
 		DEBUG(1, ("Could not expand target host from file %s\n",
 			  mapfilename));
@@ -148,12 +156,12 @@ static char *expand_msdfs_target(TALLOC_CTX *ctx,
 	}
 
 	targethost = talloc_sub_advanced(ctx,
-				lp_servicename(SNUM(conn)),
-				conn->session_info->unix_name,
+				lp_servicename(talloc_tos(), SNUM(conn)),
+				conn->session_info->unix_info->unix_name,
 				conn->connectpath,
-				conn->session_info->utok.gid,
-				conn->session_info->sanitized_username,
-				conn->session_info->info3->base.domain.string,
+				conn->session_info->unix_token->gid,
+				conn->session_info->unix_info->sanitized_username,
+				conn->session_info->info->domain_name,
 				targethost);
 
 	DEBUG(10, ("Expanded targethost to %s\n", targethost));
@@ -178,7 +186,7 @@ static int expand_msdfs_readlink(struct vfs_handle_struct *handle,
 {
 	TALLOC_CTX *ctx = talloc_tos();
 	int result;
-	char *target = TALLOC_ARRAY(ctx, char, PATH_MAX+1);
+	char *target = talloc_array(ctx, char, PATH_MAX+1);
 	size_t len;
 
 	if (!target) {
@@ -216,7 +224,7 @@ static int expand_msdfs_readlink(struct vfs_handle_struct *handle,
 }
 
 static struct vfs_fn_pointers vfs_expand_msdfs_fns = {
-	.vfs_readlink = expand_msdfs_readlink
+	.readlink_fn = expand_msdfs_readlink
 };
 
 NTSTATUS vfs_expand_msdfs_init(void);

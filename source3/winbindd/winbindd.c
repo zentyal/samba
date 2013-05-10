@@ -36,6 +36,7 @@
 #include "serverid.h"
 #include "auth.h"
 #include "messages.h"
+#include "../lib/util/pidfile.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
@@ -65,7 +66,7 @@ static bool reload_services_file(const char *lfile)
 	bool ret;
 
 	if (lp_loaded()) {
-		char *fname = lp_configfile();
+		char *fname = lp_configfile(talloc_tos());
 
 		if (file_exist(fname) && !strcsequal(fname,get_dyn_CONFIGFILE())) {
 			set_dyn_CONFIGFILE(fname);
@@ -80,7 +81,7 @@ static bool reload_services_file(const char *lfile)
 	}
 
 	reopen_logs();
-	ret = lp_load(get_dyn_CONFIGFILE(),False,False,True,True);
+	ret = lp_load_global(get_dyn_CONFIGFILE());
 
 	reopen_logs();
 	load_interfaces();
@@ -88,15 +89,6 @@ static bool reload_services_file(const char *lfile)
 	return(ret);
 }
 
-
-/**************************************************************************** **
- Handle a fault..
- **************************************************************************** */
-
-static void fault_quit(void)
-{
-	dump_core();
-}
 
 static void winbindd_status(void)
 {
@@ -193,7 +185,7 @@ static void terminate(bool is_parent)
 
 	if (is_parent) {
 		serverid_deregister(procid_self());
-		pidfile_unlink();
+		pidfile_unlink(lp_piddir(), "winbindd");
 	}
 
 	exit(0);
@@ -211,6 +203,26 @@ static void winbindd_sig_term_handler(struct tevent_context *ev,
 	DEBUG(0,("Got sig[%d] terminate (is_parent=%d)\n",
 		 signum, (int)*is_parent));
 	terminate(*is_parent);
+}
+
+/*
+  handle stdin becoming readable when we are in --foreground mode
+ */
+static void winbindd_stdin_handler(struct tevent_context *ev,
+			       struct tevent_fd *fde,
+			       uint16_t flags,
+			       void *private_data)
+{
+	char c;
+	if (read(0, &c, 1) != 1) {
+		bool *is_parent = talloc_get_type_abort(private_data, bool);
+		
+		/* we have reached EOF on stdin, which means the
+		   parent has exited. Shutdown the server */
+		DEBUG(0,("EOF on stdin (is_parent=%d)\n",
+			 (int)*is_parent));
+		terminate(*is_parent);
+	}
 }
 
 bool winbindd_setup_sig_term_handler(bool parent)
@@ -258,6 +270,28 @@ bool winbindd_setup_sig_term_handler(bool parent)
 		return false;
 	}
 
+	return true;
+}
+
+bool winbindd_setup_stdin_handler(bool parent, bool foreground)
+{
+	bool *is_parent;
+
+	if (foreground) {
+		is_parent = talloc(winbind_event_context(), bool);
+		if (!is_parent) {
+			return false;
+		}
+		
+		*is_parent = parent;
+
+		/* if we are running in the foreground then look for
+		   EOF on stdin, and exit if it happens. This allows
+		   us to die if the parent process dies
+		*/
+		tevent_add_fd(winbind_event_context(), is_parent, 0, TEVENT_FD_READ, winbindd_stdin_handler, is_parent);
+	}
+	
 	return true;
 }
 
@@ -399,7 +433,7 @@ static void winbind_msg_validate_cache(struct messaging_context *msg_ctx,
 	 * so we don't block the main winbindd and the validation
 	 * code can safely use fork/waitpid...
 	 */
-	child_pid = sys_fork();
+	child_pid = fork();
 
 	if (child_pid == -1) {
 		DEBUG(1, ("winbind_msg_validate_cache: Could not fork: %s\n",
@@ -459,11 +493,6 @@ static struct winbindd_dispatch_table {
 	/* Credential cache access */
 	{ WINBINDD_CCACHE_NTLMAUTH, winbindd_ccache_ntlm_auth, "NTLMAUTH" },
 	{ WINBINDD_CCACHE_SAVE, winbindd_ccache_save, "CCACHE_SAVE" },
-
-	/* WINS functions */
-
-	{ WINBINDD_WINS_BYNAME, winbindd_wins_byname, "WINS_BYNAME" },
-	{ WINBINDD_WINS_BYIP, winbindd_wins_byip, "WINS_BYIP" },
 
 	/* End of list */
 
@@ -555,6 +584,10 @@ static struct winbindd_async_dispatch_table async_nonpriv_table[] = {
 	{ WINBINDD_PAM_CHNG_PSWD_AUTH_CRAP, "PAM_CHNG_PSWD_AUTH_CRAP",
 	  winbindd_pam_chng_pswd_auth_crap_send,
 	  winbindd_pam_chng_pswd_auth_crap_recv },
+	{ WINBINDD_WINS_BYIP, "WINS_BYIP",
+	  winbindd_wins_byip_send, winbindd_wins_byip_recv },
+	{ WINBINDD_WINS_BYNAME, "WINS_BYNAME",
+	  winbindd_wins_byname_send, winbindd_wins_byname_recv },
 
 	{ 0, NULL, NULL, NULL }
 };
@@ -795,7 +828,7 @@ static void new_connection(int listen_sock, bool privileged)
 
 	/* Create new connection structure */
 
-	if ((state = TALLOC_ZERO_P(NULL, struct winbindd_cli_state)) == NULL) {
+	if ((state = talloc_zero(NULL, struct winbindd_cli_state)) == NULL) {
 		close(sock);
 		return;
 	}
@@ -957,12 +990,12 @@ static void winbindd_listen_fde_handler(struct tevent_context *ev,
 
 const char *get_winbind_pipe_dir(void)
 {
-	return lp_parm_const_string(-1, "winbindd", "socket dir", WINBINDD_SOCKET_DIR);
+	return lp_parm_const_string(-1, "winbindd", "socket dir", get_dyn_WINBINDD_SOCKET_DIR());
 }
 
 char *get_winbind_priv_pipe_dir(void)
 {
-	return lock_path(WINBINDD_PRIV_SOCKET_SUBDIR);
+	return state_path(WINBINDD_PRIV_SOCKET_SUBDIR);
 }
 
 static bool winbindd_setup_listeners(void)
@@ -970,6 +1003,7 @@ static bool winbindd_setup_listeners(void)
 	struct winbindd_listen_state *pub_state = NULL;
 	struct winbindd_listen_state *priv_state = NULL;
 	struct tevent_fd *fde;
+	int rc;
 
 	pub_state = talloc(winbind_event_context(),
 			   struct winbindd_listen_state);
@@ -981,6 +1015,10 @@ static bool winbindd_setup_listeners(void)
 	pub_state->fd = create_pipe_sock(
 		get_winbind_pipe_dir(), WINBINDD_SOCKET_NAME, 0755);
 	if (pub_state->fd == -1) {
+		goto failed;
+	}
+	rc = listen(pub_state->fd, 5);
+	if (rc < 0) {
 		goto failed;
 	}
 
@@ -1003,6 +1041,10 @@ static bool winbindd_setup_listeners(void)
 	priv_state->fd = create_pipe_sock(
 		get_winbind_priv_pipe_dir(), WINBINDD_SOCKET_NAME, 0750);
 	if (priv_state->fd == -1) {
+		goto failed;
+	}
+	rc = listen(priv_state->fd, 5);
+	if (rc < 0) {
 		goto failed;
 	}
 
@@ -1032,11 +1074,13 @@ bool winbindd_use_cache(void)
 	return !opt_nocache;
 }
 
-void winbindd_register_handlers(void)
+void winbindd_register_handlers(bool foreground)
 {
 	/* Setup signal handlers */
 
 	if (!winbindd_setup_sig_term_handler(true))
+		exit(1);
+	if (!winbindd_setup_stdin_handler(true, foreground))
 		exit(1);
 	if (!winbindd_setup_sig_hup_handler(NULL))
 		exit(1);
@@ -1058,7 +1102,9 @@ void winbindd_register_handlers(void)
 	/* get broadcast messages */
 
 	if (!serverid_register(procid_self(),
-			       FLAG_MSG_GENERAL|FLAG_MSG_DBWRAP)) {
+			       FLAG_MSG_GENERAL |
+			       FLAG_MSG_WINBIND |
+			       FLAG_MSG_DBWRAP)) {
 		DEBUG(1, ("Could not register myself in serverid.tdb\n"));
 		exit(1);
 	}
@@ -1245,14 +1291,16 @@ int main(int argc, char **argv, char **envp)
 	talloc_enable_null_tracking();
 	frame = talloc_stackframe();
 
+	setup_logging("winbindd", DEBUG_DEFAULT_STDOUT);
+
 	/* glibc (?) likes to print "User defined signal 1" and exit if a
 	   SIGUSR[12] is received before a handler is installed */
 
  	CatchSignal(SIGUSR1, SIG_IGN);
  	CatchSignal(SIGUSR2, SIG_IGN);
 
-	fault_setup((void (*)(void *))fault_quit );
-	dump_core_setup("winbindd");
+	fault_setup();
+	dump_core_setup("winbindd", lp_logfile(talloc_tos()));
 
 	load_case_tables();
 
@@ -1312,8 +1360,7 @@ int main(int argc, char **argv, char **envp)
 	 * is often not related to the path where winbindd is actually run
 	 * in production.
 	 */
-	dump_core_setup("winbindd");
-
+	dump_core_setup("winbindd", lp_logfile(talloc_tos()));
 	if (is_daemon && interactive) {
 		d_fprintf(stderr,"\nERROR: "
 			  "Option -i|--interactive is not allowed together with -D|--daemon\n\n");
@@ -1338,6 +1385,7 @@ int main(int argc, char **argv, char **envp)
 			SAFE_FREE(lfile);
 		}
 	}
+
 	if (log_stdout) {
 		setup_logging("winbindd", DEBUG_STDOUT);
 	} else {
@@ -1349,14 +1397,20 @@ int main(int argc, char **argv, char **envp)
 	DEBUGADD(0,("%s\n", COPYRIGHT_STARTUP_MESSAGE));
 
 	if (!lp_load_initial_only(get_dyn_CONFIGFILE())) {
-		DEBUG(0, ("error opening config file\n"));
+		DEBUG(0, ("error opening config file '%s'\n", get_dyn_CONFIGFILE()));
 		exit(1);
 	}
 	/* After parsing the configuration file we setup the core path one more time
 	 * as the log file might have been set in the configuration and cores's
 	 * path is by default basename(lp_logfile()).
 	 */
-	dump_core_setup("winbindd");
+	dump_core_setup("winbindd", lp_logfile(talloc_tos()));
+
+	if (lp_server_role() == ROLE_ACTIVE_DIRECTORY_DC) {
+		DEBUG(0, ("server role = 'active directory domain controller' not compatible with running the winbindd binary. \n"));
+		DEBUGADD(0, ("You should start 'samba' instead, and it will control starting the internal AD DC winbindd implementation, which is not the same as this one\n"));
+		exit(1);
+	}
 
 	/* Initialise messaging system */
 
@@ -1371,6 +1425,10 @@ int main(int argc, char **argv, char **envp)
 
 	if (!directory_exist(lp_lockdir())) {
 		mkdir(lp_lockdir(), 0755);
+	}
+
+	if (!directory_exist(lp_piddir())) {
+		mkdir(lp_piddir(), 0755);
 	}
 
 	/* Setup names. */
@@ -1400,7 +1458,7 @@ int main(int argc, char **argv, char **envp)
 	if (!interactive)
 		become_daemon(Fork, no_process_group, log_stdout);
 
-	pidfile_create("winbindd");
+	pidfile_create(lp_piddir(), "winbindd");
 
 #if HAVE_SETPGID
 	/*
@@ -1420,15 +1478,26 @@ int main(int argc, char **argv, char **envp)
 
 	status = reinit_after_fork(winbind_messaging_context(),
 				   winbind_event_context(),
-				   procid_self(), false);
+				   false);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("reinit_after_fork() failed\n"));
 		exit(1);
 	}
 
-	winbindd_register_handlers();
+	/*
+	 * Do not initialize the parent-child-pipe before becoming
+	 * a daemon: this is used to detect a died parent in the child
+	 * process.
+	 */
+	status = init_before_fork();
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("init_before_fork failed: %s\n", nt_errstr(status)));
+		exit(1);
+	}
 
-	status = init_system_info();
+	winbindd_register_handlers(!Fork);
+
+	status = init_system_session_info();
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(1, ("ERROR: failed to setup system user info: %s.\n",
 			  nt_errstr(status)));

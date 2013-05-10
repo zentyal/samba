@@ -72,8 +72,9 @@ NTSTATUS nb_packet_server_create(TALLOC_CTX *mem_ctx,
 	struct nb_packet_server *result;
 	struct tevent_fd *fde;
 	NTSTATUS status;
+	int rc;
 
-	result = TALLOC_ZERO_P(mem_ctx, struct nb_packet_server);
+	result = talloc_zero(mem_ctx, struct nb_packet_server);
 	if (result == NULL) {
 		status = NT_STATUS_NO_MEMORY;
 		goto fail;
@@ -84,6 +85,11 @@ NTSTATUS nb_packet_server_create(TALLOC_CTX *mem_ctx,
 	result->listen_sock = create_pipe_sock(
 		nmbd_socket_dir(), "unexpected", 0755);
 	if (result->listen_sock == -1) {
+		status = map_nt_error_from_unix(errno);
+		goto fail;
+	}
+	rc = listen(result->listen_sock, 5);
+	if (rc < 0) {
 		status = map_nt_error_from_unix(errno);
 		goto fail;
 	}
@@ -140,7 +146,7 @@ static void nb_packet_server_listener(struct tevent_context *ev,
 	}
 	DEBUG(6,("accepted socket %d\n", sock));
 
-	client = TALLOC_ZERO_P(server, struct nb_packet_client);
+	client = talloc_zero(server, struct nb_packet_client);
 	if (client == NULL) {
 		DEBUG(10, ("talloc failed\n"));
 		close(sock);
@@ -378,7 +384,7 @@ static void nb_packet_client_send(struct nb_packet_client *client,
 		return;
 	}
 
-	state = TALLOC_ZERO_P(client, struct nb_packet_client_state);
+	state = talloc_zero(client, struct nb_packet_client_state);
 	if (state == NULL) {
 		DEBUG(10, ("talloc failed\n"));
 		return;
@@ -485,7 +491,7 @@ struct tevent_req *nb_packet_reader_send(TALLOC_CTX *mem_ctx,
 		state->query.mailslot_namelen = strlen(mailslot_name);
 	}
 
-	state->reader = TALLOC_ZERO_P(state, struct nb_packet_reader);
+	state->reader = talloc_zero(state, struct nb_packet_reader);
 	if (tevent_req_nomem(state->reader, req)) {
 		return tevent_req_post(req, ev);
 	}

@@ -9116,6 +9116,7 @@ default_shared_modules="$default_shared_modules vfs_crossrename"
 default_shared_modules="$default_shared_modules vfs_linux_xfs_sgid"
 default_shared_modules="$default_shared_modules vfs_time_audit"
 default_shared_modules="$default_shared_modules vfs_media_harmony"
+default_shared_modules="$default_shared_modules vfs_commit"
 default_shared_modules="$default_shared_modules idmap_autorid"
 default_shared_modules="$default_shared_modules idmap_tdb2"
 default_shared_modules="$default_shared_modules idmap_rid"
@@ -9495,7 +9496,7 @@ fi
 
 done
 
-for ac_header in setjmp.h utime.h
+for ac_header in setjmp.h utime.h sys/wait.h
 do :
   as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
 ac_fn_c_check_header_mongrel "$LINENO" "$ac_header" "$as_ac_Header" "$ac_includes_default"
@@ -9779,6 +9780,18 @@ do :
 if test "x$ac_cv_header_sys_syscall_h" = xyes; then :
   cat >>confdefs.h <<_ACEOF
 #define HAVE_SYS_SYSCALL_H 1
+_ACEOF
+
+fi
+
+done
+
+for ac_header in sys/ucontext.h
+do :
+  ac_fn_c_check_header_mongrel "$LINENO" "sys/ucontext.h" "ac_cv_header_sys_ucontext_h" "$ac_includes_default"
+if test "x$ac_cv_header_sys_ucontext_h" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_SYS_UCONTEXT_H 1
 _ACEOF
 
 fi
@@ -11119,43 +11132,6 @@ $as_echo "#define HAVE_SIG_ATOMIC_T_TYPE 1" >>confdefs.h
 fi
 
 
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for O_DIRECT flag to open(2)" >&5
-$as_echo_n "checking for O_DIRECT flag to open(2)... " >&6; }
-if ${libreplace_cv_HAVE_OPEN_O_DIRECT+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-#include <unistd.h>
-#ifdef HAVE_FCNTL_H
-#include <fcntl.h>
-#endif
-int
-main ()
-{
-int fd = open("/dev/null", O_DIRECT);
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"; then :
-  libreplace_cv_HAVE_OPEN_O_DIRECT=yes
-else
-  libreplace_cv_HAVE_OPEN_O_DIRECT=no
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $libreplace_cv_HAVE_OPEN_O_DIRECT" >&5
-$as_echo "$libreplace_cv_HAVE_OPEN_O_DIRECT" >&6; }
-if test x"$libreplace_cv_HAVE_OPEN_O_DIRECT" = x"yes"; then
-
-$as_echo "#define HAVE_OPEN_O_DIRECT 1" >>confdefs.h
-
-fi
-
-
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking that the C compiler understands volatile" >&5
 $as_echo_n "checking that the C compiler understands volatile... " >&6; }
 if ${libreplace_cv_volatile+:} false; then :
@@ -12024,6 +12000,42 @@ fi
 done
 
 
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for O_DIRECT flag to open(2)" >&5
+$as_echo_n "checking for O_DIRECT flag to open(2)... " >&6; }
+if ${libreplace_cv_HAVE_OPEN_O_DIRECT+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <unistd.h>
+#ifdef HAVE_FCNTL_H
+#include <fcntl.h>
+#endif
+int
+main ()
+{
+int fd = open("/dev/null", O_DIRECT);
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  libreplace_cv_HAVE_OPEN_O_DIRECT=yes
+else
+  libreplace_cv_HAVE_OPEN_O_DIRECT=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $libreplace_cv_HAVE_OPEN_O_DIRECT" >&5
+$as_echo "$libreplace_cv_HAVE_OPEN_O_DIRECT" >&6; }
+if test x"$libreplace_cv_HAVE_OPEN_O_DIRECT" = x"yes"; then
+
+$as_echo "#define HAVE_OPEN_O_DIRECT 1" >>confdefs.h
+
+fi
 
 save_LIBS="$LIBS"
 LIBS=""
@@ -13004,6 +13016,43 @@ $as_echo "$libreplace_cv_struct_timespec" >&6; }
 if test x"$libreplace_cv_struct_timespec" = x"yes"; then
 
 $as_echo "#define HAVE_STRUCT_TIMESPEC 1" >>confdefs.h
+
+fi
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for ucontext_t type" >&5
+$as_echo_n "checking for ucontext_t type... " >&6; }
+if ${libreplace_cv_ucontext_t+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <signal.h>
+#if HAVE_SYS_UCONTEXT_H
+#include <sys/ucontext.h>
+# endif
+
+int
+main ()
+{
+ucontext_t uc; sigaddset(&uc.uc_sigmask, SIGUSR1);
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  libreplace_cv_ucontext_t=yes
+else
+  libreplace_cv_ucontext_t=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $libreplace_cv_ucontext_t" >&5
+$as_echo "$libreplace_cv_ucontext_t" >&6; }
+if test x"$libreplace_cv_ucontext_t" = x"yes"; then
+
+$as_echo "#define HAVE_UCONTEXT_T 1" >>confdefs.h
 
 fi
 
@@ -17426,7 +17475,7 @@ _ACEOF
 fi
 done
 
-for ac_func in atexit grantpt posix_fallocate
+for ac_func in atexit grantpt posix_openpt posix_fallocate
 do :
   as_ac_var=`$as_echo "ac_cv_func_$ac_func" | $as_tr_sh`
 ac_fn_c_check_func "$LINENO" "$ac_func" "$as_ac_var"
@@ -21150,7 +21199,7 @@ if test x"$tdbdir" = "x"; then
    as_fn_error $? "cannot find tdb source in $tdbpaths" "$LINENO" 5
 fi
 TDB_OBJ="common/tdb.o common/dump.o common/transaction.o common/error.o common/traverse.o"
-TDB_OBJ="$TDB_OBJ common/freelist.o common/freelistcheck.o common/io.o common/lock.o common/open.o common/check.o common/hash.o common/summary.o"
+TDB_OBJ="$TDB_OBJ common/freelist.o common/freelistcheck.o common/io.o common/lock.o common/open.o common/check.o common/hash.o common/summary.o common/rescue.o"
 
 
 
@@ -35443,7 +35492,7 @@ $as_echo_n "checking for aio_suspend... " >&6; }
 			cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 #include <aio.h>
-int main() { struct aiocb a; return aio_suspend(&a, 1, NULL); }
+int main() { struct aiocb a; struct timespec t; return aio_suspend(&a, 1, &t); }
 _ACEOF
 if ac_fn_c_try_link "$LINENO"; then :
 

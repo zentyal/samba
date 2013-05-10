@@ -214,7 +214,7 @@ in the &smb.conf; file.</para>
 
 <!ENTITY stdarg.configfile '
 <varlistentry>
-<term>-s|--configfile &lt;configuration file&gt;</term>
+<term>-s|--configfile=&lt;configuration file&gt;</term>
 <listitem><para>The file specified contains the 
 configuration details required by the server.  The 
 information in this file includes server-specific
@@ -241,11 +241,35 @@ log.smbd, etc...). The log file is never removed by the client.
 </para></listitem>
 </varlistentry>'>
 
+<!ENTITY stdarg.option '
+<varlistentry>
+<term>--option=&lt;name&gt;=&lt;value&gt;</term>
+<listitem><para>Set the
+<citerefentry><refentrytitle>smb.conf</refentrytitle>
+<manvolnum>5</manvolnum></citerefentry>
+option "&lt;name&gt;" to value "&lt;value&gt;" from the command line.
+This overrides compiled-in defaults and options read from the configuration
+file.
+</para></listitem>
+</varlistentry>'>
+
 <!ENTITY popt.common.samba '
 &stdarg.version;
 &stdarg.configfile;
 &stdarg.log-basename;
+&stdarg.option;
 '>
+
+<!ENTITY popt.common.samba.client '
+&stdarg.client.debug;
+&popt.common.samba;
+'>
+
+<!ENTITY popt.common.samba.server '
+&stdarg.server.debug;
+&popt.common.samba;
+'>
+
 
 <!ENTITY stdarg.resolve.order '
 <varlistentry>

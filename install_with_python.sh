@@ -31,10 +31,13 @@ do_install_python() {
        rm -rf python_install || exit 1
 }
 
-if ! test -d $PREFIX/python; then
+if [ ! -d $PREFIX/python ]; then
    # needs to be installed
    do_install_python
 fi
+
+PYTHON=$PREFIX/python/bin/python
+export PYTHON
 
 `dirname $0`/configure --prefix=$PREFIX $@ || exit 1
 make -j || exit 1

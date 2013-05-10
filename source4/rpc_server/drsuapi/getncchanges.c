@@ -37,6 +37,45 @@
 #include "auth/session.h"
 #include "dsdb/common/util.h"
 
+/* state of a partially completed getncchanges call */
+struct drsuapi_getncchanges_state {
+	struct GUID *guids;
+	uint32_t num_records;
+	uint32_t num_processed;
+	struct ldb_dn *ncRoot_dn;
+	bool is_schema_nc;
+	uint64_t min_usn;
+	uint64_t max_usn;
+	struct drsuapi_DsReplicaHighWaterMark last_hwm;
+	struct ldb_dn *last_dn;
+	struct drsuapi_DsReplicaHighWaterMark final_hwm;
+	struct drsuapi_DsReplicaCursor2CtrEx *final_udv;
+	struct drsuapi_DsReplicaLinkedAttribute *la_list;
+	uint32_t la_count;
+	bool la_sorted;
+	uint32_t la_idx;
+};
+
+static int drsuapi_DsReplicaHighWaterMark_cmp(const struct drsuapi_DsReplicaHighWaterMark *h1,
+					      const struct drsuapi_DsReplicaHighWaterMark *h2)
+{
+	if (h1->highest_usn < h2->highest_usn) {
+		return -1;
+	} else if (h1->highest_usn > h2->highest_usn) {
+		return 1;
+	} else if (h1->tmp_highest_usn < h2->tmp_highest_usn) {
+		return -1;
+	} else if (h1->tmp_highest_usn > h2->tmp_highest_usn) {
+		return 1;
+	} else if (h1->reserved_usn < h2->reserved_usn) {
+		return -1;
+	} else if (h1->reserved_usn > h2->reserved_usn) {
+		return 1;
+	}
+
+	return 0;
+}
+
 /*
   build a DsReplicaObjectIdentifier from a ldb msg
  */
@@ -647,8 +686,9 @@ struct drsuapi_changed_objects {
 /*
   sort the objects we send by tree order
  */
-static int site_res_cmp_parent_order(struct drsuapi_changed_objects *m1,
-					struct drsuapi_changed_objects *m2)
+static int site_res_cmp_anc_order(struct drsuapi_changed_objects *m1,
+				  struct drsuapi_changed_objects *m2,
+				  struct drsuapi_getncchanges_state *getnc_state)
 {
 	return ldb_dn_compare(m2->dn, m1->dn);
 }
@@ -656,23 +696,31 @@ static int site_res_cmp_parent_order(struct drsuapi_changed_objects *m1,
 /*
   sort the objects we send first by uSNChanged
  */
-static int site_res_cmp_dn_usn_order(struct drsuapi_changed_objects *m1,
-					struct drsuapi_changed_objects *m2)
+static int site_res_cmp_usn_order(struct drsuapi_changed_objects *m1,
+				  struct drsuapi_changed_objects *m2,
+				  struct drsuapi_getncchanges_state *getnc_state)
 {
-	unsigned usnchanged1, usnchanged2;
-	unsigned cn1, cn2;
+	int ret;
 
-	cn1 = ldb_dn_get_comp_num(m1->dn);
-	cn2 = ldb_dn_get_comp_num(m2->dn);
-	if (cn1 != cn2) {
-		return cn1 > cn2 ? 1 : -1;
+	ret = ldb_dn_compare(getnc_state->ncRoot_dn, m1->dn);
+	if (ret == 0) {
+		return -1;
 	}
-	usnchanged1 = m1->usn;
-	usnchanged2 = m2->usn;
-	if (usnchanged1 == usnchanged2) {
-		return 0;
+
+	ret = ldb_dn_compare(getnc_state->ncRoot_dn, m2->dn);
+	if (ret == 0) {
+		return 1;
 	}
-	return usnchanged1 > usnchanged2 ? 1 : -1;
+
+	if (m1->usn == m2->usn) {
+		return ldb_dn_compare(m2->dn, m1->dn);
+	}
+
+	if (m1->usn < m2->usn) {
+		return -1;
+	}
+
+	return 1;
 }
 
 
@@ -1147,23 +1195,6 @@ static WERROR getncchanges_change_master(struct drsuapi_bind_state *b_state,
 	return WERR_OK;
 }
 
-/* state of a partially completed getncchanges call */
-struct drsuapi_getncchanges_state {
-	struct GUID *guids;
-	uint32_t num_records;
-	uint32_t num_processed;
-	struct ldb_dn *ncRoot_dn;
-	bool is_schema_nc;
-	uint64_t min_usn;
-	uint64_t highest_usn;
-	struct ldb_dn *last_dn;
-	struct drsuapi_DsReplicaLinkedAttribute *la_list;
-	uint32_t la_count;
-	bool la_sorted;
-	uint32_t la_idx;
-	struct drsuapi_DsReplicaCursorCtrEx *uptodateness_vector;
-};
-
 /*
   see if this getncchanges request includes a request to reveal secret information
  */
@@ -1464,11 +1495,14 @@ WERROR dcesrv_drsuapi_DsGetNCChanges(struct dcesrv_call_state *dce_call, TALLOC_
 	time_t start = time(NULL);
 	bool max_wait_reached = false;
 	bool has_get_all_changes = false;
+	struct GUID invocation_id;
 
 	DCESRV_PULL_HANDLE_WERR(h, r->in.bind_handle, DRSUAPI_BIND_HANDLE);
 	b_state = h->data;
 
 	sam_ctx = b_state->sam_ctx_system?b_state->sam_ctx_system:b_state->sam_ctx;
+
+	invocation_id = *(samdb_ntds_invocation_id(sam_ctx));
 
 	*r->out.level_out = 6;
 	/* TODO: linked attributes*/
@@ -1587,6 +1621,18 @@ allowed:
 		req10->uptodateness_vector = NULL;
 	} 
 
+	if (GUID_all_zero(&req10->source_dsa_invocation_id)) {
+		req10->source_dsa_invocation_id = invocation_id;
+	}
+
+	if (!GUID_equal(&req10->source_dsa_invocation_id, &invocation_id)) {
+		/*
+		 * The given highwatermark is only valid relative to the
+		 * specified source_dsa_invocation_id.
+		 */
+		ZERO_STRUCT(req10->highwatermark);
+	}
+
 	getnc_state = b_state->getncchanges_state;
 
 	/* see if a previous replication has been abandoned */
@@ -1596,6 +1642,20 @@ allowed:
 			DEBUG(0,(__location__ ": DsGetNCChanges 2nd replication on different DN %s %s (last_dn %s)\n",
 				 ldb_dn_get_linearized(new_dn),
 				 ldb_dn_get_linearized(getnc_state->ncRoot_dn),
+				 ldb_dn_get_linearized(getnc_state->last_dn)));
+			talloc_free(getnc_state);
+			getnc_state = NULL;
+		}
+	}
+
+	if (getnc_state) {
+		ret = drsuapi_DsReplicaHighWaterMark_cmp(&getnc_state->last_hwm,
+							 &req10->highwatermark);
+		if (ret != 0) {
+			DEBUG(0,(__location__ ": DsGetNCChanges 2nd replication "
+				 "on DN %s %s highwatermark (last_dn %s)\n",
+				 ldb_dn_get_linearized(getnc_state->ncRoot_dn),
+				 (ret > 0) ? "older" : "newer",
 				 ldb_dn_get_linearized(getnc_state->last_dn)));
 			talloc_free(getnc_state);
 			getnc_state = NULL;
@@ -1692,6 +1752,18 @@ allowed:
 		extra_filter = lpcfg_parm_string(dce_call->conn->dce_ctx->lp_ctx, NULL, "drs", "object filter");
 
 		getnc_state->min_usn = req10->highwatermark.highest_usn;
+		getnc_state->max_usn = getnc_state->min_usn;
+
+		getnc_state->final_udv = talloc_zero(getnc_state,
+					struct drsuapi_DsReplicaCursor2CtrEx);
+		if (getnc_state->final_udv == NULL) {
+			return WERR_NOMEM;
+		}
+		werr = get_nc_changes_udv(sam_ctx, getnc_state->ncRoot_dn,
+					  getnc_state->final_udv);
+		if (!W_ERROR_IS_OK(werr)) {
+			return werr;
+		}
 
 		if (req10->extended_op == DRSUAPI_EXOP_NONE) {
 			werr = getncchanges_collect_objects(b_state, mem_ctx, req10,
@@ -1719,24 +1791,22 @@ allowed:
 			changes[i].dn = search_res->msgs[i]->dn;
 			changes[i].guid = samdb_result_guid(search_res->msgs[i], "objectGUID");
 			changes[i].usn = ldb_msg_find_attr_as_uint64(search_res->msgs[i], "uSNChanged", 0);
+
+			if (changes[i].usn > getnc_state->max_usn) {
+				getnc_state->max_usn = changes[i].usn;
+			}
 		}
 
 		if (req10->replica_flags & DRSUAPI_DRS_GET_ANC) {
-			TYPESAFE_QSORT(changes,
-				       getnc_state->num_records,
-				       site_res_cmp_parent_order);
+			LDB_TYPESAFE_QSORT(changes,
+					   getnc_state->num_records,
+					   getnc_state,
+					   site_res_cmp_anc_order);
 		} else {
-			TYPESAFE_QSORT(changes,
-				       getnc_state->num_records,
-				       site_res_cmp_dn_usn_order);
-		}
-
-		getnc_state->uptodateness_vector = talloc_steal(getnc_state, req10->uptodateness_vector);
-		if (getnc_state->uptodateness_vector) {
-			/* make sure its sorted */
-			TYPESAFE_QSORT(getnc_state->uptodateness_vector->cursors,
-				       getnc_state->uptodateness_vector->count,
-				       drsuapi_DsReplicaCursor_compare);
+			LDB_TYPESAFE_QSORT(changes,
+					   getnc_state->num_records,
+					   getnc_state,
+					   site_res_cmp_usn_order);
 		}
 
 		for (i=0; i < getnc_state->num_records; i++) {
@@ -1748,8 +1818,19 @@ allowed:
 			}
 		}
 
+		getnc_state->final_hwm.tmp_highest_usn = getnc_state->max_usn;
+		getnc_state->final_hwm.reserved_usn = 0;
+		getnc_state->final_hwm.highest_usn = getnc_state->max_usn;
+
 		talloc_free(search_res);
 		talloc_free(changes);
+	}
+
+	if (req10->uptodateness_vector) {
+		/* make sure its sorted */
+		TYPESAFE_QSORT(req10->uptodateness_vector->cursors,
+			       req10->uptodateness_vector->count,
+			       drsuapi_DsReplicaCursor_compare);
 	}
 
 	/* Prefix mapping */
@@ -1853,7 +1934,7 @@ allowed:
 						   schema, &session_key, getnc_state->min_usn,
 						   req10->replica_flags,
 						   req10->partial_attribute_set,
-						   getnc_state->uptodateness_vector,
+						   req10->uptodateness_vector,
 						   req10->extended_op,
 						   max_wait_reached);
 		if (!W_ERROR_IS_OK(werr)) {
@@ -1867,17 +1948,27 @@ allowed:
 						msg,
 						&getnc_state->la_list,
 						&getnc_state->la_count,
-						getnc_state->uptodateness_vector);
+						req10->uptodateness_vector);
 		if (!W_ERROR_IS_OK(werr)) {
 			return werr;
 		}
 
 		uSN = ldb_msg_find_attr_as_int(msg, "uSNChanged", -1);
+		if (uSN > getnc_state->max_usn) {
+			/*
+			 * Only report the max_usn we had at the start
+			 * of the replication cycle.
+			 *
+			 * If this object has changed lately we better
+			 * let the destination dsa refetch the change.
+			 * This is better than the risk of loosing some
+			 * objects or linked attributes.
+			 */
+			uSN = 0;
+		}
 		if (uSN > r->out.ctr->ctr6.new_highwatermark.tmp_highest_usn) {
 			r->out.ctr->ctr6.new_highwatermark.tmp_highest_usn = uSN;
-		}
-		if (uSN > getnc_state->highest_usn) {
-			getnc_state->highest_usn = uSN;
+			r->out.ctr->ctr6.new_highwatermark.reserved_usn = 0;
 		}
 
 		if (obj->meta_data_ctr == NULL) {
@@ -1893,10 +1984,10 @@ allowed:
 		*currentObject = obj;
 		currentObject = &obj->next_object;
 
-		talloc_free(getnc_state->last_dn);
-		getnc_state->last_dn = ldb_dn_copy(getnc_state, msg->dn);
-
 		DEBUG(8,(__location__ ": replicating object %s\n", ldb_dn_get_linearized(msg->dn)));
+
+		talloc_free(getnc_state->last_dn);
+		getnc_state->last_dn = talloc_move(getnc_state, &msg->dn);
 
 		talloc_free(msg_res);
 		talloc_free(msg_dn);
@@ -1931,7 +2022,8 @@ allowed:
 
 		werr = drsuapi_UpdateRefs(b_state, mem_ctx, &ureq);
 		if (!W_ERROR_IS_OK(werr)) {
-			DEBUG(0,(__location__ ": Failed UpdateRefs in DsGetNCChanges - %s\n",
+			DEBUG(0,(__location__ ": Failed UpdateRefs on %s for %s in DsGetNCChanges - %s\n",
+				 drs_ObjectIdentifier_to_string(mem_ctx, ncRoot), ureq.dest_dsa_dns_name,
 				 win_errstr(werr)));
 		}
 	}
@@ -1977,17 +2069,31 @@ allowed:
 	if (!r->out.ctr->ctr6.more_data) {
 		talloc_steal(mem_ctx, getnc_state->la_list);
 
-		r->out.ctr->ctr6.uptodateness_vector = talloc(mem_ctx, struct drsuapi_DsReplicaCursor2CtrEx);
-		r->out.ctr->ctr6.new_highwatermark.highest_usn = r->out.ctr->ctr6.new_highwatermark.tmp_highest_usn;
-
-		werr = get_nc_changes_udv(sam_ctx, getnc_state->ncRoot_dn,
-					  r->out.ctr->ctr6.uptodateness_vector);
-		if (!W_ERROR_IS_OK(werr)) {
-			return werr;
-		}
+		r->out.ctr->ctr6.new_highwatermark = getnc_state->final_hwm;
+		r->out.ctr->ctr6.uptodateness_vector = talloc_move(mem_ctx,
+							&getnc_state->final_udv);
 
 		talloc_free(getnc_state);
 		b_state->getncchanges_state = NULL;
+	} else {
+		ret = drsuapi_DsReplicaHighWaterMark_cmp(&r->out.ctr->ctr6.old_highwatermark,
+							 &r->out.ctr->ctr6.new_highwatermark);
+		if (ret == 0) {
+			/*
+			 * We need to make sure that we never return the
+			 * same highwatermark within the same replication
+			 * cycle more than once. Otherwise we cannot detect
+			 * when the client uses an unexptected highwatermark.
+			 *
+			 * This is a HACK which is needed because our
+			 * object ordering is wrong and set tmp_highest_usn
+			 * to a value that is higher than what we already
+			 * sent to the client (destination dsa).
+			 */
+			r->out.ctr->ctr6.new_highwatermark.reserved_usn += 1;
+		}
+
+		getnc_state->last_hwm = r->out.ctr->ctr6.new_highwatermark;
 	}
 
 	if (req10->extended_op != DRSUAPI_EXOP_NONE) {

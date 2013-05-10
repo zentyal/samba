@@ -1594,6 +1594,9 @@
 /* Define to 1 if you have the `posix_memalign' function. */
 #undef HAVE_POSIX_MEMALIGN
 
+/* Define to 1 if you have the `posix_openpt' function. */
+#undef HAVE_POSIX_OPENPT
+
 /* Whether prctl is available */
 #undef HAVE_PRCTL
 
@@ -2240,6 +2243,9 @@
 /* Define to 1 if you have the <sys/types.h> header file. */
 #undef HAVE_SYS_TYPES_H
 
+/* Define to 1 if you have the <sys/ucontext.h> header file. */
+#undef HAVE_SYS_UCONTEXT_H
+
 /* Define to 1 if you have the <sys/uio.h> header file. */
 #undef HAVE_SYS_UIO_H
 
@@ -2284,6 +2290,9 @@
 
 /* whether we have __typeof__ */
 #undef HAVE_TYPEOF
+
+/* Whether we have ucontext_t */
+#undef HAVE_UCONTEXT_T
 
 /* Define to 1 if you have the <ufs/ufs/quota.h> header file. */
 #undef HAVE_UFS_UFS_QUOTA_H

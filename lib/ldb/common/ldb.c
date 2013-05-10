@@ -408,6 +408,7 @@ int ldb_transaction_prepare_commit(struct ldb_context *ldb)
 
 	status = module->ops->prepare_commit(module);
 	if (status != LDB_SUCCESS) {
+		ldb->transaction_active--;
 		/* if a module fails the prepare then we need
 		   to call the end transaction for everyone */
 		FIRST_OP(ldb, del_transaction);
@@ -1980,7 +1981,7 @@ uint32_t ldb_req_get_custom_flags(struct ldb_request *req)
 
 
 /**
-   return true is a request is untrusted
+ * return true if a request is untrusted
  */
 bool ldb_req_is_untrusted(struct ldb_request *req)
 {

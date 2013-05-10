@@ -78,6 +78,99 @@ static void free_conn_session_info_if_unused(connection_struct *conn)
 	TALLOC_FREE(conn->session_info);
 }
 
+/****************************************************************************
+  Setup the share access mask for a connection.
+****************************************************************************/
+
+static uint32_t create_share_access_mask(int snum,
+				bool readonly_share,
+				const struct security_token *token)
+{
+	uint32_t share_access = 0;
+
+	share_access_check(token,
+			lp_servicename(talloc_tos(), snum),
+			MAXIMUM_ALLOWED_ACCESS,
+			&share_access);
+
+	if (readonly_share) {
+		share_access &=
+			~(SEC_FILE_WRITE_DATA | SEC_FILE_APPEND_DATA |
+			  SEC_FILE_WRITE_EA | SEC_FILE_WRITE_ATTRIBUTE |
+			  SEC_DIR_DELETE_CHILD );
+	}
+
+	if (security_token_has_privilege(token, SEC_PRIV_SECURITY)) {
+		share_access |= SEC_FLAG_SYSTEM_SECURITY;
+	}
+	if (security_token_has_privilege(token, SEC_PRIV_RESTORE)) {
+		share_access |= (SEC_RIGHTS_PRIV_RESTORE);
+	}
+	if (security_token_has_privilege(token, SEC_PRIV_BACKUP)) {
+		share_access |= (SEC_RIGHTS_PRIV_BACKUP);
+	}
+	if (security_token_has_privilege(token, SEC_PRIV_TAKE_OWNERSHIP)) {
+		share_access |= (SEC_STD_WRITE_OWNER);
+	}
+
+	return share_access;
+}
+
+/*******************************************************************
+ Calculate access mask and if this user can access this share.
+********************************************************************/
+
+NTSTATUS check_user_share_access(connection_struct *conn,
+				const struct auth_session_info *session_info,
+				uint32_t *p_share_access,
+				bool *p_readonly_share)
+{
+	int snum = SNUM(conn);
+	uint32_t share_access = 0;
+	bool readonly_share = false;
+
+	if (!user_ok_token(session_info->unix_info->unix_name,
+			   session_info->info->domain_name,
+			   session_info->security_token, snum))
+		return NT_STATUS_ACCESS_DENIED;
+
+	readonly_share = is_share_read_only_for_token(
+		session_info->unix_info->unix_name,
+		session_info->info->domain_name,
+		session_info->security_token,
+		conn);
+
+	share_access = create_share_access_mask(snum,
+					readonly_share,
+					session_info->security_token);
+
+	if ((share_access & FILE_WRITE_DATA) == 0) {
+		if ((share_access & FILE_READ_DATA) == 0) {
+			/* No access, read or write. */
+			DEBUG(0,("user %s connection to %s "
+				"denied due to share security "
+				"descriptor.\n",
+				session_info->unix_info->unix_name,
+				lp_servicename(talloc_tos(), snum)));
+			return NT_STATUS_ACCESS_DENIED;
+		}
+	}
+
+	if (!readonly_share &&
+	    !(share_access & FILE_WRITE_DATA)) {
+		/* smb.conf allows r/w, but the security descriptor denies
+		 * write. Fall back to looking at readonly. */
+		readonly_share = True;
+		DEBUG(5,("falling back to read-only access-evaluation due to "
+			 "security descriptor\n"));
+	}
+
+	*p_share_access = share_access;
+	*p_readonly_share = readonly_share;
+
+	return NT_STATUS_OK;
+}
+
 /*******************************************************************
  Check if a username is OK.
 
@@ -90,90 +183,96 @@ static bool check_user_ok(connection_struct *conn,
 			const struct auth_session_info *session_info,
 			int snum)
 {
-	bool valid_vuid = (vuid != UID_FIELD_INVALID);
 	unsigned int i;
-	bool readonly_share;
-	bool admin_user;
+	bool readonly_share = false;
+	bool admin_user = false;
+	struct vuid_cache_entry *ent = NULL;
+	uint32_t share_access = 0;
+	unsigned int share_array_index;
+	NTSTATUS status;
 
-	if (valid_vuid) {
-		struct vuid_cache_entry *ent;
-
-		for (i=0; i<VUID_CACHE_SIZE; i++) {
-			ent = &conn->vuid_cache.array[i];
-			if (ent->vuid == vuid) {
-				free_conn_session_info_if_unused(conn);
-				conn->session_info = ent->session_info;
-				conn->read_only = ent->read_only;
-				return(True);
+	for (i=0; i<VUID_CACHE_SIZE; i++) {
+		ent = &conn->vuid_cache.array[i];
+		if (ent->vuid == vuid) {
+			if (vuid == UID_FIELD_INVALID) {
+				/*
+				 * Slow path, we don't care
+				 * about the array traversal.
+				 */
+				continue;
 			}
+			free_conn_session_info_if_unused(conn);
+			conn->session_info = ent->session_info;
+			conn->read_only = ent->read_only;
+			conn->share_access = get_connection_share_access_list_entry(
+							conn,
+							i);
+			return(True);
 		}
 	}
 
-	if (!user_ok_token(session_info->unix_info->unix_name,
-			   session_info->info->domain_name,
-			   session_info->security_token, snum))
-		return(False);
-
-	readonly_share = is_share_read_only_for_token(
-		session_info->unix_info->unix_name,
-		session_info->info->domain_name,
-		session_info->security_token,
-		conn);
-
-	if (!readonly_share &&
-	    !share_access_check(session_info->security_token,
-				lp_servicename(talloc_tos(), snum),
-				FILE_WRITE_DATA,
-				NULL)) {
-		/* smb.conf allows r/w, but the security descriptor denies
-		 * write. Fall back to looking at readonly. */
-		readonly_share = True;
-		DEBUG(5,("falling back to read-only access-evaluation due to "
-			 "security descriptor\n"));
+	status = check_user_share_access(conn,
+					session_info,
+					&share_access,
+					&readonly_share);
+	if (!NT_STATUS_IS_OK(status)) {
+		return false;
 	}
 
-	if (!share_access_check(session_info->security_token,
-				lp_servicename(talloc_tos(), snum),
-				readonly_share ?
-				FILE_READ_DATA : FILE_WRITE_DATA,
-				NULL)) {
-		return False;
-	}
 
 	admin_user = token_contains_name_in_list(
 		session_info->unix_info->unix_name,
 		session_info->info->domain_name,
 		NULL, session_info->security_token, lp_admin_users(snum));
 
-	if (valid_vuid) {
-		struct vuid_cache_entry *ent =
-			&conn->vuid_cache.array[conn->vuid_cache.next_entry];
+	share_array_index = conn->vuid_cache.next_entry;
+	ent = &conn->vuid_cache.array[conn->vuid_cache.next_entry];
 
-		conn->vuid_cache.next_entry =
-			(conn->vuid_cache.next_entry + 1) % VUID_CACHE_SIZE;
+	conn->vuid_cache.next_entry =
+		(conn->vuid_cache.next_entry + 1) % VUID_CACHE_SIZE;
 
-		TALLOC_FREE(ent->session_info);
+	TALLOC_FREE(ent->session_info);
 
+	/*
+	 * If force_user was set, all session_info's are based on the same
+	 * username-based faked one.
+	 */
+
+	ent->session_info = copy_session_info(
+		conn, conn->force_user ? conn->session_info : session_info);
+
+	if (ent->session_info == NULL) {
+		ent->vuid = UID_FIELD_INVALID;
+		return false;
+	}
+
+	/*
+	 * It's actually OK to call check_user_ok() with
+	 * vuid == UID_FIELD_INVALID as called from change_to_user_by_session().
+	 * All this will do is throw away one entry in the cache.
+	 */
+	ent->vuid = vuid;
+	ent->read_only = readonly_share;
+	set_connection_share_access_list_entry(conn,
+					share_array_index,
+					share_access);
+	free_conn_session_info_if_unused(conn);
+	conn->session_info = ent->session_info;
+	if (vuid == UID_FIELD_INVALID) {
 		/*
-		 * If force_user was set, all session_info's are based on the same
-		 * username-based faked one.
+		 * Not strictly needed, just make it really
+		 * clear this entry is actually an unused one.
 		 */
-
-		ent->session_info = copy_session_info(
-			conn, conn->force_user ? conn->session_info : session_info);
-
-		if (ent->session_info == NULL) {
-			ent->vuid = UID_FIELD_INVALID;
-			return false;
-		}
-
-		ent->vuid = vuid;
-		ent->read_only = readonly_share;
-		free_conn_session_info_if_unused(conn);
-		conn->session_info = ent->session_info;
+		ent->read_only = false;
+		set_connection_share_access_list_entry(conn,
+					share_array_index,
+					0);
+		ent->session_info = NULL;
 	}
 
 	conn->read_only = readonly_share;
+	conn->share_access = share_access;
+
 	if (admin_user) {
 		DEBUG(2,("check_user_ok: user %s is an admin user. "
 			"Setting uid as %d\n",
@@ -278,7 +377,6 @@ static bool change_to_user_internal(connection_struct *conn,
 
 bool change_to_user(connection_struct *conn, uint64_t vuid)
 {
-	const struct auth_session_info *session_info = NULL;
 	struct user_struct *vuser;
 	int snum = SNUM(conn);
 
@@ -305,16 +403,7 @@ bool change_to_user(connection_struct *conn, uint64_t vuid)
 		return false;
 	}
 
-	session_info = vuser->session_info;
-
-	if (!conn->force_user && vuser == NULL) {
-		DEBUG(2,("Invalid vuid used %llu in accessing share %s.\n",
-			 (unsigned long long)vuid,
-			 lp_servicename(talloc_tos(), snum)));
-		return False;
-	}
-
-	return change_to_user_internal(conn, session_info, vuid);
+	return change_to_user_internal(conn, vuser->session_info, vuid);
 }
 
 static bool change_to_user_by_session(connection_struct *conn,

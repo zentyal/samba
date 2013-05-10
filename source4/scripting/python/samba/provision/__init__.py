@@ -81,12 +81,21 @@ from samba.provision.descriptor import (
     get_config_descriptor,
     get_config_partitions_descriptor,
     get_config_sites_descriptor,
+    get_config_ntds_quotas_descriptor,
+    get_config_delete_protected1_descriptor,
+    get_config_delete_protected1wd_descriptor,
+    get_config_delete_protected2_descriptor,
     get_domain_descriptor,
     get_domain_infrastructure_descriptor,
     get_domain_builtin_descriptor,
     get_domain_computers_descriptor,
     get_domain_users_descriptor,
-    get_domain_controllers_descriptor
+    get_domain_controllers_descriptor,
+    get_domain_delete_protected1_descriptor,
+    get_domain_delete_protected2_descriptor,
+    get_dns_partition_descriptor,
+    get_dns_forest_microsoft_dns_descriptor,
+    get_dns_domain_microsoft_dns_descriptor,
     )
 from samba.provision.common import (
     setup_path,
@@ -94,6 +103,7 @@ from samba.provision.common import (
     setup_modify_ldif,
     )
 from samba.provision.sambadns import (
+    get_dnsadmins_sid,
     setup_ad_dns,
     create_dns_update_list
     )
@@ -135,10 +145,13 @@ class ProvisionPaths(object):
 class ProvisionNames(object):
 
     def __init__(self):
+        self.ncs = None
         self.rootdn = None
         self.domaindn = None
         self.configdn = None
         self.schemadn = None
+        self.dnsforestdn = None
+        self.dnsdomaindn = None
         self.ldapmanagerdn = None
         self.dnsdomain = None
         self.realm = None
@@ -147,6 +160,7 @@ class ProvisionNames(object):
         self.hostname = None
         self.sitename = None
         self.smbconf = None
+        self.name_map = {}
 
 
 def find_provision_key_parameters(samdb, secretsdb, idmapdb, paths, smbconf,
@@ -184,7 +198,8 @@ def find_provision_key_parameters(samdb, secretsdb, idmapdb, paths, smbconf,
     current = samdb.search(expression="(objectClass=*)",
         base="", scope=ldb.SCOPE_BASE,
         attrs=["defaultNamingContext", "schemaNamingContext",
-               "configurationNamingContext","rootDomainNamingContext"])
+               "configurationNamingContext","rootDomainNamingContext",
+               "namingContexts"])
 
     names.configdn = current[0]["configurationNamingContext"]
     configdn = str(names.configdn)
@@ -198,6 +213,23 @@ def find_provision_key_parameters(samdb, secretsdb, idmapdb, paths, smbconf,
 
     names.domaindn=current[0]["defaultNamingContext"]
     names.rootdn=current[0]["rootDomainNamingContext"]
+    names.ncs=current[0]["namingContexts"]
+    names.dnsforestdn = None
+    names.dnsdomaindn = None
+
+    for i in range(0, len(names.ncs)):
+        nc = names.ncs[i]
+
+        dnsforestdn = "DC=ForestDnsZones,%s" % (str(names.rootdn))
+        if nc == dnsforestdn:
+            names.dnsforestdn = dnsforestdn
+            continue
+
+        dnsdomaindn = "DC=DomainDnsZones,%s" % (str(names.domaindn))
+        if nc == dnsdomaindn:
+            names.dnsdomaindn = dnsdomaindn
+            continue
+
     # default site name
     res3 = samdb.search(expression="(objectClass=site)",
         base="CN=Sites," + configdn, scope=ldb.SCOPE_ONELEVEL, attrs=["cn"])
@@ -258,6 +290,36 @@ def find_provision_key_parameters(samdb, secretsdb, idmapdb, paths, smbconf,
         names.root_gid = res9[0]["xidNumber"][0]
     else:
         names.root_gid = pwd.getpwuid(int(res9[0]["xidNumber"][0])).pw_gid
+
+    res10 = samdb.search(expression="(samaccountname=dns)",
+                         scope=ldb.SCOPE_SUBTREE, attrs=["dn"],
+                         controls=["search_options:1:2"])
+    if (len(res10) > 0):
+        has_legacy_dns_account = True
+    else:
+        has_legacy_dns_account = False
+
+    res11 = samdb.search(expression="(samaccountname=dns-%s)" % names.netbiosname,
+                         scope=ldb.SCOPE_SUBTREE, attrs=["dn"],
+                         controls=["search_options:1:2"])
+    if (len(res11) > 0):
+        has_dns_account = True
+    else:
+        has_dns_account = False
+
+    if names.dnsdomaindn is not None:
+        if has_dns_account:
+            names.dns_backend = 'BIND9_DLZ'
+        else:
+            names.dns_backend = 'SAMBA_INTERNAL'
+    elif has_dns_account or has_legacy_dns_account:
+        names.dns_backend = 'BIND9_FLATFILE'
+    else:
+        names.dns_backend = 'NONE'
+
+    dns_admins_sid = get_dnsadmins_sid(samdb, names.domaindn)
+    names.name_map['DnsAdmins'] = str(dns_admins_sid)
+
     return names
 
 
@@ -1262,8 +1324,14 @@ def fill_samdb(samdb, lp, names, logger, domainsid, domainguid, policyguid,
         # If we are setting up a subdomain, then this has been replicated in, so we don't need to add it
         if fill == FILL_FULL:
             logger.info("Setting up sam.ldb configuration data")
+
             partitions_descr = b64encode(get_config_partitions_descriptor(domainsid))
             sites_descr = b64encode(get_config_sites_descriptor(domainsid))
+            ntdsquotas_descr = b64encode(get_config_ntds_quotas_descriptor(domainsid))
+            protected1_descr = b64encode(get_config_delete_protected1_descriptor(domainsid))
+            protected1wd_descr = b64encode(get_config_delete_protected1wd_descriptor(domainsid))
+            protected2_descr = b64encode(get_config_delete_protected2_descriptor(domainsid))
+
             setup_add_ldif(samdb, setup_path("provision_configuration.ldif"), {
                     "CONFIGDN": names.configdn,
                     "NETBIOSNAME": names.netbiosname,
@@ -1275,6 +1343,12 @@ def fill_samdb(samdb, lp, names, logger, domainsid, domainguid, policyguid,
                     "SERVERDN": names.serverdn,
                     "FOREST_FUNCTIONALITY": str(forestFunctionality),
                     "DOMAIN_FUNCTIONALITY": str(domainFunctionality),
+                    "NTDSQUOTAS_DESCRIPTOR": ntdsquotas_descr,
+                    "LOSTANDFOUND_DESCRIPTOR": protected1wd_descr,
+                    "SERVICES_DESCRIPTOR": protected1_descr,
+                    "PHYSICALLOCATIONS_DESCRIPTOR": protected1wd_descr,
+                    "FORESTUPDATES_DESCRIPTOR": protected1wd_descr,
+                    "EXTENDEDRIGHTS_DESCRIPTOR": protected2_descr,
                     "PARTITIONS_DESCRIPTOR": partitions_descr,
                     "SITES_DESCRIPTOR": sites_descr,
                     })
@@ -1286,6 +1360,13 @@ def fill_samdb(samdb, lp, names, logger, domainsid, domainguid, policyguid,
                                                      {"CONFIGDN": names.configdn})
             check_all_substituted(display_specifiers_ldif)
             samdb.add_ldif(display_specifiers_ldif)
+
+            logger.info("Modifying display specifiers")
+            setup_modify_ldif(samdb,
+                setup_path("provision_configuration_modify.ldif"), {
+                "CONFIGDN": names.configdn,
+                "DISPLAYSPECIFIERS_DESCRIPTOR": protected2_descr
+                })
 
         logger.info("Adding users container")
         users_desc = b64encode(get_domain_users_descriptor(domainsid))
@@ -1308,6 +1389,8 @@ def fill_samdb(samdb, lp, names, logger, domainsid, domainguid, policyguid,
                 "DOMAINDN": names.domaindn})
         logger.info("Setting up sam.ldb data")
         infrastructure_desc = b64encode(get_domain_infrastructure_descriptor(domainsid))
+        lostandfound_desc = b64encode(get_domain_delete_protected2_descriptor(domainsid))
+        system_desc = b64encode(get_domain_delete_protected1_descriptor(domainsid))
         builtin_desc = b64encode(get_domain_builtin_descriptor(domainsid))
         controllers_desc = b64encode(get_domain_controllers_descriptor(domainsid))
         setup_add_ldif(samdb, setup_path("provision.ldif"), {
@@ -1320,6 +1403,8 @@ def fill_samdb(samdb, lp, names, logger, domainsid, domainguid, policyguid,
             "RIDAVAILABLESTART": str(next_rid + 600),
             "POLICYGUID_DC": policyguid_dc,
             "INFRASTRUCTURE_DESCRIPTOR": infrastructure_desc,
+            "LOSTANDFOUND_DESCRIPTOR": lostandfound_desc,
+            "SYSTEM_DESCRIPTOR": system_desc,
             "BUILTIN_DESCRIPTOR": builtin_desc,
             "DOMAIN_CONTROLLERS_DESCRIPTOR": controllers_desc,
             })
@@ -1332,8 +1417,10 @@ def fill_samdb(samdb, lp, names, logger, domainsid, domainguid, policyguid,
                     "SCHEMADN": names.schemadn})
 
             logger.info("Setting up well known security principals")
+            protected1wd_descr = b64encode(get_config_delete_protected1wd_descriptor(domainsid))
             setup_add_ldif(samdb, setup_path("provision_well_known_sec_princ.ldif"), {
                 "CONFIGDN": names.configdn,
+                "WELLKNOWNPRINCIPALS_DESCRIPTOR": protected1wd_descr,
                 })
 
         if fill == FILL_FULL or fill == FILL_SUBDOMAIN:
@@ -2041,6 +2128,7 @@ def provision(logger, session_info, credentials, smbconf=None,
             adminpass = samba.generate_random_password(12, 32)
             adminpass_generated = True
         else:
+            adminpass = unicode(adminpass, 'utf-8')
             adminpass_generated = False
 
         if samdb_fill == FILL_FULL:

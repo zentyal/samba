@@ -459,6 +459,7 @@ default_shared_modules="$default_shared_modules vfs_crossrename"
 default_shared_modules="$default_shared_modules vfs_linux_xfs_sgid"
 default_shared_modules="$default_shared_modules vfs_time_audit"
 default_shared_modules="$default_shared_modules vfs_media_harmony"
+default_shared_modules="$default_shared_modules vfs_commit"
 default_shared_modules="$default_shared_modules idmap_autorid"
 default_shared_modules="$default_shared_modules idmap_tdb2"
 default_shared_modules="$default_shared_modules idmap_rid"
@@ -970,7 +971,7 @@ AC_CHECK_FUNCS(sigprocmask sigblock sigaction sigset innetgr setnetgrent getnetg
 AC_CHECK_FUNCS(initgroups select rdchk getgrnam getgrent pathconf)
 AC_CHECK_FUNCS(getgrset)
 AC_CHECK_FUNCS(setpriv setgidx setuidx setgroups syscall sysconf)
-AC_CHECK_FUNCS(atexit grantpt posix_fallocate)
+AC_CHECK_FUNCS(atexit grantpt posix_openpt posix_fallocate)
 AC_CHECK_FUNCS(fallocate)
 AC_CHECK_FUNCS(fseeko setluid getpwanam)
 AC_CHECK_FUNCS(fdopendir)
@@ -5391,7 +5392,7 @@ int main() { struct aiocb a; return aio_cancel(1, &a); }])],
 
 			AC_MSG_CHECKING(for aio_suspend)
 			AC_LINK_IFELSE([AC_LANG_SOURCE([#include <aio.h>
-int main() { struct aiocb a; return aio_suspend(&a, 1, NULL); }])],
+int main() { struct aiocb a; struct timespec t; return aio_suspend(&a, 1, &t); }])],
 [AC_DEFINE(HAVE_AIO_SUSPEND, 1, [Have aio_suspend]) AC_MSG_RESULT(yes)],
 [AC_MSG_RESULT(no)])
 		else

@@ -145,6 +145,11 @@ bool recursive_rmdir(TALLOC_CTX *ctx,
 
 /* The following definitions come from smbd/conn.c  */
 
+uint32_t get_connection_share_access_list_entry(connection_struct *conn,
+						unsigned int i);
+void set_connection_share_access_list_entry(connection_struct *conn,
+						unsigned int i,
+						uint32_t val);
 int conn_num_open(struct smbd_server_connection *sconn);
 bool conn_snum_used(struct smbd_server_connection *sconn, int snum);
 connection_struct *conn_new(struct smbd_server_connection *sconn);
@@ -1079,6 +1084,10 @@ void reply_transs2(struct smb_request *req);
 /* The following definitions come from smbd/uid.c  */
 
 bool change_to_guest(void);
+NTSTATUS check_user_share_access(connection_struct *conn,
+				const struct auth_session_info *session_info,
+				uint32_t *p_share_access,
+				bool *p_readonly_share);
 bool change_to_user(connection_struct *conn, uint64_t vuid);
 bool change_to_root_user(void);
 bool smbd_change_to_root_user(void);

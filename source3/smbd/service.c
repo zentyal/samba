@@ -512,40 +512,6 @@ NTSTATUS set_conn_force_user_group(connection_struct *conn, int snum)
 }
 
 /****************************************************************************
-  Setup the share access mask for a connection.
-****************************************************************************/
-
-static void create_share_access_mask(connection_struct *conn, int snum)
-{
-	const struct security_token *token = conn->session_info->security_token;
-
-	share_access_check(token,
-			lp_servicename(talloc_tos(), snum),
-			MAXIMUM_ALLOWED_ACCESS,
-			&conn->share_access);
-
-	if (!CAN_WRITE(conn)) {
-		conn->share_access &=
-			~(SEC_FILE_WRITE_DATA | SEC_FILE_APPEND_DATA |
-			  SEC_FILE_WRITE_EA | SEC_FILE_WRITE_ATTRIBUTE |
-			  SEC_DIR_DELETE_CHILD );
-	}
-
-	if (security_token_has_privilege(token, SEC_PRIV_SECURITY)) {
-		conn->share_access |= SEC_FLAG_SYSTEM_SECURITY;
-	}
-	if (security_token_has_privilege(token, SEC_PRIV_RESTORE)) {
-		conn->share_access |= (SEC_RIGHTS_PRIV_RESTORE);
-	}
-	if (security_token_has_privilege(token, SEC_PRIV_BACKUP)) {
-		conn->share_access |= (SEC_RIGHTS_PRIV_BACKUP);
-	}
-	if (security_token_has_privilege(token, SEC_PRIV_TAKE_OWNERSHIP)) {
-		conn->share_access |= (SEC_STD_WRITE_OWNER);
-	}
-}
-
-/****************************************************************************
   Make a connection, given the snum to connect to, and the vuser of the
   connecting user if appropriate.
 ****************************************************************************/
@@ -647,28 +613,18 @@ static NTSTATUS make_connection_snum(struct smbd_server_connection *sconn,
 		TALLOC_FREE(s);
 	}
 
-	/*
-	 * New code to check if there's a share security descripter
-	 * added from NT server manager. This is done after the
-	 * smb.conf checks are done as we need a uid and token. JRA.
-	 *
-	 */
+        /*
+         * Set up the share security descripter
+         */
 
-	create_share_access_mask(conn, snum);
-
-	if ((conn->share_access & FILE_WRITE_DATA) == 0) {
-		if ((conn->share_access & FILE_READ_DATA) == 0) {
-			/* No access, read or write. */
-			DEBUG(0,("make_connection: connection to %s "
-				 "denied due to security "
-				 "descriptor.\n",
-				 lp_servicename(talloc_tos(), snum)));
-			status = NT_STATUS_ACCESS_DENIED;
-			goto err_root_exit;
-		} else {
-			conn->read_only = True;
-		}
+	status = check_user_share_access(conn,
+					conn->session_info,
+					&conn->share_access,
+					&conn->read_only);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto err_root_exit;
 	}
+
 	/* Initialise VFS function pointers */
 
 	if (!smbd_vfs_init(conn)) {

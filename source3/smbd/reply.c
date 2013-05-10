@@ -3849,16 +3849,36 @@ nosendfile_read:
 }
 
 /****************************************************************************
+ MacOSX clients send large reads without telling us they are going to do that.
+ Bug #9572 - File corruption during SMB1 read by Mac OSX 10.8.2 clients
+ Allow this if we are talking to a Samba client, or if we told the client
+ we supported this.
+****************************************************************************/
+
+static bool server_will_accept_large_read(void)
+{
+	/* Samba client ? No problem. */
+	if (get_remote_arch() == RA_SAMBA) {
+		return true;
+	}
+	/* Need UNIX extensions. */
+	if (!lp_unix_extensions()) {
+		return false;
+	}
+	return true;
+}
+
+/****************************************************************************
  Reply to a read and X.
 ****************************************************************************/
 
 void reply_read_and_X(struct smb_request *req)
 {
-	struct smbd_server_connection *sconn = req->sconn;
 	connection_struct *conn = req->conn;
 	files_struct *fsp;
 	off_t startpos;
 	size_t smb_maxcnt;
+	size_t upper_size;
 	bool big_readX = False;
 #if 0
 	size_t smb_mincnt = SVAL(req->vwv+6, 0);
@@ -3893,8 +3913,8 @@ void reply_read_and_X(struct smb_request *req)
 		return;
 	}
 
-	if ((sconn->smb1.unix_info.client_cap_low & CIFS_UNIX_LARGE_READ_CAP) ||
-	    (get_remote_arch() == RA_SAMBA)) {
+	upper_size = SVAL(req->vwv+7, 0);
+	if ((upper_size != 0) && server_will_accept_large_read()) {
 		/*
 		 * This is Samba only behavior (up to Samba 3.6)!
 		 *
@@ -3902,7 +3922,6 @@ void reply_read_and_X(struct smb_request *req)
 		 * so we do unless unix extentions are active
 		 * or "smbclient" is talking to us.
 		 */
-		size_t upper_size = SVAL(req->vwv+7, 0);
 		smb_maxcnt |= (upper_size<<16);
 		if (upper_size > 1) {
 			/* Can't do this on a chained packet. */
@@ -6397,7 +6416,8 @@ NTSTATUS rename_internals_fsp(connection_struct *conn,
 			  "%s -> %s\n", smb_fname_str_dbg(fsp->fsp_name),
 			  smb_fname_str_dbg(smb_fname_dst)));
 
-		if (!lp_posix_pathnames() &&
+		if (!fsp->is_directory &&
+		    !lp_posix_pathnames() &&
 		    (lp_map_archive(SNUM(conn)) ||
 		    lp_store_dos_attributes(SNUM(conn)))) {
 			/* We must set the archive bit on the newly

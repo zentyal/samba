@@ -65,15 +65,15 @@ release_lib() {
     }
 
     echo "Push git tag $tagname"
-    echo git push ssh://git.samba.org/data/git/samba.git refs/tags/$tagname:refs/tags/$tagname || {
+    git push ssh://git.samba.org/data/git/samba.git refs/tags/$tagname:refs/tags/$tagname || {
 	exit 1
     }
 
     echo "Transferring for FTP"
-    echo rsync -Pav $tarname.asc $tgzname master.samba.org:~ftp/pub/$ftpdir/ || {
+    rsync -Pav $tarname.asc $tgzname master.samba.org:~ftp/pub/$ftpdir/ || {
 	exit 1
     }
-    exit rsync master.samba.org:~ftp/pub/$ftpdir/$tarname.*
+    rsync master.samba.org:~ftp/pub/$ftpdir/$tarname.*
 
     popd
 }

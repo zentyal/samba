@@ -39,13 +39,24 @@
 #include "librpc/ndr/libndr.h"
 #include "librpc/gen_ndr/ndr_security.h"
 #include "libcli/security/security.h"
-#include "dsdb/samdb/ldb_modules/schema.h"
 #include "auth/auth.h"
 #include "param/param.h"
-#include "util.h"
+#include "dsdb/samdb/ldb_modules/util.h"
+#include "lib/util/binsearch.h"
+
+struct descriptor_changes {
+	struct descriptor_changes *prev, *next;
+	struct descriptor_changes *children;
+	struct ldb_dn *nc_root;
+	struct ldb_dn *dn;
+	bool force_self;
+	bool force_children;
+	struct ldb_dn *stopped_dn;
+};
 
 struct descriptor_data {
-	int _dummy;
+	TALLOC_CTX *trans_mem;
+	struct descriptor_changes *changes;
 };
 
 struct descriptor_context {
@@ -57,10 +68,11 @@ struct descriptor_context {
 	struct ldb_val *parentsd_val;
 	struct ldb_message_element *sd_element;
 	struct ldb_val *sd_val;
+	uint32_t sd_flags;
 	int (*step_fn)(struct descriptor_context *);
 };
 
-struct dom_sid *get_default_ag(TALLOC_CTX *mem_ctx,
+static struct dom_sid *get_default_ag(TALLOC_CTX *mem_ctx,
 			       struct ldb_dn *dn,
 			       struct security_token *token,
 			       struct ldb_context *ldb)
@@ -87,6 +99,8 @@ struct dom_sid *get_default_ag(TALLOC_CTX *mem_ctx,
 			dag_sid = dom_sid_dup(mem_ctx, ea_sid);
 		} else if (security_token_has_sid(token, da_sid)) {
 			dag_sid = dom_sid_dup(mem_ctx, da_sid);
+		} else if (security_token_is_system(token)) {
+			dag_sid = dom_sid_dup(mem_ctx, sa_sid);
 		} else {
 			dag_sid = NULL;
 		}
@@ -95,6 +109,8 @@ struct dom_sid *get_default_ag(TALLOC_CTX *mem_ctx,
 			dag_sid = dom_sid_dup(mem_ctx, ea_sid);
 		} else if (security_token_has_sid(token, da_sid)) {
 			dag_sid = dom_sid_dup(mem_ctx, da_sid);
+		} else if (security_token_is_system(token)) {
+			dag_sid = dom_sid_dup(mem_ctx, ea_sid);
 		} else {
 			dag_sid = NULL;
 		}
@@ -103,6 +119,8 @@ struct dom_sid *get_default_ag(TALLOC_CTX *mem_ctx,
 			dag_sid = dom_sid_dup(mem_ctx, da_sid);
 		} else if (security_token_has_sid(token, ea_sid)) {
 				dag_sid = dom_sid_dup(mem_ctx, ea_sid);
+		} else if (security_token_is_system(token)) {
+			dag_sid = dom_sid_dup(mem_ctx, da_sid);
 		} else {
 			dag_sid = NULL;
 		}
@@ -135,11 +153,16 @@ static struct dom_sid *get_default_group(TALLOC_CTX *mem_ctx,
 					 struct ldb_context *ldb,
 					 struct dom_sid *dag)
 {
-	if (dsdb_functional_level(ldb) >= DS_DOMAIN_FUNCTION_2008) {
-		return dag;
-	}
-
-	return NULL;
+	/*
+	 * This depends on the function level of the DC
+	 * which is 2008R2 in our case. Which means it is
+	 * higher than 2003 and we should use the
+	 * "default administrator group" also as owning group.
+	 *
+	 * This matches dcpromo for a 2003 domain
+	 * on a Windows 2008R2 DC.
+	 */
+	return dag;
 }
 
 static struct security_descriptor *descr_handle_sd_flags(TALLOC_CTX *mem_ctx,
@@ -158,20 +181,28 @@ static struct security_descriptor *descr_handle_sd_flags(TALLOC_CTX *mem_ctx,
 	final_sd->type = SEC_DESC_SELF_RELATIVE;
 
 	if (sd_flags & (SECINFO_OWNER)) {
-		final_sd->owner_sid = talloc_memdup(mem_ctx, new_sd->owner_sid, sizeof(struct dom_sid));
+		if (new_sd->owner_sid) {
+			final_sd->owner_sid = talloc_memdup(mem_ctx, new_sd->owner_sid, sizeof(struct dom_sid));
+		}
 		final_sd->type |= new_sd->type & SEC_DESC_OWNER_DEFAULTED;
 	}
 	else if (old_sd) {
-		final_sd->owner_sid = talloc_memdup(mem_ctx, old_sd->owner_sid, sizeof(struct dom_sid));
+		if (old_sd->owner_sid) {
+			final_sd->owner_sid = talloc_memdup(mem_ctx, old_sd->owner_sid, sizeof(struct dom_sid));
+		}
 		final_sd->type |= old_sd->type & SEC_DESC_OWNER_DEFAULTED;
 	}
 
 	if (sd_flags & (SECINFO_GROUP)) {
-		final_sd->group_sid = talloc_memdup(mem_ctx, new_sd->group_sid, sizeof(struct dom_sid));
+		if (new_sd->group_sid) {
+			final_sd->group_sid = talloc_memdup(mem_ctx, new_sd->group_sid, sizeof(struct dom_sid));
+		}
 		final_sd->type |= new_sd->type & SEC_DESC_GROUP_DEFAULTED;
 	} 
 	else if (old_sd) {
-		final_sd->group_sid = talloc_memdup(mem_ctx, old_sd->group_sid, sizeof(struct dom_sid));
+		if (old_sd->group_sid) {
+			final_sd->group_sid = talloc_memdup(mem_ctx, old_sd->group_sid, sizeof(struct dom_sid));
+		}
 		final_sd->type |= old_sd->type & SEC_DESC_GROUP_DEFAULTED;
 	}
 
@@ -230,6 +261,17 @@ static DATA_BLOB *get_new_descriptor(struct ldb_module *module,
 	char *sddl_sd;
 	struct dom_sid *default_owner;
 	struct dom_sid *default_group;
+	struct security_descriptor *default_descriptor = NULL;
+	struct GUID *object_list = NULL;
+
+	if (objectclass != NULL) {
+		default_descriptor = get_sd_unpacked(module, mem_ctx, objectclass);
+		object_list = talloc_zero_array(mem_ctx, struct GUID, 2);
+		if (object_list == NULL) {
+			return NULL;
+		}
+		object_list[0] = objectclass->schemaIDGUID;
+	}
 
 	if (object) {
 		user_descriptor = talloc(mem_ctx, struct security_descriptor);
@@ -245,7 +287,7 @@ static DATA_BLOB *get_new_descriptor(struct ldb_module *module,
 			return NULL;
 		}
 	} else {
-		user_descriptor = get_sd_unpacked(module, mem_ctx, objectclass);
+		user_descriptor = default_descriptor;
 	}
 
 	if (old_sd) {
@@ -278,11 +320,82 @@ static DATA_BLOB *get_new_descriptor(struct ldb_module *module,
 		}
 	}
 
+	if (user_descriptor && default_descriptor &&
+	    (user_descriptor->dacl == NULL))
+	{
+		user_descriptor->dacl = default_descriptor->dacl;
+		user_descriptor->type |= default_descriptor->type & (
+			SEC_DESC_DACL_PRESENT |
+			SEC_DESC_DACL_DEFAULTED|SEC_DESC_DACL_AUTO_INHERIT_REQ |
+			SEC_DESC_DACL_AUTO_INHERITED|SEC_DESC_DACL_PROTECTED |
+			SEC_DESC_DACL_TRUSTED);
+	}
+
+	if (user_descriptor && default_descriptor &&
+	    (user_descriptor->sacl == NULL))
+	{
+		user_descriptor->sacl = default_descriptor->sacl;
+		user_descriptor->type |= default_descriptor->type & (
+			SEC_DESC_SACL_PRESENT |
+			SEC_DESC_SACL_DEFAULTED|SEC_DESC_SACL_AUTO_INHERIT_REQ |
+			SEC_DESC_SACL_AUTO_INHERITED|SEC_DESC_SACL_PROTECTED |
+			SEC_DESC_SERVER_SECURITY);
+	}
+
+
+	if (!(sd_flags & SECINFO_OWNER) && user_descriptor) {
+		user_descriptor->owner_sid = NULL;
+
+		/*
+		 * We need the correct owner sid
+		 * when calculating the DACL or SACL
+		 */
+		if (old_descriptor) {
+			user_descriptor->owner_sid = old_descriptor->owner_sid;
+		}
+	}
+	if (!(sd_flags & SECINFO_GROUP) && user_descriptor) {
+		user_descriptor->group_sid = NULL;
+
+		/*
+		 * We need the correct group sid
+		 * when calculating the DACL or SACL
+		 */
+		if (old_descriptor) {
+			user_descriptor->group_sid = old_descriptor->group_sid;
+		}
+	}
+	if (!(sd_flags & SECINFO_DACL) && user_descriptor) {
+		user_descriptor->dacl = NULL;
+
+		/*
+		 * We add SEC_DESC_DACL_PROTECTED so that
+		 * create_security_descriptor() skips
+		 * the unused inheritance calculation
+		 */
+		user_descriptor->type |= SEC_DESC_DACL_PROTECTED;
+	}
+	if (!(sd_flags & SECINFO_SACL) && user_descriptor) {
+		user_descriptor->sacl = NULL;
+
+		/*
+		 * We add SEC_DESC_SACL_PROTECTED so that
+		 * create_security_descriptor() skips
+		 * the unused inheritance calculation
+		 */
+		user_descriptor->type |= SEC_DESC_SACL_PROTECTED;
+	}
+
 	default_owner = get_default_ag(mem_ctx, dn,
 				       session_info->security_token, ldb);
 	default_group = get_default_group(mem_ctx, ldb, default_owner);
-	new_sd = create_security_descriptor(mem_ctx, parent_descriptor, user_descriptor, true,
-					    NULL, SEC_DACL_AUTO_INHERIT|SEC_SACL_AUTO_INHERIT,
+	new_sd = create_security_descriptor(mem_ctx,
+					    parent_descriptor,
+					    user_descriptor,
+					    true,
+					    object_list,
+					    SEC_DACL_AUTO_INHERIT |
+					    SEC_SACL_AUTO_INHERIT,
 					    session_info->security_token,
 					    default_owner, default_group,
 					    map_generic_rights_ds);
@@ -385,12 +498,10 @@ static struct descriptor_context *descriptor_init_context(struct ldb_module *mod
 static int descriptor_search_callback(struct ldb_request *req, struct ldb_reply *ares)
 {
 	struct descriptor_context *ac;
-	struct ldb_control *sd_control;
 	struct ldb_val *sd_val = NULL;
 	struct ldb_message_element *sd_el;
 	DATA_BLOB *show_sd;
 	int ret;
-	uint32_t sd_flags = 0;
 
 	ac = talloc_get_type(req->context, struct descriptor_context);
 
@@ -403,30 +514,16 @@ static int descriptor_search_callback(struct ldb_request *req, struct ldb_reply 
 					ares->response, ares->error);
 	}
 
-	sd_control = ldb_request_get_control(ac->req, LDB_CONTROL_SD_FLAGS_OID);
-	if (sd_control) {
-		struct ldb_sd_flags_control *sdctr = (struct ldb_sd_flags_control *)sd_control->data;
-		sd_flags = sdctr->secinfo_flags;
-		/* we only care for the last 4 bits */
-		sd_flags = sd_flags & 0x0000000F;
-		if (sd_flags == 0) {
-			/* MS-ADTS 3.1.1.3.4.1.11 says that no bits
-			   equals all 4 bits */
-			sd_flags = 0xF;
-		}
-	}
-
 	switch (ares->type) {
 	case LDB_REPLY_ENTRY:
-		if (sd_flags != 0) {
-			sd_el = ldb_msg_find_element(ares->message, "nTSecurityDescriptor");
-			if (sd_el) {
-				sd_val = sd_el->values;
-			}
+		sd_el = ldb_msg_find_element(ares->message, "nTSecurityDescriptor");
+		if (sd_el) {
+			sd_val = sd_el->values;
 		}
+
 		if (sd_val) {
 			show_sd = descr_get_descriptor_to_show(ac->module, ac->req,
-							       sd_val, sd_flags);
+							       sd_val, ac->sd_flags);
 			if (!show_sd) {
 				ret = LDB_ERR_OPERATIONS_ERROR;
 				goto fail;
@@ -454,22 +551,29 @@ fail:
 
 static int descriptor_add(struct ldb_module *module, struct ldb_request *req)
 {
-	struct ldb_context *ldb;
+	struct ldb_context *ldb = ldb_module_get_ctx(module);
 	struct ldb_request *add_req;
 	struct ldb_message *msg;
 	struct ldb_result *parent_res;
 	const struct ldb_val *parent_sd = NULL;
 	const struct ldb_val *user_sd;
-	struct ldb_dn *parent_dn, *dn, *nc_root;
+	struct ldb_dn *dn = req->op.add.message->dn;
+	struct ldb_dn *parent_dn, *nc_root;
 	struct ldb_message_element *objectclass_element, *sd_element;
 	int ret;
 	const struct dsdb_schema *schema;
 	DATA_BLOB *sd;
 	const struct dsdb_class *objectclass;
 	static const char * const parent_attrs[] = { "nTSecurityDescriptor", NULL };
+	uint32_t instanceType;
+	bool isNC = false;
+	uint32_t sd_flags = dsdb_request_sd_flags(req, NULL);
 
-	ldb = ldb_module_get_ctx(module);
-	dn = req->op.add.message->dn;
+	/* do not manipulate our control entries */
+	if (ldb_dn_is_special(dn)) {
+		return ldb_next_request(module, req);
+	}
+
 	user_sd = ldb_msg_find_ldb_val(req->op.add.message, "nTSecurityDescriptor");
 	sd_element = ldb_msg_find_element(req->op.add.message, "nTSecurityDescriptor");
 	/* nTSecurityDescriptor without a value is an error, letting through so it is handled */
@@ -479,31 +583,45 @@ static int descriptor_add(struct ldb_module *module, struct ldb_request *req)
 
 	ldb_debug(ldb, LDB_DEBUG_TRACE,"descriptor_add: %s\n", ldb_dn_get_linearized(dn));
 
-	/* do not manipulate our control entries */
-	if (ldb_dn_is_special(dn)) {
-		return ldb_next_request(module, req);
+	instanceType = ldb_msg_find_attr_as_uint(req->op.add.message, "instanceType", 0);
+
+	if (instanceType & INSTANCE_TYPE_IS_NC_HEAD) {
+		isNC = true;
 	}
 
-	/* if the object has a parent, retrieve its SD to
-	 * use for calculation. Unfortunately we do not yet have
-	 * instanceType, so we use dsdb_find_nc_root. */
-	parent_dn = ldb_dn_get_parent(req, dn);
-	if (parent_dn == NULL) {
-		return ldb_oom(ldb);
+	if (!isNC) {
+		ret = dsdb_find_nc_root(ldb, req, dn, &nc_root);
+		if (ret != LDB_SUCCESS) {
+			ldb_debug(ldb, LDB_DEBUG_TRACE,"descriptor_add: Could not find NC root for %s\n",
+				ldb_dn_get_linearized(dn));
+			return ret;
+		}
+
+		if (ldb_dn_compare(dn, nc_root) == 0) {
+			DEBUG(0, ("Found DN %s being a NC by the old method\n", ldb_dn_get_linearized(dn)));
+			isNC = true;
+		}
 	}
 
-	ret = dsdb_find_nc_root(ldb, req, dn, &nc_root);
-	if (ret != LDB_SUCCESS) {
-		ldb_debug(ldb, LDB_DEBUG_TRACE,"descriptor_add: Could not find NC root for %s\n",
-			  ldb_dn_get_linearized(dn));
-		return ret;
+	if (isNC) {
+		DEBUG(2, ("DN: %s is a NC\n", ldb_dn_get_linearized(dn)));
 	}
+	if (!isNC) {
+		/* if the object has a parent, retrieve its SD to
+		 * use for calculation. Unfortunately we do not yet have
+		 * instanceType, so we use dsdb_find_nc_root. */
 
-	if (ldb_dn_compare(dn, nc_root) != 0) {
+		parent_dn = ldb_dn_get_parent(req, dn);
+		if (parent_dn == NULL) {
+			return ldb_oom(ldb);
+		}
+
 		/* we aren't any NC */
 		ret = dsdb_module_search_dn(module, req, &parent_res, parent_dn,
 					    parent_attrs,
-					    DSDB_FLAG_NEXT_MODULE,
+					    DSDB_FLAG_NEXT_MODULE |
+					    DSDB_FLAG_AS_SYSTEM |
+					    DSDB_SEARCH_SHOW_RECYCLED,
 					    req);
 		if (ret != LDB_SUCCESS) {
 			ldb_debug(ldb, LDB_DEBUG_TRACE,"descriptor_add: Could not find SD for %s\n",
@@ -523,25 +641,36 @@ static int descriptor_add(struct ldb_module *module, struct ldb_request *req)
 		return ldb_operr(ldb);
 	}
 
-	objectclass = get_last_structural_class(schema, objectclass_element, req);
+	objectclass = dsdb_get_last_structural_class(schema,
+						     objectclass_element);
 	if (objectclass == NULL) {
 		return ldb_operr(ldb);
 	}
 
+	/*
+	 * The SD_FLAG control is ignored on add
+	 * and we default to all bits set.
+	 */
+	sd_flags = SECINFO_OWNER|SECINFO_GROUP|SECINFO_SACL|SECINFO_DACL;
+
 	sd = get_new_descriptor(module, dn, req,
 				objectclass, parent_sd,
-				user_sd, NULL, 0);
+				user_sd, NULL, sd_flags);
+	if (sd == NULL) {
+		return ldb_operr(ldb);
+	}
 	msg = ldb_msg_copy_shallow(req, req->op.add.message);
-	if (sd != NULL) {
-		if (sd_element != NULL) {
-			sd_element->values[0] = *sd;
-		} else {
-			ret = ldb_msg_add_steal_value(msg,
-						      "nTSecurityDescriptor",
-						      sd);
-			if (ret != LDB_SUCCESS) {
-				return ret;
-			}
+	if (msg == NULL) {
+		return ldb_oom(ldb);
+	}
+	if (sd_element != NULL) {
+		sd_element->values[0] = *sd;
+	} else {
+		ret = ldb_msg_add_steal_value(msg,
+					      "nTSecurityDescriptor",
+					      sd);
+		if (ret != LDB_SUCCESS) {
+			return ret;
 		}
 	}
 
@@ -561,18 +690,20 @@ static int descriptor_add(struct ldb_module *module, struct ldb_request *req)
 
 static int descriptor_modify(struct ldb_module *module, struct ldb_request *req)
 {
-	struct ldb_context *ldb;
-	struct ldb_control *sd_recalculate_control, *sd_flags_control;
+	struct ldb_context *ldb = ldb_module_get_ctx(module);
 	struct ldb_request *mod_req;
 	struct ldb_message *msg;
 	struct ldb_result *current_res, *parent_res;
 	const struct ldb_val *old_sd = NULL;
 	const struct ldb_val *parent_sd = NULL;
 	const struct ldb_val *user_sd;
-	struct ldb_dn *parent_dn, *dn;
-	struct ldb_message_element *objectclass_element;
+	struct ldb_dn *dn = req->op.mod.message->dn;
+	struct ldb_dn *parent_dn;
+	struct ldb_message_element *objectclass_element, *sd_element;
 	int ret;
-	uint32_t instanceType, sd_flags = 0;
+	uint32_t instanceType;
+	bool explicit_sd_flags = false;
+	uint32_t sd_flags = dsdb_request_sd_flags(req, &explicit_sd_flags);
 	const struct dsdb_schema *schema;
 	DATA_BLOB *sd;
 	const struct dsdb_class *objectclass;
@@ -580,27 +711,67 @@ static int descriptor_modify(struct ldb_module *module, struct ldb_request *req)
 	static const char * const current_attrs[] = { "nTSecurityDescriptor",
 						      "instanceType",
 						      "objectClass", NULL };
-	ldb = ldb_module_get_ctx(module);
-	dn = req->op.mod.message->dn;
-	user_sd = ldb_msg_find_ldb_val(req->op.mod.message, "nTSecurityDescriptor");
-	/* This control forces the recalculation of the SD also when
-	 * no modification is performed. */
-	sd_recalculate_control = ldb_request_get_control(req,
-					     LDB_CONTROL_RECALCULATE_SD_OID);
-	if (!user_sd && !sd_recalculate_control) {
-		return ldb_next_request(module, req);
-	}
-
-	ldb_debug(ldb, LDB_DEBUG_TRACE,"descriptor_modify: %s\n", ldb_dn_get_linearized(dn));
+	struct ldb_control *sd_propagation_control;
+	int cmp_ret = -1;
 
 	/* do not manipulate our control entries */
 	if (ldb_dn_is_special(dn)) {
 		return ldb_next_request(module, req);
 	}
 
+	sd_propagation_control = ldb_request_get_control(req,
+					DSDB_CONTROL_SEC_DESC_PROPAGATION_OID);
+	if (sd_propagation_control != NULL) {
+		if (sd_propagation_control->data != module) {
+			return ldb_operr(ldb);
+		}
+		if (req->op.mod.message->num_elements != 0) {
+			return ldb_operr(ldb);
+		}
+		if (explicit_sd_flags) {
+			return ldb_operr(ldb);
+		}
+		if (sd_flags != 0xF) {
+			return ldb_operr(ldb);
+		}
+		if (sd_propagation_control->critical == 0) {
+			return ldb_operr(ldb);
+		}
+
+		sd_propagation_control->critical = 0;
+	}
+
+	sd_element = ldb_msg_find_element(req->op.mod.message, "nTSecurityDescriptor");
+	if (sd_propagation_control == NULL && sd_element == NULL) {
+		return ldb_next_request(module, req);
+	}
+
+	/*
+	 * nTSecurityDescriptor with DELETE is not supported yet.
+	 * TODO: handle this correctly.
+	 */
+	if (sd_propagation_control == NULL &&
+	    LDB_FLAG_MOD_TYPE(sd_element->flags) == LDB_FLAG_MOD_DELETE)
+	{
+		return ldb_module_error(module,
+					LDB_ERR_UNWILLING_TO_PERFORM,
+					"MOD_DELETE for nTSecurityDescriptor "
+					"not supported yet");
+	}
+
+	user_sd = ldb_msg_find_ldb_val(req->op.mod.message, "nTSecurityDescriptor");
+	/* nTSecurityDescriptor without a value is an error, letting through so it is handled */
+	if (sd_propagation_control == NULL && user_sd == NULL) {
+		return ldb_next_request(module, req);
+	}
+
+	ldb_debug(ldb, LDB_DEBUG_TRACE,"descriptor_modify: %s\n", ldb_dn_get_linearized(dn));
+
 	ret = dsdb_module_search_dn(module, req, &current_res, dn,
 				    current_attrs,
-				    DSDB_FLAG_NEXT_MODULE,
+				    DSDB_FLAG_NEXT_MODULE |
+				    DSDB_FLAG_AS_SYSTEM |
+				    DSDB_SEARCH_SHOW_RECYCLED,
 				    req);
 	if (ret != LDB_SUCCESS) {
 		ldb_debug(ldb, LDB_DEBUG_ERROR,"descriptor_modify: Could not find %s\n",
@@ -620,7 +791,9 @@ static int descriptor_modify(struct ldb_module *module, struct ldb_request *req)
 		}
 		ret = dsdb_module_search_dn(module, req, &parent_res, parent_dn,
 					    parent_attrs,
-					    DSDB_FLAG_NEXT_MODULE,
+					    DSDB_FLAG_NEXT_MODULE |
+					    DSDB_FLAG_AS_SYSTEM |
+					    DSDB_SEARCH_SHOW_RECYCLED,
 					    req);
 		if (ret != LDB_SUCCESS) {
 			ldb_debug(ldb, LDB_DEBUG_ERROR, "descriptor_modify: Could not find SD for %s\n",
@@ -632,7 +805,6 @@ static int descriptor_modify(struct ldb_module *module, struct ldb_request *req)
 		}
 		parent_sd = ldb_msg_find_ldb_val(parent_res->msgs[0], "nTSecurityDescriptor");
 	}
-	sd_flags_control = ldb_request_get_control(req, LDB_CONTROL_SD_FLAGS_OID);
 
 	schema = dsdb_get_schema(ldb, req);
 
@@ -641,55 +813,77 @@ static int descriptor_modify(struct ldb_module *module, struct ldb_request *req)
 		return ldb_operr(ldb);
 	}
 
-	objectclass = get_last_structural_class(schema, objectclass_element, req);
+	objectclass = dsdb_get_last_structural_class(schema,
+						     objectclass_element);
 	if (objectclass == NULL) {
 		return ldb_operr(ldb);
 	}
 
-	if (sd_flags_control) {
-		struct ldb_sd_flags_control *sdctr = (struct ldb_sd_flags_control *)sd_flags_control->data;
-		sd_flags = sdctr->secinfo_flags;
-		/* we only care for the last 4 bits */
-		sd_flags = sd_flags & 0x0000000F;
+	old_sd = ldb_msg_find_ldb_val(current_res->msgs[0], "nTSecurityDescriptor");
+	if (old_sd == NULL) {
+		return ldb_operr(ldb);
 	}
-	if (sd_flags != 0) {
-		old_sd = ldb_msg_find_ldb_val(current_res->msgs[0], "nTSecurityDescriptor");
+
+	if (sd_propagation_control != NULL) {
+		/*
+		 * This just triggers a recalculation of the
+		 * inherited aces.
+		 */
+		user_sd = old_sd;
 	}
 
 	sd = get_new_descriptor(module, dn, req,
 				objectclass, parent_sd,
 				user_sd, old_sd, sd_flags);
+	if (sd == NULL) {
+		return ldb_operr(ldb);
+	}
 	msg = ldb_msg_copy_shallow(req, req->op.mod.message);
-	if (sd != NULL) {
-		struct ldb_message_element *sd_element;
-		if (user_sd != NULL) {
-			sd_element = ldb_msg_find_element(msg,
-							  "nTSecurityDescriptor");
-			sd_element->values[0] = *sd;
-		} else if (sd_recalculate_control != NULL) {
-			/* In this branch we really do force the recalculation
-			 * of the SD */
-			ldb_msg_remove_attr(msg, "nTSecurityDescriptor");
-
-			ret = ldb_msg_add_steal_value(msg,
-						      "nTSecurityDescriptor",
-						      sd);
-			if (ret != LDB_SUCCESS) {
-				return ldb_error(ldb, ret,
-					 "descriptor_modify: Could not replace SD value in message.");
-			}
-			sd_element = ldb_msg_find_element(msg,
-							  "nTSecurityDescriptor");
-			sd_element->flags = LDB_FLAG_MOD_REPLACE;
+	if (msg == NULL) {
+		return ldb_oom(ldb);
+	}
+	cmp_ret = data_blob_cmp(old_sd, sd);
+	if (sd_propagation_control != NULL) {
+		if (cmp_ret == 0) {
+			/*
+			 * The nTSecurityDescriptor is unchanged,
+			 * which means we can stop the processing.
+			 *
+			 * We mark the control as critical again,
+			 * as we have not processed it, so the caller
+			 * can tell that the descriptor was unchanged.
+			 */
+			sd_propagation_control->critical = 1;
+			return ldb_module_done(req, NULL, NULL, LDB_SUCCESS);
 		}
-	}
 
-	/* mark the controls as non-critical since we've handled them */
-	if (sd_flags_control != NULL) {
-		sd_flags_control->critical = 0;
-	}
-	if (sd_recalculate_control != NULL) {
-		sd_recalculate_control->critical = 0;
+		ret = ldb_msg_add_empty(msg, "nTSecurityDescriptor",
+					LDB_FLAG_MOD_REPLACE,
+					&sd_element);
+		if (ret != LDB_SUCCESS) {
+			return ldb_oom(ldb);
+		}
+		ret = ldb_msg_add_value(msg, "nTSecurityDescriptor",
+					sd, NULL);
+		if (ret != LDB_SUCCESS) {
+			return ldb_oom(ldb);
+		}
+	} else if (cmp_ret != 0) {
+		struct ldb_dn *nc_root;
+
+		ret = dsdb_find_nc_root(ldb, msg, dn, &nc_root);
+		if (ret != LDB_SUCCESS) {
+			return ldb_oom(ldb);
+		}
+
+		ret = dsdb_module_schedule_sd_propagation(module, nc_root,
+							  dn, false);
+		if (ret != LDB_SUCCESS) {
+			return ldb_operr(ldb);
+		}
+		sd_element->values[0] = *sd;
+	} else {
+		sd_element->values[0] = *sd;
 	}
 
 	ret = ldb_build_mod_req(&mod_req, ldb, req,
@@ -710,12 +904,19 @@ static int descriptor_search(struct ldb_module *module, struct ldb_request *req)
 {
 	int ret;
 	struct ldb_context *ldb;
-	struct ldb_control *sd_control;
 	struct ldb_request *down_req;
 	struct descriptor_context *ac;
+	bool explicit_sd_flags = false;
+	uint32_t sd_flags = dsdb_request_sd_flags(req, &explicit_sd_flags);
+	bool show_sd = explicit_sd_flags;
 
-	sd_control = ldb_request_get_control(req, LDB_CONTROL_SD_FLAGS_OID);
-	if (!sd_control) {
+	if (!show_sd &&
+	    ldb_attr_in_list(req->op.search.attrs, "nTSecurityDescriptor"))
+	{
+		show_sd = true;
+	}
+
+	if (!show_sd) {
 		return ldb_next_request(module, req);
 	}
 
@@ -724,6 +925,7 @@ static int descriptor_search(struct ldb_module *module, struct ldb_request *req)
 	if (ac == NULL) {
 		return ldb_operr(ldb);
 	}
+	ac->sd_flags = sd_flags;
 
 	ret = ldb_build_search_req_ex(&down_req, ldb, ac,
 				      req->op.search.base,
@@ -737,22 +939,128 @@ static int descriptor_search(struct ldb_module *module, struct ldb_request *req)
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
-	/* mark it as handled */
-	if (sd_control) {
-		sd_control->critical = 0;
-	}
 
 	return ldb_next_request(ac->module, down_req);
 }
-/* TODO */
+
 static int descriptor_rename(struct ldb_module *module, struct ldb_request *req)
 {
 	struct ldb_context *ldb = ldb_module_get_ctx(module);
-	ldb_debug(ldb, LDB_DEBUG_TRACE,"descriptor_rename: %s\n", ldb_dn_get_linearized(req->op.rename.olddn));
+	struct ldb_dn *olddn = req->op.rename.olddn;
+	struct ldb_dn *newdn = req->op.rename.newdn;
+	int ret;
 
 	/* do not manipulate our control entries */
 	if (ldb_dn_is_special(req->op.rename.olddn)) {
 		return ldb_next_request(module, req);
+	}
+
+	ldb_debug(ldb, LDB_DEBUG_TRACE,"descriptor_rename: %s\n",
+		  ldb_dn_get_linearized(olddn));
+
+	if (ldb_dn_compare(olddn, newdn) != 0) {
+		struct ldb_dn *nc_root;
+
+		ret = dsdb_find_nc_root(ldb, req, newdn, &nc_root);
+		if (ret != LDB_SUCCESS) {
+			return ldb_oom(ldb);
+		}
+
+		ret = dsdb_module_schedule_sd_propagation(module, nc_root,
+							  newdn, true);
+		if (ret != LDB_SUCCESS) {
+			return ldb_operr(ldb);
+		}
+	}
+
+	return ldb_next_request(module, req);
+}
+
+static int descriptor_extended_sec_desc_propagation(struct ldb_module *module,
+						    struct ldb_request *req)
+{
+	struct descriptor_data *descriptor_private =
+		talloc_get_type_abort(ldb_module_get_private(module),
+		struct descriptor_data);
+	struct ldb_context *ldb = ldb_module_get_ctx(module);
+	struct dsdb_extended_sec_desc_propagation_op *op;
+	TALLOC_CTX *parent_mem = NULL;
+	struct descriptor_changes *parent_change = NULL;
+	struct descriptor_changes *c;
+	int ret;
+
+	op = talloc_get_type(req->op.extended.data,
+			     struct dsdb_extended_sec_desc_propagation_op);
+	if (op == NULL) {
+		ldb_debug(ldb, LDB_DEBUG_FATAL,
+			  "descriptor_extended_sec_desc_propagation: "
+			  "invalid extended data\n");
+		return LDB_ERR_PROTOCOL_ERROR;
+	}
+
+	if (descriptor_private->trans_mem == NULL) {
+		return ldb_module_operr(module);
+	}
+
+	parent_mem = descriptor_private->trans_mem;
+
+	for (c = descriptor_private->changes; c; c = c->next) {
+		ret = ldb_dn_compare(c->nc_root, op->nc_root);
+		if (ret != 0) {
+			continue;
+		}
+
+		ret = ldb_dn_compare(c->dn, op->dn);
+		if (ret == 0) {
+			if (op->include_self) {
+				c->force_self = true;
+			} else {
+				c->force_children = true;
+			}
+			return ldb_module_done(req, NULL, NULL, LDB_SUCCESS);
+		}
+
+		ret = ldb_dn_compare_base(c->dn, op->dn);
+		if (ret != 0) {
+			continue;
+		}
+
+		parent_mem = c;
+		parent_change = c;
+		break;
+	}
+
+	c = talloc_zero(parent_mem, struct descriptor_changes);
+	if (c == NULL) {
+		return ldb_module_oom(module);
+	}
+	c->nc_root = ldb_dn_copy(c, op->nc_root);
+	if (c->nc_root == NULL) {
+		return ldb_module_oom(module);
+	}
+	c->dn = ldb_dn_copy(c, op->dn);
+	if (c->dn == NULL) {
+		return ldb_module_oom(module);
+	}
+	if (op->include_self) {
+		c->force_self = true;
+	} else {
+		c->force_children = true;
+	}
+
+	if (parent_change != NULL) {
+		DLIST_ADD_END(parent_change->children, c, NULL);
+	} else {
+		DLIST_ADD_END(descriptor_private->changes, c, NULL);
+	}
+
+	return ldb_module_done(req, NULL, NULL, LDB_SUCCESS);
+}
+
+static int descriptor_extended(struct ldb_module *module, struct ldb_request *req)
+{
+	if (strcmp(req->op.extended.oid, DSDB_EXTENDED_SEC_DESC_PROPAGATION_OID) == 0) {
+		return descriptor_extended_sec_desc_propagation(module, req);
 	}
 
 	return ldb_next_request(module, req);
@@ -760,24 +1068,309 @@ static int descriptor_rename(struct ldb_module *module, struct ldb_request *req)
 
 static int descriptor_init(struct ldb_module *module)
 {
-	int ret = ldb_mod_register_control(module, LDB_CONTROL_SD_FLAGS_OID);
 	struct ldb_context *ldb = ldb_module_get_ctx(module);
+	int ret;
+	struct descriptor_data *descriptor_private;
+
+	ret = ldb_mod_register_control(module, LDB_CONTROL_SD_FLAGS_OID);
 	if (ret != LDB_SUCCESS) {
 		ldb_debug(ldb, LDB_DEBUG_ERROR,
 			"descriptor: Unable to register control with rootdse!\n");
 		return ldb_operr(ldb);
 	}
+
+	descriptor_private = talloc_zero(module, struct descriptor_data);
+	if (descriptor_private == NULL) {
+		ldb_oom(ldb);
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
+	ldb_module_set_private(module, descriptor_private);
+
 	return ldb_next_init(module);
 }
 
+static int descriptor_sd_propagation_object(struct ldb_module *module,
+					    struct ldb_message *msg,
+					    bool *stop)
+{
+	struct ldb_context *ldb = ldb_module_get_ctx(module);
+	struct ldb_request *sub_req;
+	struct ldb_result *mod_res;
+	struct ldb_control *sd_propagation_control;
+	int ret;
+
+	*stop = false;
+
+	mod_res = talloc_zero(msg, struct ldb_result);
+	if (mod_res == NULL) {
+		return ldb_module_oom(module);
+	}
+
+	ret = ldb_build_mod_req(&sub_req, ldb, mod_res,
+				msg,
+				NULL,
+				mod_res,
+				ldb_modify_default_callback,
+				NULL);
+	LDB_REQ_SET_LOCATION(sub_req);
+	if (ret != LDB_SUCCESS) {
+		return ldb_module_operr(module);
+	}
+
+	ldb_req_mark_trusted(sub_req);
+
+	ret = ldb_request_add_control(sub_req,
+				      DSDB_CONTROL_SEC_DESC_PROPAGATION_OID,
+				      true, module);
+	if (ret != LDB_SUCCESS) {
+		return ldb_module_operr(module);
+	}
+
+	sd_propagation_control = ldb_request_get_control(sub_req,
+					DSDB_CONTROL_SEC_DESC_PROPAGATION_OID);
+	if (sd_propagation_control == NULL) {
+		return ldb_module_operr(module);
+	}
+
+	ret = dsdb_request_add_controls(sub_req,
+					DSDB_FLAG_AS_SYSTEM |
+					DSDB_SEARCH_SHOW_RECYCLED);
+	if (ret != LDB_SUCCESS) {
+		return ldb_module_operr(module);
+	}
+
+	ret = descriptor_modify(module, sub_req);
+	if (ret == LDB_SUCCESS) {
+		ret = ldb_wait(sub_req->handle, LDB_WAIT_ALL);
+	}
+	if (ret != LDB_SUCCESS) {
+		return ldb_module_operr(module);
+	}
+
+	if (sd_propagation_control->critical != 0) {
+		*stop = true;
+	}
+
+	talloc_free(mod_res);
+
+	return LDB_SUCCESS;
+}
+
+static int descriptor_sd_propagation_msg_sort(struct ldb_message **m1,
+					      struct ldb_message **m2)
+{
+	struct ldb_dn *dn1 = (*m1)->dn;
+	struct ldb_dn *dn2 = (*m2)->dn;
+
+	/*
+	 * This sorts in tree order, parents first
+	 */
+	return ldb_dn_compare(dn2, dn1);
+}
+
+static int descriptor_sd_propagation_dn_sort(struct ldb_dn *dn1,
+					     struct ldb_dn *dn2)
+{
+	/*
+	 * This sorts in tree order, parents first
+	 */
+	return ldb_dn_compare(dn2, dn1);
+}
+
+static int descriptor_sd_propagation_recursive(struct ldb_module *module,
+					       struct descriptor_changes *change)
+{
+	struct ldb_context *ldb = ldb_module_get_ctx(module);
+	struct ldb_result *res = NULL;
+	unsigned int i;
+	const char * const no_attrs[] = { "@__NONE__", NULL };
+	struct descriptor_changes *c;
+	struct descriptor_changes *stopped_stack = NULL;
+	int ret;
+
+	/*
+	 * Note: that we do not search for deleted/recycled objects
+	 */
+	ret = dsdb_module_search(module,
+				 change,
+				 &res,
+				 change->dn,
+				 LDB_SCOPE_SUBTREE,
+				 no_attrs,
+				 DSDB_FLAG_NEXT_MODULE |
+				 DSDB_FLAG_AS_SYSTEM,
+				 NULL, /* parent_req */
+				 "(objectClass=*)");
+	if (ret != LDB_SUCCESS) {
+		return ret;
+	}
+
+	TYPESAFE_QSORT(res->msgs, res->count,
+		       descriptor_sd_propagation_msg_sort);
+
+	for (c = change->children; c; c = c->next) {
+		struct ldb_message *msg = NULL;
+
+		BINARY_ARRAY_SEARCH_P(res->msgs, res->count, dn, c->dn,
+				      descriptor_sd_propagation_dn_sort,
+				      msg);
+
+		if (msg == NULL) {
+			ldb_debug(ldb, LDB_DEBUG_WARNING,
+				"descriptor_sd_propagation_recursive: "
+				"%s not found under %s",
+				ldb_dn_get_linearized(c->dn),
+				ldb_dn_get_linearized(change->dn));
+			continue;
+		}
+
+		msg->elements = (struct ldb_message_element *)c;
+	}
+
+	DLIST_ADD(stopped_stack, change);
+
+	if (change->force_self) {
+		i = 0;
+	} else {
+		i = 1;
+	}
+
+	for (; i < res->count; i++) {
+		struct descriptor_changes *cur;
+		bool stop = false;
+
+		cur = talloc_get_type(res->msgs[i]->elements,
+				      struct descriptor_changes);
+		res->msgs[i]->elements = NULL;
+		res->msgs[i]->num_elements = 0;
+
+		if (cur != NULL) {
+			DLIST_REMOVE(change->children, cur);
+		}
+
+		for (c = stopped_stack; c; c = stopped_stack) {
+			ret = ldb_dn_compare_base(c->dn,
+						  res->msgs[i]->dn);
+			if (ret == 0) {
+				break;
+			}
+
+			c->stopped_dn = NULL;
+			DLIST_REMOVE(stopped_stack, c);
+		}
+
+		if (cur != NULL) {
+			DLIST_ADD(stopped_stack, cur);
+		}
+
+		if (stopped_stack->stopped_dn != NULL) {
+			ret = ldb_dn_compare_base(stopped_stack->stopped_dn,
+						  res->msgs[i]->dn);
+			if (ret == 0) {
+				continue;
+			}
+			stopped_stack->stopped_dn = NULL;
+		}
+
+		ret = descriptor_sd_propagation_object(module, res->msgs[i],
+						       &stop);
+		if (ret != LDB_SUCCESS) {
+			return ret;
+		}
+
+		if (cur != NULL && cur->force_children) {
+			continue;
+		}
+
+		if (stop) {
+			stopped_stack->stopped_dn = res->msgs[i]->dn;
+			continue;
+		}
+	}
+
+	TALLOC_FREE(res);
+	return LDB_SUCCESS;
+}
+
+static int descriptor_start_transaction(struct ldb_module *module)
+{
+	struct descriptor_data *descriptor_private =
+		talloc_get_type_abort(ldb_module_get_private(module),
+		struct descriptor_data);
+
+	if (descriptor_private->trans_mem != NULL) {
+		return ldb_module_operr(module);
+	}
+
+	descriptor_private->trans_mem = talloc_new(descriptor_private);
+	if (descriptor_private->trans_mem == NULL) {
+		return ldb_module_oom(module);
+	}
+	descriptor_private->changes = NULL;
+
+	return ldb_next_start_trans(module);
+}
+
+static int descriptor_prepare_commit(struct ldb_module *module)
+{
+	struct descriptor_data *descriptor_private =
+		talloc_get_type_abort(ldb_module_get_private(module),
+		struct descriptor_data);
+	struct descriptor_changes *c, *n;
+	int ret;
+
+	for (c = descriptor_private->changes; c; c = n) {
+		n = c->next;
+		DLIST_REMOVE(descriptor_private->changes, c);
+
+		ret = descriptor_sd_propagation_recursive(module, c);
+		if (ret == LDB_ERR_NO_SUCH_OBJECT) {
+			continue;
+		}
+		if (ret != LDB_SUCCESS) {
+			return ret;
+		}
+	}
+
+	return ldb_next_prepare_commit(module);
+}
+
+static int descriptor_end_transaction(struct ldb_module *module)
+{
+	struct descriptor_data *descriptor_private =
+		talloc_get_type_abort(ldb_module_get_private(module),
+		struct descriptor_data);
+
+	TALLOC_FREE(descriptor_private->trans_mem);
+	descriptor_private->changes = NULL;
+
+	return ldb_next_end_trans(module);
+}
+
+static int descriptor_del_transaction(struct ldb_module *module)
+{
+	struct descriptor_data *descriptor_private =
+		talloc_get_type_abort(ldb_module_get_private(module),
+		struct descriptor_data);
+
+	TALLOC_FREE(descriptor_private->trans_mem);
+	descriptor_private->changes = NULL;
+
+	return ldb_next_del_trans(module);
+}
 
 static const struct ldb_module_ops ldb_descriptor_module_ops = {
-	.name	       = "descriptor",
-	.search        = descriptor_search,
-	.add           = descriptor_add,
-	.modify        = descriptor_modify,
-	.rename        = descriptor_rename,
-	.init_context  = descriptor_init
+	.name              = "descriptor",
+	.search            = descriptor_search,
+	.add               = descriptor_add,
+	.modify            = descriptor_modify,
+	.rename            = descriptor_rename,
+	.init_context      = descriptor_init,
+	.extended          = descriptor_extended,
+	.start_transaction = descriptor_start_transaction,
+	.prepare_commit    = descriptor_prepare_commit,
+	.end_transaction   = descriptor_end_transaction,
+	.del_transaction   = descriptor_del_transaction,
 };
 
 int ldb_descriptor_module_init(const char *version)

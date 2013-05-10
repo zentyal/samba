@@ -41,6 +41,8 @@
 #include "libcli/smb2/smb2.h"
 #include "libcli/smb2/smb2_calls.h"
 
+NTSTATUS ntvfs_smb2_init(void);
+
 struct cvfs_file {
 	struct cvfs_file *prev, *next;
 	uint16_t fnum;
@@ -160,7 +162,6 @@ static NTSTATUS cvfs_connect(struct ntvfs_module_context *ntvfs,
 	NTSTATUS status;
 	struct cvfs_private *p;
 	const char *host, *user, *pass, *domain, *remote_share, *sharename;
-	struct composite_context *creq;
 	struct share_config *scfg = ntvfs->ctx->config;
 	struct smb2_tree *tree;
 	struct cli_credentials *credentials;
@@ -190,7 +191,6 @@ static NTSTATUS cvfs_connect(struct ntvfs_module_context *ntvfs,
 
 	/* Here we need to determine which server to connect to.
 	 * For now we use parametric options, type cifs.
-	 * Later we will use security=server and auth_server.c.
 	 */
 	host = share_string_option(scfg, SMB2_SERVER, NULL);
 	user = share_string_option(scfg, SMB2_USER, NULL);
@@ -248,17 +248,15 @@ static NTSTATUS cvfs_connect(struct ntvfs_module_context *ntvfs,
 
 	lpcfg_smbcli_options(ntvfs->ctx->lp_ctx, &options);
 
-	creq = smb2_connect_send(p, host,
+	status = smb2_connect(p, host,
 			lpcfg_parm_string_list(p, ntvfs->ctx->lp_ctx, NULL, "smb2", "ports", NULL),
-				remote_share, 
-				 lpcfg_resolve_context(ntvfs->ctx->lp_ctx),
-				 credentials,
-				 ntvfs->ctx->event_ctx, &options,
-				 lpcfg_socket_options(ntvfs->ctx->lp_ctx),
-				 lpcfg_gensec_settings(p, ntvfs->ctx->lp_ctx)
-				 );
-
-	status = smb2_connect_recv(creq, p, &tree);
+			remote_share,
+			lpcfg_resolve_context(ntvfs->ctx->lp_ctx),
+			credentials,
+			&tree,
+			ntvfs->ctx->event_ctx, &options,
+			lpcfg_socket_options(ntvfs->ctx->lp_ctx),
+			lpcfg_gensec_settings(p, ntvfs->ctx->lp_ctx));
 	NT_STATUS_NOT_OK_RETURN(status);
 
 	status = smb2_get_roothandle(tree, &p->roothandle);
@@ -834,37 +832,37 @@ NTSTATUS ntvfs_smb2_init(void)
 	ops.type = NTVFS_DISK;
 	
 	/* fill in all the operations */
-	ops.connect = cvfs_connect;
-	ops.disconnect = cvfs_disconnect;
-	ops.unlink = cvfs_unlink;
-	ops.chkpath = cvfs_chkpath;
-	ops.qpathinfo = cvfs_qpathinfo;
-	ops.setpathinfo = cvfs_setpathinfo;
-	ops.open = cvfs_open;
-	ops.mkdir = cvfs_mkdir;
-	ops.rmdir = cvfs_rmdir;
-	ops.rename = cvfs_rename;
-	ops.copy = cvfs_copy;
-	ops.ioctl = cvfs_ioctl;
-	ops.read = cvfs_read;
-	ops.write = cvfs_write;
-	ops.seek = cvfs_seek;
-	ops.flush = cvfs_flush;	
-	ops.close = cvfs_close;
-	ops.exit = cvfs_exit;
-	ops.lock = cvfs_lock;
-	ops.setfileinfo = cvfs_setfileinfo;
-	ops.qfileinfo = cvfs_qfileinfo;
-	ops.fsinfo = cvfs_fsinfo;
-	ops.lpq = cvfs_lpq;
-	ops.search_first = cvfs_search_first;
-	ops.search_next = cvfs_search_next;
-	ops.search_close = cvfs_search_close;
-	ops.trans = cvfs_trans;
-	ops.logoff = cvfs_logoff;
-	ops.async_setup = cvfs_async_setup;
-	ops.cancel = cvfs_cancel;
-	ops.notify = cvfs_notify;
+	ops.connect_fn = cvfs_connect;
+	ops.disconnect_fn = cvfs_disconnect;
+	ops.unlink_fn = cvfs_unlink;
+	ops.chkpath_fn = cvfs_chkpath;
+	ops.qpathinfo_fn = cvfs_qpathinfo;
+	ops.setpathinfo_fn = cvfs_setpathinfo;
+	ops.open_fn = cvfs_open;
+	ops.mkdir_fn = cvfs_mkdir;
+	ops.rmdir_fn = cvfs_rmdir;
+	ops.rename_fn = cvfs_rename;
+	ops.copy_fn = cvfs_copy;
+	ops.ioctl_fn = cvfs_ioctl;
+	ops.read_fn = cvfs_read;
+	ops.write_fn = cvfs_write;
+	ops.seek_fn = cvfs_seek;
+	ops.flush_fn = cvfs_flush;
+	ops.close_fn = cvfs_close;
+	ops.exit_fn = cvfs_exit;
+	ops.lock_fn = cvfs_lock;
+	ops.setfileinfo_fn = cvfs_setfileinfo;
+	ops.qfileinfo_fn = cvfs_qfileinfo;
+	ops.fsinfo_fn = cvfs_fsinfo;
+	ops.lpq_fn = cvfs_lpq;
+	ops.search_first_fn = cvfs_search_first;
+	ops.search_next_fn = cvfs_search_next;
+	ops.search_close_fn = cvfs_search_close;
+	ops.trans_fn = cvfs_trans;
+	ops.logoff_fn = cvfs_logoff;
+	ops.async_setup_fn = cvfs_async_setup;
+	ops.cancel_fn = cvfs_cancel;
+	ops.notify_fn = cvfs_notify;
 
 	/* register ourselves with the NTVFS subsystem. We register
 	   under the name 'smb2'. */

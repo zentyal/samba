@@ -32,6 +32,7 @@
 #include "auth/session_proto.h"
 #include "system/kerberos.h"
 #include <gssapi/gssapi.h>
+#include "libcli/wbclient/wbclient.h"
 
 _PUBLIC_ struct auth_session_info *anonymous_session(TALLOC_CTX *mem_ctx, 
 					    struct loadparm_context *lp_ctx)
@@ -64,7 +65,7 @@ _PUBLIC_ NTSTATUS auth_generate_session_info(TALLOC_CTX *mem_ctx,
 	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
 	NT_STATUS_HAVE_NO_MEMORY(tmp_ctx);
 
-	session_info = talloc(tmp_ctx, struct auth_session_info);
+	session_info = talloc_zero(tmp_ctx, struct auth_session_info);
 	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(session_info, tmp_ctx);
 
 	session_info->info = talloc_reference(session_info, user_info_dc->info);
@@ -101,22 +102,56 @@ _PUBLIC_ NTSTATUS auth_generate_session_info(TALLOC_CTX *mem_ctx,
 		sids[i] = user_info_dc->sids[i];
 	}
 
-	if (user_info_dc->num_sids > PRIMARY_USER_SID_INDEX && dom_sid_equal(anonymous_sid, &user_info_dc->sids[PRIMARY_USER_SID_INDEX])) {
+	/*
+	 * Finally add the "standard" sids.
+	 * The only difference between guest and "anonymous"
+	 * is the addition of Authenticated_Users.
+	 */
+
+	if (session_info_flags & AUTH_SESSION_INFO_DEFAULT_GROUPS) {
+		sids = talloc_realloc(tmp_ctx, sids, struct dom_sid, num_sids + 2);
+		NT_STATUS_HAVE_NO_MEMORY(sids);
+
+		if (!dom_sid_parse(SID_WORLD, &sids[num_sids])) {
+			return NT_STATUS_INTERNAL_ERROR;
+		}
+		num_sids++;
+
+		if (!dom_sid_parse(SID_NT_NETWORK, &sids[num_sids])) {
+			return NT_STATUS_INTERNAL_ERROR;
+		}
+		num_sids++;
+	}
+
+	if (session_info_flags & AUTH_SESSION_INFO_AUTHENTICATED) {
+		sids = talloc_realloc(tmp_ctx, sids, struct dom_sid, num_sids + 1);
+		NT_STATUS_HAVE_NO_MEMORY(sids);
+
+		if (!dom_sid_parse(SID_NT_AUTHENTICATED_USERS, &sids[num_sids])) {
+			return NT_STATUS_INTERNAL_ERROR;
+		}
+		num_sids++;
+	}
+
+
+
+	if (num_sids > PRIMARY_USER_SID_INDEX && dom_sid_equal(anonymous_sid, &sids[PRIMARY_USER_SID_INDEX])) {
 		/* Don't expand nested groups of system, anonymous etc*/
-	} else if (user_info_dc->num_sids > PRIMARY_USER_SID_INDEX && dom_sid_equal(system_sid, &user_info_dc->sids[PRIMARY_USER_SID_INDEX])) {
+	} else if (num_sids > PRIMARY_USER_SID_INDEX && dom_sid_equal(system_sid, &sids[PRIMARY_USER_SID_INDEX])) {
 		/* Don't expand nested groups of system, anonymous etc*/
 	} else if (sam_ctx) {
 		filter = talloc_asprintf(tmp_ctx, "(&(objectClass=group)(groupType:1.2.840.113556.1.4.803:=%u))",
 					 GROUP_TYPE_BUILTIN_LOCAL_GROUP);
 
 		/* Search for each group in the token */
-		for (i = 0; i < user_info_dc->num_sids; i++) {
+		for (i = 0; i < num_sids; i++) {
 			char *sid_string;
 			const char *sid_dn;
 			DATA_BLOB sid_blob;
-			
+			int ret;
+
 			sid_string = dom_sid_string(tmp_ctx,
-						      &user_info_dc->sids[i]);
+						      &sids[i]);
 			NT_STATUS_HAVE_NO_MEMORY_AND_FREE(sid_string, user_info_dc);
 			
 			sid_dn = talloc_asprintf(tmp_ctx, "<SID=%s>", sid_string);
@@ -155,9 +190,9 @@ _PUBLIC_ NTSTATUS auth_generate_session_info(TALLOC_CTX *mem_ctx,
 	return NT_STATUS_OK;
 }
 
-/* Create a session_info structure from the
- * auth_session_info_transport we were forwarded over named pipe
- * forwarding.
+
+/* Fill out the auth_session_info with a cli_credentials based on the
+ * auth_session_info we were forwarded over named pipe forwarding.
  *
  * NOTE: The stucture members of session_info_transport are stolen
  * with talloc_move() into auth_session_info for long term use
@@ -168,17 +203,8 @@ struct auth_session_info *auth_session_info_from_transport(TALLOC_CTX *mem_ctx,
 							   const char **reason)
 {
 	struct auth_session_info *session_info;
-	session_info = talloc_zero(mem_ctx, struct auth_session_info);
-	if (!session_info) {
-		*reason = "failed to allocate session_info";
-		return NULL;
-	}
-
-	session_info->security_token = talloc_move(session_info, &session_info_transport->security_token);
-	session_info->info = talloc_move(session_info, &session_info_transport->info);
-	session_info->session_key = session_info_transport->session_key;
-	session_info->session_key.data = talloc_move(session_info, &session_info_transport->session_key.data);
-
+	session_info = talloc_steal(mem_ctx, session_info_transport->session_info);
+#ifdef HAVE_GSS_IMPORT_CRED
 	if (session_info_transport->exported_gssapi_credentials.length) {
 		struct cli_credentials *creds;
 		OM_uint32 minor_status;
@@ -229,16 +255,15 @@ struct auth_session_info *auth_session_info_from_transport(TALLOC_CTX *mem_ctx,
 						   CRED_MUST_USE_KERBEROS);
 
 	}
-
+#endif
 	return session_info;
 }
 
 
 /* Create a auth_session_info_transport from an auth_session_info.
  *
- * NOTE: Members of the auth_session_info_transport structure are not talloc_referenced, but simply assigned.  They are only valid for the lifetime of the struct auth_session_info
- *
- * This isn't normally an issue, as the auth_session_info has a very long typical life
+ * NOTE: Members of the auth_session_info_transport structure are
+ * talloc_referenced() into this structure, and should not be changed.
  */
 NTSTATUS auth_session_info_transport_from_session(TALLOC_CTX *mem_ctx,
 						  struct auth_session_info *session_info,
@@ -247,19 +272,16 @@ NTSTATUS auth_session_info_transport_from_session(TALLOC_CTX *mem_ctx,
 						  struct auth_session_info_transport **transport_out)
 {
 
-	struct auth_session_info_transport *session_info_transport = talloc_zero(mem_ctx, struct auth_session_info_transport);
-	session_info_transport->security_token = talloc_reference(session_info, session_info->security_token);
-	NT_STATUS_HAVE_NO_MEMORY(session_info_transport->security_token);
-
-	session_info_transport->info = talloc_reference(session_info, session_info->info);
-	NT_STATUS_HAVE_NO_MEMORY(session_info_transport->info);
-
-	session_info_transport->session_key = session_info->session_key;
-	session_info_transport->session_key.data = talloc_reference(session_info, session_info->session_key.data);
-	if (!session_info_transport->session_key.data && session_info->session_key.length) {
+	struct auth_session_info_transport *session_info_transport
+		= talloc_zero(mem_ctx, struct auth_session_info_transport);
+	if (!session_info_transport) {
 		return NT_STATUS_NO_MEMORY;
-	}
-
+	};
+	session_info_transport->session_info = talloc_reference(session_info_transport, session_info);
+	if (!session_info_transport->session_info) {
+		return NT_STATUS_NO_MEMORY;
+	};
+#ifdef HAVE_GSS_EXPORT_CRED
 	if (session_info->credentials) {
 		struct gssapi_creds_container *gcc;
 		OM_uint32 gret;
@@ -293,6 +315,7 @@ NTSTATUS auth_session_info_transport_from_session(TALLOC_CTX *mem_ctx,
 			NT_STATUS_HAVE_NO_MEMORY(session_info_transport->exported_gssapi_credentials.data);
 		}
 	}
+#endif
 	*transport_out = session_info_transport;
 	return NT_STATUS_OK;
 }
@@ -349,4 +372,3 @@ void auth_session_info_debug(int dbg_lev,
 
 	security_token_debug(0, dbg_lev, session_info->security_token);
 }
-

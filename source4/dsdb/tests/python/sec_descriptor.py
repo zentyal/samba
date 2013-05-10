@@ -19,12 +19,12 @@ import samba.getopt as options
 from ldb import SCOPE_SUBTREE, SCOPE_BASE, LdbError, ERR_NO_SUCH_OBJECT
 
 # For running the test unit
-from samba.ndr import ndr_pack
+from samba.ndr import ndr_pack, ndr_unpack
 from samba.dcerpc import security
 
 from samba import gensec, sd_utils
 from samba.samdb import SamDB
-from samba.credentials import Credentials
+from samba.credentials import Credentials, DONT_USE_KERBEROS
 from samba.auth import system_session
 from samba.dsdb import DS_DOMAIN_FUNCTION_2008
 from samba.dcerpc.security import (
@@ -136,6 +136,7 @@ showInAdvancedViewOnly: TRUE
         creds_tmp.set_workstation(creds.get_workstation())
         creds_tmp.set_gensec_features(creds_tmp.get_gensec_features()
                                       | gensec.FEATURE_SEAL)
+        creds_tmp.set_kerberos_state(DONT_USE_KERBEROS) # kinit is too expensive to use in a tight loop
         ldb_target = SamDB(url=host, credentials=creds_tmp, lp=lp)
         return ldb_target
 
@@ -199,13 +200,13 @@ class OwnerGroupDescriptorTests(DescriptorTests):
         self.ldb_admin.newuser("testuser8", "samba123@")
 
         self.ldb_admin.add_remove_group_members("Enterprise Admins",
-                                                "testuser1,testuser5,testuser6,testuser8",
+                                                ["testuser1", "testuser5", "testuser6", "testuser8"],
                                                 add_members_operation=True)
         self.ldb_admin.add_remove_group_members("Domain Admins",
-                                                "testuser2,testuser5,testuser6,testuser7",
+                                                ["testuser2","testuser5","testuser6","testuser7"],
                                                 add_members_operation=True)
         self.ldb_admin.add_remove_group_members("Schema Admins",
-                                                "testuser3,testuser6,testuser7,testuser8",
+                                                ["testuser3","testuser6","testuser7","testuser8"],
                                                 add_members_operation=True)
 
         self.results = {
@@ -312,10 +313,10 @@ class OwnerGroupDescriptorTests(DescriptorTests):
                 "175" : "O:DAG:DA",
             },
         }
-        # Discover 'msDS-Behavior-Version'
-        res = self.ldb_admin.search(base=self.base_dn, expression="distinguishedName=%s" % self.base_dn, \
-                attrs=['msDS-Behavior-Version'])
-        res = int(res[0]['msDS-Behavior-Version'][0])
+        # Discover 'domainControllerFunctionality'
+        res = self.ldb_admin.search(base="", scope=SCOPE_BASE,
+                                    attrs=['domainControllerFunctionality'])
+        res = int(res[0]['domainControllerFunctionality'][0])
         if res < DS_DOMAIN_FUNCTION_2008:
             self.DS_BEHAVIOR = "ds_behavior_win2003"
         else:
@@ -1847,6 +1848,129 @@ class SdFlagsDescriptorTests(DescriptorTests):
         self.assertFalse("S:" in desc_sddl)
         self.assertFalse("G:" in desc_sddl)
 
+    def test_311(self):
+        sd_flags = (SECINFO_OWNER |
+                    SECINFO_GROUP |
+                    SECINFO_DACL |
+                    SECINFO_SACL)
+
+        res = self.ldb_admin.search(self.base_dn, SCOPE_BASE, None,
+                [], controls=None)
+        self.assertFalse("nTSecurityDescriptor" in res[0])
+
+        res = self.ldb_admin.search(self.base_dn, SCOPE_BASE, None,
+                ["name"], controls=None)
+        self.assertFalse("nTSecurityDescriptor" in res[0])
+
+        res = self.ldb_admin.search(self.base_dn, SCOPE_BASE, None,
+                ["name"], controls=["sd_flags:1:%d" % (sd_flags)])
+        self.assertFalse("nTSecurityDescriptor" in res[0])
+
+        res = self.ldb_admin.search(self.base_dn, SCOPE_BASE, None,
+                [], controls=["sd_flags:1:%d" % (sd_flags)])
+        self.assertTrue("nTSecurityDescriptor" in res[0])
+        tmp = res[0]["nTSecurityDescriptor"][0]
+        sd = ndr_unpack(security.descriptor, tmp)
+        sddl = sd.as_sddl(self.sd_utils.domain_sid)
+        self.assertTrue("O:" in sddl)
+        self.assertTrue("G:" in sddl)
+        self.assertTrue("D:" in sddl)
+        self.assertTrue("S:" in sddl)
+
+        res = self.ldb_admin.search(self.base_dn, SCOPE_BASE, None,
+                ["*"], controls=["sd_flags:1:%d" % (sd_flags)])
+        self.assertTrue("nTSecurityDescriptor" in res[0])
+        tmp = res[0]["nTSecurityDescriptor"][0]
+        sd = ndr_unpack(security.descriptor, tmp)
+        sddl = sd.as_sddl(self.sd_utils.domain_sid)
+        self.assertTrue("O:" in sddl)
+        self.assertTrue("G:" in sddl)
+        self.assertTrue("D:" in sddl)
+        self.assertTrue("S:" in sddl)
+
+        res = self.ldb_admin.search(self.base_dn, SCOPE_BASE, None,
+                ["nTSecurityDescriptor", "*"], controls=["sd_flags:1:%d" % (sd_flags)])
+        self.assertTrue("nTSecurityDescriptor" in res[0])
+        tmp = res[0]["nTSecurityDescriptor"][0]
+        sd = ndr_unpack(security.descriptor, tmp)
+        sddl = sd.as_sddl(self.sd_utils.domain_sid)
+        self.assertTrue("O:" in sddl)
+        self.assertTrue("G:" in sddl)
+        self.assertTrue("D:" in sddl)
+        self.assertTrue("S:" in sddl)
+
+        res = self.ldb_admin.search(self.base_dn, SCOPE_BASE, None,
+                ["*", "nTSecurityDescriptor"], controls=["sd_flags:1:%d" % (sd_flags)])
+        self.assertTrue("nTSecurityDescriptor" in res[0])
+        tmp = res[0]["nTSecurityDescriptor"][0]
+        sd = ndr_unpack(security.descriptor, tmp)
+        sddl = sd.as_sddl(self.sd_utils.domain_sid)
+        self.assertTrue("O:" in sddl)
+        self.assertTrue("G:" in sddl)
+        self.assertTrue("D:" in sddl)
+        self.assertTrue("S:" in sddl)
+
+        res = self.ldb_admin.search(self.base_dn, SCOPE_BASE, None,
+                ["nTSecurityDescriptor", "name"], controls=["sd_flags:1:%d" % (sd_flags)])
+        self.assertTrue("nTSecurityDescriptor" in res[0])
+        tmp = res[0]["nTSecurityDescriptor"][0]
+        sd = ndr_unpack(security.descriptor, tmp)
+        sddl = sd.as_sddl(self.sd_utils.domain_sid)
+        self.assertTrue("O:" in sddl)
+        self.assertTrue("G:" in sddl)
+        self.assertTrue("D:" in sddl)
+        self.assertTrue("S:" in sddl)
+
+        res = self.ldb_admin.search(self.base_dn, SCOPE_BASE, None,
+                ["name", "nTSecurityDescriptor"], controls=["sd_flags:1:%d" % (sd_flags)])
+        self.assertTrue("nTSecurityDescriptor" in res[0])
+        tmp = res[0]["nTSecurityDescriptor"][0]
+        sd = ndr_unpack(security.descriptor, tmp)
+        sddl = sd.as_sddl(self.sd_utils.domain_sid)
+        self.assertTrue("O:" in sddl)
+        self.assertTrue("G:" in sddl)
+        self.assertTrue("D:" in sddl)
+        self.assertTrue("S:" in sddl)
+
+        res = self.ldb_admin.search(self.base_dn, SCOPE_BASE, None,
+                ["nTSecurityDescriptor"], controls=None)
+        self.assertTrue("nTSecurityDescriptor" in res[0])
+        tmp = res[0]["nTSecurityDescriptor"][0]
+        sd = ndr_unpack(security.descriptor, tmp)
+        sddl = sd.as_sddl(self.sd_utils.domain_sid)
+        self.assertTrue("O:" in sddl)
+        self.assertTrue("G:" in sddl)
+        self.assertTrue("D:" in sddl)
+        self.assertTrue("S:" in sddl)
+
+        res = self.ldb_admin.search(self.base_dn, SCOPE_BASE, None,
+                ["name", "nTSecurityDescriptor"], controls=None)
+        self.assertTrue("nTSecurityDescriptor" in res[0])
+        tmp = res[0]["nTSecurityDescriptor"][0]
+        sd = ndr_unpack(security.descriptor, tmp)
+        sddl = sd.as_sddl(self.sd_utils.domain_sid)
+        self.assertTrue("O:" in sddl)
+        self.assertTrue("G:" in sddl)
+        self.assertTrue("D:" in sddl)
+        self.assertTrue("S:" in sddl)
+
+        res = self.ldb_admin.search(self.base_dn, SCOPE_BASE, None,
+                ["nTSecurityDescriptor", "name"], controls=None)
+        self.assertTrue("nTSecurityDescriptor" in res[0])
+        tmp = res[0]["nTSecurityDescriptor"][0]
+        sd = ndr_unpack(security.descriptor, tmp)
+        sddl = sd.as_sddl(self.sd_utils.domain_sid)
+        self.assertTrue("O:" in sddl)
+        self.assertTrue("G:" in sddl)
+        self.assertTrue("D:" in sddl)
+        self.assertTrue("S:" in sddl)
+
+    def test_312(self):
+        """This search is done by the windows dc join..."""
+
+        res = self.ldb_admin.search(self.base_dn, SCOPE_BASE, None, ["1.1"],
+                controls=["extended_dn:1:0", "sd_flags:1:0", "search_options:1:1"])
+        self.assertFalse("nTSecurityDescriptor" in res[0])
 
 class RightsAttributesTests(DescriptorTests):
 
@@ -1864,7 +1988,7 @@ class RightsAttributesTests(DescriptorTests):
         # User 2, Domain Admins
         self.ldb_admin.newuser("testuser_attr2", "samba123@")
         self.ldb_admin.add_remove_group_members("Domain Admins",
-                                                "testuser_attr2",
+                                                ["testuser_attr2"],
                                                 add_members_operation=True)
 
     def test_sDRightsEffective(self):
@@ -1959,6 +2083,86 @@ class RightsAttributesTests(DescriptorTests):
         self.assertTrue("displayName" in res[0]["allowedAttributesEffective"])
         self.assertTrue("managedBy" in res[0]["allowedAttributesEffective"])
 
+class SdAutoInheritTests(DescriptorTests):
+    def deleteAll(self):
+        delete_force(self.ldb_admin, self.sub_dn)
+        delete_force(self.ldb_admin, self.ou_dn)
+
+    def setUp(self):
+        super(SdAutoInheritTests, self).setUp()
+        self.ou_dn = "OU=test_SdAutoInherit_ou," + self.base_dn
+        self.sub_dn = "OU=test_sub," + self.ou_dn
+        self.deleteAll()
+
+    def test_301(self):
+        """ Modify a descriptor with OWNER_SECURITY_INFORMATION set.
+            See that only the owner has been changed.
+        """
+        attrs = ["nTSecurityDescriptor", "replPropertyMetaData", "uSNChanged"]
+        controls=["sd_flags:1:%d" % (SECINFO_DACL)]
+        ace = "(A;CI;CC;;;NU)"
+        sub_ace = "(A;CIID;CC;;;NU)"
+        sd_sddl = "O:BAG:BAD:P(A;CI;0x000f01ff;;;AU)"
+        sd = security.descriptor.from_sddl(sd_sddl, self.domain_sid)
+
+        self.ldb_admin.create_ou(self.ou_dn,sd=sd)
+        self.ldb_admin.create_ou(self.sub_dn)
+
+        ou_res0 = self.sd_utils.ldb.search(self.ou_dn, SCOPE_BASE,
+                                           None, attrs, controls=controls)
+        sub_res0 = self.sd_utils.ldb.search(self.sub_dn, SCOPE_BASE,
+                                            None, attrs, controls=controls)
+
+        ou_sd0 = ndr_unpack(security.descriptor, ou_res0[0]["nTSecurityDescriptor"][0])
+        sub_sd0 = ndr_unpack(security.descriptor, sub_res0[0]["nTSecurityDescriptor"][0])
+
+        ou_sddl0 = ou_sd0.as_sddl(self.domain_sid)
+        sub_sddl0 = sub_sd0.as_sddl(self.domain_sid)
+
+        self.assertFalse(ace in ou_sddl0)
+        self.assertFalse(ace in sub_sddl0)
+
+        ou_sddl1 = (ou_sddl0[:ou_sddl0.index("(")] + ace +
+                    ou_sddl0[ou_sddl0.index("("):])
+
+        sub_sddl1 = (sub_sddl0[:sub_sddl0.index("(")] + ace +
+                     sub_sddl0[sub_sddl0.index("("):])
+
+        self.sd_utils.modify_sd_on_dn(self.ou_dn, ou_sddl1, controls=controls)
+
+        sub_res2 = self.sd_utils.ldb.search(self.sub_dn, SCOPE_BASE,
+                                            None, attrs, controls=controls)
+        ou_res2 = self.sd_utils.ldb.search(self.ou_dn, SCOPE_BASE,
+                                           None, attrs, controls=controls)
+
+        ou_sd2 = ndr_unpack(security.descriptor, ou_res2[0]["nTSecurityDescriptor"][0])
+        sub_sd2 = ndr_unpack(security.descriptor, sub_res2[0]["nTSecurityDescriptor"][0])
+
+        ou_sddl2 = ou_sd2.as_sddl(self.domain_sid)
+        sub_sddl2 = sub_sd2.as_sddl(self.domain_sid)
+
+        self.assertFalse(ou_sddl2 == ou_sddl0)
+        self.assertFalse(sub_sddl2 == sub_sddl0)
+
+        if ace not in ou_sddl2:
+            print "ou0: %s" % ou_sddl0
+            print "ou2: %s" % ou_sddl2
+
+        if sub_ace not in sub_sddl2:
+            print "sub0: %s" % sub_sddl0
+            print "sub2: %s" % sub_sddl2
+
+        self.assertTrue(ace in ou_sddl2)
+        self.assertTrue(sub_ace in sub_sddl2)
+
+        ou_usn0 = int(ou_res0[0]["uSNChanged"][0])
+        ou_usn2 = int(ou_res2[0]["uSNChanged"][0])
+        self.assertTrue(ou_usn2 > ou_usn0)
+
+        sub_usn0 = int(sub_res0[0]["uSNChanged"][0])
+        sub_usn2 = int(sub_res2[0]["uSNChanged"][0])
+        self.assertTrue(sub_usn2 == sub_usn0)
+
 if not "://" in host:
     if os.path.isfile(host):
         host = "tdb://%s" % host
@@ -1984,5 +2188,7 @@ if not runner.run(unittest.makeSuite(DaclDescriptorTests)).wasSuccessful():
 if not runner.run(unittest.makeSuite(SdFlagsDescriptorTests)).wasSuccessful():
     rc = 1
 if not runner.run(unittest.makeSuite(RightsAttributesTests)).wasSuccessful():
+    rc = 1
+if not runner.run(unittest.makeSuite(SdAutoInheritTests)).wasSuccessful():
     rc = 1
 sys.exit(rc)

@@ -259,7 +259,7 @@ static sbcErr smbconf_reg_set_multi_sz_value(struct registry_key *key,
 		goto done;
 	}
 
-	value = TALLOC_ZERO_P(tmp_ctx, struct registry_value);
+	value = talloc_zero(tmp_ctx, struct registry_value);
 	if (value == NULL) {
 		err = SBC_ERR_NOMEM;
 		goto done;
@@ -604,7 +604,7 @@ static sbcErr smbconf_reg_init(struct smbconf_ctx *ctx, const char *path)
 		goto done;
 	}
 
-	ctx->data = TALLOC_ZERO_P(ctx, struct reg_private_data);
+	ctx->data = talloc_zero(ctx, struct reg_private_data);
 
 	werr = ntstatus_to_werror(registry_create_admin_token(ctx, &token));
 	if (!W_ERROR_IS_OK(werr)) {
@@ -754,7 +754,7 @@ static sbcErr smbconf_reg_drop(struct smbconf_ctx *ctx)
 		goto done;
 	}
 
-	werr = reg_deletekey_recursive(parent_key, p+1);
+	werr = reg_deletesubkeys_recursive(parent_key, p+1);
 	if (!W_ERROR_IS_OK(werr)) {
 		err = SBC_ERR_IO_FAILURE;
 		goto done;
@@ -913,7 +913,7 @@ static sbcErr smbconf_reg_get_share(struct smbconf_ctx *ctx,
 		goto done;
 	}
 
-	tmp_service = TALLOC_ZERO_P(tmp_ctx, struct smbconf_service);
+	tmp_service = talloc_zero(tmp_ctx, struct smbconf_service);
 	if (tmp_service == NULL) {
 		err = SBC_ERR_NOMEM;
 		goto done;

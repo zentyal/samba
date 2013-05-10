@@ -1,4 +1,4 @@
-/* 
+/*
    Unix SMB/CIFS implementation.
    VFS module functions
 
@@ -9,12 +9,12 @@
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -25,13 +25,15 @@
 #include "system/filesys.h"
 #include "vfstest.h"
 #include "../lib/util/util_pw.h"
+#include "libcli/security/security.h"
+#include "passdb/machine_sid.h"
 
 static const char *null_string = "";
 
 static NTSTATUS cmd_load_module(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, const char **argv)
 {
 	int i;
-	
+
 	if (argc < 2) {
 		printf("Usage: load <modules>\n");
 		return NT_STATUS_OK;
@@ -57,7 +59,7 @@ static NTSTATUS cmd_populate(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int arg
 	}
 	c = argv[1][0];
 	size = atoi(argv[2]);
-	vfs->data = TALLOC_ARRAY(mem_ctx, char, size);
+	vfs->data = talloc_array(mem_ctx, char, size);
 	if (vfs->data == NULL) {
 		printf("populate: error=-1 (not enough memory)");
 		return NT_STATUS_UNSUCCESSFUL;
@@ -97,7 +99,7 @@ static NTSTATUS cmd_show_data(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int ar
 
 static NTSTATUS cmd_connect(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, const char **argv)
 {
-	SMB_VFS_CONNECT(vfs->conn, lp_servicename(SNUM(vfs->conn)), "vfstest");
+	SMB_VFS_CONNECT(vfs->conn, lp_servicename(talloc_tos(), SNUM(vfs->conn)), "vfstest");
 	return NT_STATUS_OK;
 }
 
@@ -146,7 +148,7 @@ static NTSTATUS cmd_opendir(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc
 static NTSTATUS cmd_readdir(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, const char **argv)
 {
 	SMB_STRUCT_STAT st;
-	SMB_STRUCT_DIRENT *dent = NULL;
+	struct dirent *dent = NULL;
 
 	if (vfs->currentdir == NULL) {
 		printf("readdir: error=-1 (no open directory)\n");
@@ -207,7 +209,7 @@ static NTSTATUS cmd_mkdir(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, 
 		printf("mkdir error=%d (%s)\n", errno, strerror(errno));
 		return NT_STATUS_UNSUCCESSFUL;
 	}
-	
+
 	printf("mkdir: ok\n");
 	return NT_STATUS_OK;
 }
@@ -216,7 +218,7 @@ static NTSTATUS cmd_mkdir(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, 
 static NTSTATUS cmd_closedir(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, const char **argv)
 {
 	int ret;
-	
+
 	if (vfs->currentdir == NULL) {
 		printf("closedir: failure (no directory open)\n");
 		return NT_STATUS_UNSUCCESSFUL;
@@ -242,6 +244,7 @@ static NTSTATUS cmd_open(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, c
 	files_struct *fsp;
 	struct smb_filename *smb_fname = NULL;
 	NTSTATUS status;
+	int ret;
 
 	mode = 00400;
 
@@ -317,22 +320,21 @@ static NTSTATUS cmd_open(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, c
 		}
 	}
 
-	fsp = SMB_MALLOC_P(struct files_struct);
+	fsp = talloc_zero(vfs, struct files_struct);
 	if (fsp == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
-	fsp->fh = SMB_MALLOC_P(struct fd_handle);
+	fsp->fh = talloc_zero(fsp, struct fd_handle);
 	if (fsp->fh == NULL) {
-		SAFE_FREE(fsp->fsp_name);
-		SAFE_FREE(fsp);
+		TALLOC_FREE(fsp);
 		return NT_STATUS_NO_MEMORY;
 	}
 	fsp->conn = vfs->conn;
 
-	status = create_synthetic_smb_fname_split(mem_ctx, argv[1], NULL,
+	status = create_synthetic_smb_fname_split(NULL, argv[1], NULL,
 						  &smb_fname);
 	if (!NT_STATUS_IS_OK(status)) {
-		SAFE_FREE(fsp);
+		TALLOC_FREE(fsp);
 		return status;
 	}
 
@@ -341,11 +343,42 @@ static NTSTATUS cmd_open(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, c
 	fsp->fh->fd = SMB_VFS_OPEN(vfs->conn, smb_fname, fsp, flags, mode);
 	if (fsp->fh->fd == -1) {
 		printf("open: error=%d (%s)\n", errno, strerror(errno));
-		SAFE_FREE(fsp->fh);
-		SAFE_FREE(fsp);
+		TALLOC_FREE(fsp);
 		TALLOC_FREE(smb_fname);
 		return NT_STATUS_UNSUCCESSFUL;
 	}
+
+	ret = SMB_VFS_FSTAT(fsp, &smb_fname->st);
+	if (ret == -1) {
+		/* If we have an fd, this stat should succeed. */
+		DEBUG(0,("Error doing fstat on open file %s "
+			 "(%s)\n",
+			 smb_fname_str_dbg(smb_fname),
+			 strerror(errno) ));
+		status = map_nt_error_from_unix(errno);
+	} else if (S_ISDIR(smb_fname->st.st_ex_mode)) {
+		errno = EISDIR;
+		status = NT_STATUS_FILE_IS_A_DIRECTORY;
+	}
+	
+	if (!NT_STATUS_IS_OK(status)) {
+		SMB_VFS_CLOSE(fsp);
+		TALLOC_FREE(fsp);
+		TALLOC_FREE(smb_fname);
+		return status;
+	}
+
+	fsp->file_id = vfs_file_id_from_sbuf(vfs->conn, &smb_fname->st);
+	fsp->vuid = UID_FIELD_INVALID;
+	fsp->file_pid = 0;
+	fsp->can_lock = True;
+	fsp->can_read = True;
+	fsp->can_write =
+		CAN_WRITE(vfs->conn);
+	fsp->print_file = NULL;
+	fsp->modified = False;
+	fsp->sent_oplock_break = NO_BREAK_SENT;
+	fsp->is_directory = False;
 
 	vfs->files[fsp->fh->fd] = fsp;
 	printf("open: fd=%d\n", fsp->fh->fd);
@@ -414,9 +447,7 @@ static NTSTATUS cmd_close(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, 
 	else
 		printf("close: ok\n");
 
-	TALLOC_FREE(vfs->files[fd]->fsp_name);
-	SAFE_FREE(vfs->files[fd]->fh);
-	SAFE_FREE(vfs->files[fd]);
+	TALLOC_FREE(vfs->files[fd]);
 	vfs->files[fd] = NULL;
 	return NT_STATUS_OK;
 }
@@ -435,13 +466,13 @@ static NTSTATUS cmd_read(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, c
 	/* do some error checking on these */
 	fd = atoi(argv[1]);
 	size = atoi(argv[2]);
-	vfs->data = TALLOC_ARRAY(mem_ctx, char, size);
+	vfs->data = talloc_array(mem_ctx, char, size);
 	if (vfs->data == NULL) {
 		printf("read: error=-1 (not enough memory)");
 		return NT_STATUS_UNSUCCESSFUL;
 	}
 	vfs->data_size = size;
-	
+
 	rsize = SMB_VFS_READ(vfs->files[fd], vfs->data, size);
 	if (rsize == -1) {
 		printf("read: error=%d (%s)\n", errno, strerror(errno));
@@ -490,7 +521,7 @@ static NTSTATUS cmd_write(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, 
 static NTSTATUS cmd_lseek(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, const char **argv)
 {
 	int fd, offset, whence;
-	SMB_OFF_T pos;
+	off_t pos;
 
 	if (argc != 4) {
 		printf("Usage: lseek <fd> <offset> <whence>\n...where whence is 1 => SEEK_SET, 2 => SEEK_CUR, 3 => SEEK_END\n");
@@ -507,7 +538,7 @@ static NTSTATUS cmd_lseek(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, 
 	}
 
 	pos = SMB_VFS_LSEEK(vfs->files[fd], offset, whence);
-	if (pos == (SMB_OFF_T)-1) {
+	if (pos == (off_t)-1) {
 		printf("lseek: error=%d (%s)\n", errno, strerror(errno));
 		return NT_STATUS_UNSUCCESSFUL;
 	}
@@ -607,10 +638,10 @@ static NTSTATUS cmd_stat(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, c
 	st = smb_fname->st;
 	TALLOC_FREE(smb_fname);
 
-	pwd = sys_getpwuid(st.st_ex_uid);
+	pwd = getpwuid(st.st_ex_uid);
 	if (pwd != NULL) user = pwd->pw_name;
 	else user = null_string;
-	grp = sys_getgrgid(st.st_ex_gid);
+	grp = getgrgid(st.st_ex_gid);
 	if (grp != NULL) group = grp->gr_name;
 	else group = null_string;
 
@@ -678,10 +709,10 @@ static NTSTATUS cmd_fstat(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, 
 		return NT_STATUS_UNSUCCESSFUL;
 	}
 
-	pwd = sys_getpwuid(st.st_ex_uid);
+	pwd = getpwuid(st.st_ex_uid);
 	if (pwd != NULL) user = pwd->pw_name;
 	else user = null_string;
-	grp = sys_getgrgid(st.st_ex_gid);
+	grp = getgrgid(st.st_ex_gid);
 	if (grp != NULL) group = grp->gr_name;
 	else group = null_string;
 
@@ -747,10 +778,10 @@ static NTSTATUS cmd_lstat(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, 
 	st = smb_fname->st;
 	TALLOC_FREE(smb_fname);
 
-	pwd = sys_getpwuid(st.st_ex_uid);
+	pwd = getpwuid(st.st_ex_uid);
 	if (pwd != NULL) user = pwd->pw_name;
 	else user = null_string;
-	grp = sys_getgrgid(st.st_ex_gid);
+	grp = getgrgid(st.st_ex_gid);
 	if (grp != NULL) group = grp->gr_name;
 	else group = null_string;
 
@@ -781,7 +812,7 @@ static NTSTATUS cmd_lstat(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, 
 	printf("  Modify: %s", ctime(&tmp_time));
 	tmp_time = convert_timespec_to_time_t(st.st_ex_ctime);
 	printf("  Change: %s", ctime(&tmp_time));
-	
+
 	return NT_STATUS_OK;
 }
 
@@ -831,6 +862,55 @@ static NTSTATUS cmd_fchmod(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc,
 	}
 
 	printf("fchmod: ok\n");
+	return NT_STATUS_OK;
+}
+
+
+static NTSTATUS cmd_chmod_acl(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, const char **argv)
+{
+	mode_t mode;
+	if (argc != 3) {
+		printf("Usage: chmod_acl <path> <mode>\n");
+		return NT_STATUS_OK;
+	}
+
+	mode = atoi(argv[2]);
+	if (SMB_VFS_CHMOD_ACL(vfs->conn, argv[1], mode) == -1) {
+		printf("chmod_acl: error=%d (%s)\n", errno, strerror(errno));
+		return NT_STATUS_UNSUCCESSFUL;
+	}
+
+	printf("chmod_acl: ok\n");
+	return NT_STATUS_OK;
+}
+
+
+static NTSTATUS cmd_fchmod_acl(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, const char **argv)
+{
+	int fd;
+	mode_t mode;
+	if (argc != 3) {
+		printf("Usage: fchmod_acl <fd> <mode>\n");
+		return NT_STATUS_OK;
+	}
+
+	fd = atoi(argv[1]);
+	mode = atoi(argv[2]);
+	if (fd < 0 || fd >= 1024) {
+		printf("fchmod_acl: error=%d (file descriptor out of range)\n", EBADF);
+		return NT_STATUS_OK;
+	}
+	if (vfs->files[fd] == NULL) {
+		printf("fchmod_acl: error=%d (invalid file descriptor)\n", EBADF);
+		return NT_STATUS_OK;
+	}
+
+	if (SMB_VFS_FCHMOD_ACL(vfs->files[fd], mode) == -1) {
+		printf("fchmod_acl: error=%d (%s)\n", errno, strerror(errno));
+		return NT_STATUS_UNSUCCESSFUL;
+	}
+
+	printf("fchmod_acl: ok\n");
 	return NT_STATUS_OK;
 }
 
@@ -889,13 +969,14 @@ static NTSTATUS cmd_fchown(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc,
 
 static NTSTATUS cmd_getwd(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, const char **argv)
 {
-	char buf[PATH_MAX];
-	if (SMB_VFS_GETWD(vfs->conn, buf) == NULL) {
+	char *buf = SMB_VFS_GETWD(vfs->conn);
+	if (buf == NULL) {
 		printf("getwd: error=%d (%s)\n", errno, strerror(errno));
 		return NT_STATUS_UNSUCCESSFUL;
 	}
 
 	printf("getwd: %s\n", buf);
+	SAFE_FREE(buf);
 	return NT_STATUS_OK;
 }
 
@@ -935,7 +1016,7 @@ static NTSTATUS cmd_utime(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, 
 static NTSTATUS cmd_ftruncate(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, const char **argv)
 {
 	int fd;
-	SMB_OFF_T off;
+	off_t off;
 	if (argc != 3) {
 		printf("Usage: ftruncate <fd> <length>\n");
 		return NT_STATUS_OK;
@@ -969,7 +1050,7 @@ static NTSTATUS cmd_lock(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, c
 	long count;
 	int type;
 	const char *typestr;
-	
+
 	if (argc != 6) {
 		printf("Usage: lock <fd> <op> <offset> <count> <type>\n");
                 printf("  ops: G = F_GETLK\n");
@@ -1102,7 +1183,7 @@ static NTSTATUS cmd_mknod(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, 
 	mode_t mode;
 	unsigned int dev_val;
 	SMB_DEV_T dev;
-	
+
 	if (argc != 4) {
 		printf("Usage: mknod <path> <mode> <dev>\n");
 		printf("  mode is octal\n");
@@ -1146,6 +1227,410 @@ static NTSTATUS cmd_realpath(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int arg
 	return NT_STATUS_OK;
 }
 
+static NTSTATUS cmd_getxattr(struct vfs_state *vfs, TALLOC_CTX *mem_ctx,
+			     int argc, const char **argv)
+{
+	uint8_t *buf;
+	ssize_t ret;
+
+	if (argc != 3) {
+		printf("Usage: getxattr <path> <xattr>\n");
+		return NT_STATUS_OK;
+	}
+
+	buf = NULL;
+
+	ret = SMB_VFS_GETXATTR(vfs->conn, argv[1], argv[2], buf,
+			       talloc_get_size(buf));
+	if (ret == -1) {
+		int err = errno;
+		printf("getxattr returned (%s)\n", strerror(err));
+		return map_nt_error_from_unix(err);
+	}
+	buf = talloc_array(mem_ctx, uint8_t, ret);
+	if (buf == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	ret = SMB_VFS_GETXATTR(vfs->conn, argv[1], argv[2], buf,
+			       talloc_get_size(buf));
+	if (ret == -1) {
+		int err = errno;
+		printf("getxattr returned (%s)\n", strerror(err));
+		return map_nt_error_from_unix(err);
+	}
+	dump_data_file(buf, talloc_get_size(buf), false, stdout);
+	return NT_STATUS_OK;
+}
+
+static NTSTATUS cmd_listxattr(struct vfs_state *vfs, TALLOC_CTX *mem_ctx,
+			      int argc, const char **argv)
+{
+	char *buf, *p;
+	ssize_t ret;
+
+	if (argc != 2) {
+		printf("Usage: listxattr <path>\n");
+		return NT_STATUS_OK;
+	}
+
+	buf = NULL;
+
+	ret = SMB_VFS_LISTXATTR(vfs->conn, argv[1], buf, talloc_get_size(buf));
+	if (ret == -1) {
+		int err = errno;
+		printf("listxattr returned (%s)\n", strerror(err));
+		return map_nt_error_from_unix(err);
+	}
+	buf = talloc_array(mem_ctx, char, ret);
+	if (buf == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	ret = SMB_VFS_LISTXATTR(vfs->conn, argv[1], buf, talloc_get_size(buf));
+	if (ret == -1) {
+		int err = errno;
+		printf("listxattr returned (%s)\n", strerror(err));
+		return map_nt_error_from_unix(err);
+	}
+	if (ret == 0) {
+		return NT_STATUS_OK;
+	}
+	if (buf[ret-1] != '\0') {
+		printf("listxattr returned non 0-terminated strings\n");
+		return NT_STATUS_INTERNAL_ERROR;
+	}
+
+	p = buf;
+	while (p < buf+ret) {
+		printf("%s\n", p);
+		p = strchr(p, 0);
+		p += 1;
+	}
+	return NT_STATUS_OK;
+}
+
+static NTSTATUS cmd_setxattr(struct vfs_state *vfs, TALLOC_CTX *mem_ctx,
+			     int argc, const char **argv)
+{
+	ssize_t ret;
+	int flags = 0;
+
+	if ((argc < 4) || (argc > 5)) {
+		printf("Usage: setxattr <path> <xattr> <value> [flags]\n");
+		return NT_STATUS_OK;
+	}
+
+	if (argc == 5) {
+		flags = atoi(argv[4]);
+	}
+
+	ret = SMB_VFS_SETXATTR(vfs->conn, argv[1], argv[2],
+			       argv[3], strlen(argv[3]), flags);
+	if (ret == -1) {
+		int err = errno;
+		printf("setxattr returned (%s)\n", strerror(err));
+		return map_nt_error_from_unix(err);
+	}
+	return NT_STATUS_OK;
+}
+
+static NTSTATUS cmd_removexattr(struct vfs_state *vfs, TALLOC_CTX *mem_ctx,
+				int argc, const char **argv)
+{
+	ssize_t ret;
+
+	if (argc != 3) {
+		printf("Usage: removexattr <path> <xattr>\n");
+		return NT_STATUS_OK;
+	}
+
+	ret = SMB_VFS_REMOVEXATTR(vfs->conn, argv[1], argv[2]);
+	if (ret == -1) {
+		int err = errno;
+		printf("removexattr returned (%s)\n", strerror(err));
+		return map_nt_error_from_unix(err);
+	}
+	return NT_STATUS_OK;
+}
+
+static NTSTATUS cmd_fget_nt_acl(struct vfs_state *vfs, TALLOC_CTX *mem_ctx,
+				int argc, const char **argv)
+{
+	int fd;
+	NTSTATUS status;
+	struct security_descriptor *sd;
+
+	if (argc != 2) {
+		printf("Usage: fget_nt_acl <fd>\n");
+		return NT_STATUS_OK;
+	}
+
+	fd = atoi(argv[1]);
+	if (fd < 0 || fd >= 1024) {
+		printf("fget_nt_acl: error=%d (file descriptor out of range)\n", EBADF);
+		return NT_STATUS_OK;
+	}
+	if (vfs->files[fd] == NULL) {
+		printf("fget_nt_acl: error=%d (invalid file descriptor)\n", EBADF);
+		return NT_STATUS_OK;
+	}
+
+	status = SMB_VFS_FGET_NT_ACL(vfs->files[fd],
+				     SECINFO_OWNER | SECINFO_GROUP | SECINFO_DACL,
+				     talloc_tos(), &sd);
+	if (!NT_STATUS_IS_OK(status)) {
+		printf("fget_nt_acl returned (%s)\n", nt_errstr(status));
+		return status;
+	}
+	printf("%s\n", sddl_encode(talloc_tos(), sd, get_global_sam_sid()));
+	TALLOC_FREE(sd);
+	return NT_STATUS_OK;
+}
+
+static NTSTATUS cmd_get_nt_acl(struct vfs_state *vfs, TALLOC_CTX *mem_ctx,
+			       int argc, const char **argv)
+{
+	NTSTATUS status;
+	struct security_descriptor *sd;
+
+	if (argc != 2) {
+		printf("Usage: get_nt_acl <path>\n");
+		return NT_STATUS_OK;
+	}
+
+	status = SMB_VFS_GET_NT_ACL(vfs->conn, argv[1],
+				    SECINFO_OWNER | SECINFO_GROUP | SECINFO_DACL,
+				    talloc_tos(), &sd);
+	if (!NT_STATUS_IS_OK(status)) {
+		printf("get_nt_acl returned (%s)\n", nt_errstr(status));
+		return status;
+	}
+	printf("%s\n", sddl_encode(talloc_tos(), sd, get_global_sam_sid()));
+	TALLOC_FREE(sd);
+	return NT_STATUS_OK;
+}
+
+static NTSTATUS cmd_fset_nt_acl(struct vfs_state *vfs, TALLOC_CTX *mem_ctx,
+				int argc, const char **argv)
+{
+	int fd;
+	NTSTATUS status;
+	struct security_descriptor *sd;
+
+	if (argc != 3) {
+		printf("Usage: fset_nt_acl <fd> <sddl>\n");
+		return NT_STATUS_OK;
+	}
+
+	fd = atoi(argv[1]);
+	if (fd < 0 || fd >= 1024) {
+		printf("fset_nt_acl: error=%d (file descriptor out of range)\n", EBADF);
+		return NT_STATUS_OK;
+	}
+	if (vfs->files[fd] == NULL) {
+		printf("fset_nt_acl: error=%d (invalid file descriptor)\n", EBADF);
+		return NT_STATUS_OK;
+	}
+
+	sd = sddl_decode(talloc_tos(), argv[2], get_global_sam_sid());
+	if (!sd) {
+		printf("sddl_decode failed to parse %s as SDDL\n", argv[2]);
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	status = SMB_VFS_FSET_NT_ACL(vfs->files[fd], SECINFO_OWNER | SECINFO_GROUP | SECINFO_DACL, sd);
+	if (!NT_STATUS_IS_OK(status)) {
+		printf("fset_nt_acl returned (%s)\n", nt_errstr(status));
+		return status;
+	}
+	TALLOC_FREE(sd);
+	return NT_STATUS_OK;
+}
+
+static NTSTATUS cmd_set_nt_acl(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, const char **argv)
+{
+	int flags;
+	int ret;
+	mode_t mode;
+	files_struct *fsp;
+	struct smb_filename *smb_fname = NULL;
+	NTSTATUS status;
+	struct security_descriptor *sd = NULL;
+
+	if (argc != 3) {
+		printf("Usage: set_nt_acl <file> <sddl>\n");
+		return NT_STATUS_OK;
+	}
+
+	mode = 00400;
+
+	fsp = talloc_zero(vfs, struct files_struct);
+	if (fsp == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	fsp->fh = talloc_zero(fsp, struct fd_handle);
+	if (fsp->fh == NULL) {
+		TALLOC_FREE(fsp);
+		return NT_STATUS_NO_MEMORY;
+	}
+	fsp->conn = vfs->conn;
+
+	status = create_synthetic_smb_fname_split(NULL, argv[1], NULL,
+						  &smb_fname);
+	if (!NT_STATUS_IS_OK(status)) {
+		TALLOC_FREE(fsp);
+		return status;
+	}
+
+	fsp->fsp_name = smb_fname;
+
+#ifdef O_DIRECTORY
+	flags = O_RDONLY|O_DIRECTORY;
+#else
+	/* POSIX allows us to open a directory with O_RDONLY. */
+	flags = O_RDONLY;
+#endif
+
+	fsp->fh->fd = SMB_VFS_OPEN(vfs->conn, smb_fname, fsp, O_RDWR, mode);
+	if (fsp->fh->fd == -1 && errno == EISDIR) {
+		fsp->fh->fd = SMB_VFS_OPEN(vfs->conn, smb_fname, fsp, flags, mode);
+	}
+	if (fsp->fh->fd == -1) {
+		printf("open: error=%d (%s)\n", errno, strerror(errno));
+		TALLOC_FREE(fsp);
+		TALLOC_FREE(smb_fname);
+		return NT_STATUS_UNSUCCESSFUL;
+	}
+
+	ret = SMB_VFS_FSTAT(fsp, &smb_fname->st);
+	if (ret == -1) {
+		/* If we have an fd, this stat should succeed. */
+		DEBUG(0,("Error doing fstat on open file %s "
+			 "(%s)\n",
+			 smb_fname_str_dbg(smb_fname),
+			 strerror(errno) ));
+		status = map_nt_error_from_unix(errno);
+	}
+	
+	if (!NT_STATUS_IS_OK(status)) {
+		goto out;
+	}
+
+	fsp->file_id = vfs_file_id_from_sbuf(vfs->conn, &smb_fname->st);
+	fsp->vuid = UID_FIELD_INVALID;
+	fsp->file_pid = 0;
+	fsp->can_lock = True;
+	fsp->can_read = True;
+	fsp->can_write = True;
+	fsp->print_file = NULL;
+	fsp->modified = False;
+	fsp->sent_oplock_break = NO_BREAK_SENT;
+	fsp->is_directory = S_ISDIR(smb_fname->st.st_ex_mode);
+
+
+	sd = sddl_decode(talloc_tos(), argv[2], get_global_sam_sid());
+	if (!sd) {
+		printf("sddl_decode failed to parse %s as SDDL\n", argv[2]);
+		status = NT_STATUS_INVALID_PARAMETER;
+		goto out;
+	}
+
+	status = SMB_VFS_FSET_NT_ACL(fsp, SECINFO_OWNER | SECINFO_GROUP | SECINFO_DACL, sd);
+	if (!NT_STATUS_IS_OK(status)) {
+		printf("fset_nt_acl returned (%s)\n", nt_errstr(status));
+		goto out;
+	}
+out:
+	TALLOC_FREE(sd);
+
+	ret = SMB_VFS_CLOSE(fsp);
+	if (ret == -1 )
+		printf("close: error=%d (%s)\n", errno, strerror(errno));
+
+	TALLOC_FREE(fsp);
+
+	return status;
+}
+
+
+
+static NTSTATUS cmd_sys_acl_get_fd(struct vfs_state *vfs, TALLOC_CTX *mem_ctx,
+				   int argc, const char **argv)
+{
+	int fd;
+	NTSTATUS status;
+	SMB_ACL_T acl;
+	char *acl_text;
+
+	if (argc != 2) {
+		printf("Usage: sys_acl_get_fd <fd>\n");
+		return NT_STATUS_OK;
+	}
+
+	fd = atoi(argv[1]);
+	if (fd < 0 || fd >= 1024) {
+		printf("sys_acl_get_fd: error=%d (file descriptor out of range)\n", EBADF);
+		return NT_STATUS_OK;
+	}
+	if (vfs->files[fd] == NULL) {
+		printf("sys_acl_get_fd: error=%d (invalid file descriptor)\n", EBADF);
+		return NT_STATUS_OK;
+	}
+
+	acl = SMB_VFS_SYS_ACL_GET_FD(vfs->files[fd], talloc_tos());
+	if (!acl) {
+		printf("sys_acl_get_fd failed (%s)\n", strerror(errno));
+		return status;
+	}
+	acl_text = sys_acl_to_text(acl, NULL);
+	printf("%s", acl_text);
+	TALLOC_FREE(acl);
+	SAFE_FREE(acl_text);
+	return NT_STATUS_OK;
+}
+
+static NTSTATUS cmd_sys_acl_get_file(struct vfs_state *vfs, TALLOC_CTX *mem_ctx,
+				     int argc, const char **argv)
+{
+	NTSTATUS status;
+	SMB_ACL_T acl;
+	char *acl_text;
+	int type;
+	if (argc != 3) {
+		printf("Usage: sys_acl_get_file <path> <type>\n");
+		return NT_STATUS_OK;
+	}
+
+	type = atoi(argv[2]);
+	acl = SMB_VFS_SYS_ACL_GET_FILE(vfs->conn, argv[1], type, talloc_tos());
+	if (!acl) {
+		printf("sys_acl_get_file failed (%s)\n", strerror(errno));
+		return status;
+	}
+	acl_text = sys_acl_to_text(acl, NULL);
+	printf("%s", acl_text);
+	TALLOC_FREE(acl);
+	SAFE_FREE(acl_text);
+	return NT_STATUS_OK;
+}
+
+static NTSTATUS cmd_sys_acl_delete_def_file(struct vfs_state *vfs, TALLOC_CTX *mem_ctx,
+					    int argc, const char **argv)
+{
+	int ret;
+
+	if (argc != 2) {
+		printf("Usage: sys_acl_delete_def_file <path>\n");
+		return NT_STATUS_OK;
+	}
+
+	ret = SMB_VFS_SYS_ACL_DELETE_DEF_FILE(vfs->conn, argv[1]);
+	if (ret == -1) {
+		printf("sys_acl_delete_def_file failed (%s)\n", strerror(errno));
+		return NT_STATUS_UNSUCCESSFUL;
+	}
+	return NT_STATUS_OK;
+}
+
 struct cmd_set vfs_commands[] = {
 
 	{ "VFS Commands" },
@@ -1186,5 +1671,30 @@ struct cmd_set vfs_commands[] = {
 	{ "link",   cmd_link,   "VFS link()",    "link <oldpath> <newpath>" },
 	{ "mknod",   cmd_mknod,   "VFS mknod()",    "mknod <path> <mode> <dev>" },
 	{ "realpath",   cmd_realpath,   "VFS realpath()",    "realpath <path>" },
+	{ "getxattr", cmd_getxattr, "VFS getxattr()",
+	  "getxattr <path> <name>" },
+	{ "listxattr", cmd_listxattr, "VFS listxattr()",
+	  "listxattr <path>" },
+	{ "setxattr", cmd_setxattr, "VFS setxattr()",
+	  "setxattr <path> <name> <value> [<flags>]" },
+	{ "removexattr", cmd_removexattr, "VFS removexattr()",
+	  "removexattr <path> <name>\n" },
+	{ "fget_nt_acl", cmd_fget_nt_acl, "VFS fget_nt_acl()", 
+	  "fget_nt_acl <fd>\n" },
+	{ "get_nt_acl", cmd_get_nt_acl, "VFS get_nt_acl()", 
+	  "get_nt_acl <path>\n" },
+	{ "fset_nt_acl", cmd_fset_nt_acl, "VFS fset_nt_acl()", 
+	  "fset_nt_acl <fd>\n" },
+	{ "set_nt_acl", cmd_set_nt_acl, "VFS open() and fset_nt_acl()", 
+	  "set_nt_acl <file>\n" },
+	{ "fchmod_acl",   cmd_fchmod_acl,   "VFS fchmod_acl()",    "fchmod_acl <fd> <mode>" },
+	{ "chmod_acl",   cmd_chmod_acl,   "VFS chmod_acl()",    "chmod_acl <path> <mode>" },
+	{ "sys_acl_get_file", cmd_sys_acl_get_file, "VFS sys_acl_get_file()", "sys_acl_get_file <path>" },
+	{ "sys_acl_get_fd", cmd_sys_acl_get_fd, "VFS sys_acl_get_fd()", "sys_acl_get_fd <fd>" },
+	{ "sys_acl_delete_def_file", cmd_sys_acl_delete_def_file, "VFS sys_acl_delete_def_file()", "sys_acl_delete_def_file <path>" },
+
+
+	{ "test_chain", cmd_test_chain, "test chain code",
+	  "test_chain" },
 	{ NULL }
 };

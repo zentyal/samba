@@ -52,9 +52,6 @@ struct dreplsrv_out_connection {
 
 	/* the out going connection to the source dsa */
 	struct dreplsrv_drsuapi_connection *drsuapi;
-
-	/* used to force the GC principal name */
-	const char *principal_name;
 };
 
 struct dreplsrv_partition_source_dsa {
@@ -109,7 +106,8 @@ struct dreplsrv_partition {
 	 */
 	struct dreplsrv_partition_source_dsa *notifies;
 
-	bool incoming_only;
+	bool partial_replica;
+	bool rodc_replica;
 };
 
 typedef void (*dreplsrv_extended_callback_t)(struct dreplsrv_service *,

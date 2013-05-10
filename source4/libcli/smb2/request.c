@@ -42,18 +42,6 @@ void smb2_setup_bufinfo(struct smb2_request *req)
 	}
 }
 
-
-/* destroy a request structure */
-static int smb2_request_destructor(struct smb2_request *req)
-{
-	if (req->transport) {
-		/* remove it from the list of pending requests (a null op if
-		   its not in the list) */
-		DLIST_REMOVE(req->transport->pending_recv, req);
-	}
-	return 0;
-}
-
 /*
   initialise a smb2 request
 */
@@ -62,9 +50,7 @@ struct smb2_request *smb2_request_init(struct smb2_transport *transport, uint16_
 				       uint32_t body_dynamic_size)
 {
 	struct smb2_request *req;
-	uint64_t seqnum;
 	uint32_t hdr_offset;
-	uint32_t flags = 0;
 	bool compound = false;
 
 	if (body_dynamic_present) {
@@ -75,45 +61,13 @@ struct smb2_request *smb2_request_init(struct smb2_transport *transport, uint16_
 		body_dynamic_size = 0;
 	}
 
-	req = talloc(transport, struct smb2_request);
+	req = talloc_zero(transport, struct smb2_request);
 	if (req == NULL) return NULL;
-
-	seqnum = transport->seqnum;
-	if (transport->credits.charge > 0) {
-		transport->seqnum += transport->credits.charge;
-	} else {
-		transport->seqnum += 1;
-	}
 
 	req->state     = SMB2_REQUEST_INIT;
 	req->transport = transport;
-	req->session   = NULL;
-	req->tree      = NULL;
-	req->seqnum    = seqnum;
-	req->status    = NT_STATUS_OK;
-	req->async.fn  = NULL;
-	req->next = req->prev = NULL;
 
-	ZERO_STRUCT(req->cancel);
-	ZERO_STRUCT(req->in);
-
-	if (transport->compound.missing > 0) {
-		compound = true;
-		transport->compound.missing -= 1;
-		req->out = transport->compound.buffer;
-		ZERO_STRUCT(transport->compound.buffer);
-		if (transport->compound.related) {
-			flags |= SMB2_HDR_FLAG_CHAINED;
-		}
-	} else {
-		ZERO_STRUCT(req->out);
-	}
-
-	if (req->out.size > 0) {
-		hdr_offset = req->out.size;
-	} else {
-		hdr_offset = NBT_HDR_SIZE;
-	}
+	hdr_offset = NBT_HDR_SIZE;
 
 	req->out.size      = hdr_offset + SMB2_HDR_BODY + body_fixed_size;
 	req->out.allocated = req->out.size + body_dynamic_size;
@@ -133,13 +87,13 @@ struct smb2_request *smb2_request_init(struct smb2_transport *transport, uint16_
 
 	SIVAL(req->out.hdr, 0,				SMB2_MAGIC);
 	SSVAL(req->out.hdr, SMB2_HDR_LENGTH,		SMB2_HDR_BODY);
-	SSVAL(req->out.hdr, SMB2_HDR_EPOCH,		transport->credits.charge);
+	SSVAL(req->out.hdr, SMB2_HDR_CREDIT_CHARGE,	0);
 	SIVAL(req->out.hdr, SMB2_HDR_STATUS,		0);
 	SSVAL(req->out.hdr, SMB2_HDR_OPCODE,		opcode);
-	SSVAL(req->out.hdr, SMB2_HDR_CREDIT,		transport->credits.ask_num);
-	SIVAL(req->out.hdr, SMB2_HDR_FLAGS,		flags);
+	SSVAL(req->out.hdr, SMB2_HDR_CREDIT,		0);
+	SIVAL(req->out.hdr, SMB2_HDR_FLAGS,		0);
 	SIVAL(req->out.hdr, SMB2_HDR_NEXT_COMMAND,	0);
-	SBVAL(req->out.hdr, SMB2_HDR_MESSAGE_ID,	req->seqnum);
+	SBVAL(req->out.hdr, SMB2_HDR_MESSAGE_ID,	0);
 	SIVAL(req->out.hdr, SMB2_HDR_PID,		0);
 	SIVAL(req->out.hdr, SMB2_HDR_TID,		0);
 	SBVAL(req->out.hdr, SMB2_HDR_SESSION_ID,		0);
@@ -157,8 +111,6 @@ struct smb2_request *smb2_request_init(struct smb2_transport *transport, uint16_
 		SCVAL(req->out.dynamic, 0, 0);
 	}
 
-	talloc_set_destructor(req, smb2_request_destructor);
-
 	return req;
 }
 
@@ -174,9 +126,6 @@ struct smb2_request *smb2_request_init_tree(struct smb2_tree *tree, uint16_t opc
 						     body_dynamic_size);
 	if (req == NULL) return NULL;
 
-	SBVAL(req->out.hdr,  SMB2_HDR_SESSION_ID, tree->session->uid);
-	SIVAL(req->out.hdr,  SMB2_HDR_PID, tree->session->pid);
-	SIVAL(req->out.hdr,  SMB2_HDR_TID, tree->tid);
 	req->session = tree->session;
 	req->tree = tree;
 
@@ -214,7 +163,7 @@ bool smb2_request_receive(struct smb2_request *req)
 
 	/* keep receiving packets until this one is replied to */
 	while (req->state <= SMB2_REQUEST_RECV) {
-		if (event_loop_once(req->transport->socket->event.ctx) != 0) {
+		if (tevent_loop_once(req->transport->ev) != 0) {
 			return false;
 		}
 	}
@@ -686,6 +635,7 @@ NTSTATUS smb2_pull_o16s16_string(struct smb2_request_buffer *buf, TALLOC_CTX *me
 	DATA_BLOB blob;
 	NTSTATUS status;
 	void *vstr;
+	size_t converted_size = 0;
 	bool ret;
 
 	status = smb2_pull_o16s16_blob(buf, mem_ctx, ptr, &blob);
@@ -705,7 +655,7 @@ NTSTATUS smb2_pull_o16s16_string(struct smb2_request_buffer *buf, TALLOC_CTX *me
 	}
 
 	ret = convert_string_talloc(mem_ctx, CH_UTF16, CH_UNIX, 
-				     blob.data, blob.length, &vstr, NULL, false);
+				     blob.data, blob.length, &vstr, &converted_size);
 	data_blob_free(&blob);
 	(*str) = (char *)vstr;
 	if (!ret) {
@@ -724,6 +674,7 @@ NTSTATUS smb2_push_o16s16_string(struct smb2_request_buffer *buf,
 	DATA_BLOB blob;
 	NTSTATUS status;
 	bool ret;
+	void *ptr = NULL;
 
 	if (str == NULL) {
 		return smb2_push_o16s16_blob(buf, ofs, data_blob(NULL, 0));
@@ -736,11 +687,11 @@ NTSTATUS smb2_push_o16s16_string(struct smb2_request_buffer *buf,
 	}
 
 	ret = convert_string_talloc(buf->buffer, CH_UNIX, CH_UTF16, 
-				     str, strlen(str), (void **)&blob.data, &blob.length, 
-					 false);
+				    str, strlen(str), &ptr, &blob.length);
 	if (!ret) {
 		return NT_STATUS_ILLEGAL_CHARACTER;
 	}
+	blob.data = (uint8_t *)ptr;
 
 	status = smb2_push_o16s16_blob(buf, ofs, blob);
 	data_blob_free(&blob);

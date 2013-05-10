@@ -56,8 +56,6 @@ struct idmap_ad_context {
 	enum wb_posix_mapping ad_map_type; /* WB_POSIX_MAP_UNKNOWN */
 };
 
-NTSTATUS init_module(void);
-
 /************************************************************************
  ***********************************************************************/
 
@@ -65,7 +63,6 @@ static ADS_STATUS ad_idmap_cached_connection_internal(struct idmap_domain *dom)
 {
 	ADS_STRUCT *ads;
 	ADS_STATUS status;
-	bool local = False;
 	fstring dc_name;
 	struct sockaddr_storage dc_ip;
 	struct idmap_ad_context *ctx;
@@ -103,10 +100,8 @@ static ADS_STATUS ad_idmap_cached_connection_internal(struct idmap_domain *dom)
 		}
 	}
 
-	if (!local) {
-		/* we don't want this to affect the users ccache */
-		setenv("KRB5CCNAME", WINBIND_CCACHE_NAME, 1);
-	}
+	/* we don't want this to affect the users ccache */
+	setenv("KRB5CCNAME", WINBIND_CCACHE_NAME, 1);
 
 	/*
 	 * At this point we only have the NetBIOS domain name.
@@ -216,7 +211,7 @@ static NTSTATUS idmap_ad_initialize(struct idmap_domain *dom)
 	char *config_option;
 	const char *schema_mode = NULL;	
 
-	ctx = TALLOC_ZERO_P(dom, struct idmap_ad_context);
+	ctx = talloc_zero(dom, struct idmap_ad_context);
 	if (ctx == NULL) {
 		DEBUG(0, ("Out of memory!\n"));
 		return NT_STATUS_NO_MEMORY;
@@ -736,7 +731,7 @@ static NTSTATUS nss_ad_generic_init(struct nss_domain_entry *e,
 	if (e->state != NULL) {
 		dom = talloc_get_type(e->state, struct idmap_domain);
 	} else {
-		dom = TALLOC_ZERO_P(e, struct idmap_domain);
+		dom = talloc_zero(e, struct idmap_domain);
 		if (dom == NULL) {
 			DEBUG(0, ("Out of memory!\n"));
 			return NT_STATUS_NO_MEMORY;
@@ -756,7 +751,7 @@ static NTSTATUS nss_ad_generic_init(struct nss_domain_entry *e,
 		ctx = talloc_get_type(dom->private_data,
 				      struct idmap_ad_context);
 	} else {
-		ctx = TALLOC_ZERO_P(dom, struct idmap_ad_context);
+		ctx = talloc_zero(dom, struct idmap_ad_context);
 		if (ctx == NULL) {
 			DEBUG(0, ("Out of memory!\n"));
 			return NT_STATUS_NO_MEMORY;
@@ -1096,7 +1091,7 @@ static struct nss_info_methods nss_sfu20_methods = {
  Initialize the plugins
  ***********************************************************************/
 
-NTSTATUS idmap_ad_init(void)
+NTSTATUS samba_init_module(void)
 {
 	static NTSTATUS status_idmap_ad = NT_STATUS_UNSUCCESSFUL;
 	static NTSTATUS status_nss_rfc2307 = NT_STATUS_UNSUCCESSFUL;

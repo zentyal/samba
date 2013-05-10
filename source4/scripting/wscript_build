@@ -2,7 +2,18 @@
 
 from samba_utils import MODE_755
 
-bld.INSTALL_FILES('${SBINDIR}','bin/upgradeprovision bin/samba_dnsupdate bin/samba_spnupdate',
+sbin_files = None
+if bld.CONFIG_SET('AD_DC_BUILD_IS_ENABLED'):
+    sbin_files = 'bin/samba_dnsupdate bin/samba_spnupdate bin/samba_upgradedns bin/samba_kcc'
+
+if sbin_files:
+    bld.INSTALL_FILES('${SBINDIR}',
+                      sbin_files,
+                      chmod=MODE_755, python_fixup=True, flat=True)
+
+if bld.CONFIG_SET('AD_DC_BUILD_IS_ENABLED'):
+    bld.INSTALL_FILES('${BINDIR}',
+                  'bin/samba-tool',
                   chmod=MODE_755, python_fixup=True, flat=True)
-bld.INSTALL_FILES('${BINDIR}','bin/testparm',
-                  chmod=MODE_755, python_fixup=True, flat=True)
+
+bld.RECURSE('bin')

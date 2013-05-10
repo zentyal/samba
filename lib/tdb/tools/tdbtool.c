@@ -61,6 +61,7 @@ enum commands {
 	CMD_NEXT,
 	CMD_SYSTEM,
 	CMD_CHECK,
+	CMD_REPACK,
 	CMD_QUIT,
 	CMD_HELP
 };
@@ -98,6 +99,7 @@ COMMAND_TABLE cmd_table[] = {
 	{"quit",	CMD_QUIT},
 	{"q",		CMD_QUIT},
 	{"!",		CMD_SYSTEM},
+	{"repack",	CMD_REPACK},
 	{NULL,		CMD_HELP}
 };
 
@@ -203,6 +205,7 @@ static void help(void)
 "  list                 : print the database hash table and freelist\n"
 "  free                 : print the database freelist\n"
 "  check                : check the integrity of an opened database\n"
+"  repack               : repack the database\n"
 "  speed                : perform speed tests on the database\n"
 "  ! command            : execute system command\n"
 "  1 | first            : print the first record\n"
@@ -257,7 +260,7 @@ static void insert_tdb(char *keyname, size_t keylen, char* data, size_t datalen)
 	dbuf.dptr = (unsigned char *)data;
 	dbuf.dsize = datalen;
 
-	if (tdb_store(tdb, key, dbuf, TDB_INSERT) == -1) {
+	if (tdb_store(tdb, key, dbuf, TDB_INSERT) != 0) {
 		terror("insert failed");
 	}
 }
@@ -284,7 +287,7 @@ static void store_tdb(char *keyname, size_t keylen, char* data, size_t datalen)
 	printf("Storing key:\n");
 	print_rec(tdb, key, dbuf, NULL);
 
-	if (tdb_store(tdb, key, dbuf, TDB_REPLACE) == -1) {
+	if (tdb_store(tdb, key, dbuf, TDB_REPLACE) != 0) {
 		terror("store failed");
 	}
 }
@@ -363,7 +366,7 @@ static void move_rec(char *keyname, size_t keylen, char* tdbname)
 		return;
 	}
 	
-	if ( tdb_store( dst_tdb, key, dbuf, TDB_REPLACE ) == -1 ) {
+	if (tdb_store( dst_tdb, key, dbuf, TDB_REPLACE ) != 0) {
 		terror("failed to move record");
 	}
 	else
@@ -447,12 +450,9 @@ static void speed_tdb(const char *tlimit)
 	printf("Testing fetch speed for %u seconds\n", timelimit);
 	_start_timer();
 	do {
-		long int r = random();
-		TDB_DATA key, dbuf;
+		TDB_DATA key;
 		key.dptr = discard_const_p(uint8_t, str);
 		key.dsize = strlen((char *)key.dptr);
-		dbuf.dptr = (uint8_t *) &r;
-		dbuf.dsize = sizeof(r);
 		tdb_fetch(tdb, key);
 		t = _end_timer();
 		ops++;
@@ -611,6 +611,10 @@ static int do_command(void)
 			bIterate = 0;
 			tdb_transaction_commit(tdb);
 			return 0;
+		case CMD_REPACK:
+			bIterate = 0;
+			tdb_repack(tdb);
+			return 0;
 		case CMD_TRANSACTION_CANCEL:
 			bIterate = 0;
 			tdb_transaction_cancel(tdb);
@@ -693,7 +697,7 @@ static int do_command(void)
 	return 0;
 }
 
-static char *convert_string(char *instring, size_t *sizep)
+static char *tdb_convert_string(char *instring, size_t *sizep)
 {
 	size_t length = 0;
 	char *outp, *inp;
@@ -759,15 +763,15 @@ int main(int argc, char *argv[])
 					}
 				}
 			}
-			if (arg1) arg1 = convert_string(arg1,&arg1len);
-			if (arg2) arg2 = convert_string(arg2,&arg2len);
+			if (arg1) arg1 = tdb_convert_string(arg1,&arg1len);
+			if (arg2) arg2 = tdb_convert_string(arg2,&arg2len);
 			if (do_command()) break;
 		}
 		break;
 	case 5:
-		arg2 = convert_string(argv[4],&arg2len);
+		arg2 = tdb_convert_string(argv[4],&arg2len);
 	case 4:
-		arg1 = convert_string(argv[3],&arg1len);
+		arg1 = tdb_convert_string(argv[3],&arg1len);
 	case 3:
 		cmdname = argv[2];
 	default:

@@ -26,7 +26,7 @@
 #include "libsmb/libsmb.h"
 #include "libsmbclient.h"
 #include "libsmb_internal.h"
-
+#include "../libcli/smb/smbXcli_base.h"
 
 /* 
  * Generate an inode number from file name for those things that need it
@@ -53,8 +53,8 @@ generate_inode(SMBCCTX *context,
 static int
 setup_stat(SMBCCTX *context,
            struct stat *st,
-           char *fname,
-           SMB_OFF_T size,
+           const char *fname,
+           off_t size,
            int mode)
 {
 	TALLOC_CTX *frame = talloc_stackframe();
@@ -118,7 +118,7 @@ SMBC_stat_ctx(SMBCCTX *context,
 	struct timespec write_time_ts;
         struct timespec access_time_ts;
         struct timespec change_time_ts;
-	SMB_OFF_T size = 0;
+	off_t size = 0;
 	uint16 mode = 0;
 	SMB_INO_T ino = 0;
 	TALLOC_CTX *frame = talloc_stackframe();
@@ -181,7 +181,7 @@ SMBC_stat_ctx(SMBCCTX *context,
 
 	st->st_ino = ino;
 
-	setup_stat(context, st, (char *) fname, size, mode);
+	setup_stat(context, st, fname, size, mode);
 
 	st->st_atime = convert_timespec_to_time_t(access_time_ts);
 	st->st_ctime = convert_timespec_to_time_t(change_time_ts);
@@ -204,7 +204,7 @@ SMBC_fstat_ctx(SMBCCTX *context,
 	struct timespec change_time_ts;
         struct timespec access_time_ts;
         struct timespec write_time_ts;
-	SMB_OFF_T size;
+	off_t size;
 	uint16 mode;
 	char *server = NULL;
 	char *share = NULL;
@@ -215,6 +215,7 @@ SMBC_fstat_ctx(SMBCCTX *context,
 	struct cli_state *targetcli = NULL;
 	SMB_INO_T ino = 0;
 	TALLOC_CTX *frame = talloc_stackframe();
+	NTSTATUS status;
 
 	if (!context || !context->internal->initialized) {
 		errno = EINVAL;
@@ -250,9 +251,10 @@ SMBC_fstat_ctx(SMBCCTX *context,
         }
 
 	/*d_printf(">>>fstat: resolving %s\n", path);*/
-	if (!cli_resolve_path(frame, "", context->internal->auth_info,
-			      file->srv->cli, path,
-			      &targetcli, &targetpath)) {
+	status = cli_resolve_path(frame, "", context->internal->auth_info,
+				  file->srv->cli, path,
+				  &targetcli, &targetpath);
+	if (!NT_STATUS_IS_OK(status)) {
 		d_printf("Could not resolve %s\n", path);
                 errno = ENOENT;
 		TALLOC_FREE(frame);
@@ -463,7 +465,7 @@ SMBC_fstatvfs_ctx(SMBCCTX *context,
         }
 
         /* See if DFS is supported */
-	if ((cli->capabilities & CAP_DFS) &&  cli->dfsroot) {
+	if ((smb1cli_conn_capabilities(cli->conn) & CAP_DFS) &&  cli->dfsroot) {
                 flags |= SMBC_VFS_FEATURE_DFS;
         }
 

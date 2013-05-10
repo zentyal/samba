@@ -25,6 +25,7 @@
 #include "system/network.h"
 #include "system/filesys.h"
 
+_PUBLIC_ const struct socket_ops *socket_unixdom_ops(enum socket_type type);
 
 
 /*
@@ -32,7 +33,7 @@
 */
 static NTSTATUS unixdom_error(int ernum)
 {
-	return map_nt_error_from_unix(ernum);
+	return map_nt_error_from_unix_common(ernum);
 }
 
 static NTSTATUS unixdom_init(struct socket_context *sock)
@@ -52,11 +53,13 @@ static NTSTATUS unixdom_init(struct socket_context *sock)
 
 	sock->fd = socket(PF_UNIX, type, 0);
 	if (sock->fd == -1) {
-		return map_nt_error_from_unix(errno);
+		return map_nt_error_from_unix_common(errno);
 	}
 	sock->private_data = NULL;
 
 	sock->backend_name = "unix";
+
+	smb_set_close_on_exec(sock->fd);
 
 	return NT_STATUS_OK;
 }
@@ -75,16 +78,16 @@ static NTSTATUS unixdom_connect_complete(struct socket_context *sock, uint32_t f
 	   for non-blocking connect */
 	ret = getsockopt(sock->fd, SOL_SOCKET, SO_ERROR, &error, &len);
 	if (ret == -1) {
-		return map_nt_error_from_unix(errno);
+		return map_nt_error_from_unix_common(errno);
 	}
 	if (error != 0) {
-		return map_nt_error_from_unix(error);
+		return map_nt_error_from_unix_common(error);
 	}
 
 	if (!(flags & SOCKET_FLAG_BLOCK)) {
 		ret = set_blocking(sock->fd, false);
 		if (ret == -1) {
-			return map_nt_error_from_unix(errno);
+			return map_nt_error_from_unix_common(errno);
 		}
 	}
 
@@ -110,7 +113,7 @@ static NTSTATUS unixdom_connect(struct socket_context *sock,
 		
 		ZERO_STRUCT(srv_addr);
 		srv_addr.sun_family = AF_UNIX;
-		strncpy(srv_addr.sun_path, srv_address->addr, sizeof(srv_addr.sun_path));
+		snprintf(srv_addr.sun_path, sizeof(srv_addr.sun_path), "%s", srv_address->addr);
 
 		ret = connect(sock->fd, (const struct sockaddr *)&srv_addr, sizeof(srv_addr));
 	}
@@ -145,8 +148,8 @@ static NTSTATUS unixdom_listen(struct socket_context *sock,
 		
 		ZERO_STRUCT(my_addr);
 		my_addr.sun_family = AF_UNIX;
-		strncpy(my_addr.sun_path, my_address->addr, sizeof(my_addr.sun_path));
-		
+		snprintf(my_addr.sun_path, sizeof(my_addr.sun_path), "%s", my_address->addr);
+
 		ret = bind(sock->fd, (struct sockaddr *)&my_addr, sizeof(my_addr));
 	}
 	if (ret == -1) {
@@ -193,9 +196,11 @@ static NTSTATUS unixdom_accept(struct socket_context *sock,
 		int ret = set_blocking(new_fd, false);
 		if (ret == -1) {
 			close(new_fd);
-			return map_nt_error_from_unix(errno);
+			return map_nt_error_from_unix_common(errno);
 		}
 	}
+
+	smb_set_close_on_exec(new_fd);
 
 	(*new_sock) = talloc(NULL, struct socket_context);
 	if (!(*new_sock)) {
@@ -258,28 +263,45 @@ static NTSTATUS unixdom_sendto(struct socket_context *sock,
 			       const DATA_BLOB *blob, size_t *sendlen, 
 			       const struct socket_address *dest)
 {
+	struct sockaddr_un srv_addr;
+	const struct sockaddr *sa;
+	socklen_t sa_len;
 	ssize_t len;
+
 	*sendlen = 0;
-		
+
 	if (dest->sockaddr) {
-		len = sendto(sock->fd, blob->data, blob->length, 0, 
-			     dest->sockaddr, dest->sockaddrlen);
+		sa = dest->sockaddr;
+		sa_len = dest->sockaddrlen;
 	} else {
-		struct sockaddr_un srv_addr;
-		
 		if (strlen(dest->addr)+1 > sizeof(srv_addr.sun_path)) {
 			return NT_STATUS_OBJECT_PATH_INVALID;
 		}
-		
+
 		ZERO_STRUCT(srv_addr);
 		srv_addr.sun_family = AF_UNIX;
-		strncpy(srv_addr.sun_path, dest->addr, sizeof(srv_addr.sun_path));
-		
-		len = sendto(sock->fd, blob->data, blob->length, 0, 
-			     (struct sockaddr *)&srv_addr, sizeof(srv_addr));
+		snprintf(srv_addr.sun_path, sizeof(srv_addr.sun_path), "%s",
+			 dest->addr);
+		sa = (struct sockaddr *) &srv_addr;
+		sa_len = sizeof(srv_addr);
 	}
+
+	len = sendto(sock->fd, blob->data, blob->length, 0, sa, sa_len);
+
+	/* retry once */
+	if (len == -1 && errno == EMSGSIZE) {
+		/* round up in 1K increments */
+		int bufsize = ((blob->length + 1023) & (~1023));
+		if (setsockopt(sock->fd, SOL_SOCKET, SO_SNDBUF, &bufsize,
+			       sizeof(bufsize)) == -1)
+		{
+			return map_nt_error_from_unix_common(EMSGSIZE);
+		}
+		len = sendto(sock->fd, blob->data, blob->length, 0, sa, sa_len);
+	}
+
 	if (len == -1) {
-		return map_nt_error_from_unix(errno);
+		return map_nt_error_from_unix_common(errno);
 	}	
 
 	*sendlen = len;
@@ -389,7 +411,7 @@ static NTSTATUS unixdom_pending(struct socket_context *sock, size_t *npending)
 		*npending = value;
 		return NT_STATUS_OK;
 	}
-	return map_nt_error_from_unix(errno);
+	return map_nt_error_from_unix_common(errno);
 }
 
 static const struct socket_ops unixdom_ops = {

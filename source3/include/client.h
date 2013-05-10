@@ -22,16 +22,7 @@
 #ifndef _CLIENT_H
 #define _CLIENT_H
 
-/* the client asks for a smaller buffer to save ram and also to get more
-   overlap on the wire. This size gives us a nice read/write size, which
-   will be a multiple of the page size on almost any system */
 #define CLI_BUFFER_SIZE (0xFFFF)
-#define CLI_SAMBA_MAX_LARGE_READX_SIZE (127*1024) /* Works for Samba servers */
-#define CLI_SAMBA_MAX_LARGE_WRITEX_SIZE (127*1024) /* Works for Samba servers */
-#define CLI_WINDOWS_MAX_LARGE_READX_SIZE ((64*1024)-2) /* Windows servers are broken.... */
-#define CLI_WINDOWS_MAX_LARGE_WRITEX_SIZE ((64*1024)-2) /* Windows servers are broken.... */
-#define CLI_SAMBA_MAX_POSIX_LARGE_READX_SIZE (0xFFFF00) /* 24-bit len. */
-#define CLI_SAMBA_MAX_POSIX_LARGE_WRITEX_SIZE (0xFFFF00) /* 24-bit len. */
 
 /*
  * These definitions depend on smb.h
@@ -46,32 +37,17 @@ struct print_job_info {
 	time_t t;
 };
 
-struct cli_state_seqnum {
-	struct cli_state_seqnum *prev, *next;
-	uint16_t mid;
-	uint32_t seqnum;
-	bool persistent;
-};
+struct smbXcli_conn;
+struct smbXcli_session;
 
 struct cli_state {
 	/**
 	 * A list of subsidiary connections for DFS.
 	 */
         struct cli_state *prev, *next;
-	int port;
-	int fd;
-	/* Last read or write error. */
-	enum smb_read_errors smb_rw_error;
-	uint16 cnum;
-	uint16 pid;
-	uint16 mid;
-	uint16 vuid;
-	int protocol;
-	int sec_mode;
 	int rap_error;
-	int privileges;
-
-	char *desthost;
+	NTSTATUS raw_status; /* maybe via NT_STATUS_DOS() */
+	bool map_dos_errors;
 
 	/* The credentials used to open the cli_state connection. */
 	char *domain;
@@ -89,65 +65,48 @@ struct cli_state {
 
 	char *share;
 	char *dev;
-	struct nmb_name called;
-	struct nmb_name calling;
-	struct sockaddr_storage dest_ss;
 
-	DATA_BLOB secblob; /* cryptkey or negTokenInit */
-	uint32 sesskey;
-	int serverzone;
-	uint32 servertime;
-	int readbraw_supported;
-	int writebraw_supported;
 	int timeout; /* in milliseconds. */
-	size_t max_xmit;
-	size_t max_mux;
-	char *outbuf;
-	struct cli_state_seqnum *seqnum;
-	char *inbuf;
-	unsigned int bufsize;
 	int initialised;
 	int win95;
-	bool is_samba;
 	bool is_guestlogin;
-	uint32 capabilities;
 	/* What the server offered. */
 	uint32_t server_posix_capabilities;
 	/* What the client requested. */
 	uint32_t requested_posix_capabilities;
 	bool dfsroot;
-
-	struct smb_signing_state *signing_state;
-
-	struct smb_trans_enc_state *trans_enc_state; /* Setup if we're encrypting SMB's. */
-
-	/* the session key for this CLI, outside
-	   any per-pipe authenticaion */
-	DATA_BLOB user_session_key;
+	bool backup_intent;
 
 	/* The list of pipes currently open on this connection. */
 	struct rpc_pipe_client *pipe_list;
 
 	bool use_kerberos;
 	bool fallback_after_kerberos;
-	bool use_spnego;
 	bool use_ccache;
+	bool pw_nt_hash;
 	bool got_kerberos_mechanism; /* Server supports krb5 in SPNEGO. */
 
 	bool use_oplocks; /* should we use oplocks? */
-	bool use_level_II_oplocks; /* should we use level II oplocks? */
 
-	/* a oplock break request handler */
-	NTSTATUS (*oplock_handler)(struct cli_state *cli, uint16_t fnum, unsigned char level);
-
-	bool force_dos_errors;
 	bool case_sensitive; /* False by default. */
 
 	/* Where (if anywhere) this is mounted under DFS. */
 	char *dfs_mountpoint;
 
-	struct tevent_queue *outgoing;
-	struct tevent_req **pending;
+	struct smbXcli_conn *conn;
+	const char *remote_realm;
+
+	struct {
+		uint16_t pid;
+		uint16_t vc_num;
+		struct smbXcli_session *session;
+		struct smbXcli_tcon *tcon;
+	} smb1;
+
+	struct {
+		struct smbXcli_session *session;
+		struct smbXcli_tcon *tcon;
+	} smb2;
 };
 
 struct file_info {
@@ -160,7 +119,7 @@ struct file_info {
 	struct timespec atime_ts;
 	struct timespec ctime_ts;
 	char *name;
-	char short_name[13*3]; /* the *3 is to cope with multi-byte */
+	char *short_name;
 };
 
 #define CLI_FULL_CONNECTION_DONT_SPNEGO 0x0001
@@ -170,5 +129,8 @@ struct file_info {
 #define CLI_FULL_CONNECTION_OPLOCKS 0x0010
 #define CLI_FULL_CONNECTION_LEVEL_II_OPLOCKS 0x0020
 #define CLI_FULL_CONNECTION_USE_CCACHE 0x0040
+#define CLI_FULL_CONNECTION_FORCE_DOS_ERRORS 0x0080
+#define CLI_FULL_CONNECTION_FORCE_ASCII 0x0100
+#define CLI_FULL_CONNECTION_USE_NT_HASH 0x0200
 
 #endif /* _CLIENT_H */

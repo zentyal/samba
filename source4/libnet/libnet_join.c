@@ -821,10 +821,19 @@ NTSTATUS libnet_JoinDomain(struct libnet_context *ctx, TALLOC_CTX *mem_ctx, stru
 	if (NT_STATUS_IS_OK(status)) {
 		policy_min_pw_len = pwp.out.info->min_password_length;
 	}
-	
-	/* Grab a password of that minimum length */
-	
-	password_str = generate_random_password(tmp_ctx, MAX(8, policy_min_pw_len), 255);
+
+	if (r->in.account_pass != NULL) {
+		password_str = talloc_strdup(tmp_ctx, r->in.account_pass);
+	} else {
+		/* Grab a password of that minimum length */
+		password_str = generate_random_password(tmp_ctx,
+					MAX(8, policy_min_pw_len), 255);
+	}
+	if (!password_str) {
+		r->out.error_string = NULL;
+		talloc_free(tmp_ctx);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	/* set full_name and reset flags */
 	ZERO_STRUCT(u_info21);
@@ -889,9 +898,9 @@ NTSTATUS libnet_JoinDomain(struct libnet_context *ctx, TALLOC_CTX *mem_ctx, stru
 	return status;
 }
 
-static NTSTATUS libnet_Join_primary_domain(struct libnet_context *ctx, 
-					   TALLOC_CTX *mem_ctx, 
-					   struct libnet_Join *r)
+NTSTATUS libnet_Join_member(struct libnet_context *ctx,
+			    TALLOC_CTX *mem_ctx,
+			    struct libnet_Join_member *r)
 {
 	NTSTATUS status;
 	TALLOC_CTX *tmp_mem;
@@ -909,22 +918,14 @@ static NTSTATUS libnet_Join_primary_domain(struct libnet_context *ctx,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	r2 = talloc(tmp_mem, struct libnet_JoinDomain);
+	r2 = talloc_zero(tmp_mem, struct libnet_JoinDomain);
 	if (!r2) {
 		r->out.error_string = NULL;
 		talloc_free(tmp_mem);
 		return NT_STATUS_NO_MEMORY;
 	}
 	
-	if (r->in.join_type == SEC_CHAN_BDC) {
-		acct_type = ACB_SVRTRUST;
-	} else if (r->in.join_type == SEC_CHAN_WKSTA) {
-		acct_type = ACB_WSTRUST;
-	} else {
-		r->out.error_string = NULL;
-		talloc_free(tmp_mem);	
-		return NT_STATUS_INVALID_PARAMETER;
-	}
+	acct_type = ACB_WSTRUST;
 
 	if (r->in.netbios_name != NULL) {
 		netbios_name = r->in.netbios_name;
@@ -947,13 +948,13 @@ static NTSTATUS libnet_Join_primary_domain(struct libnet_context *ctx,
 	/*
 	 * join the domain
 	 */
-	ZERO_STRUCTP(r2);
 	r2->in.domain_name	= r->in.domain_name;
 	r2->in.account_name	= account_name;
 	r2->in.netbios_name	= netbios_name;
 	r2->in.level		= LIBNET_JOINDOMAIN_AUTOMATIC;
 	r2->in.acct_type	= acct_type;
 	r2->in.recreate_account = false;
+	r2->in.account_pass	= r->in.account_pass;
 	status = libnet_JoinDomain(ctx, r2, r2);
 	if (!NT_STATUS_IS_OK(status)) {
 		r->out.error_string = talloc_steal(mem_ctx, r2->out.error_string);
@@ -972,7 +973,7 @@ static NTSTATUS libnet_Join_primary_domain(struct libnet_context *ctx,
 	set_secrets->domain_name = r2->out.domain_name;
 	set_secrets->realm = r2->out.realm;
 	set_secrets->netbios_name = netbios_name;
-	set_secrets->secure_channel_type = r->in.join_type;
+	set_secrets->secure_channel_type = SEC_CHAN_WKSTA;
 	set_secrets->machine_password = r2->out.join_password;
 	set_secrets->key_version_number = r2->out.kvno;
 	set_secrets->domain_sid = r2->out.domain_sid;
@@ -996,21 +997,3 @@ static NTSTATUS libnet_Join_primary_domain(struct libnet_context *ctx,
 	return NT_STATUS_OK;
 }
 
-NTSTATUS libnet_Join(struct libnet_context *ctx, TALLOC_CTX *mem_ctx, struct libnet_Join *r)
-{
-	switch (r->in.join_type) {
-		case SEC_CHAN_WKSTA:
-			return libnet_Join_primary_domain(ctx, mem_ctx, r);
-		case SEC_CHAN_BDC:
-			return libnet_Join_primary_domain(ctx, mem_ctx, r);
-		case SEC_CHAN_DOMAIN:
-		case SEC_CHAN_DNS_DOMAIN:
-		case SEC_CHAN_NULL:
-			break;
-	}
-
-	r->out.error_string = talloc_asprintf(mem_ctx,
-					      "Invalid join type specified (%08X) attempting to join domain %s",
-					      r->in.join_type, r->in.domain_name);
-	return NT_STATUS_INVALID_PARAMETER;
-}

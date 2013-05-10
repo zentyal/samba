@@ -97,12 +97,11 @@ char *normalize_reg_path(TALLOC_CTX *ctx, const char *keyname )
 	char *nkeyname;
 
 	/* skip leading '\' chars */
-	p = (char *)keyname;
-	while (*p == '\\') {
-		p++;
+	while (*keyname == '\\') {
+		keyname++;
 	}
 
-	nkeyname = talloc_strdup(ctx, p);
+	nkeyname = talloc_strdup(ctx, keyname);
 	if (nkeyname == NULL) {
 		return NULL;
 	}
@@ -114,7 +113,10 @@ char *normalize_reg_path(TALLOC_CTX *ctx, const char *keyname )
 		p = strrchr(nkeyname, '\\');
 	}
 
-	strupper_m(nkeyname);
+	if (!strupper_m(nkeyname)) {
+		TALLOC_FREE(nkeyname);
+		return NULL;
+	}
 
 	return nkeyname;
 }

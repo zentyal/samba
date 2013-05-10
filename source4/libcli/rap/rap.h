@@ -60,13 +60,12 @@ struct rap_call {
 	const char *datadesc;
 	const char *auxdatadesc;
 
-	uint16_t status;
-	uint16_t convert;
-
 	uint16_t rcv_paramlen, rcv_datalen;
 
 	struct ndr_push *ndr_push_param;
 	struct ndr_push *ndr_push_data;
+
+	TALLOC_CTX *pull_mem_ctx;
 	struct ndr_pull *ndr_pull_param;
 	struct ndr_pull *ndr_pull_data;
 };

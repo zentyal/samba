@@ -37,6 +37,10 @@
 #include "../librpc/gen_ndr/krb5pac.h"
 #include "passdb/machine_sid.h"
 #include "auth.h"
+#include "../lib/tsocket/tsocket.h"
+#include "auth/kerberos/pac_utils.h"
+#include "auth/gensec/gensec.h"
+#include "librpc/crypto/gse_krb5.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
@@ -51,11 +55,11 @@ static NTSTATUS append_info3_as_txt(TALLOC_CTX *mem_ctx,
 	uint32_t i;
 
 	resp->data.auth.info3.logon_time =
-		nt_time_to_unix(info3->base.last_logon);
+		nt_time_to_unix(info3->base.logon_time);
 	resp->data.auth.info3.logoff_time =
-		nt_time_to_unix(info3->base.last_logoff);
+		nt_time_to_unix(info3->base.logoff_time);
 	resp->data.auth.info3.kickoff_time =
-		nt_time_to_unix(info3->base.acct_expiry);
+		nt_time_to_unix(info3->base.kickoff_time);
 	resp->data.auth.info3.pass_last_set_time =
 		nt_time_to_unix(info3->base.last_password_change);
 	resp->data.auth.info3.pass_can_change_time =
@@ -92,7 +96,7 @@ static NTSTATUS append_info3_as_txt(TALLOC_CTX *mem_ctx,
 	fstrcpy(resp->data.auth.info3.logon_srv,
 		info3->base.logon_server.string);
 	fstrcpy(resp->data.auth.info3.logon_dom,
-		info3->base.domain.string);
+		info3->base.logon_domain.string);
 
 	ex = talloc_strdup(mem_ctx, "");
 	NT_STATUS_HAVE_NO_MEMORY(ex);
@@ -155,7 +159,7 @@ static NTSTATUS append_unix_username(TALLOC_CTX *mem_ctx,
 
 	const char *nt_username, *nt_domain;
 
-	nt_domain = talloc_strdup(mem_ctx, info3->base.domain.string);
+	nt_domain = talloc_strdup(mem_ctx, info3->base.logon_domain.string);
 	if (!nt_domain) {
 		/* If the server didn't give us one, just use the one
 		 * we sent them */
@@ -216,7 +220,9 @@ static NTSTATUS append_afs_token(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	strlower_m(afsname);
+	if (!strlower_m(afsname)) {
+		return NT_STATUS_INVALID_PARAMETER;
+	}
 
 	DEBUG(10, ("Generating token for user %s\n", afsname));
 
@@ -270,6 +276,7 @@ static NTSTATUS check_info3_in_group(struct netr_SamInfo3 *info3,
 
 	if (!group_sid || !group_sid[0]) {
 		/* NO sid supplied, all users may access */
+		TALLOC_FREE(frame);
 		return NT_STATUS_OK;
 	}
 
@@ -385,9 +392,9 @@ static void fill_in_password_policy(struct winbindd_response *r,
 	r->data.auth.policy.password_properties =
 		p->password_properties;
 	r->data.auth.policy.expire	=
-		nt_time_to_unix_abs((NTTIME *)&(p->max_password_age));
+		nt_time_to_unix_abs((const NTTIME *)&(p->max_password_age));
 	r->data.auth.policy.min_passwordage =
-		nt_time_to_unix_abs((NTTIME *)&(p->min_password_age));
+		nt_time_to_unix_abs((const NTTIME *)&(p->min_password_age));
 }
 
 static NTSTATUS fillup_password_policy(struct winbindd_domain *domain,
@@ -580,7 +587,9 @@ static NTSTATUS winbindd_raw_kerberos_login(TALLOC_CTX *mem_ctx,
 	parse_domain_user(user, name_domain, name_user);
 
 	realm = domain->alt_name;
-	strupper_m(realm);
+	if (!strupper_m(realm)) {
+		return NT_STATUS_INVALID_PARAMETER;
+	}
 
 	principal_s = talloc_asprintf(mem_ctx, "%s@%s", name_user, realm);
 	if (principal_s == NULL) {
@@ -718,12 +727,12 @@ bool check_request_flags(uint32_t flags)
 /****************************************************************
 ****************************************************************/
 
-static NTSTATUS append_auth_data(TALLOC_CTX *mem_ctx,
-				 struct winbindd_response *resp,
-				 uint32_t request_flags,
-				 struct netr_SamInfo3 *info3,
-				 const char *name_domain,
-				 const char *name_user)
+NTSTATUS append_auth_data(TALLOC_CTX *mem_ctx,
+			  struct winbindd_response *resp,
+			  uint32_t request_flags,
+			  struct netr_SamInfo3 *info3,
+			  const char *name_domain,
+			  const char *name_user)
 {
 	NTSTATUS result;
 
@@ -895,7 +904,7 @@ static NTSTATUS winbindd_dual_pam_auth_cached(struct winbindd_domain *domain,
 			return NT_STATUS_LOGON_FAILURE;
 		}
 
-		kickoff_time = nt_time_to_unix(my_info3->base.acct_expiry);
+		kickoff_time = nt_time_to_unix(my_info3->base.kickoff_time);
 		if (kickoff_time != 0 && time(NULL) > kickoff_time) {
 			return NT_STATUS_ACCOUNT_EXPIRED;
 		}
@@ -937,7 +946,9 @@ static NTSTATUS winbindd_dual_pam_auth_cached(struct winbindd_domain *domain,
 			}
 
 			realm = domain->alt_name;
-			strupper_m(realm);
+			if (!strupper_m(realm)) {
+				return NT_STATUS_INVALID_PARAMETER;
+			}
 
 			principal_s = talloc_asprintf(state->mem_ctx, "%s@%s", name_user, realm);
 			if (principal_s == NULL) {
@@ -978,7 +989,7 @@ static NTSTATUS winbindd_dual_pam_auth_cached(struct winbindd_domain *domain,
 		/* FIXME: we possibly should handle logon hours as well (does xp when
 		 * offline?) see auth/auth_sam.c:sam_account_ok for details */
 
-		unix_to_nt_time(&my_info3->base.last_logon, time(NULL));
+		unix_to_nt_time(&my_info3->base.logon_time, time(NULL));
 		my_info3->base.bad_password_count = 0;
 
 		result = winbindd_update_creds_by_info3(domain,
@@ -1111,6 +1122,7 @@ done:
 }
 
 static NTSTATUS winbindd_dual_auth_passdb(TALLOC_CTX *mem_ctx,
+					  uint32_t logon_parameters,
 					  const char *domain, const char *user,
 					  const DATA_BLOB *challenge,
 					  const DATA_BLOB *lm_resp,
@@ -1118,15 +1130,26 @@ static NTSTATUS winbindd_dual_auth_passdb(TALLOC_CTX *mem_ctx,
 					  struct netr_SamInfo3 **pinfo3)
 {
 	struct auth_usersupplied_info *user_info = NULL;
+	struct tsocket_address *local;
 	NTSTATUS status;
+	int rc;
 
+	rc = tsocket_address_inet_from_strings(mem_ctx,
+					       "ip",
+					       "127.0.0.1",
+					       0,
+					       &local);
+	if (rc < 0) {
+		return NT_STATUS_NO_MEMORY;
+	}
 	status = make_user_info(&user_info, user, user, domain, domain,
-				global_myname(), lm_resp, nt_resp, NULL, NULL,
+				lp_netbios_name(), local, lm_resp, nt_resp, NULL, NULL,
 				NULL, AUTH_PASSWORD_RESPONSE);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(10, ("make_user_info failed: %s\n", nt_errstr(status)));
 		return status;
 	}
+	user_info->logon_parameters = logon_parameters;
 
 	/* We don't want any more mapping of the username */
 	user_info->mapped_state = True;
@@ -1408,7 +1431,7 @@ static NTSTATUS winbindd_dual_pam_auth_samlogon(TALLOC_CTX *mem_ctx,
 		   'workstation' passed to the actual SamLogon call.
 		*/
 		names_blob = NTLMv2_generate_names_blob(
-			mem_ctx, global_myname(), lp_workgroup());
+			mem_ctx, lp_netbios_name(), lp_workgroup());
 
 		if (!SMBNTLMv2encrypt(mem_ctx, name_user, name_domain,
 				      pass,
@@ -1433,7 +1456,7 @@ static NTSTATUS winbindd_dual_pam_auth_samlogon(TALLOC_CTX *mem_ctx,
 		DATA_BLOB chal_blob = data_blob_const(chal, sizeof(chal));
 
 		result = winbindd_dual_auth_passdb(
-			mem_ctx, name_domain, name_user,
+			mem_ctx, 0, name_domain, name_user,
 			&chal_blob, &lm_resp, &nt_resp, info3);
 		goto done;
 	}
@@ -1446,7 +1469,7 @@ static NTSTATUS winbindd_dual_pam_auth_samlogon(TALLOC_CTX *mem_ctx,
 					     domain->dcname,
 					     name_user,
 					     name_domain,
-					     global_myname(),
+					     lp_netbios_name(),
 					     chal,
 					     lm_resp,
 					     nt_resp,
@@ -1577,8 +1600,8 @@ enum winbindd_result winbindd_dual_pam_auth(struct winbindd_domain *domain,
 		fstr_sprintf( domain_user, "%s%c%s", name_domain,
 			*lp_winbind_separator(),
 			name_user );
-		safe_strcpy( state->request->data.auth.user, domain_user,
-			     sizeof(state->request->data.auth.user)-1 );
+		strlcpy( state->request->data.auth.user, domain_user,
+			     sizeof(state->request->data.auth.user));
 	}
 
 	if (!domain->online) {
@@ -1856,7 +1879,9 @@ enum winbindd_result winbindd_dual_pam_auth_crap(struct winbindd_domain *domain,
 			sizeof(state->request->data.auth_crap.chal));
 
 		result = winbindd_dual_auth_passdb(
-			state->mem_ctx, name_domain, name_user,
+			state->mem_ctx,
+			state->request->data.auth_crap.logon_parameters,
+			name_domain, name_user,
 			&chal_blob, &lm_resp, &nt_resp, &info3);
 		goto process_result;
 	}
@@ -2205,7 +2230,7 @@ enum winbindd_result winbindd_dual_pam_chng_pswd_auth_crap(struct winbindd_domai
 	}
 
 	if (!*domain && lp_winbind_use_default_domain()) {
-		fstrcpy(domain,(char *)lp_workgroup());
+		fstrcpy(domain,lp_workgroup());
 	}
 
 	if(!*user) {
@@ -2233,8 +2258,8 @@ enum winbindd_result winbindd_dual_pam_chng_pswd_auth_crap(struct winbindd_domai
 			state->request->data.chng_pswd_auth_crap.old_lm_hash_enc,
 			state->request->data.chng_pswd_auth_crap.old_lm_hash_enc_len);
 	} else {
-		new_lm_password.length = 0;
-		old_lm_hash_enc.length = 0;
+		new_lm_password = data_blob_null;
+		old_lm_hash_enc = data_blob_null;
 	}
 
 	/* Get sam handle */
@@ -2274,3 +2299,116 @@ enum winbindd_result winbindd_dual_pam_chng_pswd_auth_crap(struct winbindd_domai
 
 	return NT_STATUS_IS_OK(result) ? WINBINDD_OK : WINBINDD_ERROR;
 }
+
+#ifdef HAVE_KRB5
+static NTSTATUS extract_pac_vrfy_sigs(TALLOC_CTX *mem_ctx, DATA_BLOB pac_blob,
+				      struct PAC_LOGON_INFO **logon_info)
+{
+	krb5_context krbctx = NULL;
+	krb5_error_code k5ret;
+	krb5_keytab keytab;
+	krb5_kt_cursor cursor;
+	krb5_keytab_entry entry;
+	NTSTATUS status = NT_STATUS_UNSUCCESSFUL;
+
+	ZERO_STRUCT(entry);
+	ZERO_STRUCT(cursor);
+
+	k5ret = krb5_init_context(&krbctx);
+	if (k5ret) {
+		DEBUG(1, ("Failed to initialize kerberos context: %s\n",
+			  error_message(k5ret)));
+		status = krb5_to_nt_status(k5ret);
+		goto out;
+	}
+
+	k5ret =  gse_krb5_get_server_keytab(krbctx, &keytab);
+	if (k5ret) {
+		DEBUG(1, ("Failed to get keytab: %s\n",
+			  error_message(k5ret)));
+		status = krb5_to_nt_status(k5ret);
+		goto out_free;
+	}
+
+	k5ret = krb5_kt_start_seq_get(krbctx, keytab, &cursor);
+	if (k5ret) {
+		DEBUG(1, ("Failed to start seq: %s\n",
+			  error_message(k5ret)));
+		status = krb5_to_nt_status(k5ret);
+		goto out_keytab;
+	}
+
+	k5ret = krb5_kt_next_entry(krbctx, keytab, &entry, &cursor);
+	while (k5ret == 0) {
+		status = kerberos_pac_logon_info(mem_ctx, pac_blob,
+						 krbctx, NULL,
+						 KRB5_KT_KEY(&entry), NULL, 0,
+						 logon_info);
+		if (NT_STATUS_IS_OK(status)) {
+			break;
+		}
+		k5ret = smb_krb5_kt_free_entry(krbctx, &entry);
+		k5ret = krb5_kt_next_entry(krbctx, keytab, &entry, &cursor);
+	}
+
+	k5ret = krb5_kt_end_seq_get(krbctx, keytab, &cursor);
+	if (k5ret) {
+		DEBUG(1, ("Failed to end seq: %s\n",
+			  error_message(k5ret)));
+	}
+out_keytab:
+	k5ret = krb5_kt_close(krbctx, keytab);
+	if (k5ret) {
+		DEBUG(1, ("Failed to close keytab: %s\n",
+			  error_message(k5ret)));
+	}
+out_free:
+	krb5_free_context(krbctx);
+out:
+	return status;
+}
+
+NTSTATUS winbindd_pam_auth_pac_send(struct winbindd_cli_state *state,
+				    struct netr_SamInfo3 **info3)
+{
+	struct winbindd_request *req = state->request;
+	DATA_BLOB pac_blob;
+	struct PAC_LOGON_INFO *logon_info = NULL;
+	NTSTATUS result;
+
+	pac_blob = data_blob_const(req->extra_data.data, req->extra_len);
+	result = extract_pac_vrfy_sigs(state->mem_ctx, pac_blob, &logon_info);
+	if (!NT_STATUS_IS_OK(result) &&
+	    !NT_STATUS_EQUAL(result, NT_STATUS_ACCESS_DENIED)) {
+		DEBUG(1, ("Error during PAC signature verification: %s\n",
+			  nt_errstr(result)));
+		return result;
+	}
+
+	if (logon_info) {
+		/* Signature verification succeeded, trust the PAC */
+		netsamlogon_cache_store(NULL, &logon_info->info3);
+
+	} else {
+		/* Try without signature verification */
+		result = kerberos_pac_logon_info(state->mem_ctx, pac_blob, NULL,
+						 NULL, NULL, NULL, 0,
+						 &logon_info);
+		if (!NT_STATUS_IS_OK(result)) {
+			DEBUG(10, ("Could not extract PAC: %s\n",
+				   nt_errstr(result)));
+			return result;
+		}
+	}
+
+	*info3 = &logon_info->info3;
+
+	return NT_STATUS_OK;
+}
+#else /* HAVE_KRB5 */
+NTSTATUS winbindd_pam_auth_pac_send(struct winbindd_cli_state *state,
+				    struct netr_SamInfo3 **info3)
+{
+	return NT_STATUS_NO_SUCH_USER;
+}
+#endif /* HAVE_KRB5 */

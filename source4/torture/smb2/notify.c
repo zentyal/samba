@@ -23,6 +23,7 @@
 #include "includes.h"
 #include "libcli/smb2/smb2.h"
 #include "libcli/smb2/smb2_calls.h"
+#include "../libcli/smb/smbXcli_base.h"
 
 #include "torture/torture.h"
 #include "torture/smb2/proto.h"
@@ -101,7 +102,7 @@ static bool test_valid_request(struct torture_context *torture,
 	req = smb2_notify_send(tree, &n);
 
 	while (!req->cancel.can_cancel && req->state <= SMB2_REQUEST_RECV) {
-		if (event_loop_once(req->transport->socket->event.ctx) != 0) {
+		if (tevent_loop_once(torture->ev) != 0) {
 			break;
 		}
 	}
@@ -123,7 +124,7 @@ static bool test_valid_request(struct torture_context *torture,
 	req = smb2_notify_send(tree, &n);
 
 	while (!req->cancel.can_cancel && req->state <= SMB2_REQUEST_RECV) {
-		if (event_loop_once(req->transport->socket->event.ctx) != 0) {
+		if (tevent_loop_once(torture->ev) != 0) {
 			break;
 		}
 	}
@@ -142,7 +143,7 @@ static bool test_valid_request(struct torture_context *torture,
 	req = smb2_notify_send(tree, &n);
 
 	while (!req->cancel.can_cancel && req->state <= SMB2_REQUEST_RECV) {
-		if (event_loop_once(req->transport->socket->event.ctx) != 0) {
+		if (tevent_loop_once(torture->ev) != 0) {
 			break;
 		}
 	}
@@ -174,7 +175,7 @@ static bool test_valid_request(struct torture_context *torture,
 	req = smb2_notify_send(tree, &n);
 
 	while (!req->cancel.can_cancel && req->state <= SMB2_REQUEST_RECV) {
-		if (event_loop_once(req->transport->socket->event.ctx) != 0) {
+		if (tevent_loop_once(torture->ev) != 0) {
 			break;
 		}
 	}
@@ -188,7 +189,7 @@ static bool test_valid_request(struct torture_context *torture,
 	n.in.buffer_size        = max_buffer_size;
 	req = smb2_notify_send(tree, &n);
 	while (!req->cancel.can_cancel && req->state <= SMB2_REQUEST_RECV) {
-		if (event_loop_once(req->transport->socket->event.ctx) != 0) {
+		if (tevent_loop_once(torture->ev) != 0) {
 			break;
 		}
 	}
@@ -367,7 +368,7 @@ static bool torture_smb2_notify_dir(struct torture_context *torture,
 	notify.smb2.in.file.handle = h1;
 	req = smb2_notify_send(tree1, &(notify.smb2));
 
-	status = smb2_util_unlink(tree1, BASEDIR "\\nonexistant.txt");
+	status = smb2_util_unlink(tree1, BASEDIR "\\nonexistent.txt");
 	CHECK_STATUS(status, NT_STATUS_OBJECT_NAME_NOT_FOUND);
 
 	/* (1st unlink) as the 2nd notify directly returns,
@@ -400,7 +401,7 @@ static bool torture_smb2_notify_dir(struct torture_context *torture,
 		"(3rd notify) this notify will only see the 1st unlink\n");
 	req = smb2_notify_send(tree1, &(notify.smb2));
 
-	status = smb2_util_unlink(tree1, BASEDIR "\\nonexistant.txt");
+	status = smb2_util_unlink(tree1, BASEDIR "\\nonexistent.txt");
 	CHECK_STATUS(status, NT_STATUS_OBJECT_NAME_NOT_FOUND);
 
 	for (i=1;i<count;i++) {
@@ -845,8 +846,6 @@ static bool torture_smb2_notify_mask(struct torture_context *torture,
 	uint32_t mask;
 	int i;
 	char c = 1;
-	struct timeval tv;
-	NTTIME t;
 	union smb_setfileinfo sinfo;
 
 	smb2_deltree(tree1, BASEDIR);
@@ -854,8 +853,6 @@ static bool torture_smb2_notify_mask(struct torture_context *torture,
 
 	torture_comment(torture, "TESTING CHANGE NOTIFY COMPLETION FILTERS\n");
 
-	tv = timeval_current_ofs(1000, 0);
-	t = timeval_to_nttime(&tv);
 
 	/*
 	  get a handle on the directory
@@ -1808,19 +1805,32 @@ static struct smb2_tree *secondary_tcon(struct smb2_tree *tree,
 	torture_comment(tctx,
 		"create a second tree context on the same session\n");
 	tree1 = smb2_tree_init(tree->session, tctx, false);
+	if (tree1 == NULL) {
+		torture_comment(tctx, "Out of memory\n");
+		return NULL;
+	}
 
 	ZERO_STRUCT(tcon.smb2);
 	tcon.generic.level = RAW_TCON_SMB2;
 	tcon.smb2.in.path = talloc_asprintf(tctx, "\\\\%s\\%s", host, share);
-	status = smb2_tree_connect(tree, &(tcon.smb2));
+	status = smb2_tree_connect(tree->session, &(tcon.smb2));
 	if (!NT_STATUS_IS_OK(status)) {
-		talloc_free(tree);
+		talloc_free(tree1);
 		torture_comment(tctx,"Failed to create secondary tree\n");
 		return NULL;
 	}
 
-	tree1->tid = tcon.smb2.out.tid;
-	torture_comment(tctx,"tid1=%d tid2=%d\n", tree->tid, tree1->tid);
+	smb2cli_tcon_set_values(tree1->smbXcli,
+				tree1->session->smbXcli,
+				tcon.smb2.out.tid,
+				tcon.smb2.out.share_type,
+				tcon.smb2.out.flags,
+				tcon.smb2.out.capabilities,
+				tcon.smb2.out.access_mask);
+
+	torture_comment(tctx,"tid1=%d tid2=%d\n",
+			smb2cli_tcon_current_id(tree->smbXcli),
+			smb2cli_tcon_current_id(tree1->smbXcli));
 
 	return tree1;
 }

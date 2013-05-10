@@ -23,36 +23,7 @@
 #include "system/filesys.h"
 #include "smbd/smbd.h"
 
-#if defined(LINUX) && defined(HAVE_FSID_INT)
-static int linux_statvfs(const char *path, vfs_statvfs_struct *statbuf)
-{
-	struct statvfs statvfs_buf;
-	int result;
-
-	result = statvfs(path, &statvfs_buf);
-
-	if (!result) {
-		statbuf->OptimalTransferSize = statvfs_buf.f_frsize;
-		statbuf->BlockSize = statvfs_buf.f_bsize;
-		statbuf->TotalBlocks = statvfs_buf.f_blocks;
-		statbuf->BlocksAvail = statvfs_buf.f_bfree;
-		statbuf->UserBlocksAvail = statvfs_buf.f_bavail;
-		statbuf->TotalFileNodes = statvfs_buf.f_files;
-		statbuf->FreeFileNodes = statvfs_buf.f_ffree;
-		statbuf->FsIdentifier = statvfs_buf.f_fsid;
-
-		/* Good defaults for Linux filesystems are case sensitive
-		 * and case preserving.
-		 */
-		statbuf->FsCapabilities =
-		    FILE_CASE_SENSITIVE_SEARCH | FILE_CASE_PRESERVED_NAMES;
-	}
-	return result;
-}
-#endif
-
 #if defined(DARWINOS)
-
 #include <sys/attr.h>
 
 static int darwin_fs_capabilities(const char * path)
@@ -102,28 +73,77 @@ static int darwin_fs_capabilities(const char * path)
 
 	return caps;
 }
+#endif /* DARWINOS */
 
-static int darwin_statvfs(const char *path, vfs_statvfs_struct *statbuf)
+#if defined(BSD_STYLE_STATVFS)
+static int bsd_statvfs(const char *path, vfs_statvfs_struct *statbuf)
 {
 	struct statfs sbuf;
 	int ret;
 
 	ret = statfs(path, &sbuf);
-	if (ret != 0) {
-		return ret;
+	if (ret == 0) {
+		statbuf->OptimalTransferSize = sbuf.f_iosize;
+		statbuf->BlockSize = sbuf.f_bsize;
+		statbuf->TotalBlocks = sbuf.f_blocks;
+		statbuf->BlocksAvail = sbuf.f_bfree;
+		statbuf->UserBlocksAvail = sbuf.f_bavail;
+		statbuf->TotalFileNodes = sbuf.f_files;
+		statbuf->FreeFileNodes = sbuf.f_ffree;
+		statbuf->FsIdentifier =
+			(((uint64_t) sbuf.f_fsid.val[0] << 32) & 0xffffffff00000000LL) |
+			    (uint64_t) sbuf.f_fsid.val[1];
+#ifdef DARWINOS
+		statbuf->FsCapabilities = darwin_fs_capabilities(sbuf.f_mntonname);
+#else
+		/* Try to extrapolate some of the fs flags into the
+		 * capabilities
+		 */
+		statbuf->FsCapabilities =
+		    FILE_CASE_SENSITIVE_SEARCH | FILE_CASE_PRESERVED_NAMES;
+#ifdef MNT_ACLS
+		if (sbuf.f_flags & MNT_ACLS)
+			statbuf->FsCapabilities |= FILE_PERSISTENT_ACLS;
+#endif
+#endif
+		if (sbuf.f_flags & MNT_QUOTA)
+			statbuf->FsCapabilities |= FILE_VOLUME_QUOTAS;
+		if (sbuf.f_flags & MNT_RDONLY)
+			statbuf->FsCapabilities |= FILE_READ_ONLY_VOLUME;
 	}
 
-	statbuf->OptimalTransferSize = sbuf.f_iosize;
-	statbuf->BlockSize = sbuf.f_bsize;
-	statbuf->TotalBlocks = sbuf.f_blocks;
-	statbuf->BlocksAvail = sbuf.f_bfree;
-	statbuf->UserBlocksAvail = sbuf.f_bavail;
-	statbuf->TotalFileNodes = sbuf.f_files;
-	statbuf->FreeFileNodes = sbuf.f_ffree;
-	statbuf->FsIdentifier = *(uint64_t *)(&sbuf.f_fsid); /* Ick. */
-	statbuf->FsCapabilities = darwin_fs_capabilities(sbuf.f_mntonname);
+	return ret;
+}
+#elif defined(STAT_STATVFS) && defined(HAVE_FSID_INT)
+static int linux_statvfs(const char *path, vfs_statvfs_struct *statbuf)
+{
+	struct statvfs statvfs_buf;
+	int result;
 
-	return 0;
+	result = statvfs(path, &statvfs_buf);
+
+	if (!result) {
+		statbuf->OptimalTransferSize = statvfs_buf.f_frsize;
+		statbuf->BlockSize = statvfs_buf.f_bsize;
+		statbuf->TotalBlocks = statvfs_buf.f_blocks;
+		statbuf->BlocksAvail = statvfs_buf.f_bfree;
+		statbuf->UserBlocksAvail = statvfs_buf.f_bavail;
+		statbuf->TotalFileNodes = statvfs_buf.f_files;
+		statbuf->FreeFileNodes = statvfs_buf.f_ffree;
+		statbuf->FsIdentifier = statvfs_buf.f_fsid;
+		/* Try to extrapolate some of the fs flags into the
+		 * capabilities
+		 */
+		statbuf->FsCapabilities =
+		    FILE_CASE_SENSITIVE_SEARCH | FILE_CASE_PRESERVED_NAMES;
+#ifdef ST_QUOTA
+		if (statvfs_buf.f_flag & ST_QUOTA)
+			statbuf->FsCapabilities |= FILE_VOLUME_QUOTAS;
+#endif
+		if (statvfs_buf.f_flag & ST_RDONLY)
+			statbuf->FsCapabilities |= FILE_READ_ONLY_VOLUME;
+	}
+	return result;
 }
 #endif
 
@@ -131,14 +151,14 @@ static int darwin_statvfs(const char *path, vfs_statvfs_struct *statbuf)
  sys_statvfs() is an abstraction layer over system-dependent statvfs()/statfs()
  for particular POSIX systems. Due to controversy of what is considered more important
  between LSB and FreeBSD/POSIX.1 (IEEE Std 1003.1-2001) we need to abstract the interface
- so that particular OS would use its preffered interface.
+ so that particular OS would use its prefered interface.
 */
 int sys_statvfs(const char *path, vfs_statvfs_struct *statbuf)
 {
-#if defined(LINUX) && defined(HAVE_FSID_INT)
+#if defined(BSD_STYLE_STATVFS)
+	return bsd_statvfs(path, statbuf);
+#elif defined(STAT_STATVFS) && defined(HAVE_FSID_INT)
 	return linux_statvfs(path, statbuf);
-#elif defined(DARWINOS)
-	return darwin_statvfs(path, statbuf);
 #else
 	/* BB change this to return invalid level */
 #ifdef EOPNOTSUPP

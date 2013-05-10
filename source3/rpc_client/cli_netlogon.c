@@ -177,7 +177,7 @@ NTSTATUS rpccli_netlogon_sam_logon(struct rpc_pipe_client *cli,
 
 	ZERO_STRUCT(ret_creds);
 
-	logon = TALLOC_ZERO_P(mem_ctx, union netr_LogonLevel);
+	logon = talloc_zero(mem_ctx, union netr_LogonLevel);
 	if (!logon) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -185,7 +185,7 @@ NTSTATUS rpccli_netlogon_sam_logon(struct rpc_pipe_client *cli,
 	if (workstation) {
 		fstr_sprintf( clnt_name_slash, "\\\\%s", workstation );
 	} else {
-		fstr_sprintf( clnt_name_slash, "\\\\%s", global_myname() );
+		fstr_sprintf( clnt_name_slash, "\\\\%s", lp_netbios_name() );
 	}
 
 	/* Initialise input parameters */
@@ -200,14 +200,17 @@ NTSTATUS rpccli_netlogon_sam_logon(struct rpc_pipe_client *cli,
 		struct samr_Password lmpassword;
 		struct samr_Password ntpassword;
 
-		password_info = TALLOC_ZERO_P(mem_ctx, struct netr_PasswordInfo);
+		password_info = talloc_zero(mem_ctx, struct netr_PasswordInfo);
 		if (!password_info) {
 			return NT_STATUS_NO_MEMORY;
 		}
 
 		nt_lm_owf_gen(password, ntpassword.hash, lmpassword.hash);
 
-		if (cli->dc->negotiate_flags & NETLOGON_NEG_ARCFOUR) {
+		if (cli->dc->negotiate_flags & NETLOGON_NEG_SUPPORTS_AES) {
+			netlogon_creds_aes_encrypt(cli->dc, lmpassword.hash, 16);
+			netlogon_creds_aes_encrypt(cli->dc, ntpassword.hash, 16);
+		} else if (cli->dc->negotiate_flags & NETLOGON_NEG_ARCFOUR) {
 			netlogon_creds_arcfour_crypt(cli->dc, lmpassword.hash, 16);
 			netlogon_creds_arcfour_crypt(cli->dc, ntpassword.hash, 16);
 		} else {
@@ -240,7 +243,7 @@ NTSTATUS rpccli_netlogon_sam_logon(struct rpc_pipe_client *cli,
 		ZERO_STRUCT(lm);
 		ZERO_STRUCT(nt);
 
-		network_info = TALLOC_ZERO_P(mem_ctx, struct netr_NetworkInfo);
+		network_info = talloc_zero(mem_ctx, struct netr_NetworkInfo);
 		if (!network_info) {
 			return NT_STATUS_NO_MEMORY;
 		}
@@ -279,7 +282,7 @@ NTSTATUS rpccli_netlogon_sam_logon(struct rpc_pipe_client *cli,
 
 	status = dcerpc_netr_LogonSamLogon(b, mem_ctx,
 					   cli->srv_name_slash,
-					   global_myname(),
+					   lp_netbios_name(),
 					   &clnt_creds,
 					   &ret_creds,
 					   logon_type,
@@ -388,12 +391,12 @@ NTSTATUS rpccli_netlogon_sam_network_logon(struct rpc_pipe_client *cli,
 	ZERO_STRUCT(lm);
 	ZERO_STRUCT(nt);
 
-	logon = TALLOC_ZERO_P(mem_ctx, union netr_LogonLevel);
+	logon = talloc_zero(mem_ctx, union netr_LogonLevel);
 	if (!logon) {
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	network_info = TALLOC_ZERO_P(mem_ctx, struct netr_NetworkInfo);
+	network_info = talloc_zero(mem_ctx, struct netr_NetworkInfo);
 	if (!network_info) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -441,7 +444,7 @@ NTSTATUS rpccli_netlogon_sam_network_logon(struct rpc_pipe_client *cli,
 
 	status = dcerpc_netr_LogonSamLogon(b, mem_ctx,
 					   server_name_slash,
-					   global_myname(),
+					   lp_netbios_name(),
 					   &clnt_creds,
 					   &ret_creds,
 					   NetlogonNetworkInformation,
@@ -505,12 +508,12 @@ NTSTATUS rpccli_netlogon_sam_network_logon_ex(struct rpc_pipe_client *cli,
 	ZERO_STRUCT(lm);
 	ZERO_STRUCT(nt);
 
-	logon = TALLOC_ZERO_P(mem_ctx, union netr_LogonLevel);
+	logon = talloc_zero(mem_ctx, union netr_LogonLevel);
 	if (!logon) {
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	network_info = TALLOC_ZERO_P(mem_ctx, struct netr_NetworkInfo);
+	network_info = talloc_zero(mem_ctx, struct netr_NetworkInfo);
 	if (!network_info) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -556,7 +559,7 @@ NTSTATUS rpccli_netlogon_sam_network_logon_ex(struct rpc_pipe_client *cli,
 
 	status = dcerpc_netr_LogonSamLogonEx(b, mem_ctx,
 					     server_name_slash,
-					     global_myname(),
+					     lp_netbios_name(),
 					     NetlogonNetworkInformation,
 					     logon,
 					     validation_level,
@@ -608,7 +611,7 @@ NTSTATUS rpccli_netlogon_set_trust_password(struct rpc_pipe_client *cli,
 		result = rpccli_netlogon_setup_creds(cli,
 						     cli->desthost, /* server name */
 						     lp_workgroup(), /* domain */
-						     global_myname(), /* client name */
+						     lp_netbios_name(), /* client name */
 						     account_name, /* machine account name */
 						     orig_trust_passwd_hash,
 						     sec_channel_type,
@@ -625,10 +628,13 @@ NTSTATUS rpccli_netlogon_set_trust_password(struct rpc_pipe_client *cli,
 	if (cli->dc->negotiate_flags & NETLOGON_NEG_PASSWORD_SET2) {
 
 		struct netr_CryptPassword new_password;
+		uint32_t old_timeout;
 
 		init_netr_CryptPassword(new_trust_pwd_cleartext,
-					cli->dc->session_key,
+					cli->dc,
 					&new_password);
+
+		old_timeout = dcerpc_binding_handle_set_timeout(b, 600000);
 
 		status = dcerpc_netr_ServerPasswordSet2(b, mem_ctx,
 							cli->srv_name_slash,
@@ -639,6 +645,9 @@ NTSTATUS rpccli_netlogon_set_trust_password(struct rpc_pipe_client *cli,
 							&srv_cred,
 							&new_password,
 							&result);
+
+		dcerpc_binding_handle_set_timeout(b, old_timeout);
+
 		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(0,("dcerpc_netr_ServerPasswordSet2 failed: %s\n",
 				nt_errstr(status)));
@@ -647,8 +656,12 @@ NTSTATUS rpccli_netlogon_set_trust_password(struct rpc_pipe_client *cli,
 	} else {
 
 		struct samr_Password new_password;
+		uint32_t old_timeout;
+
 		memcpy(new_password.hash, new_trust_passwd_hash, sizeof(new_password.hash));
 		netlogon_creds_des_encrypt(cli->dc, &new_password);
+
+		old_timeout = dcerpc_binding_handle_set_timeout(b, 600000);
 
 		status = dcerpc_netr_ServerPasswordSet(b, mem_ctx,
 						       cli->srv_name_slash,
@@ -659,6 +672,9 @@ NTSTATUS rpccli_netlogon_set_trust_password(struct rpc_pipe_client *cli,
 						       &srv_cred,
 						       &new_password,
 						       &result);
+
+		dcerpc_binding_handle_set_timeout(b, old_timeout);
+
 		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(0,("dcerpc_netr_ServerPasswordSet failed: %s\n",
 				nt_errstr(status)));

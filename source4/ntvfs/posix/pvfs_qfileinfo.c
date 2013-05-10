@@ -102,6 +102,9 @@ NTSTATUS pvfs_query_ea_list(struct pvfs_state *pvfs, TALLOC_CTX *mem_ctx,
 		for (j=0;j<ealist->num_eas;j++) {
 			if (strcasecmp_m(eas->eas[i].name.s, 
 				       ealist->eas[j].name) == 0) {
+				if (ealist->eas[j].value.length == 0) {
+					continue;
+				}
 				eas->eas[i].value = ealist->eas[j].value;
 				break;
 			}
@@ -134,6 +137,9 @@ static NTSTATUS pvfs_query_all_eas(struct pvfs_state *pvfs, TALLOC_CTX *mem_ctx,
 	for (i=0;i<ealist->num_eas;i++) {
 		eas->eas[eas->num_eas].flags = 0;
 		eas->eas[eas->num_eas].name.s = ealist->eas[i].name;
+		if (ealist->eas[i].value.length == 0) {
+			continue;
+		}
 		eas->eas[eas->num_eas].value = ealist->eas[i].value;
 		eas->num_eas++;
 	}
@@ -149,9 +155,6 @@ static NTSTATUS pvfs_map_fileinfo(struct pvfs_state *pvfs,
 				  int fd)
 {
 	switch (info->generic.level) {
-	case RAW_FILEINFO_GENERIC:
-		return NT_STATUS_INVALID_LEVEL;
-
 	case RAW_FILEINFO_GETATTR:
 		info->getattr.out.attrib     = name->dos.attrib;
 		info->getattr.out.size       = name->st.st_size;
@@ -225,7 +228,7 @@ static NTSTATUS pvfs_map_fileinfo(struct pvfs_state *pvfs,
 
 	case RAW_FILEINFO_NAME_INFO:
 	case RAW_FILEINFO_NAME_INFORMATION:
-		if (req->ctx->protocol == PROTOCOL_SMB2) {
+		if (req->ctx->protocol >= PROTOCOL_SMB2_02) {
 			/* strange that SMB2 doesn't have this */
 			return NT_STATUS_NOT_SUPPORTED;
 		}
@@ -333,6 +336,12 @@ static NTSTATUS pvfs_map_fileinfo(struct pvfs_state *pvfs,
 							      name->original_name);
 		NT_STATUS_HAVE_NO_MEMORY(info->all_info2.out.fname.s);
 		return NT_STATUS_OK;
+
+	case RAW_FILEINFO_GENERIC:
+	case RAW_FILEINFO_UNIX_BASIC:
+	case RAW_FILEINFO_UNIX_INFO2:
+	case RAW_FILEINFO_UNIX_LINK:
+		return NT_STATUS_INVALID_LEVEL;
 	}
 
 	return NT_STATUS_INVALID_LEVEL;

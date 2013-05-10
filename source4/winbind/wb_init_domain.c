@@ -78,22 +78,33 @@ static struct dcerpc_binding *init_domain_binding(struct init_domain_state *stat
 						  const struct ndr_interface_table *table) 
 {
 	struct dcerpc_binding *binding;
+	char *s;
 	NTSTATUS status;
 
 	/* Make a binding string */
-	{
-		char *s = talloc_asprintf(state, "ncacn_np:%s", state->domain->dc_name);
+	if ((lpcfg_server_role(state->service->task->lp_ctx) != ROLE_DOMAIN_MEMBER) &&
+	    dom_sid_equal(state->domain->info->sid, state->service->primary_sid) &&
+	    state->service->sec_channel_type != SEC_CHAN_RODC) {
+		s = talloc_asprintf(state, "ncalrpc:%s", state->domain->dc_name);
 		if (s == NULL) return NULL;
-		status = dcerpc_parse_binding(state, s, &binding);
-		talloc_free(s);
-		if (!NT_STATUS_IS_OK(status)) {
-			return NULL;
-		}
+	} else {
+		s = talloc_asprintf(state, "ncacn_np:%s", state->domain->dc_name);
+		if (s == NULL) return NULL;
+
+	}
+	status = dcerpc_parse_binding(state, s, &binding);
+	talloc_free(s);
+	if (!NT_STATUS_IS_OK(status)) {
+		return NULL;
 	}
 
 	/* Alter binding to contain hostname, but also address (so we don't look it up twice) */
 	binding->target_hostname = state->domain->dc_name;
 	binding->host = state->domain->dc_address;
+
+	if (binding->transport == NCALRPC) {
+		return binding;
+	}
 
 	/* This shouldn't make a network call, as the mappings for named pipes are well known */
 	status = dcerpc_epm_map_binding(binding, binding, table, state->service->task->event_ctx,
@@ -149,12 +160,19 @@ struct composite_context *wb_init_domain_send(TALLOC_CTX *mem_ctx,
 
 	state->domain->netlogon_pipe = NULL;
 
+	state->domain->netlogon_queue = tevent_queue_create(state->domain,
+							    "netlogon_queue");
+	if (state->domain->netlogon_queue == NULL) goto failed;
+
+	/* We start the queue when the connection is usable */
+	tevent_queue_stop(state->domain->netlogon_queue);
+
 	if ((!cli_credentials_is_anonymous(state->domain->libnet_ctx->cred)) &&
 	    ((lpcfg_server_role(service->task->lp_ctx) == ROLE_DOMAIN_MEMBER) ||
-	     (lpcfg_server_role(service->task->lp_ctx) == ROLE_DOMAIN_CONTROLLER)) &&
+	     (lpcfg_server_role(service->task->lp_ctx) == ROLE_ACTIVE_DIRECTORY_DC)) &&
 	    (dom_sid_equal(state->domain->info->sid,
 			   state->service->primary_sid))) {
-		state->domain->netlogon_binding->flags |= DCERPC_SCHANNEL;
+		state->domain->netlogon_binding->flags |= DCERPC_SCHANNEL | DCERPC_SCHANNEL_AUTO;
 
 		/* For debugging, it can be a real pain if all the traffic is encrypted */
 		if (lpcfg_winbind_sealed_pipes(service->task->lp_ctx)) {
@@ -200,6 +218,9 @@ static void init_domain_recv_netlogonpipe(struct composite_context *ctx)
 	}
 	talloc_reparent(state, state->domain->netlogon_pipe, state->domain->netlogon_binding);
 
+	/* the netlogon connection is ready */
+	tevent_queue_start(state->domain->netlogon_queue);
+
 	state->domain->lsa_binding = init_domain_binding(state, &ndr_table_lsarpc);
 
 	/* For debugging, it can be a real pain if all the traffic is encrypted */
@@ -236,7 +257,7 @@ static bool retry_with_schannel(struct init_domain_state *state,
 		 * NTLMSSP binds */
 
 		/* Try again with schannel */
-		binding->flags |= DCERPC_SCHANNEL;
+		binding->flags |= DCERPC_SCHANNEL | DCERPC_SCHANNEL_AUTO;
 
 		/* Try again, likewise on the same IPC$ share, 
 		   secured with SCHANNEL */

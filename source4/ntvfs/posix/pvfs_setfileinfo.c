@@ -130,7 +130,7 @@ static NTSTATUS pvfs_setfileinfo_rename(struct pvfs_state *pvfs,
 
 	/* renames are only allowed within a directory */
 	if (strchr_m(info->rename_information.in.new_name, '\\') &&
-	    (req->ctx->protocol != PROTOCOL_SMB2)) {
+	    (req->ctx->protocol < PROTOCOL_SMB2_02)) {
 		return NT_STATUS_NOT_SUPPORTED;
 	}
 
@@ -143,12 +143,12 @@ static NTSTATUS pvfs_setfileinfo_rename(struct pvfs_state *pvfs,
 	/* w2k3 does not appear to allow relative rename. On SMB2, vista sends it sometimes,
 	   but I suspect it is just uninitialised memory */
 	if (info->rename_information.in.root_fid != 0 && 
-	    (req->ctx->protocol != PROTOCOL_SMB2)) {
+	    (req->ctx->protocol < PROTOCOL_SMB2_02)) {
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
 	/* construct the fully qualified windows name for the new file name */
-	if (req->ctx->protocol == PROTOCOL_SMB2) {
+	if (req->ctx->protocol >= PROTOCOL_SMB2_02) {
 		/* SMB2 sends the full path of the new name */
 		new_name = talloc_asprintf(req, "\\%s", info->rename_information.in.new_name);
 	} else {
@@ -534,7 +534,7 @@ NTSTATUS pvfs_setfileinfo(struct ntvfs_module_context *ntvfs,
 		}
 		mode = pvfs_fileperms(pvfs, newstats.dos.attrib);
 		if (!(h->name->dos.attrib & FILE_ATTRIBUTE_DIRECTORY)) {
-			if (pvfs_sys_fchmod(pvfs, h->fd, mode) == -1) {
+			if (pvfs_sys_fchmod(pvfs, h->fd, mode, h->name->allow_override) == -1) {
 				return pvfs_map_errno(pvfs, errno);
 			}
 		}
@@ -859,7 +859,7 @@ NTSTATUS pvfs_setpathinfo(struct ntvfs_module_context *ntvfs,
 	newstats.dos.attrib |= (name->dos.attrib & FILE_ATTRIBUTE_DIRECTORY);
 	if (newstats.dos.attrib != name->dos.attrib) {
 		mode_t mode = pvfs_fileperms(pvfs, newstats.dos.attrib);
-		if (pvfs_sys_chmod(pvfs, name->full_name, mode) == -1) {
+		if (pvfs_sys_chmod(pvfs, name->full_name, mode, name->allow_override) == -1) {
 			return pvfs_map_errno(pvfs, errno);
 		}
 		change_mask |= FILE_NOTIFY_CHANGE_ATTRIBUTES;

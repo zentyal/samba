@@ -30,7 +30,7 @@
 */
 _PUBLIC_ NTSTATUS authenticate_username_pw(TALLOC_CTX *mem_ctx,
 					   struct tevent_context *ev,
-					   struct messaging_context *msg,
+					   struct imessaging_context *msg,
 					   struct loadparm_context *lp_ctx,
 					   const char *nt4_domain,
 					   const char *nt4_username,
@@ -38,7 +38,7 @@ _PUBLIC_ NTSTATUS authenticate_username_pw(TALLOC_CTX *mem_ctx,
 					   const uint32_t logon_parameters,
 					   struct auth_session_info **session_info) 
 {
-	struct auth_context *auth_context;
+	struct auth4_context *auth_context;
 	struct auth_usersupplied_info *user_info;
 	struct auth_user_info_dc *user_info_dc;
 	NTSTATUS nt_status;
@@ -94,8 +94,10 @@ _PUBLIC_ NTSTATUS authenticate_username_pw(TALLOC_CTX *mem_ctx,
 		if (user_info_dc->info->authenticated) {
 			flags |= AUTH_SESSION_INFO_AUTHENTICATED;
 		}
-		nt_status = auth_context->generate_session_info(tmp_ctx, auth_context,
+		nt_status = auth_context->generate_session_info(auth_context,
+								tmp_ctx, 
 								user_info_dc,
+								nt4_username,
 								flags,
 								session_info);
 

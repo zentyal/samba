@@ -29,6 +29,7 @@
 #include "libcli/smb_composite/smb_composite.h"
 #include "lib/cmdline/popt_common.h"
 #include "param/param.h"
+#include "torture/raw/proto.h"
 
 #define CHECK_STATUS(status, correct) do { \
 	if (!NT_STATUS_EQUAL(status, correct)) { \
@@ -102,9 +103,7 @@ static bool test_lock(struct torture_context *tctx, struct smbcli_state *cli)
 	if (!TARGET_SUPPORTS_SMBLOCK(tctx))
 		torture_skip(tctx, "Target does not support the SMBlock PDU");
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	torture_comment(tctx, "Testing RAW_LOCK_LOCK\n");
 	io.generic.level = RAW_LOCK_LOCK;
@@ -236,9 +235,7 @@ static bool test_lockx(struct torture_context *tctx, struct smbcli_state *cli)
 	int fnum;
 	const char *fname = BASEDIR "\\test.txt";
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	torture_comment(tctx, "Testing RAW_LOCK_LOCKX\n");
 	io.generic.level = RAW_LOCK_LOCKX;
@@ -418,9 +415,7 @@ static bool test_pidhigh(struct torture_context *tctx,
 	const char *fname = BASEDIR "\\test.txt";
 	uint8_t c = 1;
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	torture_comment(tctx, "Testing high pid\n");
 	io.generic.level = RAW_LOCK_LOCKX;
@@ -509,9 +504,7 @@ static bool test_async(struct torture_context *tctx,
 	struct smbcli_request *req, *req2;
 	struct smbcli_session_options options;
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	lpcfg_smbcli_session_options(tctx->lp_ctx, &options);
 
@@ -780,8 +773,19 @@ static bool test_async(struct torture_context *tctx,
 	status = smb_raw_lock(cli->tree, &io);
 	CHECK_STATUS(status, NT_STATUS_LOCK_NOT_GRANTED);
 
+	{
+		/*
+		 * Make the test block on the second lock
+		 * request. This is to regression-test 64c0367.
+		 */
+		uint64_t tmp = lock[1].offset;
+		lock[1].offset = lock[0].offset;
+		lock[0].offset = tmp;
+	}
+
 	t = time_mono(NULL);
 	io.lockx.in.timeout = 10000;
+	io.lockx.in.lock_cnt = 2;
 	req = smb_raw_lock_send(cli->tree, &io);
 	torture_assert(tctx,(req != NULL), talloc_asprintf(tctx,
 		       "Failed to setup timed lock (%s)\n", __location__));
@@ -797,6 +801,15 @@ static bool test_async(struct torture_context *tctx,
 
 	torture_assert(tctx,!(time_mono(NULL) > t+2), talloc_asprintf(tctx,
 		       "lock cancel by close was not immediate (%s)\n", __location__));
+
+	{
+		/*
+		 * Undo the change for 64c0367
+		 */
+		uint64_t tmp = lock[1].offset;
+		lock[1].offset = lock[0].offset;
+		lock[0].offset = tmp;
+	}
 
 	torture_comment(tctx, "create a new sessions\n");
 	session = smbcli_session_init(cli->transport, tctx, false, options);
@@ -814,7 +827,7 @@ static bool test_async(struct torture_context *tctx,
 	host  = torture_setting_string(tctx, "host", NULL);
 	tree = smbcli_tree_init(session, tctx, false);
 	tcon.generic.level = RAW_TCON_TCONX;
-	tcon.tconx.in.flags = 0;
+	tcon.tconx.in.flags = TCONX_FLAG_EXTENDED_RESPONSE;
 	tcon.tconx.in.password = data_blob(NULL, 0);
 	tcon.tconx.in.path = talloc_asprintf(tctx, "\\\\%s\\%s", host, share);
 	tcon.tconx.in.device = "A:";
@@ -998,9 +1011,7 @@ static bool test_errorcode(struct torture_context *tctx,
 	int delay;
 	uint16_t deny_mode = 0;
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	torture_comment(tctx, "Testing LOCK_NOT_GRANTED vs. FILE_LOCK_CONFLICT\n");
 
@@ -1485,9 +1496,7 @@ static bool test_changetype(struct torture_context *tctx,
 	uint8_t c = 0;
 	const char *fname = BASEDIR "\\test.txt";
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	torture_comment(tctx, "Testing LOCKING_ANDX_CHANGE_LOCKTYPE\n");
 	io.generic.level = RAW_LOCK_LOCKX;
@@ -1586,9 +1595,7 @@ static bool test_zerobytelocks(struct torture_context *tctx, struct smbcli_state
 
 	torture_comment(tctx, "Testing zero length byte range locks:\n");
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	io.generic.level = RAW_LOCK_LOCKX;
 
@@ -1678,9 +1685,7 @@ static bool test_unlock(struct torture_context *tctx, struct smbcli_state *cli)
 
 	torture_comment(tctx, "Testing LOCKX unlock:\n");
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	fnum1 = smbcli_open(cli->tree, fname, O_RDWR|O_CREAT, DENY_NONE);
 	torture_assert(tctx,(fnum1 != -1), talloc_asprintf(tctx,
@@ -1862,9 +1867,7 @@ static bool test_multiple_unlock(struct torture_context *tctx, struct smbcli_sta
 
 	torture_comment(tctx, "Testing LOCKX multiple unlock:\n");
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	fnum1 = smbcli_open(cli->tree, fname, O_RDWR|O_CREAT, DENY_NONE);
 	torture_assert(tctx,(fnum1 != -1), talloc_asprintf(tctx,
@@ -2039,13 +2042,10 @@ static bool test_stacking(struct torture_context *tctx, struct smbcli_state *cli
 	int fnum1;
 	const char *fname = BASEDIR "\\stacking.txt";
 	struct smb_lock_entry lock1;
-	struct smb_lock_entry lock2;
 
 	torture_comment(tctx, "Testing stacking:\n");
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	io.generic.level = RAW_LOCK_LOCKX;
 
@@ -2061,9 +2061,6 @@ static bool test_stacking(struct torture_context *tctx, struct smbcli_state *cli
 	lock1.pid = cli->session->pid;
 	lock1.offset = 0;
 	lock1.count = 10;
-	lock2.pid = cli->session->pid - 1;
-	lock2.offset = 0;
-	lock2.count = 10;
 
 	/**
 	 * Try to take a shared lock, then stack an exclusive.
@@ -2132,9 +2129,7 @@ static bool test_zerobyteread(struct torture_context *tctx,
 	struct smb_lock_entry lock1;
 	uint8_t c = 1;
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	io.generic.level = RAW_LOCK_LOCKX;
 

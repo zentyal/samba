@@ -77,9 +77,11 @@ static int instancetype_add(struct ldb_module *module, struct ldb_request *req)
 		} else {
 			/*
 			 * If we have a NC add operation then we need also the
-			 * "TYPE_WRITE" flag in order to succeed.
+			 * "TYPE_WRITE" flag in order to succeed,
+			 * unless this NC is not instantiated
 			*/
-			if (!(instanceType & INSTANCE_TYPE_WRITE)) {
+			if (!(instanceType & INSTANCE_TYPE_UNINSTANT) &&
+			    !(instanceType & INSTANCE_TYPE_WRITE)) {
 				ldb_set_errstring(ldb, "instancetype: if TYPE_IS_NC_HEAD was set, then also TYPE_WRITE is requested!");
 				return LDB_ERR_UNWILLING_TO_PERFORM;
 			}
@@ -134,10 +136,12 @@ static int instancetype_mod(struct ldb_module *module, struct ldb_request *req)
 
 	el = ldb_msg_find_element(req->op.mod.message, "instanceType");
 	if (el != NULL) {
-		ldb_set_errstring(ldb, "instancetype: the 'instanceType' attribute can never be changed!");
-		return LDB_ERR_CONSTRAINT_VIOLATION;
+		/* Except to allow dbcheck to fix things, this must never be modified */
+		if (!ldb_request_get_control(req, DSDB_CONTROL_DBCHECK)) {
+			ldb_set_errstring(ldb, "instancetype: the 'instanceType' attribute can never be changed!");
+			return LDB_ERR_CONSTRAINT_VIOLATION;
+		}
 	}
-
 	return ldb_next_request(module, req);
 }
 

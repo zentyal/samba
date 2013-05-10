@@ -26,7 +26,7 @@
 #include <ctype.h>
 
 
-#ifdef HAVE_GSSAPI_SUPPORT
+#ifdef HAVE_GSSAPI
 
 /*********************************************************************
 *********************************************************************/
@@ -92,7 +92,7 @@ static DNS_ERROR dns_negotiate_gss_ctx_int( TALLOC_CTX *mem_ctx,
 	DNS_ERROR err;
 
 	gss_OID_desc krb5_oid_desc =
-		{ 9, (char *)"\x2a\x86\x48\x86\xf7\x12\x01\x02\x02" };
+		{ 9, discard_const("\x2a\x86\x48\x86\xf7\x12\x01\x02\x02") };
 
 	*ctx = GSS_C_NO_CONTEXT;
 	input_ptr = NULL;
@@ -125,7 +125,7 @@ static DNS_ERROR dns_negotiate_gss_ctx_int( TALLOC_CTX *mem_ctx,
 			err = dns_create_tkey_record(
 				req, keyname, "gss.microsoft.com", t,
 				t + 86400, DNS_TKEY_MODE_GSSAPI, 0,
-				output_desc.length, (uint8 *)output_desc.value,
+				output_desc.length, (uint8_t *)output_desc.value,
 				&rec );
 			if (!ERR_DNS_IS_OK(err)) goto error;
 
@@ -230,7 +230,7 @@ DNS_ERROR dns_negotiate_sec_ctx( const char *target_realm,
 	gss_name_t targ_name;
 
 	gss_OID_desc nt_host_oid_desc =
-		{10, (char *)"\x2a\x86\x48\x86\xf7\x12\x01\x02\x02\x01"};
+		{10, discard_const("\x2a\x86\x48\x86\xf7\x12\x01\x02\x02\x01")};
 
 	TALLOC_CTX *mem_ctx;
 
@@ -280,7 +280,7 @@ DNS_ERROR dns_sign_update(struct dns_update_request *req,
 			  gss_ctx_id_t gss_ctx,
 			  const char *keyname,
 			  const char *algorithmname,
-			  time_t time_signed, uint16 fudge)
+			  time_t time_signed, uint16_t fudge)
 {
 	struct dns_buffer *buf;
 	DNS_ERROR err;
@@ -327,7 +327,7 @@ DNS_ERROR dns_sign_update(struct dns_update_request *req,
 	}
 
 	err = dns_create_tsig_record(buf, keyname, algorithmname, time_signed,
-				     fudge, mic.length, (uint8 *)mic.value,
+				     fudge, mic.length, (uint8_t *)mic.value,
 				     req->id, 0, &rec);
 	gss_release_buffer(&minor, &mic);
 	if (!ERR_DNS_IS_OK(err)) goto error;
@@ -339,4 +339,4 @@ DNS_ERROR dns_sign_update(struct dns_update_request *req,
 	return err;
 }
 
-#endif	/* HAVE_GSSAPI_SUPPORT */
+#endif	/* HAVE_GSSAPI */

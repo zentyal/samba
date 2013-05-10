@@ -22,6 +22,7 @@
 
 #include "includes.h"
 #include "winbindd.h"
+#include "libcli/security/dom_sid.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
@@ -171,6 +172,14 @@ enum winbindd_result winbindd_dual_list_trusted_domains(struct winbindd_domain *
 	extra_data = talloc_strdup(state->mem_ctx, "");
 
 	for (i=0; i<trusts.count; i++) {
+
+		if (trusts.array[i].sid == NULL) {
+			continue;
+		}
+		if (dom_sid_equal(trusts.array[i].sid, &global_sid_NULL)) {
+			continue;
+		}
+
 		extra_data = talloc_asprintf_append_buffer(
 			extra_data, "%s\\%s\\%s\n",
 			trusts.array[i].netbios_name,
@@ -191,7 +200,7 @@ enum winbindd_result winbindd_dual_list_trusted_domains(struct winbindd_domain *
 	if (state->request->data.list_all_domains && !have_own_domain) {
 		extra_data = talloc_asprintf_append_buffer(
 			extra_data, "%s\\%s\\%s\n", domain->name,
-			domain->alt_name ? domain->alt_name : domain->name,
+			domain->alt_name[0] ? domain->alt_name : domain->name,
 			sid_string_talloc(state->mem_ctx, &domain->sid));
 	}
 
@@ -404,7 +413,7 @@ void winbindd_netbios_name(struct winbindd_cli_state *state)
 	DEBUG(3, ("[%5lu]: request netbios name\n",
 		  (unsigned long)state->pid));
 
-	fstrcpy(state->response->data.netbios_name, global_myname());
+	fstrcpy(state->response->data.netbios_name, lp_netbios_name());
 	request_ok(state);
 }
 

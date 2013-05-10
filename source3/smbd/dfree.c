@@ -25,7 +25,7 @@
  Normalise for DOS usage.
 ****************************************************************************/
 
-static void disk_norm(bool small_query, uint64_t *bsize,uint64_t *dfree,uint64_t *dsize)
+void disk_norm(bool small_query, uint64_t *bsize,uint64_t *dfree,uint64_t *dsize)
 {
 	/* check if the disk is beyond the max disk size */
 	uint64_t maxdisksize = lp_maxdisksize();
@@ -80,7 +80,7 @@ uint64_t sys_disk_free(connection_struct *conn, const char *path, bool small_que
 	 * If external disk calculation specified, use it.
 	 */
 
-	dfree_command = lp_dfree_command(SNUM(conn));
+	dfree_command = lp_dfree_command(talloc_tos(), SNUM(conn));
 	if (dfree_command && *dfree_command) {
 		const char *p;
 		char **lines = NULL;
@@ -95,7 +95,7 @@ uint64_t sys_disk_free(connection_struct *conn, const char *path, bool small_que
 			return (uint64_t)-1;
 		}
 
-		DEBUG (3, ("disk_free: Running command %s\n", syscmd));
+		DEBUG (3, ("disk_free: Running command '%s'\n", syscmd));
 
 		lines = file_lines_pload(syscmd, NULL);
 		if (lines) {
@@ -123,8 +123,9 @@ uint64_t sys_disk_free(connection_struct *conn, const char *path, bool small_que
 			if (!*dfree)
 				*dfree = 1024;
 		} else {
-			DEBUG (0, ("disk_free: sys_popen() failed for command %s. Error was : %s\n",
-				syscmd, strerror(errno) ));
+			DEBUG (0, ("disk_free: file_lines_load() failed for "
+				   "command '%s'. Error was : %s\n",
+				   syscmd, strerror(errno) ));
 			if (sys_fsusage(path, dfree, dsize) != 0) {
 				DEBUG (0, ("disk_free: sys_fsusage() failed. Error was : %s\n",
 					strerror(errno) ));
@@ -207,7 +208,7 @@ uint64_t get_dfree_info(connection_struct *conn,
 
 	/* No cached info or time to refresh. */
 	if (!dfc) {
-		dfc = TALLOC_P(conn, struct dfree_cached_info);
+		dfc = talloc(conn, struct dfree_cached_info);
 		if (!dfc) {
 			return dfree_ret;
 		}

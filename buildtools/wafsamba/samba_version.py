@@ -37,7 +37,11 @@ def bzr_version_summary(path):
         ret = "BZR-%d" % revno
     else:
         store = get_object_store(b.repository)
-        full_rev = store._lookup_revision_sha1(revid)
+        store.lock_read()
+        try:
+            full_rev = store._lookup_revision_sha1(revid)
+        finally:
+            store.unlock()
         fields["GIT_COMMIT_ABBREV"] = full_rev[:7]
         fields["GIT_COMMIT_FULLREV"] = full_rev
         ret = "GIT-" + fields["GIT_COMMIT_ABBREV"]
@@ -88,12 +92,47 @@ def git_version_summary(path, env=None):
     return (ret, fields)
 
 
+def distversion_version_summary(path):
+    #get version from .distversion file
+    f = open(path + '/.distversion', 'r')
+    suffix = None
+    fields = {}
+
+    for line in f:
+        line = line.strip()
+        if line == '':
+            continue
+        if line.startswith("#"):
+            continue
+        try:
+            split_line = line.split("=")
+            if split_line[1] != "":
+                key = split_line[0]
+                value = split_line[1]
+                if key == "SUFFIX":
+                    suffix = value
+                    continue
+                fields[key] = value
+        except:
+            print("Failed to parse line %s from .distversion file." % (line))
+            raise
+    f.close()
+
+    if "COMMIT_TIME" in fields:
+        fields["COMMIT_TIME"] = int(fields["COMMIT_TIME"])
+
+    if suffix is None:
+        return ("UNKNOWN", fields)
+
+    return (suffix, fields)
+
+
 class SambaVersion(object):
 
-    def __init__(self, version_dict, path, env=None):
+    def __init__(self, version_dict, path, env=None, is_install=True):
         '''Determine the version number of samba
 
-See VERSION for the format.  Entries on that file are 
+See VERSION for the format.  Entries on that file are
 also accepted as dictionary entries here
         '''
 
@@ -103,6 +142,7 @@ also accepted as dictionary entries here
         self.REVISION=None
         self.TP_RELEASE=None
         self.ALPHA_RELEASE=None
+        self.BETA_RELEASE=None
         self.PRE_RELEASE=None
         self.RC_RELEASE=None
         self.IS_SNAPSHOT=True
@@ -133,7 +173,7 @@ also accepted as dictionary entries here
         SAMBA_VERSION_STRING = ("%u.%u.%u" % (self.MAJOR, self.MINOR, self.RELEASE))
 
 ##
-## maybe add "3.0.22a" or "4.0.0tp11" or "4.0.0alpha1" or "3.0.22pre1" or "3.0.22rc1"
+## maybe add "3.0.22a" or "4.0.0tp11" or "4.0.0alpha1" or "4.0.0beta1" or "3.0.22pre1" or "3.0.22rc1"
 ## We do not do pre or rc version on patch/letter releases
 ##
         if self.REVISION is not None:
@@ -144,6 +184,9 @@ also accepted as dictionary entries here
         if self.ALPHA_RELEASE is not None:
             self.ALPHA_RELEASE = int(self.ALPHA_RELEASE)
             SAMBA_VERSION_STRING += ("alpha%u" % self.ALPHA_RELEASE)
+        if self.BETA_RELEASE is not None:
+            self.BETA_RELEASE = int(self.BETA_RELEASE)
+            SAMBA_VERSION_STRING += ("beta%u" % self.BETA_RELEASE)
         if self.PRE_RELEASE is not None:
             self.PRE_RELEASE = int(self.PRE_RELEASE)
             SAMBA_VERSION_STRING += ("pre%u" % self.PRE_RELEASE)
@@ -152,13 +195,19 @@ also accepted as dictionary entries here
             SAMBA_VERSION_STRING += ("rc%u" % self.RC_RELEASE)
 
         if self.IS_SNAPSHOT:
-            if os.path.exists(os.path.join(path, ".git")):
+            if not is_install:
+                suffix = "DEVELOPERBUILD"
+                self.vcs_fields = {}
+            elif os.path.exists(os.path.join(path, ".git")):
                 suffix, self.vcs_fields = git_version_summary(path, env=env)
             elif os.path.exists(os.path.join(path, ".bzr")):
                 suffix, self.vcs_fields = bzr_version_summary(path)
+            elif os.path.exists(os.path.join(path, ".distversion")):
+                suffix, self.vcs_fields = distversion_version_summary(path)
             else:
                 suffix = "UNKNOWN"
                 self.vcs_fields = {}
+            self.vcs_fields["SUFFIX"] = suffix
             SAMBA_VERSION_STRING += "-" + suffix
         else:
             self.vcs_fields = {}
@@ -193,6 +242,9 @@ also accepted as dictionary entries here
 
         if self.ALPHA_RELEASE is not None:
             string+="#define SAMBA_VERSION_ALPHA_RELEASE %u\n" % self.ALPHA_RELEASE
+
+        if self.BETA_RELEASE is not None:
+            string+="#define SAMBA_VERSION_BETA_RELEASE %u\n" % self.BETA_RELEASE
 
         if self.PRE_RELEASE is not None:
             string+="#define SAMBA_VERSION_PRE_RELEASE %u\n" % self.PRE_RELEASE
@@ -234,7 +286,7 @@ also accepted as dictionary entries here
         return string
 
 
-def samba_version_file(version_file, path, env=None):
+def samba_version_file(version_file, path, env=None, is_install=True):
     '''Parse the version information from a VERSION file'''
 
     f = open(version_file, 'r')
@@ -254,16 +306,16 @@ def samba_version_file(version_file, path, env=None):
             print("Failed to parse line %s from %s" % (line, version_file))
             raise
 
-    return SambaVersion(version_dict, path, env=env)
+    return SambaVersion(version_dict, path, env=env, is_install=is_install)
 
 
 
-def load_version(env=None):
+def load_version(env=None, is_install=True):
     '''load samba versions either from ./VERSION or git
     return a version object for detailed breakdown'''
     if not env:
         env = samba_utils.LOAD_ENVIRONMENT()
 
-    version = samba_version_file("./VERSION", ".", env)
+    version = samba_version_file("./VERSION", ".", env, is_install=is_install)
     Utils.g_module.VERSION = version.STRING
     return version

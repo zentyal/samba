@@ -22,12 +22,6 @@
 #include "../libgpo/gpo.h"
 #include "auth.h"
 #include "../librpc/ndr/libndr.h"
-#if _SAMBA_BUILD_ == 4
-#include "libgpo/ads_convenience.h"
-#include "librpc/gen_ndr/security.h"
-#include "librpc/gen_ndr/ndr_misc.h"
-#include "../libcli/security/secace.h"
-#endif
 
 /****************************************************************
 ****************************************************************/
@@ -109,7 +103,7 @@ static NTSTATUS gpo_sd_check_ace_denied_object(const struct security_ace *ace,
 
 	if (gpo_sd_check_agp_object(ace) &&
 	    gpo_sd_check_agp_access_bits(ace->access_mask) &&
-	    nt_token_check_sid(&ace->trustee, token)) {
+	    security_token_has_sid(token, &ace->trustee)) {
 		sid_str = dom_sid_string(NULL, &ace->trustee);
 		DEBUG(10,("gpo_sd_check_ace_denied_object: "
 			"Access denied as of ace for %s\n",
@@ -131,7 +125,7 @@ static NTSTATUS gpo_sd_check_ace_allowed_object(const struct security_ace *ace,
 
 	if (gpo_sd_check_agp_object(ace) &&
 	    gpo_sd_check_agp_access_bits(ace->access_mask) &&
-	    nt_token_check_sid(&ace->trustee, token)) {
+	    security_token_has_sid(token, &ace->trustee)) {
 		sid_str = dom_sid_string(NULL, &ace->trustee);
 		DEBUG(10,("gpo_sd_check_ace_allowed_object: "
 			"Access granted as of ace for %s\n",

@@ -43,6 +43,8 @@
 #include "printing/notify.h"
 #include "printing.h"
 #include "serverid.h"
+#include "messages.h"
+#include "../lib/util/pidfile.h"
 
 static struct files_struct *log_writeable_file_fn(
 	struct files_struct *fsp, void *private_data)
@@ -78,12 +80,18 @@ static struct files_struct *log_writeable_file_fn(
 enum server_exit_reason { SERVER_EXIT_NORMAL, SERVER_EXIT_ABNORMAL };
 
 static void exit_server_common(enum server_exit_reason how,
-	const char *const reason) _NORETURN_;
+	const char *reason) _NORETURN_;
 
 static void exit_server_common(enum server_exit_reason how,
-	const char *const reason)
+	const char *reason)
 {
-	struct smbd_server_connection *sconn = smbd_server_conn;
+	struct smbXsrv_connection *conn = global_smbXsrv_connection;
+	struct smbd_server_connection *sconn = NULL;
+	struct messaging_context *msg_ctx = server_messaging_context();
+
+	if (conn != NULL) {
+		sconn = conn->sconn;
+	}
 
 	if (!exit_firsttime)
 		exit(0);
@@ -96,23 +104,51 @@ static void exit_server_common(enum server_exit_reason how,
 	}
 
 	if (sconn) {
+		NTSTATUS status;
+
 		if (lp_log_writeable_files_on_exit()) {
 			bool found = false;
 			files_forall(sconn, log_writeable_file_fn, &found);
 		}
-		(void)conn_close_all(sconn);
-		invalidate_all_vuids(sconn);
+
+		/*
+		 * Note: this is a no-op for smb2 as
+		 * conn->tcon_table is empty
+		 */
+		status = smb1srv_tcon_disconnect_all(conn);
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(0,("Server exit (%s)\n",
+				(reason ? reason : "normal exit")));
+			DEBUG(0, ("exit_server_common: "
+				  "smb1srv_tcon_disconnect_all() failed (%s) - "
+				  "triggering cleanup\n", nt_errstr(status)));
+			how = SERVER_EXIT_ABNORMAL;
+			reason = "smb1srv_tcon_disconnect_all failed";
+		}
+
+		status = smbXsrv_session_logoff_all(conn);
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(0,("Server exit (%s)\n",
+				(reason ? reason : "normal exit")));
+			DEBUG(0, ("exit_server_common: "
+				  "smbXsrv_session_logoff_all() failed (%s) - "
+				  "triggering cleanup\n", nt_errstr(status)));
+			how = SERVER_EXIT_ABNORMAL;
+			reason = "smbXsrv_session_logoff_all failed";
+		}
+
+		change_to_root_user();
 	}
 
 	/* 3 second timeout. */
-	print_notify_send_messages(sconn->msg_ctx, 3);
+	print_notify_send_messages(msg_ctx, 3);
 
 	/* delete our entry in the serverid database. */
 	if (am_parent) {
 		/*
 		 * For children the parent takes care of cleaning up
 		 */
-		serverid_deregister(sconn_server_id(sconn));
+		serverid_deregister(messaging_server_id(msg_ctx));
 	}
 
 #ifdef WITH_DFS
@@ -156,7 +192,8 @@ static void exit_server_common(enum server_exit_reason how,
 	 * because smbd_msg_ctx is not a talloc child of smbd_server_conn.
 	 */
 	sconn = NULL;
-	TALLOC_FREE(smbd_server_conn);
+	conn = NULL;
+	TALLOC_FREE(global_smbXsrv_connection);
 	server_messaging_context_free();
 	server_event_context_free();
 	TALLOC_FREE(smbd_memcache_ctx);
@@ -180,7 +217,7 @@ static void exit_server_common(enum server_exit_reason how,
 		DEBUG(3,("Server exit (%s)\n",
 			(reason ? reason : "normal exit")));
 		if (am_parent) {
-			pidfile_unlink();
+			pidfile_unlink(lp_piddir(), "smbd");
 		}
 		gencache_stabilize();
 	}
@@ -188,17 +225,12 @@ static void exit_server_common(enum server_exit_reason how,
 	exit(0);
 }
 
-void exit_server(const char *const explanation)
+void smbd_exit_server(const char *const explanation)
 {
 	exit_server_common(SERVER_EXIT_ABNORMAL, explanation);
 }
 
-void exit_server_cleanly(const char *const explanation)
+void smbd_exit_server_cleanly(const char *const explanation)
 {
 	exit_server_common(SERVER_EXIT_NORMAL, explanation);
-}
-
-void exit_server_fault(void)
-{
-	exit_server("critical server fault");
 }

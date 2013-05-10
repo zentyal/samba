@@ -32,11 +32,13 @@
 #include "lib/socket/netif.h"
 #include "param/param.h"
 #include "kdc/kdc-glue.h"
+#include "kdc/pac-glue.h"
 #include "dsdb/samdb/samdb.h"
 #include "auth/session.h"
 
+NTSTATUS server_service_kdc_init(void);
+
 extern struct krb5plugin_windc_ftable windc_plugin_table;
-extern struct hdb_method hdb_samba4;
 
 static NTSTATUS kdc_proxy_unavailable_error(struct kdc_server *kdc,
 					    TALLOC_CTX *mem_ctx,
@@ -652,7 +654,7 @@ static NTSTATUS kdc_add_socket(struct kdc_server *kdc,
 						address, port,
 						&kdc_socket->local_address);
 	if (ret != 0) {
-		status = map_nt_error_from_unix(errno);
+		status = map_nt_error_from_unix_common(errno);
 		return status;
 	}
 
@@ -683,7 +685,7 @@ static NTSTATUS kdc_add_socket(struct kdc_server *kdc,
 				     kdc_udp_socket,
 				     &kdc_udp_socket->dgram);
 	if (ret != 0) {
-		status = map_nt_error_from_unix(errno);
+		status = map_nt_error_from_unix_common(errno);
 		DEBUG(0,("Failed to bind to %s:%u UDP - %s\n",
 			 address, port, nt_errstr(status)));
 		return status;
@@ -727,29 +729,34 @@ static NTSTATUS kdc_startup_interfaces(struct kdc_server *kdc, struct loadparm_c
 		return NT_STATUS_INTERNAL_ERROR;
 	}
 
-	num_interfaces = iface_count(ifaces);
+	num_interfaces = iface_list_count(ifaces);
 
 	/* if we are allowing incoming packets from any address, then
 	   we need to bind to the wildcard address */
 	if (!lpcfg_bind_interfaces_only(lp_ctx)) {
-		if (kdc_port) {
-			status = kdc_add_socket(kdc, model_ops,
-						"kdc", "0.0.0.0", kdc_port,
-						kdc_process, false);
-			NT_STATUS_NOT_OK_RETURN(status);
-		}
+		const char **wcard = iface_list_wildcard(kdc, lp_ctx);
+		NT_STATUS_HAVE_NO_MEMORY(wcard);
+		for (i=0; wcard[i]; i++) {
+			if (kdc_port) {
+				status = kdc_add_socket(kdc, model_ops,
+							"kdc", wcard[i], kdc_port,
+							kdc_process, false);
+				NT_STATUS_NOT_OK_RETURN(status);
+			}
 
-		if (kpasswd_port) {
-			status = kdc_add_socket(kdc, model_ops,
-						"kpasswd", "0.0.0.0", kpasswd_port,
-						kpasswdd_process, false);
-			NT_STATUS_NOT_OK_RETURN(status);
+			if (kpasswd_port) {
+				status = kdc_add_socket(kdc, model_ops,
+							"kpasswd", wcard[i], kpasswd_port,
+							kpasswdd_process, false);
+				NT_STATUS_NOT_OK_RETURN(status);
+			}
 		}
+		talloc_free(wcard);
 		done_wildcard = true;
 	}
 
 	for (i=0; i<num_interfaces; i++) {
-		const char *address = talloc_strdup(tmp_ctx, iface_n_ip(ifaces, i));
+		const char *address = talloc_strdup(tmp_ctx, iface_list_n_ip(ifaces, i));
 
 		if (kdc_port) {
 			status = kdc_add_socket(kdc, model_ops,
@@ -771,7 +778,6 @@ static NTSTATUS kdc_startup_interfaces(struct kdc_server *kdc, struct loadparm_c
 	return NT_STATUS_OK;
 }
 
-
 static NTSTATUS kdc_check_generic_kerberos(struct irpc_message *msg,
 				 struct kdc_check_generic_kerberos *r)
 {
@@ -780,12 +786,9 @@ static NTSTATUS kdc_check_generic_kerberos(struct irpc_message *msg,
 	struct PAC_SIGNATURE_DATA kdc_sig;
 	struct kdc_server *kdc = talloc_get_type(msg->private_data, struct kdc_server);
 	enum ndr_err_code ndr_err;
-	krb5_enctype etype;
 	int ret;
 	hdb_entry_ex ent;
 	krb5_principal principal;
-	krb5_keyblock keyblock;
-	Key *key;
 
 	/* There is no reply to this request */
 	r->out.generic_reply = data_blob(NULL, 0);
@@ -796,7 +799,7 @@ static NTSTATUS kdc_check_generic_kerberos(struct irpc_message *msg,
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
-	if (pac_validate.MessageType != 3) {
+	if (pac_validate.MessageType != NETLOGON_GENERIC_KRB5_PAC_VALIDATE) {
 		/* We don't implement any other message types - such as certificate validation - yet */
 		return NT_STATUS_INVALID_PARAMETER;
 	}
@@ -809,16 +812,6 @@ static NTSTATUS kdc_check_generic_kerberos(struct irpc_message *msg,
 
 	srv_sig = data_blob_const(pac_validate.ChecksumAndSignature.data,
 				  pac_validate.ChecksumLength);
-
-	if (pac_validate.SignatureType == CKSUMTYPE_HMAC_MD5) {
-		etype = ETYPE_ARCFOUR_HMAC_MD5;
-	} else {
-		ret = krb5_cksumtype_to_enctype(kdc->smb_krb5_context->krb5_context, pac_validate.SignatureType,
-						&etype);
-		if (ret != 0) {
-			return NT_STATUS_LOGON_FAILURE;
-		}
-	}
 
 	ret = krb5_make_principal(kdc->smb_krb5_context->krb5_context, &principal,
 				  lpcfg_realm(kdc->task->lp_ctx),
@@ -843,21 +836,11 @@ static NTSTATUS kdc_check_generic_kerberos(struct irpc_message *msg,
 		return NT_STATUS_LOGON_FAILURE;
 	}
 
-	ret = hdb_enctype2key(kdc->smb_krb5_context->krb5_context, &ent.entry, etype, &key);
-
-	if (ret != 0) {
-		hdb_free_entry(kdc->smb_krb5_context->krb5_context, &ent);
-		krb5_free_principal(kdc->smb_krb5_context->krb5_context, principal);
-		return NT_STATUS_LOGON_FAILURE;
-	}
-
-	keyblock = key->key;
-
 	kdc_sig.type = pac_validate.SignatureType;
 	kdc_sig.signature = data_blob_const(&pac_validate.ChecksumAndSignature.data[pac_validate.ChecksumLength],
 					    pac_validate.SignatureLength);
-	ret = check_pac_checksum(msg, srv_sig, &kdc_sig,
-			   kdc->smb_krb5_context->krb5_context, &keyblock);
+
+	ret = kdc_check_pac(kdc->smb_krb5_context->krb5_context, srv_sig, &kdc_sig, &ent);
 
 	hdb_free_entry(kdc->smb_krb5_context->krb5_context, &ent);
 	krb5_free_principal(kdc->smb_krb5_context->krb5_context, principal);
@@ -888,14 +871,18 @@ static void kdc_task_init(struct task_server *task)
 	case ROLE_DOMAIN_MEMBER:
 		task_server_terminate(task, "kdc: no KDC required in member server configuration", false);
 		return;
-	case ROLE_DOMAIN_CONTROLLER:
+	case ROLE_DOMAIN_PDC:
+	case ROLE_DOMAIN_BDC:
+		task_server_terminate(task, "Cannot start KDC as a 'classic Samba' DC", true);
+		return;
+	case ROLE_ACTIVE_DIRECTORY_DC:
 		/* Yes, we want a KDC */
 		break;
 	}
 
-	load_interfaces(task, lpcfg_interfaces(task->lp_ctx), &ifaces);
+	load_interface_list(task, task->lp_ctx, &ifaces);
 
-	if (iface_count(ifaces) == 0) {
+	if (iface_list_count(ifaces) == 0) {
 		task_server_terminate(task, "kdc: no network interfaces configured", false);
 		return;
 	}
@@ -949,13 +936,34 @@ static void kdc_task_init(struct task_server *task)
 		return;
 	}
 
-	kdc->config->logf = kdc->smb_krb5_context->logf;
+	kdc->config->logf = (krb5_log_facility *)kdc->smb_krb5_context->pvt_log_data;
 	kdc->config->db = talloc(kdc, struct HDB *);
 	if (!kdc->config->db) {
 		task_server_terminate(task, "kdc: out of memory", true);
 		return;
 	}
 	kdc->config->num_db = 1;
+
+	/*
+	 * This restores the behavior before
+	 * commit 255e3e18e00f717d99f3bc57c8a8895ff624f3c3
+	 * s4:heimdal: import lorikeet-heimdal-201107150856
+	 * (commit 48936803fae4a2fb362c79365d31f420c917b85b)
+	 *
+	 * as_use_strongest_session_key,preauth_use_strongest_session_key
+	 * and tgs_use_strongest_session_key are input to the
+	 * _kdc_find_etype() function. The old bahavior is in
+	 * the use_strongest_session_key=FALSE code path.
+	 * (The only remaining difference in _kdc_find_etype()
+	 *  is the is_preauth parameter.)
+	 *
+	 * The old behavior in the _kdc_get_preferred_key()
+	 * function is use_strongest_server_key=TRUE.
+	 */
+	kdc->config->as_use_strongest_session_key = false;
+	kdc->config->preauth_use_strongest_session_key = false;
+	kdc->config->tgs_use_strongest_session_key = false;
+	kdc->config->use_strongest_server_key = true;
 
 	/* Register hdb-samba4 hooks for use as a keytab */
 
@@ -978,7 +986,7 @@ static void kdc_task_init(struct task_server *task)
 
 	ret = krb5_plugin_register(kdc->smb_krb5_context->krb5_context,
 				   PLUGIN_TYPE_DATA, "hdb",
-				   &hdb_samba4);
+				   &hdb_samba4_interface);
 	if(ret) {
 		task_server_terminate(task, "kdc: failed to register hdb plugin", true);
 		return;

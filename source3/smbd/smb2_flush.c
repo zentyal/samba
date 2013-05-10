@@ -35,7 +35,6 @@ NTSTATUS smbd_smb2_request_process_flush(struct smbd_smb2_request *req)
 {
 	NTSTATUS status;
 	const uint8_t *inbody;
-	int i = req->current_idx;
 	uint64_t in_file_id_persistent;
 	uint64_t in_file_id_volatile;
 	struct files_struct *in_fsp;
@@ -45,7 +44,7 @@ NTSTATUS smbd_smb2_request_process_flush(struct smbd_smb2_request *req)
 	if (!NT_STATUS_IS_OK(status)) {
 		return smbd_smb2_request_error(req, status);
 	}
-	inbody = (const uint8_t *)req->in.vector[i+1].iov_base;
+	inbody = SMBD_SMB2_IN_BODY_PTR(req);
 
 	in_file_id_persistent	= BVAL(inbody, 0x08);
 	in_file_id_volatile	= BVAL(inbody, 0x10);
@@ -55,14 +54,14 @@ NTSTATUS smbd_smb2_request_process_flush(struct smbd_smb2_request *req)
 		return smbd_smb2_request_error(req, NT_STATUS_FILE_CLOSED);
 	}
 
-	subreq = smbd_smb2_flush_send(req, req->sconn->smb2.event_ctx,
+	subreq = smbd_smb2_flush_send(req, req->sconn->ev_ctx,
 				      req, in_fsp);
 	if (subreq == NULL) {
 		return smbd_smb2_request_error(req, NT_STATUS_NO_MEMORY);
 	}
 	tevent_req_set_callback(subreq, smbd_smb2_request_flush_done, req);
 
-	return smbd_smb2_request_pending_queue(req, subreq);
+	return smbd_smb2_request_pending_queue(req, subreq, 500);
 }
 
 static void smbd_smb2_request_flush_done(struct tevent_req *subreq)
@@ -128,8 +127,8 @@ static struct tevent_req *smbd_smb2_flush_send(TALLOC_CTX *mem_ctx,
 	}
 	state->smb2req = smb2req;
 
-	DEBUG(10,("smbd_smb2_flush: %s - fnum[%d]\n",
-		  fsp_str_dbg(fsp), fsp->fnum));
+	DEBUG(10,("smbd_smb2_flush: %s - %s\n",
+		  fsp_str_dbg(fsp), fsp_fnum_dbg(fsp)));
 
 	smbreq = smbd_smb2_fake_smb_request(smb2req);
 	if (tevent_req_nomem(smbreq, req)) {

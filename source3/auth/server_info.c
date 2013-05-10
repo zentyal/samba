@@ -29,14 +29,6 @@
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_AUTH
 
-/* FIXME: do we really still need this ? */
-static int server_info_dtor(struct auth_serversupplied_info *server_info)
-{
-	TALLOC_FREE(server_info->info3);
-	ZERO_STRUCTP(server_info);
-	return 0;
-}
-
 /***************************************************************************
  Make a server_info struct. Free with TALLOC_FREE().
 ***************************************************************************/
@@ -45,13 +37,11 @@ struct auth_serversupplied_info *make_server_info(TALLOC_CTX *mem_ctx)
 {
 	struct auth_serversupplied_info *result;
 
-	result = TALLOC_ZERO_P(mem_ctx, struct auth_serversupplied_info);
+	result = talloc_zero(mem_ctx, struct auth_serversupplied_info);
 	if (result == NULL) {
 		DEBUG(0, ("talloc failed\n"));
 		return NULL;
 	}
-
-	talloc_set_destructor(result, server_info_dtor);
 
 	/* Initialise the uid and gid values to something non-zero
 	   which may save us from giving away root access if there
@@ -69,8 +59,6 @@ struct auth_serversupplied_info *make_server_info(TALLOC_CTX *mem_ctx)
 *****************************************************************************/
 
 NTSTATUS serverinfo_to_SamInfo2(struct auth_serversupplied_info *server_info,
-				uint8_t *pipe_session_key,
-				size_t pipe_session_key_len,
 				struct netr_SamInfo2 *sam2)
 {
 	struct netr_SamInfo3 *info3;
@@ -80,25 +68,17 @@ NTSTATUS serverinfo_to_SamInfo2(struct auth_serversupplied_info *server_info,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	if (server_info->user_session_key.length) {
+	if (server_info->session_key.length) {
 		memcpy(info3->base.key.key,
-		       server_info->user_session_key.data,
+		       server_info->session_key.data,
 		       MIN(sizeof(info3->base.key.key),
-			   server_info->user_session_key.length));
-		if (pipe_session_key) {
-			arcfour_crypt(info3->base.key.key,
-				      pipe_session_key, 16);
-		}
+			   server_info->session_key.length));
 	}
 	if (server_info->lm_session_key.length) {
 		memcpy(info3->base.LMSessKey.key,
 		       server_info->lm_session_key.data,
 		       MIN(sizeof(info3->base.LMSessKey.key),
 			   server_info->lm_session_key.length));
-		if (pipe_session_key) {
-			arcfour_crypt(info3->base.LMSessKey.key,
-				      pipe_session_key, 8);
-		}
 	}
 
 	sam2->base = info3->base;
@@ -112,8 +92,6 @@ NTSTATUS serverinfo_to_SamInfo2(struct auth_serversupplied_info *server_info,
 *****************************************************************************/
 
 NTSTATUS serverinfo_to_SamInfo3(const struct auth_serversupplied_info *server_info,
-				uint8_t *pipe_session_key,
-				size_t pipe_session_key_len,
 				struct netr_SamInfo3 *sam3)
 {
 	struct netr_SamInfo3 *info3;
@@ -123,25 +101,17 @@ NTSTATUS serverinfo_to_SamInfo3(const struct auth_serversupplied_info *server_in
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	if (server_info->user_session_key.length) {
+	if (server_info->session_key.length) {
 		memcpy(info3->base.key.key,
-		       server_info->user_session_key.data,
+		       server_info->session_key.data,
 		       MIN(sizeof(info3->base.key.key),
-			   server_info->user_session_key.length));
-		if (pipe_session_key) {
-			arcfour_crypt(info3->base.key.key,
-				      pipe_session_key, 16);
-		}
+			   server_info->session_key.length));
 	}
 	if (server_info->lm_session_key.length) {
 		memcpy(info3->base.LMSessKey.key,
 		       server_info->lm_session_key.data,
 		       MIN(sizeof(info3->base.LMSessKey.key),
 			   server_info->lm_session_key.length));
-		if (pipe_session_key) {
-			arcfour_crypt(info3->base.LMSessKey.key,
-				      pipe_session_key, 8);
-		}
 	}
 
 	sam3->base = info3->base;
@@ -158,8 +128,6 @@ NTSTATUS serverinfo_to_SamInfo3(const struct auth_serversupplied_info *server_in
 *****************************************************************************/
 
 NTSTATUS serverinfo_to_SamInfo6(struct auth_serversupplied_info *server_info,
-				uint8_t *pipe_session_key,
-				size_t pipe_session_key_len,
 				struct netr_SamInfo6 *sam6)
 {
 	struct pdb_domain_info *dominfo;
@@ -181,25 +149,17 @@ NTSTATUS serverinfo_to_SamInfo6(struct auth_serversupplied_info *server_info,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	if (server_info->user_session_key.length) {
+	if (server_info->session_key.length) {
 		memcpy(info3->base.key.key,
-		       server_info->user_session_key.data,
+		       server_info->session_key.data,
 		       MIN(sizeof(info3->base.key.key),
-			   server_info->user_session_key.length));
-		if (pipe_session_key) {
-			arcfour_crypt(info3->base.key.key,
-				      pipe_session_key, 16);
-		}
+			   server_info->session_key.length));
 	}
 	if (server_info->lm_session_key.length) {
 		memcpy(info3->base.LMSessKey.key,
 		       server_info->lm_session_key.data,
 		       MIN(sizeof(info3->base.LMSessKey.key),
 			   server_info->lm_session_key.length));
-		if (pipe_session_key) {
-			arcfour_crypt(info3->base.LMSessKey.key,
-				      pipe_session_key, 8);
-		}
 	}
 
 	sam6->base = info3->base;
@@ -389,9 +349,9 @@ NTSTATUS samu_to_SamInfo3(TALLOC_CTX *mem_ctx,
 		}
 	}
 
-	unix_to_nt_time(&info3->base.last_logon, pdb_get_logon_time(samu));
-	unix_to_nt_time(&info3->base.last_logoff, get_time_t_max());
-	unix_to_nt_time(&info3->base.acct_expiry, get_time_t_max());
+	unix_to_nt_time(&info3->base.logon_time, pdb_get_logon_time(samu));
+	unix_to_nt_time(&info3->base.logoff_time, get_time_t_max());
+	unix_to_nt_time(&info3->base.kickoff_time, get_time_t_max());
 	unix_to_nt_time(&info3->base.last_password_change,
 			pdb_get_pass_last_set_time(samu));
 	unix_to_nt_time(&info3->base.allow_password_change,
@@ -433,9 +393,9 @@ NTSTATUS samu_to_SamInfo3(TALLOC_CTX *mem_ctx,
 	info3->base.logon_count	= pdb_get_logon_count(samu);
 	info3->base.bad_password_count = pdb_get_bad_password_count(samu);
 
-	info3->base.domain.string = talloc_strdup(info3,
+	info3->base.logon_domain.string = talloc_strdup(info3,
 						  pdb_get_domain(samu));
-	RET_NOMEM(info3->base.domain.string);
+	RET_NOMEM(info3->base.logon_domain.string);
 
 	info3->base.domain_sid = dom_sid_dup(info3, &domain_sid);
 	RET_NOMEM(info3->base.domain_sid);
@@ -608,9 +568,9 @@ struct netr_SamInfo3 *wbcAuthUserInfo_to_netr_SamInfo3(TALLOC_CTX *mem_ctx,
 	info3 = talloc_zero(mem_ctx, struct netr_SamInfo3);
 	if (!info3) return NULL;
 
-	unix_to_nt_time(&info3->base.last_logon, info->logon_time);
-	unix_to_nt_time(&info3->base.last_logoff, info->logoff_time);
-	unix_to_nt_time(&info3->base.acct_expiry, info->kickoff_time);
+	unix_to_nt_time(&info3->base.logon_time, info->logon_time);
+	unix_to_nt_time(&info3->base.logoff_time, info->logoff_time);
+	unix_to_nt_time(&info3->base.kickoff_time, info->kickoff_time);
 	unix_to_nt_time(&info3->base.last_password_change, info->pass_last_set_time);
 	unix_to_nt_time(&info3->base.allow_password_change,
 			info->pass_can_change_time);
@@ -694,9 +654,9 @@ struct netr_SamInfo3 *wbcAuthUserInfo_to_netr_SamInfo3(TALLOC_CTX *mem_ctx,
 		RET_NOMEM(info3->base.logon_server.string);
 	}
 	if (info->domain_name) {
-		info3->base.domain.string =
+		info3->base.logon_domain.string =
 				talloc_strdup(info3, info->domain_name);
-		RET_NOMEM(info3->base.domain.string);
+		RET_NOMEM(info3->base.logon_domain.string);
 	}
 
 	info3->base.domain_sid = dom_sid_dup(info3, &domain_sid);

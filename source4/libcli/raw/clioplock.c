@@ -30,6 +30,9 @@ _PUBLIC_ bool smbcli_oplock_ack(struct smbcli_tree *tree, uint16_t fnum, uint16_
 	struct smbcli_request *req;
 
 	req = smbcli_request_setup(tree, SMBlockingX, 8, 0);
+	if (req == NULL) {
+		return false;
+	}
 
 	SSVAL(req->out.vwv,VWV(0),0xFF);
 	SSVAL(req->out.vwv,VWV(1),0);
@@ -40,11 +43,12 @@ _PUBLIC_ bool smbcli_oplock_ack(struct smbcli_tree *tree, uint16_t fnum, uint16_
 	SSVAL(req->out.vwv,VWV(6),0);
 	SSVAL(req->out.vwv,VWV(7),0);
 
-	/* this request does not expect a reply, so tell the signing
-	   subsystem not to allocate an id for a reply */
-	req->one_way_request = 1;
-
-	ret = smbcli_request_send(req);	
+	/*
+	 * The low level code knows it is a
+	 * one way request by looking at SMBlockingX,
+	 * wct == 8 and LOCKING_ANDX_OPLOCK_RELEASE
+	 */
+	ret = smbcli_request_send(req);
 
 	return ret;
 }

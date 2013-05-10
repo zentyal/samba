@@ -88,10 +88,13 @@ static struct {
 
 	struct debug_settings settings;
 	char *debugf;
+	debug_callback_fn callback;
+	void *callback_private;
 } state = {
 	.settings = {
 		.timestamp_logs = true
-	}
+	},
+	.fd = 2 /* stderr by default */
 };
 
 /* -------------------------------------------------------------------------- **
@@ -124,7 +127,7 @@ int     *DEBUGLEVEL_CLASS = discard_const_p(int, debug_class_list_initial);
  *  debug_count     - Number of debug messages that have been output.
  *                    Used to check log size.
  *
- *  syslog_level    - Internal copy of the message debug level.  Written by
+ *  current_msg_level    - Internal copy of the message debug level.  Written by
  *                    dbghdr() and read by Debug1().
  *
  *  format_bufr     - Used to format debug messages.  The dbgtext() function
@@ -142,9 +145,7 @@ int     *DEBUGLEVEL_CLASS = discard_const_p(int, debug_class_list_initial);
  */
 
 static int     debug_count    = 0;
-#ifdef WITH_SYSLOG
-static int     syslog_level   = 0;
-#endif
+static int     current_msg_level   = 0;
 static char *format_bufr = NULL;
 static size_t     format_pos     = 0;
 static bool    log_overflow   = false;
@@ -513,6 +514,25 @@ bool debug_get_output_is_stderr(void)
 	return (state.logtype == DEBUG_DEFAULT_STDERR) || (state.logtype == DEBUG_STDERR);
 }
 
+bool debug_get_output_is_stdout(void)
+{
+	return (state.logtype == DEBUG_DEFAULT_STDOUT) || (state.logtype == DEBUG_STDOUT);
+}
+
+void debug_set_callback(void *private_ptr, debug_callback_fn fn)
+{
+	debug_init();
+	if (fn) {
+		state.logtype = DEBUG_CALLBACK;
+		state.callback_private = private_ptr;
+		state.callback = fn;
+	} else {
+		state.logtype = DEBUG_DEFAULT_STDERR;
+		state.callback_private = NULL;
+		state.callback = NULL;
+	}
+}
+
 /**************************************************************************
  reopen the log files
  note that we now do this unconditionally
@@ -531,7 +551,6 @@ bool reopen_logs_internal(void)
 	int old_fd = 0;
 	bool ret = true;
 
-	char *fname = NULL;
 	if (state.reopening_logs) {
 		return true;
 	}
@@ -540,7 +559,10 @@ bool reopen_logs_internal(void)
 	state.schedule_reopen_logs = false;
 
 	switch (state.logtype) {
+	case DEBUG_CALLBACK:
+		return true;
 	case DEBUG_STDOUT:
+	case DEBUG_DEFAULT_STDOUT:
 		debug_close_fd(state.fd);
 		state.fd = 1;
 		return true;
@@ -557,8 +579,7 @@ bool reopen_logs_internal(void)
 
 	oldumask = umask( 022 );
 
-	fname = state.debugf;
-	if (!fname) {
+	if (!state.debugf) {
 		return false;
 	}
 
@@ -585,9 +606,14 @@ bool reopen_logs_internal(void)
 	(void)umask(oldumask);
 
 	/* Take over stderr to catch output into logs */
-	if (state.fd > 0 && dup2(state.fd, 2) == -1) {
-		close_low_fds(true); /* Close stderr too, if dup2 can't point it
-					at the logfile */
+	if (state.fd > 0) {
+		if (dup2(state.fd, 2) == -1) {
+			/* Close stderr too, if dup2 can't point it -
+			   at the logfile.  There really isn't much
+			   that can be done on such a fundemental
+			   failure... */
+			close_low_fds(false, false, true);
+		}
 	}
 
 	state.reopening_logs = false;
@@ -643,7 +669,12 @@ void check_log_size( void )
 	 *  loop check do a new check as root.
 	 */
 
-	if( geteuid() != 0) {
+#if _SAMBA_BUILD_ == 3
+	if (geteuid() != sec_initial_uid())
+#else
+	if( geteuid() != 0)
+#endif
+	{
 		/* We don't check sec_initial_uid() here as it isn't
 		 * available in common code and we don't generally
 		 * want to rotate and the possibly lose logs in
@@ -657,25 +688,27 @@ void check_log_size( void )
 
 	maxlog = state.settings.max_log_size * 1024;
 
-	if (state.schedule_reopen_logs ||
-	   (fstat(state.fd, &st) == 0
+	if (state.schedule_reopen_logs) {
+	    (void)reopen_logs_internal();
+	}
+
+	if (maxlog && (fstat(state.fd, &st) == 0
 	    && st.st_size > maxlog )) {
 		(void)reopen_logs_internal();
-		if (state.fd > 0 && fstat(state.fd, &st) == 0) {
-			if (st.st_size > maxlog) {
-				char *name = NULL;
-
-				if (asprintf(&name, "%s.old", state.debugf ) < 0) {
-					return;
-				}
-				(void)rename(state.debugf, name);
-
-				if (!reopen_logs_internal()) {
-					/* We failed to reopen a log - continue using the old name. */
-					(void)rename(name, state.debugf);
-				}
-				SAFE_FREE(name);
+		if (state.fd > 2 && (fstat(state.fd, &st) == 0
+				     && st.st_size > maxlog)) {
+			char *name = NULL;
+			
+			if (asprintf(&name, "%s.old", state.debugf ) < 0) {
+				return;
 			}
+			(void)rename(state.debugf, name);
+			
+			if (!reopen_logs_internal()) {
+				/* We failed to reopen a log - continue using the old name. */
+				(void)rename(name, state.debugf);
+			}
+			SAFE_FREE(name);
 		}
 	}
 
@@ -718,7 +751,23 @@ void check_log_size( void )
 
 	debug_count++;
 
-	if ( state.logtype != DEBUG_FILE ) {
+	if (state.logtype == DEBUG_CALLBACK) {
+		char *msg;
+		int ret;
+		va_start( ap, format_str );
+		ret = vasprintf( &msg, format_str, ap );
+		if (ret != -1) {
+			if (msg[ret - 1] == '\n') {
+				msg[ret - 1] = '\0';
+			}
+			state.callback(state.callback_private, current_msg_level, msg);
+			free(msg);
+		}
+		va_end( ap );
+
+		goto done;
+
+	} else if ( state.logtype != DEBUG_FILE ) {
 		va_start( ap, format_str );
 		if (state.fd > 0)
 			(void)vdprintf( state.fd, format_str, ap );
@@ -743,8 +792,9 @@ void check_log_size( void )
 		}
 	}
 
+
 #ifdef WITH_SYSLOG
-	if( syslog_level < state.settings.syslog ) {
+	if( current_msg_level < state.settings.syslog ) {
 		/* map debug levels to syslog() priorities
 		 * note that not all DEBUG(0, ...) calls are
 		 * necessarily errors */
@@ -758,10 +808,10 @@ void check_log_size( void )
 		char *msgbuf = NULL;
 		int ret;
 
-		if( syslog_level >= ARRAY_SIZE(priority_map) || syslog_level < 0)
+		if( current_msg_level >= ARRAY_SIZE(priority_map) || current_msg_level < 0)
 			priority = LOG_DEBUG;
 		else
-			priority = priority_map[syslog_level];
+			priority = priority_map[current_msg_level];
 
 		/*
 		 * Specify the facility to interoperate with other syslog
@@ -896,7 +946,7 @@ void dbgflush( void )
           in a macro, since the function can be called as part of a test.
           Eg: ( (level <= DEBUGLEVEL) && (dbghdr(level,"",line)) )
 
-  Notes:  This function takes care of setting syslog_level.
+  Notes:  This function takes care of setting current_msg_level.
 
 ****************************************************************************/
 
@@ -918,10 +968,8 @@ bool dbghdrclass(int level, int cls, const char *location, const char *func)
 		return( true );
 	}
 
-#ifdef WITH_SYSLOG
-	/* Set syslog_level. */
-	syslog_level = level;
-#endif
+	/* Set current_msg_level. */
+	current_msg_level = level;
 
 	/* Don't print a header if we're logging to stdout. */
 	if ( state.logtype != DEBUG_FILE ) {
@@ -932,14 +980,19 @@ bool dbghdrclass(int level, int cls, const char *location, const char *func)
 	 * not yet loaded, then default to timestamps on.
 	 */
 	if( state.settings.timestamp_logs || state.settings.debug_prefix_timestamp) {
+		bool verbose = false;
 		char header_str[200];
 
 		header_str[0] = '\0';
 
-		if( state.settings.debug_pid)
+		if (unlikely(DEBUGLEVEL_CLASS[ cls ] >= 10)) {
+			verbose = true;
+		}
+
+		if (verbose || state.settings.debug_pid)
 			slprintf(header_str,sizeof(header_str)-1,", pid=%u",(unsigned int)getpid());
 
-		if( state.settings.debug_uid) {
+		if (verbose || state.settings.debug_uid) {
 			size_t hs_len = strlen(header_str);
 			slprintf(header_str + hs_len,
 			sizeof(header_str) - 1 - hs_len,
@@ -948,7 +1001,8 @@ bool dbghdrclass(int level, int cls, const char *location, const char *func)
 				(unsigned int)getuid(), (unsigned int)getgid());
 		}
 
-		if (state.settings.debug_class && (cls != DBGC_ALL)) {
+		if ((verbose || state.settings.debug_class)
+		    && (cls != DBGC_ALL)) {
 			size_t hs_len = strlen(header_str);
 			slprintf(header_str + hs_len,
 				 sizeof(header_str) -1 - hs_len,

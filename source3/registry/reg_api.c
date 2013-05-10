@@ -111,6 +111,7 @@ static WERROR fill_subkey_cache(struct registry_key *key)
 		}
 	}
 
+	TALLOC_FREE(key->subkeys);
 	werr = regsubkey_ctr_init(key, &(key->subkeys));
 	W_ERROR_NOT_OK_RETURN(werr);
 
@@ -142,9 +143,9 @@ static WERROR regkey_open_onelevel(TALLOC_CTX *mem_ctx,
 
 	SMB_ASSERT(strchr(name, '\\') == NULL);
 
-	if (!(regkey = TALLOC_ZERO_P(mem_ctx, struct registry_key)) ||
+	if (!(regkey = talloc_zero(mem_ctx, struct registry_key)) ||
 	    !(regkey->token = dup_nt_token(regkey, token)) ||
-	    !(regkey->key = TALLOC_ZERO_P(regkey, struct registry_key_handle)))
+	    !(regkey->key = talloc_zero(regkey, struct registry_key_handle)))
 	{
 		result = WERR_NOMEM;
 		goto done;
@@ -189,7 +190,7 @@ static WERROR regkey_open_onelevel(TALLOC_CTX *mem_ctx,
 
 	/* Tag this as a Performance Counter Key */
 
-	if( StrnCaseCmp(key->name, KEY_HKPD, strlen(KEY_HKPD)) == 0 )
+	if( strncasecmp_m(key->name, KEY_HKPD, strlen(KEY_HKPD)) == 0 )
 		key->type = REG_KEY_HKPD;
 
 	/* Look up the table of registry I/O operations */
@@ -305,7 +306,8 @@ WERROR reg_enumkey(TALLOC_CTX *mem_ctx, struct registry_key *key,
 		return WERR_ACCESS_DENIED;
 	}
 
-	if (!W_ERROR_IS_OK(err = fill_subkey_cache(key))) {
+	err = fill_subkey_cache(key);
+	if (!W_ERROR_IS_OK(err)) {
 		return err;
 	}
 
@@ -337,7 +339,8 @@ WERROR reg_enumvalue(TALLOC_CTX *mem_ctx, struct registry_key *key,
 		return WERR_ACCESS_DENIED;
 	}
 
-	if (!(W_ERROR_IS_OK(err = fill_value_cache(key)))) {
+	err = fill_value_cache(key);
+	if (!(W_ERROR_IS_OK(err))) {
 		return err;
 	}
 
@@ -553,7 +556,6 @@ WERROR reg_createkey(TALLOC_CTX *ctx, struct registry_key *parent,
 		     enum winreg_CreateAction *paction)
 {
 	struct registry_key *key = parent;
-	struct registry_key *create_parent;
 	TALLOC_CTX *mem_ctx;
 	char *path, *end;
 	WERROR err;
@@ -665,21 +667,51 @@ trans_done:
 	return err;
 }
 
-WERROR reg_deletekey(struct registry_key *parent, const char *path)
+static WERROR reg_deletekey_internal(TALLOC_CTX *mem_ctx,
+				     struct registry_key *parent,
+				     const char *path, bool lazy)
 {
 	WERROR err;
 	char *name, *end;
-	struct registry_key *tmp_key, *key;
-	TALLOC_CTX *mem_ctx = talloc_stackframe();
-
+	struct registry_key *key;
 	name = talloc_strdup(mem_ctx, path);
 	if (name == NULL) {
 		err = WERR_NOMEM;
 		goto done;
 	}
 
+	/* no subkeys - proceed with delete */
+	end = strrchr(name, '\\');
+	if (end != NULL) {
+		*end = '\0';
+
+		err = reg_openkey(mem_ctx, parent, name,
+				  KEY_CREATE_SUB_KEY, &key);
+		W_ERROR_NOT_OK_GOTO_DONE(err);
+
+		parent = key;
+		name = end+1;
+	}
+
+	if (name[0] == '\0') {
+		err = WERR_INVALID_PARAM;
+		goto done;
+	}
+
+	err = delete_reg_subkey(parent->key, name, lazy);
+
+done:
+	return err;
+}
+
+WERROR reg_deletekey(struct registry_key *parent, const char *path)
+{
+	WERROR err;
+	struct registry_key *key;
+	TALLOC_CTX *mem_ctx = talloc_stackframe();
+
 	/* check if the key has subkeys */
-	err = reg_openkey(mem_ctx, parent, name, REG_KEY_READ, &key);
+	err = reg_openkey(mem_ctx, parent, path, REG_KEY_READ, &key);
 	W_ERROR_NOT_OK_GOTO_DONE(err);
 
 	err = regdb_transaction_start();
@@ -690,32 +722,15 @@ WERROR reg_deletekey(struct registry_key *parent, const char *path)
 	}
 
 	err = fill_subkey_cache(key);
-	W_ERROR_NOT_OK_GOTO(err, trans_done);
+	if (!W_ERROR_IS_OK(err)) {
+		goto trans_done;
+	}
 
 	if (regsubkey_ctr_numkeys(key->subkeys) > 0) {
 		err = WERR_ACCESS_DENIED;
 		goto trans_done;
 	}
-
-	/* no subkeys - proceed with delete */
-	end = strrchr(name, '\\');
-	if (end != NULL) {
-		*end = '\0';
-
-		err = reg_openkey(mem_ctx, parent, name,
-				  KEY_CREATE_SUB_KEY, &tmp_key);
-		W_ERROR_NOT_OK_GOTO(err, trans_done);
-
-		parent = tmp_key;
-		name = end+1;
-	}
-
-	if (name[0] == '\0') {
-		err = WERR_INVALID_PARAM;
-		goto trans_done;
-	}
-
-	err = delete_reg_subkey(parent->key, name);
+	err = reg_deletekey_internal(mem_ctx, parent, path, false);
 
 trans_done:
 	if (W_ERROR_IS_OK(err)) {
@@ -734,6 +749,7 @@ done:
 	TALLOC_FREE(mem_ctx);
 	return err;
 }
+
 
 WERROR reg_setvalue(struct registry_key *key, const char *name,
 		    const struct registry_value *val)
@@ -931,7 +947,7 @@ WERROR reg_deleteallvalues(struct registry_key *key)
  */
 static WERROR reg_deletekey_recursive_internal(struct registry_key *parent,
 					       const char *path,
-					       bool del_key)
+					       bool del_key, bool lazy)
 {
 	WERROR werr = WERR_OK;
 	struct registry_key *key;
@@ -939,9 +955,15 @@ static WERROR reg_deletekey_recursive_internal(struct registry_key *parent,
 	uint32 i;
 	TALLOC_CTX *mem_ctx = talloc_stackframe();
 
+	DEBUG(5, ("reg_deletekey_recursive_internal: deleting '%s' from '%s'\n",
+		  path, parent->key->name));
+
 	/* recurse through subkeys first */
 	werr = reg_openkey(mem_ctx, parent, path, REG_KEY_ALL, &key);
 	if (!W_ERROR_IS_OK(werr)) {
+		DEBUG(3, ("reg_deletekey_recursive_internal: error opening "
+			  "subkey '%s' of '%s': '%s'\n",
+			  path, parent->key->name, win_errstr(werr)));
 		goto done;
 	}
 
@@ -954,16 +976,20 @@ static WERROR reg_deletekey_recursive_internal(struct registry_key *parent,
 	 */
 	for (i = regsubkey_ctr_numkeys(key->subkeys) ; i > 0; i--) {
 		subkey_name = regsubkey_ctr_specific_key(key->subkeys, i-1);
-		werr = reg_deletekey_recursive_internal(key, subkey_name, true);
+		werr = reg_deletekey_recursive_internal(key, subkey_name, true, del_key);
 		W_ERROR_NOT_OK_GOTO_DONE(werr);
 	}
 
 	if (del_key) {
 		/* now delete the actual key */
-		werr = reg_deletekey(parent, path);
+		werr = reg_deletekey_internal(mem_ctx, parent, path, lazy);
 	}
 
 done:
+
+	DEBUG(5, ("reg_deletekey_recursive_internal: done deleting '%s' from "
+		  "'%s': %s\n",
+		  path, parent->key->name, win_errstr(werr)));
 	TALLOC_FREE(mem_ctx);
 	return werr;
 }
@@ -982,14 +1008,14 @@ static WERROR reg_deletekey_recursive_trans(struct registry_key *parent,
 		return werr;
 	}
 
-	werr = reg_deletekey_recursive_internal(parent, path, del_key);
+	werr = reg_deletekey_recursive_internal(parent, path, del_key, false);
 
 	if (!W_ERROR_IS_OK(werr)) {
 		WERROR werr2;
-
-		DEBUG(1, (__location__ " failed to delete key '%s' from key "
-			  "'%s': %s\n", path, parent->key->name,
-			  win_errstr(werr)));
+		DEBUG(W_ERROR_EQUAL(werr, WERR_BADFILE) ? 5 : 1,
+		      (__location__ ": failed to delete key '%s' from key "
+		       "'%s': %s\n", path, parent->key->name,
+		       win_errstr(werr)));
 
 		werr2 = regdb_transaction_cancel();
 		if (!W_ERROR_IS_OK(werr2)) {
@@ -1007,6 +1033,10 @@ static WERROR reg_deletekey_recursive_trans(struct registry_key *parent,
 			DEBUG(0, ("reg_deletekey_recursive_trans: "
 				  "error committing transaction: %s\n",
 				  win_errstr(werr)));
+		} else {
+			DEBUG(5, ("reg_reletekey_recursive_trans: deleted key '%s' from '%s'\n",
+				  path, parent->key->name));
+
 		}
 	}
 

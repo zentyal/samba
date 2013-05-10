@@ -45,7 +45,7 @@ static bool smb_acl_to_solaris_acl(SMB_ACL_T smb_acl,
 		SOLARIS_ACL_T *solariacl, int *count, 
 		SMB_ACL_TYPE_T type);
 static SMB_ACL_T solaris_acl_to_smb_acl(SOLARIS_ACL_T solarisacl, int count,
-		SMB_ACL_TYPE_T type);
+					SMB_ACL_TYPE_T type, TALLOC_CTX *mem_ctx);
 static SOLARIS_ACL_TAG_T smb_tag_to_solaris_tag(SMB_ACL_TAG_T smb_tag);
 static SMB_ACL_TAG_T solaris_tag_to_smb_tag(SOLARIS_ACL_TAG_T solaris_tag);
 static bool solaris_add_to_acl(SOLARIS_ACL_T *solaris_acl, int *count,
@@ -64,7 +64,7 @@ static bool solaris_acl_check(SOLARIS_ACL_T solaris_acl, int count);
 
 SMB_ACL_T solarisacl_sys_acl_get_file(vfs_handle_struct *handle,
 				      const char *path_p,
-				      SMB_ACL_TYPE_T type)
+				      SMB_ACL_TYPE_T type, TALLOC_CTX *mem_ctx)
 {
 	SMB_ACL_T result = NULL;
 	int count;
@@ -85,7 +85,7 @@ SMB_ACL_T solarisacl_sys_acl_get_file(vfs_handle_struct *handle,
 	if (!solaris_acl_get_file(path_p, &solaris_acl, &count)) {
 		goto done;
 	}
-	result = solaris_acl_to_smb_acl(solaris_acl, count, type);
+	result = solaris_acl_to_smb_acl(solaris_acl, count, type, mem_ctx);
 	if (result == NULL) {
 		DEBUG(10, ("conversion solaris_acl -> smb_acl failed (%s).\n",
 			   strerror(errno)));
@@ -103,7 +103,7 @@ SMB_ACL_T solarisacl_sys_acl_get_file(vfs_handle_struct *handle,
  * get the access ACL of a file referred to by a fd
  */
 SMB_ACL_T solarisacl_sys_acl_get_fd(vfs_handle_struct *handle,
-				    files_struct *fsp)
+				    files_struct *fsp, TALLOC_CTX *mem_ctx)
 {
 	SMB_ACL_T result = NULL;
 	int count;
@@ -120,7 +120,7 @@ SMB_ACL_T solarisacl_sys_acl_get_fd(vfs_handle_struct *handle,
 	 * access acl. So we need to filter this out here.  
 	 */
 	result = solaris_acl_to_smb_acl(solaris_acl, count,
-					SMB_ACL_TYPE_ACCESS);
+					SMB_ACL_TYPE_ACCESS, mem_ctx);
 	if (result == NULL) {
 		DEBUG(10, ("conversion solaris_acl -> smb_acl failed (%s).\n",
 			   strerror(errno)));
@@ -300,7 +300,7 @@ int solarisacl_sys_acl_delete_def_file(vfs_handle_struct *handle,
 	DEBUG(10, ("entering solarisacl_sys_acl_delete_def_file.\n"));
 	
 	smb_acl = solarisacl_sys_acl_get_file(handle, path, 
-					      SMB_ACL_TYPE_ACCESS);
+					      SMB_ACL_TYPE_ACCESS, talloc_tos());
 	if (smb_acl == NULL) {
 		DEBUG(10, ("getting file acl failed!\n"));
 		goto done;
@@ -323,7 +323,7 @@ int solarisacl_sys_acl_delete_def_file(vfs_handle_struct *handle,
  done:
 	DEBUG(10, ("solarisacl_sys_acl_delete_def_file %s.\n",
 		   ((ret != 0) ? "failed" : "succeeded" )));
-	SAFE_FREE(smb_acl);
+	TALLOC_FREE(smb_acl);
 	return ret;
 }
 
@@ -370,13 +370,13 @@ static bool smb_acl_to_solaris_acl(SMB_ACL_T smb_acl,
 		switch(solaris_entry.a_type) {
 		case USER:
 			DEBUG(10, ("got tag type USER with uid %u\n", 
-				   (unsigned int)smb_entry->uid));
-			solaris_entry.a_id = (uid_t)smb_entry->uid;
+				   (unsigned int)smb_entry->info.user.uid));
+			solaris_entry.a_id = (uid_t)smb_entry->info.user.uid;
 			break;
 		case GROUP:
 			DEBUG(10, ("got tag type GROUP with gid %u\n", 
-				   (unsigned int)smb_entry->gid));
-			solaris_entry.a_id = (uid_t)smb_entry->gid;
+				   (unsigned int)smb_entry->info.group.gid));
+			solaris_entry.a_id = (uid_t)smb_entry->info.group.gid;
 			break;
 		default:
 			break;
@@ -424,12 +424,12 @@ static bool smb_acl_to_solaris_acl(SMB_ACL_T smb_acl,
  * soaris acl to the SMB_ACL format.
  */
 static SMB_ACL_T solaris_acl_to_smb_acl(SOLARIS_ACL_T solaris_acl, int count, 
-					SMB_ACL_TYPE_T type)
+					SMB_ACL_TYPE_T type, TALLOC_CTX *mem_ctx)
 {
 	SMB_ACL_T result;
 	int i;
 
-	if ((result = sys_acl_init(0)) == NULL) {
+	if ((result = sys_acl_init(mem_ctx)) == NULL) {
 		DEBUG(10, ("error allocating memory for SMB_ACL\n"));
 		goto fail;
 	}
@@ -440,11 +440,8 @@ static SMB_ACL_T solaris_acl_to_smb_acl(SOLARIS_ACL_T solaris_acl, int count,
 		if (!_IS_OF_TYPE(solaris_acl[i], type)) {
 			continue;
 		}
-		result = SMB_REALLOC(result, 
-				     sizeof(struct smb_acl_t) +
-				     (sizeof(struct smb_acl_entry) *
-				      (result->count + 1)));
-		if (result == NULL) {
+		result->acl = talloc_realloc(result, result->acl, struct smb_acl_entry, result->count + 1);
+		if (result->acl == NULL) {
 			DEBUG(10, ("error reallocating memory for SMB_ACL\n"));
 			goto fail;
 		}
@@ -469,7 +466,7 @@ static SMB_ACL_T solaris_acl_to_smb_acl(SOLARIS_ACL_T solaris_acl, int count,
 	goto done;
 	
  fail:
-	SAFE_FREE(result);
+	TALLOC_FREE(result);
  done:
 	DEBUG(10, ("solaris_acl_to_smb_acl %s\n",
 		   ((result == NULL) ? "failed" : "succeeded")));
@@ -752,11 +749,11 @@ static bool solaris_acl_check(SOLARIS_ACL_T solaris_acl, int count)
 #endif
 
 static struct vfs_fn_pointers solarisacl_fns = {
-	.sys_acl_get_file = solarisacl_sys_acl_get_file,
-	.sys_acl_get_fd = solarisacl_sys_acl_get_fd,
-	.sys_acl_set_file = solarisacl_sys_acl_set_file,
-	.sys_acl_set_fd = solarisacl_sys_acl_set_fd,
-	.sys_acl_delete_def_file = solarisacl_sys_acl_delete_def_file,
+	.sys_acl_get_file_fn = solarisacl_sys_acl_get_file,
+	.sys_acl_get_fd_fn = solarisacl_sys_acl_get_fd,
+	.sys_acl_set_file_fn = solarisacl_sys_acl_set_file,
+	.sys_acl_set_fd_fn = solarisacl_sys_acl_set_fd,
+	.sys_acl_delete_def_file_fn = solarisacl_sys_acl_delete_def_file,
 };
 
 NTSTATUS vfs_solarisacl_init(void);

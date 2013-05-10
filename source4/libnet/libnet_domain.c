@@ -62,8 +62,8 @@ static void continue_domain_open_rpc_connect(struct composite_context *ctx)
 	struct domain_open_samr_state *s;
 	struct tevent_req *subreq;
 
-	c = talloc_get_type(ctx->async.private_data, struct composite_context);
-	s = talloc_get_type(c->private_data, struct domain_open_samr_state);
+	c = talloc_get_type_abort(ctx->async.private_data, struct composite_context);
+	s = talloc_get_type_abort(c->private_data, struct domain_open_samr_state);
 
 	c->status = libnet_RpcConnect_recv(ctx, s->ctx, c, &s->rpcconn);
 	if (!composite_is_ok(c)) return;
@@ -96,7 +96,7 @@ static void continue_domain_open_close(struct tevent_req *subreq)
 	struct domain_open_samr_state *s;
 
 	c = tevent_req_callback_data(subreq, struct composite_context);
-	s = talloc_get_type(c->private_data, struct domain_open_samr_state);
+	s = talloc_get_type_abort(c->private_data, struct domain_open_samr_state);
 
 	/* receive samr_Close reply */
 	c->status = dcerpc_samr_Close_r_recv(subreq, s);
@@ -143,7 +143,7 @@ static void continue_domain_open_connect(struct tevent_req *subreq)
 	struct samr_LookupDomain *r;
 	
 	c = tevent_req_callback_data(subreq, struct composite_context);
-	s = talloc_get_type(c->private_data, struct domain_open_samr_state);
+	s = talloc_get_type_abort(c->private_data, struct domain_open_samr_state);
 
 	/* receive samr_Connect reply */
 	c->status = dcerpc_samr_Connect_r_recv(subreq, s);
@@ -186,7 +186,7 @@ static void continue_domain_open_lookup(struct tevent_req *subreq)
 	struct samr_OpenDomain *r;
 
 	c = tevent_req_callback_data(subreq, struct composite_context);
-	s = talloc_get_type(c->private_data, struct domain_open_samr_state);
+	s = talloc_get_type_abort(c->private_data, struct domain_open_samr_state);
 	
 	/* receive samr_LookupDomain reply */
 	c->status = dcerpc_samr_LookupDomain_r_recv(subreq, s);
@@ -239,7 +239,7 @@ static void continue_domain_open_open(struct tevent_req *subreq)
 	struct domain_open_samr_state *s;
 
 	c = tevent_req_callback_data(subreq, struct composite_context);
-	s = talloc_get_type(c->private_data, struct domain_open_samr_state);
+	s = talloc_get_type_abort(c->private_data, struct domain_open_samr_state);
 
 	/* receive samr_OpenDomain reply */
 	c->status = dcerpc_samr_OpenDomain_r_recv(subreq, s);
@@ -268,6 +268,7 @@ static void continue_domain_open_open(struct tevent_req *subreq)
  */
 
 struct composite_context *libnet_DomainOpenSamr_send(struct libnet_context *ctx,
+						     TALLOC_CTX *mem_ctx,
 						     struct libnet_DomainOpen *io,
 						     void (*monitor)(struct monitor_msg*))
 {
@@ -276,7 +277,7 @@ struct composite_context *libnet_DomainOpenSamr_send(struct libnet_context *ctx,
 	struct composite_context *rpcconn_req;
 	struct tevent_req *subreq;
 
-	c = composite_create(ctx, ctx->event_ctx);
+	c = composite_create(mem_ctx, ctx->event_ctx);
 	if (c == NULL) return NULL;
 
 	s = talloc_zero(c, struct domain_open_samr_state);
@@ -308,7 +309,7 @@ struct composite_context *libnet_DomainOpenSamr_send(struct libnet_context *ctx,
 
 	/* libnet context's domain handle is not empty, so check out what
 	   was opened first, before doing anything */
-	if (!policy_handle_empty(&ctx->samr.handle)) {
+	if (!ndr_policy_handle_empty(&ctx->samr.handle)) {
 		if (strequal(ctx->samr.name, io->in.domain_name) &&
 		    ctx->samr.access_mask == io->in.access_mask) {
 
@@ -370,7 +371,7 @@ NTSTATUS libnet_DomainOpenSamr_recv(struct composite_context *c, struct libnet_c
 	status = composite_wait(c);
 	
 	if (NT_STATUS_IS_OK(status) && io) {
-		s = talloc_get_type(c->private_data, struct domain_open_samr_state);
+		s = talloc_get_type_abort(c->private_data, struct domain_open_samr_state);
 		io->out.domain_handle = s->domain_handle;
 
 		/* store the resulting handle and related data for use by other
@@ -414,6 +415,7 @@ static void continue_lsa_policy_open(struct tevent_req *subreq);
  */
 
 struct composite_context* libnet_DomainOpenLsa_send(struct libnet_context *ctx,
+						    TALLOC_CTX *mem_ctx,
 						    struct libnet_DomainOpen *io,
 						    void (*monitor)(struct monitor_msg*))
 {
@@ -424,7 +426,7 @@ struct composite_context* libnet_DomainOpenLsa_send(struct libnet_context *ctx,
 	struct lsa_QosInfo *qos;
 
 	/* create composite context and state */
-	c = composite_create(ctx, ctx->event_ctx);
+	c = composite_create(mem_ctx, ctx->event_ctx);
 	if (c == NULL) return c;
 
 	s = talloc_zero(c, struct domain_open_lsa_state);
@@ -492,8 +494,8 @@ static void continue_rpc_connect_lsa(struct composite_context *ctx)
 	struct lsa_QosInfo *qos;
 	struct tevent_req *subreq;
 
-	c = talloc_get_type(ctx->async.private_data, struct composite_context);
-	s = talloc_get_type(c->private_data, struct domain_open_lsa_state);
+	c = talloc_get_type_abort(ctx->async.private_data, struct composite_context);
+	s = talloc_get_type_abort(c->private_data, struct domain_open_lsa_state);
 
 	/* receive rpc connection */
 	c->status = libnet_RpcConnect_recv(ctx, s->ctx, c, &s->rpcconn);
@@ -536,7 +538,7 @@ static void continue_lsa_policy_open(struct tevent_req *subreq)
 	struct domain_open_lsa_state *s;
 
 	c = tevent_req_callback_data(subreq, struct composite_context);
-	s = talloc_get_type(c->private_data, struct domain_open_lsa_state);
+	s = talloc_get_type_abort(c->private_data, struct domain_open_lsa_state);
 
 	c->status = dcerpc_lsa_OpenPolicy2_r_recv(subreq, s);
 	TALLOC_FREE(subreq);
@@ -576,7 +578,7 @@ NTSTATUS libnet_DomainOpenLsa_recv(struct composite_context *c, struct libnet_co
 	if (NT_STATUS_IS_OK(status) && io) {
 		/* everything went fine - get the results and
 		   return the error string */
-		s = talloc_get_type(c->private_data, struct domain_open_lsa_state);
+		s = talloc_get_type_abort(c->private_data, struct domain_open_lsa_state);
 		io->out.domain_handle = s->handle;
 
 		ctx->lsa.handle      = s->handle;
@@ -606,6 +608,7 @@ NTSTATUS libnet_DomainOpenLsa_recv(struct composite_context *c, struct libnet_co
  */
 
 struct composite_context* libnet_DomainOpen_send(struct libnet_context *ctx,
+						 TALLOC_CTX *mem_ctx,
 						 struct libnet_DomainOpen *io,
 						 void (*monitor)(struct monitor_msg*))
 {
@@ -614,13 +617,13 @@ struct composite_context* libnet_DomainOpen_send(struct libnet_context *ctx,
 	switch (io->in.type) {
 	case DOMAIN_LSA:
 		/* reques to open a policy handle on \pipe\lsarpc */
-		c = libnet_DomainOpenLsa_send(ctx, io, monitor);
+		c = libnet_DomainOpenLsa_send(ctx, mem_ctx, io, monitor);
 		break;
 
 	case DOMAIN_SAMR:
 	default:
 		/* request to open a domain policy handle on \pipe\samr */
-		c = libnet_DomainOpenSamr_send(ctx, io, monitor);
+		c = libnet_DomainOpenSamr_send(ctx, mem_ctx, io, monitor);
 		break;
 	}
 
@@ -670,7 +673,7 @@ NTSTATUS libnet_DomainOpen(struct libnet_context *ctx,
 			   TALLOC_CTX *mem_ctx,
 			   struct libnet_DomainOpen *io)
 {
-	struct composite_context *c = libnet_DomainOpen_send(ctx, io, NULL);
+	struct composite_context *c = libnet_DomainOpen_send(ctx, mem_ctx, io, NULL);
 	return libnet_DomainOpen_recv(c, ctx, mem_ctx, io);
 }
 
@@ -688,6 +691,7 @@ static void continue_lsa_close(struct tevent_req *subreq);
 
 
 struct composite_context* libnet_DomainCloseLsa_send(struct libnet_context *ctx,
+						     TALLOC_CTX *mem_ctx,
 						     struct libnet_DomainClose *io,
 						     void (*monitor)(struct monitor_msg*))
 {
@@ -696,7 +700,7 @@ struct composite_context* libnet_DomainCloseLsa_send(struct libnet_context *ctx,
 	struct tevent_req *subreq;
 
 	/* composite context and state structure allocation */
-	c = composite_create(ctx, ctx->event_ctx);
+	c = composite_create(mem_ctx, ctx->event_ctx);
 	if (c == NULL) return c;
 
 	s = talloc_zero(c, struct domain_close_lsa_state);
@@ -739,7 +743,7 @@ static void continue_lsa_close(struct tevent_req *subreq)
 	struct domain_close_lsa_state *s;
 	
 	c = tevent_req_callback_data(subreq, struct composite_context);
-	s = talloc_get_type(c->private_data, struct domain_close_lsa_state);
+	s = talloc_get_type_abort(c->private_data, struct domain_close_lsa_state);
 
 	c->status = dcerpc_lsa_Close_r_recv(subreq, s);
 	TALLOC_FREE(subreq);
@@ -795,6 +799,7 @@ static void continue_samr_close(struct tevent_req *subreq);
 
 
 struct composite_context* libnet_DomainCloseSamr_send(struct libnet_context *ctx,
+						      TALLOC_CTX *mem_ctx,
 						      struct libnet_DomainClose *io,
 						      void (*monitor)(struct monitor_msg*))
 {
@@ -803,7 +808,7 @@ struct composite_context* libnet_DomainCloseSamr_send(struct libnet_context *ctx
 	struct tevent_req *subreq;
 
 	/* composite context and state structure allocation */
-	c = composite_create(ctx, ctx->event_ctx);
+	c = composite_create(mem_ctx, ctx->event_ctx);
 	if (c == NULL) return c;
 
 	s = talloc_zero(c, struct domain_close_samr_state);
@@ -844,7 +849,7 @@ static void continue_samr_close(struct tevent_req *subreq)
 	struct domain_close_samr_state *s;
 
 	c = tevent_req_callback_data(subreq, struct composite_context);
-	s = talloc_get_type(c->private_data, struct domain_close_samr_state);
+	s = talloc_get_type_abort(c->private_data, struct domain_close_samr_state);
 	
 	c->status = dcerpc_samr_Close_r_recv(subreq, s);
 	TALLOC_FREE(subreq);
@@ -892,6 +897,7 @@ NTSTATUS libnet_DomainCloseSamr_recv(struct composite_context *c, struct libnet_
 
 
 struct composite_context* libnet_DomainClose_send(struct libnet_context *ctx,
+						  TALLOC_CTX *mem_ctx,
 						  struct libnet_DomainClose *io,
 						  void (*monitor)(struct monitor_msg*))
 {
@@ -900,13 +906,13 @@ struct composite_context* libnet_DomainClose_send(struct libnet_context *ctx,
 	switch (io->in.type) {
 	case DOMAIN_LSA:
 		/* request to close policy handle on \pipe\lsarpc */
-		c = libnet_DomainCloseLsa_send(ctx, io, monitor);
+		c = libnet_DomainCloseLsa_send(ctx, mem_ctx, io, monitor);
 		break;
 
 	case DOMAIN_SAMR:
 	default:
 		/* request to close domain policy handle on \pipe\samr */
-		c = libnet_DomainCloseSamr_send(ctx, io, monitor);
+		c = libnet_DomainCloseSamr_send(ctx, mem_ctx, io, monitor);
 		break;
 	}
 	
@@ -941,7 +947,7 @@ NTSTATUS libnet_DomainClose(struct libnet_context *ctx, TALLOC_CTX *mem_ctx,
 {
 	struct composite_context *c;
 	
-	c = libnet_DomainClose_send(ctx, io, NULL);
+	c = libnet_DomainClose_send(ctx, mem_ctx, io, NULL);
 	return libnet_DomainClose_recv(c, ctx, mem_ctx, io);
 }
 
@@ -981,8 +987,8 @@ static void continue_rpc_connect(struct composite_context *ctx)
 	struct domain_list_state *s;
 	struct tevent_req *subreq;
 
-	c = talloc_get_type(ctx->async.private_data, struct composite_context);
-	s = talloc_get_type(c->private_data, struct domain_list_state);
+	c = talloc_get_type_abort(ctx->async.private_data, struct composite_context);
+	s = talloc_get_type_abort(c->private_data, struct domain_list_state);
 	
 	c->status = libnet_RpcConnect_recv(ctx, s->ctx, c, &s->rpcconn);
 	if (!composite_is_ok(c)) return;
@@ -1010,7 +1016,7 @@ static void continue_samr_connect(struct tevent_req *subreq)
 	struct domain_list_state *s;
 
 	c = tevent_req_callback_data(subreq, struct composite_context);
-	s = talloc_get_type(c->private_data, struct domain_list_state);
+	s = talloc_get_type_abort(c->private_data, struct domain_list_state);
 	
 	c->status = dcerpc_samr_Connect_r_recv(subreq, s);
 	TALLOC_FREE(subreq);
@@ -1054,7 +1060,7 @@ static void continue_samr_enum_domains(struct tevent_req *subreq)
 	struct domain_list_state *s;
 
 	c = tevent_req_callback_data(subreq, struct composite_context);
-	s = talloc_get_type(c->private_data, struct domain_list_state);
+	s = talloc_get_type_abort(c->private_data, struct domain_list_state);
 	
 	c->status = dcerpc_samr_EnumDomains_r_recv(subreq, s);
 	TALLOC_FREE(subreq);
@@ -1119,7 +1125,7 @@ static void continue_samr_close_handle(struct tevent_req *subreq)
 	struct domain_list_state *s;
 
 	c = tevent_req_callback_data(subreq, struct composite_context);
-	s = talloc_get_type(c->private_data, struct domain_list_state);
+	s = talloc_get_type_abort(c->private_data, struct domain_list_state);
 
 	c->status = dcerpc_samr_Close_r_recv(subreq, s);
 	TALLOC_FREE(subreq);
@@ -1137,6 +1143,7 @@ static void continue_samr_close_handle(struct tevent_req *subreq)
 	/* did everything go fine ? */
 	if (!NT_STATUS_IS_OK(s->samrclose.out.result)) {
 		composite_error(c, s->samrclose.out.result);
+		return;
 	}
 
 	composite_done(c);
@@ -1260,7 +1267,7 @@ NTSTATUS libnet_DomainList_recv(struct composite_context *c, struct libnet_conte
 
 	status = composite_wait(c);
 
-	s = talloc_get_type(c->private_data, struct domain_list_state);
+	s = talloc_get_type_abort(c->private_data, struct domain_list_state);
 
 	if (NT_STATUS_IS_OK(status) && ctx && mem_ctx && io) {
 		/* fetch the results to be returned by io structure */

@@ -25,13 +25,15 @@
 #include "auth/credentials/credentials.h"
 #include "param/param.h"
 #include "libcli/resolve/resolve.h"
+#include <ldb.h>
+#include "lib/util/util_ldb.h"
+#include "ldb_wrap.h"
+#include "dsdb/samdb/samdb.h"
+#include "../libcli/security/security.h"
+
 
 /* Size (in bytes) of the required fields in the SMBwhoami response. */
 #define WHOAMI_REQUIRED_SIZE	40
-
-enum smb_whoami_flags {
-    SMB_WHOAMI_GUEST = 0x1 /* Logged in as (or squashed to) guest */
-};
 
 /*
    SMBWhoami - Query the user mapping performed by the server for the
@@ -96,7 +98,7 @@ static struct smbcli_state *connect_to_server(struct torture_context *tctx,
 	return cli;
 }
 
-static bool sid_parse(void *mem_ctx,
+static bool whoami_sid_parse(void *mem_ctx,
 		struct torture_context *torture,
 		DATA_BLOB *data, size_t *offset,
 		struct dom_sid **psid)
@@ -226,9 +228,12 @@ static bool smb_raw_query_posix_whoami(void *mem_ctx,
 		whoami->gid_list = talloc_array(mem_ctx, uint64_t, whoami->num_gids);
 		torture_assert(torture, whoami->gid_list != NULL, "out of memory");
 
+		torture_comment(torture, "\tGIDs:\n");
+		
 		for (i = 0; i < whoami->num_gids; ++i) {
 			whoami->gid_list[i] = BVAL(tp.out.data.data, offset);
 			offset += 8;
+			torture_comment(torture, "\t\t%u\n", (unsigned int)whoami->gid_list[i]);
 		}
 	}
 
@@ -251,13 +256,17 @@ static bool smb_raw_query_posix_whoami(void *mem_ctx,
 		torture_assert(torture, whoami->sid_list != NULL,
 				"out of memory");
 
+		torture_comment(torture, "\tSIDs:\n");
+
 		for (i = 0; i < whoami->num_sids; ++i) {
-			if (!sid_parse(mem_ctx, torture,
+			if (!whoami_sid_parse(mem_ctx, torture,
 					&tp.out.data, &offset,
 					&whoami->sid_list[i])) {
 				return false;
 			}
 
+			torture_comment(torture, "\t\t%s\n",
+					dom_sid_string(torture, whoami->sid_list[i]));
 		}
 	}
 
@@ -268,31 +277,117 @@ static bool smb_raw_query_posix_whoami(void *mem_ctx,
 	return true;
 }
 
+static bool test_against_ldap(struct torture_context *torture, struct ldb_context *ldb, bool is_dc, 
+			      struct smb_whoami *whoami)
+{
+	struct ldb_message *msg;
+	struct ldb_message_element *el;
+
+	const char *attrs[] = { "tokenGroups", NULL };
+	int i;
+
+	torture_assert_int_equal(torture, dsdb_search_one(ldb, torture, &msg, NULL, LDB_SCOPE_BASE, attrs, 0, NULL), LDB_SUCCESS, "searching for tokenGroups");
+	el = ldb_msg_find_element(msg, "tokenGroups");
+	torture_assert(torture, el, "obtaining tokenGroups");
+	torture_assert(torture, el->num_values > 0, "Number of SIDs from LDAP needs to be more than 0");
+	torture_assert(torture, whoami->num_sids > 0, "Number of SIDs from LDAP needs to be more than 0");
+	
+	if (is_dc) {
+		torture_assert_int_equal(torture, el->num_values, whoami->num_sids, "Number of SIDs from LDAP and number of SIDs from CIFS does not match!");
+		
+		for (i = 0; i < el->num_values; i++) {
+			struct dom_sid *sid = talloc(torture, struct dom_sid);
+			torture_assert(torture, sid != NULL, "talloc failed");
+			
+			torture_assert(torture, sid_blob_parse(el->values[i], sid), "sid parse failed");
+			torture_assert_str_equal(torture, dom_sid_string(sid, sid), dom_sid_string(sid, whoami->sid_list[i]), "SID from LDAP and SID from CIFS does not match!");
+			talloc_free(sid);
+		}
+	} else {
+		unsigned int num_domain_sids_dc = 0, num_domain_sids_member = 0;
+		struct dom_sid *user_sid = talloc(torture, struct dom_sid);
+		struct dom_sid *dom_sid = talloc(torture, struct dom_sid);
+		struct dom_sid *dc_sids = talloc_array(torture, struct dom_sid, el->num_values);
+		struct dom_sid *member_sids = talloc_array(torture, struct dom_sid, whoami->num_sids);
+		torture_assert(torture, user_sid != NULL, "talloc failed");
+		torture_assert(torture, sid_blob_parse(el->values[0], user_sid), "sid parse failed");
+		torture_assert_ntstatus_equal(torture, dom_sid_split_rid(torture, user_sid, &dom_sid, NULL), NT_STATUS_OK, "failed to split domain SID from user SID");
+		for (i = 0; i < el->num_values; i++) {
+			struct dom_sid *sid = talloc(dc_sids, struct dom_sid);
+			torture_assert(torture, sid != NULL, "talloc failed");
+			
+			torture_assert(torture, sid_blob_parse(el->values[i], sid), "sid parse failed");
+			if (dom_sid_in_domain(dom_sid, sid)) {
+				dc_sids[num_domain_sids_dc] = *sid;
+				num_domain_sids_dc++;
+			}
+			talloc_free(sid);
+		}
+
+		for (i = 0; i < whoami->num_sids; i++) {
+			if (dom_sid_in_domain(dom_sid, whoami->sid_list[i])) {
+				member_sids[num_domain_sids_member] = *whoami->sid_list[i];
+				num_domain_sids_member++;
+			}
+		}
+
+		torture_assert_int_equal(torture, num_domain_sids_dc, num_domain_sids_member, "Number of Domain SIDs from LDAP DC and number of SIDs from CIFS member does not match!");
+		for (i = 0; i < num_domain_sids_dc; i++) {
+			torture_assert_str_equal(torture, dom_sid_string(dc_sids, &dc_sids[i]), dom_sid_string(member_sids, &member_sids[i]), "Domain SID from LDAP DC and SID from CIFS member server does not match!");
+		}
+		talloc_free(dc_sids);
+		talloc_free(member_sids);
+	}
+	return true;
+}
+
 bool torture_unix_whoami(struct torture_context *torture)
 {
 	struct smbcli_state *cli;
-	struct cli_credentials *anon_credentials;
 	struct smb_whoami whoami;
+	bool ret;
+	struct ldb_context *ldb;
+	const char *addc, *host;
 
-	if (!(cli = connect_to_server(torture, cmdline_credentials))) {
-		return false;
-	}
+	cli = connect_to_server(torture, cmdline_credentials);
+	torture_assert(torture, cli, "connecting to server with authenticated credentials");
 
 	/* Test basic authenticated mapping. */
-	printf("calling SMB_QFS_POSIX_WHOAMI on an authenticated connection\n");
-	if (!smb_raw_query_posix_whoami(torture, torture,
-				cli, &whoami, 0xFFFF)) {
-		smbcli_tdis(cli);
-		return false;
+	torture_assert_goto(torture, smb_raw_query_posix_whoami(torture, torture,
+						       cli, &whoami, 0xFFFF), ret, fail,
+			    "calling SMB_QFS_POSIX_WHOAMI on an authenticated connection");
+
+	/* Check that our anonymous login mapped us to guest on the server, but
+	 * only if the server supports this.
+	 */
+	if (whoami.mapping_mask & SMB_WHOAMI_GUEST) {
+		bool guest = whoami.mapping_flags & SMB_WHOAMI_GUEST;
+		torture_comment(torture, "checking whether we were logged in as guest... %s\n",
+			guest ? "YES" : "NO");
+		torture_assert(torture, cli_credentials_is_anonymous(cmdline_credentials) == guest,
+			       "login did not credentials map to guest");
+	} else {
+		torture_comment(torture, "server does not support SMB_WHOAMI_GUEST flag\n");
+	}
+
+	addc = torture_setting_string(torture, "addc", NULL);
+	host = torture_setting_string(torture, "host", NULL);
+	
+ 	if (addc) {
+		ldb = ldb_wrap_connect(torture, torture->ev, torture->lp_ctx, talloc_asprintf(torture, "ldap://%s", addc),
+				       NULL, cmdline_credentials, 0);
+		torture_assert(torture, ldb, "ldb connect failed");
+
+		/* We skip this testing if we could not contact the LDAP server */
+		if (!test_against_ldap(torture, ldb, strcasecmp(addc, host) == 0, &whoami)) {
+			goto fail;
+		}
 	}
 
 	/* Test that the server drops the UID and GID list. */
-	printf("calling SMB_QFS_POSIX_WHOAMI with a small buffer\n");
-	if (!smb_raw_query_posix_whoami(torture, torture,
-				cli, &whoami, 0x40)) {
-		smbcli_tdis(cli);
-		return false;
-	}
+	torture_assert_goto(torture, smb_raw_query_posix_whoami(torture, torture,
+						  cli, &whoami, 0x40), ret, fail,
+		       "calling SMB_QFS_POSIX_WHOAMI with a small buffer\n");
 
 	torture_assert_int_equal(torture, whoami.num_gids, 0,
 			"invalid GID count");
@@ -303,34 +398,11 @@ bool torture_unix_whoami(struct torture_context *torture)
 
 	smbcli_tdis(cli);
 
-	printf("calling SMB_QFS_POSIX_WHOAMI on an anonymous connection\n");
-	anon_credentials = cli_credentials_init_anon(torture);
-
-	if (!(cli = connect_to_server(torture, anon_credentials))) {
-		return false;
-	}
-
-	if (!smb_raw_query_posix_whoami(torture, torture,
-				cli, &whoami, 0xFFFF)) {
-		smbcli_tdis(cli);
-		return false;
-	}
+	return true;
+fail:
 
 	smbcli_tdis(cli);
-
-	/* Check that our anonymous login mapped us to guest on the server, but
-	 * only if the server supports this.
-	 */
-	if (whoami.mapping_mask & SMB_WHOAMI_GUEST) {
-		printf("checking whether we were logged in as guest... %s\n",
-			whoami.mapping_flags & SMB_WHOAMI_GUEST ? "YES" : "NO");
-		torture_assert(torture, whoami.mapping_flags & SMB_WHOAMI_GUEST,
-				"anonymous login did not map to guest");
-	} else {
-		printf("server does not support SMB_WHOAMI_GUEST flag\n");
-	}
-
-	return true;
+	return ret;
 }
 
 /* vim: set sts=8 sw=8 : */

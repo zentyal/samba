@@ -20,76 +20,34 @@
 #include "includes.h"
 #include "smbd/smbd.h"
 #include "smbd/globals.h"
-#include "dbwrap.h"
+#include "dbwrap/dbwrap.h"
 #include "auth.h"
-
-/****************************************************************************
- Delete a connection record.
-****************************************************************************/
-
-bool yield_connection(connection_struct *conn, const char *name)
-{
-	struct db_record *rec;
-	NTSTATUS status;
-
-	DEBUG(3,("Yielding connection to %s\n",name));
-
-	rec = connections_fetch_entry(talloc_tos(), conn, name);
-	if (rec == NULL) {
-		DEBUG(0, ("connections_fetch_entry failed\n"));
-		return False;
-	}
-
-	status = rec->delete_rec(rec);
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG( NT_STATUS_EQUAL(status, NT_STATUS_NOT_FOUND) ? 3 : 0,
-		       ("deleting connection record returned %s\n",
-			nt_errstr(status)));
-	}
-
-	TALLOC_FREE(rec);
-	return NT_STATUS_IS_OK(status);
-}
+#include "../lib/tsocket/tsocket.h"
+#include "messages.h"
+#include "lib/conn_tdb.h"
 
 struct count_stat {
 	int curr_connections;
 	const char *name;
-	bool Clear;
+	bool verify;
 };
 
 /****************************************************************************
  Count the entries belonging to a service in the connection db.
 ****************************************************************************/
 
-static int count_fn(struct db_record *rec,
-		    const struct connections_key *ckey,
-		    const struct connections_data *crec,
+static int count_fn(struct smbXsrv_tcon_global0 *tcon,
 		    void *udp)
 {
 	struct count_stat *cs = (struct count_stat *)udp;
 
-	if (crec->cnum == -1) {
+	if (cs->verify && !process_exists(tcon->server_id)) {
 		return 0;
 	}
 
-	/* If the pid was not found delete the entry from connections.tdb */
-
-	if (cs->Clear && !process_exists(crec->pid) && (errno == ESRCH)) {
-		NTSTATUS status;
-		DEBUG(2,("pid %s doesn't exist - deleting connections %d [%s]\n",
-			 procid_str_static(&crec->pid), crec->cnum,
-			 crec->servicename));
-
-		status = rec->delete_rec(rec);
-		if (!NT_STATUS_IS_OK(status)) {
-			DEBUG(0,("count_fn: tdb_delete failed with error %s\n",
-				 nt_errstr(status)));
-		}
-		return 0;
-	}
-
-	if (strequal(crec->servicename, cs->name))
+	if (strequal(tcon->share_name, cs->name)) {
 		cs->curr_connections++;
+	}
 
 	return 0;
 }
@@ -98,72 +56,41 @@ static int count_fn(struct db_record *rec,
  Claim an entry in the connections database.
 ****************************************************************************/
 
-int count_current_connections( const char *sharename, bool clear  )
+int count_current_connections(const char *sharename, bool verify)
 {
 	struct count_stat cs;
+	NTSTATUS status;
 
 	cs.curr_connections = 0;
 	cs.name = sharename;
-	cs.Clear = clear;
+	cs.verify = verify;
 
 	/*
 	 * This has a race condition, but locking the chain before hand is worse
 	 * as it leads to deadlock.
 	 */
 
-	if (connections_forall(count_fn, &cs) == -1) {
+	status = smbXsrv_tcon_global_traverse(count_fn, &cs);
+
+	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("count_current_connections: traverse of "
-			 "connections.tdb failed\n"));
-		return False;
+			 "smbXsrv_tcon_global.tdb failed - %s\n",
+			 nt_errstr(status)));
+		return 0;
 	}
 
 	return cs.curr_connections;
 }
 
-/****************************************************************************
- Claim an entry in the connections database.
-****************************************************************************/
-
-bool claim_connection(connection_struct *conn, const char *name)
+bool connections_snum_used(struct smbd_server_connection *unused, int snum)
 {
-	struct db_record *rec;
-	struct connections_data crec;
-	TDB_DATA dbuf;
-	NTSTATUS status;
+	int active;
 
-	DEBUG(5,("claiming [%s]\n", name));
-
-	if (!(rec = connections_fetch_entry(talloc_tos(), conn, name))) {
-		DEBUG(0, ("connections_fetch_entry failed\n"));
-		return False;
+	active = count_current_connections(lp_servicename(talloc_tos(), snum),
+					   true);
+	if (active > 0) {
+		return true;
 	}
 
-	/* fill in the crec */
-	ZERO_STRUCT(crec);
-	crec.magic = 0x280267;
-	crec.pid = sconn_server_id(conn->sconn);
-	crec.cnum = conn->cnum;
-	crec.uid = conn->session_info->utok.uid;
-	crec.gid = conn->session_info->utok.gid;
-	strlcpy(crec.servicename, lp_servicename(SNUM(conn)),
-		sizeof(crec.servicename));
-	crec.start = time(NULL);
-
-	strlcpy(crec.machine,get_remote_machine_name(),sizeof(crec.machine));
-	strlcpy(crec.addr, conn->sconn->client_id.addr, sizeof(crec.addr));
-
-	dbuf.dptr = (uint8 *)&crec;
-	dbuf.dsize = sizeof(crec);
-
-	status = rec->store(rec, dbuf, TDB_REPLACE);
-
-	TALLOC_FREE(rec);
-
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0,("claim_connection: tdb_store failed with error %s.\n",
-			 nt_errstr(status)));
-		return False;
-	}
-
-	return True;
+	return false;
 }

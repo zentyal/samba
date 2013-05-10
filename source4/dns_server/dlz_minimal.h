@@ -23,10 +23,18 @@
   tree.
  */
 typedef unsigned int isc_result_t;
+#ifdef BIND_VERSION_9_8
 typedef bool isc_boolean_t;
+#else
+typedef int isc_boolean_t;
+#endif
 typedef uint32_t dns_ttl_t;
 
+#ifdef BIND_VERSION_9_8
 #define DLZ_DLOPEN_VERSION 1
+#else
+#define DLZ_DLOPEN_VERSION 2
+#endif
 
 /* return this in flags to dlz_version() if thread safe */
 #define DNS_SDLZFLAG_THREADSAFE		0x00000001U
@@ -34,8 +42,14 @@ typedef uint32_t dns_ttl_t;
 /* result codes */
 #define ISC_R_SUCCESS			0
 #define ISC_R_NOMEMORY			1
+#define ISC_R_NOPERM			6
 #define ISC_R_NOTFOUND			23
 #define ISC_R_FAILURE			25
+#define ISC_R_NOMORE			29
+
+/* boolean values */
+#define ISC_TRUE	1
+#define ISC_FALSE	0
 
 /* log levels */
 #define ISC_LOG_INFO		(-1)
@@ -48,6 +62,29 @@ typedef uint32_t dns_ttl_t;
 typedef void *dns_sdlzlookup_t;
 typedef void *dns_sdlzallnodes_t;
 typedef void *dns_view_t;
+typedef void *dns_clientinfomethods_t;
+typedef void *dns_clientinfo_t;
+
+/*
+ * method definitions for callbacks provided by dlopen driver
+ */
+
+typedef void log_t(int level, const char *fmt, ...);
+
+typedef isc_result_t dns_sdlz_putrr_t(dns_sdlzlookup_t *lookup,
+				      const char *type,
+				      dns_ttl_t ttl,
+				      const char *data);
+
+typedef isc_result_t dns_sdlz_putnamedrr_t(dns_sdlzallnodes_t *allnodes,
+					   const char *name,
+					   const char *type,
+					   dns_ttl_t ttl,
+					   const char *data);
+
+typedef isc_result_t dns_dlz_writeablezone_t(dns_view_t *view,
+					     const char *zone_name);
+
 
 /*
  * prototypes for the functions you can include in your driver
@@ -79,8 +116,15 @@ isc_result_t dlz_findzonedb(void *dbdata, const char *name);
 /*
   dlz_lookup is required for all DLZ external drivers
  */
+#ifdef BIND_VERSION_9_8
 isc_result_t dlz_lookup(const char *zone, const char *name,
 			void *dbdata, dns_sdlzlookup_t *lookup);
+#else
+isc_result_t dlz_lookup(const char *zone, const char *name,
+			void *dbdata, dns_sdlzlookup_t *lookup,
+			dns_clientinfomethods_t *methods,
+			dns_clientinfo_t *clientinfo);
+#endif
 
 /*
   dlz_allowzonexfr() is optional, and should be supplied if you want

@@ -63,10 +63,10 @@ bool torture_nttrans_scan(int dummy);
 
 /* The following definitions come from torture/torture.c  */
 
-void *shm_setup(int size);
 bool smbcli_parse_unc(const char *unc_name, TALLOC_CTX *mem_ctx,
 		      char **hostname, char **sharename);
 bool torture_open_connection(struct cli_state **c, int conn_index);
+bool torture_init_connection(struct cli_state **pcli);
 bool torture_cli_session_setup2(struct cli_state *cli, uint16 *new_vuid);
 bool torture_close_connection(struct cli_state *c);
 bool torture_ioctl_test(int dummy);
@@ -83,10 +83,32 @@ bool torture_casetable(int dummy);
  */
 
 bool run_posix_append(int dummy);
+bool run_case_insensitive_create(int dummy);
 
 bool run_nbench2(int dummy);
 bool run_async_echo(int dummy);
 bool run_smb_any_connect(int dummy);
 bool run_addrchange(int dummy);
+bool run_notify_online(int dummy);
+bool run_nttrans_create(int dummy);
+bool run_nttrans_fsctl(int dummy);
+bool run_smb2_basic(int dummy);
+bool run_smb2_negprot(int dummy);
+bool run_smb2_session_reconnect(int dummy);
+bool run_smb2_tcon_dependence(int dummy);
+bool run_smb2_multi_channel(int dummy);
+bool run_smb2_session_reauth(int dummy);
+bool run_chain3(int dummy);
+bool run_local_conv_auth_info(int dummy);
+bool run_local_sprintf_append(int dummy);
+bool run_cleanup1(int dummy);
+bool run_cleanup2(int dummy);
+bool run_cleanup3(int dummy);
+bool run_ctdb_conn(int dummy);
+bool run_msg_test(int dummy);
+bool run_notify_bench2(int dummy);
+bool run_notify_bench3(int dummy);
+bool run_dbwrap_watch1(int dummy);
+bool run_idmap_tdb_common_test(int dummy);
 
 #endif /* __TORTURE_H__ */

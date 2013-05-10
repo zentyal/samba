@@ -38,6 +38,8 @@
 #include "../libcli/security/security.h"
 #include "passdb.h"
 #include "libsmb/libsmb.h"
+#include "../libcli/smb/smbXcli_base.h"
+#include "lib/param/loadparm.h"
 
 /****************************************************************
 ****************************************************************/
@@ -134,7 +136,10 @@ static ADS_STATUS libnet_connect_ads(const char *dns_domain_name,
 			*cp++ = '\0';
 			SAFE_FREE(my_ads->auth.realm);
 			my_ads->auth.realm = smb_xstrdup(cp);
-			strupper_m(my_ads->auth.realm);
+			if (!strupper_m(my_ads->auth.realm)) {
+				ads_destroy(&my_ads);
+				return ADS_ERROR_LDAP(LDAP_NO_MEMORY);
+			}
 		}
 	}
 
@@ -379,7 +384,9 @@ static ADS_STATUS libnet_join_set_machine_spn(TALLOC_CTX *mem_ctx,
 	if (!spn) {
 		return ADS_ERROR_LDAP(LDAP_NO_MEMORY);
 	}
-	strupper_m(spn);
+	if (!strupper_m(spn)) {
+		return ADS_ERROR_LDAP(LDAP_NO_MEMORY);
+	}
 	spn_array[0] = spn;
 
 	if (!name_to_fqdn(my_fqdn, r->in.machine_name)
@@ -388,7 +395,9 @@ static ADS_STATUS libnet_join_set_machine_spn(TALLOC_CTX *mem_ctx,
 			     r->out.dns_domain_name);
 	}
 
-	strlower_m(my_fqdn);
+	if (!strlower_m(my_fqdn)) {
+		return ADS_ERROR_LDAP(LDAP_NO_MEMORY);
+	}
 
 	if (!strequal(my_fqdn, r->in.machine_name)) {
 		spn = talloc_asprintf(mem_ctx, "HOST/%s", my_fqdn);
@@ -699,7 +708,7 @@ static NTSTATUS libnet_join_connect_dc_ipc(const char *dc,
 				   NULL,
 				   pass,
 				   flags,
-				   Undefined);
+				   SMB_SIGNING_DEFAULT);
 }
 
 /****************************************************************
@@ -802,7 +811,9 @@ static NTSTATUS libnet_join_joindomain_rpc_unsecure(TALLOC_CTX *mem_ctx,
 	}
 
 	if (!r->in.machine_password) {
-		r->in.machine_password = generate_random_str(mem_ctx, DEFAULT_TRUST_ACCOUNT_PASSWORD_LENGTH);
+		r->in.machine_password = generate_random_password(mem_ctx,
+				DEFAULT_TRUST_ACCOUNT_PASSWORD_LENGTH,
+				DEFAULT_TRUST_ACCOUNT_PASSWORD_LENGTH);
 		NT_STATUS_HAVE_NO_MEMORY(r->in.machine_password);
 	}
 
@@ -810,7 +821,9 @@ static NTSTATUS libnet_join_joindomain_rpc_unsecure(TALLOC_CTX *mem_ctx,
 
 	/* according to WKSSVC_JOIN_FLAGS_MACHINE_PWD_PASSED */
 	fstrcpy(trust_passwd, r->in.admin_password);
-	strlower_m(trust_passwd);
+	if (!strlower_m(trust_passwd)) {
+		return NT_STATUS_INVALID_PARAMETER;
+	}
 
 	/*
 	 * Machine names can be 15 characters, but the max length on
@@ -851,6 +864,7 @@ static NTSTATUS libnet_join_joindomain_rpc(TALLOC_CTX *mem_ctx,
 	union samr_UserInfo user_info;
 	struct dcerpc_binding_handle *b = NULL;
 
+	DATA_BLOB session_key = data_blob_null;
 	struct samr_CryptPassword crypt_pwd;
 	struct samr_CryptPasswordEx crypt_pwd_ex;
 
@@ -870,7 +884,9 @@ static NTSTATUS libnet_join_joindomain_rpc(TALLOC_CTX *mem_ctx,
 	}
 
 	if (!r->in.machine_password) {
-		r->in.machine_password = generate_random_str(mem_ctx, DEFAULT_TRUST_ACCOUNT_PASSWORD_LENGTH);
+		r->in.machine_password = generate_random_password(mem_ctx,
+				DEFAULT_TRUST_ACCOUNT_PASSWORD_LENGTH,
+				DEFAULT_TRUST_ACCOUNT_PASSWORD_LENGTH);
 		NT_STATUS_HAVE_NO_MEMORY(r->in.machine_password);
 	}
 
@@ -885,6 +901,13 @@ static NTSTATUS libnet_join_joindomain_rpc(TALLOC_CTX *mem_ctx,
 	}
 
 	b = pipe_hnd->binding_handle;
+
+	status = cli_get_session_key(mem_ctx, pipe_hnd, &session_key);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0,("Error getting session_key of SAM pipe. Error was %s\n",
+			nt_errstr(status)));
+		goto done;
+	}
 
 	status = dcerpc_samr_Connect2(b, mem_ctx,
 				      pipe_hnd->desthost,
@@ -919,7 +942,10 @@ static NTSTATUS libnet_join_joindomain_rpc(TALLOC_CTX *mem_ctx,
 	/* Create domain user */
 
 	acct_name = talloc_asprintf(mem_ctx, "%s$", r->in.machine_name);
-	strlower_m(acct_name);
+	if (!strlower_m(acct_name)) {
+		status = NT_STATUS_INVALID_PARAMETER;
+		goto done;
+	}
 
 	init_lsa_String(&lsa_acct_name, acct_name);
 
@@ -1062,7 +1088,7 @@ static NTSTATUS libnet_join_joindomain_rpc(TALLOC_CTX *mem_ctx,
 	/* Set password on machine account - first try level 26 */
 
 	init_samr_CryptPasswordEx(r->in.machine_password,
-				  &cli->user_session_key,
+				  &session_key,
 				  &crypt_pwd_ex);
 
 	user_info.info26.password = crypt_pwd_ex;
@@ -1079,7 +1105,7 @@ static NTSTATUS libnet_join_joindomain_rpc(TALLOC_CTX *mem_ctx,
 		/* retry with level 24 */
 
 		init_samr_CryptPassword(r->in.machine_password,
-					&cli->user_session_key,
+					&session_key,
 					&crypt_pwd);
 
 		user_info.info24.password = crypt_pwd;
@@ -1123,6 +1149,8 @@ static NTSTATUS libnet_join_joindomain_rpc(TALLOC_CTX *mem_ctx,
 		return status;
 	}
 
+	data_blob_clear_free(&session_key);
+
 	if (is_valid_policy_hnd(&sam_pol)) {
 		dcerpc_samr_Close(b, mem_ctx, &sam_pol, &result);
 	}
@@ -1142,7 +1170,8 @@ static NTSTATUS libnet_join_joindomain_rpc(TALLOC_CTX *mem_ctx,
 
 NTSTATUS libnet_join_ok(const char *netbios_domain_name,
 			const char *machine_name,
-			const char *dc_name)
+			const char *dc_name,
+			const bool use_kerberos)
 {
 	uint32_t neg_flags = NETLOGON_NEG_AUTH2_ADS_FLAGS;
 	struct cli_state *cli = NULL;
@@ -1151,6 +1180,7 @@ NTSTATUS libnet_join_ok(const char *netbios_domain_name,
 	NTSTATUS status;
 	char *machine_password = NULL;
 	char *machine_account = NULL;
+	int flags = 0;
 
 	if (!dc_name) {
 		return NT_STATUS_INVALID_PARAMETER;
@@ -1171,6 +1201,10 @@ NTSTATUS libnet_join_ok(const char *netbios_domain_name,
 		return NT_STATUS_NO_MEMORY;
 	}
 
+	if (use_kerberos) {
+		flags |= CLI_FULL_CONNECTION_USE_KERBEROS;
+	}
+
 	status = cli_full_connection(&cli, NULL,
 				     dc_name,
 				     NULL, 0,
@@ -1178,8 +1212,8 @@ NTSTATUS libnet_join_ok(const char *netbios_domain_name,
 				     machine_account,
 				     NULL,
 				     machine_password,
-				     0,
-				     Undefined);
+				     flags,
+				     SMB_SIGNING_DEFAULT);
 	free(machine_account);
 	free(machine_password);
 
@@ -1192,7 +1226,7 @@ NTSTATUS libnet_join_ok(const char *netbios_domain_name,
 					     NULL,
 					     "",
 					     0,
-					     Undefined);
+					     SMB_SIGNING_DEFAULT);
 	}
 
 	if (!NT_STATUS_IS_OK(status)) {
@@ -1209,7 +1243,8 @@ NTSTATUS libnet_join_ok(const char *netbios_domain_name,
 
 		DEBUG(0,("libnet_join_ok: failed to get schannel session "
 			"key from server %s for domain %s. Error was %s\n",
-		cli->desthost, netbios_domain_name, nt_errstr(status)));
+			smbXcli_conn_remote_name(cli->conn),
+			netbios_domain_name, nt_errstr(status)));
 		cli_shutdown(cli);
 		return status;
 	}
@@ -1230,7 +1265,8 @@ NTSTATUS libnet_join_ok(const char *netbios_domain_name,
 		DEBUG(0,("libnet_join_ok: failed to open schannel session "
 			"on netlogon pipe to server %s for domain %s. "
 			"Error was %s\n",
-			cli->desthost, netbios_domain_name, nt_errstr(status)));
+			smbXcli_conn_remote_name(cli->conn),
+			netbios_domain_name, nt_errstr(status)));
 		return status;
 	}
 
@@ -1247,7 +1283,8 @@ static WERROR libnet_join_post_verify(TALLOC_CTX *mem_ctx,
 
 	status = libnet_join_ok(r->out.netbios_domain_name,
 				r->in.machine_name,
-				r->in.dc_name);
+				r->in.dc_name,
+				r->in.use_kerberos);
 	if (!NT_STATUS_IS_OK(status)) {
 		libnet_join_set_error_string(mem_ctx, r,
 			"failed to verify domain membership after joining: %s",
@@ -1348,7 +1385,10 @@ static NTSTATUS libnet_join_unjoindomain_rpc(TALLOC_CTX *mem_ctx,
 	/* Create domain user */
 
 	acct_name = talloc_asprintf(mem_ctx, "%s$", r->in.machine_name);
-	strlower_m(acct_name);
+	if (!strlower_m(acct_name)) {
+		status = NT_STATUS_INVALID_PARAMETER;
+		goto done;
+	}
 
 	init_lsa_String(&lsa_acct_name, acct_name);
 
@@ -1573,7 +1613,7 @@ static WERROR do_JoinConfig(struct libnet_JoinCtx *r)
 		return werr;
 	}
 
-	lp_load(get_dyn_CONFIGFILE(),true,false,false,true);
+	lp_load_global(get_dyn_CONFIGFILE());
 
 	r->out.modified_config = true;
 	r->out.result = werr;
@@ -1601,7 +1641,7 @@ static WERROR libnet_unjoin_config(struct libnet_UnjoinCtx *r)
 		return werr;
 	}
 
-	lp_load(get_dyn_CONFIGFILE(),true,false,false,true);
+	lp_load_global(get_dyn_CONFIGFILE());
 
 	r->out.modified_config = true;
 	r->out.result = werr;
@@ -1696,7 +1736,7 @@ static void libnet_join_add_dom_rids_to_builtins(struct dom_sid *domain_sid)
 	if (NT_STATUS_EQUAL(status, NT_STATUS_PROTOCOL_UNREACHABLE)) {
 		DEBUG(10,("Unable to auto-add domain administrators to "
 			  "BUILTIN\\Administrators during join because "
-			  "winbindd must be running."));
+			  "winbindd must be running.\n"));
 	} else if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(5, ("Failed to auto-add domain administrators to "
 			  "BUILTIN\\Administrators during join: %s\n",
@@ -1707,7 +1747,7 @@ static void libnet_join_add_dom_rids_to_builtins(struct dom_sid *domain_sid)
 	status = create_builtin_users(domain_sid);
 	if (NT_STATUS_EQUAL(status, NT_STATUS_PROTOCOL_UNREACHABLE)) {
 		DEBUG(10,("Unable to auto-add domain users to BUILTIN\\users "
-			  "during join because winbindd must be running."));
+			  "during join because winbindd must be running.\n"));
 	} else if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(5, ("Failed to auto-add domain administrators to "
 			  "BUILTIN\\Administrators during join: %s\n",
@@ -1797,7 +1837,7 @@ WERROR libnet_init_JoinCtx(TALLOC_CTX *mem_ctx,
 
 	talloc_set_destructor(ctx, libnet_destroy_JoinCtx);
 
-	ctx->in.machine_name = talloc_strdup(mem_ctx, global_myname());
+	ctx->in.machine_name = talloc_strdup(mem_ctx, lp_netbios_name());
 	W_ERROR_HAVE_NO_MEMORY(ctx->in.machine_name);
 
 	ctx->in.secure_channel_type = SEC_CHAN_WKSTA;
@@ -1822,7 +1862,7 @@ WERROR libnet_init_UnjoinCtx(TALLOC_CTX *mem_ctx,
 
 	talloc_set_destructor(ctx, libnet_destroy_UnjoinCtx);
 
-	ctx->in.machine_name = talloc_strdup(mem_ctx, global_myname());
+	ctx->in.machine_name = talloc_strdup(mem_ctx, lp_netbios_name());
 	W_ERROR_HAVE_NO_MEMORY(ctx->in.machine_name);
 
 	*r = ctx;
@@ -1890,7 +1930,6 @@ static WERROR libnet_join_check_config(TALLOC_CTX *mem_ctx,
 		if (!valid_security) {
 			const char *sec = NULL;
 			switch (lp_security()) {
-			case SEC_SHARE: sec = "share"; break;
 			case SEC_USER:  sec = "user"; break;
 			case SEC_DOMAIN: sec = "domain"; break;
 			case SEC_ADS: sec = "ads"; break;
@@ -1976,7 +2015,8 @@ static WERROR libnet_DomainJoin(TALLOC_CTX *mem_ctx,
 
 	create_local_private_krb5_conf_for_domain(
 		r->out.dns_domain_name, r->out.netbios_domain_name,
-		NULL, &cli->dest_ss, cli->desthost);
+		NULL, smbXcli_conn_remote_sockaddr(cli->conn),
+		smbXcli_conn_remote_name(cli->conn));
 
 	if (r->out.domain_is_ad && r->in.account_ou &&
 	    !(r->in.join_flags & WKSSVC_JOIN_FLAGS_JOIN_UNSECURE)) {
@@ -2051,6 +2091,7 @@ static WERROR libnet_join_rollback(TALLOC_CTX *mem_ctx,
 	u->in.admin_account	= r->in.admin_account;
 	u->in.admin_password	= r->in.admin_password;
 	u->in.modify_config	= r->in.modify_config;
+	u->in.use_kerberos	= r->in.use_kerberos;
 	u->in.unjoin_flags	= WKSSVC_JOIN_FLAGS_JOIN_TYPE |
 				  WKSSVC_JOIN_FLAGS_ACCOUNT_DELETE;
 

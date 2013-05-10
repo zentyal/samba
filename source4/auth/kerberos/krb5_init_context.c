@@ -22,6 +22,7 @@
 
 #include "includes.h"
 #include "system/kerberos.h"
+#include "system/gssapi.h"
 #include <tevent.h>
 #include "auth/kerberos/kerberos.h"
 #include "lib/socket/socket.h"
@@ -30,7 +31,7 @@
 #include "param/param.h"
 #include "libcli/resolve/resolve.h"
 #include "../lib/tsocket/tsocket.h"
-
+#include "krb5_init_context.h"
 /*
   context structure for operations on cldap packets
 */
@@ -46,29 +47,41 @@ struct smb_krb5_socket {
 	struct packet_context *packet;
 
 	size_t partial_read;
-
+#ifdef SAMBA4_USES_HEIMDAL
 	krb5_krbhst_info *hi;
+#endif
 };
 
 static krb5_error_code smb_krb5_context_destroy(struct smb_krb5_context *ctx)
 {
-	/* Otherwise krb5_free_context will try and close what we have already free()ed */
-	krb5_set_warn_dest(ctx->krb5_context, NULL);
-	krb5_closelog(ctx->krb5_context, ctx->logf);
+#ifdef SAMBA4_USES_HEIMDAL
+	if (ctx->pvt_log_data) {
+		/* Otherwise krb5_free_context will try and close what we
+		 * have already free()ed */
+		krb5_set_warn_dest(ctx->krb5_context, NULL);
+		krb5_closelog(ctx->krb5_context,
+				(krb5_log_facility *)ctx->pvt_log_data);
+	}
+#endif
 	krb5_free_context(ctx->krb5_context);
 	return 0;
 }
 
+#ifdef SAMBA4_USES_HEIMDAL
 /* We never close down the DEBUG system, and no need to unreference the use */
 static void smb_krb5_debug_close(void *private_data) {
 	return;
 }
+#endif
 
+#ifdef SAMBA4_USES_HEIMDAL
 static void smb_krb5_debug_wrapper(const char *timestr, const char *msg, void *private_data)
 {
 	DEBUG(3, ("Kerberos: %s\n", msg));
 }
+#endif
 
+#ifdef SAMBA4_USES_HEIMDAL
 /*
   handle recv events on a smb_krb5 socket
 */
@@ -104,7 +117,7 @@ static void smb_krb5_socket_recv(struct smb_krb5_socket *smb_krb5)
 		return;
 	}
 
-	DEBUG(2,("Received smb_krb5 packet of length %d\n",
+	DEBUG(4,("Received smb_krb5 packet of length %d\n",
 		 (int)blob.length));
 
 	talloc_steal(smb_krb5, blob.data);
@@ -196,7 +209,6 @@ static void smb_krb5_socket_handler(struct tevent_context *ev, struct tevent_fd 
 		break;
 	}
 }
-
 
 krb5_error_code smb_krb5_send_and_recv_func(krb5_context context,
 					    void *data,
@@ -395,6 +407,7 @@ krb5_error_code smb_krb5_send_and_recv_func(krb5_context context,
 	}
 	return KRB5_KDC_UNREACH;
 }
+#endif
 
 krb5_error_code
 smb_krb5_init_context_basic(TALLOC_CTX *tmp_ctx,
@@ -402,8 +415,10 @@ smb_krb5_init_context_basic(TALLOC_CTX *tmp_ctx,
 			    krb5_context *_krb5_context)
 {
 	krb5_error_code ret;
+#ifdef SAMBA4_USES_HEIMDAL
 	char **config_files;
 	const char *config_file, *realm;
+#endif
 	krb5_context krb5_ctx;
 
 	initialize_krb5_error_table();
@@ -415,14 +430,18 @@ smb_krb5_init_context_basic(TALLOC_CTX *tmp_ctx,
 		return ret;
 	}
 
-	config_file = config_path(tmp_ctx, lp_ctx, "krb5.conf");
+	/* The MIT Kerberos build relies on using the system krb5.conf file.
+	 * If you really want to use another file please set KRB5_CONFIG
+	 * accordingly. */
+#ifdef SAMBA4_USES_HEIMDAL
+	config_file = lpcfg_config_path(tmp_ctx, lp_ctx, "krb5.conf");
 	if (!config_file) {
 		krb5_free_context(krb5_ctx);
 		return ENOMEM;
 	}
 
 	/* Use our local krb5.conf file by default */
-	ret = krb5_prepend_config_files_default(config_file == NULL?"":config_file, &config_files);
+	ret = krb5_prepend_config_files_default(config_file, &config_files);
 	if (ret) {
 		DEBUG(1,("krb5_prepend_config_files_default failed (%s)\n",
 			 smb_get_krb5_error_message(krb5_ctx, ret, tmp_ctx)));
@@ -449,7 +468,7 @@ smb_krb5_init_context_basic(TALLOC_CTX *tmp_ctx,
 			return ret;
 		}
 	}
-
+#endif
 	*_krb5_context = krb5_ctx;
 	return 0;
 }
@@ -461,6 +480,10 @@ krb5_error_code smb_krb5_init_context(void *parent_ctx,
 {
 	krb5_error_code ret;
 	TALLOC_CTX *tmp_ctx;
+	krb5_context kctx;
+#ifdef SAMBA4_USES_HEIMDAL
+	krb5_log_facility *logf;
+#endif
 
 	initialize_krb5_error_table();
 
@@ -472,37 +495,39 @@ krb5_error_code smb_krb5_init_context(void *parent_ctx,
 		return ENOMEM;
 	}
 
-	ret = smb_krb5_init_context_basic(tmp_ctx, lp_ctx,
-					  &(*smb_krb5_context)->krb5_context);
+	ret = smb_krb5_init_context_basic(tmp_ctx, lp_ctx, &kctx);
 	if (ret) {
 		DEBUG(1,("smb_krb5_context_init_basic failed (%s)\n",
 			 error_message(ret)));
 		talloc_free(tmp_ctx);
 		return ret;
 	}
-
-	/* TODO: Should we have a different name here? */
-	ret = krb5_initlog((*smb_krb5_context)->krb5_context, "Samba", &(*smb_krb5_context)->logf);
-
-	if (ret) {
-		DEBUG(1,("krb5_initlog failed (%s)\n",
-			 smb_get_krb5_error_message((*smb_krb5_context)->krb5_context, ret, tmp_ctx)));
-		krb5_free_context((*smb_krb5_context)->krb5_context);
-		talloc_free(tmp_ctx);
-		return ret;
-	}
+	(*smb_krb5_context)->krb5_context = kctx;
 
 	talloc_set_destructor(*smb_krb5_context, smb_krb5_context_destroy);
 
-	ret = krb5_addlog_func((*smb_krb5_context)->krb5_context, (*smb_krb5_context)->logf, 0 /* min */, -1 /* max */,
-			       smb_krb5_debug_wrapper, smb_krb5_debug_close, NULL);
+#ifdef SAMBA4_USES_HEIMDAL
+	/* TODO: Should we have a different name here? */
+	ret = krb5_initlog(kctx, "Samba", &logf);
+
 	if (ret) {
-		DEBUG(1,("krb5_addlog_func failed (%s)\n",
-			 smb_get_krb5_error_message((*smb_krb5_context)->krb5_context, ret, tmp_ctx)));
+		DEBUG(1,("krb5_initlog failed (%s)\n",
+			 smb_get_krb5_error_message(kctx, ret, tmp_ctx)));
 		talloc_free(tmp_ctx);
 		return ret;
 	}
-	krb5_set_warn_dest((*smb_krb5_context)->krb5_context, (*smb_krb5_context)->logf);
+	(*smb_krb5_context)->pvt_log_data = logf;
+
+	ret = krb5_addlog_func(kctx, logf, 0 /* min */, -1 /* max */,
+			       smb_krb5_debug_wrapper,
+				smb_krb5_debug_close, NULL);
+	if (ret) {
+		DEBUG(1,("krb5_addlog_func failed (%s)\n",
+			 smb_get_krb5_error_message(kctx, ret, tmp_ctx)));
+		talloc_free(tmp_ctx);
+		return ret;
+	}
+	krb5_set_warn_dest(kctx, logf);
 
 	/* Set use of our socket lib */
 	if (ev) {
@@ -515,17 +540,19 @@ krb5_error_code smb_krb5_init_context(void *parent_ctx,
 		}
 	}
 
-	talloc_steal(parent_ctx, *smb_krb5_context);
-	talloc_free(tmp_ctx);
-
 	/* Set options in kerberos */
 
-	krb5_set_dns_canonicalize_hostname((*smb_krb5_context)->krb5_context,
-					   lpcfg_parm_bool(lp_ctx, NULL, "krb5", "set_dns_canonicalize", false));
+	krb5_set_dns_canonicalize_hostname(kctx,
+			lpcfg_parm_bool(lp_ctx, NULL, "krb5",
+					"set_dns_canonicalize", false));
+#endif
+	talloc_steal(parent_ctx, *smb_krb5_context);
+	talloc_free(tmp_ctx);
 
 	return 0;
 }
 
+#ifdef SAMBA4_USES_HEIMDAL
 krb5_error_code smb_krb5_context_set_event_ctx(struct smb_krb5_context *smb_krb5_context,
 					       struct tevent_context *ev,
 					       struct tevent_context **previous_ev)
@@ -579,3 +606,4 @@ krb5_error_code smb_krb5_context_remove_event_ctx(struct smb_krb5_context *smb_k
 	}
 	return 0;
 }
+#endif

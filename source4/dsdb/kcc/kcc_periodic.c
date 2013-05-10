@@ -35,6 +35,7 @@
 #include "librpc/gen_ndr/ndr_drsblobs.h"
 #include "librpc/gen_ndr/ndr_irpc_c.h"
 #include "param/param.h"
+#include "dsdb/common/util.h"
 
 /*
  * see if two repsFromToBlob blobs are for the same source DSA
@@ -69,9 +70,15 @@ static bool check_MasterNC(struct kccsrv_partition *p, struct repsFromToBlob *r,
 	struct repsFromTo1 *r1 = &r->ctr.ctr1;
 	struct GUID invocation_id = r1->source_dsa_invocation_id;
 	unsigned int i, j;
+	TALLOC_CTX *tmp_ctx;
 
 	/* we are expecting only version 1 */
 	SMB_ASSERT(r->version == 1);
+
+	tmp_ctx = talloc_new(p);
+	if (!tmp_ctx) {
+		return false;
+	}
 
 	for (i=0; i<res->count; i++) {
 		struct ldb_message *msg = res->msgs[i];
@@ -92,23 +99,24 @@ static bool check_MasterNC(struct kccsrv_partition *p, struct repsFromToBlob *r,
 			}
 		}
 		for (j=0; j<el->num_values; j++) {
-			dn = ldb_dn_from_ldb_val(p, p->service->samdb, &el->values[j]);
+			dn = ldb_dn_from_ldb_val(tmp_ctx, p->service->samdb, &el->values[j]);
 			if (!ldb_dn_validate(dn)) {
 				talloc_free(dn);
 				continue;
 			}
 			if (ldb_dn_compare(dn, p->dn) == 0) {
-				talloc_free(dn);
 				DEBUG(5,("%s %s match on %s in %s\n",
 					 r1->other_info->dns_name,
 					 el->name,
 					 ldb_dn_get_linearized(dn),
 					 ldb_dn_get_linearized(msg->dn)));
+				talloc_free(tmp_ctx);
 				return true;
 			}
 			talloc_free(dn);
 		}
 	}
+	talloc_free(tmp_ctx);
 	return false;
 }
 
@@ -164,7 +172,7 @@ static void kccsrv_notify_drepl_server_done(struct tevent_req *subreq)
 	TALLOC_FREE(state);
 }
 
-static uint32_t kccsrv_replica_flags(struct kccsrv_service *s)
+uint32_t kccsrv_replica_flags(struct kccsrv_service *s)
 {
 	if (s->am_rodc) {
 		return DRSUAPI_DRS_INIT_SYNC |
@@ -183,9 +191,9 @@ static uint32_t kccsrv_replica_flags(struct kccsrv_service *s)
 /*
  * add any missing repsFrom structures to our partitions
  */
-static NTSTATUS kccsrv_add_repsFrom(struct kccsrv_service *s, TALLOC_CTX *mem_ctx,
-				    struct repsFromToBlob *reps, uint32_t count,
-				    struct ldb_result *res)
+NTSTATUS kccsrv_add_repsFrom(struct kccsrv_service *s, TALLOC_CTX *mem_ctx,
+			    struct repsFromToBlob *reps, uint32_t count,
+			    struct ldb_result *res)
 {
 	struct kccsrv_partition *p;
 	bool notify_dreplsrv = false;
@@ -226,7 +234,7 @@ static NTSTATUS kccsrv_add_repsFrom(struct kccsrv_service *s, TALLOC_CTX *mem_ct
 				/* we don't have the new one - add it
 				 * if it is a master
 				 */
-				if (!check_MasterNC(p, &reps[i], res)) {
+				if (res && !check_MasterNC(p, &reps[i], res)) {
 					/* its not a master, we don't
 					   want to pull from it */
 					continue;
@@ -246,7 +254,7 @@ static NTSTATUS kccsrv_add_repsFrom(struct kccsrv_service *s, TALLOC_CTX *mem_ct
 		/* remove any stale ones */
 		for (i=0; i<our_count; i++) {
 			if (!reps_in_list(&our_reps[i], reps, count) ||
-			    !check_MasterNC(p, &our_reps[i], res)) {
+			    (res && !check_MasterNC(p, &our_reps[i], res))) {
 				DEBUG(4,(__location__ ": Removed repsFrom for %s\n",
 					 our_reps[i].ctr.ctr1.other_info->dns_name));
 				memmove(&our_reps[i], &our_reps[i+1], (our_count-(i+1))*sizeof(our_reps[0]));
@@ -309,6 +317,152 @@ static NTSTATUS kccsrv_add_repsFrom(struct kccsrv_service *s, TALLOC_CTX *mem_ct
 
 }
 
+
+/*
+  form a unique list of DNs from a search result and a given set of attributes
+ */
+static int kccsrv_dn_list(struct ldb_context *ldb, struct ldb_result *res,
+			  TALLOC_CTX *mem_ctx,
+			  const char **attrs,
+			  struct ldb_dn ***dn_list, int *dn_count)
+{
+	int i;
+	struct ldb_dn **nc_list = NULL;
+	int nc_count = 0;
+
+	nc_list = talloc_array(mem_ctx, struct ldb_dn *, 0);
+	if (nc_list == NULL) {
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
+
+	/* gather up a list of all NCs in this forest */
+	for (i=0; i<res->count; i++) {
+		struct ldb_message *msg = res->msgs[i];
+		int j;
+		for (j=0; attrs[j]; j++) {
+			struct ldb_message_element *el;
+			int k;
+
+			el = ldb_msg_find_element(msg, attrs[j]);
+			if (el == NULL) continue;
+			for (k=0; k<el->num_values; k++) {
+				struct ldb_dn *dn;
+				dn = ldb_dn_from_ldb_val(nc_list, ldb, &el->values[k]);
+				if (dn != NULL) {
+					int l;
+					for (l=0; l<nc_count; l++) {
+						if (ldb_dn_compare(nc_list[l], dn) == 0) break;
+					}
+					if (l < nc_count) continue;
+					nc_list = talloc_realloc(mem_ctx, nc_list, struct ldb_dn *, nc_count+1);
+					if (nc_list == NULL) {
+						return LDB_ERR_OPERATIONS_ERROR;
+					}
+					nc_list[nc_count] = dn;
+					nc_count++;
+				}
+			}
+		}
+	}
+
+	(*dn_list) = nc_list;
+	(*dn_count) = nc_count;
+	return LDB_SUCCESS;
+}
+
+
+/*
+  look for any additional global catalog partitions that we should be
+  replicating (by looking for msDS-HasDomainNCs), and add them to our
+  hasPartialReplicaNCs NTDS attribute
+ */
+static int kccsrv_gc_update(struct kccsrv_service *s, struct ldb_result *res)
+{
+	int i;
+	struct ldb_dn **nc_list = NULL;
+	int nc_count = 0;
+	struct ldb_dn **our_nc_list = NULL;
+	int our_nc_count = 0;
+	const char *attrs1[] = { "msDS-hasMasterNCs", "hasMasterNCs", "msDS-HasDomainNCs", NULL };
+	const char *attrs2[] = { "msDS-hasMasterNCs", "hasMasterNCs", "msDS-HasDomainNCs", "hasPartialReplicaNCs", NULL };
+	int ret;
+	TALLOC_CTX *tmp_ctx = talloc_new(res);
+	struct ldb_result *res2;
+	struct ldb_message *msg;
+
+	/* get a complete list of NCs for the forest */
+	ret = kccsrv_dn_list(s->samdb, res, tmp_ctx, attrs1, &nc_list, &nc_count);
+	if (ret != LDB_SUCCESS) {
+		DEBUG(1,("Failed to get NC list for GC update - %s\n", ldb_errstring(s->samdb)));
+		talloc_free(tmp_ctx);
+		return ret;
+	}
+
+	/* get a list of what NCs we are already replicating */
+	ret = dsdb_search_dn(s->samdb, tmp_ctx, &res2, samdb_ntds_settings_dn(s->samdb, tmp_ctx), attrs2, 0);
+	if (ret != LDB_SUCCESS) {
+		DEBUG(1,("Failed to get our NC list attributes for GC update - %s\n", ldb_errstring(s->samdb)));
+		talloc_free(tmp_ctx);
+		return ret;
+	}
+
+	ret = kccsrv_dn_list(s->samdb, res2, tmp_ctx, attrs2, &our_nc_list, &our_nc_count);
+	if (ret != LDB_SUCCESS) {
+		DEBUG(1,("Failed to get our NC list for GC update - %s\n", ldb_errstring(s->samdb)));
+		talloc_free(tmp_ctx);
+		return ret;
+	}
+
+	msg = ldb_msg_new(tmp_ctx);
+	if (msg == NULL) {
+		talloc_free(tmp_ctx);
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
+	msg->dn = res2->msgs[0]->dn;
+
+	/* see if we are missing any */
+	for (i=0; i<nc_count; i++) {
+		int j;
+		for (j=0; j<our_nc_count; j++) {
+			if (ldb_dn_compare(nc_list[i], our_nc_list[j]) == 0) break;
+		}
+		if (j == our_nc_count) {
+			/* its a new one */
+			ret = ldb_msg_add_string(msg, "hasPartialReplicaNCs",
+						 ldb_dn_get_extended_linearized(msg, nc_list[i], 1));
+			if (ret != LDB_SUCCESS) {
+				talloc_free(tmp_ctx);
+				return ret;
+			}
+
+		}
+	}
+
+	if (msg->num_elements == 0) {
+		/* none to add */
+		talloc_free(tmp_ctx);
+		return LDB_SUCCESS;
+	}
+
+	if (s->am_rodc) {
+		DEBUG(5, ("%d partial replica should be added but we are RODC so we skip\n", msg->num_elements));
+		talloc_free(tmp_ctx);
+		return LDB_SUCCESS;
+	}
+
+	msg->elements[0].flags = LDB_FLAG_MOD_ADD;
+
+	ret = dsdb_modify(s->samdb, msg, 0);
+	if (ret != LDB_SUCCESS) {
+		DEBUG(0,("Failed to add hasPartialReplicaNCs - %s\n",
+			 ldb_errstring(s->samdb)));
+	}
+
+	talloc_free(tmp_ctx);
+	return ret;
+}
+
+
 /*
   this is the core of our initial simple KCC
   We just add a repsFrom entry for all DCs we find that have nTDSDSA
@@ -319,16 +473,20 @@ NTSTATUS kccsrv_simple_update(struct kccsrv_service *s, TALLOC_CTX *mem_ctx)
 	struct ldb_result *res;
 	unsigned int i;
 	int ret;
-	const char *attrs[] = { "objectGUID", "invocationID", "msDS-hasMasterNCs", "hasMasterNCs", NULL };
+	const char *attrs[] = { "objectGUID", "invocationID", "msDS-hasMasterNCs", "hasMasterNCs", "msDS-HasDomainNCs", NULL };
 	struct repsFromToBlob *reps = NULL;
 	uint32_t count = 0;
 	struct kcc_connection_list *ntds_conn, *dsa_conn;
 
-	ret = ldb_search(s->samdb, mem_ctx, &res, s->config_dn, LDB_SCOPE_SUBTREE, 
-			 attrs, "objectClass=nTDSDSA");
+	ret = dsdb_search(s->samdb, mem_ctx, &res, s->config_dn, LDB_SCOPE_SUBTREE,
+			  attrs, DSDB_SEARCH_SHOW_EXTENDED_DN, "objectClass=nTDSDSA");
 	if (ret != LDB_SUCCESS) {
 		DEBUG(0,(__location__ ": Failed nTDSDSA search - %s\n", ldb_errstring(s->samdb)));
 		return NT_STATUS_INTERNAL_DB_CORRUPTION;
+	}
+
+	if (samdb_is_gc(s->samdb)) {
+		kccsrv_gc_update(s, res);
 	}
 
 	/* get the current list of connections */
@@ -356,9 +514,7 @@ NTSTATUS kccsrv_simple_update(struct kccsrv_service *s, TALLOC_CTX *mem_ctx)
 		r1 = &reps[count].ctr.ctr1;
 
 		r1->other_info               = talloc_zero(reps, struct repsFromTo1OtherInfo);
-		r1->other_info->dns_name     = talloc_asprintf(r1->other_info, "%s._msdcs.%s",
-							       GUID_string(mem_ctx, &ntds_guid),
-							       lpcfg_dnsdomain(s->task->lp_ctx));
+		r1->other_info->dns_name     = samdb_ntds_msdcs_dns_name(s->samdb, reps, &ntds_guid);
 		r1->source_dsa_obj_guid      = ntds_guid;
 		r1->source_dsa_invocation_id = invocation_id;
 		r1->replica_flags = kccsrv_replica_flags(s);
@@ -423,7 +579,7 @@ WERROR kccsrv_periodic_schedule(struct kccsrv_service *service, uint32_t next_in
 	/* reset the next scheduled timestamp */
 	service->periodic.next_event = next_time;
 
-	new_te = event_add_timed(service->task->event_ctx, service,
+	new_te = tevent_add_timer(service->task->event_ctx, service,
 			         service->periodic.next_event,
 			         kccsrv_periodic_handler_te, service);
 	W_ERROR_HAVE_NO_MEMORY(new_te);
@@ -446,12 +602,17 @@ static void kccsrv_periodic_run(struct kccsrv_service *service)
 	TALLOC_CTX *mem_ctx;
 	NTSTATUS status;
 
-	DEBUG(4,("kccsrv_periodic_run(): simple update\n"));
+	DEBUG(4,("kccsrv_periodic_run(): update\n"));
 
 	mem_ctx = talloc_new(service);
-	status = kccsrv_simple_update(service, mem_ctx);
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0,("kccsrv_simple_update failed - %s\n", nt_errstr(status)));
+
+        if (service->samba_kcc_code)
+		status = kccsrv_samba_kcc(service, mem_ctx);
+	else {
+		status = kccsrv_simple_update(service, mem_ctx);
+		if (!NT_STATUS_IS_OK(status))
+			DEBUG(0,("kccsrv_simple_update failed - %s\n",
+				nt_errstr(status)));
 	}
 
 	status = kccsrv_check_deleted(service, mem_ctx);
@@ -459,4 +620,63 @@ static void kccsrv_periodic_run(struct kccsrv_service *service)
 		DEBUG(0,("kccsrv_check_deleted failed - %s\n", nt_errstr(status)));
 	}
 	talloc_free(mem_ctx);
+}
+
+/* Called when samba_kcc script has finished
+ */
+static void samba_kcc_done(struct tevent_req *subreq)
+{
+        struct kccsrv_service *service =
+		tevent_req_callback_data(subreq, struct kccsrv_service);
+        int rc;
+        int sys_errno;
+
+        service->periodic.subreq = NULL;
+
+	rc = samba_runcmd_recv(subreq, &sys_errno);
+	TALLOC_FREE(subreq);
+
+	if (rc != 0)
+		service->periodic.status =
+			map_nt_error_from_unix_common(sys_errno);
+	else
+		service->periodic.status = NT_STATUS_OK;
+
+	if (!NT_STATUS_IS_OK(service->periodic.status))
+		DEBUG(0,(__location__ ": Failed samba_kcc - %s\n",
+			nt_errstr(service->periodic.status)));
+	else
+		DEBUG(3,("Completed samba_kcc OK\n"));
+}
+
+/* Invocation of the samba_kcc python script for replication
+ * topology generation.
+ */
+NTSTATUS kccsrv_samba_kcc(struct kccsrv_service *service,
+			TALLOC_CTX *ctxp)
+{
+	NTSTATUS status = NT_STATUS_OK;
+	const char * const *samba_kcc_command =
+		lpcfg_samba_kcc_command(service->task->lp_ctx);
+
+	/* kill any existing child */
+	TALLOC_FREE(service->periodic.subreq);
+
+	DEBUG(0,("Calling samba_kcc script\n"));
+	service->periodic.subreq = samba_runcmd_send(service,
+					service->task->event_ctx,
+					timeval_current_ofs(40, 0),
+					2, 0, samba_kcc_command, NULL);
+
+        if (service->periodic.subreq == NULL) {
+		status = NT_STATUS_NO_MEMORY;
+		goto xerror;
+        }
+        tevent_req_set_callback(service->periodic.subreq,
+				samba_kcc_done, service);
+
+xerror:
+	if (!NT_STATUS_IS_OK(status))
+		DEBUG(0,(__location__ ": failed - %s\n", nt_errstr(status)));
+	return status;
 }

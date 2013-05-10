@@ -36,6 +36,7 @@
 #include "system/select.h"
 #include "messages.h"
 #include "../lib/util/tevent_unix.h"
+#include "lib/param/loadparm.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
@@ -129,7 +130,7 @@ struct tevent_req *wb_child_request_send(TALLOC_CTX *mem_ctx,
 
 	if (!tevent_queue_add(child->queue, ev, req,
 			      wb_child_request_trigger, NULL)) {
-		tevent_req_nomem(NULL, req);
+		tevent_req_oom(req);
 		return tevent_req_post(req, ev);
 	}
 	return req;
@@ -455,10 +456,10 @@ void setup_child(struct winbindd_domain *domain, struct winbindd_child *child,
 	if (logprefix && logname) {
 		char *logbase = NULL;
 
-		if (*lp_logfile()) {
+		if (*lp_logfile(talloc_tos())) {
 			char *end = NULL;
 
-			if (asprintf(&logbase, "%s", lp_logfile()) < 0) {
+			if (asprintf(&logbase, "%s", lp_logfile(talloc_tos())) < 0) {
 				smb_panic("Internal error: asprintf failed");
 			}
 
@@ -747,7 +748,7 @@ void winbind_msg_onlinestatus(struct messaging_context *msg_ctx,
 	}
 
 	messaging_send_buf(msg_ctx, *sender, MSG_WINBIND_ONLINESTATUS, 
-			   (uint8 *)message, strlen(message) + 1);
+			   (const uint8 *)message, strlen(message) + 1);
 
 	talloc_destroy(mem_ctx);
 }
@@ -824,7 +825,7 @@ void winbind_msg_dump_domain_list(struct messaging_context *msg_ctx,
 
 		messaging_send_buf(msg_ctx, *sender,
 				   MSG_WINBIND_DUMP_DOMAIN_LIST,
-				   (uint8_t *)message, strlen(message) + 1);
+				   (const uint8_t *)message, strlen(message) + 1);
 
 		talloc_destroy(mem_ctx);
 
@@ -1182,7 +1183,6 @@ NTSTATUS winbindd_reinit_after_fork(const struct winbindd_child *myself,
 	status = reinit_after_fork(
 		winbind_messaging_context(),
 		winbind_event_context(),
-		procid_self(),
 		true);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("reinit_after_fork() failed\n"));
@@ -1313,11 +1313,11 @@ static bool fork_domain_child(struct winbindd_child *child)
 	}
 
 	ZERO_STRUCT(state);
-	state.pid = sys_getpid();
+	state.pid = getpid();
 	state.request = &request;
 	state.response = &response;
 
-	child->pid = sys_fork();
+	child->pid = fork();
 
 	if (child->pid == -1) {
 		DEBUG(0, ("Could not fork: %s\n", strerror(errno)));
@@ -1354,7 +1354,7 @@ static bool fork_domain_child(struct winbindd_child *child)
 	/* Child */
 	child_domain = child->domain;
 
-	DEBUG(10, ("Child process %d\n", (int)sys_getpid()));
+	DEBUG(10, ("Child process %d\n", (int)getpid()));
 
 	state.sock = fdpair[0];
 	close(fdpair[1]);
@@ -1484,7 +1484,7 @@ static bool fork_domain_child(struct winbindd_child *child)
 			child->domain->startup = False;
 		}
 
-		pfds = TALLOC_ZERO_P(talloc_tos(), struct pollfd);
+		pfds = talloc_zero(talloc_tos(), struct pollfd);
 		if (pfds == NULL) {
 			DEBUG(1, ("talloc failed\n"));
 			_exit(1);
@@ -1508,7 +1508,7 @@ static bool fork_domain_child(struct winbindd_child *child)
 				(unsigned int)tp->tv_sec, (unsigned int)tp->tv_usec ));
 		}
 
-		ret = sys_poll(pfds, num_pfds, timeout);
+		ret = poll(pfds, num_pfds, timeout);
 
 		if (run_events_poll(winbind_event_context(), ret,
 				    pfds, num_pfds)) {

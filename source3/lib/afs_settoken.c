@@ -35,7 +35,7 @@
 #include <sys/syscall.h>
 
 int afs_syscall( int subcall,
-	  char * path,
+	  const char * path,
 	  int cmd,
 	  char * cmarg,
 	  int follow)
@@ -44,13 +44,14 @@ int afs_syscall( int subcall,
 	return( syscall( SYS_afs_syscall, subcall, path, cmd, cmarg, follow));
 */
 	int errcode;
+	int proc_afs_file;
 	struct afsprocdata afs_syscall_data;
 	afs_syscall_data.syscall = subcall;
 	afs_syscall_data.param1 = (long)path;
 	afs_syscall_data.param2 = cmd;
 	afs_syscall_data.param3 = (long)cmarg;
 	afs_syscall_data.param4 = follow;
-	int proc_afs_file = open(PROC_SYSCALL_FNAME, O_RDWR);
+	proc_afs_file = open(PROC_SYSCALL_FNAME, O_RDWR);
 	if (proc_afs_file < 0)
 		proc_afs_file = open(PROC_SYSCALL_ARLA_FNAME, O_RDWR);
 	if (proc_afs_file < 0)
@@ -81,33 +82,33 @@ static bool afs_decode_token(const char *string, char **cell,
 
 	if ((t = strtok_r(s, "\n", &saveptr)) == NULL) {
 		DEBUG(10, ("strtok_r failed\n"));
-		return False;
+		return false;
 	}
 
 	*cell = SMB_STRDUP(t);
 
 	if ((t = strtok_r(NULL, "\n", &saveptr)) == NULL) {
 		DEBUG(10, ("strtok_r failed\n"));
-		return False;
+		return false;
 	}
 
 	if (sscanf(t, "%u", &result_ct.AuthHandle) != 1) {
 		DEBUG(10, ("sscanf AuthHandle failed\n"));
-		return False;
+		return false;
 	}
 		
 	if ((t = strtok_r(NULL, "\n", &saveptr)) == NULL) {
 		DEBUG(10, ("strtok_r failed\n"));
-		return False;
+		return false;
 	}
 
 	blob = base64_decode_data_blob(t);
 
 	if ( (blob.data == NULL) ||
 	     (blob.length != sizeof(result_ct.HandShakeKey) )) {
-		DEBUG(10, ("invalid key: %x/%d\n", (uint32)blob.data,
-			   blob.length));
-		return False;
+		DEBUG(10, ("invalid key: %x/%lu\n", (uint8_t)*blob.data,
+			   (unsigned long) blob.length));
+		return false;
 	}
 
 	memcpy(result_ct.HandShakeKey, blob.data, blob.length);
@@ -116,50 +117,50 @@ static bool afs_decode_token(const char *string, char **cell,
 
 	if ((t = strtok_r(NULL, "\n", &saveptr)) == NULL) {
 		DEBUG(10, ("strtok_r failed\n"));
-		return False;
+		return false;
 	}
 
 	if (sscanf(t, "%u", &result_ct.ViceId) != 1) {
 		DEBUG(10, ("sscanf ViceId failed\n"));
-		return False;
+		return false;
 	}
 		
 	if ((t = strtok_r(NULL, "\n", &saveptr)) == NULL) {
 		DEBUG(10, ("strtok_r failed\n"));
-		return False;
+		return false;
 	}
 
 	if (sscanf(t, "%u", &result_ct.BeginTimestamp) != 1) {
 		DEBUG(10, ("sscanf BeginTimestamp failed\n"));
-		return False;
+		return false;
 	}
 		
 	if ((t = strtok_r(NULL, "\n", &saveptr)) == NULL) {
 		DEBUG(10, ("strtok_r failed\n"));
-		return False;
+		return false;
 	}
 
 	if (sscanf(t, "%u", &result_ct.EndTimestamp) != 1) {
 		DEBUG(10, ("sscanf EndTimestamp failed\n"));
-		return False;
+		return false;
 	}
 		
 	if ((t = strtok_r(NULL, "\n", &saveptr)) == NULL) {
 		DEBUG(10, ("strtok_r failed\n"));
-		return False;
+		return false;
 	}
 
 	blob = base64_decode_data_blob(t);
 
 	if (blob.data == NULL) {
 		DEBUG(10, ("Could not get ticket\n"));
-		return False;
+		return false;
 	}
 
 	*ticket = blob;
 	*ct = result_ct;
 
-	return True;
+	return true;
 }
 
 /*
@@ -205,7 +206,7 @@ static bool afs_settoken(const char *cell,
 	tmp = strlen(cell);
 	if (tmp >= MAXKTCREALMLEN) {
 		DEBUG(1, ("Realm too long\n"));
-		return False;
+		return false;
 	}
 
 	strncpy(p, cell, tmp);
@@ -236,7 +237,7 @@ bool afs_settoken_str(const char *token_string)
 	char *cell;
 
 	if (!afs_decode_token(token_string, &cell, &ticket, &ct))
-		return False;
+		return false;
 
 	if (geteuid() != sec_initial_uid())
 		ct.ViceId = getuid();
@@ -253,7 +254,7 @@ bool afs_settoken_str(const char *token_string)
 
 bool afs_settoken_str(const char *token_string)
 {
-	return False;
+	return false;
 }
 
 #endif

@@ -298,7 +298,7 @@ AC_DEFUN(AC_VERIFY_C_PROTOTYPE,
 		eval AS_TR_SH([ac_cv_c_prototype_$1])=no
 	])
 )
-AS_IF([test $AS_TR_SH([ac_cv_c_prototype_$1]) = yes],[$3],[$4])
+AS_IF([eval test $AS_TR_SH([ac_cv_c_prototype_$1]) = yes],[$3],[$4])
 ])
 
 AC_DEFUN(LIBREPLACE_PROVIDE_HEADER, 
@@ -330,3 +330,18 @@ fi
   AC_DEFINE_UNQUOTED($ac_tr_hdr, 1, [Define if you have type `$1'])
 fi
 ])
+
+# AC_CHECK_VALUEOF(TYPE, [INCLUDES = DEFAULT-INCLUDES])
+# ---------------------------------------------------------------
+AC_DEFUN([AC_CHECK_VALUEOF],
+[AS_LITERAL_IF(m4_translit([[$1]], [*], [p]), [],
+	       [m4_fatal([$0: requires literal arguments])])]dnl
+[
+_AC_CACHE_CHECK_INT([value of $1], [AS_TR_SH([ac_cv_valueof_$1])],
+  [(long int) ($1)],
+  [AC_INCLUDES_DEFAULT([$2])],
+  [])
+
+AC_DEFINE_UNQUOTED(AS_TR_CPP(valueof_$1), $AS_TR_SH([ac_cv_valueof_$1]),
+		   [The value of `$1'.])
+])# AC_CHECK_VALUEOF

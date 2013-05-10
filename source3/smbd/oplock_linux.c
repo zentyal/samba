@@ -2,17 +2,17 @@
    Unix SMB/CIFS implementation.
    kernel oplock processing for Linux
    Copyright (C) Andrew Tridgell 2000
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -108,16 +108,22 @@ static void linux_oplock_signal_handler(struct tevent_context *ev_ctx,
 					int signum, int count,
 					void *_info, void *private_data)
 {
+	struct kernel_oplocks *ctx =
+		talloc_get_type_abort(private_data,
+		struct kernel_oplocks);
+	struct smbd_server_connection *sconn =
+		talloc_get_type_abort(ctx->private_data,
+		struct smbd_server_connection);
 	siginfo_t *info = (siginfo_t *)_info;
 	int fd = info->si_fd;
 	files_struct *fsp;
 
-	fsp = file_find_fd(smbd_server_conn, fd);
+	fsp = file_find_fd(sconn, fd);
 	if (fsp == NULL) {
 		DEBUG(0,("linux_oplock_signal_handler: failed to find fsp for file fd=%d (file was closed ?)\n", fd ));
 		return;
 	}
-	break_kernel_oplock(fsp->conn->sconn->msg_ctx, fsp);
+	break_kernel_oplock(sconn->msg_ctx, fsp);
 }
 
 /****************************************************************************
@@ -205,7 +211,7 @@ static const struct kernel_oplocks_ops linux_koplocks = {
 	.contend_level2_oplocks_end	= NULL,
 };
 
-struct kernel_oplocks *linux_init_kernel_oplocks(TALLOC_CTX *mem_ctx)
+struct kernel_oplocks *linux_init_kernel_oplocks(struct smbd_server_connection *sconn)
 {
 	struct kernel_oplocks *ctx;
 	struct tevent_signal *se;
@@ -215,15 +221,16 @@ struct kernel_oplocks *linux_init_kernel_oplocks(TALLOC_CTX *mem_ctx)
 		return NULL;
 	}
 
-	ctx = talloc_zero(mem_ctx, struct kernel_oplocks);
+	ctx = talloc_zero(sconn, struct kernel_oplocks);
 	if (!ctx) {
 		DEBUG(0,("Linux Kernel oplocks talloc_Zero failed\n"));
 		return NULL;
 	}
 
 	ctx->ops = &linux_koplocks;
+	ctx->private_data = sconn;
 
-	se = tevent_add_signal(smbd_event_context(),
+	se = tevent_add_signal(sconn->ev_ctx,
 			       ctx,
 			       RT_SIGNAL_LEASE, SA_SIGINFO,
 			       linux_oplock_signal_handler,
@@ -233,8 +240,6 @@ struct kernel_oplocks *linux_init_kernel_oplocks(TALLOC_CTX *mem_ctx)
 		TALLOC_FREE(ctx);
 		return NULL;
 	}
-
-	ctx->private_data = se;
 
 	DEBUG(3,("Linux kernel oplocks enabled\n"));
 

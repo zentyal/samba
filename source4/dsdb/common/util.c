@@ -505,7 +505,7 @@ NTTIME samdb_result_force_password_change(struct ldb_context *sam_ldb,
 
 	maxPwdAge = samdb_search_int64(sam_ldb, mem_ctx, 0, domain_dn,
 				       "maxPwdAge", NULL);
-	if (maxPwdAge == 0) {
+	if (maxPwdAge == 0 || maxPwdAge == -0x8000000000000000ULL) {
 		return 0x7FFFFFFFFFFFFFFFULL;
 	} else {
 		attr_time -= maxPwdAge;
@@ -715,7 +715,7 @@ int samdb_find_or_add_attribute(struct ldb_context *ldb, struct ldb_message *msg
   add a dom_sid element to a message
 */
 int samdb_msg_add_dom_sid(struct ldb_context *sam_ldb, TALLOC_CTX *mem_ctx, struct ldb_message *msg,
-			 const char *attr_name, struct dom_sid *sid)
+			  const char *attr_name, const struct dom_sid *sid)
 {
 	struct ldb_val v;
 	enum ndr_err_code ndr_err;
@@ -985,51 +985,6 @@ int samdb_msg_add_parameters(struct ldb_context *sam_ldb, TALLOC_CTX *mem_ctx, s
 }
 
 /*
-  sets a general value element to a message
-*/
-int samdb_msg_set_value(struct ldb_context *sam_ldb, TALLOC_CTX *mem_ctx, struct ldb_message *msg,
-			const char *attr_name, const struct ldb_val *val)
-{
-	struct ldb_message_element *el;
-
-	el = ldb_msg_find_element(msg, attr_name);
-	if (el) {
-		el->num_values = 0;
-	}
-	return ldb_msg_add_value(msg, attr_name, val, NULL);
-}
-
-/*
-  set a string element in a message
-*/
-int samdb_msg_set_string(struct ldb_context *sam_ldb, TALLOC_CTX *mem_ctx, struct ldb_message *msg,
-			 const char *attr_name, const char *str)
-{
-	struct ldb_message_element *el;
-
-	el = ldb_msg_find_element(msg, attr_name);
-	if (el) {
-		el->num_values = 0;
-	}
-	return ldb_msg_add_string(msg, attr_name, str);
-}
-
-/*
- * sets a signed integer in a message
- */
-int samdb_msg_set_int(struct ldb_context *sam_ldb, TALLOC_CTX *mem_ctx,
-		      struct ldb_message *msg, const char *attr_name, int v)
-{
-	struct ldb_message_element *el;
-
-	el = ldb_msg_find_element(msg, attr_name);
-	if (el) {
-		el->num_values = 0;
-	}
-	return samdb_msg_add_int(sam_ldb, mem_ctx, msg, attr_name, v);
-}
-
-/*
  * Sets an unsigned int element in a message
  *
  * The issue here is that we have not yet first cast to int32_t explicitly,
@@ -1252,9 +1207,9 @@ bool samdb_set_ntds_settings_dn(struct ldb_context *ldb, struct ldb_dn *ntds_set
 	struct ldb_dn *ntds_settings_dn_new;
 	struct ldb_dn *ntds_settings_dn_old;
 
-	/* see if we have a cached copy */
+	/* see if we have a forced copy from provision */
 	ntds_settings_dn_old = talloc_get_type(ldb_get_opaque(ldb, 
-							      "cache.ntds_settings_dn"), struct ldb_dn);
+							      "forced.ntds_settings_dn"), struct ldb_dn);
 
 	tmp_ctx = talloc_new(ldb);
 	if (tmp_ctx == NULL) {
@@ -1266,8 +1221,8 @@ bool samdb_set_ntds_settings_dn(struct ldb_context *ldb, struct ldb_dn *ntds_set
 		goto failed;
 	}
 
-	/* cache the domain_sid in the ldb */
-	if (ldb_set_opaque(ldb, "cache.ntds_settings_dn", ntds_settings_dn_new) != LDB_SUCCESS) {
+	/* set the DN in the ldb to avoid lookups during provision */
+	if (ldb_set_opaque(ldb, "forced.ntds_settings_dn", ntds_settings_dn_new) != LDB_SUCCESS) {
 		goto failed;
 	}
 
@@ -1286,7 +1241,7 @@ failed:
 /*
   work out the ntds settings dn for the current open ldb
 */
-struct ldb_dn *samdb_ntds_settings_dn(struct ldb_context *ldb)
+struct ldb_dn *samdb_ntds_settings_dn(struct ldb_context *ldb, TALLOC_CTX *mem_ctx)
 {
 	TALLOC_CTX *tmp_ctx;
 	const char *root_attrs[] = { "dsServiceName", NULL };
@@ -1295,18 +1250,18 @@ struct ldb_dn *samdb_ntds_settings_dn(struct ldb_context *ldb)
 	struct ldb_dn *settings_dn;
 
 	/* see if we have a cached copy */
-	settings_dn = (struct ldb_dn *)ldb_get_opaque(ldb, "cache.ntds_settings_dn");
+	settings_dn = (struct ldb_dn *)ldb_get_opaque(ldb, "forced.ntds_settings_dn");
 	if (settings_dn) {
-		return settings_dn;
+		return ldb_dn_copy(mem_ctx, settings_dn);
 	}
 
-	tmp_ctx = talloc_new(ldb);
+	tmp_ctx = talloc_new(mem_ctx);
 	if (tmp_ctx == NULL) {
 		goto failed;
 	}
 
 	ret = ldb_search(ldb, tmp_ctx, &root_res, ldb_dn_new(tmp_ctx, ldb, ""), LDB_SCOPE_BASE, root_attrs, NULL);
-	if (ret) {
+	if (ret != LDB_SUCCESS) {
 		DEBUG(1,("Searching for dsServiceName in rootDSE failed: %s\n", 
 			 ldb_errstring(ldb)));
 		goto failed;
@@ -1318,12 +1273,11 @@ struct ldb_dn *samdb_ntds_settings_dn(struct ldb_context *ldb)
 
 	settings_dn = ldb_msg_find_attr_as_dn(ldb, tmp_ctx, root_res->msgs[0], "dsServiceName");
 
-	/* cache the domain_sid in the ldb */
-	if (ldb_set_opaque(ldb, "cache.ntds_settings_dn", settings_dn) != LDB_SUCCESS) {
-		goto failed;
-	}
+	/* note that we do not cache the DN here, as that would mean
+	 * we could not handle server renames at runtime. Only
+	 * provision sets up forced.ntds_settings_dn */
 
-	talloc_steal(ldb, settings_dn);
+	talloc_steal(mem_ctx, settings_dn);
 	talloc_free(tmp_ctx);
 
 	return settings_dn;
@@ -1356,7 +1310,7 @@ const struct GUID *samdb_ntds_invocation_id(struct ldb_context *ldb)
 		goto failed;
 	}
 
-	ret = ldb_search(ldb, tmp_ctx, &res, samdb_ntds_settings_dn(ldb), LDB_SCOPE_BASE, attrs, NULL);
+	ret = ldb_search(ldb, tmp_ctx, &res, samdb_ntds_settings_dn(ldb, tmp_ctx), LDB_SCOPE_BASE, attrs, NULL);
 	if (ret) {
 		goto failed;
 	}
@@ -1449,7 +1403,7 @@ const struct GUID *samdb_ntds_objectGUID(struct ldb_context *ldb)
 		goto failed;
 	}
 
-	ret = ldb_search(ldb, tmp_ctx, &res, samdb_ntds_settings_dn(ldb), LDB_SCOPE_BASE, attrs, NULL);
+	ret = ldb_search(ldb, tmp_ctx, &res, samdb_ntds_settings_dn(ldb, tmp_ctx), LDB_SCOPE_BASE, attrs, NULL);
 	if (ret) {
 		goto failed;
 	}
@@ -1524,7 +1478,15 @@ failed:
 */
 struct ldb_dn *samdb_server_dn(struct ldb_context *ldb, TALLOC_CTX *mem_ctx)
 {
-	return ldb_dn_get_parent(mem_ctx, samdb_ntds_settings_dn(ldb));
+	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
+	struct ldb_dn *dn;
+	if (!tmp_ctx) {
+		return NULL;
+	}
+	dn = ldb_dn_get_parent(mem_ctx, samdb_ntds_settings_dn(ldb, tmp_ctx));
+	talloc_free(tmp_ctx);
+	return dn;
+	
 }
 
 /*
@@ -1626,8 +1588,10 @@ int samdb_reference_dn(struct ldb_context *ldb, TALLOC_CTX *mem_ctx, struct ldb_
 	attrs[0] = attribute;
 	attrs[1] = NULL;
 
-	ret = dsdb_search(ldb, mem_ctx, &res, base, LDB_SCOPE_BASE, attrs, DSDB_SEARCH_ONE_ONLY, NULL);
+	ret = dsdb_search(ldb, mem_ctx, &res, base, LDB_SCOPE_BASE, attrs, DSDB_SEARCH_ONE_ONLY|DSDB_SEARCH_SHOW_EXTENDED_DN, NULL);
 	if (ret != LDB_SUCCESS) {
+		ldb_asprintf_errstring(ldb, "Cannot find DN %s to get attribute %s for reference dn: %s",
+				       ldb_dn_get_linearized(base), attribute, ldb_errstring(ldb));
 		return ret;
 	}
 
@@ -1646,6 +1610,53 @@ int samdb_reference_dn(struct ldb_context *ldb, TALLOC_CTX *mem_ctx, struct ldb_
 
 	talloc_free(res);
 	return LDB_SUCCESS;
+}
+
+/*
+  find if a DN (must have GUID component!) is our ntdsDsa
+ */
+int samdb_dn_is_our_ntdsa(struct ldb_context *ldb, struct ldb_dn *dn, bool *is_ntdsa)
+{
+	NTSTATUS status;
+	struct GUID dn_guid;
+	const struct GUID *our_ntds_guid;
+	status = dsdb_get_extended_dn_guid(dn, &dn_guid, "GUID");
+	if (!NT_STATUS_IS_OK(status)) {
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
+
+	our_ntds_guid = samdb_ntds_objectGUID(ldb);
+	if (!our_ntds_guid) {
+		DEBUG(0, ("Failed to find our NTDS Settings GUID for comparison with %s - %s\n", ldb_dn_get_linearized(dn), ldb_errstring(ldb)));
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
+
+	*is_ntdsa = GUID_equal(&dn_guid, our_ntds_guid);
+	return LDB_SUCCESS;
+}
+
+/*
+  find a 'reference' DN that points at another object and indicate if it is our ntdsDsa
+ */
+int samdb_reference_dn_is_our_ntdsa(struct ldb_context *ldb, struct ldb_dn *base,
+				    const char *attribute, bool *is_ntdsa)
+{
+	int ret;
+	struct ldb_dn *referenced_dn;
+	TALLOC_CTX *tmp_ctx = talloc_new(ldb);
+	if (tmp_ctx == NULL) {
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
+	ret = samdb_reference_dn(ldb, tmp_ctx, base, attribute, &referenced_dn);
+	if (ret != LDB_SUCCESS) {
+		DEBUG(0, ("Failed to find object %s for attribute %s - %s\n", ldb_dn_get_linearized(base), attribute, ldb_errstring(ldb)));
+		return ret;
+	}
+
+	ret = samdb_dn_is_our_ntdsa(ldb, referenced_dn, is_ntdsa);
+	
+	talloc_free(tmp_ctx);
+	return ret;
 }
 
 /*
@@ -1762,7 +1773,7 @@ const char *samdb_client_site_name(struct ldb_context *ldb, TALLOC_CTX *mem_ctx,
 
 		allow_list[0] = l_subnet_name;
 
-		if (allow_access(mem_ctx, NULL, allow_list, "", ip_address)) {
+		if (socket_allow_access(mem_ctx, NULL, allow_list, "", ip_address)) {
 			sites_dn = ldb_msg_find_attr_as_dn(ldb, mem_ctx,
 							   res->msgs[i],
 							   "siteObject");
@@ -1814,46 +1825,19 @@ const char *samdb_client_site_name(struct ldb_context *ldb, TALLOC_CTX *mem_ctx,
 */
 bool samdb_is_pdc(struct ldb_context *ldb)
 {
-	const char *dom_attrs[] = { "fSMORoleOwner", NULL };
 	int ret;
-	struct ldb_result *dom_res;
-	TALLOC_CTX *tmp_ctx;
 	bool is_pdc;
-	struct ldb_dn *pdc;
 
-	tmp_ctx = talloc_new(ldb);
-	if (tmp_ctx == NULL) {
-		DEBUG(1, ("talloc_new failed in samdb_is_pdc"));
+	ret = samdb_reference_dn_is_our_ntdsa(ldb, ldb_get_default_basedn(ldb), "fsmoRoleOwner", 
+					      &is_pdc);
+	if (ret != LDB_SUCCESS) {
+		DEBUG(1,("Failed to find if we are the PDC for this ldb: Searching for fSMORoleOwner in %s failed: %s\n", 
+			 ldb_dn_get_linearized(ldb_get_default_basedn(ldb)), 
+			 ldb_errstring(ldb)));
 		return false;
 	}
 
-	ret = ldb_search(ldb, tmp_ctx, &dom_res, ldb_get_default_basedn(ldb), LDB_SCOPE_BASE, dom_attrs, NULL);
-	if (ret != LDB_SUCCESS) {
-		DEBUG(1,("Searching for fSMORoleOwner in %s failed: %s\n", 
-			 ldb_dn_get_linearized(ldb_get_default_basedn(ldb)), 
-			 ldb_errstring(ldb)));
-		goto failed;
-	}
-	if (dom_res->count != 1) {
-		goto failed;
-	}
-
-	pdc = ldb_msg_find_attr_as_dn(ldb, tmp_ctx, dom_res->msgs[0], "fSMORoleOwner");
-
-	if (ldb_dn_compare(samdb_ntds_settings_dn(ldb), pdc) == 0) {
-		is_pdc = true;
-	} else {
-		is_pdc = false;
-	}
-
-	talloc_free(tmp_ctx);
-
 	return is_pdc;
-
-failed:
-	DEBUG(1,("Failed to find if we are the PDC for this ldb\n"));
-	talloc_free(tmp_ctx);
-	return false;
 }
 
 /*
@@ -1861,37 +1845,11 @@ failed:
 */
 bool samdb_is_gc(struct ldb_context *ldb)
 {
-	const char *attrs[] = { "options", NULL };
 	uint32_t options;
-	int ret;
-	struct ldb_result *res;
-	TALLOC_CTX *tmp_ctx;
-
-	tmp_ctx = talloc_new(ldb);
-	if (tmp_ctx == NULL) {
-		DEBUG(1, ("talloc_new failed in samdb_is_pdc"));
+	if (samdb_ntds_options(ldb, &options) != LDB_SUCCESS) {
 		return false;
 	}
-
-	/* Query cn=ntds settings,.... */
-	ret = ldb_search(ldb, tmp_ctx, &res, samdb_ntds_settings_dn(ldb), LDB_SCOPE_BASE, attrs, NULL);
-	if (ret != LDB_SUCCESS) {
-		talloc_free(tmp_ctx);
-		return false;
-	}
-	if (res->count != 1) {
-		talloc_free(tmp_ctx);
-		return false;
-	}
-
-	options = ldb_msg_find_attr_as_uint(res->msgs[0], "options", 0);
-	talloc_free(tmp_ctx);
-
-	/* if options attribute has the 0x00000001 flag set, then enable the global catlog */
-	if (options & DS_NTDSDSA_OPT_IS_GC) {
-		return true;
-	}
-	return false;
+	return (options & DS_NTDSDSA_OPT_IS_GC) != 0;
 }
 
 /* Find a domain object in the parents of a particular DN.  */
@@ -1948,19 +1906,30 @@ int samdb_search_for_parent_domain(struct ldb_context *ldb, TALLOC_CTX *mem_ctx,
  *
  * Result codes from "enum samr_ValidationStatus" (consider "samr.idl")
  */
-enum samr_ValidationStatus samdb_check_password(const DATA_BLOB *password,
+enum samr_ValidationStatus samdb_check_password(const DATA_BLOB *utf8_blob,
 						const uint32_t pwdProperties,
 						const uint32_t minPwdLength)
 {
+	const char *utf8_pw = (const char *)utf8_blob->data;
+	size_t utf8_len = strlen_m(utf8_pw);
+
 	/* checks if the "minPwdLength" property is satisfied */
-	if (minPwdLength > password->length)
+	if (minPwdLength > utf8_len) {
 		return SAMR_VALIDATION_STATUS_PWD_TOO_SHORT;
+	}
 
 	/* checks the password complexity */
-	if (((pwdProperties & DOMAIN_PASSWORD_COMPLEX) != 0)
-			&& (password->data != NULL)
-			&& (!check_password_quality((const char *) password->data)))
+	if (!(pwdProperties & DOMAIN_PASSWORD_COMPLEX)) {
+		return SAMR_VALIDATION_STATUS_SUCCESS;
+	}
+
+	if (utf8_len == 0) {
 		return SAMR_VALIDATION_STATUS_NOT_COMPLEX_ENOUGH;
+	}
+
+	if (!check_password_quality(utf8_pw)) {
+		return SAMR_VALIDATION_STATUS_NOT_COMPLEX_ENOUGH;
+	}
 
 	return SAMR_VALIDATION_STATUS_SUCCESS;
 }
@@ -2020,6 +1989,7 @@ NTSTATUS samdb_set_password(struct ldb_context *ldb, TALLOC_CTX *mem_ctx,
 	struct ldb_request *req;
 	struct dsdb_control_password_change_status *pwd_stat = NULL;
 	int ret;
+	bool hash_values = false;
 	NTSTATUS status = NT_STATUS_OK;
 
 #define CHECK_RET(x) \
@@ -2055,6 +2025,7 @@ NTSTATUS samdb_set_password(struct ldb_context *ldb, TALLOC_CTX *mem_ctx,
 			el = ldb_msg_find_element(msg, "unicodePwd");
 			el->flags = LDB_FLAG_MOD_REPLACE;
 		}
+		hash_values = true;
 	} else {
 		/* the password wasn't specified correctly */
 		talloc_free(msg);
@@ -2092,13 +2063,15 @@ NTSTATUS samdb_set_password(struct ldb_context *ldb, TALLOC_CTX *mem_ctx,
 			return NT_STATUS_NO_MEMORY;
 		}
 	}
-	ret = ldb_request_add_control(req,
-				      DSDB_CONTROL_PASSWORD_HASH_VALUES_OID,
-				      true, NULL);
-	if (ret != LDB_SUCCESS) {
-		talloc_free(req);
-		talloc_free(msg);
-		return NT_STATUS_NO_MEMORY;
+	if (hash_values) {
+		ret = ldb_request_add_control(req,
+					      DSDB_CONTROL_PASSWORD_HASH_VALUES_OID,
+					      true, NULL);
+		if (ret != LDB_SUCCESS) {
+			talloc_free(req);
+			talloc_free(msg);
+			return NT_STATUS_NO_MEMORY;
+		}
 	}
 	ret = ldb_request_add_control(req,
 				      DSDB_CONTROL_PASSWORD_CHANGE_STATUS_OID,
@@ -2323,14 +2296,14 @@ struct ldb_dn *samdb_dns_domain_to_dn(struct ldb_context *ldb, TALLOC_CTX *mem_c
 	unsigned int i;
 	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
 	const char *binary_encoded;
-	const char **split_realm;
+	const char * const *split_realm;
 	struct ldb_dn *dn;
 
 	if (!tmp_ctx) {
 		return NULL;
 	}
 
-	split_realm = (const char **)str_list_make(tmp_ctx, dns_domain, ".");
+	split_realm = (const char * const *)str_list_make(tmp_ctx, dns_domain, ".");
 	if (!split_realm) {
 		talloc_free(tmp_ctx);
 		return NULL;
@@ -2354,6 +2327,77 @@ struct ldb_dn *samdb_dns_domain_to_dn(struct ldb_context *ldb, TALLOC_CTX *mem_c
 	talloc_free(tmp_ctx);
 	return dn;
 }
+
+
+/*
+  Find the DNS equivalent of a DN, in dotted DNS form
+*/
+char *samdb_dn_to_dns_domain(TALLOC_CTX *mem_ctx, struct ldb_dn *dn)
+{
+	int i, num_components = ldb_dn_get_comp_num(dn);
+	char *dns_name = talloc_strdup(mem_ctx, "");
+	if (dns_name == NULL) {
+		return NULL;
+	}
+
+	for (i=0; i<num_components; i++) {
+		const struct ldb_val *v = ldb_dn_get_component_val(dn, i);
+		char *s;
+		if (v == NULL) {
+			talloc_free(dns_name);
+			return NULL;
+		}
+		s = talloc_asprintf_append_buffer(dns_name, "%*.*s.",
+						  (int)v->length, (int)v->length, (char *)v->data);
+		if (s == NULL) {
+			talloc_free(dns_name);
+			return NULL;
+		}
+		dns_name = s;
+	}
+
+	/* remove the last '.' */
+	if (dns_name[0] != 0) {
+		dns_name[strlen(dns_name)-1] = 0;
+	}
+
+	return dns_name;
+}
+
+/*
+  Find the DNS _msdcs name for a given NTDS GUID. The resulting DNS
+  name is based on the forest DNS name
+*/
+char *samdb_ntds_msdcs_dns_name(struct ldb_context *samdb,
+				TALLOC_CTX *mem_ctx,
+				const struct GUID *ntds_guid)
+{
+	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
+	const char *guid_str;
+	struct ldb_dn *forest_dn;
+	const char *dnsforest;
+	char *ret;
+
+	guid_str = GUID_string(tmp_ctx, ntds_guid);
+	if (guid_str == NULL) {
+		talloc_free(tmp_ctx);
+		return NULL;
+	}
+	forest_dn = ldb_get_root_basedn(samdb);
+	if (forest_dn == NULL) {
+		talloc_free(tmp_ctx);
+		return NULL;
+	}
+	dnsforest = samdb_dn_to_dns_domain(tmp_ctx, forest_dn);
+	if (dnsforest == NULL) {
+		talloc_free(tmp_ctx);
+		return NULL;
+	}
+	ret = talloc_asprintf(mem_ctx, "%s._msdcs.%s", guid_str, dnsforest);
+	talloc_free(tmp_ctx);
+	return ret;
+}
+
 
 /*
   Find the DN of a domain, be it the netbios or DNS name 
@@ -2597,13 +2641,18 @@ WERROR dsdb_loadreps(struct ldb_context *sam_ctx, TALLOC_CTX *mem_ctx, struct ld
 	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
 	unsigned int i;
 	struct ldb_message_element *el;
+	int ret;
 
 	*r = NULL;
 	*count = 0;
 
-	if (ldb_search(sam_ctx, tmp_ctx, &res, dn, LDB_SCOPE_BASE, attrs, NULL) != LDB_SUCCESS ||
-	    res->count < 1) {
-		DEBUG(0,("dsdb_loadreps: failed to read partition object\n"));
+	ret = dsdb_search_dn(sam_ctx, tmp_ctx, &res, dn, attrs, 0);
+	if (ret == LDB_ERR_NO_SUCH_OBJECT) {
+		/* partition hasn't been replicated yet */
+		return WERR_OK;
+	}
+	if (ret != LDB_SUCCESS) {
+		DEBUG(0,("dsdb_loadreps: failed to read partition object: %s\n", ldb_errstring(sam_ctx)));
 		talloc_free(tmp_ctx);
 		return WERR_DS_DRA_INTERNAL_ERROR;
 	}
@@ -2677,7 +2726,7 @@ WERROR dsdb_savereps(struct ldb_context *sam_ctx, TALLOC_CTX *mem_ctx, struct ld
 		el->values[i] = v;
 	}
 
-	if (ldb_modify(sam_ctx, msg) != LDB_SUCCESS) {
+	if (dsdb_modify(sam_ctx, msg, 0) != LDB_SUCCESS) {
 		DEBUG(0,("Failed to store %s - %s\n", attr, ldb_errstring(sam_ctx)));
 		goto failed;
 	}
@@ -2909,6 +2958,54 @@ failed:
 
 
 /*
+ * return NTDSSiteSettings options. See MS-ADTS 7.1.1.2.2.1.1
+ * flags are DS_NTDSSETTINGS_OPT_*
+ */
+int samdb_ntds_site_settings_options(struct ldb_context *ldb_ctx,
+					uint32_t *options)
+{
+	int rc;
+	TALLOC_CTX *tmp_ctx;
+	struct ldb_result *res;
+	struct ldb_dn *site_dn;
+	const char *attrs[] = { "options", NULL };
+
+	tmp_ctx = talloc_new(ldb_ctx);
+	if (tmp_ctx == NULL)
+		goto failed;
+
+        /* Retrieve the site dn for the ldb that we
+	 * have open.  This is our local site.
+         */
+        site_dn = samdb_server_site_dn(ldb_ctx, tmp_ctx);
+	if (site_dn == NULL)
+		goto failed;
+
+	/* Perform a one level (child) search from the local
+         * site distinguided name.   We're looking for the
+         * "options" attribute within the nTDSSiteSettings
+         * object
+	 */
+	rc = ldb_search(ldb_ctx, tmp_ctx, &res, site_dn,
+			LDB_SCOPE_ONELEVEL, attrs,
+                        "objectClass=nTDSSiteSettings");
+
+        if (rc != LDB_SUCCESS || res->count != 1)
+		goto failed;
+
+	*options = ldb_msg_find_attr_as_uint(res->msgs[0], "options", 0);
+
+	talloc_free(tmp_ctx);
+
+	return LDB_SUCCESS;
+
+failed:
+	DEBUG(1,("Failed to find our NTDS Site Settings options in ldb!\n"));
+	talloc_free(tmp_ctx);
+	return LDB_ERR_NO_SUCH_OBJECT;
+}
+
+/*
   return NTDS options flags. See MS-ADTS 7.1.1.2.2.1.2.1.1 
 
   flags are DS_NTDS_OPTION_*
@@ -2925,7 +3022,7 @@ int samdb_ntds_options(struct ldb_context *ldb, uint32_t *options)
 		goto failed;
 	}
 
-	ret = ldb_search(ldb, tmp_ctx, &res, samdb_ntds_settings_dn(ldb), LDB_SCOPE_BASE, attrs, NULL);
+	ret = ldb_search(ldb, tmp_ctx, &res, samdb_ntds_settings_dn(ldb, tmp_ctx), LDB_SCOPE_BASE, attrs, NULL);
 	if (ret != LDB_SUCCESS) {
 		goto failed;
 	}
@@ -2952,7 +3049,7 @@ const char* samdb_ntds_object_category(TALLOC_CTX *tmp_ctx, struct ldb_context *
 	int ret;
 	struct ldb_result *res;
 
-	ret = ldb_search(ldb, tmp_ctx, &res, samdb_ntds_settings_dn(ldb), LDB_SCOPE_BASE, attrs, NULL);
+	ret = ldb_search(ldb, tmp_ctx, &res, samdb_ntds_settings_dn(ldb, tmp_ctx), LDB_SCOPE_BASE, attrs, NULL);
 	if (ret != LDB_SUCCESS) {
 		goto failed;
 	}
@@ -2983,11 +3080,11 @@ const char *samdb_cn_to_lDAPDisplayName(TALLOC_CTX *mem_ctx, const char *cn)
 
 	/* "tolower()" and "toupper()" should also work properly on 0x00 */
 	tokens[0][0] = tolower(tokens[0][0]);
-	for (i = 1; i < str_list_length((const char **)tokens); i++)
+	for (i = 1; i < str_list_length((const char * const *)tokens); i++)
 		tokens[i][0] = toupper(tokens[i][0]);
 
 	ret = talloc_strdup(mem_ctx, tokens[0]);
-	for (i = 1; i < str_list_length((const char **)tokens); i++)
+	for (i = 1; i < str_list_length((const char * const *)tokens); i++)
 		ret = talloc_asprintf_append_buffer(ret, "%s", tokens[i]);
 
 	talloc_free(tokens);
@@ -3192,7 +3289,7 @@ bool dsdb_dn_is_deleted_val(const struct ldb_val *val)
  */
 bool dsdb_dn_is_upgraded_link_val(struct ldb_val *val)
 {
-	return memmem(val->data, val->length, "<RMD_ADDTIME=", 13) != NULL;
+	return memmem(val->data, val->length, "<RMD_VERSION=", 13) != NULL;
 }
 
 /*
@@ -3401,9 +3498,10 @@ int dsdb_load_udv_v2(struct ldb_context *samdb, struct ldb_dn *dn, TALLOC_CTX *m
 	const struct ldb_val *ouv_value;
 	unsigned int i;
 	int ret;
-	uint64_t highest_usn;
+	uint64_t highest_usn = 0;
 	const struct GUID *our_invocation_id;
-	struct timeval now = timeval_current();
+	static const struct timeval tv1970;
+	NTTIME nt1970 = timeval_to_nttime(&tv1970);
 
 	ret = ldb_search(samdb, mem_ctx, &r, dn, LDB_SCOPE_BASE, attrs, NULL);
 	if (ret != LDB_SUCCESS) {
@@ -3444,7 +3542,7 @@ int dsdb_load_udv_v2(struct ldb_context *samdb, struct ldb_dn *dn, TALLOC_CTX *m
 		return ldb_operr(samdb);
 	}
 
-	ret = dsdb_load_partition_usn(samdb, dn, &highest_usn, NULL);
+	ret = ldb_sequence_number(samdb, LDB_SEQ_HIGHEST_SEQ, &highest_usn);
 	if (ret != LDB_SUCCESS) {
 		/* nothing to add - this can happen after a vampire */
 		TYPESAFE_QSORT(*cursors, *count, drsuapi_DsReplicaCursor2_compare);
@@ -3454,7 +3552,7 @@ int dsdb_load_udv_v2(struct ldb_context *samdb, struct ldb_dn *dn, TALLOC_CTX *m
 	for (i=0; i<*count; i++) {
 		if (GUID_equal(our_invocation_id, &(*cursors)[i].source_dsa_invocation_id)) {
 			(*cursors)[i].highest_usn = highest_usn;
-			(*cursors)[i].last_sync_success = timeval_to_nttime(&now);
+			(*cursors)[i].last_sync_success = nt1970;
 			TYPESAFE_QSORT(*cursors, *count, drsuapi_DsReplicaCursor2_compare);
 			return LDB_SUCCESS;
 		}
@@ -3467,7 +3565,7 @@ int dsdb_load_udv_v2(struct ldb_context *samdb, struct ldb_dn *dn, TALLOC_CTX *m
 
 	(*cursors)[*count].source_dsa_invocation_id = *our_invocation_id;
 	(*cursors)[*count].highest_usn = highest_usn;
-	(*cursors)[*count].last_sync_success = timeval_to_nttime(&now);
+	(*cursors)[*count].last_sync_success = nt1970;
 	(*count)++;
 
 	TYPESAFE_QSORT(*cursors, *count, drsuapi_DsReplicaCursor2_compare);
@@ -3535,6 +3633,15 @@ int dsdb_request_add_controls(struct ldb_request *req, uint32_t dsdb_flags)
 		}
 	}
 
+	if (dsdb_flags & DSDB_SEARCH_NO_GLOBAL_CATALOG) {
+		ret = ldb_request_add_control(req,
+					      DSDB_CONTROL_NO_GLOBAL_CATALOG,
+					      false, NULL);
+		if (ret != LDB_SUCCESS) {
+			return ret;
+		}
+	}
+
 	if (dsdb_flags & DSDB_SEARCH_SHOW_DELETED) {
 		ret = ldb_request_add_control(req, LDB_CONTROL_SHOW_DELETED_OID, true, NULL);
 		if (ret != LDB_SUCCESS) {
@@ -3550,7 +3657,7 @@ int dsdb_request_add_controls(struct ldb_request *req, uint32_t dsdb_flags)
 	}
 
 	if (dsdb_flags & DSDB_SEARCH_SHOW_DN_IN_STORAGE_FORMAT) {
-		ret = ldb_request_add_control(req, DSDB_CONTROL_DN_STORAGE_FORMAT_OID, true, NULL);
+		ret = ldb_request_add_control(req, DSDB_CONTROL_DN_STORAGE_FORMAT_OID, false, NULL);
 		if (ret != LDB_SUCCESS) {
 			return ret;
 		}
@@ -3606,6 +3713,34 @@ int dsdb_request_add_controls(struct ldb_request *req, uint32_t dsdb_flags)
 
 	if (dsdb_flags & DSDB_PROVISION) {
 		ret = ldb_request_add_control(req, LDB_CONTROL_PROVISION_OID, false, NULL);
+		if (ret != LDB_SUCCESS) {
+			return ret;
+		}
+	}
+
+	/* This is a special control to bypass the password_hash module for use in pdb_samba4 for Samba3 upgrades */
+	if (dsdb_flags & DSDB_BYPASS_PASSWORD_HASH) {
+		ret = ldb_request_add_control(req, DSDB_CONTROL_BYPASS_PASSWORD_HASH_OID, true, NULL);
+		if (ret != LDB_SUCCESS) {
+			return ret;
+		}
+	}
+
+	if (dsdb_flags & DSDB_PASSWORD_BYPASS_LAST_SET) {
+		/* 
+		 * This must not be critical, as it will only be
+		 * handled (and need to be handled) if the other
+		 * attributes in the request bring password_hash into
+		 * action
+		 */
+		ret = ldb_request_add_control(req, DSDB_CONTROL_PASSWORD_BYPASS_LAST_SET_OID, false, NULL);
+		if (ret != LDB_SUCCESS) {
+			return ret;
+		}
+	}
+
+	if (dsdb_flags & DSDB_MODIFY_PARTIAL_REPLICA) {
+		ret = ldb_request_add_control(req, DSDB_CONTROL_PARTIAL_REPLICA, false, NULL);
 		if (ret != LDB_SUCCESS) {
 			return ret;
 		}
@@ -3675,6 +3810,36 @@ int dsdb_modify(struct ldb_context *ldb, const struct ldb_message *message,
 }
 
 /*
+  a delete with a set of flags
+*/
+int dsdb_delete(struct ldb_context *ldb, struct ldb_dn *dn,
+		uint32_t dsdb_flags)
+{
+	struct ldb_request *req;
+	int ret;
+
+	ret = ldb_build_del_req(&req, ldb, ldb,
+				dn,
+				NULL,
+				NULL,
+				ldb_op_default_callback,
+				NULL);
+
+	if (ret != LDB_SUCCESS) return ret;
+
+	ret = dsdb_request_add_controls(req, dsdb_flags);
+	if (ret != LDB_SUCCESS) {
+		talloc_free(req);
+		return ret;
+	}
+
+	ret = dsdb_autotransaction_request(ldb, req);
+
+	talloc_free(req);
+	return ret;
+}
+
+/*
   like dsdb_modify() but set all the element flags to
   LDB_FLAG_MOD_REPLACE
  */
@@ -3696,7 +3861,7 @@ int dsdb_replace(struct ldb_context *ldb, struct ldb_message *msg, uint32_t dsdb
  */
 int dsdb_search_dn(struct ldb_context *ldb,
 		   TALLOC_CTX *mem_ctx,
-		   struct ldb_result **_res,
+		   struct ldb_result **_result,
 		   struct ldb_dn *basedn,
 		   const char * const *attrs,
 		   uint32_t dsdb_flags)
@@ -3741,7 +3906,7 @@ int dsdb_search_dn(struct ldb_context *ldb,
 		return ret;
 	}
 
-	*_res = res;
+	*_result = res;
 	return LDB_SUCCESS;
 }
 
@@ -3751,7 +3916,7 @@ int dsdb_search_dn(struct ldb_context *ldb,
  */
 int dsdb_search_by_dn_guid(struct ldb_context *ldb,
 			   TALLOC_CTX *mem_ctx,
-			   struct ldb_result **_res,
+			   struct ldb_result **_result,
 			   const struct GUID *guid,
 			   const char * const *attrs,
 			   uint32_t dsdb_flags)
@@ -3766,7 +3931,7 @@ int dsdb_search_by_dn_guid(struct ldb_context *ldb,
 		return ldb_oom(ldb);
 	}
 
-	ret = dsdb_search_dn(ldb, mem_ctx, _res, dn, attrs, dsdb_flags);
+	ret = dsdb_search_dn(ldb, mem_ctx, _result, dn, attrs, dsdb_flags);
 	talloc_free(tmp_ctx);
 	return ret;
 }
@@ -3776,7 +3941,7 @@ int dsdb_search_by_dn_guid(struct ldb_context *ldb,
  */
 int dsdb_search(struct ldb_context *ldb,
 		TALLOC_CTX *mem_ctx,
-		struct ldb_result **_res,
+		struct ldb_result **_result,
 		struct ldb_dn *basedn,
 		enum ldb_scope scope,
 		const char * const *attrs,
@@ -3789,6 +3954,9 @@ int dsdb_search(struct ldb_context *ldb,
 	va_list ap;
 	char *expression = NULL;
 	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
+
+	/* cross-partitions searches with a basedn break multi-domain support */
+	SMB_ASSERT(basedn == NULL || (dsdb_flags & DSDB_SEARCH_SEARCH_ALL_PARTITIONS) == 0);
 
 	res = talloc_zero(tmp_ctx, struct ldb_result);
 	if (!res) {
@@ -3851,7 +4019,7 @@ int dsdb_search(struct ldb_context *ldb,
 		}
 	}
 
-	*_res = talloc_steal(mem_ctx, res);
+	*_result = talloc_steal(mem_ctx, res);
 	talloc_free(tmp_ctx);
 
 	return LDB_SUCCESS;
@@ -4216,3 +4384,193 @@ bool is_attr_in_list(const char * const * attrs, const char *attr)
 	return false;
 }
 
+
+/*
+  map an ldb error code to an approximate NTSTATUS code
+ */
+NTSTATUS dsdb_ldb_err_to_ntstatus(int err)
+{
+	switch (err) {
+	case LDB_SUCCESS:
+		return NT_STATUS_OK;
+
+	case LDB_ERR_PROTOCOL_ERROR:
+		return NT_STATUS_DEVICE_PROTOCOL_ERROR;
+
+	case LDB_ERR_TIME_LIMIT_EXCEEDED:
+		return NT_STATUS_IO_TIMEOUT;
+
+	case LDB_ERR_SIZE_LIMIT_EXCEEDED:
+		return NT_STATUS_BUFFER_TOO_SMALL;
+
+	case LDB_ERR_COMPARE_FALSE:
+	case LDB_ERR_COMPARE_TRUE:
+		return NT_STATUS_REVISION_MISMATCH;
+
+	case LDB_ERR_AUTH_METHOD_NOT_SUPPORTED:
+		return NT_STATUS_NOT_SUPPORTED;
+
+	case LDB_ERR_STRONG_AUTH_REQUIRED:
+	case LDB_ERR_CONFIDENTIALITY_REQUIRED:
+	case LDB_ERR_SASL_BIND_IN_PROGRESS:
+	case LDB_ERR_INAPPROPRIATE_AUTHENTICATION:
+	case LDB_ERR_INVALID_CREDENTIALS:
+	case LDB_ERR_INSUFFICIENT_ACCESS_RIGHTS:
+	case LDB_ERR_UNWILLING_TO_PERFORM:
+		return NT_STATUS_ACCESS_DENIED;
+
+	case LDB_ERR_NO_SUCH_OBJECT:
+		return NT_STATUS_OBJECT_NAME_NOT_FOUND;
+
+	case LDB_ERR_REFERRAL:
+	case LDB_ERR_NO_SUCH_ATTRIBUTE:
+		return NT_STATUS_NOT_FOUND;
+
+	case LDB_ERR_UNSUPPORTED_CRITICAL_EXTENSION:
+		return NT_STATUS_NOT_SUPPORTED;
+
+	case LDB_ERR_ADMIN_LIMIT_EXCEEDED:
+		return NT_STATUS_BUFFER_TOO_SMALL;
+
+	case LDB_ERR_UNDEFINED_ATTRIBUTE_TYPE:
+	case LDB_ERR_INAPPROPRIATE_MATCHING:
+	case LDB_ERR_CONSTRAINT_VIOLATION:
+	case LDB_ERR_INVALID_ATTRIBUTE_SYNTAX:
+	case LDB_ERR_INVALID_DN_SYNTAX:
+	case LDB_ERR_NAMING_VIOLATION:
+	case LDB_ERR_OBJECT_CLASS_VIOLATION:
+	case LDB_ERR_NOT_ALLOWED_ON_NON_LEAF:
+	case LDB_ERR_NOT_ALLOWED_ON_RDN:
+		return NT_STATUS_INVALID_PARAMETER;
+
+	case LDB_ERR_ATTRIBUTE_OR_VALUE_EXISTS:
+	case LDB_ERR_ENTRY_ALREADY_EXISTS:
+		return NT_STATUS_ERROR_DS_OBJ_STRING_NAME_EXISTS;
+
+	case LDB_ERR_BUSY:
+		return NT_STATUS_NETWORK_BUSY;
+
+	case LDB_ERR_ALIAS_PROBLEM:
+	case LDB_ERR_ALIAS_DEREFERENCING_PROBLEM:
+	case LDB_ERR_UNAVAILABLE:
+	case LDB_ERR_LOOP_DETECT:
+	case LDB_ERR_OBJECT_CLASS_MODS_PROHIBITED:
+	case LDB_ERR_AFFECTS_MULTIPLE_DSAS:
+	case LDB_ERR_OTHER:
+	case LDB_ERR_OPERATIONS_ERROR:
+		break;
+	}
+	return NT_STATUS_UNSUCCESSFUL;
+}
+
+
+/*
+  create a new naming context that will hold a partial replica
+ */
+int dsdb_create_partial_replica_NC(struct ldb_context *ldb,  struct ldb_dn *dn)
+{
+	TALLOC_CTX *tmp_ctx = talloc_new(ldb);
+	struct ldb_message *msg;
+	int ret;
+
+	msg = ldb_msg_new(tmp_ctx);
+	if (msg == NULL) {
+		talloc_free(tmp_ctx);
+		return ldb_oom(ldb);
+	}
+
+	msg->dn = dn;
+	ret = ldb_msg_add_string(msg, "objectClass", "top");
+	if (ret != LDB_SUCCESS) {
+		talloc_free(tmp_ctx);
+		return ldb_oom(ldb);
+	}
+
+	/* [MS-DRSR] implies that we should only add the 'top'
+	 * objectclass, but that would cause lots of problems with our
+	 * objectclass code as top is not structural, so we add
+	 * 'domainDNS' as well to keep things sane. We're expecting
+	 * this new NC to be of objectclass domainDNS after
+	 * replication anyway
+	 */
+	ret = ldb_msg_add_string(msg, "objectClass", "domainDNS");
+	if (ret != LDB_SUCCESS) {
+		talloc_free(tmp_ctx);
+		return ldb_oom(ldb);
+	}
+
+	ret = ldb_msg_add_fmt(msg, "instanceType", "%u",
+			      INSTANCE_TYPE_IS_NC_HEAD|
+			      INSTANCE_TYPE_NC_ABOVE|
+			      INSTANCE_TYPE_UNINSTANT);
+	if (ret != LDB_SUCCESS) {
+		talloc_free(tmp_ctx);
+		return ldb_oom(ldb);
+	}
+
+	ret = dsdb_add(ldb, msg, DSDB_MODIFY_PARTIAL_REPLICA);
+	if (ret != LDB_SUCCESS && ret != LDB_ERR_ENTRY_ALREADY_EXISTS) {
+		DEBUG(0,("Failed to create new NC for %s - %s (%s)\n",
+			 ldb_dn_get_linearized(dn),
+			 ldb_errstring(ldb), ldb_strerror(ret)));
+		talloc_free(tmp_ctx);
+		return ret;
+	}
+
+	DEBUG(1,("Created new NC for %s\n", ldb_dn_get_linearized(dn)));
+
+	talloc_free(tmp_ctx);
+	return LDB_SUCCESS;
+}
+
+/**
+  build a GUID from a string
+*/
+_PUBLIC_ NTSTATUS NS_GUID_from_string(const char *s, struct GUID *guid)
+{
+	NTSTATUS status = NT_STATUS_INVALID_PARAMETER;
+	uint32_t time_low;
+	uint32_t time_mid, time_hi_and_version;
+	uint32_t clock_seq[2];
+	uint32_t node[6];
+	int i;
+
+	if (s == NULL) {
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	if (11 == sscanf(s, "%08x-%04x%04x-%02x%02x%02x%02x-%02x%02x%02x%02x",
+			 &time_low, &time_mid, &time_hi_and_version, 
+			 &clock_seq[0], &clock_seq[1],
+			 &node[0], &node[1], &node[2], &node[3], &node[4], &node[5])) {
+	        status = NT_STATUS_OK;
+	}
+
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	guid->time_low = time_low;
+	guid->time_mid = time_mid;
+	guid->time_hi_and_version = time_hi_and_version;
+	guid->clock_seq[0] = clock_seq[0];
+	guid->clock_seq[1] = clock_seq[1];
+	for (i=0;i<6;i++) {
+		guid->node[i] = node[i];
+	}
+
+	return NT_STATUS_OK;
+}
+
+_PUBLIC_ char *NS_GUID_string(TALLOC_CTX *mem_ctx, const struct GUID *guid)
+{
+	return talloc_asprintf(mem_ctx, 
+			       "%08x-%04x%04x-%02x%02x%02x%02x-%02x%02x%02x%02x",
+			       guid->time_low, guid->time_mid,
+			       guid->time_hi_and_version,
+			       guid->clock_seq[0],
+			       guid->clock_seq[1],
+			       guid->node[0], guid->node[1],
+			       guid->node[2], guid->node[3],
+			       guid->node[4], guid->node[5]);
+}

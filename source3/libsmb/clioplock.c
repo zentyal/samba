@@ -21,6 +21,85 @@
 #include "../lib/util/tevent_ntstatus.h"
 #include "async_smb.h"
 #include "libsmb/libsmb.h"
+#include "../libcli/smb/smbXcli_base.h"
+
+struct cli_smb_oplock_break_waiter_state {
+	uint16_t fnum;
+	uint8_t level;
+};
+
+static void cli_smb_oplock_break_waiter_done(struct tevent_req *subreq);
+
+struct tevent_req *cli_smb_oplock_break_waiter_send(TALLOC_CTX *mem_ctx,
+						    struct event_context *ev,
+						    struct cli_state *cli)
+{
+	struct tevent_req *req, *subreq;
+	struct cli_smb_oplock_break_waiter_state *state;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct cli_smb_oplock_break_waiter_state);
+	if (req == NULL) {
+		return NULL;
+	}
+
+	/*
+	 * Create a fake SMB request that we will never send out. This is only
+	 * used to be set into the pending queue with the right mid.
+	 */
+	subreq = cli_smb_req_create(mem_ctx, ev, cli, 0, 0, 0, NULL, 0, NULL);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	smb1cli_req_set_mid(subreq, 0xffff);
+
+	if (!smbXcli_req_set_pending(subreq)) {
+		tevent_req_nterror(req, NT_STATUS_NO_MEMORY);
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, cli_smb_oplock_break_waiter_done, req);
+	return req;
+}
+
+static void cli_smb_oplock_break_waiter_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct cli_smb_oplock_break_waiter_state *state = tevent_req_data(
+		req, struct cli_smb_oplock_break_waiter_state);
+	uint8_t wct;
+	uint16_t *vwv;
+	uint32_t num_bytes;
+	uint8_t *bytes;
+	NTSTATUS status;
+
+	status = cli_smb_recv(subreq, state, NULL, 8, &wct, &vwv,
+			      &num_bytes, &bytes);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+	state->fnum = SVAL(vwv+2, 0);
+	state->level = CVAL(vwv+3, 1);
+	tevent_req_done(req);
+}
+
+NTSTATUS cli_smb_oplock_break_waiter_recv(struct tevent_req *req,
+					  uint16_t *pfnum,
+					  uint8_t *plevel)
+{
+	struct cli_smb_oplock_break_waiter_state *state = tevent_req_data(
+		req, struct cli_smb_oplock_break_waiter_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		return status;
+	}
+	*pfnum = state->fnum;
+	*plevel = state->level;
+	return NT_STATUS_OK;
+}
 
 /****************************************************************************
 send an ack for an oplock break request
@@ -83,50 +162,3 @@ NTSTATUS cli_oplock_ack_recv(struct tevent_req *req)
 	return tevent_req_simple_recv_ntstatus(req);
 }
 
-NTSTATUS cli_oplock_ack(struct cli_state *cli, uint16_t fnum, unsigned char level)
-{
-	TALLOC_CTX *frame = talloc_stackframe();
-	struct event_context *ev;
-	struct tevent_req *req;
-	NTSTATUS status = NT_STATUS_OK;
-
-	if (cli_has_async_calls(cli)) {
-		/*
-		 * Can't use sync call while an async call is in flight
-		 */
-		status = NT_STATUS_INVALID_PARAMETER;
-		goto fail;
-	}
-
-	ev = event_context_init(frame);
-	if (ev == NULL) {
-		status = NT_STATUS_NO_MEMORY;
-		goto fail;
-	}
-
-	req = cli_oplock_ack_send(frame, ev, cli, fnum, level);
-	if (req == NULL) {
-		status = NT_STATUS_NO_MEMORY;
-		goto fail;
-	}
-
-	if (!tevent_req_poll(req, ev)) {
-		status = map_nt_error_from_unix(errno);
-		goto fail;
-	}
-
-	status = cli_oplock_ack_recv(req);
- fail:
-	TALLOC_FREE(frame);
-	return status;
-}
-
-/****************************************************************************
-set the oplock handler for a connection
-****************************************************************************/
-
-void cli_oplock_handler(struct cli_state *cli, 
-			NTSTATUS (*handler)(struct cli_state *, uint16_t, unsigned char))
-{
-	cli->oplock_handler = handler;
-}

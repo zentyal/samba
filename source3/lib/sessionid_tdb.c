@@ -19,85 +19,11 @@
 
 #include "includes.h"
 #include "system/filesys.h"
-#include "dbwrap.h"
+#include "dbwrap/dbwrap.h"
+#include "dbwrap/dbwrap_open.h"
 #include "session.h"
 #include "util_tdb.h"
-
-static struct db_context *session_db_ctx(void)
-{
-	static struct db_context *session_db_ctx_ptr;
-
-	if (session_db_ctx_ptr != NULL) {
-		return session_db_ctx_ptr;
-	}
-
-	session_db_ctx_ptr = db_open(NULL, lock_path("sessionid.tdb"), 0,
-				     TDB_CLEAR_IF_FIRST|TDB_DEFAULT|TDB_INCOMPATIBLE_HASH,
-				     O_RDWR | O_CREAT, 0644);
-	return session_db_ctx_ptr;
-}
-
-bool sessionid_init(void)
-{
-	if (session_db_ctx() == NULL) {
-		DEBUG(1,("session_init: failed to open sessionid tdb\n"));
-		return False;
-	}
-
-	return True;
-}
-
-struct db_record *sessionid_fetch_record(TALLOC_CTX *mem_ctx, const char *key)
-{
-	struct db_context *db;
-
-	db = session_db_ctx();
-	if (db == NULL) {
-		return NULL;
-	}
-	return db->fetch_locked(db, mem_ctx, string_term_tdb_data(key));
-}
-
-struct sessionid_traverse_state {
-	int (*fn)(struct db_record *rec, const char *key,
-		  struct sessionid *session, void *private_data);
-	void *private_data;
-};
-
-static int sessionid_traverse_fn(struct db_record *rec, void *private_data)
-{
-	struct sessionid_traverse_state *state =
-		(struct sessionid_traverse_state *)private_data;
-	struct sessionid session;
-
-	if ((rec->key.dptr[rec->key.dsize-1] != '\0')
-	    || (rec->value.dsize != sizeof(struct sessionid))) {
-		DEBUG(1, ("Found invalid record in sessionid.tdb\n"));
-		return 0;
-	}
-
-	memcpy(&session, rec->value.dptr, sizeof(session));
-
-	return state->fn(rec, (char *)rec->key.dptr, &session,
-			 state->private_data);
-}
-
-int sessionid_traverse(int (*fn)(struct db_record *rec, const char *key,
-				 struct sessionid *session,
-				 void *private_data),
-		       void *private_data)
-{
-	struct db_context *db;
-	struct sessionid_traverse_state state;
-
-	db = session_db_ctx();
-	if (db == NULL) {
-		return -1;
-	}
-	state.fn = fn;
-	state.private_data = private_data;
-	return db->traverse(db, sessionid_traverse_fn, &state);
-}
+#include "smbd/globals.h"
 
 struct sessionid_traverse_read_state {
 	int (*fn)(const char *key, struct sessionid *session,
@@ -105,38 +31,53 @@ struct sessionid_traverse_read_state {
 	void *private_data;
 };
 
-static int sessionid_traverse_read_fn(struct db_record *rec,
+static int sessionid_traverse_read_fn(struct smbXsrv_session_global0 *global,
 				      void *private_data)
 {
 	struct sessionid_traverse_read_state *state =
 		(struct sessionid_traverse_read_state *)private_data;
-	struct sessionid session;
+	struct auth_session_info *session_info = global->auth_session_info;
+	struct sessionid session = {
+		.uid = session_info->unix_token->uid,
+		.gid = session_info->unix_token->gid,
+		.id_num = global->session_global_id,
+		.connect_start = nt_time_to_unix(global->creation_time),
+		.pid = global->channels[0].server_id,
+	};
 
-	if ((rec->key.dptr[rec->key.dsize-1] != '\0')
-	    || (rec->value.dsize != sizeof(struct sessionid))) {
-		DEBUG(1, ("Found invalid record in sessionid.tdb\n"));
-		return 0;
-	}
+	strncpy(session.username,
+		session_info->unix_info->unix_name,
+		sizeof(fstring)-1);
+	strncpy(session.remote_machine,
+		global->channels[0].remote_name,
+		sizeof(fstring)-1);
+	strncpy(session.hostname,
+		global->channels[0].remote_address,
+		sizeof(fstring)-1);
+	strncpy(session.netbios_name,
+		global->channels[0].remote_name,
+		sizeof(fstring)-1);
+	snprintf(session.id_str, sizeof(fstring)-1,
+		 "smb/%u", global->session_global_id);
+	strncpy(session.ip_addr_str,
+		global->channels[0].remote_address,
+		sizeof(fstring)-1);
 
-	memcpy(&session, rec->value.dptr, sizeof(session));
-
-	return state->fn((char *)rec->key.dptr, &session,
-			 state->private_data);
+	return state->fn(NULL, &session, state->private_data);
 }
 
-int sessionid_traverse_read(int (*fn)(const char *key,
-				      struct sessionid *session,
-				      void *private_data),
-			    void *private_data)
+NTSTATUS sessionid_traverse_read(int (*fn)(const char *key,
+					  struct sessionid *session,
+					  void *private_data),
+				 void *private_data)
 {
-	struct db_context *db;
 	struct sessionid_traverse_read_state state;
+	NTSTATUS status;
 
-	db = session_db_ctx();
-	if (db == NULL) {
-		return -1;
-	}
 	state.fn = fn;
 	state.private_data = private_data;
-	return db->traverse(db, sessionid_traverse_read_fn, &state);
+	status = smbXsrv_session_global_traverse(sessionid_traverse_read_fn,
+						 &state);
+
+	return status;
 }

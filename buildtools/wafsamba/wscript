@@ -27,6 +27,10 @@ def set_options(opt):
                    help=("comma separated list of bundled libraries. May include !LIBNAME to disable bundling a library. Can be 'NONE' or 'ALL' [auto]"),
                    action="store", dest='BUNDLED_LIBS', default='')
 
+    gr.add_option('--private-libraries',
+                   help=("comma separated list of normally public libraries to build instead as private libraries. May include !LIBNAME to disable making a library private. Can be 'NONE' or 'ALL' [auto]"),
+                   action="store", dest='PRIVATE_LIBS', default='')
+
     extension_default = Options.options['PRIVATE_EXTENSION_DEFAULT']
     gr.add_option('--private-library-extension',
                    help=("name extension for private libraries [%s]" % extension_default),
@@ -46,9 +50,6 @@ def set_options(opt):
                    help=("list of minimum system library versions (LIBNAME1:version,LIBNAME2:version)"),
                    action="store", dest='MINIMUM_LIBRARY_VERSION', default='')
 
-    gr.add_option('--disable-shared',
-                   help=("Disable all use of shared libraries"),
-                   action="store_true", dest='disable_shared', default=False)
     gr.add_option('--disable-rpath',
                    help=("Disable use of rpath for build binaries"),
                    action="store_true", dest='disable_rpath_build', default=False)
@@ -73,6 +74,15 @@ def set_options(opt):
                    help=("private library directory [PREFIX/lib/%s]" % Utils.g_module.APPNAME),
                    action="store", dest='PRIVATELIBDIR', default=None)
 
+    opt.add_option('--with-libiconv',
+                   help='additional directory to search for libiconv',
+                   action='store', dest='iconv_open', default='/usr/local',
+                   match = ['Checking for library iconv', 'Checking for iconv_open', 'Checking for header iconv.h'])
+    opt.add_option('--with-gettext',
+                   help='additional directory to search for gettext',
+                   action='store', dest='gettext_location', default='/usr/local',
+                   match = ['Checking for library intl', 'Checking for header libintl.h'])
+
     gr = opt.option_group('developer options')
 
     gr.add_option('-C',
@@ -81,6 +91,9 @@ def set_options(opt):
     gr.add_option('--enable-auto-reconfigure',
                    help='enable automatic reconfigure on build',
                    action='store_true', dest='enable_auto_reconfigure')
+    gr.add_option('--enable-debug',
+                   help=("Turn on debugging symbols"),
+                   action="store_true", dest='debug', default=False)
     gr.add_option('--enable-developer',
                    help=("Turn on developer warnings and debugging"),
                    action="store_true", dest='developer', default=False)
@@ -121,6 +134,10 @@ def set_options(opt):
                   help=("check symbols in object files against project rules"),
                   action='store_true', dest='SYMBOLCHECK', default=False)
 
+    gr.add_option('--dup-symbol-check',
+                  help=("check for duplicate symbols in object files and system libs (must be configured with --enable-developer)"),
+                  action='store_true', dest='DUP_SYMBOLCHECK', default=False)
+
     gr.add_option('--why-needed',
                   help=("TARGET:DEPENDENCY check why TARGET needs DEPENDENCY"),
                   action='store', type='str', dest='WHYNEEDED', default=None)
@@ -152,12 +169,18 @@ def set_options(opt):
     opt.add_option('--host',
 		   help=SUPPRESS_HELP,
 		   action='store', dest='AUTOCONF_HOST', default='')
+    opt.add_option('--target',
+		   help=SUPPRESS_HELP,
+		   action='store', dest='AUTOCONF_TARGET', default='')
     opt.add_option('--program-prefix',
 		   help=SUPPRESS_HELP,
 		   action='store', dest='AUTOCONF_PROGRAM_PREFIX', default='')
     opt.add_option('--disable-dependency-tracking',
 		   help=SUPPRESS_HELP,
 		   action='store_true', dest='AUTOCONF_DISABLE_DEPENDENCY_TRACKING', default=False)
+    opt.add_option('--disable-silent-rules',
+		   help=SUPPRESS_HELP,
+		   action='store_true', dest='AUTOCONF_DISABLE_SILENT_RULES', default=False)
 
     gr = opt.option_group('dist options')
     gr.add_option('--sign-release',
@@ -220,8 +243,8 @@ def configure(conf):
     conf.env.MODULESDIR = Options.options.MODULESDIR
     conf.env.PRIVATELIBDIR = Options.options.PRIVATELIBDIR
     conf.env.BUNDLED_LIBS = Options.options.BUNDLED_LIBS.split(',')
+    conf.env.PRIVATE_LIBS = Options.options.PRIVATE_LIBS.split(',')
     conf.env.BUILTIN_LIBRARIES = Options.options.BUILTIN_LIBRARIES.split(',')
-    conf.env.DISABLE_SHARED = Options.options.disable_shared
     conf.env.NONSHARED_BINARIES = Options.options.NONSHARED_BINARIES.split(',')
 
     conf.env.PRIVATE_EXTENSION = Options.options.PRIVATE_EXTENSION
@@ -270,12 +293,8 @@ def configure(conf):
                     headers='stdio.h',
                     msg='Checking simple C program')
 
-    # see if we can build shared libs
-    if not conf.CHECK_LIBRARY_SUPPORT():
-        conf.env.DISABLE_SHARED = True
-
     # check for rpath
-    if not conf.env.DISABLE_SHARED and conf.CHECK_LIBRARY_SUPPORT(rpath=True):
+    if conf.CHECK_LIBRARY_SUPPORT(rpath=True):
         support_rpath = True
         conf.env.RPATH_ON_BUILD   = not Options.options.disable_rpath_build
         conf.env.RPATH_ON_INSTALL = (conf.env.RPATH_ON_BUILD and
@@ -295,8 +314,7 @@ def configure(conf):
             # the user can of course always override it.
             conf.env.PRIVATELIBDIR = conf.env.LIBDIR
 
-    if (not conf.env.DISABLE_SHARED and
-        not Options.options.disable_symbol_versions and
+    if (not Options.options.disable_symbol_versions and
         conf.CHECK_LIBRARY_SUPPORT(rpath=support_rpath,
                                    version_script=True,
                                    msg='-Wl,--version-script support')):
@@ -304,7 +322,7 @@ def configure(conf):
     else:
         conf.env.HAVE_LD_VERSION_SCRIPT = False
 
-    if sys.platform == "aix5":
+    if sys.platform == "aix5" or sys.platform == "aix6":
         conf.DEFINE('_ALL_SOURCE', 1, add_to_cflags=True)
         # Might not be needed if ALL_SOURCE is defined
         # conf.DEFINE('_XOPEN_SOURCE', 600, add_to_cflags=True)
@@ -343,11 +361,17 @@ def configure(conf):
     conf.CHECK_HEADERS('stdio.h sys/types.h sys/stat.h stdlib.h stddef.h memory.h string.h',
                        add_headers=True)
     conf.CHECK_HEADERS('strings.h inttypes.h stdint.h unistd.h minix/config.h', add_headers=True)
-    conf.CHECK_HEADERS('ctype.h standards.h stdbool.h stdint.h stdarg.h vararg.h', add_headers=True)
+    conf.CHECK_HEADERS('ctype.h', add_headers=True)
+
+    if sys.platform != 'darwin':
+        conf.CHECK_HEADERS('standards.h', add_headers=True)
+
+    conf.CHECK_HEADERS('stdbool.h stdint.h stdarg.h vararg.h', add_headers=True)
     conf.CHECK_HEADERS('limits.h assert.h')
 
     # see if we need special largefile flags
-    conf.CHECK_LARGEFILE()
+    if not conf.CHECK_LARGEFILE():
+        raise Utils.WafError('Samba requires large file support support, but not available on this platform: sizeof(off_t) < 8')
 
     if 'HAVE_STDDEF_H' in conf.env and 'HAVE_STDLIB_H' in conf.env:
         conf.DEFINE('STDC_HEADERS', 1)

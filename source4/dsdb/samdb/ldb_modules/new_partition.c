@@ -36,6 +36,7 @@
 #include "librpc/gen_ndr/ndr_misc.h"
 #include "dsdb/samdb/samdb.h"
 #include "../libds/common/flags.h"
+#include "dsdb/common/util.h"
 
 struct np_context {
 	struct ldb_module *module;
@@ -64,7 +65,7 @@ static int np_part_mod_callback(struct ldb_request *req, struct ldb_reply *ares)
 	}
 
 	if (ares->type != LDB_REPLY_DONE) {
-		ldb_set_errstring(ldb, "Invalid reply type!");
+		ldb_asprintf_errstring(ldb, "Invalid LDB reply type %d", ares->type);
 		return ldb_module_done(ac->req, NULL, NULL,
 					LDB_ERR_OPERATIONS_ERROR);
 	}
@@ -122,6 +123,17 @@ static int np_part_search_callback(struct ldb_request *req, struct ldb_reply *ar
 	ret = ldb_build_extended_req(&ac->part_add, 
 				     ldb, ac, DSDB_EXTENDED_CREATE_PARTITION_OID, ex_op, 
 				     NULL, ac, np_part_mod_callback, req);
+
+	/* if the parent was asking for a partial replica, then we
+	 * need the extended operation to also ask for a partial
+	 * replica */
+	if (ldb_request_get_control(req, DSDB_CONTROL_PARTIAL_REPLICA)) {
+		ret = dsdb_request_add_controls(ac->part_add, DSDB_MODIFY_PARTIAL_REPLICA);
+		if (ret != LDB_SUCCESS) {
+			return ret;
+		}
+	}
+
 	
 	LDB_REQ_SET_LOCATION(ac->part_add);
 	if (ret != LDB_SUCCESS) {
@@ -153,12 +165,6 @@ static int new_partition_add(struct ldb_module *module, struct ldb_request *req)
 		uint32_t instanceType = ldb_msg_find_attr_as_uint(req->op.add.message, "instanceType", 0);
 
 		if (!(instanceType & INSTANCE_TYPE_IS_NC_HEAD)) {
-			return ldb_next_request(module, req);
-		}
-
-		if (instanceType & INSTANCE_TYPE_UNINSTANT) {
-			DEBUG(0,(__location__ ": Skipping uninstantiated partition %s\n",
-				 ldb_dn_get_linearized(req->op.add.message->dn)));
 			return ldb_next_request(module, req);
 		}
 

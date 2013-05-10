@@ -37,6 +37,7 @@
 #include <ldap.h>
 
 #include "smbldap.h"
+#include "passdb/pdb_ldap_schema.h"
 
 static char *idmap_fetch_secret(const char *backend,
 				const char *domain, const char *identity)
@@ -49,7 +50,12 @@ static char *idmap_fetch_secret(const char *backend,
 	if (r < 0)
 		return NULL;
 
-	strupper_m(tmp); /* make sure the key is case insensitive */
+	/* make sure the key is case insensitive */
+	if (!strupper_m(tmp)) {
+		SAFE_FREE(tmp);
+		return NULL;
+	}
+
 	ret = secrets_fetch_generic(tmp, identity);
 
 	SAFE_FREE(tmp);
@@ -299,7 +305,7 @@ static NTSTATUS idmap_ldap_allocate_id_internal(struct idmap_domain *dom,
 		goto done;
 	}
 
-	talloc_autofree_ldapmsg(mem_ctx, result);
+	smbldap_talloc_autofree_ldapmsg(mem_ctx, result);
 
 	count = ldap_count_entries(ctx->smbldap_state->ldap_struct, result);
 	if (count != 1) {
@@ -443,7 +449,7 @@ static NTSTATUS idmap_ldap_db_init(struct idmap_domain *dom)
 		return NT_STATUS_FILE_IS_OFFLINE;
 	}
 
-	ctx = TALLOC_ZERO_P(dom, struct idmap_ldap_context);
+	ctx = talloc_zero(dom, struct idmap_ldap_context);
 	if ( ! ctx) {
 		DEBUG(0, ("Out of memory!\n"));
 		return NT_STATUS_NO_MEMORY;
@@ -470,7 +476,7 @@ static NTSTATUS idmap_ldap_db_init(struct idmap_domain *dom)
 
 	tmp = lp_parm_const_string(-1, config_option, "ldap_base_dn", NULL);
 	if ( ! tmp || ! *tmp) {
-		tmp = lp_ldap_idmap_suffix();
+		tmp = lp_ldap_idmap_suffix(talloc_tos());
 		if ( ! tmp) {
 			DEBUG(1, ("ERROR: missing idmap ldap suffix\n"));
 			ret = NT_STATUS_UNSUCCESSFUL;
@@ -487,8 +493,10 @@ static NTSTATUS idmap_ldap_db_init(struct idmap_domain *dom)
 	ctx->rw_ops->get_new_id = idmap_ldap_allocate_id_internal;
 	ctx->rw_ops->set_mapping = idmap_ldap_set_mapping;
 
+	/* get_credentials deals with setting up creds */
+
 	ret = smbldap_init(ctx, winbind_event_context(), ctx->url,
-			   &ctx->smbldap_state);
+			   false, NULL, NULL, &ctx->smbldap_state);
 	if (!NT_STATUS_IS_OK(ret)) {
 		DEBUG(1, ("ERROR: smbldap_init (%s) failed!\n", ctx->url));
 		goto done;

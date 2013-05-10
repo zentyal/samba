@@ -22,6 +22,7 @@
 #include "regfio.h"
 #include "../librpc/gen_ndr/ndr_security.h"
 #include "../libcli/security/security_descriptor.h"
+#include "../libcli/security/secdesc.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_REGISTRY
@@ -497,7 +498,7 @@ static REGF_HBIN* read_hbin_block( REGF_FILE *file, off_t offset )
 	REGF_HBIN *hbin;
 	uint32 record_size, curr_off, block_size, header;
 	
-	if ( !(hbin = TALLOC_ZERO_P(file->mem_ctx, REGF_HBIN)) ) 
+	if ( !(hbin = talloc_zero(file->mem_ctx, REGF_HBIN)) ) 
 		return NULL;
 	hbin->file_off = offset;
 	hbin->free_off = -1;
@@ -521,7 +522,7 @@ static REGF_HBIN* read_hbin_block( REGF_FILE *file, off_t offset )
 	/* remember that the record_size is in the 4 bytes preceeding the record itself */
 
 	if ( !prs_set_offset( &hbin->ps, file->data_offset+HBIN_HDR_SIZE-sizeof(uint32) ) )
-		return False;
+		return NULL;
 
 	record_size = 0;
 	header = 0;
@@ -544,12 +545,12 @@ static REGF_HBIN* read_hbin_block( REGF_FILE *file, off_t offset )
 		}
 
 		if ( !prs_set_offset( &hbin->ps, curr_off) )
-			return False;
+			return NULL;
 
 		if ( !prs_uint32( "rec_size", &hbin->ps, 0, &record_size ) )
-			return False;
+			return NULL;
 		if ( !prs_uint32( "header", &hbin->ps, 0, &header ) )
-			return False;
+			return NULL;
 		
 		SMB_ASSERT( record_size != 0 );
 
@@ -573,7 +574,7 @@ static REGF_HBIN* read_hbin_block( REGF_FILE *file, off_t offset )
 	DEBUG(10,("read_hbin_block: free space offset == 0x%x\n", hbin->free_off));
 
 	if ( !prs_set_offset( &hbin->ps, file->data_offset+HBIN_HDR_SIZE )  )
-		return False;
+		return NULL;
 	
 	return hbin;
 }
@@ -1072,7 +1073,7 @@ static bool hbin_prs_key( REGF_FILE *file, REGF_HBIN *hbin, REGF_NK_REC *nk )
 			}
 		}
 		
-		if ( !(nk->sec_desc = TALLOC_ZERO_P( file->mem_ctx, REGF_SK_REC )) )
+		if ( !(nk->sec_desc = talloc_zero( file->mem_ctx, REGF_SK_REC )) )
 			return False;
 		nk->sec_desc->sk_off = nk->sk_off;
 		if ( !hbin_prs_sk_rec( "sk_rec", sub_hbin, depth, nk->sec_desc ))
@@ -1378,7 +1379,7 @@ REGF_NK_REC* regfio_rootkey( REGF_FILE *file )
 	if ( !file )
 		return NULL;
 		
-	if ( !(nk = TALLOC_ZERO_P( file->mem_ctx, REGF_NK_REC )) ) {
+	if ( !(nk = talloc_zero( file->mem_ctx, REGF_NK_REC )) ) {
 		DEBUG(0,("regfio_rootkey: talloc() failed!\n"));
 		return NULL;
 	}
@@ -1446,7 +1447,7 @@ REGF_NK_REC* regfio_rootkey( REGF_FILE *file )
 		return NULL;
 		
 	nk->subkey_index++;
-	if ( !(subkey = TALLOC_ZERO_P( file->mem_ctx, REGF_NK_REC )) )
+	if ( !(subkey = talloc_zero( file->mem_ctx, REGF_NK_REC )) )
 		return NULL;
 		
 	if ( !hbin_prs_key( file, hbin, subkey ) )
@@ -1464,7 +1465,7 @@ static REGF_HBIN* regf_hbin_allocate( REGF_FILE *file, uint32 block_size )
 	REGF_HBIN *hbin;
 	SMB_STRUCT_STAT sbuf;
 
-	if ( !(hbin = TALLOC_ZERO_P( file->mem_ctx, REGF_HBIN )) )
+	if ( !(hbin = talloc_zero( file->mem_ctx, REGF_HBIN )) )
 		return NULL;
 
 	memcpy( hbin->header, "hbin", HBIN_HDR_SIZE);
@@ -1598,7 +1599,7 @@ done:
 	   for the record */
 
 	if ( !prs_uint32("allocated_size", &hbin->ps, 0, &size) )
-		return False;
+		return NULL;
 
 	update_free_space( hbin, size );
 	
@@ -1719,7 +1720,7 @@ static bool create_vk_record(REGF_FILE *file, REGF_VK_REC *vk,
 	if ( vk->data_size > sizeof(uint32) ) {
 		uint32 data_size = ( (vk->data_size+sizeof(uint32)) & 0xfffffff8 ) + 8;
 
-		vk->data = (uint8 *)TALLOC_MEMDUP( file->mem_ctx,
+		vk->data = (uint8 *)talloc_memdup( file->mem_ctx,
 						   regval_data_p(value),
 						   vk->data_size );
 		if (vk->data == NULL) {
@@ -1750,7 +1751,7 @@ static bool create_vk_record(REGF_FILE *file, REGF_VK_REC *vk,
 
 static int hashrec_cmp( REGF_HASH_REC *h1, REGF_HASH_REC *h2 )
 {
-	return StrCaseCmp( h1->fullname, h2->fullname );
+	return strcasecmp_m( h1->fullname, h2->fullname );
 }
 
 /*******************************************************************
@@ -1764,7 +1765,7 @@ static int hashrec_cmp( REGF_HASH_REC *h1, REGF_HASH_REC *h2 )
 	REGF_HBIN *vlist_hbin = NULL;
 	uint32 size;
 
-	if ( !(nk = TALLOC_ZERO_P( file->mem_ctx, REGF_NK_REC )) )
+	if ( !(nk = talloc_zero( file->mem_ctx, REGF_NK_REC )) )
 		return NULL;
 
 	memcpy( nk->header, "nk", REC_HDR_SIZE );
@@ -1811,7 +1812,7 @@ static int hashrec_cmp( REGF_HASH_REC *h1, REGF_HASH_REC *h2 )
 		TYPESAFE_QSORT(parent->subkeys.hashes, parent->subkey_index, hashrec_cmp);
 
 		if ( !hbin_prs_lf_records( "lf_rec", parent->subkeys.hbin, 0, parent ) )
-			return False;
+			return NULL;
 	}
 
 	/* write the security descriptor */
@@ -1830,7 +1831,7 @@ static int hashrec_cmp( REGF_HASH_REC *h1, REGF_HASH_REC *h2 )
 				return NULL;
 			}
 
-			if ( !(nk->sec_desc = TALLOC_ZERO_P( file->mem_ctx, REGF_SK_REC )) )
+			if ( !(nk->sec_desc = talloc_zero( file->mem_ctx, REGF_SK_REC )) )
 				return NULL;
 	
 			/* now we have to store the security descriptor in the list and 
@@ -1897,7 +1898,7 @@ static int hashrec_cmp( REGF_HASH_REC *h1, REGF_HASH_REC *h2 )
 		
 		nk->subkeys.num_keys = nk->num_subkeys;
 		if (nk->subkeys.num_keys) {
-			if ( !(nk->subkeys.hashes = TALLOC_ZERO_ARRAY( file->mem_ctx, REGF_HASH_REC, nk->subkeys.num_keys )) )
+			if ( !(nk->subkeys.hashes = talloc_zero_array( file->mem_ctx, REGF_HASH_REC, nk->subkeys.num_keys )) )
 				return NULL;
 		} else {
 			nk->subkeys.hashes = NULL;
@@ -1925,7 +1926,7 @@ static int hashrec_cmp( REGF_HASH_REC *h1, REGF_HASH_REC *h2 )
 		nk->values_off = prs_offset( &vlist_hbin->ps ) + vlist_hbin->first_hbin_off - HBIN_HDR_SIZE;
 	
 		if (nk->num_values) {
-			if ( !(nk->values = TALLOC_ARRAY( file->mem_ctx, REGF_VK_REC, nk->num_values )) )
+			if ( !(nk->values = talloc_array( file->mem_ctx, REGF_VK_REC, nk->num_values )) )
 				return NULL;
 		} else {
 			nk->values = NULL;
@@ -1963,11 +1964,11 @@ static int hashrec_cmp( REGF_HASH_REC *h1, REGF_HASH_REC *h2 )
 	
 	prs_set_offset( &nk->hbin->ps, nk->hbin_off );
 	if ( !prs_nk_rec( "nk_rec", &nk->hbin->ps, 0, nk ) )
-		return False;
+		return NULL;
 
 	if ( nk->num_values ) {
 		if ( !hbin_prs_vk_records( "vk_records", vlist_hbin, 0, nk, file ) )
-			return False;
+			return NULL;
 	}
 
 

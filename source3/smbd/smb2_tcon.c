@@ -24,59 +24,59 @@
 #include "../libcli/smb/smb_common.h"
 #include "../libcli/security/security.h"
 #include "auth.h"
+#include "lib/param/loadparm.h"
+#include "../lib/util/tevent_ntstatus.h"
 
-static NTSTATUS smbd_smb2_tree_connect(struct smbd_smb2_request *req,
-				       const char *in_path,
-				       uint8_t *out_share_type,
-				       uint32_t *out_share_flags,
-				       uint32_t *out_capabilities,
-				       uint32_t *out_maximal_access,
-				       uint32_t *out_tree_id);
+static struct tevent_req *smbd_smb2_tree_connect_send(TALLOC_CTX *mem_ctx,
+					struct tevent_context *ev,
+					struct smbd_smb2_request *smb2req,
+					const char *in_path);
+static NTSTATUS smbd_smb2_tree_connect_recv(struct tevent_req *req,
+					    uint8_t *out_share_type,
+					    uint32_t *out_share_flags,
+					    uint32_t *out_capabilities,
+					    uint32_t *out_maximal_access,
+					    uint32_t *out_tree_id);
+
+static void smbd_smb2_request_tcon_done(struct tevent_req *subreq);
 
 NTSTATUS smbd_smb2_request_process_tcon(struct smbd_smb2_request *req)
 {
 	const uint8_t *inbody;
-	int i = req->current_idx;
-	uint8_t *outhdr;
-	DATA_BLOB outbody;
 	uint16_t in_path_offset;
 	uint16_t in_path_length;
 	DATA_BLOB in_path_buffer;
 	char *in_path_string;
 	size_t in_path_string_size;
-	uint8_t out_share_type = 0;
-	uint32_t out_share_flags = 0;
-	uint32_t out_capabilities = 0;
-	uint32_t out_maximal_access = 0;
-	uint32_t out_tree_id = 0;
 	NTSTATUS status;
 	bool ok;
+	struct tevent_req *subreq;
 
 	status = smbd_smb2_request_verify_sizes(req, 0x09);
 	if (!NT_STATUS_IS_OK(status)) {
 		return smbd_smb2_request_error(req, status);
 	}
-	inbody = (const uint8_t *)req->in.vector[i+1].iov_base;
+	inbody = SMBD_SMB2_IN_BODY_PTR(req);
 
 	in_path_offset = SVAL(inbody, 0x04);
 	in_path_length = SVAL(inbody, 0x06);
 
-	if (in_path_offset != (SMB2_HDR_BODY + req->in.vector[i+1].iov_len)) {
+	if (in_path_offset != (SMB2_HDR_BODY + SMBD_SMB2_IN_BODY_LEN(req))) {
 		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
 	}
 
-	if (in_path_length > req->in.vector[i+2].iov_len) {
+	if (in_path_length > SMBD_SMB2_IN_DYN_LEN(req)) {
 		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
 	}
 
-	in_path_buffer.data = (uint8_t *)req->in.vector[i+2].iov_base;
+	in_path_buffer.data = SMBD_SMB2_IN_DYN_PTR(req);
 	in_path_buffer.length = in_path_length;
 
 	ok = convert_string_talloc(req, CH_UTF16, CH_UNIX,
 				   in_path_buffer.data,
 				   in_path_buffer.length,
 				   &in_path_string,
-				   &in_path_string_size, false);
+				   &in_path_string_size);
 	if (!ok) {
 		return smbd_smb2_request_error(req, NT_STATUS_ILLEGAL_CHARACTER);
 	}
@@ -89,21 +89,61 @@ NTSTATUS smbd_smb2_request_process_tcon(struct smbd_smb2_request *req)
 		return smbd_smb2_request_error(req, NT_STATUS_BAD_NETWORK_NAME);
 	}
 
-	status = smbd_smb2_tree_connect(req, in_path_string,
-					&out_share_type,
-					&out_share_flags,
-					&out_capabilities,
-					&out_maximal_access,
-					&out_tree_id);
+	subreq = smbd_smb2_tree_connect_send(req,
+					     req->sconn->ev_ctx,
+					     req,
+					     in_path_string);
+	if (subreq == NULL) {
+		return smbd_smb2_request_error(req, NT_STATUS_NO_MEMORY);
+	}
+	tevent_req_set_callback(subreq, smbd_smb2_request_tcon_done, req);
+
+	return smbd_smb2_request_pending_queue(req, subreq, 500);
+}
+
+static void smbd_smb2_request_tcon_done(struct tevent_req *subreq)
+{
+	struct smbd_smb2_request *req =
+		tevent_req_callback_data(subreq,
+		struct smbd_smb2_request);
+	uint8_t *outhdr;
+	DATA_BLOB outbody;
+	uint8_t out_share_type = 0;
+	uint32_t out_share_flags = 0;
+	uint32_t out_capabilities = 0;
+	uint32_t out_maximal_access = 0;
+	uint32_t out_tree_id = 0;
+	NTSTATUS status;
+	NTSTATUS error;
+
+	status = smbd_smb2_tree_connect_recv(subreq,
+					     &out_share_type,
+					     &out_share_flags,
+					     &out_capabilities,
+					     &out_maximal_access,
+					     &out_tree_id);
+	TALLOC_FREE(subreq);
 	if (!NT_STATUS_IS_OK(status)) {
-		return smbd_smb2_request_error(req, status);
+		error = smbd_smb2_request_error(req, status);
+		if (!NT_STATUS_IS_OK(error)) {
+			smbd_server_connection_terminate(req->sconn,
+							 nt_errstr(error));
+			return;
+		}
+		return;
 	}
 
-	outhdr = (uint8_t *)req->out.vector[i].iov_base;
+	outhdr = SMBD_SMB2_OUT_HDR_PTR(req);
 
 	outbody = data_blob_talloc(req->out.vector, NULL, 0x10);
 	if (outbody.data == NULL) {
-		return smbd_smb2_request_error(req, NT_STATUS_NO_MEMORY);
+		error = smbd_smb2_request_error(req, NT_STATUS_NO_MEMORY);
+		if (!NT_STATUS_IS_OK(error)) {
+			smbd_server_connection_terminate(req->sconn,
+							 nt_errstr(error));
+			return;
+		}
+		return;
 	}
 
 	SIVAL(outhdr, SMB2_HDR_TID, out_tree_id);
@@ -119,30 +159,12 @@ NTSTATUS smbd_smb2_request_process_tcon(struct smbd_smb2_request *req)
 	SIVAL(outbody.data, 0x0C,
 	      out_maximal_access);		/* maximal access */
 
-	return smbd_smb2_request_done(req, outbody, NULL);
-}
-
-static int smbd_smb2_tcon_destructor(struct smbd_smb2_tcon *tcon)
-{
-	if (tcon->session == NULL) {
-		return 0;
+	error = smbd_smb2_request_done(req, outbody, NULL);
+	if (!NT_STATUS_IS_OK(error)) {
+		smbd_server_connection_terminate(req->sconn,
+						 nt_errstr(error));
+		return;
 	}
-
-	idr_remove(tcon->session->tcons.idtree, tcon->tid);
-	DLIST_REMOVE(tcon->session->tcons.list, tcon);
-	SMB_ASSERT(tcon->session->sconn->num_tcons_open > 0);
-	tcon->session->sconn->num_tcons_open--;
-
-	if (tcon->compat_conn) {
-		set_current_service(tcon->compat_conn, 0, true);
-		close_cnum(tcon->compat_conn, tcon->session->vuid);
-	}
-
-	tcon->compat_conn = NULL;
-	tcon->tid = 0;
-	tcon->session = NULL;
-
-	return 0;
 }
 
 static NTSTATUS smbd_smb2_tree_connect(struct smbd_smb2_request *req,
@@ -153,14 +175,17 @@ static NTSTATUS smbd_smb2_tree_connect(struct smbd_smb2_request *req,
 				       uint32_t *out_maximal_access,
 				       uint32_t *out_tree_id)
 {
+	struct smbXsrv_connection *conn = req->sconn->conn;
 	const char *share = in_path;
 	char *service = NULL;
 	int snum = -1;
-	struct smbd_smb2_tcon *tcon;
+	struct smbXsrv_tcon *tcon;
+	NTTIME now = timeval_to_nttime(&req->request_time);
 	connection_struct *compat_conn = NULL;
-	user_struct *compat_vuser = req->session->compat_vuser;
-	int id;
+	struct user_struct *compat_vuser = req->session->compat;
 	NTSTATUS status;
+	bool encryption_required = req->session->global->encryption_required;
+	bool guest_session = false;
 
 	if (strncmp(share, "\\\\", 2) == 0) {
 		const char *p = strchr(share+2, '\\');
@@ -177,7 +202,10 @@ static NTSTATUS smbd_smb2_tree_connect(struct smbd_smb2_request *req,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	strlower_m(service);
+	if (!strlower_m(service)) {
+		DEBUG(2, ("strlower_m %s failed\n", service));
+		return NT_STATUS_INVALID_PARAMETER;
+	}
 
 	/* TODO: do more things... */
 	if (strequal(service,HOMES_NAME)) {
@@ -186,13 +214,13 @@ static NTSTATUS smbd_smb2_tree_connect(struct smbd_smb2_request *req,
 				"user %s because it was not found "
 				"or created at session setup "
 				"time\n",
-				compat_vuser->session_info->unix_name));
+				compat_vuser->session_info->unix_info->unix_name));
 			return NT_STATUS_BAD_NETWORK_NAME;
 		}
 		snum = compat_vuser->homes_snum;
 	} else if ((compat_vuser->homes_snum != -1)
                    && strequal(service,
-			lp_servicename(compat_vuser->homes_snum))) {
+			lp_servicename(talloc_tos(), compat_vuser->homes_snum))) {
 		snum = compat_vuser->homes_snum;
 	} else {
 		snum = find_service(talloc_tos(), service, &service);
@@ -207,56 +235,85 @@ static NTSTATUS smbd_smb2_tree_connect(struct smbd_smb2_request *req,
 		return NT_STATUS_BAD_NETWORK_NAME;
 	}
 
-	/* create a new tcon as child of the session */
-	tcon = talloc_zero(req->session, struct smbd_smb2_tcon);
-	if (tcon == NULL) {
-		return NT_STATUS_NO_MEMORY;
+	if (lp_smb_encrypt(snum) == SMB_SIGNING_REQUIRED) {
+		encryption_required = true;
 	}
-	id = idr_get_new_random(req->session->tcons.idtree,
-				tcon,
-				req->session->tcons.limit);
-	if (id == -1) {
-		TALLOC_FREE(tcon);
-		return NT_STATUS_INSUFFICIENT_RESOURCES;
-	}
-	tcon->tid = id;
-	tcon->snum = snum;
 
-	DLIST_ADD_END(req->session->tcons.list, tcon,
-		      struct smbd_smb2_tcon *);
-	tcon->session = req->session;
-	tcon->session->sconn->num_tcons_open++;
-	talloc_set_destructor(tcon, smbd_smb2_tcon_destructor);
+	if (security_session_user_level(compat_vuser->session_info, NULL) < SECURITY_USER) {
+		guest_session = true;
+	}
+
+	if (guest_session && encryption_required) {
+		DEBUG(1,("reject guest as encryption is required for service %s\n",
+			 service));
+		return NT_STATUS_ACCESS_DENIED;
+	}
+
+	if (!(conn->smb2.server.capabilities & SMB2_CAP_ENCRYPTION)) {
+		if (encryption_required) {
+			DEBUG(1,("reject tcon with dialect[0x%04X] "
+				 "as encryption is required for service %s\n",
+				 conn->smb2.server.dialect, service));
+			return NT_STATUS_ACCESS_DENIED;
+		}
+	}
+
+	/* create a new tcon as child of the session */
+	status = smb2srv_tcon_create(req->session, now, &tcon);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	tcon->global->encryption_required = encryption_required;
 
 	compat_conn = make_connection_smb2(req->sconn,
-					tcon,
-					req->session->compat_vuser,
-					data_blob_null, "???",
+					tcon, snum,
+					req->session->compat,
+					"???",
 					&status);
 	if (compat_conn == NULL) {
 		TALLOC_FREE(tcon);
 		return status;
 	}
-	tcon->compat_conn = talloc_move(tcon, &compat_conn);
 
-	if (IS_PRINT(tcon->compat_conn)) {
+	tcon->global->share_name = lp_servicename(tcon->global,
+						  SNUM(compat_conn));
+	if (tcon->global->share_name == NULL) {
+		conn_free(compat_conn);
+		TALLOC_FREE(tcon);
+		return NT_STATUS_NO_MEMORY;
+	}
+	tcon->global->session_global_id =
+		req->session->global->session_global_id;
+
+	tcon->compat = talloc_move(tcon, &compat_conn);
+
+	tcon->status = NT_STATUS_OK;
+
+	status = smbXsrv_tcon_update(tcon);
+	if (!NT_STATUS_IS_OK(status)) {
+		TALLOC_FREE(tcon);
+		return status;
+	}
+
+	if (IS_PRINT(tcon->compat)) {
 		*out_share_type = SMB2_SHARE_TYPE_PRINT;
-	} else if (IS_IPC(tcon->compat_conn)) {
+	} else if (IS_IPC(tcon->compat)) {
 		*out_share_type = SMB2_SHARE_TYPE_PIPE;
 	} else {
 		*out_share_type = SMB2_SHARE_TYPE_DISK;
 	}
 
-	*out_share_flags = SMB2_SHAREFLAG_ALLOW_NAMESPACE_CACHING;
+	*out_share_flags = 0;
 
-	if (lp_msdfs_root(SNUM(tcon->compat_conn)) && lp_host_msdfs()) {
+	if (lp_msdfs_root(SNUM(tcon->compat)) && lp_host_msdfs()) {
 		*out_share_flags |= (SMB2_SHAREFLAG_DFS|SMB2_SHAREFLAG_DFS_ROOT);
 		*out_capabilities = SMB2_SHARE_CAP_DFS;
 	} else {
 		*out_capabilities = 0;
 	}
 
-	switch(lp_csc_policy(SNUM(tcon->compat_conn))) {
+	switch(lp_csc_policy(SNUM(tcon->compat))) {
 	case CSC_POLICY_MANUAL:
 		break;
 	case CSC_POLICY_DOCUMENTS:
@@ -272,53 +329,85 @@ static NTSTATUS smbd_smb2_tree_connect(struct smbd_smb2_request *req,
 		break;
 	}
 
-	*out_maximal_access = tcon->compat_conn->share_access;
+	if (lp_hideunreadable(SNUM(tcon->compat)) ||
+	    lp_hideunwriteable_files(SNUM(tcon->compat))) {
+		*out_share_flags |= SMB2_SHAREFLAG_ACCESS_BASED_DIRECTORY_ENUM;
+	}
 
-	*out_tree_id = tcon->tid;
+	if (encryption_required) {
+		*out_share_flags |= SMB2_SHAREFLAG_ENCRYPT_DATA;
+	}
+
+	*out_maximal_access = tcon->compat->share_access;
+
+	*out_tree_id = tcon->global->tcon_wire_id;
 	return NT_STATUS_OK;
 }
 
-NTSTATUS smbd_smb2_request_check_tcon(struct smbd_smb2_request *req)
+struct smbd_smb2_tree_connect_state {
+	const char *in_path;
+	uint8_t out_share_type;
+	uint32_t out_share_flags;
+	uint32_t out_capabilities;
+	uint32_t out_maximal_access;
+	uint32_t out_tree_id;
+};
+
+static struct tevent_req *smbd_smb2_tree_connect_send(TALLOC_CTX *mem_ctx,
+					struct tevent_context *ev,
+					struct smbd_smb2_request *smb2req,
+					const char *in_path)
 {
-	const uint8_t *inhdr;
-	int i = req->current_idx;
-	uint32_t in_flags;
-	uint32_t in_tid;
-	void *p;
-	struct smbd_smb2_tcon *tcon;
+	struct tevent_req *req;
+	struct smbd_smb2_tree_connect_state *state;
+	NTSTATUS status;
 
-	req->tcon = NULL;
+	req = tevent_req_create(mem_ctx, &state,
+				struct smbd_smb2_tree_connect_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->in_path = in_path;
 
-	inhdr = (const uint8_t *)req->in.vector[i+0].iov_base;
-
-	in_flags = IVAL(inhdr, SMB2_HDR_FLAGS);
-	in_tid = IVAL(inhdr, SMB2_HDR_TID);
-
-	if (in_flags & SMB2_HDR_FLAG_CHAINED) {
-		in_tid = req->last_tid;
+	status = smbd_smb2_tree_connect(smb2req,
+					state->in_path,
+					&state->out_share_type,
+					&state->out_share_flags,
+					&state->out_capabilities,
+					&state->out_maximal_access,
+					&state->out_tree_id);
+	if (tevent_req_nterror(req, status)) {
+		return tevent_req_post(req, ev);
 	}
 
-	req->last_tid = UINT32_MAX;
+	tevent_req_done(req);
+	return tevent_req_post(req, ev);
+}
 
-	/* lookup an existing session */
-	p = idr_find(req->session->tcons.idtree, in_tid);
-	if (p == NULL) {
-		return NT_STATUS_NETWORK_NAME_DELETED;
+static NTSTATUS smbd_smb2_tree_connect_recv(struct tevent_req *req,
+					    uint8_t *out_share_type,
+					    uint32_t *out_share_flags,
+					    uint32_t *out_capabilities,
+					    uint32_t *out_maximal_access,
+					    uint32_t *out_tree_id)
+{
+	struct smbd_smb2_tree_connect_state *state =
+		tevent_req_data(req,
+		struct smbd_smb2_tree_connect_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
 	}
-	tcon = talloc_get_type_abort(p, struct smbd_smb2_tcon);
 
-	if (!change_to_user(tcon->compat_conn,req->session->vuid)) {
-		return NT_STATUS_ACCESS_DENIED;
-	}
+	*out_share_type = state->out_share_type;
+	*out_share_flags = state->out_share_flags;
+	*out_capabilities = state->out_capabilities;
+	*out_maximal_access = state->out_maximal_access;
+	*out_tree_id = state->out_tree_id;
 
-	/* should we pass FLAG_CASELESS_PATHNAMES here? */
-	if (!set_current_service(tcon->compat_conn, 0, true)) {
-		return NT_STATUS_ACCESS_DENIED;
-	}
-
-	req->tcon = tcon;
-	req->last_tid = in_tid;
-
+	tevent_req_received(req);
 	return NT_STATUS_OK;
 }
 
@@ -334,8 +423,19 @@ NTSTATUS smbd_smb2_request_process_tdis(struct smbd_smb2_request *req)
 
 	/*
 	 * TODO: cancel all outstanding requests on the tcon
-	 *       and delete all file handles.
 	 */
+	status = smbXsrv_tcon_disconnect(req->tcon, req->tcon->compat->vuid);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("smbd_smb2_request_process_tdis: "
+			  "smbXsrv_tcon_disconnect() failed: %s\n",
+			  nt_errstr(status)));
+		/*
+		 * If we hit this case, there is something completely
+		 * wrong, so we better disconnect the transport connection.
+		 */
+		return status;
+	}
+
 	TALLOC_FREE(req->tcon);
 
 	outbody = data_blob_talloc(req->out.vector, NULL, 0x04);

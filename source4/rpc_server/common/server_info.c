@@ -25,6 +25,8 @@
 #include "dsdb/samdb/samdb.h"
 #include "auth/auth.h"
 #include "param/param.h"
+#include "rpc_server/common/common.h"
+#include "rpc_server/common/share.h"
 
 /* 
     Here are common server info functions used by some dcerpc server interfaces
@@ -66,28 +68,14 @@ uint32_t dcesrv_common_get_server_type(TALLOC_CTX *mem_ctx, struct tevent_contex
 	default_server_announce |= SV_TYPE_SERVER;
 	default_server_announce |= SV_TYPE_SERVER_UNIX;
 
-	switch (lpcfg_announce_as(dce_ctx->lp_ctx)) {
-		case ANNOUNCE_AS_NT_SERVER:
-			default_server_announce |= SV_TYPE_SERVER_NT;
-			/* fall through... */
-		case ANNOUNCE_AS_NT_WORKSTATION:
-			default_server_announce |= SV_TYPE_NT;
-			break;
-		case ANNOUNCE_AS_WIN95:
-			default_server_announce |= SV_TYPE_WIN95_PLUS;
-			break;
-		case ANNOUNCE_AS_WFW:
-			default_server_announce |= SV_TYPE_WFW;
-			break;
-		default:
-			break;
-	}
+	default_server_announce |= SV_TYPE_SERVER_NT;
+	default_server_announce |= SV_TYPE_NT;
 
 	switch (lpcfg_server_role(dce_ctx->lp_ctx)) {
 		case ROLE_DOMAIN_MEMBER:
 			default_server_announce |= SV_TYPE_DOMAIN_MEMBER;
 			break;
-		case ROLE_DOMAIN_CONTROLLER:
+		case ROLE_ACTIVE_DIRECTORY_DC:
 		{
 			struct ldb_context *samctx;
 			TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);

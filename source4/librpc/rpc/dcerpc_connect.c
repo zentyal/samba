@@ -186,16 +186,18 @@ static void continue_pipe_open_smb2(struct composite_context *ctx)
 /*
   Stage 2 of ncacn_np_smb2: Open a named pipe after successful smb2 connection
 */
-static void continue_smb2_connect(struct composite_context *ctx)
+static void continue_smb2_connect(struct tevent_req *subreq)
 {
 	struct composite_context *open_req;
-	struct composite_context *c = talloc_get_type(ctx->async.private_data,
-						      struct composite_context);
+	struct composite_context *c =
+		tevent_req_callback_data(subreq,
+		struct composite_context);
 	struct pipe_np_smb2_state *s = talloc_get_type(c->private_data,
 						       struct pipe_np_smb2_state);
 
 	/* receive result of smb2 connect request */
-	c->status = smb2_connect_recv(ctx, c, &s->tree);
+	c->status = smb2_connect_recv(subreq, c, &s->tree);
+	TALLOC_FREE(subreq);
 	if (!composite_is_ok(c)) return;
 
 	/* prepare named pipe open parameters */
@@ -220,7 +222,7 @@ static struct composite_context *dcerpc_pipe_connect_ncacn_np_smb2_send(
 {
 	struct composite_context *c;
 	struct pipe_np_smb2_state *s;
-	struct composite_context *conn_req;
+	struct tevent_req *subreq;
 	struct smbcli_options options;
 
 	/* composite context allocation and setup */
@@ -247,17 +249,18 @@ static struct composite_context *dcerpc_pipe_connect_ncacn_np_smb2_send(
 	lpcfg_smbcli_options(lp_ctx, &options);
 
 	/* send smb2 connect request */
-	conn_req = smb2_connect_send(mem_ctx, s->io.binding->host, 
+	subreq = smb2_connect_send(s, c->event_ctx,
+			s->io.binding->host,
 			lpcfg_parm_string_list(mem_ctx, lp_ctx, NULL, "smb2", "ports", NULL),
-					"IPC$", 
-				     s->io.resolve_ctx,
-				     s->io.creds,
-				     c->event_ctx,
-				     &options,
-					 lpcfg_socket_options(lp_ctx),
-					 lpcfg_gensec_settings(mem_ctx, lp_ctx)
-					 );
-	composite_continue(c, conn_req, continue_smb2_connect, c);
+			"IPC$",
+			s->io.resolve_ctx,
+			s->io.creds,
+			0, /* previous_session_id */
+			&options,
+			lpcfg_socket_options(lp_ctx),
+			lpcfg_gensec_settings(mem_ctx, lp_ctx));
+	if (composite_nomem(subreq, c)) return c;
+	tevent_req_set_callback(subreq, continue_smb2_connect, c);
 	return c;
 }
 
@@ -713,8 +716,14 @@ static void continue_pipe_auth(struct composite_context *ctx)
 static void dcerpc_connect_timeout_handler(struct tevent_context *ev, struct tevent_timer *te, 
 					   struct timeval t, void *private_data)
 {
-	struct composite_context *c = talloc_get_type(private_data, struct composite_context);
-	composite_error(c, NT_STATUS_IO_TIMEOUT);
+	struct composite_context *c = talloc_get_type_abort(private_data,
+						      struct composite_context);
+	struct pipe_connect_state *s = talloc_get_type_abort(c->private_data, struct pipe_connect_state);
+	if (!s->pipe->inhibit_timeout_processing) {
+		composite_error(c, NT_STATUS_IO_TIMEOUT);
+	} else {
+		s->pipe->timed_out = true;
+	}
 }
 
 /*
@@ -730,15 +739,12 @@ _PUBLIC_ struct composite_context* dcerpc_pipe_connect_b_send(TALLOC_CTX *parent
 {
 	struct composite_context *c;
 	struct pipe_connect_state *s;
-	struct tevent_context *new_ev = NULL;
 
 	/* composite context allocation and setup */
 	c = composite_create(parent_ctx, ev);
 	if (c == NULL) {
-		talloc_free(new_ev);
 		return NULL;
 	}
-	talloc_steal(c, new_ev);
 
 	s = talloc_zero(c, struct pipe_connect_state);
 	if (composite_nomem(s, c)) return c;
@@ -757,9 +763,12 @@ _PUBLIC_ struct composite_context* dcerpc_pipe_connect_b_send(TALLOC_CTX *parent
 	s->credentials  = credentials;
 	s->lp_ctx 	= lp_ctx;
 
-	event_add_timed(c->event_ctx, c,
-			timeval_current_ofs(DCERPC_REQUEST_TIMEOUT, 0),
-			dcerpc_connect_timeout_handler, c);
+	s->pipe->timed_out = false;
+	s->pipe->inhibit_timeout_processing = false;
+
+	tevent_add_timer(c->event_ctx, c,
+			 timeval_current_ofs(DCERPC_REQUEST_TIMEOUT, 0),
+			 dcerpc_connect_timeout_handler, c);
 	
 	switch (s->binding->transport) {
 	case NCA_UNKNOWN: {

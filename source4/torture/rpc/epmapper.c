@@ -204,7 +204,7 @@ static bool test_Map_tcpip(struct torture_context *tctx,
 			ndr_interface_name(&syntax.uuid, syntax.if_version));
 
 	dcerpc_floor_get_lhs_data(&t.floors[1], &syntax);
-	torture_assert(tctx, ndr_syntax_id_equal(&syntax, &ndr_transfer_syntax),
+	torture_assert(tctx, ndr_syntax_id_equal(&syntax, &ndr_transfer_syntax_ndr),
 		       "epm_Map_tcpip failed: floor 2 is not NDR encoded");
 
 	torture_assert(tctx, t.floors[2].lhs.protocol == EPM_PROTOCOL_NCACN,
@@ -406,12 +406,12 @@ static bool test_Map_simple(struct torture_context *tctx,
 	} while (NT_STATUS_IS_OK(status) &&
 		 r.out.result == EPMAPPER_STATUS_OK &&
 		 *r.out.num_ents == r.in.max_ents &&
-		 !policy_handle_empty(&entry_handle));
+		 !ndr_policy_handle_empty(&entry_handle));
 
 	torture_assert_ntstatus_ok(tctx, status, "epm_Map_simple failed");
 
 	torture_assert(tctx,
-		       policy_handle_empty(&entry_handle),
+		       ndr_policy_handle_empty(&entry_handle),
 		       "epm_Map_simple failed - The policy handle should be emtpy.");
 
 	return true;
@@ -427,7 +427,7 @@ static bool test_LookupHandleFree(struct torture_context *tctx,
 		torture_skip(tctx, "Skip Insert test against Samba4");
 	}
 
-	if (policy_handle_empty(entry_handle)) {
+	if (ndr_policy_handle_empty(entry_handle)) {
 		torture_comment(tctx,
 				"epm_LookupHandleFree failed - empty policy_handle\n");
 		return false;
@@ -504,13 +504,13 @@ static bool test_Lookup_simple(struct torture_context *tctx,
 	} while (NT_STATUS_IS_OK(status) &&
 		 r.out.result == EPMAPPER_STATUS_OK &&
 		 *r.out.num_ents == r.in.max_ents &&
-		 !policy_handle_empty(&entry_handle));
+		 !ndr_policy_handle_empty(&entry_handle));
 
 	torture_assert_ntstatus_ok(tctx, status, "epm_Lookup failed");
 	torture_assert(tctx, r.out.result == EPMAPPER_STATUS_NO_MORE_ENTRIES, "epm_Lookup failed");
 
 	torture_assert(tctx,
-		       policy_handle_empty(&entry_handle),
+		       ndr_policy_handle_empty(&entry_handle),
 		       "epm_Lookup failed - The policy handle should be emtpy.");
 
 	return true;

@@ -24,6 +24,7 @@
 #include "libcli/raw/libcliraw.h"
 #include "libcli/raw/raw_proto.h"
 #include "libcli/smb_composite/smb_composite.h"
+#include "../libcli/smb/smbXcli_base.h"
 
 #define SETUP_REQUEST_TREE(cmd, wct, buflen) do { \
 	req = smbcli_request_setup(tree, cmd, wct, buflen); \
@@ -49,6 +50,11 @@ _PUBLIC_ struct smbcli_tree *smbcli_tree_init(struct smbcli_session *session,
 		tree->session = talloc_reference(tree, session);
 	}
 
+	tree->smbXcli = smbXcli_tcon_create(tree);
+	if (tree->smbXcli == NULL) {
+		talloc_free(tree);
+		return NULL;
+	}
 
 	return tree;
 }
@@ -115,8 +121,12 @@ NTSTATUS smb_raw_tcon_recv(struct smbcli_request *req, TALLOC_CTX *mem_ctx,
 	case RAW_TCON_TCONX:
 		ZERO_STRUCT(parms->tconx.out);
 		parms->tconx.out.tid = SVAL(req->in.hdr, HDR_TID);
-		if (req->in.wct >= 4) {
-			parms->tconx.out.options = SVAL(req->in.vwv, VWV(3));
+		if (req->in.wct >= 3) {
+			parms->tconx.out.options = SVAL(req->in.vwv, VWV(2));
+		}
+		if (req->in.wct >= 7) {
+			parms->tconx.out.max_access = IVAL(req->in.vwv, VWV(3));
+			parms->tconx.out.guest_max_access = IVAL(req->in.vwv, VWV(5));
 		}
 
 		/* output is actual service name */
@@ -158,6 +168,9 @@ _PUBLIC_ NTSTATUS smb_tree_disconnect(struct smbcli_tree *tree)
 
 	if (!tree) return NT_STATUS_OK;
 	req = smbcli_request_setup(tree, SMBtdis, 0, 0);
+	if (req == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	if (smbcli_request_send(req)) {
 		(void) smbcli_request_receive(req);

@@ -306,6 +306,16 @@ static NTSTATUS drepl_replica_sync(struct irpc_message *msg,
 			werr = dreplsrv_partition_source_dsa_by_guid(p,
 			                                             &req1->source_dsa_guid,
 			                                             &dsa);
+			if (W_ERROR_EQUAL(werr, WERR_DS_DRA_NO_REPLICA)) {
+				/* we don't have this source setup as
+				   a replication partner. Create a
+				   temporary dsa structure for this
+				   replication */
+				werr = dreplsrv_partition_source_dsa_temporary(p,
+									       msg,
+									       &req1->source_dsa_guid,
+									       &dsa);
+			}
 		}
 		if (!W_ERROR_IS_OK(werr)) {
 			REPLICA_SYNC_FAIL("Failed to locate source DSA for given NC",
@@ -349,15 +359,6 @@ static NTSTATUS dreplsrv_refresh(struct irpc_message *msg,
 
 	r->out.result = dreplsrv_refresh_partitions(s);
 
-	return NT_STATUS_OK;
-}
-
-static NTSTATUS drepl_take_FSMO_role(struct irpc_message *msg,
-				     struct drepl_takeFSMORole *r)
-{
-	struct dreplsrv_service *service = talloc_get_type(msg->private_data,
-							   struct dreplsrv_service);
-	r->out.result = dreplsrv_fsmo_role_check(service, r->in.role);
 	return NT_STATUS_OK;
 }
 
@@ -433,7 +434,7 @@ static void dreplsrv_task_init(struct task_server *task)
 		task_server_terminate(task, "dreplsrv: no DSDB replication required in domain member configuration",
 				      false);
 		return;
-	case ROLE_DOMAIN_CONTROLLER:
+	case ROLE_ACTIVE_DIRECTORY_DC:
 		/* Yes, we want DSDB replication */
 		break;
 	}
@@ -506,7 +507,7 @@ static void dreplsrv_task_init(struct task_server *task)
 	IRPC_REGISTER(task->msg_ctx, drsuapi, DRSUAPI_DSREPLICAMOD, dreplsrv_replica_mod, service);
 	IRPC_REGISTER(task->msg_ctx, irpc, DREPL_TAKEFSMOROLE, drepl_take_FSMO_role, service);
 	IRPC_REGISTER(task->msg_ctx, irpc, DREPL_TRIGGER_REPL_SECRET, drepl_trigger_repl_secret, service);
-	messaging_register(task->msg_ctx, service, MSG_DREPL_ALLOCATE_RID, dreplsrv_allocate_rid);
+	imessaging_register(task->msg_ctx, service, MSG_DREPL_ALLOCATE_RID, dreplsrv_allocate_rid);
 }
 
 /*

@@ -124,6 +124,19 @@ tdb_off_t tdb_find_lock_hash(struct tdb_context *tdb, TDB_DATA key, uint32_t has
 
 static TDB_DATA _tdb_fetch(struct tdb_context *tdb, TDB_DATA key);
 
+static int tdb_update_hash_cmp(TDB_DATA key, TDB_DATA data, void *private_data)
+{
+	TDB_DATA *dbuf = (TDB_DATA *)private_data;
+
+	if (dbuf->dsize != data.dsize) {
+		return -1;
+	}
+	if (memcmp(dbuf->dptr, data.dptr, data.dsize) != 0) {
+		return -1;
+	}
+	return 0;
+}
+
 /* update an entry in place - this only works if the new data size
    is <= the old data size and the key exists.
    on failure return -1.
@@ -141,18 +154,9 @@ static int tdb_update_hash(struct tdb_context *tdb, TDB_DATA key, uint32_t hash,
 	 * surprisingly common (eg. with a ldb re-index). */
 	if (rec.key_len == key.dsize && 
 	    rec.data_len == dbuf.dsize &&
-	    rec.full_hash == hash) {
-		TDB_DATA data = _tdb_fetch(tdb, key);
-		if (data.dsize == dbuf.dsize &&
-		    memcmp(data.dptr, dbuf.dptr, data.dsize) == 0) {
-			if (data.dptr) {
-				free(data.dptr);
-			}
-			return 0;
-		}
-		if (data.dptr) {
-			free(data.dptr);
-		}
+	    rec.full_hash == hash &&
+	    tdb_parse_record(tdb, key, tdb_update_hash_cmp, &dbuf) == 0) {
+		return 0;
 	}
 
 	/* must be long enough key, data and tailer */
@@ -473,7 +477,6 @@ static int _tdb_store(struct tdb_context *tdb, TDB_DATA key,
 {
 	struct tdb_record rec;
 	tdb_off_t rec_ptr;
-	char *p = NULL;
 	int ret = -1;
 
 	/* check for it existing, on insert. */
@@ -503,18 +506,6 @@ static int _tdb_store(struct tdb_context *tdb, TDB_DATA key,
 	if (flag != TDB_INSERT)
 		tdb_delete_hash(tdb, key, hash);
 
-	/* Copy key+value *before* allocating free space in case malloc
-	   fails and we are left with a dead spot in the tdb. */
-
-	if (!(p = (char *)malloc(key.dsize + dbuf.dsize))) {
-		tdb->ecode = TDB_ERR_OOM;
-		goto fail;
-	}
-
-	memcpy(p, key.dptr, key.dsize);
-	if (dbuf.dsize)
-		memcpy(p+key.dsize, dbuf.dptr, dbuf.dsize);
-
 	if (tdb->max_dead_records != 0) {
 		/*
 		 * Allow for some dead records per hash chain, look if we can
@@ -534,7 +525,10 @@ static int _tdb_store(struct tdb_context *tdb, TDB_DATA key,
 			if (tdb_rec_write(tdb, rec_ptr, &rec) == -1
 			    || tdb->methods->tdb_write(
 				    tdb, rec_ptr + sizeof(rec),
-				    p, key.dsize + dbuf.dsize) == -1) {
+				    key.dptr, key.dsize) == -1
+			    || tdb->methods->tdb_write(
+				    tdb, rec_ptr + sizeof(rec) + key.dsize,
+				    dbuf.dptr, dbuf.dsize) == -1) {
 				goto fail;
 			}
 			goto done;
@@ -577,7 +571,10 @@ static int _tdb_store(struct tdb_context *tdb, TDB_DATA key,
 
 	/* write out and point the top of the hash chain at it */
 	if (tdb_rec_write(tdb, rec_ptr, &rec) == -1
-	    || tdb->methods->tdb_write(tdb, rec_ptr+sizeof(rec), p, key.dsize+dbuf.dsize)==-1
+	    || tdb->methods->tdb_write(tdb, rec_ptr+sizeof(rec),
+				       key.dptr, key.dsize) == -1
+	    || tdb->methods->tdb_write(tdb, rec_ptr+sizeof(rec)+key.dsize,
+				       dbuf.dptr, dbuf.dsize) == -1
 	    || tdb_ofs_write(tdb, TDB_HASH_TOP(hash), &rec_ptr) == -1) {
 		/* Need to tdb_unallocate() here */
 		goto fail;
@@ -589,8 +586,6 @@ static int _tdb_store(struct tdb_context *tdb, TDB_DATA key,
 	if (ret == 0) {
 		tdb_increment_seqnum(tdb);
 	}
-
-	SAFE_FREE(p); 
 	return ret;
 }
 
@@ -886,6 +881,8 @@ _PUBLIC_ int tdb_wipe_all(struct tdb_context *tdb)
 		}
 	}
 
+	tdb_increment_seqnum_nonblock(tdb);
+
 	if (tdb_unlockall(tdb) != 0) {
 		TDB_LOG((tdb, TDB_DEBUG_FATAL,"tdb_wipe_all: failed to unlock\n"));
 		goto failed;
@@ -1006,7 +1003,7 @@ bool tdb_write_all(int fd, const void *buf, size_t count)
 #ifdef TDB_TRACE
 static void tdb_trace_write(struct tdb_context *tdb, const char *str)
 {
-	if (!tdb_write_alltdb->tracefd, str, strlen(str)) {
+	if (!tdb_write_all(tdb->tracefd, str, strlen(str))) {
 		close(tdb->tracefd);
 		tdb->tracefd = -1;
 	}

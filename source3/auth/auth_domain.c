@@ -31,73 +31,7 @@
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_AUTH
 
-extern bool global_machine_password_needs_changing;
 static struct named_mutex *mutex;
-
-/*
- * Change machine password (called from main loop
- * idle timeout. Must be done as root.
- */
-
-void attempt_machine_password_change(void)
-{
-	unsigned char trust_passwd_hash[16];
-	time_t lct;
-	void *lock;
-
-	if (!global_machine_password_needs_changing) {
-		return;
-	}
-
-	if (lp_security() != SEC_DOMAIN) {
-		return;
-	}
-
-	/*
-	 * We're in domain level security, and the code that
-	 * read the machine password flagged that the machine
-	 * password needs changing.
-	 */
-
-	/*
-	 * First, open the machine password file with an exclusive lock.
-	 */
-
-	lock = secrets_get_trust_account_lock(NULL, lp_workgroup());
-
-	if (lock == NULL) {
-		DEBUG(0,("attempt_machine_password_change: unable to lock "
-			"the machine account password for machine %s in "
-			"domain %s.\n",
-			global_myname(), lp_workgroup() ));
-		return;
-	}
-
-	if(!secrets_fetch_trust_account_password(lp_workgroup(),
-			trust_passwd_hash, &lct, NULL)) {
-		DEBUG(0,("attempt_machine_password_change: unable to read the "
-			"machine account password for %s in domain %s.\n",
-			global_myname(), lp_workgroup()));
-		TALLOC_FREE(lock);
-		return;
-	}
-
-	/*
-	 * Make sure someone else hasn't already done this.
-	 */
-
-	if(time(NULL) < lct + lp_machine_password_timeout()) {
-		global_machine_password_needs_changing = false;
-		TALLOC_FREE(lock);
-		return;
-	}
-
-	/* always just contact the PDC here */
-
-	change_trust_account_password( lp_workgroup(), NULL);
-	global_machine_password_needs_changing = false;
-	TALLOC_FREE(lock);
-}
 
 /**
  * Connect to a remote server for (inter)domain security authenticaion.
@@ -116,7 +50,7 @@ void attempt_machine_password_change(void)
 static NTSTATUS connect_to_domain_password_server(struct cli_state **cli,
 						const char *domain,
 						const char *dc_name,
-						struct sockaddr_storage *dc_ss, 
+						const struct sockaddr_storage *dc_ss,
 						struct rpc_pipe_client **pipe_ret)
 {
         NTSTATUS result;
@@ -146,8 +80,8 @@ static NTSTATUS connect_to_domain_password_server(struct cli_state **cli,
 	}
 
 	/* Attempt connection */
-	result = cli_full_connection(cli, global_myname(), dc_name, dc_ss, 0, 
-		"IPC$", "IPC", "", "", "", 0, Undefined);
+	result = cli_full_connection(cli, lp_netbios_name(), dc_name, dc_ss, 0,
+		"IPC$", "IPC", "", "", "", 0, SMB_SIGNING_DEFAULT);
 
 	if (!NT_STATUS_IS_OK(result)) {
 		/* map to something more useful */
@@ -219,7 +153,7 @@ machine %s. Error was : %s.\n", dc_name, nt_errstr(result)));
 		result = rpccli_netlogon_setup_creds(netlogon_pipe,
 					dc_name, /* server name */
 					domain, /* domain */
-					global_myname(), /* client name */
+					lp_netbios_name(), /* client name */
 					account_name, /* machine account name */
 					machine_pwd,
 					sec_chan_type,
@@ -234,8 +168,9 @@ machine %s. Error was : %s.\n", dc_name, nt_errstr(result)));
 	}
 
 	if(!netlogon_pipe) {
-		DEBUG(0,("connect_to_domain_password_server: unable to open the domain client session to \
-machine %s. Error was : %s.\n", dc_name, cli_errstr(*cli)));
+		DEBUG(0, ("connect_to_domain_password_server: unable to open "
+			  "the domain client session to machine %s. Error "
+			  "was : %s.\n", dc_name, nt_errstr(result)));
 		cli_shutdown(*cli);
 		*cli = NULL;
 		TALLOC_FREE(mutex);
@@ -261,7 +196,7 @@ static NTSTATUS domain_client_validate(TALLOC_CTX *mem_ctx,
 					uchar chal[8],
 					struct auth_serversupplied_info **server_info,
 					const char *dc_name,
-					struct sockaddr_storage *dc_ss)
+					const struct sockaddr_storage *dc_ss)
 
 {
 	struct netr_SamInfo3 *info3 = NULL;
@@ -298,7 +233,7 @@ static NTSTATUS domain_client_validate(TALLOC_CTX *mem_ctx,
 
 	/* store a successful connection */
 
-	saf_store( domain, cli->desthost );
+	saf_store(domain, dc_name);
 
         /*
          * If this call succeeds, we now have lots of info about the user
@@ -419,7 +354,7 @@ static NTSTATUS auth_init_ntdomain(struct auth_context *auth_context, const char
 {
 	struct auth_methods *result;
 
-	result = TALLOC_ZERO_P(auth_context, struct auth_methods);
+	result = talloc_zero(auth_context, struct auth_methods);
 	if (result == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -492,14 +427,6 @@ static NTSTATUS check_trustdomain_security(const struct auth_context *auth_conte
 	E_md4hash(trust_password, trust_md4_password);
 	SAFE_FREE(trust_password);
 
-#if 0
-	/* Test if machine password is expired and need to be changed */
-	if (time(NULL) > last_change_time + (time_t)lp_machine_password_timeout())
-	{
-		global_machine_password_needs_changing = True;
-	}
-#endif
-
 	/* use get_dc_name() for consistency even through we know that it will be 
 	   a netbios name */
 
@@ -525,7 +452,7 @@ static NTSTATUS auth_init_trustdomain(struct auth_context *auth_context, const c
 {
 	struct auth_methods *result;
 
-	result = TALLOC_ZERO_P(auth_context, struct auth_methods);
+	result = talloc_zero(auth_context, struct auth_methods);
 	if (result == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}

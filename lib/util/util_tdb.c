@@ -4,7 +4,8 @@
    tdb utility functions
 
    Copyright (C) Andrew Tridgell 1992-2006
-   
+   Copyright (C) Volker Lendecke 2007-2011
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
@@ -20,7 +21,8 @@
 */
 
 #include "includes.h"
-#include <tdb.h>
+#include "system/filesys.h"
+#include "../lib/tdb/include/tdb.h"
 #include "../lib/util/util_tdb.h"
 
 /* these are little tdb utility functions that are meant to make
@@ -46,6 +48,11 @@ bool tdb_data_equal(TDB_DATA t1, TDB_DATA t2)
 	return (memcmp(t1.dptr, t2.dptr, t1.dsize) == 0);
 }
 
+bool tdb_data_is_empty(TDB_DATA d)
+{
+	return (d.dsize == 0) || (d.dptr == NULL);
+}
+
 TDB_DATA string_tdb_data(const char *string)
 {
 	return make_tdb_data((const uint8_t *)string, string ? strlen(string) : 0 );
@@ -57,7 +64,7 @@ TDB_DATA string_term_tdb_data(const char *string)
 }
 
 /****************************************************************************
- Lock a chain by string. Return -1 if lock failed.
+ Lock a chain by string. Return non-zero if lock failed.
 ****************************************************************************/
 
 int tdb_lock_bystring(struct tdb_context *tdb, const char *keyval)
@@ -79,7 +86,7 @@ void tdb_unlock_bystring(struct tdb_context *tdb, const char *keyval)
 }
 
 /****************************************************************************
- Read lock a chain by string. Return -1 if lock failed.
+ Read lock a chain by string. Return non-zero if lock failed.
 ****************************************************************************/
 
 int tdb_read_lock_bystring(struct tdb_context *tdb, const char *keyval)
@@ -133,7 +140,7 @@ int32_t tdb_fetch_int32(struct tdb_context *tdb, const char *keystr)
 }
 
 /****************************************************************************
- Store a int32_t value by an arbitrary blob key, return 0 on success, -1 on failure.
+ Store a int32_t value by an arbitrary blob key, return 0 on success, -ve on failure.
  Input is int32_t in native byte order. Output in tdb is in little-endian.
 ****************************************************************************/
 
@@ -150,7 +157,7 @@ int tdb_store_int32_byblob(struct tdb_context *tdb, TDB_DATA key, int32_t v)
 }
 
 /****************************************************************************
- Store a int32_t value by string key, return 0 on success, -1 on failure.
+ Store a int32_t value by string key, return 0 on success, -ve on failure.
  Input is int32_t in native byte order. Output in tdb is in little-endian.
 ****************************************************************************/
 
@@ -190,7 +197,7 @@ bool tdb_fetch_uint32(struct tdb_context *tdb, const char *keystr, uint32_t *val
 }
 
 /****************************************************************************
- Store a uint32_t value by an arbitrary blob key, return 0 on success, -1 on failure.
+ Store a uint32_t value by an arbitrary blob key, return true on success, false on failure.
  Input is uint32_t in native byte order. Output in tdb is in little-endian.
 ****************************************************************************/
 
@@ -204,14 +211,14 @@ bool tdb_store_uint32_byblob(struct tdb_context *tdb, TDB_DATA key, uint32_t val
 	data.dptr = (unsigned char *)&v_store;
 	data.dsize = sizeof(uint32_t);
 
-	if (tdb_store(tdb, key, data, TDB_REPLACE) == -1)
+	if (tdb_store(tdb, key, data, TDB_REPLACE) != 0)
 		ret = false;
 
 	return ret;
 }
 
 /****************************************************************************
- Store a uint32_t value by string key, return 0 on success, -1 on failure.
+ Store a uint32_t value by string key, return true on success, false on failure.
  Input is uint32_t in native byte order. Output in tdb is in little-endian.
 ****************************************************************************/
 
@@ -220,7 +227,7 @@ bool tdb_store_uint32(struct tdb_context *tdb, const char *keystr, uint32_t valu
 	return tdb_store_uint32_byblob(tdb, string_term_tdb_data(keystr), value);
 }
 /****************************************************************************
- Store a buffer by a null terminated string key.  Return 0 on success, -1
+ Store a buffer by a null terminated string key.  Return 0 on success, -ve
  on failure.
 ****************************************************************************/
 
@@ -263,7 +270,7 @@ int32_t tdb_change_int32_atomic(struct tdb_context *tdb, const char *keystr, int
 	int32_t val;
 	int32_t ret = -1;
 
-	if (tdb_lock_bystring(tdb, keystr) == -1)
+	if (tdb_lock_bystring(tdb, keystr) != 0)
 		return -1;
 
 	if ((val = tdb_fetch_int32(tdb, keystr)) == -1) {
@@ -284,7 +291,7 @@ int32_t tdb_change_int32_atomic(struct tdb_context *tdb, const char *keystr, int
 	/* Increment value for storage and return next time */
 	val += change_val;
 		
-	if (tdb_store_int32(tdb, keystr, val) == -1)
+	if (tdb_store_int32(tdb, keystr, val) != 0)
 		goto err_out;
 
 	ret = 0;
@@ -293,6 +300,84 @@ int32_t tdb_change_int32_atomic(struct tdb_context *tdb, const char *keystr, int
 
 	tdb_unlock_bystring(tdb, keystr);
 	return ret;
+}
+
+static sig_atomic_t gotalarm;
+
+/***************************************************************
+ Signal function to tell us we timed out.
+****************************************************************/
+
+static void gotalarm_sig(int signum)
+{
+	gotalarm = 1;
+}
+
+/****************************************************************************
+ Lock a chain with timeout (in seconds).
+****************************************************************************/
+
+static int tdb_chainlock_with_timeout_internal( TDB_CONTEXT *tdb, TDB_DATA key, unsigned int timeout, int rw_type)
+{
+	/* Allow tdb_chainlock to be interrupted by an alarm. */
+	int ret;
+	gotalarm = 0;
+
+	if (timeout) {
+		CatchSignal(SIGALRM, gotalarm_sig);
+		tdb_setalarm_sigptr(tdb, &gotalarm);
+		alarm(timeout);
+	}
+
+	if (rw_type == F_RDLCK)
+		ret = tdb_chainlock_read(tdb, key);
+	else
+		ret = tdb_chainlock(tdb, key);
+
+	if (timeout) {
+		alarm(0);
+		tdb_setalarm_sigptr(tdb, NULL);
+		CatchSignal(SIGALRM, SIG_IGN);
+		if (gotalarm && (ret != 0)) {
+			DEBUG(0,("tdb_chainlock_with_timeout_internal: alarm (%u) timed out for key %s in tdb %s\n",
+				timeout, key.dptr, tdb_name(tdb)));
+			/* TODO: If we time out waiting for a lock, it might
+			 * be nice to use F_GETLK to get the pid of the
+			 * process currently holding the lock and print that
+			 * as part of the debugging message. -- mbp */
+			return -1;
+		}
+	}
+
+	return ret == 0 ? 0 : -1;
+}
+
+/****************************************************************************
+ Write lock a chain. Return non-zero if timeout or lock failed.
+****************************************************************************/
+
+int tdb_chainlock_with_timeout( TDB_CONTEXT *tdb, TDB_DATA key, unsigned int timeout)
+{
+	return tdb_chainlock_with_timeout_internal(tdb, key, timeout, F_WRLCK);
+}
+
+int tdb_lock_bystring_with_timeout(TDB_CONTEXT *tdb, const char *keyval,
+				   int timeout)
+{
+	TDB_DATA key = string_term_tdb_data(keyval);
+
+	return tdb_chainlock_with_timeout(tdb, key, timeout);
+}
+
+/****************************************************************************
+ Read lock a chain by string. Return non-zero if timeout or lock failed.
+****************************************************************************/
+
+int tdb_read_lock_bystring_with_timeout(TDB_CONTEXT *tdb, const char *keyval, unsigned int timeout)
+{
+	TDB_DATA key = string_term_tdb_data(keyval);
+
+	return tdb_chainlock_with_timeout_internal(tdb, key, timeout, F_RDLCK);
 }
 
 /****************************************************************************
@@ -304,7 +389,7 @@ bool tdb_change_uint32_atomic(struct tdb_context *tdb, const char *keystr, uint3
 	uint32_t val;
 	bool ret = false;
 
-	if (tdb_lock_bystring(tdb, keystr) == -1)
+	if (tdb_lock_bystring(tdb, keystr) != 0)
 		return false;
 
 	if (!tdb_fetch_uint32(tdb, keystr, &val)) {
@@ -345,4 +430,62 @@ int tdb_traverse_delete_fn(struct tdb_context *the_tdb, TDB_DATA key, TDB_DATA d
                      void *state)
 {
     return tdb_delete(the_tdb, key);
+}
+
+/****************************************************************************
+ Return an NTSTATUS from a TDB_ERROR
+****************************************************************************/
+
+NTSTATUS map_nt_error_from_tdb(enum TDB_ERROR err)
+{
+	NTSTATUS result = NT_STATUS_INTERNAL_ERROR;
+
+	switch (err) {
+	case TDB_SUCCESS:
+		result = NT_STATUS_OK;
+		break;
+	case TDB_ERR_CORRUPT:
+		result = NT_STATUS_INTERNAL_DB_CORRUPTION;
+		break;
+	case TDB_ERR_IO:
+		result = NT_STATUS_UNEXPECTED_IO_ERROR;
+		break;
+	case TDB_ERR_OOM:
+		result = NT_STATUS_NO_MEMORY;
+		break;
+	case TDB_ERR_EXISTS:
+		result = NT_STATUS_OBJECT_NAME_COLLISION;
+		break;
+
+	case TDB_ERR_LOCK:
+		/*
+		 * TDB_ERR_LOCK is very broad, we could for example
+		 * distinguish between fcntl locks and invalid lock
+		 * sequences. So NT_STATUS_FILE_LOCK_CONFLICT is a
+		 * compromise.
+		 */
+		result = NT_STATUS_FILE_LOCK_CONFLICT;
+		break;
+
+	case TDB_ERR_NOLOCK:
+	case TDB_ERR_LOCK_TIMEOUT:
+		/*
+		 * These two ones in the enum are not actually used
+		 */
+		result = NT_STATUS_FILE_LOCK_CONFLICT;
+		break;
+	case TDB_ERR_NOEXIST:
+		result = NT_STATUS_NOT_FOUND;
+		break;
+	case TDB_ERR_EINVAL:
+		result = NT_STATUS_INVALID_PARAMETER;
+		break;
+	case TDB_ERR_RDONLY:
+		result = NT_STATUS_ACCESS_DENIED;
+		break;
+	case TDB_ERR_NESTING:
+		result = NT_STATUS_INTERNAL_ERROR;
+		break;
+	};
+	return result;
 }

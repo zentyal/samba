@@ -83,17 +83,16 @@ static void popt_samba_callback(poptContext con,
 		pname++;
 
 	if (reason == POPT_CALLBACK_REASON_PRE) {
-		cmdline_lp_ctx = loadparm_init_global(false);
-
 		/* Hook for 'almost the first thing to do in a samba program' here */
 		/* setup for panics */
-		fault_setup(poptGetInvocationName(con));
+		fault_setup();
 
 		/* and logging */
-		setup_logging(pname, DEBUG_STDOUT);
+		setup_logging(pname, DEBUG_DEFAULT_STDOUT);
 		talloc_set_log_fn(popt_s4_talloc_log_fn);
 		talloc_set_abort_fn(smb_panic);
 
+		cmdline_lp_ctx = loadparm_init_global(false);
 		return;
 	}
 
@@ -187,7 +186,7 @@ static void popt_common_callback(poptContext con,
 	}
 }
 
-struct poptOption popt_common_connection[] = {
+struct poptOption popt_common_connection4[] = {
 	{ NULL, 0, POPT_ARG_CALLBACK, (void *)popt_common_callback },
 	{ "name-resolve", 'R', POPT_ARG_STRING, NULL, 'R', "Use these name resolution services only", "NAME-RESOLVE-ORDER" },
 	{ "socket-options", 'O', POPT_ARG_STRING, NULL, 'O', "socket options to use", "SOCKETOPTIONS" },
@@ -200,7 +199,7 @@ struct poptOption popt_common_connection[] = {
 	{ NULL }
 };
 
-struct poptOption popt_common_samba[] = {
+struct poptOption popt_common_samba4[] = {
 	{ NULL, 0, POPT_ARG_CALLBACK|POPT_CBFLAG_PRE|POPT_CBFLAG_POST, (void *)popt_samba_callback },
 	{ "debuglevel",   'd', POPT_ARG_STRING, NULL, 'd', "Set debug level", "DEBUGLEVEL" },
 	{ "debug-stderr", 0, POPT_ARG_NONE, NULL, OPT_DEBUG_STDERR, "Send debug output to STDERR", NULL },
@@ -212,7 +211,7 @@ struct poptOption popt_common_samba[] = {
 	{ NULL }
 };
 
-struct poptOption popt_common_version[] = {
+struct poptOption popt_common_version4[] = {
 	{ NULL, 0, POPT_ARG_CALLBACK, (void *)popt_version_callback },
 	{ "version", 'V', POPT_ARG_NONE, NULL, 'V', "Print version" },
 	{ NULL }

@@ -25,6 +25,8 @@
 #include <Python.h>
 #include <tevent.h>
 
+void init_tevent(void);
+
 typedef struct {
 	PyObject_HEAD
 	struct tevent_context *ev;
@@ -86,7 +88,7 @@ static void py_set_fd_close_fn(struct tevent_fd *fde,
 	/* FIXME */
 }
 
-uint16_t py_get_fd_flags(struct tevent_fd *fde)
+static uint16_t py_get_fd_flags(struct tevent_fd *fde)
 {
 	/* FIXME */
 	return 0;
@@ -329,7 +331,7 @@ static void py_tevent_signal_dealloc(TeventSignal_Object *self)
 }
 
 static PyTypeObject TeventSignal_Type = {
-	.tp_name = "Signal",
+	.tp_name = "tevent.Signal",
 	.tp_basicsize = sizeof(TeventSignal_Object),
 	.tp_dealloc = (destructor)py_tevent_signal_dealloc,
 	.tp_flags = Py_TPFLAGS_DEFAULT,
@@ -660,7 +662,7 @@ static PyObject *py_tevent_context_new(PyTypeObject *type, PyObject *args, PyObj
 }
 
 static PyTypeObject TeventContext_Type = {
-	.tp_name = "_tevent.Context",
+	.tp_name = "tevent.Context",
 	.tp_new = py_tevent_context_new,
 	.tp_basicsize = sizeof(TeventContext_Object),
 	.tp_dealloc = (destructor)py_tevent_context_dealloc,
@@ -759,4 +761,6 @@ void init_tevent(void)
 
 	Py_INCREF(&TeventFd_Type);
 	PyModule_AddObject(m, "Fd", (PyObject *)&TeventFd_Type);
+
+	PyModule_AddObject(m, "__version__", PyString_FromString(PACKAGE_VERSION));
 }

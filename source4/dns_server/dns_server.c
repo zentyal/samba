@@ -42,6 +42,11 @@
 #include "dsdb/common/util.h"
 #include "auth/session.h"
 #include "lib/util/dlinklist.h"
+#include "lib/util/tevent_werror.h"
+#include "auth/auth.h"
+#include "auth/credentials/credentials.h"
+
+NTSTATUS server_service_dns_init(void);
 
 /* hold information about one dns socket */
 struct dns_socket {
@@ -91,98 +96,165 @@ static void dns_tcp_send(struct stream_connection *conn, uint16_t flags)
 	dns_tcp_terminate_connection(dnsconn, "dns_tcp_send: called");
 }
 
-static NTSTATUS dns_process(struct dns_server *dns,
-			    TALLOC_CTX *mem_ctx,
-			    DATA_BLOB *in,
-			    DATA_BLOB *out)
+struct dns_process_state {
+	DATA_BLOB *in;
+	struct dns_server *dns;
+	struct dns_name_packet in_packet;
+	struct dns_request_state state;
+	uint16_t dns_err;
+	struct dns_name_packet out_packet;
+	DATA_BLOB out;
+};
+
+static void dns_process_done(struct tevent_req *subreq);
+
+static struct tevent_req *dns_process_send(TALLOC_CTX *mem_ctx,
+					   struct tevent_context *ev,
+					   struct dns_server *dns,
+					   DATA_BLOB *in)
 {
+	struct tevent_req *req, *subreq;
+	struct dns_process_state *state;
 	enum ndr_err_code ndr_err;
 	WERROR ret;
-	struct dns_name_packet *in_packet;
-	struct dns_name_packet *out_packet;
-	struct dns_res_rec *answers = NULL, *nsrecs = NULL, *additional = NULL;
-	uint16_t num_answers = 0 , num_nsrecs = 0, num_additional = 0;
+	const char *forwarder = lpcfg_dns_forwarder(dns->task->lp_ctx);
+	req = tevent_req_create(mem_ctx, &state, struct dns_process_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->in = in;
+
+	state->dns = dns;
 
 	if (in->length < 12) {
-		return NT_STATUS_INVALID_PARAMETER;
+		tevent_req_werror(req, WERR_INVALID_PARAM);
+		return tevent_req_post(req, ev);
 	}
+	dump_data(8, in->data, in->length);
 
-	in_packet = talloc_zero(mem_ctx, struct dns_name_packet);
-	/* TODO: We don't really need an out_packet. */
-	out_packet = talloc_zero(mem_ctx, struct dns_name_packet);
+	ndr_err = ndr_pull_struct_blob(
+		in, state, &state->in_packet,
+		(ndr_pull_flags_fn_t)ndr_pull_dns_name_packet);
 
-	if (in_packet == NULL) return NT_STATUS_NO_MEMORY;
-	if (out_packet == NULL) return NT_STATUS_NO_MEMORY;
-
-	dump_data(2, in->data, in->length);
-
-	ndr_err = ndr_pull_struct_blob(in, in_packet, in_packet,
-			(ndr_pull_flags_fn_t)ndr_pull_dns_name_packet);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-		TALLOC_FREE(in_packet);
-		DEBUG(0, ("Failed to parse packet %d!\n", ndr_err));
-		*out = *in;
-
-		out->data[2] |= 0x80; /* Toggle DNS_FLAG_REPLY */
-		out->data[3] |= DNS_RCODE_FORMERR;
-
-		return NT_STATUS_OK;
+		state->dns_err = DNS_RCODE_FORMERR;
+		tevent_req_done(req);
+		return tevent_req_post(req, ev);
+	}
+	if (DEBUGLVL(8)) {
+		NDR_PRINT_DEBUG(dns_name_packet, &state->in_packet);
 	}
 
-	NDR_PRINT_DEBUG(dns_name_packet, in_packet);
-	*out_packet = *in_packet;
-	out_packet->operation |= DNS_FLAG_REPLY;
+	ret = dns_verify_tsig(dns, state, &state->state, &state->in_packet, in);
+	if (!W_ERROR_IS_OK(ret)) {
+		DEBUG(1, ("Failed to verify TSIG!\n"));
+		state->dns_err = werr_to_dns_err(ret);
+		tevent_req_done(req);
+		return tevent_req_post(req, ev);
+	}
 
-	switch (in_packet->operation & DNS_OPCODE) {
+	state->state.flags = state->in_packet.operation;
+	state->state.flags |= DNS_FLAG_REPLY;
+
+	
+	if (forwarder && *forwarder) {
+		state->state.flags |= DNS_FLAG_RECURSION_AVAIL;
+	}
+
+	state->out_packet = state->in_packet;
+
+	switch (state->in_packet.operation & DNS_OPCODE) {
 	case DNS_OPCODE_QUERY:
-
-		ret = dns_server_process_query(dns, out_packet, in_packet,
-					       &answers, &num_answers,
-					       &nsrecs,  &num_nsrecs,
-					       &additional, &num_additional);
-
-		break;
-	case DNS_OPCODE_REGISTER:
-		ret = dns_server_process_update(dns, out_packet, in_packet,
-						answers, num_answers,
-						&nsrecs,  &num_nsrecs,
-						&additional, &num_additional);
+		subreq = dns_server_process_query_send(
+			state, ev, dns, &state->state, &state->in_packet);
+		if (tevent_req_nomem(subreq, req)) {
+			return tevent_req_post(req, ev);
+		}
+		tevent_req_set_callback(subreq, dns_process_done, req);
+		return req;
+	case DNS_OPCODE_UPDATE:
+		ret = dns_server_process_update(
+			dns, &state->state, state, &state->in_packet,
+			&state->out_packet.answers, &state->out_packet.ancount,
+			&state->out_packet.nsrecs,  &state->out_packet.nscount,
+			&state->out_packet.additional,
+			&state->out_packet.arcount);
 		break;
 	default:
 		ret = WERR_DNS_ERROR_RCODE_NOT_IMPLEMENTED;
-		break;
+	}
+	if (!W_ERROR_IS_OK(ret)) {
+		state->dns_err = werr_to_dns_err(ret);
+	}
+	tevent_req_done(req);
+	return tevent_req_post(req, ev);
+}
+
+static void dns_process_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct dns_process_state *state = tevent_req_data(
+		req, struct dns_process_state);
+	WERROR ret;
+
+	ret = dns_server_process_query_recv(
+		subreq, state,
+		&state->out_packet.answers, &state->out_packet.ancount,
+		&state->out_packet.nsrecs,  &state->out_packet.nscount,
+		&state->out_packet.additional, &state->out_packet.arcount);
+	TALLOC_FREE(subreq);
+
+	if (!W_ERROR_IS_OK(ret)) {
+		state->dns_err = werr_to_dns_err(ret);
+	}
+	tevent_req_done(req);
+}
+
+static WERROR dns_process_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx,
+			       DATA_BLOB *out)
+{
+	struct dns_process_state *state = tevent_req_data(
+		req, struct dns_process_state);
+	enum ndr_err_code ndr_err;
+	WERROR ret;
+
+	if (tevent_req_is_werror(req, &ret)) {
+		return ret;
+	}
+	if (state->dns_err != DNS_RCODE_OK) {
+		goto drop;
+	}
+	state->out_packet.operation |= state->state.flags;
+
+	if (state->state.sign) {
+		ret = dns_sign_tsig(state->dns, mem_ctx, &state->state,
+				    &state->out_packet, 0);
+		if (!W_ERROR_IS_OK(ret)) {
+			state->dns_err = DNS_RCODE_SERVFAIL;
+			goto drop;
+		}
 	}
 
-	if (W_ERROR_IS_OK(ret)) {
-		out_packet->ancount = num_answers;
-		out_packet->answers = answers;
-
-		out_packet->nscount = num_nsrecs;
-		out_packet->nsrecs  = nsrecs;
-
-		out_packet->arcount = num_additional;
-		out_packet->additional = additional;
-	} else {
-		out_packet->operation |= werr_to_dns_err(ret);
-	}
-
-	NDR_PRINT_DEBUG(dns_name_packet, out_packet);
-	ndr_err = ndr_push_struct_blob(out, out_packet, out_packet,
-			(ndr_push_flags_fn_t)ndr_push_dns_name_packet);
+	ndr_err = ndr_push_struct_blob(
+		out, mem_ctx, &state->out_packet,
+		(ndr_push_flags_fn_t)ndr_push_dns_name_packet);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-		TALLOC_FREE(in_packet);
-		TALLOC_FREE(out_packet);
-		DEBUG(0, ("Failed to push packet %d!\n", ndr_err));
-		*out = *in;
-
-		out->data[2] |= 0x80; /* Toggle DNS_FLAG_REPLY */
-		out->data[3] |= DNS_RCODE_SERVFAIL;
-
-		return NT_STATUS_OK;
+		DEBUG(1, ("Failed to push packet: %s!\n",
+			  ndr_errstr(ndr_err)));
+		state->dns_err = DNS_RCODE_SERVFAIL;
+		goto drop;
 	}
+	return WERR_OK;
 
-	dump_data(2, out->data, out->length);
-	return NT_STATUS_OK;
+drop:
+	*out = data_blob_talloc(mem_ctx, state->in->data, state->in->length);
+	if (out->data == NULL) {
+		return WERR_NOMEM;
+	}
+	out->data[2] |= 0x80; /* Toggle DNS_FLAG_REPLY */
+	out->data[3] |= state->dns_err;
+	return WERR_OK;
 }
 
 struct dns_tcp_call {
@@ -193,12 +265,14 @@ struct dns_tcp_call {
 	struct iovec out_iov[2];
 };
 
+static void dns_tcp_call_process_done(struct tevent_req *subreq);
 static void dns_tcp_call_writev_done(struct tevent_req *subreq);
 
 static void dns_tcp_call_loop(struct tevent_req *subreq)
 {
 	struct dns_tcp_connection *dns_conn = tevent_req_callback_data(subreq,
 				      struct dns_tcp_connection);
+	struct dns_server *dns = dns_conn->dns_socket->dns;
 	struct dns_tcp_call *call;
 	NTSTATUS status;
 
@@ -228,27 +302,62 @@ static void dns_tcp_call_loop(struct tevent_req *subreq)
 		return;
 	}
 
-	DEBUG(10,("Received krb5 TCP packet of length %lu from %s\n",
+	DEBUG(10,("Received DNS TCP packet of length %lu from %s\n",
 		 (long) call->in.length,
 		 tsocket_address_string(dns_conn->conn->remote_address, call)));
 
 	/* skip length header */
-	call->in.data +=4;
-	call->in.length -= 4;
+	call->in.data += 2;
+	call->in.length -= 2;
 
-	/* Call dns */
-	status = dns_process(dns_conn->dns_socket->dns, call, &call->in, &call->out);
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0, ("dns_process returned %s\n", nt_errstr(status)));
+	subreq = dns_process_send(call, dns->task->event_ctx, dns,
+				  &call->in);
+	if (subreq == NULL) {
+		dns_tcp_terminate_connection(
+			dns_conn, "dns_tcp_call_loop: dns_process_send "
+			"failed\n");
+		return;
+	}
+	tevent_req_set_callback(subreq, dns_tcp_call_process_done, call);
+
+	/*
+	 * The dns tcp pdu's has the length as 2 byte (initial_read_size),
+	 * packet_full_request_u16 provides the pdu length then.
+	 */
+	subreq = tstream_read_pdu_blob_send(dns_conn,
+					    dns_conn->conn->event.ctx,
+					    dns_conn->tstream,
+					    2, /* initial_read_size */
+					    packet_full_request_u16,
+					    dns_conn);
+	if (subreq == NULL) {
+		dns_tcp_terminate_connection(dns_conn, "dns_tcp_call_loop: "
+				"no memory for tstream_read_pdu_blob_send");
+		return;
+	}
+	tevent_req_set_callback(subreq, dns_tcp_call_loop, dns_conn);
+}
+
+static void dns_tcp_call_process_done(struct tevent_req *subreq)
+{
+	struct dns_tcp_call *call = tevent_req_callback_data(subreq,
+			struct dns_tcp_call);
+	struct dns_tcp_connection *dns_conn = call->dns_conn;
+	WERROR err;
+
+	err = dns_process_recv(subreq, call, &call->out);
+	TALLOC_FREE(subreq);
+	if (!W_ERROR_IS_OK(err)) {
+		DEBUG(1, ("dns_process returned %s\n", win_errstr(err)));
 		dns_tcp_terminate_connection(dns_conn,
 				"dns_tcp_call_loop: process function failed");
 		return;
 	}
 
 	/* First add the length of the out buffer */
-	RSIVAL(call->out_hdr, 0, call->out.length);
+	RSSVAL(call->out_hdr, 0, call->out.length);
 	call->out_iov[0].iov_base = (char *) call->out_hdr;
-	call->out_iov[0].iov_len = 4;
+	call->out_iov[0].iov_len = 2;
 
 	call->out_iov[1].iov_base = (char *) call->out.data;
 	call->out_iov[1].iov_len = call->out.length;
@@ -264,23 +373,6 @@ static void dns_tcp_call_loop(struct tevent_req *subreq)
 		return;
 	}
 	tevent_req_set_callback(subreq, dns_tcp_call_writev_done, call);
-
-	/*
-	 * The krb5 tcp pdu's has the length as 4 byte (initial_read_size),
-	 * packet_full_request_u32 provides the pdu length then.
-	 */
-	subreq = tstream_read_pdu_blob_send(dns_conn,
-					    dns_conn->conn->event.ctx,
-					    dns_conn->tstream,
-					    4, /* initial_read_size */
-					    packet_full_request_u32,
-					    dns_conn);
-	if (subreq == NULL) {
-		dns_tcp_terminate_connection(dns_conn, "dns_tcp_call_loop: "
-				"no memory for tstream_read_pdu_blob_send");
-		return;
-	}
-	tevent_req_set_callback(subreq, dns_tcp_call_loop, dns_conn);
 }
 
 static void dns_tcp_call_writev_done(struct tevent_req *subreq)
@@ -353,14 +445,14 @@ static void dns_tcp_accept(struct stream_connection *conn)
 	conn->private_data = dns_conn;
 
 	/*
-	 * The krb5 tcp pdu's has the length as 4 byte (initial_read_size),
-	 * packet_full_request_u32 provides the pdu length then.
+	 * The dns tcp pdu's has the length as 2 byte (initial_read_size),
+	 * packet_full_request_u16 provides the pdu length then.
 	 */
 	subreq = tstream_read_pdu_blob_send(dns_conn,
 					    dns_conn->conn->event.ctx,
 					    dns_conn->tstream,
-					    4, /* initial_read_size */
-					    packet_full_request_u32,
+					    2, /* initial_read_size */
+					    packet_full_request_u16,
 					    dns_conn);
 	if (subreq == NULL) {
 		dns_tcp_terminate_connection(dns_conn, "dns_tcp_accept: "
@@ -378,28 +470,31 @@ static const struct stream_server_ops dns_tcp_stream_ops = {
 };
 
 struct dns_udp_call {
+	struct dns_udp_socket *sock;
 	struct tsocket_address *src;
 	DATA_BLOB in;
 	DATA_BLOB out;
 };
 
+static void dns_udp_call_process_done(struct tevent_req *subreq);
 static void dns_udp_call_sendto_done(struct tevent_req *subreq);
 
 static void dns_udp_call_loop(struct tevent_req *subreq)
 {
 	struct dns_udp_socket *sock = tevent_req_callback_data(subreq,
 				      struct dns_udp_socket);
+	struct dns_server *dns = sock->dns_socket->dns;
 	struct dns_udp_call *call;
 	uint8_t *buf;
 	ssize_t len;
 	int sys_errno;
-	NTSTATUS status;
 
 	call = talloc(sock, struct dns_udp_call);
 	if (call == NULL) {
 		talloc_free(call);
 		goto done;
 	}
+	call->sock = sock;
 
 	len = tdgram_recvfrom_recv(subreq, &sys_errno,
 				   call, &buf, &call->src);
@@ -412,30 +507,17 @@ static void dns_udp_call_loop(struct tevent_req *subreq)
 	call->in.data = buf;
 	call->in.length = len;
 
-	DEBUG(10,("Received krb5 UDP packet of length %lu from %s\n",
+	DEBUG(10,("Received DNS UDP packet of length %lu from %s\n",
 		 (long)call->in.length,
 		 tsocket_address_string(call->src, call)));
 
-	/* Call krb5 */
-	status = dns_process(sock->dns_socket->dns, call, &call->in, &call->out);
-	if (!NT_STATUS_IS_OK(status)) {
-		talloc_free(call);
-		DEBUG(0, ("dns_process returned %s\n", nt_errstr(status)));
-		goto done;
-	}
-
-	subreq = tdgram_sendto_queue_send(call,
-					  sock->dns_socket->dns->task->event_ctx,
-					  sock->dgram,
-					  sock->send_queue,
-					  call->out.data,
-					  call->out.length,
-					  call->src);
+	subreq = dns_process_send(call, dns->task->event_ctx, dns,
+				  &call->in);
 	if (subreq == NULL) {
-		talloc_free(call);
+		TALLOC_FREE(call);
 		goto done;
 	}
-	tevent_req_set_callback(subreq, dns_udp_call_sendto_done, call);
+	tevent_req_set_callback(subreq, dns_udp_call_process_done, call);
 
 done:
 	subreq = tdgram_recvfrom_send(sock,
@@ -450,14 +532,43 @@ done:
 	tevent_req_set_callback(subreq, dns_udp_call_loop, sock);
 }
 
+static void dns_udp_call_process_done(struct tevent_req *subreq)
+{
+	struct dns_udp_call *call = tevent_req_callback_data(
+		subreq, struct dns_udp_call);
+	struct dns_udp_socket *sock = call->sock;
+	struct dns_server *dns = sock->dns_socket->dns;
+	WERROR err;
+
+	err = dns_process_recv(subreq, call, &call->out);
+	TALLOC_FREE(subreq);
+	if (!W_ERROR_IS_OK(err)) {
+		DEBUG(1, ("dns_process returned %s\n", win_errstr(err)));
+		TALLOC_FREE(call);
+		return;
+	}
+
+	subreq = tdgram_sendto_queue_send(call,
+					  dns->task->event_ctx,
+					  sock->dgram,
+					  sock->send_queue,
+					  call->out.data,
+					  call->out.length,
+					  call->src);
+	if (subreq == NULL) {
+		talloc_free(call);
+		return;
+	}
+	tevent_req_set_callback(subreq, dns_udp_call_sendto_done, call);
+
+}
 static void dns_udp_call_sendto_done(struct tevent_req *subreq)
 {
 	struct dns_udp_call *call = tevent_req_callback_data(subreq,
 				       struct dns_udp_call);
-	ssize_t ret;
 	int sys_errno;
 
-	ret = tdgram_sendto_queue_recv(subreq, &sys_errno);
+	tdgram_sendto_queue_recv(subreq, &sys_errno);
 
 	/* We don't care about errors */
 
@@ -488,7 +599,7 @@ static NTSTATUS dns_add_socket(struct dns_server *dns,
 						address, port,
 						&dns_socket->local_address);
 	if (ret != 0) {
-		status = map_nt_error_from_unix(errno);
+		status = map_nt_error_from_unix_common(errno);
 		return status;
 	}
 
@@ -517,7 +628,7 @@ static NTSTATUS dns_add_socket(struct dns_server *dns,
 				     dns_udp_socket,
 				     &dns_udp_socket->dgram);
 	if (ret != 0) {
-		status = map_nt_error_from_unix(errno);
+		status = map_nt_error_from_unix_common(errno);
 		DEBUG(0,("Failed to bind to %s:%u UDP - %s\n",
 			 address, port, nt_errstr(status)));
 		return status;
@@ -557,13 +668,29 @@ static NTSTATUS dns_startup_interfaces(struct dns_server *dns, struct loadparm_c
 		return NT_STATUS_INTERNAL_ERROR;
 	}
 
-	num_interfaces = iface_count(ifaces);
+	if (ifaces != NULL) {
+		num_interfaces = iface_list_count(ifaces);
 
-	for (i=0; i<num_interfaces; i++) {
-		const char *address = talloc_strdup(tmp_ctx, iface_n_ip(ifaces, i));
+		for (i=0; i<num_interfaces; i++) {
+			const char *address = talloc_strdup(tmp_ctx,
+							    iface_list_n_ip(ifaces, i));
 
-		status = dns_add_socket(dns, model_ops, "dns", address, DNS_SERVICE_PORT);
-		NT_STATUS_NOT_OK_RETURN(status);
+			status = dns_add_socket(dns, model_ops, "dns", address,
+						DNS_SERVICE_PORT);
+			NT_STATUS_NOT_OK_RETURN(status);
+		}
+	} else {
+		const char **wcard;
+		wcard = iface_list_wildcard(tmp_ctx, lp_ctx);
+		if (wcard == NULL) {
+			DEBUG(0, ("No wildcard address available\n"));
+			return NT_STATUS_INTERNAL_ERROR;
+		}
+		for (i = 0; wcard[i] != NULL; i++) {
+			status = dns_add_socket(dns, model_ops, "dns", wcard[i],
+						DNS_SERVICE_PORT);
+			NT_STATUS_NOT_OK_RETURN(status);
+		}
 	}
 
 	talloc_free(tmp_ctx);
@@ -592,16 +719,40 @@ static int dns_server_sort_zones(struct ldb_message **m1, struct ldb_message **m
 	return 0;
 }
 
+static struct dns_server_tkey_store *tkey_store_init(TALLOC_CTX *mem_ctx,
+						     uint16_t size)
+{
+	struct dns_server_tkey_store *buffer = talloc_zero(mem_ctx,
+						struct dns_server_tkey_store);
+
+	if (buffer == NULL) {
+		return NULL;
+	}
+
+	buffer->size = size;
+	buffer->next_idx = 0;
+
+	buffer->tkeys = talloc_zero_array(buffer, struct dns_server_tkey *, size);
+	if (buffer->tkeys == NULL) {
+		TALLOC_FREE(buffer);
+	}
+
+	return buffer;
+}
+
 static void dns_task_init(struct task_server *task)
 {
 	struct dns_server *dns;
 	NTSTATUS status;
-	struct interface *ifaces;
+	struct interface *ifaces = NULL;
 	int ret;
 	struct ldb_result *res;
-	struct ldb_dn *rootdn;
 	static const char * const attrs[] = { "name", NULL};
+	static const char * const attrs_none[] = { NULL};
 	unsigned int i;
+	struct ldb_message *dns_acc;
+	char *hostname_lower;
+	char *dns_spn;
 
 	switch (lpcfg_server_role(task->lp_ctx)) {
 	case ROLE_STANDALONE:
@@ -610,16 +761,18 @@ static void dns_task_init(struct task_server *task)
 	case ROLE_DOMAIN_MEMBER:
 		task_server_terminate(task, "dns: no DNS required in member server configuration", false);
 		return;
-	case ROLE_DOMAIN_CONTROLLER:
+	case ROLE_ACTIVE_DIRECTORY_DC:
 		/* Yes, we want a DNS */
 		break;
 	}
 
-	load_interfaces(task, lpcfg_interfaces(task->lp_ctx), &ifaces);
+	if (lpcfg_interfaces(task->lp_ctx) && lpcfg_bind_interfaces_only(task->lp_ctx)) {
+		load_interface_list(task, task->lp_ctx, &ifaces);
 
-	if (iface_count(ifaces) == 0) {
-		task_server_terminate(task, "dns: no network interfaces configured", false);
-		return;
+		if (iface_list_count(ifaces) == 0) {
+			task_server_terminate(task, "dns: no network interfaces configured", false);
+			return;
+		}
 	}
 
 	task_server_set_title(task, "task[dns]");
@@ -632,6 +785,12 @@ static void dns_task_init(struct task_server *task)
 
 	dns->task = task;
 
+	dns->server_credentials = cli_credentials_init(dns);
+	if (!dns->server_credentials) {
+		task_server_terminate(task, "Failed to init server credentials\n", true);
+		return;
+	}
+
 	dns->samdb = samdb_connect(dns, dns->task->event_ctx, dns->task->lp_ctx,
 			      system_session(dns->task->lp_ctx), 0);
 	if (!dns->samdb) {
@@ -639,14 +798,53 @@ static void dns_task_init(struct task_server *task)
 		return;
 	}
 
-	rootdn = ldb_dn_new(dns, dns->samdb, "");
-	if (rootdn == NULL) {
-		task_server_terminate(task, "dns: out of memory", true);
+	cli_credentials_set_conf(dns->server_credentials, task->lp_ctx);
+
+	hostname_lower = strlower_talloc(dns, lpcfg_netbios_name(task->lp_ctx));
+	dns_spn = talloc_asprintf(dns, "DNS/%s.%s",
+				  hostname_lower,
+				  lpcfg_dnsdomain(task->lp_ctx));
+	TALLOC_FREE(hostname_lower);
+
+	ret = dsdb_search_one(dns->samdb, dns, &dns_acc,
+			      ldb_get_default_basedn(dns->samdb), LDB_SCOPE_SUBTREE,
+			      attrs_none, 0, "(servicePrincipalName=%s)",
+			      dns_spn);
+	if (ret == LDB_SUCCESS) {
+		TALLOC_FREE(dns_acc);
+		if (!dns_spn) {
+			task_server_terminate(task, "dns: talloc_asprintf failed", true);
+			return;
+		}
+		status = cli_credentials_set_stored_principal(dns->server_credentials, task->lp_ctx, dns_spn);
+		if (!NT_STATUS_IS_OK(status)) {
+			task_server_terminate(task,
+					      talloc_asprintf(task, "Failed to obtain server credentials for DNS, "
+							      "despite finding it in the samdb! %s\n",
+							      nt_errstr(status)),
+					      true);
+			return;
+		}
+	} else {
+		TALLOC_FREE(dns_spn);
+		status = cli_credentials_set_machine_account(dns->server_credentials, task->lp_ctx);
+		if (!NT_STATUS_IS_OK(status)) {
+			task_server_terminate(task,
+					      talloc_asprintf(task, "Failed to obtain server credentials, perhaps a standalone server?: %s\n",
+							      nt_errstr(status)),
+					      true);
+			return;
+		}
+	}
+
+	dns->tkeys = tkey_store_init(dns, TKEY_BUFFER_SIZE);
+	if (!dns->tkeys) {
+		task_server_terminate(task, "Failed to allocate tkey storage\n", true);
 		return;
 	}
 
 	// TODO: this search does not work against windows
-	ret = dsdb_search(dns->samdb, dns, &res, rootdn, LDB_SCOPE_SUBTREE,
+	ret = dsdb_search(dns->samdb, dns, &res, NULL, LDB_SCOPE_SUBTREE,
 			  attrs, DSDB_SEARCH_SEARCH_ALL_PARTITIONS, "(objectClass=dnsZone)");
 	if (ret != LDB_SUCCESS) {
 		task_server_terminate(task,
@@ -662,11 +860,25 @@ static void dns_task_init(struct task_server *task)
 
 		z = talloc_zero(dns, struct dns_server_zone);
 		if (z == NULL) {
+			task_server_terminate(task, "dns failed to allocate memory", true);
 		}
 
 		z->name = ldb_msg_find_attr_as_string(res->msgs[i], "name", NULL);
 		z->dn = talloc_move(z, &res->msgs[i]->dn);
-
+		/*
+		 * Ignore the RootDNSServers zone and zones that we don't support yet
+		 * RootDNSServers should never be returned (Windows DNS server don't)
+		 * ..TrustAnchors should never be returned as is, (Windows returns
+		 * TrustAnchors) and for the moment we don't support DNSSEC so we'd better
+		 * not return this zone.
+		 */
+		if ((strcmp(z->name, "RootDNSServers") == 0) ||
+		    (strcmp(z->name, "..TrustAnchors") == 0))
+		{
+			DEBUG(10, ("Ignoring zone %s\n", z->name));
+			talloc_free(z);
+			continue;
+		}
 		DLIST_ADD_END(dns->zones, z, NULL);
 	}
 

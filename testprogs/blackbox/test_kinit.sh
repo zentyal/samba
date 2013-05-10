@@ -5,7 +5,7 @@
 
 if [ $# -lt 5 ]; then
 cat <<EOF
-Usage: test_kinit.sh SERVER USERNAME PASSWORD REALM DOMAIN PREFIX
+Usage: test_kinit.sh SERVER USERNAME PASSWORD REALM DOMAIN PREFIX ENCTYPE SMBCLIENT
 EOF
 exit 1;
 fi
@@ -17,19 +17,19 @@ REALM=$4
 DOMAIN=$5
 PREFIX=$6
 ENCTYPE=$7
-shift 7
+smbclient=$8
+shift 8
 failed=0
 
-samba4bindir="$BUILDDIR/bin"
+samba4bindir="$BINDIR"
 samba4srcdir="$SRCDIR/source4"
-smbclient="$samba4bindir/smbclient$EXEEXT"
-samba4kinit="$samba4bindir/samba4kinit$EXEEXT"
-samba_tool="$samba4bindir/samba-tool$EXEEXT"
-ldbmodify="$samba4bindir/ldbmodify$EXEEXT"
-ldbsearch="$samba4bindir/ldbsearch$EXEEXT"
-rkpty="$samba4bindir/rkpty$EXEEXT"
-samba4kpasswd="$samba4bindir/samba4kpasswd$EXEEXT"
-enableaccount="$samba_tool enableaccount"
+samba4kinit="$samba4bindir/samba4kinit"
+samba_tool="$samba4bindir/samba-tool"
+ldbmodify="$samba4bindir/ldbmodify"
+ldbsearch="$samba4bindir/ldbsearch"
+rkpty="$samba4bindir/rkpty"
+samba4kpasswd="$samba4bindir/samba4kpasswd"
+enableaccount="$samba_tool user enable"
 machineaccountccache="$samba4srcdir/scripting/bin/machineaccountccache"
 
 . `dirname $0`/subunit.sh
@@ -40,7 +40,7 @@ test_smbclient() {
 	shift
 	shift
 	echo "test: $name"
-	$VALGRIND $smbclient $CONFIGURATION //$SERVER/tmp -c "$cmd" -W "$DOMAIN" $@
+	$VALGRIND $smbclient $CONFIGURATION //$SERVER/tmp -c "$cmd" $@
 	status=$?
 	if [ x$status = x0 ]; then
 		echo "success: $name"
@@ -58,7 +58,7 @@ export PWSETCONFIG
 KRB5CCNAME="$PREFIX/tmpccache"
 export KRB5CCNAME
 
-testit "reset password policies beside of minimum password age of 0 days" $VALGRIND $samba_tool pwsettings $PWSETCONFIG set --complexity=default --history-length=default --min-pwd-length=default --min-pwd-age=0 --max-pwd-age=default || failed=`expr $failed + 1`
+testit "reset password policies beside of minimum password age of 0 days" $VALGRIND $samba_tool domain passwordsettings $PWSETCONFIG set --complexity=default --history-length=default --min-pwd-length=default --min-pwd-age=0 --max-pwd-age=default || failed=`expr $failed + 1`
 
 echo $PASSWORD > $PREFIX/tmppassfile
 #testit "kinit with keytab" $samba4kinit $enctype --keytab=$PREFIX/dc/private/secrets.keytab $SERVER\$@$REALM   || failed=`expr $failed + 1`
@@ -69,11 +69,11 @@ testit "kinit renew ticket" $samba4kinit $enctype --request-pac -R
 
 test_smbclient "Test login with kerberos ccache" 'ls' -k yes || failed=`expr $failed + 1`
 
-testit "check time with kerberos ccache" $VALGRIND $samba_tool $CONFIGURATION -k yes $@ time $SERVER || failed=`expr $failed + 1`
+testit "check time with kerberos ccache" $VALGRIND $samba_tool time $SERVER $CONFIGURATION -k yes $@ || failed=`expr $failed + 1`
 
 USERPASS=testPass@12%
 echo $USERPASS > $PREFIX/tmpuserpassfile
-testit "add user with kerberos ccache" $VALGRIND $samba_tool user add nettestuser $USERPASS $CONFIGURATION  -k yes $@ || failed=`expr $failed + 1`
+testit "add user with kerberos ccache" $VALGRIND $samba_tool user create nettestuser $USERPASS $CONFIGURATION  -k yes $@ || failed=`expr $failed + 1`
 
 echo "Getting defaultNamingContext"
 BASEDN=`$ldbsearch $options --basedn='' -H ldap://$SERVER -s base DUMMY=x defaultNamingContext | grep defaultNamingContext | awk '{print $2}'`
@@ -87,7 +87,7 @@ EOF
 
 testit "modify servicePrincipalName" $VALGRIND $ldbmodify -H ldap://$SERVER $PREFIX/tmpldbmodify -k yes $@ || failed=`expr $failed + 1`
 
-testit "set user password with kerberos ccache" $VALGRIND $samba_tool password set $DOMAIN\\nettestuser $USERPASS $CONFIGURATION  -k yes $@ || failed=`expr $failed + 1`
+testit "set user password with kerberos ccache" $VALGRIND $samba_tool user setpassword nettestuser --newpassword=$USERPASS $CONFIGURATION  -k yes $@ || failed=`expr $failed + 1`
 
 testit "enable user with kerberos cache" $VALGRIND $enableaccount nettestuser -H ldap://$SERVER -k yes $@ || failed=`expr $failed + 1`
 
@@ -99,7 +99,7 @@ testit "kinit with user password" $samba4kinit $enctype --password-file=$PREFIX/
 test_smbclient "Test login with user kerberos ccache" 'ls' -k yes || failed=`expr $failed + 1`
 
 NEWUSERPASS=testPaSS@34%
-testit "change user password with 'samba-tool password change' (rpc)" $VALGRIND $samba_tool password change -W$DOMAIN -U$DOMAIN\\nettestuser%$USERPASS $CONFIGURATION  -k no $NEWUSERPASS $@ || failed=`expr $failed + 1`
+testit "change user password with 'samba-tool user password' (rpc)" $VALGRIND $samba_tool user password -W$DOMAIN -Unettestuser%$USERPASS $CONFIGURATION -k no --newpassword=$NEWUSERPASS $@ || failed=`expr $failed + 1`
 
 echo $NEWUSERPASS > $PREFIX/tmpuserpassfile
 testit "kinit with user password" $samba4kinit $enctype --password-file=$PREFIX/tmpuserpassfile --request-pac nettestuser@$REALM   || failed=`expr $failed + 1`
@@ -161,6 +161,39 @@ testit "kinit with user password" $samba4kinit $enctype --password-file=$PREFIX/
 
 test_smbclient "Test login with user kerberos ccache" 'ls' -k yes || failed=`expr $failed + 1`
 
+cat > $PREFIX/tmpldbmodify <<EOF
+dn: cn=nettestuser,cn=users,$BASEDN
+changetype: modify
+replace: pwdLastSet
+pwdLastSet: 0
+EOF
+
+USERPASS=$NEWUSERPASS
+NEWUSERPASS=testPaSS@911%
+
+testit "modify pwdLastSet" $VALGRIND $ldbmodify $PWSETCONFIG $PREFIX/tmpldbmodify $PREFIX/tmpldbmodify -k yes $@ || failed=`expr $failed + 1`
+
+cat > $PREFIX/tmppasswordchange <<EOF
+expect nettestuser@${REALM}'s Password: 
+send ${USERPASS}\n
+expect Your password will expire at
+expect Changing password
+expect New password:
+send ${NEWUSERPASS}\n
+expect Repeat new password:
+send ${NEWUSERPASS}\n
+expect Success: Password changed
+EOF
+
+testit "kinit with user password for expired password" $rkpty $PREFIX/tmppasswordchange $samba4kinit $enctype --request-pac nettestuser@$REALM && failed=`expr $failed + 1`
+
+test_smbclient "Test login with user kerberos ccache" 'ls' -k yes || failed=`expr $failed + 1`
+
+echo $NEWUSERPASS > $PREFIX/tmpuserpassfile
+testit "kinit with user password" $samba4kinit $enctype --password-file=$PREFIX/tmpuserpassfile --request-pac nettestuser@$REALM   || failed=`expr $failed + 1`
+
+test_smbclient "Test login with user kerberos ccache" 'ls' -k yes || failed=`expr $failed + 1`
+
 KRB5CCNAME="$PREFIX/tmpccache"
 export KRB5CCNAME
 
@@ -174,7 +207,7 @@ rm -f $KRB5CCNAME
 testit "kinit with machineaccountccache script" $machineaccountccache $CONFIGURATION $KRB5CCNAME || failed=`expr $failed + 1`
 test_smbclient "Test machine account login with kerberos ccache" 'ls' -k yes || failed=`expr $failed + 1`
 
-testit "reset password policies" $VALGRIND $samba_tool pwsettings $PWSETCONFIG set --complexity=default --history-length=default --min-pwd-length=default --min-pwd-age=default --max-pwd-age=default || failed=`expr $failed + 1`
+testit "reset password policies" $VALGRIND $samba_tool domain passwordsettings $PWSETCONFIG set --complexity=default --history-length=default --min-pwd-length=default --min-pwd-age=default --max-pwd-age=default || failed=`expr $failed + 1`
 
 rm -f $PREFIX/tmpccache tmpccfile tmppassfile tmpuserpassfile tmpuserccache tmpkpasswdscript
 exit $failed

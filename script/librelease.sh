@@ -1,8 +1,6 @@
 #!/bin/bash
 # make a release of a Samba library
 
-GPG_USER='Samba Library Distribution Key <samba-bugs@samba.org>'
-
 if [ ! -d ".git" ]; then
 	echo "Run this script from the top-level directory in the"
 	echo "repository"
@@ -14,10 +12,12 @@ if [ $# -lt 1 ]; then
     exit 1
 fi
 
+umask 0022
 
 release_lib() {
     lib="$1"
     srcdir="$2"
+    ftpdir="$3"
 
     pushd $srcdir
 
@@ -37,13 +37,17 @@ release_lib() {
 	exit 1
     }
 
-    tagname=$(basename $tarname .tar | sed s/[\.]/-/g)
+    tagname=$(basename $tarname .tar)
     echo "tagging as $tagname"
-    git tag -s "$tagname" -m "$lib: tag release $tagname"
+    git tag -u $GPG_KEYID -s "$tagname" -m "$lib: tag release $tagname" || {
+	exit 1
+    }
 
     echo "signing"
     rm -f "$tarname.asc"
-    gpg -u "$GPG_USER" --detach-sign --armor $tarname || exit 1
+    gpg -u "$GPG_USER" --detach-sign --armor $tarname || {
+	exit 1
+    }
     [ -f "$tarname.asc" ] || {
 	echo "Failed to create signature $tarname.asc"
 	exit 1
@@ -55,19 +59,49 @@ release_lib() {
 	exit 1
     }
 
-    echo "Transferring"
-    rsync -Pav $tarname.asc $tgzname master.samba.org:~ftp/pub/$lib/
+    [ -z "$ftpdir" ] && {
+        popd
+        return 0
+    }
+
+    echo "Push git tag $tagname"
+    git push ssh://git.samba.org/data/git/samba.git refs/tags/$tagname:refs/tags/$tagname || {
+	exit 1
+    }
+
+    echo "Transferring for FTP"
+    rsync -Pav $tarname.asc $tgzname master.samba.org:~ftp/pub/$ftpdir/ || {
+	exit 1
+    }
+    rsync master.samba.org:~ftp/pub/$ftpdir/$tarname.*
 
     popd
 }
 
 for lib in $*; do
     case $lib in
-	talloc | tdb | tevent)
-	    release_lib $lib "lib/$lib"
+	talloc | tdb | tevent | ldb)
+	    [ -z "$GPG_USER" ] && {
+	        GPG_USER='Samba Library Distribution Key <samba-bugs@samba.org>'
+	    }
+
+	    [ -z "$GPG_KEYID" ] && {
+	        GPG_KEYID='13084025'
+	    }
+
+	    release_lib $lib "lib/$lib" $lib
 	    ;;
-	ldb)
-	    release_lib $lib "source4/lib/$lib"
+	samba)
+	    [ -z "$GPG_USER" ] && {
+	        GPG_USER='6568B7EA'
+	    }
+
+	    [ -z "$GPG_KEYID" ] && {
+	        GPG_KEYID='6568B7EA'
+	    }
+
+	    # for now we don't upload
+	    release_lib $lib "." ""
 	    ;;
 	*)
 	    echo "Unknown library $lib"

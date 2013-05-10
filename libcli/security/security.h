@@ -89,6 +89,15 @@
 #define SHARE_ALL_ACCESS      FILE_GENERIC_ALL
 #define SHARE_READ_ONLY       (FILE_GENERIC_READ|FILE_EXECUTE)
 
+/**
+ * Remaining access is a bit mask of remaining access rights (bits) that have
+ * to be granted in order to fulfill the requested access.
+ *
+ * The GUID is optional, if specified it restricts this object tree and its
+ * childs to object/attributes that inherits from this GUID.
+ * For DS access an object inherits from a GUID if one of its class has this GUID
+ * in the schemaIDGUID attribute.
+ */
 struct object_tree {
 	uint32_t remaining_access;
 	struct GUID guid;
@@ -100,6 +109,7 @@ struct object_tree {
 #include "libcli/security/dom_sid.h"
 #include "libcli/security/secace.h"
 #include "libcli/security/secacl.h"
+#include "libcli/security/secdesc.h"
 #include "libcli/security/security_descriptor.h"
 #include "libcli/security/security_token.h"
 #include "libcli/security/sddl.h"

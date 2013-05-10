@@ -26,7 +26,7 @@
 #include "libsmb/libsmb.h"
 #include "libsmbclient.h"
 #include "libsmb_internal.h"
-
+#include "../libcli/smb/smbXcli_base.h"
 
 /*
  * Routine to open() a file ...
@@ -111,9 +111,10 @@ SMBC_open_ctx(SMBCCTX *context,
 		ZERO_STRUCTP(file);
 
 		/*d_printf(">>>open: resolving %s\n", path);*/
-		if (!cli_resolve_path(frame, "", context->internal->auth_info,
-				srv->cli, path,
-				&targetcli, &targetpath)) {
+		status = cli_resolve_path(
+			frame, "", context->internal->auth_info,
+			srv->cli, path, &targetcli, &targetpath);
+		if (!NT_STATUS_IS_OK(status)) {
 			d_printf("Could not resolve %s\n", path);
                         errno = ENOENT;
 			SAFE_FREE(file);
@@ -224,12 +225,13 @@ SMBC_read_ctx(SMBCCTX *context,
               void *buf,
               size_t count)
 {
-	int ret;
+	size_t ret;
 	char *server = NULL, *share = NULL, *user = NULL, *password = NULL;
 	char *path = NULL;
 	char *targetpath = NULL;
 	struct cli_state *targetcli = NULL;
 	TALLOC_CTX *frame = talloc_stackframe();
+	NTSTATUS status;
 
         /*
          * offset:
@@ -283,9 +285,10 @@ SMBC_read_ctx(SMBCCTX *context,
         }
 
 	/*d_printf(">>>read: resolving %s\n", path);*/
-	if (!cli_resolve_path(frame, "", context->internal->auth_info,
-			file->srv->cli, path,
-			&targetcli, &targetpath)) {
+	status = cli_resolve_path(frame, "", context->internal->auth_info,
+				  file->srv->cli, path,
+				  &targetcli, &targetpath);
+	if (!NT_STATUS_IS_OK(status)) {
 		d_printf("Could not resolve %s\n", path);
                 errno = ENOENT;
 		TALLOC_FREE(frame);
@@ -293,9 +296,9 @@ SMBC_read_ctx(SMBCCTX *context,
 	}
 	/*d_printf(">>>fstat: resolved path as %s\n", targetpath);*/
 
-	ret = cli_read(targetcli, file->cli_fd, (char *)buf, offset, count);
-
-	if (ret < 0) {
+	status = cli_read(targetcli, file->cli_fd, (char *)buf, offset,
+			  count, &ret);
+	if (!NT_STATUS_IS_OK(status)) {
 		errno = SMBC_errno(context, targetcli);
 		TALLOC_FREE(frame);
 		return -1;
@@ -303,7 +306,7 @@ SMBC_read_ctx(SMBCCTX *context,
 
 	file->offset += ret;
 
-	DEBUG(4, ("  --> %d\n", ret));
+	DEBUG(4, ("  --> %ld\n", (unsigned long)ret));
 
 	TALLOC_FREE(frame);
 	return ret;  /* Success, ret bytes of data ... */
@@ -368,9 +371,10 @@ SMBC_write_ctx(SMBCCTX *context,
         }
 
 	/*d_printf(">>>write: resolving %s\n", path);*/
-	if (!cli_resolve_path(frame, "", context->internal->auth_info,
-			file->srv->cli, path,
-			&targetcli, &targetpath)) {
+	status = cli_resolve_path(frame, "", context->internal->auth_info,
+				  file->srv->cli, path,
+				  &targetcli, &targetpath);
+	if (!NT_STATUS_IS_OK(status)) {
 		d_printf("Could not resolve %s\n", path);
                 errno = ENOENT;
 		TALLOC_FREE(frame);
@@ -379,7 +383,7 @@ SMBC_write_ctx(SMBCCTX *context,
 	/*d_printf(">>>write: resolved path as %s\n", targetpath);*/
 
 	status = cli_writeall(targetcli, file->cli_fd,
-			      0, (uint8_t *)buf, offset, count, NULL);
+			      0, (const uint8_t *)buf, offset, count, NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		errno = map_errno_from_nt_status(status);
 		TALLOC_FREE(frame);
@@ -406,6 +410,7 @@ SMBC_close_ctx(SMBCCTX *context,
 	char *targetpath = NULL;
 	struct cli_state *targetcli = NULL;
 	TALLOC_CTX *frame = talloc_stackframe();
+	NTSTATUS status;
 
 	if (!context || !context->internal->initialized) {
 		errno = EINVAL;
@@ -442,9 +447,10 @@ SMBC_close_ctx(SMBCCTX *context,
         }
 
 	/*d_printf(">>>close: resolving %s\n", path);*/
-	if (!cli_resolve_path(frame, "", context->internal->auth_info,
-			file->srv->cli, path,
-			&targetcli, &targetpath)) {
+	status = cli_resolve_path(frame, "", context->internal->auth_info,
+				  file->srv->cli, path,
+				  &targetcli, &targetpath);
+	if (!NT_STATUS_IS_OK(status)) {
 		d_printf("Could not resolve %s\n", path);
                 errno = ENOENT;
 		TALLOC_FREE(frame);
@@ -481,9 +487,9 @@ SMBC_close_ctx(SMBCCTX *context,
 bool
 SMBC_getatr(SMBCCTX * context,
             SMBCSRV *srv,
-            char *path,
+            const char *path,
             uint16 *mode,
-            SMB_OFF_T *size,
+            off_t *size,
             struct timespec *create_time_ts,
             struct timespec *access_time_ts,
             struct timespec *write_time_ts,
@@ -495,6 +501,7 @@ SMBC_getatr(SMBCCTX * context,
 	struct cli_state *targetcli = NULL;
 	time_t write_time;
 	TALLOC_CTX *frame = talloc_stackframe();
+	NTSTATUS status;
 
 	if (!context || !context->internal->initialized) {
 		errno = EINVAL;
@@ -522,9 +529,10 @@ SMBC_getatr(SMBCCTX * context,
 	}
 	DEBUG(4,("SMBC_getatr: sending qpathinfo\n"));
 
-	if (!cli_resolve_path(frame, "", context->internal->auth_info,
-			srv->cli, fixedpath,
-			&targetcli, &targetpath)) {
+	status = cli_resolve_path(frame, "", context->internal->auth_info,
+				  srv->cli, fixedpath,
+				  &targetcli, &targetpath);
+	if (!NT_STATUS_IS_OK(status)) {
 		d_printf("Couldn't resolve %s\n", path);
                 errno = ENOENT;
 		TALLOC_FREE(frame);
@@ -543,7 +551,7 @@ SMBC_getatr(SMBCCTX * context,
         }
 
 	/* if this is NT then don't bother with the getatr */
-	if (targetcli->capabilities & CAP_NT_SMBS) {
+	if (smb1cli_conn_capabilities(targetcli->conn) & CAP_NT_SMBS) {
                 errno = EPERM;
 		TALLOC_FREE(frame);
                 return False;
@@ -671,12 +679,13 @@ SMBC_lseek_ctx(SMBCCTX *context,
                off_t offset,
                int whence)
 {
-	SMB_OFF_T size;
+	off_t size;
 	char *server = NULL, *share = NULL, *user = NULL, *password = NULL;
 	char *path = NULL;
 	char *targetpath = NULL;
 	struct cli_state *targetcli = NULL;
 	TALLOC_CTX *frame = talloc_stackframe();
+	NTSTATUS status;
 
 	if (!context || !context->internal->initialized) {
 		errno = EINVAL;
@@ -721,9 +730,10 @@ SMBC_lseek_ctx(SMBCCTX *context,
 		}
 
 		/*d_printf(">>>lseek: resolving %s\n", path);*/
-		if (!cli_resolve_path(frame, "", context->internal->auth_info,
-				file->srv->cli, path,
-				&targetcli, &targetpath)) {
+		status = cli_resolve_path(
+			frame, "", context->internal->auth_info,
+			file->srv->cli, path, &targetcli, &targetpath);
+		if (!NT_STATUS_IS_OK(status)) {
 			d_printf("Could not resolve %s\n", path);
                         errno = ENOENT;
 			TALLOC_FREE(frame);
@@ -735,7 +745,7 @@ SMBC_lseek_ctx(SMBCCTX *context,
 					     targetcli, file->cli_fd, NULL,
 					     &size, NULL, NULL, NULL, NULL,
 					     NULL))) {
-                        SMB_OFF_T b_size = size;
+                        off_t b_size = size;
 			if (!NT_STATUS_IS_OK(cli_getattrE(targetcli, file->cli_fd,
                                           NULL, &b_size, NULL, NULL, NULL))) {
                                 errno = EINVAL;
@@ -765,7 +775,7 @@ SMBC_ftruncate_ctx(SMBCCTX *context,
                    SMBCFILE *file,
                    off_t length)
 {
-	SMB_OFF_T size = length;
+	off_t size = length;
 	char *server = NULL;
 	char *share = NULL;
 	char *user = NULL;
@@ -774,6 +784,7 @@ SMBC_ftruncate_ctx(SMBCCTX *context,
         char *targetpath = NULL;
 	struct cli_state *targetcli = NULL;
 	TALLOC_CTX *frame = talloc_stackframe();
+	NTSTATUS status;
 
 	if (!context || !context->internal->initialized) {
 		errno = EINVAL;
@@ -810,9 +821,10 @@ SMBC_ftruncate_ctx(SMBCCTX *context,
         }
 
 	/*d_printf(">>>fstat: resolving %s\n", path);*/
-	if (!cli_resolve_path(frame, "", context->internal->auth_info,
-			file->srv->cli, path,
-			&targetcli, &targetpath)) {
+	status = cli_resolve_path(frame, "", context->internal->auth_info,
+				  file->srv->cli, path,
+				  &targetcli, &targetpath);
+	if (!NT_STATUS_IS_OK(status)) {
 		d_printf("Could not resolve %s\n", path);
                 errno = ENOENT;
 		TALLOC_FREE(frame);

@@ -33,11 +33,16 @@
 #include "includes.h"
 #include "system/filesys.h"
 #include "popt_common.h"
-#include "dbwrap.h"
+#include "dbwrap/dbwrap.h"
+#include "dbwrap/dbwrap_open.h"
 #include "../libcli/security/security.h"
 #include "session.h"
 #include "locking/proto.h"
 #include "messages.h"
+#include "librpc/gen_ndr/open_files.h"
+#include "smbd/smbd.h"
+#include "librpc/gen_ndr/notify.h"
+#include "lib/conn_tdb.h"
 
 #define SMB_MAXPIDS		2048
 static uid_t 		Ucrit_uid = 0;               /* added by OH */
@@ -51,6 +56,7 @@ static bool locks_only;            /* Added by RJS */
 static bool processes_only;
 static bool show_brl;
 static bool numeric_only;
+static bool do_checks = true;
 
 const char *username = NULL;
 
@@ -83,8 +89,9 @@ static unsigned int Ucrit_checkPid(struct server_id pid)
 		return 1;
 
 	for (i=0;i<Ucrit_MaxPid;i++) {
-		if (cluster_id_equal(&pid, &Ucrit_pid[i])) 
+		if (serverid_equal(&pid, &Ucrit_pid[i])) {
 			return 1;
+		}
 	}
 
 	return 0;
@@ -114,11 +121,7 @@ static void print_share_mode(const struct share_mode_entry *e,
 {
 	static int count;
 
-	if (!is_valid_share_mode_entry(e)) {
-		return;
-	}
-
-	if (!process_exists(e->pid)) {
+	if (do_checks && !is_valid_share_mode_entry(e)) {
 		return;
 	}
 
@@ -185,7 +188,7 @@ static void print_brl(struct file_id id,
 			void *private_data)
 {
 	static int count;
-	int i;
+	unsigned int i;
 	static const struct {
 		enum brl_type lock_type;
 		const char *desc;
@@ -210,11 +213,13 @@ static void print_brl(struct file_id id,
 
 	share_mode = fetch_share_mode_unlocked(NULL, id);
 	if (share_mode) {
-		bool has_stream = share_mode->stream_name != NULL;
+		bool has_stream = share_mode->data->stream_name != NULL;
 
-		fname = talloc_asprintf(NULL, "%s%s%s", share_mode->base_name,
+		fname = talloc_asprintf(NULL, "%s%s%s",
+					share_mode->data->base_name,
 					has_stream ? ":" : "",
-					has_stream ? share_mode->stream_name :
+					has_stream ?
+					share_mode->data->stream_name :
 					"");
 	} else {
 		fname = talloc_strdup(NULL, "");
@@ -239,14 +244,15 @@ static void print_brl(struct file_id id,
 	TALLOC_FREE(share_mode);
 }
 
-static int traverse_fn1(const struct connections_key *key,
-			const struct connections_data *crec,
-			void *state)
+static int traverse_connections(const struct connections_key *key,
+				const struct connections_data *crec,
+				void *state)
 {
-	if (crec->cnum == -1)
+	if (crec->cnum == TID_FIELD_INVALID)
 		return 0;
 
-	if (!process_exists(crec->pid) || !Ucrit_checkUid(crec->uid)) {
+	if (do_checks &&
+	    (!process_exists(crec->pid) || !Ucrit_checkUid(crec->uid))) {
 		return 0;
 	}
 
@@ -263,8 +269,9 @@ static int traverse_sessionid(const char *key, struct sessionid *session,
 {
 	fstring uid_str, gid_str;
 
-	if (!process_exists(session->pid)
-	    || !Ucrit_checkUid(session->uid)) {
+	if (do_checks &&
+	    (!process_exists(session->pid) ||
+	     !Ucrit_checkUid(session->uid))) {
 		return 0;
 	}
 
@@ -283,13 +290,36 @@ static int traverse_sessionid(const char *key, struct sessionid *session,
 }
 
 
+static void print_notify_recs(const char *path,
+			      struct notify_db_entry *entries,
+			      size_t num_entries,
+			      time_t deleted_time, void *private_data)
+{
+	size_t i;
+	d_printf("%s\n", path);
 
+	if (num_entries == 0) {
+		d_printf("deleted %s\n", time_to_asc(deleted_time));
+	}
+
+	for (i=0; i<num_entries; i++) {
+		struct notify_db_entry *e = &entries[i];
+		char *str;
+
+		str = server_id_str(talloc_tos(), &e->server);
+		printf("%s %x %x\n", str, (unsigned)e->filter,
+		       (unsigned)e->subdir_filter);
+		TALLOC_FREE(str);
+	}
+	printf("\n");
+}
 
  int main(int argc, char *argv[])
 {
 	int c;
 	int profile_only = 0;
 	bool show_processes, show_locks, show_shares;
+	bool show_notify = false;
 	poptContext pc;
 	struct poptOption long_options[] = {
 		POPT_AUTOHELP
@@ -297,12 +327,14 @@ static int traverse_sessionid(const char *key, struct sessionid *session,
 		{"verbose",	'v', POPT_ARG_NONE, 	NULL, 'v', "Be verbose" },
 		{"locks",	'L', POPT_ARG_NONE,	NULL, 'L', "Show locks only" },
 		{"shares",	'S', POPT_ARG_NONE,	NULL, 'S', "Show shares only" },
+		{"notify",	'N', POPT_ARG_NONE,	NULL, 'N', "Show notifies" },
 		{"user", 	'u', POPT_ARG_STRING,	&username, 'u', "Switch to user" },
 		{"brief",	'b', POPT_ARG_NONE, 	NULL, 'b', "Be brief" },
 		{"profile",     'P', POPT_ARG_NONE, NULL, 'P', "Do profiling" },
 		{"profile-rates", 'R', POPT_ARG_NONE, NULL, 'R', "Show call rates" },
 		{"byterange",	'B', POPT_ARG_NONE,	NULL, 'B', "Include byte range locks"},
 		{"numeric",	'n', POPT_ARG_NONE,	NULL, 'n', "Numeric uid/gid"},
+		{"fast",	'f', POPT_ARG_NONE,	NULL, 'f', "Skip checks if processes still exist"},
 		POPT_COMMON_SAMBA
 		POPT_TABLEEND
 	};
@@ -338,6 +370,9 @@ static int traverse_sessionid(const char *key, struct sessionid *session,
 		case 'S':
 			shares_only = true;
 			break;
+		case 'N':
+			show_notify = true;
+			break;
 		case 'b':
 			brief = true;
 			break;
@@ -353,6 +388,9 @@ static int traverse_sessionid(const char *key, struct sessionid *session,
 			break;
 		case 'n':
 			numeric_only = true;
+			break;
+		case 'f':
+			do_checks = false;
 			break;
 		}
 	}
@@ -384,8 +422,7 @@ static int traverse_sessionid(const char *key, struct sessionid *session,
 		 * connection, usable by the db_open() calls further
 		 * down.
 		 */
-		msg_ctx = messaging_init(NULL, procid_self(),
-					 event_context_init(NULL));
+		msg_ctx = messaging_init(NULL, event_context_init(NULL));
 		if (msg_ctx == NULL) {
 			fprintf(stderr, "messaging_init failed\n");
 			ret = -1;
@@ -393,7 +430,7 @@ static int traverse_sessionid(const char *key, struct sessionid *session,
 		}
 	}
 
-	if (!lp_load(get_dyn_CONFIGFILE(),False,False,False,True)) {
+	if (!lp_load_global(get_dyn_CONFIGFILE())) {
 		fprintf(stderr, "Can't load %s - run testparm to debug it\n",
 			get_dyn_CONFIGFILE());
 		ret = -1;
@@ -415,10 +452,6 @@ static int traverse_sessionid(const char *key, struct sessionid *session,
 		d_printf("\nSamba version %s\n",samba_version_string());
 		d_printf("PID     Username      Group         Machine                        \n");
 		d_printf("-------------------------------------------------------------------\n");
-		if (lp_security() == SEC_SHARE) {
-			d_printf(" <processes do not show up in "
-				 "anonymous mode>\n");
-		}
 
 		sessionid_traverse_read(traverse_sessionid, NULL);
 
@@ -439,7 +472,7 @@ static int traverse_sessionid(const char *key, struct sessionid *session,
 		d_printf("\nService      pid     machine       Connected at\n");
 		d_printf("-------------------------------------------------------\n");
 
-		connections_forall_read(traverse_fn1, NULL);
+		connections_forall_read(traverse_connections, NULL);
 
 		d_printf("\n");
 
@@ -452,7 +485,8 @@ static int traverse_sessionid(const char *key, struct sessionid *session,
 		int result;
 		struct db_context *db;
 		db = db_open(NULL, lock_path("locking.tdb"), 0,
-			     TDB_CLEAR_IF_FIRST|TDB_INCOMPATIBLE_HASH, O_RDONLY, 0);
+			     TDB_CLEAR_IF_FIRST|TDB_INCOMPATIBLE_HASH, O_RDONLY, 0,
+			     DBWRAP_LOCK_ORDER_1);
 
 		if (!db) {
 			d_printf("%s not initialised\n",
@@ -474,7 +508,7 @@ static int traverse_sessionid(const char *key, struct sessionid *session,
 
 		if (result == 0) {
 			d_printf("No locked files\n");
-		} else if (result == -1) {
+		} else if (result < 0) {
 			d_printf("locked file list truncated\n");
 		}
 
@@ -485,6 +519,17 @@ static int traverse_sessionid(const char *key, struct sessionid *session,
 		}
 
 		locking_end();
+	}
+
+	if (show_notify) {
+		struct notify_context *n;
+
+		n = notify_init(talloc_tos(), NULL, NULL);
+		if (n == NULL) {
+			goto done;
+		}
+		notify_walk(n, print_notify_recs, NULL);
+		TALLOC_FREE(n);
 	}
 
 done:

@@ -61,9 +61,14 @@ static WERROR drsuapi_add_SPNs(struct drsuapi_bind_state *b_state,
 		ret = ldb_search(b_state->sam_ctx, mem_ctx, &res,
 				 dn, LDB_SCOPE_BASE, attrs,
 				 "(objectClass=ntDSDSA)");
-		if (ret != LDB_SUCCESS || res->count < 1) {
+		if (ret != LDB_SUCCESS) {
 			DEBUG(0,(__location__ ": Failed to find dn '%s'\n", dn_string));
 			return WERR_DS_DRA_INTERNAL_ERROR;
+		}
+
+		if (res->count < 1) {
+			/* we only add SPNs for nTDSDSA objects */
+			continue;
 		}
 
 		ref_dn = samdb_result_dn(b_state->sam_ctx, mem_ctx, res->msgs[0], "serverReference", NULL);
@@ -191,6 +196,7 @@ WERROR dcesrv_drsuapi_DsAddEntry(struct dcesrv_call_state *dce_call, TALLOC_CTX 
 						    mem_ctx,
 						    first_object,
 						    &num,
+						    DSDB_REPL_FLAG_ADD_NCNAME,
 						    &ids);
 		if (!W_ERROR_IS_OK(status)) {
 			r->out.ctr->ctr3.err_data->v1.status = status;

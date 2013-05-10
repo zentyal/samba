@@ -4,7 +4,7 @@
 
 if [ $# -lt 4 ]; then
 cat <<EOF
-Usage: test_smbclient_s3.sh SERVER SERVER_IP USERNAME PASSWORD <smbclient arguments>
+Usage: test_smbclient_auth.sh SERVER SERVER_IP USERNAME PASSWORD SMBCLIENT <smbclient arguments>
 EOF
 exit 1;
 fi
@@ -13,14 +13,13 @@ SERVER="$1"
 SERVER_IP="$2"
 USERNAME="$3"
 PASSWORD="$4"
-SMBCLIENT="$VALGRIND ${SMBCLIENT:-$BINDIR/smbclient}"
-shift 4
+SMBCLIENT="$5"
+SMBCLIENT="$VALGRIND ${SMBCLIENT}"
+shift 5
 ADDARGS="$*"
 
-test x"$TEST_FUNCTIONS_SH" != x"INCLUDED" && {
 incdir=`dirname $0`/../../../testprogs/blackbox
 . $incdir/subunit.sh
-}
 
 testit "smbclient //$SERVER/guestonly" $SMBCLIENT //$SERVER/guestonly $CONFIGURATION -U$USERNAME%$PASSWORD -I $SERVER_IP -p 139 -c quit $ADDARGS
 testit "smbclient //$SERVER/guestonly as anon" $SMBCLIENT //$SERVER/guestonly $CONFIGURATION -U% -I $SERVER_IP -p 139 -c quit $ADDARGS

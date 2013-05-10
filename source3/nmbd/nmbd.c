@@ -25,6 +25,7 @@
 #include "nmbd/nmbd.h"
 #include "serverid.h"
 #include "messages.h"
+#include "../lib/util/pidfile.h"
 
 int ClientNMB       = -1;
 int ClientDGRAM     = -1;
@@ -47,30 +48,20 @@ struct event_context *nmbd_event_context(void)
 	return server_event_context();
 }
 
-struct messaging_context *nmbd_messaging_context(void)
-{
-	struct messaging_context *msg_ctx = server_messaging_context();
-	if (likely(msg_ctx != NULL)) {
-		return msg_ctx;
-	}
-	smb_panic("Could not init nmbd's messaging context.\n");
-	return NULL;
-}
-
 /**************************************************************************** **
  Handle a SIGTERM in band.
  **************************************************************************** */
 
-static void terminate(void)
+static void terminate(struct messaging_context *msg)
 {
 	DEBUG(0,("Got SIGTERM: going down...\n"));
-  
+
 	/* Write out wins.dat file if samba is a WINS server */
 	wins_write_database(0,False);
-  
+
 	/* Remove all SELF registered names from WINS */
 	release_wins_names();
-  
+
 	/* Announce all server entries as 0 time-to-live, 0 type. */
 	announce_my_servers_removed();
 
@@ -78,9 +69,9 @@ static void terminate(void)
 	kill_async_dns_child();
 
 	gencache_stabilize();
-	serverid_deregister(procid_self());
+	serverid_deregister(messaging_server_id(msg));
 
-	pidfile_unlink();
+	pidfile_unlink(lp_piddir(), "nmbd");
 
 	exit(0);
 }
@@ -92,10 +83,31 @@ static void nmbd_sig_term_handler(struct tevent_context *ev,
 				  void *siginfo,
 				  void *private_data)
 {
-	terminate();
+	struct messaging_context *msg = talloc_get_type_abort(
+		private_data, struct messaging_context);
+
+	terminate(msg);
 }
 
-static bool nmbd_setup_sig_term_handler(void)
+/*
+  handle stdin becoming readable when we are in --foreground mode
+ */
+static void nmbd_stdin_handler(struct tevent_context *ev,
+			       struct tevent_fd *fde,
+			       uint16_t flags,
+			       void *private_data)
+{
+	char c;
+	if (read(0, &c, 1) != 1) {
+		struct messaging_context *msg = talloc_get_type_abort(
+			private_data, struct messaging_context);
+		
+		DEBUG(0,("EOF on stdin\n"));
+		terminate(msg);
+	}
+}
+
+static bool nmbd_setup_sig_term_handler(struct messaging_context *msg)
 {
 	struct tevent_signal *se;
 
@@ -103,10 +115,23 @@ static bool nmbd_setup_sig_term_handler(void)
 			       nmbd_event_context(),
 			       SIGTERM, 0,
 			       nmbd_sig_term_handler,
-			       NULL);
+			       msg);
 	if (!se) {
 		DEBUG(0,("failed to setup SIGTERM handler"));
 		return false;
+	}
+
+	return true;
+}
+
+static bool nmbd_setup_stdin_handler(struct messaging_context *msg, bool foreground)
+{
+	if (foreground) {
+		/* if we are running in the foreground then look for
+		   EOF on stdin, and exit if it happens. This allows
+		   us to die if the parent process dies
+		*/
+		tevent_add_fd(nmbd_event_context(), nmbd_event_context(), 0, TEVENT_FD_READ, nmbd_stdin_handler, msg);
 	}
 
 	return true;
@@ -125,13 +150,15 @@ static void nmbd_sig_hup_handler(struct tevent_context *ev,
 				 void *siginfo,
 				 void *private_data)
 {
+	struct messaging_context *msg = talloc_get_type_abort(
+		private_data, struct messaging_context);
+
 	DEBUG(0,("Got SIGHUP dumping debug info.\n"));
-	msg_reload_nmbd_services(nmbd_messaging_context(),
-				 NULL, MSG_SMB_CONF_UPDATED,
-				 procid_self(), NULL);
+	msg_reload_nmbd_services(msg, NULL, MSG_SMB_CONF_UPDATED,
+				 messaging_server_id(msg), NULL);
 }
 
-static bool nmbd_setup_sig_hup_handler(void)
+static bool nmbd_setup_sig_hup_handler(struct messaging_context *msg)
 {
 	struct tevent_signal *se;
 
@@ -139,7 +166,7 @@ static bool nmbd_setup_sig_hup_handler(void)
 			       nmbd_event_context(),
 			       SIGHUP, 0,
 			       nmbd_sig_hup_handler,
-			       NULL);
+			       msg);
 	if (!se) {
 		DEBUG(0,("failed to setup SIGHUP handler"));
 		return false;
@@ -158,16 +185,7 @@ static void nmbd_terminate(struct messaging_context *msg,
 			   struct server_id server_id,
 			   DATA_BLOB *data)
 {
-	terminate();
-}
-
-/**************************************************************************** **
- Possibly continue after a fault.
- **************************************************************************** */
-
-static void fault_continue(void)
-{
-	dump_core();
+	terminate(msg);
 }
 
 /**************************************************************************** **
@@ -177,7 +195,7 @@ static void fault_continue(void)
 static void expire_names_and_servers(time_t t)
 {
 	static time_t lastrun = 0;
-  
+
 	if ( !lastrun )
 		lastrun = t;
 	if ( t < (lastrun + 5) )
@@ -249,8 +267,8 @@ static void reload_interfaces(time_t t)
 			continue;
 		}
 
-		ip = ((struct sockaddr_in *)(void *)&iface->ip)->sin_addr;
-		nmask = ((struct sockaddr_in *)(void *)
+		ip = ((const struct sockaddr_in *)(const void *)&iface->ip)->sin_addr;
+		nmask = ((const struct sockaddr_in *)(const void *)
 			 &iface->netmask)->sin_addr;
 
 		/*
@@ -259,7 +277,7 @@ static void reload_interfaces(time_t t)
 		 * ignore it here. JRA.
 		 */
 
-		if (is_loopback_addr((struct sockaddr *)(void *)&iface->ip)) {
+		if (is_loopback_addr((const struct sockaddr *)(const void *)&iface->ip)) {
 			DEBUG(2,("reload_interfaces: Ignoring loopback "
 				"interface %s\n",
 				print_sockaddr(str, sizeof(str), &iface->ip) ));
@@ -365,7 +383,7 @@ static bool reload_nmbd_services(bool test)
 	set_remote_machine_name("nmbd", False);
 
 	if ( lp_loaded() ) {
-		char *fname = lp_configfile();
+		char *fname = lp_configfile(talloc_tos());
 		if (file_exist(fname) && !strcsequal(fname,get_dyn_CONFIGFILE())) {
 			set_dyn_CONFIGFILE(fname);
 			test = False;
@@ -376,7 +394,7 @@ static bool reload_nmbd_services(bool test)
 	if ( test && !lp_file_list_changed() )
 		return(True);
 
-	ret = lp_load(get_dyn_CONFIGFILE(), True , False, False, True);
+	ret = lp_load_global(get_dyn_CONFIGFILE());
 
 	/* perhaps the config filename is now set */
 	if ( !test ) {
@@ -469,7 +487,7 @@ static void msg_nmbd_send_packet(struct messaging_context *msg,
  The main select loop.
  **************************************************************************** */
 
-static void process(void)
+static void process(struct messaging_context *msg)
 {
 	bool run_election;
 
@@ -490,7 +508,7 @@ static void process(void)
 		 * (nmbd_packets.c)
 		 */
 
-		if(listen_for_packets(run_election)) {
+		if (listen_for_packets(msg, run_election)) {
 			TALLOC_FREE(frame);
 			return;
 		}
@@ -674,7 +692,7 @@ static void process(void)
 static bool open_sockets(bool isdaemon, int port)
 {
 	struct sockaddr_storage ss;
-	const char *sock_addr = lp_socket_address();
+	const char *sock_addr = lp_nbt_client_socket_address();
 
 	/*
 	 * The sockets opened here will be used to receive broadcast
@@ -740,14 +758,15 @@ static bool open_sockets(bool isdaemon, int port)
 
  int main(int argc, const char *argv[])
 {
-	static bool is_daemon;
-	static bool opt_interactive;
-	static bool Fork = true;
-	static bool no_process_group;
-	static bool log_stdout;
+	bool is_daemon = false;
+	bool opt_interactive = false;
+	bool Fork = true;
+	bool no_process_group = false;
+	bool log_stdout = false;
 	poptContext pc;
 	char *p_lmhosts = NULL;
 	int opt;
+	struct messaging_context *msg;
 	enum {
 		OPT_DAEMON = 1000,
 		OPT_INTERACTIVE,
@@ -775,6 +794,8 @@ static bool open_sockets(bool isdaemon, int port)
 	 */
 	talloc_enable_null_tracking();
 	frame = talloc_stackframe();
+
+	setup_logging(argv[0], DEBUG_DEFAULT_STDOUT);
 
 	load_case_tables();
 
@@ -808,11 +829,11 @@ static bool open_sockets(bool isdaemon, int port)
 	poptFreeContext(pc);
 
 	global_in_nmbd = true;
-	
+
 	StartupTime = time(NULL);
-	
-	sys_srandom(time(NULL) ^ sys_getpid());
-	
+
+	sys_srandom(time(NULL) ^ getpid());
+
 	if (!override_logfile) {
 		char *lfile = NULL;
 		if (asprintf(&lfile, "%s/log.nmbd", get_dyn_LOGFILEBASE()) < 0) {
@@ -821,10 +842,10 @@ static bool open_sockets(bool isdaemon, int port)
 		lp_set_logfile(lfile);
 		SAFE_FREE(lfile);
 	}
-	
-	fault_setup((void (*)(void *))fault_continue );
-	dump_core_setup("nmbd");
-	
+
+	fault_setup();
+	dump_core_setup("nmbd", lp_logfile(talloc_tos()));
+
 	/* POSIX demands that signals are inherited. If the invoking process has
 	 * these signals masked, we will have problems, as we won't receive them. */
 	BlockSignals(False, SIGHUP);
@@ -850,8 +871,9 @@ static bool open_sockets(bool isdaemon, int port)
 		DEBUG(0,("ERROR: Can't log to stdout (-S) unless daemon is in foreground (-F) or interactive (-i)\n"));
 		exit(1);
 	}
+
 	if (log_stdout) {
-		setup_logging( argv[0], DEBUG_STDOUT);
+		setup_logging(argv[0], DEBUG_STDOUT);
 	} else {
 		setup_logging( argv[0], DEBUG_FILE);
 	}
@@ -862,11 +884,22 @@ static bool open_sockets(bool isdaemon, int port)
 	DEBUGADD(0,("%s\n", COPYRIGHT_STARTUP_MESSAGE));
 
 	if (!lp_load_initial_only(get_dyn_CONFIGFILE())) {
-		DEBUG(0, ("error opening config file\n"));
+		DEBUG(0, ("error opening config file '%s'\n", get_dyn_CONFIGFILE()));
 		exit(1);
 	}
 
-	if (nmbd_messaging_context() == NULL) {
+	if (lp_server_role() == ROLE_ACTIVE_DIRECTORY_DC
+	    && !lp_parm_bool(-1, "server role check", "inhibit", false)) {
+		/* TODO: when we have a merged set of defaults for
+		 * loadparm, we could possibly check if the internal
+		 * nbt server is in the list, and allow a startup if disabled */
+		DEBUG(0, ("server role = 'active directory domain controller' not compatible with running nmbd standalone. \n"));
+		DEBUGADD(0, ("You should start 'samba' instead, and it will control starting the internal nbt server\n"));
+		exit(1);
+	}
+
+	msg = messaging_init(NULL, server_event_context());
+	if (msg == NULL) {
 		return 1;
 	}
 
@@ -889,7 +922,7 @@ static bool open_sockets(bool isdaemon, int port)
 		DEBUG(0,("standard input is not a socket, assuming -D option\n"));
 		is_daemon = True;
 	}
-  
+
 	if (is_daemon && !opt_interactive) {
 		DEBUG( 2, ( "Becoming a daemon.\n" ) );
 		become_daemon(Fork, no_process_group, log_stdout);
@@ -904,15 +937,11 @@ static bool open_sockets(bool isdaemon, int port)
 		setpgid( (pid_t)0, (pid_t)0 );
 #endif
 
-	if (nmbd_messaging_context() == NULL) {
-		return 1;
-	}
-
 #ifndef SYNC_DNS
 	/* Setup the async dns. We do it here so it doesn't have all the other
 		stuff initialised and thus chewing memory and sockets */
-	if(lp_we_are_a_wins_server() && lp_dns_proxy()) {
-		start_async_dns();
+	if(lp_we_are_a_wins_server() && lp_wins_dns_proxy()) {
+		start_async_dns(msg);
 	}
 #endif
 
@@ -920,43 +949,61 @@ static bool open_sockets(bool isdaemon, int port)
 		mkdir(lp_lockdir(), 0755);
 	}
 
-	pidfile_create("nmbd");
+	if (!directory_exist(lp_piddir())) {
+		mkdir(lp_piddir(), 0755);
+	}
 
-	status = reinit_after_fork(nmbd_messaging_context(),
-				   nmbd_event_context(),
-				   procid_self(), false);
+	pidfile_create(lp_piddir(), "nmbd");
+
+	status = reinit_after_fork(msg, nmbd_event_context(),
+				   false);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("reinit_after_fork() failed\n"));
 		exit(1);
 	}
 
-	if (!nmbd_setup_sig_term_handler())
+	/*
+	 * Do not initialize the parent-child-pipe before becoming
+	 * a daemon: this is used to detect a died parent in the child
+	 * process.
+	 */
+	status = init_before_fork();
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("init_before_fork failed: %s\n", nt_errstr(status)));
 		exit(1);
-	if (!nmbd_setup_sig_hup_handler())
+	}
+
+	if (!nmbd_setup_sig_term_handler(msg))
+		exit(1);
+	if (!nmbd_setup_stdin_handler(msg, !Fork))
+		exit(1);
+	if (!nmbd_setup_sig_hup_handler(msg))
 		exit(1);
 
 	/* get broadcast messages */
 
-	if (!serverid_register(procid_self(),
-			       FLAG_MSG_GENERAL|FLAG_MSG_DBWRAP)) {
+	if (!serverid_register(messaging_server_id(msg),
+				FLAG_MSG_GENERAL |
+				FLAG_MSG_NMBD |
+				FLAG_MSG_DBWRAP)) {
 		DEBUG(1, ("Could not register myself in serverid.tdb\n"));
 		exit(1);
 	}
 
-	messaging_register(nmbd_messaging_context(), NULL,
-			   MSG_FORCE_ELECTION, nmbd_message_election);
+	messaging_register(msg, NULL, MSG_FORCE_ELECTION,
+			   nmbd_message_election);
 #if 0
 	/* Until winsrepl is done. */
-	messaging_register(nmbd_messaging_context(), NULL,
-			   MSG_WINS_NEW_ENTRY, nmbd_wins_new_entry);
+	messaging_register(msg, NULL, MSG_WINS_NEW_ENTRY,
+			   nmbd_wins_new_entry);
 #endif
-	messaging_register(nmbd_messaging_context(), NULL,
-			   MSG_SHUTDOWN, nmbd_terminate);
-	messaging_register(nmbd_messaging_context(), NULL,
-			   MSG_SMB_CONF_UPDATED, msg_reload_nmbd_services);
-	messaging_register(nmbd_messaging_context(), NULL,
-			   MSG_SEND_PACKET, msg_nmbd_send_packet);
+	messaging_register(msg, NULL, MSG_SHUTDOWN,
+			   nmbd_terminate);
+	messaging_register(msg, NULL, MSG_SMB_CONF_UPDATED,
+			   msg_reload_nmbd_services);
+	messaging_register(msg, NULL, MSG_SEND_PACKET,
+			   msg_nmbd_send_packet);
 
 	TimeInit();
 
@@ -1017,7 +1064,7 @@ static bool open_sockets(bool isdaemon, int port)
         }
 
 	TALLOC_FREE(frame);
-	process();
+	process(msg);
 
 	kill_async_dns_child();
 	return(0);

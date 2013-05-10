@@ -20,7 +20,7 @@ you can download Samba from Subversion or using <command>rsync</command>.
 </para>
 
 <sect1>
-<title>Access Samba Source Code via Subversion</title>
+<title>Access Samba Source Code via GIT</title>
 
 
 <sect2>
@@ -28,115 +28,16 @@ you can download Samba from Subversion or using <command>rsync</command>.
 
 <para>
 <indexterm><primary>Subversion</primary></indexterm>
-Samba is developed in an open environment. Developers use a
-Subversion to <quote>checkin</quote> (also known as 
-<quote>commit</quote>) new source code. Samba's various Subversion branches can
-be accessed via anonymous Subversion using the instructions
-detailed in this chapter.
-</para>
-
-<para>
-This chapter is a modified version of the instructions found at the
-<ulink noescape="1" url="http://samba.org/samba/subversion.html">Samba</ulink> Web site.
+Samba is developed in an open environment. Developers use
+GIT to <quote>checkin</quote> (also known as 
+<quote>commit</quote>) new source code.  See the
+<ulink noescape="1"
+       url="https://wiki.samba.org/index.php/Using_Git_for_Samba_Development">Using
+Git for Samba Development page</ulink> in the Samba wiki.
 </para>
 
 </sect2>
 
-<sect2>
-<title>Subversion Access to samba.org</title>
-
-<para>
-The machine samba.org runs a publicly accessible Subversion
-repository for access to the source code of several packages, 
-including Samba, rsync, distcc, ccache, and jitterbug. There are two main ways
-of accessing the Subversion server on this host.
-</para>
-
-<sect3>
-<title>Access via ViewCVS</title>
-
-
-<para>
-<indexterm><primary>SVN</primary><secondary>web</secondary></indexterm>
-You can access the source code via your favorite WWW browser. This allows you to access
-the contents of individual files in the repository and also to look at the revision 
-history and commit logs of individual files. You can also ask for a diff 
-listing between any two versions on the repository.
-</para>
-
-<para>
-Use the URL
-<ulink noescape="1" url="http://viewcvs.samba.org/">http://viewcvs.samba.org/</ulink>.
-</para>
-</sect3>
-
-<sect3>
-<title>Access via Subversion</title>
-
-<para>
-<indexterm><primary>Subversion</primary></indexterm>
-You can also access the source code via a normal Subversion client. This gives you much more control over what
-you can do with the repository and allows you to check out whole source trees and keep them up to date via
-normal Subversion commands. This is the preferred method of access if you are a developer and not just a
-casual browser.
-</para>
-
-<para>In order to be able to download the Samba sources off Subversion, you need 
-a Subversion client. Your distribution might include one, or you can download the 
-sources from <ulink noescape="1" url="http://subversion.tigris.org/">http://subversion.tigris.org/</ulink>.
-</para>
-
-<para>
-To gain access via anonymous Subversion, use the following steps. 
-</para>
-
-<procedure>
-	<title>Retrieving Samba using Subversion</title>
-
-	<step>
-	<para>
-	Install a recent copy of Subversion. All you really need is a 
-	copy of the Subversion client binary. 
-	</para>
-	</step>
-
-	<step>
-	<para>
-	Run the command 
-	<screen>
-	<userinput>svn co svn://svnanon.samba.org/samba/trunk samba</userinput>.
-	</screen>
-	</para>
-	
-	<para>
-	This will create a directory called <filename>samba</filename> containing the 
-	latest Samba source code (usually the branch that is going to be the next major release). This 
-	currently corresponds to the 3.1 development tree. 
-	</para>
-	
-	<para>
-	Subversion branches other then trunk can be obtained by adding branches/BRANCH_NAME to the URL you check
-	out. A list of branch names can be found on the <quote>Development</quote> page of the Samba Web site. A
-	common request is to obtain the latest 3.0 release code. This could be done by using the following command:
-	<screen>
-	<userinput>svn co svn://svnanon.samba.org/samba/branches/SAMBA_3_0 samba_3</userinput>.
-	</screen>
-	</para>
-	</step>
-
-	<step>
-	<para>
-	Whenever you want to merge in the latest code changes, use the following command from within the Samba
-	directory:
-	<screen>
-	<userinput>svn update</userinput>
-	</screen>
-	</para>
-	</step>
-</procedure>
-	
-</sect3>
-</sect2>
 
 </sect1>
 
@@ -148,9 +49,9 @@ To gain access via anonymous Subversion, use the following steps.
 	<indexterm><primary>rsync</primary></indexterm>
 	<indexterm><primary>ftp</primary></indexterm>
 	<parameter>pserver.samba.org</parameter> also exports unpacked copies of most parts of the Subversion tree
-	at the Samba <ulink noescape="1" url="ftp://pserver.samba.org/pub/unpacked">pserver</ulink> location and also
+	at the Samba <ulink noescape="1" url="ftp://samba.org/pub/unpacked">unpacked</ulink> location and also
 	via anonymous rsync at the Samba <ulink noescape="1"
-	url="rsync://pserver.samba.org/ftp/unpacked/">rsync</ulink> server location.  I recommend using rsync rather
+	url="rsync://samba.org/ftp/unpacked/">rsync</ulink> server location.  I recommend using rsync rather
 	than ftp, because rsync is capable of compressing data streams, but it is also more useful than FTP because
 	during a partial update it will transfer only the data that is missing plus a small overhead.  See <ulink
 	noescape="1" url="http://rsync.samba.org/">the rsync home page</ulink> for more info on rsync.
@@ -158,7 +59,7 @@ To gain access via anonymous Subversion, use the following steps.
 
 	<para>
 	The disadvantage of the unpacked trees is that they do not support automatic
-	merging of local changes as Subversion does. <command>rsync</command> access is most convenient 
+	merging of local changes as GIT does. <command>rsync</command> access is most convenient 
 	for an initial install.                      
 	</para>
 </sect1>
@@ -181,8 +82,9 @@ With that said, go ahead and download the following files:
 </para>
 
 <para><screen>
-&prompt;<userinput>wget http://us1.samba.org/samba/ftp/samba-3.0.20.tar.asc</userinput>
-&prompt;<userinput>wget http://us1.samba.org/samba/ftp/samba-pubkey.asc</userinput>
+&prompt;<userinput>wget http://samba.org/samba/ftp/samba-latest.tar.asc</userinput>
+&prompt;<userinput>wget http://samba.org/samba/ftp/samba-latest.tar.gz</userinput>
+&prompt;<userinput>wget http://samba.org/samba/ftp/samba-pubkey.asc</userinput>
 </screen></para>
 
 
@@ -195,8 +97,8 @@ PGP key itself. Import the public PGP key with:
 </screen>
 and verify the Samba source code integrity with:
 <screen>
-&prompt;<userinput>gzip -d samba-3.0.20.tar.gz</userinput>
-&prompt;<userinput>gpg --verify samba-3.0.20.tar.asc</userinput>
+&prompt;<userinput>gzip -d samba-latest.tar.gz</userinput>
+&prompt;<userinput>gpg --verify samba-latest.tar.asc</userinput>
 </screen>
 </para>
 
@@ -215,28 +117,9 @@ gpg: BAD signature from <quote>Samba Distribution Verification Key</quote>
 	<title>Building the Binaries</title>
 	
 	<para>
-	<indexterm><primary>autogen.sh</primary></indexterm>
-<indexterm><primary>configure</primary></indexterm>
-	After the source tarball has been unpacked, the next step involves
-	configuration to match Samba to your operating system platform.
-	If your source directory does not contain the <command>configure</command> script,
-	it is necessary to build it before you can continue. Building of
-	the configure script requires the correct version of the autoconf
-	tool kit. Where the necessary version of autoconf is present,
-	the configure script can be generated by executing the following
-	(please note that in Samba 3.4.x, the directory is called source3 instead
-	of source):
-<screen>
-&rootprompt; cd samba-3.0.20/source
-&rootprompt; ./autogen.sh
-</screen>
-	</para>
-	
-
-	<para>
 	<indexterm><primary>configure</primary></indexterm>
 	To build the binaries, run the program <userinput>./configure
-	</userinput> in the source directory. This should automatically 
+	</userinput> in the top level director of the source tree. This should automatically 
 	configure Samba for your operating system. If you have unusual 
 	needs, then you may wish to first run:
 <screen>
@@ -265,30 +148,6 @@ gpg: BAD signature from <quote>Samba Distribution Verification Key</quote>
 </screen>
 	</para>
 	
-	<para>
-	Some people prefer to install binary files and man pages separately. If this is
-	your wish, the binary files can be installed by executing:
-<screen>
-&rootprompt; <userinput>make installbin</userinput>
-</screen>
-	The man pages can be installed using this command:
-<screen>
-&rootprompt; <userinput>make installman</userinput>
-</screen>
-	</para>
-
-	<para>
-	Note that if you are upgrading from a previous version of Samba the old
-	versions of the binaries will be renamed with an <quote>.old</quote> extension.
-	You can go back to the previous version by executing:
-<screen>
-&rootprompt; <userinput>make revert</userinput>
-</screen>
-	As you can see from this, building and installing Samba does not need to
-	result in disaster!
-	</para>
-	
-
 	<sect2>
 	<title>Compiling Samba with Active Directory Support</title>
 	
@@ -318,7 +177,7 @@ gpg: BAD signature from <quote>Samba Distribution Verification Key</quote>
 
 	<para>
 	After you run configure, make sure that the 
-	<filename>include/config.h</filename> it generates contain lines like this:
+	<filename>bin/include/config.h</filename> it generates contain lines like this:
 <programlisting>
 #define HAVE_KRB5 1
 #define HAVE_LDAP 1
@@ -408,82 +267,7 @@ gpg: BAD signature from <quote>Samba Distribution Verification Key</quote>
 	</para>
 
 	<sect2>
-	<title>Starting from inetd.conf</title>
-
-	<indexterm><primary>inetd</primary></indexterm>
-	
-	<note>
-	<para>The following will be different if 
-	you use NIS, NIS+, or LDAP to distribute services maps.</para>
-	</note>
-	
-	<para>Look at your <filename>/etc/services</filename>. 
-	What is defined at port 139/tcp? If nothing is defined, 
-	then add a line like this:</para>
-
-	<para><programlisting>netbios-ssn     139/tcp</programlisting></para>
-
-	<para>Similarly for 137/udp, you should have an entry like:</para>
-
-	<para><programlisting>netbios-ns	137/udp</programlisting></para>
-
-	<para>
-	Next, edit your <filename>/etc/inetd.conf</filename> and add two lines like this:
-<programlisting>
-netbios-ssn stream tcp nowait root /usr/local/samba/sbin/smbd smbd 
-netbios-ns dgram udp wait root /usr/local/samba/sbin/nmbd nmbd 
-</programlisting>
-	</para>
-
-<indexterm><primary>/etc/inetd.conf</primary></indexterm>
-	<para>
-	The exact syntax of <filename>/etc/inetd.conf</filename> 
-	varies between UNIXes. Look at the other entries in inetd.conf 
-	for a guide.
-	</para>
-
-	<para>
-	<indexterm><primary>xinetd</primary></indexterm>
-	Some distributions use xinetd instead of inetd. Consult the 
-	xinetd manual for configuration information.
-	</para>
-
-	<note><para>Some UNIXes already have entries like netbios_ns 
-	(note the underscore) in <filename>/etc/services</filename>. 
-	You must edit <filename>/etc/services</filename> or
-	<filename>/etc/inetd.conf</filename> to make them consistent.
-	</para></note>
-
-	<note><para>
-	<indexterm><primary>ifconfig</primary></indexterm>
-	On many systems you may need to use the
-	<smbconfoption name="interfaces"/> option in &smb.conf; to specify
-	the IP address and netmask of your interfaces. Run 
-	<application>ifconfig</application> as root if you do
-	not know what the broadcast is for your net. &nmbd; tries
-	to determine it at runtime, but fails on some UNIXes. 
-	</para></note>
-
-	<warning><para>
-	Many UNIXes only accept around five parameters on the command
-	line in <filename>inetd.conf</filename>.  This means you shouldn't
-	use spaces between the options and arguments, or you should use
-	a script and start the script from <command>inetd</command>.
-	</para></warning>
-
-	<para>
-	Restart <application>inetd</application>, perhaps just send it a HUP,
-	like this:
-<indexterm><primary>killall</primary></indexterm>
-<screen>
-&rootprompt;<userinput>killall -HUP inetd</userinput>
-</screen>
-	</para>
-		
-	</sect2>
-	
-	<sect2>
-	<title>Alternative: Starting &smbd; as a Daemon</title>
+	<title>Starting &smbd; as a Daemon</title>
 		
 	<para>
 	<indexterm><primary>daemon</primary></indexterm>
@@ -520,26 +304,6 @@ netbios-ns dgram udp wait root /usr/local/samba/sbin/nmbd nmbd
 
 	<sect3>
 	<title>Starting Samba for Red Hat Linux</title>
-
-	<para>
-	Red Hat Linux has not always included all Samba components in the standard installation.
-	So versions of Red Hat Linux do not install the winbind utility, even though it is present
-	on the installation CDROM media. Check to see if the <command>winbindd</command> is present
-	on the system:
-<screen>
-&rootprompt; ls /usr/sbin/winbindd
-/usr/sbin/winbindd
-</screen>
-	This means that the appropriate RPM package was installed. The following response means
-	that it is not installed:
-<screen>
-/bin/ls: /usr/sbin/winbind: No such file or directory
-</screen>
-	In this case, it should be installed if you intend to use <command>winbindd</command>. Search
-	the CDROM installation media for the samba-winbind RPM and install it following Red Hat
-	guidelines.
-	</para>
-
 	<para>
 	The process for starting Samba will now be outlined. Be sure to configure Samba's &smb.conf;
 	file before starting Samba. When configured, start Samba by executing:

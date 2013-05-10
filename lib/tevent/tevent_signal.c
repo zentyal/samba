@@ -30,8 +30,6 @@
 #include "tevent_internal.h"
 #include "tevent_util.h"
 
-#define TEVENT_NUM_SIGNALS 64
-
 /* maximum number of SA_SIGINFO signals to hold in the queue.
   NB. This *MUST* be a power of 2, in order for the ring buffer
   wrap to work correctly. Thanks to Petr Vandrovec <petr@vandrovec.name>
@@ -82,7 +80,6 @@ static uint32_t tevent_sig_count(struct tevent_sigcounter s)
 static void tevent_common_signal_handler(int signum)
 {
 	char c = 0;
-	ssize_t res;
 	struct tevent_common_signal_list *sl;
 	struct tevent_context *ev = NULL;
 	int saved_errno = errno;
@@ -95,7 +92,7 @@ static void tevent_common_signal_handler(int signum)
 		if (sl->se->event_ctx && sl->se->event_ctx != ev) {
 			ev = sl->se->event_ctx;
 			/* doesn't matter if this pipe overflows */
-			res = write(ev->pipe_fds[1], &c, 1);
+			(void) write(ev->pipe_fds[1], &c, 1);
 		}
 	}
 
@@ -209,9 +206,8 @@ static void signal_pipe_handler(struct tevent_context *ev, struct tevent_fd *fde
 				uint16_t flags, void *_private)
 {
 	char c[16];
-	ssize_t res;
 	/* its non-blocking, doesn't matter if we read too much */
-	res = read(fde->fd, c, sizeof(c));
+	(void) read(fde->fd, c, sizeof(c));
 }
 
 /*
@@ -338,6 +334,15 @@ struct tevent_signal *tevent_common_add_signal(struct tevent_context *ev,
 	return se;
 }
 
+struct tevent_se_exists {
+	struct tevent_se_exists **myself;
+};
+
+static int tevent_se_exists_destructor(struct tevent_se_exists *s)
+{
+	*s->myself = NULL;
+	return 0;
+}
 
 /*
   check if a signal is pending
@@ -366,7 +371,25 @@ int tevent_common_check_signal(struct tevent_context *ev)
 		}
 		for (sl=sig_state->sig_handlers[i];sl;sl=next) {
 			struct tevent_signal *se = sl->se;
+			struct tevent_se_exists *exists;
+
 			next = sl->next;
+
+			/*
+			 * We have to be careful to not touch "se"
+			 * after it was deleted in its handler. Thus
+			 * we allocate a child whose destructor will
+			 * tell by nulling out itself that its parent
+			 * is gone.
+			 */
+			exists = talloc(se, struct tevent_se_exists);
+			if (exists == NULL) {
+				continue;
+			}
+			exists->myself = &exists;
+			talloc_set_destructor(
+				exists, tevent_se_exists_destructor);
+
 #ifdef SA_SIGINFO
 			if (se->sa_flags & SA_SIGINFO) {
 				uint32_t j;
@@ -383,21 +406,26 @@ int tevent_common_check_signal(struct tevent_context *ev)
 					se->handler(ev, se, i, 1,
 						    (void*)&sig_state->sig_info[i][ofs], 
 						    se->private_data);
+					if (!exists) {
+						break;
+					}
 				}
 #ifdef SA_RESETHAND
-				if (se->sa_flags & SA_RESETHAND) {
+				if (exists && (se->sa_flags & SA_RESETHAND)) {
 					talloc_free(se);
 				}
 #endif
+				talloc_free(exists);
 				continue;
 			}
 #endif
 			se->handler(ev, se, i, count, NULL, se->private_data);
 #ifdef SA_RESETHAND
-			if (se->sa_flags & SA_RESETHAND) {
+			if (exists && (se->sa_flags & SA_RESETHAND)) {
 				talloc_free(se);
 			}
 #endif
+			talloc_free(exists);
 		}
 
 #ifdef SA_SIGINFO

@@ -99,7 +99,7 @@ bool E_md4hash(const char *passwd, uint8_t p16[16])
 
 void E_md5hash(const uint8_t salt[16], const uint8_t nthash[16], uint8_t hash_out[16])
 {
-	MD5_CTX tctx;
+	struct MD5Context tctx;
 	MD5Init(&tctx);
 	MD5Update(&tctx, salt, 16);
 	MD5Update(&tctx, nthash, 16);
@@ -116,19 +116,36 @@ void E_md5hash(const uint8_t salt[16], const uint8_t nthash[16], uint8_t hash_ou
 
 bool E_deshash(const char *passwd, uint8_t p16[16])
 {
-	bool ret = true;
-	char dospwd[256];
+	bool ret;
+	uint8_t dospwd[14];
+	TALLOC_CTX *frame = talloc_stackframe();
+
+	size_t converted_size;
+
+	char *tmpbuf;
+
 	ZERO_STRUCT(dospwd);
 
-	/* Password must be converted to DOS charset - null terminated, uppercase. */
-	push_string(dospwd, passwd, sizeof(dospwd), STR_ASCII|STR_UPPER|STR_TERMINATE);
-
-	/* Only the first 14 chars are considered, password need not be null terminated. */
-	E_P16((const uint8_t *)dospwd, p16);
-
-	if (strlen(dospwd) > 14) {
-		ret = false;
+	tmpbuf = strupper_talloc(frame, passwd);
+	if (tmpbuf == NULL) {
+		/* Too many callers don't check this result, we need to fill in the buffer with something */
+		strlcpy((char *)dospwd, passwd ? passwd : "", sizeof(dospwd));
+		E_P16(dospwd, p16);
+		talloc_free(frame);
+		return false;
 	}
+
+	ZERO_STRUCT(dospwd);
+
+	ret = convert_string_error(CH_UNIX, CH_DOS, tmpbuf, strlen(tmpbuf), dospwd, sizeof(dospwd), &converted_size);
+	talloc_free(frame);
+
+	/* Only the first 14 chars are considered, password need not
+	 * be null terminated.  We do this in the error and success
+	 * case to avoid returning a fixed 'password' buffer, but
+	 * callers should not use it when E_deshash returns false */
+
+	E_P16((const uint8_t *)dospwd, p16);
 
 	ZERO_STRUCT(dospwd);
 
@@ -248,7 +265,7 @@ void SMBOWFencrypt(const uint8_t passwd[16], const uint8_t *c8, uint8_t p24[24])
 
 /* Does the des encryption. */
 
-void SMBNTencrypt_hash(const uint8_t nt_hash[16], uint8_t *c8, uint8_t *p24)
+void SMBNTencrypt_hash(const uint8_t nt_hash[16], const uint8_t *c8, uint8_t *p24)
 {
 	uint8_t p21[21];
 
@@ -266,7 +283,7 @@ void SMBNTencrypt_hash(const uint8_t nt_hash[16], uint8_t *c8, uint8_t *p24)
 
 /* Does the NT MD4 hash then des encryption. Plaintext version of the above. */
 
-void SMBNTencrypt(const char *passwd, uint8_t *c8, uint8_t *p24)
+void SMBNTencrypt(const char *passwd, const uint8_t *c8, uint8_t *p24)
 {
 	uint8_t nt_hash[16];
 	E_md4hash(passwd, nt_hash);
@@ -355,11 +372,18 @@ DATA_BLOB NTLMv2_generate_names_blob(TALLOC_CTX *mem_ctx,
 	DATA_BLOB names_blob = data_blob_talloc(mem_ctx, NULL, 0);
 
 	/* Deliberately ignore return here.. */
-	(void)msrpc_gen(mem_ctx, &names_blob,
-		  "aaa",
-		  MsvAvNbDomainName, domain,
-		  MsvAvNbComputerName, hostname,
-		  MsvAvEOL, "");
+	if (hostname != NULL) {
+		(void)msrpc_gen(mem_ctx, &names_blob,
+			  "aaa",
+			  MsvAvNbDomainName, domain,
+			  MsvAvNbComputerName, hostname,
+			  MsvAvEOL, "");
+	} else {
+		(void)msrpc_gen(mem_ctx, &names_blob,
+			  "aa",
+			  MsvAvNbDomainName, domain,
+			  MsvAvEOL, "");
+	}
 	return names_blob;
 }
 
@@ -592,8 +616,7 @@ bool decode_pw_buffer(TALLOC_CTX *ctx,
 				   &in_buffer[512 - byte_len],
 				   byte_len,
 				   (void *)pp_new_pwrd,
-				   new_pw_len,
-				   false)) {
+				   new_pw_len)) {
 		DEBUG(0, ("decode_pw_buffer: failed to convert incoming password\n"));
 		return false;
 	}
@@ -614,7 +637,7 @@ bool decode_pw_buffer(TALLOC_CTX *ctx,
 
 void encode_or_decode_arc4_passwd_buffer(unsigned char pw_buf[532], const DATA_BLOB *psession_key)
 {
-	MD5_CTX tctx;
+	struct MD5Context tctx;
 	unsigned char key_out[16];
 
 	/* Confounder is last 16 bytes. */
@@ -694,7 +717,7 @@ void encode_wkssvc_join_password_buffer(TALLOC_CTX *mem_ctx,
 					struct wkssvc_PasswordBuffer **pwd_buf)
 {
 	uint8_t buffer[516];
-	MD5_CTX ctx;
+	struct MD5Context ctx;
 	struct wkssvc_PasswordBuffer *my_pwd_buf = NULL;
 	DATA_BLOB confounded_session_key;
 	int confounder_len = 8;
@@ -732,7 +755,7 @@ WERROR decode_wkssvc_join_password_buffer(TALLOC_CTX *mem_ctx,
 					  char **pwd)
 {
 	uint8_t buffer[516];
-	MD5_CTX ctx;
+	struct MD5Context ctx;
 	size_t pwd_len;
 
 	DATA_BLOB confounded_session_key;

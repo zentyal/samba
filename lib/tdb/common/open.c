@@ -315,33 +315,33 @@ _PUBLIC_ struct tdb_context *tdb_open_ex(const char *name, int hash_size, int td
 	    (locked = (tdb_nest_lock(tdb, ACTIVE_LOCK, F_WRLCK, TDB_LOCK_NOWAIT|TDB_LOCK_PROBE) == 0))) {
 		int ret;
 		ret = tdb_brlock(tdb, F_WRLCK, FREELIST_TOP, 0,
-				TDB_LOCK_WAIT);
+				 TDB_LOCK_WAIT);
 		if (ret == -1) {
 			TDB_LOG((tdb, TDB_DEBUG_FATAL, "tdb_open_ex: "
-				"tdb_brlock failed for %s: %s\n",
-				name, strerror(errno)));
+				 "tdb_brlock failed for %s: %s\n",
+				 name, strerror(errno)));
 			goto fail;
 		}
 		ret = tdb_new_database(tdb, hash_size);
 		if (ret == -1) {
 			TDB_LOG((tdb, TDB_DEBUG_FATAL, "tdb_open_ex: "
-				"tdb_new_database failed for %s: %s\n",
-				name, strerror(errno)));
+				 "tdb_new_database failed for %s: %s\n",
+				 name, strerror(errno)));
 			tdb_unlockall(tdb);
 			goto fail;
 		}
 		ret = tdb_brunlock(tdb, F_WRLCK, FREELIST_TOP, 0);
 		if (ret == -1) {
 			TDB_LOG((tdb, TDB_DEBUG_FATAL, "tdb_open_ex: "
-				"tdb_unlockall failed for %s: %s\n",
-				name, strerror(errno)));
+				 "tdb_unlockall failed for %s: %s\n",
+				 name, strerror(errno)));
 			goto fail;
 		}
 		ret = lseek(tdb->fd, 0, SEEK_SET);
 		if (ret == -1) {
 			TDB_LOG((tdb, TDB_DEBUG_FATAL, "tdb_open_ex: "
-				"lseek failed for %s: %s\n",
-				name, strerror(errno)));
+				 "lseek failed for %s: %s\n",
+				 name, strerror(errno)));
 			goto fail;
 		}
 	}
@@ -409,7 +409,17 @@ _PUBLIC_ struct tdb_context *tdb_open_ex(const char *name, int hash_size, int td
 		goto fail;
 	}
 
+	/* Beware truncation! */
 	tdb->map_size = st.st_size;
+	if (tdb->map_size != st.st_size) {
+		/* Ensure ecode is set for log fn. */
+		tdb->ecode = TDB_ERR_IO;
+		TDB_LOG((tdb, TDB_DEBUG_FATAL, "tdb_open_ex: "
+			 "len %llu too large!\n", (long long)st.st_size));
+		errno = EIO;
+		goto fail;
+	}
+
 	tdb->device = st.st_dev;
 	tdb->inode = st.st_ino;
 	tdb_mmap(tdb);
@@ -601,7 +611,9 @@ static int tdb_reopen_internal(struct tdb_context *tdb, bool active_lock)
 		TDB_LOG((tdb, TDB_DEBUG_FATAL, "tdb_reopen: file dev/inode has changed!\n"));
 		goto fail;
 	}
-	tdb_mmap(tdb);
+	if (tdb_mmap(tdb) != 0) {
+		goto fail;
+	}
 #endif /* fake pread or pwrite */
 
 	/* We may still think we hold the active lock. */

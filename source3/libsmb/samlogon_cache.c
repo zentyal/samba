@@ -71,16 +71,9 @@ clear:
 	}
 	first_try = false;
 
-	DEBUG(0,("retry after CLEAR_IF_FIRST for '%s'\n", path));
-	tdb = tdb_open_log(path, 0, TDB_CLEAR_IF_FIRST|TDB_INCOMPATIBLE_HASH,
-			   O_RDWR | O_CREAT, 0600);
-	if (tdb) {
-		tdb_close(tdb);
-		goto again;
-	}
-	DEBUG(0,("tdb_open_log(%s) with CLEAR_IF_FIRST - failed\n", path));
-
-	return false;
+	DEBUG(0,("retry after truncate for '%s'\n", path));
+	truncate(path, 0);
+	goto again;
 }
 
 
@@ -156,7 +149,7 @@ bool netsamlogon_cache_store(const char *username, struct netr_SamInfo3 *info3)
 
 	/* Prepare data */
 
-	if (!(mem_ctx = TALLOC_P( NULL, int))) {
+	if (!(mem_ctx = talloc( NULL, int))) {
 		DEBUG(0,("netsamlogon_cache_store: talloc() failed!\n"));
 		return false;
 	}
@@ -186,7 +179,7 @@ bool netsamlogon_cache_store(const char *username, struct netr_SamInfo3 *info3)
 	data.dsize = blob.length;
 	data.dptr = blob.data;
 
-	if (tdb_store_bystring(netsamlogon_tdb, keystr, data, TDB_REPLACE) != -1) {
+	if (tdb_store_bystring(netsamlogon_tdb, keystr, data, TDB_REPLACE) == 0) {
 		result = true;
 	}
 
@@ -212,7 +205,7 @@ struct netr_SamInfo3 *netsamlogon_cache_get(TALLOC_CTX *mem_ctx, const struct do
 	if (!netsamlogon_cache_init()) {
 		DEBUG(0,("netsamlogon_cache_get: cannot open %s for write!\n",
 			NETSAMLOGON_TDB));
-		return false;
+		return NULL;
 	}
 
 	/* Prepare key as DOMAIN-SID/USER-RID string */
@@ -224,7 +217,7 @@ struct netr_SamInfo3 *netsamlogon_cache_get(TALLOC_CTX *mem_ctx, const struct do
 		return NULL;
 	}
 
-	info3 = TALLOC_ZERO_P(mem_ctx, struct netr_SamInfo3);
+	info3 = talloc_zero(mem_ctx, struct netr_SamInfo3);
 	if (!info3) {
 		goto done;
 	}

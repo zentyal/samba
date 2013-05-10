@@ -21,6 +21,7 @@ dn: CN=Extended-Rights,${CONFIGDN}
 objectClass: top
 objectClass: container
 systemFlags: -2147483648
+nTSecurityDescriptor:: ${EXTENDEDRIGHTS_DESCRIPTOR}
 
 dn: CN=Change-Rid-Master,CN=Extended-Rights,${CONFIGDN}
 objectClass: top
@@ -706,6 +707,7 @@ validAccesses: 48
 dn: CN=ForestUpdates,${CONFIGDN}
 objectClass: top
 objectClass: container
+nTSecurityDescriptor:: ${FORESTUPDATES_DESCRIPTOR}
 
 dn: CN=ActiveDirectoryRodcUpdate,CN=ForestUpdates,${CONFIGDN}
 objectClass: top
@@ -1001,6 +1003,7 @@ dn: CN=LostAndFoundConfig,${CONFIGDN}
 objectClass: top
 objectClass: lostAndFound
 systemFlags: -2147483648
+nTSecurityDescriptor:: ${LOSTANDFOUND_DESCRIPTOR}
 
 dn: CN=NTDS Quotas,${CONFIGDN}
 objectClass: top
@@ -1009,6 +1012,7 @@ description: Quota specifications container
 isCriticalSystemObject: TRUE
 msDS-TombstoneQuotaFactor: 100
 systemFlags: -2147483648
+nTSecurityDescriptor:: ${NTDSQUOTAS_DESCRIPTOR}
 
 # Partitions
 
@@ -1018,8 +1022,9 @@ objectClass: crossRefContainer
 systemFlags: -2147483648
 msDS-Behavior-Version: ${FOREST_FUNCTIONALITY}
 showInAdvancedViewOnly: TRUE
+nTSecurityDescriptor:: ${PARTITIONS_DESCRIPTOR}
 
-# Partitions for DNS are missing since we don't support AD DNS
+# Partitions for DNS are missing here, they are added from provision_dnszones.ldif
 
 dn: CN=Enterprise Configuration,CN=Partitions,${CONFIGDN}
 objectClass: top
@@ -1052,6 +1057,7 @@ objectClass: top
 objectClass: locality
 objectClass: physicalLocation
 l: Physical Locations tree root
+nTSecurityDescriptor:: ${PHYSICALLOCATIONS_DESCRIPTOR}
 
 # Schema located in "ad-schema/*.txt"
 
@@ -1061,6 +1067,7 @@ dn: CN=Services,${CONFIGDN}
 objectClass: top
 objectClass: container
 systemFlags: -2147483648
+nTSecurityDescriptor:: ${SERVICES_DESCRIPTOR}
 
 dn: CN=MsmqServices,CN=Services,${CONFIGDN}
 objectClass: top
@@ -1194,7 +1201,7 @@ dn: CN=Sites,${CONFIGDN}
 objectClass: top
 objectClass: sitesContainer
 systemFlags: -2113929216
-nTSecurityDescriptor:: ${SITES_DESCRIPTOR}
+ntSecurityDescriptor:: ${SITES_DESCRIPTOR}
 
 dn: CN=${DEFAULTSITE},CN=Sites,${CONFIGDN}
 objectClass: top

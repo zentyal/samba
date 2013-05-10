@@ -174,14 +174,18 @@ struct socket_address *socket_address_from_strings(TALLOC_CTX *mem_ctx,
 struct socket_address *socket_address_from_sockaddr(TALLOC_CTX *mem_ctx, 
 						    struct sockaddr *sockaddr, 
 						    size_t addrlen);
+struct sockaddr_storage;
+struct socket_address *socket_address_from_sockaddr_storage(TALLOC_CTX *mem_ctx,
+							    const struct sockaddr_storage *sockaddr,
+							    uint16_t port);
 _PUBLIC_ void socket_address_set_port(struct socket_address *a,
 				      uint16_t port);
 struct socket_address *socket_address_copy(TALLOC_CTX *mem_ctx,
 					   const struct socket_address *oaddr);
 const struct socket_ops *socket_getops_byname(const char *name, enum socket_type type);
-bool allow_access(TALLOC_CTX *mem_ctx,
-		  const char **deny_list, const char **allow_list,
-		  const char *cname, const char *caddr);
+bool socket_allow_access(TALLOC_CTX *mem_ctx,
+			 const char **deny_list, const char **allow_list,
+			 const char *cname, const char *caddr);
 bool socket_check_access(struct socket_context *sock, 
 			 const char *service_name,
 			 const char **allow_list, const char **deny_list);
@@ -197,6 +201,34 @@ NTSTATUS socket_connect_ev(struct socket_context *sock,
 			   struct socket_address *server_address, 
 			   uint32_t flags, 
 			   struct tevent_context *ev);
+
+struct socket_connect_multi_ex {
+	void *private_data;
+	struct tevent_req *(*establish_send)(TALLOC_CTX *mem_ctx,
+					     struct tevent_context *ev,
+					     struct socket_context *sock,
+					     struct socket_address *addr,
+					     void *private_data);
+	NTSTATUS (*establish_recv)(struct tevent_req *req);
+};
+struct composite_context *socket_connect_multi_ex_send(TALLOC_CTX *mem_ctx,
+						       const char *server_address,
+						       int num_server_ports,
+						       uint16_t *server_ports,
+						       struct resolve_context *resolve_ctx,
+						       struct tevent_context *event_ctx,
+						       struct socket_connect_multi_ex *ex);
+NTSTATUS socket_connect_multi_ex_recv(struct composite_context *ctx,
+				      TALLOC_CTX *mem_ctx,
+				      struct socket_context **result,
+				      uint16_t *port);
+NTSTATUS socket_connect_multi_ex(TALLOC_CTX *mem_ctx, const char *server_address,
+				 int num_server_ports, uint16_t *server_ports,
+				 struct resolve_context *resolve_ctx,
+				 struct tevent_context *event_ctx,
+				 struct socket_connect_multi_ex *ex,
+				 struct socket_context **result,
+				 uint16_t *port);
 
 struct composite_context *socket_connect_multi_send(TALLOC_CTX *mem_ctx,
 						    const char *server_address,

@@ -57,15 +57,6 @@ static double timeval_elapsed(struct timeval *tv)
 		return false; \
 	}
 
-#if _SAMBA_BUILD_==3
-#ifdef malloc
-#undef malloc
-#endif
-#ifdef strdup
-#undef strdup
-#endif
-#endif
-
 #define CHECK_SIZE(test, ptr, tsize) do { \
 	if (talloc_total_size(ptr) != (tsize)) { \
 		printf("failed: %s [\n%s: wrong '%s' tree size: got %u  expected %u\n]\n", \
@@ -857,7 +848,7 @@ static bool test_speed(void)
 			p1 = talloc_size(ctx, loop % 100);
 			p2 = talloc_strdup(p1, "foo bar");
 			p3 = talloc_size(p1, 300);
-			talloc_free_children(ctx);
+			talloc_free(p1);
 		}
 		count += 3 * loop;
 	} while (timeval_elapsed(&tv) < 5.0);
@@ -1324,7 +1315,8 @@ static bool test_rusty(void)
 static bool test_free_children(void)
 {
 	void *root;
-	const char *p1, *p2, *name, *name2;
+	char *p1, *p2;
+	const char *name, *name2;
 
 	talloc_enable_null_tracking();
 	root = talloc_new(NULL);

@@ -34,7 +34,7 @@ void task_server_terminate(struct task_server *task, const char *reason, bool fa
 	const struct model_ops *model_ops = task->model_ops;
 	DEBUG(0,("task_server_terminate: [%s]\n", reason));
 
-	if (fatal) {
+	if (fatal && task->msg_ctx != NULL) {
 		struct dcerpc_binding_handle *irpc_handle;
 		struct samba_terminate r;
 
@@ -45,6 +45,8 @@ void task_server_terminate(struct task_server *task, const char *reason, bool fa
 			dcerpc_samba_terminate_r(irpc_handle, task, &r);
 		}
 	}
+
+	imessaging_cleanup(task->msg_ctx);
 
 	model_ops->terminate(event_ctx, task->lp_ctx, reason);
 	
@@ -78,12 +80,12 @@ static void task_server_callback(struct tevent_context *event_ctx,
 	task->server_id = server_id;
 	task->lp_ctx = lp_ctx;
 
-	task->msg_ctx = messaging_init(task, 
-				       lpcfg_messaging_path(task, task->lp_ctx),
-				       task->server_id, 
-				       task->event_ctx);
+	task->msg_ctx = imessaging_init(task,
+					task->lp_ctx,
+					task->server_id,
+					task->event_ctx, false);
 	if (!task->msg_ctx) {
-		task_server_terminate(task, "messaging_init() failed", true);
+		task_server_terminate(task, "imessaging_init() failed", true);
 		return;
 	}
 

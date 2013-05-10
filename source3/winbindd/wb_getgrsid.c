@@ -91,13 +91,18 @@ static void wb_getgrsid_lookupsid_done(struct tevent_req *subreq)
 	case SID_NAME_DOM_GRP:
 	case SID_NAME_ALIAS:
 	case SID_NAME_WKN_GRP:
+	/*
+	 * also treat user-type SIDS (they might map to ID_TYPE_BOTH)
+	 */
+	case SID_NAME_USER:
+	case SID_NAME_COMPUTER:
 		break;
 	default:
 		tevent_req_nterror(req, NT_STATUS_NO_SUCH_GROUP);
 		return;
 	}
 
-	subreq = wb_sid2gid_send(state, state->ev, &state->sid);
+	subreq = wb_sids2xids_send(state, state->ev, &state->sid, 1);
 	if (tevent_req_nomem(subreq, req)) {
 		return;
 	}
@@ -111,12 +116,71 @@ static void wb_getgrsid_sid2gid_done(struct tevent_req *subreq)
 	struct wb_getgrsid_state *state = tevent_req_data(
 		req, struct wb_getgrsid_state);
 	NTSTATUS status;
+	struct unixid xid;
 
-	status = wb_sid2gid_recv(subreq, &state->gid);
+	status = wb_sids2xids_recv(subreq, &xid);
 	TALLOC_FREE(subreq);
 	if (tevent_req_nterror(req, status)) {
 		return;
 	}
+
+	/*
+	 * We are filtering further down in sids2xids, but that filtering
+	 * depends on the actual type of the sid handed in (as determined
+	 * by lookupsids). Here we need to filter for the type of object
+	 * actually requested, in this case uid.
+	 */
+	if (!(xid.type == ID_TYPE_GID || xid.type == ID_TYPE_BOTH)) {
+		tevent_req_nterror(req, NT_STATUS_NONE_MAPPED);
+		return;
+	}
+
+	state->gid = (gid_t)xid.id;
+
+	if (state->type == SID_NAME_USER || state->type == SID_NAME_COMPUTER) {
+		/*
+		 * special treatment for a user sid that is
+		 * mapped to ID_TYPE_BOTH:
+		 * create a group with the sid/xid as only member
+		 */
+		char *name;
+
+		if (xid.type != ID_TYPE_BOTH) {
+			tevent_req_nterror(req, NT_STATUS_NO_SUCH_GROUP);
+			return;
+		}
+
+		state->members = talloc_dict_init(state);
+		if (tevent_req_nomem(state->members, req)) {
+			return;
+		}
+
+		name = fill_domain_username_talloc(talloc_tos(),
+						   state->domname,
+						   state->name,
+						   true /* can_assume */);
+		if (tevent_req_nomem(name, req)) {
+			return;
+		}
+
+		status = add_wbint_Principal_to_dict(talloc_tos(),
+						     &state->sid,
+						     &name,
+						     state->type,
+						     state->members);
+		if (!NT_STATUS_IS_OK(status)) {
+			tevent_req_nterror(req, status);
+			return;
+		}
+
+		tevent_req_done(req);
+		return;
+	}
+
+	/*
+	 * the "regular" case of a group type sid.
+	 */
+
 	subreq = wb_group_members_send(state, state->ev, &state->sid,
 				       state->type, state->max_nesting);
 	if (tevent_req_nomem(subreq, req)) {

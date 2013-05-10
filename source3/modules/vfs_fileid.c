@@ -66,7 +66,7 @@ static void fileid_load_mount_entries(struct fileid_handle_data *data)
 			m->mnt_fsname += 5;
 		}
 
-		data->mount_entries = TALLOC_REALLOC_ARRAY(data,
+		data->mount_entries = talloc_realloc(data,
 							   data->mount_entries,
 							   struct fileid_mount_entry,
 							   data->num_mount_entries+1);
@@ -144,7 +144,7 @@ static uint64_t fileid_device_mapping_fsname(struct fileid_handle_data *data,
 	if (!m) return dev;
 
 	if (m->devid == (uint64_t)-1) {
-		m->devid = fileid_uint64_hash((uint8_t *)m->mnt_fsname,
+		m->devid = fileid_uint64_hash((const uint8_t *)m->mnt_fsname,
 					      strlen(m->mnt_fsname));
 	}
 
@@ -229,7 +229,7 @@ static int fileid_connect(struct vfs_handle_struct *handle,
 static void fileid_disconnect(struct vfs_handle_struct *handle)
 {
 	DEBUG(10,("fileid_disconnect() connect to service[%s].\n",
-		lp_servicename(SNUM(handle->conn))));
+		  lp_servicename(talloc_tos(), SNUM(handle->conn))));
 
 	SMB_VFS_NEXT_DISCONNECT(handle);
 }
@@ -254,8 +254,8 @@ static struct file_id fileid_file_id_create(struct vfs_handle_struct *handle,
 
 static struct vfs_fn_pointers vfs_fileid_fns = {
 	.connect_fn = fileid_connect,
-	.disconnect = fileid_disconnect,
-	.file_id_create = fileid_file_id_create
+	.disconnect_fn = fileid_disconnect,
+	.file_id_create_fn = fileid_file_id_create
 };
 
 NTSTATUS vfs_fileid_init(void);

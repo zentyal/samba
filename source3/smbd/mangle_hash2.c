@@ -291,7 +291,7 @@ static unsigned int mangle_hash(const char *key, unsigned int length)
 	length = MIN(length,sizeof(fstring)-1);
 	strncpy(str, key, length);
 	str[length] = 0;
-	strupper_m(str);
+	(void)strupper_m(str);
 
 	/* the length of a multi-byte string can change after a strupper_m */
 	length = strlen(str);
@@ -627,6 +627,7 @@ static bool is_legal_name(const char *name)
 		if (((unsigned int)name[0]) > 128 && (name[1] != 0)) {
 			/* Possible start of mb character. */
 			char mbc[2];
+			size_t size = 0;
 			/*
 			 * Note that if CH_UNIX is utf8 a string may be 3
 			 * bytes, but this is ok as mb utf8 characters don't
@@ -634,10 +635,12 @@ static bool is_legal_name(const char *name)
 			 * for mb UNIX asian characters like Japanese (SJIS) here.
 			 * JRA.
 			 */
-			if (convert_string(CH_UNIX, CH_UTF16LE, name, 2, mbc, 2, False) == 2) {
-				/* Was a good mb string. */
-				name += 2;
-				continue;
+			if (convert_string(CH_UNIX, CH_UTF16LE, name, 2, mbc, 2, &size)) {
+				if (size == 2) {
+					/* Was a good mb string. */
+					name += 2;
+					continue;
+				}
 			}
 		}
 
@@ -702,7 +705,7 @@ static bool hash2_name_to_8_3(const char *name,
 		/* if the name is already a valid 8.3 name then we don't need to
 		 * change anything */
 		if (is_legal_name(name) && is_8_3(name, False, False, p)) {
-			safe_strcpy(new_name, name, 12);
+			strlcpy(new_name, name, 13);
 			return True;
 		}
 	}

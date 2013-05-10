@@ -5,6 +5,7 @@
 
    Copyright (C) Andrew Tridgell 2005
    Copyright (C) Simo Sorce 2005-2008
+   Copyright (C) Matthieu Patou <mat@matws.net> 2011
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -76,6 +77,8 @@ static int expand_dn_in_message(struct ldb_module *module, struct ldb_message *m
 	TALLOC_CTX *tmp_ctx = talloc_new(req);
 	struct ldb_context *ldb;
 	int edn_type = 0;
+	unsigned int i;
+	struct ldb_message_element *el;
 
 	ldb = ldb_module_get_ctx(module);
 
@@ -84,82 +87,131 @@ static int expand_dn_in_message(struct ldb_module *module, struct ldb_message *m
 		edn_type = edn->type;
 	}
 
-	v = discard_const_p(struct ldb_val, ldb_msg_find_ldb_val(msg, attrname));
-	if (v == NULL) {
-		talloc_free(tmp_ctx);
+	el = ldb_msg_find_element(msg, attrname);
+	if (!el || el->num_values == 0) {
 		return LDB_SUCCESS;
 	}
 
-	dn_string = talloc_strndup(tmp_ctx, (const char *)v->data, v->length);
-	if (dn_string == NULL) {
-		talloc_free(tmp_ctx);
-		return ldb_operr(ldb);
+	for (i = 0; i < el->num_values; i++) {
+		v = &el->values[i];
+		if (v == NULL) {
+			talloc_free(tmp_ctx);
+			return LDB_SUCCESS;
+		}
+
+		dn_string = talloc_strndup(tmp_ctx, (const char *)v->data, v->length);
+		if (dn_string == NULL) {
+			talloc_free(tmp_ctx);
+			return ldb_operr(ldb);
+		}
+
+		res = talloc_zero(tmp_ctx, struct ldb_result);
+		if (res == NULL) {
+			talloc_free(tmp_ctx);
+			return ldb_operr(ldb);
+		}
+
+		dn = ldb_dn_new(tmp_ctx, ldb, dn_string);
+		if (dn == NULL) {
+			talloc_free(tmp_ctx);
+			return ldb_operr(ldb);
+		}
+
+		ret = ldb_build_search_req(&req2, ldb, tmp_ctx,
+					dn,
+					LDB_SCOPE_BASE,
+					NULL,
+					no_attrs,
+					NULL,
+					res, ldb_search_default_callback,
+					req);
+		LDB_REQ_SET_LOCATION(req2);
+		if (ret != LDB_SUCCESS) {
+			talloc_free(tmp_ctx);
+			return ret;
+		}
+
+
+		ret = ldb_request_add_control(req2,
+					LDB_CONTROL_EXTENDED_DN_OID,
+					edn_control->critical, edn);
+		if (ret != LDB_SUCCESS) {
+			talloc_free(tmp_ctx);
+			return ldb_error(ldb, ret, "Failed to add control");
+		}
+
+		ret = ldb_next_request(module, req2);
+		if (ret == LDB_SUCCESS) {
+			ret = ldb_wait(req2->handle, LDB_WAIT_ALL);
+		}
+
+		if (ret != LDB_SUCCESS) {
+			talloc_free(tmp_ctx);
+			return ret;
+		}
+
+		if (!res || res->count != 1) {
+			talloc_free(tmp_ctx);
+			return ldb_operr(ldb);
+		}
+
+		dn2 = res->msgs[0]->dn;
+
+		v->data = (uint8_t *)ldb_dn_get_extended_linearized(msg->elements, dn2, edn_type);
+		if (v->data == NULL) {
+			talloc_free(tmp_ctx);
+			return ldb_operr(ldb);
+		}
+		v->length = strlen((char *)v->data);
 	}
-
-	res = talloc_zero(tmp_ctx, struct ldb_result);
-	if (res == NULL) {
-		talloc_free(tmp_ctx);
-		return ldb_operr(ldb);
-	}
-
-	dn = ldb_dn_new(tmp_ctx, ldb, dn_string);
-	if (dn == NULL) {
-		talloc_free(tmp_ctx);
-		return ldb_operr(ldb);
-	}
-
-	ret = ldb_build_search_req(&req2, ldb, tmp_ctx,
-				   dn,
-				   LDB_SCOPE_BASE,
-				   NULL,
-				   no_attrs,
-				   NULL,
-				   res, ldb_search_default_callback,
-				   req);
-	LDB_REQ_SET_LOCATION(req2);
-	if (ret != LDB_SUCCESS) {
-		talloc_free(tmp_ctx);
-		return ret;
-	}
-
-
-	ret = ldb_request_add_control(req2,
-				      LDB_CONTROL_EXTENDED_DN_OID,
-				      edn_control->critical, edn);
-	if (ret != LDB_SUCCESS) {
-		talloc_free(tmp_ctx);
-		return ret;
-	}
-
-	ret = ldb_next_request(module, req2);
-	if (ret == LDB_SUCCESS) {
-		ret = ldb_wait(req2->handle, LDB_WAIT_ALL);
-	}
-	if (ret != LDB_SUCCESS) {
-		talloc_free(tmp_ctx);
-		return ret;
-	}
-
-	if (!res || res->count != 1) {
-		talloc_free(tmp_ctx);
-		return ldb_operr(ldb);
-	}
-
-	dn2 = res->msgs[0]->dn;
-
-	v->data = (uint8_t *)ldb_dn_get_extended_linearized(msg->elements, dn2, edn_type);
-	if (v->data == NULL) {
-		talloc_free(tmp_ctx);
-		return ldb_operr(ldb);
-	}
-	v->length = strlen((char *)v->data);
-
 
 	talloc_free(tmp_ctx);
 
 	return LDB_SUCCESS;
 }
 
+/*
+  see if we are master for a FSMO role
+ */
+static int dsdb_module_we_are_master(struct ldb_module *module, struct ldb_dn *dn, bool *master,
+				     struct ldb_request *parent)
+{
+	const char *attrs[] = { "fSMORoleOwner", NULL };
+	TALLOC_CTX *tmp_ctx = talloc_new(parent);
+	struct ldb_result *res;
+	int ret;
+	struct ldb_dn *owner_dn;
+
+	ret = dsdb_module_search_dn(module, tmp_ctx, &res,
+				    dn, attrs,
+				    DSDB_FLAG_NEXT_MODULE |
+				    DSDB_FLAG_AS_SYSTEM |
+				    DSDB_SEARCH_SHOW_EXTENDED_DN,
+				    parent);
+	if (ret != LDB_SUCCESS) {
+		talloc_free(tmp_ctx);
+		return ret;
+	}
+
+	owner_dn = ldb_msg_find_attr_as_dn(ldb_module_get_ctx(module),
+					   tmp_ctx, res->msgs[0], "fSMORoleOwner");
+	if (!owner_dn) {
+		*master = false;
+		talloc_free(tmp_ctx);
+		return LDB_SUCCESS;
+	}
+
+	ret = samdb_dn_is_our_ntdsa(ldb_module_get_ctx(module), dn, master);
+	if (ret != LDB_SUCCESS) {
+		ldb_asprintf_errstring(ldb_module_get_ctx(module), "Failed to confirm if our ntdsDsa is %s: %s",
+				       ldb_dn_get_linearized(owner_dn), ldb_errstring(ldb_module_get_ctx(module)));
+		talloc_free(tmp_ctx);
+		return ret;
+	}
+	
+	talloc_free(tmp_ctx);
+	return LDB_SUCCESS;
+}
 
 /*
   add dynamically generated attributes to rootDSE result
@@ -176,12 +228,18 @@ static int rootdse_add_dynamic(struct ldb_module *module, struct ldb_message *ms
 	const char *dn_attrs[] = {
 		"configurationNamingContext",
 		"defaultNamingContext",
-		"dsServiceName",
 		"rootDomainNamingContext",
 		"schemaNamingContext",
 		"serverName",
+		"validFSMOs",
+		"namingContexts",
 		NULL
 	};
+	const char *guid_attrs[] = {
+		"dsServiceName",
+		NULL
+	};
+	unsigned int i;
 
 	ldb = ldb_module_get_ctx(module);
 	schema = dsdb_get_schema(ldb, NULL);
@@ -205,7 +263,10 @@ static int rootdse_add_dynamic(struct ldb_module *module, struct ldb_message *ms
 		int ret;
 		const char *dns_attrs[] = { "dNSHostName", NULL };
 		ret = dsdb_module_search_dn(module, msg, &res, samdb_server_dn(ldb, msg),
-					    dns_attrs, DSDB_FLAG_NEXT_MODULE, req);
+					    dns_attrs,
+					    DSDB_FLAG_NEXT_MODULE |
+					    DSDB_FLAG_AS_SYSTEM,
+					    req);
 		if (ret == LDB_SUCCESS) {
 			const char *hostname = ldb_msg_find_attr_as_string(res->msgs[0], "dNSHostName", NULL);
 			if (hostname != NULL) {
@@ -222,11 +283,10 @@ static int rootdse_add_dynamic(struct ldb_module *module, struct ldb_message *ms
 					  struct loadparm_context);
 		char *ldap_service_name, *hostname;
 
-		hostname = talloc_strdup(msg, lpcfg_netbios_name(lp_ctx));
+		hostname = strlower_talloc(msg, lpcfg_netbios_name(lp_ctx));
 		if (hostname == NULL) {
 			goto failed;
 		}
-		strlower_m(hostname);
 
 		ldap_service_name = talloc_asprintf(msg, "%s:%s$@%s",
 						    samdb_forest_name(ldb, msg),
@@ -249,7 +309,6 @@ static int rootdse_add_dynamic(struct ldb_module *module, struct ldb_message *ms
 	}
 
 	if (priv && do_attribute(attrs, "supportedControl")) {
-		unsigned int i;
 		for (i = 0; i < priv->num_controls; i++) {
 			char *control = talloc_strdup(msg, priv->controls[i]);
 			if (!control) {
@@ -263,7 +322,6 @@ static int rootdse_add_dynamic(struct ldb_module *module, struct ldb_message *ms
  	}
 
 	if (priv && do_attribute(attrs, "namingContexts")) {
-		unsigned int i;
 		for (i = 0; i < priv->num_partitions; i++) {
 			struct ldb_dn *dn = priv->partitions[i];
 			if (ldb_msg_add_steal_string(msg, "namingContexts",
@@ -276,7 +334,6 @@ static int rootdse_add_dynamic(struct ldb_module *module, struct ldb_message *ms
 	server_sasl = talloc_get_type(ldb_get_opaque(ldb, "supportedSASLMechanisms"),
 				       char *);
 	if (server_sasl && do_attribute(attrs, "supportedSASLMechanisms")) {
-		unsigned int i;
 		for (i = 0; server_sasl && server_sasl[i]; i++) {
 			char *sasl_name = talloc_strdup(msg, server_sasl[i]);
 			if (!sasl_name) {
@@ -337,38 +394,21 @@ static int rootdse_add_dynamic(struct ldb_module *module, struct ldb_message *ms
 	}
 
 	if (do_attribute_explicit(attrs, "validFSMOs")) {
-		const struct dsdb_naming_fsmo *naming_fsmo;
-		const struct dsdb_pdc_fsmo *pdc_fsmo;
-		const char *dn_str;
+		struct ldb_dn *dns[3];
 
-		if (schema && schema->fsmo.we_are_master) {
-			dn_str = ldb_dn_get_linearized(ldb_get_schema_basedn(ldb));
-			if (dn_str && dn_str[0]) {
-				if (ldb_msg_add_fmt(msg, "validFSMOs", "%s", dn_str) != LDB_SUCCESS) {
-					goto failed;
-				}
+		dns[0] = ldb_get_schema_basedn(ldb);
+		dns[1] = samdb_partitions_dn(ldb, msg);
+		dns[2] = ldb_get_default_basedn(ldb);
+
+		for (i=0; i<3; i++) {
+			bool master;
+			int ret = dsdb_module_we_are_master(module, dns[i], &master, req);
+			if (ret != LDB_SUCCESS) {
+				goto failed;
 			}
-		}
-
-		naming_fsmo = talloc_get_type(ldb_get_opaque(ldb, "dsdb_naming_fsmo"),
-					      struct dsdb_naming_fsmo);
-		if (naming_fsmo && naming_fsmo->we_are_master) {
-			dn_str = ldb_dn_get_linearized(samdb_partitions_dn(ldb, msg));
-			if (dn_str && dn_str[0]) {
-				if (ldb_msg_add_fmt(msg, "validFSMOs", "%s", dn_str) != LDB_SUCCESS) {
-					goto failed;
-				}
-			}
-		}
-
-		pdc_fsmo = talloc_get_type(ldb_get_opaque(ldb, "dsdb_pdc_fsmo"),
-					   struct dsdb_pdc_fsmo);
-		if (pdc_fsmo && pdc_fsmo->we_are_master) {
-			dn_str = ldb_dn_get_linearized(ldb_get_default_basedn(ldb));
-			if (dn_str && dn_str[0]) {
-				if (ldb_msg_add_fmt(msg, "validFSMOs", "%s", dn_str) != LDB_SUCCESS) {
-					goto failed;
-				}
+			if (master && ldb_msg_add_fmt(msg, "validFSMOs", "%s",
+						      ldb_dn_get_linearized(dns[i])) != LDB_SUCCESS) {
+				goto failed;
 			}
 		}
 	}
@@ -417,7 +457,6 @@ static int rootdse_add_dynamic(struct ldb_module *module, struct ldb_message *ms
 	}
 
 	if (do_attribute_explicit(attrs, "tokenGroups")) {
-		unsigned int i;
 		/* Obtain the user's session_info */
 		struct auth_session_info *session_info
 			= (struct auth_session_info *)ldb_get_opaque(ldb, "sessionInfo");
@@ -437,11 +476,61 @@ static int rootdse_add_dynamic(struct ldb_module *module, struct ldb_message *ms
 
 	edn_control = ldb_request_get_control(req, LDB_CONTROL_EXTENDED_DN_OID);
 
+	/* convert any GUID attributes to be in the right form */
+	for (i=0; guid_attrs[i]; i++) {
+		struct ldb_result *res;
+		struct ldb_message_element *el;
+		struct ldb_dn *attr_dn;
+		const char *no_attrs[] = { NULL };
+		int ret;
+
+		if (!do_attribute(attrs, guid_attrs[i])) continue;
+
+		attr_dn = ldb_msg_find_attr_as_dn(ldb, req, msg, guid_attrs[i]);
+		if (attr_dn == NULL) {
+			continue;
+		}
+
+		ret = dsdb_module_search_dn(module, req, &res,
+					    attr_dn, no_attrs,
+					    DSDB_FLAG_NEXT_MODULE |
+					    DSDB_FLAG_AS_SYSTEM |
+					    DSDB_SEARCH_SHOW_EXTENDED_DN,
+					    req);
+		if (ret != LDB_SUCCESS) {
+			return ldb_operr(ldb);
+		}
+
+		el = ldb_msg_find_element(msg, guid_attrs[i]);
+		if (el == NULL) {
+			return ldb_operr(ldb);
+		}
+
+		talloc_steal(el->values, res->msgs[0]->dn);
+		if (edn_control) {
+			struct ldb_extended_dn_control *edn;
+			int edn_type = 0;
+			edn = talloc_get_type(edn_control->data, struct ldb_extended_dn_control);
+			if (edn != NULL) {
+				edn_type = edn->type;
+			}
+			el->values[0].data  = (uint8_t *)ldb_dn_get_extended_linearized(el->values,
+											res->msgs[0]->dn,
+											edn_type);
+		} else {
+			el->values[0].data  = (uint8_t *)talloc_strdup(el->values,
+								       ldb_dn_get_linearized(res->msgs[0]->dn));
+		}
+		if (el->values[0].data == NULL) {
+			return ldb_oom(ldb);
+		}
+		el->values[0].length = strlen((const char *)el->values[0].data);
+	}
+
 	/* if the client sent us the EXTENDED_DN control then we need
 	   to expand the DNs to have GUID and SID. W2K8 join relies on
 	   this */
 	if (edn_control) {
-		unsigned int i;
 		int ret;
 		for (i=0; dn_attrs[i]; i++) {
 			if (!do_attribute(attrs, dn_attrs[i])) continue;
@@ -613,7 +702,11 @@ static int rootdse_filter_controls(struct ldb_module *module, struct ldb_request
 			continue;
 		}
 
-		if (is_registered) {
+		/* If the control is DIRSYNC control then we keep the critical
+		 * flag as the dirsync module will need to act upon it
+		 */
+		if (is_registered && strcmp(req->controls[i]->oid,
+					LDB_CONTROL_DIRSYNC_OID)!= 0) {
 			req->controls[i]->critical = 0;
 		}
 	}
@@ -803,7 +896,10 @@ static int rootdse_init(struct ldb_module *module)
 	*/
 	ret = dsdb_module_search(module, mem_ctx, &res,
 				 ldb_get_default_basedn(ldb),
-				 LDB_SCOPE_BASE, attrs, DSDB_FLAG_NEXT_MODULE, NULL, NULL);
+				 LDB_SCOPE_BASE, attrs,
+				 DSDB_FLAG_NEXT_MODULE |
+				 DSDB_FLAG_AS_SYSTEM,
+				 NULL, NULL);
 	if (ret == LDB_SUCCESS && res->count == 1) {
 		int domain_behaviour_version
 			= ldb_msg_find_attr_as_int(res->msgs[0],
@@ -825,7 +921,10 @@ static int rootdse_init(struct ldb_module *module)
 
 	ret = dsdb_module_search(module, mem_ctx, &res,
 				 samdb_partitions_dn(ldb, mem_ctx),
-				 LDB_SCOPE_BASE, attrs, DSDB_FLAG_NEXT_MODULE, NULL, NULL);
+				 LDB_SCOPE_BASE, attrs,
+				 DSDB_FLAG_NEXT_MODULE |
+				 DSDB_FLAG_AS_SYSTEM,
+				 NULL, NULL);
 	if (ret == LDB_SUCCESS && res->count == 1) {
 		int forest_behaviour_version
 			= ldb_msg_find_attr_as_int(res->msgs[0],
@@ -849,14 +948,20 @@ static int rootdse_init(struct ldb_module *module)
 	 * the @ROOTDSE record */
 	ret = dsdb_module_search(module, mem_ctx, &res,
 				 ldb_dn_new(mem_ctx, ldb, "@ROOTDSE"),
-				 LDB_SCOPE_BASE, ds_attrs, DSDB_FLAG_NEXT_MODULE, NULL, NULL);
+				 LDB_SCOPE_BASE, ds_attrs,
+				 DSDB_FLAG_NEXT_MODULE |
+				 DSDB_FLAG_AS_SYSTEM,
+				 NULL, NULL);
 	if (ret == LDB_SUCCESS && res->count == 1) {
 		struct ldb_dn *ds_dn
 			= ldb_msg_find_attr_as_dn(ldb, mem_ctx, res->msgs[0],
 						  "dsServiceName");
 		if (ds_dn) {
 			ret = dsdb_module_search(module, mem_ctx, &res, ds_dn,
-						 LDB_SCOPE_BASE, attrs, DSDB_FLAG_NEXT_MODULE, NULL, NULL);
+						 LDB_SCOPE_BASE, attrs,
+						 DSDB_FLAG_NEXT_MODULE |
+						 DSDB_FLAG_AS_SYSTEM,
+						 NULL, NULL);
 			if (ret == LDB_SUCCESS && res->count == 1) {
 				int domain_controller_behaviour_version
 					= ldb_msg_find_attr_as_int(res->msgs[0],
@@ -949,6 +1054,7 @@ static int dsdb_find_optional_feature(struct ldb_module *module, struct ldb_cont
 	ret = dsdb_module_search(module, tmp_ctx, &res, NULL, LDB_SCOPE_SUBTREE,
 				 NULL,
 				 DSDB_FLAG_NEXT_MODULE |
+				 DSDB_FLAG_AS_SYSTEM |
 				 DSDB_SEARCH_SEARCH_ALL_PARTITIONS,
 				 parent,
 				 "(&(objectClass=msDS-OptionalFeature)"
@@ -996,20 +1102,16 @@ static int rootdse_enable_recycle_bin(struct ldb_module *module,struct ldb_conte
 	}
 
 	tmp_ctx = talloc_new(mem_ctx);
-	ntds_settings_dn = samdb_ntds_settings_dn(ldb);
+	ntds_settings_dn = samdb_ntds_settings_dn(ldb, tmp_ctx);
 	if (!ntds_settings_dn) {
-		DEBUG(0, (__location__ ": Failed to find NTDS settings DN\n"));
-		ret = LDB_ERR_OPERATIONS_ERROR;
 		talloc_free(tmp_ctx);
-		return ret;
+		return ldb_error(ldb, LDB_ERR_OPERATIONS_ERROR, "Failed to find NTDS settings DN");
 	}
 
 	ntds_settings_dn = ldb_dn_copy(tmp_ctx, ntds_settings_dn);
 	if (!ntds_settings_dn) {
-		DEBUG(0, (__location__ ": Failed to copy NTDS settings DN\n"));
-		ret = LDB_ERR_OPERATIONS_ERROR;
 		talloc_free(tmp_ctx);
-		return ret;
+		return ldb_error(ldb, LDB_ERR_OPERATIONS_ERROR, "Failed to copy NTDS settings DN");
 	}
 
 	msg = ldb_msg_new(tmp_ctx);
@@ -1137,6 +1239,35 @@ static int rootdse_schemaupdatenow(struct ldb_module *module, struct ldb_request
 	return ldb_module_done(req, NULL, NULL, ret);
 }
 
+static int rootdse_schemaupgradeinprogress(struct ldb_module *module, struct ldb_request *req)
+{
+	struct ldb_context *ldb = ldb_module_get_ctx(module);
+	int ret = LDB_SUCCESS;
+	struct ldb_dn *schema_dn;
+
+	schema_dn = ldb_get_schema_basedn(ldb);
+	if (!schema_dn) {
+		ldb_reset_err_string(ldb);
+		ldb_debug(ldb, LDB_DEBUG_WARNING,
+			  "rootdse_modify: no schema dn present: (skip ldb_extended call)\n");
+		return ldb_next_request(module, req);
+	}
+
+	/* FIXME we have to do something in order to relax constraints for DRS
+	 * setting schemaUpgradeInProgress cause the fschemaUpgradeInProgress
+	 * in all LDAP connection (2K3/2K3R2) or in the current connection (2K8 and +)
+	 * to be set to true.
+	 */
+
+	/* from 5.113 LDAPConnections in DRSR.pdf
+	 * fschemaUpgradeInProgress: A Boolean that specifies certain constraint
+	 * validations are skipped when adding, updating, or removing directory
+	 * objects on the opened connection. The skipped constraint validations
+	 * are documented in the applicable constraint sections in [MS-ADTS].
+	 */
+	return ldb_module_done(req, NULL, NULL, ret);
+}
+
 static int rootdse_add(struct ldb_module *module, struct ldb_request *req)
 {
 	struct ldb_context *ldb = ldb_module_get_ctx(module);
@@ -1163,20 +1294,76 @@ static int rootdse_add(struct ldb_module *module, struct ldb_request *req)
 	return LDB_ERR_NAMING_VIOLATION;
 }
 
+struct fsmo_transfer_state {
+	struct ldb_context *ldb;
+	struct ldb_request *req;
+	struct ldb_module *module;
+};
+
+/*
+  called when a FSMO transfer operation has completed
+ */
+static void rootdse_fsmo_transfer_callback(struct tevent_req *treq)
+{
+	struct fsmo_transfer_state *fsmo = tevent_req_callback_data(treq, struct fsmo_transfer_state);
+	NTSTATUS status;
+	WERROR werr;
+	int ret;
+	struct ldb_request *req = fsmo->req;
+	struct ldb_context *ldb = fsmo->ldb;
+
+	status = dcerpc_drepl_takeFSMORole_recv(treq, fsmo, &werr);
+	talloc_free(fsmo);
+	if (!NT_STATUS_IS_OK(status)) {
+		ldb_asprintf_errstring(ldb, "Failed FSMO transfer: %s", nt_errstr(status));
+		/*
+		 * Now that it is failed, start the transaction up
+		 * again so the wrappers can close it without additional error
+		 */
+		ldb_next_start_trans(fsmo->module);
+		ldb_module_done(req, NULL, NULL, LDB_ERR_UNAVAILABLE);
+		return;
+	}
+	if (!W_ERROR_IS_OK(werr)) {
+		ldb_asprintf_errstring(ldb, "Failed FSMO transfer: %s", win_errstr(werr));
+		/*
+		 * Now that it is failed, start the transaction up
+		 * again so the wrappers can close it without additional error
+		 */
+		ldb_next_start_trans(fsmo->module);
+		ldb_module_done(req, NULL, NULL, LDB_ERR_UNAVAILABLE);
+		return;
+	}
+
+	/*
+	 * Now that it is done, start the transaction up again so the
+	 * wrappers can close it without error
+	 */
+	ret = ldb_next_start_trans(fsmo->module);
+	ldb_module_done(req, NULL, NULL, ret);
+}
+
 static int rootdse_become_master(struct ldb_module *module,
 				 struct ldb_request *req,
 				 enum drepl_role_master role)
 {
-	struct drepl_takeFSMORole r;
-	struct messaging_context *msg;
+	struct imessaging_context *msg;
 	struct ldb_context *ldb = ldb_module_get_ctx(module);
 	TALLOC_CTX *tmp_ctx = talloc_new(req);
 	struct loadparm_context *lp_ctx = ldb_get_opaque(ldb, "loadparm");
-	NTSTATUS status_call;
-	WERROR status_fn;
 	bool am_rodc;
 	struct dcerpc_binding_handle *irpc_handle;
 	int ret;
+	struct auth_session_info *session_info;
+	enum security_user_level level;
+	struct fsmo_transfer_state *fsmo;
+	struct tevent_req *treq;
+
+	session_info = (struct auth_session_info *)ldb_get_opaque(ldb_module_get_ctx(module), "sessionInfo");
+	level = security_session_user_level(session_info, NULL);
+	if (level < SECURITY_ADMINISTRATOR) {
+		return ldb_error(ldb, LDB_ERR_INSUFFICIENT_ACCESS_RIGHTS, "Denied rootDSE modify for non-administrator");
+	}
 
 	ret = samdb_rodc(ldb, &am_rodc);
 	if (ret != LDB_SUCCESS) {
@@ -1188,10 +1375,17 @@ static int rootdse_become_master(struct ldb_module *module,
 				 "RODC cannot become a role master.");
 	}
 
-	msg = messaging_client_init(tmp_ctx, lpcfg_messaging_path(tmp_ctx, lp_ctx),
+	/*
+	 * We always delete the transaction, not commit it, because
+	 * this gives the least supprise to this supprising action (as
+	 * we will never record anything done to this point
+	 */
+	ldb_next_del_trans(module);
+
+	msg = imessaging_client_init(tmp_ctx, lp_ctx,
 				    ldb_get_event_context(ldb));
 	if (!msg) {
-		ldb_asprintf_errstring(ldb, "Failed to generate client messaging context in %s", lpcfg_messaging_path(tmp_ctx, lp_ctx));
+		ldb_asprintf_errstring(ldb, "Failed to generate client messaging context in %s", lpcfg_imessaging_path(tmp_ctx, lp_ctx));
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
 	irpc_handle = irpc_binding_handle_by_name(tmp_ctx, msg,
@@ -1200,17 +1394,34 @@ static int rootdse_become_master(struct ldb_module *module,
 	if (irpc_handle == NULL) {
 		return ldb_oom(ldb);
 	}
-	r.in.role = role;
+	fsmo = talloc_zero(req, struct fsmo_transfer_state);
+	if (fsmo == NULL) {
+		return ldb_oom(ldb);
+	}
+	fsmo->ldb = ldb;
+	fsmo->req = req;
+	fsmo->module = module;
 
-	status_call = dcerpc_drepl_takeFSMORole_r(irpc_handle, tmp_ctx, &r);
-	if (!NT_STATUS_IS_OK(status_call)) {
-		return LDB_ERR_OPERATIONS_ERROR;
+	/*
+	 * we send the call asynchronously, as the ldap client is
+	 * expecting to get an error back if the role transfer fails
+	 *
+	 * We need more than the default 10 seconds IRPC allows, so
+	 * set a longer timeout (default ldb timeout is 300 seconds).
+	 * We send an async reply when we are done.
+	 *
+	 * We are the first module, so don't bother working out how
+	 * long we have spent so far.
+	 */
+	dcerpc_binding_handle_set_timeout(irpc_handle, req->timeout);
+
+	treq = dcerpc_drepl_takeFSMORole_send(req, ldb_get_event_context(ldb), irpc_handle, role);
+	if (treq == NULL) {
+		return ldb_oom(ldb);
 	}
-	status_fn = r.out.result;
-	if (!W_ERROR_IS_OK(status_fn)) {
-		return LDB_ERR_OPERATIONS_ERROR;
-	}
-	return ldb_module_done(req, NULL, NULL, LDB_SUCCESS);
+
+	tevent_req_set_callback(treq, rootdse_fsmo_transfer_callback, fsmo);
+	return LDB_SUCCESS;
 }
 
 static int rootdse_modify(struct ldb_module *module, struct ldb_request *req)
@@ -1259,6 +1470,9 @@ static int rootdse_modify(struct ldb_module *module, struct ldb_request *req)
 	}
 	if (ldb_msg_find_element(req->op.mod.message, "enableOptionalFeature")) {
 		return rootdse_enableoptionalfeature(module, req);
+	}
+	if (ldb_msg_find_element(req->op.mod.message, "schemaUpgradeInProgress")) {
+		return rootdse_schemaupgradeinprogress(module, req);
 	}
 
 	ldb_set_errstring(ldb, "rootdse_modify: unknown attribute to change!");

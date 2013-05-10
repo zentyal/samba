@@ -30,6 +30,7 @@
 #include "libcli/security/security.h"
 #include "param/param.h"
 #include "kdc/kdc-glue.h"
+#include "dsdb/common/util.h"
 
 /* Return true if there is a valid error packet formed in the error_blob */
 static bool kpasswdd_make_error_reply(struct kdc_server *kdc,
@@ -111,18 +112,18 @@ static bool kpasswd_make_pwchange_reply(struct kdc_server *kdc,
 		const char *reject_string;
 		switch (reject_reason) {
 		case SAM_PWD_CHANGE_PASSWORD_TOO_SHORT:
-			reject_string = talloc_asprintf(mem_ctx, "Password too short, password must be at least %d characters long",
+			reject_string = talloc_asprintf(mem_ctx, "Password too short, password must be at least %d characters long.",
 							dominfo->min_password_length);
 			break;
 		case SAM_PWD_CHANGE_NOT_COMPLEX:
 			reject_string = "Password does not meet complexity requirements";
 			break;
 		case SAM_PWD_CHANGE_PWD_IN_HISTORY:
-			reject_string = "Password is already in password history";
+			reject_string = talloc_asprintf(mem_ctx, "Password is already in password history.  New password must not match any of your %d previous passwords.",
+							dominfo->password_history_length);
 			break;
 		default:
-			reject_string = talloc_asprintf(mem_ctx, "Password must be at least %d characters long, and cannot match any of your %d previous passwords",
-							dominfo->min_password_length, dominfo->password_history_length);
+			reject_string = "Password change rejected, password changes may not be permitted on this account, or the minimum password age may not have elapsed.";
 			break;
 		}
 		return kpasswdd_make_error_reply(kdc, mem_ctx,
@@ -160,24 +161,27 @@ static bool kpasswdd_change_password(struct kdc_server *kdc,
 	struct samr_Password *oldLmHash, *oldNtHash;
 	struct ldb_context *samdb;
 	const char * const attrs[] = { "dBCSPwd", "unicodePwd", NULL };
-	struct ldb_message **res;
+	struct ldb_message *msg;
 	int ret;
 
 	/* Fetch the old hashes to get the old password in order to perform
 	 * the password change operation. Naturally it would be much better to
 	 * have a password hash from an authentication around but this doesn't
 	 * seem to be the case here. */
-	ret = gendb_search(kdc->samdb, mem_ctx, NULL, &res, attrs,
-			   "(&(objectClass=user)(sAMAccountName=%s))",
-			   session_info->info->account_name);
-	if (ret != 1) {
+	ret = dsdb_search_one(kdc->samdb, mem_ctx, &msg, ldb_get_default_basedn(kdc->samdb),
+			      LDB_SCOPE_SUBTREE,
+			      attrs,
+			      DSDB_SEARCH_NO_GLOBAL_CATALOG,
+			      "(&(objectClass=user)(sAMAccountName=%s))",
+			      session_info->info->account_name);
+	if (ret != LDB_SUCCESS) {
 		return kpasswdd_make_error_reply(kdc, mem_ctx,
 						KRB5_KPASSWD_ACCESSDENIED,
 						"No such user when changing password",
 						reply);
 	}
 
-	status = samdb_result_passwords(mem_ctx, kdc->task->lp_ctx, res[0],
+	status = samdb_result_passwords(mem_ctx, kdc->task->lp_ctx, msg,
 					&oldLmHash, &oldNtHash);
 	if (!NT_STATUS_IS_OK(status)) {
 		return kpasswdd_make_error_reply(kdc, mem_ctx,
@@ -227,6 +231,7 @@ static bool kpasswd_process_request(struct kdc_server *kdc,
 	size_t pw_len;
 
 	if (!NT_STATUS_IS_OK(gensec_session_info(gensec_security,
+						 mem_ctx,
 						 &session_info))) {
 		return kpasswdd_make_error_reply(kdc, mem_ctx,
 						KRB5_KPASSWD_HARDERROR,
@@ -238,11 +243,11 @@ static bool kpasswd_process_request(struct kdc_server *kdc,
 	case KRB5_KPASSWD_VERS_CHANGEPW:
 	{
 		DATA_BLOB password;
-		if (!convert_string_talloc_convenience(mem_ctx, lpcfg_iconv_convenience(kdc->task->lp_ctx),
+		if (!convert_string_talloc_handle(mem_ctx, lpcfg_iconv_handle(kdc->task->lp_ctx),
 					       CH_UTF8, CH_UTF16,
 					       (const char *)input->data,
 					       input->length,
-					       (void **)&password.data, &pw_len, false)) {
+					       (void **)&password.data, &pw_len)) {
 			return false;
 		}
 		password.length = pw_len;
@@ -278,11 +283,11 @@ static bool kpasswd_process_request(struct kdc_server *kdc,
 							reply);
 		}
 
-		if (!convert_string_talloc_convenience(mem_ctx, lpcfg_iconv_convenience(kdc->task->lp_ctx),
+		if (!convert_string_talloc_handle(mem_ctx, lpcfg_iconv_handle(kdc->task->lp_ctx),
 					       CH_UTF8, CH_UTF16,
 					       (const char *)chpw.newpasswd.data,
 					       chpw.newpasswd.length,
-					       (void **)&password.data, &pw_len, false)) {
+					       (void **)&password.data, &pw_len)) {
 			free_ChangePasswdDataMS(&chpw);
 			return false;
 		}
@@ -566,7 +571,7 @@ enum kdc_process_ret kpasswdd_process(struct kdc_server *kdc,
 	}
 
 	/* Accept the AP-REQ and generate teh AP-REP we need for the reply */
-	nt_status = gensec_update(gensec_security, tmp_ctx, ap_req, &ap_rep);
+	nt_status = gensec_update(gensec_security, tmp_ctx, kdc->task->event_ctx, ap_req, &ap_rep);
 	if (!NT_STATUS_IS_OK(nt_status) && !NT_STATUS_EQUAL(nt_status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
 
 		ret = kpasswdd_make_unauth_error_reply(kdc, mem_ctx,

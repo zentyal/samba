@@ -26,6 +26,7 @@
 #include "smbd/globals.h"
 #include "mangle.h"
 #include "util_tdb.h"
+#include "lib/param/loadparm.h"
 
 /* -------------------------------------------------------------------------- **
  * Other stuff...
@@ -65,6 +66,40 @@ static const char basechars[43]="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_-!@#$%";
 #define isbasechar(C) ( (chartest[ ((C) & 0xff) ]) & BASECHAR_MASK )
 
 /* -------------------------------------------------------------------- */
+
+
+/*******************************************************************
+ Determine if a character is valid in a 8.3 name.
+********************************************************************/
+
+/**
+ * Load the valid character map table from <tt>valid.dat</tt> or
+ * create from the configured codepage.
+ *
+ * This function is called whenever the configuration is reloaded.
+ * However, the valid character table is not changed if it's loaded
+ * from a file, because we can't unmap files.
+ **/
+
+static uint8 *valid_table;
+static void init_valid_table(void)
+{
+	if (valid_table) {
+		return;
+	}
+
+	valid_table = (uint8 *)map_file(data_path(talloc_tos(), "valid.dat"), 0x10000);
+	if (!valid_table) {
+		smb_panic("Could not load valid.dat file required for mangle method=hash");
+		return;
+	}
+}
+
+static bool isvalid83_w(smb_ucs2_t c)
+{
+	init_valid_table();
+	return valid_table[SVAL(&c,0)] != 0;
+}
 
 static NTSTATUS has_valid_83_chars(const smb_ucs2_t *s, bool allow_wildcards)
 {
@@ -108,6 +143,25 @@ static NTSTATUS has_illegal_chars(const smb_ucs2_t *s, bool allow_wildcards)
 	}
 
 	return NT_STATUS_OK;
+}
+
+/*******************************************************************
+ Duplicate string.
+********************************************************************/
+
+static smb_ucs2_t *strdup_w(const smb_ucs2_t *src)
+{
+	smb_ucs2_t *dest;
+	size_t len = strlen_w(src);
+	dest = SMB_MALLOC_ARRAY(smb_ucs2_t, len + 1);
+	if (!dest) {
+		DEBUG(0,("strdup_w: out of memory!\n"));
+		return NULL;
+	}
+
+	memcpy(dest, src, len * sizeof(smb_ucs2_t));
+	dest[len] = 0;
+	return dest;
 }
 
 /* return False if something fail and
@@ -280,9 +334,6 @@ static bool is_8_3(const char *fname, bool check_case, bool allow_wildcards,
 	smb_ucs2_t *ucs2name;
 	NTSTATUS ret = NT_STATUS_UNSUCCESSFUL;
 	size_t size;
-	char magic_char;
-
-	magic_char = lp_magicchar(p);
 
 	if (!fname || !*fname)
 		return False;
@@ -421,7 +472,7 @@ static void cache_mangled_name( const char mangled_name[13],
 		return;
 
 	/* Init the string lengths. */
-	safe_strcpy(mangled_name_key, mangled_name, sizeof(mangled_name_key)-1);
+	strlcpy(mangled_name_key, mangled_name, sizeof(mangled_name_key));
 
 	/* See if the extensions are unmangled.  If so, store the entry
 	 * without the extension, thus creating a "group" reverse map.
@@ -481,9 +532,6 @@ static bool lookup_name_from_8_3(TALLOC_CTX *ctx,
 	TDB_DATA data_val;
 	char *saved_ext = NULL;
 	char *s = talloc_strdup(ctx, in);
-	char magic_char;
-
-	magic_char = lp_magicchar(p);
 
 	/* If the cache isn't initialized, give up. */
 	if(!s || !tdb_mangled_cache ) {
@@ -535,6 +583,19 @@ static bool lookup_name_from_8_3(TALLOC_CTX *ctx,
 	return *out ? True : False;
 }
 
+/**
+ Check if a string is in "normal" case.
+**/
+
+static bool strisnormal(const char *s, int case_default)
+{
+	if (case_default == CASE_UPPER)
+		return(!strhaslower(s));
+
+	return(!strhasupper(s));
+}
+
+
 /*****************************************************************************
  Do the actual mangling to 8.3 format.
 *****************************************************************************/
@@ -569,11 +630,14 @@ static bool to_8_3(char magic_char, const char *in, char out[13], int default_ca
 	} else
 		csum = str_checksum(s);
 
-	strupper_m( s );
+	if (!strupper_m( s )) {
+		SAFE_FREE(s);
+		return false;
+	}
 
 	if( p ) {
 		if( p == s )
-			safe_strcpy( extension, "___", 3 );
+			strlcpy( extension, "___", 4);
 		else {
 			*p++ = 0;
 			while( *p && extlen < 3 ) {
@@ -605,7 +669,7 @@ static bool to_8_3(char magic_char, const char *in, char out[13], int default_ca
 
 	if( *extension ) {
 		out[baselen+3] = '.';
-		safe_strcpy(&out[baselen+4], extension, 3);
+		strlcpy(&out[baselen+4], extension, 4);
 	}
 
 	SAFE_FREE(s);
@@ -618,9 +682,6 @@ static bool must_mangle(const char *name,
 	smb_ucs2_t *name_ucs2 = NULL;
 	NTSTATUS status;
 	size_t converted_size;
-	char magic_char;
-
-	magic_char = lp_magicchar(p);
 
 	if (!push_ucs2_talloc(NULL, &name_ucs2, name, &converted_size)) {
 		DEBUG(0, ("push_ucs2_talloc failed!\n"));
@@ -673,7 +734,7 @@ static bool hash_name_to_8_3(const char *in,
 	if (NT_STATUS_IS_OK(is_valid_name(in_ucs2, False, False)) &&
 				NT_STATUS_IS_OK(is_8_3_w(in_ucs2, False))) {
 		TALLOC_FREE(in_ucs2);
-		safe_strcpy(out, in, 12);
+		strlcpy(out, in, 13);
 		return True;
 	}
 

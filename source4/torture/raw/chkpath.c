@@ -22,6 +22,7 @@
 #include "libcli/raw/libcliraw.h"
 #include "libcli/libcli.h"
 #include "torture/util.h"
+#include "torture/raw/proto.h"
 
 #define BASEDIR "\\rawchkpath"
 
@@ -121,7 +122,6 @@ static bool test_chkpath(struct smbcli_state *cli, struct torture_context *tctx)
 	NTSTATUS status;
 	bool ret = true;
 	int fnum = -1;
-	int fnum1 = -1;
 
 	io.chkpath.in.path = BASEDIR;
 
@@ -185,7 +185,7 @@ static bool test_chkpath(struct smbcli_state *cli, struct torture_context *tctx)
 	/* We expect this open to fail with the same error code as the chkpath below. */
 	printf("Testing Open on %s\n", "\\.\\\\\\\\\\\\.");
 	/* findfirst seems to fail with a different error. */
-	fnum1 = smbcli_nt_create_full(cli->tree, "\\.\\\\\\\\\\\\.",
+	(void)smbcli_nt_create_full(cli->tree, "\\.\\\\\\\\\\\\.",
 				      0, SEC_RIGHTS_FILE_ALL,
 				      FILE_ATTRIBUTE_NORMAL,
 				      NTCREATEX_SHARE_ACCESS_DELETE|
@@ -226,7 +226,7 @@ static bool test_chkpath(struct smbcli_state *cli, struct torture_context *tctx)
 	/* We expect this open to fail with the same error code as the chkpath below. */
 	printf("Testing Open on %s\n", BASEDIR".\\.\\.\\.\\foo\\..\\.\\");
 	/* findfirst seems to fail with a different error. */
-	fnum1 = smbcli_nt_create_full(cli->tree, BASEDIR".\\.\\.\\.\\foo\\..\\.\\",
+	(void)smbcli_nt_create_full(cli->tree, BASEDIR".\\.\\.\\.\\foo\\..\\.\\",
 				      0, SEC_RIGHTS_FILE_ALL,
 				      FILE_ATTRIBUTE_NORMAL,
 				      NTCREATEX_SHARE_ACCESS_DELETE|
@@ -244,7 +244,7 @@ static bool test_chkpath(struct smbcli_state *cli, struct torture_context *tctx)
 	/* We expect this open to fail with the same error code as the chkpath below. */
 	/* findfirst seems to fail with a different error. */
 	printf("Testing Open on %s\n", BASEDIR "\\nt\\V S\\VB98\\vb6.exe\\3");
-	fnum1 = smbcli_nt_create_full(cli->tree, BASEDIR "\\nt\\V S\\VB98\\vb6.exe\\3",
+	(void)smbcli_nt_create_full(cli->tree, BASEDIR "\\nt\\V S\\VB98\\vb6.exe\\3",
 				      0, SEC_RIGHTS_FILE_ALL,
 				      FILE_ATTRIBUTE_NORMAL,
 				      NTCREATEX_SHARE_ACCESS_DELETE|
@@ -354,9 +354,7 @@ bool torture_raw_chkpath(struct torture_context *torture,
 	bool ret = true;
 	int fnum;
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(torture, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	if (NT_STATUS_IS_ERR(smbcli_mkdir(cli->tree, BASEDIR "\\nt"))) {
 		printf("Failed to create " BASEDIR " - %s\n", smbcli_errstr(cli->tree));

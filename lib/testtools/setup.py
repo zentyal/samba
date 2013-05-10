@@ -9,9 +9,14 @@ import testtools
 
 
 def get_revno():
+    import bzrlib.errors
     import bzrlib.workingtree
-    t = bzrlib.workingtree.WorkingTree.open_containing(__file__)[0]
-    return t.branch.revno()
+    try:
+        t = bzrlib.workingtree.WorkingTree.open_containing(__file__)[0]
+    except (bzrlib.errors.NotBranchError, bzrlib.errors.NoWorkingTree):
+        return None
+    else:
+        return t.branch.revno()
 
 
 def get_version_from_pkg_info():
@@ -39,6 +44,11 @@ def get_version():
     if pkg_info_version:
         return pkg_info_version
     revno = get_revno()
+    if revno is None:
+        # Apparently if we just say "snapshot" then distribute won't accept it
+        # as satisfying versioned dependencies. This is a problem for the
+        # daily build version.
+        return "snapshot-%s" % (version,)
     if phase == 'alpha':
         # No idea what the next version will be
         return 'next-r%s' % revno
@@ -48,7 +58,8 @@ def get_version():
 
 
 def get_long_description():
-    manual_path = os.path.join(os.path.dirname(__file__), 'MANUAL')
+    manual_path = os.path.join(
+        os.path.dirname(__file__), 'doc/overview.rst')
     return open(manual_path).read()
 
 
@@ -61,4 +72,5 @@ setup(name='testtools',
       long_description=get_long_description(),
       version=get_version(),
       classifiers=["License :: OSI Approved :: MIT License"],
-      packages=['testtools', 'testtools.testresult', 'testtools.tests'])
+      packages=['testtools', 'testtools.testresult', 'testtools.tests'],
+      cmdclass={'test': testtools.TestCommand})

@@ -31,49 +31,51 @@
 #include "dsdb/repl/drepl_service.h"
 #include "param/param.h"
 
+struct fsmo_role_state {
+	struct irpc_message *msg;
+	struct drepl_takeFSMORole *r;
+};
+
 static void drepl_role_callback(struct dreplsrv_service *service,
 				WERROR werr,
 				enum drsuapi_DsExtendedError ext_err,
 				void *cb_data)
 {
+	struct fsmo_role_state *fsmo = talloc_get_type_abort(cb_data, struct fsmo_role_state);
 	if (!W_ERROR_IS_OK(werr)) {
-		DEBUG(0,(__location__ ": Failed role transfer - %s - extended_ret[0x%X]\n",
+		DEBUG(2,(__location__ ": Failed role transfer - %s - extended_ret[0x%X]\n",
 			 win_errstr(werr), ext_err));
 	} else {
-		DEBUG(0,(__location__ ": Successful role transfer\n"));
+		DEBUG(2,(__location__ ": Successful role transfer\n"));
 	}
-}
-
-static bool fsmo_master_cmp(struct ldb_dn *ntds_dn, struct ldb_dn *role_owner_dn)
-{
-	if (ldb_dn_compare(ntds_dn, role_owner_dn) == 0) {
-		DEBUG(0,("\nWe are the FSMO master.\n"));
-		return true;
-	}
-	return false;
+	fsmo->r->out.result = werr;
+	irpc_send_reply(fsmo->msg, NT_STATUS_OK);
 }
 
 /*
   see which role is we are asked to assume, initialize data and send request
  */
-WERROR dreplsrv_fsmo_role_check(struct dreplsrv_service *service,
-				enum drepl_role_master role)
+NTSTATUS drepl_take_FSMO_role(struct irpc_message *msg,
+			      struct drepl_takeFSMORole *r)
 {
-	struct ldb_dn *role_owner_dn, *fsmo_role_dn, *ntds_dn;
+	struct dreplsrv_service *service = talloc_get_type(msg->private_data,
+							   struct dreplsrv_service);
+	struct ldb_dn *role_owner_dn, *fsmo_role_dn;
 	TALLOC_CTX *tmp_ctx = talloc_new(service);
 	uint64_t fsmo_info = 0;
 	enum drsuapi_DsExtendedOperation extended_op = DRSUAPI_EXOP_NONE;
 	WERROR werr;
-
-	ntds_dn = samdb_ntds_settings_dn(service->samdb);
-	if (!ntds_dn) {
-		return WERR_DS_DRA_INTERNAL_ERROR;
-	}
+	enum drepl_role_master role = r->in.role;
+	struct fsmo_role_state *fsmo;
+	bool is_us;
+	int ret;
 
 	werr = dsdb_get_fsmo_role_info(tmp_ctx, service->samdb, role,
 				       &fsmo_role_dn, &role_owner_dn);
 	if (!W_ERROR_IS_OK(werr)) {
-		return werr;
+		talloc_free(tmp_ctx);
+		r->out.result = werr;
+		return NT_STATUS_OK;
 	}
 
 	switch (role) {
@@ -89,16 +91,37 @@ WERROR dreplsrv_fsmo_role_check(struct dreplsrv_service *service,
 		extended_op = DRSUAPI_EXOP_FSMO_REQ_PDC;
 		break;
 	default:
-		return WERR_DS_DRA_INTERNAL_ERROR;
+		DEBUG(2,("Unknown role %u in role transfer\n",
+			 (unsigned)role));
+		r->out.result = WERR_DS_DRA_INTERNAL_ERROR;
+		talloc_free(tmp_ctx);
+		return NT_STATUS_OK;
 	}
 
-	if (fsmo_master_cmp(ntds_dn, role_owner_dn) ||
-	    (extended_op == DRSUAPI_EXOP_NONE)) {
-		DEBUG(0,("FSMO role check failed for DN %s and owner %s ",
+	ret = samdb_dn_is_our_ntdsa(service->samdb, role_owner_dn, &is_us);
+	if (ret != LDB_SUCCESS) {
+		DEBUG(0,("FSMO role check failed (failed to confirm if our ntdsDsa) for DN %s and owner %s \n",
 			 ldb_dn_get_linearized(fsmo_role_dn),
 			 ldb_dn_get_linearized(role_owner_dn)));
-		return WERR_OK;
+		talloc_free(tmp_ctx);
+		r->out.result = WERR_DS_DRA_INTERNAL_ERROR;
+		return NT_STATUS_OK;
 	}
+	
+	if (is_us) {
+		DEBUG(5,("FSMO role check failed, we already own DN %s with %s\n",
+			 ldb_dn_get_linearized(fsmo_role_dn),
+			 ldb_dn_get_linearized(role_owner_dn)));
+		r->out.result = WERR_OK;
+		talloc_free(tmp_ctx);
+		return NT_STATUS_OK;
+	}
+
+	fsmo = talloc(msg, struct fsmo_role_state);
+	NT_STATUS_HAVE_NO_MEMORY(fsmo);
+
+	fsmo->msg = msg;
+	fsmo->r   = r;
 
 	werr = drepl_request_extended_op(service,
 					 fsmo_role_dn,
@@ -107,12 +130,16 @@ WERROR dreplsrv_fsmo_role_check(struct dreplsrv_service *service,
 					 fsmo_info,
 					 0,
 					 drepl_role_callback,
-					 NULL);
-	if (W_ERROR_IS_OK(werr)) {
-		dreplsrv_run_pending_ops(service);
-	} else {
-		DEBUG(0,("%s: drepl_request_extended_op() failed with %s",
-			 __FUNCTION__, win_errstr(werr)));
+					 fsmo);
+	if (!W_ERROR_IS_OK(werr)) {
+		r->out.result = werr;
+		talloc_free(tmp_ctx);
+		return NT_STATUS_OK;
 	}
-	return werr;
+
+	/* mark this message to be answered later */
+	msg->defer_reply = true;
+	dreplsrv_run_pending_ops(service);
+	talloc_free(tmp_ctx);
+	return NT_STATUS_OK;
 }

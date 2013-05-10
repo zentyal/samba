@@ -27,7 +27,9 @@
 #include "smbd/globals.h"
 #include "msdfs.h"
 #include "auth.h"
+#include "lib/param/loadparm.h"
 #include "libcli/security/security.h"
+#include "librpc/gen_ndr/ndr_dfsblobs.h"
 
 /**********************************************************************
  Parse a DFS pathname of the form \hostname\service\reqpath
@@ -52,10 +54,10 @@
 static NTSTATUS parse_dfs_path(connection_struct *conn,
 				const char *pathname,
 				bool allow_wcards,
+				bool allow_broken_path,
 				struct dfs_path *pdp, /* MUST BE TALLOCED */
 				bool *ppath_contains_wcard)
 {
-	struct smbd_server_connection *sconn = smbd_server_conn;
 	char *pathname_local;
 	char *p,*temp;
 	char *servicename;
@@ -83,7 +85,7 @@ static NTSTATUS parse_dfs_path(connection_struct *conn,
 
 	sepchar = pdp->posix_path ? '/' : '\\';
 
-	if (!sconn->using_smb2 && (*pathname != sepchar)) {
+	if (allow_broken_path && (*pathname != sepchar)) {
 		DEBUG(10,("parse_dfs_path: path %s doesn't start with %c\n",
 			pathname, sepchar ));
 		/*
@@ -145,9 +147,9 @@ static NTSTATUS parse_dfs_path(connection_struct *conn,
 	}
 
 	/* Is this really our servicename ? */
-	if (conn && !( strequal(servicename, lp_servicename(SNUM(conn)))
+	if (conn && !( strequal(servicename, lp_servicename(talloc_tos(), SNUM(conn)))
 			|| (strequal(servicename, HOMES_NAME)
-			&& strequal(lp_servicename(SNUM(conn)),
+			&& strequal(lp_servicename(talloc_tos(), SNUM(conn)),
 				get_current_username()) )) ) {
 		DEBUG(10,("parse_dfs_path: %s is not our servicename\n",
 			servicename));
@@ -221,18 +223,20 @@ static NTSTATUS parse_dfs_path(connection_struct *conn,
 *********************************************************/
 
 NTSTATUS create_conn_struct(TALLOC_CTX *ctx,
-				connection_struct **pconn,
-				int snum,
-				const char *path,
-				const struct auth_serversupplied_info *session_info,
-				char **poldcwd)
+			    struct tevent_context *ev,
+			    struct messaging_context *msg,
+			    connection_struct **pconn,
+			    int snum,
+			    const char *path,
+			    const struct auth_session_info *session_info,
+			    char **poldcwd)
 {
 	connection_struct *conn;
 	char *connpath;
 	char *oldcwd;
 	const char *vfs_user;
 
-	conn = TALLOC_ZERO_P(ctx, connection_struct);
+	conn = talloc_zero(ctx, connection_struct);
 	if (conn == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -245,33 +249,46 @@ NTSTATUS create_conn_struct(TALLOC_CTX *ctx,
 	connpath = talloc_string_sub(conn,
 				connpath,
 				"%S",
-				lp_servicename(snum));
+				lp_servicename(talloc_tos(), snum));
 	if (!connpath) {
 		TALLOC_FREE(conn);
 		return NT_STATUS_NO_MEMORY;
 	}
 
+	conn->sconn = talloc_zero(conn, struct smbd_server_connection);
+	if (conn->sconn == NULL) {
+		TALLOC_FREE(conn);
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	conn->sconn->ev_ctx = ev;
+	conn->sconn->msg_ctx = msg;
+	conn->sconn->sock = -1;
+	conn->sconn->smb1.echo_handler.trusted_fd = -1;
+	conn->sconn->smb1.echo_handler.socket_lock_fd = -1;
+
 	/* needed for smbd_vfs_init() */
 
-	if (!(conn->params = TALLOC_ZERO_P(conn, struct share_params))) {
+	if (!(conn->params = talloc_zero(conn, struct share_params))) {
 		DEBUG(0, ("TALLOC failed\n"));
 		TALLOC_FREE(conn);
 		return NT_STATUS_NO_MEMORY;
 	}
 
 	conn->params->service = snum;
+	conn->cnum = TID_FIELD_INVALID;
 
-	conn->sconn = smbd_server_conn;
-	conn->sconn->num_tcons_open++;
+	DLIST_ADD(conn->sconn->connections, conn);
+	conn->sconn->num_connections++;
 
 	if (session_info != NULL) {
-		conn->session_info = copy_serverinfo(conn, session_info);
+		conn->session_info = copy_session_info(conn, session_info);
 		if (conn->session_info == NULL) {
 			DEBUG(0, ("copy_serverinfo failed\n"));
 			TALLOC_FREE(conn);
 			return NT_STATUS_NO_MEMORY;
 		}
-		vfs_user = conn->session_info->unix_name;
+		vfs_user = conn->session_info->unix_info->unix_name;
 	} else {
 		/* use current authenticated user in absence of session_info */
 		vfs_user = get_current_username();
@@ -287,7 +304,8 @@ NTSTATUS create_conn_struct(TALLOC_CTX *ctx,
 	 */
 	if (conn->session_info) {
 		share_access_check(conn->session_info->security_token,
-				   lp_servicename(snum), MAXIMUM_ALLOWED_ACCESS,
+				   lp_servicename(talloc_tos(), snum),
+				   MAXIMUM_ALLOWED_ACCESS,
 				   &conn->share_access);
 
 		if ((conn->share_access & FILE_WRITE_DATA) == 0) {
@@ -296,7 +314,7 @@ NTSTATUS create_conn_struct(TALLOC_CTX *ctx,
 				DEBUG(0,("create_conn_struct: connection to %s "
 					 "denied due to security "
 					 "descriptor.\n",
-					 lp_servicename(snum)));
+					 lp_servicename(talloc_tos(), snum)));
 				conn_free(conn);
 				return NT_STATUS_ACCESS_DENIED;
 			} else {
@@ -316,7 +334,7 @@ NTSTATUS create_conn_struct(TALLOC_CTX *ctx,
 	}
 
 	/* this must be the first filesystem operation that we do */
-	if (SMB_VFS_CONNECT(conn, lp_servicename(snum), vfs_user) < 0) {
+	if (SMB_VFS_CONNECT(conn, lp_servicename(talloc_tos(), snum), vfs_user) < 0) {
 		DEBUG(0,("VFS connect failed!\n"));
 		conn_free(conn);
 		return NT_STATUS_UNSUCCESSFUL;
@@ -394,7 +412,7 @@ static bool parse_msdfs_symlink(TALLOC_CTX *ctx,
 		return False;
 	}
 
-	alt_path = TALLOC_ARRAY(ctx, char *, MAX_REFERRAL_COUNT);
+	alt_path = talloc_array(ctx, char *, MAX_REFERRAL_COUNT);
 	if (!alt_path) {
 		return False;
 	}
@@ -408,7 +426,7 @@ static bool parse_msdfs_symlink(TALLOC_CTX *ctx,
 	DEBUG(10,("parse_msdfs_symlink: count=%d\n", count));
 
 	if (count) {
-		reflist = *preflist = TALLOC_ZERO_ARRAY(ctx,
+		reflist = *preflist = talloc_zero_array(ctx,
 				struct referral, count);
 		if(reflist == NULL) {
 			TALLOC_FREE(alt_path);
@@ -473,7 +491,7 @@ static bool is_msdfs_link_internal(TALLOC_CTX *ctx,
 
 	if (pp_link_target) {
 		bufsize = 1024;
-		link_target = TALLOC_ARRAY(ctx, char, bufsize);
+		link_target = talloc_array(ctx, char, bufsize);
 		if (!link_target) {
 			return False;
 		}
@@ -575,7 +593,7 @@ static NTSTATUS dfs_path_lookup(TALLOC_CTX *ctx,
 		conn->connectpath, pdp->reqpath));
 
 	/*
-	 * Note the unix path conversion here we're doing we
+ 	 * Note the unix path conversion here we're doing we
 	 * throw away. We're looking for a symlink for a dfs
 	 * resolution, if we don't find it we'll do another
 	 * unix_convert later in the codepath.
@@ -709,17 +727,19 @@ static NTSTATUS dfs_redirect(TALLOC_CTX *ctx,
 			connection_struct *conn,
 			const char *path_in,
 			bool search_wcard_flag,
+			bool allow_broken_path,
 			char **pp_path_out,
 			bool *ppath_contains_wcard)
 {
 	NTSTATUS status;
-	struct dfs_path *pdp = TALLOC_P(ctx, struct dfs_path);
+	struct dfs_path *pdp = talloc(ctx, struct dfs_path);
 
 	if (!pdp) {
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	status = parse_dfs_path(conn, path_in, search_wcard_flag, pdp,
+	status = parse_dfs_path(conn, path_in, search_wcard_flag,
+				allow_broken_path, pdp,
 			ppath_contains_wcard);
 	if (!NT_STATUS_IS_OK(status)) {
 		TALLOC_FREE(pdp);
@@ -760,10 +780,10 @@ static NTSTATUS dfs_redirect(TALLOC_CTX *ctx,
 		return NT_STATUS_OK;
 	}
 
-	if (!( strequal(pdp->servicename, lp_servicename(SNUM(conn)))
+	if (!( strequal(pdp->servicename, lp_servicename(talloc_tos(), SNUM(conn)))
 			|| (strequal(pdp->servicename, HOMES_NAME)
-			&& strequal(lp_servicename(SNUM(conn)),
-				conn->session_info->sanitized_username) )) ) {
+			&& strequal(lp_servicename(talloc_tos(), SNUM(conn)),
+				conn->session_info->unix_info->sanitized_username) )) ) {
 
 		/* The given sharename doesn't match this connection. */
 		TALLOC_FREE(pdp);
@@ -815,12 +835,13 @@ static NTSTATUS self_ref(TALLOC_CTX *ctx,
 	*self_referralp = True;
 
 	jucn->referral_count = 1;
-	if((ref = TALLOC_ZERO_P(ctx, struct referral)) == NULL) {
+	if((ref = talloc_zero(ctx, struct referral)) == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
 
 	ref->alternate_path = talloc_strdup(ctx, dfs_path);
 	if (!ref->alternate_path) {
+		TALLOC_FREE(ref);
 		return NT_STATUS_NO_MEMORY;
 	}
 	ref->proximity = 0;
@@ -837,6 +858,7 @@ static NTSTATUS self_ref(TALLOC_CTX *ctx,
 
 NTSTATUS get_referred_path(TALLOC_CTX *ctx,
 			const char *dfs_path,
+			bool allow_broken_path,
 			struct junction_map *jucn,
 			int *consumedcntp,
 			bool *self_referralp)
@@ -846,7 +868,7 @@ NTSTATUS get_referred_path(TALLOC_CTX *ctx,
 	int snum;
 	NTSTATUS status = NT_STATUS_NOT_FOUND;
 	bool dummy;
-	struct dfs_path *pdp = TALLOC_P(ctx, struct dfs_path);
+	struct dfs_path *pdp = talloc(ctx, struct dfs_path);
 	char *oldpath;
 
 	if (!pdp) {
@@ -855,7 +877,8 @@ NTSTATUS get_referred_path(TALLOC_CTX *ctx,
 
 	*self_referralp = False;
 
-	status = parse_dfs_path(NULL, dfs_path, False, pdp, &dummy);
+	status = parse_dfs_path(NULL, dfs_path, False, allow_broken_path,
+				pdp, &dummy);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
@@ -885,7 +908,7 @@ NTSTATUS get_referred_path(TALLOC_CTX *ctx,
 		}
 	}
 
-	if (!lp_msdfs_root(snum) && (*lp_msdfs_proxy(snum) == '\0')) {
+	if (!lp_msdfs_root(snum) && (*lp_msdfs_proxy(talloc_tos(), snum) == '\0')) {
 		DEBUG(3,("get_referred_path: |%s| in dfs path %s is not "
 			"a dfs root.\n",
 			pdp->servicename, dfs_path));
@@ -905,7 +928,7 @@ NTSTATUS get_referred_path(TALLOC_CTX *ctx,
 		char *tmp;
 		struct referral *ref;
 
-		if (*lp_msdfs_proxy(snum) == '\0') {
+		if (*lp_msdfs_proxy(talloc_tos(), snum) == '\0') {
 			TALLOC_FREE(pdp);
 			return self_ref(ctx,
 					dfs_path,
@@ -920,12 +943,12 @@ NTSTATUS get_referred_path(TALLOC_CTX *ctx,
  		 */
 
 		jucn->referral_count = 1;
-		if ((ref = TALLOC_ZERO_P(ctx, struct referral)) == NULL) {
+		if ((ref = talloc_zero(ctx, struct referral)) == NULL) {
 			TALLOC_FREE(pdp);
 			return NT_STATUS_NO_MEMORY;
 		}
 
-		if (!(tmp = talloc_strdup(ctx, lp_msdfs_proxy(snum)))) {
+		if (!(tmp = talloc_strdup(ctx, lp_msdfs_proxy(talloc_tos(), snum)))) {
 			TALLOC_FREE(pdp);
 			return NT_STATUS_NO_MEMORY;
 		}
@@ -958,8 +981,11 @@ NTSTATUS get_referred_path(TALLOC_CTX *ctx,
 		return NT_STATUS_OK;
 	}
 
-	status = create_conn_struct(ctx, &conn, snum, lp_pathname(snum),
-				    NULL, &oldpath);
+	status = create_conn_struct(ctx,
+				    server_event_context(),
+				    server_messaging_context(),
+				    &conn, snum,
+				    lp_pathname(talloc_tos(), snum), NULL, &oldpath);
 	if (!NT_STATUS_IS_OK(status)) {
 		TALLOC_FREE(pdp);
 		return status;
@@ -1009,215 +1035,6 @@ NTSTATUS get_referred_path(TALLOC_CTX *ctx,
 	return status;
 }
 
-static int setup_ver2_dfs_referral(const char *pathname,
-				char **ppdata,
-				struct junction_map *junction,
-				bool self_referral)
-{
-	char* pdata = *ppdata;
-
-	smb_ucs2_t *uni_requestedpath = NULL;
-	int uni_reqpathoffset1,uni_reqpathoffset2;
-	int uni_curroffset;
-	int requestedpathlen=0;
-	int offset;
-	int reply_size = 0;
-	int i=0;
-
-	DEBUG(10,("Setting up version2 referral\nRequested path:\n"));
-
-	requestedpathlen = rpcstr_push_talloc(talloc_tos(),
-					&uni_requestedpath, pathname);
-	if (uni_requestedpath == NULL || requestedpathlen == 0) {
-		return -1;
-	}
-
-	if (DEBUGLVL(10)) {
-		dump_data(0, (unsigned char *)uni_requestedpath,
-			requestedpathlen);
-	}
-
-	DEBUG(10,("ref count = %u\n",junction->referral_count));
-
-	uni_reqpathoffset1 = REFERRAL_HEADER_SIZE +
-			VERSION2_REFERRAL_SIZE * junction->referral_count;
-
-	uni_reqpathoffset2 = uni_reqpathoffset1 + requestedpathlen;
-
-	uni_curroffset = uni_reqpathoffset2 + requestedpathlen;
-
-	reply_size = REFERRAL_HEADER_SIZE +
-			VERSION2_REFERRAL_SIZE*junction->referral_count +
-			2 * requestedpathlen;
-	DEBUG(10,("reply_size: %u\n",reply_size));
-
-	/* add up the unicode lengths of all the referral paths */
-	for(i=0;i<junction->referral_count;i++) {
-		DEBUG(10,("referral %u : %s\n",
-			i,
-			junction->referral_list[i].alternate_path));
-		reply_size +=
-			(strlen(junction->referral_list[i].alternate_path)+1)*2;
-	}
-
-	DEBUG(10,("reply_size = %u\n",reply_size));
-	/* add the unexplained 0x16 bytes */
-	reply_size += 0x16;
-
-	pdata = (char *)SMB_REALLOC(pdata,reply_size);
-	if(pdata == NULL) {
-		DEBUG(0,("Realloc failed!\n"));
-		return -1;
-	}
-	*ppdata = pdata;
-
-	/* copy in the dfs requested paths.. required for offset calculations */
-	memcpy(pdata+uni_reqpathoffset1,uni_requestedpath,requestedpathlen);
-	memcpy(pdata+uni_reqpathoffset2,uni_requestedpath,requestedpathlen);
-
-	/* create the header */
-	SSVAL(pdata,0,requestedpathlen - 2); /* UCS2 of path consumed minus
-						2 byte null */
-	/* number of referral in this pkt */
-	SSVAL(pdata,2,junction->referral_count);
-	if(self_referral) {
-		SIVAL(pdata,4,DFSREF_REFERRAL_SERVER | DFSREF_STORAGE_SERVER);
-	} else {
-		SIVAL(pdata,4,DFSREF_STORAGE_SERVER);
-	}
-
-	offset = 8;
-	/* add the referral elements */
-	for(i=0;i<junction->referral_count;i++) {
-		struct referral* ref = &junction->referral_list[i];
-		int unilen;
-
-		SSVAL(pdata,offset,2); /* version 2 */
-		SSVAL(pdata,offset+2,VERSION2_REFERRAL_SIZE);
-		if(self_referral) {
-			SSVAL(pdata,offset+4,1);
-		} else {
-			SSVAL(pdata,offset+4,0);
-		}
-
-		/* ref_flags :use path_consumed bytes? */
-		SSVAL(pdata,offset+6,0);
-		SIVAL(pdata,offset+8,ref->proximity);
-		SIVAL(pdata,offset+12,ref->ttl);
-
-		SSVAL(pdata,offset+16,uni_reqpathoffset1-offset);
-		SSVAL(pdata,offset+18,uni_reqpathoffset2-offset);
-		/* copy referred path into current offset */
-		unilen = rpcstr_push(pdata+uni_curroffset,
-					ref->alternate_path,
-					reply_size - uni_curroffset,
-					STR_UNICODE);
-
-		SSVAL(pdata,offset+20,uni_curroffset-offset);
-
-		uni_curroffset += unilen;
-		offset += VERSION2_REFERRAL_SIZE;
-	}
-	/* add in the unexplained 22 (0x16) bytes at the end */
-	memset(pdata+uni_curroffset,'\0',0x16);
-	return reply_size;
-}
-
-static int setup_ver3_dfs_referral(const char *pathname,
-				char **ppdata,
-				struct junction_map *junction,
-				bool self_referral)
-{
-	char *pdata = *ppdata;
-
-	smb_ucs2_t *uni_reqpath = NULL;
-	int uni_reqpathoffset1, uni_reqpathoffset2;
-	int uni_curroffset;
-	int reply_size = 0;
-
-	int reqpathlen = 0;
-	int offset,i=0;
-
-	DEBUG(10,("setting up version3 referral\n"));
-
-	reqpathlen = rpcstr_push_talloc(talloc_tos(), &uni_reqpath, pathname);
-	if (uni_reqpath == NULL || reqpathlen == 0) {
-		return -1;
-	}
-
-	if (DEBUGLVL(10)) {
-		dump_data(0, (unsigned char *)uni_reqpath,
-			reqpathlen);
-	}
-
-	uni_reqpathoffset1 = REFERRAL_HEADER_SIZE +
-			VERSION3_REFERRAL_SIZE * junction->referral_count;
-	uni_reqpathoffset2 = uni_reqpathoffset1 + reqpathlen;
-	reply_size = uni_curroffset = uni_reqpathoffset2 + reqpathlen;
-
-	for(i=0;i<junction->referral_count;i++) {
-		DEBUG(10,("referral %u : %s\n",
-			i,
-			junction->referral_list[i].alternate_path));
-		reply_size +=
-			(strlen(junction->referral_list[i].alternate_path)+1)*2;
-	}
-
-	pdata = (char *)SMB_REALLOC(pdata,reply_size);
-	if(pdata == NULL) {
-		DEBUG(0,("version3 referral setup:"
-			"malloc failed for Realloc!\n"));
-		return -1;
-	}
-	*ppdata = pdata;
-
-	/* create the header */
-	SSVAL(pdata,0,reqpathlen - 2); /* UCS2 of path consumed minus
-					  2 byte null */
-	SSVAL(pdata,2,junction->referral_count); /* number of referral */
-	if(self_referral) {
-		SIVAL(pdata,4,DFSREF_REFERRAL_SERVER | DFSREF_STORAGE_SERVER);
-	} else {
-		SIVAL(pdata,4,DFSREF_STORAGE_SERVER);
-	}
-
-	/* copy in the reqpaths */
-	memcpy(pdata+uni_reqpathoffset1,uni_reqpath,reqpathlen);
-	memcpy(pdata+uni_reqpathoffset2,uni_reqpath,reqpathlen);
-
-	offset = 8;
-	for(i=0;i<junction->referral_count;i++) {
-		struct referral* ref = &(junction->referral_list[i]);
-		int unilen;
-
-		SSVAL(pdata,offset,3); /* version 3 */
-		SSVAL(pdata,offset+2,VERSION3_REFERRAL_SIZE);
-		if(self_referral) {
-			SSVAL(pdata,offset+4,1);
-		} else {
-			SSVAL(pdata,offset+4,0);
-		}
-
-		/* ref_flags :use path_consumed bytes? */
-		SSVAL(pdata,offset+6,0);
-		SIVAL(pdata,offset+8,ref->ttl);
-
-		SSVAL(pdata,offset+12,uni_reqpathoffset1-offset);
-		SSVAL(pdata,offset+14,uni_reqpathoffset2-offset);
-		/* copy referred path into current offset */
-		unilen = rpcstr_push(pdata+uni_curroffset,ref->alternate_path,
-					reply_size - uni_curroffset,
-					STR_UNICODE | STR_TERMINATE);
-		SSVAL(pdata,offset+16,uni_curroffset-offset);
-		/* copy 0x10 bytes of 00's in the ServiceSite GUID */
-		memset(pdata+offset+18,'\0',16);
-
-		uni_curroffset += unilen;
-		offset += VERSION3_REFERRAL_SIZE;
-	}
-	return reply_size;
-}
-
 /******************************************************************
  Set up the DFS referral for the dfs pathname. This call returns
  the amount of the path covered by this server, and where the
@@ -1230,110 +1047,55 @@ int setup_dfs_referral(connection_struct *orig_conn,
 			int max_referral_level,
 			char **ppdata, NTSTATUS *pstatus)
 {
-	struct junction_map *junction = NULL;
-	int consumedcnt = 0;
-	bool self_referral = False;
+	char *pdata = *ppdata;
 	int reply_size = 0;
-	char *pathnamep = NULL;
-	char *local_dfs_path = NULL;
-	TALLOC_CTX *ctx;
+	struct dfs_GetDFSReferral *r;
+	DATA_BLOB blob = data_blob_null;
+	NTSTATUS status;
+	enum ndr_err_code ndr_err;
 
-	if (!(ctx=talloc_init("setup_dfs_referral"))) {
+	r = talloc_zero(talloc_tos(), struct dfs_GetDFSReferral);
+	if (r == NULL) {
 		*pstatus = NT_STATUS_NO_MEMORY;
 		return -1;
 	}
 
-	/* get the junction entry */
-	if (!dfs_path) {
-		talloc_destroy(ctx);
-		*pstatus = NT_STATUS_NOT_FOUND;
-		return -1;
-	}
-
-	/*
-	 * Trim pathname sent by client so it begins with only one backslash.
-	 * Two backslashes confuse some dfs clients
-	 */
-
-	local_dfs_path = talloc_strdup(ctx,dfs_path);
-	if (!local_dfs_path) {
+	r->in.req.max_referral_level = max_referral_level;
+	r->in.req.servername = talloc_strdup(r, dfs_path);
+	if (r->in.req.servername == NULL) {
+		talloc_free(r);
 		*pstatus = NT_STATUS_NO_MEMORY;
-		talloc_destroy(ctx);
-		return -1;
-	}
-	pathnamep = local_dfs_path;
-	while (IS_DIRECTORY_SEP(pathnamep[0]) &&
-			IS_DIRECTORY_SEP(pathnamep[1])) {
-		pathnamep++;
-	}
-
-	junction = TALLOC_ZERO_P(ctx, struct junction_map);
-	if (!junction) {
-		*pstatus = NT_STATUS_NO_MEMORY;
-		talloc_destroy(ctx);
 		return -1;
 	}
 
-	/* The following call can change cwd. */
-	*pstatus = get_referred_path(ctx, pathnamep, junction,
-			&consumedcnt, &self_referral);
-	if (!NT_STATUS_IS_OK(*pstatus)) {
-		vfs_ChDir(orig_conn,orig_conn->connectpath);
-		talloc_destroy(ctx);
-		return -1;
-	}
-	vfs_ChDir(orig_conn,orig_conn->connectpath);
-
-	if (!self_referral) {
-		pathnamep[consumedcnt] = '\0';
-
-		if( DEBUGLVL( 3 ) ) {
-			int i=0;
-			dbgtext("setup_dfs_referral: Path %s to "
-				"alternate path(s):",
-				pathnamep);
-			for(i=0;i<junction->referral_count;i++)
-				dbgtext(" %s",
-				junction->referral_list[i].alternate_path);
-			dbgtext(".\n");
-		}
-	}
-
-	/* create the referral depeding on version */
-	DEBUG(10,("max_referral_level :%d\n",max_referral_level));
-
-	if (max_referral_level < 2) {
-		max_referral_level = 2;
-	}
-	if (max_referral_level > 3) {
-		max_referral_level = 3;
-	}
-
-	switch(max_referral_level) {
-	case 2:
-		reply_size = setup_ver2_dfs_referral(pathnamep,
-					ppdata, junction,
-					self_referral);
-		break;
-	case 3:
-		reply_size = setup_ver3_dfs_referral(pathnamep, ppdata,
-					junction, self_referral);
-		break;
-	default:
-		DEBUG(0,("setup_dfs_referral: Invalid dfs referral "
-			"version: %d\n",
-			max_referral_level));
-		talloc_destroy(ctx);
-		*pstatus = NT_STATUS_INVALID_LEVEL;
+	status = SMB_VFS_GET_DFS_REFERRALS(orig_conn, r);
+	if (!NT_STATUS_IS_OK(status)) {
+		talloc_free(r);
+		*pstatus = status;
 		return -1;
 	}
 
-	if (DEBUGLVL(10)) {
-		DEBUGADD(0,("DFS Referral pdata:\n"));
-		dump_data(0,(uint8 *)*ppdata,reply_size);
+	ndr_err = ndr_push_struct_blob(&blob, r,
+				r->out.resp,
+				(ndr_push_flags_fn_t)ndr_push_dfs_referral_resp);
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		TALLOC_FREE(r);
+		*pstatus = NT_STATUS_INVALID_PARAMETER;
+		return -1;
 	}
 
-	talloc_destroy(ctx);
+	pdata = (char *)SMB_REALLOC(pdata, blob.length);
+	if(pdata == NULL) {
+		TALLOC_FREE(r);
+		DEBUG(0,("referral setup:"
+			 "malloc failed for Realloc!\n"));
+		return -1;
+	}
+	*ppdata = pdata;
+	reply_size = blob.length;
+	memcpy(pdata, blob.data, blob.length);
+	TALLOC_FREE(r);
+
 	*pstatus = NT_STATUS_OK;
 	return reply_size;
 }
@@ -1348,17 +1110,19 @@ int setup_dfs_referral(connection_struct *orig_conn,
 
 bool create_junction(TALLOC_CTX *ctx,
 		const char *dfs_path,
+		bool allow_broken_path,
 		struct junction_map *jucn)
 {
 	int snum;
 	bool dummy;
-	struct dfs_path *pdp = TALLOC_P(ctx,struct dfs_path);
+	struct dfs_path *pdp = talloc(ctx,struct dfs_path);
 	NTSTATUS status;
 
 	if (!pdp) {
 		return False;
 	}
-	status = parse_dfs_path(NULL, dfs_path, False, pdp, &dummy);
+	status = parse_dfs_path(NULL, dfs_path, False, allow_broken_path,
+				pdp, &dummy);
 	if (!NT_STATUS_IS_OK(status)) {
 		return False;
 	}
@@ -1384,7 +1148,7 @@ bool create_junction(TALLOC_CTX *ctx,
 
 	jucn->service_name = talloc_strdup(ctx, pdp->servicename);
 	jucn->volume_name = talloc_strdup(ctx, pdp->reqpath);
-	jucn->comment = talloc_strdup(ctx, lp_comment(snum));
+	jucn->comment = lp_comment(ctx, snum);
 
 	TALLOC_FREE(pdp);
 	if (!jucn->service_name || !jucn->volume_name || ! jucn->comment) {
@@ -1409,15 +1173,18 @@ static bool junction_to_local_path(const struct junction_map *jucn,
 	if(snum < 0) {
 		return False;
 	}
-	status = create_conn_struct(talloc_tos(), conn_out, snum,
-				    lp_pathname(snum), NULL, oldpath);
+	status = create_conn_struct(talloc_tos(),
+				    server_event_context(),
+				    server_messaging_context(),
+				    conn_out,
+				    snum, lp_pathname(talloc_tos(), snum), NULL, oldpath);
 	if (!NT_STATUS_IS_OK(status)) {
 		return False;
 	}
 
 	*pp_path_out = talloc_asprintf(*conn_out,
 			"%s/%s",
-			lp_pathname(snum),
+			lp_pathname(talloc_tos(), snum),
 			jucn->volume_name);
 	if (!*pp_path_out) {
 		vfs_ChDir(*conn_out, *oldpath);
@@ -1554,11 +1321,11 @@ bool remove_msdfs_link(const struct junction_map *jucn)
 static int count_dfs_links(TALLOC_CTX *ctx, int snum)
 {
 	size_t cnt = 0;
-	SMB_STRUCT_DIR *dirp = NULL;
+	DIR *dirp = NULL;
 	const char *dname = NULL;
 	char *talloced = NULL;
-	const char *connect_path = lp_pathname(snum);
-	const char *msdfs_proxy = lp_msdfs_proxy(snum);
+	const char *connect_path = lp_pathname(talloc_tos(), snum);
+	const char *msdfs_proxy = lp_msdfs_proxy(talloc_tos(), snum);
 	connection_struct *conn;
 	NTSTATUS status;
 	char *cwd;
@@ -1571,8 +1338,11 @@ static int count_dfs_links(TALLOC_CTX *ctx, int snum)
 	 * Fake up a connection struct for the VFS layer.
 	 */
 
-	status = create_conn_struct(talloc_tos(), &conn, snum, connect_path,
-				    NULL, &cwd);
+	status = create_conn_struct(talloc_tos(),
+				    server_event_context(),
+				    server_messaging_context(),
+				    &conn,
+				    snum, connect_path, NULL, &cwd);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(3, ("create_conn_struct failed: %s\n",
 			  nt_errstr(status)));
@@ -1621,12 +1391,12 @@ static int form_junctions(TALLOC_CTX *ctx,
 				size_t jn_remain)
 {
 	size_t cnt = 0;
-	SMB_STRUCT_DIR *dirp = NULL;
+	DIR *dirp = NULL;
 	const char *dname = NULL;
 	char *talloced = NULL;
-	const char *connect_path = lp_pathname(snum);
-	char *service_name = lp_servicename(snum);
-	const char *msdfs_proxy = lp_msdfs_proxy(snum);
+	const char *connect_path = lp_pathname(talloc_tos(), snum);
+	char *service_name = lp_servicename(talloc_tos(), snum);
+	const char *msdfs_proxy = lp_msdfs_proxy(talloc_tos(), snum);
 	connection_struct *conn;
 	struct referral *ref = NULL;
 	char *cwd;
@@ -1644,7 +1414,10 @@ static int form_junctions(TALLOC_CTX *ctx,
 	 * Fake up a connection struct for the VFS layer.
 	 */
 
-	status = create_conn_struct(ctx, &conn, snum, connect_path, NULL,
+	status = create_conn_struct(ctx,
+				    server_event_context(),
+				    server_messaging_context(),
+				    &conn, snum, connect_path, NULL,
 				    &cwd);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(3, ("create_conn_struct failed: %s\n",
@@ -1664,7 +1437,7 @@ static int form_junctions(TALLOC_CTX *ctx,
 	jucn[cnt].comment = "";
 	jucn[cnt].referral_count = 1;
 
-	ref = jucn[cnt].referral_list = TALLOC_ZERO_P(ctx, struct referral);
+	ref = jucn[cnt].referral_list = talloc_zero(ctx, struct referral);
 	if (jucn[cnt].referral_list == NULL) {
 		goto out;
 	}
@@ -1758,7 +1531,7 @@ struct junction_map *enum_msdfs_links(TALLOC_CTX *ctx, size_t *p_num_jn)
 	/* Ensure all the usershares are loaded. */
 	become_root();
 	load_registry_shares();
-	sharecount = load_usershare_shares();
+	sharecount = load_usershare_shares(NULL, connections_snum_used);
 	unbecome_root();
 
 	for(i=0;i < sharecount;i++) {
@@ -1769,7 +1542,7 @@ struct junction_map *enum_msdfs_links(TALLOC_CTX *ctx, size_t *p_num_jn)
 	if (jn_count == 0) {
 		return NULL;
 	}
-	jn = TALLOC_ARRAY(ctx,  struct junction_map, jn_count);
+	jn = talloc_array(ctx,  struct junction_map, jn_count);
 	if (!jn) {
 		return NULL;
 	}
@@ -1797,6 +1570,7 @@ NTSTATUS resolve_dfspath_wcard(TALLOC_CTX *ctx,
 				bool dfs_pathnames,
 				const char *name_in,
 				bool allow_wcards,
+				bool allow_broken_path,
 				char **pp_name_out,
 				bool *ppath_contains_wcard)
 {
@@ -1808,6 +1582,7 @@ NTSTATUS resolve_dfspath_wcard(TALLOC_CTX *ctx,
 					conn,
 					name_in,
 					allow_wcards,
+					allow_broken_path,
 					pp_name_out,
 					&path_contains_wcard);
 
@@ -1820,7 +1595,7 @@ NTSTATUS resolve_dfspath_wcard(TALLOC_CTX *ctx,
 		 * Once srvstr_get_path() uses talloc it'll
 		 * be a talloced ptr anyway.
 		 */
-		*pp_name_out = CONST_DISCARD(char *,name_in);
+		*pp_name_out = discard_const_p(char, name_in);
 	}
 	return status;
 }

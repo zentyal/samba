@@ -24,6 +24,8 @@
 #include "auth/ntlm/auth_proto.h"
 #include "param/param.h"
 
+_PUBLIC_ NTSTATUS auth4_anonymous_init(void);
+
 /**
  * Return a anonymous logon for anonymous users (username = "")
  *
@@ -59,12 +61,11 @@ static NTSTATUS anonymous_check_password(struct auth_method_context *ctx,
 
 static const struct auth_operations anonymous_auth_ops = {
 	.name		= "anonymous",
-	.get_challenge	= auth_get_challenge_not_implemented,
 	.want_check	= anonymous_want_check,
 	.check_password	= anonymous_check_password
 };
 
-_PUBLIC_ NTSTATUS auth_anonymous_init(void)
+_PUBLIC_ NTSTATUS auth4_anonymous_init(void)
 {
 	NTSTATUS ret;
 

@@ -159,6 +159,16 @@ NTSTATUS se_access_check(const struct security_descriptor *sd,
 	uint32_t i;
 	uint32_t bits_remaining;
 	uint32_t explicitly_denied_bits = 0;
+	/*
+	 * Up until Windows Server 2008, owner always had these rights. Now
+	 * we have to use Owner Rights perms if they are on the file.
+	 *
+	 * In addition we have to accumulate these bits and apply them
+	 * correctly. See bug #8795
+	 */
+	uint32_t owner_rights_allowed = 0;
+	uint32_t owner_rights_denied = 0;
+	bool owner_rights_default = true;
 
 	*access_granted = access_desired;
 	bits_remaining = access_desired;
@@ -176,12 +186,6 @@ NTSTATUS se_access_check(const struct security_descriptor *sd,
 			orig_access_desired,
 			*access_granted,
 			bits_remaining));
-	}
-
-	/* the owner always gets SEC_STD_WRITE_DAC and SEC_STD_READ_CONTROL */
-	if ((bits_remaining & (SEC_STD_WRITE_DAC|SEC_STD_READ_CONTROL)) &&
-	    security_token_has_sid(token, sd->owner_sid)) {
-		bits_remaining &= ~(SEC_STD_WRITE_DAC|SEC_STD_READ_CONTROL);
 	}
 
 	/* a NULL dacl allows access */
@@ -202,6 +206,26 @@ NTSTATUS se_access_check(const struct security_descriptor *sd,
 			continue;
 		}
 
+		/*
+		 * We need the Owner Rights permissions to ensure we
+		 * give or deny the correct permissions to the owner. Replace
+		 * owner_rights with the perms here if it is present.
+		 *
+		 * We don't care if we are not the owner because that is taken
+		 * care of below when we check if our token has the owner SID.
+		 *
+		 */
+		if (dom_sid_equal(&ace->trustee, &global_sid_Owner_Rights)) {
+			if (ace->type == SEC_ACE_TYPE_ACCESS_ALLOWED) {
+				owner_rights_allowed |= ace->access_mask;
+				owner_rights_default = false;
+			} else if (ace->type == SEC_ACE_TYPE_ACCESS_DENIED) {
+				owner_rights_denied |= ace->access_mask;
+				owner_rights_default = false;
+			}
+			continue;
+		}
+
 		if (!security_token_has_sid(token, &ace->trustee)) {
 			continue;
 		}
@@ -219,7 +243,23 @@ NTSTATUS se_access_check(const struct security_descriptor *sd,
 		}
 	}
 
+	/* Explicitly denied bits always override */
 	bits_remaining |= explicitly_denied_bits;
+
+	/* The owner always gets owner rights as defined above. */
+	if (security_token_has_sid(token, sd->owner_sid)) {
+		if (owner_rights_default) {
+			/*
+			 * Just remove them, no need to check if they are
+			 * there.
+			 */
+			bits_remaining &= ~(SEC_STD_WRITE_DAC |
+						SEC_STD_READ_CONTROL);
+		} else {
+			bits_remaining &= ~owner_rights_allowed;
+			bits_remaining |= owner_rights_denied;
+		}
+	}
 
 	/*
 	 * We check privileges here because they override even DENY entries.
@@ -232,16 +272,6 @@ NTSTATUS se_access_check(const struct security_descriptor *sd,
 		} else {
 			return NT_STATUS_PRIVILEGE_NOT_HELD;
 		}
-	}
-
-	/* TODO: remove this, as it is file server specific */
-	if ((bits_remaining & SEC_RIGHTS_PRIV_RESTORE) &&
-	    security_token_has_privilege(token, SEC_PRIV_RESTORE)) {
-		bits_remaining &= ~(SEC_RIGHTS_PRIV_RESTORE);
-	}
-	if ((bits_remaining & SEC_RIGHTS_PRIV_BACKUP) &&
-	    security_token_has_privilege(token, SEC_PRIV_BACKUP)) {
-		bits_remaining &= ~(SEC_RIGHTS_PRIV_BACKUP);
 	}
 
 	if ((bits_remaining & SEC_STD_WRITE_OWNER) &&
@@ -258,23 +288,111 @@ done:
 	return NT_STATUS_OK;
 }
 
+/*
+  The main entry point for access checking FOR THE FILE SERVER ONLY !
+  If returning ACCESS_DENIED this function returns the denied bits in
+  the uint32_t pointed to by the access_granted pointer.
+*/
+NTSTATUS se_file_access_check(const struct security_descriptor *sd,
+			  const struct security_token *token,
+			  bool priv_open_requested,
+			  uint32_t access_desired,
+			  uint32_t *access_granted)
+{
+	uint32_t bits_remaining;
+	NTSTATUS status;
+
+	if (!priv_open_requested) {
+		/* Fall back to generic se_access_check(). */
+		return se_access_check(sd,
+				token,
+				access_desired,
+				access_granted);
+	}
+
+	/*
+	 * We need to handle the maximum allowed flag
+	 * outside of se_access_check(), as we need to
+	 * add in the access allowed by the privileges
+	 * as well.
+	 */
+
+	if (access_desired & SEC_FLAG_MAXIMUM_ALLOWED) {
+		uint32_t orig_access_desired = access_desired;
+
+		access_desired |= access_check_max_allowed(sd, token);
+		access_desired &= ~SEC_FLAG_MAXIMUM_ALLOWED;
+
+		if (security_token_has_privilege(token, SEC_PRIV_BACKUP)) {
+			access_desired |= SEC_RIGHTS_PRIV_BACKUP;
+		}
+
+		if (security_token_has_privilege(token, SEC_PRIV_RESTORE)) {
+			access_desired |= SEC_RIGHTS_PRIV_RESTORE;
+		}
+
+		DEBUG(10,("se_file_access_check: MAX desired = 0x%x "
+			"mapped to 0x%x\n",
+			orig_access_desired,
+			access_desired));
+	}
+
+	status = se_access_check(sd,
+				token,
+				access_desired,
+				access_granted);
+
+	if (!NT_STATUS_EQUAL(status, NT_STATUS_ACCESS_DENIED)) {
+		return status;
+	}
+
+	bits_remaining = *access_granted;
+
+	/* Check if we should override with privileges. */
+	if ((bits_remaining & SEC_RIGHTS_PRIV_BACKUP) &&
+	    security_token_has_privilege(token, SEC_PRIV_BACKUP)) {
+		bits_remaining &= ~(SEC_RIGHTS_PRIV_BACKUP);
+	}
+	if ((bits_remaining & SEC_RIGHTS_PRIV_RESTORE) &&
+	    security_token_has_privilege(token, SEC_PRIV_RESTORE)) {
+		bits_remaining &= ~(SEC_RIGHTS_PRIV_RESTORE);
+	}
+	if (bits_remaining != 0) {
+		*access_granted = bits_remaining;
+		return NT_STATUS_ACCESS_DENIED;
+	}
+
+	return NT_STATUS_OK;
+}
 
 static const struct GUID *get_ace_object_type(struct security_ace *ace)
 {
-        struct GUID *type;
+	if (ace->object.object.flags & SEC_ACE_OBJECT_TYPE_PRESENT) {
+		return &ace->object.object.type.type;
+	}
 
-        if (ace->object.object.flags & SEC_ACE_OBJECT_TYPE_PRESENT)
-                type = &ace->object.object.type.type;
-        else if (ace->object.object.flags & SEC_ACE_INHERITED_OBJECT_TYPE_PRESENT)
-                type = &ace->object.object.inherited_type.inherited_type; /* This doesn't look right. Is something wrong with the IDL? */
-        else
-                type = NULL;
-
-        return type;
-
+	return NULL;
 }
 
-/* modified access check for the purposes of DS security
+/**
+ * @brief Perform directoryservice (DS) related access checks for a given user
+ *
+ * Perform DS access checks for the user represented by its security_token, on
+ * the provided security descriptor. If an tree associating GUID and access
+ * required is provided then object access (OA) are checked as well. *
+ * @param[in]   sd             The security descritor against which the required
+ *                             access are requested
+ *
+ * @param[in]   token          The security_token associated with the user to
+ *                             test
+ *
+ * @param[in]   access_desired A bitfield of rights that must be granted for the
+ *                             given user in the specified SD.
+ *
+ * If one
+ * of the entry in the tree grants all the requested rights for the given GUID
+ * FIXME
+ * tree can be null if not null it's the
  * Lots of code duplication, it will ve united in just one
  * function eventually */
 
@@ -285,31 +403,32 @@ NTSTATUS sec_access_check_ds(const struct security_descriptor *sd,
 			     struct object_tree *tree,
 			     struct dom_sid *replace_sid)
 {
-        uint32_t i;
-        uint32_t bits_remaining;
-        struct object_tree *node;
-        const struct GUID *type;
-        struct dom_sid *ps_sid = dom_sid_parse_talloc(NULL, SID_NT_SELF);
+	uint32_t i;
+	uint32_t bits_remaining;
+	struct object_tree *node;
+	const struct GUID *type;
+	struct dom_sid self_sid;
 
-        *access_granted = access_desired;
-        bits_remaining = access_desired;
+	dom_sid_parse(SID_NT_SELF, &self_sid);
 
-        /* handle the maximum allowed flag */
-        if (access_desired & SEC_FLAG_MAXIMUM_ALLOWED) {
-                access_desired |= access_check_max_allowed(sd, token);
-                access_desired &= ~SEC_FLAG_MAXIMUM_ALLOWED;
-                *access_granted = access_desired;
+	*access_granted = access_desired;
+	bits_remaining = access_desired;
+
+	/* handle the maximum allowed flag */
+	if (access_desired & SEC_FLAG_MAXIMUM_ALLOWED) {
+		access_desired |= access_check_max_allowed(sd, token);
+		access_desired &= ~SEC_FLAG_MAXIMUM_ALLOWED;
+		*access_granted = access_desired;
 		bits_remaining = access_desired;
-        }
+	}
 
-        if (access_desired & SEC_FLAG_SYSTEM_SECURITY) {
-                if (security_token_has_privilege(token, SEC_PRIV_SECURITY)) {
-                        bits_remaining &= ~SEC_FLAG_SYSTEM_SECURITY;
-                } else {
-                        talloc_free(ps_sid);
-                        return NT_STATUS_PRIVILEGE_NOT_HELD;
-                }
-        }
+	if (access_desired & SEC_FLAG_SYSTEM_SECURITY) {
+		if (security_token_has_privilege(token, SEC_PRIV_SECURITY)) {
+			bits_remaining &= ~SEC_FLAG_SYSTEM_SECURITY;
+		} else {
+			return NT_STATUS_PRIVILEGE_NOT_HELD;
+		}
+	}
 
 	/* the owner always gets SEC_STD_WRITE_DAC and SEC_STD_READ_CONTROL */
 	if ((bits_remaining & (SEC_STD_WRITE_DAC|SEC_STD_READ_CONTROL)) &&
@@ -327,88 +446,89 @@ NTSTATUS sec_access_check_ds(const struct security_descriptor *sd,
 		bits_remaining &= ~(SEC_RIGHTS_PRIV_BACKUP);
 	}
 
-        /* a NULL dacl allows access */
-        if ((sd->type & SEC_DESC_DACL_PRESENT) && sd->dacl == NULL) {
-                *access_granted = access_desired;
-                talloc_free(ps_sid);
-                return NT_STATUS_OK;
-        }
+	/* a NULL dacl allows access */
+	if ((sd->type & SEC_DESC_DACL_PRESENT) && sd->dacl == NULL) {
+		*access_granted = access_desired;
+		return NT_STATUS_OK;
+	}
 
-        if (sd->dacl == NULL) {
-                goto done;
-        }
+	if (sd->dacl == NULL) {
+		goto done;
+	}
 
-        /* check each ace in turn. */
-        for (i=0; bits_remaining && i < sd->dacl->num_aces; i++) {
+	/* check each ace in turn. */
+	for (i=0; bits_remaining && i < sd->dacl->num_aces; i++) {
 		struct dom_sid *trustee;
 		struct security_ace *ace = &sd->dacl->aces[i];
 
-                if (ace->flags & SEC_ACE_FLAG_INHERIT_ONLY) {
-                        continue;
-                }
-		if (dom_sid_equal(&ace->trustee, ps_sid) && replace_sid) {
-			trustee = replace_sid;
+		if (ace->flags & SEC_ACE_FLAG_INHERIT_ONLY) {
+			continue;
 		}
-		else
-		{
+
+		if (dom_sid_equal(&ace->trustee, &self_sid) && replace_sid) {
+			trustee = replace_sid;
+		} else {
 			trustee = &ace->trustee;
 		}
-                if (!security_token_has_sid(token, trustee)) {
-                        continue;
-                }
 
-                switch (ace->type) {
-                case SEC_ACE_TYPE_ACCESS_ALLOWED:
-                        if (tree)
-                                object_tree_modify_access(tree, ace->access_mask);
+		if (!security_token_has_sid(token, trustee)) {
+			continue;
+		}
 
-                        bits_remaining &= ~ace->access_mask;
-                        break;
-                case SEC_ACE_TYPE_ACCESS_DENIED:
-                        if (bits_remaining & ace->access_mask) {
-                                talloc_free(ps_sid);
-                                return NT_STATUS_ACCESS_DENIED;
-                        }
-                        break;
-                case SEC_ACE_TYPE_ACCESS_DENIED_OBJECT:
-                case SEC_ACE_TYPE_ACCESS_ALLOWED_OBJECT:
-                        /* check only in case we have provided a tree,
-                         * the ACE has an object type and that type
-                         * is in the tree                           */
-                        type = get_ace_object_type(ace);
+		switch (ace->type) {
+		case SEC_ACE_TYPE_ACCESS_ALLOWED:
+			if (tree) {
+				object_tree_modify_access(tree, ace->access_mask);
+			}
 
-                        if (!tree)
-                                continue;
+			bits_remaining &= ~ace->access_mask;
+			break;
+		case SEC_ACE_TYPE_ACCESS_DENIED:
+			if (bits_remaining & ace->access_mask) {
+				return NT_STATUS_ACCESS_DENIED;
+			}
+			break;
+		case SEC_ACE_TYPE_ACCESS_DENIED_OBJECT:
+		case SEC_ACE_TYPE_ACCESS_ALLOWED_OBJECT:
+			/*
+			 * check only in case we have provided a tree,
+			 * the ACE has an object type and that type
+			 * is in the tree
+			 */
+			type = get_ace_object_type(ace);
 
-                        if (!type)
-                                node = tree;
-                        else
-                                if (!(node = get_object_tree_by_GUID(tree, type)))
-                                        continue;
+			if (!tree) {
+				continue;
+			}
 
-                        if (ace->type == SEC_ACE_TYPE_ACCESS_ALLOWED_OBJECT) {
-                                object_tree_modify_access(node, ace->access_mask);
-                                if (node->remaining_access == 0) {
-                                        talloc_free(ps_sid);
-                                        return NT_STATUS_OK;
-                                }
-                        } else {
-                                if (node->remaining_access & ace->access_mask){
-                                        talloc_free(ps_sid);
-                                        return NT_STATUS_ACCESS_DENIED;
-                                }
-                        }
-                        break;
-                default:        /* Other ACE types not handled/supported */
-                        break;
-                }
-        }
+			if (!type) {
+				node = tree;
+			} else {
+				if (!(node = get_object_tree_by_GUID(tree, type))) {
+					continue;
+				}
+			}
+
+			if (ace->type == SEC_ACE_TYPE_ACCESS_ALLOWED_OBJECT) {
+				object_tree_modify_access(node, ace->access_mask);
+				if (node->remaining_access == 0) {
+					return NT_STATUS_OK;
+				}
+			} else {
+				if (node->remaining_access & ace->access_mask){
+					return NT_STATUS_ACCESS_DENIED;
+				}
+			}
+			break;
+		default:	/* Other ACE types not handled/supported */
+			break;
+		}
+	}
 
 done:
-        talloc_free(ps_sid);
-        if (bits_remaining != 0) {
-                return NT_STATUS_ACCESS_DENIED;
-        }
+	if (bits_remaining != 0) {
+		return NT_STATUS_ACCESS_DENIED;
+	}
 
-        return NT_STATUS_OK;
+	return NT_STATUS_OK;
 }

@@ -24,6 +24,7 @@
 #include "intl/lang_tdb.h"
 #include "auth.h"
 #include "secrets.h"
+#include "../lib/util/setid.h"
 
 #define MAX_VARIABLES 10000
 
@@ -121,7 +122,7 @@ void cgi_load_variables(void)
 #ifdef DEBUG_COMMENTS
 	char dummy[100]="";
 	print_title(dummy);
-	d_printf("<!== Start dump in cgi_load_variables() %s ==>\n",__FILE__);
+	printf("<!== Start dump in cgi_load_variables() %s ==>\n",__FILE__);
 #endif
 
 	if (!content_length) {
@@ -214,14 +215,14 @@ void cgi_load_variables(void)
 
 		convert_string_talloc(frame, CH_UTF8, CH_UNIX,
 			       variables[i].name, strlen(variables[i].name),
-			       &dest, &dest_len, True);
+			       &dest, &dest_len);
 		SAFE_FREE(variables[i].name);
 		variables[i].name = SMB_STRDUP(dest ? dest : "");
 
 		dest = NULL;
 		convert_string_talloc(frame, CH_UTF8, CH_UNIX,
 			       variables[i].value, strlen(variables[i].value),
-			       &dest, &dest_len, True);
+			       &dest, &dest_len);
 		SAFE_FREE(variables[i].value);
 		variables[i].value = SMB_STRDUP(dest ? dest : "");
 		TALLOC_FREE(frame);
@@ -278,7 +279,7 @@ static void cgi_setup_error(const char *err, const char *header, const char *inf
 		}
 	}
 
-	d_printf("HTTP/1.0 %s\r\n%sConnection: close\r\nContent-Type: text/html\r\n\r\n<HTML><HEAD><TITLE>%s</TITLE></HEAD><BODY><H1>%s</H1>%s<p></BODY></HTML>\r\n\r\n", err, header, err, err, info);
+	printf("HTTP/1.0 %s\r\n%sConnection: close\r\nContent-Type: text/html\r\n\r\n<HTML><HEAD><TITLE>%s</TITLE></HEAD><BODY><H1>%s</H1>%s<p></BODY></HTML>\r\n\r\n", err, header, err, err, info);
 	fclose(stdin);
 	fclose(stdout);
 	exit(0);
@@ -329,10 +330,10 @@ static void cgi_web_auth(void)
 
 	C_user = SMB_STRDUP(user);
 
-	if (!setuid(0)) {
+	if (!samba_setuid(0)) {
 		C_pass = SMB_STRDUP(cgi_nonce());
 	}
-	setuid(pwd->pw_uid);
+	samba_setuid(pwd->pw_uid);
 	if (geteuid() != pwd->pw_uid || getuid() != pwd->pw_uid) {
 		printf("%sFailed to become user %s - uid=%d/%d<br>%s\n", 
 		       head, user, (int)geteuid(), (int)getuid(), tail);
@@ -352,6 +353,7 @@ static bool cgi_handle_authorization(char *line)
 	struct passwd *pass = NULL;
 	const char *rhost;
 	char addr[INET6_ADDRSTRLEN];
+	size_t size = 0;
 
 	if (!strnequal(line,"Basic ", 6)) {
 		goto err;
@@ -368,13 +370,17 @@ static bool cgi_handle_authorization(char *line)
 	}
 	*p = 0;
 
-	convert_string(CH_UTF8, CH_UNIX, 
+	if (!convert_string(CH_UTF8, CH_UNIX,
 		       line, -1, 
-		       user, sizeof(user), True);
+		       user, sizeof(user), &size)) {
+		goto err;
+	}
 
-	convert_string(CH_UTF8, CH_UNIX, 
+	if (!convert_string(CH_UTF8, CH_UNIX,
 		       p+1, -1, 
-		       user_pass, sizeof(user_pass), True);
+		       user_pass, sizeof(user_pass), &size)) {
+		goto err;
+	}
 
 	/*
 	 * Try and get the user from the UNIX password file.
@@ -456,8 +462,7 @@ char *cgi_nonce(void)
 	C_nonce = secrets_fetch_generic("root", "SWAT");
 	if (C_nonce == NULL) {
 		char *tmp_pass = NULL;
-		tmp_pass = generate_random_password(talloc_tos(),
-						    16, 16);
+		tmp_pass = generate_random_password(talloc_tos(), 16, 16);
 		if (tmp_pass == NULL) {
 			printf("%sFailed to create random nonce for "
 			       "SWAT session\n<br>%s\n", head, tail);
@@ -467,7 +472,7 @@ char *cgi_nonce(void)
 		C_nonce = SMB_STRDUP(tmp_pass);
 		TALLOC_FREE(tmp_pass);
 	}
-        return(C_nonce);
+	return(C_nonce);
 }
 
 /***************************************************************************

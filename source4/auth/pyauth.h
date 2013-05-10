@@ -23,9 +23,7 @@
 #include <pytalloc.h>
 #include "auth/session.h"
 
-#define PyAuthSession_AsSession(obj) py_talloc_get_type(obj, struct auth_session_info)
-#define PyAuthSession_Check(obj) PyObject_TypeCheck(obj, &PyAuthSession)
+#define PyAuthSession_AsSession(obj) pytalloc_get_type(obj, struct auth_session_info)
 struct auth_session_info *PyObject_AsSession(PyObject *obj);
-PyObject *PyAuthSession_FromSession(struct auth_session_info *session);
 
 #endif /* _PYAUTH_H */

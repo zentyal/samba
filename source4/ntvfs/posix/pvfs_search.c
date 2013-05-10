@@ -61,7 +61,7 @@ static void pvfs_search_setup_timer(struct pvfs_search_state *search)
 	struct tevent_context *ev = search->pvfs->ntvfs->ctx->event_ctx;
 	if (search->handle == INVALID_SEARCH_HANDLE) return;
 	talloc_free(search->te);
-	search->te = event_add_timed(ev, search, 
+	search->te = tevent_add_timer(ev, search,
 				     timeval_current_ofs(search->pvfs->search.inactivity_time, 0), 
 				     pvfs_search_timer, search);
 }
@@ -221,7 +221,9 @@ static NTSTATUS fill_search_info(struct pvfs_state *pvfs,
 		return NT_STATUS_OK;
 
 	case RAW_SEARCH_DATA_GENERIC:
-		break;
+	case RAW_SEARCH_DATA_UNIX_INFO:
+	case RAW_SEARCH_DATA_UNIX_INFO2:
+		return NT_STATUS_INVALID_LEVEL;
 	}
 
 	return NT_STATUS_INVALID_LEVEL;

@@ -28,15 +28,17 @@
 /* public functions - the api */
 
 SMB_ACL_T irixacl_sys_acl_get_file(vfs_handle_struct *handle,
-				    const char *path_p,
-				    SMB_ACL_TYPE_T type)
+				   const char *path_p,
+				   SMB_ACL_TYPE_T type,
+				   TALLOC_CTX *mem_ctx)
 {
 	errno = ENOTSUP;
 	return NULL;
 }
 
 SMB_ACL_T irixacl_sys_acl_get_fd(vfs_handle_struct *handle,
-				 files_struct *fsp)
+				 files_struct *fsp,
+				 TALLOC_CTX *mem_ctx)
 {
 	errno = ENOTSUP;
 	return NULL;
@@ -71,11 +73,11 @@ int irixacl_sys_acl_delete_def_file(vfs_handle_struct *handle,
 /* VFS operations structure */
 
 static struct vfs_fn_pointers irixacl_fns = {
-	.sys_acl_get_file = irixacl_sys_acl_get_file,
-	.sys_acl_get_fd = irixacl_sys_acl_get_fd,
-	.sys_acl_set_file = irixacl_sys_acl_set_file,
-	.sys_acl_set_fd = irixacl_sys_acl_set_fd,
-	.sys_acl_delete_def_file = irixacl_sys_acl_delete_def_file,
+	.sys_acl_get_file_fn = irixacl_sys_acl_get_file,
+	.sys_acl_get_fd_fn = irixacl_sys_acl_get_fd,
+	.sys_acl_set_file_fn = irixacl_sys_acl_set_file,
+	.sys_acl_set_fd_fn = irixacl_sys_acl_set_fd,
+	.sys_acl_delete_def_file_fn = irixacl_sys_acl_delete_def_file,
 };
 
 NTSTATUS vfs_irixacl_init(void);

@@ -25,6 +25,7 @@
 #include "passdb.h"
 #include "../libcli/auth/libcli_auth.h"
 #include "../libcli/security/security.h"
+#include "../lib/util/bitmap.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_PASSDB
@@ -63,7 +64,7 @@ bool pdb_is_password_change_time_max(time_t test_time)
  Return an unchanging version of max password change time - 0x7FFFFFFF.
  ********************************************************************/
 
-time_t pdb_password_change_time_max(void)
+static time_t pdb_password_change_time_max(void)
 {
 	return 0x7FFFFFFF;
 }
@@ -399,12 +400,6 @@ bool pdb_set_pass_can_change_time(struct samu *sampass, time_t mytime, enum pdb_
 	return pdb_set_init_flags(sampass, PDB_CANCHANGETIME, flag);
 }
 
-bool pdb_set_pass_must_change_time(struct samu *sampass, time_t mytime, enum pdb_value_state flag)
-{
-	sampass->pass_must_change_time = mytime;
-	return pdb_set_init_flags(sampass, PDB_MUSTCHANGETIME, flag);
-}
-
 bool pdb_set_pass_last_set_time(struct samu *sampass, time_t mytime, enum pdb_value_state flag)
 {
 	sampass->pass_last_set_time = mytime;
@@ -502,7 +497,7 @@ bool pdb_set_user_sid(struct samu *sampass, const struct dom_sid *u_sid, enum pd
 	return pdb_set_init_flags(sampass, PDB_USERSID, flag);
 }
 
-bool pdb_set_user_sid_from_string(struct samu *sampass, fstring u_sid, enum pdb_value_state flag)
+bool pdb_set_user_sid_from_string(struct samu *sampass, const char *u_sid, enum pdb_value_state flag)
 {
 	struct dom_sid new_sid;
 
@@ -541,7 +536,7 @@ bool pdb_set_group_sid(struct samu *sampass, const struct dom_sid *g_sid, enum p
 	if (!g_sid)
 		return False;
 
-	if ( !(sampass->group_sid = TALLOC_P( sampass, struct dom_sid )) ) {
+	if ( !(sampass->group_sid = talloc( sampass, struct dom_sid )) ) {
 		return False;
 	}
 
@@ -1116,4 +1111,27 @@ uint32_t pdb_build_fields_present(struct samu *sampass)
 {
 	/* value set to all for testing */
 	return 0x00ffffff;
+}
+
+/**********************************************************************
+ Helper function to determine for update_sam_account whether
+ we need LDAP modification.
+*********************************************************************/
+
+bool pdb_element_is_changed(const struct samu *sampass,
+			    enum pdb_elements element)
+{
+	return IS_SAM_CHANGED(sampass, element);
+}
+
+/**********************************************************************
+ Helper function to determine for update_sam_account whether
+ we need LDAP modification.
+ *********************************************************************/
+
+bool pdb_element_is_set_or_changed(const struct samu *sampass,
+				   enum pdb_elements element)
+{
+	return (IS_SAM_SET(sampass, element) ||
+		IS_SAM_CHANGED(sampass, element));
 }

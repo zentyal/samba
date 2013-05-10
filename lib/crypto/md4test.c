@@ -18,10 +18,11 @@
 */
 
 #include "replace.h"
-#include "../lib/util/util.h"
+#include "../lib/util/samba_util.h"
 #include "../lib/crypto/crypto.h"
 
 struct torture_context;
+bool torture_local_crypto_md4(struct torture_context *torture);
 
 /*
  This uses the test values from rfc1320

@@ -22,33 +22,49 @@
 #include "../lib/util/tevent_ntstatus.h"
 #include "async_smb.h"
 #include "trans2.h"
+#include "../libcli/smb/smbXcli_base.h"
 
 /****************************************************************************
   Calculate the recommended read buffer size
 ****************************************************************************/
 static size_t cli_read_max_bufsize(struct cli_state *cli)
 {
-	size_t data_offset = smb_size - 4;
-	size_t wct = 12;
+	uint8_t wct = 12;
+	uint32_t min_space;
+	uint32_t data_offset;
+	uint32_t useable_space = 0;
 
-	size_t useable_space;
-
-	if (!client_is_signing_on(cli) && !cli_encryption_on(cli)
-	    && (cli->server_posix_capabilities & CIFS_UNIX_LARGE_READ_CAP)) {
-		return CLI_SAMBA_MAX_POSIX_LARGE_READX_SIZE;
-	}
-	if (cli->capabilities & CAP_LARGE_READX) {
-		return cli->is_samba
-			? CLI_SAMBA_MAX_LARGE_READX_SIZE
-			: CLI_WINDOWS_MAX_LARGE_READX_SIZE;
-	}
-
+	data_offset = HDR_VWV;
 	data_offset += wct * sizeof(uint16_t);
+	data_offset += sizeof(uint16_t); /* byte count */
 	data_offset += 1; /* pad */
 
-	useable_space = cli->max_xmit - data_offset;
+	min_space = cli_state_available_size(cli, data_offset);
 
-	return useable_space;
+	if (cli->server_posix_capabilities & CIFS_UNIX_LARGE_READ_CAP) {
+		useable_space = 0xFFFFFF - data_offset;
+
+		if (smb1cli_conn_signing_is_active(cli->conn)) {
+			return min_space;
+		}
+
+		if (smb1cli_conn_encryption_on(cli->conn)) {
+			return min_space;
+		}
+
+		return useable_space;
+	} else if (smb1cli_conn_capabilities(cli->conn) & CAP_LARGE_READX) {
+		/*
+		 * Note: CAP_LARGE_READX also works with signing
+		 */
+		useable_space = 0x1FFFF - data_offset;
+
+		useable_space = MIN(useable_space, UINT16_MAX);
+
+		return useable_space;
+	}
+
+	return min_space;
 }
 
 /****************************************************************************
@@ -58,35 +74,42 @@ static size_t cli_write_max_bufsize(struct cli_state *cli,
 				    uint16_t write_mode,
 				    uint8_t wct)
 {
-        if (write_mode == 0 &&
-	    !client_is_signing_on(cli) &&
-	    !cli_encryption_on(cli) &&
-	    (cli->server_posix_capabilities & CIFS_UNIX_LARGE_WRITE_CAP) &&
-	    (cli->capabilities & CAP_LARGE_FILES)) {
-		/* Only do massive writes if we can do them direct
-		 * with no signing or encrypting - not on a pipe. */
-		return CLI_SAMBA_MAX_POSIX_LARGE_WRITEX_SIZE;
+	uint32_t min_space;
+	uint32_t data_offset;
+	uint32_t useable_space = 0;
+
+	data_offset = HDR_VWV;
+	data_offset += wct * sizeof(uint16_t);
+	data_offset += sizeof(uint16_t); /* byte count */
+	data_offset += 1; /* pad */
+
+	min_space = cli_state_available_size(cli, data_offset);
+
+	if (cli->server_posix_capabilities & CIFS_UNIX_LARGE_WRITE_CAP) {
+		useable_space = 0xFFFFFF - data_offset;
+	} else if (smb1cli_conn_capabilities(cli->conn) & CAP_LARGE_WRITEX) {
+		useable_space = 0x1FFFF - data_offset;
+	} else {
+		return min_space;
 	}
 
-	if (cli->is_samba) {
-		return CLI_SAMBA_MAX_LARGE_WRITEX_SIZE;
+	if (write_mode != 0) {
+		return min_space;
 	}
 
-	if (((cli->capabilities & CAP_LARGE_WRITEX) == 0)
-	    || client_is_signing_on(cli)
-	    || strequal(cli->dev, "LPT1:")) {
-		size_t data_offset = smb_size - 4;
-		size_t useable_space;
-
-		data_offset += wct * sizeof(uint16_t);
-		data_offset += 1; /* pad */
-
-		useable_space = cli->max_xmit - data_offset;
-
-		return useable_space;
+	if (smb1cli_conn_signing_is_active(cli->conn)) {
+		return min_space;
 	}
 
-	return CLI_WINDOWS_MAX_LARGE_WRITEX_SIZE;
+	if (smb1cli_conn_encryption_on(cli->conn)) {
+		return min_space;
+	}
+
+	if (strequal(cli->dev, "LPT1:")) {
+		return min_space;
+	}
+
+	return useable_space;
 }
 
 struct cli_read_andx_state {
@@ -109,13 +132,6 @@ struct tevent_req *cli_read_andx_create(TALLOC_CTX *mem_ctx,
 	struct cli_read_andx_state *state;
 	uint8_t wct = 10;
 
-	if (size > cli_read_max_bufsize(cli)) {
-		DEBUG(0, ("cli_read_andx_send got size=%d, can only handle "
-			  "size=%d\n", (int)size,
-			  (int)cli_read_max_bufsize(cli)));
-		return NULL;
-	}
-
 	req = tevent_req_create(mem_ctx, &state, struct cli_read_andx_state);
 	if (req == NULL) {
 		return NULL;
@@ -133,7 +149,7 @@ struct tevent_req *cli_read_andx_create(TALLOC_CTX *mem_ctx,
 	SSVAL(state->vwv + 8, 0, 0);
 	SSVAL(state->vwv + 9, 0, 0);
 
-	if (cli->capabilities & CAP_LARGE_FILES) {
+	if (smb1cli_conn_capabilities(cli->conn) & CAP_LARGE_FILES) {
 		SIVAL(state->vwv + 10, 0,
 		      (((uint64_t)offset)>>32) & 0xffffffff);
 		wct = 12;
@@ -171,7 +187,7 @@ struct tevent_req *cli_read_andx_send(TALLOC_CTX *mem_ctx,
 		return NULL;
 	}
 
-	status = cli_smb_req_send(subreq);
+	status = smb1cli_req_chain_submit(&subreq, 1);
 	if (tevent_req_nterror(req, status)) {
 		return tevent_req_post(req, ev);
 	}
@@ -220,9 +236,9 @@ static void cli_read_andx_done(struct tevent_req *subreq)
 		return;
 	}
 
-	state->buf = (uint8_t *)smb_base(inbuf) + SVAL(vwv+6, 0);
+	state->buf = discard_const_p(uint8_t, smb_base(inbuf)) + SVAL(vwv+6, 0);
 
-	if (trans_oob(smb_len_large(inbuf), SVAL(vwv+6, 0), state->received)
+	if (trans_oob(smb_len_tcp(inbuf), SVAL(vwv+6, 0), state->received)
 	    || ((state->received != 0) && (state->buf < bytes))) {
 		DEBUG(5, ("server returned invalid read&x data offset\n"));
 		tevent_req_nterror(req, NT_STATUS_INVALID_NETWORK_RESPONSE);
@@ -393,7 +409,7 @@ struct cli_pull_state {
 	struct cli_state *cli;
 	uint16_t fnum;
 	off_t start_offset;
-	SMB_OFF_T size;
+	off_t size;
 
 	NTSTATUS (*sink)(char *buf, size_t n, void *priv);
 	void *priv;
@@ -403,13 +419,14 @@ struct cli_pull_state {
 	/*
 	 * Outstanding requests
 	 */
+	uint16_t max_reqs;
 	int num_reqs;
 	struct cli_pull_subreq *reqs;
 
 	/*
 	 * For how many bytes did we send requests already?
 	 */
-	SMB_OFF_T requested;
+	off_t requested;
 
 	/*
 	 * Next request index to push into "sink". This walks around the "req"
@@ -423,7 +440,7 @@ struct cli_pull_state {
 	 * How many bytes did we push into "sink"?
 	 */
 
-	SMB_OFF_T pushed;
+	off_t pushed;
 };
 
 static char *cli_pull_print(struct tevent_req *req, TALLOC_CTX *mem_ctx)
@@ -452,7 +469,7 @@ struct tevent_req *cli_pull_send(TALLOC_CTX *mem_ctx,
 				 struct event_context *ev,
 				 struct cli_state *cli,
 				 uint16_t fnum, off_t start_offset,
-				 SMB_OFF_T size, size_t window_size,
+				 off_t size, size_t window_size,
 				 NTSTATUS (*sink)(char *buf, size_t n,
 						  void *priv),
 				 void *priv)
@@ -460,6 +477,7 @@ struct tevent_req *cli_pull_send(TALLOC_CTX *mem_ctx,
 	struct tevent_req *req;
 	struct cli_pull_state *state;
 	int i;
+	size_t page_size = 1024;
 
 	req = tevent_req_create(mem_ctx, &state, struct cli_pull_state);
 	if (req == NULL) {
@@ -485,11 +503,16 @@ struct tevent_req *cli_pull_send(TALLOC_CTX *mem_ctx,
 	}
 
 	state->chunk_size = cli_read_max_bufsize(cli);
+	if (state->chunk_size > page_size) {
+		state->chunk_size &= ~(page_size - 1);
+	}
+
+	state->max_reqs = smbXcli_conn_max_requests(cli->conn);
 
 	state->num_reqs = MAX(window_size/state->chunk_size, 1);
-	state->num_reqs = MIN(state->num_reqs, cli->max_mux);
+	state->num_reqs = MIN(state->num_reqs, state->max_reqs);
 
-	state->reqs = TALLOC_ZERO_ARRAY(state, struct cli_pull_subreq,
+	state->reqs = talloc_zero_array(state, struct cli_pull_subreq,
 					state->num_reqs);
 	if (state->reqs == NULL) {
 		goto failed;
@@ -499,7 +522,7 @@ struct tevent_req *cli_pull_send(TALLOC_CTX *mem_ctx,
 
 	for (i=0; i<state->num_reqs; i++) {
 		struct cli_pull_subreq *subreq = &state->reqs[i];
-		SMB_OFF_T size_left;
+		off_t size_left;
 		size_t request_thistime;
 
 		if (state->requested >= size) {
@@ -600,7 +623,7 @@ static void cli_pull_read_done(struct tevent_req *subreq)
 
 		if (state->requested < state->size) {
 			struct tevent_req *new_req;
-			SMB_OFF_T size_left;
+			off_t size_left;
 			size_t request_thistime;
 
 			size_left = state->size - state->requested;
@@ -635,7 +658,7 @@ static void cli_pull_read_done(struct tevent_req *subreq)
 	tevent_req_done(req);
 }
 
-NTSTATUS cli_pull_recv(struct tevent_req *req, SMB_OFF_T *received)
+NTSTATUS cli_pull_recv(struct tevent_req *req, off_t *received)
 {
 	struct cli_pull_state *state = tevent_req_data(
 		req, struct cli_pull_state);
@@ -649,16 +672,16 @@ NTSTATUS cli_pull_recv(struct tevent_req *req, SMB_OFF_T *received)
 }
 
 NTSTATUS cli_pull(struct cli_state *cli, uint16_t fnum,
-		  off_t start_offset, SMB_OFF_T size, size_t window_size,
+		  off_t start_offset, off_t size, size_t window_size,
 		  NTSTATUS (*sink)(char *buf, size_t n, void *priv),
-		  void *priv, SMB_OFF_T *received)
+		  void *priv, off_t *received)
 {
 	TALLOC_CTX *frame = talloc_stackframe();
 	struct event_context *ev;
 	struct tevent_req *req;
 	NTSTATUS status = NT_STATUS_OK;
 
-	if (cli_has_async_calls(cli)) {
+	if (smbXcli_conn_has_async_calls(cli->conn)) {
 		/*
 		 * Can't use sync call while an async call is in flight
 		 */
@@ -698,18 +721,24 @@ static NTSTATUS cli_read_sink(char *buf, size_t n, void *priv)
 	return NT_STATUS_OK;
 }
 
-ssize_t cli_read(struct cli_state *cli, uint16_t fnum, char *buf,
-		 off_t offset, size_t size)
+NTSTATUS cli_read(struct cli_state *cli, uint16_t fnum,
+		 char *buf, off_t offset, size_t size,
+		 size_t *nread)
 {
 	NTSTATUS status;
-	SMB_OFF_T ret;
+	off_t ret;
 
 	status = cli_pull(cli, fnum, offset, size, size,
 			  cli_read_sink, &buf, &ret);
 	if (!NT_STATUS_IS_OK(status)) {
-		return -1;
+		return status;
 	}
-	return ret;
+
+	if (nread) {
+		*nread = ret;
+	}
+
+	return NT_STATUS_OK;
 }
 
 /****************************************************************************
@@ -726,14 +755,15 @@ NTSTATUS cli_smbwrite(struct cli_state *cli, uint16_t fnum, char *buf,
 	 * 3 bytes prefix
 	 */
 
-	bytes = TALLOC_ARRAY(talloc_tos(), uint8_t, 3);
+	bytes = talloc_array(talloc_tos(), uint8_t, 3);
 	if (bytes == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
 	bytes[0] = 1;
 
 	do {
-		size_t size = MIN(size1, cli->max_xmit - 48);
+		uint32_t usable_space = cli_state_available_size(cli, 48);
+		size_t size = MIN(size1, usable_space);
 		struct tevent_req *req;
 		uint16_t vwv[5];
 		uint16_t *ret_vwv;
@@ -744,7 +774,7 @@ NTSTATUS cli_smbwrite(struct cli_state *cli, uint16_t fnum, char *buf,
 		SIVAL(vwv+2, 0, offset);
 		SSVAL(vwv+4, 0, 0);
 
-		bytes = TALLOC_REALLOC_ARRAY(talloc_tos(), bytes, uint8_t,
+		bytes = talloc_realloc(talloc_tos(), bytes, uint8_t,
 					     size+3);
 		if (bytes == NULL) {
 			return NT_STATUS_NO_MEMORY;
@@ -804,7 +834,7 @@ struct tevent_req *cli_write_andx_create(TALLOC_CTX *mem_ctx,
 {
 	struct tevent_req *req, *subreq;
 	struct cli_write_andx_state *state;
-	bool bigoffset = ((cli->capabilities & CAP_LARGE_FILES) != 0);
+	bool bigoffset = ((smb1cli_conn_capabilities(cli->conn) & CAP_LARGE_FILES) != 0);
 	uint8_t wct = bigoffset ? 14 : 12;
 	size_t max_write = cli_write_max_bufsize(cli, mode, wct);
 	uint16_t *vwv;
@@ -830,7 +860,7 @@ struct tevent_req *cli_write_andx_create(TALLOC_CTX *mem_ctx,
 	SSVAL(vwv+10, 0, state->size);
 
 	SSVAL(vwv+11, 0,
-	      cli_smb_wct_ofs(reqs_before, num_reqs_before)
+	      smb1cli_req_wct_ofs(reqs_before, num_reqs_before)
 	      + 1		/* the wct field */
 	      + wct * 2		/* vwv */
 	      + 2		/* num_bytes field */
@@ -843,7 +873,7 @@ struct tevent_req *cli_write_andx_create(TALLOC_CTX *mem_ctx,
 	state->pad = 0;
 	state->iov[0].iov_base = (void *)&state->pad;
 	state->iov[0].iov_len = 1;
-	state->iov[1].iov_base = CONST_DISCARD(void *, buf);
+	state->iov[1].iov_base = discard_const_p(void, buf);
 	state->iov[1].iov_len = state->size;
 
 	subreq = cli_smb_req_create(state, ev, cli, SMBwriteX, 0, wct, vwv,
@@ -871,7 +901,7 @@ struct tevent_req *cli_write_andx_send(TALLOC_CTX *mem_ctx,
 		return NULL;
 	}
 
-	status = cli_smb_req_send(subreq);
+	status = smb1cli_req_chain_submit(&subreq, 1);
 	if (tevent_req_nterror(req, status)) {
 		return tevent_req_post(req, ev);
 	}
@@ -886,10 +916,9 @@ static void cli_write_andx_done(struct tevent_req *subreq)
 		req, struct cli_write_andx_state);
 	uint8_t wct;
 	uint16_t *vwv;
-	uint8_t *inbuf;
 	NTSTATUS status;
 
-	status = cli_smb_recv(subreq, state, &inbuf, 6, &wct, &vwv,
+	status = cli_smb_recv(subreq, state, NULL, 6, &wct, &vwv,
 			      NULL, NULL);
 	TALLOC_FREE(subreq);
 	if (NT_STATUS_IS_ERR(status)) {
@@ -921,7 +950,9 @@ NTSTATUS cli_write_andx_recv(struct tevent_req *req, size_t *pwritten)
 	if (tevent_req_is_nterror(req, &status)) {
 		return status;
 	}
-	*pwritten = state->written;
+	if (pwritten != 0) {
+		*pwritten = state->written;
+	}
 	return NT_STATUS_OK;
 }
 
@@ -1036,7 +1067,7 @@ NTSTATUS cli_writeall(struct cli_state *cli, uint16_t fnum, uint16_t mode,
 	struct tevent_req *req;
 	NTSTATUS status = NT_STATUS_NO_MEMORY;
 
-	if (cli_has_async_calls(cli)) {
+	if (smbXcli_conn_has_async_calls(cli->conn)) {
 		/*
 		 * Can't use sync call while an async call is in flight
 		 */
@@ -1089,6 +1120,7 @@ struct cli_push_state {
 	 * Outstanding requests
 	 */
 	uint32_t pending;
+	uint16_t max_reqs;
 	uint32_t num_reqs;
 	struct cli_push_write_state **reqs;
 };
@@ -1154,6 +1186,7 @@ struct tevent_req *cli_push_send(TALLOC_CTX *mem_ctx, struct event_context *ev,
 	struct tevent_req *req;
 	struct cli_push_state *state;
 	uint32_t i;
+	size_t page_size = 1024;
 
 	req = tevent_req_create(mem_ctx, &state, struct cli_push_state);
 	if (req == NULL) {
@@ -1171,18 +1204,23 @@ struct tevent_req *cli_push_send(TALLOC_CTX *mem_ctx, struct event_context *ev,
 	state->next_offset = start_offset;
 
 	state->chunk_size = cli_write_max_bufsize(cli, mode, 14);
+	if (state->chunk_size > page_size) {
+		state->chunk_size &= ~(page_size - 1);
+	}
+
+	state->max_reqs = smbXcli_conn_max_requests(cli->conn);
 
 	if (window_size == 0) {
-		window_size = cli->max_mux * state->chunk_size;
+		window_size = state->max_reqs * state->chunk_size;
 	}
 	state->num_reqs = window_size/state->chunk_size;
 	if ((window_size % state->chunk_size) > 0) {
 		state->num_reqs += 1;
 	}
-	state->num_reqs = MIN(state->num_reqs, cli->max_mux);
+	state->num_reqs = MIN(state->num_reqs, state->max_reqs);
 	state->num_reqs = MAX(state->num_reqs, 1);
 
-	state->reqs = TALLOC_ZERO_ARRAY(state, struct cli_push_write_state *,
+	state->reqs = talloc_zero_array(state, struct cli_push_write_state *,
 					state->num_reqs);
 	if (state->reqs == NULL) {
 		goto failed;
@@ -1258,7 +1296,7 @@ NTSTATUS cli_push(struct cli_state *cli, uint16_t fnum, uint16_t mode,
 	struct tevent_req *req;
 	NTSTATUS status = NT_STATUS_OK;
 
-	if (cli_has_async_calls(cli)) {
+	if (smbXcli_conn_has_async_calls(cli->conn)) {
 		/*
 		 * Can't use sync call while an async call is in flight
 		 */

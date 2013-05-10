@@ -35,6 +35,7 @@ struct provision_settings {
 	const char *ntds_dn_str;
 	const char *machine_password;
 	const char *targetdir;
+	bool use_ntvfs;
 };
 
 /* FIXME: Rename this to hostconfig ? */
@@ -63,7 +64,9 @@ NTSTATUS provision_store_self_join(TALLOC_CTX *mem_ctx, struct loadparm_context 
 				   struct provision_store_self_join_settings *settings,
 				   const char **error_string);
 
-struct ldb_context *provision_get_schema(TALLOC_CTX *mem_ctx, struct loadparm_context *lp_ctx,
+struct ldb_context *provision_get_schema(TALLOC_CTX *mem_ctx,
+					 struct loadparm_context *lp_ctx,
+					 const char *schema_dn,
 					 DATA_BLOB *override_prefixmap);
 
 #endif /* _PROVISION_H_ */

@@ -31,6 +31,7 @@
 { 
 	torture_local_binding_string, 
 	torture_ntlmssp, 
+	torture_smbencrypt,
 	torture_local_messaging, 
 	torture_local_irpc, 
 	torture_local_util_strlist, 
@@ -60,6 +61,10 @@
 	torture_local_share,
 	torture_local_loadparm,
 	torture_local_charset,
+	torture_local_convert_string_handle,
+	torture_local_convert_string,
+	torture_local_string_case_handle,
+	torture_local_string_case,
 	torture_local_compression,
 	torture_local_event, 
 	torture_local_torture,
@@ -87,6 +92,8 @@ NTSTATUS torture_local_init(void)
 				      torture_local_crypto_md5);
 	torture_suite_add_simple_test(suite, "crypto.hmacmd5", 
 				      torture_local_crypto_hmacmd5);
+	torture_suite_add_simple_test(suite, "crypto.aes_cmac_128",
+				      torture_local_crypto_aes_cmac_128);
 
 	for (i = 0; suite_generators[i]; i++)
 		torture_suite_add_suite(suite,

@@ -89,7 +89,7 @@ NTSTATUS rpc_query_user_list(TALLOC_CTX *mem_ctx,
 
 		num_info += num_dom_users;
 
-		info = TALLOC_REALLOC_ARRAY(mem_ctx,
+		info = talloc_realloc(mem_ctx,
 					    info,
 					    struct wbint_userinfo,
 					    num_info);
@@ -181,7 +181,7 @@ NTSTATUS rpc_enum_dom_groups(TALLOC_CTX *mem_ctx,
 			}
 		}
 
-		info = TALLOC_REALLOC_ARRAY(mem_ctx,
+		info = talloc_realloc(mem_ctx,
 					    info,
 					    struct wb_acct_info,
 					    num_info + count);
@@ -241,7 +241,7 @@ NTSTATUS rpc_enum_local_groups(TALLOC_CTX *mem_ctx,
 			}
 		}
 
-		info = TALLOC_REALLOC_ARRAY(mem_ctx,
+		info = talloc_realloc(mem_ctx,
 					    info,
 					    struct wb_acct_info,
 					    num_info + count);
@@ -404,7 +404,7 @@ NTSTATUS rpc_rids_to_names(TALLOC_CTX *mem_ctx,
 	NTSTATUS status;
 
 	if (num_rids > 0) {
-		sids = TALLOC_ARRAY(mem_ctx, struct dom_sid, num_rids);
+		sids = talloc_array(mem_ctx, struct dom_sid, num_rids);
 		if (sids == NULL) {
 			return NT_STATUS_NO_MEMORY;
 		}
@@ -526,7 +526,7 @@ NTSTATUS rpc_query_user(TALLOC_CTX *mem_ctx,
 	user_info->full_name = talloc_strdup(user_info,
 					info->info21.full_name.string);
 	if ((info->info21.full_name.string != NULL) &&
-	    (user_info->acct_name == NULL))
+	    (user_info->full_name == NULL))
 	{
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -594,7 +594,7 @@ NTSTATUS rpc_lookup_usergroups(TALLOC_CTX *mem_ctx,
 		return result;
 	}
 
-	user_grpsids = TALLOC_ARRAY(mem_ctx, struct dom_sid, num_groups);
+	user_grpsids = talloc_array(mem_ctx, struct dom_sid, num_groups);
 	if (user_grpsids == NULL) {
 		status = NT_STATUS_NO_MEMORY;
 		return status;
@@ -644,7 +644,7 @@ NTSTATUS rpc_lookup_useraliases(TALLOC_CTX *mem_ctx,
 			num_queries, num_query_sids));
 
 		if (num_query_sids) {
-			sid_array.sids = TALLOC_ZERO_ARRAY(mem_ctx, struct lsa_SidPtr, num_query_sids);
+			sid_array.sids = talloc_zero_array(mem_ctx, struct lsa_SidPtr, num_query_sids);
 			if (sid_array.sids == NULL) {
 				return NT_STATUS_NO_MEMORY;
 			}
@@ -839,9 +839,9 @@ NTSTATUS rpc_lookup_groupmem(TALLOC_CTX *mem_ctx,
 	 * Step #2: Convert list of rids into list of usernames.
 	 */
 	if (num_names > 0) {
-		names = TALLOC_ZERO_ARRAY(mem_ctx, char *, num_names);
-		name_types = TALLOC_ZERO_ARRAY(mem_ctx, uint32_t, num_names);
-		sid_mem = TALLOC_ZERO_ARRAY(mem_ctx, struct dom_sid, num_names);
+		names = talloc_zero_array(mem_ctx, char *, num_names);
+		name_types = talloc_zero_array(mem_ctx, uint32_t, num_names);
+		sid_mem = talloc_zero_array(mem_ctx, struct dom_sid, num_names);
 		if (names == NULL || name_types == NULL || sid_mem == NULL) {
 			return NT_STATUS_NO_MEMORY;
 		}
@@ -972,31 +972,44 @@ NTSTATUS rpc_trusted_domains(TALLOC_CTX *mem_ctx,
 
 	do {
 		struct lsa_DomainList dom_list;
-		uint32_t start_idx;
+		struct lsa_DomainListEx dom_list_ex;
+		bool has_ex = false;
 		uint32_t i;
 
 		/*
 		 * We don't run into deadlocks here, cause winbind_off() is
 		 * called in the main function.
 		 */
-		status = dcerpc_lsa_EnumTrustDom(b,
-						 mem_ctx,
-						 lsa_policy,
-						 &enum_ctx,
-						 &dom_list,
-						 (uint32_t) -1,
-						 &result);
-		if (!NT_STATUS_IS_OK(status)) {
-			return status;
-		}
-		if (!NT_STATUS_IS_OK(result)) {
-			if (!NT_STATUS_EQUAL(result, STATUS_MORE_ENTRIES)) {
-				return result;
+		status = dcerpc_lsa_EnumTrustedDomainsEx(b,
+							 mem_ctx,
+							 lsa_policy,
+							 &enum_ctx,
+							 &dom_list_ex,
+							 (uint32_t) -1,
+							 &result);
+		if (NT_STATUS_IS_OK(status) && !NT_STATUS_IS_ERR(result) &&
+		    dom_list_ex.count > 0) {
+			count += dom_list_ex.count;
+			has_ex = true;
+		} else {
+			status = dcerpc_lsa_EnumTrustDom(b,
+							 mem_ctx,
+							 lsa_policy,
+							 &enum_ctx,
+							 &dom_list,
+							 (uint32_t) -1,
+							 &result);
+			if (!NT_STATUS_IS_OK(status)) {
+				return status;
 			}
-		}
+			if (!NT_STATUS_IS_OK(result)) {
+				if (!NT_STATUS_EQUAL(result, STATUS_MORE_ENTRIES)) {
+					return result;
+				}
+			}
 
-		start_idx = count;
-		count += dom_list.count;
+			count += dom_list.count;
+		}
 
 		array = talloc_realloc(mem_ctx,
 				       array,
@@ -1006,21 +1019,32 @@ NTSTATUS rpc_trusted_domains(TALLOC_CTX *mem_ctx,
 			return NT_STATUS_NO_MEMORY;
 		}
 
-		for (i = 0; i < dom_list.count; i++) {
+		for (i = 0; i < count; i++) {
 			struct netr_DomainTrust *trust = &array[i];
 			struct dom_sid *sid;
 
 			ZERO_STRUCTP(trust);
 
-			trust->netbios_name = talloc_move(array,
-							  &dom_list.domains[i].name.string);
-			trust->dns_name = NULL;
-
 			sid = talloc(array, struct dom_sid);
 			if (sid == NULL) {
 				return NT_STATUS_NO_MEMORY;
 			}
-			sid_copy(sid, dom_list.domains[i].sid);
+
+			if (has_ex) {
+				trust->netbios_name = talloc_move(array,
+								  &dom_list_ex.domains[i].netbios_name.string);
+				trust->dns_name = talloc_move(array,
+							      &dom_list_ex.domains[i].domain_name.string);
+
+				sid_copy(sid, dom_list_ex.domains[i].sid);
+			} else {
+				trust->netbios_name = talloc_move(array,
+								  &dom_list.domains[i].name.string);
+				trust->dns_name = NULL;
+
+				sid_copy(sid, dom_list.domains[i].sid);
+			}
+
 			trust->sid = sid;
 		}
 	} while (NT_STATUS_EQUAL(result, STATUS_MORE_ENTRIES));
@@ -1060,7 +1084,7 @@ static NTSTATUS rpc_try_lookup_sids3(TALLOC_CTX *mem_ctx,
 	if (NT_STATUS_IS_ERR(result)) {
 		return result;
 	}
-	names = TALLOC_ZERO_P(mem_ctx, struct lsa_TransNameArray);
+	names = talloc_zero(mem_ctx, struct lsa_TransNameArray);
 	if (names == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -1102,7 +1126,7 @@ NTSTATUS rpc_lookup_sids(TALLOC_CTX *mem_ctx,
 					    pdomains, pnames);
 	}
 
-	names = TALLOC_ZERO_P(mem_ctx, struct lsa_TransNameArray);
+	names = talloc_zero(mem_ctx, struct lsa_TransNameArray);
 	if (names == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}

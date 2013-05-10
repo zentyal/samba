@@ -32,6 +32,7 @@
 #include "librpc/rpc/dcerpc.h"
 #include "auth/gensec/gensec.h"
 #include "param/param.h"
+#include "lib/util/samba_modules.h"
 
 #if HAVE_READLINE_HISTORY_H
 #include <readline/history.h>
@@ -547,6 +548,9 @@ int main(int argc,char *argv[])
 		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:resume_key_support", "false");
 	} else if (strcmp(target, "samba4") == 0) {
 		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:samba4", "true");
+	} else if (strcmp(target, "samba4-ntvfs") == 0) {
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:samba4", "true");
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:samba4-ntvfs", "true");
 	} else if (strcmp(target, "winxp") == 0) {
 		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:winxp", "true");
 	} else if (strcmp(target, "w2k3") == 0) {
@@ -601,7 +605,7 @@ int main(int argc,char *argv[])
 	}
 
 	if (extra_module != NULL) {
-	    init_module_fn fn = load_module(talloc_autofree_context(), poptGetOptArg(pc));
+		init_module_fn fn = load_module(poptGetOptArg(pc), false, NULL);
 
 		if (fn == NULL) 
 			d_printf("Unable to load module from %s\n", poptGetOptArg(pc));
@@ -686,7 +690,7 @@ int main(int argc,char *argv[])
 
 	torture->lp_ctx = cmdline_lp_ctx;
 
-	gensec_init(cmdline_lp_ctx);
+	gensec_init();
 
 	if (shell) {
 		/* In shell mode, just ignore any remaining test names. */

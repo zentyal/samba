@@ -169,12 +169,8 @@ static int map_ldb_error(TALLOC_CTX *mem_ctx, int ldb_err,
 	}
 
 	*errstring = talloc_asprintf(mem_ctx, "%08X: %s", W_ERROR_V(err),
-		ldb_strerror(ldb_err));
-	if (add_err_string != NULL) {
-		*errstring = talloc_asprintf(mem_ctx, "%s - %s", *errstring,
-					     add_err_string);
-	}
-	
+		add_err_string != NULL ? add_err_string : ldb_strerror(ldb_err));
+
 	/* result is 1:1 for now */
 	return ldb_err;
 }
@@ -305,6 +301,11 @@ static int ldapsrv_add_with_controls(struct ldapsrv_call *call,
 
 	if (ret != LDB_SUCCESS) return ret;
 
+	if (call->conn->global_catalog) {
+		return ldb_error(ldb, LDB_ERR_UNWILLING_TO_PERFORM, "modify forbidden on global catalog port");
+	}
+	ldb_request_add_control(req, DSDB_CONTROL_NO_GLOBAL_CATALOG, false, NULL);
+
 	ret = ldb_transaction_start(ldb);
 	if (ret != LDB_SUCCESS) {
 		return ret;
@@ -358,6 +359,11 @@ static int ldapsrv_mod_with_controls(struct ldapsrv_call *call,
 		return ret;
 	}
 
+	if (call->conn->global_catalog) {
+		return ldb_error(ldb, LDB_ERR_UNWILLING_TO_PERFORM, "modify forbidden on global catalog port");
+	}
+	ldb_request_add_control(req, DSDB_CONTROL_NO_GLOBAL_CATALOG, false, NULL);
+
 	ret = ldb_transaction_start(ldb);
 	if (ret != LDB_SUCCESS) {
 		return ret;
@@ -403,6 +409,11 @@ static int ldapsrv_del_with_controls(struct ldapsrv_call *call,
 					NULL);
 
 	if (ret != LDB_SUCCESS) return ret;
+
+	if (call->conn->global_catalog) {
+		return ldb_error(ldb, LDB_ERR_UNWILLING_TO_PERFORM, "modify forbidden on global catalog port");
+	}
+	ldb_request_add_control(req, DSDB_CONTROL_NO_GLOBAL_CATALOG, false, NULL);
 
 	ret = ldb_transaction_start(ldb);
 	if (ret != LDB_SUCCESS) {
@@ -450,6 +461,11 @@ static int ldapsrv_rename_with_controls(struct ldapsrv_call *call,
 					NULL);
 
 	if (ret != LDB_SUCCESS) return ret;
+
+	if (call->conn->global_catalog) {
+		return ldb_error(ldb, LDB_ERR_UNWILLING_TO_PERFORM, "modify forbidden on global catalog port");
+	}
+	ldb_request_add_control(req, DSDB_CONTROL_NO_GLOBAL_CATALOG, false, NULL);
 
 	ret = ldb_transaction_start(ldb);
 	if (ret != LDB_SUCCESS) {
@@ -582,6 +598,8 @@ static NTSTATUS ldapsrv_SearchRequest(struct ldapsrv_call *call)
 			search_options->search_options = LDB_SEARCH_OPTION_PHANTOM_ROOT;
 			ldb_request_add_control(lreq, LDB_CONTROL_SEARCH_OPTIONS_OID, false, search_options);
 		}
+	} else {
+		ldb_request_add_control(lreq, DSDB_CONTROL_NO_GLOBAL_CATALOG, false, NULL);
 	}
 
 	extended_dn_control = ldb_request_get_control(lreq, LDB_CONTROL_EXTENDED_DN_OID);
@@ -1144,6 +1162,9 @@ NTSTATUS ldapsrv_do_call(struct ldapsrv_call *call)
 {
 	unsigned int i;
 	struct ldap_message *msg = call->request;
+	struct ldb_context *samdb = call->conn->ldb;
+	NTSTATUS status;
+	time_t *lastts;
 	/* Check for undecoded critical extensions */
 	for (i=0; msg->controls && msg->controls[i]; i++) {
 		if (!msg->controls_decoded[i] && 
@@ -1162,9 +1183,11 @@ NTSTATUS ldapsrv_do_call(struct ldapsrv_call *call)
 	case LDAP_TAG_SearchRequest:
 		return ldapsrv_SearchRequest(call);
 	case LDAP_TAG_ModifyRequest:
-		return ldapsrv_ModifyRequest(call);
+		status = ldapsrv_ModifyRequest(call);
+		break;
 	case LDAP_TAG_AddRequest:
-		return ldapsrv_AddRequest(call);
+		status = ldapsrv_AddRequest(call);
+		break;
 	case LDAP_TAG_DelRequest:
 		return ldapsrv_DelRequest(call);
 	case LDAP_TAG_ModifyDNRequest:
@@ -1178,4 +1201,22 @@ NTSTATUS ldapsrv_do_call(struct ldapsrv_call *call)
 	default:
 		return ldapsrv_unwilling(call, LDAP_PROTOCOL_ERROR);
 	}
+
+	if (NT_STATUS_IS_OK(status)) {
+		lastts = (time_t *)ldb_get_opaque(samdb, DSDB_OPAQUE_LAST_SCHEMA_UPDATE_MSG_OPAQUE_NAME);
+		if (lastts && !*lastts) {
+			DEBUG(10, ("Schema update now was requested, "
+				"fullfilling the request ts = %d\n",
+				(int)*lastts));
+			/*
+			* Just requesting the schema will do the trick
+			* as the delay for reload is experied, we will have a reload
+			* from the schema as expected as we are not yet in a transaction!
+			*/
+			dsdb_get_schema(samdb, NULL);
+			*lastts = time(NULL);
+			ldb_set_opaque(samdb, DSDB_OPAQUE_LAST_SCHEMA_UPDATE_MSG_OPAQUE_NAME, lastts);
+		}
+	}
+	return status;
 }

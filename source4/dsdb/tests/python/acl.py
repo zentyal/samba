@@ -26,11 +26,12 @@ from samba.dcerpc import security, drsuapi, misc
 from samba.auth import system_session
 from samba import gensec, sd_utils
 from samba.samdb import SamDB
-from samba.credentials import Credentials
+from samba.credentials import Credentials, DONT_USE_KERBEROS
 import samba.tests
 from samba.tests import delete_force
 from subunit.run import SubunitTestRunner
 import unittest
+import samba.dsdb
 
 parser = optparse.OptionParser("acl.py [options] <host>")
 sambaopts = options.SambaOptions(parser)
@@ -93,6 +94,7 @@ class AclTests(samba.tests.TestCase):
         creds_tmp.set_workstation(creds.get_workstation())
         creds_tmp.set_gensec_features(creds_tmp.get_gensec_features()
                                       | gensec.FEATURE_SEAL)
+        creds_tmp.set_kerberos_state(DONT_USE_KERBEROS) # kinit is too expensive to use in a tight loop
         ldb_target = SamDB(url=ldaphost, credentials=creds_tmp, lp=lp)
         return ldb_target
 
@@ -126,9 +128,9 @@ class AclAddTests(AclTests):
         self.ldb_admin.newuser(self.regular_user, self.user_pass)
 
         # add admins to the Domain Admins group
-        self.ldb_admin.add_remove_group_members("Domain Admins", self.usr_admin_owner,
+        self.ldb_admin.add_remove_group_members("Domain Admins", [self.usr_admin_owner],
                        add_members_operation=True)
-        self.ldb_admin.add_remove_group_members("Domain Admins", self.usr_admin_not_owner,
+        self.ldb_admin.add_remove_group_members("Domain Admins", [self.usr_admin_not_owner],
                        add_members_operation=True)
 
         self.ldb_owner = self.get_ldb_connection(self.usr_admin_owner, self.user_pass)
@@ -167,7 +169,7 @@ class AclAddTests(AclTests):
         # Test user and group creation with another domain admin's credentials
         self.ldb_notowner.newuser(self.test_user1, self.user_pass, userou=self.ou2)
         self.ldb_notowner.newgroup("test_add_group1", groupou="OU=test_add_ou2,OU=test_add_ou1",
-                                   grouptype=4)
+                                   grouptype=samba.dsdb.GTYPE_DISTRIBUTION_DOMAIN_LOCAL_GROUP)
         # Make sure we HAVE created the two objects -- user and group
         # !!! We should not be able to do that, but however beacuse of ACE ordering our inherited Deny ACE
         # !!! comes after explicit (A;;RPWPCRCCDCLCLORCWOWDSDDTSW;;;DA) that comes from somewhere
@@ -186,7 +188,7 @@ class AclAddTests(AclTests):
         try:
             self.ldb_user.newuser(self.test_user1, self.user_pass, userou=self.ou2)
             self.ldb_user.newgroup("test_add_group1", groupou="OU=test_add_ou2,OU=test_add_ou1",
-                                   grouptype=4)
+                                   grouptype=samba.dsdb.GTYPE_DISTRIBUTION_DOMAIN_LOCAL_GROUP)
         except LdbError, (num, _):
             self.assertEquals(num, ERR_INSUFFICIENT_ACCESS_RIGHTS)
         else:
@@ -210,7 +212,7 @@ class AclAddTests(AclTests):
         self.ldb_user.newuser(self.test_user1, self.user_pass, userou=self.ou2, setpassword=False)
         try:
             self.ldb_user.newgroup("test_add_group1", groupou="OU=test_add_ou2,OU=test_add_ou1",
-                                   grouptype=4)
+                                   grouptype=samba.dsdb.GTYPE_DISTRIBUTION_DOMAIN_LOCAL_GROUP)
         except LdbError, (num, _):
             self.assertEquals(num, ERR_INSUFFICIENT_ACCESS_RIGHTS)
         else:
@@ -234,7 +236,7 @@ class AclAddTests(AclTests):
         self.ldb_owner.create_ou("OU=test_add_ou2,OU=test_add_ou1," + self.base_dn)
         self.ldb_owner.newuser(self.test_user1, self.user_pass, userou=self.ou2)
         self.ldb_owner.newgroup("test_add_group1", groupou="OU=test_add_ou2,OU=test_add_ou1",
-                                 grouptype=4)
+                                 grouptype=samba.dsdb.GTYPE_DISTRIBUTION_DOMAIN_LOCAL_GROUP)
         # Make sure we have successfully created the two objects -- user and group
         res = self.ldb_admin.search(self.base_dn, expression="(distinguishedName=%s,%s)" % ("CN=test_add_user1,OU=test_add_ou2,OU=test_add_ou1", self.base_dn))
         self.assertTrue(len(res) > 0)
@@ -267,8 +269,8 @@ class AclModifyTests(AclTests):
         self.ldb_user2 = self.get_ldb_connection(self.user_with_sm, self.user_pass)
         self.ldb_user3 = self.get_ldb_connection(self.user_with_group_sm, self.user_pass)
         self.user_sid = self.sd_utils.get_object_sid( self.get_user_dn(self.user_with_wp))
-        self.ldb_admin.newgroup("test_modify_group2", grouptype=4)
-        self.ldb_admin.newgroup("test_modify_group3", grouptype=4)
+        self.ldb_admin.newgroup("test_modify_group2", grouptype=samba.dsdb.GTYPE_DISTRIBUTION_DOMAIN_LOCAL_GROUP)
+        self.ldb_admin.newgroup("test_modify_group3", grouptype=samba.dsdb.GTYPE_DISTRIBUTION_DOMAIN_LOCAL_GROUP)
         self.ldb_admin.newuser("test_modify_user2", self.user_pass)
 
     def tearDown(self):
@@ -302,7 +304,8 @@ displayName: test_changed"""
         self.assertEqual(res[0]["displayName"][0], "test_changed")
         # Second test object -- Group
         print "Testing modify on Group object"
-        self.ldb_admin.newgroup("test_modify_group1", grouptype=4)
+        self.ldb_admin.newgroup("test_modify_group1",
+                                grouptype=samba.dsdb.GTYPE_DISTRIBUTION_DOMAIN_LOCAL_GROUP)
         self.sd_utils.dacl_add_ace("CN=test_modify_group1,CN=Users," + self.base_dn, mod)
         ldif = """
 dn: CN=test_modify_group1,CN=Users,""" + self.base_dn + """
@@ -360,7 +363,8 @@ url: www.samba.org"""
             self.fail()
         # Second test object -- Group
         print "Testing modify on Group object"
-        self.ldb_admin.newgroup("test_modify_group1", grouptype=4)
+        self.ldb_admin.newgroup("test_modify_group1",
+                                grouptype=samba.dsdb.GTYPE_DISTRIBUTION_DOMAIN_LOCAL_GROUP)
         self.sd_utils.dacl_add_ace("CN=test_modify_group1,CN=Users," + self.base_dn, mod)
         ldif = """
 dn: CN=test_modify_group1,CN=Users,""" + self.base_dn + """
@@ -378,6 +382,21 @@ dn: CN=test_modify_group1,CN=Users,""" + self.base_dn + """
 changetype: modify
 replace: url
 url: www.samba.org"""
+        try:
+            self.ldb_user.modify_ldif(ldif)
+        except LdbError, (num, _):
+            self.assertEquals(num, ERR_INSUFFICIENT_ACCESS_RIGHTS)
+        else:
+            # This 'modify' operation should always throw ERR_INSUFFICIENT_ACCESS_RIGHTS
+            self.fail()
+        # Modify on attribute you do not have rights for granted while also modifying something you do have rights for
+        ldif = """
+dn: CN=test_modify_group1,CN=Users,""" + self.base_dn + """
+changetype: modify
+replace: url
+url: www.samba.org
+replace: displayName
+displayName: test_changed"""
         try:
             self.ldb_user.modify_ldif(ldif)
         except LdbError, (num, _):
@@ -434,7 +453,8 @@ url: www.samba.org"""
 
         # Second test object -- Group
         print "Testing modify on Group object"
-        self.ldb_admin.newgroup("test_modify_group1", grouptype=4)
+        self.ldb_admin.newgroup("test_modify_group1",
+                                grouptype=samba.dsdb.GTYPE_DISTRIBUTION_DOMAIN_LOCAL_GROUP)
         # Modify on attribute you do not have rights for granted
         ldif = """
 dn: CN=test_modify_group1,CN=Users,""" + self.base_dn + """
@@ -607,8 +627,8 @@ class AclSearchTests(AclTests):
         self.ldb_admin.newuser(self.u1, self.user_pass)
         self.ldb_admin.newuser(self.u2, self.user_pass)
         self.ldb_admin.newuser(self.u3, self.user_pass)
-        self.ldb_admin.newgroup(self.group1, grouptype=-2147483646)
-        self.ldb_admin.add_remove_group_members(self.group1, self.u2,
+        self.ldb_admin.newgroup(self.group1, grouptype=samba.dsdb.GTYPE_SECURITY_GLOBAL_GROUP)
+        self.ldb_admin.add_remove_group_members(self.group1, [self.u2],
                                                 add_members_operation=True)
         self.ldb_user = self.get_ldb_connection(self.u1, self.user_pass)
         self.ldb_user2 = self.get_ldb_connection(self.u2, self.user_pass)
@@ -694,7 +714,7 @@ class AclSearchTests(AclTests):
         else:
             self.fail()
         try:
-            res = anonymous.search("CN=Configuration," + self.base_dn, expression="(objectClass=*)",
+            res = anonymous.search(anonymous.get_config_basedn(), expression="(objectClass=*)",
                                         scope=SCOPE_SUBTREE)
         except LdbError, (num, _):
             self.assertEquals(num, ERR_OPERATIONS_ERROR)
@@ -715,7 +735,7 @@ class AclSearchTests(AclTests):
         self.assertTrue("dn" in res[0])
         self.assertTrue(res[0]["dn"] == Dn(self.ldb_admin,
                                            "OU=test_search_ou2,OU=test_search_ou1," + self.base_dn))
-        res = anonymous.search("CN=Configuration," + self.base_dn, expression="(objectClass=*)",
+        res = anonymous.search(anonymous.get_config_basedn(), expression="(objectClass=*)",
                                scope=SCOPE_SUBTREE)
         self.assertEquals(len(res), 1)
         self.assertTrue("dn" in res[0])
@@ -1516,7 +1536,7 @@ class AclExtendedTests(AclTests):
         self.ldb_admin.newuser(self.u1, self.user_pass)
         self.ldb_admin.newuser(self.u2, self.user_pass)
         self.ldb_admin.newuser(self.u3, self.user_pass)
-        self.ldb_admin.add_remove_group_members("Domain Admins", self.u3,
+        self.ldb_admin.add_remove_group_members("Domain Admins", [self.u3],
                                                 add_members_operation=True)
         self.ldb_user1 = self.get_ldb_connection(self.u1, self.user_pass)
         self.ldb_user2 = self.get_ldb_connection(self.u2, self.user_pass)
@@ -1541,7 +1561,8 @@ class AclExtendedTests(AclTests):
         mod = "(A;;LC;;;%s)" % str(self.user_sid2)
         self.sd_utils.dacl_add_ace("OU=ext_ou1," + self.base_dn, mod)
         #create a group under that, grant RP to u2
-        self.ldb_user1.newgroup("ext_group1", groupou="OU=ext_ou1", grouptype=4)
+        self.ldb_user1.newgroup("ext_group1", groupou="OU=ext_ou1",
+                                grouptype=samba.dsdb.GTYPE_DISTRIBUTION_DOMAIN_LOCAL_GROUP)
         mod = "(A;;RP;;;%s)" % str(self.user_sid2)
         self.sd_utils.dacl_add_ace("CN=ext_group1,OU=ext_ou1," + self.base_dn, mod)
         #u2 must not read the descriptor
@@ -1621,6 +1642,7 @@ class AclSPNTests(AclTests):
 
     # same as for join_RODC, but do not set any SPNs
     def create_rodc(self, ctx):
+         ctx.nc_list = [ ctx.base_dn, ctx.config_dn, ctx.schema_dn ]
          ctx.krbtgt_dn = "CN=krbtgt_%s,CN=Users,%s" % (ctx.myname, ctx.base_dn)
 
          ctx.never_reveal_sid = [ "<SID=%s-%s>" % (ctx.domsid, security.DOMAIN_RID_RODC_DENY),
@@ -1650,6 +1672,7 @@ class AclSPNTests(AclTests):
          ctx.join_add_objects()
 
     def create_dc(self, ctx):
+        ctx.nc_list = [ ctx.base_dn, ctx.config_dn, ctx.schema_dn ]
         ctx.userAccountControl = samba.dsdb.UF_SERVER_TRUST_ACCOUNT | samba.dsdb.UF_TRUSTED_FOR_DELEGATION
         ctx.secure_channel_type = misc.SEC_CHAN_BDC
         ctx.replica_flags = (drsuapi.DRSUAPI_DRS_WRIT_REP |
@@ -1677,7 +1700,7 @@ class AclSPNTests(AclTests):
         self.replace_spn(self.ldb_user1, ctx.acct_dn, "HOST/%s.%s/%s" %
                          (ctx.myname, ctx.dnsdomain, ctx.dnsdomain))
         self.replace_spn(self.ldb_user1, ctx.acct_dn, "GC/%s.%s/%s" %
-                         (ctx.myname, ctx.dnsdomain, ctx.dnsdomain))
+                         (ctx.myname, ctx.dnsdomain, ctx.dnsforest))
         self.replace_spn(self.ldb_user1, ctx.acct_dn, "ldap/%s/%s" % (ctx.myname, netbiosdomain))
         self.replace_spn(self.ldb_user1, ctx.acct_dn, "ldap/%s.%s/%s" %
                          (ctx.myname, ctx.dnsdomain, netbiosdomain))
@@ -1736,7 +1759,7 @@ class AclSPNTests(AclTests):
         self.replace_spn(self.ldb_admin, self.computerdn, "HOST/%s.%s/%s" %
                          (self.computername, self.dcctx.dnsdomain, self.dcctx.dnsdomain))
         self.replace_spn(self.ldb_admin, self.computerdn, "GC/%s.%s/%s" %
-                         (self.computername, self.dcctx.dnsdomain, self.dcctx.dnsdomain))
+                         (self.computername, self.dcctx.dnsdomain, self.dcctx.dnsforest))
         self.replace_spn(self.ldb_admin, self.computerdn, "ldap/%s/%s" % (self.computername, netbiosdomain))
         self.replace_spn(self.ldb_admin, self.computerdn, "ldap/%s.%s/ForestDnsZones.%s" %
                          (self.computername, self.dcctx.dnsdomain, self.dcctx.dnsdomain))
@@ -1800,7 +1823,7 @@ class AclSPNTests(AclTests):
             self.assertEquals(num, ERR_CONSTRAINT_VIOLATION)
         try:
             self.replace_spn(self.ldb_user1, self.computerdn, "GC/%s.%s/%s" %
-                             (self.computername, self.dcctx.dnsdomain, self.dcctx.dnsdomain))
+                             (self.computername, self.dcctx.dnsdomain, self.dcctx.dnsforest))
         except LdbError, (num, _):
             self.assertEquals(num, ERR_CONSTRAINT_VIOLATION)
         try:

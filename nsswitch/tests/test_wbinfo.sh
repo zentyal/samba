@@ -14,8 +14,8 @@ TARGET=$4
 shift 4
 
 failed=0
-samba4bindir="$BUILDDIR/bin"
-wbinfo="$VALGRIND $samba4bindir/wbinfo$EXEEXT"
+samba4bindir="$BINDIR"
+wbinfo="$VALGRIND $samba4bindir/wbinfo"
 
 . `dirname $0`/../../testprogs/blackbox/subunit.sh
 
@@ -184,6 +184,8 @@ else
 	echo "failure: wbinfo --group-info against $TARGET"
 	failed=`expr $failed + 1`
 fi
+
+testfail "wbinfo --group-info against $TARGET with $USERNAME" $wbinfo --group-info $USERNAME && failed=`expr $failed + 1`
 
 gid=`echo $rawgid | sed 's/.*:\([0-9][0-9]*\):/\1/'`
 testit "wbinfo --gid-info against $TARGET" $wbinfo --gid-info $gid || failed=`expr $failed + 1`

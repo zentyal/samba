@@ -77,11 +77,23 @@ struct kccsrv_service {
 
 		/* here we have a reference to the timed event the schedules the periodic stuff */
 		struct tevent_timer *te;
+
+		/* samba_runcmd_send service for samba_kcc */
+		struct tevent_req *subreq;
+
+		/* return status of samba_kcc */
+		NTSTATUS status;
+
 	} periodic;
 
 	time_t last_deleted_check;
 
+	time_t last_full_scan_deleted_check;
+
 	bool am_rodc;
+
+	/* run new samba_kcc topology generator code */
+	bool samba_kcc_code;
 };
 
 struct kcc_connection_list;

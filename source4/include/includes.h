@@ -58,7 +58,7 @@
 #include "../lib/util/xfile.h"
 #include "../lib/util/attr.h"
 #include "../lib/util/debug.h"
-#include "../lib/util/util.h"
+#include "../lib/util/samba_util.h"
 
 #include "libcli/util/error.h"
 
@@ -68,5 +68,8 @@
 /* Thread functions. */
 #include "../lib/util/smb_threads.h"
 #include "../lib/util/smb_threads_internal.h"
+
+/* samba_setXXid functions. */
+#include "../lib/util/setid.h"
 
 #endif /* _INCLUDES_H */

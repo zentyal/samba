@@ -22,6 +22,7 @@
 
 #include "includes.h"
 #include "ads.h"
+#include "lib/param/loadparm.h"
 
 #ifdef HAVE_LDAP
 
@@ -249,7 +250,7 @@ ADS_STATUS ads_ranged_search(ADS_STRUCT *ads,
 	*num_strings = 0;
 	*strings = NULL;
 
-	attrs = TALLOC_ARRAY(mem_ctx, const char *, 3);
+	attrs = talloc_array(mem_ctx, const char *, 3);
 	ADS_ERROR_HAVE_NO_MEMORY(attrs);
 
 	attrs[0] = talloc_strdup(mem_ctx, range_attr);

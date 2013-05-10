@@ -22,8 +22,8 @@
 #include "auth/gensec/gensec.h"
 #include "auth/credentials/pycredentials.h"
 #include "libcli/util/pyerrors.h"
-#include "scripting/python/modules.h"
-#include "lib/talloc/pytalloc.h"
+#include "python/modules.h"
+#include <pytalloc.h>
 #include <tevent.h>
 #include "librpc/rpc/pyrpc_util.h"
 
@@ -36,7 +36,7 @@ static PyObject *py_get_name_by_authtype(PyObject *self, PyObject *args)
 	if (!PyArg_ParseTuple(args, "i", &type))
 		return NULL;
 
-	security = py_talloc_get_type(self, struct gensec_security);
+	security = pytalloc_get_type(self, struct gensec_security);
 
 	name = gensec_get_name_by_authtype(security, type);
 	if (name == NULL)
@@ -78,17 +78,16 @@ static struct gensec_settings *settings_from_object(TALLOC_CTX *mem_ctx, PyObjec
 static PyObject *py_gensec_start_client(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 {
 	NTSTATUS status;
-	py_talloc_Object *self;
+	pytalloc_Object *self;
 	struct gensec_settings *settings;
 	const char *kwnames[] = { "settings", NULL };
-	PyObject *py_settings;
-	struct tevent_context *ev;
+	PyObject *py_settings = Py_None;
 	struct gensec_security *gensec;
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|O", discard_const_p(char *, kwnames), &py_settings))
 		return NULL;
 
-	self = (py_talloc_Object*)type->tp_alloc(type, 0);
+	self = (pytalloc_Object*)type->tp_alloc(type, 0);
 	if (self == NULL) {
 		PyErr_NoMemory();
 		return NULL;
@@ -113,23 +112,21 @@ static PyObject *py_gensec_start_client(PyTypeObject *type, PyObject *args, PyOb
 		}
 
 		settings->lp_ctx = loadparm_init_global(true);
+		if (settings->lp_ctx == NULL) {
+			PyErr_NoMemory();
+			PyObject_DEL(self);
+			return NULL;
+		}
 	}
 
-	ev = tevent_context_init(self->talloc_ctx);
-	if (ev == NULL) {
-		PyErr_NoMemory();
-		PyObject_Del(self);
-		return NULL;
-	}
-
-	status = gensec_init(settings->lp_ctx);
+	status = gensec_init();
 	if (!NT_STATUS_IS_OK(status)) {
 		PyErr_SetNTSTATUS(status);
 		PyObject_DEL(self);
 		return NULL;
 	}
 
-	status = gensec_client_start(self->talloc_ctx, &gensec, ev, settings);
+	status = gensec_client_start(self->talloc_ctx, &gensec, settings);
 	if (!NT_STATUS_IS_OK(status)) {
 		PyErr_SetNTSTATUS(status);
 		PyObject_DEL(self);
@@ -144,19 +141,18 @@ static PyObject *py_gensec_start_client(PyTypeObject *type, PyObject *args, PyOb
 static PyObject *py_gensec_start_server(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 {
 	NTSTATUS status;
-	py_talloc_Object *self;
+	pytalloc_Object *self;
 	struct gensec_settings *settings = NULL;
 	const char *kwnames[] = { "settings", "auth_context", NULL };
 	PyObject *py_settings = Py_None;
 	PyObject *py_auth_context = Py_None;
-	struct tevent_context *ev;
 	struct gensec_security *gensec;
-	struct auth_context *auth_context = NULL;
+	struct auth4_context *auth_context = NULL;
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OO", discard_const_p(char *, kwnames), &py_settings, &py_auth_context))
 		return NULL;
 
-	self = (py_talloc_Object*)type->tp_alloc(type, 0);
+	self = (pytalloc_Object*)type->tp_alloc(type, 0);
 	if (self == NULL) {
 		PyErr_NoMemory();
 		return NULL;
@@ -181,33 +177,31 @@ static PyObject *py_gensec_start_server(PyTypeObject *type, PyObject *args, PyOb
 		}
 
 		settings->lp_ctx = loadparm_init_global(true);
-	}
-
-	ev = tevent_context_init(self->talloc_ctx);
-	if (ev == NULL) {
-		PyErr_NoMemory();
-		PyObject_Del(self);
-		return NULL;
-	}
-
-	if (py_auth_context != Py_None) {
-		auth_context = py_talloc_get_type(py_auth_context, struct auth_context);
-		if (!auth_context) {
-			PyErr_Format(PyExc_TypeError,
-				     "Expected auth.AuthContext for auth_context argument, got %s",
-				     talloc_get_name(py_talloc_get_ptr(py_auth_context)));
+		if (settings->lp_ctx == NULL) {
+			PyErr_NoMemory();
+			PyObject_DEL(self);
 			return NULL;
 		}
 	}
 
-	status = gensec_init(settings->lp_ctx);
+	if (py_auth_context != Py_None) {
+		auth_context = pytalloc_get_type(py_auth_context, struct auth4_context);
+		if (!auth_context) {
+			PyErr_Format(PyExc_TypeError,
+				     "Expected auth.AuthContext for auth_context argument, got %s",
+				     talloc_get_name(pytalloc_get_ptr(py_auth_context)));
+			return NULL;
+		}
+	}
+
+	status = gensec_init();
 	if (!NT_STATUS_IS_OK(status)) {
 		PyErr_SetNTSTATUS(status);
 		PyObject_DEL(self);
 		return NULL;
 	}
 
-	status = gensec_server_start(self->talloc_ctx, ev, settings, auth_context, &gensec);
+	status = gensec_server_start(self->talloc_ctx, settings, auth_context, &gensec);
 	if (!NT_STATUS_IS_OK(status)) {
 		PyErr_SetNTSTATUS(status);
 		PyObject_DEL(self);
@@ -223,7 +217,7 @@ static PyObject *py_gensec_set_credentials(PyObject *self, PyObject *args)
 {
 	PyObject *py_creds = Py_None;
 	struct cli_credentials *creds;
-	struct gensec_security *security = py_talloc_get_type(self, struct gensec_security);
+	struct gensec_security *security = pytalloc_get_type(self, struct gensec_security);
 	NTSTATUS status;
 
 	if (!PyArg_ParseTuple(args, "O", &py_creds))
@@ -233,7 +227,7 @@ static PyObject *py_gensec_set_credentials(PyObject *self, PyObject *args)
 	if (!creds) {
 		PyErr_Format(PyExc_TypeError,
 			     "Expected samba.credentaials for credentials argument got  %s",
-			     talloc_get_name(py_talloc_get_ptr(py_creds)));
+			     talloc_get_name(pytalloc_get_ptr(py_creds)));
 	}
 
 	status = gensec_set_credentials(security, creds);
@@ -247,29 +241,60 @@ static PyObject *py_gensec_set_credentials(PyObject *self, PyObject *args)
 
 static PyObject *py_gensec_session_info(PyObject *self)
 {
+	TALLOC_CTX *mem_ctx;
 	NTSTATUS status;
 	PyObject *py_session_info;
-	struct gensec_security *security = py_talloc_get_type(self, struct gensec_security);
+	struct gensec_security *security = pytalloc_get_type(self, struct gensec_security);
 	struct auth_session_info *info;
 	if (security->ops == NULL) {
 		PyErr_SetString(PyExc_RuntimeError, "no mechanism selected");
 		return NULL;
 	}
-	status = gensec_session_info(security, &info);
+	mem_ctx = talloc_new(NULL);
+
+	status = gensec_session_info(security, mem_ctx, &info);
 	if (NT_STATUS_IS_ERR(status)) {
 		PyErr_SetNTSTATUS(status);
 		return NULL;
 	}
 
-	py_session_info = py_return_ndr_struct("samba.auth", "AuthSession",
+	py_session_info = py_return_ndr_struct("samba.dcerpc.auth", "session_info",
 						 info, info);
+	talloc_free(mem_ctx);
 	return py_session_info;
+}
+
+static PyObject *py_gensec_session_key(PyObject *self)
+{
+	TALLOC_CTX *mem_ctx;
+	NTSTATUS status;
+	struct gensec_security *security = pytalloc_get_type(self, struct gensec_security);
+	DATA_BLOB session_key = data_blob_null;
+	static PyObject *session_key_obj = NULL;
+
+	if (security->ops == NULL) {
+		PyErr_SetString(PyExc_RuntimeError, "no mechanism selected");
+		return NULL;
+	}
+	mem_ctx = talloc_new(NULL);
+
+	status = gensec_session_key(security, mem_ctx, &session_key);
+	if (!NT_STATUS_IS_OK(status)) {
+		talloc_free(mem_ctx);
+		PyErr_SetNTSTATUS(status);
+		return NULL;
+	}
+
+	session_key_obj = PyString_FromStringAndSize((const char *)session_key.data,
+						     session_key.length);
+	talloc_free(mem_ctx);
+	return session_key_obj;
 }
 
 static PyObject *py_gensec_start_mech_by_name(PyObject *self, PyObject *args)
 {
 	char *name;
-	struct gensec_security *security = py_talloc_get_type(self, struct gensec_security);
+	struct gensec_security *security = pytalloc_get_type(self, struct gensec_security);
 	NTSTATUS status;
 
 	if (!PyArg_ParseTuple(args, "s", &name))
@@ -287,7 +312,7 @@ static PyObject *py_gensec_start_mech_by_name(PyObject *self, PyObject *args)
 static PyObject *py_gensec_start_mech_by_sasl_name(PyObject *self, PyObject *args)
 {
 	char *sasl_name;
-	struct gensec_security *security = py_talloc_get_type(self, struct gensec_security);
+	struct gensec_security *security = pytalloc_get_type(self, struct gensec_security);
 	NTSTATUS status;
 
 	if (!PyArg_ParseTuple(args, "s", &sasl_name))
@@ -305,7 +330,7 @@ static PyObject *py_gensec_start_mech_by_sasl_name(PyObject *self, PyObject *arg
 static PyObject *py_gensec_start_mech_by_authtype(PyObject *self, PyObject *args)
 {
 	int authtype, level;
-	struct gensec_security *security = py_talloc_get_type(self, struct gensec_security);
+	struct gensec_security *security = pytalloc_get_type(self, struct gensec_security);
 	NTSTATUS status;
 	if (!PyArg_ParseTuple(args, "ii", &authtype, &level))
 		return NULL;
@@ -322,7 +347,7 @@ static PyObject *py_gensec_start_mech_by_authtype(PyObject *self, PyObject *args
 static PyObject *py_gensec_want_feature(PyObject *self, PyObject *args)
 {
 	int feature;
-	struct gensec_security *security = py_talloc_get_type(self, struct gensec_security);
+	struct gensec_security *security = pytalloc_get_type(self, struct gensec_security);
 	/* This is i (and declared as an int above) by design, as they are handled as an integer in python */
 	if (!PyArg_ParseTuple(args, "i", &feature))
 		return NULL;
@@ -335,7 +360,7 @@ static PyObject *py_gensec_want_feature(PyObject *self, PyObject *args)
 static PyObject *py_gensec_have_feature(PyObject *self, PyObject *args)
 {
 	int feature;
-	struct gensec_security *security = py_talloc_get_type(self, struct gensec_security);
+	struct gensec_security *security = pytalloc_get_type(self, struct gensec_security);
 	/* This is i (and declared as an int above) by design, as they are handled as an integer in python */
 	if (!PyArg_ParseTuple(args, "i", &feature))
 		return NULL;
@@ -346,14 +371,36 @@ static PyObject *py_gensec_have_feature(PyObject *self, PyObject *args)
 	return Py_False;
 }
 
+static PyObject *py_gensec_set_max_update_size(PyObject *self, PyObject *args)
+{
+	struct gensec_security *security = pytalloc_get_type(self, struct gensec_security);
+	unsigned int max_update_size = 0;
+
+	if (!PyArg_ParseTuple(args, "I", &max_update_size))
+		return NULL;
+
+	gensec_set_max_update_size(security, max_update_size);
+
+	Py_RETURN_NONE;
+}
+
+static PyObject *py_gensec_max_update_size(PyObject *self)
+{
+	struct gensec_security *security = pytalloc_get_type(self, struct gensec_security);
+	unsigned int max_update_size = gensec_max_update_size(security);
+
+	return PyInt_FromLong(max_update_size);
+}
+
 static PyObject *py_gensec_update(PyObject *self, PyObject *args)
 {
 	NTSTATUS status;
 	TALLOC_CTX *mem_ctx;
 	DATA_BLOB in, out;
 	PyObject *ret, *py_in;
-	struct gensec_security *security = py_talloc_get_type(self, struct gensec_security);
+	struct gensec_security *security = pytalloc_get_type(self, struct gensec_security);
 	PyObject *finished_processing;
+	struct tevent_context *ev;
 
 	if (!PyArg_ParseTuple(args, "O", &py_in))
 		return NULL;
@@ -368,7 +415,14 @@ static PyObject *py_gensec_update(PyObject *self, PyObject *args)
 	in.data = (uint8_t *)PyString_AsString(py_in);
 	in.length = PyString_Size(py_in);
 
-	status = gensec_update(security, mem_ctx, in, &out);
+	ev = tevent_context_init(mem_ctx);
+	if (ev == NULL) {
+		PyErr_NoMemory();
+		PyObject_Del(self);
+		return NULL;
+	}
+
+	status = gensec_update(security, mem_ctx, ev, in, &out);
 
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)
 	    && !NT_STATUS_IS_OK(status)) {
@@ -395,7 +449,7 @@ static PyObject *py_gensec_wrap(PyObject *self, PyObject *args)
 	TALLOC_CTX *mem_ctx;
 	DATA_BLOB in, out;
 	PyObject *ret, *py_in;
-	struct gensec_security *security = py_talloc_get_type(self, struct gensec_security);
+	struct gensec_security *security = pytalloc_get_type(self, struct gensec_security);
 
 	if (!PyArg_ParseTuple(args, "O", &py_in))
 		return NULL;
@@ -429,7 +483,7 @@ static PyObject *py_gensec_unwrap(PyObject *self, PyObject *args)
 	TALLOC_CTX *mem_ctx;
 	DATA_BLOB in, out;
 	PyObject *ret, *py_in;
-	struct gensec_security *security = py_talloc_get_type(self, struct gensec_security);
+	struct gensec_security *security = pytalloc_get_type(self, struct gensec_security);
 
 	if (!PyArg_ParseTuple(args, "O", &py_in))
 		return NULL;
@@ -465,33 +519,39 @@ static PyMethodDef py_gensec_security_methods[] = {
 	{ "set_credentials", (PyCFunction)py_gensec_set_credentials, METH_VARARGS, 
 		"S.start_client(credentials)" },
 	{ "session_info", (PyCFunction)py_gensec_session_info, METH_NOARGS,
-	        "S.session_info() -> info" },
+		"S.session_info() -> info" },
+	{ "session_key", (PyCFunction)py_gensec_session_key, METH_NOARGS,
+		"S.session_key() -> key" },
 	{ "start_mech_by_name", (PyCFunction)py_gensec_start_mech_by_name, METH_VARARGS,
-        "S.start_mech_by_name(name)" },
+		"S.start_mech_by_name(name)" },
 	{ "start_mech_by_sasl_name", (PyCFunction)py_gensec_start_mech_by_sasl_name, METH_VARARGS,
-        "S.start_mech_by_sasl_name(name)" },
-	{ "start_mech_by_authtype", (PyCFunction)py_gensec_start_mech_by_authtype, METH_VARARGS, "S.start_mech_by_authtype(authtype, level)" },
+		"S.start_mech_by_sasl_name(name)" },
+	{ "start_mech_by_authtype", (PyCFunction)py_gensec_start_mech_by_authtype, METH_VARARGS,
+		"S.start_mech_by_authtype(authtype, level)" },
 	{ "get_name_by_authtype", (PyCFunction)py_get_name_by_authtype, METH_VARARGS,
 		"S.get_name_by_authtype(authtype) -> name\nLookup an auth type." },
 	{ "want_feature", (PyCFunction)py_gensec_want_feature, METH_VARARGS,
-	  "S.want_feature(feature)\n Request that GENSEC negotiate a particular feature." },
+		"S.want_feature(feature)\n Request that GENSEC negotiate a particular feature." },
 	{ "have_feature", (PyCFunction)py_gensec_have_feature, METH_VARARGS,
-	  "S.have_feature()\n Return True if GENSEC negotiated a particular feature." },
+		"S.have_feature()\n Return True if GENSEC negotiated a particular feature." },
+	{ "set_max_update_size",  (PyCFunction)py_gensec_set_max_update_size, METH_VARARGS,
+		"S.set_max_update_size(max_size) \n Some mechs can fragment update packets, needs to be use before the mech is started." },
+	{ "max_update_size",  (PyCFunction)py_gensec_max_update_size, 0,
+		"S.max_update_size() \n Return the current max_update_size." },
 	{ "update",  (PyCFunction)py_gensec_update, METH_VARARGS,
 		"S.update(blob_in) -> (finished, blob_out)\nPerform one step in a GENSEC dance.  Repeat with new packets until finished is true or exception." },
 	{ "wrap",  (PyCFunction)py_gensec_wrap, METH_VARARGS,
 		"S.wrap(blob_in) -> blob_out\nPackage one clear packet into a wrapped GENSEC packet." },
 	{ "unwrap",  (PyCFunction)py_gensec_unwrap, METH_VARARGS,
 		"S.unwrap(blob_in) -> blob_out\nPerform one wrapped GENSEC packet into a clear packet." },
-
 	{ NULL }
 };
 
 static PyTypeObject Py_Security = {
-	.tp_name = "Security",
+	.tp_name = "gensec.Security",
 	.tp_flags = Py_TPFLAGS_DEFAULT,
 	.tp_methods = py_gensec_security_methods,
-	.tp_basicsize = sizeof(py_talloc_Object),
+	.tp_basicsize = sizeof(pytalloc_Object),
 };
 
 void initgensec(void);
@@ -499,7 +559,7 @@ void initgensec(void)
 {
 	PyObject *m;
 
-	Py_Security.tp_base = PyTalloc_GetObjectType();
+	Py_Security.tp_base = pytalloc_GetObjectType();
 	if (Py_Security.tp_base == NULL)
 		return;
 

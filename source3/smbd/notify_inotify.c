@@ -27,45 +27,9 @@
 
 #ifdef HAVE_INOTIFY
 
-#if HAVE_SYS_INOTIFY_H
-#include <sys/inotify.h>
-#else
-
-#ifdef HAVE_ASM_TYPES_H
-#include <asm/types.h>
-#endif
-
-#ifndef HAVE_INOTIFY_INIT
-
-#include <linux/inotify.h>
-#include <asm/unistd.h>
-
-
-/*
-  glibc doesn't define these functions yet (as of March 2006)
-*/
-static int inotify_init(void)
-{
-	return syscall(__NR_inotify_init);
-}
-
-static int inotify_add_watch(int fd, const char *path, __u32 mask)
-{
-	return syscall(__NR_inotify_add_watch, fd, path, mask);
-}
-
-static int inotify_rm_watch(int fd, int wd)
-{
-	return syscall(__NR_inotify_rm_watch, fd, wd);
-}
-#else
-
 #include <sys/inotify.h>
 
-#endif
-#endif
-
-/* older glibc headers don't have these defines either */
+/* glibc < 2.5 headers don't have these defines */
 #ifndef IN_ONLYDIR
 #define IN_ONLYDIR 0x01000000
 #endif
@@ -328,14 +292,14 @@ static const struct {
 	{FILE_NOTIFY_CHANGE_SECURITY,    IN_ATTRIB}
 };
 
-static uint32_t inotify_map(struct notify_entry *e)
+static uint32_t inotify_map(uint32_t *filter)
 {
 	int i;
 	uint32_t out=0;
 	for (i=0;i<ARRAY_SIZE(inotify_mapping);i++) {
-		if (inotify_mapping[i].notify_mask & e->filter) {
+		if (inotify_mapping[i].notify_mask & *filter) {
 			out |= inotify_mapping[i].inotify_mask;
-			e->filter &= ~inotify_mapping[i].notify_mask;
+			*filter &= ~inotify_mapping[i].notify_mask;
 		}
 	}
 	return out;
@@ -371,7 +335,9 @@ static int watch_destructor(struct inotify_watch_context *w)
   talloc_free() on *handle
 */
 NTSTATUS inotify_watch(struct sys_notify_context *ctx,
-		       struct notify_entry *e,
+		       const char *path,
+		       uint32_t *filter,
+		       uint32_t *subdir_filter,
 		       void (*callback)(struct sys_notify_context *ctx, 
 					void *private_data,
 					struct notify_event *ev),
@@ -382,7 +348,7 @@ NTSTATUS inotify_watch(struct sys_notify_context *ctx,
 	int wd;
 	uint32_t mask;
 	struct inotify_watch_context *w;
-	uint32_t filter = e->filter;
+	uint32_t orig_filter = *filter;
 	void **handle = (void **)handle_p;
 
 	/* maybe setup the inotify fd */
@@ -394,31 +360,31 @@ NTSTATUS inotify_watch(struct sys_notify_context *ctx,
 
 	in = talloc_get_type(ctx->private_data, struct inotify_private);
 
-	mask = inotify_map(e);
+	mask = inotify_map(filter);
 	if (mask == 0) {
 		/* this filter can't be handled by inotify */
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
 	/* using IN_MASK_ADD allows us to cope with inotify() returning the same
-	   watch descriptor for muliple watches on the same path */
+	   watch descriptor for multiple watches on the same path */
 	mask |= (IN_MASK_ADD | IN_ONLYDIR);
 
 	/* get a new watch descriptor for this path */
-	wd = inotify_add_watch(in->fd, e->path, mask);
+	wd = inotify_add_watch(in->fd, path, mask);
 	if (wd == -1) {
-		e->filter = filter;
+		*filter = orig_filter;
 		DEBUG(1, ("inotify_add_watch returned %s\n", strerror(errno)));
 		return map_nt_error_from_unix(errno);
 	}
 
 	DEBUG(10, ("inotify_add_watch for %s mask %x returned wd %d\n",
-		   e->path, mask, wd));
+		   path, mask, wd));
 
 	w = talloc(in, struct inotify_watch_context);
 	if (w == NULL) {
 		inotify_rm_watch(in->fd, wd);
-		e->filter = filter;
+		*filter = orig_filter;
 		return NT_STATUS_NO_MEMORY;
 	}
 
@@ -427,11 +393,11 @@ NTSTATUS inotify_watch(struct sys_notify_context *ctx,
 	w->callback = callback;
 	w->private_data = private_data;
 	w->mask = mask;
-	w->filter = filter;
-	w->path = talloc_strdup(w, e->path);
+	w->filter = orig_filter;
+	w->path = talloc_strdup(w, path);
 	if (w->path == NULL) {
 		inotify_rm_watch(in->fd, wd);
-		e->filter = filter;
+		*filter = orig_filter;
 		return NT_STATUS_NO_MEMORY;
 	}
 

@@ -24,11 +24,11 @@
 
 #include "includes.h"
 #include "system/filesys.h"
-#include "passdb.h"
 #include "../libcli/auth/libcli_auth.h"
 #include "librpc/gen_ndr/ndr_secrets.h"
 #include "secrets.h"
-#include "dbwrap.h"
+#include "dbwrap/dbwrap.h"
+#include "dbwrap/dbwrap_open.h"
 #include "../libcli/security/security.h"
 #include "util_tdb.h"
 
@@ -47,38 +47,45 @@ static struct db_context *db_ctx;
  */
 static void get_rand_seed(void *userdata, int *new_seed)
 {
-	*new_seed = sys_getpid();
+	*new_seed = getpid();
 	if (db_ctx) {
-		dbwrap_trans_change_int32_atomic(db_ctx, "INFO/random_seed",
-						 new_seed, 1);
+		dbwrap_trans_change_int32_atomic_bystring(
+			db_ctx, "INFO/random_seed", new_seed, 1);
 	}
 }
 
-/* open up the secrets database */
-bool secrets_init(void)
+/* open up the secrets database with specified private_dir path */
+bool secrets_init_path(const char *private_dir)
 {
 	char *fname = NULL;
 	unsigned char dummy;
+	TALLOC_CTX *frame;
 
-	if (db_ctx != NULL)
+	if (db_ctx != NULL) {
 		return True;
-
-	fname = talloc_asprintf(talloc_tos(), "%s/secrets.tdb",
-				lp_private_dir());
-	if (fname == NULL) {
-		return false;
 	}
 
-	db_ctx = db_open(NULL, fname, 0,
-			 TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
-
-	if (db_ctx == NULL) {
-		DEBUG(0,("Failed to open %s\n", fname));
-		TALLOC_FREE(fname);
+	if (private_dir == NULL) {
 		return False;
 	}
 
-	TALLOC_FREE(fname);
+	frame = talloc_stackframe();
+	fname = talloc_asprintf(frame, "%s/secrets.tdb",
+				private_dir);
+	if (fname == NULL) {
+		TALLOC_FREE(frame);
+		return False;
+	}
+
+	db_ctx = db_open(NULL, fname, 0,
+			 TDB_DEFAULT, O_RDWR|O_CREAT, 0600,
+			 DBWRAP_LOCK_ORDER_1);
+
+	if (db_ctx == NULL) {
+		DEBUG(0,("Failed to open %s\n", fname));
+		TALLOC_FREE(frame);
+		return False;
+	}
 
 	/**
 	 * Set a reseed function for the crypto random generator
@@ -91,7 +98,14 @@ bool secrets_init(void)
 	/* Ensure that the reseed is done now, while we are root, etc */
 	generate_random_buffer(&dummy, sizeof(dummy));
 
+	TALLOC_FREE(frame);
 	return True;
+}
+
+/* open up the secrets database */
+bool secrets_init(void)
+{
+	return secrets_init_path(lp_private_dir());
 }
 
 struct db_context *secrets_db_ctx(void)
@@ -118,13 +132,15 @@ void *secrets_fetch(const char *key, size_t *size)
 {
 	TDB_DATA dbuf;
 	void *result;
+	NTSTATUS status;
 
 	if (!secrets_init()) {
 		return NULL;
 	}
 
-	if (db_ctx->fetch(db_ctx, talloc_tos(), string_tdb_data(key),
-			  &dbuf) != 0) {
+	status = dbwrap_fetch(db_ctx, talloc_tos(), string_tdb_data(key),
+			      &dbuf);
+	if (!NT_STATUS_IS_OK(status)) {
 		return NULL;
 	}
 
@@ -319,7 +335,7 @@ bool fetch_ldap_pw(char **dn, char** pw)
 	char *key = NULL;
 	size_t size = 0;
 
-	*dn = smb_xstrdup(lp_ldap_admin_dn());
+	*dn = smb_xstrdup(lp_ldap_admin_dn(talloc_tos()));
 
 	if (asprintf(&key, "%s/%s", SECRETS_LDAP_BIND_PW, *dn) < 0) {
 		SAFE_FREE(*dn);
@@ -376,99 +392,6 @@ bool fetch_ldap_pw(char **dn, char** pw)
 	}
 
 	return True;
-}
-
-/**
- * Get trusted domains info from secrets.tdb.
- **/
-
-struct list_trusted_domains_state {
-	uint32 num_domains;
-	struct trustdom_info **domains;
-};
-
-static int list_trusted_domain(struct db_record *rec, void *private_data)
-{
-	const size_t prefix_len = strlen(SECRETS_DOMTRUST_ACCT_PASS);
-	struct TRUSTED_DOM_PASS pass;
-	enum ndr_err_code ndr_err;
-	DATA_BLOB blob;
-	struct trustdom_info *dom_info;
-
-	struct list_trusted_domains_state *state =
-		(struct list_trusted_domains_state *)private_data;
-
-	if ((rec->key.dsize < prefix_len)
-	    || (strncmp((char *)rec->key.dptr, SECRETS_DOMTRUST_ACCT_PASS,
-			prefix_len) != 0)) {
-		return 0;
-	}
-
-	blob = data_blob_const(rec->value.dptr, rec->value.dsize);
-
-	ndr_err = ndr_pull_struct_blob(&blob, talloc_tos(), &pass,
-			(ndr_pull_flags_fn_t)ndr_pull_TRUSTED_DOM_PASS);
-	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-		return false;
-	}
-
-	if (pass.domain_sid.num_auths != 4) {
-		DEBUG(0, ("SID %s is not a domain sid, has %d "
-			  "auths instead of 4\n",
-			  sid_string_dbg(&pass.domain_sid),
-			  pass.domain_sid.num_auths));
-		return 0;
-	}
-
-	if (!(dom_info = TALLOC_P(state->domains, struct trustdom_info))) {
-		DEBUG(0, ("talloc failed\n"));
-		return 0;
-	}
-
-	dom_info->name = talloc_strdup(dom_info, pass.uni_name);
-	if (!dom_info->name) {
-		TALLOC_FREE(dom_info);
-		return 0;
-	}
-
-	sid_copy(&dom_info->sid, &pass.domain_sid);
-
-	ADD_TO_ARRAY(state->domains, struct trustdom_info *, dom_info,
-		     &state->domains, &state->num_domains);
-
-	if (state->domains == NULL) {
-		state->num_domains = 0;
-		return -1;
-	}
-	return 0;
-}
-
-NTSTATUS secrets_trusted_domains(TALLOC_CTX *mem_ctx, uint32 *num_domains,
-				 struct trustdom_info ***domains)
-{
-	struct list_trusted_domains_state state;
-
-	if (!secrets_init()) {
-		return NT_STATUS_ACCESS_DENIED;
-	}
-
-	state.num_domains = 0;
-
-	/*
-	 * Make sure that a talloc context for the trustdom_info structs
-	 * exists
-	 */
-
-	if (!(state.domains = TALLOC_ARRAY(
-		      mem_ctx, struct trustdom_info *, 1))) {
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	db_ctx->traverse_read(db_ctx, list_trusted_domain, (void *)&state);
-
-	*num_domains = state.num_domains;
-	*domains = state.domains;
-	return NT_STATUS_OK;
 }
 
 /*******************************************************************************
@@ -574,22 +497,6 @@ bool secrets_store_generic(const char *owner, const char *key, const char *secre
 	}
 
 	ret = secrets_store(tdbkey, secret, strlen(secret)+1);
-
-	SAFE_FREE(tdbkey);
-	return ret;
-}
-
-bool secrets_delete_generic(const char *owner, const char *key)
-{
-	char *tdbkey = NULL;
-	bool ret;
-
-	if (asprintf(&tdbkey, "SECRETS/GENERIC/%s/%s", owner, key) < 0) {
-		DEBUG(0, ("asprintf failed!\n"));
-		return False;
-	}
-
-	ret = secrets_delete(tdbkey);
 
 	SAFE_FREE(tdbkey);
 	return ret;

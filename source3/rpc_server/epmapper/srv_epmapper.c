@@ -22,6 +22,7 @@
 #include "includes.h"
 #include "ntdomain.h"
 #include "../libcli/security/security.h"
+#include "../lib/tsocket/tsocket.h"
 #include "librpc/gen_ndr/srv_epmapper.h"
 #include "srv_epmapper.h"
 #include "auth.h"
@@ -141,6 +142,14 @@ static bool endpoints_match(const struct dcerpc_binding *ep1,
 		return false;
 	}
 
+	if (!ep1->host || !ep2->host) {
+		return ep1->endpoint == ep2->endpoint;
+	}
+
+	if (!strequal(ep1->host, ep2->host)) {
+		return false;
+	}
+
 	return true;
 }
 
@@ -223,9 +232,9 @@ static uint32_t build_ep_list(TALLOC_CTX *mem_ctx,
 	return total;
 }
 
-static bool is_priviledged_pipe(struct auth_serversupplied_info *info) {
+static bool is_priviledged_pipe(struct auth_session_info *info) {
 	/* If the user is not root, or has the system token, fail */
-	if ((info->utok.uid != sec_initial_uid()) &&
+	if ((info->unix_token->uid != sec_initial_uid()) &&
 	    !security_token_is_system(info->security_token)) {
 		return false;
 	}
@@ -297,6 +306,7 @@ error_status_t _epm_Insert(struct pipes_struct *p,
 	/* If this is not a priviledged users, return */
 	if (p->transport != NCALRPC ||
 	    !is_priviledged_pipe(p->session_info)) {
+		p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 		return EPMAPPER_STATUS_CANT_PERFORM_OP;
 	}
 
@@ -363,7 +373,7 @@ error_status_t _epm_Insert(struct pipes_struct *p,
 		 * endpoint.
 		 */
 		if (find_interface(ep, iface) != NULL) {
-			DEBUG(0, ("dcesrv_interface_register: interface '%s' "
+			DEBUG(8, ("dcesrv_interface_register: interface '%s' "
 				  "already registered on endpoint\n",
 				  iface->name));
 			/* FIXME wrong error code? */
@@ -433,6 +443,7 @@ error_status_t _epm_Delete(struct pipes_struct *p,
 	/* If this is not a priviledged users, return */
 	if (p->transport != NCALRPC ||
 	    !is_priviledged_pipe(p->session_info)) {
+		p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 		return EPMAPPER_STATUS_CANT_PERFORM_OP;
 	}
 
@@ -522,14 +533,14 @@ error_status_t _epm_Lookup(struct pipes_struct *p,
 		return EPMAPPER_STATUS_NO_MEMORY;
 	}
 
-	DEBUG(3, ("_epm_Lookup: Trying to lookup max. %u entries.\n",
+	DEBUG(5, ("_epm_Lookup: Trying to lookup max. %u entries.\n",
 		  r->in.max_ents));
 
 	if (r->in.entry_handle == NULL ||
-	    policy_handle_empty(r->in.entry_handle)) {
-		struct GUID *obj;
+	    ndr_policy_handle_empty(r->in.entry_handle)) {
+		char *srv_addr = NULL;
 
-		DEBUG(5, ("_epm_Lookup: No entry_handle found, creating it.\n"));
+		DEBUG(7, ("_epm_Lookup: No entry_handle found, creating it.\n"));
 
 		eps = talloc_zero(tmp_ctx, struct rpc_eps);
 		if (eps == NULL) {
@@ -537,10 +548,9 @@ error_status_t _epm_Lookup(struct pipes_struct *p,
 			goto done;
 		}
 
-		if (r->in.object == NULL || GUID_all_zero(r->in.object)) {
-			obj = NULL;
-		} else {
-			obj = r->in.object;
+		if (p->local_address != NULL) {
+			srv_addr = tsocket_address_inet_addr_string(p->local_address,
+								    tmp_ctx);
 		}
 
 		switch (r->in.inquiry_type) {
@@ -553,7 +563,7 @@ error_status_t _epm_Lookup(struct pipes_struct *p,
 			eps->count = build_ep_list(eps,
 						   endpoint_table,
 						   NULL,
-						   p->server_id == NULL ? NULL : p->server_id->addr,
+						   srv_addr,
 						   &eps->e);
 			break;
 		case RPC_C_EP_MATCH_BY_IF:
@@ -576,7 +586,7 @@ error_status_t _epm_Lookup(struct pipes_struct *p,
 			eps->count = build_ep_list(eps,
 						   endpoint_table,
 						   &r->in.interface_id->uuid,
-						   p->server_id == NULL ? NULL : p->server_id->addr,
+						   srv_addr,
 						   &eps->e);
 			break;
 		case RPC_C_EP_MATCH_BY_OBJ:
@@ -587,7 +597,7 @@ error_status_t _epm_Lookup(struct pipes_struct *p,
 			eps->count = build_ep_list(eps,
 						   endpoint_table,
 						   r->in.object,
-						   p->server_id == NULL ? NULL : p->server_id->addr,
+						   srv_addr,
 						   &eps->e);
 			break;
 		default:
@@ -613,7 +623,7 @@ error_status_t _epm_Lookup(struct pipes_struct *p,
 		}
 		entry_handle = r->out.entry_handle;
 	} else {
-		DEBUG(5, ("_epm_Lookup: Trying to find entry_handle.\n"));
+		DEBUG(7, ("_epm_Lookup: Trying to find entry_handle.\n"));
 
 		ok = find_policy_by_hnd(p, r->in.entry_handle, (void **)(void*) &eps);
 		if (!ok) {
@@ -634,7 +644,7 @@ error_status_t _epm_Lookup(struct pipes_struct *p,
 		count = eps->count;
 	}
 
-	DEBUG(3, ("_epm_Lookup: Find %u entries\n", count));
+	DEBUG(5, ("_epm_Lookup: Find %u entries\n", count));
 
 	if (count == 0) {
 		close_policy_hnd(p, entry_handle);
@@ -726,7 +736,7 @@ error_status_t _epm_Lookup(struct pipes_struct *p,
 					if (r->in.interface_id->vers_major ==
 					    (eps->e[i].syntax_id.if_version >> 16) &&
 					    r->in.interface_id->vers_minor <=
-					    (eps->e[i].syntax_id.if_version && 0xFFFF)) {
+					    (eps->e[i].syntax_id.if_version & 0xFFFF)) {
 						match = true;
 					}
 					break;
@@ -739,7 +749,7 @@ error_status_t _epm_Lookup(struct pipes_struct *p,
 					if (r->in.interface_id->vers_major ==
 					    (eps->e[i].syntax_id.if_version >> 16) &&
 					    r->in.interface_id->vers_minor ==
-					    (eps->e[i].syntax_id.if_version && 0xFFFF)) {
+					    (eps->e[i].syntax_id.if_version & 0xFFFF)) {
 						match = true;
 					}
 					match = true;
@@ -772,7 +782,7 @@ error_status_t _epm_Lookup(struct pipes_struct *p,
 						if (r->in.interface_id->vers_major ==
 						    (eps->e[i].syntax_id.if_version >> 16) &&
 						    r->in.interface_id->vers_minor >=
-						    (eps->e[i].syntax_id.if_version && 0xFFFF)) {
+						    (eps->e[i].syntax_id.if_version & 0xFFFF)) {
 							match = true;
 						}
 					}
@@ -840,7 +850,6 @@ error_status_t _epm_Map(struct pipes_struct *p,
 	error_status_t rc;
 	uint32_t count = 0;
 	uint32_t num_towers = 0;
-	uint32_t num_floors = 0;
 	uint32_t i;
 	bool ok;
 
@@ -859,7 +868,7 @@ error_status_t _epm_Map(struct pipes_struct *p,
 
 	ZERO_STRUCTP(r->out.entry_handle);
 
-	DEBUG(3, ("_epm_Map: Trying to map max. %u towers.\n",
+	DEBUG(5, ("_epm_Map: Trying to map max. %u towers.\n",
 		  r->in.max_towers));
 
 	/*
@@ -880,15 +889,14 @@ error_status_t _epm_Map(struct pipes_struct *p,
 	 * | Floor 6 | Routing                                               |
 	 * +---------+-------------------------------------------------------+
 	 */
-	num_floors = r->in.map_tower->tower.num_floors;
 	floors = r->in.map_tower->tower.floors;
 
 	/* We accept NDR as the transfer syntax */
 	dcerpc_floor_get_lhs_data(&floors[1], &ifid);
 
 	if (floors[1].lhs.protocol != EPM_PROTOCOL_UUID ||
-	    !GUID_equal(&ifid.uuid, &ndr_transfer_syntax.uuid) ||
-	    ifid.if_version != ndr_transfer_syntax.if_version) {
+	    !GUID_equal(&ifid.uuid, &ndr_transfer_syntax_ndr.uuid) ||
+	    ifid.if_version != ndr_transfer_syntax_ndr.if_version) {
 		rc = EPMAPPER_STATUS_NO_MORE_ENTRIES;
 		goto done;
 	}
@@ -907,10 +915,11 @@ error_status_t _epm_Map(struct pipes_struct *p,
 	}
 
 	if (r->in.entry_handle == NULL ||
-	    policy_handle_empty(r->in.entry_handle)) {
+	    ndr_policy_handle_empty(r->in.entry_handle)) {
 		struct GUID *obj;
+		char *srv_addr = NULL;
 
-		DEBUG(5, ("_epm_Map: No entry_handle found, creating it.\n"));
+		DEBUG(7, ("_epm_Map: No entry_handle found, creating it.\n"));
 
 		eps = talloc_zero(tmp_ctx, struct rpc_eps);
 		if (eps == NULL) {
@@ -936,10 +945,15 @@ error_status_t _epm_Map(struct pipes_struct *p,
 			obj = r->in.object;
 		}
 
+		if (p->local_address != NULL) {
+			srv_addr = tsocket_address_inet_addr_string(p->local_address,
+								    tmp_ctx);
+		}
+
 		eps->count = build_ep_list(eps,
 					   endpoint_table,
 					   obj,
-					   p->server_id == NULL ? NULL : p->server_id->addr,
+					   srv_addr,
 					   &eps->e);
 		if (eps->count == 0) {
 			rc = EPMAPPER_STATUS_NO_MORE_ENTRIES;
@@ -999,7 +1013,7 @@ error_status_t _epm_Map(struct pipes_struct *p,
 		}
 		entry_handle = r->out.entry_handle;
 	} else {
-		DEBUG(5, ("_epm_Map: Trying to find entry_handle.\n"));
+		DEBUG(7, ("_epm_Map: Trying to find entry_handle.\n"));
 
 		ok = find_policy_by_hnd(p, r->in.entry_handle, (void **)(void*) &eps);
 		if (!ok) {
@@ -1035,7 +1049,7 @@ error_status_t _epm_Map(struct pipes_struct *p,
 	}
 
 	for (i = 0; i < count; i++) {
-		DEBUG(5, ("_epm_Map: Map tower for '%s'\n",
+		DEBUG(7, ("_epm_Map: Map tower for '%s'\n",
 			   eps->e[i].name));
 
 		r->out.towers[num_towers].twr = talloc(r->out.towers,
@@ -1096,7 +1110,7 @@ error_status_t _epm_LookupHandleFree(struct pipes_struct *p,
 error_status_t _epm_InqObject(struct pipes_struct *p,
 		      struct epm_InqObject *r)
 {
-	p->rng_fault_state = true;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return EPMAPPER_STATUS_CANT_PERFORM_OP;
 }
 
@@ -1110,7 +1124,7 @@ error_status_t _epm_InqObject(struct pipes_struct *p,
 error_status_t _epm_MgmtDelete(struct pipes_struct *p,
 		       struct epm_MgmtDelete *r)
 {
-	p->rng_fault_state = true;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return EPMAPPER_STATUS_CANT_PERFORM_OP;
 }
 
@@ -1121,7 +1135,7 @@ error_status_t _epm_MgmtDelete(struct pipes_struct *p,
 error_status_t _epm_MapAuth(struct pipes_struct *p,
 		    struct epm_MapAuth *r)
 {
-	p->rng_fault_state = true;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return EPMAPPER_STATUS_CANT_PERFORM_OP;
 }
 

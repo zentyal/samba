@@ -209,7 +209,7 @@ def HEIMDAL_GENERATOR(name, rule, source='', target='',
         name=name)
 
 
-def HEIMDAL_LIBRARY(libname, source, deps, vnum, version_script, includes='', cflags=''):
+def HEIMDAL_LIBRARY(libname, source, deps, vnum, version_script, includes=''):
     '''define a Heimdal library'''
 
     obj_target = libname + '.objlist'
@@ -221,7 +221,6 @@ def HEIMDAL_LIBRARY(libname, source, deps, vnum, version_script, includes='', cf
                         source         = source,
                         deps           = deps,
                         includes       = includes,
-                        cflags         = cflags,
                         group          = 'main')
 
     if not SET_TARGET_TYPE(bld, libname, "LIBRARY"):
@@ -400,12 +399,6 @@ if not bld.CONFIG_SET('USING_SYSTEM_ROKEN'):
         ../heimdal_build/replace.c
     '''
 
-    if not bld.CONFIG_SET('HAVE_GETPROGNAME'):
-        ROKEN_HOSTCC_SOURCE += '''
-            lib/roken/getprogname.c
-            lib/roken/setprogname.c
-        '''
-
     if not bld.CONFIG_SET('HAVE_CLOSEFROM'):
         ROKEN_HOSTCC_SOURCE += '''
             lib/roken/closefrom.c
@@ -415,6 +408,7 @@ if not bld.CONFIG_SET('USING_SYSTEM_ROKEN'):
         lib/roken/resolve.c
         lib/roken/socket.c
         lib/roken/roken_gethostby.c
+        lib/roken/strerror_r.c
     '''
 
     HEIMDAL_LIBRARY('roken',
@@ -477,6 +471,7 @@ if not bld.CONFIG_SET("USING_SYSTEM_HEIMNTLM"):
 if not bld.CONFIG_SET("USING_SYSTEM_HDB"):
     HEIMDAL_ASN1('HEIMDAL_HDB_ASN1', 'lib/hdb/hdb.asn1',
         directory='lib/asn1',
+        options="--sequence=HDB-Ext-KeySet --sequence=Keys",
         includes='../heimdal/lib/asn1')
 
     HEIMDAL_SUBSYSTEM('HEIMDAL_HDB_KEYS',
@@ -519,26 +514,76 @@ if not bld.CONFIG_SET("USING_SYSTEM_GSSAPI"):
         directory='lib/gssapi'
         )
 
+    HEIMDAL_GSSAPI_SPNEGO_SOURCE = '''
+        lib/gssapi/spnego/init_sec_context.c
+        lib/gssapi/spnego/external.c
+        lib/gssapi/spnego/compat.c
+        lib/gssapi/spnego/context_stubs.c
+        lib/gssapi/spnego/cred_stubs.c
+        lib/gssapi/spnego/accept_sec_context.c
+    '''
+
+    HEIMDAL_AUTOPROTO_PRIVATE('lib/gssapi/spnego/spnego-private.h',
+                              HEIMDAL_GSSAPI_SPNEGO_SOURCE)
+
+    HEIMDAL_GSSAPI_KRB5_SOURCE = '''
+        lib/gssapi/krb5/copy_ccache.c
+        lib/gssapi/krb5/delete_sec_context.c
+        lib/gssapi/krb5/init_sec_context.c
+        lib/gssapi/krb5/context_time.c
+        lib/gssapi/krb5/init.c
+        lib/gssapi/krb5/address_to_krb5addr.c
+        lib/gssapi/krb5/get_mic.c
+        lib/gssapi/krb5/inquire_context.c
+        lib/gssapi/krb5/add_cred.c
+        lib/gssapi/krb5/inquire_cred.c
+        lib/gssapi/krb5/inquire_cred_by_oid.c
+        lib/gssapi/krb5/inquire_cred_by_mech.c
+        lib/gssapi/krb5/inquire_mechs_for_name.c
+        lib/gssapi/krb5/inquire_names_for_mech.c
+        lib/gssapi/krb5/indicate_mechs.c
+        lib/gssapi/krb5/inquire_sec_context_by_oid.c
+        lib/gssapi/krb5/export_sec_context.c
+        lib/gssapi/krb5/import_sec_context.c
+        lib/gssapi/krb5/duplicate_name.c
+        lib/gssapi/krb5/import_name.c
+        lib/gssapi/krb5/compare_name.c
+        lib/gssapi/krb5/export_name.c
+        lib/gssapi/krb5/canonicalize_name.c
+        lib/gssapi/krb5/unwrap.c
+        lib/gssapi/krb5/wrap.c
+        lib/gssapi/krb5/release_name.c
+        lib/gssapi/krb5/cfx.c
+        lib/gssapi/krb5/8003.c
+        lib/gssapi/krb5/arcfour.c
+        lib/gssapi/krb5/encapsulate.c
+        lib/gssapi/krb5/display_name.c
+        lib/gssapi/krb5/sequence.c
+        lib/gssapi/krb5/display_status.c
+        lib/gssapi/krb5/release_buffer.c
+        lib/gssapi/krb5/external.c
+        lib/gssapi/krb5/compat.c
+        lib/gssapi/krb5/creds.c
+        lib/gssapi/krb5/acquire_cred.c
+        lib/gssapi/krb5/release_cred.c
+        lib/gssapi/krb5/store_cred.c
+        lib/gssapi/krb5/set_cred_option.c
+        lib/gssapi/krb5/decapsulate.c
+        lib/gssapi/krb5/verify_mic.c
+        lib/gssapi/krb5/accept_sec_context.c
+        lib/gssapi/krb5/set_sec_context_option.c
+        lib/gssapi/krb5/process_context_token.c
+        lib/gssapi/krb5/prf.c
+        lib/gssapi/krb5/aeap.c
+        lib/gssapi/krb5/pname_to_uid.c
+        lib/gssapi/krb5/authorize_localname.c
+    '''
+
+    HEIMDAL_AUTOPROTO_PRIVATE('lib/gssapi/krb5/gsskrb5-private.h',
+                              HEIMDAL_GSSAPI_KRB5_SOURCE)
+
     HEIMDAL_LIBRARY('gssapi',
-                        '''
-    lib/gssapi/spnego/init_sec_context.c lib/gssapi/spnego/external.c lib/gssapi/spnego/compat.c
-    lib/gssapi/spnego/context_stubs.c lib/gssapi/spnego/cred_stubs.c lib/gssapi/spnego/accept_sec_context.c
-    lib/gssapi/krb5/copy_ccache.c lib/gssapi/krb5/delete_sec_context.c lib/gssapi/krb5/init_sec_context.c
-    lib/gssapi/krb5/context_time.c lib/gssapi/krb5/init.c lib/gssapi/krb5/address_to_krb5addr.c
-    lib/gssapi/krb5/get_mic.c lib/gssapi/krb5/inquire_context.c lib/gssapi/krb5/add_cred.c
-    lib/gssapi/krb5/inquire_cred.c lib/gssapi/krb5/inquire_cred_by_oid.c lib/gssapi/krb5/inquire_cred_by_mech.c
-    lib/gssapi/krb5/inquire_mechs_for_name.c lib/gssapi/krb5/inquire_names_for_mech.c lib/gssapi/krb5/indicate_mechs.c
-    lib/gssapi/krb5/inquire_sec_context_by_oid.c lib/gssapi/krb5/export_sec_context.c lib/gssapi/krb5/import_sec_context.c
-    lib/gssapi/krb5/duplicate_name.c lib/gssapi/krb5/import_name.c lib/gssapi/krb5/compare_name.c
-    lib/gssapi/krb5/export_name.c lib/gssapi/krb5/canonicalize_name.c lib/gssapi/krb5/unwrap.c
-    lib/gssapi/krb5/wrap.c lib/gssapi/krb5/release_name.c lib/gssapi/krb5/cfx.c
-    lib/gssapi/krb5/8003.c lib/gssapi/krb5/arcfour.c lib/gssapi/krb5/encapsulate.c
-    lib/gssapi/krb5/display_name.c lib/gssapi/krb5/sequence.c lib/gssapi/krb5/display_status.c
-    lib/gssapi/krb5/release_buffer.c lib/gssapi/krb5/external.c lib/gssapi/krb5/compat.c
-    lib/gssapi/krb5/creds.c lib/gssapi/krb5/acquire_cred.c lib/gssapi/krb5/release_cred.c
-    lib/gssapi/krb5/store_cred.c lib/gssapi/krb5/set_cred_option.c lib/gssapi/krb5/decapsulate.c
-    lib/gssapi/krb5/verify_mic.c lib/gssapi/krb5/accept_sec_context.c lib/gssapi/krb5/set_sec_context_option.c
-    lib/gssapi/krb5/process_context_token.c lib/gssapi/krb5/prf.c lib/gssapi/krb5/aeap.c
+                    HEIMDAL_GSSAPI_SPNEGO_SOURCE + HEIMDAL_GSSAPI_KRB5_SOURCE + '''
     lib/gssapi/mech/context.c lib/gssapi/mech/gss_krb5.c lib/gssapi/mech/gss_mech_switch.c
     lib/gssapi/mech/gss_process_context_token.c lib/gssapi/mech/gss_buffer_set.c
     lib/gssapi/mech/gss_aeap.c lib/gssapi/mech/gss_add_cred.c lib/gssapi/mech/gss_cred.c
@@ -619,12 +664,13 @@ if not bld.CONFIG_SET("USING_SYSTEM_KRB5"):
                                    store.c store-int.c store_emem.c store_fd.c
                                    store_mem.c ticket.c time.c transited.c
                                    version.c warn.c krb5_err.c
+                                   aname_to_localname.c kuserok.c
                                    heim_err.c k524_err.c krb_err.c''')]  + ["../heimdal_build/krb5-glue.c"]
 
     HEIMDAL_LIBRARY('krb5', KRB5_SOURCE,
         version_script='lib/krb5/version-script.map',
                         includes='../heimdal/lib/krb5 ../heimdal/lib/asn1 ../heimdal/include',
-                deps='roken wind asn1 hx509 hcrypto intl com_err HEIMDAL_CONFIG heimbase',
+                deps='roken wind asn1 hx509 hcrypto intl com_err HEIMDAL_CONFIG heimbase execinfo',
                 vnum='26.0.0',
                         )
     KRB5_PROTO_SOURCE = KRB5_SOURCE + ['lib/krb5/expand_path.c', 'lib/krb5/plugin.c', 'lib/krb5/context.c']
@@ -900,6 +946,11 @@ HEIMDAL_BINARY('samba4kinit',
     install=False
     )
 
+HEIMDAL_BINARY('samba4kgetcred',
+    'kuser/kgetcred.c',
+    deps='krb5 heimntlm roken HEIMDAL_VERS hcrypto',
+    install=False
+    )
 
 HEIMDAL_BINARY('samba4kpasswd',
     'kpasswd/kpasswd.c',
@@ -907,73 +958,9 @@ HEIMDAL_BINARY('samba4kpasswd',
     install=False
     )
 
-
-HEIMDAL_GSSAPI_SPNEGO_SOURCE = '''
-    lib/gssapi/spnego/init_sec_context.c
-    lib/gssapi/spnego/external.c
-    lib/gssapi/spnego/compat.c
-    lib/gssapi/spnego/context_stubs.c
-    lib/gssapi/spnego/cred_stubs.c
-    lib/gssapi/spnego/accept_sec_context.c
-'''
-
-HEIMDAL_AUTOPROTO_PRIVATE('lib/gssapi/spnego/spnego-private.h',
-                              HEIMDAL_GSSAPI_SPNEGO_SOURCE)
-
-
-HEIMDAL_GSSAPI_KRB5_SOURCE = '''
-    lib/gssapi/krb5/copy_ccache.c
-    lib/gssapi/krb5/delete_sec_context.c
-    lib/gssapi/krb5/init_sec_context.c
-    lib/gssapi/krb5/context_time.c
-    lib/gssapi/krb5/init.c
-    lib/gssapi/krb5/address_to_krb5addr.c
-    lib/gssapi/krb5/get_mic.c
-    lib/gssapi/krb5/inquire_context.c
-    lib/gssapi/krb5/add_cred.c
-    lib/gssapi/krb5/inquire_cred.c
-    lib/gssapi/krb5/inquire_cred_by_oid.c
-    lib/gssapi/krb5/inquire_cred_by_mech.c
-    lib/gssapi/krb5/inquire_mechs_for_name.c
-    lib/gssapi/krb5/inquire_names_for_mech.c
-    lib/gssapi/krb5/indicate_mechs.c
-    lib/gssapi/krb5/inquire_sec_context_by_oid.c
-    lib/gssapi/krb5/export_sec_context.c
-    lib/gssapi/krb5/import_sec_context.c
-    lib/gssapi/krb5/duplicate_name.c
-    lib/gssapi/krb5/import_name.c
-    lib/gssapi/krb5/compare_name.c
-    lib/gssapi/krb5/export_name.c
-    lib/gssapi/krb5/canonicalize_name.c
-    lib/gssapi/krb5/unwrap.c
-    lib/gssapi/krb5/wrap.c
-    lib/gssapi/krb5/release_name.c
-    lib/gssapi/krb5/cfx.c
-    lib/gssapi/krb5/8003.c
-    lib/gssapi/krb5/arcfour.c
-    lib/gssapi/krb5/encapsulate.c
-    lib/gssapi/krb5/display_name.c
-    lib/gssapi/krb5/sequence.c
-    lib/gssapi/krb5/display_status.c
-    lib/gssapi/krb5/release_buffer.c
-    lib/gssapi/krb5/external.c
-    lib/gssapi/krb5/compat.c
-    lib/gssapi/krb5/creds.c
-    lib/gssapi/krb5/acquire_cred.c
-    lib/gssapi/krb5/release_cred.c
-    lib/gssapi/krb5/store_cred.c
-    lib/gssapi/krb5/set_cred_option.c
-    lib/gssapi/krb5/decapsulate.c
-    lib/gssapi/krb5/verify_mic.c
-    lib/gssapi/krb5/accept_sec_context.c
-    lib/gssapi/krb5/set_sec_context_option.c
-    lib/gssapi/krb5/process_context_token.c
-    lib/gssapi/krb5/prf.c
-    lib/gssapi/krb5/aeap.c
-'''
-
-HEIMDAL_AUTOPROTO_PRIVATE('lib/gssapi/krb5/gsskrb5-private.h',
-                              HEIMDAL_GSSAPI_KRB5_SOURCE)
-
-
-
+# Alias subsystem to allow common kerberos code that will
+# otherwise link against MIT's gssapi_krb5 and k5crypto
+#
+# Note: that we also need this if we use system heimdal libraries
+HEIMDAL_SUBSYSTEM('gssapi_krb5', '', deps='gssapi')
+HEIMDAL_SUBSYSTEM('k5crypto', '', deps='krb5')

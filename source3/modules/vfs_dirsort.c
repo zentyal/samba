@@ -22,17 +22,17 @@
 #include "smbd/smbd.h"
 #include "system/filesys.h"
 
-static int compare_dirent (const SMB_STRUCT_DIRENT *da, const SMB_STRUCT_DIRENT *db)
+static int compare_dirent (const struct dirent *da, const struct dirent *db)
 {
-	return StrCaseCmp(da->d_name, db->d_name);
+	return strcasecmp_m(da->d_name, db->d_name);
 }
 
 struct dirsort_privates {
 	long pos;
-	SMB_STRUCT_DIRENT *directory_list;
+	struct dirent *directory_list;
 	long number_of_entries;
 	time_t mtime;
-	SMB_STRUCT_DIR *source_directory;
+	DIR *source_directory;
 	int fd;
 };
 
@@ -41,13 +41,11 @@ static void free_dirsort_privates(void **datap) {
 	SAFE_FREE(data->directory_list);
 	SAFE_FREE(data);
 	*datap = NULL;
-
-	return;
 }
 
 static bool open_and_sort_dir (vfs_handle_struct *handle)
 {
-	SMB_STRUCT_DIRENT *dp;
+	struct dirent *dp;
 	struct stat dir_stat;
 	long current_pos;
 	struct dirsort_privates *data = NULL;
@@ -72,8 +70,8 @@ static bool open_and_sort_dir (vfs_handle_struct *handle)
 
 	/* Set up an array and read the directory entries into it */
 	SAFE_FREE(data->directory_list); /* destroy previous cache if needed */
-	data->directory_list = (SMB_STRUCT_DIRENT *)SMB_MALLOC(
-		data->number_of_entries * sizeof(SMB_STRUCT_DIRENT));
+	data->directory_list = (struct dirent *)SMB_MALLOC(
+		data->number_of_entries * sizeof(struct dirent));
 	if (!data->directory_list) {
 		return false;
 	}
@@ -90,7 +88,7 @@ static bool open_and_sort_dir (vfs_handle_struct *handle)
 	return true;
 }
 
-static SMB_STRUCT_DIR *dirsort_opendir(vfs_handle_struct *handle,
+static DIR *dirsort_opendir(vfs_handle_struct *handle,
 				       const char *fname, const char *mask,
 				       uint32 attr)
 {
@@ -124,7 +122,7 @@ static SMB_STRUCT_DIR *dirsort_opendir(vfs_handle_struct *handle,
 	return data->source_directory;
 }
 
-static SMB_STRUCT_DIR *dirsort_fdopendir(vfs_handle_struct *handle,
+static DIR *dirsort_fdopendir(vfs_handle_struct *handle,
 					files_struct *fsp,
 					const char *mask,
 					uint32 attr)
@@ -166,8 +164,8 @@ static SMB_STRUCT_DIR *dirsort_fdopendir(vfs_handle_struct *handle,
 	return data->source_directory;
 }
 
-static SMB_STRUCT_DIRENT *dirsort_readdir(vfs_handle_struct *handle,
-					  SMB_STRUCT_DIR *dirp,
+static struct dirent *dirsort_readdir(vfs_handle_struct *handle,
+					  DIR *dirp,
 					  SMB_STRUCT_STAT *sbuf)
 {
 	struct dirsort_privates *data = NULL;
@@ -195,7 +193,7 @@ static SMB_STRUCT_DIRENT *dirsort_readdir(vfs_handle_struct *handle,
 	return &data->directory_list[data->pos++];
 }
 
-static void dirsort_seekdir(vfs_handle_struct *handle, SMB_STRUCT_DIR *dirp,
+static void dirsort_seekdir(vfs_handle_struct *handle, DIR *dirp,
 			    long offset)
 {
 	struct dirsort_privates *data = NULL;
@@ -204,7 +202,7 @@ static void dirsort_seekdir(vfs_handle_struct *handle, SMB_STRUCT_DIR *dirp,
 	data->pos = offset;
 }
 
-static long dirsort_telldir(vfs_handle_struct *handle, SMB_STRUCT_DIR *dirp)
+static long dirsort_telldir(vfs_handle_struct *handle, DIR *dirp)
 {
 	struct dirsort_privates *data = NULL;
 	SMB_VFS_HANDLE_GET_DATA(handle, data, struct dirsort_privates,
@@ -213,7 +211,7 @@ static long dirsort_telldir(vfs_handle_struct *handle, SMB_STRUCT_DIR *dirp)
 	return data->pos;
 }
 
-static void dirsort_rewinddir(vfs_handle_struct *handle, SMB_STRUCT_DIR *dirp)
+static void dirsort_rewinddir(vfs_handle_struct *handle, DIR *dirp)
 {
 	struct dirsort_privates *data = NULL;
 	SMB_VFS_HANDLE_GET_DATA(handle, data, struct dirsort_privates, return);
@@ -222,12 +220,12 @@ static void dirsort_rewinddir(vfs_handle_struct *handle, SMB_STRUCT_DIR *dirp)
 }
 
 static struct vfs_fn_pointers vfs_dirsort_fns = {
-	.opendir = dirsort_opendir,
-	.fdopendir = dirsort_fdopendir,
-	.readdir = dirsort_readdir,
-	.seekdir = dirsort_seekdir,
-	.telldir = dirsort_telldir,
-	.rewind_dir = dirsort_rewinddir,
+	.opendir_fn = dirsort_opendir,
+	.fdopendir_fn = dirsort_fdopendir,
+	.readdir_fn = dirsort_readdir,
+	.seekdir_fn = dirsort_seekdir,
+	.telldir_fn = dirsort_telldir,
+	.rewind_dir_fn = dirsort_rewinddir,
 };
 
 NTSTATUS vfs_dirsort_init(void)

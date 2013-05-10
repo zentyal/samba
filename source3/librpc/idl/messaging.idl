@@ -35,9 +35,15 @@ interface messaging
 		MSG_REQ_DMALLOC_LOG_CHANGED	= 0x000C,
 		MSG_SHUTDOWN			= 0x000D,
 
-		MSG_IDMAP_FLUSH                 = 0x000E,
-		MSG_IDMAP_DELETE                = 0x000F,
-		MSG_IDMAP_KILL                  = 0x0010,
+		/* ID_CACHE_FLUSH		= 0x000E, obsoleted */
+		ID_CACHE_DELETE			= 0x000F,
+		ID_CACHE_KILL			= 0x0010,
+
+		/* Changes to smb.conf are really of general interest */
+		MSG_SMB_CONF_UPDATED		= 0x0021,
+
+		MSG_PREFORK_CHILD_EVENT		= 0x0031,
+		MSG_PREFORK_PARENT_EVENT	= 0x0032,
 
 		/* nmbd messages */
 		MSG_FORCE_ELECTION		= 0x0101,
@@ -45,7 +51,7 @@ interface messaging
 		MSG_SEND_PACKET			= 0x0103,
 
 		/* printing messages */
-		MSG_PRINTER_NOTIFY		= 0x2001, /* Obsolete */
+		/* MSG_PRINTER_NOTIFY		= 0x2001,  Obsoleted */
 		MSG_PRINTER_NOTIFY2		= 0x0202,
 		MSG_PRINTER_DRVUPGRADE		= 0x0203,
 		MSG_PRINTERDATA_INIT_RESET	= 0x0204,
@@ -54,10 +60,10 @@ interface messaging
 		MSG_PRINTER_PCAP		= 0x0207,
 
 		/* smbd messages */
-		MSG_SMB_CONF_UPDATED		= 0x0301,
+		/* MSG_SMB_CONF_UPDATED		= 0x0301,  Obsoleted */
 		MSG_SMB_FORCE_TDIS		= 0x0302,
-		MSG_SMB_SAM_SYNC		= 0x0303,
-		MSG_SMB_SAM_REPL		= 0x0304,
+		/* MSG_SMB_SAM_SYNC		= 0x0303,  Obsoleted */
+		/* MSG_SMB_SAM_REPL		= 0x0304,  Obsoleted */
 		MSG_SMB_UNLOCK			= 0x0305,
 		MSG_SMB_BREAK_REQUEST		= 0x0306,
 		MSG_SMB_BREAK_RESPONSE		= 0x0307,
@@ -75,10 +81,12 @@ interface messaging
 
 		/* cluster reconfigure events */
 		MSG_SMB_BRL_VALIDATE		= 0x0311,
-		MSG_SMB_RELEASE_IP		= 0x0312,
 
 		/*Close a specific file given a share entry. */
 		MSG_SMB_CLOSE_FILE		= 0x0313,
+
+		/* Trigger a notify cleanup run */
+		MSG_SMB_NOTIFY_CLEANUP		= 0x0314,
 
 		/* winbind messages */
 		MSG_WINBIND_FINISHED		= 0x0401,
@@ -95,9 +103,13 @@ interface messaging
 		/* event messages */
 		MSG_DUMP_EVENT_LIST		= 0x0500,
 
-		/* dbwrap messages 4001-4999 */
-		MSG_DBWRAP_TDB2_CHANGES		= 4001,
-		MSG_DBWRAP_G_LOCK_RETRY		= 4002
+		/* smbXsrv messages */
+		MSG_SMBXSRV_SESSION_CLOSE	= 0x0600,
+
+		/* dbwrap messages 4001-4999 (0x0FA0 - 0x1387) */
+		/* MSG_DBWRAP_TDB2_CHANGES		= 4001, */
+		MSG_DBWRAP_G_LOCK_RETRY		= 4002,
+		MSG_DBWRAP_MODIFIED		= 4003
 	} messaging_type;
 
 	/* messaging struct sent across the sockets and stored in the tdb */
@@ -114,19 +126,4 @@ interface messaging
 		uint32 num_messages;
 		messaging_rec messages[num_messages];
 	} messaging_array;
-
-	/*
-	 * struct used for change notify messages
-	 * in the dbwrap_tdb2 code
-	 */
-	typedef [public] struct {
-		[charset(DOS),value("TDB2")] uint8 magic_string[4];
-		[value(1)] uint32 magic_version;
-		[charset(UTF8),string] uint8 name[];
-		uint32 old_seqnum;
-		uint32 new_seqnum;
-		uint32 num_changes;
-		uint32 num_keys;
-		DATA_BLOB keys[num_keys];
-	} dbwrap_tdb2_changes;
 }

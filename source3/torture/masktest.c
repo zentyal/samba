@@ -2,17 +2,17 @@
    Unix SMB/CIFS implementation.
    mask_match tester
    Copyright (C) Andrew Tridgell 1999
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -22,6 +22,7 @@
 #include "trans2.h"
 #include "libsmb/libsmb.h"
 #include "libsmb/nmblib.h"
+#include "../libcli/smb/smbXcli_base.h"
 
 static fstring password;
 static fstring username;
@@ -144,7 +145,7 @@ static bool reg_match_one(struct cli_state *cli, const char *pattern, const char
 
 	if (strcmp(file,"..") == 0) file = ".";
 
-	return ms_fnmatch(pattern, file, cli->protocol, False) == 0;
+	return ms_fnmatch(pattern, file, smbXcli_conn_protocol(cli->conn), False) == 0;
 }
 
 static char *reg_test(struct cli_state *cli, const char *pattern, const char *long_name, const char *short_name)
@@ -167,10 +168,8 @@ return a connection to a server
 static struct cli_state *connect_one(char *share)
 {
 	struct cli_state *c;
-	struct nmb_name called, calling;
 	char *server_n;
 	char *server;
-	struct sockaddr_storage ss;
 	NTSTATUS status;
 
 	server = share+2;
@@ -181,41 +180,16 @@ static struct cli_state *connect_one(char *share)
 
 	server_n = server;
 
-	zero_sockaddr(&ss);
-
-	make_nmb_name(&calling, "masktest", 0x0);
-	make_nmb_name(&called , server, 0x20);
-
- again:
-        zero_sockaddr(&ss);
-
-	/* have to open a new connection */
-	if (!(c=cli_initialise())) {
-		DEBUG(0,("Connection to %s failed\n", server_n));
-		return NULL;
-	}
-
-	status = cli_connect(c, server_n, &ss);
+	status = cli_connect_nb(server, NULL, 0, 0x20, "masktest",
+				SMB_SIGNING_DEFAULT, 0, &c);
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0,("Connection to %s failed. Error %s\n", server_n, nt_errstr(status) ));
+		DEBUG(0,("Connection to %s failed. Error %s\n", server_n,
+			 nt_errstr(status)));
 		return NULL;
 	}
 
-	c->protocol = max_protocol;
-
-	if (!cli_session_request(c, &calling, &called)) {
-		DEBUG(0,("session request to %s failed\n", called.name));
-		cli_shutdown(c);
-		if (strcmp(called.name, "*SMBSERVER")) {
-			make_nmb_name(&called , "*SMBSERVER", 0x20);
-			goto again;
-		}
-		return NULL;
-	}
-
-	DEBUG(4,(" session request ok\n"));
-
-	status = cli_negprot(c);
+	status = smbXcli_negprot(c->conn, c->timeout, PROTOCOL_CORE,
+				 max_protocol);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("protocol negotiation failed: %s\n",
 			  nt_errstr(status)));
@@ -253,8 +227,8 @@ static struct cli_state *connect_one(char *share)
 
 	DEBUG(4,(" session setup ok\n"));
 
-	status = cli_tcon_andx(c, share, "?????", password,
-			       strlen(password)+1);
+	status = cli_tree_connect(c, share, "?????", password,
+				  strlen(password)+1);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("tree connect failed: %s\n", nt_errstr(status)));
 		cli_shutdown(c);
@@ -293,13 +267,14 @@ static NTSTATUS listfn(const char *mnt, struct file_info *f, const char *s,
 		return NT_STATUS_OK;
 	}
 
-	fstrcpy(state->short_name, f->short_name);
-	strlower_m(state->short_name);
+
+	fstrcpy(state->short_name, f->short_name ? f->short_name : "");
+	(void)strlower_m(state->short_name);
 	*state->pp_long_name = SMB_STRDUP(f->name);
 	if (!*state->pp_long_name) {
 		return NT_STATUS_NO_MEMORY;
 	}
-	strlower_m(*state->pp_long_name);
+	(void)strlower_m(*state->pp_long_name);
 	return NT_STATUS_OK;
 }
 
@@ -347,7 +322,7 @@ static void testpair(struct cli_state *cli, const char *mask, const char *file)
 
 	fstrcpy(res1, "---");
 
-	if (!NT_STATUS_IS_OK(cli_open(cli, file, O_CREAT|O_TRUNC|O_RDWR, 0, &fnum))) {
+	if (!NT_STATUS_IS_OK(cli_openx(cli, file, O_CREAT|O_TRUNC|O_RDWR, 0, &fnum))) {
 		DEBUG(0,("Can't create %s\n", file));
 		return;
 	}
@@ -412,8 +387,8 @@ static void test_mask(int argc, char *argv[],
 	while (1) {
 		l1 = 1 + random() % 20;
 		l2 = 1 + random() % 20;
-		mask = TALLOC_ARRAY(ctx, char, strlen("\\masktest\\")+1+22);
-		file = TALLOC_ARRAY(ctx, char, strlen("\\masktest\\")+1+22);
+		mask = talloc_array(ctx, char, strlen("\\masktest\\")+1+22);
+		file = talloc_array(ctx, char, strlen("\\masktest\\")+1+22);
 		if (!mask || !file) {
 			goto finished;
 		}
@@ -505,7 +480,7 @@ static void usage(void)
 	argv += 1;
 
 	load_case_tables();
-	lp_load(get_dyn_CONFIGFILE(),True,False,False,True);
+	lp_load_global(get_dyn_CONFIGFILE());
 	load_interfaces();
 
 	if (getenv("USER")) {

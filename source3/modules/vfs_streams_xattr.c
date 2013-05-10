@@ -39,7 +39,7 @@ struct stream_io {
 
 static SMB_INO_T stream_inode(const SMB_STRUCT_STAT *sbuf, const char *sname)
 {
-	MD5_CTX ctx;
+	struct MD5Context ctx;
         unsigned char hash[16];
 	SMB_INO_T result;
 	char *upper_sname;
@@ -52,9 +52,9 @@ static SMB_INO_T stream_inode(const SMB_STRUCT_STAT *sbuf, const char *sname)
 	SMB_ASSERT(upper_sname != NULL);
 
         MD5Init(&ctx);
-        MD5Update(&ctx, (unsigned char *)&(sbuf->st_ex_dev),
+        MD5Update(&ctx, (const unsigned char *)&(sbuf->st_ex_dev),
 		  sizeof(sbuf->st_ex_dev));
-        MD5Update(&ctx, (unsigned char *)&(sbuf->st_ex_ino),
+        MD5Update(&ctx, (const unsigned char *)&(sbuf->st_ex_ino),
 		  sizeof(sbuf->st_ex_ino));
         MD5Update(&ctx, (unsigned char *)upper_sname,
 		  talloc_get_size(upper_sname)-1);
@@ -119,7 +119,9 @@ static NTSTATUS streams_xattr_get_name(TALLOC_CTX *ctx,
 		}
 	} else {
 		/* Normalize the stream type to upercase. */
-		strupper_m(strrchr_m(*xattr_name, ':') + 1);
+		if (!strupper_m(strrchr_m(*xattr_name, ':') + 1)) {
+			return NT_STATUS_INVALID_PARAMETER;
+		}
 	}
 
 	DEBUG(10, ("xattr_name: %s, stream_name: %s\n", *xattr_name,
@@ -614,7 +616,7 @@ static int streams_xattr_rename(vfs_handle_struct *handle,
 	}
 
 	/* Don't rename if the streams are identical. */
-	if (StrCaseCmp(smb_fname_src->stream_name,
+	if (strcasecmp_m(smb_fname_src->stream_name,
 		       smb_fname_dst->stream_name) == 0) {
 		goto done;
 	}
@@ -726,12 +728,12 @@ static NTSTATUS walk_xattr_streams(connection_struct *conn, files_struct *fsp,
 
 static bool add_one_stream(TALLOC_CTX *mem_ctx, unsigned int *num_streams,
 			   struct stream_struct **streams,
-			   const char *name, SMB_OFF_T size,
-			   SMB_OFF_T alloc_size)
+			   const char *name, off_t size,
+			   off_t alloc_size)
 {
 	struct stream_struct *tmp;
 
-	tmp = TALLOC_REALLOC_ARRAY(mem_ctx, *streams, struct stream_struct,
+	tmp = talloc_realloc(mem_ctx, *streams, struct stream_struct,
 				   (*num_streams)+1);
 	if (tmp == NULL) {
 		return false;
@@ -843,7 +845,7 @@ static uint32_t streams_xattr_fs_capabilities(struct vfs_handle_struct *handle,
 
 static ssize_t streams_xattr_pwrite(vfs_handle_struct *handle,
 				    files_struct *fsp, const void *data,
-				    size_t n, SMB_OFF_T offset)
+				    size_t n, off_t offset)
 {
         struct stream_io *sio =
 		(struct stream_io *)VFS_FETCH_FSP_EXTENSION(handle, fsp);
@@ -870,7 +872,7 @@ static ssize_t streams_xattr_pwrite(vfs_handle_struct *handle,
         if ((offset + n) > ea.value.length-1) {
 		uint8 *tmp;
 
-		tmp = TALLOC_REALLOC_ARRAY(talloc_tos(), ea.value.data, uint8,
+		tmp = talloc_realloc(talloc_tos(), ea.value.data, uint8,
 					   offset + n + 1);
 
 		if (tmp == NULL) {
@@ -906,7 +908,7 @@ static ssize_t streams_xattr_pwrite(vfs_handle_struct *handle,
 
 static ssize_t streams_xattr_pread(vfs_handle_struct *handle,
 				   files_struct *fsp, void *data,
-				   size_t n, SMB_OFF_T offset)
+				   size_t n, off_t offset)
 {
         struct stream_io *sio =
 		(struct stream_io *)VFS_FETCH_FSP_EXTENSION(handle, fsp);
@@ -950,7 +952,7 @@ static ssize_t streams_xattr_pread(vfs_handle_struct *handle,
 
 static int streams_xattr_ftruncate(struct vfs_handle_struct *handle,
 					struct files_struct *fsp,
-					SMB_OFF_T offset)
+					off_t offset)
 {
 	int ret;
 	uint8 *tmp;
@@ -976,7 +978,7 @@ static int streams_xattr_ftruncate(struct vfs_handle_struct *handle,
 		return -1;
 	}
 
-	tmp = TALLOC_REALLOC_ARRAY(talloc_tos(), ea.value.data, uint8,
+	tmp = talloc_realloc(talloc_tos(), ea.value.data, uint8,
 				   offset + 1);
 
 	if (tmp == NULL) {
@@ -1018,8 +1020,8 @@ static int streams_xattr_ftruncate(struct vfs_handle_struct *handle,
 static int streams_xattr_fallocate(struct vfs_handle_struct *handle,
 					struct files_struct *fsp,
 					enum vfs_fallocate_mode mode,
-					SMB_OFF_T offset,
-					SMB_OFF_T len)
+					off_t offset,
+					off_t len)
 {
         struct stream_io *sio =
 		(struct stream_io *)VFS_FETCH_FSP_EXTENSION(handle, fsp);
@@ -1042,18 +1044,18 @@ static int streams_xattr_fallocate(struct vfs_handle_struct *handle,
 
 
 static struct vfs_fn_pointers vfs_streams_xattr_fns = {
-	.fs_capabilities = streams_xattr_fs_capabilities,
+	.fs_capabilities_fn = streams_xattr_fs_capabilities,
 	.open_fn = streams_xattr_open,
-	.stat = streams_xattr_stat,
-	.fstat = streams_xattr_fstat,
-	.lstat = streams_xattr_lstat,
-	.pread = streams_xattr_pread,
-	.pwrite = streams_xattr_pwrite,
-	.unlink = streams_xattr_unlink,
-	.rename = streams_xattr_rename,
-        .ftruncate = streams_xattr_ftruncate,
-        .fallocate = streams_xattr_fallocate,
-	.streaminfo = streams_xattr_streaminfo,
+	.stat_fn = streams_xattr_stat,
+	.fstat_fn = streams_xattr_fstat,
+	.lstat_fn = streams_xattr_lstat,
+	.pread_fn = streams_xattr_pread,
+	.pwrite_fn = streams_xattr_pwrite,
+	.unlink_fn = streams_xattr_unlink,
+	.rename_fn = streams_xattr_rename,
+	.ftruncate_fn = streams_xattr_ftruncate,
+	.fallocate_fn = streams_xattr_fallocate,
+	.streaminfo_fn = streams_xattr_streaminfo,
 };
 
 NTSTATUS vfs_streams_xattr_init(void);

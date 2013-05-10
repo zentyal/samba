@@ -2,7 +2,7 @@
 
 set -e 
 
-if [ "x$1" = xupgrade ]; then
+if test "x$1" = "xupgrade"; then
 	update-alternatives --remove smbstatus /usr/bin/smbstatus.samba3
 fi
 

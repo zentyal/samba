@@ -76,7 +76,8 @@ Suggests: samba-gtk, swat2, ntp
 Enhances: ntp, bind9
 Conflicts: samba (<< 2:3.3.0~rc2-5), samba-tools, libldb1 (<< 1:1.1.15)
 Replaces: libsamdb0 (<< 4.0.0~alpha17~), samba4
-Depends: python,
+Depends: samba,
+         python,
          python-dnspython,
          python-samba,
          samba-dsdb-modules,

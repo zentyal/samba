@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: samba4@packages.debian.org\n"
-"POT-Creation-Date: 2012-11-06 21:27+0100\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2013-05-11 16:23+0200\n"
 "PO-Revision-Date: 2006-11-01 22:14+0100\n"
 "Last-Translator: Safir Secerovic <sapphire@linux.org.ba>\n"
 "Language-Team: Bosnian <lokal@linux.org.ba>\n"
@@ -27,13 +27,13 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba4.templates:1001
+#: ../samba-ad-dc.templates:1001
 msgid "Upgrade from Samba 3?"
 msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba4.templates:1001
+#: ../samba-ad-dc.templates:1001
 msgid ""
 "It is possible to migrate the existing configuration files from Samba 3 to "
 "Samba 4. This is likely to fail for complex setups, but should provide a "
@@ -42,13 +42,13 @@ msgstr ""
 
 #. Type: select
 #. Description
-#: ../samba4.templates:2001
+#: ../samba-ad-dc.templates:2001
 msgid "Server role"
 msgstr ""
 
 #. Type: select
 #. Description
-#: ../samba4.templates:2001
+#: ../samba-ad-dc.templates:2001
 msgid ""
 "Domain controllers manage NT4-style or Active Directory domains and provide "
 "services such as identity management and domain logons. Each domain needs to "
@@ -57,7 +57,7 @@ msgstr ""
 
 #. Type: select
 #. Description
-#: ../samba4.templates:2001
+#: ../samba-ad-dc.templates:2001
 msgid ""
 "Member servers can be part of a NT4-style or Active Directory domain but do "
 "not provide any domain services. Workstations and file or print servers are "
@@ -66,7 +66,7 @@ msgstr ""
 
 #. Type: select
 #. Description
-#: ../samba4.templates:2001
+#: ../samba-ad-dc.templates:2001
 msgid ""
 "A standalone server can not be used in a domain and only supports file "
 "sharing and Windows for Workgroups-style logins."
@@ -74,7 +74,7 @@ msgstr ""
 
 #. Type: select
 #. Description
-#: ../samba4.templates:2001
+#: ../samba-ad-dc.templates:2001
 msgid ""
 "If no server role is specified, the Samba server will not be provisioned, so "
 "this can be done manually by the user."
@@ -82,13 +82,13 @@ msgstr ""
 
 #. Type: string
 #. Description
-#: ../samba4.templates:3001
+#: ../samba-ad-dc.templates:3001
 msgid "Realm name:"
 msgstr ""
 
 #. Type: string
 #. Description
-#: ../samba4.templates:3001
+#: ../samba-ad-dc.templates:3001
 msgid ""
 "Please specify the Kerberos realm for the domain that this domain controller "
 "controls."
@@ -96,68 +96,208 @@ msgstr ""
 
 #. Type: string
 #. Description
-#: ../samba4.templates:3001
+#: ../samba-ad-dc.templates:3001
 msgid "Usually this is the a capitalized version of your DNS hostname."
 msgstr ""
 
 #. Type: password
 #. Description
-#: ../samba4.templates:4001
+#: ../samba-ad-dc.templates:4001
 msgid "New password for the Samba \"administrator\" user:"
 msgstr ""
 
 #. Type: password
 #. Description
-#: ../samba4.templates:4001
+#: ../samba-ad-dc.templates:4001
 msgid "If this field is left blank, a random password will be generated."
 msgstr ""
 
 #. Type: password
 #. Description
-#: ../samba4.templates:4001
+#: ../samba-ad-dc.templates:4001
 msgid "A password can be set later by running, as root:"
 msgstr ""
 
 #. Type: password
 #. Description
-#: ../samba4.templates:4001
+#: ../samba-ad-dc.templates:4001
 msgid " $ samba-tool user setpassword administrator"
 msgstr ""
 
 #. Type: password
 #. Description
-#: ../samba4.templates:5001
+#: ../samba-ad-dc.templates:5001
 msgid "Repeat password for the Samba \"administrator\" user:"
 msgstr ""
 
 #. Type: error
 #. Description
-#: ../samba4.templates:6001
+#: ../samba-ad-dc.templates:6001
 msgid "Password input error"
 msgstr ""
 
 #. Type: error
 #. Description
-#: ../samba4.templates:6001
+#: ../samba-ad-dc.templates:6001
 msgid "The two passwords you entered were not the same. Please try again."
 msgstr ""
 
-#, fuzzy
-#~| msgid ""
-#~| "If you do not choose this option, you will have to handle any "
-#~| "configuration changes yourself, and will not be able to take advantage "
-#~| "of periodic configuration enhancements."
-#~ msgid ""
-#~ "If you do not choose this option, Samba will be left unconfigured, and "
-#~ "you will have to configure it yourself."
-#~ msgstr ""
-#~ "Ako ne odaberete ovu opciju, moraćete sve izmjene konfiguracije sami "
-#~ "napraviti i nećete moći iskoristiti periodična poboljšanja konfiguracije."
+#. Type: title
+#. Description
+#: ../samba-common.templates:1001
+msgid "Samba server and utilities"
+msgstr ""
 
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid "Modify smb.conf to use WINS settings from DHCP?"
+msgstr "Izmijeniti smb.conf za korištenje WINS postavki od DHCP-a?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"If your computer gets IP address information from a DHCP server on the "
+"network, the DHCP server may also provide information about WINS servers "
+"(\"NetBIOS name servers\") present on the network.  This requires a change "
+"to your smb.conf file so that DHCP-provided WINS settings will automatically "
+"be read from /etc/samba/dhcp.conf."
+msgstr ""
+"Ako vaš računar dobiva informacije o IP adresama od DHCP servera na mreži, "
+"DHCP server može također pružiti informacije o WINS serverima (\"NetBIOS "
+"name servers\") prisutnim na mreži.  Ovo zahtijeva izmjenu u vašoj smb.conf "
+"datoteci tako da WINS postavke dobivene od DHCP-a budu automatski pročitane "
+"iz /etc/samba/dhcp.conf."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"The dhcp3-client package must be installed to take advantage of this feature."
+msgstr ""
+"dhcp3-client paket mora biti instaliran kako bi se iskoristila ova mogućnost."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:3001
+msgid "Configure smb.conf automatically?"
+msgstr "Podesiti smb.conf automatski?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:3001
 #, fuzzy
-#~| msgid "Workgroup/Domain Name:"
-#~ msgid "Domain Name:"
-#~ msgstr "Workgroup/Domain Name:"
+msgid ""
+"The rest of the configuration of Samba deals with questions that affect "
+"parameters in /etc/samba/smb.conf, which is the file used to configure the "
+"Samba programs (nmbd and smbd). Your current smb.conf contains an \"include"
+"\" line or an option that spans multiple lines, which could confuse the "
+"automated configuration process and require you to edit your smb.conf by "
+"hand to get it working again."
+msgstr ""
+"Ostatak konfiguracije Samba-e se bavi pitanjima koja utiču na parametre u /"
+"etc/samba/smb.conf, a to je datoteka koja se koristi za podešavanje Samba "
+"programa (nmbd-a i smbd-a). Vaša trenutna smb.conf sadrži 'include' liniju "
+"ili opciju koja obuhvata nekoliko linija, što bi moglo zbuniti "
+"automatizovani konfiguracioni proces i zahtijevati od vas da ručno uredite "
+"smb.conf kako bi proradili."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:3001
+#, fuzzy
+msgid ""
+"If you do not choose this option, you will have to handle any configuration "
+"changes yourself, and will not be able to take advantage of periodic "
+"configuration enhancements."
+msgstr ""
+"Ako ne odaberete ovu opciju, moraćete sve izmjene konfiguracije sami "
+"napraviti i nećete moći iskoristiti periodična poboljšanja konfiguracije."
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:4001
+#, fuzzy
+msgid "Workgroup/Domain Name:"
+msgstr "Workgroup/Domain Name:"
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:4001
+msgid ""
+"Please specify the workgroup for this system.  This setting controls which "
+"workgroup the system will appear in when used as a server, the default "
+"workgroup to be used when browsing with various frontends, and the domain "
+"name used with the \"security=domain\" setting."
+msgstr ""
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:5001
+msgid "Use password encryption?"
+msgstr "Koristiti enkripciju šifre?"
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:5001
+#, fuzzy
+msgid ""
+"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
+"passwords. If you want to use clear text passwords you will need to change a "
+"parameter in your Windows registry."
+msgstr ""
+"Svi noviji Windows klijenti komuniciraju sa SMB serverima koristeći "
+"enkriptovane šifre. Ako želite koristiti šifre u vidu čistog teksta, trebate "
+"promijeniti parametar u vašem Windows registriju."
+
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:5001
+#, fuzzy
+msgid ""
+"Enabling this option is highly recommended as support for plain text "
+"passwords is no longer maintained in Microsoft Windows products. If you do, "
+"make sure you have a valid /etc/samba/smbpasswd file and that you set "
+"passwords in there for each user using the smbpasswd command."
+msgstr ""
+"Uključivanje ove opcije je veoma preporučeno. Ako to uradite, pobrinite se "
+"da imate ispravnu /etc/samba/smbpasswd datoteku i da u njoj postavite šifre "
+"za svakog korisnika koristeći smbpasswd naredbu."
+
+#. Type: title
+#. Description
+#: ../samba.templates:1001
+msgid "Samba server"
+msgstr ""
+
+#. Type: select
+#. Choices
+#: ../samba.templates:2001
+msgid "daemons"
+msgstr "daemons"
+
+#. Type: select
+#. Choices
+#: ../samba.templates:2001
+msgid "inetd"
+msgstr "inetd"
+
+#. Type: select
+#. Description
+#: ../samba.templates:2002
+msgid "How do you want to run Samba?"
+msgstr "Kako želite pokretati Samba-u?"
+
+#. Type: select
+#. Description
+#: ../samba.templates:2002
+msgid ""
+"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
+"daemon is the recommended approach."
+msgstr ""
+"Samba daemon smbd može biti pokrenut kao normalni daemon ili preko inetd-a. "
+"Pokretanje kao daemon je preporučeni pristup."
 
 #, fuzzy
 #~| msgid ""
@@ -171,68 +311,6 @@ msgstr ""
 #~ "Molim navedite workgroup u kojoj želite da se ovaj server nalazi prilikom "
 #~ "upita od strane klijenata. Primijetite da ovaj parametar takođe "
 #~ "kontroliše domain name korišten u security=domain postavci."
-
-#~ msgid "Modify smb.conf to use WINS settings from DHCP?"
-#~ msgstr "Izmijeniti smb.conf za korištenje WINS postavki od DHCP-a?"
-
-#~ msgid ""
-#~ "If your computer gets IP address information from a DHCP server on the "
-#~ "network, the DHCP server may also provide information about WINS servers "
-#~ "(\"NetBIOS name servers\") present on the network.  This requires a "
-#~ "change to your smb.conf file so that DHCP-provided WINS settings will "
-#~ "automatically be read from /etc/samba/dhcp.conf."
-#~ msgstr ""
-#~ "Ako vaš računar dobiva informacije o IP adresama od DHCP servera na "
-#~ "mreži, DHCP server može također pružiti informacije o WINS serverima "
-#~ "(\"NetBIOS name servers\") prisutnim na mreži.  Ovo zahtijeva izmjenu u "
-#~ "vašoj smb.conf datoteci tako da WINS postavke dobivene od DHCP-a budu "
-#~ "automatski pročitane iz /etc/samba/dhcp.conf."
-
-#~ msgid ""
-#~ "The dhcp3-client package must be installed to take advantage of this "
-#~ "feature."
-#~ msgstr ""
-#~ "dhcp3-client paket mora biti instaliran kako bi se iskoristila ova "
-#~ "mogućnost."
-
-#~ msgid "Configure smb.conf automatically?"
-#~ msgstr "Podesiti smb.conf automatski?"
-
-#~ msgid ""
-#~ "The rest of the configuration of Samba deals with questions that affect "
-#~ "parameters in /etc/samba/smb.conf, which is the file used to configure "
-#~ "the Samba programs (nmbd and smbd). Your current smb.conf contains an "
-#~ "'include' line or an option that spans multiple lines, which could "
-#~ "confuse the automated configuration process and require you to edit your "
-#~ "smb.conf by hand to get it working again."
-#~ msgstr ""
-#~ "Ostatak konfiguracije Samba-e se bavi pitanjima koja utiču na parametre "
-#~ "u /etc/samba/smb.conf, a to je datoteka koja se koristi za podešavanje "
-#~ "Samba programa (nmbd-a i smbd-a). Vaša trenutna smb.conf sadrži 'include' "
-#~ "liniju ili opciju koja obuhvata nekoliko linija, što bi moglo zbuniti "
-#~ "automatizovani konfiguracioni proces i zahtijevati od vas da ručno "
-#~ "uredite smb.conf kako bi proradili."
-
-#~ msgid "Use password encryption?"
-#~ msgstr "Koristiti enkripciju šifre?"
-
-#~ msgid ""
-#~ "All recent Windows clients communicate with SMB servers using encrypted "
-#~ "passwords. If you want to use clear text passwords you will need to "
-#~ "change a parameter in your Windows registry."
-#~ msgstr ""
-#~ "Svi noviji Windows klijenti komuniciraju sa SMB serverima koristeći "
-#~ "enkriptovane šifre. Ako želite koristiti šifre u vidu čistog teksta, "
-#~ "trebate promijeniti parametar u vašem Windows registriju."
-
-#~ msgid ""
-#~ "Enabling this option is highly recommended. If you do, make sure you have "
-#~ "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
-#~ "each user using the smbpasswd command."
-#~ msgstr ""
-#~ "Uključivanje ove opcije je veoma preporučeno. Ako to uradite, pobrinite "
-#~ "se da imate ispravnu /etc/samba/smbpasswd datoteku i da u njoj postavite "
-#~ "šifre za svakog korisnika koristeći smbpasswd naredbu."
 
 #~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
 #~ msgstr "Kreirati samba bazu podataka sa šiframa, /var/lib/samba/passdb.tdb?"
@@ -263,22 +341,6 @@ msgstr ""
 #~ msgstr ""
 #~ "Vidjeti /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html iz samba-doc "
 #~ "paketa za više detalja."
-
-#~ msgid "daemons"
-#~ msgstr "daemons"
-
-#~ msgid "inetd"
-#~ msgstr "inetd"
-
-#~ msgid "How do you want to run Samba?"
-#~ msgstr "Kako želite pokretati Samba-u?"
-
-#~ msgid ""
-#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
-#~ "as a daemon is the recommended approach."
-#~ msgstr ""
-#~ "Samba daemon smbd može biti pokrenut kao normalni daemon ili preko inetd-"
-#~ "a. Pokretanje kao daemon je preporučeni pristup."
 
 #~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
 #~ msgstr "Premjestiti /etc/samba/smbpasswd u /var/lib/samba/passdb.tdb?"

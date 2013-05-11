@@ -16,8 +16,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_po_km\n"
-"Report-Msgid-Bugs-To: samba4@packages.debian.org\n"
-"POT-Creation-Date: 2012-11-06 21:27+0100\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2013-05-11 16:23+0200\n"
 "PO-Revision-Date: 2007-03-13 08:39+0700\n"
 "Last-Translator: Khoem Sokhem <khoemsokhem@khmeros.info>\n"
 "Language-Team: Khmer <support@khmeros.info>\n"
@@ -29,13 +29,13 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba4.templates:1001
+#: ../samba-ad-dc.templates:1001
 msgid "Upgrade from Samba 3?"
 msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../samba4.templates:1001
+#: ../samba-ad-dc.templates:1001
 msgid ""
 "It is possible to migrate the existing configuration files from Samba 3 to "
 "Samba 4. This is likely to fail for complex setups, but should provide a "
@@ -44,13 +44,13 @@ msgstr ""
 
 #. Type: select
 #. Description
-#: ../samba4.templates:2001
+#: ../samba-ad-dc.templates:2001
 msgid "Server role"
 msgstr ""
 
 #. Type: select
 #. Description
-#: ../samba4.templates:2001
+#: ../samba-ad-dc.templates:2001
 msgid ""
 "Domain controllers manage NT4-style or Active Directory domains and provide "
 "services such as identity management and domain logons. Each domain needs to "
@@ -59,7 +59,7 @@ msgstr ""
 
 #. Type: select
 #. Description
-#: ../samba4.templates:2001
+#: ../samba-ad-dc.templates:2001
 msgid ""
 "Member servers can be part of a NT4-style or Active Directory domain but do "
 "not provide any domain services. Workstations and file or print servers are "
@@ -68,7 +68,7 @@ msgstr ""
 
 #. Type: select
 #. Description
-#: ../samba4.templates:2001
+#: ../samba-ad-dc.templates:2001
 msgid ""
 "A standalone server can not be used in a domain and only supports file "
 "sharing and Windows for Workgroups-style logins."
@@ -76,7 +76,7 @@ msgstr ""
 
 #. Type: select
 #. Description
-#: ../samba4.templates:2001
+#: ../samba-ad-dc.templates:2001
 msgid ""
 "If no server role is specified, the Samba server will not be provisioned, so "
 "this can be done manually by the user."
@@ -84,13 +84,13 @@ msgstr ""
 
 #. Type: string
 #. Description
-#: ../samba4.templates:3001
+#: ../samba-ad-dc.templates:3001
 msgid "Realm name:"
 msgstr ""
 
 #. Type: string
 #. Description
-#: ../samba4.templates:3001
+#: ../samba-ad-dc.templates:3001
 msgid ""
 "Please specify the Kerberos realm for the domain that this domain controller "
 "controls."
@@ -98,72 +98,226 @@ msgstr ""
 
 #. Type: string
 #. Description
-#: ../samba4.templates:3001
+#: ../samba-ad-dc.templates:3001
 msgid "Usually this is the a capitalized version of your DNS hostname."
 msgstr ""
 
 #. Type: password
 #. Description
-#: ../samba4.templates:4001
+#: ../samba-ad-dc.templates:4001
 msgid "New password for the Samba \"administrator\" user:"
 msgstr ""
 
 #. Type: password
 #. Description
-#: ../samba4.templates:4001
+#: ../samba-ad-dc.templates:4001
 msgid "If this field is left blank, a random password will be generated."
 msgstr ""
 
 #. Type: password
 #. Description
-#: ../samba4.templates:4001
+#: ../samba-ad-dc.templates:4001
 msgid "A password can be set later by running, as root:"
 msgstr ""
 
 #. Type: password
 #. Description
-#: ../samba4.templates:4001
+#: ../samba-ad-dc.templates:4001
 msgid " $ samba-tool user setpassword administrator"
 msgstr ""
 
 #. Type: password
 #. Description
-#: ../samba4.templates:5001
+#: ../samba-ad-dc.templates:5001
 msgid "Repeat password for the Samba \"administrator\" user:"
 msgstr ""
 
 #. Type: error
 #. Description
-#: ../samba4.templates:6001
+#: ../samba-ad-dc.templates:6001
 msgid "Password input error"
 msgstr ""
 
 #. Type: error
 #. Description
-#: ../samba4.templates:6001
+#: ../samba-ad-dc.templates:6001
 msgid "The two passwords you entered were not the same. Please try again."
+msgstr ""
+
+#. Type: title
+#. Description
+#: ../samba-common.templates:1001
+msgid "Samba server and utilities"
 msgstr ""
 
 #  Type: boolean
 #  Description
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid "Modify smb.conf to use WINS settings from DHCP?"
+msgstr "កែប្រែ smb.conf ដើម្បី​ប្រើ​ការកំណត់​របស់ WINS ពី DHCP ?"
+
+#  Type: boolean
+#  Description
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"If your computer gets IP address information from a DHCP server on the "
+"network, the DHCP server may also provide information about WINS servers "
+"(\"NetBIOS name servers\") present on the network.  This requires a change "
+"to your smb.conf file so that DHCP-provided WINS settings will automatically "
+"be read from /etc/samba/dhcp.conf."
+msgstr ""
+"ប្រសិន​បើ​កុំព្យូទ័រ​របស់​អ្នក​ទទួល​​ព័ត៌មាន​អាសយដ្ឋាន IP ពី​ម៉ាស៊ីន​បម្រើ DHCP នៅ​លើ​បណ្ដាញ ម៉ាស៊ីន​បម្រើ​ DHCP "
+"អាច​ផ្ដល់​ផង​ដែរ​នូវ​ព័ត៌មាន​អំពី​ម៉ាស៊ីន​បម្រើ WINS (\"ឈ្មោះ​ម៉ាស៊ីន​បម្រើ NetBIOS\") ដែល​បង្ហាញ​នៅ​លើ​"
+"បណ្ដាញ ។ វា​ត្រូវ​ការ​ការ​ផ្លាស់ប្ដូរ​ទៅ​នឹង​ឯកសារ smb.conf របស់​អ្នក ដូច្នេះការ​កំណត់របស់ WINS ដែល​"
+"បានផ្ដល់​ដោយ DHCP នឹង​ត្រូវ​បាន​អាន​ដោយ​ស្វ័យ​ប្រវត្តិ​ពី /etc/samba/dhcp.conf."
+
+#  Type: boolean
+#  Description
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:2001
+msgid ""
+"The dhcp3-client package must be installed to take advantage of this feature."
+msgstr "កញ្ចប់​ម៉ាស៊ីន​ភ្ញៀវ dhcp3 ត្រូវ​តែ​បាន​ដំឡើង​ដើម្បី​ទទួល​បាន​ផលប្រយោជន៍របស់​លក្ខណៈ​ពិសេស​នេះ ។"
+
+#  Type: boolean
+#  Description
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:3001
+msgid "Configure smb.conf automatically?"
+msgstr "កំណត់​រចនាសម្ព័ន្ធ smb.conf ដោយ​ស្វ័យ​ប្រវត្តិ ?"
+
+#  Type: boolean
+#  Description
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:3001
 #, fuzzy
-#~| msgid ""
-#~| "If you do not choose this option, you will have to handle any "
-#~| "configuration changes yourself, and will not be able to take advantage "
-#~| "of periodic configuration enhancements."
-#~ msgid ""
-#~ "If you do not choose this option, Samba will be left unconfigured, and "
-#~ "you will have to configure it yourself."
-#~ msgstr ""
-#~ "ប្រសិន​បើ​អ្នក​មិន​ជ្រើស​ជម្រើស​នេះ​ទេ អ្នក​នឹង​ត្រូវ​តែ​គ្រប់គ្រង​ការ​ផ្លាស់ប្ដូរ​ការ​​កំណត់​រចនាសម្ព័ន្ធ​ណាមួយ​ដោយ​"
-#~ "ខ្លួន​អ្នក​ផ្ទាល់ និង​មិន​អាច​បាន​ផល​ប្រយោជន៍​ពី​ការ​បង្កើន​ការ​កំណត់​រចនាសម្ព័ន្ធ​យ៉ាង​ទៀត​ទាត់​បាន​ទេ ។"
+msgid ""
+"The rest of the configuration of Samba deals with questions that affect "
+"parameters in /etc/samba/smb.conf, which is the file used to configure the "
+"Samba programs (nmbd and smbd). Your current smb.conf contains an \"include"
+"\" line or an option that spans multiple lines, which could confuse the "
+"automated configuration process and require you to edit your smb.conf by "
+"hand to get it working again."
+msgstr ""
+"ការ​កំណត់​រចនា​សម្ព័ន្ធ​របស់ Samba ទាក់ទង​ជា​មួយ​នឹង​សំណួរ​ដែល​ប៉ះពាល់​ប៉ារ៉ាម៉ែត្រ​នៅ​ក្នុង in /etc/samba/"
+"smb.conf ដែល​ជា​ឯកសារ​បាន​ប្រើ​ដើម្បី​កំណត់​រចនាសម្ព័ន្ធ​កម្មវិធី Samba (nmbd និង smbd) ។ smb."
+"conf បច្ចុប្បន្ន​របស់​អ្នក​មាន​បន្ទាត់ 'include' ឬ​ជម្រើស​ដែល​បញ្ចូល​បន្ទាត់​ជា​ច្រើន​ចូល​គ្នា ដែល​អាច​បន្លំ​"
+"ដំណើរ​ការ​កំណត់​រចនាសម្ព័ន្ធ ដោយ​ស្វ័យប្រវត្តិ ហើយ​តម្រូវ​ឲ្យ​អ្នក​កែសម្រួល smb.conf របស់​អ្នក​ដោយ​ដៃ​ដើម្បី​ឲ្យ​"
+"វា​ធ្វើការ​ម្ដង​ទៀត ។"
+
+#  Type: boolean
+#  Description
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:3001
+#, fuzzy
+msgid ""
+"If you do not choose this option, you will have to handle any configuration "
+"changes yourself, and will not be able to take advantage of periodic "
+"configuration enhancements."
+msgstr ""
+"ប្រសិន​បើ​អ្នក​មិន​ជ្រើស​ជម្រើស​នេះ​ទេ អ្នក​នឹង​ត្រូវ​តែ​គ្រប់គ្រង​ការ​ផ្លាស់ប្ដូរ​ការ​​កំណត់​រចនាសម្ព័ន្ធ​ណាមួយ​ដោយ​ខ្លួន​"
+"អ្នក​ផ្ទាល់ និង​មិន​អាច​បាន​ផល​ប្រយោជន៍​ពី​ការ​បង្កើន​ការ​កំណត់​រចនាសម្ព័ន្ធ​យ៉ាង​ទៀត​ទាត់​បាន​ទេ ។"
 
 #  Type: string
 #  Description
+#. Type: string
+#. Description
+#: ../samba-common.templates:4001
 #, fuzzy
-#~| msgid "Workgroup/Domain Name:"
-#~ msgid "Domain Name:"
-#~ msgstr "ឈ្មោះ​ក្រុមការងារ/ដែន ៖"
+msgid "Workgroup/Domain Name:"
+msgstr "ឈ្មោះ​ក្រុមការងារ/ដែន ៖"
+
+#. Type: string
+#. Description
+#: ../samba-common.templates:4001
+msgid ""
+"Please specify the workgroup for this system.  This setting controls which "
+"workgroup the system will appear in when used as a server, the default "
+"workgroup to be used when browsing with various frontends, and the domain "
+"name used with the \"security=domain\" setting."
+msgstr ""
+
+#  Type: boolean
+#  Description
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:5001
+msgid "Use password encryption?"
+msgstr "ប្រើ​ការ​អ៊ិនគ្រីប​ពាក្យ​សម្ងាត់ ?"
+
+#  Type: boolean
+#  Description
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:5001
+#, fuzzy
+msgid ""
+"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
+"passwords. If you want to use clear text passwords you will need to change a "
+"parameter in your Windows registry."
+msgstr ""
+"គ្រប់​ម៉ាស៊ីន​ភ្ញៀវ​ដែល​ប្រើ​វីនដូ​ថ្មីៗ​ទាំង​អស់​ទាក់ទង​ជា​មួយ​ម៉ាស៊ីន​បម្រើ SMB ដោយ​ប្រើ​ពាក្យសម្ងាត់​ដែល​បាន​"
+"អ៊ិនគ្រីប ។ ប្រសិន​បើ​អ្នក​ចង់​ជម្រះ​ពាក្យសម្ងាត់​អត្ថបទ អ្នក​នឹង​ត្រូវតែ​ផ្លាស់ប្ដូរ​ប៉ារ៉ាម៉ែត្រ​នៅ​ក្នុង បញ្ជី​ឈ្មោះ​"
+"របស់​វីនដូ ។"
+
+#  Type: boolean
+#  Description
+#. Type: boolean
+#. Description
+#: ../samba-common.templates:5001
+#, fuzzy
+msgid ""
+"Enabling this option is highly recommended as support for plain text "
+"passwords is no longer maintained in Microsoft Windows products. If you do, "
+"make sure you have a valid /etc/samba/smbpasswd file and that you set "
+"passwords in there for each user using the smbpasswd command."
+msgstr ""
+"បាន​ផ្ដល់​អនុសាសន៍​យ៉ាង​ខ្លាំង​ឲ្យ​អនុញ្ញាត​ជម្រើស​នេះ ។ ប្រសិន​បើ​អ្នក​ធ្វើ​ដូច្នេះ សូម​ប្រាកដ​ថា អ្នក​មាន​"
+"ឯកសារ /etc/samba/smbpasswd ត្រឹមត្រូវ ហើយ​អ្នក​បាន​កំណត់​ពាក្យ​សម្ងាត់​ ដូច្នេះ​សម្រាប់​អ្នក​ប្រើ​"
+"ម្នាក់ៗ អាច​ប្រើ​ពាក្យ​បញ្ជា smbpasswd ។"
+
+#. Type: title
+#. Description
+#: ../samba.templates:1001
+msgid "Samba server"
+msgstr ""
+
+#. Type: select
+#. Choices
+#: ../samba.templates:2001
+msgid "daemons"
+msgstr "ដេមិន "
+
+#. Type: select
+#. Choices
+#: ../samba.templates:2001
+msgid "inetd"
+msgstr "inetd"
+
+#. Type: select
+#. Description
+#: ../samba.templates:2002
+msgid "How do you want to run Samba?"
+msgstr "តើ​អ្នក​ចង់​រត់ Samba តាម​វិធី​ណា ?"
+
+#  Type: select
+#  Description
+#. Type: select
+#. Description
+#: ../samba.templates:2002
+msgid ""
+"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
+"daemon is the recommended approach."
+msgstr ""
+"ដេមិន Samba smbd អាចរត់ជាដេមិនធម្មតា ឬពី inetd ។ ការរត់ជាដេមិនមួយត្រូវបានផ្ដល់អនុសាសន៍ ។"
 
 #  Type: string
 #  Description
@@ -178,80 +332,6 @@ msgstr ""
 #~ msgstr ""
 #~ "សូម​បញ្ជាក់​ក្រុម​ការងារ​ដែល​អ្នក​ចង់​ឲ្យ​ម៉ាស៊ីន​បម្រើ​នេះ​បង្ហាញ​នៅ​ពេល​ដែល​បាន​សួរ ដោយ​ម៉ាស៊ីន​ភ្ញៀវ ។ ចំណាំ​"
 #~ "ថា ប៉ារ៉ាម៉ែត្រ​នេះ​ក៏​ត្រួត​ពិនិត្យ​ឈ្មោះ​ដែន ដែល​បាន​ប្រើ​ដោយ​សុវត្ថិភាព=ការ​កំណត់​ដែន ។"
-
-#  Type: boolean
-#  Description
-#~ msgid "Modify smb.conf to use WINS settings from DHCP?"
-#~ msgstr "កែប្រែ smb.conf ដើម្បី​ប្រើ​ការកំណត់​របស់ WINS ពី DHCP ?"
-
-#  Type: boolean
-#  Description
-#~ msgid ""
-#~ "If your computer gets IP address information from a DHCP server on the "
-#~ "network, the DHCP server may also provide information about WINS servers "
-#~ "(\"NetBIOS name servers\") present on the network.  This requires a "
-#~ "change to your smb.conf file so that DHCP-provided WINS settings will "
-#~ "automatically be read from /etc/samba/dhcp.conf."
-#~ msgstr ""
-#~ "ប្រសិន​បើ​កុំព្យូទ័រ​របស់​អ្នក​ទទួល​​ព័ត៌មាន​អាសយដ្ឋាន IP ពី​ម៉ាស៊ីន​បម្រើ DHCP នៅ​លើ​បណ្ដាញ ម៉ាស៊ីន​បម្រើ​ "
-#~ "DHCP អាច​ផ្ដល់​ផង​ដែរ​នូវ​ព័ត៌មាន​អំពី​ម៉ាស៊ីន​បម្រើ WINS (\"ឈ្មោះ​ម៉ាស៊ីន​បម្រើ NetBIOS\") ដែល​បង្ហាញ​"
-#~ "នៅ​លើ​បណ្ដាញ ។ វា​ត្រូវ​ការ​ការ​ផ្លាស់ប្ដូរ​ទៅ​នឹង​ឯកសារ smb.conf របស់​អ្នក ដូច្នេះការ​កំណត់របស់ "
-#~ "WINS ដែល​បានផ្ដល់​ដោយ DHCP នឹង​ត្រូវ​បាន​អាន​ដោយ​ស្វ័យ​ប្រវត្តិ​ពី /etc/samba/dhcp.conf."
-
-#  Type: boolean
-#  Description
-#~ msgid ""
-#~ "The dhcp3-client package must be installed to take advantage of this "
-#~ "feature."
-#~ msgstr "កញ្ចប់​ម៉ាស៊ីន​ភ្ញៀវ dhcp3 ត្រូវ​តែ​បាន​ដំឡើង​ដើម្បី​ទទួល​បាន​ផលប្រយោជន៍របស់​លក្ខណៈ​ពិសេស​នេះ ។"
-
-#  Type: boolean
-#  Description
-#~ msgid "Configure smb.conf automatically?"
-#~ msgstr "កំណត់​រចនាសម្ព័ន្ធ smb.conf ដោយ​ស្វ័យ​ប្រវត្តិ ?"
-
-#  Type: boolean
-#  Description
-#~ msgid ""
-#~ "The rest of the configuration of Samba deals with questions that affect "
-#~ "parameters in /etc/samba/smb.conf, which is the file used to configure "
-#~ "the Samba programs (nmbd and smbd). Your current smb.conf contains an "
-#~ "'include' line or an option that spans multiple lines, which could "
-#~ "confuse the automated configuration process and require you to edit your "
-#~ "smb.conf by hand to get it working again."
-#~ msgstr ""
-#~ "ការ​កំណត់​រចនា​សម្ព័ន្ធ​របស់ Samba ទាក់ទង​ជា​មួយ​នឹង​សំណួរ​ដែល​ប៉ះពាល់​ប៉ារ៉ាម៉ែត្រ​នៅ​ក្នុង in /etc/"
-#~ "samba/smb.conf ដែល​ជា​ឯកសារ​បាន​ប្រើ​ដើម្បី​កំណត់​រចនាសម្ព័ន្ធ​កម្មវិធី Samba (nmbd និង "
-#~ "smbd) ។ smb.conf បច្ចុប្បន្ន​របស់​អ្នក​មាន​បន្ទាត់ 'include' ឬ​ជម្រើស​ដែល​បញ្ចូល​បន្ទាត់​ជា​ច្រើន​"
-#~ "ចូល​គ្នា ដែល​អាច​បន្លំ​ដំណើរ​ការ​កំណត់​រចនាសម្ព័ន្ធ ដោយ​ស្វ័យប្រវត្តិ ហើយ​តម្រូវ​ឲ្យ​អ្នក​កែសម្រួល smb."
-#~ "conf របស់​អ្នក​ដោយ​ដៃ​ដើម្បី​ឲ្យ​វា​ធ្វើការ​ម្ដង​ទៀត ។"
-
-#  Type: boolean
-#  Description
-#~ msgid "Use password encryption?"
-#~ msgstr "ប្រើ​ការ​អ៊ិនគ្រីប​ពាក្យ​សម្ងាត់ ?"
-
-#  Type: boolean
-#  Description
-#~ msgid ""
-#~ "All recent Windows clients communicate with SMB servers using encrypted "
-#~ "passwords. If you want to use clear text passwords you will need to "
-#~ "change a parameter in your Windows registry."
-#~ msgstr ""
-#~ "គ្រប់​ម៉ាស៊ីន​ភ្ញៀវ​ដែល​ប្រើ​វីនដូ​ថ្មីៗ​ទាំង​អស់​ទាក់ទង​ជា​មួយ​ម៉ាស៊ីន​បម្រើ SMB ដោយ​ប្រើ​ពាក្យសម្ងាត់​ដែល​បាន​"
-#~ "អ៊ិនគ្រីប ។ ប្រសិន​បើ​អ្នក​ចង់​ជម្រះ​ពាក្យសម្ងាត់​អត្ថបទ អ្នក​នឹង​ត្រូវតែ​ផ្លាស់ប្ដូរ​ប៉ារ៉ាម៉ែត្រ​នៅ​ក្នុង បញ្ជី​"
-#~ "ឈ្មោះ​របស់​វីនដូ ។"
-
-#  Type: boolean
-#  Description
-#~ msgid ""
-#~ "Enabling this option is highly recommended. If you do, make sure you have "
-#~ "a valid /etc/samba/smbpasswd file and that you set passwords in there for "
-#~ "each user using the smbpasswd command."
-#~ msgstr ""
-#~ "បាន​ផ្ដល់​អនុសាសន៍​យ៉ាង​ខ្លាំង​ឲ្យ​អនុញ្ញាត​ជម្រើស​នេះ ។ ប្រសិន​បើ​អ្នក​ធ្វើ​ដូច្នេះ សូម​ប្រាកដ​ថា អ្នក​មាន​"
-#~ "ឯកសារ /etc/samba/smbpasswd ត្រឹមត្រូវ ហើយ​អ្នក​បាន​កំណត់​ពាក្យ​សម្ងាត់​ ដូច្នេះ​សម្រាប់​អ្នក​ប្រើ​"
-#~ "ម្នាក់ៗ អាច​ប្រើ​ពាក្យ​បញ្ជា smbpasswd ។"
 
 #  Type: boolean
 #  Description
@@ -289,23 +369,6 @@ msgstr ""
 #~ msgstr ""
 #~ "សម្រាប់​សេចក្តី​លម្អិត​បន្ថែម​សូម​មើល  /usr/share/doc/samba-doc/htmldocs/ENCRYPTION."
 #~ "html ពី​កញ្ចប់ samba-doc ។"
-
-#~ msgid "daemons"
-#~ msgstr "ដេមិន "
-
-#~ msgid "inetd"
-#~ msgstr "inetd"
-
-#~ msgid "How do you want to run Samba?"
-#~ msgstr "តើ​អ្នក​ចង់​រត់ Samba តាម​វិធី​ណា ?"
-
-#  Type: select
-#  Description
-#~ msgid ""
-#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
-#~ "as a daemon is the recommended approach."
-#~ msgstr ""
-#~ "ដេមិន Samba smbd អាចរត់ជាដេមិនធម្មតា ឬពី inetd ។ ការរត់ជាដេមិនមួយត្រូវបានផ្ដល់អនុសាសន៍ ។"
 
 #~ msgid "Chaining passdb backends is not supported"
 #~ msgstr "មិនគាំទ្រ​ការ​ដាក់​កម្មវិធី​ខាង​ក្រោយ passdb ជា​លំដាប់"

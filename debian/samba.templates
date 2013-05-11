@@ -1,32 +1,12 @@
-Template: samba4/upgrade-from-v3
-Type: boolean
-Default: true
-_Description: Upgrade from Samba 3?
- It is possible to migrate the existing configuration files from Samba 3 to
- Samba 4. This is likely to fail for complex setups, but should provide a
- good starting point for most existing installations.
+Template: samba-common/title
+Type: title
+_Description: Samba server
 
-Template: samba4/server-role
+Template: samba/run_mode
 Type: select
-Choices: domain controller, member, standalone
-Default: domain controller
-_Description: Server role
- Domain controllers manage NT4-style or Active Directory domains and
- provide services such as identity management and domain logons. Each
- domain needs to have a at least one domain controller.
- .
- Member servers can be part of a NT4-style or Active Directory domain but
- do not provide any domain services. Workstations and file or print servers
- are usually regular domain members.
- .
- A standalone server can not be used in a domain and only supports file
- sharing and Windows for Workgroups-style logins.
+__Choices: daemons, inetd
+Default: daemons
+_Description: How do you want to run Samba?
+ The Samba daemon smbd can run as a normal daemon or from inetd. Running as
+ a daemon is the recommended approach.
 
-Template: samba4/realm
-Type: string
-Default: REALM
-_Description: Realm name:
- Please specify the Kerberos realm for the domain that this domain controller
- controls.
- .
- Usually this is the a capitalized version of your DNS hostname.

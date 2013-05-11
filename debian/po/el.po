@@ -192,7 +192,6 @@ msgstr "Αυτόματη ρύθμιση του αρχείου smb.conf;"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "The rest of the configuration of Samba deals with questions that affect "
 "parameters in /etc/samba/smb.conf, which is the file used to configure the "
@@ -212,7 +211,6 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "If you do not choose this option, you will have to handle any configuration "
 "changes yourself, and will not be able to take advantage of periodic "
@@ -225,7 +223,6 @@ msgstr ""
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
 msgid "Workgroup/Domain Name:"
 msgstr "Όνομα Ομάδας Εργασίας/Τομέα:"
 
@@ -238,6 +235,11 @@ msgid ""
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
+"Παρακαλώ προσδιορίστε το όνομα της ομάδας εργασίας (workgroup) του "
+"συστήματος.  Η παράμετρος αυτή ελέγχει την ομάδα εργασίας με την οποία θα "
+"εμφανίζεται το σύστημα ως εξυπηρετητής, την προκαθορισμένη ομάδα εργασίας "
+"κατά την περιήγηση με διάφορα προγράμματα, και το όνομα του τομέα που "
+"χρησιμοποιείται στην ρύθμιση security=domain."
 
 #. Type: boolean
 #. Description
@@ -248,31 +250,30 @@ msgstr "Να χρησιμοποιηθεί κρυπτογράφηση των κω
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:5001
-#, fuzzy
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
 "Όλες οι πρόσφατες εκδόσεις των πελατών Windows επικοινωνούν με τους "
-"εξυπηρετητές SMB χρησιμοποιώντας κρυπτογραφημένους κωδικούς πρόσβασης. Αν "
-"θέλετε να χρησιμοποιήσετε μη κρυπτογραφημένους κωδικούς θα πρέπει να "
+"εξυπηρετητές SMB/CIFS χρησιμοποιώντας κρυπτογραφημένους κωδικούς πρόσβασης. "
+"Αν θέλετε να χρησιμοποιήσετε μη κρυπτογραφημένους κωδικούς θα πρέπει να "
 "αλλάξετε μια παράμετρο στο registry των Windows."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:5001
-#, fuzzy
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
-"Η ενεργοποίηση αυτής της επιλογής συνιστάται έντονα. Αν την κάνετε, "
-"βεβαιωθείτε ότι έχετε ένα έγκυρο αρχείο /etc/samba/smbpasswd και ότι ορίζετε "
-"κωδικούς πρόσβασης σ' αυτό για κάθε χρήστη που χρησιμοποιεί την εντολή "
-"smbpasswd."
+"Η ενεργοποίηση αυτής της επιλογής συνιστάται έντονα καθώς πλέον δεν υπάρχει "
+"υποστήριξη για μη κρυπτογραφημένους κωδικούς σε προϊόντα Microsoft Windows. "
+"Αν την επιλέξετε, βεβαιωθείτε ότι έχετε ένα έγκυρο αρχείο /etc/samba/"
+"smbpasswd και ότι ορίζετε κωδικούς πρόσβασης σ' αυτό για κάθε χρήστη με τη "
+"χρήση της εντολήςsmbpasswd."
 
 #. Type: title
 #. Description
@@ -392,3 +393,10 @@ msgstr ""
 #~ "Παρακαλώ επιβεβαιώστε αν θέλετε το υπάρχον αρχείο smbpasswd να μεταβεί "
 #~ "αυτόματα στο /var/lib/samba/passdb.tdb. Μην κάνετε αυτή την επιλογή αν "
 #~ "σκοπεύετε αντί γι αυτό να χρησιμοποιήσετε ένα άλλο pdb backend (πχ. LDAP)."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Δείτε το αρχείο usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html από το "
+#~ "πακέτο samba-doc για περισσότερες λεπτομέρειες."

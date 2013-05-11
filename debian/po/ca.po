@@ -195,7 +195,6 @@ msgstr "Voleu configurar el smb.conf automàticament?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "The rest of the configuration of Samba deals with questions that affect "
 "parameters in /etc/samba/smb.conf, which is the file used to configure the "
@@ -206,7 +205,7 @@ msgid ""
 msgstr ""
 "La resta de la configuració del Samba tracta amb qüestions que afecten els "
 "paràmetres del fitxer de configuració /etc/samba/smb.conf, que utilitzen els "
-"programes de Samba. La versió actual del smb.conf conté una línia 'include' "
+"programes de Samba. La versió actual del smb.conf conté una línia «include» "
 "o una opció que abarca múltiples línies que podria confondre a la "
 "configuració automàtica i precisar de la seva edició manual per poder-lo fer "
 "funcionar de nou."
@@ -219,12 +218,14 @@ msgid ""
 "changes yourself, and will not be able to take advantage of periodic "
 "configuration enhancements."
 msgstr ""
+"Si no escolliu aquesta opció, haureu de gestionar manualment qualsevol canvi "
+"de la configuració, i no us podreu beneficiar de les millores periòdiques."
 
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
 msgid "Workgroup/Domain Name:"
-msgstr ""
+msgstr "Grup de treball/nom del domini:"
 
 #. Type: string
 #. Description
@@ -235,6 +236,10 @@ msgid ""
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
+"Indiqueu el grup de treball per a aquest sistema. Aquest paràmetre controla "
+"en quin grup de treball apareixerà el sistema quan s'empre com a servidor, "
+"el grup de treball per defecte quan es navega amb diferents interfícies, i "
+"el nom de domini emprat amb el paràmetre «security=domain»."
 
 #. Type: boolean
 #. Description
@@ -245,29 +250,29 @@ msgstr "Voleu utilitzar el xifrat de contrasenyes?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:5001
-#, fuzzy
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
-"Tots els clients de Windows recents es comuniquen amb els servidors de Samba "
-"utilitzant contrasenyes xifrades. Si voleu utilitzar contrasenyes amb text "
+"Tots els clients de Windows recents es comuniquen amb els servidors de SMB/"
+"CIFS emprant contrasenyes xifrades. Si voleu utilitzar contrasenyes amb text "
 "pla, haureu de modificar el vostre registre de Windows."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:5001
-#, fuzzy
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
-"És recomanable habilitar aquesta opció. Si ho feu, assegureu-vos de tenir un "
-"fitxer /etc/samba/smbpasswd vàlid i que hi especifiqueu la contrasenya de "
-"cada usuari utilitzant l'ordre smbpasswd."
+"És molt recomanable habilitar aquesta opció, perquè la implementació per a "
+"contrasenyes en text clar ja no és disponible als productes de Microsoft "
+"Windows. Si ho feu, assegureu-vos de tenir un fitxer /etc/samba/smbpasswd "
+"vàlid i que hi especifiqueu la contrasenya de cada usuari utilitzant l'ordre "
+"smbpasswd."
 
 #. Type: title
 #. Description
@@ -372,3 +377,10 @@ msgstr ""
 
 #~ msgid "daemons, inetd"
 #~ msgstr "dimonis, inetd"
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Per més informació feu una ullada a /usr/share/doc/samba-doc/htmldocs/"
+#~ "ENCRYPTION.html del paquet samba-doc."

@@ -158,13 +158,13 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:1001
 msgid "Samba server and utilities"
-msgstr ""
+msgstr "Samba サーバおよびユーティリティ"
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:2001
 msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr ""
+msgstr "DHCP から WINS 設定を使うよう smb.conf を変更しますか?"
 
 #. Type: boolean
 #. Description
@@ -176,6 +176,11 @@ msgid ""
 "to your smb.conf file so that DHCP-provided WINS settings will automatically "
 "be read from /etc/samba/dhcp.conf."
 msgstr ""
+"あなたのコンピュータがネットワーク上の DHCP サーバから IP アドレス情報を取得"
+"しているのであれば、DHCP サーバはネットワーク上にある WINS サーバ (NetBIOS "
+"ネームサーバ) についての情報を提供することもできます。DHCP で提供される WINS "
+"設定は /etc/samba/dhcp.conf から自動的に読み込まれるため、smb.conf ファイルを"
+"変更する必要があります。"
 
 #. Type: boolean
 #. Description
@@ -183,12 +188,14 @@ msgstr ""
 msgid ""
 "The dhcp3-client package must be installed to take advantage of this feature."
 msgstr ""
+"この機能を使うためには、dhcp3-client パッケージがインストールされている必要が"
+"あります。"
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
 msgid "Configure smb.conf automatically?"
-msgstr ""
+msgstr "自動的に smb.conf を設定しますか?"
 
 #. Type: boolean
 #. Description
@@ -201,6 +208,11 @@ msgid ""
 "automated configuration process and require you to edit your smb.conf by "
 "hand to get it working again."
 msgstr ""
+"Samba の設定の残りの部分は、Samba プログラム (nmbd および smbd) を設定するの"
+"に使うファイル /etc/samba/smb.conf にあるパラメータに影響する質問です。現在"
+"の smb.conf は、'include' 行または複数行にまたがるオプションを含んでいます。"
+"これは自動設定処理を混乱させる可能性があり、再びそれが作動するようにすべく "
+"smb.conf の手動での修正を必要とします。"
 
 #. Type: boolean
 #. Description
@@ -210,12 +222,14 @@ msgid ""
 "changes yourself, and will not be able to take advantage of periodic "
 "configuration enhancements."
 msgstr ""
+"この選択肢で「いいえ」と答えると、すべての設定の変更をあなた自身が面倒を見る"
+"必要があります。これは定期的な設定改善には向いていません。"
 
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
 msgid "Workgroup/Domain Name:"
-msgstr ""
+msgstr "ワークグループ/ドメイン名:"
 
 #. Type: string
 #. Description
@@ -226,12 +240,16 @@ msgid ""
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
+"このシステムのワークグループを指定してください。この設定は、システムがサーバ"
+"として使われるときにどのワークグループとして現れるか、いくつかのフロントエン"
+"ドでブラウジングされたときに使われるデフォルトのワークグループ、そして"
+"\"security=domain\" 設定が使われたときのドメイン名を制御します。"
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:5001
 msgid "Use password encryption?"
-msgstr ""
+msgstr "パスワードの暗号化を使いますか?"
 
 #. Type: boolean
 #. Description
@@ -241,6 +259,9 @@ msgid ""
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
+"ほとんどの Windows クライアントは暗号化されたパスワードを使って SMB/CIFS サー"
+"バとやり取りします。クリアテキストパスワードを使いたい場合は、あなたの "
+"Windows のレジストリにあるパラメータを変更する必要があります。"
 
 #. Type: boolean
 #. Description
@@ -251,30 +272,34 @@ msgid ""
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
+"プレインテキストパスワードのサポートはもう Microsoft Windows 製品では保守され"
+"ていないので、ここで「はい」と答えることを強くお勧めします。この場合、有効"
+"な /etc/samba/smbpasswd ファイルがあることを確認し、各ユーザのパスワードは "
+"smbpasswd コマンドを使って設定してください。"
 
 #. Type: title
 #. Description
 #: ../samba.templates:1001
 msgid "Samba server"
-msgstr ""
+msgstr "Samba サーバ"
 
 #. Type: select
 #. Choices
 #: ../samba.templates:2001
 msgid "daemons"
-msgstr ""
+msgstr "デーモン"
 
 #. Type: select
 #. Choices
 #: ../samba.templates:2001
 msgid "inetd"
-msgstr ""
+msgstr "inetd"
 
 #. Type: select
 #. Description
 #: ../samba.templates:2002
 msgid "How do you want to run Samba?"
-msgstr ""
+msgstr "どのように Samba を実行したいですか?"
 
 #. Type: select
 #. Description
@@ -283,3 +308,37 @@ msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
+"Samba デーモン smbd は通常のデーモンとしての実行または inetd からの実行ができ"
+"ます。デーモンとして実行するのがお勧めの手段です。"
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr ""
+#~ "Samba パスワードデータベース /var/lib/samba/passdb.tdb を作成しますか?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "Windows のほとんどのバージョンのデフォルトとの互換性のために、Samba を暗号"
+#~ "化パスワードを使うように設定する必要があります。これはユーザのパスワード"
+#~ "を /etc/passwd とは別のファイルに格納することを必要とします。このファイル"
+#~ "は自動的に作成することができますが、パスワードは手動で (smbpasswd を使っ"
+#~ "て) 追加しなければならず、将来に渡って最新状態を保ち続けるよう整えておく必"
+#~ "要があります。"
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "このファイルを作成しない場合、プレインテキストパスワードを使うよう Samba "
+#~ "(およびおそらくあなたのクライアントマシン) の再設定が必要です。"
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "詳細については、samba-doc パッケージにある /usr/share/doc/samba-doc/"
+#~ "htmldocs/ENCRYPTION.html を参照してください。"

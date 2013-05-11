@@ -159,7 +159,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:1001
 msgid "Samba server and utilities"
-msgstr ""
+msgstr "Samba-tjener og verktøy"
 
 #. Type: boolean
 #. Description
@@ -199,7 +199,6 @@ msgstr "Sette opp smb.conf automatisk?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "The rest of the configuration of Samba deals with questions that affect "
 "parameters in /etc/samba/smb.conf, which is the file used to configure the "
@@ -218,7 +217,6 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "If you do not choose this option, you will have to handle any configuration "
 "changes yourself, and will not be able to take advantage of periodic "
@@ -230,7 +228,6 @@ msgstr ""
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
 msgid "Workgroup/Domain Name:"
 msgstr "Arbeidsgruppe/domenenavn:"
 
@@ -243,6 +240,10 @@ msgid ""
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
+"Oppgi arbeidsgruppen for dette systemet. Denne innstillingen styrer hvilken "
+"arbeidsgruppe systemet blir vist i når det brukes som en tjener, standard "
+"arbeidsgruppe som skal brukes når diverse forgrunnsmotorer brukes til å bla "
+"med, og  domenenavnet som brukes med innstillingen «security=domain»."
 
 #. Type: boolean
 #. Description
@@ -253,35 +254,34 @@ msgstr "Bruke passord-kryptering?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:5001
-#, fuzzy
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
 "Alle nyere Windows-klienter bruker krypterte passord når de kommuniserer med "
-"SMB-tjenere. Hvis du vil bruke passord i klartekst må du endre en parameter "
-"i Windows registry på klientene."
+"SMB/CIFS-tjenere. Hvis du vil bruke passord i klartekst må du endre en "
+"parameter i Windows registry på klientene."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:5001
-#, fuzzy
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
-"Det anbefales sterkt å bruke krypterte passord. Gjør du det, så se etter at "
-"du har en gyldig fil i /etc/samba/smbpasswd og at du lagrer passord der for "
-"hver bruker med kommandoen smbpasswd."
+"Det anbefales sterkt å slå på dette for å bruke krypterte passord fordi "
+"passord i klartekst ikke støttes lenger i Microsoft Windows-produkter. Gjør "
+"du det, så se etter at du har en gyldig fil i /etc/samba/smbpasswd og at du "
+"lagrer passord der for hver bruker med kommandoen smbpasswd."
 
 #. Type: title
 #. Description
 #: ../samba.templates:1001
 msgid "Samba server"
-msgstr ""
+msgstr "Ingen Samba-tjener er installert på dette systemet"
 
 #  Using same translation as in debian.edu/Skolelinux. A bit controversial.
 #. Type: select
@@ -388,3 +388,10 @@ msgstr ""
 #~ "Bekreft om du vil at den eksisterende smbpasswd-fila skal automatisk "
 #~ "omgjøres til /var/lib/samba/passdb.tdb. Ikke velg dette om du har til "
 #~ "hensikt å bruke en annen pdb-motor i stedet (f.eks. LDAP)."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Mer detaljer finnes i fila /usr/share/doc/samba-doc/htmldocs/Samba3-"
+#~ "Developers-Guide/pwencrypt.html fra pakka samba-doc."

@@ -163,13 +163,13 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:1001
 msgid "Samba server and utilities"
-msgstr ""
+msgstr "Samba server a nástroje"
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:2001
 msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr ""
+msgstr "Upraviť smb.conf, aby používal nastavenie WINS z DHCP?"
 
 #. Type: boolean
 #. Description
@@ -181,6 +181,10 @@ msgid ""
 "to your smb.conf file so that DHCP-provided WINS settings will automatically "
 "be read from /etc/samba/dhcp.conf."
 msgstr ""
+"Ak váš počítač získava IP adresu z DHCP servera, môže vám tento server "
+"ponúkať aj údaje o serveroch WINS (menných serveroch NetBIOS-u), ktoré sa "
+"nachádzajú na vašej sieti. To vyžaduje zásah do súboru smb.conf, kde sa "
+"nastaví načítavanie údajov o WINS serveroch zo súboru /etc/samba/dhcp.conf."
 
 #. Type: boolean
 #. Description
@@ -188,12 +192,14 @@ msgstr ""
 msgid ""
 "The dhcp3-client package must be installed to take advantage of this feature."
 msgstr ""
+"Aby ste mohli využiť túto vlastnosť, musíte mať nainštalovaný balík dhcp3-"
+"client."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
 msgid "Configure smb.conf automatically?"
-msgstr ""
+msgstr "Automaticky nastaviť smb.conf?"
 
 #. Type: boolean
 #. Description
@@ -206,24 +212,29 @@ msgid ""
 "automated configuration process and require you to edit your smb.conf by "
 "hand to get it working again."
 msgstr ""
+"Zvyšok nastavenia Samby sa zaoberá otázkami, ktoré ovplyvňujú parametre "
+"uvedené v /etc/samba/smb.conf, čo je konfiguračný súbor pre programy Samba "
+"(nmbd a smbd). Váš súčasný súbor smb.conf obsahuje riadok „include“ alebo "
+"voľbu, ktorá presahuje viac riadkov. Toto môže zapríčiniť zlé automatické "
+"nastavenie, takže pre správnu funkčnosť možno budete musieť upraviť smb.conf "
+"manuálne."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "If you do not choose this option, you will have to handle any configuration "
 "changes yourself, and will not be able to take advantage of periodic "
 "configuration enhancements."
 msgstr ""
-"Ak nezvolíte túto možnosť, Samba zostane nenakonfigurovaná a budete ju "
-"musieť nastaviť ručne."
+"Ak si nezvolíte túto možnosť, budete musieť sami zvládnuť všetky nastavenia "
+"a nebudete môcť využívať výhody pravidelných vylepšení tohto súboru."
 
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
 msgid "Workgroup/Domain Name:"
-msgstr ""
+msgstr "Pracovná skupina/Názov domény:"
 
 #. Type: string
 #. Description
@@ -234,12 +245,16 @@ msgid ""
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
+"Zadajte názov pracovnej skupiny pre tento počítač. Táto voľba určuje v "
+"ktorej pracovnej skupine sa má tento systém objaviť keď sa k nemu pristupuje "
+"ako k serveru, pri prehliadaní rôznymi rozhraniami a názov domény, ktorá sa "
+"používa pri nastavení „security=domain“."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:5001
 msgid "Use password encryption?"
-msgstr ""
+msgstr "Použiť šifrovanie hesiel?"
 
 #. Type: boolean
 #. Description
@@ -249,6 +264,9 @@ msgid ""
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
+"Všetky súčasné počítače Windows používajú na komunikáciu so SMB/CIFS "
+"servermi šifrované heslá. Ak chcete použiť nešifrované heslá, musíte zmeniť "
+"parameter v registroch systému Windows."
 
 #. Type: boolean
 #. Description
@@ -259,30 +277,34 @@ msgid ""
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
+"Povolenie tejto voľby sa dôrazne odporúča, pretože podpora nešifrovaných "
+"hesiel v produktoch Microsoft Windows sa už neudržiava. V tom prípade sa "
+"uistite, že máte platný súbor /etc/samba/smbpasswd a že v ňom nastavíte "
+"heslá všetkým používateľom príkazom smbpasswd."
 
 #. Type: title
 #. Description
 #: ../samba.templates:1001
 msgid "Samba server"
-msgstr ""
+msgstr "Samba server"
 
 #. Type: select
 #. Choices
 #: ../samba.templates:2001
 msgid "daemons"
-msgstr ""
+msgstr "démoni"
 
 #. Type: select
 #. Choices
 #: ../samba.templates:2001
 msgid "inetd"
-msgstr ""
+msgstr "inetd"
 
 #. Type: select
 #. Description
 #: ../samba.templates:2002
 msgid "How do you want to run Samba?"
-msgstr ""
+msgstr "Ako chcete spúšťať Sambu?"
 
 #. Type: select
 #. Description
@@ -291,6 +313,8 @@ msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
+"Samba server smbd sa môže spúšťať ako obyčajný démon (odporúča sa) alebo sa "
+"môže spúšťať z inetd."
 
 #~ msgid "Set up Samba 4 as a PDC?"
 #~ msgstr "Nastaviť Samba 4 ako PDC?"
@@ -310,3 +334,33 @@ msgstr ""
 #~ msgstr ""
 #~ "Prosím, zadajte v ktorej doméne Kerberos sa tento server bude nachádzať. "
 #~ "V mnohých prípadoch to bude rovnaká hodnota ako názov domény DNS."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "Vytvoriť databázu hesiel /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "Kvôli kompatibilite s predvoleným nastavením väčšiny verzií Windows sa "
+#~ "musí Samba nastaviť na používanie šifrovaných hesiel. To vyžaduje "
+#~ "uloženie používateľských hesiel v inom súbore ako /etc/passwd. Tento "
+#~ "súbor sa môže vytvoriť automaticky, ale heslá do neho musíte pridať "
+#~ "manuálne programom smbpasswd a taktiež ho musíte neustále aktualizovať."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "Ak tento súbor nevytvoríte, budete musieť nastaviť Sambu (a zrejme aj "
+#~ "počítače klientov) aby používali nešifrované heslá."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Podrobnosti nájdete v súbore /usr/share/doc/samba-doc/htmldocs/ENCRYPTION."
+#~ "html z balíka samba-doc."

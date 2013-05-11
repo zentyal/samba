@@ -189,7 +189,6 @@ msgstr "Samodejna nastavitev smb.conf?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "The rest of the configuration of Samba deals with questions that affect "
 "parameters in /etc/samba/smb.conf, which is the file used to configure the "
@@ -209,7 +208,6 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "If you do not choose this option, you will have to handle any configuration "
 "changes yourself, and will not be able to take advantage of periodic "
@@ -222,7 +220,6 @@ msgstr ""
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
 msgid "Workgroup/Domain Name:"
 msgstr "Ime delovne skupine/domene:"
 
@@ -379,3 +376,10 @@ msgstr ""
 #~ "Prosimo potrdite če želite avtomatsko prenesti obstoječo datoteko "
 #~ "smbdpasswd v var/lib/samba/passdb.tdb. Te možnosti ne izberite če boste "
 #~ "namesto tega uporabljali kakšno drugo pdb hrbtenico (n. pr. LDAP)."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Za podrobnejše informacije si oglejte /usr/share/doc/samba-doc/htmldocs/"
+#~ "ENCRYPTION.html iz paketa samba-doc."

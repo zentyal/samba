@@ -192,7 +192,6 @@ msgstr "Automatiškai konfigūruoti smb.conf?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "The rest of the configuration of Samba deals with questions that affect "
 "parameters in /etc/samba/smb.conf, which is the file used to configure the "
@@ -211,21 +210,20 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "If you do not choose this option, you will have to handle any configuration "
 "changes yourself, and will not be able to take advantage of periodic "
 "configuration enhancements."
 msgstr ""
-"Jei nepasirinksite šios galimybės, Samba bus palikta nesukonfigūruota. "
-"Turėsite tai atlikti rankiniu būdu."
+"Jei nepasirinksite šios galimybės, turėsite konfigūruoti Samba rankiniu būdu "
+"ir negalėsite pasinaudoti reguliariais automatiniais konfigūracijos "
+"patobulinimais."
 
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
 msgid "Workgroup/Domain Name:"
-msgstr "Domeno vardas:"
+msgstr "Grupė (workgroup) / domeno vardas:"
 
 #. Type: string
 #. Description
@@ -385,3 +383,10 @@ msgstr ""
 #~ "Patvirtinkite, kad norite esamą smbpasswd rinkmeną automatiškai "
 #~ "numigruoti į /var/lib/samba/passdb.tdb.  Nesirinkite šios galimybės, jei "
 #~ "vietoj standartinio planuojate naudoti kitą pdb modulį (pvz., LDAP)."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Daugiau informacijos galite rasti rinkmenoje /usr/share/doc/samba-doc/"
+#~ "htmldocs/ENCRYPTION.html iš paketo samba-doc."

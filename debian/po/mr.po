@@ -189,7 +189,6 @@ msgstr "एसएमबी।सीओएनएफ smb.conf आपोआप स�
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "The rest of the configuration of Samba deals with questions that affect "
 "parameters in /etc/samba/smb.conf, which is the file used to configure the "
@@ -208,7 +207,6 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "If you do not choose this option, you will have to handle any configuration "
 "changes yourself, and will not be able to take advantage of periodic "
@@ -220,7 +218,6 @@ msgstr ""
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
 msgid "Workgroup/Domain Name:"
 msgstr "कार्यगट/प्रक्षेत्राचे नाव:"
 
@@ -365,3 +362,11 @@ msgstr ""
 #~ "कृपया तुम्हाला सध्याची एसएमबी पासवर्ड संचिका आपोआप/व्हीएआर/एलआयबी/सांबा/पासडीबी।"
 #~ "टीडीबी कडे स्थलांतरित झाल्यास चालेल का याची खात्री करा. तुम्हाला त्याऐवजी दुसरी "
 #~ "कोणती पीडीबी बॅकएंड(उदा.एलडीएपी)करावयाची असल्यास हा पर्याय स्वीकारु नका"
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "अधिक माहितीसाठी सांबा-डीओसी पॅकेजमधील /usr/share/doc/samba-doc/htmldocs/"
+#~ "ENCRYPTION.html (यूएसआर/शेअर/डीओसी/सांबा-डीओसी/एचटीएमएलडीओसीएस/एनक्रिप्शन."
+#~ "एचटीएमएल) हे पॅकेज पहा."

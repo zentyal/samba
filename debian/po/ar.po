@@ -150,7 +150,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:2001
 msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr ""
+msgstr "تغيير smb.conf لاستعمال إعدادات WINS عبر DHCP"
 
 #. Type: boolean
 #. Description
@@ -162,19 +162,23 @@ msgid ""
 "to your smb.conf file so that DHCP-provided WINS settings will automatically "
 "be read from /etc/samba/dhcp.conf."
 msgstr ""
+"إذا كان حاسوبك يحصل على معلومات عنوانه (IP adresse)  من خادم DHCP  المتواجد "
+"على الشبكة, فأنه باﻹمكان أيضا الحصول غلى معلومات حول خُدَّم  WINS (\"خدم أسماء "
+"NetBIOS\") المتواجد على الشبكة, هذا يتطلب تغييرا في ملفsmb.conf بحيث ان "
+"إعدادات  WINS المُقدمة من طرف DHCP ستقرأ آليا من ملف /etc/samba/dhcp.conf."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:2001
 msgid ""
 "The dhcp3-client package must be installed to take advantage of this feature."
-msgstr ""
+msgstr "يجب تثبيت رزمة dhcp3-client للاستفادة من هذه الميزة."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
 msgid "Configure smb.conf automatically?"
-msgstr ""
+msgstr "إعداد آلي لملف smb.conf ؟"
 
 #. Type: boolean
 #. Description
@@ -187,24 +191,28 @@ msgid ""
 "automated configuration process and require you to edit your smb.conf by "
 "hand to get it working again."
 msgstr ""
+"بقية إعدادات Samba  تعالج أسئلة تؤثر في المقاييس المتواجدة في الملف /etc/"
+"samba/smb.conf و الذي يستعمل لإعداد برامج Samba التالية ( nmbd و smbd). ملفك "
+"الحالي smb.conf يحتوي على سطر  'include' او على خيار يمتد لعدة أسطر, الشي "
+"الذي يمكن أن يشوش على عملية الإعداد الآلية, ويستلزم منك تحرير ملفك smb.conf "
+"يدويا لكي تتمكن من تشغبل ذلك مرة أخرى."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "If you do not choose this option, you will have to handle any configuration "
 "changes yourself, and will not be able to take advantage of periodic "
 "configuration enhancements."
 msgstr ""
-"إن لم تختر هذا الخيار، سيبقى سامبا دون تهيئة، وسيتوجب عليك إعداده بنفسك."
+"في حالة عدم اختيارك لهذا الخيار, عليك معالجة أي تغيير في الإعدادات بنفسك, و "
+"لن تستفيد من تحسينات الإعداد الدورية."
 
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
 msgid "Workgroup/Domain Name:"
-msgstr "اسم النطاق:"
+msgstr " اسم مجموعة العمل/الحقل:"
 
 #. Type: string
 #. Description
@@ -215,12 +223,16 @@ msgid ""
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
+"رجاءً حدد مجموعة العمل لهذا النظام. يتحكم هذا الإعداد باسم مجموعة العمل التي "
+"سيظهر بها النظام عند استخدامه كخادم، وهي مجموعة العمل الافتراضية التي يجب "
+"استخدامها عند التصفح باستخدام الواجهات المختلفة، واسم النطاق المستخدم في "
+"الإعداد \"security=domain\"."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:5001
 msgid "Use password encryption?"
-msgstr ""
+msgstr "تشفير كلمة المرور ؟"
 
 #. Type: boolean
 #. Description
@@ -230,6 +242,9 @@ msgid ""
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
+"تتصل جميع عملاء ويندوز الجديدة مع خوادم SMB/CIFS باستخدام كلمات مرور مشفرة. "
+"إذا أردت استخدام كلمات مرور غير مشفرة عليك بتغيير مُعطى في قاعدة تسجيلات "
+"ويندوز."
 
 #. Type: boolean
 #. Description
@@ -240,6 +255,10 @@ msgid ""
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
+"يُستحسن بشدة تمكين هذا الخيار حيث أن دعم كلمات المرور الغير مشفرة لم يعد "
+"متوفراً في منتجات ميكروسوفت.\n"
+"إن فعلت ذلك، فتأكد من وجود ملف /etc/samba/smbpasswd صالح وأن تضع فيه كلمات "
+"المرور الخاصة بكل مستخدم باستخدام الأمر smbpasswd."
 
 #. Type: title
 #. Description
@@ -251,19 +270,19 @@ msgstr ""
 #. Choices
 #: ../samba.templates:2001
 msgid "daemons"
-msgstr ""
+msgstr "daemons"
 
 #. Type: select
 #. Choices
 #: ../samba.templates:2001
 msgid "inetd"
-msgstr ""
+msgstr "inetd"
 
 #. Type: select
 #. Description
 #: ../samba.templates:2002
 msgid "How do you want to run Samba?"
-msgstr ""
+msgstr "كيف تريد تشغيل Samba؟"
 
 #. Type: select
 #. Description
@@ -271,7 +290,7 @@ msgstr ""
 msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
-msgstr ""
+msgstr "يمكن لرقيب smbd الاشتغال كرقيب عادي أو عبر inetd. ينصح بتشغييله كرقيب."
 
 #~ msgid "Set up Samba 4 as a PDC?"
 #~ msgstr "إعداد سامبا4 كمُتحكّم أولي بالنطاق PDC؟"
@@ -302,3 +321,65 @@ msgstr ""
 #~ msgstr ""
 #~ "الرجاء تحديد اسم النطاق الذي تريد أن يظهر فيه هذا الخادم الاستعلام عنه من "
 #~ "قبل العملاء."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "إحداث قاعدة كلمات المرور لSamba  في /var/lib/samba/passdb.tdb ؟"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "حتى يكون هناك توافق مع اﻹعدادت الافتراصية لأغلبية نسخ Windows، يجب تهيئة "
+#~ "Samba لاستعمال كلمات مرور مشفرة، اﻷمر الذي يتطلب حفظها في ملف منفصل عن /"
+#~ "etc/passwd. ويمكن إنشاء ذلك الملف تلقائياً، إلا أن كلمات المرور يجب أن "
+#~ "تضاف يدوياً بتنفيذ الأمر smbpaswd وإبقاء الملف محدثاً في المستقبل."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "إن لم تنشئه، فستضطر إلى إعادة تهيئة Samba (وربما بعض الأجهزة العميلة) "
+#~ "لاستخدام كلمات مرور مجردة."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "راجع /usr/share/doc/samba-doc/htmldocs/ENCRYPTION في رزمة samba-doc "
+#~ "لتفاصيل أكثر."
+
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "الربط التسلسلي لملفات passdb غير مدعوم"
+
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "بدءً من النسخة 3.0.23 من samba، لم يعد دعم ربط ملفات passdb عبر المعطى "
+#~ "\"passdb backend\" متوفراً. يبدو أن ملف smb.conf لديك يحتوي هذا المعطى "
+#~ "والذي يحدد قائمة من ملفات دعم passdb. لن تعمل نسخة samba الجديدة حتى تقوم "
+#~ "بتصحيح هذا المعطى."
+
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr "نَقْل /etc/samba/smbpasswd إلى /var/lib/samba/passdb.tdb ؟"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "النسخة 3.0 من Samba أدخلت  واجهة أكمل لقاعدة  SAM, و التي تلغي بدورها "
+#~ "ملف /etc/samba/smbpasswd."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "من فضلك أكّد إذا ما كنت تفضل هجرة آلية لملف smbpasswd المتواجد إلى /var/"
+#~ "lib/samba/passdb.tdb. لا تختر هذا الخيار إذا كنت تنوي استعمال قاعدة كلمات "
+#~ "مرور خلفية ( pdb backend) مثل LDAP."

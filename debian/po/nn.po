@@ -179,7 +179,6 @@ msgstr "Setje opp smb.conf automatisk?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "The rest of the configuration of Samba deals with questions that affect "
 "parameters in /etc/samba/smb.conf, which is the file used to configure the "
@@ -198,7 +197,6 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "If you do not choose this option, you will have to handle any configuration "
 "changes yourself, and will not be able to take advantage of periodic "
@@ -211,7 +209,6 @@ msgstr ""
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
 msgid "Workgroup/Domain Name:"
 msgstr "Arbeidsgruppe/Domenenamn:"
 
@@ -368,3 +365,10 @@ msgstr ""
 #~ "Stadfest om du vil at den eksisterande smbpasswd-fila automatisk skal "
 #~ "migrerast inn i /var/lib/samba/passdb.tdb. Ikkje vel dette viss du "
 #~ "planlegg å bruke ein anna pdb-motor (t.d. LDAP) i staden."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Sjå /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html frå pakken samba-doc for fleire detaljar."

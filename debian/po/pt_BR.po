@@ -145,7 +145,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:1001
 msgid "Samba server and utilities"
-msgstr ""
+msgstr "Servidor Samba e utilitários"
 
 #. Type: boolean
 #. Description
@@ -188,7 +188,6 @@ msgstr "Configurar smb.conf automaticamente ?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "The rest of the configuration of Samba deals with questions that affect "
 "parameters in /etc/samba/smb.conf, which is the file used to configure the "
@@ -200,29 +199,27 @@ msgstr ""
 "O restante da configuração do Samba lida com questões que afetam parâmetros "
 "no arquivo /etc/samba/smb.conf, que é o arquivo usado para configurar os "
 "programas Samba (nmbd e smbd). Seu arquivo smb.conf atual contém uma linha "
-"'include' ou uma opção que ocupa diversas linhas, o que pode confundir o "
+"\"include\" ou uma opção que ocupa diversas linhas, o que pode confundir o "
 "processo de configuração automatizado e requerer que você edite seu arquivo "
 "smb.conf manualmente para torná-lo funcional novamente."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "If you do not choose this option, you will have to handle any configuration "
 "changes yourself, and will not be able to take advantage of periodic "
 "configuration enhancements."
 msgstr ""
-"Caso você opte por essa opção, você precisará lidar com quaisquer mudanças "
-"de configuração manualmente e você não poderá aproveitar os melhoramentos "
-"periódicos de configuração."
+"Caso você não opte por essa opção, você precisará lidar com quaisquer "
+"mudanças de configuração manualmente e você não poderá aproveitar os "
+"melhoramentos periódicos de configuração."
 
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
 msgid "Workgroup/Domain Name:"
-msgstr "Nome de Domínio/Grupo de Trabalho :"
+msgstr "Grupo de Trabalho/Nome de Domínio:"
 
 #. Type: string
 #. Description
@@ -233,6 +230,11 @@ msgid ""
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
+"Por favor, especifique o grupo de trabalho para este sistema. Esta "
+"configuração controla em qual grupo de trabalho o sistema aparecerá quando "
+"usado como um servidor, qual o grupo de trabalho padrão a ser usado ao "
+"navegar usando vários frontends, e qual o nome de domínio usado com a "
+"configuração \"security=domain\"."
 
 #. Type: boolean
 #. Description
@@ -243,35 +245,35 @@ msgstr "Usar senhas criptografadas ?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:5001
-#, fuzzy
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
-"Todos os clientes Windows atuais comunicam-se com servidores SMB usando "
-"senhas encriptadas. Caso você queira usar senhas em texto puro você "
-"precisará modificar um parâmetro no registro de seu Windows."
+"Todos os clientes Windows atuais comunicam-se com servidores SMB/CIFS usando "
+"senhas criptografadas. Caso você queira usar senhas em texto puro, você "
+"precisará modificar um parâmetro no registro do seu Windows."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:5001
-#, fuzzy
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
-"Habilitar esta opção é altamente recomendado. Caso você o faça, certifique-"
-"se de possuir um arquivo /etc/samba/smbpasswd e que você tenha senhas "
-"definidas no mesmo para cada usuário usando o comando smbpasswd."
+"Habilitar esta opção é altamente recomendado pois o suporte a senhas em "
+"texto puro não é mais mantido nos produtos Microsoft Windows. Caso você o "
+"faça, certifique-se de possuir um arquivo /etc/samba/smbpasswd válido e que "
+"você tenha definido senhas no mesmo para cada usuário usando o comando "
+"smbpasswd."
 
 #. Type: title
 #. Description
 #: ../samba.templates:1001
 msgid "Samba server"
-msgstr ""
+msgstr "Servidor Samba"
 
 #. Type: select
 #. Choices
@@ -382,3 +384,10 @@ msgstr ""
 
 #~ msgid "daemons, inetd"
 #~ msgstr "daemons, inetd"
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Veja /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html, fornecido pelo pacote samba-doc, para mais detalhes."

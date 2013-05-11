@@ -186,7 +186,6 @@ msgstr "smb.conf ஐ தானியங்கியாக வடிவமைக�
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "The rest of the configuration of Samba deals with questions that affect "
 "parameters in /etc/samba/smb.conf, which is the file used to configure the "
@@ -205,7 +204,6 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "If you do not choose this option, you will have to handle any configuration "
 "changes yourself, and will not be able to take advantage of periodic "
@@ -217,7 +215,6 @@ msgstr ""
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
 msgid "Workgroup/Domain Name:"
 msgstr "வேலைக்குழு/களப் பெயர்:"
 
@@ -361,3 +358,10 @@ msgstr ""
 #~ "இருப்பிலுள்ள smbpasswd கோப்பை /var/lib/samba/passdb.tdb க்கு தானியங்கியாக மாற்ற "
 #~ "வேண்டுமா என உறுதி செய்யவும். நீங்கள் LDAP போன்ற வேறு pdb பின் நிலையை பயன் படுத்த "
 #~ "உத்தேசித்து இருந்தால் இதை தேர்ந்தெடுக்க வேண்டாம்."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "சாம்பா ஆவணங்கள் (samba-doc) பொதிகளில் இருந்து /usr/share/doc/samba-doc/"
+#~ "htmldocs/ENCRYPTION.html ஐ மேலதிக விவரங்களுக்குப் பார்க்கவும்."

@@ -149,7 +149,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:1001
 msgid "Samba server and utilities"
-msgstr ""
+msgstr "Servidor e utilidades Samba"
 
 #. Type: boolean
 #. Description
@@ -191,7 +191,6 @@ msgstr "¿Configurar o ficheiro smb.conf automaticamente?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "The rest of the configuration of Samba deals with questions that affect "
 "parameters in /etc/samba/smb.conf, which is the file used to configure the "
@@ -203,28 +202,27 @@ msgstr ""
 "O resto da configuración de Samba trata con cuestións que afectan aos "
 "parámetros de /etc/samba/smb.conf, que é o ficheiro que se emprega para "
 "configurar os programas de Samba (nmbd e smbd). O seu ficheiro smb.conf "
-"actual contén unha liña \"include\" ou unha opción que cubre varias liñas, o "
+"actual contén unha liña «include» ou unha opción que cobre varias liñas, o "
 "que pode confundir ao proceso de configuración automático e facer que teña "
 "que editar o ficheiro smb.conf a man para poñelo a funcionar outra vez."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "If you do not choose this option, you will have to handle any configuration "
 "changes yourself, and will not be able to take advantage of periodic "
 "configuration enhancements."
 msgstr ""
-"Se non escolle esta opción, Samba ha quedar sen configurar, e ha ter que "
-"configuralo manualmente."
+"Se non escolle esta opción ha ter que facer os cambios na configuración "
+"vostede mesmo, e non ha poder aproveitar as melloras periódicas na "
+"configuración."
 
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
 msgid "Workgroup/Domain Name:"
-msgstr "Nome de dominio:"
+msgstr "Nome do grupo de traballo/dominio:"
 
 #. Type: string
 #. Description
@@ -235,6 +233,11 @@ msgid ""
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
+"Indique o grupo de traballo para este sistema. Este parámetro controla o "
+"grupo de traballo no que este sistema aparecerá cando funcione como "
+"servidor, o grupo de traballo que se usará ao navegar usando varios "
+"clientes, e o nome de dominio que se emprega coa configuración "
+"security=domain."
 
 #. Type: boolean
 #. Description
@@ -245,35 +248,34 @@ msgstr "¿Empregar cifrado de contrasinais?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:5001
-#, fuzzy
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
-"Todos os clientes Windows recentes comunícanse cos servidores SMB empregando "
-"contrasinais cifrados. Se quere empregar contrasinais de texto claro ha ter "
-"que cambiar un parámetro no rexistro de Windows."
+"Todos os clientes Windows recentes comunícanse cos servidores SMB/CIFS "
+"empregando contrasinais cifrados. Se quere empregar contrasinais de texto "
+"claro ha ter que cambiar un parámetro no rexistro de Windows."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:5001
-#, fuzzy
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
-"Recoméndase activar esta opción. Se o fai, asegúrese de ter un ficheiro /etc/"
-"samba/smbpasswd válido e de establecer nel os contrasinais de cada usuario "
-"coa orde smbpasswd."
+"Recoméndase activar esta opción xa que os contrasinais en texto claro xa non "
+"son mantidos nos produtos Microsoft. Se o fai, asegúrese de ter un "
+"ficheiro  /etc/samba/smbpasswd válido e de estabelecer nel os contrasinais "
+"de cada usuario coa orde smbpasswd."
 
 #. Type: title
 #. Description
 #: ../samba.templates:1001
 msgid "Samba server"
-msgstr ""
+msgstr "Servidor Samba"
 
 #. Type: select
 #. Choices
@@ -398,3 +400,10 @@ msgstr ""
 
 #~ msgid "daemons, inetd"
 #~ msgstr "servizos, inetd"
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Consulte o ficheiro /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-"
+#~ "Guide/pwencrypt.html do paquete samba-doc para obter máis detalles."

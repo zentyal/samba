@@ -154,13 +154,13 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:1001
 msgid "Samba server and utilities"
-msgstr ""
+msgstr "Sambaserver og -redskaber"
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:2001
 msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr ""
+msgstr "Ret smb.conf, så den benytter WINS-indstillinger fra DHCP?"
 
 #. Type: boolean
 #. Description
@@ -172,6 +172,11 @@ msgid ""
 "to your smb.conf file so that DHCP-provided WINS settings will automatically "
 "be read from /etc/samba/dhcp.conf."
 msgstr ""
+"Hvis din computer får IP-adresseoplysninger fra en DHCP-server på netværket, "
+"kan DHCP-serveren også give oplysninger om WINS-servere (»NetBIOS "
+"navneservere«) på netværket. Dette kræver en ændring i din smb.conf-fil, så "
+"WINS-indstillingerne fra DHCP-serveren automatisk indlæses fra /etc/samba/"
+"dhcp.conf."
 
 #. Type: boolean
 #. Description
@@ -179,12 +184,14 @@ msgstr ""
 msgid ""
 "The dhcp3-client package must be installed to take advantage of this feature."
 msgstr ""
+"Pakken dhcp3-client skal være installeret, for at kunne udnytte denne "
+"funktion."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
 msgid "Configure smb.conf automatically?"
-msgstr ""
+msgstr "Sæt smb.conf op automatisk?"
 
 #. Type: boolean
 #. Description
@@ -197,6 +204,12 @@ msgid ""
 "automated configuration process and require you to edit your smb.conf by "
 "hand to get it working again."
 msgstr ""
+"Resten af Samba-opsætningen drejer sig om spørgsmål, der vedrører "
+"indstillingerne i filen /etc/samba/smb.conf, som benyttes til at sætte Samba-"
+"programmerne (nmbd og smbd) op. Din nuværende smb.conf indeholder en "
+"'include'-linje eller en indstilling, der fylder flere linjer, hvilket kan "
+"forvirre den automatiske opsætning, og kræver at du redigerer din smb.conf "
+"selv for at få den til at fungere igen."
 
 #. Type: boolean
 #. Description
@@ -206,12 +219,15 @@ msgid ""
 "changes yourself, and will not be able to take advantage of periodic "
 "configuration enhancements."
 msgstr ""
+"Hvis du ikke vælger denne indstilling, må du selv håndtere ændringer i "
+"opsætningen, og vil ikke kunne drage nytte af de løbende forbedringer i "
+"opsætningen."
 
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
 msgid "Workgroup/Domain Name:"
-msgstr ""
+msgstr "Arbejdsgruppe/domænenavn:"
 
 #. Type: string
 #. Description
@@ -222,12 +238,16 @@ msgid ""
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
+"Angiv venligst arbejdsgruppen for dette system. Denne indstilling kontroller "
+"hvilken arbejdsgruppe systemet vil fremgå i, når den bruges som en server, "
+"standardarbejdsgruppen der bruges når der browses med forskellige "
+"grænseflader, og domænenavnet brugt med indstillingen »security=domain«."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:5001
 msgid "Use password encryption?"
-msgstr ""
+msgstr "Krypter adgangskoder?"
 
 #. Type: boolean
 #. Description
@@ -237,6 +257,9 @@ msgid ""
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
+"Alle nyere Windowsklienter kommunikerer med SMB/CIFS-servere ved hjælp af "
+"krypterede adgangskoder. Hvis du vil bruge adgangkoder i klar tekst, er du "
+"nødt til at ændre en indstilling i Windows' registreringsdatabase."
 
 #. Type: boolean
 #. Description
@@ -247,30 +270,34 @@ msgid ""
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
+"Aktivering af denne indstilling anbefales, da understøttelse af klar tekst "
+"ikke længere vedligeholdes i Microsoft Windows' produkter. Hvis du "
+"aktiverer, så sørg for at du har en gyldig /etc/samba/smbpasswd-fil, og at "
+"du her angiver adgangskoder for hver bruger med kommandoen smbpasswd."
 
 #. Type: title
 #. Description
 #: ../samba.templates:1001
 msgid "Samba server"
-msgstr ""
+msgstr "Sambaserver"
 
 #. Type: select
 #. Choices
 #: ../samba.templates:2001
 msgid "daemons"
-msgstr ""
+msgstr "dæmoner"
 
 #. Type: select
 #. Choices
 #: ../samba.templates:2001
 msgid "inetd"
-msgstr ""
+msgstr "inetd"
 
 #. Type: select
 #. Description
 #: ../samba.templates:2002
 msgid "How do you want to run Samba?"
-msgstr ""
+msgstr "Hvordan skal Samba køres?"
 
 #. Type: select
 #. Description
@@ -279,3 +306,35 @@ msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
+"Samba-dæmonen smbd kan køre som en almindelig dæmon eller fra inetd. Det "
+"anbefales at køre den som dæmon."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "Opret samba-adgangskodedatabasen /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "For at være kompatibel med standardindstillingerne i de fleste udgaver af "
+#~ "Windows, skal Samba sættes op til at benytte krypterede adgangskoder. "
+#~ "Dette kræver, at brugernes adgangskoder gemmes i en anden fil end /etc/"
+#~ "passwd. Denne fil kan oprettes automatisk, men adgangskoderne skal "
+#~ "tilføjes manuelt ved at køre smbpasswd, og skal fremover holdes opdateret."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "Hvis du ikke opretter den, er du nødt til at sætte samba (og sikkert også "
+#~ "dine klientmaskiner) op til at benytte adgangskoder i klar tekst."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Se /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html i pakken samba-doc for flere detaljer."

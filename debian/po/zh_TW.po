@@ -184,7 +184,6 @@ msgstr "自動設定 smb.conf 嗎？"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "The rest of the configuration of Samba deals with questions that affect "
 "parameters in /etc/samba/smb.conf, which is the file used to configure the "
@@ -193,27 +192,25 @@ msgid ""
 "automated configuration process and require you to edit your smb.conf by "
 "hand to get it working again."
 msgstr ""
-"剩下的 Samba 設定涉及那些影響 /etc/samba/smb.conf 中參數的問題。此文件是用來"
-"設定 Samba 程序 (nmbd 和 smbd)。您目前的 smb.conf 包括一個“include”行或者一個"
-"跨越多行的選項，這將攪亂自動設定程序並需要您手動修改 smb.conf 以使其正常工"
-"作。"
+"剩下的 Sabma 設定將處理那些會影響到 /etc/samba/smb.conf 中的參數的問題。這個"
+"檔案是用來設定 Sabma 程式（nmbd 和 smbd）。但您目前的 smb.conf 裡中包含了一"
+"行 \"include\"，或是有某個選項跨越多行，這將會攪亂自動設定程序，使得您必須手"
+"動修復 smb.conf 才能讓它正常運作。"
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "If you do not choose this option, you will have to handle any configuration "
 "changes yourself, and will not be able to take advantage of periodic "
 "configuration enhancements."
 msgstr ""
-"如果您不選此項，您就必須自己處理所有的設定改變，也無法享受到定期的設定改進特"
-"性。"
+"如果您不選取這個選項，您就必須自行處理所有的設定上的改變，同時也將無法受益於"
+"定期的設定改進所帶來的好處。"
 
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
 msgid "Workgroup/Domain Name:"
 msgstr "群組/網域："
 
@@ -226,6 +223,9 @@ msgid ""
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
+"請指定這個系統的群組。這個選項控制了當它做為伺服器時，這個系統會出現在哪個群"
+"組裡、以及很多前端程式在瀏覽時所會使用的預設群組，以及 \"security=domain\" 這"
+"個設定所會用到的網域名稱。"
 
 #. Type: boolean
 #. Description
@@ -236,27 +236,26 @@ msgstr "使用密碼加密嗎？"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:5001
-#, fuzzy
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
-"較新的 Windows 客戶端都使用加密的密碼與 SMB 服務器通訊。如果您想使用明文密"
-"碼，您將需要修改您的 Windows 登錄表中的一個參數。"
+"所有較新的 Windows 用戶端在和 SMB/CIFS 伺服器通訊時都會使用加密密碼。如果您想"
+"使用明文密碼，您將需要修改您的 Windows 登錄表中的一個參數。"
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:5001
-#, fuzzy
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
-"強烈推薦開啟此選項。如果選取，請確保您擁有一個有效的 /etc/samba/smbpasswd 檔"
-"案，並且此檔案包含用 smbpasswd 命令為每個用戶設定的密碼。"
+"強烈建議能啟用這個選項，因為 Microsoft Windows 系列產品對明文密碼的支援已沒有"
+"在維護了。如果您要啟用的話，請確認您有個有效的 /etc/samba/smbpasswd 檔，且其"
+"中包含了使用 smbpasswd 指令替每個使用者所設定的密碼。"
 
 #. Type: title
 #. Description
@@ -362,3 +361,10 @@ msgstr ""
 #~ msgstr ""
 #~ "請確定您是否想將現有的 smbpasswd 檔案自動移植為 /var/lib/samba/passdb."
 #~ "tdb。如果您計劃使用其它的 pdb 後端 (如 LDAP) 的話，請不要選中此選項。"
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "請參閱 samba-doc 套件的 /usr/share/doc/samba-doc/htmldocs/Samba3-"
+#~ "Developers-Guide/pwencrypt.html 以取得更多詳盡資訊。"

@@ -186,7 +186,6 @@ msgstr "Ndax ñu komfigureel smb.conf sunu boppu?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "The rest of the configuration of Samba deals with questions that affect "
 "parameters in /etc/samba/smb.conf, which is the file used to configure the "
@@ -205,7 +204,6 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "If you do not choose this option, you will have to handle any configuration "
 "changes yourself, and will not be able to take advantage of periodic "
@@ -218,7 +216,6 @@ msgstr ""
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
 msgid "Workgroup/Domain Name:"
 msgstr "Grup bu liggéey/Turu domen:"
 
@@ -378,3 +375,10 @@ msgstr ""
 #~ "Feddlin baxam bëggnga fiise smbpasswd bifi nekk ñu toxalalko suñu boppy "
 #~ "yobbuko ca /var/lib/samba/passdb.tdb. Bul tann lii bu fekkee yaangi jappa "
 #~ "jëfandikoo baneen paket bu pdb (ci misaal LDAP)."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Xoolal /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/"
+#~ "pwencrypt.html bi nekk ci paket bu samba-doc, ngir am yaneen leeral."

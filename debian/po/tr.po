@@ -149,7 +149,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:1001
 msgid "Samba server and utilities"
-msgstr ""
+msgstr "Samba sunucusu ve yardımcı uygulamaları"
 
 #. Type: boolean
 #. Description
@@ -193,7 +193,6 @@ msgstr "smb.conf dosyası otomatik olarak yapılandırılsın mı?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "The rest of the configuration of Samba deals with questions that affect "
 "parameters in /etc/samba/smb.conf, which is the file used to configure the "
@@ -204,30 +203,28 @@ msgid ""
 msgstr ""
 "Geri kalan Samba yapılandırması, Samba uygulamalarını (nmbd ve smbd) "
 "yapılandırmak için kullanılan /etc/samba/smb.conf dosyasındaki parametreleri "
-"etkileyen sorularla devam edecektir. Mevcut smb.conf dosyası, debconf'u "
-"şaşırtabilecek ve smb.conf dosyanızı elle değiştirilmesi zorunda kılacak bir "
-"'include' satırı veya birden fazla satır boyunca devam eden bir seçenek "
-"içeriyor ve tekrar çalışabilmesi için smb.conf dosyanızın sizin tarafınızdan "
-"değiştirilmesi gerekiyor."
+"etkileyen sorularla sürecektir. Varolan smb.conf dosyası, kendiliğinden "
+"yapılandırma sürecini şaşırtabilecek bir \"include\" satırı ya da birden "
+"fazla satıra yayılan bir seçenek içerdiğinden Samba'nın yeniden "
+"çalışabilmesi için bu dosyanın elle düzenlenmesi gerekebilir."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "If you do not choose this option, you will have to handle any configuration "
 "changes yourself, and will not be able to take advantage of periodic "
 "configuration enhancements."
 msgstr ""
-"Eğer bu seçeneği seçmezseniz, Sabma yapılandırılmamış olarak kalacak ve "
-"bütün yapılandırma değişikliklerini kendiniz yapmak zorunda kalacaksınız."
+"Eğer bu seçeneği seçmezseniz, bütün yapılandırma değişikliklerini kendiniz "
+"yapmak zorunda kalacak ve periyodik yapılandırma iyileştirmelerinin "
+"avantajlarını kullanamayacaksınız."
 
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
 msgid "Workgroup/Domain Name:"
-msgstr "Etki Alanı İsmi:"
+msgstr "Çalışma Grubu / Etki Alanı Adı:"
 
 #. Type: string
 #. Description
@@ -238,6 +235,11 @@ msgid ""
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
+"Lütfen bu sistem için bir çalışma grubu (workgroup) belirtin. Bu ayar "
+"sistemin sunucu olarak kullanıldığı durumda hangi çalışma grubunda "
+"gözükeceğini belirleyeceği gibi, ağda yapılacak göz atmalarda öntanımlı "
+"çalışma grubu olacak ve ayrıca \"security=domain\" ayarında alan adı olarak "
+"kullanılacaktır."
 
 #. Type: boolean
 #. Description
@@ -248,35 +250,35 @@ msgstr "Parola şifrelenmesi kullanılsın mı?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:5001
-#, fuzzy
 msgid ""
 "All recent Windows clients communicate with SMB/CIFS servers using encrypted "
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
-"Yeni Windows istemcileri SBM sunucularıyla şifrelenmiş parolalar kullanarak "
-"iletişim kurarlar. Eğer düz metin parolaları kullanmak istiyorsanız Windows "
-"registry içinde bir parametreyi değiştirmelisiniz."
+"Yeni Windows istemcileri SMB/CIFS sunucularıyla şifrelenmiş parolalar "
+"kullanarak iletişim kurarlar. Eğer düz metin parolalar kullanmak "
+"istiyorsanız Windows kayıt defterinde bir parametreyi değiştirmeniz "
+"gerekecektir."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:5001
-#, fuzzy
 msgid ""
 "Enabling this option is highly recommended as support for plain text "
 "passwords is no longer maintained in Microsoft Windows products. If you do, "
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
-"Bu işlemi yapmanız şiddetle önerilir. Eğer yapacaksanız, geçerli bir /etc/"
-"samba/smbpasswd dosyanız olduğundan emin olun ve smbpasswd komutunu "
-"kullanarak bütün kullanıcılar için parola belirleyin."
+"Düz metin parola desteği artık Microsoft Windows ürünlerinde bulunmadığından "
+"bu seçeneği kullanmanız şiddetle önerilir. Eğer bu seçeneği kullanacaksanız, "
+"geçerli bir /etc/samba/smbpasswd dosyanız olduğundan emin olunuz ve "
+"smbpasswd komutunu kullanarak bütün kullanıcılar için parola belirleyiniz."
 
 #. Type: title
 #. Description
 #: ../samba.templates:1001
 msgid "Samba server"
-msgstr ""
+msgstr "Samba sunucusu"
 
 #. Type: select
 #. Choices
@@ -407,3 +409,10 @@ msgstr ""
 
 #~ msgid "daemons, inetd"
 #~ msgstr "artalan süreçleri, inetd"
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Daha ayrıntılı bilgi için samba-doc paketinden /usr/share/doc/samba-doc/"
+#~ "htmldocs/ENCRYPTION.html dosyasına göz atınız."

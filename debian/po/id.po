@@ -155,13 +155,13 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:1001
 msgid "Samba server and utilities"
-msgstr ""
+msgstr "Server samba dan peralatan"
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:2001
 msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr ""
+msgstr "Ubah smb.conf agar menggunakan setelan WINS dari DHCP?"
 
 #. Type: boolean
 #. Description
@@ -173,19 +173,24 @@ msgid ""
 "to your smb.conf file so that DHCP-provided WINS settings will automatically "
 "be read from /etc/samba/dhcp.conf."
 msgstr ""
+"Jika komputer Anda mendapatkan alamat IP dari sebuah server DHCP di "
+"jaringan, server DHCP tersebut mungkin juga memberikan info tentang server "
+"WINS (\"server NetBIOS\") yang tersedia dalam jaringan. Berkas smb.conf "
+"perlu diubah agar setelan WINS dari server DHCP dapat dibaca otomatis dari /"
+"etc/samba/dhcp.conf."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:2001
 msgid ""
 "The dhcp3-client package must be installed to take advantage of this feature."
-msgstr ""
+msgstr "Paket dhcp3-client harus dipasang agar fitur ini dapat digunakan."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
 msgid "Configure smb.conf automatically?"
-msgstr ""
+msgstr "Konfigurasikan smb.conf secara otomatis?"
 
 #. Type: boolean
 #. Description
@@ -198,24 +203,30 @@ msgid ""
 "automated configuration process and require you to edit your smb.conf by "
 "hand to get it working again."
 msgstr ""
+"Konfigurasi Samba selanjutnya berhubungan dengan pertanyaan seputar "
+"parameter dalam /etc/samba/smb.conf yang digunakan untuk mengonfigurasi "
+"program Samba (nmbd dan smbd). Konfigurasi smb.conf Anda saat ini berisi "
+"setelah yang lebih dari satu baris, yang dapat membingungkan proses "
+"konfigurasi otomatis. Anda harus mengubah smb.conf secara manual agar dapat "
+"digunakan lagi."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "If you do not choose this option, you will have to handle any configuration "
 "changes yourself, and will not be able to take advantage of periodic "
 "configuration enhancements."
 msgstr ""
-"Jika Anda tidak mengambil pilihan ini,  Samba tidak akan diatur dan anda "
-"harus mengatur itu sendiri"
+"Jika Anda tidak mengambil pilihan ini, Anda harus menangani sendiri semua "
+"konfigurasi dan tidak dapat memanfaatkan keuntungan dari pembaharuan "
+"konfigurasi secara periodik."
 
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
 msgid "Workgroup/Domain Name:"
-msgstr ""
+msgstr "Nama Domain/Workgrop:"
 
 #. Type: string
 #. Description
@@ -226,12 +237,16 @@ msgid ""
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
+"Mohon tentukan workgroup untuk sistem ini. Pengaturan kontrol workgroup apaa "
+"yang akan tampil jika digunakan sebagai server, workgrup bawaan akan "
+"digunakan ketika menjelajahi dengan berbagai frontends, dan nama doman "
+"digunakan dengan pengaturan \"security=domain\"."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:5001
 msgid "Use password encryption?"
-msgstr ""
+msgstr "Gunakan enkripsi sandi?"
 
 #. Type: boolean
 #. Description
@@ -241,6 +256,9 @@ msgid ""
 "passwords. If you want to use clear text passwords you will need to change a "
 "parameter in your Windows registry."
 msgstr ""
+"Semua klien Windows terbaru berkomunikasi dengan server SMB/CIFS menggunakan "
+"sandi terenkripsi. Jika Anda ingin menggunakan sandi teks, Anda harus "
+"mengubah parameter tersebut dalam register Windows."
 
 #. Type: boolean
 #. Description
@@ -251,30 +269,34 @@ msgid ""
 "make sure you have a valid /etc/samba/smbpasswd file and that you set "
 "passwords in there for each user using the smbpasswd command."
 msgstr ""
+"Mengaktifkan pilihan ini sangat dianjurkan karena dukungan sandi teks sudah "
+"tidak didukung oleh produk Microsoft Windows. Jika demikian, pastikan Anda "
+"memiliki berkas valid /etc/samba/smbpasswd dan anda menentukan password "
+"disana untuk setiap pengguna menggunakan perintah smbpasswd."
 
 #. Type: title
 #. Description
 #: ../samba.templates:1001
 msgid "Samba server"
-msgstr ""
+msgstr "Server Samba"
 
 #. Type: select
 #. Choices
 #: ../samba.templates:2001
 msgid "daemons"
-msgstr ""
+msgstr "server"
 
 #. Type: select
 #. Choices
 #: ../samba.templates:2001
 msgid "inetd"
-msgstr ""
+msgstr "inetd"
 
 #. Type: select
 #. Description
 #: ../samba.templates:2002
 msgid "How do you want to run Samba?"
-msgstr ""
+msgstr "Bagaimana Anda ingin menjalankan Samba"
 
 #. Type: select
 #. Description
@@ -283,6 +305,8 @@ msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
+"Server samba (smbd) dapat berjalan sebagai server normal (daemon) atau dari "
+"inetd. Sangat dianjurkan menjalankannya sebagai server normal."
 
 #~ msgid "Set up Samba 4 as a PDC?"
 #~ msgstr "Set up Samba 4 sebagai PDC?"
@@ -295,3 +319,34 @@ msgstr ""
 #~ "Bahkan ketika menggunakan opsi ini, anda harus mengatur DNS sedemikian "
 #~ "rupa sehingga melayani data dari berkas zona dalam direktori tersebut "
 #~ "sebelum Anda dapat menggunakan domain Active Directory."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "Buat basis data sandi samba dalam /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "Agar kompatibel dengan semua versi Windows, Samba harus dikonfigurasi "
+#~ "untuk menggunakan sandi terenkripsi. Hal ini mengharuskan sandi pengguna "
+#~ "disimpan dalam berkas selain /etc/passwd. Berkas ini dapat dibuat "
+#~ "otomatis, tetapi kata sandi harus ditambahkan secara manual dengan "
+#~ "menjalankan perintah smbpasswd dan diperbaharui setiap ada perubahan "
+#~ "pengguna."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "Jika Anda tidak membuatnya, Anda harus mengonfigurasi ulang Samba (dan "
+#~ "juga komputer klien) untuk menggunakan sandi teks-murni."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Lihat /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html dalam paket samba-doc."

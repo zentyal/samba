@@ -192,7 +192,6 @@ msgstr "smb.conf འདི་རང་བཞིན་གྱིས་རིམ་
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "The rest of the configuration of Samba deals with questions that affect "
 "parameters in /etc/samba/smb.conf, which is the file used to configure the "
@@ -210,7 +209,6 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "If you do not choose this option, you will have to handle any configuration "
 "changes yourself, and will not be able to take advantage of periodic "
@@ -222,7 +220,6 @@ msgstr ""
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
 msgid "Workgroup/Domain Name:"
 msgstr "ལཱ་གི་སྡེ་ཚན་/ཌོ་མེན་མིང་:"
 
@@ -379,3 +376,10 @@ msgstr ""
 #~ "ཡོད་བཞིན་པའི་ smbpasswd ཡིག་སྣོད་འདི་རང་བཞིན་གྱིས་སྦེ་ /var/lib/samba/passdb.tdbལུ་ གཞི་"
 #~ "གནས་སྤོ་ནི་ཨིན་ན་ ཁྱོད་ར་ངེས་དཔྱད་འབད་གནང་། ཁྱོད་ཀྱིས་pdb རྒྱབ་མཐའ་ (དཔེར་ན་ ཨེལ་ཌི་ཨེ་པི་) "
 #~ "འདི་དེ་གི་ཚབ་སྦེ་ལག་ལེན་འཐབ་ནིའི་འཆར་གཞི་ཡོད་པ་ཅིན་ གདམ་ཁ་འདི་ག་གདམས།"
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "ཁ་གསལ་མཁྱེན་ནིའི་དོན་ལུ་ སམ་བ་-ཌོཀ་ཐུམ་སྒྲིལ་ནང་ལས་ /usr/share/doc/samba-doc/"
+#~ "htmldocs/ENCRYPTION.html ལུ་ལྟ།"

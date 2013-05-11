@@ -161,8 +161,9 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:2001
 msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr ""
+msgstr "Se modifică smb.conf pentru a folosi configurațiile WINS din DHCP?"
 
+# RO: prefer să nu folosesc termeni de genul „calculatorul dvs.”; de multe ori nu e cazul și sună mai puțin profesional.
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:2001
@@ -173,6 +174,11 @@ msgid ""
 "to your smb.conf file so that DHCP-provided WINS settings will automatically "
 "be read from /etc/samba/dhcp.conf."
 msgstr ""
+"Dacă acest calculator primește informațiile IP (de configurare a rețelei) de "
+"la un server DHCP din rețea, acel server ar putea să ofere informații și "
+"despre serverele WINS („Serverele NetBIOS de nume”) prezente în rețea. Acest "
+"lucru necesită o schimbare a fișierului smb.conf astfel încât configurațiile "
+"WINS oferite prin DHCP vor fi citite automat din /etc/samba/dhcp.conf."
 
 #. Type: boolean
 #. Description
@@ -180,12 +186,14 @@ msgstr ""
 msgid ""
 "The dhcp3-client package must be installed to take advantage of this feature."
 msgstr ""
+"Pachetul dhcp3-client trebuie să fie instalat pentru a beneficia de această "
+"facilitate."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
 msgid "Configure smb.conf automatically?"
-msgstr ""
+msgstr "Se configurează smb.conf automat?"
 
 #. Type: boolean
 #. Description
@@ -198,25 +206,31 @@ msgid ""
 "automated configuration process and require you to edit your smb.conf by "
 "hand to get it working again."
 msgstr ""
+"Restul configurației Samba tratează întrebările care afectează parametrii "
+"din /etc/samba/smb.conf, fișierul utilizat pentru a configura programele "
+"Samba (nmbd și smbd). Actualul fișier smb.conf conține o linie „include” sau "
+"o opțiune care se desfășoară de-a lungul a mai multor linii, lucru care ar "
+"putea să creeze confuzie în procesul de configurare automată și ar putea "
+"duce la necesitatea editării manuale a fișierului smb.conf pentru a-l face "
+"din nou funcțional."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "If you do not choose this option, you will have to handle any configuration "
 "changes yourself, and will not be able to take advantage of periodic "
 "configuration enhancements."
 msgstr ""
-"Dacă nu selectați această opțiune, serviciul Samba va rămâne neconfigurat și "
-"va trebui să-l configurați manual."
+"Dacă nu selectați aceasta opțiune, va trebui să gestionați personal orice "
+"schimbare a configurației și nu veți putea beneficia de îmbunătățirile "
+"periodice ale configurației."
 
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
 msgid "Workgroup/Domain Name:"
-msgstr "Numele de domeniu:"
+msgstr "Grupul de lucru/Numele de domeniu:"
 
 #. Type: string
 #. Description
@@ -232,7 +246,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:5001
 msgid "Use password encryption?"
-msgstr ""
+msgstr "Se folosesc parole criptate? "
 
 #. Type: boolean
 #. Description
@@ -263,19 +277,19 @@ msgstr ""
 #. Choices
 #: ../samba.templates:2001
 msgid "daemons"
-msgstr ""
+msgstr "demoni"
 
 #. Type: select
 #. Choices
 #: ../samba.templates:2001
 msgid "inetd"
-msgstr ""
+msgstr "inetd"
 
 #. Type: select
 #. Description
 #: ../samba.templates:2002
 msgid "How do you want to run Samba?"
-msgstr ""
+msgstr "Cum doriți să rulați Samba?"
 
 #. Type: select
 #. Description
@@ -284,6 +298,8 @@ msgid ""
 "The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
 "daemon is the recommended approach."
 msgstr ""
+"Demonul Samba smbd poate rula ca un demon normal sau din inetd. Rularea ca "
+"demon este recomandată."
 
 #~ msgid "Set up Samba 4 as a PDC?"
 #~ msgstr "Se configurează Samba 4 ca PDC?"
@@ -314,3 +330,34 @@ msgstr ""
 #~ msgstr ""
 #~ "Precizați domeniul de care acest server va aparține când va fi chestionat "
 #~ "de clienți."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "Se creează baza de date cu parole /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "Pentru compatibilitate cu majoritatea versiunilor de Windows, Samba "
+#~ "trebuie să fie configurată să folosească parole criptate. Acest lucru "
+#~ "necesită ca parolele utilizatorilor să fie stocate în alt fișier decât /"
+#~ "etc/passwd.  Acest fișier poate fi creat automat, dar parolele trebuie să "
+#~ "fie adăugate manual prin rularea comenzii smbpasswd și, în viitor, "
+#~ "trebuie ținut la zi."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "Dacă nu-l creați, va trebui să reconfigurați Samba (probabil și "
+#~ "calculatoarele client) să folosească parole necriptate."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "A se vedea /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/"
+#~ "pwencrypt.html din pachetul samba-doc pentru mai multe detalii."

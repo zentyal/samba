@@ -186,7 +186,6 @@ msgstr "Seadistada smb.conf automaatselt?"
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "The rest of the configuration of Samba deals with questions that affect "
 "parameters in /etc/samba/smb.conf, which is the file used to configure the "
@@ -204,7 +203,6 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
-#, fuzzy
 msgid ""
 "If you do not choose this option, you will have to handle any configuration "
 "changes yourself, and will not be able to take advantage of periodic "
@@ -216,7 +214,6 @@ msgstr ""
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
 msgid "Workgroup/Domain Name:"
 msgstr "Töögrupi/domeeni nimi:"
 
@@ -371,3 +368,10 @@ msgstr ""
 #~ "Palun kinnita, kas soovid olemasoleva smbpasswd faili automaatset "
 #~ "ülekandmist /var/lib/samba/passdb.tdb. Ära nõustu, kui soovid kasutada "
 #~ "hoopis mõnd muud pdb lahendust (näiteks LDAP)."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "End detailidega kurssi viimaks loe /usr/share/doc/samba-doc/htmldocs/"
+#~ "ENCRYPTION.html pakist samba-doc."

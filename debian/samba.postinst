@@ -5,53 +5,23 @@
 #
 
 set -e
-# Handle debconf
-. /usr/share/debconf/confmodule
-
-INITCONFFILE=/etc/default/samba
 
 # We generate several files during the postinst, and we don't want
 #	them to be readable only by root.
 umask 022
 
+if dpkg --compare-versions "$2" lt-nl 2:3.6.15-2; then
+	if [ -e /etc/default/samba ]; then
+		# this config file's one setting is now obsolete; remove it
+		# unconditionally
+		rm -f /etc/default/samba
+	fi
 
-# Generate configuration file if it does not exist, using default values.
-[ -r "${INITCONFFILE}" ] || {
-	echo Generating ${INITCONFFILE}... >&2
-	cat >${INITCONFFILE} <<'EOFMAGICNUMBER1234'
-# Defaults for samba initscript
-# sourced by /etc/init.d/samba
-# installed at /etc/default/samba by the maintainer scripts
-#
-
-#
-# This is a POSIX shell fragment
-#
-
-# How should Samba (smbd) run? Possible values are "daemons"
-#	or "inetd".
-RUN_MODE=""
-EOFMAGICNUMBER1234
-}
-
-# ------------------------- Debconf questions start ---------------------
-
-# Run Samba as daemons or from inetd?
-db_get samba/run_mode || true
-RUN_MODE="${RET}"
-
-TMPFILE=/etc/default/samba.dpkg-tmp
-sed -e "s/^[[:space:]]*RUN_MODE[[:space:]]*=.*/RUN_MODE=\"${RUN_MODE}\"/" \
-        < ${INITCONFFILE} >${TMPFILE}
-chmod a+r ${TMPFILE}
-mv -f ${TMPFILE} ${INITCONFFILE}
-
-# Done with debconf now.
-db_stop
-
-umask 022
-
-# ------------------------- Debconf questions end ---------------------
+	# Remove NetBIOS entries from /etc/inetd.conf
+	if [ -x /usr/sbin/update-inetd ]; then
+		update-inetd --remove netbios-ssn
+	fi
+fi
 
 # bug #454770
 if dpkg --compare-versions "$2" lt-nl 2:3.6.13-2 \
@@ -69,19 +39,6 @@ if dpkg --compare-versions "$2" lt-nl 2:3.6.13-2 \
 	&& ! [ -e /var/lib/samba/idmap2.tdb ]
 then
 	mv /etc/samba/idmap2.tdb /var/lib/samba/idmap2.tdb
-fi
-
-# We want to add these entries to inetd.conf commented out. Otherwise
-#	UDP traffic could make inetd to start nmbd or smbd right during
-#	the configuration stage.
-if [ -z "$2" ]; then
-	update-inetd --add "#<off># netbios-ssn	stream	tcp	nowait	root	/usr/sbin/tcpd	/usr/sbin/smbd"
-fi
-
-if [ "$RUN_MODE" = "daemons" ]; then
-	update-inetd --disable netbios-ssn
-else
-	update-inetd --enable netbios-ssn
 fi
 
 # add the sambashare group

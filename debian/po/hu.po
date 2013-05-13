@@ -6,8 +6,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-05-13 11:53-0700\n"
 "PO-Revision-Date: 2007-03-13 09:20+0100\n"
 "Last-Translator: SZERVÁC Attila <sas@321.hu>\n"
 "Language-Team: Hungarian <hu@li.org>\n"
@@ -143,101 +143,3 @@ msgstr ""
 "hogy érvényes /etc/samba/smbpasswd fájllal rendelkezel és hogy beállítottad "
 "a jelszavakat minden felhasználóhoz a smbpasswd paranccsal."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "démonok"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Hogyan induljon a Samba?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Az smbd Samba démon futhat normál démonként vagy az inetd-n keresztül. A "
-"démonként való futtatása a javasolt beállítás."
-
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr "Létrehozod a samba jelszóadatbázist (/var/lib/samba/passdb.tdb)?"
-
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "Az újabb Windows kliensekkel való kompatibilitás érdekében a Samba-t "
-#~ "kódolt jelszavak használatára kell beállítani. Ez megköveteli a "
-#~ "jelszavak /etc/passwd fájltól különálló tárolását. Ez a fájl "
-#~ "automatikusan létrejön, de a jelszavakat kézzel kell felvenni az "
-#~ "smbpasswd parancs futtatásával és a továbbiakban kezelni."
-
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "Ha nem hozod létre, újra be kell állítani a Samba-t (és valószínűleg a "
-#~ "klienseket is) a sima szöveges jelszavakhoz."
-
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "Lásd a samba-doc csomag /usr/share/doc/samba-doc/htmldocs/Samba3-"
-#~ "Developers-Guide/pwencrypt.html odalát a részletekért."
-
-#~ msgid "Chaining passdb backends is not supported"
-#~ msgstr "A passdb hátterek láncolása nem támogatott"
-
-#~ msgid ""
-#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
-#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
-#~ "conf file contains a passdb backend parameter consisting of a list of "
-#~ "backends.  The new version of samba will not work until you correct this."
-#~ msgstr ""
-#~ "A 3.0.23 verziótól a samba nem támogatja több háttér láncolását a "
-#~ "\"passdb backend\" paraméterben. Ezzel szemben úgy fest, az smb.conf "
-#~ "fájlod egy hátterek listájából álló passdb háttér paramétert tartalmaz. A "
-#~ "samba új verziója ennek javításával fog működni."
-
-#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-#~ msgstr ""
-#~ "Áthelyezed a /etc/samba/smbpasswd tartalmát a /var/lib/samba/passdb.tdb-"
-#~ "be?"
-
-#~ msgid ""
-#~ "Samba 3.0 introduced a more complete SAM database interface which "
-#~ "supersedes the /etc/samba/smbpasswd file."
-#~ msgstr ""
-#~ "A Samba 3.0 sokkal átfogóbb SAM adatbázis felületet ad, mellyel elavul a /"
-#~ "etc/samba/smbpasswd fájl."
-
-#~ msgid ""
-#~ "Please confirm whether you would like the existing smbpasswd file to be "
-#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
-#~ msgstr ""
-#~ "Erősítsd meg a létező smbpasswd fájl áthelyezését a /var/lib/samba/passdb."
-#~ "tdb fájlba. Ha másik pdb hátteret használnál (például LDAP), válaszolj "
-#~ "nemmel."

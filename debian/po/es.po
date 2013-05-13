@@ -38,8 +38,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: Samba 2:3.5.8\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-05-13 11:53-0700\n"
 "PO-Revision-Date: 2011-05-12 22:37+0200\n"
 "Last-Translator: Omar Campagne <ocampagne@gmail.com>\n"
 "Language-Team: Debian Spanish <debian-l10n-spanish@lists.debian.org>\n"
@@ -178,71 +178,3 @@ msgstr ""
 "de que tiene un fichero «/etc/samba/smbpasswd» válido, donde defina las "
 "contraseñas para cada usuario usando la orden «smbpasswd»."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr "Servidor Samba"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "demonios"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "¿Cómo quiere que se ejecute Samba?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"El demonio de Samba «smbd» puede ejecutarse como un demonio normal "
-"independiente o iniciarse desde el demonio «inetd». Se recomienda que se "
-"ejecute como demonio independiente."
-
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr ""
-#~ "¿Desea crear la base de datos de contraseñas «/var/lib/samba/passdb.tdb»?"
-
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "Hay que configurar Samba para que use contraseñas cifradas para mantener "
-#~ "la compatibilidad con el comportamiento por omisión de la mayoría de los "
-#~ "sistemas Windows. Para hacer esto es necesario crear un fichero, distinto "
-#~ "de «/etc/passwd», donde se guarden las contraseñas de los usuarios. El "
-#~ "fichero se puede crear automáticamente, aunque es necesario añadir las "
-#~ "contraseñas manualmente mediante el programa «smbpasswd» y mantenerlas al "
-#~ "día."
-
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "Es imprescindible que configure Samba (y probablemente también los "
-#~ "sistemas cliente) para que use contraseñas en texto claro si no crea este "
-#~ "fichero."
-
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "Si desea más información consulte «/usr/share/doc/samba-doc/htmldocs/"
-#~ "ENCRYPTION.html», disponible en el paquete samba-doc."

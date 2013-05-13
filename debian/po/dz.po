@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_po.pot\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-05-13 11:53-0700\n"
 "PO-Revision-Date: 2007-03-13 02:22+0530\n"
 "Last-Translator: translator <pemai_jurmey@hotmail.com>\n"
 "Language-Team: dzongkha <pgeyleg@dit.gov.bt>\n"
@@ -153,100 +153,3 @@ msgstr ""
 "ནུས་ལྡན་གྱི་/etc/samba/smbpasswd ཡིག་སྣོད་ཅིག་དགོཔ་དང་ འ་ནི་འདི་ཁྱོད་ཀྱིས་ smbpasswd བརྡ་བཀོད་"
 "ལག་ལེན་གྱི་ཐོག་ལས་ ལག་ལེན་པ་རེ་བཞིན་གྱི་དོན་ལས་ དེ་ནང་ལུ་ཆོག་ཡིག་གཞི་སྒྲིག་འབད། "
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "ཌེ་མཱོནསི་"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "ཁྱོད་ཀྱིས་ སམ་བ་འདི་ག་དེ་སྦེ་གཡོག་བཀོལ་དགོ་མནོཝ་སྨོ?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"སམ་བ་ཌེ་མཱོན་smbdའདི་ སྤྱིར་བཏང་ཌེ་མཱོན་སྦེ་ ཡང་ན་ inetdནང་ལས་ གཡོག་བཀོལ་ཚུགས། ཌེ་མཱོན་སྦེ་གཡོག་"
-"བཀོལ་མི་འདི་ འོས་སྦྱོར་འབད་ཡོད་པའི་རྩར་ལེན་ཨིན།"
-
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr ""
-#~ "སམ་བ་ཆོག་ཡིག་གནད་སྡུད་གཞི་རྟེན་ /var/lib/samba/passdb.tdb གསར་བསྐྲུན་འབད་ནི་ཨིན་ན་?"
-
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "ཝིན་ཌཱསི་གི་ཐོན་རིམ་མང་ཤོས་ཅིག་ནང་ སྔོན་སྒྲིག་དང་བཅས་མཐུན་འགྱུར་ཅན་ཨིན་དགོ་པ་ཅིན་ གསང་བཟོས་ཆོག་"
-#~ "ཡིག་ལག་ལེན་འཐབ་ནི་ལུ་ སམ་བ་གིས་རིམ་སྒྲིག་འབད་དགོཔ་ཨིན།  /etc/passwdལས་སོ་སོར་འཕྱལ་ཡོད་པའི་"
-#~ "ཡིག་སྣོད་ཅིག་གསོག་འཇོག་འབད་ནིའི་དོན་ལས་འདི་ལུ་ ལག་ལེན་པའི་ཆོག་ཡིག་དགོཔ་ཨིན། འ་ནི་ཡིག་སྣོད་འདི་ "
-#~ "རང་བཞིན་གྱིས་འབད་གསར་བསྐྲུན་འབད་ཚུགས་ དེ་འབདཝ་ད་ ཆོག་ཡིག་ཚུ་ smbpasswd གཡོག་བཀོལ་ཐོག་ལུ་ "
-#~ "ལག་ཐོག་ལས་ཁ་སྐོང་བརྐྱབ་དགོཔ་དང་ མ་འོངས་པ་ལུ་འདི་ དུས་མཐུན་བཟོ་སྟེ་བཞག་དགོ"
-
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "ཁྱོད་ཀྱིས་གསར་བསྐྲུན་མ་འབད་བ་ཅིན་ ཚིག་ཡིག་རྐྱང་པོའི་ཆོག་ཡིག་ལག་ལེན་འཐབ་ནི་ལུ་ སམ་བ་(དང་ ཁྱོད་"
-#~ "རའི་ཞབས་ཏོག་སྤྱོད་མིའི་མ་འཕྲུལ་)འདི་ ལོག་རིམ་སྒྲིག་འབད་དགོ"
-
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "ཁ་གསལ་མཁྱེན་ནིའི་དོན་ལུ་ སམ་བ་-ཌོཀ་ཐུམ་སྒྲིལ་ནང་ལས་ /usr/share/doc/samba-doc/"
-#~ "htmldocs/ENCRYPTION.html ལུ་ལྟ།"
-
-#~ msgid "Chaining passdb backends is not supported"
-#~ msgstr "རྒྱུན་ཐག་ passdb རྒྱབ་མཐའ་འདི་ རྒྱབ་སྐྱོར་མ་འབད་བས་"
-
-#~ msgid ""
-#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
-#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
-#~ "conf file contains a passdb backend parameter consisting of a list of "
-#~ "backends.  The new version of samba will not work until you correct this."
-#~ msgstr ""
-#~ "འཐོན་རིམ་ ༣.༠.༢༣ གྱིས་འགོ་བཙུགས་ཏེ་ སམ་བ་གིས་ད་ལས་ཕར་ \"passdb backend\" ཚད་བཟུང་"
-#~ "ནང་ རྒྱུན་ཐག་སྣ་མང་རྒྱབ་མཐའ་ཚུ་ལུ་ རྒྱབ་སྐྱོར་མི་འབདཝ་ཨིན། དེ་ཡང་ ཁྱོད་ཀྱི་ smb.conf ཡིག་སྣོད་"
-#~ "ནང་ རྒྱབ་མཐའི་ཐོ་ཡིག་ཅིག་ཆ་སྟེ་ passdb རྒྱབ་མཐའ་ཚད་བཟུང་དང་ལྡནམ་སྦེ་འབྱུངམ་ཨིན། སམ་བའི་འཐོན་"
-#~ "རིམ་གསརཔ་འདི་ ཁྱོད་ཀྱིས་ དེ་ནོར་བཅོས་མ་འབད་ཚུན་ཚོད་ ལཱ་མི་འབད།"
-
-#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-#~ msgstr " /etc/samba/smbpasswdའདི་  /var/lib/samba/passdb.tdb ལུ་སྤོ་ནི་ཨིན་ན་?"
-
-#~ msgid ""
-#~ "Samba 3.0 introduced a more complete SAM database interface which "
-#~ "supersedes the /etc/samba/smbpasswd file."
-#~ msgstr ""
-#~ "སབ་མ་༣.༠ གིས་/etc/samba/smbpasswd ཡིག་སྣོད་འཛིན་པའི་  ཨེསི་ཨེ་ཨེམ་ གནད་སྡུད་གཞི་རྟེན་ ངོས་"
-#~ "འདྲ་བ་ཆ་ཚང་ཅིག་འགོ་བཙུགས་ཡི།"
-
-#~ msgid ""
-#~ "Please confirm whether you would like the existing smbpasswd file to be "
-#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
-#~ msgstr ""
-#~ "ཡོད་བཞིན་པའི་ smbpasswd ཡིག་སྣོད་འདི་རང་བཞིན་གྱིས་སྦེ་ /var/lib/samba/passdb.tdbལུ་ གཞི་"
-#~ "གནས་སྤོ་ནི་ཨིན་ན་ ཁྱོད་ར་ངེས་དཔྱད་འབད་གནང་། ཁྱོད་ཀྱིས་pdb རྒྱབ་མཐའ་ (དཔེར་ན་ ཨེལ་ཌི་ཨེ་པི་) "
-#~ "འདི་དེ་གི་ཚབ་སྦེ་ལག་ལེན་འཐབ་ནིའི་འཆར་གཞི་ཡོད་པ་ཅིན་ གདམ་ཁ་འདི་ག་གདམས།"

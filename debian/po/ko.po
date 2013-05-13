@@ -3,8 +3,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-05-13 11:53-0700\n"
 "PO-Revision-Date: 2007-03-14 09:28-0400\n"
 "Last-Translator: Sunjae Park <darehanl@gmail.com>\n"
 "Language-Team: Korean <debian-l10n-korean@lists.debian.org>\n"
@@ -136,99 +136,3 @@ msgstr ""
 "smbpasswd 파일이 제대로이고 smbpasswd 명령을 사용하여 각 사용자들의 비밀번호"
 "를 전부 담고 있는지 확인하십시오."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "데몬"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Samba를 어떻게 실행하시겠습니까?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Samba의 데몬인 smbd은 일반적인 데몬으로 실행할 수도 있고 inetd을 통해 실행할 "
-"수도 있습니다. 데몬으로 실행할 것을 권장합니다."
-
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr "samba의 비밀번호 데이터베이스 /var/lib/samba/passdb.tdb를 만들까요?"
-
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "대부분의 윈도우 버전들과의 호환성을 위해 Samba는 암호화된 비밀번호를 사용"
-#~ "하도록 해야 합니다. 이를 위해서는 사용자들의 비밀번호를 /etc/passwd와 다"
-#~ "른 곳에 저장해야 합니다. 이 파일은 자동으로 생성할 수는 있지만, 비밀번호들"
-#~ "은 smbpasswd 명령을 통해 직접 입력하셔야 하며 꾸준히 최신 상태로 유지하셔"
-#~ "야 합니다."
-
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "생성하지 않을 경우, Samba(와 대부분의 클라이언트 머신)을 다시 설정하여 플"
-#~ "레인텍스트 비밀번호를 사용하도록 해야 합니다."
-
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "자세한 사항은 samba-doc 꾸러미에서 제공하는 /usr/share/doc/samba-doc/"
-#~ "htmldocs/ENCRYPTION.html를 참조하십시오."
-
-#~ msgid "Chaining passdb backends is not supported"
-#~ msgstr "연쇄 passdb 백엔드는 작업은 지원되지 않습니다"
-
-#~ msgid ""
-#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
-#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
-#~ "conf file contains a passdb backend parameter consisting of a list of "
-#~ "backends.  The new version of samba will not work until you correct this."
-#~ msgstr ""
-#~ "삼바는 3.0.23 버전부터 \"passdb backend\" 매개변수는 더 이상 연쇄 백엔드"
-#~ "를 지원하지 않습니다. smb.conf 파일에 있는 passdb 백엔드 매개변수에 백엔"
-#~ "드 목록이 지정되어 있는 것으로 보입니다. 이것을 바꾸기 전까지는 새 버전의 "
-#~ "삼바가 동작하지 않습니다."
-
-#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-#~ msgstr "/etc/samba/smbpasswd을 /var/lib/samba/passwd.tdb로 옮길까요?"
-
-#~ msgid ""
-#~ "Samba 3.0 introduced a more complete SAM database interface which "
-#~ "supersedes the /etc/samba/smbpasswd file."
-#~ msgstr ""
-#~ "Samba 3.0부터는 /etc/samba/smbpasswd 파일을 대체하며 이전보다 완전한 SAM "
-#~ "데이터베이스 인터페이스를 제공합니다."
-
-#~ msgid ""
-#~ "Please confirm whether you would like the existing smbpasswd file to be "
-#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
-#~ msgstr ""
-#~ "기존의 smbpasswd 파일을 자동으로 /var/lib/samba/passdb.tdb로 옮길 여부를 "
-#~ "결정하여 주십시오. LDAP 등 다른 pdb 백엔드를 사용하고자 할 경우 이 옵션을 "
-#~ "선택하지 마십시오."

@@ -5,8 +5,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba 3.5.8 italian debconf templates\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-05-13 11:53-0700\n"
 "PO-Revision-Date: 2011-05-22 14:07+0200\n"
 "Last-Translator: Luca Monducci <luca.mo@tiscali.it>\n"
 "Language-Team: Italian <debian-l10n-italian@lists.debian.org>\n"
@@ -141,103 +141,3 @@ msgstr ""
 "le password di tutti gli utenti siano state inserite usando il comando "
 "smbpasswd."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr "Server Samba"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "demoni"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Come avviare Samba?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Il demone Samba smbd può essere avviato come un normale demone oppure da "
-"inetd. Si raccomanda l'avvio come demone."
-
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr ""
-#~ "Creare il database delle password di samba /var/lib/samba/passdb.tdb?"
-
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "Per essere compatibile con le impostazioni predefinite di molte versioni "
-#~ "di Windows, Samba deve essere configurato per usare password cifrate. Ciò "
-#~ "richiede che le password degli utenti siano memorizzate in un file "
-#~ "diverso da /etc/passwd. Questo file può essere creato automaticamente ma "
-#~ "le password dovranno essere inserite manualmente usando smbpasswd e in "
-#~ "futuro il file dovrà essere tenuto aggiornato."
-
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "Se non si crea questo file è necessario riconfigurare Samba (e "
-#~ "probabilmente anche le macchine client) per usare password in chiaro."
-
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "Si veda /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/"
-#~ "pwencrypt.html, contenuto nel pacchetto samba-doc, per ulteriori dettagli."
-
-#~ msgid "Chaining passdb backends is not supported"
-#~ msgstr "Il caricamento a catena dei backend passdb non è supportato"
-
-#~ msgid ""
-#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
-#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
-#~ "conf file contains a passdb backend parameter consisting of a list of "
-#~ "backends.  The new version of samba will not work until you correct this."
-#~ msgstr ""
-#~ "A partire dalla versione 3.0.23, samba non supporta più il caricamento a "
-#~ "catena di più backend nel parametro \"passdb backend\". Sembra che il "
-#~ "prorio file smb.conf contenga nel parametro passdb backend un elenco di "
-#~ "backend. La nuova versione di samba non funziona se non si corregge "
-#~ "questo valore."
-
-#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-#~ msgstr "Trasferire /etc/samba/smbpasswd in /var/lib/samba/passdb.tdb?"
-
-#~ msgid ""
-#~ "Samba 3.0 introduced a more complete SAM database interface which "
-#~ "supersedes the /etc/samba/smbpasswd file."
-#~ msgstr ""
-#~ "Samba 3.0 introduce una nuova e più completa interfaccia al database SAM "
-#~ "che sostituisce il file /etc/samba/smbpasswd."
-
-#~ msgid ""
-#~ "Please confirm whether you would like the existing smbpasswd file to be "
-#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
-#~ msgstr ""
-#~ "Confermare se si vuole che il file smbpasswd esistente sia "
-#~ "automaticamente trasferito in /var/lib/samba/passdb.tdb. Invece, se si "
-#~ "pensa di usare un backend pdb diverso (per esempio LDAP), si dovrebbe "
-#~ "rifiutare."

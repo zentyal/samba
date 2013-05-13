@@ -18,8 +18,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-05-13 11:53-0700\n"
 "PO-Revision-Date: 2012-02-24 11:59+0100\n"
 "Last-Translator: Ivan Masár <helix84@centrum.sk>\n"
 "Language-Team: Slovak <sk-i18n@lists.linux.sk>\n"
@@ -151,66 +151,3 @@ msgstr ""
 "uistite, že máte platný súbor /etc/samba/smbpasswd a že v ňom nastavíte "
 "heslá všetkým používateľom príkazom smbpasswd."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr "Samba server"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "démoni"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Ako chcete spúšťať Sambu?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Samba server smbd sa môže spúšťať ako obyčajný démon (odporúča sa) alebo sa "
-"môže spúšťať z inetd."
-
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr "Vytvoriť databázu hesiel /var/lib/samba/passdb.tdb?"
-
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "Kvôli kompatibilite s predvoleným nastavením väčšiny verzií Windows sa "
-#~ "musí Samba nastaviť na používanie šifrovaných hesiel. To vyžaduje "
-#~ "uloženie používateľských hesiel v inom súbore ako /etc/passwd. Tento "
-#~ "súbor sa môže vytvoriť automaticky, ale heslá do neho musíte pridať "
-#~ "manuálne programom smbpasswd a taktiež ho musíte neustále aktualizovať."
-
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "Ak tento súbor nevytvoríte, budete musieť nastaviť Sambu (a zrejme aj "
-#~ "počítače klientov) aby používali nešifrované heslá."
-
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "Podrobnosti nájdete v súbore /usr/share/doc/samba-doc/htmldocs/ENCRYPTION."
-#~ "html z balíka samba-doc."

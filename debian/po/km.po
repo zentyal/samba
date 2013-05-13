@@ -16,8 +16,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_po_km\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-05-13 11:53-0700\n"
 "PO-Revision-Date: 2007-03-13 08:39+0700\n"
 "Last-Translator: Khoem Sokhem <khoemsokhem@khmeros.info>\n"
 "Language-Team: Khmer <support@khmeros.info>\n"
@@ -169,113 +169,3 @@ msgstr ""
 "ឯកសារ /etc/samba/smbpasswd ត្រឹមត្រូវ ហើយ​អ្នក​បាន​កំណត់​ពាក្យ​សម្ងាត់​ ដូច្នេះ​សម្រាប់​អ្នក​ប្រើ​"
 "ម្នាក់ៗ អាច​ប្រើ​ពាក្យ​បញ្ជា smbpasswd ។"
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "ដេមិន "
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "តើ​អ្នក​ចង់​រត់ Samba តាម​វិធី​ណា ?"
-
-#  Type: select
-#  Description
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"ដេមិន Samba smbd អាចរត់ជាដេមិនធម្មតា ឬពី inetd ។ ការរត់ជាដេមិនមួយត្រូវបានផ្ដល់អនុសាសន៍ ។"
-
-#  Type: boolean
-#  Description
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr "បង្កើត​មូលដ្ឋាន​ទិន្នន័យពាក្យសម្ងាត់ samba /var/lib/samba/passdb.tdb ?"
-
-#  Type: boolean
-#  Description
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "ដើម្បី​ឆប​ជា​មួយ​នឹង​លំនាំដើម​នៅ​ក្នុង​កំណែ​ភាគ​ច្រើន​របស់​វីនដូ Samba ត្រូវ​តែ​បាន​កំណត់​រចនាសម្ព័ន្ធ​ដើម្បី​ប្រើ​"
-#~ "ពាក្យ​សម្ងាត់​ដែល​បាន​អ៊ិនគ្រីប ។  វា​ត្រូវ​ការ​ពាក្យសម្ងាត់​អ្នក​ប្រើ​ដើម្បី​ទុក​ក្នុង​ឯកសារ​ដោយ​ឡែក​ពី /etc/"
-#~ "passwd ។ ឯកសារ​នេះ​អាច​ត្រូវ​បាន​បង្កើត​ដោយ​ស្វ័យប្រវត្តិ ប៉ុន្តែ​ពាក្យ​សម្ងាត់​ត្រូវ​តែ​បាន​បន្ថែម​ដោយ​ដៃ​"
-#~ "ដោយ​រត់ smbpasswd និង​ត្រូវ​បាន​ធ្វើឲ្យ​ទាន់​សម័យ​ក្នុង​ពេល​អនាគត ។"
-
-#  Type: boolean
-#  Description
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "ប្រសិន​បើ​អ្នក​មិន​បង្កើត​វា អ្នក​ត្រូវ​តែ​កំណត់​រចនាសម្ព័ន្ធ Samba (និង​ប្រហែល​ជាម៉ាស៊ីន​ភ្ញៀវ​របស់​អ្នក) "
-#~ "ដើម្បី​ប្រើពាក្យសម្ងាត់អត្ថបទ​ធម្មតា ។"
-
-#  Type: boolean
-#  Description
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "សម្រាប់​សេចក្តី​លម្អិត​បន្ថែម​សូម​មើល  /usr/share/doc/samba-doc/htmldocs/Samba3-"
-#~ "Developers-Guide/pwencrypt.html ពី​កញ្ចប់ samba-doc ។"
-
-#~ msgid "Chaining passdb backends is not supported"
-#~ msgstr "មិនគាំទ្រ​ការ​ដាក់​កម្មវិធី​ខាង​ក្រោយ passdb ជា​លំដាប់"
-
-#~ msgid ""
-#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
-#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
-#~ "conf file contains a passdb backend parameter consisting of a list of "
-#~ "backends.  The new version of samba will not work until you correct this."
-#~ msgstr ""
-#~ "ដោយ​ចាប់ផ្ដើម​ជា​មួយកំណែ ៣.០.២៣ samba មិន​គាំទ្រ​កម្មវិធី​ខាង​ក្រោយ​ជា​ច្រើន​ដាក់​ជា​លំដាប់នៅ​ក្នុង​"
-#~ "ប៉ារ៉ាម៉ែត្រ \"កម្មវិធី​ខាង​ក្រោយ passdb\" ។  វា​បង្ហាញ​ថា ឯកសារ smb.conf របស់​អ្នក​"
-#~ "មានប៉ារ៉ាម៉ែត្រ​កម្មវិធី​ខាង​ក្រោយ passdb ដែល​មាន​បញ្ជី​របស់​កម្មវិធី​ខាង​ក្រោយ ។  កំណែ​ថ្មី​របស់ samba "
-#~ "នឹង​មិន​ដំណើរការ​ទេ​រហូត​ដល់​អ្នក​កែវា ។"
-
-#  Type: boolean
-#  Description
-#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-#~ msgstr "ផ្លាស់ទីពី  /etc/samba/smbpasswd ទៅ /var/lib/samba/passdb.tdb ?"
-
-#  Type: boolean
-#  Description
-#~ msgid ""
-#~ "Samba 3.0 introduced a more complete SAM database interface which "
-#~ "supersedes the /etc/samba/smbpasswd file."
-#~ msgstr ""
-#~ "Samba 3.0 បាន​បង្ហាញ​ចំណុច​ប្រទាក់មូលដ្ឋានទិន្នន័យ SAM ពេញលេញ​ជា​ច្រើន​ទៀត ដែលជំនួស​ឯកសារ /"
-#~ "etc/samba/smbpasswd ។"
-
-#  Type: boolean
-#  Description
-#~ msgid ""
-#~ "Please confirm whether you would like the existing smbpasswd file to be "
-#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
-#~ msgstr ""
-#~ "សូម​អះអាង​ថាតើ​អ្នកចង់​ឲ្យ​ឯកសារ​ពាក្យ​សម្ងាត់​ដែល​មាន​ស្រាប់ត្រូវ​បាន​ប្ដូរដោយ​ស្វ័យ​ប្រវត្តិ​ទៅ​ទៅ​ /var/"
-#~ "lib/samba/passdb.tdb ។  កុំជ្រើស​ជម្រើស​នេះ ប្រសិន​បើ​អ្នក​មាន​គម្រោង​ប្រើ​កម្មវិធី​ខាង​ក្រោយ "
-#~ "pdb ដទៃ​ទៀត (ឧទាហរណ៍ LDAP) ជំនួស​វិញ ។"

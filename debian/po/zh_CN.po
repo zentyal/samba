@@ -18,8 +18,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: 3.0.22-1\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-05-13 11:53-0700\n"
 "PO-Revision-Date: 2006-10-03 19:36-0500\n"
 "Last-Translator: Carlos Z.F. Liu <carlosliu@users.sourceforge.ent>\n"
 "Language-Team: Debian Chinese [GB] <debian-chinese-gb@lists.debian.org>\n"
@@ -144,98 +144,3 @@ msgstr ""
 "强烈推荐开启此选项。如果选中，请确保您拥有一个有效的 /etc/samba/smbpasswd 文"
 "件，并且此文件包含用 smbpasswd 命令为每个用户设定的密码。"
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "守护进程"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "您想如何运行 Samba？"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Samba 守护进程 smbd 可以作为普通守护进程或者从 inetd 启动。以守护进程的方式运"
-"行是推荐的方式。"
-
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr "要创建 samba 密码数据库 /var/lib/samba/passdb.tdb 吗？"
-
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "要与大多数 Windows 的默认设置兼容，Samba 必须被设置为使用加密口令。这需要"
-#~ "将用户口令保存独立于 /etc/passwd 之外的一个文件中。此文件可以自动创建，但"
-#~ "口令必须通过运行 smbpasswd 来手动添加并保持更新。"
-
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "如果您无法创建它，您就必须重新配置 samba (可能还包括您的客户端机器) 以使用"
-#~ "明文口令。"
-
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "更多详情，请参阅 smaba-doc 软件包中的 /usr/share/doc/samba-doc/htmldocs/"
-#~ "ENCRYPTION.html。"
-
-#~ msgid "Chaining passdb backends is not supported"
-#~ msgstr "不支持串联 passdb 后端"
-
-#~ msgid ""
-#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
-#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
-#~ "conf file contains a passdb backend parameter consisting of a list of "
-#~ "backends.  The new version of samba will not work until you correct this."
-#~ msgstr ""
-#~ "从版本 3.0.23 开始，samba 的 \"passdb backend\" 参数不再支持多个后端的串"
-#~ "联。而在你的 smb.conf 文件中的 passdb backend 参数包含了一个后端列表。如果"
-#~ "不修改这个问题的话，新版本的 samba 将不能工作。"
-
-#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-#~ msgstr "要移动 /etc/samba/smbpasswd 到 /var/lib/samba/passdb.tdb 吗？"
-
-#~ msgid ""
-#~ "Samba 3.0 introduced a more complete SAM database interface which "
-#~ "supersedes the /etc/samba/smbpasswd file."
-#~ msgstr ""
-#~ "Samba 3.0 引入了一种更完整的 SAM 数据库接口，并用其取代了 /etc/samba/"
-#~ "smbpasswd 文件。"
-
-#~ msgid ""
-#~ "Please confirm whether you would like the existing smbpasswd file to be "
-#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
-#~ msgstr ""
-#~ "请确定您是否想将现有的 smbpasswd 文件自动移植为 /var/lib/samba/passdb."
-#~ "tdb。如果您计划使用其它的 pdb 后端 (如 LDAP) 的话，请不要选中此选项。"
-
-#~ msgid "daemons, inetd"
-#~ msgstr "守护进程, inetd"

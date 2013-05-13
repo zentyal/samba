@@ -49,12 +49,10 @@ case "$1" in
 			fi
 		fi
 
-		if [ "$RUN_MODE" != "inetd" ]; then
-			log_progress_msg "smbd"
-			if ! start-stop-daemon --start --quiet --oknodo --exec /usr/sbin/smbd -- -D; then
-				log_end_msg 1
-				exit 1
-			fi
+		log_progress_msg "smbd"
+		if ! start-stop-daemon --start --quiet --oknodo --exec /usr/sbin/smbd -- -D; then
+			log_end_msg 1
+			exit 1
 		fi
 
 		log_end_msg 0
@@ -73,30 +71,26 @@ case "$1" in
 			rm -f $NMBDPID
 		fi
 
-		if [ "$RUN_MODE" != "inetd" ]; then
-			log_progress_msg "smbd"
-			start-stop-daemon --stop --quiet --pidfile $SMBDPID
-			# Wait a little and remove stale PID file
-			sleep 1
-			if [ -f $SMBDPID ] && ! ps h `cat $SMBDPID` > /dev/null
-			then
-				# Stale PID file (nmbd was succesfully stopped),
-				# remove it (should be removed by smbd itself IMHO.)
-				rm -f $SMBDPID
-			fi
+		log_progress_msg "smbd"
+		start-stop-daemon --stop --quiet --pidfile $SMBDPID
+		# Wait a little and remove stale PID file
+		sleep 1
+		if [ -f $SMBDPID ] && ! ps h `cat $SMBDPID` > /dev/null
+		then
+			# Stale PID file (nmbd was succesfully stopped),
+			# remove it (should be removed by smbd itself IMHO.)
+			rm -f $SMBDPID
 		fi
 
 		log_end_msg 0
 
 		;;
 	reload)
-		if [ "$RUN_MODE" != "inetd" ]; then
-			log_daemon_msg "Reloading /etc/samba/smb.conf" "smbd only"
+		log_daemon_msg "Reloading /etc/samba/smb.conf" "smbd only"
 
-			start-stop-daemon --stop --quiet --signal HUP --pidfile $SMBDPID
+		start-stop-daemon --stop --quiet --signal HUP --pidfile $SMBDPID
 
-			log_end_msg 0
-		fi
+		log_end_msg 0
 		;;
 	restart|force-reload)
 		$0 stop
@@ -109,12 +103,7 @@ case "$1" in
 		if [ "$NMBD_DISABLED" != "Yes" ]; then
 			status_of_proc -p $NMBDPID /usr/sbin/nmbd nmbd || status=$?
 		fi
-		if [ "$RUN_MODE" != "inetd" ]; then
-			status_of_proc -p $SMBDPID /usr/sbin/smbd smbd || status=$?
-		fi
-		if [ "$NMBD_DISABLED" = "Yes" -a "$RUN_MODE" = "inetd" ]; then
-			status="4"
-		fi
+		status_of_proc -p $SMBDPID /usr/sbin/smbd smbd || status=$?
 		exit $status
 		;;
 	*)

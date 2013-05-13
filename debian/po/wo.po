@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: wo\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-05-13 11:53-0700\n"
 "PO-Revision-Date: 2007-04-30 18:13+0000\n"
 "Last-Translator: Mouhamadou Mamoune Mbacke <mouhamadoumamoune@gmail.com>\n"
 "Language-Team: Wolof\n"
@@ -149,103 +149,3 @@ msgstr ""
 "fiise /etc/samba/smbpasswd bu baax, ta nga def foofa baatujall bu "
 "jëfandikukat yéppu. Dangay jëfandikoo komaand bu smbpasswd."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "daemon yi"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Nan nga bëgga doxale samba?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Daemon bu Samba smbd maneesna koo doxal ne ab deamon normaal, maneesna koo "
-"doxale yit ak inetd. Liñuy deŋkaane nak mooy doxalko muy ab daemon."
-
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr ""
-#~ "Ndax ñu sos baasu done bu baatujall yu samba, /var/lib/samba/passdb.tdb?"
-
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "Ngir mana dëppóo ak defóo bu li ëppu ci wersioŋ yu Windows yi, samba "
-#~ "deeskoo wara komfigure muy jëfandikoo baatijall yuñu kiripte. Loolu dafay "
-#~ "laaj ñu deñc baatijall yi ci ab fiise bu bokkul ak /etc/passwd.  Fiise "
-#~ "boobu manessna koo sos sosuk otomatik, waaye kon baatijall yi deesleen "
-#~ "ciy wara dugël ak loxo, doxal smbpasswd, ta buko defee ñu leen di yeesal "
-#~ "saa yuñu ko soxlawaatee."
-
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "Boo ko sosul, kon fawwu nga komfigure Samba (amaana yit sa masin yu "
-#~ "kiliyaŋ yi) def leen ñuy jëfandikoo baatijall yu text normaal (plain "
-#~ "text)."
-
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "Xoolal /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/"
-#~ "pwencrypt.html bi nekk ci paket bu samba-doc, ngir am yaneen leeral."
-
-#~ msgid "Chaining passdb backends is not supported"
-#~ msgstr "Ceene passdb backends manula nekk"
-
-#~ msgid ""
-#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
-#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
-#~ "conf file contains a passdb backend parameter consisting of a list of "
-#~ "backends.  The new version of samba will not work until you correct this."
-#~ msgstr ""
-#~ "Liko dale ci version 3.0.23 ba leegi, samba naŋgootul ceene ay backends "
-#~ "yu bare ci parameetaru \"passdb backend\".   Dafa mel ne nak  sa fiise "
-#~ "smb.conf dafa am parameetaru passdb backend budoon ab list bu ay backend. "
-#~ "version bu samba bu beesbi du naŋgoo dox fii ak ngay defaraat loolu."
-
-#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-#~ msgstr ""
-#~ "Ndax nu toxal /etc/samba/smbpasswd yobbuko ci /var/lib/samba/passdb.tdb?"
-
-#~ msgid ""
-#~ "Samba 3.0 introduced a more complete SAM database interface which "
-#~ "supersedes the /etc/samba/smbpasswd file."
-#~ msgstr ""
-#~ "Samba 3.0 dafa indaale ab interfaas bu baasu done SAM bu gëna mat, buy "
-#~ "wuutu fiise bu /etc/samba/smbpasswd"
-
-#~ msgid ""
-#~ "Please confirm whether you would like the existing smbpasswd file to be "
-#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
-#~ msgstr ""
-#~ "Feddlin baxam bëggnga fiise smbpasswd bifi nekk ñu toxalalko suñu boppy "
-#~ "yobbuko ca /var/lib/samba/passdb.tdb. Bul tann lii bu fekkee yaangi jappa "
-#~ "jëfandikoo baneen paket bu pdb (ci misaal LDAP)."

@@ -1,7 +1,8 @@
 Source: samba
 Section: net
 Priority: optional
-Maintainer: Debian Samba Maintainers <pkg-samba-maint@lists.alioth.debian.org>
+Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+XSBC-Original-Maintainer: Debian Samba Maintainers <pkg-samba-maint@lists.alioth.debian.org>
 Uploaders: Steve Langasek <vorlon@debian.org>, Christian Perrier <bubulle@debian.org>, Noèl Köthe <noel@debian.org>, Jelmer Vernooij <jelmer@debian.org>
 Build-Depends: debhelper (>= 9~), libpam0g-dev, libreadline-dev,
 	libcups2-dev,
@@ -11,7 +12,6 @@ Build-Depends: debhelper (>= 9~), libpam0g-dev, libreadline-dev,
 	libtdb-dev (>= 1.2.6~),
 	libcap-dev [linux-any],
 	libkeyutils-dev [linux-any],
-	libctdb-dev (>= 1.10+git20110412),
 	pkg-config
 Build-Conflicts: libfam-dev,python-ldb,python-ldb-dev
 Standards-Version: 3.9.3
@@ -22,9 +22,9 @@ Vcs-Svn: svn://svn.debian.org/svn/pkg-samba/trunk/samba
 Package: samba
 Architecture: any
 Pre-Depends: ${misc:Pre-Depends}, dpkg (>= 1.15.6~)
-Depends: samba-common (= ${source:Version}), libwbclient0 (= ${binary:Version}),${shlibs:Depends}, ${misc:Depends}, libpam-runtime (>= 1.0.1-11), libpam-modules, lsb-base (>= 3.2-13), procps, update-inetd, adduser
+Depends: samba-common (= ${source:Version}), libwbclient0 (= ${binary:Version}),${shlibs:Depends}, ${misc:Depends}, libpam-runtime (>= 1.0.1-11), libpam-modules, lsb-base (>= 3.2-13), procps, update-inetd, adduser, samba-common-bin
 Recommends: logrotate, tdb-tools
-Suggests: openbsd-inetd | inet-superserver, smbldap-tools, ldb-tools, ctdb, winbind
+Suggests: openbsd-inetd | inet-superserver, smbldap-tools, ldb-tools, winbind, ufw
 Replaces: samba-common (<= 2.0.5a-2)
 Conflicts: samba4 (<< 4.0.0~alpha6-2)
 Description: SMB/CIFS file, print, and login server for Unix

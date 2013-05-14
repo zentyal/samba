@@ -1,3 +1,35 @@
+samba (2:3.6.14-1ubuntu1) saucy; urgency=low
+
+  * Merge from Debian unstable.  Remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/control:
+      - Don't build against or suggest ctdb.
+      - Add dependency on samba-common-bin to samba.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile
+      - debian/rules, debian/samba.install: install profile.
+      - debian/control: have samba suggest ufw.
+    + Add apport hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba-common-bin.install: install hook.
+    + Switch to upstart:
+      - Added debian/samba.{nmbd,smbd}.upstart.
+      - Added debian/winbind.upstart.
+      - debian/samba.logrotate, debian/samba-common.dhcp, debian/samba.if-up:
+        Make upstart compatible.
+    + d/rules: Drop explicit configuration options for ctdb.
+
+ -- James Page <james.page@ubuntu.com>  Sun, 05 May 2013 17:45:14 -0700
+
 samba (2:3.6.14-1) unstable; urgency=low
 
   * Team upload.
@@ -42,6 +74,43 @@ samba (2:3.6.10-1) experimental; urgency=low
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 15 Dec 2012 08:03:03 +0100
 
+samba (2:3.6.9-1ubuntu1) raring; urgency=low
+
+  * Merge from Debian experimental, remaining changes: 
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/control:
+      - Don't build against or suggest ctdb.
+      - Add dependency on samba-common-bin to samba.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile
+      - debian/rules, debian/samba.install: install profile.
+      - debian/control: have samba suggest ufw.
+    + Add apport hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba-common-bin.install: install hook.
+    + Switch to upstart:
+      - Added debian/samba.{nmbd,smbd}.upstart.
+      - Added debian/winbind.upstart.
+      - debian/samba.logrotate, debian/samba-common.dhcp, debian/samba.if-up:
+        Make upstart compatible.
+    + d/rules: Drop explicit configuration options for ctdb.
+  * Dropped changes; included upstream:
+    + d/patches/cups-1.6.1_compat.patch: Cherry picked patch from upstream VCS
+      for compatibility with cups >= 1.6.
+    + Change "net share allowedusers" to use RPC call that works with
+      Microsoft Windows 2008 r2.
+
+ -- James Page <james.page@ubuntu.com>  Fri, 23 Nov 2012 14:34:04 +0000
+
 samba (2:3.6.9-1) experimental; urgency=low
 
   * New upstream release
@@ -60,6 +129,77 @@ samba (2:3.6.7-1) experimental; urgency=low
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 11 Aug 2012 21:37:38 +0200
 
+samba (2:3.6.6-3ubuntu5) quantal; urgency=low
+
+  * Change "net share allowedusers" to use RPC call that works with
+    Microsoft Windows 2008 r2 (LP: #1061244).
+
+ -- Olly Betts <olly@survex.com>  Fri, 05 Oct 2012 12:52:33 +0100
+
+samba (2:3.6.6-3ubuntu4) quantal; urgency=low
+
+  * Drop --upstart-only option when installing upstart configuration for
+    winbind - its not required in this case. 
+
+ -- James Page <james.page@ubuntu.com>  Wed, 12 Sep 2012 21:08:52 +0100
+
+samba (2:3.6.6-3ubuntu3) quantal; urgency=low
+
+  * Decouple startup of smbd from cups (LP: #1047262):
+    - d/samba.smbd.upstart: Revert changes made in 2:3.6.6-3ubuntu2.
+    - d/samba.reload-smbd.upstart: Add upstart task which reloads smbd
+      once cups has started, ensuring that smbd startup is decoupled
+      from cups.
+    - d/rules: Install reload-smbd upstart configuration, don't try to 
+      start on install.
+  * Install winbind upstart configuration file with --upstart-only option
+    for consistency with samba package.
+
+ -- James Page <james.page@ubuntu.com>  Wed, 12 Sep 2012 13:24:16 +0100
+
+samba (2:3.6.6-3ubuntu2) quantal; urgency=low
+
+  * Ensure samba can query cups for printer information on startup
+    (LP: #1047262):
+    - d/samba.smbd.upstart: Optionally wait for cups to be in state
+      'running' if cups is installed.
+
+ -- James Page <james.page@ubuntu.com>  Fri, 07 Sep 2012 10:58:08 +0100
+
+samba (2:3.6.6-3ubuntu1) quantal; urgency=low
+
+  * Merge from Debian unstable; remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/control:
+      - Don't build against or suggest ctdb.
+      - Add dependency on samba-common-bin to samba.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile
+      - debian/rules, debian/samba.install: install profile.
+      - debian/control: have samba suggest ufw.
+    + Add apport hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba-common-bin.install: install hook.
+    + Switch to upstart:
+      - Added debian/samba.{nmbd,smbd}.upstart.
+      - Added debian/winbind.upstart.
+      - debian/samba.logrotate, debian/samba-common.dhcp, debian/samba.if-up:
+        Make upstart compatible.
+    + d/rules: Drop explicit configuration options for ctdb.
+  * d/patches/cups-1.6.1_compat.patch: Cherry picked patch from upstream VCS
+    for compatibility with cups >= 1.6. 
+
+ -- James Page <james.page@ubuntu.com>  Wed, 08 Aug 2012 10:36:23 +0000
+
 samba (2:3.6.6-3) unstable; urgency=low
 
   [ Ansgar Burchardt ]
@@ -67,6 +207,40 @@ samba (2:3.6.6-3) unstable; urgency=low
     Closes: #683899
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 05 Aug 2012 12:19:12 +0200
+
+samba (2:3.6.6-2ubuntu1) quantal; urgency=low
+
+  * Merge from Debian unstable; remaining changes: 
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/control:
+      - Don't build against or suggest ctdb.
+      - Add dependency on samba-common-bin to samba.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile
+      - debian/rules, debian/samba.install: install profile.
+      - debian/control: have samba suggest ufw.
+    + Add apport hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba-common-bin.install: install hook.
+    + Switch to upstart:
+      - Added debian/samba.{nmbd,smbd}.upstart.
+      - debian/samba.logrotate, debian/samba-common.dhcp, debian/samba.if-up:
+        Make upstart compatible.
+  * Dropped:
+    + d/patches/lp_970679_fix-large-groups.patch: included in 3.6.6 release.
+  * d/winbind.upstart: converted winbind init script to upstart (LP: #612958).
+  * d/rules: Drop explicit configuration options for ctdb.
+
+ -- James Page <james.page@ubuntu.com>  Wed, 04 Jul 2012 16:12:32 +0100
 
 samba (2:3.6.6-2) unstable; urgency=low
 
@@ -132,6 +306,48 @@ samba (2:3.6.5-5) unstable; urgency=low
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 03 Jun 2012 20:00:56 +0200
 
+samba (2:3.6.5-3ubuntu2) quantal; urgency=low
+
+  * d/samba.nmbd.upstart: Ignore the return code of testparm in pre-start;
+    it's used to query the configuration NOT to validate it in this context
+    which generates alot of bug reports for unrelated configuration issues
+    (LP: #791944).
+
+ -- James Page <james.page@ubuntu.com>  Wed, 30 May 2012 21:52:39 +0100
+
+samba (2:3.6.5-3ubuntu1) quantal; urgency=low
+
+  * Merge from Debian unstable, remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/control:
+      - Don't build against or suggest ctdb.
+      - Add dependency on samba-common-bin to samba.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile
+      - debian/rules, debian/samba.install: install profile.
+      - debian/control: have samba suggest ufw.
+    + Add apport hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba-common-bin.install: install hook.
+    + Switch to upstart:
+      - Added debian/samba.{nmbd,smbd}.upstart.
+      - debian/samba.logrotate, debian/samba-common.dhcp, debian/samba.if-up:
+        Make upstart compatible.
+    + d/patches/lp_970679_fix-large-groups.patch: Cherry picked patch from
+      upstream VCS to resolve issue with winbind crashing with groups
+      containing more than 1000 members (LP: #970679).
+
+ -- James Page <james.page@ubuntu.com>  Fri, 18 May 2012 13:10:40 +0100
+
 samba (2:3.6.5-3) unstable; urgency=low
 
   [ Luk Claes ]
@@ -144,6 +360,56 @@ samba (2:3.6.5-3) unstable; urgency=low
     on me for not properly checking the transition. Closes: #673122
 
  -- Christian Perrier <bubulle@debian.org>  Thu, 17 May 2012 10:34:38 +0200
+
+samba (2:3.6.5-2ubuntu2) quantal; urgency=low
+
+  * d/patches/lp_970679_fix-large-groups.patch: Cherry picked patch from
+    upstream VCS to resolve issue with winbind crashing with groups 
+    containing more than 1000 members (LP: #970679).
+  * d/control: Fixup Breaks/Replaces on libnss-winbind so that upgrades
+    from libpam-winbind don't break. Thanks to Colin Watson for identifying
+    this issue.
+
+ -- James Page <james.page@ubuntu.com>  Wed, 16 May 2012 12:07:40 +0100
+
+samba (2:3.6.5-2ubuntu1) quantal; urgency=low
+
+  * Merge from Debian unstable, remaining changes: 
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+      - Other changes now in Debian packaging.
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/control:
+      - Don't build against or suggest ctdb.
+      - Add dependency on samba-common-bin to samba.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile
+      - debian/rules, debian/samba.install: install profile.
+      - debian/control: have samba suggest ufw.
+    + Add apport hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba-common-bin.install: install hook.
+    + Switch to upstart:
+      - Added debian/samba.{nmbd,smbd}.upstart.
+      - debian/samba.logrotate, debian/samba-common.dhcp, debian/samba.if-up:
+        Make upstart compatible.
+  * d/samba.install, d/samba-common-bin.install: Restore apport hook and ufw
+    profile (LP: #999764).
+  * Dropped:
+    + debian/patches/CVE-2012-1182-*.patch: fixed in upstream release 3.6.4.
+    + debian/patches/CVE-2012-2111.patch: fixed in upstream release 3.6.5.
+    + debian/patches/fix-debuglevel-name-conflict.patch: fixed upstream -
+      debug_level is no longer used as a global variable name.
+    + debian/patches/error-trans.fix-276472: fixed upstream.
+
+ -- James Page <james.page@ubuntu.com>  Tue, 15 May 2012 17:04:27 +0100
 
 samba (2:3.6.5-2) unstable; urgency=low
 
@@ -238,6 +504,71 @@ samba (2:3.6.4-1) unstable; urgency=low
 
  -- Jelmer Vernooij <jelmer@debian.org>  Wed, 11 Apr 2012 23:25:41 +0200
 
+samba (2:3.6.3-2ubuntu2.1) precise-security; urgency=low
+
+  * SECURITY UPDATE: Authenticated user can take ownership of arbitrary files
+    and directories
+    - debian/patches/CVE-2012-2111.patch: Remove excessive permissions granted
+      in account related Local Security Authority remote procedure calls.
+      Based on upstream patch.
+    - CVE-2012-2111
+
+ -- Tyler Hicks <tyhicks@canonical.com>  Tue, 24 Apr 2012 15:49:30 -0500
+
+samba (2:3.6.3-2ubuntu2) precise-proposed; urgency=low
+
+  * SECURITY UPDATE: Unauthenticated remote code execution via
+    RPC calls (LP: #978458)
+    - debian/patches/CVE-2012-1182-1.patch: Fix PIDL compiler to generate code
+      that uses the same value for array allocation and array length checks.
+      Based on upstream patch.
+    - debian/patches/CVE-2012-1182-2.patch: Regenerate PIDL generated files
+      with the patched PIDL compiler
+    - CVE-2012-1182
+
+ -- Tyler Hicks <tyhicks@canonical.com>  Thu, 12 Apr 2012 05:28:44 -0500
+
+samba (2:3.6.3-2ubuntu1) precise; urgency=low
+
+  * Merge from Debian testing. (LP: #958534)
+    Remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/patches/error-trans.fix-276472:
+      - Add the translation of Unix Error code -ENOTSUP to NT Error Code
+      - NT_STATUS_NOT_SUPPORTED to prevent the Permission denied error.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are 
+        allowed to create public shares in addition to authenticated
+        ones.
+      - add map to guest = Bad user, maps bad username to guest access.
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/control:
+      - Don't build against or suggest ctdb.
+      - Add dependency on samba-common-bin to samba.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+        profile
+      - debian/control: have samba suggest ufw
+    + Add apport hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba.dirs, debian/samba-common-bin.files: install
+    + Switch to upstart:
+      - Add debian/samba.{nmbd,smbd}.upstart.
+    + debian/samba.logrotate, debian/samba-common.dhcp, debian/samba.if-up:
+      - Make them upstart compatible
+    + debian/patches/fix-debuglevel-name-conflict.patch: don't use 'debug_level'
+      as a global variable name in an NSS module.
+
+ -- Maarten Bezemer <maarten.bezemer@gmail.com>  Sun, 18 Mar 2012 13:49:29 +0100
+
 samba (2:3.6.3-2) unstable; urgency=low
 
   [ Christian Perrier ]
@@ -265,6 +596,52 @@ samba (2:3.6.3-2) unstable; urgency=low
 
  -- Christian Perrier <bubulle@debian.org>  Mon, 12 Mar 2012 20:49:24 +0100
 
+samba (2:3.6.3-1ubuntu1) precise; urgency=low
+
+  * Merge from Debian testing.  Remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/patches/error-trans.fix-276472:
+      - Add the translation of Unix Error code -ENOTSUP to NT Error Code
+      - NT_STATUS_NOT_SUPPORTED to prevent the Permission denied error.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are 
+        allowed to create public shares in addition to authenticated
+        ones.
+      - add map to guest = Bad user, maps bad username to guest access.
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/control:
+      - Don't build against or suggest ctdb.
+      - Add dependency on samba-common-bin to samba.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+        profile
+      - debian/control: have samba suggest ufw
+    + Add apport hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba.dirs, debian/samba-common-bin.files: install
+    + Switch to upstart:
+      - Add debian/samba.{nmbd,smbd}.upstart.
+    + debian/samba.logrotate, debian/samba-common.dhcp, debian/samba.if-up:
+      - Make them upstart compatible
+    + debian/samba.postinst: 
+      - Avoid scary pdbedit warnings on first import.
+    + debian/samba-common.postinst: Add more informative error message for
+      the case where smb.conf was manually deleted
+    + debian/patches/fix-debuglevel-name-conflict.patch: don't use 'debug_level'
+      as a global variable name in an NSS module.
+  * Dropped:
+    - debian/patches/fix-samba-printer-browsing.patch: No longer needed.
+
+ -- Chuck Short <zulcss@ubuntu.com>  Tue, 21 Feb 2012 09:06:34 -0500
+
 samba (2:3.6.3-1) unstable; urgency=low
 
   [ Christian Perrier ]
@@ -285,6 +662,67 @@ samba (2:3.6.2-1) unstable; urgency=low
   * Drop bug_601406_fix-perl-path-in-example.patch (applied upstream)
 
  -- Christian Perrier <bubulle@debian.org>  Fri, 27 Jan 2012 21:38:52 +0100
+
+samba (2:3.6.1-3ubuntu3) precise; urgency=low
+
+  * debian/patches/fix-samba-printer-browsing.patch:
+    Fix samba printer browsing crasher. (LP: #911888)
+
+ -- Chuck Short <zulcss@ubuntu.com>  Mon, 23 Jan 2012 10:47:41 -0500
+
+samba (2:3.6.1-3ubuntu2) precise; urgency=low
+
+  * Add missing Multi-Arch: foreign flag on samba-common.
+  * Drop unnecessary delta on debian/samba.dirs.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Tue, 03 Jan 2012 05:14:18 +0000
+
+samba (2:3.6.1-3ubuntu1) precise; urgency=low
+
+  * Merge from Debian testing.  Remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/patches/error-trans.fix-276472:
+      - Add the translation of Unix Error code -ENOTSUP to NT Error Code
+      - NT_STATUS_NOT_SUPPORTED to prevent the Permission denied error.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are 
+        allowed to create public shares in addition to authenticated
+        ones.
+      - add map to guest = Bad user, maps bad username to guest access.
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/control:
+      - Don't build against or suggest ctdb.
+      - Add dependency on samba-common-bin to samba.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+        profile
+      - debian/control: have samba suggest ufw
+    + Add apport hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba.dirs, debian/samba-common-bin.files: install
+    + Switch to upstart:
+      - Add debian/samba.{nmbd,smbd}.upstart.
+    + debian/samba.logrotate, debian/samba-common.dhcp, debian/samba.if-up:
+      - Make them upstart compatible
+    + debian/samba.postinst: 
+      - Avoid scary pdbedit warnings on first import.
+    + debian/samba-common.postinst: Add more informative error message for
+      the case where smb.conf was manually deleted
+    + debian/patches/fix-debuglevel-name-conflict.patch: don't use 'debug_level'
+      as a global variable name in an NSS module 
+    + Dropped:
+      - debian/patches/error-trans.fix-276472
+      - debian/patches/fix-debuglevel-name-conflict.patch
+
+ -- Chuck Short <zulcss@ubuntu.com>  Wed, 21 Dec 2011 13:18:04 +0000
 
 samba (2:3.6.1-3) unstable; urgency=low
 
@@ -366,6 +804,78 @@ samba (2:3.6.0~pre3-1) experimental; urgency=low
 
  -- Christian Perrier <bubulle@debian.org>  Mon, 09 May 2011 11:29:52 +0200
 
+samba (2:3.5.11~dfsg-4ubuntu4) precise; urgency=low
+
+  * fix LP: #907227 - Bump build dependency on libkrb5-dev to (>= 1.10+dfsg~) to
+    make sure we're not getting any private symbols
+    (see http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=650541)
+    - update debian/changelog
+  * Mark Debian Vcs-* entries as XS-Debian-Vcs-*
+    - update debian/control
+
+ -- Micah Gersten <micahg@ubuntu.com>  Wed, 21 Dec 2011 03:45:34 -0600
+
+samba (2:3.5.11~dfsg-4ubuntu3) precise; urgency=low
+
+  * Rebuild with dpkg 1.16.1.1ubuntu2 to restore full hardening support.
+
+ -- Colin Watson <cjwatson@ubuntu.com>  Tue, 01 Nov 2011 17:19:39 -0400
+
+samba (2:3.5.11~dfsg-4ubuntu2) precise; urgency=low
+
+  * debian/samba.if-up: fix an overlooked syntax error in the hook.
+    LP: #881579.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Thu, 27 Oct 2011 21:45:32 +0000
+
+samba (2:3.5.11~dfsg-4ubuntu1) precise; urgency=low
+
+  * Merge from Debian unstable, remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/patches/error-trans.fix-276472:
+      - Add the translation of Unix Error code -ENOTSUP to NT Error Code
+      - NT_STATUS_NOT_SUPPORTED to prevent the Permission denied error.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are 
+        allowed to create public shares in addition to authenticated
+        ones.
+      - add map to guest = Bad user, maps bad username to guest access.
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/control:
+      - Don't build against or suggest ctdb.
+      - Add dependency on samba-common-bin to samba.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+        profile
+      - debian/control: have samba suggest ufw
+    + Add apport hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba.dirs, debian/samba-common-bin.files: install
+    + Switch to upstart:
+      - Add debian/samba.{nmbd,smbd}.upstart.
+    + debian/samba.logrotate, debian/samba-common.dhcp, debian/samba.if-up:
+      - Make them upstart compatible
+    + debian/samba.postinst: 
+      - Avoid scary pdbedit warnings on first import.
+    + debian/samba-common.postinst: Add more informative error message for
+      the case where smb.conf was manually deleted
+    + debian/patches/fix-debuglevel-name-conflict.patch: don't use 'debug_level'
+      as a global variable name in an NSS module 
+  * Dropped changes, included in Debian:
+    + debian/rules:
+      - Add BIND_NOW to maximize benefit of RELRO hardening.
+  * Mark samba-common Multi-Arch: foreign.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Thu, 27 Oct 2011 18:15:44 +0000
+
 samba (2:3.5.11~dfsg-4) unstable; urgency=low
 
   * Lintian override for libpam-winbind; it's not a shared library so doesn't
@@ -382,6 +892,87 @@ samba (2:3.5.11~dfsg-3) unstable; urgency=low
     pam module and nss modules on the same system.
 
  -- Steve Langasek <vorlon@debian.org>  Fri, 21 Oct 2011 20:00:13 +0000
+
+samba (2:3.5.11~dfsg-2ubuntu3) precise; urgency=low
+
+  * Cherry-pick winbind multiarch support from Debian svn.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Fri, 21 Oct 2011 23:02:15 +0000
+
+samba (2:3.5.11~dfsg-2ubuntu2) precise; urgency=low
+
+  * Drop the added Breaks on cups, since it's a breaks against a specific
+    version of cups from the long-gone maverick devel cycle.
+  * Add tdb-tools Recommends, somehow dropped in a merge; trivial package
+    size and already in main, so doesn't look like there's a reason to
+    diverge.
+  * Drop conflicts on likewise-open, only relevant for upgrades from hardy.
+  * Use the new 'DEB_BUILD_MAINT_OPTIONS := hardening=+bindnow' method of
+    requesting bindnow.
+  * Drop unnecessary change to debian/samba-common.dhcp.
+  * Stop removing /etc/network/if-up.d/samba in the samba preinst, the
+    package is just going to add it right back since we still ship it.
+  * Improvements to debian/samba.if-up:
+    - revert wrong fix for bug #659499; there's no way the error message
+      could have come from this version of the script, we aren't
+      invoking /etc/init.d/samba.
+    - use invoke-rc.d to start nmbd, so that we don't start it out in case
+      there's (somehow) a policy against it in place
+    - dump stderr from the 'status' command, which we don't care about
+    - if 'invoke-rc.d nmbd start' fails, return the error instead of silently
+      suppressing it.
+  * Use 'reload' instead of looking at PID files in debian/samba.logrotate.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Fri, 21 Oct 2011 22:50:05 +0000
+
+samba (2:3.5.11~dfsg-2ubuntu1) precise; urgency=low
+
+  * Merge from debian testing.  Remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/patches/error-trans.fix-276472:
+      - Add the translation of Unix Error code -ENOTSUP to NT Error Code
+      - NT_STATUS_NOT_SUPPORTED to prevent the Permission denied error.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are 
+        allowed to create public shares in addition to authenticated
+        ones.
+      - add map to guest = Bad user, maps bad username to guest access.
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/control:
+      - Make libwbclient0 replace/conflict with hardy's likewise-open.
+      - Don't build against or suggest ctdb.
+      - Add dependency on samba-common-bin to samba.
+      - Add cups breaks to push the package to also upgrade cups (LP: #639768)
+    + debian/rules:
+      - Add BIND_NOW to maximize benefit of RELRO hardening.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+        profile
+      - debian/control: have samba suggest ufw
+    + Add apport hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba.dirs, debian/samba-common-bin.files: install
+    + Switch to upstart:
+      - Add debian/samba.{nmbd,smbd}.upstart.
+    + debian/samba.postinst: 
+      - Avoid scary pdbedit warnings on first import.
+    + debian/samba-common.postinst: Add more informative error message for
+      the case where smb.conf was manually deleted
+    + debian/samba.logrotate: Make it upstart compatible
+    + debian/samba-common.dhcp: Fix typo to get a proper parsing in
+      /etc/samba/dhcp.
+    + debian/patches/fix-debuglevel-name-conflict.patch: Re-add patch that
+      got dropped.
+
+ -- Chuck Short <zulcss@ubuntu.com>  Tue, 18 Oct 2011 05:34:47 +0000
 
 samba (2:3.5.11~dfsg-2) unstable; urgency=low
 
@@ -422,6 +1013,65 @@ samba (2:3.5.11~dfsg-2) unstable; urgency=low
 
  -- Steve Langasek <vorlon@debian.org>  Fri, 07 Oct 2011 21:36:43 -0700
 
+samba (2:3.5.11~dfsg-1ubuntu2) oneiric; urgency=low
+
+  * debian/patches/fix-debuglevel-name-conflict.patch:
+    Re-add patch that was mistakenly dropped. (LP: #529714) 
+
+ -- Chuck Short <zulcss@ubuntu.com>  Fri, 30 Sep 2011 13:08:34 -0400
+
+samba (2:3.5.11~dfsg-1ubuntu1) oneiric; urgency=low
+
+  * Merge from debian unstable.  Remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/patches/error-trans.fix-276472:
+      - Add the translation of Unix Error code -ENOTSUP to NT Error Code
+      - NT_STATUS_NOT_SUPPORTED to prevent the Permission denied error.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are 
+        allowed to create public shares in addition to authenticated
+        ones.
+      - add map to guest = Bad user, maps bad username to guest access.
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/mksmbpasswd.awk:
+      - Do not add user with UID less than 1000 to smbpasswd
+    + debian/control:
+      - Make libwbclient0 replace/conflict with hardy's likewise-open.
+      - Don't build against or suggest ctdb.
+      - Add dependency on samba-common-bin to samba.
+      - Add cups breaks to push the package to also upgrade cups (LP: #639768)
+    + debian/rules:
+      - enable "native" PIE hardening.
+      - Add BIND_NOW to maximize benefit of RELRO hardening.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+        profile
+      - debian/control: have samba suggest ufw
+    + Add apport hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba.dirs, debian/samba-common-bin.files: install
+    + Switch to upstart:
+      - Add debian/samba.{nmbd,smbd}.upstart.
+      - Don't ship the /etc/network/if-up.d file.
+    + debian/samba.postinst: 
+      - Fixed bashism.
+      - Avoid scary pdbedit warnings on first import.
+    + debian/samba-common.postinst: Add more informative error message for
+      the case where smb.conf was manually deleted
+    + debian/samba.logrotate: Make it upstart compatible
+    + debian/samba-common.dhcp: Fix typo to get a proper parsing in
+      /etc/samba/dhcp.
+
+ -- Marc Deslauriers <marc.deslauriers@ubuntu.com>  Thu, 11 Aug 2011 12:52:17 -0400
+
 samba (2:3.5.11~dfsg-1) unstable; urgency=low
 
   * New upstream release
@@ -436,6 +1086,58 @@ samba (2:3.5.10~dfsg-1) unstable; urgency=low
     - CVE-2011-2522: Cross-Site Request Forgery vulnerability in SWAT
 
  -- Christian Perrier <bubulle@debian.org>  Thu, 28 Jul 2011 12:19:01 +0200
+
+samba (2:3.5.9~dfsg-1ubuntu1) oneiric; urgency=low
+
+  * Merge from debian unstable.  Remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are 
+        allowed to create public shares in addition to authenticated
+        ones.
+      - add map to guest = Bad user, maps bad username to guest access.
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/mksmbpasswd.awk:
+      - Do not add user with UID less than 1000 to smbpasswd
+    + debian/control:
+      - Make libwbclient0 replace/conflict with hardy's likewise-open.
+      - Don't build against or suggest ctdb.
+      - Add dependency on samba-common-bin to samba.
+      - Add cuups breaks to push the package to aslo upgrade cups (LP: #639768)
+    + debian/rules:
+      - enable "native" PIE hardening.
+      - Add BIND_NOW to maximize benefit of RELRO hardening.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+        profile
+      - debian/control: have samba suggest ufw
+    + Add apport hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba.dirs, debian/samba-common-bin.files: install
+    + Switch to upstart:
+      - Add debian/samba.{nmbd,smbd}.upstart.
+      - Don't ship the /etc/network/if-up.d file.
+    + debian/samba.postinst: 
+      - Fixed bashism.
+      - Avoid scary pdbedit warnings on first import.
+    + debian/samba-common.postinst: Add more informative error message for
+      the case where smb.conf was manually deleted
+    + debian/samba.logrotate: Make it upstart compatible
+    + debian/samba-common.dhcp: Fix typo to get a proper parsing in
+      /etc/samba/dhcp.
+    + Dropped:
+      - debian/patches/fix-upstream-lp-738968.patch: Fixed upstream.
+      - debian/patches/fix-debuglevel-name-conflict.patch: Fixed upstream.
+
+ -- Chuck Short <zulcss@ubuntu.com>  Sat, 18 Jun 2011 18:12:40 +0100
 
 samba (2:3.5.9~dfsg-1) unstable; urgency=low
 
@@ -453,6 +1155,68 @@ samba (2:3.5.9~dfsg-1) unstable; urgency=low
   * Add build-arch and build-indep targets in debian/rules
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 18 Jun 2011 07:08:00 +0200
+
+samba (2:3.5.8~dfsg-5ubuntu2) oneiric; urgency=low
+
+  * debian/samba-common.dhcp: revert wrong check for executability of
+    /etc/init/smbd.conf.  With the previous change, samba would *never* be
+    signalled for the config file update.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Sun, 12 Jun 2011 20:54:42 +0000
+
+samba (2:3.5.8~dfsg-5ubuntu1) oneiric; urgency=low
+
+  * Merge from debian unstable.  Remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are 
+        allowed to create public shares in addition to authenticated
+        ones.
+      - add map to guest = Bad user, maps bad username to guest access. 
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/mksmbpasswd.awk:
+      - Do not add user with UID less than 1000 to smbpasswd
+    + debian/control:
+      - Make libwbclient0 replace/conflict with hardy's likewise-open.
+      - Don't build against or suggest ctdb.
+      - Add dependency on samba-common-bin to samba.
+      - Add cuups breaks to push the package to aslo upgrade cups (LP: #639768)
+    + debian/rules:
+      - enable "native" PIE hardening.
+      - Add BIND_NOW to maximize benefit of RELRO hardening.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+        profile
+      - debian/control: have samba suggest ufw
+    + Add apport hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba.dirs, debian/samba-common-bin.files: install
+    + Switch to upstart:
+      - Add debian/samba.{nmbd,smbd}.upstart.
+      - Don't ship the /etc/network/if-up.d file.
+    + debian/samba.postinst: 
+      - Fixed bashism.
+      - Avoid scary pdbedit warnings on first import.
+    + debian/samba-common.postinst: Add more informative error message for
+      the case where smb.conf was manually deleted
+    + debian/samba.logrotate: Make it upstart compatible
+    + debian/samba-common.dhcp: Fix typo to get a proper parsing in
+      /etc/samba/dhcp.
+    + debian/patches/fix-upstream-lp-738968.patch: Fix connection to EMC
+      Celerra NAS version 5.6.50. (LP: #738968)
+    + debian/patches/fix-debuglevel-name-conflict.patch: Fix issue with the 
+      "debug_level" variable name in libnss_wins.so conflicting with the "debug_level" 
+      global variable that some applications. (LP: #529714)
+
+ -- Chuck Short <zulcss@ubuntu.com>  Sun, 05 Jun 2011 00:14:16 +0100
 
 samba (2:3.5.8~dfsg-5) unstable; urgency=low
 
@@ -482,6 +1246,60 @@ samba (2:3.5.8~dfsg-3) unstable; urgency=low
   * Czech (Miroslav Kure).  Closes: #627442
 
  -- Christian Perrier <bubulle@debian.org>  Tue, 24 May 2011 22:40:04 +0200
+
+samba (2:3.5.8~dfsg-2ubuntu1) oneiric; urgency=low
+
+  * Merge from debian unstable.  Remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are 
+        allowed to create public shares in addition to authenticated
+        ones.
+      - add map to guest = Bad user, maps bad username to guest access. 
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/mksmbpasswd.awk:
+      - Do not add user with UID less than 1000 to smbpasswd
+    + debian/control:
+      - Make libwbclient0 replace/conflict with hardy's likewise-open.
+      - Don't build against or suggest ctdb.
+      - Add dependency on samba-common-bin to samba.
+      - Add cuups breaks to push the package to aslo upgrade cups (LP: #639768)
+    + debian/rules:
+      - enable "native" PIE hardening.
+      - Add BIND_NOW to maximize benefit of RELRO hardening.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+        profile
+      - debian/control: have samba suggest ufw
+    + Add apport hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba.dirs, debian/samba-common-bin.files: install
+    + Switch to upstart:
+      - Add debian/samba.{nmbd,smbd}.upstart.
+      - Don't ship the /etc/network/if-up.d file.
+    + debian/samba.postinst: 
+      - Fixed bashism.
+      - Avoid scary pdbedit warnings on first import.
+    + debian/samba-common.postinst: Add more informative error message for
+      the case where smb.conf was manually deleted
+    + debian/samba.logrotate: Make it upstart compatible
+    + debian/samba-common.dhcp: Fix typo to get a proper parsing in
+      /etc/samba/dhcp.
+    + debian/patches/fix-upstream-lp-738968.patch: Fix connection to EMC
+      Celerra NAS version 5.6.50. (LP: #738968)
+    + debian/patches/fix-debuglevel-name-conflict.patch: Fix issue with the 
+      "debug_level" variable name in libnss_wins.so conflicting with the "debug_level" 
+      global variable that some applications. (LP: #529714)
+
+ -- Chuck Short <zulcss@ubuntu.com>  Tue, 24 May 2011 19:56:36 +0100
 
 samba (2:3.5.8~dfsg-2) unstable; urgency=low
 
@@ -522,6 +1340,82 @@ samba (2:3.5.8~dfsg-2) unstable; urgency=low
 
  -- Christian Perrier <bubulle@sesostris.kheops.frmug.org>  Sun, 22 May 2011 21:15:21 +0200
 
+samba (2:3.5.8~dfsg-1ubuntu2.2) natty-proposed; urgency=low
+
+  * debian/patches/fix-debuglevel-name-conflict.patch:
+    + Fix issue with the "debug_level" variable name in libnss_wins.so
+      conflicting with the "debug_level" global variable that some applications
+      use (LP: #529714)
+
+ -- Chow Loong Jin <hyperair@ubuntu.com>  Mon, 02 May 2011 21:30:54 +0800
+
+samba (2:3.5.8~dfsg-1ubuntu2.1) natty-proposed; urgency=low
+
+  * debian/samba.smbd.upstart: Do not attempt to start smbd until network
+    device is up, previously smbd was starting too early and often failing. 
+    (LP: #771305)
+
+ -- Dave Walker (Daviey) <DaveWalker@ubuntu.com>  Thu, 28 Apr 2011 10:45:32 +0100
+
+samba (2:3.5.8~dfsg-1ubuntu2) natty; urgency=low
+
+  * debian/patches/fix-upstream-lp-738968.patch: Fix connection 
+    to EMC Celerra NAS version 5.6.50. (LP: #738968) 
+
+ -- Chuck Short <zulcss@ubuntu.com>  Wed, 06 Apr 2011 12:56:42 -0400
+
+samba (2:3.5.8~dfsg-1ubuntu1) natty; urgency=low
+
+  * Merge from debian unstable.  Remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are 
+        allowed to create public shares in addition to authenticated
+        ones.
+      - add map to guest = Bad user, maps bad username to guest access. 
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/mksmbpasswd.awk:
+      - Do not add user with UID less than 1000 to smbpasswd
+    + debian/control:
+      - Make libwbclient0 replace/conflict with hardy's likewise-open.
+      - Don't build against or suggest ctdb.
+      - Add dependency on samba-common-bin to samba.
+      - Add cuups breaks to push the package to aslo upgrade cups (LP: #639768)
+    + debian/rules:
+      - enable "native" PIE hardening.
+      - Add BIND_NOW to maximize benefit of RELRO hardening.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+        profile
+      - debian/control: have samba suggest ufw
+    + Add apport hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba.dirs, debian/samba-common-bin.files: install
+    + Switch to upstart:
+      - Add debian/samba.{nmbd,smbd}.upstart.
+      - Don't ship the /etc/network/if-up.d file.
+    + debian/samba.postinst: 
+      - Fixed bashism.
+      - Avoid scary pdbedit warnings on first import.
+    + debian/samba-common.postinst: Add more informative error message for
+      the case where smb.conf was manually deleted
+    + debian/samba.logrotate: Make it upstart compatible
+    + debian/samba-common.dhcp: Fix typo to get a proper parsing in
+      /etc/samba/dhcp.
+    + Dropped:
+      - debian/patches/fix-windows7-print-connection.patch: Merged upstream.
+      - debian/patches/security-CVE-2011-0719.patch: Merged upstream. 
+
+ -- Chuck Short <zulcss@ubuntu.com>  Thu, 10 Mar 2011 10:03:01 -0500
+
 samba (2:3.5.8~dfsg-1) unstable; urgency=low
 
   * New upstream release. This fixes the following bugs:
@@ -545,6 +1439,75 @@ samba (2:3.5.7~dfsg-1) unstable; urgency=low
 
  -- Christian Perrier <bubulle@debian.org>  Tue, 01 Mar 2011 20:59:34 +0100
 
+samba (2:3.5.6~dfsg-5ubuntu3) natty; urgency=low
+
+  * debian/patches/fix-windows7-print-connection.patch: Fix
+    error "0x000003e6" when trying to connect a Windows 7 printer
+    to a domain. (LP: #674216)
+  * debian/samba-common.dhcp: Take in account of the upstart script.
+    (LP: #652065)
+
+ -- Chuck Short <zulcss@ubuntu.com>  Wed, 02 Mar 2011 16:05:41 -0500
+
+samba (2:3.5.6~dfsg-5ubuntu2) natty; urgency=low
+
+  * SECURITY UPDATE: denial of service via missing range checks on file
+    descriptors
+    - debian/patches/security-CVE-2011-0719.patch: validate miscellaneous
+      file descriptors.
+    - CVE-2011-0719
+
+ -- Marc Deslauriers <marc.deslauriers@ubuntu.com>  Mon, 28 Feb 2011 14:35:24 -0500
+
+samba (2:3.5.6~dfsg-5ubuntu1) natty; urgency=low
+
+  * Merge from debian unstable.  Remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are 
+        allowed to create public shares in addition to authenticated
+        ones.
+      - add map to guest = Bad user, maps bad username to guest access. 
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/mksmbpasswd.awk:
+      - Do not add user with UID less than 1000 to smbpasswd
+    + debian/control:
+      - Make libwbclient0 replace/conflict with hardy's likewise-open.
+      - Don't build against or suggest ctdb.
+      - Add dependency on samba-common-bin to samba.
+      - Add cuups breaks to push the package to aslo upgrade cups (LP: #639768)
+    + debian/rules:
+      - enable "native" PIE hardening.
+      - Add BIND_NOW to maximize benefit of RELRO hardening.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+        profile
+      - debian/control: have samba suggest ufw
+    + Add apport hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba.dirs, debian/samba-common-bin.files: install
+    + Switch to upstart:
+      - Add debian/samba.{nmbd,smbd}.upstart.
+      - Don't ship the /etc/network/if-up.d file.
+    + debian/samba.postinst: 
+      - Fixed bashism.
+      - Avoid scary pdbedit warnings on first import.
+    + debian/samba-common.postinst: Add more informative error message for
+      the case where smb.conf was manually deleted
+    + debian/samba.logrotate: Make it upstart compatible
+    + debian/samba-common.dhcp: Fix typo to get a proper parsing in
+      /etc/samba/dhcp.
+
+ -- Chuck Short <zulcss@ubuntu.com>  Sun, 06 Feb 2011 20:49:57 +0000
+
 samba (2:3.5.6~dfsg-5) unstable; urgency=low
 
   * Fix FTBFS on Hurd. Closes: #610678
@@ -552,6 +1515,70 @@ samba (2:3.5.6~dfsg-5) unstable; urgency=low
     in dhclient-enter-hooks.d/samba.  Closes: #594088.
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 05 Feb 2011 13:50:22 +0100
+
+samba (2:3.5.6~dfsg-4ubuntu3) natty; urgency=low
+
+  * Fix exit code of pre-start script in nmbd upstart script. (LP: #707563)
+  * Skip testparm run if smb.conf does not exist in nmbd upstart script.
+
+ -- Jelmer Vernooij <jelmer@debian.org>  Tue, 25 Jan 2011 15:16:31 -0800
+
+samba (2:3.5.6~dfsg-4ubuntu2) natty; urgency=low
+
+  * debian/samba.nmbd.upstart: create /var/run/samba directory before running
+    testparm. Fixes start-up of nmb after boot. (LP: #596064)
+    Thanks to Jelmer Vernooij.
+
+ -- Chuck Short <zulcss@ubuntu.com>  Tue, 25 Jan 2011 10:09:33 -0500
+
+samba (2:3.5.6~dfsg-4ubuntu1) natty; urgency=low
+
+  * Merge from debian unstable.  Remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are 
+        allowed to create public shares in addition to authenticated
+        ones.
+      - add map to guest = Bad user, maps bad username to guest access. 
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/mksmbpasswd.awk:
+      - Do not add user with UID less than 1000 to smbpasswd
+    + debian/control:
+      - Make libwbclient0 replace/conflict with hardy's likewise-open.
+      - Don't build against or suggest ctdb.
+      - Add dependency on samba-common-bin to samba.
+      - Add cuups breaks to push the package to aslo upgrade cups (LP: #639768)
+    + debian/rules:
+      - enable "native" PIE hardening.
+      - Add BIND_NOW to maximize benefit of RELRO hardening.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+        profile
+      - debian/control: have samba suggest ufw
+    + Add apport hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba.dirs, debian/samba-common-bin.files: install
+    + Switch to upstart:
+      - Add debian/samba.{nmbd,smbd}.upstart.
+      - Don't ship the /etc/network/if-up.d file.
+    + debian/samba.postinst: 
+      - Fixed bashism.
+      - Avoid scary pdbedit warnings on first import.
+    + debian/samba-common.postinst: Add more informative error message for
+      the case where smb.conf was manually deleted
+    + debian/samba.logrotate: Make it upstart compatible
+    + debian/samba-common.dhcp: Fix typo to get a proper parsing in
+      /etc/samba/dhcp.
+
+ -- Chuck Short <zulcss@ubuntu.com>  Sat, 15 Jan 2011 23:22:36 +0000
 
 samba (2:3.5.6~dfsg-4) unstable; urgency=low
 
@@ -566,6 +1593,70 @@ samba (2:3.5.6~dfsg-4) unstable; urgency=low
   * Brazilian Portuguese (Adriano Rafael Gomes).  Closes: #607402
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 15 Jan 2011 18:06:22 +0100
+
+samba (2:3.5.6~dfsg-3ubuntu3) natty; urgency=low
+
+  * debian/samba.if-up: Only run if /etc/init.d/smbd is installed.
+    (LP: #659499) 
+
+ -- Chuck Short <zulcss@ubuntu.com>  Tue, 04 Jan 2011 09:11:45 -0500
+
+samba (2:3.5.6~dfsg-3ubuntu2) natty; urgency=low
+
+  * debian/source_samba.py: resolve some inconsistencies in key names 
+
+ -- Brian Murray <brian@ubuntu.com>  Mon, 20 Dec 2010 13:37:26 -0800
+
+samba (2:3.5.6~dfsg-3ubuntu1) natty; urgency=low
+
+  * Merge from debian unstable.  Remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are 
+        allowed to create public shares in addition to authenticated
+        ones.
+      - add map to guest = Bad user, maps bad username to guest access. 
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/mksmbpasswd.awk:
+      - Do not add user with UID less than 1000 to smbpasswd
+    + debian/control:
+      - Make libwbclient0 replace/conflict with hardy's likewise-open.
+      - Don't build against or suggest ctdb.
+      - Add dependency on samba-common-bin to samba.
+      - Add cuups breaks to push the package to aslo upgrade cups (LP: #639768)
+    + debian/rules:
+      - enable "native" PIE hardening.
+      - Add BIND_NOW to maximize benefit of RELRO hardening.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+        profile
+      - debian/control: have samba suggest ufw
+    + Add apport hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba.dirs, debian/samba-common-bin.files: install
+    + Switch to upstart:
+      - Add debian/samba.{nmbd,smbd}.upstart.
+      - Don't ship the /etc/network/if-up.d file.
+    + debian/samba.postinst: 
+      - Fixed bashism.
+      - Avoid scary pdbedit warnings on first import.
+    + debian/samba-common.postinst: Add more informative error message for
+      the case where smb.conf was manually deleted
+    + debian/samba.logrotate: Make it upstart compatible
+    + debian/samba-common.dhcp: Fix typo to get a proper parsing in
+      /etc/samba/dhcp.
+    + Dropped:
+      - debian/patches/fix-lpbug-393012.patch: Dropped in favor of debian's patch.
+
+ -- Chuck Short <zulcss@ubuntu.com>  Wed, 08 Dec 2010 00:16:04 +0000
 
 samba (2:3.5.6~dfsg-3) unstable; urgency=low
 
@@ -599,6 +1690,64 @@ samba (2:3.5.6~dfsg-2) unstable; urgency=low
     Closes: #605729
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 04 Dec 2010 07:44:22 +0100
+
+samba (2:3.5.6~dfsg-1ubuntu2) natty; urgency=low
+
+  * debian/patches/fix-lpbug-393012.patch: Fix for "invalid arguement"
+    when copying file from windows using nautilus. (LP: #393012) 
+
+ -- Chuck Short <zulcss@ubuntu.com>  Fri, 26 Nov 2010 10:00:08 -0500
+
+samba (2:3.5.6~dfsg-1ubuntu1) natty; urgency=low
+
+  * Merge from debian unstable.  Remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are 
+        allowed to create public shares in addition to authenticated
+        ones.
+      - add map to guest = Bad user, maps bad username to guest access. 
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/mksmbpasswd.awk:
+      - Do not add user with UID less than 1000 to smbpasswd.
+    + debian/control:
+      - Make libwbclient0 replace/conflict with hardy's likewise-open.
+      - Don't build against or suggest ctdb.
+      - Add dependency on samba-common-bin to samba.
+      - Add cuups breaks to push the package to aslo upgrade cups (LP: #639768)
+    + debian/rules:
+      - enable "native" PIE hardening.
+      - Add BIND_NOW to maximize benefit of RELRO hardening.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+        profile
+      - debian/control: have samba suggest ufw
+    + Add apport hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba.dirs, debian/samba-common-bin.files: install
+    + Switch to upstart:
+      - Add debian/samba.{nmbd,smbd}.upstart.
+      - Don't ship the /etc/network/if-up.d file.
+    + debian/samba.postinst: 
+      - Fixed bashism.
+      - Avoid scary pdbedit warnings on first import.
+    + debian/samba-common.postinst: Add more informative error message for
+      the case where smb.conf was manually deleted
+    + debian/samba.logrotate: Make it upstart compatible
+    + debian/samba-common.dhcp: Fix typo to get a proper parsing in
+      /etc/samba/dhcp.
+    + Dropped:
+      - debian/patches/security-CVE-2010-3069.patch: No longer needed.
+
+ -- Chuck Short <zulcss@ubuntu.com>  Tue, 12 Oct 2010 12:14:52 +0100
 
 samba (2:3.5.6~dfsg-1) unstable; urgency=low
 
@@ -648,11 +1797,135 @@ samba (2:3.6.0~pre1-1) experimental; urgency=low
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 04 Aug 2010 01:39:11 +0200
 
+samba (2:3.5.4~dfsg-1ubuntu8) maverick; urgency=low
+
+  * debian/samba.if-up: We dont use init scripts in samba anymore. 
+    (LP: #654556)
+
+ -- Chuck Short <zulcss@ubuntu.com>  Mon, 04 Oct 2010 09:50:26 -0400
+
+samba (2:3.5.4~dfsg-1ubuntu7) maverick; urgency=low
+
+  * debian/control: Add cups breaks to push the package manager to also
+    upgrade cups (LP: #639768). 
+
+ -- Mathias Gug <mathiaz@ubuntu.com>  Thu, 16 Sep 2010 12:19:11 -0400
+
+samba (2:3.5.4~dfsg-1ubuntu6) maverick; urgency=low
+
+  [ Philip Muskovac ]
+  * Fix typo in apport hook (LP: #623798) 
+
+ -- Mathias Gug <mathiaz@ubuntu.com>  Wed, 15 Sep 2010 20:18:59 -0400
+
+samba (2:3.5.4~dfsg-1ubuntu5) maverick; urgency=low
+
+  * SECURITY UPDATE: denial of service and possible arbitrary code
+    execution via large number of SID sub authorities
+    - debian/patches/security-CVE-2010-3069.patch: limit number of SID
+      sub authorities in libcli/security/dom_sid.*, source3/lib/util_sid.c,
+      source3/libads/ldap.c, source3/libsmb/cliquota.c,
+      source3/smbd/nttrans.c.
+    - CVE-2010-3069
+
+ -- Marc Deslauriers <marc.deslauriers@ubuntu.com>  Tue, 14 Sep 2010 09:20:45 -0400
+
+samba (2:3.5.4~dfsg-1ubuntu4) maverick; urgency=low
+
+  * Fix a typo in debian/smb.conf introduced in a previous merge that causes
+    3-way-merge to fail gratuitously for anyone who has enabled the [homes]
+    share.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Fri, 10 Sep 2010 11:52:45 +0000
+
+samba (2:3.5.4~dfsg-1ubuntu3) maverick; urgency=low
+
+  * Add the translation of Unix Error code -ENOTSUP to NT Error Code
+    NT_STATUS_NOT_SUPPORTED to prevent the Permission denied error.  
+    (LP: #276472)
+
+ -- Surbhi Palande <surbhi.palande@canonical.com>  Mon, 16 Aug 2010 15:09:30 +0300
+
+samba (2:3.5.4~dfsg-1ubuntu2) maverick; urgency=low
+
+  * Resync with debian:
+    + debian/control: Update standards version to 3.9.0. 
+    + debian/samba-common.links: Add symlink from /etc/dhcp/dhclient-enter-hooks.d to
+      /etc/dhcp3/dhclient-enter-hooks.d for the hook location of the new
+      isc-dhcp-client package.
+
+ -- Chuck Short <zulcss@ubuntu.com>  Thu, 15 Jul 2010 13:26:21 -0400
+
+samba (2:3.5.4~dfsg-1ubuntu1) maverick; urgency=low
+
+  * Merge from Debian experimental, remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are 
+        allowed to create public shares in addition to authenticated
+        ones.
+      - add map to guest = Bad user, maps bad username to guest access. 
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/mksmbpasswd.awk:
+      - Do not add user with UID less than 1000 to smbpasswd.
+    + debian/control:
+      - Make libwbclient0 replace/conflict with hardy's likewise-open.
+      - Don't build against or suggest ctdb.
+      - Add dependency on samba-common-bin to samba.
+    + debian/rules:
+      - enable "native" PIE hardening.
+      - Add BIND_NOW to maximize benefit of RELRO hardening.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+        profile
+      - debian/control: have samba suggest ufw
+    + Add apport hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba.dirs, debian/samba-common-bin.files: install
+    + Switch to upstart:
+      - Add debian/samba.{nmbd,smbd}.upstart.
+      - Don't ship the /etc/network/if-up.d file.
+    + debian/samba.postinst: 
+      - Fixed bashism.
+      - Avoid scary pdbedit warnings on first import.
+    + debian/samba-common.postinst: Add more informative error message for
+      the case where smb.conf was manually deleted
+    + debian/samba.logrotate: Make it upstart compatible
+    + debian/samba-common.dhcp: Fix typo to get a proper parsing in
+      /etc/samba/dhcp.
+    + Drop the per-release smb.conf templates, only needed for upgrade paths
+      that are no longer supported.
+  * Drop undocumented, unused debian/docs.
+  * Drop contentless debian/README.Debian.
+  * Readd tdbtorture, which was dropped without explanation
+  * Fix up BIND_NOW handling to not clobber other LDFLAGS from
+    dpkg-buildflags, and to pass the value to configure as intended.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Tue, 13 Jul 2010 20:05:30 +0000
+
 samba (2:3.5.4~dfsg-1) experimental; urgency=low
 
   * New upstream release
 
  -- Christian Perrier <bubulle@debian.org>  Tue, 29 Jun 2010 22:00:53 +0200
+
+samba (2:3.5.4~dfsg-0ubuntu1) maverick; urgency=low
+
+  * New upstream release, major enhancements:
+    + Fix smbd crash when sambaLMPassword and sambaNTPassword entries missing
+      from ldap (bug #7448).
+    + Fix init_sam_from_ldap storing group in sid2uid cache (bug #7507).
+  * Refreshed patches.
+
+ -- Chuck Short <zulcss@ubuntu.com>  Wed, 23 Jun 2010 09:33:36 -0400
 
 samba (2:3.5.3~dfsg-1) experimental; urgency=low
 
@@ -662,6 +1935,74 @@ samba (2:3.5.3~dfsg-1) experimental; urgency=low
   * Drop duplicate build dependency on ctdb
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 19 May 2010 22:07:49 +0200
+
+samba (2:3.5.3~dfsg-0ubuntu4) maverick; urgency=low
+
+  * debian/control: Add dependency of samba-common-bin to samba. (LP: #572410) 
+
+ -- Chuck Short <zulcss@ubuntu.com>  Fri, 11 Jun 2010 08:44:13 -0400
+
+samba (2:3.5.3~dfsg-0ubuntu3) maverick; urgency=low
+
+  * debian/source_samba.py: if /etc/samba/smb.conf is missing, pop up
+    a message for why this is not a bug, and end run. (LP: #591043)
+
+ -- C de-Avillez <hggdh2@ubuntu.com>  Mon, 07 Jun 2010 19:06:51 -0500
+
+samba (2:3.5.3~dfsg-0ubuntu2) maverick; urgency=low
+
+  * debian/control: Drop ctdb build dependency again, it's not in main.
+
+ -- Martin Pitt <martin.pitt@ubuntu.com>  Tue, 01 Jun 2010 08:17:20 +0200
+
+samba (2:3.5.3~dfsg-0ubuntu1) maverick; urgency=low
+
+  * New upstream release, major enhancements:
+     + Fix MS-DFS functionality (bug #7339).
+     + Fix a Winbind crash when scanning trusts (bug #7389).
+     + Fix problems with SIGCHLD handling in Winbind (bug #7317).
+  * Refreshed patches.
+
+ -- Chuck Short <zulcss@ubuntu.com>  Thu, 20 May 2010 11:04:36 -0400
+
+samba (2:3.5.2~dfsg-2ubuntu1) maverick; urgency=low
+
+  * Merge from Debian Experimental, remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - Add "(Samba, Ubuntu)" to server string.
+      - Comment out the default [homes] share, and add a comment about "valid users = %s"
+        to show users how to restrict access to \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are allowed to create
+        public shares in additon to authenticated ones.
+      - add map to guest = Bad user, maps bad username to guest access.
+    + debian/samba-common.conf:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/mksambapasswd.awk:
+      - Do not add user with UID less than 1000 to smbpasswd.
+    + debian/control:
+      - Make libswbclient0 replace/conflict with hardy's likewise-open.
+      - Don't build against ctdb, since its not in main yet.
+    + debian/rules:
+      - Enable "native" PIE hardening.
+      - Add BIND_NOW to maximize benefit of RELRO hardening.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile.
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+    + Add apport hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba.dirs, debian/samba-common-bin.files: install
+    + Dropped:
+      - debian/patches/ubuntu-gecos-fix.patch: Fix gecos parsing backported from Samba 3.5.x 
+        (LP: #182572)
+
+    [Chuck Short]
+    * Removed unsupported smb.conf files.
+    * debian/samba.postinst: Fixed bashism. (LP: #576307)
+
+ -- Chuck Short <zulcss@ubuntu.com>  Fri, 07 May 2010 14:40:42 -0400
 
 samba (2:3.5.2~dfsg-2) experimental; urgency=low
 
@@ -761,6 +2102,43 @@ samba (2:3.4.8~dfsg-1) unstable; urgency=low
 
  -- Christian Perrier <bubulle@debian.org>  Wed, 12 May 2010 05:45:52 +0200
 
+samba (2:3.4.7~dfsg-2ubuntu1) maverick; urgency=low
+
+  * Merge from Debian unstable.  Remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - Add "(Samba, Ubuntu)" to server string.
+      - Comment out the default [homes] share, and add a comment about "valid users = %s"
+        to show users how to restrict access to \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are allowed to create
+        public shares in additon to authenticated ones.
+      - add map to guest = Bad user, maps bad username to guest access.
+    + debian/samba-common.conf:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/mksambapasswd.awk:
+      - Do not add user with UID less than 1000 to smbpasswd.
+    + debian/control:
+      - Make libswbclient0 replace/conflict with hardy's likewise-open.
+      - Don't build against ctdb, since its not in main yet.
+    + debian/rules:
+      - Enable "native" PIE hardening.
+      - Add BIND_NOW to maximize benefit of RELRO hardening.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile.
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+    + Add apport hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba.dirs, debian/samba-common-bin.files: install
+    + debian/patches/ubuntu-gecos-fix.patch: Fix gecos parsing backported from Samba 3.5.x (LP: #182572)\
+    + debian/samba.postinst: Avoid scary pdbedit warnings on first import. (LP: #24741)
+    + debian/samba.logrotate: Make it upstart compatible (LP: #529290)
+    + debian/samba-common.dhcp: Fix typo to get a proper parsing in /etc/samba/dhcp. (LP: #507374)
+    + Don't ship the /etc/samba/if-up files, we use upstart.
+
+ -- Chuck Short <zulcss@ubuntu.com>  Wed, 05 May 2010 03:25:03 +0100
+
 samba (2:3.4.7~dfsg-2) unstable; urgency=low
 
   [ Christian Perrier ]
@@ -784,6 +2162,61 @@ samba (2:3.4.7~dfsg-2) unstable; urgency=low
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 17 Apr 2010 07:49:49 +0200
 
+samba (2:3.4.7~dfsg-1ubuntu3) lucid; urgency=low
+
+  * debian/winbind.pam-config: Fix potential breakage with stacking of
+    lower-priority modules in common-passwd (LP: #556996)
+
+ -- Thierry Carrez <thierry.carrez@ubuntu.com>  Fri, 09 Apr 2010 16:50:07 +0200
+
+samba (2:3.4.7~dfsg-1ubuntu2) lucid; urgency=low
+
+  * debian/winbind.pam-config: Fix password PAM profile for winbind, thanks to
+    Steve Langasek for investigation and fix (LP: #546874)
+  * debian/winbind.prerm, debian/winbind.postinst: Enable and disable winbind
+    PAM profile on package install/removal (LP: #556342)
+
+ -- Thierry Carrez <thierry.carrez@ubuntu.com>  Tue, 06 Apr 2010 11:59:54 +0200
+
+samba (2:3.4.7~dfsg-1ubuntu1) lucid; urgency=low
+
+  * Merge from debian testing.  Remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - Add "(Samba, Ubuntu)" to server string.
+      - Comment out the default [homes] share, and add a comment about "valid users = %s"
+        to show users how to restrict access to \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are allowed to create
+        public shares in additon to authenticated ones.
+      - add map to guest = Bad user, maps bad username to gues access.
+    + debian/samba-common.conf:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/mksambapasswd.awk:
+      - Do not add user with UID less than 1000 to smbpasswd.
+    + debian/control:
+      - Make libswbclient0 replace/conflict with hardy's likewise-open.
+      - Don't build against ctdb, since its not in main yet.
+    + debian/rules:
+      - Enable "native" PIE hardening.
+      - Add BIND_NOW to maximize benefit of RELRO hardening.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile.
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+    + Add apport hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba.dirs, debian/samba-common-bin.files: install
+    + debian/control: Recommend keyutils for smbfs (LP: #493565)
+    + debian/patches/ubuntu-gecos-fix.patch: Fix gecos parsing backported from Samba 3.5.x (LP: #182572)
+    + debian/samba.postinst: Avoid scary pdbedit warnings on first import. (LP: #24741)
+    + debian/samba.logrotate: Make it upstart compatible (LP: #529290)
+    + debian/samba-common.dhcp: Fix typo to get a proper parsing in /etc/samba/dhcp. (LP: #507374)
+    + Dropped:
+      debian/patches/debian/patches/security-CVE-2010-0728.patch: Included upstream.
+
+ -- Chuck Short <zulcss@ubuntu.com>  Fri, 19 Mar 2010 21:17:40 +0000
+
 samba (2:3.4.7~dfsg-1) unstable; urgency=low
 
   [ Steve Langasek ]
@@ -799,11 +2232,144 @@ samba (2:3.4.7~dfsg-1) unstable; urgency=low
 
  -- Christian Perrier <bubulle@debian.org>  Tue, 09 Mar 2010 10:52:24 +0100
 
+samba (2:3.4.6~dfsg-1ubuntu3) lucid; urgency=low
+
+  [Thierry Carrez]
+  * debian/samba.postinst: Avoid scary pdbedit warnings on first import
+    (LP: #24741)
+
+  [Chuck Short]
+  * debian/samba.logrotate: Make it upstart compatible (LP: #529290)
+  * debian/samba-common.dhcp: Fix typo to get a proper parsing in /etc/samba/dhcp. (LP: #507374)
+
+ -- Thierry Carrez <thierry.carrez@ubuntu.com>  Thu, 11 Mar 2010 13:57:06 +0100 
+
+samba (2:3.4.6~dfsg-1ubuntu2) lucid; urgency=low
+
+  * SECURITY UPDATE: permission bypass via incorrect CAP_DAC_OVERRIDE
+    handling.
+    - debian/patches/security-CVE-2010-0728.patch: fix capability handling
+      in source3/{include/smb.h,lib/system.c,smbd/server.c}.
+    - CVE-2010-0728
+  * Removed patches:
+    - debian/patches/debian-changes-2:3.4.5~dfsg-2ubuntu2: merge error
+    - debian/patches/debian-changes-2:3.4.6~dfsg-1ubuntu1: merge error
+
+ -- Marc Deslauriers <marc.deslauriers@ubuntu.com>  Mon, 08 Mar 2010 17:50:57 -0500
+
+samba (2:3.4.6~dfsg-1ubuntu1) lucid; urgency=low
+
+    * Merge from debian unstable.  Remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - Add "(Samba, Ubuntu)" to server string.
+      - Comment out the default [homes] share, and add a comment about "valid users = %s"
+        to show users how to restrict access to \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are allowed to create
+        public shares in additon to authenticated ones.
+      - add map to guest = Bad user, maps bad username to gues access.
+    + debian/samba-common.conf:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/mksambapasswd.awk:
+      - Do not add user with UID less than 1000 to smbpasswd.
+    + debian/control: 
+      - Make libswbclient0 replace/conflict with hardy's likewise-open.
+      - Don't build against ctdb, since its not in main yet.
+    + debian/rules:
+      - Enable "native" PIE hardening.
+      - Add BIND_NOW to maximize benefit of RELRO hardening.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile.
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+    + Add apport hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba.dirs, debian/samba-common-bin.files: install
+    + debian/control: Recommend keyutils for smbfs (LP: #493565) 
+    + Switch to upstart:
+      - Switch smbd and nmbd over to upstart jobs, to ensure nmbd starts reliably
+        after the network is up.  LP: #523868.
+    + debian/patches/ubuntu-gecos-fix.patch: Fix gecos parsing backported
+      from Samba 3.5.x. (LP: #182572)
+    + debian/patches/security-CVE-2009-3297.patch: validate mount point and perform mount in "."
+      to prevent race in source3/client/mount.cifs.c (CVE-2009-3297)
+
+ -- Chuck Short <zulcss@ubuntu.com>  Wed, 03 Mar 2010 10:52:13 -0500
+
 samba (2:3.4.6~dfsg-1) unstable; urgency=low
 
   * New upstream release
 
  -- Christian Perrier <bubulle@debian.org>  Fri, 26 Feb 2010 22:39:50 +0100
+
+samba (2:3.4.5~dfsg-2ubuntu4) lucid; urgency=low
+
+  * debian/patches/ubuntu-gecos-fix.patch: Fix gecos parsing backported 
+    from Samba 3.5.x. (LP: #182572)
+
+ -- Chuck Short <zulcss@ubuntu.com>  Wed, 03 Mar 2010 09:35:26 -0500
+
+samba (2:3.4.5~dfsg-2ubuntu3) lucid; urgency=low
+
+  * debian/source_samba.py:
+    - Fixed crashing apport hook. (LP: #526663)
+    - Add more options to list of samba client (LP: #526666)
+
+ -- Chuck Short <zulcss@ubuntu.com>  Fri, 26 Feb 2010 09:10:02 -0500
+
+samba (2:3.4.5~dfsg-2ubuntu2) lucid; urgency=low
+
+  * Switch smbd and nmbd over to upstart jobs, to ensure nmbd starts reliably
+    after the network is up.  LP: #523868.
+  * Remove /etc/network/if-up.d/samba on upgrade, superseded by the above.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Thu, 18 Feb 2010 12:51:45 +0000
+
+samba (2:3.4.5~dfsg-2ubuntu1) lucid; urgency=low
+
+  * Merge from debian unstable.  Remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - Add "(Samba, Ubuntu)" to server string.
+      - Comment out the default [homes] share, and add a comment about "valid users = %s"
+        to show users how to restrict access to \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are allowed to create
+        public shares in additon to authenticated ones.
+      - add map to guest = Bad user, maps bad username to gues access.
+    + debian/samba-common.conf:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/mksambapasswd.awk:
+      - Do not add user with UID less than 1000 to smbpasswd.
+    + debian/control: 
+      - Make libswbclient0 replace/conflict with hardy's likewise-open.
+      - Don't build against ctdb, since its not in main yet.
+    + debian/rules:
+      - Enable "native" PIE hardening.
+      - Add BIND_NOW to maximize benefit of RELRO hardening.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile.
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+    + Add apport hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba.dirs, debian/samba-common-bin.files: install
+    + debian/rules, debian/samba.if-up: allow "NetworkManager" as a recognized address
+      family... it's obviously /not/ an address family, but it's what gets
+      sent when using NM, so we'll cope for now.  (LP: #462169). Taken from karmic-proposed.
+    + debian/control: Recommend keyutils for smbfs (LP: #493565)
+    + debian/patches/security-CVE-2009-3297.patch: add back in as it was
+      incorrectly removed in last merge
+    + Removed patches:
+      - debian/patches/debian-changes-2:3.4.3-2ubuntu1: merge mistake
+      - debian/patches/debian-changes-2:3.4.5~dfsg-1ubuntu1: merge mistake
+      - debian/patches/net-usershare-list-3.4.0.patch: not used
+      - debian/patches/fix-crash-when-loading-interfaces.patch: not used
+      - debian/patches/fix-upstream-6680.patch: not used
+      - debian/patches/fix-password-expiry-calculation.patch: not used
+
+ -- Marc Deslauriers <marc.deslauriers@ubuntu.com>  Tue, 16 Feb 2010 19:23:34 -0500
 
 samba (2:3.4.5~dfsg-2) unstable; urgency=low
 
@@ -820,6 +2386,51 @@ samba (2:3.4.5~dfsg-2) unstable; urgency=low
   * Updated Standards to 3.8.4 (checked, no change)
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 13 Feb 2010 14:36:33 +0100
+
+samba (2:3.4.5~dfsg-1ubuntu2) lucid; urgency=low
+
+  * debian/source_samba.py: Typo and grammar fixes for the apport hook.
+
+ -- Brian Murray <brian@ubuntu.com>  Tue, 09 Feb 2010 11:57:20 -0800
+
+samba (2:3.4.5~dfsg-1ubuntu1) lucid; urgency=low
+
+  * Merge from debian testing.  Remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - Add "(Samba, Ubuntu)" to server string.
+      - Comment out the default [homes] share, and add a comment about "valid users = %s"
+        to show users how to restrict access to \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are allowed to create
+        public shares in additon to authenticated ones.
+      - add map to guest = Bad user, maps bad username to gues access.
+    + debian/samba-common.conf:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/mksambapasswd.awk:
+      - Do not add user with UID less than 1000 to smbpasswd.
+    + debian/control: 
+      - Make libswbclient0 replace/conflict with hardy's likewise-open.
+      - Don't build against ctdb, since its not in main yet.
+    + debian/rules:
+      - Enable "native" PIE hardening.
+      - Add BIND_NOW to maximize benefit of RELRO hardening.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile.
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+    + Add apoort hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba.dirs, debian/samba-common-bin.files: install
+    + debian/rules, debian/samba.if-up: allow "NetworkManager" as a recognized address
+      family... it's obviously /not/ an address family, but it's what gets
+      sent when using NM, so we'll cope for now.  (LP: #462169). Taken from karmic-proposed.
+    + debian/control: Recommend keyutils for smbfs (LP: #493565)
+    + Dropped patches:
+      - debian/patches/security-CVE-2009-3297.patch: No longer needed
+      - debian/patches/fix-too-many-open-files.patch: No longer needed
+
+ -- Chuck Short <zulcss@ubuntu.com>  Fri, 29 Jan 2010 06:16:15 +0000
 
 samba (2:3.4.5~dfsg-1) unstable; urgency=low
 
@@ -849,6 +2460,56 @@ samba (2:3.4.4~dfsg-1) unstable; urgency=low
 
  -- Christian Perrier <bubulle@debian.org>  Thu, 14 Jan 2010 20:16:34 +0100
 
+samba (2:3.4.3-2ubuntu3) lucid; urgency=low
+
+  * SECURITY UPDATE: privilege escalation via mount.cifs race
+    - debian/patches/security-CVE-2009-3297.patch: validate mount point and
+      perform mount in "." to prevent race in source3/client/mount.cifs.c.
+    - CVE-2009-3297
+
+ -- Marc Deslauriers <marc.deslauriers@ubuntu.com>  Thu, 28 Jan 2010 15:21:15 -0500
+
+samba (2:3.4.3-2ubuntu2) lucid; urgency=low
+
+  * debian/rules, debian/samba.if-up: allow "NetworkManager" as a recognized address
+    family... it's obviously /not/ an address family, but it's what gets
+    sent when using NM, so we'll cope for now.  (LP: #462169). Taken from karmic-proposed.
+  * debian/control: Recommend keyutils for smbfs (LP: #493565)
+  * debian/patches/series, debian/patches/fix-too-many-open-files.patch: Windows 7 needs
+    the Windows server open file handle number of 16384 handles. (LP: #462172)
+
+ -- Chuck Short <zulcss@ubuntu.com>  Tue, 19 Jan 2010 12:54:46 -0500
+
+samba (2:3.4.3-2ubuntu1) lucid; urgency=low
+
+  * Merge from debian testing.  Remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - Add "(Samba, Ubuntu)" to server string.
+      - Comment out the default [homes] share, and add a comment about "valid users = %s" 
+        to show users how to restrict access to \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are allowed to create
+        public shares in additon to authenticated ones.
+      - add map to guest = Bad user, maps bad username to gues access.
+    + debian/samba-common.conf:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/mksambapasswd.awk:
+      - Do not add user with UID less than 1000 to smbpasswd.
+    + debian/control:
+      - Make libswbclient0 replace/conflickt with hardy's likewise-open.
+      - Don't build against ctdb.
+      - Build-depend on libreadline-dev instead of libreadline5-dev.
+    + debian/rules:
+      - Enable "native" PIE hardening.
+      - Add BIND_NOW to maximize benefit of RELRO hardening.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile.
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+
+ -- Chuck Short <zulcss@ubuntu.com>  Mon, 28 Dec 2009 05:02:32 +0000
+
 samba (2:3.4.3-2) unstable; urgency=low
 
   [ Christian Perrier ]
@@ -876,6 +2537,43 @@ samba (2:3.4.3-2) unstable; urgency=low
 
  -- Christian Perrier <bubulle@debian.org>  Thu, 17 Dec 2009 16:53:13 +0100
 
+samba (2:3.4.3-1ubuntu2) lucid; urgency=low
+
+  * debian/rules: add BIND_NOW to maximize benefit of RELRO hardening.
+
+ -- Kees Cook <kees@ubuntu.com>  Sun, 20 Dec 2009 23:56:17 -0800
+
+samba (2:3.4.3-1ubuntu1) lucid; urgency=low
+
+  * Merge from debian testing.  Remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu
+    + debian/smb.conf:
+      - Add "(Samaba, Ubuntu)" to server string.
+      - Comment out the default [homes] share, and add a comment about "valid users = %s" to show users
+        how to restrict access to \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are allowed to create public shares in addition to 
+        authenticated ones.
+      - add map to guest = Bad user, maps bad username to guest access.
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/mksambapasswd.awk:
+      - Do not add user with UID less than 1000 to smbpasswd.
+    + debian/control:
+      - Make libwbclient0 replace/conflict with hardy's likewise-open.
+      - Don't build against ctdb.
+      - Build-depend on libreadline-dev instead of libreadline5-dev.
+    + debian/rules:
+      - enable "native" PIE hardening.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+    + Dropped:
+      - debian/patches/fix-smbclient-long-names.patch: Already upstream.
+
+ -- Chuck Short <zulcss@ubuntu.com>  Mon, 23 Nov 2009 23:28:03 +0000
+
 samba (2:3.4.3-1) unstable; urgency=low
 
   * New upstream release. This fixes the following bugs:
@@ -884,6 +2582,45 @@ samba (2:3.4.3-1) unstable; urgency=low
   * Bump Standards-Version to 3.8.3 (checked)
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 31 Oct 2009 14:32:07 +0100
+
+samba (2:3.4.2-1ubuntu1) lucid; urgency=low
+
+  * Merge from debian unstable, remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu
+    + debian/smb.conf:
+      - Add "(Samaba, Ubuntu)" to server string.
+      - Comment out the default [homes] share, and add a comment about "valid users = %s" to show users
+        how to restrict access to \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are
+        allowed to create public shares in addition to authenticated ones.
+      - add map to guest = Bad user, maps bad username to guest access.
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/mksambapasswd.awk:
+      - Do not add user with UID less than 1000 to smbpasswd.
+    + debian/control:
+      - Make libwbclient0 replace/conflict with hardy's likewise-open.
+      - Don't build against ctdb.
+      - Build-depend on libreadline-dev instead of libreadline5-dev.
+    + debian/rules:
+      - enable "native" PIE hardening.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+    + debian/patches/fix-smbclient-long-names.patch: Samba shares with more than 12 characters are not
+      displayed. (LP: #449735)
+    + Dropped:
+      - debian/patches/536757.patch: Already upstream
+      - debian/patches/net-usershare-list-3.4.0.patch: Already upstream
+      - debian/patches/fix-crash-when-loading-interfaces.patch: Already upstream
+      - debian/patches/fix-upstream-6680.patch: Already upstream
+      - debian/patches/security-CVE-2009-2813.patch: Already upstream
+      - debian/patches/security-CVE-2009-2948.patch: Already upstream
+      - debian/patches/security-CVE-2009-2906.patch: Already upstream
+
+ -- Chuck Short <zulcss@ubuntu.com>  Wed, 21 Oct 2009 22:14:57 +0100
 
 samba (2:3.4.2-1) unstable; urgency=high
 
@@ -977,6 +2714,84 @@ samba (2:3.4.0-4) unstable; urgency=low
 
  -- Steve Langasek <vorlon@debian.org>  Mon, 07 Sep 2009 22:58:29 -0700
 
+samba (2:3.4.0-3ubuntu5) karmic; urgency=low
+
+  * SECURITY UPDATE: whole filesystem share via user with no home directory
+    - debian/patches/security-CVE-2009-2813.patch: make sure home directory
+      is set in source3/param/loadparm.c, source3/smbd/service.c.
+    - CVE-2009-2813
+  * SECURITY UPDATE: credentials file disclosure and unauthorized usage via
+    setuid mount.cifs
+    - debian/patches/security-CVE-2009-2948.patch: don't open credentials
+      file if user doesn't have permission, and don't print password when
+      using verbose option in source3/client/mount.cifs.c.
+    - CVE-2009-2948
+  * SECURITY UPDATE: denial of service via unexpected oplock break
+    notification reply
+    - debian/patches/security-CVE-2009-2906.patch: track messages already
+      processed in source3/include/smb.h, source3/smbd/process.c.
+    - CVE-2009-2906
+
+ -- Marc Deslauriers <marc.deslauriers@ubuntu.com>  Thu, 01 Oct 2009 08:20:29 -0400
+
+samba (2:3.4.0-3ubuntu4) karmic; urgency=low
+
+  * Build-depend on libreadline-dev instead of libreadline5-dev.
+
+ -- Matthias Klose <doko@ubuntu.com>  Sat, 19 Sep 2009 22:16:40 +0200
+
+samba (2:3.4.0-3ubuntu3) karmic; urgency=low
+
+  * Fix FTBFS: fix libtalloc detection. (cherry picked from Debian)
+    + debian/control: Add pkg-config as a dependency, needed to fix libtalloc detection
+    + debian/patches/external-talloc-support.patch: fix the Makefile so it works
+      when using external talloc instead of giving a missing-depend error.
+    + debian/patches/autoconf.pach: Resurrect needed to fix the libtalloc errors.
+    + debian/rules: build with --without-libtalloc and --enale-external-libtalloc
+  * debian/patches/fix-crash-when-loading-interfaces.patch: Fix segfault when loading
+    some wonky configuration files. (LP: #421419)  
+
+ -- Chuck Short <zulcss@ubuntu.com>  Fri, 18 Sep 2009 08:29:06 -0400
+
+samba (2:3.4.0-3ubuntu2) karmic; urgency=low
+
+  * Apply patch for "net usershare list" to stop it from crashing (LP: #423854)
+
+ -- Mike Pontillo <pontillo@gmail.com>  Thu, 03 Sep 2009 23:45:05 -0700
+
+samba (2:3.4.0-3ubuntu1) karmic; urgency=low
+
+  * Merge from debian unstable, remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - Add "(Samaba, Ubuntu)" to server string.
+      - Comment out the default [homes] share, and add a comment
+        about "valid users = $s" to show users how to restrict access
+        to \\server\username to only username.
+      - Set 'usershare allow guests' so that usershare admins are
+        allowed to create public shares to authenticated ones.
+      - Add 'map to gues = Bad user', maps bad username to guest access.
+   + debian/samba-common.conf:
+     - Do not change priority to hight if dhclient3 is installed.
+     - Use priority medium  instead of high for the workgroup question.
+   + debian/samba-common.postinst: Add more informative error message for the case
+     where smb.conf was manually deleted. (LP: #312449)
+   + debian/mksambapasswd.awk: Do not add user with UID less than 1000 to smbpasswd.
+   + debian/control:
+     - Make libwbclient0 replace/conflict with hardy's likewise-open.
+     - Don't build against ctdb.
+     - Add suggests keyutils for smbfs. (LP: #300221)
+   + debian/rules:
+     - enable "native" PIE hardening.
+     - remove --with-ctdb and --with-cluster-support=yes
+   + Add ufw integration:
+     - Created debian/samba.ufw profile.
+     - debian/rules, debian/samba.dirs, debian/samba.files: install profile
+     - debian/control: have samba suggest ufw.
+
+ -- Chuck Short <zulcss@ubuntu.com>  Fri, 21 Aug 2009 21:13:10 +0100
+
 samba (2:3.4.0-3) unstable; urgency=low
 
   [ Steve Langasek ]
@@ -1002,6 +2817,47 @@ samba (2:3.4.0-2) unstable; urgency=low
   * Properly rename smbstatus.1 for alternatives. Closes: #534772
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 02 Aug 2009 12:20:51 +0200
+
+samba (2:3.4.0-1ubuntu2) karmic; urgency=low
+
+  * debian/control: Suggest ufw, (LP: #399468)
+
+ -- Chuck Short <zulcss@ubuntu.com>  Wed, 15 Jul 2009 10:01:41 -0400
+
+samba (2:3.4.0-1ubuntu1) karmic; urgency=low
+
+  * Merge from debian unstable, remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - Add "(Samaba, Ubuntu)" to server string.
+      - Comment out the default [homes] share, and add a comment 
+        about "valid users = $s" to show users how to restrict access
+        to \\server\username to only username.
+      - Set 'usershare allow guests' so that usershare admins are
+        allowed to create public shares to authenticated ones.
+      - Add 'map to gues = Bad user', maps bad username to guest access.
+    + debian/samba-common.conf:
+      - Do not change priority to hight if dhclient3 is installed.
+      - Use priority medium  instead of high for the workgroup question.
+    + debian/samba-common.postinst: Add more informative error message for the case
+      where smb.conf was manually deleted. (LP: #312449)
+    + debian/mksambapasswd.awk: Do not add user with UID less than 1000 to smbpasswd.
+    + debian/control:
+      - Make libwbclient0 replace/conflict with hardy's likewise-open.
+      - Don't build against ctdb.
+      - Add suggests keyutils for smbfs. (LP: #300221)
+    + debian/rules:
+      - enable "native" PIE hardening.
+      - remove --with-ctdb and --with-cluster-support=yes
+    + Add ufw integration:
+      - Created debian/samba.ufw profile.
+      - debian/rules, debian/samba.dirs, debian/samba.files: install profile
+      - debian/control: have samba suffest ufw
+    + Dropped:
+      - debian/patches/fix-password-expiry-calculation.patch: Already upstream.
+
+ -- Chuck Short <zulcss@ubuntu.com>  Wed, 08 Jul 2009 07:02:37 +0100
 
 samba (2:3.4.0-1) unstable; urgency=low
 
@@ -1061,6 +2917,59 @@ samba (2:3.3.6-1) unstable; urgency=high
 
  -- Christian Perrier <bubulle@debian.org>  Fri, 26 Jun 2009 18:21:51 +0200
 
+samba (2:3.3.5-1ubuntu4) karmic; urgency=low
+
+  * No really rix it. 
+
+ -- Chuck Short <zulcss@ubuntu.com>  Mon, 29 Jun 2009 11:09:56 -0400
+
+samba (2:3.3.5-1ubuntu3) karmic; urgency=low
+
+  * Really add patch. 
+
+ -- Chuck Short <zulcss@ubuntu.com>  Mon, 29 Jun 2009 09:38:14 -0400
+
+samba (2:3.3.5-1ubuntu2) karmic; urgency=low
+
+  * debian/patches/fix-password-expiry-calculation.patch: Use correct
+    value for password expiry calculation (LP: #393450) 
+
+ -- Chuck Short <zulcss@ubuntu.com>  Mon, 29 Jun 2009 09:15:13 -0400
+
+samba (2:3.3.5-1ubuntu1) karmic; urgency=low
+
+  * Merge from debian unstable, remaining changes:
+    + debian/patches/VERSION.patch:
+      - setup SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+      - Set 'usershare allow guests' so that usershare admins are
+        allowed to create public shares in addition to authenticated ones.
+      - add map to guest = Bad user, maps bad username to gues access.
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use prioity medium instead of hight for the workgroup question.
+    + debian/samba-common.postinst: Add more informative error message for the 
+      case where smb.conf was manually deleted (LP: #312449)
+    + debian/mksambapasswd.awk: Do not add user with UID less than 1000 to smbpasswd.
+    + debian/control:
+      - Make libwbclient0 replace/conflict with hardy's likewise-open.
+      - Don't build against ctdb.
+      - Add suggests keyutils for smbfs. (LP: #300221)
+    + debian/rules:
+      - enable "native" PIE hardening.
+      - remove --with-ctdb and --with-cluster-support=yes
+    + Add ufw integration:
+      - Created debian/samba.ufw profile.
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+        profile
+      - debian/control: have samba sugguest ufw
+
+ -- Chuck Short <zulcss@ubuntu.com>  Sun, 21 Jun 2009 02:53:22 +0100
+
 samba (2:3.3.5-1) unstable; urgency=low
 
   [ Steve Langasek ]
@@ -1083,6 +2992,44 @@ samba (2:3.3.5-1) unstable; urgency=low
   * Upgrade debhelper compatibility level to 6
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 20 Jun 2009 08:01:16 +0200
+
+samba (2:3.3.4-2ubuntu1) karmic; urgency=low
+
+  * Merge from debian unstable, remaining changes:
+    + debian/patches/VERSION.patch:
+      - setup SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are
+        allowed to create public shares in addition to authenticated
+        ones.
+      - add map to guest = Bad user, maps bad username to guest access.
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/samba-common.postinst: Add more informative error message for
+      the case where smb.conf was manually deleted (LP: #312449)
+    + debian/mksambapasswd.awk:
+      - Do not add user with UID less than 1000 to smbpasswd.
+    + debian/control:
+      - Make libwbclient0 replace/conflict with hardy's likewise-open.
+      - Don't build against ctdb.
+      - Add suggests keyutils for smbfs. (LP: #300221)
+    + debian/rules:
+      - enable "native" PIE hardening.
+      - remove --with-ctdb and --with-cluster-support=yes
+    + Add ufw integration:
+      - Created debian/samba.ufw profile.
+      - debian/rules, debian/samba.dirs, debian/samba.files: install 
+        profile
+      - debian/control: have samba sugguest ufw.
+  * Dropped patches:
+    + debian/patches/fix-upstream-bug-6186.patch: Merged upstream
+
+ -- Andrew Mitchell <ajmitch@ubuntu.com>  Mon, 18 May 2009 13:26:04 +1200
 
 samba (2:3.3.4-2) unstable; urgency=low
 
@@ -1148,6 +3095,56 @@ samba (2:3.3.2-2) unstable; urgency=low
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 29 Mar 2009 09:23:35 +0200
 
+samba (2:3.3.2-1ubuntu3) jaunty; urgency=low
+
+  [Thierry Carrez] 
+  * debian/samba-common.postinst: Add more informative error message for
+    the case where smb.conf was manually deleted (LP: #312449)
+
+  [Chuck Short]
+  * debian/control: Add suggests keyutils for smbfs. (LP: #300221)
+
+ -- Chuck Short <zulcss@ubuntu.com>  Fri, 27 Mar 2009 10:46:15 -0400
+
+samba (2:3.3.2-1ubuntu2) jaunty; urgency=low
+
+  * debian/patches/fix-upstream-bug-6186.patch: Fix for data loss
+    with roaming profiles. (https://bugzilla.samba.org/show_bug.cgi?id=6186) 
+
+ -- Chuck Short <zulcss@ubuntu.com>  Thu, 26 Mar 2009 07:52:14 -0400
+
+samba (2:3.3.2-1ubuntu1) jaunty; urgency=low
+
+  * Merge from debian unstable, remaining changes:
+    + debian/patches/VERSION.patch:
+      - setup SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are
+        allowed to create public shares in addition to authenticated
+        ones.
+      - add map to guest = Bad user, maps bad username to guest access.
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    * debian/mksambapasswd.awk:
+      - Do not add user with UID less than 1000 to smbpasswd.
+    * debian/control:
+      - Make libwbclient0 replace/conflict with hardy's likewise-open.
+      - Don't build against ctdb.
+    * debian/rules:
+      - enable "native" PIE hardening.
+    * Add ufw integration:
+      - Created debian/samba.ufw profile.
+      - debian/rules, debian/samba.dirs, debian/samba.files: install 
+        profile
+      - debian/contorl: have samba sugguest ufw.
+
+ -- Chuck Short <zulcss@ubuntu.com>  Mon, 16 Mar 2009 06:05:47 +0000
+
 samba (2:3.3.2-1) unstable; urgency=low
 
   [ Christian Perrier ]
@@ -1163,6 +3160,53 @@ samba (2:3.3.2-1) unstable; urgency=low
   * Add missing debhelper token to libpam-smbpass.prerm.
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 15 Mar 2009 12:16:48 +0100
+
+samba (2:3.3.1-1ubuntu1) jaunty; urgency=low
+
+  * Merge from Debian unstable (LP: #337094), remaining changes:
+    + debian/patches/VERSION.patch:
+      - setup SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are 
+        allowed to create public shares in addition to authenticated
+        ones.
+      - add map to guest = Bad user, maps bad username to guest access. 
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/mksambapasswd.awk:
+      - Do not add user with UID less than 1000 to smbpasswd.
+    + debian/control:
+      - Make libwbclient0 replace/conflict with hardy's likewise-open.
+      - Don't build against ctdb.
+    + debian/rules:
+      - enable "native" PIE hardening.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+        profile
+      - debian/control: have samba suggest ufw
+  * Dropped changes, merged in Debian:
+    + debian/libpam-smbpass.pam-config, debian/libpam-smbpass.postinst,
+      debian/libpam-smbpass.prerm, debian/libpam-smbpass.files,
+      debian/rules:
+      - Make libpam-smbpasswd depend on libpam-runtime to allow 
+        libpam-smbpasswd for auto-configuration.
+    + debian/control:
+      - Provide a config block for the new PAM framework to auto-configure
+        itself
+    + debian/samba.postinst:
+      - When populating the new sambashare group, it is not an error
+        if the user simply does not exist; test for this case and let
+        the install continue instead of aborting.
+    + debian/winbind.files:
+      - include additional files
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Tue, 03 Mar 2009 22:02:23 +0000
 
 samba (2:3.3.1-1) unstable; urgency=low
 
@@ -1198,6 +3242,60 @@ samba (2:3.3.1-1) unstable; urgency=low
 
  -- Steve Langasek <vorlon@debian.org>  Mon, 02 Mar 2009 00:30:35 -0800
 
+samba (2:3.3.0-4ubuntu2) jaunty; urgency=low
+
+  * debian/rules, debian/control: Remove ctdb support. 
+
+ -- Chuck Short <zulcss@ubuntu.com>  Fri, 27 Feb 2009 08:03:01 -0500
+
+samba (2:3.3.0-4ubuntu1) jaunty; urgency=low
+
+  * Merge from debian unstable, remaining changes:
+    + debian/patches/VERSION.patch:
+      - setup SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+         \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are
+        allows to create public shares in addition to authenticated
+        ones.
+      - add map to guest = Bad user, maps bad username to guest access.
+     + debian/samba.postinst:
+       - When populating the new sambashare group, it is not an error
+         if the user simply does not exist; test for this case and let
+         the install continue instead of aborting.
+     + debian/samba-common.config:
+       - Do not change priority to high if dhclient3 is installed.
+       - Use priority medium instead of high for the workgroup question.
+     + debian/mksambapasswd.awk:
+       - Do not add user with UID to less than a 1000 to smbpasswd.
+     + debian/control:
+       - Make libpam-smbpasswd depend on libpam-runtime to allow
+         libpam-smbpasswd for auto-configuration.
+       - Make libwbclient0 replace/conflict with hardy's likewise-open.
+     + debian/libpam-smbpass.pam-config, debian/libpam-smbpass.postinst,
+       debian/libpam-smbpass.prerm, debian/libpam-smbpass.files,
+       debian/rules:
+       - Provide a config block for the new PAM framework to auto-configure
+         itself
+     + debian/rules:
+      -  enable "native" PIE hardening.
+     + Add ufw integration:
+       - Created debian/samba.ufw.profile
+       - debian/rules, debian/samba.dirs, debian/samba.files: install
+         profile
+       - debian/control: have samba suggest ufw
+     + debian/patches/last-char-truncation.patch:
+       - Fix compatibility issue with NAS boxes still using Samba 2.2 and
+         earlier.
+     + debian/winbind.files:
+       - include additional files
+     + Fixes LP: #330626.
+
+ -- Chuck Short <zulcss@ubuntu.com>  Wed, 25 Feb 2009 10:56:23 +0000
+
 samba (2:3.3.0-4) unstable; urgency=low
 
   [ Steve Langasek ]
@@ -1215,6 +3313,69 @@ samba (2:3.3.0-4) unstable; urgency=low
   * enable clustering by default (CTDB). Closes: #514050 
 
  -- Steve Langasek <vorlon@debian.org>  Tue, 24 Feb 2009 16:58:58 -0800
+
+samba (2:3.3.0-3ubuntu2) jaunty; urgency=low
+
+  * Drop debian/patches/last-char-truncation.patch, which is applied
+    upstream.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Tue, 17 Feb 2009 07:32:55 +0000
+
+samba (2:3.3.0-3ubuntu1) jaunty; urgency=low
+
+  * Merge from debian unstable, remaining changes:
+    + debian/patches/VERSION.patch:
+      - setup SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are 
+        allowed to create public shares in addition to authenticated
+        ones.
+      - add map to guest = Bad user, maps bad username to guest access. 
+    + debian/samba.postinst:
+      - When populating the new samabshare group, it is not an error
+        if the user simply does not exist; test for this case and let
+        the install continue instead of aborting.
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/mksambapasswd.awk:
+      - Do not add user with UID less than 1000 to smbpasswd.
+    + debian/control:
+      - Make libpam-smbpasswd depend on libpam-runtime to allow 
+        libpam-smbpasswd for auto-configuration.
+      - Make libwbclient0 replace/conflict with hardy's likewise-open.
+    + debian/libpam-smbpass.pam-config, debian/libpam-smbpass.postinst,
+      debian/libpam-smbpass.prerm, debian/libpam-smbpass.files,
+      debian/rules:
+      - Provide a config block for the new PAM framework to auto-configure
+        itself
+    + debian/rules:
+      - enable "native" PIE hardening.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+        profile
+      - debian/control: have samba suggest ufw
+    + debian/patches/last-char-truncation.patch:
+      - Fix compatibility issue with NAS boxes still using Samba 2.2 and
+        earlier.
+    + debian/winbind.files:
+      - include additional files
+  * Merged changes:
+    + debian/control:
+      - Depend on lsb-base >= 3.2-14, which has the status_of_proc()
+        function.
+    + debian/samba.init:
+      - Add a 'status' action.
+    + debian/winbind.init:
+      - Add a PID variable and a 'status' action.
+  * Fixes LP: #328874.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Tue, 17 Feb 2009 07:00:42 +0000
 
 samba (2:3.3.0-3) unstable; urgency=low
 
@@ -1234,6 +3395,195 @@ samba (2:3.3.0-2) unstable; urgency=low
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 14 Feb 2009 13:38:14 +0100
 
+samba (2:3.3.0-1) experimental; urgency=low
+
+  * New upstream release. Fixes the following bugs:
+    - smb file deletion gvfs. Closes: #510564
+    - smbclient du command does not recuse properly. Closes: #509258
+    - mention possible workgroup field in credential files in mount.cifs(8)
+      Closes: #400734
+    - bashism in /usr/share/doc/samba-doc/examples/perfcounter/perfcountd.init
+      Closes: #489656
+    - describe '-g' option in smbclient man page. Closes: #510812
+    - fix swat status table layout. Closes: #511275
+
+  [ Jelmer Vernooij ]
+  * Use alternatives for the smbstatus, nmblookup, net and 
+    testparm binaries and various data files in samba-common 
+    to allow installation of Samba 3 together with Samba 4. 
+  * Add myself to uploaders.
+
+  [ Christian Perrier ]
+  * Add mbc_getOptionCaseSensitive@Base, smbc_setOptionCaseSensitive@Base,
+    smbc_set_credentials@Base, smbc_urldecode@Base and smbc_urlencode@Base to
+    libsmbclient's symbols file with 3.3.0 as version number
+  * Also add 18 symbols to libwbclient0's symbols file with 3.3.0 as
+    version number
+
+ -- Christian Perrier <bubulle@debian.org>  Fri, 30 Jan 2009 21:41:49 +0100
+
+samba (2:3.3.0~rc2-4) experimental; urgency=low
+
+  [ Steve Langasek ]
+  * Revert one of the template depersonalization changes from the -2 upload,
+    because it loses important context
+
+  [ Christian Perrier ]
+  * Use double quotation marks in debconf templates
+  * Add 'status" option to init scripts. Thansk to Dustin Kirkland for
+    providing the patch. Closes: #488275
+  * Move WHATSNEW.txt, README, Roadmap to samba-common. Closes: #491997
+  * [Lintian] Add ${misc:Depends} to dependencies of binary packages
+    that didn't have it already as we're using debhelper in the source
+    package
+  * [Lintian] Don't ignore errors in swat.postrm
+  * [Lintian] Fix "local foo=bar" bashisms in samba-common.dhcp, samba.config
+    and samba-common.config
+  * smb.conf.5-undefined-configure.patch: fix syntax error in smb.conf(5)
+    Closes: #512843
+
+  [ Debconf translations ]
+  * Asturian added. Closes: #511730
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 24 Jan 2009 16:04:57 +0100
+
+samba (2:3.3.0~rc2-3) experimental; urgency=low
+
+  * Fix around the libsmbclient/libsmbclient-dev descriptions, which got
+    swapped in the last upload.
+  * Drop a boilerplate sentence from the samba-common, smbclient, swat, 
+    samba-doc, samba-doc-pdf, samba-dbg, and libwbclient0 descriptions
+    that's not relevant for these packages.
+  * Hyphenate "command-line" in the smbclient short description.
+  * Fix up the smbclient description, which got crossed with the smbfs one.
+  * Fix the smbfs description, which was not actually fixed in the previous
+    upload.  Really closes: #496206.
+  * Further minor adjustments to the description of the swat package.
+  * Fix various inaccuracies in the winbind package description.
+  * Clarify in the description that samba-tools are extra, only useful for
+    testing.
+
+ -- Steve Langasek <vorlon@debian.org>  Tue, 30 Dec 2008 18:42:05 -0800
+
+samba (2:3.3.0~rc2-2) experimental; urgency=low
+
+  [ Steve Langasek ]
+  * Handle clearing out netbios settings whenever the DHCP server has gone
+    away.  Closes: #299618.
+
+  [ Christian Perrier ]
+  * Point the correct document about password encryption in debconf templates
+    Corrected in translations as well. Closes: #502838
+  * Reword debconf templates to avoid mentioning the local host as a "server".
+    Closes: #171177
+  * Use this opportunity for other minor rewording:
+    - replace "SMB" by "SMB/CIFS"
+    - more strongly discouraging the use of plain text passwords
+    - unpersonnalization
+  * Reword the libpam-smbpass package description
+    Thanks to Justin B. Rye for the very useful suggestions
+    Closes: #496196
+  * Improve the package descriptions by rewording the description overhaul
+    Also improve the specific information for samba and samba-dbg
+    Thanks again to Justin B. Rye for the invaluable help
+    Closes: #496200
+  * Improve libsmbclient package description. Closes: #496197
+  * Improve libwbclient0 package description. Closes: #496199
+  * Improve samba-doc package description. Closes: #496202
+  * Improve samba-tools package description. Closes: #496203
+  * Improve samba-common package description. Closes: #496204
+  * Improve smbclient package description. Closes: #496205
+  * Improve smbfs package description. Closes: #496206
+  * Improve swat package description. Closes: #496207
+  * Improve winbind package description. Closes: #496208
+  * Improve samba-doc-pdf package description. Closes: #496211
+  * Update French debconf translation
+
+ -- Christian Perrier <bubulle@debian.org>  Mon, 29 Dec 2008 11:50:04 +0100
+
+samba (2:3.3.0~rc2-1) experimental; urgency=low
+
+  * New upstream release
+
+ -- Christian Perrier <bubulle@debian.org>  Wed, 17 Dec 2008 08:22:18 +0100
+
+samba (2:3.3.0~rc1-2) experimental; urgency=low
+
+  * Provide idmap_adex and idmap_hash in winbind.
+    Thanks to Jelmer Jaarsma for reporting and providing a patch
+
+ -- Christian Perrier <bubulle@debian.org>  Thu, 04 Dec 2008 19:59:23 +0100
+
+samba (2:3.3.0~rc1-1) experimental; urgency=low
+
+  * New upstream release
+
+ -- Christian Perrier <bubulle@debian.org>  Fri, 28 Nov 2008 10:51:32 +0100
+
+samba (2:3.3.0~pre2-1) experimental; urgency=low
+
+  * New upstream release.
+
+ -- Christian Perrier <bubulle@debian.org>  Fri, 07 Nov 2008 20:52:36 +0100
+
+samba (2:3.2.5-4ubuntu1) jaunty; urgency=low
+
+  * Merge from Debian unstable, remaining changes:
+    + debian/patches/VERSION.patch:
+      - setup SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+      - Set 'usershare allow guests', so that usershare admins are 
+        allowed to create public shares in addition to authenticated
+        ones.
+      - add map to guest = Bad user, maps bad username to guest access. 
+    + debian/samba.postinst:
+      - When populating the new samabshare group, it is not an error
+        if the user simply does not exist; test for this case and let
+        the install continue instead of aborting.
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/mksambapasswd.awk:
+      - Do not add user with UID less than 1000 to smbpasswd.
+    + debian/control:
+      - Depend on lsb-base >= 3.2-14, which has the status_of_proc()
+        function.
+      - Make libpam-smbpasswd depend on libpam-runtime to allow 
+        libpam-smbpasswd for auto-configuration.
+      - Make libwbclient0 replace/conflict with hardy's likewise-open.
+    + debian/samba.init:
+      - Add a 'status' action.
+    + debian/libpam-smbpass.pam-config, debian/libpam-smbpass.postinst,
+      debian/libpam-smbpass.prerm, debian/libpam-smbpass.files,
+      debian/rules:
+      - Provide a config block for the new PAM framework to auto-configure
+        itself
+    + debian/rules:
+      - enable "native" PIE hardening.
+    + Add ufw integration:
+      - Created debian/samba.uwf.profile
+      - debian/rules, debian/samba.dirs, debian/samba.files: install
+        profile
+      - debian/control: have samba suggest ufw
+    + debian/patches/last-char-truncation.patch:
+      - Fix compatibility issue with NAS boxes still using Samba 2.2 and
+        earlier.
+    + debian/winbind.files:
+      - include additional files
+    + debian/winbind.init:
+      - Add a PID variable and a 'status' action.
+  * Dropped changes:
+    - don't worry about handling upgrades from feisty or edgy, since
+      users should have upgraded to the hardy version first so this
+      transition is now finished.
+  * Fixes LP: #264943 and LP: #286119.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Wed, 28 Jan 2009 02:35:42 +0000
+
 samba (2:3.2.5-4) unstable; urgency=low
 
   * Fix segfault whan accessign some NAS devices running old versions of Samba
@@ -1242,6 +3592,52 @@ samba (2:3.2.5-4) unstable; urgency=low
     Closes: #509101, #510450
 
  -- Christian Perrier <bubulle@debian.org>  Thu, 08 Jan 2009 05:59:17 +0100
+
+samba (2:3.2.5-3ubuntu1) jaunty; urgency=low
+
+  * Merge from debian unstable, remaining changes:
+    + debian/patches/VERSION.patch:
+      - setup SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - add comment on the default [homes] share, and add a comment about
+        "valid user = %s" to show users how to restrict access to
+        \\share\username to only username.
+      - add map to guest = Bad user, maps bad username to guest access. 
+        (LP:#32067)
+     + debian/samba-common.postinst:
+       - Fix upgrade from a first installation done with fiesty, edgy, or
+	 dapper. (LP: #201059)
+       - When populating the new samabshare group, it is not an error 
+         if the user simply does not exist; test for this case and let
+         the isntall continue instead of aborting. (LP: #206036)
+     + debian/samba-common.conf:
+       - Do not change priority to HIH if dhclient3 is installed.
+       - Use priority medium instead of HIGH for the workgroun question.
+     + debian/mksambapasswd.awk:
+       - Do not add user with UID less than 1000 to smbpasswd.
+     + debian/control:
+       - Depend on lsb-base >= 3.2-14, which has the status_of_proc()
+         function.
+       - Make libpam-smbpasswd depend on libpam-runtime to allow 
+         libpam-smbpasswd for auto-configuration.
+      + debian/samba.init:
+        - Add a pid variable and a 'status' action.
+      + debian/libpam-smbpass.pam-config, debian/libpam-smbpass.postinst,
+        debian/libpam-smbpass.files, debian/rules:
+        - Provide a config block for the new PAM framework to auto-configure
+          itself
+      + debian/rules:
+        - enable "native" PIE hardening.
+      + Add ufw integration (thanks Nicolas Valcárcel) (LP: #261544):
+        - Created debian/samba.uwf.profile
+        - debian/rules: install profile
+        - debian/control: have samaba suggest ufw
+      + debian/patches/last-char-truncation.patch:
+        - Fix compatibility issue with NAS boxes still using Samba 2.2 and 
+          before. (fixes LP: #282298)
+
+ -- Chuck Short <zulcss@ubuntu.com>  Mon, 05 Jan 2009 23:56:54 +0000
 
 samba (2:3.2.5-3) unstable; urgency=high
 
@@ -1254,6 +3650,48 @@ samba (2:3.2.5-3) unstable; urgency=high
     file in the diff. Thanks to the release managers for spotting it
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 21 Dec 2008 08:09:31 +0100
+
+samba (2:3.2.5-2ubuntu1) jaunty; urgency=low
+
+  * Merge from debian unstable, remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf
+      - add "(Samba, Ubuntu)" to server string.
+      - add comment on the default [homes] share, and add a comment about
+        "valid user = %s" to show users how to restrict access to \\share\username
+         to only username.
+      - add map to guest = Bad user, maps bad username to guest access. (LP: #32067)
+     + debian/samba-common.postinst:
+       - Fix upgrade from a first installation done with fiesty, edgy, or dapper.
+         (LP: #201059)
+       - When populating the new samabshare group, it is not an error if the user
+         simply does not exist; test for this case and let the install continue
+         instead of aborting. (LP: #206036)
+      + debian/samba-common.config:
+        - Do not change priority to HIGH if dhclient3 is installed.
+        - Use priority medium instad of HIGH for the workgroup question.
+      + debian/mksambapasswd.awk:
+        - Do not add user with UID less than 1000 to smbpasswd.
+      + debian/control:
+        - Depend on lsb-base >= 3.2-14, which has the status_of_proc() function.
+        - Make libpam-smbpasswd depend on libpam-runtime to allow libpam-smbpasswd
+          for auto-configuration.
+      + debian/samba.init:
+        - Add a pid variable and a 'status' action.
+      + debian/libpam-smbpass.pam-config,  debian/libpam-smbpass.postinst,
+        debian/libpam-smbpass.files, debian/rules:
+        - Provide a config block for the new PAM framework to auto-configure itself.
+      + debian/rules:
+        - enable "native" PIE hardening.
+      + Add ufw integration (thanks Nicolas Valcárcel) (LP: #261544):
+        - Created debian/samba.ufw.profile.
+        - debian/rules: install profile
+        - debian/control: have samba suggest ufw
+      + debian/patches/last-char-truncation.patch:
+        - Fix compatibility issue with NAS boxes still using Samba 2.2 or before (fixes LP: #282298)
+
+ -- Chuck Short <zulcss@ubuntu.com>  Sat, 13 Dec 2008 23:03:22 +0000
 
 samba (2:3.2.5-2) unstable; urgency=low
 
@@ -1269,6 +3707,55 @@ samba (2:3.2.5-2) unstable; urgency=low
     the patch. Closes: #506109
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 13 Dec 2008 13:56:07 +0100
+
+samba (2:3.2.5-1ubuntu1) jaunty; urgency=low
+
+  * Merge from debian unstable, remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - add comment on the default [homes] shares, and add a comment about 
+        "valid user = %s" to show users how to restrict access to \\share\username
+         to only username.
+      - add map to guest = Bad user, maps bad username to guess access. (LP: #32067)
+    + debian/samba-common.postinst:
+      - Fix upgrade from a first installation done with feisty, edgy, or dapper.
+        (LP: #201059)
+    + debian/samba-common.config:
+      - Do not change priority to HIGH if dhclient3 is installed.
+      - Use priority medium insteam of HIGH for the worgroup question.
+    + debian/mksambapasswd.awk:
+      - Do not add user with UID less than 1000 to smbpasswd.
+    + debian/control:
+      - Depen on lsb-base >= 3.2-14, which has the status_of_proc() function.
+      - Make libpam-smbpasswd depend on libpam-runtime to allow libpam-smbpasswd for
+        auto-configuration.
+    + debian/samba.postinst:
+      - When populating the new sambashare group, it is not an error if the
+        user simply does not exist; test for this case and let the install continue
+        instead of aborting. (LP: #206036)
+    + debian/samba.init:
+      - Replace previous 'status' gathering mechanism with the common one now
+        provided by status_of_proc(). (LP: #247087)
+    + debian/winbind.init:
+      - Add a pid variable and a 'status' action.
+    + debian/libpam-smbpass.pam-config, debian/libpam-smbpassw.postinst,
+      debian/libpam-smbpass.files, debian/rules:
+      - Provide a config block for the new PAM framework, allowing this PAM module
+        to auto-configure itself.
+    + debian/rules:
+      - enable "native" PIE hardening.
+    + Add ufw integration (thanks Nicolas Valcárcel) (LP: #261544):
+      - Created debian/samba.ufw.profile.
+      - debian/rules: install profile
+      - debian/control: have samba suggest ufw
+    + debian/patches/last-char-truncation.patch: 
+      - Fix compatibility issue with NAS boxes still using Samba 2.2 or before (fixes LP: #282298)
+    + Dropped bian/patches/security-CVE-2008-4314.patch
+      - Due to new upstream version.
+
+ -- Chuck Short <zulcss@ubuntu.com>  Thu, 27 Nov 2008 22:56:41 +0000
 
 samba (2:3.2.5-1) unstable; urgency=high
 
@@ -1414,6 +3901,69 @@ samba (2:3.3.0~pre2-1) experimental; urgency=low
 
  -- Christian Perrier <bubulle@debian.org>  Fri, 07 Nov 2008 20:52:36 +0100
 
+samba (2:3.2.4-1ubuntu3) jaunty; urgency=low
+
+  * SECURITY UPDATE: potential arbitrary memory leak and crash via secondary
+    trans, trans2 and nttrans requests.
+    - debian/patches/security-CVE-2008-4314.patch: fix the offset checks in the
+      trans routines in source/smbd/{ipc.c,nttrans.c,trans2.c}.
+    - CVE-2008-4314
+
+ -- Marc Deslauriers <marc.deslauriers@ubuntu.com>  Fri, 21 Nov 2008 14:45:51 -0500 
+
+samba (2:3.2.4-1ubuntu2) jaunty; urgency=low
+
+  * debian/patches/last-char-truncation.patch: Fix compatibility issue with
+    NAS boxes still using Samba 2.2 or before (fixes LP: #282298)
+
+ -- Thierry Carrez <thierry.carrez@ubuntu.com>  Mon, 17 Nov 2008 16:17:26 +0000
+
+samba (2:3.2.4-1ubuntu1) jaunty; urgency=low
+
+  * Merge from debian unstable, remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - add comment on the default [homes] shares, and add a comment about
+        "valid user = %s" to show users how to restrict access to \\server\unserane
+         to only username.
+      - add map to guest = Bad user, maps bad username to guest access. (LP: #32067)
+    + debian/samba-common.postinst:
+      - Fix upgrade from a first installation done with feisty, edgy, or dapper.
+        (LP: #201059)
+      - When populating the new sambashare group, it is not an error if the
+        user simply does not exist; test for this case and let the install continue
+        instead of aborting. (LP: #206036)
+    + debian/samba-common.config:
+      - do not change priority to HIGH if dhclient3 is installed.
+      - use priorotiy medium instead of HIGH for the workgroup question.
+    + debian/mksambapasswd.awk:
+      - Do not add user with UID less than 1000 to smbpasswd.
+    + debian/control:
+      - Depend on lsb-base >= 3.2-14, which has the status_of_proc() function.
+      - Make libpam-smbpasswd depend on libpam-runtime to allow libpam-smbpasswd for
+        auto-configuration.
+     + debian/samba.init:
+       - Replace previous 'status' gathering mechanism with the common one now
+         provided by status_of_proc() (LP: #247087).
+     + debian/winbind.init: 
+       - Add a pid variable and a 'status' action.
+     + debian/libpam-smbpass.pam-config, debian/libpam-smbpassw.postinst,
+       debian/libpam-smbpass.files, debian/rules:
+       - provide a config block for the new PAM framework, allowing this PAM module
+         to auto-configure itself.
+     + debian/libpam-smbpass.prerm: 
+       - call pam-auth-update --remoove on removal, to clean up after ourselves.
+     + debian/rules:
+       - enable "native" PIE hardening
+     + Add ufw integration (thanks Nicolas Valcárcel) (LP: #261544)
+       - Created debian/samaba.ufw.profile.
+       - debian/rules: install profile
+       - debian/control: have samba suggest ufw
+
+ -- Chuck Short <zulcss@ubuntu.com>  Wed, 05 Nov 2008 03:24:52 +0000
+
 samba (2:3.2.4-1) unstable; urgency=low
 
   [ Steve Langasek ]
@@ -1449,6 +3999,68 @@ samba (2:3.2.3-2) unstable; urgency=low
 
  -- Steve Langasek <vorlon@debian.org>  Sat, 30 Aug 2008 00:46:07 -0700
 
+samba (2:3.2.3-1ubuntu3) intrepid; urgency=low
+
+  * Fix pam-smbpass.so crashing because it misses /var/lib/samba (LP: #260687)
+    - debian/samba-common.dirs: create /var/lib/samba in samba-common
+    - debian/samba.postrm: don't completely remove /var/lib/samba on purge
+      (just let samba-common postrm do it)
+
+ -- Thierry Carrez <thierry.carrez@ubuntu.com>  Fri, 10 Oct 2008 11:24:48 +0200
+
+samba (2:3.2.3-1ubuntu2) intrepid; urgency=low
+
+  * Make libwbclient0 replace/conflict with hardy's likewise-open (LP: #254434)
+
+ -- Thierry Carrez <thierry.carrez@ubuntu.com>  Fri, 12 Sep 2008 14:30:00 +0200
+
+samba (2:3.2.3-1ubuntu1) intrepid; urgency=low
+
+  * Merge from debian unstable, remaining changes:
+    - debian/patches/VERSION.patch:
+      + set SAMBA_VERSION_SUFFIX to Ubuntu.
+    - debian/smb.conf:
+      + add "(Samba, Ubuntu)" to server string.
+      + comment on the default [homes] shares, and add a comment about "valid user = %s"
+        to show users how to restrict access to \\server\username to only username.
+      + add map to guest = Bad user, maps bad username to guest access. (LP: #32067)
+    - debian/samba-common.postinst:
+      + Fix upgrade from a first installation done with feisty, edgy, or dapper. 
+       (LP: #201059)
+      + When populating the new sambashare group, it's not an error if the user
+        simply doesn't exist; test for this case and the install continue instead
+        of aborting. (LP: #206036)
+    - debian/samba-common.config:
+      + do not change priority to HIGH if dhclient3 is installed.
+      + use priority medium instead of HIGH for the workgroup question.
+    - debian/winbind.files:
+      + include additional files
+    - debian/mksambapasswd.awk:
+      + Don't add user with UID less than 1000 to smbpasswd.
+    - debian/control:
+      + Depend on lsb-base >= 3.2-14, which has the status_of_proc() function.
+      + Make libpam-smbpass depend on libpam-runtime for allowing libpam-smbpasss
+        to auto-configure itself.
+    - debian/samba.init:
+      + Replace the previous 'status' gathering mechanism with the common one
+        now provided by status_of_proc() (LP: #247087).
+    - debian/winbind.init:
+      + Add a pid variable and a 'status' action.
+    - debian/libpam-smbpass.pam-config, debian/libpam-smbpass.postinst,
+      debian/libpam-smbpass.files, debian/rules: provide a config block for the
+      new PAM framework, allowing his PAM module to auto-configure itself.
+    - debian/libpam-smbpass.prerm: call pam-auth-update --remove on removal,
+      to clean up after ourselves.
+    - debian/rules: enable "native" PIE hardening.
+
+  [Jamie Strandboge]
+  * Add ufw integration (thanks Nicolas Valcárcel) (LP: #261544)
+    - Created debian/samba.ufw.profile
+    - debian/rules: install profile
+    - debian/control: have samba Suggests ufw
+
+ -- Chuck Short <zulcss@ubuntu.com>  Wed, 27 Aug 2008 23:57:11 +0100
+
 samba (2:3.2.3-1) unstable; urgency=high
 
   * High-urgency upload for security fix
@@ -1466,6 +4078,70 @@ samba (2:3.2.3-1) unstable; urgency=high
   * fixing lintian warning "build-depends-on-1-revision"
 
  -- Steve Langasek <vorlon@debian.org>  Wed, 27 Aug 2008 10:19:59 -0700
+
+samba (2:3.2.1-1ubuntu5) intrepid; urgency=low
+
+  * debian/{control,rules}: revert sledge-hammer PIE approach.
+  * debian/rules: enable "native" PIE hardening.
+
+ -- Kees Cook <kees@ubuntu.com>  Tue, 26 Aug 2008 10:59:10 -0700
+
+samba (2:3.2.1-1ubuntu4) intrepid; urgency=low
+
+  * debian/{control,rules}: enable PIE hardening
+
+ -- Kees Cook <kees@ubuntu.com>  Mon, 25 Aug 2008 14:40:21 -0700
+
+samba (2:3.2.1-1ubuntu3) intrepid; urgency=low
+
+  * debian/libpam-smbpass.prerm: call pam-auth-update --remove on removal,
+    to clean up after ourselves.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Fri, 22 Aug 2008 00:07:04 +0000
+
+samba (2:3.2.1-1ubuntu2) intrepid; urgency=low
+
+  * debian/libpam-smbpass.pam-config, debian/libpam-smbpass.postinst,
+    debian/libpam-smbpass.files, debian/rules: provide a config block
+    for the new PAM framework, allowing this PAM module to
+    auto-configure itself
+  * debian/control: make libpam-smbpass depend on
+    libpam-runtime (>= 1.0.1-2ubuntu1) for the above
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Thu, 21 Aug 2008 01:45:12 +0000
+
+samba (2:3.2.1-1ubuntu1) intrepid; urgency=low
+
+  * Merge from debian unstable, remaining changes:
+    - debian/patches/VERSION.patch:
+      + set SAMBA_VERSION_SUFFIX to Ubuntu.
+    - debian/smb.conf:
+      + add "(Samba, Ubuntu)" to server string.
+      + comment on the default [homes] shares, and add a comment about "valid user = %s"
+        to show users how to restrict access to \\server\username to only username.
+      + add map to guest = Bad user, maps bad username to guess access.
+        (LP: #32067)
+    - debian/samba-common.postinst:
+      + Fix upgrade from a first installation done with feisty, edgy, or dapper.
+        (LP: #201059)
+      + When populating the new sambashare group, it's not an error if the user
+        simply doesn't exist; test for this care and let the install continue
+        instead of aborting. (LP: #206036)
+    - debian/samba-common.config:
+      + do not change priority ti HIGH if dhclient3 is installed
+      + use priority medium instead of HIGH for the workgroup question.
+    - debian/winbind.files:
+      + include additional files
+    - debian/mksambapasswd.awk:
+      + Don't add user with UID less than 1000 to smpasswd.
+    - debian/control: 
+      + Depend on lsb-base >= 3.2-14, which has the status_of_proc() function.
+    - debian/samba.init: 
+      + Replace the previous 'status' gathering mechanism with the common one
+        now provided by status_of_proc() (LP: #247087).
+    - debian/winbind.init: Add a pid variable and a 'status' action.
+
+ -- Chuck Short <zulcss@ubuntu.com>  Fri, 15 Aug 2008 11:49:41 +0100
 
 samba (2:3.2.1-1) unstable; urgency=low
 
@@ -1487,6 +4163,50 @@ samba (2:3.2.1-1) unstable; urgency=low
 
  -- Steve Langasek <vorlon@debian.org>  Thu, 14 Aug 2008 16:13:24 -0700
 
+samba (2:3.2.0-4ubuntu3) intrepid; urgency=low
+
+  * debian/winbind.init: Fixed error in init script. (LP: #253910) 
+
+ -- Chuck Short <zulcss@ubuntu.com>  Fri, 01 Aug 2008 14:01:09 +0000
+
+samba (2:3.2.0-4ubuntu2) intrepid; urgency=low
+
+  * debian/control: Depend on lsb-base >= 3.2-14, which has the
+    status_of_proc() function.
+  * debian/samba.init: Replace the previous 'status' gathering mechanism with
+    the common one now provided by status_of_proc() (LP: #247087).
+  * debian/winbind.init: Add a pid variable and a 'status' action.
+
+ -- Dustin Kirkland <kirkland@ubuntu.com>  Mon, 28 Jul 2008 15:55:45 -0500
+
+samba (2:3.2.0-4ubuntu1) intrepid; urgency=low
+
+  * Merge from debian unstable, remaining changes:
+    * debian/patpches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    * debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment on the default [homes] shares, and add a comment about
+        "valid user = %s" to show users how to restrict access to 
+         \\server\username to only username.
+      - add map to guest = Bad user, maps bad username to guest access.
+        (LP: #32067)
+    * debian/samba-common.postinst:
+      - Fix upgrad from a first installation done with feisty, edgy, or dapper.
+        (LP: #201059)
+      - When populating the new sambashare group, it's not an error if the
+        user simply doesn't exist; test for this case and let the install
+        continue instead of aborting. (LP: #206036)
+    * debian/samba-common.config:
+      - do not change priority to HIGH if dhclient3 is instaleld
+      - use priority medium instead of HIGH for the workgroup question
+    * debian/winbind.files:
+      - include additional files
+    * debian/mksambapasswd.awk:
+      - Don't add user with UID less than 1000 to smbpasswd.
+
+ -- Chuck Short <zulcss@ubuntu.com>  Tue, 22 Jul 2008 13:45:10 +0100
+
 samba (2:3.2.0-4) unstable; urgency=low
 
   * Brown paper bag bug: add a change to debian/patches/fhs-filespaths.patch
@@ -1496,6 +4216,38 @@ samba (2:3.2.0-4) unstable; urgency=low
     about a day.  Thanks to Rick Nelson for pointing this out.
 
  -- Steve Langasek <vorlon@debian.org>  Mon, 21 Jul 2008 17:39:48 -0700
+
+samba (2:3.2.0-3ubuntu1) intrepid; urgency=low
+
+  * Merge from debian unstable, remaining changes:
+    * debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_VENDOR_SUFFIX to Ubuntu.
+    * debian/smb.conf
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] shares, and add a comment about
+        "valid user = %s" to show users how to restrict access to \\server\username
+         to only username.
+      - add map to guest = Bad user, maps bad username to guest access. (LP: #32067)
+    * debian/samba-common.postinst: 
+      - Fix upgrade from a first installation done with feisty, edgy, or dapper.
+        (LP: #201059)
+      - When population the new sambashare group, it's not an error if the user
+        simply doesn't exist; test for this case and the install continue instead
+        of aborting. (LP: #206036)
+    * debian/samba-common.config:
+      - do not change priority to HIGH if dhclient3 is installed
+      - used priority medium instaed of high for the workgroup question
+    * debian/winbind.files:
+      - include additional files
+    * debian/mksambapasswd.awk:
+      - Don't add user with UID less than 1000 to smbpasswd.
+    * Dropped changes: 
+      - Dropped debian/patches/upstream_bug5517.patch. Already applied upstream.
+      - Dropped debian/patches/disable-weak-auth.patch. Already applied upstream.
+      - Dropped debian/patches/fix-server-signature.patch. Already appled upstream.
+      - Dropped debian/patches/fix-documentation.patch. Already applied upstream.
+
+ -- Chuck Short <zulcss@ubuntu.com>  Mon, 21 Jul 2008 12:51:37 +0100
 
 samba (2:3.2.0-3) unstable; urgency=low
 
@@ -1602,6 +4354,107 @@ samba (2:3.2.0~rc1-2) experimental; urgency=low
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 31 May 2008 11:08:14 +0200
 
+samba (2:3.0.31-1) unstable; urgency=medium
+
+  * New upstream release
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 12 Jul 2008 16:57:09 +0200
+
+samba (2:3.0.30-4) unstable; urgency=low
+
+  [ Christian Perrier ]
+  * Rename libcupsys2-dev to libcups2-dev in build dependencies
+  * Localize SWAT in German. Closes: #487681
+  
+  [ Jelmer Vernooij ]
+  * Fix bashism in smbtar. (Closes: #486056)
+
+  [ Jamie Strandboge ]
+  * debian/patches/upstream_bug5517.patch: adjust cli_negprot() to properly
+    calculate buffer sizes. This bug was introduced in the fix for
+    CVE-2008-1105. Closes: #488688
+
+  [ Debconf translations ]
+  * Romanian updated. Closes: #488709.
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 06 Jul 2008 11:43:53 +0200
+
+samba (2:3.0.30-3) unstable; urgency=low
+
+  [ Christian Perrier ]
+  * add a soft dependency on slapd in init script to allow
+    proper operation when dependency-based boot sequence is enabled.
+    Thanks to Petter Reinholdtsen for reporting and providing a patch
+    Closes: #478800
+
+  [ Steve Langasek ]
+  * debian/patches/no-unnecessary-cups.patch: don't try to connect to a cups
+    server when we know that no printers are configured.  Closes: #479512.
+
+ -- Christian Perrier <bubulle@debian.org>  Tue, 10 Jun 2008 21:03:51 +0200
+
+samba (2:3.0.30-2ubuntu3) intrepid; urgency=low
+
+  * debian/patches/upstream_bug5517.patch: adjust cli_negprot() to properly
+    calculate buffer sizes. This bug was introduced in the fix for
+    CVE-2008-1105
+  * References
+    LP: #241448
+    https://bugzilla.samba.org/show_bug.cgi?id=5517
+
+ -- Jamie Strandboge <jamie@ubuntu.com>  Mon, 30 Jun 2008 09:17:40 -0400
+
+samba (2:3.0.30-2ubuntu2) intrepid; urgency=low
+
+  * Fix spelling of "unsuccessful" in debian/smb.conf (LP: #225661)
+
+ -- Nathan Handler <nathan.handler@gmail.com>  Sun, 22 Jun 2008 12:41:05 -0500
+
+samba (2:3.0.30-2ubuntu1) intrepid; urgency=low
+
+  * Merge from debian unstable, remaining changes:
+    * debian/patches/VERSION.patch
+      - set SAMABA_VERSION_VENDOR_SUFFIX to Ubuntu
+    * debian/smb.conf
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] shares, and a comment about
+        "valid users = %S to show users how to restrict access to 
+        \\server\useranem to only username.
+      - Add map to guest = Bad user, maps bad username to guest access.
+        (LP: #32067)
+    * debian/samba-common.postinst:
+      - Fix upgrade from a first installation done with feisty, edgy, or dapper.
+        (LP: #201059)
+      - When populating the new sambashare group, it's not an error if the user
+        simply doesn't exist; test for this case and the install continue 
+        instead of aborting. (LP: #206036)
+    * debian/smba-common.config:
+      - do not change priority to HIGH if dhclient3 is installed
+      - used priority medium instead of high for the workgroup question
+    * debian/winbind.files
+      - insclude additional files
+    * debian/patches/fix-documentation.patch:
+      - fix typos in net(8) and smb.conf(5) man pages
+    * debian/mksambapasswd.awk:
+      - Don't add user with UID less than 1000 to smbpasswd.
+    * debian/samba.init:
+      - add 'status' option for LSB conformance.
+    * Updated control version.
+    * Dropped Changes:
+      - Dropped debian/patches/fix-smbprinting-os2.patch. Accepted upstream.
+      - Dropped debian/patches/fix-documentation.patch. Accepted upstream.
+       
+
+ -- Chuck Short <zulcss@ubuntu.com>  Mon, 02 Jun 2008 09:01:46 -0500
+
+samba (2:3.0.30-2) unstable; urgency=high
+
+  * Brown paper bag releae with epoch increased after yet another
+    accidental upload of 3.2.0 to unstable. Sigh and apologies to
+    autobuilders.
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 31 May 2008 12:08:50 +0200
+
 samba (1:3.2.0~rc1-1) unstable; urgency=low
 
   * New upstream version
@@ -1630,6 +4483,66 @@ samba (1:3.2.0~pre2-2) experimental; urgency=low
   * Removed myself from Uploaders
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 06 Apr 2008 20:38:35 +0200
+
+samba (1:3.0.30-1) unstable; urgency=high
+
+  * New upstream release: fix a heap overflow when parsing SMB responses in
+    client code. (CVE-2008-1105). Closes: #483410
+
+ -- Christian Perrier <bubulle@debian.org>  Wed, 28 May 2008 22:38:44 +0200
+
+samba (1:3.0.29-1) unstable; urgency=low
+
+  * New upstream release
+
+ -- Christian Perrier <bubulle@debian.org>  Thu, 22 May 2008 07:31:55 +0200
+
+samba (1:3.0.28a-3) unstable; urgency=low
+
+  * The "bug hunting at SambaXP" release
+  * Drop "invalid users = root" from the default smb.conf file
+    as it differs from upstream's behaviour and upstream is fairly
+    noisy about this choice of ours. Closes: #462046
+  * Drop commented "guest account = nobody". This is already upstream's
+    default
+  * Remove versioned Build-Depends when satisfied in etch (actually all
+    versioning in Build-Depends)
+  * Remove Conflicts with non-existing packages
+  * Drop dpkg-dev and binutils from Build-Depends, since the versioned
+    build-dep is no longer needed and these are both Build-Essential
+  * Mini-policy for settings in smb.conf:
+    - don't explicitly set settings to their default value
+    - commented settings with the default value are commented with "#"
+    - commented settings with a non-default value are commented with ";"
+  * Apply this policy to "socket options". Closes: #476104
+  * No longer gratuitously use /usr/lib/libsmbclient.so.0.1 but a more logical
+    libsmbclient.so.0 as upstream doesn't assign versions
+  * Add idmap_*(8) man pages (idea taken from SerNet packages)
+  * Create the entire set of directories needed by clients for
+    Point-and-Click printing (including old clients!) in
+    /var/lib/samba/printers (idea taken from SerNet packages)
+  * Update copyright and README.debian information for current and past
+    maintainers. Remove redundant mention of Tridge (the copyright is enough)
+  * Add doc-base files for samba-doc-pdf. Closes: #451685
+  * Kurdish debconf translation. Closes: #480151
+
+ -- Christian Perrier <bubulle@debian.org>  Wed, 16 Apr 2008 23:14:46 +0200
+
+samba (1:3.0.28a-2) unstable; urgency=low
+
+  [ Peter Eisentraut ]
+  * Removed myself from Uploaders
+
+  [ Steve Langasek ]
+  * debian/patches/manpage-encoding.patch: fix up the manpage synopses to
+    not use embedded iso8859-1 non-break spaces, there is a roff escape
+    sequence that we should use instead.  Closes: #470844.
+
+  [ Christian Perrier ]
+  * Reupload with an epoch to supersede an accidental upload of 3.2.0
+    in unstable
+
+ -- Christian Perrier <bubulle@debian.org>  Sat, 05 Apr 2008 11:59:23 +0200
 
 samba (3.2.0~pre2-1) unstable; urgency=low
 
@@ -1783,6 +4696,97 @@ samba (1:3.0.28a-2) unstable; urgency=low
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 05 Apr 2008 11:59:23 +0200
 
+samba (3.2.0~pre1-1) experimental; urgency=low
+
+  * New upstream (pre-)release
+
+  [ Steve Langasek ]
+  * fhs.patch: net usershares should also be stored under /var/lib, not under
+    /var/run.  No transition handling in maintainer scripts, since this
+    feature is not activated by default.
+  * Update smbstatus-locking.patch to use db_open() instead of
+    tdb_open(), per upstream recommendation.
+  * Use talloc_strdup() and talloc_asprintf() instead of static strings in
+    data_path(), state_path(), and cache_path(), as suggested by Volker
+    Lendecke.
+
+  [ Debconf translations ]
+  * Hebrew added. Closes: #444054
+
+  [ Christian Perrier ]
+  * Split fhs.patch into 4 separate patches to make upstream integration
+    easier:
+    - fhs-newpaths.patch: introduce new paths
+    - fhs-filespaths.patch: assign files to new paths
+    - fhs-filespaths-debatable.patch: assign files to new paths (part that
+      seems more difficult to be integrated upstream)
+    - fhs-assignpaths.patch: assign paths to FHS-compatible locations
+
+ -- Christian Perrier <bubulle@debian.org>  Sun, 21 Oct 2007 09:14:42 +0200
+
+samba (3.0.28a-1ubuntu4) hardy; urgency=low
+
+  [ Mathias Gug ]
+  * debian/samba-common.postinst:
+    Fix upgrade from a first installation done with feisty, edgy or dapper.
+    (LP: #201059).
+  * debian/smb.conf.feisty:
+    Add default smb.conf shipped in feisty.
+
+  [ Steve Langasek ]
+  * When populating the new sambashare group, it's not an error if the
+    user simply doesn't exist; test for this case and let the install
+    continue instead of aborting.  LP: #206036.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Wed, 02 Apr 2008 21:07:11 +0000
+
+samba (3.0.28a-1ubuntu3) hardy; urgency=low
+
+  * debian/patches/fix-smbprinting-os2.patch
+    - Fixes printing large documents from OS/2. (LP: #60931) 
+
+ -- Chuck Short <zulcss@ubuntu.com>  Fri, 28 Mar 2008 08:37:31 -0400
+
+samba (3.0.28a-1ubuntu2) hardy; urgency=low
+
+  * debian/smb.conf
+    - Add map to guest = Bad user, maps bad username to guest access. 
+      (LP: #32067)
+
+ -- Chuck Short <zulcss@ubuntu.com>  Thu, 27 Mar 2008 14:24:13 -0400
+
+samba (3.0.28a-1ubuntu1) hardy; urgency=low
+
+  * Merge from Debian unstable, remaining changes:
+    * debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_VENDOR_SUFFIX to Ubuntu
+    * debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] shares, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+    * debian/samba-common.config:
+      - do not change priority to HIGH if dhclient3 is installed
+      - use priority medium instead of high for the workgroup question
+    * debian/winbind.files:
+      - include additional files
+    * debian/patches/fix-documentation.patch:
+      - fix typos in net(8) and smb.conf(5) man pages
+    * debian/mksambapasswd.awk:
+      - Don't add user with UID less than 1000 to smbpasswd.
+    * debian/samba.init:
+      - add 'status' option for LSB conformance.
+    * Updated control version.
+    * Set Ubuntu maintainer address.
+  * Dropped changes:
+    * debian/samba.if-up: this ifup hook isn't actually needed with
+      current Samba.
+  * Set 'usershare allow guests' by in the default smb.conf, so that
+    usershare admins are allowed to create public shares too, not just
+    authenticated ones (e.g., via nautilus-share).  LP: #204703.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Tue, 25 Mar 2008 19:53:09 +0000
+
 samba (3.0.28a-1) unstable; urgency=low
 
   [ Christian Perrier ]
@@ -1814,6 +4818,81 @@ samba (3.0.28a-1) unstable; urgency=low
     and exclude them from the ucf diff.
 
  -- Christian Perrier <bubulle@debian.org>  Fri, 14 Mar 2008 21:28:16 +0100
+
+samba (3.0.28a-0ubuntu3) hardy; urgency=low
+
+  * But smbpasswd-syslog does need updated for the new upstream release,
+    overlooked in the previous upload.  Merge the version from Debian
+    svn.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Fri, 14 Mar 2008 07:40:06 +0000
+
+samba (3.0.28a-0ubuntu2) hardy; urgency=low
+
+  * Re-enable the smbpasswd-syslog patch; this was not really merged
+    upstream.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Fri, 14 Mar 2008 05:35:20 +0000
+
+samba (3.0.28a-0ubuntu1) hardy; urgency=low
+
+  [Chuck Short]
+  * New upstream release. This fixes the following Ubuntu bugs.
+    - Prevent nmbd from shutting down when no network interfaces can be
+      located. (LP: #180493)
+    - Fixes I/O errors on access to SMB shares of OS/2. (LP: #112839)
+  * Dropped patches:
+    - make-distclean.patch
+    - linux-cifs-user-perms.patch
+    - cifs-umount-same-user.patch
+    - get_global_sam_sid-non-root.patch
+    - chgpasswd.patch
+    - cups.patch
+    - samba-syslog.patch
+  * debian/mksambapasswd.awk
+    - Don't add user with UID less than 1000 to smbpasswd. (LP: #199412) 
+  * debian/samba.if-up
+    - ifup hook to reload samba once the interfaces comes up. (LP: #180493)
+  * Updated control version.
+  
+  [Nicolas Valcárcel]
+  * debian/patches/fix-documentation.patch
+    - Fixed some escape typos in smb.conf(5) manpage. (LP: #182571)
+
+  [Shawn Smith]
+  * debian/samba.init
+    - Samba init script does not conform to the LSP specification; it needs a
+      status section (LP: #39157)
+
+ -- Chuck Short <zulcss@ubuntu.com>  Tue, 11 Mar 2008 14:21:29 -0400
+
+samba (3.0.28-4ubuntu1) hardy; urgency=low
+
+  * Merge from Debian unstable, remaining changes:
+    * debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_VENDOR_SUFFIX to Ubuntu
+    * debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] shares and add more verbose comments to
+        explain what they do and how they work (LP #27608). Also, add a
+        comment about "valid users = %S" to show users how to restrict access
+        to \\server\username to only username.
+      - correct winbind enum comment inconsistency.
+      - correct configuration directive inconsistences.
+      - clarify comment for max log size.
+    * debian/samba-common.config:
+      - do not change priority to HIGH if dhclient3 is installed
+      - use priority medium instead of high for the workgroup question
+    * debian/winbind.files:
+      - include additional files
+    * debian/patches/fix-documentation.patch:
+      - fix typo in net(8) man pages
+    * Set Ubuntu maintainer address.
+  * Dropped changes:
+    - default passwd chat value is modified; the default password sync
+      chat script from Debian now works out of the box.  LP: #50624.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Sun, 09 Mar 2008 12:44:53 +0000
 
 samba (3.0.28-4) unstable; urgency=low
  
@@ -1860,6 +4939,44 @@ samba (3.0.28-2) unstable; urgency=low
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 05 Jan 2008 09:46:06 +0100
 
+samba (3.0.28-1ubuntu3) hardy; urgency=low
+
+  * Added additional files to winbind.files. (LP: #156468)
+  * Deleted winbind enum comment inconsistency. Thanks to Richard Laager for
+    the patches. (LP: #182569)
+  * Deleted configuration directive inconsistences. Thanks to Richard Laager
+    for the patches. (LP: #182567)
+  * Fixed typo on net(8) man pages using fix-documentation.patch. (LP: #182570)
+  * Clarrified comment for max log size. Thanks to Richard Laager for the
+    patches. (LP: #182566)
+
+ -- Chuck Short <zulcss@ubuntu.com>  Tue, 22 Jan 2008 09:53:52 -0500
+
+samba (3.0.28-1ubuntu2) hardy; urgency=low
+
+  * Fixed incorrect line in debian/patches/VERSION.patch
+
+ -- Rick Clark <rick.clark@ubuntu.com>  Sat, 15 Dec 2007 11:03:39 -0500
+
+samba (3.0.28-1ubuntu1) hardy; urgency=low
+
+  * Merge from debian unstable, remaining changes:
+    * debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_VENDOR_SUFFIX to Ubuntu
+    * debian/smb.conf:
+      - Add "(Samba, Ubuntu)" to server string.
+      - Comment out the default [homes] shares and add more verbose comments to
+        explain what they do and how they work (LP #27608). Also, add a
+        comment about "valid users = %S" to show users how to restrict access
+        to \\server\username to only username.
+      - default passwd chat value is modified
+    * debian/samba-common.config:
+      - do not change priority to HIGH if dhclient3 is installed
+      - use priority medium instead of high for the workgroup question
+    * Set Ubuntu maintainer address.
+ 
+ -- Rick Clark <rick.clark@ubuntu.com>  Thu, 13 Dec 2007 08:44:33 -0500
+
 samba (3.0.28-1) unstable; urgency=high
 
   * New upstream release. Security fix
@@ -1867,6 +4984,25 @@ samba (3.0.28-1) unstable; urgency=high
     logon server (PDC or BDC).  (CVE-2007-6015)
 
  -- Christian Perrier <bubulle@debian.org>  Tue, 11 Dec 2007 00:12:11 +0530
+
+samba (3.0.27a-2ubuntu1) hardy; urgency=low
+
+  * Merge from debian unstable (LP: #174296), remaining changes:
+    * debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_VENDOR_SUFFIX to Ubuntu
+    * debian/smb.conf:
+      - Add "(Samba, Ubuntu)" to server string.
+      - Comment out the default [homes] shares and add more verbose comments to
+        explain what they do and how they work (LP #27608). Also, add a
+        comment about "valid users = %S" to show users how to restrict access
+        to \\server\username to only username.
+      - default passwd chat value is modified
+    * debian/samba-common.config:
+      - do not change priority to HIGH if dhclient3 is installed
+      - use priority medium instead of high for the workgroup question
+    * Set Ubuntu maintainer address.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Wed, 05 Dec 2007 16:14:20 -0800
 
 samba (3.0.27a-2) unstable; urgency=low
 
@@ -1900,6 +5036,52 @@ samba (3.0.27a-2) unstable; urgency=low
     Closes: #340570.
 
  -- Steve Langasek <vorlon@debian.org>  Tue, 04 Dec 2007 18:35:29 -0800
+
+samba (3.0.27a-1ubuntu1) hardy; urgency=low
+
+  * Merge from debian unstable (LP: #165072), remaining changes:
+    * debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_VENDOR_SUFFIX to Ubuntu
+    * debian/control:
+      - Remove type-handling (not used in Ubuntu)
+    * debian/rules:
+      - Remove type-handling.
+    * debian/samba.init:
+      - Ubuntu's log_progress_msg is a no-op, so to avoid confusion, don't
+        say specifically which daemons we're handling. (LP #25803)
+    * debian/smb.conf:
+      - Add "(Samba, Ubuntu)" to server string.
+      - Comment out the default [homes] shares and add more verbose comments to
+        explain what they do and how they work (LP #27608). Also, add a
+        comment about "valid users = %S" to show users how to restrict access
+        to \\server\username to only username.
+      - default passwd chat value is modified
+    * debian/panic-action:
+      - Alter the panic-action script to link to the samba bug reporting page
+        on Launchpad.
+    * debian/samba-common.config:
+      - do not change priority to HIGH if dhclient3 is installed
+      - use priority medium instead of high for the workgroup question
+    * Set Ubuntu maintainer address.
+  * Bugs fixed in Debian:
+    - Enable net usershare (LP: #128548)
+  * Ubuntu patches merged in Debian:
+    * debian/smb.conf:
+      - "printer admin" is a deprecated option, and is dropped
+        completely from the examples.
+    * debian/samba-common.templates:
+      - Default workgroup value is now set to WORKGROUP; this is a
+        change from previous Ubuntu versions which used MSHOME, but is
+        consistent with the Samba upstream defaults and the default
+        behavior for most versions of Windows.
+  * Ubuntu patches dropped:
+    * debian/rules:
+      - Samba should not use --error-handler=true for its init script.
+    * debian/samba-common.templates, debian/po/*.po:
+      - unnecessary divergence from Debian debconf template which
+        resulted in fuzzy translations; this is cleaned up now
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Sun, 25 Nov 2007 12:56:27 -0800
 
 samba (3.0.27a-1) unstable; urgency=low
 
@@ -2006,6 +5188,49 @@ samba (3.2.0~pre1-1) experimental; urgency=low
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 21 Oct 2007 09:14:42 +0200
 
+samba (3.0.26a-1ubuntu2) gutsy; urgency=low
+
+  * debian/patches/chgpasswd.patch:
+    - Also set the locale to 'C' when using PAM for password changes,
+      since the PAM conversation is equally affected by PAM l10n support
+      (LP: #139265).
+
+ -- Steve Langasek <steve.langasek@canonical.com>  Tue, 02 Oct 2007 13:54:23 -0700
+
+samba (3.0.26a-1ubuntu1) gutsy; urgency=low
+
+  * debian/patches/chgpasswd.patch:
+    - Set locale to 'C' while calling the passwd change program
+  * Merge from debian unstable, remaining changes:
+    * debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_VENDOR_SUFFIX to Ubuntu
+    * debian/control:
+      - Remove typehandling (not used in Ubuntu)
+    * debian/samba-common.templates:
+      - Set default workgroup to MSHOME
+    * debian/rules:
+      - Remove type-handling.
+    * debian/samba.init:
+      - Make sure $PIDDIR exists (/var/run is a tmpfs)
+      - Ubuntu's log_progress_msg is a no-op, so to avoid confusion, don't
+        say specifically which daemons we're handling. (LP #25803)
+    * debian/smb.conf:
+      - Add "(Samba, Ubuntu)" to server string.
+      - Change the (commented-out) "printer admin" example to use "@lpadmin"
+        instead of "@ntadmin", since the lpadmin group is used for spool admin.
+      - Comment out the default [homes] shares and add more verbose comments to
+        explain what they do and how they work (LP #27608). Also, add a
+        comment about "valid users = %S" to show users how to restrict access
+        to \\server\username to only username.
+    * debian/panic-action:
+      - Bail out if there's no "mail" command.
+      - Alter the panic-action script to link to the samba bug reporting page
+        on Launchpad.
+    * debian/samba-common.config:
+      - do not change priority to HIGH if dhclient3 is installed
+
+ -- Andrew Mitchell <ajmitch@ubuntu.com>  Mon, 17 Sep 2007 15:58:10 +1200
+
 samba (3.0.26a-1) unstable; urgency=low
 
   * New upstream release.
@@ -2089,6 +5314,63 @@ samba (3.0.25b-2) unstable; urgency=low
   * Gujarati updated. Closes: #436215
 
  -- Steve Langasek <vorlon@debian.org>  Fri, 17 Aug 2007 18:38:58 -0700
+
+samba (3.0.25b-1ubuntu4) gutsy; urgency=low
+
+  * debian/rules:
+    - add error-handler=true to samba dh_installinit. Fixes LP: #85194.
+
+ -- Mathias Gug <mathiaz@ubuntu.com>  Fri, 17 Aug 2007 12:11:45 -0400
+
+samba (3.0.25b-1ubuntu3) gutsy; urgency=low
+
+  * Build depend on libacl1-dev on lpia.
+
+ -- Matthias Klose <doko@ubuntu.com>  Tue, 14 Aug 2007 10:26:58 +0000
+
+samba (3.0.25b-1ubuntu2) gutsy; urgency=low
+
+  * debian/smb.conf:
+    - Fix 'valid users =' option in smb.conf. LP: #131419.
+
+ -- Mathias Gug <mathiaz@ubuntu.com>  Thu, 09 Aug 2007 21:39:54 -0400
+
+samba (3.0.25b-1ubuntu1) gutsy; urgency=low
+
+  * Dropped patches:
+    + debian/patches/ubuntu-auxsrc.patch:
+      - ntlm_auth_proto.h, smbadduser, gen-8bit-gap.sh are all autogenerated at
+        build time.
+  * Merge from debian unstable, remaining changes:
+    * debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_VENDOR_SUFFIX to Ubuntu
+    * debian/control:
+      - Remove typehandling (not used in Ubuntu)
+      - Added Conflicts/Replaces on python2.4-samba.
+    * debian/samba-common.templates:
+      - Set default workgroup to MSHOME
+    * debian/rules:
+      - Remove type-handling.
+    * debian/samba.init:
+      - Make sure $PIDDIR exists (/var/run is a tmpfs)
+      - Ubuntu's log_progress_msg is a no-op, so to avoid confusion, don't
+        say specifically which daemons we're handling. (LP #25803)
+    * debian/smb.conf:
+      - Add "(Samba, Ubuntu)" to server string.
+      - Change the (commented-out) "printer admin" example to use "@lpadmin"
+        instead of "@ntadmin", since the lpadmin group is used for spool admin.
+      - Comment out the default [homes] shares and add more verbose comments to
+        explain what they do and how they work (LP #27608). Also, add a
+        comment about "valid users = %S" to show users how to restrict access
+        to \\server\username to only username.
+    * debian/panic-action:
+      - Bail out if there's no "mail" command.
+      - Alter the panic-action script to link to the samba bug reporting page
+        on Launchpad.
+    * debian/samba-common.config:
+      - do not change priority to HIGH if dhclient3 is installed
+
+ -- Soren Hansen <soren@ubuntu.com>  Mon, 16 Jul 2007 10:58:21 +0200
 
 samba (3.0.25b-1) unstable; urgency=low
 
@@ -2174,6 +5456,45 @@ samba (3.0.25a-1) unstable; urgency=low
 
  -- Christian Perrier <bubulle@debian.org>  Sun, 27 May 2007 09:30:02 +0200
 
+samba (3.0.25-1ubuntu1) gutsy; urgency=low
+
+  * Merge from debian unstable, remaining changes:
+    * debian/smb.conf:
+      - Do not show the version number by default
+      - Comment out the default [homes] shares and add more verbose comments to
+        explain what they do and how they work (closes: launchpad.net/27608)
+      - Add a "valid users = %S" stanza to the commented-out [homes] section,
+        to show users how to restrict access to \\server\username to only
+        username.
+      - Change the (commented-out) "printer admin" example to use "@lpadmin"
+        instead of "@ntadmin", since the lpadmin group is used for spool admin.
+    * debian/panic-action:
+      - Alter the panic-action script to encourage users to report their
+        bugs in Ubuntu packages to Ubuntu, rather than reporting to Debian.
+        Modify text to more closely match the Debian script
+    * debian/samba-common.templates:
+      - Set default workgroup to MSHOME
+    * debian/control:
+      - remove typehandling
+      - add update-inetd to Depends
+    * debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_VENDOR_SUFFIX to Ubuntu
+    * debian/samba-common.config:
+      - do not change priority to HIGH if dhclient3 is installed
+    * debian/samba.init:
+      - use of PIDDIR instead of hardcoding it
+      - Munge our init script to deal with the fact that our implementation
+        (or lack thereof) of log_daemon_msg and log_progress_msg differs
+        from Debian's implementation of the same (Ubuntu #19691)
+    * debian/rules:
+      - remove type-handling
+      - properly clean on make clean
+      - do not install mount.cifs and umount.cifs as suid
+    * debian/patches/ubuntu-auxsrc.patch:
+      - some auxilliary sources (undocumented in previous changelogs)
+
+ -- Andrew Mitchell <ajmitch@ubuntu.com>  Sun, 20 May 2007 21:43:26 +1200
+
 samba (3.0.25-1) unstable; urgency=high
 
   * New upstream version including security fixes
@@ -2213,6 +5534,45 @@ samba (3.0.25-1) unstable; urgency=high
     editing debian/control anyway.
 
  -- Christian Perrier <bubulle@debian.org>  Mon, 14 May 2007 10:30:15 +0200
+
+samba (3.0.24-6ubuntu1) gutsy; urgency=low
+
+  * Merge from debian unstable, remaining changes:
+    * debian/smb.conf:
+      - Do not show the version number by default
+      - Comment out the default [homes] shares and add more verbose comments to
+        explain what they do and how they work (closes: launchpad.net/27608)
+      - Add a "valid users = %S" stanza to the commented-out [homes] section,
+        to show users how to restrict access to \\server\username to only
+        username.
+      - Change the (commented-out) "printer admin" example to use "@lpadmin"
+        instead of "@ntadmin", since the lpadmin group is used for spool admin.
+    * debian/panic-action:
+      - Alter the panic-action script to encourage users to report their
+        bugs in Ubuntu packages to Ubuntu, rather than reporting to Debian.
+        Modify text to more closely match the Debian script
+    * debian/samba-common.templates:
+      - Set default workgroup to MSHOME
+    * debian/control:
+      - remove typehandling
+      - add update-inetd to Depends
+    * debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_VENDOR_SUFFIX to Ubuntu
+    * debian/samba-common.config:
+      - do not change priority to HIGH if dhclient3 is installed
+    * debian/samba.init:
+      - use of PIDDIR instead of hardcoding it
+      - Munge our init script to deal with the fact that our implementation
+        (or lack thereof) of log_daemon_msg and log_progress_msg differs
+        from Debian's implementation of the same (Ubuntu #19691)
+    * debian/rules:
+      - remove type-handling
+      - properly clean on make clean
+      - do not install mount.cifs and umount.cifs as suid
+    * debian/patches/ubuntu-auxsrc.patch:
+      - some auxilliary sources (undocumented in previous changelogs)
+
+ -- Kees Cook <kees@ubuntu.com>  Tue, 08 May 2007 05:18:16 -0700
 
 samba (3.0.24-6) unstable; urgency=high
 
@@ -2313,6 +5673,47 @@ samba (3.0.24-3) unstable; urgency=low
 
  -- Steve Langasek <vorlon@debian.org>  Sun, 11 Mar 2007 23:34:10 -0700
 
+samba (3.0.24-2ubuntu1) feisty; urgency=low
+
+  * Merge from debian unstable, remaining changes:
+    * debian/smb.conf:
+      - Do not show the version number by default
+      - Comment out the default [homes] shares and add more verbose comments to
+        explain what they do and how they work (closes: launchpad.net/27608)
+      - Add a "valid users = %S" stanza to the commented-out [homes] section,
+        to show users how to restrict access to \\server\username to only
+        username.
+      - Change the (commented-out) "printer admin" example to use "@lpadmin"
+        instead of "@ntadmin", since the lpadmin group is used for spool admin.
+    * debian/panic-action:
+      - Alter the panic-action script to encourage users to report their
+        bugs in Ubuntu packages to Ubuntu, rather than reporting to Debian.
+        Modify text to more closely match the Debian script
+    * debian/samba-common.templates:
+      - Set default workgroup to MSHOME
+    * debian/control:
+      - remove typehandling
+      - add update-inetd to Depends
+    * debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_VENDOR_SUFFIX to Ubuntu
+    * debian/samba-common.config:
+      - do not change priority to HIGH if dhclient3 is installed
+    * debian/samba.init:
+      - use of PIDDIR instead of hardcoding it
+      - Munge our init script to deal with the fact that our implementation
+        (or lack thereof) of log_daemon_msg and log_progress_msg differs
+        from Debian's implementation of the same (Ubuntu #19691)
+    * debian/rules:
+      - remove type-handling
+      - properly clean on make clean
+      - do not install mount.cifs and umount.cifs as suid
+    * debian/patches/ubuntu-auxsrc.patch:
+      - some auxilliary sources (undocumented in previous changelogs)
+    * Really drop debian/patches/ubuntu-fix-ldap.patch:
+      - Fixed upstream, see Debian #274155
+
+ -- Kees Cook <kees@ubuntu.com>  Tue,  6 Feb 2007 20:58:01 -0800
+
 samba (3.0.24-2) unstable; urgency=low
 
   * Re-upload with a proper .orig.tar.gz.
@@ -2349,6 +5750,53 @@ samba (3.0.23d-3) unstable; urgency=low
 
  -- Christian Perrier <bubulle@debian.org>  Mon,  1 Jan 2007 10:17:18 +0100
 
+samba (3.0.23d-2ubuntu2) feisty; urgency=low
+
+  * Rebuild for python2.5 as the default python version.
+
+ -- Matthias Klose <doko@ubuntu.com>  Fri, 12 Jan 2007 13:18:25 +0000
+
+samba (3.0.23d-2ubuntu1) feisty; urgency=low
+
+  * Merge from debian unstable, remaining changes:
+    * debian/smb.conf:
+      - Do not show the version number by default
+      - Comment out the default [homes] shares and add more verbose comments to
+        explain what they do and how they work (closes: launchpad.net/27608)
+      - Add a "valid users = %S" stanza to the commented-out [homes] section, 
+        to show users how to restrict access to \\server\username to only 
+        username.
+      - Change the (commented-out) "printer admin" example to use "@lpadmin"
+        instead of "@ntadmin", since the lpadmin group is used for spool admin.
+    * debian/panic-action:
+      - Alter the panic-action script to encourage users to report their
+        bugs in Ubuntu packages to Ubuntu, rather than reporting to Debian.
+        Modify text to more closely match the Debian script
+    * debian/samba-common.templates:
+      - Set default workgroup to MSHOME
+    * debian/control: 
+      - remove typehandling
+      - add update-inetd to Depends
+    * debian/patches/VERSION.patch: 
+      - set SAMBA_VERSION_VENDOR_SUFFIX to Ubuntu
+    * debian/samba-common.config: 
+      - do not change priority to HIGH if dhclient3 is installed
+    * debian/samba.init: 
+      - use of PIDDIR instead of hardcoding it
+      - Munge our init script to deal with the fact that our implementation
+        (or lack thereof) of log_daemon_msg and log_progress_msg differs
+        from Debian's implementation of the same (Ubuntu #19691)
+    * debian/rules:
+      - remove type-handling
+      - properly clean on make clean
+      - do not install mount.cifs and umount.cifs as suid
+    * debian/patches/ubuntu-auxsrc.patch: 
+      - some auxilliary sources (undocumented in previous changelogs)
+    * debian/patches/ubuntu-fix-ldap.patch:
+      - fix LDAP backend, see Ubuntu #1905, Debian #274155
+  
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 18 Dec 2006 13:31:09 +0100
+
 samba (3.0.23d-2) unstable; urgency=low
 
   * Build-Conflicts: libfam-dev to avoid problems accessing shares
@@ -2363,6 +5811,46 @@ samba (3.0.23d-2) unstable; urgency=low
     - reformat too long lines in package description
 
  -- Christian Perrier <bubulle@debian.org>  Sun,  3 Dec 2006 09:39:29 +0100
+
+samba (3.0.23d-1ubuntu3) feisty; urgency=low
+
+  * added depends on update-inetd
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 14 Dec 2006 18:59:14 +0100
+
+samba (3.0.23d-1ubuntu2) feisty; urgency=low
+
+  * Remove type-handling from build-deps, it's not in Ubuntu main.  (It
+    was already disabled in the rules file.
+
+ -- Tollef Fog Heen <tfheen@ubuntu.com>  Tue, 12 Dec 2006 14:42:23 +0100
+
+samba (3.0.23d-1ubuntu1) feisty; urgency=low
+
+  * Merge from debian unstable.
+  * Drop python2.4-samba, replace with python-samba. Added Conflicts/Replaces
+    on python2.4-samba
+  * Drop track-connection-dos.patch, ubuntu-winbind-panic.patch, 
+    ubuntu-fix-ldap.patch, ubuntu-setlocale.patch, ubuntu-setlocale-fixes.patch
+  * Remaining Ubuntu changes:
+    - Revert Debian's installation of mount.cifs and umount.cifs as suid
+    - Comment out the default [homes] shares and add more verbose comments to
+      explain what they do and how they work (closes: launchpad.net/27608)
+    - Add a "valid users = %S" stanza to the commented-out [homes] section, to
+      show users how to restrict access to \\server\username to only username.
+    - Change the (commented-out) "printer admin" example to use "@lpadmin"
+      instead of "@ntadmin", since the lpadmin group is used for spool admin.
+    - Alter the panic-action script to encourage users to report their
+      bugs in Ubuntu packages to Ubuntu, rather than reporting to Debian.
+      Modify text to more closely match the Debian script
+    - Munge our init script to deal with the fact that our implementation
+      (or lack thereof) of log_daemon_msg and log_progress_msg differs
+      from Debian's implementation of the same (Ubuntu #19691)
+    - Kept ubuntu-auxsrc.patch: some auxilliary sources (undocumented in 
+      previous changelogs)
+    - Set default workgroup to MSHOME
+	
+ -- Andrew Mitchell <ajmitch@ubuntu.com>  Tue, 28 Nov 2006 20:14:37 +1300
 
 samba (3.0.23d-1) unstable; urgency=low
 
@@ -2593,6 +6081,56 @@ samba (3.0.23a-1) unstable; urgency=medium
 
  -- Peter Eisentraut <petere@debian.org>  Mon,  7 Aug 2006 23:00:49 +0200
 
+samba (3.0.22-1ubuntu4) edgy; urgency=low
+
+  * SECURITY UPDATE: Remote DoS.
+  * Add debian/patches/track_connection_dos.patch:
+    - Limit active connections to 2048 to avoid DoS due to unbound array
+      growing when tracking active connections.
+    - CVE-2006-3403
+
+ -- Martin Pitt <martin.pitt@ubuntu.com>  Tue, 11 Jul 2006 13:14:27 +0200
+
+samba (3.0.22-1ubuntu3) dapper; urgency=low
+
+  * Config file changes only in this upload; no destabilising code changes.
+  * Comment out the default [homes] shares and add more verbose comments to
+    explain what they do and how they work (closes: launchpad.net/27608)
+  * Add a "valid users = %S" stanza to the commented-out [homes] section, to
+    show users how to restrict access to \\server\username to only username.
+  * Change the (commented-out) "printer admin" example to use "@lpadmin"
+    instead of "@ntadmin", since the lpadmin group is used for spool admin.
+
+ -- Adam Conrad <adconrad@ubuntu.com>  Wed, 17 May 2006 18:29:00 +1000
+
+samba (3.0.22-1ubuntu2) dapper; urgency=low
+
+  * After much faff about fixing this properly and getting fixes
+    submitted upstream (some of which has happened), I've concluded
+    that getting every case_tables usage in the code nailed down
+    before release just isn't going to happen, so applying a more
+    global bandaid (ubuntu-setlocale-fixes.patch) instead to stop
+    the SEGVs completely (closes: launchpad.net/{39990,39484,39956})
+  * Snag a patch from upstream SVN to stop winbindd from panicking
+    when not joined to a domain (closes: launchpad.net/32614)
+  * Mangle patch fuzz for previous patch to make it apply cleanly.
+
+ -- Adam Conrad <adconrad@ubuntu.com>  Tue, 16 May 2006 22:36:17 +1000
+
+samba (3.0.22-1ubuntu1) dapper; urgency=low
+
+  * Sync with Debian's new upstream (UVF exception granted by mdz) to
+    resolve the information disclosure vuln reported in CVE-2006-1059
+  * Make the panic-action script check for 'mail' before it goes about
+    trying to backtrace crashes and mail to root (launchpad.net/32987)
+  * Include patch from upstream to purge setlocale calls from the client
+    library, so we don't break the desktop locale (launchpad.net/28603)
+  * Make the samba and winbind init scripts more robust in the face of a
+    tmpfs /var/run, creating directories as we go (launchpad.net/33389)
+  * Fix up syntax error in the default config file (launchpad.net/37965)
+
+ -- Adam Conrad <adconrad@ubuntu.com>  Sun,  2 Apr 2006 22:09:41 +1000
+
 samba (3.0.22-1) unstable; urgency=medium
 
   [ Steve Langasek ]
@@ -2607,6 +6145,13 @@ samba (3.0.22-1) unstable; urgency=medium
 
  -- Steve Langasek <vorlon@debian.org>  Sun, 12 Mar 2006 22:40:28 +0100
 
+samba (3.0.21c-1ubuntu1) dapper; urgency=low
+
+  * Merge with Debian for new upstream bugfixes, UVF exception by mdz.
+  * Remove dapper->dapper upgrade hack, which should be a non-issue now.
+
+ -- Adam Conrad <adconrad@ubuntu.com>  Fri, 24 Mar 2006 02:59:17 +1100
+
 samba (3.0.21c-1) unstable; urgency=low
 
   * New upstream release
@@ -2617,6 +6162,24 @@ samba (3.0.21c-1) unstable; urgency=low
     Closes: #352828
 
  -- Christian Perrier <bubulle@debian.org>  Sat, 25 Feb 2006 11:58:45 +0100
+
+samba (3.0.21b-1ubuntu2) dapper; urgency=low
+
+  * Due to a misplaced file in older samba packages, temporarily make
+    python2.4-samba Replace samba for smooth dapper->dapper upgrades.
+
+ -- Adam Conrad <adconrad@ubuntu.com>  Thu, 23 Feb 2006 20:33:34 +1100
+
+samba (3.0.21b-1ubuntu1) dapper; urgency=low
+
+  * Sync with Debian's new upstream release (UVF exception granted by Colin),
+    which fixes several nasty crashes, as well as a vicious memory leak in
+    winbind that can OOM a machine within days (Closes: launchpad.net/32440)
+  * Resolve some fairly scary merge conflicts from Debian's switch to quilt.
+  * Revert Debian's installation of mount.cifs and umount.cifs as suid until
+    Martin Pitt and I have had a chance to review/discuss this for Ubuntu.
+
+ -- Adam Conrad <adconrad@ubuntu.com>  Thu, 23 Feb 2006 15:23:37 +1100
 
 samba (3.0.21b-1) unstable; urgency=low
 
@@ -2709,6 +6272,18 @@ samba (3.0.21a-2) unstable; urgency=low
       where they belong
 
  -- Christian Perrier <bubulle@debian.org>  Fri, 20 Jan 2006 14:20:35 +0100
+
+samba (3.0.21a-1ubuntu1) dapper; urgency=low
+
+  * Resyncronise with Debian, resolving many merge conflicts (#20710)
+  * Alter the panic-action script to encourage users to report their
+    bugs in Ubuntu packages to Ubuntu, rather than reporting to Debian.
+  * Munge our init script to deal with the fact that our implementation
+    (or lack thereof) of log_daemon_msg and log_progress_msg differs
+    from Debian's implementation of the same (Ubuntu #19691)
+  * Enable the idmap_rid.so backend plugin for winbind (Ubuntu #12797)
+
+ -- Adam Conrad <adconrad@ubuntu.com>  Tue,  3 Jan 2006 13:56:26 +1000
 
 samba (3.0.21a-1) unstable; urgency=low
 
@@ -2807,6 +6382,12 @@ samba (3.0.20b-3) unstable; urgency=low
 
  -- Christian Perrier <bubulle@debian.org>  Sat,  3 Dec 2005 07:30:40 +0100
 
+samba (3.0.20b-2ubuntu1) dapper; urgency=low
+
+  * Resynchronise with Debian.
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 14 Nov 2005 11:11:28 +0100
+
 samba (3.0.20b-2) unstable; urgency=low
 
   * Don't build with -gstabs any more; -g no longer gives a problematic
@@ -2863,6 +6444,12 @@ samba (3.0.20b-1) unstable; urgency=low
 
  -- Steve Langasek <vorlon@debian.org>  Tue, 18 Oct 2005 19:02:21 -0700
 
+samba (3.0.14a-6ubuntu1) breezy; urgency=low
+
+  * Resynchronise with Debian, resolving merge conflicts (#12360)
+
+ -- Adam Conrad <adconrad@ubuntu.com>  Thu, 21 Jul 2005 17:53:23 +0000
+
 samba (3.0.14a-6) unstable; urgency=low
 
   * Use DEB_HOST_ARCH_OS instead of DEB_HOST_GNU_SYSTEM to detect
@@ -2872,12 +6459,26 @@ samba (3.0.14a-6) unstable; urgency=low
 
  -- Steve Langasek <vorlon@debian.org>  Fri,  1 Jul 2005 00:13:12 -0700
 
+samba (3.0.14a-5ubuntu1) breezy; urgency=low
+
+  * Resynchronise with Debian (closes Ubuntu bugs #11662 and #3134)
+  * Add --oknodo to the start-stop-daemon call in our init script, so we
+    don't fail when trying to start an already started service (#11600)
+
+ -- Adam Conrad <adconrad@ubuntu.com>  Wed, 29 Jun 2005 05:58:13 +0000
+
 samba (3.0.14a-5) unstable; urgency=low
 
   * Fix libsmbclient.a to be built as non-PIC instead of PIC.
     Closes: #279243.
 
  -- Steve Langasek <vorlon@debian.org>  Wed,  8 Jun 2005 05:46:52 -0700
+
+samba (3.0.14a-4ubuntu1) breezy; urgency=low
+
+  * Resynchronise with Debian, resolving merge conflicts.
+
+ -- Adam Conrad <adconrad@ubuntu.com>  Fri,  3 Jun 2005 05:45:34 +0000
 
 samba (3.0.14a-4) unstable; urgency=high
 
@@ -2899,6 +6500,27 @@ samba (3.0.14a-4) unstable; urgency=high
     system popt lib instead of the bundled one.
 
  -- Steve Langasek <vorlon@debian.org>  Thu,  2 Jun 2005 07:02:46 -0700
+
+samba (3.0.14a-3ubuntu3) breezy; urgency=low
+
+  * Use -g instead of -gstabs on powerpc64-linux-gnu and ia64-linux-gnu,
+    which should finally fix that pesky ia64 build failure.
+
+ -- Adam Conrad <adconrad@ubuntu.com>  Sat, 28 May 2005 08:41:21 +0000
+
+samba (3.0.14a-3ubuntu2) breezy; urgency=low
+
+  * Reverse the sense of LaMont's dpkg-architecture patch to minimise
+    our diff against upstream and get us building on ia64 again.
+
+ -- Adam Conrad <adconrad@ubuntu.com>  Sat, 28 May 2005 07:12:39 +0000
+
+samba (3.0.14a-3ubuntu1) breezy; urgency=low
+
+  * Resynchronise with Debian (Ubuntu #10966)
+  * Give winbind a dependency on samba-common (Ubuntu #9156)
+
+ -- Adam Conrad <adconrad@ubuntu.com>  Fri, 27 May 2005 15:39:48 +0000
 
 samba (3.0.14a-3) unstable; urgency=high
 
@@ -2925,6 +6547,22 @@ samba (3.0.14a-2) unstable; urgency=low
     - Add Christian Perrier to Uploaders:.  Thanks, Christian :)
 
  -- Steve Langasek <vorlon@debian.org>  Sun,  8 May 2005 04:43:21 -0700
+
+samba (3.0.14a-1ubuntu2) breezy; urgency=low
+
+  * dpkg changes cleanup.
+
+ -- LaMont Jones <lamont@ubuntu.com>  Mon, 23 May 2005 21:55:07 -0600
+
+samba (3.0.14a-1ubuntu1) breezy; urgency=low
+
+  * Resynchronise with Debian; fixing merge conflicts.
+  * Drop patches/gcc4-fix.patch, which was fixed differently upstream.
+  * Remove patches/krb.patch, which was integrated upstream.
+  * Drop patches/samba-client-no-auto-anon.patch, included upstream.
+  * Disable the use of type-handling, which we don't ship in main.
+
+ -- Adam Conrad <adconrad@ubuntu.com>  Thu, 12 May 2005 07:01:56 +0000
 
 samba (3.0.14a-1) unstable; urgency=low
 
@@ -2960,6 +6598,46 @@ samba (3.0.11-1) unstable; urgency=high
 
  -- Steve Langasek <vorlon@debian.org>  Wed, 23 Mar 2005 00:13:16 -0800
 
+samba (3.0.10-1ubuntu4) breezy; urgency=low
+
+  * debian/patches/gcc4-fix.patch: Fix FTBFS with gcc 4.0. (#9047)
+
+ -- Martin Pitt <martin.pitt@ubuntu.com>  Fri, 15 Apr 2005 09:14:57 +0000
+
+samba (3.0.10-1ubuntu3) hoary; urgency=low
+
+  * debian/patches/krb.patch:
+    - patch to use kerberos by default if the authentication succeeds, 
+      but fall back to the normal methods if not. 
+      Fix the kerberos support for gnomevfs (Hoary: #7357).
+
+ -- Sebastien Bacher <seb128@canonical.com>  Tue, 22 Mar 2005 12:43:19 +0100
+
+samba (3.0.10-1ubuntu2) hoary; urgency=low
+
+  * debian/patches/samba-client-no-auto-anon.patch:
+    - propogate an error back to the caller, instead of automatic Guest login
+      (Hoary: #5425).
+
+ -- Sebastien Bacher <seb128@canonical.com>  Sun, 23 Jan 2005 14:06:48 +0100
+
+samba (3.0.10-1ubuntu1) hoary; urgency=low
+
+  * Merged new Debian version
+  * Dropped patch ubuntu-debconfpo.patch, it did not actually change anything
+  * Since the debian/ directory now contains Ubuntu specific changes anyway,
+    the following Ubuntu specific patches which only touched debian/ were
+    statically applied and deleted; this will make manual merges much harder,
+    but is apparently what my fellow developers like to have:
+    + ubuntu-debconf-dhcp3.patch
+    + ubuntu-defaultworkgroup.patch
+    + ubuntu-lsbinit.patch
+    + ubuntu-smbmount-nosuid.patch
+    + ubuntu-branding.patch (only the debian/ parts; dropped unnecessary
+      version.h patch)
+
+ -- Martin Pitt <martin.pitt@canonical.com>  Wed,  5 Jan 2005 14:03:21 +0100
+
 samba (3.0.10-1) unstable; urgency=high
 
   * New upstream release.
@@ -2975,6 +6653,18 @@ samba (3.0.10-1) unstable; urgency=high
 
  -- Steve Langasek <vorlon@debian.org>  Fri, 17 Dec 2004 11:56:01 -0800
 
+samba (3.0.9-1ubuntu2) hoary; urgency=low
+
+  * Build python2.4-samba package.
+
+ -- Matthias Klose <m@klose.in-berlin.de>  Thu, 16 Dec 2004 13:44:41 +0100
+
+samba (3.0.9-1ubuntu1) hoary; urgency=low
+
+  * Resynchronise with Debian.
+
+ -- Scott James Remnant <scott@canonical.com>  Sat, 04 Dec 2004 12:48:02 +0000
+
 samba (3.0.9-1) unstable; urgency=low
 
   * New upstream release
@@ -2985,6 +6675,12 @@ samba (3.0.9-1) unstable; urgency=low
       upstream
 
  -- Steve Langasek <vorlon@debian.org>  Thu,  2 Dec 2004 01:11:39 -0800
+
+samba (3.0.8-2ubuntu1) hoary; urgency=low
+
+  * Resynchronise with Debian.
+
+ -- LaMont Jones <lamont@canonical.com>  Mon, 22 Nov 2004 20:55:18 -0700
 
 samba (3.0.8-2) unstable; urgency=low
 
@@ -2999,6 +6695,26 @@ samba (3.0.8-2) unstable; urgency=low
 
  -- Steve Langasek <vorlon@debian.org>  Mon, 15 Nov 2004 06:54:13 -0800
 
+samba (3.0.8-1ubuntu1) hoary; urgency=low
+
+  * SECURITY UPDATE: new upstream version fixes CAN-2004-0882 (QFILEPATHINFO
+    unicode filename buffer overflow).
+  * Manual merge with the Debian version.
+  * Reorganized the Ubuntu changes as proper patches prefixed with ubuntu- to
+    ease further merges:
+    - ubuntu-auxsrc: some auxilliary sources (undocumented in previous
+      changelogs)
+    - ubuntu-branding: put "Ubuntu" everywhere :-)
+    - ubuntu-debconf-dhcp3: undocumented debconf magic
+    - ubuntu-debconfpo: updated da, tr, pt_br debconf translations
+    - ubuntu-defaultworkgroup: set debconf default workgroup to "MSHOME"
+    - ubuntu-fix-ldap: fix LDAP backend, see Ubuntu #1905, Debian #274155
+    - ubuntu-lsbinit: nice init scripts
+    - ubuntu-smbmount-nosuid: don't install smbmount and smbumount suid root
+  * All other patches have been adopted by Debian/Upstream.
+
+ -- Martin Pitt <martin.pitt@canonical.com>  Thu, 18 Nov 2004 12:20:48 +0100
+
 samba (3.0.8-1) unstable; urgency=high
 
   * New upstream package. Urgency set to "high" because of a potential
@@ -3010,6 +6726,13 @@ samba (3.0.8-1) unstable; urgency=high
     lock_path() to state_path() change in the FHS patches. (Eloy)
 
  -- Eloy A. Paris <peloy@debian.org>  Mon,  8 Nov 2004 13:39:34 -0500
+
+samba (3.0.7-2ubuntu1) hoary; urgency=low
+
+  * Resynchronise with Debian.
+  * Deleted source/autom4te.cache/ to clean up the debian diff.gz.
+
+ -- Martin Pitt <martin.pitt@canonical.com>  Thu, 11 Nov 2004 12:22:59 +0100
 
 samba (3.0.7-2) unstable; urgency=high
 
@@ -3033,6 +6756,73 @@ samba (3.0.7-2) unstable; urgency=high
    (closes: #251858).
 
  -- Steve Langasek <vorlon@debian.org>  Tue, 26 Oct 2004 01:35:23 -0700
+
+samba (3.0.7-1ubuntu7) hoary; urgency=low
+
+  * SECURITY UPDATE for Hoary. See previous changelog.
+
+ -- Martin Pitt <martin.pitt@canonical.com>  Tue,  9 Nov 2004 23:56:27 +0100
+
+samba (3.0.7-1ubuntu6.1) warty-security; urgency=low
+
+  * SECURITY UPDATE: fix potential remote Denial of Service
+  * Added patch CAN-2004-0930:
+    A remote attacker could cause and smbd process to consume abnormal amounts
+    of system resources due to an input validation error when matching filenames
+    containing wildcard characters.
+  * References:
+    CAN-2004-0930
+    http://www.securityfocus.com/archive/1/380551
+
+ -- Martin Pitt <martin.pitt@canonical.com>  Mon,  8 Nov 2004 19:34:54 +0100
+
+samba (3.0.7-1ubuntu6) warty; urgency=low
+
+  * Added patch prefer_device_uri: change smbspool to prefer DEVICE_URI over
+    argv[0] to make printing work with the CUPS changes for CAN-2004-0923
+    (this removed authentication tokens from argv[0]). (Warty bug #2389)
+
+ -- Martin Pitt <mpitt@debian.org>  Fri, 15 Oct 2004 12:31:58 +0200
+
+samba (3.0.7-1ubuntu5) warty; urgency=low
+
+  * Set server string = %h (Samba, Ubuntu). (Closes: #1761).
+
+ -- Matthias Klose <m@klose.in-berlin.de>  Sat,  2 Oct 2004 12:56:44 +0200
+
+samba (3.0.7-1ubuntu4) warty; urgency=low
+
+  * Apply patch from http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=274155
+    to fix ldap backend.
+    (Closes: #1905/#274155)
+
+ -- Fabio M. Di Nitto <fabbione@fabbione.net>  Thu, 30 Sep 2004 05:33:12 +0200
+
+samba (3.0.7-1ubuntu3) warty; urgency=low
+
+  * Apply patch from https://bugzilla.ubuntu.com/show_bug.cgi?id=1805
+    and start shipping mount.cifs.
+    (Closes: #1805/#227791)
+  * Set sendfile default to no, reverting upstream change:
+    svn diff -r 1262:1312 \
+    svn://svnanon.samba.org/samba/trunk/source/param/loadparm.c
+    (Closes: #1433/#261917)
+
+ -- Fabio M. Di Nitto <fabbione@fabbione.net>  Wed, 29 Sep 2004 11:06:54 +0200
+
+samba (3.0.7-1ubuntu2) warty; urgency=low
+
+  * debian/samba-common.conf: Fix uncommented 'fi'
+
+ -- Jeff Waugh <jdub@perkypants.org>  Tue, 14 Sep 2004 09:57:03 +1000
+
+samba (3.0.7-1ubuntu1) warty; urgency=low
+
+  * Merge Ubuntu changes from 3.0.6-3ubuntu4
+  * New upstream closes (Warty #1199)
+    CAN-2004-0807 and CAN-2004-0808
+
+ -- Thom May <thom@planetarytramp.net>  Mon, 13 Sep 2004 19:56:19 +0100
 
 samba (3.0.7-1) unstable; urgency=high
 
@@ -3058,6 +6848,33 @@ samba (3.0.6-4) unstable; urgency=low
   * Applied a couple of upstream fixes that will be present in Samba 3.0.7.
 
  -- Eloy A. Paris <peloy@debian.org>  Tue,  7 Sep 2004 15:28:42 -0400
+
+samba (3.0.6-3ubuntu4) warty; urgency=low
+
+  * Change 3.0.6-Debian to 3.0.6-Ubuntu. (Closes: #1185)
+    (debian/patches/VERSION.patch)
+
+ -- Fabio M. Di Nitto <fabbione@fabbione.net>  Mon, 13 Sep 2004 10:44:28 +0200
+
+samba (3.0.6-3ubuntu3) warty; urgency=low
+
+  * debian/winbind.init,samba.init: prettified initscripts
+  * debian/control: versioned depend on lsb-base
+
+ -- Nathaniel McCallum <npmccallum@canonical.com>  Fri, 10 Sep 2004 13:43:24 -0400
+
+samba (3.0.6-3ubuntu2) warty; urgency=low
+
+  * Fix duplicate attribute numbers in example LDAP schema (Warty #1070).
+
+ -- Daniel Stone <daniels@debian.org>  Wed,  8 Sep 2004 23:16:29 +1000
+
+samba (3.0.6-3ubuntu1) warty; urgency=low
+
+  * Merge Ubuntu changes from 3.0.5-1ubuntu2
+  * New upstream release fixes Warty#676, fixing compatibility with WinXP SP2
+
+ -- Matt Zimmerman <mdz@alcor.net>  Thu, 26 Aug 2004 12:36:42 -0700
 
 samba (3.0.6-3) unstable; urgency=low
 
@@ -3096,6 +6913,23 @@ samba (3.0.5-2) unstable; urgency=high
     lately.
 
  -- Eloy A. Paris <peloy@debian.org>  Wed, 18 Aug 2004 13:25:41 -0400
+
+samba (3.0.5-1ubuntu2) warty; urgency=low
+
+  * Don't install smbmnt and smbumount suid root since GNOME does not require
+    it (it uses libsmbclient)
+
+ -- Martin Pitt <mpitt@debian.org>  Tue, 10 Aug 2004 17:46:25 +0200
+
+samba (3.0.5-1ubuntu1) warty; urgency=low
+
+  * Port of warty specific changes from previous version.
+  * Set default WORKGROUP to MSHOME.
+    (debian/samba-common.templates)
+  * Set WINS settings priority to medium.
+    (debian/samba-common.config)
+
+ -- Fabio M. Di Nitto <fabbione@fabbione.net>  Fri, 23 Jul 2004 07:35:14 +0200
 
 samba (3.0.5-1) unstable; urgency=high
 
@@ -3641,7 +7475,7 @@ samba (2.2.5-1) unstable; urgency=low
   * New upstream release.
 
  -- Eloy A. Paris <peloy@debian.org>  Sun,  9 Jun 2002 15:49:21 -0400
- 
+
 samba (2.2.4+2.2.5pre1-1) experimental; urgency=low
 
   * Getting ready for Samba 2.2.5.
@@ -5379,6 +9213,12 @@ samba (1.9.17p1-1) unstable; urgency=low
 
  -- Eloy A. Paris <debian.org>  Wed, 10 Sep 1997 22:09:18 -0400
 
+samba (1.9.17alpha5-1) unstable; urgency=low
+
+  * New upstream version.
+
+ -- Eloy A. Paris <peloy@debian.org>  Thu, 14 Aug 1997 18:05:02 -0400
+
 samba (1.9.17-1) unstable; urgency=low
 
   * New upstream version (called the "Browse Fix Release")
@@ -5443,7 +9283,6 @@ samba (1.9.16p9-1) unstable; urgency=low
  * Uses update-inetd now.
  * Added shadow passwords support.
  * Fixed Bug#1946: nmbd won't browse
-
 1.9.15p4-1:
  951128
  * Upgraded to latest upstream version.
@@ -5451,21 +9290,18 @@ samba (1.9.16p9-1) unstable; urgency=low
    * Adds Master Browsing support.
  * Converted to ELF.
  * Fixed bug #1825 - nmbd is now killed when removing samba.
-
 1.9.14-1:
  950926 Andrew Howell <andrew@it.com.au>
  * Upgraded to latest version.
  * Fixed Bug #1139 - samba won't print
-
 1.9.14alpha5-1:
  * Fixes killing of inetd problem in debian.postint and debian.postrm 
-
 1.9.14alpha5-0:
  950704 Andrew Howell <andrew@it.com.au>
  * Taken over samba package from Bruce Perens.
  * Upgraded to newest version of samba.
-
 1.9.02-1:
  9-January-1994 Bruce Perens <Bruce@Pixar.com>
  * Added Debian GNU/Linux package maintenance system files, and
    configured for Debian systems.
+

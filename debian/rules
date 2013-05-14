@@ -51,8 +51,7 @@ conf_args = \
 		--disable-avahi \
 		--without-libtdb \
 		--enable-external-libtdb \
-		--disable-smbtorture4 \
-		--with-ctdb=/usr --with-cluster-support=yes
+		--disable-smbtorture4
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
   conf_args += \
@@ -103,6 +102,14 @@ override_dh_auto_install:
 	# correct place by dh_install
 	mkdir -p $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d
 	install -m755 debian/samba-common.dhcp $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d/samba
+	mkdir -p $(DESTDIR)/etc/network/if-up.d
+	install -o root -g root debian/samba.if-up $(DESTDIR)/etc/network/if-up.d/samba
+
+	# Ubuntu things
+	mkdir -p $(DESTDIR)/etc/ufw/applications.d
+	install -m644 debian/samba.ufw.profile $(DESTDIR)/etc/ufw/applications.d/samba
+	mkdir -p $(DESTDIR)/usr/share/apport/package-hooks
+	install -D -m 644 debian/source_samba.py $(DESTDIR)/usr/share/apport/package-hooks/source_samba.py
 
 override_dh_installpam:
 	dh_installpam --name=samba
@@ -115,7 +122,9 @@ endif
 
 override_dh_installinit:
 ifneq (,$(filter samba, $(shell dh_listpackages)))
-	dh_installinit -psamba -- "defaults 20 19"
+	dh_installinit -psamba --upstart-only --name smbd
+	dh_installinit -psamba --upstart-only --name nmbd
+	dh_installinit -psamba --upstart-only --no-start --name reload-smbd
 endif
 ifneq (,$(filter winbind, $(shell dh_listpackages)))
 	dh_installinit -pwinbind

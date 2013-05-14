@@ -10,3 +10,4 @@ usr/share/man/man5/smbpasswd.5
 usr/share/man/man7/samba.7
 usr/share/man/man8/net.samba3.8
 usr/share/man/man8/smbpasswd.8
+usr/share/apport/package-hooks/source_samba.py

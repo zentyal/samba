@@ -33,6 +33,9 @@ samba (2:3.6.15-1ubuntu1) UNRELEASED; urgency=low
     actually now removing this file unconditionally from the filesystem on
     install/upgrade and no one seems to have noticed; and it's been dropped
     in Debian because it's reportedly no longer needed with current nmbd.
+  * Drop the Ubuntu-specific samba.preinst, superseded now by the
+    dpkg-maintscript-helper integration from dropping /etc/init.d/samba in
+    Debian as well.
 
  -- Steve Langasek <steve.langasek@ubuntu.com>  Tue, 14 May 2013 14:09:00 -0500
 

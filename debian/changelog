@@ -3,6 +3,10 @@ samba (2:3.6.15-2) UNRELEASED; urgency=low
   * Drop support for running smbd from inetd; this is not well-supported
     upstream, and can't correctly handle all of the long-running services
     that are needed as part of modern samba.  Closes: #707622.
+  * Split the samba init script into nmbd and smbd init scripts, for better
+    alignment with how init systems other than sysvinit work.  This also
+    drops the override of the arguments to update-rc.d in debian/rules,
+    no longer needed in the post-insserv world.
 
  -- Steve Langasek <vorlon@debian.org>  Mon, 13 May 2013 11:57:53 -0700
 

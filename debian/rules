@@ -102,8 +102,6 @@ override_dh_auto_install:
 	# correct place by dh_install
 	mkdir -p $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d
 	install -m755 debian/samba-common.dhcp $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d/samba
-	mkdir -p $(DESTDIR)/etc/network/if-up.d
-	install -o root -g root debian/samba.if-up $(DESTDIR)/etc/network/if-up.d/samba
 
 	# Ubuntu things
 	mkdir -p $(DESTDIR)/etc/ufw/applications.d

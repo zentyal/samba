@@ -1,3 +1,41 @@
+samba (2:3.6.15-1ubuntu1) UNRELEASED; urgency=low
+
+  * Merge from Debian git branch; remaining changes:
+    + debian/patches/VERSION.patch:
+      - set SAMBA_VERSION_SUFFIX to Ubuntu.
+    + debian/smb.conf:
+      - add "(Samba, Ubuntu)" to server string.
+      - comment out the default [homes] share, and add a comment about
+        "valid users = %S" to show users how to restrict access to
+        \\server\username to only username.
+    + debian/samba-common.config:
+      - Do not change priority to high if dhclient3 is installed.
+      - Use priority medium instead of high for the workgroup question.
+    + debian/control:
+      - Don't build against or suggest ctdb.
+      - Add dependency on samba-common-bin to samba.
+    + Add ufw integration:
+      - Created debian/samba.ufw.profile
+      - debian/rules, debian/samba.install: install profile.
+      - debian/control: have samba suggest ufw.
+    + Add apport hook:
+      - Created debian/source_samba.py.
+      - debian/rules, debian/samba-common-bin.install: install hook.
+    + d/rules: Drop explicit configuration options for ctdb.
+    + debian/samba.logrotate: call upstart interfaces unconditionally instead
+      of hacking around with pid files.
+  * Dropped changes, included in Debian:
+    + Switch to upstart:
+      - Added debian/samba.{nmbd,smbd}.upstart.
+      - Added debian/winbind.upstart.
+      - debian/samba-common.dhcp: Make upstart compatible.
+  * Drop debian/samba.if-up.  The maintainer scripts merged from Debian are
+    actually now removing this file unconditionally from the filesystem on
+    install/upgrade and no one seems to have noticed; and it's been dropped
+    in Debian because it's reportedly no longer needed with current nmbd.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Tue, 14 May 2013 14:09:00 -0500
+
 samba (2:3.6.15-2) UNRELEASED; urgency=low
 
   * Drop support for running smbd from inetd; this is not well-supported

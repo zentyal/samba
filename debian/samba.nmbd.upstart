@@ -1,0 +1,21 @@
+description "NetBIOS name server"
+author      "Steve Langasek <steve.langasek@ubuntu.com>"
+
+start on (local-filesystems and net-device-up IFACE!=lo)
+stop on runlevel [!2345]
+
+expect fork
+respawn
+
+pre-start script
+	[ -f /etc/samba/smb.conf ] || { stop; exit 0; }
+
+	install -o root -g root -m 755 -d /var/run/samba
+	NMBD_DISABLED=`testparm -s --parameter-name='disable netbios' 2>/dev/null || true`
+
+	[ "x$NMBD_DISABLED" = xYes ] && { stop; exit 0; }
+
+	exit 0
+end script
+
+exec nmbd -D

@@ -25,6 +25,10 @@ test -x /usr/sbin/smbd || exit 0
 
 case $1 in
 	start)
+		if init_is_upstart; then
+			exit 1
+		fi
+
 		log_daemon_msg "Starting SMB/CIFS daemon" smbd
 		# Make sure we have our PIDDIR, even if it's on a tmpfs
 		install -o root -g root -m 755 -d $PIDDIR
@@ -37,6 +41,10 @@ case $1 in
 		log_end_msg 0
 		;;
 	stop)
+		if init_is_upstart; then
+			exit 0
+		fi
+
 		log_daemon_msg "Stopping SMB/CIFS daemon" smbd
 
 		start-stop-daemon --stop --quiet --pidfile $SMBDPID
@@ -60,6 +68,9 @@ case $1 in
 		log_end_msg 0
 		;;
 	restart|force-reload)
+		if init_is_upstart; then
+			exit 1
+		fi
 		$0 stop
 		sleep 1
 		$0 start

@@ -22,7 +22,7 @@ Vcs-git: git://git.debian.org/git/pkg-samba/samba.git
 Package: samba
 Architecture: any
 Pre-Depends: ${misc:Pre-Depends}, dpkg (>= 1.15.6~)
-Depends: samba-common (= ${source:Version}), libwbclient0 (= ${binary:Version}),${shlibs:Depends}, ${misc:Depends}, libpam-runtime (>= 1.0.1-11), libpam-modules, lsb-base (>= 3.2-13), procps, update-inetd, adduser
+Depends: samba-common (= ${source:Version}), libwbclient0 (= ${binary:Version}),${shlibs:Depends}, ${misc:Depends}, libpam-runtime (>= 1.0.1-11), libpam-modules, lsb-base (>= 4.1+Debian3), procps, update-inetd, adduser
 Recommends: logrotate, tdb-tools
 Suggests: openbsd-inetd | inet-superserver, smbldap-tools, ldb-tools, ctdb, winbind
 Replaces: samba-common (<= 2.0.5a-2)
@@ -193,7 +193,7 @@ Section: net
 Priority: optional
 Architecture: any
 Multi-Arch: foreign
-Depends: ${shlibs:Depends}, ${misc:Depends}, libwbclient0 (= ${binary:Version}), samba-common (= ${source:Version}), lsb-base (>= 3.0-6), adduser
+Depends: ${shlibs:Depends}, ${misc:Depends}, libwbclient0 (= ${binary:Version}), samba-common (= ${source:Version}), lsb-base (>= 4.1+Debian3), adduser
 Pre-Depends: dpkg (>= 1.15.6~)
 Suggests: libpam-winbind, libnss-winbind
 Replaces: samba (<= 2.2.3-2)

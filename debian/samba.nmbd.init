@@ -24,6 +24,10 @@ test -x /usr/sbin/nmbd || exit 0
 
 case $1 in
 	start)
+		if init_is_upstart; then
+			exit 1
+		fi
+
 		if [ -n `which testparm` ]
 		then
 			NMBD_DISABLED=`testparm -s --parameter-name='disable netbios' 2>/dev/null`
@@ -43,6 +47,10 @@ case $1 in
 
 		;;
 	stop)
+		if init_is_upstart; then
+			exit 0
+		fi
+
 		log_daemon_msg "Stopping NetBIOS name server" nmbd
 
 		start-stop-daemon --stop --quiet --pidfile $NMBDPID
@@ -59,6 +67,9 @@ case $1 in
 
 		;;
 	restart|force-reload)
+		if init_is_upstart; then
+			exit 1
+		fi
 		$0 stop
 		sleep 1
 		$0 start

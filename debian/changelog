@@ -1,3 +1,23 @@
+samba (2:3.6.15-2) UNRELEASED; urgency=low
+
+  * Drop support for running smbd from inetd; this is not well-supported
+    upstream, and can't correctly handle all of the long-running services
+    that are needed as part of modern samba.  Closes: #707622.
+
+ -- Steve Langasek <vorlon@debian.org>  Mon, 13 May 2013 11:57:53 -0700
+
+samba (2:3.6.15-1) unstable; urgency=high
+
+  * Team upload.
+  * New upstream bugfix release. Closes: #707042
+  * Update VCS URL's for new git repo. 
+  * The recommends for the separate libnss-winbind and libpam-winbind
+    packages needed for the upgrade of winbind from squeeze to wheezy are no
+    longer needed. Lowering them to suggests.
+    Closes: #706434, #674853
+
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Thu, 09 May 2013 11:55:03 +0200
+
 samba (2:3.6.14-1ubuntu1) saucy; urgency=low
 
   * Merge from Debian unstable.  Remaining changes:

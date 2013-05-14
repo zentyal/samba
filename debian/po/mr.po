@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-05-13 11:53-0700\n"
 "PO-Revision-Date: 2006-08-15 07:59-0500\n"
 "Last-Translator: Priti Patil <prithisd@gmail.com>\n"
 "Language-Team:  Marathi, janabhaaratii, C-DAC, Mumbai, India "
@@ -151,88 +151,3 @@ msgstr ""
 "(/etc/samba/smbpasswd)ईटीसी/सांबा/एसएमबी पासवर्ड संचिका आहे, तसेच ,एसएमबी पासवर्ड "
 "आज्ञावली वापरुन, प्रत्येक उपयोजकासाठी परवलीचे शब्द निर्धारित केल्याची खात्री करा."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "डिमन्स"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "आयएनइटीडी"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "तुम्हाला सांबा कशा प्रकारे चालू करावयाचा आहे?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"सांबा डिमन एसएमबीडी हा प्रोग्राम सर्वसाधारण डिमन म्हणून किंवा आयएनइटीडी मधून चालविता "
-"येतो. डिमन म्हणून चालविणे अधिक श्रेयस्कर."
-
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr ""
-#~ "var/lib/samba/passdb.tdb /व्हीएआर /एलआयबी/सांबा /एसएमबी पासडीबी.टीडीबी? या "
-#~ "सांबा परवलीच्या शब्दाची डेटाबेस (माहिती) तयार करा."
-
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "विंडोजच्या बहुतेक आवृत्तींमधील डिफॉल्टशी सहत्व ठेवण्यासाठी कूटलिखित परवलीचे शब्द वापरुन "
-#~ "सांबा संरचित केला पाहिजे. यासाठी परवलीचे शब्द,ईटीसी/पासवर्ड पेक्षा अलग संचिकेत साठवून "
-#~ "ठेवणे आवश्यक आहे. ही या संचिकेची रचना स्वयंचलित करता येते,परंतु यात परवलीचे शब्द,एसएमबी "
-#~ "पासवर्ड चालवून स्वहस्ते टाकले पाहिजेत व भविष्यकाळात अद्ययावत ठेवले पाहिजे."
-
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "तुम्ही ही रचना न केल्यास तुम्हाला सांबा(व कदाचित तुमच्या ग्राहकांचे संगणक),साध्या शब्दांचे "
-#~ "परवलीचे शब्द वापरुन पुनःसंरचित करावे लागतील."
-
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "अधिक माहितीसाठी सांबा-डीओसी पॅकेजमधील /usr/share/doc/samba-doc/htmldocs/"
-#~ "ENCRYPTION.html (यूएसआर/शेअर/डीओसी/सांबा-डीओसी/एचटीएमएलडीओसीएस/एनक्रिप्शन."
-#~ "एचटीएमएल) हे पॅकेज पहा."
-
-#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-#~ msgstr ""
-#~ "/ईटीसी/सांबा/एसएमबी पासवर्ड,/व्हीएआर/एलआयबी/सांबा/पासवर्ड।टीडीबी कडे हलवायचा का?"
-
-#~ msgid ""
-#~ "Samba 3.0 introduced a more complete SAM database interface which "
-#~ "supersedes the /etc/samba/smbpasswd file."
-#~ msgstr ""
-#~ "सांबा ३.० ने पूर्णतर असा एसएएम डेटाबेस अंतराफलक प्रस्तुत केला असून तो इटीसी/सांबा/"
-#~ "एसएमबी पासवर्ड संचिकेला मागे टाकतो."
-
-#~ msgid ""
-#~ "Please confirm whether you would like the existing smbpasswd file to be "
-#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
-#~ msgstr ""
-#~ "कृपया तुम्हाला सध्याची एसएमबी पासवर्ड संचिका आपोआप/व्हीएआर/एलआयबी/सांबा/पासडीबी।"
-#~ "टीडीबी कडे स्थलांतरित झाल्यास चालेल का याची खात्री करा. तुम्हाला त्याऐवजी दुसरी "
-#~ "कोणती पीडीबी बॅकएंड(उदा.एलडीएपी)करावयाची असल्यास हा पर्याय स्वीकारु नका"

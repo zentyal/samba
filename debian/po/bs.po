@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-05-13 11:53-0700\n"
 "PO-Revision-Date: 2006-11-01 22:14+0100\n"
 "Last-Translator: Safir Secerovic <sapphire@linux.org.ba>\n"
 "Language-Team: Bosnian <lokal@linux.org.ba>\n"
@@ -149,85 +149,3 @@ msgstr ""
 "da imate ispravnu /etc/samba/smbpasswd datoteku i da u njoj postavite šifre "
 "za svakog korisnika koristeći smbpasswd naredbu."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "daemons"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Kako želite pokretati Samba-u?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Samba daemon smbd može biti pokrenut kao normalni daemon ili preko inetd-a. "
-"Pokretanje kao daemon je preporučeni pristup."
-
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr "Kreirati samba bazu podataka sa šiframa, /var/lib/samba/passdb.tdb?"
-
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "Kako bi bila kompatibilna s većinom Windows verzija, Samba mora biti "
-#~ "podešena da koristi enkriptovane šifre.  Ovo zahtijeva da korisničke "
-#~ "šifre budu spremljene u zasebnu datoteku od /etc/passwd.  Ova datoteka "
-#~ "može biti kreirana automatski, ali šifre moraju biti dodane ručno "
-#~ "pokrečući smbpasswd i ubuduće održavane."
-
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "Ako ju ne kreirate, morati ćete rekonfigurisati Samba-u (i vjerovatno "
-#~ "vaše klijente) da koristi šifre u obliku čistog teksta."
-
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "Vidjeti /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/"
-#~ "pwencrypt.html iz samba-doc paketa za više detalja."
-
-#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-#~ msgstr "Premjestiti /etc/samba/smbpasswd u /var/lib/samba/passdb.tdb?"
-
-#~ msgid ""
-#~ "Samba 3.0 introduced a more complete SAM database interface which "
-#~ "supersedes the /etc/samba/smbpasswd file."
-#~ msgstr ""
-#~ "Samba 3.0 uvodi potpuniji interfejs SAM baze podataka koji zamjenjuje /"
-#~ "etc/samba/smbpasswd datoteku. "
-
-#~ msgid ""
-#~ "Please confirm whether you would like the existing smbpasswd file to be "
-#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
-#~ msgstr ""
-#~ "Molim potvrdite da li želite da postojeću smbpasswd datoteku automatski "
-#~ "pomijerite u /var/lib/samba/passdb.tdb.  Ne koristite ovu opciju ako "
-#~ "umjesto toga planirate koristiti drugi pdb backend (poput LDAP-a)."

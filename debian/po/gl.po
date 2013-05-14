@@ -18,8 +18,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_2:3.5.8~dfsg-2_gl\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-05-13 11:53-0700\n"
 "PO-Revision-Date: 2011-05-12 11:46+0100\n"
 "Last-Translator: Miguel Anxo Bouzada <mbouzada@gmail.com>\n"
 "Language-Team: Galician <proxecto@trasno.net>\n"
@@ -156,105 +156,3 @@ msgstr ""
 "ficheiro  /etc/samba/smbpasswd válido e de estabelecer nel os contrasinais "
 "de cada usuario coa orde smbpasswd."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr "Servidor Samba"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "servizos"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Como quere executar Samba?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"O servizo de Samba smbd pode funcionar coma un servizo normal ou desde "
-"inetd. Recoméndase executalo coma un servizo."
-
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr ""
-#~ "Crear a base de datos de contrasinais de samba, /var/lib/samba/passdb.tdb?"
-
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "Para que sexa compatíbel coa configuración predeterminada da maioría das "
-#~ "versións de Windows, Samba ten que se configurar para empregar "
-#~ "contrasinais cifrados. Para facelo, hai que almacenar os contrasinais dos "
-#~ "usuarios nun ficheiro separado de /etc/passwd. Este ficheiro pódese crear "
-#~ "automaticamente, mais os contrasinais hai que engadilos á man empregando "
-#~ "smbpasswd e hai que mantelo actualizado no futuro."
-
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "Se non o crea ha ter que reconfigurar samba (e probabelmente tamén as "
-#~ "máquinas cliente) para que empreguen contrasinais en texto simple."
-
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "Consulte o ficheiro /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-"
-#~ "Guide/pwencrypt.html do paquete samba-doc para obter máis detalles."
-
-#~ msgid "Chaining passdb backends is not supported"
-#~ msgstr "Non está soportado o encadeamento de motores de passdb"
-
-#~ msgid ""
-#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
-#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
-#~ "conf file contains a passdb backend parameter consisting of a list of "
-#~ "backends.  The new version of samba will not work until you correct this."
-#~ msgstr ""
-#~ "A partires da versión 3.0.23, samba xa non soporta o encadeamento de "
-#~ "varios motores no parámetro \"passdb backend\". Semella que o seu "
-#~ "ficheiro smb.conf contén un parámetro de motor de passdb que consiste "
-#~ "nunha lista de motores. A nova versión de samba non ha funcionar ata que "
-#~ "o corrixa."
-
-#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-#~ msgstr "¿Trasladar /etc/samba/smbpasswd a /var/lib/samba/passdb.tdb?"
-
-#~ msgid ""
-#~ "Samba 3.0 introduced a more complete SAM database interface which "
-#~ "supersedes the /etc/samba/smbpasswd file."
-#~ msgstr ""
-#~ "Samba 3.0 introduciu unha interface de base de datos SAM máis completa "
-#~ "que substitúe ao ficheiro /etc/samba/smbpasswd."
-
-#~ msgid ""
-#~ "Please confirm whether you would like the existing smbpasswd file to be "
-#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
-#~ msgstr ""
-#~ "Confirme se quere que se migre automaticamente o ficheiro smbpasswd "
-#~ "existente a /var/lib/samba/passdb.tdb. Non escolla esta opción se "
-#~ "pretende empregar outro motor pdb (por exemplo, LDAP)."
-
-#~ msgid "daemons, inetd"
-#~ msgstr "servizos, inetd"

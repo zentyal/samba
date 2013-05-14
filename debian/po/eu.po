@@ -16,8 +16,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: eu\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-05-13 11:53-0700\n"
 "PO-Revision-Date: 2007-04-07 23:18+0200\n"
 "Last-Translator: Piarres Beobide <pi@beobide.net>\n"
 "Language-Team: librezale <librezale@librezale.org>\n"
@@ -151,101 +151,3 @@ msgstr ""
 "hautatuaz gero ziurtatu baliozko /etc/samba/smbpasswd fitxategi bat duzula "
 "eta pasahitzak smbpasswd programaren bidez ezarri dituzula."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "deabruak"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Nola nahi duzu Samba abiaraztea?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Samba smbd zerbitzua deabru arrunt edo inted bidez abiarazi daiteke. Deabru "
-"bezala abiaraztea gomendatzen da."
-
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr "/var/lib/samba/passdb.tdb pasahitz datubase berria sortu?"
-
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "Windows sistema gehienen lehenetsiriko portaerarekin bateragarritasuna "
-#~ "mantentzeko, Samba zifraturiko pasahitzak erabiltzeko konfiguratu behar "
-#~ "da.  Honetako erabiltzaileen pasahitzak gordeko dituen /etc/passwd "
-#~ "fitxategiaz bereiziriko beste fitxategi bat sortu behar da. Fitxategia "
-#~ "automatikoki sortu daiteke baina pasahitzak eskuz gehitu behar dira "
-#~ "'smbpasswd' programaren bidez eta pasahitzak eguneraturik mantendu behar "
-#~ "dira."
-
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "Fitxategi hau ez sortuaz gero beharrezkoa da Samba (eta ziurrenik Windows "
-#~ "bezeroak) zifratu gabeko pasahitzak erabiltzeko konfiguratzea."
-
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "Samba-doc paketeko /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-"
-#~ "Guide/pwencrypt.html begiratu argibide gehiagorako."
-
-#~ msgid "Chaining passdb backends is not supported"
-#~ msgstr "\"passbd\" motore kateatzea ez da onartzen"
-
-#~ msgid ""
-#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
-#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
-#~ "conf file contains a passdb backend parameter consisting of a list of "
-#~ "backends.  The new version of samba will not work until you correct this."
-#~ msgstr ""
-#~ "2.0.23 bertsiotik aurrera ez da gehiago onartzen motore bat baino "
-#~ "gehiagoren kateatzea \"passdb backend\" parametroan.  Dirudienez zure smb."
-#~ "conf fitxategiko \"passdb backend\" parametroak motore zerrenda bat du.  "
-#~ "Samba bertsio berriak ez du funtzionatuko hau konpondu arte."
-
-#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-#~ msgstr "/etc/samba/smbpasswd /var/lib/samba/passdb.tdb-ra mugitu?"
-
-#~ msgid ""
-#~ "Samba 3.0 introduced a more complete SAM database interface which "
-#~ "supersedes the /etc/samba/smbpasswd file."
-#~ msgstr ""
-#~ "Samba 3.0 bertsioak SAM datubase sistema osoago bat eskaintzen du /etc/"
-#~ "samba/smbpasswd fitxategia ordezteko."
-
-#~ msgid ""
-#~ "Please confirm whether you would like the existing smbpasswd file to be "
-#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
-#~ msgstr ""
-#~ "Mesedez berretsi smbpasswd fitxategi arrunta /var/lib/samba/passdb.tdb-ra "
-#~ "migratzea nahi duzula. Beste pasahitz datubase bat erabiltzea pentsatzen "
-#~ "baduzu (adib LDAP) hemen 'ez' erantzun beharko zenuke."

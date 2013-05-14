@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_po\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-05-13 11:53-0700\n"
 "PO-Revision-Date: 2006-12-16 20:10+0530\n"
 "Last-Translator: drtvasudevan <agnihot3@gmail.com>\n"
 "Language-Team: TAMIL <Ubuntu-tam@lists.ubuntu.com>\n"
@@ -149,86 +149,3 @@ msgstr ""
 "பயனருக்கும் smbpasswd கட்டளை மூலம் தனித்தனி கடவுச் சொல் அமைப்பதையும் உறுதி செய்து "
 "கொள்ளவும். "
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "கிங்கரன்கள் (டீமன்கள்)"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "சாம்பாவை எப்படி இயக்க விரும்புகிறீர்கள்?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"சாம்பா கிங்கரனான எஸ்எம்பிடி இயல்பான கிங்கரனாக இயங்கலாம் அல்லது inetd லிருந்து இயங்கலாம். "
-"கிங்கரனாக இயங்குவதே பரிந்துரைக்கப் படுகிறது."
-
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr ""
-#~ " /var/lib/samba/passdb.tdb என்ற சாம்பா கடவுச் சொல் தரவுத் தளத்தை உருவாக்கவா?"
-
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "பெரும்பாலான விண்டோஸ் பதிவுகளுடன் இசைந்து போவதற்கு சாம்பாவை குறியீட்டாக்கம் செய்த "
-#~ "கடவுச் சொற்களை பயன் படுத்துமாறு அமைக்க வேண்டும். இதற்கு /etc/passwd கோப்பு அல்லாது "
-#~ "வேறொரு கோப்பில் பயனர் கடவுச் சொற்களை சேமிக்க வேண்டும். இந்த கோப்பை தானியங்கியாக "
-#~ "உருவாக்கலாம். ஆனால் கடவுச் சொற்களை கைமுறையாக smbpasswd கட்டளை மூலம் சேர்க்க "
-#~ "வேண்டும்; எதிர்காலத்தில் அதை இற்றைப் படுத்தவும் வேண்டும். "
-
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "நீங்கள் அதை உருவாக்கவில்லையானால் எளிய உரை கடவுச் சொற்களை பயன் படுத்துமாறு சாம்பாவை "
-#~ "(அனேகமாக உங்கள் சார்ந்தோன் இயந்திரங்களையும்) மீண்டும் வடிவமைக்க வேண்டும்."
-
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "சாம்பா ஆவணங்கள் (samba-doc) பொதிகளில் இருந்து /usr/share/doc/samba-doc/"
-#~ "htmldocs/ENCRYPTION.html ஐ மேலதிக விவரங்களுக்குப் பார்க்கவும்."
-
-#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-#~ msgstr "/etc/samba/smbpasswd ஐ /var/lib/samba/passdb.tdb க்கு நகர்த்தவா?"
-
-#~ msgid ""
-#~ "Samba 3.0 introduced a more complete SAM database interface which "
-#~ "supersedes the /etc/samba/smbpasswd file."
-#~ msgstr ""
-#~ "சாம்பா 3.0 /etc/samba/smbpasswd கோப்பை நீக்கி செம்மையான முழுமையான SAM (எஸ்ஏஎம்) "
-#~ "தரவுத்தள இடைமுகத்தை அறிமுகப் படுத்துகிறது."
-
-#~ msgid ""
-#~ "Please confirm whether you would like the existing smbpasswd file to be "
-#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
-#~ msgstr ""
-#~ "இருப்பிலுள்ள smbpasswd கோப்பை /var/lib/samba/passdb.tdb க்கு தானியங்கியாக மாற்ற "
-#~ "வேண்டுமா என உறுதி செய்யவும். நீங்கள் LDAP போன்ற வேறு pdb பின் நிலையை பயன் படுத்த "
-#~ "உத்தேசித்து இருந்தால் இதை தேர்ந்தெடுக்க வேண்டாம்."

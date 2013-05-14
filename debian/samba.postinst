@@ -71,4 +71,6 @@ update-alternatives --install /usr/bin/smbstatus smbstatus /usr/bin/smbstatus.sa
 
 #DEBHELPER#
 
+update-rc.d samba remove > /dev/null
+
 exit 0

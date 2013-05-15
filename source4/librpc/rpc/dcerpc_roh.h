@@ -8,6 +8,8 @@
 #ifndef DCERPC_ROH_H_
 #define DCERPC_ROH_H_
 
+#define ROH_DEFAULT_TIMEOUT 2
+
 struct tevent_queue;
 struct tstream_context;
 
@@ -47,6 +49,9 @@ enum roh_connection_state {
  */
 struct roh_connection {
 	const char *server_name;
+	struct tevent_context *ev;
+
+	int timeout_seconds;
 
 	enum roh_protocol_version protocol_version;
 	enum roh_connection_state connection_state;

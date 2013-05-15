@@ -107,6 +107,8 @@ struct tevent_req* dcerpc_pipe_open_roh_send(
 	/* TODO Initialize virtual connection cookie table? */
 	state->roh = talloc_zero(mem_ctx, struct roh_connection);
 	state->roh->server_name = talloc_strdup(state->roh, target);
+	state->roh->ev = ev;
+	state->roh->timeout_seconds = ROH_DEFAULT_TIMEOUT;
 	state->roh->protocol_version = ROH_V2;
 	state->roh->connection_state = ROH_OUT_CHANNEL_WAIT;
 	state->roh->connection_cookie = GUID_random();
@@ -286,6 +288,7 @@ static void roh_send_CONN_B1_done(struct tevent_req *subreq)
 	tevent_req_set_callback(subreq, roh_send_CONN_A1_done, req);
 }
 
+static void roh_recv_out_channel_response_done(struct tevent_req *subreq);
 static void roh_send_CONN_A1_done(struct tevent_req *subreq)
 {
 	struct tevent_req *req;
@@ -296,6 +299,27 @@ static void roh_send_CONN_A1_done(struct tevent_req *subreq)
 
 	NTSTATUS status;
 	status = roh_send_CONN_A1_recv(subreq);
+	TALLOC_FREE(subreq);
+	if (tevent_req_nterror(req, status)) {
+		return;
+	}
+
+	subreq = roh_recv_out_channel_response_send(state, state->ev, state->roh);
+	tevent_req_set_callback(subreq, roh_recv_out_channel_response_done, req);
+}
+
+static void roh_recv_out_channel_response_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req;
+	struct roh_open_connection_state *state;
+
+	req = tevent_req_callback_data(subreq, struct tevent_req);
+	state = tevent_req_data(req, struct roh_open_connection_state);
+
+	NTSTATUS status;
+	char *response;
+	status = roh_recv_out_channel_response_recv(subreq, state, &response);
+	DEBUG(9, ("%s: Received response %s\n", __func__, response));
 	TALLOC_FREE(subreq);
 	if (tevent_req_nterror(req, status)) {
 		return;
@@ -319,72 +343,40 @@ static void roh_send_CONN_A1_done(struct tevent_req *subreq)
 	tevent_req_done(req);
 }
 
-
-
-
-
-//static void roh_connect_channel_out_done(struct tevent_req *subreq)
-//{
-//	struct tevent_req *req;
-//	struct roh_open_connection_state *state;
-//
-//	req = tevent_req_callback_data(subreq, struct tevent_req);
-//	state = tevent_req_data(req, struct roh_open_connection_state);
-//
-//	NTSTATUS status;
-//	status = roh_connect_channel_out_recv(subreq); /* TODO Retrieve roh_channel and assign */
-//	TALLOC_FREE(subreq);
-//	if (tevent_req_nterror(req, status)) {
-//		return;
-//	}
-//
-//	/* Fill in the transport methods */
-//	state->conn->transport.transport    = NCACN_HTTP;
-//	state->conn->transport.private_data = state->roh;
-//
-//	//	http->channel_in.fde = tevent_add_fd(conn->event_ctx, http->channel_in.sock,
-//	//			socket_get_fd(http->channel_in.sock), TEVENT_FD_READ,
-//	//			sock_in_io_handler, conn);
-//
-//	state->conn->transport.recv_data       = NULL;
-//	state->conn->transport.send_request    = roh_sock_send_request;
-//	state->conn->transport.send_read       = roh_sock_send_read;
-//	state->conn->transport.shutdown_pipe   = roh_sock_shutdown_pipe;
-//	state->conn->transport.peer_name       = roh_sock_peer_name;
-//	state->conn->transport.target_hostname = roh_sock_target_hostname;
-//
-//	tevent_req_done(req);
-//	/* Send CONN/B1 */
-//	/* Send CONN/A1 */
-//}
-
 static NTSTATUS roh_sock_send_request(struct dcecli_connection *p,
 		DATA_BLOB *data, bool trigger_read)
 {
 	struct roh_connection *roh;
-	//DATA_BLOB blob;
-	//NTSTATUS status;
+	int bytes_written, sys_errno;
 
-	DEBUG(9, ("%s\n", __func__));
+	DEBUG(9, ("%s: Length: %d bytes, trigger_read: %s\n", __func__, (int)data->length,
+			trigger_read ? "true":"false"));
 	roh = talloc_get_type_abort(p->transport.private_data, struct roh_connection);
 
-//	if (http->channel_out.sock == NULL) {
-//		return NT_STATUS_CONNECTION_DISCONNECTED;
-//	}
-//
-//	blob = data_blob_talloc(http->channel_out.packet, data->data, data->length);
-//	if (blob.data == NULL) {
-//		return NT_STATUS_NO_MEMORY;
-//	}
-//
-//	status = packet_send(http->channel_out.packet, blob);
-//	if (!NT_STATUS_IS_OK(status)) {
-//		return status;
-//	}
-//
-//	if (trigger_read) {
-//		sock_send_read(p);
-//	}
+	if (roh->default_channel_out == NULL) {
+		return NT_STATUS_CONNECTION_DISCONNECTED;
+	}
+
+	struct iovec iov;
+	iov.iov_base = (char *)data->data;
+	iov.iov_len = data->length;
+	struct tevent_req *req = tstream_writev_queue_send(
+			roh->default_channel_out,
+			roh->ev,
+			roh->default_channel_out->stream,
+			roh->default_channel_out->send_queue,
+			&iov, 1);
+	bytes_written = tstream_writev_queue_recv(req, &sys_errno);
+	if (bytes_written <= 0) {
+		DEBUG(0, ("%s: error: %s (%d)\n", __func__, strerror(sys_errno), sys_errno));
+		return map_nt_error_from_unix_common(sys_errno);
+	}
+	/* TODO Update sent bytes */
+	/* roh->default_channel_out->sent_bytes += data->length; */
+
+	if (trigger_read) {
+		roh_sock_send_read(p);
+	}
 
 	return NT_STATUS_OK;
 }

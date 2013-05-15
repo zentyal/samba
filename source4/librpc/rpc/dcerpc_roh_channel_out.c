@@ -380,3 +380,90 @@ NTSTATUS roh_send_CONN_A1_recv(struct tevent_req *req)
 	tevent_req_received(req);
 	return NT_STATUS_OK;
 }
+
+struct roh_recv_response_state
+{
+	struct http_request *response;
+	int bytes_readed;
+	int sys_errno;
+};
+
+static void roh_recv_out_channel_response_done(struct tevent_req *subreq);
+struct tevent_req* roh_recv_out_channel_response_send(
+		TALLOC_CTX *mem_ctx,
+		struct tevent_context *ev,
+		struct roh_connection *roh)
+{
+	struct tevent_req *req, *subreq;
+	struct roh_recv_response_state *state;
+
+	req = tevent_req_create(mem_ctx, &state, struct roh_recv_response_state);
+	if (req == NULL)
+		return NULL;
+
+	subreq = http_read_response_send(state, ev, roh->default_channel_out->stream);
+	if (tevent_req_nomem(subreq, req)) {
+		tevent_req_nterror(req, NT_STATUS_NO_MEMORY);
+		return tevent_req_post(req, ev);
+	}
+	if (!tevent_req_set_endtime(req, ev,
+		timeval_current_ofs(roh->timeout_seconds, 0))) {
+		tevent_req_nterror(req, NT_STATUS_IO_TIMEOUT);
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, roh_recv_out_channel_response_done, req);
+
+	return req;
+}
+
+static void roh_recv_out_channel_response_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(subreq,
+				struct tevent_req);
+	struct roh_recv_response_state *state = tevent_req_data(req,
+				struct roh_recv_response_state);
+	int sys_errno;
+
+	state->bytes_readed = http_read_response_recv(subreq, state, &state->response, &sys_errno);
+	state->sys_errno = sys_errno;
+	TALLOC_FREE(subreq);
+	DEBUG(9, ("%s: Request received (%d bytes)\n", __func__, state->bytes_readed));
+	if (state->bytes_readed <= 0 && sys_errno != 0) {
+		NTSTATUS status = map_nt_error_from_unix_common(sys_errno);
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	/* TODO Map response code to nt error */
+	switch (state->response->response_code) {
+	case 200:
+		break;
+	case 401:
+		tevent_req_nterror(req, NT_STATUS_ACCESS_DENIED);
+		return;
+	case 503:
+		/* TODO Decode error info as specified in section 2.1.2.1.3 */
+	default:
+		tevent_req_nterror(req, NT_STATUS_GENERIC_NOT_MAPPED);
+		return;
+	}
+
+	tevent_req_done(req);
+}
+
+NTSTATUS roh_recv_out_channel_response_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx, char **response_msg)
+{
+	struct roh_recv_response_state *state = tevent_req_data(req,
+						struct roh_recv_response_state);
+    NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	*response_msg = talloc_strdup(mem_ctx, state->response->response_code_line);
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}

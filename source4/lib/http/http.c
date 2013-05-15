@@ -528,7 +528,7 @@ int http_read_response_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx,
 	ret = state->ret;
 	*perrno = state->perrno;
 	*response = state->response;
-	talloc_steal(mem_ctx, *response);
+	talloc_steal(mem_ctx, state->response);
 
 	tevent_req_received(req);
 

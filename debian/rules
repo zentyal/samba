@@ -23,29 +23,57 @@ ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
 WAF += -j $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
 endif
 
-%:
-	dh $* --with python2
-
-override_dh_auto_configure:
-	$(shell dpkg-buildflags --export=configure) $(WAF) configure \
-		--prefix=/usr \
-		--mandir=/usr/share/man \
-		--sysconfdir=/etc \
-		--localstatedir=/var \
-		--with-piddir=/var/run \
-		--with-modulesdir=/usr/lib/$(DEB_HOST_MULTIARCH)/samba/ \
+conf_args = \
+		--cache-file=./config.cache \
+		--with-fhs \
+		--enable-static \
+		--with-privatedir=/etc/samba \
+		--with-piddir=/var/run/samba \
+		--with-rootsbindir=/sbin \
+		--with-pammodulesdir=/lib/$(DEB_HOST_MULTIARCH)/security \
+		--with-pam \
+		--with-syslog \
+		--with-utmp \
+		--with-readline \
+		--with-pam_smbpass \
+		--with-winbind \
+		--with-shared-modules=idmap_rid,idmap_ad,idmap_adex,idmap_hash,idmap_ldap,idmap_tdb2 \
+		--with-automount \
+		--with-ldap \
+		--with-ads \
+		--with-dnsupdate \
+		--without-libtdb \
+		--without-libnetapi \
+		--with-modulesdir=/usr/lib/samba \
+		--datadir=/usr/share/samba \
+		--with-swatdir=/usr/share/samba/swat \
+		--with-lockdir=/var/run/samba \
+		--with-statedir=/var/lib/samba \
+		--with-cachedir=/var/cache/samba \
+		--with-codepagedir=/usr/share/samba \
+		--with-nmbdsocketdir=/var/run/samba \
+		--enable-external-libtalloc \
+		--without-libtalloc \
+		--without-cifsmount \
+		--disable-avahi \
+		--without-libtdb \
+		--enable-external-libtdb \
+		--disable-smbtorture4 \
+		--with-ctdb=/usr --with-cluster-support=yes \
 		--disable-rpath \
 		--disable-ntdb \
 		--disable-rpath-install \
 		--bundled-libraries=NONE,pytevent,iniparser \
 		--builtin-libraries=replace,ccan \
 		--minimum-library-version="$(shell ./debian/autodeps.py --minimum-library-version)" \
-		--libdir=/usr/lib/$(DEB_HOST_MULTIARCH) \
-		--enable-fhs \
-		--disable-avahi \
-		--with-dnsupdate \
-		--with-shared-modules=idmap_rid,idmap_ad,idmap_adex,idmap_hash,idmap_ldap,idmap_tdb2 \
 		--without-getpass-replacement
+
+%:
+	dh $* --with python2
+
+override_dh_auto_configure:
+	$(shell dpkg-buildflags --export=configure) $(WAF) configure \
+		$(conf_args)
 
 override_dh_auto_clean:
 	-$(WAF) clean

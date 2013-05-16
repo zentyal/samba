@@ -5,6 +5,8 @@ samba (2:4.0.5+dfsg1-2) UNRELEASED; urgency=low
 
   [ Christian Perrier ]
   * Move libnss_winbind.so.2 and libnss_wins.so.2 to /lib as in 3.6.*
+  * Use the same set of configure arguments than 3.6.15 (except those
+    eventually specific to version 4 and above)
 
  -- Andrew Bartlett <abartlet@samba.org>  Thu, 09 May 2013 15:41:19 +1200
 

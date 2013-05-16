@@ -103,6 +103,7 @@ override_dh_install:
 	mkdir -p $(DESTDIR)/usr/share/pam-configs
 	install -m 0644 debian/libpam-smbpass.pam-config $(DESTDIR)/usr/share/pam-configs/smbpasswd-migrate
 	install -m 0644 debian/winbind.pam-config $(DESTDIR)/usr/share/pam-configs/winbind
+	mv $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/libnss_* $(DESTDIR)/lib/$(DEB_HOST_MULTIARCH)/
 	#Remove unused ldb share configuration plugin
 	rm $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/samba/share/ldb.so
 	mkdir -p $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/plugin/krb5

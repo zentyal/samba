@@ -24,6 +24,7 @@ WAF += -j $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
 endif
 
 conf_args = \
+		--prefix=/usr \
 		--with-privatedir=/etc/samba \
 		--with-piddir=/var/run/samba \
 		--sbindir=/sbin \

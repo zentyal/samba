@@ -31,7 +31,6 @@ conf_args = \
 		--with-pam \
 		--with-syslog \
 		--with-utmp \
-		--with-readline \
 		--with-pam_smbpass \
 		--with-winbind \
 		--with-shared-modules=idmap_rid,idmap_ad,idmap_adex,idmap_hash,idmap_ldap,idmap_tdb2 \
@@ -39,31 +38,19 @@ conf_args = \
 		--with-ldap \
 		--with-ads \
 		--with-dnsupdate \
-		--without-libtdb \
-		--without-libnetapi \
 		--with-modulesdir=/usr/lib/samba \
 		--datadir=/usr/share/samba \
-		--with-swatdir=/usr/share/samba/swat \
 		--with-lockdir=/var/run/samba \
 		--with-statedir=/var/lib/samba \
 		--with-cachedir=/var/cache/samba \
-		--with-codepagedir=/usr/share/samba \
-		--with-nmbdsocketdir=/var/run/samba \
-		--enable-external-libtalloc \
-		--without-libtalloc \
-		--without-cifsmount \
 		--disable-avahi \
-		--without-libtdb \
-		--enable-external-libtdb \
-		--disable-smbtorture4 \
-		--with-ctdb=/usr --with-cluster-support=yes \
+		--with-ctdb=/usr --with-cluster-support \
 		--disable-rpath \
 		--disable-ntdb \
 		--disable-rpath-install \
 		--bundled-libraries=NONE,pytevent,iniparser \
 		--builtin-libraries=replace,ccan \
-		--minimum-library-version="$(shell ./debian/autodeps.py --minimum-library-version)" \
-		--without-getpass-replacement
+		--minimum-library-version="$(shell ./debian/autodeps.py --minimum-library-version)"
 
 %:
 	dh $* --with python2

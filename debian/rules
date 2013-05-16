@@ -39,6 +39,7 @@ conf_args = \
 		--with-ldap \
 		--with-ads \
 		--with-dnsupdate \
+		--libdir=/usr/lib/$(DEB_HOST_MULTIARCH) \
 		--with-modulesdir=/usr/lib/samba \
 		--datadir=/usr/share/samba \
 		--with-lockdir=/var/run/samba \

@@ -46,7 +46,6 @@ Build-Depends: bison,
 Vcs-Browser: http://anonscm.debian.org/gitweb/?p=pkg-samba/samba4.git
 Vcs-Git: git://git.debian.org/pkg-samba/samba4
 XS-Testsuite: autopkgtest
-DM-Upload-Allowed: yes
 
 Package: samba
 Architecture: any

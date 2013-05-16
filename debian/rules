@@ -135,6 +135,12 @@ override_dh_python2:
 get-packaged-orig-source:
 	./debian/build-orig.sh
 
+override_dh_installchangelogs:
+	dh_installchangelogs -Nlibpam-smbpass
+ifneq (,$(filter libpam-smbpass, $(shell dh_listpackages)))
+	dh_installchangelogs -plibpam-smbpass source3/pam_smbpass/CHANGELOG
+endif
+
 override_dh_installdocs:
 	dh_installdocs source4/NEWS
 

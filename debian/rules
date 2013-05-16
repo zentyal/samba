@@ -26,7 +26,7 @@ endif
 conf_args = \
 		--with-privatedir=/etc/samba \
 		--with-piddir=/var/run/samba \
-		--with-rootsbindir=/sbin \
+		--sbindir=/sbin \
 		--with-pammodulesdir=/lib/$(DEB_HOST_MULTIARCH)/security \
 		--with-pam \
 		--with-syslog \

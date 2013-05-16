@@ -41,7 +41,7 @@ conf_args = \
 		--with-dnsupdate \
 		--libdir=/usr/lib/$(DEB_HOST_MULTIARCH) \
 		--with-modulesdir=/usr/lib/$(DEB_HOST_MULTIARCH)/samba \
-		--datadir=/usr/share/samba \
+		--datadir=/usr/share \
 		--with-lockdir=/var/run/samba \
 		--with-statedir=/var/lib/samba \
 		--with-cachedir=/var/cache/samba \

@@ -82,6 +82,8 @@ override_dh_auto_test:
 	# we don't want to do for production systems.
 
 override_dh_install:
+	# get list of files in build log
+	find ${DESTDIR}
 	# Alternatives are used
 	# Already provided by libparse-yapp-perl
 	rm $(DESTDIR)/usr/share/perl5/Parse/Yapp/Driver.pm

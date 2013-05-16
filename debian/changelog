@@ -1,7 +1,6 @@
-samba (2:4.0.5+dfsg1-2.0) UNRELEASED; urgency=low
+samba (2:4.0.5+dfsg1-2) UNRELEASED; urgency=low
 
   [ Andrew Bartlett ]
-  * Non-maintainer upload.
   * Remove most of the samba4 references, except for binaries ending in 4
 
   [ Christian Perrier ]

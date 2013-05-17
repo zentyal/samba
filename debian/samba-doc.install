@@ -62,6 +62,5 @@ usr/share/man/man8/vfs_time_audit.8
 usr/share/man/man8/vfs_tsmsm.8
 usr/share/man/man8/vfs_xattr_tdb.8
 usr/share/man/man8/winbindd.8
-usr/share/man/man7/libsmbclient.7
 usr/share/man/man7/samba.7
 usr/share/man/man7/winbind_krb5_locator.7

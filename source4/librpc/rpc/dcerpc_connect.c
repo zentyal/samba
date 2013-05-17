@@ -363,16 +363,15 @@ struct pipe_http_state {
 static void continue_pipe_open_ncacn_http(struct tevent_req *subreq)
 {
 	struct composite_context *c;
-	//struct pipe_http_state *s;
 
 	c =	tevent_req_callback_data(subreq, struct composite_context);
-	//s = talloc_get_type_abort(c->private_data, struct pipe_http_state);
 
 	/* receive result of RoH connect request */
 	c->status = dcerpc_pipe_open_roh_recv(subreq);
 	TALLOC_FREE(subreq);
 
-	if (!composite_is_ok(c)) return;
+	if (!composite_is_ok(c))
+		return;
 
 	composite_done(c);
 }

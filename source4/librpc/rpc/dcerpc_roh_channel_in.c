@@ -65,7 +65,7 @@ struct tevent_req* roh_connect_channel_in_send(TALLOC_CTX *mem_ctx,
 	struct roh_connect_channel_state *state;
 	int ret;
 
-	DEBUG(9, ("%s: Connecting channel in socket, server %s:%d\n",
+	DEBUG(8, ("%s: Connecting channel in socket, server %s:%d\n",
 			__func__, server_name, server_port));
 
 	req = tevent_req_create(mem_ctx, &state, struct roh_connect_channel_state);
@@ -173,7 +173,7 @@ struct tevent_req *roh_send_RPC_DATA_IN_send(
 	struct tevent_req *req, *subreq;
 	struct roh_request_state *state;
 
-	DEBUG(9, ("%s: Sending RPC_IN_DATA request\n", __func__));
+	DEBUG(8, ("%s: Sending RPC_IN_DATA request\n", __func__));
 
 	req = tevent_req_create(mem_ctx, &state, struct roh_request_state);
 	if (req == NULL)
@@ -201,7 +201,7 @@ struct tevent_req *roh_send_RPC_DATA_IN_send(
 	state->request->body.length = 0;
 	state->request->body.data = NULL;
 	state->request->major = '1';
-	state->request->minor = '1';
+	state->request->minor = '0';
 
 	http_add_header(state, &state->request->headers, "Accept", "application/rpc");
 	http_add_header(state, &state->request->headers, "User-Agent", "MSRPC");
@@ -239,15 +239,12 @@ static void roh_send_RPC_DATA_IN_done(struct tevent_req *subreq)
 	/* Receive the sent bytes to check if request has been properly sent */
 	bytes_written = http_send_request_recv(subreq, &sys_errno);
 	TALLOC_FREE(subreq);
-	DEBUG(9, ("%s: Request sent (%d bytes)\n", __func__, bytes_written));
-
 	if (bytes_written <= 0 && sys_errno != 0) {
 		NTSTATUS status = map_nt_error_from_unix_common(sys_errno);
 		tevent_req_nterror(req, status);
 		return;
 	}
-
-	DEBUG(9, ("%s: Request sent (%d bytes)\n", __func__, bytes_written));
+	DEBUG(8, ("%s: Request sent (%d bytes)\n", __func__, bytes_written));
 
 	tevent_req_done(req);
 }
@@ -287,7 +284,7 @@ struct tevent_req* roh_send_CONN_B1_send(
 	struct tevent_req *req, *subreq;
 	struct roh_send_pdu_state *state;
 
-	DEBUG(9, ("%s: Sending CONN_B1 request\n", __func__));
+	DEBUG(8, ("%s: Sending CONN_B1 request\n", __func__));
 
 	req = tevent_req_create(mem_ctx, &state, struct roh_send_pdu_state);
 	if (req == NULL)
@@ -366,12 +363,12 @@ static void roh_send_CONN_B1_done(struct tevent_req *subreq)
 	state->bytes_written = tstream_writev_queue_recv(subreq, &sys_errno);
 	state->sys_errno = sys_errno;
 	TALLOC_FREE(subreq);
-	DEBUG(9, ("%s: PDU sent (%d bytes)\n", __func__, state->bytes_written));
 	if (state->bytes_written <= 0 && sys_errno != 0) {
 		NTSTATUS status = map_nt_error_from_unix_common(sys_errno);
 		tevent_req_nterror(req, status);
 		return;
 	}
+	DEBUG(8, ("%s: PDU sent (%d bytes)\n", __func__, state->bytes_written));
 
 	tevent_req_done(req);
 }

@@ -15,10 +15,21 @@ struct tstream_context;
 
 struct roh_channel
 {
+	/* The ConnectionTimeout command specifies the desired frequency for
+	 * sending keep-alive PDUs (2.2.3.5.3)
+	 */
+	unsigned int connection_timeout;
+
+	unsigned int sent_bytes;
+
 	struct GUID channel_cookie;
 
 	struct tevent_queue *send_queue;
 	struct tstream_context *stream;
+
+	struct packet_context *packet;
+	struct socket_context *socket;
+	struct tevent_fd *fde;
 };
 
 enum roh_protocol_version {
@@ -27,10 +38,11 @@ enum roh_protocol_version {
 };
 
 enum roh_connection_state {
-	ROH_OUT_CHANNEL_WAIT,
-	ROH_WAIT_A3W,
-	ROH_WAIT_C2,
-	ROH_OPENED,
+	ROH_STATE_OPEN_START,
+	ROH_STATE_OUT_CHANNEL_WAIT,
+	ROH_STATE_WAIT_A3W,
+	ROH_STATE_WAIT_C2,
+	ROH_STATE_OPENED,
 };
 
 /**
@@ -72,6 +84,23 @@ struct roh_connection {
 
 	/* TODO Add timers 3.2.2.2 */
 };
+
+/* Command type constants */
+#define ROH_CMD_TYPE_RECV_WINDOWS_SIZE	0x00000000	/* Section 2.2.3.5.1 */
+#define ROH_CMD_TYPE_FLOW_CONTROL_ACK	0x00000001	/* Section 2.2.3.5.2 */
+#define ROH_CMD_TYPE_CONNECTION_TIMEOUT	0x00000002 	/* Section 2.2.3.5.3 */
+#define ROH_CMD_TYPE_COOKIE				0x00000003	/* Section 2.2.3.5.4 */
+#define ROH_CMD_TYPE_CHANNEL_LIFETIME	0x00000004	/* Section 2.2.3.5.5 */
+#define ROH_CMD_TYPE_CLIENT_KEEPALIVE	0x00000005	/* Section 2.2.3.5.6 */
+#define ROH_CMD_TYPE_VERSION			0x00000006	/* Section 2.2.3.5.7 */
+#define ROH_CMD_TYPE_EMPTY				0x00000007	/* Section 2.2.3.5.8 */
+#define ROH_CMD_TYPE_PADDING			0x00000008	/* Section 2.2.3.5.9 */
+#define ROH_CMD_TYPE_NEGATIVE_ANCE		0x00000009	/* Section 2.2.3.5.10 */
+#define ROH_CMD_TYPE_ANCE				0x0000000A	/* Section 2.2.3.5.11 */
+#define ROH_CMD_TYPE_CLIENT_ADDRESS		0x0000000B	/* Section 2.2.3.5.12 */
+#define ROH_CMD_TYPE_ASSOCIATION_GRP_ID	0x0000000C	/* Section 2.2.3.5.13 */
+#define ROH_CMD_TYPE_DESTINATION		0x0000000D	/* Section 2.2.3.5.14 */
+#define ROH_CMD_TYPE_PING				0x0000000E	/* Section 2.2.3.5.15 */
 
 
 #endif /* DCERPC_ROH_H_ */

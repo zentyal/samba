@@ -65,7 +65,7 @@ struct tevent_req* roh_connect_channel_out_send(TALLOC_CTX *mem_ctx,
 	struct roh_connect_channel_state *state;
 	int ret;
 
-	DEBUG(9, ("%s: Connecting channel out socket, server %s:%d\n",
+	DEBUG(8, ("%s: Connecting channel out socket, server %s:%d\n",
 			__func__, server_name, server_port));
 
 	req = tevent_req_create(mem_ctx, &state, struct roh_connect_channel_state);
@@ -122,6 +122,7 @@ static void roh_connect_channel_out_done(struct tevent_req *subreq)
 
 	req = tevent_req_callback_data(subreq, struct tevent_req);
 	state = tevent_req_data(req, struct roh_connect_channel_state);
+
 	ret = tstream_inet_tcp_connect_recv(subreq, &sys_errno, state, &state->roh->default_channel_out->stream, NULL);
 	talloc_steal(state->roh->default_channel_out, state->roh->default_channel_out->stream);
 	TALLOC_FREE(subreq);
@@ -173,7 +174,7 @@ struct tevent_req *roh_send_RPC_DATA_OUT_send(
 	struct tevent_req *req, *subreq;
 	struct roh_request_state *state;
 
-	DEBUG(9, ("%s: Sending RPC_OUT_DATA request\n", __func__));
+	DEBUG(8, ("%s: Sending RPC_OUT_DATA request\n", __func__));
 
 	req = tevent_req_create(mem_ctx, &state, struct roh_request_state);
 	if (req == NULL)
@@ -201,7 +202,7 @@ struct tevent_req *roh_send_RPC_DATA_OUT_send(
 	state->request->body.length = 0;
 	state->request->body.data = NULL;
 	state->request->major = '1';
-	state->request->minor = '1';
+	state->request->minor = '0';
 
 	http_add_header(state, &state->request->headers, "Accept", "application/rpc");
 	http_add_header(state, &state->request->headers, "User-Agent", "MSRPC");
@@ -239,15 +240,13 @@ static void roh_send_RPC_DATA_OUT_done(struct tevent_req *subreq)
 	/* Receive the sent bytes to check if request has been properly sent */
 	bytes_written = http_send_request_recv(subreq, &sys_errno);
 	TALLOC_FREE(subreq);
-	DEBUG(9, ("%s: Request sent (%d bytes)\n", __func__, bytes_written));
-
 	if (bytes_written <= 0 && sys_errno != 0) {
 		NTSTATUS status = map_nt_error_from_unix_common(sys_errno);
 		tevent_req_nterror(req, status);
 		return;
 	}
 
-	DEBUG(9, ("%s: Request sent (%d bytes)\n", __func__, bytes_written));
+	DEBUG(8, ("%s: Request sent (%d bytes)\n", __func__, bytes_written));
 
 	tevent_req_done(req);
 }
@@ -287,7 +286,7 @@ struct tevent_req* roh_send_CONN_A1_send(
 	struct tevent_req *req, *subreq;
 	struct roh_send_pdu_state *state;
 
-	DEBUG(9, ("%s: Sending CONN_A1 request\n", __func__));
+	DEBUG(8, ("%s: Sending CONN_A1 request\n", __func__));
 
 	req = tevent_req_create(mem_ctx, &state, struct roh_send_pdu_state);
 	if (req == NULL)
@@ -358,12 +357,12 @@ static void roh_send_CONN_A1_done(struct tevent_req *subreq)
 	state->bytes_written = tstream_writev_queue_recv(subreq, &sys_errno);
 	state->sys_errno = sys_errno;
 	TALLOC_FREE(subreq);
-	DEBUG(9, ("%s: PDU sent (%d bytes)\n", __func__, state->bytes_written));
 	if (state->bytes_written <= 0 && sys_errno != 0) {
 		NTSTATUS status = map_nt_error_from_unix_common(sys_errno);
 		tevent_req_nterror(req, status);
 		return;
 	}
+	DEBUG(8, ("%s: PDU sent (%d bytes)\n", __func__, state->bytes_written));
 
 	tevent_req_done(req);
 }
@@ -427,22 +426,27 @@ static void roh_recv_out_channel_response_done(struct tevent_req *subreq)
 	state->bytes_readed = http_read_response_recv(subreq, state, &state->response, &sys_errno);
 	state->sys_errno = sys_errno;
 	TALLOC_FREE(subreq);
-	DEBUG(9, ("%s: Request received (%d bytes)\n", __func__, state->bytes_readed));
 	if (state->bytes_readed <= 0 && sys_errno != 0) {
 		NTSTATUS status = map_nt_error_from_unix_common(sys_errno);
 		tevent_req_nterror(req, status);
 		return;
 	}
+	DEBUG(8, ("%s: Request received (%d bytes)\n", __func__, state->bytes_readed));
 
 	/* TODO Map response code to nt error */
-	switch (state->response->response_code) {
+	int code = state->response->response_code;
+	switch (code) {
 	case 200:
 		break;
 	case 401:
+		DEBUG(0, ("%s: Server answer: Access denied\n", __func__, code));
 		tevent_req_nterror(req, NT_STATUS_ACCESS_DENIED);
 		return;
 	case 503:
 		/* TODO Decode error info as specified in section 2.1.2.1.3 */
+		DEBUG(0, ("%s: Server answer: RPC error\n", __func__));
+		tevent_req_nterror(req, NT_STATUS_GENERIC_NOT_MAPPED);
+		return;
 	default:
 		tevent_req_nterror(req, NT_STATUS_GENERIC_NOT_MAPPED);
 		return;
@@ -463,6 +467,196 @@ NTSTATUS roh_recv_out_channel_response_recv(struct tevent_req *req, TALLOC_CTX *
 	}
 
 	*response_msg = talloc_strdup(mem_ctx, state->response->response_code_line);
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
+struct roh_recv_pdu_state
+{
+	struct roh_connection *roh;
+	uint32_t connection_timeout;
+	uint32_t version;
+	uint32_t recv_window_size;
+};
+
+static void roh_recv_CONN_A3_done(struct tevent_req *subreq);
+struct tevent_req* roh_recv_CONN_A3_send(
+		TALLOC_CTX *mem_ctx,
+		struct tevent_context *ev,
+		struct roh_connection *roh)
+{
+	struct tevent_req *req, *subreq;
+	struct roh_recv_pdu_state *state;
+
+	req = tevent_req_create(mem_ctx, &state, struct roh_recv_pdu_state);
+	if (req == NULL)
+		return NULL;
+
+	DEBUG(8, ("%s: Waiting for CONN/A3\n", __func__));
+	subreq = dcerpc_read_ncacn_packet_send(state, ev,
+			roh->default_channel_out->stream);
+	if (tevent_req_nomem(subreq, req)) {
+		tevent_req_nterror(req, NT_STATUS_NO_MEMORY);
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, roh_recv_CONN_A3_done, req);
+
+	return req;
+}
+
+static void roh_recv_CONN_A3_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(subreq,
+				struct tevent_req);
+	struct roh_recv_pdu_state *state = tevent_req_data(req,
+				struct roh_recv_pdu_state);
+	struct ncacn_packet *pkt;
+	DATA_BLOB buffer;
+	NTSTATUS status;
+
+	status = dcerpc_read_ncacn_packet_recv(subreq, state, &pkt, &buffer);
+	TALLOC_FREE(subreq);
+	if (tevent_req_nterror(req, status)) {
+		DEBUG(0, ("%s: Error receiving packet\n", __func__));
+		return;
+	}
+
+	/* Check if it is a CONN/A3 (2.2.4.4) packet and get the
+	 * connection timeout */
+	struct dcerpc_rts rts = pkt->u.rts;
+	if (rts.NumberOfCommands != 1) {
+		DEBUG(0, ("%s: Invalid number of commands received\n", __func__));
+		tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
+		return;
+	}
+
+	if (rts.Commands[0].CommandType != ROH_CMD_TYPE_CONNECTION_TIMEOUT) {
+		DEBUG(0, ("%s: Invalid command type received\n", __func__));
+		tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
+		return;
+	}
+
+	/* Extract connection timeout */
+	state->connection_timeout =
+			rts.Commands[0].Command.ConnectionTimeout.ConnectionTimeout;
+
+	DEBUG(8, ("%s: CONN/A3 received, connection timeout is %u\n",
+			__func__, state->connection_timeout));
+	tevent_req_done(req);
+}
+
+NTSTATUS roh_recv_CONN_A3_recv(struct tevent_req *req,
+		unsigned int *connection_timeout)
+{
+	struct roh_recv_pdu_state *state = tevent_req_data(req,
+						struct roh_recv_pdu_state);
+    NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	*connection_timeout = state->connection_timeout;
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
+}
+
+static void roh_recv_CONN_C2_done(struct tevent_req *subreq);
+struct tevent_req* roh_recv_CONN_C2_send(
+		TALLOC_CTX *mem_ctx,
+		struct tevent_context *ev,
+		struct roh_connection *roh)
+{
+	struct tevent_req *req, *subreq;
+	struct roh_recv_pdu_state *state;
+
+	req = tevent_req_create(mem_ctx, &state, struct roh_recv_pdu_state);
+	if (req == NULL)
+		return NULL;
+
+	DEBUG(8, ("%s: Waiting for CONN/C2\n", __func__));
+	subreq = dcerpc_read_ncacn_packet_send(state, ev,
+			roh->default_channel_out->stream);
+	if (tevent_req_nomem(subreq, req)) {
+		tevent_req_nterror(req, NT_STATUS_NO_MEMORY);
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, roh_recv_CONN_C2_done, req);
+
+	return req;
+}
+
+static void roh_recv_CONN_C2_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(subreq,
+				struct tevent_req);
+	struct roh_recv_pdu_state *state = tevent_req_data(req,
+				struct roh_recv_pdu_state);
+	struct ncacn_packet *pkt;
+	DATA_BLOB buffer;
+	NTSTATUS status;
+
+	status = dcerpc_read_ncacn_packet_recv(subreq, state, &pkt, &buffer);
+	TALLOC_FREE(subreq);
+	if (tevent_req_nterror(req, status)) {
+		DEBUG(0, ("%s: Error receiving packet\n", __func__));
+		return;
+	}
+
+	/* Check if it is a CONN/C2 packet (2.2.4.9), and get the version, the
+	 * receive windows size and the connection timeout for the IN channel */
+	struct dcerpc_rts rts = pkt->u.rts;
+	if (rts.NumberOfCommands != 3) {
+		DEBUG(0, ("%s: Invalid number of commands received\n", __func__));
+		tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
+		return;
+	}
+
+	if (rts.Commands[0].CommandType != ROH_CMD_TYPE_VERSION) {
+		DEBUG(0, ("%s: Invalid command type received\n", __func__));
+		tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
+		return;
+	}
+	if (rts.Commands[1].CommandType != ROH_CMD_TYPE_RECV_WINDOWS_SIZE) {
+		DEBUG(0, ("%s: Invalid command type received\n", __func__));
+		tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
+		return;
+	}
+	if (rts.Commands[2].CommandType != ROH_CMD_TYPE_CONNECTION_TIMEOUT) {
+		DEBUG(0, ("%s: Invalid command type received\n", __func__));
+		tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
+		return;
+	}
+
+	/* Extract data */
+	state->version = rts.Commands[0].Command.Version.Version;
+	state->recv_window_size = rts.Commands[1].Command.ReceiveWindowSize.ReceiveWindowSize;
+	state->connection_timeout = rts.Commands[2].Command.ConnectionTimeout.ConnectionTimeout;
+
+	DEBUG(8, ("%s: CONN/C2 received, version is %u, receive windows size is %u, connection timeout is %u\n",
+			__func__, state->version, state->recv_window_size,
+			state->connection_timeout));
+	tevent_req_done(req);
+}
+
+NTSTATUS roh_recv_CONN_C2_recv(struct tevent_req *req, unsigned int *version,
+		unsigned int *recv_window_size, unsigned int *connection_timeout)
+{
+	struct roh_recv_pdu_state *state = tevent_req_data(req,
+						struct roh_recv_pdu_state);
+    NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
+
+	*version = state->version;
+	*recv_window_size = state->recv_window_size;
+	*connection_timeout = state->connection_timeout;
 
 	tevent_req_received(req);
 	return NT_STATUS_OK;

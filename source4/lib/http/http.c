@@ -74,112 +74,7 @@ static void http_send_request_done(struct tevent_req *subreq);
 static int http_remove_header(struct http_header **headers, const char *key);
 static int http_add_header_internal(TALLOC_CTX *mem_ctx, struct http_header **headers, const char *key, const char *value);
 static int http_header_is_valid_value(const char *value);
-#if 0
-static enum read_status http_parse_headers(struct http_read_response_state *state)
-{
-	enum message_read_status errcode = DATA_CORRUPTED;
-	enum message_read_status status = MORE_DATA_EXPECTED;
-	char *line;
 
-	struct http_header *headers = state->request->response_headers;
-	size_t line_length;
-	while ((line = evbuffer_readln(buffer, &line_length, EVBUFFER_EOL_CRLF)) != NULL) {
-		char *skey, *svalue;
-
-		state->request->headers_size += line_length;
-
-		if (state->request->headers_size > state->max_headers_size) {
-			errcode = DATA_TOO_LONG;
-			goto error;
-		}
-
-		if (*line == '\0') { /* Last header - Done */
-			status = ALL_DATA_READ;
-			//mm_free(line);
-			break;
-		}
-
-		/* Check if this is a continuation line */
-		if (*line == ' ' || *line == '\t') {
-			if (http_append_to_last_header(headers, line) == -1)
-				goto error;
-			//mm_free(line);
-			continue;
-		}
-
-		/* Processing of header lines */
-		svalue = line;
-		skey = strsep(&svalue, ":");
-		if (svalue == NULL)
-			goto error;
-
-		svalue += strspn(svalue, " ");
-		evutil_rtrim_lws_(svalue);
-
-		if (http_add_header(headers, skey, svalue) == -1)
-			goto error;
-
-		mm_free(line);
-	}
-
-	if (status == MORE_DATA_EXPECTED) {
-		if (state->request->headers_size + evbuffer_get_length(buffer) > state->max_headers_size)
-			return DATA_TOO_LONG;
-	}
-
-	return status;
-
- error:
-	//mm_free(line);
-	return errcode;
-}
-
-static void http_read_header(struct http_read_response_state *state, struct http_request *req)
-{
-	enum read_status res;
-
-	res = http_parse_headers();
-	if (res == DATA_CORRUPTED || res == DATA_TOO_LONG) {
-		/* Error while reading, terminate */
-		DEBUG(0, ("%s: Bad header lines\n", __func__));
-		// TODO evhttp_connection_fail_(evcon, EVCON_HTTP_INVALID_HEADER);
-		return;
-	} else if (res == MORE_DATA_EXPECTED) {
-		/* Need more header lines */
-		return;
-	}
-
-	/* Disable reading for now */
-	// bufferevent_disable(evcon->bufev, EV_READ);
-
-	/* Done reading headers, do the real work */
-	switch (state->request->kind) {
-		case HTTP_REQUEST:
-			DEBUG(9, ("%s: Checking for post data\n", __func__));
-			http_get_body();
-			break;
-		case HTTP_RESPONSE:
-			/* Start over if we got a 100 Continue response. */
-			if (state->request->response_code == 100) {
-				http_start_read();
-				return;
-			}
-			if (!http_response_needs_body(req)) {
-				DEBUG(9, ("%s: Skipping body for code %d\n",
-						__func__, state->request->response_code));
-				http_connection_done();
-			} else {
-				DEBUG(9, ("%s: Start of read body for %s\n", __func__, req->remote_host));
-				http_get_body();
-			}
-			break;
-		default:
-			DEBUG(0, ("%s: Bad header\n", __func__));
-			// TODO http_connection_fail_(evcon, EVCON_HTTP_INVALID_HEADER);
-			break;
-	}
-}
-#endif
 /**
  * Determines if a response should have a body.
  * Follows the rules in RFC 2616 section 4.3.
@@ -188,10 +83,13 @@ static void http_read_header(struct http_read_response_state *state, struct http
  */
 static int http_response_needs_body(struct http_request *req)
 {
-	return (req->response_code != HTTP_NOCONTENT &&
-		req->response_code != HTTP_NOTMODIFIED &&
-		(req->response_code < 100 || req->response_code >= 200) &&
-		req->type != HTTP_REQ_HEAD);
+	/* If response code is 503, the body contains the error description
+	 * (2.1.2.1.3)
+	 */
+	if (req->response_code == 503)
+		return 1;
+
+	return 0;
 }
 
 /**
@@ -202,8 +100,6 @@ static enum http_read_status http_parse_headers(struct http_read_response_state 
 	enum http_read_status status = HTTP_ALL_DATA_READ;
 	char *line = (char *)(state->buffer.data);
 	char *ptr = NULL;
-
-	DEBUG(10, ("%s: Buffer (%zi) '%s'\n", __func__, state->buffer.length, line));
 
 	if (state->buffer.length > state->max_headers_size) {
 		DEBUG(0, ("%s: Headers too long: %zi, maximum length is %zi\n", __func__,
@@ -220,33 +116,25 @@ static enum http_read_status http_parse_headers(struct http_read_response_state 
 
 	if (strncasecmp(line, "\r\n", 2) == 0) {
 		DEBUG(9,("%s: All headers read\n", __func__));
-		/* Done reading headers, do the real work */
-		switch (state->response->kind) {
-//			case HTTP_REQUEST:
-//				DEBUG(9, ("%s: Checking for post data\n", __func__));
-//				http_get_body(state);
-//				break;
-			case HTTP_RESPONSE:
-//				if (state->request->response_code == 100) {
-//					/* Start over if we got a 100 Continue response. */
+
+		/* Done reading headers */
+//		if (state->request->response_code == 100) {
+//			/* Start over if we got a 100 Continue response. */
 //					http_start_read(state);
 //					return;
 //				}
-				if (!http_response_needs_body(state->response)) {
-					DEBUG(9, ("%s: Skipping body for code %d\n", __func__,
-							state->response->response_code));
-					// http_connection_done(state);
-				} else {
-					DEBUG(9, ("%s: Start of read body\n", __func__));
-					// TODO http_get_body(state);
-				}
-				state->parser_state = HTTP_READING_TRAILER;
-				break;
-			default:
-				DEBUG(0, ("%s: Bad header\n", __func__));
-				//http_connection_fail_(evcon, EVCON_HTTP_INVALID_HEADER);
-				break;
+		if (!http_response_needs_body(state->response)) {
+			DEBUG(9, ("%s: Skipping body for code %d\n", __func__,
+					state->response->response_code));
+			state->parser_state = HTTP_READING_DONE;
+		} else {
+			DEBUG(9, ("%s: Start of read body\n", __func__));
+			state->parser_state = HTTP_READING_BODY;
 		}
+
+		/* TODO If chunked?? */
+		//state->parser_state = HTTP_READING_TRAILER;
+
 		return HTTP_ALL_DATA_READ;
 	}
 
@@ -322,7 +210,7 @@ static enum http_read_status http_parse_firstline(struct http_read_response_stat
 	char *line = (char *)(state->buffer.data);
 	char *ptr = NULL;
 
-	DEBUG(10, ("%s: Buffer (%zi) '%s'\n", __func__, state->buffer.length, line));
+	DEBUG(12, ("%s: Buffer (%zi) '%s'\n", __func__, state->buffer.length, line));
 
 	if (state->buffer.length > state->max_headers_size) {
 		DEBUG(0, ("%s: Headers too long: %zi, maximum length is %zi\n", __func__,
@@ -356,20 +244,37 @@ static enum http_read_status http_parse_firstline(struct http_read_response_stat
 	return status;
 }
 
+static enum http_read_status http_read_body(struct http_read_response_state *state)
+{
+	enum http_read_status status = HTTP_ALL_DATA_READ;
+	static int count;
+	/* TODO Hack to check PDU recv */
+	if (count < 3)
+		return HTTP_MORE_DATA_EXPECTED;
+	count ++;
+
+
+	return status;
+}
+
 static enum http_read_status http_parse_buffer(
 		struct http_read_response_state *state)
 {
+	DEBUG(10, ("%s: Parsing %d bytes [%s]\n", __func__, (int)state->buffer.length, (char*)state->buffer.data));
 	switch (state->parser_state) {
 		case HTTP_READING_FIRSTLINE:
 			return http_parse_firstline(state);
 		case HTTP_READING_HEADERS:
 			return http_parse_headers(state);
 		case HTTP_READING_BODY:
-			//evhttp_read_body(state, &blob);
+			return http_read_body(state);
 			break;
 		case HTTP_READING_TRAILER:
-			//evhttp_read_trailer(state, &blob);
+			//return http_read_trailer(state);
 			break;
+		case HTTP_READING_DONE:
+			/* All read */
+			return HTTP_ALL_DATA_READ;
 		default:
 			DEBUG(0, ("%s: Illegal parser state %d", __func__, state->parser_state));
 			break;
@@ -412,7 +317,7 @@ static int http_read_response_next_vector(
 
 	switch (http_parse_buffer(state)) {
 		case HTTP_ALL_DATA_READ:
-			if (state->parser_state == HTTP_READING_TRAILER) {
+			if (state->parser_state == HTTP_READING_DONE) {
 				/* Full request or response parsed */
 				*_vector = NULL;
 				*_count = 0;
@@ -770,7 +675,7 @@ static int http_add_header_internal(TALLOC_CTX *mem_ctx,
 	header->key = talloc_strdup(mem_ctx, key);
 	header->value = talloc_strdup(mem_ctx, value);
 
-	DEBUG(9, ("%s: Adding HTTP header: key '%s', value '%s'\n",
+	DEBUG(10, ("%s: Adding HTTP header: key '%s', value '%s'\n",
 			__func__, header->key, header->value));
 	DLIST_ADD_END(*headers, header, NULL);
 

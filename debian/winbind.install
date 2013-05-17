@@ -8,3 +8,6 @@ usr/bin/wbinfo
 usr/sbin/winbindd
 usr/lib/*/plugin/krb5/winbind_krb5_locator.so
 usr/share/man/man1/ntlm_auth.1
+usr/share/man/man1/wbinfo.1
+usr/share/man/man8/winbindd.8
+usr/share/man/man7/winbind_krb5_locator.7

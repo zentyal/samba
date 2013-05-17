@@ -8,3 +8,4 @@ source3/bin/vfstest usr/bin
 source3/bin/pdbtest usr/bin
 source3/bin/replacetort usr/bin
 source3/bin/smbconftort usr/bin
+usr/share/man/man1/vfstest.1

@@ -26,7 +26,6 @@ endif
 conf_args = \
 		--prefix=/usr \
 		--enable-fhs \
-		--includedir=/usr/include \
 		--with-privatedir=/etc/samba \
 		--with-piddir=/var/run/samba \
 		--with-pammodulesdir=/lib/$(DEB_HOST_MULTIARCH)/security \

@@ -9,6 +9,7 @@ samba (2:4.0.5+dfsg1-2) UNRELEASED; urgency=low
     eventually specific to version 4 and above)
   * Add libctdb-dev to build dependencies as we're building with cluster
     support just like 3.6 packages
+  * Add samba-tools to binary packages (similar to the one in 3.x series)
 
  -- Andrew Bartlett <abartlet@samba.org>  Thu, 09 May 2013 15:41:19 +1200
 

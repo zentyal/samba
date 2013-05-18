@@ -1,4 +1,4 @@
-samba (2:3.6.15-1ubuntu1) UNRELEASED; urgency=low
+samba (2:3.6.15-1ubuntu1) saucy; urgency=low
 
   * Merge from Debian git branch; remaining changes:
     + debian/patches/VERSION.patch:
@@ -37,7 +37,7 @@ samba (2:3.6.15-1ubuntu1) UNRELEASED; urgency=low
     dpkg-maintscript-helper integration from dropping /etc/init.d/samba in
     Debian as well.
 
- -- Steve Langasek <steve.langasek@ubuntu.com>  Tue, 14 May 2013 14:09:00 -0500
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Sat, 18 May 2013 16:57:33 -0700
 
 samba (2:3.6.15-2) UNRELEASED; urgency=low
 

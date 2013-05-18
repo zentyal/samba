@@ -28,7 +28,8 @@ conf_args = \
 		--enable-fhs \
 		--sysconfdir=/etc \
 		--localstatedir=/var \
-		--with-privatedir=/etc/samba \
+		--with-privatedir=/var/lib/samba/private \
+		--with-smbpasswd-file=/etc/samba/smbpasswd \
 		--with-piddir=/var/run/samba \
 		--with-pammodulesdir=/lib/$(DEB_HOST_MULTIARCH)/security \
 		--with-pam \

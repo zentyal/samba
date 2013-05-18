@@ -11,6 +11,10 @@ samba (2:4.0.5+dfsg1-2) UNRELEASED; urgency=low
     support just like 3.6 packages
   * Re-introduce mksmbpasswd for compatibility with 3.* packages
 
+  [ Ivo De Decker ]
+  * Specify all paths using configure options, so that we can finally get rid
+    of the fhs patch. Closes: #705449
+
  -- Andrew Bartlett <abartlet@samba.org>  Thu, 09 May 2013 15:41:19 +1200
 
 samba (2:4.0.5+dfsg1-1.0) UNRELEASED; urgency=low

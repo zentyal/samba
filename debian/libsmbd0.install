@@ -2,5 +2,4 @@ usr/lib/*/samba/libsmbd_base.so
 usr/lib/*/samba/libsmbd_conn.so
 usr/lib/*/samba/libsmbd_shim.so
 usr/lib/*/samba/libauth.so
-usr/lib/*/samba/vfs/
 usr/lib/*/samba/auth/

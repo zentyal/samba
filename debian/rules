@@ -58,8 +58,6 @@ conf_args = \
 	dh $* --with python2
 
 override_dh_auto_configure:
-	echo running $(shell dpkg-buildflags --export=configure) $(WAF) configure \
-		$(conf_args)
 	$(shell dpkg-buildflags --export=configure) $(WAF) configure \
 		$(conf_args)
 

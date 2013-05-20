@@ -780,12 +780,6 @@ static void continue_pipe_connect(struct composite_context *c, struct pipe_conne
 		return;
 	}
 
-	if (s->pipe->conn->transport.transport == NCACN_HTTP) {
-		c->status = NT_STATUS_OK;
-		composite_done(c);
-		return;
-	}
-
 	auth_bind_req = dcerpc_pipe_auth_send(s->pipe, s->binding, s->table,
 					      s->credentials, s->lp_ctx);
 	composite_continue(c, auth_bind_req, continue_pipe_auth, c);

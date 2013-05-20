@@ -390,23 +390,29 @@ static void roh_recv_CONN_C2_done(struct tevent_req *subreq)
 	tevent_req_done(req);
 }
 
-static NTSTATUS roh_sock_send_request(struct dcecli_connection *p,
-		DATA_BLOB *blob, bool trigger_read)
+static void roh_sock_send_request_done(struct tevent_req *req);
+static NTSTATUS roh_sock_send_request(struct dcecli_connection *conn,
+		DATA_BLOB *data, bool trigger_read)
 {
 	struct roh_connection *roh;
-	int bytes_written, sys_errno;
+	DATA_BLOB blob;
 
-	DEBUG(8, ("%s: Length: %d bytes, trigger_read: %s\n", __func__,
-			(int)blob->length, trigger_read ? "true":"false"));
-	roh = talloc_get_type_abort(p->transport.private_data, struct roh_connection);
+	DEBUG(8, ("%s: Sending request (%d bytes, trigger_read: %s)\n", __func__,
+			(int)data->length, trigger_read ? "true":"false"));
+	roh = talloc_get_type_abort(conn->transport.private_data, struct roh_connection);
 
 	if (roh->default_channel_in == NULL) {
 		return NT_STATUS_CONNECTION_DISCONNECTED;
 	}
 
+	blob = data_blob_talloc(roh, data->data, data->length);
+	if (blob.data == NULL) {
+	    return NT_STATUS_NO_MEMORY;
+	}
+
 	struct iovec iov;
-	iov.iov_base = (void *)blob->data;
-	iov.iov_len = blob->length;
+	iov.iov_base = (void *)blob.data;
+	iov.iov_len = blob.length;
 	struct tevent_req *req = tstream_writev_queue_send(
 			roh->default_channel_in,
 			roh->ev,
@@ -416,59 +422,71 @@ static NTSTATUS roh_sock_send_request(struct dcecli_connection *p,
 	if (req == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
-
-	bool ok = tevent_req_poll(req, p->event_ctx);
-	if (!ok) {
-		return NT_STATUS_INTERNAL_ERROR;
-	}
-
-	bytes_written = tstream_writev_queue_recv(req, &sys_errno);
-	if (bytes_written <= 0) {
-		DEBUG(0, ("%s: error: %s (%d)\n", __func__, strerror(sys_errno), sys_errno));
-		return map_nt_error_from_unix_common(sys_errno);
-	}
-	/* Update sent bytes */
-	roh->default_channel_in->sent_bytes += bytes_written;
-
-	if (trigger_read) {
-		roh_sock_send_read(p);
-	}
+	tevent_req_set_callback(req, roh_sock_send_request_done, conn);
 
 	return NT_STATUS_OK;
 }
 
-static NTSTATUS roh_sock_send_read(struct dcecli_connection *p)
+static void roh_sock_send_request_done(struct tevent_req *req) {
+        struct dcecli_connection *conn;
+        struct roh_connection *roh;
+        int bytes_written, sys_errno;
+
+        conn = tevent_req_callback_data(req, struct dcecli_connection);
+        roh = talloc_get_type_abort(conn->transport.private_data, struct roh_connection);
+
+	bytes_written = tstream_writev_queue_recv(req, &sys_errno);
+	TALLOC_FREE(req);
+	if (bytes_written <= 0) {
+		DEBUG(0, ("%s: error: %s (%d)\n", __func__, strerror(sys_errno), sys_errno));
+		return;
+	}
+	DEBUG(8, ("%s: Request sent (%d bytes)\n", __func__, bytes_written));
+
+	/* Update sent bytes */
+	roh->default_channel_in->sent_bytes += bytes_written;
+
+	/* If trigger read, read the packet */
+	roh_sock_send_read(conn);
+}
+
+static void roh_sock_send_read_done(struct tevent_req *req);
+static NTSTATUS roh_sock_send_read(struct dcecli_connection *conn)
 {
 	struct roh_connection *roh;
 
 	DEBUG(8, ("%s\n", __func__));
-	roh = talloc_get_type_abort(p->transport.private_data, struct roh_connection);
+	roh = talloc_get_type_abort(conn->transport.private_data, struct roh_connection);
 
 	struct tevent_req *req = dcerpc_read_ncacn_packet_send(roh, roh->ev,
 				roh->default_channel_out->stream);
 	if (req == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
+	tevent_req_set_callback(req, roh_sock_send_read_done, conn);
+	return NT_STATUS_OK;
+}
 
-	bool ok = tevent_req_poll(req, p->event_ctx);
-	if (!ok) {
-		return NT_STATUS_INTERNAL_ERROR;
-	}
+static void roh_sock_send_read_done(struct tevent_req *req)
+{
+        struct dcecli_connection *conn;
+        struct roh_connection *roh;
 
-	struct ncacn_packet *pkt;
-	DATA_BLOB buffer;
-	NTSTATUS status;
+        struct ncacn_packet *pkt;
+        DATA_BLOB buffer;
+        NTSTATUS status;
+
+        conn = tevent_req_callback_data(req, struct dcecli_connection);
+        roh = talloc_get_type_abort(conn->transport.private_data, struct roh_connection);
 
 	status = dcerpc_read_ncacn_packet_recv(req, roh, &pkt, &buffer);
 	TALLOC_FREE(req);
 	if (tevent_req_nterror(req, status)) {
 		DEBUG(0, ("%s: Error receiving packet\n", __func__));
-		return status;
+		return;
 	}
 
-	p->transport.recv_data(p, &buffer, NT_STATUS_OK);
-
-	return NT_STATUS_OK;
+	conn->transport.recv_data(conn, &buffer, NT_STATUS_OK);
 }
 
 static NTSTATUS roh_sock_shutdown_pipe(struct dcecli_connection *p, NTSTATUS status)

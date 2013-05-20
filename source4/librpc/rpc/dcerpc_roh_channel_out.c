@@ -405,11 +405,6 @@ struct tevent_req* roh_recv_out_channel_response_send(
 		tevent_req_nterror(req, NT_STATUS_NO_MEMORY);
 		return tevent_req_post(req, ev);
 	}
-	if (!tevent_req_set_endtime(req, ev,
-		timeval_current_ofs(roh->timeout_seconds, 0))) {
-		tevent_req_nterror(req, NT_STATUS_IO_TIMEOUT);
-		return tevent_req_post(req, ev);
-	}
 	tevent_req_set_callback(subreq, roh_recv_out_channel_response_done, req);
 
 	return req;

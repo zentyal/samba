@@ -72,8 +72,6 @@ struct roh_connection {
 	const char *server_name;
 	struct tevent_context *ev;
 
-	int timeout_seconds;
-
 	enum roh_protocol_version protocol_version;
 	enum roh_connection_state connection_state;
 

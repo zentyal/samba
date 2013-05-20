@@ -108,7 +108,6 @@ struct tevent_req* dcerpc_pipe_open_roh_send(
 	state->roh = talloc_zero(mem_ctx, struct roh_connection);
 	state->roh->server_name = talloc_strdup(state->roh, target);
 	state->roh->ev = ev;
-	state->roh->timeout_seconds = ROH_DEFAULT_TIMEOUT;
 	state->roh->protocol_version = ROH_V2;
 	state->roh->connection_state = ROH_STATE_OPEN_START;
 	state->roh->connection_cookie = GUID_random();

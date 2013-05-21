@@ -49,11 +49,11 @@ struct roh_open_connection_state
 	struct tevent_context *ev;
 	struct cli_credentials *credentials;
 	struct resolve_context *resolve_ctx;
-	const char *server_name;
-	unsigned int server_port;
+	const char *rpcproxy;
+	unsigned int rpcproxy_port;
 
-	const char **server_addresses;
-	unsigned int server_address_index;
+	const char **rpcproxy_addresses;
+	unsigned int rpcproxy_address_index;
 
 	struct roh_connection *roh;
 	struct dcecli_connection *conn;
@@ -71,8 +71,10 @@ struct tevent_req* dcerpc_pipe_open_roh_send(
 		struct tevent_context *ev,
 		struct resolve_context *resolve_ctx,
 		struct cli_credentials *credentials,
-	    const char *target,
-	    unsigned int target_port,
+		const char *rpcserver,
+	    unsigned int rpcserver_port,
+	    const char *rpcproxy,
+	    unsigned int rpcproxy_port,
 	    bool use_https,
 	    bool use_client_certificate)
 {
@@ -81,9 +83,8 @@ struct tevent_req* dcerpc_pipe_open_roh_send(
 	struct roh_open_connection_state *state;
 	struct nbt_name name;
 
-	DEBUG(8, ("%s: Connecting, target %s, HTTPS: %s, client certificate: %s\n",
-			__func__, target, use_https ? "true" : "false",
-					use_client_certificate ? "true" : "false"));
+	DEBUG(4, ("%s: Opening connection to RPC server '%s:%d' through RPC proxy '%s:%d'\n",
+		__func__, rpcserver, rpcserver_port, rpcproxy, rpcproxy_port));
 
 	req = tevent_req_create(mem_ctx, &state, struct roh_open_connection_state);
 	if (req == NULL)
@@ -99,14 +100,17 @@ struct tevent_req* dcerpc_pipe_open_roh_send(
 	state->req = req;
 	state->ev = ev;
 	state->credentials = credentials;
-	state->server_name = talloc_strdup(state, target);
-	state->server_port = target_port;
+	state->rpcproxy = talloc_strdup(state, rpcproxy);
+	state->rpcproxy_port = rpcproxy_port;
 	state->conn = conn;
 
 	/* Initialize connection structure (3.2.1.3) */
 	/* TODO Initialize virtual connection cookie table? */
 	state->roh = talloc_zero(mem_ctx, struct roh_connection);
-	state->roh->server_name = talloc_strdup(state->roh, target);
+	state->roh->rpcserver = talloc_strdup(state->roh, rpcserver);
+	state->roh->rpcserver_port = rpcserver_port;
+	state->roh->rpcproxy = talloc_strdup(state->roh, rpcproxy);
+	state->roh->rpcproxy_port = rpcproxy_port;
 	state->roh->ev = ev;
 	state->roh->protocol_version = ROH_V2;
 	state->roh->connection_state = ROH_STATE_OPEN_START;
@@ -119,7 +123,7 @@ struct tevent_req* dcerpc_pipe_open_roh_send(
 	state->roh->current_keep_alive_interval = 0;
 
 	/* Resolve RPC proxy server name asynchronously */
-	make_nbt_name_server(&name, state->server_name);
+	make_nbt_name_server(&name, state->rpcproxy);
 	ctx = resolve_name_send(resolve_ctx, state, &name, state->ev);
 	if (tevent_req_nomem(ctx, req)) {
 		return tevent_req_post(req, ev);
@@ -156,17 +160,17 @@ static void roh_continue_resolve_name(struct composite_context *ctx)
 
 	state = talloc_get_type_abort(ctx->async.private_data,
 			struct roh_open_connection_state);
-	status = resolve_name_multiple_recv(ctx, state, &state->server_addresses);
+	status = resolve_name_multiple_recv(ctx, state, &state->rpcproxy_addresses);
 	if (tevent_req_nterror(state->req, status)) {
 		DEBUG(2, ("%s: No server found: %s\n", __func__, nt_errstr(status)));
 		return;
 	}
-	for (i=0; state->server_addresses[i]; i++) {
-		DEBUG(4, ("%s: Response %u at '%s'\n", __func__, i, state->server_addresses[i]));
+	for (i=0; state->rpcproxy_addresses[i]; i++) {
+		DEBUG(4, ("%s: Response %u at '%s'\n", __func__, i, state->rpcproxy_addresses[i]));
 	}
-	state->server_address_index = 0;
+	state->rpcproxy_address_index = 0;
 
-	if (state->server_addresses[state->server_address_index] == NULL) {
+	if (state->rpcproxy_addresses[state->rpcproxy_address_index] == NULL) {
 		tevent_req_nterror(state->req, NT_STATUS_OBJECT_NAME_NOT_FOUND);
 		DEBUG(2, ("%s: No server found\n", __func__));
 		return;
@@ -175,9 +179,9 @@ static void roh_continue_resolve_name(struct composite_context *ctx)
 	/* TODO Determine proxy use */
 
 	state->roh->connection_state = ROH_STATE_OPEN_START;
-	subreq = roh_connect_channel_in_send(state, state->ev, state->server_name,
-			state->server_addresses[state->server_address_index],
-			state->server_port, state->credentials, state->roh);
+	subreq = roh_connect_channel_in_send(state, state->ev,
+			state->rpcproxy_addresses[state->rpcproxy_address_index],
+			state->rpcproxy_port, state->credentials, state->roh);
 	if (tevent_req_nomem(subreq, state->req)) {
 		return;
 	}
@@ -200,9 +204,9 @@ static void roh_connect_channel_in_done(struct tevent_req *subreq)
 		return;
 	}
 
-	subreq = roh_connect_channel_out_send(state, state->ev, state->server_name,
-				state->server_addresses[state->server_address_index],
-				state->server_port, state->credentials, state->roh);
+	subreq = roh_connect_channel_out_send(state, state->ev,
+			state->rpcproxy_addresses[state->rpcproxy_address_index],
+			state->rpcproxy_port, state->credentials, state->roh);
 	if (tevent_req_nomem(subreq, state->req)) {
 		return;
 	}
@@ -225,7 +229,7 @@ static void roh_connect_channel_out_done(struct tevent_req *subreq)
 		return;
 	}
 
-	subreq = roh_send_RPC_DATA_IN_send(state, state->ev, state->server_name, state->server_port, state->credentials, state->roh);
+	subreq = roh_send_RPC_DATA_IN_send(state, state->ev, state->credentials, state->roh);
 	tevent_req_set_callback(subreq, roh_send_RPC_DATA_IN_done, req);
 }
 
@@ -245,7 +249,7 @@ static void roh_send_RPC_DATA_IN_done(struct tevent_req *subreq)
 		return;
 	}
 
-	subreq = roh_send_RPC_DATA_OUT_send(state, state->ev, state->server_name, state->server_port, state->credentials, state->roh);
+	subreq = roh_send_RPC_DATA_OUT_send(state, state->ev, state->credentials, state->roh);
 	tevent_req_set_callback(subreq, roh_send_RPC_DATA_OUT_done, req);
 }
 
@@ -512,7 +516,7 @@ static const char *roh_sock_peer_name(struct dcecli_connection *p)
 
 	DEBUG(8, ("%s\n", __func__));
 	roh = talloc_get_type_abort(p->transport.private_data, struct roh_connection);
-	return roh->server_name;
+	return roh->rpcserver;
 }
 
 static const char *roh_sock_target_hostname(struct dcecli_connection *p)
@@ -521,5 +525,5 @@ static const char *roh_sock_target_hostname(struct dcecli_connection *p)
 
 	DEBUG(8, ("%s\n", __func__));
 	roh = talloc_get_type_abort(p->transport.private_data, struct roh_connection);
-	return roh->server_name;
+	return roh->rpcserver;
 }

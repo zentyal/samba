@@ -666,7 +666,7 @@ int http_add_header(TALLOC_CTX *mem_ctx, struct http_header **headers,
 }
 
 static int http_add_header_internal(TALLOC_CTX *mem_ctx,
-		struct http_header **headers, const char *key, const char *value)
+    struct http_header **headers, const char *key, const char *value)
 {
 	struct http_header *tail = NULL;
 	struct http_header *header = NULL;
@@ -701,46 +701,6 @@ static int http_header_is_valid_value(const char *value)
 	}
 	return (1);
 }
-
-#if 0
-const char *http_request_get_host(struct http_request *req)
-{
-	const char *host = NULL;
-
-	if (req->host_cache)
-		return req->host_cache;
-
-	if (req->uri_elems)
-		host = http_uri_get_host(req->uri_elems);
-
-	if (!host && req->response_headers) {
-		const char *p;
-		size_t len;
-
-		host = http_find_header(req->input_headers, "Host");
-		/* The Host: header may include a port. Remove it here
-		   to be consistent with uri_elems case above. */
-		if (host) {
-			p = host + strlen(host) - 1;
-			while (p > host && EVUTIL_ISDIGIT_(*p))
-				--p;
-			if (p > host && *p == ':') {
-				len = p - host;
-				req->host_cache = mm_malloc(len + 1);
-				if (!req->host_cache) {
-					event_warn("%s: malloc", __func__);
-					return NULL;
-				}
-				memcpy(req->host_cache, host, len);
-				req->host_cache[len] = '\0';
-				host = req->host_cache;
-			}
-		}
-	}
-
-	return host;
-}
-#endif
 
 static NTSTATUS http_push_request(TALLOC_CTX *mem_ctx, DATA_BLOB *blob, struct http_request *req)
 {

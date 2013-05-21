@@ -48,39 +48,33 @@ struct roh_connect_channel_state
 	struct tsocket_address *local_address;
 	struct tsocket_address *remote_address;
 	struct cli_credentials *credentials;
-
-	const char *server_name;
-	int server_port;
-
 	struct roh_connection *roh;
 };
 
 static void roh_connect_channel_out_done(struct tevent_req *subreq);
 struct tevent_req* roh_connect_channel_out_send(TALLOC_CTX *mem_ctx,
-		struct tevent_context *ev, const char *server_name,
-		const char *server_ip, unsigned int server_port,
-		struct cli_credentials *credentials, struct roh_connection *roh)
+		struct tevent_context *ev, const char *rpcproxy_ip_address,
+		unsigned int rpcproxy_port, struct cli_credentials *credentials,
+		struct roh_connection *roh)
 {
 	struct tevent_req *req, *subreq;
 	struct roh_connect_channel_state *state;
 	int ret;
 
-	DEBUG(8, ("%s: Connecting channel out socket, server %s:%d\n",
-			__func__, server_name, server_port));
+	DEBUG(8, ("%s: Connecting channel in socket, RPC proxy is %s:%d\n",
+				__func__, rpcproxy_ip_address, rpcproxy_port));
 
 	req = tevent_req_create(mem_ctx, &state, struct roh_connect_channel_state);
 	if (req == NULL)
 		return NULL;
 
-	if (!is_ipaddress(server_ip)) {
-		DEBUG(0, ("%s: Invalid host (%s), needs to be an IP address\n", __func__, server_ip));
+	if (!is_ipaddress(rpcproxy_ip_address)) {
+		DEBUG(0, ("%s: Invalid host (%s), needs to be an IP address\n", __func__, rpcproxy_ip_address));
 		tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
 		return tevent_req_post(req, ev);
 	}
 
 	state->ev = ev;
-	state->server_name = talloc_strdup(state, server_name);
-	state->server_port = server_port;
 	state->credentials = credentials;
 	state->roh = roh;
 	ret = tsocket_address_inet_from_strings(state, "ipv4", NULL, 0,
@@ -92,8 +86,8 @@ struct tevent_req* roh_connect_channel_out_send(TALLOC_CTX *mem_ctx,
 		return tevent_req_post(req, ev);
 	}
 
-	ret = tsocket_address_inet_from_strings(state, "ipv4", server_ip, server_port,
-			&state->remote_address);
+	ret = tsocket_address_inet_from_strings(state, "ipv4", rpcproxy_ip_address,
+			rpcproxy_port, &state->remote_address);
 	if (ret != 0) {
 		DEBUG(1, ("%s: Cannot create remote socket address, error: %s (%d)\n", __func__, strerror(errno), errno));
 		NTSTATUS status = map_nt_error_from_unix_common(errno);
@@ -167,7 +161,6 @@ static void roh_send_RPC_DATA_OUT_done(struct tevent_req *subreq);
 struct tevent_req *roh_send_RPC_DATA_OUT_send(
 		TALLOC_CTX *mem_ctx,
 		struct tevent_context *ev,
-		const char *server_name, int server_port,
 		struct cli_credentials *credentials,
 		struct roh_connection *roh)
 {
@@ -191,8 +184,8 @@ struct tevent_req *roh_send_RPC_DATA_OUT_send(
 
 	/* Build URI, as specified in section 2.2.2 */
 	const char *path = "/rpc/rpcproxy.dll"; // TODO This path change to "/rpcwithcert/rpcproxy.dll" if using certificates
-	char *query = talloc_asprintf(state, "%s:%d", server_name, 6002); // TODO hardcoded port
-	char *uri = talloc_asprintf(state, "http://%s:%d%s?%s", server_name, server_port, path, query);
+	char *query = talloc_asprintf(state, "%s:%d", roh->rpcserver, roh->rpcserver_port);
+	char *uri = talloc_asprintf(state, "%s?%s", path, query);
 	TALLOC_FREE(query);
 
 	/* Create the HTTP channel OUT request as specified in the section 2.1.2.1.2 */
@@ -206,7 +199,7 @@ struct tevent_req *roh_send_RPC_DATA_OUT_send(
 
 	http_add_header(state, &state->request->headers, "Accept", "application/rpc");
 	http_add_header(state, &state->request->headers, "User-Agent", "MSRPC");
-	http_add_header(state, &state->request->headers, "Host", server_name);
+	http_add_header(state, &state->request->headers, "Host", roh->rpcproxy);
 	http_add_header(state, &state->request->headers, "Connection", "keep-alive");
 	http_add_header(state, &state->request->headers, "Content-Length", "76");
 	http_add_header(state, &state->request->headers, "Cache-Control", "no-cache");

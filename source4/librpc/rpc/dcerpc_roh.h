@@ -69,7 +69,12 @@ enum roh_connection_state {
  * non_default_channel_out:
  */
 struct roh_connection {
-	const char *server_name;
+	const char *rpcserver;
+	unsigned int rpcserver_port;
+
+	const char *rpcproxy;
+	unsigned int rpcproxy_port;
+
 	struct tevent_context *ev;
 
 	enum roh_protocol_version protocol_version;

@@ -1,4 +1,4 @@
-/* 
+/*
    Unix SMB/CIFS implementation.
 
    dcerpc connect functions
@@ -7,17 +7,17 @@
    Copyright (C) Jelmer Vernooij 2004
    Copyright (C) Andrew Bartlett <abartlet@samba.org> 2005-2007
    Copyright (C) Rafal Szczesniak  2005
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -69,7 +69,7 @@ static void continue_smb_connect(struct composite_context *ctx)
 						      struct composite_context);
 	struct pipe_np_smb_state *s = talloc_get_type(c->private_data,
 						      struct pipe_np_smb_state);
-	
+
 	/* receive result of smb connect request */
 	c->status = smb_composite_connect_recv(ctx, c);
 	if (!composite_is_ok(c)) return;
@@ -139,7 +139,7 @@ static struct composite_context *dcerpc_pipe_connect_ncacn_np_smb_send(TALLOC_CT
 	}
 
 	/* send smb connect request */
-	conn_req = smb_composite_connect_send(conn, s->io.pipe->conn, 
+	conn_req = smb_composite_connect_send(conn, s->io.pipe->conn,
 					      s->io.resolve_ctx,
 					      s->io.pipe->conn->event_ctx);
 	if (composite_nomem(conn_req, c)) return c;
@@ -211,7 +211,7 @@ static void continue_smb2_connect(struct tevent_req *subreq)
 }
 
 
-/* 
+/*
    Initiate async open of a rpc connection request on SMB2 using
    the binding structure to determine the endpoint and options
 */
@@ -271,7 +271,7 @@ static struct composite_context *dcerpc_pipe_connect_ncacn_np_smb2_send(
 static NTSTATUS dcerpc_pipe_connect_ncacn_np_smb2_recv(struct composite_context *c)
 {
 	NTSTATUS status = composite_wait(c);
-	
+
 	talloc_free(c);
 	return status;
 }
@@ -327,7 +327,7 @@ static struct composite_context* dcerpc_pipe_connect_ncacn_ip_tcp_send(TALLOC_CT
 	s->host             = talloc_reference(c, io->binding->host);
 	s->target_hostname  = talloc_reference(c, io->binding->target_hostname);
                              /* port number is a binding endpoint here */
-	s->port             = atoi(io->binding->endpoint);   
+	s->port             = atoi(io->binding->endpoint);
 
 	/* send pipe open request on tcp/ip */
 	pipe_req = dcerpc_pipe_open_tcp_send(s->io.pipe->conn, s->localaddr, s->host, s->target_hostname,
@@ -343,7 +343,7 @@ static struct composite_context* dcerpc_pipe_connect_ncacn_ip_tcp_send(TALLOC_CT
 static NTSTATUS dcerpc_pipe_connect_ncacn_ip_tcp_recv(struct composite_context *c)
 {
 	NTSTATUS status = composite_wait(c);
-	
+
 	talloc_free(c);
 	return status;
 }
@@ -352,9 +352,12 @@ static NTSTATUS dcerpc_pipe_connect_ncacn_ip_tcp_recv(struct composite_context *
 struct pipe_http_state {
 	struct dcerpc_pipe_connect io;
 	const char *localaddr;
-	const char *host;
-	const char *target_hostname;
-	uint32_t port;
+
+	const char *rpcserver;
+	uint32_t rpcserver_port;
+
+	const char *rpcproxy;
+	uint32_t rpcproxy_port;
 };
 
 /*
@@ -391,12 +394,56 @@ static struct composite_context* dcerpc_pipe_connect_ncacn_http_send(
 	if (composite_nomem(s, c)) return c;
 	c->private_data = s;
 
+	/**
+	 *  Parse binding options. Format is:
+	 * [object_uuid@]ncacn_http:rpc_server[endpoint,HttpProxy=proxy_server:http_port,'rpcproxy'=rpc_proxy:rpc_port]
+	 *
+	 *  object_uuid specifies an RPC object universal unique identifier (UUID).
+	 *  ncacn_http selects the protocol sequence specification for RPC over HTTP.
+	 *  rpc_server is the network address of the computer that is running the RPC server process. The server address must be specified in a form visible and understandable by RPC Proxy computer, rather than by the client. Because the client does not connect directly to the server, it does not resolve the name of the server or establish a connection to it. RPC Proxy establishes the connection on the client's behalf. Therefore, rpc_server must be a name recognizable by RPC Proxy.
+	 *  endpoint specifies the TCP/IP port that the RPC server process listens to for RPCs.
+	 *  HttpProxy optionally specifies an HTTP proxy server on the RPC client's network, such as Microsoft Proxy Server. If a proxy server is selected, no port number is specified, the RPC stub uses port 80 by default if SSL is not requested, and port 443 if SSL is specified.
+	 *  RPCProxy specifies the address and port number of the IIS computer that acts as a proxy to the RPC server. You need to specify this only if the RPC server process resides on a different computer than RPC Proxy. If you do not specify a port number, by default the RPC client stub uses port 80 if SSL is not specified and port 443 if SSL (HTTPS) is specified.
+	 **/
+	char *rpcproxy = NULL;
+	char *rpcproxy_port = NULL;
+
+	if (io->binding->options != NULL) {
+		int i;
+		for (i=0; io->binding->options[i]; i++) {
+			char *p = io->binding->options[i];
+			char *key = strsep(&p, "=");
+			if (key == NULL) {
+				continue;
+			}
+			if (strncasecmp("rpcproxy", key, 8) == 0) {
+				key = strsep(&p, ":");
+				if (key != NULL) {
+					rpcproxy = talloc_strdup(s, key);
+					rpcproxy_port = talloc_strdup(s, p);
+				}
+			}
+		}
+	}
+
+	if (io->binding->endpoint == NULL) {
+		io->binding->endpoint = talloc_strdup(s, "6001");
+	}
+	if (rpcproxy_port == NULL) {
+		rpcproxy_port = talloc_strdup(s, "80");
+	}
+
 	/* store input parameters in state structure */
 	s->io               = *io;
 	s->localaddr        = talloc_reference(c, io->binding->localaddress);
-	s->host             = talloc_reference(c, io->binding->host);
-	s->target_hostname  = talloc_reference(c, io->binding->target_hostname);
-	s->port             = atoi(io->binding->endpoint);
+
+	/* RPC server and port */
+	s->rpcserver        = talloc_reference(c, io->binding->host);
+	s->rpcserver_port   = strtol(io->binding->endpoint, NULL, 10);
+
+	/* Proxy server and port */
+	s->rpcproxy  = rpcproxy;
+	s->rpcproxy_port = strtol(rpcproxy_port, NULL, 10);
 
 	/* send pipe open request on tcp/ip */
 	subreq = dcerpc_pipe_open_roh_send(
@@ -405,8 +452,10 @@ static struct composite_context* dcerpc_pipe_connect_ncacn_http_send(
 			s->io.pipe->conn->event_ctx,
 			s->io.resolve_ctx,
 			s->io.creds,
-			s->target_hostname,
-			s->port,
+			s->rpcserver,
+			s->rpcserver_port,
+			s->rpcproxy,
+			s->rpcproxy_port,
 			false, false);
 	if (composite_nomem(subreq, c)) return c;
 	tevent_req_set_callback(subreq, continue_pipe_open_ncacn_http, c);
@@ -462,7 +511,7 @@ static struct composite_context* dcerpc_pipe_connect_ncacn_unix_stream_send(TALL
 	/* prepare pipe open parameters and store them in state structure
 	   also, verify whether biding endpoint is not null */
 	s->io = *io;
-	
+
 	if (!io->binding->endpoint) {
 		DEBUG(0, ("Path to unix socket not specified\n"));
 		composite_error(c, NT_STATUS_INVALID_PARAMETER);
@@ -513,7 +562,7 @@ static void continue_pipe_open_ncalrpc(struct composite_context *ctx)
 }
 
 
-/* 
+/*
    Initiate async open of a rpc connection request on NCALRPC using
    the binding structure to determine the endpoint and options
 */
@@ -531,7 +580,7 @@ static struct composite_context* dcerpc_pipe_connect_ncalrpc_send(TALLOC_CTX *me
 	s = talloc_zero(c, struct pipe_ncalrpc_state);
 	if (composite_nomem(s, c)) return c;
 	c->private_data = s;
-	
+
 	/* store input parameters in state structure */
 	s->io  = *io;
 
@@ -549,7 +598,7 @@ static struct composite_context* dcerpc_pipe_connect_ncalrpc_send(TALLOC_CTX *me
 static NTSTATUS dcerpc_pipe_connect_ncalrpc_recv(struct composite_context *c)
 {
 	NTSTATUS status = composite_wait(c);
-	
+
 	talloc_free(c);
 	return status;
 }
@@ -585,12 +634,12 @@ static void continue_map_binding(struct composite_context *ctx)
 						      struct composite_context);
 	struct pipe_connect_state *s = talloc_get_type(c->private_data,
 						       struct pipe_connect_state);
-	
+
 	c->status = dcerpc_epm_map_binding_recv(ctx);
 	if (!composite_is_ok(c)) return;
 
 	DEBUG(4,("Mapped to DCERPC endpoint %s\n", s->binding->endpoint));
-	
+
 	continue_connect(c, s);
 }
 
@@ -693,7 +742,7 @@ static void continue_pipe_connect_ncacn_np_smb(struct composite_context *ctx)
 
 	c->status = dcerpc_pipe_connect_ncacn_np_smb_recv(ctx);
 	if (!composite_is_ok(c)) return;
-	
+
 	continue_pipe_connect(c, s);
 }
 
@@ -741,10 +790,10 @@ static void continue_pipe_connect_ncacn_unix(struct composite_context *ctx)
 						      struct composite_context);
 	struct pipe_connect_state *s = talloc_get_type(c->private_data,
 						       struct pipe_connect_state);
-	
+
 	c->status = dcerpc_pipe_connect_ncacn_unix_stream_recv(ctx);
 	if (!composite_is_ok(c)) return;
-	
+
 	continue_pipe_connect(c, s);
 }
 
@@ -758,7 +807,7 @@ static void continue_pipe_connect_ncalrpc(struct composite_context *ctx)
 						      struct composite_context);
 	struct pipe_connect_state *s = talloc_get_type(c->private_data,
 						       struct pipe_connect_state);
-	
+
 	c->status = dcerpc_pipe_connect_ncalrpc_recv(ctx);
 	if (!composite_is_ok(c)) return;
 
@@ -806,7 +855,7 @@ static void continue_pipe_auth(struct composite_context *ctx)
 /*
   handle timeouts of a dcerpc connect
 */
-static void dcerpc_connect_timeout_handler(struct tevent_context *ev, struct tevent_timer *te, 
+static void dcerpc_connect_timeout_handler(struct tevent_context *ev, struct tevent_timer *te,
 					   struct timeval t, void *private_data)
 {
 	struct composite_context *c = talloc_get_type_abort(private_data,
@@ -862,7 +911,7 @@ _PUBLIC_ struct composite_context* dcerpc_pipe_connect_b_send(TALLOC_CTX *parent
 	tevent_add_timer(c->event_ctx, c,
 			 timeval_current_ofs(DCERPC_REQUEST_TIMEOUT, 0),
 			 dcerpc_connect_timeout_handler, c);
-	
+
 	switch (s->binding->transport) {
 	case NCA_UNKNOWN: {
 		struct composite_context *binding_req;
@@ -886,7 +935,6 @@ _PUBLIC_ struct composite_context* dcerpc_pipe_connect_b_send(TALLOC_CTX *parent
 		}
 		break;
 	case NCACN_HTTP:
-		binding->endpoint = "80";
 		break;
 	default:
 		break;
@@ -919,7 +967,7 @@ _PUBLIC_ NTSTATUS dcerpc_pipe_connect_b_recv(struct composite_context *c, TALLOC
 
 
 /*
-  open a rpc connection to a rpc pipe, using the specified 
+  open a rpc connection to a rpc pipe, using the specified
   binding structure to determine the endpoint and options - sync version
 */
 _PUBLIC_ NTSTATUS dcerpc_pipe_connect_b(TALLOC_CTX *parent_ctx,
@@ -982,7 +1030,7 @@ _PUBLIC_ struct composite_context* dcerpc_pipe_connect_send(TALLOC_CTX *parent_c
 
 	DEBUG(3, ("Using binding %s\n", dcerpc_binding_string(c, b)));
 
-	/* 
+	/*
 	   start connecting to a rpc pipe after binding structure
 	   is established
 	 */
@@ -1037,8 +1085,8 @@ NTSTATUS dcerpc_pipe_connect_recv(struct composite_context *c,
   Open a rpc connection to a rpc pipe, using the specified string
   binding to determine the endpoint and options - sync version
 */
-_PUBLIC_ NTSTATUS dcerpc_pipe_connect(TALLOC_CTX *parent_ctx, 
-			     struct dcerpc_pipe **pp, 
+_PUBLIC_ NTSTATUS dcerpc_pipe_connect(TALLOC_CTX *parent_ctx,
+			     struct dcerpc_pipe **pp,
 			     const char *binding,
 			     const struct ndr_interface_table *table,
 			     struct cli_credentials *credentials,
@@ -1046,7 +1094,7 @@ _PUBLIC_ NTSTATUS dcerpc_pipe_connect(TALLOC_CTX *parent_ctx,
 			     struct loadparm_context *lp_ctx)
 {
 	struct composite_context *c;
-	c = dcerpc_pipe_connect_send(parent_ctx, binding, 
+	c = dcerpc_pipe_connect_send(parent_ctx, binding,
 				     table, credentials, ev, lp_ctx);
 	return dcerpc_pipe_connect_recv(c, parent_ctx, pp);
 }

@@ -115,7 +115,7 @@ static enum http_read_status http_parse_headers(struct http_read_response_state 
 	state->response->headers_size += state->buffer.length;
 
 	if (strncasecmp(line, "\r\n", 2) == 0) {
-		DEBUG(9,("%s: All headers read\n", __func__));
+		DEBUG(11,("%s: All headers read\n", __func__));
 
 		/* Done reading headers */
 //		if (state->request->response_code == 100) {
@@ -124,11 +124,11 @@ static enum http_read_status http_parse_headers(struct http_read_response_state 
 //					return;
 //				}
 		if (!http_response_needs_body(state->response)) {
-			DEBUG(9, ("%s: Skipping body for code %d\n", __func__,
+			DEBUG(11, ("%s: Skipping body for code %d\n", __func__,
 					state->response->response_code));
 			state->parser_state = HTTP_READING_DONE;
 		} else {
-			DEBUG(9, ("%s: Start of read body\n", __func__));
+			DEBUG(11, ("%s: Start of read body\n", __func__));
 			state->parser_state = HTTP_READING_BODY;
 		}
 
@@ -169,7 +169,7 @@ static bool http_parse_response_line(struct http_read_response_state *state)
 
 	int n = sscanf(line, "%a[^/]/%c.%c %d %a[^\r\n]\r\n",
 			&protocol, &major, &minor, &code, &msg);
-	DEBUG(9, ("%s: Header parsed(%i): protocol->%s, major->%c, minor->%c, "
+	DEBUG(11, ("%s: Header parsed(%i): protocol->%s, major->%c, minor->%c, "
 			"code->%d, message->%s\n", __func__, n, protocol, major, minor,
 			code, msg));
 	if (n != 5) {
@@ -260,7 +260,7 @@ static enum http_read_status http_read_body(struct http_read_response_state *sta
 static enum http_read_status http_parse_buffer(
 		struct http_read_response_state *state)
 {
-	DEBUG(10, ("%s: Parsing %d bytes [%s]\n", __func__, (int)state->buffer.length, (char*)state->buffer.data));
+	DEBUG(12, ("%s: Parsing %d bytes [%s]\n", __func__, (int)state->buffer.length, (char*)state->buffer.data));
 	switch (state->parser_state) {
 		case HTTP_READING_FIRSTLINE:
 			return http_parse_firstline(state);
@@ -373,7 +373,7 @@ struct tevent_req *http_read_response_send(TALLOC_CTX *mem_ctx,
 	struct tevent_req *req, *subreq;
 	struct http_read_response_state *state;
 
-	DEBUG(9, ("%s: Reading HTTP response\n", __func__));
+	DEBUG(11, ("%s: Reading HTTP response\n", __func__));
 
 	req = tevent_req_create(mem_ctx, &state, struct http_read_response_state);
 	if (req == NULL)
@@ -412,7 +412,7 @@ static void tstream_readv_pdu_done(struct tevent_req *subreq)
 				struct http_read_response_state);
 	int ret, sys_errno;
 
-	DEBUG(9, ("%s: Response fully retrieved\n", __func__));
+	DEBUG(11, ("%s: Response fully retrieved\n", __func__));
 	ret = tstream_readv_pdu_recv(subreq, &sys_errno);
 	TALLOC_FREE(subreq);
 	if (ret == -1) {
@@ -466,7 +466,7 @@ struct tevent_req *http_send_request_send(TALLOC_CTX *mem_ctx,
 	struct http_send_request_state *state;
 	NTSTATUS status;
 
-	DEBUG(9, ("%s: Sending HTTP request\n", __func__));
+	DEBUG(11, ("%s: Sending HTTP request\n", __func__));
 
 	req = tevent_req_create(mem_ctx, &state, struct http_send_request_state);
 	if (req == NULL)
@@ -529,20 +529,6 @@ int http_send_request_recv(struct tevent_req *req, int *perrno)
 
 	return ret;
 }
-
-//static void http_read_response_done(struct tevent_req *subreq)
-//{
-//	struct tevent_req *req = tevent_req_callback_data(subreq,
-//				struct tevent_req);
-//	struct http_read_response_state *state = tevent_req_data(req,
-//				struct http_read_response_state);
-//
-//
-//	DEBUG(9, ("%s\n", __func__));
-//	TALLOC_FREE(subreq);
-//	tevent_req_done(req);
-//}
-
 
 /***************************************/
 
@@ -621,7 +607,7 @@ static NTSTATUS http_make_header(TALLOC_CTX *mem_ctx, DATA_BLOB *blob,
 	}
 
 	/* Add request body */
-	DEBUG(9, ("%s: Adding body to request (%zd bytes)\n", __func__, req->body.length));
+	DEBUG(11, ("%s: Adding body to request (%zd bytes)\n", __func__, req->body.length));
 	if (req->body.length > 0) {
 		if (!data_blob_append(mem_ctx, blob, req->body.data,
 				req->body.length)) {
@@ -675,7 +661,7 @@ static int http_add_header_internal(TALLOC_CTX *mem_ctx,
 	header->key = talloc_strdup(mem_ctx, key);
 	header->value = talloc_strdup(mem_ctx, value);
 
-	DEBUG(10, ("%s: Adding HTTP header: key '%s', value '%s'\n",
+	DEBUG(11, ("%s: Adding HTTP header: key '%s', value '%s'\n",
 			__func__, header->key, header->value));
 	DLIST_ADD_END(*headers, header, NULL);
 

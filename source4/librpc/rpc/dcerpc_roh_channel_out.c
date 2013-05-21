@@ -389,6 +389,8 @@ struct tevent_req* roh_recv_out_channel_response_send(
 	struct tevent_req *req, *subreq;
 	struct roh_recv_response_state *state;
 
+	DEBUG(8, ("%s: Waiting for out channel response\n", __func__));
+
 	req = tevent_req_create(mem_ctx, &state, struct roh_recv_response_state);
 	if (req == NULL)
 		return NULL;
@@ -419,7 +421,7 @@ static void roh_recv_out_channel_response_done(struct tevent_req *subreq)
 		tevent_req_nterror(req, status);
 		return;
 	}
-	DEBUG(8, ("%s: Request received (%d bytes)\n", __func__, state->bytes_readed));
+	DEBUG(8, ("%s: Response received (%d bytes)\n", __func__, state->bytes_readed));
 
 	/* TODO Map response code to nt error */
 	int code = state->response->response_code;

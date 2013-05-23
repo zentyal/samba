@@ -427,7 +427,7 @@ static struct composite_context* dcerpc_pipe_connect_ncacn_http_send(
 	}
 
 	if (io->binding->endpoint == NULL) {
-		io->binding->endpoint = talloc_strdup(s, "6001");
+		io->binding->endpoint = talloc_strdup(s, "6004");
 	}
 	if (rpcproxy_port == NULL) {
 		rpcproxy_port = talloc_strdup(s, "80");

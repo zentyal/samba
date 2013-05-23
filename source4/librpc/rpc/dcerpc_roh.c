@@ -190,7 +190,7 @@ static void roh_continue_resolve_name(struct composite_context *ctx)
 	/* TODO Determine proxy use */
 
 	state->roh->connection_state = ROH_STATE_OPEN_START;
-	subreq = roh_connect_channel_in_send(state, state->ev, 
+	subreq = roh_connect_channel_in_send(state, state->ev,
 			state->rpcproxy_addresses[state->rpcproxy_address_index],
 			state->rpcproxy_port, state->credentials, state->roh);
 	if (tevent_req_nomem(subreq, state->req)) {
@@ -398,9 +398,18 @@ static void roh_recv_CONN_C2_done(struct tevent_req *subreq)
 	state->conn->transport.peer_name = roh_sock_peer_name;
 	state->conn->transport.target_hostname = roh_sock_target_hostname;
 
+	/* Start the receive loop on the channel out */
+	status = roh_sock_send_read(state->conn);
+	if (tevent_req_nterror(req, status)) {
+		return;
+	}
+
 	tevent_req_done(req);
 }
 
+/****************
+ *
+ */
 static void roh_sock_send_request_done(struct tevent_req *req);
 static NTSTATUS roh_sock_send_request(
 		struct dcecli_connection *conn,
@@ -439,10 +448,6 @@ static NTSTATUS roh_sock_send_request(
 	}
 	tevent_req_set_callback(req, roh_sock_send_request_done, conn);
 
-	/* If trigger read, schedule a packet read */
-	if (trigger_read)
-		roh_sock_send_read(conn);
-
 	return NT_STATUS_OK;
 }
 
@@ -473,13 +478,14 @@ static void roh_sock_send_read_done(struct tevent_req *req);
 static NTSTATUS roh_sock_send_read(struct dcecli_connection *conn)
 {
 	struct roh_connection *roh;
+	struct tevent_req *req;
 
 	DEBUG(8, ("%s: Waiting for packet\n", __func__));
 	roh = talloc_get_type_abort(conn->transport.private_data,
 			struct roh_connection);
 
-	struct tevent_req *req = dcerpc_read_ncacn_packet_send(
-			roh, roh->ev, roh->default_channel_out->stream);
+	req = dcerpc_read_ncacn_packet_send(roh, roh->ev,
+			roh->default_channel_out->stream);
 	if (req == NULL ) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -511,7 +517,14 @@ static void roh_sock_send_read_done(struct tevent_req *req)
 				__func__, buffer.length));
 	dump_data(8, buffer.data, buffer.length);
 
-	conn->transport.recv_data(conn, &buffer, NT_STATUS_OK);
+	if (pkt->ptype == DCERPC_PKT_RTS) {
+		/* This is a protocol packet process it */
+		DEBUG(8, ("%s: Protocol packet received\n", __func__));
+	} else {
+		conn->transport.recv_data(conn, &buffer, NT_STATUS_OK);
+	}
+
+	roh_sock_send_read(conn);
 }
 
 static NTSTATUS roh_sock_shutdown_pipe(

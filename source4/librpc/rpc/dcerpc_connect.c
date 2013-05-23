@@ -411,7 +411,7 @@ static struct composite_context* dcerpc_pipe_connect_ncacn_http_send(
 	if (io->binding->options != NULL) {
 		int i;
 		for (i=0; io->binding->options[i]; i++) {
-			char *p = io->binding->options[i];
+			char *p = talloc_strdup(s, io->binding->options[i]);
 			char *key = strsep(&p, "=");
 			if (key == NULL) {
 				continue;

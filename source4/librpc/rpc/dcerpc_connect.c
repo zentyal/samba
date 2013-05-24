@@ -394,45 +394,6 @@ static struct composite_context* dcerpc_pipe_connect_ncacn_http_send(
 	if (composite_nomem(s, c)) return c;
 	c->private_data = s;
 
-	/**
-	 *  Parse binding options. Format is:
-	 * [object_uuid@]ncacn_http:rpc_server[endpoint,HttpProxy=proxy_server:http_port,'rpcproxy'=rpc_proxy:rpc_port]
-	 *
-	 *  object_uuid specifies an RPC object universal unique identifier (UUID).
-	 *  ncacn_http selects the protocol sequence specification for RPC over HTTP.
-	 *  rpc_server is the network address of the computer that is running the RPC server process. The server address must be specified in a form visible and understandable by RPC Proxy computer, rather than by the client. Because the client does not connect directly to the server, it does not resolve the name of the server or establish a connection to it. RPC Proxy establishes the connection on the client's behalf. Therefore, rpc_server must be a name recognizable by RPC Proxy.
-	 *  endpoint specifies the TCP/IP port that the RPC server process listens to for RPCs.
-	 *  HttpProxy optionally specifies an HTTP proxy server on the RPC client's network, such as Microsoft Proxy Server. If a proxy server is selected, no port number is specified, the RPC stub uses port 80 by default if SSL is not requested, and port 443 if SSL is specified.
-	 *  RPCProxy specifies the address and port number of the IIS computer that acts as a proxy to the RPC server. You need to specify this only if the RPC server process resides on a different computer than RPC Proxy. If you do not specify a port number, by default the RPC client stub uses port 80 if SSL is not specified and port 443 if SSL (HTTPS) is specified.
-	 **/
-	char *rpcproxy = NULL;
-	char *rpcproxy_port = NULL;
-
-	if (io->binding->options != NULL) {
-		int i;
-		for (i=0; io->binding->options[i]; i++) {
-			char *p = talloc_strdup(s, io->binding->options[i]);
-			char *key = strsep(&p, "=");
-			if (key == NULL) {
-				continue;
-			}
-			if (strncasecmp("rpcproxy", key, 8) == 0) {
-				key = strsep(&p, ":");
-				if (key != NULL) {
-					rpcproxy = talloc_strdup(s, key);
-					rpcproxy_port = talloc_strdup(s, p);
-				}
-			}
-		}
-	}
-
-	if (io->binding->endpoint == NULL) {
-		io->binding->endpoint = talloc_strdup(s, "6004");
-	}
-	if (rpcproxy_port == NULL) {
-		rpcproxy_port = talloc_strdup(s, "80");
-	}
-
 	/* store input parameters in state structure */
 	s->io               = *io;
 	s->localaddr        = talloc_reference(c, io->binding->localaddress);
@@ -442,8 +403,8 @@ static struct composite_context* dcerpc_pipe_connect_ncacn_http_send(
 	s->rpcserver_port   = strtol(io->binding->endpoint, NULL, 10);
 
 	/* Proxy server and port */
-	s->rpcproxy  = rpcproxy;
-	s->rpcproxy_port = strtol(rpcproxy_port, NULL, 10);
+	s->rpcproxy  = talloc_reference(c, io->binding->rpcproxy);
+	s->rpcproxy_port = io->binding->rpcproxy_port;
 
 	/* send pipe open request on tcp/ip */
 	subreq = dcerpc_pipe_open_roh_send(
@@ -456,7 +417,7 @@ static struct composite_context* dcerpc_pipe_connect_ncacn_http_send(
 			s->rpcserver_port,
 			s->rpcproxy,
 			s->rpcproxy_port,
-			false, false);
+			s->io.binding->flags & DCERPC_ROH_USE_TLS);
 	if (composite_nomem(subreq, c)) return c;
 	tevent_req_set_callback(subreq, continue_pipe_open_ncacn_http, c);
 	return c;
@@ -925,6 +886,7 @@ _PUBLIC_ struct composite_context* dcerpc_pipe_connect_b_send(TALLOC_CTX *parent
 	case NCACN_NP:
 	case NCACN_IP_TCP:
 	case NCALRPC:
+	case NCACN_HTTP:
 		if (!s->binding->endpoint) {
 			struct composite_context *binding_req;
 			binding_req = dcerpc_epm_map_binding_send(c, s->binding, s->table,
@@ -933,8 +895,6 @@ _PUBLIC_ struct composite_context* dcerpc_pipe_connect_b_send(TALLOC_CTX *parent
 			composite_continue(c, binding_req, continue_map_binding, c);
 			return c;
 		}
-		break;
-	case NCACN_HTTP:
 		break;
 	default:
 		break;

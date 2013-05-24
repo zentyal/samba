@@ -90,7 +90,9 @@ static const struct {
 	{"smb2", DCERPC_SMB2},
 	{"hdrsign", DCERPC_HEADER_SIGNING},
 	{"ndr64", DCERPC_NDR64},
-	{"localaddress", DCERPC_LOCALADDRESS}
+	{"localaddress", DCERPC_LOCALADDRESS},
+	{"rpcproxy", DCERPC_RPCPROXY},
+	{"tls", DCERPC_ROH_USE_TLS}
 };
 
 const char *epm_floor_string(TALLOC_CTX *mem_ctx, struct epm_floor *epm_floor)
@@ -211,24 +213,30 @@ _PUBLIC_ char *dcerpc_binding_string(TALLOC_CTX *mem_ctx, const struct dcerpc_bi
 	s = talloc_asprintf_append_buffer(s, "[");
 
 	if (b->endpoint) {
-		s = talloc_asprintf_append_buffer(s, "%s,", b->endpoint);
+		s = talloc_asprintf_append_buffer(s, "%s", b->endpoint);
 	}
 
 	/* this is a *really* inefficent way of dealing with strings,
 	   but this is rarely called and the strings are always short,
 	   so I don't care */
-	for (i=0; b->options && b->options[i] && strlen(b->options[i]); i++) {
-		s = talloc_asprintf_append_buffer(s, "%s,", b->options[i]);
+	for (i=0;b->options && b->options[i];i++) {
+		s = talloc_asprintf_append_buffer(s, ",%s", b->options[i]);
 		if (!s) return NULL;
 	}
 
 	for (i=0;i<ARRAY_SIZE(ncacn_options);i++) {
 		if (b->flags & ncacn_options[i].flag) {
 			if (ncacn_options[i].flag == DCERPC_LOCALADDRESS && b->localaddress) {
-				s = talloc_asprintf_append_buffer(s, "%s=%s,", ncacn_options[i].name,
+				s = talloc_asprintf_append_buffer(s, ",%s=%s", ncacn_options[i].name,
 								  b->localaddress);
+			} else if (ncacn_options[i].flag == DCERPC_RPCPROXY && b->rpcproxy) {
+				s = talloc_asprintf_append_buffer(s, ",%s=%s", ncacn_options[i].name,
+						b->rpcproxy);
+				if (b->rpcproxy_port) {
+					s = talloc_asprintf_append_buffer(s, ":%d", b->rpcproxy_port);
+				}
 			} else {
-				s = talloc_asprintf_append_buffer(s, "%s,", ncacn_options[i].name);
+				s = talloc_asprintf_append_buffer(s, ",%s", ncacn_options[i].name);
 			}
 			if (!s) return NULL;
 		}
@@ -356,6 +364,17 @@ _PUBLIC_ NTSTATUS dcerpc_parse_binding(TALLOC_CTX *mem_ctx, const char *s, struc
 
 				if (ncacn_options[j].flag == DCERPC_LOCALADDRESS && c == '=') {
 					b->localaddress = talloc_strdup(b, &b->options[i][opt_len+1]);
+				} else if (ncacn_options[j].flag == DCERPC_RPCPROXY && c == '=') {
+					char *opt = talloc_strdup(b, &b->options[i][opt_len+1]);
+					char *q = strsep(&opt, ":");
+					if (q == NULL) {
+						b->rpcproxy = talloc_strdup(b, &b->options[i][opt_len+1]);
+						DEBUG(2, ("%s: Warning, no rpc proxy port defined, using default 443.\n", __func__));
+						b->rpcproxy_port = 80;
+					} else {
+						b->rpcproxy = talloc_strdup(b, q);
+						b->rpcproxy_port = strtol(opt, NULL, 10);
+					}
 				} else if (c != 0) {
 					continue;
 				}
@@ -370,7 +389,7 @@ _PUBLIC_ NTSTATUS dcerpc_parse_binding(TALLOC_CTX *mem_ctx, const char *s, struc
 		}
 	}
 
-	if (b->options[0] && strstr(b->options[0], "=") == NULL) {
+	if (b->options[0]) {
 		/* Endpoint is first option */
 		b->endpoint = b->options[0];
 		if (strlen(b->endpoint) == 0) b->endpoint = NULL;

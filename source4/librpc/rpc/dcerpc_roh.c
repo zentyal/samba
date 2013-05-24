@@ -63,6 +63,8 @@ struct roh_open_connection_state
 
 	struct roh_connection *roh;
 	struct dcecli_connection *conn;
+
+	bool tls;
 };
 
 static void roh_continue_resolve_name(struct composite_context *ctx);
@@ -81,8 +83,7 @@ struct tevent_req* dcerpc_pipe_open_roh_send(
 		unsigned int rpcserver_port,
 		const char *rpcproxy,
 		unsigned int rpcproxy_port,
-		bool use_https,
-		bool use_client_certificate)
+		bool tls)
 {
 	struct tevent_req *req;
 	struct composite_context *ctx;
@@ -90,19 +91,14 @@ struct tevent_req* dcerpc_pipe_open_roh_send(
 	struct nbt_name name;
 
 	DEBUG(4, ("%s: Opening connection to RPC server '%s:%d' through RPC "
-				"proxy '%s:%d'\n", __func__, rpcserver,
-				rpcserver_port, rpcproxy, rpcproxy_port));
+				"proxy '%s:%d' (TLS: %s)\n", __func__, rpcserver,
+				rpcserver_port, rpcproxy, rpcproxy_port,
+				(tls ? "true" : "false")));
 
 	req = tevent_req_create(mem_ctx, &state,
 			struct roh_open_connection_state);
 	if (req == NULL ) {
 		return NULL;
-	}
-
-	/* Authentication based on certificates is not yet supported */
-	if (use_client_certificate) {
-		tevent_req_nterror(req, NT_STATUS_NOT_IMPLEMENTED);
-		return tevent_req_post(req, ev);
 	}
 
 	/* Set state fields */
@@ -112,6 +108,7 @@ struct tevent_req* dcerpc_pipe_open_roh_send(
 	state->rpcproxy = talloc_strdup(state, rpcproxy);
 	state->rpcproxy_port = rpcproxy_port;
 	state->conn = conn;
+	state->tls = tls;
 
 	/* Initialize connection structure (3.2.1.3) */
 	/* TODO Initialize virtual connection cookie table? */

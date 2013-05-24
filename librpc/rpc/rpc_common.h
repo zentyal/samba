@@ -35,8 +35,8 @@ struct tevent_context;
 struct tstream_context;
 
 enum dcerpc_transport_t {
-	NCA_UNKNOWN, NCACN_NP, NCACN_IP_TCP, NCACN_IP_UDP, NCACN_VNS_IPC, 
-	NCACN_VNS_SPP, NCACN_AT_DSP, NCADG_AT_DDP, NCALRPC, NCACN_UNIX_STREAM, 
+	NCA_UNKNOWN, NCACN_NP, NCACN_IP_TCP, NCACN_IP_UDP, NCACN_VNS_IPC,
+	NCACN_VNS_SPP, NCACN_AT_DSP, NCADG_AT_DDP, NCALRPC, NCACN_UNIX_STREAM,
 	NCADG_UNIX_DGRAM, NCACN_HTTP, NCADG_IPX, NCACN_SPX, NCACN_INTERNAL };
 
 /** this describes a binding to a particular transport/pipe */
@@ -51,6 +51,9 @@ struct dcerpc_binding {
 	const char *localaddress;
 	uint32_t flags;
 	uint32_t assoc_group_id;
+	const char *rpcproxy;
+	uint16_t rpcproxy_port;
+	bool roh_tls;
 };
 
 /* dcerpc pipe flags */
@@ -112,6 +115,12 @@ struct dcerpc_binding {
 
 /* use aes schannel with hmac-sh256 session key */
 #define DCERPC_SCHANNEL_AES            (1<<24)
+
+/* specify the RPC proxy server to connect to */
+#define DCERPC_RPCPROXY			(1<<25)
+
+/* when using RPC over HTTP, connect using TLS */
+#define DCERPC_ROH_USE_TLS		(1<<26)
 
 /* The following definitions come from ../librpc/rpc/dcerpc_error.c  */
 

@@ -2,12 +2,12 @@
 .\"     Title: smb.conf
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 04/09/2013
+.\"      Date: 05/21/2013
 .\"    Manual: File Formats and Conventions
 .\"    Source: Samba 4.0
 .\"  Language: English
 .\"
-.TH "SMB\&.CONF" "5" "04/09/2013" "Samba 4\&.0" "File Formats and Conventions"
+.TH "SMB\&.CONF" "5" "05/21/2013" "Samba 4\&.0" "File Formats and Conventions"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -8869,28 +8869,6 @@ Possible values are :
 .sp -1
 .IP \(bu 2.3
 .\}
-\fBCORE\fR: Earliest version\&. No concept of user names\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-\fBCOREPLUS\fR: Slight improvements on CORE for efficiency\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
 \fBLANMAN1\fR: First
 \fImodern\fR
 version of the protocol\&. Long filename support\&.
@@ -9028,7 +9006,7 @@ This setting controls the minimum protocol version that the server will allow th
 Normally this option should not be set as the automatic negotiation phase in the SMB protocol takes care of choosing the appropriate protocol\&.
 .sp
 Default:
-\fI\fIserver min protocol\fR\fR\fI = \fR\fICORE\fR\fI \fR
+\fI\fIserver min protocol\fR\fR\fI = \fR\fILANMAN1\fR\fI \fR
 .sp
 Example:
 \fI\fIserver min protocol\fR\fR\fI = \fR\fINT1\fR\fI \fR
@@ -9591,10 +9569,12 @@ This option specifies the protocol value that
 \fBsmbd\fR(8)
 will return to a client, informing the client of the largest size that may be returned by a single SMB2 read call\&.
 .sp
-The maximum is 65536 bytes (64KB), which is the same as a Windows Vista SMB2 server\&.
+The maximum is 1048576 bytes (1MiB), which is the same as a Windows Server 2008 r2\&.
+.sp
+Please note that the default is 1MiB, but it\*(Aqs limit is based on the smb2 dialect (64KiB for SMB2\&.0, 1MiB for SMB2\&.1 with LargeMTU)\&. Large MTU is not supported over NBT (tcp port 139)\&.
 .sp
 Default:
-\fI\fIsmb2 max read\fR\fR\fI = \fR\fI65536\fR\fI \fR
+\fI\fIsmb2 max read\fR\fR\fI = \fR\fI1048576\fR\fI \fR
 .RE
 
 smb2 max trans (G)
@@ -9605,10 +9585,12 @@ This option specifies the protocol value that
 \fBsmbd\fR(8)
 will return to a client, informing the client of the largest size of buffer that may be used in querying file meta\-data via QUERY_INFO and related SMB2 calls\&.
 .sp
-The maximum is 65536 bytes (64KB), which is the same as a Windows Vista SMB2 server\&.
+The maximum is 1048576 bytes (1MiB), which is the same as a Windows Server 2008 r2\&.
+.sp
+Please note that the default is 1MiB, but it\*(Aqs limit is based on the smb2 dialect (64KiB for SMB2\&.0, 1MiB for SMB2\&.1 with LargeMTU)\&. Large MTU is not supported over NBT (tcp port 139)\&.
 .sp
 Default:
-\fI\fIsmb2 max trans\fR\fR\fI = \fR\fI65536\fR\fI \fR
+\fI\fIsmb2 max trans\fR\fR\fI = \fR\fI1048576\fR\fI \fR
 .RE
 
 smb2 max write (G)
@@ -9619,10 +9601,12 @@ This option specifies the protocol value that
 \fBsmbd\fR(8)
 will return to a client, informing the client of the largest size that may be sent to the server by a single SMB2 write call\&.
 .sp
-The maximum is 65536 bytes (64KB), which is the same as a Windows Vista SMB2 server\&.
+The maximum is 1048576 bytes (1MiB), which is the same as a Windows Server 2008 r2\&.
+.sp
+Please note that the default is 1MiB, but it\*(Aqs limit is based on the smb2 dialect (64KiB for SMB2\&.0, 1MiB for SMB2\&.1 with LargeMTU)\&. Large MTU is not supported over NBT (tcp port 139)\&.
 .sp
 Default:
-\fI\fIsmb2 max write\fR\fR\fI = \fR\fI65536\fR\fI \fR
+\fI\fIsmb2 max write\fR\fR\fI = \fR\fI1048576\fR\fI \fR
 .RE
 
 smb encrypt (S)

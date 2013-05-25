@@ -246,6 +246,7 @@ NTSTATUS smbd_smb2_request_pending_queue(struct smbd_smb2_request *req,
 					 uint32_t defer_time);
 
 struct smb_request *smbd_smb2_fake_smb_request(struct smbd_smb2_request *req);
+size_t smbd_smb2_unread_bytes(struct smbd_smb2_request *req);
 void remove_smb2_chained_fsp(files_struct *fsp);
 
 NTSTATUS smbd_smb2_request_verify_creditcharge(struct smbd_smb2_request *req,
@@ -540,6 +541,8 @@ struct smbd_smb2_request {
 #define SMBD_SMB2_OUT_DYN_PTR(req)   (uint8_t *)(SMBD_SMB2_OUT_DYN_IOV(req)->iov_base)
 #define SMBD_SMB2_OUT_DYN_LEN(req)   (SMBD_SMB2_OUT_DYN_IOV(req)->iov_len)
 
+#define SMBD_SMB2_SHORT_RECEIVEFILE_WRITE_LEN (SMB2_HDR_BODY + 0x30)
+
 	struct {
 		/*
 		 * vector[0] TRANSPORT HEADER (empty)
@@ -783,7 +786,6 @@ struct smbd_server_connection {
 		uint32_t max_trans;
 		uint32_t max_read;
 		uint32_t max_write;
-		bool compound_related_in_progress;
 	} smb2;
 
 	struct smbXsrv_connection *conn;

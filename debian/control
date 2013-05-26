@@ -50,7 +50,7 @@ XS-Testsuite: autopkgtest
 Package: samba
 Architecture: any
 Pre-Depends: ${misc:Pre-Depends}, dpkg (>= 1.15.6~)
-Depends: samba-common (= ${source:Version}), libwbclient0 (= ${binary:Version}),${shlibs:Depends}, ${misc:Depends}, libpam-runtime (>= 1.0.1-11), libpam-modules, lsb-base (>= 3.2-13), procps, update-inetd, adduser
+Depends: samba-common (= ${source:Version}), libwbclient0 (= ${binary:Version}),${shlibs:Depends}, ${misc:Depends}, libpam-runtime (>= 1.0.1-11), libpam-modules, lsb-base (>= 3.2-13), procps, update-inetd, adduser, libsmbd0 (= ${binary:Version})
 Recommends: logrotate, tdb-tools
 Suggests: openbsd-inetd | inet-superserver, smbldap-tools, ldb-tools, ctdb, winbind
 Replaces: samba-common (<= 2.0.5a-2)

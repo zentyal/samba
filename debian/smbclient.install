@@ -1,5 +1,6 @@
 usr/bin/smbclient
 usr/bin/smbget
+usr/bin/smbtar
 usr/bin/rpcclient
 usr/bin/smbspool
 usr/bin/smbtree

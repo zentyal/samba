@@ -14,3 +14,4 @@ usershare.patch
 VERSION.patch
 waf_smbpasswd_location
 documentation2.patch
+0001-build-Install-smbtar-in-waf-build.patch

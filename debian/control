@@ -131,6 +131,8 @@ Architecture: any
 Pre-Depends: ${misc:Pre-Depends}
 Multi-Arch: same
 Depends: ${misc:Depends}, ${shlibs:Depends}
+Replaces: samba (<< ${binary:Version})
+Breaks: samba (<< ${binary:Version})
 Description: Samba file server libraries and plugins
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file sharing with Microsoft Windows, OS X,

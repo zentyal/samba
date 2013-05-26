@@ -55,7 +55,8 @@ conf_args = \
 		--disable-rpath-install \
 		--bundled-libraries=NONE,pytevent,iniparser \
 		--builtin-libraries=replace,ccan \
-		--minimum-library-version="$(shell ./debian/autodeps.py --minimum-library-version)"
+		--minimum-library-version="$(shell ./debian/autodeps.py --minimum-library-version)" \
+		--without-getpass-replacement
 
 %:
 	dh $* --with python2

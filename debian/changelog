@@ -3,6 +3,7 @@ samba (2:4.0.6+dfsg-1) UNRELEASED; urgency=low
   [ Andrew Bartlett ]
   * Remove most of the samba4 references, except for binaries ending in 4
   * Converted to full AD DC package on the basis of the 3.6 package
+  * Removed debconf support for encrypted passwords
 
   [ Christian Perrier ]
   * Move libnss_winbind.so.2 and libnss_wins.so.2 to /lib as in 3.6.*

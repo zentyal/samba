@@ -46,10 +46,6 @@ struct http_uri;
 
 #define HTTP_MAX_HEADER_SIZE 	UINT_MAX
 
-/**
- * A request object can represent either a request or a reply
- * */
-enum http_request_kind { HTTP_REQUEST, HTTP_RESPONSE };
 enum http_cmd_type {
 	HTTP_REQ_GET     = 1 << 0,
 	HTTP_REQ_POST    = 1 << 1,
@@ -65,32 +61,20 @@ enum http_cmd_type {
 };
 
 struct http_request {
-	struct tevent_context *ev;
-
-	/* address of the remote host and the port connection came from */
-	char *remote_host;
-	uint16_t remote_port;
-
-	/* cache of the host name for http_request_get_host */
-	char *host_cache;
-
-	char *uri;							/* URI after HTTP request was parsed */
-	struct http_uri *uri_elems;			/* uri elements */
-
-	struct http_header *headers;
-
-	enum http_request_kind kind;
-	enum http_cmd_type type;
+	enum http_cmd_type type;			/* HTTP command type */
 
 	char major;							/* HTTP version major number */
 	char minor;							/* HTTP version minor number */
 
+	char *uri;							/* URI after HTTP request was parsed */
+
+	struct http_header *headers;
 	size_t headers_size;
-	size_t body_size;
+
+	unsigned int response_code;			/* HTTP Response code */
+	char *response_code_line;			/* Readable response */
 
 	DATA_BLOB body;
-	int response_code;		/* HTTP Response code */
-	char *response_code_line;	/* Readable response */
 };
 
 struct tevent_req *http_send_request_send(
@@ -108,6 +92,7 @@ struct tevent_req *http_read_response_send(
 		struct tstream_context *stream);
 int http_read_response_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx, struct http_request **response, int *perrno);
 
+int http_remove_header(struct http_header **headers, const char *key);
 int http_add_header(TALLOC_CTX *mem_ctx, struct http_header **headers,
 		const char *key, const char *value);
 #endif /* _HTTP_H_ */

@@ -20,9 +20,11 @@
  */
 
 #include "includes.h"
+#include "param/param.h"
 #include "lib/tevent/tevent.h"
 #include "lib/talloc/talloc.h"
 #include "lib/tsocket/tsocket.h"
+#include "lib/tls/tls.h"
 #include "lib/util/tevent_ntstatus.h"
 #include "lib/util/util_net.h"
 #include "libcli/resolve/resolve.h"
@@ -65,6 +67,7 @@ struct roh_open_connection_state
 	struct dcecli_connection *conn;
 
 	bool tls;
+	struct tstream_tls_params *tls_params;
 };
 
 static void roh_continue_resolve_name(struct composite_context *ctx);
@@ -77,6 +80,7 @@ struct tevent_req* dcerpc_pipe_open_roh_send(
 		TALLOC_CTX *mem_ctx,
 		struct dcecli_connection *conn,
 		struct tevent_context *ev,
+		struct loadparm_context *lp_ctx,
 		struct resolve_context *resolve_ctx,
 		struct cli_credentials *credentials,
 		const char *rpcserver,
@@ -127,6 +131,18 @@ struct tevent_req* dcerpc_pipe_open_roh_send(
 	state->roh->proxy_use = false;
 	state->roh->current_keep_alive_time = 0;
 	state->roh->current_keep_alive_interval = 0;
+
+	/* Initialize TLS */
+	if (tls) {
+		NTSTATUS status = tstream_tls_params_client(state->roh, NULL, NULL,
+				&state->tls_params);
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(0,("%s: Failed tstream_tls_params_client - %s\n",
+					__func__, nt_errstr(status)));
+			tevent_req_nterror(req, status);
+			return tevent_req_post(req, ev);
+		}
+	}
 
 	/* Resolve RPC proxy server name asynchronously */
 	make_nbt_name_server(&name, state->rpcproxy);
@@ -189,7 +205,8 @@ static void roh_continue_resolve_name(struct composite_context *ctx)
 	state->roh->connection_state = ROH_STATE_OPEN_START;
 	subreq = roh_connect_channel_in_send(state, state->ev,
 			state->rpcproxy_addresses[state->rpcproxy_address_index],
-			state->rpcproxy_port, state->credentials, state->roh);
+			state->rpcproxy_port, state->credentials, state->roh,
+			state->tls, state->tls_params);
 	if (tevent_req_nomem(subreq, state->req)) {
 		return;
 	}
@@ -214,7 +231,8 @@ static void roh_connect_channel_in_done(struct tevent_req *subreq)
 
 	subreq = roh_connect_channel_out_send(state, state->ev,
 			state->rpcproxy_addresses[state->rpcproxy_address_index],
-			state->rpcproxy_port, state->credentials, state->roh);
+			state->rpcproxy_port, state->credentials, state->roh,
+			state->tls, state->tls_params);
 	if (tevent_req_nomem(subreq, state->req)) {
 		return;
 	}
@@ -438,7 +456,7 @@ static NTSTATUS roh_sock_send_request(
 	iov.iov_len = blob.length;
 	struct tevent_req *req = tstream_writev_queue_send(
 			roh->default_channel_in,
-			roh->ev, roh->default_channel_in->stream,
+			roh->ev, roh->default_channel_in->streams.active,
 			roh->default_channel_in->send_queue, &iov, 1);
 	if (req == NULL ) {
 		return NT_STATUS_NO_MEMORY;
@@ -482,7 +500,7 @@ static NTSTATUS roh_sock_send_read(struct dcecli_connection *conn)
 			struct roh_connection);
 
 	req = dcerpc_read_ncacn_packet_send(roh, roh->ev,
-			roh->default_channel_out->stream);
+			roh->default_channel_out->streams.active);
 	if (req == NULL ) {
 		return NT_STATUS_NO_MEMORY;
 	}

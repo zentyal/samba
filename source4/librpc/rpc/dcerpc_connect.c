@@ -35,7 +35,6 @@
 #include "param/param.h"
 #include "libcli/resolve/resolve.h"
 
-
 struct pipe_np_smb_state {
 	struct smb_composite_connect conn;
 	struct smbcli_tree *tree;
@@ -351,6 +350,7 @@ static NTSTATUS dcerpc_pipe_connect_ncacn_ip_tcp_recv(struct composite_context *
 
 struct pipe_http_state {
 	struct dcerpc_pipe_connect io;
+	struct loadparm_context *lp_ctx;
 	const char *localaddr;
 
 	const char *rpcserver;
@@ -380,7 +380,8 @@ static void continue_pipe_open_ncacn_http(struct tevent_req *subreq)
 }
 
 static struct composite_context* dcerpc_pipe_connect_ncacn_http_send(
-		TALLOC_CTX *mem_ctx, struct dcerpc_pipe_connect *io)
+		TALLOC_CTX *mem_ctx, struct dcerpc_pipe_connect *io,
+		struct loadparm_context *lp_ctx)
 {
 	struct composite_context *c;
 	struct pipe_http_state *s;
@@ -396,6 +397,7 @@ static struct composite_context* dcerpc_pipe_connect_ncacn_http_send(
 
 	/* store input parameters in state structure */
 	s->io               = *io;
+	s->lp_ctx			= lp_ctx;
 	s->localaddr        = talloc_reference(c, io->binding->localaddress);
 
 	/* RPC server and port */
@@ -411,6 +413,7 @@ static struct composite_context* dcerpc_pipe_connect_ncacn_http_send(
 			s->io.pipe->conn,
 			s->io.pipe->conn,
 			s->io.pipe->conn->event_ctx,
+			s->lp_ctx,
 			s->io.resolve_ctx,
 			s->io.creds,
 			s->rpcserver,
@@ -651,7 +654,7 @@ static void continue_connect(struct composite_context *c, struct pipe_connect_st
 		return;
 
 	case NCACN_HTTP:
-		ncacn_http_req = dcerpc_pipe_connect_ncacn_http_send(c, &pc);
+		ncacn_http_req = dcerpc_pipe_connect_ncacn_http_send(c, &pc, s->lp_ctx);
 		composite_continue(c, ncacn_http_req, continue_pipe_connect_ncacn_http, c);
 		return;
 

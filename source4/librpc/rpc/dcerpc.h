@@ -1,27 +1,27 @@
-/* 
+/*
    Unix SMB/CIFS implementation.
 
    DCERPC client side interface structures
 
    Copyright (C) Tim Potter 2003
    Copyright (C) Andrew Tridgell 2003-2005
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* This is a public header file that is installed as part of Samba. 
- * If you remove any functions or change their signature, update 
+/* This is a public header file that is installed as part of Samba.
+ * If you remove any functions or change their signature, update
  * the so version number. */
 
 #ifndef __S4_DCERPC_H__
@@ -37,6 +37,7 @@ struct tevent_req;
 struct dcerpc_binding_handle;
 struct tstream_context;
 struct roh_connection;
+struct tstream_tls_params;
 
 /*
   this defines a generic security context for signed/sealed dcerpc pipes.
@@ -105,7 +106,7 @@ struct dcecli_connection {
 };
 
 /*
-  this encapsulates a full dcerpc client side pipe 
+  this encapsulates a full dcerpc client side pipe
 */
 struct dcerpc_pipe {
 	struct dcerpc_binding_handle *binding_handle;
@@ -156,8 +157,8 @@ struct smbcli_tree;
 struct smb2_tree;
 struct socket_address;
 
-NTSTATUS dcerpc_pipe_connect(TALLOC_CTX *parent_ctx, 
-			     struct dcerpc_pipe **pp, 
+NTSTATUS dcerpc_pipe_connect(TALLOC_CTX *parent_ctx,
+			     struct dcerpc_pipe **pp,
 			     const char *binding,
 			     const struct ndr_interface_table *table,
 			     struct cli_credentials *credentials,
@@ -195,7 +196,7 @@ NTSTATUS dcerpc_pipe_connect_b(TALLOC_CTX *parent_ctx,
 			       struct loadparm_context *lp_ctx);
 
 NTSTATUS dcerpc_pipe_auth(TALLOC_CTX *mem_ctx,
-			  struct dcerpc_pipe **p, 
+			  struct dcerpc_pipe **p,
 			  struct dcerpc_binding *binding,
 			  const struct ndr_interface_table *table,
 			  struct cli_credentials *credentials,
@@ -203,7 +204,7 @@ NTSTATUS dcerpc_pipe_auth(TALLOC_CTX *mem_ctx,
 NTSTATUS dcerpc_secondary_connection(struct dcerpc_pipe *p,
 				     struct dcerpc_pipe **p2,
 				     struct dcerpc_binding *b);
-NTSTATUS dcerpc_bind_auth_schannel(TALLOC_CTX *tmp_ctx, 
+NTSTATUS dcerpc_bind_auth_schannel(TALLOC_CTX *tmp_ctx,
 				   struct dcerpc_pipe *p,
 				   const struct ndr_interface_table *table,
 				   struct cli_credentials *credentials,
@@ -213,10 +214,10 @@ struct tevent_context *dcerpc_event_context(struct dcerpc_pipe *p);
 NTSTATUS dcerpc_init(void);
 struct smbcli_tree *dcerpc_smb_tree(struct dcecli_connection *c);
 uint16_t dcerpc_smb_fnum(struct dcecli_connection *c);
-NTSTATUS dcerpc_secondary_context(struct dcerpc_pipe *p, 
+NTSTATUS dcerpc_secondary_context(struct dcerpc_pipe *p,
 				  struct dcerpc_pipe **pp2,
 				  const struct ndr_interface_table *table);
-NTSTATUS dcerpc_alter_context(struct dcerpc_pipe *p, 
+NTSTATUS dcerpc_alter_context(struct dcerpc_pipe *p,
 			      TALLOC_CTX *mem_ctx,
 			      const struct ndr_syntax_id *syntax,
 			      const struct ndr_syntax_id *transfer_syntax);
@@ -244,13 +245,13 @@ struct composite_context* dcerpc_secondary_auth_connection_send(struct dcerpc_pi
 								const struct ndr_interface_table *table,
 								struct cli_credentials *credentials,
 								struct loadparm_context *lp_ctx);
-NTSTATUS dcerpc_secondary_auth_connection_recv(struct composite_context *c, 
+NTSTATUS dcerpc_secondary_auth_connection_recv(struct composite_context *c,
 					       TALLOC_CTX *mem_ctx,
 					       struct dcerpc_pipe **p);
 
 struct composite_context* dcerpc_secondary_connection_send(struct dcerpc_pipe *p,
 							   struct dcerpc_binding *b);
-void dcerpc_log_packet(const char *lockdir, 
+void dcerpc_log_packet(const char *lockdir,
 		       const struct ndr_interface_table *ndr,
 		       uint32_t opnum, uint32_t flags,
 		       const DATA_BLOB *pkt);

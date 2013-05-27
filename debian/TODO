@@ -19,7 +19,7 @@ TODOs before upload to experimental
 - update changelog file to better reflect everything that changed between this
   version and the last 3.6 version
 
-
+- ensure configure step doesn't fail on starting winbind/smbd/nmbd on an AD DC install
 
 TODOs before upload to unstable
 
@@ -31,9 +31,10 @@ TODOs before upload to unstable
 
 - what is the status of the docs?
 
+  - documentation2.patch is upstream
+  - The former documentation.patch needs to be rewritten against the xml input
 
-
-
+- Decide if we care about findsmb, and if so patch upstream to restore it
 
 Other TODOs
 

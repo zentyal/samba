@@ -1,2 +1,43 @@
+
+This is an incomplete list of a number of issues that need to be fixed.
+
+
+TODOs before upload to experimental
+
+- fix new location of tdb on upgrade
+  - make a list of all affected tdb's
+  - move them on upgrade
+
+- fix dependencies between packages
+  - should the library packages be as the are now (eg should libsmbd0 exist as
+	a separate package?)
+
+- reexamine copyright file
+
+- merge changes from 3.6 branch
+
+- update changelog file to better reflect everything that changed between this
+  version and the last 3.6 version
+
+
+
+TODOs before upload to unstable
+
+- make a list of basic tests that should be done to ensure that the package is
+  acceptable for unstable (and run these tests)
+
+- investigate impact of changes to libraries to reverse dependencies and plan
+  transitions (if there are any)
+
+- what is the status of the docs?
+
+
+
+
+
+Other TODOs
+
+
 - Add script to verify that headers are usable through current dependencies
   (to prevent bugs like #525888)
+

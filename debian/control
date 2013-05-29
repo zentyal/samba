@@ -312,27 +312,6 @@ Description: tools for extending Samba
  This package contains include files shared by the various Samba-based
  libraries.
 
-Package: swat
-Architecture: any
-Depends: samba (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}, openbsd-inetd | inet-superserver
-Pre-Depends: dpkg (>= 1.15.6~)
-Recommends: samba-doc (= ${source:Version})
-Conflicts: samba-doc (<< 2:4.0.5~)
-Replaces: samba-doc (<< 2:4.0.5~)
-Description: Samba Web Administration Tool
- Samba is an implementation of the SMB/CIFS protocol for Unix systems,
- providing support for cross-platform file and printer sharing with
- Microsoft Windows, OS X, and other Unix systems.
- .
- This package allows you to administer a Samba server via a web browser.
- .
- SWAT is no longer actively maintained, and its default configuration is
- not secure for use over an untrusted network.  SWAT will also rewrite
- smb.conf, rearranging the entries and deleting all comments as well as
- include= and copy= options, so is not suitable for use in conjunction
- with hand-edited smb.conf files or the default package-managed
- configuration.
-
 Package: samba-doc
 Section: doc
 Architecture: all

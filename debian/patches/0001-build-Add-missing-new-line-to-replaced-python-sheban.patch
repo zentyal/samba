@@ -1,0 +1,50 @@
+From 0996e95c00ffc468e6482877f21bae3a0f01abe9 Mon Sep 17 00:00:00 2001
+From: Michael Adam <obnox@samba.org>
+Date: Tue, 28 May 2013 12:19:34 +0200
+Subject: [PATCH] build: Add missing new line to replaced python shebang line.
+ (Fix bug #9909)
+
+When configuring with a non-standard python specified in
+the PYTHON environment variable, the shebang lines in various
+python tools like samba-tool and samba_dnsupdate get replaced.
+
+This replace line for the shebang was missing a newline
+which joined the shebang line with the following line,
+rendereing those scripts with a nonempty second line unusuable,
+for example samba_dnsupdate.
+
+This patch fixes this bug which is bug #9909 on bugzilla.
+
+Pair-Programmed-With: Karolin Seeger <kseeger@samba.org>
+
+Signed-off-by: Michael Adam <obnox@samba.org>
+Signed-off-by: Karolin Seeger <kseeger@samba.org>
+
+Reviewed-by: Andrew Bartlett <abartlet@samba.org>
+
+Autobuild-User(master): Michael Adam <obnox@samba.org>
+Autobuild-Date(master): Wed May 29 13:21:51 CEST 2013 on sn-devel-104
+(cherry picked from commit 3f24d694e7e2190d30a17bc13a79a36b49711531)
+---
+ buildtools/wafsamba/wafsamba.py | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/buildtools/wafsamba/wafsamba.py b/buildtools/wafsamba/wafsamba.py
+index 3559cc1..8eace08 100644
+--- a/buildtools/wafsamba/wafsamba.py
++++ b/buildtools/wafsamba/wafsamba.py
+@@ -699,9 +699,9 @@ sys.path.insert(1, "%s")""" % (task.env["PYTHONARCHDIR"], task.env["PYTHONDIR"])
+     shebang = None
+ 
+     if task.env["PYTHON"][0] == "/":
+-        replacement_shebang = "#!%s" % task.env["PYTHON"]
++        replacement_shebang = "#!%s\n" % task.env["PYTHON"]
+     else:
+-        replacement_shebang = "#!/usr/bin/env %s" % task.env["PYTHON"]
++        replacement_shebang = "#!/usr/bin/env %s\n" % task.env["PYTHON"]
+ 
+     installed_location=task.outputs[0].bldpath(task.env)
+     source_file = open(task.inputs[0].srcpath(task.env))
+-- 
+1.7.11.7
+

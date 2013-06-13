@@ -191,6 +191,7 @@ Depends: samba-common (=${source:Version}),
          ${python:Depends}
 Conflicts: samba (<< 2:3.3.0~rc2-5), samba-common (<< 2:3.3.0~rc2-5), samba-doc (<< 2:4.0.5~)
 Replaces: samba-common (<< 2:3.4.0~pre2-1), samba4-common (<< 4.0.0~alpha7-1), samba4-common-bin, samba-doc (<< 2:4.0.5~)
+Suggests: heimdal-clients
 Description: Samba common files used by both the server and the client
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file sharing with Microsoft Windows, OS X,
@@ -207,7 +208,7 @@ Depends: samba-common (= ${source:Version}), ${shlibs:Depends}, ${misc:Depends}
 Pre-Depends: dpkg (>= 1.15.6~)
 Replaces: samba (<< 2.999+3.0.alpha21-4), samba4-clients (<< 4.0.5), smbget, samba-doc (<< 2:4.0.5~)
 Provides: samba-client
-Suggests: cifs-utils
+Suggests: cifs-utils, heimdal-clients
 Conflicts: samba4-clients (<< 4.0.5), samba-doc (<< 2:4.0.5~)
 Description: command-line SMB/CIFS clients for Unix
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,

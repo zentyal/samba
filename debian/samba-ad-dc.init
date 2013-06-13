@@ -27,6 +27,11 @@ test -x /usr/sbin/samba -a -r /etc/samba/smb.conf || exit 0
 
 case "$1" in
 	start)
+	        SERVER_ROLE=`samba-tool testparm --parameter-name="server role"  2>/dev/null | tail -1`
+		if [ "$SERVER_ROLE" != "active directory domain controller" ]; then
+		    exit 0
+		fi
+
 		log_daemon_msg "Starting Samba AD DC daemon" "samba"
 		# Make sure we have our PIDDIR, even if it's on a tmpfs
 		install -o root -g root -m 755 -d $PIDDIR

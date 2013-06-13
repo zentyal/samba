@@ -2,13 +2,6 @@
 This is an incomplete list of a number of issues that need to be fixed.
 
 
-TODOs before upload to experimental
-
-- update changelog file to better reflect everything that changed between this
-  version and the last 3.6 version
-
-- ensure configure step doesn't fail on starting winbind/smbd/nmbd on an AD DC install
-
 TODOs before upload to unstable
 
 - make a list of basic tests that should be done to ensure that the package is

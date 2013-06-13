@@ -12,12 +12,6 @@
 ### END INIT INFO
 
 
-# Defaults
-RUN_MODE="daemons"
-
-# Reads config file (will override defaults above)
-[ -r /etc/default/samba ] && . /etc/default/samba
-
 PIDDIR=/var/run/samba
 NMBDPID=$PIDDIR/nmbd.pid
 SMBDPID=$PIDDIR/smbd.pid

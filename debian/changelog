@@ -1,8 +1,21 @@
 samba (2:4.0.6+dfsg-1) UNRELEASED; urgency=low
 
   [ Andrew Bartlett ]
-  * Remove most of the samba4 references, except for binaries ending in 4
   * Converted to full AD DC package on the basis of the 3.6 package
+    - Samba now can be an Active Directory Domain controller
+    - The samba4-* packages are replaced by this package.
+    - This package now uses the s3fs file server by default, not the ntvfs
+      file server used in the samba4 packages.
+  * Support new library based samba binaries
+    - Upstream's new build system uses libraries extensivly, so new
+      packages reflect that.
+  * Move binary files out of /var/lib/samba to /var/lib/samba/private,
+    where they belong according to upstream Samba:
+    - schannel_store.tdb
+    - idmap2.tdb
+    - passdb.tdb
+    - secrets.tdb
+  * Remove most of the samba4 references, except for binaries ending in 4
   * Removed debconf support for encrypted passwords
 
   [ Christian Perrier ]
@@ -24,6 +37,26 @@ samba (2:4.0.6+dfsg-1) UNRELEASED; urgency=low
     to avoid configuration corruption.
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Sat, 25 May 2013 23:30:36 +0200
+
+samba (2:3.6.15-2) UNRELEASED; urgency=low
+
+  * Drop support for running smbd from inetd; this is not well-supported
+    upstream, and can't correctly handle all of the long-running services
+    that are needed as part of modern samba.  Closes: #707622.
+
+ -- Steve Langasek <vorlon@debian.org>  Mon, 13 May 2013 11:57:53 -0700
+
+samba (2:3.6.15-1) unstable; urgency=high
+
+  * Team upload.
+  * New upstream bugfix release. Closes: #707042
+  * Update VCS URL's for new git repo. 
+  * The recommends for the separate libnss-winbind and libpam-winbind
+    packages needed for the upgrade of winbind from squeeze to wheezy are no
+    longer needed. Lowering them to suggests.
+    Closes: #706434, #674853
+
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Thu, 09 May 2013 11:55:03 +0200
 
 samba (2:3.6.14-1) unstable; urgency=low
 

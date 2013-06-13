@@ -8,8 +8,6 @@ TODOs before upload to experimental
   - make a list of all affected tdb's
   - move them on upgrade
 
-- merge changes from 3.6 branch
-
 - update changelog file to better reflect everything that changed between this
   version and the last 3.6 version
 

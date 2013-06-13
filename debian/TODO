@@ -4,10 +4,6 @@ This is an incomplete list of a number of issues that need to be fixed.
 
 TODOs before upload to experimental
 
-- fix new location of tdb on upgrade
-  - make a list of all affected tdb's
-  - move them on upgrade
-
 - update changelog file to better reflect everything that changed between this
   version and the last 3.6 version
 

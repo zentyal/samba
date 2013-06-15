@@ -37,7 +37,7 @@ conf_args = \
 		--with-utmp \
 		--with-pam_smbpass \
 		--with-winbind \
-		--with-shared-modules=idmap_rid,idmap_ad,idmap_adex,idmap_hash,idmap_ldap,idmap_tdb2 \
+		--with-shared-modules=idmap_rid,idmap_ad,idmap_adex,idmap_hash,idmap_ldap,idmap_tdb2,vfs_dfs_samba4,auth_samba4 \
 		--with-automount \
 		--with-ldap \
 		--with-ads \

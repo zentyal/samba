@@ -21,6 +21,12 @@ TODOs before upload to unstable
 
 - Decide if we care about findsmb, and if so patch upstream to restore it
 
+- Make install of samba-ad-dc possible when samba is installed:
+  - stop smbd/winbind/... (otherwise the samba-ad-dc 'samba' daemon can't
+	start)
+  - convert the users to the new db, or document that this doesn't happen
+	automatically
+
 Other TODOs
 
 

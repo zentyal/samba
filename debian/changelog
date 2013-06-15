@@ -7,9 +7,9 @@ samba (2:4.0.6+dfsg-1) UNRELEASED; urgency=low
     - This package now uses the s3fs file server by default, not the ntvfs
       file server used in the samba4 packages.
   * Provides a new library based package
-    - Upstream's new build system uses libraries extensivly, so new
+    - Upstream's new build system uses libraries extensively, so new
       packages reflect that.
-    - This provides the libaries that Openchange and other projects depend on
+    - This provides the libraries that Openchange and other projects depend on
   * Move binary files out of /var/lib/samba to /var/lib/samba/private,
     where they belong according to upstream Samba:
     - schannel_store.tdb

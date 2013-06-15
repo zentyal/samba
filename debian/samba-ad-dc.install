@@ -17,4 +17,3 @@ usr/sbin/samba_upgradedns
 usr/share/man/man1/oLschema2ldif.1
 usr/share/man/man8/samba.8
 usr/share/samba/setup
-usr/share/man/man7/samba.7

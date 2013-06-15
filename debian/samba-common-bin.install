@@ -30,4 +30,6 @@ usr/share/man/man1/dbwrap_tool.1
 usr/share/man/man5/smb.conf.5
 usr/share/man/man5/lmhosts.5
 usr/share/man/man5/smbpasswd.5
+usr/share/man/man8/smbpasswd.8
 usr/share/man/man8/net.8
+usr/share/man/man7/samba.7

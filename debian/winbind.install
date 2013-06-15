@@ -11,3 +11,11 @@ usr/share/man/man1/ntlm_auth.1
 usr/share/man/man1/wbinfo.1
 usr/share/man/man8/winbindd.8
 usr/share/man/man7/winbind_krb5_locator.7
+usr/share/man/man8/idmap_ad.8
+usr/share/man/man8/idmap_autorid.8
+usr/share/man/man8/idmap_hash.8
+usr/share/man/man8/idmap_ldap.8
+usr/share/man/man8/idmap_nss.8
+usr/share/man/man8/idmap_rid.8
+usr/share/man/man8/idmap_tdb.8
+usr/share/man/man8/idmap_tdb2.8

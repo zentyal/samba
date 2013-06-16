@@ -3,13 +3,6 @@
 set -e
 
 if [ "$1" = purge ]; then
-
-	# Remove Samba's state files, both volatile and non-volatile
-	rm -rf /var/run/samba/ /var/cache/samba/ /var/lib/samba
-
-	# Remove log files
-	rm -rf /var/log/samba/
-
 	if [ -e /usr/share/debconf/confmodule ]; then
 		. /usr/share/debconf/confmodule
 		db_purge

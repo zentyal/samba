@@ -16,3 +16,4 @@ waf_smbpasswd_location
 documentation2.patch
 0001-build-Install-smbtar-in-waf-build.patch
 0001-build-Add-missing-new-line-to-replaced-python-sheban.patch
+0001-heimdal-Remove-samba4kgetcred-again.patch

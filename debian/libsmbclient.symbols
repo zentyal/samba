@@ -1,4 +1,4 @@
-libsmbclient.so.0 smbclient #MINVER#
+libsmbclient.so.0 libsmbclient #MINVER#
  SMBCLIENT_0.1.0@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  SMBCLIENT_0.2.0@SMBCLIENT_0.2.0 2:4.0.3+dfsg1
  smbc_chmod@SMBCLIENT_0.1.0 2:4.0.3+dfsg1

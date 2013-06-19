@@ -5,8 +5,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba4 4.0.0~alpha4~20080617-1\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-05-11 16:23+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-06-19 21:52+0200\n"
 "PO-Revision-Date: 2008-06-17 18:40+0930\n"
 "Last-Translator: Clytie Siddall <clytie@riverland.net.au>\n"
 "Language-Team: Vietnamese <vi-VN@googlegroups.com>\n"
@@ -229,72 +229,45 @@ msgstr ""
 "việc mặc định được dùng khi duyệt qua giao diện) và tên miền được dùng với "
 "thiết lập « security=domain » (bảo mật=miền)."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Gửi mật khẩu mật mã ?"
+#~ msgid "Use password encryption?"
+#~ msgstr "Gửi mật khẩu mật mã ?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Mọi ứng dụng khách Windows gần đây đều liên lạc với trình phục vụ SMB/CIFS "
-"dùng mật khẩu đã mật mã. Vẫn muốn sử dụng mật khẩu « nhập thô » (không có "
-"mật mã) thì bạn cần phải thay đổi một tham số trong sổ đăng ký (registry) "
-"Windows của mình."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Mọi ứng dụng khách Windows gần đây đều liên lạc với trình phục vụ SMB/"
+#~ "CIFS dùng mật khẩu đã mật mã. Vẫn muốn sử dụng mật khẩu « nhập thô "
+#~ "» (không có mật mã) thì bạn cần phải thay đổi một tham số trong sổ đăng "
+#~ "ký (registry) Windows của mình."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Rất khuyên bạn bật tùy chọn này, vì hỗ trợ mật khẩu nhập thô không còn được "
-"duy trì lại trong sản phẩm MS Windows. Cũng hãy kiểm tra lại có một tập tin "
-"« /etc/samba/smbpasswd » đúng, và đặt trong nó một mật khẩu cho mỗi người "
-"dùng sẽ sử dụng lệnh smbpasswd."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Rất khuyên bạn bật tùy chọn này, vì hỗ trợ mật khẩu nhập thô không còn "
+#~ "được duy trì lại trong sản phẩm MS Windows. Cũng hãy kiểm tra lại có một "
+#~ "tập tin « /etc/samba/smbpasswd » đúng, và đặt trong nó một mật khẩu cho "
+#~ "mỗi người dùng sẽ sử dụng lệnh smbpasswd."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
+#~ msgid "daemons"
+#~ msgstr "trình nền"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "trình nền"
+#~ msgid "inetd"
+#~ msgstr "inetd"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Muốn chạy Samba như thế nào?"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Muốn chạy Samba như thế nào?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Trình nền Samba smbd có khả năng chạy làm một trình nền tiêu chuẩn, hoặc từ "
-"inetd. Phương pháp khuyến khích là chạy làm trình nền."
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Trình nền Samba smbd có khả năng chạy làm một trình nền tiêu chuẩn, hoặc "
+#~ "từ inetd. Phương pháp khuyến khích là chạy làm trình nền."
 
 #~ msgid "Set up Samba 4 as a PDC?"
 #~ msgstr "Thiết lập Samba 4 như là một PDC không?"

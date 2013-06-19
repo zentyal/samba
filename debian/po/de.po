@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba4 4.0.0~alpha17.dfsg2-1\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-05-11 16:23+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-06-19 21:52+0200\n"
 "PO-Revision-Date: 2011-12-30 15:26+0100\n"
 "Last-Translator: Holger Wansing <linux@wansing-online.de>\n"
 "Language-Team: German <debian-l10n-german@lists.debian.org>\n"
@@ -256,75 +256,52 @@ msgstr ""
 "Netzwerk mit verschiedenen Frontends durchsucht wird sowie den Domain-Namen, "
 "der für die Einstellung »security=domain« verwendet wird."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Verschlüsselte Passwörter verwenden?"
+#~ msgid "Use password encryption?"
+#~ msgstr "Verschlüsselte Passwörter verwenden?"
 
 #
 #
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Alle aktuellen Windows-Clients kommunizieren mit SMB-/CIFS-Servern mittels "
-"verschlüsselter Passwörter. Wenn Sie Klartext-Passwörter verwenden möchten, "
-"müssen Sie einen Parameter in der Windows-Registry ändern."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Alle aktuellen Windows-Clients kommunizieren mit SMB-/CIFS-Servern "
+#~ "mittels verschlüsselter Passwörter. Wenn Sie Klartext-Passwörter "
+#~ "verwenden möchten, müssen Sie einen Parameter in der Windows-Registry "
+#~ "ändern."
 
 #
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Es wird dringendst empfohlen, diese Option zu aktivieren, da die "
-"Unterstützung für Klartext-Passwörter in Microsoft-Windows-Produkten nicht "
-"länger betreut wird. Wenn Sie dies aktvieren, stellen Sie sicher, dass Sie "
-"eine gültige /etc/samba/smbpasswd-Datei haben und dort mittels dem smbpasswd-"
-"Befehl Passwörter für alle Benutzer setzen."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Es wird dringendst empfohlen, diese Option zu aktivieren, da die "
+#~ "Unterstützung für Klartext-Passwörter in Microsoft-Windows-Produkten "
+#~ "nicht länger betreut wird. Wenn Sie dies aktvieren, stellen Sie sicher, "
+#~ "dass Sie eine gültige /etc/samba/smbpasswd-Datei haben und dort mittels "
+#~ "dem smbpasswd-Befehl Passwörter für alle Benutzer setzen."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr "Samba-Server"
+#~ msgid "Samba server"
+#~ msgstr "Samba-Server"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "Daemon"
+#~ msgid "daemons"
+#~ msgstr "Daemon"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
+#~ msgid "inetd"
+#~ msgstr "inetd"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Wie möchten Sie Samba starten?"
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Wie möchten Sie Samba starten?"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Der Samba-Prozess smbd kann als normaler Hintergrunddienst (Daemon) laufen "
-"oder über inetd gestartet werden. Ersteres wird jedoch empfohlen."
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Der Samba-Prozess smbd kann als normaler Hintergrunddienst (Daemon) "
+#~ "laufen oder über inetd gestartet werden. Ersteres wird jedoch empfohlen."
 
 #~ msgid "Set up Samba 4 as a PDC?"
 #~ msgstr "Samba 4 als PDC einrichten?"

@@ -6,8 +6,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-05-11 16:23+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-06-19 21:52+0200\n"
 "PO-Revision-Date: 2008-06-17 15:40+0700\n"
 "Last-Translator:  Theppitak Karoonboonyanan <thep@linux.thai.net>\n"
 "Language-Team: Thai <thai-l10n@googlegroups.com>\n"
@@ -222,70 +222,47 @@ msgstr ""
 "กำหนดเวิร์กกรุ๊ปปริยายที่จะใช้เมื่อท่องดูด้วยโปรแกรมต่างๆ และกำหนดชื่อโดเมนที่จะใช้ในกรณีที่ตั้งค่า "
 "\"security=domain\" ด้วย"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "ใช้การเข้ารหัสลับกับรหัสผ่านหรือไม่?"
+#~ msgid "Use password encryption?"
+#~ msgstr "ใช้การเข้ารหัสลับกับรหัสผ่านหรือไม่?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"เครื่องลูกข่ายวินโดวส์รุ่นใหม่ๆ ทั้งหมด จะติดต่อกับเซิร์ฟเวอร์ SMB/CIFS โดยใช้รหัสผ่านที่เข้ารหัสลับ "
-"ถ้าคุณต้องการจะใช้รหัสผ่านแบบข้อความธรรมดา คุณจะต้องเปลี่ยนค่าค่าหนึ่งในเรจิสตรีของวินโดวส์"
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "เครื่องลูกข่ายวินโดวส์รุ่นใหม่ๆ ทั้งหมด จะติดต่อกับเซิร์ฟเวอร์ SMB/CIFS "
+#~ "โดยใช้รหัสผ่านที่เข้ารหัสลับ ถ้าคุณต้องการจะใช้รหัสผ่านแบบข้อความธรรมดา "
+#~ "คุณจะต้องเปลี่ยนค่าค่าหนึ่งในเรจิสตรีของวินโดวส์"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"ขอแนะนำอย่างยิ่งให้เปิดใช้ตัวเลือกนี้ "
-"เนื่องจากไม่มีการดูแลการรองรับรหัสผ่านแบบข้อความธรรมดาในผลิตภัณฑ์ต่างๆ "
-"ของไมโครซอฟท์อีกต่อไปแล้ว และถ้าคุณเปิดใช้ กรุณาตรวจสอบให้แน่ใจว่าคุณมีแฟ้ม /etc/samba/"
-"smbpasswd ที่ใช้การได้ และคุณได้ตั้งรหัสผ่านในนั้นสำหรับผู้ใช้แต่ละคน โดยใช้คำสั่ง smbpasswd"
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "ขอแนะนำอย่างยิ่งให้เปิดใช้ตัวเลือกนี้ "
+#~ "เนื่องจากไม่มีการดูแลการรองรับรหัสผ่านแบบข้อความธรรมดาในผลิตภัณฑ์ต่างๆ "
+#~ "ของไมโครซอฟท์อีกต่อไปแล้ว และถ้าคุณเปิดใช้ กรุณาตรวจสอบให้แน่ใจว่าคุณมีแฟ้ม /etc/samba/"
+#~ "smbpasswd ที่ใช้การได้ และคุณได้ตั้งรหัสผ่านในนั้นสำหรับผู้ใช้แต่ละคน โดยใช้คำสั่ง smbpasswd"
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr "เซิร์ฟเวอร์ samba"
+#~ msgid "Samba server"
+#~ msgstr "เซิร์ฟเวอร์ samba"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "ดีมอน"
+#~ msgid "daemons"
+#~ msgstr "ดีมอน"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
+#~ msgid "inetd"
+#~ msgstr "inetd"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "คุณต้องการเรียกใช้ Samba แบบไหน?"
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "คุณต้องการเรียกใช้ Samba แบบไหน?"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"ดีมอน smbd ของ Samba สามารถทำงานแบบดีมอนธรรมดา หรือเรียกจาก inetd ก็ได้ "
-"ทางที่ขอแนะนำคือเรียกแบบดีมอน"
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "ดีมอน smbd ของ Samba สามารถทำงานแบบดีมอนธรรมดา หรือเรียกจาก inetd ก็ได้ "
+#~ "ทางที่ขอแนะนำคือเรียกแบบดีมอน"
 
 #~ msgid "Set up Samba 4 as a PDC?"
 #~ msgstr "จะตั้งค่า Samba 4 ให้เป็น PDC หรือไม่?"

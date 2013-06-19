@@ -8,8 +8,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba4-4.0.0~alpha17-he\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-05-11 16:23+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-06-19 21:52+0200\n"
 "PO-Revision-Date: 2012-02-11 22:21+0200\n"
 "Last-Translator: Omer Zak <w1@zak.co.il>\n"
 "Language-Team: Hebrew <debian-hebrew-common@lists.alioth.debian.org>\n"
@@ -236,71 +236,47 @@ msgstr ""
 "העבודה שישתמשו בה בזמן דפדוף באמצעות ממשקים שונים, ושם המתחם (Domain) בעת "
 "שימוש באפשרות security=domain."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "האם להשתמש בססמאות מוצפנות?"
+#~ msgid "Use password encryption?"
+#~ msgstr "האם להשתמש בססמאות מוצפנות?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"כל הלקוחות החדשים מסוג-Windows מתקשרים עם שרתי SMB/CIFS באמצעות סיסמאות "
-"מוצפנות. אם ברצונך להשתמש בסיסמאות שאינן מוצפנות, יהיה עליך לשנות פרמטר ב-"
-"Registry של מערכת ה-Windows שלך."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "כל הלקוחות החדשים מסוג-Windows מתקשרים עם שרתי SMB/CIFS באמצעות סיסמאות "
+#~ "מוצפנות. אם ברצונך להשתמש בסיסמאות שאינן מוצפנות, יהיה עליך לשנות פרמטר ב-"
+#~ "Registry של מערכת ה-Windows שלך."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"הפעלת אופציה זו מומלצת מאוד מכיוון שמיקרוסופט יותר אינה מתחזקת את התמיכה "
-"בסיסמאות לא מוצפנות במוצרי Windows שלה. אם הינך מפעיל אופציה זו, וודא כי "
-"קיים הקובץ /etc/samba/smbpasswd, וכי הוא תקין. בנוסף, יש לדאוג שהקובץ יכיל "
-"סיסמה בעבור כל משתמש בעזרת שימוש בפקודה smbpasswd."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "הפעלת אופציה זו מומלצת מאוד מכיוון שמיקרוסופט יותר אינה מתחזקת את התמיכה "
+#~ "בסיסמאות לא מוצפנות במוצרי Windows שלה. אם הינך מפעיל אופציה זו, וודא כי "
+#~ "קיים הקובץ /etc/samba/smbpasswd, וכי הוא תקין. בנוסף, יש לדאוג שהקובץ "
+#~ "יכיל סיסמה בעבור כל משתמש בעזרת שימוש בפקודה smbpasswd."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr "שרת סמבה"
+#~ msgid "Samba server"
+#~ msgstr "שרת סמבה"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "תהליכי רקע"
+#~ msgid "daemons"
+#~ msgstr "תהליכי רקע"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
+#~ msgid "inetd"
+#~ msgstr "inetd"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "כיצד תרצה להריץ את סמבה?"
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "כיצד תרצה להריץ את סמבה?"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"תהליך הרקע של סמבה שנקרא smbd יכול לרוץ כתהליך רקע רגיל או דרך inetd. ריצה "
-"כתהליך רקע רגיל היא השיטה המומלצת."
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "תהליך הרקע של סמבה שנקרא smbd יכול לרוץ כתהליך רקע רגיל או דרך inetd. "
+#~ "ריצה כתהליך רקע רגיל היא השיטה המומלצת."
 
 #~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
 #~ msgstr ""

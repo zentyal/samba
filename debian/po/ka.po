@@ -6,8 +6,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-05-11 16:23+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-06-19 21:52+0200\n"
 "PO-Revision-Date: 2008-09-10 01:45+0400\n"
 "Last-Translator: Aiet Kolkhi <aietkolkhi@gmail.com>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -224,72 +224,45 @@ msgstr ""
 "კლიენტების მიერ მოთხოვნის გამოგზავნისას. გაითვალისწინეთ, რომ ეს პარამეტრი "
 "ასევე აკონტროლებს security=domain პარამეტრზე გამოყენებულ დომენის სახელს."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "გსურთ პაროლის დაშიფვრის გმაოყენება?"
+#~ msgid "Use password encryption?"
+#~ msgstr "გსურთ პაროლის დაშიფვრის გმაოყენება?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Windows-ის ყველა ახალი კლიენტი SMB სერვერთან კავშირს შიფრირებული პაროლით "
-"ამყარებს. თუ გსურთ დაუშიფრავი პაროლის გამოყენება, მოგიწევთ შეცვალოთ "
-"პარამეტრი Windows-ის რეგისტრში."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Windows-ის ყველა ახალი კლიენტი SMB სერვერთან კავშირს შიფრირებული პაროლით "
+#~ "ამყარებს. თუ გსურთ დაუშიფრავი პაროლის გამოყენება, მოგიწევთ შეცვალოთ "
+#~ "პარამეტრი Windows-ის რეგისტრში."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"ამ პარამეტრის გააქტიურება რეკომენდირებულია. თუ ამას გააკეთებთ, დარწმუნდით, "
-"რომ გაგაჩნიათ გამართული /etc/samba/smbpasswd ფაილი და რომ იქ ყოველ "
-"მომხმარებელზე პაროლი გქონდეთ დაყენებული smbpasswd ბრძანებით."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "ამ პარამეტრის გააქტიურება რეკომენდირებულია. თუ ამას გააკეთებთ, "
+#~ "დარწმუნდით, რომ გაგაჩნიათ გამართული /etc/samba/smbpasswd ფაილი და რომ იქ "
+#~ "ყოველ მომხმარებელზე პაროლი გქონდეთ დაყენებული smbpasswd ბრძანებით."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
+#~ msgid "daemons"
+#~ msgstr "დემონები"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "დემონები"
+#~ msgid "inetd"
+#~ msgstr "inetd"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "როგორ გსურთ Samba-ს გაშვება?"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "როგორ გსურთ Samba-ს გაშვება?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Samba-ს დემონი smbd შეიძლება გაეშვას როგორც ჩვეულებრივი დემო inetd-დან. "
-"დემონად გაშვება რეკომენდირებული მიდგომაა."
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Samba-ს დემონი smbd შეიძლება გაეშვას როგორც ჩვეულებრივი დემო inetd-დან. "
+#~ "დემონად გაშვება რეკომენდირებული მიდგომაა."
 
 #~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
 #~ msgstr "გსურთ samba-ს პაროლთა ბაზის, /var/lib/samba/passdb.tdb-ს შექმნა?"

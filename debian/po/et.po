@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-05-11 16:23+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-06-19 21:52+0200\n"
 "PO-Revision-Date: 2007-03-13 10:26+0300\n"
 "Last-Translator: Siim Põder <siim@p6drad-teel.net>\n"
 "Language-Team: \n"
@@ -227,72 +227,45 @@ msgid ""
 "name used with the \"security=domain\" setting."
 msgstr ""
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Kasutada paroolide krüpteerimist?"
+#~ msgid "Use password encryption?"
+#~ msgstr "Kasutada paroolide krüpteerimist?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Kõik hiljutised Windows kliendid suhtlevad SMB serveritega kasutades "
-"krüpteeritud paroole. Kui soovid kasutada avatud paroole, pead Windows "
-"registris muutma üht seadet."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Kõik hiljutised Windows kliendid suhtlevad SMB serveritega kasutades "
+#~ "krüpteeritud paroole. Kui soovid kasutada avatud paroole, pead Windows "
+#~ "registris muutma üht seadet."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Selle seade valimine on ülimalt soovitatav. Kui ta valid, palun veendu et "
-"sul oleks sobiv /etc/samba/smbpasswd fail ning sea igale seal olevale "
-"kasutajale smbpasswd käsu abil parool."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Selle seade valimine on ülimalt soovitatav. Kui ta valid, palun veendu et "
+#~ "sul oleks sobiv /etc/samba/smbpasswd fail ning sea igale seal olevale "
+#~ "kasutajale smbpasswd käsu abil parool."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
+#~ msgid "daemons"
+#~ msgstr "deemonitena"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "deemonitena"
+#~ msgid "inetd"
+#~ msgstr "inetd'ist"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd'ist"
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Kuidas soovid Samba käivitada?"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Kuidas soovid Samba käivitada?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Samba deemon võib käivituda kui tavaline deemon või inetd'ist. Soovitatav "
-"lähenemine on käivitamine tavalise deemonina."
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Samba deemon võib käivituda kui tavaline deemon või inetd'ist. Soovitatav "
+#~ "lähenemine on käivitamine tavalise deemonina."
 
 #, fuzzy
 #~| msgid ""

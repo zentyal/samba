@@ -6,8 +6,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-05-11 16:23+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-06-19 21:52+0200\n"
 "PO-Revision-Date: 2007-03-13 09:20+0100\n"
 "Last-Translator: SZERVÁC Attila <sas@321.hu>\n"
 "Language-Team: Hungarian <hu@li.org>\n"
@@ -223,72 +223,45 @@ msgid ""
 "name used with the \"security=domain\" setting."
 msgstr ""
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Használsz kódolt jelszavakat?"
+#~ msgid "Use password encryption?"
+#~ msgstr "Használsz kódolt jelszavakat?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Az újabb Windows kliensek kódolt jelszavakkal kommunikálnak az SMB "
-"kiszolgálókkal. Ha sima szöveges jelszavakat kívánsz alkalmazni, meg kell "
-"változtatni egy beállítást a kliensek regisztrációjában."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Az újabb Windows kliensek kódolt jelszavakkal kommunikálnak az SMB "
+#~ "kiszolgálókkal. Ha sima szöveges jelszavakat kívánsz alkalmazni, meg kell "
+#~ "változtatni egy beállítást a kliensek regisztrációjában."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"E lehetőség bekapcsolása erősen ajánlott. Ha ezt teszed, győződj meg róla "
-"hogy érvényes /etc/samba/smbpasswd fájllal rendelkezel és hogy beállítottad "
-"a jelszavakat minden felhasználóhoz a smbpasswd paranccsal."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "E lehetőség bekapcsolása erősen ajánlott. Ha ezt teszed, győződj meg róla "
+#~ "hogy érvényes /etc/samba/smbpasswd fájllal rendelkezel és hogy "
+#~ "beállítottad a jelszavakat minden felhasználóhoz a smbpasswd paranccsal."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
+#~ msgid "daemons"
+#~ msgstr "démonok"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "démonok"
+#~ msgid "inetd"
+#~ msgstr "inetd"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Hogyan induljon a Samba?"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Hogyan induljon a Samba?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Az smbd Samba démon futhat normál démonként vagy az inetd-n keresztül. A "
-"démonként való futtatása a javasolt beállítás."
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Az smbd Samba démon futhat normál démonként vagy az inetd-n keresztül. A "
+#~ "démonként való futtatása a javasolt beállítás."
 
 #, fuzzy
 #~| msgid ""

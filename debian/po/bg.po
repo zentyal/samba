@@ -5,8 +5,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_3.0.23c-1_bg\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-05-11 16:23+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-06-19 21:52+0200\n"
 "PO-Revision-Date: 2008-06-17 14:00+0300\n"
 "Last-Translator: Damyan Ivanov <dmn@debian.org>\n"
 "Language-Team: Bulgarian <dict@fsa-bg.org>\n"
@@ -225,72 +225,45 @@ msgstr ""
 "работната група по подразбиране при разглеждане на мрежата и името на "
 "домейна, което ще се използва при настройката „security=domain“."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Шифриране на паролите?"
+#~ msgid "Use password encryption?"
+#~ msgstr "Шифриране на паролите?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Всички съвременни версии на Windows използват шифрирани пароли за връзка със "
-"сървъри по протокол SMB/CIFS. Използването на пароли без шифриране е "
-"възможно само след промени в регистъра на Windows."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Всички съвременни версии на Windows използват шифрирани пароли за връзка "
+#~ "със сървъри по протокол SMB/CIFS. Използването на пароли без шифриране е "
+#~ "възможно само след промени в регистъра на Windows."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Използването на шифрирани пароли е силно препоръчително, понеже продуктите "
-"Microsoft Windows вече не поддържат нешифрирани пароли. Проверете дали "
-"файлът /etc/samba/smbpasswd е правилен и използвайте програмата smbpasswd за "
-"задаване на паролите на потребителите."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Използването на шифрирани пароли е силно препоръчително, понеже "
+#~ "продуктите Microsoft Windows вече не поддържат нешифрирани пароли. "
+#~ "Проверете дали файлът /etc/samba/smbpasswd е правилен и използвайте "
+#~ "програмата smbpasswd за задаване на паролите на потребителите."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
+#~ msgid "daemons"
+#~ msgstr "фонов процес"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "фонов процес"
+#~ msgid "inetd"
+#~ msgstr "при нужда"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "при нужда"
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Как да се стартира Samba?"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Как да се стартира Samba?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Основният процес на Samba, smbd, може да бъде изпълняван при нужда или като "
-"фонов процес (със зареждането на операционната система). Препоръчителният "
-"начин за изпълнение е като фонов процес."
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Основният процес на Samba, smbd, може да бъде изпълняван при нужда или "
+#~ "като фонов процес (със зареждането на операционната система). "
+#~ "Препоръчителният начин за изпълнение е като фонов процес."
 
 #~ msgid "Set up Samba 4 as a PDC?"
 #~ msgstr "Настройване на Samba 4 като PDC?"

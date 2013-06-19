@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-05-11 16:23+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-06-19 21:52+0200\n"
 "PO-Revision-Date: 2006-11-01 22:14+0100\n"
 "Last-Translator: Safir Secerovic <sapphire@linux.org.ba>\n"
 "Language-Team: Bosnian <lokal@linux.org.ba>\n"
@@ -229,72 +229,45 @@ msgid ""
 "name used with the \"security=domain\" setting."
 msgstr ""
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Koristiti enkripciju šifre?"
+#~ msgid "Use password encryption?"
+#~ msgstr "Koristiti enkripciju šifre?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Svi noviji Windows klijenti komuniciraju sa SMB serverima koristeći "
-"enkriptovane šifre. Ako želite koristiti šifre u vidu čistog teksta, trebate "
-"promijeniti parametar u vašem Windows registriju."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Svi noviji Windows klijenti komuniciraju sa SMB serverima koristeći "
+#~ "enkriptovane šifre. Ako želite koristiti šifre u vidu čistog teksta, "
+#~ "trebate promijeniti parametar u vašem Windows registriju."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Uključivanje ove opcije je veoma preporučeno. Ako to uradite, pobrinite se "
-"da imate ispravnu /etc/samba/smbpasswd datoteku i da u njoj postavite šifre "
-"za svakog korisnika koristeći smbpasswd naredbu."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Uključivanje ove opcije je veoma preporučeno. Ako to uradite, pobrinite "
+#~ "se da imate ispravnu /etc/samba/smbpasswd datoteku i da u njoj postavite "
+#~ "šifre za svakog korisnika koristeći smbpasswd naredbu."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
+#~ msgid "daemons"
+#~ msgstr "daemons"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "daemons"
+#~ msgid "inetd"
+#~ msgstr "inetd"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Kako želite pokretati Samba-u?"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Kako želite pokretati Samba-u?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Samba daemon smbd može biti pokrenut kao normalni daemon ili preko inetd-a. "
-"Pokretanje kao daemon je preporučeni pristup."
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Samba daemon smbd može biti pokrenut kao normalni daemon ili preko inetd-"
+#~ "a. Pokretanje kao daemon je preporučeni pristup."
 
 #, fuzzy
 #~| msgid ""

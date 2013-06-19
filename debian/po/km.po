@@ -16,8 +16,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_po_km\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-05-11 16:23+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-06-19 21:52+0200\n"
 "PO-Revision-Date: 2007-03-13 08:39+0700\n"
 "Last-Translator: Khoem Sokhem <khoemsokhem@khmeros.info>\n"
 "Language-Team: Khmer <support@khmeros.info>\n"
@@ -244,77 +244,50 @@ msgstr ""
 
 #  Type: boolean
 #  Description
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "ប្រើ​ការ​អ៊ិនគ្រីប​ពាក្យ​សម្ងាត់ ?"
+#~ msgid "Use password encryption?"
+#~ msgstr "ប្រើ​ការ​អ៊ិនគ្រីប​ពាក្យ​សម្ងាត់ ?"
 
 #  Type: boolean
 #  Description
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"គ្រប់​ម៉ាស៊ីន​ភ្ញៀវ​ដែល​ប្រើ​វីនដូ​ថ្មីៗ​ទាំង​អស់​ទាក់ទង​ជា​មួយ​ម៉ាស៊ីន​បម្រើ SMB ដោយ​ប្រើ​ពាក្យសម្ងាត់​ដែល​បាន​"
-"អ៊ិនគ្រីប ។ ប្រសិន​បើ​អ្នក​ចង់​ជម្រះ​ពាក្យសម្ងាត់​អត្ថបទ អ្នក​នឹង​ត្រូវតែ​ផ្លាស់ប្ដូរ​ប៉ារ៉ាម៉ែត្រ​នៅ​ក្នុង បញ្ជី​ឈ្មោះ​"
-"របស់​វីនដូ ។"
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "គ្រប់​ម៉ាស៊ីន​ភ្ញៀវ​ដែល​ប្រើ​វីនដូ​ថ្មីៗ​ទាំង​អស់​ទាក់ទង​ជា​មួយ​ម៉ាស៊ីន​បម្រើ SMB ដោយ​ប្រើ​ពាក្យសម្ងាត់​ដែល​បាន​"
+#~ "អ៊ិនគ្រីប ។ ប្រសិន​បើ​អ្នក​ចង់​ជម្រះ​ពាក្យសម្ងាត់​អត្ថបទ អ្នក​នឹង​ត្រូវតែ​ផ្លាស់ប្ដូរ​ប៉ារ៉ាម៉ែត្រ​នៅ​ក្នុង បញ្ជី​"
+#~ "ឈ្មោះ​របស់​វីនដូ ។"
 
 #  Type: boolean
 #  Description
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"បាន​ផ្ដល់​អនុសាសន៍​យ៉ាង​ខ្លាំង​ឲ្យ​អនុញ្ញាត​ជម្រើស​នេះ ។ ប្រសិន​បើ​អ្នក​ធ្វើ​ដូច្នេះ សូម​ប្រាកដ​ថា អ្នក​មាន​"
-"ឯកសារ /etc/samba/smbpasswd ត្រឹមត្រូវ ហើយ​អ្នក​បាន​កំណត់​ពាក្យ​សម្ងាត់​ ដូច្នេះ​សម្រាប់​អ្នក​ប្រើ​"
-"ម្នាក់ៗ អាច​ប្រើ​ពាក្យ​បញ្ជា smbpasswd ។"
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "បាន​ផ្ដល់​អនុសាសន៍​យ៉ាង​ខ្លាំង​ឲ្យ​អនុញ្ញាត​ជម្រើស​នេះ ។ ប្រសិន​បើ​អ្នក​ធ្វើ​ដូច្នេះ សូម​ប្រាកដ​ថា អ្នក​មាន​"
+#~ "ឯកសារ /etc/samba/smbpasswd ត្រឹមត្រូវ ហើយ​អ្នក​បាន​កំណត់​ពាក្យ​សម្ងាត់​ ដូច្នេះ​សម្រាប់​អ្នក​ប្រើ​"
+#~ "ម្នាក់ៗ អាច​ប្រើ​ពាក្យ​បញ្ជា smbpasswd ។"
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
+#~ msgid "daemons"
+#~ msgstr "ដេមិន "
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "ដេមិន "
+#~ msgid "inetd"
+#~ msgstr "inetd"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "តើ​អ្នក​ចង់​រត់ Samba តាម​វិធី​ណា ?"
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "តើ​អ្នក​ចង់​រត់ Samba តាម​វិធី​ណា ?"
 
 #  Type: select
 #  Description
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"ដេមិន Samba smbd អាចរត់ជាដេមិនធម្មតា ឬពី inetd ។ ការរត់ជាដេមិនមួយត្រូវបានផ្ដល់អនុសាសន៍ ។"
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "ដេមិន Samba smbd អាចរត់ជាដេមិនធម្មតា ឬពី inetd ។ ការរត់ជាដេមិនមួយត្រូវបានផ្ដល់អនុសាសន៍ ។"
 
 #  Type: string
 #  Description

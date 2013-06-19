@@ -6,8 +6,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-05-11 16:23+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-06-19 21:52+0200\n"
 "PO-Revision-Date: 2012-02-13 21:43-0300\n"
 "Last-Translator: Felipe Castro <fefcas@gmail.com>\n"
 "Language-Team: Esperanto <debian-l10n-esperanto@lists.debian.org>\n"
@@ -235,71 +235,47 @@ msgstr ""
 "laborgrupon uzatan dum esplorado per pluraj klientoj, kaj la domajno-nomon "
 "uzatan kun la parametro \"security=domain\"."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Ĉu ĉifri la pasvortojn?"
+#~ msgid "Use password encryption?"
+#~ msgstr "Ĉu ĉifri la pasvortojn?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Ĉiuj novaj klientoj Windows komunikas kun serviloj SMB/CIFS uzante ĉifritajn "
-"pasvortojn. Se vi volas uzi malĉifritajn pasvortojn vi bezonos ŝanĝi "
-"parametron en via registrejo Windows."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Ĉiuj novaj klientoj Windows komunikas kun serviloj SMB/CIFS uzante "
+#~ "ĉifritajn pasvortojn. Se vi volas uzi malĉifritajn pasvortojn vi bezonos "
+#~ "ŝanĝi parametron en via registrejo Windows."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Ebligi tiun ĉi opcion estas ege rekomendata ĉar pur-tekstaj pasvortoj ne plu "
-"estas subtenataj en produktoj Microsoft Windows. Se vi elektas ĝin, kontrolu "
-"ĉu vi havas validan dosieron /etc/samba/smbpasswd, en kiu vi enmetis "
-"pasvortojn por ĉiu uzanto kiu uzas la komandon smbpasswd."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Ebligi tiun ĉi opcion estas ege rekomendata ĉar pur-tekstaj pasvortoj ne "
+#~ "plu estas subtenataj en produktoj Microsoft Windows. Se vi elektas ĝin, "
+#~ "kontrolu ĉu vi havas validan dosieron /etc/samba/smbpasswd, en kiu vi "
+#~ "enmetis pasvortojn por ĉiu uzanto kiu uzas la komandon smbpasswd."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr "Servilo Samba"
+#~ msgid "Samba server"
+#~ msgstr "Servilo Samba"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "demonoj"
+#~ msgid "daemons"
+#~ msgstr "demonoj"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
+#~ msgid "inetd"
+#~ msgstr "inetd"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Kiel vi volas lanĉi Samba?"
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Kiel vi volas lanĉi Samba?"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"La Samba-demono smbd povas esti lanĉita kiel normala demono aŭ per la "
-"programo inetd. Oni rekomendas lanĉi ĝin kiel demonon."
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "La Samba-demono smbd povas esti lanĉita kiel normala demono aŭ per la "
+#~ "programo inetd. Oni rekomendas lanĉi ĝin kiel demonon."
 
 #~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
 #~ msgstr "Ĉu krei pasvortan datumbazon de samba, /var/lib/samba/passdb.tdb?"

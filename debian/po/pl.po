@@ -6,8 +6,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: \n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-05-11 16:23+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-06-19 21:52+0200\n"
 "PO-Revision-Date: 2012-02-11 19:28+0100\n"
 "Last-Translator: Michał Kułach <michal.kulach@gmail.com>\n"
 "Language-Team: Polish <debian-l10n-polish@lists.debian.org>\n"
@@ -243,72 +243,49 @@ msgstr ""
 "grupę roboczą, która będzie użyta podczas przeglądania z poziomu różnych "
 "interfejsów oraz nazwę domeny używaną w ustawieniu \"security=domain\"."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Czy używać szyfrowania haseł?"
+#~ msgid "Use password encryption?"
+#~ msgstr "Czy używać szyfrowania haseł?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Wszystkie współczesne klienty Windows komunikują się z serwerami SMB/CIFS "
-"używając zaszyfrowanych haseł. Aby używać haseł w postaci otwartego tekstu, "
-"konieczna będzie zmiana odpowiedniego parametru w rejestrze Windows."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Wszystkie współczesne klienty Windows komunikują się z serwerami SMB/CIFS "
+#~ "używając zaszyfrowanych haseł. Aby używać haseł w postaci otwartego "
+#~ "tekstu, konieczna będzie zmiana odpowiedniego parametru w rejestrze "
+#~ "Windows."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Włączenie tej opcji jest wysoce zalecane, ponieważ obsługa haseł w otwartym "
-"tekście nie jest dłużej zapewniana przez systemy Microsoft Windows. W takim "
-"przypadku należy upewnić się, że plik /etc/samba/smbpasswd jest poprawny i "
-"że zostaną w nim ustawione hasła dla każdego użytkownika korzystającego z "
-"polecenia smbpasswd."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Włączenie tej opcji jest wysoce zalecane, ponieważ obsługa haseł w "
+#~ "otwartym tekście nie jest dłużej zapewniana przez systemy Microsoft "
+#~ "Windows. W takim przypadku należy upewnić się, że plik /etc/samba/"
+#~ "smbpasswd jest poprawny i że zostaną w nim ustawione hasła dla każdego "
+#~ "użytkownika korzystającego z polecenia smbpasswd."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr "Serwer Samba"
+#~ msgid "Samba server"
+#~ msgstr "Serwer Samba"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "demon"
+#~ msgid "daemons"
+#~ msgstr "demon"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
+#~ msgid "inetd"
+#~ msgstr "inetd"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "W jaki sposób Samba ma być uruchamiana?"
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "W jaki sposób Samba ma być uruchamiana?"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Demon Samby smbd może działać jako zwykły demon, albo z poziomu inetd. "
-"Zalecane jest uruchomienie demona."
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Demon Samby smbd może działać jako zwykły demon, albo z poziomu inetd. "
+#~ "Zalecane jest uruchomienie demona."
 
 #~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
 #~ msgstr "Utworzyć bazę haseł samby, /var/lib/samba/passdb.tdb?"

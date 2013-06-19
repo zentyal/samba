@@ -5,8 +5,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: Samba fi\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-05-11 16:23+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-06-19 21:52+0200\n"
 "PO-Revision-Date: 2007-03-13 18:35+0200\n"
 "Last-Translator: Tapio Lehtonen <tale@debian.org>\n"
 "Language-Team: Finnish <debian-l10n-finnish@lists.debian.org>\n"
@@ -222,73 +222,49 @@ msgstr ""
 "selattaessa edustaohjelmilla ja asetuksen \"security=domain\" kanssa "
 "käytettävä verkkoalueen nimi."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Salataanko salasanat?"
+#~ msgid "Use password encryption?"
+#~ msgstr "Salataanko salasanat?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Kaikki viime aikoina julkistetut Windows-asiakkaat salaavat salasanat "
-"liikennöitäessä SMB/CIFS-palvelimien kanssa. Jos halutaan käyttää "
-"selväkielisiä salasanoja, on Windows registryssä olevaa parametria "
-"muutettava."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Kaikki viime aikoina julkistetut Windows-asiakkaat salaavat salasanat "
+#~ "liikennöitäessä SMB/CIFS-palvelimien kanssa. Jos halutaan käyttää "
+#~ "selväkielisiä salasanoja, on Windows registryssä olevaa parametria "
+#~ "muutettava."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Tämän valitsimen pitämistä päällä suositellaan suuresti, koska tukea "
-"selväkielisille salasanoille ei enää ylläpidetä Microsoft Windows-"
-"tuotteissa. Jos se on päällä, on varmistuttava tiedoston /etc/samba/"
-"smbpasswd kelvollisuudesta ja että siellä on jokaiselle käyttäjälle tehty "
-"salasana komennolla smbpasswd."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Tämän valitsimen pitämistä päällä suositellaan suuresti, koska tukea "
+#~ "selväkielisille salasanoille ei enää ylläpidetä Microsoft Windows-"
+#~ "tuotteissa. Jos se on päällä, on varmistuttava tiedoston /etc/samba/"
+#~ "smbpasswd kelvollisuudesta ja että siellä on jokaiselle käyttäjälle tehty "
+#~ "salasana komennolla smbpasswd."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr "Samba-palvelin"
+#~ msgid "Samba server"
+#~ msgstr "Samba-palvelin"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "palvelinprosessit"
+#~ msgid "daemons"
+#~ msgstr "palvelinprosessit"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
+#~ msgid "inetd"
+#~ msgstr "inetd"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Kuinka Samba käynnistetään?"
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Kuinka Samba käynnistetään?"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Samban palvelinprosessi smbd voi toimia tavallisena prosessina tai inetd voi "
-"käynnistää sen. Tavallisen prosessin käyttämistä suositellaan."
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Samban palvelinprosessi smbd voi toimia tavallisena prosessina tai inetd "
+#~ "voi käynnistää sen. Tavallisen prosessin käyttämistä suositellaan."
 
 #, fuzzy
 #~| msgid ""

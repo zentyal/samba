@@ -8,8 +8,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: ar\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-05-11 16:23+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-06-19 21:52+0200\n"
 "PO-Revision-Date: 2008-06-21 05:10+0300\n"
 "Last-Translator: Ossama M. Khayat <okhayat@yahoo.com>\n"
 "Language-Team: Arabic <support@arabeyes.org>\n"
@@ -228,69 +228,43 @@ msgstr ""
 "استخدامها عند التصفح باستخدام الواجهات المختلفة، واسم النطاق المستخدم في "
 "الإعداد \"security=domain\"."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "تشفير كلمة المرور ؟"
+#~ msgid "Use password encryption?"
+#~ msgstr "تشفير كلمة المرور ؟"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"تتصل جميع عملاء ويندوز الجديدة مع خوادم SMB/CIFS باستخدام كلمات مرور مشفرة. "
-"إذا أردت استخدام كلمات مرور غير مشفرة عليك بتغيير مُعطى في قاعدة تسجيلات "
-"ويندوز."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "تتصل جميع عملاء ويندوز الجديدة مع خوادم SMB/CIFS باستخدام كلمات مرور "
+#~ "مشفرة. إذا أردت استخدام كلمات مرور غير مشفرة عليك بتغيير مُعطى في قاعدة "
+#~ "تسجيلات ويندوز."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"يُستحسن بشدة تمكين هذا الخيار حيث أن دعم كلمات المرور الغير مشفرة لم يعد "
-"متوفراً في منتجات ميكروسوفت.\n"
-"إن فعلت ذلك، فتأكد من وجود ملف /etc/samba/smbpasswd صالح وأن تضع فيه كلمات "
-"المرور الخاصة بكل مستخدم باستخدام الأمر smbpasswd."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "يُستحسن بشدة تمكين هذا الخيار حيث أن دعم كلمات المرور الغير مشفرة لم يعد "
+#~ "متوفراً في منتجات ميكروسوفت.\n"
+#~ "إن فعلت ذلك، فتأكد من وجود ملف /etc/samba/smbpasswd صالح وأن تضع فيه "
+#~ "كلمات المرور الخاصة بكل مستخدم باستخدام الأمر smbpasswd."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
+#~ msgid "daemons"
+#~ msgstr "daemons"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "daemons"
+#~ msgid "inetd"
+#~ msgstr "inetd"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "كيف تريد تشغيل Samba؟"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "كيف تريد تشغيل Samba؟"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr "يمكن لرقيب smbd الاشتغال كرقيب عادي أو عبر inetd. ينصح بتشغييله كرقيب."
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "يمكن لرقيب smbd الاشتغال كرقيب عادي أو عبر inetd. ينصح بتشغييله كرقيب."
 
 #~ msgid "Set up Samba 4 as a PDC?"
 #~ msgstr "إعداد سامبا4 كمُتحكّم أولي بالنطاق PDC؟"

@@ -6,8 +6,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_ku\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-05-11 16:23+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-06-19 21:52+0200\n"
 "PO-Revision-Date: 2008-05-08 13:02+0200\n"
 "Last-Translator: Erdal Ronahi <erdal dot ronahi at gmail dot com>\n"
 "Language-Team: ku <ubuntu-l10n-kur@lists.ubuntu.com>\n"
@@ -225,70 +225,43 @@ msgstr ""
 "heyî ya dem bi dem fronted tê gerîn û navê domaînê ya bi mîhenga  "
 "\"security=domain\"ê tê bikaranîn."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Bila kilîla şîfreyê bê bikaranîn?"
+#~ msgid "Use password encryption?"
+#~ msgstr "Bila kilîla şîfreyê bê bikaranîn?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Hemû navrûyên Windowsê dema şîfreyên kilîlkirî tên bikaranîn, bi pêşkêşkarên "
-"SMB/CIFS re dikevin têkiliyê. Eger dixwazî deqa şîfreya zelal bi kar bînî "
-"divê parametreya di tomarkirina Windowsa xwe de biguherînî."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Hemû navrûyên Windowsê dema şîfreyên kilîlkirî tên bikaranîn, bi "
+#~ "pêşkêşkarên SMB/CIFS re dikevin têkiliyê. Eger dixwazî deqa şîfreya zelal "
+#~ "bi kar bînî divê parametreya di tomarkirina Windowsa xwe de biguherînî."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Çalakirina vê vebijêrkê wekî desteka ji bo şîfreyên deqa sade ya zêdetir "
-"nayên parastin ya di berhemên Microsoft Windowsê de, bi tundî tê "
-"pêşniyarkirin."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Çalakirina vê vebijêrkê wekî desteka ji bo şîfreyên deqa sade ya zêdetir "
+#~ "nayên parastin ya di berhemên Microsoft Windowsê de, bi tundî tê "
+#~ "pêşniyarkirin."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
+#~ msgid "daemons"
+#~ msgstr "daemon"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "daemon"
+#~ msgid "inetd"
+#~ msgstr "inetd"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Dixwazî Samba çawa bixebitînî?"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Dixwazî Samba çawa bixebitînî?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Daemona Sambayê dikare wekî daemon'eke ji rêzê an jî inetd'ê bixebite. "
-"Xebitandina wekî daemonekê tê pêşniyarkirin."
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Daemona Sambayê dikare wekî daemon'eke ji rêzê an jî inetd'ê bixebite. "
+#~ "Xebitandina wekî daemonekê tê pêşniyarkirin."
 
 #~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
 #~ msgstr "Danegeha şîfreyên samba, /var/lib/samba/passdb.tdb, were afirandin?"

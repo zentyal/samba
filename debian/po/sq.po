@@ -13,8 +13,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-05-11 16:23+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-06-19 21:52+0200\n"
 "PO-Revision-Date: 2007-03-13 21:25+0100\n"
 "Last-Translator: Elian Myftiu <elian.myftiu@gmail.com>\n"
 "Language-Team: Debian L10n Albanian <debian-l10n-albanian@lists.debian.org>\n"
@@ -228,72 +228,46 @@ msgid ""
 "name used with the \"security=domain\" setting."
 msgstr ""
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Të përdor kriptim fjalëkalimi?"
+#~ msgid "Use password encryption?"
+#~ msgstr "Të përdor kriptim fjalëkalimi?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Të tërë klientët e fundit Windows komunikojnë me shërbyes SMB duke përdorur "
-"fjalëkalime të kriptuar. Nëse dëshiron të përdorësh fjalëkalime të qarta "
-"tekstualë do të duhet të ndryshosh një parametër në regjistrin tënd Windows."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Të tërë klientët e fundit Windows komunikojnë me shërbyes SMB duke "
+#~ "përdorur fjalëkalime të kriptuar. Nëse dëshiron të përdorësh fjalëkalime "
+#~ "të qarta tekstualë do të duhet të ndryshosh një parametër në regjistrin "
+#~ "tënd Windows."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Aktivizimi i kësaj mundësie këshillohet fuqimisht. Nëse e bën, sigurohu që "
-"ke një skedar të vlefshëm /etc/samba/smbpasswd dhe që i cakton fjalëkalimet "
-"atje për secilin përdorues duke përdorur komandën smbpasswd."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Aktivizimi i kësaj mundësie këshillohet fuqimisht. Nëse e bën, sigurohu "
+#~ "që ke një skedar të vlefshëm /etc/samba/smbpasswd dhe që i cakton "
+#~ "fjalëkalimet atje për secilin përdorues duke përdorur komandën smbpasswd."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
+#~ msgid "daemons"
+#~ msgstr "daemons"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "daemons"
+#~ msgid "inetd"
+#~ msgstr "inetd"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Si dëshiron të xhirojë Samba?"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Si dëshiron të xhirojë Samba?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Daemon Samba smbd mund të xhirojë si një daemon normal ose nga inetd. "
-"Rekomandohet puna si daemon."
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Daemon Samba smbd mund të xhirojë si një daemon normal ose nga inetd. "
+#~ "Rekomandohet puna si daemon."
 
 #, fuzzy
 #~| msgid ""

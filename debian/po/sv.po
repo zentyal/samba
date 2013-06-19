@@ -7,8 +7,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba4\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-05-11 16:23+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-06-19 21:52+0200\n"
 "PO-Revision-Date: 2011-10-11 01:13+0100\n"
 "Last-Translator: Martin Bagge / brother <brother@bsnet.se>\n"
 "Language-Team: Swedish <debian-l10n-swedish@lists.debian.org>\n"
@@ -241,70 +241,46 @@ msgstr ""
 "klientprogram som finns och detta kommer att vara domännamnet som används "
 "tillsammans med inställningen \"security=domain\"."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Använd lösenordskryptering?"
+#~ msgid "Use password encryption?"
+#~ msgstr "Använd lösenordskryptering?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"De flesta Windows-klienter av senare versioner kommunicerar med krypterade "
-"lösenord mot SMB/CIFS-servrar. Om du vill använda lösenord i klartext "
-"behöver du ändra en parameter i ditt Windows-register."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "De flesta Windows-klienter av senare versioner kommunicerar med "
+#~ "krypterade lösenord mot SMB/CIFS-servrar. Om du vill använda lösenord i "
+#~ "klartext behöver du ändra en parameter i ditt Windows-register."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Det rekommenderas varmt att du aktiverar detta alternativ. Om du gör det, "
-"kontrollera att du har en giltig /etc/samba/smbpasswd och att du har ställt "
-"in lösenorden där för varje användare med kommandot smbpasswd."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Det rekommenderas varmt att du aktiverar detta alternativ. Om du gör det, "
+#~ "kontrollera att du har en giltig /etc/samba/smbpasswd och att du har "
+#~ "ställt in lösenorden där för varje användare med kommandot smbpasswd."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr "Sambaserver"
+#~ msgid "Samba server"
+#~ msgstr "Sambaserver"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "demoner"
+#~ msgid "daemons"
+#~ msgstr "demoner"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
+#~ msgid "inetd"
+#~ msgstr "inetd"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Hur vill du köra Samba?"
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Hur vill du köra Samba?"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Samba-demonen smbd kan köras som en normal demon eller från inetd. Att köra "
-"som en demon är den rekommenderade metoden."
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Samba-demonen smbd kan köras som en normal demon eller från inetd. Att "
+#~ "köra som en demon är den rekommenderade metoden."
 
 #~ msgid "Set up Samba 4 as a PDC?"
 #~ msgstr "Installera Samba 4 som en PDC?"

@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-05-11 16:23+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-06-19 21:52+0200\n"
 "PO-Revision-Date: 2008-06-17 20:09+0100\n"
 "Last-Translator: Jacobo Tarrio <jtarrio@debian.org>\n"
 "Language-Team: Galician <trasno@ceu.fi.udc.es>\n"
@@ -239,71 +239,47 @@ msgstr ""
 "clientes, e o nome de dominio que se emprega coa configuración "
 "security=domain."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "¿Empregar cifrado de contrasinais?"
+#~ msgid "Use password encryption?"
+#~ msgstr "¿Empregar cifrado de contrasinais?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Todos os clientes Windows recentes comunícanse cos servidores SMB/CIFS "
-"empregando contrasinais cifrados. Se quere empregar contrasinais de texto "
-"claro ha ter que cambiar un parámetro no rexistro de Windows."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Todos os clientes Windows recentes comunícanse cos servidores SMB/CIFS "
+#~ "empregando contrasinais cifrados. Se quere empregar contrasinais de texto "
+#~ "claro ha ter que cambiar un parámetro no rexistro de Windows."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Recoméndase activar esta opción xa que os contrasinais en texto claro xa non "
-"son mantidos nos produtos Microsoft. Se o fai, asegúrese de ter un "
-"ficheiro  /etc/samba/smbpasswd válido e de estabelecer nel os contrasinais "
-"de cada usuario coa orde smbpasswd."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Recoméndase activar esta opción xa que os contrasinais en texto claro xa "
+#~ "non son mantidos nos produtos Microsoft. Se o fai, asegúrese de ter un "
+#~ "ficheiro  /etc/samba/smbpasswd válido e de estabelecer nel os "
+#~ "contrasinais de cada usuario coa orde smbpasswd."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr "Servidor Samba"
+#~ msgid "Samba server"
+#~ msgstr "Servidor Samba"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "servizos"
+#~ msgid "daemons"
+#~ msgstr "servizos"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
+#~ msgid "inetd"
+#~ msgstr "inetd"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "¿Como quere executar Samba?"
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "¿Como quere executar Samba?"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"O servizo de Samba smbd pode funcionar coma un servizo normal ou desde "
-"inetd. Recoméndase executalo coma un servizo."
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "O servizo de Samba smbd pode funcionar coma un servizo normal ou desde "
+#~ "inetd. Recoméndase executalo coma un servizo."
 
 #~ msgid "Set up Samba 4 as a PDC?"
 #~ msgstr "¿Configurar Samba 4 coma PDC?"

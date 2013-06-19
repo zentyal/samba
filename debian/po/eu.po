@@ -16,8 +16,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: eu\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-05-11 16:23+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-06-19 21:52+0200\n"
 "PO-Revision-Date: 2007-04-07 23:18+0200\n"
 "Last-Translator: Piarres Beobide <pi@beobide.net>\n"
 "Language-Team: librezale <librezale@librezale.org>\n"
@@ -236,71 +236,45 @@ msgstr ""
 "\"security=domain\" ezarpenak erabiltzen duen domeinu izena kontrolatzen "
 "ditu."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Zifraturiko pasahitzak erabili?"
+#~ msgid "Use password encryption?"
+#~ msgstr "Zifraturiko pasahitzak erabili?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Windows bezero berri guztiek SMB zerbitzariekiko harremanak zifraturiko "
-"pasahitzak erabiliaz egiten dituzte. Testu laueko pasahitzak erabili nahi "
-"izanez gero parametro bat aldatu behar duzu Windows erregistroan."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Windows bezero berri guztiek SMB zerbitzariekiko harremanak zifraturiko "
+#~ "pasahitzak erabiliaz egiten dituzte. Testu laueko pasahitzak erabili nahi "
+#~ "izanez gero parametro bat aldatu behar duzu Windows erregistroan."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Aukera hau gaitzea oso gomendagarri da testu laueko pasahitzen onarpena ez "
-"bait da aurrerantzean mantendurik egongo Microsoft produktuetan. Erabiltzea "
-"hautatuaz gero ziurtatu baliozko /etc/samba/smbpasswd fitxategi bat duzula "
-"eta pasahitzak smbpasswd programaren bidez ezarri dituzula."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Aukera hau gaitzea oso gomendagarri da testu laueko pasahitzen onarpena "
+#~ "ez bait da aurrerantzean mantendurik egongo Microsoft produktuetan. "
+#~ "Erabiltzea hautatuaz gero ziurtatu baliozko /etc/samba/smbpasswd "
+#~ "fitxategi bat duzula eta pasahitzak smbpasswd programaren bidez ezarri "
+#~ "dituzula."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
+#~ msgid "daemons"
+#~ msgstr "deabruak"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "deabruak"
+#~ msgid "inetd"
+#~ msgstr "inetd"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Nola nahi duzu Samba abiaraztea?"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Nola nahi duzu Samba abiaraztea?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Samba smbd zerbitzua deabru arrunt edo inted bidez abiarazi daiteke. Deabru "
-"bezala abiaraztea gomendatzen da."
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Samba smbd zerbitzua deabru arrunt edo inted bidez abiarazi daiteke. "
+#~ "Deabru bezala abiaraztea gomendatzen da."
 
 #, fuzzy
 #~| msgid ""

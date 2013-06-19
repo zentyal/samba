@@ -7,8 +7,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_2:3.3.0-3_be\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-05-11 16:23+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-06-19 21:52+0200\n"
 "PO-Revision-Date: 2009-02-19 04:33+0200\n"
 "Last-Translator: Pavel Piatruk <piatruk.p@gmail.com>\n"
 "Language-Team: Belarusian (Official spelling) <be@d-i.tanatos.org>\n"
@@ -228,71 +228,44 @@ msgstr ""
 "з'явіцца ваша сістэма ў якасці сервера; стандартную групу пры прагляданні "
 "сеціва; імя дамену, якое ўжываецца пры выкарыстанні наладкі security=domain."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Шыфраваць паролі?"
+#~ msgid "Use password encryption?"
+#~ msgstr "Шыфраваць паролі?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Усе апошнія версіі кліентаў Windows стасуюцца з серверамі SMB/CIFS, "
-"выкарыстоўваючы шыфраванне пароляў. Каб ужываць паролі простым тэкстам, Вам "
-"давядзецца выправіць параметр у рэгістры Windows."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Усе апошнія версіі кліентаў Windows стасуюцца з серверамі SMB/CIFS, "
+#~ "выкарыстоўваючы шыфраванне пароляў. Каб ужываць паролі простым тэкстам, "
+#~ "Вам давядзецца выправіць параметр у рэгістры Windows."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Дужа рэкамендуем уключыць гэтую опцыю, бо прадукты Microsoft Windows больш "
-"не падтрымліваюць пароляў простым тэкстам . У гэтым выпадку пераканайцеся, "
-"што Вы маеце дзейсны файл /etc/samba/smbpasswd і што для кожнага "
-"карыстальніка ў ім створаны пароль з дапамогай каманды smbpasswd."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Дужа рэкамендуем уключыць гэтую опцыю, бо прадукты Microsoft Windows "
+#~ "больш не падтрымліваюць пароляў простым тэкстам . У гэтым выпадку "
+#~ "пераканайцеся, што Вы маеце дзейсны файл /etc/samba/smbpasswd і што для "
+#~ "кожнага карыстальніка ў ім створаны пароль з дапамогай каманды smbpasswd."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
+#~ msgid "daemons"
+#~ msgstr "дэманы"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "дэманы"
+#~ msgid "inetd"
+#~ msgstr "inetd"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Якім чынам мусіць запускацца Samba?"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Якім чынам мусіць запускацца Samba?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Служба Samba smbd можа запускацца як звычайны дэман, або з дапамогай inetd. "
-"Рэкамендаваны падыход -- запуск у якасці звычайнага дэмана."
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Служба Samba smbd можа запускацца як звычайны дэман, або з дапамогай "
+#~ "inetd. Рэкамендаваны падыход -- запуск у якасці звычайнага дэмана."
 
 #~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
 #~ msgstr "Стварыць базу пароляў samba у файле /var/lib/samba/passdb.tdb?"

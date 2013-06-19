@@ -5,8 +5,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-05-11 16:23+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-06-19 21:52+0200\n"
 "PO-Revision-Date: 2008-06-20 17:28+0200\n"
 "Last-Translator: İsmail BAYDAN <ibaydan@gmail.com>\n"
 "Language-Team: Turkish <debian-l10n-turkish@lists.debian.org>\n"
@@ -241,72 +241,50 @@ msgstr ""
 "çalışma grubu olacak ve ayrıca \"security=domain\" ayarında alan adı olarak "
 "kullanılacaktır."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Parola şifrelenmesi kullanılsın mı?"
+#~ msgid "Use password encryption?"
+#~ msgstr "Parola şifrelenmesi kullanılsın mı?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Yeni Windows istemcileri SMB/CIFS sunucularıyla şifrelenmiş parolalar "
-"kullanarak iletişim kurarlar. Eğer düz metin parolalar kullanmak "
-"istiyorsanız Windows kayıt defterinde bir parametreyi değiştirmeniz "
-"gerekecektir."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Yeni Windows istemcileri SMB/CIFS sunucularıyla şifrelenmiş parolalar "
+#~ "kullanarak iletişim kurarlar. Eğer düz metin parolalar kullanmak "
+#~ "istiyorsanız Windows kayıt defterinde bir parametreyi değiştirmeniz "
+#~ "gerekecektir."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Düz metin parola desteği artık Microsoft Windows ürünlerinde bulunmadığından "
-"bu seçeneği kullanmanız şiddetle önerilir. Eğer bu seçeneği kullanacaksanız, "
-"geçerli bir /etc/samba/smbpasswd dosyanız olduğundan emin olunuz ve "
-"smbpasswd komutunu kullanarak bütün kullanıcılar için parola belirleyiniz."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Düz metin parola desteği artık Microsoft Windows ürünlerinde "
+#~ "bulunmadığından bu seçeneği kullanmanız şiddetle önerilir. Eğer bu "
+#~ "seçeneği kullanacaksanız, geçerli bir /etc/samba/smbpasswd dosyanız "
+#~ "olduğundan emin olunuz ve smbpasswd komutunu kullanarak bütün "
+#~ "kullanıcılar için parola belirleyiniz."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr "Samba sunucusu"
+#~ msgid "Samba server"
+#~ msgstr "Samba sunucusu"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "artalan süreçleri"
+#~ msgid "daemons"
+#~ msgstr "artalan süreçleri"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
+#~ msgid "inetd"
+#~ msgstr "inetd"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Samba'nın nasıl çalışmasını istersiniz?"
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Samba'nın nasıl çalışmasını istersiniz?"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Samba artalan süreci smbd, normal bir artalan süreci olarak veya inetd'den "
-"çalışabilir. Tavsiye edilen yaklaşım artalan süreci olarak çalıştırmaktır."
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Samba artalan süreci smbd, normal bir artalan süreci olarak veya "
+#~ "inetd'den çalışabilir. Tavsiye edilen yaklaşım artalan süreci olarak "
+#~ "çalıştırmaktır."
 
 #~ msgid "Set up Samba 4 as a PDC?"
 #~ msgstr "Samba 4'ü PDC olarak ayarla?"

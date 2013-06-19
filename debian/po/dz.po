@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_po.pot\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-05-11 16:23+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-06-19 21:52+0200\n"
 "PO-Revision-Date: 2007-03-13 02:22+0530\n"
 "Last-Translator: translator <pemai_jurmey@hotmail.com>\n"
 "Language-Team: dzongkha <pgeyleg@dit.gov.bt>\n"
@@ -233,72 +233,45 @@ msgid ""
 "name used with the \"security=domain\" setting."
 msgstr ""
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "ཆོག་ཡིག་གསང་བཟོ་ལགལེན་འཐབ་ནི་ཨིན་ན?"
+#~ msgid "Use password encryption?"
+#~ msgstr "ཆོག་ཡིག་གསང་བཟོ་ལགལེན་འཐབ་ནི་ཨིན་ན?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"ཝིན་ཌཱསི་ཞབས་ཏོག་སྤྱོད་མི་མང་ཤོས་ཅིག་གིས་ གསང་བཟོས་ཆོག་ཡིག་ལག་ལེན་གྱི་ཐོག་ལས་ ཨེསི་ཨེམ་བི་སར་བརསི་"
-"དང་གཅིག་ཁར་བརྒྱུད་འབྲེལ་འཐབ་ཨིན། ཁྱོད་ཀྱིས་ ཚིག་ཡིག་ཆོག་ཡིག་གསལ་ཏོག་ཏོ་ཅིག་ལག་ལེན་འཐབ་དགོ་མནོ་བ་"
-"ཅིན་ ཁྱོད་རའི་ཝིན་ཌཱསི་ཐོ་བཀོད་ནང་ལུ་ཚད་བཟུང་ཅིག་བསྒྱུར་བཅོས་འབད་དགོ"
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "ཝིན་ཌཱསི་ཞབས་ཏོག་སྤྱོད་མི་མང་ཤོས་ཅིག་གིས་ གསང་བཟོས་ཆོག་ཡིག་ལག་ལེན་གྱི་ཐོག་ལས་ ཨེསི་ཨེམ་བི་སར་"
+#~ "བརསི་དང་གཅིག་ཁར་བརྒྱུད་འབྲེལ་འཐབ་ཨིན། ཁྱོད་ཀྱིས་ ཚིག་ཡིག་ཆོག་ཡིག་གསལ་ཏོག་ཏོ་ཅིག་ལག་ལེན་འཐབ་དགོ་"
+#~ "མནོ་བ་ཅིན་ ཁྱོད་རའི་ཝིན་ཌཱསི་ཐོ་བཀོད་ནང་ལུ་ཚད་བཟུང་ཅིག་བསྒྱུར་བཅོས་འབད་དགོ"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"གདམ་ཁ་ལྕོགས་ཅན་བཟོ་མི་འདི་གིས་ གནམ་མེད་ས་མེད་འོས་སྦྱོར་འབད་ནི་ཨིན། དེ་འབད་ནི་ཨིན་པ་ཅིན་ ཁྱོད་ལུ་"
-"ནུས་ལྡན་གྱི་/etc/samba/smbpasswd ཡིག་སྣོད་ཅིག་དགོཔ་དང་ འ་ནི་འདི་ཁྱོད་ཀྱིས་ smbpasswd བརྡ་བཀོད་"
-"ལག་ལེན་གྱི་ཐོག་ལས་ ལག་ལེན་པ་རེ་བཞིན་གྱི་དོན་ལས་ དེ་ནང་ལུ་ཆོག་ཡིག་གཞི་སྒྲིག་འབད། "
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "གདམ་ཁ་ལྕོགས་ཅན་བཟོ་མི་འདི་གིས་ གནམ་མེད་ས་མེད་འོས་སྦྱོར་འབད་ནི་ཨིན། དེ་འབད་ནི་ཨིན་པ་ཅིན་ ཁྱོད་"
+#~ "ལུ་ནུས་ལྡན་གྱི་/etc/samba/smbpasswd ཡིག་སྣོད་ཅིག་དགོཔ་དང་ འ་ནི་འདི་ཁྱོད་ཀྱིས་ smbpasswd "
+#~ "བརྡ་བཀོད་ལག་ལེན་གྱི་ཐོག་ལས་ ལག་ལེན་པ་རེ་བཞིན་གྱི་དོན་ལས་ དེ་ནང་ལུ་ཆོག་ཡིག་གཞི་སྒྲིག་འབད། "
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
+#~ msgid "daemons"
+#~ msgstr "ཌེ་མཱོནསི་"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "ཌེ་མཱོནསི་"
+#~ msgid "inetd"
+#~ msgstr "inetd"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "ཁྱོད་ཀྱིས་ སམ་བ་འདི་ག་དེ་སྦེ་གཡོག་བཀོལ་དགོ་མནོཝ་སྨོ?"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "ཁྱོད་ཀྱིས་ སམ་བ་འདི་ག་དེ་སྦེ་གཡོག་བཀོལ་དགོ་མནོཝ་སྨོ?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"སམ་བ་ཌེ་མཱོན་smbdའདི་ སྤྱིར་བཏང་ཌེ་མཱོན་སྦེ་ ཡང་ན་ inetdནང་ལས་ གཡོག་བཀོལ་ཚུགས། ཌེ་མཱོན་སྦེ་གཡོག་"
-"བཀོལ་མི་འདི་ འོས་སྦྱོར་འབད་ཡོད་པའི་རྩར་ལེན་ཨིན།"
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "སམ་བ་ཌེ་མཱོན་smbdའདི་ སྤྱིར་བཏང་ཌེ་མཱོན་སྦེ་ ཡང་ན་ inetdནང་ལས་ གཡོག་བཀོལ་ཚུགས། ཌེ་མཱོན་སྦེ་"
+#~ "གཡོག་བཀོལ་མི་འདི་ འོས་སྦྱོར་འབད་ཡོད་པའི་རྩར་ལེན་ཨིན།"
 
 #, fuzzy
 #~| msgid ""

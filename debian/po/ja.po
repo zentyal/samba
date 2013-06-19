@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba4\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-05-11 16:23+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-06-19 21:52+0200\n"
 "PO-Revision-Date: 2012-02-15 22:49+0900\n"
 "Last-Translator: Kenshi Muto <kmuto@debian.org>\n"
 "Language-Team: Japanese <debian-japanese@lists.debian.org>\n"
@@ -245,71 +245,47 @@ msgstr ""
 "ドでブラウジングされたときに使われるデフォルトのワークグループ、そして"
 "\"security=domain\" 設定が使われたときのドメイン名を制御します。"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "パスワードの暗号化を使いますか?"
+#~ msgid "Use password encryption?"
+#~ msgstr "パスワードの暗号化を使いますか?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"ほとんどの Windows クライアントは暗号化されたパスワードを使って SMB/CIFS サー"
-"バとやり取りします。クリアテキストパスワードを使いたい場合は、あなたの "
-"Windows のレジストリにあるパラメータを変更する必要があります。"
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "ほとんどの Windows クライアントは暗号化されたパスワードを使って SMB/CIFS "
+#~ "サーバとやり取りします。クリアテキストパスワードを使いたい場合は、あなた"
+#~ "の Windows のレジストリにあるパラメータを変更する必要があります。"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"プレインテキストパスワードのサポートはもう Microsoft Windows 製品では保守され"
-"ていないので、ここで「はい」と答えることを強くお勧めします。この場合、有効"
-"な /etc/samba/smbpasswd ファイルがあることを確認し、各ユーザのパスワードは "
-"smbpasswd コマンドを使って設定してください。"
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "プレインテキストパスワードのサポートはもう Microsoft Windows 製品では保守"
+#~ "されていないので、ここで「はい」と答えることを強くお勧めします。この場合、"
+#~ "有効な /etc/samba/smbpasswd ファイルがあることを確認し、各ユーザのパスワー"
+#~ "ドは smbpasswd コマンドを使って設定してください。"
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr "Samba サーバ"
+#~ msgid "Samba server"
+#~ msgstr "Samba サーバ"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "デーモン"
+#~ msgid "daemons"
+#~ msgstr "デーモン"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
+#~ msgid "inetd"
+#~ msgstr "inetd"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "どのように Samba を実行したいですか?"
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "どのように Samba を実行したいですか?"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Samba デーモン smbd は通常のデーモンとしての実行または inetd からの実行ができ"
-"ます。デーモンとして実行するのがお勧めの手段です。"
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Samba デーモン smbd は通常のデーモンとしての実行または inetd からの実行が"
+#~ "できます。デーモンとして実行するのがお勧めの手段です。"
 
 #~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
 #~ msgstr ""

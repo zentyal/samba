@@ -5,8 +5,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: Samba\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-05-11 16:23+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-06-19 21:52+0200\n"
 "PO-Revision-Date: 2009-04-16 12:12+0600\n"
 "Last-Translator: Md. Rezwan Shahid <rezwan@ankur.org.bd>\n"
 "Language-Team: Bengali <ankur-bd-l10n@googlegroups.com>\n"
@@ -225,71 +225,44 @@ msgstr ""
 "ব্যবহৃত ডিফল্ট ওয়ার্কগ্রুপ, এবং \"security=domain\" সেটিং এ ব্যবহৃত ডোমেইন নাম এই "
 "সেটিং নিয়ন্ত্রন করে।"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "পাসওয়ার্ড এনক্রিপশন ব্যবহার করা হবে?"
+#~ msgid "Use password encryption?"
+#~ msgstr "পাসওয়ার্ড এনক্রিপশন ব্যবহার করা হবে?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"সকল সাম্প্রতিক উইন্ডো ক্লায়েন্ট এনক্রিপ্ট করা পাসওয়ার্ড ব্যবহার করে SMB/CIFS সার্ভারের "
-"সাথে যোগাযোগ করে। যদি আপনি সরল টেক্সট পাসওয়ার্ড ব্যবহার করতে চান তাহলে আপনার "
-"উইন্ডোজ রেজিস্ট্রিতে একটি প্যারামিটার পরিবর্তন করতে হবে।"
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "সকল সাম্প্রতিক উইন্ডো ক্লায়েন্ট এনক্রিপ্ট করা পাসওয়ার্ড ব্যবহার করে SMB/CIFS "
+#~ "সার্ভারের সাথে যোগাযোগ করে। যদি আপনি সরল টেক্সট পাসওয়ার্ড ব্যবহার করতে চান "
+#~ "তাহলে আপনার উইন্ডোজ রেজিস্ট্রিতে একটি প্যারামিটার পরিবর্তন করতে হবে।"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"এই অপশনটি সক্রিয় করা সুপারিশকৃত কারন মাইক্রোসফট উইন্ডোজ প্রোডাক্টে এখন আর সরল টেক্সট "
-"পাসওয়ার্ড মেইনটেইন করা হয় না। যদি আপনি করেন তাহলে নিশ্চিত হয়ে নিন যে আপনার "
-"একটি বৈধ /etc/samba/smbpasswd ফাইল আছে এবং আপনি সেখানে smbpasswd কমান্ড "
-"ব্যবহার করে প্রত্যেক ব্যবহারকারীর জন্য পাসওয়ার্ড সেট করেন।"
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "এই অপশনটি সক্রিয় করা সুপারিশকৃত কারন মাইক্রোসফট উইন্ডোজ প্রোডাক্টে এখন আর সরল "
+#~ "টেক্সট পাসওয়ার্ড মেইনটেইন করা হয় না। যদি আপনি করেন তাহলে নিশ্চিত হয়ে নিন যে "
+#~ "আপনার একটি বৈধ /etc/samba/smbpasswd ফাইল আছে এবং আপনি সেখানে smbpasswd "
+#~ "কমান্ড ব্যবহার করে প্রত্যেক ব্যবহারকারীর জন্য পাসওয়ার্ড সেট করেন।"
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
+#~ msgid "daemons"
+#~ msgstr "ডিমন"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "ডিমন"
+#~ msgid "inetd"
+#~ msgstr "inetd"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "আপনি সাম্বা কিভাবে চালাতে চান?"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "আপনি সাম্বা কিভাবে চালাতে চান?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"সাম্বা ডিমন smbd একটি সাধারন ডিমন হিসেবে বা inetd থেকে চালানো যেতে পারে। ডিমন "
-"হিসেবে চালানো সুপারিশকৃত।"
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "সাম্বা ডিমন smbd একটি সাধারন ডিমন হিসেবে বা inetd থেকে চালানো যেতে পারে। "
+#~ "ডিমন হিসেবে চালানো সুপারিশকৃত।"
 
 #~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
 #~ msgstr "সাম্বা পাসওয়ার্ড ডেটাবেজ তৈরি করা হবে, /var/lib/samba/passdb.tdb?"

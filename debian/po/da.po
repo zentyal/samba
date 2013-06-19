@@ -8,8 +8,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba4\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-05-11 16:23+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-06-19 21:52+0200\n"
 "PO-Revision-Date: 2012-01-21 19:21+0100\n"
 "Last-Translator: Joe Hansen <joedalton2@yahoo.dk>\n"
 "Language-Team: Danish <debian-l10n-danish@lists.debian.org>\n"
@@ -243,71 +243,47 @@ msgstr ""
 "standardarbejdsgruppen der bruges når der browses med forskellige "
 "grænseflader, og domænenavnet brugt med indstillingen »security=domain«."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Krypter adgangskoder?"
+#~ msgid "Use password encryption?"
+#~ msgstr "Krypter adgangskoder?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Alle nyere Windowsklienter kommunikerer med SMB/CIFS-servere ved hjælp af "
-"krypterede adgangskoder. Hvis du vil bruge adgangkoder i klar tekst, er du "
-"nødt til at ændre en indstilling i Windows' registreringsdatabase."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Alle nyere Windowsklienter kommunikerer med SMB/CIFS-servere ved hjælp af "
+#~ "krypterede adgangskoder. Hvis du vil bruge adgangkoder i klar tekst, er "
+#~ "du nødt til at ændre en indstilling i Windows' registreringsdatabase."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Aktivering af denne indstilling anbefales, da understøttelse af klar tekst "
-"ikke længere vedligeholdes i Microsoft Windows' produkter. Hvis du "
-"aktiverer, så sørg for at du har en gyldig /etc/samba/smbpasswd-fil, og at "
-"du her angiver adgangskoder for hver bruger med kommandoen smbpasswd."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Aktivering af denne indstilling anbefales, da understøttelse af klar "
+#~ "tekst ikke længere vedligeholdes i Microsoft Windows' produkter. Hvis du "
+#~ "aktiverer, så sørg for at du har en gyldig /etc/samba/smbpasswd-fil, og "
+#~ "at du her angiver adgangskoder for hver bruger med kommandoen smbpasswd."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr "Sambaserver"
+#~ msgid "Samba server"
+#~ msgstr "Sambaserver"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "dæmoner"
+#~ msgid "daemons"
+#~ msgstr "dæmoner"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
+#~ msgid "inetd"
+#~ msgstr "inetd"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Hvordan skal Samba køres?"
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Hvordan skal Samba køres?"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Samba-dæmonen smbd kan køre som en almindelig dæmon eller fra inetd. Det "
-"anbefales at køre den som dæmon."
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Samba-dæmonen smbd kan køre som en almindelig dæmon eller fra inetd. Det "
+#~ "anbefales at køre den som dæmon."
 
 #~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
 #~ msgstr "Opret samba-adgangskodedatabasen /var/lib/samba/passdb.tdb?"

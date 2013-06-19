@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2013-05-11 16:23+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-06-19 21:52+0200\n"
 "PO-Revision-Date: 2007-03-13 23:18+0800\n"
 "Last-Translator: Asho Yeh <asho@debian.org.tw>\n"
 "Language-Team: Chinese (traditional) <zh-l10n@linux.org.tw>\n"
@@ -227,69 +227,42 @@ msgstr ""
 "組裡、以及很多前端程式在瀏覽時所會使用的預設群組，以及 \"security=domain\" 這"
 "個設定所會用到的網域名稱。"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "使用密碼加密嗎？"
+#~ msgid "Use password encryption?"
+#~ msgstr "使用密碼加密嗎？"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"所有較新的 Windows 用戶端在和 SMB/CIFS 伺服器通訊時都會使用加密密碼。如果您想"
-"使用明文密碼，您將需要修改您的 Windows 登錄表中的一個參數。"
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "所有較新的 Windows 用戶端在和 SMB/CIFS 伺服器通訊時都會使用加密密碼。如果"
+#~ "您想使用明文密碼，您將需要修改您的 Windows 登錄表中的一個參數。"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"強烈建議能啟用這個選項，因為 Microsoft Windows 系列產品對明文密碼的支援已沒有"
-"在維護了。如果您要啟用的話，請確認您有個有效的 /etc/samba/smbpasswd 檔，且其"
-"中包含了使用 smbpasswd 指令替每個使用者所設定的密碼。"
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "強烈建議能啟用這個選項，因為 Microsoft Windows 系列產品對明文密碼的支援已"
+#~ "沒有在維護了。如果您要啟用的話，請確認您有個有效的 /etc/samba/smbpasswd "
+#~ "檔，且其中包含了使用 smbpasswd 指令替每個使用者所設定的密碼。"
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
+#~ msgid "daemons"
+#~ msgstr "背景服務"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "背景服務"
+#~ msgid "inetd"
+#~ msgstr "inetd"
 
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "您想如何執行 Samba？"
 
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "您想如何執行 Samba？"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Samba 背景服務程式 smbd 可以作為普通的背景服務或者從 inetd 啟動。以背景服務的"
-"方式執行是推薦的方式。"
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Samba 背景服務程式 smbd 可以作為普通的背景服務或者從 inetd 啟動。以背景服"
+#~ "務的方式執行是推薦的方式。"
 
 #, fuzzy
 #~| msgid ""

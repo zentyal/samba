@@ -41,13 +41,19 @@ samba (2:4.0.6+dfsg-1) UNRELEASED; urgency=low
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Sat, 25 May 2013 23:30:36 +0200
 
-samba (2:3.6.15-2) UNRELEASED; urgency=low
+samba (2:3.6.16-1) unstable; urgency=low
 
+  * Team upload.
+
+  [ Steve Langasek ]
   * Drop support for running smbd from inetd; this is not well-supported
     upstream, and can't correctly handle all of the long-running services
     that are needed as part of modern samba.  Closes: #707622.
 
- -- Steve Langasek <vorlon@debian.org>  Mon, 13 May 2013 11:57:53 -0700
+  [ Ivo De Decker ]
+  * New upstream release
+
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Wed, 19 Jun 2013 21:05:07 +0200
 
 samba (2:3.6.15-1) unstable; urgency=high
 

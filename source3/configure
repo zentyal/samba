@@ -745,6 +745,24 @@ tdbdir
 LIBTDB_OBJ0
 LIBTDB_LIBS
 LIBTDB_CFLAGS
+LIBTEVENT_OBJ0
+LIBTEVENT_SHARED_TARGET_FULLVER
+LIBTEVENT_SHARED_TARGET_SOVER
+LIBTEVENT_FULLVER
+LIBTEVENT_SOVER
+UNINSTALL_LIBTEVENT
+INSTALL_LIBTEVENT
+LIBTEVENT_TARGET
+LIBTEVENT_STATIC
+LIBTEVENT_SHARED
+LIBTEVENT_STATIC_TARGET
+LIBTEVENT_SHARED_TARGET
+TEVENT_LIBS
+TEVENT_CFLAGS
+TEVENT_OBJ
+teventdir
+LIBTEVENT_LIBS
+LIBTEVENT_CFLAGS
 TALLOCTORT
 LIBTALLOC_OBJ0
 LIBTALLOC_SHARED_TARGET_FULLVER
@@ -758,6 +776,7 @@ LIBTALLOC_STATIC
 LIBTALLOC_SHARED
 LIBTALLOC_STATIC_TARGET
 LIBTALLOC_SHARED_TARGET
+EXPORTSFILE
 TALLOC_LIBS
 TALLOC_CFLAGS
 TALLOC_OBJ
@@ -853,12 +872,6 @@ SHLD
 SONAMEFLAG
 LDSHFLAGS
 SAMBA_CPPFLAGS
-LIBTEVENT_OBJ0
-EXPORTSFILE
-TEVENT_LIBS
-TEVENT_CFLAGS
-TEVENT_OBJ
-teventdir
 LIB_PATH_VAR
 libreplace_cv_immediate_structures
 INSTALL_DATA
@@ -994,6 +1007,8 @@ enable_shared_libs
 with_static_libs
 enable_external_libtalloc
 with_libtalloc
+enable_external_libtevent
+with_libtevent
 enable_external_libtdb
 with_libtdb
 with_libnetapi
@@ -1050,6 +1065,8 @@ PYTHON_VER
 PKG_CONFIG
 LIBTALLOC_CFLAGS
 LIBTALLOC_LIBS
+LIBTEVENT_CFLAGS
+LIBTEVENT_LIBS
 LIBTDB_CFLAGS
 LIBTDB_LIBS'
 
@@ -1689,6 +1706,8 @@ Optional Features:
   --enable-shared-libs    Use shared libraries internally (default=yes)
   --enable-external-libtalloc
                           Enable external talloc [default=auto]
+  --enable-external-libtevent
+                          Enable external tevent [default=auto]
   --enable-external-libtdb
                           Enable external tdb [default=auto]
   --enable-fam            Turn on FAM support (default=auto)
@@ -1751,6 +1770,8 @@ Optional Packages:
                           libraries to link statically (instead of
                           dynamically)
   --with-libtalloc        Build the libtalloc shared library (default=yes if
+                          shared libs supported)
+  --with-libtevent        Build the libtevent shared library (default=yes if
                           shared libs supported)
   --with-libtdb           Build the libtdb shared library (default=yes if
                           shared libs supported)
@@ -1819,6 +1840,10 @@ Some influential environment variables:
               C compiler flags for LIBTALLOC, overriding pkg-config
   LIBTALLOC_LIBS
               linker flags for LIBTALLOC, overriding pkg-config
+  LIBTEVENT_CFLAGS
+              C compiler flags for LIBTEVENT, overriding pkg-config
+  LIBTEVENT_LIBS
+              linker flags for LIBTEVENT, overriding pkg-config
   LIBTDB_CFLAGS
               C compiler flags for LIBTDB, overriding pkg-config
   LIBTDB_LIBS linker flags for LIBTDB, overriding pkg-config
@@ -2425,6 +2450,63 @@ rm -f conftest.val
 
 } # ac_fn_c_compute_int
 
+# ac_fn_c_check_member LINENO AGGR MEMBER VAR INCLUDES
+# ----------------------------------------------------
+# Tries to find if the field MEMBER exists in type AGGR, after including
+# INCLUDES, setting cache variable VAR accordingly.
+ac_fn_c_check_member ()
+{
+  as_lineno=${as_lineno-"$1"} as_lineno_stack=as_lineno_stack=$as_lineno_stack
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $2.$3" >&5
+$as_echo_n "checking for $2.$3... " >&6; }
+if eval \${$4+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+$5
+int
+main ()
+{
+static $2 ac_aggr;
+if (ac_aggr.$3)
+return 0;
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  eval "$4=yes"
+else
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+$5
+int
+main ()
+{
+static $2 ac_aggr;
+if (sizeof ac_aggr.$3)
+return 0;
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  eval "$4=yes"
+else
+  eval "$4=no"
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+eval ac_res=\$$4
+	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
+$as_echo "$ac_res" >&6; }
+  eval $as_lineno_stack; ${as_lineno_stack:+:} unset as_lineno
+
+} # ac_fn_c_check_member
+
 # ac_fn_c_check_func LINENO FUNC VAR
 # ----------------------------------
 # Tests whether FUNC exists, setting the cache variable VAR accordingly
@@ -2491,63 +2573,6 @@ $as_echo "$ac_res" >&6; }
   eval $as_lineno_stack; ${as_lineno_stack:+:} unset as_lineno
 
 } # ac_fn_c_check_func
-
-# ac_fn_c_check_member LINENO AGGR MEMBER VAR INCLUDES
-# ----------------------------------------------------
-# Tries to find if the field MEMBER exists in type AGGR, after including
-# INCLUDES, setting cache variable VAR accordingly.
-ac_fn_c_check_member ()
-{
-  as_lineno=${as_lineno-"$1"} as_lineno_stack=as_lineno_stack=$as_lineno_stack
-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $2.$3" >&5
-$as_echo_n "checking for $2.$3... " >&6; }
-if eval \${$4+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-$5
-int
-main ()
-{
-static $2 ac_aggr;
-if (ac_aggr.$3)
-return 0;
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"; then :
-  eval "$4=yes"
-else
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-$5
-int
-main ()
-{
-static $2 ac_aggr;
-if (sizeof ac_aggr.$3)
-return 0;
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"; then :
-  eval "$4=yes"
-else
-  eval "$4=no"
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-fi
-eval ac_res=\$$4
-	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
-$as_echo "$ac_res" >&6; }
-  eval $as_lineno_stack; ${as_lineno_stack:+:} unset as_lineno
-
-} # ac_fn_c_check_member
 
 # ac_fn_c_check_decl LINENO SYMBOL VAR INCLUDES
 # ---------------------------------------------
@@ -6618,85 +6643,8 @@ echo "LIBREPLACE_CC_CHECKS: END"
 
 
 
-
-
-
-if test x"$teventdir" = "x"; then
-	teventdir=""
-	teventpaths="$srcdir $srcdir/../lib/tevent $srcdir/tevent $srcdir/../tevent"
-	for d in $teventpaths; do
-		if test -f "$d/tevent.c"; then
-			teventdir="$d"
-			break;
-		fi
-	done
-	if test x"$teventdir" = "x"; then
-	   as_fn_error $? "cannot find libtevent source in $teventpaths" "$LINENO" 5
-	fi
-fi
-
-TEVENT_OBJ=""
-TEVENT_CFLAGS=""
-TEVENT_LIBS=""
-
-
-
-
-TEVENT_CFLAGS="-I$teventdir"
-
-TEVENT_OBJ="tevent.o tevent_debug.o tevent_util.o"
-TEVENT_OBJ="$TEVENT_OBJ tevent_fd.o tevent_timed.o tevent_immediate.o tevent_signal.o"
-TEVENT_OBJ="$TEVENT_OBJ tevent_req.o tevent_wakeup.o tevent_queue.o"
-TEVENT_OBJ="$TEVENT_OBJ tevent_standard.o tevent_select.o"
-TEVENT_OBJ="$TEVENT_OBJ tevent_poll.o"
-
-for ac_header in sys/epoll.h
-do :
-  ac_fn_c_check_header_mongrel "$LINENO" "sys/epoll.h" "ac_cv_header_sys_epoll_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_epoll_h" = xyes; then :
-  cat >>confdefs.h <<_ACEOF
-#define HAVE_SYS_EPOLL_H 1
-_ACEOF
-
-fi
-
-done
-
-for ac_func in epoll_create
-do :
-  ac_fn_c_check_func "$LINENO" "epoll_create" "ac_cv_func_epoll_create"
-if test "x$ac_cv_func_epoll_create" = xyes; then :
-  cat >>confdefs.h <<_ACEOF
-#define HAVE_EPOLL_CREATE 1
-_ACEOF
-
-fi
-done
-
-if test x"$ac_cv_header_sys_epoll_h" = x"yes" -a x"$ac_cv_func_epoll_create" = x"yes"; then
-   TEVENT_OBJ="$TEVENT_OBJ tevent_epoll.o"
-
-$as_echo "#define HAVE_EPOLL 1" >>confdefs.h
-
-fi
-
-if test x"$VERSIONSCRIPT" != "x"; then
-    EXPORTSFILE=tevent.exports
-
-fi
-
-
-
-LIBTEVENT_OBJ0=""
-for obj in ${TEVENT_OBJ}; do
-	LIBTEVENT_OBJ0="${LIBTEVENT_OBJ0} ${teventdir}/${obj}"
-done
-
-LIBS="${LIBS} ${TEVENT_LIBS}"
-
 SAMBA_CPPFLAGS="-Iinclude -I${srcdir-.}/include  -I. -I${srcdir-.}"
 SAMBA_CPPFLAGS="${SAMBA_CPPFLAGS} -I${srcdir-.}/../lib/replace"
-SAMBA_CPPFLAGS="${SAMBA_CPPFLAGS} ${TEVENT_CFLAGS}"
 SAMBA_CPPFLAGS="${SAMBA_CPPFLAGS} -I${srcdir-.}/librpc"
 SAMBA_CPPFLAGS="${SAMBA_CPPFLAGS} -I${srcdir-.}/.."
 
@@ -20430,6 +20378,281 @@ fi
 
 
 	TALLOCTORT="bin/talloctort\$(EXEEXT)"
+
+fi
+
+# Check whether --enable-external_libtevent was given.
+if test "${enable_external_libtevent+set}" = set; then :
+  enableval=$enable_external_libtevent;  enable_external_libtevent=$enableval
+else
+   enable_external_libtevent=auto
+fi
+
+
+if test "x$enable_external_libtevent" != xno
+then
+
+pkg_failed=no
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for LIBTEVENT" >&5
+$as_echo_n "checking for LIBTEVENT... " >&6; }
+
+if test -n "$PKG_CONFIG"; then
+    if test -n "$LIBTEVENT_CFLAGS"; then
+        pkg_cv_LIBTEVENT_CFLAGS="$LIBTEVENT_CFLAGS"
+    else
+        if test -n "$PKG_CONFIG" && \
+    { { $as_echo "$as_me:${as_lineno-$LINENO}: \$PKG_CONFIG --exists --print-errors \"tevent >= 0.9.11\""; } >&5
+  ($PKG_CONFIG --exists --print-errors "tevent >= 0.9.11") 2>&5
+  ac_status=$?
+  $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
+  test $ac_status = 0; }; then
+  pkg_cv_LIBTEVENT_CFLAGS=`$PKG_CONFIG --cflags "tevent >= 0.9.11" 2>/dev/null`
+else
+  pkg_failed=yes
+fi
+    fi
+else
+	pkg_failed=untried
+fi
+if test -n "$PKG_CONFIG"; then
+    if test -n "$LIBTEVENT_LIBS"; then
+        pkg_cv_LIBTEVENT_LIBS="$LIBTEVENT_LIBS"
+    else
+        if test -n "$PKG_CONFIG" && \
+    { { $as_echo "$as_me:${as_lineno-$LINENO}: \$PKG_CONFIG --exists --print-errors \"tevent >= 0.9.11\""; } >&5
+  ($PKG_CONFIG --exists --print-errors "tevent >= 0.9.11") 2>&5
+  ac_status=$?
+  $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
+  test $ac_status = 0; }; then
+  pkg_cv_LIBTEVENT_LIBS=`$PKG_CONFIG --libs "tevent >= 0.9.11" 2>/dev/null`
+else
+  pkg_failed=yes
+fi
+    fi
+else
+	pkg_failed=untried
+fi
+
+
+
+if test $pkg_failed = yes; then
+
+if $PKG_CONFIG --atleast-pkgconfig-version 0.20; then
+        _pkg_short_errors_supported=yes
+else
+        _pkg_short_errors_supported=no
+fi
+        if test $_pkg_short_errors_supported = yes; then
+	        LIBTEVENT_PKG_ERRORS=`$PKG_CONFIG --short-errors --errors-to-stdout --print-errors "tevent >= 0.9.11"`
+        else
+	        LIBTEVENT_PKG_ERRORS=`$PKG_CONFIG --errors-to-stdout --print-errors "tevent >= 0.9.11"`
+        fi
+	# Put the nasty error message in config.log where it belongs
+	echo "$LIBTEVENT_PKG_ERRORS" >&5
+
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+                 if test x$enable_external_libtevent = xyes; then
+			as_fn_error $? "Unable to find libtevent" "$LINENO" 5
+		  else
+			enable_external_libtevent=no
+		  fi
+
+elif test $pkg_failed = untried; then
+	 if test x$enable_external_libtevent = xyes; then
+			as_fn_error $? "Unable to find libtevent" "$LINENO" 5
+		  else
+			enable_external_libtevent=no
+		  fi
+
+else
+	LIBTEVENT_CFLAGS=$pkg_cv_LIBTEVENT_CFLAGS
+	LIBTEVENT_LIBS=$pkg_cv_LIBTEVENT_LIBS
+        { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+	 enable_external_libtevent=yes
+fi
+fi
+
+if test "x$enable_external_libtevent" = xno
+then
+
+
+
+if test x"$teventdir" = "x"; then
+	teventdir=""
+	teventpaths="$srcdir $srcdir/../lib/tevent $srcdir/tevent $srcdir/../tevent"
+	for d in $teventpaths; do
+		if test -f "$d/tevent.c"; then
+			teventdir="$d"
+			break;
+		fi
+	done
+	if test x"$teventdir" = "x"; then
+	   as_fn_error $? "cannot find libtevent source in $teventpaths" "$LINENO" 5
+	fi
+fi
+
+TEVENT_OBJ=""
+TEVENT_CFLAGS=""
+TEVENT_LIBS=""
+
+
+
+
+TEVENT_CFLAGS="-I$teventdir"
+
+TEVENT_OBJ="tevent.o tevent_debug.o tevent_util.o"
+TEVENT_OBJ="$TEVENT_OBJ tevent_fd.o tevent_timed.o tevent_immediate.o tevent_signal.o"
+TEVENT_OBJ="$TEVENT_OBJ tevent_req.o tevent_wakeup.o tevent_queue.o"
+TEVENT_OBJ="$TEVENT_OBJ tevent_standard.o tevent_select.o"
+TEVENT_OBJ="$TEVENT_OBJ tevent_poll.o"
+
+for ac_header in sys/epoll.h
+do :
+  ac_fn_c_check_header_mongrel "$LINENO" "sys/epoll.h" "ac_cv_header_sys_epoll_h" "$ac_includes_default"
+if test "x$ac_cv_header_sys_epoll_h" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_SYS_EPOLL_H 1
+_ACEOF
+
+fi
+
+done
+
+for ac_func in epoll_create
+do :
+  ac_fn_c_check_func "$LINENO" "epoll_create" "ac_cv_func_epoll_create"
+if test "x$ac_cv_func_epoll_create" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_EPOLL_CREATE 1
+_ACEOF
+
+fi
+done
+
+if test x"$ac_cv_header_sys_epoll_h" = x"yes" -a x"$ac_cv_func_epoll_create" = x"yes"; then
+   TEVENT_OBJ="$TEVENT_OBJ tevent_epoll.o"
+
+$as_echo "#define HAVE_EPOLL 1" >>confdefs.h
+
+fi
+
+if test x"$VERSIONSCRIPT" != "x"; then
+    EXPORTSFILE=tevent.exports
+
+fi
+
+
+	if test x"$USESHARED" = x"no" ; then
+		LINK_LIBTEVENT=STATIC
+	fi
+	LIBTEVENTVERSION=`grep ^VERSION ${teventdir}/wscript | sed -e "s/'//g" -e 's/.* //'`
+
+
+
+
+
+LIBTEVENT_SHARED_TARGET=bin/libtevent.$SHLIBEXT
+LIBTEVENT_STATIC_TARGET=bin/libtevent.a
+LIBTEVENT_SHARED=
+LIBTEVENT_STATIC=
+LIBTEVENT_LIBS=-ltevent
+LIBTEVENT_TARGET=
+INSTALL_LIBTEVENT=
+UNINSTALL_LIBTEVENT=
+
+LIBTEVENT_SOVER=0
+LIBTEVENT_FULLVER=${LIBTEVENTVERSION}
+
+LIBTEVENT_SHARED_TARGET_SOVER=$LIBTEVENT_SHARED_TARGET.$LIBTEVENT_SOVER
+LIBTEVENT_SHARED_TARGET_FULLVER=$LIBTEVENT_SHARED_TARGET.$LIBTEVENT_FULLVER
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether to build the libtevent shared library" >&5
+$as_echo_n "checking whether to build the libtevent shared library... " >&6; }
+
+
+# Check whether --with-libtevent was given.
+if test "${with_libtevent+set}" = set; then :
+  withval=$with_libtevent;
+case "$withval" in
+	no)
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+		build_lib=no
+		;;
+	*)
+		build_lib=yes
+		;;
+esac
+
+else
+
+# if unspecified, default is to build it if possible.
+build_lib=yes
+
+
+fi
+
+
+
+if eval test x"$build_lib" = "xyes" ; then
+	# only set the install targets if the user chose the library
+	INSTALL_LIBTEVENT=installlibtevent
+	UNINSTALL_LIBTEVENT=uninstalllibtevent
+	if eval $BLDSHARED = true; then
+		LIBTEVENT_SHARED=$LIBTEVENT_SHARED_TARGET
+		LIBTEVENT_TARGET=$LIBTEVENT_SHARED_TARGET
+
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+		if test x"$USESHARED" != x"true" -o x"$LINK_LIBTEVENT" = "xSTATIC" ; then
+			enable_static=yes
+			LIBTEVENT_TARGET=$LIBTEVENT_STATIC_TARGET
+			LIBTEVENT_LIBS=$LIBTEVENT_STATIC_TARGET
+		else
+			LIBTEVENT_LIBS=-ltevent
+		fi
+	else
+		enable_static=yes
+		LIBTEVENT_TARGET=$LIBTEVENT_STATIC_TARGET
+		LIBTEVENT_LIBS=$LIBTEVENT_STATIC_TARGET
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: result: no shared library support -- will supply static library" >&5
+$as_echo "no shared library support -- will supply static library" >&6; }
+	fi
+else
+	enable_static=yes
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: shared library not selected" >&5
+$as_echo "shared library not selected" >&6; }
+fi
+if test $enable_static = yes; then
+	LIBTEVENT_STATIC=$LIBTEVENT_STATIC_TARGET
+fi
+
+
+
+
+
+
+	LIBTEVENT_OBJ0=""
+	for obj in ${TEVENT_OBJ}; do
+		LIBTEVENT_OBJ0="${LIBTEVENT_OBJ0} ${teventdir}/${obj}"
+	done
+	SAMBA_CPPFLAGS="${SAMBA_CPPFLAGS} ${TEVENT_CFLAGS}"
+	SAMBA_CONFIGURE_CPPFLAGS="${SAMBA_CONFIGURE_CPPFLAGS} ${TEVENT_CFLAGS}"
 
 fi
 

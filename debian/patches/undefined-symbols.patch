@@ -9,16 +9,14 @@ Author: Steve Langasek <vorlon@debian.org>
 Bug-Debian: http://bugs.debian.org/281181
 Forwarded: no
 
-Index: samba/source3/Makefile.in
-===================================================================
---- samba.orig/source3/Makefile.in
-+++ samba/source3/Makefile.in
-@@ -2501,7 +2501,7 @@
+--- a/source3/Makefile.in
++++ b/source3/Makefile.in
+@@ -2594,7 +2594,7 @@
  
- $(LIBSMBCLIENT_SHARED_TARGET_SONAME): $(BINARY_PREREQS) $(LIBSMBCLIENT_OBJ) $(LIBSMBCLIENT_THREAD_OBJ) $(LIBSMBCLIENT_SYMS) $(LIBTALLOC) $(LIBTDB) $(LIBWBCLIENT)
+ $(LIBSMBCLIENT_SHARED_TARGET_SONAME): $(BINARY_PREREQS) $(LIBSMBCLIENT_OBJ) $(LIBSMBCLIENT_THREAD_OBJ) $(LIBSMBCLIENT_SYMS) $(LIBTALLOC) $(LIBTEVENT) $(LIBTDB) $(LIBWBCLIENT)
  	@echo Linking shared library $@
 -	@$(SHLD_DSO) $(LIBSMBCLIENT_OBJ) $(LIBSMBCLIENT_THREAD_OBJ) \
 +	@$(SHLD_DSO) -Wl,-z,defs $(LIBSMBCLIENT_OBJ) $(LIBSMBCLIENT_THREAD_OBJ) \
- 		$(LIBTALLOC_LIBS) $(LIBTDB_LIBS) $(LIBWBCLIENT_LIBS) $(LIBS) \
+ 		$(LIBTALLOC_LIBS) $(LIBTEVENT_LIBS) $(LIBTDB_LIBS) $(LIBWBCLIENT_LIBS) $(LIBS) \
  		$(KRB5LIBS) $(LDAP_LIBS) $(NSCD_LIBS) $(ZLIB_LIBS) $(PTHREAD_LDFLAGS) \
  		@SONAMEFLAG@`basename $@`

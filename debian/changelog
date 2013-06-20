@@ -1,4 +1,4 @@
-samba (2:4.0.6+dfsg-1) UNRELEASED; urgency=low
+samba (2:4.0.6+dfsg-1) experimental; urgency=low
 
   * Team upload.
 
@@ -41,7 +41,7 @@ samba (2:4.0.6+dfsg-1) UNRELEASED; urgency=low
     incompatible with smb.conf from samba 4.0, so force them off the system
     to avoid configuration corruption.
 
- -- Ivo De Decker <ivo.dedecker@ugent.be>  Wed, 19 Jun 2013 22:24:37 +0200
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Thu, 20 Jun 2013 21:51:49 +0200
 
 samba (2:3.6.16-1) unstable; urgency=low
 

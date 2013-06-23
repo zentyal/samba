@@ -86,17 +86,13 @@ Depends: samba,
          ${misc:Depends},
          ${python:Depends},
          ${shlibs:Depends}
-Description: SMB/CIFS file, NT domain and active directory server (version 4)
+Description: SMB/CIFS file, NT domain and active directory server
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file sharing with Microsoft Windows, OS X,
  and other Unix systems.  Samba can also function as a domain controller
  or member server in both NT4-style and Active Directory domains.
  .
- These packages contain snapshot versions of Samba 4, the next-generation
- version of Samba. These should be considered _experimental_, and should
- not be used in production.
- .
- This package contains the main daemon.
+ This package contains the main daemon for the active directory server.
 
 Package: libsamdb0
 Pre-Depends: ${misc:Pre-Depends}
@@ -230,14 +226,11 @@ Depends: samba-common-bin (=${binary:Version}),
          smbclient
 Replaces: samba-doc (<< 2:4.0.5~)
 Conflicts: samba-common (<< 2:3.3.0~rc2-5), samba-doc (<< 2:4.0.5~)
-Description: client utilities from Samba 4
+Description: client utilities from Samba
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file sharing with Microsoft Windows, OS X,
  and other Unix systems.  Samba can also function as a domain controller
  or member server in both NT4-style and Active Directory domains.
- .
- These packages contain snapshot versions of Samba 4, the next-generation
- version of Samba.
  .
  This package contains some client components of the Samba suite. In
  particular it includes the command line utilities smbclient, net,
@@ -268,10 +261,6 @@ Description: tools for viewing and manipulating the Windows registry
  providing support for cross-platform file sharing with Microsoft Windows, OS X,
  and other Unix systems.  Samba can also function as a domain controller
  or member server in both NT4-style and Active Directory domains.
- .
- These packages contain snapshot versions of Samba 4, the next-generation
- version of Samba. These should be considered _experimental_, and should
- not be used in production.
  .
  This package contains tools for viewing and manipulating the binary
  "registry" found on Windows machines, both locally and remote.
@@ -308,10 +297,6 @@ Description: tools for extending Samba
  and other Unix systems.  Samba can also function as a domain controller
  or member server in both NT4-style and Active Directory domains.
  .
- These packages contain snapshot versions of Samba 4, the next-generation
- version of Samba. These should be considered _experimental_, and should
- not be used in production.
- .
  This package contains include files shared by the various Samba-based
  libraries.
 
@@ -341,9 +326,6 @@ Description: Generic Security Library
  and other Unix systems.  Samba can also function as a domain controller
  or member server in both NT4-style and Active Directory domains.
  .
- These packages contain snapshot versions of Samba 4, the next-generation
- version of Samba.
- .
  This library provides a generalized API for several security protocols.
 
 Package: libgensec-dev
@@ -356,9 +338,6 @@ Description: Generic Security Library
  providing support for cross-platform file sharing with Microsoft Windows, OS X,
  and other Unix systems.  Samba can also function as a domain controller
  or member server in both NT4-style and Active Directory domains.
- .
- These packages contain snapshot versions of Samba 4, the next-generation
- version of Samba.
  .
  This library provides a generalized API for several security protocols.
  .
@@ -439,9 +418,6 @@ Description: DCE/RPC client library
  and other Unix systems.  Samba can also function as a domain controller
  or member server in both NT4-style and Active Directory domains.
  .
- These packages contain snapshot versions of Samba 4, the next-generation
- version of Samba.
- .
  Client-side implementation of the DCE/RPC protocol.
  Support for the following transports is provided:
   - ncacn_np
@@ -462,9 +438,6 @@ Description: DCE/RPC library
  providing support for cross-platform file sharing with Microsoft Windows, OS X,
  and other Unix systems.  Samba can also function as a domain controller
  or member server in both NT4-style and Active Directory domains.
- .
- These packages contain snapshot versions of Samba 4, the next-generation
- version of Samba.
  .
  Client-side implementation of the DCE/RPC protocol.
  Support for the following transports is provided:
@@ -487,9 +460,6 @@ Description: DCE/RPC server library
  and other Unix systems.  Samba can also function as a domain controller
  or member server in both NT4-style and Active Directory domains.
  .
- These packages contain snapshot versions of Samba 4, the next-generation
- version of Samba.
- .
  Server-side implementation of the DCE/RPC protocol.
 
 Package: libdcerpc-server-dev
@@ -504,9 +474,6 @@ Description: DCE/RPC server library - development files
  providing support for cross-platform file sharing with Microsoft Windows, OS X,
  and other Unix systems.  Samba can also function as a domain controller
  or member server in both NT4-style and Active Directory domains.
- .
- These packages contain snapshot versions of Samba 4, the next-generation
- version of Samba.
  .
  Server-side implementation of the DCE/RPC protocol.
  .
@@ -562,9 +529,6 @@ Description: Samba host configuration library
  and other Unix systems.  Samba can also function as a domain controller
  or member server in both NT4-style and Active Directory domains.
  .
- These packages contain snapshot versions of Samba 4, the next-generation
- version of Samba.
- .
  Library for accessing the Samba4 host-specific configuration files.
 
 Package: libsamba-hostconfig-dev
@@ -577,9 +541,6 @@ Description: Samba host configuration library - development files
  and other Unix systems.  Samba can also function as a domain controller
  or member server in both NT4-style and Active Directory domains.
  .
- These packages contain snapshot versions of Samba 4, the next-generation
- version of Samba.
- .
  Library for accessing the Samba4 host-specific configuration files.
  .
  This package contains the development files.
@@ -590,16 +551,13 @@ Pre-Depends: ${misc:Pre-Depends}
 Architecture: any
 Section: libs
 Depends: ${misc:Depends}, ${shlibs:Depends}
-Description: Library for running Samba 4 unit tests
+Description: Library for running Samba unit tests
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file sharing with Microsoft Windows, OS X,
  and other Unix systems.  Samba can also function as a domain controller
  or member server in both NT4-style and Active Directory domains.
  .
- These packages contain snapshot versions of Samba 4, the next-generation
- version of Samba.
- .
- Library for running Samba 4 unittests.
+ Library for running Samba unittests.
 
 Package: libtorture-dev
 Architecture: any
@@ -610,9 +568,6 @@ Description: Library for running unit tests - development files
  providing support for cross-platform file sharing with Microsoft Windows, OS X,
  and other Unix systems.  Samba can also function as a domain controller
  or member server in both NT4-style and Active Directory domains.
- .
- These packages contain snapshot versions of Samba 4, the next-generation
- version of Samba.
  .
  Library for running unittests.
  .
@@ -638,10 +593,7 @@ Description: Python bindings for Samba
  and other Unix systems.  Samba can also function as a domain controller
  or member server in both NT4-style and Active Directory domains.
  .
- These packages contain snapshot versions of Samba 4, the next-generation
- version of Samba.
- .
- This package contains Python bindings for most Samba 4 libraries.
+ This package contains Python bindings for most Samba libraries.
 
 Package: libsamba-util-dev
 Architecture: any
@@ -701,9 +653,6 @@ Description: SMB client library
  and other Unix systems.  Samba can also function as a domain controller
  or member server in both NT4-style and Active Directory domains.
  .
- These packages contain snapshot versions of Samba 4, the next-generation
- version of Samba.
- .
  This package contains the client-side implementation of the SMB protocol.
 
 Package: libsmbclient-raw-dev
@@ -719,9 +668,6 @@ Description: SMB client library - development files
  and other Unix systems.  Samba can also function as a domain controller
  or member server in both NT4-style and Active Directory domains.
  .
- These packages contain snapshot versions of Samba 4, the next-generation
- version of Samba.
- .
  This package contains the files required for development using the SMB client
  library.
 
@@ -735,9 +681,6 @@ Description: Samba Credentials management library
  providing support for cross-platform file sharing with Microsoft Windows, OS X,
  and other Unix systems.  Samba can also function as a domain controller
  or member server in both NT4-style and Active Directory domains.
- .
- These packages contain snapshot versions of Samba 4, the next-generation
- version of Samba.
  .
  This package contains the library for credentials management.
 
@@ -754,9 +697,6 @@ Description: Samba Credentials management - development files
  providing support for cross-platform file sharing with Microsoft Windows, OS X,
  and other Unix systems.  Samba can also function as a domain controller
  or member server in both NT4-style and Active Directory domains.
- .
- These packages contain snapshot versions of Samba 4, the next-generation
- version of Samba.
  .
  This package contains the files required for development using the
  credentials management library.

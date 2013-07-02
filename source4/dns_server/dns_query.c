@@ -89,6 +89,14 @@ static WERROR create_response_rr(const struct dns_name_question *question,
 	case DNS_QTYPE_PTR:
 		ans[ai].rdata.ptr_record = talloc_strdup(ans, rec->data.ptr);
 		break;
+	case DNS_QTYPE_MX:
+		ans[ai].rdata.mx_record.preference = rec->data.mx.wPriority;
+		ans[ai].rdata.mx_record.exchange = talloc_strdup(
+			ans, rec->data.mx.nameTarget);
+		if (ans[ai].rdata.mx_record.exchange == NULL) {
+			return WERR_NOMEM;
+		}
+		break;
 	case DNS_QTYPE_TXT:
 		tmp = talloc_asprintf(ans, "\"%s\"", rec->data.txt.str[0]);
 		W_ERROR_HAVE_NO_MEMORY(tmp);
@@ -127,14 +135,17 @@ struct ask_forwarder_state {
 static void ask_forwarder_done(struct tevent_req *subreq);
 
 static struct tevent_req *ask_forwarder_send(
+	struct dns_server *dns,
 	TALLOC_CTX *mem_ctx, struct tevent_context *ev,
 	const char *forwarder, struct dns_name_question *question)
 {
 	struct tevent_req *req, *subreq;
 	struct ask_forwarder_state *state;
+	struct dns_res_rec *options;
 	struct dns_name_packet out_packet = { 0, };
 	DATA_BLOB out_blob;
 	enum ndr_err_code ndr_err;
+	WERROR werr;
 
 	req = tevent_req_create(mem_ctx, &state, struct ask_forwarder_state);
 	if (req == NULL) {
@@ -154,6 +165,15 @@ static struct tevent_req *ask_forwarder_send(
 	out_packet.operation |= DNS_OPCODE_QUERY | DNS_FLAG_RECURSION_DESIRED;
 	out_packet.qdcount = 1;
 	out_packet.questions = question;
+
+	werr = dns_generate_options(dns, state, &options);
+	if (!W_ERROR_IS_OK(werr)) {
+		tevent_req_werror(req, werr);
+		return tevent_req_post(req, ev);
+	}
+
+	out_packet.arcount = 1;
+	out_packet.additional = options;
 
 	ndr_err = ndr_push_struct_blob(
 		&out_blob, state, &out_packet,
@@ -604,6 +624,7 @@ struct tevent_req *dns_server_process_query_send(
 			  in->questions[0].name));
 
 		subreq = ask_forwarder_send(
+			dns,
 			state, ev, lpcfg_dns_forwarder(dns->task->lp_ctx),
 			&in->questions[0]);
 		if (tevent_req_nomem(subreq, req)) {

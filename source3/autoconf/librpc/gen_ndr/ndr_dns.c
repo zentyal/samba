@@ -182,6 +182,7 @@ _PUBLIC_ void ndr_print_dns_qtype(struct ndr_print *ndr, const char *name, enum 
 		case DNS_QTYPE_ATMA: val = "DNS_QTYPE_ATMA"; break;
 		case DNS_QTYPE_NAPTR: val = "DNS_QTYPE_NAPTR"; break;
 		case DNS_QTYPE_DNAME: val = "DNS_QTYPE_DNAME"; break;
+		case DNS_QTYPE_OPT: val = "DNS_QTYPE_OPT"; break;
 		case DNS_QTYPE_DS: val = "DNS_QTYPE_DS"; break;
 		case DNS_QTYPE_RRSIG: val = "DNS_QTYPE_RRSIG"; break;
 		case DNS_QTYPE_NSEC: val = "DNS_QTYPE_NSEC"; break;
@@ -484,6 +485,50 @@ _PUBLIC_ void ndr_print_dns_srv_record(struct ndr_print *ndr, const char *name, 
 	ndr->depth--;
 }
 
+_PUBLIC_ enum ndr_err_code ndr_push_dns_opt_record(struct ndr_push *ndr, int ndr_flags, const struct dns_opt_record *r)
+{
+	NDR_PUSH_CHECK_FLAGS(ndr, ndr_flags);
+	if (ndr_flags & NDR_SCALARS) {
+		NDR_CHECK(ndr_push_align(ndr, 2));
+		NDR_CHECK(ndr_push_uint16(ndr, NDR_SCALARS, r->option_code));
+		NDR_CHECK(ndr_push_uint16(ndr, NDR_SCALARS, r->option_length));
+		NDR_CHECK(ndr_push_array_uint8(ndr, NDR_SCALARS, r->option_data, r->option_length));
+		NDR_CHECK(ndr_push_trailer_align(ndr, 2));
+	}
+	if (ndr_flags & NDR_BUFFERS) {
+	}
+	return NDR_ERR_SUCCESS;
+}
+
+_PUBLIC_ enum ndr_err_code ndr_pull_dns_opt_record(struct ndr_pull *ndr, int ndr_flags, struct dns_opt_record *r)
+{
+	uint32_t size_option_data_0 = 0;
+	NDR_PULL_CHECK_FLAGS(ndr, ndr_flags);
+	if (ndr_flags & NDR_SCALARS) {
+		NDR_CHECK(ndr_pull_align(ndr, 2));
+		NDR_CHECK(ndr_pull_uint16(ndr, NDR_SCALARS, &r->option_code));
+		NDR_CHECK(ndr_pull_uint16(ndr, NDR_SCALARS, &r->option_length));
+		size_option_data_0 = r->option_length;
+		NDR_PULL_ALLOC_N(ndr, r->option_data, size_option_data_0);
+		NDR_CHECK(ndr_pull_array_uint8(ndr, NDR_SCALARS, r->option_data, size_option_data_0));
+		NDR_CHECK(ndr_pull_trailer_align(ndr, 2));
+	}
+	if (ndr_flags & NDR_BUFFERS) {
+	}
+	return NDR_ERR_SUCCESS;
+}
+
+_PUBLIC_ void ndr_print_dns_opt_record(struct ndr_print *ndr, const char *name, const struct dns_opt_record *r)
+{
+	ndr_print_struct(ndr, name, "dns_opt_record");
+	if (r == NULL) { ndr_print_null(ndr); return; }
+	ndr->depth++;
+	ndr_print_uint16(ndr, "option_code", r->option_code);
+	ndr_print_uint16(ndr, "option_length", r->option_length);
+	ndr_print_array_uint8(ndr, "option_data", r->option_data, r->option_length);
+	ndr->depth--;
+}
+
 _PUBLIC_ enum ndr_err_code ndr_push_dns_tkey_record(struct ndr_push *ndr, int ndr_flags, const struct dns_tkey_record *r)
 {
 	NDR_PUSH_CHECK_FLAGS(ndr, ndr_flags);
@@ -746,6 +791,10 @@ _PUBLIC_ enum ndr_err_code ndr_push_dns_rdata(struct ndr_push *ndr, int ndr_flag
 					NDR_CHECK(ndr_push_dns_srv_record(ndr, NDR_SCALARS, &r->srv_record));
 				break; }
 
+				case DNS_QTYPE_OPT: {
+					NDR_CHECK(ndr_push_dns_opt_record(ndr, NDR_SCALARS, &r->opt_record));
+				break; }
+
 				case DNS_QTYPE_TSIG: {
 					NDR_CHECK(ndr_push_dns_tsig_record(ndr, NDR_SCALARS, &r->tsig_record));
 				break; }
@@ -787,6 +836,9 @@ _PUBLIC_ enum ndr_err_code ndr_push_dns_rdata(struct ndr_push *ndr, int ndr_flag
 				break;
 
 				case DNS_QTYPE_SRV:
+				break;
+
+				case DNS_QTYPE_OPT:
 				break;
 
 				case DNS_QTYPE_TSIG:
@@ -852,6 +904,10 @@ _PUBLIC_ enum ndr_err_code ndr_pull_dns_rdata(struct ndr_pull *ndr, int ndr_flag
 					NDR_CHECK(ndr_pull_dns_srv_record(ndr, NDR_SCALARS, &r->srv_record));
 				break; }
 
+				case DNS_QTYPE_OPT: {
+					NDR_CHECK(ndr_pull_dns_opt_record(ndr, NDR_SCALARS, &r->opt_record));
+				break; }
+
 				case DNS_QTYPE_TSIG: {
 					NDR_CHECK(ndr_pull_dns_tsig_record(ndr, NDR_SCALARS, &r->tsig_record));
 				break; }
@@ -892,6 +948,9 @@ _PUBLIC_ enum ndr_err_code ndr_pull_dns_rdata(struct ndr_pull *ndr, int ndr_flag
 				break;
 
 				case DNS_QTYPE_SRV:
+				break;
+
+				case DNS_QTYPE_OPT:
 				break;
 
 				case DNS_QTYPE_TSIG:
@@ -953,6 +1012,10 @@ _PUBLIC_ void ndr_print_dns_rdata(struct ndr_print *ndr, const char *name, const
 
 			case DNS_QTYPE_SRV:
 				ndr_print_dns_srv_record(ndr, "srv_record", &r->srv_record);
+			break;
+
+			case DNS_QTYPE_OPT:
+				ndr_print_dns_opt_record(ndr, "opt_record", &r->opt_record);
 			break;
 
 			case DNS_QTYPE_TSIG:

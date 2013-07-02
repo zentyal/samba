@@ -342,6 +342,13 @@ def SAMBA_BINARY(bld, binname, source,
     else:
         subsystem_group = group
 
+    # only specify PIE flags for binaries
+    pie_cflags = cflags
+    pie_ldflags = TO_LIST(ldflags)
+    if bld.env['ENABLE_PIE'] == True:
+        pie_cflags += ' -fPIE'
+        pie_ldflags.extend(TO_LIST('-pie'))
+
     # first create a target for building the object files for this binary
     # by separating in this way, we avoid recompiling the C files
     # separately for the install binary and the build binary
@@ -349,7 +356,7 @@ def SAMBA_BINARY(bld, binname, source,
                         source         = source,
                         deps           = deps,
                         includes       = includes,
-                        cflags         = cflags,
+                        cflags         = pie_cflags,
                         group          = subsystem_group,
                         autoproto      = autoproto,
                         subsystem_name = subsystem_name,
@@ -379,7 +386,7 @@ def SAMBA_BINARY(bld, binname, source,
         install_path   = None,
         samba_inst_path= install_path,
         samba_install  = install,
-        samba_ldflags  = TO_LIST(ldflags)
+        samba_ldflags  = pie_ldflags
         )
 
     if manpages is not None and 'XSLTPROC_MANPAGES' in bld.env and bld.env['XSLTPROC_MANPAGES']:
@@ -699,9 +706,9 @@ sys.path.insert(1, "%s")""" % (task.env["PYTHONARCHDIR"], task.env["PYTHONDIR"])
     shebang = None
 
     if task.env["PYTHON"][0] == "/":
-        replacement_shebang = "#!%s" % task.env["PYTHON"]
+        replacement_shebang = "#!%s\n" % task.env["PYTHON"]
     else:
-        replacement_shebang = "#!/usr/bin/env %s" % task.env["PYTHON"]
+        replacement_shebang = "#!/usr/bin/env %s\n" % task.env["PYTHON"]
 
     installed_location=task.outputs[0].bldpath(task.env)
     source_file = open(task.inputs[0].srcpath(task.env))

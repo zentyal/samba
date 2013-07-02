@@ -15,6 +15,7 @@ staticforward PyTypeObject dns_soa_record_Type;
 staticforward PyTypeObject dns_mx_record_Type;
 staticforward PyTypeObject dns_txt_record_Type;
 staticforward PyTypeObject dns_srv_record_Type;
+staticforward PyTypeObject dns_opt_record_Type;
 staticforward PyTypeObject dns_tkey_record_Type;
 staticforward PyTypeObject dns_tsig_record_Type;
 staticforward PyTypeObject dns_fake_tsig_rec_Type;
@@ -873,6 +874,167 @@ static PyTypeObject dns_srv_record_Type = {
 	.tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
 	.tp_basicsize = sizeof(pytalloc_Object),
 	.tp_new = py_dns_srv_record_new,
+};
+
+
+static PyObject *py_dns_opt_record_get_option_code(PyObject *obj, void *closure)
+{
+	struct dns_opt_record *object = (struct dns_opt_record *)pytalloc_get_ptr(obj);
+	PyObject *py_option_code;
+	py_option_code = PyInt_FromLong(object->option_code);
+	return py_option_code;
+}
+
+static int py_dns_opt_record_set_option_code(PyObject *py_obj, PyObject *value, void *closure)
+{
+	struct dns_opt_record *object = (struct dns_opt_record *)pytalloc_get_ptr(py_obj);
+	PY_CHECK_TYPE(&PyInt_Type, value, return -1;);
+	object->option_code = PyInt_AsLong(value);
+	return 0;
+}
+
+static PyObject *py_dns_opt_record_get_option_length(PyObject *obj, void *closure)
+{
+	struct dns_opt_record *object = (struct dns_opt_record *)pytalloc_get_ptr(obj);
+	PyObject *py_option_length;
+	py_option_length = PyInt_FromLong(object->option_length);
+	return py_option_length;
+}
+
+static int py_dns_opt_record_set_option_length(PyObject *py_obj, PyObject *value, void *closure)
+{
+	struct dns_opt_record *object = (struct dns_opt_record *)pytalloc_get_ptr(py_obj);
+	PY_CHECK_TYPE(&PyInt_Type, value, return -1;);
+	object->option_length = PyInt_AsLong(value);
+	return 0;
+}
+
+static PyObject *py_dns_opt_record_get_option_data(PyObject *obj, void *closure)
+{
+	struct dns_opt_record *object = (struct dns_opt_record *)pytalloc_get_ptr(obj);
+	PyObject *py_option_data;
+	py_option_data = PyList_New(object->option_length);
+	if (py_option_data == NULL) {
+		return NULL;
+	}
+	{
+		int option_data_cntr_0;
+		for (option_data_cntr_0 = 0; option_data_cntr_0 < object->option_length; option_data_cntr_0++) {
+			PyObject *py_option_data_0;
+			py_option_data_0 = PyInt_FromLong(object->option_data[option_data_cntr_0]);
+			PyList_SetItem(py_option_data, option_data_cntr_0, py_option_data_0);
+		}
+	}
+	return py_option_data;
+}
+
+static int py_dns_opt_record_set_option_data(PyObject *py_obj, PyObject *value, void *closure)
+{
+	struct dns_opt_record *object = (struct dns_opt_record *)pytalloc_get_ptr(py_obj);
+	PY_CHECK_TYPE(&PyList_Type, value, return -1;);
+	{
+		int option_data_cntr_0;
+		object->option_data = talloc_array_ptrtype(pytalloc_get_mem_ctx(py_obj), object->option_data, PyList_GET_SIZE(value));
+		if (!object->option_data) { return -1;; }
+		talloc_set_name_const(object->option_data, "ARRAY: object->option_data");
+		for (option_data_cntr_0 = 0; option_data_cntr_0 < PyList_GET_SIZE(value); option_data_cntr_0++) {
+			PY_CHECK_TYPE(&PyInt_Type, PyList_GET_ITEM(value, option_data_cntr_0), return -1;);
+			object->option_data[option_data_cntr_0] = PyInt_AsLong(PyList_GET_ITEM(value, option_data_cntr_0));
+		}
+	}
+	return 0;
+}
+
+static PyGetSetDef py_dns_opt_record_getsetters[] = {
+	{ discard_const_p(char, "option_code"), py_dns_opt_record_get_option_code, py_dns_opt_record_set_option_code },
+	{ discard_const_p(char, "option_length"), py_dns_opt_record_get_option_length, py_dns_opt_record_set_option_length },
+	{ discard_const_p(char, "option_data"), py_dns_opt_record_get_option_data, py_dns_opt_record_set_option_data },
+	{ NULL }
+};
+
+static PyObject *py_dns_opt_record_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
+{
+	return pytalloc_new(struct dns_opt_record, type);
+}
+
+static PyObject *py_dns_opt_record_ndr_pack(PyObject *py_obj)
+{
+	struct dns_opt_record *object = (struct dns_opt_record *)pytalloc_get_ptr(py_obj);
+	DATA_BLOB blob;
+	enum ndr_err_code err;
+	err = ndr_push_struct_blob(&blob, pytalloc_get_mem_ctx(py_obj), object, (ndr_push_flags_fn_t)ndr_push_dns_opt_record);
+	if (err != NDR_ERR_SUCCESS) {
+		PyErr_SetNdrError(err);
+		return NULL;
+	}
+
+	return PyString_FromStringAndSize((char *)blob.data, blob.length);
+}
+
+static PyObject *py_dns_opt_record_ndr_unpack(PyObject *py_obj, PyObject *args, PyObject *kwargs)
+{
+	struct dns_opt_record *object = (struct dns_opt_record *)pytalloc_get_ptr(py_obj);
+	DATA_BLOB blob;
+	int blob_length = 0;
+	enum ndr_err_code err;
+	const char * const kwnames[] = { "data_blob", "allow_remaining", NULL };
+	PyObject *allow_remaining_obj = NULL;
+	bool allow_remaining = false;
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s#|O:__ndr_unpack__",
+		discard_const_p(char *, kwnames),
+		&blob.data, &blob_length,
+		&allow_remaining_obj)) {
+		return NULL;
+	}
+	blob.length = blob_length;
+
+	if (allow_remaining_obj && PyObject_IsTrue(allow_remaining_obj)) {
+		allow_remaining = true;
+	}
+
+	if (allow_remaining) {
+		err = ndr_pull_struct_blob(&blob, pytalloc_get_mem_ctx(py_obj), object, (ndr_pull_flags_fn_t)ndr_pull_dns_opt_record);
+	} else {
+		err = ndr_pull_struct_blob_all(&blob, pytalloc_get_mem_ctx(py_obj), object, (ndr_pull_flags_fn_t)ndr_pull_dns_opt_record);
+	}
+	if (err != NDR_ERR_SUCCESS) {
+		PyErr_SetNdrError(err);
+		return NULL;
+	}
+
+	Py_RETURN_NONE;
+}
+
+static PyObject *py_dns_opt_record_ndr_print(PyObject *py_obj)
+{
+	struct dns_opt_record *object = (struct dns_opt_record *)pytalloc_get_ptr(py_obj);
+	PyObject *ret;
+	char *retstr;
+
+	retstr = ndr_print_struct_string(pytalloc_get_mem_ctx(py_obj), (ndr_print_fn_t)ndr_print_dns_opt_record, "dns_opt_record", object);
+	ret = PyString_FromString(retstr);
+	talloc_free(retstr);
+
+	return ret;
+}
+
+static PyMethodDef py_dns_opt_record_methods[] = {
+	{ "__ndr_pack__", (PyCFunction)py_dns_opt_record_ndr_pack, METH_NOARGS, "S.ndr_pack(object) -> blob\nNDR pack" },
+	{ "__ndr_unpack__", (PyCFunction)py_dns_opt_record_ndr_unpack, METH_VARARGS|METH_KEYWORDS, "S.ndr_unpack(class, blob, allow_remaining=False) -> None\nNDR unpack" },
+	{ "__ndr_print__", (PyCFunction)py_dns_opt_record_ndr_print, METH_VARARGS, "S.ndr_print(object) -> None\nNDR print" },
+	{ NULL, NULL, 0, NULL }
+};
+
+
+static PyTypeObject dns_opt_record_Type = {
+	PyObject_HEAD_INIT(NULL) 0,
+	.tp_name = "dns.opt_record",
+	.tp_getset = py_dns_opt_record_getsetters,
+	.tp_methods = py_dns_opt_record_methods,
+	.tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+	.tp_basicsize = sizeof(pytalloc_Object),
+	.tp_new = py_dns_opt_record_new,
 };
 
 
@@ -1806,6 +1968,10 @@ PyObject *py_import_dns_rdata(TALLOC_CTX *mem_ctx, int level, union dns_rdata *i
 			ret = pytalloc_reference_ex(&dns_srv_record_Type, mem_ctx, &in->srv_record);
 			return ret;
 
+		case DNS_QTYPE_OPT:
+			ret = pytalloc_reference_ex(&dns_opt_record_Type, mem_ctx, &in->opt_record);
+			return ret;
+
 		case DNS_QTYPE_TSIG:
 			ret = pytalloc_reference_ex(&dns_tsig_record_Type, mem_ctx, &in->tsig_record);
 			return ret;
@@ -1882,6 +2048,15 @@ union dns_rdata *py_export_dns_rdata(TALLOC_CTX *mem_ctx, int level, PyObject *i
 				talloc_free(ret); return NULL;
 			}
 			ret->srv_record = *(struct dns_srv_record *)pytalloc_get_ptr(in);
+			break;
+
+		case DNS_QTYPE_OPT:
+			PY_CHECK_TYPE(&dns_opt_record_Type, in, talloc_free(ret); return NULL;);
+			if (talloc_reference(mem_ctx, pytalloc_get_mem_ctx(in)) == NULL) {
+				PyErr_NoMemory();
+				talloc_free(ret); return NULL;
+			}
+			ret->opt_record = *(struct dns_opt_record *)pytalloc_get_ptr(in);
 			break;
 
 		case DNS_QTYPE_TSIG:
@@ -2530,6 +2705,8 @@ void initdns(void)
 
 	dns_srv_record_Type.tp_base = Object_Type;
 
+	dns_opt_record_Type.tp_base = Object_Type;
+
 	dns_tkey_record_Type.tp_base = Object_Type;
 
 	dns_tsig_record_Type.tp_base = Object_Type;
@@ -2553,6 +2730,8 @@ void initdns(void)
 	if (PyType_Ready(&dns_txt_record_Type) < 0)
 		return;
 	if (PyType_Ready(&dns_srv_record_Type) < 0)
+		return;
+	if (PyType_Ready(&dns_opt_record_Type) < 0)
 		return;
 	if (PyType_Ready(&dns_tkey_record_Type) < 0)
 		return;
@@ -2586,6 +2765,9 @@ void initdns(void)
 #endif
 #ifdef PY_SRV_RECORD_PATCH
 	PY_SRV_RECORD_PATCH(&dns_srv_record_Type);
+#endif
+#ifdef PY_OPT_RECORD_PATCH
+	PY_OPT_RECORD_PATCH(&dns_opt_record_Type);
 #endif
 #ifdef PY_TKEY_RECORD_PATCH
 	PY_TKEY_RECORD_PATCH(&dns_tkey_record_Type);
@@ -2675,6 +2857,7 @@ void initdns(void)
 	PyModule_AddObject(m, "DNS_RCODE_NOTIMP", PyInt_FromLong(DNS_RCODE_NOTIMP));
 	PyModule_AddObject(m, "DNS_QTYPE_X25", PyInt_FromLong(DNS_QTYPE_X25));
 	PyModule_AddObject(m, "DNS_QTYPE_AXFR", PyInt_FromLong(DNS_QTYPE_AXFR));
+	PyModule_AddObject(m, "DNS_QTYPE_OPT", PyInt_FromLong(DNS_QTYPE_OPT));
 	PyModule_AddObject(m, "DNS_QTYPE_TSIG", PyInt_FromLong(DNS_QTYPE_TSIG));
 	PyModule_AddObject(m, "DNS_QTYPE_AFSDB", PyInt_FromLong(DNS_QTYPE_AFSDB));
 	PyModule_AddObject(m, "DNS_QTYPE_LOC", PyInt_FromLong(DNS_QTYPE_LOC));
@@ -2710,6 +2893,8 @@ void initdns(void)
 	PyModule_AddObject(m, "txt_record", (PyObject *)(void *)&dns_txt_record_Type);
 	Py_INCREF((PyObject *)(void *)&dns_srv_record_Type);
 	PyModule_AddObject(m, "srv_record", (PyObject *)(void *)&dns_srv_record_Type);
+	Py_INCREF((PyObject *)(void *)&dns_opt_record_Type);
+	PyModule_AddObject(m, "opt_record", (PyObject *)(void *)&dns_opt_record_Type);
 	Py_INCREF((PyObject *)(void *)&dns_tkey_record_Type);
 	PyModule_AddObject(m, "tkey_record", (PyObject *)(void *)&dns_tkey_record_Type);
 	Py_INCREF((PyObject *)(void *)&dns_tsig_record_Type);

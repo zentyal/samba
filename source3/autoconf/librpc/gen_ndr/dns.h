@@ -142,6 +142,7 @@ enum dns_qtype
 	DNS_QTYPE_ATMA=(int)(0x0022),
 	DNS_QTYPE_NAPTR=(int)(0x0023),
 	DNS_QTYPE_DNAME=(int)(0x0027),
+	DNS_QTYPE_OPT=(int)(0x0029),
 	DNS_QTYPE_DS=(int)(0x002B),
 	DNS_QTYPE_RRSIG=(int)(0x002E),
 	DNS_QTYPE_NSEC=(int)(0x002F),
@@ -188,6 +189,7 @@ enum dns_qtype
 #define DNS_QTYPE_ATMA ( 0x0022 )
 #define DNS_QTYPE_NAPTR ( 0x0023 )
 #define DNS_QTYPE_DNAME ( 0x0027 )
+#define DNS_QTYPE_OPT ( 0x0029 )
 #define DNS_QTYPE_DS ( 0x002B )
 #define DNS_QTYPE_RRSIG ( 0x002E )
 #define DNS_QTYPE_NSEC ( 0x002F )
@@ -263,6 +265,12 @@ struct dns_srv_record {
 	const char * target;
 }/* [public] */;
 
+struct dns_opt_record {
+	uint16_t option_code;
+	uint16_t option_length;
+	uint8_t *option_data;
+}/* [public] */;
+
 struct dns_tkey_record {
 	const char * algorithm;
 	uint32_t inception;
@@ -312,6 +320,7 @@ union dns_rdata {
 	struct dns_txt_record txt_record;/* [case(DNS_QTYPE_TXT)] */
 	const char * ipv6_record;/* [case(DNS_QTYPE_AAAA)] */
 	struct dns_srv_record srv_record;/* [case(DNS_QTYPE_SRV)] */
+	struct dns_opt_record opt_record;/* [case(DNS_QTYPE_OPT)] */
 	struct dns_tsig_record tsig_record;/* [case(DNS_QTYPE_TSIG)] */
 	struct dns_tkey_record tkey_record;/* [case(DNS_QTYPE_TKEY)] */
 }/* [public,nodiscriminant,flag(LIBNDR_FLAG_NOALIGN)] */;

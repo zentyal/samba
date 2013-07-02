@@ -12,7 +12,7 @@ import wafsamba, Options, samba_dist, Scripting, Utils, samba_version
 
 
 samba_dist.DIST_DIRS('.')
-samba_dist.DIST_BLACKLIST('.gitignore .bzrignore source4/selftest/provisions/alpha13')
+samba_dist.DIST_BLACKLIST('.gitignore .bzrignore source4/selftest/provisions/alpha13 source4/selftest/provisions/release-4-0-0/')
 
 # install in /usr/local/samba by default
 Options.default_prefix = '/usr/local/samba'
@@ -55,6 +55,14 @@ def set_options(opt):
     opt.add_option('--without-ad-dc',
                    help='disable AD DC functionality (enables Samba 4 client and Samba 3 code base).',
                    action='store_true', dest='without_ad_dc', default=False)
+
+    opt.add_option('--with-pie',
+                  help=("Build Position Independent Executables " +
+                        "(default if supported by compiler)"),
+                  action="store_true", dest='enable_pie')
+    opt.add_option('--without-pie',
+                  help=("Disable Position Independent Executable builds"),
+                  action="store_false", dest='enable_pie')
 
     gr = opt.option_group('developer options')
 
@@ -148,7 +156,7 @@ def configure(conf):
     # allows us to find problems on our development hosts faster.
     # It also results in faster load time.
 
-    if sys.platform != "openbsd4":
+    if not sys.platform.startswith("openbsd"):
         conf.env.asneeded_ldflags = conf.ADD_LDFLAGS('-Wl,--as-needed', testflags=True)
 
     if not conf.CHECK_NEED_LC("-lc not needed"):
@@ -168,6 +176,15 @@ def configure(conf):
     
     conf.SAMBA_CONFIG_H('include/config.h')
 
+    if Options.options.enable_pie != False:
+        if Options.options.enable_pie == True:
+                need_pie = True
+        else:
+                # not specified, only build PIEs if supported by compiler
+                need_pie = False
+        if conf.check_cc(cflags='-fPIE', ldflags='-pie', mandatory=need_pie,
+                         msg="Checking compiler for PIE support"):
+		conf.env['ENABLE_PIE'] = True
 
 def etags(ctx):
     '''build TAGS file using etags'''

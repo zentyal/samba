@@ -5,12 +5,13 @@ samba (2:4.0.7+dfsg-1) UNRELEASED; urgency=low
     in packages' description.  Samba version 4 is now production-ready.
 
   [ Andrew Bartlett ]
-  * Update dependencies on Samba libraries using autodeps.py
+  * Update build-dependencies on Samba libraries using autodeps.py
 
   [ Ivo De Decker ]
   * New upstream release
   * refresh patches for new upstream version
   * remove patches integrated upstream
+  * Update build-dependencies for new upstream version
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Tue, 02 Jul 2013 20:04:08 +0200
 

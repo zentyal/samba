@@ -1,4 +1,4 @@
-samba (2:4.0.6+dfsg-2.1) UNRELEASED; urgency=low
+samba (2:4.0.7+dfsg-1) UNRELEASED; urgency=low
 
   [ Christian Perrier ]
   * Remove all mention of "Samba 4" and "experimental version of Samba"
@@ -7,7 +7,10 @@ samba (2:4.0.6+dfsg-2.1) UNRELEASED; urgency=low
   [ Andrew Bartlett ]
   * Update dependencies on Samba libraries using autodeps.py
 
- -- Andrew Bartlett <abartlet@samba.org>  Mon, 24 Jun 2013 12:31:56 +1000
+  [ Ivo De Decker ]
+  * New upstream release
+
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Tue, 02 Jul 2013 20:04:08 +0200
 
 samba (2:4.0.6+dfsg-1) experimental; urgency=low
 

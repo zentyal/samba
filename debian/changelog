@@ -9,6 +9,8 @@ samba (2:4.0.7+dfsg-1) UNRELEASED; urgency=low
 
   [ Ivo De Decker ]
   * New upstream release
+  * refresh patches for new upstream version
+  * remove patches integrated upstream
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Tue, 02 Jul 2013 20:04:08 +0200
 

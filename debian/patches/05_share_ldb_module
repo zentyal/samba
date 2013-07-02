@@ -1,7 +1,7 @@
 === modified file 'source4/param/wscript_build'
---- old/source4/param/wscript_build	2011-07-08 10:35:56 +0000
-+++ new/source4/param/wscript_build	2011-07-26 00:34:41 +0000
-@@ -40,7 +40,7 @@
+--- a/source4/param/wscript_build
++++ b/source4/param/wscript_build
+@@ -18,7 +18,7 @@
  	source='share_classic.c',
  	subsystem='share',
  	init_function='share_classic_init',
@@ -10,7 +10,7 @@
  	)
  
  
-@@ -48,7 +48,8 @@
+@@ -26,7 +26,8 @@
  	source='share_ldb.c',
  	subsystem='share',
  	init_function='share_ldb_init',

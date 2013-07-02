@@ -419,6 +419,10 @@ static bool set_ea_dos_attribute(connection_struct *conn,
 		if(!CAN_WRITE(conn) || !lp_dos_filemode(SNUM(conn)))
 			return false;
 
+		if (!can_write_to_file(conn, smb_fname)) {
+			return false;
+		}
+
 		/*
 		 * We need to open the file with write access whilst
 		 * still in our current user context. This ensures we
@@ -706,6 +710,12 @@ int file_set_dosmode(connection_struct *conn, struct smb_filename *smb_fname,
 	int ret = -1, lret = -1;
 	uint32_t old_mode;
 	struct timespec new_create_timespec;
+	files_struct *fsp = NULL;
+
+	if (!CAN_WRITE(conn)) {
+		errno = EROFS;
+		return -1;
+	}
 
 	/* We only allow READONLY|HIDDEN|SYSTEM|DIRECTORY|ARCHIVE here. */
 	dosmode &= (SAMBA_ATTRIBUTES_MASK | FILE_ATTRIBUTE_OFFLINE);
@@ -848,29 +858,30 @@ int file_set_dosmode(connection_struct *conn, struct smb_filename *smb_fname,
 		bits on a file. Just like file_ntimes below.
 	*/
 
-	/* Check if we have write access. */
-	if (CAN_WRITE(conn)) {
-		/*
-		 * We need to open the file with write access whilst
-		 * still in our current user context. This ensures we
-		 * are not violating security in doing the fchmod.
-		 */
-		files_struct *fsp;
-		if (!NT_STATUS_IS_OK(open_file_fchmod(conn, smb_fname,
-				     &fsp)))
-			return -1;
-		become_root();
-		ret = SMB_VFS_FCHMOD(fsp, unixmode);
-		unbecome_root();
-		close_file(NULL, fsp, NORMAL_CLOSE);
-		if (!newfile) {
-			notify_fname(conn, NOTIFY_ACTION_MODIFIED,
-				     FILE_NOTIFY_CHANGE_ATTRIBUTES,
-				     smb_fname->base_name);
-		}
-		if (ret == 0) {
-			smb_fname->st.st_ex_mode = unixmode;
-		}
+	if (!can_write_to_file(conn, smb_fname)) {
+		errno = EACCES;
+		return -1;
+	}
+
+	/*
+	 * We need to open the file with write access whilst
+	 * still in our current user context. This ensures we
+	 * are not violating security in doing the fchmod.
+	 */
+	if (!NT_STATUS_IS_OK(open_file_fchmod(conn, smb_fname,
+			     &fsp)))
+		return -1;
+	become_root();
+	ret = SMB_VFS_FCHMOD(fsp, unixmode);
+	unbecome_root();
+	close_file(NULL, fsp, NORMAL_CLOSE);
+	if (!newfile) {
+		notify_fname(conn, NOTIFY_ACTION_MODIFIED,
+			     FILE_NOTIFY_CHANGE_ATTRIBUTES,
+			     smb_fname->base_name);
+	}
+	if (ret == 0) {
+		smb_fname->st.st_ex_mode = unixmode;
 	}
 
 	return( ret );

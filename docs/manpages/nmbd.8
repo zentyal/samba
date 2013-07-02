@@ -2,12 +2,12 @@
 .\"     Title: nmbd
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 05/21/2013
+.\"      Date: 07/01/2013
 .\"    Manual: System Administration tools
 .\"    Source: Samba 4.0
 .\"  Language: English
 .\"
-.TH "NMBD" "8" "05/21/2013" "Samba 4\&.0" "System Administration tools"
+.TH "NMBD" "8" "07/01/2013" "Samba 4\&.0" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -47,7 +47,8 @@ Amongst other services,
 nmbd
 will listen for such requests, and if its own NetBIOS name is specified it will respond with the IP number of the host it is running on\&. Its "own NetBIOS name" is by default the primary DNS name of the host it is running on, but this can be overridden by the
 \m[blue]\fBnetbios name\fR\m[]
-in \&. Thus
+in
+smb\&.conf\&. Thus
 nmbd
 will reply to broadcast queries for its own name(s)\&. Additional names for
 nmbd
@@ -105,6 +106,11 @@ also logs to standard output, as if the
 parameter had been given\&.
 .RE
 .PP
+\-?|\-\-help
+.RS 4
+Print a summary of command line options\&.
+.RE
+.PP
 \-H <filename>
 .RS 4
 NetBIOS lmhosts file\&. The lmhosts file is a list of NetBIOS names to IP addresses that is loaded by the nmbd server and used via the name resolution mechanism
@@ -125,6 +131,48 @@ or
 /etc/samba/lmhosts\&. See the
 \fBlmhosts\fR(5)
 man page for details on the contents of this file\&.
+.RE
+.PP
+\-d|\-\-debuglevel=level
+.RS 4
+\fIlevel\fR
+is an integer from 0 to 10\&. The default value if this parameter is not specified is 0\&.
+.sp
+The higher this value, the more detail will be logged to the log files about the activities of the server\&. At level 0, only critical errors and serious warnings will be logged\&. Level 1 is a reasonable level for day\-to\-day running \- it generates a small amount of information about operations carried out\&.
+.sp
+Levels above 1 will generate considerable amounts of log data, and should only be used when investigating a problem\&. Levels above 3 are designed for use only by developers and generate HUGE amounts of log data, most of which is extremely cryptic\&.
+.sp
+Note that specifying this parameter here will override the
+\m[blue]\fBlog level\fR\m[]
+parameter in the
+smb\&.conf
+file\&.
+.RE
+.PP
+\-V|\-\-version
+.RS 4
+Prints the program version number\&.
+.RE
+.PP
+\-s|\-\-configfile=<configuration file>
+.RS 4
+The file specified contains the configuration details required by the server\&. The information in this file includes server\-specific information such as what printcap file to use, as well as descriptions of all the services that the server is to provide\&. See
+smb\&.conf
+for more information\&. The default configuration file name is determined at compile time\&.
+.RE
+.PP
+\-l|\-\-log\-basename=logdirectory
+.RS 4
+Base directory name for log/debug files\&. The extension
+\fB"\&.progname"\fR
+will be appended (e\&.g\&. log\&.smbclient, log\&.smbd, etc\&.\&.\&.)\&. The log file is never removed by the client\&.
+.RE
+.PP
+\-\-option=<name>=<value>
+.RS 4
+Set the
+\fBsmb.conf\fR(5)
+option "<name>" to value "<value>" from the command line\&. This overrides compiled\-in defaults and options read from the configuration file\&.
 .RE
 .PP
 \-p <UDP port number>
@@ -228,8 +276,7 @@ This man page is correct for version 3 of the Samba suite\&.
 \fBsmbd\fR(8),
 \fBsmb.conf\fR(5),
 \fBsmbclient\fR(1),
-\fBtestparm\fR(1),
-\fBtestprns\fR(1), and the Internet RFC\*(Aqs
+\fBtestparm\fR(1), and the Internet RFC\*(Aqs
 rfc1001\&.txt,
 rfc1002\&.txt\&. In addition the CIFS (formerly SMB) specification is available as a link from the Web page
 http://samba\&.org/cifs/\&.

@@ -49,6 +49,9 @@ void ndr_print_dns_txt_record(struct ndr_print *ndr, const char *name, const str
 enum ndr_err_code ndr_push_dns_srv_record(struct ndr_push *ndr, int ndr_flags, const struct dns_srv_record *r);
 enum ndr_err_code ndr_pull_dns_srv_record(struct ndr_pull *ndr, int ndr_flags, struct dns_srv_record *r);
 void ndr_print_dns_srv_record(struct ndr_print *ndr, const char *name, const struct dns_srv_record *r);
+enum ndr_err_code ndr_push_dns_opt_record(struct ndr_push *ndr, int ndr_flags, const struct dns_opt_record *r);
+enum ndr_err_code ndr_pull_dns_opt_record(struct ndr_pull *ndr, int ndr_flags, struct dns_opt_record *r);
+void ndr_print_dns_opt_record(struct ndr_print *ndr, const char *name, const struct dns_opt_record *r);
 enum ndr_err_code ndr_push_dns_tkey_record(struct ndr_push *ndr, int ndr_flags, const struct dns_tkey_record *r);
 enum ndr_err_code ndr_pull_dns_tkey_record(struct ndr_pull *ndr, int ndr_flags, struct dns_tkey_record *r);
 void ndr_print_dns_tkey_record(struct ndr_print *ndr, const char *name, const struct dns_tkey_record *r);

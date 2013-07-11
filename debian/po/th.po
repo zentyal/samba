@@ -6,8 +6,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-05-13 11:53-0700\n"
 "PO-Revision-Date: 2011-05-12 18:06+0700\n"
 "Last-Translator:  Theppitak Karoonboonyanan <thep@linux.thai.net>\n"
 "Language-Team: Thai <thai-l10n@googlegroup.com>\n"
@@ -133,95 +133,3 @@ msgstr ""
 "ของไมโครซอฟท์อีกต่อไปแล้ว และถ้าคุณเปิดใช้ กรุณาตรวจสอบให้แน่ใจว่าคุณมีแฟ้ม /etc/samba/"
 "smbpasswd ที่ใช้การได้ และคุณได้ตั้งรหัสผ่านในนั้นสำหรับผู้ใช้แต่ละคน โดยใช้คำสั่ง smbpasswd"
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr "เซิร์ฟเวอร์ samba"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "ดีมอน"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "คุณต้องการเรียกใช้ Samba แบบไหน?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"ดีมอน smbd ของ Samba สามารถทำงานแบบดีมอนธรรมดา หรือเรียกจาก inetd ก็ได้ "
-"ทางที่ขอแนะนำคือเรียกแบบดีมอน"
-
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr "จะสร้างฐานข้อมูลรหัสผ่าน samba /var/lib/samba/passdb.tdb หรือไม่?"
-
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "เพื่อให้ทำงานร่วมกับค่าปกติในวินโดวส์รุ่นส่วนใหญ่ได้ จึงต้องตั้งค่า Samba "
-#~ "ให้ใช้รหัสผ่านแบบเข้ารหัสลับ ซึ่งจำเป็นต้องเก็บรหัสผ่านของผู้ใช้ไว้ในแฟ้มแยกต่างหากจาก /etc/"
-#~ "passwd  แฟ้มดังกล่าวสามารถสร้างโดยอัตโนมัติได้ แต่รหัสผ่านจะต้องเพิ่มเองโดยใช้คำสั่ง "
-#~ "smbpasswd และต้องปรับข้อมูลอยู่เสมอในอนาคต"
-
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "หากจะไม่สร้างแฟ้มดังกล่าว คุณจะต้องตั้งค่า Samba (และอาจจะต้องตั้งค่าเครื่องลูกต่างๆ ด้วย) "
-#~ "ให้ใช้รหัสผ่านแบบข้อความธรรมดา"
-
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "ดูรายละเอียดเพิ่มเติมได้ที่ /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-"
-#~ "Guide/pwencrypt.html จากแพกเกจ samba-doc "
-
-#~ msgid "Chaining passdb backends is not supported"
-#~ msgstr "ไม่สนับสนุนการเชื่อมลูกโซ่แบ็กเอนด์ของ passdb"
-
-#~ msgid ""
-#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
-#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
-#~ "conf file contains a passdb backend parameter consisting of a list of "
-#~ "backends.  The new version of samba will not work until you correct this."
-#~ msgstr ""
-#~ "ตั้งแต่รุ่น 3.0.23 เป็นต้นไป samba ไม่สนับสนุนการเชื่อมลูกโซ่หลายแบ็กเอนด์ในพารามิเตอร์ "
-#~ "\"passdb backend\" แต่ดูเหมือนแฟ้ม smb.conf ของคุณจะมีพารามิเตอร์ passdb backend "
-#~ "เป็นรายชื่อแบ็กเอนด์หลายตัว ซึ่ง samba รุ่นใหม่นี้จะไม่ทำงาน จนกว่าคุณจะแก้ไขค่านี้"
-
-#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-#~ msgstr "ย้าย /etc/samba/smbpasswd ไปเป็น /var/lib/samba/passdb.tdb หรือไม่?"
-
-#~ msgid ""
-#~ "Samba 3.0 introduced a more complete SAM database interface which "
-#~ "supersedes the /etc/samba/smbpasswd file."
-#~ msgstr ""
-#~ "Samba 3.0 มีอินเทอร์เฟซฐานข้อมูล SAM ที่สมบูรณ์กว่า ซึ่งมาแทนแฟ้ม /etc/samba/smbpasswd"
-
-#~ msgid ""
-#~ "Please confirm whether you would like the existing smbpasswd file to be "
-#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
-#~ msgstr ""
-#~ "กรุณายืนยันว่าคุณต้องการย้ายจากการใช้แฟ้ม smbpasswd ไปใช้ /var/lib/samba/passdb.tdb "
-#~ "โดยอัตโนมัติหรือไม่  อย่าเลือกตัวเลือกนี้ถ้าคุณมีแผนที่จะใช้แบ็กเอนด์ pdb อื่น (เช่น LDAP) แทน"

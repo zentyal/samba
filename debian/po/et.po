@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-05-13 11:53-0700\n"
 "PO-Revision-Date: 2007-03-13 10:26+0300\n"
 "Last-Translator: Siim Põder <siim@p6drad-teel.net>\n"
 "Language-Team: \n"
@@ -146,99 +146,3 @@ msgstr ""
 "sul oleks sobiv /etc/samba/smbpasswd fail ning sea igale seal olevale "
 "kasutajale smbpasswd käsu abil parool."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "deemonitena"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd'ist"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Kuidas soovid Samba käivitada?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Samba deemon võib käivituda kui tavaline deemon või inetd'ist. Soovitatav "
-"lähenemine on käivitamine tavalise deemonina."
-
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr "Luua samba paroolide andmebaas, /var/lib/samba/passdb.tdb?"
-
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "Et ühilduda enamike Windows versioonidega, tuleb Samba seadistada "
-#~ "krüpteeritud paroole kasutama. Selle jaoks on tarvis kasutajate paroole "
-#~ "väljaspool /etc/passwd hoida. Selle faili võib automaatselt luua, kuid "
-#~ "paroolid tuleb sinna käsitsi lisada ning ka hiljem värsketena hoida."
-
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "Kui sa seda ei loo, tuleb sul Samba ümber seadistada (ning tõenäoliselt "
-#~ "ka kliendimasinad) kasutamaks avatud paroole."
-
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "End detailidega kurssi viimaks loe /usr/share/doc/samba-doc/htmldocs/"
-#~ "ENCRYPTION.html pakist samba-doc."
-
-#~ msgid "Chaining passdb backends is not supported"
-#~ msgstr ""
-#~ "passdb backends mitme järjestikkuse variandi määramine pole toetatud"
-
-#~ msgid ""
-#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
-#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
-#~ "conf file contains a passdb backend parameter consisting of a list of "
-#~ "backends.  The new version of samba will not work until you correct this."
-#~ msgstr ""
-#~ "Samba versioonid alates 3.0.23 ei toeta enam \"passdb backend\" "
-#~ "parameetri juures mitmest variandist koosnevat nimekirja. Paistab, et "
-#~ "sinu smb.conf failis on passdb backend parameetrile määratud nimekiri. "
-#~ "Uus samba versioon ei tööta, kuni sellega tegeletud on."
-
-#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-#~ msgstr "Kanda /etc/samba/smbpasswd üle /var/lib/samba/passdb.tdb?"
-
-#~ msgid ""
-#~ "Samba 3.0 introduced a more complete SAM database interface which "
-#~ "supersedes the /etc/samba/smbpasswd file."
-#~ msgstr ""
-#~ "Samba 3.0 võttis kasutusele täielikuma SAM andmebaasiliidese, mis ületab /"
-#~ "etc/samba/smbpasswd faili."
-
-#~ msgid ""
-#~ "Please confirm whether you would like the existing smbpasswd file to be "
-#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
-#~ msgstr ""
-#~ "Palun kinnita, kas soovid olemasoleva smbpasswd faili automaatset "
-#~ "ülekandmist /var/lib/samba/passdb.tdb. Ära nõustu, kui soovid kasutada "
-#~ "hoopis mõnd muud pdb lahendust (näiteks LDAP)."

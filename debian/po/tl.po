@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-05-13 11:53-0700\n"
 "PO-Revision-Date: 2007-03-13 06:13+0800\n"
 "Last-Translator: eric pareja <xenos@upm.edu.ph>\n"
 "Language-Team: Tagalog <debian-tl@banwa.upm.edu.ph>\n"
@@ -152,105 +152,3 @@ msgstr ""
 "nakatakda kayong kontrasenyas para sa bawat gumagamit na ginamitan ng "
 "smbpasswd na utos."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "mga daemon"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Paano ninyo gustong patakbuhin ang Samba?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Ang daemon na smbd ng Samba ay maaaring patakbuhin bilang normal na daemon o "
-"mula sa inetd. Pagpapatakbo nito bilang daemon ang rekomendado."
-
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr ""
-#~ "Likhain ang talaan ng kontrasenyas ng samba, /var/lib/samba/passdb.tdb?"
-
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "Upang makibagay sa mga default ng karamihan ng bersiyon ng Windows, "
-#~ "kailangan na nakasaayos ang Samba na gumamit ng encrypted na "
-#~ "kontrasenyas. Kinakailangan na ang mga kontrasenyas ng mga gumagamit ay "
-#~ "nakatago sa talaksang hiwalay sa /etc/passwd. Maaaring likhain ang "
-#~ "talaksang ito na awtomatiko, ngunit ang mga kontrasenyas dito ay "
-#~ "kinakailangang idagdag ng mano-mano sa pagpapatakbo ng smbpasswd at "
-#~ "kailangan na sariwain ito sa hinaharap."
-
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "Kung hindi ito likhain, kailangan ninyong isaayos muli ang Samba (at "
-#~ "malamang ang inyong mga makinang client) na gumamit ng plaintext na "
-#~ "kontrasenyas."
-
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "Basahin ang /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/"
-#~ "pwencrypt.html mula sa paketeng samba-doc para sa karagdagang detalye."
-
-#~ msgid "Chaining passdb backends is not supported"
-#~ msgstr "Ang pagdudugtong ng mga backend ng passdb ay hindi suportado"
-
-#~ msgid ""
-#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
-#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
-#~ "conf file contains a passdb backend parameter consisting of a list of "
-#~ "backends.  The new version of samba will not work until you correct this."
-#~ msgstr ""
-#~ "Simula sa bersiyon 3.0.23, hindi na suportado ng samba ang pagdudugtong "
-#~ "ng multiple backend sa parameter na \"passdb backend\".  Mukhang ang "
-#~ "talaksang smb.conf ay naglalaman ng passdb backend parameter na "
-#~ "naglilista ng mga backend. Ang bagong bersiyon ng samba ay hindi aandar "
-#~ "ng wasto hanggang ito ay ayusin."
-
-#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-#~ msgstr "Ilipat ang /etc/samba/smbpasswd sa /var/lib/samba/passdb.tdb?"
-
-#~ msgid ""
-#~ "Samba 3.0 introduced a more complete SAM database interface which "
-#~ "supersedes the /etc/samba/smbpasswd file."
-#~ msgstr ""
-#~ "Ipinakilala ng Samba 3.0 ang mas-kumpletong SAM database interface na "
-#~ "siyang pumalit sa talaksang /etc/samba/smbpasswd."
-
-#~ msgid ""
-#~ "Please confirm whether you would like the existing smbpasswd file to be "
-#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
-#~ msgstr ""
-#~ "Pakitiyak kung inyong nais na mailipat ng awtomatiko ang kasalukuyang "
-#~ "talaksang smbpasswd patungong /var/lib/samba/passdb.tdb. Huwag piliin ang "
-#~ "opsiyon na ito kung balak ninyong gumamit ng ibang pdb backend (hal., "
-#~ "LDAP)."

@@ -8,8 +8,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_2_3_5_6_dfsg_2_debconf_he\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-05-13 11:53-0700\n"
 "PO-Revision-Date: 2011-05-14 00:25+0200\n"
 "Last-Translator: Eran Cohen <shokocham@gmail.com>\n"
 "Language-Team: Hebrew <debian-hebrew-common@lists.alioth.debian.org>\n"
@@ -141,67 +141,3 @@ msgstr ""
 "קיים הקובץ /etc/samba/smbpasswd, וכי הוא תקין. בנוסף, יש לדאוג שהקובץ יכיל "
 "סיסמה בעבור כל משתמש בעזרת שימוש בפקודה smbpasswd."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr "שרת סמבה"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "תהליכי רקע"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "כיצד תרצה להריץ את סמבה?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"תהליך הרקע של סמבה שנקרא smbd יכול לרוץ כתהליך רקע רגיל או דרך inetd. ריצה "
-"כתהליך רקע רגיל היא השיטה המומלצת."
-
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr ""
-#~ "האם ליצור מסד נתונים של ססמאות עבור שרת הסמבה, בקובץ /var/lib/samba/"
-#~ "passdb.tdb?"
-
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "כדי להתאים לברירת המחדל ברוב הגרסאות של Windows, על Samba להיות מוגדרת "
-#~ "להשתמש בסיסמאות מוצפנות. אפשרות זו מצריכה אחסון של סיסמאות בקובץ שונה מ /"
-#~ "etc/passwd. ניתן ליצור קובץ זה בצורה אוטומטית, אך יש צורך להוסיף את "
-#~ "הסיסמאות ולתחזק אותן בעתיד בצורה ידנית בעזרת הפקודה smbpasswd."
-
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "אם לא תיצור קובץ זה, יהיה עליך לקנפג מחדש את סמבה (וסביר להניח שגם של כל "
-#~ "לקוחותיו) כדי להשתמש בססמאות שאינן מוצפנות."
-
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "ראה מידע נוסף בקובץ /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-"
-#~ "Guide/pwencrypt.html מתוך החבילה samba-doc."

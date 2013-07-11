@@ -10,8 +10,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: ar\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-05-13 11:53-0700\n"
 "PO-Revision-Date: 2010-09-09 01:19+0300\n"
 "Last-Translator: Ossama Khayat <okhayat@yahoo.com>\n"
 "Language-Team: Arabic <support@arabeyes.org>\n"
@@ -142,96 +142,3 @@ msgstr ""
 "إن فعلت ذلك، فتأكد من وجود ملف /etc/samba/smbpasswd صالح وأن تضع فيه كلمات "
 "المرور الخاصة بكل مستخدم باستخدام الأمر smbpasswd."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "daemons"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "كيف تريد تشغيل Samba؟"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr "يمكن لرقيب smbd الاشتغال كرقيب عادي أو عبر inetd. ينصح بتشغييله كرقيب."
-
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr "إحداث قاعدة كلمات المرور لSamba  في /var/lib/samba/passdb.tdb ؟"
-
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "حتى يكون هناك توافق مع اﻹعدادت الافتراصية لأغلبية نسخ Windows، يجب تهيئة "
-#~ "Samba لاستعمال كلمات مرور مشفرة، اﻷمر الذي يتطلب حفظها في ملف منفصل عن /"
-#~ "etc/passwd. ويمكن إنشاء ذلك الملف تلقائياً، إلا أن كلمات المرور يجب أن "
-#~ "تضاف يدوياً بتنفيذ الأمر smbpaswd وإبقاء الملف محدثاً في المستقبل."
-
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "إن لم تنشئه، فستضطر إلى إعادة تهيئة Samba (وربما بعض الأجهزة العميلة) "
-#~ "لاستخدام كلمات مرور مجردة."
-
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "راجع /usr/share/doc/samba-doc/htmldocs/ENCRYPTION في رزمة samba-doc "
-#~ "لتفاصيل أكثر."
-
-#~ msgid "Chaining passdb backends is not supported"
-#~ msgstr "الربط التسلسلي لملفات passdb غير مدعوم"
-
-#~ msgid ""
-#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
-#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
-#~ "conf file contains a passdb backend parameter consisting of a list of "
-#~ "backends.  The new version of samba will not work until you correct this."
-#~ msgstr ""
-#~ "بدءً من النسخة 3.0.23 من samba، لم يعد دعم ربط ملفات passdb عبر المعطى "
-#~ "\"passdb backend\" متوفراً. يبدو أن ملف smb.conf لديك يحتوي هذا المعطى "
-#~ "والذي يحدد قائمة من ملفات دعم passdb. لن تعمل نسخة samba الجديدة حتى تقوم "
-#~ "بتصحيح هذا المعطى."
-
-#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-#~ msgstr "نَقْل /etc/samba/smbpasswd إلى /var/lib/samba/passdb.tdb ؟"
-
-#~ msgid ""
-#~ "Samba 3.0 introduced a more complete SAM database interface which "
-#~ "supersedes the /etc/samba/smbpasswd file."
-#~ msgstr ""
-#~ "النسخة 3.0 من Samba أدخلت  واجهة أكمل لقاعدة  SAM, و التي تلغي بدورها "
-#~ "ملف /etc/samba/smbpasswd."
-
-#~ msgid ""
-#~ "Please confirm whether you would like the existing smbpasswd file to be "
-#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
-#~ msgstr ""
-#~ "من فضلك أكّد إذا ما كنت تفضل هجرة آلية لملف smbpasswd المتواجد إلى /var/"
-#~ "lib/samba/passdb.tdb. لا تختر هذا الخيار إذا كنت تنوي استعمال قاعدة كلمات "
-#~ "مرور خلفية ( pdb backend) مثل LDAP."

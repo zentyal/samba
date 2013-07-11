@@ -7,8 +7,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_2:3.2.3-1_pl_2008-09-12\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-05-13 11:53-0700\n"
 "PO-Revision-Date: 2012-01-28 17:59+0100\n"
 "Last-Translator: Michał Kułach <michal.kulach@gmail.com>\n"
 "Language-Team: Polish <debian-l10n-polish@lists.debian.org>\n"
@@ -146,69 +146,3 @@ msgstr ""
 "że zostaną w nim ustawione hasła dla każdego użytkownika korzystającego z "
 "polecenia smbpasswd."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr "Serwer Samba"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "demon"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "W jaki sposób Samba ma być uruchamiana?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Demon Samby smbd może działać jako zwykły demon, albo z poziomu inetd. "
-"Zalecane jest uruchomienie demona."
-
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr "Utworzyć bazę haseł samby, /var/lib/samba/passdb.tdb?"
-
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "Aby zachować zgodność z domyślnymi ustawieniami większości wersji "
-#~ "Windows, Samba musi korzystać z szyfrowanych haseł. W związku z tym, "
-#~ "hasła użytkowników muszą być przechowywane w innym pliku niż /etc/passwd. "
-#~ "Ten plik może zostać utworzony automatycznie, ale hasła muszą być "
-#~ "dodawane ręcznie za pomocą polecenia smbpasswd, a w przyszłości na "
-#~ "bieżąco uaktualniane."
-
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "Jeżeli plik nie zostanie utworzony, konieczne będzie przekonfigurowanie "
-#~ "Samby (i prawdopodobnie komputerów klienckich) do używania haseł w "
-#~ "postaci otwartego tekstu."
-
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "Proszę zapoznać się z plikiem /usr/share/doc/samba-doc/htmldocs/Samba3-"
-#~ "Developers-Guide/pwencrypt.html z pakietu samba-doc, aby poznać więcej "
-#~ "szczegółów."

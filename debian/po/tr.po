@@ -6,8 +6,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-05-13 11:53-0700\n"
 "PO-Revision-Date: 2012-05-10 10:24+0200\n"
 "Last-Translator: Atila KOÇ <akoc@artielektronik.com.tr>\n"
 "Language-Team: Turkish <debian-l10n-turkish@lists.debian.org>\n"
@@ -145,108 +145,3 @@ msgstr ""
 "geçerli bir /etc/samba/smbpasswd dosyanız olduğundan emin olunuz ve "
 "smbpasswd komutunu kullanarak bütün kullanıcılar için parola belirleyiniz."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr "Samba sunucusu"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "artalan süreçleri"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Samba'nın nasıl çalışmasını istersiniz?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Samba artalan süreci smbd, normal bir artalan süreci olarak ya da inetd'den "
-"çalışabilir. Önerilen yaklaşım artalan süreci olarak çalıştırmaktır."
-
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr "Samba parola veritabanı /var/lib/samba/passwd.tdb yaratılsın mı?"
-
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "Windows'un çoğu sürümünde yapılan öntanımlı ayarlar ile uyumlu olabilmesi "
-#~ "için Samba'nın şifrelenmiş parolaları kullanacak şekilde yapılandırılması "
-#~ "gerekir. Bu seçim kullanıcı parolalarının /etc/passwd dosyası dışında bir "
-#~ "dosyada saklanmasını gerektirir. Bu dosya kendiliğinden yaratılabilir, "
-#~ "fakat daha sonra parolaların smbpasswd komutu çalıştırılarak elle "
-#~ "eklenmesi ve gelecekte de aynı şekilde güncel tutulması gerekecektir."
-
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "Eğer bu dosyayı yaratmazsanız, daha sonra Samba'yı (ve büyük olasılıkla "
-#~ "istemci makineleri de) düz metin parolalarını kullanacak şekilde yeniden "
-#~ "yapılandırmanız gerekecektir."
-
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "Daha ayrıntılı bilgi için samba-doc paketinden /usr/share/doc/samba-doc/"
-#~ "htmldocs/ENCRYPTION.html dosyasına göz atınız."
-
-#~ msgid "Chaining passdb backends is not supported"
-#~ msgstr ""
-#~ "Parola veritabanı için çoklu arkayüz kullanılabilmesi özelliği  "
-#~ "desteklenmiyor"
-
-#~ msgid ""
-#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
-#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
-#~ "conf file contains a passdb backend parameter consisting of a list of "
-#~ "backends.  The new version of samba will not work until you correct this."
-#~ msgstr ""
-#~ "Versiyon 3.0.23 ile beraber, samba artık \"passdb backend\" "
-#~ "parametresindeki çoklu arkayüz kullanılabilmesi özelliğini  "
-#~ "desteklemiyor. Öyle gözüküyorki, smb.conf dosyanızdaki parola veritabanı "
-#~ "arkayüz parametresi bir liste içeriyor. Bunu düzeltene kadar yeni samba "
-#~ "versiyonu çalışmayacaktır."
-
-#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-#~ msgstr "/etc/samba/smbpasswd /var/lib/samba/passwd.tdb'ye taşınsın mı?"
-
-#~ msgid ""
-#~ "Samba 3.0 introduced a more complete SAM database interface which "
-#~ "supersedes the /etc/samba/smbpasswd file."
-#~ msgstr ""
-#~ "Samba 3.0 daha stabil ve /etc/samba/smbpasswd dosyasının da yerine "
-#~ "geçecek bir SAM veritabanını içerir."
-
-#~ msgid ""
-#~ "Please confirm whether you would like the existing smbpasswd file to be "
-#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
-#~ msgstr ""
-#~ "Lütfen smbpasswd dosyasının otomatik olarak /var/lib/samba/passdb.tdb "
-#~ "dosyasına dönüştürülmesini isteyip istemediğinizi onaylayınız. Eğer başka "
-#~ "bir pdb arkayüzü (ör. LDAP) kullanmayı planlıyorsanız, burada 'hayır' "
-#~ "cevabını vermelisiniz."
-
-#~ msgid "daemons, inetd"
-#~ msgstr "artalan süreçleri, inetd"

@@ -4,8 +4,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_3.0.23c-1_bg\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-05-13 11:53-0700\n"
 "PO-Revision-Date: 2010-10-25 10:44+0300\n"
 "Last-Translator: Damyan Ivanov <dmn@debian.org>\n"
 "Language-Team: Bulgarian <>\n"
@@ -136,103 +136,3 @@ msgstr ""
 "файлът /etc/samba/smbpasswd е правилен и използвайте програмата smbpasswd за "
 "задаване на паролите на потребителите."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "фонов процес"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "при нужда"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Как да се стартира Samba?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Основният процес на Samba, smbd, може да бъде изпълняван при нужда или като "
-"фонов процес (със зареждането на операционната система). Препоръчителният "
-"начин за изпълнение е като фонов процес."
-
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr "Създаване на базата данни с пароли, /var/lib/samba/passdb.tdb?"
-
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "За съвместимост с повечето версии на Windows, Samba трябва да използва "
-#~ "шифрирани пароли. Това изисква паролите да се съхраняват във файл, "
-#~ "отделен от /etc/passwd. Този файл може да бъде създаден автоматично, но "
-#~ "потребителите и паролите трябва да се добавят ръчно чрез командата "
-#~ "smbpasswd."
-
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "Ако не създадете този файл, трябва да настроите Samba (а вероятно и "
-#~ "компютрите с Windows) да не използват шифрирани пароли."
-
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "За повече информация вижте /usr/share/doc/samba-doc/htmldocs/Samba3-"
-#~ "Developers-Guide/pwencrypt.html."
-
-#~ msgid "Chaining passdb backends is not supported"
-#~ msgstr ""
-#~ "Новата версия на samba не поддържа работа с няколко бази данни с пароли"
-
-#~ msgid ""
-#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
-#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
-#~ "conf file contains a passdb backend parameter consisting of a list of "
-#~ "backends.  The new version of samba will not work until you correct this."
-#~ msgstr ""
-#~ "От версия 3.0.23 нататък, samba не поддържа работа с няколко бази данни с "
-#~ "пароли в параметъра „passdb backend“. Изглежда, че във файла с настройки "
-#~ "„smb.conf“ този параметър съдържа списък с няколко бази данни с пароли. "
-#~ "Новата версия на samba няма да работи докато не коригирате това."
-
-#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
-#~ msgstr ""
-#~ "Да се премести ли /etc/samba/smbpasswd във /var/lib/samba/passdb.tdb?"
-
-#~ msgid ""
-#~ "Samba 3.0 introduced a more complete SAM database interface which "
-#~ "supersedes the /etc/samba/smbpasswd file."
-#~ msgstr ""
-#~ "Samba 3.0 въвежда по-пълна база с потребители, която прави излишен /etc/"
-#~ "samba/smbpasswd."
-
-#~ msgid ""
-#~ "Please confirm whether you would like the existing smbpasswd file to be "
-#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
-#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
-#~ msgstr ""
-#~ "Потвърдете дали желаете съществуващият /etc/samba/smbpasswd да бъде "
-#~ "мигриран автоматично към /var/lib/samba/passdb.tdb. Не избирайте тази "
-#~ "настройка ако планирате да използвате друг начин на удостоверяване "
-#~ "(например LDAP)."

@@ -7,8 +7,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_2:3.3.0-3_be\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-05-13 11:53-0700\n"
 "PO-Revision-Date: 2009-02-19 04:33+0200\n"
 "Last-Translator: Pavel Piatruk <piatruk.p@gmail.com>\n"
 "Language-Team: Belarusian (Official spelling) <be@d-i.tanatos.org>\n"
@@ -143,67 +143,3 @@ msgstr ""
 "што Вы маеце дзейсны файл /etc/samba/smbpasswd і што для кожнага "
 "карыстальніка ў ім створаны пароль з дапамогай каманды smbpasswd."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "дэманы"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "Якім чынам мусіць запускацца Samba?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Служба Samba smbd можа запускацца як звычайны дэман, або з дапамогай inetd. "
-"Рэкамендаваны падыход -- запуск у якасці звычайнага дэмана."
-
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr "Стварыць базу пароляў samba у файле /var/lib/samba/passdb.tdb?"
-
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "Каб адпавядаць стандартным наладкам большасці версіяў Windows, Samba "
-#~ "мусіць выкарыстоўваць шыфраваныя паролі. Дзеля гэтага паролі трэба "
-#~ "захоўваць у месцы, адрозным ад файлу /etc/passwd. Адпаведнае сховішча "
-#~ "можна стварыць аўтаматычна, але паролі трэба дадаваць самастойна з "
-#~ "дапамогай каманды smbpasswd, і сачыць за іх адпаведнасцю надалей."
-
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "Калі сховішча не будзе створана, трэба пераналадзіць Samba (і, верагодна, "
-#~ "кліентскія машыны таксама) такім чынам, каб выкарыстоўваць паролі простым "
-#~ "тэкстам."
-
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "Больш інфармацыі даступна ў файле /usr/share/doc/samba-doc/htmldocs/"
-#~ "Samba3-Developers-Guide/pwencrypt.html ю"

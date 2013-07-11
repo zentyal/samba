@@ -6,8 +6,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-11 19:55+0200\n"
+"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
+"POT-Creation-Date: 2013-05-13 11:53-0700\n"
 "PO-Revision-Date: 2008-09-10 01:45+0400\n"
 "Last-Translator: Aiet Kolkhi <aietkolkhi@gmail.com>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -140,67 +140,3 @@ msgstr ""
 "რომ გაგაჩნიათ გამართული /etc/samba/smbpasswd ფაილი და რომ იქ ყოველ "
 "მომხმარებელზე პაროლი გქონდეთ დაყენებული smbpasswd ბრძანებით."
 
-#. Type: title
-#. Description
-#: ../samba.templates:1001
-msgid "Samba server"
-msgstr ""
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "daemons"
-msgstr "დემონები"
-
-#. Type: select
-#. Choices
-#: ../samba.templates:2001
-msgid "inetd"
-msgstr "inetd"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid "How do you want to run Samba?"
-msgstr "როგორ გსურთ Samba-ს გაშვება?"
-
-#. Type: select
-#. Description
-#: ../samba.templates:2002
-msgid ""
-"The Samba daemon smbd can run as a normal daemon or from inetd. Running as a "
-"daemon is the recommended approach."
-msgstr ""
-"Samba-ს დემონი smbd შეიძლება გაეშვას როგორც ჩვეულებრივი დემო inetd-დან. "
-"დემონად გაშვება რეკომენდირებული მიდგომაა."
-
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr "გსურთ samba-ს პაროლთა ბაზის, /var/lib/samba/passdb.tdb-ს შექმნა?"
-
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "Windows-ის უმეტეს ვერსიების ნაგულისხმევ პარამეტრებთან თავსებადობისათვის, "
-#~ "Samba-მ დაშიფრული პაროლები უნდა გამოიყენოს. ეს საჭიროებს, რომ "
-#~ "მომხმარებელთა პაროლები /etc/passwd-ისაგან განცხალკევებით იქნას შენახული.  "
-#~ "ამ ფაილის შექმნა ავტომატურად არის შესაძლებელი, თუმცა პაროლების ჩამატება "
-#~ "ხელით უნდა მოხდეს smbpasswd ბრძანებით და სამომავლოდ მუდამ განახლებული "
-#~ "უნდა იყოს."
-
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "თუ მას არ შექმნით, Samba-ს (და სავარაუდოდ თქვენი კლიენტისაც) ხელახალი "
-#~ "კონფიგურაცია მოგიწევთ დაუშიფრავი პაროლების გამოსაყენებლად."
-
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "დამატებითი ინფორმაციისათვის იხილეთ /usr/share/doc/samba-doc/htmldocs/"
-#~ "ENCRYPTION.html სტატია samba-doc პაკეტიდან."

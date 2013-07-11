@@ -1,6 +1,8 @@
 samba (2:3.6.16-1~bpo70+1) UNRELEASED; urgency=low
 
   * Rebuild for wheezy-backports.
+  * Make build-dep on libtevent-dev explicit.
+    In sid, this is pulled in by ctdb. 
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Thu, 11 Jul 2013 19:09:05 +0200
 

@@ -1,6 +1,8 @@
 samba (2:3.6.16-2) UNRELEASED; urgency=low
 
   * Make build-dep on libtevent-dev explicit.
+  * Fix waf-as-source.patch to make sure unpacking works in recent build
+    environment. Closes: #716932 
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Thu, 11 Jul 2013 20:38:48 +0200
 

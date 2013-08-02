@@ -5,17 +5,24 @@
 import os
 import Task, Options, Utils
 from Configure import conf
-from TaskGen import extension, taskgen, feature, before
+from TaskGen import extension, taskgen, feature, before, after
 
 xsubpp_str = '${PERL} ${XSUBPP} -noprototypes -typemap ${EXTUTILS_TYPEMAP} ${SRC} > ${TGT}'
 EXT_XS = ['.xs']
 
-@before('apply_incpaths', 'apply_type_vars', 'apply_lib_vars')
+@before('apply_incpaths', 'apply_lib_vars', 'apply_type_vars', 'apply_bundle')
+@after('vars_target_cshlib')
 @feature('perlext')
 def init_perlext(self):
+	self.default_install_path = '${ARCHDIR_PERL}/auto'
 	self.uselib = self.to_list(getattr(self, 'uselib', ''))
-	if not 'PERL' in self.uselib: self.uselib.append('PERL')
-	if not 'PERLEXT' in self.uselib: self.uselib.append('PERLEXT')
+	if not 'PERLEXT' in self.uselib:
+		self.uselib.append('PERLEXT')
+
+@before('apply_link', 'apply_lib_vars', 'apply_type_vars')
+@after('apply_bundle')
+@feature('perlext')
+def perlext_shlib_ext(self):
 	self.env['shlib_PATTERN'] = self.env['perlext_PATTERN']
 
 @extension(EXT_XS)

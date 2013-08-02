@@ -567,7 +567,7 @@ def reconfigure(ctx):
     Scripting.check_configured(bld)
 
 
-def map_shlib_extension(ctx, name, python=False):
+def map_shlib_extension(ctx, name, python=False, perl=False):
     '''map a filename with a shared library extension of .so to the real shlib name'''
     if name is None:
         return None
@@ -577,6 +577,8 @@ def map_shlib_extension(ctx, name, python=False):
     (root1, ext1) = os.path.splitext(name)
     if python:
         (root2, ext2) = os.path.splitext(ctx.env.pyext_PATTERN)
+    elif perl:
+        (root2, ext2) = os.path.splitext(ctx.env.perlext_PATTERN)
     else:
         (root2, ext2) = os.path.splitext(ctx.env.shlib_PATTERN)
     return root1+ext2
@@ -590,15 +592,18 @@ def apply_pattern(filename, pattern):
     basename = os.path.basename(filename)
     return os.path.join(dirname, pattern % basename)
 
-def make_libname(ctx, name, nolibprefix=False, version=None, python=False):
+def make_libname(ctx, name, nolibprefix=False, version=None, python=False, perl=False):
     """make a library filename
          Options:
               nolibprefix: don't include the lib prefix
               version    : add a version number
-              python     : if we should use python module name conventions"""
+              python     : if we should use python module name conventions
+              perl       : if we should use perl module name conventions"""
 
     if python:
         libname = apply_pattern(name, ctx.env.pyext_PATTERN)
+    elif perl:
+        libname = apply_pattern(name, ctx.env.perlext_PATTERN)
     else:
         libname = apply_pattern(name, ctx.env.shlib_PATTERN)
     if nolibprefix and libname[0:3] == 'lib':
@@ -625,7 +630,7 @@ def get_tgt_list(bld):
     tgt_list = []
     for tgt in targets:
         type = targets[tgt]
-        if not type in ['SUBSYSTEM', 'MODULE', 'BINARY', 'LIBRARY', 'ASN1', 'PYTHON']:
+        if not type in ['SUBSYSTEM', 'MODULE', 'BINARY', 'LIBRARY', 'ASN1', 'PYTHON', 'PERL']:
             continue
         t = bld.name_to_obj(tgt, bld.env)
         if t is None:

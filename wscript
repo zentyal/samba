@@ -69,6 +69,8 @@ def set_options(opt):
 
     opt.tool_options('python') # options for disabling pyc or pyo compilation
     # enable options related to building python extensions
+    opt.tool_options('perl')
+    # enable options related to building perl extensions
 
 
 def configure(conf):
@@ -86,7 +88,8 @@ def configure(conf):
 
     conf.RECURSE('lib/replace')
 
-    conf.find_program('perl', var='PERL', mandatory=True)
+    conf.SAMBA_CHECK_PERL(mandatory=True, version=(5,14,2))
+    conf.SAMBA_CHECK_PERL_HEADERS()
     conf.find_program('xsltproc', var='XSLTPROC')
 
     conf.SAMBA_CHECK_PYTHON(mandatory=True, version=(2,5,0))

@@ -16,6 +16,7 @@ from samba_patterns import *
 from samba_pidl import *
 from samba_autoproto import *
 from samba_python import *
+from samba_perl import *
 from samba_deps import *
 from samba_bundled import *
 import samba_install
@@ -120,6 +121,7 @@ def SAMBA_LIBRARY(bld, libname, source,
                   install=True,
                   pyembed=False,
                   pyext=False,
+                  perlext=False,
                   target_type='LIBRARY',
                   bundled_extension=True,
                   link_name=None,
@@ -178,6 +180,7 @@ def SAMBA_LIBRARY(bld, libname, source,
                         hide_symbols   = hide_symbols,
                         pyembed        = pyembed,
                         pyext          = pyext,
+                        perlext        = perlext,
                         local_include  = local_include,
                         global_include = global_include)
 
@@ -192,11 +195,11 @@ def SAMBA_LIBRARY(bld, libname, source,
     deps = TO_LIST(deps)
     deps.append(obj_target)
 
-    realname = bld.map_shlib_extension(realname, python=(target_type=='PYTHON'))
-    link_name = bld.map_shlib_extension(link_name, python=(target_type=='PYTHON'))
+    realname = bld.map_shlib_extension(realname, python=(target_type=='PYTHON'), perl=(target_type=='PERL'))
+    link_name = bld.map_shlib_extension(link_name, python=(target_type=='PYTHON'), perl=(target_type=='PERL'))
 
     # we don't want any public libraries without version numbers
-    if (not private_library and target_type != 'PYTHON' and not realname):
+    if (not private_library and target_type != 'PERL' and target_type != 'PYTHON' and not realname):
         if vnum is None and soname is None:
             raise Utils.WafError("public library '%s' must have a vnum" %
                     libname)
@@ -207,7 +210,7 @@ def SAMBA_LIBRARY(bld, libname, source,
             raise Utils.WafError("public library '%s' must have header files" %
                        libname)
 
-    if target_type == 'PYTHON' or realname or not private_library:
+    if target_type == 'PERL' or target_type == 'PYTHON' or realname or not private_library:
         bundled_name = libname.replace('_', '-')
     else:
         bundled_name = PRIVATE_NAME(bld, libname, bundled_extension,
@@ -220,6 +223,8 @@ def SAMBA_LIBRARY(bld, libname, source,
         features += ' pyext'
     if pyembed:
         features += ' pyembed'
+    if perlext:
+        features += ' perlext'
 
     if abi_directory:
         features += ' abi_check'
@@ -512,7 +517,8 @@ def SAMBA_SUBSYSTEM(bld, modname, source,
                     subdir=None,
                     hide_symbols=False,
                     pyext=False,
-                    pyembed=False):
+                    pyembed=False,
+                    perlext=False):
     '''define a Samba subsystem'''
 
     if not enabled:
@@ -541,6 +547,8 @@ def SAMBA_SUBSYSTEM(bld, modname, source,
         features += ' pyext'
     if pyembed:
         features += ' pyembed'
+    if perlext:
+        features += ' perlext'
 
     t = bld(
         features       = features,

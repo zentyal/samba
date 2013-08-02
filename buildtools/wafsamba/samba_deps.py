@@ -72,7 +72,7 @@ def build_dependencies(self):
     the full dependency list for a target until we have all of the targets declared.
     '''
 
-    if self.samba_type in ['LIBRARY', 'BINARY', 'PYTHON']:
+    if self.samba_type in ['LIBRARY', 'BINARY', 'PYTHON', 'PERL']:
         self.uselib        = list(self.final_syslibs)
         self.uselib_local  = list(self.final_libs)
         self.add_objects   = list(self.final_objects)
@@ -276,7 +276,7 @@ def check_duplicate_sources(bld, tgt_list):
     # build a list of targets that each source file is part of
     for t in tgt_list:
         sources = []
-        if not targets[t.sname] in [ 'LIBRARY', 'BINARY', 'PYTHON' ]:
+        if not targets[t.sname] in [ 'LIBRARY', 'BINARY', 'PYTHON', 'PERL' ]:
             continue
         for obj in t.add_objects:
             t2 = t.bld.name_to_obj(obj, bld.env)
@@ -309,7 +309,7 @@ def check_orphaned_targets(bld, tgt_list):
         if getattr(t, 'samba_used', False):
             continue
         type = target_dict[t.sname]
-        if not type in ['BINARY', 'LIBRARY', 'MODULE', 'ET', 'PYTHON']:
+        if not type in ['BINARY', 'LIBRARY', 'MODULE', 'ET', 'PYTHON', 'PERL']:
             if re.search('^PIDL_', t.sname) is None:
                 Logs.warn("Target %s of type %s is unused by any other target" % (t.sname, type))
 
@@ -363,7 +363,7 @@ def show_final_deps(bld, tgt_list):
     targets = LOCAL_CACHE(bld, 'TARGET_TYPE')
 
     for t in tgt_list:
-        if not targets[t.sname] in ['LIBRARY', 'BINARY', 'PYTHON', 'SUBSYSTEM']:
+        if not targets[t.sname] in ['LIBRARY', 'BINARY', 'PYTHON', 'SUBSYSTEM', 'PERL']:
             continue
         debug('deps: final dependencies for target %s: uselib=%s uselib_local=%s add_objects=%s',
               t.sname, t.uselib, getattr(t, 'uselib_local', []), getattr(t, 'add_objects', []))
@@ -472,7 +472,7 @@ def build_direct_deps(bld, tgt_list):
                 sys.exit(1)
             if t2.samba_type in [ 'LIBRARY', 'MODULE' ]:
                 t.direct_libs.add(d)
-            elif t2.samba_type in [ 'SUBSYSTEM', 'ASN1', 'PYTHON' ]:
+            elif t2.samba_type in [ 'SUBSYSTEM', 'ASN1', 'PYTHON', 'PERL' ]:
                 t.direct_objects.add(d)
     debug('deps: built direct dependencies')
 
@@ -666,7 +666,7 @@ def break_dependency_loops(bld, tgt_list):
         if t.samba_type in ['SUBSYSTEM']:
             loops[loop] = loops[loop].union(t.indirect_objects)
             loops[loop] = loops[loop].union(t.direct_objects)
-        if t.samba_type in ['LIBRARY','PYTHON']:
+        if t.samba_type in ['LIBRARY','PYTHON', 'PERL']:
             loops[loop] = loops[loop].union(t.indirect_libs)
             loops[loop] = loops[loop].union(t.direct_libs)
         if loop in loops[loop]:
@@ -714,7 +714,7 @@ def reduce_objects(bld, tgt_list):
 
     changed = False
 
-    for type in ['BINARY', 'PYTHON', 'LIBRARY']:
+    for type in ['BINARY', 'PYTHON', 'LIBRARY', 'PERL']:
         for t in tgt_list:
             if t.samba_type != type: continue
             # if we will indirectly link to a target then we don't need it
@@ -814,7 +814,7 @@ def calculate_final_deps(bld, tgt_list, loops):
 
     # find any library loops
     for t in tgt_list:
-        if t.samba_type in ['LIBRARY', 'PYTHON']:
+        if t.samba_type in ['LIBRARY', 'PYTHON', 'PERL']:
             for l in t.final_libs.copy():
                 t2 = bld.name_to_obj(l, bld.env)
                 if t.sname in t2.final_libs:
@@ -838,7 +838,7 @@ def calculate_final_deps(bld, tgt_list, loops):
     # we now need to make corrections for any library loops we broke up
     # any target that depended on the target of the loop and doesn't
     # depend on the source of the loop needs to get the loop source added
-    for type in ['BINARY','PYTHON','LIBRARY','BINARY']:
+    for type in ['BINARY','PYTHON','LIBRARY','BINARY','PERL']:
         for t in tgt_list:
             if t.samba_type != type: continue
             for loop in loops:
@@ -871,7 +871,7 @@ def calculate_final_deps(bld, tgt_list, loops):
 
     # add in any syslib dependencies
     for t in tgt_list:
-        if not t.samba_type in ['BINARY','PYTHON','LIBRARY','SUBSYSTEM']:
+        if not t.samba_type in ['BINARY','PYTHON','LIBRARY','SUBSYSTEM','PERL']:
             continue
         syslibs = set()
         for d in t.final_objects:
@@ -888,7 +888,7 @@ def calculate_final_deps(bld, tgt_list, loops):
     # find any unresolved library loops
     lib_loop_error = False
     for t in tgt_list:
-        if t.samba_type in ['LIBRARY', 'PYTHON']:
+        if t.samba_type in ['LIBRARY', 'PYTHON','PERL']:
             for l in t.final_libs.copy():
                 t2 = bld.name_to_obj(l, bld.env)
                 if t.sname in t2.final_libs:
@@ -932,7 +932,7 @@ def show_object_duplicates(bld, tgt_list):
     Logs.info("showing duplicate objects")
 
     for t in tgt_list:
-        if not targets[t.sname] in [ 'LIBRARY', 'PYTHON' ]:
+        if not targets[t.sname] in [ 'LIBRARY', 'PYTHON','PERL' ]:
             continue
         for n in getattr(t, 'final_objects', set()):
             t2 = bld.name_to_obj(n, bld.env)

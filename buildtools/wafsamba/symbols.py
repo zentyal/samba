@@ -278,7 +278,7 @@ def build_library_dict(bld, tgt_list):
     bld.env.library_dict = {}
 
     for t in tgt_list:
-        if t.samba_type in [ 'LIBRARY', 'PYTHON' ]:
+        if t.samba_type in [ 'LIBRARY', 'PYTHON', 'PERL' ]:
             linkpath = os.path.realpath(t.link_task.outputs[0].abspath(bld.env))
             bld.env.library_dict[linkpath] = t.sname
 
@@ -293,10 +293,12 @@ def build_syslib_sets(bld, tgt_list):
     syslibs = {}
     objmap = {}
     for t in tgt_list:
-        if getattr(t, 'uselib', []) and t.samba_type in [ 'LIBRARY', 'BINARY', 'PYTHON' ]:
+        if getattr(t, 'uselib', []) and t.samba_type in [ 'LIBRARY', 'BINARY', 'PYTHON', 'PERL' ]:
             for lib in t.uselib:
                 if lib in ['PYEMBED', 'PYEXT']:
                     lib = "python"
+                if lib in ['PERLEXT']:
+                    lib = 'perl'
                 if not lib in syslibs:
                     syslibs[lib] = []
                 syslibs[lib].append(t)
@@ -356,7 +358,7 @@ def build_autodeps(bld, t):
             if t.in_library == depname:
                 # no need to depend on the library we are part of
                 continue
-            if depname[0] in ['c', 'python']:
+            if depname[0] in ['c', 'python', 'perl']:
                 # these don't go into autodeps
                 continue
             if targets[depname[0]] in [ 'SYSLIB' ]:
@@ -486,6 +488,9 @@ def check_syslib_dependencies(bld, t):
     if 'pyembed' in features or 'pyext' in features:
         if 'python' in bld.env.public_symbols:
             t.unsatisfied_symbols = t.unsatisfied_symbols.difference(bld.env.public_symbols['python'])
+    if 'perlext' in features:
+        if 'perl' in bld.env.public_symbols:
+            t.unsatisfied_symbols = t.unsatisfied_symbols.difference(bld.env.public_symbols['perl'])
 
     needed = {}
     for sym in t.unsatisfied_symbols:

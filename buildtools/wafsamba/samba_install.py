@@ -75,7 +75,6 @@ def install_library(self):
         else:
             install_path = '${LIBDIR}'
     install_path = bld.EXPAND_VARIABLES(install_path)
-
     target_name = self.target
 
     if install_ldflags != build_ldflags:
@@ -107,6 +106,8 @@ def install_library(self):
             install_link = self.soname
         if getattr(self, 'samba_type', None) == 'PYTHON':
             inst_name    = bld.make_libname(t.target, nolibprefix=True, python=True)
+        elif getattr(self, 'samba_type', None) == 'PERL':
+            inst_name    = bld.make_libname(t.target, nolibprefix=True, perl=True)
         else:
             inst_name    = bld.make_libname(t.target)
     elif self.vnum:

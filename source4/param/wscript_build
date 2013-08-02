@@ -42,6 +42,13 @@ bld.SAMBA_PYTHON('pyparam',
 	realname='samba/param.so'
 	)
 
+bld.SAMBA_PERL('LoadParm',
+    source='LoadParm.xs',
+    deps='samba-hostconfig',
+    realname='Samba/LoadParm/LoadParm.so',
+    )
+bld.INSTALL_FILES('${ARCHDIR_PERL}/Samba', 'LoadParm.pm')
+
 bld.SAMBA_SUBSYSTEM('param_options',
 	source='loadparm.c',
 	deps='samba-hostconfig')

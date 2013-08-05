@@ -1,10 +1,10 @@
-samba (2:3.6.17-1) UNRELEASED; urgency=low
+samba (2:3.6.17-1) unstable; urgency=high
 
   * Team upload.
   * New upstream security release. Closes: #718781
     Fixes CVE-2013-4124: Denial of service - CPU loop and memory allocation
 
- -- Ivo De Decker <ivo.dedecker@ugent.be>  Mon, 05 Aug 2013 13:34:13 +0200
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Mon, 05 Aug 2013 13:46:23 +0200
 
 samba (2:3.6.16-2) unstable; urgency=high
 

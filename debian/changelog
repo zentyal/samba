@@ -1,4 +1,4 @@
-samba (2:4.0.7+dfsg-1) UNRELEASED; urgency=low
+samba (2:4.0.8+dfsg-1) UNRELEASED; urgency=low
 
   [ Christian Perrier ]
   * Remove all mention of "Samba 4" and "experimental version of Samba"
@@ -6,6 +6,7 @@ samba (2:4.0.7+dfsg-1) UNRELEASED; urgency=low
 
   [ Andrew Bartlett ]
   * Update build-dependencies on Samba libraries using autodeps.py
+  * New upstream security release
 
   [ Ivo De Decker ]
   * New upstream release

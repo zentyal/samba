@@ -6,7 +6,8 @@ samba (2:4.0.8+dfsg-1) UNRELEASED; urgency=low
 
   [ Andrew Bartlett ]
   * Update build-dependencies on Samba libraries using autodeps.py
-  * New upstream security release
+  * New upstream security release. Closes: #718781
+    Fixes CVE-2013-4124: Denial of service - CPU loop and memory allocation
 
   [ Ivo De Decker ]
   * New upstream release

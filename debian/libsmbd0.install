@@ -1,8 +1,8 @@
+usr/lib/*/samba/auth/
+usr/lib/*/samba/libauth.so
 usr/lib/*/samba/libsmbd_base.so
 usr/lib/*/samba/libsmbd_conn.so
 usr/lib/*/samba/libsmbd_shim.so
-usr/lib/*/samba/libauth.so
-usr/lib/*/samba/auth/
 usr/lib/*/samba/vfs/*.so
 usr/share/man/man8/vfs_acl_tdb.8
 usr/share/man/man8/vfs_acl_xattr.8

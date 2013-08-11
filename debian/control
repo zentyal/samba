@@ -2,22 +2,77 @@ Source: samba
 Section: net
 Priority: optional
 Maintainer: Debian Samba Maintainers <pkg-samba-maint@lists.alioth.debian.org>
-Uploaders: Steve Langasek <vorlon@debian.org>, Christian Perrier <bubulle@debian.org>, Noèl Köthe <noel@debian.org>, Jelmer Vernooij <jelmer@debian.org>, Steinar H. Gunderson <sesse@debian.org>,
+Uploaders: Steve Langasek <vorlon@debian.org>,
+           Christian Perrier <bubulle@debian.org>,
+           Noèl Köthe <noel@debian.org>,
+           Jelmer Vernooij <jelmer@debian.org>,
+           Steinar H. Gunderson <sesse@debian.org>,
 Homepage: http://www.samba.org
 Standards-Version: 3.9.3
-Build-Depends: bison, comerr-dev, debhelper (>> 9), docbook-xml, docbook-xsl, flex, heimdal-multidev (>= 1.6~), libattr1-dev, libacl1-dev, libblkid-dev, libbsd-dev, libgnutls-dev, libheimntlm0-heimdal (>= 1.6~), libldap2-dev, libldb-dev (>= 1:1.1.16~), libpam0g-dev, libparse-yapp-perl, libpopt-dev, libreadline-dev, libsubunit-dev, libtalloc-dev (>= 2.0.7~), libtdb-dev (>= 1.2.11~), libtevent-dev (>= 0.9.18~), libctdb-dev (>= 1.10+git20110412), perl, perl-modules, pkg-config, po-debconf, python-all-dev (>= 2.6.6-3), python-dnspython, python-ldb (>= 1:1.1.16~), python-ldb-dev (>= 1:1.1.16~), python-talloc-dev (>= 2.0.7~), python-tdb (>= 1.2.11~), python-testtools, subunit (>= 0.0.6), xsltproc, zlib1g-dev (>= 1:1.2.3)
+Build-Depends: bison,
+               comerr-dev,
+               debhelper (>> 9),
+               docbook-xml,
+               docbook-xsl,
+               flex,
+               heimdal-multidev (>= 1.6~),
+               libacl1-dev,
+               libattr1-dev,
+               libblkid-dev,
+               libbsd-dev,
+               libctdb-dev (>= 1.10+git20110412),
+               libgnutls-dev,
+               libheimntlm0-heimdal (>= 1.6~),
+               libldap2-dev,
+               libldb-dev (>= 1:1.1.16~),
+               libpam0g-dev,
+               libparse-yapp-perl,
+               libpopt-dev,
+               libreadline-dev,
+               libsubunit-dev,
+               libtalloc-dev (>= 2.0.7~),
+               libtdb-dev (>= 1.2.11~),
+               libtevent-dev (>= 0.9.18~),
+               perl,
+               perl-modules,
+               pkg-config,
+               po-debconf,
+               python-all-dev (>= 2.6.6-3),
+               python-dnspython,
+               python-ldb (>= 1:1.1.16~),
+               python-ldb-dev (>= 1:1.1.16~),
+               python-talloc-dev (>= 2.0.7~),
+               python-tdb (>= 1.2.11~),
+               python-testtools,
+               subunit (>= 0.0.6),
+               xsltproc,
+               zlib1g-dev (>= 1:1.2.3)
 Vcs-Browser: http://anonscm.debian.org/gitweb/?p=pkg-samba/samba4.git
 Vcs-Git: git://git.debian.org/pkg-samba/samba4
 XS-Testsuite: autopkgtest
 
 Package: samba
 Architecture: any
-Pre-Depends: ${misc:Pre-Depends}, dpkg (>= 1.15.6~)
-Depends: samba-common (= ${source:Version}), libwbclient0 (= ${binary:Version}),${shlibs:Depends}, ${misc:Depends}, libpam-runtime (>= 1.0.1-11), libpam-modules, lsb-base (>= 3.2-13), procps, update-inetd, adduser, libsmbd0 (= ${binary:Version})
+Pre-Depends: dpkg (>= 1.15.6~), ${misc:Pre-Depends}
+Depends: adduser,
+         libpam-modules,
+         libpam-runtime (>= 1.0.1-11),
+         libsmbd0 (= ${binary:Version}),
+         libwbclient0 (= ${binary:Version}),
+         lsb-base (>= 3.2-13),
+         procps,
+         samba-common (= ${source:Version}),
+         update-inetd,
+         ${misc:Depends},
+         ${shlibs:Depends}
 Recommends: logrotate, tdb-tools
-Suggests: openbsd-inetd | inet-superserver, smbldap-tools, ldb-tools, ctdb, winbind
+Suggests: ctdb,
+          ldb-tools,
+          openbsd-inetd | inet-superserver,
+          smbldap-tools,
+          winbind
 Replaces: samba-common (<= 2.0.5a-2), samba-doc (<< 2:4.0.5~)
-Conflicts: samba4 (<< 4.0.0~alpha6-2), samba-doc (<< 2:4.0.5~)
+Conflicts: samba-doc (<< 2:4.0.5~), samba4 (<< 4.0.0~alpha6-2)
 Description: SMB/CIFS file, print, and login server for Unix
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with
@@ -35,16 +90,19 @@ Description: SMB/CIFS file, print, and login server for Unix
 Package: samba-ad-dc
 Architecture: any
 Recommends: attr, bind9 (>= 1:9.5.1), bind9utils, ldb-tools
-Suggests: samba-gtk, swat2, ntp
-Enhances: ntp, bind9
-Conflicts: samba (<< 2:3.3.0~rc2-5), samba-tools, libldb1 (<< 1:1.1.15), samba-doc (<< 2:4.0.5~)
-Replaces: libsamdb0 (<< 4.0.0~alpha17~), samba4, samba-doc (<< 2:4.0.5~)
-Depends: samba,
-         python,
+Suggests: ntp, samba-gtk, swat2
+Enhances: bind9, ntp
+Conflicts: libldb1 (<< 1:1.1.15),
+           samba (<< 2:3.3.0~rc2-5),
+           samba-doc (<< 2:4.0.5~),
+           samba-tools
+Replaces: libsamdb0 (<< 4.0.0~alpha17~), samba-doc (<< 2:4.0.5~), samba4
+Depends: python,
          python-dnspython,
          python-samba,
-         samba-dsdb-modules,
+         samba,
          samba-common-bin (=${binary:Version}),
+         samba-dsdb-modules,
          tdb-tools,
          ${misc:Depends},
          ${python:Depends},
@@ -90,7 +148,9 @@ Architecture: any
 Pre-Depends: ${misc:Pre-Depends}
 Multi-Arch: same
 Depends: ${misc:Depends}, ${shlibs:Depends}
-Replaces: samba (<< ${binary:Version}), samba-doc (<< 2:4.0.5~), python-samba (<< 2:4.0.6~)
+Replaces: python-samba (<< 2:4.0.6~),
+          samba (<< ${binary:Version}),
+          samba-doc (<< 2:4.0.5~)
 Conflicts: samba-doc (<< 2:4.0.5~)
 Breaks: samba (<< ${binary:Version})
 Description: Samba file server libraries and plugins
@@ -130,10 +190,12 @@ Description: Samba policy management - development files
 Package: samba-common
 Architecture: all
 Multi-Arch: foreign
-Pre-Depends: ${misc:Pre-Depends}, dpkg (>= 1.15.6~)
+Pre-Depends: dpkg (>= 1.15.6~), ${misc:Pre-Depends}
 Depends: ucf, ${misc:Depends}
-Replaces: samba (<< 3.0.20b-1), samba4-common (<< 4.0.0~alpha7-1), samba-doc (<< 2:4.0.5~)
-Conflicts: samba4-common (<< 4.0.0~alpha7-1), samba-doc (<< 2:4.0.5~), swat
+Replaces: samba (<< 3.0.20b-1),
+          samba-doc (<< 2:4.0.5~),
+          samba4-common (<< 4.0.0~alpha7-1)
+Conflicts: samba-doc (<< 2:4.0.5~), samba4-common (<< 4.0.0~alpha7-1), swat
 Recommends: samba-common-bin
 Description: common files used by both the Samba server and client
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
@@ -144,14 +206,20 @@ Description: common files used by both the Samba server and client
 
 Package: samba-common-bin
 Architecture: any
-Depends: samba-common (=${source:Version}),
-         python,
+Depends: python,
          python-samba,
-         ${shlibs:Depends},
+         samba-common (=${source:Version}),
          ${misc:Depends},
-         ${python:Depends}
-Conflicts: samba (<< 2:3.3.0~rc2-5), samba-common (<< 2:3.3.0~rc2-5), samba-doc (<< 2:4.0.5~)
-Replaces: samba-common (<< 2:3.4.0~pre2-1), samba4-common (<< 4.0.0~alpha7-1), samba4-common-bin, samba-doc (<< 2:4.0.5~), python-samba (<< 2:4.0.6~)
+         ${python:Depends},
+         ${shlibs:Depends}
+Conflicts: samba (<< 2:3.3.0~rc2-5),
+           samba-common (<< 2:3.3.0~rc2-5),
+           samba-doc (<< 2:4.0.5~)
+Replaces: python-samba (<< 2:4.0.6~),
+          samba-common (<< 2:3.4.0~pre2-1),
+          samba-doc (<< 2:4.0.5~),
+          samba4-common (<< 4.0.0~alpha7-1),
+          samba4-common-bin
 Suggests: heimdal-clients
 Description: Samba common files used by both the server and the client
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
@@ -165,12 +233,15 @@ Description: Samba common files used by both the server and the client
 
 Package: smbclient
 Architecture: any
-Depends: samba-common (= ${source:Version}), ${shlibs:Depends}, ${misc:Depends}
+Depends: samba-common (= ${source:Version}), ${misc:Depends}, ${shlibs:Depends}
 Pre-Depends: dpkg (>= 1.15.6~)
-Replaces: samba (<< 2.999+3.0.alpha21-4), samba4-clients (<< 4.0.5), smbget, samba-doc (<< 2:4.0.5~)
+Replaces: samba (<< 2.999+3.0.alpha21-4),
+          samba-doc (<< 2:4.0.5~),
+          samba4-clients (<< 4.0.5),
+          smbget
 Provides: samba-client
 Suggests: cifs-utils, heimdal-clients
-Conflicts: samba4-clients (<< 4.0.5), samba-doc (<< 2:4.0.5~)
+Conflicts: samba-doc (<< 2:4.0.5~), samba4-clients (<< 4.0.5)
 Description: command-line SMB/CIFS clients for Unix
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with
@@ -184,9 +255,9 @@ Description: command-line SMB/CIFS clients for Unix
 Package: samba4-clients
 Architecture: any
 Depends: samba-common-bin (=${binary:Version}),
+         smbclient,
          ${misc:Depends},
-         ${shlibs:Depends},
-         smbclient
+         ${shlibs:Depends}
 Replaces: samba-doc (<< 2:4.0.5~)
 Conflicts: samba-common (<< 2:3.3.0~rc2-5), samba-doc (<< 2:4.0.5~)
 Description: client utilities from Samba
@@ -202,7 +273,7 @@ Description: client utilities from Samba
 Package: samba-testsuite
 Architecture: any
 Recommends: subunit
-Replaces: samba4-testsuite, samba-tools, samba-doc (<< 2:4.0.5~)
+Replaces: samba-doc (<< 2:4.0.5~), samba-tools, samba4-testsuite
 Conflicts: samba-doc (<< 2:4.0.5~)
 Depends: samba-common-bin, ${misc:Depends}, ${shlibs:Depends}
 Description: test suite from Samba
@@ -541,15 +612,15 @@ Pre-Depends: ${misc:Pre-Depends}
 Architecture: any
 Section: python
 Provides: ${python:Provides}
-Depends: python-ldb,
-         python-tdb,
-         ${misc:Depends},
-         ${python:Depends},
-         ${shlibs:Depends},
+Depends: libnetapi0 (=${binary:Version}),
          libsamba-hostconfig0 (=${binary:Version}),
          libsamba-util0 (=${binary:Version}),
          libsmbd0 (=${binary:Version}),
-         libnetapi0 (=${binary:Version})
+         python-ldb,
+         python-tdb,
+         ${misc:Depends},
+         ${python:Depends},
+         ${shlibs:Depends}
 Description: Python bindings for Samba
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file sharing with Microsoft Windows, OS X,
@@ -669,8 +740,10 @@ Section: admin
 Priority: extra
 Architecture: any
 Multi-Arch: same
-Depends: ${shlibs:Depends}, samba-common (= ${source:Version}), ${misc:Depends},
-     libpam-runtime (>= 1.0.1-6)
+Depends: libpam-runtime (>= 1.0.1-6),
+         samba-common (= ${source:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
 Pre-Depends: dpkg (>= 1.15.6~)
 Suggests: samba
 Description: pluggable authentication module for Samba
@@ -686,8 +759,8 @@ Section: libs
 Priority: optional
 Architecture: any
 Multi-Arch: same
-Pre-Depends: ${misc:Pre-Depends}, dpkg (>= 1.15.6~)
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Pre-Depends: dpkg (>= 1.15.6~), ${misc:Pre-Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends}
 Replaces: samba-doc (<< 2:4.0.5~)
 Conflicts: samba-doc (<< 2:4.0.5~)
 Description: shared library for communication with SMB/CIFS servers
@@ -713,11 +786,11 @@ Section: libs
 Priority: optional
 Architecture: any
 Multi-Arch: same
-Pre-Depends: ${misc:Pre-Depends}, dpkg (>= 1.15.6~)
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Pre-Depends: dpkg (>= 1.15.6~), ${misc:Pre-Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends}
 Description: shared library for administrative communication with DCE/RPC servers
  This package provides libnetapi, a library that
- enables client applications to talk administrative and other related 
+ enables client applications to talk administrative and other related
  (but not file sharing) protocols to Microsoft Windows and Samba servers
  using the DCE/RPC protocol.
 
@@ -731,7 +804,7 @@ Pre-Depends: dpkg (>= 1.15.6~)
 Description: development files for libnetapi
  This package provides the development files (static library and headers)
  required for building applications against libnetapi, a library that
- enables client applications to talk administrative and other related 
+ enables client applications to talk administrative and other related
  (but not file sharing) protocols to Microsoft Windows and Samba servers
  using the DCE/RPC protocol.
 
@@ -740,8 +813,8 @@ Section: libs
 Priority: optional
 Architecture: any
 Multi-Arch: same
-Pre-Depends: ${misc:Pre-Depends}, dpkg (>= 1.15.6~)
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Pre-Depends: dpkg (>= 1.15.6~), ${misc:Pre-Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends}
 Description: shared library for non-samba access to the samba 'share modes' database
  This package provides libsmbsharemodes, a library that
  enables server applications to honour or apply the share modes that are used over CIFS.
@@ -763,9 +836,9 @@ Pre-Depends: ${misc:Pre-Depends}
 Architecture: any
 Depends: samba (=${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
 Enhances: libkrb5-26-heimdal
-Replaces: winbind4, samba-doc (<< 2:4.0.5~)
+Replaces: samba-doc (<< 2:4.0.5~), winbind4
 Conflicts: samba-doc (<< 2:4.0.5~)
-Suggests: libpam-winbind, libnss-winbind
+Suggests: libnss-winbind, libpam-winbind
 Description: service to resolve user and group information from Windows NT servers
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file sharing with Microsoft Windows, OS X,
@@ -785,12 +858,20 @@ Section: net
 Priority: optional
 Architecture: any
 Multi-Arch: same
-Pre-Depends: ${misc:Pre-Depends}, dpkg (>= 1.15.6~)
-Depends: ${shlibs:Depends}, ${misc:Depends}, winbind (= ${binary:Version}), libwbclient0 (= ${binary:Version}), samba-common (= ${source:Version}),
-     libpam-runtime (>= 1.0.1-6), libpam0g (>= 1.1.3-2~)
+Pre-Depends: dpkg (>= 1.15.6~), ${misc:Pre-Depends}
+Depends: libpam-runtime (>= 1.0.1-6),
+         libpam0g (>= 1.1.3-2~),
+         libwbclient0 (= ${binary:Version}),
+         samba-common (= ${source:Version}),
+         winbind (= ${binary:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
 Suggests: libnss-winbind
 Breaks: winbind (<< 2:3.5.11~dfsg-3)
-Replaces: samba (<= 2.2.3-2), winbind (<< 2:3.5.11~dfsg-3), winbind4, samba-doc (<< 2:4.0.5~)
+Replaces: samba (<= 2.2.3-2),
+          samba-doc (<< 2:4.0.5~),
+          winbind (<< 2:3.5.11~dfsg-3),
+          winbind4
 Conflicts: samba-doc (<< 2:4.0.5~)
 Description: Windows domain authentication integration plugin
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
@@ -808,9 +889,16 @@ Priority: optional
 Architecture: any
 Multi-Arch: same
 Pre-Depends: dpkg (>= 1.15.6~)
-Depends: ${shlibs:Depends}, ${misc:Depends}, winbind (= ${binary:Version}), libwbclient0 (= ${binary:Version}), samba-common (= ${source:Version})
+Depends: libwbclient0 (= ${binary:Version}),
+         samba-common (= ${source:Version}),
+         winbind (= ${binary:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
 Breaks: libpam-winbind (<< 2:3.6.5-2), winbind (<< 2:3.5.11~dfsg-3)
-Replaces: libpam-winbind (<< 2:3.6.5-2), samba (<= 2.2.3-2), winbind (<< 2:3.5.11~dfsg-3), winbind4
+Replaces: libpam-winbind (<< 2:3.6.5-2),
+          samba (<= 2.2.3-2),
+          winbind (<< 2:3.5.11~dfsg-3),
+          winbind4
 Suggests: libpam-winbind
 Description: Samba nameservice integration plugins
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
@@ -844,18 +932,17 @@ Section: libs
 Priority: optional
 Architecture: any
 Multi-Arch: same
-Pre-Depends: ${misc:Pre-Depends}, dpkg (>= 1.15.6~)
-Depends: ${shlibs:Depends}, ${misc:Depends}
-Breaks:
- libpam-smbpass (<< 2:3.4.1),
- libsmbclient (<< 2:3.4.1),
- samba-common (<< 2:3.4.1),
- samba-tools (<< 2:3.4.1),
- samba (<< 2:3.4.1),
- smbclient (<< 2:3.4.1),
- smbfs (<< 2:3.4.1),
- swat (<< 2:3.4.1),
- winbind (<< 2:3.4.1),
+Pre-Depends: dpkg (>= 1.15.6~), ${misc:Pre-Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Breaks: libpam-smbpass (<< 2:3.4.1),
+        libsmbclient (<< 2:3.4.1),
+        samba (<< 2:3.4.1),
+        samba-common (<< 2:3.4.1),
+        samba-tools (<< 2:3.4.1),
+        smbclient (<< 2:3.4.1),
+        smbfs (<< 2:3.4.1),
+        swat (<< 2:3.4.1),
+        winbind (<< 2:3.4.1)
 Description: Samba winbind client library
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with
@@ -869,7 +956,7 @@ Section: libdevel
 Priority: optional
 Architecture: any
 Multi-Arch: same
-Depends: ${shlibs:Depends}, ${misc:Depends}, libwbclient0 (= ${binary:Version})
+Depends: libwbclient0 (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
 Pre-Depends: dpkg (>= 1.15.6~)
 Description: Samba winbind client library - development files
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
@@ -880,4 +967,3 @@ Description: Samba winbind client library - development files
  required for building applications against libwbclient, a library for client
  applications that interact via the winbind pipe protocol with a Samba
  winbind server.
-

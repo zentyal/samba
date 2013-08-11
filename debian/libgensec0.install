@@ -11,5 +11,5 @@ usr/lib/*/samba/libcliauth.so
 usr/lib/*/samba/libcmdline-credentials.so
 usr/lib/*/samba/libdb-glue.so
 usr/lib/*/samba/libkrb5samba.so
-usr/lib/*/samba/libwinbind-client.so
 usr/lib/*/samba/libsmb_transport.so
+usr/lib/*/samba/libwinbind-client.so

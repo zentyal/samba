@@ -1,4 +1,4 @@
-usr/share/man/man8/pam_winbind.8
 lib/*/security/pam_winbind.so
-usr/share/pam-configs/winbind
 usr/share/man/man5/pam_winbind.conf.5
+usr/share/man/man8/pam_winbind.8
+usr/share/pam-configs/winbind

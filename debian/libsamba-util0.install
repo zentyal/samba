@@ -9,5 +9,5 @@ usr/lib/*/samba/libinterfaces.so
 usr/lib/*/samba/libsamba-modules.so
 usr/lib/*/samba/libsamba3-util.so
 usr/lib/*/samba/libsmbpasswdparser.so
-usr/lib/*/samba/libutil_tdb.so
 usr/lib/*/samba/libutil_setid.so
+usr/lib/*/samba/libutil_tdb.so

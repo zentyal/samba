@@ -1,9 +1,9 @@
 usr/lib/*/libsmbclient-raw.so.0*
 usr/lib/*/libsmbconf.so.0
 usr/lib/*/samba/libCHARSET3.so
+usr/lib/*/samba/libaddns.so
 usr/lib/*/samba/libgse.so
 usr/lib/*/samba/liblibsmb.so
 usr/lib/*/samba/libsecrets3.so
 usr/lib/*/samba/libsmbregistry.so
 usr/lib/*/samba/libutil_cmdline.so
-usr/lib/*/samba/libaddns.so

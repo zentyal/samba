@@ -91,7 +91,7 @@ def update_control():
     """
     from debian.deb822 import Deb822, PkgRelation
     f = open('debian/control', 'r')
-    iter = Deb822.iter_paragraphs(f)
+    iter = Deb822.iter_paragraphs(f.readlines())
     source = iter.next()
 
     def update_deps(control, field, package, min_version, epoch=None):

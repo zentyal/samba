@@ -1,24 +1,35 @@
+
+The packaging is kept in git://git.debian.org/git/pkg-samba/samba.git (web
+interface: http://git.debian.org/?p=pkg-samba/samba.git).
+
+The version in unstable is on the 'master' branch, with the corresponding
+upstream version in the 'upstream' branch (with pristine-tar information in
+the pristine-tar branch). The packaging for samba version 4.0 is in a separate
+'samba_4.0' branch, with corresponding 'upstream_4.0' branch.  These should
+move to master/upstream as soon as samba 4.0 gets into unstable.
+
+It should be possible to build the package by just running 'git-buildpackage'.
+
+
 Merging upstream releases
 =========================
 
-$ svn-load -t tags/samba/upstream_${version} \
-svn+ssh://svn.debian.org/svn/pkg-samba branches/samba/upstream .
+Importing a new upstream version can be done like this:
 
-The svn-load command is in the aptly-named "svn-load" package.  The 
-above is the simplest use of svn-load to merge a new upstream version
-into the "upstream" branch and copy it to a per-version tag directory;
-please see "svn-load --help" for a list of other options that are of
-interest.  In particular, you may find that the --wc option saves time
-if you're on a slow connection, and the "-m" option may be needed if
-files are moved around in the upstream repository and this needs to be
-indicated to prevent subversion treating this as addition and deletion
-of unrelated files.
+# recompress tarball
+gunzip samba-4.0.6.tar.gz
+xz samba-4.0.6.tar
+# go to git repo
+cd $GIT_DIR
+# make sure to be on the right branch
+git checkout samba_4.0
+git-import-orig --upstream-version=4.0.6+dfsg ../samba-4.0.6.tar.xz
+# all done :)
 
-Note that this only imports the new upstream version into the branch, it
-doesn't merge it onto the trunk.  For this, you should go to your
-(clean) working copy of the trunk and run:
 
-$ svn merge \
-svn+ssh://svn.debian.org/svn/pkg-samba/tags/samba/upstream_{prev_version,new_version}
-$ svn diff # (to make sure the diff makes sense)
-$ svn commit -m "merge upstream $version"
+Please note that there are some files that are not dfsg-free and they need to
+be filtered. The settings in the gpb.conf should take care of that.
+
+
+
+

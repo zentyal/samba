@@ -14,6 +14,8 @@ samba (2:4.0.8+dfsg-1) UNRELEASED; urgency=low
   * refresh patches for new upstream version
   * remove patches integrated upstream
   * Update build-dependencies for new upstream version
+  * Add replaces for python-samba for packages that take over files from it.
+    Closes: #719212 
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Tue, 02 Jul 2013 20:04:08 +0200
 

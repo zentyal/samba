@@ -90,7 +90,7 @@ Architecture: any
 Pre-Depends: ${misc:Pre-Depends}
 Multi-Arch: same
 Depends: ${misc:Depends}, ${shlibs:Depends}
-Replaces: samba (<< ${binary:Version}), samba-doc (<< 2:4.0.5~)
+Replaces: samba (<< ${binary:Version}), samba-doc (<< 2:4.0.5~), python-samba (<< 2:4.0.6~)
 Conflicts: samba-doc (<< 2:4.0.5~)
 Breaks: samba (<< ${binary:Version})
 Description: Samba file server libraries and plugins
@@ -151,7 +151,7 @@ Depends: samba-common (=${source:Version}),
          ${misc:Depends},
          ${python:Depends}
 Conflicts: samba (<< 2:3.3.0~rc2-5), samba-common (<< 2:3.3.0~rc2-5), samba-doc (<< 2:4.0.5~)
-Replaces: samba-common (<< 2:3.4.0~pre2-1), samba4-common (<< 4.0.0~alpha7-1), samba4-common-bin, samba-doc (<< 2:4.0.5~)
+Replaces: samba-common (<< 2:3.4.0~pre2-1), samba4-common (<< 4.0.0~alpha7-1), samba4-common-bin, samba-doc (<< 2:4.0.5~), python-samba (<< 2:4.0.6~)
 Suggests: heimdal-clients
 Description: Samba common files used by both the server and the client
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,

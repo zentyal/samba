@@ -1,4 +1,4 @@
-samba (2:3.6.17-1~bpo70+1) UNRELEASED; urgency=low
+samba (2:3.6.17-1~bpo70+1) wheezy-backports; urgency=low
 
   * Rebuild for wheezy-backports.
 

@@ -1,3 +1,13 @@
+samba (2:3.6.17-2) UNRELEASED; urgency=low
+
+  * Split the samba init script into nmbd and smbd init scripts, for better
+    alignment with how init systems other than sysvinit work.  This also
+    drops the override of the arguments to update-rc.d in debian/rules,
+    no longer needed in the post-insserv world.
+  * Add upstart jobs from Ubuntu for smbd, nmbd, and winbind.
+
+ -- Steve Langasek <vorlon@debian.org>  Mon, 12 Aug 2013 10:45:24 +0200
+
 samba (2:3.6.17-1) unstable; urgency=high
 
   * Team upload.

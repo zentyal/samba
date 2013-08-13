@@ -1,8 +1,12 @@
 samba (2:3.5.6~dfsg-3squeeze10) UNRELEASED; urgency=low
 
+  [ Ivo De Decker ]
   * Security update
   * CVE-2013-4124: Denial of service - CPU loop and memory allocation
     Closes: #718781
+
+  [ Jeroen Dekkers ]
+  * Fix rules files to stop parallel build from failing. 
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Tue, 13 Aug 2013 21:54:28 +0200
 

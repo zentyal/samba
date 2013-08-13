@@ -91,7 +91,7 @@ configure:
 	touch configure-stamp
 
 build: configure build-stamp
-build-stamp:
+build-stamp: configure
 	dh_testdir
 
 	$(MAKE) -C source3 samba3-idl

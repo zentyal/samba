@@ -1,4 +1,4 @@
-samba (2:3.5.6~dfsg-3squeeze10) UNRELEASED; urgency=low
+samba (2:3.5.6~dfsg-3squeeze10) squeeze; urgency=low
 
   [ Ivo De Decker ]
   * Security update
@@ -8,7 +8,7 @@ samba (2:3.5.6~dfsg-3squeeze10) UNRELEASED; urgency=low
   [ Jeroen Dekkers ]
   * Fix rules files to stop parallel build from failing. 
 
- -- Ivo De Decker <ivo.dedecker@ugent.be>  Tue, 13 Aug 2013 21:54:28 +0200
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Thu, 15 Aug 2013 12:08:56 +0200
 
 samba (2:3.5.6~dfsg-3squeeze9) stable-security; urgency=high
 

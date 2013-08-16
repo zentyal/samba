@@ -32,6 +32,9 @@ case "$1" in
 		    exit 0
 		fi
 
+		if init_is_upstart; then
+			exit 1
+		fi
 		log_daemon_msg "Starting Samba AD DC daemon" "samba"
 		# Make sure we have our PIDDIR, even if it's on a tmpfs
 		install -o root -g root -m 755 -d $PIDDIR
@@ -44,6 +47,9 @@ case "$1" in
 		log_end_msg 0
 		;;
 	stop)
+		if init_is_upstart; then
+			exit 0
+		fi
 		log_daemon_msg "Stopping Samba AD DC daemon" "samba"
 
 		start-stop-daemon --stop --quiet --name samba $SAMBAPID
@@ -60,6 +66,9 @@ case "$1" in
 
 		;;
 	restart|force-reload)
+		if init_is_upstart; then
+			exit 1
+		fi
 		$0 stop
 		sleep 1
 		$0 start

@@ -2,6 +2,7 @@ samba (2:4.0.8+dfsg-2) UNRELEASED; urgency=low
 
   * The samba-ad-dc upstart job should be installed unconditionally, not just
     in Ubuntu.
+  * Don't exclude our private libraries from the shlibs generation.
 
  -- Steve Langasek <vorlon@debian.org>  Fri, 16 Aug 2013 02:00:12 +0200
 

@@ -161,7 +161,7 @@ override_dh_gencontrol:
 	dh_gencontrol -- -Vldb:Depends=$(LDB_DEPENDS)
 
 override_dh_makeshlibs:
-	dh_makeshlibs -X/usr/lib/$(DEB_HOST_MULTIARCH)/samba -X/usr/lib/$(DEB_HOST_MULTIARCH)/plugin
+	dh_makeshlibs -X/usr/lib/$(DEB_HOST_MULTIARCH)/plugin
 
 override_dh_fixperms:
 	dh_fixperms

@@ -67,7 +67,6 @@ override_dh_auto_configure:
 
 override_dh_auto_clean:
 	-$(WAF) clean
-	rm -f debian/*.upstart
 	find . -name "*.pyc" | xargs rm -f
 	rm -rf buildtools/bin/.waf-*
 	rm -rf bin
@@ -163,14 +162,6 @@ override_dh_gencontrol:
 
 override_dh_makeshlibs:
 	dh_makeshlibs -X/usr/lib/$(DEB_HOST_MULTIARCH)/samba -X/usr/lib/$(DEB_HOST_MULTIARCH)/plugin
-
-override_dh_installinit:
-	if dpkg-vendor --derives-from ubuntu; then \
-		cp debian/samba-ad-dc.upstart.in debian/samba-ad-dc.upstart; \
-		dh_installinit --upstart-only; \
-	else \
-		dh_installinit; \
-	fi;
 
 override_dh_fixperms:
 	dh_fixperms

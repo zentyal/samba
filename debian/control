@@ -68,7 +68,6 @@ Depends: adduser,
 Recommends: logrotate, tdb-tools
 Suggests: ctdb,
           ldb-tools,
-          openbsd-inetd | inet-superserver,
           smbldap-tools,
           winbind
 Replaces: samba-common (<= 2.0.5a-2), samba-doc (<< 2:4.0.5~)

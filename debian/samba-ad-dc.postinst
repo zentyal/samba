@@ -37,7 +37,7 @@ if [ "$1" = "configure" -a "$SERVER_ROLE" != "none" ]; then
 	elif [ -e /var/lib/samba/private/sam.ldb ]; then
 		# Upgrade from previous Samba 4 installation
 		if [ -f /etc/samba/smb.conf ]; then
-			samba-tool dbcheck
+			samba-tool dbcheck --fix --yes
 		fi
 	fi
 	# Provision from scratch if we need to

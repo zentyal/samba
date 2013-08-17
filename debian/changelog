@@ -12,6 +12,7 @@ samba (2:4.0.8+dfsg-2) UNRELEASED; urgency=low
   * samba-ad-dc: Drop suggests for removed packages swat2 and samba-gtk.
   * samba: Remove inetd servers from suggests; inetd support was dropped
     in 3.6.16-1.
+  * Fix database errors during upgrade. Closes: #700768
 
  -- Steve Langasek <vorlon@debian.org>  Fri, 16 Aug 2013 02:00:12 +0200
 

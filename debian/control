@@ -159,7 +159,8 @@ Description: Samba file server libraries and plugins
  and other Unix systems.  Samba can also function as a domain controller
  or member server in both NT4-style and Active Directory domains.
  .
- This package contains the library on which smbd is based, and which the python bindings use.
+ This package contains the library on which smbd is based, and which the python
+ bindings use.
 
 Package: libsamba-policy0
 Architecture: any

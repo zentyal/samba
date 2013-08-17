@@ -90,7 +90,7 @@ Description: SMB/CIFS file, print, and login server for Unix
 Package: samba-ad-dc
 Architecture: any
 Recommends: attr, bind9 (>= 1:9.5.1), bind9utils, ldb-tools
-Suggests: ntp, samba-gtk, swat2
+Suggests: ntp
 Enhances: bind9, ntp
 Conflicts: libldb1 (<< 1:1.1.15),
            samba (<< 2:3.3.0~rc2-5),

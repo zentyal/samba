@@ -1,5 +1,4 @@
 0002-lib-replace-Allow-OS-vendor-to-assert-that-getpass-i.patch
-01_no_private_lib_suffix.diff
 05_share_ldb_module
 07_private_lib
 10_messaging_subsystem

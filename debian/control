@@ -303,6 +303,7 @@ Package: libparse-pidl-perl
 Architecture: any
 Depends: libparse-yapp-perl, ${misc:Depends}, ${perl:Depends}
 Recommends: libdcerpc-dev
+Suggests: libwireshark-dev
 Section: perl
 Description: IDL compiler written in Perl
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,

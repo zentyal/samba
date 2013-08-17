@@ -8,7 +8,7 @@ Uploaders: Steve Langasek <vorlon@debian.org>,
            Jelmer Vernooij <jelmer@debian.org>,
            Steinar H. Gunderson <sesse@debian.org>,
 Homepage: http://www.samba.org
-Standards-Version: 3.9.3
+Standards-Version: 3.9.4
 Build-Depends: bison,
                comerr-dev,
                debhelper (>> 9),

@@ -10630,7 +10630,7 @@ fi
 eval ac_res=\$`$as_echo "ac_cv_c_prototype_struct passwd *getpwent_r(struct passwd *src, char *buf, int buflen)" | $as_tr_sh`
 	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
 $as_echo "$ac_res" >&6; }
-if test $`$as_echo "ac_cv_c_prototype_struct passwd *getpwent_r(struct passwd *src, char *buf, int buflen)" | $as_tr_sh` = yes; then :
+if eval test $`$as_echo "ac_cv_c_prototype_struct passwd *getpwent_r(struct passwd *src, char *buf, int buflen)" | $as_tr_sh` = yes; then :
 
 
 $as_echo "#define SOLARIS_GETPWENT_R 1" >>confdefs.h
@@ -10677,7 +10677,7 @@ fi
 eval ac_res=\$`$as_echo "ac_cv_c_prototype_struct passwd *getpwent_r(struct passwd *src, char *buf, size_t buflen)" | $as_tr_sh`
 	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
 $as_echo "$ac_res" >&6; }
-if test $`$as_echo "ac_cv_c_prototype_struct passwd *getpwent_r(struct passwd *src, char *buf, size_t buflen)" | $as_tr_sh` = yes; then :
+if eval test $`$as_echo "ac_cv_c_prototype_struct passwd *getpwent_r(struct passwd *src, char *buf, size_t buflen)" | $as_tr_sh` = yes; then :
 
 
 $as_echo "#define SOLARIS_GETPWENT_R 1" >>confdefs.h
@@ -10772,7 +10772,7 @@ fi
 eval ac_res=\$`$as_echo "ac_cv_c_prototype_struct group *getgrent_r(struct group *src, char *buf, int buflen)" | $as_tr_sh`
 	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
 $as_echo "$ac_res" >&6; }
-if test $`$as_echo "ac_cv_c_prototype_struct group *getgrent_r(struct group *src, char *buf, int buflen)" | $as_tr_sh` = yes; then :
+if eval test $`$as_echo "ac_cv_c_prototype_struct group *getgrent_r(struct group *src, char *buf, int buflen)" | $as_tr_sh` = yes; then :
 
 
 $as_echo "#define SOLARIS_GETGRENT_R 1" >>confdefs.h
@@ -10820,7 +10820,7 @@ fi
 eval ac_res=\$`$as_echo "ac_cv_c_prototype_struct group *getgrent_r(struct group *src, char *buf, size_t buflen)" | $as_tr_sh`
 	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
 $as_echo "$ac_res" >&6; }
-if test $`$as_echo "ac_cv_c_prototype_struct group *getgrent_r(struct group *src, char *buf, size_t buflen)" | $as_tr_sh` = yes; then :
+if eval test $`$as_echo "ac_cv_c_prototype_struct group *getgrent_r(struct group *src, char *buf, size_t buflen)" | $as_tr_sh` = yes; then :
 
 
 $as_echo "#define SOLARIS_GETGRENT_R 1" >>confdefs.h
@@ -11143,7 +11143,7 @@ fi
 eval ac_res=\$`$as_echo "ac_cv_c_prototype_void *dlopen(const char* filename, unsigned int flags)" | $as_tr_sh`
 	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
 $as_echo "$ac_res" >&6; }
-if test $`$as_echo "ac_cv_c_prototype_void *dlopen(const char* filename, unsigned int flags)" | $as_tr_sh` = yes; then :
+if eval test $`$as_echo "ac_cv_c_prototype_void *dlopen(const char* filename, unsigned int flags)" | $as_tr_sh` = yes; then :
 
 
 $as_echo "#define DLOPEN_TAKES_UNSIGNED_FLAGS 1" >>confdefs.h
@@ -11453,7 +11453,7 @@ fi
 eval ac_res=\$`$as_echo "ac_cv_c_prototype_long telldir(const DIR *dir)" | $as_tr_sh`
 	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
 $as_echo "$ac_res" >&6; }
-if test $`$as_echo "ac_cv_c_prototype_long telldir(const DIR *dir)" | $as_tr_sh` = yes; then :
+if eval test $`$as_echo "ac_cv_c_prototype_long telldir(const DIR *dir)" | $as_tr_sh` = yes; then :
 
 
 $as_echo "#define TELLDIR_TAKES_CONST_DIR 1" >>confdefs.h
@@ -11497,7 +11497,7 @@ fi
 eval ac_res=\$`$as_echo "ac_cv_c_prototype_int seekdir(DIR *dir, long ofs)" | $as_tr_sh`
 	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
 $as_echo "$ac_res" >&6; }
-if test $`$as_echo "ac_cv_c_prototype_int seekdir(DIR *dir, long ofs)" | $as_tr_sh` = yes; then :
+if eval test $`$as_echo "ac_cv_c_prototype_int seekdir(DIR *dir, long ofs)" | $as_tr_sh` = yes; then :
 
 
 $as_echo "#define SEEKDIR_RETURNS_INT 1" >>confdefs.h
@@ -32764,6 +32764,8 @@ if test "${with_syslog_facility+set}" = set; then :
   if test "$withval" = "no" ; then
     as_fn_error $? "argument to --with-syslog-facility must be a string" "$LINENO" 5
   else
+     { $as_echo "$as_me:${as_lineno-$LINENO}: result: $withval" >&5
+$as_echo "$withval" >&6; }
      if test "$withval" != "yes" ; then
         syslog_facility="$withval"
 
@@ -32773,6 +32775,10 @@ _ACEOF
 
      fi
   fi
+
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
 
 fi
 

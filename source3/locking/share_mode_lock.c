@@ -104,10 +104,9 @@ bool locking_end(void)
  Form a static locking key for a dev/inode pair.
 ******************************************************************/
 
-static TDB_DATA locking_key(const struct file_id *id, struct file_id *tmp)
+static TDB_DATA locking_key(const struct file_id *id)
 {
-	*tmp = *id;
-	return make_tdb_data((const uint8_t *)tmp, sizeof(*tmp));
+	return make_tdb_data((const uint8_t *)id, sizeof(*id));
 }
 
 /*******************************************************************
@@ -133,7 +132,8 @@ static struct share_mode_data *parse_share_modes(TALLOC_CTX *mem_ctx,
 	ndr_err = ndr_pull_struct_blob(
 		&blob, d, d, (ndr_pull_flags_fn_t)ndr_pull_share_mode_data);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-		DEBUG(1, ("ndr_pull_share_mode_lock failed\n"));
+		DEBUG(1, ("ndr_pull_share_mode_lock failed: %s\n",
+			  ndr_errstr(ndr_err)));
 		goto fail;
 	}
 
@@ -286,15 +286,14 @@ fail:
 ********************************************************************/
 
 static struct share_mode_lock *get_share_mode_lock_internal(
-	TALLOC_CTX *mem_ctx, const struct file_id id,
+	TALLOC_CTX *mem_ctx, struct file_id id,
 	const char *servicepath, const struct smb_filename *smb_fname,
 	const struct timespec *old_write_time)
 {
 	struct share_mode_lock *lck;
 	struct share_mode_data *d;
-	struct file_id tmp;
 	struct db_record *rec;
-	TDB_DATA key = locking_key(&id, &tmp);
+	TDB_DATA key = locking_key(&id);
 	TDB_DATA value;
 
 	rec = dbwrap_fetch_locked(lock_db, mem_ctx, key);
@@ -351,7 +350,7 @@ static int the_lock_destructor(struct share_mode_lock *l)
 
 struct share_mode_lock *get_share_mode_lock(
 	TALLOC_CTX *mem_ctx,
-	const struct file_id id,
+	struct file_id id,
 	const char *servicepath,
 	const struct smb_filename *smb_fname,
 	const struct timespec *old_write_time)
@@ -395,11 +394,10 @@ fail:
 ********************************************************************/
 
 struct share_mode_lock *fetch_share_mode_unlocked(TALLOC_CTX *mem_ctx,
-						  const struct file_id id)
+						  struct file_id id)
 {
 	struct share_mode_lock *lck;
-	struct file_id tmp;
-	TDB_DATA key = locking_key(&id, &tmp);
+	TDB_DATA key = locking_key(&id);
 	TDB_DATA data;
 	NTSTATUS status;
 
@@ -501,4 +499,103 @@ int share_mode_forall(void (*fn)(const struct share_mode_entry *, const char *,
 	} else {
 		return count;
 	}
+}
+
+bool share_mode_cleanup_disconnected(struct file_id fid,
+				     uint64_t open_persistent_id)
+{
+	bool ret = false;
+	TALLOC_CTX *frame = talloc_stackframe();
+	unsigned n;
+	struct share_mode_data *data;
+	struct share_mode_lock *lck;
+	bool ok;
+
+	lck = get_existing_share_mode_lock(frame, fid);
+	if (lck == NULL) {
+		DEBUG(5, ("share_mode_cleanup_disconnected: "
+			  "Could not fetch share mode entry for %s\n",
+			  file_id_string(frame, &fid)));
+		goto done;
+	}
+	data = lck->data;
+
+	for (n=0; n < data->num_share_modes; n++) {
+		struct share_mode_entry *entry = &data->share_modes[n];
+
+		if (!server_id_is_disconnected(&entry->pid)) {
+			DEBUG(5, ("share_mode_cleanup_disconnected: "
+				  "file (file-id='%s', servicepath='%s', "
+				  "base_name='%s%s%s') "
+				  "is used by server %s ==> do not cleanup\n",
+				  file_id_string(frame, &fid),
+				  data->servicepath,
+				  data->base_name,
+				  (data->stream_name == NULL)
+				  ? "" : "', stream_name='",
+				  (data->stream_name == NULL)
+				  ? "" : data->stream_name,
+				  server_id_str(frame, &entry->pid)));
+			goto done;
+		}
+		if (open_persistent_id != entry->share_file_id) {
+			DEBUG(5, ("share_mode_cleanup_disconnected: "
+				  "entry for file "
+				  "(file-id='%s', servicepath='%s', "
+				  "base_name='%s%s%s') "
+				  "has share_file_id %llu but expected %llu"
+				  "==> do not cleanup\n",
+				  file_id_string(frame, &fid),
+				  data->servicepath,
+				  data->base_name,
+				  (data->stream_name == NULL)
+				  ? "" : "', stream_name='",
+				  (data->stream_name == NULL)
+				  ? "" : data->stream_name,
+				  (unsigned long long)entry->share_file_id,
+				  (unsigned long long)open_persistent_id));
+			goto done;
+		}
+	}
+
+	ok = brl_cleanup_disconnected(fid, open_persistent_id);
+	if (!ok) {
+		DEBUG(10, ("share_mode_cleanup_disconnected: "
+			   "failed to clean up byte range locks associated "
+			   "with file (file-id='%s', servicepath='%s', "
+			   "base_name='%s%s%s') and open_persistent_id %llu "
+			   "==> do not cleanup\n",
+			   file_id_string(frame, &fid),
+			   data->servicepath,
+			   data->base_name,
+			   (data->stream_name == NULL)
+			   ? "" : "', stream_name='",
+			   (data->stream_name == NULL)
+			   ? "" : data->stream_name,
+			   (unsigned long long)open_persistent_id));
+		goto done;
+	}
+
+	DEBUG(10, ("share_mode_cleanup_disconnected: "
+		   "cleaning up %u entries for file "
+		   "(file-id='%s', servicepath='%s', "
+		   "base_name='%s%s%s') "
+		   "from open_persistent_id %llu\n",
+		   data->num_share_modes,
+		   file_id_string(frame, &fid),
+		   data->servicepath,
+		   data->base_name,
+		   (data->stream_name == NULL)
+		   ? "" : "', stream_name='",
+		   (data->stream_name == NULL)
+		   ? "" : data->stream_name,
+		   (unsigned long long)open_persistent_id));
+
+	data->num_share_modes = 0;
+	data->modified = true;
+
+	ret = true;
+done:
+	talloc_free(frame);
+	return ret;
 }

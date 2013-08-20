@@ -24,6 +24,7 @@
 #include "printing.h"
 #include "smbd/smbd.h"
 #include "smbd/globals.h"
+#include "smbd/scavenger.h"
 #include "fake_file.h"
 #include "transfer_file.h"
 #include "auth.h"
@@ -739,9 +740,12 @@ static NTSTATUS close_normal_file(struct smb_request *req, files_struct *fsp,
 		while (fsp->num_aio_requests != 0) {
 			/*
 			 * The destructor of the req will remove
-			 * itself from the fsp
+			 * itself from the fsp.
+			 * Don't use TALLOC_FREE here, this will overwrite
+			 * what the destructor just wrote into
+			 * aio_requests[0].
 			 */
-			TALLOC_FREE(fsp->aio_requests[0]);
+			talloc_free(fsp->aio_requests[0]);
 		}
 	}
 
@@ -769,10 +773,33 @@ static NTSTATUS close_normal_file(struct smb_request *req, files_struct *fsp,
 					fsp->op,
 					&new_cookie);
 		if (NT_STATUS_IS_OK(tmp)) {
+			struct timeval tv;
+			NTTIME now;
+
+			if (req != NULL) {
+				tv = req->request_time;
+			} else {
+				tv = timeval_current();
+			}
+			now = timeval_to_nttime(&tv);
+
 			data_blob_free(&fsp->op->global->backend_cookie);
 			fsp->op->global->backend_cookie = new_cookie;
 
-			tmp = smbXsrv_open_update(fsp->op);
+			fsp->op->compat = NULL;
+			tmp = smbXsrv_open_close(fsp->op, now);
+			if (!NT_STATUS_IS_OK(tmp)) {
+				DEBUG(1, ("Failed to update smbXsrv_open "
+					  "record when disconnecting durable "
+					  "handle for file %s: %s - "
+					  "proceeding with normal close\n",
+					  fsp_str_dbg(fsp), nt_errstr(tmp)));
+			}
+			scavenger_schedule_disconnected(fsp);
+		} else {
+			DEBUG(1, ("Failed to disconnect durable handle for "
+				  "file %s: %s - proceeding with normal "
+				  "close\n", fsp_str_dbg(fsp), nt_errstr(tmp)));
 		}
 		if (!NT_STATUS_IS_OK(tmp)) {
 			is_durable = false;
@@ -785,6 +812,9 @@ static NTSTATUS close_normal_file(struct smb_request *req, files_struct *fsp,
 		 * a durable handle and closed the underlying file.
 		 * In all other cases, we proceed with a genuine close.
 		 */
+		DEBUG(10, ("%s disconnected durable handle for file %s\n",
+			   conn->session_info->unix_info->unix_name,
+			   fsp_str_dbg(fsp)));
 		file_free(req, fsp);
 		return NT_STATUS_OK;
 	}

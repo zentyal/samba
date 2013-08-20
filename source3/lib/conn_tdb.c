@@ -53,8 +53,13 @@ static int collect_sessions_fn(struct smbXsrv_session_global0 *global,
 	uint32_t id = global->session_global_id;
 	struct connections_forall_session sess;
 
-	sess.uid = global->auth_session_info->unix_token->uid;
-	sess.gid = global->auth_session_info->unix_token->gid;
+	if (global->auth_session_info == NULL) {
+		sess.uid = -1;
+		sess.gid = -1;
+	} else {
+		sess.uid = global->auth_session_info->unix_token->uid;
+		sess.gid = global->auth_session_info->unix_token->gid;
+	}
 	strncpy(sess.machine, global->channels[0].remote_name, sizeof(sess.machine));
 	strncpy(sess.addr, global->channels[0].remote_address, sizeof(sess.addr));
 
@@ -85,6 +90,19 @@ static int traverse_tcon_fn(struct smbXsrv_tcon_global0 *global,
 	};
 
 	TDB_DATA val = tdb_null;
+
+	/*
+	 * Note: that share_name is defined as array without a pointer.
+	 * that's why it's always a valid pointer here.
+	 */
+	if (strlen(global->share_name) == 0) {
+		/*
+		 * when a smbXsrv_tcon is created it's created
+		 * with emtpy share_name first in order to allocate
+		 * an id, before filling in the details.
+		 */
+		return 0;
+	}
 
 	status = dbwrap_fetch(state->session_by_pid, state,
 			      make_tdb_data((void*)&sess_id, sizeof(sess_id)),

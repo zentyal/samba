@@ -492,6 +492,29 @@ static const char *generate_krb5_ccache(TALLOC_CTX *mem_ctx,
 			gen_cc = talloc_asprintf(
 				mem_ctx, "WRFILE:/tmp/krb5cc_%d", uid);
 		}
+		if (strequal(type, "DIR")) {
+			gen_cc = talloc_asprintf(
+				mem_ctx, "DIR:/run/user/%d/krb5cc", uid);
+		}
+
+		if (strnequal(type, "FILE:/", 6) ||
+		    strnequal(type, "WRFILE:/", 8) ||
+		    strnequal(type, "DIR:/", 5)) {
+
+			/* we allow only one "%u" substitution */
+
+			char *p;
+
+			p = strchr(type, '%');
+			if (p != NULL) {
+
+				p++;
+
+				if (p != NULL && *p == 'u' && strchr(p, '%') == NULL) {
+					gen_cc = talloc_asprintf(mem_ctx, type, uid);
+				}
+			}
+		}
 	}
 
 	*user_ccache_file = gen_cc;
@@ -677,6 +700,14 @@ static NTSTATUS winbindd_raw_kerberos_login(TALLOC_CTX *mem_ctx,
 	return NT_STATUS_OK;
 
 failed:
+	/*
+	 * Do not delete an existing valid credential cache, if the user
+	 * e.g. enters a wrong password
+	 */
+	if ((strequal(krb5_cc_type, "FILE") || strequal(krb5_cc_type, "WRFILE"))
+	    && user_ccache_file != NULL) {
+		return result;
+	}
 
 	/* we could have created a new credential cache with a valid tgt in it
 	 * but we werent able to get or verify the service ticket for this

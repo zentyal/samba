@@ -2120,6 +2120,7 @@ void initsecurity(void)
 	PyModule_AddObject(m, "SID_BUILTIN_RAS_SERVERS", PyString_FromString("S-1-5-32-553"));
 	PyModule_AddObject(m, "GUID_DRS_VALIDATE_SPN", PyString_FromString("f3a64788-5306-11d1-a9c5-0000f80367c1"));
 	PyModule_AddObject(m, "SID_NT_DIALUP", PyString_FromString("S-1-5-1"));
+	PyModule_AddObject(m, "SECINFO_BACKUP", PyInt_FromLong(SECINFO_BACKUP));
 	PyModule_AddObject(m, "SID_BUILTIN_DISTRIBUTED_COM_USERS", PyString_FromString("S-1-5-32-562"));
 	PyModule_AddObject(m, "BUILTIN_RID_BACKUP_OPERATORS", PyInt_FromLong(551));
 	PyModule_AddObject(m, "SEC_RIGHTS_FILE_READ", PyInt_FromLong(SEC_STD_READ_CONTROL|SEC_STD_SYNCHRONIZE|SEC_FILE_READ_DATA|SEC_FILE_READ_ATTRIBUTE|SEC_FILE_READ_EA));
@@ -2192,6 +2193,7 @@ void initsecurity(void)
 	PyModule_AddObject(m, "SID_NT_INTERACTIVE", PyString_FromString("S-1-5-4"));
 	PyModule_AddObject(m, "SID_BUILTIN_POWER_USERS", PyString_FromString("S-1-5-32-547"));
 	PyModule_AddObject(m, "BUILTIN_RID_CERT_SERV_DCOM_ACCESS", PyInt_FromLong(574));
+	PyModule_AddObject(m, "SECINFO_ATTRIBUTE", PyInt_FromLong(SECINFO_ATTRIBUTE));
 	PyModule_AddObject(m, "SEC_PRIV_INCREASE_BASE_PRIORITY", PyInt_FromLong(SEC_PRIV_INCREASE_BASE_PRIORITY));
 	PyModule_AddObject(m, "SEC_FILE_READ_EA", PyInt_FromLong(0x00000008));
 	PyModule_AddObject(m, "SID_WORLD_DOMAIN", PyString_FromString("S-1-1"));
@@ -2249,6 +2251,7 @@ void initsecurity(void)
 	PyModule_AddObject(m, "SID_NT_NETWORK", PyString_FromString("S-1-5-2"));
 	PyModule_AddObject(m, "SEC_DESC_SERVER_SECURITY", PyInt_FromLong(SEC_DESC_SERVER_SECURITY));
 	PyModule_AddObject(m, "BUILTIN_RID_USERS", PyInt_FromLong(545));
+	PyModule_AddObject(m, "SECINFO_SCOPE", PyInt_FromLong(SECINFO_SCOPE));
 	PyModule_AddObject(m, "SID_NT_THIS_ORGANISATION", PyString_FromString("S-1-5-15"));
 	PyModule_AddObject(m, "SEC_ADS_DELETE_TREE", PyInt_FromLong(0x00000040));
 	PyModule_AddObject(m, "GUID_DRS_REPL_SYNCRONIZE", PyString_FromString("1131f6ab-9c07-11d1-f79f-00c04fc2dcd2"));

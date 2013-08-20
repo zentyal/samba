@@ -66,6 +66,7 @@ _PUBLIC_ void ndr_print_messaging_type(struct ndr_print *ndr, const char *name, 
 		case MSG_SMB_BRL_VALIDATE: val = "MSG_SMB_BRL_VALIDATE"; break;
 		case MSG_SMB_CLOSE_FILE: val = "MSG_SMB_CLOSE_FILE"; break;
 		case MSG_SMB_NOTIFY_CLEANUP: val = "MSG_SMB_NOTIFY_CLEANUP"; break;
+		case MSG_SMB_SCAVENGER: val = "MSG_SMB_SCAVENGER"; break;
 		case MSG_WINBIND_FINISHED: val = "MSG_WINBIND_FINISHED"; break;
 		case MSG_WINBIND_FORGET_STATE: val = "MSG_WINBIND_FORGET_STATE"; break;
 		case MSG_WINBIND_ONLINE: val = "MSG_WINBIND_ONLINE"; break;

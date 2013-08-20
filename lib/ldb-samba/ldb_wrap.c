@@ -37,6 +37,8 @@
 #include "../lib/util/dlinklist.h"
 #include <tdb.h>
 
+#define DBGC_CLASS DBGC_LDB
+
 /*
   this is used to catch debug messages from ldb
 */
@@ -58,7 +60,7 @@ static void ldb_wrap_debug(void *context, enum ldb_debug_level level,
 		samba_level = 2;
 		break;
 	case LDB_DEBUG_TRACE:
-		samba_level = 5;
+		samba_level = 10;
 		break;
 
 	};

@@ -97,6 +97,7 @@ void brl_revalidate(struct messaging_context *msg_ctx,
 		    uint32_t msg_type,
 		    struct server_id server_id,
 		    DATA_BLOB *data);
+bool brl_cleanup_disconnected(struct file_id fid, uint64_t open_persistent_id);
 
 /* The following definitions come from locking/locking.c  */
 
@@ -149,15 +150,15 @@ bool locking_init_readonly(void);
 bool locking_end(void);
 char *share_mode_str(TALLOC_CTX *ctx, int num, const struct share_mode_entry *e);
 struct share_mode_lock *get_existing_share_mode_lock(TALLOC_CTX *mem_ctx,
-						     const struct file_id id);
+						     struct file_id id);
 struct share_mode_lock *get_share_mode_lock(
 	TALLOC_CTX *mem_ctx,
-	const struct file_id id,
+	struct file_id id,
 	const char *servicepath,
 	const struct smb_filename *smb_fname,
 	const struct timespec *old_write_time);
 struct share_mode_lock *fetch_share_mode_unlocked(TALLOC_CTX *mem_ctx,
-						  const struct file_id id);
+						  struct file_id id);
 bool rename_share_filename(struct messaging_context *msg_ctx,
 			struct share_mode_lock *lck,
 			const char *servicepath,
@@ -201,6 +202,9 @@ bool set_write_time(struct file_id fileid, struct timespec write_time);
 int share_mode_forall(void (*fn)(const struct share_mode_entry *, const char *,
 				 const char *, void *),
 		      void *private_data);
+bool share_mode_cleanup_disconnected(struct file_id id,
+				     uint64_t open_persistent_id);
+
 
 /* The following definitions come from locking/posix.c  */
 

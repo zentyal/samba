@@ -323,7 +323,7 @@ static char *unixdom_get_peer_name(struct socket_context *sock, TALLOC_CTX *mem_
 
 static struct socket_address *unixdom_get_peer_addr(struct socket_context *sock, TALLOC_CTX *mem_ctx)
 {
-	struct sockaddr_in *peer_addr;
+	struct sockaddr_un *peer_addr;
 	socklen_t len = sizeof(*peer_addr);
 	struct socket_address *peer;
 	int ret;
@@ -334,7 +334,7 @@ static struct socket_address *unixdom_get_peer_addr(struct socket_context *sock,
 	}
 	
 	peer->family = sock->backend_name;
-	peer_addr = talloc(peer, struct sockaddr_in);
+	peer_addr = talloc(peer, struct sockaddr_un);
 	if (!peer_addr) {
 		talloc_free(peer);
 		return NULL;
@@ -362,7 +362,7 @@ static struct socket_address *unixdom_get_peer_addr(struct socket_context *sock,
 
 static struct socket_address *unixdom_get_my_addr(struct socket_context *sock, TALLOC_CTX *mem_ctx)
 {
-	struct sockaddr_in *local_addr;
+	struct sockaddr_un *local_addr;
 	socklen_t len = sizeof(*local_addr);
 	struct socket_address *local;
 	int ret;
@@ -373,7 +373,7 @@ static struct socket_address *unixdom_get_my_addr(struct socket_context *sock, T
 	}
 	
 	local->family = sock->backend_name;
-	local_addr = talloc(local, struct sockaddr_in);
+	local_addr = talloc(local, struct sockaddr_un);
 	if (!local_addr) {
 		talloc_free(local);
 		return NULL;

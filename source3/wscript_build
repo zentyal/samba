@@ -382,6 +382,7 @@ SMBD_SRC_SRV = '''smbd/server_reload.c smbd/files.c smbd/connection.c
                smbd/smbXsrv_open.c
                smbd/server_exit.c
                smbd/durable.c
+               smbd/scavenger.c
                ${MANGLE_SRC}'''
 
 SMBD_SRC_BASE = '''${SMBD_SRC_SRV}
@@ -716,6 +717,7 @@ ldapsam_pdb_match = ['!priv2ld', '!smbldap_search_domain_info',
                      '!get_attr_list']
 private_pdb_match.append('!pdb_nds_*')
 private_pdb_match.append('!pdb_init_ldapsam')
+private_pdb_match.append('!pdb_ldapsam_init*')
 private_pdb_match = private_pdb_match + ldapsam_pdb_match
 
 private_pdb_match = private_pdb_match + map(lambda x: '!pdb_%s_init' % x, static_pdb_match)

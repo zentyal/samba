@@ -4,6 +4,8 @@ samba (2:4.0.9+dfsg-1) UNRELEASED; urgency=low
   * The samba-ad-dc upstart job should be installed unconditionally, not just
     in Ubuntu.
   * Don't exclude our private libraries from the shlibs generation.
+  * Port debian/autodeps.py to python3 and build-depend on python3 so we can
+    invoke it correctly from debian/rules.
 
   [ Jelmer Vernooij ]
   * Bump standards version to 3.9.4 (no changes).

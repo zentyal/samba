@@ -1,9 +1,9 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 # Update dependencies based on info.py
 # Copyright (C) 2010 Jelmer Vernooij <jelmer@debian.org>
 # Licensed under the GNU GPL, version 2 or later.
 
-import ConfigParser
+import configparser
 import optparse
 import os
 import sys
@@ -46,7 +46,7 @@ class LibraryEquivalents(object):
     """Lookup table for equivalent library versions."""
 
     def __init__(self, path):
-        self.config = ConfigParser.ConfigParser()
+        self.config = configparser.ConfigParser()
         self.config.readfp(open(path))
 
     def find_equivalent(self, package, version):
@@ -60,7 +60,7 @@ class LibraryEquivalents(object):
         try:
             version = self.config.get(package, ".".join(str(x) for x in version))
             return tuple([int(x) for x in version.split(".")])
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+        except (configparser.NoSectionError, configparser.NoOptionError):
             raise KeyError
 
     def find_oldest_compatible(self, package, version):
@@ -90,9 +90,11 @@ def update_control():
     """Update the debian control file.
     """
     from debian.deb822 import Deb822, PkgRelation
-    f = open('debian/control', 'r')
+    f = open('debian/control', 'rb')
     iter = Deb822.iter_paragraphs(f.readlines())
-    source = iter.next()
+    for i in iter:
+        source = i
+        break
 
     def update_deps(control, field, package, min_version, epoch=None):
         bdi = PkgRelation.parse_relations(control[field])
@@ -123,15 +125,17 @@ def update_control():
     update_deps(source, "Build-Depends", "python-ldb", min_ldb_version, 1)
     update_deps(source, "Build-Depends", "libtevent-dev", min_tevent_version)
 
-    o = open("debian/control", "w+")
-    try:
-        source.dump(o)
+    with open("debian/control", "wb+") as o:
+        for i in source.keys():
+            if i == "Build-Depends":
+                value=",\n               ".join(source[i].split(', '))
+            else:
+                value=source[i]
+            o.write(("%s: %s\n" % (i, value)).encode('UTF-8'))
 
         for binary in iter:
-            o.write("\n")
+            o.write(b"\n")
             binary.dump(o)
-    finally:
-        o.close()
 
 
 def forced_minimum_library_versions():
@@ -151,7 +155,7 @@ def forced_minimum_library_versions():
 
 
 if opts.minimum_library_version:
-    print ",".join(forced_minimum_library_versions())
+    print (",".join(forced_minimum_library_versions()))
 elif opts.update_control:
     update_control()
 else:

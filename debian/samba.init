@@ -1,0 +1,43 @@
+#!/bin/sh
+
+### BEGIN INIT INFO
+# Provides:          samba
+# Required-Start:    smbd nmbd
+# Required-Stop:     smbd nmbd
+# Default-Start:     
+# Default-Stop:      
+# Short-Description: ensure Samba daemons are started (nmbd and smbd)
+### END INIT INFO
+
+set -e
+
+case $1 in
+	start)
+		/etc/init.d/nmbd start
+		/etc/init.d/smbd start
+		;;
+	stop)
+		/etc/init.d/smbd stop
+		/etc/init.d/nmbd stop
+		;;
+	reload)
+		/etc/init.d/smbd reload
+		;;
+	restart|force-reload)
+		/etc/init.d/nmbd "$1"
+		/etc/init.d/smbd "$1"
+		;;
+	status)
+		status=0
+		NMBD_DISABLED=`testparm -s --parameter-name='disable netbios' 2>/dev/null`
+		if [ "$NMBD_DISABLED" != "Yes" ]; then
+			/etc/init.d/nmbd status || status=$?
+		fi
+		/etc/init.d/smbd status || status=$?
+		exit $status
+		;;
+	*)
+		echo "Usage: /etc/init.d/samba {start|stop|reload|restart|force-reload|status}"
+		exit 1
+		;;
+esac

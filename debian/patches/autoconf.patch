@@ -25,11 +25,9 @@ Note: This patch will normally have to be updated by hand after every
  quilt refresh
  find . -name '*.rej' | xargs rm
 
-Index: samba/source3/configure
-===================================================================
---- samba.orig/source3/configure
-+++ samba/source3/configure
-@@ -3147,6 +3147,27 @@
+--- a/source3/configure
++++ b/source3/configure
+@@ -3172,6 +3172,27 @@
  
  
  
@@ -57,7 +55,7 @@ Index: samba/source3/configure
  echo "LIBREPLACE_LOCATION_CHECKS: END"
  
  
-@@ -5772,7 +5793,6 @@
+@@ -5797,7 +5818,6 @@
  
  
  
@@ -65,7 +63,7 @@ Index: samba/source3/configure
   cat >>confdefs.h <<\EOF
  #ifndef _XOPEN_SOURCE_EXTENDED
  #define _XOPEN_SOURCE_EXTENDED 1
-@@ -6019,7 +6039,6 @@
+@@ -6044,7 +6064,6 @@
  		# this brings in socklen_t
  
  
@@ -73,7 +71,7 @@ Index: samba/source3/configure
   cat >>confdefs.h <<\EOF
  #ifndef _XOPEN_SOURCE
  #define _XOPEN_SOURCE 600
-@@ -6028,7 +6047,6 @@
+@@ -6053,7 +6072,6 @@
  
  
  

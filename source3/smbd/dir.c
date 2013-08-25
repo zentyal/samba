@@ -49,6 +49,8 @@ struct smb_Dir {
 	struct name_cache_entry *name_cache;
 	unsigned int name_cache_index;
 	unsigned int file_number;
+	files_struct *fsp; /* Back pointer to containing fsp, only
+			      set from OpenDir_fsp(). */
 };
 
 struct dptr_struct {
@@ -590,18 +592,11 @@ done:
 void dptr_CloseDir(files_struct *fsp)
 {
 	if (fsp->dptr) {
-/*
- * Ugly hack. We have defined fdopendir to return ENOSYS if dirfd also isn't
- * present. I hate Solaris. JRA.
- */
-#ifdef HAVE_DIRFD
-		if (fsp->fh->fd != -1 &&
-				fsp->dptr->dir_hnd &&
-				dirfd(fsp->dptr->dir_hnd->dir)) {
-			/* The call below closes the underlying fd. */
-			fsp->fh->fd = -1;
-		}
-#endif
+		/*
+		 * The destructor for the struct smb_Dir
+		 * (fsp->dptr->dir_hnd) now handles
+		 * all resource deallocation.
+		 */
 		dptr_close_internal(fsp->dptr);
 		fsp->dptr = NULL;
 	}
@@ -1345,18 +1340,21 @@ bool is_visible_file(connection_struct *conn, const char *dir_path,
 
 static int smb_Dir_destructor(struct smb_Dir *dirp)
 {
-	if (dirp->dir) {
-#ifdef HAVE_DIRFD
-		if (dirp->conn->sconn) {
-			files_struct *fsp = file_find_fd(dirp->conn->sconn,
-						dirfd(dirp->dir));
-			if (fsp) {
-				/* The call below closes the underlying fd. */
-				fsp->fh->fd = -1;
-			}
-		}
-#endif
+	if (dirp->dir != NULL) {
 		SMB_VFS_CLOSEDIR(dirp->conn,dirp->dir);
+		if (dirp->fsp != NULL) {
+			/*
+			 * The SMB_VFS_CLOSEDIR above
+			 * closes the underlying fd inside
+			 * dirp->fsp.
+			 */
+			dirp->fsp->fh->fd = -1;
+			if (dirp->fsp->dptr != NULL) {
+				SMB_ASSERT(dirp->fsp->dptr->dir_hnd == dirp);
+				dirp->fsp->dptr->dir_hnd = NULL;
+			}
+			dirp->fsp = NULL;
+		}
 	}
 	if (dirp->conn->sconn && !dirp->conn->sconn->using_smb2) {
 		dirp->conn->sconn->searches.dirhandles_open--;
@@ -1440,7 +1438,9 @@ static struct smb_Dir *OpenDir_fsp(TALLOC_CTX *mem_ctx, connection_struct *conn,
 
 	if (fsp->is_directory && fsp->fh->fd != -1) {
 		dirp->dir = SMB_VFS_FDOPENDIR(fsp, mask, attr);
-		if (dirp->dir == NULL) {
+		if (dirp->dir != NULL) {
+			dirp->fsp = fsp;
+		} else {
 			DEBUG(10,("OpenDir_fsp: SMB_VFS_FDOPENDIR on %s returned "
 				"NULL (%s)\n",
 				dirp->dir_path,

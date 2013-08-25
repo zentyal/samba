@@ -1,3 +1,11 @@
+samba (2:3.6.15-1ubuntu2) saucy; urgency=low
+
+  * Cherry-pick 0383e7b04138ad94545a2191019873f26ae3e351 from Debian's
+    packaging repository to fix waf-as-source patch fuzz causing the package
+    to fail to unpack. 
+
+ -- Iain Lane <iain.lane@canonical.com>  Thu, 15 Aug 2013 13:30:54 +0100
+
 samba (2:3.6.15-1ubuntu1) saucy; urgency=low
 
   * Merge from Debian git branch; remaining changes:

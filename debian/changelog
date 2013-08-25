@@ -1,9 +1,9 @@
-samba (2:3.6.18-1ubuntu2) UNRELEASED; urgency=low
+samba (2:3.6.18-1ubuntu2) saucy; urgency=low
 
   * /etc/init.d/samba exists again as an init script, so drop ill-fated
     code which tries to remove it in the postinst.  LP: #1216438.
 
- -- Steve Langasek <steve.langasek@ubuntu.com>  Sun, 25 Aug 2013 10:02:43 -0700
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Sun, 25 Aug 2013 10:04:09 -0700
 
 samba (2:3.6.18-1ubuntu1) saucy; urgency=low
 

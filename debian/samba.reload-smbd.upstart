@@ -1,0 +1,12 @@
+description "Samba Auto-reload Integration"
+author      "James Page <james.page@ubuntu.com>"
+
+start on started cups
+
+task
+
+script
+    if status smbd | grep -q "running"; then
+        reload smbd
+    fi
+end script

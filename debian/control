@@ -17,7 +17,7 @@ Build-Depends: bison,
                flex,
                heimdal-multidev (>= 1.6~),
                libacl1-dev,
-	       libaio-dev,
+               libaio-dev,
                libattr1-dev,
                libblkid-dev,
                libbsd-dev,
@@ -68,10 +68,7 @@ Depends: adduser,
          ${misc:Depends},
          ${shlibs:Depends}
 Recommends: logrotate, tdb-tools
-Suggests: ctdb,
-          ldb-tools,
-          smbldap-tools,
-          winbind
+Suggests: ctdb, ldb-tools, smbldap-tools, winbind
 Replaces: samba-common (<= 2.0.5a-2), samba-doc (<< 2:4.0.5~)
 Conflicts: samba-doc (<< 2:4.0.5~), samba4 (<< 4.0.0~alpha6-2)
 Description: SMB/CIFS file, print, and login server for Unix

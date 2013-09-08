@@ -74,7 +74,7 @@ Depends: adduser,
          samba-dsdb-modules,
          tdb-tools,
          ${python:Depends},
-Recommends: logrotate, tdb-tools, attr
+Recommends: logrotate, attr
 Suggests: ctdb,
           ldb-tools,
           smbldap-tools,

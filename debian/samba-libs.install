@@ -144,3 +144,4 @@ usr/share/man/man8/vfs_streams_xattr.8
 usr/share/man/man8/vfs_time_audit.8
 usr/share/man/man8/vfs_tsmsm.8
 usr/share/man/man8/vfs_xattr_tdb.8
+usr/lib/*/libnetapi.so.0

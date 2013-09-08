@@ -142,3 +142,6 @@ usr/lib/*/pkgconfig/samba-util.pc
 usr/lib/*/pkgconfig/samdb.pc
 usr/lib/*/pkgconfig/smbclient-raw.pc
 usr/lib/*/pkgconfig/torture.pc
+usr/include/samba-4.0/netapi.h
+usr/lib/*/libnetapi.so
+usr/lib/*/pkgconfig/netapi.pc

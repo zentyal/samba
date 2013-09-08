@@ -265,9 +265,8 @@ Depends: libc6-dev,
          libtalloc-dev,
          libtdb-dev (>= 1.2.11),
          ${misc:Depends}
-Replaces: samba4-dev
 Section: devel
-Replaces: libsamdb (<< 4.0.4), libsmbd-dev (<< 4.0.4), libsamba-policy-dev (<< 4.0.4), libndr-dev (<< 4.0.4), libndr-standard-dev (<< 4.0.4), libgensec-dev (<< 4.0.4), libdcerpc-dev (<< 4.0.4), libdcerpc-server-dev (<< 4.0.4), libsamba-hostconfig-dev (<< 4.0.4), libregistry-dev (<< 4.0.4), libtorture-dev (<< 4.0.4), libsamba-util-dev (<< 4.0.4), libsmbclient-raw-dev (<< 4.0.4), libsamba-credentials-dev (<< 4.0.4)
+Replaces: libsamdb (<< 4.0.4), libsmbd-dev (<< 4.0.4), libsamba-policy-dev (<< 4.0.4), libndr-dev (<< 4.0.4), libndr-standard-dev (<< 4.0.4), libgensec-dev (<< 4.0.4), libdcerpc-dev (<< 4.0.4), libdcerpc-server-dev (<< 4.0.4), libsamba-hostconfig-dev (<< 4.0.4), libregistry-dev (<< 4.0.4), libtorture-dev (<< 4.0.4), libsamba-util-dev (<< 4.0.4), libsmbclient-raw-dev (<< 4.0.4), libsamba-credentials-dev (<< 4.0.4), samba4-dev
 Description: tools for extending Samba
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file sharing with Microsoft Windows, OS X,

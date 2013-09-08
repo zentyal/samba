@@ -80,6 +80,7 @@ usr/lib/*/samba/libsamba-net.so.*
 usr/lib/*/samba/libsamba-security.so.*
 usr/lib/*/samba/libsamba-sockets.so.*
 usr/lib/*/samba/libsamba3-util.so.*
+usr/lib/*/samba/libsamba_python.so.*
 usr/lib/*/samba/libsamdb-common.so.*
 usr/lib/*/samba/libsecrets3.so.*
 usr/lib/*/samba/libserver-role.so.*

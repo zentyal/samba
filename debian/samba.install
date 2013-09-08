@@ -8,17 +8,6 @@ usr/bin/sharesec
 usr/bin/smbcontrol
 usr/bin/smbstatus
 usr/bin/smbta-util
-usr/lib/*/samba/bind9/dlz_bind9.so
-usr/lib/*/samba/bind9/dlz_bind9_9.so
-usr/lib/*/samba/hdb/hdb_samba4.so
-usr/lib/*/samba/libdfs_server_ad.so.*
-usr/lib/*/samba/libntvfs.so.*
-usr/lib/*/samba/libpac.so.*
-usr/lib/*/samba/libposix_eadb.so.*
-usr/lib/*/samba/libprocess_model.so.*
-usr/lib/*/samba/libservice.so.*
-usr/lib/*/samba/process_model/*.so
-usr/lib/*/samba/service/*.so
 usr/sbin/mksmbpasswd
 usr/sbin/nmbd
 usr/sbin/samba

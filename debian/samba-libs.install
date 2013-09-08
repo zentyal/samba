@@ -19,7 +19,10 @@ usr/lib/*/libsmbconf.so.0
 usr/lib/*/libtevent-util.so.*
 usr/lib/*/libtorture.so.*
 usr/lib/*/samba/auth/
+usr/lib/*/samba/bind9/dlz_bind9.so
+usr/lib/*/samba/bind9/dlz_bind9_9.so
 usr/lib/*/samba/gensec/*.so
+usr/lib/*/samba/hdb/hdb_samba4.so
 usr/lib/*/samba/libCHARSET3.so.*
 usr/lib/*/samba/libHDB_SAMBA4.so.*
 usr/lib/*/samba/libLIBWBCLIENT_OLD.so.*
@@ -41,6 +44,7 @@ usr/lib/*/samba/libcmdline-credentials.so.*
 usr/lib/*/samba/libdb-glue.so.*
 usr/lib/*/samba/libdcerpc-samba.so.*
 usr/lib/*/samba/libdcerpc-samba4.so.*
+usr/lib/*/samba/libdfs_server_ad.so.*
 usr/lib/*/samba/liberrors.so.*
 usr/lib/*/samba/libevents.so.*
 usr/lib/*/samba/libflag_mapping.so.*
@@ -55,6 +59,10 @@ usr/lib/*/samba/libndr-samba.so.*
 usr/lib/*/samba/libndr-samba4.so.*
 usr/lib/*/samba/libnetif.so.*
 usr/lib/*/samba/libnpa_tstream.so.*
+usr/lib/*/samba/libntvfs.so.*
+usr/lib/*/samba/libpac.so.*
+usr/lib/*/samba/libposix_eadb.so.*
+usr/lib/*/samba/libprocess_model.so.*
 usr/lib/*/samba/libsamba-modules.so.*
 usr/lib/*/samba/libsamba-net.so.*
 usr/lib/*/samba/libsamba-security.so.*
@@ -63,6 +71,7 @@ usr/lib/*/samba/libsamba3-util.so.*
 usr/lib/*/samba/libsamdb-common.so.*
 usr/lib/*/samba/libsecrets3.so.*
 usr/lib/*/samba/libserver-role.so.*
+usr/lib/*/samba/libservice.so.*
 usr/lib/*/samba/libshares.so.*
 usr/lib/*/samba/libsmb_transport.so.*
 usr/lib/*/samba/libsmbd_base.so.*
@@ -77,6 +86,8 @@ usr/lib/*/samba/libutil_setid.so.*
 usr/lib/*/samba/libutil_tdb.so.*
 usr/lib/*/samba/libwinbind-client.so.*
 usr/lib/*/samba/libxattr_tdb.so.*
+usr/lib/*/samba/process_model/*.so
+usr/lib/*/samba/service/*.so
 usr/lib/*/samba/vfs/*.so
 usr/share/man/man8/vfs_acl_tdb.8
 usr/share/man/man8/vfs_acl_xattr.8

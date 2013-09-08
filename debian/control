@@ -66,11 +66,34 @@ Depends: adduser,
          samba-common (= ${source:Version}),
          update-inetd,
          ${misc:Depends},
-         ${shlibs:Depends}
-Recommends: logrotate, tdb-tools
-Suggests: ctdb, ldb-tools, smbldap-tools, winbind
-Replaces: samba-common (<= 2.0.5a-2), samba-doc (<< 2:4.0.5~)
-Conflicts: samba-doc (<< 2:4.0.5~), samba4 (<< 4.0.0~alpha6-2)
+         ${shlibs:Depends},
+         python,
+         python-dnspython,
+         python-samba,
+         samba-common-bin (=${binary:Version}),
+         samba-dsdb-modules,
+         tdb-tools,
+         ${python:Depends},
+Recommends: logrotate, tdb-tools, attr
+Suggests: ctdb,
+          ldb-tools,
+          smbldap-tools,
+          winbind,
+          bind9 (>= 1:9.5.1),
+          bind9utils,
+          ntp
+Enhances: bind9, ntp
+Replaces: samba-common (<= 2.0.5a-2),
+          samba-doc (<< 2:4.0.5~),
+          libsamdb0 (<< 4.0.0~alpha17~),
+          samba4,
+          samba-ad-dc
+Conflicts: samba-doc (<< 2:4.0.5~),
+           samba4 (<< 4.0.0~alpha6-2),
+           libldb1 (<< 1:1.1.15),
+           samba (<< 2:3.3.0~rc2-5),
+           samba-tools,
+           samba-ad-dc
 Description: SMB/CIFS file, print, and login server for Unix
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with
@@ -78,40 +101,13 @@ Description: SMB/CIFS file, print, and login server for Unix
  as an NT4-style domain controller, and can integrate with both NT4 domains
  and Active Directory realms as a member server.
  .
- This package provides the components necessary to use Samba as a
- stand-alone file and print server.  For use in an NT4 domain or Active
- Directory realm, you will also need the winbind package.
+ This package provides the components necessary to use Samba as a stand-alone
+ file and print server or as an NT4 or Active Directory domain controller.
+ For use in an NT4 domain or Active Directory realm, you will also need the
+ winbind package.
  .
  This package is not required for connecting to existing SMB/CIFS servers
  (see smbclient) or for mounting remote filesystems (see cifs-utils).
-
-Package: samba-ad-dc
-Architecture: any
-Recommends: attr, bind9 (>= 1:9.5.1), bind9utils, ldb-tools
-Suggests: ntp
-Enhances: bind9, ntp
-Conflicts: libldb1 (<< 1:1.1.15),
-           samba (<< 2:3.3.0~rc2-5),
-           samba-doc (<< 2:4.0.5~),
-           samba-tools
-Replaces: libsamdb0 (<< 4.0.0~alpha17~), samba-doc (<< 2:4.0.5~), samba4
-Depends: python,
-         python-dnspython,
-         python-samba,
-         samba,
-         samba-common-bin (=${binary:Version}),
-         samba-dsdb-modules,
-         tdb-tools,
-         ${misc:Depends},
-         ${python:Depends},
-         ${shlibs:Depends}
-Description: SMB/CIFS file, NT domain and active directory server
- Samba is an implementation of the SMB/CIFS protocol for Unix systems,
- providing support for cross-platform file sharing with Microsoft Windows, OS X,
- and other Unix systems.  Samba can also function as a domain controller
- or member server in both NT4-style and Active Directory domains.
- .
- This package contains the main daemon for the active directory server.
 
 Package: samba-libs
 Pre-Depends: ${misc:Pre-Depends}

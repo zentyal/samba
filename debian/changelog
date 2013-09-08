@@ -15,9 +15,11 @@ samba (2:4.0.9+dfsg-1) UNRELEASED; urgency=low
   * samba: Remove inetd servers from suggests; inetd support was dropped
     in 3.6.16-1.
   * Fix database errors during upgrade. Closes: #700768
+  * Integrate libraries in samba-libs
 
   [ Ivo De Decker ]
   * New upstream release.
+  * Merge contents of samba-ad-dc into samba
 
  -- Steve Langasek <vorlon@debian.org>  Fri, 16 Aug 2013 02:00:12 +0200
 

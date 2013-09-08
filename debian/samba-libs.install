@@ -21,8 +21,10 @@ usr/lib/*/libsmbldap.so.0
 usr/lib/*/libtevent-util.so.*
 usr/lib/*/libtorture.so.*
 usr/lib/*/samba/auth/
+usr/lib/*/samba/auth/
 usr/lib/*/samba/bind9/dlz_bind9.so
 usr/lib/*/samba/bind9/dlz_bind9_9.so
+usr/lib/*/samba/gensec/*.so
 usr/lib/*/samba/gensec/*.so
 usr/lib/*/samba/hdb/hdb_samba4.so
 usr/lib/*/samba/libCHARSET3.so.*
@@ -83,6 +85,8 @@ usr/lib/*/samba/libsamba3-util.so.*
 usr/lib/*/samba/libsamba_python.so.*
 usr/lib/*/samba/libsamdb-common.so.*
 usr/lib/*/samba/libsecrets3.so.*
+usr/lib/*/samba/libsecrets3.so.*
+usr/lib/*/samba/libserver-role.so.*
 usr/lib/*/samba/libserver-role.so.*
 usr/lib/*/samba/libservice.so.*
 usr/lib/*/samba/libshares.so.*
@@ -92,6 +96,7 @@ usr/lib/*/samba/libsmbd_conn.so.*
 usr/lib/*/samba/libsmbd_shim.so.*
 usr/lib/*/samba/libsmbldaphelper.so.*
 usr/lib/*/samba/libsmbpasswdparser.so.*
+usr/lib/*/samba/libsmbregistry.so.*
 usr/lib/*/samba/libsmbregistry.so.*
 usr/lib/*/samba/libtdb-wrap.so.*
 usr/lib/*/samba/libtdb_compat.so.*

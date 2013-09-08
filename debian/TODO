@@ -21,13 +21,18 @@ TODOs before upload to unstable
 
 - Decide if we care about findsmb, and if so patch upstream to restore it
 
-- Make install of samba-ad-dc possible when samba is installed:
-  - stop smbd/winbind/... (otherwise the samba-ad-dc 'samba' daemon can't
-	start)
-  - convert the users to the new db, or document that this doesn't happen
-	automatically
+- merge inetd removal from samba 3.6 branch
+
+- merge init-script changes from samba 3.6 branch, taking into account the
+  'samba' daemon
 
 Other TODOs
+
+- handle ad-dc stuff
+  - have debconf question to configure ad dc
+    - the packaging from the old samba4/samba-ad-dc packages can help there
+  - convert the users to the new db, or document that this doesn't happen
+	automatically
 
 
 - Add script to verify that headers are usable through current dependencies

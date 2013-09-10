@@ -1,5 +1,3 @@
-lib/systemd/system/nmb.service
-lib/systemd/system/smb.service
 usr/bin/eventlogadm
 usr/bin/oLschema2ldif
 usr/bin/pdbedit

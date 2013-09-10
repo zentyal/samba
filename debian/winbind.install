@@ -1,4 +1,3 @@
-lib/systemd/system/winbind.service
 usr/bin/ntlm_auth
 usr/bin/wbinfo
 usr/lib/*/plugin/krb5/winbind_krb5_locator.so

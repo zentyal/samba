@@ -20,6 +20,7 @@ samba (2:4.0.9+dfsg-1) UNRELEASED; urgency=low
   [ Ivo De Decker ]
   * New upstream release.
   * Merge contents of samba-ad-dc into samba
+  * Remove systemd support for now, as it is broken. Closes: #719477
 
   [ Jeroen Dekkers ]
   * Drop 10_messaging_subsystem patch.

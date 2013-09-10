@@ -121,11 +121,6 @@ override_dh_install:
 	   $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/plugin/krb5
 	install -m 0755 debian/setoption.py $(DESTDIR)/usr/share/samba
 	install -m 0755 debian/addshare.py $(DESTDIR)/usr/share/samba
-	# Install systemd service files.
-	mkdir -p $(DESTDIR)/lib/systemd/system
-	install -m 0755 packaging/systemd/nmb.service $(DESTDIR)/lib/systemd/system
-	install -m 0755 packaging/systemd/smb.service $(DESTDIR)/lib/systemd/system
-	install -m 0755 packaging/systemd/winbind.service $(DESTDIR)/lib/systemd/system
 	mkdir -p $(DESTDIR)/usr/lib/tmpfiles.d
 	echo "d /run/samba 0755 root root -" > $(DESTDIR)/usr/lib/tmpfiles.d/samba.conf
 	# Install samba-common's conffiles - they'll get moved later to their

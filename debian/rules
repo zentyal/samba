@@ -154,7 +154,9 @@ override_dh_gencontrol:
 	dh_gencontrol -- -Vldb:Depends=$(LDB_DEPENDS)
 
 override_dh_makeshlibs:
-	dh_makeshlibs -X/usr/lib/$(DEB_HOST_MULTIARCH)/plugin
+	# create symbols and shlibs files in separate wrapper script to deal with
+	# private libraries
+	debian/make_shlibs
 
 override_dh_fixperms:
 	dh_fixperms

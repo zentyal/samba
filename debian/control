@@ -618,6 +618,7 @@ Depends: libnetapi0 (=${binary:Version}),
          libsmbd0 (=${binary:Version}),
          python-ldb,
          python-tdb,
+         python-crypto,
          ${misc:Depends},
          ${python:Depends},
          ${shlibs:Depends}

@@ -8,6 +8,7 @@ usr/lib/*/libndr-krb5pac.so.*
 usr/lib/*/libndr-nbt.so.0*
 usr/lib/*/libndr-standard.so.*
 usr/lib/*/libndr.so.*
+usr/lib/*/libnetapi.so.0
 usr/lib/*/libpdb.so.0
 usr/lib/*/libregistry.so.*
 usr/lib/*/libsamba-credentials.so.0*
@@ -144,4 +145,3 @@ usr/share/man/man8/vfs_streams_xattr.8
 usr/share/man/man8/vfs_time_audit.8
 usr/share/man/man8/vfs_tsmsm.8
 usr/share/man/man8/vfs_xattr_tdb.8
-usr/lib/*/libnetapi.so.0

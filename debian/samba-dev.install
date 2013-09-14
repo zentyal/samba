@@ -53,6 +53,7 @@ usr/include/samba-4.0/ndr/ndr_drsblobs.h
 usr/include/samba-4.0/ndr/ndr_drsuapi.h
 usr/include/samba-4.0/ndr/ndr_nbt.h
 usr/include/samba-4.0/ndr/ndr_svcctl.h
+usr/include/samba-4.0/netapi.h
 usr/include/samba-4.0/param.h
 usr/include/samba-4.0/passdb.h
 usr/include/samba-4.0/policy.h
@@ -113,6 +114,7 @@ usr/lib/*/libndr-krb5pac.so
 usr/lib/*/libndr-nbt.so
 usr/lib/*/libndr-standard.so
 usr/lib/*/libndr.so
+usr/lib/*/libnetapi.so
 usr/lib/*/libpdb.so
 usr/lib/*/libregistry.so
 usr/lib/*/libsamba-credentials.so
@@ -134,6 +136,7 @@ usr/lib/*/pkgconfig/ndr.pc
 usr/lib/*/pkgconfig/ndr_krb5pac.pc
 usr/lib/*/pkgconfig/ndr_nbt.pc
 usr/lib/*/pkgconfig/ndr_standard.pc
+usr/lib/*/pkgconfig/netapi.pc
 usr/lib/*/pkgconfig/registry.pc
 usr/lib/*/pkgconfig/samba-credentials.pc
 usr/lib/*/pkgconfig/samba-hostconfig.pc
@@ -142,6 +145,3 @@ usr/lib/*/pkgconfig/samba-util.pc
 usr/lib/*/pkgconfig/samdb.pc
 usr/lib/*/pkgconfig/smbclient-raw.pc
 usr/lib/*/pkgconfig/torture.pc
-usr/include/samba-4.0/netapi.h
-usr/lib/*/libnetapi.so
-usr/lib/*/pkgconfig/netapi.pc

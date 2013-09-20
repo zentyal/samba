@@ -23,6 +23,8 @@ samba (2:4.0.9+dfsg-1) UNRELEASED; urgency=low
 
   [ Jeroen Dekkers ]
   * Drop 10_messaging_subsystem patch.
+  * Add patch to not install smbclient4 and nmblookup4 and remove
+    samba4-clients binary package.
 
  -- Steve Langasek <vorlon@debian.org>  Fri, 16 Aug 2013 02:00:12 +0200
 

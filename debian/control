@@ -218,24 +218,6 @@ Description: command-line SMB/CIFS clients for Unix
  Utilities for mounting shares locally are found in the package
  cifs-utils.
 
-Package: samba4-clients
-Architecture: any
-Depends: samba-common-bin (=${binary:Version}),
-         smbclient,
-         ${misc:Depends},
-         ${shlibs:Depends}
-Replaces: samba-doc (<< 2:4.0.5~)
-Conflicts: samba-common (<< 2:3.3.0~rc2-5), samba-doc (<< 2:4.0.5~)
-Description: client utilities from Samba
- Samba is an implementation of the SMB/CIFS protocol for Unix systems,
- providing support for cross-platform file sharing with Microsoft Windows, OS X,
- and other Unix systems.  Samba can also function as a domain controller
- or member server in both NT4-style and Active Directory domains.
- .
- This package contains some client components of the Samba suite. In
- particular it includes the command line utilities smbclient, net,
- and some ACL tools.
-
 Package: samba-testsuite
 Architecture: any
 Recommends: subunit

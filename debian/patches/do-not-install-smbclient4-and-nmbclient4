@@ -1,0 +1,28 @@
+Description: Do not install smbclient4 and nmbclient4
+Author: Jeroen Dekkers <jeroen@dekkers.ch>
+Forwarded: yes
+
+--- a/libcli/nbt/wscript_build
++++ b/libcli/nbt/wscript_build
+@@ -20,7 +20,8 @@
+ bld.SAMBA_BINARY('nmblookup' + bld.env.suffix4,
+                  source='tools/nmblookup.c',
+                  manpages='man/nmblookup4.1',
+-                 deps='samba-hostconfig samba-util cli-nbt popt POPT_SAMBA netif LIBCLI_RESOLVE'
++                 deps='samba-hostconfig samba-util cli-nbt popt POPT_SAMBA netif LIBCLI_RESOLVE',
++                 install=False
+                  )
+ 
+ bld.SAMBA_PYTHON('python_netbios',
+--- a/source4/wscript_build
++++ b/source4/wscript_build
+@@ -2,7 +2,8 @@
+ 
+ bld.SAMBA_BINARY('client/smbclient'  + bld.env.suffix4,
+ 	source='client/client.c',
+-	deps='samba-hostconfig SMBREADLINE samba-util LIBCLI_SMB RPC_NDR_SRVSVC LIBCLI_LSA popt POPT_SAMBA POPT_CREDENTIALS smbclient-raw param_options dcerpc'
++	deps='samba-hostconfig SMBREADLINE samba-util LIBCLI_SMB RPC_NDR_SRVSVC LIBCLI_LSA popt POPT_SAMBA POPT_CREDENTIALS smbclient-raw param_options dcerpc',
++	install=False
+ 	)
+ 
+ 

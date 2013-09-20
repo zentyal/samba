@@ -1,7 +1,6 @@
 0002-lib-replace-Allow-OS-vendor-to-assert-that-getpass-i.patch
 05_share_ldb_module
 07_private_lib
-10_messaging_subsystem
 25_heimdal_api_changes
 bug_221618_precise-64bit-prototype.patch
 bug_598313_upstream_7499-nss_wins-dont-clobber-daemons-logs.patch

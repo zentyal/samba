@@ -21,6 +21,9 @@ samba (2:4.0.9+dfsg-1) UNRELEASED; urgency=low
   * New upstream release.
   * Merge contents of samba-ad-dc into samba
 
+  [ Jeroen Dekkers ]
+  * Drop 10_messaging_subsystem patch.
+
  -- Steve Langasek <vorlon@debian.org>  Fri, 16 Aug 2013 02:00:12 +0200
 
 samba (2:4.0.8+dfsg-1) experimental; urgency=low

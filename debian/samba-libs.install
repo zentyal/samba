@@ -29,6 +29,7 @@ usr/lib/*/samba/hdb/hdb_samba4.so
 usr/lib/*/samba/libCHARSET3.so.*
 usr/lib/*/samba/libHDB_SAMBA4.so.*
 usr/lib/*/samba/libLIBWBCLIENT_OLD.so.*
+usr/lib/*/samba/libMESSAGING.so.*
 usr/lib/*/samba/libaddns.so.*
 usr/lib/*/samba/libads.so.*
 usr/lib/*/samba/libasn1util.so.*

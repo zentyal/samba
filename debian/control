@@ -353,6 +353,7 @@ Provides: ${python:Provides}
 Depends: python-ldb,
          python-tdb,
          samba-libs (=${binary:Version}),
+         python-crypto,
          ${misc:Depends},
          ${python:Depends},
          ${shlibs:Depends}

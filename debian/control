@@ -59,7 +59,6 @@ Pre-Depends: dpkg (>= 1.15.6~), ${misc:Pre-Depends}
 Depends: adduser,
          libpam-modules,
          libpam-runtime (>= 1.0.1-11),
-         libwbclient0 (= ${binary:Version}),
          lsb-base (>= 3.2-13),
          procps,
          python,
@@ -68,7 +67,6 @@ Depends: adduser,
          samba-common (= ${source:Version}),
          samba-common-bin (=${binary:Version}),
          samba-dsdb-modules,
-         samba-libs (= ${binary:Version}),
          tdb-tools,
          update-inetd,
          ${misc:Depends},
@@ -334,7 +332,6 @@ Section: python
 Provides: ${python:Provides}
 Depends: python-ldb,
          python-tdb,
-         samba-libs (=${binary:Version}),
          python-crypto,
          ${misc:Depends},
          ${python:Depends},
@@ -463,7 +460,6 @@ Multi-Arch: same
 Pre-Depends: dpkg (>= 1.15.6~), ${misc:Pre-Depends}
 Depends: libpam-runtime (>= 1.0.1-6),
          libpam0g (>= 1.1.3-2~),
-         libwbclient0 (= ${binary:Version}),
          samba-common (= ${source:Version}),
          winbind (= ${binary:Version}),
          ${misc:Depends},
@@ -491,8 +487,7 @@ Priority: optional
 Architecture: any
 Multi-Arch: same
 Pre-Depends: dpkg (>= 1.15.6~)
-Depends: libwbclient0 (= ${binary:Version}),
-         samba-common (= ${source:Version}),
+Depends: samba-common (= ${source:Version}),
          winbind (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}

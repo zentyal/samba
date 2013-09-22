@@ -1,3 +1,9 @@
+samba (2:4.0.9+dfsg-2) UNRELEASED; urgency=low
+
+  * Update vcs urls to point to samba instead of samba4.
+
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Sun, 22 Sep 2013 20:16:06 +0200
+
 samba (2:4.0.9+dfsg-1) experimental; urgency=low
 
   * Team upload.

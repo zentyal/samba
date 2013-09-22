@@ -1,4 +1,6 @@
-samba (2:4.0.9+dfsg-1) UNRELEASED; urgency=low
+samba (2:4.0.9+dfsg-1) experimental; urgency=low
+
+  * Team upload.
 
   [ Steve Langasek ]
   * The samba-ad-dc upstart job should be installed unconditionally, not just
@@ -19,17 +21,18 @@ samba (2:4.0.9+dfsg-1) UNRELEASED; urgency=low
 
   [ Ivo De Decker ]
   * New upstream release.
-  * Merge contents of samba-ad-dc into samba
+  * Merge contents of samba-ad-dc into samba.
   * Remove systemd support for now, as it is broken. Closes: #719477
-  * add lintian override for samba-libs: package-name-doesnt-match-sonames
-  * add missing depends for dev packages
+  * Add lintian override for samba-libs: package-name-doesnt-match-sonames.
+  * Add missing depends for dev packages.
+  * Generate correct shlibs for both public and private libs.
 
   [ Jeroen Dekkers ]
   * Drop 10_messaging_subsystem patch.
   * Add patch to not install smbclient4 and nmblookup4 and remove
     samba4-clients binary package.
 
- -- Steve Langasek <vorlon@debian.org>  Fri, 16 Aug 2013 02:00:12 +0200
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Sun, 22 Sep 2013 17:19:44 +0200
 
 samba (2:4.0.8+dfsg-1) experimental; urgency=low
 

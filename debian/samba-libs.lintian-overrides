@@ -1,0 +1,4 @@
+# the samba-libs package contains a number of libraries
+# it doesn't make sense to have them in separate packages, as this would
+# result in circular dependencies
+samba-libs: package-name-doesnt-match-sonames libdcerpc-atsvc0 libdcerpc-binding0 libdcerpc-samr0 libdcerpc-server0 libdcerpc0 libgensec0 libndr-krb5pac0 libndr-nbt0 libndr-standard0 libndr0 libnetapi0 libpdb0 libregistry0 libsamba-credentials0 libsamba-hostconfig0 libsamba-policy0 libsamba-util0 libsamdb0 libsmbclient-raw0 libsmbconf0 libsmbldap0 libtevent-util0 libtorture0

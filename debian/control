@@ -269,6 +269,7 @@ Depends: libc6-dev,
          libpopt-dev,
          libtalloc-dev,
          libtdb-dev (>= 1.2.11),
+         samba-libs (= ${binary:Version}),
          ${misc:Depends}
 Section: devel
 Replaces: libdcerpc-dev (<< 2:4.0.9),

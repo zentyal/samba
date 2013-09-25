@@ -110,6 +110,8 @@ override_dh_install:
 	install -m 0644 debian/libpam-smbpass.pam-config $(DESTDIR)/usr/share/pam-configs/smbpasswd-migrate
 	install -m 0644 debian/winbind.pam-config $(DESTDIR)/usr/share/pam-configs/winbind
 	mv $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/libnss_* $(DESTDIR)/lib/$(DEB_HOST_MULTIARCH)/
+	# we don't ship the symlinks
+	rm $(DESTDIR)/lib/$(DEB_HOST_MULTIARCH)/libnss_*.so
 	#Remove unused ldb share configuration plugin
 	rm $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/samba/share/ldb.so
 	#Remove unused vfstest manpage as there is no more vfstest apparently

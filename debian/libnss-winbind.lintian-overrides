@@ -2,3 +2,8 @@ libnss-winbind: postinst-must-call-ldconfig lib/*/libnss_wins.so.2
 libnss-winbind: postrm-should-call-ldconfig lib/*/libnss_wins.so.2
 libnss-winbind: package-name-doesnt-match-sonames libnss-winbind2 libnss-wins2
 libnss-winbind: missing-pre-dependency-on-multiarch-support
+libnss-winbind: ldconfig-symlink-missing-for-shlib lib/*/libnss_wins.so lib/*/libnss_wins.so.2 libnss_wins.so
+libnss-winbind: ldconfig-symlink-missing-for-shlib lib/*/libnss_winbind.so lib/*/libnss_winbind.so.2 libnss_winbind.so
+libnss-winbind: shlib-without-versioned-soname lib/*/libnss_wins.so.2 libnss_wins.so
+libnss-winbind: shlib-without-versioned-soname lib/*/libnss_winbind.so.2 libnss_winbind.so
+

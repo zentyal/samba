@@ -13,13 +13,6 @@ TODOs before upload to unstable
   - openchange
   - evolution-mapi
 
-- what is the status of the docs?
-
-  - documentation2.patch is upstream
-  - The former documentation.patch needs to be rewritten against the xml input
-
-- Decide if we care about findsmb, and if so patch upstream to restore it
-
 - merge inetd removal from samba 3.6 branch
 
 - merge init-script changes from samba 3.6 branch, taking into account the
@@ -32,6 +25,13 @@ Other TODOs
     - the packaging from the old samba4/samba-ad-dc packages can help there
   - convert the users to the new db, or document that this doesn't happen
 	automatically
+
+- what is the status of the docs?
+
+  - documentation2.patch is upstream
+  - The former documentation.patch needs to be rewritten against the xml input
+
+- Decide if we care about findsmb, and if so patch upstream to restore it
 
 
 - Add script to verify that headers are usable through current dependencies

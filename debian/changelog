@@ -1,3 +1,10 @@
+samba (2:3.6.19-1) unstable; urgency=low
+
+  * Team upload.
+  * New upstream release
+
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Wed, 25 Sep 2013 20:01:48 +0200
+
 samba (2:3.6.18-1~bpo70+1) wheezy-backports; urgency=low
 
   * Rebuild for wheezy-backports.

@@ -1,6 +1,8 @@
-samba (2:4.0.9+dfsg-2) UNRELEASED; urgency=low
+samba (2:4.0.10+dfsg-1) UNRELEASED; urgency=low
 
+  [ Ivo De Decker ]
   * Update vcs urls to point to samba instead of samba4.
+  * New upstream release.
 
   [ Steve Langasek ]
   * Don't put useless symlinks to nss modules in the libnss-winbind package.

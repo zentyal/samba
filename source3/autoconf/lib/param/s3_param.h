@@ -120,6 +120,7 @@ struct loadparm_s3_helpers
 	bool  (*acl_check_permissions)(void);
 	bool  (*acl_group_control)(void);
 	bool  (*acl_map_full_control)(void);
+	bool  (*acl_allow_execute_always)(void);
 	int  (*defaultcase)(void);
 	int  (*minprintspace)(void);
 	int  (*printing)(void);

@@ -485,6 +485,8 @@ bool lpcfg_acl_group_control(struct loadparm_service *, struct loadparm_service 
 bool lpcfg_acl_group_control(struct loadparm_service *, struct loadparm_service *);
 bool lpcfg_acl_map_full_control(struct loadparm_service *, struct loadparm_service *);
 bool lpcfg_acl_map_full_control(struct loadparm_service *, struct loadparm_service *);
+bool lpcfg_acl_allow_execute_always(struct loadparm_service *, struct loadparm_service *);
+bool lpcfg_acl_allow_execute_always(struct loadparm_service *, struct loadparm_service *);
 int lpcfg_defaultcase(struct loadparm_service *, struct loadparm_service *);
 int lpcfg_defaultcase(struct loadparm_service *, struct loadparm_service *);
 int lpcfg_minprintspace(struct loadparm_service *, struct loadparm_service *);

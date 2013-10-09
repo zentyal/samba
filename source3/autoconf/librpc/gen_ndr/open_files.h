@@ -28,6 +28,7 @@ struct share_mode_entry {
 	uint32_t uid;
 	uint16_t flags;
 	uint32_t name_hash;
+	uint8_t stale;/* [skip] */
 }/* [public] */;
 
 struct delete_token {
@@ -47,8 +48,8 @@ struct share_mode_data {
 	struct delete_token *delete_tokens;/* [size_is(num_delete_tokens)] */
 	struct timespec old_write_time;
 	struct timespec changed_write_time;
-	uint8_t fresh;
-	uint8_t modified;
+	uint8_t fresh;/* [skip] */
+	uint8_t modified;/* [skip] */
 	struct db_record *record;/* [ignore] */
 }/* [public] */;
 

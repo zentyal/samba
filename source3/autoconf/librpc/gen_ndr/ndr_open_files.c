@@ -23,6 +23,7 @@ _PUBLIC_ enum ndr_err_code ndr_push_share_mode_entry(struct ndr_push *ndr, int n
 		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, r->uid));
 		NDR_CHECK(ndr_push_uint16(ndr, NDR_SCALARS, r->flags));
 		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, r->name_hash));
+		/* [skip] 'r->stale' */
 		NDR_CHECK(ndr_push_trailer_align(ndr, 8));
 	}
 	if (ndr_flags & NDR_BUFFERS) {
@@ -48,6 +49,7 @@ _PUBLIC_ enum ndr_err_code ndr_pull_share_mode_entry(struct ndr_pull *ndr, int n
 		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &r->uid));
 		NDR_CHECK(ndr_pull_uint16(ndr, NDR_SCALARS, &r->flags));
 		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &r->name_hash));
+		/* [skip] '&r->stale' */
 		NDR_CHECK(ndr_pull_trailer_align(ndr, 8));
 	}
 	if (ndr_flags & NDR_BUFFERS) {
@@ -73,6 +75,7 @@ _PUBLIC_ void ndr_print_share_mode_entry(struct ndr_print *ndr, const char *name
 	ndr_print_uint32(ndr, "uid", r->uid);
 	ndr_print_uint16(ndr, "flags", r->flags);
 	ndr_print_uint32(ndr, "name_hash", r->name_hash);
+	ndr_print_uint8(ndr, "stale", r->stale);
 	ndr->depth--;
 }
 
@@ -182,8 +185,8 @@ _PUBLIC_ enum ndr_err_code ndr_push_share_mode_data(struct ndr_push *ndr, int nd
 		}
 		NDR_CHECK(ndr_push_timespec(ndr, NDR_SCALARS, &r->old_write_time));
 		NDR_CHECK(ndr_push_timespec(ndr, NDR_SCALARS, &r->changed_write_time));
-		NDR_CHECK(ndr_push_uint8(ndr, NDR_SCALARS, r->fresh));
-		NDR_CHECK(ndr_push_uint8(ndr, NDR_SCALARS, r->modified));
+		/* [skip] 'r->fresh' */
+		/* [skip] 'r->modified' */
 		NDR_CHECK(ndr_push_uint3264(ndr, NDR_SCALARS, 0));
 		/* [ignore] 'record' */
 		NDR_CHECK(ndr_push_trailer_align(ndr, 8));
@@ -285,8 +288,8 @@ _PUBLIC_ enum ndr_err_code ndr_pull_share_mode_data(struct ndr_pull *ndr, int nd
 		NDR_PULL_SET_MEM_CTX(ndr, _mem_save_delete_tokens_0, 0);
 		NDR_CHECK(ndr_pull_timespec(ndr, NDR_SCALARS, &r->old_write_time));
 		NDR_CHECK(ndr_pull_timespec(ndr, NDR_SCALARS, &r->changed_write_time));
-		NDR_CHECK(ndr_pull_uint8(ndr, NDR_SCALARS, &r->fresh));
-		NDR_CHECK(ndr_pull_uint8(ndr, NDR_SCALARS, &r->modified));
+		/* [skip] '&r->fresh' */
+		/* [skip] '&r->modified' */
 		NDR_CHECK(ndr_pull_uint3264(ndr, NDR_SCALARS, &_ptr_record));
 		_ptr_record = 0;
 		if (_ptr_record) {

@@ -115,6 +115,7 @@ struct loadparm_service
 	bool   bAclCheckPermissions;
 	bool   bAclGroupControl;
 	bool   bAclMapFullControl;
+	bool   bAclAllowExecuteAlways;
 	int   iDefaultCase;
 	int   iMinPrintSpace;
 	int   iPrinting;

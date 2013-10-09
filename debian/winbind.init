@@ -34,6 +34,9 @@ fi
 
 case "$1" in
 	start)
+		if init_is_upstart; then
+			exit 1
+		fi
 		log_daemon_msg "Starting the Winbind daemon" "winbind"
 
 		mkdir -p /var/run/samba/winbindd_privileged || return 1
@@ -45,12 +48,18 @@ case "$1" in
 		;;
 
 	stop)
+		if init_is_upstart; then
+			exit 0
+		fi
 		log_daemon_msg "Stopping the Winbind daemon" "winbind"
 		start-stop-daemon --stop --quiet --oknodo --exec $DAEMON
 		log_end_msg $?
 		;;
 
 	restart|force-reload)
+		if init_is_upstart; then
+			exit 1
+		fi
 		$0 stop && sleep 2 && $0 start
 		;;
 

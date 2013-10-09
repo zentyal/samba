@@ -59,7 +59,7 @@ Pre-Depends: dpkg (>= 1.15.6~), ${misc:Pre-Depends}
 Depends: adduser,
          libpam-modules,
          libpam-runtime (>= 1.0.1-11),
-         lsb-base (>= 3.2-13),
+         lsb-base (>= 4.1+Debian),
          procps,
          python,
          python-dnspython,

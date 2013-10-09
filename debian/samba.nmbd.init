@@ -1,0 +1,91 @@
+#!/bin/sh
+
+### BEGIN INIT INFO
+# Provides:          nmbd
+# Required-Start:    $network $local_fs $remote_fs
+# Required-Stop:     $network $local_fs $remote_fs
+# X-Start-Before:    smbd
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: start Samba NetBIOS nameserver (nmbd)
+### END INIT INFO
+
+
+PIDDIR=/var/run/samba
+NMBDPID=$PIDDIR/nmbd.pid
+
+# clear conflicting settings from the environment
+unset TMPDIR
+
+# See if the daemons are there
+test -x /usr/sbin/nmbd || exit 0
+
+. /lib/lsb/init-functions
+
+case $1 in
+	start)
+		if init_is_upstart; then
+			exit 1
+		fi
+		SERVER_ROLE=`samba-tool testparm --parameter-name="server role"  2>/dev/null | tail -1`
+		if [ "$SERVER_ROLE" = "active directory domain controller" ]; then
+		    exit 0
+		fi
+
+		if [ -n `which testparm` ]
+		then
+			NMBD_DISABLED=`testparm -s --parameter-name='disable netbios' 2>/dev/null`
+		fi
+		if [ "$NMBD_DISABLED" != Yes ]; then
+			log_daemon_msg "Starting NetBIOS name server" nmbd
+			# Make sure we have our PIDDIR, even if it's on a tmpfs
+			install -o root -g root -m 755 -d $PIDDIR
+
+	 		if ! start-stop-daemon --start --quiet --oknodo --exec /usr/sbin/nmbd -- -D
+			then
+				log_end_msg 1
+				exit 1
+			fi
+			log_end_msg 0
+		fi
+
+		;;
+	stop)
+		if init_is_upstart; then
+			exit 0
+		fi
+
+		log_daemon_msg "Stopping NetBIOS name server" nmbd
+
+		start-stop-daemon --stop --quiet --pidfile $NMBDPID
+		# Wait a little and remove stale PID file
+		sleep 1
+		if [ -f $NMBDPID ] && ! ps h `cat $NMBDPID` > /dev/null
+		then
+			# Stale PID file (nmbd was succesfully stopped),
+			# remove it (should be removed by nmbd itself IMHO.)
+			rm -f $NMBDPID
+		fi
+
+		log_end_msg 0
+
+		;;
+	restart|force-reload)
+		if init_is_upstart; then
+			exit 1
+		fi
+		$0 stop
+		sleep 1
+		$0 start
+		;;
+        status)
+		status_of_proc -p $NMBDPID /usr/sbin/nmbd nmbd
+		exit $?
+		;;
+	*)
+		echo "Usage: /etc/init.d/nmbd {start|stop|restart|force-reload|status}"
+		exit 1
+		;;
+esac
+
+exit 0

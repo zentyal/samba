@@ -68,7 +68,7 @@ netbios_setup() {
 
 	# reload the samba server
 	# We don't necessarily have the samba package installed. #414841
-	[ -x /etc/init.d/samba ] && /usr/sbin/invoke-rc.d samba reload
+	[ -x /etc/init.d/smbd ] && /usr/sbin/invoke-rc.d smbd reload
 
 }
 

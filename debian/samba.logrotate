@@ -3,7 +3,7 @@
 	missingok
 	rotate 7
 	postrotate
-		/etc/init.d/samba reload > /dev/null
+		/etc/init.d/smbd reload > /dev/null
 	endscript
 	compress
 	notifempty

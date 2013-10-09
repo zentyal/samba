@@ -146,6 +146,17 @@ ifneq (,$(filter libpam-smbpass, $(shell dh_listpackages)))
 	dh_installchangelogs -plibpam-smbpass source3/pam_smbpass/CHANGELOG
 endif
 
+override_dh_installinit:
+ifneq (,$(filter samba, $(shell dh_listpackages)))
+	dh_installinit -psamba --name smbd
+	dh_installinit -psamba --name nmbd
+	dh_installinit -psamba --noscripts
+	dh_installinit -psamba --no-start --name reload-smbd
+endif
+ifneq (,$(filter winbind, $(shell dh_listpackages)))
+	dh_installinit -pwinbind
+endif
+
 override_dh_installdocs:
 	dh_installdocs source4/NEWS
 

@@ -4,6 +4,7 @@ samba (2:4.0.10+dfsg-1) UNRELEASED; urgency=low
   * Update vcs urls to point to samba instead of samba4.
   * New upstream release.
   * Limit build-dep on libaio-dev to linux architectures.
+  * Merge init script changes from 3.6 packages.
 
   [ Steve Langasek ]
   * Don't put useless symlinks to nss modules in the libnss-winbind package.

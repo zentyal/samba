@@ -1,4 +1,4 @@
-/* 
+/*
    Unix SMB/CIFS implementation.
 
    Winbind daemon for ntdom nss module
@@ -216,7 +216,7 @@ static void winbindd_stdin_handler(struct tevent_context *ev,
 	char c;
 	if (read(0, &c, 1) != 1) {
 		bool *is_parent = talloc_get_type_abort(private_data, bool);
-		
+
 		/* we have reached EOF on stdin, which means the
 		   parent has exited. Shutdown the server */
 		DEBUG(0,("EOF on stdin (is_parent=%d)\n",
@@ -278,20 +278,33 @@ bool winbindd_setup_stdin_handler(bool parent, bool foreground)
 	bool *is_parent;
 
 	if (foreground) {
+		struct stat st;
+
 		is_parent = talloc(winbind_event_context(), bool);
 		if (!is_parent) {
 			return false;
 		}
-		
+
 		*is_parent = parent;
 
 		/* if we are running in the foreground then look for
 		   EOF on stdin, and exit if it happens. This allows
 		   us to die if the parent process dies
+		   Only do this on a pipe or socket, no other device.
 		*/
-		tevent_add_fd(winbind_event_context(), is_parent, 0, TEVENT_FD_READ, winbindd_stdin_handler, is_parent);
+		if (fstat(0, &st) != 0) {
+			return false;
+		}
+		if (S_ISFIFO(st.st_mode) || S_ISSOCK(st.st_mode)) {
+			tevent_add_fd(winbind_event_context(),
+					is_parent,
+					0,
+					TEVENT_FD_READ,
+					winbindd_stdin_handler,
+					is_parent);
+		}
 	}
-	
+
 	return true;
 }
 

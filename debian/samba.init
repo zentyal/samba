@@ -15,8 +15,10 @@ case $1 in
 	start)
 		/etc/init.d/nmbd start
 		/etc/init.d/smbd start
+		/etc/init.d/samba-ad-dc start
 		;;
 	stop)
+		/etc/init.d/samba-ad-dc stop
 		/etc/init.d/smbd stop
 		/etc/init.d/nmbd stop
 		;;
@@ -26,6 +28,7 @@ case $1 in
 	restart|force-reload)
 		/etc/init.d/nmbd "$1"
 		/etc/init.d/smbd "$1"
+		/etc/init.d/samba-ad-dc "$1"
 		;;
 	status)
 		status=0
@@ -34,6 +37,7 @@ case $1 in
 			/etc/init.d/nmbd status || status=$?
 		fi
 		/etc/init.d/smbd status || status=$?
+		/etc/init.d/samba-ad-dc status || status=$?
 		exit $status
 		;;
 	*)

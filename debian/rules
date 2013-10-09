@@ -150,6 +150,7 @@ override_dh_installinit:
 ifneq (,$(filter samba, $(shell dh_listpackages)))
 	dh_installinit -psamba --name smbd
 	dh_installinit -psamba --name nmbd
+	dh_installinit -psamba --name samba-ad-dc
 	dh_installinit -psamba --noscripts
 	dh_installinit -psamba --no-start --name reload-smbd
 endif

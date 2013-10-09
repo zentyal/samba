@@ -52,7 +52,7 @@ case "$1" in
 		fi
 		log_daemon_msg "Stopping Samba AD DC daemon" "samba"
 
-		start-stop-daemon --stop --quiet --name samba $SAMBAPID
+		start-stop-daemon --stop --quiet --pidfile $SAMBAPID
 		# Wait a little and remove stale PID file
 		sleep 1
 		if [ -f $SAMBAPID ] && ! ps h `cat $SAMBAPID` > /dev/null

@@ -11,6 +11,8 @@
 
 set -e
 
+# start nmbd, smbd and samba-ad-dc unconditionally
+# the init scripts themselves check if they are needed or not
 case $1 in
 	start)
 		/etc/init.d/nmbd start

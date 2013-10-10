@@ -13,11 +13,6 @@ TODOs before upload to unstable
   - openchange
   - evolution-mapi
 
-- merge inetd removal from samba 3.6 branch
-
-- merge init-script changes from samba 3.6 branch, taking into account the
-  'samba' daemon
-
 Other TODOs
 
 - handle ad-dc stuff

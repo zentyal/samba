@@ -10,6 +10,7 @@ TODOs before upload to unstable
 - investigate impact of changes to libraries to reverse dependencies and plan
   transitions (if there are any)
   - sssd
+    fixed in git (#725992)
   - openchange
   - evolution-mapi
 

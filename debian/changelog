@@ -1,4 +1,6 @@
-samba (2:4.0.10+dfsg-1) UNRELEASED; urgency=low
+samba (2:4.0.10+dfsg-1) experimental; urgency=low
+
+  * Team upload.
 
   [ Ivo De Decker ]
   * Update vcs urls to point to samba instead of samba4.
@@ -11,7 +13,7 @@ samba (2:4.0.10+dfsg-1) UNRELEASED; urgency=low
   * Add lintian overrides for another set of wrong lintian errors for the
     NSS modules.
 
- -- Ivo De Decker <ivo.dedecker@ugent.be>  Sun, 22 Sep 2013 20:16:06 +0200
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Thu, 10 Oct 2013 21:56:08 +0200
 
 samba (2:4.0.9+dfsg-1) experimental; urgency=low
 

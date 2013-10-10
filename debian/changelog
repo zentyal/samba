@@ -1015,6 +1015,46 @@ samba4 (3.9.0+SVN12312-1) unstable; urgency=low
 
  -- Jelmer Vernooij <jelmer@samba.org>  Mon, 27 Jun 2005 11:25:57 +0200
 
+samba (2:3.6.19-1) unstable; urgency=low
+
+  * Team upload.
+  * New upstream release
+
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Wed, 25 Sep 2013 20:01:48 +0200
+
+samba (2:3.6.18-1) unstable; urgency=low
+
+  * Team upload.
+
+  [ Steve Langasek ]
+  * Split the samba init script into nmbd and smbd init scripts, for better
+    alignment with how init systems other than sysvinit work.  This also
+    drops the override of the arguments to update-rc.d in debian/rules,
+    no longer needed in the post-insserv world.
+  * Add upstart jobs from Ubuntu for smbd, nmbd, and winbind.
+
+  [ Ivo De Decker ]
+  * New upstream release
+
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Tue, 20 Aug 2013 22:06:45 +0200
+
+samba (2:3.6.17-1) unstable; urgency=high
+
+  * Team upload.
+  * New upstream security release. Closes: #718781
+    Fixes CVE-2013-4124: Denial of service - CPU loop and memory allocation
+
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Mon, 05 Aug 2013 13:46:23 +0200
+
+samba (2:3.6.16-2) unstable; urgency=high
+
+  * Team upload.
+  * Make build-dep on libtevent-dev explicit.
+  * Fix waf-as-source.patch to make sure unpacking works in recent build
+    environment. Closes: #716932 
+
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Tue, 16 Jul 2013 22:01:04 +0200
+
 samba (2:3.6.16-1) unstable; urgency=low
 
   * Team upload.

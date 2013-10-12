@@ -4,7 +4,6 @@ Priority: optional
 Maintainer: Debian Samba Maintainers <pkg-samba-maint@lists.alioth.debian.org>
 Uploaders: Steve Langasek <vorlon@debian.org>,
            Christian Perrier <bubulle@debian.org>,
-           Noèl Köthe <noel@debian.org>,
            Jelmer Vernooij <jelmer@debian.org>,
            Steinar H. Gunderson <sesse@debian.org>,
 Homepage: http://www.samba.org

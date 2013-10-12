@@ -1,6 +1,7 @@
 samba (2:4.0.10+dfsg-2) UNRELEASED; urgency=low
 
   * Remove Noël from uploaders. Thanks for you work on the samba packages.
+  * Add myself to uploaders.
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Sat, 12 Oct 2013 10:57:35 +0200
 

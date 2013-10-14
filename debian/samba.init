@@ -9,8 +9,6 @@
 # Short-Description: ensure Samba daemons are started (nmbd and smbd)
 ### END INIT INFO
 
-set -e
-
 # start nmbd, smbd and samba-ad-dc unconditionally
 # the init scripts themselves check if they are needed or not
 case $1 in

@@ -1,6 +1,7 @@
 #! /bin/bash
 
 set -e
+umask 022
 
 # this could be done with dpkg-parsechangelog -S, but that only works since
 # dpkg 1.17, so we want to avoid this to enable backports

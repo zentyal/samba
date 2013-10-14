@@ -35,11 +35,15 @@ case $1 in
 	status)
 		status=0
 		NMBD_DISABLED=`testparm -s --parameter-name='disable netbios' 2>/dev/null`
-		if [ "$NMBD_DISABLED" != "Yes" ]; then
-			/etc/init.d/nmbd status || status=$?
+		SERVER_ROLE=`samba-tool testparm --parameter-name="server role"  2>/dev/null | tail -1`
+		if [ "$SERVER_ROLE" != "active directory domain controller" ]; then
+			if [ "$NMBD_DISABLED" != "Yes" ]; then
+				/etc/init.d/nmbd status || status=$?
+			fi
+			/etc/init.d/smbd status || status=$?
+		else
+			/etc/init.d/samba-ad-dc status || status=$?
 		fi
-		/etc/init.d/smbd status || status=$?
-		/etc/init.d/samba-ad-dc status || status=$?
 		exit $status
 		;;
 	*)

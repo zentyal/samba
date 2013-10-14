@@ -5,8 +5,7 @@ Maintainer: Debian Samba Maintainers <pkg-samba-maint@lists.alioth.debian.org>
 Uploaders: Steve Langasek <vorlon@debian.org>,
            Christian Perrier <bubulle@debian.org>,
            Jelmer Vernooij <jelmer@debian.org>,
-           Steinar H. Gunderson <sesse@debian.org>,
-           Ivo De Decker <ivo.dedecker@ugent.be>,
+           Ivo De Decker <ivo.dedecker@ugent.be>
 Homepage: http://www.samba.org
 Standards-Version: 3.9.4
 Build-Depends: bison,

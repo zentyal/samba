@@ -1,5 +1,6 @@
 samba (2:4.0.10+dfsg-3) UNRELEASED; urgency=low
 
+  * Remove Sesse from uploaders. Thanks for your work on samba4.
   * Include /etc/pam.d/samba in samba-common. It got lost somewhere in the
     samba4 merge. Closes: #726183
   * Remove unused alternatives links on upgrade in samba-common-bin.prerm.
@@ -12,7 +13,7 @@ samba (2:4.0.10+dfsg-2) unstable; urgency=low
 
   * First upload the unified samba 4.x package to unstable.
     Thanks to everyone who worked on these packages all these years.
-  * Remove Noël from uploaders. Thanks for you work on the samba packages.
+  * Remove Noël from uploaders. Thanks for your work on the samba packages
   * Add myself to uploaders.
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Sat, 12 Oct 2013 11:05:55 +0200

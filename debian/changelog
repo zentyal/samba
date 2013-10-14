@@ -8,6 +8,7 @@ samba (2:4.0.10+dfsg-3) UNRELEASED; urgency=low
   * Don't fail on errors in samba init script. Closes: #726326
   * Fix umask in make_shlibs to avoid lintian error
     control-file-has-bad-permissions.
+  * Enable verbose build log.
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Mon, 14 Oct 2013 19:33:04 +0200
 

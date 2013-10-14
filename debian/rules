@@ -16,7 +16,7 @@ LDB_NEXT_VERSION = $(shell python -c "x = '$(LDB_VERSION)'.split('.'); x[-1] = s
 LDB_DEPENDS = "libldb1 (<< 1:$(LDB_NEXT_VERSION)~), libldb1 (>> 1:$(LDB_VERSION)~)"
 export PYTHON=$(shell which `pyversions -d`)
 export PYTHON_CONFIG="$(PYTHON)-config"
-WAF = $(PYTHON) ./buildtools/bin/waf
+WAF = $(PYTHON) ./buildtools/bin/waf -v
 
 # turn DEB_BUILD_OPTIONS='foo,bar' into DEB_BUILD_OPT_FOO and DEB_BUILD_OPT_BAR
 d_b_o:=$(shell echo "$$DEB_BUILD_OPTIONS"|sed 's/[^-[:alnum:]]/ /g'|tr a-z A-Z)

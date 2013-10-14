@@ -140,6 +140,9 @@ override_dh_install:
 override_dh_python2:
 	dh_python2 --no-guessing-versions
 
+override_dh_installpam:
+	dh_installpam --name=samba
+
 get-packaged-orig-source:
 	./debian/build-orig.sh
 

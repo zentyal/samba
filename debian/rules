@@ -22,6 +22,10 @@ WAF = $(PYTHON) ./buildtools/bin/waf -v
 d_b_o:=$(shell echo "$$DEB_BUILD_OPTIONS"|sed 's/[^-[:alnum:]]/ /g'|tr a-z A-Z)
 $(foreach o, $(d_b_o), $(eval DEB_BUILD_OPT_$o := 1))
 
+# for xsltproc wrapper
+export PATH:=$(CURDIR)/debian/bin:$(PATH)
+export SOURCE_DATE=$(shell debian/get_source_changedate.pl)
+
 ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
 WAF += -j $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
 endif

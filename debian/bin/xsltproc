@@ -1,0 +1,19 @@
+#! /bin/sh
+
+# This is an ugly workaround to get the manpages on every architecture to be
+# identical. This hack forces the date in all of the builds to be the date of
+# the latest source change in the changelog.
+# see http://bugs.debian.org/726314
+
+export TZ=UTC
+
+FAKETIME=`which faketime`
+
+if [ -x "$FAKETIME" -a -n "$SOURCE_DATE" ]
+then
+	$FAKETIME "$SOURCE_DATE" /usr/bin/xsltproc "$@"
+else
+	/usr/bin/xsltproc "$@"
+fi
+
+

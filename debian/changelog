@@ -1,5 +1,6 @@
 samba (2:4.0.10+dfsg-3) UNRELEASED; urgency=low
 
+  [ Ivo De Decker ]
   * Remove Sesse from uploaders. Thanks for your work on samba4.
   * Include /etc/pam.d/samba in samba-common. It got lost somewhere in the
     samba4 merge. Closes: #726183
@@ -8,6 +9,8 @@ samba (2:4.0.10+dfsg-3) UNRELEASED; urgency=low
   * Fix umask in make_shlibs to avoid lintian error
     control-file-has-bad-permissions.
   * Enable verbose build log.
+  * Run xsltproc under faketime to get the same date for manpages on different
+    architectures in Multi-Arch: same packages. Closes: #726314
 
   [ Steve Langasek ]
   * Don't fail on errors from testparm in the samba init script.

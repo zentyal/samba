@@ -9,6 +9,8 @@
 # Short-Description: ensure Samba daemons are started (nmbd and smbd)
 ### END INIT INFO
 
+set -e
+
 # start nmbd, smbd and samba-ad-dc unconditionally
 # the init scripts themselves check if they are needed or not
 case $1 in
@@ -32,8 +34,8 @@ case $1 in
 		;;
 	status)
 		status=0
-		NMBD_DISABLED=`testparm -s --parameter-name='disable netbios' 2>/dev/null`
-		SERVER_ROLE=`samba-tool testparm --parameter-name="server role"  2>/dev/null | tail -1`
+		NMBD_DISABLED=`testparm -s --parameter-name='disable netbios' 2>/dev/null || true`
+		SERVER_ROLE=`samba-tool testparm --parameter-name="server role"  2>/dev/null | tail -1 || true`
 		if [ "$SERVER_ROLE" != "active directory domain controller" ]; then
 			if [ "$NMBD_DISABLED" != "Yes" ]; then
 				/etc/init.d/nmbd status || status=$?

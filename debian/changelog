@@ -11,6 +11,8 @@ samba (2:4.0.10+dfsg-3) UNRELEASED; urgency=low
   * Enable verbose build log.
   * Run xsltproc under faketime to get the same date for manpages on different
     architectures in Multi-Arch: same packages. Closes: #726314
+  * Restore build-dep on libcups2-dev, which got lost in the samba4 merge.
+    This should restore the cups printing functionality. Closes: #726726
 
   [ Steve Langasek ]
   * Don't fail on errors from testparm in the samba init script.

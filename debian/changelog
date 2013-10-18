@@ -15,6 +15,7 @@ samba (2:4.0.10+dfsg-3) UNRELEASED; urgency=low
     This should restore the cups printing functionality. Closes: #726726
   * Add wrapper for cups-config to filter out
     -L/usr/lib/${DEB_HOST_MULTIARCH}, to work around build-failure.
+  * Also add other build-deps which were present in samba 2:3.6.19-1.
 
   [ Steve Langasek ]
   * Don't fail on errors from testparm in the samba init script.

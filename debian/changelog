@@ -16,6 +16,8 @@ samba (2:4.0.10+dfsg-3) UNRELEASED; urgency=low
   * Add wrapper for cups-config to filter out
     -L/usr/lib/${DEB_HOST_MULTIARCH}, to work around build-failure.
   * Also add other build-deps which were present in samba 2:3.6.19-1.
+  * if the same tdb file is present in /var/lib/samba and
+    /var/lib/samba/private, abort the upgrade to work around #726472 for now.
 
   [ Steve Langasek ]
   * Don't fail on errors from testparm in the samba init script.

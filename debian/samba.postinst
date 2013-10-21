@@ -42,33 +42,26 @@ then
 fi
 
 # Move files to private subdir now fhs patch is finally gone
-if dpkg --compare-versions "$2" lt-nl 2:4.0.6 \
-	&& [ -e /var/lib/samba/schannel_store.tdb ] \
-	&& ! [ -e /var/lib/samba/private/schannel_store.tdb ]
+if dpkg --compare-versions "$2" lt-nl 2:4.0.6
 then
-	mv /var/lib/samba/schannel_store.tdb /var/lib/samba/private/schannel_store.tdb
+	for file in passdb.tdb secrets.tdb schannel_store.tdb idmap2.tdb
+	do
+		if [ -e /var/lib/samba/$file ]
+		then
+			if [ -e /var/lib/samba/private/$file ]
+			then
+				echo $file exists in /var/lib/samba and /var/lib/samba/private, aborting samba postinst
+				echo rename one of them to allow the upgrade to continue
+				echo http://bugs.debian.org/726472
+				ls -al /var/lib/samba /var/lib/samba/private
+				exit 1
+			else
+				mv /var/lib/samba/$file /var/lib/samba/private/$file
+			fi
+		fi
+	done
 fi
 
-if dpkg --compare-versions "$2" lt-nl 2:4.0.6 \
-	&& [ -e /var/lib/samba/idmap2.tdb ] \
-	&& ! [ -e /var/lib/samba/private/idmap2.tdb ]
-then
-	mv /var/lib/samba/idmap2.tdb /var/lib/samba/private/idmap2.tdb
-fi
-
-if dpkg --compare-versions "$2" lt-nl 2:4.0.6 \
-	&& [ -e /var/lib/samba/passdb.tdb ] \
-	&& ! [ -e /var/lib/samba/private/passdb.tdb ]
-then
-	mv /var/lib/samba/passdb.tdb /var/lib/samba/private/passdb.tdb
-fi
-
-if dpkg --compare-versions "$2" lt-nl 2:4.0.6 \
-	&& [ -e /var/lib/samba/secrets.tdb ] \
-	&& ! [ -e /var/lib/samba/private/secrets.tdb ]
-then
-	mv /var/lib/samba/secrets.tdb /var/lib/samba/private/secrets.tdb
-fi
 
 # add the sambashare group
 if ! getent group sambashare > /dev/null 2>&1

@@ -13,6 +13,8 @@ samba (2:4.0.10+dfsg-3) UNRELEASED; urgency=low
     architectures in Multi-Arch: same packages. Closes: #726314
   * Restore build-dep on libcups2-dev, which got lost in the samba4 merge.
     This should restore the cups printing functionality. Closes: #726726
+  * Add wrapper for cups-config to filter out
+    -L/usr/lib/${DEB_HOST_MULTIARCH}, to work around build-failure.
 
   [ Steve Langasek ]
   * Don't fail on errors from testparm in the samba init script.

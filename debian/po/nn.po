@@ -6,8 +6,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_nn\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2013-06-19 21:52+0200\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2013-10-22 20:32+0200\n"
 "PO-Revision-Date: 2007-03-17 18:35+0100\n"
 "Last-Translator: Håvard Korsvoll <korsvoll@gmail.com>\n"
 "Language-Team: Norwegian nynorsk <i18n-nn@lister.ping.uio.no>\n"
@@ -109,12 +109,6 @@ msgstr ""
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "A password can be set later by running, as root:"
-msgstr ""
-
-#. Type: password
-#. Description
-#: ../samba-ad-dc.templates:4001
-msgid " $ samba-tool user setpassword administrator"
 msgstr ""
 
 #. Type: password

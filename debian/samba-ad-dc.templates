@@ -36,6 +36,7 @@ _Description: Realm name:
 
 Template: samba4/admin_password
 Type: password
+#flag:translate!:4
 _Description: New password for the Samba "administrator" user:
  If this field is left blank, a random password will be generated.
  .

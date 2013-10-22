@@ -55,7 +55,15 @@ then
 				echo http://bugs.debian.org/726472
 				ls -al /var/lib/samba /var/lib/samba/private
 				exit 1
-			else
+			fi
+		fi
+	done
+	for file in passdb.tdb secrets.tdb schannel_store.tdb idmap2.tdb
+	do
+		if [ -e /var/lib/samba/$file ]
+		then
+			if ! [ -e /var/lib/samba/private/$file ]
+			then
 				mv /var/lib/samba/$file /var/lib/samba/private/$file
 			fi
 		fi

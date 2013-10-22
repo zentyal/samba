@@ -22,6 +22,8 @@ samba (2:4.0.10+dfsg-3) UNRELEASED; urgency=low
   [ Steve Langasek ]
   * Don't fail on errors from testparm in the samba init script.
     Closes: #726326
+  * debian/patches/bug_221618_precise-64bit-prototype.patch: adjust the LFS
+    handling to work independently of header include order.  Closes: #727065.
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Mon, 14 Oct 2013 19:33:04 +0200
 

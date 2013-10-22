@@ -1,4 +1,4 @@
-samba (2:4.0.10+dfsg-3) UNRELEASED; urgency=low
+samba (2:4.0.10+dfsg-3) unstable; urgency=low
 
   [ Ivo De Decker ]
   * Remove Sesse from uploaders. Thanks for your work on samba4.
@@ -26,7 +26,7 @@ samba (2:4.0.10+dfsg-3) UNRELEASED; urgency=low
   * debian/patches/bug_221618_precise-64bit-prototype.patch: adjust the LFS
     handling to work independently of header include order.  Closes: #727065.
 
- -- Ivo De Decker <ivo.dedecker@ugent.be>  Mon, 14 Oct 2013 19:33:04 +0200
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Tue, 22 Oct 2013 08:10:31 +0200
 
 samba (2:4.0.10+dfsg-2) unstable; urgency=low
 

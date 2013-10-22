@@ -18,6 +18,7 @@ samba (2:4.0.10+dfsg-3) UNRELEASED; urgency=low
   * Also add other build-deps which were present in samba 2:3.6.19-1.
   * if the same tdb file is present in /var/lib/samba and
     /var/lib/samba/private, abort the upgrade to work around #726472 for now.
+  * Document swat removal. Closes: #726751
 
   [ Steve Langasek ]
   * Don't fail on errors from testparm in the samba init script.

@@ -1,3 +1,18 @@
+samba (2:4.0.10+dfsg-3) unstable; urgency=low
+
+    The SWAT package is no longer available.
+
+    Upstream support for SWAT (Samba Web Administration Tool) was removed in
+    samba 4.1.0. As a result, swat is no longer shipped in the Debian Samba
+    packages. Unfortunately, there is currently no replacement.
+
+    Details why SWAT has been removed upstream can be found on the
+    samba-technical mailing list:
+
+    https://lists.samba.org/archive/samba-technical/2013-February/090572.html
+
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Tue, 22 Oct 2013 07:52:54 +0200
+
 samba (2:3.6.5-2) unstable; urgency=low
 
     NSS modules have been split out from libpam-winbind to

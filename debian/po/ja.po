@@ -16,7 +16,7 @@ msgstr ""
 "Project-Id-Version: samba4\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2013-10-22 20:32+0200\n"
-"PO-Revision-Date: 2012-02-15 22:49+0900\n"
+"PO-Revision-Date: 2013-10-23 23:04+0900\n"
 "Last-Translator: Kenshi Muto <kmuto@debian.org>\n"
 "Language-Team: Japanese <debian-japanese@lists.debian.org>\n"
 "Language: ja\n"
@@ -89,6 +89,8 @@ msgid ""
 "If no server role is specified, the Samba server will not be provisioned, so "
 "this can be done manually by the user."
 msgstr ""
+"サーバロールが指定されない場合、Samba サーバは供給されず、ユーザが手動でこれ"
+"を行うことになります。"
 
 #. Type: string
 #. Description
@@ -116,37 +118,37 @@ msgstr "通常これは、あなたの DNS ホスト名の大文字版です。"
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "New password for the Samba \"administrator\" user:"
-msgstr ""
+msgstr "Samba の \"administrator\" ユーザの新しいパスワード:"
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "If this field is left blank, a random password will be generated."
-msgstr ""
+msgstr "この欄を空のままにすると、ランダムなパスワードが生成されます。"
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "A password can be set later by running, as root:"
-msgstr ""
+msgstr "root で次のように実行することで、パスワードを後から設定できます:"
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:5001
 msgid "Repeat password for the Samba \"administrator\" user:"
-msgstr ""
+msgstr "Samba の \"administrator\" ユーザのパスワードの繰り返し:"
 
 #. Type: error
 #. Description
 #: ../samba-ad-dc.templates:6001
 msgid "Password input error"
-msgstr ""
+msgstr "パスワード入力エラー"
 
 #. Type: error
 #. Description
 #: ../samba-ad-dc.templates:6001
 msgid "The two passwords you entered were not the same. Please try again."
-msgstr ""
+msgstr "入力した 2 つのパスワードが一致しません。再度試してください。"
 
 #. Type: title
 #. Description
@@ -239,76 +241,5 @@ msgstr ""
 "ドでブラウジングされたときに使われるデフォルトのワークグループ、そして"
 "\"security=domain\" 設定が使われたときのドメイン名を制御します。"
 
-#~ msgid "Use password encryption?"
-#~ msgstr "パスワードの暗号化を使いますか?"
-
-#~ msgid ""
-#~ "All recent Windows clients communicate with SMB/CIFS servers using "
-#~ "encrypted passwords. If you want to use clear text passwords you will "
-#~ "need to change a parameter in your Windows registry."
-#~ msgstr ""
-#~ "ほとんどの Windows クライアントは暗号化されたパスワードを使って SMB/CIFS "
-#~ "サーバとやり取りします。クリアテキストパスワードを使いたい場合は、あなた"
-#~ "の Windows のレジストリにあるパラメータを変更する必要があります。"
-
-#~ msgid ""
-#~ "Enabling this option is highly recommended as support for plain text "
-#~ "passwords is no longer maintained in Microsoft Windows products. If you "
-#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
-#~ "passwords in there for each user using the smbpasswd command."
-#~ msgstr ""
-#~ "プレインテキストパスワードのサポートはもう Microsoft Windows 製品では保守"
-#~ "されていないので、ここで「はい」と答えることを強くお勧めします。この場合、"
-#~ "有効な /etc/samba/smbpasswd ファイルがあることを確認し、各ユーザのパスワー"
-#~ "ドは smbpasswd コマンドを使って設定してください。"
-
-#~ msgid "Samba server"
-#~ msgstr "Samba サーバ"
-
-#~ msgid "daemons"
-#~ msgstr "デーモン"
-
-#~ msgid "inetd"
-#~ msgstr "inetd"
-
-#~ msgid "How do you want to run Samba?"
-#~ msgstr "どのように Samba を実行したいですか?"
-
-#~ msgid ""
-#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
-#~ "as a daemon is the recommended approach."
-#~ msgstr ""
-#~ "Samba デーモン smbd は通常のデーモンとしての実行または inetd からの実行が"
-#~ "できます。デーモンとして実行するのがお勧めの手段です。"
-
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr ""
-#~ "Samba パスワードデータベース /var/lib/samba/passdb.tdb を作成しますか?"
-
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "Windows のほとんどのバージョンのデフォルトとの互換性のために、Samba を暗号"
-#~ "化パスワードを使うように設定する必要があります。これはユーザのパスワード"
-#~ "を /etc/passwd とは別のファイルに格納することを必要とします。このファイル"
-#~ "は自動的に作成することができますが、パスワードは手動で (smbpasswd を使っ"
-#~ "て) 追加しなければならず、将来に渡って最新状態を保ち続けるよう整えておく必"
-#~ "要があります。"
-
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "このファイルを作成しない場合、プレインテキストパスワードを使うよう Samba "
-#~ "(およびおそらくあなたのクライアントマシン) の再設定が必要です。"
-
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "詳細については、samba-doc パッケージにある /usr/share/doc/samba-doc/"
-#~ "htmldocs/ENCRYPTION.html を参照してください。"
+#~ msgid " $ samba-tool user setpassword administrator"
+#~ msgstr " $ samba-tool user setpassword administrator"

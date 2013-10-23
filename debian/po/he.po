@@ -1,16 +1,16 @@
-# translation of samba4-4.0.0~alpha17-he.po to Hebrew
+# translation of samba2_4.0.10+dfsg-3-he.po to Hebrew
 # translation of PACKAGE.
 # Copyright (C) 2007 THE PACKAGE'S COPYRIGHT HOLDER
 # This file is distributed under the same license as the PACKAGE package.
 #
 # Katriel Traum <katriel.traum@gmail.com>, 2007.
-# Omer Zak <w1@zak.co.il>, 2012.
+# Omer Zak <w1@zak.co.il>, 2012, 2013.
 msgid ""
 msgstr ""
-"Project-Id-Version: samba4-4.0.0~alpha17-he\n"
+"Project-Id-Version: samba2_4.0.10+dfsg-3-he\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2013-10-22 20:32+0200\n"
-"PO-Revision-Date: 2012-02-11 22:21+0200\n"
+"PO-Revision-Date: 2013-10-23 09:52+0300\n"
 "Last-Translator: Omer Zak <w1@zak.co.il>\n"
 "Language-Team: Hebrew <debian-hebrew-common@lists.alioth.debian.org>\n"
 "Language: he\n"
@@ -84,6 +84,7 @@ msgid ""
 "If no server role is specified, the Samba server will not be provisioned, so "
 "this can be done manually by the user."
 msgstr ""
+"אם לא הוגדר סוג השרת, לא יסופק שרת Samba, כך שהמשתמש יוכל לדאוג לזה ידנית."
 
 #. Type: string
 #. Description
@@ -109,37 +110,37 @@ msgstr "בדרך כלל זו גירסא באותיות רישיות של שם מ
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "New password for the Samba \"administrator\" user:"
-msgstr ""
+msgstr "סיסמה חדשה עבור משתמש Samba‏ \"administrator\":"
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "If this field is left blank, a random password will be generated."
-msgstr ""
+msgstr "אם שדה זה לא ימולא, תיווצר סיסמה אקראית."
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "A password can be set later by running, as root:"
-msgstr ""
+msgstr "ניתן לשנות אחר כך את הסיסמה על ידי הרצה כ-root:"
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:5001
 msgid "Repeat password for the Samba \"administrator\" user:"
-msgstr ""
+msgstr "חזור על הסיסמה עבור משתמש Samba‏ \"administrator\":"
 
 #. Type: error
 #. Description
 #: ../samba-ad-dc.templates:6001
 msgid "Password input error"
-msgstr ""
+msgstr "שגיאת קלט בסיסמה"
 
 #. Type: error
 #. Description
 #: ../samba-ad-dc.templates:6001
 msgid "The two passwords you entered were not the same. Please try again."
-msgstr ""
+msgstr "שתי הסיסמאות שהכנסת אינן זהות. נא לנסות שוב."
 
 #. Type: title
 #. Description
@@ -230,75 +231,5 @@ msgstr ""
 "העבודה שישתמשו בה בזמן דפדוף באמצעות ממשקים שונים, ושם המתחם (Domain) בעת "
 "שימוש באפשרות security=domain."
 
-#~ msgid "Use password encryption?"
-#~ msgstr "האם להשתמש בססמאות מוצפנות?"
-
-#~ msgid ""
-#~ "All recent Windows clients communicate with SMB/CIFS servers using "
-#~ "encrypted passwords. If you want to use clear text passwords you will "
-#~ "need to change a parameter in your Windows registry."
-#~ msgstr ""
-#~ "כל הלקוחות החדשים מסוג-Windows מתקשרים עם שרתי SMB/CIFS באמצעות סיסמאות "
-#~ "מוצפנות. אם ברצונך להשתמש בסיסמאות שאינן מוצפנות, יהיה עליך לשנות פרמטר ב-"
-#~ "Registry של מערכת ה-Windows שלך."
-
-#~ msgid ""
-#~ "Enabling this option is highly recommended as support for plain text "
-#~ "passwords is no longer maintained in Microsoft Windows products. If you "
-#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
-#~ "passwords in there for each user using the smbpasswd command."
-#~ msgstr ""
-#~ "הפעלת אופציה זו מומלצת מאוד מכיוון שמיקרוסופט יותר אינה מתחזקת את התמיכה "
-#~ "בסיסמאות לא מוצפנות במוצרי Windows שלה. אם הינך מפעיל אופציה זו, וודא כי "
-#~ "קיים הקובץ /etc/samba/smbpasswd, וכי הוא תקין. בנוסף, יש לדאוג שהקובץ "
-#~ "יכיל סיסמה בעבור כל משתמש בעזרת שימוש בפקודה smbpasswd."
-
-#~ msgid "Samba server"
-#~ msgstr "שרת סמבה"
-
-#~ msgid "daemons"
-#~ msgstr "תהליכי רקע"
-
-#~ msgid "inetd"
-#~ msgstr "inetd"
-
-#~ msgid "How do you want to run Samba?"
-#~ msgstr "כיצד תרצה להריץ את סמבה?"
-
-#~ msgid ""
-#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
-#~ "as a daemon is the recommended approach."
-#~ msgstr ""
-#~ "תהליך הרקע של סמבה שנקרא smbd יכול לרוץ כתהליך רקע רגיל או דרך inetd. "
-#~ "ריצה כתהליך רקע רגיל היא השיטה המומלצת."
-
-#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
-#~ msgstr ""
-#~ "האם ליצור מסד נתונים של ססמאות עבור שרת הסמבה, בקובץ /var/lib/samba/"
-#~ "passdb.tdb?"
-
-#~ msgid ""
-#~ "To be compatible with the defaults in most versions of Windows, Samba "
-#~ "must be configured to use encrypted passwords.  This requires user "
-#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
-#~ "can be created automatically, but the passwords must be added manually by "
-#~ "running smbpasswd and be kept up-to-date in the future."
-#~ msgstr ""
-#~ "כדי להתאים לברירת המחדל ברוב הגרסאות של Windows, על Samba להיות מוגדרת "
-#~ "להשתמש בסיסמאות מוצפנות. אפשרות זו מצריכה אחסון של סיסמאות בקובץ שונה מ /"
-#~ "etc/passwd. ניתן ליצור קובץ זה בצורה אוטומטית, אך יש צורך להוסיף את "
-#~ "הסיסמאות ולתחזק אותן בעתיד בצורה ידנית בעזרת הפקודה smbpasswd."
-
-#~ msgid ""
-#~ "If you do not create it, you will have to reconfigure Samba (and probably "
-#~ "your client machines) to use plaintext passwords."
-#~ msgstr ""
-#~ "אם לא תיצור קובץ זה, יהיה עליך לקנפג מחדש את סמבה (וסביר להניח שגם של כל "
-#~ "לקוחותיו) כדי להשתמש בססמאות שאינן מוצפנות."
-
-#~ msgid ""
-#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
-#~ "html from the samba-doc package for more details."
-#~ msgstr ""
-#~ "ראה מידע נוסף בקובץ /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-"
-#~ "Guide/pwencrypt.html מתוך החבילה samba-doc."
+#~ msgid " $ samba-tool user setpassword administrator"
+#~ msgstr " $ samba-tool user setpassword administrator"

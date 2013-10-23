@@ -9,15 +9,14 @@ msgstr ""
 "Project-Id-Version: samba4\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2013-10-22 20:32+0200\n"
-"PO-Revision-Date: 2011-10-11 01:13+0100\n"
+"PO-Revision-Date: 2013-10-23 09:06+0100\n"
 "Last-Translator: Martin Bagge / brother <brother@bsnet.se>\n"
 "Language-Team: Swedish <debian-l10n-swedish@lists.debian.org>\n"
-"Language: sv\n"
+"Language: Swedish\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Poedit-Language: Swedish\n"
-"X-Poedit-Country: Sweden\n"
+"X-Generator: Poedit 1.5.4\n"
 
 #. Type: boolean
 #. Description
@@ -84,6 +83,8 @@ msgid ""
 "If no server role is specified, the Samba server will not be provisioned, so "
 "this can be done manually by the user."
 msgstr ""
+"Om ingen serverroll anges kommer sambaservern inte att förberedas, detta kan "
+"göras manuellt av användaren."
 
 #. Type: string
 #. Description
@@ -110,37 +111,37 @@ msgstr "Vanligen är detta DNS-värdnamnet i stora bokstäver."
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "New password for the Samba \"administrator\" user:"
-msgstr ""
+msgstr "Nytt lösenord för Samba-användaren \"administrator\":"
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "If this field is left blank, a random password will be generated."
-msgstr ""
+msgstr "Om fältet lämnas tomt slumpas ett lösenord fram."
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "A password can be set later by running, as root:"
-msgstr ""
+msgstr "Lösenordet kan anges senare via rot-exekvering:"
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:5001
 msgid "Repeat password for the Samba \"administrator\" user:"
-msgstr ""
+msgstr "Upprepa lösenordet för Samba-användaren \"administrator\":"
 
 #. Type: error
 #. Description
 #: ../samba-ad-dc.templates:6001
 msgid "Password input error"
-msgstr ""
+msgstr "Fel vid avgivande av lösenord"
 
 #. Type: error
 #. Description
 #: ../samba-ad-dc.templates:6001
 msgid "The two passwords you entered were not the same. Please try again."
-msgstr ""
+msgstr "De båda lösenorden som angavs stämde inte överrens. Försök igen."
 
 #. Type: title
 #. Description
@@ -234,6 +235,9 @@ msgstr ""
 "inställningen anger vilken standardgrupp som kommer att sökas igenom med de "
 "klientprogram som finns och detta kommer att vara domännamnet som används "
 "tillsammans med inställningen \"security=domain\"."
+
+#~ msgid " $ samba-tool user setpassword administrator"
+#~ msgstr " $ samba-tool user setpassword administrator"
 
 #~ msgid "Use password encryption?"
 #~ msgstr "Använd lösenordskryptering?"

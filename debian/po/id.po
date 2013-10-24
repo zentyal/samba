@@ -4,6 +4,7 @@
 #
 # Arief S Fitrianto <arief@gurame.fisika.ui.ac.id>, 2008.
 # Mahyuddin Susanto <udienz@gmail.com>, 2012.
+# Al Qalit <qal.smith@gmail.com>, 2013.
 #
 msgid ""
 msgstr ""
@@ -11,7 +12,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2013-10-22 20:32+0200\n"
 "PO-Revision-Date: 2012-02-16 04:48+0700\n"
-"Last-Translator: Mahyuddin Susanto <udienz@gmail.com>\n"
+"Last-Translator: Al Qalit <qal.smith@gmail.com>\n"
 "Language-Team: Debian Indonesia Translator <debian-l10n-indonesian@lists."
 "debian.org>\n"
 "Language: \n"
@@ -86,6 +87,8 @@ msgid ""
 "If no server role is specified, the Samba server will not be provisioned, so "
 "this can be done manually by the user."
 msgstr ""
+"Jika tidak ada aturan server yang ditentukan. Server Samba tidak akan "
+"ditetapkan, jadiini bisa dikerjakan secara manual oleh pengguna."
 
 #. Type: string
 #. Description
@@ -113,37 +116,37 @@ msgstr "Biasanya ini adalah versi huruf besar dari nama DNS host anda."
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "New password for the Samba \"administrator\" user:"
-msgstr ""
+msgstr "Kata sandi baru untuk pengguna \"administrator\" Samba:"
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "If this field is left blank, a random password will be generated."
-msgstr ""
+msgstr "Jika bagian ini kosong, sebuah kata sandi acak akan dihasilkan"
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "A password can be set later by running, as root:"
-msgstr ""
+msgstr "Kata sandi dapat diatur kemudian, dengan dijalankan oleh root:"
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:5001
 msgid "Repeat password for the Samba \"administrator\" user:"
-msgstr ""
+msgstr "Ulangi kata sandi untuk pengguna \"administrator\" Samba:"
 
 #. Type: error
 #. Description
 #: ../samba-ad-dc.templates:6001
 msgid "Password input error"
-msgstr ""
+msgstr "Kesalahan masukan kata sandi"
 
 #. Type: error
 #. Description
 #: ../samba-ad-dc.templates:6001
 msgid "The two passwords you entered were not the same. Please try again."
-msgstr ""
+msgstr "Dua kata sandi yang anda masukkan tidak sama. Mohon ulangi lagi."
 
 #. Type: title
 #. Description
@@ -235,6 +238,9 @@ msgstr ""
 "yang akan tampil jika digunakan sebagai server, workgrup bawaan akan "
 "digunakan ketika menjelajahi dengan berbagai frontends, dan nama doman "
 "digunakan dengan pengaturan \"security=domain\"."
+
+#~ msgid " $ samba-tool user setpassword administrator"
+#~ msgstr " $ samba-tool pengguna setpassword administrator"
 
 #~ msgid "Use password encryption?"
 #~ msgstr "Gunakan enkripsi sandi?"

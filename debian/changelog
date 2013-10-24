@@ -10,6 +10,7 @@ samba (2:4.0.10+dfsg-4) UNRELEASED; urgency=low
   * Japanese (Kenshi Muto).  Closes: #727218
   * Indonesian (Al Qalit).  Closes: #727543
   * Russian (Yuri Kozlov).  Closes: #727612
+  * Esperanto (Felipe Castro).  Closes: #727619
 
  -- Christian Perrier <bubulle@debian.org>  Tue, 22 Oct 2013 20:29:59 +0200
 

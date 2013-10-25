@@ -2,20 +2,20 @@
 # Copyright (C) 2011
 # This file is distributed under the same license as the samba4 package.
 #
-# Michał Kułach <michal.kulach@gmail.com>, 2012.
+# Michał Kułach <michal.kulach@gmail.com>, 2012, 2013.
 msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2013-10-22 20:32+0200\n"
-"PO-Revision-Date: 2012-02-11 19:28+0100\n"
+"PO-Revision-Date: 2013-10-24 23:05+0200\n"
 "Last-Translator: Michał Kułach <michal.kulach@gmail.com>\n"
 "Language-Team: Polish <debian-l10n-polish@lists.debian.org>\n"
-"Language: \n"
+"Language: pl\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: Lokalize 1.2\n"
+"X-Generator: Lokalize 1.4\n"
 "Plural-Forms: nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 "
 "|| n%100>=20) ? 1 : 2);\n"
 
@@ -23,7 +23,7 @@ msgstr ""
 #. Description
 #: ../samba-ad-dc.templates:1001
 msgid "Upgrade from Samba 3?"
-msgstr "Zaktualizować z Samby 3? "
+msgstr "Zaktualizować z Samby 3?"
 
 #. Type: boolean
 #. Description
@@ -85,6 +85,8 @@ msgid ""
 "If no server role is specified, the Samba server will not be provisioned, so "
 "this can be done manually by the user."
 msgstr ""
+"Jeśli rola serwera nie zostanie określona, to serwer Samby nie zostanie "
+"właściwie przygotowany - może to zostać wykonane ręcznie przez użytkownika,"
 
 #. Type: string
 #. Description
@@ -112,37 +114,37 @@ msgstr "Z reguły jest to pisana dużymi literami nazwa DNS komputera."
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "New password for the Samba \"administrator\" user:"
-msgstr ""
+msgstr "Nowe hasło dla użytkownika \"administrator\" Samby:"
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "If this field is left blank, a random password will be generated."
-msgstr ""
+msgstr "Jeśli to pole pozostanie puste, to zostanie wygenerowane losowe hasło."
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "A password can be set later by running, as root:"
-msgstr ""
+msgstr "Hasło można ustawić później, wykonując jako root:"
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:5001
 msgid "Repeat password for the Samba \"administrator\" user:"
-msgstr ""
+msgstr "Proszę wprowadzić hasło użytkownika \"administrator\" Samby ponownie:"
 
 #. Type: error
 #. Description
 #: ../samba-ad-dc.templates:6001
 msgid "Password input error"
-msgstr ""
+msgstr "Błąd wprowadzania hasła"
 
 #. Type: error
 #. Description
 #: ../samba-ad-dc.templates:6001
 msgid "The two passwords you entered were not the same. Please try again."
-msgstr ""
+msgstr "Wprowadzone hasła nie są identyczne. Proszę spróbować ponownie."
 
 #. Type: title
 #. Description
@@ -236,6 +238,9 @@ msgstr ""
 "w której pojawi się system, jeśli będzie użyty w roli serwera; domyślną "
 "grupę roboczą, która będzie użyta podczas przeglądania z poziomu różnych "
 "interfejsów oraz nazwę domeny używaną w ustawieniu \"security=domain\"."
+
+#~ msgid " $ samba-tool user setpassword administrator"
+#~ msgstr " $ samba-tool user setpassword administrator"
 
 #~ msgid "Use password encryption?"
 #~ msgstr "Czy używać szyfrowania haseł?"

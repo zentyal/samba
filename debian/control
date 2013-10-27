@@ -221,8 +221,8 @@ Description: command-line SMB/CIFS clients for Unix
 Package: samba-testsuite
 Architecture: any
 Recommends: subunit
-Replaces: samba-doc (<< 2:4.0.5~), samba-tools, samba4-testsuite
-Conflicts: samba-doc (<< 2:4.0.5~)
+Replaces: samba-doc (<< 2:4.0.5~), samba-tools, samba4-testsuite, samba-libs (<< 2:4.0.10+dfsg-4)
+Conflicts: samba-doc (<< 2:4.0.5~), samba-libs (<< 2:4.0.10+dfsg-4)
 Depends: samba-common-bin, ${misc:Depends}, ${shlibs:Depends}
 Description: test suite from Samba
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,

@@ -1,1 +1,2 @@
-samba4-testsuite binary: binary-or-shlib-defines-rpath
+samba-testsuite binary: binary-or-shlib-defines-rpath
+samba-testsuite: package-name-doesnt-match-sonames libtorture0

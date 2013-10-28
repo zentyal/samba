@@ -16,7 +16,7 @@ msgstr ""
 "Project-Id-Version: samba4\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2013-10-22 20:32+0200\n"
-"PO-Revision-Date: 2012-02-12 09:21+0100\n"
+"PO-Revision-Date: 2013-10-28 13:34+0100\n"
 "Last-Translator: Miroslav Kure <kurem@debian.cz>\n"
 "Language-Team: Czech <debian-l10n-czech@lists.debian.org>\n"
 "Language: cs\n"
@@ -89,6 +89,8 @@ msgid ""
 "If no server role is specified, the Samba server will not be provisioned, so "
 "this can be done manually by the user."
 msgstr ""
+"Nezvolíte-li žádnou roli, Samba server nebude zprovozněn, takže to může "
+"uživatel provést ručně."
 
 #. Type: string
 #. Description
@@ -116,37 +118,37 @@ msgstr "Obvykle to bývá DNS jméno počítače napsané velkými písmeny."
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "New password for the Samba \"administrator\" user:"
-msgstr ""
+msgstr "Nové heslo Samba uživatele „administrator“:"
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "If this field is left blank, a random password will be generated."
-msgstr ""
+msgstr "Ponecháte-li prázdné, vygeneruje se náhodné heslo."
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "A password can be set later by running, as root:"
-msgstr ""
+msgstr "Heslo můžete nastavit později spuštěním jako uživatel root:"
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:5001
 msgid "Repeat password for the Samba \"administrator\" user:"
-msgstr ""
+msgstr "Zopakujte heslo pro Samba uživatele „administrator“:"
 
 #. Type: error
 #. Description
 #: ../samba-ad-dc.templates:6001
 msgid "Password input error"
-msgstr ""
+msgstr "Chyba zadání hesla"
 
 #. Type: error
 #. Description
 #: ../samba-ad-dc.templates:6001
 msgid "The two passwords you entered were not the same. Please try again."
-msgstr ""
+msgstr "Zadaná hesla nejsou stejná. Zkuste to prosím znovu."
 
 #. Type: title
 #. Description
@@ -239,6 +241,9 @@ msgstr ""
 "Jméno skupiny se také použije jako výchozí skupina v různých programech pro "
 "procházení sítí. A konečně tento parametr určuje název domény v případech, "
 "kdy používáte nastavení „security=domain“."
+
+#~ msgid " $ samba-tool user setpassword administrator"
+#~ msgstr " $ samba-tool user setpassword administrator"
 
 #~ msgid "Use password encryption?"
 #~ msgstr "Použít šifrování hesel?"

@@ -458,17 +458,27 @@ struct tevent_req* roh_recv_out_channel_response_send(
 
 static void roh_recv_out_channel_response_done(struct tevent_req *subreq)
 {
-	struct tevent_req *req = tevent_req_callback_data(subreq,
-				struct tevent_req);
-	struct roh_recv_response_state *state = tevent_req_data(req,
-				struct roh_recv_response_state);
-	int sys_errno;
+	NTSTATUS			status;
+	struct tevent_req		*req;
+	struct roh_recv_response_state	*state;
+	int				sys_errno;
 
+	if (!subreq) {
+		DEBUG(0, ("%s: Invalid parameter\n", __func__));
+		return;
+	}
+
+	req = tevent_req_callback_data(subreq, struct tevent_req);
+	state = tevent_req_data(req, struct roh_recv_response_state);
 	state->bytes_readed = http_read_response_recv(subreq, state, &state->response, &sys_errno);
+	if (state->bytes_readed == -1) {
+		return;
+	}
+
 	state->sys_errno = sys_errno;
 	TALLOC_FREE(subreq);
 	if (state->bytes_readed <= 0 && sys_errno != 0) {
-		NTSTATUS status = map_nt_error_from_unix_common(sys_errno);
+		status = map_nt_error_from_unix_common(sys_errno);
 		tevent_req_nterror(req, status);
 		return;
 	}
@@ -498,9 +508,10 @@ static void roh_recv_out_channel_response_done(struct tevent_req *subreq)
 
 NTSTATUS roh_recv_out_channel_response_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx, char **response_msg)
 {
-	struct roh_recv_response_state *state = tevent_req_data(req,
-						struct roh_recv_response_state);
-    NTSTATUS status;
+	NTSTATUS			status;
+	struct roh_recv_response_state	*state;
+
+	state = tevent_req_data(req, struct roh_recv_response_state);
 
 	if (tevent_req_is_nterror(req, &status)) {
 		tevent_req_received(req);

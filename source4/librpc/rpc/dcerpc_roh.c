@@ -36,72 +36,58 @@
 
 #include "dcerpc_roh.h"
 
-static NTSTATUS roh_sock_send_request(struct dcecli_connection *p,
-		DATA_BLOB *data, bool trigger_read);
-
+static NTSTATUS roh_sock_send_request(struct dcecli_connection *p, DATA_BLOB *data, bool trigger_read);
 static NTSTATUS roh_sock_send_read(struct dcecli_connection *p);
-
-static NTSTATUS roh_sock_shutdown_pipe(struct dcecli_connection *p,
-		NTSTATUS status);
-
+static NTSTATUS roh_sock_shutdown_pipe(struct dcecli_connection *p, NTSTATUS status);
 static const char *roh_sock_peer_name(struct dcecli_connection *p);
-
 static const char *roh_sock_target_hostname(struct dcecli_connection *p);
 
-/**
- *
- */
 struct roh_open_connection_state
 {
-	struct tevent_req *req;
-	struct tevent_context *ev;
-	struct cli_credentials *credentials;
-	struct resolve_context *resolve_ctx;
-	const char *rpcproxy;
-	unsigned int rpcproxy_port;
-
-	const char **rpcproxy_addresses;
-	unsigned int rpcproxy_address_index;
-
-	struct roh_connection *roh;
-	struct dcecli_connection *conn;
-
-	bool tls;
-	struct tstream_tls_params *tls_params;
+	struct tevent_req		*req;
+	struct tevent_context		*ev;
+	struct cli_credentials		*credentials;
+	struct resolve_context		*resolve_ctx;
+	const char			*rpcproxy;
+	unsigned int			rpcproxy_port;
+	const char			**rpcproxy_addresses;
+	unsigned int			rpcproxy_address_index;
+	struct roh_connection		*roh;
+	struct dcecli_connection	*conn;
+	bool				tls;
+	struct tstream_tls_params	*tls_params;
 };
 
-static void roh_continue_resolve_name(struct composite_context *ctx);
-static void roh_connect_channel_in_done(struct tevent_req *subreq);
+static void roh_continue_resolve_name(struct composite_context *);
+static void roh_connect_channel_in_done(struct tevent_req *);
 
 /**
  * Send rpc pipe open request to given host:port
  */
-struct tevent_req* dcerpc_pipe_open_roh_send(
-		TALLOC_CTX *mem_ctx,
-		struct dcecli_connection *conn,
-		struct tevent_context *ev,
-		struct loadparm_context *lp_ctx,
-		struct resolve_context *resolve_ctx,
-		struct cli_credentials *credentials,
-		const char *rpcserver,
-		unsigned int rpcserver_port,
-		const char *rpcproxy,
-		unsigned int rpcproxy_port,
-		bool tls)
+struct tevent_req *dcerpc_pipe_open_roh_send(TALLOC_CTX *mem_ctx,
+					     struct dcecli_connection *conn,
+					     struct tevent_context *ev,
+					     struct loadparm_context *lp_ctx,
+					     struct resolve_context *resolve_ctx,
+					     struct cli_credentials *credentials,
+					     const char *rpcserver,
+					     unsigned int rpcserver_port,
+					     const char *rpcproxy,
+					     unsigned int rpcproxy_port,
+					     bool tls)
 {
-	struct tevent_req *req;
-	struct composite_context *ctx;
-	struct roh_open_connection_state *state;
-	struct nbt_name name;
+	NTSTATUS				status;
+	struct tevent_req			*req;
+	struct composite_context		*ctx;
+	struct roh_open_connection_state	*state;
+	struct nbt_name				name;
 
-	DEBUG(4, ("%s: Opening connection to RPC server '%s:%d' through RPC "
-				"proxy '%s:%d' (TLS: %s)\n", __func__, rpcserver,
-				rpcserver_port, rpcproxy, rpcproxy_port,
-				(tls ? "true" : "false")));
+	DEBUG(4, ("%s: Opening connection to RPC server '%s:%d' through RPC proxy '%s:%d' (TLS: %s)\n", 
+		  __func__, rpcserver, rpcserver_port, rpcproxy, rpcproxy_port,
+		  (tls ? "true" : "false")));
 
-	req = tevent_req_create(mem_ctx, &state,
-			struct roh_open_connection_state);
-	if (req == NULL ) {
+	req = tevent_req_create(mem_ctx, &state, struct roh_open_connection_state);
+	if (req == NULL) {
 		return NULL;
 	}
 
@@ -134,11 +120,11 @@ struct tevent_req* dcerpc_pipe_open_roh_send(
 
 	/* Initialize TLS */
 	if (tls) {
-		NTSTATUS status = tstream_tls_params_client(state->roh, NULL, NULL,
-				&state->tls_params);
+		status = tstream_tls_params_client(state->roh, NULL, NULL,
+						   &state->tls_params);
 		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(0,("%s: Failed tstream_tls_params_client - %s\n",
-					__func__, nt_errstr(status)));
+				 __func__, nt_errstr(status)));
 			tevent_req_nterror(req, status);
 			return tevent_req_post(req, ev);
 		}
@@ -168,6 +154,7 @@ NTSTATUS dcerpc_pipe_open_roh_recv(struct tevent_req *req)
 	tevent_req_received(req);
 	return NT_STATUS_OK;
 }
+
 
 /**
  * Handle name lookup reply
@@ -212,6 +199,7 @@ static void roh_continue_resolve_name(struct composite_context *ctx)
 	}
 	tevent_req_set_callback(subreq, roh_connect_channel_in_done, state->req);
 }
+
 
 static void roh_connect_channel_out_done(struct tevent_req *subreq);
 static void roh_connect_channel_in_done(struct tevent_req *subreq)
@@ -301,16 +289,16 @@ static void roh_send_RPC_DATA_OUT_done(struct tevent_req *subreq)
 	tevent_req_set_callback(subreq, roh_send_CONN_A1_done, req);
 }
 
-static void roh_send_CONN_B1_done(struct tevent_req *subreq);
+static void roh_send_CONN_B1_done(struct tevent_req *);
 static void roh_send_CONN_A1_done(struct tevent_req *subreq)
 {
-	struct tevent_req *req;
-	struct roh_open_connection_state *state;
+	NTSTATUS				status;
+	struct tevent_req			*req;
+	struct roh_open_connection_state	*state;
 
 	req = tevent_req_callback_data(subreq, struct tevent_req);
 	state = tevent_req_data(req, struct roh_open_connection_state);
 
-	NTSTATUS status;
 	status = roh_send_CONN_B1_recv(subreq);
 	TALLOC_FREE(subreq);
 	if (tevent_req_nterror(req, status)) {
@@ -321,38 +309,36 @@ static void roh_send_CONN_A1_done(struct tevent_req *subreq)
 	tevent_req_set_callback(subreq, roh_send_CONN_B1_done, req);
 }
 
-static void roh_recv_out_channel_response_done(struct tevent_req *subreq);
+static void roh_recv_out_channel_response_done(struct tevent_req *);
 static void roh_send_CONN_B1_done(struct tevent_req *subreq)
 {
-	struct tevent_req *req;
-	struct roh_open_connection_state *state;
+	NTSTATUS				status;
+	struct tevent_req			*req;
+	struct roh_open_connection_state	*state;
 
 	req = tevent_req_callback_data(subreq, struct tevent_req);
 	state = tevent_req_data(req, struct roh_open_connection_state);
 
-	NTSTATUS status;
 	status = roh_send_CONN_A1_recv(subreq);
 	TALLOC_FREE(subreq);
-	if (tevent_req_nterror(req, status)) {
-		return;
-	}
+	if (tevent_req_nterror(req, status)) return;
 
 	state->roh->connection_state = ROH_STATE_OUT_CHANNEL_WAIT;
 	subreq = roh_recv_out_channel_response_send(state, state->ev, state->roh);
 	tevent_req_set_callback(subreq, roh_recv_out_channel_response_done, req);
 }
 
-static void roh_recv_CONN_A3_done(struct tevent_req *subreq);
+static void roh_recv_CONN_A3_done(struct tevent_req *);
 static void roh_recv_out_channel_response_done(struct tevent_req *subreq)
 {
-	struct tevent_req *req;
-	struct roh_open_connection_state *state;
+	NTSTATUS				status;
+	char					*response;
+	struct tevent_req			*req;
+	struct roh_open_connection_state	*state;
 
 	req = tevent_req_callback_data(subreq, struct tevent_req);
 	state = tevent_req_data(req, struct roh_open_connection_state);
 
-	NTSTATUS status;
-	char *response;
 	status = roh_recv_out_channel_response_recv(subreq, state, &response);
 	TALLOC_FREE(subreq);
 	if (tevent_req_nterror(req, status)) {
@@ -364,18 +350,17 @@ static void roh_recv_out_channel_response_done(struct tevent_req *subreq)
 	tevent_req_set_callback(subreq, roh_recv_CONN_A3_done, req);
 }
 
-static void roh_recv_CONN_C2_done(struct tevent_req *subreq);
+static void roh_recv_CONN_C2_done(struct tevent_req *);
 static void roh_recv_CONN_A3_done(struct tevent_req *subreq)
 {
-	struct tevent_req *req;
-	struct roh_open_connection_state *state;
+	NTSTATUS				status;
+	struct tevent_req			*req;
+	struct roh_open_connection_state	*state;
 
 	req = tevent_req_callback_data(subreq, struct tevent_req);
 	state = tevent_req_data(req, struct roh_open_connection_state);
 
-	NTSTATUS status;
-	status = roh_recv_CONN_A3_recv(subreq,
-			&state->roh->default_channel_out->connection_timeout);
+	status = roh_recv_CONN_A3_recv(subreq, &state->roh->default_channel_out->connection_timeout);
 	TALLOC_FREE(subreq);
 	if (tevent_req_nterror(req, status)) {
 		return;
@@ -388,14 +373,16 @@ static void roh_recv_CONN_A3_done(struct tevent_req *subreq)
 
 static void roh_recv_CONN_C2_done(struct tevent_req *subreq)
 {
-	struct tevent_req *req;
-	struct roh_open_connection_state *state;
+	NTSTATUS				status;
+	struct tevent_req			*req;
+	struct roh_open_connection_state	*state;
+	unsigned int				version;
+	unsigned int				recv;
+	unsigned int				timeout;
 
 	req = tevent_req_callback_data(subreq, struct tevent_req);
 	state = tevent_req_data(req, struct roh_open_connection_state);
 
-	NTSTATUS status;
-	unsigned int version, recv, timeout;
 	status = roh_recv_CONN_C2_recv(subreq, &version, &recv, &timeout);
 	TALLOC_FREE(subreq);
 	if (tevent_req_nterror(req, status)) {
@@ -422,42 +409,33 @@ static void roh_recv_CONN_C2_done(struct tevent_req *subreq)
 	tevent_req_done(req);
 }
 
-/****************
- *
- */
-static void roh_sock_send_request_done(struct tevent_req *req);
-static NTSTATUS roh_sock_send_request(
-		struct dcecli_connection *conn,
-		DATA_BLOB *data,
-		bool trigger_read)
+
+static void roh_sock_send_request_done(struct tevent_req *);
+static NTSTATUS roh_sock_send_request(struct dcecli_connection *conn,
+				      DATA_BLOB *data,
+				      bool trigger_read)
 {
-	struct roh_connection *roh;
-	DATA_BLOB blob;
+	struct roh_connection	*roh;
+	struct tevent_req	*req;
+	struct iovec		iov;
+	DATA_BLOB		blob;
 
 	DEBUG(8, ("%s: Sending request (%d bytes, trigger_read: %s):\n",
-				__func__, (int)data->length,
-				trigger_read ? "true":"false"));
+		  __func__, (int)data->length, trigger_read ? "true":"false"));
 	dump_data(8, data->data, data->length);
 
 	roh = talloc_get_type_abort(conn->transport.private_data,
-			struct roh_connection);
+				    struct roh_connection);
 
 	if (roh->default_channel_in == NULL ) {
 		return NT_STATUS_CONNECTION_DISCONNECTED;
 	}
 
-	blob = data_blob_talloc(roh, data->data, data->length);
-	if (blob.data == NULL ) {
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	struct iovec iov;
-	iov.iov_base = (void *) blob.data;
-	iov.iov_len = blob.length;
-	struct tevent_req *req = tstream_writev_queue_send(
-			roh->default_channel_in,
-			roh->ev, roh->default_channel_in->streams.active,
-			roh->default_channel_in->send_queue, &iov, 1);
+	iov.iov_base = (char *) data->data;
+	iov.iov_len = data->length;
+	req = tstream_writev_queue_send(roh->default_channel_in,
+					roh->ev, roh->default_channel_in->streams.active,
+					roh->default_channel_in->send_queue, &iov, 1);
 	if (req == NULL ) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -522,14 +500,14 @@ static void roh_sock_send_read_done(struct tevent_req *req)
 			struct roh_connection);
 
 	status = dcerpc_read_ncacn_packet_recv(req, roh, &pkt, &buffer);
-	TALLOC_FREE(req);
 	if (tevent_req_nterror(req, status)) {
 		DEBUG(0, ("%s: Error receiving packet\n", __func__));
 		return;
 	}
+	TALLOC_FREE(req);
 
 	DEBUG(8, ("%s: Packet received (%zu bytes):\n",
-				__func__, buffer.length));
+		  __func__, buffer.length));
 	dump_data(8, buffer.data, buffer.length);
 
 	if (pkt->ptype == DCERPC_PKT_RTS) {

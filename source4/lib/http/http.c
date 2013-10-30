@@ -21,48 +21,10 @@
 
 #include "includes.h"
 #include <talloc_dict.h>
-#include <tevent.h>
 #include "lib/util/tevent_ntstatus.h"
 #include "http.h"
-#include "lib/tsocket/tsocket.h"
 #include "util/tevent_werror.h"
-#include <sys/uio.h>
 #include "lib/util/dlinklist.h"
-
-enum http_parser_state {
-	HTTP_READING_FIRSTLINE,	/**< reading Request-Line (incoming conn) or
-				 **< Status-Line (outgoing conn) */
-	HTTP_READING_HEADERS,	/**< reading request/response headers */
-	HTTP_READING_BODY,	/**< reading request/response body */
-	HTTP_READING_TRAILER,	/**< reading request/response chunked trailer */
-	HTTP_READING_DONE,
-};
-
-enum http_read_status {
-	HTTP_ALL_DATA_READ,
-	HTTP_MORE_DATA_EXPECTED,
-	HTTP_DATA_CORRUPTED,
-	HTTP_REQUEST_CANCELED,
-	HTTP_DATA_TOO_LONG,
-};
-
-
-struct http_header {
-	struct http_header	*next, *prev;
-	const char		*key;
-	const char		*value;
-};
-
-
-struct http_read_response_state {
-	enum http_parser_state	parser_state;
-	size_t			max_headers_size;
-	DATA_BLOB		buffer;
-	struct http_request	*response;
-	int			ret;
-	int			sys_errno;
-};
-
 
 /**
  * Determines if a response should have a body.
@@ -227,7 +189,7 @@ static bool http_parse_response_line(struct http_read_response_state *state)
 	state->response->major = major;
 	state->response->minor = minor;
 	state->response->response_code = code;
-	state->response->response_code_line = talloc_strndup(state, msg, strlen(msg));
+	state->response->response_code_line = talloc_strndup(state->response, msg, strlen(msg));
 
 error:
 	free(protocol);
@@ -526,7 +488,7 @@ static int http_read_response_next_vector(struct tstream_context *stream,
 /**
  * Reads a HTTP response
  */
-static void http_read_response_done(struct tevent_req *subreq);
+static void http_read_response_done(struct tevent_req *);
 struct tevent_req *http_read_response_send(TALLOC_CTX *mem_ctx,
 					   struct tevent_context *ev,
 					   struct tstream_context *stream)
@@ -552,14 +514,13 @@ struct tevent_req *http_read_response_send(TALLOC_CTX *mem_ctx,
 	state->parser_state = HTTP_READING_FIRSTLINE;
 	state->response = talloc_zero(state, struct http_request);
 	if (tevent_req_nomem(state->response, req)) {
-			tevent_req_nterror(req, NT_STATUS_NO_MEMORY);
-			return tevent_req_post(req, ev);
+		tevent_req_nterror(req, NT_STATUS_NO_MEMORY);
+		return tevent_req_post(req, ev);
 	}
 
-	subreq = tstream_readv_pdu_send(state, ev,
-			stream,
-			http_read_response_next_vector,
-			state);
+	subreq = tstream_readv_pdu_send(state, ev, stream,
+					http_read_response_next_vector,
+					state);
 	if (tevent_req_nomem(subreq,req)) {
 		tevent_req_post(req, ev);
 		return req;
@@ -752,18 +713,6 @@ static NTSTATUS http_request_to_blob(TALLOC_CTX *mem_ctx,
 
 	return NT_STATUS_OK;
 }
-
-struct http_send_request_state {
-	struct tevent_context	*ev;
-	struct tstream_context	*stream;
-	struct http_request	*request;
-
-	DATA_BLOB		buffer;
-	struct iovec		iov;
-
-	ssize_t			nwritten;
-	int			sys_errno;
-};
 
 /**
  * Sends and HTTP request

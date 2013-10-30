@@ -23,11 +23,13 @@
 #define _HTTP_H_
 
 #include <limits.h>
+#include <sys/uio.h>
 
-struct tevent_context;
-struct tstream_context;
-struct http_header;
-struct http_uri;
+#include <tevent.h>
+#include "lib/tsocket/tsocket.h"
+
+/* struct tevent_context; */
+/* struct tstream_context; */
 
 /* Response codes */
 #define HTTP_OK				200		/**< request completed ok */
@@ -60,6 +62,33 @@ enum http_cmd_type {
 	HTTP_REQ_RPC_OUT_DATA = 1 << 10,
 };
 
+
+enum http_parser_state {
+	HTTP_READING_FIRSTLINE,	/**< reading Request-Line (incoming conn) or
+				 **< Status-Line (outgoing conn) */
+	HTTP_READING_HEADERS,	/**< reading request/response headers */
+	HTTP_READING_BODY,	/**< reading request/response body */
+	HTTP_READING_TRAILER,	/**< reading request/response chunked trailer */
+	HTTP_READING_DONE,
+};
+
+
+enum http_read_status {
+	HTTP_ALL_DATA_READ,
+	HTTP_MORE_DATA_EXPECTED,
+	HTTP_DATA_CORRUPTED,
+	HTTP_REQUEST_CANCELED,
+	HTTP_DATA_TOO_LONG,
+};
+
+
+struct http_header {
+	struct http_header	*next, *prev;
+	const char		*key;
+	const char		*value;
+};
+
+
 struct http_request {
 	enum http_cmd_type	type;				/* HTTP command type */
 	char			major;				/* HTTP version major number */
@@ -72,6 +101,26 @@ struct http_request {
 	DATA_BLOB		body;
 };
 
+struct http_send_request_state {
+	struct tevent_context	*ev;
+	struct tstream_context	*stream;
+	struct http_request	*request;
+	DATA_BLOB		buffer;
+	struct iovec		iov;
+	ssize_t			nwritten;
+	int			sys_errno;
+};
+
+struct http_read_response_state {
+	enum http_parser_state	parser_state;
+	size_t			max_headers_size;
+	DATA_BLOB		buffer;
+	struct http_request	*response;
+	int			ret;
+	int			sys_errno;
+};
+
+
 struct tevent_req	*http_send_request_send(TALLOC_CTX *, struct tevent_context *, struct tstream_context *, 
 						struct tevent_queue *, struct http_request *);
 int			http_send_request_recv(struct tevent_req *, int *);
@@ -79,4 +128,5 @@ struct tevent_req	*http_read_response_send(TALLOC_CTX *, struct tevent_context *
 int			http_read_response_recv(struct tevent_req *, TALLOC_CTX *, struct http_request **, int *);
 int			http_remove_header(struct http_header **, const char *);
 int			http_add_header(TALLOC_CTX *, struct http_header **, const char *, const char *);
+
 #endif /* _HTTP_H_ */

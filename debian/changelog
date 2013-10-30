@@ -14,6 +14,7 @@ samba (2:4.0.10+dfsg-4) UNRELEASED; urgency=low
   * Polish (Michał Kułach).  Closes: #727646
   * Danish (Joe Hansen).  Closes: #727764
   * Czech (Miroslav Kure).  Closes: #728100
+  * Basque (Iñaki Larrañaga Murgoitio).  Closes: #728315
 
   [ Jelmer Vernooij ]
   * Move libtorture0 to samba-testsuite to reduce size of samba-libs and

@@ -30,7 +30,7 @@ struct http_header;
 struct http_uri;
 
 /* Response codes */
-#define HTTP_OK					200		/**< request completed ok */
+#define HTTP_OK				200		/**< request completed ok */
 #define HTTP_NOCONTENT			204		/**< request does not have content */
 #define HTTP_MOVEPERM			301		/**< the uri moved permanently */
 #define HTTP_MOVETEMP			302		/**< the uri moved temporarily */

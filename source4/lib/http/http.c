@@ -48,21 +48,19 @@ enum http_read_status {
 
 
 struct http_header {
-	struct http_header *next, *prev;
-	const char *key;
-	const char *value;
+	struct http_header	*next, *prev;
+	const char		*key;
+	const char		*value;
 };
 
 
 struct http_read_response_state {
-	enum http_parser_state parser_state;
-
-	size_t max_headers_size;
-
-	DATA_BLOB buffer;
-	struct http_request *response;
-	int ret;
-	int sys_errno;
+	enum http_parser_state	parser_state;
+	size_t			max_headers_size;
+	DATA_BLOB		buffer;
+	struct http_request	*response;
+	int			ret;
+	int			sys_errno;
 };
 
 

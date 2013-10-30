@@ -161,18 +161,15 @@ NTSTATUS dcerpc_pipe_open_roh_recv(struct tevent_req *req)
  */
 static void roh_continue_resolve_name(struct composite_context *ctx)
 {
-	struct roh_open_connection_state *state;
-	NTSTATUS status;
-	unsigned int i;
-	struct tevent_req *subreq;
+	NTSTATUS				status;
+	struct roh_open_connection_state	*state;
+	unsigned int				i;
+	struct tevent_req			*subreq;
 
-	state = talloc_get_type_abort(ctx->async.private_data,
-			struct roh_open_connection_state);
-	status = resolve_name_multiple_recv(ctx, state,
-			&state->rpcproxy_addresses);
+	state = talloc_get_type_abort(ctx->async.private_data, struct roh_open_connection_state);
+	status = resolve_name_multiple_recv(ctx, state, &state->rpcproxy_addresses);
 	if (tevent_req_nterror(state->req, status)) {
-		DEBUG(2, ("%s: No server found: %s\n", __func__,
-					nt_errstr(status)));
+		DEBUG(2, ("%s: No server found: %s\n", __func__, nt_errstr(status)));
 		return;
 	}
 	for (i = 0; state->rpcproxy_addresses[i]; i++) {
@@ -191,9 +188,9 @@ static void roh_continue_resolve_name(struct composite_context *ctx)
 
 	state->roh->connection_state = ROH_STATE_OPEN_START;
 	subreq = roh_connect_channel_in_send(state, state->ev,
-			state->rpcproxy_addresses[state->rpcproxy_address_index],
-			state->rpcproxy_port, state->credentials, state->roh,
-			state->tls, state->tls_params);
+					     state->rpcproxy_addresses[state->rpcproxy_address_index],
+					     state->rpcproxy_port, state->credentials, state->roh,
+					     state->tls, state->tls_params);
 	if (tevent_req_nomem(subreq, state->req)) {
 		return;
 	}
@@ -201,16 +198,16 @@ static void roh_continue_resolve_name(struct composite_context *ctx)
 }
 
 
-static void roh_connect_channel_out_done(struct tevent_req *subreq);
+static void roh_connect_channel_out_done(struct tevent_req *);
 static void roh_connect_channel_in_done(struct tevent_req *subreq)
 {
-	struct tevent_req *req;
-	struct roh_open_connection_state *state;
+	NTSTATUS				status;
+	struct tevent_req			*req;
+	struct roh_open_connection_state	*state;
 
 	req = tevent_req_callback_data(subreq, struct tevent_req);
 	state = tevent_req_data(req, struct roh_open_connection_state);
 
-	NTSTATUS status;
 	status = roh_connect_channel_in_recv(subreq);
 	TALLOC_FREE(subreq);
 	if (tevent_req_nterror(req, status)) {
@@ -218,67 +215,65 @@ static void roh_connect_channel_in_done(struct tevent_req *subreq)
 	}
 
 	subreq = roh_connect_channel_out_send(state, state->ev,
-			state->rpcproxy_addresses[state->rpcproxy_address_index],
-			state->rpcproxy_port, state->credentials, state->roh,
-			state->tls, state->tls_params);
+					      state->rpcproxy_addresses[state->rpcproxy_address_index],
+					      state->rpcproxy_port, state->credentials, state->roh,
+					      state->tls, state->tls_params);
 	if (tevent_req_nomem(subreq, state->req)) {
 		return;
 	}
 	tevent_req_set_callback(subreq, roh_connect_channel_out_done, state->req);
 }
 
-static void roh_send_RPC_DATA_IN_done(struct tevent_req *subreq);
+static void roh_send_RPC_DATA_IN_done(struct tevent_req *);
 static void roh_connect_channel_out_done(struct tevent_req *subreq)
 {
-	struct tevent_req *req;
-	struct roh_open_connection_state *state;
+	NTSTATUS				status;
+	struct tevent_req			*req;
+	struct roh_open_connection_state	*state;
 
 	req = tevent_req_callback_data(subreq, struct tevent_req);
 	state = tevent_req_data(req, struct roh_open_connection_state);
 
-	NTSTATUS status;
 	status = roh_connect_channel_out_recv(subreq);
 	TALLOC_FREE(subreq);
 	if (tevent_req_nterror(req, status)) {
 		return;
 	}
 
-	subreq = roh_send_RPC_DATA_IN_send(state, state->ev, state->credentials,
-			state->roh);
+	subreq = roh_send_RPC_DATA_IN_send(state, state->ev, state->credentials, state->roh);
 	tevent_req_set_callback(subreq, roh_send_RPC_DATA_IN_done, req);
 }
 
-static void roh_send_RPC_DATA_OUT_done(struct tevent_req *subreq);
+static void roh_send_RPC_DATA_OUT_done(struct tevent_req *);
 static void roh_send_RPC_DATA_IN_done(struct tevent_req *subreq)
 {
-	struct tevent_req *req;
-	struct roh_open_connection_state *state;
+	NTSTATUS				status;
+	struct tevent_req			*req;
+	struct roh_open_connection_state	*state;
 
 	req = tevent_req_callback_data(subreq, struct tevent_req);
 	state = tevent_req_data(req, struct roh_open_connection_state);
 
-	NTSTATUS status;
 	status = roh_send_RPC_DATA_IN_recv(subreq);
 	TALLOC_FREE(subreq);
 	if (tevent_req_nterror(req, status)) {
 		return;
 	}
 
-	subreq = roh_send_RPC_DATA_OUT_send(state, state->ev, state->credentials,
-			state->roh);
+	subreq = roh_send_RPC_DATA_OUT_send(state, state->ev, state->credentials, state->roh);
 	tevent_req_set_callback(subreq, roh_send_RPC_DATA_OUT_done, req);
 }
 
-static void roh_send_CONN_A1_done(struct tevent_req *subreq);
+static void roh_send_CONN_A1_done(struct tevent_req *);
 static void roh_send_RPC_DATA_OUT_done(struct tevent_req *subreq)
 {
-	struct tevent_req *req;
-	struct roh_open_connection_state *state;
+	NTSTATUS				status;
+	struct tevent_req			*req;
+	struct roh_open_connection_state	*state;
 
 	req = tevent_req_callback_data(subreq, struct tevent_req);
 	state = tevent_req_data(req, struct roh_open_connection_state);
 
-	NTSTATUS status;
 	status = roh_send_RPC_DATA_OUT_recv(subreq);
 	TALLOC_FREE(subreq);
 	if (tevent_req_nterror(req, status)) {
@@ -458,7 +453,7 @@ static void roh_sock_send_request_done(struct tevent_req *req)
 	TALLOC_FREE(req);
 	if (bytes_written <= 0) {
 		DEBUG(0, ("%s: error: %s (%d)\n", __func__, strerror(sys_errno),
-					sys_errno));
+			  sys_errno));
 		return;
 	}
 	DEBUG(8, ("%s: Request sent (%d bytes)\n", __func__, bytes_written));
@@ -467,15 +462,14 @@ static void roh_sock_send_request_done(struct tevent_req *req)
 	roh->default_channel_in->sent_bytes += bytes_written;
 }
 
-static void roh_sock_send_read_done(struct tevent_req *req);
+static void roh_sock_send_read_done(struct tevent_req *);
 static NTSTATUS roh_sock_send_read(struct dcecli_connection *conn)
 {
-	struct roh_connection *roh;
-	struct tevent_req *req;
+	struct roh_connection	*roh;
+	struct tevent_req	*req;
 
 	DEBUG(8, ("%s: Waiting for packet\n", __func__));
-	roh = talloc_get_type_abort(conn->transport.private_data,
-			struct roh_connection);
+	roh = talloc_get_type_abort(conn->transport.private_data, struct roh_connection);
 
 	req = dcerpc_read_ncacn_packet_send(roh, roh->ev,
 			roh->default_channel_out->streams.active);
@@ -488,16 +482,14 @@ static NTSTATUS roh_sock_send_read(struct dcecli_connection *conn)
 
 static void roh_sock_send_read_done(struct tevent_req *req)
 {
-	struct dcecli_connection *conn;
-	struct roh_connection *roh;
-
-	struct ncacn_packet *pkt;
-	DATA_BLOB buffer;
-	NTSTATUS status;
+	NTSTATUS			status;
+	struct dcecli_connection	*conn;
+	struct roh_connection		*roh;
+	struct ncacn_packet		*pkt;
+	DATA_BLOB			buffer;
 
 	conn = tevent_req_callback_data(req, struct dcecli_connection);
-	roh = talloc_get_type_abort(conn->transport.private_data,
-			struct roh_connection);
+	roh = talloc_get_type_abort(conn->transport.private_data, struct roh_connection);
 
 	status = dcerpc_read_ncacn_packet_recv(req, roh, &pkt, &buffer);
 	if (tevent_req_nterror(req, status)) {
@@ -506,8 +498,7 @@ static void roh_sock_send_read_done(struct tevent_req *req)
 	}
 	TALLOC_FREE(req);
 
-	DEBUG(8, ("%s: Packet received (%zu bytes):\n",
-		  __func__, buffer.length));
+	DEBUG(8, ("%s: Packet received (%zu bytes):\n", __func__, buffer.length));
 	dump_data(8, buffer.data, buffer.length);
 
 	if (pkt->ptype == DCERPC_PKT_RTS) {
@@ -520,15 +511,13 @@ static void roh_sock_send_read_done(struct tevent_req *req)
 	roh_sock_send_read(conn);
 }
 
-static NTSTATUS roh_sock_shutdown_pipe(
-		struct dcecli_connection *p,
-		NTSTATUS status)
+static NTSTATUS roh_sock_shutdown_pipe(struct dcecli_connection *p,
+				       NTSTATUS status)
 {
-	struct roh_connection *roh;
-
+	struct roh_connection	*roh;
+  
 	DEBUG(8, ("%s\n", __func__));
-	roh = talloc_get_type_abort(p->transport.private_data,
-			struct roh_connection);
+	roh = talloc_get_type_abort(p->transport.private_data, struct roh_connection);
 
 	//	if (http && http->channel_in.sock) {
 	//		sock_in_dead(p, status);
@@ -541,22 +530,22 @@ static NTSTATUS roh_sock_shutdown_pipe(
 	return NT_STATUS_OK;
 }
 
-static const char* roh_sock_peer_name(struct dcecli_connection *p)
+static const char *roh_sock_peer_name(struct dcecli_connection *p)
 {
-	struct roh_connection *roh;
+	struct roh_connection	*roh;
 
 	DEBUG(8, ("%s\n", __func__));
-	roh = talloc_get_type_abort(p->transport.private_data,
-			struct roh_connection);
+
+	roh = talloc_get_type_abort(p->transport.private_data, struct roh_connection);
 	return roh->rpcserver;
 }
 
-static const char* roh_sock_target_hostname(struct dcecli_connection *p)
+static const char *roh_sock_target_hostname(struct dcecli_connection *p)
 {
-	struct roh_connection *roh;
+	struct roh_connection	*roh;
 
 	DEBUG(8, ("%s\n", __func__));
-	roh = talloc_get_type_abort(p->transport.private_data,
-			struct roh_connection);
+
+	roh = talloc_get_type_abort(p->transport.private_data, struct roh_connection);
 	return roh->rpcserver;
 }

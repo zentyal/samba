@@ -450,8 +450,7 @@ struct tevent_req *roh_recv_out_channel_response_send(TALLOC_CTX *mem_ctx,
 		return NULL;
 	}
 
-	subreq = http_read_response_send(state, ev,
-					 roh->default_channel_out->streams.active);
+	subreq = http_read_response_send(state, ev, roh->default_channel_out->streams.active);
 	if (tevent_req_nomem(subreq, req)) {
 		tevent_req_nterror(req, NT_STATUS_NO_MEMORY);
 		return tevent_req_post(req, ev);
@@ -478,12 +477,13 @@ static void roh_recv_out_channel_response_done(struct tevent_req *subreq)
 	state = tevent_req_data(req, struct roh_recv_response_state);
 	state->bytes_readed = http_read_response_recv(subreq, state, &state->response, &sys_errno);
 	if (state->bytes_readed == -1) {
+		TALLOC_FREE(subreq);
 		return;
 	}
 
 	state->sys_errno = sys_errno;
-	TALLOC_FREE(subreq);
 	if (state->bytes_readed <= 0 && sys_errno != 0) {
+		TALLOC_FREE(subreq);
 		status = map_nt_error_from_unix_common(sys_errno);
 		tevent_req_nterror(req, status);
 		return;
@@ -497,18 +497,22 @@ static void roh_recv_out_channel_response_done(struct tevent_req *subreq)
 		break;
 	case 401:
 		DEBUG(0, ("%s: Server answer: Access denied\n", __func__));
+		TALLOC_FREE(subreq);
 		tevent_req_nterror(req, NT_STATUS_ACCESS_DENIED);
 		return;
 	case 503:
 		/* TODO Decode error info as specified in section 2.1.2.1.3 */
 		DEBUG(0, ("%s: Server answer: RPC error\n", __func__));
+		TALLOC_FREE(subreq);
 		tevent_req_nterror(req, NT_STATUS_GENERIC_NOT_MAPPED);
 		return;
 	default:
+		TALLOC_FREE(subreq);
 		tevent_req_nterror(req, NT_STATUS_GENERIC_NOT_MAPPED);
 		return;
 	}
 
+	TALLOC_FREE(subreq);
 	tevent_req_done(req);
 }
 
@@ -525,8 +529,6 @@ NTSTATUS roh_recv_out_channel_response_recv(struct tevent_req *req,
 		tevent_req_received(req);
 		return status;
 	}
-
-	*response_msg = talloc_strdup(mem_ctx, state->response->response_code_line);
 
 	tevent_req_received(req);
 	return NT_STATUS_OK;

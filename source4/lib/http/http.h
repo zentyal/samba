@@ -37,11 +37,11 @@ struct http_uri;
 #define HTTP_NOTMODIFIED		304		/**< page was not modified from last */
 #define HTTP_BADREQUEST			400		/**< invalid http request was made */
 #define HTTP_NOTFOUND			404		/**< could not find content for uri */
-#define HTTP_BADMETHOD			405 	/**< method not allowed for this uri */
+#define HTTP_BADMETHOD			405		/**< method not allowed for this uri */
 #define HTTP_ENTITYTOOLARGE		413		/**<  */
-#define HTTP_EXPECTATIONFAILED	417		/**< we can't handle this expectation */
-#define HTTP_INTERNAL           500     /**< internal error */
-#define HTTP_NOTIMPLEMENTED     501     /**< not implemented */
+#define HTTP_EXPECTATIONFAILED		417		/**< we can't handle this expectation */
+#define HTTP_INTERNAL			500		/**< internal error */
+#define HTTP_NOTIMPLEMENTED		501		/**< not implemented */
 #define HTTP_SERVUNAVAIL		503		/**< the server is not available */
 
 #define HTTP_MAX_HEADER_SIZE 	UINT_MAX
@@ -61,38 +61,22 @@ enum http_cmd_type {
 };
 
 struct http_request {
-	enum http_cmd_type type;			/* HTTP command type */
-
-	char major;							/* HTTP version major number */
-	char minor;							/* HTTP version minor number */
-
-	char *uri;							/* URI after HTTP request was parsed */
-
-	struct http_header *headers;
-	size_t headers_size;
-
-	unsigned int response_code;			/* HTTP Response code */
-	char *response_code_line;			/* Readable response */
-
-	DATA_BLOB body;
+	enum http_cmd_type	type;				/* HTTP command type */
+	char			major;				/* HTTP version major number */
+	char			minor;				/* HTTP version minor number */
+	char			*uri;				/* URI after HTTP request was parsed */
+	struct http_header	*headers;
+	size_t			headers_size;
+	unsigned int		response_code;			/* HTTP Response code */
+	char			*response_code_line;		/* Readable response */
+	DATA_BLOB		body;
 };
 
-struct tevent_req *http_send_request_send(
-		TALLOC_CTX *mem_ctx,
-		struct tevent_context *ev,
-		struct tstream_context *stream,
-		struct tevent_queue *send_queue,
-		struct http_request *request);
-
-int http_send_request_recv(struct tevent_req *req, int *error);
-
-struct tevent_req *http_read_response_send(
-		TALLOC_CTX *mem_ctx,
-		struct tevent_context *ev,
-		struct tstream_context *stream);
-int http_read_response_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx, struct http_request **response, int *perrno);
-
-int http_remove_header(struct http_header **headers, const char *key);
-int http_add_header(TALLOC_CTX *mem_ctx, struct http_header **headers,
-		const char *key, const char *value);
+struct tevent_req	*http_send_request_send(TALLOC_CTX *, struct tevent_context *, struct tstream_context *, 
+						struct tevent_queue *, struct http_request *);
+int			http_send_request_recv(struct tevent_req *, int *);
+struct tevent_req	*http_read_response_send(TALLOC_CTX *, struct tevent_context *, struct tstream_context *);
+int			http_read_response_recv(struct tevent_req *, TALLOC_CTX *, struct http_request **, int *);
+int			http_remove_header(struct http_header **, const char *);
+int			http_add_header(TALLOC_CTX *, struct http_header **, const char *, const char *);
 #endif /* _HTTP_H_ */

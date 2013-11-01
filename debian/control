@@ -145,6 +145,14 @@ Replaces: libdcerpc-server0 (<< 2:4.0.9),
           libsmbclient-raw0 (<< 2:4.0.9),
           libsmbd0 (<< 2:4.0.9),
           libtorture0 (<< 2:4.0.9)
+# these conflicts can NOT be replaced by 'Breaks'
+# the old 3.6 packages should be removed before the new samba-libs is
+# unpacked, to avoid any code referencing the old location of the tdb files
+# see bug #726472
+Conflicts: libpam-smbpass (<< 2:4),
+           samba-common-bin (<< 2:4),
+           samba (<< 2:4),
+           winbind (<< 2:4)
 Description: Samba core libraries
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file sharing with Microsoft Windows, OS X,

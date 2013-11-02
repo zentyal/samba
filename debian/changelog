@@ -1,3 +1,9 @@
+samba (2:4.0.10+dfsg-5) UNRELEASED; urgency=low
+
+  * Update samba-libs.lintian-overrides for moved libtorture0.
+
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Sat, 02 Nov 2013 11:51:28 +0100
+
 samba (2:4.0.10+dfsg-4) unstable; urgency=low
 
   [ Christian Perrier ]

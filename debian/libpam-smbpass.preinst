@@ -4,10 +4,14 @@
 
 set -e
 
-# Move files to private subdir now fhs patch is finally gone
-# this code is also present in libpam-smbpass.preinst (and should be kept in
-# sync)
-if [ "$1" = "install" ]
+# this code is identical to the code in samba-libs.preinst
+# it is here to make sure that libpam-smbpass isn't upgraded in cases where
+# the samba-libs preinst would fail
+# if this code fails, the old version of libpam-smbpass will stay on the
+# system, and keep working (the 3.6 version of libpam-smbpass was
+# self-contained and doesn't need any shared libraries from other samba
+# packages)
+if [ "$1" = "upgrade" ]
 then
 	for file in passdb.tdb secrets.tdb schannel_store.tdb idmap2.tdb
 	do
@@ -16,7 +20,7 @@ then
 			if [ -e /var/lib/samba/private/$file ] &&
 				[ ! /var/lib/samba/$file -ef /var/lib/samba/private/$file ]
 			then
-				echo $file exists in /var/lib/samba and /var/lib/samba/private, aborting samba-libs preinst
+				echo $file exists in /var/lib/samba and /var/lib/samba/private, aborting libpam-smbpass preinst
 				echo rename one of them to allow the install/upgrade to continue
 				echo http://bugs.debian.org/726472
 				ls -al /var/lib/samba /var/lib/samba/private
@@ -39,15 +43,6 @@ then
 			fi
 		fi
 	done
-
-	# bug #454770
-	# this is only relevant for upgrades from versions before 2:3.6.13-2
-	# this bug was never present in a stable release
-	if [ -e /etc/samba/idmap2.tdb ] \
-		&& ! [ -e /var/lib/samba/private/idmap2.tdb ]
-	then
-		mv /etc/samba/idmap2.tdb /var/lib/samba/private/idmap2.tdb
-	fi
 fi
 
 

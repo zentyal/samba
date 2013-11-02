@@ -23,6 +23,8 @@ samba (2:4.0.10+dfsg-4) UNRELEASED; urgency=low
   [ Ivo De Decker ]
   * Handle move of tdb files to private dir in samba-libs.preinst.
     Closes: #726472
+  * Also do the tdb move in libpam-smbpass.preinst, to avoid breaking the pam
+    module if the upgrade fails.
 
  -- Christian Perrier <bubulle@debian.org>  Tue, 22 Oct 2013 20:29:59 +0200
 

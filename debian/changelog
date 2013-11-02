@@ -1,4 +1,4 @@
-samba (2:4.0.10+dfsg-4) UNRELEASED; urgency=low
+samba (2:4.0.10+dfsg-4) unstable; urgency=low
 
   [ Christian Perrier ]
   * Mark one debconf string as non-translatable
@@ -26,7 +26,7 @@ samba (2:4.0.10+dfsg-4) UNRELEASED; urgency=low
   * Also do the tdb move in libpam-smbpass.preinst, to avoid breaking the pam
     module if the upgrade fails.
 
- -- Christian Perrier <bubulle@debian.org>  Tue, 22 Oct 2013 20:29:59 +0200
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Sat, 02 Nov 2013 11:27:25 +0100
 
 samba (2:4.0.10+dfsg-3) unstable; urgency=low
 

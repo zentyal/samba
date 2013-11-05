@@ -472,7 +472,7 @@ static NTSTATUS roh_sock_send_read(struct dcecli_connection *conn)
 	roh = talloc_get_type_abort(conn->transport.private_data, struct roh_connection);
 
 	req = dcerpc_read_ncacn_packet_send(roh, roh->ev,
-			roh->default_channel_out->streams.active);
+					    roh->default_channel_out->streams.active);
 	if (req == NULL ) {
 		return NT_STATUS_NO_MEMORY;
 	}

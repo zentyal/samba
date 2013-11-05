@@ -52,7 +52,7 @@ struct roh_connect_channel_state
 };
 
 static void roh_connect_channel_out_done(struct tevent_req *);
-struct tevent_req* roh_connect_channel_out_send(TALLOC_CTX *mem_ctx,
+struct tevent_req *roh_connect_channel_out_send(TALLOC_CTX *mem_ctx,
 						struct tevent_context *ev, 
 						const char *rpcproxy_ip_address,
 						unsigned int rpcproxy_port, 
@@ -543,7 +543,7 @@ struct roh_recv_pdu_state
 };
 
 static void roh_recv_CONN_A3_done(struct tevent_req *);
-struct tevent_req* roh_recv_CONN_A3_send(TALLOC_CTX *mem_ctx,
+struct tevent_req *roh_recv_CONN_A3_send(TALLOC_CTX *mem_ctx,
 					 struct tevent_context *ev,
 					 struct roh_connection *roh)
 {
@@ -628,7 +628,7 @@ NTSTATUS roh_recv_CONN_A3_recv(struct tevent_req *req,
 }
 
 static void roh_recv_CONN_C2_done(struct tevent_req *);
-struct tevent_req* roh_recv_CONN_C2_send(TALLOC_CTX *mem_ctx,
+struct tevent_req *roh_recv_CONN_C2_send(TALLOC_CTX *mem_ctx,
 					 struct tevent_context *ev,
 					 struct roh_connection *roh)
 {

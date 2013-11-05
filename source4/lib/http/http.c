@@ -271,20 +271,6 @@ static enum http_read_status http_parse_buffer(struct http_read_response_state *
 		return HTTP_DATA_CORRUPTED;
 	}
 
-	if (DEBUGLVL(12)) {
-		char	*line;
-
-		line = talloc_strndup(state, (char *)state->buffer.data, state->buffer.length);
-		if (!line) {
-			DEBUG(0, ("%s: No more memory\n", __func__));
-			return HTTP_DATA_CORRUPTED;
-		}
-
-		DEBUG(12, ("%s: Parsing %d bytes [%s]\n", __func__,
-			   (int)state->buffer.length, line));
-		TALLOC_FREE(line);
-	}
-
 	switch (state->parser_state) {
 		case HTTP_READING_FIRSTLINE:
 			return http_parse_firstline(state);
@@ -341,8 +327,8 @@ static int http_add_header_internal(TALLOC_CTX *mem_ctx,
 	}
 
 	header = talloc(mem_ctx, struct http_header);
-	header->key = talloc_strdup(mem_ctx, key);
-	header->value = talloc_strdup(mem_ctx, value);
+	header->key = talloc_strdup(header, key);
+	header->value = talloc_strdup(header, value);
 
 	DEBUG(11, ("%s: Adding HTTP header: key '%s', value '%s'\n",
 		   __func__, header->key, header->value));

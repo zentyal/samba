@@ -5,6 +5,7 @@ samba (2:4.0.10+dfsg-5) UNRELEASED; urgency=low
 
   [ Debconf translations ]
   * Thai (Theppitak Karoonboonyanan).  Closes: #728525
+  * Norwegian Bokmål (Bjørn Steensrud).  Closes: #729070
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Sat, 02 Nov 2013 11:51:28 +0100
 

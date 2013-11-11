@@ -3,10 +3,8 @@ The packaging is kept in git://git.debian.org/git/pkg-samba/samba.git (web
 interface: http://git.debian.org/?p=pkg-samba/samba.git).
 
 The version in unstable is on the 'master' branch, with the corresponding
-upstream version in the 'upstream' branch (with pristine-tar information in
-the pristine-tar branch). The packaging for samba version 4.0 is in a separate
-'samba_4.0' branch, with corresponding 'upstream_4.0' branch.  These should
-move to master/upstream as soon as samba 4.0 gets into unstable.
+upstream version in the 'upstream_4.0' branch (with pristine-tar information
+in the pristine-tar branch).
 
 It should be possible to build the package by just running 'git-buildpackage'.
 
@@ -22,7 +20,7 @@ xz samba-4.0.6.tar
 # go to git repo
 cd $GIT_DIR
 # make sure to be on the right branch
-git checkout samba_4.0
+git checkout master
 git-import-orig --upstream-version=4.0.6+dfsg ../samba-4.0.6.tar.xz
 # all done :)
 

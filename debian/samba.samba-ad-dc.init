@@ -35,6 +35,21 @@ case "$1" in
 		if init_is_upstart; then
 			exit 1
 		fi
+
+		# CVE-2013-4475
+		KEYFILE=/var/lib/samba/private/tls/key.pem
+		if [ -e $KEYFILE ]
+		then
+				KEYPERMS=`stat -c %a $KEYFILE`
+				if [ "$KEYPERMS" != "600" ]
+				then
+						echo "wrong permission on $KEYFILE, must be 600"
+						echo "samba will not start (CVE-2013-4475)"
+						echo "Removing all tls .pem files will cause an auto-regeneration with the correct permissions."
+						exit 1
+				fi
+		fi
+
 		log_daemon_msg "Starting Samba AD DC daemon" "samba"
 		# Make sure we have our PIDDIR, even if it's on a tmpfs
 		install -o root -g root -m 755 -d $PIDDIR

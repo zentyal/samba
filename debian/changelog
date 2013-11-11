@@ -6,6 +6,8 @@ samba (2:4.0.11+dfsg-1) UNRELEASED; urgency=high
     - CVE-2013-4476: Private key in key.pem world readable
   * Move world-readable private key file on upgrade to allow
     auto-regeneration.
+  * Add check in samba-ad-dc init script for wrong permission on private key
+    file that would prevent samba to start.
   * Update samba-libs.lintian-overrides for moved libtorture0.
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Sat, 02 Nov 2013 11:51:28 +0100

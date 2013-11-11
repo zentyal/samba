@@ -1,4 +1,4 @@
-samba (2:4.0.11+dfsg-1) UNRELEASED; urgency=high
+samba (2:4.0.11+dfsg-1) unstable; urgency=high
 
   * New upstream security release. Fixes:
     - CVE-2013-4475: ACLs are not checked on opening an alternate data stream
@@ -10,7 +10,7 @@ samba (2:4.0.11+dfsg-1) UNRELEASED; urgency=high
     file that would prevent samba to start.
   * Update samba-libs.lintian-overrides for moved libtorture0.
 
- -- Ivo De Decker <ivo.dedecker@ugent.be>  Sat, 02 Nov 2013 11:51:28 +0100
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Mon, 11 Nov 2013 15:42:40 +0100
 
 samba (2:4.0.10+dfsg-4) unstable; urgency=low
 

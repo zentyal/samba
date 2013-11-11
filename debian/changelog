@@ -1,5 +1,9 @@
-samba (2:4.0.10+dfsg-5) UNRELEASED; urgency=low
+samba (2:4.0.11+dfsg-1) UNRELEASED; urgency=high
 
+  * New upstream security release. Fixes:
+    - CVE-2013-4475: ACLs are not checked on opening an alternate data stream
+                     on a file or directory
+    - CVE-2013-4476: Private key in key.pem world readable
   * Update samba-libs.lintian-overrides for moved libtorture0.
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Sat, 02 Nov 2013 11:51:28 +0100

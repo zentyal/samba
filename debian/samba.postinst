@@ -10,6 +10,22 @@ set -e
 #	them to be readable only by root.
 umask 022
 
+if dpkg --compare-versions "$2" gt 2:4.0 &&
+	dpkg --compare-versions "$2" lt-nl 2:4.0.11+dfsg ; then
+	# CVE-2013-4475
+	KEYFILE=/var/lib/samba/private/tls/key.pem
+	if [ -e $KEYFILE ]
+	then
+		KEYPERMS=`stat -c %a $KEYFILE`
+		if [ "$KEYPERMS" != "600" ]
+		then
+			echo "moving world readable public key to /var/lib/samba/private/tls/CVE-2013-4475"
+			mkdir -m 700 /var/lib/samba/private/tls/CVE-2013-4475
+			mv -n /var/lib/samba/private/tls/*pem /var/lib/samba/private/tls/CVE-2013-4475
+		fi
+	fi
+fi
+
 if dpkg --compare-versions "$2" lt-nl 2:3.6.15-2; then
 	if [ -e /etc/default/samba ]; then
 		# this config file's one setting is now obsolete; remove it

@@ -161,9 +161,6 @@ ifneq (,$(filter winbind, $(shell dh_listpackages)))
 	dh_installinit -pwinbind
 endif
 
-override_dh_installdocs:
-	dh_installdocs source4/NEWS
-
 override_dh_shlibdeps:
 	LD_LIBRARY_PATH=$(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/samba:$$LD_LIBRARY_PATH dh_shlibdeps -a
 

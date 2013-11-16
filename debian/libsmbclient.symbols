@@ -1,6 +1,7 @@
 libsmbclient.so.0 libsmbclient #MINVER#
  SMBCLIENT_0.1.0@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  SMBCLIENT_0.2.0@SMBCLIENT_0.2.0 2:4.0.3+dfsg1
+ SMBCLIENT_0.2.1@SMBCLIENT_0.2.1 2:4.1.1
  smbc_chmod@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_close@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_closedir@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
@@ -69,6 +70,7 @@ libsmbclient.so.0 libsmbclient #MINVER#
  smbc_getOptionUseKerberos@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_getOptionUseNTHash@SMBCLIENT_0.2.0 2:4.0.3+dfsg1
  smbc_getOptionUserData@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
+ smbc_getPort@SMBCLIENT_0.1.0 2:4.1.1
  smbc_getServerCacheData@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_getTimeout@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_getUser@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
@@ -154,6 +156,7 @@ libsmbclient.so.0 libsmbclient #MINVER#
  smbc_setOptionUseKerberos@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_setOptionUseNTHash@SMBCLIENT_0.2.0 2:4.0.3+dfsg1
  smbc_setOptionUserData@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
+ smbc_setPort@SMBCLIENT_0.1.0 2:4.1.1
  smbc_setServerCacheData@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_setTimeout@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_setUser@SMBCLIENT_0.1.0 2:4.0.3+dfsg1

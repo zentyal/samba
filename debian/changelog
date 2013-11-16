@@ -3,6 +3,8 @@ samba (2:4.1.1+dfsg-1) UNRELEASED; urgency=low
   * New upstream release.
    + Drop 0002-lib-replace-Allow-OS-vendor-to-assert-that-getpass-i.patch:
      upstream no longer uses getpass.
+  * Add source dependency on libntdb1, and stop passing --disable-ntdb,
+    which has been removed.
 
  -- Jelmer Vernooij <jelmer@debian.org>  Sun, 17 Nov 2013 11:47:57 +0000
 

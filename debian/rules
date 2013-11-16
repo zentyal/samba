@@ -58,7 +58,6 @@ conf_args = \
 		--disable-avahi \
 		--with-ctdb=/usr --with-cluster-support \
 		--disable-rpath \
-		--disable-ntdb \
 		--disable-rpath-install \
 		--bundled-libraries=NONE,pytevent,iniparser \
 		--builtin-libraries=replace,ccan \

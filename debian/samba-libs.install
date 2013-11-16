@@ -105,6 +105,8 @@ usr/lib/*/samba/libxattr_tdb.so.*
 usr/lib/*/samba/process_model/*.so
 usr/lib/*/samba/service/*.so
 usr/lib/*/samba/vfs/*.so
+usr/lib/*/samba/libnon_posix_acls.so.0
+usr/lib/*/samba/libutil_ntdb.so.0
 usr/share/man/man8/vfs_acl_tdb.8
 usr/share/man/man8/vfs_acl_xattr.8
 usr/share/man/man8/vfs_aio_fork.8
@@ -140,3 +142,8 @@ usr/share/man/man8/vfs_streams_xattr.8
 usr/share/man/man8/vfs_time_audit.8
 usr/share/man/man8/vfs_tsmsm.8
 usr/share/man/man8/vfs_xattr_tdb.8
+usr/share/man/man8/vfs_btrfs.8
+usr/share/man/man8/idmap_rfc2307.8
+usr/share/man/man8/vfs_linux_xfs_sgid.8
+usr/share/man/man8/samba-regedit.8
+usr/share/man/man8/vfs_syncops.8

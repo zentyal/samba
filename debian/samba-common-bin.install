@@ -1,6 +1,7 @@
 usr/bin/dbwrap_tool
 usr/bin/net
 usr/bin/nmblookup
+usr/bin/samba-regedit
 usr/bin/samba-tool
 usr/bin/smbpasswd
 usr/bin/testparm

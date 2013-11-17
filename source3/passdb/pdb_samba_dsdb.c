@@ -1201,8 +1201,8 @@ static NTSTATUS fake_enum_group_memberships(struct pdb_samba_dsdb_state *state,
 {
 	NTSTATUS status;
 	size_t num_groups = 0;
-	struct dom_sid *group_sids;
-	gid_t *gids;
+	struct dom_sid *group_sids = NULL;
+	gid_t *gids = NULL;
 	TALLOC_CTX *tmp_ctx;
 
 	tmp_ctx = talloc_new(mem_ctx);
@@ -2065,7 +2065,7 @@ static bool pdb_samba_dsdb_sid_to_id(struct pdb_methods *m, const struct dom_sid
 	}
 
 	ZERO_STRUCT(id_map);
-	id_map.sid = sid;
+	id_map.sid = discard_const_p(struct dom_sid, sid);
 	id_maps[0] = &id_map;
 	id_maps[1] = NULL;
 
@@ -2122,6 +2122,11 @@ static NTSTATUS pdb_samba_dsdb_enum_trusteddoms(struct pdb_methods *m,
 	return NT_STATUS_OK;
 }
 
+static bool pdb_samba_dsdb_is_responsible_for_wellknown(struct pdb_methods *m)
+{
+	return true;
+}
+
 static void pdb_samba_dsdb_init_methods(struct pdb_methods *m)
 {
 	m->name = "samba_dsdb";
@@ -2173,6 +2178,8 @@ static void pdb_samba_dsdb_init_methods(struct pdb_methods *m)
 	m->set_trusteddom_pw = pdb_samba_dsdb_set_trusteddom_pw;
 	m->del_trusteddom_pw = pdb_samba_dsdb_del_trusteddom_pw;
 	m->enum_trusteddoms = pdb_samba_dsdb_enum_trusteddoms;
+	m->is_responsible_for_wellknown =
+				pdb_samba_dsdb_is_responsible_for_wellknown;
 }
 
 static void free_private_data(void **vp)

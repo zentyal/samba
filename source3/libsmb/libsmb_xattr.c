@@ -1724,6 +1724,7 @@ SMBC_setxattr_ctx(SMBCCTX *context,
                 const char * write_time_attr;
                 const char * change_time_attr;
         } attr_strings;
+	uint16_t port = 0;
         TALLOC_CTX *frame = talloc_stackframe();
 
 	if (!context || !context->internal->initialized) {
@@ -1746,6 +1747,7 @@ SMBC_setxattr_ctx(SMBCCTX *context,
                             fname,
                             &workgroup,
                             &server,
+                            &port,
                             &share,
                             &path,
                             &user,
@@ -1766,14 +1768,14 @@ SMBC_setxattr_ctx(SMBCCTX *context,
 	}
 
 	srv = SMBC_server(frame, context, True,
-                          server, share, &workgroup, &user, &password);
+                          server, port, share, &workgroup, &user, &password);
 	if (!srv) {
 		TALLOC_FREE(frame);
 		return -1;  /* errno set by SMBC_server */
 	}
 
         if (! srv->no_nt_session) {
-                ipc_srv = SMBC_attr_server(frame, context, server, share,
+                ipc_srv = SMBC_attr_server(frame, context, server, port, share,
                                            &workgroup, &user, &password);
                 if (! ipc_srv) {
                         srv->no_nt_session = True;
@@ -2018,6 +2020,7 @@ SMBC_getxattr_ctx(SMBCCTX *context,
                 const char * write_time_attr;
                 const char * change_time_attr;
         } attr_strings;
+	uint16_t port = 0;
 	TALLOC_CTX *frame = talloc_stackframe();
 
 	if (!context || !context->internal->initialized) {
@@ -2039,6 +2042,7 @@ SMBC_getxattr_ctx(SMBCCTX *context,
                             fname,
                             &workgroup,
                             &server,
+                            &port,
                             &share,
                             &path,
                             &user,
@@ -2059,14 +2063,14 @@ SMBC_getxattr_ctx(SMBCCTX *context,
 	}
 
         srv = SMBC_server(frame, context, True,
-                          server, share, &workgroup, &user, &password);
+                          server, port, share, &workgroup, &user, &password);
         if (!srv) {
 		TALLOC_FREE(frame);
                 return -1;  /* errno set by SMBC_server */
         }
 
         if (! srv->no_nt_session) {
-                ipc_srv = SMBC_attr_server(frame, context, server, share,
+                ipc_srv = SMBC_attr_server(frame, context, server, port, share,
                                            &workgroup, &user, &password);
                 if (! ipc_srv) {
                         srv->no_nt_session = True;
@@ -2153,6 +2157,7 @@ SMBC_removexattr_ctx(SMBCCTX *context,
 	char *password = NULL;
 	char *workgroup = NULL;
 	char *path = NULL;
+	uint16_t port = 0;
 	TALLOC_CTX *frame = talloc_stackframe();
 
 	if (!context || !context->internal->initialized) {
@@ -2174,6 +2179,7 @@ SMBC_removexattr_ctx(SMBCCTX *context,
                             fname,
                             &workgroup,
                             &server,
+                            &port,
                             &share,
                             &path,
                             &user,
@@ -2194,14 +2200,14 @@ SMBC_removexattr_ctx(SMBCCTX *context,
 	}
 
         srv = SMBC_server(frame, context, True,
-                          server, share, &workgroup, &user, &password);
+                          server, port, share, &workgroup, &user, &password);
         if (!srv) {
 		TALLOC_FREE(frame);
                 return -1;  /* errno set by SMBC_server */
         }
 
         if (! srv->no_nt_session) {
-                ipc_srv = SMBC_attr_server(frame, context, server, share,
+                ipc_srv = SMBC_attr_server(frame, context, server, port, share,
                                            &workgroup, &user, &password);
                 if (! ipc_srv) {
                         srv->no_nt_session = True;

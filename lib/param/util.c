@@ -71,14 +71,13 @@ bool lpcfg_is_myname(struct loadparm_context *lp_ctx, const char *name)
 	return false;
 }
 
-
-/**
- A useful function for returning a path in the Samba lock directory.
-**/
-char *lpcfg_lock_path(TALLOC_CTX* mem_ctx, struct loadparm_context *lp_ctx,
-			 const char *name)
+static char *lpcfg_common_path(TALLOC_CTX* mem_ctx,
+			       const char *parent,
+			       const char *name)
 {
 	char *fname, *dname;
+	bool ok;
+
 	if (name == NULL) {
 		return NULL;
 	}
@@ -86,20 +85,36 @@ char *lpcfg_lock_path(TALLOC_CTX* mem_ctx, struct loadparm_context *lp_ctx,
 		return talloc_strdup(mem_ctx, name);
 	}
 
-	dname = talloc_strdup(mem_ctx, lpcfg_lockdir(lp_ctx));
-	trim_string(dname,"","/");
-	
-	if (!directory_exist(dname)) {
-		if (!mkdir(dname,0755))
-			DEBUG(1, ("Unable to create directory %s for file %s. "
-			      "Error was %s\n", dname, name, strerror(errno)));
+	dname = talloc_strdup(mem_ctx, parent);
+	if (dname == NULL) {
+		return NULL;
 	}
-	
-	fname = talloc_asprintf(mem_ctx, "%s/%s", dname, name);
+	trim_string(dname,"","/");
 
+	ok = directory_create_or_exist(dname, geteuid(), 0755);
+	if (!ok) {
+		DEBUG(1, ("Unable to create directory %s for file %s. "
+			  "Error was %s\n", dname, name, strerror(errno)));
+		return NULL;
+	}
+
+	fname = talloc_asprintf(mem_ctx, "%s/%s", dname, name);
+	if (fname == NULL) {
+		return dname;
+	}
 	talloc_free(dname);
 
 	return fname;
+}
+
+
+/**
+ A useful function for returning a path in the Samba lock directory.
+**/
+char *lpcfg_lock_path(TALLOC_CTX* mem_ctx, struct loadparm_context *lp_ctx,
+			 const char *name)
+{
+	return lpcfg_common_path(mem_ctx, lpcfg_lockdir(lp_ctx), name);
 }
 
 /**
@@ -108,26 +123,7 @@ char *lpcfg_lock_path(TALLOC_CTX* mem_ctx, struct loadparm_context *lp_ctx,
 char *lpcfg_state_path(TALLOC_CTX* mem_ctx, struct loadparm_context *lp_ctx,
 		       const char *name)
 {
-	char *fname, *dname;
-	if (name == NULL) {
-		return NULL;
-	}
-	if (name[0] == 0 || name[0] == '/' || strstr(name, ":/")) {
-		return talloc_strdup(mem_ctx, name);
-	}
-
-	dname = talloc_strdup(mem_ctx, lpcfg_statedir(lp_ctx));
-	trim_string(dname,"","/");
-
-	if (!directory_exist(dname)) {
-		mkdir(dname,0755);
-	}
-
-	fname = talloc_asprintf(mem_ctx, "%s/%s", dname, name);
-
-	talloc_free(dname);
-
-	return fname;
+	return lpcfg_common_path(mem_ctx, lpcfg_statedir(lp_ctx), name);
 }
 
 /**
@@ -136,26 +132,7 @@ char *lpcfg_state_path(TALLOC_CTX* mem_ctx, struct loadparm_context *lp_ctx,
 char *lpcfg_cache_path(TALLOC_CTX* mem_ctx, struct loadparm_context *lp_ctx,
 		       const char *name)
 {
-	char *fname, *dname;
-	if (name == NULL) {
-		return NULL;
-	}
-	if (name[0] == 0 || name[0] == '/' || strstr(name, ":/")) {
-		return talloc_strdup(mem_ctx, name);
-	}
-
-	dname = talloc_strdup(mem_ctx, lpcfg_cachedir(lp_ctx));
-	trim_string(dname,"","/");
-
-	if (!directory_exist(dname)) {
-		mkdir(dname,0755);
-	}
-
-	fname = talloc_asprintf(mem_ctx, "%s/%s", dname, name);
-
-	talloc_free(dname);
-
-	return fname;
+	return lpcfg_common_path(mem_ctx, lpcfg_cachedir(lp_ctx), name);
 }
 
 /**
@@ -213,6 +190,31 @@ char *lpcfg_private_path(TALLOC_CTX* mem_ctx,
 }
 
 /**
+ * @brief Returns an absolute path to a NTDB or TDB file in the Samba
+ * private directory.
+ *
+ * @param name File to find, relative to PRIVATEDIR, without .(n)tdb extension.
+ * Only provide fixed-string names which are supposed to change with "use ntdb"
+ * option.
+ *
+ * @retval Pointer to a talloc'ed string containing the full path, for
+ * use with dbwrap_local_open().
+ **/
+char *lpcfg_private_db_path(TALLOC_CTX *mem_ctx,
+			    struct loadparm_context *lp_ctx,
+			    const char *name)
+{
+	const char *extension = ".tdb";
+
+	if (lpcfg_use_ntdb(lp_ctx)) {
+		extension = ".ntdb";
+	}
+
+	return talloc_asprintf(mem_ctx, "%s/%s%s",
+			       lpcfg_private_dir(lp_ctx), name, extension);
+}
+
+/**
   return a path in the smbd.tmp directory, where all temporary file
   for smbd go. If NULL is passed for name then return the directory 
   path itself
@@ -222,10 +224,16 @@ char *smbd_tmp_path(TALLOC_CTX *mem_ctx,
 			     const char *name)
 {
 	char *fname, *dname;
+	bool ok;
 
 	dname = lpcfg_private_path(mem_ctx, lp_ctx, "smbd.tmp");
-	if (!directory_exist(dname)) {
-		mkdir(dname,0755);
+	if (dname == NULL) {
+		return NULL;
+	}
+
+	ok = directory_create_or_exist(dname, geteuid(), 0755);
+	if (!ok) {
+		return NULL;
 	}
 
 	if (name == NULL) {
@@ -233,6 +241,9 @@ char *smbd_tmp_path(TALLOC_CTX *mem_ctx,
 	}
 
 	fname = talloc_asprintf(mem_ctx, "%s/%s", dname, name);
+	if (fname == NULL) {
+		return dname;
+	}
 	talloc_free(dname);
 
 	return fname;

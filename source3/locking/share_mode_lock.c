@@ -46,6 +46,7 @@
 #include "messages.h"
 #include "util_tdb.h"
 #include "../librpc/gen_ndr/ndr_open_files.h"
+#include "source3/lib/dbwrap/dbwrap_watch.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_LOCKING
@@ -75,6 +76,8 @@ static bool locking_init_internal(bool read_only)
 
 	if (!posix_locking_init(read_only))
 		return False;
+
+	dbwrap_watch_db(lock_db, server_messaging_context());
 
 	return True;
 }
@@ -412,6 +415,15 @@ fail:
 	return NULL;
 }
 
+static void fetch_share_mode_unlocked_parser(
+	TDB_DATA key, TDB_DATA data, void *private_data)
+{
+	struct share_mode_lock *lck = talloc_get_type_abort(
+		private_data, struct share_mode_lock);
+
+	lck->data = parse_share_modes(lck, data);
+}
+
 /*******************************************************************
  Get a share_mode_lock without locking the database or reference
  counting. Used by smbstatus to display existing share modes.
@@ -422,25 +434,17 @@ struct share_mode_lock *fetch_share_mode_unlocked(TALLOC_CTX *mem_ctx,
 {
 	struct share_mode_lock *lck;
 	TDB_DATA key = locking_key(&id);
-	TDB_DATA data;
 	NTSTATUS status;
 
-	status = dbwrap_fetch(lock_db, talloc_tos(), key, &data);
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(3, ("Could not fetch share entry\n"));
-		return NULL;
-	}
-	if (data.dptr == NULL) {
-		return NULL;
-	}
 	lck = talloc(mem_ctx, struct share_mode_lock);
 	if (lck == NULL) {
-		TALLOC_FREE(data.dptr);
+		DEBUG(0, ("talloc failed\n"));
 		return NULL;
 	}
-	lck->data = parse_share_modes(lck, data);
-	TALLOC_FREE(data.dptr);
-	if (lck->data == NULL) {
+	status = dbwrap_parse_record(
+		lock_db, key, fetch_share_mode_unlocked_parser, lck);
+	if (!NT_STATUS_IS_OK(status) ||
+	    (lck->data == NULL)) {
 		TALLOC_FREE(lck);
 		return NULL;
 	}
@@ -485,6 +489,10 @@ static int traverse_fn(struct db_record *rec, void *_state)
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		DEBUG(1, ("ndr_pull_share_mode_lock failed\n"));
 		return 0;
+	}
+	if (DEBUGLEVEL > 10) {
+		DEBUG(11, ("parse_share_modes:\n"));
+		NDR_PRINT_DEBUG(share_mode_data, d);
 	}
 	for (i=0; i<d->num_share_modes; i++) {
 		state->fn(&d->share_modes[i],

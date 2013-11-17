@@ -67,7 +67,7 @@ static void free_domain_list(void)
 		struct winbindd_domain *next = domain->next;
 
 		DLIST_REMOVE(_domain_list, domain);
-		SAFE_FREE(domain);
+		TALLOC_FREE(domain);
 		domain = next;
 	}
 }
@@ -156,27 +156,31 @@ static struct winbindd_domain *add_trusted_domain(const char *domain_name, const
 	}
 
 	/* Create new domain entry */
-
-	if ((domain = SMB_MALLOC_P(struct winbindd_domain)) == NULL)
-		return NULL;
-
-	/* Fill in fields */
-
-	ZERO_STRUCTP(domain);
-
-	domain->children = SMB_MALLOC_ARRAY(
-		struct winbindd_child, lp_winbind_max_domain_connections());
-	if (domain->children == NULL) {
-		SAFE_FREE(domain);
+	domain = talloc_zero(NULL, struct winbindd_domain);
+	if (domain == NULL) {
 		return NULL;
 	}
-	memset(domain->children, 0,
-	       sizeof(struct winbindd_child)
-	       * lp_winbind_max_domain_connections());
 
-	fstrcpy(domain->name, domain_name);
+	domain->children = talloc_zero_array(domain,
+					     struct winbindd_child,
+					     lp_winbind_max_domain_connections());
+	if (domain->children == NULL) {
+		TALLOC_FREE(domain);
+		return NULL;
+	}
+
+	domain->name = talloc_strdup(domain, domain_name);
+	if (domain->name == NULL) {
+		TALLOC_FREE(domain);
+		return NULL;
+	}
+
 	if (alternative_name) {
-		fstrcpy(domain->alt_name, alternative_name);
+		domain->alt_name = talloc_strdup(domain, alternative_name);
+		if (domain->alt_name == NULL) {
+			TALLOC_FREE(domain);
+			return NULL;
+		}
 	}
 
 	domain->methods = methods;
@@ -303,6 +307,7 @@ static void trustdom_list_done(struct tevent_req *req)
 		struct dom_sid sid;
 		struct winbindd_domain *domain;
 		char *alternate_name = NULL;
+		bool domain_exists;
 
 		alt_name = strchr(p, '\\');
 		if (alt_name == NULL) {
@@ -336,22 +341,25 @@ static void trustdom_list_done(struct tevent_req *req)
 		if ( !strequal( alt_name, "(null)" ) )
 			alternate_name = alt_name;
 
-		/* If we have an existing domain structure, calling
- 		   add_trusted_domain() will update the SID if
- 		   necessary.  This is important because we need the
- 		   SID for sibling domains */
+		/* Check if we already have a child for the domain */
+		domain_exists = (find_domain_from_name_noinit(p) != NULL);
 
-		if ( find_domain_from_name_noinit(p) != NULL ) {
-			domain = add_trusted_domain(p, alternate_name,
-						    &cache_methods,
-						    &sid);
-		} else {
-			domain = add_trusted_domain(p, alternate_name,
-						    &cache_methods,
-						    &sid);
-			if (domain) {
-				setup_domain_child(domain);
-			}
+		/*
+		 * We always call add_trusted_domain() cause on an existing
+		 * domain structure, it will update the SID if necessary.
+		 * This is important because we need the SID for sibling
+		 * domains.
+		 */
+		domain = add_trusted_domain(p, alternate_name,
+					    &cache_methods,
+					    &sid);
+
+		/*
+		 * If the domain doesn't exist yet and got correctly added,
+		 * setup a new domain child.
+		 */
+		if (!domain_exists && domain != NULL) {
+			setup_domain_child(domain);
 		}
 		p=q;
 		if (p != NULL)
@@ -675,7 +683,7 @@ struct winbindd_domain *find_domain_from_name_noinit(const char *domain_name)
 
 	for (domain = domain_list(); domain != NULL; domain = domain->next) {
 		if (strequal(domain_name, domain->name) ||
-		    (domain->alt_name[0] &&
+		    (domain->alt_name != NULL &&
 		     strequal(domain_name, domain->alt_name))) {
 			return domain;
 		}
@@ -755,7 +763,7 @@ struct winbindd_domain *find_root_domain(void)
 {
 	struct winbindd_domain *ours = find_our_domain();
 
-	if (ours->forest_name[0] == '\0') {
+	if (ours->forest_name == NULL) {
 		return NULL;
 	}
 

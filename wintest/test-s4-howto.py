@@ -57,7 +57,7 @@ def start_s4(t):
     t.chdir("${PREFIX}")
     t.run_cmd('killall -9 -q samba smbd nmbd winbindd', checkfail=False)
     t.run_cmd(['sbin/samba',
-             '--option', 'panic action=gnome-terminal -e "gdb --pid %d"'])
+             '--option', 'panic action=gnome-terminal -e "gdb --pid %d"', '--option', 'max protocol=nt1'])
     t.port_wait("${INTERFACE_IP}", 139)
 
 def test_smbclient(t):
@@ -65,7 +65,7 @@ def test_smbclient(t):
     t.info('Testing smbclient')
     smbclient = t.getvar("smbclient")
     t.chdir('${PREFIX}')
-    t.cmd_contains("%s --version" % (smbclient), ["Version 4.0"])
+    t.cmd_contains("%s --version" % (smbclient), ["Version 4.1"])
     t.retry_cmd('%s -L ${INTERFACE_IP} -U%%' % (smbclient), ["netlogon", "sysvol", "IPC Service"])
     child = t.pexpect_spawn('%s //${INTERFACE_IP}/netlogon -Uadministrator%%${PASSWORD1}' % (smbclient))
     child.expect("smb:")
@@ -174,7 +174,7 @@ SafeModeAdminPassword=${PASSWORD1}
     child.expect("C:")
     child.expect("C:")
     child.sendline("dcpromo /answer:answers.txt")
-    i = child.expect(["You must restart this computer", "failed", "Active Directory Domain Services was not installed", "C:"], timeout=120)
+    i = child.expect(["You must restart this computer", "failed", "Active Directory Domain Services was not installed", "C:"], timeout=240)
     if i == 1 or i == 2:
         child.sendline("echo off")
         child.sendline("echo START DCPROMO log")

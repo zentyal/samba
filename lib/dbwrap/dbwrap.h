@@ -44,11 +44,6 @@ struct db_record *dbwrap_fetch_locked(struct db_context *db,
 struct db_record *dbwrap_try_fetch_locked(struct db_context *db,
 					  TALLOC_CTX *mem_ctx,
 					  TDB_DATA key);
-struct db_record *dbwrap_fetch_locked_timeout(struct db_context *db,
-					      TALLOC_CTX *mem_ctx,
-					      TDB_DATA key,
-					      unsigned int timeout);
-
 struct db_context *dbwrap_record_get_db(struct db_record *rec);
 void dbwrap_set_stored_callback(
 	struct db_context *db,
@@ -84,6 +79,7 @@ NTSTATUS dbwrap_transaction_start_nonblock(struct db_context *db);
 int dbwrap_transaction_commit(struct db_context *db);
 int dbwrap_transaction_cancel(struct db_context *db);
 void dbwrap_db_id(struct db_context *db, const uint8_t **id, size_t *idlen);
+bool dbwrap_is_persistent(struct db_context *db);
 const char *dbwrap_name(struct db_context *db);
 
 /* The following definitions come from lib/dbwrap_util.c  */

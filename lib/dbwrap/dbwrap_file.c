@@ -347,9 +347,8 @@ static int db_file_traverse(struct db_context *db,
 }
 
 struct db_context *db_open_file(TALLOC_CTX *mem_ctx,
-				struct messaging_context *msg_ctx,
 				const char *name,
-				int hash_size, int tdb_flags,
+				int tdb_flags,
 				int open_flags, mode_t mode)
 {
 	struct db_context *result = NULL;
@@ -372,8 +371,13 @@ struct db_context *db_open_file(TALLOC_CTX *mem_ctx,
 	result->traverse = db_file_traverse;
 	result->traverse_read = db_file_traverse;
 	result->persistent = ((tdb_flags & TDB_CLEAR_IF_FIRST) == 0);
-	result->name = name;
 	result->hash_size = 0;
+	result->name = talloc_strdup(result, name);
+	if (result->name == NULL) {
+		DEBUG(0, ("talloc failed\n"));
+		TALLOC_FREE(result);
+		return NULL;
+	}
 
 	ctx->locked_record = NULL;
 	if (!(ctx->dirname = talloc_strdup(ctx, name))) {

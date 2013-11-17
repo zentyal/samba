@@ -208,7 +208,8 @@ static void tstream_cli_np_open_done(struct tevent_req *subreq)
 	} else {
 		status = smb2cli_create_recv(subreq,
 					     &state->fid_persistent,
-					     &state->fid_volatile);
+					     &state->fid_volatile,
+					     NULL);
 	}
 	TALLOC_FREE(subreq);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -527,8 +528,11 @@ static void tstream_cli_np_writev_write_done(struct tevent_req *subreq)
 	if (cli_nps->is_smb1) {
 		status = cli_write_andx_recv(subreq, &written);
 	} else {
-		status = smb2cli_write_recv(subreq);
-		written = cli_nps->write.ofs; // TODO: get the value from the server
+		uint32_t smb2_written;
+		status = smb2cli_write_recv(subreq, &smb2_written);
+		if (NT_STATUS_IS_OK(status)) {
+			written = smb2_written;
+		}
 	}
 	TALLOC_FREE(subreq);
 	if (!NT_STATUS_IS_OK(status)) {

@@ -49,18 +49,12 @@ static NTSTATUS store_acl_blob_fsp(vfs_handle_struct *handle,
  Hash a security descriptor.
 *******************************************************************/
 
-static NTSTATUS hash_sd_sha256(struct security_descriptor *psd,
-			uint8_t *hash)
+static NTSTATUS hash_blob_sha256(DATA_BLOB blob,
+				 uint8_t *hash)
 {
-	DATA_BLOB blob;
 	SHA256_CTX tctx;
-	NTSTATUS status;
 
 	memset(hash, '\0', XATTR_SD_HASH_SIZE);
-	status = create_acl_blob(psd, &blob, XATTR_SD_HASH_TYPE_SHA256, hash);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
 
 	samba_SHA256_Init(&tctx);
 	samba_SHA256_Update(&tctx, blob.data, blob.length);
@@ -70,14 +64,34 @@ static NTSTATUS hash_sd_sha256(struct security_descriptor *psd,
 }
 
 /*******************************************************************
+ Hash a security descriptor.
+*******************************************************************/
+
+static NTSTATUS hash_sd_sha256(struct security_descriptor *psd,
+			uint8_t *hash)
+{
+	DATA_BLOB blob;
+	NTSTATUS status;
+
+	memset(hash, '\0', XATTR_SD_HASH_SIZE);
+	status = create_acl_blob(psd, &blob, XATTR_SD_HASH_TYPE_SHA256, hash);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+	return hash_blob_sha256(blob, hash);
+}
+
+/*******************************************************************
  Parse out a struct security_descriptor from a DATA_BLOB.
 *******************************************************************/
 
 static NTSTATUS parse_acl_blob(const DATA_BLOB *pblob,
 			       TALLOC_CTX *mem_ctx,
-				struct security_descriptor **ppdesc,
-				uint16_t *p_hash_type,
-				uint8_t hash[XATTR_SD_HASH_SIZE])
+			       struct security_descriptor **ppdesc,
+			       uint16_t *p_hash_type,
+			       uint16_t *p_version,
+			       uint8_t hash[XATTR_SD_HASH_SIZE],
+			       uint8_t sys_acl_hash[XATTR_SD_HASH_SIZE])
 {
 	struct xattr_NTACL xacl;
 	enum ndr_err_code ndr_err;
@@ -93,6 +107,8 @@ static NTSTATUS parse_acl_blob(const DATA_BLOB *pblob,
 		TALLOC_FREE(frame);
 		return ndr_map_error2ntstatus(ndr_err);
 	}
+
+	*p_version = xacl.version;
 
 	switch (xacl.version) {
 		case 1:
@@ -128,8 +144,21 @@ static NTSTATUS parse_acl_blob(const DATA_BLOB *pblob,
 					xacl.info.sd_hs3->sd->dacl,
 					&sd_size);
 			*p_hash_type = xacl.info.sd_hs3->hash_type;
-			/* Current version 3. */
+			/* Current version 3 (if no sys acl hash available). */
 			memcpy(hash, xacl.info.sd_hs3->hash, XATTR_SD_HASH_SIZE);
+			break;
+		case 4:
+			*ppdesc = make_sec_desc(mem_ctx, SD_REVISION,
+					xacl.info.sd_hs4->sd->type | SEC_DESC_SELF_RELATIVE,
+					xacl.info.sd_hs4->sd->owner_sid,
+					xacl.info.sd_hs4->sd->group_sid,
+					xacl.info.sd_hs4->sd->sacl,
+					xacl.info.sd_hs4->sd->dacl,
+					&sd_size);
+			*p_hash_type = xacl.info.sd_hs4->hash_type;
+			/* Current version 4. */
+			memcpy(hash, xacl.info.sd_hs4->hash, XATTR_SD_HASH_SIZE);
+			memcpy(sys_acl_hash, xacl.info.sd_hs4->sys_acl_hash, XATTR_SD_HASH_SIZE);
 			break;
 		default:
 			TALLOC_FREE(frame);
@@ -142,7 +171,8 @@ static NTSTATUS parse_acl_blob(const DATA_BLOB *pblob,
 }
 
 /*******************************************************************
- Create a DATA_BLOB from a security descriptor.
+ Create a DATA_BLOB from a hash of the security descriptor storead at
+ the system layer and the NT ACL we wish to preserve
 *******************************************************************/
 
 static NTSTATUS create_acl_blob(const struct security_descriptor *psd,
@@ -163,6 +193,52 @@ static NTSTATUS create_acl_blob(const struct security_descriptor *psd,
 	xacl.info.sd_hs3->sd = discard_const_p(struct security_descriptor, psd);
 	xacl.info.sd_hs3->hash_type = hash_type;
 	memcpy(&xacl.info.sd_hs3->hash[0], hash, XATTR_SD_HASH_SIZE);
+
+	ndr_err = ndr_push_struct_blob(
+			pblob, ctx, &xacl,
+			(ndr_push_flags_fn_t)ndr_push_xattr_NTACL);
+
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		DEBUG(5, ("create_acl_blob: ndr_push_xattr_NTACL failed: %s\n",
+			ndr_errstr(ndr_err)));
+		return ndr_map_error2ntstatus(ndr_err);
+	}
+
+	return NT_STATUS_OK;
+}
+
+/*******************************************************************
+ Create a DATA_BLOB from a hash of the security descriptors 
+ (system and NT) stored at the system layer and the NT ACL we wish 
+ to preserve.
+*******************************************************************/
+
+static NTSTATUS create_sys_acl_blob(const struct security_descriptor *psd,
+				    DATA_BLOB *pblob,
+				    uint16_t hash_type,
+				    uint8_t hash[XATTR_SD_HASH_SIZE],
+				    const char *description,
+				    uint8_t sys_acl_hash[XATTR_SD_HASH_SIZE])
+{
+	struct xattr_NTACL xacl;
+	struct security_descriptor_hash_v4 sd_hs4;
+	enum ndr_err_code ndr_err;
+	TALLOC_CTX *ctx = talloc_tos();
+	NTTIME nttime_now;
+	struct timeval now = timeval_current();
+	nttime_now = timeval_to_nttime(&now);
+
+	ZERO_STRUCT(xacl);
+	ZERO_STRUCT(sd_hs4);
+
+	xacl.version = 4;
+	xacl.info.sd_hs4 = &sd_hs4;
+	xacl.info.sd_hs4->sd = discard_const_p(struct security_descriptor, psd);
+	xacl.info.sd_hs4->hash_type = hash_type;
+	memcpy(&xacl.info.sd_hs4->hash[0], hash, XATTR_SD_HASH_SIZE);
+	xacl.info.sd_hs4->description = description;
+	xacl.info.sd_hs4->time = nttime_now;
+	memcpy(&xacl.info.sd_hs4->sys_acl_hash[0], sys_acl_hash, XATTR_SD_HASH_SIZE);
 
 	ndr_err = ndr_push_struct_blob(
 			pblob, ctx, &xacl,
@@ -286,23 +362,27 @@ static NTSTATUS add_directory_inheritable_components(vfs_handle_struct *handle,
 *******************************************************************/
 
 static NTSTATUS get_nt_acl_internal(vfs_handle_struct *handle,
-				files_struct *fsp,
-				const char *name,
-			        uint32_t security_info,
-				TALLOC_CTX *mem_ctx,
+				    files_struct *fsp,
+				    const char *name,
+				    uint32_t security_info,
+				    TALLOC_CTX *mem_ctx,
 				    struct security_descriptor **ppdesc)
 {
 	DATA_BLOB blob = data_blob_null;
 	NTSTATUS status;
 	uint16_t hash_type = XATTR_SD_HASH_TYPE_NONE;
+	uint16_t xattr_version = 0;
 	uint8_t hash[XATTR_SD_HASH_SIZE];
+	uint8_t sys_acl_hash[XATTR_SD_HASH_SIZE];
 	uint8_t hash_tmp[XATTR_SD_HASH_SIZE];
+	uint8_t sys_acl_hash_tmp[XATTR_SD_HASH_SIZE];
 	struct security_descriptor *psd = NULL;
 	struct security_descriptor *pdesc_next = NULL;
 	bool ignore_file_system_acl = lp_parm_bool(SNUM(handle->conn),
 						ACL_MODULE_NAME,
 						"ignore system acls",
 						false);
+	TALLOC_CTX *frame = talloc_stackframe();
 
 	if (fsp && name == NULL) {
 		name = fsp->fsp_name->base_name;
@@ -310,99 +390,211 @@ static NTSTATUS get_nt_acl_internal(vfs_handle_struct *handle,
 
 	DEBUG(10, ("get_nt_acl_internal: name=%s\n", name));
 
-	/* Get the full underlying sd for the hash
-	   or to return as backup. */
-	if (fsp) {
-		status = SMB_VFS_NEXT_FGET_NT_ACL(handle,
-						  fsp,
-						  HASH_SECURITY_INFO,
-						  mem_ctx,
-						  &pdesc_next);
-	} else {
-		status = SMB_VFS_NEXT_GET_NT_ACL(handle,
-						 name,
-						 HASH_SECURITY_INFO,
-						 mem_ctx,
-						 &pdesc_next);
-	}
-
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(10, ("get_nt_acl_internal: get_next_acl for file %s "
-			"returned %s\n",
-			name,
-			nt_errstr(status)));
-		return status;
-	}
-
-	status = get_acl_blob(talloc_tos(), handle, fsp, name, &blob);
+	status = get_acl_blob(frame, handle, fsp, name, &blob);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(10, ("get_nt_acl_internal: get_acl_blob returned %s\n",
 			nt_errstr(status)));
-		psd = pdesc_next;
+		psd = NULL;
 		goto out;
-	}
-
-	status = parse_acl_blob(&blob, mem_ctx, &psd,
-				&hash_type, &hash[0]);
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(10, ("parse_acl_blob returned %s\n",
-				nt_errstr(status)));
-		psd = pdesc_next;
-		goto out;
-	}
-
-	/* Ensure the hash type is one we know. */
-	switch (hash_type) {
-		case XATTR_SD_HASH_TYPE_NONE:
-			/* No hash, just return blob sd. */
+	} else {
+		status = parse_acl_blob(&blob, mem_ctx, &psd,
+					&hash_type, &xattr_version, &hash[0], &sys_acl_hash[0]);
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(10, ("parse_acl_blob returned %s\n",
+				   nt_errstr(status)));
+			psd = NULL;
 			goto out;
-		case XATTR_SD_HASH_TYPE_SHA256:
-			break;
-		default:
-			DEBUG(10, ("get_nt_acl_internal: ACL blob revision "
-				"mismatch (%u) for file %s\n",
-				(unsigned int)hash_type,
-				name));
+		}
+	}
+
+	/* Ensure we don't leak psd if we don't choose it.
+	 *
+	 * We don't allocate it onto frame as it is preferred not to
+	 * steal from a talloc pool.
+	 */
+	talloc_steal(frame, psd);
+
+	/* determine which type of xattr we got */
+	switch (xattr_version) {
+	case 1:
+	case 2:
+		/* These xattr types are unilatteral, they do not
+		 * require confirmation of the hash.  In particular,
+		 * the NTVFS file server uses version 1, but
+		 * 'samba-tool ntacl' can set these as well */
+		goto out;
+	case 3:
+	case 4:
+		if (ignore_file_system_acl) {
+			goto out;
+		}
+
+		break;
+	default:
+		DEBUG(10, ("get_nt_acl_internal: ACL blob revision "
+			   "mismatch (%u) for file %s\n",
+			   (unsigned int)hash_type,
+			   name));
+		TALLOC_FREE(psd);
+		psd = NULL;
+		goto out;
+	}
+
+	/* determine which type of xattr we got */
+	if (hash_type != XATTR_SD_HASH_TYPE_SHA256) {
+		DEBUG(10, ("get_nt_acl_internal: ACL blob hash type "
+			   "(%u) unexpected for file %s\n",
+			   (unsigned int)hash_type,
+			   name));
+		TALLOC_FREE(psd);
+		psd = NULL;
+		goto out;
+	}
+
+	/* determine which type of xattr we got */
+	switch (xattr_version) {
+	case 4:
+	{
+		int ret;
+		char *sys_acl_blob_description;
+		DATA_BLOB sys_acl_blob;
+		if (fsp) {
+			/* Get the full underlying sd, then hash. */
+			ret = SMB_VFS_NEXT_SYS_ACL_BLOB_GET_FD(handle,
+							       fsp,
+							       frame,
+							       &sys_acl_blob_description,
+							       &sys_acl_blob);
+		} else {
+			/* Get the full underlying sd, then hash. */
+			ret = SMB_VFS_NEXT_SYS_ACL_BLOB_GET_FILE(handle,
+								 name,
+								 frame,
+								 &sys_acl_blob_description,
+								 &sys_acl_blob);
+		}
+
+		/* If we fail to get the ACL blob (for some reason) then this
+		 * is not fatal, we just work based on the NT ACL only */
+		if (ret == 0) {
+			status = hash_blob_sha256(sys_acl_blob, sys_acl_hash_tmp);
+			if (!NT_STATUS_IS_OK(status)) {
+				TALLOC_FREE(frame);
+				return status;
+			}
+
+			if (memcmp(&sys_acl_hash[0], &sys_acl_hash_tmp[0], 
+				   XATTR_SD_HASH_SIZE) == 0) {
+				/* Hash matches, return blob sd. */
+				DEBUG(10, ("get_nt_acl_internal: blob hash "
+					   "matches for file %s\n",
+					   name ));
+				goto out;
+			}
+		}
+
+		/* Otherwise, fall though and see if the NT ACL hash matches */
+	}
+	case 3:
+		/* Get the full underlying sd for the hash
+		   or to return as backup. */
+		if (fsp) {
+			status = SMB_VFS_NEXT_FGET_NT_ACL(handle,
+							  fsp,
+							  HASH_SECURITY_INFO,
+							  mem_ctx,
+							  &pdesc_next);
+		} else {
+			status = SMB_VFS_NEXT_GET_NT_ACL(handle,
+							 name,
+							 HASH_SECURITY_INFO,
+							 mem_ctx,
+							 &pdesc_next);
+		}
+
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(10, ("get_nt_acl_internal: get_next_acl for file %s "
+				   "returned %s\n",
+				   name,
+				   nt_errstr(status)));
+			TALLOC_FREE(frame);
+			return status;
+		}
+
+		/* Ensure we don't leak psd_next if we don't choose it.
+		 *
+		 * We don't allocate it onto frame as it is preferred not to
+		 * steal from a talloc pool.
+		 */
+		talloc_steal(frame, pdesc_next);
+
+		status = hash_sd_sha256(pdesc_next, hash_tmp);
+		if (!NT_STATUS_IS_OK(status)) {
 			TALLOC_FREE(psd);
 			psd = pdesc_next;
 			goto out;
-	}
+		}
 
-	if (ignore_file_system_acl) {
-		goto out;
-	}
+		if (memcmp(&hash[0], &hash_tmp[0], XATTR_SD_HASH_SIZE) == 0) {
+			/* Hash matches, return blob sd. */
+			DEBUG(10, ("get_nt_acl_internal: blob hash "
+				   "matches for file %s\n",
+				   name ));
+			goto out;
+		}
 
-	status = hash_sd_sha256(pdesc_next, hash_tmp);
-	if (!NT_STATUS_IS_OK(status)) {
+		/* Hash doesn't match, return underlying sd. */
+		DEBUG(10, ("get_nt_acl_internal: blob hash "
+			   "does not match for file %s - returning "
+			   "file system SD mapping.\n",
+			   name ));
+
+		if (DEBUGLEVEL >= 10) {
+			DEBUG(10,("get_nt_acl_internal: acl for blob hash for %s is:\n",
+				  name ));
+			NDR_PRINT_DEBUG(security_descriptor, pdesc_next);
+		}
+
 		TALLOC_FREE(psd);
 		psd = pdesc_next;
-		goto out;
 	}
-
-	if (memcmp(&hash[0], &hash_tmp[0], XATTR_SD_HASH_SIZE) == 0) {
-		/* Hash matches, return blob sd. */
-		DEBUG(10, ("get_nt_acl_internal: blob hash "
-			"matches for file %s\n",
-			name ));
-		goto out;
-	}
-
-	/* Hash doesn't match, return underlying sd. */
-	DEBUG(10, ("get_nt_acl_internal: blob hash "
-		"does not match for file %s - returning "
-		"file system SD mapping.\n",
-		name ));
-
-	if (DEBUGLEVEL >= 10) {
-		DEBUG(10,("get_nt_acl_internal: acl for blob hash for %s is:\n",
-			name ));
-		NDR_PRINT_DEBUG(security_descriptor, pdesc_next);
-	}
-
-	TALLOC_FREE(psd);
-	psd = pdesc_next;
-
   out:
+
+	if (psd == NULL) {
+		/* Get the full underlying sd, as we failed to get the
+		 * blob for the hash, or the revision/hash type wasn't
+		 * known */
+		if (fsp) {
+			status = SMB_VFS_NEXT_FGET_NT_ACL(handle,
+							  fsp,
+							  security_info,
+							  mem_ctx,
+							  &pdesc_next);
+		} else {
+			status = SMB_VFS_NEXT_GET_NT_ACL(handle,
+							 name,
+							 security_info,
+							 mem_ctx,
+							 &pdesc_next);
+		}
+
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(10, ("get_nt_acl_internal: get_next_acl for file %s "
+				   "returned %s\n",
+				   name,
+				   nt_errstr(status)));
+			TALLOC_FREE(frame);
+			return status;
+		}
+
+		/* Ensure we don't leak psd_next if we don't choose it.
+		 *
+		 * We don't allocate it onto frame as it is preferred not to
+		 * steal from a talloc pool.
+		 */
+		talloc_steal(frame, pdesc_next);
+		psd = pdesc_next;
+	}
 
 	if (psd != pdesc_next) {
 		/* We're returning the blob, throw
@@ -420,6 +612,7 @@ static NTSTATUS get_nt_acl_internal(vfs_handle_struct *handle,
 		if (fsp) {
 			status = vfs_stat_fsp(fsp);
 			if (!NT_STATUS_IS_OK(status)) {
+				TALLOC_FREE(frame);
 				return status;
 			}
 			psbuf = &fsp->fsp_name->st;
@@ -428,6 +621,7 @@ static NTSTATUS get_nt_acl_internal(vfs_handle_struct *handle,
 						name,
 						&sbuf);
 			if (ret == -1) {
+				TALLOC_FREE(frame);
 				return map_nt_error_from_unix(errno);
 			}
 		}
@@ -440,6 +634,7 @@ static NTSTATUS get_nt_acl_internal(vfs_handle_struct *handle,
 						psbuf,
 						&psd);
 			if (!NT_STATUS_IS_OK(status)) {
+				TALLOC_FREE(frame);
 				return status;
 			}
 		} else {
@@ -452,6 +647,7 @@ static NTSTATUS get_nt_acl_internal(vfs_handle_struct *handle,
 							psbuf,
 							psd);
 				if (!NT_STATUS_IS_OK(status)) {
+					TALLOC_FREE(frame);
 					return status;
 				}
 			}
@@ -479,7 +675,6 @@ static NTSTATUS get_nt_acl_internal(vfs_handle_struct *handle,
 	}
 
 	TALLOC_FREE(blob.data);
-	*ppdesc = psd;
 
 	if (DEBUGLEVEL >= 10) {
 		DEBUG(10,("get_nt_acl_internal: returning acl for %s is:\n",
@@ -487,6 +682,10 @@ static NTSTATUS get_nt_acl_internal(vfs_handle_struct *handle,
 		NDR_PRINT_DEBUG(security_descriptor, psd);
 	}
 
+	/* The VFS API is that the ACL is expected to be on mem_ctx */
+	*ppdesc = talloc_move(mem_ctx, &psd);
+
+	TALLOC_FREE(frame);
 	return NT_STATUS_OK;
 }
 
@@ -526,11 +725,14 @@ static NTSTATUS fset_nt_acl_common(vfs_handle_struct *handle, files_struct *fsp,
         uint32_t security_info_sent, const struct security_descriptor *orig_psd)
 {
 	NTSTATUS status;
-	DATA_BLOB blob;
+	int ret;
+	DATA_BLOB blob, sys_acl_blob;
 	struct security_descriptor *pdesc_next = NULL;
 	struct security_descriptor *psd = NULL;
 	uint8_t hash[XATTR_SD_HASH_SIZE];
+	uint8_t sys_acl_hash[XATTR_SD_HASH_SIZE];
 	bool chown_needed = false;
+	char *sys_acl_description;
 	TALLOC_CTX *frame = talloc_stackframe();
 
 	if (DEBUGLEVEL >= 10) {
@@ -630,19 +832,64 @@ static NTSTATUS fset_nt_acl_common(vfs_handle_struct *handle, files_struct *fsp,
 		return status;
 	}
 
+	/* Get the full underlying sd, then hash. */
+	ret = SMB_VFS_NEXT_SYS_ACL_BLOB_GET_FD(handle,
+					       fsp,
+					       frame,
+					       &sys_acl_description,
+					       &sys_acl_blob);
+
+	/* If we fail to get the ACL blob (for some reason) then this
+	 * is not fatal, we just work based on the NT ACL only */
+	if (ret != 0) {
+		if (DEBUGLEVEL >= 10) {
+			DEBUG(10,("fset_nt_acl_xattr: storing xattr sd for file %s\n",
+				  fsp_str_dbg(fsp)));
+			NDR_PRINT_DEBUG(security_descriptor,
+					discard_const_p(struct security_descriptor, psd));
+
+			DEBUG(10,("fset_nt_acl_xattr: storing has in xattr sd based on \n"));
+			NDR_PRINT_DEBUG(security_descriptor,
+					discard_const_p(struct security_descriptor, pdesc_next));
+		}
+		status = create_acl_blob(psd, &blob, XATTR_SD_HASH_TYPE_SHA256, hash);
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(10, ("fset_nt_acl_xattr: create_acl_blob failed\n"));
+			TALLOC_FREE(frame);
+			return status;
+		}
+
+		status = store_acl_blob_fsp(handle, fsp, &blob);
+
+		TALLOC_FREE(frame);
+		return status;
+	}
+
+	status = hash_blob_sha256(sys_acl_blob, sys_acl_hash);
+	if (!NT_STATUS_IS_OK(status)) {
+		TALLOC_FREE(frame);
+		return status;
+	}
+
 	if (DEBUGLEVEL >= 10) {
-		DEBUG(10,("fset_nt_acl_xattr: storing xattr sd for file %s\n",
+		DEBUG(10,("fset_nt_acl_xattr: storing xattr sd for file %s based on system ACL\n",
 			  fsp_str_dbg(fsp)));
 		NDR_PRINT_DEBUG(security_descriptor,
-			discard_const_p(struct security_descriptor, psd));
+				discard_const_p(struct security_descriptor, psd));
 
-		DEBUG(10,("fset_nt_acl_xattr: storing has in xattr sd based on \n"));
+		DEBUG(10,("fset_nt_acl_xattr: storing hash in xattr sd based on system ACL and:\n"));
 		NDR_PRINT_DEBUG(security_descriptor,
-			discard_const_p(struct security_descriptor, pdesc_next));
+				discard_const_p(struct security_descriptor, pdesc_next));
 	}
-	status = create_acl_blob(psd, &blob, XATTR_SD_HASH_TYPE_SHA256, hash);
+
+	/* We store hashes of both the sys ACL blob and the NT
+	 * security desciptor mapped from that ACL so as to improve
+	 * our chances against some inadvertant change breaking the
+	 * hash used */
+	status = create_sys_acl_blob(psd, &blob, XATTR_SD_HASH_TYPE_SHA256, hash, 
+				     sys_acl_description, sys_acl_hash);
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(10, ("fset_nt_acl_xattr: create_acl_blob failed\n"));
+		DEBUG(10, ("fset_nt_acl_xattr: create_sys_acl_blob failed\n"));
 		TALLOC_FREE(frame);
 		return status;
 	}

@@ -56,8 +56,8 @@ static bool delay_logon(const char *peer_name, const char *peer_addr)
 	return list_match(delay_list, (const char *)peer, client_match);
 }
 
-static void delayed_init_logon_handler(struct event_context *event_ctx,
-				       struct timed_event *te,
+static void delayed_init_logon_handler(struct tevent_context *event_ctx,
+				       struct tevent_timer *te,
 				       struct timeval now,
 				       void *private_data)
 {
@@ -529,7 +529,7 @@ logons are not enabled.\n", inet_ntoa(p->ip) ));
 
 			when = timeval_current_ofs_msec(lp_init_logon_delay());
 			p->locked = true;
-			event_add_timed(nmbd_event_context(),
+			tevent_add_timer(nmbd_event_context(),
 					NULL,
 					when,
 					delayed_init_logon_handler,

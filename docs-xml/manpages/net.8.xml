@@ -194,7 +194,8 @@ the remote server using <command>/bin/date</command>. </para>
 </refsect2>
 
 <refsect2>
-<title>[RPC|ADS] JOIN [TYPE] [-U username[%password]] [createupn=UPN] [createcomputer=OU] [options]</title>
+<title>[RPC|ADS] JOIN [TYPE] [-U username[%password]] [createupn=UPN]
+[createcomputer=OU] [machinepass=PASS] [osName=string osVer=string] [options]</title>
 
 <para>
 Join a domain.  If the account already exists on the server, and 
@@ -219,6 +220,15 @@ OU string reads from top to bottom without RDNs, and is delimited by
 a '/'.  Please note that '\' is used for escape by both the shell
 and ldap, so it may need to be doubled or quadrupled to pass through, 
 and it is not used as a delimiter.
+</para>
+<para>
+[PASS] (ADS only) Set a specific password on the computer account
+being created by the join.
+</para>
+<para>
+[osName=string osVer=String] (ADS only) Set the operatingSystem and
+operatingSystemVersion attribute during the join.  Both parameters
+must be specified for either to take effect.
 </para>
 </refsect2>
 
@@ -1001,7 +1011,7 @@ local server.  You need to run this against the PDC, from a Samba machine joined
 <refsect2>
 <title>RPC GETSID</title>
 
-<para>Fetch domain SID and store it in the local <filename>secrets.tdb</filename>. </para>
+<para>Fetch domain SID and store it in the local <filename>secrets.tdb</filename> (or <filename>secrets.ntdb</filename>). </para>
 
 </refsect2>
 
@@ -1871,7 +1881,7 @@ string.</member>
 </member>
 <member>net registry convert     - Convert a registration entries (.reg) file.
 </member>
-<member>net registry check       - Check and reapair a registry database.
+<member>net registry check       - Check and repair a registry database.
 </member>
 </simplelist>
 </para>

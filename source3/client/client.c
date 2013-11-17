@@ -55,19 +55,16 @@ static bool grepable = false;
 static char *cmdstr = NULL;
 const char *cmd_ptr = NULL;
 
-static int io_bufsize = 524288;
+static int io_bufsize = 0; /* we use the default size */
+static int io_timeout = (CLIENT_TIMEOUT/1000); /* Per operation timeout (in seconds). */
 
 static int name_type = 0x20;
-static int max_protocol = PROTOCOL_NT1;
+static int max_protocol = -1;
 
 static int process_tok(char *tok);
 static int cmd_help(void);
 
 #define CREATE_ACCESS_READ READ_CONTROL_ACCESS
-
-/* 30 second timeout on most commands */
-#define CLIENT_TIMEOUT (30*1000)
-#define SHORT_TIMEOUT (5*1000)
 
 /* value for unused fid field in trans2 secondary request */
 #define FID_UNUSED (0xFFFF)
@@ -1365,6 +1362,7 @@ static int cmd_more(void)
 	const char *pager;
 	int fd;
 	int rc = 0;
+	mode_t mask;
 
 	rname = talloc_strdup(ctx, client_get_cur_dir());
 	if (!rname) {
@@ -1375,7 +1373,9 @@ static int cmd_more(void)
 	if (!lname) {
 		return 1;
 	}
+	mask = umask(S_IRWXO | S_IRWXG);
 	fd = mkstemp(lname);
+	umask(mask);
 	if (fd == -1) {
 		d_printf("failed to create temporary file for more\n");
 		return 1;
@@ -1709,7 +1709,16 @@ static int do_allinfo(const char *name)
 	if (!NT_STATUS_IS_OK(status)) {
 		d_printf("%s getting alt name for %s\n", nt_errstr(status),
 			 name);
-		return false;
+		/*
+		 * Ignore not supported or not implemented, it does not
+		 * hurt if we can't list alternate names.
+		 */
+		if (NT_STATUS_EQUAL(status, NT_STATUS_NOT_SUPPORTED) ||
+		    NT_STATUS_EQUAL(status, NT_STATUS_NOT_IMPLEMENTED)) {
+			altname[0] = '\0';
+		} else {
+			return false;
+		}
 	}
 	d_printf("altname: %s\n", altname);
 
@@ -4366,9 +4375,12 @@ static int cmd_logon(void)
 	}
 
 	if (!next_token_talloc(ctx, &cmd_ptr,&l_password,NULL)) {
-		char *pass = getpass("Password: ");
-		if (pass) {
-			l_password = talloc_strdup(ctx,pass);
+		char pwd[256] = {0};
+		int rc;
+
+		rc = samba_getpass("Password: ", pwd, sizeof(pwd), false, false);
+		if (rc == 0) {
+			l_password = talloc_strdup(ctx, pwd);
 		}
 	}
 	if (!l_password) {
@@ -4526,35 +4538,66 @@ int cmd_iosize(void)
 	int iosize;
 
 	if (!next_token_talloc(ctx, &cmd_ptr,&buf,NULL)) {
-		if (!smb_encrypt) {
-			d_printf("iosize <n> or iosize 0x<n>. "
-				"Minimum is 16384 (0x4000), "
-				"max is 16776960 (0xFFFF00)\n");
+		if (smbXcli_conn_protocol(cli->conn) < PROTOCOL_SMB2_02) {
+			if (!smb_encrypt) {
+				d_printf("iosize <n> or iosize 0x<n>. "
+					"Minimum is 0 (default), "
+					"max is 16776960 (0xFFFF00)\n");
+			} else {
+				d_printf("iosize <n> or iosize 0x<n>. "
+					"(Encrypted connection) ,"
+					"Minimum is 0 (default), "
+					"max is 130048 (0x1FC00)\n");
+			}
 		} else {
-			d_printf("iosize <n> or iosize 0x<n>. "
-				"(Encrypted connection) ,"
-				"Minimum is 16384 (0x4000), "
-				"max is 130048 (0x1FC00)\n");
+			d_printf("iosize <n> or iosize 0x<n>.\n");
 		}
 		return 1;
 	}
 
 	iosize = strtol(buf,NULL,0);
-	if (smb_encrypt && (iosize < 0x4000 || iosize > 0xFC00)) {
-		d_printf("iosize out of range for encrypted "
-			"connection (min = 16384 (0x4000), "
-			"max = 130048 (0x1FC00)");
-		return 1;
-	} else if (!smb_encrypt && (iosize < 0x4000 || iosize > 0xFFFF00)) {
-		d_printf("iosize out of range (min = 16384 (0x4000), "
-			"max = 16776960 (0xFFFF00)");
-		return 1;
+	if (smbXcli_conn_protocol(cli->conn) < PROTOCOL_SMB2_02) {
+		if (smb_encrypt && (iosize < 0 || iosize > 0xFC00)) {
+			d_printf("iosize out of range for encrypted "
+				"connection (min = 0 (default), "
+				"max = 130048 (0x1FC00)\n");
+			return 1;
+		} else if (!smb_encrypt && (iosize < 0 || iosize > 0xFFFF00)) {
+			d_printf("iosize out of range (min = 0 (default), "
+				"max = 16776960 (0xFFFF00)\n");
+			return 1;
+		}
 	}
 
 	io_bufsize = iosize;
 	d_printf("iosize is now %d\n", io_bufsize);
 	return 0;
 }
+
+/****************************************************************************
+ timeout command
+***************************************************************************/
+
+static int cmd_timeout(void)
+{
+	TALLOC_CTX *ctx = talloc_tos();
+	char *buf;
+
+	if (!next_token_talloc(ctx, &cmd_ptr,&buf,NULL)) {
+		unsigned int old_timeout = cli_set_timeout(cli, 0);
+		cli_set_timeout(cli, old_timeout);
+		d_printf("timeout <n> (per-operation timeout "
+			"in seconds - currently %u).\n",
+			old_timeout/1000);
+		return 1;
+	}
+
+	io_timeout = strtol(buf,NULL,0);
+	cli_set_timeout(cli, io_timeout*1000);
+	d_printf("io_timeout per operation is now %d\n", io_timeout);
+	return 0;
+}
+
 
 /****************************************************************************
 history
@@ -4604,18 +4647,18 @@ static struct {
   {"cancel",cmd_cancel,"<jobid> cancel a print queue entry",{COMPL_NONE,COMPL_NONE}},
   {"case_sensitive",cmd_setcase,"toggle the case sensitive flag to server",{COMPL_NONE,COMPL_NONE}},
   {"cd",cmd_cd,"[directory] change/report the remote directory",{COMPL_REMOTE,COMPL_NONE}},
-  {"chmod",cmd_chmod,"<src> <mode> chmod a file using UNIX permission",{COMPL_REMOTE,COMPL_REMOTE}},
-  {"chown",cmd_chown,"<src> <uid> <gid> chown a file using UNIX uids and gids",{COMPL_REMOTE,COMPL_REMOTE}},
-  {"close",cmd_close,"<fid> close a file given a fid",{COMPL_REMOTE,COMPL_REMOTE}},
+  {"chmod",cmd_chmod,"<src> <mode> chmod a file using UNIX permission",{COMPL_REMOTE,COMPL_NONE}},
+  {"chown",cmd_chown,"<src> <uid> <gid> chown a file using UNIX uids and gids",{COMPL_REMOTE,COMPL_NONE}},
+  {"close",cmd_close,"<fid> close a file given a fid",{COMPL_REMOTE,COMPL_NONE}},
   {"del",cmd_del,"<mask> delete all matching files",{COMPL_REMOTE,COMPL_NONE}},
   {"dir",cmd_dir,"<mask> list the contents of the current directory",{COMPL_REMOTE,COMPL_NONE}},
   {"du",cmd_du,"<mask> computes the total size of the current directory",{COMPL_REMOTE,COMPL_NONE}},
   {"echo",cmd_echo,"ping the server",{COMPL_NONE,COMPL_NONE}},
   {"exit",cmd_quit,"logoff the server",{COMPL_NONE,COMPL_NONE}},
   {"get",cmd_get,"<remote name> [local name] get a file",{COMPL_REMOTE,COMPL_LOCAL}},
-  {"getfacl",cmd_getfacl,"<file name> get the POSIX ACL on a file (UNIX extensions only)",{COMPL_REMOTE,COMPL_LOCAL}},
+  {"getfacl",cmd_getfacl,"<file name> get the POSIX ACL on a file (UNIX extensions only)",{COMPL_REMOTE,COMPL_NONE}},
   {"geteas", cmd_geteas, "<file name> get the EA list of a file",
-   {COMPL_REMOTE, COMPL_LOCAL}},
+   {COMPL_REMOTE, COMPL_NONE}},
   {"hardlink",cmd_hardlink,"<src> <dest> create a Windows hard link",{COMPL_REMOTE,COMPL_REMOTE}},
   {"help",cmd_help,"[command] give help on a command",{COMPL_NONE,COMPL_NONE}},
   {"history",cmd_history,"displays the command history",{COMPL_NONE,COMPL_NONE}},
@@ -4655,15 +4698,16 @@ static struct {
   {"rename",cmd_rename,"<src> <dest> rename some files",{COMPL_REMOTE,COMPL_REMOTE}},
   {"reput",cmd_reput,"<local name> [remote name] put a file restarting at end of remote file",{COMPL_LOCAL,COMPL_REMOTE}},
   {"rm",cmd_del,"<mask> delete all matching files",{COMPL_REMOTE,COMPL_NONE}},
-  {"rmdir",cmd_rmdir,"<directory> remove a directory",{COMPL_NONE,COMPL_NONE}},
+  {"rmdir",cmd_rmdir,"<directory> remove a directory",{COMPL_REMOTE,COMPL_NONE}},
   {"showacls",cmd_showacls,"toggle if ACLs are shown or not",{COMPL_NONE,COMPL_NONE}},  
   {"setea", cmd_setea, "<file name> <eaname> <eaval> Set an EA of a file",
    {COMPL_REMOTE, COMPL_LOCAL}},
-  {"setmode",cmd_setmode,"filename <setmode string> change modes of file",{COMPL_REMOTE,COMPL_NONE}},
-  {"stat",cmd_stat,"filename Do a UNIX extensions stat call on a file",{COMPL_REMOTE,COMPL_REMOTE}},
+  {"setmode",cmd_setmode,"<file name> <setmode string> change modes of file",{COMPL_REMOTE,COMPL_NONE}},
+  {"stat",cmd_stat,"<file name> Do a UNIX extensions stat call on a file",{COMPL_REMOTE,COMPL_NONE}},
   {"symlink",cmd_symlink,"<oldname> <newname> create a UNIX symlink",{COMPL_REMOTE,COMPL_REMOTE}},
   {"tar",cmd_tar,"tar <c|x>[IXFqbgNan] current directory to/from <file name>",{COMPL_NONE,COMPL_NONE}},
   {"tarmode",cmd_tarmode,"<full|inc|reset|noreset> tar's behaviour towards archive bits",{COMPL_NONE,COMPL_NONE}},
+  {"timeout",cmd_timeout,"timeout <number> - set the per-operation timeout in seconds (default 20)",{COMPL_NONE,COMPL_NONE}},
   {"translate",cmd_translate,"toggle text translation for printing",{COMPL_NONE,COMPL_NONE}},
   {"unlock",cmd_unlock,"unlock <fnum> <hex-start> <hex-len> : remove a POSIX lock",{COMPL_REMOTE,COMPL_REMOTE}},
   {"volume",cmd_volume,"print the volume name",{COMPL_NONE,COMPL_NONE}},
@@ -4767,6 +4811,7 @@ static int process_command_string(const char *cmd_in)
 		if (!NT_STATUS_IS_OK(status)) {
 			return 1;
 		}
+		cli_set_timeout(cli, io_timeout*1000);
 	}
 
 	while (cmd[0] != '\0')    {
@@ -5194,6 +5239,8 @@ static int process(const char *base_directory)
 		return 1;
 	}
 
+	cli_set_timeout(cli, io_timeout*1000);
+
 	if (base_directory && *base_directory) {
 		rc = do_cd(base_directory);
 		if (rc) {
@@ -5228,6 +5275,7 @@ static int do_host_query(const char *query_host)
 		return 1;
 	}
 
+	cli_set_timeout(cli, io_timeout*1000);
 	browse_host(true);
 
 	/* Ensure that the host can do IPv4 */
@@ -5263,6 +5311,7 @@ static int do_host_query(const char *query_host)
 		return 1;
 	}
 
+	cli_set_timeout(cli, io_timeout*1000);
 	list_servers(lp_workgroup());
 
 	cli_shutdown(cli);
@@ -5289,6 +5338,7 @@ static int do_tar_op(const char *base_directory)
 		if (!NT_STATUS_IS_OK(status)) {
 			return 1;
 		}
+		cli_set_timeout(cli, io_timeout*1000);
 	}
 
 	recurse=true;
@@ -5324,6 +5374,7 @@ static int do_message_op(struct user_auth_info *a_info)
 		return 1;
 	}
 
+	cli_set_timeout(cli, io_timeout*1000);
 	send_message(get_cmdline_auth_info_username(a_info));
 	cli_shutdown(cli);
 
@@ -5336,6 +5387,7 @@ static int do_message_op(struct user_auth_info *a_info)
 
  int main(int argc,char *argv[])
 {
+	const char **const_argv = discard_const_p(const char *, argv);
 	char *base_directory = NULL;
 	int opt;
 	char *query_host = NULL;
@@ -5359,6 +5411,7 @@ static int do_message_op(struct user_auth_info *a_info)
 		{ "directory", 'D', POPT_ARG_STRING, NULL, 'D', "Start from directory", "DIR" },
 		{ "command", 'c', POPT_ARG_STRING, &cmdstr, 'c', "Execute semicolon separated commands" }, 
 		{ "send-buffer", 'b', POPT_ARG_INT, &io_bufsize, 'b', "Changes the transmit/send buffer", "BYTES" },
+		{ "timeout", 't', POPT_ARG_INT, &io_timeout, 'b', "Changes the per-operation timeout", "SECONDS" },
 		{ "port", 'p', POPT_ARG_INT, &port, 'p', "Port to connect to", "PORT" },
 		{ "grepable", 'g', POPT_ARG_NONE, NULL, 'g', "Produce grepable output" },
                 { "browse", 'B', POPT_ARG_NONE, NULL, 'B', "Browse SMB servers using DNS" },
@@ -5386,7 +5439,7 @@ static int do_message_op(struct user_auth_info *a_info)
 	popt_common_set_auth_info(auth_info);
 
 	/* skip argv(0) */
-	pc = poptGetContext("smbclient", argc, (const char **) argv, long_options, 0);
+	pc = poptGetContext("smbclient", argc, const_argv, long_options, 0);
 	poptSetOtherOptionHelp(pc, "service <password>");
 
 	while ((opt = poptGetNextOpt(pc)) != -1) {
@@ -5416,6 +5469,7 @@ static int do_message_op(struct user_auth_info *a_info)
 			set_cmdline_auth_info_password(auth_info,
 						       poptGetArg(pc));
 		}
+
 
 		switch (opt) {
 		case 'M':
@@ -5453,7 +5507,7 @@ static int do_message_op(struct user_auth_info *a_info)
 			}
 			break;
 		case 'm':
-			max_protocol = interpret_protocol(poptGetOptArg(pc), max_protocol);
+			lp_set_cmdline("client max protocol", poptGetOptArg(pc));
 			break;
 		case 'T':
 			/* We must use old option processing for this. Find the
@@ -5564,11 +5618,14 @@ static int do_message_op(struct user_auth_info *a_info)
 	}
 
 	poptFreeContext(pc);
+	popt_burn_cmdline_password(argc, argv);
 
 	DEBUG(3,("Client started (version %s).\n", samba_version_string()));
 
 	/* Ensure we have a password (or equivalent). */
 	set_cmdline_auth_info_getpass(auth_info);
+
+	max_protocol = lp_cli_maxprotocol();
 
 	if (tar_type) {
 		if (cmdstr)

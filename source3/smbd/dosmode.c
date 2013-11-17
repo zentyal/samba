@@ -84,20 +84,18 @@ mode_t unix_mode(connection_struct *conn, int dosmode,
 	}
 
 	if ((inherit_from_dir != NULL) && lp_inherit_perms(SNUM(conn))) {
-		struct smb_filename *smb_fname_parent = NULL;
-		NTSTATUS status;
+		struct smb_filename *smb_fname_parent;
 
 		DEBUG(2, ("unix_mode(%s) inheriting from %s\n",
 			  smb_fname_str_dbg(smb_fname),
 			  inherit_from_dir));
 
-		status = create_synthetic_smb_fname(talloc_tos(),
-						    inherit_from_dir, NULL,
-						    NULL, &smb_fname_parent);
-		if (!NT_STATUS_IS_OK(status)) {
-			DEBUG(1,("unix_mode(%s) failed, [dir %s]: %s\n",
+		smb_fname_parent = synthetic_smb_fname(
+			talloc_tos(), inherit_from_dir, NULL, NULL);
+		if (smb_fname_parent == NULL) {
+			DEBUG(1,("unix_mode(%s) failed, [dir %s]: No memory\n",
 				 smb_fname_str_dbg(smb_fname),
-				 inherit_from_dir, nt_errstr(status)));
+				 inherit_from_dir));
 			return(0);
 		}
 
@@ -355,10 +353,6 @@ static bool set_ea_dos_attribute(connection_struct *conn,
 	struct xattr_DOSATTRIB dosattrib;
 	enum ndr_err_code ndr_err;
 	DATA_BLOB blob;
-
-	if (!lp_store_dos_attributes(SNUM(conn))) {
-		return False;
-	}
 
 	ZERO_STRUCT(dosattrib);
 	ZERO_STRUCT(blob);
@@ -693,6 +687,7 @@ uint32 dos_mode(connection_struct *conn, struct smb_filename *smb_fname)
 	if (result & FILE_ATTRIBUTE_DIRECTORY   ) DEBUG(8, ("d"));
 	if (result & FILE_ATTRIBUTE_ARCHIVE  ) DEBUG(8, ("a"));
 	if (result & FILE_ATTRIBUTE_SPARSE ) DEBUG(8, ("[sparse]"));
+	if (result & FILE_ATTRIBUTE_OFFLINE ) DEBUG(8, ("[offline]"));
 
 	DEBUG(8,("\n"));
 
@@ -742,16 +737,21 @@ int file_set_dosmode(connection_struct *conn, struct smb_filename *smb_fname,
 
 	old_mode = dos_mode(conn, smb_fname);
 
-	if (dosmode & FILE_ATTRIBUTE_OFFLINE) {
-		if (!(old_mode & FILE_ATTRIBUTE_OFFLINE)) {
-			lret = SMB_VFS_SET_OFFLINE(conn, smb_fname);
-			if (lret == -1) {
-				DEBUG(0, ("set_dos_mode: client has asked to "
-					  "set FILE_ATTRIBUTE_OFFLINE to "
-					  "%s/%s but there was an error while "
-					  "setting it or it is not "
-					  "supported.\n", parent_dir,
-					  smb_fname_str_dbg(smb_fname)));
+	if ((dosmode & FILE_ATTRIBUTE_OFFLINE) &&
+	    !(old_mode & FILE_ATTRIBUTE_OFFLINE)) {
+		lret = SMB_VFS_SET_OFFLINE(conn, smb_fname);
+		if (lret == -1) {
+			if (errno == ENOTSUP) {
+				DEBUG(10, ("Setting FILE_ATTRIBUTE_OFFLINE for "
+					   "%s/%s is not supported.\n",
+					   parent_dir,
+					   smb_fname_str_dbg(smb_fname)));
+			} else {
+				DEBUG(0, ("An error occurred while setting "
+					  "FILE_ATTRIBUTE_OFFLINE for "
+					  "%s/%s: %s", parent_dir,
+					  smb_fname_str_dbg(smb_fname),
+					  strerror(errno)));
 			}
 		}
 	}
@@ -779,7 +779,14 @@ int file_set_dosmode(connection_struct *conn, struct smb_filename *smb_fname,
 	}
 #endif
 	/* Store the DOS attributes in an EA by preference. */
-	if (set_ea_dos_attribute(conn, smb_fname, dosmode)) {
+	if (lp_store_dos_attributes(SNUM(conn))) {
+		/*
+		 * Don't fall back to using UNIX modes. Finally
+		 * follow the smb.conf manpage.
+		 */
+		if (!set_ea_dos_attribute(conn, smb_fname, dosmode)) {
+			return -1;
+		}
 		if (!newfile) {
 			notify_fname(conn, NOTIFY_ACTION_MODIFIED,
 				     FILE_NOTIFY_CHANGE_ATTRIBUTES,
@@ -790,6 +797,9 @@ int file_set_dosmode(connection_struct *conn, struct smb_filename *smb_fname,
 	}
 
 	unixmode = unix_mode(conn, dosmode, smb_fname, parent_dir);
+
+	/* preserve the file type bits */
+	mask |= S_IFMT;
 
 	/* preserve the s bits */
 	mask |= (S_ISUID | S_ISGID);
@@ -1064,8 +1074,7 @@ NTSTATUS set_create_timespec_ea(connection_struct *conn,
 				const struct smb_filename *psmb_fname,
 				struct timespec create_time)
 {
-	NTSTATUS status;
-	struct smb_filename *smb_fname = NULL;
+	struct smb_filename *smb_fname;
 	uint32_t dosmode;
 	int ret;
 
@@ -1073,13 +1082,11 @@ NTSTATUS set_create_timespec_ea(connection_struct *conn,
 		return NT_STATUS_OK;
 	}
 
-	status = create_synthetic_smb_fname(talloc_tos(),
-				psmb_fname->base_name,
-				NULL, &psmb_fname->st,
-				&smb_fname);
+	smb_fname = synthetic_smb_fname(talloc_tos(), psmb_fname->base_name,
+					NULL, &psmb_fname->st);
 
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
+	if (smb_fname == NULL) {
+		return NT_STATUS_NO_MEMORY;
 	}
 
 	dosmode = dos_mode(conn, smb_fname);

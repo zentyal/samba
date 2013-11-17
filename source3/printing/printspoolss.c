@@ -18,6 +18,7 @@
 */
 
 #include "includes.h"
+#include "system/filesys.h"
 #include "printing.h"
 #include "rpc_client/rpc_client.h"
 #include "../librpc/gen_ndr/ndr_spoolss_c.h"
@@ -64,9 +65,11 @@ NTSTATUS print_spool_open(files_struct *fsp,
 	struct print_file_data *pf;
 	struct dcerpc_binding_handle *b = NULL;
 	struct spoolss_DevmodeContainer devmode_ctr;
-	union spoolss_DocumentInfo info;
+	struct spoolss_DocumentInfoCtr info_ctr;
+	struct spoolss_DocumentInfo1 *info1;
 	int fd = -1;
 	WERROR werr;
+	mode_t mask;
 
 	tmp_ctx = talloc_new(fsp);
 	if (!tmp_ctx) {
@@ -126,7 +129,9 @@ NTSTATUS print_spool_open(files_struct *fsp,
 		goto done;
 	}
 	errno = 0;
+	mask = umask(S_IRWXO | S_IRWXG);
 	fd = mkstemp(pf->filename);
+	umask(mask);
 	if (fd == -1) {
 		if (errno == EACCES) {
 			/* Common setup error, force a report. */
@@ -173,17 +178,23 @@ NTSTATUS print_spool_open(files_struct *fsp,
 		goto done;
 	}
 
-	info.info1 = talloc(tmp_ctx, struct spoolss_DocumentInfo1);
-	if (!info.info1) {
+	info1 = talloc(tmp_ctx, struct spoolss_DocumentInfo1);
+	if (info1 == NULL) {
 		status = NT_STATUS_NO_MEMORY;
 		goto done;
 	}
-	info.info1->document_name = pf->docname;
-	info.info1->output_file = pf->filename;
-	info.info1->datatype = "RAW";
+	info1->document_name = pf->docname;
+	info1->output_file = pf->filename;
+	info1->datatype = "RAW";
 
-	status = dcerpc_spoolss_StartDocPrinter(b, tmp_ctx, &pf->handle,
-						1, info, &pf->jobid, &werr);
+	info_ctr.level = 1;
+	info_ctr.info.info1 = info1;
+
+	status = dcerpc_spoolss_StartDocPrinter(b, tmp_ctx,
+						&pf->handle,
+						&info_ctr,
+						&pf->jobid,
+						&werr);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto done;
 	}
@@ -201,9 +212,9 @@ NTSTATUS print_spool_open(files_struct *fsp,
 	}
 
 	/* setup a full fsp */
-	status = create_synthetic_smb_fname(fsp, pf->filename, NULL,
-					    NULL, &fsp->fsp_name);
-	if (!NT_STATUS_IS_OK(status)) {
+	fsp->fsp_name = synthetic_smb_fname(fsp, pf->filename, NULL, NULL);
+	if (fsp->fsp_name == NULL) {
+		status = NT_STATUS_NO_MEMORY;
 		goto done;
 	}
 

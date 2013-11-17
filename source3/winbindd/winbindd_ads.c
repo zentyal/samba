@@ -27,7 +27,6 @@
 #include "../librpc/gen_ndr/ndr_netlogon_c.h"
 #include "../libds/common/flags.h"
 #include "ads.h"
-#include "secrets.h"
 #include "../libcli/ldap/ldap_ndr.h"
 #include "../libcli/security/security.h"
 #include "../libds/common/flag_mapping.h"
@@ -40,74 +39,190 @@
 
 extern struct winbindd_methods reconnect_methods;
 
+#define WINBIND_CCACHE_NAME "MEMORY:winbind_ccache"
+
+/**
+ * Check if cached connection can be reused. If the connection cannot
+ * be reused the ADS_STRUCT is freed and the pointer is set to NULL.
+ */
+static void ads_cached_connection_reuse(ADS_STRUCT **adsp)
+{
+
+	ADS_STRUCT *ads = *adsp;
+
+	if (ads != NULL) {
+		time_t expire;
+		time_t now = time(NULL);
+
+		expire = MIN(ads->auth.tgt_expire, ads->auth.tgs_expire);
+
+		DEBUG(7, ("Current tickets expire in %d seconds (at %d, time "
+			  "is now %d)\n", (uint32)expire - (uint32)now,
+			  (uint32) expire, (uint32) now));
+
+		if ( ads->config.realm && (expire > now)) {
+			return;
+		} else {
+			/* we own this ADS_STRUCT so make sure it goes away */
+			DEBUG(7,("Deleting expired krb5 credential cache\n"));
+			ads->is_mine = True;
+			ads_destroy( &ads );
+			ads_kdestroy(WINBIND_CCACHE_NAME);
+			*adsp = NULL;
+		}
+	}
+}
+
+static ADS_STATUS ads_cached_connection_connect(ADS_STRUCT **adsp,
+						const char *dom_name_alt,
+						const char *dom_name,
+						const char *ldap_server,
+						char *password,
+						char *realm,
+						time_t renewable)
+{
+	ADS_STRUCT *ads;
+	ADS_STATUS status;
+	struct sockaddr_storage dc_ss;
+	fstring dc_name;
+
+	if (realm == NULL) {
+		return ADS_ERROR_NT(NT_STATUS_UNSUCCESSFUL);
+	}
+
+	/* we don't want this to affect the users ccache */
+	setenv("KRB5CCNAME", WINBIND_CCACHE_NAME, 1);
+
+	ads = ads_init(dom_name_alt, dom_name, ldap_server);
+	if (!ads) {
+		DEBUG(1,("ads_init for domain %s failed\n", dom_name));
+		return ADS_ERROR(LDAP_NO_MEMORY);
+	}
+
+	SAFE_FREE(ads->auth.password);
+	SAFE_FREE(ads->auth.realm);
+
+	ads->auth.renewable = renewable;
+	ads->auth.password = password;
+
+	ads->auth.realm = SMB_STRDUP(realm);
+	if (!strupper_m(ads->auth.realm)) {
+		ads_destroy(&ads);
+		return ADS_ERROR_NT(NT_STATUS_INTERNAL_ERROR);
+	}
+
+	/* Setup the server affinity cache.  We don't reaally care
+	   about the name.  Just setup affinity and the KRB5_CONFIG
+	   file. */
+	get_dc_name(ads->server.workgroup, ads->server.realm, dc_name, &dc_ss);
+
+	status = ads_connect(ads);
+	if (!ADS_ERR_OK(status)) {
+		DEBUG(1,("ads_connect for domain %s failed: %s\n",
+			 dom_name, ads_errstr(status)));
+		ads_destroy(&ads);
+		return status;
+	}
+
+	/* set the flag that says we don't own the memory even
+	   though we do so that ads_destroy() won't destroy the
+	   structure we pass back by reference */
+
+	ads->is_mine = False;
+
+	*adsp = ads;
+
+	return status;
+}
+
+ADS_STATUS ads_idmap_cached_connection(ADS_STRUCT **adsp, const char *dom_name)
+{
+	char *ldap_server, *realm, *password;
+	struct winbindd_domain *wb_dom;
+	ADS_STATUS status;
+
+	ads_cached_connection_reuse(adsp);
+	if (*adsp != NULL) {
+		return ADS_SUCCESS;
+	}
+
+	/*
+	 * At this point we only have the NetBIOS domain name.
+	 * Check if we can get server nam and realm from SAF cache
+	 * and the domain list.
+	 */
+	ldap_server = saf_fetch(dom_name);
+	DEBUG(10, ("ldap_server from saf cache: '%s'\n",
+		   ldap_server ? ldap_server : ""));
+
+	wb_dom = find_domain_from_name(dom_name);
+	if (wb_dom == NULL) {
+		DEBUG(10, ("could not find domain '%s'\n", dom_name));
+		return ADS_ERROR_NT(NT_STATUS_UNSUCCESSFUL);
+	}
+
+	DEBUG(10, ("find_domain_from_name found realm '%s' for "
+			  " domain '%s'\n", wb_dom->alt_name, dom_name));
+
+	if (!get_trust_pw_clear(dom_name, &password, NULL, NULL)) {
+		return ADS_ERROR_NT(NT_STATUS_CANT_ACCESS_DOMAIN_INFO);
+	}
+
+	if (IS_DC) {
+		realm = SMB_STRDUP(wb_dom->alt_name);
+	} else {
+		struct winbindd_domain *our_domain = wb_dom;
+
+		/* always give preference to the alt_name in our
+		   primary domain if possible */
+
+		if (!wb_dom->primary) {
+			our_domain = find_our_domain();
+		}
+
+		if (our_domain->alt_name != NULL) {
+			realm = SMB_STRDUP(our_domain->alt_name);
+		} else {
+			realm = SMB_STRDUP(lp_realm());
+		}
+	}
+
+	status = ads_cached_connection_connect(adsp, realm, dom_name, ldap_server,
+					       password, realm, 0);
+	SAFE_FREE(realm);
+
+	return status;
+}
+
 /*
   return our ads connections structure for a domain. We keep the connection
   open to make things faster
 */
 static ADS_STRUCT *ads_cached_connection(struct winbindd_domain *domain)
 {
-	ADS_STRUCT *ads;
 	ADS_STATUS status;
-	fstring dc_name;
-	struct sockaddr_storage dc_ss;
+	char *password, *realm;
 
 	DEBUG(10,("ads_cached_connection\n"));
+	ads_cached_connection_reuse((ADS_STRUCT **)&domain->private_data);
 
 	if (domain->private_data) {
-
-		time_t expire;
-		time_t now = time(NULL);
-
-		/* check for a valid structure */
-		ads = (ADS_STRUCT *)domain->private_data;
-
-		expire = MIN(ads->auth.tgt_expire, ads->auth.tgs_expire);
-
-		DEBUG(7, ("Current tickets expire in %d seconds (at %d, time is now %d)\n",
-			  (uint32)expire-(uint32)now, (uint32) expire, (uint32) now));
-
-		if ( ads->config.realm && (expire > now)) {
-			return ads;
-		} else {
-			/* we own this ADS_STRUCT so make sure it goes away */
-			DEBUG(7,("Deleting expired krb5 credential cache\n"));
-			ads->is_mine = True;
-			ads_destroy( &ads );
-			ads_kdestroy("MEMORY:winbind_ccache");
-			domain->private_data = NULL;
-		}
+		return (ADS_STRUCT *)domain->private_data;
 	}
-
-	ads = ads_init(domain->alt_name, domain->name, NULL);
-	if (!ads) {
-		DEBUG(1,("ads_init for domain %s failed\n", domain->name));
-		return NULL;
-	}
-
-	/* we don't want ads operations to affect the default ccache */
-	ads->auth.ccache_name = SMB_STRDUP("MEMORY:winbind_ccache");
 
 	/* the machine acct password might have change - fetch it every time */
 
-	SAFE_FREE(ads->auth.password);
-	SAFE_FREE(ads->auth.realm);
+	if (!get_trust_pw_clear(domain->name, &password, NULL, NULL)) {
+		return NULL;
+	}
 
 	if ( IS_DC ) {
 
-		if ( !pdb_get_trusteddom_pw( domain->name, &ads->auth.password, NULL, NULL ) ) {
-			ads_destroy( &ads );
-			return NULL;
-		}
-		ads->auth.realm = SMB_STRDUP( ads->server.realm );
-		if (!strupper_m( ads->auth.realm )) {
-			ads_destroy( &ads );
-			return NULL;
-		}
+		realm = SMB_STRDUP(domain->alt_name);
 	}
 	else {
 		struct winbindd_domain *our_domain = domain;
 
-		ads->auth.password = secrets_fetch_machine_password(lp_workgroup(), NULL, NULL);
 
 		/* always give preference to the alt_name in our
 		   primary domain if possible */
@@ -115,31 +230,22 @@ static ADS_STRUCT *ads_cached_connection(struct winbindd_domain *domain)
 		if ( !domain->primary )
 			our_domain = find_our_domain();
 
-		if ( our_domain->alt_name[0] != '\0' ) {
-			ads->auth.realm = SMB_STRDUP( our_domain->alt_name );
-			if (!strupper_m( ads->auth.realm )) {
-				ads_destroy( &ads );
-				return NULL;
-			}
+		if (our_domain->alt_name != NULL) {
+			realm = SMB_STRDUP( our_domain->alt_name );
 		}
 		else
-			ads->auth.realm = SMB_STRDUP( lp_realm() );
+			realm = SMB_STRDUP( lp_realm() );
 	}
 
-	ads->auth.renewable = WINBINDD_PAM_AUTH_KRB5_RENEW_TIME;
+	status = ads_cached_connection_connect(
+					(ADS_STRUCT **)&domain->private_data,
+					domain->alt_name,
+					domain->name, NULL,
+					password, realm,
+					WINBINDD_PAM_AUTH_KRB5_RENEW_TIME);
+	SAFE_FREE(realm);
 
-	/* Setup the server affinity cache.  We don't reaally care
-	   about the name.  Just setup affinity and the KRB5_CONFIG
-	   file. */
-
-	get_dc_name( ads->server.workgroup, ads->server.realm, dc_name, &dc_ss );
-
-	status = ads_connect(ads);
-	if (!ADS_ERR_OK(status) || !ads->config.realm) {
-		DEBUG(1,("ads_connect for domain %s failed: %s\n",
-			 domain->name, ads_errstr(status)));
-		ads_destroy(&ads);
-
+	if (!ADS_ERR_OK(status)) {
 		/* if we get ECONNREFUSED then it might be a NT4
                    server, fall back to MSRPC */
 		if (status.error_type == ENUM_ADS_ERROR_SYSTEM &&
@@ -151,16 +257,8 @@ static ADS_STRUCT *ads_cached_connection(struct winbindd_domain *domain)
 		return NULL;
 	}
 
-	/* set the flag that says we don't own the memory even
-	   though we do so that ads_destroy() won't destroy the
-	   structure we pass back by reference */
-
-	ads->is_mine = False;
-
-	domain->private_data = (void *)ads;
-	return ads;
+	return (ADS_STRUCT *)domain->private_data;
 }
-
 
 /* Query display info for a realm. This is the basic user list fn */
 static NTSTATUS query_user_list(struct winbindd_domain *domain,
@@ -503,7 +601,7 @@ static NTSTATUS query_user(struct winbindd_domain *domain,
 
 	/* try netsamlogon cache first */
 
-	if ( (user = netsamlogon_cache_get( mem_ctx, sid )) != NULL ) 
+	if ( (user = netsamlogon_cache_get( mem_ctx, sid )) != NULL )
 	{
 		DEBUG(5,("query_user: Cache lookup succeeded for %s\n", 
 			 sid_string_dbg(sid)));
@@ -1282,7 +1380,7 @@ static NTSTATUS sequence_number(struct winbindd_domain *domain, uint32 *seq)
 			ads = (ADS_STRUCT *)domain->private_data;
 			ads->is_mine = True;
 			ads_destroy(&ads);
-			ads_kdestroy("MEMORY:winbind_ccache");
+			ads_kdestroy(WINBIND_CCACHE_NAME);
 			domain->private_data = NULL;
 		}
 	}
@@ -1390,8 +1488,9 @@ static NTSTATUS trusted_domains(struct winbindd_domain *domain,
 
 		/* add to the trusted domain cache */
 
-		fstrcpy(d.name, trust->netbios_name);
-		fstrcpy(d.alt_name, trust->dns_name);
+		d.name = discard_const_p(char, trust->netbios_name);
+		d.alt_name = discard_const_p(char, trust->dns_name);
+
 		if (trust->sid) {
 			sid_copy(&d.sid, trust->sid);
 		} else {

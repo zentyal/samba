@@ -92,7 +92,7 @@ typedef struct disp_info {
 	uint32_t enum_acb_mask;
 	struct pdb_search *enum_users; /* enumusers with a mask */
 
-	struct timed_event *cache_timeout_event; /* cache idle timeout
+	struct tevent_timer *cache_timeout_event; /* cache idle timeout
 						  * handler. */
 } DISP_INFO;
 
@@ -278,8 +278,8 @@ static void free_samr_cache(DISP_INFO *disp_info)
  Idle event handler. Throw away the disp info cache.
  ********************************************************************/
 
-static void disp_info_cache_idle_timeout_handler(struct event_context *ev_ctx,
-						 struct timed_event *te,
+static void disp_info_cache_idle_timeout_handler(struct tevent_context *ev_ctx,
+						 struct tevent_timer *te,
 						 struct timeval now,
 						 void *private_data)
 {
@@ -306,7 +306,7 @@ static void set_disp_info_cache_timeout(DISP_INFO *disp_info, time_t secs_fromno
 		  "SID %s for %u seconds\n", sid_string_dbg(&disp_info->sid),
 		  (unsigned int)secs_fromnow ));
 
-	disp_info->cache_timeout_event = event_add_timed(
+	disp_info->cache_timeout_event = tevent_add_timer(
 		server_event_context(), NULL,
 		timeval_current_ofs(secs_fromnow, 0),
 		disp_info_cache_idle_timeout_handler, (void *)disp_info);
@@ -6806,6 +6806,11 @@ NTSTATUS _samr_ValidatePassword(struct pipes_struct *p,
 	NTSTATUS status;
 	struct samr_GetDomPwInfo pw;
 	struct samr_PwInfo dom_pw_info;
+
+	if (p->transport != NCACN_IP_TCP && p->transport != NCALRPC) {
+		p->fault_state = DCERPC_FAULT_ACCESS_DENIED;
+		return NT_STATUS_ACCESS_DENIED;
+	}
 
 	if (r->in.level < 1 || r->in.level > 3) {
 		return NT_STATUS_INVALID_INFO_CLASS;

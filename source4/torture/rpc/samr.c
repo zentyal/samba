@@ -781,7 +781,7 @@ static bool test_SetUserPassEx(struct dcerpc_pipe *p, struct torture_context *tc
 	uint8_t confounder[16];
 	char *newpass;
 	struct dcerpc_binding_handle *b = p->binding_handle;
-	struct MD5Context ctx;
+	MD5_CTX ctx;
 	struct samr_GetUserPwInfo pwp;
 	struct samr_PwInfo info;
 	int policy_min_pw_len = 0;
@@ -872,7 +872,7 @@ static bool test_SetUserPass_25(struct dcerpc_pipe *p, struct torture_context *t
 	bool ret = true;
 	DATA_BLOB session_key;
 	DATA_BLOB confounded_session_key = data_blob_talloc(tctx, NULL, 16);
-	struct MD5Context ctx;
+	MD5_CTX ctx;
 	uint8_t confounder[16];
 	char *newpass;
 	struct dcerpc_binding_handle *b = p->binding_handle;
@@ -1162,7 +1162,7 @@ static bool test_SetUserPass_level_ex(struct dcerpc_pipe *p,
 	bool ret = true;
 	DATA_BLOB session_key;
 	DATA_BLOB confounded_session_key = data_blob_talloc(tctx, NULL, 16);
-	struct MD5Context ctx;
+	MD5_CTX ctx;
 	uint8_t confounder[16];
 	char *newpass;
 	struct dcerpc_binding_handle *b = p->binding_handle;
@@ -2563,7 +2563,7 @@ bool test_ChangePasswordRandomBytes(struct dcerpc_pipe *p, struct torture_contex
 	DATA_BLOB session_key;
 	DATA_BLOB confounded_session_key = data_blob_talloc(tctx, NULL, 16);
 	uint8_t confounder[16];
-	struct MD5Context ctx;
+	MD5_CTX ctx;
 
 	bool ret = true;
 	struct lsa_String server, account;
@@ -8047,8 +8047,8 @@ static bool test_Connect(struct dcerpc_binding_handle *b,
 }
 
 
-static bool test_samr_ValidatePassword(struct dcerpc_pipe *p,
-				       struct torture_context *tctx)
+static bool test_samr_ValidatePassword(struct torture_context *tctx,
+				       struct dcerpc_pipe *p)
 {
 	struct samr_ValidatePassword r;
 	union samr_ValidatePasswordReq req;
@@ -8059,6 +8059,10 @@ static bool test_samr_ValidatePassword(struct dcerpc_pipe *p,
 	struct dcerpc_binding_handle *b = p->binding_handle;
 
 	torture_comment(tctx, "Testing samr_ValidatePassword\n");
+
+	if (p->conn->transport.transport != NCACN_IP_TCP) {
+		torture_comment(tctx, "samr_ValidatePassword only should succeed over NCACN_IP_TCP!\n");
+	}
 
 	ZERO_STRUCT(r);
 	r.in.level = NetValidatePasswordReset;
@@ -8182,8 +8186,6 @@ bool torture_rpc_samr_passwords(struct torture_context *torture)
 	ret &= test_EnumDomains(p, torture, ctx);
 
 	ret &= test_samr_handle_Close(b, torture, &ctx->handle);
-
-	ret &= test_samr_ValidatePassword(p, torture);
 
 	return ret;
 }
@@ -8479,4 +8481,15 @@ struct torture_suite *torture_rpc_samr_passwords_lockout(TALLOC_CTX *mem_ctx)
 	return suite;
 }
 
+struct torture_suite *torture_rpc_samr_passwords_validate(TALLOC_CTX *mem_ctx)
+{
+	struct torture_suite *suite = torture_suite_create(mem_ctx, "samr.passwords.validate");
+	struct torture_rpc_tcase *tcase;
 
+	tcase = torture_suite_add_rpc_iface_tcase(suite, "samr",
+						  &ndr_table_samr);
+	torture_rpc_tcase_add_test(tcase, "validate",
+				   test_samr_ValidatePassword);
+
+	return suite;
+}

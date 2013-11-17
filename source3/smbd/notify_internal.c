@@ -84,7 +84,7 @@ struct notify_context {
 	 * operations to db_index to a minimum. This is achieved by
 	 * delayed deletion. When a db_notify is initially created,
 	 * the db_index record is also created. When more notifies are
-	 * add for a path, then only the db_notify record needs to be
+	 * added for a path, then only the db_notify record needs to be
 	 * modified, the db_index record is not touched. When the last
 	 * entry from the db_notify record is deleted, the db_index
 	 * record is not immediately deleted. Instead, the db_notify
@@ -121,7 +121,7 @@ static void notify_handler(struct messaging_context *msg_ctx,
 
 struct notify_context *notify_init(TALLOC_CTX *mem_ctx,
 				   struct messaging_context *msg,
-				   struct event_context *ev)
+				   struct tevent_context *ev)
 {
 	struct loadparm_context *lp_ctx;
 	struct notify_context *notify;
@@ -484,7 +484,7 @@ static void notify_trigger_index_parser(TDB_DATA key, TDB_DATA data,
 	struct notify_trigger_index_state *state =
 		(struct notify_trigger_index_state *)private_data;
 	uint32_t *new_vnns;
-	size_t i, num_vnns, num_new_vnns;
+	size_t i, num_vnns, num_new_vnns, num_remote_vnns;
 
 	if ((data.dsize % sizeof(uint32_t)) != 0) {
 		DEBUG(1, ("Invalid record size in notify index db: %u\n",
@@ -493,22 +493,32 @@ static void notify_trigger_index_parser(TDB_DATA key, TDB_DATA data,
 	}
 	new_vnns = (uint32_t *)data.dptr;
 	num_new_vnns = data.dsize / sizeof(uint32_t);
-
-	num_vnns = talloc_array_length(state->vnns);
+	num_remote_vnns = num_new_vnns;
 
 	for (i=0; i<num_new_vnns; i++) {
 		if (new_vnns[i] == state->my_vnn) {
 			state->found_my_vnn = true;
+			num_remote_vnns -= 1;
 		}
 	}
+	if (num_remote_vnns == 0) {
+		return;
+	}
 
+	num_vnns = talloc_array_length(state->vnns);
 	state->vnns = talloc_realloc(state->mem_ctx, state->vnns, uint32_t,
-				     num_vnns + num_new_vnns);
-	if ((num_vnns + num_new_vnns != 0) && (state->vnns == NULL)) {
+				     num_vnns + num_remote_vnns);
+	if (state->vnns == NULL) {
 		DEBUG(1, ("talloc_realloc failed\n"));
 		return;
 	}
-	memcpy(&state->vnns[num_vnns], data.dptr, data.dsize);
+
+	for (i=0; i<num_new_vnns; i++) {
+		if (new_vnns[i] != state->my_vnn) {
+			state->vnns[num_vnns] = new_vnns[i];
+			num_vnns += 1;
+		}
+	}
 }
 
 static int vnn_cmp(const void *p1, const void *p2)
@@ -608,29 +618,39 @@ void notify_trigger(struct notify_context *notify,
 		return;
 	}
 
+	if (path[0] != '/') {
+		/*
+		 * The rest of this routine assumes an absolute path.
+		 */
+		return;
+	}
+
 	idx_state.mem_ctx = talloc_tos();
 	idx_state.vnns = NULL;
+	idx_state.found_my_vnn = false;
 	idx_state.my_vnn = get_my_vnn();
 
-	for (p = path; p != NULL; p = next_p) {
+	for (p = strchr(path+1, '/'); p != NULL; p = next_p) {
 		ptrdiff_t path_len = p - path;
 		bool recursive;
 
 		next_p = strchr(p+1, '/');
 		recursive = (next_p != NULL);
 
-		idx_state.found_my_vnn = false;
-
 		dbwrap_parse_record(
 			notify->db_index,
 			make_tdb_data(discard_const_p(uint8_t, path), path_len),
 			notify_trigger_index_parser, &idx_state);
 
-		if (!idx_state.found_my_vnn) {
-			continue;
+		if (idx_state.found_my_vnn) {
+			notify_trigger_local(notify, action, filter,
+					     path, path_len, recursive);
+			idx_state.found_my_vnn = false;
 		}
-		notify_trigger_local(notify, action, filter,
-				     path, path_len, recursive);
+	}
+
+	if (idx_state.vnns == NULL) {
+		goto done;
 	}
 
 	ctdbd_conn = messaging_ctdbd_connection();
@@ -642,7 +662,12 @@ void notify_trigger(struct notify_context *notify,
 	qsort(idx_state.vnns, num_vnns, sizeof(uint32_t), vnn_cmp);
 
 	last_vnn = 0xffffffff;
-	remote_blob = NULL;
+
+	if (!notify_push_remote_blob(talloc_tos(), action, filter, path,
+				     &remote_blob, &remote_blob_len)) {
+		DEBUG(1, ("notify_push_remote_blob failed\n"));
+		goto done;
+	}
 
 	for (i=0; i<num_vnns; i++) {
 		uint32_t vnn = idx_state.vnns[i];
@@ -650,15 +675,6 @@ void notify_trigger(struct notify_context *notify,
 
 		if (vnn == last_vnn) {
 			continue;
-		}
-		if (vnn == idx_state.my_vnn) {
-			continue;
-		}
-		if ((remote_blob == NULL) &&
-		    !notify_push_remote_blob(
-			    talloc_tos(), action, filter,
-			    path, &remote_blob, &remote_blob_len)) {
-			break;
 		}
 
 		status = ctdbd_messaging_send_blob(

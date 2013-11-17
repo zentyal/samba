@@ -26,6 +26,7 @@
 #include "async_smb.h"
 #include "../libcli/smb/smbXcli_base.h"
 #include "../librpc/ndr/libndr.h"
+#include "../include/client.h"
 
 /*******************************************************************
  Setup the word count and byte count for a client smb message.
@@ -175,7 +176,7 @@ struct cli_state *cli_state_create(TALLOC_CTX *mem_ctx,
 	}
 	cli->raw_status = NT_STATUS_INTERNAL_ERROR;
 	cli->map_dos_errors = true; /* remove this */
-	cli->timeout = 20000; /* Timeout is in milliseconds. */
+	cli->timeout = CLIENT_TIMEOUT;
 	cli->case_sensitive = false;
 
 	/* Set the CLI_FORCE_DOSERR environment variable to test
@@ -454,14 +455,12 @@ time_t cli_state_server_time(struct cli_state *cli)
 }
 
 struct cli_echo_state {
-	uint16_t vwv[1];
-	DATA_BLOB data;
-	int num_echos;
+	bool is_smb2;
 };
 
 static void cli_echo_done(struct tevent_req *subreq);
 
-struct tevent_req *cli_echo_send(TALLOC_CTX *mem_ctx, struct event_context *ev,
+struct tevent_req *cli_echo_send(TALLOC_CTX *mem_ctx, struct tevent_context *ev,
 				 struct cli_state *cli, uint16_t num_echos,
 				 DATA_BLOB data)
 {
@@ -472,20 +471,25 @@ struct tevent_req *cli_echo_send(TALLOC_CTX *mem_ctx, struct event_context *ev,
 	if (req == NULL) {
 		return NULL;
 	}
-	SSVAL(state->vwv, 0, num_echos);
-	state->data = data;
-	state->num_echos = num_echos;
 
-	subreq = cli_smb_send(state, ev, cli, SMBecho, 0, 1, state->vwv,
-			      data.length, data.data);
-	if (subreq == NULL) {
-		goto fail;
+	if (smbXcli_conn_protocol(cli->conn) >= PROTOCOL_SMB2_02) {
+		state->is_smb2 = true;
+		subreq = smb2cli_echo_send(state, ev,
+					   cli->conn,
+					   cli->timeout);
+	} else {
+		subreq = smb1cli_echo_send(state, ev,
+					   cli->conn,
+					   cli->timeout,
+					   num_echos,
+					   data);
+	}
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
 	}
 	tevent_req_set_callback(subreq, cli_echo_done, req);
+
 	return req;
- fail:
-	TALLOC_FREE(req);
-	return NULL;
 }
 
 static void cli_echo_done(struct tevent_req *subreq)
@@ -495,31 +499,19 @@ static void cli_echo_done(struct tevent_req *subreq)
 	struct cli_echo_state *state = tevent_req_data(
 		req, struct cli_echo_state);
 	NTSTATUS status;
-	uint32_t num_bytes;
-	uint8_t *bytes;
 
-	status = cli_smb_recv(subreq, state, NULL, 0, NULL, NULL,
-			      &num_bytes, &bytes);
+	if (state->is_smb2) {
+		status = smb2cli_echo_recv(subreq);
+	} else {
+		status = smb1cli_echo_recv(subreq);
+	}
+	TALLOC_FREE(subreq);
 	if (!NT_STATUS_IS_OK(status)) {
 		tevent_req_nterror(req, status);
 		return;
 	}
-	if ((num_bytes != state->data.length)
-	    || (memcmp(bytes, state->data.data, num_bytes) != 0)) {
-		tevent_req_nterror(req, NT_STATUS_INVALID_NETWORK_RESPONSE);
-		return;
-	}
 
-	state->num_echos -=1;
-	if (state->num_echos == 0) {
-		tevent_req_done(req);
-		return;
-	}
-
-	if (!smbXcli_req_set_pending(subreq)) {
-		tevent_req_nterror(req, NT_STATUS_NO_MEMORY);
-		return;
-	}
+	tevent_req_done(req);
 }
 
 /**
@@ -546,7 +538,7 @@ NTSTATUS cli_echo_recv(struct tevent_req *req)
 NTSTATUS cli_echo(struct cli_state *cli, uint16_t num_echos, DATA_BLOB data)
 {
 	TALLOC_CTX *frame = talloc_stackframe();
-	struct event_context *ev;
+	struct tevent_context *ev;
 	struct tevent_req *req;
 	NTSTATUS status = NT_STATUS_OK;
 
@@ -558,7 +550,7 @@ NTSTATUS cli_echo(struct cli_state *cli, uint16_t num_echos, DATA_BLOB data)
 		goto fail;
 	}
 
-	ev = event_context_init(frame);
+	ev = samba_tevent_context_init(frame);
 	if (ev == NULL) {
 		status = NT_STATUS_NO_MEMORY;
 		goto fail;
@@ -621,7 +613,7 @@ NTSTATUS cli_smb(TALLOC_CTX *mem_ctx, struct cli_state *cli,
         if (smbXcli_conn_has_async_calls(cli->conn)) {
                 return NT_STATUS_INVALID_PARAMETER;
         }
-        ev = tevent_context_init(mem_ctx);
+        ev = samba_tevent_context_init(mem_ctx);
         if (ev == NULL) {
                 goto fail;
         }

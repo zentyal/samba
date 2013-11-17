@@ -124,7 +124,6 @@ static char *stream_dir(vfs_handle_struct *handle,
 	uint8 id_buf[16];
 	bool check_valid;
 	const char *rootdir;
-	NTSTATUS status;
 
 	check_valid = lp_parm_bool(SNUM(handle->conn),
 		      "streams_depot", "check_valid", true);
@@ -142,14 +141,12 @@ static char *stream_dir(vfs_handle_struct *handle,
 
 	/* Stat the base file if it hasn't already been done. */
 	if (base_sbuf == NULL) {
-		struct smb_filename *smb_fname_base = NULL;
+		struct smb_filename *smb_fname_base;
 
-		status = create_synthetic_smb_fname(talloc_tos(),
-						    smb_fname->base_name,
-						    NULL, NULL,
-						    &smb_fname_base);
-		if (!NT_STATUS_IS_OK(status)) {
-			errno = map_errno_from_nt_status(status);
+		smb_fname_base = synthetic_smb_fname(
+			talloc_tos(), smb_fname->base_name, NULL, NULL);
+		if (smb_fname_base == NULL) {
+			errno = ENOMEM;
 			goto fail;
 		}
 		if (SMB_VFS_NEXT_STAT(handle, smb_fname_base) == -1) {
@@ -188,10 +185,9 @@ static char *stream_dir(vfs_handle_struct *handle,
 		return NULL;
 	}
 
-	status = create_synthetic_smb_fname(talloc_tos(), result, NULL, NULL,
-					    &smb_fname_hash);
-	if (!NT_STATUS_IS_OK(status)) {
-		errno = map_errno_from_nt_status(status);
+	smb_fname_hash = synthetic_smb_fname(talloc_tos(), result, NULL, NULL);
+	if (smb_fname_hash == NULL) {
+		errno = ENOMEM;
 		goto fail;
 	}
 
@@ -239,13 +235,11 @@ static char *stream_dir(vfs_handle_struct *handle,
 				goto fail;
 			}
 
-			status = create_synthetic_smb_fname(talloc_tos(),
-							    newname,
-							    NULL, NULL,
-							    &smb_fname_new);
+			smb_fname_new = synthetic_smb_fname(
+				talloc_tos(), newname, NULL, NULL);
 			TALLOC_FREE(newname);
-			if (!NT_STATUS_IS_OK(status)) {
-				errno = map_errno_from_nt_status(status);
+			if (smb_fname_new == NULL) {
+				errno = ENOMEM;
 				goto fail;
 			}
 
@@ -373,10 +367,10 @@ static NTSTATUS stream_smb_fname(vfs_handle_struct *handle,
 	DEBUG(10, ("stream filename = %s\n", stream_fname));
 
 	/* Create an smb_filename with stream_name == NULL. */
-	status = create_synthetic_smb_fname(talloc_tos(), stream_fname, NULL,
-					    NULL, smb_fname_out);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
+	*smb_fname_out = synthetic_smb_fname(
+		talloc_tos(), stream_fname, NULL, NULL);
+	if (*smb_fname_out == NULL) {
+		return NT_STATUS_NO_MEMORY;
 	}
 
 	return NT_STATUS_OK;
@@ -573,13 +567,11 @@ static int streams_depot_open(vfs_handle_struct *handle,
 	}
 
 	/* Ensure the base file still exists. */
-	status = create_synthetic_smb_fname(talloc_tos(),
-					    smb_fname->base_name,
-					    NULL, NULL,
-					    &smb_fname_base);
-	if (!NT_STATUS_IS_OK(status)) {
+	smb_fname_base = synthetic_smb_fname(
+		talloc_tos(), smb_fname->base_name, NULL, NULL);
+	if (smb_fname_base == NULL) {
 		ret = -1;
-		errno = map_errno_from_nt_status(status);
+		errno = ENOMEM;
 		goto done;
 	}
 
@@ -608,7 +600,6 @@ static int streams_depot_unlink(vfs_handle_struct *handle,
 				const struct smb_filename *smb_fname)
 {
 	struct smb_filename *smb_fname_base = NULL;
-	NTSTATUS status;
 	int ret = -1;
 
 	DEBUG(10, ("streams_depot_unlink called for %s\n",
@@ -618,6 +609,7 @@ static int streams_depot_unlink(vfs_handle_struct *handle,
 	if (is_ntfs_stream_smb_fname(smb_fname) &&
 	    !is_ntfs_default_stream_smb_fname(smb_fname)) {
 		struct smb_filename *smb_fname_stream = NULL;
+		NTSTATUS status;
 
 		status = stream_smb_fname(handle, smb_fname, &smb_fname_stream,
 					  false);
@@ -636,10 +628,10 @@ static int streams_depot_unlink(vfs_handle_struct *handle,
 	 * We potentially need to delete the per-inode streams directory
 	 */
 
-	status = create_synthetic_smb_fname(talloc_tos(), smb_fname->base_name,
-					    NULL, NULL, &smb_fname_base);
-	if (!NT_STATUS_IS_OK(status)) {
-		errno = map_errno_from_nt_status(status);
+	smb_fname_base = synthetic_smb_fname(
+		talloc_tos(), smb_fname->base_name, NULL, NULL);
+	if (smb_fname_base == NULL) {
+		errno = ENOMEM;
 		return -1;
 	}
 
@@ -673,7 +665,6 @@ static int streams_depot_unlink(vfs_handle_struct *handle,
 static int streams_depot_rmdir(vfs_handle_struct *handle, const char *path)
 {
 	struct smb_filename *smb_fname_base = NULL;
-	NTSTATUS status;
 	int ret = -1;
 
 	DEBUG(10, ("streams_depot_rmdir called for %s\n", path));
@@ -682,10 +673,9 @@ static int streams_depot_rmdir(vfs_handle_struct *handle, const char *path)
 	 * We potentially need to delete the per-inode streams directory
 	 */
 
-	status = create_synthetic_smb_fname(talloc_tos(), path,
-					    NULL, NULL, &smb_fname_base);
-	if (!NT_STATUS_IS_OK(status)) {
-		errno = map_errno_from_nt_status(status);
+	smb_fname_base = synthetic_smb_fname(talloc_tos(), path, NULL, NULL);
+	if (smb_fname_base == NULL) {
+		errno = ENOMEM;
 		return -1;
 	}
 
@@ -810,7 +800,6 @@ static bool collect_one_stream(const char *dirname,
 		(struct streaminfo_state *)private_data;
 	struct smb_filename *smb_fname = NULL;
 	char *sname = NULL;
-	NTSTATUS status;
 	bool ret;
 
 	sname = talloc_asprintf(talloc_tos(), "%s/%s", dirname, dirent);
@@ -820,10 +809,9 @@ static bool collect_one_stream(const char *dirname,
 		goto out;
 	}
 
-	status = create_synthetic_smb_fname(talloc_tos(), sname, NULL,
-					    NULL, &smb_fname);
-	if (!NT_STATUS_IS_OK(status)) {
-		state->status = status;
+	smb_fname = synthetic_smb_fname(talloc_tos(), sname, NULL, NULL);
+	if (smb_fname == NULL) {
+		state->status = NT_STATUS_NO_MEMORY;
 		ret = false;
 		goto out;
 	}
@@ -859,15 +847,14 @@ static NTSTATUS streams_depot_streaminfo(vfs_handle_struct *handle,
 					 unsigned int *pnum_streams,
 					 struct stream_struct **pstreams)
 {
-	struct smb_filename *smb_fname_base = NULL;
+	struct smb_filename *smb_fname_base;
 	int ret;
 	NTSTATUS status;
 	struct streaminfo_state state;
 
-	status = create_synthetic_smb_fname(talloc_tos(), fname, NULL, NULL,
-					    &smb_fname_base);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
+	smb_fname_base = synthetic_smb_fname(talloc_tos(), fname, NULL, NULL);
+	if (smb_fname_base == NULL) {
+		return NT_STATUS_NO_MEMORY;
 	}
 
 	if ((fsp != NULL) && (fsp->fh->fd != -1)) {

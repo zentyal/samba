@@ -45,6 +45,22 @@
 ^samba3.blackbox.smbclient_machine_auth.plain \(s3dc:local\)# the S3dc does not currently set up a self-join
 ^samba3.raw.samba3hide.samba3hide\((s3dc|plugin_s4_dc)\) # This test fails against an smbd environment with NT ACLs enabled
 ^samba3.raw.samba3closeerr.samba3closeerr\(s3dc\) # This test fails against an smbd environment with NT ACLs enabled
+^samba3.raw.acls nfs4acl_xattr-simple.INHERITFLAGS\(s3dc\) # This (and the follow nfs4acl_xattr tests fail because our NFSv4 backend isn't a complete mapping yet.
+^samba3.raw.acls nfs4acl_xattr-simple.sd\(s3dc\)
+^samba3.raw.acls nfs4acl_xattr-simple.create_file\(s3dc\)
+^samba3.raw.acls nfs4acl_xattr-simple.create_dir\(s3dc\)
+^samba3.raw.acls nfs4acl_xattr-simple.nulldacl\(s3dc\)
+^samba3.raw.acls nfs4acl_xattr-simple.generic\(s3dc\)
+^samba3.raw.acls nfs4acl_xattr-simple.inheritance\(s3dc\)
+^samba3.raw.acls nfs4acl_xattr-special.INHERITFLAGS\(s3dc\)
+^samba3.raw.acls nfs4acl_xattr-special.sd\(s3dc\)
+^samba3.raw.acls nfs4acl_xattr-special.create_file\(s3dc\)
+^samba3.raw.acls nfs4acl_xattr-special.create_dir\(s3dc\)
+^samba3.raw.acls nfs4acl_xattr-special.nulldacl\(s3dc\)
+^samba3.raw.acls nfs4acl_xattr-special.generic\(s3dc\)
+^samba3.raw.acls nfs4acl_xattr-special.inheritance\(s3dc\)
+^samba3.raw.acls nfs4acl_xattr-special.inherit_creator_owner\(s3dc\)
+^samba3.raw.acls nfs4acl_xattr-special.inherit_creator_group\(s3dc\)
 ^samba3.base.delete.deltest16a
 ^samba3.base.delete.deltest17a
 ^samba3.unix.whoami anonymous connection.whoami\(plugin_s4_dc\) # We need to resolve if we should be including SID_NT_WORLD and SID_NT_NETWORK in this token
@@ -161,11 +177,9 @@
 ^samba4.ntvfs.cifs.krb5.base.createx_access.createx_access\(.*\)$
 ^samba4.rpc.lsa.forest.trust #Not fully provided by Samba4
 ^samba4.blackbox.kinit\(.*\).kinit with user password for expired password\(.*\) # We need to work out why this fails only during the pw change
-^samba4.blackbox.dbcheck\(vampire_dc\).dbcheck\(vampire_dc:local\) # Due to replicating with --domain-critical-only we fail dbcheck on this database
 ^samba4.blackbox.upgradeprovision.alpha13.ldapcmp_sd\(none\) # Due to something rewriting the NT ACL on DNS objects
 ^samba4.blackbox.upgradeprovision.alpha13.ldapcmp_full_sd\(none\) # Due to something rewriting the NT ACL on DNS objects
 ^samba4.blackbox.upgradeprovision.release-4-0-0.ldapcmp_sd\(none\) # Due to something rewriting the NT ACL on DNS objects
-^samba4.smb2.setinfo.setinfo # ntvfs doesn't support FULL_EA_INFORMATION set.
 ^samba3.smb2.create.gentest
 ^samba3.smb2.create.blob
 ^samba3.smb2.create.open
@@ -178,13 +192,9 @@
 ^samba3.smb2.durable-open.delete_on_close2
 ^samba3.smb2.durable-v2-open.open-lease
 ^samba3.smb2.durable-v2-open.persistent-open-lease
-^samba3.smb2.ioctl.shadow_copy
-^samba3.smb2.ioctl.req_resume_key
-^samba3.smb2.ioctl.copy_chunk_simple
-^samba3.smb2.ioctl.copy_chunk_multi
-^samba3.smb2.ioctl.copy_chunk_tiny
-^samba3.smb2.ioctl.copy_chunk_overwrite
-^samba3.smb2.ioctl.copy_chunk_append
+^samba3.smb2.durable-v2-open.app-instance
+^samba4.smb2.ioctl.req_resume_key\(dc\) # not supported by s4 ntvfs server
+^samba4.smb2.ioctl.copy_chunk_\w*\(dc\)	# not supported by s4 ntvfs server
 ^samba3.smb2.dir.one
 ^samba3.smb2.dir.modify
 ^samba3.smb2.lease.request
@@ -192,6 +202,7 @@
 ^samba3.smb2.lease.break
 ^samba3.smb2.lease.oplock
 ^samba3.smb2.lease.multibreak
+^samba3.smb2.lease.v2_request
 ^samba3.smb2.oplock.batch12
 ^samba3.smb2.oplock.batch20
 ^samba3.smb2.oplock.stream1
@@ -205,6 +216,8 @@
 ^samba3.raw.session.*reauth2 # maybe fix this?
 ^samba3.rpc.spoolss.printer.addprinter.driver_info_winreg # knownfail or flapping?
 ^samba3.rpc.spoolss.printer.addprinterex.driver_info_winreg # knownfail or flapping?
+^samba3.rpc.spoolss.printer.*.publish_toggle\(.*\)$ # needs spoolss AD member env
+^samba3.rpc.spoolss.printserver.*.add_processor\(.*\)$
 #
 # The following tests fail against plugin_s4_dc (aka s3fs) currently.
 # These need to be examined and either fixed or correctly categorised.

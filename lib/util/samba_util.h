@@ -642,6 +642,10 @@ _PUBLIC_ bool file_check_permissions(const char *fname,
 _PUBLIC_ bool directory_create_or_exist(const char *dname, uid_t uid, 
 			       mode_t dir_perms);
 
+_PUBLIC_ bool directory_create_or_exist_strict(const char *dname,
+					       uid_t uid,
+					       mode_t dir_perms);
+
 /**
  Set a fd into blocking/nonblocking mode. Uses POSIX O_NONBLOCK if available,
  else
@@ -696,6 +700,14 @@ void dump_data_file(const uint8_t *buf, int len, bool omit_zero_bytes,
  * The data is only written if the log level is at least level.
  */
 _PUBLIC_ void dump_data(int level, const uint8_t *buf,int len);
+
+/**
+ * Write dump of binary data to the log file.
+ *
+ * The data is only written if the log level is at least level for
+ * debug class dbgc_class.
+ */
+_PUBLIC_ void dump_data_dbgc(int dbgc_class, int level, const uint8_t *buf, int len);
 
 /**
  * Write dump of binary data to the log file.
@@ -828,6 +840,46 @@ _PUBLIC_ void close_low_fds(bool stdin_too, bool stdout_too, bool stderr_too);
 _PUBLIC_ void become_daemon(bool do_fork, bool no_process_group, bool log_stdout);
 
 /**
+ * @brief Get a password from the console.
+ *
+ * You should make sure that the buffer is an empty string!
+ *
+ * You can also use this function to ask for a username. Then you can fill the
+ * buffer with the username and it is shows to the users. If the users just
+ * presses enter the buffer will be untouched.
+ *
+ * @code
+ *   char username[128];
+ *
+ *   snprintf(username, sizeof(username), "john");
+ *
+ *   smb_getpass("Username:", username, sizeof(username), 1, 0);
+ * @endcode
+ *
+ * The prompt will look like this:
+ *
+ *   Username: [john]
+ *
+ * If you press enter then john is used as the username, or you can type it in
+ * to change it.
+ *
+ * @param[in]  prompt   The prompt to show to ask for the password.
+ *
+ * @param[out] buf    The buffer the password should be stored. It NEEDS to be
+ *                      empty or filled out.
+ *
+ * @param[in]  len      The length of the buffer.
+ *
+ * @param[in]  echo     Should we echo what you type.
+ *
+ * @param[in]  verify   Should we ask for the password twice.
+ *
+ * @return              0 on success, -1 on error.
+ */
+_PUBLIC_ int samba_getpass(const char *prompt, char *buf, size_t len,
+			   bool echo, bool verify);
+
+/**
  * Load a ini-style file.
  */
 bool pm_process( const char *fileName,
@@ -926,5 +978,19 @@ void server_id_set_disconnected(struct server_id *id);
  * a disconnected client
  */
 bool server_id_is_disconnected(const struct server_id *id);
+
+/*
+ * Samba code should use samba_tevent_context_init() instead of
+ * tevent_context_init() in order to get the debug output.
+ */
+struct tevent_context *samba_tevent_context_init(TALLOC_CTX *mem_ctx);
+
+/*
+ * if same samba code needs to use a specific tevent backend
+ * it can use something like this:
+ *
+ * samba_tevent_set_debug(ev, "pysmb_tevent");
+ */
+void samba_tevent_set_debug(struct tevent_context *ev, const char *name);
 
 #endif /* _SAMBA_UTIL_H_ */

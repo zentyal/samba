@@ -187,7 +187,9 @@ static int parse_quota_set(TALLOC_CTX *ctx,
 
 	switch (todo) {
 		case PARSE_LIM:
-			if (sscanf(p,"%"PRIu64"/%"PRIu64,&pqt->softlim,&pqt->hardlim)!=2) {
+			if (sscanf(p,"%"SCNu64"/%"SCNu64,&pqt->softlim,
+			    &pqt->hardlim) != 2)
+			{
 				return -1;
 			}
 
@@ -580,7 +582,7 @@ FSQLIM:<softlimit>/<hardlimit> for filesystem defaults\n\
 FSQFLAGS:QUOTA_ENABLED/DENY_DISK/LOG_SOFTLIMIT/LOG_HARD_LIMIT", "SETSTRING" },
 		{ "numeric", 'n', POPT_ARG_NONE, NULL, 'n', "Don't resolve sids or limits to names" },
 		{ "verbose", 'v', POPT_ARG_NONE, NULL, 'v', "be verbose" },
-		{ "test-args", 't', POPT_ARG_NONE, NULL, 'r', "Test arguments"},
+		{ "test-args", 't', POPT_ARG_NONE, NULL, 't', "Test arguments"},
 		POPT_COMMON_SAMBA
 		POPT_COMMON_CREDENTIALS
 		{ NULL }
@@ -687,6 +689,9 @@ FSQFLAGS:QUOTA_ENABLED/DENY_DISK/LOG_SOFTLIMIT/LOG_HARD_LIMIT", "SETSTRING" },
 		printf("Out of memory\n");
 		exit(EXIT_PARSE_ERROR);
 	}
+
+	poptFreeContext(pc);
+	popt_burn_cmdline_password(argc, argv);
 
 	string_replace(path, '/', '\\');
 

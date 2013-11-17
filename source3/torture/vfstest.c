@@ -42,6 +42,9 @@ static struct cmd_list {
 	struct cmd_set *cmd_set;
 } *cmd_list;
 
+/* shall we do talloc_report after each command? */
+static int memreports = 0;
+
 /****************************************************************************
 handle completion of commands for readline
 ****************************************************************************/
@@ -105,7 +108,12 @@ static char *next_command(TALLOC_CTX *ctx, char **cmdstr)
 	if (p)
 		*p = '\0';
 	command = talloc_strdup(ctx, *cmdstr);
-	*cmdstr = p;
+
+	/* Pass back the remaining cmdstring 
+	   (a trailing delimiter ";" does also work),
+	   or NULL at last cmdstring.
+	*/
+	*cmdstr = p ? p + 1 : p;
 
 	return command;
 }
@@ -324,6 +332,9 @@ static NTSTATUS do_cmd(struct vfs_state *vfs, struct cmd_set *cmd_entry, char *c
 		SAFE_FREE(argv);
 	}
 
+	if (memreports != 0) {
+		talloc_report_full(mem_ctx, stdout);
+	}
 	TALLOC_FREE(mem_ctx);
 	return result;
 }
@@ -453,7 +464,8 @@ int main(int argc, char *argv[])
 	char *filename = NULL;
 	char cwd[MAXPATHLEN];
 	TALLOC_CTX *frame = talloc_stackframe();
-	struct tevent_context *ev = tevent_context_init(NULL);
+	struct tevent_context *ev = samba_tevent_context_init(NULL);
+	struct auth_session_info *session_info = NULL;
 	NTSTATUS status = NT_STATUS_OK;
 
 	/* make sure the vars that get altered (4th field) are in
@@ -463,6 +475,8 @@ int main(int argc, char *argv[])
 		POPT_AUTOHELP
 		{"file",	'f', POPT_ARG_STRING,	&filename, 0, },
 		{"command",	'c', POPT_ARG_STRING,	&cmdstr, 0, "Execute specified list of commands" },
+		{"memreport",	'm', POPT_ARG_INT,	&memreports, 0,
+		 "Report memory left on talloc stackframe after each command" },
 		POPT_COMMON_SAMBA
 		POPT_TABLEEND
 	};
@@ -515,21 +529,32 @@ int main(int argc, char *argv[])
 	locking_init();
 	serverid_parent_init(NULL);
 	vfs = talloc_zero(NULL, struct vfs_state);
-	vfs->conn = talloc_zero(vfs, connection_struct);
+	if (vfs == NULL) {
+		return 1;
+	}
+	status = make_session_info_guest(vfs, &session_info);
+	if (!NT_STATUS_IS_OK(status)) {
+		return 1;
+	}
+
+	status = create_conn_struct(vfs,
+				ev,
+				messaging_init(vfs, ev),
+                                &vfs->conn,
+                                -1,
+                                getcwd(cwd, sizeof(cwd)),
+                                session_info);
+	if (!NT_STATUS_IS_OK(status)) {
+		return 1;
+	}
+
 	vfs->conn->share_access = FILE_GENERIC_ALL;
-	vfs->conn->params = talloc_zero(vfs->conn, struct share_params);
-	vfs->conn->sconn = talloc_zero(NULL, struct smbd_server_connection);
-	vfs->conn->sconn->msg_ctx = messaging_init(vfs->conn->sconn, ev);
-	vfs->conn->sconn->ev_ctx = ev;
+	vfs->conn->read_only = false;
+
 	serverid_register(messaging_server_id(vfs->conn->sconn->msg_ctx), 0);
-	make_session_info_guest(NULL, &vfs->conn->session_info);
 	file_init(vfs->conn->sconn);
-	set_conn_connectpath(vfs->conn, getcwd(cwd, sizeof(cwd)));
 	for (i=0; i < 1024; i++)
 		vfs->files[i] = NULL;
-
-	/* some advanced initialization stuff */
-	smbd_vfs_init(vfs->conn);
 
 	if (!posix_locking_init(false)) {
 		return 1;

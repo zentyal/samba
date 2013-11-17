@@ -170,10 +170,19 @@ class cmd_drs_showrepl(Command):
 
         self.message("==== KCC CONNECTION OBJECTS ====\n")
         for c in conn:
-            c_rdn, sep, c_server_dn = c['fromServer'][0].partition(',')
-            c_server_res = self.samdb.search(base=c_server_dn, scope=ldb.SCOPE_BASE, attrs=["dnsHostName"])
-            c_server_dns = c_server_res[0]["dnsHostName"][0]
             self.message("Connection --")
+
+            c_rdn, sep, c_server_dn = c['fromServer'][0].partition(',')
+            try:
+                c_server_res = self.samdb.search(base=c_server_dn, scope=ldb.SCOPE_BASE, attrs=["dnsHostName"])
+                c_server_dns = c_server_res[0]["dnsHostName"][0]
+            except ldb.LdbError, (errno, _):
+                if errno == ldb.ERR_NO_SUCH_OBJECT:
+                    self.message("\tWARNING: Connection to DELETED server!")
+                c_server_dns = ""
+            except KeyError:
+                c_server_dns = ""
+
             self.message("\tConnection name: %s" % c['name'][0])
             self.message("\tEnabled        : %s" % attr_default(c, 'enabledConnection', 'TRUE'))
             self.message("\tServer DNS name : %s" % c_server_dns)
@@ -249,11 +258,13 @@ def drs_local_replicate(self, SOURCE_DC, NC):
 
 
     source_dsa_invocation_id = misc.GUID(self.samdb.get_invocation_id())
+    dest_dsa_invocation_id = misc.GUID(self.local_samdb.get_invocation_id())
     destination_dsa_guid = self.ntds_guid
 
     self.samdb.transaction_start()
     repl = drs_utils.drs_Replicate("ncacn_ip_tcp:%s[seal]" % self.server, self.lp,
-                                   self.creds, self.local_samdb)
+                                   self.creds, self.local_samdb, dest_dsa_invocation_id)
+
     try:
         repl.replicate(NC, source_dsa_invocation_id, destination_dsa_guid)
     except Exception, e:
@@ -361,7 +372,6 @@ class cmd_drs_bind(Command):
         self.creds = credopts.get_credentials(self.lp, fallback_machine=True)
 
         drsuapi_connect(self)
-        samdb_connect(self)
 
         bind_info = drsuapi.DsBindInfoCtr()
         bind_info.length = 28

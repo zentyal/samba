@@ -1632,15 +1632,17 @@ WERROR _spoolss_OpenPrinter(struct pipes_struct *p,
 			    struct spoolss_OpenPrinter *r)
 {
 	struct spoolss_OpenPrinterEx e;
+	struct spoolss_UserLevel1 level1;
 	WERROR werr;
 
-	ZERO_STRUCT(e.in.userlevel);
+	ZERO_STRUCT(level1);
 
 	e.in.printername	= r->in.printername;
 	e.in.datatype		= r->in.datatype;
 	e.in.devmode_ctr	= r->in.devmode_ctr;
 	e.in.access_mask	= r->in.access_mask;
-	e.in.level		= 0;
+	e.in.userlevel_ctr.level		= 1;
+	e.in.userlevel_ctr.user_info.level1	= &level1;
 
 	e.out.handle		= r->out.handle;
 
@@ -1714,12 +1716,12 @@ WERROR _spoolss_OpenPrinterEx(struct pipes_struct *p,
 		return WERR_INVALID_PARAM;
 	}
 
-	if (r->in.level > 3) {
+	if (r->in.userlevel_ctr.level > 3) {
 		return WERR_INVALID_PARAM;
 	}
-	if ((r->in.level == 1 && !r->in.userlevel.level1) ||
-	    (r->in.level == 2 && !r->in.userlevel.level2) ||
-	    (r->in.level == 3 && !r->in.userlevel.level3)) {
+	if ((r->in.userlevel_ctr.level == 1 && !r->in.userlevel_ctr.user_info.level1) ||
+	    (r->in.userlevel_ctr.level == 2 && !r->in.userlevel_ctr.user_info.level2) ||
+	    (r->in.userlevel_ctr.level == 3 && !r->in.userlevel_ctr.user_info.level3)) {
 		return WERR_INVALID_PARAM;
 	}
 
@@ -2336,15 +2338,23 @@ static WERROR getprinterdata_printer_server(TALLOC_CTX *mem_ctx,
 		enum ndr_err_code ndr_err;
 		struct spoolss_OSVersion os;
 
-		os.major		= 5;	/* Windows 2000 == 5.0 */
-		os.minor		= 0;
-		os.build		= 2195;	/* build */
+		os.major		= lp_parm_int(GLOBAL_SECTION_SNUM,
+						      "spoolss", "os_major", 5);
+						      /* Windows 2000 == 5.0 */
+		os.minor		= lp_parm_int(GLOBAL_SECTION_SNUM,
+						      "spoolss", "os_minor", 0);
+		os.build		= lp_parm_int(GLOBAL_SECTION_SNUM,
+						      "spoolss", "os_build", 2195);
 		os.extra_string		= "";	/* leave extra string empty */
 
 		ndr_err = ndr_push_struct_blob(&blob, mem_ctx, &os,
 			(ndr_push_flags_fn_t)ndr_push_spoolss_OSVersion);
 		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 			return WERR_GENERAL_FAILURE;
+		}
+
+		if (DEBUGLEVEL >= 10) {
+			NDR_PRINT_DEBUG(spoolss_OSVersion, &os);
 		}
 
 		*type = REG_BINARY;
@@ -5756,11 +5766,11 @@ WERROR _spoolss_StartDocPrinter(struct pipes_struct *p,
 		return WERR_INVALID_HANDLE;
 	}
 
-	if (r->in.level != 1) {
+	if (r->in.info_ctr->level != 1) {
 		return WERR_UNKNOWN_LEVEL;
 	}
 
-	info_1 = r->in.info.info1;
+	info_1 = r->in.info_ctr->info.info1;
 
 	/*
 	 * a nice thing with NT is it doesn't listen to what you tell it.
@@ -8353,7 +8363,7 @@ static WERROR compose_spoolss_server_path(TALLOC_CTX *mem_ctx,
 					  char **path)
 {
 	const char *pservername = NULL;
-	const char *long_archi = SPOOLSS_ARCHITECTURE_NT_X86;
+	const char *long_archi;
 	const char *short_archi;
 
 	*path = NULL;
@@ -8361,6 +8371,10 @@ static WERROR compose_spoolss_server_path(TALLOC_CTX *mem_ctx,
 	/* environment may be empty */
 	if (environment && strlen(environment)) {
 		long_archi = environment;
+	} else {
+		long_archi = lp_parm_const_string(GLOBAL_SECTION_SNUM,
+						  "spoolss", "architecture",
+						  SPOOLSS_ARCHITECTURE_NT_X86);
 	}
 
 	/* servername may be empty */
@@ -8682,7 +8696,7 @@ WERROR _spoolss_DeletePrinterData(struct pipes_struct *p,
 WERROR _spoolss_AddForm(struct pipes_struct *p,
 			struct spoolss_AddForm *r)
 {
-	struct spoolss_AddFormInfo1 *form = r->in.info.info1;
+	struct spoolss_AddFormInfo1 *form;
 	int snum = -1;
 	WERROR status = WERR_OK;
 	struct printer_handle *Printer = find_printer_index_by_hnd(p, r->in.handle);
@@ -8705,6 +8719,15 @@ WERROR _spoolss_AddForm(struct pipes_struct *p,
 					  SEC_PRIV_PRINT_OPERATOR)) {
 		DEBUG(2,("_spoolss_Addform: denied by insufficient permissions.\n"));
 		return WERR_ACCESS_DENIED;
+	}
+
+	if (r->in.info_ctr->level != 1) {
+		return WERR_INVALID_LEVEL;
+	}
+
+	form = r->in.info_ctr->info.info1;
+	if (!form) {
+		return WERR_INVALID_PARAM;
 	}
 
 	switch (form->flags) {
@@ -8824,7 +8847,7 @@ done:
 WERROR _spoolss_SetForm(struct pipes_struct *p,
 			struct spoolss_SetForm *r)
 {
-	struct spoolss_AddFormInfo1 *form = r->in.info.info1;
+	struct spoolss_AddFormInfo1 *form;
 	const char *form_name = r->in.form_name;
 	int snum = -1;
 	WERROR status = WERR_OK;
@@ -8849,6 +8872,15 @@ WERROR _spoolss_SetForm(struct pipes_struct *p,
 					   SEC_PRIV_PRINT_OPERATOR)) {
 		DEBUG(2,("_spoolss_Setform: denied by insufficient permissions.\n"));
 		return WERR_ACCESS_DENIED;
+	}
+
+	if (r->in.info_ctr->level != 1) {
+		return WERR_INVALID_LEVEL;
+	}
+
+	form = r->in.info_ctr->info.info1;
+	if (!form) {
+		return WERR_INVALID_PARAM;
 	}
 
 	tmp_ctx = talloc_new(p->mem_ctx);
@@ -10846,11 +10878,11 @@ WERROR _spoolss_60(struct pipes_struct *p,
 }
 
 /****************************************************************
- _spoolss_61
+ _spoolss_RpcSendRecvBidiData
 ****************************************************************/
 
-WERROR _spoolss_61(struct pipes_struct *p,
-		   struct spoolss_61 *r)
+WERROR _spoolss_RpcSendRecvBidiData(struct pipes_struct *p,
+				    struct spoolss_RpcSendRecvBidiData *r)
 {
 	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
@@ -10983,6 +11015,50 @@ WERROR _spoolss_6c(struct pipes_struct *p,
 
 WERROR _spoolss_6d(struct pipes_struct *p,
 		   struct spoolss_6d *r)
+{
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
+	return WERR_NOT_SUPPORTED;
+}
+
+/****************************************************************
+ _spoolss_RpcGetJobNamedPropertyValue
+****************************************************************/
+
+WERROR _spoolss_RpcGetJobNamedPropertyValue(struct pipes_struct *p,
+					    struct spoolss_RpcGetJobNamedPropertyValue *r)
+{
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
+	return WERR_NOT_SUPPORTED;
+}
+
+/****************************************************************
+ _spoolss_RpcSetJobNamedProperty
+****************************************************************/
+
+WERROR _spoolss_RpcSetJobNamedProperty(struct pipes_struct *p,
+				       struct spoolss_RpcSetJobNamedProperty *r)
+{
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
+	return WERR_NOT_SUPPORTED;
+}
+
+/****************************************************************
+ _spoolss_RpcDeleteJobNamedProperty
+****************************************************************/
+
+WERROR _spoolss_RpcDeleteJobNamedProperty(struct pipes_struct *p,
+					  struct spoolss_RpcDeleteJobNamedProperty *r)
+{
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
+	return WERR_NOT_SUPPORTED;
+}
+
+/****************************************************************
+ _spoolss_RpcEnumJobNamedProperties
+****************************************************************/
+
+WERROR _spoolss_RpcEnumJobNamedProperties(struct pipes_struct *p,
+					  struct spoolss_RpcEnumJobNamedProperties *r)
 {
 	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;

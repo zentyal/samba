@@ -1,4 +1,4 @@
- /* 
+ /*
    Unix SMB/CIFS implementation.
 
    trivial database library
@@ -51,7 +51,8 @@ void tdb_header_hash(struct tdb_context *tdb,
 }
 
 /* initialise a new database with a specified hash size */
-static int tdb_new_database(struct tdb_context *tdb, int hash_size)
+static int tdb_new_database(struct tdb_context *tdb, struct tdb_header *header,
+			    int hash_size)
 {
 	struct tdb_header *newdb;
 	size_t size;
@@ -78,7 +79,7 @@ static int tdb_new_database(struct tdb_context *tdb, int hash_size)
 	if (tdb->flags & TDB_INTERNAL) {
 		tdb->map_size = size;
 		tdb->map_ptr = (char *)newdb;
-		memcpy(&tdb->header, newdb, sizeof(tdb->header));
+		memcpy(header, newdb, sizeof(*header));
 		/* Convert the `ondisk' version if asked. */
 		CONVERT(*newdb);
 		return 0;
@@ -91,13 +92,14 @@ static int tdb_new_database(struct tdb_context *tdb, int hash_size)
 
 	/* This creates an endian-converted header, as if read from disk */
 	CONVERT(*newdb);
-	memcpy(&tdb->header, newdb, sizeof(tdb->header));
+	memcpy(header, newdb, sizeof(*header));
 	/* Don't endian-convert the magic food! */
 	memcpy(newdb->magic_food, TDB_MAGIC_FOOD, strlen(TDB_MAGIC_FOOD)+1);
-	/* we still have "ret == -1" here */
-	if (tdb_write_all(tdb->fd, newdb, size))
-		ret = 0;
 
+	if (!tdb_write_all(tdb->fd, newdb, size))
+		goto fail;
+
+	ret = 0;
   fail:
 	SAFE_FREE(newdb);
 	return ret;
@@ -119,13 +121,13 @@ static int tdb_already_open(dev_t device,
 	return 0;
 }
 
-/* open the database, creating it if necessary 
+/* open the database, creating it if necessary
 
    The open_flags and mode are passed straight to the open call on the
    database file. A flags value of O_WRONLY is invalid. The hash size
    is advisory, use zero for a default value.
 
-   Return is NULL on error, in which case errno is also set.  Don't 
+   Return is NULL on error, in which case errno is also set.  Don't
    try to call tdb_error or tdb_errname, just do strerror(errno).
 
    @param name may be NULL for internal databases. */
@@ -142,11 +144,12 @@ static void null_log_fn(struct tdb_context *tdb, enum tdb_debug_level level, con
 }
 
 static bool check_header_hash(struct tdb_context *tdb,
+			      struct tdb_header *header,
 			      bool default_hash, uint32_t *m1, uint32_t *m2)
 {
 	tdb_header_hash(tdb, m1, m2);
-	if (tdb->header.magic1_hash == *m1 &&
-	    tdb->header.magic2_hash == *m2) {
+	if (header->magic1_hash == *m1 &&
+	    header->magic2_hash == *m2) {
 		return true;
 	}
 
@@ -159,7 +162,7 @@ static bool check_header_hash(struct tdb_context *tdb,
 		tdb->hash_fn = tdb_jenkins_hash;
 	else
 		tdb->hash_fn = tdb_old_hash;
-	return check_header_hash(tdb, false, m1, m2);
+	return check_header_hash(tdb, header, false, m1, m2);
 }
 
 _PUBLIC_ struct tdb_context *tdb_open_ex(const char *name, int hash_size, int tdb_flags,
@@ -167,6 +170,7 @@ _PUBLIC_ struct tdb_context *tdb_open_ex(const char *name, int hash_size, int td
 				const struct tdb_logging_context *log_ctx,
 				tdb_hash_func hash_fn)
 {
+	struct tdb_header header;
 	struct tdb_context *tdb;
 	struct stat st;
 	int rev = 0, locked = 0;
@@ -175,6 +179,8 @@ _PUBLIC_ struct tdb_context *tdb_open_ex(const char *name, int hash_size, int td
 	unsigned v;
 	const char *hash_alg;
 	uint32_t magic1, magic2;
+
+	ZERO_STRUCT(header);
 
 	if (!(tdb = (struct tdb_context *)calloc(1, sizeof *tdb))) {
 		/* Can't log this */
@@ -209,7 +215,7 @@ _PUBLIC_ struct tdb_context *tdb_open_ex(const char *name, int hash_size, int td
 		goto fail;
 	}
 
-	/* now make a copy of the name, as the caller memory might went away */
+	/* now make a copy of the name, as the caller memory might go away */
 	if (!(tdb->name = (char *)strdup(name))) {
 		/*
 		 * set the name as the given string, so that tdb_name() will
@@ -285,10 +291,11 @@ _PUBLIC_ struct tdb_context *tdb_open_ex(const char *name, int hash_size, int td
 	if (tdb->flags & TDB_INTERNAL) {
 		tdb->flags |= (TDB_NOLOCK | TDB_NOMMAP);
 		tdb->flags &= ~TDB_CLEAR_IF_FIRST;
-		if (tdb_new_database(tdb, hash_size) != 0) {
+		if (tdb_new_database(tdb, &header, hash_size) != 0) {
 			TDB_LOG((tdb, TDB_DEBUG_ERROR, "tdb_open_ex: tdb_new_database failed!"));
 			goto fail;
 		}
+		tdb->hash_size = hash_size;
 		goto internal;
 	}
 
@@ -322,7 +329,7 @@ _PUBLIC_ struct tdb_context *tdb_open_ex(const char *name, int hash_size, int td
 				 name, strerror(errno)));
 			goto fail;
 		}
-		ret = tdb_new_database(tdb, hash_size);
+		ret = tdb_new_database(tdb, &header, hash_size);
 		if (ret == -1) {
 			TDB_LOG((tdb, TDB_DEBUG_FATAL, "tdb_open_ex: "
 				 "tdb_new_database failed for %s: %s\n",
@@ -347,22 +354,23 @@ _PUBLIC_ struct tdb_context *tdb_open_ex(const char *name, int hash_size, int td
 	}
 
 	errno = 0;
-	if (read(tdb->fd, &tdb->header, sizeof(tdb->header)) != sizeof(tdb->header)
-	    || strcmp(tdb->header.magic_food, TDB_MAGIC_FOOD) != 0) {
-		if (!(open_flags & O_CREAT) || tdb_new_database(tdb, hash_size) == -1) {
+	if (read(tdb->fd, &header, sizeof(header)) != sizeof(header)
+	    || strcmp(header.magic_food, TDB_MAGIC_FOOD) != 0) {
+		if (!(open_flags & O_CREAT) ||
+		    tdb_new_database(tdb, &header, hash_size) == -1) {
 			if (errno == 0) {
 				errno = EIO; /* ie bad format or something */
 			}
 			goto fail;
 		}
 		rev = (tdb->flags & TDB_CONVERT);
-	} else if (tdb->header.version != TDB_VERSION
-		   && !(rev = (tdb->header.version==TDB_BYTEREV(TDB_VERSION)))) {
+	} else if (header.version != TDB_VERSION
+		   && !(rev = (header.version==TDB_BYTEREV(TDB_VERSION)))) {
 		/* wrong version */
 		errno = EIO;
 		goto fail;
 	}
-	vp = (unsigned char *)&tdb->header.version;
+	vp = (unsigned char *)&header.version;
 	vertest = (((uint32_t)vp[0]) << 24) | (((uint32_t)vp[1]) << 16) |
 		  (((uint32_t)vp[2]) << 8) | (uint32_t)vp[3];
 	tdb->flags |= (vertest==TDB_VERSION) ? TDB_BIGENDIAN : 0;
@@ -370,31 +378,33 @@ _PUBLIC_ struct tdb_context *tdb_open_ex(const char *name, int hash_size, int td
 		tdb->flags &= ~TDB_CONVERT;
 	else {
 		tdb->flags |= TDB_CONVERT;
-		tdb_convert(&tdb->header, sizeof(tdb->header));
+		tdb_convert(&header, sizeof(header));
 	}
 	if (fstat(tdb->fd, &st) == -1)
 		goto fail;
 
-	if (tdb->header.rwlocks != 0 &&
-	    tdb->header.rwlocks != TDB_HASH_RWLOCK_MAGIC) {
+	if (header.rwlocks != 0 &&
+	    header.rwlocks != TDB_HASH_RWLOCK_MAGIC) {
 		TDB_LOG((tdb, TDB_DEBUG_ERROR, "tdb_open_ex: spinlocks no longer supported\n"));
 		goto fail;
 	}
+	tdb->hash_size = header.hash_size;
 
-	if ((tdb->header.magic1_hash == 0) && (tdb->header.magic2_hash == 0)) {
+	if ((header.magic1_hash == 0) && (header.magic2_hash == 0)) {
 		/* older TDB without magic hash references */
 		tdb->hash_fn = tdb_old_hash;
-	} else if (!check_header_hash(tdb, !hash_fn, &magic1, &magic2)) {
+	} else if (!check_header_hash(tdb, &header, !hash_fn,
+				      &magic1, &magic2)) {
 		TDB_LOG((tdb, TDB_DEBUG_FATAL, "tdb_open_ex: "
 			 "%s was not created with %s hash function we are using\n"
 			 "magic1_hash[0x%08X %s 0x%08X] "
 			 "magic2_hash[0x%08X %s 0x%08X]\n",
 			 name, hash_alg,
-			 tdb->header.magic1_hash,
-			 (tdb->header.magic1_hash == magic1) ? "==" : "!=",
+			 header.magic1_hash,
+			 (header.magic1_hash == magic1) ? "==" : "!=",
 			 magic1,
-			 tdb->header.magic2_hash,
-			 (tdb->header.magic2_hash == magic2) ? "==" : "!=",
+			 header.magic2_hash,
+			 (header.magic2_hash == magic2) ? "==" : "!=",
 			 magic2));
 		errno = EINVAL;
 		goto fail;

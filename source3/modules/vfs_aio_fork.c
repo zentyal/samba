@@ -137,7 +137,7 @@ struct aio_child {
 
 struct aio_child_list {
 	struct aio_child *children;
-	struct timed_event *cleanup_event;
+	struct tevent_timer *cleanup_event;
 };
 
 static void free_aio_children(void **p)
@@ -255,8 +255,8 @@ static ssize_t write_fd(int fd, void *ptr, size_t nbytes, int sendfd)
 	return (sendmsg(fd, &msg, 0));
 }
 
-static void aio_child_cleanup(struct event_context *event_ctx,
-			      struct timed_event *te,
+static void aio_child_cleanup(struct tevent_context *event_ctx,
+			      struct tevent_timer *te,
 			      struct timeval now,
 			      void *private_data)
 {
@@ -293,7 +293,7 @@ static void aio_child_cleanup(struct event_context *event_ctx,
 		/*
 		 * Re-schedule the next cleanup round
 		 */
-		list->cleanup_event = event_add_timed(server_event_context(), list,
+		list->cleanup_event = tevent_add_timer(server_event_context(), list,
 						      timeval_add(&now, 30, 0),
 						      aio_child_cleanup, list);
 
@@ -323,7 +323,7 @@ static struct aio_child_list *init_aio_children(struct vfs_handle_struct *handle
 	 */
 
 	if (data->cleanup_event == NULL) {
-		data->cleanup_event = event_add_timed(server_event_context(), data,
+		data->cleanup_event = tevent_add_timer(server_event_context(), data,
 						      timeval_current_ofs(30, 0),
 						      aio_child_cleanup, data);
 		if (data->cleanup_event == NULL) {

@@ -66,10 +66,6 @@ def set_options(opt):
 
     gr = opt.option_group('developer options')
 
-    opt.add_option('--disable-ntdb',
-                   help=("disable ntdb"),
-                   action="store_true", dest='disable_ntdb', default=True)
-
 
     opt.tool_options('python') # options for disabling pyc or pyo compilation
     # enable options related to building python extensions
@@ -93,7 +89,7 @@ def configure(conf):
     conf.find_program('perl', var='PERL', mandatory=True)
     conf.find_program('xsltproc', var='XSLTPROC')
 
-    conf.SAMBA_CHECK_PYTHON(mandatory=True)
+    conf.SAMBA_CHECK_PYTHON(mandatory=True, version=(2,5,0))
     conf.SAMBA_CHECK_PYTHON_HEADERS(mandatory=True)
 
     if sys.platform == 'darwin' and not conf.env['HAVE_ENVIRON_DECL']:
@@ -128,11 +124,7 @@ def configure(conf):
     conf.RECURSE('source4/ntvfs/sysdep')
     conf.RECURSE('lib/util')
     conf.RECURSE('lib/ccan')
-    conf.env.disable_ntdb = getattr(Options.options, 'disable_ntdb', False)
-    if not Options.options.disable_ntdb:
-        conf.RECURSE('lib/ntdb')
-    else:
-        conf.DEFINE('DISABLE_NTDB', 1)
+    conf.RECURSE('lib/ntdb')
     conf.RECURSE('lib/zlib')
     conf.RECURSE('lib/util/charset')
     conf.RECURSE('source4/auth')
@@ -253,13 +245,6 @@ def dist():
 
     os.system(srcdir + "/release-scripts/build-manpages-nogit")
     samba_dist.DIST_FILES('bin/docs:docs', extend=True)
-
-    os.system(srcdir + "/source3/autogen.sh")
-    samba_dist.DIST_FILES('source3/configure', extend=True)
-    samba_dist.DIST_FILES('source3/autoconf', extend=True)
-    samba_dist.DIST_FILES('source3/include/autoconf', extend=True)
-    samba_dist.DIST_FILES('examples/VFS/configure', extend=True)
-    samba_dist.DIST_FILES('examples/VFS/module_config.h.in', extend=True)
 
     if sambaversion.IS_SNAPSHOT:
         # write .distversion file and add to tar

@@ -23,6 +23,7 @@
 #include "includes.h"
 #include "smbd/globals.h"
 #include "include/messages.h"
+#include "lib/util/util_process.h"
 #include "printing.h"
 #include "printing/pcap.h"
 #include "printing/queue_process.h"
@@ -32,7 +33,7 @@
 #include "rpc_server/rpc_config.h"
 #include "printing/load.h"
 
-extern pid_t start_spoolssd(struct event_context *ev_ctx,
+extern pid_t start_spoolssd(struct tevent_context *ev_ctx,
 			    struct messaging_context *msg_ctx);
 
 /****************************************************************************
@@ -285,6 +286,8 @@ pid_t start_background_queue(struct tevent_context *ev,
 			DEBUG(0,("reinit_after_fork() failed\n"));
 			smb_panic("reinit_after_fork() failed");
 		}
+
+		prctl_set_comment("lpqd");
 
 		bq_reopen_logs(logfile);
 		bq_setup_sig_term_handler();

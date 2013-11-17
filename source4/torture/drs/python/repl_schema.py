@@ -84,7 +84,11 @@ class DrsReplSchemaTestCase(drs_base.DrsBaseTestCase):
         if not attrs is None:
             rec.update(attrs)
         # add it to the Schema
-        ldb_ctx.add(rec)
+        try:
+            ldb_ctx.add(rec)
+        except LdbError, (enum, estr):
+            self.fail("Adding record failed with %d/%s" % (enum, estr))
+
         self._ldap_schemaUpdateNow(ldb_ctx)
         return (rec["lDAPDisplayName"], rec["dn"])
 
@@ -170,7 +174,8 @@ class DrsReplSchemaTestCase(drs_base.DrsBaseTestCase):
         # add a base classSchema class so we can use our new
         # attribute in class definition in a sibling class
         (c_ldn, c_dn) = self._schema_new_class(self.ldb_dc1, "cls-A",
-                                               {"systemMayContain": a_ldn})
+                                               {"systemMayContain": a_ldn,
+                                                "subClassOf": "classSchema"})
         # add new classSchema object with value for a_ldb attribute
         (c_ldn, c_dn) = self._schema_new_class(self.ldb_dc1, "cls-B",
                                                {"objectClass": ["top", "classSchema", c_ldn],

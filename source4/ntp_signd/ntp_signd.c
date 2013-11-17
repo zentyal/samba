@@ -109,7 +109,7 @@ static NTSTATUS ntp_signd_process(struct ntp_signd_connection *ntp_signd_conn,
 	enum ndr_err_code ndr_err;
 	struct ldb_result *res;
 	const char *attrs[] = { "unicodePwd", "userAccountControl", "cn", NULL };
-	struct MD5Context ctx;
+	MD5_CTX ctx;
 	struct samr_Password *nt_hash;
 	uint32_t user_account_control;
 	int ret;
@@ -498,7 +498,7 @@ static void ntp_signd_task_init(struct task_server *task)
 
 	const char *address;
 
-	if (!directory_create_or_exist(lpcfg_ntp_signd_socket_directory(task->lp_ctx), geteuid(), 0750)) {
+	if (!directory_create_or_exist_strict(lpcfg_ntp_signd_socket_directory(task->lp_ctx), geteuid(), 0750)) {
 		char *error = talloc_asprintf(task, "Cannot create NTP signd pipe directory: %s", 
 					      lpcfg_ntp_signd_socket_directory(task->lp_ctx));
 		task_server_terminate(task,

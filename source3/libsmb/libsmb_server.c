@@ -1,10 +1,10 @@
-/* 
+/*
    Unix SMB/Netbios implementation.
    SMB client library implementation
    Copyright (C) Andrew Tridgell 1998
    Copyright (C) Richard Sharpe 2000, 2002
    Copyright (C) John Terpstra 2000
-   Copyright (C) Tom Jansen (Ninja ISD) 2002 
+   Copyright (C) Tom Jansen (Ninja ISD) 2002
    Copyright (C) Derrell Lipman 2003-2008
    Copyright (C) Jeremy Allison 2007, 2008
    Copyright (C) SATOH Fumiyasu <fumiyas@osstech.co.jp> 2009.
@@ -34,16 +34,16 @@
 #include "libsmb/nmblib.h"
 #include "../libcli/smb/smbXcli_base.h"
 
-/* 
+/*
  * Check a server for being alive and well.
- * returns 0 if the server is in shape. Returns 1 on error 
- * 
+ * returns 0 if the server is in shape. Returns 1 on error
+ *
  * Also useable outside libsmbclient to enable external cache
  * to do some checks too.
  */
 int
 SMBC_check_server(SMBCCTX * context,
-                  SMBCSRV * server) 
+                  SMBCSRV * server)
 {
 	if (!cli_state_is_connected(server->cli)) {
 		return 1;
@@ -52,10 +52,10 @@ SMBC_check_server(SMBCCTX * context,
 	return 0;
 }
 
-/* 
+/*
  * Remove a server from the cached server list it's unused.
  * On success, 0 is returned. 1 is returned if the server could not be removed.
- * 
+ *
  * Also useable outside libsmbclient
  */
 int
@@ -199,7 +199,7 @@ check_server_cache:
                          * servers in the cache
                          */
 			if (smbc_getFunctionRemoveUnusedServer(context)(context,
-                                                                        srv)) { 
+                                                                        srv)) {
                                 /*
                                  * We could not remove the server completely,
                                  * remove it from the cache so we will not get
@@ -239,6 +239,7 @@ SMBC_server_internal(TALLOC_CTX *ctx,
             SMBCCTX *context,
             bool connect_if_not_found,
             const char *server,
+            uint16_t port,
             const char *share,
             char **pp_workgroup,
             char **pp_username,
@@ -273,7 +274,7 @@ SMBC_server_internal(TALLOC_CTX *ctx,
          * server...
          */
         if (srv &&
-            *share != '\0' &&
+	    share != NULL && *share != '\0' &&
             smbc_getOptionOneSharePerServer(context)) {
 
                 /*
@@ -421,20 +422,22 @@ SMBC_server_internal(TALLOC_CTX *ctx,
 		flags |= CLI_FULL_CONNECTION_USE_NT_HASH;
 	}
 
-        if (share == NULL || *share == '\0' || is_ipc) {
-		/*
-		 * Try 139 first for IPC$
-		 */
-		status = cli_connect_nb(server_n, NULL, NBT_SMB_PORT, 0x20,
+	if (port == 0) {
+	        if (share == NULL || *share == '\0' || is_ipc) {
+			/*
+			 * Try 139 first for IPC$
+			 */
+			status = cli_connect_nb(server_n, NULL, NBT_SMB_PORT, 0x20,
 					smbc_getNetbiosName(context),
 					SMB_SIGNING_DEFAULT, flags, &c);
+		}
 	}
 
 	if (!NT_STATUS_IS_OK(status)) {
 		/*
 		 * No IPC$ or 139 did not work
 		 */
-		status = cli_connect_nb(server_n, NULL, 0, 0x20,
+		status = cli_connect_nb(server_n, NULL, port, 0x20,
 					smbc_getNetbiosName(context),
 					SMB_SIGNING_DEFAULT, flags, &c);
 	}
@@ -446,9 +449,9 @@ SMBC_server_internal(TALLOC_CTX *ctx,
 
 	cli_set_timeout(c, smbc_getTimeout(context));
 
-	status = smbXcli_negprot(c->conn, c->timeout, PROTOCOL_CORE,
-				 PROTOCOL_NT1);
-
+	status = smbXcli_negprot(c->conn, c->timeout,
+				 lp_cli_minprotocol(),
+				 lp_cli_maxprotocol());
 	if (!NT_STATUS_IS_OK(status)) {
 		cli_shutdown(c);
 		errno = ETIMEDOUT;
@@ -506,7 +509,7 @@ SMBC_server_internal(TALLOC_CTX *ctx,
 				*pp_workgroup)) {
 		cli_shutdown(c);
 		srv = SMBC_server_internal(ctx, context, connect_if_not_found,
-				newserver, newshare, pp_workgroup,
+				newserver, port, newshare, pp_workgroup,
 				pp_username, pp_password, in_cache);
 		TALLOC_FREE(newserver);
 		TALLOC_FREE(newshare);
@@ -629,6 +632,7 @@ SMBC_server(TALLOC_CTX *ctx,
 		SMBCCTX *context,
 		bool connect_if_not_found,
 		const char *server,
+		uint16_t port,
 		const char *share,
 		char **pp_workgroup,
 		char **pp_username,
@@ -638,7 +642,7 @@ SMBC_server(TALLOC_CTX *ctx,
 	bool in_cache = false;
 
 	srv = SMBC_server_internal(ctx, context, connect_if_not_found,
-			server, share, pp_workgroup,
+			server, port, share, pp_workgroup,
 			pp_username, pp_password, &in_cache);
 
 	if (!srv) {
@@ -680,6 +684,7 @@ SMBCSRV *
 SMBC_attr_server(TALLOC_CTX *ctx,
                  SMBCCTX *context,
                  const char *server,
+                 uint16_t port,
                  const char *share,
                  char **pp_workgroup,
                  char **pp_username,
@@ -698,7 +703,7 @@ SMBC_attr_server(TALLOC_CTX *ctx,
 	 * i.e., a normal share or a referred share from
 	 * 'msdfs proxy' share.
 	 */
-	srv = SMBC_server(ctx, context, true, server, share,
+	srv = SMBC_server(ctx, context, true, server, port, share,
 			pp_workgroup, pp_username, pp_password);
 	if (!srv) {
 		return NULL;

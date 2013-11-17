@@ -157,108 +157,6 @@ static NTSTATUS close_filestruct(files_struct *fsp)
 	return status;
 }
 
-static int compare_share_mode_times(const void *p1, const void *p2)
-{
-	const struct share_mode_entry *s1 = (const struct share_mode_entry *)p1;
-	const struct share_mode_entry *s2 = (const struct share_mode_entry *)p2;
-	return timeval_compare(&s1->time, &s2->time);
-}
-
-/****************************************************************************
- If any deferred opens are waiting on this close, notify them.
-****************************************************************************/
-
-static void notify_deferred_opens(struct smbd_server_connection *sconn,
-				  struct share_mode_lock *lck)
-{
-	struct server_id self = messaging_server_id(sconn->msg_ctx);
-	uint32_t i, num_deferred;
-	struct share_mode_entry *deferred;
-
-	if (!should_notify_deferred_opens(sconn)) {
-		return;
-	}
-
-	num_deferred = 0;
-	for (i=0; i<lck->data->num_share_modes; i++) {
-		struct share_mode_entry *e = &lck->data->share_modes[i];
-
-		if (!is_deferred_open_entry(e)) {
-			continue;
-		}
-		if (share_mode_stale_pid(lck->data, i)) {
-			continue;
-		}
-		num_deferred += 1;
-	}
-	if (num_deferred == 0) {
-		return;
-	}
-
-	deferred = talloc_array(talloc_tos(), struct share_mode_entry,
-				num_deferred);
-	if (deferred == NULL) {
-		return;
-	}
-
-	num_deferred = 0;
-	for (i=0; i<lck->data->num_share_modes; i++) {
-		struct share_mode_entry *e = &lck->data->share_modes[i];
-		if (!is_deferred_open_entry(e)) {
-			continue;
-		}
-		if (share_mode_stale_pid(lck->data, i)) {
-			continue;
-		}
-		deferred[num_deferred] = *e;
-		num_deferred += 1;
-	}
-
-	/*
-	 * We need to sort the notifications by initial request time. Imagine
-	 * two opens come in asyncronously, both conflicting with the open we
-	 * just close here. If we don't sort the notifications, the one that
-	 * came in last might get the response before the one that came in
-	 * first. This is demonstrated with the smbtorture4 raw.mux test.
-	 *
-	 * As long as we had the UNUSED_SHARE_MODE_ENTRY, we happened to
-	 * survive this particular test. Without UNUSED_SHARE_MODE_ENTRY, we
-	 * shuffle the share mode entries around a bit, so that we do not
-	 * survive raw.mux anymore.
-	 *
-	 * We could have kept the ordering in del_share_mode, but as the
-	 * ordering was never formalized I think it is better to do it here
-	 * where it is necessary.
-	 */
-
-	qsort(deferred, num_deferred, sizeof(struct share_mode_entry),
-	      compare_share_mode_times);
-
-	for (i=0; i<num_deferred; i++) {
-		struct share_mode_entry *e = &deferred[i];
-
-		if (serverid_equal(&self, &e->pid)) {
- 			/*
- 			 * We need to notify ourself to retry the open.  Do
- 			 * this by finding the queued SMB record, moving it to
- 			 * the head of the queue and changing the wait time to
- 			 * zero.
- 			 */
-			schedule_deferred_open_message_smb(sconn, e->op_mid);
- 		} else {
-			char msg[MSG_SMB_SHARE_MODE_ENTRY_SIZE];
-
-			share_mode_entry_to_message(msg, e);
-
-			messaging_send_buf(sconn->msg_ctx, e->pid,
-					   MSG_SMB_OPEN_RETRY,
-					   (uint8 *)msg,
-					   MSG_SMB_SHARE_MODE_ENTRY_SIZE);
- 		}
- 	}
-	TALLOC_FREE(deferred);
-}
-
 /****************************************************************************
  Delete all streams
 ****************************************************************************/
@@ -296,18 +194,18 @@ NTSTATUS delete_all_streams(connection_struct *conn, const char *fname)
 
 	for (i=0; i<num_streams; i++) {
 		int res;
-		struct smb_filename *smb_fname_stream = NULL;
+		struct smb_filename *smb_fname_stream;
 
 		if (strequal(stream_info[i].name, "::$DATA")) {
 			continue;
 		}
 
-		status = create_synthetic_smb_fname(talloc_tos(), fname,
-						    stream_info[i].name, NULL,
-						    &smb_fname_stream);
+		smb_fname_stream = synthetic_smb_fname(
+			talloc_tos(), fname, stream_info[i].name, NULL);
 
-		if (!NT_STATUS_IS_OK(status)) {
+		if (smb_fname_stream == NULL) {
 			DEBUG(0, ("talloc_aprintf failed\n"));
+			status = NT_STATUS_NO_MEMORY;
 			goto fail;
 		}
 
@@ -348,6 +246,7 @@ static NTSTATUS close_remove_share_mode(files_struct *fsp,
 	const struct security_token *del_nt_token = NULL;
 	bool got_tokens = false;
 	bool normal_close;
+	int ret_flock;
 
 	/* Ensure any pending write time updates are done. */
 	if (fsp->update_write_time_event) {
@@ -444,10 +343,6 @@ static NTSTATUS close_remove_share_mode(files_struct *fsp,
 		}
 	}
 
-	/* Notify any deferred opens waiting on this close. */
-	notify_deferred_opens(conn->sconn, lck);
-	reply_to_oplock_break_requests(fsp);
-
 	/*
 	 * NT can set delete_on_close of the last open
 	 * reference to a file.
@@ -456,15 +351,8 @@ static NTSTATUS close_remove_share_mode(files_struct *fsp,
 	normal_close = (close_type == NORMAL_CLOSE || close_type == SHUTDOWN_CLOSE);
 
 	if (!normal_close || !delete_file) {
-
-		if (!del_share_mode(lck, fsp)) {
-			DEBUG(0, ("close_remove_share_mode: Could not delete "
-				  "share entry for file %s\n",
-				  fsp_str_dbg(fsp)));
-		}
-
-		TALLOC_FREE(lck);
-		return NT_STATUS_OK;
+		status = NT_STATUS_OK;
+		goto done;
 	}
 
 	/*
@@ -580,6 +468,14 @@ static NTSTATUS close_remove_share_mode(files_struct *fsp,
 	if (changed_user) {
 		/* unbecome user. */
 		pop_sec_ctx();
+	}
+
+	/* remove filesystem sharemodes */
+	ret_flock = SMB_VFS_KERNEL_FLOCK(fsp, 0, 0);
+	if (ret_flock == -1) {
+		DEBUG(2, ("close_remove_share_mode: removing kernel flock for "
+					"%s failed: %s\n", fsp_str_dbg(fsp),
+					strerror(errno)));
 	}
 
 	if (!del_share_mode(lck, fsp)) {
@@ -912,7 +808,6 @@ bool recursive_rmdir(TALLOC_CTX *ctx,
 		struct smb_filename *smb_dname_full = NULL;
 		char *fullname = NULL;
 		bool do_break = true;
-		NTSTATUS status;
 
 		if (ISDOT(dname) || ISDOTDOT(dname)) {
 			TALLOC_FREE(talloced);
@@ -935,10 +830,10 @@ bool recursive_rmdir(TALLOC_CTX *ctx,
 			goto err_break;
 		}
 
-		status = create_synthetic_smb_fname(talloc_tos(), fullname,
-						    NULL, NULL,
-						    &smb_dname_full);
-		if (!NT_STATUS_IS_OK(status)) {
+		smb_dname_full = synthetic_smb_fname(talloc_tos(), fullname,
+						     NULL, NULL);
+		if (smb_dname_full == NULL) {
+			errno = ENOMEM;
 			goto err_break;
 		}
 
@@ -1066,7 +961,6 @@ static NTSTATUS rmdir_internals(TALLOC_CTX *ctx, files_struct *fsp)
 			struct smb_filename *smb_dname_full = NULL;
 			char *fullname = NULL;
 			bool do_break = true;
-			NTSTATUS status;
 
 			if (ISDOT(dname) || ISDOTDOT(dname)) {
 				TALLOC_FREE(talloced);
@@ -1088,12 +982,10 @@ static NTSTATUS rmdir_internals(TALLOC_CTX *ctx, files_struct *fsp)
 				goto err_break;
 			}
 
-			status = create_synthetic_smb_fname(talloc_tos(),
-							    fullname, NULL,
-							    NULL,
-							    &smb_dname_full);
-			if (!NT_STATUS_IS_OK(status)) {
-				errno = map_errno_from_nt_status(status);
+			smb_dname_full = synthetic_smb_fname(
+				talloc_tos(), fullname, NULL, NULL);
+			if (smb_dname_full == NULL) {
+				errno = ENOMEM;
 				goto err_break;
 			}
 

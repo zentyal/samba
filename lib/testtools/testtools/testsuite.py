@@ -6,9 +6,10 @@ __metaclass__ = type
 __all__ = [
   'ConcurrentTestSuite',
   'iterate_tests',
+  'sorted_tests',
   ]
 
-from testtools.helpers import try_imports
+from testtools.helpers import safe_hasattr, try_imports
 
 Queue = try_imports(['Queue.Queue', 'queue.Queue'])
 
@@ -33,7 +34,7 @@ def iterate_tests(test_suite_or_case):
 class ConcurrentTestSuite(unittest.TestSuite):
     """A TestSuite whose run() calls out to a concurrency strategy."""
 
-    def __init__(self, suite, make_tests):
+    def __init__(self, suite, make_tests, wrap_result=None):
         """Create a ConcurrentTestSuite to execute suite.
 
         :param suite: A suite to run concurrently.
@@ -42,9 +43,24 @@ class ConcurrentTestSuite(unittest.TestSuite):
             sub-suites. make_tests must take a suite, and return an iterable
             of TestCase-like object, each of which must have a run(result)
             method.
+        :param wrap_result: An optional function that takes a thread-safe
+            result and a thread number and must return a ``TestResult``
+            object. If not provided, then ``ConcurrentTestSuite`` will just
+            use a ``ThreadsafeForwardingResult`` wrapped around the result
+            passed to ``run()``.
         """
         super(ConcurrentTestSuite, self).__init__([suite])
         self.make_tests = make_tests
+        if wrap_result:
+            self._wrap_result = wrap_result
+
+    def _wrap_result(self, thread_safe_result, thread_number):
+        """Wrap a thread-safe result before sending it test results.
+
+        You can either override this in a subclass or pass your own
+        ``wrap_result`` in to the constructor.  The latter is preferred.
+        """
+        return thread_safe_result
 
     def run(self, result):
         """Run the tests concurrently.
@@ -63,10 +79,10 @@ class ConcurrentTestSuite(unittest.TestSuite):
         try:
             threads = {}
             queue = Queue()
-            result_semaphore = threading.Semaphore(1)
-            for test in tests:
-                process_result = testtools.ThreadsafeForwardingResult(result,
-                    result_semaphore)
+            semaphore = threading.Semaphore(1)
+            for i, test in enumerate(tests):
+                process_result = self._wrap_result(
+                    testtools.ThreadsafeForwardingResult(result, semaphore), i)
                 reader_thread = threading.Thread(
                     target=self._run_test, args=(test, process_result, queue))
                 threads[test] = reader_thread, process_result
@@ -99,3 +115,40 @@ class FixtureSuite(unittest.TestSuite):
             super(FixtureSuite, self).run(result)
         finally:
             self._fixture.cleanUp()
+
+    def sort_tests(self):
+        self._tests = sorted_tests(self, True)
+
+
+def _flatten_tests(suite_or_case, unpack_outer=False):
+    try:
+        tests = iter(suite_or_case)
+    except TypeError:
+        # Not iterable, assume it's a test case.
+        return [(suite_or_case.id(), suite_or_case)]
+    if (type(suite_or_case) in (unittest.TestSuite,) or
+        unpack_outer):
+        # Plain old test suite (or any others we may add).
+        result = []
+        for test in tests:
+            # Recurse to flatten.
+            result.extend(_flatten_tests(test))
+        return result
+    else:
+        # Find any old actual test and grab its id.
+        suite_id = None
+        tests = iterate_tests(suite_or_case)
+        for test in tests:
+            suite_id = test.id()
+            break
+        # If it has a sort_tests method, call that.
+        if safe_hasattr(suite_or_case, 'sort_tests'):
+            suite_or_case.sort_tests()
+        return [(suite_id, suite_or_case)]
+
+
+def sorted_tests(suite_or_case, unpack_outer=False):
+    """Sort suite_or_case while preserving non-vanilla TestSuites."""
+    tests = _flatten_tests(suite_or_case, unpack_outer=unpack_outer)
+    tests.sort()
+    return unittest.TestSuite([test for (sort_key, test) in tests])

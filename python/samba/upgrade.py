@@ -410,7 +410,6 @@ smbconf_keep = [
     "smb passwd file",
     "private dir",
     "passwd chat",
-    "password level",
     "lanman auth",
     "ntlm auth",
     "client NTLMv2 auth",
@@ -698,15 +697,17 @@ def upgrade_from_samba3(samba3, logger, targetdir, session_info=None,
 
         user = s3db.getsampwnam(username)
         acct_type = (user.acct_ctrl & (samr.ACB_NORMAL|samr.ACB_WSTRUST|samr.ACB_SVRTRUST|samr.ACB_DOMTRUST))
-        if (acct_type == samr.ACB_NORMAL or acct_type == samr.ACB_WSTRUST):
-            pass
-
-        elif acct_type == samr.ACB_SVRTRUST:
-            logger.warn("  Demoting BDC account trust for %s, this DC must be elevated to an AD DC using 'samba-tool domain promote'" % username[:-1])
+        if acct_type == samr.ACB_SVRTRUST:
+            logger.warn("  Demoting BDC account trust for %s, this DC must be elevated to an AD DC using 'samba-tool domain dcpromo'" % username[:-1])
             user.acct_ctrl = (user.acct_ctrl & ~samr.ACB_SVRTRUST) | samr.ACB_WSTRUST
 
         elif acct_type == samr.ACB_DOMTRUST:
             logger.warn("  Skipping inter-domain trust from domain %s, this trust must be re-created as an AD trust" % username[:-1])
+            continue
+
+        elif acct_type == (samr.ACB_WSTRUST) and username[-1] != '$':
+            logger.warn("  Skipping account %s that has ACB_WSTRUST (W) set but does not end in $.  This account can not have worked, and is probably left over from a misconfiguration." % username)
+            continue
 
         elif acct_type == (samr.ACB_NORMAL|samr.ACB_WSTRUST) and username[-1] == '$':
             logger.warn("  Fixing account %s which had both ACB_NORMAL (U) and ACB_WSTRUST (W) set.  Account will be marked as ACB_WSTRUST (W), i.e. as a domain member" % username)
@@ -715,6 +716,12 @@ def upgrade_from_samba3(samba3, logger, targetdir, session_info=None,
         elif acct_type == (samr.ACB_NORMAL|samr.ACB_SVRTRUST) and username[-1] == '$':
             logger.warn("  Fixing account %s which had both ACB_NORMAL (U) and ACB_SVRTRUST (S) set.  Account will be marked as ACB_WSTRUST (S), i.e. as a domain member" % username)
             user.acct_ctrl = (user.acct_ctrl & ~samr.ACB_NORMAL)
+
+        elif acct_type == 0 and username[-1] != '$':
+            user.acct_ctrl = (user.acct_ctrl | samr.ACB_NORMAL)
+
+        elif (acct_type == samr.ACB_NORMAL or acct_type == samr.ACB_WSTRUST):
+            pass
 
         else:
             raise ProvisioningError("""Failed to upgrade due to invalid account %s, account control flags 0x%08X must have exactly one of
@@ -791,7 +798,7 @@ Please fix this account before attempting to upgrade again
             try:
                 ldb_object = Ldb(url, credentials=creds)
             except ldb.LdbError, e:
-                logger.warning("Could not open ldb connection to %s, the error message is: %s", url, e)
+                raise ProvisiongError("Could not open ldb connection to %s, the error message is: %s" % (url, e))
             else:
                 break
     logger.info("Exporting posix attributes")
@@ -806,6 +813,8 @@ Please fix this account before attempting to upgrade again
                     homes[username] = pwd.getpwnam(username).pw_dir
             except KeyError:
                 pass
+            except IndexError:
+                pass
 
             try:
                 if ldap:
@@ -814,6 +823,8 @@ Please fix this account before attempting to upgrade again
                     shells[username] = pwd.getpwnam(username).pw_shell
             except KeyError:
                 pass
+            except IndexError:
+                pass
 
             try:
                 if ldap:
@@ -821,6 +832,8 @@ Please fix this account before attempting to upgrade again
                 else:
                     pgids[username] = pwd.getpwnam(username).pw_gid
             except KeyError:
+                pass
+            except IndexError:
                 pass
 
     logger.info("Reading WINS database")
@@ -877,40 +890,78 @@ Please fix this account before attempting to upgrade again
     # Connect to samba4 backend
     s4_passdb = passdb.PDB(new_lp_ctx.get("passdb backend"))
 
-    # Export groups to samba4 backend
-    logger.info("Importing groups")
-    for g in grouplist:
-        # Ignore uninitialized groups (gid = -1)
-        if g.gid != -1:
-            add_group_from_mapping_entry(result.samdb, g, logger)
-            add_ad_posix_idmap_entry(result.samdb, g.sid, g.gid, "ID_TYPE_GID", logger)
-            add_posix_attrs(samdb=result.samdb, sid=g.sid, name=g.nt_name, nisdomain=domainname.lower(), xid_type="ID_TYPE_GID", logger=logger)
+    # Start a new transaction (should speed this up a little, due to index churn)
+    result.samdb.transaction_start()
 
-    # Export users to samba4 backend
-    logger.info("Importing users")
-    for username in userdata:
-        if username.lower() == 'administrator':
-            if userdata[username].user_sid != dom_sid(str(domainsid) + "-500"):
-                logger.error("User 'Administrator' in your existing directory has SID %s, expected it to be %s" % (userdata[username].user_sid, dom_sid(str(domainsid) + "-500")))
-                raise ProvisioningError("User 'Administrator' in your existing directory does not have SID ending in -500")
-        if username.lower() == 'root':
-            if userdata[username].user_sid == dom_sid(str(domainsid) + "-500"):
-                logger.warn('User root has been replaced by Administrator')
-            else:
-                logger.warn('User root has been kept in the directory, it should be removed in favour of the Administrator user')
+    logger.info("Adding groups")
+    try:
+        # Export groups to samba4 backend
+        logger.info("Importing groups")
+        for g in grouplist:
+            # Ignore uninitialized groups (gid = -1)
+            if g.gid != -1:
+                add_group_from_mapping_entry(result.samdb, g, logger)
+                add_ad_posix_idmap_entry(result.samdb, g.sid, g.gid, "ID_TYPE_GID", logger)
+                add_posix_attrs(samdb=result.samdb, sid=g.sid, name=g.nt_name, nisdomain=domainname.lower(), xid_type="ID_TYPE_GID", logger=logger)
 
-        s4_passdb.add_sam_account(userdata[username])
-        if username in uids:
-            add_ad_posix_idmap_entry(result.samdb, userdata[username].user_sid, uids[username], "ID_TYPE_UID", logger)
-            if (username in homes) and (homes[username] is not None) and \
-               (username in shells) and (shells[username] is not None) and \
-               (username in pgids) and (pgids[username] is not None):
-                add_posix_attrs(samdb=result.samdb, sid=userdata[username].user_sid, name=username, nisdomain=domainname.lower(), xid_type="ID_TYPE_UID", home=homes[username], shell=shells[username], pgid=pgids[username], logger=logger)
+    except:
+        # We need this, so that we do not give even more errors due to not cancelling the transaction
+        result.samdb.transaction_cancel()
+        raise
+
+    logger.info("Commiting 'add groups' transaction to disk")
+    result.samdb.transaction_commit()
+
+    logger.info("Adding users")
+    # Start a new transaction (should speed this up a little, due to index churn)
+    result.samdb.transaction_start()
+
+    try:
+        # Export users to samba4 backend
+        logger.info("Importing users")
+        for username in userdata:
+            if username.lower() == 'administrator':
+                if userdata[username].user_sid != dom_sid(str(domainsid) + "-500"):
+                    logger.error("User 'Administrator' in your existing directory has SID %s, expected it to be %s" % (userdata[username].user_sid, dom_sid(str(domainsid) + "-500")))
+                    raise ProvisioningError("User 'Administrator' in your existing directory does not have SID ending in -500")
+            if username.lower() == 'root':
+                if userdata[username].user_sid == dom_sid(str(domainsid) + "-500"):
+                    logger.warn('User root has been replaced by Administrator')
+                else:
+                    logger.warn('User root has been kept in the directory, it should be removed in favour of the Administrator user')
+
+            s4_passdb.add_sam_account(userdata[username])
+            if username in uids:
+                add_ad_posix_idmap_entry(result.samdb, userdata[username].user_sid, uids[username], "ID_TYPE_UID", logger)
+                if (username in homes) and (homes[username] is not None) and \
+                   (username in shells) and (shells[username] is not None) and \
+                   (username in pgids) and (pgids[username] is not None):
+                    add_posix_attrs(samdb=result.samdb, sid=userdata[username].user_sid, name=username, nisdomain=domainname.lower(), xid_type="ID_TYPE_UID", home=homes[username], shell=shells[username], pgid=pgids[username], logger=logger)
+
+    except:
+        # We need this, so that we do not give even more errors due to not cancelling the transaction
+        result.samdb.transaction_cancel()
+        raise
+
+    logger.info("Commiting 'add users' transaction to disk")
+    result.samdb.transaction_commit()
 
     logger.info("Adding users to groups")
-    for g in grouplist:
-        if str(g.sid) in groupmembers:
-            add_users_to_group(result.samdb, g, groupmembers[str(g.sid)], logger)
+    # Start a new transaction (should speed this up a little, due to index churn)
+    result.samdb.transaction_start()
+
+    try:
+        for g in grouplist:
+            if str(g.sid) in groupmembers:
+                add_users_to_group(result.samdb, g, groupmembers[str(g.sid)], logger)
+
+    except:
+        # We need this, so that we do not give even more errors due to not cancelling the transaction
+        result.samdb.transaction_cancel()
+        raise
+
+    logger.info("Commiting 'add users to groups' transaction to disk")
+    result.samdb.transaction_commit()
 
     # Set password for administrator
     if admin_user:

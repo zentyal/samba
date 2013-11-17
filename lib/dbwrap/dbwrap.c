@@ -256,33 +256,6 @@ struct db_record *dbwrap_try_fetch_locked(struct db_context *db,
 		? db->try_fetch_locked : db->fetch_locked);
 }
 
-struct db_record *dbwrap_fetch_locked_timeout(struct db_context *db,
-					      TALLOC_CTX *mem_ctx,
-					      TDB_DATA key,
-					      unsigned int timeout)
-{
-	struct db_record *rec;
-	struct dbwrap_lock_order_state *lock_order;
-	TALLOC_CTX *frame = talloc_stackframe();
-
-	lock_order = dbwrap_check_lock_order(db, frame);
-	if (lock_order == NULL) {
-		TALLOC_FREE(frame);
-		return NULL;
-	}
-	rec = db->fetch_locked_timeout
-		? db->fetch_locked_timeout(db, mem_ctx, key, timeout)
-		: db->fetch_locked(db, mem_ctx, key);
-	if (rec == NULL) {
-		TALLOC_FREE(frame);
-		return NULL;
-	}
-	(void)talloc_steal(rec, lock_order);
-	rec->db = db;
-	TALLOC_FREE(frame);
-	return rec;
-}
-
 struct db_context *dbwrap_record_get_db(struct db_record *rec)
 {
 	return rec->db;
@@ -452,6 +425,22 @@ int dbwrap_get_seqnum(struct db_context *db)
 
 int dbwrap_transaction_start(struct db_context *db)
 {
+	if (!db->persistent) {
+		/*
+		 * dbwrap_ctdb has two different data models for persistent
+		 * and non-persistent databases. Transactions are supported
+		 * only for the persistent databases. This check is here to
+		 * prevent breakages of the cluster case, autobuild at this
+		 * point only tests non-clustered Samba. Before removing this
+		 * check, please make sure that this facility has also been
+		 * added to dbwrap_ctdb.
+		 *
+		 * Thanks, vl
+		 */
+		DEBUG(1, ("transactions not supported on non-persistent "
+			  "database %s\n", db->name));
+		return -1;
+	}
 	return db->transaction_start(db);
 }
 
@@ -478,6 +467,11 @@ int dbwrap_transaction_cancel(struct db_context *db)
 void dbwrap_db_id(struct db_context *db, const uint8_t **id, size_t *idlen)
 {
 	db->id(db, id, idlen);
+}
+
+bool dbwrap_is_persistent(struct db_context *db)
+{
+	return db->persistent;
 }
 
 const char *dbwrap_name(struct db_context *db)

@@ -25,6 +25,7 @@
 #include "system/select.h"
 #include "source4/libcli/util/pyerrors.h"
 #include "auth/credentials/pycredentials.h"
+#include "trans2.h"
 
 static PyTypeObject *get_pytype(const char *module, const char *type)
 {
@@ -49,13 +50,40 @@ static PyTypeObject *get_pytype(const char *module, const char *type)
 	return result;
 }
 
+/*
+ * We're using "const char **" for keywords,
+ * PyArg_ParseTupleAndKeywords expects a "char **". Confine the
+ * inevitable warnings to just one place.
+ */
+static int ParseTupleAndKeywords(PyObject *args, PyObject *kw,
+				 const char *format, const char **keywords,
+				 ...)
+{
+	va_list a;
+	int ret;
+	va_start(a, keywords);
+	ret = PyArg_VaParseTupleAndKeywords(args, kw, format,
+					    (char **)keywords, a);
+	va_end(a);
+	return ret;
+}
+
 struct py_cli_thread;
+
+struct py_cli_oplock_break {
+	uint16_t fnum;
+	uint8_t level;
+};
 
 struct py_cli_state {
 	PyObject_HEAD
 	struct cli_state *cli;
 	struct tevent_context *ev;
 	struct py_cli_thread *thread_state;
+
+	struct tevent_req *oplock_waiter;
+	struct py_cli_oplock_break *oplock_breaks;
+	struct py_tevent_cond *oplock_cond;
 };
 
 #if HAVE_PTHREAD
@@ -166,13 +194,14 @@ static int py_cli_thread_destructor(struct py_cli_thread *t)
 
 static bool py_cli_state_setup_ev(struct py_cli_state *self)
 {
-	struct py_cli_thread *t;
+	struct py_cli_thread *t = NULL;
 	int ret;
 
 	self->ev = tevent_context_init_byname(NULL, "poll_mt");
 	if (self->ev == NULL) {
 		goto fail;
 	}
+	samba_tevent_set_debug(self->ev, "pylibsmb_tevent_mt");
 	tevent_set_trace_callback(self->ev, py_cli_state_trace_callback, self);
 
 	self->thread_state = talloc_zero(NULL, struct py_cli_thread);
@@ -202,15 +231,17 @@ static bool py_cli_state_setup_ev(struct py_cli_state *self)
 	return true;
 
 fail:
-	TALLOC_FREE(t->shutdown_fde);
+	if (t != NULL) {
+		TALLOC_FREE(t->shutdown_fde);
 
-	if (t->shutdown_pipe[0] != -1) {
-		close(t->shutdown_pipe[0]);
-		t->shutdown_pipe[0] = -1;
-	}
-	if (t->shutdown_pipe[1] != -1) {
-		close(t->shutdown_pipe[1]);
-		t->shutdown_pipe[1] = -1;
+		if (t->shutdown_pipe[0] != -1) {
+			close(t->shutdown_pipe[0]);
+			t->shutdown_pipe[0] = -1;
+		}
+		if (t->shutdown_pipe[1] != -1) {
+			close(t->shutdown_pipe[1]);
+			t->shutdown_pipe[1] = -1;
+		}
 	}
 
 	TALLOC_FREE(self->thread_state);
@@ -226,33 +257,30 @@ struct py_tevent_cond {
 
 static void py_tevent_signalme(struct tevent_req *req);
 
-static int py_tevent_req_wait(struct tevent_context *ev,
-			      struct tevent_req *req)
+static int py_tevent_cond_wait(struct py_tevent_cond *cond)
 {
-	struct py_tevent_cond cond;
 	int ret, result;
 
-	result = pthread_mutex_init(&cond.mutex, NULL);
+	result = pthread_mutex_init(&cond->mutex, NULL);
 	if (result != 0) {
 		goto fail;
 	}
-	result = pthread_cond_init(&cond.cond, NULL);
+	result = pthread_cond_init(&cond->cond, NULL);
 	if (result != 0) {
 		goto fail_mutex;
 	}
 
-	cond.is_done = false;
-	tevent_req_set_callback(req, py_tevent_signalme, &cond);
-
-	result = pthread_mutex_lock(&cond.mutex);
+	result = pthread_mutex_lock(&cond->mutex);
 	if (result != 0) {
 		goto fail_cond;
 	}
 
-	while (!cond.is_done) {
+	cond->is_done = false;
+
+	while (!cond->is_done) {
 
 		Py_BEGIN_ALLOW_THREADS
-		result = pthread_cond_wait(&cond.cond, &cond.mutex);
+		result = pthread_cond_wait(&cond->cond, &cond->mutex);
 		Py_END_ALLOW_THREADS
 
 		if (result != 0) {
@@ -261,22 +289,28 @@ static int py_tevent_req_wait(struct tevent_context *ev,
 	}
 
 fail_unlock:
-	ret = pthread_mutex_unlock(&cond.mutex);
+	ret = pthread_mutex_unlock(&cond->mutex);
 	assert(ret == 0);
 fail_cond:
-	ret = pthread_cond_destroy(&cond.cond);
+	ret = pthread_cond_destroy(&cond->cond);
 	assert(ret == 0);
 fail_mutex:
-	ret = pthread_mutex_destroy(&cond.mutex);
+	ret = pthread_mutex_destroy(&cond->mutex);
 	assert(ret == 0);
 fail:
 	return result;
 }
 
-static void py_tevent_signalme(struct tevent_req *req)
+static int py_tevent_req_wait(struct tevent_context *ev,
+			      struct tevent_req *req)
 {
-	struct py_tevent_cond *cond = (struct py_tevent_cond *)
-		tevent_req_callback_data_void(req);
+	struct py_tevent_cond cond;
+	tevent_req_set_callback(req, py_tevent_signalme, &cond);
+	return py_tevent_cond_wait(&cond);
+}
+
+static void py_tevent_cond_signal(struct py_tevent_cond *cond)
+{
 	int ret;
 
 	ret = pthread_mutex_lock(&cond->mutex);
@@ -290,12 +324,26 @@ static void py_tevent_signalme(struct tevent_req *req)
 	assert(ret == 0);
 }
 
+static void py_tevent_signalme(struct tevent_req *req)
+{
+	struct py_tevent_cond *cond = (struct py_tevent_cond *)
+		tevent_req_callback_data_void(req);
+
+	py_tevent_cond_signal(cond);
+}
+
 #else
 
 static bool py_cli_state_setup_ev(struct py_cli_state *self)
 {
 	self->ev = tevent_context_init(NULL);
-	return (self->ev != NULL);
+	if (self->ev == NULL) {
+		return false;
+	}
+
+	samba_tevent_set_debug(self->ev, "pylibsmb_tevent");
+
+	return true;
 }
 
 static int py_tevent_req_wait(struct tevent_context *ev,
@@ -314,85 +362,6 @@ static int py_tevent_req_wait(struct tevent_context *ev,
 
 #endif
 
-static PyObject *py_cli_state_new(PyTypeObject *type, PyObject *args,
-				  PyObject *kwds)
-{
-	struct py_cli_state *self;
-
-	self = (struct py_cli_state *)type->tp_alloc(type, 0);
-	if (self == NULL) {
-		return NULL;
-	}
-	self->cli = NULL;
-	self->ev = NULL;
-	self->thread_state = NULL;
-	return (PyObject *)self;
-}
-
-static int py_cli_state_init(struct py_cli_state *self, PyObject *args,
-			     PyObject *kwds)
-{
-	NTSTATUS status;
-	char *host, *share;
-	PyObject *creds;
-	struct cli_credentials *cli_creds;
-	bool ret;
-
-	static const char *kwlist[] = {
-		"host", "share", "credentials", NULL
-	};
-
-	PyTypeObject *py_type_Credentials = get_pytype(
-		"samba.credentials", "Credentials");
-	if (py_type_Credentials == NULL) {
-		return -1;
-	}
-
-	ret = PyArg_ParseTupleAndKeywords(
-		args, kwds, "ss|O!", (char **)kwlist,
-		&host, &share, py_type_Credentials, &creds);
-
-	Py_DECREF(py_type_Credentials);
-
-	if (!ret) {
-		return -1;
-	}
-
-	if (!py_cli_state_setup_ev(self)) {
-		return -1;
-	}
-
-	cli_creds = cli_credentials_from_py_object(creds);
-	if (cli_creds == NULL) {
-		PyErr_SetString(PyExc_TypeError, "Expected credentials");
-		return -1;
-	}
-
-	status = cli_full_connection(
-		&self->cli, "myname", host, NULL, 0, share, "?????",
-		cli_credentials_get_username(cli_creds),
-		cli_credentials_get_domain(cli_creds),
-		cli_credentials_get_password(cli_creds),
-		0, 0);
-	if (!NT_STATUS_IS_OK(status)) {
-		PyErr_SetNTSTATUS(status);
-		return -1;
-	}
-	return 0;
-}
-
-static void py_cli_state_dealloc(struct py_cli_state *self)
-{
-	TALLOC_FREE(self->thread_state);
-	TALLOC_FREE(self->ev);
-
-	if (self->cli != NULL) {
-		cli_shutdown(self->cli);
-		self->cli = NULL;
-	}
-	self->ob_type->tp_free((PyObject *)self);
-}
-
 static bool py_tevent_req_wait_exc(struct tevent_context *ev,
 				   struct tevent_req *req)
 {
@@ -410,6 +379,199 @@ static bool py_tevent_req_wait_exc(struct tevent_context *ev,
 		return false;
 	}
 	return true;
+}
+
+static PyObject *py_cli_state_new(PyTypeObject *type, PyObject *args,
+				  PyObject *kwds)
+{
+	struct py_cli_state *self;
+
+	self = (struct py_cli_state *)type->tp_alloc(type, 0);
+	if (self == NULL) {
+		return NULL;
+	}
+	self->cli = NULL;
+	self->ev = NULL;
+	self->thread_state = NULL;
+	self->oplock_waiter = NULL;
+	self->oplock_cond = NULL;
+	self->oplock_breaks = NULL;
+	return (PyObject *)self;
+}
+
+static void py_cli_got_oplock_break(struct tevent_req *req);
+
+static int py_cli_state_init(struct py_cli_state *self, PyObject *args,
+			     PyObject *kwds)
+{
+	NTSTATUS status;
+	char *host, *share;
+	PyObject *creds = NULL;
+	struct cli_credentials *cli_creds;
+	struct tevent_req *req;
+	bool ret;
+
+	static const char *kwlist[] = {
+		"host", "share", "credentials", NULL
+	};
+
+	PyTypeObject *py_type_Credentials = get_pytype(
+		"samba.credentials", "Credentials");
+	if (py_type_Credentials == NULL) {
+		return -1;
+	}
+
+	ret = ParseTupleAndKeywords(
+		args, kwds, "ss|O!", kwlist,
+		&host, &share, py_type_Credentials, &creds);
+
+	Py_DECREF(py_type_Credentials);
+
+	if (!ret) {
+		return -1;
+	}
+
+	if (!py_cli_state_setup_ev(self)) {
+		return -1;
+	}
+
+	if (creds == NULL) {
+		cli_creds = cli_credentials_init_anon(NULL);
+	} else {
+		cli_creds = PyCredentials_AsCliCredentials(creds);
+	}
+
+	req = cli_full_connection_send(
+		NULL, self->ev, "myname", host, NULL, 0, share, "?????",
+		cli_credentials_get_username(cli_creds),
+		cli_credentials_get_domain(cli_creds),
+		cli_credentials_get_password(cli_creds),
+		0, 0);
+	if (!py_tevent_req_wait_exc(self->ev, req)) {
+		return NULL;
+	}
+	status = cli_full_connection_recv(req, &self->cli);
+	TALLOC_FREE(req);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		PyErr_SetNTSTATUS(status);
+		return -1;
+	}
+
+	self->oplock_waiter = cli_smb_oplock_break_waiter_send(
+		self->ev, self->ev, self->cli);
+	if (self->oplock_waiter == NULL) {
+		PyErr_NoMemory();
+		return -1;
+	}
+	tevent_req_set_callback(self->oplock_waiter, py_cli_got_oplock_break,
+				self);
+	return 0;
+}
+
+static void py_cli_got_oplock_break(struct tevent_req *req)
+{
+	struct py_cli_state *self = (struct py_cli_state *)
+		tevent_req_callback_data_void(req);
+	struct py_cli_oplock_break b;
+	struct py_cli_oplock_break *tmp;
+	size_t num_breaks;
+	NTSTATUS status;
+
+	status = cli_smb_oplock_break_waiter_recv(req, &b.fnum, &b.level);
+	TALLOC_FREE(req);
+	self->oplock_waiter = NULL;
+
+	if (!NT_STATUS_IS_OK(status)) {
+		return;
+	}
+
+	num_breaks = talloc_array_length(self->oplock_breaks);
+	tmp = talloc_realloc(self->ev, self->oplock_breaks,
+			     struct py_cli_oplock_break, num_breaks+1);
+	if (tmp == NULL) {
+		return;
+	}
+	self->oplock_breaks = tmp;
+	self->oplock_breaks[num_breaks] = b;
+
+	if (self->oplock_cond != NULL) {
+		py_tevent_cond_signal(self->oplock_cond);
+	}
+
+	self->oplock_waiter = cli_smb_oplock_break_waiter_send(
+		self->ev, self->ev, self->cli);
+	if (self->oplock_waiter == NULL) {
+		return;
+	}
+	tevent_req_set_callback(self->oplock_waiter, py_cli_got_oplock_break,
+				self);
+}
+
+static PyObject *py_cli_get_oplock_break(struct py_cli_state *self,
+					 PyObject *args)
+{
+	size_t num_oplock_breaks;
+
+	if (!PyArg_ParseTuple(args, "")) {
+		return NULL;
+	}
+
+	if (self->oplock_cond != NULL) {
+		errno = EBUSY;
+		PyErr_SetFromErrno(PyExc_RuntimeError);
+		return NULL;
+	}
+
+	num_oplock_breaks = talloc_array_length(self->oplock_breaks);
+
+	if (num_oplock_breaks == 0) {
+		struct py_tevent_cond cond;
+		int ret;
+
+		self->oplock_cond = &cond;
+		ret = py_tevent_cond_wait(&cond);
+		self->oplock_cond = NULL;
+
+		if (ret != 0) {
+			errno = ret;
+			PyErr_SetFromErrno(PyExc_RuntimeError);
+			return NULL;
+		}
+	}
+
+	num_oplock_breaks = talloc_array_length(self->oplock_breaks);
+	if (num_oplock_breaks > 0) {
+		PyObject *result;
+
+		result = Py_BuildValue(
+			"{s:i,s:i}",
+			"fnum", self->oplock_breaks[0].fnum,
+			"level", self->oplock_breaks[0].level);
+
+		memmove(&self->oplock_breaks[0], &self->oplock_breaks[1],
+			sizeof(self->oplock_breaks[0]) *
+			(num_oplock_breaks - 1));
+		self->oplock_breaks = talloc_realloc(
+			NULL, self->oplock_breaks, struct py_cli_oplock_break,
+			num_oplock_breaks - 1);
+
+		return result;
+	}
+	Py_RETURN_NONE;
+}
+
+static void py_cli_state_dealloc(struct py_cli_state *self)
+{
+	TALLOC_FREE(self->thread_state);
+	TALLOC_FREE(self->oplock_waiter);
+	TALLOC_FREE(self->ev);
+
+	if (self->cli != NULL) {
+		cli_shutdown(self->cli);
+		self->cli = NULL;
+	}
+	self->ob_type->tp_free((PyObject *)self);
 }
 
 static PyObject *py_cli_create(struct py_cli_state *self, PyObject *args,
@@ -432,8 +594,8 @@ static PyObject *py_cli_create(struct py_cli_state *self, PyObject *args,
 		"ShareAccess", "CreateDisposition", "CreateOptions",
 		"SecurityFlags", NULL };
 
-	if (!PyArg_ParseTupleAndKeywords(
-		    args, kwds, "s|IIIIIII", (char **)kwlist,
+	if (!ParseTupleAndKeywords(
+		    args, kwds, "s|IIIIIII", kwlist,
 		    &fname, &CreateFlags, &DesiredAccess, &FileAttributes,
 		    &ShareAccess, &CreateDisposition, &CreateOptions,
 		    &SecurityFlags)) {
@@ -478,8 +640,7 @@ static PyObject *py_cli_close(struct py_cli_state *self, PyObject *args)
 		PyErr_SetNTSTATUS(status);
 		return NULL;
 	}
-	Py_INCREF(Py_None);
-	return Py_None;
+	Py_RETURN_NONE;
 }
 
 static PyObject *py_cli_write(struct py_cli_state *self, PyObject *args,
@@ -497,8 +658,8 @@ static PyObject *py_cli_write(struct py_cli_state *self, PyObject *args,
 	static const char *kwlist[] = {
 		"fnum", "buffer", "offset", "mode", NULL };
 
-	if (!PyArg_ParseTupleAndKeywords(
-		    args, kwds, "Is#K|I", (char **)kwlist,
+	if (!ParseTupleAndKeywords(
+		    args, kwds, "Is#K|I", kwlist,
 		    &fnum, &buf, &buflen, &offset, &mode)) {
 		return NULL;
 	}
@@ -533,8 +694,8 @@ static PyObject *py_cli_read(struct py_cli_state *self, PyObject *args,
 	static const char *kwlist[] = {
 		"fnum", "offset", "size", NULL };
 
-	if (!PyArg_ParseTupleAndKeywords(
-		    args, kwds, "IKI", (char **)kwlist, &fnum, &offset,
+	if (!ParseTupleAndKeywords(
+		    args, kwds, "IKI", kwlist, &fnum, &offset,
 		    &size)) {
 		return NULL;
 	}
@@ -567,8 +728,8 @@ static PyObject *py_cli_ftruncate(struct py_cli_state *self, PyObject *args,
 	static const char *kwlist[] = {
 		"fnum", "size", NULL };
 
-	if (!PyArg_ParseTupleAndKeywords(
-		    args, kwds, "IK", (char **)kwlist, &fnum, &size)) {
+	if (!ParseTupleAndKeywords(
+		    args, kwds, "IK", kwlist, &fnum, &size)) {
 		return NULL;
 	}
 
@@ -583,8 +744,7 @@ static PyObject *py_cli_ftruncate(struct py_cli_state *self, PyObject *args,
 		PyErr_SetNTSTATUS(status);
 		return NULL;
 	}
-	Py_INCREF(Py_None);
-	return Py_None;
+	Py_RETURN_NONE;
 }
 
 static PyObject *py_cli_delete_on_close(struct py_cli_state *self,
@@ -598,8 +758,8 @@ static PyObject *py_cli_delete_on_close(struct py_cli_state *self,
 	static const char *kwlist[] = {
 		"fnum", "flag", NULL };
 
-	if (!PyArg_ParseTupleAndKeywords(
-		    args, kwds, "II", (char **)kwlist, &fnum, &flag)) {
+	if (!ParseTupleAndKeywords(
+		    args, kwds, "II", kwlist, &fnum, &flag)) {
 		return NULL;
 	}
 
@@ -615,8 +775,75 @@ static PyObject *py_cli_delete_on_close(struct py_cli_state *self,
 		PyErr_SetNTSTATUS(status);
 		return NULL;
 	}
-	Py_INCREF(Py_None);
-	return Py_None;
+	Py_RETURN_NONE;
+}
+
+static PyObject *py_cli_list(struct py_cli_state *self,
+			     PyObject *args,
+			     PyObject *kwds)
+{
+	char *mask;
+	unsigned attribute =
+		FILE_ATTRIBUTE_DIRECTORY |
+		FILE_ATTRIBUTE_SYSTEM |
+		FILE_ATTRIBUTE_HIDDEN;
+	unsigned info_level = SMB_FIND_FILE_BOTH_DIRECTORY_INFO;
+	struct tevent_req *req;
+	NTSTATUS status;
+	struct file_info *finfos;
+	size_t i, num_finfos;
+	PyObject *result;
+
+	const char *kwlist[] = {
+		"mask", "attribute", "info_level", NULL
+	};
+
+	if (!ParseTupleAndKeywords(
+		    args, kwds, "s|II", kwlist,
+		    &mask, &attribute, &info_level)) {
+		return NULL;
+	}
+
+	req = cli_list_send(NULL, self->ev, self->cli, mask, attribute,
+			    info_level);
+	if (!py_tevent_req_wait_exc(self->ev, req)) {
+		return NULL;
+	}
+	status = cli_list_recv(req, NULL, &finfos, &num_finfos);
+	TALLOC_FREE(req);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		PyErr_SetNTSTATUS(status);
+		return NULL;
+	}
+
+	result = Py_BuildValue("[]");
+	if (result == NULL) {
+		return NULL;
+	}
+
+	for (i=0; i<num_finfos; i++) {
+		struct file_info *finfo = &finfos[i];
+		PyObject *file;
+		int ret;
+
+		file = Py_BuildValue(
+			"{s:s,s:i}",
+			"name", finfo->name,
+			"mode", (int)finfo->mode);
+		if (file == NULL) {
+			Py_XDECREF(result);
+			return NULL;
+		}
+
+		ret = PyList_Append(result, file);
+		if (ret == -1) {
+			Py_XDECREF(result);
+			return NULL;
+		}
+	}
+
+	return result;
 }
 
 static PyMethodDef py_cli_state_methods[] = {
@@ -634,6 +861,11 @@ static PyMethodDef py_cli_state_methods[] = {
 	{ "delete_on_close", (PyCFunction)py_cli_delete_on_close,
 	  METH_VARARGS|METH_KEYWORDS,
 	  "Set/Reset the delete on close flag" },
+	{ "readdir", (PyCFunction)py_cli_list,
+	  METH_VARARGS|METH_KEYWORDS,
+	  "List a directory" },
+	{ "get_oplock_break", (PyCFunction)py_cli_get_oplock_break,
+	  METH_VARARGS, "Wait for an oplock break" },
 	{ NULL, NULL, 0, NULL }
 };
 

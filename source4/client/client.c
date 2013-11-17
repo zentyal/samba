@@ -454,7 +454,13 @@ static void adjust_do_list_queue(void)
 static void add_to_do_list_queue(const char* entry)
 {
 	char *dlq;
-	long new_end = do_list_queue_end + ((long)strlen(entry)) + 1;
+	long new_end;
+
+	if (entry == NULL) {
+		entry = "";
+	}
+
+	new_end = do_list_queue_end + ((long)strlen(entry)) + 1;
 	while (new_end > do_list_queue_size)
 	{
 		do_list_queue_size *= 2;
@@ -475,7 +481,7 @@ static void add_to_do_list_queue(const char* entry)
 	}
 	if (do_list_queue)
 	{
-		strlcpy(do_list_queue + do_list_queue_end, entry ? entry : "",
+		strlcpy(do_list_queue + do_list_queue_end, entry,
 			    do_list_queue_size - do_list_queue_end);
 		do_list_queue_end = new_end;
 		DEBUG(4,("added %s to do_list_queue (start=%d, end=%d)\n",
@@ -722,6 +728,7 @@ static int do_get(struct smbclient_context *ctx, char *rname, const char *p_lnam
 				start = lseek(handle, 0, SEEK_END);
 				if (start == -1) {
 					d_printf("Error seeking local file\n");
+					close(handle);
 					return 1;
 				}
 			}
@@ -741,6 +748,9 @@ static int do_get(struct smbclient_context *ctx, char *rname, const char *p_lnam
 	    NT_STATUS_IS_ERR(smbcli_getattrE(ctx->cli->tree, fnum, 
 			  &attr, &size, NULL, NULL, NULL))) {
 		d_printf("getattrib: %s\n",smbcli_errstr(ctx->cli->tree));
+		if (newhandle) {
+			close(handle);
+		}
 		return 1;
 	}
 
@@ -750,6 +760,9 @@ static int do_get(struct smbclient_context *ctx, char *rname, const char *p_lnam
 	if(!(data = (uint8_t *)malloc(read_size))) { 
 		d_printf("malloc fail for size %d\n", read_size);
 		smbcli_close(ctx->cli->tree, fnum);
+		if (newhandle) {
+			close(handle);
+		}
 		return 1;
 	}
 
@@ -927,9 +940,12 @@ static int cmd_more(struct smbclient_context *ctx, const char **args)
 	char *pager;
 	int fd;
 	int rc = 0;
+	mode_t mask;
 
 	lname = talloc_asprintf(ctx, "%s/smbmore.XXXXXX",tmpdir());
+	mask = umask(S_IRWXO | S_IRWXG);
 	fd = mkstemp(lname);
+	umask(mask);
 	if (fd == -1) {
 		d_printf("failed to create temporary file for more\n");
 		return 1;
@@ -1078,6 +1094,8 @@ static int cmd_altname(struct smbclient_context *ctx, const char **args)
 	}
 	d_printf("%s\n", altname);
 
+	SAFE_FREE(altname);
+
 	return 0;
 }
 
@@ -1130,6 +1148,7 @@ static int do_put(struct smbclient_context *ctx, char *rname, char *lname, bool 
 		if (f && reput) {
 			if (x_tseek(f, start, SEEK_SET) == -1) {
 				d_printf("Error seeking local file\n");
+				x_fclose(f);
 				return 1;
 			}
 		}
@@ -1147,6 +1166,7 @@ static int do_put(struct smbclient_context *ctx, char *rname, char *lname, bool 
 	buf = (uint8_t *)malloc(maxwrite);
 	if (!buf) {
 		d_printf("ERROR: Not enough memory!\n");
+		x_fclose(f);
 		return 1;
 	}
 	while (!x_feof(f)) {
@@ -2901,7 +2921,8 @@ static char **remote_completion(const char *text, int len)
 	info.samelen = len;
 	info.text = text;
 	info.len = len;
- 
+	info.count = 0;
+
 	if (len >= PATH_MAX)
 		return(NULL);
 
@@ -3132,14 +3153,30 @@ static bool do_connect(struct smbclient_context *ctx,
 
 	if (strncmp(specified_share, "\\\\", 2) == 0 ||
 	    strncmp(specified_share, "//", 2) == 0) {
-		smbcli_parse_unc(specified_share, ctx, &server, &share);
+		bool ok;
+
+		ok = smbcli_parse_unc(specified_share, ctx, &server, &share);
+		if (!ok) {
+			d_printf("Failed to parse UNC\n");
+			talloc_free(ctx);
+			return false;
+		}
 	} else {
 		share = talloc_strdup(ctx, specified_share);
 		server = talloc_strdup(ctx, specified_server);
+		if (share == NULL || server == NULL) {
+			d_printf("Failed to allocate memory for server and share\n");
+			talloc_free(ctx);
+			return false;
+		}
 	}
 
 	ctx->remote_cur_dir = talloc_strdup(ctx, "\\");
-	
+	if (ctx->remote_cur_dir == NULL) {
+		talloc_free(ctx);
+		return false;
+	}
+
 	status = smbcli_full_connection(ctx, &ctx->cli, server, ports,
 					share, NULL, 
 					socket_options,

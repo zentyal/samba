@@ -4,6 +4,7 @@
    Copyright (C) Andrew Bartlett <abartlet@samba.org> 2007
    Copyright (C) Simo Sorce <idra@samba.org> 2008
    Copyright (C) Matthieu Patou <mat@matws.net> 2011
+   Copyright (C) Andrew Tridgell 2009
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -641,7 +642,7 @@ static int linked_attributes_modify(struct ldb_module *module, struct ldb_reques
 		/* We need to figure out our own extended DN, to fill in as the backlink target */
 		if (ret == LDB_SUCCESS) {
 			ret = dsdb_request_add_controls(search_req,
-							DSDB_SEARCH_SHOW_DELETED |
+							DSDB_SEARCH_SHOW_RECYCLED |
 							DSDB_SEARCH_SHOW_EXTENDED_DN);
 		}
 		if (ret == LDB_SUCCESS) {
@@ -729,6 +730,20 @@ static int linked_attributes_fix_links(struct ldb_module *module,
 			talloc_free(tmp_ctx);
 			return ret;
 		}
+		if (res->count == 0) {
+			/* Forward link without backlink object remaining - nothing to do here */
+			continue;
+		}
+		if (res->count != 1) {
+			ldb_asprintf_errstring(ldb, "Linked attribute %s->%s between %s and %s - target GUID %s found more than once!",
+					       el->name, target->lDAPDisplayName,
+					       ldb_dn_get_linearized(old_dn),
+					       ldb_dn_get_linearized(dsdb_dn->dn),
+					       GUID_string(tmp_ctx, &link_guid));
+			talloc_free(tmp_ctx);
+			return LDB_ERR_OPERATIONS_ERROR;
+		}
+
 		msg = res->msgs[0];
 
 		if (msg->num_elements == 0) {
@@ -752,7 +767,7 @@ static int linked_attributes_fix_links(struct ldb_module *module,
 		/* find our DN in the values */
 		for (j=0; j<el2->num_values; j++) {
 			struct dsdb_dn *dsdb_dn2;
-			struct GUID link_guid;
+			struct GUID link_guid2;
 
 			dsdb_dn2 = dsdb_dn_parse(msg, ldb, &el2->values[j], target->syntax->ldap_oid);
 			if (dsdb_dn2 == NULL) {
@@ -760,7 +775,7 @@ static int linked_attributes_fix_links(struct ldb_module *module,
 				return LDB_ERR_INVALID_DN_SYNTAX;
 			}
 
-			ret = la_guid_from_dn(module, parent, dsdb_dn2->dn, &link_guid);
+			ret = la_guid_from_dn(module, parent, dsdb_dn2->dn, &link_guid2);
 			if (ret != LDB_SUCCESS) {
 				talloc_free(tmp_ctx);
 				return ret;
@@ -776,7 +791,7 @@ static int linked_attributes_fix_links(struct ldb_module *module,
 			 * more costly, but still give us a GUID.
 			 * dbcheck will fix this if run.
 			 */
-			if (!GUID_equal(&self_guid, &link_guid)) {
+			if (!GUID_equal(&self_guid, &link_guid2)) {
 				continue;
 			}
 
@@ -985,7 +1000,7 @@ static int la_add_callback(struct ldb_request *req, struct ldb_reply *ares)
 
 		if (ret == LDB_SUCCESS) {
 			ret = dsdb_request_add_controls(search_req,
-							DSDB_SEARCH_SHOW_DELETED |
+							DSDB_SEARCH_SHOW_RECYCLED |
 							DSDB_SEARCH_SHOW_EXTENDED_DN);
 		}
 		if (ret != LDB_SUCCESS) {

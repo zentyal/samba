@@ -201,11 +201,10 @@ static bool recycle_file_exist(vfs_handle_struct *handle,
 			       const struct smb_filename *smb_fname)
 {
 	struct smb_filename *smb_fname_tmp = NULL;
-	NTSTATUS status;
 	bool ret = false;
 
-	status = copy_smb_filename(talloc_tos(), smb_fname, &smb_fname_tmp);
-	if (!NT_STATUS_IS_OK(status)) {
+	smb_fname_tmp = cp_smb_filename(talloc_tos(), smb_fname);
+	if (smb_fname_tmp == NULL) {
 		return false;
 	}
 
@@ -229,11 +228,10 @@ static off_t recycle_get_file_size(vfs_handle_struct *handle,
 				       const struct smb_filename *smb_fname)
 {
 	struct smb_filename *smb_fname_tmp = NULL;
-	NTSTATUS status;
 	off_t size;
 
-	status = copy_smb_filename(talloc_tos(), smb_fname, &smb_fname_tmp);
-	if (!NT_STATUS_IS_OK(status)) {
+	smb_fname_tmp = cp_smb_filename(talloc_tos(), smb_fname);
+	if (smb_fname_tmp == NULL) {
 		size = (off_t)0;
 		goto out;
 	}
@@ -396,13 +394,12 @@ static void recycle_do_touch(vfs_handle_struct *handle,
 {
 	struct smb_filename *smb_fname_tmp = NULL;
 	struct smb_file_time ft;
-	NTSTATUS status;
 	int ret, err;
 
 	ZERO_STRUCT(ft);
 
-	status = copy_smb_filename(talloc_tos(), smb_fname, &smb_fname_tmp);
-	if (!NT_STATUS_IS_OK(status)) {
+	smb_fname_tmp = cp_smb_filename(talloc_tos(), smb_fname);
+	if (smb_fname_tmp == NULL) {
 		return;
 	}
 
@@ -445,7 +442,6 @@ static int recycle_unlink(vfs_handle_struct *handle,
 	off_t maxsize, minsize;
 	off_t file_size; /* space_avail;	*/
 	bool exist;
-	NTSTATUS status;
 	int rc = -1;
 
 	repository = talloc_sub_advanced(NULL, lp_servicename(talloc_tos(), SNUM(conn)),
@@ -578,10 +574,9 @@ static int recycle_unlink(vfs_handle_struct *handle,
 	}
 
 	/* Create smb_fname with final base name and orig stream name. */
-	status = create_synthetic_smb_fname(talloc_tos(), final_name,
-					    smb_fname->stream_name, NULL,
-					    &smb_fname_final);
-	if (!NT_STATUS_IS_OK(status)) {
+	smb_fname_final = synthetic_smb_fname(talloc_tos(), final_name,
+					      smb_fname->stream_name, NULL);
+	if (smb_fname_final == NULL) {
 		rc = SMB_VFS_NEXT_UNLINK(handle, smb_fname);
 		goto done;
 	}

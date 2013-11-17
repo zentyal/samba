@@ -18,9 +18,11 @@ def build(bld):
 	source='''
 		smb_signing.c smb_seal.c
 		smb2_create_blob.c smb2_signing.c
+                smb2_lease.c
 		util.c
 		smbXcli_base.c
 		smb1cli_trans.c
+		smb1cli_echo.c
 		smb2cli_session.c
                 smb2cli_create.c
                 smb2cli_close.c
@@ -31,6 +33,7 @@ def build(bld):
 		smb2cli_query_info.c
 		smb2cli_query_directory.c
 		smb2cli_ioctl.c
+		smb2cli_echo.c
 	''',
 	deps='LIBCRYPTO errors gensec krb5samba smb_transport',
 	public_deps='talloc samba-util',
@@ -39,6 +42,7 @@ def build(bld):
 		smb_common.h smb2_constants.h smb_constants.h
 		smb_signing.h smb_seal.h
 		smb2_create_blob.h smb2_signing.h
+		smb2_lease.h
 		smb_util.h
 		smb_unix_ext.h
 	''',

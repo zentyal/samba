@@ -30,7 +30,7 @@
 #include "util_tdb.h"
 
 enum dbwrap_op { OP_FETCH, OP_STORE, OP_DELETE, OP_ERASE, OP_LISTKEYS,
-		 OP_LISTWATCHERS };
+		 OP_LISTWATCHERS, OP_EXISTS };
 
 enum dbwrap_type { TYPE_INT32, TYPE_UINT32, TYPE_STRING, TYPE_HEX, TYPE_NONE };
 
@@ -136,8 +136,11 @@ static int dbwrap_tool_store_int32(struct db_context *db,
 	NTSTATUS status;
 	int32_t value = (int32_t)strtol(data, NULL, 10);
 
-	status = dbwrap_trans_store_int32_bystring(db, keyname, value);
-
+	if (dbwrap_is_persistent(db)) {
+		status = dbwrap_trans_store_int32_bystring(db, keyname, value);
+	} else {
+		status = dbwrap_store_int32_bystring(db, keyname, value);
+	}
 	if (!NT_STATUS_IS_OK(status)) {
 		d_fprintf(stderr, "ERROR: could not store int32 key '%s': %s\n",
 			  keyname, nt_errstr(status));
@@ -154,8 +157,11 @@ static int dbwrap_tool_store_uint32(struct db_context *db,
 	NTSTATUS status;
 	uint32_t value = (uint32_t)strtol(data, NULL, 10);
 
-	status = dbwrap_trans_store_uint32_bystring(db, keyname, value);
-
+	if (dbwrap_is_persistent(db)) {
+		status = dbwrap_trans_store_uint32_bystring(db, keyname, value);
+	} else {
+		status = dbwrap_store_uint32_bystring(db, keyname, value);
+	}
 	if (!NT_STATUS_IS_OK(status)) {
 		d_fprintf(stderr,
 			  "ERROR: could not store uint32 key '%s': %s\n",
@@ -171,10 +177,19 @@ static int dbwrap_tool_store_string(struct db_context *db,
 				    const char *data)
 {
 	NTSTATUS status;
+	TDB_DATA tdbdata;
 
-	status = dbwrap_trans_store_bystring(db, keyname,
-			   string_term_tdb_data(data), TDB_REPLACE);
+	tdbdata = string_term_tdb_data(data);
 
+	if (dbwrap_is_persistent(db)) {
+		status = dbwrap_trans_store_bystring(db, keyname,
+						     tdbdata,
+						     TDB_REPLACE);
+	} else {
+		status = dbwrap_store_bystring(db, keyname,
+					      tdbdata,
+					      TDB_REPLACE);
+	}
 	if (!NT_STATUS_IS_OK(status)) {
 		d_fprintf(stderr,
 			  "ERROR: could not store string key '%s': %s\n",
@@ -206,9 +221,15 @@ static int dbwrap_tool_store_hex(struct db_context *db,
 	tdbdata.dptr = (unsigned char *)datablob.data;
 	tdbdata.dsize = datablob.length;
 
-	status = dbwrap_trans_store_bystring(db, keyname,
-					     tdbdata,
-					     TDB_REPLACE);
+	if (dbwrap_is_persistent(db)) {
+		status = dbwrap_trans_store_bystring(db, keyname,
+						     tdbdata,
+						     TDB_REPLACE);
+	} else {
+		status = dbwrap_store_bystring(db, keyname,
+					       tdbdata,
+					       TDB_REPLACE);
+	}
 	if (!NT_STATUS_IS_OK(status)) {
 		d_fprintf(stderr,
 			  "ERROR: could not store string key '%s': %s\n",
@@ -227,7 +248,11 @@ static int dbwrap_tool_delete(struct db_context *db,
 {
 	NTSTATUS status;
 
-	status = dbwrap_trans_delete_bystring(db, keyname);
+	if (dbwrap_is_persistent(db)) {
+		status = dbwrap_trans_delete_bystring(db, keyname);
+	} else {
+		status = dbwrap_delete_bystring(db, keyname);
+	}
 
 	if (!NT_STATUS_IS_OK(status)) {
 		d_fprintf(stderr, "ERROR deleting record %s : %s\n",
@@ -237,6 +262,24 @@ static int dbwrap_tool_delete(struct db_context *db,
 
 	return 0;
 }
+
+static int dbwrap_tool_exists(struct db_context *db,
+			      const char *keyname,
+			      const char *data)
+{
+	bool result;
+
+	result = dbwrap_exists(db, string_term_tdb_data(keyname));
+
+	if (result) {
+		d_fprintf(stdout, "Key %s exists\n", keyname);
+	} else {
+		d_fprintf(stdout, "Key %s does not exist\n", keyname);
+	}
+
+	return (result)?0:1;
+}
+
 
 static int delete_fn(struct db_record *rec, void *priv)
 {
@@ -348,6 +391,7 @@ struct dbwrap_op_dispatch_table dispatch_table[] = {
 	{ OP_ERASE,  TYPE_INT32,  dbwrap_tool_erase },
 	{ OP_LISTKEYS, TYPE_INT32, dbwrap_tool_listkeys },
 	{ OP_LISTWATCHERS, TYPE_NONE, dbwrap_tool_listwatchers },
+	{ OP_EXISTS, TYPE_STRING, dbwrap_tool_exists },
 	{ 0, 0, NULL },
 };
 
@@ -366,6 +410,8 @@ int main(int argc, const char **argv)
 	const char *keytype = "int32";
 	enum dbwrap_type type;
 	const char *valuestr = "0";
+	int persistent = 0;
+	int tdb_flags = TDB_DEFAULT;
 
 	TALLOC_CTX *mem_ctx = talloc_stackframe();
 
@@ -374,6 +420,7 @@ int main(int argc, const char **argv)
 	struct poptOption popt_options[] = {
 		POPT_AUTOHELP
 		POPT_COMMON_SAMBA
+		{ "persistent", 'p', POPT_ARG_NONE, &persistent, 0, "treat the database as persistent", NULL },
 		POPT_TABLEEND
 	};
 	int opt;
@@ -407,9 +454,10 @@ int main(int argc, const char **argv)
 
 	if ((extra_argc < 2) || (extra_argc > 5)) {
 		d_fprintf(stderr,
-			  "USAGE: %s <database> <op> [<key> [<type> [<value>]]]\n"
-			  "       ops: fetch, store, delete, erase, listkeys, "
-			  "listwatchers\n"
+			  "USAGE: %s [options] <database> <op> [<key> [<type> "
+			  "[<value>]]]\n"
+			  "       ops: fetch, store, delete, exists, "
+			  "erase, listkeys, listwatchers\n"
 			  "       types: int32, uint32, string, hex\n",
 			 argv[0]);
 		goto done;
@@ -467,10 +515,20 @@ int main(int argc, const char **argv)
 		}
 		op = OP_LISTWATCHERS;
 		keytype = "none";
+	} else if (strcmp(opname, "exists") == 0) {
+		if (extra_argc != 3) {
+			d_fprintf(stderr, "ERROR: operation 'exists' does "
+				  "not allow type nor value argument\n");
+			goto done;
+		}
+		keyname = extra_argv[2];
+		op = OP_EXISTS;
+		keytype = "string";
 	} else {
 		d_fprintf(stderr,
 			  "ERROR: invalid op '%s' specified\n"
-			  "       supported ops: fetch, store, delete\n",
+			  "       supported ops: fetch, store, delete, exists, "
+			  "erase, listkeys, listwatchers\n",
 			  opname);
 		goto done;
 	}
@@ -493,7 +551,7 @@ int main(int argc, const char **argv)
 		goto done;
 	}
 
-	evt_ctx = tevent_context_init(mem_ctx);
+	evt_ctx = samba_tevent_context_init(mem_ctx);
 	if (evt_ctx == NULL) {
 		d_fprintf(stderr, "ERROR: could not init event context\n");
 		goto done;
@@ -505,13 +563,18 @@ int main(int argc, const char **argv)
 		goto done;
 	}
 
+	if (persistent == 0) {
+		tdb_flags |= TDB_CLEAR_IF_FIRST;
+	}
+
 	switch (op) {
 	case OP_FETCH:
 	case OP_STORE:
 	case OP_DELETE:
 	case OP_ERASE:
 	case OP_LISTKEYS:
-		db = db_open(mem_ctx, dbname, 0, TDB_DEFAULT, O_RDWR | O_CREAT,
+	case OP_EXISTS:
+		db = db_open(mem_ctx, dbname, 0, tdb_flags, O_RDWR | O_CREAT,
 			     0644, DBWRAP_LOCK_ORDER_1);
 		if (db == NULL) {
 			d_fprintf(stderr, "ERROR: could not open dbname\n");

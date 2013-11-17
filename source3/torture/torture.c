@@ -46,7 +46,6 @@ extern char *optarg;
 extern int optind;
 
 fstring host, workgroup, share, password, username, myname;
-static int max_protocol = PROTOCOL_NT1;
 static const char *sockops="TCP_NODELAY";
 int torture_nprocs=1;
 static int port_to_use=0;
@@ -180,7 +179,7 @@ static bool cli_bad_session_request(int fd,
 	bool ret = false;
 	uint8_t message_type;
 	uint8_t error;
-	struct event_context *ev;
+	struct tevent_context *ev;
 	struct tevent_req *req;
 
 	frame = talloc_stackframe();
@@ -228,7 +227,7 @@ static bool cli_bad_session_request(int fd,
 		goto fail;
 	}
 
-	ev = event_context_init(frame);
+	ev = samba_tevent_context_init(frame);
 	if (ev == NULL) {
 		goto fail;
 	}
@@ -2985,7 +2984,7 @@ static bool run_negprot_nowait(int dummy)
 
 	printf("starting negprot nowait test\n");
 
-	ev = tevent_context_init(talloc_tos());
+	ev = samba_tevent_context_init(talloc_tos());
 	if (ev == NULL) {
 		return false;
 	}
@@ -3100,6 +3099,9 @@ static bool run_randomipc(int dummy)
 	if (!torture_close_connection(cli)) {
 		correct = False;
 	}
+
+	SAFE_FREE(rparam);
+	SAFE_FREE(rdata);
 
 	printf("finished random ipc test\n");
 
@@ -3723,7 +3725,7 @@ static bool run_oplock4(int dummy)
 		return false;
 	}
 
-	ev = tevent_context_init(talloc_tos());
+	ev = samba_tevent_context_init(talloc_tos());
 	if (ev == NULL) {
 		printf("tevent_context_init failed\n");
 		return false;
@@ -5699,7 +5701,6 @@ static bool run_simple_posix_open_test(int dummy)
 			FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,
 			FILE_CREATE,
 			0x0, 0x0, &fnum2);
-
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("Windows create of %s failed (%s)\n", fname_windows,
 			nt_errstr(status));
@@ -6605,7 +6606,7 @@ static void chain1_close_completion(struct tevent_req *req)
 static bool run_chain1(int dummy)
 {
 	struct cli_state *cli1;
-	struct event_context *evt = event_context_init(NULL);
+	struct tevent_context *evt = samba_tevent_context_init(NULL);
 	struct tevent_req *reqs[3], *smbreqs[3];
 	bool done = false;
 	const char *str = "foobar";
@@ -6666,7 +6667,7 @@ static void chain2_tcon_completion(struct tevent_req *req)
 static bool run_chain2(int dummy)
 {
 	struct cli_state *cli1;
-	struct event_context *evt = event_context_init(NULL);
+	struct tevent_context *evt = samba_tevent_context_init(NULL);
 	struct tevent_req *reqs[2], *smbreqs[2];
 	bool done = false;
 	NTSTATUS status;
@@ -7031,7 +7032,7 @@ static bool run_notify_bench(int dummy)
 		num_unc_names = 1;
 	}
 
-	ev = tevent_context_init(talloc_tos());
+	ev = samba_tevent_context_init(talloc_tos());
 	if (ev == NULL) {
 		d_printf("tevent_context_init failed\n");
 		return false;
@@ -7271,7 +7272,7 @@ static bool check_read_call(struct cli_state *cli,
 	size_t len_expected = 0;
 	struct tevent_context *ev = NULL;
 
-	ev = tevent_context_init(talloc_tos());
+	ev = samba_tevent_context_init(talloc_tos());
 	if (ev == NULL) {
 		return false;
 	}
@@ -7902,7 +7903,7 @@ static bool run_tldap(int dummy)
 	}
 	d_printf("defaultNamingContext: %s\n", basedn);
 
-	ev = tevent_context_init(talloc_tos());
+	ev = samba_tevent_context_init(talloc_tos());
 	if (ev == NULL) {
 		d_printf("tevent_context_init failed\n");
 		return false;
@@ -8854,7 +8855,7 @@ static void wbclient_done(struct tevent_req *req)
 
 static bool run_local_wbclient(int dummy)
 {
-	struct event_context *ev;
+	struct tevent_context *ev;
 	struct wb_context **wb_ctx;
 	struct winbindd_request wb_req;
 	bool result = false;
@@ -8931,7 +8932,7 @@ static bool run_getaddrinfo_send(int dummy)
 	struct tevent_req *reqs[4];
 	int i;
 
-	ev = event_context_init(frame);
+	ev = samba_tevent_context_init(frame);
 	if (ev == NULL) {
 		goto fail;
 	}
@@ -9532,9 +9533,17 @@ static struct {
 	{ "LOCAL-remove_duplicate_addrs2", run_local_remove_duplicate_addrs2, 0},
 	{ "local-tdb-opener", run_local_tdb_opener, 0 },
 	{ "local-tdb-writer", run_local_tdb_writer, 0 },
+	{ "LOCAL-DBWRAP-CTDB", run_local_dbwrap_ctdb, 0 },
 	{NULL, NULL, 0}};
 
-
+/*
+ * dummy function to satisfy linker dependency
+ */
+struct tevent_context *winbind_event_context(void);
+struct tevent_context *winbind_event_context(void)
+{
+	return NULL;
+}
 
 /****************************************************************************
 run a specified test or "ALL"
@@ -9646,6 +9655,7 @@ static void usage(void)
 	setup_logging("smbtorture", DEBUG_STDOUT);
 
 	load_case_tables();
+	fault_setup();
 
 	if (is_default_dyn_CONFIGFILE()) {
 		if(getenv("SMB_CONF_PATH")) {
@@ -9703,7 +9713,7 @@ static void usage(void)
 			fstrcpy(workgroup,optarg);
 			break;
 		case 'm':
-			max_protocol = interpret_protocol(optarg, max_protocol);
+			lp_set_cmdline("client max protocol", optarg);
 			break;
 		case 'N':
 			torture_nprocs = atoi(optarg);
@@ -9776,9 +9786,12 @@ static void usage(void)
 	if(use_kerberos && !gotuser) gotpass = True;
 
 	while (!gotpass) {
-		p = getpass("Password:");
-		if (p) {
-			fstrcpy(password, p);
+		char pwd[256] = {0};
+		int rc;
+
+		rc = samba_getpass("Password:", pwd, sizeof(pwd), false, false);
+		if (rc == 0) {
+			fstrcpy(password, pwd);
 			gotpass = 1;
 		}
 	}

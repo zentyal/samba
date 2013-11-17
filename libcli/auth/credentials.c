@@ -79,7 +79,7 @@ static void netlogon_creds_init_128bit(struct netlogon_creds_CredentialState *cr
 {
 	unsigned char zero[4], tmp[16];
 	HMACMD5Context ctx;
-	struct MD5Context md5;
+	MD5_CTX md5;
 
 	ZERO_STRUCT(creds->session_key);
 
@@ -485,9 +485,10 @@ NTSTATUS netlogon_creds_server_step_check(struct netlogon_creds_CredentialState 
 	}
 }
 
-void netlogon_creds_decrypt_samlogon(struct netlogon_creds_CredentialState *creds,
-			    uint16_t validation_level,
-			    union netr_Validation *validation)
+static void netlogon_creds_crypt_samlogon_validation(struct netlogon_creds_CredentialState *creds,
+						     uint16_t validation_level,
+						     union netr_Validation *validation,
+						     bool encrypt)
 {
 	static const char zeros[16];
 
@@ -521,20 +522,35 @@ void netlogon_creds_decrypt_samlogon(struct netlogon_creds_CredentialState *cred
 	if (validation_level == 6) {
 		/* they aren't encrypted! */
 	} else if (creds->negotiate_flags & NETLOGON_NEG_SUPPORTS_AES) {
+		/* Don't crypt an all-zero key, it would give away the NETLOGON pipe session key */
 		if (memcmp(base->key.key, zeros,
 			   sizeof(base->key.key)) != 0) {
-			netlogon_creds_aes_decrypt(creds,
+			if (encrypt) {
+				netlogon_creds_aes_encrypt(creds,
 					    base->key.key,
 					    sizeof(base->key.key));
+			} else {
+				netlogon_creds_aes_decrypt(creds,
+					    base->key.key,
+					    sizeof(base->key.key));
+			}
 		}
 
 		if (memcmp(base->LMSessKey.key, zeros,
 			   sizeof(base->LMSessKey.key)) != 0) {
-			netlogon_creds_aes_decrypt(creds,
+			if (encrypt) {
+				netlogon_creds_aes_encrypt(creds,
 					    base->LMSessKey.key,
 					    sizeof(base->LMSessKey.key));
+
+			} else {
+				netlogon_creds_aes_decrypt(creds,
+					    base->LMSessKey.key,
+					    sizeof(base->LMSessKey.key));
+			}
 		}
 	} else if (creds->negotiate_flags & NETLOGON_NEG_ARCFOUR) {
+		/* Don't crypt an all-zero key, it would give away the NETLOGON pipe session key */
 		if (memcmp(base->key.key, zeros,
 			   sizeof(base->key.key)) != 0) {
 			netlogon_creds_arcfour_crypt(creds,
@@ -549,12 +565,34 @@ void netlogon_creds_decrypt_samlogon(struct netlogon_creds_CredentialState *cred
 					    sizeof(base->LMSessKey.key));
 		}
 	} else {
+		/* Don't crypt an all-zero key, it would give away the NETLOGON pipe session key */
 		if (memcmp(base->LMSessKey.key, zeros,
 			   sizeof(base->LMSessKey.key)) != 0) {
-			netlogon_creds_des_decrypt_LMKey(creds,
+			if (encrypt) {
+				netlogon_creds_des_encrypt_LMKey(creds,
 						&base->LMSessKey);
+			} else {
+				netlogon_creds_des_decrypt_LMKey(creds,
+						&base->LMSessKey);
+			}
 		}
 	}
+}
+
+void netlogon_creds_decrypt_samlogon_validation(struct netlogon_creds_CredentialState *creds,
+						uint16_t validation_level,
+						union netr_Validation *validation)
+{
+	netlogon_creds_crypt_samlogon_validation(creds, validation_level,
+							validation, false);
+}
+
+void netlogon_creds_encrypt_samlogon_validation(struct netlogon_creds_CredentialState *creds,
+						uint16_t validation_level,
+						union netr_Validation *validation)
+{
+	netlogon_creds_crypt_samlogon_validation(creds, validation_level,
+							validation, true);
 }
 
 /*

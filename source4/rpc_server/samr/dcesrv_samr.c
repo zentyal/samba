@@ -3510,8 +3510,14 @@ static NTSTATUS dcesrv_samr_SetUserInfo(struct dcesrv_call_state *dce_call, TALL
 		}
 
 		if (r->in.info->info26.password_expired > 0) {
+			NTTIME t = 0;
 			struct ldb_message_element *set_el;
-			if (samdb_msg_add_uint64(sam_ctx, mem_ctx, msg, "pwdLastSet", 0) != LDB_SUCCESS) {
+			if (r->in.info->info26.password_expired
+					== PASS_DONT_CHANGE_AT_NEXT_LOGON) {
+				unix_to_nt_time(&t, time(NULL));
+			}
+			if (samdb_msg_add_uint64(sam_ctx, mem_ctx, msg,
+						 "pwdLastSet", t) != LDB_SUCCESS) {
 				return NT_STATUS_NO_MEMORY;
 			}
 			set_el = ldb_msg_find_element(msg, "pwdLastSet");
@@ -4290,6 +4296,11 @@ static NTSTATUS dcesrv_samr_ValidatePassword(struct dcesrv_call_state *dce_call,
 	DATA_BLOB password;
 	enum samr_ValidationStatus res;
 	NTSTATUS status;
+	enum dcerpc_transport_t transport = dce_call->conn->endpoint->ep_description->transport;
+
+	if (transport != NCACN_IP_TCP && transport != NCALRPC) {
+		DCESRV_FAULT(DCERPC_FAULT_ACCESS_DENIED);
+	}
 
 	(*r->out.rep) = talloc_zero(mem_ctx, union samr_ValidatePasswordRep);
 

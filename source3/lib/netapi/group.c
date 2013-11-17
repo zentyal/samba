@@ -1459,6 +1459,7 @@ WERROR NetGroupGetUsers_r(struct libnetapi_ctx *ctx,
 
 	ZERO_STRUCT(connect_handle);
 	ZERO_STRUCT(domain_handle);
+	ZERO_STRUCT(group_handle);
 
 	if (!r->out.buffer) {
 		return WERR_INVALID_PARAM;
@@ -1639,6 +1640,7 @@ WERROR NetGroupSetUsers_r(struct libnetapi_ctx *ctx,
 
 	ZERO_STRUCT(connect_handle);
 	ZERO_STRUCT(domain_handle);
+	ZERO_STRUCT(group_handle);
 
 	if (!r->in.buffer) {
 		return WERR_INVALID_PARAM;

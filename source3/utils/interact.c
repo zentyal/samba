@@ -25,22 +25,26 @@
  */
 
 #include "includes.h"
+#include "system/filesys.h"
 
 #include "interact.h"
 
 #include <termios.h>
 
 static const char* get_editor(void) {
-	static const char* editor = NULL;
-	if (editor == NULL) {
-		editor = getenv("VISUAL");
-		if (editor == NULL) {
-			editor = getenv("EDITOR");
+	static char editor[64] = {0};
+
+	if (editor[0] == '\0') {
+		const char *tmp = getenv("VISUAL");
+		if (tmp == NULL) {
+			tmp = getenv("EDITOR");
 		}
-		if (editor == NULL) {
-			editor = "vi";
+		if (tmp == NULL) {
+			tmp = "vi";
 		}
+		snprintf(editor, sizeof(editor), "%s", tmp);
 	}
+
 	return editor;
 }
 
@@ -76,8 +80,12 @@ char* interact_edit(TALLOC_CTX* mem_ctx, const char* str) {
 	char buf[128];
 	char* ret = NULL;
 	FILE* file;
+	mode_t mask;
+	int fd;
 
-	int fd = mkstemp(fname);
+	mask = umask(S_IRWXO | S_IRWXG);
+	fd = mkstemp(fname);
+	umask(mask);
 	if (fd == -1) {
 		DEBUG(0, ("failed to mkstemp %s: %s\n", fname,
 			  strerror(errno)));

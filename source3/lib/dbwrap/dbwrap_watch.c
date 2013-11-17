@@ -31,9 +31,10 @@ static struct db_context *dbwrap_record_watchers_db(void)
 	static struct db_context *watchers_db;
 
 	if (watchers_db == NULL) {
-		watchers_db = db_open(NULL, lock_path("dbwrap_watchers.tdb"),
-				      0, TDB_CLEAR_IF_FIRST, O_RDWR|O_CREAT,
-				      0600, DBWRAP_LOCK_ORDER_3);
+		watchers_db = db_open(
+			NULL, lock_path("dbwrap_watchers.tdb"),	0,
+			TDB_CLEAR_IF_FIRST | TDB_INCOMPATIBLE_HASH,
+			O_RDWR|O_CREAT, 0600, DBWRAP_LOCK_ORDER_3);
 	}
 	return watchers_db;
 }
@@ -399,6 +400,9 @@ NTSTATUS dbwrap_record_watch_recv(struct tevent_req *req,
 
 	if (tevent_req_is_nterror(req, &status)) {
 		return status;
+	}
+	if (prec == NULL) {
+		return NT_STATUS_OK;
 	}
 	rec = dbwrap_fetch_locked(state->db, mem_ctx, state->key);
 	if (rec == NULL) {

@@ -692,6 +692,11 @@ my @exported_envvars = (
 	"VAMPIRE_DC_NETBIOSNAME",
 	"VAMPIRE_DC_NETBIOSALIAS",
 
+	"PROMOTED_DC_SERVER",
+	"PROMOTED_DC_SERVER_IP",
+	"PROMOTED_DC_NETBIOSNAME",
+	"PROMOTED_DC_NETBIOSALIAS",
+
 	# server stuff
 	"SERVER",
 	"SERVER_IP",
@@ -890,7 +895,7 @@ $envvarstr
 		if ($? == -1) {
 			die("Unable to run $cmd: $!");
 		} elsif ($? & 127) {
-			die(snprintf("%s died with signal %d, %s coredump\n", $cmd, ($? & 127),  ($? & 128) ? 'with' : 'without'));
+			die(sprintf("%s died with signal %d, %s coredump\n", $cmd, ($? & 127),  ($? & 128) ? 'with' : 'without'));
 		}
 
 		my $exitcode = $? >> 8;

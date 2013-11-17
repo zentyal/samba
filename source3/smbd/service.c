@@ -613,9 +613,9 @@ static NTSTATUS make_connection_snum(struct smbd_server_connection *sconn,
 		TALLOC_FREE(s);
 	}
 
-        /*
-         * Set up the share security descripter
-         */
+	/*
+	 * Set up the share security descriptor
+	 */
 
 	status = check_user_share_access(conn,
 					conn->session_info,
@@ -798,9 +798,10 @@ static NTSTATUS make_connection_snum(struct smbd_server_connection *sconn,
 		set_namearray( &conn->aio_write_behind_list,
 				lp_aio_write_behind(talloc_tos(), snum));
 	}
-	status = create_synthetic_smb_fname(talloc_tos(), conn->connectpath,
-					    NULL, NULL, &smb_fname_cpath);
-	if (!NT_STATUS_IS_OK(status)) {
+	smb_fname_cpath = synthetic_smb_fname(talloc_tos(), conn->connectpath,
+					      NULL, NULL);
+	if (smb_fname_cpath == NULL) {
+		status = NT_STATUS_NO_MEMORY;
 		goto err_root_exit;
 	}
 
@@ -844,7 +845,7 @@ static NTSTATUS make_connection_snum(struct smbd_server_connection *sconn,
 	 * (at least initially).
 	 */
 
-	if( DEBUGLVL( IS_IPC(conn) ? 3 : 1 ) ) {
+	if( DEBUGLVL( IS_IPC(conn) ? 3 : 2 ) ) {
 		dbgtext( "%s (%s) ", get_remote_machine_name(),
 			 tsocket_address_string(conn->sconn->remote_address,
 						talloc_tos()) );

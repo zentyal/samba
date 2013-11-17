@@ -74,6 +74,63 @@ static const struct print_architecture_table_node archi_table[]= {
 	{NULL,                   "",		-1 }
 };
 
+static bool print_driver_directories_init(void)
+{
+	int service, i;
+	char *driver_path;
+	bool ok;
+	TALLOC_CTX *mem_ctx = talloc_stackframe();
+
+	service = lp_servicenumber("print$");
+	if (service < 0) {
+		/* We don't have a print$ share */
+		DEBUG(5, ("No print$ share has been configured.\n"));
+		talloc_free(mem_ctx);
+		return true;
+	}
+
+	driver_path = lp_pathname(mem_ctx, service);
+	if (driver_path == NULL) {
+		talloc_free(mem_ctx);
+		return false;
+	}
+
+	ok = directory_create_or_exist(driver_path, sec_initial_uid(), 0755);
+	if (!ok) {
+		DEBUG(1, ("Failed to create printer driver directory %s\n",
+			  driver_path));
+		talloc_free(mem_ctx);
+		return false;
+	}
+
+	for (i = 0; archi_table[i].long_archi != NULL; i++) {
+		const char *arch_path;
+
+		arch_path = talloc_asprintf(mem_ctx,
+					    "%s/%s",
+					    driver_path,
+					    archi_table[i].short_archi);
+		if (arch_path == NULL) {
+			talloc_free(mem_ctx);
+			return false;
+		}
+
+		ok = directory_create_or_exist(arch_path,
+					       sec_initial_uid(),
+					       0755);
+		if (!ok) {
+			DEBUG(1, ("Failed to create printer driver "
+				  "architecture directory %s\n",
+				  arch_path));
+			talloc_free(mem_ctx);
+			return false;
+		}
+	}
+
+	talloc_free(mem_ctx);
+	return true;
+}
+
 /****************************************************************************
  Open the NT printing tdbs. Done once before fork().
 ****************************************************************************/
@@ -81,6 +138,10 @@ static const struct print_architecture_table_node archi_table[]= {
 bool nt_printing_init(struct messaging_context *msg_ctx)
 {
 	WERROR win_rc;
+
+	if (!print_driver_directories_init()) {
+		return false;
+	}
 
 	if (!nt_printing_tdb_upgrade()) {
 		return false;
@@ -616,13 +677,13 @@ static uint32 get_correct_cversion(struct auth_session_info *session_info,
 		return -1;
 	}
 
-	nt_status = create_conn_struct(talloc_tos(),
-				       server_event_context(),
-				       server_messaging_context(),
-				       &conn,
-				       printdollar_snum,
-				       lp_pathname(talloc_tos(), printdollar_snum),
-				       session_info, &oldcwd);
+	nt_status = create_conn_struct_cwd(talloc_tos(),
+					   server_event_context(),
+					   server_messaging_context(),
+					   &conn,
+					   printdollar_snum,
+					   lp_pathname(talloc_tos(), printdollar_snum),
+					   session_info, &oldcwd);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(0,("get_correct_cversion: create_conn_struct "
 			 "returned %s\n", nt_errstr(nt_status)));
@@ -1003,13 +1064,13 @@ WERROR move_driver_to_download_area(struct auth_session_info *session_info,
 		return WERR_NO_SUCH_SHARE;
 	}
 
-	nt_status = create_conn_struct(talloc_tos(),
-				       server_event_context(),
-				       server_messaging_context(),
-				       &conn,
-				       printdollar_snum,
-				       lp_pathname(talloc_tos(), printdollar_snum),
-				       session_info, &oldcwd);
+	nt_status = create_conn_struct_cwd(talloc_tos(),
+					   server_event_context(),
+					   server_messaging_context(),
+					   &conn,
+					   printdollar_snum,
+					   lp_pathname(talloc_tos(), printdollar_snum),
+					   session_info, &oldcwd);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(0,("move_driver_to_download_area: create_conn_struct "
 			 "returned %s\n", nt_errstr(nt_status)));
@@ -1222,7 +1283,7 @@ bool printer_driver_in_use(TALLOC_CTX *mem_ctx,
 	DEBUG(10,("printer_driver_in_use: Completed search through ntprinters.tdb...\n"));
 
 	if ( in_use ) {
-		struct spoolss_DriverInfo8 *driver;
+		struct spoolss_DriverInfo8 *driver = NULL;
 		WERROR werr;
 
 		DEBUG(5,("printer_driver_in_use: driver \"%s\" is currently in use\n", r->driver_name));
@@ -1495,9 +1556,8 @@ static NTSTATUS driver_unlink_internals(connection_struct *conn,
 		goto err_out;
 	}
 
-	status = create_synthetic_smb_fname(tmp_ctx, print_dlr_path,
-					    NULL, NULL, &smb_fname);
-	if (!NT_STATUS_IS_OK(status)) {
+	smb_fname = synthetic_smb_fname(tmp_ctx, print_dlr_path, NULL, NULL);
+	if (smb_fname == NULL) {
 		goto err_out;
 	}
 
@@ -1539,13 +1599,13 @@ bool delete_driver_files(const struct auth_session_info *session_info,
 		return false;
 	}
 
-	nt_status = create_conn_struct(talloc_tos(),
-				       server_event_context(),
-				       server_messaging_context(),
-				       &conn,
-				       printdollar_snum,
-				       lp_pathname(talloc_tos(), printdollar_snum),
-				       session_info, &oldcwd);
+	nt_status = create_conn_struct_cwd(talloc_tos(),
+					   server_event_context(),
+					   server_messaging_context(),
+					   &conn,
+					   printdollar_snum,
+					   lp_pathname(talloc_tos(), printdollar_snum),
+					   session_info, &oldcwd);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(0,("delete_driver_files: create_conn_struct "
 			 "returned %s\n", nt_errstr(nt_status)));

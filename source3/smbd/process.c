@@ -46,7 +46,7 @@ struct pending_message_list {
 	struct pending_message_list *next, *prev;
 	struct timeval request_time; /* When was this first issued? */
 	struct smbd_server_connection *sconn;
-	struct timed_event *te;
+	struct tevent_timer *te;
 	struct smb_perfcount_data pcd;
 	uint32_t seqnum;
 	bool encrypted;
@@ -88,7 +88,7 @@ static bool smbd_lock_socket_internal(struct smbd_server_connection *sconn)
 		return false;
 	}
 
-	DEBUG(10,("pid[%d] got for socket lock\n", (int)getpid()));
+	DEBUG(10,("pid[%d] got socket lock\n", (int)getpid()));
 
 	return true;
 }
@@ -149,7 +149,6 @@ bool srv_send_smb(struct smbd_server_connection *sconn, char *buffer,
 		  struct smb_perfcount_data *pcd)
 {
 	size_t len = 0;
-	size_t nwritten=0;
 	ssize_t ret;
 	char *buf_out = buffer;
 
@@ -172,7 +171,7 @@ bool srv_send_smb(struct smbd_server_connection *sconn, char *buffer,
 
 	len = smb_len_large(buf_out) + 4;
 
-	ret = write_data(sconn->sock, buf_out+nwritten, len - nwritten);
+	ret = write_data(sconn->sock, buf_out, len);
 	if (ret <= 0) {
 
 		char addr[INET6_ADDRSTRLEN];
@@ -581,8 +580,8 @@ static void process_smb(struct smbd_server_connection *conn,
 			uint32_t seqnum, bool encrypted,
 			struct smb_perfcount_data *deferred_pcd);
 
-static void smbd_deferred_open_timer(struct event_context *ev,
-				     struct timed_event *te,
+static void smbd_deferred_open_timer(struct tevent_context *ev,
+				     struct tevent_timer *te,
 				     struct timeval _tval,
 				     void *private_data)
 {
@@ -664,6 +663,7 @@ static bool push_queued_message(struct smb_request *req,
 		}
 	}
 
+#if 0
 	msg->te = tevent_add_timer(msg->sconn->ev_ctx,
 				   msg,
 				   end_time,
@@ -674,6 +674,7 @@ static bool push_queued_message(struct smb_request *req,
 		TALLOC_FREE(msg);
 		return false;
 	}
+#endif
 
 	DLIST_ADD_END(req->sconn->deferred_open_queue, msg,
 		      struct pending_message_list *);
@@ -735,7 +736,7 @@ bool schedule_deferred_open_message_smb(struct smbd_server_connection *sconn,
 			(unsigned long long)msg_mid ));
 
 		if (mid == msg_mid) {
-			struct timed_event *te;
+			struct tevent_timer *te;
 
 			if (pml->processed) {
 				/* A processed message should not be
@@ -1700,7 +1701,7 @@ void smb_request_done(struct smb_request *req)
 			req->conn = NULL;
 		}
 		next->chain_fsp = req->chain_fsp;
-		next->inbuf = (uint8_t *)req->inbuf;
+		next->inbuf = req->inbuf;
 
 		req = next;
 		req->conn = switch_message(req->cmd, req);
@@ -2132,7 +2133,7 @@ bool smb1_walk_chain(const uint8_t *buf,
 	wct = CVAL(buf, smb_wct);
 	vwv = (const uint16_t *)(buf + smb_vwv);
 	num_bytes = smb_buflen(buf);
-	bytes = (uint8_t *)smb_buf_const(buf);
+	bytes = (const uint8_t *)smb_buf_const(buf);
 
 	if (!fn(cmd, wct, vwv, num_bytes, bytes, private_data)) {
 		return false;
@@ -2433,37 +2434,37 @@ process:
 		    seqnum, encrypted, NULL);
 }
 
-static void smbd_server_connection_handler(struct event_context *ev,
-					   struct fd_event *fde,
+static void smbd_server_connection_handler(struct tevent_context *ev,
+					   struct tevent_fd *fde,
 					   uint16_t flags,
 					   void *private_data)
 {
 	struct smbd_server_connection *conn = talloc_get_type(private_data,
 					      struct smbd_server_connection);
 
-	if (flags & EVENT_FD_WRITE) {
+	if (flags & TEVENT_FD_WRITE) {
 		smbd_server_connection_write_handler(conn);
 		return;
 	}
-	if (flags & EVENT_FD_READ) {
+	if (flags & TEVENT_FD_READ) {
 		smbd_server_connection_read_handler(conn, conn->sock);
 		return;
 	}
 }
 
-static void smbd_server_echo_handler(struct event_context *ev,
-				     struct fd_event *fde,
+static void smbd_server_echo_handler(struct tevent_context *ev,
+				     struct tevent_fd *fde,
 				     uint16_t flags,
 				     void *private_data)
 {
 	struct smbd_server_connection *conn = talloc_get_type(private_data,
 					      struct smbd_server_connection);
 
-	if (flags & EVENT_FD_WRITE) {
+	if (flags & TEVENT_FD_WRITE) {
 		smbd_server_connection_write_handler(conn);
 		return;
 	}
-	if (flags & EVENT_FD_READ) {
+	if (flags & TEVENT_FD_READ) {
 		smbd_server_connection_read_handler(
 			conn, conn->smb1.echo_handler.trusted_fd);
 		return;
@@ -3073,7 +3074,7 @@ bool fork_echo_handler(struct smbd_server_connection *sconn)
 
 		status = reinit_after_fork(sconn->msg_ctx,
 					   sconn->ev_ctx,
-					   false);
+					   true);
 		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(1, ("reinit_after_fork failed: %s\n",
 				  nt_errstr(status)));
@@ -3086,7 +3087,7 @@ bool fork_echo_handler(struct smbd_server_connection *sconn)
 	listener_pipe[1] = -1;
 	sconn->smb1.echo_handler.trusted_fd = listener_pipe[0];
 
-	DEBUG(10,("fork_echo_handler: main[%d] echo_child[%d]\n", (int)getpid(), child));
+	DEBUG(10,("fork_echo_handler: main[%d] echo_child[%d]\n", (int)getpid(), (int)child));
 
 	/*
 	 * Without smb signing this is the same as the normal smbd
@@ -3577,11 +3578,12 @@ void smbd_process(struct tevent_context *ev_ctx,
 				DEBUG(0, ("ctdbd_register_ips failed: %s\n",
 					  nt_errstr(status)));
 			}
-		} else
-		{
-			DEBUG(0,("Unable to get tcp info for "
-				 "CTDB_CONTROL_TCP_CLIENT: %s\n",
-				 strerror(errno)));
+		} else {
+			int level = (errno == ENOTCONN)?2:0;
+			DEBUG(level,("Unable to get tcp info for "
+				     "smbd_register_ips: %s\n",
+				     strerror(errno)));
+			exit_server_cleanly("client_get_tcp_info() failed.\n");
 		}
 	}
 
@@ -3599,10 +3601,10 @@ void smbd_process(struct tevent_context *ev_ctx,
 		exit_server("init_dptrs() failed");
 	}
 
-	sconn->smb1.fde = event_add_fd(ev_ctx,
+	sconn->smb1.fde = tevent_add_fd(ev_ctx,
 						  sconn,
 						  sconn->sock,
-						  EVENT_FD_READ,
+						  TEVENT_FD_READ,
 						  smbd_server_connection_handler,
 						  sconn);
 	if (!sconn->smb1.fde) {

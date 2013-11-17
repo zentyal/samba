@@ -92,8 +92,8 @@ bool cancel_smb2_aio(struct smb_request *smbreq);
 
 /* The following definitions come from smbd/blocking.c  */
 
-void brl_timeout_fn(struct event_context *event_ctx,
-		struct timed_event *te,
+void brl_timeout_fn(struct tevent_context *event_ctx,
+		struct tevent_timer *te,
 		struct timeval now,
 		void *private_data);
 struct timeval timeval_brl_min(const struct timeval *tv1,
@@ -145,11 +145,6 @@ bool recursive_rmdir(TALLOC_CTX *ctx,
 
 /* The following definitions come from smbd/conn.c  */
 
-uint32_t get_connection_share_access_list_entry(connection_struct *conn,
-						unsigned int i);
-void set_connection_share_access_list_entry(connection_struct *conn,
-						unsigned int i,
-						uint32_t val);
 int conn_num_open(struct smbd_server_connection *sconn);
 bool conn_snum_used(struct smbd_server_connection *sconn, int snum);
 connection_struct *conn_new(struct smbd_server_connection *sconn);
@@ -216,7 +211,6 @@ char *dptr_ReadDirName(TALLOC_CTX *ctx,
 			long *poffset,
 			SMB_STRUCT_STAT *pst);
 bool dptr_SearchDir(struct dptr_struct *dptr, const char *name, long *poffset, SMB_STRUCT_STAT *pst);
-void dptr_DirCacheAdd(struct dptr_struct *dptr, const char *name, long offset);
 void dptr_init_search_op(struct dptr_struct *dptr);
 bool dptr_fill(struct smbd_server_connection *sconn,
 	       char *buf1,unsigned int key);
@@ -243,7 +237,6 @@ const char *ReadDirName(struct smb_Dir *dirp, long *poffset,
 void RewindDir(struct smb_Dir *dirp, long *poffset);
 void SeekDir(struct smb_Dir *dirp, long offset);
 long TellDir(struct smb_Dir *dirp);
-void DirCacheAdd(struct smb_Dir *dirp, const char *name, long offset);
 bool SearchDir(struct smb_Dir *dirp, const char *name, long *poffset);
 NTSTATUS can_delete_directory(struct connection_struct *conn,
 				const char *dirname);
@@ -319,8 +312,8 @@ NTSTATUS can_set_delete_on_close(files_struct *fsp, uint32 dosmode);
 /* The following definitions come from smbd/fileio.c  */
 
 ssize_t read_file(files_struct *fsp,char *data,off_t pos,size_t n);
-void update_write_time_handler(struct event_context *ctx,
-                                      struct timed_event *te,
+void update_write_time_handler(struct tevent_context *ctx,
+                                      struct tevent_timer *te,
                                       struct timeval now,
                                       void *private_data);
 void trigger_write_time_update(struct files_struct *fsp);
@@ -392,6 +385,9 @@ void file_sync_all(connection_struct *conn);
 void fsp_free(files_struct *fsp);
 void file_free(struct smb_request *req, files_struct *fsp);
 files_struct *file_fsp(struct smb_request *req, uint16 fid);
+struct files_struct *file_fsp_get(struct smbd_smb2_request *smb2req,
+				  uint64_t persistent_id,
+				  uint64_t volatile_id);
 struct files_struct *file_fsp_smb2(struct smbd_smb2_request *smb2req,
 				   uint64_t persistent_id,
 				   uint64_t volatile_id);
@@ -495,8 +491,15 @@ NTSTATUS create_conn_struct(TALLOC_CTX *ctx,
 			    connection_struct **pconn,
 			    int snum,
 			    const char *path,
-			    const struct auth_session_info *session_info,
-			    char **poldcwd);
+			    const struct auth_session_info *session_info);
+NTSTATUS create_conn_struct_cwd(TALLOC_CTX *ctx,
+				struct tevent_context *ev,
+				struct messaging_context *msg,
+				connection_struct **pconn,
+				int snum,
+				const char *path,
+				const struct auth_session_info *session_info,
+				char **poldcwd);
 
 /* The following definitions come from smbd/negprot.c  */
 
@@ -529,7 +532,7 @@ void notify_fname(connection_struct *conn, uint32 action, uint32 filter,
 		  const char *path);
 char *notify_filter_string(TALLOC_CTX *mem_ctx, uint32 filter);
 struct sys_notify_context *sys_notify_context_create(TALLOC_CTX *mem_ctx,
-						     struct event_context *ev);
+						     struct tevent_context *ev);
 
 /* The following definitions come from smbd/notify_inotify.c  */
 
@@ -547,7 +550,7 @@ NTSTATUS inotify_watch(struct sys_notify_context *ctx,
 
 struct notify_context *notify_init(TALLOC_CTX *mem_ctx,
 				   struct messaging_context *messaging_ctx,
-				   struct event_context *ev);
+				   struct tevent_context *ev);
 NTSTATUS notify_add(struct notify_context *notify,
 		    const char *path, uint32_t filter, uint32_t subdir_filter,
 		    void (*callback)(void *, const struct notify_event *),
@@ -604,6 +607,7 @@ void reply_nttranss(struct smb_request *req);
 
 NTSTATUS smbd_check_access_rights(struct connection_struct *conn,
 				const struct smb_filename *smb_fname,
+				bool use_privs,
 				uint32_t access_mask);
 NTSTATUS fd_open(struct connection_struct *conn, files_struct *fsp,
 		 int flags, mode_t mode);
@@ -616,8 +620,6 @@ NTSTATUS change_dir_owner_to_parent(connection_struct *conn,
 				    const char *fname,
 				    SMB_STRUCT_STAT *psbuf);
 bool is_stat_open(uint32 access_mask);
-void remove_deferred_open_entry(struct file_id id, uint64_t mid,
-				struct server_id pid);
 bool is_deferred_open_async(const void *ptr);
 NTSTATUS open_file_fchmod(connection_struct *conn,
 			  struct smb_filename *smb_fname,
@@ -663,7 +665,6 @@ bool remove_oplock(files_struct *fsp);
 bool downgrade_oplock(files_struct *fsp);
 bool should_notify_deferred_opens(struct smbd_server_connection *sconn);
 void break_level2_to_none_async(files_struct *fsp);
-void reply_to_oplock_break_requests(files_struct *fsp);
 void contend_level2_oplocks_begin(files_struct *fsp,
 				  enum level2_contention_type type);
 void contend_level2_oplocks_end(files_struct *fsp,
@@ -722,9 +723,6 @@ NTSTATUS posix_get_nt_acl(struct connection_struct *conn, const char *name,
 			  TALLOC_CTX *mem_ctx,
 			  struct security_descriptor **ppdesc);
 NTSTATUS try_chown(files_struct *fsp, uid_t uid, gid_t gid);
-NTSTATUS append_parent_acl(files_struct *fsp,
-				const struct security_descriptor *pcsd,
-				struct security_descriptor **pp_new_sd);
 NTSTATUS set_nt_acl(files_struct *fsp, uint32 security_info_sent, const struct security_descriptor *psd);
 int get_acl_group_bits( connection_struct *conn, const char *fname, mode_t *mode );
 int chmod_acl(connection_struct *conn, const char *name, mode_t mode);
@@ -735,11 +733,23 @@ bool set_unix_posix_default_acl(connection_struct *conn, const char *fname,
 				const SMB_STRUCT_STAT *psbuf,
 				uint16 num_def_acls, const char *pdata);
 bool set_unix_posix_acl(connection_struct *conn, files_struct *fsp, const char *fname, uint16 num_acls, const char *pdata);
-struct security_descriptor *get_nt_acl_no_snum( TALLOC_CTX *ctx, const char *fname, uint32 security_info_wanted);
+NTSTATUS get_nt_acl_no_snum( TALLOC_CTX *ctx, const char *fname,
+			     uint32 security_info_wanted,
+			     struct security_descriptor **sd);
 NTSTATUS make_default_filesystem_acl(TALLOC_CTX *ctx,
 					const char *name,
 					SMB_STRUCT_STAT *psbuf,
 					struct security_descriptor **ppdesc);
+int posix_sys_acl_blob_get_file(vfs_handle_struct *handle,
+				const char *path_p,
+				TALLOC_CTX *mem_ctx,
+				char **blob_description,
+				DATA_BLOB *blob);
+int posix_sys_acl_blob_get_fd(vfs_handle_struct *handle,
+			      files_struct *fsp,
+			      TALLOC_CTX *mem_ctx,
+			      char **blob_description,
+			      DATA_BLOB *blob);
 
 /* The following definitions come from smbd/process.c  */
 

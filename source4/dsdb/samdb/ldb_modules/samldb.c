@@ -990,7 +990,7 @@ static int samldb_objectclass_trigger(struct samldb_ctx *ac)
 
 	switch(ac->type) {
 	case SAMLDB_TYPE_USER: {
-		bool uac_generated = false;
+		bool uac_generated = false, uac_add_flags = false;
 
 		/* Step 1.2: Default values */
 		ret = samdb_find_or_add_attribute(ldb, ac->msg,
@@ -1032,6 +1032,7 @@ static int samldb_objectclass_trigger(struct samldb_ctx *ac)
 				return ret;
 			}
 			uac_generated = true;
+			uac_add_flags = true;
 		}
 
 		el = ldb_msg_find_element(ac->msg, "userAccountControl");
@@ -1042,6 +1043,23 @@ static int samldb_objectclass_trigger(struct samldb_ctx *ac)
 			user_account_control = ldb_msg_find_attr_as_uint(ac->msg,
 									 "userAccountControl",
 									 0);
+			/* "userAccountControl" = 0 means "UF_NORMAL_ACCOUNT" */
+			if (user_account_control == 0) {
+				user_account_control = UF_NORMAL_ACCOUNT;
+				uac_generated = true;
+			}
+
+			/*
+			 * As per MS-SAMR 3.1.1.8.10 these flags have not to be set
+			 */
+			if ((user_account_control & UF_LOCKOUT) != 0) {
+				user_account_control &= ~UF_LOCKOUT;
+				uac_generated = true;
+			}
+			if ((user_account_control & UF_PASSWORD_EXPIRED) != 0) {
+				user_account_control &= ~UF_PASSWORD_EXPIRED;
+				uac_generated = true;
+			}
 
 			/* Temporary duplicate accounts aren't allowed */
 			if ((user_account_control & UF_TEMP_DUPLICATE_ACCOUNT) != 0) {
@@ -1124,8 +1142,10 @@ static int samldb_objectclass_trigger(struct samldb_ctx *ac)
 			 * has been generated here (tested against Windows
 			 * Server) */
 			if (uac_generated) {
-				user_account_control |= UF_ACCOUNTDISABLE;
-				user_account_control |= UF_PASSWD_NOTREQD;
+				if (uac_add_flags) {
+					user_account_control |= UF_ACCOUNTDISABLE;
+					user_account_control |= UF_PASSWD_NOTREQD;
+				}
 
 				ret = samdb_msg_set_uint(ldb, ac->msg, ac->msg,
 							 "userAccountControl",
@@ -1434,9 +1454,10 @@ static int samldb_user_account_control_change(struct samldb_ctx *ac)
 	struct ldb_message *tmp_msg;
 	int ret;
 	struct ldb_result *res;
-	const char * const attrs[] = { "userAccountControl", "objectClass", NULL };
+	const char * const attrs[] = { "userAccountControl", "objectClass",
+				       "lockoutTime", NULL };
 	unsigned int i;
-	bool is_computer = false;
+	bool is_computer = false, uac_generated = false;
 
 	el = dsdb_get_single_valued_attr(ac->msg, "userAccountControl",
 					 ac->req->operation);
@@ -1509,8 +1530,19 @@ static int samldb_user_account_control_change(struct samldb_ctx *ac)
 
 	account_type = ds_uf2atype(user_account_control);
 	if (account_type == 0) {
-		ldb_set_errstring(ldb, "samldb: Unrecognized account type!");
-		return LDB_ERR_UNWILLING_TO_PERFORM;
+		/*
+		 * When there is no account type embedded in "userAccountControl"
+		 * fall back to default "UF_NORMAL_ACCOUNT".
+		 */
+		if (user_account_control == 0) {
+			ldb_set_errstring(ldb,
+					  "samldb: Invalid user account control value!");
+			return LDB_ERR_UNWILLING_TO_PERFORM;
+		}
+
+		user_account_control |= UF_NORMAL_ACCOUNT;
+		uac_generated = true;
+		account_type = ATYPE_NORMAL_ACCOUNT;
 	}
 	ret = samdb_msg_add_uint(ldb, ac->msg, ac->msg, "sAMAccountType",
 				 account_type);
@@ -1519,6 +1551,41 @@ static int samldb_user_account_control_change(struct samldb_ctx *ac)
 	}
 	el = ldb_msg_find_element(ac->msg, "sAMAccountType");
 	el->flags = LDB_FLAG_MOD_REPLACE;
+
+	/* As per MS-SAMR 3.1.1.8.10 these flags have not to be set */
+	if ((user_account_control & UF_LOCKOUT) != 0) {
+		/* "lockoutTime" reset as per MS-SAMR 3.1.1.8.10 */
+		uint64_t lockout_time = ldb_msg_find_attr_as_uint64(res->msgs[0],
+								    "lockoutTime",
+								    0);
+		if (lockout_time != 0) {
+			ldb_msg_remove_attr(ac->msg, "lockoutTime");
+			ret = samdb_msg_add_uint64(ldb, ac->msg, ac->msg,
+						   "lockoutTime", (NTTIME)0);
+			if (ret != LDB_SUCCESS) {
+				return ret;
+			}
+			el = ldb_msg_find_element(ac->msg, "lockoutTime");
+			el->flags = LDB_FLAG_MOD_REPLACE;
+		}
+
+		user_account_control &= ~UF_LOCKOUT;
+		uac_generated = true;
+	}
+	if ((user_account_control & UF_PASSWORD_EXPIRED) != 0) {
+		/* "pwdLastSet" reset as password expiration has been forced  */
+		ldb_msg_remove_attr(ac->msg, "pwdLastSet");
+		ret = samdb_msg_add_uint64(ldb, ac->msg, ac->msg, "pwdLastSet",
+					   (NTTIME)0);
+		if (ret != LDB_SUCCESS) {
+			return ret;
+		}
+		el = ldb_msg_find_element(ac->msg, "pwdLastSet");
+		el->flags = LDB_FLAG_MOD_REPLACE;
+
+		user_account_control &= ~UF_PASSWORD_EXPIRED;
+		uac_generated = true;
+	}
 
 	/* "isCriticalSystemObject" might be set/changed */
 	if (user_account_control
@@ -1561,6 +1628,21 @@ static int samldb_user_account_control_change(struct samldb_ctx *ac)
 		el = ldb_msg_find_element(ac->msg,
 					   "primaryGroupID");
 		el->flags = LDB_FLAG_MOD_REPLACE;
+	}
+
+	/* Propagate eventual "userAccountControl" attribute changes */
+	if (uac_generated) {
+		char *tempstr = talloc_asprintf(ac->msg, "%d",
+						user_account_control);
+		if (tempstr == NULL) {
+			return ldb_module_oom(ac->module);
+		}
+
+		/* Overwrite "userAccountControl" correctly */
+		el = dsdb_get_single_valued_attr(ac->msg, "userAccountControl",
+						 ac->req->operation);
+		el->values[0].data = (uint8_t *) tempstr;
+		el->values[0].length = strlen(tempstr);
 	}
 
 	return LDB_SUCCESS;

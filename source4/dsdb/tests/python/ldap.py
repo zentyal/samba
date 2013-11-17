@@ -712,7 +712,7 @@ class BasicTests(samba.tests.TestCase):
 
     def test_attribute_ranges(self):
         """Test attribute ranges"""
-        print "Test attribute ranges"""
+        print "Test attribute ranges"
 
         # Too short (min. 1)
         try:
@@ -833,7 +833,7 @@ class BasicTests(samba.tests.TestCase):
 
     def test_instanceType(self):
         """Tests the 'instanceType' attribute"""
-        print "Tests the 'instanceType' attribute"""
+        print "Tests the 'instanceType' attribute"
 
         # The instance type is single-valued
         try:
@@ -902,7 +902,7 @@ class BasicTests(samba.tests.TestCase):
 
     def test_distinguished_name(self):
         """Tests the 'distinguishedName' attribute"""
-        print "Tests the 'distinguishedName' attribute"""
+        print "Tests the 'distinguishedName' attribute"
 
         # The "dn" shortcut isn't supported
         m = Message()
@@ -982,7 +982,7 @@ class BasicTests(samba.tests.TestCase):
 
     def test_rdn_name(self):
         """Tests the RDN"""
-        print "Tests the RDN"""
+        print "Tests the RDN"
 
         # Search
 
@@ -1177,7 +1177,7 @@ objectClass: container
 
     def test_rename(self):
         """Tests the rename operation"""
-        print "Tests the rename operations"""
+        print "Tests the rename operations"
 
         try:
             # cannot rename to be a child of itself
@@ -1288,7 +1288,7 @@ objectClass: container
 
     def test_rename_twice(self):
         """Tests the rename operation twice - this corresponds to a past bug"""
-        print "Tests the rename twice operation"""
+        print "Tests the rename twice operation"
 
         self.ldb.add({
              "dn": "cn=ldaptestuser5,cn=users," + self.base_dn,
@@ -1326,60 +1326,6 @@ objectGUID: bd3480c9-58af-4cd8-92df-bc4a18b6e44d
         self.ldb.add({
             "dn": "cn=ldaptestcontainer," + self.base_dn,
             "objectClass": "container" })
-
-        res = ldb.search("cn=ldaptestcontainer," + self.base_dn,
-                         scope=SCOPE_BASE,
-                         attrs=["objectGUID", "uSNCreated", "uSNChanged", "whenCreated", "whenChanged"])
-        self.assertTrue(len(res) == 1)
-        self.assertTrue("objectGUID" in res[0])
-        self.assertTrue("uSNCreated" in res[0])
-        self.assertTrue("uSNChanged" in res[0])
-        self.assertTrue("whenCreated" in res[0])
-        self.assertTrue("whenChanged" in res[0])
-
-        delete_force(self.ldb, "cn=ldaptestcontainer," + self.base_dn)
-
-        # All the following attributes are specificable on add operations
-        self.ldb.add({
-            "dn": "cn=ldaptestcontainer," + self.base_dn,
-            "objectClass": "container",
-            "uSNCreated" : "1",
-            "uSNChanged" : "1",
-            "whenCreated": timestring(long(time.time())),
-            "whenChanged": timestring(long(time.time())) })
-
-        res = ldb.search("cn=ldaptestcontainer," + self.base_dn,
-                         scope=SCOPE_BASE,
-                         attrs=["objectGUID", "uSNCreated", "uSNChanged", "whenCreated", "whenChanged"])
-        self.assertTrue(len(res) == 1)
-        self.assertTrue("objectGUID" in res[0])
-        self.assertTrue("uSNCreated" in res[0])
-        self.assertFalse(res[0]["uSNCreated"][0] == "1") # these are corrected
-        self.assertTrue("uSNChanged" in res[0])
-        self.assertFalse(res[0]["uSNChanged"][0] == "1") # these are corrected
-
-        delete_force(self.ldb, "cn=ldaptestcontainer," + self.base_dn)
-
-        # All this attributes are specificable on add operations
-        self.ldb.add({
-            "dn": "cn=ldaptestcontainer," + self.base_dn,
-            "objectclass": "container",
-            "uSNCreated" : "1",
-            "uSNChanged" : "1",
-            "whenCreated": timestring(long(time.time())),
-            "whenChanged": timestring(long(time.time())) })
-
-        res = ldb.search("cn=ldaptestcontainer," + self.base_dn,
-                         scope=SCOPE_BASE,
-                         attrs=["objectGUID", "uSNCreated", "uSNChanged", "whenCreated", "whenChanged"])
-        self.assertTrue(len(res) == 1)
-        self.assertTrue("objectGUID" in res[0])
-        self.assertTrue("uSNCreated" in res[0])
-        self.assertFalse(res[0]["uSNCreated"][0] == "1") # these are corrected
-        self.assertTrue("uSNChanged" in res[0])
-        self.assertFalse(res[0]["uSNChanged"][0] == "1") # these are corrected
-        self.assertTrue("whenCreated" in res[0])
-        self.assertTrue("whenChanged" in res[0])
 
         # The objectGUID cannot directly be changed
         try:
@@ -1468,6 +1414,161 @@ objectGUID: bd3480c9-58af-4cd8-92df-bc4a18b6e44d
 
         delete_force(self.ldb, "cn=parentguidtest,cn=testotherusers," + self.base_dn)
         delete_force(self.ldb, "cn=testotherusers," + self.base_dn)
+
+    def test_usnChanged(self):
+        """Test usnChanged behaviour"""
+        print "Testing usnChanged behaviour\n"
+
+        self.ldb.add({
+            "dn": "cn=ldaptestcontainer," + self.base_dn,
+            "objectClass": "container" })
+
+        res = ldb.search("cn=ldaptestcontainer," + self.base_dn,
+                         scope=SCOPE_BASE,
+                         attrs=["objectGUID", "uSNCreated", "uSNChanged", "whenCreated", "whenChanged", "description"])
+        self.assertTrue(len(res) == 1)
+        self.assertFalse("description" in res[0])
+        self.assertTrue("objectGUID" in res[0])
+        self.assertTrue("uSNCreated" in res[0])
+        self.assertTrue("uSNChanged" in res[0])
+        self.assertTrue("whenCreated" in res[0])
+        self.assertTrue("whenChanged" in res[0])
+
+        delete_force(self.ldb, "cn=ldaptestcontainer," + self.base_dn)
+
+        # All this attributes are specificable on add operations
+        self.ldb.add({
+            "dn": "cn=ldaptestcontainer," + self.base_dn,
+            "objectclass": "container",
+            "uSNCreated" : "1",
+            "uSNChanged" : "1",
+            "whenCreated": timestring(long(time.time())),
+            "whenChanged": timestring(long(time.time())) })
+
+        res = ldb.search("cn=ldaptestcontainer," + self.base_dn,
+                         scope=SCOPE_BASE,
+                         attrs=["objectGUID", "uSNCreated", "uSNChanged", "whenCreated", "whenChanged", "description"])
+        self.assertTrue(len(res) == 1)
+        self.assertFalse("description" in res[0])
+        self.assertTrue("objectGUID" in res[0])
+        self.assertTrue("uSNCreated" in res[0])
+        self.assertFalse(res[0]["uSNCreated"][0] == "1") # these are corrected
+        self.assertTrue("uSNChanged" in res[0])
+        self.assertFalse(res[0]["uSNChanged"][0] == "1") # these are corrected
+        self.assertTrue("whenCreated" in res[0])
+        self.assertTrue("whenChanged" in res[0])
+
+        ldb.modify_ldif("""
+dn: cn=ldaptestcontainer,""" + self.base_dn + """
+changetype: modify
+replace: description
+""")
+
+        res2 = ldb.search("cn=ldaptestcontainer," + self.base_dn,
+                         scope=SCOPE_BASE,
+                         attrs=["uSNCreated", "uSNChanged", "description"])
+        self.assertTrue(len(res) == 1)
+        self.assertFalse("description" in res2[0])
+        self.assertEqual(res[0]["usnCreated"], res2[0]["usnCreated"])
+        self.assertEqual(res[0]["usnCreated"], res2[0]["usnChanged"])
+        self.assertEqual(res[0]["usnChanged"], res2[0]["usnChanged"])
+
+        ldb.modify_ldif("""
+dn: cn=ldaptestcontainer,""" + self.base_dn + """
+changetype: modify
+replace: description
+description: test
+""")
+
+        res3 = ldb.search("cn=ldaptestcontainer," + self.base_dn,
+                         scope=SCOPE_BASE,
+                         attrs=["uSNCreated", "uSNChanged", "description"])
+        self.assertTrue(len(res) == 1)
+        self.assertTrue("description" in res3[0])
+        self.assertEqual("test", str(res3[0]["description"][0]))
+        self.assertEqual(res[0]["usnCreated"], res3[0]["usnCreated"])
+        self.assertNotEqual(res[0]["usnCreated"], res3[0]["usnChanged"])
+        self.assertNotEqual(res[0]["usnChanged"], res3[0]["usnChanged"])
+
+        ldb.modify_ldif("""
+dn: cn=ldaptestcontainer,""" + self.base_dn + """
+changetype: modify
+replace: description
+description: test
+""")
+
+        res4 = ldb.search("cn=ldaptestcontainer," + self.base_dn,
+                         scope=SCOPE_BASE,
+                         attrs=["uSNCreated", "uSNChanged", "description"])
+        self.assertTrue(len(res) == 1)
+        self.assertTrue("description" in res4[0])
+        self.assertEqual("test", str(res4[0]["description"][0]))
+        self.assertEqual(res[0]["usnCreated"], res4[0]["usnCreated"])
+        self.assertNotEqual(res3[0]["usnCreated"], res4[0]["usnChanged"])
+        self.assertEqual(res3[0]["usnChanged"], res4[0]["usnChanged"])
+
+        ldb.modify_ldif("""
+dn: cn=ldaptestcontainer,""" + self.base_dn + """
+changetype: modify
+replace: description
+description: test2
+""")
+
+        res5 = ldb.search("cn=ldaptestcontainer," + self.base_dn,
+                         scope=SCOPE_BASE,
+                         attrs=["uSNCreated", "uSNChanged", "description"])
+        self.assertTrue(len(res) == 1)
+        self.assertTrue("description" in res5[0])
+        self.assertEqual("test2", str(res5[0]["description"][0]))
+        self.assertEqual(res[0]["usnCreated"], res5[0]["usnCreated"])
+        self.assertNotEqual(res3[0]["usnChanged"], res5[0]["usnChanged"])
+
+        ldb.modify_ldif("""
+dn: cn=ldaptestcontainer,""" + self.base_dn + """
+changetype: modify
+delete: description
+description: test2
+""")
+
+        res6 = ldb.search("cn=ldaptestcontainer," + self.base_dn,
+                         scope=SCOPE_BASE,
+                         attrs=["uSNCreated", "uSNChanged", "description"])
+        self.assertTrue(len(res) == 1)
+        self.assertFalse("description" in res6[0])
+        self.assertEqual(res[0]["usnCreated"], res6[0]["usnCreated"])
+        self.assertNotEqual(res5[0]["usnChanged"], res6[0]["usnChanged"])
+
+        ldb.modify_ldif("""
+dn: cn=ldaptestcontainer,""" + self.base_dn + """
+changetype: modify
+add: description
+description: test3
+""")
+
+        res7 = ldb.search("cn=ldaptestcontainer," + self.base_dn,
+                         scope=SCOPE_BASE,
+                         attrs=["uSNCreated", "uSNChanged", "description"])
+        self.assertTrue(len(res) == 1)
+        self.assertTrue("description" in res7[0])
+        self.assertEqual("test3", str(res7[0]["description"][0]))
+        self.assertEqual(res[0]["usnCreated"], res7[0]["usnCreated"])
+        self.assertNotEqual(res6[0]["usnChanged"], res7[0]["usnChanged"])
+
+        ldb.modify_ldif("""
+dn: cn=ldaptestcontainer,""" + self.base_dn + """
+changetype: modify
+delete: description
+""")
+
+        res8 = ldb.search("cn=ldaptestcontainer," + self.base_dn,
+                         scope=SCOPE_BASE,
+                         attrs=["uSNCreated", "uSNChanged", "description"])
+        self.assertTrue(len(res) == 1)
+        self.assertFalse("description" in res8[0])
+        self.assertEqual(res[0]["usnCreated"], res8[0]["usnCreated"])
+        self.assertNotEqual(res7[0]["usnChanged"], res8[0]["usnChanged"])
+
+        delete_force(self.ldb, "cn=ldaptestcontainer," + self.base_dn)
 
     def test_groupType_int32(self):
         """Test groupType (int32) behaviour (should appear to be casted to a 32 bit signed integer before comparsion)"""
@@ -1576,7 +1677,7 @@ objectGUID: bd3480c9-58af-4cd8-92df-bc4a18b6e44d
 
     def test_wkguid(self):
         """Test Well known GUID behaviours (including DN+Binary)"""
-        print "Test Well known GUID behaviours (including DN+Binary)"""
+        print "Test Well known GUID behaviours (including DN+Binary)"
 
         res = self.ldb.search(base=("<WKGUID=ab1d30f3768811d1aded00c04fd8d5cd,%s>" % self.base_dn), scope=SCOPE_BASE, attrs=[])
         self.assertEquals(len(res), 1)
@@ -1593,7 +1694,7 @@ objectGUID: bd3480c9-58af-4cd8-92df-bc4a18b6e44d
 
     def test_subschemasubentry(self):
         """Test subSchemaSubEntry appears when requested, but not when not requested"""
-        print "Test subSchemaSubEntry"""
+        print "Test subSchemaSubEntry"
 
         res = self.ldb.search(base=self.base_dn, scope=SCOPE_BASE, attrs=["subSchemaSubEntry"])
         self.assertEquals(len(res), 1)
@@ -2720,7 +2821,7 @@ nTSecurityDescriptor:: """ + desc_base64
 
     def test_dsheuristics(self):
         """Tests the 'dSHeuristics' attribute"""
-        print "Tests the 'dSHeuristics' attribute"""
+        print "Tests the 'dSHeuristics' attribute"
 
         # Get the current value to restore it later
         dsheuristics = self.ldb.get_dsheuristics()
@@ -2763,7 +2864,7 @@ nTSecurityDescriptor:: """ + desc_base64
 
     def test_operational(self):
         """Tests operational attributes"""
-        print "Tests operational attributes"""
+        print "Tests operational attributes"
 
         res = self.ldb.search(self.base_dn, scope=SCOPE_BASE,
                               attrs=["createTimeStamp", "modifyTimeStamp",

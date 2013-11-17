@@ -203,7 +203,6 @@ struct poptOption popt_common_option[] = {
 /* Handle command line options:
  *		--sbindir
  *		--bindir
- *		--swatdir
  *		--lmhostsfile
  *		--libdir
  *		--modulesdir
@@ -219,7 +218,6 @@ struct poptOption popt_common_option[] = {
 enum dyn_item{
 	DYN_SBINDIR = 1,
 	DYN_BINDIR,
-	DYN_SWATDIR,
 	DYN_LMHOSTSFILE,
 	DYN_LIBDIR,
 	DYN_MODULESDIR,
@@ -249,12 +247,6 @@ static void popt_dynconfig_callback(poptContext con,
 	case DYN_BINDIR:
 		if (arg) {
 			set_dyn_BINDIR(arg);
-		}
-		break;
-
-	case DYN_SWATDIR:
-		if (arg) {
-			set_dyn_SWATDIR(arg);
 		}
 		break;
 
@@ -329,8 +321,6 @@ const struct poptOption popt_common_dynconfig[] = {
 	    "Path to sbin directory", "SBINDIR" },
 	{ "bindir", '\0' , POPT_ARG_STRING, NULL, DYN_BINDIR,
 	    "Path to bin directory", "BINDIR" },
-	{ "swatdir", '\0' , POPT_ARG_STRING, NULL, DYN_SWATDIR,
-	    "Path to SWAT installation directory", "SWATDIR" },
 	{ "lmhostsfile", '\0' , POPT_ARG_STRING, NULL, DYN_LMHOSTSFILE,
 	    "Path to lmhosts file", "LMHOSTSFILE" },
 	{ "libdir", '\0' , POPT_ARG_STRING, NULL, DYN_LIBDIR,
@@ -499,7 +489,6 @@ static void popt_common_credentials_callback(poptContext con,
 {
 	struct user_auth_info *auth_info = talloc_get_type_abort(
 		*((const char **)data), struct user_auth_info);
-	char *p;
 
 	if (reason == POPT_CALLBACK_REASON_PRE) {
 		set_cmdline_auth_info_username(auth_info, "GUEST");
@@ -515,15 +504,6 @@ static void popt_common_credentials_callback(poptContext con,
 				exit(ENOMEM);
 			}
 			set_cmdline_auth_info_username(auth_info, puser);
-
-			if ((p = strchr_m(puser,'%'))) {
-				size_t len;
-				*p = 0;
-				len = strlen(p+1);
-				set_cmdline_auth_info_password(auth_info, p+1);
-				memset(strchr_m(getenv("USER"),'%')+1,'X',len);
-			}
-			SAFE_FREE(puser);
 		}
 
 		if (getenv("PASSWD")) {
@@ -546,13 +526,13 @@ static void popt_common_credentials_callback(poptContext con,
 
 			if ((lp=strchr_m(puser,'%'))) {
 				size_t len;
-				*lp = 0;
+				*lp = '\0';
 				set_cmdline_auth_info_username(auth_info,
 							       puser);
 				set_cmdline_auth_info_password(auth_info,
 							       lp+1);
 				len = strlen(lp+1);
-				memset(strchr_m(arg,'%')+1,'X',len);
+				memset(lp + 1, '\0', len);
 			} else {
 				set_cmdline_auth_info_username(auth_info,
 							       puser);
@@ -603,6 +583,53 @@ static struct user_auth_info *global_auth_info;
 void popt_common_set_auth_info(struct user_auth_info *auth_info)
 {
 	global_auth_info = auth_info;
+}
+
+/**
+ * @brief Burn the commandline password.
+ *
+ * This function removes the password from the command line so we
+ * don't leak the password e.g. in 'ps aux'.
+ *
+ * It should be called after processing the options and you should pass down
+ * argv from main().
+ *
+ * @param[in]  argc     The number of arguments.
+ *
+ * @param[in]  argv[]   The argument array we will find the array.
+ */
+void popt_burn_cmdline_password(int argc, char *argv[])
+{
+	bool found = false;
+	char *p = NULL;
+	int i, ulen = 0;
+
+	for (i = 0; i < argc; i++) {
+		p = argv[i];
+		if (strncmp(p, "-U", 2) == 0) {
+			ulen = 2;
+			found = true;
+		} else if (strncmp(p, "--user", 6) == 0) {
+			ulen = 6;
+			found = true;
+		}
+
+		if (found) {
+			if (p == NULL) {
+				return;
+			}
+
+			if (strlen(p) == ulen) {
+				continue;
+			}
+
+			p = strchr_m(p, '%');
+			if (p != NULL) {
+				memset(p, '\0', strlen(p));
+			}
+			found = false;
+		}
+	}
 }
 
 struct poptOption popt_common_credentials[] = {

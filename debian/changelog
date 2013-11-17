@@ -16,6 +16,7 @@ samba (2:4.1.1+dfsg-1) UNRELEASED; urgency=low
   [ Ivo De Decker ]
   * Add build-dep on python-ntdb.
   * Add build-dep on libncurses5-dev.
+  * Add depends on python-ntdb to samba.
 
  -- Jelmer Vernooij <jelmer@debian.org>  Sun, 17 Nov 2013 11:47:57 +0000
 

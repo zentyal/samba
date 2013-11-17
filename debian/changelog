@@ -14,7 +14,8 @@ samba (2:4.1.1+dfsg-1) UNRELEASED; urgency=low
     libhdb9-heimdal.
 
   [ Ivo De Decker ]
-  * Add build-dep on python-ntdb
+  * Add build-dep on python-ntdb.
+  * Add build-dep on libncurses5-dev.
 
  -- Jelmer Vernooij <jelmer@debian.org>  Sun, 17 Nov 2013 11:47:57 +0000
 

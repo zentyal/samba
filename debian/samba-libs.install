@@ -107,4 +107,3 @@ usr/lib/*/samba/service/*.so
 usr/lib/*/samba/libnon_posix_acls.so.0
 usr/lib/*/samba/libutil_ntdb.so.0
 usr/share/man/man8/idmap_rfc2307.8
-usr/share/man/man8/samba-regedit.8

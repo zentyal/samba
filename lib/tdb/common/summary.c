@@ -1,7 +1,7 @@
- /* 
+ /*
    Trivial Database: human-readable summary code
    Copyright (C) Rusty Russell 2010
-   
+
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
    License as published by the Free Software Foundation; either
@@ -20,6 +20,7 @@
 #define SUMMARY_FORMAT \
 	"Size of file/data: %u/%zu\n" \
 	"Number of records: %zu\n" \
+	"Incompatible hash: %s\n" \
 	"Smallest/average/largest keys: %zu/%zu/%zu\n" \
 	"Smallest/average/largest data: %zu/%zu/%zu\n" \
 	"Smallest/average/largest padding: %zu/%zu/%zu\n" \
@@ -116,7 +117,7 @@ _PUBLIC_ char *tdb_summary(struct tdb_context *tdb)
 	tally_init(&hash);
 	tally_init(&uncoal);
 
-	for (off = TDB_DATA_START(tdb->header.hash_size);
+	for (off = TDB_DATA_START(tdb->hash_size);
 	     off < tdb->map_size - 1;
 	     off += sizeof(rec) + rec.rec_len) {
 		if (tdb->methods->tdb_read(tdb, off, &rec, sizeof(rec),
@@ -151,7 +152,7 @@ _PUBLIC_ char *tdb_summary(struct tdb_context *tdb)
 			break;
 		default:
 			TDB_LOG((tdb, TDB_DEBUG_ERROR,
-				 "Unexpected record magic 0x%x at offset %d\n",
+				 "Unexpected record magic 0x%x at offset %u\n",
 				 rec.magic, off));
 			goto unlock;
 		}
@@ -159,7 +160,7 @@ _PUBLIC_ char *tdb_summary(struct tdb_context *tdb)
 	if (unc > 1)
 		tally_add(&uncoal, unc - 1);
 
-	for (off = 0; off < tdb->header.hash_size; off++)
+	for (off = 0; off < tdb->hash_size; off++)
 		tally_add(&hash, get_hash_length(tdb, off));
 
 	/* 20 is max length of a %zu. */
@@ -171,6 +172,7 @@ _PUBLIC_ char *tdb_summary(struct tdb_context *tdb)
 	snprintf(ret, len, SUMMARY_FORMAT,
 		 tdb->map_size, keys.total+data.total,
 		 keys.num,
+		 (tdb->hash_fn == tdb_jenkins_hash)?"yes":"no",
 		 keys.min, tally_mean(&keys), keys.max,
 		 data.min, tally_mean(&data), data.max,
 		 extra.min, tally_mean(&extra), extra.max,
@@ -190,7 +192,7 @@ _PUBLIC_ char *tdb_summary(struct tdb_context *tdb)
 		 (keys.num + freet.num + dead.num)
 		 * (sizeof(struct tdb_record) + sizeof(uint32_t))
 		 * 100.0 / tdb->map_size,
-		 tdb->header.hash_size * sizeof(tdb_off_t)
+		 tdb->hash_size * sizeof(tdb_off_t)
 		 * 100.0 / tdb->map_size);
 
 unlock:

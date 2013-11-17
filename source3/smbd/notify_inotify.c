@@ -190,7 +190,7 @@ static void inotify_dispatch(struct inotify_private *in,
 /*
   called when the kernel has some events for us
 */
-static void inotify_handler(struct event_context *ev, struct fd_event *fde,
+static void inotify_handler(struct tevent_context *ev, struct tevent_fd *fde,
 			    uint16_t flags, void *private_data)
 {
 	struct inotify_private *in = talloc_get_type(private_data,
@@ -269,7 +269,7 @@ static NTSTATUS inotify_setup(struct sys_notify_context *ctx)
 	talloc_set_destructor(in, inotify_destructor);
 
 	/* add a event waiting for the inotify fd to be readable */
-	event_add_fd(ctx->ev, in, in->fd, EVENT_FD_READ, inotify_handler, in);
+	tevent_add_fd(ctx->ev, in, in->fd, TEVENT_FD_READ, inotify_handler, in);
 
 	return NT_STATUS_OK;
 }

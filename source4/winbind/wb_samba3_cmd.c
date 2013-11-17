@@ -48,7 +48,7 @@ static NTSTATUS wb_samba3_append_info3_as_txt(TALLOC_CTX *mem_ctx,
 	info3 = talloc(mem_ctx, struct netr_SamInfo3);
 	NT_STATUS_HAVE_NO_MEMORY(info3);
 
-	/* The Samba3 protocol has a redundent 4 bytes at the start */
+	/* The Samba3 protocol has a redundant 4 bytes at the start */
 	info3b.data += 4;
 	info3b.length -= 4;
 
@@ -625,7 +625,7 @@ NTSTATUS wbsrv_samba3_pam_logoff(struct wbsrv_samba3_call *s3call)
 
   The return value (in the async reply) may include the 'info3'
   (effectivly most things you would want to know about the user), or
-  the NT and LM session keys seperated.
+  the NT and LM session keys separated.
 */
 
 static void pam_auth_crap_recv(struct composite_context *ctx);

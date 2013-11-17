@@ -20,6 +20,8 @@
 #include "serverid.h"
 #include "smbd/smbd.h"
 
+#include "lib/util/util_process.h"
+
 #include "messages.h"
 #include "include/printing.h"
 #include "printing/nt_printing_migrate_internal.h"
@@ -293,6 +295,8 @@ static bool spoolss_child_init(struct tevent_context *ev_ctx,
 		smb_panic("reinit_after_fork() failed");
 	}
 
+	prctl_set_comment("spoolssd-child");
+
 	spoolss_child_id = child_id;
 	spoolss_reopen_logs(child_id);
 
@@ -301,7 +305,7 @@ static bool spoolss_child_init(struct tevent_context *ev_ctx,
 		return false;
 	}
 
-	if (!serverid_register(procid_self(),
+	if (!serverid_register(messaging_server_id(msg_ctx),
 				FLAG_MSG_GENERAL |
 				FLAG_MSG_PRINT_GENERAL)) {
 		return false;
@@ -670,8 +674,10 @@ pid_t start_spoolssd(struct tevent_context *ev_ctx,
 		smb_panic("reinit_after_fork() failed");
 	}
 
+	prctl_set_comment("spoolssd-master");
+
 	/* save the parent process id so the children can use it later */
-	parent_id = procid_self();
+	parent_id = messaging_server_id(msg_ctx);
 
 	spoolss_reopen_logs(0);
 	pfh_daemon_config(DAEMON_NAME,
@@ -717,7 +723,7 @@ pid_t start_spoolssd(struct tevent_context *ev_ctx,
 		exit(1);
 	}
 
-	if (!serverid_register(procid_self(),
+	if (!serverid_register(messaging_server_id(msg_ctx),
 				FLAG_MSG_GENERAL |
 				FLAG_MSG_PRINT_GENERAL)) {
 		exit(1);
@@ -801,7 +807,7 @@ pid_t start_spoolssd(struct tevent_context *ev_ctx,
 		exit(1);
 	}
 
-	DEBUG(1, ("SPOOLSS Daemon Started (%d)\n", getpid()));
+	DEBUG(1, ("SPOOLSS Daemon Started (%u)\n", (unsigned int)getpid()));
 
 	pfh_manage_pool(ev_ctx, msg_ctx, &pf_spoolss_cfg, spoolss_pool);
 

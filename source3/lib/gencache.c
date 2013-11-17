@@ -58,7 +58,6 @@ static bool gencache_init(void)
 {
 	char* cache_fname = NULL;
 	int open_flags = O_RDWR|O_CREAT;
-	bool first_try = true;
 
 	/* skip file open if it's already opened */
 	if (cache) return True;
@@ -67,24 +66,28 @@ static bool gencache_init(void)
 
 	DEBUG(5, ("Opening cache file at %s\n", cache_fname));
 
-again:
 	cache = tdb_open_log(cache_fname, 0, TDB_DEFAULT|TDB_INCOMPATIBLE_HASH, open_flags, 0644);
 	if (cache) {
 		int ret;
 		ret = tdb_check(cache, NULL, NULL);
 		if (ret != 0) {
 			tdb_close(cache);
-			cache = NULL;
-			if (!first_try) {
-				DEBUG(0, ("gencache_init: tdb_check(%s) failed\n",
-					  cache_fname));
-				return false;
-			}
-			first_try = false;
-			DEBUG(0, ("gencache_init: tdb_check(%s) failed - retry after truncate\n",
-				  cache_fname));
-			truncate(cache_fname, 0);
-			goto again;
+
+			/*
+			 * Retry with CLEAR_IF_FIRST.
+			 *
+			 * Warning: Converting this to dbwrap won't work
+			 * directly. gencache.c does transactions on this tdb,
+			 * and dbwrap forbids this for CLEAR_IF_FIRST
+			 * databases. tdb does allow transactions on
+			 * CLEAR_IF_FIRST databases, so lets use it here to
+			 * clean up a broken database.
+			 */
+			cache = tdb_open_log(cache_fname, 0,
+					     TDB_DEFAULT|
+					     TDB_INCOMPATIBLE_HASH|
+					     TDB_CLEAR_IF_FIRST,
+					     open_flags, 0644);
 		}
 	}
 
@@ -106,7 +109,10 @@ again:
 
 	DEBUG(5, ("Opening cache file at %s\n", cache_fname));
 
-	cache_notrans = tdb_open_log(cache_fname, 0, TDB_CLEAR_IF_FIRST|TDB_INCOMPATIBLE_HASH,
+	cache_notrans = tdb_open_log(cache_fname, 0,
+				     TDB_CLEAR_IF_FIRST|
+				     TDB_INCOMPATIBLE_HASH|
+				     TDB_NOSYNC,
 				     open_flags, 0644);
 	if (cache_notrans == NULL) {
 		DEBUG(5, ("Opening %s failed: %s\n", cache_fname,
@@ -125,6 +131,110 @@ static TDB_DATA last_stabilize_key(void)
 	result.dptr = discard_const_p(uint8_t, "@LAST_STABILIZED");
 	result.dsize = 17;
 	return result;
+}
+
+struct gencache_have_val_state {
+	time_t new_timeout;
+	const DATA_BLOB *data;
+	bool gotit;
+};
+
+static void gencache_have_val_parser(time_t old_timeout, DATA_BLOB data,
+				     void *private_data)
+{
+	struct gencache_have_val_state *state =
+		(struct gencache_have_val_state *)private_data;
+	time_t now = time(NULL);
+	int cache_time_left, new_time_left, additional_time;
+
+	/*
+	 * Excuse the many variables, but these time calculations are
+	 * confusing to me. We do not want to write to gencache with a
+	 * possibly expensive transaction if we are about to write the same
+	 * value, just extending the remaining timeout by less than 10%.
+	 */
+
+	cache_time_left = old_timeout - now;
+	if (cache_time_left <= 0) {
+		/*
+		 * timed out, write new value
+		 */
+		return;
+	}
+
+	new_time_left = state->new_timeout - now;
+	if (new_time_left <= 0) {
+		/*
+		 * Huh -- no new timeout?? Write it.
+		 */
+		return;
+	}
+
+	if (new_time_left < cache_time_left) {
+		/*
+		 * Someone wants to shorten the timeout. Let it happen.
+		 */
+		return;
+	}
+
+	/*
+	 * By how much does the new timeout extend the remaining cache time?
+	 */
+	additional_time = new_time_left - cache_time_left;
+
+	if (additional_time * 10 < 0) {
+		/*
+		 * Integer overflow. We extend by so much that we have to write it.
+		 */
+		return;
+	}
+
+	/*
+	 * The comparison below is essentially equivalent to
+	 *
+	 *    new_time_left > cache_time_left * 1.10
+	 *
+	 * but without floating point calculations.
+	 */
+
+	if (additional_time * 10 > cache_time_left) {
+		/*
+		 * We extend the cache timeout by more than 10%. Do it.
+		 */
+		return;
+	}
+
+	/*
+	 * Now the more expensive data compare.
+	 */
+	if (data_blob_cmp(state->data, &data) != 0) {
+		/*
+		 * Write a new value. Certainly do it.
+		 */
+		return;
+	}
+
+	/*
+	 * Extending the timeout by less than 10% for the same cache value is
+	 * not worth the trouble writing a value into gencache under a
+	 * possibly expensive transaction.
+	 */
+	state->gotit = true;
+}
+
+static bool gencache_have_val(const char *keystr, const DATA_BLOB *data,
+			      time_t timeout)
+{
+	struct gencache_have_val_state state;
+
+	state.new_timeout = timeout;
+	state.data = data;
+	state.gotit = false;
+
+	if (!gencache_parse(keystr, gencache_have_val_parser, &state)) {
+		return false;
+	}
+	return state.gotit;
 }
 
 /**
@@ -160,6 +270,12 @@ bool gencache_set_data_blob(const char *keystr, const DATA_BLOB *blob,
 
 	if (!gencache_init()) return False;
 
+	if (gencache_have_val(keystr, blob, timeout)) {
+		DEBUG(10, ("Did not store value for %s, we already got it\n",
+			   keystr));
+		return true;
+	}
+
 	val = talloc_asprintf(talloc_tos(), CACHE_DATA_FMT, (int)timeout);
 	if (val == NULL) {
 		return False;
@@ -173,8 +289,9 @@ bool gencache_set_data_blob(const char *keystr, const DATA_BLOB *blob,
 		return false;
 	}
 
-	DEBUG(10, ("Adding cache entry with key = %s and timeout ="
-	           " %s (%d seconds %s)\n", keystr, ctime(&timeout),
+	DEBUG(10, ("Adding cache entry with key=[%s] and timeout="
+	           "[%s] (%d seconds %s)\n", keystr,
+		   timestring(talloc_tos(), timeout),
 		   (int)(timeout - time(NULL)), 
 		   timeout > time(NULL) ? "ahead" : "in the past"));
 
@@ -243,7 +360,7 @@ bool gencache_del(const char *keystr)
 
 	if (!gencache_init()) return False;	
 
-	DEBUG(10, ("Deleting cache entry (key = %s)\n", keystr));
+	DEBUG(10, ("Deleting cache entry (key=[%s])\n", keystr));
 
 	/*
 	 * We delete an element by setting its timeout to 0. This way we don't
@@ -673,8 +790,9 @@ static int gencache_iterate_blobs_fn(struct tdb_context *tdb, TDB_DATA key,
 		goto done;
 	}
 
-	DEBUG(10, ("Calling function with arguments (key=%s, timeout=%s)\n",
-		   keystr, ctime(&timeout)));
+	DEBUG(10, ("Calling function with arguments "
+		   "(key=[%s], timeout=[%s])\n",
+		   keystr, timestring(talloc_tos(), timeout)));
 
 	state->fn(keystr,
 		  data_blob_const(endptr,
@@ -743,8 +861,8 @@ static void gencache_iterate_fn(const char *key, DATA_BLOB value,
 	}
 
 	DEBUG(10, ("Calling function with arguments "
-		   "(key = %s, value = %s, timeout = %s)\n",
-		   key, valstr, ctime(&timeout)));
+		   "(key=[%s], value=[%s], timeout=[%s])\n",
+		   key, valstr, timestring(talloc_tos(), timeout)));
 
 	state->fn(key, valstr, timeout, state->private_data);
 

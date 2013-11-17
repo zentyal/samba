@@ -39,7 +39,7 @@ struct stream_io {
 
 static SMB_INO_T stream_inode(const SMB_STRUCT_STAT *sbuf, const char *sname)
 {
-	struct MD5Context ctx;
+	MD5_CTX ctx;
         unsigned char hash[16];
 	SMB_INO_T result;
 	char *upper_sname;
@@ -194,7 +194,6 @@ static int streams_xattr_fstat(vfs_handle_struct *handle, files_struct *fsp,
 			       SMB_STRUCT_STAT *sbuf)
 {
 	struct smb_filename *smb_fname_base = NULL;
-	NTSTATUS status;
 	int ret = -1;
 	struct stream_io *io = (struct stream_io *)
 		VFS_FETCH_FSP_EXTENSION(handle, fsp);
@@ -210,12 +209,10 @@ static int streams_xattr_fstat(vfs_handle_struct *handle, files_struct *fsp,
 	}
 
 	/* Create an smb_filename with stream_name == NULL. */
-	status = create_synthetic_smb_fname(talloc_tos(),
-					    io->base,
-					    NULL, NULL,
-					    &smb_fname_base);
-	if (!NT_STATUS_IS_OK(status)) {
-		errno = map_errno_from_nt_status(status);
+	smb_fname_base = synthetic_smb_fname(talloc_tos(), io->base,
+					     NULL, NULL);
+	if (smb_fname_base == NULL) {
+		errno = ENOMEM;
 		return -1;
 	}
 
@@ -397,12 +394,10 @@ static int streams_xattr_open(vfs_handle_struct *handle,
 	}
 
 	/* Create an smb_filename with stream_name == NULL. */
-	status = create_synthetic_smb_fname(talloc_tos(),
-					    smb_fname->base_name,
-					    NULL, NULL,
-					    &smb_fname_base);
-	if (!NT_STATUS_IS_OK(status)) {
-		errno = map_errno_from_nt_status(status);
+	smb_fname_base = synthetic_smb_fname(
+		talloc_tos(), smb_fname->base_name, NULL, NULL);
+	if (smb_fname_base == NULL) {
+		errno = ENOMEM;
 		goto fail;
 	}
 
@@ -534,10 +529,9 @@ static int streams_xattr_unlink(vfs_handle_struct *handle,
 	if (is_ntfs_default_stream_smb_fname(smb_fname)) {
 		struct smb_filename *smb_fname_base = NULL;
 
-		status = copy_smb_filename(talloc_tos(), smb_fname,
-					    &smb_fname_base);
-		if (!NT_STATUS_IS_OK(status)) {
-			errno = map_errno_from_nt_status(status);
+		smb_fname_base = cp_smb_filename(talloc_tos(), smb_fname);
+		if (smb_fname_base == NULL) {
+			errno = ENOMEM;
 			return -1;
 		}
 
@@ -775,10 +769,10 @@ static NTSTATUS streams_xattr_streaminfo(vfs_handle_struct *handle,
 	}
 	else {
 		struct smb_filename *smb_fname = NULL;
-		status = create_synthetic_smb_fname(talloc_tos(), fname, NULL,
-						    NULL, &smb_fname);
-		if (!NT_STATUS_IS_OK(status)) {
-			return status;
+		smb_fname = synthetic_smb_fname(talloc_tos(), fname, NULL,
+						NULL);
+		if (smb_fname == NULL) {
+			return NT_STATUS_NO_MEMORY;
 		}
 		if (lp_posix_pathnames()) {
 			ret = SMB_VFS_LSTAT(handle->conn, smb_fname);

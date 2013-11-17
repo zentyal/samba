@@ -37,14 +37,14 @@
  Ensure thread pool is initialized.
 ***********************************************************************/
 
-static bool init_aio_threadpool(struct event_context *ev_ctx,
+static bool init_aio_threadpool(struct tevent_context *ev_ctx,
 				struct pthreadpool **pp_pool,
-				void (*completion_fn)(struct event_context *,
-						struct fd_event *,
+				void (*completion_fn)(struct tevent_context *,
+						struct tevent_fd *,
 						uint16,
 						void *))
 {
-	struct fd_event *sock_event = NULL;
+	struct tevent_fd *sock_event = NULL;
 	int ret = 0;
 
 	if (*pp_pool) {
@@ -150,8 +150,8 @@ static struct aio_open_private_data *find_open_private_data_by_mid(uint64_t mid)
  Callback when an open completes.
 ***********************************************************************/
 
-static void aio_open_handle_completion(struct event_context *event_ctx,
-				struct fd_event *event,
+static void aio_open_handle_completion(struct tevent_context *event_ctx,
+				struct tevent_fd *event,
 				uint16 flags,
 				void *p)
 {
@@ -162,7 +162,7 @@ static void aio_open_handle_completion(struct event_context *event_ctx,
 	DEBUG(10, ("aio_open_handle_completion called with flags=%d\n",
 		(int)flags));
 
-	if ((flags & EVENT_FD_READ) == 0) {
+	if ((flags & TEVENT_FD_READ) == 0) {
 		return;
 	}
 

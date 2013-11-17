@@ -155,7 +155,7 @@ static struct share_mapping_entry *add_srt(int snum, const char **mappings)
 	 * catia mappings are of the form :
 	 * UNIX char (in 0xnn hex) : WINDOWS char (in 0xnn hex)
 	 *
-	 * multiple mappings are comma seperated in smb.conf
+	 * multiple mappings are comma separated in smb.conf
 	 */
 	for (i=0;mappings[i];i++) {
 		fstrcpy(mapping, mappings[i]);
@@ -222,7 +222,7 @@ static bool init_mappings(connection_struct *conn,
 static NTSTATUS catia_string_replace_allocate(connection_struct *conn,
 					      const char *name_in,
 					      char **mapped_name,
-					      int direction)
+					enum vfs_translate_direction direction)
 {
 	static smb_ucs2_t *tmpbuf = NULL;
 	smb_ucs2_t *ptr;
@@ -393,16 +393,15 @@ static int catia_rename(vfs_handle_struct *handle,
 	}
 
 	/* Setup temporary smb_filename structs. */
-	status = copy_smb_filename(ctx, smb_fname_src, &smb_fname_src_tmp);
-
-	if (!NT_STATUS_IS_OK(status)) {
-		errno = map_errno_from_nt_status(status);
+	smb_fname_src_tmp = cp_smb_filename(ctx, smb_fname_src);
+	if (smb_fname_src_tmp == NULL) {
+		errno = ENOMEM;
 		goto out;
 	}
 
-	status = copy_smb_filename(ctx, smb_fname_dst, &smb_fname_dst_tmp);
-	if (!NT_STATUS_IS_OK(status)) {
-		errno = map_errno_from_nt_status(status);
+	smb_fname_dst_tmp = cp_smb_filename(ctx, smb_fname_dst);
+	if (smb_fname_dst_tmp == NULL) {
+		errno = ENOMEM;
 		goto out;
 	}
 
@@ -492,9 +491,9 @@ static int catia_unlink(vfs_handle_struct *handle,
 	}
 
 	/* Setup temporary smb_filename structs. */
-	status = copy_smb_filename(talloc_tos(), smb_fname, &smb_fname_tmp);
-	if (!NT_STATUS_IS_OK(status)) {
-		errno = map_errno_from_nt_status(status);
+	smb_fname_tmp = cp_smb_filename(talloc_tos(), smb_fname);
+	if (smb_fname_tmp == NULL) {
+		errno = ENOMEM;
 		return -1;
 	}
 
@@ -628,9 +627,9 @@ static int catia_ntimes(vfs_handle_struct *handle,
 		return -1;
 	}
 
-	status = copy_smb_filename(talloc_tos(), smb_fname, &smb_fname_tmp);
-	if (!NT_STATUS_IS_OK(status)) {
-		errno = map_errno_from_nt_status(status);
+	smb_fname_tmp = cp_smb_filename(talloc_tos(), smb_fname);
+	if (smb_fname_tmp == NULL) {
+		errno = ENOMEM;
 		return -1;
 	}
 

@@ -428,7 +428,7 @@ static void reinit_after_fork_pipe_handler(struct tevent_context *ev,
 
 
 NTSTATUS reinit_after_fork(struct messaging_context *msg_ctx,
-			   struct event_context *ev_ctx,
+			   struct tevent_context *ev_ctx,
 			   bool parent_longlived)
 {
 	NTSTATUS status = NT_STATUS_OK;
@@ -558,31 +558,6 @@ char *get_mydnsdomname(TALLOC_CTX *ctx)
 		return talloc_strdup(ctx, "");
 	}
 }
-
-/****************************************************************************
- Interpret a protocol description string, with a default.
-****************************************************************************/
-
-int interpret_protocol(const char *str,int def)
-{
-	if (strequal(str,"NT1"))
-		return(PROTOCOL_NT1);
-	if (strequal(str,"LANMAN2"))
-		return(PROTOCOL_LANMAN2);
-	if (strequal(str,"LANMAN1"))
-		return(PROTOCOL_LANMAN1);
-	if (strequal(str,"CORE"))
-		return(PROTOCOL_CORE);
-	if (strequal(str,"COREPLUS"))
-		return(PROTOCOL_COREPLUS);
-	if (strequal(str,"CORE+"))
-		return(PROTOCOL_COREPLUS);
-
-	DEBUG(0,("Unrecognised protocol level %s\n",str));
-
-	return(def);
-}
-
 
 #if (defined(HAVE_NETGROUP) && defined(WITH_AUTOMOUNT))
 /******************************************************************
@@ -1519,15 +1494,17 @@ static char *xx_path(const char *name, const char *rootpath)
 	trim_string(fname,"","/");
 
 	if (!directory_exist(fname)) {
-		if (!mkdir(fname,0755))
-			DEBUG(1, ("Unable to create directory %s for file %s. "
-			      "Error was %s\n", fname, name, strerror(errno)));
+		if (mkdir(fname,0755) == -1) {
+			/* Did someone else win the race ? */
+			if (errno != EEXIST) {
+				DEBUG(1, ("Unable to create directory %s for file %s. "
+					"Error was %s\n", fname, name, strerror(errno)));
+				return NULL;
+			}
+		}
 	}
 
-	return talloc_asprintf(talloc_tos(),
-				"%s/%s",
-				fname,
-				name);
+	return talloc_asprintf_append(fname, "/%s", name);
 }
 
 /**

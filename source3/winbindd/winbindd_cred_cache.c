@@ -38,8 +38,8 @@
 #define MAX_CCACHES 100
 
 static struct WINBINDD_CCACHE_ENTRY *ccache_list;
-static void krb5_ticket_gain_handler(struct event_context *,
-				     struct timed_event *,
+static void krb5_ticket_gain_handler(struct tevent_context *,
+				     struct tevent_timer *,
 				     struct timeval,
 				     void *);
 static void add_krb5_ticket_gain_handler_event(struct WINBINDD_CCACHE_ENTRY *,
@@ -104,8 +104,8 @@ void ccache_remove_all_after_fork(void)
  Do the work of refreshing the ticket.
 ****************************************************************/
 
-static void krb5_ticket_refresh_handler(struct event_context *event_ctx,
-					struct timed_event *te,
+static void krb5_ticket_refresh_handler(struct tevent_context *event_ctx,
+					struct tevent_timer *te,
 					struct timeval now,
 					void *private_data)
 {
@@ -285,7 +285,7 @@ done:
 	if (entry->refresh_time == 0) {
 		entry->refresh_time = new_start;
 	}
-	entry->event = event_add_timed(winbind_event_context(), entry,
+	entry->event = tevent_add_timer(winbind_event_context(), entry,
 				       timeval_set(new_start, 0),
 				       krb5_ticket_refresh_handler,
 				       entry);
@@ -297,8 +297,8 @@ done:
  Do the work of regaining a ticket when coming from offline auth.
 ****************************************************************/
 
-static void krb5_ticket_gain_handler(struct event_context *event_ctx,
-				     struct timed_event *te,
+static void krb5_ticket_gain_handler(struct tevent_context *event_ctx,
+				     struct tevent_timer *te,
 				     struct timeval now,
 				     void *private_data)
 {
@@ -385,7 +385,7 @@ static void krb5_ticket_gain_handler(struct event_context *event_ctx,
 	if (entry->refresh_time == 0) {
 		entry->refresh_time = t.tv_sec;
 	}
-	entry->event = event_add_timed(winbind_event_context(),
+	entry->event = tevent_add_timer(winbind_event_context(),
 				       entry,
 				       t,
 				       krb5_ticket_refresh_handler,
@@ -404,7 +404,7 @@ static void add_krb5_ticket_gain_handler_event(struct WINBINDD_CCACHE_ENTRY *ent
 				     struct timeval t)
 {
 	entry->refresh_time = 0;
-	entry->event = event_add_timed(winbind_event_context(),
+	entry->event = tevent_add_timer(winbind_event_context(),
 				       entry,
 				       t,
 				       krb5_ticket_gain_handler,
@@ -417,20 +417,20 @@ void ccache_regain_all_now(void)
 	struct timeval t = timeval_current();
 
 	for (cur = ccache_list; cur; cur = cur->next) {
-		struct timed_event *new_event;
+		struct tevent_timer *new_event;
 
 		/*
 		 * if refresh_time is 0, we know that the
 		 * the event has the krb5_ticket_gain_handler
 		 */
 		if (cur->refresh_time == 0) {
-			new_event = event_add_timed(winbind_event_context(),
+			new_event = tevent_add_timer(winbind_event_context(),
 						    cur,
 						    t,
 						    krb5_ticket_gain_handler,
 						    cur);
 		} else {
-			new_event = event_add_timed(winbind_event_context(),
+			new_event = tevent_add_timer(winbind_event_context(),
 						    cur,
 						    t,
 						    krb5_ticket_refresh_handler,
@@ -571,7 +571,7 @@ NTSTATUS add_ccache_to_list(const char *princ_name,
 				if (!entry->refresh_time) {
 					entry->refresh_time = t.tv_sec;
 				}
-				entry->event = event_add_timed(winbind_event_context(),
+				entry->event = tevent_add_timer(winbind_event_context(),
 							       entry,
 							       t,
 							       krb5_ticket_refresh_handler,
@@ -669,7 +669,7 @@ NTSTATUS add_ccache_to_list(const char *princ_name,
 		if (entry->refresh_time == 0) {
 			entry->refresh_time = t.tv_sec;
 		}
-		entry->event = event_add_timed(winbind_event_context(),
+		entry->event = tevent_add_timer(winbind_event_context(),
 					       entry,
 					       t,
 					       krb5_ticket_refresh_handler,
@@ -846,11 +846,11 @@ static NTSTATUS store_memory_creds(struct WINBINDD_MEMORY_CREDS *memcredp,
 	DEBUG(10,("mlocked memory: %p\n", memcredp->nt_hash));
 #endif
 
-	/* Create and store the password hashes. */
-	E_md4hash(pass, memcredp->nt_hash);
-	E_deshash(pass, memcredp->lm_hash);
-
 	if (pass) {
+		/* Create and store the password hashes. */
+		E_md4hash(pass, memcredp->nt_hash);
+		E_deshash(pass, memcredp->lm_hash);
+
 		memcredp->pass = (char *)memcredp->lm_hash + LM_HASH_LEN;
 		memcpy(memcredp->pass, pass,
 		       memcredp->len - NT_HASH_LEN - LM_HASH_LEN);

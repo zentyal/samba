@@ -378,6 +378,7 @@ SMBC_opendir_ctx(SMBCCTX *context,
 	char *workgroup = NULL;
 	char *path = NULL;
         uint16 mode;
+	uint16_t port = 0;
         char *p = NULL;
 	SMBCSRV *srv  = NULL;
 	SMBCFILE *dir = NULL;
@@ -404,6 +405,7 @@ SMBC_opendir_ctx(SMBCCTX *context,
                             fname,
                             &workgroup,
                             &server,
+                            &port,
                             &share,
                             &path,
                             &user,
@@ -579,7 +581,7 @@ SMBC_opendir_ctx(SMBCCTX *context,
                          * workgroups/domains that it knows about.
                          */
 
-                        srv = SMBC_server(frame, context, True, server, "IPC$",
+                        srv = SMBC_server(frame, context, True, server, port, "IPC$",
                                           &workgroup, &user, &password);
                         if (!srv) {
                                 continue;
@@ -634,7 +636,7 @@ SMBC_opendir_ctx(SMBCCTX *context,
                          * exist.
                          */
                         srv = SMBC_server(frame, context, False,
-                                          server, "IPC$",
+                                          server, port, "IPC$",
                                           &workgroup, &user, &password);
 
                         /*
@@ -683,7 +685,7 @@ SMBC_opendir_ctx(SMBCCTX *context,
                                  * we do not already have one
                                  */
 				srv = SMBC_server(frame, context, True,
-                                                  buserver, "IPC$",
+                                                  buserver, port, "IPC$",
                                                   &workgroup,
                                                   &user, &password);
 				if (!srv) {
@@ -719,7 +721,7 @@ SMBC_opendir_ctx(SMBCCTX *context,
                                  */
                                 if (!srv) {
                                         srv = SMBC_server(frame, context, True,
-                                                          server, "IPC$",
+                                                          server, port, "IPC$",
                                                           &workgroup,
                                                           &user, &password);
                                 }
@@ -781,7 +783,7 @@ SMBC_opendir_ctx(SMBCCTX *context,
 			/* We connect to the server and list the directory */
 			dir->dir_type = SMBC_FILE_SHARE;
 
-			srv = SMBC_server(frame, context, True, server, share,
+			srv = SMBC_server(frame, context, True, server, port, share,
                                           &workgroup, &user, &password);
 
 			if (!srv) {
@@ -1161,6 +1163,7 @@ SMBC_mkdir_ctx(SMBCCTX *context,
         char *workgroup = NULL;
 	char *path = NULL;
 	char *targetpath = NULL;
+	uint16_t port = 0;
 	struct cli_state *targetcli = NULL;
 	TALLOC_CTX *frame = talloc_stackframe();
 	NTSTATUS status;
@@ -1184,6 +1187,7 @@ SMBC_mkdir_ctx(SMBCCTX *context,
                             fname,
                             &workgroup,
                             &server,
+                            &port,
                             &share,
                             &path,
                             &user,
@@ -1204,7 +1208,7 @@ SMBC_mkdir_ctx(SMBCCTX *context,
 	}
 
 	srv = SMBC_server(frame, context, True,
-                          server, share, &workgroup, &user, &password);
+                          server, port, share, &workgroup, &user, &password);
 
 	if (!srv) {
 
@@ -1270,6 +1274,7 @@ SMBC_rmdir_ctx(SMBCCTX *context,
         char *workgroup = NULL;
 	char *path = NULL;
         char *targetpath = NULL;
+	uint16_t port = 0;
 	struct cli_state *targetcli = NULL;
 	TALLOC_CTX *frame = talloc_stackframe();
 	NTSTATUS status;
@@ -1293,6 +1298,7 @@ SMBC_rmdir_ctx(SMBCCTX *context,
                             fname,
                             &workgroup,
                             &server,
+                            &port,
                             &share,
                             &path,
                             &user,
@@ -1313,7 +1319,7 @@ SMBC_rmdir_ctx(SMBCCTX *context,
 	}
 
 	srv = SMBC_server(frame, context, True,
-                          server, share, &workgroup, &user, &password);
+                          server, port, share, &workgroup, &user, &password);
 
 	if (!srv) {
 
@@ -1557,6 +1563,7 @@ SMBC_chmod_ctx(SMBCCTX *context,
 	struct cli_state *targetcli = NULL;
 	char *path = NULL;
 	uint16 mode;
+	uint16_t port = 0;
 	TALLOC_CTX *frame = talloc_stackframe();
         NTSTATUS status;
 
@@ -1580,6 +1587,7 @@ SMBC_chmod_ctx(SMBCCTX *context,
                             fname,
                             &workgroup,
                             &server,
+                            &port,
                             &share,
                             &path,
                             &user,
@@ -1600,7 +1608,7 @@ SMBC_chmod_ctx(SMBCCTX *context,
 	}
 
 	srv = SMBC_server(frame, context, True,
-                          server, share, &workgroup, &user, &password);
+                          server, port, share, &workgroup, &user, &password);
 
 	if (!srv) {
 		TALLOC_FREE(frame);
@@ -1648,6 +1656,7 @@ SMBC_utimes_ctx(SMBCCTX *context,
 	char *path = NULL;
         time_t access_time;
         time_t write_time;
+	uint16_t port = 0;
 	TALLOC_CTX *frame = talloc_stackframe();
 
 	if (!context || !context->internal->initialized) {
@@ -1696,6 +1705,7 @@ SMBC_utimes_ctx(SMBCCTX *context,
                             fname,
                             &workgroup,
                             &server,
+                            &port,
                             &share,
                             &path,
                             &user,
@@ -1716,7 +1726,7 @@ SMBC_utimes_ctx(SMBCCTX *context,
 	}
 
 	srv = SMBC_server(frame, context, True,
-                          server, share, &workgroup, &user, &password);
+                          server, port, share, &workgroup, &user, &password);
 
 	if (!srv) {
 		TALLOC_FREE(frame);
@@ -1748,6 +1758,7 @@ SMBC_unlink_ctx(SMBCCTX *context,
         char *workgroup = NULL;
 	char *path = NULL;
 	char *targetpath = NULL;
+	uint16_t port = 0;
 	struct cli_state *targetcli = NULL;
 	SMBCSRV *srv = NULL;
 	TALLOC_CTX *frame = talloc_stackframe();
@@ -1773,6 +1784,7 @@ SMBC_unlink_ctx(SMBCCTX *context,
                             fname,
                             &workgroup,
                             &server,
+                            &port,
                             &share,
                             &path,
                             &user,
@@ -1793,7 +1805,7 @@ SMBC_unlink_ctx(SMBCCTX *context,
 	}
 
 	srv = SMBC_server(frame, context, True,
-                          server, share, &workgroup, &user, &password);
+                          server, port, share, &workgroup, &user, &password);
 
 	if (!srv) {
 		TALLOC_FREE(frame);
@@ -1886,6 +1898,8 @@ SMBC_rename_ctx(SMBCCTX *ocontext,
 	struct cli_state *targetcli1 = NULL;
         struct cli_state *targetcli2 = NULL;
 	SMBCSRV *srv = NULL;
+	uint16_t port1 = 0;
+	uint16_t port2 = 0;
 	TALLOC_CTX *frame = talloc_stackframe();
         NTSTATUS status;
 
@@ -1911,6 +1925,7 @@ SMBC_rename_ctx(SMBCCTX *ocontext,
                             oname,
                             &workgroup,
                             &server1,
+                            &port1,
                             &share1,
                             &path1,
                             &user1,
@@ -1935,6 +1950,7 @@ SMBC_rename_ctx(SMBCCTX *ocontext,
                             nname,
                             NULL,
                             &server2,
+                            &port2,
                             &share2,
                             &path2,
                             &user2,
@@ -1963,7 +1979,7 @@ SMBC_rename_ctx(SMBCCTX *ocontext,
 	}
 
 	srv = SMBC_server(frame, ocontext, True,
-                          server1, share1, &workgroup, &user1, &password1);
+                          server1, port1, share1, &workgroup, &user1, &password1);
 	if (!srv) {
 		TALLOC_FREE(frame);
 		return -1;

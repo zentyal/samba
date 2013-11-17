@@ -63,7 +63,7 @@ struct smbd_parent_context {
 	struct smbd_child_pid *children;
 	size_t num_children;
 
-	struct timed_event *cleanup_te;
+	struct tevent_timer *cleanup_te;
 };
 
 struct smbd_open_socket {
@@ -81,7 +81,7 @@ struct smbd_child_pid {
 extern void start_epmd(struct tevent_context *ev_ctx,
 		       struct messaging_context *msg_ctx);
 
-extern void start_lsasd(struct event_context *ev_ctx,
+extern void start_lsasd(struct tevent_context *ev_ctx,
 			struct messaging_context *msg_ctx);
 
 #ifdef WITH_DFS
@@ -283,7 +283,7 @@ static bool smbd_parent_notify_init(TALLOC_CTX *mem_ctx,
 
 	state = talloc(mem_ctx, struct smbd_parent_notify_state);
 	if (state == NULL) {
-		return NULL;
+		return false;
 	}
 	state->msg = msg;
 	state->ev = ev;
@@ -395,8 +395,8 @@ static void add_child_pid(struct smbd_parent_context *parent,
   network outage).  
 */
 
-static void cleanup_timeout_fn(struct event_context *event_ctx,
-				struct timed_event *te,
+static void cleanup_timeout_fn(struct tevent_context *event_ctx,
+				struct tevent_timer *te,
 				struct timeval now,
 				void *private_data)
 {
@@ -552,7 +552,7 @@ static void smbd_accept_connection(struct tevent_context *ev,
 		return;
 
 	if (fd == -1) {
-		DEBUG(0,("open_sockets_smbd: accept: %s\n",
+		DEBUG(0,("accept: %s\n",
 			 strerror(errno)));
 		return;
 	}
@@ -663,7 +663,6 @@ static void smbd_accept_connection(struct tevent_context *ev,
 
 static bool smbd_open_one_socket(struct smbd_parent_context *parent,
 				 struct tevent_context *ev_ctx,
-				 struct messaging_context *msg_ctx,
 				 const struct sockaddr_storage *ifss,
 				 uint16_t port)
 {
@@ -793,7 +792,6 @@ static bool open_sockets_smbd(struct smbd_parent_context *parent,
 
 				if (!smbd_open_one_socket(parent,
 							  ev_ctx,
-							  msg_ctx,
 							  ifss,
 							  port)) {
 					return false;
@@ -835,7 +833,6 @@ static bool open_sockets_smbd(struct smbd_parent_context *parent,
 
 				if (!smbd_open_one_socket(parent,
 							  ev_ctx,
-							  msg_ctx,
 							  &ss,
 							  port)) {
 					return false;
@@ -1476,7 +1473,7 @@ extern void build_options(bool screen);
 		return -1;
 	}
 
-	if (!directory_create_or_exist(np_dir, geteuid(), 0700)) {
+	if (!directory_create_or_exist_strict(np_dir, geteuid(), 0700)) {
 		DEBUG(0, ("Failed to create pipe directory %s - %s\n",
 			  np_dir, strerror(errno)));
 		return -1;

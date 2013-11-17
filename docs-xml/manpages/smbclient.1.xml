@@ -37,6 +37,7 @@
 		<arg choice="opt">-p port</arg>
 		<arg choice="opt">-R &lt;name resolve order&gt;</arg>
 		<arg choice="opt">-s &lt;smb config file&gt;</arg>
+		<arg choice="opt">-t &lt;per-operation timeout in seconds&gt;</arg>
 		<arg choice="opt">-k</arg>
 		<arg choice="opt">-P</arg>
 		<arg choice="opt">-c &lt;command&gt;</arg>
@@ -67,6 +68,7 @@
 		<arg choice="opt">-p port</arg>
 		<arg choice="opt">-R &lt;name resolve order&gt;</arg>
 		<arg choice="opt">-s &lt;smb config file&gt;</arg>
+		<arg choice="opt">-t &lt;per-operation timeout in seconds&gt;</arg>
 		<arg choice="opt">-T&lt;c|x&gt;IXFqgbNan</arg>
 		<arg choice="opt">-k</arg>
 	</cmdsynopsis>
@@ -256,7 +258,14 @@
 
 		<varlistentry>
 		<term>-m|--max-protocol protocol</term>
-		<listitem><para>This parameter sets the maximum protocol version announced by the client.
+		<listitem><para>This allows the user to select the
+		highest SMB protocol level that smbclient will use to
+		connect to the server. By default this is set to
+		NT1, which is the highest available SMB1 protocol.
+		To connect using SMB2 or SMB3 protocol, use the
+		strings SMB2 or SMB3 respectively. Note that to connect
+		to a Windows 2012 server with encrypted transport selecting
+		a max-protocol of SMB3 is required.
 		</para></listitem>
 		</varlistentry>
 
@@ -309,22 +318,29 @@
 		
 		<varlistentry>	
 		<term>-b|--send-buffer buffersize</term>
-		<listitem><para>This option changes the transmit/send buffer 
-		size when getting or putting a file from/to the server. The default 
-		is 65520 bytes. Setting this value smaller (to 1200 bytes) has been 
-		observed to speed up file transfers to and from a Win9x server. 
+		<listitem><para>
+		When sending or receiving files, smbclient uses an
+		internal buffer sized by the maximum number of allowed requests
+		to the connected server. This command allows this size to be set to any
+		range between 0 (which means use the default server controlled size) bytes
+		and 16776960 (0xFFFF00) bytes. Using the server controlled size is the
+		most efficient as smbclient will pipeline as many simultaneous reads or
+		writes needed to keep the server as busy as possible. Setting this to
+		any other size will slow down the transfer. This can also be set
+		using the <command>iosize</command> command inside smbclient.
 		</para></listitem>
 		</varlistentry>
 		
 		<varlistentry>
 		<term>-e|--encrypt</term>
-		<listitem><para>This command line parameter requires the remote
-		server support the UNIX extensions. Request that the connection be
-		encrypted. This is new for Samba 3.2 and will only work with Samba
-		3.2 or above servers. Negotiates SMB encryption using GSSAPI. Uses
-		the given credentials for the encryption negotiation (either kerberos
-		or NTLMv1/v2 if given domain/username/password triple. Fails the
-		connection if encryption cannot be negotiated.
+		<listitem><para>
+		This command line parameter requires the remote
+		server support the UNIX extensions or that the SMB3 protocol has been selected.
+		Requests that the connection be encrypted. Negotiates SMB encryption using either
+		SMB3 or POSIX extensions via GSSAPI. Uses the given credentials for
+		the encryption negotiation (either kerberos or NTLMv1/v2 if given
+		domain/username/password triple. Fails the connection if encryption
+		cannot be negotiated.
 		</para></listitem>
 		</varlistentry>
 		
@@ -333,6 +349,18 @@
 		&popt.common.credentials;
 		&popt.common.connection;
 		
+		<varlistentry>
+		<term>-t|--timeout &lt;timeout-seconds&gt;</term>
+		<listitem><para>This allows the user to tune the default
+		timeout used for each SMB request. The default setting is
+		20 seconds. Increase it if requests to the server sometimes
+		time out. This can happen when SMB3 encryption is selected
+		and smbclient is overwhelming the server with requests.
+		This can also be set using the <command>timeout</command>
+		command inside smbclient.
+		</para></listitem>
+		</varlistentry>
+
 		<varlistentry>
 		<term>-T|--tar tar options</term>
 		<listitem><para>smbclient may be used to create <command>tar(1)
@@ -446,7 +474,7 @@
 		<para>Create the same tar file as above, but now use 
 		a DOS path name. </para>
 		
-		<para><command>smbclient //mypc/myshare "" -N -tc backup.tar 
+		<para><command>smbclient //mypc/myshare "" -N -Tc backup.tar
 		users\edocs </command></para>
 		
 		<para>Create a tar file of the files listed in the file <filename>tarlist</filename>.</para>
@@ -694,12 +722,15 @@
 
 		<varlistentry>
 		<term>iosize &lt;bytes&gt;</term>
-		<listitem><para>When sending or receiving files, smbclient uses an
-		internal memory buffer by default of size 64512 bytes. This command
-		allows this size to be set to any range between 16384 (0x4000) bytes
-		and 16776960 (0xFFFF00) bytes. Larger sizes may mean more efficient
-		data transfer as smbclient will try and use the most efficient
-		read and write calls for the connected server.
+		<listitem><para>
+		When sending or receiving files, smbclient uses an
+		internal buffer sized by the maximum number of allowed requests
+		to the connected server. This command allows this size to be set to any
+		range between 0 (which means use the default server controlled size) bytes
+		and 16776960 (0xFFFF00) bytes. Using the server controlled size is the
+		most efficient as smbclient will pipeline as many simultaneous reads or
+		writes needed to keep the server as busy as possible. Setting this to
+		any other size will slow down the transfer.
 		</para></listitem>
 		</varlistentry>
 
@@ -1038,6 +1069,16 @@
 		tar will only back up files with the archive bit set. In reset mode,
 		tar will reset the archive bit on all files it backs up (implies
 		read/write share). </para></listitem>
+		</varlistentry>
+
+		<varlistentry>
+		<term>timeout &lt;per-operation timeout in seconds&gt;</term>
+		<listitem><para>This allows the user to tune the default
+		timeout used for each SMB request. The default setting is
+		20 seconds. Increase it if requests to the server sometimes
+		time out. This can happen when SMB3 encryption is selected
+		and smbclient is overwhelming the server with requests.
+		</para></listitem>
 		</varlistentry>
 
 		<varlistentry>

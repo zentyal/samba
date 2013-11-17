@@ -1,4 +1,4 @@
-/* 
+/*
    Unix SMB/CIFS implementation.
    simple tdb dump util
    Copyright (C) Andrew Tridgell              2001
@@ -7,12 +7,12 @@
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -55,9 +55,6 @@ static void log_stderr(struct tdb_context *tdb, enum tdb_debug_level level,
 		       const char *fmt, ...)
 {
 	va_list ap;
-	char *ptr = NULL;
-	int debuglevel = 0;
-	int ret;
 	const char *name = tdb_name(tdb);
 	const char *prefix = "";
 
@@ -102,7 +99,7 @@ static int dump_tdb(const char *fname, const char *keyname, bool emergency)
 	TDB_CONTEXT *tdb;
 	TDB_DATA key, value;
 	struct tdb_logging_context logfn = { log_stderr };
-	
+
 	tdb = tdb_open_ex(fname, 0, 0, O_RDONLY, 0, &logfn, NULL);
 	if (!tdb) {
 		printf("Failed to open %s\n", fname);

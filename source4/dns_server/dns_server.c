@@ -46,6 +46,9 @@
 #include "auth/auth.h"
 #include "auth/credentials/credentials.h"
 
+#undef DBGC_CLASS
+#define DBGC_CLASS DBGC_DNS
+
 NTSTATUS server_service_dns_init(void);
 
 /* hold information about one dns socket */
@@ -130,7 +133,7 @@ static struct tevent_req *dns_process_send(TALLOC_CTX *mem_ctx,
 		tevent_req_werror(req, WERR_INVALID_PARAM);
 		return tevent_req_post(req, ev);
 	}
-	dump_data(8, in->data, in->length);
+	dump_data_dbgc(DBGC_DNS, 8, in->data, in->length);
 
 	ndr_err = ndr_pull_struct_blob(
 		in, state, &state->in_packet,
@@ -141,8 +144,8 @@ static struct tevent_req *dns_process_send(TALLOC_CTX *mem_ctx,
 		tevent_req_done(req);
 		return tevent_req_post(req, ev);
 	}
-	if (DEBUGLVL(8)) {
-		NDR_PRINT_DEBUG(dns_name_packet, &state->in_packet);
+	if (DEBUGLVLC(DBGC_DNS, 8)) {
+		NDR_PRINT_DEBUGC(DBGC_DNS, dns_name_packet, &state->in_packet);
 	}
 
 	ret = dns_verify_tsig(dns, state, &state->state, &state->in_packet, in);
@@ -234,6 +237,10 @@ static WERROR dns_process_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx,
 			state->dns_err = DNS_RCODE_SERVFAIL;
 			goto drop;
 		}
+	}
+
+	if (DEBUGLVLC(DBGC_DNS, 8)) {
+		NDR_PRINT_DEBUGC(DBGC_DNS, dns_name_packet, &state->out_packet);
 	}
 
 	ndr_err = ndr_push_struct_blob(

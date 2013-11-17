@@ -123,7 +123,7 @@ NTSTATUS pdb_nop_enum_group_mapping(struct pdb_methods *methods,
 					   enum lsa_SidType sid_name_use,
 					   GROUP_MAP **rmap, size_t *num_entries,
 					   bool unix_only);
-NTSTATUS pdb_create_builtin_alias(uint32_t rid);
+NTSTATUS pdb_create_builtin_alias(uint32_t rid, gid_t gid);
 
 
 /* passdb headers */
@@ -413,9 +413,10 @@ enum pdb_policy_type {
  * Changed to 19, removed uid_to_rid
  * Changed to 20, pdb_secret calls
  * Changed to 21, set/enum_upn_suffixes. AB.
+ * Changed to 22, idmap control functions
  */
 
-#define PASSDB_INTERFACE_VERSION 21
+#define PASSDB_INTERFACE_VERSION 22
 
 struct pdb_methods 
 {
@@ -623,6 +624,12 @@ struct pdb_methods
 	NTSTATUS (*set_upn_suffixes)(struct pdb_methods *methods,
 				     uint32_t num_suffixes,
 				     const char **suffixes);
+
+	bool (*is_responsible_for_our_sam)(struct pdb_methods *methods);
+	bool (*is_responsible_for_builtin)(struct pdb_methods *methods);
+	bool (*is_responsible_for_wellknown)(struct pdb_methods *methods);
+	bool (*is_responsible_for_unix_users)(struct pdb_methods *methods);
+	bool (*is_responsible_for_unix_groups)(struct pdb_methods *methods);
 
 	void *private_data;  /* Private data of some kind */
 
@@ -927,9 +934,15 @@ NTSTATUS pdb_enum_upn_suffixes(TALLOC_CTX *mem_ctx,
 
 NTSTATUS pdb_set_upn_suffixes(uint32_t num_suffixes,
 			      const char **suffixes);
+bool pdb_is_responsible_for_our_sam(void);
+bool pdb_is_responsible_for_builtin(void);
+bool pdb_is_responsible_for_wellknown(void);
+bool pdb_is_responsible_for_unix_users(void);
+bool pdb_is_responsible_for_unix_groups(void);
 
 /* The following definitions come from passdb/pdb_util.c  */
 
+NTSTATUS pdb_create_builtin(uint32_t rid);
 NTSTATUS create_builtin_users(const struct dom_sid *sid);
 NTSTATUS create_builtin_administrators(const struct dom_sid *sid);
 

@@ -30,6 +30,7 @@
 #include "librpc/gen_ndr/ndr_misc.h"
 #include "librpc/rpc/dcerpc_proto.h"
 #include "auth/credentials/credentials.h"
+#include "auth/gensec/gensec.h"
 #include "param/param.h"
 #include "librpc/rpc/rpc_common.h"
 
@@ -335,6 +336,7 @@ struct pipe_auth_state {
 	const struct ndr_interface_table *table;
 	struct loadparm_context *lp_ctx;
 	struct cli_credentials *credentials;
+	unsigned int logon_retries;
 };
 
 
@@ -394,8 +396,27 @@ static void continue_auth_auto(struct composite_context *ctx)
 								s->binding);
 		composite_continue(c, sec_conn_req, continue_ntlmssp_connection, c);
 		return;
-	} else if (NT_STATUS_EQUAL(c->status, NT_STATUS_LOGON_FAILURE)) {
-		if (cli_credentials_wrong_password(s->credentials)) {
+	} else if (NT_STATUS_EQUAL(c->status, NT_STATUS_LOGON_FAILURE) ||
+		   NT_STATUS_EQUAL(c->status, NT_STATUS_UNSUCCESSFUL)) {
+		/*
+		  try a second time on any error. We don't just do it
+		  on LOGON_FAILURE as some servers will give a
+		  NT_STATUS_UNSUCCESSFUL on a authentication error on RPC
+		 */
+		const char *principal;
+
+		principal = gensec_get_target_principal(s->pipe->conn->security_state.generic_state);
+		if (principal == NULL) {
+			const char *hostname = gensec_get_target_hostname(s->pipe->conn->security_state.generic_state);
+			const char *service  = gensec_get_target_service(s->pipe->conn->security_state.generic_state);
+			if (hostname != NULL && service != NULL) {
+				principal = talloc_asprintf(c, "%s/%s", service, hostname);
+			}
+		}
+
+		if ((cli_credentials_failed_kerberos_login(s->credentials, principal, &s->logon_retries) ||
+		     cli_credentials_wrong_password(s->credentials)) &&
+		    s->binding->endpoint != NULL) {
 			/*
 			 * Retry SPNEGO with a better password
 			 * send a request for secondary rpc connection

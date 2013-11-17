@@ -1,5 +1,6 @@
-# Copyright (c) 2008-2011 testtools developers. See LICENSE for details.
+# Copyright (c) 2008-2012 testtools developers. See LICENSE for details.
 
+import json
 import os
 import tempfile
 import unittest
@@ -8,6 +9,7 @@ from testtools import TestCase
 from testtools.compat import (
     _b,
     _u,
+    BytesIO,
     StringIO,
     )
 from testtools.content import (
@@ -15,6 +17,8 @@ from testtools.content import (
     Content,
     content_from_file,
     content_from_stream,
+    JSON,
+    json_content,
     TracebackContent,
     text_content,
     )
@@ -87,6 +91,12 @@ class TestContent(TestCase):
         content = Content(content_type, lambda: [iso_version])
         self.assertEqual([text], list(content.iter_text()))
 
+    def test_as_text(self):
+        content_type = ContentType("text", "strange", {"charset": "utf8"})
+        content = Content(
+            content_type, lambda: [_u("bytes\xea").encode("utf8")])
+        self.assertEqual(_u("bytes\xea"), content.as_text())
+
     def test_from_file(self):
         fd, path = tempfile.mkstemp()
         self.addCleanup(os.remove, path)
@@ -116,6 +126,26 @@ class TestContent(TestCase):
         self.assertThat(
             ''.join(content.iter_text()), Equals('some data'))
 
+    def test_from_file_with_simple_seek(self):
+        f = tempfile.NamedTemporaryFile()
+        f.write(_b('some data'))
+        f.flush()
+        self.addCleanup(f.close)
+        content = content_from_file(
+            f.name, UTF8_TEXT, chunk_size=50, seek_offset=5)
+        self.assertThat(
+            list(content.iter_bytes()), Equals([_b('data')]))
+
+    def test_from_file_with_whence_seek(self):
+        f = tempfile.NamedTemporaryFile()
+        f.write(_b('some data'))
+        f.flush()
+        self.addCleanup(f.close)
+        content = content_from_file(
+            f.name, UTF8_TEXT, chunk_size=50, seek_offset=-4, seek_whence=2)
+        self.assertThat(
+            list(content.iter_bytes()), Equals([_b('data')]))
+
     def test_from_stream(self):
         data = StringIO('some data')
         content = content_from_stream(data, UTF8_TEXT, chunk_size=2)
@@ -130,18 +160,38 @@ class TestContent(TestCase):
     def test_from_stream_eager_loading(self):
         fd, path = tempfile.mkstemp()
         self.addCleanup(os.remove, path)
+        self.addCleanup(os.close, fd)
         os.write(fd, _b('some data'))
         stream = open(path, 'rb')
+        self.addCleanup(stream.close)
         content = content_from_stream(stream, UTF8_TEXT, buffer_now=True)
         os.write(fd, _b('more data'))
-        os.close(fd)
         self.assertThat(
             ''.join(content.iter_text()), Equals('some data'))
+
+    def test_from_stream_with_simple_seek(self):
+        data = BytesIO(_b('some data'))
+        content = content_from_stream(
+            data, UTF8_TEXT, chunk_size=50, seek_offset=5)
+        self.assertThat(
+            list(content.iter_bytes()), Equals([_b('data')]))
+
+    def test_from_stream_with_whence_seek(self):
+        data = BytesIO(_b('some data'))
+        content = content_from_stream(
+            data, UTF8_TEXT, chunk_size=50, seek_offset=-4, seek_whence=2)
+        self.assertThat(
+            list(content.iter_bytes()), Equals([_b('data')]))
 
     def test_from_text(self):
         data = _u("some data")
         expected = Content(UTF8_TEXT, lambda: [data.encode('utf8')])
         self.assertEqual(expected, text_content(data))
+
+    def test_json_content(self):
+        data = {'foo': 'bar'}
+        expected = Content(JSON, lambda: [_b('{"foo": "bar"}')])
+        self.assertEqual(expected, json_content(data))
 
 
 class TestTracebackContent(TestCase):

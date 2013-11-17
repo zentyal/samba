@@ -121,7 +121,7 @@ void winbindd_list_trusted_domains(struct winbindd_cli_state *state)
 			extra_data,
 			"%s\\%s\\%s\\%s\\%s\\%s\\%s\\%s\n",
 			d->domain_name,
-			d->dns_name ? d->dns_name : d->domain_name,
+			d->dns_name ? d->dns_name : "",
 			sid_string_talloc(state->mem_ctx, &d->sid),
 			get_trust_type_string(d),
 			trust_is_transitive(d) ? "Yes" : "No",
@@ -200,7 +200,9 @@ enum winbindd_result winbindd_dual_list_trusted_domains(struct winbindd_domain *
 	if (state->request->data.list_all_domains && !have_own_domain) {
 		extra_data = talloc_asprintf_append_buffer(
 			extra_data, "%s\\%s\\%s\n", domain->name,
-			domain->alt_name[0] ? domain->alt_name : domain->name,
+			domain->alt_name != NULL ?
+				domain->alt_name :
+				domain->name,
 			sid_string_talloc(state->mem_ctx, &domain->sid));
 	}
 

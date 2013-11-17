@@ -331,10 +331,88 @@ sub setup_admember($$$$)
 	return $ret;
 }
 
+sub setup_admember_rfc2307($$$$)
+{
+	my ($self, $prefix, $dcvars) = @_;
+
+	# If we didn't build with ADS, pretend this env was never available
+	if (not $self->have_ads()) {
+	        return "UNKNOWN";
+	}
+
+	print "PROVISIONING S3 AD MEMBER WITH idmap_rfc2307 config...";
+
+	my $member_options = "
+	security = ads
+	server signing = on
+        workgroup = $dcvars->{DOMAIN}
+        realm = $dcvars->{REALM}
+        idmap config $dcvars->{DOMAIN} : backend = rfc2307
+        idmap config $dcvars->{DOMAIN} : range = 2000000-2999999
+        idmap config $dcvars->{DOMAIN} : ldap_server = ad
+        idmap config $dcvars->{DOMAIN} : bind_path_user = ou=idmap,dc=samba,dc=example,dc=com
+        idmap config $dcvars->{DOMAIN} : bind_path_group = ou=idmap,dc=samba,dc=example,dc=com
+";
+
+	my $ret = $self->provision($prefix,
+				   "RFC2307MEMBER",
+				   "loCalMemberPass",
+				   $member_options);
+
+	$ret or return undef;
+
+	close(USERMAP);
+	$ret->{DOMAIN} = $dcvars->{DOMAIN};
+	$ret->{REALM} = $dcvars->{REALM};
+
+	my $ctx;
+	my $prefix_abs = abs_path($prefix);
+	$ctx = {};
+	$ctx->{krb5_conf} = "$prefix_abs/lib/krb5.conf";
+	$ctx->{domain} = $dcvars->{DOMAIN};
+	$ctx->{realm} = $dcvars->{REALM};
+	$ctx->{dnsname} = lc($dcvars->{REALM});
+	$ctx->{kdc_ipv4} = $dcvars->{SERVER_IP};
+	Samba::mk_krb5_conf($ctx, "");
+
+	$ret->{KRB5_CONFIG} = $ctx->{krb5_conf};
+
+	my $net = Samba::bindir_path($self, "net");
+	my $cmd = "";
+	$cmd .= "SOCKET_WRAPPER_DEFAULT_IFACE=\"$ret->{SOCKET_WRAPPER_DEFAULT_IFACE}\" ";
+	$cmd .= "KRB5_CONFIG=\"$ret->{KRB5_CONFIG}\" ";
+	$cmd .= "$net join $ret->{CONFIGURATION}";
+	$cmd .= " -U$dcvars->{USERNAME}\%$dcvars->{PASSWORD}";
+
+	if (system($cmd) != 0) {
+	    warn("Join failed\n$cmd");
+	    return undef;
+	}
+
+	# We need world access to this share, as otherwise the domain
+	# administrator from the AD domain provided by Samba4 can't
+	# access the share for tests.
+	chmod 0777, "$prefix/share";
+
+	if (not $self->check_or_start($ret, "yes", "yes", "yes")) {
+		return undef;
+	}
+
+	$ret->{DC_SERVER} = $dcvars->{SERVER};
+	$ret->{DC_SERVER_IP} = $dcvars->{SERVER_IP};
+	$ret->{DC_NETBIOSNAME} = $dcvars->{NETBIOSNAME};
+	$ret->{DC_USERNAME} = $dcvars->{USERNAME};
+	$ret->{DC_PASSWORD} = $dcvars->{PASSWORD};
+
+	# Special case, this is called from Samba4.pm but needs to use the Samba3 check_env and get_log_env
+	$ret->{target} = $self;
+
+	return $ret;
+}
+
 sub setup_simpleserver($$)
 {
 	my ($self, $path) = @_;
-	my $vfs_modulesdir_abs = $ENV{VFSLIBDIR};
 
 	print "PROVISIONING server with security=share...";
 
@@ -342,11 +420,11 @@ sub setup_simpleserver($$)
 
 	my $simpleserver_options = "
 	lanman auth = yes
-	vfs objects = $vfs_modulesdir_abs/xattr_tdb.so $vfs_modulesdir_abs/streams_depot.so
+	vfs objects = xattr_tdb streams_depot
 
 [vfs_aio_fork]
 	path = $prefix_abs/share
-        vfs objects = $vfs_modulesdir_abs/aio_fork.so
+        vfs objects = aio_fork
         read only = no
         vfs_aio_fork:erratic_testing_mode=yes
 ";
@@ -417,6 +495,9 @@ $ret->{USERNAME} = KTEST\\Administrator
 
 	system("cp $self->{srcdir}/source3/selftest/ktest-secrets.tdb $prefix/private/secrets.tdb");
 	chmod 0600, "$prefix/private/secrets.tdb";
+
+#Make sure there's no old ntdb file.
+	system("rm -f $prefix/private/secrets.ntdb");
 
 #This uses a pre-calculated krb5 credentials cache, obtained by running Samba4 with:
 # "--option=kdc:service ticket lifetime=239232" "--option=kdc:user ticket lifetime=239232" "--option=kdc:renewal lifetime=239232"
@@ -699,7 +780,6 @@ sub provision($$$$$$)
 
 	my $prefix_abs = abs_path($prefix);
 	my $bindir_abs = abs_path($self->{bindir});
-	my $vfs_modulesdir_abs = ($ENV{VFSLIBDIR} or $bindir_abs);
 
 	my $dns_host_file = "$ENV{SELFTEST_PREFIX}/dns_host_file";
 
@@ -763,6 +843,13 @@ sub provision($$$$$$)
 	    system("rm -rf $prefix_abs/*");
 	}
 	mkdir($_, 0777) foreach(@dirs);
+
+	##
+	## lockdir and piddir must be 0755
+	##
+	chmod 0755, $lockdir;
+	chmod 0755, $piddir;
+
 
 	##
 	## create ro and msdfs share layout
@@ -899,7 +986,7 @@ sub provision($$$$$$)
 	store dos attributes = yes
 	create mask = 755
 	dos filemode = yes
-	vfs objects = $vfs_modulesdir_abs/acl_xattr.so $vfs_modulesdir_abs/fake_acls.so $vfs_modulesdir_abs/xattr_tdb.so $vfs_modulesdir_abs/streams_depot.so
+	vfs objects = acl_xattr fake_acls xattr_tdb streams_depot
 
 	printing = vlp
 	print command = $bindir_abs/vlp tdbfile=$lockdir/vlp.tdb print %p %s
@@ -937,7 +1024,7 @@ sub provision($$$$$$)
 	path = $shrdir
 	comment = encrypt smb username is [%U]
 	smb encrypt = required
-	vfs objects = $vfs_modulesdir_abs/dirsort.so
+	vfs objects = dirsort
 [tmpguest]
 	path = $shrdir
         guest ok = yes
@@ -989,8 +1076,22 @@ sub provision($$$$$$)
 	copy = print1
 [print3]
 	copy = print1
+	default devmode = no
 [lp]
 	copy = print1
+
+[nfs4acl_simple]
+	path = $shrdir
+	comment = smb username is [%U]
+	nfs4:mode = simple
+	vfs objects = nfs4acl_xattr xattr_tdb
+
+[nfs4acl_special]
+	path = $shrdir
+	comment = smb username is [%U]
+	nfs4:mode = special
+	vfs objects = nfs4acl_xattr xattr_tdb
+
 [xcopy_share]
 	path = $shrdir
 	comment = smb username is [%U]
@@ -1003,7 +1104,7 @@ sub provision($$$$$$)
 	force create mode = 0
 	directory mask = 0777
 	force directory mode = 0
-	vfs objects = $vfs_modulesdir_abs/xattr_tdb.so
+	vfs objects = xattr_tdb
 
 [print\$]
 	copy = tmp
@@ -1023,7 +1124,8 @@ $unix_name:x:$unix_uid:$unix_gids[0]:$unix_name gecos:$prefix_abs:/bin/false
 pdbtest:x:$uid_pdbtest:$gid_nogroup:pdbtest gecos:$prefix_abs:/bin/false
 ";
 	if ($unix_uid != 0) {
-		print PASSWD "root:x:$uid_root:$gid_root:root gecos:$prefix_abs:/bin/false";
+		print PASSWD "root:x:$uid_root:$gid_root:root gecos:$prefix_abs:/bin/false
+";
 	}
 	close(PASSWD);
 
@@ -1038,7 +1140,8 @@ domusers:X:$gid_domusers:
 domadmins:X:$gid_domadmins:
 ";
 	if ($unix_gids[0] != 0) {
-		print GROUP "root:x:$gid_root:";
+		print GROUP "root:x:$gid_root:
+";
 	}
 
 	close(GROUP);

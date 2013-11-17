@@ -157,6 +157,7 @@
 #define SMB2_SHARE_CAP_CONTINUOUS_AVAILABILITY	0x10 /* in dialect >= 0x222 */
 #define SMB2_SHARE_CAP_SCALEOUT			0x20 /* in dialect >= 0x222 */
 #define SMB2_SHARE_CAP_CLUSTER			0x40 /* in dialect >= 0x222 */
+#define SMB2_SHARE_CAP_ASYMMETRIC		0x80 /* in dialect >= 0x302 */
 
 /* SMB2 create security flags */
 #define SMB2_SECURITY_DYNAMIC_TRACKING                   0x01
@@ -183,6 +184,10 @@
 #define SMB2_LEASE_HANDLE                                0x02
 #define SMB2_LEASE_WRITE                                 0x04
 
+/* SMB2 lease flags */
+#define SMB2_LEASE_FLAG_BREAK_IN_PROGRESS                0x00000002
+#define SMB2_LEASE_FLAG_PARENT_LEASE_KEY_SET             0x00000004
+
 /* SMB2 lease break flags */
 #define SMB2_NOTIFY_BREAK_LEASE_FLAG_ACK_REQUIRED        0x01
 
@@ -204,6 +209,7 @@
 #define SMB2_CREATE_TAG_RQLS "RqLs"
 #define SMB2_CREATE_TAG_DH2Q "DH2Q"
 #define SMB2_CREATE_TAG_DH2C "DH2C"
+#define SMB2_CREATE_TAG_APP_INSTANCE_ID "\x45\xBC\xA6\x6A\xEF\xA7\xF7\x4A\x90\x08\xFA\x46\x2E\x14\x4D\x74"
 
 /* SMB2 notify flags */
 #define SMB2_WATCH_TREE 0x0001

@@ -57,7 +57,7 @@ struct ctdbd_connection {
 	uint32_t our_vnn;
 	uint64_t rand_srvid;
 	struct ctdb_packet_context *pkt;
-	struct fd_event *fde;
+	struct tevent_fd *fde;
 
 	void (*release_ip_handler)(const char *ip_addr, void *private_data);
 	void *release_ip_priv;
@@ -213,7 +213,7 @@ static NTSTATUS ctdbd_connect(TALLOC_CTX *mem_ctx,
 
 	ZERO_STRUCT(addr);
 	addr.sun_family = AF_UNIX;
-	strncpy(addr.sun_path, sockname, sizeof(addr.sun_path));
+	snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", sockname);
 
 	salen = sizeof(struct sockaddr_un);
 	if (connect(fd, (struct sockaddr *)(void *)&addr, salen) == -1) {
@@ -279,8 +279,8 @@ struct deferred_msg_state {
  * Timed event handler for the deferred message
  */
 
-static void deferred_message_dispatch(struct event_context *event_ctx,
-				      struct timed_event *te,
+static void deferred_message_dispatch(struct tevent_context *event_ctx,
+				      struct tevent_timer *te,
 				      struct timeval now,
 				      void *private_data)
 {
@@ -414,7 +414,7 @@ static NTSTATUS ctdb_read_req(struct ctdbd_connection *conn, uint32_t reqid,
 	ctdb_packet_dump(hdr);
 
 	if (hdr->operation == CTDB_REQ_MESSAGE) {
-		struct timed_event *evt;
+		struct tevent_timer *evt;
 		struct deferred_msg_state *msg_state;
 		struct ctdb_req_message *msg = (struct ctdb_req_message *)hdr;
 
@@ -476,7 +476,7 @@ static NTSTATUS ctdb_read_req(struct ctdbd_connection *conn, uint32_t reqid,
 		 * We're waiting for a call reply, but an async message has
 		 * crossed. Defer dispatching to the toplevel event loop.
 		 */
-		evt = event_add_timed(conn->msg_ctx->event_ctx,
+		evt = tevent_add_timer(conn->msg_ctx->event_ctx,
 				      conn->msg_ctx->event_ctx,
 				      timeval_zero(),
 				      deferred_message_dispatch,
@@ -685,8 +685,8 @@ static NTSTATUS ctdb_handle_message(uint8_t *buf, size_t length,
  * The ctdbd socket is readable asynchronuously
  */
 
-static void ctdbd_socket_handler(struct event_context *event_ctx,
-				 struct fd_event *event,
+static void ctdbd_socket_handler(struct tevent_context *event_ctx,
+				 struct tevent_fd *event,
 				 uint16 flags,
 				 void *private_data)
 {
@@ -721,9 +721,9 @@ NTSTATUS ctdbd_register_msg_ctx(struct ctdbd_connection *conn,
 	SMB_ASSERT(conn->msg_ctx == NULL);
 	SMB_ASSERT(conn->fde == NULL);
 
-	if (!(conn->fde = event_add_fd(msg_ctx->event_ctx, conn,
+	if (!(conn->fde = tevent_add_fd(msg_ctx->event_ctx, conn,
 				       ctdb_packet_get_fd(conn->pkt),
-				       EVENT_FD_READ,
+				       TEVENT_FD_READ,
 				       ctdbd_socket_handler,
 				       conn))) {
 		DEBUG(0, ("event_add_fd failed\n"));
@@ -1414,11 +1414,13 @@ NTSTATUS ctdbd_migrate(struct ctdbd_connection *conn, uint32_t db_id,
 }
 
 /*
- * remotely fetch a record (read-only)
+ * Fetch a record and parse it
  */
-NTSTATUS ctdbd_fetch(struct ctdbd_connection *conn, uint32_t db_id,
-		     TDB_DATA key, TALLOC_CTX *mem_ctx, TDB_DATA *data,
-		     bool local_copy)
+NTSTATUS ctdbd_parse(struct ctdbd_connection *conn, uint32_t db_id,
+		     TDB_DATA key, bool local_copy,
+		     void (*parser)(TDB_DATA key, TDB_DATA data,
+				    void *private_data),
+		     void *private_data)
 {
 	struct ctdb_req_call req;
 	struct ctdb_reply_call *reply;
@@ -1473,21 +1475,17 @@ NTSTATUS ctdbd_fetch(struct ctdbd_connection *conn, uint32_t db_id,
 		goto fail;
 	}
 
-	data->dsize = reply->datalen;
-	if (data->dsize == 0) {
-		data->dptr = NULL;
-		goto done;
-	}
-
-	data->dptr = (uint8 *)talloc_memdup(mem_ctx, &reply->data[0],
-					    reply->datalen);
-	if (data->dptr == NULL) {
-		DEBUG(0, ("talloc failed\n"));
-		status = NT_STATUS_NO_MEMORY;
+	if (reply->datalen == 0) {
+		/*
+		 * Treat an empty record as non-existing
+		 */
+		status = NT_STATUS_NOT_FOUND;
 		goto fail;
 	}
 
- done:
+	parser(key, make_tdb_data(&reply->data[0], reply->datalen),
+	       private_data);
+
 	status = NT_STATUS_OK;
  fail:
 	TALLOC_FREE(reply);

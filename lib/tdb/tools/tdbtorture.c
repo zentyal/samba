@@ -1,5 +1,5 @@
 /* this tests tdb by doing lots of ops from several simultaneous
-   writers - that stresses the locking code. 
+   writers - that stresses the locking code.
 */
 
 #include "replace.h"
@@ -59,7 +59,7 @@ static void tdb_log(struct tdb_context *tdb, enum tdb_debug_level level, const c
 		system(ptr);
 		free(ptr);
 	}
-#endif	
+#endif
 }
 
 static void fatal(const char *why)
@@ -438,10 +438,11 @@ done:
 		db = tdb_open_ex(test_tdb, hash_size, TDB_DEFAULT,
 				 O_RDWR, 0, &log_ctx, NULL);
 		if (!db) {
-			fatal("db open failed");
+			fatal("db open failed\n");
+			exit(1);
 		}
 		if (tdb_check(db, NULL, NULL) == -1) {
-			printf("db check failed");
+			printf("db check failed\n");
 			exit(1);
 		}
 		tdb_close(db);

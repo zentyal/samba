@@ -1,6 +1,6 @@
 #ifndef _PROFILE_H_
 #define _PROFILE_H_
-/* 
+/*
    Unix SMB/CIFS implementation.
    store smbd profiling information in shared memory
    Copyright (C) Andrew Tridgell 1999
@@ -10,12 +10,12 @@
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
@@ -26,7 +26,7 @@
 
 #define PROF_SHMEM_KEY ((key_t)0x07021999)
 #define PROF_SHM_MAGIC 0x6349985
-#define PROF_SHM_VERSION 12
+#define PROF_SHM_VERSION 13
 
 /* time values in the following structure are in microseconds */
 
@@ -562,11 +562,6 @@ enum profile_stats_values
 	PR_VALUE_SMBINVALID,
 #define SMBinvalid_count __profile_stats_value(PR_VALUE_SMBINVALID, count)
 #define SMBinvalid_time __profile_stats_value(PR_VALUE_SMBINVALID, time)
-
-/* Pathworks setdir command */
-	PR_VALUE_PATHWORKS_SETDIR,
-#define pathworks_setdir_count __profile_stats_value(PR_VALUE_PATHWORKS_SETDIR, count)
-#define pathworks_setdir_time __profile_stats_value(PR_VALUE_PATHWORKS_SETDIR, time)
 
 /* These are the TRANS2 sub commands */
 	PR_VALUE_TRANS2_OPEN,

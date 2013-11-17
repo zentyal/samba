@@ -24,84 +24,6 @@
 #include "smbd/globals.h"
 #include "lib/util/bitmap.h"
 
-/*******************************************************************
- Static cache for storing per-user share access value. This really
- belongs inside the vuid_cache.array struct but we can't change the
- VFS ABI for 4.0.x. This is fixed in 4.1.x. JRA.
-********************************************************************/
-
-struct connection_share_access_list {
-	struct connection_share_access_list *next, *prev;
-	connection_struct *conn;
-	uint32_t vuid_cache_share_access_array[VUID_CACHE_SIZE];
-};
-
-static struct connection_share_access_list *conn_share_access_list;
-
-/*******************************************************************
- Destructor function for per-user share access value.
-********************************************************************/
-
-static int free_csal_entry(struct connection_share_access_list *csal)
-{
-	DLIST_REMOVE(conn_share_access_list, csal);
-	return 0;
-}
-
-/*******************************************************************
- Utility function to find a per-user share access value struct.
-********************************************************************/
-
-static struct connection_share_access_list *find_csal_entry(connection_struct *conn)
-{
-	struct connection_share_access_list *csal;
-
-	for (csal = conn_share_access_list; csal; csal = csal->next) {
-		if (csal->conn == conn) {
-			DLIST_PROMOTE(conn_share_access_list, csal);
-			return csal;
-		}
-	}
-	return NULL;
-}
-
-/*******************************************************************
- Accessor functions for per-user share access value.
- These are the only two functions exposed externally.
-********************************************************************/
-
-uint32_t get_connection_share_access_list_entry(connection_struct *conn,
-						unsigned int i)
-{
-	struct connection_share_access_list *csal =
-			find_csal_entry(conn);
-
-	if (csal == NULL) {
-		/*
-		 * This is a faked up connection struct
-		 * for internal purposes.
-		 * Return full access.
-		 */
-		return SEC_RIGHTS_FILE_ALL;
-	}
-
-	return csal->vuid_cache_share_access_array[i];
-}
-
-void set_connection_share_access_list_entry(connection_struct *conn,
-						unsigned int i,
-						uint32_t val)
-{
-	struct connection_share_access_list *csal =
-			find_csal_entry(conn);
-
-	if (csal == NULL) {
-		return;
-	}
-
-	csal->vuid_cache_share_access_array[i] = val;
-}
-
 /****************************************************************************
  Return the number of open connections.
 ****************************************************************************/
@@ -138,24 +60,20 @@ bool conn_snum_used(struct smbd_server_connection *sconn,
 connection_struct *conn_new(struct smbd_server_connection *sconn)
 {
 	connection_struct *conn;
-	struct connection_share_access_list *csal;
 
 	if (!(conn=talloc_zero(NULL, connection_struct)) ||
 	    !(conn->params = talloc(conn, struct share_params)) ||
+	    !(conn->vuid_cache = talloc_zero(conn, struct vuid_cache)) ||
 	    !(conn->connectpath = talloc_strdup(conn, "")) ||
-	    !(conn->origpath = talloc_strdup(conn, "")) ||
-	    !(csal = talloc_zero(conn, struct connection_share_access_list))) {
+	    !(conn->origpath = talloc_strdup(conn, ""))) {
 		DEBUG(0,("TALLOC_ZERO() failed!\n"));
 		TALLOC_FREE(conn);
 		return NULL;
 	}
-	talloc_set_destructor(csal, free_csal_entry);
-
 	conn->sconn = sconn;
 	conn->force_group_gid = (gid_t)-1;
 
 	DLIST_ADD(sconn->connections, conn);
-	DLIST_ADD(conn_share_access_list, csal);
 	sconn->num_connections++;
 
 	return conn;
@@ -172,7 +90,7 @@ static void conn_clear_vuid_cache(connection_struct *conn, uint64_t vuid)
 	for (i=0; i<VUID_CACHE_SIZE; i++) {
 		struct vuid_cache_entry *ent;
 
-		ent = &conn->vuid_cache.array[i];
+		ent = &conn->vuid_cache->array[i];
 
 		if (ent->vuid == vuid) {
 			ent->vuid = UID_FIELD_INVALID;
@@ -200,6 +118,7 @@ static void conn_clear_vuid_cache(connection_struct *conn, uint64_t vuid)
 				TALLOC_FREE(ent->session_info);
 			}
 			ent->read_only = False;
+			ent->share_access = 0;
 		}
 	}
 }

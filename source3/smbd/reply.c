@@ -339,10 +339,11 @@ size_t srvstr_get_path_req(TALLOC_CTX *mem_ctx, struct smb_request *req,
 					 flags, err, &ignore);
 }
 
-/* pull a string from the smb_buf part of a packet. In this case the
-   string can either be null terminated or it can be terminated by the
-   end of the smbbuf area
-*/
+/**
+ * pull a string from the smb_buf part of a packet. In this case the
+ * string can either be null terminated or it can be terminated by the
+ * end of the smbbuf area
+ */
 size_t srvstr_pull_req_talloc(TALLOC_CTX *ctx, struct smb_request *req,
 			      char **dest, const char *src, int flags)
 {
@@ -6303,8 +6304,9 @@ NTSTATUS rename_internals_fsp(connection_struct *conn,
 
 	/* Make a copy of the dst smb_fname structs */
 
-	status = copy_smb_filename(ctx, smb_fname_dst_in, &smb_fname_dst);
-	if (!NT_STATUS_IS_OK(status)) {
+	smb_fname_dst = cp_smb_filename(ctx, smb_fname_dst_in);
+	if (smb_fname_dst == NULL) {
+		status = NT_STATUS_NO_MEMORY;
 		goto out;
 	}
 
@@ -6340,10 +6342,10 @@ NTSTATUS rename_internals_fsp(connection_struct *conn,
 		 * Create an smb_filename struct using the original last
 		 * component of the destination.
 		 */
-		status = create_synthetic_smb_fname_split(ctx,
-		    smb_fname_dst->original_lcomp, NULL,
-		    &smb_fname_orig_lcomp);
-		if (!NT_STATUS_IS_OK(status)) {
+		smb_fname_orig_lcomp = synthetic_smb_fname_split(
+			ctx, smb_fname_dst->original_lcomp, NULL);
+		if (smb_fname_orig_lcomp == NULL) {
+			status = NT_STATUS_NO_MEMORY;
 			TALLOC_FREE(fname_dst_lcomp_base_mod);
 			goto out;
 		}
@@ -6575,6 +6577,7 @@ NTSTATUS rename_internals(TALLOC_CTX *ctx,
 	long offset = 0;
 	int create_options = 0;
 	bool posix_pathnames = lp_posix_pathnames();
+	int rc;
 
 	/*
 	 * Split the old name into directory and last component
@@ -6667,9 +6670,13 @@ NTSTATUS rename_internals(TALLOC_CTX *ctx,
 
 		ZERO_STRUCT(smb_fname_src->st);
 		if (posix_pathnames) {
-			SMB_VFS_LSTAT(conn, smb_fname_src);
+			rc = SMB_VFS_LSTAT(conn, smb_fname_src);
 		} else {
-			SMB_VFS_STAT(conn, smb_fname_src);
+			rc = SMB_VFS_STAT(conn, smb_fname_src);
+		}
+		if (rc == -1) {
+			status = map_nt_error_from_unix_common(errno);
+			goto out;
 		}
 
 		if (S_ISDIR(smb_fname_src->st.st_ex_mode)) {
@@ -7042,9 +7049,9 @@ NTSTATUS copy_file(TALLOC_CTX *ctx,
 	NTSTATUS status;
 
 
-	status = copy_smb_filename(ctx, smb_fname_dst, &smb_fname_dst_tmp);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
+	smb_fname_dst_tmp = cp_smb_filename(ctx, smb_fname_dst);
+	if (smb_fname_dst_tmp == NULL) {
+		return NT_STATUS_NO_MEMORY;
 	}
 
 	/*
@@ -8023,8 +8030,6 @@ void reply_lockingX(struct smb_request *req)
 			/* Hmmm. Is this panic justified? */
 			smb_panic("internal tdb error");
 		}
-
-		reply_to_oplock_break_requests(fsp);
 
 		/* if this is a pure oplock break request then don't send a
 		 * reply */

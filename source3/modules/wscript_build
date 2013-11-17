@@ -21,8 +21,8 @@ VFS_AIXACL_SRC = '''vfs_aixacl.c'''
 VFS_AIXACL2_SRC = '''vfs_aixacl2.c'''
 VFS_SOLARISACL_SRC = '''vfs_solarisacl.c'''
 VFS_ZFSACL_SRC = '''vfs_zfsacl.c'''
+VFS_NFS4ACL_XATTR_SRC = 'vfs_nfs4acl_xattr.c'
 VFS_HPUXACL_SRC = '''vfs_hpuxacl.c'''
-VFS_IRIXACL_SRC = '''vfs_irixacl.c'''
 VFS_TRU64ACL_SRC = '''vfs_tru64acl.c'''
 VFS_CATIA_SRC = 'vfs_catia.c'
 VFS_STREAMS_XATTR_SRC = 'vfs_streams_xattr.c'
@@ -50,11 +50,19 @@ VFS_CROSSRENAME_SRC = 'vfs_crossrename.c'
 VFS_LINUX_XFS_SGID_SRC = 'vfs_linux_xfs_sgid.c'
 VFS_TIME_AUDIT_SRC = 'vfs_time_audit.c'
 VFS_MEDIA_HARMONY_SRC = 'vfs_media_harmony.c'
+VFS_BTRFS_SRC = 'vfs_btrfs.c'
+VFS_CEPH_SRC = 'vfs_ceph.c'
+VFS_GLUSTERFS_SRC = 'vfs_glusterfs.c'
 
 
 bld.SAMBA3_SUBSYSTEM('NFS4_ACLS',
                     source='nfs4_acls.c',
                     deps='samba-util tdb')
+
+bld.SAMBA3_LIBRARY('non_posix_acls',
+                   source='non_posix_acls.c',
+                   deps='samba-util vfs',
+                   private_library=True)
 
 bld.SAMBA3_SUBSYSTEM('VFS_AIXACL_UTIL',
                     source='vfs_aixacl_util.c',
@@ -241,19 +249,20 @@ bld.SAMBA3_MODULE('vfs_zfsacl',
                  internal_module=bld.SAMBA3_IS_STATIC_MODULE('vfs_zfsacl'),
                  enabled=bld.SAMBA3_IS_ENABLED_MODULE('vfs_zfsacl'))
 
+bld.SAMBA3_MODULE('vfs_nfs4acl_xattr',
+		 subsystem='vfs',
+		 source=VFS_NFS4ACL_XATTR_SRC,
+		 deps='NFS4_ACLS sunacl NDR_NFS4ACL',
+		 init_function='',
+		 internal_module=bld.SAMBA3_IS_STATIC_MODULE('vfs_nfs4acl_xattr'),
+		 enabled=bld.SAMBA3_IS_ENABLED_MODULE('vfs_nfs4acl_xattr'))
+
 bld.SAMBA3_MODULE('vfs_hpuxacl',
                  subsystem='vfs',
                  source=VFS_HPUXACL_SRC,
                  init_function='',
                  internal_module=bld.SAMBA3_IS_STATIC_MODULE('vfs_hpuxacl'),
                  enabled=bld.SAMBA3_IS_ENABLED_MODULE('vfs_hpuxacl'))
-
-bld.SAMBA3_MODULE('vfs_irixacl',
-                 subsystem='vfs',
-                 source=VFS_IRIXACL_SRC,
-                 init_function='',
-                 internal_module=bld.SAMBA3_IS_STATIC_MODULE('vfs_irixacl'),
-                 enabled=bld.SAMBA3_IS_ENABLED_MODULE('vfs_irixacl'))
 
 bld.SAMBA3_MODULE('vfs_tru64acl',
                  subsystem='vfs',
@@ -313,7 +322,7 @@ bld.SAMBA3_MODULE('vfs_commit',
 bld.SAMBA3_MODULE('vfs_gpfs',
                  subsystem='vfs',
                  source=VFS_GPFS_SRC,
-                 deps='NFS4_ACLS',
+                 deps='NFS4_ACLS non_posix_acls',
                  init_function='',
                  internal_module=bld.SAMBA3_IS_STATIC_MODULE('vfs_gpfs'),
                  enabled=bld.SAMBA3_IS_ENABLED_MODULE('vfs_gpfs'))
@@ -485,6 +494,14 @@ bld.SAMBA3_MODULE('vfs_dfs_samba4',
                  internal_module=bld.SAMBA3_IS_STATIC_MODULE('vfs_dfs_samba4') and bld.AD_DC_BUILD_IS_ENABLED(),
                  enabled=bld.SAMBA3_IS_ENABLED_MODULE('vfs_dfs_samba4') and bld.AD_DC_BUILD_IS_ENABLED())
 
+bld.SAMBA3_MODULE('vfs_btrfs',
+                 subsystem='vfs',
+                 source=VFS_BTRFS_SRC,
+                 deps='samba-util',
+                 init_function='',
+                 internal_module=bld.SAMBA3_IS_STATIC_MODULE('vfs_btrfs'),
+                 enabled=bld.SAMBA3_IS_ENABLED_MODULE('vfs_btrfs'))
+
 PERFCOUNT_TEST_SRC = 'perfcount_test.c'
 
 bld.SAMBA3_SUBSYSTEM('perfcount',
@@ -497,3 +514,21 @@ bld.SAMBA3_MODULE('perfcount_test',
                  init_function='',
                  internal_module=bld.SAMBA3_IS_STATIC_MODULE('perfcount_test'),
                  enabled=bld.SAMBA3_IS_ENABLED_MODULE('perfcount_test'))
+
+bld.SAMBA3_MODULE('vfs_ceph',
+                 subsystem='vfs',
+                 source=VFS_CEPH_SRC,
+                 deps='samba-util cephfs',
+                 init_function='',
+                 internal_module=bld.SAMBA3_IS_STATIC_MODULE('vfs_ceph'),
+                 enabled=bld.SAMBA3_IS_ENABLED_MODULE('vfs_ceph'),
+                 cflags=bld.CONFIG_GET('CCFLAGS_CEPHFS'))
+
+bld.SAMBA3_MODULE('vfs_glusterfs',
+                  subsystem='vfs',
+                  source=VFS_GLUSTERFS_SRC,
+                  deps='samba-util gfapi',
+                  init_function='',
+                  internal_module=bld.SAMBA3_IS_STATIC_MODULE('vfs_glusterfs'),
+                  enabled=bld.SAMBA3_IS_ENABLED_MODULE('vfs_glusterfs'),
+                  allow_undefined_symbols=False)

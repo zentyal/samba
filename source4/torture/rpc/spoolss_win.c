@@ -22,7 +22,6 @@
 #include "torture/rpc/torture_rpc.h"
 #include "librpc/gen_ndr/ndr_spoolss_c.h"
 #include "librpc/gen_ndr/ndr_misc.h"
-#include "ntvfs/ntvfs.h"
 #include "param/param.h"
 
 struct test_spoolss_win_context {
@@ -54,8 +53,8 @@ static bool test_OpenPrinterEx(struct torture_context *tctx,
 	op.in.datatype			= NULL;
 	op.in.devmode_ctr.devmode	= NULL;
 	op.in.access_mask		= access_mask;
-	op.in.level			= 1;
-	op.in.userlevel.level1		= &ul_1;
+	op.in.userlevel_ctr.level	= 1;
+	op.in.userlevel_ctr.user_info.level1 = &ul_1;
 	op.out.handle			= handle;
 
 	ul_1.size 			= 1234;
@@ -95,8 +94,8 @@ static bool test_OpenPrinterAsAdmin(struct torture_context *tctx,
 	op.in.datatype			= NULL;
 	op.in.devmode_ctr.devmode	= NULL;
 	op.in.access_mask		= SERVER_ALL_ACCESS;
-	op.in.level			= 1;
-	op.in.userlevel.level1		= &ul_1;
+	op.in.userlevel_ctr.level	= 1;
+	op.in.userlevel_ctr.user_info.level1 = &ul_1;
 	op.out.handle			= &handle;
 
 	cp.in.handle			= &handle;
@@ -461,8 +460,6 @@ static bool test_WinXP(struct torture_context *tctx, struct dcerpc_pipe *p)
 	char *server_name;
 	uint32_t i;
 	struct dcerpc_binding_handle *b = p->binding_handle;
-
-	ntvfs_init(tctx->lp_ctx);
 
 	ctx = talloc_zero(tctx, struct test_spoolss_win_context);
 	tmp_ctx = talloc_zero(tctx, struct test_spoolss_win_context);

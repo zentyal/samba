@@ -67,13 +67,13 @@ static FAMConnection fam_connection;
 static bool fam_connection_initialized = False;
 
 static struct fam_watch_context *fam_notify_list;
-static void fam_handler(struct event_context *event_ctx,
-			struct fd_event *fd_event,
+static void fam_handler(struct tevent_context *event_ctx,
+			struct tevent_fd *fd_event,
 			uint16 flags,
 			void *private_data);
 
 static NTSTATUS fam_open_connection(FAMConnection *fam_conn,
-				    struct event_context *event_ctx)
+				    struct tevent_context *event_ctx)
 {
 	int res;
 	char *name;
@@ -113,9 +113,9 @@ static NTSTATUS fam_open_connection(FAMConnection *fam_conn,
 		return NT_STATUS_UNEXPECTED_IO_ERROR;
 	}
 
-	if (event_add_fd(event_ctx, event_ctx,
+	if (tevent_add_fd(event_ctx, event_ctx,
 			 FAMCONNECTION_GETFD(fam_conn),
-			 EVENT_FD_READ, fam_handler,
+			 TEVENT_FD_READ, fam_handler,
 			 (void *)fam_conn) == NULL) {
 		DEBUG(0, ("event_add_fd failed\n"));
 		FAMClose(fam_conn);
@@ -127,7 +127,7 @@ static NTSTATUS fam_open_connection(FAMConnection *fam_conn,
 }
 
 static void fam_reopen(FAMConnection *fam_conn,
-		       struct event_context *event_ctx,
+		       struct tevent_context *event_ctx,
 		       struct fam_watch_context *notify_list)
 {
 	struct fam_watch_context *ctx;
@@ -146,8 +146,8 @@ static void fam_reopen(FAMConnection *fam_conn,
 	}
 }
 
-static void fam_handler(struct event_context *event_ctx,
-			struct fd_event *fd_event,
+static void fam_handler(struct tevent_context *event_ctx,
+			struct tevent_fd *fd_event,
 			uint16 flags,
 			void *private_data)
 {

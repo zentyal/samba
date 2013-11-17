@@ -58,7 +58,8 @@ struct tevent_req *smb2cli_flush_send(TALLOC_CTX *mem_ctx,
 				  tcon,
 				  session,
 				  state->fixed, sizeof(state->fixed),
-				  NULL, 0);
+				  NULL, 0, /* dyn* */
+				  0); /* max_dyn_len */
 	if (tevent_req_nomem(subreq, req)) {
 		return tevent_req_post(req, ev);
 	}
@@ -81,6 +82,7 @@ static void smb2cli_flush_done(struct tevent_req *subreq)
 
 	status = smb2cli_req_recv(subreq, NULL, NULL,
 				  expected, ARRAY_SIZE(expected));
+	TALLOC_FREE(subreq);
 	if (tevent_req_nterror(req, status)) {
 		return;
 	}
@@ -111,7 +113,7 @@ NTSTATUS smb2cli_flush(struct smbXcli_conn *conn,
 		status = NT_STATUS_INVALID_PARAMETER;
 		goto fail;
 	}
-	ev = tevent_context_init(frame);
+	ev = samba_tevent_context_init(frame);
 	if (ev == NULL) {
 		goto fail;
 	}

@@ -62,11 +62,6 @@ bool idmap_is_online(void)
 	return true;
 }
 
-NTSTATUS idmap_backends_sid_to_unixid(const char *domain, struct id_map *id)
-{
-	return NT_STATUS_OK;
-}
-
 NTSTATUS idmap_backends_unixid_to_sid(const char *domname, struct id_map *id)
 {
 	return NT_STATUS_OK;
@@ -89,7 +84,7 @@ static bool open_db(struct idmap_tdb_common_context *ctx)
 		return false;
 	}
 
-	ctx->db = db_open(ctx, db_path, 0, TDB_DEFAULT | TDB_CLEAR_IF_FIRST,
+	ctx->db = db_open(ctx, db_path, 0, TDB_DEFAULT,
 			  O_RDWR | O_CREAT, 0600,
 			  DBWRAP_LOCK_ORDER_1);
 

@@ -48,8 +48,8 @@ static char *counters_directory(const char *dbname)
 	TALLOC_CTX *ctx = talloc_tos();
 
 	path = state_path(PERFCOUNTDIR);
-	if (!directory_exist(path)) {
-		mkdir(path, 0755);
+	if (!directory_create_or_exist(path, geteuid(), 0755)) {
+		return NULL;
 	}
 
 	path = talloc_asprintf(ctx, "%s/%s", PERFCOUNTDIR, dbname);
@@ -77,7 +77,7 @@ uint32 reg_perfcount_get_base_index(void)
 	names = tdb_open_log(fname, 0, TDB_DEFAULT, O_RDONLY, 0444);
 
 	if ( !names ) {
-		DEBUG(1, ("reg_perfcount_get_base_index: unable to open [%s].\n", fname));
+		DEBUG(2, ("reg_perfcount_get_base_index: unable to open [%s].\n", fname));
 		return 0;
 	}    
 	/* needs to read the value of key "1" from the counter_names.tdb file, as that is
@@ -158,6 +158,7 @@ static uint32 _reg_perfcount_multi_sz_from_tdb(TDB_CONTEXT *tdb,
 	char *buf1 = *retbuf;
 	uint32 working_size = 0;
 	DATA_BLOB name_index, name;
+	bool ok;
 
 	memset(temp, 0, sizeof(temp));
 	snprintf(temp, sizeof(temp), "%d", keyval);
@@ -178,7 +179,11 @@ static uint32 _reg_perfcount_multi_sz_from_tdb(TDB_CONTEXT *tdb,
 		buffer_size = 0;
 		return buffer_size;
 	}
-	push_reg_sz(talloc_tos(), &name_index, (const char *)kbuf.dptr);
+	ok = push_reg_sz(talloc_tos(), &name_index, (const char *)kbuf.dptr);
+	if (!ok) {
+		buffer_size = 0;
+		return buffer_size;
+	}
 	memcpy(buf1+buffer_size, (char *)name_index.data, working_size);
 	buffer_size += working_size;
 	/* Now encode the actual name */
@@ -191,7 +196,11 @@ static uint32 _reg_perfcount_multi_sz_from_tdb(TDB_CONTEXT *tdb,
 	memset(temp, 0, sizeof(temp));
 	memcpy(temp, dbuf.dptr, dbuf.dsize);
 	SAFE_FREE(dbuf.dptr);
-	push_reg_sz(talloc_tos(), &name, temp);
+	ok = push_reg_sz(talloc_tos(), &name, temp);
+	if (!ok) {
+		buffer_size = 0;
+		return buffer_size;
+	}
 	memcpy(buf1+buffer_size, (char *)name.data, working_size);
 	buffer_size += working_size;
 

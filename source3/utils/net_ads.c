@@ -1315,6 +1315,8 @@ static int net_ads_join_usage(struct net_context *c, int argc, const char **argv
 		   "                      E.g. \"createcomputer=Computers/Servers/Unix\"\n"
 		   "                      NB: A backslash '\\' is used as escape at multiple levels and may\n"
 		   "                          need to be doubled or even quadrupled.  It is not used as a separator.\n"));
+	d_printf(_("   machinepass=PASS   Set the machine password to a specific value during the join.\n"
+		   "                      The deault password is random.\n"));
 	d_printf(_("   osName=string      Set the operatingSystem attribute during the join.\n"));
 	d_printf(_("   osVer=string       Set the operatingSystemVersion attribute during the join.\n"
 		   "                      NB: osName and osVer must be specified together for either to take effect.\n"
@@ -1421,6 +1423,7 @@ int net_ads_join(struct net_context *c, int argc, const char **argv)
 	WERROR werr = WERR_SETUP_NOT_JOINED;
 	bool createupn = false;
 	const char *machineupn = NULL;
+	const char *machine_password = NULL;
 	const char *create_in_ou = NULL;
 	int i;
 	const char *os_name = NULL;
@@ -1482,6 +1485,13 @@ int net_ads_join(struct net_context *c, int argc, const char **argv)
 				goto fail;
 			}
 		}
+		else if ( !strncasecmp_m(argv[i], "machinepass", strlen("machinepass")) ) {
+			if ( (machine_password = get_string_param(argv[i])) == NULL ) {
+				d_fprintf(stderr, _("Please supply a valid password to set as trust account password.\n"));
+				werr = WERR_INVALID_PARAM;
+				goto fail;
+			}
+		}
 		else {
 			domain = argv[i];
 		}
@@ -1511,6 +1521,7 @@ int net_ads_join(struct net_context *c, int argc, const char **argv)
 	r->in.dc_name		= c->opt_host;
 	r->in.admin_account	= c->opt_user_name;
 	r->in.admin_password	= net_prompt_pass(c, c->opt_user_name);
+	r->in.machine_password  = machine_password;
 	r->in.debug		= true;
 	r->in.use_kerberos	= c->opt_kerberos;
 	r->in.modify_config	= modify_config;
@@ -2091,6 +2102,7 @@ static int net_ads_password(struct net_context *c, int argc, const char **argv)
 	const char *new_password = NULL;
 	char *chr, *prompt;
 	const char *user;
+	char pwd[256] = {0};
 	ADS_STATUS ret;
 
 	if (c->display_usage) {
@@ -2149,15 +2161,22 @@ static int net_ads_password(struct net_context *c, int argc, const char **argv)
 	if (argv[1]) {
 		new_password = (const char *)argv[1];
 	} else {
+		int rc;
+
 		if (asprintf(&prompt, _("Enter new password for %s:"), user) == -1) {
 			return -1;
 		}
-		new_password = getpass(prompt);
+		rc = samba_getpass(prompt, pwd, sizeof(pwd), false, true);
+		if (rc < 0) {
+			return -1;
+		}
+		new_password = pwd;
 		free(prompt);
 	}
 
 	ret = kerberos_set_password(ads->auth.kdc_server, auth_principal,
 				auth_password, user, new_password, ads->auth.time_offset);
+	memset(pwd, '\0', sizeof(pwd));
 	if (!ADS_ERR_OK(ret)) {
 		d_fprintf(stderr, _("Password change failed: %s\n"), ads_errstr(ret));
 		ads_destroy(&ads);
@@ -2588,7 +2607,7 @@ static int net_ads_kerberos_pac(struct net_context *c, int argc, const char **ar
 
 	if (c->display_usage) {
 		d_printf(  "%s\n"
-			   "net ads kerberos pac\n"
+			   "net ads kerberos pac [impersonation_principal]\n"
 			   "    %s\n",
 			 _("Usage:"),
 			 _("Dump the Kerberos PAC"));

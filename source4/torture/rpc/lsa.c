@@ -245,22 +245,18 @@ static bool test_OpenPolicy2_fail(struct dcerpc_binding_handle *b,
 		return true;
 	}
 
-	if (!NT_STATUS_IS_OK(r.out.result)) {
-		if (NT_STATUS_EQUAL(r.out.result, NT_STATUS_ACCESS_DENIED) ||
-		    NT_STATUS_EQUAL(r.out.result, NT_STATUS_RPC_PROTSEQ_NOT_SUPPORTED)) {
-			torture_comment(tctx,
-					"OpenPolicy2 correctly returned with "
-					"result: %s\n",
-					nt_errstr(r.out.result));
-			return true;
-		}
+	if (NT_STATUS_EQUAL(r.out.result, NT_STATUS_ACCESS_DENIED) ||
+	    NT_STATUS_EQUAL(r.out.result, NT_STATUS_RPC_PROTSEQ_NOT_SUPPORTED)) {
+		torture_comment(tctx,
+				"OpenPolicy2 correctly returned with "
+				"result: %s\n",
+				nt_errstr(r.out.result));
+		return true;
 	}
 
-	torture_assert_ntstatus_equal(tctx,
-				      r.out.result,
-				      NT_STATUS_OK,
-				      "OpenPolicy2 return value should be "
-				      "ACCESS_DENIED");
+	torture_fail(tctx,
+		     "OpenPolicy2 return value should be "
+		     "ACCESS_DENIED or RPC_PROTSEQ_NOT_SUPPORTED");
 
 	return false;
 }
@@ -533,11 +529,7 @@ static bool test_LookupNames2(struct dcerpc_binding_handle *b,
 
 	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_LookupNames2_r(b, tctx, &r),
 		"LookupNames2 failed");
-	if (!NT_STATUS_IS_OK(r.out.result)) {
-		torture_comment(tctx, "LookupNames2 failed - %s\n",
-				nt_errstr(r.out.result));
-		return false;
-	}
+	torture_assert_ntstatus_ok(tctx, r.out.result, "LookupNames2 failed");
 
 	if (check_result) {
 		torture_assert_int_equal(tctx, count, sids.count,
@@ -597,11 +589,8 @@ static bool test_LookupNames3(struct dcerpc_binding_handle *b,
 
 	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_LookupNames3_r(b, tctx, &r),
 		"LookupNames3 failed");
-	if (!NT_STATUS_IS_OK(r.out.result)) {
-		torture_comment(tctx, "LookupNames3 failed - %s\n",
-				nt_errstr(r.out.result));
-		return false;
-	}
+	torture_assert_ntstatus_ok(tctx, r.out.result,
+		"LookupNames3 failed");
 
 	if (check_result) {
 		torture_assert_int_equal(tctx, count, sids.count,
@@ -668,13 +657,10 @@ static bool test_LookupNames4(struct dcerpc_binding_handle *b,
 
 			return true;
 		}
-
-		torture_assert_ntstatus_ok(tctx,
-					   r.out.result,
-					   "LookupNames4 failed");
-
-		return false;
 	}
+	torture_assert_ntstatus_ok(tctx,
+				   r.out.result,
+				   "LookupNames4 failed");
 
 	if (check_result) {
 		torture_assert_int_equal(tctx, count, sids.count,
@@ -746,11 +732,9 @@ static bool test_LookupNames4_fail(struct dcerpc_binding_handle *b,
 		}
 	}
 
-	torture_assert_ntstatus_equal(tctx,
-				      r.out.result,
-				      NT_STATUS_OK,
-				      "LookupNames4 return value should be "
-				      "ACCESS_DENIED");
+	torture_fail(tctx,
+		     "LookupNames4 return value should be "
+		     "ACCESS_DENIED or RPC_PROTSEQ_NOT_SUPPORTED");
 
 	return false;
 }
@@ -940,22 +924,18 @@ static bool test_LookupSids3_fail(struct dcerpc_binding_handle *b,
 		return true;
 	}
 
-	if (!NT_STATUS_IS_OK(r.out.result)) {
-		if (NT_STATUS_EQUAL(r.out.result, NT_STATUS_ACCESS_DENIED) ||
-		    NT_STATUS_EQUAL(r.out.result, NT_STATUS_RPC_PROTSEQ_NOT_SUPPORTED)) {
-			torture_comment(tctx,
-					"LookupNames4 correctly returned with "
-					"result: %s\n",
-					nt_errstr(r.out.result));
-			return true;
-		}
+	if (NT_STATUS_EQUAL(r.out.result, NT_STATUS_ACCESS_DENIED) ||
+	    NT_STATUS_EQUAL(r.out.result, NT_STATUS_RPC_PROTSEQ_NOT_SUPPORTED)) {
+		torture_comment(tctx,
+				"LookupNames4 correctly returned with "
+				"result: %s\n",
+				nt_errstr(r.out.result));
+		return true;
 	}
 
-	torture_assert_ntstatus_equal(tctx,
-				      r.out.result,
-				      NT_STATUS_OK,
-				      "LookupSids3 return value should be "
-				      "ACCESS_DENIED");
+	torture_fail(tctx,
+		     "LookupSids3 return value should be "
+		     "ACCESS_DENIED or RPC_PROTSEQ_NOT_SUPPORTED");
 
 	return false;
 }
@@ -1151,11 +1131,8 @@ static bool test_LookupPrivValue(struct dcerpc_binding_handle *b,
 
 	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_LookupPrivValue_r(b, tctx, &r),
 		"LookupPrivValue failed");
-	if (!NT_STATUS_IS_OK(r.out.result)) {
-		torture_comment(tctx, "\nLookupPrivValue failed - %s\n",
-				nt_errstr(r.out.result));
-		return false;
-	}
+	torture_assert_ntstatus_ok(tctx, r.out.result,
+		"LookupPrivValue failed");
 
 	return true;
 }
@@ -1174,11 +1151,7 @@ static bool test_LookupPrivName(struct dcerpc_binding_handle *b,
 
 	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_LookupPrivName_r(b, tctx, &r),
 		"LookupPrivName failed");
-	if (!NT_STATUS_IS_OK(r.out.result)) {
-		torture_comment(tctx, "\nLookupPrivName failed - %s\n",
-				nt_errstr(r.out.result));
-		return false;
-	}
+	torture_assert_ntstatus_ok(tctx, r.out.result, "LookupPrivName failed");
 
 	return true;
 }
@@ -1259,12 +1232,8 @@ static bool test_AddPrivilegesToAccount(struct dcerpc_binding_handle *b,
 
 	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_AddPrivilegesToAccount_r(b, tctx, &r),
 		"AddPrivilegesToAccount failed");
-	if (!NT_STATUS_IS_OK(r.out.result)) {
-		torture_comment(tctx, "AddPrivilegesToAccount failed - %s\n",
-				nt_errstr(r.out.result));
-		return false;
-	}
-
+	torture_assert_ntstatus_ok(tctx, r.out.result,
+		"AddPrivilegesToAccount failed");
 	return ret;
 }
 
@@ -1284,11 +1253,8 @@ static bool test_EnumPrivsAccount(struct dcerpc_binding_handle *b,
 
 	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_EnumPrivsAccount_r(b, tctx, &r),
 		"EnumPrivsAccount failed");
-	if (!NT_STATUS_IS_OK(r.out.result)) {
-		torture_comment(tctx, "EnumPrivsAccount failed - %s\n",
-				nt_errstr(r.out.result));
-		return false;
-	}
+	torture_assert_ntstatus_ok(tctx, r.out.result,
+		"EnumPrivsAccount failed");
 
 	if (privs && privs->count > 0) {
 		int i;
@@ -1321,11 +1287,8 @@ static bool test_GetSystemAccessAccount(struct dcerpc_binding_handle *b,
 
 	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_GetSystemAccessAccount_r(b, tctx, &r),
 		"GetSystemAccessAccount failed");
-	if (!NT_STATUS_IS_OK(r.out.result)) {
-		torture_comment(tctx, "GetSystemAccessAccount failed - %s\n",
-				nt_errstr(r.out.result));
-		return false;
-	}
+	torture_assert_ntstatus_ok(tctx, r.out.result,
+		"GetSystemAccessAccount failed");
 
 	if (r.out.access_mask != NULL) {
 		torture_comment(tctx, "Rights:");
@@ -1390,11 +1353,8 @@ static bool test_DeleteObject(struct dcerpc_binding_handle *b,
 	r.out.handle = handle;
 	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_DeleteObject_r(b, tctx, &r),
 		"DeleteObject failed");
-	if (!NT_STATUS_IS_OK(r.out.result)) {
-		torture_comment(tctx, "DeleteObject failed - %s\n",
-				nt_errstr(r.out.result));
-		return false;
-	}
+	torture_assert_ntstatus_ok(tctx, r.out.result,
+		"DeleteObject failed");
 
 	return true;
 }
@@ -1428,15 +1388,11 @@ static bool test_CreateAccount(struct dcerpc_binding_handle *b,
 
 		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_OpenAccount_r(b, tctx, &r_o),
 			"OpenAccount failed");
-		if (!NT_STATUS_IS_OK(r_o.out.result)) {
-			torture_comment(tctx, "OpenAccount failed - %s\n",
-					nt_errstr(r_o.out.result));
-			return false;
-		}
-	} else if (!NT_STATUS_IS_OK(r.out.result)) {
-		torture_comment(tctx, "CreateAccount failed - %s\n",
-				nt_errstr(r.out.result));
-		return false;
+		torture_assert_ntstatus_ok(tctx, r_o.out.result,
+			"OpenAccount failed");
+	} else {
+		torture_assert_ntstatus_ok(tctx, r.out.result,
+					   "CreateAccount failed");
 	}
 
 	if (!test_Delete(b, tctx, &acct_handle)) {
@@ -1465,10 +1421,8 @@ static bool test_DeleteTrustedDomain(struct dcerpc_binding_handle *b,
 
 	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_OpenTrustedDomainByName_r(b, tctx, &r),
 		"OpenTrustedDomainByName failed");
-	if (!NT_STATUS_IS_OK(r.out.result)) {
-		torture_comment(tctx, "OpenTrustedDomainByName failed - %s\n", nt_errstr(r.out.result));
-		return false;
-	}
+	torture_assert_ntstatus_ok(tctx, r.out.result,
+		"OpenTrustedDomainByName failed");
 
 	if (!test_Delete(b, tctx, &trustdom_handle)) {
 		return false;
@@ -1493,10 +1447,8 @@ static bool test_DeleteTrustedDomainBySid(struct dcerpc_binding_handle *b,
 
 	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_DeleteTrustedDomain_r(b, tctx, &r),
 		"DeleteTrustedDomain failed");
-	if (!NT_STATUS_IS_OK(r.out.result)) {
-		torture_comment(tctx, "DeleteTrustedDomain failed - %s\n", nt_errstr(r.out.result));
-		return false;
-	}
+	torture_assert_ntstatus_ok(tctx, r.out.result,
+		"DeleteTrustedDomain failed");
 
 	return true;
 }
@@ -1506,7 +1458,6 @@ static bool test_CreateSecret(struct dcerpc_pipe *p,
 			      struct torture_context *tctx,
 			      struct policy_handle *handle)
 {
-	NTSTATUS status;
 	struct lsa_CreateSecret r;
 	struct lsa_OpenSecret r2;
 	struct lsa_SetSecret r3;
@@ -1551,10 +1502,8 @@ static bool test_CreateSecret(struct dcerpc_pipe *p,
 
 		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_CreateSecret_r(b, tctx, &r),
 			"CreateSecret failed");
-		if (!NT_STATUS_IS_OK(r.out.result)) {
-			torture_comment(tctx, "CreateSecret failed - %s\n", nt_errstr(r.out.result));
-			return false;
-		}
+		torture_assert_ntstatus_ok(tctx, r.out.result,
+			"CreateSecret failed");
 
 		r.in.handle = handle;
 		r.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
@@ -1562,10 +1511,8 @@ static bool test_CreateSecret(struct dcerpc_pipe *p,
 
 		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_CreateSecret_r(b, tctx, &r),
 			"CreateSecret failed");
-		if (!NT_STATUS_EQUAL(r.out.result, NT_STATUS_OBJECT_NAME_COLLISION)) {
-			torture_comment(tctx, "CreateSecret should have failed OBJECT_NAME_COLLISION - %s\n", nt_errstr(r.out.result));
-			return false;
-		}
+		torture_assert_ntstatus_equal(tctx, r.out.result, NT_STATUS_OBJECT_NAME_COLLISION,
+					      "CreateSecret should have failed OBJECT_NAME_COLLISION");
 
 		r2.in.handle = handle;
 		r2.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
@@ -1576,16 +1523,11 @@ static bool test_CreateSecret(struct dcerpc_pipe *p,
 
 		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_OpenSecret_r(b, tctx, &r2),
 			"OpenSecret failed");
-		if (!NT_STATUS_IS_OK(r2.out.result)) {
-			torture_comment(tctx, "OpenSecret failed - %s\n", nt_errstr(r2.out.result));
-			return false;
-		}
+		torture_assert_ntstatus_ok(tctx, r2.out.result,
+					   "OpenSecret failed");
 
-		status = dcerpc_fetch_session_key(p, &session_key);
-		if (!NT_STATUS_IS_OK(status)) {
-			torture_comment(tctx, "dcerpc_fetch_session_key failed - %s\n", nt_errstr(status));
-			return false;
-		}
+		torture_assert_ntstatus_ok(tctx, dcerpc_fetch_session_key(p, &session_key),
+					   "dcerpc_fetch_session_key failed");
 
 		enc_key = sess_encrypt_string(secret1, &session_key);
 
@@ -1600,10 +1542,8 @@ static bool test_CreateSecret(struct dcerpc_pipe *p,
 
 		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_SetSecret_r(b, tctx, &r3),
 			"SetSecret failed");
-		if (!NT_STATUS_IS_OK(r3.out.result)) {
-			torture_comment(tctx, "SetSecret failed - %s\n", nt_errstr(r3.out.result));
-			return false;
-		}
+		torture_assert_ntstatus_ok(tctx, r3.out.result,
+			"SetSecret failed");
 
 		r3.in.sec_handle = &sec_handle;
 		r3.in.new_val = &buf1;
@@ -1618,11 +1558,9 @@ static bool test_CreateSecret(struct dcerpc_pipe *p,
 		torture_comment(tctx, "Testing SetSecret with broken key\n");
 
 		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_SetSecret_r(b, tctx, &r3),
-			"SetSecret failed");
-		if (!NT_STATUS_EQUAL(r3.out.result, NT_STATUS_UNKNOWN_REVISION)) {
-			torture_comment(tctx, "SetSecret should have failed UNKNOWN_REVISION - %s\n", nt_errstr(r3.out.result));
-			ret = false;
-		}
+					   "SetSecret failed");
+		torture_assert_ntstatus_equal(tctx, r3.out.result, NT_STATUS_UNKNOWN_REVISION,
+					      "SetSecret should have failed UNKNOWN_REVISION");
 
 		data_blob_free(&enc_key);
 
@@ -1827,23 +1765,16 @@ static bool test_CreateSecret(struct dcerpc_pipe *p,
 		d_o.out.handle = &sec_handle2;
 		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_DeleteObject_r(b, tctx, &d_o),
 			"DeleteObject failed");
-		if (!NT_STATUS_EQUAL(d_o.out.result, NT_STATUS_INVALID_HANDLE)) {
-			torture_comment(tctx, "Second delete expected INVALID_HANDLE - %s\n", nt_errstr(d_o.out.result));
-			ret = false;
-		} else {
+		torture_assert_ntstatus_equal(tctx, d_o.out.result, NT_STATUS_INVALID_HANDLE,
+					      "OpenSecret expected INVALID_HANDLE");
 
-			torture_comment(tctx, "Testing OpenSecret of just-deleted secret\n");
+		torture_comment(tctx, "Testing OpenSecret of just-deleted secret\n");
 
-			torture_assert_ntstatus_ok(tctx, dcerpc_lsa_OpenSecret_r(b, tctx, &r2),
-				"OpenSecret failed");
-			if (!NT_STATUS_EQUAL(r2.out.result, NT_STATUS_OBJECT_NAME_NOT_FOUND)) {
-				torture_comment(tctx, "OpenSecret expected OBJECT_NAME_NOT_FOUND - %s\n", nt_errstr(r2.out.result));
-				ret = false;
-			}
-		}
-
+		torture_assert_ntstatus_ok(tctx, dcerpc_lsa_OpenSecret_r(b, tctx, &r2),
+					   "OpenSecret failed");
+		torture_assert_ntstatus_equal(tctx, r2.out.result, NT_STATUS_OBJECT_NAME_NOT_FOUND,
+					      "OpenSecret expected OBJECT_NAME_NOT_FOUND");
 	}
-
 	return ret;
 }
 
@@ -1867,8 +1798,9 @@ static bool test_EnumAccountRights(struct dcerpc_binding_handle *b,
 	if (!NT_STATUS_IS_OK(r.out.result)) {
 		torture_comment(tctx, "EnumAccountRights of %s failed - %s\n",
 		       dom_sid_string(tctx, sid), nt_errstr(r.out.result));
-		return false;
 	}
+	torture_assert_ntstatus_ok(tctx, r.out.result,
+		"EnumAccountRights failed");
 
 	return true;
 }
@@ -1922,10 +1854,8 @@ static bool test_OpenAccount(struct dcerpc_binding_handle *b,
 
 	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_OpenAccount_r(b, tctx, &r),
 		"OpenAccount failed");
-	if (!NT_STATUS_IS_OK(r.out.result)) {
-		torture_comment(tctx, "OpenAccount failed - %s\n", nt_errstr(r.out.result));
-		return false;
-	}
+	torture_assert_ntstatus_ok(tctx, r.out.result,
+		"OpenAccount failed");
 
 	if (!test_EnumPrivsAccount(b, tctx, handle, &acct_handle)) {
 		return false;
@@ -1967,10 +1897,8 @@ static bool test_EnumAccounts(struct dcerpc_binding_handle *b,
 		if (NT_STATUS_EQUAL(r.out.result, NT_STATUS_NO_MORE_ENTRIES)) {
 			break;
 		}
-		if (!NT_STATUS_IS_OK(r.out.result)) {
-			torture_comment(tctx, "EnumAccounts failed - %s\n", nt_errstr(r.out.result));
-			return false;
-		}
+		torture_assert_ntstatus_ok(tctx, r.out.result,
+			"EnumAccounts failed");
 
 		if (!test_LookupSids(b, tctx, handle, &sids1)) {
 			return false;
@@ -2003,10 +1931,8 @@ static bool test_EnumAccounts(struct dcerpc_binding_handle *b,
 
 	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_EnumAccounts_r(b, tctx, &r),
 		"EnumAccounts failed");
-	if (!NT_STATUS_IS_OK(r.out.result)) {
-		torture_comment(tctx, "EnumAccounts failed - %s\n", nt_errstr(r.out.result));
-		return false;
-	}
+	torture_assert_ntstatus_ok(tctx, r.out.result,
+		"EnumAccounts failed");
 
 	if (sids2.num_sids != 1) {
 		torture_comment(tctx, "Returned wrong number of entries (%d)\n", sids2.num_sids);
@@ -2104,10 +2030,8 @@ static bool test_EnumPrivs(struct dcerpc_binding_handle *b,
 	resume_handle = 0;
 	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_EnumPrivs_r(b, tctx, &r),
 		"EnumPrivs failed");
-	if (!NT_STATUS_IS_OK(r.out.result)) {
-		torture_comment(tctx, "EnumPrivs failed - %s\n", nt_errstr(r.out.result));
-		return false;
-	}
+	torture_assert_ntstatus_ok(tctx, r.out.result,
+		"EnumPrivs failed");
 
 	for (i = 0; i< privs1.count; i++) {
 		test_LookupPrivDisplayName(b, tctx, handle, (struct lsa_String *)&privs1.privs[i].name);
@@ -3358,11 +3282,8 @@ bool test_lsa_Close(struct dcerpc_binding_handle *b,
 
 	torture_assert_ntstatus_ok(tctx, dcerpc_lsa_Close_r(b, tctx, &r),
 		"Close failed");
-	if (!NT_STATUS_IS_OK(r.out.result)) {
-		torture_comment(tctx, "Close failed - %s\n",
-		nt_errstr(r.out.result));
-		return false;
-	}
+	torture_assert_ntstatus_ok(tctx, r.out.result,
+		"Close failed");
 
 	torture_assert_ntstatus_equal(tctx, dcerpc_lsa_Close_r(b, tctx, &r),
 		NT_STATUS_RPC_SS_CONTEXT_MISMATCH, "Close should failed");

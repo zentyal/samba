@@ -20,10 +20,12 @@
 */
 
 #include "includes.h"
+#include <tevent.h>
 #include "libcli/smb2/smb2.h"
 #include "libcli/smb2/smb2_calls.h"
 #include "torture/torture.h"
 #include "torture/smb2/proto.h"
+#include "libcli/smb/smbXcli_base.h"
 
 #define CHECK_VAL(v, correct) do { \
 	if ((v) != (correct)) { \
@@ -65,11 +67,30 @@
 									\
 		CHECK_VAL((__io)->out.lease_response.lease_flags, 0);	\
 		CHECK_VAL((__io)->out.lease_response.lease_duration, 0); \
-	} while(0)							\
+	} while(0)
+
+#define CHECK_LEASE_V2(__io, __state, __oplevel, __key, __flags)	\
+	do {								\
+		if (__oplevel) {					\
+			CHECK_VAL((__io)->out.oplock_level, SMB2_OPLOCK_LEVEL_LEASE); \
+			CHECK_VAL((__io)->out.lease_response_v2.lease_key.data[0], (__key)); \
+			CHECK_VAL((__io)->out.lease_response_v2.lease_key.data[1], ~(__key)); \
+			CHECK_VAL((__io)->out.lease_response_v2.lease_state, smb2_util_lease_state(__state)); \
+		} else {						\
+			CHECK_VAL((__io)->out.oplock_level, SMB2_OPLOCK_LEVEL_NONE); \
+			CHECK_VAL((__io)->out.lease_response_v2.lease_key.data[0], 0); \
+			CHECK_VAL((__io)->out.lease_response_v2.lease_key.data[1], 0); \
+			CHECK_VAL((__io)->out.lease_response_v2.lease_state, 0); \
+		}							\
+									\
+		CHECK_VAL((__io)->out.lease_response_v2.lease_flags, __flags); \
+		CHECK_VAL((__io)->out.lease_response_v2.lease_duration, 0); \
+	} while(0)
 
 static const uint64_t LEASE1 = 0xBADC0FFEE0DDF00Dull;
 static const uint64_t LEASE2 = 0xDEADBEEFFEEDBEADull;
 static const uint64_t LEASE3 = 0xDAD0FFEDD00DF00Dull;
+static const uint64_t LEASE4 = 0xBAD0FFEDD00DF00Dull;
 
 #define NREQUEST_RESULTS 8
 static const char *request_results[NREQUEST_RESULTS][2] = {
@@ -97,6 +118,12 @@ static bool test_lease_request(struct torture_context *tctx,
 	const char *dname = "lease.dir";
 	bool ret = true;
 	int i;
+	uint32_t caps;
+
+	caps = smb2cli_conn_server_capabilities(tree->session->transport->conn);
+	if (!(caps & SMB2_CAP_LEASING)) {
+		torture_skip(tctx, "leases are not supported");
+	}
 
 	smb2_util_unlink(tree, fname);
 	smb2_util_unlink(tree, fname2);
@@ -173,6 +200,12 @@ static bool test_lease_upgrade(struct torture_context *tctx,
 	NTSTATUS status;
 	const char *fname = "lease.dat";
 	bool ret = true;
+	uint32_t caps;
+
+	caps = smb2cli_conn_server_capabilities(tree->session->transport->conn);
+	if (!(caps & SMB2_CAP_LEASING)) {
+		torture_skip(tctx, "leases are not supported");
+	}
 
 	smb2_util_unlink(tree, fname);
 
@@ -281,6 +314,12 @@ static bool test_lease_upgrade2(struct torture_context *tctx,
 	const char *fname = "lease.dat";
 	bool ret = true;
 	int i;
+	uint32_t caps;
+
+	caps = smb2cli_conn_server_capabilities(tree->session->transport->conn);
+	if (!(caps & SMB2_CAP_LEASING)) {
+		torture_skip(tctx, "leases are not supported");
+	}
 
 	for (i = 0; i < NUM_UPGRADE_TESTS; i++) {
 		struct lease_upgrade2_test t = lease_upgrade2_tests[i];
@@ -400,6 +439,59 @@ static bool torture_lease_handler(struct smb2_transport *transport,
 }
 
 /*
+   Timer handler function notifies the registering function that time is up
+*/
+static void timeout_cb(struct tevent_context *ev,
+		       struct tevent_timer *te,
+		       struct timeval current_time,
+		       void *private_data)
+{
+	bool *timesup = (bool *)private_data;
+	*timesup = true;
+	return;
+}
+
+/*
+   Wait a short period of time to receive a single oplock break request
+*/
+static void torture_wait_for_lease_break(struct torture_context *tctx)
+{
+	TALLOC_CTX *tmp_ctx = talloc_new(NULL);
+	struct tevent_timer *te = NULL;
+	struct timeval ne;
+	bool timesup = false;
+	int old_count = break_info.count;
+
+	/* Wait .1 seconds for an lease break */
+	ne = tevent_timeval_current_ofs(0, 100000);
+
+	te = tevent_add_timer(tctx->ev, tmp_ctx, ne, timeout_cb, &timesup);
+	if (te == NULL) {
+		torture_comment(tctx, "Failed to wait for an oplock break. "
+				      "test results may not be accurate.");
+		goto done;
+	}
+
+	while (!timesup && break_info.count < old_count + 1) {
+		if (tevent_loop_once(tctx->ev) != 0) {
+			torture_comment(tctx, "Failed to wait for an oplock "
+					      "break. test results may not be "
+					      "accurate.");
+			goto done;
+		}
+	}
+
+done:
+	/* We don't know if the timed event fired and was freed, we received
+	 * our oplock break, or some other event triggered the loop.  Thus,
+	 * we create a tmp_ctx to be able to safely free/remove the timed
+	 * event in all 3 cases. */
+	talloc_free(tmp_ctx);
+
+	return;
+}
+
+/*
   break_results should be read as "held lease, new lease, hold broken to, new
   grant", i.e. { "RH", "RW", "RH", "R" } means that if key1 holds RH and key2
   tries for RW, key1 will be broken to RH (in this case, not broken at all)
@@ -442,6 +534,12 @@ static bool test_lease_break(struct torture_context *tctx,
 	const char *fname = "lease.dat";
 	bool ret = true;
 	int i;
+	uint32_t caps;
+
+	caps = smb2cli_conn_server_capabilities(tree->session->transport->conn);
+	if (!(caps & SMB2_CAP_LEASING)) {
+		torture_skip(tctx, "leases are not supported");
+	}
 
 	tree->session->transport->lease.handler	= torture_lease_handler;
 	tree->session->transport->lease.private_data = tree;
@@ -604,6 +702,12 @@ static bool test_lease_oplock(struct torture_context *tctx,
 	const char *fname = "lease.dat";
 	bool ret = true;
 	int i;
+	uint32_t caps;
+
+	caps = smb2cli_conn_server_capabilities(tree->session->transport->conn);
+	if (!(caps & SMB2_CAP_LEASING)) {
+		torture_skip(tctx, "leases are not supported");
+	}
 
 	tree->session->transport->lease.handler	= torture_lease_handler;
 	tree->session->transport->lease.private_data = tree;
@@ -723,6 +827,12 @@ static bool test_lease_multibreak(struct torture_context *tctx,
 	NTSTATUS status;
 	const char *fname = "lease.dat";
 	bool ret = true;
+	uint32_t caps;
+
+	caps = smb2cli_conn_server_capabilities(tree->session->transport->conn);
+	if (!(caps & SMB2_CAP_LEASING)) {
+		torture_skip(tctx, "leases are not supported");
+	}
 
 	tree->session->transport->lease.handler	= torture_lease_handler;
 	tree->session->transport->lease.private_data = tree;
@@ -828,6 +938,140 @@ static bool test_lease_multibreak(struct torture_context *tctx,
 	return ret;
 }
 
+static bool test_lease_v2_request(struct torture_context *tctx,
+				  struct smb2_tree *tree)
+{
+	TALLOC_CTX *mem_ctx = talloc_new(tctx);
+	struct smb2_create io;
+	struct smb2_lease ls;
+	struct smb2_handle h1, h2, h3, h4, h5;
+	struct smb2_write w;
+	NTSTATUS status;
+	const char *fname = "lease.dat";
+	const char *dname = "lease.dir";
+	const char *dnamefname = "lease.dir\\lease.dat";
+	const char *dnamefname2 = "lease.dir\\lease2.dat";
+	bool ret = true;
+
+	smb2_util_unlink(tree, fname);
+	smb2_deltree(tree, dname);
+
+	tree->session->transport->lease.handler	= torture_lease_handler;
+	tree->session->transport->lease.private_data = tree;
+	tree->session->transport->oplock.handler = torture_oplock_handler;
+	tree->session->transport->oplock.private_data = tree;
+
+	ZERO_STRUCT(break_info);
+
+	ZERO_STRUCT(io);
+	smb2_lease_v2_create_share(&io, &ls, false, fname,
+				   smb2_util_share_access("RWD"),
+				   LEASE1, NULL,
+				   smb2_util_lease_state("RHW"),
+				   0);
+
+	status = smb2_create(tree, mem_ctx, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+	h1 = io.out.file.handle;
+	CHECK_CREATED(&io, CREATED, FILE_ATTRIBUTE_ARCHIVE);
+	CHECK_LEASE_V2(&io, "RHW", true, LEASE1, 0);
+
+	ZERO_STRUCT(io);
+	smb2_lease_v2_create_share(&io, &ls, true, dname,
+				   smb2_util_share_access("RWD"),
+				   LEASE2, NULL,
+				   smb2_util_lease_state("RHW"),
+				   0);
+	status = smb2_create(tree, mem_ctx, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+	h2 = io.out.file.handle;
+	CHECK_CREATED(&io, CREATED, FILE_ATTRIBUTE_DIRECTORY);
+	CHECK_LEASE_V2(&io, "RH", true, LEASE2, 0);
+
+	ZERO_STRUCT(io);
+	smb2_lease_v2_create_share(&io, &ls, false, dnamefname,
+				   smb2_util_share_access("RWD"),
+				   LEASE3, &LEASE2,
+				   smb2_util_lease_state("RHW"),
+				   0);
+	status = smb2_create(tree, mem_ctx, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+	h3 = io.out.file.handle;
+	CHECK_CREATED(&io, CREATED, FILE_ATTRIBUTE_ARCHIVE);
+	CHECK_LEASE_V2(&io, "RHW", true, LEASE3,
+		       SMB2_LEASE_FLAG_PARENT_LEASE_KEY_SET);
+
+	torture_wait_for_lease_break(tctx);
+	CHECK_VAL(break_info.count, 0);
+	CHECK_VAL(break_info.failures, 0);
+
+	ZERO_STRUCT(io);
+	smb2_lease_v2_create_share(&io, &ls, false, dnamefname2,
+				   smb2_util_share_access("RWD"),
+				   LEASE4, NULL,
+				   smb2_util_lease_state("RHW"),
+				   0);
+	status = smb2_create(tree, mem_ctx, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+	h4 = io.out.file.handle;
+	CHECK_CREATED(&io, CREATED, FILE_ATTRIBUTE_ARCHIVE);
+	CHECK_LEASE_V2(&io, "RHW", true, LEASE4, 0);
+
+	torture_wait_for_lease_break(tctx);
+	torture_wait_for_lease_break(tctx);
+	CHECK_BREAK_INFO("RH", "", LEASE2);
+	torture_wait_for_lease_break(tctx);
+
+	ZERO_STRUCT(break_info);
+
+	ZERO_STRUCT(io);
+	smb2_lease_v2_create_share(&io, &ls, true, dname,
+				   smb2_util_share_access("RWD"),
+				   LEASE2, NULL,
+				   smb2_util_lease_state("RHW"),
+				   0);
+	io.in.create_disposition = NTCREATEX_DISP_OPEN;
+	status = smb2_create(tree, mem_ctx, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+	h5 = io.out.file.handle;
+	CHECK_CREATED(&io, EXISTED, FILE_ATTRIBUTE_DIRECTORY);
+	CHECK_LEASE_V2(&io, "RH", true, LEASE2, 0);
+	smb2_util_close(tree, h5);
+
+	ZERO_STRUCT(w);
+	w.in.file.handle = h4;
+	w.in.offset      = 0;
+	w.in.data        = data_blob_talloc(mem_ctx, NULL, 4096);
+	memset(w.in.data.data, 'o', w.in.data.length);
+	status = smb2_write(tree, &w);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	smb_msleep(2000);
+	torture_wait_for_lease_break(tctx);
+	CHECK_VAL(break_info.count, 0);
+	CHECK_VAL(break_info.failures, 0);
+
+	smb2_util_close(tree, h4);
+	torture_wait_for_lease_break(tctx);
+	torture_wait_for_lease_break(tctx);
+	CHECK_BREAK_INFO("RH", "", LEASE2);
+	torture_wait_for_lease_break(tctx);
+
+ done:
+	smb2_util_close(tree, h1);
+	smb2_util_close(tree, h2);
+	smb2_util_close(tree, h3);
+	smb2_util_close(tree, h4);
+	smb2_util_close(tree, h5);
+
+	smb2_util_unlink(tree, fname);
+	smb2_deltree(tree, dname);
+
+	talloc_free(mem_ctx);
+
+	return ret;
+}
+
 struct torture_suite *torture_smb2_lease_init(void)
 {
 	struct torture_suite *suite =
@@ -839,6 +1083,7 @@ struct torture_suite *torture_smb2_lease_init(void)
 	torture_suite_add_1smb2_test(suite, "break", test_lease_break);
 	torture_suite_add_1smb2_test(suite, "oplock", test_lease_oplock);
 	torture_suite_add_1smb2_test(suite, "multibreak", test_lease_multibreak);
+	torture_suite_add_1smb2_test(suite, "v2_request", test_lease_v2_request);
 
 	suite->description = talloc_strdup(suite, "SMB2-LEASE tests");
 

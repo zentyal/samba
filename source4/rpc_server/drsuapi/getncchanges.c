@@ -353,8 +353,9 @@ static WERROR get_nc_changes_build_object(struct drsuapi_DsReplicaObjectListItem
 			werr = sa->syntax->ldb_to_drsuapi(&syntax_ctx, sa, el, obj,
 			                                  &obj->object.attribute_ctr.attributes[i]);
 			if (!W_ERROR_IS_OK(werr)) {
-				DEBUG(0,("Unable to convert %s to DRS object - %s\n", 
-					 sa->lDAPDisplayName, win_errstr(werr)));
+				DEBUG(0,("Unable to convert %s on %s to DRS object - %s\n",
+					 sa->lDAPDisplayName, ldb_dn_get_linearized(msg->dn),
+					 win_errstr(werr)));
 				return werr;
 			}
 			/* if DRSUAPI_DRS_SPECIAL_SECRET_PROCESSING is set
@@ -369,8 +370,9 @@ static WERROR get_nc_changes_build_object(struct drsuapi_DsReplicaObjectListItem
 			werr = drsuapi_encrypt_attribute(obj, session_key, rid, 
 							 &obj->object.attribute_ctr.attributes[i]);
 			if (!W_ERROR_IS_OK(werr)) {
-				DEBUG(0,("Unable to encrypt %s in DRS object - %s\n", 
-					 sa->lDAPDisplayName, win_errstr(werr)));
+				DEBUG(0,("Unable to encrypt %s on %s in DRS object - %s\n",
+					 sa->lDAPDisplayName, ldb_dn_get_linearized(msg->dn),
+					 win_errstr(werr)));
 				return werr;
 			}
 		}
@@ -450,7 +452,7 @@ static WERROR get_nc_changes_add_la(TALLOC_CTX *mem_ctx,
 				sa->lDAPDisplayName, ldb_dn_get_linearized(msg->dn)));
 			return ntstatus_to_werror(status);
 		}
-		ret = dsdb_find_dn_by_guid(sam_ctx, mem_ctx, &guid, &tdn);
+		ret = dsdb_find_dn_by_guid(sam_ctx, mem_ctx, &guid, 0, &tdn);
 		if (ret == LDB_ERR_NO_SUCH_OBJECT) {
 			DEBUG(2, (" Search of guid %s returned 0 objects, skipping it !\n",
 						GUID_string(mem_ctx, &guid)));
@@ -1126,8 +1128,7 @@ static WERROR getncchanges_change_master(struct drsuapi_bind_state *b_state,
 		return WERR_OK;
 	}
 
-	/* retrieve the current role owner */
-	/* find the DN of the RID Manager */
+	/* find the DN of the current role owner */
 	ret = samdb_reference_dn_is_our_ntdsa(ldb, req_dn, "fSMORoleOwner", &is_us);
 	if (ret != LDB_SUCCESS) {
 		DEBUG(0,("Failed to find fSMORoleOwner in RID Manager object\n"));
@@ -1136,8 +1137,8 @@ static WERROR getncchanges_change_master(struct drsuapi_bind_state *b_state,
 	}
 
 	if (!is_us) {
-		/* we're not the RID Manager - go away */
-		DEBUG(0,(__location__ ": RID Alloc request when not RID Manager\n"));
+		/* we're not the RID Manager or role owner - go away */
+		DEBUG(0,(__location__ ": FSMO role or RID manager transfer owner request when not role owner\n"));
 		ctr6->extended_ret = DRSUAPI_EXOP_ERR_FSMO_NOT_OWNER;
 		return WERR_OK;
 	}
@@ -1149,7 +1150,7 @@ static WERROR getncchanges_change_master(struct drsuapi_bind_state *b_state,
 	W_ERROR_HAVE_NO_MEMORY(msg->dn);
 
 	/* TODO: make sure ntds_dn is a valid nTDSDSA object */
-	ret = dsdb_find_dn_by_guid(ldb, msg, &req10->destination_dsa_guid, &ntds_dn);
+	ret = dsdb_find_dn_by_guid(ldb, msg, &req10->destination_dsa_guid, 0, &ntds_dn);
 	if (ret != LDB_SUCCESS) {
 		DEBUG(0, (__location__ ": Unable to find NTDS object for guid %s - %s\n",
 			  GUID_string(mem_ctx, &req10->destination_dsa_guid), ldb_errstring(ldb)));

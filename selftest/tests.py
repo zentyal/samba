@@ -20,8 +20,22 @@
 
 from selftesthelpers import *
 
+try:
+    config_h = os.environ["CONFIG_H"]
+except KeyError:
+    config_h = os.path.join(samba4bindir, "default/include/config.h")
+
+# define here var to check what we support
+f = open(config_h, 'r')
+try:
+    have_man_pages_support = ("XSLTPROC_MANPAGES 1" in f.read())
+finally:
+    f.close()
+
 planpythontestsuite("none", "samba.tests.source")
-planpythontestsuite("none", "samba.tests.docs")
+if have_man_pages_support:
+    planpythontestsuite("none", "samba.tests.docs")
+
 planpythontestsuite("none", "selftest.tests.test_suite", extra_path=[srcdir()])
 planpythontestsuite("none", "subunit")
 planpythontestsuite("none", "samba.tests.blackbox.ndrdump")
@@ -47,6 +61,7 @@ planpythontestsuite("none", "samba.tests.samba3sam")
 planpythontestsuite("none", "wafsamba.tests.test_suite", extra_path=[os.path.join(samba4srcdir, "..", "buildtools"), os.path.join(samba4srcdir, "..", "buildtools", "wafadmin")])
 plantestsuite("samba4.blackbox.dbcheck.alpha13", "none" , ["PYTHON=%s" % python, os.path.join(bbdir, "dbcheck-oldrelease.sh"), '$PREFIX_ABS/provision', 'alpha13', configuration])
 plantestsuite("samba4.blackbox.dbcheck.release-4-0-0", "none" , ["PYTHON=%s" % python, os.path.join(bbdir, "dbcheck-oldrelease.sh"), '$PREFIX_ABS/provision', 'release-4-0-0', configuration])
+plantestsuite("samba4.blackbox.dbcheck.release-4-1-0rc3", "none" , ["PYTHON=%s" % python, os.path.join(bbdir, "dbcheck-oldrelease.sh"), '$PREFIX_ABS/provision', 'release-4-1-0rc3', configuration])
 plantestsuite("samba4.blackbox.upgradeprovision.alpha13", "none" , ["PYTHON=%s" % python, os.path.join(bbdir, "upgradeprovision-oldrelease.sh"), '$PREFIX_ABS/provision', 'alpha13', configuration])
 plantestsuite("samba4.blackbox.upgradeprovision.release-4-0-0", "none" , ["PYTHON=%s" % python, os.path.join(bbdir, "upgradeprovision-oldrelease.sh"), '$PREFIX_ABS/provision', 'release-4-0-0', configuration])
 planpythontestsuite("none", "samba.tests.upgradeprovision")

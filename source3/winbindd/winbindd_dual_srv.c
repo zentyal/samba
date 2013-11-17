@@ -690,7 +690,8 @@ NTSTATUS _wbint_PingDc(struct pipes_struct *p, struct wbint_PingDc *r)
 	status = cm_connect_netlogon(domain, &netlogon_pipe);
 	reset_cm_connection_on_error(domain, status);
         if (!NT_STATUS_IS_OK(status)) {
-                DEBUG(3, ("could not open handle to NETLOGON pipe\n"));
+		DEBUG(3, ("could not open handle to NETLOGON pipe: %s\n",
+			  nt_errstr(status)));
 		return status;
         }
 
@@ -698,7 +699,7 @@ NTSTATUS _wbint_PingDc(struct pipes_struct *p, struct wbint_PingDc *r)
 
 	fstr_sprintf(logon_server, "\\\\%s", domain->dcname);
 	*r->out.dcname = talloc_strdup(p->mem_ctx, domain->dcname);
-	if (r->out.dcname == NULL) {
+	if (*r->out.dcname == NULL) {
 		DEBUG(2, ("Could not allocate memory\n"));
 		return NT_STATUS_NO_MEMORY;
 	}

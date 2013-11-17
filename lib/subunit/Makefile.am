@@ -28,12 +28,14 @@ EXTRA_DIST =  \
 	python/subunit/tests/test_details.py \
 	python/subunit/tests/test_progress_model.py \
 	python/subunit/tests/test_subunit_filter.py \
+	python/subunit/tests/test_run.py \
 	python/subunit/tests/test_subunit_stats.py \
 	python/subunit/tests/test_subunit_tags.py \
 	python/subunit/tests/test_tap2subunit.py \
 	python/subunit/tests/test_test_protocol.py \
 	python/subunit/tests/test_test_results.py \
 	runtests.py \
+	setup.py \
 	shell/README \
 	shell/share/subunit.sh \
 	shell/subunit-ui.patch \
@@ -47,8 +49,10 @@ include_subunitdir = $(includedir)/subunit
 dist_bin_SCRIPTS = \
 	filters/subunit-filter \
 	filters/subunit-ls \
+	filters/subunit-notify \
 	filters/subunit-stats \
 	filters/subunit-tags \
+	filters/subunit2csv \
 	filters/subunit2gtk \
 	filters/subunit2junitxml \
 	filters/subunit2pyunit \
@@ -67,6 +71,7 @@ pkgpython_PYTHON = \
 	python/subunit/__init__.py \
 	python/subunit/chunked.py \
 	python/subunit/details.py \
+	python/subunit/filters.py \
 	python/subunit/iso8601.py \
 	python/subunit/progress_model.py \
 	python/subunit/run.py \

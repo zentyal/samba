@@ -484,7 +484,7 @@ NTSTATUS cli_list_old(struct cli_state *cli, const char *mask,
 				 const char *, void *), void *state)
 {
 	TALLOC_CTX *frame = talloc_stackframe();
-	struct event_context *ev;
+	struct tevent_context *ev;
 	struct tevent_req *req;
 	NTSTATUS status = NT_STATUS_NO_MEMORY;
 	struct file_info *finfo;
@@ -497,7 +497,7 @@ NTSTATUS cli_list_old(struct cli_state *cli, const char *mask,
 		status = NT_STATUS_INVALID_PARAMETER;
 		goto fail;
 	}
-	ev = event_context_init(frame);
+	ev = samba_tevent_context_init(frame);
 	if (ev == NULL) {
 		goto fail;
 	}
@@ -819,7 +819,7 @@ NTSTATUS cli_list_trans(struct cli_state *cli, const char *mask,
 			void *private_data)
 {
 	TALLOC_CTX *frame = talloc_stackframe();
-	struct event_context *ev;
+	struct tevent_context *ev;
 	struct tevent_req *req;
 	int i, num_finfo;
 	struct file_info *finfo = NULL;
@@ -832,7 +832,7 @@ NTSTATUS cli_list_trans(struct cli_state *cli, const char *mask,
 		status = NT_STATUS_INVALID_PARAMETER;
 		goto fail;
 	}
-	ev = event_context_init(frame);
+	ev = samba_tevent_context_init(frame);
 	if (ev == NULL) {
 		goto fail;
 	}
@@ -933,13 +933,19 @@ NTSTATUS cli_list(struct cli_state *cli, const char *mask, uint16 attribute,
 		  NTSTATUS (*fn)(const char *, struct file_info *, const char *,
 			     void *), void *state)
 {
-	TALLOC_CTX *frame = talloc_stackframe();
-	struct event_context *ev;
+	TALLOC_CTX *frame = NULL;
+	struct tevent_context *ev;
 	struct tevent_req *req;
 	NTSTATUS status = NT_STATUS_NO_MEMORY;
 	struct file_info *finfo;
 	size_t i, num_finfo;
 	uint16_t info_level;
+
+	if (smbXcli_conn_protocol(cli->conn) >= PROTOCOL_SMB2_02) {
+		return cli_smb2_list(cli, mask, fn, state);
+	}
+
+	frame = talloc_stackframe();
 
 	if (smbXcli_conn_has_async_calls(cli->conn)) {
 		/*
@@ -948,7 +954,7 @@ NTSTATUS cli_list(struct cli_state *cli, const char *mask, uint16 attribute,
 		status = NT_STATUS_INVALID_PARAMETER;
 		goto fail;
 	}
-	ev = event_context_init(frame);
+	ev = samba_tevent_context_init(frame);
 	if (ev == NULL) {
 		goto fail;
 	}

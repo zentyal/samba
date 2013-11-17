@@ -41,7 +41,6 @@ struct tevent_req *smb2cli_tcon_send(TALLOC_CTX *mem_ctx,
 	struct tevent_req *req, *subreq;
 	struct smb2cli_tcon_state *state;
 	uint8_t *fixed;
-	char srv_ip[INET6_ADDRSTRLEN];
 	const char *tcon_share;
 	uint8_t *dyn;
 	size_t dyn_len;
@@ -52,10 +51,9 @@ struct tevent_req *smb2cli_tcon_send(TALLOC_CTX *mem_ctx,
 	}
 	state->cli = cli;
 
-	print_sockaddr(srv_ip, sizeof(srv_ip), smbXcli_conn_remote_sockaddr(cli->conn));
-
 	tcon_share = talloc_asprintf(state, "\\\\%s\\%s",
-				     srv_ip, share);
+				     smbXcli_conn_remote_name(cli->conn),
+				     share);
 	if (tevent_req_nomem(tcon_share, req)) {
 		return tevent_req_post(req, ev);
 	}
@@ -87,7 +85,8 @@ struct tevent_req *smb2cli_tcon_send(TALLOC_CTX *mem_ctx,
 				  NULL, /* tcon */
 				  cli->smb2.session,
 				  state->fixed, sizeof(state->fixed),
-				  dyn, dyn_len);
+				  dyn, dyn_len,
+				  0); /* max_dyn_len */
 	if (tevent_req_nomem(subreq, req)) {
 		return tevent_req_post(req, ev);
 	}
@@ -168,7 +167,7 @@ NTSTATUS smb2cli_tcon(struct cli_state *cli, const char *share)
 		status = NT_STATUS_INVALID_PARAMETER;
 		goto fail;
 	}
-	ev = tevent_context_init(frame);
+	ev = samba_tevent_context_init(frame);
 	if (ev == NULL) {
 		goto fail;
 	}
@@ -213,7 +212,8 @@ struct tevent_req *smb2cli_tdis_send(TALLOC_CTX *mem_ctx,
 				  cli->smb2.tcon,
 				  cli->smb2.session,
 				  state->fixed, sizeof(state->fixed),
-				  NULL, 0);
+				  NULL, 0, /* dyn* */
+				  0); /* max_dyn_len */
 	if (tevent_req_nomem(subreq, req)) {
 		return tevent_req_post(req, ev);
 	}
@@ -243,7 +243,8 @@ static void smb2cli_tdis_done(struct tevent_req *subreq)
 	if (tevent_req_nterror(req, status)) {
 		return;
 	}
-	TALLOC_FREE(state->cli->smb2.tcon);
+	smb2cli_tcon_set_values(state->cli->smb2.tcon, NULL,
+				UINT32_MAX, 0, 0, 0, 0);
 	tevent_req_done(req);
 }
 
@@ -266,7 +267,7 @@ NTSTATUS smb2cli_tdis(struct cli_state *cli)
 		status = NT_STATUS_INVALID_PARAMETER;
 		goto fail;
 	}
-	ev = tevent_context_init(frame);
+	ev = samba_tevent_context_init(frame);
 	if (ev == NULL) {
 		goto fail;
 	}

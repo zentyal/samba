@@ -21,6 +21,7 @@
 */
 
 #include "includes.h"
+#include "system/filesys.h"
 #include "krb5_samba.h"
 #include "lib/util/asn1.h"
 
@@ -816,7 +817,7 @@ done:
 	krb5_context context = NULL;
 	krb5_ccache ccache = NULL;
 	krb5_principal client = NULL;
-	krb5_creds creds, creds_in, *creds_out = NULL;
+	krb5_creds creds, creds_in;
 
 	ZERO_STRUCT(creds);
 	ZERO_STRUCT(creds_in);
@@ -876,12 +877,7 @@ done:
 
 done:
 	krb5_free_cred_contents(context, &creds_in);
-
-	if (creds_out) {
-		krb5_free_creds(context, creds_out);
-	} else {
-		krb5_free_cred_contents(context, &creds);
-	}
+	krb5_free_cred_contents(context, &creds);
 
 	if (client) {
 		krb5_free_principal(context, client);
@@ -1405,7 +1401,9 @@ krb5_error_code smb_krb5_get_credentials(krb5_context context,
 	krb5_error_code ret;
 	krb5_creds *creds = NULL;
 
-	*out_creds = NULL;
+	if (out_creds != NULL) {
+		*out_creds = NULL;
+	}
 
 	if (impersonate_princ) {
 #ifdef HAVE_KRB5_GET_CREDS_OPT_SET_IMPERSONATE /* Heimdal */
@@ -1497,13 +1495,16 @@ krb5_error_code kerberos_kinit_keyblock_cc(krb5_context ctx, krb5_ccache cc,
 	char tmp_name[sizeof(SMB_CREDS_KEYTAB)];
 	krb5_keytab_entry entry;
 	krb5_keytab keytab;
+	mode_t mask;
 
 	memset(&entry, 0, sizeof(entry));
 	entry.principal = principal;
 	*(KRB5_KT_KEY(&entry)) = *keyblock;
 
 	memcpy(tmp_name, SMB_CREDS_KEYTAB, sizeof(SMB_CREDS_KEYTAB));
+	mask = umask(S_IRWXO | S_IRWXG);
 	mktemp(tmp_name);
+	umask(mask);
 	if (tmp_name[0] == 0) {
 		return KRB5_KT_BADNAME;
 	}

@@ -331,11 +331,10 @@ static NTSTATUS cmd_open(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, c
 	}
 	fsp->conn = vfs->conn;
 
-	status = create_synthetic_smb_fname_split(NULL, argv[1], NULL,
-						  &smb_fname);
-	if (!NT_STATUS_IS_OK(status)) {
+	smb_fname = synthetic_smb_fname_split(NULL, argv[1], NULL);
+	if (smb_fname == NULL) {
 		TALLOC_FREE(fsp);
-		return status;
+		return NT_STATUS_NO_MEMORY;
 	}
 
 	fsp->fsp_name = smb_fname;
@@ -398,13 +397,11 @@ static NTSTATUS cmd_pathfunc(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int arg
 	if (strcmp("rmdir", argv[0]) == 0 ) {
 		ret = SMB_VFS_RMDIR(vfs->conn, argv[1]);
 	} else if (strcmp("unlink", argv[0]) == 0 ) {
-		struct smb_filename *smb_fname = NULL;
-		NTSTATUS status;
+		struct smb_filename *smb_fname;
 
-		status = create_synthetic_smb_fname_split(mem_ctx, argv[1],
-							  NULL, &smb_fname);
-		if (!NT_STATUS_IS_OK(status)) {
-			return status;
+		smb_fname = synthetic_smb_fname_split(mem_ctx, argv[1], NULL);
+		if (smb_fname == NULL) {
+			return NT_STATUS_NO_MEMORY;
 		}
 
 		ret = SMB_VFS_UNLINK(vfs->conn, smb_fname);
@@ -553,24 +550,21 @@ static NTSTATUS cmd_rename(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc,
 	int ret;
 	struct smb_filename *smb_fname_src = NULL;
 	struct smb_filename *smb_fname_dst = NULL;
-	NTSTATUS status;
 
 	if (argc != 3) {
 		printf("Usage: rename <old> <new>\n");
 		return NT_STATUS_OK;
 	}
 
-	status = create_synthetic_smb_fname_split(mem_ctx, argv[1], NULL,
-						  &smb_fname_src);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
+	smb_fname_src = synthetic_smb_fname_split(mem_ctx, argv[1], NULL);
+	if (smb_fname_src == NULL) {
+		return NT_STATUS_NO_MEMORY;
 	}
 
-	status = create_synthetic_smb_fname_split(mem_ctx, argv[2], NULL,
-						  &smb_fname_dst);
-	if (!NT_STATUS_IS_OK(status)) {
+	smb_fname_dst = synthetic_smb_fname_split(mem_ctx, argv[2], NULL);
+	if (smb_fname_dst == NULL) {
 		TALLOC_FREE(smb_fname_src);
-		return status;
+		return NT_STATUS_NO_MEMORY;
 	}
 
 	ret = SMB_VFS_RENAME(vfs->conn, smb_fname_src, smb_fname_dst);
@@ -616,17 +610,15 @@ static NTSTATUS cmd_stat(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, c
 	struct smb_filename *smb_fname = NULL;
 	SMB_STRUCT_STAT st;
 	time_t tmp_time;
-	NTSTATUS status;
 
 	if (argc != 2) {
 		printf("Usage: stat <fname>\n");
 		return NT_STATUS_OK;
 	}
 
-	status = create_synthetic_smb_fname_split(mem_ctx, argv[1], NULL,
-						  &smb_fname);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
+	smb_fname = synthetic_smb_fname_split(mem_ctx, argv[1], NULL);
+	if (smb_fname == NULL) {
+		return NT_STATUS_NO_MEMORY;
 	}
 
 	ret = SMB_VFS_STAT(vfs->conn, smb_fname);
@@ -757,17 +749,15 @@ static NTSTATUS cmd_lstat(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, 
 	struct smb_filename *smb_fname = NULL;
 	SMB_STRUCT_STAT st;
 	time_t tmp_time;
-	NTSTATUS status;
 
 	if (argc != 2) {
 		printf("Usage: lstat <path>\n");
 		return NT_STATUS_OK;
 	}
 
-	status = create_synthetic_smb_fname_split(mem_ctx, argv[1], NULL,
-						  &smb_fname);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
+	smb_fname = synthetic_smb_fname_split(mem_ctx, argv[1], NULL);
+	if (smb_fname == NULL) {
+		return NT_STATUS_NO_MEMORY;
 	}
 
 	if (SMB_VFS_LSTAT(vfs->conn, smb_fname) == -1) {
@@ -984,7 +974,6 @@ static NTSTATUS cmd_utime(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, 
 {
 	struct smb_file_time ft;
 	struct smb_filename *smb_fname = NULL;
-	NTSTATUS status;
 
 	if (argc != 4) {
 		printf("Usage: utime <path> <access> <modify>\n");
@@ -996,10 +985,9 @@ static NTSTATUS cmd_utime(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, 
 	ft.atime = convert_time_t_to_timespec(atoi(argv[2]));
 	ft.mtime = convert_time_t_to_timespec(atoi(argv[3]));
 
-	status = create_synthetic_smb_fname_split(mem_ctx, argv[1],
-						  NULL, &smb_fname);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
+	smb_fname = synthetic_smb_fname_split(mem_ctx, argv[1], NULL);
+	if (smb_fname == NULL) {
+		return NT_STATUS_NO_MEMORY;
 	}
 
 	if (SMB_VFS_NTIMES(vfs->conn, smb_fname, &ft) != 0) {
@@ -1474,11 +1462,10 @@ static NTSTATUS cmd_set_nt_acl(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int a
 	}
 	fsp->conn = vfs->conn;
 
-	status = create_synthetic_smb_fname_split(NULL, argv[1], NULL,
-						  &smb_fname);
-	if (!NT_STATUS_IS_OK(status)) {
+	smb_fname = synthetic_smb_fname_split(NULL, argv[1], NULL);
+	if (smb_fname == NULL) {
 		TALLOC_FREE(fsp);
-		return status;
+		return NT_STATUS_NO_MEMORY;
 	}
 
 	fsp->fsp_name = smb_fname;
@@ -1613,6 +1600,79 @@ static NTSTATUS cmd_sys_acl_get_file(struct vfs_state *vfs, TALLOC_CTX *mem_ctx,
 	return NT_STATUS_OK;
 }
 
+static NTSTATUS cmd_sys_acl_blob_get_file(struct vfs_state *vfs,
+					  TALLOC_CTX *mem_ctx,
+					  int argc, const char **argv)
+{
+	char *description;
+	DATA_BLOB blob;
+	int ret;
+	size_t i;
+
+	if (argc != 2) {
+		printf("Usage: sys_acl_get_file <path>\n");
+		return NT_STATUS_OK;
+	}
+
+	ret = SMB_VFS_SYS_ACL_BLOB_GET_FILE(vfs->conn, argv[1], talloc_tos(),
+					    &description, &blob);
+	if (ret != 0) {
+		printf("sys_acl_blob_get_file failed (%s)\n", strerror(errno));
+		return map_nt_error_from_unix(errno);
+	}
+	printf("Description: %s\n", description);
+	for (i = 0; i < blob.length; i++) {
+		printf("%.2x ", blob.data[i]);
+	}
+	printf("\n");
+
+	return NT_STATUS_OK;
+}
+
+static NTSTATUS cmd_sys_acl_blob_get_fd(struct vfs_state *vfs,
+					TALLOC_CTX *mem_ctx,
+					int argc, const char **argv)
+{
+	int fd;
+	char *description;
+	DATA_BLOB blob;
+	int ret;
+	size_t i;
+
+	if (argc != 2) {
+		printf("Usage: sys_acl_blob_get_fd <fd>\n");
+		return NT_STATUS_OK;
+	}
+
+	fd = atoi(argv[1]);
+	if (fd < 0 || fd >= 1024) {
+		printf("sys_acl_blob_get_fd: error=%d "
+		       "(file descriptor out of range)\n", EBADF);
+		return NT_STATUS_OK;
+	}
+	if (vfs->files[fd] == NULL) {
+		printf("sys_acl_blob_get_fd: error=%d "
+		       "(invalid file descriptor)\n", EBADF);
+		return NT_STATUS_OK;
+	}
+
+	ret = SMB_VFS_SYS_ACL_BLOB_GET_FD(vfs->files[fd], talloc_tos(),
+					  &description, &blob);
+	if (ret != 0) {
+		printf("sys_acl_blob_get_fd failed (%s)\n", strerror(errno));
+		return map_nt_error_from_unix(errno);
+	}
+	printf("Description: %s\n", description);
+	for (i = 0; i < blob.length; i++) {
+		printf("%.2x ", blob.data[i]);
+	}
+	printf("\n");
+
+	return NT_STATUS_OK;
+}
+
+
+
 static NTSTATUS cmd_sys_acl_delete_def_file(struct vfs_state *vfs, TALLOC_CTX *mem_ctx,
 					    int argc, const char **argv)
 {
@@ -1630,6 +1690,80 @@ static NTSTATUS cmd_sys_acl_delete_def_file(struct vfs_state *vfs, TALLOC_CTX *m
 	}
 	return NT_STATUS_OK;
 }
+
+/* Afaik translate name was first introduced with vfs_catia, to be able
+   to translate unix file/dir-names, containing invalid windows characters,
+   to valid windows names.
+   The used translation direction is always unix --> windows
+*/
+static NTSTATUS cmd_translate_name(struct vfs_state *vfs, TALLOC_CTX *mem_ctx,
+					    int argc, const char **argv)
+{
+	int ret;
+	struct dirent *dent = NULL;
+	SMB_STRUCT_STAT st;
+	bool found = false;
+	char *translated = NULL;
+	NTSTATUS status;
+
+	if (argc != 2) {
+		DEBUG(0, ("Usage: translate_name unix_filename\n"));
+		return NT_STATUS_UNSUCCESSFUL;
+	}
+
+	vfs->currentdir = SMB_VFS_OPENDIR(vfs->conn, ".", NULL, 0);
+	if (vfs->currentdir == NULL) {
+		DEBUG(0, ("cmd_translate_name: opendir error=%d (%s)\n",
+			  errno, strerror(errno)));
+		return NT_STATUS_UNSUCCESSFUL;
+	}
+
+	while (true) {
+		dent = SMB_VFS_READDIR(vfs->conn, vfs->currentdir, &st);
+		if (dent == NULL) {
+			break;
+		}
+		if (strcmp (dent->d_name, argv[1]) == 0) {
+			found = true;
+			break;
+		}
+	};
+
+	if (!found) {
+		DEBUG(0, ("cmd_translate_name: file '%s' not found.\n", 
+			  argv[1]));
+		status = NT_STATUS_UNSUCCESSFUL;
+		goto cleanup;
+	}
+	status = SMB_VFS_TRANSLATE_NAME(vfs->conn, dent->d_name,
+					vfs_translate_to_windows,
+					talloc_tos(), &translated);
+	if (NT_STATUS_EQUAL(status, NT_STATUS_NONE_MAPPED)) {
+		DEBUG(0, ("cmd_translate_name: file '%s' cannot be "
+			  "translated\n", argv[1]));
+		TALLOC_FREE(translated);
+		goto cleanup;
+	}
+	/* translation success. But that could also mean
+	   that translating "aaa" to "aaa" was successful :-(
+	*/ 
+	DEBUG(0, ("cmd_translate_name: file '%s' --> '%s'\n", 
+		  argv[1], translated));
+
+	TALLOC_FREE(translated);
+
+cleanup:
+	ret = SMB_VFS_CLOSEDIR(vfs->conn, vfs->currentdir);
+	if (ret == -1) {
+		DEBUG(0, ("cmd_translate_name: closedir failure: %s\n",
+			  strerror(errno)));
+		return NT_STATUS_UNSUCCESSFUL;
+	}
+
+	vfs->currentdir = NULL;
+	return status;;
+}
+
 
 struct cmd_set vfs_commands[] = {
 
@@ -1691,10 +1825,15 @@ struct cmd_set vfs_commands[] = {
 	{ "chmod_acl",   cmd_chmod_acl,   "VFS chmod_acl()",    "chmod_acl <path> <mode>" },
 	{ "sys_acl_get_file", cmd_sys_acl_get_file, "VFS sys_acl_get_file()", "sys_acl_get_file <path>" },
 	{ "sys_acl_get_fd", cmd_sys_acl_get_fd, "VFS sys_acl_get_fd()", "sys_acl_get_fd <fd>" },
+	{ "sys_acl_blob_get_file", cmd_sys_acl_blob_get_file,
+	  "VFS sys_acl_blob_get_file()", "sys_acl_blob_get_file <path>" },
+	{ "sys_acl_blob_get_fd", cmd_sys_acl_blob_get_fd,
+	  "VFS sys_acl_blob_get_fd()", "sys_acl_blob_get_fd <path>" },
 	{ "sys_acl_delete_def_file", cmd_sys_acl_delete_def_file, "VFS sys_acl_delete_def_file()", "sys_acl_delete_def_file <path>" },
 
 
 	{ "test_chain", cmd_test_chain, "test chain code",
 	  "test_chain" },
+	{ "translate_name", cmd_translate_name, "VFS translate_name()", "translate_name unix_filename" },
 	{ NULL }
 };

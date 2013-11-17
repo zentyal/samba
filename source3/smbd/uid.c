@@ -68,7 +68,7 @@ static void free_conn_session_info_if_unused(connection_struct *conn)
 
 	for (i = 0; i < VUID_CACHE_SIZE; i++) {
 		struct vuid_cache_entry *ent;
-		ent = &conn->vuid_cache.array[i];
+		ent = &conn->vuid_cache->array[i];
 		if (ent->vuid != UID_FIELD_INVALID &&
 				conn->session_info == ent->session_info) {
 			return;
@@ -104,13 +104,13 @@ static uint32_t create_share_access_mask(int snum,
 		share_access |= SEC_FLAG_SYSTEM_SECURITY;
 	}
 	if (security_token_has_privilege(token, SEC_PRIV_RESTORE)) {
-		share_access |= (SEC_RIGHTS_PRIV_RESTORE);
+		share_access |= SEC_RIGHTS_PRIV_RESTORE;
 	}
 	if (security_token_has_privilege(token, SEC_PRIV_BACKUP)) {
-		share_access |= (SEC_RIGHTS_PRIV_BACKUP);
+		share_access |= SEC_RIGHTS_PRIV_BACKUP;
 	}
 	if (security_token_has_privilege(token, SEC_PRIV_TAKE_OWNERSHIP)) {
-		share_access |= (SEC_STD_WRITE_OWNER);
+		share_access |= SEC_STD_WRITE_OWNER;
 	}
 
 	return share_access;
@@ -131,8 +131,9 @@ NTSTATUS check_user_share_access(connection_struct *conn,
 
 	if (!user_ok_token(session_info->unix_info->unix_name,
 			   session_info->info->domain_name,
-			   session_info->security_token, snum))
+			   session_info->security_token, snum)) {
 		return NT_STATUS_ACCESS_DENIED;
+	}
 
 	readonly_share = is_share_read_only_for_token(
 		session_info->unix_info->unix_name,
@@ -144,16 +145,13 @@ NTSTATUS check_user_share_access(connection_struct *conn,
 					readonly_share,
 					session_info->security_token);
 
-	if ((share_access & FILE_WRITE_DATA) == 0) {
-		if ((share_access & FILE_READ_DATA) == 0) {
-			/* No access, read or write. */
-			DEBUG(0,("user %s connection to %s "
-				"denied due to share security "
-				"descriptor.\n",
-				session_info->unix_info->unix_name,
-				lp_servicename(talloc_tos(), snum)));
-			return NT_STATUS_ACCESS_DENIED;
-		}
+	if ((share_access & (FILE_READ_DATA|FILE_WRITE_DATA)) == 0) {
+		/* No access, read or write. */
+		DEBUG(0,("user %s connection to %s denied due to share "
+			 "security descriptor.\n",
+			 session_info->unix_info->unix_name,
+			 lp_servicename(talloc_tos(), snum)));
+		return NT_STATUS_ACCESS_DENIED;
 	}
 
 	if (!readonly_share &&
@@ -188,25 +186,22 @@ static bool check_user_ok(connection_struct *conn,
 	bool admin_user = false;
 	struct vuid_cache_entry *ent = NULL;
 	uint32_t share_access = 0;
-	unsigned int share_array_index;
 	NTSTATUS status;
 
 	for (i=0; i<VUID_CACHE_SIZE; i++) {
-		ent = &conn->vuid_cache.array[i];
+		ent = &conn->vuid_cache->array[i];
 		if (ent->vuid == vuid) {
 			if (vuid == UID_FIELD_INVALID) {
 				/*
 				 * Slow path, we don't care
 				 * about the array traversal.
-				 */
+				*/
 				continue;
 			}
 			free_conn_session_info_if_unused(conn);
 			conn->session_info = ent->session_info;
 			conn->read_only = ent->read_only;
-			conn->share_access = get_connection_share_access_list_entry(
-							conn,
-							i);
+			conn->share_access = ent->share_access;
 			return(True);
 		}
 	}
@@ -219,17 +214,15 @@ static bool check_user_ok(connection_struct *conn,
 		return false;
 	}
 
-
 	admin_user = token_contains_name_in_list(
 		session_info->unix_info->unix_name,
 		session_info->info->domain_name,
 		NULL, session_info->security_token, lp_admin_users(snum));
 
-	share_array_index = conn->vuid_cache.next_entry;
-	ent = &conn->vuid_cache.array[conn->vuid_cache.next_entry];
+	ent = &conn->vuid_cache->array[conn->vuid_cache->next_entry];
 
-	conn->vuid_cache.next_entry =
-		(conn->vuid_cache.next_entry + 1) % VUID_CACHE_SIZE;
+	conn->vuid_cache->next_entry =
+		(conn->vuid_cache->next_entry + 1) % VUID_CACHE_SIZE;
 
 	TALLOC_FREE(ent->session_info);
 
@@ -251,11 +244,10 @@ static bool check_user_ok(connection_struct *conn,
 	 * vuid == UID_FIELD_INVALID as called from change_to_user_by_session().
 	 * All this will do is throw away one entry in the cache.
 	 */
+
 	ent->vuid = vuid;
 	ent->read_only = readonly_share;
-	set_connection_share_access_list_entry(conn,
-					share_array_index,
-					share_access);
+	ent->share_access = share_access;
 	free_conn_session_info_if_unused(conn);
 	conn->session_info = ent->session_info;
 	if (vuid == UID_FIELD_INVALID) {
@@ -264,9 +256,7 @@ static bool check_user_ok(connection_struct *conn,
 		 * clear this entry is actually an unused one.
 		 */
 		ent->read_only = false;
-		set_connection_share_access_list_entry(conn,
-					share_array_index,
-					0);
+		ent->share_access = 0;
 		ent->session_info = NULL;
 	}
 

@@ -865,16 +865,14 @@ char *vfs_GetWd(TALLOC_CTX *ctx, connection_struct *conn)
 	struct file_id key;
 	struct smb_filename *smb_fname_dot = NULL;
 	struct smb_filename *smb_fname_full = NULL;
-	NTSTATUS status;
 
 	if (!lp_getwd_cache()) {
 		goto nocache;
 	}
 
-	status = create_synthetic_smb_fname(ctx, ".", NULL, NULL,
-					    &smb_fname_dot);
-	if (!NT_STATUS_IS_OK(status)) {
-		errno = map_errno_from_nt_status(status);
+	smb_fname_dot = synthetic_smb_fname(ctx, ".", NULL, NULL);
+	if (smb_fname_dot == NULL) {
+		errno = ENOMEM;
 		goto out;
 	}
 
@@ -899,10 +897,10 @@ char *vfs_GetWd(TALLOC_CTX *ctx, connection_struct *conn)
 	SMB_ASSERT((cache_value.length > 0)
 		   && (cache_value.data[cache_value.length-1] == '\0'));
 
-	status = create_synthetic_smb_fname(ctx, (char *)cache_value.data,
-					    NULL, NULL, &smb_fname_full);
-	if (!NT_STATUS_IS_OK(status)) {
-		errno = map_errno_from_nt_status(status);
+	smb_fname_full = synthetic_smb_fname(ctx, (char *)cache_value.data,
+					     NULL, NULL);
+	if (smb_fname_full == NULL) {
+		errno = ENOMEM;
 		goto out;
 	}
 
@@ -1040,10 +1038,9 @@ NTSTATUS check_reduced_name_with_privilege(connection_struct *conn,
 		resolved_name));
 
 	/* Now check the stat value is the same. */
-	status = create_synthetic_smb_fname(talloc_tos(), ".",
-					NULL, NULL,
-					&smb_fname_cwd);
-	if (!NT_STATUS_IS_OK(status)) {
+	smb_fname_cwd = synthetic_smb_fname(talloc_tos(), ".", NULL, NULL);
+	if (smb_fname_cwd == NULL) {
+		status = NT_STATUS_NO_MEMORY;
 		goto err;
 	}
 
@@ -1279,14 +1276,12 @@ NTSTATUS check_reduced_name(connection_struct *conn, const char *fname)
 int vfs_stat_smb_fname(struct connection_struct *conn, const char *fname,
 		       SMB_STRUCT_STAT *psbuf)
 {
-	struct smb_filename *smb_fname = NULL;
-	NTSTATUS status;
+	struct smb_filename *smb_fname;
 	int ret;
 
-	status = create_synthetic_smb_fname_split(talloc_tos(), fname, NULL,
-						  &smb_fname);
-	if (!NT_STATUS_IS_OK(status)) {
-		errno = map_errno_from_nt_status(status);
+	smb_fname = synthetic_smb_fname_split(talloc_tos(), fname, NULL);
+	if (smb_fname == NULL) {
+		errno = ENOMEM;
 		return -1;
 	}
 
@@ -1311,14 +1306,12 @@ int vfs_stat_smb_fname(struct connection_struct *conn, const char *fname,
 int vfs_lstat_smb_fname(struct connection_struct *conn, const char *fname,
 			SMB_STRUCT_STAT *psbuf)
 {
-	struct smb_filename *smb_fname = NULL;
-	NTSTATUS status;
+	struct smb_filename *smb_fname;
 	int ret;
 
-	status = create_synthetic_smb_fname_split(talloc_tos(), fname, NULL,
-						  &smb_fname);
-	if (!NT_STATUS_IS_OK(status)) {
-		errno = map_errno_from_nt_status(status);
+	smb_fname = synthetic_smb_fname_split(talloc_tos(), fname, NULL);
+	if (smb_fname == NULL) {
+		errno = ENOMEM;
 		return -1;
 	}
 
@@ -2179,9 +2172,31 @@ NTSTATUS smb_vfs_call_fsctl(struct vfs_handle_struct *handle,
 			    uint32_t *out_len)
 {
 	VFS_FIND(fsctl);
-	return handle->fns->fsctl_fn(handle, fsp, ctx, function, req_flags, 
-				     in_data, in_len, out_data, max_out_len, 
+	return handle->fns->fsctl_fn(handle, fsp, ctx, function, req_flags,
+				     in_data, in_len, out_data, max_out_len,
 				     out_len);
+}
+
+struct tevent_req *smb_vfs_call_copy_chunk_send(struct vfs_handle_struct *handle,
+						TALLOC_CTX *mem_ctx,
+						struct tevent_context *ev,
+						struct files_struct *src_fsp,
+						off_t src_off,
+						struct files_struct *dest_fsp,
+						off_t dest_off,
+						off_t num)
+{
+	VFS_FIND(copy_chunk_send);
+	return handle->fns->copy_chunk_send_fn(handle, mem_ctx, ev, src_fsp,
+					       src_off, dest_fsp, dest_off, num);
+}
+
+NTSTATUS smb_vfs_call_copy_chunk_recv(struct vfs_handle_struct *handle,
+				      struct tevent_req *req,
+				      off_t *copied)
+{
+	VFS_FIND(copy_chunk_recv);
+	return handle->fns->copy_chunk_recv_fn(handle, req, copied);
 }
 
 NTSTATUS smb_vfs_call_fget_nt_acl(struct vfs_handle_struct *handle,

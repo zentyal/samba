@@ -348,29 +348,6 @@ int ldapsam_search_suffix_by_name(struct ldapsam_privates *ldap_state,
 }
 
 /*******************************************************************
- Run the search by rid.
-******************************************************************/
-
-static int ldapsam_search_suffix_by_rid (struct ldapsam_privates *ldap_state,
-					 uint32_t rid, LDAPMessage ** result,
-					 const char **attr)
-{
-	char *filter = NULL;
-	int rc;
-
-	filter = talloc_asprintf(talloc_tos(), "(&(rid=%i)%s)", rid,
-		get_objclass_filter(ldap_state->schema_ver));
-	if (!filter) {
-		return LDAP_NO_MEMORY;
-	}
-
-	rc = smbldap_search_suffix(ldap_state->smbldap_state,
-			filter, attr, result);
-	TALLOC_FREE(filter);
-	return rc;
-}
-
-/*******************************************************************
  Run the search by SID.
 ******************************************************************/
 
@@ -4475,11 +4452,11 @@ static bool ldapuser2displayentry(struct ldap_search_state *state,
 
 	vals = ldap_get_values(ld, entry, "sambaAcctFlags");
 	if ((vals == NULL) || (vals[0] == NULL)) {
-		DEBUG(5, ("\"sambaAcctFlags\" not found\n"));
-		return False;
+		acct_flags = ACB_NORMAL;
+	} else {
+		acct_flags = pdb_decode_acct_ctrl(vals[0]);
+		ldap_value_free(vals);
 	}
-	acct_flags = pdb_decode_acct_ctrl(vals[0]);
-	ldap_value_free(vals);
 
 	if ((state->acct_flags != 0) &&
 	    ((state->acct_flags & acct_flags) == 0))
@@ -4938,10 +4915,6 @@ static bool ldapsam_sid_to_id(struct pdb_methods *methods,
 	int rc;
 
 	TALLOC_CTX *mem_ctx;
-
-	if (!sid_check_object_is_for_passdb(sid)) {
-		return false;
-	}
 
 	ret = pdb_sid_to_id_unix_users_and_groups(sid, id);
 	if (ret == true) {
@@ -6458,6 +6431,11 @@ static NTSTATUS pdb_init_ldapsam_common(struct pdb_methods **pdb_method, const c
 	return NT_STATUS_OK;
 }
 
+static bool ldapsam_is_responsible_for_wellknown(struct pdb_methods *m)
+{
+	return true;
+}
+
 /**********************************************************************
  Initialise the normal mode for pdb_ldap
  *********************************************************************/
@@ -6495,6 +6473,8 @@ NTSTATUS pdb_ldapsam_init_common(struct pdb_methods **pdb_method,
 	(*pdb_method)->search_users = ldapsam_search_users;
 	(*pdb_method)->search_groups = ldapsam_search_groups;
 	(*pdb_method)->search_aliases = ldapsam_search_aliases;
+	(*pdb_method)->is_responsible_for_wellknown =
+					ldapsam_is_responsible_for_wellknown;
 
 	if (lp_parm_bool(-1, "ldapsam", "trusted", False)) {
 		(*pdb_method)->enum_group_members = ldapsam_enum_group_members;

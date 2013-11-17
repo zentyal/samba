@@ -50,14 +50,12 @@ NTSTATUS get_full_smb_filename(TALLOC_CTX *ctx,
  * enumerate streams using the vfs_streaminfo interface and then want to
  * operate on each stream.
  */
-NTSTATUS create_synthetic_smb_fname(TALLOC_CTX *ctx, const char *base_name,
-				    const char *stream_name,
-				    const SMB_STRUCT_STAT *psbuf,
-				    struct smb_filename **smb_fname_out)
+struct smb_filename *synthetic_smb_fname(TALLOC_CTX *mem_ctx,
+					 const char *base_name,
+					 const char *stream_name,
+					 const SMB_STRUCT_STAT *psbuf)
 {
-	struct smb_filename smb_fname_loc;
-
-	ZERO_STRUCT(smb_fname_loc);
+	struct smb_filename smb_fname_loc = { 0, };
 
 	/* Setup the base_name/stream_name. */
 	smb_fname_loc.base_name = discard_const_p(char, base_name);
@@ -67,22 +65,21 @@ NTSTATUS create_synthetic_smb_fname(TALLOC_CTX *ctx, const char *base_name,
 	if (psbuf)
 		smb_fname_loc.st = *psbuf;
 
-	/* Let copy_smb_filename() do the heavy lifting. */
-	return copy_smb_filename(ctx, &smb_fname_loc, smb_fname_out);
+	/* Let cp_smb_filename() do the heavy lifting. */
+	return cp_smb_filename(mem_ctx, &smb_fname_loc);
 }
 
 /**
  * XXX: This is temporary and there should be no callers of this once
  * smb_filename is plumbed through all path based operations.
  */
-NTSTATUS create_synthetic_smb_fname_split(TALLOC_CTX *ctx,
-					  const char *fname,
-					  const SMB_STRUCT_STAT *psbuf,
-					  struct smb_filename **smb_fname_out)
+struct smb_filename *synthetic_smb_fname_split(TALLOC_CTX *ctx,
+					       const char *fname,
+					       const SMB_STRUCT_STAT *psbuf)
 {
-	NTSTATUS status;
 	const char *stream_name = NULL;
 	char *base_name = NULL;
+	struct smb_filename *ret;
 
 	if (!lp_posix_pathnames()) {
 		stream_name = strchr_m(fname, ':');
@@ -97,13 +94,12 @@ NTSTATUS create_synthetic_smb_fname_split(TALLOC_CTX *ctx,
 	}
 
 	if (!base_name) {
-		return NT_STATUS_NO_MEMORY;
+		return NULL;
 	}
 
-	status = create_synthetic_smb_fname(ctx, base_name, stream_name, psbuf,
-					    smb_fname_out);
+	ret = synthetic_smb_fname(ctx, base_name, stream_name, psbuf);
 	TALLOC_FREE(base_name);
-	return status;
+	return ret;
 }
 
 /**
@@ -161,47 +157,43 @@ const char *fsp_fnum_dbg(const struct files_struct *fsp)
 	return str;
 }
 
-NTSTATUS copy_smb_filename(TALLOC_CTX *ctx,
-			   const struct smb_filename *smb_fname_in,
-			   struct smb_filename **smb_fname_out)
+struct smb_filename *cp_smb_filename(TALLOC_CTX *mem_ctx,
+				     const struct smb_filename *in)
 {
+	struct smb_filename *out;
+
 	/* stream_name must always be NULL if there is no stream. */
-	if (smb_fname_in->stream_name) {
-		SMB_ASSERT(smb_fname_in->stream_name[0] != '\0');
+	if (in->stream_name) {
+		SMB_ASSERT(in->stream_name[0] != '\0');
 	}
 
-	*smb_fname_out = talloc_zero(ctx, struct smb_filename);
-	if (*smb_fname_out == NULL) {
-		return NT_STATUS_NO_MEMORY;
+	out = talloc_zero(mem_ctx, struct smb_filename);
+	if (out == NULL) {
+		return NULL;
 	}
-
-	if (smb_fname_in->base_name) {
-		(*smb_fname_out)->base_name =
-		    talloc_strdup(*smb_fname_out, smb_fname_in->base_name);
-		if (!(*smb_fname_out)->base_name)
-			goto no_mem_err;
+	if (in->base_name != NULL) {
+		out->base_name = talloc_strdup(out, in->base_name);
+		if (out->base_name == NULL) {
+			goto fail;
+		}
 	}
-
-	if (smb_fname_in->stream_name) {
-		(*smb_fname_out)->stream_name =
-		    talloc_strdup(*smb_fname_out, smb_fname_in->stream_name);
-		if (!(*smb_fname_out)->stream_name)
-			goto no_mem_err;
+	if (in->stream_name != NULL) {
+		out->stream_name = talloc_strdup(out, in->stream_name);
+		if (out->stream_name == NULL) {
+			goto fail;
+		}
 	}
-
-	if (smb_fname_in->original_lcomp) {
-		(*smb_fname_out)->original_lcomp =
-		    talloc_strdup(*smb_fname_out, smb_fname_in->original_lcomp);
-		if (!(*smb_fname_out)->original_lcomp)
-			goto no_mem_err;
+	if (in->original_lcomp != NULL) {
+		out->original_lcomp = talloc_strdup(out, in->original_lcomp);
+		if (out->original_lcomp == NULL) {
+			goto fail;
+		}
 	}
-
-	(*smb_fname_out)->st = smb_fname_in->st;
-	return NT_STATUS_OK;
-
- no_mem_err:
-	TALLOC_FREE(*smb_fname_out);
-	return NT_STATUS_NO_MEMORY;
+	out->st = in->st;
+	return out;
+fail:
+	TALLOC_FREE(out);
+	return NULL;
 }
 
 /****************************************************************************

@@ -432,7 +432,7 @@ example::
   def test_keys_equal(self):
       x = {'a': 1, 'b': 2}
       y = {'a': 2, 'b': 3}
-      self.assertThat(a, KeysEqual(b))
+      self.assertThat(x, KeysEqual(y))
 
 
 MatchesRegex
@@ -1320,6 +1320,27 @@ Safe attribute testing
 ``hasattr`` is broken_ on many versions of Python.  testtools provides
 ``safe_hasattr``, which can be used to safely test whether an object has a
 particular attribute.
+
+
+Nullary callables
+-----------------
+
+Sometimes you want to be able to pass around a function with the arguments
+already specified.  The normal way of doing this in Python is::
+
+  nullary = lambda: f(*args, **kwargs)
+  nullary()
+
+Which is mostly good enough, but loses a bit of debugging information.  If you
+take the ``repr()`` of ``nullary``, you're only told that it's a lambda, and
+you get none of the juicy meaning that you'd get from the ``repr()`` of ``f``.
+
+The solution is to use ``Nullary`` instead::
+
+  nullary = Nullary(f, *args, **kwargs)
+  nullary()
+
+Here, ``repr(nullary)`` will be the same as ``repr(f)``.
 
 
 .. _testrepository: https://launchpad.net/testrepository

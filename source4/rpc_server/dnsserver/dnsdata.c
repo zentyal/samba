@@ -412,9 +412,9 @@ struct dnsp_DnssrvRpcRecord *dns_to_dnsp_copy(TALLOC_CTX *mem_ctx, struct DNS_RP
 
 		len = dns->data.soa.NamePrimaryServer.len;
 		if (dns->data.soa.NamePrimaryServer.str[len-1] == '.') {
-			dnsp->data.soa.mname = talloc_strdup(mem_ctx, dns->data.soa.NamePrimaryServer.str);
-		} else {
 			dnsp->data.soa.mname = talloc_strndup(mem_ctx, dns->data.soa.NamePrimaryServer.str, len-1);
+		} else {
+			dnsp->data.soa.mname = talloc_strdup(mem_ctx, dns->data.soa.NamePrimaryServer.str);
 		}
 
 		len = dns->data.soa.ZoneAdministratorEmail.len;
@@ -958,8 +958,8 @@ bool dns_record_match(struct dnsp_DnssrvRpcRecord *rec1, struct dnsp_DnssrvRpcRe
 		return dns_name_equal(rec1->data.cname, rec2->data.cname);
 
 	case DNS_TYPE_SOA:
-		return dns_name_equal(rec1->data.soa.mname, rec2->data.soa.mname) == 0 &&
-			dns_name_equal(rec1->data.soa.rname, rec2->data.soa.rname) == 0 &&
+		return dns_name_equal(rec1->data.soa.mname, rec2->data.soa.mname) &&
+			dns_name_equal(rec1->data.soa.rname, rec2->data.soa.rname) &&
 			rec1->data.soa.serial == rec2->data.soa.serial &&
 			rec1->data.soa.refresh == rec2->data.soa.refresh &&
 			rec1->data.soa.retry == rec2->data.soa.retry &&
@@ -970,8 +970,8 @@ bool dns_record_match(struct dnsp_DnssrvRpcRecord *rec1, struct dnsp_DnssrvRpcRe
 		return dns_name_equal(rec1->data.ptr, rec2->data.ptr);
 
 	case DNS_TYPE_MX:
-		return rec1->data.mx.wPriority == rec2->data.srv.wPriority &&
-			dns_name_equal(rec1->data.mx.nameTarget, rec2->data.srv.nameTarget);
+		return rec1->data.mx.wPriority == rec2->data.mx.wPriority &&
+			dns_name_equal(rec1->data.mx.nameTarget, rec2->data.mx.nameTarget);
 
 	case DNS_TYPE_TXT:
 		if (rec1->data.txt.count != rec2->data.txt.count) {

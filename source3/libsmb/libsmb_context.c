@@ -1,10 +1,10 @@
-/* 
+/*
    Unix SMB/Netbios implementation.
    SMB client library implementation
    Copyright (C) Andrew Tridgell 1998
    Copyright (C) Richard Sharpe 2000, 2002
    Copyright (C) John Terpstra 2000
-   Copyright (C) Tom Jansen (Ninja ISD) 2002 
+   Copyright (C) Tom Jansen (Ninja ISD) 2002
    Copyright (C) Derrell Lipman 2003-2008
    Copyright (C) Jeremy Allison 2007, 2008
 
@@ -30,7 +30,7 @@
 #include "../libcli/smb/smbXcli_base.h"
 
 /*
- * Is the logging working / configfile read ? 
+ * Is the logging working / configfile read ?
  */
 static bool SMBC_initialized = false;
 static unsigned int initialized_ctx_count = 0;
@@ -169,6 +169,7 @@ smbc_new_context(void)
 
         smbc_setDebug(context, 0);
         smbc_setTimeout(context, 20000);
+        smbc_setPort(context, 0);
 
         smbc_setOptionFullTimeNames(context, False);
         smbc_setOptionOpenShareMode(context, SMBC_SHAREMODE_DENY_NONE);

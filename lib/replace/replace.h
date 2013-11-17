@@ -46,14 +46,14 @@
 #endif
 
 
-#ifdef HAVE_STDINT_H
+#ifdef HAVE_INTTYPES_H
+#define __STDC_FORMAT_MACROS
+#include <inttypes.h>
+#elif HAVE_STDINT_H
 #include <stdint.h>
 /* force off HAVE_INTTYPES_H so that roken doesn't try to include both,
    which causes a warning storm on irix */
 #undef HAVE_INTTYPES_H
-#elif HAVE_INTTYPES_H
-#define __STDC_FORMAT_MACROS
-#include <inttypes.h>
 #endif
 
 #ifdef HAVE_MALLOC_H
@@ -106,6 +106,45 @@
 #endif
 #ifndef PRIu64
 # define PRIu64		__PRI64_PREFIX "u"
+#endif
+
+#ifndef SCNd8
+# define SCNd8		"hhd"
+#endif
+#ifndef SCNd16
+# define SCNd16		"hd"
+#endif
+#ifndef SCNd32
+# define SCNd32		"d"
+#endif
+#ifndef SCNd64
+# define SCNd64		__PRI64_PREFIX "d"
+#endif
+
+#ifndef SCNi8
+# define SCNi8		"hhi"
+#endif
+#ifndef SCNi16
+# define SCNi16		"hi"
+#endif
+#ifndef SCNi32
+# define SCNi32		"i"
+#endif
+#ifndef SCNi64
+# define SCNi64		__PRI64_PREFIX "i"
+#endif
+
+#ifndef SCNu8
+# define SCNu8		"hhu"
+#endif
+#ifndef SCNu16
+# define SCNu16		"hu"
+#endif
+#ifndef SCNu32
+# define SCNu32		"u"
+#endif
+#ifndef SCNu64
+# define SCNu64		__PRI64_PREFIX "u"
 #endif
 
 #ifdef HAVE_BSD_STRING_H
@@ -842,17 +881,6 @@ int fdatasync(int );
 #ifndef HAVE_POLL
 #define poll rep_poll
 /* prototype is in "system/network.h" */
-#endif
-
-#if !defined(getpass)
-#ifdef REPLACE_GETPASS
-#if defined(REPLACE_GETPASS_BY_GETPASSPHRASE)
-#define getpass(prompt) getpassphrase(prompt)
-#else
-#define getpass(prompt) rep_getpass(prompt)
-char *rep_getpass(const char *prompt);
-#endif
-#endif
 #endif
 
 #ifndef HAVE_GETPEEREID

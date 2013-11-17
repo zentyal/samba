@@ -280,9 +280,10 @@ static const struct gensec_security_ops *gensec_security_by_name(struct gensec_s
  * attached to the gensec_security, and return in our preferred order.
  */
 
-const struct gensec_security_ops **gensec_security_by_sasl_list(struct gensec_security *gensec_security,
-								TALLOC_CTX *mem_ctx,
-								const char **sasl_names)
+static const struct gensec_security_ops **gensec_security_by_sasl_list(
+	struct gensec_security *gensec_security,
+	TALLOC_CTX *mem_ctx,
+	const char **sasl_names)
 {
 	const struct gensec_security_ops **backends_out;
 	struct gensec_security_ops **backends;
@@ -427,10 +428,11 @@ _PUBLIC_ const struct gensec_security_ops_wrapper *gensec_security_by_oid_list(
  * Return OIDS from the security subsystems listed
  */
 
-const char **gensec_security_oids_from_ops(struct gensec_security *gensec_security,
-										   TALLOC_CTX *mem_ctx,
-					   struct gensec_security_ops **ops,
-					   const char *skip)
+static const char **gensec_security_oids_from_ops(
+	struct gensec_security *gensec_security,
+	TALLOC_CTX *mem_ctx,
+	struct gensec_security_ops **ops,
+	const char *skip)
 {
 	int i;
 	int j = 0;
@@ -875,7 +877,7 @@ _PUBLIC_ NTSTATUS gensec_register(const struct gensec_security_ops *ops)
   This can be used by backends to either detect compilation errors, or provide
   multiple implementations for different smbd compilation options in one module
 */
-const struct gensec_critical_sizes *gensec_interface_version(void)
+_PUBLIC_ const struct gensec_critical_sizes *gensec_interface_version(void)
 {
 	static const struct gensec_critical_sizes critical_sizes = {
 		GENSEC_INTERFACE_VERSION,

@@ -75,7 +75,7 @@ Depends: adduser,
          ${misc:Depends},
          ${python:Depends},
          ${shlibs:Depends}
-Recommends: attr, logrotate
+Recommends: attr, logrotate, samba-vfs-modules
 Suggests: bind9 (>= 1:9.5.1),
           bind9utils,
           ctdb,
@@ -370,6 +370,19 @@ Description: Samba Directory Services Database
  .
  This package contains LDB plugins which add support for various Active
  Directory features to the LDB library.
+
+Package: samba-vfs-modules
+Architecture: any
+Replaces: samba-libs (<< 2:4.1.1+dfsg-1)
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Enhances: samba
+Description: Samba Virtual FileSystem plugins
+ Samba is an implementation of the SMB/CIFS protocol for Unix systems,
+ providing support for cross-platform file sharing with Microsoft Windows, OS X,
+ and other Unix systems.  Samba can also function as a domain controller
+ or member server in both NT4-style and Active Directory domains.
+ .
+ This package contains plugins for the Samba server Virtual FileSystem.
 
 Package: libpam-smbpass
 Section: admin

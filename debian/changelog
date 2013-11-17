@@ -6,6 +6,8 @@ samba (2:4.1.1+dfsg-1) UNRELEASED; urgency=low
   * Add source dependency on libntdb1, and stop passing --disable-ntdb,
     which has been removed.
   * Remove handling for SWAT, which is no longer shipped upstream.
+  * Split VFS modules out from samba-libs into a separate binary
+    package.
 
  -- Jelmer Vernooij <jelmer@debian.org>  Sun, 17 Nov 2013 11:47:57 +0000
 

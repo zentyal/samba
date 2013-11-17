@@ -1,5 +1,6 @@
 samba (2:4.1.1+dfsg-1) UNRELEASED; urgency=low
 
+  [ Jelmer Vernooij ]
   * New upstream release.
    + Drop 0002-lib-replace-Allow-OS-vendor-to-assert-that-getpass-i.patch:
      upstream no longer uses getpass.
@@ -11,6 +12,9 @@ samba (2:4.1.1+dfsg-1) UNRELEASED; urgency=low
   * Move service and process_model modules from the samba-libs to the
     samba package. Prevents dependencies on libkdc2-heimdal and
     libhdb9-heimdal.
+
+  [ Ivo De Decker ]
+  * Add build-dep on python-ntdb
 
  -- Jelmer Vernooij <jelmer@debian.org>  Sun, 17 Nov 2013 11:47:57 +0000
 

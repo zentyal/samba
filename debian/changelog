@@ -8,6 +8,9 @@ samba (2:4.1.1+dfsg-1) UNRELEASED; urgency=low
   * Remove handling for SWAT, which is no longer shipped upstream.
   * Split VFS modules out from samba-libs into a separate binary
     package.
+  * Move service and process_model modules from the samba-libs to the
+    samba package. Prevents dependencies on libkdc2-heimdal and
+    libhdb9-heimdal.
 
  -- Jelmer Vernooij <jelmer@debian.org>  Sun, 17 Nov 2013 11:47:57 +0000
 

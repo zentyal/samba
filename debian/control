@@ -88,6 +88,7 @@ Replaces: libsamdb0 (<< 4.0.0~alpha17~),
           samba-ad-dc,
           samba-common (<= 2.0.5a-2),
           samba-doc (<< 2:4.0.5~),
+          samba-libs (<< 2:4.1.1+dfsg-1),
           samba4
 Conflicts: libldb1 (<< 1:1.1.15),
            samba (<< 2:3.3.0~rc2-5),

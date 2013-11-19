@@ -492,9 +492,9 @@ static const char *generate_krb5_ccache(TALLOC_CTX *mem_ctx,
 			gen_cc = talloc_asprintf(
 				mem_ctx, "WRFILE:/tmp/krb5cc_%d", uid);
 		}
-		if (strequal(type, "DIR")) {
+		if (strequal(type, "KEYRING")) {
 			gen_cc = talloc_asprintf(
-				mem_ctx, "DIR:/run/user/%d/krb5cc", uid);
+				mem_ctx, "KEYRING:persistent:%d", uid);
 		}
 
 		if (strnequal(type, "FILE:/", 6) ||

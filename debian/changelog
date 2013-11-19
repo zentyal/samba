@@ -1,6 +1,11 @@
 samba (2:4.0.12+dfsg-1) UNRELEASED; urgency=low
 
+  [ Ivo De Decker ]
   * New upstream release.
+
+  [ Debconf translations ]
+  * Thai (Theppitak Karoonboonyanan).  Closes: #728525
+  * Norwegian Bokmål (Bjørn Steensrud).  Closes: #729070
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Tue, 19 Nov 2013 23:19:03 +0100
 

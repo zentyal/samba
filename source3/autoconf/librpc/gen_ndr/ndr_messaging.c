@@ -77,6 +77,8 @@ _PUBLIC_ void ndr_print_messaging_type(struct ndr_print *ndr, const char *name, 
 		case MSG_WINBIND_VALIDATE_CACHE: val = "MSG_WINBIND_VALIDATE_CACHE"; break;
 		case MSG_WINBIND_DUMP_DOMAIN_LIST: val = "MSG_WINBIND_DUMP_DOMAIN_LIST"; break;
 		case MSG_WINBIND_IP_DROPPED: val = "MSG_WINBIND_IP_DROPPED"; break;
+		case MSG_WINBIND_DOMAIN_ONLINE: val = "MSG_WINBIND_DOMAIN_ONLINE"; break;
+		case MSG_WINBIND_DOMAIN_OFFLINE: val = "MSG_WINBIND_DOMAIN_OFFLINE"; break;
 		case MSG_DUMP_EVENT_LIST: val = "MSG_DUMP_EVENT_LIST"; break;
 		case MSG_SMBXSRV_SESSION_CLOSE: val = "MSG_SMBXSRV_SESSION_CLOSE"; break;
 		case MSG_DBWRAP_G_LOCK_RETRY: val = "MSG_DBWRAP_G_LOCK_RETRY"; break;

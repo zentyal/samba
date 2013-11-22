@@ -7,6 +7,10 @@ samba (2:4.0.10+dfsg-5) UNRELEASED; urgency=low
   * Thai (Theppitak Karoonboonyanan).  Closes: #728525
   * Norwegian Bokmål (Bjørn Steensrud).  Closes: #729070
 
+  [ Jelmer Vernooij ]
+  * Add 26_heimdal_compat: Fix compatibility with newer versions of
+    Heimdal.
+
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Sat, 02 Nov 2013 11:51:28 +0100
 
 samba (2:4.0.10+dfsg-4) unstable; urgency=low

@@ -6,6 +6,7 @@ samba (2:4.0.12+dfsg-1) UNRELEASED; urgency=low
   [ Debconf translations ]
   * Thai (Theppitak Karoonboonyanan).  Closes: #728525
   * Norwegian Bokmål (Bjørn Steensrud).  Closes: #729070
+  * German (Holger Wansing).  Closes: #729210
 
   [ Jelmer Vernooij ]
   * Add 26_heimdal_compat: Fix compatibility with newer versions of

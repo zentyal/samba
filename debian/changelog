@@ -1,4 +1,4 @@
-samba (2:4.0.12+dfsg-1) UNRELEASED; urgency=low
+samba (2:4.0.12+dfsg-1) unstable; urgency=low
 
   [ Ivo De Decker ]
   * New upstream release.
@@ -12,7 +12,7 @@ samba (2:4.0.12+dfsg-1) UNRELEASED; urgency=low
   * Add 26_heimdal_compat: Fix compatibility with newer versions of
     Heimdal.
 
- -- Ivo De Decker <ivo.dedecker@ugent.be>  Tue, 19 Nov 2013 23:19:03 +0100
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Sun, 24 Nov 2013 07:48:20 +0100
 
 samba (2:4.0.11+dfsg-1) unstable; urgency=high
 

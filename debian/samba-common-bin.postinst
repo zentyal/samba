@@ -2,7 +2,7 @@
 
 set -e 
 
-if test "x$1" = "xupgrade" ; then
+if dpkg --compare-versions "$2" lt-nl 2:4.0.12+dfsg-2~; then
 	update-alternatives --remove-all nmblookup /usr/bin/nmblookup.samba3
 	update-alternatives --remove-all net /usr/bin/net.samba3
 	update-alternatives --remove-all testparm /usr/bin/testparm.samba3

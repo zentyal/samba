@@ -2,6 +2,9 @@ samba (2:4.0.12+dfsg-2) UNRELEASED; urgency=low
 
   * Move update-alternatives upgrade removal handling to the postinst, where
     it belongs.  Closes: #730090.
+  * Really remove all references to encrypted passwords: the
+    samba-common.config script still included references, which could cause
+    upgrade failures in some cases.  Closes: #729167.
 
  -- Steve Langasek <vorlon@debian.org>  Sun, 24 Nov 2013 19:06:20 -0800
 

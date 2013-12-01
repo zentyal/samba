@@ -12,3 +12,4 @@ VERSION.patch
 waf_smbpasswd_location
 add-so-version-to-private-libraries
 do-not-install-smbclient4-and-nmbclient4
+26_heimdal_no_local_krb5_types

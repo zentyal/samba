@@ -36,3 +36,4 @@ debian-changes-2:3.5.6~dfsg-3squeeze8
 security-CVE-2013-0213.patch
 security-CVE-2013-0214.patch
 security-CVE-2013-4124.patch
+security-CVE-2013-4408.patch

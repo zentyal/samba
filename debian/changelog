@@ -1,11 +1,11 @@
-samba (2:3.6.6-6+deb7u2) UNRELEASED; urgency=low
+samba (2:3.6.6-6+deb7u2) wheezy-security; urgency=high
 
   * Security update
   * CVE-2013-4475: ACLs are not checked on opening an alternate data stream on
     a file or directory
   * CVE-2013-4408: DCE-RPC fragment length field is incorrectly checked
 
- -- Ivo De Decker <ivo.dedecker@ugent.be>  Sun, 01 Dec 2013 18:24:42 +0100
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Tue, 03 Dec 2013 10:15:06 +0100
 
 samba (2:3.6.6-6+deb7u1) wheezy; urgency=low
 

@@ -12,6 +12,8 @@ samba (2:4.1.1+dfsg-1) UNRELEASED; urgency=low
   * Move service and process_model modules from the samba-libs to the
     samba package. Prevents dependencies on libkdc2-heimdal and
     libhdb9-heimdal.
+  * Fix invocations of 'update-alternatives --remove-all' in samba-
+    common-bin prerm. Closes: #731192
 
   [ Ivo De Decker ]
   * Add build-dep on python-ntdb.

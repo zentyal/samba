@@ -18,3 +18,16 @@ index 4f55a80..0000000
 -typedef ssize_t krb5_ssize_t;
 -
 -#endif /* __krb5_types_h__ */
+diff --git a/source4/kdc/hdb-samba4-plugin.c b/source4/kdc/hdb-samba4-plugin.c
+index 568386d..9135df8 100644
+--- a/source4/kdc/hdb-samba4-plugin.c
++++ b/source4/kdc/hdb-samba4-plugin.c
+@@ -78,7 +78,7 @@ static krb5_error_code hdb_samba4_create(krb5_context context, struct HDB **db,
+  * The <address> is the string form of a pointer to a talloced struct hdb_samba_context
+  */
+ struct hdb_method hdb_samba4_interface = {
+-	.interface_version = HDB_INTERFACE_VERSION,
++	HDB_INTERFACE_VERSION,
+ 	.prefix = "samba4",
+ 	.create = hdb_samba4_create
+ };

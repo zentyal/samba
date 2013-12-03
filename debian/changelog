@@ -1,9 +1,9 @@
-samba (2:3.5.6~dfsg-3squeeze11) UNRELEASED; urgency=high
+samba (2:3.5.6~dfsg-3squeeze11) squeeze-security; urgency=high
 
   * Security update
   * CVE-2013-4408: DCERPC frag_len not checked
 
- -- Ivo De Decker <ivo.dedecker@ugent.be>  Sun, 01 Dec 2013 19:59:03 +0100
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Tue, 03 Dec 2013 10:27:43 +0100
 
 samba (2:3.5.6~dfsg-3squeeze10) squeeze; urgency=low
 

@@ -1,14 +1,14 @@
-# Thai translation of exim4.
-# Copyright (C) 2006-2008 Software in the Public Interest, Inc.
-# This file is distributed under the same license as the exim4 package.
-# Theppitak Karoonboonyanan <thep@linux.thai.net>, 2006-2008.
+# Thai translation of samba.
+# Copyright (C) 2006-2013 Software in the Public Interest, Inc.
+# This file is distributed under the same license as the samba package.
+# Theppitak Karoonboonyanan <thep@linux.thai.net>, 2006-2013.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2013-10-22 20:32+0200\n"
-"PO-Revision-Date: 2008-06-17 15:40+0700\n"
+"PO-Revision-Date: 2013-11-02 20:15+0700\n"
 "Last-Translator:  Theppitak Karoonboonyanan <thep@linux.thai.net>\n"
 "Language-Team: Thai <thai-l10n@googlegroups.com>\n"
 "Language: th\n"
@@ -37,7 +37,7 @@ msgstr ""
 #. Description
 #: ../samba-ad-dc.templates:2001
 msgid "Server role"
-msgstr ""
+msgstr "บทบาทของเซิร์ฟเวอร์"
 
 #. Type: select
 #. Description
@@ -47,6 +47,9 @@ msgid ""
 "services such as identity management and domain logons. Each domain needs to "
 "have a at least one domain controller."
 msgstr ""
+"ตัวควบคุมโดเมนจะจัดการโดเมนแบบ NT4 หรือ Active Directory และให้บริการต่างๆ "
+"เช่นการจัดการชื่อเอกลักษณ์และการเข้าระบบในโดเมน "
+"แต่ละโดเมนจะต้องมีตัวควบคุมโดเมนอย่างน้อยหนึ่งตัวเสมอ"
 
 #. Type: select
 #. Description
@@ -56,6 +59,9 @@ msgid ""
 "not provide any domain services. Workstations and file or print servers are "
 "usually regular domain members."
 msgstr ""
+"เซิร์ฟเวอร์สมาชิกสามารถเข้าเป็นส่วนหนึ่งของโดเมนแบบ NT4 หรือ Active Directory ได้ "
+"แต่จะไม่ให้บริการใดๆ เกี่ยวกับโดเมนเลย "
+"เครื่องสถานีงานและเซิร์ฟเวอร์บริการแฟ้มหรือบริการพิมพ์มักจะเป็นสมาชิกแบบปกติของโดเมน"
 
 #. Type: select
 #. Description
@@ -64,6 +70,8 @@ msgid ""
 "A standalone server can not be used in a domain and only supports file "
 "sharing and Windows for Workgroups-style logins."
 msgstr ""
+"เซิร์ฟเวอร์แบบ standalone ไม่สามารถใช้งานภายในโดเมนได้ "
+"และจะรองรับการแบ่งปันแฟ้มและการเข้าระบบในแบบ Windows for Workgroups เท่านั้น"
 
 #. Type: select
 #. Description
@@ -72,13 +80,14 @@ msgid ""
 "If no server role is specified, the Samba server will not be provisioned, so "
 "this can be done manually by the user."
 msgstr ""
+"ถ้าไม่มีการระบุบทบาทของเซิร์ฟเวอร์ ก็จะไม่มีการจัดเตรียมเซิร์ฟเวอร์ Samba "
+"เพื่อที่ผู้ใช้จะสามารถจัดเตรียมเองได้"
 
 #. Type: string
 #. Description
 #: ../samba-ad-dc.templates:3001
-#, fuzzy
 msgid "Realm name:"
-msgstr "Realm:"
+msgstr "ชื่อ realm:"
 
 #. Type: string
 #. Description
@@ -86,49 +95,49 @@ msgstr "Realm:"
 msgid ""
 "Please specify the Kerberos realm for the domain that this domain controller "
 "controls."
-msgstr ""
+msgstr "กรุณาระบุ realm ของ Kerberos ของโดเมนที่ตัวควบคุมโดเมนนี้ควบคุมอยู่"
 
 #. Type: string
 #. Description
 #: ../samba-ad-dc.templates:3001
 msgid "Usually this is the a capitalized version of your DNS hostname."
-msgstr ""
+msgstr "โดยปกติแล้วก็จะเป็นชื่อโฮสต์ของคุณใน DNS โดยสะกดด้วยตัวพิมพ์ใหญ่ทั้งหมด"
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "New password for the Samba \"administrator\" user:"
-msgstr ""
+msgstr "ตั้งรหัสผ่านใหม่สำหรับผู้ใช้ \"administrator\" ของ Samba:"
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "If this field is left blank, a random password will be generated."
-msgstr ""
+msgstr "ถ้าปล่อยช่องนี้ว่างไว้ ก็จะสร้างรหัสผ่านสุ่มให้แทน"
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "A password can be set later by running, as root:"
-msgstr ""
+msgstr "คุณสามารถเปลี่ยนรหัสผ่านภายหลังได้โดยใช้คำสั่งต่อไปนี้ในฐานะ root:"
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:5001
 msgid "Repeat password for the Samba \"administrator\" user:"
-msgstr ""
+msgstr "ป้อนรหัสผ่านสำหรับผู้ใช้ \"administrator\" ของ Samba ซ้ำอีกครั้ง:"
 
 #. Type: error
 #. Description
 #: ../samba-ad-dc.templates:6001
 msgid "Password input error"
-msgstr ""
+msgstr "การป้อนรหัสผ่านผิดพลาด"
 
 #. Type: error
 #. Description
 #: ../samba-ad-dc.templates:6001
 msgid "The two passwords you entered were not the same. Please try again."
-msgstr ""
+msgstr "รหัสผ่านที่คุณป้อนทั้งสองครั้งไม่ตรงกัน กรุณาลองใหม่"
 
 #. Type: title
 #. Description
@@ -215,6 +224,9 @@ msgstr ""
 "กรุณาระบุเวิร์กกรุ๊ปสำหรับระบบนี้ ค่านี้จะกำหนดเวิร์กกรุ๊ปที่ระบบนี้จะเข้าร่วมเมื่อใช้เป็นเซิร์ฟเวอร์, "
 "กำหนดเวิร์กกรุ๊ปปริยายที่จะใช้เมื่อท่องดูด้วยโปรแกรมต่างๆ และกำหนดชื่อโดเมนที่จะใช้ในกรณีที่ตั้งค่า "
 "\"security=domain\" ด้วย"
+
+#~ msgid " $ samba-tool user setpassword administrator"
+#~ msgstr " $ samba-tool user setpassword administrator"
 
 #~ msgid "Use password encryption?"
 #~ msgstr "ใช้การเข้ารหัสลับกับรหัสผ่านหรือไม่?"

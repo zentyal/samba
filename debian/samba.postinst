@@ -39,6 +39,10 @@ if dpkg --compare-versions "$2" lt-nl 2:3.6.15-2; then
 	fi
 fi
 
+if dpkg --compare-versions "$2" lt-nl 2:4.0.12+dfsg-2~; then
+	update-alternatives --remove smbstatus /usr/bin/smbstatus.samba3
+fi
+
 # add the sambashare group
 if ! getent group sambashare > /dev/null 2>&1
 then

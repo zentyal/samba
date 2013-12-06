@@ -8,15 +8,15 @@
 #            /usr/share/doc/po-debconf/README-trans
 #         or http://www.debian.org/intl/l10n/po-debconf/README-trans#
 #    Developers do not need to manually edit POT or PO files.
-# Holger Wansing <linux@wansing-online.de>, 2006, 2007, 2008, 2011.
+# Holger Wansing <linux@wansing-online.de>, 2006-2013.
 # Martin Krüger <mkrueger@mkru.de>, 2005.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: samba4 4.0.0~alpha17.dfsg2-1\n"
+"Project-Id-Version: samba4 4.0.10+dfsg-3\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2013-10-22 20:32+0200\n"
-"PO-Revision-Date: 2011-12-30 15:26+0100\n"
+"PO-Revision-Date: 2013-11-10 10:46+0100\n"
 "Last-Translator: Holger Wansing <linux@wansing-online.de>\n"
 "Language-Team: German <debian-l10n-german@lists.debian.org>\n"
 "Language: de\n"
@@ -39,9 +39,8 @@ msgid ""
 "good starting point for most existing installations."
 msgstr ""
 "Es ist möglich, die vorhandenen Konfigurationsdateien von Samba 3 nach Samba "
-"4 zu migrieren. Zwar könnte dies in sehr komplexen Situationen fehlschlagen, "
-"aber für die meisten vorhandenen Installationen sollte es ein guter Anfang "
-"sein."
+"4 zu migrieren. Zwar könnte dies in komplexen Situationen fehlschlagen, aber "
+"für die meisten vorhandenen Installationen sollte es ein guter Anfang sein."
 
 #. Type: select
 #. Description
@@ -83,7 +82,7 @@ msgid ""
 msgstr ""
 "Ein autonomer Einzel-Server kann nicht in einer Domain genutzt werden und "
 "unterstützt lediglich Dateifreigaben sowie Anmeldungen im Windows-for-"
-"Worgroups-Stil."
+"Workgroups-Stil."
 
 #. Type: select
 #. Description
@@ -92,6 +91,9 @@ msgid ""
 "If no server role is specified, the Samba server will not be provisioned, so "
 "this can be done manually by the user."
 msgstr ""
+"Falls Sie keine Server-Funktion angeben, wird der Samba-Server nicht für "
+"diese Funktion vorgesehen, daher kann dies anschließend manuell durch den "
+"Benutzer erledigt werden."
 
 #. Type: string
 #. Description
@@ -119,37 +121,41 @@ msgstr "Üblicherweise ist dies Ihr DNS-Hostname in Großbuchstaben."
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "New password for the Samba \"administrator\" user:"
-msgstr ""
+msgstr "Neues Passwort für den Samba-»Administrator«-Benutzer:"
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "If this field is left blank, a random password will be generated."
-msgstr ""
+msgstr "Wenn Sie dieses Feld leer lassen, wird ein Zufallspasswort erzeugt."
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "A password can be set later by running, as root:"
 msgstr ""
+"Ein Passwort kann später gesetzt werden, indem durch root Folgendes "
+"ausgeführt wird:"
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:5001
 msgid "Repeat password for the Samba \"administrator\" user:"
-msgstr ""
+msgstr "Passwort für den Samba-»Administrator«-Benutzer wiederholen:"
 
 #. Type: error
 #. Description
 #: ../samba-ad-dc.templates:6001
 msgid "Password input error"
-msgstr ""
+msgstr "Passwort-Eingabefehler"
 
 #. Type: error
 #. Description
 #: ../samba-ad-dc.templates:6001
 msgid "The two passwords you entered were not the same. Please try again."
 msgstr ""
+"Die zwei eingegebenen Passwörter sind nicht identisch. Bitte versuchen Sie "
+"es noch einmal."
 
 #. Type: title
 #. Description
@@ -176,11 +182,11 @@ msgid ""
 "be read from /etc/samba/dhcp.conf."
 msgstr ""
 "Wenn Ihr Computer IP-Adress-Informationen von einem DHCP-Server im Netzwerk "
-"bezieht, kann es sein, dass auch Informationen über WINS-Server (»NetBIOS-"
-"Name-Server«) zur Verfügung gestellt werden, sollten solche Server im "
-"Netzwerk vorhanden sein. Eine Änderung der Datei smb.conf ist erforderlich, "
-"damit die über DHCP angebotenen WINS-Einstellungen automatisch aus der "
-"Datei /etc/samba/dhcp.conf übernommen werden."
+"bezieht, ist es möglich, dass der DHCP-Server auch Informationen über im "
+"Netz vorhandene WINS-Server (»NetBIOS-Name-Server«) zur Verfügung stellt. "
+"Eine Änderung der Datei smb.conf ist erforderlich, damit die über DHCP "
+"angebotenen WINS-Einstellungen automatisch aus der Datei /etc/samba/dhcp."
+"conf übernommen werden."
 
 #. Type: boolean
 #. Description
@@ -247,8 +253,11 @@ msgstr ""
 "Bitte geben Sie die Arbeitsgruppe für dieses System an. Diese Einstellung "
 "beeinflußt, in welcher Arbeitsgruppe das System erscheint, wenn es als "
 "Server verwendet wird, die zu verwendende Standard-Arbeitsgruppe, wenn das "
-"Netzwerk mit verschiedenen Frontends durchsucht wird sowie den Domain-Namen, "
-"der für die Einstellung »security=domain« verwendet wird."
+"Netzwerk mit verschiedenen Programmen durchsucht wird sowie den Domain-"
+"Namen, der für die Einstellung »security=domain« verwendet wird."
+
+#~ msgid " $ samba-tool user setpassword administrator"
+#~ msgstr " $ samba-tool user setpassword administrator"
 
 #~ msgid "Use password encryption?"
 #~ msgstr "Verschlüsselte Passwörter verwenden?"

@@ -13,6 +13,9 @@ samba (2:4.0.13+dfsg-1) UNRELEASED; urgency=low
     - CVE-2012-6150: pam_winbind login without require_membership_of
                      restrictions
 
+  [ Jelmer Vernooij ]
+  * Fix invocations of 'update-alternatives --remove-all'. Closes: #731192
+
  -- Steve Langasek <vorlon@debian.org>  Sun, 24 Nov 2013 19:06:20 -0800
 
 samba (2:4.0.12+dfsg-1) unstable; urgency=low

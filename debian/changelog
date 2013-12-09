@@ -1,8 +1,8 @@
-samba (2:3.6.6-6+deb7u2~bpo60+1) UNRELEASED; urgency=high
+samba (2:3.6.6-6+deb7u2~bpo60+1) squeeze-backports; urgency=high
 
   * Rebuild for squeeze-backports.
 
- -- Ivo De Decker <ivo.dedecker@ugent.be>  Mon, 09 Dec 2013 20:29:09 +0100
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Mon, 09 Dec 2013 20:37:31 +0100
 
 samba (2:3.6.6-6+deb7u2) wheezy-security; urgency=high
 

@@ -1,4 +1,4 @@
-samba (2:4.0.13+dfsg-1) UNRELEASED; urgency=low
+samba (2:4.0.13+dfsg-1) unstable; urgency=high
 
   [ Steve Langasek ]
   * Move update-alternatives upgrade removal handling to the postinst, where
@@ -20,7 +20,7 @@ samba (2:4.0.13+dfsg-1) UNRELEASED; urgency=low
   [ Jelmer Vernooij ]
   * Fix invocations of 'update-alternatives --remove-all'. Closes: #731192
 
- -- Steve Langasek <vorlon@debian.org>  Sun, 24 Nov 2013 19:06:20 -0800
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Mon, 09 Dec 2013 18:34:07 +0100
 
 samba (2:4.0.12+dfsg-1) unstable; urgency=low
 

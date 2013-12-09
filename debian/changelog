@@ -1,10 +1,17 @@
-samba (2:4.0.12+dfsg-2) UNRELEASED; urgency=low
+samba (2:4.0.13+dfsg-1) UNRELEASED; urgency=low
 
+  [ Steve Langasek ]
   * Move update-alternatives upgrade removal handling to the postinst, where
     it belongs.  Closes: #730090.
   * Really remove all references to encrypted passwords: the
     samba-common.config script still included references, which could cause
     upgrade failures in some cases.  Closes: #729167.
+
+  [ Ivo De Decker ]
+  * New upstream security release. Fixes:
+    - CVE-2013-4408: DCE-RPC fragment length field is incorrectly checked
+    - CVE-2012-6150: pam_winbind login without require_membership_of
+                     restrictions
 
  -- Steve Langasek <vorlon@debian.org>  Sun, 24 Nov 2013 19:06:20 -0800
 

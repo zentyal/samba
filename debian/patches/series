@@ -25,3 +25,5 @@ only_export_public_symbols.patch
 security-CVE-2013-0213.patch
 security-CVE-2013-0214.patch
 security-CVE-2013-4124.patch
+security-CVE-2013-4475.patch
+security-CVE-2013-4408.patch

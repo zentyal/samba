@@ -12,6 +12,9 @@ samba (2:4.0.13+dfsg-1) UNRELEASED; urgency=low
     - CVE-2013-4408: DCE-RPC fragment length field is incorrectly checked
     - CVE-2012-6150: pam_winbind login without require_membership_of
                      restrictions
+  * Add empty prerm scripts for samba and samba-common-bin.prerm, to allow
+    upgrades from earlier versions with broken prerm script (bug introduced in
+    2:4.0.10+dfsg-3)
 
   [ Jelmer Vernooij ]
   * Fix invocations of 'update-alternatives --remove-all'. Closes: #731192

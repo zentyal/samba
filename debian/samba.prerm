@@ -1,0 +1,7 @@
+#!/bin/sh
+# empty prerm script to allow upgrades from earlier version with broken prerm
+# script (bug introduced in 2:4.0.10+dfsg-3, fixed in 2:4.0.13+dfsg-1)
+
+#DEBHELPER#
+
+exit 0

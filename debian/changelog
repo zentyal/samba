@@ -15,6 +15,7 @@ samba (2:4.0.13+dfsg-1) UNRELEASED; urgency=low
   * Add empty prerm scripts for samba and samba-common-bin.prerm, to allow
     upgrades from earlier versions with broken prerm script (bug introduced in
     2:4.0.10+dfsg-3)
+  * Don't fail in postinst when removing old alternatives fails.
 
   [ Jelmer Vernooij ]
   * Fix invocations of 'update-alternatives --remove-all'. Closes: #731192

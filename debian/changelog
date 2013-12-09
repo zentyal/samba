@@ -1,8 +1,12 @@
 samba (2:4.0.13+dfsg-2) UNRELEASED; urgency=low
 
+  [ Steve Langasek ]
   * Check for alternative's presence before calling update-alternatives
     --remove-all, instead of silently ignoring all errors from
     update-alternatives.
+
+  [ Debconf translations ]
+  * Spanish (Javier Fernández-Sanguino).  Closes: #731800
 
  -- Steve Langasek <vorlon@debian.org>  Mon, 09 Dec 2013 11:13:59 -0800
 

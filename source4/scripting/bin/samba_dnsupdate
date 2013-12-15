@@ -96,9 +96,7 @@ IP6s = []
 IP4s = []
 for i in IPs:
     if i.find(':') != -1:
-        if i.find('%') == -1:
-            # we don't want link local addresses for DNS updates
-            IP6s.append(i)
+        IP6s.append(i)
     else:
         IP4s.append(i)
 
@@ -278,7 +276,7 @@ def get_subst_vars(samdb):
 
 def call_nsupdate(d):
     """call nsupdate for an entry."""
-    global ccachename, nsupdate_cmd
+    global ccachename, nsupdate_cmd, krb5conf
 
     if opts.verbose:
         print "Calling nsupdate for %s" % d
@@ -333,10 +331,11 @@ def call_nsupdate(d):
     try:
         cmd = nsupdate_cmd[:]
         cmd.append(tmpfile)
+        env = {}
+        if krb5conf:
+            env["KRB5_CONFIG"] = krb5conf
         if ccachename:
-            env = {"KRB5CCNAME": ccachename}
-        else:
-            env = {}
+            env["KRB5CCNAME"] = ccachename
         ret = subprocess.call(cmd, shell=False, env=env)
         if ret != 0:
             if opts.fail_immediately:

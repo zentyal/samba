@@ -897,8 +897,7 @@ sub provision($$$$$$)
 	map system = no
 	map readonly = no
 	store dos attributes = yes
-	create mask = 0777
-	directory mask = 0777
+	create mask = 755
 	dos filemode = yes
 	vfs objects = $vfs_modulesdir_abs/acl_xattr.so $vfs_modulesdir_abs/fake_acls.so $vfs_modulesdir_abs/xattr_tdb.so $vfs_modulesdir_abs/streams_depot.so
 
@@ -938,6 +937,7 @@ sub provision($$$$$$)
 	path = $shrdir
 	comment = encrypt smb username is [%U]
 	smb encrypt = required
+	vfs objects = $vfs_modulesdir_abs/dirsort.so
 [tmpguest]
 	path = $shrdir
         guest ok = yes
@@ -956,6 +956,13 @@ sub provision($$$$$$)
 [ro-tmp]
 	path = $ro_shrdir
 	guest ok = yes
+[write-list-tmp]
+	path = $shrdir
+        read only = yes
+	write list = $unix_name
+[valid-users-tmp]
+	path = $shrdir
+	valid users = $unix_name
 [msdfs-share]
 	path = $msdfs_shrdir
 	msdfs root = yes

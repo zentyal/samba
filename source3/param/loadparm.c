@@ -264,6 +264,7 @@ static struct loadparm_service sDefault =
 	.bAclCheckPermissions = true,
 	.bAclMapFullControl = true,
 	.bAclGroupControl = false,
+	.bAclAllowExecuteAlways = false,
 	.bChangeNotify = true,
 	.bKernelChangeNotify = true,
 	.iallocation_roundup_size = SMB_ROUNDUP_ALLOCATION_SIZE,
@@ -3502,8 +3503,6 @@ static void init_locals(void)
 		lp_do_parameter(-1, "map readonly", "no");
 		lp_do_parameter(-1, "map archive", "no");
 		lp_do_parameter(-1, "store dos attributes", "yes");
-		lp_do_parameter(-1, "create mask", "0777");
-		lp_do_parameter(-1, "directory mask", "0777");
 	}
 }
 
@@ -4399,6 +4398,7 @@ static int process_usershare_file(const char *dir_name, const char *file_name, i
 	/* This must be a regular file, not a symlink, directory or
 	   other strange filetype. */
 	if (!check_usershare_stat(fname, &sbuf)) {
+		close(fd);
 		goto out;
 	}
 

@@ -30,7 +30,7 @@ struct winbindd_getgrnam_state {
 	struct talloc_dict *members;
 };
 
-static void winbindd_getgrnam_lookupsid_done(struct tevent_req *subreq);
+static void winbindd_getgrnam_lookupname_done(struct tevent_req *subreq);
 static void winbindd_getgrnam_done(struct tevent_req *subreq);
 
 struct tevent_req *winbindd_getgrnam_send(TALLOC_CTX *mem_ctx,
@@ -81,12 +81,12 @@ struct tevent_req *winbindd_getgrnam_send(TALLOC_CTX *mem_ctx,
 	if (tevent_req_nomem(subreq, req)) {
 		return tevent_req_post(req, ev);
 	}
-	tevent_req_set_callback(subreq, winbindd_getgrnam_lookupsid_done,
+	tevent_req_set_callback(subreq, winbindd_getgrnam_lookupname_done,
 				req);
 	return req;
 }
 
-static void winbindd_getgrnam_lookupsid_done(struct tevent_req *subreq)
+static void winbindd_getgrnam_lookupname_done(struct tevent_req *subreq)
 {
 	struct tevent_req *req = tevent_req_callback_data(
 		subreq, struct tevent_req);
@@ -101,8 +101,19 @@ static void winbindd_getgrnam_lookupsid_done(struct tevent_req *subreq)
 		return;
 	}
 
-	if ( (type != SID_NAME_DOM_GRP) && (type != SID_NAME_ALIAS) ) {
-		DEBUG(5,("getgrnam_recv: not a group!\n"));
+	switch (type) {
+	case SID_NAME_DOM_GRP:
+	case SID_NAME_ALIAS:
+	case SID_NAME_WKN_GRP:
+	/*
+	 * Also give user types a chance:
+	 * These might be user sids mapped to the ID_TYPE_BOTH,
+	 * and in that case we should construct a group struct.
+	 */
+	case SID_NAME_USER:
+	case SID_NAME_COMPUTER:
+		break;
+	default:
 		tevent_req_nterror(req, NT_STATUS_NO_SUCH_GROUP);
 		return;
 	}

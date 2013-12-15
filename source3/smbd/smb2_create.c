@@ -583,6 +583,11 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 				tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
 				return tevent_req_post(req, ev);
 			}
+
+			if (ea_list_has_invalid_name(ea_list)) {
+				tevent_req_nterror(req, STATUS_INVALID_EA_NAME);
+				return tevent_req_post(req, ev);
+			}
 		}
 
 		if (mxac) {
@@ -839,11 +844,10 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 			op->status = NT_STATUS_OK;
 			op->global->disconnect_time = 0;
 
-			status = smbXsrv_open_update(op);
-			if (!NT_STATUS_IS_OK(status)) {
-				tevent_req_nterror(req, status);
-				return tevent_req_post(req, ev);
-			}
+			/* save the timout for later update */
+			durable_timeout_msec = op->global->durable_timeout_msec;
+
+			update_open = true;
 
 			info = FILE_WAS_OPENED;
 		} else {
@@ -867,7 +871,8 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 						  smb1req->conn,
 						  smb1req->flags2 & FLAGS2_DFS_PATHNAMES,
 						  fname,
-						  0,    /* unix_convert flags */
+						  (in_create_disposition == FILE_CREATE) ?
+						  UCF_CREATING_FILE : 0,
 						  NULL, /* ppath_contains_wcards */
 						  &smb_fname);
 			if (!NT_STATUS_IS_OK(status)) {
@@ -1132,15 +1137,15 @@ bool get_deferred_open_message_state_smb2(struct smbd_smb2_request *smb2req,
 	if (!smb2req) {
 		return false;
 	}
-	if (smb2req->async_te == NULL) {
-		return false;
-	}
 	req = smb2req->subreq;
 	if (!req) {
 		return false;
 	}
 	state = tevent_req_data(req, struct smbd_smb2_create_state);
 	if (!state) {
+		return false;
+	}
+	if (!state->open_was_deferred) {
 		return false;
 	}
 	if (p_request_time) {

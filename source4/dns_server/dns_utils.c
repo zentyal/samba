@@ -271,7 +271,13 @@ WERROR dns_replace_records(struct dns_server *dns,
 		if (needs_add) {
 			return WERR_OK;
 		}
-		/* TODO: Delete object? */
+		/* No entries left, delete the dnsNode object */
+		ret = ldb_delete(dns->samdb, msg->dn);
+		if (ret != LDB_SUCCESS) {
+			DEBUG(0, ("Deleting record failed; %d\n", ret));
+			return DNS_ERR(SERVER_FAILURE);
+		}
+		return WERR_OK;
 	}
 
 	if (needs_add) {
@@ -371,5 +377,26 @@ WERROR dns_name2dn(struct dns_server *dns,
 	dn = ldb_dn_copy(mem_ctx, z->dn);
 	ldb_dn_add_child_fmt(dn, "DC=%*.*s", (int)host_part_len, (int)host_part_len, name);
 	*_dn = dn;
+	return WERR_OK;
+}
+
+WERROR dns_generate_options(struct dns_server *dns,
+			    TALLOC_CTX *mem_ctx,
+			    struct dns_res_rec **options)
+{
+	struct dns_res_rec *o;
+
+	o = talloc_zero(mem_ctx, struct dns_res_rec);
+	if (o == NULL) {
+		return WERR_NOMEM;
+	}
+	o->name = '\0';
+	o->rr_type = DNS_QTYPE_OPT;
+	/* This is ugly, but RFC2671 wants the payload size in this field */
+	o->rr_class = (enum dns_qclass) dns->max_payload;
+	o->ttl = 0;
+	o->length = 0;
+
+	*options = o;
 	return WERR_OK;
 }

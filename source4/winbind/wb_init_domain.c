@@ -144,6 +144,8 @@ struct composite_context *wb_init_domain_send(TALLOC_CTX *mem_ctx,
 
 	state->domain->libnet_ctx = libnet_context_init(service->task->event_ctx, 
 							service->task->lp_ctx);
+	if (state->domain->libnet_ctx == NULL) goto failed;
+	talloc_steal(state->domain, state->domain->libnet_ctx);
 
 	/* Create a credentials structure */
 	state->domain->libnet_ctx->cred = cli_credentials_init(state->domain);
@@ -367,24 +369,26 @@ static void init_domain_recv_queryinfo(struct tevent_req *subreq)
 	state->ctx->status = state->queryinfo.out.result;
 	if (!composite_is_ok(state->ctx)) return;
 
-	dominfo = &(*state->queryinfo.out.info)->account_domain;
-
-	if (strcasecmp(state->domain->info->name, dominfo->name.string) != 0) {
-		DEBUG(2, ("Expected domain name %s, DC %s said %s\n",
-			  state->domain->info->name,
-			  dcerpc_server_name(state->domain->libnet_ctx->lsa.pipe),
-			  dominfo->name.string));
-		composite_error(state->ctx, NT_STATUS_INVALID_DOMAIN_STATE);
-		return;
-	}
-
-	if (!dom_sid_equal(state->domain->info->sid, dominfo->sid)) {
-		DEBUG(2, ("Expected domain sid %s, DC %s said %s\n",
-			  dom_sid_string(state, state->domain->info->sid),
-			  dcerpc_server_name(state->domain->libnet_ctx->lsa.pipe),
-			  dom_sid_string(state, dominfo->sid)));
-		composite_error(state->ctx, NT_STATUS_INVALID_DOMAIN_STATE);
-		return;
+	if (!dom_sid_equal(state->domain->info->sid, &global_sid_Builtin)) {
+		dominfo = &(*state->queryinfo.out.info)->account_domain;
+		
+		if (strcasecmp(state->domain->info->name, dominfo->name.string) != 0) {
+			DEBUG(2, ("Expected domain name %s, DC %s said %s\n",
+				  state->domain->info->name,
+				  dcerpc_server_name(state->domain->libnet_ctx->lsa.pipe),
+				  dominfo->name.string));
+			composite_error(state->ctx, NT_STATUS_INVALID_DOMAIN_STATE);
+			return;
+		}
+		
+		if (!dom_sid_equal(state->domain->info->sid, dominfo->sid)) {
+			DEBUG(2, ("Expected domain sid %s, DC %s said %s\n",
+				  dom_sid_string(state, state->domain->info->sid),
+				  dcerpc_server_name(state->domain->libnet_ctx->lsa.pipe),
+				  dom_sid_string(state, dominfo->sid)));
+			composite_error(state->ctx, NT_STATUS_INVALID_DOMAIN_STATE);
+			return;
+		}
 	}
 
 	state->domain->samr_binding = init_domain_binding(state, &ndr_table_samr);

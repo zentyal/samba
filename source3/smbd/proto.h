@@ -145,6 +145,11 @@ bool recursive_rmdir(TALLOC_CTX *ctx,
 
 /* The following definitions come from smbd/conn.c  */
 
+uint32_t get_connection_share_access_list_entry(connection_struct *conn,
+						unsigned int i);
+void set_connection_share_access_list_entry(connection_struct *conn,
+						unsigned int i,
+						uint32_t val);
 int conn_num_open(struct smbd_server_connection *sconn);
 bool conn_snum_used(struct smbd_server_connection *sconn, int snum);
 connection_struct *conn_new(struct smbd_server_connection *sconn);
@@ -781,7 +786,7 @@ bool smb1_parse_chain(TALLOC_CTX *mem_ctx, const uint8_t *buf,
 		      struct smbd_server_connection *sconn,
 		      bool encrypted, uint32_t seqnum,
 		      struct smb_request ***reqs, unsigned *num_reqs);
-bool req_is_in_chain(struct smb_request *req);
+bool req_is_in_chain(const struct smb_request *req);
 void smbd_process(struct tevent_context *ev_ctx,
 		  struct messaging_context *msg_ctx,
 		  int sock_fd,
@@ -821,6 +826,8 @@ size_t srvstr_get_path_req_wcard(TALLOC_CTX *mem_ctx, struct smb_request *req,
 size_t srvstr_get_path_req(TALLOC_CTX *mem_ctx, struct smb_request *req,
 			   char **pp_dest, const char *src, int flags,
 			   NTSTATUS *err);
+size_t srvstr_pull_req_talloc(TALLOC_CTX *ctx, struct smb_request *req,
+			      char **dest, const char *src, int flags);
 bool check_fsp_open(connection_struct *conn, struct smb_request *req,
 		    files_struct *fsp);
 bool check_fsp(connection_struct *conn, struct smb_request *req,
@@ -1054,6 +1061,7 @@ NTSTATUS set_ea(connection_struct *conn, files_struct *fsp,
 struct ea_list *read_ea_list_entry(TALLOC_CTX *ctx, const char *pdata, size_t data_size, size_t *pbytes_used);
 void send_trans2_replies(connection_struct *conn,
 			struct smb_request *req,
+			NTSTATUS status,
 			 const char *params,
 			 int paramsize,
 			 const char *pdata,
@@ -1079,6 +1087,10 @@ void reply_transs2(struct smb_request *req);
 /* The following definitions come from smbd/uid.c  */
 
 bool change_to_guest(void);
+NTSTATUS check_user_share_access(connection_struct *conn,
+				const struct auth_session_info *session_info,
+				uint32_t *p_share_access,
+				bool *p_readonly_share);
 bool change_to_user(connection_struct *conn, uint64_t vuid);
 bool change_to_root_user(void);
 bool smbd_change_to_root_user(void);

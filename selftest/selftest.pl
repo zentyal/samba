@@ -714,8 +714,11 @@ my @exported_envvars = (
 
         # nss_wrapper
         "NSS_WRAPPER_PASSWD",
-        "NSS_WRAPPER_GROUP"
+        "NSS_WRAPPER_GROUP",
 
+        # UID/GID for rfc2307 mapping tests
+        "UID_RFC2307TEST",
+        "GID_RFC2307TEST"
 );
 
 $SIG{INT} = $SIG{QUIT} = $SIG{TERM} = sub { 
@@ -846,13 +849,7 @@ if ($opt_testenv) {
 
 	my $envvarstr = exported_envvars_str($testenv_vars);
 
-	my @term = ();
-	if ($ENV{TERMINAL}) {
-	    @term = ($ENV{TERMINAL});
-	} else {
-	    @term = ("xterm", "-e");
-	}
-	my @term_args = ("bash", "-c", "echo -e \"
+	my @term_args = ("echo -e \"
 Welcome to the Samba4 Test environment '$testenv_name'
 
 This matches the client environment used in make test
@@ -864,6 +861,13 @@ SMB_CONF_PATH=\$SMB_CONF_PATH
 
 $envvarstr
 \" && LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} bash");
+	my @term = ();
+	if ($ENV{TERMINAL}) {
+	    @term = ($ENV{TERMINAL});
+	} else {
+	    @term = ("xterm", "-e");
+	    unshift(@term_args, ("bash", "-c"));
+	}
 
 	system(@term, @term_args);
 

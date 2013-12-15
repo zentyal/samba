@@ -405,7 +405,7 @@ int rep_mkstemp(char *template)
 	mktemp(template);
 	if (template[0] == 0)
 		return -1;
-	return open(p, O_CREAT|O_EXCL|O_RDWR, 0600);
+	return open(template, O_CREAT|O_EXCL|O_RDWR, 0600);
 }
 #endif
 
@@ -785,7 +785,7 @@ char *rep_get_current_dir_name(void)
 }
 #endif
 
-#if !defined(HAVE_STRERROR_R) && !defined(strerror_r)
+#ifndef HAVE_STRERROR_R
 int rep_strerror_r(int errnum, char *buf, size_t buflen)
 {
 	char *s = strerror(errnum);

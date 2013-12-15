@@ -1159,8 +1159,8 @@ static bool api_DosPrintQEnum(struct smbd_server_connection *sconn,
 		}
 	}
 
-	SAFE_FREE(subcntarr);
  out:
+	SAFE_FREE(subcntarr);
 	*rdata_len = desc.usedlen;
 	*rparam_len = 8;
 	*rparam = smb_realloc_limit(*rparam,*rparam_len);
@@ -2627,6 +2627,14 @@ static bool api_NetUserGetGroups(struct smbd_server_connection *sconn,
 	if (!NT_STATUS_IS_OK(result)) {
 		DEBUG(0, ("api_RNetUserEnum: samr_LookupNames failed: %s\n",
 			  nt_errstr(result)));
+		goto close_domain;
+	}
+	if (rid.count != 1) {
+		status = NT_STATUS_INVALID_NETWORK_RESPONSE;
+		goto close_domain;
+	}
+	if (type.count != 1) {
+		status = NT_STATUS_INVALID_NETWORK_RESPONSE;
 		goto close_domain;
 	}
 

@@ -632,7 +632,7 @@ static bool smb2_validate_message_id(struct smbd_server_connection *sconn,
 				const uint8_t *inhdr)
 {
 	uint64_t message_id = BVAL(inhdr, SMB2_HDR_MESSAGE_ID);
-	uint16_t opcode = IVAL(inhdr, SMB2_HDR_OPCODE);
+	uint16_t opcode = SVAL(inhdr, SMB2_HDR_OPCODE);
 	uint16_t credit_charge = 1;
 	uint64_t i;
 
@@ -1272,7 +1272,6 @@ NTSTATUS smbd_smb2_request_pending_queue(struct smbd_smb2_request *req,
 					 uint32_t defer_time)
 {
 	NTSTATUS status;
-	int idx = req->current_idx;
 	struct timeval defer_endtime;
 	uint8_t *outhdr = NULL;
 	uint32_t flags;
@@ -1296,19 +1295,29 @@ NTSTATUS smbd_smb2_request_pending_queue(struct smbd_smb2_request *req,
 		return NT_STATUS_OK;
 	}
 
-	if (req->in.vector_count > idx + SMBD_SMB2_NUM_IOV_PER_REQ) {
+	if (req->in.vector_count > req->current_idx + SMBD_SMB2_NUM_IOV_PER_REQ) {
 		/*
 		 * We're trying to go async in a compound
-		 * request chain. This is not allowed.
-		 * Cancel the outstanding request.
+		 * request chain.
+		 * This is only allowed for opens that
+		 * cause an oplock break, otherwise it
+		 * is not allowed. See [MS-SMB2].pdf
+		 * note <194> on Section 3.3.5.2.7.
 		 */
-		bool ok = tevent_req_cancel(req->subreq);
-		if (ok) {
-			return NT_STATUS_OK;
+		const uint8_t *inhdr = SMBD_SMB2_IN_HDR_PTR(req);
+
+		if (SVAL(inhdr, SMB2_HDR_OPCODE) != SMB2_OP_CREATE) {
+			/*
+			 * Cancel the outstanding request.
+			 */
+			bool ok = tevent_req_cancel(req->subreq);
+			if (ok) {
+				return NT_STATUS_OK;
+			}
+			TALLOC_FREE(req->subreq);
+			return smbd_smb2_request_error(req,
+				NT_STATUS_INTERNAL_ERROR);
 		}
-		TALLOC_FREE(req->subreq);
-		return smbd_smb2_request_error(req,
-			NT_STATUS_INTERNAL_ERROR);
 	}
 
 	if (DEBUGLEVEL >= 10) {
@@ -1317,50 +1326,50 @@ NTSTATUS smbd_smb2_request_pending_queue(struct smbd_smb2_request *req,
 		print_req_vectors(req);
 	}
 
-	if (req->out.vector_count >= (2*SMBD_SMB2_NUM_IOV_PER_REQ)) {
+	if (req->current_idx > 1) {
 		/*
-		 * This is a compound reply. We
-		 * must do an interim response
-		 * followed by the async response
-		 * to match W2K8R2.
+		 * We're going async in a compound
+		 * chain after the first request has
+		 * already been processed. Send an
+		 * interim response containing the
+		 * set of replies already generated.
 		 */
+		int idx = req->current_idx;
+
 		status = smb2_send_async_interim_response(req);
 		if (!NT_STATUS_IS_OK(status)) {
 			return status;
 		}
 		data_blob_clear_free(&req->first_key);
 
-		/*
-		 * We're splitting off the last SMB2
-		 * request in a compound set, and the
-		 * smb2_send_async_interim_response()
-		 * call above just sent all the replies
-		 * for the previous SMB2 requests in
-		 * this compound set. So we're no longer
-		 * in the "compound_related_in_progress"
-		 * state, and this is no longer a compound
-		 * request.
-		 */
-		req->compound_related = false;
-		req->sconn->smb2.compound_related_in_progress = false;
-
 		req->current_idx = 1;
 
-		/* Re-arrange the in.vectors. */
-		memmove(&req->in.vector[req->current_idx],
-		        &req->in.vector[idx],
-			sizeof(req->in.vector[0])*SMBD_SMB2_NUM_IOV_PER_REQ);
-		req->in.vector_count = req->current_idx + SMBD_SMB2_NUM_IOV_PER_REQ;
+		/*
+		 * Re-arrange the in.vectors to remove what
+		 * we just sent.
+		 */
+		memmove(&req->in.vector[1],
+			&req->in.vector[idx],
+			sizeof(req->in.vector[0])*(req->in.vector_count - idx));
+		req->in.vector_count = 1 + (req->in.vector_count - idx);
 
-		/* Re-arrange the out.vectors. */
-		memmove(&req->out.vector[req->current_idx],
-		        &req->out.vector[idx],
-			sizeof(req->out.vector[0])*SMBD_SMB2_NUM_IOV_PER_REQ);
-		req->out.vector_count = req->current_idx + SMBD_SMB2_NUM_IOV_PER_REQ;
+		/* Re-arrange the out.vectors to match. */
+		memmove(&req->out.vector[1],
+			&req->out.vector[idx],
+			sizeof(req->out.vector[0])*(req->out.vector_count - idx));
+		req->out.vector_count = 1 + (req->out.vector_count - idx);
 
-		outhdr = SMBD_SMB2_OUT_HDR_PTR(req);
-		flags = (IVAL(outhdr, SMB2_HDR_FLAGS) & ~SMB2_HDR_FLAG_CHAINED);
-		SIVAL(outhdr, SMB2_HDR_FLAGS, flags);
+		if (req->in.vector_count == 1 + SMBD_SMB2_NUM_IOV_PER_REQ) {
+			/*
+			 * We only have one remaining request as
+			 * we've processed everything else.
+			 * This is no longer a compound request.
+			 */
+			req->compound_related = false;
+			outhdr = SMBD_SMB2_OUT_HDR_PTR(req);
+			flags = (IVAL(outhdr, SMB2_HDR_FLAGS) & ~SMB2_HDR_FLAG_CHAINED);
+			SIVAL(outhdr, SMB2_HDR_FLAGS, flags);
+		}
 	}
 	data_blob_clear_free(&req->last_key);
 
@@ -1416,7 +1425,7 @@ static void smbd_smb2_request_pending_timer(struct tevent_context *ev,
 
 	DEBUG(10,("smbd_smb2_request_pending_queue: opcode[%s] mid %llu "
 		"going async\n",
-		smb2_opcode_name((uint16_t)IVAL(inhdr, SMB2_HDR_OPCODE)),
+		smb2_opcode_name(SVAL(inhdr, SMB2_HDR_OPCODE)),
 		(unsigned long long)async_id ));
 
 	/*
@@ -1599,6 +1608,14 @@ static NTSTATUS smbd_smb2_request_process_cancel(struct smbd_smb2_request *req)
 		uint64_t message_id;
 		uint64_t async_id;
 
+		if (cur->compound_related) {
+			/*
+			 * Never cancel anything in a compound request.
+			 * Way too hard to deal with the result.
+			 */
+			continue;
+		}
+
 		outhdr = SMBD_SMB2_OUT_HDR_PTR(cur);
 
 		message_id = BVAL(outhdr, SMB2_HDR_MESSAGE_ID);
@@ -1621,7 +1638,7 @@ static NTSTATUS smbd_smb2_request_process_cancel(struct smbd_smb2_request *req)
 		inhdr = SMBD_SMB2_IN_HDR_PTR(cur);
 		DEBUG(10,("smbd_smb2_request_process_cancel: attempting to "
 			"cancel opcode[%s] mid %llu\n",
-			smb2_opcode_name((uint16_t)IVAL(inhdr, SMB2_HDR_OPCODE)),
+			smb2_opcode_name(SVAL(inhdr, SMB2_HDR_OPCODE)),
                         (unsigned long long)found_id ));
 		tevent_req_cancel(cur->subreq);
 	}
@@ -1699,7 +1716,7 @@ static NTSTATUS smbd_smb2_request_check_session(struct smbd_smb2_request *req)
 	inhdr = SMBD_SMB2_IN_HDR_PTR(req);
 
 	in_flags = IVAL(inhdr, SMB2_HDR_FLAGS);
-	in_opcode = IVAL(inhdr, SMB2_HDR_OPCODE);
+	in_opcode = SVAL(inhdr, SMB2_HDR_OPCODE);
 	in_session_id = BVAL(inhdr, SMB2_HDR_SESSION_ID);
 
 	if (in_flags & SMB2_HDR_FLAG_CHAINED) {
@@ -1870,7 +1887,7 @@ NTSTATUS smbd_smb2_request_dispatch(struct smbd_smb2_request *req)
 	/* TODO: verify more things */
 
 	flags = IVAL(inhdr, SMB2_HDR_FLAGS);
-	opcode = IVAL(inhdr, SMB2_HDR_OPCODE);
+	opcode = SVAL(inhdr, SMB2_HDR_OPCODE);
 	mid = BVAL(inhdr, SMB2_HDR_MESSAGE_ID);
 	DEBUG(10,("smbd_smb2_request_dispatch: opcode[%s] mid = %llu\n",
 		smb2_opcode_name(opcode),
@@ -2024,7 +2041,6 @@ NTSTATUS smbd_smb2_request_dispatch(struct smbd_smb2_request *req)
 
 	if (flags & SMB2_HDR_FLAG_CHAINED) {
 		req->compound_related = true;
-		req->sconn->smb2.compound_related_in_progress = true;
 	}
 
 	if (call->need_session) {
@@ -2388,7 +2404,6 @@ static NTSTATUS smbd_smb2_request_reply(struct smbd_smb2_request *req)
 
 	if (req->compound_related) {
 		req->compound_related = false;
-		req->sconn->smb2.compound_related_in_progress = false;
 	}
 
 	smb2_setup_nbt_length(req->out.vector, req->out.vector_count);
@@ -2621,10 +2636,20 @@ NTSTATUS smbd_smb2_request_error_ex(struct smbd_smb2_request *req,
 {
 	DATA_BLOB body;
 	uint8_t *outhdr = SMBD_SMB2_OUT_HDR_PTR(req);
+	size_t unread_bytes = smbd_smb2_unread_bytes(req);
 
 	DEBUG(10,("smbd_smb2_request_error_ex: idx[%d] status[%s] |%s| at %s\n",
 		  req->current_idx, nt_errstr(status), info ? " +info" : "",
 		  location));
+
+	if (unread_bytes) {
+		/* Recvfile error. Drain incoming socket. */
+		size_t ret = drain_socket(req->sconn->sock, unread_bytes);
+		if (ret != unread_bytes) {
+			smbd_server_connection_terminate(req->sconn,
+				"Failed to drain SMB2 socket\n");
+		}
+	}
 
 	body.data = outhdr + SMB2_HDR_BODY;
 	body.length = 8;
@@ -2821,6 +2846,8 @@ struct smbd_smb2_request_read_state {
 		uint8_t nbt[NBT_HDR_SIZE];
 		bool done;
 	} hdr;
+	bool doing_receivefile;
+	size_t min_recv_size;
 	size_t pktlen;
 	uint8_t *pktbuf;
 };
@@ -2831,6 +2858,17 @@ static int smbd_smb2_request_next_vector(struct tstream_context *stream,
 					 struct iovec **_vector,
 					 size_t *_count);
 static void smbd_smb2_request_read_done(struct tevent_req *subreq);
+
+static size_t get_min_receive_file_size(struct smbd_smb2_request *smb2_req)
+{
+	if (smb2_req->do_signing) {
+		return 0;
+	}
+	if (smb2_req->do_encryption) {
+		return 0;
+	}
+	return (size_t)lp_min_receive_file_size();
+}
 
 static struct tevent_req *smbd_smb2_request_read_send(TALLOC_CTX *mem_ctx,
 					struct tevent_context *ev,
@@ -2853,6 +2891,7 @@ static struct tevent_req *smbd_smb2_request_read_send(TALLOC_CTX *mem_ctx,
 		return tevent_req_post(req, ev);
 	}
 	state->smb2_req->sconn = sconn;
+	state->min_recv_size = get_min_receive_file_size(state->smb2_req);
 
 	subreq = tstream_readv_pdu_queue_send(state->smb2_req,
 					state->ev,
@@ -2868,6 +2907,47 @@ static struct tevent_req *smbd_smb2_request_read_send(TALLOC_CTX *mem_ctx,
 	return req;
 }
 
+static bool is_smb2_recvfile_write(struct smbd_smb2_request_read_state *state)
+{
+	uint32_t flags;
+
+	if (IVAL(state->pktbuf, 0) == SMB2_TF_MAGIC) {
+		/* Transform header. Cannot recvfile. */
+		return false;
+	}
+	if (IVAL(state->pktbuf, 0) != SMB2_MAGIC) {
+		/* Not SMB2. Normal error path will cope. */
+		return false;
+	}
+	if (SVAL(state->pktbuf, 4) != SMB2_HDR_BODY) {
+		/* Not SMB2. Normal error path will cope. */
+		return false;
+	}
+	if (SVAL(state->pktbuf, SMB2_HDR_OPCODE) != SMB2_OP_WRITE) {
+		/* Needs to be a WRITE. */
+		return false;
+	}
+	if (IVAL(state->pktbuf, SMB2_HDR_NEXT_COMMAND) != 0) {
+		/* Chained. Cannot recvfile. */
+		return false;
+	}
+	flags = IVAL(state->pktbuf, SMB2_HDR_FLAGS);
+	if (flags & SMB2_HDR_FLAG_CHAINED) {
+		/* Chained. Cannot recvfile. */
+		return false;
+	}
+	if (flags & SMB2_HDR_FLAG_SIGNED) {
+		/* Signed. Cannot recvfile. */
+		return false;
+	}
+
+	DEBUG(10,("Doing recvfile write len = %u\n",
+		(unsigned int)(state->pktlen -
+		SMBD_SMB2_SHORT_RECEIVEFILE_WRITE_LEN)));
+
+	return true;
+}
+
 static int smbd_smb2_request_next_vector(struct tstream_context *stream,
 					 void *private_data,
 					 TALLOC_CTX *mem_ctx,
@@ -2877,12 +2957,38 @@ static int smbd_smb2_request_next_vector(struct tstream_context *stream,
 	struct smbd_smb2_request_read_state *state =
 		talloc_get_type_abort(private_data,
 		struct smbd_smb2_request_read_state);
-	struct iovec *vector;
+	struct iovec *vector = NULL;
+	size_t min_recvfile_size = UINT32_MAX;
 
 	if (state->pktlen > 0) {
-		/* if there're no remaining bytes, we're done */
-		*_vector = NULL;
-		*_count = 0;
+		if (state->doing_receivefile && !is_smb2_recvfile_write(state)) {
+			/*
+			 * Not a possible receivefile write.
+			 * Read the rest of the data.
+			 */
+			state->doing_receivefile = false;
+			vector = talloc_array(mem_ctx, struct iovec, 1);
+			if (vector == NULL) {
+				return -1;
+			}
+			vector[0].iov_base = (void *)(state->pktbuf +
+				SMBD_SMB2_SHORT_RECEIVEFILE_WRITE_LEN);
+			vector[0].iov_len = (state->pktlen -
+				SMBD_SMB2_SHORT_RECEIVEFILE_WRITE_LEN);
+			*_vector = vector;
+			*_count = 1;
+		} else {
+			/*
+			 * Either this is a receivefile write so we've
+			 * done a short read, or if not we have all the data.
+			 * Either way, we're done and
+			 * smbd_smb2_request_read_done() will handle
+			 * and short read case by looking at the
+			 * state->doing_receivefile value.
+			 */
+			*_vector = NULL;
+			*_count = 0;
+		}
 		return 0;
 	}
 
@@ -2928,7 +3034,26 @@ static int smbd_smb2_request_next_vector(struct tstream_context *stream,
 	}
 
 	vector[0].iov_base = (void *)state->pktbuf;
-	vector[0].iov_len = state->pktlen;
+
+	if (state->min_recv_size != 0) {
+		min_recvfile_size = SMBD_SMB2_SHORT_RECEIVEFILE_WRITE_LEN;
+		min_recvfile_size += state->min_recv_size;
+	}
+
+	if (state->pktlen > min_recvfile_size) {
+		/*
+		 * Might be a receivefile write. Read the SMB2 HEADER +
+		 * SMB2_WRITE header first. Set 'doing_receivefile'
+		 * as we're *attempting* receivefile write. If this
+		 * turns out not to be a SMB2_WRITE request or otherwise
+		 * not suitable then we'll just read the rest of the data
+		 * the next time this function is called.
+		 */
+		vector[0].iov_len = SMBD_SMB2_SHORT_RECEIVEFILE_WRITE_LEN;
+		state->doing_receivefile = true;
+	} else {
+		vector[0].iov_len = state->pktlen;
+	}
 
 	*_vector = vector;
 	*_count = 1;
@@ -2991,6 +3116,16 @@ static void smbd_smb2_request_read_done(struct tevent_req *subreq)
 		return;
 	}
 
+	if (state->doing_receivefile) {
+		state->smb2_req->smb1req = talloc_zero(state->smb2_req,
+						struct smb_request);
+		if (tevent_req_nomem(state->smb2_req->smb1req, req)) {
+			return;
+		}
+		state->smb2_req->smb1req->unread_bytes =
+			state->pktlen - SMBD_SMB2_SHORT_RECEIVEFILE_WRITE_LEN;
+	}
+
 	state->smb2_req->current_idx = 1;
 
 	tevent_req_done(req);
@@ -3022,14 +3157,6 @@ static NTSTATUS smbd_smb2_request_next_incoming(struct smbd_server_connection *s
 	size_t max_send_queue_len;
 	size_t cur_send_queue_len;
 	struct tevent_req *subreq;
-
-	if (sconn->smb2.compound_related_in_progress) {
-		/*
-		 * Can't read another until the related
-		 * compound is done.
-		 */
-		return NT_STATUS_OK;
-	}
 
 	if (tevent_queue_length(sconn->smb2.recv_queue) > 0) {
 		/*

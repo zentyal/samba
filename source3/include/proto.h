@@ -1326,6 +1326,7 @@ bool lp_afs_share(int );
 bool lp_acl_check_permissions(int );
 bool lp_acl_group_control(int );
 bool lp_acl_map_full_control(int );
+bool lp_acl_allow_execute_always(int);
 bool lp_durable_handles(int);
 int lp_create_mask(int );
 int lp_force_create_mode(int );
@@ -1612,6 +1613,8 @@ NTSTATUS copy_smb_filename(TALLOC_CTX *ctx,
 			   struct smb_filename **smb_fname_out);
 bool is_ntfs_stream_smb_fname(const struct smb_filename *smb_fname);
 bool is_ntfs_default_stream_smb_fname(const struct smb_filename *smb_fname);
+bool is_invalid_windows_ea_name(const char *name);
+bool ea_list_has_invalid_name(struct ea_list *ea_list);
 
 /* The following definitions come from lib/dummyroot.c */
 

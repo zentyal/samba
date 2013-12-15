@@ -138,6 +138,7 @@ NTSTATUS smbd_do_qfilepathinfo(connection_struct *conn,
 			       char *lock_data,
 			       uint16_t flags2,
 			       unsigned int max_data_bytes,
+			       size_t *fixed_portion,
 			       char **ppdata,
 			       unsigned int *pdata_size);
 
@@ -155,6 +156,8 @@ NTSTATUS smbd_do_qfsinfo(connection_struct *conn,
 			 uint16_t info_level,
 			 uint16_t flags2,
 			 unsigned int max_data_bytes,
+			 size_t *fixed_portion,
+			 struct smb_filename *smb_fname,
 			 char **ppdata,
 			 int *ret_data_len);
 
@@ -245,6 +248,7 @@ NTSTATUS smbd_smb2_request_pending_queue(struct smbd_smb2_request *req,
 					 uint32_t defer_time);
 
 struct smb_request *smbd_smb2_fake_smb_request(struct smbd_smb2_request *req);
+size_t smbd_smb2_unread_bytes(struct smbd_smb2_request *req);
 void remove_smb2_chained_fsp(files_struct *fsp);
 
 NTSTATUS smbd_smb2_request_verify_creditcharge(struct smbd_smb2_request *req,
@@ -455,6 +459,13 @@ NTSTATUS smb2srv_open_recreate(struct smbXsrv_connection *conn,
 			       struct GUID create_guid,
 			       NTTIME now,
 			       struct smbXsrv_open **_open);
+struct smbXsrv_open_global0;
+NTSTATUS smbXsrv_open_global_traverse(
+	int (*fn)(struct smbXsrv_open_global0 *, void *),
+	void *private_data);
+
+NTSTATUS smbXsrv_open_cleanup(uint64_t persistent_id);
+
 
 struct smbd_smb2_request {
 	struct smbd_smb2_request *prev, *next;
@@ -538,6 +549,8 @@ struct smbd_smb2_request {
 #define SMBD_SMB2_OUT_DYN_IOV(req)   SMBD_SMB2_IDX_DYN_IOV(req,out,req->current_idx)
 #define SMBD_SMB2_OUT_DYN_PTR(req)   (uint8_t *)(SMBD_SMB2_OUT_DYN_IOV(req)->iov_base)
 #define SMBD_SMB2_OUT_DYN_LEN(req)   (SMBD_SMB2_OUT_DYN_IOV(req)->iov_len)
+
+#define SMBD_SMB2_SHORT_RECEIVEFILE_WRITE_LEN (SMB2_HDR_BODY + 0x30)
 
 	struct {
 		/*
@@ -782,7 +795,6 @@ struct smbd_server_connection {
 		uint32_t max_trans;
 		uint32_t max_read;
 		uint32_t max_write;
-		bool compound_related_in_progress;
 	} smb2;
 
 	struct smbXsrv_connection *conn;

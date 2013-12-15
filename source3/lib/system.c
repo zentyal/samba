@@ -228,7 +228,10 @@ static struct timespec get_atimespec(const struct stat *pst)
 	return ret;
 #else
 #if defined(HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC)
-	return pst->st_atim;
+	struct timespec ret;
+	ret.tv_sec = pst->st_atim.tv_sec;
+	ret.tv_nsec = pst->st_atim.tv_nsec;
+	return ret;
 #elif defined(HAVE_STRUCT_STAT_ST_MTIMENSEC)
 	struct timespec ret;
 	ret.tv_sec = pst->st_atime;
@@ -263,7 +266,10 @@ static struct timespec get_mtimespec(const struct stat *pst)
 	return ret;
 #else
 #if defined(HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC)
-	return pst->st_mtim;
+	struct timespec ret;
+	ret.tv_sec = pst->st_mtim.tv_sec;
+	ret.tv_nsec = pst->st_mtim.tv_nsec;
+	return ret;
 #elif defined(HAVE_STRUCT_STAT_ST_MTIMENSEC)
 	struct timespec ret;
 	ret.tv_sec = pst->st_mtime;
@@ -298,7 +304,10 @@ static struct timespec get_ctimespec(const struct stat *pst)
 	return ret;
 #else
 #if defined(HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC)
-	return pst->st_ctim;
+	struct timespec ret;
+	ret.tv_sec = pst->st_ctim.tv_sec;
+	ret.tv_nsec = pst->st_ctim.tv_nsec;
+	return ret;
 #elif defined(HAVE_STRUCT_STAT_ST_MTIMENSEC)
 	struct timespec ret;
 	ret.tv_sec = pst->st_ctime;
@@ -634,13 +643,11 @@ void kernel_flock(int fd, uint32 share_mode, uint32 access_mask)
 
 /*******************************************************************
  An fdopendir wrapper.
- Ugly hack - we need dirfd for this to work correctly in the
- calling code.. JRA.
 ********************************************************************/
 
 DIR *sys_fdopendir(int fd)
 {
-#if defined(HAVE_FDOPENDIR) && defined(HAVE_DIRFD)
+#if defined(HAVE_FDOPENDIR)
 	return fdopendir(fd);
 #else
 	errno = ENOSYS;

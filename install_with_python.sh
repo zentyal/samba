@@ -12,8 +12,8 @@ fi
 PREFIX="$1"
 shift
 
-PATH=$PREFIX/python/bin:$PATH
-export PATH
+LD_LIBRARY_PATH=$PREFIX/python/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH
 
 VERSION="Python-2.6.5"
 
@@ -31,10 +31,13 @@ do_install_python() {
        rm -rf python_install || exit 1
 }
 
-if ! test -d $PREFIX/python; then
+if [ ! -d $PREFIX/python ]; then
    # needs to be installed
    do_install_python
 fi
+
+PYTHON=$PREFIX/python/bin/python
+export PYTHON
 
 `dirname $0`/configure --prefix=$PREFIX $@ || exit 1
 make -j || exit 1

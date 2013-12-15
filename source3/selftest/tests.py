@@ -54,7 +54,7 @@ plantestsuite("samba3.blackbox.registry.upgrade", "s3dc:local", [os.path.join(sa
 tests = ["FDPASS", "LOCK1", "LOCK2", "LOCK3", "LOCK4", "LOCK5", "LOCK6", "LOCK7", "LOCK9",
         "UNLINK", "BROWSE", "ATTR", "TRANS2", "TORTURE",
         "OPLOCK1", "OPLOCK2", "OPLOCK4", "STREAMERROR",
-        "DIR", "DIR1", "DIR-CREATETIME", "TCON", "TCONDEV", "RW1", "RW2", "RW3", "RW-SIGNING",
+        "DIR", "DIR1", "DIR-CREATETIME", "TCON", "TCONDEV", "RW1", "RW2", "RW3", "LARGE_READX", "RW-SIGNING",
         "OPEN", "XCOPY", "RENAME", "DELETE", "DELETE-LN", "PROPERTIES", "W2K",
         "TCON2", "IOCTL", "CHKPATH", "FDSESS", "CHAIN1", "CHAIN2",
         "CHAIN3",
@@ -63,6 +63,7 @@ tests = ["FDPASS", "LOCK1", "LOCK2", "LOCK3", "LOCK4", "LOCK5", "LOCK6", "LOCK7"
         "SMB2-SESSION-REAUTH", "SMB2-SESSION-RECONNECT",
         "CLEANUP1",
         "CLEANUP2",
+        "CLEANUP4",
         "BAD-NBT-SESSION"]
 
 for t in tests:
@@ -330,6 +331,11 @@ for t in tests:
     elif t == "smb2.durable-open" or t == "smb2.durable-v2-open":
         plansmbtorture4testsuite(t, "s3dc", '//$SERVER_IP/durable -U$USERNAME%$PASSWORD')
         plansmbtorture4testsuite(t, "plugin_s4_dc", '//$SERVER_IP/durable -U$USERNAME%$PASSWORD')
+    elif t == "base.rw1":
+        plansmbtorture4testsuite(t, "s3dc", '//$SERVER_IP/tmp -U$USERNAME%$PASSWORD')
+        plansmbtorture4testsuite(t, "s3dc", '//$SERVER_IP/valid-users-tmp -U$USERNAME%$PASSWORD')
+        plansmbtorture4testsuite(t, "s3dc", '//$SERVER_IP/write-list-tmp -U$USERNAME%$PASSWORD')
+        plansmbtorture4testsuite(t, "plugin_s4_dc", '//$SERVER/tmp -U$USERNAME%$PASSWORD')
     else:
         plansmbtorture4testsuite(t, "s3dc", '//$SERVER_IP/tmp -U$USERNAME%$PASSWORD')
         plansmbtorture4testsuite(t, "plugin_s4_dc", '//$SERVER/tmp -U$USERNAME%$PASSWORD')

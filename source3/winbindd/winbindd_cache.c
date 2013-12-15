@@ -943,6 +943,15 @@ static void wcache_save_name_to_sid(struct winbindd_domain *domain,
 	centry = centry_start(domain, status);
 	if (!centry)
 		return;
+
+	if ((domain_name == NULL) || (domain_name[0] == '\0')) {
+		struct winbindd_domain *mydomain =
+			find_domain_from_sid_noinit(sid);
+		if (mydomain != NULL) {
+			domain_name = mydomain->name;
+		}
+	}
+
 	centry_put_uint32(centry, type);
 	centry_put_sid(centry, sid);
 	fstrcpy(uname, name);
@@ -962,6 +971,14 @@ static void wcache_save_sid_to_name(struct winbindd_domain *domain, NTSTATUS sta
 	centry = centry_start(domain, status);
 	if (!centry)
 		return;
+
+	if ((domain_name == NULL) || (domain_name[0] == '\0')) {
+		struct winbindd_domain *mydomain =
+			find_domain_from_sid_noinit(sid);
+		if (mydomain != NULL) {
+			domain_name = mydomain->name;
+		}
+	}
 
 	if (NT_STATUS_IS_OK(status)) {
 		centry_put_uint32(centry, type);
@@ -1789,6 +1806,10 @@ NTSTATUS wcache_name_to_sid(struct winbindd_domain *domain,
 		return NT_STATUS_NO_MEMORY;
 	}
 
+	if ((domain_name == NULL) || (domain_name[0] == '\0')) {
+		domain_name = domain->name;
+	}
+
 	centry = wcache_fetch(cache, domain, "NS/%s/%s", domain_name, uname);
 	TALLOC_FREE(uname);
 	if (centry == NULL) {
@@ -2140,6 +2161,7 @@ static NTSTATUS rids_to_names(struct winbindd_domain *domain,
 				} else {
 					/* something's definitely wrong */
 					result = centry->status;
+					centry_free(centry);
 					goto error;
 				}
 
@@ -4038,7 +4060,8 @@ static int cache_traverse_validate_fn(TDB_CONTEXT *the_tdb, TDB_DATA kbuf, TDB_D
 	struct tdb_validation_status *v_state = (struct tdb_validation_status *)state;
 
 	/* Paranoia check. */
-	if (strncmp("UA/", (const char *)kbuf.dptr, 3) == 0) {
+	if (strncmp("UA/", (const char *)kbuf.dptr, 3) == 0 ||
+	    strncmp("NDR/", (const char *)kbuf.dptr, 4) == 0) {
 		max_key_len = 1024 * 1024;
 	}
 	if (kbuf.dsize > max_key_len) {

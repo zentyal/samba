@@ -1386,11 +1386,28 @@ static bool wbinfo_lookup_sids(const char *arg)
 	}
 
 	for (i=0; i<num_sids; i++) {
+		const char *domain = NULL;
+
 		wbcSidToStringBuf(&sids[i], sidstr, sizeof(sidstr));
 
-		d_printf("%s -> %s\\%s %d\n", sidstr,
-			 domains[names[i].domain_index].short_name,
-			 names[i].name, names[i].type);
+		if (names[i].domain_index >= num_domains) {
+			domain = "<none>";
+		} else if (names[i].domain_index < 0) {
+			domain = "<none>";
+		} else {
+			domain = domains[names[i].domain_index].short_name;
+		}
+
+		if (names[i].type == WBC_SID_NAME_DOMAIN) {
+			d_printf("%s -> %s %d\n", sidstr,
+				domain,
+				names[i].type);
+		} else {
+			d_printf("%s -> %s%c%s %d\n", sidstr,
+				domain,
+				winbind_separator(),
+				names[i].name, names[i].type);
+		}
 	}
 	wbcFreeMemory(names);
 	wbcFreeMemory(domains);
@@ -1736,7 +1753,7 @@ static bool wbinfo_pam_logon(char *username)
 {
 	wbcErr wbc_status = WBC_ERR_UNKNOWN_FAILURE;
 	struct wbcLogonUserParams params;
-	struct wbcAuthErrorInfo *error;
+	struct wbcAuthErrorInfo *error = NULL;
 	char *s = NULL;
 	char *p = NULL;
 	TALLOC_CTX *frame = talloc_tos();
@@ -1787,16 +1804,15 @@ static bool wbinfo_pam_logon(char *username)
 	d_printf("plaintext password authentication %s\n",
 		 WBC_ERROR_IS_OK(wbc_status) ? "succeeded" : "failed");
 
-	if (!WBC_ERROR_IS_OK(wbc_status)) {
+	if (!WBC_ERROR_IS_OK(wbc_status) && (error != NULL)) {
 		d_fprintf(stderr,
 			  "error code was %s (0x%x)\nerror message was: %s\n",
 			  error->nt_string,
 			  (int)error->nt_status,
 			  error->display_string);
 		wbcFreeMemory(error);
-		return false;
 	}
-	return true;
+	return WBC_ERROR_IS_OK(wbc_status);
 }
 
 /* Save creds with winbind */
@@ -2072,6 +2088,7 @@ int main(int argc, char **argv, char **envp)
 	bool use_lanman = false;
 	char *logoff_user = getenv("USER");
 	int logoff_uid = geteuid();
+	const char *opt_krb5ccname = "FILE";
 
 	struct poptOption long_options[] = {
 		POPT_AUTOHELP
@@ -2153,6 +2170,7 @@ int main(int argc, char **argv, char **envp)
 		{ "krb5auth", 'K', POPT_ARG_STRING, &string_arg, 'K', "authenticate user using Kerberos", "user%password" },
 			/* destroys wbinfo --help output */
 			/* "user%password,DOM\\user%password,user@EXAMPLE.COM,EXAMPLE.COM\\user%password" }, */
+		{ "krb5ccname", 0, POPT_ARG_STRING, &opt_krb5ccname, '0', "authenticate user using Kerberos and specific credential cache type", "krb5ccname" },
 #endif
 		{ "separator", 0, POPT_ARG_NONE, 0, OPT_SEPARATOR, "Get the active winbind separator", NULL },
 		{ "verbose", 0, POPT_ARG_NONE, 0, OPT_VERBOSE, "Print additional information per command", NULL },
@@ -2522,13 +2540,13 @@ int main(int argc, char **argv, char **envp)
 						 WBFLAG_PAM_INFO3_TEXT |
 						 WBFLAG_PAM_CONTACT_TRUSTDOM;
 
-				if (!wbinfo_auth_krb5(string_arg, "FILE",
+				if (!wbinfo_auth_krb5(string_arg, opt_krb5ccname,
 						      flags)) {
 					d_fprintf(stderr,
 						"Could not authenticate user "
 						"[%s] with Kerberos "
 						"(ccache: %s)\n", string_arg,
-						"FILE");
+						opt_krb5ccname);
 					goto done;
 				}
 				break;

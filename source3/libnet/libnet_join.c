@@ -811,7 +811,9 @@ static NTSTATUS libnet_join_joindomain_rpc_unsecure(TALLOC_CTX *mem_ctx,
 	}
 
 	if (!r->in.machine_password) {
-		r->in.machine_password = generate_random_str(mem_ctx, DEFAULT_TRUST_ACCOUNT_PASSWORD_LENGTH);
+		r->in.machine_password = generate_random_password(mem_ctx,
+				DEFAULT_TRUST_ACCOUNT_PASSWORD_LENGTH,
+				DEFAULT_TRUST_ACCOUNT_PASSWORD_LENGTH);
 		NT_STATUS_HAVE_NO_MEMORY(r->in.machine_password);
 	}
 
@@ -882,7 +884,9 @@ static NTSTATUS libnet_join_joindomain_rpc(TALLOC_CTX *mem_ctx,
 	}
 
 	if (!r->in.machine_password) {
-		r->in.machine_password = generate_random_str(mem_ctx, DEFAULT_TRUST_ACCOUNT_PASSWORD_LENGTH);
+		r->in.machine_password = generate_random_password(mem_ctx,
+				DEFAULT_TRUST_ACCOUNT_PASSWORD_LENGTH,
+				DEFAULT_TRUST_ACCOUNT_PASSWORD_LENGTH);
 		NT_STATUS_HAVE_NO_MEMORY(r->in.machine_password);
 	}
 
@@ -1016,6 +1020,14 @@ static NTSTATUS libnet_join_joindomain_rpc(TALLOC_CTX *mem_ctx,
 	}
 	if (!NT_STATUS_IS_OK(result)) {
 		status = result;
+		goto done;
+	}
+	if (user_rids.count != 1) {
+		status = NT_STATUS_INVALID_NETWORK_RESPONSE;
+		goto done;
+	}
+	if (name_types.count != 1) {
+		status = NT_STATUS_INVALID_NETWORK_RESPONSE;
 		goto done;
 	}
 
@@ -1166,7 +1178,8 @@ static NTSTATUS libnet_join_joindomain_rpc(TALLOC_CTX *mem_ctx,
 
 NTSTATUS libnet_join_ok(const char *netbios_domain_name,
 			const char *machine_name,
-			const char *dc_name)
+			const char *dc_name,
+			const bool use_kerberos)
 {
 	uint32_t neg_flags = NETLOGON_NEG_AUTH2_ADS_FLAGS;
 	struct cli_state *cli = NULL;
@@ -1175,6 +1188,7 @@ NTSTATUS libnet_join_ok(const char *netbios_domain_name,
 	NTSTATUS status;
 	char *machine_password = NULL;
 	char *machine_account = NULL;
+	int flags = 0;
 
 	if (!dc_name) {
 		return NT_STATUS_INVALID_PARAMETER;
@@ -1195,6 +1209,10 @@ NTSTATUS libnet_join_ok(const char *netbios_domain_name,
 		return NT_STATUS_NO_MEMORY;
 	}
 
+	if (use_kerberos) {
+		flags |= CLI_FULL_CONNECTION_USE_KERBEROS;
+	}
+
 	status = cli_full_connection(&cli, NULL,
 				     dc_name,
 				     NULL, 0,
@@ -1202,7 +1220,7 @@ NTSTATUS libnet_join_ok(const char *netbios_domain_name,
 				     machine_account,
 				     NULL,
 				     machine_password,
-				     0,
+				     flags,
 				     SMB_SIGNING_DEFAULT);
 	free(machine_account);
 	free(machine_password);
@@ -1273,7 +1291,8 @@ static WERROR libnet_join_post_verify(TALLOC_CTX *mem_ctx,
 
 	status = libnet_join_ok(r->out.netbios_domain_name,
 				r->in.machine_name,
-				r->in.dc_name);
+				r->in.dc_name,
+				r->in.use_kerberos);
 	if (!NT_STATUS_IS_OK(status)) {
 		libnet_join_set_error_string(mem_ctx, r,
 			"failed to verify domain membership after joining: %s",
@@ -1394,6 +1413,14 @@ static NTSTATUS libnet_join_unjoindomain_rpc(TALLOC_CTX *mem_ctx,
 	}
 	if (!NT_STATUS_IS_OK(result)) {
 		status = result;
+		goto done;
+	}
+	if (user_rids.count != 1) {
+		status = NT_STATUS_INVALID_NETWORK_RESPONSE;
+		goto done;
+	}
+	if (name_types.count != 1) {
+		status = NT_STATUS_INVALID_NETWORK_RESPONSE;
 		goto done;
 	}
 
@@ -2080,6 +2107,7 @@ static WERROR libnet_join_rollback(TALLOC_CTX *mem_ctx,
 	u->in.admin_account	= r->in.admin_account;
 	u->in.admin_password	= r->in.admin_password;
 	u->in.modify_config	= r->in.modify_config;
+	u->in.use_kerberos	= r->in.use_kerberos;
 	u->in.unjoin_flags	= WKSSVC_JOIN_FLAGS_JOIN_TYPE |
 				  WKSSVC_JOIN_FLAGS_ACCOUNT_DELETE;
 

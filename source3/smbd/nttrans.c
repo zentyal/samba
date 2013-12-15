@@ -538,7 +538,8 @@ void reply_ntcreate_and_X(struct smb_request *req)
 				conn,
 				req->flags2 & FLAGS2_DFS_PATHNAMES,
 				fname,
-				0,
+				(create_disposition == FILE_CREATE)
+				  ? UCF_CREATING_FILE : 0,
 				NULL,
 				&smb_fname);
 
@@ -889,13 +890,8 @@ NTSTATUS set_sd(files_struct *fsp, struct security_descriptor *psd,
 
 	/* Ensure we have at least one thing set. */
 	if ((security_info_sent & (SECINFO_OWNER|SECINFO_GROUP|SECINFO_DACL|SECINFO_SACL)) == 0) {
-		if (security_info_sent & SECINFO_LABEL) {
-			/* Only consider SECINFO_LABEL if no other
-			   bits are set. Just like W2K3 we don't
-			   store this. */
-			return NT_STATUS_OK;
-		}
-		return NT_STATUS_INVALID_PARAMETER;
+		/* Just like W2K3 */
+		return NT_STATUS_OK;
 	}
 
 	/* Ensure we have the rights to do this. */
@@ -993,7 +989,19 @@ struct ea_list *read_nttrans_ea_list(TALLOC_CTX *ctx, const char *pdata, size_t 
 		if (next_offset == 0) {
 			break;
 		}
+
+		/* Integer wrap protection for the increment. */
+		if (offset + next_offset < offset) {
+			break;
+		}
+
 		offset += next_offset;
+
+		/* Integer wrap protection for while loop. */
+		if (offset + 4 < offset) {
+			break;
+		}
+
 	}
 
 	return ea_list_head;
@@ -1090,6 +1098,44 @@ static void call_nt_transact_create(connection_struct *conn,
 	 */
 	create_options &= ~NTCREATEX_OPTIONS_MUST_IGNORE_MASK;
 
+	srvstr_get_path(ctx, params, req->flags2, &fname,
+			params+53, parameter_count-53,
+			STR_TERMINATE, &status);
+	if (!NT_STATUS_IS_OK(status)) {
+		reply_nterror(req, status);
+		goto out;
+	}
+
+	if (file_attributes & FILE_FLAG_POSIX_SEMANTICS) {
+		case_state = set_posix_case_semantics(ctx, conn);
+		if (!case_state) {
+			reply_nterror(req, NT_STATUS_NO_MEMORY);
+			goto out;
+		}
+	}
+
+	status = filename_convert(ctx,
+				conn,
+				req->flags2 & FLAGS2_DFS_PATHNAMES,
+				fname,
+				(create_disposition == FILE_CREATE)
+				  ? UCF_CREATING_FILE : 0,
+				NULL,
+				&smb_fname);
+
+	TALLOC_FREE(case_state);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		if (NT_STATUS_EQUAL(status,NT_STATUS_PATH_NOT_COVERED)) {
+			reply_botherror(req,
+				NT_STATUS_PATH_NOT_COVERED,
+				ERRSRV, ERRbadpath);
+			goto out;
+		}
+		reply_nterror(req, status);
+		goto out;
+	}
+
 	/* Ensure the data_len is correct for the sd and ea values given. */
 	if ((ea_len + sd_len > data_count)
 	    || (ea_len > data_count) || (sd_len > data_count)
@@ -1140,43 +1186,26 @@ static void call_nt_transact_create(connection_struct *conn,
 			reply_nterror(req, NT_STATUS_INVALID_PARAMETER);
 			goto out;
 		}
-	}
 
-	srvstr_get_path(ctx, params, req->flags2, &fname,
-			params+53, parameter_count-53,
-			STR_TERMINATE, &status);
-	if (!NT_STATUS_IS_OK(status)) {
-		reply_nterror(req, status);
-		goto out;
-	}
+		if (ea_list_has_invalid_name(ea_list)) {
+			/* Realloc the size of parameters and data we will return */
+			if (flags & EXTENDED_RESPONSE_REQUIRED) {
+				/* Extended response is 32 more byyes. */
+				param_len = 101;
+			} else {
+				param_len = 69;
+			}
+			params = nttrans_realloc(ppparams, param_len);
+			if(params == NULL) {
+				reply_nterror(req, NT_STATUS_NO_MEMORY);
+				goto out;
+			}
 
-	if (file_attributes & FILE_FLAG_POSIX_SEMANTICS) {
-		case_state = set_posix_case_semantics(ctx, conn);
-		if (!case_state) {
-			reply_nterror(req, NT_STATUS_NO_MEMORY);
+			memset(params, '\0', param_len);
+			send_nt_replies(conn, req, STATUS_INVALID_EA_NAME,
+				params, param_len, NULL, 0);
 			goto out;
 		}
-	}
-
-	status = filename_convert(ctx,
-				conn,
-				req->flags2 & FLAGS2_DFS_PATHNAMES,
-				fname,
-				0,
-				NULL,
-				&smb_fname);
-
-	TALLOC_FREE(case_state);
-
-	if (!NT_STATUS_IS_OK(status)) {
-		if (NT_STATUS_EQUAL(status,NT_STATUS_PATH_NOT_COVERED)) {
-			reply_botherror(req,
-				NT_STATUS_PATH_NOT_COVERED,
-				ERRSRV, ERRbadpath);
-			goto out;
-		}
-		reply_nterror(req, status);
-		goto out;
 	}
 
 	oplock_request = (flags & REQUEST_OPLOCK) ? EXCLUSIVE_OPLOCK : 0;

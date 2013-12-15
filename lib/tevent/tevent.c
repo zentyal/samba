@@ -112,13 +112,43 @@ void tevent_set_default_backend(const char *backend)
 */
 static void tevent_backend_init(void)
 {
+	static bool done;
+
+	if (done) {
+		return;
+	}
+
+	done = true;
+
 	tevent_select_init();
 	tevent_poll_init();
 	tevent_poll_mt_init();
-	tevent_standard_init();
 #ifdef HAVE_EPOLL
 	tevent_epoll_init();
 #endif
+	tevent_standard_init();
+}
+
+_PRIVATE_ const struct tevent_ops *tevent_find_ops_byname(const char *name)
+{
+	struct tevent_ops_list *e;
+
+	tevent_backend_init();
+
+	if (name == NULL) {
+		name = tevent_default_backend;
+	}
+	if (name == NULL) {
+		name = "standard";
+	}
+
+	for (e = tevent_backends; e != NULL; e = e->next) {
+		if (0 == strcmp(e->name, name)) {
+			return e->ops;
+		}
+	}
+
+	return NULL;
 }
 
 /*
@@ -160,6 +190,7 @@ int tevent_common_context_destructor(struct tevent_context *ev)
 		DLIST_REMOVE(ev->fd_events, fd);
 	}
 
+	ev->last_zero_timer = NULL;
 	for (te = ev->timer_events; te; te = tn) {
 		tn = te->next;
 		te->event_ctx = NULL;
@@ -243,23 +274,14 @@ struct tevent_context *tevent_context_init_ops(TALLOC_CTX *mem_ctx,
 struct tevent_context *tevent_context_init_byname(TALLOC_CTX *mem_ctx,
 						  const char *name)
 {
-	struct tevent_ops_list *e;
+	const struct tevent_ops *ops;
 
-	tevent_backend_init();
-
-	if (name == NULL) {
-		name = tevent_default_backend;
-	}
-	if (name == NULL) {
-		name = "standard";
+	ops = tevent_find_ops_byname(name);
+	if (ops == NULL) {
+		return NULL;
 	}
 
-	for (e=tevent_backends;e;e=e->next) {
-		if (strcmp(name, e->name) == 0) {
-			return tevent_context_init_ops(mem_ctx, e->ops, NULL);
-		}
-	}
-	return NULL;
+	return tevent_context_init_ops(mem_ctx, ops, NULL);
 }
 
 
@@ -504,7 +526,9 @@ int _tevent_loop_once(struct tevent_context *ev, const char *location)
 		}
 	}
 
+	tevent_trace_point_callback(ev, TEVENT_TRACE_BEFORE_LOOP_ONCE);
 	ret = ev->ops->loop_once(ev, location);
+	tevent_trace_point_callback(ev, TEVENT_TRACE_AFTER_LOOP_ONCE);
 
 	if (ev->nesting.level > 0) {
 		if (ev->nesting.hook_fn) {
@@ -564,7 +588,9 @@ int _tevent_loop_until(struct tevent_context *ev,
 	}
 
 	while (!finished(private_data)) {
+		tevent_trace_point_callback(ev, TEVENT_TRACE_BEFORE_LOOP_ONCE);
 		ret = ev->ops->loop_once(ev, location);
+		tevent_trace_point_callback(ev, TEVENT_TRACE_AFTER_LOOP_ONCE);
 		if (ret != 0) {
 			break;
 		}

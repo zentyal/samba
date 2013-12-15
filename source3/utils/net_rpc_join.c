@@ -380,6 +380,15 @@ int net_rpc_join_newstyle(struct net_context *c, int argc, const char **argv)
 			    ("error looking up rid for user %s: %s/%s\n",
 			     acct_name, nt_errstr(status), nt_errstr(result)));
 
+	if (user_rids.count != 1) {
+		status = NT_STATUS_INVALID_NETWORK_RESPONSE;
+		goto done;
+	}
+	if (name_types.count != 1) {
+		status = NT_STATUS_INVALID_NETWORK_RESPONSE;
+		goto done;
+	}
+
 	if (name_types.ids[0] != SID_NAME_USER) {
 		DEBUG(0, ("%s is not a user account (type=%d)\n", acct_name, name_types.ids[0]));
 		goto done;
@@ -401,7 +410,9 @@ int net_rpc_join_newstyle(struct net_context *c, int argc, const char **argv)
 	
 	/* Create a random machine account password */
 
-	clear_trust_password = generate_random_str(talloc_tos(), DEFAULT_TRUST_ACCOUNT_PASSWORD_LENGTH);
+	clear_trust_password = generate_random_password(talloc_tos(),
+					DEFAULT_TRUST_ACCOUNT_PASSWORD_LENGTH,
+					DEFAULT_TRUST_ACCOUNT_PASSWORD_LENGTH);
 	E_md4hash(clear_trust_password, md4_trust_password);
 
 	/* Set password on machine account */

@@ -1876,7 +1876,6 @@ static int check_password_restrictions(struct setup_password_fields_io *io)
 {
 	struct ldb_context *ldb;
 	int ret;
-	enum samr_ValidationStatus stat;
 
 	ldb = ldb_module_get_ctx(io->ac->module);
 
@@ -1973,10 +1972,11 @@ static int check_password_restrictions(struct setup_password_fields_io *io)
 	 * It is also in use by "dcesrv_samr_ValidatePassword".
 	 */
 	if (io->n.cleartext_utf8 != NULL) {
-		stat = samdb_check_password(io->n.cleartext_utf8,
-					    io->ac->status->domain_data.pwdProperties,
-					    io->ac->status->domain_data.minPwdLength);
-		switch (stat) {
+		enum samr_ValidationStatus vstat;
+		vstat = samdb_check_password(io->n.cleartext_utf8,
+					     io->ac->status->domain_data.pwdProperties,
+					     io->ac->status->domain_data.minPwdLength);
+		switch (vstat) {
 		case SAMR_VALIDATION_STATUS_SUCCESS:
 				/* perfect -> proceed! */
 			break;
@@ -2201,6 +2201,29 @@ static int setup_io(struct ph_context *ac,
 				"it's only allowed to set the old password once!");
 			return ret;
 		}
+	}
+
+	if (io->n.cleartext_utf8 != NULL) {
+		struct ldb_val *cleartext_utf8_blob;
+		char *p;
+
+		cleartext_utf8_blob = talloc(io->ac, struct ldb_val);
+		if (!cleartext_utf8_blob) {
+			return ldb_oom(ldb);
+		}
+
+		*cleartext_utf8_blob = *io->n.cleartext_utf8;
+
+		/* make sure we have a null terminated string */
+		p = talloc_strndup(cleartext_utf8_blob,
+				   (const char *)io->n.cleartext_utf8->data,
+				   io->n.cleartext_utf8->length);
+		if ((p == NULL) && (io->n.cleartext_utf8->length > 0)) {
+			return ldb_oom(ldb);
+		}
+		cleartext_utf8_blob->data = (uint8_t *)p;
+
+		io->n.cleartext_utf8 = cleartext_utf8_blob;
 	}
 
 	ret = msg_find_old_and_new_pwd_val(orig_msg, "clearTextPassword",

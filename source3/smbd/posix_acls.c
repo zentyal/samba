@@ -1807,7 +1807,7 @@ static bool add_current_ace_to_acl(files_struct *fsp, struct security_ace *psa,
 		if (current_ace->attr == ALLOW_ACE)
 			*got_file_allow = True;
 
-		if ((current_ace->attr == DENY_ACE) && got_file_allow) {
+		if ((current_ace->attr == DENY_ACE) && *got_file_allow) {
 			DEBUG(0,("add_current_ace_to_acl: malformed "
 				 "ACL in file ACL ! Deny entry after "
 				 "Allow entry. Failing to set on file "
@@ -1980,46 +1980,49 @@ static bool create_canon_ace_lists(files_struct *fsp,
 			}
 
 			if (unixid.type == ID_TYPE_BOTH) {
-				/* If it's the owning user, this is a
-				 * user_obj, not a user.  This way, we
-				 * get a valid ACL for groups that own
-				 * files, without putting user ACL
-				 * entries in for groups otherwise */
-				if (unixid.id == pst->st_ex_uid) {
-					current_ace->owner_type = UID_ACE;
-					current_ace->unix_ug.type = ID_TYPE_UID;
-					current_ace->unix_ug.id = unixid.id;
-					current_ace->type = SMB_ACL_USER_OBJ;
+				/*
+				 * We must add both a user and group
+				 * entry POSIX_ACL.
+				 * This is due to the fact that in POSIX
+				 * user entries are more specific than
+				 * groups.
+				 */
+				current_ace->owner_type = UID_ACE;
+				current_ace->unix_ug.type = ID_TYPE_UID;
+				current_ace->unix_ug.id = unixid.id;
+				current_ace->type =
+					(unixid.id == pst->st_ex_uid) ?
+						SMB_ACL_USER_OBJ :
+						SMB_ACL_USER;
 
-					/* Add the user object to the posix ACL,
-					   and proceed to the group mapping
-					   below. This handles the talloc_free
-					   of current_ace if not added for some
-					   reason */
-					if (!add_current_ace_to_acl(fsp,
-							psa,
-							&file_ace,
-							&dir_ace,
-							&got_file_allow,
-							&got_dir_allow,
-							&all_aces_are_inherit_only,
-							current_ace)) {
-						free_canon_ace_list(file_ace);
-						free_canon_ace_list(dir_ace);
-						return false;
-					}
-
-					if ((current_ace = talloc(talloc_tos(),
-							canon_ace)) == NULL) {
-						free_canon_ace_list(file_ace);
-						free_canon_ace_list(dir_ace);
-						DEBUG(0,("create_canon_ace_lists: "
-							"malloc fail.\n"));
-						return False;
-					}
-
-					ZERO_STRUCTP(current_ace);
+				/* Add the user object to the posix ACL,
+				   and proceed to the group mapping
+				   below. This handles the talloc_free
+				   of current_ace if not added for some
+				   reason */
+				if (!add_current_ace_to_acl(fsp,
+						psa,
+						&file_ace,
+						&dir_ace,
+						&got_file_allow,
+						&got_dir_allow,
+						&all_aces_are_inherit_only,
+						current_ace)) {
+					free_canon_ace_list(file_ace);
+					free_canon_ace_list(dir_ace);
+					return false;
 				}
+
+				if ((current_ace = talloc(talloc_tos(),
+						canon_ace)) == NULL) {
+					free_canon_ace_list(file_ace);
+					free_canon_ace_list(dir_ace);
+					DEBUG(0,("create_canon_ace_lists: "
+						"malloc fail.\n"));
+					return False;
+				}
+
+				ZERO_STRUCTP(current_ace);
 
 				sid_copy(&current_ace->trustee, &psa->trustee);
 
@@ -3083,14 +3086,11 @@ SMB_ACL_T free_empty_sys_acl(connection_struct *conn, SMB_ACL_T the_acl)
 
 static bool convert_canon_ace_to_posix_perms( files_struct *fsp, canon_ace *file_ace_list, mode_t *posix_perms)
 {
-	int snum = SNUM(fsp->conn);
 	size_t ace_count = count_canon_ace_list(file_ace_list);
 	canon_ace *ace_p;
 	canon_ace *owner_ace = NULL;
 	canon_ace *group_ace = NULL;
 	canon_ace *other_ace = NULL;
-	mode_t and_bits;
-	mode_t or_bits;
 
 	if (ace_count != 3) {
 		DEBUG(3,("convert_canon_ace_to_posix_perms: Too many ACE "
@@ -3129,20 +3129,6 @@ static bool convert_canon_ace_to_posix_perms( files_struct *fsp, canon_ace *file
 	*posix_perms |= S_IRUSR;
 	if (fsp->is_directory)
 		*posix_perms |= (S_IWUSR|S_IXUSR);
-
-	/* If requested apply the masks. */
-
-	/* Get the initial bits to apply. */
-
-	if (fsp->is_directory) {
-		and_bits = lp_dir_mask(snum);
-		or_bits = lp_force_dir_mode(snum);
-	} else {
-		and_bits = lp_create_mask(snum);
-		or_bits = lp_force_create_mode(snum);
-	}
-
-	*posix_perms = (((*posix_perms) & and_bits)|or_bits);
 
 	DEBUG(10,("convert_canon_ace_to_posix_perms: converted u=%o,g=%o,w=%o "
 		  "to perm=0%o for file %s.\n", (int)owner_ace->perms,

@@ -96,7 +96,8 @@ int acl_check_access_on_attribute(struct ldb_module *module,
 				  struct security_descriptor *sd,
 				  struct dom_sid *rp_sid,
 				  uint32_t access_mask,
-				  const struct dsdb_attribute *attr)
+				  const struct dsdb_attribute *attr,
+				  const struct dsdb_class *objectclass)
 {
 	int ret;
 	NTSTATUS status;
@@ -105,34 +106,34 @@ int acl_check_access_on_attribute(struct ldb_module *module,
 	struct object_tree *new_node = NULL;
 	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
 	struct security_token *token = acl_user_token(module);
-	if (attr) {
-		if (!GUID_all_zero(&attr->attributeSecurityGUID)) {
-			if (!insert_in_object_tree(tmp_ctx,
-						   &attr->attributeSecurityGUID,
-						   access_mask, &root,
-						   &new_node)) {
-				DEBUG(10, ("acl_search: cannot add to object tree securityGUID\n"));
-				goto fail;
-			}
 
-			if (!insert_in_object_tree(tmp_ctx,
-						   &attr->schemaIDGUID,
-						   access_mask, &new_node,
-						   &new_node)) {
-				DEBUG(10, ("acl_search: cannot add to object tree attributeGUID\n"));
-				goto fail;
-			}
-		}
-		else {
-			if (!insert_in_object_tree(tmp_ctx,
-						   &attr->schemaIDGUID,
-						   access_mask, &root,
-						   &new_node)) {
-				DEBUG(10, ("acl_search: cannot add to object tree attributeGUID\n"));
-				goto fail;
-			}
+	if (!insert_in_object_tree(tmp_ctx,
+				   &objectclass->schemaIDGUID,
+				   access_mask, NULL,
+				   &root)) {
+		DEBUG(10, ("acl_search: cannot add to object tree class schemaIDGUID\n"));
+		goto fail;
+	}
+	new_node = root;
+
+	if (!GUID_all_zero(&attr->attributeSecurityGUID)) {
+		if (!insert_in_object_tree(tmp_ctx,
+					   &attr->attributeSecurityGUID,
+					   access_mask, new_node,
+					   &new_node)) {
+			DEBUG(10, ("acl_search: cannot add to object tree securityGUID\n"));
+			goto fail;
 		}
 	}
+
+	if (!insert_in_object_tree(tmp_ctx,
+				   &attr->schemaIDGUID,
+				   access_mask, new_node,
+				   &new_node)) {
+		DEBUG(10, ("acl_search: cannot add to object tree attributeGUID\n"));
+		goto fail;
+	}
+
 	status = sec_access_check_ds(sd, token,
 				     access_mask,
 				     &access_granted,
@@ -151,6 +152,44 @@ fail:
 	return ldb_operr(ldb_module_get_ctx(module));
 }
 
+int acl_check_access_on_objectclass(struct ldb_module *module,
+				    TALLOC_CTX *mem_ctx,
+				    struct security_descriptor *sd,
+				    struct dom_sid *rp_sid,
+				    uint32_t access_mask,
+				    const struct dsdb_class *objectclass)
+{
+	int ret;
+	NTSTATUS status;
+	uint32_t access_granted;
+	struct object_tree *root = NULL;
+	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
+	struct security_token *token = acl_user_token(module);
+
+	if (!insert_in_object_tree(tmp_ctx,
+				   &objectclass->schemaIDGUID,
+				   access_mask, NULL,
+				   &root)) {
+		DEBUG(10, ("acl_search: cannot add to object tree class schemaIDGUID\n"));
+		goto fail;
+	}
+
+	status = sec_access_check_ds(sd, token,
+				     access_mask,
+				     &access_granted,
+				     root,
+				     rp_sid);
+	if (!NT_STATUS_IS_OK(status)) {
+		ret = LDB_ERR_INSUFFICIENT_ACCESS_RIGHTS;
+	} else {
+		ret = LDB_SUCCESS;
+	}
+	talloc_free(tmp_ctx);
+	return ret;
+fail:
+	talloc_free(tmp_ctx);
+	return ldb_operr(ldb_module_get_ctx(module));
+}
 
 /* checks for validated writes */
 int acl_check_extended_right(TALLOC_CTX *mem_ctx,
@@ -170,7 +209,7 @@ int acl_check_extended_right(TALLOC_CTX *mem_ctx,
 	GUID_from_string(ext_right, &right);
 
 	if (!insert_in_object_tree(tmp_ctx, &right, right_type,
-				   &root, &new_node)) {
+				   NULL, &root)) {
 		DEBUG(10, ("acl_ext_right: cannot add to object tree\n"));
 		talloc_free(tmp_ctx);
 		return LDB_ERR_OPERATIONS_ERROR;
@@ -234,7 +273,7 @@ uint32_t dsdb_request_sd_flags(struct ldb_request *req, bool *explicit)
 	 * equals all 4 bits
 	 */
 	if (sd_flags == 0) {
-		sd_flags = 0xF;
+		sd_flags = SECINFO_OWNER | SECINFO_GROUP | SECINFO_DACL | SECINFO_SACL;
 	}
 
 	return sd_flags;

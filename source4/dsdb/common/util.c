@@ -1906,19 +1906,30 @@ int samdb_search_for_parent_domain(struct ldb_context *ldb, TALLOC_CTX *mem_ctx,
  *
  * Result codes from "enum samr_ValidationStatus" (consider "samr.idl")
  */
-enum samr_ValidationStatus samdb_check_password(const DATA_BLOB *password,
+enum samr_ValidationStatus samdb_check_password(const DATA_BLOB *utf8_blob,
 						const uint32_t pwdProperties,
 						const uint32_t minPwdLength)
 {
+	const char *utf8_pw = (const char *)utf8_blob->data;
+	size_t utf8_len = strlen_m(utf8_pw);
+
 	/* checks if the "minPwdLength" property is satisfied */
-	if (minPwdLength > password->length)
+	if (minPwdLength > utf8_len) {
 		return SAMR_VALIDATION_STATUS_PWD_TOO_SHORT;
+	}
 
 	/* checks the password complexity */
-	if (((pwdProperties & DOMAIN_PASSWORD_COMPLEX) != 0)
-			&& (password->data != NULL)
-			&& (!check_password_quality((const char *) password->data)))
+	if (!(pwdProperties & DOMAIN_PASSWORD_COMPLEX)) {
+		return SAMR_VALIDATION_STATUS_SUCCESS;
+	}
+
+	if (utf8_len == 0) {
 		return SAMR_VALIDATION_STATUS_NOT_COMPLEX_ENOUGH;
+	}
+
+	if (!check_password_quality(utf8_pw)) {
+		return SAMR_VALIDATION_STATUS_NOT_COMPLEX_ENOUGH;
+	}
 
 	return SAMR_VALIDATION_STATUS_SUCCESS;
 }
@@ -3487,9 +3498,10 @@ int dsdb_load_udv_v2(struct ldb_context *samdb, struct ldb_dn *dn, TALLOC_CTX *m
 	const struct ldb_val *ouv_value;
 	unsigned int i;
 	int ret;
-	uint64_t highest_usn;
+	uint64_t highest_usn = 0;
 	const struct GUID *our_invocation_id;
-	struct timeval now = timeval_current();
+	static const struct timeval tv1970;
+	NTTIME nt1970 = timeval_to_nttime(&tv1970);
 
 	ret = ldb_search(samdb, mem_ctx, &r, dn, LDB_SCOPE_BASE, attrs, NULL);
 	if (ret != LDB_SUCCESS) {
@@ -3530,7 +3542,7 @@ int dsdb_load_udv_v2(struct ldb_context *samdb, struct ldb_dn *dn, TALLOC_CTX *m
 		return ldb_operr(samdb);
 	}
 
-	ret = dsdb_load_partition_usn(samdb, dn, &highest_usn, NULL);
+	ret = ldb_sequence_number(samdb, LDB_SEQ_HIGHEST_SEQ, &highest_usn);
 	if (ret != LDB_SUCCESS) {
 		/* nothing to add - this can happen after a vampire */
 		TYPESAFE_QSORT(*cursors, *count, drsuapi_DsReplicaCursor2_compare);
@@ -3540,7 +3552,7 @@ int dsdb_load_udv_v2(struct ldb_context *samdb, struct ldb_dn *dn, TALLOC_CTX *m
 	for (i=0; i<*count; i++) {
 		if (GUID_equal(our_invocation_id, &(*cursors)[i].source_dsa_invocation_id)) {
 			(*cursors)[i].highest_usn = highest_usn;
-			(*cursors)[i].last_sync_success = timeval_to_nttime(&now);
+			(*cursors)[i].last_sync_success = nt1970;
 			TYPESAFE_QSORT(*cursors, *count, drsuapi_DsReplicaCursor2_compare);
 			return LDB_SUCCESS;
 		}
@@ -3553,7 +3565,7 @@ int dsdb_load_udv_v2(struct ldb_context *samdb, struct ldb_dn *dn, TALLOC_CTX *m
 
 	(*cursors)[*count].source_dsa_invocation_id = *our_invocation_id;
 	(*cursors)[*count].highest_usn = highest_usn;
-	(*cursors)[*count].last_sync_success = timeval_to_nttime(&now);
+	(*cursors)[*count].last_sync_success = nt1970;
 	(*count)++;
 
 	TYPESAFE_QSORT(*cursors, *count, drsuapi_DsReplicaCursor2_compare);

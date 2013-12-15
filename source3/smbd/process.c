@@ -1270,11 +1270,13 @@ static bool create_outbuf(TALLOC_CTX *mem_ctx, struct smb_request *req,
 			  const char *inbuf, char **outbuf, uint8_t num_words,
 			  uint32_t num_bytes)
 {
+	size_t smb_len = MIN_SMB_SIZE + VWV(num_words) + num_bytes;
+
 	/*
-         * Protect against integer wrap
-         */
-	if ((num_bytes > 0xffffff)
-	    || ((num_bytes + smb_size + num_words*2) > 0xffffff)) {
+	 * Protect against integer wrap.
+	 * The SMB layer reply can be up to 0xFFFFFF bytes.
+	 */
+	if ((num_bytes > 0xffffff) || (smb_len > 0xffffff)) {
 		char *msg;
 		if (asprintf(&msg, "num_bytes too large: %u",
 			     (unsigned)num_bytes) == -1) {
@@ -1283,8 +1285,11 @@ static bool create_outbuf(TALLOC_CTX *mem_ctx, struct smb_request *req,
 		smb_panic(msg);
 	}
 
+	/*
+	 * Here we include the NBT header for now.
+	 */
 	*outbuf = talloc_array(mem_ctx, char,
-			       smb_size + num_words*2 + num_bytes);
+			       NBT_HDR_SIZE + smb_len);
 	if (*outbuf == NULL) {
 		return false;
 	}
@@ -1296,7 +1301,7 @@ static bool create_outbuf(TALLOC_CTX *mem_ctx, struct smb_request *req,
 	 * himself
 	 */
 	if (num_words != 0) {
-		memset(*outbuf + smb_vwv0, 0, num_words*2);
+		memset(*outbuf + (NBT_HDR_SIZE + HDR_VWV), 0, VWV(num_words));
 	}
 
 	return true;
@@ -2407,7 +2412,7 @@ static void smbd_server_connection_read_handler(
 				    &unread_bytes,
 				    &encrypted,
 				    &inbuf_len, &seqnum,
-				    false /* trusted channel */);
+				    !from_client /* trusted channel */);
 
 	if (from_client) {
 		smbd_unlock_socket(sconn);
@@ -3022,7 +3027,7 @@ static void smbd_echo_got_packet(struct tevent_req *req)
 		}
 
 		iov = &state->pending[num_pending];
-		iov->iov_base = buf;
+		iov->iov_base = talloc_move(state->pending, &buf);
 		iov->iov_len = buflen;
 
 		DEBUG(10,("echo_handler[%d]: forward to main\n",
@@ -3631,7 +3636,7 @@ void smbd_process(struct tevent_context *ev_ctx,
 	exit_server_cleanly(NULL);
 }
 
-bool req_is_in_chain(struct smb_request *req)
+bool req_is_in_chain(const struct smb_request *req)
 {
 	if (req->vwv != (const uint16_t *)(req->inbuf+smb_vwv)) {
 		/*

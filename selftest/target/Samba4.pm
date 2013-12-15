@@ -227,7 +227,9 @@ sub mk_keyblobs($$)
 	my $admincertfile = "$tlsdir/admincert.pem";
 	my $admincertupnfile = "$tlsdir/admincertupn.pem";
 
-	mkdir($tlsdir, 0777);
+	mkdir($tlsdir, 0700);
+	my $oldumask = umask;
+	umask 0077;
 
 	#This is specified here to avoid draining entropy on every run
 	open(DHFILE, ">$dhfile");
@@ -418,6 +420,8 @@ Zd7J9s//rNFNa7waklFkDaY56+QWTFtdvxfE+KoHaqt6X8u6pqi7p3M4wDKQox+9Dx8yWFyq
 Wfz/8alZ5aMezCQzXJyIaJsCLeKABosSwHcpAFmxlQ==
 -----END CERTIFICATE-----
 EOF
+
+	umask $oldumask;
 }
 
 sub provision_raw_prepare($$$$$$$$$$)
@@ -602,6 +606,8 @@ sub provision_raw_step1($$)
 	# remove this again, when our smb2 client library
 	# supports signin on compound related requests
 	server signing = on
+
+        idmap_ldb:use rfc2307=yes
 ";
 
 	print CONFFILE "
@@ -628,6 +634,7 @@ nobody:x:65534:65533:nobody gecos:$ctx->{prefix_abs}:/bin/false
 pdbtest:x:65533:65533:pdbtest gecos:$ctx->{prefix_abs}:/bin/false
 ";
 	close(PWD);
+        my $uid_rfc2307test = 65533;
 
 	open(GRP, ">$ctx->{nsswrap_group}");
 	print GRP "
@@ -638,6 +645,7 @@ nobody:x:65533:
 nogroup:x:65534:nobody
 ";
 	close(GRP);
+        my $gid_rfc2307test = 65532;
 
 	my $configuration = "--configfile=$ctx->{smb_conf}";
 
@@ -680,7 +688,9 @@ nogroup:x:65534:nobody
 		SAMBA_TEST_LOG => "$ctx->{prefix}/samba_test.log",
 		SAMBA_TEST_LOG_POS => 0,
 	        NSS_WRAPPER_WINBIND_SO_PATH => Samba::nss_wrapper_winbind_so_path($self),
-                LOCAL_PATH => $ctx->{share}
+                LOCAL_PATH => $ctx->{share},
+                UID_RFC2307TEST => $uid_rfc2307test,
+                GID_RFC2307TEST => $gid_rfc2307test
 	};
 
 	return $ret;
@@ -869,7 +879,7 @@ sub provision_member($$$)
 	$cmd .= "KRB5_CONFIG=\"$ret->{KRB5_CONFIG}\" ";
 	$cmd .= "$samba_tool domain join $ret->{CONFIGURATION} $dcvars->{REALM} member";
 	$cmd .= " -U$dcvars->{DC_USERNAME}\%$dcvars->{DC_PASSWORD}";
-	$cmd .= " --machinepass=machine$ret->{password}";
+	$cmd .= " --machinepass=machine$ret->{PASSWORD}";
 
 	unless (system($cmd) == 0) {
 		warn("Join failed\n$cmd");
@@ -937,7 +947,7 @@ sub provision_rpc_proxy($$$)
 	$cmd .= "KRB5_CONFIG=\"$ret->{KRB5_CONFIG}\" ";
 	$cmd .= "$samba_tool domain join $ret->{CONFIGURATION} $dcvars->{REALM} member";
 	$cmd .= " -U$dcvars->{DC_USERNAME}\%$dcvars->{DC_PASSWORD}";
-	$cmd .= " --machinepass=machine$ret->{password}";
+	$cmd .= " --machinepass=machine$ret->{PASSWORD}";
 
 	unless (system($cmd) == 0) {
 		warn("Join failed\n$cmd");
@@ -983,7 +993,7 @@ sub provision_rpc_proxy($$$)
 	return $ret;
 }
 
-sub provision_promoted_vampire_dc($$$)
+sub provision_promoted_dc($$$)
 {
 	my ($self, $prefix, $dcvars) = @_;
 	print "PROVISIONING VAMPIRE DC...";
@@ -1024,7 +1034,7 @@ sub provision_promoted_vampire_dc($$$)
 	$cmd .= "KRB5_CONFIG=\"$ret->{KRB5_CONFIG}\" ";
 	$cmd .= "$samba_tool domain join $ret->{CONFIGURATION} $dcvars->{REALM} MEMBER --realm=$dcvars->{REALM}";
 	$cmd .= " -U$dcvars->{DC_USERNAME}\%$dcvars->{DC_PASSWORD}";
-	$cmd .= " --machinepass=machine$ret->{password}";
+	$cmd .= " --machinepass=machine$ret->{PASSWORD}";
 
 	unless (system($cmd) == 0) {
 		warn("Join failed\n$cmd");
@@ -1037,16 +1047,16 @@ sub provision_promoted_vampire_dc($$$)
 	$cmd .= "KRB5_CONFIG=\"$ret->{KRB5_CONFIG}\" ";
 	$cmd .= "$samba_tool domain dcpromo $ret->{CONFIGURATION} $dcvars->{REALM} DC --realm=$dcvars->{REALM}";
 	$cmd .= " -U$dcvars->{DC_USERNAME}\%$dcvars->{DC_PASSWORD}";
-	$cmd .= " --machinepass=machine$ret->{password} --use-ntvfs";
+	$cmd .= " --machinepass=machine$ret->{PASSWORD} --use-ntvfs --dns-backend=BIND9_DLZ";
 
 	unless (system($cmd) == 0) {
 		warn("Join failed\n$cmd");
 		return undef;
 	}
 
-	$ret->{PROMOTED_VAMPIRE_DC_SERVER} = $ret->{SERVER};
-	$ret->{PROMOTED_VAMPIRE_DC_SERVER_IP} = $ret->{SERVER_IP};
-	$ret->{PROMOTED_VAMPIRE_DC_NETBIOSNAME} = $ret->{NETBIOSNAME};
+	$ret->{PROMOTED_DC_SERVER} = $ret->{SERVER};
+	$ret->{PROMOTED_DC_SERVER_IP} = $ret->{SERVER_IP};
+	$ret->{PROMOTED_DC_NETBIOSNAME} = $ret->{NETBIOSNAME};
 
 	$ret->{DC_SERVER} = $dcvars->{DC_SERVER};
 	$ret->{DC_SERVER_IP} = $dcvars->{DC_SERVER_IP};
@@ -1098,7 +1108,7 @@ sub provision_vampire_dc($$$)
 	$cmd .= "KRB5_CONFIG=\"$ret->{KRB5_CONFIG}\" ";
 	$cmd .= "$samba_tool domain join $ret->{CONFIGURATION} $dcvars->{REALM} DC --realm=$dcvars->{REALM}";
 	$cmd .= " -U$dcvars->{DC_USERNAME}\%$dcvars->{DC_PASSWORD} --domain-critical-only";
-	$cmd .= " --machinepass=machine$ret->{password} --use-ntvfs";
+	$cmd .= " --machinepass=machine$ret->{PASSWORD} --use-ntvfs";
 
 	unless (system($cmd) == 0) {
 		warn("Join failed\n$cmd");
@@ -1163,7 +1173,7 @@ sub provision_subdom_dc($$$)
 	$cmd .= "KRB5_CONFIG=\"$ret->{KRB5_CONFIG}\" ";
 	$cmd .= "$samba_tool domain join $ret->{CONFIGURATION} $ctx->{realm} subdomain ";
 	$cmd .= "--parent-domain=$dcvars->{REALM} -U$dcvars->{DC_USERNAME}\@$dcvars->{REALM}\%$dcvars->{DC_PASSWORD}";
-	$cmd .= " --machinepass=machine$ret->{password} --use-ntvfs";
+	$cmd .= " --machinepass=machine$ret->{PASSWORD} --use-ntvfs";
 
 	unless (system($cmd) == 0) {
 		warn("Join failed\n$cmd");
@@ -1387,8 +1397,7 @@ sub provision_plugin_s4_dc($$)
 
 	smbd:sharedelay = 100000
 	smbd:writetimeupdatedelay = 500000
-	create mask = 0777
-	directory mask = 0777
+	create mask = 755
 	dos filemode = yes
 
         dcerpc endpoint servers = -winreg -srvsvc
@@ -1489,7 +1498,7 @@ sub provision_chgdcpass($$)
 				   "chgdcpassword.samba.example.com",
 				   "2008",
 				   "chgDCpass1",
-				   undef, "server services = -dns", "",
+				   undef, "", "",
 				   $extra_provision_options);
 
 	return undef unless(defined $ret);
@@ -1620,11 +1629,11 @@ sub setup_env($$$)
 			$self->setup_dc("$path/dc");
 		}
 		return $self->setup_vampire_dc("$path/vampire_dc", $self->{vars}->{dc});
-	} elsif ($envname eq "promoted_vampire_dc") {
+	} elsif ($envname eq "promoted_dc") {
 		if (not defined($self->{vars}->{dc})) {
 			$self->setup_dc("$path/dc");
 		}
-		return $self->setup_promoted_vampire_dc("$path/promoted_vampire_dc", $self->{vars}->{dc});
+		return $self->setup_promoted_dc("$path/promoted_dc", $self->{vars}->{dc});
 	} elsif ($envname eq "subdom_dc") {
 		if (not defined($self->{vars}->{dc})) {
 			$self->setup_dc("$path/dc");
@@ -1818,18 +1827,18 @@ sub setup_vampire_dc($$$)
 	return $env;
 }
 
-sub setup_promoted_vampire_dc($$$)
+sub setup_promoted_dc($$$)
 {
 	my ($self, $path, $dc_vars) = @_;
 
-	my $env = $self->provision_promoted_vampire_dc($path, $dc_vars);
+	my $env = $self->provision_promoted_dc($path, $dc_vars);
 
 	if (defined $env) {
 		$self->check_or_start($env, "single");
 
 		$self->wait_for_start($env);
 
-		$self->{vars}->{promoted_vampire_dc} = $env;
+		$self->{vars}->{promoted_dc} = $env;
 
 		# force replicated DC to update repsTo/repsFrom
 		# for vampired partitions

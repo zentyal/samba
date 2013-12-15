@@ -450,13 +450,17 @@ NTSTATUS unix_convert(TALLOC_CTX *ctx,
 
 		if (errno == ENOENT) {
 			/* Optimization when creating a new file - only
-			   the last component doesn't exist. */
+			   the last component doesn't exist.
+			   NOTE : check_parent_exists() doesn't preserve errno.
+			*/
+			int saved_errno = errno;
 			status = check_parent_exists(ctx,
 						conn,
 						posix_pathnames,
 						smb_fname,
 						&dirpath,
 						&start);
+			errno = saved_errno;
 			if (!NT_STATUS_IS_OK(status)) {
 				goto fail;
 			}
@@ -529,13 +533,16 @@ NTSTATUS unix_convert(TALLOC_CTX *ctx,
 		 * Optimization for common case where the wildcard
 		 * is in the last component and the client already
 		 * sent the correct case.
+		 * NOTE : check_parent_exists() doesn't preserve errno.
 		 */
+		int saved_errno = errno;
 		status = check_parent_exists(ctx,
 					conn,
 					posix_pathnames,
 					smb_fname,
 					&dirpath,
 					&start);
+		errno = saved_errno;
 		if (!NT_STATUS_IS_OK(status)) {
 			goto fail;
 		}
@@ -711,12 +718,30 @@ NTSTATUS unix_convert(TALLOC_CTX *ctx,
 
 				/*
 				 * ENOENT/EACCESS are the only valid errors
-				 * here. EACCESS needs handling here for
-				 * "dropboxes", i.e. directories where users
-				 * can only put stuff with permission -wx.
+				 * here.
 				 */
-				if ((errno != 0) && (errno != ENOENT)
-				    && (errno != EACCES)) {
+
+				if (errno == EACCES) {
+					if (ucf_flags & UCF_CREATING_FILE) {
+						/*
+						 * This is the dropbox
+						 * behaviour. A dropbox is a
+						 * directory with only -wx
+						 * permissions, so
+						 * get_real_filename fails
+						 * with EACCESS, it needs to
+						 * list the directory. We
+						 * nevertheless want to allow
+						 * users creating a file.
+						 */
+						status = NT_STATUS_OBJECT_PATH_NOT_FOUND;
+					} else {
+						status = NT_STATUS_ACCESS_DENIED;
+					}
+					goto fail;
+				}
+
+				if ((errno != 0) && (errno != ENOENT)) {
 					/*
 					 * ENOTDIR and ELOOP both map to
 					 * NT_STATUS_OBJECT_PATH_NOT_FOUND

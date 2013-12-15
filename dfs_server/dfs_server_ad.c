@@ -206,14 +206,14 @@ static NTSTATUS get_dcs_insite(TALLOC_CTX *ctx, struct ldb_context *ldb,
 
 	for (i = 0; i<r->count; i++) {
 		struct ldb_dn  *dn;
-		struct ldb_result *r2;
+		struct ldb_message *msg;
 
 		dn = ldb_msg_find_attr_as_dn(ldb, ctx, r->msgs[i], "serverReference");
 		if (!dn) {
 			return NT_STATUS_INTERNAL_ERROR;
 		}
 
-		ret = ldb_search(ldb, r, &r2, dn, LDB_SCOPE_BASE, attrs2, "(objectClass=computer)");
+		ret = dsdb_search_one(ldb, r, &msg, dn, LDB_SCOPE_BASE, attrs2, 0, "(objectClass=computer)");
 		if (ret != LDB_SUCCESS) {
 			DEBUG(2,(__location__ ": Search for computer on %s failed - %s\n",
 				 ldb_dn_get_linearized(dn), ldb_errstring(ldb)));
@@ -221,7 +221,7 @@ static NTSTATUS get_dcs_insite(TALLOC_CTX *ctx, struct ldb_context *ldb,
 		}
 
 		if (dofqdn) {
-			const char *dns = ldb_msg_find_attr_as_string(r2->msgs[0], "dNSHostName", NULL);
+			const char *dns = ldb_msg_find_attr_as_string(msg, "dNSHostName", NULL);
 			if (dns == NULL) {
 				DEBUG(2,(__location__ ": dNSHostName missing on %s\n",
 					 ldb_dn_get_linearized(dn)));
@@ -233,7 +233,7 @@ static NTSTATUS get_dcs_insite(TALLOC_CTX *ctx, struct ldb_context *ldb,
 			NT_STATUS_HAVE_NO_MEMORY_AND_FREE(list->names[list->count], r);
 		} else {
 			char *tmp;
-			const char *aname = ldb_msg_find_attr_as_string(r2->msgs[0], "sAMAccountName", NULL);
+			const char *aname = ldb_msg_find_attr_as_string(msg, "sAMAccountName", NULL);
 			if (aname == NULL) {
 				DEBUG(2,(__location__ ": sAMAccountName missing on %s\n",
 					 ldb_dn_get_linearized(dn)));
@@ -250,7 +250,7 @@ static NTSTATUS get_dcs_insite(TALLOC_CTX *ctx, struct ldb_context *ldb,
 			list->names[list->count] = tmp;
 		}
 		list->count++;
-		talloc_free(r2);
+		talloc_free(msg);
 	}
 
 	talloc_free(r);
@@ -751,6 +751,7 @@ NTSTATUS dfs_server_ad_get_referrals(struct loadparm_context *lp_ctx,
 	const char *dns_domain;
 	const char *netbios_name;
 	const char *dns_name;
+	const char **netbios_aliases;
 
 	if (!lpcfg_host_msdfs(lp_ctx)) {
 		return NT_STATUS_FS_DRIVER_REQUIRED;
@@ -825,6 +826,40 @@ NTSTATUS dfs_server_ad_get_referrals(struct loadparm_context *lp_ctx,
 		 * handle it here.
 		 */
 		return NT_STATUS_NOT_FOUND;
+	}
+
+	netbios_aliases = lpcfg_netbios_aliases(lp_ctx);
+	while (netbios_aliases && *netbios_aliases) {
+		const char *netbios_alias = *netbios_aliases;
+		char *dns_alias;
+		int cmp;
+
+		cmp = strcasecmp_m(server_name, netbios_alias);
+		if (cmp == 0) {
+			/*
+			 * If it is not domain related do not
+			 * handle it here.
+			 */
+			return NT_STATUS_NOT_FOUND;
+		}
+
+		dns_alias = talloc_asprintf(r, "%s.%s",
+					    netbios_alias,
+					    dns_domain);
+		if (dns_alias == NULL) {
+			return NT_STATUS_NO_MEMORY;
+		}
+
+		cmp = strcasecmp_m(server_name, dns_alias);
+		talloc_free(dns_alias);
+		if (cmp == 0) {
+			/*
+			 * If it is not domain related do not
+			 * handle it here.
+			 */
+			return NT_STATUS_NOT_FOUND;
+		}
+		netbios_aliases++;
 	}
 
 	if ((strcasecmp_m(server_name, netbios_domain) != 0) &&

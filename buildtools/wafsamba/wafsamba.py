@@ -64,10 +64,10 @@ def SAMBA_BUILD_ENV(conf):
     # this allows all of the bin/shared and bin/python targets
     # to be expressed in terms of build directory paths
     mkdir_p(os.path.join(conf.blddir, 'default'))
-    for p in ['python','shared', 'modules']:
-        link_target = os.path.join(conf.blddir, 'default/' + p)
+    for (source, target) in [('shared', 'shared'), ('modules', 'modules'), ('python', 'python_modules')]:
+        link_target = os.path.join(conf.blddir, 'default/' + target)
         if not os.path.lexists(link_target):
-            os.symlink('../' + p, link_target)
+            os.symlink('../' + source, link_target)
 
     # get perl to put the blib files in the build directory
     blib_bld = os.path.join(conf.blddir, 'default/pidl/blib')
@@ -342,6 +342,13 @@ def SAMBA_BINARY(bld, binname, source,
     else:
         subsystem_group = group
 
+    # only specify PIE flags for binaries
+    pie_cflags = cflags
+    pie_ldflags = TO_LIST(ldflags)
+    if bld.env['ENABLE_PIE'] == True:
+        pie_cflags += ' -fPIE'
+        pie_ldflags.extend(TO_LIST('-pie'))
+
     # first create a target for building the object files for this binary
     # by separating in this way, we avoid recompiling the C files
     # separately for the install binary and the build binary
@@ -349,7 +356,7 @@ def SAMBA_BINARY(bld, binname, source,
                         source         = source,
                         deps           = deps,
                         includes       = includes,
-                        cflags         = cflags,
+                        cflags         = pie_cflags,
                         group          = subsystem_group,
                         autoproto      = autoproto,
                         subsystem_name = subsystem_name,
@@ -379,7 +386,7 @@ def SAMBA_BINARY(bld, binname, source,
         install_path   = None,
         samba_inst_path= install_path,
         samba_install  = install,
-        samba_ldflags  = TO_LIST(ldflags)
+        samba_ldflags  = pie_ldflags
         )
 
     if manpages is not None and 'XSLTPROC_MANPAGES' in bld.env and bld.env['XSLTPROC_MANPAGES']:
@@ -696,14 +703,25 @@ def copy_and_fix_python_path(task):
         replacement="""sys.path.insert(0, "%s")
 sys.path.insert(1, "%s")""" % (task.env["PYTHONARCHDIR"], task.env["PYTHONDIR"])
 
+    shebang = None
+
+    if task.env["PYTHON"][0] == "/":
+        replacement_shebang = "#!%s\n" % task.env["PYTHON"]
+    else:
+        replacement_shebang = "#!/usr/bin/env %s\n" % task.env["PYTHON"]
+
     installed_location=task.outputs[0].bldpath(task.env)
     source_file = open(task.inputs[0].srcpath(task.env))
     installed_file = open(installed_location, 'w')
+    lineno = 0
     for line in source_file:
         newline = line
-        if pattern in line:
+        if lineno == 0 and task.env["PYTHON_SPECIFIED"] == True and line[:2] == "#!":
+            newline = replacement_shebang
+        elif pattern in line:
             newline = line.replace(pattern, replacement)
         installed_file.write(newline)
+        lineno = lineno + 1
     installed_file.close()
     os.chmod(installed_location, 0755)
     return 0
@@ -727,6 +745,8 @@ def install_file(bld, destdir, file, chmod=MODE_644, flat=False,
                             target=inst_file)
         bld.add_manual_dependency(bld.path.find_or_declare(inst_file), bld.env["PYTHONARCHDIR"])
         bld.add_manual_dependency(bld.path.find_or_declare(inst_file), bld.env["PYTHONDIR"])
+        bld.add_manual_dependency(bld.path.find_or_declare(inst_file), str(bld.env["PYTHON_SPECIFIED"]))
+        bld.add_manual_dependency(bld.path.find_or_declare(inst_file), bld.env["PYTHON"])
         file = inst_file
     if base_name:
         file = os.path.join(base_name, file)
@@ -790,14 +810,16 @@ def SAMBAMANPAGES(bld, manpages):
     '''build and install manual pages'''
     bld.env.SAMBA_EXPAND_XSL = bld.srcnode.abspath() + '/docs-xml/xslt/expand-sambadoc.xsl'
     bld.env.SAMBA_MAN_XSL = bld.srcnode.abspath() + '/docs-xml/xslt/man.xsl'
-    bld.env.SAMBA_CATALOGS = 'file:///etc/xml/catalog file://' + bld.srcnode.abspath() + '/bin/default/docs-xml/build/catalog.xml'
+    bld.env.SAMBA_CATALOGS = 'file:///etc/xml/catalog file:///usr/local/share/xml/catalog file://' + bld.srcnode.abspath() + '/bin/default/docs-xml/build/catalog.xml'
+
     for m in manpages.split():
         source = m + '.xml'
         bld.SAMBA_GENERATOR(m,
                             source=source,
                             target=m,
                             group='final',
-                            rule='''export XML_CATALOG_FILES="${SAMBA_CATALOGS}"
+                            rule='''XML_CATALOG_FILES="${SAMBA_CATALOGS}"
+                                    export XML_CATALOG_FILES
                                     ${XSLTPROC} --xinclude --stringparam noreference 0 -o ${TGT}.xml --nonet ${SAMBA_EXPAND_XSL} ${SRC}
                                     ${XSLTPROC} --nonet -o ${TGT} ${SAMBA_MAN_XSL} ${TGT}.xml'''
                             )

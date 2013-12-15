@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#!/usr/bin/env python
 
 srcdir=".."
 
@@ -41,7 +41,8 @@ def set_options(opt):
     opt.SAMBA3_ADD_OPTION('syslog')
     opt.SAMBA3_ADD_OPTION('automount')
     opt.SAMBA3_ADD_OPTION('aio-support')
-    opt.SAMBA3_ADD_OPTION('dmapi', default=False, help="build with DMAPI support")
+    opt.SAMBA3_ADD_OPTION('dmapi', default=None) # None means autodetection
+    opt.SAMBA3_ADD_OPTION('fam', default=None) # None means autodetection
     opt.SAMBA3_ADD_OPTION('profiling-data', default=False)
 
     opt.SAMBA3_ADD_OPTION('cluster-support', default=None)
@@ -81,7 +82,7 @@ def configure(conf):
     conf.CHECK_FUNCS('sigprocmask sigblock sigaction sigset innetgr')
     conf.CHECK_FUNCS('initgroups select poll rdchk getgrnam getgrent pathconf')
     conf.CHECK_FUNCS('setpriv setgidx setuidx setgroups syscall sysconf')
-    conf.CHECK_FUNCS('atexit grantpt fallocate posix_fallocate')
+    conf.CHECK_FUNCS('atexit grantpt posix_openpt fallocate posix_fallocate')
     conf.CHECK_FUNCS('fseeko setluid')
     conf.CHECK_FUNCS('getpwnam', headers='sys/types.h pwd.h')
     conf.CHECK_FUNCS('fdopendir')
@@ -93,7 +94,6 @@ def configure(conf):
     conf.CHECK_FUNCS('memalign posix_memalign hstrerror')
     conf.CHECK_FUNCS('shmget')
     conf.CHECK_FUNCS_IN('shm_open', 'rt', checklibc=True)
-    conf.CHECK_FUNCS('gettext dgettext bindtextdomain textdomain bind_textdomain_codeset')
     #FIXME: for some reason this one still fails
     conf.CHECK_FUNCS_IN('yp_get_default_domain', 'nsl')
     conf.CHECK_FUNCS_IN('dn_expand _dn_expand __dn_expand', 'resolv')
@@ -162,6 +162,32 @@ main() {
         exit(flock(open("/dev/null", O_RDWR), LOCK_MAND|LOCK_READ) != 0);
 }''', 'HAVE_KERNEL_SHARE_MODES', addmain=False, execute=True,
         msg="Checking for kernel share modes")
+
+    # check for fam libs
+    samba_fam_libs=None
+    check_for_fam=False
+    if Options.options.with_fam is None:
+        check_for_fam=True
+    elif Options.options.with_fam == True:
+        check_for_fam=True
+
+    if check_for_fam and conf.CHECK_HEADERS('fam.h'):
+        if conf.CHECK_FUNCS_IN('FAMOpen2', 'fam'):
+            samba_fam_libs='fam'
+        elif conf.CHECK_FUNCS_IN('FAMOpen2', 'fam C'):
+            samba_fam_libs='fam C'
+        conf.CHECK_TYPE('enum FAMCodes', headers='fam.h',
+            define='HAVE_FAM_H_FAMCODES_TYPEDEF',
+            msg='Checking whether enum FAMCodes is available')
+        conf.CHECK_FUNCS_IN('FAMNoExists', 'fam')
+
+    if samba_fam_libs is not None:
+        conf.DEFINE('SAMBA_FAM_LIBS', samba_fam_libs)
+    else:
+        if Options.options.with_fam == True:
+            conf.fatal('FAM support requested, but no suitable FAM library found')
+        elif check_for_fam:
+            Logs.warn('no suitable FAM library found')
 
     # check for DMAPI libs
     Logs.info("Checking for DMAPI library existence")
@@ -300,8 +326,8 @@ if (0) {
 
     conf.CHECK_FUNCS('''
 _acl __acl atexit 
-bindtextdomain _chdir __chdir chflags chmod _close __close _closedir
-__closedir crypt16 devnm dgettext dirfd
+ _chdir __chdir chflags chmod _close __close _closedir
+__closedir crypt16 devnm dirfd
 DNSServiceRegister _dup __dup _dup2 __dup2 endmntent execl
 _facl __facl _fchdir
 __fchdir fchmod fchown _fcntl __fcntl fcvt fcvtl fdatasync
@@ -310,7 +336,7 @@ fsetxattr _fstat __fstat fsync
 futimens futimes __fxstat getauthuid
 getcwd _getcwd __getcwd getdents __getdents getdirentries
 getgrent getgrnam getgrouplist getgrset getmntent getpagesize
-getpwanam getpwent_r getrlimit gettext
+getpwanam getpwent_r getrlimit
 glob grantpt hstrerror initgroups innetgr
 llseek _llseek __llseek _lseek __lseek
 _lstat __lstat lutimes
@@ -326,7 +352,7 @@ setmntent setpgid setpriv setsid setuidx
 shmget shm_open sigaction sigblock sigprocmask sigset
 _stat __stat statvfs
 strcasecmp strchr strpbrk strsignal strtol strupr sysconf sysctl sysctlbyname
-__sys_llseek syslog _telldir __telldir textdomain timegm
+__sys_llseek syslog _telldir __telldir timegm
 utimensat vsyslog _write __write __xstat
 ''')
 
@@ -475,7 +501,7 @@ return acl_get_perm_np(permset_d, perm);
             conf.CHECK_CODE('struct aiocb a; return aio_return(&a);', 'HAVE_AIO_RETURN', msg='Checking for aio_return', headers='aio.h', lib='aio rt')
             conf.CHECK_CODE('struct aiocb a; return aio_error(&a);', 'HAVE_AIO_ERROR', msg='Checking for aio_error', headers='aio.h', lib='aio rt')
             conf.CHECK_CODE('struct aiocb a; return aio_cancel(1, &a);', 'HAVE_AIO_CANCEL', msg='Checking for aio_cancel', headers='aio.h', lib='aio rt')
-            conf.CHECK_CODE('struct aiocb a; return aio_suspend(&a, 1, NULL);', 'HAVE_AIO_SUSPEND', msg='Checking for aio_suspend', headers='aio.h', lib='aio rt')
+            conf.CHECK_CODE('struct aiocb a; struct timespec t; return aio_suspend(&a, 1, &t);', 'HAVE_AIO_SUSPEND', msg='Checking for aio_suspend', headers='aio.h', lib='aio rt')
         if not conf.CONFIG_SET('HAVE_AIO'):
             conf.DEFINE('HAVE_NO_AIO', '1')
     else:
@@ -1694,6 +1720,7 @@ main() {
                                       vfs_streams_xattr vfs_streams_depot vfs_acl_xattr vfs_acl_tdb
                                       vfs_smb_traffic_analyzer vfs_preopen vfs_catia vfs_scannedonly
 				      vfs_media_harmony
+				      vfs_commit
                                       vfs_crossrename vfs_linux_xfs_sgid
                                       vfs_time_audit idmap_autorid idmap_tdb2
                                       idmap_rid idmap_hash'''))
@@ -1733,7 +1760,7 @@ main() {
         default_shared_modules.extend(TO_LIST('vfs_aio_linux'))
 
     if conf.CONFIG_SET('HAVE_LDAP'):
-        default_static_modules.extend(TO_LIST('pdb_ldap idmap_ldap'))
+        default_static_modules.extend(TO_LIST('pdb_ldapsam idmap_ldap'))
 
     if conf.CONFIG_SET('DARWINOS'):
         default_static_modules.extend(TO_LIST('charset_macosxfs'))
@@ -1741,8 +1768,24 @@ main() {
     if conf.CONFIG_SET('HAVE_GPFS'):
 	default_shared_modules.extend(TO_LIST('vfs_gpfs'))
 
+    if conf.CONFIG_SET('SAMBA_FAM_LIBS'):
+        default_shared_modules.extend(TO_LIST('vfs_notify_fam'))
+
     explicit_shared_modules = TO_LIST(Options.options.shared_modules, delimiter=',')
     explicit_static_modules = TO_LIST(Options.options.static_modules, delimiter=',')
+
+    def replace_list_item(lst, item, value):
+        try:
+            idx = lst.index(item)
+            lst[idx] = value
+        except:
+            pass
+    # PDB module file name should have the same name as module registers itself
+    # In Autoconf build we export LDAP passdb module as ldapsam but WAF build
+    # was always exporting pdb_ldap. In order to support existing packages
+    # allow referring to pdb_ldapsam as pdb_ldap but use proper name internally.
+    replace_list_item(explicit_shared_modules, 'pdb_ldap', 'pdb_ldapsam')
+    replace_list_item(explicit_static_modules, 'pdb_ldap', 'pdb_ldapsam')
 
     final_static_modules = default_static_modules
     final_shared_modules = default_shared_modules

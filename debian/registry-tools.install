@@ -1,0 +1,8 @@
+usr/bin/regdiff
+usr/bin/regpatch
+usr/bin/regshell
+usr/bin/regtree
+usr/share/man/man1/regdiff.1
+usr/share/man/man1/regpatch.1
+usr/share/man/man1/regshell.1
+usr/share/man/man1/regtree.1

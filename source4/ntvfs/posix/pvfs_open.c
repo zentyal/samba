@@ -73,7 +73,7 @@ static int pvfs_dir_handle_destructor(struct pvfs_file_handle *h)
 				DEBUG(0,("Warning: xattr unlink hook failed for '%s' - %s\n",
 					 delete_path, nt_errstr(status)));
 			}
-			if (pvfs_sys_rmdir(h->pvfs, delete_path) != 0) {
+			if (pvfs_sys_rmdir(h->pvfs, delete_path, h->name->allow_override) != 0) {
 				DEBUG(0,("pvfs_dir_handle_destructor: failed to rmdir '%s' - %s\n",
 					 delete_path, strerror(errno)));
 			}
@@ -344,7 +344,7 @@ static NTSTATUS pvfs_open_directory(struct pvfs_state *pvfs,
 		uint32_t attrib = io->generic.in.file_attr | FILE_ATTRIBUTE_DIRECTORY;
 		mode_t mode = pvfs_fileperms(pvfs, attrib);
 
-		if (pvfs_sys_mkdir(pvfs, name->full_name, mode) == -1) {
+		if (pvfs_sys_mkdir(pvfs, name->full_name, mode, name->allow_override) == -1) {
 			return pvfs_map_errno(pvfs,errno);
 		}
 
@@ -432,7 +432,7 @@ static NTSTATUS pvfs_open_directory(struct pvfs_state *pvfs,
 	return NT_STATUS_OK;
 
 cleanup_delete:
-	pvfs_sys_rmdir(pvfs, name->full_name);
+	pvfs_sys_rmdir(pvfs, name->full_name, name->allow_override);
 	return status;
 }
 
@@ -514,7 +514,7 @@ static int pvfs_handle_destructor(struct pvfs_file_handle *h)
 				DEBUG(0,("Warning: xattr unlink hook failed for '%s' - %s\n",
 					 delete_path, nt_errstr(status)));
 			}
-			if (pvfs_sys_unlink(h->pvfs, delete_path) != 0) {
+			if (pvfs_sys_unlink(h->pvfs, delete_path, h->name->allow_override) != 0) {
 				DEBUG(0,("pvfs_close: failed to delete '%s' - %s\n",
 					 delete_path, strerror(errno)));
 			} else {
@@ -590,7 +590,7 @@ static NTSTATUS pvfs_brl_locking_handle(TALLOC_CTX *mem_ctx,
 		data_blob_free(&odb_key);
 	}
 
-	h = brl_create_handle(mem_ctx, ntvfs, &key);
+	h = brlock_create_handle(mem_ctx, ntvfs, &key);
 	NT_STATUS_HAVE_NO_MEMORY(h);
 
 	*_h = h;
@@ -677,7 +677,7 @@ static NTSTATUS pvfs_create_file(struct pvfs_state *pvfs,
 	mode = pvfs_fileperms(pvfs, attrib);
 
 	/* create the file */
-	fd = pvfs_sys_open(pvfs, name->full_name, flags | O_CREAT | O_EXCL| O_NONBLOCK, mode);
+	fd = pvfs_sys_open(pvfs, name->full_name, flags | O_CREAT | O_EXCL| O_NONBLOCK, mode, name->allow_override);
 	if (fd == -1) {
 		return pvfs_map_errno(pvfs, errno);
 	}
@@ -856,7 +856,7 @@ static NTSTATUS pvfs_create_file(struct pvfs_state *pvfs,
 
 cleanup_delete:
 	close(fd);
-	pvfs_sys_unlink(pvfs, name->full_name);
+	pvfs_sys_unlink(pvfs, name->full_name, name->allow_override);
 	return status;
 }
 
@@ -1174,7 +1174,7 @@ static NTSTATUS pvfs_open_setup_retry(struct ntvfs_module_context *ntvfs,
 		*final_timeout = timeval_add(&req->statistics.request_time,
 					     pvfs->oplock_break_timeout,
 					     0);
-		end_time = timeval_current_ofs(0, (pvfs->sharing_violation_delay*4)/5);
+		end_time = timeval_current_ofs_usec((pvfs->sharing_violation_delay*4)/5);
 		end_time = timeval_min(final_timeout, &end_time);
 	} else {
 		return NT_STATUS_INTERNAL_ERROR;
@@ -1284,7 +1284,7 @@ NTSTATUS pvfs_open(struct ntvfs_module_context *ntvfs,
 	}
 
 	/* what does this bit really mean?? */
-	if (req->ctx->protocol == PROTOCOL_SMB2 &&
+	if (req->ctx->protocol >= PROTOCOL_SMB2_02 &&
 	    access_mask == SEC_STD_SYNCHRONIZE) {
 		return NT_STATUS_ACCESS_DENIED;
 	}
@@ -1502,7 +1502,7 @@ NTSTATUS pvfs_open(struct ntvfs_module_context *ntvfs,
 	 * on existing files
 	 */
 	if (create_options & NTCREATEX_OPTIONS_DELETE_ON_CLOSE &&
-	    req->ctx->protocol == PROTOCOL_SMB2) {
+	    req->ctx->protocol >= PROTOCOL_SMB2_02) {
 		del_on_close = true;
 	} else {
 		del_on_close = false;
@@ -1549,7 +1549,7 @@ NTSTATUS pvfs_open(struct ntvfs_module_context *ntvfs,
 	}
 
 	/* do the actual open */
-	fd = pvfs_sys_open(pvfs, f->handle->name->full_name, flags | O_NONBLOCK, 0);
+	fd = pvfs_sys_open(pvfs, f->handle->name->full_name, flags | O_NONBLOCK, 0, name->allow_override);
 	if (fd == -1) {
 		status = pvfs_map_errno(f->pvfs, errno);
 
@@ -1569,7 +1569,7 @@ NTSTATUS pvfs_open(struct ntvfs_module_context *ntvfs,
 
 	f->handle->fd = fd;
 
-	status = brl_count(f->pvfs->brl_context, f->brl_handle, &count);
+	status = brlock_count(f->pvfs->brl_context, f->brl_handle, &count);
 	if (!NT_STATUS_IS_OK(status)) {
 		talloc_free(lck);
 		return status;
@@ -1635,7 +1635,7 @@ NTSTATUS pvfs_open(struct ntvfs_module_context *ntvfs,
 		mode_t mode = pvfs_fileperms(pvfs, attrib);
 		if (f->handle->name->st.st_mode != mode &&
 		    f->handle->name->dos.attrib != attrib &&
-		    pvfs_sys_fchmod(pvfs, fd, mode) == -1) {
+		    pvfs_sys_fchmod(pvfs, fd, mode, name->allow_override) == -1) {
 			talloc_free(lck);
 			return pvfs_map_errno(pvfs, errno);
 		}

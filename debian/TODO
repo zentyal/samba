@@ -1,0 +1,35 @@
+
+This is an incomplete list of a number of issues that need to be fixed.
+
+
+TODOs before upload to unstable
+
+- make a list of basic tests that should be done to ensure that the package is
+  acceptable for unstable (and run these tests)
+
+- investigate impact of changes to libraries to reverse dependencies and plan
+  transitions (if there are any)
+  - sssd
+    fixed in git (#725992)
+  - openchange
+  - evolution-mapi
+
+Other TODOs
+
+- handle ad-dc stuff
+  - have debconf question to configure ad dc
+    - the packaging from the old samba4/samba-ad-dc packages can help there
+  - convert the users to the new db, or document that this doesn't happen
+	automatically
+
+- what is the status of the docs?
+
+  - documentation2.patch is upstream
+  - The former documentation.patch needs to be rewritten against the xml input
+
+- Decide if we care about findsmb, and if so patch upstream to restore it
+
+
+- Add script to verify that headers are usable through current dependencies
+  (to prevent bugs like #525888)
+

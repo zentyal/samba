@@ -2,7 +2,7 @@
    Unix SMB/CIFS implementation.
    Registry interface
    Copyright (C) Gerald Carter                        2002.
-   Copyright (C) Jelmer Vernooij					  2003-2007.
+   Copyright (C) Jelmer Vernooij			2003-2007.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -379,7 +379,8 @@ WERROR reg_open_samba(TALLOC_CTX *mem_ctx,
 /**
  * Open the registry on a remote machine.
  */
-WERROR reg_open_remote(struct registry_context **ctx,
+WERROR reg_open_remote(TALLOC_CTX *mem_ctx,
+		       struct registry_context **ctx,
 		       struct auth_session_info *session_info,
 		       struct cli_credentials *credentials,
 		       struct loadparm_context *lp_ctx,

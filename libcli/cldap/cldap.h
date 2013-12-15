@@ -52,17 +52,18 @@ struct cldap_search {
 };
 
 NTSTATUS cldap_socket_init(TALLOC_CTX *mem_ctx,
-			   struct tevent_context *ev,
 			   const struct tsocket_address *local_addr,
 			   const struct tsocket_address *remote_addr,
 			   struct cldap_socket **_cldap);
 
 NTSTATUS cldap_set_incoming_handler(struct cldap_socket *cldap,
+				    struct tevent_context *ev,
 				    void (*handler)(struct cldap_socket *,
 						    void *private_data,
 						    struct cldap_incoming *),
 				    void *private_data);
 struct tevent_req *cldap_search_send(TALLOC_CTX *mem_ctx,
+				     struct tevent_context *ev,
 				     struct cldap_socket *cldap,
 				     const struct cldap_search *io);
 NTSTATUS cldap_search_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx,
@@ -113,6 +114,7 @@ struct cldap_netlogon {
 };
 
 struct tevent_req *cldap_netlogon_send(TALLOC_CTX *mem_ctx,
+				       struct tevent_context *ev,
 				       struct cldap_socket *cldap,
 				       const struct cldap_netlogon *io);
 NTSTATUS cldap_netlogon_recv(struct tevent_req *req,

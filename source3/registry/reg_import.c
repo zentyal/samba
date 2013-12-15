@@ -28,53 +28,49 @@
 /* Debuglevel for tracing */
 static const int TL = 2;
 
-struct reg_import
-{
+struct reg_import {
 	struct reg_parse_callback reg_parse_callback;
 	struct reg_import_callback call;
-	void* open_key;
+	void *open_key;
 };
 
-static int
-reg_parse_callback_key(struct reg_import* cb_private,
-		       const char* key[], size_t n,
-		       bool del);
+static int reg_parse_callback_key(struct reg_import *cb_private,
+				  const char *key[], size_t n, bool del);
 
-static int
-reg_parse_callback_val(struct reg_import* cb_private,
-		       const char* name, uint32_t type,
-		       const uint8_t* data, uint32_t len);
+static int reg_parse_callback_val(struct reg_import *cb_private,
+				  const char *name, uint32_t type,
+				  const uint8_t *data, uint32_t len);
 
-static int
-reg_parse_callback_val_registry_value(struct reg_import* cb_private,
-				      const char* name, uint32_t type,
-				      const uint8_t* data, uint32_t len);
+static int reg_parse_callback_val_registry_value(struct reg_import *cb_private,
+						 const char *name,
+						 uint32_t type,
+						 const uint8_t *data,
+						 uint32_t len);
 
-static int
-reg_parse_callback_val_regval_blob(struct reg_import* cb_private,
-				   const char* name, uint32_t type,
-				   const uint8_t* data, uint32_t len);
+static int reg_parse_callback_val_regval_blob(struct reg_import *cb_private,
+					      const char *name, uint32_t type,
+					      const uint8_t *data,
+					      uint32_t len);
 
-static int
-reg_parse_callback_val_del(struct reg_import* cb_private,
-			   const char* name);
+static int reg_parse_callback_val_del(struct reg_import *cb_private,
+				      const char *name);
 
-static int
-reg_parse_callback_comment(struct reg_import* cb_private,
-			   const char* txt);
+static int reg_parse_callback_comment(struct reg_import *cb_private,
+				      const char *txt);
 
 
 /*******************************************************************************/
 
-int reg_parse_callback_key(struct reg_import* p,
-			   const char* key[], size_t n, bool del)
+int reg_parse_callback_key(struct reg_import *p,
+			   const char *key[], size_t n, bool del)
 {
 	WERROR werr = WERR_OK;
 
 	DEBUG(TL, ("%s: %s\n", __FUNCTION__, key[0]));
 
-	if (p->open_key != NULL ) {
+	if (p->open_key != NULL) {
 		werr = p->call.closekey(p->call.data, p->open_key);
+		p->open_key = NULL;
 		if (!W_ERROR_IS_OK(werr)) {
 			DEBUG(0, ("closekey failed: %s\n", win_errstr(werr)));
 		}
@@ -90,8 +86,7 @@ int reg_parse_callback_key(struct reg_import* p,
 			DEBUG(0, ("deletekey %s failed: %s\n",
 				  key[0], win_errstr(werr)));
 		}
-	}
-	else {
+	} else {
 		bool existing;
 		werr = p->call.createkey(p->call.data, NULL, key[0],
 					 &p->open_key, &existing);
@@ -121,9 +116,9 @@ int reg_parse_callback_key(struct reg_import* p,
 	} while(0)
 
 /*----------------------------------------------------------------------------*/
-int reg_parse_callback_val(struct reg_import* p,
-			   const char* name, uint32_t type,
-			   const uint8_t* data, uint32_t len)
+int reg_parse_callback_val(struct reg_import *p,
+			   const char *name, uint32_t type,
+			   const uint8_t *data, uint32_t len)
 {
 	WERROR werr = WERR_OK;
 
@@ -141,9 +136,9 @@ int reg_parse_callback_val(struct reg_import* p,
 }
 
 /*----------------------------------------------------------------------------*/
-int reg_parse_callback_val_registry_value(struct reg_import* p,
-					  const char* name, uint32_t type,
-					  const uint8_t* data, uint32_t len)
+int reg_parse_callback_val_registry_value(struct reg_import *p,
+					  const char *name, uint32_t type,
+					  const uint8_t *data, uint32_t len)
 {
 	WERROR werr = WERR_OK;
 	struct registry_value val = {
@@ -166,13 +161,13 @@ int reg_parse_callback_val_registry_value(struct reg_import* p,
 }
 
 /*----------------------------------------------------------------------------*/
-int reg_parse_callback_val_regval_blob(struct reg_import* p,
-				       const char* name, uint32_t type,
-				       const uint8_t* data, uint32_t len)
+int reg_parse_callback_val_regval_blob(struct reg_import *p,
+				       const char *name, uint32_t type,
+				       const uint8_t *data, uint32_t len)
 {
 	WERROR werr = WERR_OK;
 	void* mem_ctx = talloc_new(p);
-	struct regval_blob* v = NULL;
+	struct regval_blob *v = NULL;
 
 	DEBUG(TL, ("%s(%x): >%s< = [%x]\n", __FUNCTION__, type, name, len));
 	DEBUG_ADD_HEX(TL, data, len);
@@ -199,8 +194,8 @@ done:
 
 /*----------------------------------------------------------------------------*/
 
-int reg_parse_callback_val_del(struct reg_import* p,
-			       const char* name)
+int reg_parse_callback_val_del(struct reg_import *p,
+			       const char *name)
 {
 	WERROR werr = WERR_OK;
 
@@ -216,41 +211,41 @@ int reg_parse_callback_val_del(struct reg_import* p,
 }
 
 
-int reg_parse_callback_comment(struct reg_import* cb_private,
-			       const char* txt)
+int reg_parse_callback_comment(struct reg_import *cb_private,
+			       const char *txt)
 {
 	DEBUG(TL, ("%s: %s\n", __FUNCTION__, txt));
 	return 0;
 }
 
 /******************************************************************************/
-static int nop(void* data)
+static int nop(void *data)
 {
 	return 0;
 }
 
 
-struct reg_parse_callback* reg_import_adapter(const void* talloc_ctx,
+struct reg_parse_callback *reg_import_adapter(TALLOC_CTX *talloc_ctx,
 					      struct reg_import_callback cb)
 {
-	struct reg_parse_callback* ret;
-	struct reg_import* p = talloc_zero(talloc_ctx, struct reg_import);
+	struct reg_parse_callback *ret;
+	struct reg_import *p = talloc_zero(talloc_ctx, struct reg_import);
 	if (p == NULL) {
 		goto fail;
 	}
-	if (cb.openkey == NULL ) {
+	if (cb.openkey == NULL) {
 		cb.openkey = (reg_import_callback_openkey_t)&nop;
 	}
-	if (cb.closekey == NULL ) {
+	if (cb.closekey == NULL) {
 		cb.closekey = (reg_import_callback_closekey_t)&nop;
 	}
-	if (cb.createkey == NULL ) {
+	if (cb.createkey == NULL) {
 		cb.createkey = (reg_import_callback_createkey_t)&nop;
 	}
-	if (cb.deletekey == NULL ) {
+	if (cb.deletekey == NULL) {
 		cb.deletekey = (reg_import_callback_deletekey_t)&nop;
 	}
-	if (cb.deleteval == NULL ) {
+	if (cb.deleteval == NULL) {
 		cb.deleteval = (reg_import_callback_deleteval_t)&nop;
 	}
 
@@ -282,7 +277,7 @@ struct reg_parse_callback* reg_import_adapter(const void* talloc_ctx,
 		assert(false);
 	}
 
-	assert((struct reg_parse_callback*)p == ret);
+	assert((struct reg_parse_callback *)p == ret);
 	return ret;
 fail:
 	talloc_free(p);

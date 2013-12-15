@@ -32,57 +32,89 @@
 #include "librpc/gen_ndr/ndr_drsblobs.h"
 #include "libcli/security/security.h"
 #include "param/param.h"
+#include "dsdb/common/util.h"
 
+/*
+  load the partitions list based on replicated NC attributes in our
+  NTDSDSA object
+ */
 WERROR dreplsrv_load_partitions(struct dreplsrv_service *s)
 {
 	WERROR status;
-	static const char *attrs[] = { "namingContexts", NULL };
-	unsigned int i;
+	static const char *attrs[] = { "hasMasterNCs", "msDS-hasMasterNCs", "hasPartialReplicaNCs", "msDS-HasFullReplicaNCs", NULL };
+	unsigned int a;
 	int ret;
 	TALLOC_CTX *tmp_ctx;
 	struct ldb_result *res;
 	struct ldb_message_element *el;
+	struct ldb_dn *ntds_dn;
 
 	tmp_ctx = talloc_new(s);
 	W_ERROR_HAVE_NO_MEMORY(tmp_ctx);
 
-	ret = ldb_search(s->samdb, tmp_ctx, &res,
-			 ldb_dn_new(tmp_ctx, s->samdb, ""), LDB_SCOPE_BASE, attrs, NULL);
-	if (ret != LDB_SUCCESS) {
-		DEBUG(1,("Searching for namingContexts in rootDSE failed: %s\n", ldb_errstring(s->samdb)));
+	ntds_dn = samdb_ntds_settings_dn(s->samdb, tmp_ctx);
+	if (!ntds_dn) {
+		DEBUG(1,(__location__ ": Unable to find ntds_dn: %s\n", ldb_errstring(s->samdb)));
 		talloc_free(tmp_ctx);
 		return WERR_DS_DRA_INTERNAL_ERROR;
-       }
+	}
 
-       el = ldb_msg_find_element(res->msgs[0], "namingContexts");
-       if (!el) {
-               DEBUG(1,("Finding namingContexts element in root_res failed: %s\n",
-			ldb_errstring(s->samdb)));
-	       talloc_free(tmp_ctx);
-	       return WERR_DS_DRA_INTERNAL_ERROR;
-       }
+	ret = dsdb_search_dn(s->samdb, tmp_ctx, &res, ntds_dn, attrs, DSDB_SEARCH_SHOW_EXTENDED_DN);
+	if (ret != LDB_SUCCESS) {
+		DEBUG(1,("Searching for hasMasterNCs in NTDS DN failed: %s\n", ldb_errstring(s->samdb)));
+		talloc_free(tmp_ctx);
+		return WERR_DS_DRA_INTERNAL_ERROR;
+	}
 
-       for (i=0; i<el->num_values; i++) {
-	       struct ldb_dn *pdn;
-	       struct dreplsrv_partition *p;
+	for (a=0; attrs[a]; a++) {
+		int i;
 
-	       pdn = ldb_dn_from_ldb_val(tmp_ctx, s->samdb, &el->values[i]);
-	       if (pdn == NULL) {
-		       talloc_free(tmp_ctx);
-		       return WERR_DS_DRA_INTERNAL_ERROR;
-	       }
-	       if (!ldb_dn_validate(pdn)) {
-		       return WERR_DS_DRA_INTERNAL_ERROR;
-	       }
+		el = ldb_msg_find_element(res->msgs[0], attrs[a]);
+		if (el == NULL) {
+			continue;
+		}
+		for (i=0; i<el->num_values; i++) {
+			struct ldb_dn *pdn;
+			struct dreplsrv_partition *p, *tp;
+			bool found;
 
-	       p = talloc_zero(s, struct dreplsrv_partition);
-	       W_ERROR_HAVE_NO_MEMORY(p);
+			pdn = ldb_dn_from_ldb_val(tmp_ctx, s->samdb, &el->values[i]);
+			if (pdn == NULL) {
+				talloc_free(tmp_ctx);
+				return WERR_DS_DRA_INTERNAL_ERROR;
+			}
+			if (!ldb_dn_validate(pdn)) {
+				return WERR_DS_DRA_INTERNAL_ERROR;
+			}
 
-	       p->dn = talloc_steal(p, pdn);
+			p = talloc_zero(s, struct dreplsrv_partition);
+			W_ERROR_HAVE_NO_MEMORY(p);
 
-	       DLIST_ADD(s->partitions, p);
+			p->dn = talloc_steal(p, pdn);
+			p->service = s;
 
-	       DEBUG(2, ("dreplsrv_partition[%s] loaded\n", ldb_dn_get_linearized(p->dn)));
+			if (strcasecmp(attrs[a], "hasPartialReplicaNCs") == 0) {
+				p->partial_replica = true;
+			} else if (strcasecmp(attrs[a], "msDS-HasFullReplicaNCs") == 0) {
+				p->rodc_replica = true;
+			}
+
+			/* Do not add partitions more than once */
+			found = false;
+			for (tp = s->partitions; tp; tp = tp->next) {
+				if (ldb_dn_compare(tp->dn, p->dn) == 0) {
+					found = true;
+					break;
+				}
+			}
+			if (found) {
+				talloc_free(p);
+				continue;
+			}
+
+			DLIST_ADD(s->partitions, p);
+			DEBUG(2, ("dreplsrv_partition[%s] loaded\n", ldb_dn_get_linearized(p->dn)));
+		}
 	}
 
 	talloc_free(tmp_ctx);
@@ -91,6 +123,31 @@ WERROR dreplsrv_load_partitions(struct dreplsrv_service *s)
 	W_ERROR_NOT_OK_RETURN(status);
 
 	return WERR_OK;
+}
+
+/*
+  Check if particular SPN exists for an account
+ */
+static bool dreplsrv_spn_exists(struct ldb_context *samdb, struct ldb_dn *account_dn,
+				const char *principal_name)
+{
+	TALLOC_CTX *tmp_ctx;
+	const char *attrs_empty[] = { NULL };
+	int ret;
+	struct ldb_result *res;
+
+	tmp_ctx = talloc_new(samdb);
+
+	ret = dsdb_search(samdb, tmp_ctx, &res, account_dn, LDB_SCOPE_BASE, attrs_empty,
+			0, "servicePrincipalName=%s",
+			ldb_binary_encode_string(tmp_ctx, principal_name));
+	if (ret != LDB_SUCCESS || res->count != 1) {
+		talloc_free(tmp_ctx);
+		return false;
+	}
+
+	talloc_free(tmp_ctx);
+	return true;
 }
 
 /*
@@ -103,54 +160,121 @@ NTSTATUS dreplsrv_get_target_principal(struct dreplsrv_service *s,
 {
 	TALLOC_CTX *tmp_ctx;
 	struct ldb_result *res;
-	const char *attrs[] = { "dNSHostName", NULL };
+	const char *attrs_server[] = { "dNSHostName", "serverReference", NULL };
+	const char *attrs_ntds[] = { "msDS-HasDomainNCs", "hasMasterNCs", NULL };
 	int ret;
-	const char *hostname;
-	struct ldb_dn *dn;
+	const char *hostname, *dnsdomain=NULL;
+	struct ldb_dn *ntds_dn, *server_dn, *computer_dn;
+	struct ldb_dn *forest_dn, *nc_dn;
 
 	*target_principal = NULL;
 
 	tmp_ctx = talloc_new(mem_ctx);
 
 	/* we need to find their hostname */
-	ret = dsdb_find_dn_by_guid(s->samdb, tmp_ctx, &rft->source_dsa_obj_guid, &dn);
+	ret = dsdb_find_dn_by_guid(s->samdb, tmp_ctx, &rft->source_dsa_obj_guid, &ntds_dn);
 	if (ret != LDB_SUCCESS) {
 		talloc_free(tmp_ctx);
 		/* its OK for their NTDSDSA DN not to be in our database */
 		return NT_STATUS_OK;
 	}
 
-	/* strip off the NTDS Settings */
-	if (!ldb_dn_remove_child_components(dn, 1)) {
+	server_dn = ldb_dn_copy(tmp_ctx, ntds_dn);
+	if (server_dn == NULL) {
 		talloc_free(tmp_ctx);
 		return NT_STATUS_OK;
 	}
 
-	ret = dsdb_search_dn(s->samdb, tmp_ctx, &res, dn, attrs, 0);
+	/* strip off the NTDS Settings */
+	if (!ldb_dn_remove_child_components(server_dn, 1)) {
+		talloc_free(tmp_ctx);
+		return NT_STATUS_OK;
+	}
+
+	ret = dsdb_search_dn(s->samdb, tmp_ctx, &res, server_dn, attrs_server, 0);
 	if (ret != LDB_SUCCESS) {
 		talloc_free(tmp_ctx);
-		/* its OK for their account DN not to be in our database */
+		/* its OK for their server DN not to be in our database */
+		return NT_STATUS_OK;
+	}
+
+	forest_dn = ldb_get_root_basedn(s->samdb);
+	if (forest_dn == NULL) {
+		talloc_free(tmp_ctx);
 		return NT_STATUS_OK;
 	}
 
 	hostname = ldb_msg_find_attr_as_string(res->msgs[0], "dNSHostName", NULL);
-	if (hostname == NULL) {
+	computer_dn = ldb_msg_find_attr_as_dn(s->samdb, tmp_ctx, res->msgs[0], "serverReference");
+	if (hostname != NULL && computer_dn != NULL) {
+		char *local_principal;
+
+		/*
+		  if we have the dNSHostName attribute then we can use
+		  the GC/hostname/realm SPN. All DCs should have this SPN
+
+		  Windows DC may set up it's dNSHostName before setting up
+		  GC/xx/xx SPN. So make sure it exists, before using it.
+		 */
+		local_principal = talloc_asprintf(mem_ctx, "GC/%s/%s",
+						    hostname,
+						    samdb_dn_to_dns_domain(tmp_ctx, forest_dn));
+		if (dreplsrv_spn_exists(s->samdb, computer_dn, local_principal)) {
+			*target_principal = local_principal;
+			talloc_free(tmp_ctx);
+			return NT_STATUS_OK;
+		}
+
+		talloc_free(local_principal);
+	}
+
+	/*
+	   if we can't find the dNSHostName then we will try for the
+	   E3514235-4B06-11D1-AB04-00C04FC2DCD2/${NTDSGUID}/${DNSDOMAIN}
+	   SPN. To use that we need the DNS domain name of the target
+	   DC. We find that by first looking for the msDS-HasDomainNCs
+	   in the NTDSDSA object of the DC, and if we don't find that,
+	   then we look for the hasMasterNCs attribute, and eliminate
+	   the known schema and configuruation DNs. Despite how
+	   bizarre this seems, Hongwei tells us that this is in fact
+	   what windows does to find the SPN!!
+	*/
+	ret = dsdb_search_dn(s->samdb, tmp_ctx, &res, ntds_dn, attrs_ntds, 0);
+	if (ret != LDB_SUCCESS) {
 		talloc_free(tmp_ctx);
-		/* its OK to not have a dnshostname */
 		return NT_STATUS_OK;
 	}
 
-	/* All DCs have the GC/hostname/realm name, but if some of the
-	 * preconditions are not satisfied, then we will fall back to
-	 * the
-	 * E3514235-4B06-11D1-AB04-00C04FC2DCD2/${NTDSGUID}/${DNSDOMAIN}
-	 * name.  This means that if a AD server has a dnsHostName set
-	 * on it's record, it must also have GC/hostname/realm
-	 * servicePrincipalName */
+	nc_dn = ldb_msg_find_attr_as_dn(s->samdb, tmp_ctx, res->msgs[0], "msDS-HasDomainNCs");
+	if (nc_dn != NULL) {
+		dnsdomain = samdb_dn_to_dns_domain(tmp_ctx, nc_dn);
+	}
 
-	*target_principal = talloc_asprintf(mem_ctx, "GC/%s/%s",
-					    hostname,
-					    lpcfg_dnsdomain(s->task->lp_ctx));
+	if (dnsdomain == NULL) {
+		struct ldb_message_element *el;
+		int i;
+		el = ldb_msg_find_element(res->msgs[0], "hasMasterNCs");
+		for (i=0; el && i<el->num_values; i++) {
+			nc_dn = ldb_dn_from_ldb_val(tmp_ctx, s->samdb, &el->values[i]);
+			if (nc_dn == NULL ||
+			    ldb_dn_compare(ldb_get_config_basedn(s->samdb), nc_dn) == 0 ||
+			    ldb_dn_compare(ldb_get_schema_basedn(s->samdb), nc_dn) == 0) {
+				continue;
+			}
+			/* it must be a domain DN, get the equivalent
+			   DNS domain name */
+			dnsdomain = samdb_dn_to_dns_domain(tmp_ctx, nc_dn);
+			break;
+		}
+	}
+
+	if (dnsdomain != NULL) {
+		*target_principal = talloc_asprintf(mem_ctx,
+						    "E3514235-4B06-11D1-AB04-00C04FC2DCD2/%s/%s",
+						    GUID_string(tmp_ctx, &rft->source_dsa_obj_guid),
+						    dnsdomain);
+	}
+
 	talloc_free(tmp_ctx);
 	return NT_STATUS_OK;
 }
@@ -289,9 +413,14 @@ static WERROR dreplsrv_partition_add_source_dsa(struct dreplsrv_service *s,
 	return WERR_OK;
 }
 
+/**
+ * Find a partition when given a NC
+ * If the NC can't be found it will return BAD_NC
+ * Initial checks for invalid parameters have to be done beforehand
+ */
 WERROR dreplsrv_partition_find_for_nc(struct dreplsrv_service *s,
-				      const struct GUID *nc_guid,
-				      const struct dom_sid *nc_sid,
+				      struct GUID *nc_guid,
+				      struct dom_sid *nc_sid,
 				      const char *nc_dn_str,
 				      struct dreplsrv_partition **_p)
 {
@@ -305,8 +434,8 @@ WERROR dreplsrv_partition_find_for_nc(struct dreplsrv_service *s,
 	valid_sid  = nc_sid && !dom_sid_equal(&null_sid, nc_sid);
 	valid_guid = nc_guid && !GUID_all_zero(nc_guid);
 
-	if (!valid_sid && !valid_guid && !nc_dn_str) {
-		return WERR_DS_DRA_INVALID_PARAMETER;
+	if (!valid_sid && !valid_guid && (!nc_dn_str)) {
+		return WERR_DS_DRA_BAD_NC;
 	}
 
 	for (p = s->partitions; p; p = p->next) {
@@ -314,6 +443,13 @@ WERROR dreplsrv_partition_find_for_nc(struct dreplsrv_service *s,
 		    || strequal(p->nc.dn, nc_dn_str)
 		    || (valid_sid && dom_sid_equal(&p->nc.sid, nc_sid)))
 		{
+			/* fill in he right guid and sid if possible */
+			if (nc_guid && !valid_guid) {
+				dsdb_get_extended_dn_guid(p->dn, nc_guid, "GUID");
+			}
+			if (nc_sid && !valid_sid) {
+				dsdb_get_extended_dn_sid(p->dn, nc_sid, "SID");
+			}
 			*_p = p;
 			return WERR_OK;
 		}
@@ -362,44 +498,92 @@ WERROR dreplsrv_partition_source_dsa_by_dns(const struct dreplsrv_partition *p,
 }
 
 
+/*
+  create a temporary dsa structure for a replication. This is needed
+  for the initial replication of a new partition, such as when a new
+  domain NC is created and we are a global catalog server
+ */
+WERROR dreplsrv_partition_source_dsa_temporary(struct dreplsrv_partition *p,
+					       TALLOC_CTX *mem_ctx,
+					       const struct GUID *dsa_guid,
+					       struct dreplsrv_partition_source_dsa **_dsa)
+{
+	struct dreplsrv_partition_source_dsa *dsa;
+	WERROR werr;
+
+	dsa = talloc_zero(mem_ctx, struct dreplsrv_partition_source_dsa);
+	W_ERROR_HAVE_NO_MEMORY(dsa);
+
+	dsa->partition = p;
+	dsa->repsFrom1 = &dsa->_repsFromBlob.ctr.ctr1;
+	dsa->repsFrom1->replica_flags = 0;
+	dsa->repsFrom1->source_dsa_obj_guid = *dsa_guid;
+
+	dsa->repsFrom1->other_info = talloc_zero(dsa, struct repsFromTo1OtherInfo);
+	W_ERROR_HAVE_NO_MEMORY(dsa->repsFrom1->other_info);
+
+	dsa->repsFrom1->other_info->dns_name = samdb_ntds_msdcs_dns_name(p->service->samdb,
+									 dsa->repsFrom1->other_info, dsa_guid);
+	W_ERROR_HAVE_NO_MEMORY(dsa->repsFrom1->other_info->dns_name);
+
+	werr = dreplsrv_out_connection_attach(p->service, dsa->repsFrom1, &dsa->conn);
+	if (!W_ERROR_IS_OK(werr)) {
+		DEBUG(0,(__location__ ": Failed to attach connection to %s\n",
+			 ldb_dn_get_linearized(p->dn)));
+		talloc_free(dsa);
+		return werr;
+	}
+
+	*_dsa = dsa;
+
+	return WERR_OK;
+}
+
+
 static WERROR dreplsrv_refresh_partition(struct dreplsrv_service *s,
 					 struct dreplsrv_partition *p)
 {
 	WERROR status;
-	struct dom_sid *nc_sid;
+	NTSTATUS ntstatus;
 	struct ldb_message_element *orf_el = NULL;
-	struct ldb_result *r;
+	struct ldb_result *r = NULL;
 	unsigned int i;
 	int ret;
 	TALLOC_CTX *mem_ctx = talloc_new(p);
 	static const char *attrs[] = {
-		"objectSid",
-		"objectGUID",
 		"repsFrom",
 		"repsTo",
 		NULL
 	};
+	struct ldb_dn *dn;
 
 	DEBUG(4, ("dreplsrv_refresh_partition(%s)\n",
 		ldb_dn_get_linearized(p->dn)));
 
-	ret = ldb_search(s->samdb, mem_ctx, &r, p->dn, LDB_SCOPE_BASE, attrs,
-			 "(objectClass=*)");
-	if (ret != LDB_SUCCESS) {
+	ret = dsdb_search_dn(s->samdb, mem_ctx, &r, p->dn, attrs, DSDB_SEARCH_SHOW_EXTENDED_DN);
+	if (ret == LDB_ERR_NO_SUCH_OBJECT) {
+		/* we haven't replicated the partition yet, but we
+		 * can fill in the guid, sid etc from the partition DN */
+		dn = p->dn;
+	} else if (ret != LDB_SUCCESS) {
 		talloc_free(mem_ctx);
 		return WERR_FOOBAR;
+	} else {
+		dn = r->msgs[0]->dn;
 	}
 	
 	talloc_free(discard_const(p->nc.dn));
 	ZERO_STRUCT(p->nc);
-	p->nc.dn	= ldb_dn_alloc_linearized(p, p->dn);
+	p->nc.dn	= ldb_dn_alloc_linearized(p, dn);
 	W_ERROR_HAVE_NO_MEMORY(p->nc.dn);
-	p->nc.guid	= samdb_result_guid(r->msgs[0], "objectGUID");
-	nc_sid		= samdb_result_dom_sid(p, r->msgs[0], "objectSid");
-	if (nc_sid) {
-		p->nc.sid	= *nc_sid;
-		talloc_free(nc_sid);
+	ntstatus = dsdb_get_extended_dn_guid(dn, &p->nc.guid, "GUID");
+	if (!NT_STATUS_IS_OK(ntstatus)) {
+		DEBUG(0,(__location__ ": unable to get GUID for %s: %s\n",
+			 p->nc.dn, nt_errstr(ntstatus)));
+		talloc_free(mem_ctx);
+		return WERR_DS_DRA_INTERNAL_ERROR;
 	}
+	dsdb_get_extended_dn_sid(dn, &p->nc.sid, "SID");
 
 	talloc_free(p->uptodatevector.cursors);
 	talloc_free(p->uptodatevector_ex.cursors);
@@ -411,27 +595,27 @@ static WERROR dreplsrv_refresh_partition(struct dreplsrv_service *s,
 		DEBUG(4,(__location__ ": no UDV available for %s\n", ldb_dn_get_linearized(p->dn)));
 	}
 
-	orf_el = ldb_msg_find_element(r->msgs[0], "repsFrom");
-	if (orf_el) {
+	status = WERR_OK;
+
+	if (r != NULL && (orf_el = ldb_msg_find_element(r->msgs[0], "repsFrom"))) {
 		for (i=0; i < orf_el->num_values; i++) {
-			status = dreplsrv_partition_add_source_dsa(s, p, &p->sources, 
+			status = dreplsrv_partition_add_source_dsa(s, p, &p->sources,
 								   NULL, &orf_el->values[i]);
-			W_ERROR_NOT_OK_RETURN(status);	
+			W_ERROR_NOT_OK_GOTO_DONE(status);
 		}
 	}
 
-	orf_el = ldb_msg_find_element(r->msgs[0], "repsTo");
-	if (orf_el) {
+	if (r != NULL && (orf_el = ldb_msg_find_element(r->msgs[0], "repsTo"))) {
 		for (i=0; i < orf_el->num_values; i++) {
-			status = dreplsrv_partition_add_source_dsa(s, p, &p->notifies, 
+			status = dreplsrv_partition_add_source_dsa(s, p, &p->notifies,
 								   p->sources, &orf_el->values[i]);
-			W_ERROR_NOT_OK_RETURN(status);	
+			W_ERROR_NOT_OK_GOTO_DONE(status);
 		}
 	}
 
+done:
 	talloc_free(mem_ctx);
-
-	return WERR_OK;
+	return status;
 }
 
 WERROR dreplsrv_refresh_partitions(struct dreplsrv_service *s)

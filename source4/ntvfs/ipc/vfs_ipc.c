@@ -29,7 +29,7 @@
 #include "ntvfs/ntvfs.h"
 #include "../librpc/gen_ndr/rap.h"
 #include "ntvfs/ipc/proto.h"
-#include "libcli/raw/ioctl.h"
+#include "../libcli/smb/smb_constants.h"
 #include "param/param.h"
 #include "../lib/tsocket/tsocket.h"
 #include "../libcli/named_pipe_auth/npa_tstream.h"
@@ -38,8 +38,10 @@
 #include "lib/socket/socket.h"
 #include "auth/credentials/credentials.h"
 #include "auth/credentials/credentials_krb5.h"
-#include <gssapi/gssapi.h>
+#include "system/kerberos.h"
+#include "system/gssapi.h"
 #include "system/locale.h"
+#include "system/filesys.h"
 
 /* this is the private structure used to keep the state of an open
    ipc$ connection. It needs to keep information about all open
@@ -258,9 +260,15 @@ static NTSTATUS ipc_open(struct ntvfs_module_context *ntvfs,
 	case RAW_OPEN_NTCREATEX:
 	case RAW_OPEN_NTTRANS_CREATE:
 		fname = oi->ntcreatex.in.fname;
+		while (fname[0] == '\\') fname++;
 		break;
 	case RAW_OPEN_OPENX:
 		fname = oi->openx.in.fname;
+		while (fname[0] == '\\') fname++;
+		if (strncasecmp(fname, "PIPE\\", 5) != 0) {
+			return NT_STATUS_OBJECT_PATH_SYNTAX_BAD;
+		}
+		while (fname[0] == '\\') fname++;
 		break;
 	case RAW_OPEN_SMB2:
 		fname = oi->smb2.in.fname;
@@ -281,8 +289,6 @@ static NTSTATUS ipc_open(struct ntvfs_module_context *ntvfs,
 
 	p = talloc(h, struct pipe_state);
 	NT_STATUS_HAVE_NO_MEMORY(p);
-
-	while (fname[0] == '\\') fname++;
 
 	/* check for valid characters in name */
 	fname = strlower_talloc(p, fname);
@@ -353,7 +359,7 @@ static void ipc_open_done(struct tevent_req *subreq)
 				       &p->allocation_size);
 	TALLOC_FREE(subreq);
 	if (ret == -1) {
-		status = map_nt_error_from_unix(sys_errno);
+		status = map_nt_error_from_unix_common(sys_errno);
 		goto reply;
 	}
 
@@ -602,7 +608,7 @@ static void ipc_read_done(struct tevent_req *subreq)
 	ret = tstream_readv_pdu_queue_recv(subreq, &sys_errno);
 	TALLOC_FREE(subreq);
 	if (ret == -1) {
-		status = map_nt_error_from_unix(sys_errno);
+		status = map_nt_error_from_unix_common(sys_errno);
 		goto reply;
 	}
 
@@ -687,7 +693,7 @@ static void ipc_write_done(struct tevent_req *subreq)
 	ret = tstream_writev_queue_recv(subreq, &sys_errno);
 	TALLOC_FREE(subreq);
 	if (ret == -1) {
-		status = map_nt_error_from_unix(sys_errno);
+		status = map_nt_error_from_unix_common(sys_errno);
 		goto reply;
 	}
 
@@ -1009,7 +1015,7 @@ static void ipc_trans_writev_done(struct tevent_req *subreq)
 		status = NT_STATUS_PIPE_DISCONNECTED;
 		goto reply;
 	} else if (ret == -1) {
-		status = map_nt_error_from_unix(sys_errno);
+		status = map_nt_error_from_unix_common(sys_errno);
 		goto reply;
 	}
 
@@ -1045,7 +1051,7 @@ static void ipc_trans_readv_done(struct tevent_req *subreq)
 	ret = tstream_readv_pdu_queue_recv(subreq, &sys_errno);
 	TALLOC_FREE(subreq);
 	if (ret == -1) {
-		status = map_nt_error_from_unix(sys_errno);
+		status = map_nt_error_from_unix_common(sys_errno);
 		goto reply;
 	}
 
@@ -1173,7 +1179,7 @@ static NTSTATUS ipc_ioctl_smb2(struct ntvfs_module_context *ntvfs,
 	io->smb2.out.function	= io->smb2.in.function;
 	io->smb2.out.unknown2	= 0;
 	io->smb2.out.unknown3	= 0;
-	io->smb2.out.in		= io->smb2.in.out;
+	io->smb2.out.in		= data_blob_null;
 	io->smb2.out.out = data_blob_talloc(req, NULL, io->smb2.in.max_response_size);
 	NT_STATUS_HAVE_NO_MEMORY(io->smb2.out.out.data);
 
@@ -1215,7 +1221,7 @@ static void ipc_ioctl_writev_done(struct tevent_req *subreq)
 	ret = tstream_writev_queue_recv(subreq, &sys_errno);
 	TALLOC_FREE(subreq);
 	if (ret == -1) {
-		status = map_nt_error_from_unix(sys_errno);
+		status = map_nt_error_from_unix_common(sys_errno);
 		goto reply;
 	}
 
@@ -1251,7 +1257,7 @@ static void ipc_ioctl_readv_done(struct tevent_req *subreq)
 	ret = tstream_readv_pdu_queue_recv(subreq, &sys_errno);
 	TALLOC_FREE(subreq);
 	if (ret == -1) {
-		status = map_nt_error_from_unix(sys_errno);
+		status = map_nt_error_from_unix_common(sys_errno);
 		goto reply;
 	}
 
@@ -1302,36 +1308,36 @@ NTSTATUS ntvfs_ipc_init(void)
 	ops.type = NTVFS_IPC;
 
 	/* fill in all the operations */
-	ops.connect = ipc_connect;
-	ops.disconnect = ipc_disconnect;
-	ops.unlink = ipc_unlink;
-	ops.chkpath = ipc_chkpath;
-	ops.qpathinfo = ipc_qpathinfo;
-	ops.setpathinfo = ipc_setpathinfo;
-	ops.open = ipc_open;
-	ops.mkdir = ipc_mkdir;
-	ops.rmdir = ipc_rmdir;
-	ops.rename = ipc_rename;
-	ops.copy = ipc_copy;
-	ops.ioctl = ipc_ioctl;
-	ops.read = ipc_read;
-	ops.write = ipc_write;
-	ops.seek = ipc_seek;
-	ops.flush = ipc_flush;	
-	ops.close = ipc_close;
-	ops.exit = ipc_exit;
-	ops.lock = ipc_lock;
-	ops.setfileinfo = ipc_setfileinfo;
-	ops.qfileinfo = ipc_qfileinfo;
-	ops.fsinfo = ipc_fsinfo;
-	ops.lpq = ipc_lpq;
-	ops.search_first = ipc_search_first;
-	ops.search_next = ipc_search_next;
-	ops.search_close = ipc_search_close;
-	ops.trans = ipc_trans;
-	ops.logoff = ipc_logoff;
-	ops.async_setup = ipc_async_setup;
-	ops.cancel = ipc_cancel;
+	ops.connect_fn = ipc_connect;
+	ops.disconnect_fn = ipc_disconnect;
+	ops.unlink_fn = ipc_unlink;
+	ops.chkpath_fn = ipc_chkpath;
+	ops.qpathinfo_fn = ipc_qpathinfo;
+	ops.setpathinfo_fn = ipc_setpathinfo;
+	ops.open_fn = ipc_open;
+	ops.mkdir_fn = ipc_mkdir;
+	ops.rmdir_fn = ipc_rmdir;
+	ops.rename_fn = ipc_rename;
+	ops.copy_fn = ipc_copy;
+	ops.ioctl_fn = ipc_ioctl;
+	ops.read_fn = ipc_read;
+	ops.write_fn = ipc_write;
+	ops.seek_fn = ipc_seek;
+	ops.flush_fn = ipc_flush;
+	ops.close_fn = ipc_close;
+	ops.exit_fn = ipc_exit;
+	ops.lock_fn = ipc_lock;
+	ops.setfileinfo_fn = ipc_setfileinfo;
+	ops.qfileinfo_fn = ipc_qfileinfo;
+	ops.fsinfo_fn = ipc_fsinfo;
+	ops.lpq_fn = ipc_lpq;
+	ops.search_first_fn = ipc_search_first;
+	ops.search_next_fn = ipc_search_next;
+	ops.search_close_fn = ipc_search_close;
+	ops.trans_fn = ipc_trans;
+	ops.logoff_fn = ipc_logoff;
+	ops.async_setup_fn = ipc_async_setup;
+	ops.cancel_fn = ipc_cancel;
 
 	/* register ourselves with the NTVFS subsystem. */
 	ret = ntvfs_register(&ops, &vers);

@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_gu\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2013-05-13 11:53-0700\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2013-10-22 20:32+0200\n"
 "PO-Revision-Date: 2007-06-08 20:22+0530\n"
 "Last-Translator: Kartik Mistry <kartik.mistry@gmail.com>\n"
 "Language-Team: Gujarati <team@utkarsh.org>\n"
@@ -23,6 +23,117 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid "Upgrade from Samba 3?"
+msgstr ""
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid ""
+"It is possible to migrate the existing configuration files from Samba 3 to "
+"Samba 4. This is likely to fail for complex setups, but should provide a "
+"good starting point for most existing installations."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid "Server role"
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Domain controllers manage NT4-style or Active Directory domains and provide "
+"services such as identity management and domain logons. Each domain needs to "
+"have a at least one domain controller."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Member servers can be part of a NT4-style or Active Directory domain but do "
+"not provide any domain services. Workstations and file or print servers are "
+"usually regular domain members."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"A standalone server can not be used in a domain and only supports file "
+"sharing and Windows for Workgroups-style logins."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"If no server role is specified, the Samba server will not be provisioned, so "
+"this can be done manually by the user."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Realm name:"
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid ""
+"Please specify the Kerberos realm for the domain that this domain controller "
+"controls."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Usually this is the a capitalized version of your DNS hostname."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "New password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "If this field is left blank, a random password will be generated."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "A password can be set later by running, as root:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:5001
+msgid "Repeat password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "Password input error"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr ""
 
 #. Type: title
 #. Description
@@ -101,47 +212,131 @@ msgstr "વર્કગ્રુપ/ડોમેઇન નામ:"
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
-"જ્યારે ક્લાયન્ટો દ્વારા પૂછવામાં આવે ત્યારે વપરાતું આ સર્વર માટેનું વર્કગ્રુપનું નામ મહેરબાની કરી "
-"સ્પષ્ટ કરો. ધ્યાનમાં રાખો કે આ વિકલ્પ ડોમેઇન નામને પણ નિયંત્રણ કરે છે જ્યારે સલામતી=ડોમેઇન "
-"ગોઠવણી ઉપયોગ કરવામાં આવે છે."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "પાસવર્ડ એન્ક્રિપ્શન વાપરશો?"
+#~ msgid "Use password encryption?"
+#~ msgstr "પાસવર્ડ એન્ક્રિપ્શન વાપરશો?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"હાલનાં બધા વિન્ડોઝ ક્લાયન્ટો SMB સર્વરો  સાથે એન્ક્રિપ્ટેડ પાસવર્ડોનો ઉપયોગ કરીને સંદેશા "
-"વ્યવહાર કરે છે. જો તમે સાદો લખાણ પાસવર્ડ વાપરવા માંગતા હોવ તો તમારે, વિન્ડોઝ "
-"રજીસ્ટ્રીમાં વિકલ્પ બદલવો પડશે."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "હાલનાં બધા વિન્ડોઝ ક્લાયન્ટો SMB સર્વરો  સાથે એન્ક્રિપ્ટેડ પાસવર્ડોનો ઉપયોગ કરીને "
+#~ "સંદેશા વ્યવહાર કરે છે. જો તમે સાદો લખાણ પાસવર્ડ વાપરવા માંગતા હોવ તો તમારે, વિન્ડોઝ "
+#~ "રજીસ્ટ્રીમાં વિકલ્પ બદલવો પડશે."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"આ વિકલ્પ સક્રિય કરવાનું ખૂબ જ સલાહભર્યું છે. જો તમે કરશો તો, તમે ધ્યાનમાં રાખશો કે તમારી "
-"પાસે યોગ્ય /etc/samba/smbpasswd ફાઇલ હોય અને દરેક વપરાશકર્તા માટે તમે smbpasswd "
-"ઉપયોગ કરીને પાસવર્ડ ગોઠવેલો છે."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "આ વિકલ્પ સક્રિય કરવાનું ખૂબ જ સલાહભર્યું છે. જો તમે કરશો તો, તમે ધ્યાનમાં રાખશો કે "
+#~ "તમારી પાસે યોગ્ય /etc/samba/smbpasswd ફાઇલ હોય અને દરેક વપરાશકર્તા માટે તમે "
+#~ "smbpasswd ઉપયોગ કરીને પાસવર્ડ ગોઠવેલો છે."
 
+#~ msgid "daemons"
+#~ msgstr "ડેમોન્સ"
+
+#~ msgid "inetd"
+#~ msgstr "inetd"
+
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "તમે સામ્બા કઇ રીતે ઉપયોગ કરશો?"
+
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "સામ્બા ડેમોન smbd સામાન્ય ડેમોન અથવા inetd તરીકે ચાલી શકે છે. ડેમોન તરીકે ચલાવવાનું "
+#~ "સલાહભર્યું છે."
+
+#, fuzzy
+#~| msgid ""
+#~| "Please specify the workgroup you want this server to appear to be in "
+#~| "when queried by clients. Note that this parameter also controls the "
+#~| "domain name used with the security=domain setting."
+#~ msgid ""
+#~ "Please specify the domain you want this server to appear to be in when "
+#~ "queried by clients."
+#~ msgstr ""
+#~ "જ્યારે ક્લાયન્ટો દ્વારા પૂછવામાં આવે ત્યારે વપરાતું આ સર્વર માટેનું વર્કગ્રુપનું નામ મહેરબાની "
+#~ "કરી સ્પષ્ટ કરો. ધ્યાનમાં રાખો કે આ વિકલ્પ ડોમેઇન નામને પણ નિયંત્રણ કરે છે જ્યારે "
+#~ "સલામતી=ડોમેઇન ગોઠવણી ઉપયોગ કરવામાં આવે છે."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "સામ્બા પાસવર્ડ ડેટાબેઝ, /var/lib/samba/passdb.tdb બનાવશો?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "વિન્ડોઝની મોટાભાગની આવૃતિઓ જોડે અનુરુપ થવા માટે, સામ્બા એન્ક્રિપ્ટેડ પાસવર્ડ સાથે કામ "
+#~ "કરવા માટે ગોઠવેલ હોવું જોઇએ.  આને માટે વપરાશકર્તા પાસવર્ડો અલગ ફાઇલ /etc/passwd "
+#~ "માં સંગ્રહ થવા જોઇએ.  આ ફાઇલ આપમેળે બનાવી શકાય છે, પણ પાસવર્ડો જાતે જ smbpasswd "
+#~ "ચલાવીને ઉમેરવા જોઇએ અને ભવિષ્યમાં છેલ્લામાં છેલ્લાં સુધારેલ રાખવા જોઇએ."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "જો તમે નહી બનાવો તો, તમારે સાદા પાસવર્ડો વાપરવા માટે સામ્બા (અને કદાચ તમારા "
+#~ "ક્લાયન્ટ મશીનોને) ફરીથી રુપરેખાંકિત કરવાં પડશે."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
+#~ "package for more details."
+#~ msgstr ""
+#~ "samba-doc પેકેજમાં /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html વધુ "
+#~ "માહિતી માટે જુઓ."
+
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "passdb બેકએન્ડ બદલવાનું આધાર આપવામાં આવતું નથી"
+
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "આવૃતિ ૩.૦.૨૩ ની સાથે, સામ્બા હવે \"પાસવર્ડ બેકએન્ડ\" વિકલ્પમાં એક કરતાં વધુ બેકએન્ડનો "
+#~ "આધાર આપતું નથી.  એવું જાણવામાં આવેલ છે કે તમારી smb.conf ફાઇલ પાસવર્ડ બેકએન્ડ વિકલ્પ "
+#~ "સાથે બેકએન્ડની યાદી ધરાવે છે.  તમે જ્યાં સુધી આ સુધારશો નહી ત્યાં સુધી સામ્બા કામ કરશે "
+#~ "નહી."
+
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr "/etc/samba/smbpasswd ને /var/lib/samba/passdb.tdb માં ખસેડશો?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "સામ્બા ૩.૦ એ વધુ પૂર્ણ સામ ડેટાબેઝ ઇન્ટરફેસ રજૂ કર્યો છે જે /etc/samba/smbpasswd "
+#~ "ફાઇલને બરખાસ્ત કરે છે."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "મહેરબાની કરી ખાતરી કરો કે તમે હાલની સામ્બા પાસવર્ડ ફાઇલને આપમેળે /var/lib/samba/"
+#~ "passdb.tdb માં ખસેડવા માંગો છો.  આ વિકલ્પ પસંદ કરશો નહી જો તમે બીજું pdb બેકએન્ડ "
+#~ "(દા.ત., LDAP) વાપરવાનું નક્કી કર્યું હોય."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "samba-doc પેકેજમાં /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/"
+#~ "pwencrypt.html વધુ માહિતી માટે જુઓ."

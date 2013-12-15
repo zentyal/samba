@@ -1,4 +1,4 @@
-/* 
+/*
  * Convert AFS acls to NT acls and vice versa.
  *
  * Copyright (C) Volker Lendecke, 2003
@@ -7,12 +7,12 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
- *  
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *  
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
@@ -34,7 +34,7 @@
 #include <afs/venus.h>
 #include <afs/prs_fs.h>
 
-#define MAXSIZE 2048
+#define MAXSIZE 2049
 
 extern const struct dom_sid global_sid_World;
 extern const struct dom_sid global_sid_Builtin_Administrators;
@@ -47,7 +47,7 @@ static char space_replacement = '%';
 /* Do we expect SIDs as pts names? */
 static bool sidpts;
 
-extern int afs_syscall(int, char *, int, char *, int);
+extern int afs_syscall(int, const char *, int, char *, int);
 
 struct afs_ace {
 	bool positive;
@@ -77,9 +77,9 @@ static bool init_afs_acl(struct afs_acl *acl)
 	acl->ctx = talloc_init("afs_acl");
 	if (acl->ctx == NULL) {
 		DEBUG(10, ("Could not init afs_acl"));
-		return False;
+		return false;
 	}
-	return True;
+	return true;
 }
 
 static void free_afs_acl(struct afs_acl *acl)
@@ -93,7 +93,7 @@ static void free_afs_acl(struct afs_acl *acl)
 
 static struct afs_ace *clone_afs_ace(TALLOC_CTX *mem_ctx, struct afs_ace *ace)
 {
-	struct afs_ace *result = TALLOC_P(mem_ctx, struct afs_ace);
+	struct afs_ace *result = talloc(mem_ctx, struct afs_ace);
 
 	if (result == NULL)
 		return NULL;
@@ -171,7 +171,7 @@ static struct afs_ace *new_afs_ace(TALLOC_CTX *mem_ctx,
 		}
 	}
 
-	result = TALLOC_P(mem_ctx, struct afs_ace);
+	result = talloc(mem_ctx, struct afs_ace);
 
 	if (result == NULL) {
 		DEBUG(0, ("Could not talloc AFS ace\n"));
@@ -217,8 +217,6 @@ static void add_afs_ace(struct afs_acl *acl,
 	DEBUG(10, ("add_afs_ace: Added %s entry for %s with rights %d\n",
 		   ace->positive?"positive":"negative",
 		   ace->name, ace->rights));
-
-	return;
 }
 
 /* AFS ACLs in string form are a long string of fields delimited with \n.
@@ -238,27 +236,27 @@ static bool parse_afs_acl(struct afs_acl *acl, const char *acl_str)
 	int nplus, nminus;
 	int aces;
 
-	char str[MAXSIZE+1];
+	char str[MAXSIZE];
 	char *p = str;
 
-	strncpy(str, acl_str, MAXSIZE);
+	strlcpy(str, acl_str, MAXSIZE);
 
 	if (sscanf(p, "%d", &nplus) != 1)
-		return False;
+		return false;
 
 	DEBUG(10, ("Found %d positive entries\n", nplus));
 
 	if ((p = strchr(p, '\n')) == NULL)
-		return False;
+		return false;
 	p += 1;
 
 	if (sscanf(p, "%d", &nminus) != 1)
-		return False;
+		return false;
 	
 	DEBUG(10, ("Found %d negative entries\n", nminus));
 
 	if ((p = strchr(p, '\n')) == NULL)
-		return False;
+		return false;
 	p += 1;
 
 	for (aces = nplus+nminus; aces > 0; aces--)
@@ -272,15 +270,15 @@ static bool parse_afs_acl(struct afs_acl *acl, const char *acl_str)
 		namep = p;
 
 		if ((p = strchr(p, '\t')) == NULL)
-			return False;
+			return false;
 		*p = '\0';
 		p += 1;
 
 		if (sscanf(p, "%d", &rights) != 1)
-			return False;
+			return false;
 
 		if ((p = strchr(p, '\n')) == NULL)
-			return False;
+			return false;
 		p += 1;
 
 		fstrcpy(name, namep);
@@ -293,7 +291,7 @@ static bool parse_afs_acl(struct afs_acl *acl, const char *acl_str)
 		nplus -= 1;
 	}
 
-	return True;
+	return true;
 }
 
 static bool unparse_afs_acl(struct afs_acl *acl, char *acl_str)
@@ -303,10 +301,9 @@ static bool unparse_afs_acl(struct afs_acl *acl, char *acl_str)
 	int positives = 0;
 	int negatives = 0;
 	fstring line;
+	struct afs_ace *ace = acl->acelist;
 
 	*acl_str = 0;
-
-	struct afs_ace *ace = acl->acelist;
 
 	while (ace != NULL) {
 		if (ace->positive)
@@ -317,19 +314,25 @@ static bool unparse_afs_acl(struct afs_acl *acl, char *acl_str)
 	}
 
 	fstr_sprintf(line, "%d\n", positives);
-	safe_strcat(acl_str, line, MAXSIZE);
+	if (strlcat(acl_str, line, MAXSIZE) >= MAXSIZE) {
+		return false;
+	}
 
 	fstr_sprintf(line, "%d\n", negatives);
-	safe_strcat(acl_str, line, MAXSIZE);
+	if (strlcat(acl_str, line, MAXSIZE) >= MAXSIZE) {
+		return false;
+	}
 
 	ace = acl->acelist;
 
 	while (ace != NULL) {
 		fstr_sprintf(line, "%s\t%d\n", ace->name, ace->rights);
-		safe_strcat(acl_str, line, MAXSIZE);
+		if (strlcat(acl_str, line, MAXSIZE) >= MAXSIZE) {
+			return false;
+		}
 		ace = ace->next;
 	}
-	return True;
+	return true;
 }
 
 static uint32 afs_to_nt_file_rights(uint32 rights)
@@ -390,8 +393,6 @@ static void afs_to_nt_dir_rights(uint32 afs_rights, uint32 *nt_rights,
 		/* Only lookup right */
 		*flag = SEC_ACE_FLAG_CONTAINER_INHERIT;
 	}
-
-	return;
 }
 
 #define AFS_FILE_RIGHTS (PRSFS_READ|PRSFS_WRITE|PRSFS_LOCK)
@@ -417,7 +418,6 @@ static void split_afs_acl(struct afs_acl *acl,
 				    ace->rights & AFS_DIR_RIGHTS);
 		}
 	}
-	return;
 }
 
 static bool same_principal(struct afs_ace *x, struct afs_ace *y)
@@ -436,7 +436,7 @@ static void merge_afs_acls(struct afs_acl *dir_acl,
 
 	for (ace = dir_acl->acelist; ace != NULL; ace = ace->next) {
 		struct afs_ace *file_ace;
-		bool found = False;
+		bool found = false;
 
 		for (file_ace = file_acl->acelist;
 		     file_ace != NULL;
@@ -446,7 +446,7 @@ static void merge_afs_acls(struct afs_acl *dir_acl,
 
 			add_afs_ace(target, ace->positive, ace->name,
 				    ace->rights | file_ace->rights);
-			found = True;
+			found = true;
 			break;
 		}
 		if (!found)
@@ -456,14 +456,14 @@ static void merge_afs_acls(struct afs_acl *dir_acl,
 
 	for (ace = file_acl->acelist; ace != NULL; ace = ace->next) {
 		struct afs_ace *dir_ace;
-		bool already_seen = False;
+		bool already_seen = false;
 
 		for (dir_ace = dir_acl->acelist;
 		     dir_ace != NULL;
 		     dir_ace = dir_ace->next) {
 			if (!same_principal(ace, dir_ace))
 				continue;
-			already_seen = True;
+			already_seen = true;
 			break;
 		}
 		if (!already_seen)
@@ -594,6 +594,7 @@ static uint32 nt_to_afs_file_rights(const char *filename, const struct security_
 static size_t afs_to_nt_acl_common(struct afs_acl *afs_acl,
 				   SMB_STRUCT_STAT *psbuf,
 				   uint32 security_info,
+				   TALLOC_CTX *mem_ctx,
 				   struct security_descriptor **ppdesc)
 {
 	struct security_ace *nt_ace_list;
@@ -601,7 +602,6 @@ static size_t afs_to_nt_acl_common(struct afs_acl *afs_acl,
 	struct security_acl *psa = NULL;
 	int good_aces;
 	size_t sd_size;
-	TALLOC_CTX *mem_ctx = talloc_tos();
 
 	struct afs_ace *afs_ace;
 
@@ -609,7 +609,7 @@ static size_t afs_to_nt_acl_common(struct afs_acl *afs_acl,
 	gid_to_sid(&group_sid, psbuf->st_ex_gid);
 
 	if (afs_acl->num_aces) {
-		nt_ace_list = TALLOC_ARRAY(mem_ctx, struct security_ace, afs_acl->num_aces);
+		nt_ace_list = talloc_array(mem_ctx, struct security_ace, afs_acl->num_aces);
 
 		if (nt_ace_list == NULL)
 			return 0;
@@ -663,6 +663,7 @@ static size_t afs_to_nt_acl(struct afs_acl *afs_acl,
 			    struct connection_struct *conn,
 			    struct smb_filename *smb_fname,
 			    uint32 security_info,
+			     TALLOC_CTX *mem_ctx,
 			    struct security_descriptor **ppdesc)
 {
 	int ret;
@@ -678,12 +679,13 @@ static size_t afs_to_nt_acl(struct afs_acl *afs_acl,
 	}
 
 	return afs_to_nt_acl_common(afs_acl, &smb_fname->st, security_info,
-				    ppdesc);
+				    mem_ctx, ppdesc);
 }
 
 static size_t afs_fto_nt_acl(struct afs_acl *afs_acl,
 			     struct files_struct *fsp,
 			     uint32 security_info,
+			     TALLOC_CTX *mem_ctx,
 			     struct security_descriptor **ppdesc)
 {
 	SMB_STRUCT_STAT sbuf;
@@ -691,14 +693,15 @@ static size_t afs_fto_nt_acl(struct afs_acl *afs_acl,
 	if (fsp->fh->fd == -1) {
 		/* Get the stat struct for the owner info. */
 		return afs_to_nt_acl(afs_acl, fsp->conn, fsp->fsp_name,
-				     security_info, ppdesc);
+				     security_info, mem_ctx, ppdesc);
 	}
 
 	if(SMB_VFS_FSTAT(fsp, &sbuf) != 0) {
 		return 0;
 	}
 
-	return afs_to_nt_acl_common(afs_acl, &sbuf, security_info, ppdesc);
+	return afs_to_nt_acl_common(afs_acl, &sbuf, security_info,
+				mem_ctx, ppdesc);
 }
 
 static bool mappable_sid(const struct dom_sid *sid)
@@ -706,23 +709,23 @@ static bool mappable_sid(const struct dom_sid *sid)
 	struct dom_sid domain_sid;
 	
 	if (dom_sid_compare(sid, &global_sid_Builtin_Administrators) == 0)
-		return True;
+		return true;
 
 	if (dom_sid_compare(sid, &global_sid_World) == 0)
-		return True;
+		return true;
 
 	if (dom_sid_compare(sid, &global_sid_Authenticated_Users) == 0)
-		return True;
+		return true;
 
 	if (dom_sid_compare(sid, &global_sid_Builtin_Backup_Operators) == 0)
-		return True;
+		return true;
 
 	string_to_sid(&domain_sid, "S-1-5-21");
 
 	if (sid_compare_domain(sid, &domain_sid) == 0)
-		return True;
+		return true;
 
-	return False;
+	return false;
 }
 
 static bool nt_to_afs_acl(const char *filename,
@@ -739,10 +742,10 @@ static bool nt_to_afs_acl(const char *filename,
 
 	if (((security_info_sent & SECINFO_DACL) == 0) ||
 	    (psd->dacl == NULL))
-		return True;
+		return true;
 
 	if (!init_afs_acl(afs_acl))
-		return False;
+		return false;
 
 	dacl = psd->dacl;
 
@@ -754,7 +757,7 @@ static bool nt_to_afs_acl(const char *filename,
 
 		if (ace->type != SEC_ACE_TYPE_ACCESS_ALLOWED) {
 			/* First cut: Only positive ACEs */
-			return False;
+			return false;
 		}
 
 		if (!mappable_sid(&ace->trustee)) {
@@ -802,9 +805,11 @@ static bool nt_to_afs_acl(const char *filename,
 						       dom_name, lp_winbind_separator(),
 						       name);
 				if (tmp == NULL) {
-					return False;
+					return false;
 				}
-				strlower_m(tmp);
+				if (!strlower_m(tmp)) {
+					return false;
+				}
 				name = tmp;
 			}
 
@@ -814,7 +819,7 @@ static bool nt_to_afs_acl(const char *filename,
 					talloc_tos(),
 					sid_string_tos(&ace->trustee));
 				if (name == NULL) {
-					return False;
+					return false;
 				}
 			}
 		}
@@ -822,14 +827,14 @@ static bool nt_to_afs_acl(const char *filename,
 		while ((p = strchr_m(name, ' ')) != NULL)
 			*p = space_replacement;
 
-		add_afs_ace(afs_acl, True, name,
+		add_afs_ace(afs_acl, true, name,
 			    nt_to_afs_rights(filename, ace));
 	}
 
-	return True;
+	return true;
 }
 
-static bool afs_get_afs_acl(char *filename, struct afs_acl *acl)
+static bool afs_get_afs_acl(const char *filename, struct afs_acl *acl)
 {
 	struct afs_iob iob;
 
@@ -848,19 +853,19 @@ static bool afs_get_afs_acl(char *filename, struct afs_acl *acl)
 
 	if (ret) {
 		DEBUG(1, ("got error from PIOCTL: %d\n", ret));
-		return False;
+		return false;
 	}
 
 	if (!init_afs_acl(acl))
-		return False;
+		return false;
 
 	if (!parse_afs_acl(acl, space)) {
 		DEBUG(1, ("Could not parse AFS acl\n"));
 		free_afs_acl(acl);
-		return False;
+		return false;
 	}
 
-	return True;
+	return true;
 }
 
 /* For setting an AFS ACL we have to take care of the ACEs we could
@@ -901,7 +906,7 @@ static NTSTATUS afs_set_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
 {
 	struct afs_acl old_afs_acl, new_afs_acl;
 	struct afs_acl dir_acl, file_acl;
-	char acl_string[2049];
+	char acl_string[MAXSIZE];
 	struct afs_iob iob;
 	int ret = -1;
 	char *name = NULL;
@@ -910,7 +915,7 @@ static NTSTATUS afs_set_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
 	fileacls = lp_parm_const_string(SNUM(handle->conn), "afsacl", "fileacls",
 					"yes");
 
-	sidpts = lp_parm_bool(SNUM(handle->conn), "afsacl", "sidpts", False);
+	sidpts = lp_parm_bool(SNUM(handle->conn), "afsacl", "sidpts", false);
 
 	ZERO_STRUCT(old_afs_acl);
 	ZERO_STRUCT(new_afs_acl);
@@ -1006,6 +1011,7 @@ static NTSTATUS afs_set_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
 static NTSTATUS afsacl_fget_nt_acl(struct vfs_handle_struct *handle,
 				   struct files_struct *fsp,
 				   uint32 security_info,
+				   TALLOC_CTX *mem_ctx,
 				   struct security_descriptor **ppdesc)
 {
 	struct afs_acl acl;
@@ -1013,13 +1019,13 @@ static NTSTATUS afsacl_fget_nt_acl(struct vfs_handle_struct *handle,
 
 	DEBUG(5, ("afsacl_fget_nt_acl: %s\n", fsp_str_dbg(fsp)));
 
-	sidpts = lp_parm_bool(SNUM(fsp->conn), "afsacl", "sidpts", False);
+	sidpts = lp_parm_bool(SNUM(fsp->conn), "afsacl", "sidpts", false);
 
 	if (!afs_get_afs_acl(fsp->fsp_name->base_name, &acl)) {
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
-	sd_size = afs_fto_nt_acl(&acl, fsp, security_info, ppdesc);
+	sd_size = afs_fto_nt_acl(&acl, fsp, security_info, mem_ctx, ppdesc);
 
 	free_afs_acl(&acl);
 
@@ -1027,7 +1033,8 @@ static NTSTATUS afsacl_fget_nt_acl(struct vfs_handle_struct *handle,
 }
 
 static NTSTATUS afsacl_get_nt_acl(struct vfs_handle_struct *handle,
-				  const char *name,  uint32 security_info,
+				  const char *name, uint32 security_info,
+				  TALLOC_CTX *mem_ctx,
 				  struct security_descriptor **ppdesc)
 {
 	struct afs_acl acl;
@@ -1037,7 +1044,7 @@ static NTSTATUS afsacl_get_nt_acl(struct vfs_handle_struct *handle,
 
 	DEBUG(5, ("afsacl_get_nt_acl: %s\n", name));
 
-	sidpts = lp_parm_bool(SNUM(handle->conn), "afsacl", "sidpts", False);
+	sidpts = lp_parm_bool(SNUM(handle->conn), "afsacl", "sidpts", false);
 
 	if (!afs_get_afs_acl(name, &acl)) {
 		return NT_STATUS_ACCESS_DENIED;
@@ -1051,7 +1058,7 @@ static NTSTATUS afsacl_get_nt_acl(struct vfs_handle_struct *handle,
 	}
 
 	sd_size = afs_to_nt_acl(&acl, handle->conn, smb_fname, security_info,
-				ppdesc);
+				mem_ctx, ppdesc);
 	TALLOC_FREE(smb_fname);
 
 	free_afs_acl(&acl);
@@ -1088,9 +1095,9 @@ static int afsacl_connect(vfs_handle_struct *handle,
 
 static struct vfs_fn_pointers vfs_afsacl_fns = {
 	.connect_fn = afsacl_connect,
-	.fget_nt_acl = afsacl_fget_nt_acl,
-	.get_nt_acl = afsacl_get_nt_acl,
-	.fset_nt_acl = afsacl_fset_nt_acl
+	.fget_nt_acl_fn = afsacl_fget_nt_acl,
+	.get_nt_acl_fn = afsacl_get_nt_acl,
+	.fset_nt_acl_fn = afsacl_fset_nt_acl
 };
 
 NTSTATUS vfs_afsacl_init(void);

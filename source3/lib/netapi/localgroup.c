@@ -58,6 +58,12 @@ static NTSTATUS libnetapi_samr_lookup_and_open_alias(TALLOC_CTX *mem_ctx,
 	if (!NT_STATUS_IS_OK(result)) {
 		return result;
 	}
+	if (user_rids.count != 1) {
+		return NT_STATUS_INVALID_NETWORK_RESPONSE;
+	}
+	if (name_types.count != 1) {
+		return NT_STATUS_INVALID_NETWORK_RESPONSE;
+	}
 
 	switch (name_types.ids[0]) {
 		case SID_NAME_ALIAS:
@@ -610,7 +616,7 @@ static WERROR map_buffer_to_alias_info(TALLOC_CTX *mem_ctx,
 	struct LOCALGROUP_INFO_1002 *info1002;
 	union samr_AliasInfo *info = NULL;
 
-	info = TALLOC_ZERO_P(mem_ctx, union samr_AliasInfo);
+	info = talloc_zero(mem_ctx, union samr_AliasInfo);
 	W_ERROR_HAVE_NO_MEMORY(info);
 
 	switch (level) {
@@ -1041,7 +1047,7 @@ static NTSTATUS libnetapi_lsa_lookup_names3(TALLOC_CTX *mem_ctx,
 	NT_STATUS_NOT_OK_RETURN(result);
 
 	if (count != 1 || sids.count != 1) {
-		return NT_STATUS_NONE_MAPPED;
+		return NT_STATUS_INVALID_NETWORK_RESPONSE;
 	}
 
 	sid_copy(sid, sids.sids[0].sid);
@@ -1115,7 +1121,7 @@ static WERROR NetLocalGroupModifyMembers_r(struct libnetapi_ctx *ctx,
 	ZERO_STRUCT(domain_handle);
 	ZERO_STRUCT(alias_handle);
 
-	member_sids = TALLOC_ZERO_ARRAY(ctx, struct dom_sid,
+	member_sids = talloc_zero_array(ctx, struct dom_sid,
 					r->in.total_entries);
 	W_ERROR_HAVE_NO_MEMORY(member_sids);
 

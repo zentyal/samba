@@ -72,11 +72,14 @@
 
 #define CHECK_SECURITY_DESCRIPTOR(_sd1, _sd2) do { \
 	if (!security_descriptor_equal(_sd1, _sd2)) { \
-		torture_warning(tctx, "%s: security descriptors don't match!\n", __location__); \
+		torture_warning(tctx, "security descriptors don't match!\n"); \
 		torture_warning(tctx, "got:\n"); \
 		NDR_PRINT_DEBUG(security_descriptor, _sd1); \
 		torture_warning(tctx, "expected:\n"); \
 		NDR_PRINT_DEBUG(security_descriptor, _sd2); \
+		torture_result(tctx, TORTURE_FAIL, \
+			       "%s: security descriptors don't match!\n", \
+			       __location__); \
 		ret = false; \
 	} \
 } while (0)
@@ -1662,6 +1665,7 @@ done:
 	CHECK_STATUS_FOR_BIT_ACTION(status, bits, do {} while (0)); \
 } while (0)
 
+#if 0
 /* test what access mask is needed for getting and setting security_descriptors */
 /* Note: This test was copied from raw/acls.c. */
 static bool test_sd_get_set(struct torture_context *tctx, struct smb2_tree *tree)
@@ -1849,6 +1853,7 @@ done:
 
 	return ret;
 }
+#endif
 
 /*
    basic testing of SMB2 ACLs
@@ -1863,9 +1868,10 @@ struct torture_suite *torture_smb2_acls_init(void)
 	torture_suite_add_1smb2_test(suite, "INHERITANCE", test_inheritance);
 	torture_suite_add_1smb2_test(suite, "INHERITFLAGS", test_inheritance_flags);
 	torture_suite_add_1smb2_test(suite, "DYNAMIC", test_inheritance_dynamic);
-	/* XXX This test does not work against XP or Vista.
+#if 0
+	/* XXX This test does not work against XP or Vista. */
 	torture_suite_add_1smb2_test(suite, "GETSET", test_sd_get_set);
-	*/
+#endif
 
 	suite->description = talloc_strdup(suite, "SMB2-ACLS tests");
 

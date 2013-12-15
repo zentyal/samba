@@ -2,12 +2,12 @@
 .\"     Title: net
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 09/18/2013
+.\"      Date: 12/06/2013
 .\"    Manual: System Administration tools
-.\"    Source: Samba 3.6
+.\"    Source: Samba 4.0
 .\"  Language: English
 .\"
-.TH "NET" "8" "09/18/2013" "Samba 3\&.6" "System Administration tools"
+.TH "NET" "8" "12/06/2013" "Samba 4\&.0" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -41,7 +41,7 @@ suite\&.
 The Samba net utility is meant to work just like the net utility available for windows and DOS\&. The first argument should be used to specify the protocol to use when executing a certain command\&. ADS is used for ActiveDirectory, RAP is using for old (Win9x/NT3) clients and RPC can be used for NT4 and Windows 2000\&. If this argument is omitted, net will try to determine it automatically\&. Not all commands are available on all protocols\&.
 .SH "OPTIONS"
 .PP
-\-h|\-\-help
+\-?|\-\-help
 .RS 4
 Print a summary of command line options\&.
 .RE
@@ -86,7 +86,7 @@ file\&. However, a command line setting will take precedence over settings in
 smb\&.conf\&.
 .RE
 .PP
-\-s|\-\-configfile <configuration file>
+\-s|\-\-configfile=<configuration file>
 .RS 4
 The file specified contains the configuration details required by the server\&. The information in this file includes server\-specific information such as what printcap file to use, as well as descriptions of all the services that the server is to provide\&. See
 smb\&.conf
@@ -507,7 +507,7 @@ Delete a group mapping entry\&. If more than one group name matches, the first e
 net groupmap delete {ntgroup=string|sid=SID}
 .SS "GROUPMAP MODIFY"
 .PP
-Update en existing group entry\&.
+Update an existing group entry\&.
 .PP
 
 .sp
@@ -564,13 +564,10 @@ Abandon relationship to trusted domain
 .SS "RPC TRUSTDOM LIST"
 .PP
 List all interdomain trust relationships\&.
-.SS "RPC TRUSTDOM LIST"
-.PP
-List all interdomain trust relationships\&.
 .SS "RPC TRUST"
 .SS "RPC TRUST CREATE"
 .PP
-Create a trust trust object by calling lsaCreateTrustedDomainEx2\&. The can be done on a single server or on two servers at once with the possibility to use a random trust password\&.
+Create a trust object by calling lsaCreateTrustedDomainEx2\&. The can be done on a single server or on two servers at once with the possibility to use a random trust password\&.
 .PP
 \fBOptions:\fR
 .PP
@@ -1000,9 +997,9 @@ The information given about a share looks like: [foobar] path=/home/jeremy comme
 List all the user defined shares owned by the current user matching the given pattern, or all users\&.
 .PP
 net usershare list on its own list out the names of the user defined shares that were created by the current user, or restricts the list to share names that match the given wildcard pattern (\*(Aq*\*(Aq matches one or more characters, \*(Aq?\*(Aq matches only one character)\&. If the \*(Aq\-l\*(Aq or \*(Aq\-\-long\*(Aq option is also given, it includes the names of user defined shares created by other users\&.
-.SS "CONF"
+.SS "[RPC] CONF"
 .PP
-Starting with version 3\&.2\&.0, a Samba server can be configured by data stored in registry\&. This configuration data can be edited with the new "net conf" commands\&.
+Starting with version 3\&.2\&.0, a Samba server can be configured by data stored in registry\&. This configuration data can be edited with the new "net conf" commands\&. There is also the possiblity to configure a remote Samba server by enabling the RPC conf mode and specifying the the address of the remote server\&.
 .PP
 The deployment of this configuration data can be activated in two levels from the
 \fIsmb\&.conf\fR
@@ -1020,90 +1017,90 @@ manpage for details\&.
 .PP
 The conf commands are:
 .RS 4
-net conf list \- Dump the complete configuration in smb\&.conf like
+net [rpc] conf list \- Dump the complete configuration in smb\&.conf like
 format\&.
 .RE
 .RS 4
-net conf import \- Import configuration from file in smb\&.conf
+net [rpc] conf import \- Import configuration from file in smb\&.conf
 format\&.
 .RE
 .RS 4
-net conf listshares \- List the registry shares\&.
+net [rpc] conf listshares \- List the registry shares\&.
 .RE
 .RS 4
-net conf drop \- Delete the complete configuration from
+net [rpc] conf drop \- Delete the complete configuration from
 registry\&.
 .RE
 .RS 4
-net conf showshare \- Show the definition of a registry share\&.
+net [rpc] conf showshare \- Show the definition of a registry share\&.
 .RE
 .RS 4
-net conf addshare \- Create a new registry share\&.
+net [rpc] conf addshare \- Create a new registry share\&.
 .RE
 .RS 4
-net conf delshare \- Delete a registry share\&.
+net [rpc] conf delshare \- Delete a registry share\&.
 .RE
 .RS 4
-net conf setparm \- Store a parameter\&.
+net [rpc] conf setparm \- Store a parameter\&.
 .RE
 .RS 4
-net conf getparm \- Retrieve the value of a parameter\&.
+net [rpc] conf getparm \- Retrieve the value of a parameter\&.
 .RE
 .RS 4
-net conf delparm \- Delete a parameter\&.
+net [rpc] conf delparm \- Delete a parameter\&.
 .RE
 .RS 4
-net conf getincludes \- Show the includes of a share definition\&.
+net [rpc] conf getincludes \- Show the includes of a share definition\&.
 .RE
 .RS 4
-net conf setincludes \- Set includes for a share\&.
+net [rpc] conf setincludes \- Set includes for a share\&.
 .RE
 .RS 4
-net conf delincludes \- Delete includes from a share definition\&.
+net [rpc] conf delincludes \- Delete includes from a share definition\&.
 .RE
-.SS "CONF LIST"
+.SS "[RPC] CONF LIST"
 .PP
 Print the configuration data stored in the registry in a smb\&.conf\-like format to standard output\&.
-.SS "CONF IMPORT [--test|-T] filename [section]"
+.SS "[RPC] CONF IMPORT [--test|-T] filename [section]"
 .PP
 This command imports configuration from a file in smb\&.conf format\&. If a section encountered in the input file is present in registry, its contents is replaced\&. Sections of registry configuration that have no counterpart in the input file are not affected\&. If you want to delete these, you will have to use the "net conf drop" or "net conf delshare" commands\&. Optionally, a section may be specified to restrict the effect of the import command to that specific section\&. A test mode is enabled by specifying the parameter "\-T" on the commandline\&. In test mode, no changes are made to the registry, and the resulting configuration is printed to standard output instead\&.
-.SS "CONF LISTSHARES"
+.SS "[RPC] CONF LISTSHARES"
 .PP
 List the names of the shares defined in registry\&.
-.SS "CONF DROP"
+.SS "[RPC] CONF DROP"
 .PP
 Delete the complete configuration data from registry\&.
-.SS "CONF SHOWSHARE sharename"
+.SS "[RPC] CONF SHOWSHARE sharename"
 .PP
 Show the definition of the share or section specified\&. It is valid to specify "global" as sharename to retrieve the global configuration options from registry\&.
-.SS "CONF ADDSHARE sharename path [writeable={y|N} [guest_ok={y|N} [comment]]] "
+.SS "[RPC] CONF ADDSHARE sharename path [writeable={y|N} [guest_ok={y|N} [comment]]] "
 .PP
 Create a new share definition in registry\&. The sharename and path have to be given\&. The share name may
 \fInot\fR
 be "global"\&. Optionally, values for the very common options "writeable", "guest ok" and a "comment" may be specified\&. The same result may be obtained by a sequence of "net conf setparm" commands\&.
-.SS "CONF DELSHARE sharename"
+.SS "[RPC] CONF DELSHARE sharename"
 .PP
 Delete a share definition from registry\&.
-.SS "CONF SETPARM section parameter value"
+.SS "[RPC] CONF SETPARM section parameter value"
 .PP
 Store a parameter in registry\&. The section may be global or a sharename\&. The section is created if it does not exist yet\&.
-.SS "CONF GETPARM section parameter"
+.SS "[RPC] CONF GETPARM section parameter"
 .PP
 Show a parameter stored in registry\&.
-.SS "CONF DELPARM section parameter"
+.SS "[RPC] CONF DELPARM section parameter"
 .PP
 Delete a parameter stored in registry\&.
-.SS "CONF GETINCLUDES section"
+.SS "[RPC] CONF GETINCLUDES section"
 .PP
 Get the list of includes for the provided section (global or share)\&.
 .PP
 Note that due to the nature of the registry database and the nature of include directives, the includes need special treatment: Parameters are stored in registry by the parameter name as valuename, so there is only ever one instance of a parameter per share\&. Also, a specific order like in a text file is not guaranteed\&. For all real parameters, this is perfectly ok, but the include directive is rather a meta parameter, for which, in the smb\&.conf text file, the place where it is specified between the other parameters is very important\&. This can not be achieved by the simple registry smbconf data model, so there is one ordered list of includes per share, and this list is evaluated after all the parameters of the share\&.
 .PP
 Further note that currently, only files can be included from registry configuration\&. In the future, there will be the ability to include configuration data from other registry keys\&.
-.SS "CONF SETINCLUDES section [filename]+"
+.SS "[RPC] CONF SETINCLUDES section [filename]+"
 .PP
 Set the list of includes for the provided section (global or share) to the given list of one or more filenames\&. The filenames may contain the usual smb\&.conf macros like %I\&.
-.SS "CONF DELINCLUDES section"
+.SS "[RPC] CONF DELINCLUDES section"
 .PP
 Delete the list of includes from the provided section (global or share)\&.
 .SS "REGISTRY"
@@ -1159,6 +1156,9 @@ net registry export      \- Export a registration entries (\&.reg) file\&.
 .RE
 .RS 4
 net registry convert     \- Convert a registration entries (\&.reg) file\&.
+.RE
+.RS 4
+net registry check       \- Check and reapair a registry database\&.
 .RE
 .SS "REGISTRY ENUMERATE key "
 .PP
@@ -1243,10 +1243,65 @@ Set the security descriptor of the given
 \fIkey\fR
 from a Security Descriptor Definition Language (SDDL) string
 \fIsd\fR\&.
-.SS "REGISTRY IMPORT file[opt]"
+.SS "REGISTRY IMPORT file [--precheck <check-file>] [opt]"
 .PP
 Import a registration entries (\&.reg)
 \fIfile\fR\&.
+.PP
+The following options are available:
+.PP
+\-\-precheck \fIcheck\-file\fR
+.RS 4
+This is a mechanism to check the existence or non\-existence of certain keys or values specified in a precheck file before applying the import file\&. The import file will only be applied if the precheck succeeds\&.
+.sp
+The check\-file follows the normal registry file syntax with the following semantics:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+<value name>=<value> checks whether the value exists and has the given value\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+<value name>=\- checks whether the value does not exist\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+[key] checks whether the key exists\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+[\-key] checks whether the key does not exist\&.
+.RE
+.sp
+.RE
+.RE
 .SS "REGISTRY EXPORT keyfile[opt]"
 .PP
 Export a
@@ -1257,6 +1312,57 @@ to a registration entries (\&.reg)
 .PP
 Convert a registration entries (\&.reg) file
 \fIin\fR\&.
+.SS "REGISTRY CHECK [-ravTl] [-o <ODB>] [--wipe] [<DB>]"
+.PP
+Check and repair the registry database\&. If no option is given a read only check of the database is done\&. Among others an interactive or automatic repair mode may be chosen with one of the following options
+.PP
+\-r|\-\-repair
+.RS 4
+Interactive repair mode, ask a lot of questions\&.
+.RE
+.PP
+\-a|\-\-auto
+.RS 4
+Noninteractive repair mode, use default answers\&.
+.RE
+.PP
+\-v|\-\-verbose
+.RS 4
+Produce more output\&.
+.RE
+.PP
+\-T|\-\-test
+.RS 4
+Dry run, show what changes would be made but don\*(Aqt touch anything\&.
+.RE
+.PP
+\-l|\-\-lock
+.RS 4
+Lock the database while doing the check\&.
+.RE
+.PP
+\-\-reg\-version={1,2,3}
+.RS 4
+Specify the format of the registry database\&. If not given it defaults to the value of the binary or, if an registry\&.tdb is explizitly stated at the commandline, to the value found in the INFO/version record\&.
+.RE
+.PP
+[\-\-db] <DB>
+.RS 4
+Check the specified database\&.
+.RE
+.PP
+\-o|\-\-output <ODB>
+.RS 4
+Create a new registry database <ODB> instead of modifying the input\&. If <ODB> is already existing \-\-wipe may be used to overwrite it\&.
+.RE
+.PP
+\-\-wipe
+.RS 4
+Replace the registry database instead of modifying the input or overwrite an existing output database\&.
+.RE
+.PP
+.RS 4
+.RE
 .SS "EVENTLOG"
 .PP
 Starting with version 3\&.4\&.0 net can read, dump, import and export native win32 eventlog files (usually *\&.evt)\&. evt files are used by the native Windows eventviewer tools\&.

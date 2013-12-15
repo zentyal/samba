@@ -37,23 +37,11 @@ interface wbint
 	[out] dom_sid *sid
 	);
 
-    NTSTATUS wbint_Sid2Uid(
-	[in,unique,string,charset(UTF8)] char *dom_name,
-	[in] dom_sid *sid,
-	[out] hyper *uid
-	);
-
-    NTSTATUS wbint_Sid2Gid(
-	[in,unique,string,charset(UTF8)] char *dom_name,
-	[in] dom_sid *sid,
-	[out] hyper *gid
-	);
-
     typedef struct {
 	id_type type;
 	uint32 domain_index;
 	uint32 rid;
-	hyper unix_id;
+	unixid xid;
     } wbint_TransID;
 
     typedef struct {
@@ -177,5 +165,6 @@ interface wbint
 	);
 
     NTSTATUS wbint_PingDc(
+	[out,string,charset(UTF8)] char **dcname
 	);
 }

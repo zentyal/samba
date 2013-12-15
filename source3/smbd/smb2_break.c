@@ -38,7 +38,6 @@ NTSTATUS smbd_smb2_request_process_break(struct smbd_smb2_request *req)
 {
 	NTSTATUS status;
 	const uint8_t *inbody;
-	int i = req->current_idx;
 	uint8_t in_oplock_level;
 	uint64_t in_file_id_persistent;
 	uint64_t in_file_id_volatile;
@@ -49,7 +48,7 @@ NTSTATUS smbd_smb2_request_process_break(struct smbd_smb2_request *req)
 	if (!NT_STATUS_IS_OK(status)) {
 		return smbd_smb2_request_error(req, status);
 	}
-	inbody = (const uint8_t *)req->in.vector[i+1].iov_base;
+	inbody = SMBD_SMB2_IN_BODY_PTR(req);
 
 	in_oplock_level		= CVAL(inbody, 0x02);
 
@@ -68,14 +67,14 @@ NTSTATUS smbd_smb2_request_process_break(struct smbd_smb2_request *req)
 		return smbd_smb2_request_error(req, NT_STATUS_FILE_CLOSED);
 	}
 
-	subreq = smbd_smb2_oplock_break_send(req, req->sconn->smb2.event_ctx,
+	subreq = smbd_smb2_oplock_break_send(req, req->sconn->ev_ctx,
 					     req, in_fsp, in_oplock_level);
 	if (subreq == NULL) {
 		return smbd_smb2_request_error(req, NT_STATUS_NO_MEMORY);
 	}
 	tevent_req_set_callback(subreq, smbd_smb2_request_oplock_break_done, req);
 
-	return smbd_smb2_request_pending_queue(req, subreq);
+	return smbd_smb2_request_pending_queue(req, subreq, 500);
 }
 
 static void smbd_smb2_request_oplock_break_done(struct tevent_req *subreq)
@@ -83,7 +82,6 @@ static void smbd_smb2_request_oplock_break_done(struct tevent_req *subreq)
 	struct smbd_smb2_request *req = tevent_req_callback_data(subreq,
 					struct smbd_smb2_request);
 	const uint8_t *inbody;
-	int i = req->current_idx;
 	uint64_t in_file_id_persistent;
 	uint64_t in_file_id_volatile;
 	uint8_t out_oplock_level = 0;
@@ -103,7 +101,7 @@ static void smbd_smb2_request_oplock_break_done(struct tevent_req *subreq)
 		return;
 	}
 
-	inbody = (const uint8_t *)req->in.vector[i+1].iov_base;
+	inbody = SMBD_SMB2_IN_BODY_PTR(req);
 
 	in_file_id_persistent	= BVAL(inbody, 0x08);
 	in_file_id_volatile	= BVAL(inbody, 0x10);
@@ -163,9 +161,9 @@ static struct tevent_req *smbd_smb2_oplock_break_send(TALLOC_CTX *mem_ctx,
 	state->smb2req = smb2req;
 	state->out_oplock_level = SMB2_OPLOCK_LEVEL_NONE;
 
-	DEBUG(10,("smbd_smb2_oplock_break_send: %s - fnum[%d] "
+	DEBUG(10,("smbd_smb2_oplock_break_send: %s - %s, "
 		  "samba level %d\n",
-		  fsp_str_dbg(fsp), fsp->fnum,
+		  fsp_str_dbg(fsp), fsp_fnum_dbg(fsp),
 		  oplocklevel));
 
 	smbreq = smbd_smb2_fake_smb_request(smb2req);
@@ -174,10 +172,10 @@ static struct tevent_req *smbd_smb2_oplock_break_send(TALLOC_CTX *mem_ctx,
 	}
 
 	DEBUG(5,("smbd_smb2_oplock_break_send: got SMB2 oplock break (%u) from client "
-		"for file %s fnum = %d\n",
+		"for file %s, %s\n",
 		(unsigned int)in_oplock_level,
 		fsp_str_dbg(fsp),
-		fsp->fnum ));
+		fsp_fnum_dbg(fsp)));
 
 	/* Are we awaiting a break message ? */
 	if (fsp->oplock_timeout == NULL) {
@@ -237,18 +235,38 @@ void send_break_message_smb2(files_struct *fsp, int level)
 				SMB2_OPLOCK_LEVEL_II :
 				SMB2_OPLOCK_LEVEL_NONE;
 	NTSTATUS status;
-	uint64_t fsp_persistent = fsp_persistent_id(fsp);
+	struct smbXsrv_session *session = NULL;
+	struct timeval tv = timeval_current();
+	NTTIME now = timeval_to_nttime(&tv);
+
+	status = smb2srv_session_lookup(fsp->conn->sconn->conn,
+					fsp->vuid,
+					now,
+					&session);
+	if (NT_STATUS_EQUAL(status, NT_STATUS_USER_SESSION_DELETED) ||
+	    (session == NULL))
+	{
+
+		DEBUG(10,("send_break_message_smb2: skip oplock break "
+			"for file %s, %s, smb2 level %u session %llu not found\n",
+			fsp_str_dbg(fsp),
+			fsp_fnum_dbg(fsp),
+			(unsigned int)smb2_oplock_level,
+			(unsigned long long)fsp->vuid));
+		return;
+	}
 
 	DEBUG(10,("send_break_message_smb2: sending oplock break "
-		"for file %s, fnum = %d, smb2 level %u\n",
+		"for file %s, %s, smb2 level %u\n",
 		fsp_str_dbg(fsp),
-		fsp->fnum,
+		fsp_fnum_dbg(fsp),
 		(unsigned int)smb2_oplock_level ));
 
 	status = smbd_smb2_send_oplock_break(fsp->conn->sconn,
-					fsp_persistent,
-					(uint64_t)fsp->fnum,
-					smb2_oplock_level);
+					     session,
+					     fsp->conn->tcon,
+					     fsp->op,
+					     smb2_oplock_level);
 	if (!NT_STATUS_IS_OK(status)) {
 		smbd_server_connection_terminate(fsp->conn->sconn,
 				 nt_errstr(status));

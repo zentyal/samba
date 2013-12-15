@@ -42,7 +42,7 @@ bool py_check_dcerpc_type(PyObject *obj, const char *module, const char *type_na
 	if (mod == NULL) {
 		PyErr_Format(PyExc_RuntimeError, "Unable to import %s to check type %s",
 			module, type_name);
-		return NULL;
+		return false;
 	}
 
 	type = (PyTypeObject *)PyObject_GetAttrString(mod, type_name);
@@ -50,7 +50,7 @@ bool py_check_dcerpc_type(PyObject *obj, const char *module, const char *type_na
 	if (type == NULL) {
 		PyErr_Format(PyExc_RuntimeError, "Unable to find type %s in module %s",
 			module, type_name);
-		return NULL;
+		return false;
 	}
 
 	ret = PyObject_TypeCheck(obj, type);
@@ -72,9 +72,9 @@ static NTSTATUS pyrpc_irpc_connect(TALLOC_CTX *mem_ctx, const char *irpc_server,
 				   struct loadparm_context *lp_ctx,
 				   struct dcerpc_binding_handle **binding_handle)
 {
-	struct messaging_context *msg;
+	struct imessaging_context *msg;
 
-	msg = messaging_client_init(mem_ctx, lpcfg_messaging_path(mem_ctx, lp_ctx), event_ctx);
+	msg = imessaging_client_init(mem_ctx, lp_ctx, event_ctx);
 	NT_STATUS_HAVE_NO_MEMORY(msg);
 
 	*binding_handle = irpc_binding_handle_by_name(mem_ctx, msg, irpc_server, table);
@@ -119,7 +119,7 @@ PyObject *py_dcerpc_interface_init_helper(PyTypeObject *type, PyObject *args, Py
 		return NULL;
 	}
 
-	status = dcerpc_init(lp_ctx);
+	status = dcerpc_init();
 	if (!NT_STATUS_IS_OK(status)) {
 		PyErr_SetNTSTATUS(status);
 		talloc_free(mem_ctx);
@@ -298,7 +298,7 @@ PyObject *py_return_ndr_struct(const char *module_name, const char *type_name,
 		return NULL;
 	}
 
-	return py_talloc_reference_ex(py_type, r_ctx, r);
+	return pytalloc_reference_ex(py_type, r_ctx, r);
 }
 
 PyObject *PyString_FromStringOrNULL(const char *str)

@@ -2,12 +2,12 @@
 .\"     Title: samba
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 09/18/2013
+.\"      Date: 12/06/2013
 .\"    Manual: Miscellanea
-.\"    Source: Samba 3.6
+.\"    Source: Samba 4.0
 .\"  Language: English
 .\"
-.TH "SAMBA" "7" "09/18/2013" "Samba 3\&.6" "Miscellanea"
+.TH "SAMBA" "7" "12/06/2013" "Samba 4\&.0" "Miscellanea"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -28,21 +28,29 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-samba \- A Windows SMB/CIFS fileserver for UNIX
+samba \- A Windows AD and SMB/CIFS fileserver for UNIX
 .SH "SYNOPSIS"
 .HP \w'\ 'u
 samba
 .SH "DESCRIPTION"
 .PP
-The Samba software suite is a collection of programs that implements the Server Message Block (commonly abbreviated as SMB) protocol for UNIX systems\&. This protocol is sometimes also referred to as the Common Internet File System (CIFS)\&. For a more thorough description, see
+The Samba software suite is a collection of programs that implements the Server Message Block (commonly abbreviated as SMB) protocol for UNIX systems and provides Active Directory services\&. This protocol is sometimes also referred to as the Common Internet File System (CIFS)\&. For a more thorough description, see
 http://www\&.ubiqx\&.org/cifs/\&. Samba also implements the NetBIOS protocol in nmbd\&.
+.PP
+\fBsamba\fR(8)
+.RS 4
+The
+samba
+daemon provides the Active Directory services and file and print services to SMB clients\&. The configuration file for this daemon is described in
+\fBsmb.conf\fR(5)\&.
+.RE
 .PP
 \fBsmbd\fR(8)
 .RS 4
 The
 smbd
 daemon provides the file and print services to SMB clients, such as Windows 95/98, Windows NT, Windows for Workgroups or LanManager\&. The configuration file for this daemon is described in
-\fBsmb.conf\fR(5)
+\fBsmb.conf\fR(5)\&.
 .RE
 .PP
 \fBnmbd\fR(8)
@@ -50,7 +58,13 @@ daemon provides the file and print services to SMB clients, such as Windows 95/9
 The
 nmbd
 daemon provides NetBIOS nameservice and browsing support\&. The configuration file for this daemon is described in
-\fBsmb.conf\fR(5)
+\fBsmb.conf\fR(5)\&.
+.RE
+.PP
+\fBwinbindd\fR(8)
+.RS 4
+winbindd
+is a daemon that is used for integrating authentication and the user database into unix\&.
 .RE
 .PP
 \fBsmbclient\fR(1)
@@ -60,6 +74,13 @@ smbclient
 program implements a simple ftp\-like client\&. This is useful for accessing SMB shares on other compatible servers (such as Windows NT), and can also be used to allow a UNIX box to print to a printer attached to any SMB server (such as a PC running Windows NT)\&.
 .RE
 .PP
+\fBsamba-tool\fR(8)
+.RS 4
+The
+samba\-tool
+is the main Samba Administration tool regarding Acitive Directory services\&.
+.RE
+.PP
 \fBtestparm\fR(1)
 .RS 4
 The
@@ -67,15 +88,6 @@ testparm
 utility is a simple syntax checker for Samba\*(Aqs
 \fBsmb.conf\fR(5)
 configuration file\&.
-.RE
-.PP
-\fBtestprns\fR(1)
-.RS 4
-The
-testprns
-utility supports testing printer names defined in your
-printcap
-file used by Samba\&.
 .RE
 .PP
 \fBsmbstatus\fR(1)
@@ -107,13 +119,6 @@ smbcacls
 command is a tool to set ACL\*(Aqs on remote CIFS servers\&.
 .RE
 .PP
-\fBsmbsh\fR(1)
-.RS 4
-The
-smbsh
-command is a program that allows you to run a unix shell with with an overloaded VFS\&.
-.RE
-.PP
 \fBsmbtree\fR(1)
 .RS 4
 The
@@ -137,7 +142,12 @@ is a helper utility for printing on printers connected to CIFS servers\&.
 \fBsmbcontrol\fR(1)
 .RS 4
 smbcontrol
-is a utility that can change the behaviour of running samba daemons\&.
+is a utility that can change the behaviour of running
+smbd,
+nmbd
+and
+winbindd
+daemons\&.
 .RE
 .PP
 \fBrpcclient\fR(1)
@@ -174,12 +184,6 @@ is a web\-based interface to configuring
 smb\&.conf\&.
 .RE
 .PP
-\fBwinbindd\fR(8)
-.RS 4
-winbindd
-is a daemon that is used for integrating authentication and the user database into unix\&.
-.RE
-.PP
 \fBwbinfo\fR(1)
 .RS 4
 wbinfo
@@ -210,14 +214,6 @@ ntlm_auth
 is a helper\-utility for external programs wanting to do NTLM\-authentication\&.
 .RE
 .PP
-\fBsmbmount\fR(8), \fBsmbumount\fR(8), \fBsmbmnt\fR(8)
-.RS 4
-smbmount,smbumount
-and
-smbmnt
-are commands that can be used to mount CIFS/SMB shares on Linux\&.
-.RE
-.PP
 \fBsmbcquotas\fR(1)
 .RS 4
 smbcquotas
@@ -246,7 +242,7 @@ If you have access to a WWW viewer (such as Mozilla or Konqueror) then you will 
 http://lists\&.samba\&.org\&.
 .SH "VERSION"
 .PP
-This man page is correct for version 3 of the Samba suite\&.
+This man page is correct for version 4 of the Samba suite\&.
 .SH "CONTRIBUTIONS"
 .PP
 If you wish to contribute to the Samba project, then I suggest you join the Samba mailing list at
@@ -255,15 +251,15 @@ http://lists\&.samba\&.org\&.
 If you have patches to submit, visit
 http://devel\&.samba\&.org/
 for information on how to do it properly\&. We prefer patches in
-diff \-u
+git format\-patch
 format\&.
 .SH "CONTRIBUTORS"
 .PP
 Contributors to the project are now too numerous to mention here but all deserve the thanks of all Samba users\&. To see a full list, look at the
 change\-log
 in the source package for the pre\-CVS changes and at
-http://cvs\&.samba\&.org/
-for the contributors to Samba post\-CVS\&. CVS is the Open Source source code control system used by the Samba Team to develop Samba\&. The project would have been unmanageable without it\&.
+http://git\&.samba\&.org/
+for the contributors to Samba post\-GIT\&. GIT is the Open Source source code control system used by the Samba Team to develop Samba\&. The project would have been unmanageable without it\&.
 .SH "AUTHOR"
 .PP
 The original Samba software and related utilities were created by Andrew Tridgell\&. Samba is now developed by the Samba Team as an Open Source project similar to the way the Linux kernel is developed\&.

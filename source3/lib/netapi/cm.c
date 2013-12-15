@@ -18,12 +18,13 @@
  */
 
 #include "includes.h"
-#include "popt_common.h"
+#include "auth_info.h"
 
 #include "lib/netapi/netapi.h"
 #include "lib/netapi/netapi_private.h"
 #include "libsmb/libsmb.h"
 #include "rpc_client/cli_pipe.h"
+#include "../libcli/smb/smbXcli_base.h"
 
 /********************************************************************
 ********************************************************************/
@@ -48,7 +49,9 @@ static struct client_ipc_connection *ipc_cm_find(
 	struct client_ipc_connection *p;
 
 	for (p = priv_ctx->ipc_connections; p; p = p->next) {
-		if (strequal(p->cli->desthost, server_name)) {
+		const char *remote_name = smbXcli_conn_remote_name(p->cli->conn);
+
+		if (strequal(remote_name, server_name)) {
 			return p;
 		}
 	}
@@ -63,15 +66,17 @@ static WERROR libnetapi_open_ipc_connection(struct libnetapi_ctx *ctx,
 					    const char *server_name,
 					    struct client_ipc_connection **pp)
 {
-	struct libnetapi_private_ctx *priv_ctx =
-		(struct libnetapi_private_ctx *)ctx->private_data;
+	struct libnetapi_private_ctx *priv_ctx;
 	struct user_auth_info *auth_info = NULL;
 	struct cli_state *cli_ipc = NULL;
 	struct client_ipc_connection *p;
+	NTSTATUS status;
 
 	if (!ctx || !pp || !server_name) {
 		return WERR_INVALID_PARAM;
 	}
+
+	priv_ctx = (struct libnetapi_private_ctx *)ctx->private_data;
 
 	p = ipc_cm_find(priv_ctx, server_name);
 	if (p) {
@@ -83,7 +88,7 @@ static WERROR libnetapi_open_ipc_connection(struct libnetapi_ctx *ctx,
 	if (!auth_info) {
 		return WERR_NOMEM;
 	}
-	auth_info->signing_state = Undefined;
+	auth_info->signing_state = SMB_SIGNING_DEFAULT;
 	set_cmdline_auth_info_use_kerberos(auth_info, ctx->use_kerberos);
 	set_cmdline_auth_info_username(auth_info, ctx->username);
 	if (ctx->password) {
@@ -102,16 +107,18 @@ static WERROR libnetapi_open_ipc_connection(struct libnetapi_ctx *ctx,
 		set_cmdline_auth_info_use_ccache(auth_info, true);
 	}
 
-	cli_ipc = cli_cm_open(ctx, NULL,
-				server_name, "IPC$",
-				auth_info,
-				false, false,
-				PROTOCOL_NT1,
-				0, 0x20);
-	if (cli_ipc) {
+	status = cli_cm_open(ctx, NULL,
+			     server_name, "IPC$",
+			     auth_info,
+			     false, false,
+			     PROTOCOL_NT1,
+			     0, 0x20, &cli_ipc);
+	if (NT_STATUS_IS_OK(status)) {
 		cli_set_username(cli_ipc, ctx->username);
 		cli_set_password(cli_ipc, ctx->password);
 		cli_set_domain(cli_ipc, ctx->workgroup);
+	} else {
+		cli_ipc = NULL;
 	}
 	TALLOC_FREE(auth_info);
 
@@ -121,7 +128,7 @@ static WERROR libnetapi_open_ipc_connection(struct libnetapi_ctx *ctx,
 		return WERR_CAN_NOT_COMPLETE;
 	}
 
-	p = TALLOC_ZERO_P(ctx, struct client_ipc_connection);
+	p = talloc_zero(ctx, struct client_ipc_connection);
 	if (p == NULL) {
 		return WERR_NOMEM;
 	}
@@ -160,12 +167,15 @@ static NTSTATUS pipe_cm_find(struct client_ipc_connection *ipc,
 	struct client_pipe_connection *p;
 
 	for (p = ipc->pipe_connections; p; p = p->next) {
+		const char *ipc_remote_name;
 
 		if (!rpc_pipe_np_smb_conn(p->pipe)) {
 			return NT_STATUS_PIPE_EMPTY;
 		}
 
-		if (strequal(ipc->cli->desthost, p->pipe->desthost)
+		ipc_remote_name = smbXcli_conn_remote_name(ipc->cli->conn);
+
+		if (strequal(ipc_remote_name, p->pipe->desthost)
 		    && ndr_syntax_id_equal(&p->pipe->abstract_syntax,
 					   interface)) {
 			*presult = p->pipe;
@@ -187,7 +197,7 @@ static NTSTATUS pipe_cm_connect(TALLOC_CTX *mem_ctx,
 	struct client_pipe_connection *p;
 	NTSTATUS status;
 
-	p = TALLOC_ZERO_ARRAY(mem_ctx, struct client_pipe_connection, 1);
+	p = talloc_zero_array(mem_ctx, struct client_pipe_connection, 1);
 	if (!p) {
 		return NT_STATUS_NO_MEMORY;
 	}

@@ -37,6 +37,7 @@
 #include "param/param.h"
 #include "../lib/tsocket/tsocket.h"
 #include "libds/common/flag_mapping.h"
+#include "lib/util/util_net.h"
 
 /*
   fill in the cldap netlogon union for a given version
@@ -72,7 +73,7 @@ NTSTATUS fill_netlogon_samlogon_response(struct ldb_context *sam_ctx,
 	const char *pdc_ip;
 	struct ldb_dn *domain_dn = NULL;
 	struct interface *ifaces;
-	bool user_known, am_rodc;
+	bool user_known = false, am_rodc = false;
 	NTSTATUS status;
 
 	/* the domain parameter could have an optional trailing "." */
@@ -133,22 +134,11 @@ NTSTATUS fill_netlogon_samlogon_response(struct ldb_context *sam_ctx,
 						 "(&(objectCategory=DomainDNS)(objectGUID=%s))", 
 						 ldb_binary_encode(mem_ctx, guid_val));
 		} else { /* domain_sid case */
-			struct dom_sid *sid;
-			struct ldb_val sid_val;
-			enum ndr_err_code ndr_err;
-			
-			/* Rather than go via the string, just push into the NDR form */
-			ndr_err = ndr_push_struct_blob(&sid_val, mem_ctx, &sid,
-						       (ndr_push_flags_fn_t)ndr_push_dom_sid);
-			if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-				return NT_STATUS_INVALID_PARAMETER;
-			}
-
 			ret = ldb_search(sam_ctx, mem_ctx, &dom_res,
-						 NULL, LDB_SCOPE_SUBTREE, 
-						 dom_attrs, 
-						 "(&(objectCategory=DomainDNS)(objectSid=%s))",
-						 ldb_binary_encode(mem_ctx, sid_val));
+					 NULL, LDB_SCOPE_SUBTREE,
+					 dom_attrs,
+					 "(&(objectCategory=DomainDNS)(objectSid=%s))",
+					 dom_sid_string(mem_ctx, domain_sid));
 		}
 		
 		if (ret != LDB_SUCCESS) {
@@ -231,23 +221,11 @@ NTSTATUS fill_netlogon_samlogon_response(struct ldb_context *sam_ctx,
 	} else {
 		user_known = true;
 	}
-		
-	server_type      = 
-		DS_SERVER_DS | DS_SERVER_TIMESERV |
-		DS_SERVER_CLOSEST |
-		DS_SERVER_GOOD_TIMESERV;
 
-#if 0
-	/* w2k8-r2 as a DC does not claim these */
-	server_type |= DS_DNS_CONTROLLER | DS_DNS_DOMAIN;
-#endif
+	server_type = DS_SERVER_DS;
 
 	if (samdb_is_pdc(sam_ctx)) {
 		server_type |= DS_SERVER_PDC;
-	}
-
-	if (dsdb_functional_level(sam_ctx) >= DS_DOMAIN_FUNCTION_2008) {
-		server_type |= DS_SERVER_FULL_SECRET_DOMAIN_6;
 	}
 
 	if (samdb_is_gc(sam_ctx)) {
@@ -262,20 +240,29 @@ NTSTATUS fill_netlogon_samlogon_response(struct ldb_context *sam_ctx,
 		server_type |= DS_SERVER_KDC;
 	}
 
+	if (str_list_check(services, "ntp_signd")) {
+		server_type |= DS_SERVER_TIMESERV | DS_SERVER_GOOD_TIMESERV;
+	}
+
 	if (samdb_rodc(sam_ctx, &am_rodc) == LDB_SUCCESS && !am_rodc) {
 		server_type |= DS_SERVER_WRITABLE;
 	}
 
-#if 0
-	/* w2k8-r2 as a sole DC does not claim this */
-	if (ldb_dn_compare(ldb_get_root_basedn(sam_ctx), ldb_get_default_basedn(sam_ctx)) == 0) {
-		server_type |= DS_DNS_FOREST_ROOT;
+	if (dsdb_functional_level(sam_ctx) >= DS_DOMAIN_FUNCTION_2008) {
+		if (server_type & DS_SERVER_WRITABLE) {
+			server_type |= DS_SERVER_FULL_SECRET_DOMAIN_6;
+		} else {
+			server_type |= DS_SERVER_SELECT_SECRET_DOMAIN_6;
+		}
 	}
-#endif
 
-	pdc_name         = talloc_asprintf(mem_ctx, "\\\\%s",
+	if (version & (NETLOGON_NT_VERSION_5EX|NETLOGON_NT_VERSION_5EX_WITH_IP)) {
+		pdc_name = lpcfg_netbios_name(lp_ctx);
+	} else {
+		pdc_name = talloc_asprintf(mem_ctx, "\\\\%s",
 					   lpcfg_netbios_name(lp_ctx));
-	NT_STATUS_HAVE_NO_MEMORY(pdc_name);
+		NT_STATUS_HAVE_NO_MEMORY(pdc_name);
+	}
 	domain_uuid      = samdb_result_guid(dom_res->msgs[0], "objectGUID");
 	dns_domain       = lpcfg_dnsdomain(lp_ctx);
 	forest_domain    = samdb_forest_name(sam_ctx, mem_ctx);
@@ -286,22 +273,27 @@ NTSTATUS fill_netlogon_samlogon_response(struct ldb_context *sam_ctx,
 					   dns_domain);
 	NT_STATUS_HAVE_NO_MEMORY(pdc_dns_name);
 	flatname         = lpcfg_workgroup(lp_ctx);
+
 	server_site      = samdb_server_site_name(sam_ctx, mem_ctx);
 	NT_STATUS_HAVE_NO_MEMORY(server_site);
 	client_site      = samdb_client_site_name(sam_ctx, mem_ctx,
 						  src_address, NULL);
 	NT_STATUS_HAVE_NO_MEMORY(client_site);
-	load_interfaces(mem_ctx, lpcfg_interfaces(lp_ctx), &ifaces);
-	/*
-	 * TODO: the caller should pass the address which the client
-	 * used to trigger this call, as the client is able to reach
-	 * this ip.
-	 */
-	if (src_address) {
-		pdc_ip = iface_best_ip(ifaces, src_address);
-	} else {
-		pdc_ip = iface_n_ip(ifaces, 0);
+	if (strcasecmp(server_site, client_site) == 0) {
+		server_type |= DS_SERVER_CLOSEST;
 	}
+
+	load_interface_list(mem_ctx, lp_ctx, &ifaces);
+	if (src_address) {
+		pdc_ip = iface_list_best_ip(ifaces, src_address);
+	} else {
+		pdc_ip = iface_list_first_v4(ifaces);
+	}
+	if (pdc_ip == NULL || !is_ipaddress_v4(pdc_ip)) {
+		/* this matches windows behaviour */
+		pdc_ip = "127.0.0.1";
+	}
+
 	ZERO_STRUCTP(netlogon);
 
 	/* check if either of these bits is present */
@@ -325,7 +317,7 @@ NTSTATUS fill_netlogon_samlogon_response(struct ldb_context *sam_ctx,
 		netlogon->data.nt5_ex.server_site  = server_site;
 		netlogon->data.nt5_ex.client_site  = client_site;
 		if (version & NETLOGON_NT_VERSION_5EX_WITH_IP) {
-			/* Clearly this needs to be fixed up for IPv6 */
+			/* note that this is always a IPV4 address */
 			extra_flags = NETLOGON_NT_VERSION_5EX_WITH_IP;
 			netlogon->data.nt5_ex.sockaddr.sockaddr_family    = 2;
 			netlogon->data.nt5_ex.sockaddr.pdc_ip       = pdc_ip;

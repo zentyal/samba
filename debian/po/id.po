@@ -1,32 +1,152 @@
 # translation of samba_po-id.po to Bahasa Indonesia
-# Copyright (C) 2007 Software in the Public Interest, SPI Inc.
-# This file is distributed under the same license as the analog package.
-# proyek penerjemahan Bahasa Indonesia.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
 #
-# Sebelum menerjemahkan silakan melihat-lihat ke:
-# - /usr/share/doc/po-debconf/README-trans atau
-#   http://www.debian.org/intl/l10n/po-debconf/README-trans
-# - http://www.debian.org/international/l10n/po-debconf/id
-# Silakan menghubungi tim penerjemah Debian Indonesia bila ada pertanyaan,
-# kritik, dan saran ke debian-l10n-indonesian@lists.debian.org.
-#
-# Translators:
 # Arief S Fitrianto <arief@gurame.fisika.ui.ac.id>, 2008.
+# Mahyuddin Susanto <udienz@gmail.com>, 2012.
+# Al Qalit <qal.smith@gmail.com>, 2013.
+#
 msgid ""
 msgstr ""
-"Project-Id-Version: samba 2:3.6.3-1\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2013-05-13 11:53-0700\n"
-"PO-Revision-Date: 2012-02-18 10:57+0700\n"
-"Last-Translator: Mahyuddin Susanto <udienz@ubuntu.com>\n"
-"Language-Team: Debian Indonesia Translators <debian-l10n-indonesian@lists."
+"Project-Id-Version: samba_4.0.0~alpha17.dfsg2-2\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2013-10-22 20:32+0200\n"
+"PO-Revision-Date: 2012-02-16 04:48+0700\n"
+"Last-Translator: Al Qalit <qal.smith@gmail.com>\n"
+"Language-Team: Debian Indonesia Translator <debian-l10n-indonesian@lists."
 "debian.org>\n"
-"Language: id\n"
+"Language: \n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Poedit-Language: Indonesian\n"
-"X-Poedit-Country: INDONESIA\n"
+"X-Generator: KBabel 1.11.4\n"
+"Plural-Forms: nplural=1, plural>1\n"
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid "Upgrade from Samba 3?"
+msgstr "Upgrade dari Samba 3?"
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid ""
+"It is possible to migrate the existing configuration files from Samba 3 to "
+"Samba 4. This is likely to fail for complex setups, but should provide a "
+"good starting point for most existing installations."
+msgstr ""
+"Sangat memungkinkan untuk migrasi dari berkas pengaturan lama dari Samba 3 "
+"ke Samba4.  Hal ini mungkin gagal untuk instalasi kompleks, tetapi "
+"memberikan titik awal yang baik untuk kebanyakan instalasi yang ada."
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid "Server role"
+msgstr "Aturan server"
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Domain controllers manage NT4-style or Active Directory domains and provide "
+"services such as identity management and domain logons. Each domain needs to "
+"have a at least one domain controller."
+msgstr ""
+"Pengelola kontroller domain gaya-NT4 atau Active Domain dan penyedia layanan "
+"seperti pengelola identitas dan login domain. Setiap domain harus memiliki "
+"setidaknya satu kontroller domain"
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Member servers can be part of a NT4-style or Active Directory domain but do "
+"not provide any domain services. Workstations and file or print servers are "
+"usually regular domain members."
+msgstr ""
+"Anggota server dapat menjadi bagian dari gaya-NT4 atau domain Active "
+"Directory tapi tidak menyediakan layanan domain apapun. Workstation dan "
+"berkas atau server pencetak biasanya aggota domain biasa."
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"A standalone server can not be used in a domain and only supports file "
+"sharing and Windows for Workgroups-style logins."
+msgstr ""
+"Server standalone tidak dapat digunakan di domain dan hanya mendukung "
+"sharing berkas dan login Windows untuk gaya-Workgroups."
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"If no server role is specified, the Samba server will not be provisioned, so "
+"this can be done manually by the user."
+msgstr ""
+"Jika tidak ada aturan server yang ditentukan. Server Samba tidak akan "
+"ditetapkan, jadiini bisa dikerjakan secara manual oleh pengguna."
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Realm name:"
+msgstr "Nama Realm:"
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid ""
+"Please specify the Kerberos realm for the domain that this domain controller "
+"controls."
+msgstr ""
+"Silakan tentukan realm Kerberos untuk domain yang dikendalikan oleh "
+"kontroller domain ini."
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Usually this is the a capitalized version of your DNS hostname."
+msgstr "Biasanya ini adalah versi huruf besar dari nama DNS host anda."
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "New password for the Samba \"administrator\" user:"
+msgstr "Kata sandi baru untuk pengguna \"administrator\" Samba:"
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "If this field is left blank, a random password will be generated."
+msgstr "Jika bagian ini kosong, sebuah kata sandi acak akan dihasilkan"
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "A password can be set later by running, as root:"
+msgstr "Kata sandi dapat diatur kemudian, dengan dijalankan oleh root:"
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:5001
+msgid "Repeat password for the Samba \"administrator\" user:"
+msgstr "Ulangi kata sandi untuk pengguna \"administrator\" Samba:"
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "Password input error"
+msgstr "Kesalahan masukan kata sandi"
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr "Dua kata sandi yang anda masukkan tidak sama. Mohon ulangi lagi."
 
 #. Type: title
 #. Description
@@ -119,35 +239,91 @@ msgstr ""
 "digunakan ketika menjelajahi dengan berbagai frontends, dan nama doman "
 "digunakan dengan pengaturan \"security=domain\"."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Gunakan enkripsi sandi?"
+#~ msgid " $ samba-tool user setpassword administrator"
+#~ msgstr " $ samba-tool pengguna setpassword administrator"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Semua klien Windows terbaru berkomunikasi dengan server SMB/CIFS menggunakan "
-"sandi terenkripsi. Jika Anda ingin menggunakan sandi teks, Anda harus "
-"mengubah parameter tersebut dalam register Windows."
+#~ msgid "Use password encryption?"
+#~ msgstr "Gunakan enkripsi sandi?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Mengaktifkan pilihan ini sangat dianjurkan karena dukungan sandi teks sudah "
-"tidak didukung oleh produk Microsoft Windows. Jika demikian, pastikan Anda "
-"memiliki berkas valid /etc/samba/smbpasswd dan anda menentukan password "
-"disana untuk setiap pengguna menggunakan perintah smbpasswd."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Semua klien Windows terbaru berkomunikasi dengan server SMB/CIFS "
+#~ "menggunakan sandi terenkripsi. Jika Anda ingin menggunakan sandi teks, "
+#~ "Anda harus mengubah parameter tersebut dalam register Windows."
 
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Mengaktifkan pilihan ini sangat dianjurkan karena dukungan sandi teks "
+#~ "sudah tidak didukung oleh produk Microsoft Windows. Jika demikian, "
+#~ "pastikan Anda memiliki berkas valid /etc/samba/smbpasswd dan anda "
+#~ "menentukan password disana untuk setiap pengguna menggunakan perintah "
+#~ "smbpasswd."
+
+#~ msgid "Samba server"
+#~ msgstr "Server Samba"
+
+#~ msgid "daemons"
+#~ msgstr "server"
+
+#~ msgid "inetd"
+#~ msgstr "inetd"
+
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Bagaimana Anda ingin menjalankan Samba"
+
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Server samba (smbd) dapat berjalan sebagai server normal (daemon) atau "
+#~ "dari inetd. Sangat dianjurkan menjalankannya sebagai server normal."
+
+#~ msgid "Set up Samba 4 as a PDC?"
+#~ msgstr "Set up Samba 4 sebagai PDC?"
+
+#~ msgid ""
+#~ "Even when using this option, you will need to set up DNS such that it "
+#~ "serves the data from the zone file in that directory before you can use "
+#~ "the Active Directory domain."
+#~ msgstr ""
+#~ "Bahkan ketika menggunakan opsi ini, anda harus mengatur DNS sedemikian "
+#~ "rupa sehingga melayani data dari berkas zona dalam direktori tersebut "
+#~ "sebelum Anda dapat menggunakan domain Active Directory."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "Buat basis data sandi samba dalam /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "Agar kompatibel dengan semua versi Windows, Samba harus dikonfigurasi "
+#~ "untuk menggunakan sandi terenkripsi. Hal ini mengharuskan sandi pengguna "
+#~ "disimpan dalam berkas selain /etc/passwd. Berkas ini dapat dibuat "
+#~ "otomatis, tetapi kata sandi harus ditambahkan secara manual dengan "
+#~ "menjalankan perintah smbpasswd dan diperbaharui setiap ada perubahan "
+#~ "pengguna."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "Jika Anda tidak membuatnya, Anda harus mengonfigurasi ulang Samba (dan "
+#~ "juga komputer klien) untuk menggunakan sandi teks-murni."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Lihat /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html dalam paket samba-doc."

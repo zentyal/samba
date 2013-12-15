@@ -22,7 +22,8 @@
 #include "includes.h"
 #include "system/filesys.h"
 #include "passdb.h"
-#include "dbwrap.h"
+#include "dbwrap/dbwrap.h"
+#include "dbwrap/dbwrap_open.h"
 #include "../libcli/security/security.h"
 #include "lib/privileges.h"
 
@@ -88,22 +89,21 @@ static const struct ap_table account_policy_names[] = {
 	{0, NULL, 0, "", NULL}
 };
 
-void account_policy_names_list(const char ***names, int *num_names)
+void account_policy_names_list(TALLOC_CTX *mem_ctx, const char ***names, int *num_names)
 {
 	const char **nl;
-	int i, count;
+	int i, count = ARRAY_SIZE(account_policy_names);
 
-	for (count=0; account_policy_names[count].string; count++) {
-	}
-	nl = SMB_MALLOC_ARRAY(const char *, count);
+	nl = talloc_array(mem_ctx, const char *, count);
 	if (!nl) {
 		*num_names = 0;
 		return;
 	}
-	for (i=0; account_policy_names[i].string; i++) {
+	for (i=0; i<count; i++) {
 		nl[i] = account_policy_names[i].string;
 	}
-	*num_names = count;
+	/* Do not return the last null entry */
+	*num_names = count-1;
 	*names = nl;
 	return;
 }
@@ -211,53 +211,66 @@ bool init_account_policy(void)
 {
 
 	const char *vstring = "INFO/version";
-	uint32 version;
+	uint32_t version = 0;
 	int i;
+	NTSTATUS status;
 
 	if (db != NULL) {
 		return True;
 	}
 
 	db = db_open(NULL, state_path("account_policy.tdb"), 0, TDB_DEFAULT,
-		     O_RDWR, 0600);
+		     O_RDWR, 0600, DBWRAP_LOCK_ORDER_1);
 
 	if (db == NULL) { /* the account policies files does not exist or open
 			   * failed, try to create a new one */
 		db = db_open(NULL, state_path("account_policy.tdb"), 0,
-			     TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
+			     TDB_DEFAULT, O_RDWR|O_CREAT, 0600,
+			     DBWRAP_LOCK_ORDER_1);
 		if (db == NULL) {
 			DEBUG(0,("Failed to open account policy database\n"));
 			return False;
 		}
 	}
 
-	version = dbwrap_fetch_int32(db, vstring);
+	status = dbwrap_fetch_uint32_bystring(db, vstring, &version);
+	if (!NT_STATUS_IS_OK(status)) {
+		version = 0;
+	}
+
 	if (version == DATABASE_VERSION) {
 		return true;
 	}
 
 	/* handle a Samba upgrade */
 
-	if (db->transaction_start(db) != 0) {
+	if (dbwrap_transaction_start(db) != 0) {
 		DEBUG(0, ("transaction_start failed\n"));
 		TALLOC_FREE(db);
 		return false;
 	}
 
-	version = dbwrap_fetch_int32(db, vstring);
+	status = dbwrap_fetch_uint32_bystring(db, vstring, &version);
+	if (!NT_STATUS_IS_OK(status)) {
+		version = 0;
+	}
+
 	if (version == DATABASE_VERSION) {
 		/*
 		 * Race condition
 		 */
-		if (db->transaction_cancel(db)) {
+		if (dbwrap_transaction_cancel(db)) {
 			smb_panic("transaction_cancel failed");
 		}
 		return true;
 	}
 
 	if (version != DATABASE_VERSION) {
-		if (dbwrap_store_uint32(db, vstring, DATABASE_VERSION) != 0) {
-			DEBUG(0, ("dbwrap_store_uint32 failed\n"));
+		status = dbwrap_store_uint32_bystring(db, vstring,
+						      DATABASE_VERSION);
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(0, ("dbwrap_store_uint32 failed: %s\n",
+				  nt_errstr(status)));
 			goto cancel;
 		}
 
@@ -287,7 +300,7 @@ bool init_account_policy(void)
 		}
 	}
 
-	if (db->transaction_commit(db) != 0) {
+	if (dbwrap_transaction_commit(db) != 0) {
 		DEBUG(0, ("transaction_commit failed\n"));
 		TALLOC_FREE(db);
 		return false;
@@ -296,7 +309,7 @@ bool init_account_policy(void)
 	return True;
 
  cancel:
-	if (db->transaction_cancel(db)) {
+	if (dbwrap_transaction_cancel(db)) {
 		smb_panic("transaction_cancel failed");
 	}
 	TALLOC_FREE(db);
@@ -312,6 +325,7 @@ bool account_policy_get(enum pdb_policy_type type, uint32_t *value)
 {
 	const char *name;
 	uint32 regval;
+	NTSTATUS status;
 
 	if (!init_account_policy()) {
 		return False;
@@ -327,7 +341,8 @@ bool account_policy_get(enum pdb_policy_type type, uint32_t *value)
 		return False;
 	}
 
-	if (!dbwrap_fetch_uint32(db, name, &regval)) {
+	status = dbwrap_fetch_uint32_bystring(db, name, &regval);
+	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(1, ("account_policy_get: tdb_fetch_uint32 failed for type %d (%s), returning 0\n", type, name));
 		return False;
 	}
@@ -360,7 +375,7 @@ bool account_policy_set(enum pdb_policy_type type, uint32_t value)
 		return False;
 	}
 
-	status = dbwrap_trans_store_uint32(db, name, value);
+	status = dbwrap_trans_store_uint32_bystring(db, name, value);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(1, ("store_uint32 failed for type %d (%s) on value "
 			  "%u: %s\n", type, name, value, nt_errstr(status)));

@@ -22,12 +22,28 @@
 #ifndef __LIBCLI_SMB2_SMB2_CONSTANTS_H__
 #define __LIBCLI_SMB2_SMB2_CONSTANTS_H__
 
+/* offsets into SMB2_TRANSFORM header elements */
+#define SMB2_TF_PROTOCOL_ID	0x00 /*  4 bytes */
+#define SMB2_TF_SIGNATURE	0x04 /* 16 bytes */
+#define SMB2_TF_NONCE		0x14 /* 16 bytes */
+#define SMB2_TF_MSG_SIZE	0x24 /*  4 bytes */
+#define SMB2_TF_RESERVED	0x28 /*  2 bytes */
+#define SMB2_TF_ALGORITHM	0x2A /*  2 bytes */
+#define SMB2_TF_SESSION_ID	0x2C /*  8 bytes */
+
+#define SMB2_TF_HDR_SIZE	0x34 /* 52 bytes */
+
+#define SMB2_TF_MAGIC 0x424D53FD /* 0xFD 'S' 'M' 'B' */
+
+#define SMB2_ENCRYPTION_AES128_CCM	0x0001
+
 /* offsets into header elements for a sync SMB2 request */
 #define SMB2_HDR_PROTOCOL_ID    0x00
 #define SMB2_HDR_LENGTH		0x04
 #define SMB2_HDR_CREDIT_CHARGE	0x06
 #define SMB2_HDR_EPOCH		SMB2_HDR_CREDIT_CHARGE /* TODO: remove this */
 #define SMB2_HDR_STATUS		0x08
+#define SMB2_HDR_CHANNEL_SEQUENCE SMB2_HDR_STATUS /* in requests */
 #define SMB2_HDR_OPCODE		0x0c
 #define SMB2_HDR_CREDIT		0x0e
 #define SMB2_HDR_FLAGS		0x10
@@ -48,6 +64,7 @@
 #define SMB2_HDR_FLAG_CHAINED   0x04
 #define SMB2_HDR_FLAG_SIGNED    0x08
 #define SMB2_HDR_FLAG_DFS       0x10000000
+#define SMB2_HDR_FLAG_REPLAY_OPERATION 0x20000000
 
 /* SMB2 opcodes */
 #define SMB2_OP_NEGPROT   0x00
@@ -76,22 +93,42 @@
 #define SMB2_DIALECT_REVISION_000       0x0000 /* early beta dialect */
 #define SMB2_DIALECT_REVISION_202       0x0202
 #define SMB2_DIALECT_REVISION_210       0x0210
+#define SMB2_DIALECT_REVISION_222       0x0222
+#define SMB2_DIALECT_REVISION_224       0x0224
+#define SMB3_DIALECT_REVISION_300       0x0300
 #define SMB2_DIALECT_REVISION_2FF       0x02FF
 
 /* SMB2 negotiate security_mode */
 #define SMB2_NEGOTIATE_SIGNING_ENABLED   0x01
 #define SMB2_NEGOTIATE_SIGNING_REQUIRED  0x02
 
-/* SMB2 capabilities - only 1 so far. I'm sure more will be added */
-#define SMB2_CAP_DFS                     0x00000001
-#define SMB2_CAP_LEASING                 0x00000002 /* only in dialect 0x210 */
-#define SMB2_CAP_LARGE_MTU		 0x00000004 /* only in dialect 0x210 */
-/* so we can spot new caps as added */
-#define SMB2_CAP_ALL                     SMB2_CAP_DFS
+/* SMB2 global capabilities */
+#define SMB2_CAP_DFS			0x00000001
+#define SMB2_CAP_LEASING		0x00000002 /* only in dialect >= 0x210 */
+#define SMB2_CAP_LARGE_MTU		0x00000004 /* only in dialect >= 0x210 */
+#define SMB2_CAP_MULTI_CHANNEL		0x00000008 /* only in dialect >= 0x222 */
+#define SMB2_CAP_PERSISTENT_HANDLES	0x00000010 /* only in dialect >= 0x222 */
+#define SMB2_CAP_DIRECTORY_LEASING	0x00000020 /* only in dialect >= 0x222 */
+#define SMB2_CAP_ENCRYPTION		0x00000040 /* only in dialect >= 0x222 */
 
-/* SMB2 session flags */
+/* so we can spot new caps as added */
+#define SMB2_CAP_ALL (\
+		SMB2_CAP_DFS | \
+		SMB2_CAP_LEASING | \
+		SMB2_CAP_LARGE_MTU | \
+		SMB2_CAP_MULTI_CHANNEL | \
+		SMB2_CAP_PERSISTENT_HANDLES | \
+		SMB2_CAP_DIRECTORY_LEASING | \
+		SMB2_CAP_ENCRYPTION)
+
+
+/* SMB2 session (request) flags */
+#define SMB2_SESSION_FLAG_BINDING       0x01
+
+/* SMB2 session (response) flags */
 #define SMB2_SESSION_FLAG_IS_GUEST       0x0001
 #define SMB2_SESSION_FLAG_IS_NULL        0x0002
+#define SMB2_SESSION_FLAG_ENCRYPT_DATA   0x0004 /* in dialect >= 0x224 */
 
 /* SMB2 sharetype flags */
 #define SMB2_SHARE_TYPE_DISK		0x1
@@ -109,10 +146,17 @@
 #define SMB2_SHAREFLAG_FORCE_SHARED_DELETE               0x0200
 #define SMB2_SHAREFLAG_ALLOW_NAMESPACE_CACHING           0x0400
 #define SMB2_SHAREFLAG_ACCESS_BASED_DIRECTORY_ENUM       0x0800
-#define SMB2_SHAREFLAG_ALL                               0x0F33
+#define SMB2_SHAREFLAG_FORCE_LEVELII_OPLOCKS             0x1000
+#define SMB2_SHAREFLAG_ENABLE_HASH_V1                    0x2000
+#define SMB2_SHAREFLAG_ENABLE_HASH_V2                    0x4000
+#define SMB2_SHAREFLAG_ENCRYPT_DATA                      0x8000
+#define SMB2_SHAREFLAG_ALL                               0xFF33
 
-/* SMB2 share capafilities */
-#define SMB2_SHARE_CAP_DFS		0x8
+/* SMB2 share capabilities */
+#define SMB2_SHARE_CAP_DFS			0x8
+#define SMB2_SHARE_CAP_CONTINUOUS_AVAILABILITY	0x10 /* in dialect >= 0x222 */
+#define SMB2_SHARE_CAP_SCALEOUT			0x20 /* in dialect >= 0x222 */
+#define SMB2_SHARE_CAP_CLUSTER			0x40 /* in dialect >= 0x222 */
 
 /* SMB2 create security flags */
 #define SMB2_SECURITY_DYNAMIC_TRACKING                   0x01
@@ -158,6 +202,11 @@
 #define SMB2_CREATE_TAG_TWRP "TWrp"
 #define SMB2_CREATE_TAG_QFID "QFid"
 #define SMB2_CREATE_TAG_RQLS "RqLs"
+#define SMB2_CREATE_TAG_DH2Q "DH2Q"
+#define SMB2_CREATE_TAG_DH2C "DH2C"
+
+/* SMB2 notify flags */
+#define SMB2_WATCH_TREE 0x0001
 
 /* SMB2 Create ignore some more create_options */
 #define SMB2_CREATE_OPTIONS_NOT_SUPPORTED_MASK	(NTCREATEX_OPTIONS_TREE_CONNECTION | \
@@ -186,5 +235,15 @@
 #define SMB2_GETINFO_QUOTA              0x04
 
 #define SMB2_CLOSE_FLAGS_FULL_INFORMATION (0x01)
+
+#define SMB2_WRITEFLAG_WRITE_THROUGH	0x00000001
+
+/* 2.2.31 SMB2 IOCTL Request */
+#define SMB2_IOCTL_FLAG_IS_FSCTL		0x00000001
+
+/*
+ * Flags for durable handle v2 requests
+ */
+#define SMB2_DHANDLE_FLAG_PERSISTENT 0x00000002
 
 #endif

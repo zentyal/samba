@@ -1,21 +1,151 @@
-# Danish translation samba.
-# Copyright (C) 2011 samba & nedenstående oversættere.
-# This file is distributed under the same license as the samba package.
-# Claus Hindsgaul <claus.hindsgaul@gmail.com>, 2004, 2006, 2007.
-# Joe Hansen (joedalton2@yahoo.dk), 2010, 2011.
+# Danish translation samba4.
+# Copyright (C) 2013 samba4 & nedenstående oversættere.
+# This file is distributed under the same license as the samba4 package.
+# Claus Hindsgaul <claus_h@image.dk>, 2004.
+# Claus Hindsgaul <claus.hindsgaul@gmail.com>, 2006, 2007.
+# Joe Hansen <joedalton2@yahoo.dk>, 2010, 2012, 2013.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2013-05-13 11:53-0700\n"
-"PO-Revision-Date: 2011-05-12 17:30+01:00\n"
+"Project-Id-Version: samba4\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2013-10-22 20:32+0200\n"
+"PO-Revision-Date: 2013-10-26 19:21+0100\n"
 "Last-Translator: Joe Hansen <joedalton2@yahoo.dk>\n"
-"Language-Team: Danish <debian-l10n-danish@lists.debian.org> \n"
-"Language: \n"
+"Language-Team: Danish <debian-l10n-danish@lists.debian.org>\n"
+"Language: da\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid "Upgrade from Samba 3?"
+msgstr "Opgradere fra Samba 3?"
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid ""
+"It is possible to migrate the existing configuration files from Samba 3 to "
+"Samba 4. This is likely to fail for complex setups, but should provide a "
+"good starting point for most existing installations."
+msgstr ""
+"Det er muligt at migrere de eksisterende konfigurationsfiler fra Samba 3 til "
+"Samba 4. Det er sandsynligt, at det vil mislykkes for komplekse opsætninger, "
+"men bør tilbyde et godt udgangspunkt for de fleste eksisterende "
+"installationer."
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid "Server role"
+msgstr "Serverrolle"
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Domain controllers manage NT4-style or Active Directory domains and provide "
+"services such as identity management and domain logons. Each domain needs to "
+"have a at least one domain controller."
+msgstr ""
+"Domænecontrollere håndterer NT4-lignende domæner eller Active Directory-"
+"domæner og tilbyder tjenester såsom identitetshåndtering og domænelogind. "
+"Hvert domæne kræver mindst en domænecontroller."
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Member servers can be part of a NT4-style or Active Directory domain but do "
+"not provide any domain services. Workstations and file or print servers are "
+"usually regular domain members."
+msgstr ""
+"Medlemsservere kan være en del af et NT4-lignende domæne eller Active "
+"Directory-domæne men tilbyder ikke nogen domænetjenester. Arbejdsstationer "
+"og fil- eller udskrivningsservere er normalt standarddomænemedlemmer."
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"A standalone server can not be used in a domain and only supports file "
+"sharing and Windows for Workgroups-style logins."
+msgstr ""
+"En uafhængig server kan ikke bruges i et domæne og understøtter kun "
+"fildeling og Windows for Workgroups-lignende logind."
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"If no server role is specified, the Samba server will not be provisioned, so "
+"this can be done manually by the user."
+msgstr ""
+"Hvis ingen serverrolle er angivet, så vil Sambaserveren blive klargjort, så "
+"dette kan gøres manuelt af brugeren."
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Realm name:"
+msgstr "Områdenavn (realm):"
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid ""
+"Please specify the Kerberos realm for the domain that this domain controller "
+"controls."
+msgstr ""
+"Angiv venligst Kerberosområdet (realm) for domænet som denne "
+"domænecontroller kontrollerer."
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Usually this is the a capitalized version of your DNS hostname."
+msgstr ""
+"Normalt er dette en version skrevet med stort bogstav for dit DNS-værtsnavn."
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "New password for the Samba \"administrator\" user:"
+msgstr "Ny adgangskode for Sambas »administratorbruger«:"
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "If this field is left blank, a random password will be generated."
+msgstr ""
+"Hvis feltet efterlades tomt vil en vilkårlig adgangskode blive oprettet."
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "A password can be set later by running, as root:"
+msgstr "En adgangskode kan angives senere ved at køre, som root:"
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:5001
+msgid "Repeat password for the Samba \"administrator\" user:"
+msgstr "Gentag adgangskode for Sambas »administratorbruger«:"
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "Password input error"
+msgstr "Indtastningsfejl for adgangskode"
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr "De to adgangskoder du indtastede var ikke ens. Prøv igen."
 
 #. Type: title
 #. Description
@@ -110,35 +240,5 @@ msgstr ""
 "standardarbejdsgruppen der bruges når der browses med forskellige "
 "grænseflader, og domænenavnet brugt med indstillingen »security=domain«."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Krypter adgangskoder?"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Alle nyere Windowsklienter kommunikerer med SMB/CIFS-servere ved hjælp af "
-"krypterede adgangskoder. Hvis du vil bruge adgangkoder i klar tekst, er du "
-"nødt til at ændre en indstilling i Windows' registreringsdatabase."
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Aktivering af denne indstilling anbefales, da understøttelse af klar tekst "
-"ikke længere vedligeholdes i Microsoft Windows' produkter. Hvis du "
-"aktiverer, så sørg for at du har en gyldig /etc/samba/smbpasswd-fil, og at "
-"du her angiver adgangskoder for hver bruger med kommandoen smbpasswd."
-
+#~ msgid " $ samba-tool user setpassword administrator"
+#~ msgstr " $ samba-tool user setpassword administrator"

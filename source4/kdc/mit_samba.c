@@ -254,8 +254,11 @@ static int mit_samba_update_pac_data(struct mit_samba_context *ctx,
 		goto done;
 	}
 
+	/* TODO: An implementation-specific decision will need to be
+	 * made as to when to check the KDC pac signature, and how to
+	 * untrust untrusted RODCs */
 	nt_status = samba_kdc_update_pac_blob(tmp_ctx, ctx->context,
-					      &pac, logon_blob);
+					      pac, logon_blob, NULL, NULL);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(0, ("Building PAC failed: %s\n",
 			  nt_errstr(nt_status)));
@@ -316,6 +319,14 @@ static int mit_samba_check_s4u2proxy(struct mit_samba_context *ctx,
 				     const char *target_name,
 				     bool is_nt_enterprise_name)
 {
+#if 1
+	/*
+	 * This is disabled because mit_samba_update_pac_data() does not handle
+	 * S4U_DELEGATION_INFO
+	 */
+
+	return KRB5KDC_ERR_BADOPTION;
+#else
 	krb5_principal target_principal;
 	int flags = 0;
 	int ret;
@@ -330,14 +341,15 @@ static int mit_samba_check_s4u2proxy(struct mit_samba_context *ctx,
 		return ret;
 	}
 
-	ret = samba_kdc_check_identical_client_and_server(ctx->context,
-							  ctx->db_ctx,
-							  entry,
-							  target_principal);
+	ret = samba_kdc_check_s4u2proxy(ctx->context,
+					ctx->db_ctx,
+					entry,
+					target_principal);
 
 	krb5_free_principal(ctx->context, target_principal);
 
 	return ret;
+#endif
 }
 
 struct mit_samba_function_table mit_samba_function_table = {

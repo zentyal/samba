@@ -105,11 +105,11 @@ const char *epm_floor_string(TALLOC_CTX *mem_ctx, struct epm_floor *epm_floor)
 				/* lhs is used: UUID */
 				char *uuidstr;
 
-				if (GUID_equal(&syntax.uuid, &ndr_transfer_syntax.uuid)) {
+				if (GUID_equal(&syntax.uuid, &ndr_transfer_syntax_ndr.uuid)) {
 					return "NDR";
 				} 
 
-				if (GUID_equal(&syntax.uuid, &ndr64_transfer_syntax.uuid)) {
+				if (GUID_equal(&syntax.uuid, &ndr_transfer_syntax_ndr64.uuid)) {
 					return "NDR64";
 				} 
 
@@ -424,7 +424,12 @@ _PUBLIC_ NTSTATUS dcerpc_floor_get_lhs_data(const struct epm_floor *epm_floor,
 static DATA_BLOB dcerpc_floor_pack_lhs_data(TALLOC_CTX *mem_ctx, const struct ndr_syntax_id *syntax)
 {
 	DATA_BLOB blob;
-	struct ndr_push *ndr = ndr_push_init_ctx(mem_ctx);
+	struct ndr_push *ndr;
+
+	ndr = ndr_push_init_ctx(mem_ctx);
+	if (ndr == NULL) {
+		return data_blob_null;
+	}
 
 	ndr->flags |= LIBNDR_FLAG_NOALIGN;
 
@@ -838,7 +843,7 @@ _PUBLIC_ NTSTATUS dcerpc_binding_build_tower(TALLOC_CTX *mem_ctx,
 	tower->floors[1].lhs.protocol = EPM_PROTOCOL_UUID;
 
 	tower->floors[1].lhs.lhs_data = dcerpc_floor_pack_lhs_data(tower->floors, 
-								&ndr_transfer_syntax);
+								&ndr_transfer_syntax_ndr);
 
 	tower->floors[1].rhs.uuid.unknown = data_blob_talloc_zero(tower->floors, 2);
 

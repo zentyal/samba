@@ -19,21 +19,22 @@
 
 #include "includes.h"
 #include "libsmb/libsmb.h"
+#include "../libcli/security/secdesc.h"
 
-/****************************************************************************
-  query the security descriptor for a open file
- ****************************************************************************/
-struct security_descriptor *cli_query_secdesc(struct cli_state *cli, uint16_t fnum,
-			    TALLOC_CTX *mem_ctx)
+NTSTATUS cli_query_security_descriptor(struct cli_state *cli,
+				       uint16_t fnum,
+				       uint32_t sec_info,
+				       TALLOC_CTX *mem_ctx,
+				       struct security_descriptor **sd)
 {
 	uint8_t param[8];
 	uint8_t *rdata=NULL;
 	uint32_t rdata_count=0;
-	struct security_descriptor *psd = NULL;
 	NTSTATUS status;
+	struct security_descriptor *lsd;
 
 	SIVAL(param, 0, fnum);
-	SIVAL(param, 4, 0x7);
+	SIVAL(param, 4, sec_info);
 
 	status = cli_trans(talloc_tos(), cli, SMBnttrans,
 			   NULL, -1, /* name, fid */
@@ -53,29 +54,43 @@ struct security_descriptor *cli_query_secdesc(struct cli_state *cli, uint16_t fn
 	}
 
 	status = unmarshall_sec_desc(mem_ctx, (uint8 *)rdata, rdata_count,
-				     &psd);
-
+				     &lsd);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(10, ("unmarshall_sec_desc failed: %s\n",
 			   nt_errstr(status)));
 		goto cleanup;
 	}
 
+	if (sd != NULL) {
+		*sd = lsd;
+	} else {
+		TALLOC_FREE(lsd);
+	}
+
  cleanup:
 
 	TALLOC_FREE(rdata);
 
-	return psd;
+	return status;
+}
+
+NTSTATUS cli_query_secdesc(struct cli_state *cli, uint16_t fnum,
+			   TALLOC_CTX *mem_ctx, struct security_descriptor **sd)
+{
+	uint32_t sec_info = SECINFO_OWNER | SECINFO_GROUP | SECINFO_DACL;
+
+	return cli_query_security_descriptor(cli, fnum, sec_info, mem_ctx, sd);
 }
 
 /****************************************************************************
   set the security descriptor for a open file
  ****************************************************************************/
-NTSTATUS cli_set_secdesc(struct cli_state *cli, uint16_t fnum,
-			 struct security_descriptor *sd)
+NTSTATUS cli_set_security_descriptor(struct cli_state *cli,
+				     uint16_t fnum,
+				     uint32_t sec_info,
+				     const struct security_descriptor *sd)
 {
 	uint8_t param[8];
-	uint32 sec_info = 0;
 	uint8 *data;
 	size_t len;
 	NTSTATUS status;
@@ -88,14 +103,7 @@ NTSTATUS cli_set_secdesc(struct cli_state *cli, uint16_t fnum,
 	}
 
 	SIVAL(param, 0, fnum);
-
-	if (sd->dacl)
-		sec_info |= SECINFO_DACL;
-	if (sd->owner_sid)
-		sec_info |= SECINFO_OWNER;
-	if (sd->group_sid)
-		sec_info |= SECINFO_GROUP;
-	SSVAL(param, 4, sec_info);
+	SIVAL(param, 4, sec_info);
 
 	status = cli_trans(talloc_tos(), cli, SMBnttrans,
 			   NULL, -1, /* name, fid */
@@ -113,4 +121,25 @@ NTSTATUS cli_set_secdesc(struct cli_state *cli, uint16_t fnum,
 			  nt_errstr(status)));
 	}
 	return status;
+}
+
+NTSTATUS cli_set_secdesc(struct cli_state *cli, uint16_t fnum,
+			 const struct security_descriptor *sd)
+{
+	uint32_t sec_info = 0;
+
+	if (sd->dacl || (sd->type & SEC_DESC_DACL_PRESENT)) {
+		sec_info |= SECINFO_DACL;
+	}
+	if (sd->sacl || (sd->type & SEC_DESC_SACL_PRESENT)) {
+		sec_info |= SECINFO_SACL;
+	}
+	if (sd->owner_sid) {
+		sec_info |= SECINFO_OWNER;
+	}
+	if (sd->group_sid) {
+		sec_info |= SECINFO_GROUP;
+	}
+
+	return cli_set_security_descriptor(cli, fnum, sec_info, sd);
 }

@@ -40,7 +40,7 @@
 #include "librpc/gen_ndr/ndr_security.h"
 #include "librpc/ndr/libndr.h"
 #include "dsdb/samdb/samdb.h"
-#include "util.h"
+#include "dsdb/samdb/ldb_modules/util.h"
 
 struct extended_dn_out_private {
 	bool dereference;
@@ -76,7 +76,7 @@ static int extended_dn_out_dereference_setup_control(struct ldb_context *ldb, st
 	}
 
 	for (cur = schema->attributes; cur; cur = cur->next) {
-		if (dsdb_dn_oid_to_format(cur->syntax->ldap_oid) != DSDB_NORMAL_DN) {
+		if (cur->dn_format != DSDB_NORMAL_DN) {
 			continue;
 		}
 		dereference_control->dereference
@@ -144,8 +144,6 @@ static bool add_attrs(void *mem_ctx, char ***attrs, const char *attr)
    cn=Adminstrator,cn=users,dc=samba,dc=example,dc=com becomes
    CN=Adminstrator,CN=users,DC=samba,DC=example,DC=com
 */
-
-
 static int fix_dn(struct ldb_context *ldb, struct ldb_dn *dn)
 {
 	int i, ret;
@@ -169,6 +167,7 @@ static int fix_dn(struct ldb_context *ldb, struct ldb_dn *dn)
 	}
 	return LDB_SUCCESS;
 }
+
 
 /* Inject the extended DN components, so the DN cn=Adminstrator,cn=users,dc=samba,dc=example,dc=com becomes
    <GUID=541203ae-f7d6-47ef-8390-bfcf019f9583>;<SID=S-1-5-21-4177067393-1453636373-93818737-500>;cn=Adminstrator,cn=users,dc=samba,dc=example,dc=com */
@@ -349,6 +348,75 @@ struct extended_search_context {
 	int extended_type;
 };
 
+
+/*
+   fix one-way links to have the right string DN, to cope with
+   renames of the target
+*/
+static int fix_one_way_link(struct extended_search_context *ac, struct ldb_dn *dn,
+			    bool is_deleted_objects, bool *remove_value)
+{
+	struct GUID guid;
+	NTSTATUS status;
+	int ret;
+	struct ldb_dn *real_dn;
+	uint32_t search_flags;
+	TALLOC_CTX *tmp_ctx = talloc_new(ac);
+	const char *attrs[] = { NULL };
+	struct ldb_result *res;
+
+	(*remove_value) = false;
+
+	status = dsdb_get_extended_dn_guid(dn, &guid, "GUID");
+	if (!NT_STATUS_IS_OK(status)) {
+		/* this is a strange DN that doesn't have a GUID! just
+		   return the current DN string?? */
+		talloc_free(tmp_ctx);
+		return LDB_SUCCESS;
+	}
+
+	search_flags = DSDB_FLAG_NEXT_MODULE | DSDB_SEARCH_SEARCH_ALL_PARTITIONS | DSDB_SEARCH_ONE_ONLY;
+
+	if (ldb_request_get_control(ac->req, LDB_CONTROL_SHOW_DEACTIVATED_LINK_OID) ||
+	    is_deleted_objects) {
+		search_flags |= DSDB_SEARCH_SHOW_DELETED;
+	}
+
+	ret = dsdb_module_search(ac->module, tmp_ctx, &res, NULL, LDB_SCOPE_SUBTREE, attrs,
+				 search_flags, ac->req, "objectguid=%s", GUID_string(tmp_ctx, &guid));
+	if (ret != LDB_SUCCESS || res->count != 1) {
+		/* if we can't resolve this GUID, then we don't
+		   display the link. This could be a link to a NC that we don't
+		   have, or it could be a link to a deleted object
+		*/
+		(*remove_value) = true;
+		talloc_free(tmp_ctx);
+		return LDB_SUCCESS;
+	}
+	real_dn = res->msgs[0]->dn;
+
+	if (strcmp(ldb_dn_get_linearized(dn), ldb_dn_get_linearized(real_dn)) == 0) {
+		/* its already correct */
+		talloc_free(tmp_ctx);
+		return LDB_SUCCESS;
+	}
+
+	/* fix the DN by replacing its components with those from the
+	 * real DN
+	 */
+	if (!ldb_dn_replace_components(dn, real_dn)) {
+		talloc_free(tmp_ctx);
+		return ldb_operr(ldb_module_get_ctx(ac->module));
+	}
+	talloc_free(tmp_ctx);
+
+	return LDB_SUCCESS;
+}
+
+
+/*
+  this is called to post-process the results from the search
+ */
 static int extended_callback(struct ldb_request *req, struct ldb_reply *ares,
 		int (*handle_dereference)(struct ldb_dn *dn,
 				struct dsdb_openldap_dereference_result **dereference_attrs, 
@@ -438,6 +506,7 @@ static int extended_callback(struct ldb_request *req, struct ldb_reply *ares,
 	for (i = 0; ac->schema && i < msg->num_elements; i++) {
 		bool make_extended_dn;
 		const struct dsdb_attribute *attribute;
+
 		attribute = dsdb_attribute_by_lDAPDisplayName(ac->schema, msg->elements[i].name);
 		if (!attribute) {
 			continue;
@@ -460,7 +529,7 @@ static int extended_callback(struct ldb_request *req, struct ldb_reply *ares,
 		}
 
 		/* Look to see if this attributeSyntax is a DN */
-		if (dsdb_dn_oid_to_format(attribute->syntax->ldap_oid) == DSDB_INVALID_DN) {
+		if (attribute->dn_format == DSDB_INVALID_DN) {
 			continue;
 		}
 
@@ -476,6 +545,7 @@ static int extended_callback(struct ldb_request *req, struct ldb_reply *ares,
 			struct ldb_dn *dn;
 			struct dsdb_dn *dsdb_dn = NULL;
 			struct ldb_val *plain_dn = &msg->elements[i].values[j];		
+			bool is_deleted_objects = false;
 
 			if (!checked_reveal_control) {
 				have_reveal_control =
@@ -511,10 +581,21 @@ static int extended_callback(struct ldb_request *req, struct ldb_reply *ares,
 			}
 			dn = dsdb_dn->dn;
 
+			/* we need to know if this is a link to the
+			   deleted objects container for fixing one way
+			   links */
+			if (dsdb_dn->extra_part.length == 16) {
+				char *hex_string = data_blob_hex_string_upper(req, &dsdb_dn->extra_part);
+				if (hex_string && strcmp(hex_string, DS_GUID_DELETED_OBJECTS_CONTAINER) == 0) {
+					is_deleted_objects = true;
+				}
+				talloc_free(hex_string);
+			}
+
 			/* don't let users see the internal extended
 			   GUID components */
 			if (!have_reveal_control) {
-				const char *accept[] = { "GUID", "SID", "WKGUID", NULL };
+				const char *accept[] = { "GUID", "SID", NULL };
 				ldb_dn_extended_filter(dn, accept);
 			}
 
@@ -542,6 +623,31 @@ static int extended_callback(struct ldb_request *req, struct ldb_reply *ares,
 				if (ret != LDB_SUCCESS) {
 					talloc_free(dsdb_dn);
 					return ldb_module_done(ac->req, NULL, NULL, ret);
+				}
+			}
+
+			/* note that we don't fixup objectCategory as
+			   it should not be possible to move
+			   objectCategory elements in the schema */
+			if (attribute->one_way_link &&
+			    strcasecmp(attribute->lDAPDisplayName, "objectCategory") != 0) {
+				bool remove_value;
+				ret = fix_one_way_link(ac, dn, is_deleted_objects, &remove_value);
+				if (ret != LDB_SUCCESS) {
+					talloc_free(dsdb_dn);
+					return ldb_module_done(ac->req, NULL, NULL, ret);
+				}
+				if (remove_value &&
+				    !ldb_request_get_control(req, LDB_CONTROL_REVEAL_INTERNALS)) {
+					/* we show these with REVEAL
+					   to allow dbcheck to find and
+					   cleanup these orphaned links */
+					memmove(&msg->elements[i].values[j],
+						&msg->elements[i].values[j+1],
+						(msg->elements[i].num_values-(j+1))*sizeof(struct ldb_val));
+					msg->elements[i].num_values--;
+					j--;
+					continue;
 				}
 			}
 			
@@ -601,7 +707,6 @@ static int extended_dn_out_search(struct ldb_module *module, struct ldb_request 
 	const char * const *const_attrs;
 	struct ldb_context *ldb = ldb_module_get_ctx(module);
 	int ret;
-	bool critical;
 
 	struct extended_dn_out_private *p = talloc_get_type(ldb_module_get_private(module), struct extended_dn_out_private);
 
@@ -700,7 +805,6 @@ static int extended_dn_out_search(struct ldb_module *module, struct ldb_request 
 
 	/* mark extended DN and storage format controls as done */
 	if (control) {
-		critical = control->critical;
 		control->critical = 0;
 	}
 

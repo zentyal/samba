@@ -2,12 +2,12 @@
 .\"     Title: smb_traffic_analyzer
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 09/18/2013
+.\"      Date: 12/06/2013
 .\"    Manual: System Administration tools
-.\"    Source: Samba 3.6
+.\"    Source: Samba 4.0
 .\"  Language: English
 .\"
-.TH "SMB_TRAFFIC_ANALYZER" "8" "09/18/2013" "Samba 3\&.6" "System Administration tools"
+.TH "SMB_TRAFFIC_ANALYZER" "8" "12/06/2013" "Samba 4\&.0" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -40,7 +40,7 @@ suite\&.
 .PP
 The
 vfs_smb_traffic_analyzer
-VFS module logs client file operations on a Samba server and sends this data over a socket to a helper program (in the following the "Receiver"), which feeds a SQL database\&. More information on the helper programs can be obtained from the homepage of the project at: http://holger123\&.wordpress\&.com/smb\-traffic\-analyzer/ Since the VFS module depends on a receiver that is doing something with the data, it is evolving in it\*(Aqs development\&. Therefore, the module works with different protocol versions, and the receiver has to be able to decode the protocol that is used\&. The protocol version 1 was introduced to Samba at September 25, 2008\&. It was a very simple protocol, supporting only a small list of VFS operations, and had several drawbacks\&. The protocol version 2 is a try to solve the problems version 1 had while at the same time adding new features\&. With the release of Samba 3\&.6\&.0, the module will run protocol version 2 by default\&.
+VFS module logs client file operations on a Samba server and sends this data over a socket to a helper program (in the following the "Receiver"), which feeds a SQL database\&. More information on the helper programs can be obtained from the homepage of the project at: http://holger123\&.wordpress\&.com/smb\-traffic\-analyzer/ Since the VFS module depends on a receiver that is doing something with the data, it is evolving in it\*(Aqs development\&. Therefore, the module works with different protocol versions, and the receiver has to be able to decode the protocol that is used\&. The protocol version 1 was introduced to Samba at September 25, 2008\&. It was a very simple protocol, supporting only a small list of VFS operations, and had several drawbacks\&. The protocol version 2 is a try to solve the problems version 1 had while at the same time adding new features\&. With the release of Samba 4\&.0\&.0, the module will run protocol version 2 by default\&.
 .SH "PROTOCOL VERSION 1 DOCUMENTATION"
 .PP
 vfs_smb_traffic_analyzer
@@ -251,7 +251,7 @@ The data from the module may be send encrypted, with a key stored in secrets\&.t
 .sp -1
 .IP \(bu 2.3
 .\}
-The module now can identify itself against the receiver with a sub\-release number, where the receiver may run with a different sub\-release number than the module\&. However, as long as both run on the V2\&.x protocol, the receiver will not crash, even if the module uses features only implemented in the newer subrelease\&. If the module uses a new feature from a newer subrelease, and the receiver runs an older protocol, it is just ignoring the functionality\&. Of course it is best to have both the receiver and the module running the same subrelease of the protocol\&.
+The module now can identify itself against the receiver with a sub\-release number, where the receiver may run with a different sub\-release number than the module\&. However, as long as both run on the V2\&.x protocol, the receiver will not crash, even if the module uses features only implemented in the newer subrelease\&. Ultimatively, if the module uses a new feature from a newer subrelease, and the receiver runs an older protocol, it is just ignoring the functionality\&. Of course it is best to have both the receiver and the module running the same subrelease of the protocol\&.
 .RE
 .sp
 .RS 4
@@ -273,7 +273,7 @@ The parsing problems of protocol V1 can no longer happen, because V2 is marshall
 .sp -1
 .IP \(bu 2.3
 .\}
-The module now potientially has the ability to create data on every VFS function\&. As of protocol V2\&.0, there is support for 8 VFS functions, namely write,read,pread,pwrite, rename,chdir,mkdir and rmdir\&. Supporting more VFS functions is one of the targets for the upcoming sub\-releases\&.
+The module now potentially has the ability to create data on every VFS function\&. As of protocol V2\&.0, there is support for 8 VFS functions, namely write,read,pread,pwrite, rename,chdir,mkdir and rmdir\&. Supporting more VFS functions is one of the targets for the upcoming sub\-releases\&.
 .RE
 .sp
 .RE

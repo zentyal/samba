@@ -22,6 +22,7 @@
 #include "torture/smbtorture.h"
 #include "libcli/libcli.h"
 #include "torture/util.h"
+#include "torture/raw/proto.h"
 
 #define BASEDIR "\\lookuprate"
 #define MISSINGNAME BASEDIR "\\foo"
@@ -224,7 +225,7 @@ static bool remove_working_directory(struct smbcli_tree *tree,
 
 /* Verify that looking up a file name takes constant time.
  *
- * This test samples the lookup rate for a non-existant filename in a
+ * This test samples the lookup rate for a non-existent filename in a
  * directory, while varying the number of files in the directory. The
  * lookup rate should continue to approximate the lookup rate for the
  * empty directory case.

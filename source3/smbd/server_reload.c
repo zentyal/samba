@@ -29,58 +29,32 @@
 #include "printing/load.h"
 #include "auth.h"
 #include "messages.h"
+#include "lib/param/loadparm.h"
 
-/****************************************************************************
- purge stale printers and reload from pre-populated pcap cache
-**************************************************************************/
-void reload_printers(struct tevent_context *ev,
-		     struct messaging_context *msg_ctx)
+static bool snum_is_shared_printer(int snum)
 {
-	int n_services;
-	int pnum;
-	int snum;
-	const char *pname;
-
-	n_services = lp_numservices();
-	pnum = lp_servicenumber(PRINTERS_NAME);
-
-	DEBUG(10, ("reloading printer services from pcap cache\n"));
-
-	/*
-	 * Add default config for printers added to smb.conf file and remove
-	 * stale printers
-	 */
-	for (snum = 0; snum < n_services; snum++) {
-		/* avoid removing PRINTERS_NAME */
-		if (snum == pnum) {
-			continue;
-		}
-
-		/* skip no-printer services */
-		if (!(lp_snum_ok(snum) && lp_print_ok(snum))) {
-			continue;
-		}
-
-		pname = lp_printername(snum);
-
-		/* check printer, but avoid removing non-autoloaded printers */
-		if (lp_autoloaded(snum) && !pcap_printername_ok(pname)) {
-			DEBUG(3, ("removing stale printer %s\n", pname));
-			lp_killservice(snum);
-		}
-	}
-
-	/* Make sure deleted printers are gone */
-	load_printers(ev, msg_ctx);
+	return (lp_browseable(snum) && lp_snum_ok(snum) && lp_print_ok(snum));
 }
 
-/****************************************************************************
- purge stale printers and reload from pre-populated pcap cache
-**************************************************************************/
-void reload_printers_full(struct tevent_context *ev,
-			  struct messaging_context *msg_ctx)
+/**
+ * @brief Purge stale printers and reload from pre-populated pcap cache.
+ *
+ * This function should normally only be called as a callback on a successful
+ * pcap_cache_reload() or after a MSG_PRINTER_CAP message is received.
+ *
+ * This function can cause DELETION of printers and drivers from our registry,
+ * so calling it on a failed pcap reload may REMOVE permanently all printers
+ * and drivers.
+ *
+ * @param[in] ev        The event context.
+ *
+ * @param[in] msg_ctx   The messaging context.
+ */
+void delete_and_reload_printers(struct tevent_context *ev,
+				struct messaging_context *msg_ctx)
 {
-	struct auth_serversupplied_info *session_info = NULL;
+	struct auth_session_info *session_info = NULL;
+	struct spoolss_PrinterInfo2 *pinfo2 = NULL;
 	int n_services;
 	int pnum;
 	int snum;
@@ -88,12 +62,18 @@ void reload_printers_full(struct tevent_context *ev,
 	const char *sname;
 	NTSTATUS status;
 
+	/* Get pcap printers updated */
+	load_printers(ev, msg_ctx);
+
 	n_services = lp_numservices();
 	pnum = lp_servicenumber(PRINTERS_NAME);
 
-	status = make_session_info_system(talloc_new(NULL), &session_info);
+	DEBUG(10, ("reloading printer services from pcap cache\n"));
+
+	status = make_session_info_system(talloc_tos(), &session_info);
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(3, ("Could not create system session_info\n"));
+		DEBUG(3, ("reload_printers: "
+			  "Could not create system session_info\n"));
 		/* can't remove stale printers before we
 		 * are fully initilized */
 		return;
@@ -110,20 +90,22 @@ void reload_printers_full(struct tevent_context *ev,
 		}
 
 		/* skip no-printer services */
-		if (!(lp_snum_ok(snum) && lp_print_ok(snum))) {
+		if (!snum_is_shared_printer(snum)) {
 			continue;
 		}
 
 		sname = lp_const_servicename(snum);
-		pname = lp_printername(snum);
+		pname = lp_printername(session_info, snum);
 
 		/* check printer, but avoid removing non-autoloaded printers */
 		if (lp_autoloaded(snum) && !pcap_printername_ok(pname)) {
-			struct spoolss_PrinterInfo2 *pinfo2 = NULL;
+			DEBUG(3, ("removing stale printer %s\n", pname));
+
 			if (is_printer_published(session_info, session_info,
 						 msg_ctx,
 						 NULL,
-						 lp_servicename(snum),
+						 lp_servicename(session_info,
+								snum),
 						 &pinfo2)) {
 				nt_printer_publish(session_info,
 						   session_info,
@@ -134,6 +116,7 @@ void reload_printers_full(struct tevent_context *ev,
 			}
 			nt_printer_remove(session_info, session_info, msg_ctx,
 					  pname);
+			lp_killservice(snum);
 		} else {
 			DEBUG(8, ("Adding default registry entry for printer "
 				  "[%s], if it doesn't exist.\n", sname));
@@ -142,8 +125,8 @@ void reload_printers_full(struct tevent_context *ev,
 		}
 	}
 
-	/* finally, purge old snums */
-	reload_printers(ev, msg_ctx);
+	/* Make sure deleted printers are gone */
+	load_printers(ev, msg_ctx);
 
 	TALLOC_FREE(session_info);
 }
@@ -152,13 +135,14 @@ void reload_printers_full(struct tevent_context *ev,
  Reload the services file.
 **************************************************************************/
 
-bool reload_services(struct messaging_context *msg_ctx, int smb_sock,
+bool reload_services(struct smbd_server_connection *sconn,
+		     bool (*snumused) (struct smbd_server_connection *, int),
 		     bool test)
 {
 	bool ret;
 
 	if (lp_loaded()) {
-		char *fname = lp_configfile();
+		char *fname = lp_configfile(talloc_tos());
 		if (file_exist(fname) &&
 		    !strcsequal(fname, get_dyn_CONFIGFILE())) {
 			set_dyn_CONFIGFILE(fname);
@@ -172,21 +156,26 @@ bool reload_services(struct messaging_context *msg_ctx, int smb_sock,
 	if (test && !lp_file_list_changed())
 		return(True);
 
-	lp_killunused(conn_snum_used);
+	lp_killunused(sconn, snumused);
 
-	ret = lp_load(get_dyn_CONFIGFILE(), False, False, True, True);
+	ret = lp_load(get_dyn_CONFIGFILE(),
+		      false, /* global only */
+		      false, /* save defaults */
+		      true,  /* add_ipc */
+		      true); /* initialize globals */
 
 	/* perhaps the config filename is now set */
-	if (!test)
-		reload_services(msg_ctx, smb_sock, True);
+	if (!test) {
+		reload_services(sconn, snumused, true);
+	}
 
 	reopen_logs();
 
 	load_interfaces();
 
-	if (smb_sock != -1) {
-		set_socket_options(smb_sock,"SO_KEEPALIVE");
-		set_socket_options(smb_sock, lp_socket_options());
+	if (sconn != NULL) {
+		set_socket_options(sconn->sock, "SO_KEEPALIVE");
+		set_socket_options(sconn->sock, lp_socket_options());
 	}
 
 	mangle_reset_cache();

@@ -4,11 +4,11 @@
   schannel structures
 */
 
-import "netlogon.idl", "nbt.idl";
+import "netlogon.idl", "nbt.idl", "misc.idl", "security.idl";
 
 [
 	pointer_default(unique),
-	helper("../librpc/ndr/ndr_schannel.h")
+	helper("../librpc/ndr/ndr_schannel.h", "../librpc/ndr/ndr_nbt.h")
 ]
 interface schannel
 {

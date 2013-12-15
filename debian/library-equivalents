@@ -1,0 +1,11 @@
+# Upstream Samba is very strict about minimum versions of libraries, but allows
+# looser checking using the --minimum-library-versions option to configure.
+#
+# This file allows overriding what upstream versions are considered
+# equivalent to each other, so that this package can be built with older versions.
+# Note that this just overrides the configure-level check, it does not mess with
+# ABIs.
+
+[talloc]
+2.0.2 = 2.0.1
+2.0.3 = 2.0.1

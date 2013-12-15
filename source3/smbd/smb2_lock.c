@@ -47,7 +47,6 @@ static struct tevent_req *smbd_smb2_lock_send(TALLOC_CTX *mem_ctx,
 						 struct tevent_context *ev,
 						 struct smbd_smb2_request *smb2req,
 						 struct files_struct *in_fsp,
-						 uint32_t in_smbpid,
 						 uint16_t in_lock_count,
 						 struct smbd_smb2_lock_element *in_locks);
 static NTSTATUS smbd_smb2_lock_recv(struct tevent_req *req);
@@ -55,10 +54,7 @@ static NTSTATUS smbd_smb2_lock_recv(struct tevent_req *req);
 static void smbd_smb2_request_lock_done(struct tevent_req *subreq);
 NTSTATUS smbd_smb2_request_process_lock(struct smbd_smb2_request *req)
 {
-	const uint8_t *inhdr;
 	const uint8_t *inbody;
-	const int i = req->current_idx;
-	uint32_t in_smbpid;
 	uint16_t in_lock_count;
 	uint64_t in_file_id_persistent;
 	uint64_t in_file_id_volatile;
@@ -73,10 +69,7 @@ NTSTATUS smbd_smb2_request_process_lock(struct smbd_smb2_request *req)
 	if (!NT_STATUS_IS_OK(status)) {
 		return smbd_smb2_request_error(req, status);
 	}
-	inhdr = (const uint8_t *)req->in.vector[i+0].iov_base;
-	inbody = (const uint8_t *)req->in.vector[i+1].iov_base;
-
-	in_smbpid			= IVAL(inhdr, SMB2_HDR_PID);
+	inbody = SMBD_SMB2_IN_BODY_PTR(req);
 
 	in_lock_count			= CVAL(inbody, 0x02);
 	/* 0x04 - 4 bytes reserved */
@@ -87,7 +80,7 @@ NTSTATUS smbd_smb2_request_process_lock(struct smbd_smb2_request *req)
 		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
 	}
 
-	if (((in_lock_count - 1) * 0x18) > req->in.vector[i+2].iov_len) {
+	if (((in_lock_count - 1) * 0x18) > SMBD_SMB2_IN_DYN_LEN(req)) {
 		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
 	}
 
@@ -105,7 +98,7 @@ NTSTATUS smbd_smb2_request_process_lock(struct smbd_smb2_request *req)
 	in_locks[l].flags	= IVAL(lock_buffer, 0x10);
 	/* 0x14 - 4 reserved bytes */
 
-	lock_buffer = (const uint8_t *)req->in.vector[i+2].iov_base;
+	lock_buffer = SMBD_SMB2_IN_DYN_PTR(req);
 
 	for (l=1; l < in_lock_count; l++) {
 		in_locks[l].offset	= BVAL(lock_buffer, 0x00);
@@ -121,9 +114,8 @@ NTSTATUS smbd_smb2_request_process_lock(struct smbd_smb2_request *req)
 		return smbd_smb2_request_error(req, NT_STATUS_FILE_CLOSED);
 	}
 
-	subreq = smbd_smb2_lock_send(req, req->sconn->smb2.event_ctx,
+	subreq = smbd_smb2_lock_send(req, req->sconn->ev_ctx,
 				     req, in_fsp,
-				     in_smbpid,
 				     in_lock_count,
 				     in_locks);
 	if (subreq == NULL) {
@@ -131,7 +123,7 @@ NTSTATUS smbd_smb2_request_process_lock(struct smbd_smb2_request *req)
 	}
 	tevent_req_set_callback(subreq, smbd_smb2_request_lock_done, req);
 
-	return smbd_smb2_request_pending_queue(req, subreq);
+	return smbd_smb2_request_pending_queue(req, subreq, 500);
 }
 
 static void smbd_smb2_request_lock_done(struct tevent_req *subreq)
@@ -141,32 +133,6 @@ static void smbd_smb2_request_lock_done(struct tevent_req *subreq)
 	DATA_BLOB outbody;
 	NTSTATUS status;
 	NTSTATUS error; /* transport error */
-
-	if (smb2req->cancelled) {
-		const uint8_t *inhdr = (const uint8_t *)
-			smb2req->in.vector[smb2req->current_idx].iov_base;
-		uint64_t mid = BVAL(inhdr, SMB2_HDR_MESSAGE_ID);
-		struct smbd_smb2_lock_state *state;
-
-		DEBUG(10,("smbd_smb2_request_lock_done: cancelled mid %llu\n",
-			(unsigned long long)mid ));
-
-		state = tevent_req_data(smb2req->subreq,
-				struct smbd_smb2_lock_state);
-
-		SMB_ASSERT(state);
-		SMB_ASSERT(state->blr);
-
-		remove_pending_lock(state, state->blr);
-
-		error = smbd_smb2_request_error(smb2req, NT_STATUS_CANCELLED);
-		if (!NT_STATUS_IS_OK(error)) {
-			smbd_server_connection_terminate(smb2req->sconn,
-				nt_errstr(error));
-			return;
-		}
-		return;
-	}
 
 	status = smbd_smb2_lock_recv(subreq);
 	TALLOC_FREE(subreq);
@@ -206,7 +172,6 @@ static struct tevent_req *smbd_smb2_lock_send(TALLOC_CTX *mem_ctx,
 						 struct tevent_context *ev,
 						 struct smbd_smb2_request *smb2req,
 						 struct files_struct *fsp,
-						 uint32_t in_smbpid,
 						 uint16_t in_lock_count,
 						 struct smbd_smb2_lock_element *in_locks)
 {
@@ -234,8 +199,8 @@ static struct tevent_req *smbd_smb2_lock_send(TALLOC_CTX *mem_ctx,
 	}
 	state->smb1req = smb1req;
 
-	DEBUG(10,("smbd_smb2_lock_send: %s - fnum[%d]\n",
-		  fsp_str_dbg(fsp), fsp->fnum));
+	DEBUG(10,("smbd_smb2_lock_send: %s - %s\n",
+		  fsp_str_dbg(fsp), fsp_fnum_dbg(fsp)));
 
 	locks = talloc_array(state, struct smbd_lock_element, in_lock_count);
 	if (locks == NULL) {
@@ -317,7 +282,7 @@ static struct tevent_req *smbd_smb2_lock_send(TALLOC_CTX *mem_ctx,
 			return tevent_req_post(req, ev);
 		}
 
-		locks[i].smblctx = fsp->fnum;
+		locks[i].smblctx = fsp->op->global->open_persistent_id;
 		locks[i].offset = in_locks[i].offset;
 		locks[i].count  = in_locks[i].length;
 
@@ -415,9 +380,10 @@ static bool smbd_smb2_lock_cancel(struct tevent_req *req)
         }
 
         smb2req = state->smb2req;
-        smb2req->cancelled = true;
 
-        tevent_req_done(req);
+	remove_pending_lock(state, state->blr);
+	tevent_req_defer_callback(req, smb2req->sconn->ev_ctx);
+	tevent_req_nterror(req, NT_STATUS_CANCELLED);
         return true;
 }
 
@@ -432,15 +398,12 @@ static void received_unlock_msg(struct messaging_context *msg,
 				struct server_id server_id,
 				DATA_BLOB *data)
 {
-	struct smbd_server_connection *sconn;
+	struct smbd_server_connection *sconn =
+		talloc_get_type_abort(private_data,
+		struct smbd_server_connection);
 
 	DEBUG(10,("received_unlock_msg (SMB2)\n"));
 
-	sconn = msg_ctx_to_sconn(msg);
-	if (sconn == NULL) {
-		DEBUG(1, ("could not find sconn\n"));
-		return;
-	}
 	process_blocking_lock_queue_smb2(sconn, timeval_current());
 }
 
@@ -462,7 +425,7 @@ struct blocking_lock_record *get_pending_smb2req_blr(struct smbd_smb2_request *s
 	if (!tevent_req_is_in_progress(smb2req->subreq)) {
 		return NULL;
 	}
-	inhdr = (const uint8_t *)smb2req->in.vector[smb2req->current_idx].iov_base;
+	inhdr = SMBD_SMB2_IN_HDR_PTR(smb2req);
 	if (SVAL(inhdr, SMB2_HDR_OPCODE) != SMB2_OP_LOCK) {
 		return NULL;
 	}
@@ -543,8 +506,8 @@ static bool recalc_smb2_brl_timeout(struct smbd_server_connection *sconn)
 			(int)from_now.tv_sec, (int)from_now.tv_usec));
 	}
 
-	sconn->smb2.locks.brl_timeout = event_add_timed(
-				smbd_event_context(),
+	sconn->smb2.locks.brl_timeout = tevent_add_timer(
+				sconn->ev_ctx,
 				NULL,
 				next_timeout,
 				brl_timeout_fn,
@@ -604,9 +567,7 @@ bool push_blocking_lock_request_smb2( struct byte_range_lock *br_lck,
 		blr->expire_time.tv_sec = 0;
 		blr->expire_time.tv_usec = 0; /* Never expire. */
 	} else {
-		blr->expire_time = timeval_current_ofs(
-			lock_timeout/1000,
-			(lock_timeout % 1000) * 1000);
+		blr->expire_time = timeval_current_ofs_msec(lock_timeout);
 	}
 
 	blr->lock_num = lock_num;
@@ -624,7 +585,7 @@ bool push_blocking_lock_request_smb2( struct byte_range_lock *br_lck,
 	status = brl_lock(sconn->msg_ctx,
 			br_lck,
 			smblctx,
-			sconn_server_id(sconn),
+			messaging_server_id(sconn->msg_ctx),
 			offset,
 			count,
 			lock_type == READ_LOCK ? PENDING_READ_LOCK : PENDING_WRITE_LOCK,
@@ -649,7 +610,7 @@ bool push_blocking_lock_request_smb2( struct byte_range_lock *br_lck,
 
 	/* Ensure we'll receive messages when this is unlocked. */
 	if (!sconn->smb2.locks.blocking_lock_unlock_state) {
-		messaging_register(sconn->msg_ctx, NULL,
+		messaging_register(sconn->msg_ctx, sconn,
 				MSG_SMB_UNLOCK, received_unlock_msg);
 		sconn->smb2.locks.blocking_lock_unlock_state = true;
         }
@@ -676,7 +637,7 @@ static void remove_pending_lock(struct smbd_smb2_lock_state *state,
 	if (br_lck) {
 		brl_lock_cancel(br_lck,
 				blr->smblctx,
-				sconn_server_id(blr->fsp->conn->sconn),
+				messaging_server_id(blr->fsp->conn->sconn->msg_ctx),
 				blr->offset,
 				blr->count,
 				blr->lock_flav,
@@ -753,9 +714,9 @@ static void reprocess_blocked_smb2_lock(struct smbd_smb2_request *smb2req,
 		 */
 
 		DEBUG(3,("reprocess_blocked_smb2_lock SUCCESS file = %s, "
-			"fnum=%d num_locks=%d\n",
+			"%s, num_locks=%d\n",
 			fsp_str_dbg(fsp),
-			fsp->fnum,
+			fsp_fnum_dbg(fsp),
 			(int)state->lock_count));
 
 		tevent_req_done(smb2req->subreq);
@@ -790,11 +751,11 @@ static void reprocess_blocked_smb2_lock(struct smbd_smb2_request *smb2req,
 	 */
 
 	DEBUG(10,("reprocess_blocked_smb2_lock: only got %d locks of %d needed "
-		"for file %s, fnum = %d. Still waiting....\n",
+		"for file %s, %s. Still waiting....\n",
 		(int)blr->lock_num,
 		(int)state->lock_count,
 		fsp_str_dbg(fsp),
-		(int)fsp->fnum));
+		fsp_fnum_dbg(fsp)));
 
         return;
 
@@ -824,7 +785,7 @@ void process_blocking_lock_queue_smb2(
 			continue;
 		}
 
-		inhdr = (const uint8_t *)smb2req->in.vector[smb2req->current_idx].iov_base;
+		inhdr = SMBD_SMB2_IN_HDR_PTR(smb2req);
 		if (SVAL(inhdr, SMB2_HDR_OPCODE) == SMB2_OP_LOCK) {
 			reprocess_blocked_smb2_lock(smb2req, tv_curr);
 		}
@@ -847,7 +808,6 @@ void cancel_pending_lock_requests_by_fid_smb2(files_struct *fsp,
 	for (smb2req = sconn->smb2.requests; smb2req; smb2req = nextreq) {
 		struct smbd_smb2_lock_state *state = NULL;
 		files_struct *fsp_curr = NULL;
-		int i = smb2req->current_idx;
 		struct blocking_lock_record *blr = NULL;
 		const uint8_t *inhdr;
 
@@ -862,7 +822,7 @@ void cancel_pending_lock_requests_by_fid_smb2(files_struct *fsp,
 			continue;
 		}
 
-		inhdr = (const uint8_t *)smb2req->in.vector[i].iov_base;
+		inhdr = SMBD_SMB2_IN_HDR_PTR(smb2req);
 		if (SVAL(inhdr, SMB2_HDR_OPCODE) != SMB2_OP_LOCK) {
 			/* Not a lock call. */
 			continue;
@@ -891,7 +851,7 @@ void cancel_pending_lock_requests_by_fid_smb2(files_struct *fsp,
 		/* Remove the entries from the lock db. */
 		brl_lock_cancel(br_lck,
 				blr->smblctx,
-				sconn_server_id(sconn),
+				messaging_server_id(sconn->msg_ctx),
 				blr->offset,
 				blr->count,
 				blr->lock_flav,

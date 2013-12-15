@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_po.pot\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2013-05-13 11:53-0700\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2013-10-22 20:32+0200\n"
 "PO-Revision-Date: 2007-03-13 02:22+0530\n"
 "Last-Translator: translator <pemai_jurmey@hotmail.com>\n"
 "Language-Team: dzongkha <pgeyleg@dit.gov.bt>\n"
@@ -27,6 +27,117 @@ msgstr ""
 "X-Poedit-Language: dzongkha\n"
 "X-Poedit-Country: bhutan\n"
 "X-Poedit-SourceCharset: utf-8\n"
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid "Upgrade from Samba 3?"
+msgstr ""
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid ""
+"It is possible to migrate the existing configuration files from Samba 3 to "
+"Samba 4. This is likely to fail for complex setups, but should provide a "
+"good starting point for most existing installations."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid "Server role"
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Domain controllers manage NT4-style or Active Directory domains and provide "
+"services such as identity management and domain logons. Each domain needs to "
+"have a at least one domain controller."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Member servers can be part of a NT4-style or Active Directory domain but do "
+"not provide any domain services. Workstations and file or print servers are "
+"usually regular domain members."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"A standalone server can not be used in a domain and only supports file "
+"sharing and Windows for Workgroups-style logins."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"If no server role is specified, the Samba server will not be provisioned, so "
+"this can be done manually by the user."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Realm name:"
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid ""
+"Please specify the Kerberos realm for the domain that this domain controller "
+"controls."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Usually this is the a capitalized version of your DNS hostname."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "New password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "If this field is left blank, a random password will be generated."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "A password can be set later by running, as root:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:5001
+msgid "Repeat password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "Password input error"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr ""
 
 #. Type: title
 #. Description
@@ -109,47 +220,133 @@ msgstr "ལཱ་གི་སྡེ་ཚན་/ཌོ་མེན་མིང�
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
-"ཞབས་ཏོག་སྤྱོད་མི་གིས་འདྲི་དཔྱད་འབདཝ་ད་ དེ་ནང་ལུ་སར་བར་འབྱུང་ནི་ཨིན་པའི་ལཱ་གི་སྡེ་ཚན་འདི་གསལ་བཀོད་"
-"འབད་གནང་། ཚད་བཟུང་འདི་གིས་ སྲུང་སྐྱོབ་=ཌཱ་མཱེན་སྒྲིག་སྟངས་དང་གཅིག་ཁར་ལག་ལེན་འཐབ་ཡོད་པའི་ཌཱ་མཱེན་མིང་"
-"ཡང་ ཚད་འཛིན་འབདཝ་ཨིནམ་དྲན་དགོ"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "ཆོག་ཡིག་གསང་བཟོ་ལགལེན་འཐབ་ནི་ཨིན་ན?"
+#~ msgid "Use password encryption?"
+#~ msgstr "ཆོག་ཡིག་གསང་བཟོ་ལགལེན་འཐབ་ནི་ཨིན་ན?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"ཝིན་ཌཱསི་ཞབས་ཏོག་སྤྱོད་མི་མང་ཤོས་ཅིག་གིས་ གསང་བཟོས་ཆོག་ཡིག་ལག་ལེན་གྱི་ཐོག་ལས་ ཨེསི་ཨེམ་བི་སར་བརསི་"
-"དང་གཅིག་ཁར་བརྒྱུད་འབྲེལ་འཐབ་ཨིན། ཁྱོད་ཀྱིས་ ཚིག་ཡིག་ཆོག་ཡིག་གསལ་ཏོག་ཏོ་ཅིག་ལག་ལེན་འཐབ་དགོ་མནོ་བ་"
-"ཅིན་ ཁྱོད་རའི་ཝིན་ཌཱསི་ཐོ་བཀོད་ནང་ལུ་ཚད་བཟུང་ཅིག་བསྒྱུར་བཅོས་འབད་དགོ"
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "ཝིན་ཌཱསི་ཞབས་ཏོག་སྤྱོད་མི་མང་ཤོས་ཅིག་གིས་ གསང་བཟོས་ཆོག་ཡིག་ལག་ལེན་གྱི་ཐོག་ལས་ ཨེསི་ཨེམ་བི་སར་"
+#~ "བརསི་དང་གཅིག་ཁར་བརྒྱུད་འབྲེལ་འཐབ་ཨིན། ཁྱོད་ཀྱིས་ ཚིག་ཡིག་ཆོག་ཡིག་གསལ་ཏོག་ཏོ་ཅིག་ལག་ལེན་འཐབ་དགོ་"
+#~ "མནོ་བ་ཅིན་ ཁྱོད་རའི་ཝིན་ཌཱསི་ཐོ་བཀོད་ནང་ལུ་ཚད་བཟུང་ཅིག་བསྒྱུར་བཅོས་འབད་དགོ"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"གདམ་ཁ་ལྕོགས་ཅན་བཟོ་མི་འདི་གིས་ གནམ་མེད་ས་མེད་འོས་སྦྱོར་འབད་ནི་ཨིན། དེ་འབད་ནི་ཨིན་པ་ཅིན་ ཁྱོད་ལུ་"
-"ནུས་ལྡན་གྱི་/etc/samba/smbpasswd ཡིག་སྣོད་ཅིག་དགོཔ་དང་ འ་ནི་འདི་ཁྱོད་ཀྱིས་ smbpasswd བརྡ་བཀོད་"
-"ལག་ལེན་གྱི་ཐོག་ལས་ ལག་ལེན་པ་རེ་བཞིན་གྱི་དོན་ལས་ དེ་ནང་ལུ་ཆོག་ཡིག་གཞི་སྒྲིག་འབད། "
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "གདམ་ཁ་ལྕོགས་ཅན་བཟོ་མི་འདི་གིས་ གནམ་མེད་ས་མེད་འོས་སྦྱོར་འབད་ནི་ཨིན། དེ་འབད་ནི་ཨིན་པ་ཅིན་ ཁྱོད་"
+#~ "ལུ་ནུས་ལྡན་གྱི་/etc/samba/smbpasswd ཡིག་སྣོད་ཅིག་དགོཔ་དང་ འ་ནི་འདི་ཁྱོད་ཀྱིས་ smbpasswd "
+#~ "བརྡ་བཀོད་ལག་ལེན་གྱི་ཐོག་ལས་ ལག་ལེན་པ་རེ་བཞིན་གྱི་དོན་ལས་ དེ་ནང་ལུ་ཆོག་ཡིག་གཞི་སྒྲིག་འབད། "
 
+#~ msgid "daemons"
+#~ msgstr "ཌེ་མཱོནསི་"
+
+#~ msgid "inetd"
+#~ msgstr "inetd"
+
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "ཁྱོད་ཀྱིས་ སམ་བ་འདི་ག་དེ་སྦེ་གཡོག་བཀོལ་དགོ་མནོཝ་སྨོ?"
+
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "སམ་བ་ཌེ་མཱོན་smbdའདི་ སྤྱིར་བཏང་ཌེ་མཱོན་སྦེ་ ཡང་ན་ inetdནང་ལས་ གཡོག་བཀོལ་ཚུགས། ཌེ་མཱོན་སྦེ་"
+#~ "གཡོག་བཀོལ་མི་འདི་ འོས་སྦྱོར་འབད་ཡོད་པའི་རྩར་ལེན་ཨིན།"
+
+#, fuzzy
+#~| msgid ""
+#~| "Please specify the workgroup you want this server to appear to be in "
+#~| "when queried by clients. Note that this parameter also controls the "
+#~| "domain name used with the security=domain setting."
+#~ msgid ""
+#~ "Please specify the domain you want this server to appear to be in when "
+#~ "queried by clients."
+#~ msgstr ""
+#~ "ཞབས་ཏོག་སྤྱོད་མི་གིས་འདྲི་དཔྱད་འབདཝ་ད་ དེ་ནང་ལུ་སར་བར་འབྱུང་ནི་ཨིན་པའི་ལཱ་གི་སྡེ་ཚན་འདི་གསལ་"
+#~ "བཀོད་འབད་གནང་། ཚད་བཟུང་འདི་གིས་ སྲུང་སྐྱོབ་=ཌཱ་མཱེན་སྒྲིག་སྟངས་དང་གཅིག་ཁར་ལག་ལེན་འཐབ་ཡོད་པའི་"
+#~ "ཌཱ་མཱེན་མིང་ཡང་ ཚད་འཛིན་འབདཝ་ཨིནམ་དྲན་དགོ"
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr ""
+#~ "སམ་བ་ཆོག་ཡིག་གནད་སྡུད་གཞི་རྟེན་ /var/lib/samba/passdb.tdb གསར་བསྐྲུན་འབད་ནི་ཨིན་ན་?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "ཝིན་ཌཱསི་གི་ཐོན་རིམ་མང་ཤོས་ཅིག་ནང་ སྔོན་སྒྲིག་དང་བཅས་མཐུན་འགྱུར་ཅན་ཨིན་དགོ་པ་ཅིན་ གསང་བཟོས་ཆོག་"
+#~ "ཡིག་ལག་ལེན་འཐབ་ནི་ལུ་ སམ་བ་གིས་རིམ་སྒྲིག་འབད་དགོཔ་ཨིན།  /etc/passwdལས་སོ་སོར་འཕྱལ་ཡོད་པའི་"
+#~ "ཡིག་སྣོད་ཅིག་གསོག་འཇོག་འབད་ནིའི་དོན་ལས་འདི་ལུ་ ལག་ལེན་པའི་ཆོག་ཡིག་དགོཔ་ཨིན། འ་ནི་ཡིག་སྣོད་འདི་ "
+#~ "རང་བཞིན་གྱིས་འབད་གསར་བསྐྲུན་འབད་ཚུགས་ དེ་འབདཝ་ད་ ཆོག་ཡིག་ཚུ་ smbpasswd གཡོག་བཀོལ་ཐོག་ལུ་ "
+#~ "ལག་ཐོག་ལས་ཁ་སྐོང་བརྐྱབ་དགོཔ་དང་ མ་འོངས་པ་ལུ་འདི་ དུས་མཐུན་བཟོ་སྟེ་བཞག་དགོ"
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "ཁྱོད་ཀྱིས་གསར་བསྐྲུན་མ་འབད་བ་ཅིན་ ཚིག་ཡིག་རྐྱང་པོའི་ཆོག་ཡིག་ལག་ལེན་འཐབ་ནི་ལུ་ སམ་བ་(དང་ ཁྱོད་"
+#~ "རའི་ཞབས་ཏོག་སྤྱོད་མིའི་མ་འཕྲུལ་)འདི་ ལོག་རིམ་སྒྲིག་འབད་དགོ"
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
+#~ "package for more details."
+#~ msgstr ""
+#~ "ཁ་གསལ་མཁྱེན་ནིའི་དོན་ལུ་ སམ་བ་-ཌོཀ་ཐུམ་སྒྲིལ་ནང་ལས་ /usr/share/doc/samba-doc/"
+#~ "htmldocs/ENCRYPTION.html ལུ་ལྟ།"
+
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "རྒྱུན་ཐག་ passdb རྒྱབ་མཐའ་འདི་ རྒྱབ་སྐྱོར་མ་འབད་བས་"
+
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "འཐོན་རིམ་ ༣.༠.༢༣ གྱིས་འགོ་བཙུགས་ཏེ་ སམ་བ་གིས་ད་ལས་ཕར་ \"passdb backend\" ཚད་བཟུང་"
+#~ "ནང་ རྒྱུན་ཐག་སྣ་མང་རྒྱབ་མཐའ་ཚུ་ལུ་ རྒྱབ་སྐྱོར་མི་འབདཝ་ཨིན། དེ་ཡང་ ཁྱོད་ཀྱི་ smb.conf ཡིག་སྣོད་"
+#~ "ནང་ རྒྱབ་མཐའི་ཐོ་ཡིག་ཅིག་ཆ་སྟེ་ passdb རྒྱབ་མཐའ་ཚད་བཟུང་དང་ལྡནམ་སྦེ་འབྱུངམ་ཨིན། སམ་བའི་འཐོན་"
+#~ "རིམ་གསརཔ་འདི་ ཁྱོད་ཀྱིས་ དེ་ནོར་བཅོས་མ་འབད་ཚུན་ཚོད་ ལཱ་མི་འབད།"
+
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr " /etc/samba/smbpasswdའདི་  /var/lib/samba/passdb.tdb ལུ་སྤོ་ནི་ཨིན་ན་?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "སབ་མ་༣.༠ གིས་/etc/samba/smbpasswd ཡིག་སྣོད་འཛིན་པའི་  ཨེསི་ཨེ་ཨེམ་ གནད་སྡུད་གཞི་རྟེན་ ངོས་"
+#~ "འདྲ་བ་ཆ་ཚང་ཅིག་འགོ་བཙུགས་ཡི།"
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "ཡོད་བཞིན་པའི་ smbpasswd ཡིག་སྣོད་འདི་རང་བཞིན་གྱིས་སྦེ་ /var/lib/samba/passdb.tdbལུ་ གཞི་"
+#~ "གནས་སྤོ་ནི་ཨིན་ན་ ཁྱོད་ར་ངེས་དཔྱད་འབད་གནང་། ཁྱོད་ཀྱིས་pdb རྒྱབ་མཐའ་ (དཔེར་ན་ ཨེལ་ཌི་ཨེ་པི་) "
+#~ "འདི་དེ་གི་ཚབ་སྦེ་ལག་ལེན་འཐབ་ནིའི་འཆར་གཞི་ཡོད་པ་ཅིན་ གདམ་ཁ་འདི་ག་གདམས།"
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "ཁ་གསལ་མཁྱེན་ནིའི་དོན་ལུ་ སམ་བ་-ཌོཀ་ཐུམ་སྒྲིལ་ནང་ལས་ /usr/share/doc/samba-doc/"
+#~ "htmldocs/ENCRYPTION.html ལུ་ལྟ།"

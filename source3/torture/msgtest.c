@@ -51,10 +51,10 @@ static void pong_message(struct messaging_context *msg_ctx,
 
 	setup_logging(argv[0], DEBUG_STDOUT);
 
-	lp_load(get_dyn_CONFIGFILE(),False,False,False,True);
+	lp_load_global(get_dyn_CONFIGFILE());
 
 	if (!(evt_ctx = tevent_context_init(NULL)) ||
-	    !(msg_ctx = messaging_init(NULL, procid_self(), evt_ctx))) {
+	    !(msg_ctx = messaging_init(NULL, evt_ctx))) {
 		fprintf(stderr, "could not init messaging context\n");
 		exit(1);
 	}
@@ -85,7 +85,7 @@ static void pong_message(struct messaging_context *msg_ctx,
 	/* Now test that the duplicate filtering code works. */
 	pong_count = 0;
 
-	safe_strcpy(buf, "1234567890", sizeof(buf)-1);
+	strlcpy(buf, "1234567890", sizeof(buf));
 
 	for (i=0;i<n;i++) {
 		messaging_send(msg_ctx, messaging_server_id(msg_ctx), MSG_PING,

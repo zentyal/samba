@@ -144,16 +144,18 @@ static WERROR kccsrv_load_partitions(struct kccsrv_service *s)
 static NTSTATUS kccsrv_execute_kcc(struct irpc_message *msg, struct drsuapi_DsExecuteKCC *r)
 {
 	TALLOC_CTX *mem_ctx;
-	NTSTATUS status;
+	NTSTATUS status = NT_STATUS_OK;
 	struct kccsrv_service *service = talloc_get_type(msg->private_data, struct kccsrv_service);
 
 	mem_ctx = talloc_new(service);
-	status = kccsrv_simple_update(service, mem_ctx);
 
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0,("kccsrv_simple_update failed - %s\n", nt_errstr(status)));
-		talloc_free(mem_ctx);
-		return status;
+	if (service->samba_kcc_code)
+		status = kccsrv_samba_kcc(service, mem_ctx);
+	else {
+		status = kccsrv_simple_update(service, mem_ctx);
+		if (!NT_STATUS_IS_OK(status))
+			DEBUG(0,("kccsrv_execute_kcc failed - %s\n",
+				nt_errstr(status)));
 	}
 
 	talloc_free(mem_ctx);
@@ -181,7 +183,7 @@ static void kccsrv_task_init(struct task_server *task)
 	case ROLE_DOMAIN_MEMBER:
 		task_server_terminate(task, "kccsrv: no KCC required in domain member configuration", false);
 		return;
-	case ROLE_DOMAIN_CONTROLLER:
+	case ROLE_ACTIVE_DIRECTORY_DC:
 		/* Yes, we want a KCC */
 		break;
 	}
@@ -222,10 +224,18 @@ static void kccsrv_task_init(struct task_server *task)
 		return;
 	}
 
-	periodic_startup_interval	= lpcfg_parm_int(task->lp_ctx, NULL, "kccsrv",
-						      "periodic_startup_interval", 15); /* in seconds */
-	service->periodic.interval	= lpcfg_parm_int(task->lp_ctx, NULL, "kccsrv",
-						      "periodic_interval", 300); /* in seconds */
+	periodic_startup_interval =
+		lpcfg_parm_int(task->lp_ctx, NULL, "kccsrv",
+			      "periodic_startup_interval", 15); /* in seconds */
+	service->periodic.interval =
+		lpcfg_parm_int(task->lp_ctx, NULL, "kccsrv",
+			      "periodic_interval", 300); /* in seconds */
+
+	/* (kccsrv:samba_kcc=true) will run newer samba_kcc replication
+	 * topology generation code.
+	 */
+	service->samba_kcc_code = lpcfg_parm_bool(task->lp_ctx, NULL,
+						"kccsrv", "samba_kcc", false);
 
 	status = kccsrv_periodic_schedule(service, periodic_startup_interval);
 	if (!W_ERROR_IS_OK(status)) {

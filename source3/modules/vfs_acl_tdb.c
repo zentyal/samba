@@ -24,7 +24,8 @@
 #include "librpc/gen_ndr/xattr.h"
 #include "librpc/gen_ndr/ndr_xattr.h"
 #include "../lib/crypto/crypto.h"
-#include "dbwrap.h"
+#include "dbwrap/dbwrap.h"
+#include "dbwrap/dbwrap_open.h"
 #include "auth.h"
 #include "util_tdb.h"
 
@@ -58,7 +59,8 @@ static bool acl_tdb_init(void)
 	}
 
 	become_root();
-	acl_db = db_open(NULL, dbname, 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600);
+	acl_db = db_open(NULL, dbname, 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0600,
+			 DBWRAP_LOCK_ORDER_1);
 	unbecome_root();
 
 	if (acl_db == NULL) {
@@ -101,10 +103,10 @@ static struct db_record *acl_tdb_lock(TALLOC_CTX *mem_ctx,
 
 	/* For backwards compatibility only store the dev/inode. */
 	push_file_id_16((char *)id_buf, id);
-	return db->fetch_locked(db,
-				mem_ctx,
-				make_tdb_data(id_buf,
-					sizeof(id_buf)));
+	return dbwrap_fetch_locked(db,
+				   mem_ctx,
+				   make_tdb_data(id_buf,
+						 sizeof(id_buf)));
 }
 
 /*******************************************************************
@@ -129,7 +131,7 @@ static NTSTATUS acl_tdb_delete(vfs_handle_struct *handle,
 		return NT_STATUS_OK;
 	}
 
-	status = rec->delete_rec(rec);
+	status = dbwrap_record_delete(rec);
 	TALLOC_FREE(rec);
 	return status;
 }
@@ -172,10 +174,11 @@ static NTSTATUS get_acl_blob(TALLOC_CTX *ctx,
 	/* For backwards compatibility only store the dev/inode. */
 	push_file_id_16((char *)id_buf, &id);
 
-	if (db->fetch(db,
-			ctx,
-			make_tdb_data(id_buf, sizeof(id_buf)),
-			&data) == -1) {
+	status = dbwrap_fetch(db,
+			      ctx,
+			      make_tdb_data(id_buf, sizeof(id_buf)),
+			      &data);
+	if (!NT_STATUS_IS_OK(status)) {
 		return NT_STATUS_INTERNAL_DB_CORRUPTION;
 	}
 
@@ -218,16 +221,16 @@ static NTSTATUS store_acl_blob_fsp(vfs_handle_struct *handle,
 
 	/* For backwards compatibility only store the dev/inode. */
 	push_file_id_16((char *)id_buf, &id);
-	rec = db->fetch_locked(db, talloc_tos(),
-				make_tdb_data(id_buf,
-					sizeof(id_buf)));
+	rec = dbwrap_fetch_locked(db, talloc_tos(),
+				  make_tdb_data(id_buf,
+						sizeof(id_buf)));
 	if (rec == NULL) {
 		DEBUG(0, ("store_acl_blob_fsp_tdb: fetch_lock failed\n"));
 		return NT_STATUS_INTERNAL_DB_CORRUPTION;
 	}
 	data.dptr = pblob->data;
 	data.dsize = pblob->length;
-	return rec->store(rec, data, 0);
+	return dbwrap_record_store(rec, data, 0);
 }
 
 /*********************************************************************
@@ -397,22 +400,18 @@ static int sys_acl_set_fd_tdb(vfs_handle_struct *handle,
 
 static struct vfs_fn_pointers vfs_acl_tdb_fns = {
 	.connect_fn = connect_acl_tdb,
-	.disconnect = disconnect_acl_tdb,
-	.opendir = opendir_acl_common,
-	.mkdir = mkdir_acl_common,
-	.rmdir = rmdir_acl_tdb,
-	.open_fn = open_acl_common,
-	.create_file = create_file_acl_common,
-	.unlink = unlink_acl_tdb,
-	.chmod = chmod_acl_module_common,
-	.fchmod = fchmod_acl_module_common,
-	.fget_nt_acl = fget_nt_acl_common,
-	.get_nt_acl = get_nt_acl_common,
-	.fset_nt_acl = fset_nt_acl_common,
-	.chmod_acl = chmod_acl_acl_module_common,
-	.fchmod_acl = fchmod_acl_acl_module_common,
-	.sys_acl_set_file = sys_acl_set_file_tdb,
-	.sys_acl_set_fd = sys_acl_set_fd_tdb
+	.disconnect_fn = disconnect_acl_tdb,
+	.rmdir_fn = rmdir_acl_tdb,
+	.unlink_fn = unlink_acl_tdb,
+	.chmod_fn = chmod_acl_module_common,
+	.fchmod_fn = fchmod_acl_module_common,
+	.fget_nt_acl_fn = fget_nt_acl_common,
+	.get_nt_acl_fn = get_nt_acl_common,
+	.fset_nt_acl_fn = fset_nt_acl_common,
+	.chmod_acl_fn = chmod_acl_acl_module_common,
+	.fchmod_acl_fn = fchmod_acl_acl_module_common,
+	.sys_acl_set_file_fn = sys_acl_set_file_tdb,
+	.sys_acl_set_fd_fn = sys_acl_set_fd_tdb
 };
 
 NTSTATUS vfs_acl_tdb_init(void)

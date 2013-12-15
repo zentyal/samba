@@ -25,7 +25,7 @@ AC_DEFUN(SMB_MODULE,
 	fi
 	
 	if test x"$DEST" = xSHARED; then
-		AC_DEFINE([$1][_init], [init_samba_module], [Whether to build $1 as shared module])
+		AC_DEFINE([$1][_init], [samba_init_module], [Whether to build $1 as shared module])
 		$4_MODULES="$$4_MODULES $3"
 		AC_MSG_RESULT([shared])
 		[$6]
@@ -412,6 +412,7 @@ AC_DEFUN(LIB_REMOVE_USR_LIB,[
     -Wl,-rpath-Wl,/usr/lib/) l="";;
     -Wl,-rpath-Wl,/usr/lib64) l="";;
     -Wl,-rpath-Wl,/usr/lib64/) l="";;
+    -rpath=/usr/lib:*) l="-rpath=${i#-rpath=*:}";;
     *)
     	s=" "
         if test x"[$]ac_new_flags" = x""; then

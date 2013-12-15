@@ -88,11 +88,15 @@ static void continue_groupinfo_lookup(struct tevent_req *subreq)
 		s->monitor_fn(&msg);
 	}
 	
-
 	/* have we actually got name resolved
 	   - we're looking for only one at the moment */
-	if (s->lookup.out.rids->count == 0) {
-		composite_error(c, NT_STATUS_NO_SUCH_USER);
+	if (s->lookup.out.rids->count != s->lookup.in.num_names) {
+		composite_error(c, NT_STATUS_INVALID_NETWORK_RESPONSE);
+		return;
+	}
+	if (s->lookup.out.types->count != s->lookup.in.num_names) {
+		composite_error(c, NT_STATUS_INVALID_NETWORK_RESPONSE);
+		return;
 	}
 
 	/* TODO: find proper status code for more than one rid found */
@@ -131,8 +135,8 @@ static void continue_groupinfo_opengroup(struct tevent_req *subreq)
 	TALLOC_FREE(subreq);
 	if (!composite_is_ok(c)) return;
 
-	if (!NT_STATUS_IS_OK(s->querygroupinfo.out.result)) {
-		composite_error(c, s->querygroupinfo.out.result);
+	if (!NT_STATUS_IS_OK(s->opengroup.out.result)) {
+		composite_error(c, s->opengroup.out.result);
 		return;
 	}
 
@@ -261,6 +265,7 @@ static void continue_groupinfo_closegroup(struct tevent_req *subreq)
  * @param io arguments and results of the call
  */
 struct composite_context *libnet_rpc_groupinfo_send(struct dcerpc_pipe *p,
+						    TALLOC_CTX *mem_ctx,
 						    struct libnet_rpc_groupinfo *io,
 						    void (*monitor)(struct monitor_msg*))
 {
@@ -271,7 +276,7 @@ struct composite_context *libnet_rpc_groupinfo_send(struct dcerpc_pipe *p,
 
 	if (!p || !io) return NULL;
 	
-	c = composite_create(p, dcerpc_event_context(p));
+	c = composite_create(mem_ctx, dcerpc_event_context(p));
 	if (c == NULL) return c;
 	
 	s = talloc_zero(c, struct groupinfo_state);
@@ -371,6 +376,6 @@ NTSTATUS libnet_rpc_groupinfo(struct dcerpc_pipe *p,
 			      TALLOC_CTX *mem_ctx,
 			      struct libnet_rpc_groupinfo *io)
 {
-	struct composite_context *c = libnet_rpc_groupinfo_send(p, io, NULL);
+	struct composite_context *c = libnet_rpc_groupinfo_send(p, mem_ctx, io, NULL);
 	return libnet_rpc_groupinfo_recv(c, mem_ctx, io);
 }

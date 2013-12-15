@@ -1,19 +1,149 @@
+# Copyright (C) 2007, 2012, 2013 Software in the Public Interest
 # This file is distributed under the same license as the samba package.
-# Copyright 2007, Serge Leblanc <serge.leblanc@wanadoo.fr>.
-# Copyright 2009, 2011 Felipe Castro <fefcas@gmail.com>.
+# Serge Leblanc <serge.leblanc@wanadoo.fr>, 2007.
+# Felipe Castro <fefcas@gmail.com>, 2012, 2013.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2013-05-13 11:53-0700\n"
-"PO-Revision-Date: 2011-05-12 19:50-0300\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2013-10-22 20:32+0200\n"
+"PO-Revision-Date: 2013-10-24 14:29-0300\n"
 "Last-Translator: Felipe Castro <fefcas@gmail.com>\n"
 "Language-Team: Esperanto <debian-l10n-esperanto@lists.debian.org>\n"
 "Language: eo\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Poedit 1.5.4\n"
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid "Upgrade from Samba 3?"
+msgstr "Ĉu ĝisdatigi el Samba 3?"
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid ""
+"It is possible to migrate the existing configuration files from Samba 3 to "
+"Samba 4. This is likely to fail for complex setups, but should provide a "
+"good starting point for most existing installations."
+msgstr ""
+"Eblas transigi la ekzistantan agordo-dosierojn de Samba 3 al Samba 4. Tio ĉi "
+"probable ne funkcios por komplikaj agordoj, sed devos provizi bonan ekigan "
+"punkton por la plej granda parto el la instaladoj."
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid "Server role"
+msgstr "Servila rolo"
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Domain controllers manage NT4-style or Active Directory domains and provide "
+"services such as identity management and domain logons. Each domain needs to "
+"have a at least one domain controller."
+msgstr ""
+"Retregionaj regiloj mastrumas retregionojn NT4-stilajn aŭ Aktiv-Dosierujajn "
+"kaj provizas servojn kiel mastrumadon de identigon kaj retregionajn "
+"ensalutojn. Ĉiu retregiono bezonas havi minimume unu retregionan regilon."
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Member servers can be part of a NT4-style or Active Directory domain but do "
+"not provide any domain services. Workstations and file or print servers are "
+"usually regular domain members."
+msgstr ""
+"Membraj serviloj povas esti parto de retregiono NT4-stila aŭ Aktiv-Dosieruja "
+"sed ne provizas iun ajn retregionan servon. Laborstacioj kaj dosieraj aŭ "
+"printaj serviloj ordinare estas normalaj retregionaj membroj."
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"A standalone server can not be used in a domain and only supports file "
+"sharing and Windows for Workgroups-style logins."
+msgstr ""
+"Memstara servilo ne povas esti uzata en retregiono kaj nur subtenas "
+"kunhavigon de dosieroj kaj ensalutojn laŭ stilo 'Vindozo por Laborgrupoj'"
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"If no server role is specified, the Samba server will not be provisioned, so "
+"this can be done manually by the user."
+msgstr ""
+"Se neniu servila rolo estas indikita, la servilo Samba ne estos provizata, "
+"do tio ĉi povas esti farata rekte per la uzanto mem."
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Realm name:"
+msgstr "Area nomo (Realm):"
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid ""
+"Please specify the Kerberos realm for the domain that this domain controller "
+"controls."
+msgstr ""
+"Bonvolu indiki la areon Kerberos por la retregiono kiun tiu ĉi retregiona "
+"regilo mastrumas."
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Usually this is the a capitalized version of your DNS hostname."
+msgstr "Ordinare tio ĉi estas la majuskla versio de via DNS-gastigantnomo."
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "New password for the Samba \"administrator\" user:"
+msgstr "Nova pasvorto por la uzanto \"administrator\" de Samba:"
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "If this field is left blank, a random password will be generated."
+msgstr ""
+"Se tiu ĉi kampo estos lasita malplena, hazardeca pasvorto estos generata."
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "A password can be set later by running, as root:"
+msgstr "Pasvorto povas esti difinata poste, per lanĉo, kiel root:"
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:5001
+msgid "Repeat password for the Samba \"administrator\" user:"
+msgstr "Ripetu la pasvorton por la uzanto \"administrator\" de Samba:"
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "Password input error"
+msgstr "Eraro dum enigo de pasvorto"
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr ""
+"La du pasvortoj kiujn vi enigis ne estis la sama. Bonvolu provi refoje."
 
 #. Type: title
 #. Description
@@ -104,35 +234,77 @@ msgstr ""
 "laborgrupon uzatan dum esplorado per pluraj klientoj, kaj la domajno-nomon "
 "uzatan kun la parametro \"security=domain\"."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Ĉu ĉifri la pasvortojn?"
+#~ msgid " $ samba-tool user setpassword administrator"
+#~ msgstr " $ samba-tool user setpassword administrator"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Ĉiuj novaj klientoj Windows komunikas kun serviloj SMB/CIFS uzante ĉifritajn "
-"pasvortojn. Se vi volas uzi malĉifritajn pasvortojn vi bezonos ŝanĝi "
-"parametron en via registrejo Windows."
+#~ msgid "Use password encryption?"
+#~ msgstr "Ĉu ĉifri la pasvortojn?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Ebligi tiun ĉi opcion estas ege rekomendata ĉar pur-tekstaj pasvortoj ne plu "
-"estas subtenataj en produktoj Microsoft Windows. Se vi elektas ĝin, kontrolu "
-"ĉu vi havas validan dosieron /etc/samba/smbpasswd, en kiu vi enmetis "
-"pasvortojn por ĉiu uzanto kiu uzas la komandon smbpasswd."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Ĉiuj novaj klientoj Windows komunikas kun serviloj SMB/CIFS uzante "
+#~ "ĉifritajn pasvortojn. Se vi volas uzi malĉifritajn pasvortojn vi bezonos "
+#~ "ŝanĝi parametron en via registrejo Windows."
 
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Ebligi tiun ĉi opcion estas ege rekomendata ĉar pur-tekstaj pasvortoj ne "
+#~ "plu estas subtenataj en produktoj Microsoft Windows. Se vi elektas ĝin, "
+#~ "kontrolu ĉu vi havas validan dosieron /etc/samba/smbpasswd, en kiu vi "
+#~ "enmetis pasvortojn por ĉiu uzanto kiu uzas la komandon smbpasswd."
+
+#~ msgid "Samba server"
+#~ msgstr "Servilo Samba"
+
+#~ msgid "daemons"
+#~ msgstr "demonoj"
+
+#~ msgid "inetd"
+#~ msgstr "inetd"
+
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Kiel vi volas lanĉi Samba?"
+
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "La Samba-demono smbd povas esti lanĉita kiel normala demono aŭ per la "
+#~ "programo inetd. Oni rekomendas lanĉi ĝin kiel demonon."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "Ĉu krei pasvortan datumbazon de samba, /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "Por kongrui kun implicita regulo el plejmultaj eldonoj de Windows, Samba "
+#~ "devas esti agordita por uzi ĉifritajn pasvortojn. Tio postulas ke uzant-"
+#~ "pasvortoj estu konservitaj en dosiero aparta de /etc/passwd. Tiu ĉi "
+#~ "dosiero povas esti aŭtomate kreata, sed oni devas mane aldoni la "
+#~ "pasvortojn lanĉante smbpasswd kaj tenante ilin ĝisdataj estonte."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "Se vi ne kreos ĝin, vi devos reakomodi Samba (kaj verŝajne viajn "
+#~ "klientajn maŝinojn) por uzi purtekstajn pasvortojn."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Vidu /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html el la pako samba-doc por pliaj informoj."

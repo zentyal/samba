@@ -3,30 +3,21 @@
 bld.RECURSE('ldap')
 bld.RECURSE('wbclient')
 
-bld.SAMBA_LIBRARY('errors',
-                  source='../../libcli/util/doserr.c util/errormap.c util/nterr.c',
-                  public_headers='../../libcli/util/error.h ../../libcli/util/ntstatus.h ../../libcli/util/doserr.h ../../libcli/util/werror.h',
-                  header_path='core',
-                  deps='talloc',
-                  private_library=True
-                  )
-
-
 bld.SAMBA_SUBSYSTEM('LIBSAMBA_TSOCKET',
 	source='../../libcli/util/tstream.c',
-	public_deps='LIBTSOCKET UTIL_TEVENT'
+	public_deps='LIBTSOCKET tevent-util'
 	)
 
 
 bld.SAMBA_SUBSYSTEM('LIBCLI_LSA',
 	source='util/clilsa.c',
 	autoproto='util/clilsa.h',
-	public_deps='RPC_NDR_LSA',
-	deps='security'
+	public_deps='RPC_NDR_LSA dcerpc',
+	deps='samba-security'
 	)
 
 
-bld.SAMBA_SUBSYSTEM('LIBCLI_COMPOSITE',
+bld.SAMBA_SUBSYSTEM('cli_composite',
 	source='composite/composite.c',
 	autoproto='composite/proto.h',
 	public_deps='events'
@@ -35,11 +26,17 @@ bld.SAMBA_SUBSYSTEM('LIBCLI_COMPOSITE',
 
 bld.SAMBA_SUBSYSTEM('LIBCLI_SMB_COMPOSITE',
 	source='smb_composite/loadfile.c smb_composite/savefile.c smb_composite/connect.c smb_composite/sesssetup.c smb_composite/fetchfile.c smb_composite/appendacl.c smb_composite/fsinfo.c smb_composite/smb2.c',
-	autoproto='smb_composite/proto.h',
-	deps='LIBCLI_SMB2',
-	public_deps='LIBCLI_COMPOSITE credentials gensec LIBCLI_RESOLVE'
+	deps='LIBCLI_SMB2 tevent-util',
+	public_deps='cli_composite samba-credentials gensec LIBCLI_RESOLVE tevent',
+	public_headers='smb_composite/smb_composite.h',
 	)
 
+bld.SAMBA_PYTHON('pysmb',
+    source='pysmb.c',
+    deps='LIBCLI_SMB_COMPOSITE LIBCLI_SMB2 tevent-util pyparam_util',
+	public_deps='cli_composite samba-credentials gensec LIBCLI_RESOLVE tevent param_options',
+    realname='samba/smb.so'
+    )
 
 bld.SAMBA_SUBSYSTEM('LIBCLI_DGRAM',
 	source='dgram/dgramsocket.c dgram/mailslot.c dgram/netlogon.c dgram/browse.c',
@@ -58,36 +55,40 @@ bld.SAMBA_SUBSYSTEM('LIBCLI_RESOLVE',
 	source='resolve/resolve.c',
 	autoproto='resolve/proto.h',
 	deps='roken',
-	public_deps='NDR_NBT LIBTSOCKET'
+	public_deps='ndr_nbt LIBTSOCKET'
 	)
 
 
 bld.SAMBA_SUBSYSTEM('LP_RESOLVE',
 	source='resolve/bcast.c resolve/nbtlist.c resolve/wins.c resolve/dns_ex.c resolve/file.c resolve/host.c resolve/resolve_lp.c',
 	autoproto='resolve/lp_proto.h',
-	deps='cli-nbt samba-hostconfig netif'
+	deps='cli-nbt samba-hostconfig netif addns'
 	)
 
 
 bld.SAMBA_SUBSYSTEM('LIBCLI_FINDDCS',
-	source='finddcs_nbt.c finddcs_cldap.c',
+	source='finddcs_cldap.c',
 	autoproto='finddcs_proto.h',
-	public_deps='cli-nbt MESSAGING RPC_NDR_IRPC LIBCLI_CLDAP'
+	public_deps='cli_cldap'
 	)
 
 
 bld.SAMBA_SUBSYSTEM('LIBCLI_SMB',
 	source='clireadwrite.c cliconnect.c clifile.c clilist.c clitrans2.c climessage.c clideltree.c',
-	autoproto='libcli_proto.h',
-	public_deps='LIBCLI_RAW errors LIBCLI_AUTH LIBCLI_SMB_COMPOSITE cli-nbt security LIBCLI_RESOLVE LIBCLI_DGRAM LIBCLI_SMB2 LIBCLI_FINDDCS samba_socket'
+	public_headers='libcli.h:smb_cli.h',
+	public_deps='smbclient-raw errors LIBCLI_AUTH LIBCLI_SMB_COMPOSITE cli-nbt samba-security LIBCLI_RESOLVE LIBCLI_DGRAM LIBCLI_SMB2 LIBCLI_FINDDCS samba_socket'
 	)
 
 
-bld.SAMBA_SUBSYSTEM('LIBCLI_RAW',
+bld.SAMBA_LIBRARY('smbclient-raw',
 	source='raw/rawfile.c raw/smb_signing.c raw/clisocket.c raw/clitransport.c raw/clisession.c raw/clitree.c raw/clierror.c raw/rawrequest.c raw/rawreadwrite.c raw/rawsearch.c raw/rawsetfileinfo.c raw/raweas.c raw/rawtrans.c raw/clioplock.c raw/rawnegotiate.c raw/rawfsinfo.c raw/rawfileinfo.c raw/rawnotify.c raw/rawioctl.c raw/rawacl.c raw/rawdate.c raw/rawlpq.c raw/rawshadow.c',
 	autoproto='raw/raw_proto.h',
 	public_deps='samba_socket LIBPACKET LIBCRYPTO',
-	deps='LIBCLI_COMPOSITE LIBCLI_RESOLVE security ndr samba-util errors CHARSET talloc LIBCLI_SMB_COMPOSITE tevent NDR_NBT_BUF LIBCLI_SMB_COMMON'
+	deps='cli_composite LIBCLI_RESOLVE samba-security ndr samba-util errors charset talloc LIBCLI_SMB_COMPOSITE tevent cli_smb_common',
+	public_headers='raw/request.h:smb_request.h raw/signing.h:smb_raw_signing.h raw/libcliraw.h:smb_cliraw.h raw/interfaces.h:smb_raw_interfaces.h raw/smb.h:smb_raw.h raw/trans2.h:smb_raw_trans2.h',
+	private_library=False,
+	pc_files='raw/smbclient-raw.pc',
+	vnum='0.0.1'
 	)
 
 bld.RECURSE('smb2')

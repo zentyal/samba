@@ -109,6 +109,10 @@ static struct composite_context* libnet_RpcConnectSrv_send(struct libnet_context
 	case LIBNET_RPC_CONNECT_SERVER:
 	case LIBNET_RPC_CONNECT_SERVER_ADDRESS:
 		b->flags = r->in.dcerpc_flags;
+		break;
+	default:
+		/* other types have already been checked before */
+		break;
 	}
 
 	if (DEBUGLEVEL >= 10) {
@@ -568,6 +572,15 @@ static void continue_dci_rpc_connect(struct composite_context *ctx)
 	s->qos.effective_only      = 0;
 
 	s->attr.sec_qos = &s->qos;
+
+	if (s->lsa_pipe->binding->transport == NCACN_IP_TCP) {
+		/*
+		 * Skip to creating the actual connection. We can't open a
+		 * policy handle over tcpip.
+		 */
+		continue_epm_map_binding_send(c);
+		return;
+	}
 
 	s->lsa_open_policy.in.attr        = &s->attr;
 	s->lsa_open_policy.in.system_name = talloc_asprintf(c, "\\");

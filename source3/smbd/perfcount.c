@@ -85,7 +85,7 @@ NTSTATUS smb_register_perfcounter(int interface_version, const char *name,
 
 	entry = SMB_XMALLOC_P(struct smb_perfcount_module);
 	entry->name = smb_xstrdup(name);
-	entry->handlers = (struct smb_perfcount_handlers*) handlers;
+	entry->handlers = discard_const_p(struct smb_perfcount_handlers, handlers);
 
 	DLIST_ADD(modules, entry);
 	DEBUG(3, ("Successfully added perfcounter module '%s'\n", name));
@@ -176,7 +176,7 @@ bool smb_perfcount_init(void)
 {
 	char *perfcount_object;
 
-	perfcount_object = lp_perfcount_module();
+	perfcount_object = lp_perfcount_module(talloc_tos());
 
 	/* don't init */
 	if (!perfcount_object || !perfcount_object[0])

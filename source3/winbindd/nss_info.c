@@ -66,7 +66,7 @@ static struct nss_function_entry *nss_get_backend(const char *name )
 	}
 
 	if ( nss_get_backend(name) ) {
-		DEBUG(0,("smb_register_idmap_nss: idmap module %s "
+		DEBUG(5,("smb_register_idmap_nss: idmap module %s "
 			 "already registered!\n", name));
 		return NT_STATUS_OBJECT_NAME_COLLISION;
 	}
@@ -118,7 +118,7 @@ static NTSTATUS nss_domain_list_add_domain(const char *domain,
 {
 	struct nss_domain_entry *nss_domain;
 
-	nss_domain = TALLOC_ZERO_P(nss_domain_list, struct nss_domain_entry);
+	nss_domain = talloc_zero(nss_domain_list, struct nss_domain_entry);
 	if (!nss_domain) {
 		DEBUG(0, ("nss_domain_list_add_domain: talloc() failure!\n"));
 		return NT_STATUS_NO_MEMORY;

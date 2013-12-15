@@ -26,10 +26,9 @@
 struct schannel_state;
 
 struct tdb_wrap *open_schannel_session_store(TALLOC_CTX *mem_ctx,
-					     const char *private_dir);
+					     struct loadparm_context *lp_ctx);
 
 NTSTATUS netsec_incoming_packet(struct schannel_state *state,
-				TALLOC_CTX *mem_ctx,
 				bool do_unseal,
 				uint8_t *data, size_t length,
 				const DATA_BLOB *sig);

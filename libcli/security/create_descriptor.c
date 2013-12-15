@@ -80,9 +80,30 @@ uint32_t map_generic_rights_ds(uint32_t access_mask)
 * and it does not seem to have any influence */
 static bool object_in_list(struct GUID *object_list, struct GUID *object)
 {
-	return true;
+	size_t i;
+
+	if (object_list == NULL) {
+		return true;
+	}
+
+	if (GUID_all_zero(object)) {
+		return true;
+	}
+
+	for (i=0; ; i++) {
+		if (GUID_all_zero(&object_list[i])) {
+			return false;
+		}
+		if (!GUID_equal(&object_list[i], object)) {
+			continue;
+		}
+
+		return true;
+	}
+
+	return false;
 }
- 
+
 /* returns true if the ACE gontains generic information
  * that needs to be processed additionally */
  
@@ -132,7 +153,6 @@ static struct security_acl *calculate_inherited_from_parent(TALLOC_CTX *mem_ctx,
 	uint32_t i;
 	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
 	struct security_acl *tmp_acl = talloc_zero(mem_ctx, struct security_acl);
-	struct dom_sid *co, *cg;
 	if (!tmp_acl) {
 		return NULL;
 	}
@@ -140,13 +160,13 @@ static struct security_acl *calculate_inherited_from_parent(TALLOC_CTX *mem_ctx,
 	if (!acl) {
 		return NULL;
 	}
-	co = dom_sid_parse_talloc(tmp_ctx,  SID_CREATOR_OWNER);
-	cg = dom_sid_parse_talloc(tmp_ctx,  SID_CREATOR_GROUP);
 
 	for (i=0; i < acl->num_aces; i++) {
 		struct security_ace *ace = &acl->aces[i];
 		if ((ace->flags & SEC_ACE_FLAG_CONTAINER_INHERIT) ||
 		    (ace->flags & SEC_ACE_FLAG_OBJECT_INHERIT)) {
+			struct GUID inherited_object = GUID_zero();
+
 			tmp_acl->aces = talloc_realloc(tmp_acl, tmp_acl->aces,
 						       struct security_ace,
 						       tmp_acl->num_aces+1);
@@ -166,13 +186,29 @@ static struct security_acl *calculate_inherited_from_parent(TALLOC_CTX *mem_ctx,
 			if (is_container && (ace->flags & SEC_ACE_FLAG_OBJECT_INHERIT))
 			    tmp_acl->aces[tmp_acl->num_aces].flags |= SEC_ACE_FLAG_INHERIT_ONLY;
 
-			if (ace->type == SEC_ACE_TYPE_ACCESS_ALLOWED_OBJECT ||
-			    ace->type == SEC_ACE_TYPE_ACCESS_DENIED_OBJECT) {
-				if (!object_in_list(object_list, &ace->object.object.type.type)) {
+			switch (ace->type) {
+			case SEC_ACE_TYPE_ACCESS_ALLOWED:
+			case SEC_ACE_TYPE_ACCESS_DENIED:
+			case SEC_ACE_TYPE_SYSTEM_AUDIT:
+			case SEC_ACE_TYPE_SYSTEM_ALARM:
+			case SEC_ACE_TYPE_ALLOWED_COMPOUND:
+				break;
+
+			case SEC_ACE_TYPE_ACCESS_ALLOWED_OBJECT:
+			case SEC_ACE_TYPE_ACCESS_DENIED_OBJECT:
+			case SEC_ACE_TYPE_SYSTEM_ALARM_OBJECT:
+			case SEC_ACE_TYPE_SYSTEM_AUDIT_OBJECT:
+				if (ace->object.object.flags & SEC_ACE_INHERITED_OBJECT_TYPE_PRESENT) {
+					inherited_object = ace->object.object.inherited_type.inherited_type;
+				}
+
+				if (!object_in_list(object_list, &inherited_object)) {
 					tmp_acl->aces[tmp_acl->num_aces].flags |= SEC_ACE_FLAG_INHERIT_ONLY;
 				}
 
+				break;
 			}
+
 			tmp_acl->num_aces++;
 			if (is_container) {
 				if (!(ace->flags & SEC_ACE_FLAG_NO_PROPAGATE_INHERIT) &&
@@ -217,7 +253,6 @@ static struct security_acl *process_user_acl(TALLOC_CTX *mem_ctx,
 	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
 	struct security_acl *tmp_acl = talloc_zero(tmp_ctx, struct security_acl);
 	struct security_acl *new_acl;
-	struct dom_sid *co, *cg;
 
 	if (!acl)
 		return NULL;
@@ -227,9 +262,6 @@ static struct security_acl *process_user_acl(TALLOC_CTX *mem_ctx,
 
 	tmp_acl->revision = acl->revision;
 	DEBUG(6,(__location__ ": acl revision %d\n", acl->revision));
-
-	co = dom_sid_parse_talloc(tmp_ctx,  SID_CREATOR_OWNER);
-	cg = dom_sid_parse_talloc(tmp_ctx,  SID_CREATOR_GROUP);
 
 	for (i=0; i < acl->num_aces; i++){
 		struct security_ace *ace = &acl->aces[i];

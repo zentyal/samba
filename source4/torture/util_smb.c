@@ -22,7 +22,7 @@
 #include "lib/cmdline/popt_common.h"
 #include "libcli/raw/libcliraw.h"
 #include "libcli/raw/raw_proto.h"
-#include "libcli/raw/ioctl.h"
+#include "../libcli/smb/smb_constants.h"
 #include "libcli/libcli.h"
 #include "system/filesys.h"
 #include "system/shmem.h"
@@ -34,7 +34,8 @@
 #include "param/param.h"
 #include "libcli/security/security.h"
 #include "libcli/util/clilsa.h"
-
+#include "torture/util.h"
+#include "libcli/smb/smbXcli_base.h"
 
 /**
   setup a directory ready for a test
@@ -247,63 +248,6 @@ int create_complex_dir(struct smbcli_state *cli, TALLOC_CTX *mem_ctx, const char
 
 	return fnum;
 }
-
-
-
-/* return a pointer to a anonymous shared memory segment of size "size"
-   which will persist across fork() but will disappear when all processes
-   exit 
-
-   The memory is not zeroed 
-
-   This function uses system5 shared memory. It takes advantage of a property
-   that the memory is not destroyed if it is attached when the id is removed
-   */
-void *shm_setup(int size)
-{
-	int shmid;
-	void *ret;
-
-#ifdef __QNXNTO__
-	shmid = shm_open("private", O_RDWR | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
-	if (shmid == -1) {
-		printf("can't get shared memory\n");
-		exit(1);
-	}
-	shm_unlink("private");
-	if (ftruncate(shmid, size) == -1) {
-		printf("can't set shared memory size\n");
-		exit(1);
-	}
-	ret = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, shmid, 0);
-	if (ret == MAP_FAILED) {
-		printf("can't map shared memory\n");
-		exit(1);
-	}
-#else
-	shmid = shmget(IPC_PRIVATE, size, SHM_R | SHM_W);
-	if (shmid == -1) {
-		printf("can't get shared memory\n");
-		exit(1);
-	}
-	ret = (void *)shmat(shmid, 0, 0);
-	if (!ret || ret == (void *)-1) {
-		printf("can't attach to shared memory\n");
-		return NULL;
-	}
-	/* the following releases the ipc, but note that this process
-	   and all its children will still have access to the memory, its
-	   just that the shmid is no longer valid for other shm calls. This
-	   means we don't leave behind lots of shm segments after we exit 
-
-	   See Stevens "advanced programming in unix env" for details
-	   */
-	shmctl(shmid, IPC_RMID, 0);
-#endif
-	
-	return ret;
-}
-
 
 /**
   check that a wire string matches the flags specified 
@@ -656,13 +600,13 @@ double torture_create_procs(struct torture_context *tctx,
 
 	signal(SIGCONT, sigcont);
 
-	child_status = (volatile pid_t *)shm_setup(sizeof(pid_t)*torture_nprocs);
+	child_status = (volatile pid_t *)anonymous_shared_allocate(sizeof(pid_t)*torture_nprocs);
 	if (!child_status) {
 		printf("Failed to setup shared memory\n");
 		return -1;
 	}
 
-	child_status_out = (volatile bool *)shm_setup(sizeof(bool)*torture_nprocs);
+	child_status_out = (volatile bool *)anonymous_shared_allocate(sizeof(bool)*torture_nprocs);
 	if (!child_status_out) {
 		printf("Failed to setup result status shared memory\n");
 		return -1;
@@ -728,6 +672,14 @@ double torture_create_procs(struct torture_context *tctx,
 
 	if (synccount != torture_nprocs) {
 		printf("FAILED TO START %d CLIENTS (started %d)\n", torture_nprocs, synccount);
+
+		/* cleanup child processes */
+		for (i = 0; i < torture_nprocs; i++) {
+			if (child_status[i]) {
+				kill(child_status[i], SIGTERM);
+			}
+		}
+
 		*result = false;
 		return timeval_elapsed(&tv);
 	}
@@ -806,18 +758,17 @@ static bool wrap_simple_2smb_test(struct torture_context *torture_ctx,
 {
 	bool (*fn) (struct torture_context *, struct smbcli_state *,
 				struct smbcli_state *);
-	bool ret;
+	bool ret = true;
 
-	struct smbcli_state *cli1, *cli2;
+	struct smbcli_state *cli1 = NULL, *cli2 = NULL;
 
-	if (!torture_open_connection(&cli1, torture_ctx, 0) || 
-		!torture_open_connection(&cli2, torture_ctx, 1))
-		return false;
+	torture_assert_goto(torture_ctx, torture_open_connection(&cli1, torture_ctx, 0), ret, fail, "Failed to open connection");
+	torture_assert_goto(torture_ctx, torture_open_connection(&cli2, torture_ctx, 1), ret, fail, "Failed to open connection");
 
 	fn = test->fn;
 
 	ret = fn(torture_ctx, cli1, cli2);
-
+fail:
 	talloc_free(cli1);
 	talloc_free(cli2);
 
@@ -857,17 +808,16 @@ static bool wrap_simple_1smb_test(struct torture_context *torture_ctx,
 									struct torture_test *test)
 {
 	bool (*fn) (struct torture_context *, struct smbcli_state *);
-	bool ret;
+	bool ret = true;
 
-	struct smbcli_state *cli1;
+	struct smbcli_state *cli1 = NULL;
 
-	if (!torture_open_connection(&cli1, torture_ctx, 0))
-		return false;
+	torture_assert_goto(torture_ctx, torture_open_connection(&cli1, torture_ctx, 0), ret, fail, "Failed to open connection");
 
 	fn = test->fn;
 
 	ret = fn(torture_ctx, cli1);
-
+fail:
 	talloc_free(cli1);
 
 	return ret;
@@ -918,7 +868,8 @@ NTSTATUS torture_second_tcon(TALLOC_CTX *mem_ctx,
 	}
 
 	tcon.generic.level = RAW_TCON_TCONX;
-	tcon.tconx.in.flags = 0;
+	tcon.tconx.in.flags = TCONX_FLAG_EXTENDED_RESPONSE;
+	tcon.tconx.in.flags |= TCONX_FLAG_EXTENDED_SIGNATURES;
 
 	/* Ignore share mode security here */
 	tcon.tconx.in.password = data_blob(NULL, 0);
@@ -932,6 +883,11 @@ NTSTATUS torture_second_tcon(TALLOC_CTX *mem_ctx,
 	}
 
 	result->tid = tcon.tconx.out.tid;
+
+	if (tcon.tconx.out.options & SMB_EXTENDED_SIGNATURES) {
+		smb1cli_session_protect_session_key(result->session->smbXcli);
+	}
+
 	*res = talloc_steal(mem_ctx, result);
 	talloc_free(tmp_ctx);
 	return NT_STATUS_OK;

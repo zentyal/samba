@@ -44,74 +44,24 @@
 #include "auth/auth.h"
 
 /*
-  make sure the static credentials are not freed
- */
-static int samdb_credentials_destructor(struct cli_credentials *creds)
-{
-	return -1;
-}
-
-/*
-  this returns a static set of system credentials. It is static so
-  that we always get the same pointer in ldb_wrap_connect()
- */
-struct cli_credentials *samdb_credentials(struct loadparm_context *lp_ctx)
-{
-	static struct cli_credentials *static_credentials;
-	struct cli_credentials *cred;
-	char *error_string;
-
-	if (static_credentials) {
-		return static_credentials;
-	}
-
-	cred = cli_credentials_init(talloc_autofree_context());
-	if (!cred) {
-		return NULL;
-	}
-	cli_credentials_set_conf(cred, lp_ctx);
-
-	/* We don't want to use krb5 to talk to our samdb - recursion
-	 * here would be bad, and this account isn't in the KDC
-	 * anyway */
-	cli_credentials_set_kerberos_state(cred, CRED_DONT_USE_KERBEROS);
-
-	if (!NT_STATUS_IS_OK(cli_credentials_set_secrets(cred, lp_ctx, NULL, NULL,
-							 SECRETS_LDAP_FILTER, &error_string))) {
-		DEBUG(5, ("(normal if no LDAP backend) %s", error_string));
-		/* Perfectly OK - if not against an LDAP backend */
-		talloc_free(cred);
-		return NULL;
-	}
-	static_credentials = cred;
-	talloc_set_destructor(cred, samdb_credentials_destructor);
-	return cred;
-}
-
-/*
-  connect to the SAM database
+  connect to the SAM database specified by URL
   return an opaque context pointer on success, or NULL on failure
  */
-struct ldb_context *samdb_connect(TALLOC_CTX *mem_ctx, 
+struct ldb_context *samdb_connect_url(TALLOC_CTX *mem_ctx,
 				  struct tevent_context *ev_ctx,
 				  struct loadparm_context *lp_ctx,
 				  struct auth_session_info *session_info,
-				  int flags)
+				  unsigned int flags, const char *url)
 {
 	struct ldb_context *ldb;
 	struct dsdb_schema *schema;
-	const char *url;
-	struct cli_credentials *credentials;
 	int ret;
 
-	url  = lpcfg_sam_url(lp_ctx);
-	credentials = samdb_credentials(lp_ctx);
-
-	ldb = ldb_wrap_find(url, ev_ctx, lp_ctx, session_info, credentials, flags);
+	ldb = ldb_wrap_find(url, ev_ctx, lp_ctx, session_info, NULL, flags);
 	if (ldb != NULL)
 		return talloc_reference(mem_ctx, ldb);
 
-	ldb = samba_ldb_init(mem_ctx, ev_ctx, lp_ctx, session_info, credentials);
+	ldb = samba_ldb_init(mem_ctx, ev_ctx, lp_ctx, session_info, NULL);
 
 	if (ldb == NULL)
 		return NULL;
@@ -130,7 +80,7 @@ struct ldb_context *samdb_connect(TALLOC_CTX *mem_ctx,
 		dsdb_make_schema_global(ldb, schema);
 	}
 
-	if (!ldb_wrap_add(url, ev_ctx, lp_ctx, session_info, credentials, flags, ldb)) {
+	if (!ldb_wrap_add(url, ev_ctx, lp_ctx, session_info, NULL, flags, ldb)) {
 		talloc_free(ldb);
 		return NULL;
 	}
@@ -138,6 +88,19 @@ struct ldb_context *samdb_connect(TALLOC_CTX *mem_ctx,
 	return ldb;
 }
 
+
+/*
+  connect to the SAM database
+  return an opaque context pointer on success, or NULL on failure
+ */
+struct ldb_context *samdb_connect(TALLOC_CTX *mem_ctx,
+				  struct tevent_context *ev_ctx,
+				  struct loadparm_context *lp_ctx,
+				  struct auth_session_info *session_info,
+				  unsigned int flags)
+{
+	return samdb_connect_url(mem_ctx, ev_ctx, lp_ctx, session_info, flags, "sam.ldb");
+}
 
 /****************************************************************************
  Create the SID list for this user.
@@ -178,37 +141,6 @@ NTSTATUS security_token_create(TALLOC_CTX *mem_ctx,
 			ptoken->sids[ptoken->num_sids] = sids[i];
 			ptoken->num_sids++;
 		}
-	}
-
-	/*
-	 * Finally add the "standard" sids.
-	 * The only difference between guest and "anonymous"
-	 * is the addition of Authenticated_Users.
-	 */
-
-	if (session_info_flags & AUTH_SESSION_INFO_DEFAULT_GROUPS) {
-		ptoken->sids = talloc_realloc(ptoken, ptoken->sids, struct dom_sid, ptoken->num_sids + 2);
-		NT_STATUS_HAVE_NO_MEMORY(ptoken->sids);
-
-		if (!dom_sid_parse(SID_WORLD, &ptoken->sids[ptoken->num_sids])) {
-			return NT_STATUS_INTERNAL_ERROR;
-		}
-		ptoken->num_sids++;
-
-		if (!dom_sid_parse(SID_NT_NETWORK, &ptoken->sids[ptoken->num_sids])) {
-			return NT_STATUS_INTERNAL_ERROR;
-		}
-		ptoken->num_sids++;
-	}
-
-	if (session_info_flags & AUTH_SESSION_INFO_AUTHENTICATED) {
-		ptoken->sids = talloc_realloc(ptoken, ptoken->sids, struct dom_sid, ptoken->num_sids + 1);
-		NT_STATUS_HAVE_NO_MEMORY(ptoken->sids);
-
-		if (!dom_sid_parse(SID_NT_AUTHENTICATED_USERS, &ptoken->sids[ptoken->num_sids])) {
-			return NT_STATUS_INTERNAL_ERROR;
-		}
-		ptoken->num_sids++;
 	}
 
 	/* The caller may have requested simple privilages, for example if there isn't a local DB */

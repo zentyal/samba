@@ -17,6 +17,11 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifndef AUTH_COMMON_AUTH_H
+#define AUTH_COMMON_AUTH_H
+
+#include "librpc/gen_ndr/auth.h"
+
 #define USER_INFO_CASE_INSENSITIVE_USERNAME 0x01 /* username may be in any case */
 #define USER_INFO_CASE_INSENSITIVE_PASSWORD 0x02 /* password may be in any case */
 #define USER_INFO_DONT_CHECK_UNIX_ACCOUNT   0x04 /* don't check unix account status */
@@ -27,6 +32,11 @@ enum auth_password_state {
 	AUTH_PASSWORD_HASH = 2,
 	AUTH_PASSWORD_RESPONSE = 3
 };
+
+#define AUTH_SESSION_INFO_DEFAULT_GROUPS     0x01 /* Add the user to the default world and network groups */
+#define AUTH_SESSION_INFO_AUTHENTICATED      0x02 /* Add the user to the 'authenticated users' group */
+#define AUTH_SESSION_INFO_SIMPLE_PRIVILEGES  0x04 /* Use a trivial map between users and privilages, rather than a DB */
+#define AUTH_SESSION_INFO_UNIX_TOKEN         0x08 /* The returned token must have the unix_token and unix_info elements provided */
 
 struct auth_usersupplied_info
 {
@@ -59,3 +69,65 @@ struct auth_usersupplied_info
 	} password;
 	uint32_t flags;
 };
+
+struct auth_method_context;
+struct tevent_context;
+struct imessaging_context;
+struct loadparm_context;
+struct ldb_context;
+struct smb_krb5_context;
+
+struct auth4_context {
+	struct {
+		/* Who set this up in the first place? */
+		const char *set_by;
+
+		DATA_BLOB data;
+	} challenge;
+
+	/* methods, in the order they should be called */
+	struct auth_method_context *methods;
+
+	/* the event context to use for calls that can block */
+	struct tevent_context *event_ctx;
+
+	/* the messaging context which can be used by backends */
+	struct imessaging_context *msg_ctx;
+
+	/* loadparm context */
+	struct loadparm_context *lp_ctx;
+
+	/* SAM database for this local machine - to fill in local groups, or to authenticate local NTLM users */
+	struct ldb_context *sam_ctx;
+
+	/* Private data for the callbacks on this auth context */
+	void *private_data;
+
+	NTSTATUS (*check_ntlm_password)(struct auth4_context *auth_ctx,
+					TALLOC_CTX *mem_ctx,
+					const struct auth_usersupplied_info *user_info,
+					void **server_returned_info,
+					DATA_BLOB *nt_session_key, DATA_BLOB *lm_session_key);
+
+	NTSTATUS (*get_ntlm_challenge)(struct auth4_context *auth_ctx, uint8_t chal[8]);
+
+	NTSTATUS (*set_ntlm_challenge)(struct auth4_context *auth_ctx, const uint8_t chal[8], const char *set_by);
+
+	NTSTATUS (*generate_session_info)(struct auth4_context *auth_context,
+					  TALLOC_CTX *mem_ctx,
+					  void *server_returned_info,
+					  const char *original_user_name,
+					  uint32_t session_info_flags,
+					  struct auth_session_info **session_info);
+
+	NTSTATUS (*generate_session_info_pac)(struct auth4_context *auth_ctx,
+					      TALLOC_CTX *mem_ctx,
+					      struct smb_krb5_context *smb_krb5_context,
+					      DATA_BLOB *pac_blob,
+					      const char *principal_name,
+					      const struct tsocket_address *remote_address,
+					      uint32_t session_info_flags,
+					      struct auth_session_info **session_info);
+};
+
+#endif

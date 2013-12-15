@@ -320,6 +320,7 @@ NTSTATUS ntlm_password_check(TALLOC_CTX *mem_ctx,
 		struct samr_Password client_lm;
 		char *unix_pw = NULL;
 		bool lm_ok;
+		size_t converted_size = 0;
 
 		DEBUG(4,("ntlm_password_check: checking plaintext passwords for user %s\n",
 			 username));
@@ -328,7 +329,7 @@ NTSTATUS ntlm_password_check(TALLOC_CTX *mem_ctx,
 		if (lm_response->length && 
 		    (convert_string_talloc(mem_ctx, CH_DOS, CH_UNIX, 
 					  lm_response->data, lm_response->length, 
-					   (void *)&unix_pw, NULL, false))) {
+					   (void *)&unix_pw, &converted_size))) {
 			if (E_deshash(unix_pw, client_lm.hash)) {
 				lm_ok = true;
 			} else {

@@ -28,6 +28,10 @@ case $1 in
 		if init_is_upstart; then
 			exit 1
 		fi
+		SERVER_ROLE=`samba-tool testparm --parameter-name="server role"  2>/dev/null | tail -1`
+		if [ "$SERVER_ROLE" = "active directory domain controller" ]; then
+		    exit 0
+		fi
 
 		log_daemon_msg "Starting SMB/CIFS daemon" smbd
 		# Make sure we have our PIDDIR, even if it's on a tmpfs

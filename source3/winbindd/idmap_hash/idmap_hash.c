@@ -127,7 +127,7 @@ static NTSTATUS be_init(struct idmap_domain *dom)
 
 	/* Create the hash table of domain SIDs */
 
-	hashed_domains = TALLOC_ZERO_ARRAY(dom, struct sid_hash_table, 4096);
+	hashed_domains = talloc_zero_array(dom, struct sid_hash_table, 4096);
 	BAIL_ON_PTR_NT_ERROR(hashed_domains, nt_status);
 
 	/* create the hash table of domain SIDs */
@@ -166,6 +166,11 @@ static NTSTATUS unixids_to_sids(struct idmap_domain *dom,
 	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
 	int i;
 
+	if (!ids) {
+		nt_status = NT_STATUS_INVALID_PARAMETER;
+		BAIL_ON_NTSTATUS_ERROR(nt_status);
+	}
+
 	/* initialize the status to avoid suprise */
 	for (i = 0; ids[i]; i++) {
 		ids[i]->status = ID_UNKNOWN;
@@ -173,11 +178,6 @@ static NTSTATUS unixids_to_sids(struct idmap_domain *dom,
 
 	nt_status = be_init(dom);
 	BAIL_ON_NTSTATUS_ERROR(nt_status);
-
-	if (!ids) {
-		nt_status = NT_STATUS_INVALID_PARAMETER;
-		BAIL_ON_NTSTATUS_ERROR(nt_status);
-	}
 
 	for (i=0; ids[i]; i++) {
 		uint32_t h_domain, h_rid;
@@ -216,6 +216,11 @@ static NTSTATUS sids_to_unixids(struct idmap_domain *dom,
 	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
 	int i;
 
+	if (!ids) {
+		nt_status = NT_STATUS_INVALID_PARAMETER;
+		BAIL_ON_NTSTATUS_ERROR(nt_status);
+	}
+
 	/* initialize the status to avoid suprise */
 	for (i = 0; ids[i]; i++) {
 		ids[i]->status = ID_UNKNOWN;
@@ -223,11 +228,6 @@ static NTSTATUS sids_to_unixids(struct idmap_domain *dom,
 
 	nt_status = be_init(dom);
 	BAIL_ON_NTSTATUS_ERROR(nt_status);
-
-	if (!ids) {
-		nt_status = NT_STATUS_INVALID_PARAMETER;
-		BAIL_ON_NTSTATUS_ERROR(nt_status);
-	}
 
 	for (i=0; ids[i]; i++) {
 		struct dom_sid sid;
@@ -366,7 +366,7 @@ static struct nss_info_methods hash_nss_methods = {
  state.
  **********************************************************************/
 
-NTSTATUS idmap_hash_init(void)
+NTSTATUS samba_init_module(void)
 {
 	static NTSTATUS idmap_status = NT_STATUS_UNSUCCESSFUL;
 	static NTSTATUS nss_status = NT_STATUS_UNSUCCESSFUL;

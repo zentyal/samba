@@ -20,6 +20,8 @@
 */
 
 #include "includes.h"
+#include <tevent.h>
+#include "lib/util/tevent_ntstatus.h"
 #include "libcli/raw/libcliraw.h"
 #include "libcli/raw/raw_proto.h"
 #include "libcli/smb2/smb2.h"
@@ -27,290 +29,327 @@
 #include "libcli/composite/composite.h"
 #include "libcli/resolve/resolve.h"
 #include "param/param.h"
+#include "auth/credentials/credentials.h"
+#include "../libcli/smb/smbXcli_base.h"
 
 struct smb2_connect_state {
+	struct tevent_context *ev;
 	struct cli_credentials *credentials;
+	uint64_t previous_session_id;
 	struct resolve_context *resolve_ctx;
 	const char *host;
 	const char *share;
 	const char **ports;
 	const char *socket_options;
+	struct nbt_name calling, called;
 	struct gensec_settings *gensec_settings;
 	struct smbcli_options options;
-	struct smb2_negprot negprot;
+	struct smb2_transport *transport;
 	struct smb2_tree_connect tcon;
 	struct smb2_session *session;
 	struct smb2_tree *tree;
 };
 
-/*
-  continue after tcon reply
-*/
-static void continue_tcon(struct smb2_request *req)
-{
-	struct composite_context *c = talloc_get_type(req->async.private_data, 
-						      struct composite_context);
-	struct smb2_connect_state *state = talloc_get_type(c->private_data, 
-							   struct smb2_connect_state);
-
-	c->status = smb2_tree_connect_recv(req, &state->tcon);
-	if (!composite_is_ok(c)) return;
-	
-	state->tree->tid = state->tcon.out.tid;
-
-	composite_done(c);
-}
-
-/*
-  continue after a session setup
-*/
-static void continue_session(struct composite_context *creq)
-{
-	struct composite_context *c = talloc_get_type(creq->async.private_data, 
-						      struct composite_context);
-	struct smb2_connect_state *state = talloc_get_type(c->private_data, 
-							   struct smb2_connect_state);
-	struct smb2_request *req;
-
-	c->status = smb2_session_setup_spnego_recv(creq);
-	if (!composite_is_ok(c)) return;
-
-	state->tree = smb2_tree_init(state->session, state, true);
-	if (composite_nomem(state->tree, c)) return;
-
-	state->tcon.in.reserved = 0;
-	state->tcon.in.path     = talloc_asprintf(state, "\\\\%s\\%s", 
-						  state->host, state->share);
-	if (composite_nomem(state->tcon.in.path, c)) return;
-	
-	req = smb2_tree_connect_send(state->tree, &state->tcon);
-	if (composite_nomem(req, c)) return;
-
-	req->async.fn = continue_tcon;
-	req->async.private_data = c;	
-}
-
-/*
-  continue after negprot reply
-*/
-static void continue_negprot(struct smb2_request *req)
-{
-	struct composite_context *c = talloc_get_type(req->async.private_data, 
-						      struct composite_context);
-	struct smb2_connect_state *state = talloc_get_type(c->private_data, 
-							   struct smb2_connect_state);
-	struct smb2_transport *transport = req->transport;
-	struct composite_context *creq;
-
-	c->status = smb2_negprot_recv(req, c, &state->negprot);
-	if (!composite_is_ok(c)) return;
-
-	transport->negotiate.secblob = state->negprot.out.secblob;
-	talloc_steal(transport, transport->negotiate.secblob.data);
-	transport->negotiate.system_time = state->negprot.out.system_time;
-	transport->negotiate.server_start_time = state->negprot.out.server_start_time;
-	transport->negotiate.security_mode = state->negprot.out.security_mode;
-	transport->negotiate.dialect_revision = state->negprot.out.dialect_revision;
-
-	switch (transport->options.signing) {
-	case SMB_SIGNING_OFF:
-		if (transport->negotiate.security_mode & SMB2_NEGOTIATE_SIGNING_REQUIRED) {
-			composite_error(c, NT_STATUS_ACCESS_DENIED);
-			return;
-		}
-		transport->signing_required = false;
-		break;
-	case SMB_SIGNING_SUPPORTED:
-		if (transport->negotiate.security_mode & SMB2_NEGOTIATE_SIGNING_REQUIRED) {
-			transport->signing_required = true;
-		} else {
-			transport->signing_required = false;
-		}
-		break;
-	case SMB_SIGNING_AUTO:
-		if (transport->negotiate.security_mode & SMB2_NEGOTIATE_SIGNING_ENABLED) {
-			transport->signing_required = true;
-		} else {
-			transport->signing_required = false;
-		}
-		break;
-	case SMB_SIGNING_REQUIRED:
-		if (transport->negotiate.security_mode & SMB2_NEGOTIATE_SIGNING_ENABLED) {
-			transport->signing_required = true;
-		} else {
-			composite_error(c, NT_STATUS_ACCESS_DENIED);
-			return;
-		}
-		break;
-	}
-
-	state->session = smb2_session_init(transport, state->gensec_settings, state, true);
-	if (composite_nomem(state->session, c)) return;
-
-	creq = smb2_session_setup_spnego_send(state->session, state->credentials);
-
-	composite_continue(c, creq, continue_session, c);
-}
-
-/*
-  continue after a socket connect completes
-*/
-static void continue_socket(struct composite_context *creq)
-{
-	struct composite_context *c = talloc_get_type(creq->async.private_data, 
-						      struct composite_context);
-	struct smb2_connect_state *state = talloc_get_type(c->private_data, 
-							   struct smb2_connect_state);
-	struct smbcli_socket *sock;
-	struct smb2_transport *transport;
-	struct smb2_request *req;
-	uint16_t dialects[3] = {
-		SMB2_DIALECT_REVISION_000,
-		SMB2_DIALECT_REVISION_202,
-		SMB2_DIALECT_REVISION_210
-	};
-
-	c->status = smbcli_sock_connect_recv(creq, state, &sock);
-	if (!composite_is_ok(c)) return;
-
-	transport = smb2_transport_init(sock, state, &state->options);
-	if (composite_nomem(transport, c)) return;
-
-	ZERO_STRUCT(state->negprot);
-	state->negprot.in.dialect_count = sizeof(dialects) / sizeof(dialects[0]);
-	switch (transport->options.signing) {
-	case SMB_SIGNING_OFF:
-		state->negprot.in.security_mode = 0;
-		break;
-	case SMB_SIGNING_SUPPORTED:
-	case SMB_SIGNING_AUTO:
-		state->negprot.in.security_mode = SMB2_NEGOTIATE_SIGNING_ENABLED;
-		break;
-	case SMB_SIGNING_REQUIRED:
-		state->negprot.in.security_mode = 
-			SMB2_NEGOTIATE_SIGNING_ENABLED | SMB2_NEGOTIATE_SIGNING_REQUIRED;
-		break;
-	}
-	state->negprot.in.capabilities  = 0;
-	unix_to_nt_time(&state->negprot.in.start_time, time(NULL));
-	state->negprot.in.dialects = dialects;
-
-	req = smb2_negprot_send(transport, &state->negprot);
-	if (composite_nomem(req, c)) return;
-
-	req->async.fn = continue_negprot;
-	req->async.private_data = c;
-}
-
-
-/*
-  continue after a resolve finishes
-*/
-static void continue_resolve(struct composite_context *creq)
-{
-	struct composite_context *c = talloc_get_type(creq->async.private_data, 
-						      struct composite_context);
-	struct smb2_connect_state *state = talloc_get_type(c->private_data, 
-							   struct smb2_connect_state);
-	const char *addr;
-	const char **ports;
-	const char *default_ports[] = { "445", NULL };
-
-	c->status = resolve_name_recv(creq, state, &addr);
-	if (!composite_is_ok(c)) return;
-
-	if (state->ports == NULL) {
-		ports = default_ports;
-	} else {
-		ports = state->ports;
-	}
-
-	creq = smbcli_sock_connect_send(state, addr, ports, state->host, state->resolve_ctx, c->event_ctx, state->socket_options);
-
-	composite_continue(c, creq, continue_socket, c);
-}
+static void smb2_connect_socket_done(struct composite_context *creq);
 
 /*
   a composite function that does a full negprot/sesssetup/tcon, returning
   a connected smb2_tree
  */
-struct composite_context *smb2_connect_send(TALLOC_CTX *mem_ctx,
-					    const char *host,
-						const char **ports,
-					    const char *share,
-					    struct resolve_context *resolve_ctx,
-					    struct cli_credentials *credentials,
-					    struct tevent_context *ev,
-					    struct smbcli_options *options,
-						const char *socket_options,
-						struct gensec_settings *gensec_settings)
+struct tevent_req *smb2_connect_send(TALLOC_CTX *mem_ctx,
+				     struct tevent_context *ev,
+				     const char *host,
+				     const char **ports,
+				     const char *share,
+				     struct resolve_context *resolve_ctx,
+				     struct cli_credentials *credentials,
+				     uint64_t previous_session_id,
+				     struct smbcli_options *options,
+				     const char *socket_options,
+				     struct gensec_settings *gensec_settings)
 {
-	struct composite_context *c;
+	struct tevent_req *req;
 	struct smb2_connect_state *state;
-	struct nbt_name name;
 	struct composite_context *creq;
+	static const char *default_ports[] = { "445", "139", NULL };
 
-	c = composite_create(mem_ctx, ev);
-	if (c == NULL) return NULL;
+	req = tevent_req_create(mem_ctx, &state,
+				struct smb2_connect_state);
+	if (req == NULL) {
+		return NULL;
+	}
 
-	state = talloc(c, struct smb2_connect_state);
-	if (composite_nomem(state, c)) return c;
-	c->private_data = state;
-
+	state->ev = ev;
 	state->credentials = credentials;
+	state->previous_session_id = previous_session_id;
 	state->options = *options;
-	state->host = talloc_strdup(c, host);
-	if (composite_nomem(state->host, c)) return c;
-	state->ports = talloc_reference(state, ports);
-	state->share = talloc_strdup(c, share);
-	if (composite_nomem(state->share, c)) return c;
-	state->resolve_ctx = talloc_reference(state, resolve_ctx);
-	state->socket_options = talloc_reference(state, socket_options);
-	state->gensec_settings = talloc_reference(state, gensec_settings);
+	state->host = host;
+	state->ports = ports;
+	state->share = share;
+	state->resolve_ctx = resolve_ctx;
+	state->socket_options = socket_options;
+	state->gensec_settings = gensec_settings;
 
-	ZERO_STRUCT(name);
-	name.name = host;
+	if (state->ports == NULL) {
+		state->ports = default_ports;
+	}
 
-	creq = resolve_name_send(resolve_ctx, state, &name, c->event_ctx);
-	composite_continue(c, creq, continue_resolve, c);
-	return c;
+	make_nbt_name_client(&state->calling,
+			     cli_credentials_get_workstation(credentials));
+
+	nbt_choose_called_name(state, &state->called,
+			       host, NBT_NAME_SERVER);
+
+	creq = smbcli_sock_connect_send(state, NULL, state->ports,
+					state->host, state->resolve_ctx,
+					state->ev, state->socket_options,
+					&state->calling,
+					&state->called);
+	if (tevent_req_nomem(creq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	creq->async.fn = smb2_connect_socket_done;
+	creq->async.private_data = req;
+
+	return req;
 }
 
-/*
-  receive a connect reply
-*/
-NTSTATUS smb2_connect_recv(struct composite_context *c, TALLOC_CTX *mem_ctx,
+static void smb2_connect_negprot_done(struct tevent_req *subreq);
+
+static void smb2_connect_socket_done(struct composite_context *creq)
+{
+	struct tevent_req *req =
+		talloc_get_type_abort(creq->async.private_data,
+		struct tevent_req);
+	struct smb2_connect_state *state =
+		tevent_req_data(req,
+		struct smb2_connect_state);
+	struct smbcli_socket *sock;
+	struct tevent_req *subreq;
+	NTSTATUS status;
+	uint32_t timeout_msec;
+
+	status = smbcli_sock_connect_recv(creq, state, &sock);
+	if (tevent_req_nterror(req, status)) {
+		return;
+	}
+
+	state->transport = smb2_transport_init(sock, state, &state->options);
+	if (tevent_req_nomem(state->transport, req)) {
+		return;
+	}
+
+	timeout_msec = state->transport->options.request_timeout * 1000;
+
+	subreq = smbXcli_negprot_send(state, state->ev,
+				      state->transport->conn, timeout_msec,
+				      PROTOCOL_SMB2_02, PROTOCOL_LATEST);
+	if (tevent_req_nomem(subreq, req)) {
+		return;
+	}
+	tevent_req_set_callback(subreq, smb2_connect_negprot_done, req);
+}
+
+static void smb2_connect_session_done(struct tevent_req *subreq);
+
+static void smb2_connect_negprot_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req =
+		tevent_req_callback_data(subreq,
+		struct tevent_req);
+	struct smb2_connect_state *state =
+		tevent_req_data(req,
+		struct smb2_connect_state);
+	struct smb2_transport *transport = state->transport;
+	NTSTATUS status;
+
+	status = smbXcli_negprot_recv(subreq);
+	TALLOC_FREE(subreq);
+	if (tevent_req_nterror(req, status)) {
+		return;
+	}
+
+	/* This is a hack... */
+	smb2cli_conn_set_max_credits(transport->conn, 30);
+
+	state->session = smb2_session_init(transport, state->gensec_settings, state, true);
+	if (tevent_req_nomem(state->session, req)) {
+		return;
+	}
+
+	subreq = smb2_session_setup_spnego_send(state, state->ev,
+						state->session,
+						state->credentials,
+						state->previous_session_id);
+	if (tevent_req_nomem(subreq, req)) {
+		return;
+	}
+	tevent_req_set_callback(subreq, smb2_connect_session_done, req);
+}
+
+static void smb2_connect_tcon_done(struct smb2_request *smb2req);
+
+static void smb2_connect_session_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req =
+		tevent_req_callback_data(subreq,
+		struct tevent_req);
+	struct smb2_connect_state *state =
+		tevent_req_data(req,
+		struct smb2_connect_state);
+	struct smb2_request *smb2req;
+	NTSTATUS status;
+
+	status = smb2_session_setup_spnego_recv(subreq);
+	TALLOC_FREE(subreq);
+	if (tevent_req_nterror(req, status)) {
+		return;
+	}
+
+	state->tcon.in.reserved = 0;
+	state->tcon.in.path     = talloc_asprintf(state, "\\\\%s\\%s",
+						  state->host, state->share);
+	if (tevent_req_nomem(state->tcon.in.path, req)) {
+		return;
+	}
+
+	smb2req = smb2_tree_connect_send(state->session, &state->tcon);
+	if (tevent_req_nomem(smb2req, req)) {
+		return;
+	}
+	smb2req->async.fn = smb2_connect_tcon_done;
+	smb2req->async.private_data = req;
+}
+
+static void smb2_connect_tcon_done(struct smb2_request *smb2req)
+{
+	struct tevent_req *req =
+		talloc_get_type_abort(smb2req->async.private_data,
+		struct tevent_req);
+	struct smb2_connect_state *state =
+		tevent_req_data(req,
+		struct smb2_connect_state);
+	NTSTATUS status;
+
+	status = smb2_tree_connect_recv(smb2req, &state->tcon);
+	if (tevent_req_nterror(req, status)) {
+		return;
+	}
+
+	state->tree = smb2_tree_init(state->session, state, true);
+	if (tevent_req_nomem(state->tree, req)) {
+		return;
+	}
+
+	smb2cli_tcon_set_values(state->tree->smbXcli,
+				state->session->smbXcli,
+				state->tcon.out.tid,
+				state->tcon.out.share_type,
+				state->tcon.out.flags,
+				state->tcon.out.capabilities,
+				state->tcon.out.access_mask);
+
+	tevent_req_done(req);
+}
+
+NTSTATUS smb2_connect_recv(struct tevent_req *req,
+			   TALLOC_CTX *mem_ctx,
 			   struct smb2_tree **tree)
 {
+	struct smb2_connect_state *state =
+		tevent_req_data(req,
+		struct smb2_connect_state);
 	NTSTATUS status;
-	struct smb2_connect_state *state = talloc_get_type(c->private_data, 
-							   struct smb2_connect_state);
-	status = composite_wait(c);
-	if (NT_STATUS_IS_OK(status)) {
-		*tree = talloc_steal(mem_ctx, state->tree);
+
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
 	}
-	talloc_free(c);
-	return status;
+
+	*tree = talloc_move(mem_ctx, &state->tree);
+
+	tevent_req_received(req);
+	return NT_STATUS_OK;
 }
 
 /*
   sync version of smb2_connect
 */
-NTSTATUS smb2_connect(TALLOC_CTX *mem_ctx, 
-		      const char *host, const char **ports, 
+NTSTATUS smb2_connect_ext(TALLOC_CTX *mem_ctx,
+			  const char *host,
+			  const char **ports,
 			  const char *share,
+			  struct resolve_context *resolve_ctx,
+			  struct cli_credentials *credentials,
+			  uint64_t previous_session_id,
+			  struct smb2_tree **tree,
+			  struct tevent_context *ev,
+			  struct smbcli_options *options,
+			  const char *socket_options,
+			  struct gensec_settings *gensec_settings)
+{
+	struct tevent_req *subreq;
+	NTSTATUS status;
+	bool ok;
+	TALLOC_CTX *frame = talloc_stackframe();
+
+	if (frame == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	subreq = smb2_connect_send(frame,
+				   ev,
+				   host,
+				   ports,
+				   share,
+				   resolve_ctx,
+				   credentials,
+				   previous_session_id,
+				   options,
+				   socket_options,
+				   gensec_settings);
+	if (subreq == NULL) {
+		TALLOC_FREE(frame);
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	ok = tevent_req_poll(subreq, ev);
+	if (!ok) {
+		status = map_nt_error_from_unix_common(errno);
+		TALLOC_FREE(frame);
+		return status;
+	}
+
+	status = smb2_connect_recv(subreq, mem_ctx, tree);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		TALLOC_FREE(frame);
+		return status;
+	}
+
+	TALLOC_FREE(frame);
+	return NT_STATUS_OK;
+}
+
+NTSTATUS smb2_connect(TALLOC_CTX *mem_ctx,
+		      const char *host,
+		      const char **ports,
+		      const char *share,
 		      struct resolve_context *resolve_ctx,
 		      struct cli_credentials *credentials,
 		      struct smb2_tree **tree,
 		      struct tevent_context *ev,
 		      struct smbcli_options *options,
-			  const char *socket_options,
-			  struct gensec_settings *gensec_settings)
+		      const char *socket_options,
+		      struct gensec_settings *gensec_settings)
 {
-	struct composite_context *c = smb2_connect_send(mem_ctx, host, ports, 
-													share, resolve_ctx, 
-													credentials, ev, options,
-													socket_options,
-													gensec_settings);
-	return smb2_connect_recv(c, mem_ctx, tree);
+	NTSTATUS status;
+
+	status = smb2_connect_ext(mem_ctx, host, ports, share, resolve_ctx,
+				  credentials,
+				  0, /* previous_session_id */
+				  tree, ev, options, socket_options,
+				  gensec_settings);
+
+	return status;
 }

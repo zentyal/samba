@@ -1,20 +1,135 @@
 # translation of bg.po to Bulgarian
-# Damyan Ivanov <dmn@debian.org>, 2006, 2007, 2010.
 #
+# Damyan Ivanov <dam@modsoftsys.com>, 2006, 2007.
+# Damyan Ivanov <dmn@debian.org>, 2008.
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_3.0.23c-1_bg\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2013-05-13 11:53-0700\n"
-"PO-Revision-Date: 2010-10-25 10:44+0300\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2013-10-22 20:32+0200\n"
+"PO-Revision-Date: 2008-06-17 14:00+0300\n"
 "Last-Translator: Damyan Ivanov <dmn@debian.org>\n"
-"Language-Team: Bulgarian <>\n"
+"Language-Team: Bulgarian <dict@fsa-bg.org>\n"
 "Language: bg\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "X-Generator: KBabel 1.11.4\n"
-"Plural-Forms: nplurals=2; plural=(n != 1)\n"
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid "Upgrade from Samba 3?"
+msgstr "Обновяване от Samba 3?"
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid ""
+"It is possible to migrate the existing configuration files from Samba 3 to "
+"Samba 4. This is likely to fail for complex setups, but should provide a "
+"good starting point for most existing installations."
+msgstr ""
+"Конфигурационните файлове на Samba 3 могат да бъдат преработени за работа "
+"със Samba 4. При сложни конфигурации това може да не даде добър резултат, но "
+"в повечето случаи би трябвало да даде добра първоначална настройка."
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid "Server role"
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Domain controllers manage NT4-style or Active Directory domains and provide "
+"services such as identity management and domain logons. Each domain needs to "
+"have a at least one domain controller."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Member servers can be part of a NT4-style or Active Directory domain but do "
+"not provide any domain services. Workstations and file or print servers are "
+"usually regular domain members."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"A standalone server can not be used in a domain and only supports file "
+"sharing and Windows for Workgroups-style logins."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"If no server role is specified, the Samba server will not be provisioned, so "
+"this can be done manually by the user."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+#, fuzzy
+msgid "Realm name:"
+msgstr "Област:"
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid ""
+"Please specify the Kerberos realm for the domain that this domain controller "
+"controls."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Usually this is the a capitalized version of your DNS hostname."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "New password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "If this field is left blank, a random password will be generated."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "A password can be set later by running, as root:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:5001
+msgid "Repeat password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "Password input error"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr ""
 
 #. Type: title
 #. Description
@@ -104,35 +219,145 @@ msgstr ""
 "работната група по подразбиране при разглеждане на мрежата и името на "
 "домейна, което ще се използва при настройката „security=domain“."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Шифриране на паролите?"
+#~ msgid "Use password encryption?"
+#~ msgstr "Шифриране на паролите?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Всички съвременни версии на Windows използват шифрирани пароли за връзка със "
-"сървъри по протокол SMB/CIFS. Използването на пароли без шифриране е "
-"възможно само след промени в регистъра на Windows."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Всички съвременни версии на Windows използват шифрирани пароли за връзка "
+#~ "със сървъри по протокол SMB/CIFS. Използването на пароли без шифриране е "
+#~ "възможно само след промени в регистъра на Windows."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Използването на шифрирани пароли е силно препоръчително, понеже продуктите "
-"Microsoft Windows вече не поддържат нешифрирани пароли. Проверете дали "
-"файлът /etc/samba/smbpasswd е правилен и използвайте програмата smbpasswd за "
-"задаване на паролите на потребителите."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Използването на шифрирани пароли е силно препоръчително, понеже "
+#~ "продуктите Microsoft Windows вече не поддържат нешифрирани пароли. "
+#~ "Проверете дали файлът /etc/samba/smbpasswd е правилен и използвайте "
+#~ "програмата smbpasswd за задаване на паролите на потребителите."
 
+#~ msgid "daemons"
+#~ msgstr "фонов процес"
+
+#~ msgid "inetd"
+#~ msgstr "при нужда"
+
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Как да се стартира Samba?"
+
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Основният процес на Samba, smbd, може да бъде изпълняван при нужда или "
+#~ "като фонов процес (със зареждането на операционната система). "
+#~ "Препоръчителният начин за изпълнение е като фонов процес."
+
+#~ msgid "Set up Samba 4 as a PDC?"
+#~ msgstr "Настройване на Samba 4 като PDC?"
+
+#~ msgid ""
+#~ "Even when using this option, you will need to set up DNS such that it "
+#~ "serves the data from the zone file in that directory before you can use "
+#~ "the Active Directory domain."
+#~ msgstr ""
+#~ "При всички случай е необходимо да настроите DNS така, че да използва "
+#~ "данните от файла със зоната от тази директория преди да можете да "
+#~ "използвате домейна на Active Directory."
+
+#~ msgid ""
+#~ "Please specify the Kerberos realm this server will be in. In many cases,  "
+#~ "this will be the same as the DNS domain name."
+#~ msgstr ""
+#~ "Въведете името на областта на Kerberos, в която ще бъде този сървър. В "
+#~ "много случаи областта съвпада с името в DNS."
+
+#~| msgid ""
+#~| "Please specify the workgroup you want this server to appear to be in "
+#~| "when queried by clients. Note that this parameter also controls the "
+#~| "domain name used with the security=domain setting."
+#~ msgid ""
+#~ "Please specify the domain you want this server to appear to be in when "
+#~ "queried by clients."
+#~ msgstr ""
+#~ "Въведете името на домейна, в който да се представя сървърът при запитване "
+#~ "от клиентите."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "Създаване на базата данни с пароли, /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "За съвместимост с повечето версии на Windows, Samba трябва да използва "
+#~ "шифрирани пароли. Това изисква паролите да се съхраняват във файл, "
+#~ "отделен от /etc/passwd. Този файл може да бъде създаден автоматично, но "
+#~ "потребителите и паролите трябва да се добавят ръчно чрез командата "
+#~ "smbpasswd."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "Ако не създадете този файл, трябва да настроите Samba (а вероятно и "
+#~ "компютрите с Windows) да не използват шифрирани пароли."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
+#~ "package for more details."
+#~ msgstr ""
+#~ "За повече информация вижте /usr/share/doc/samba-doc/htmldocs/ENCRYPTION."
+#~ "html."
+
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr ""
+#~ "Новата версия на samba не поддържа работа с няколко бази данни с пароли"
+
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "От версия 3.0.23 нататък, samba не поддържа работа с няколко бази данни с "
+#~ "пароли в параметъра „passdb backend“. Изглежда, че във файла с настройки "
+#~ "„smb.conf“ този параметър съдържа списък с няколко бази данни с пароли. "
+#~ "Новата версия на samba няма да работи докато не коригирате това."
+
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr ""
+#~ "Да се премести ли /etc/samba/smbpasswd във /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Samba 3.0 въвежда по-пълна база с потребители, която прави излишен /etc/"
+#~ "samba/smbpasswd."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "Потвърдете дали желаете съществуващият /etc/samba/smbpasswd да бъде "
+#~ "мигриран автоматично към /var/lib/samba/passdb.tdb. Не избирайте тази "
+#~ "настройка ако планирате да използвате друг начин на удостоверяване "
+#~ "(например LDAP)."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "За повече информация вижте /usr/share/doc/samba-doc/htmldocs/Samba3-"
+#~ "Developers-Guide/pwencrypt.html."

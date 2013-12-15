@@ -28,6 +28,8 @@ _PUBLIC_ uint32_t ndr_ntprinting_string_flags(uint32_t string_flags)
 
 	if (string_flags & LIBNDR_FLAG_STR_ASCII) {
 		flags |= LIBNDR_FLAG_STR_ASCII;
+	} else if (string_flags & LIBNDR_FLAG_STR_RAW8) {
+		flags |= LIBNDR_FLAG_STR_RAW8;
 	} else {
 		flags |= LIBNDR_FLAG_STR_UTF8;
 	}

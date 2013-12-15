@@ -2,17 +2,17 @@
    Unix SMB/CIFS implementation.
    error packet handling
    Copyright (C) Andrew Tridgell 1992-1998
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -20,9 +20,6 @@
 #include "includes.h"
 #include "smbd/smbd.h"
 #include "smbd/globals.h"
-
-/* From lib/error.c */
-extern struct unix_error_map unix_dos_nt_errmap[];
 
 bool use_nt_status(void)
 {
@@ -74,17 +71,20 @@ void error_packet_set(char *outbuf, uint8 eclass, uint32 ecode, NTSTATUS ntstatu
 		}
 		SIVAL(outbuf,smb_rcls,NT_STATUS_V(ntstatus));
 		SSVAL(outbuf,smb_flg2, SVAL(outbuf,smb_flg2)|FLAGS2_32_BIT_ERROR_CODES);
-		DEBUG(3,("error packet at %s(%d) cmd=%d (%s) %s\n",
+		/* This must not start with the word 'error', as this
+		 * is reserved in the subunit stream protocol, causing
+		 * false errors to show up when debugging is turned
+		 * on */
+		DEBUG(3,("NT error packet at %s(%d) cmd=%d (%s) %s\n",
 			 file, line,
 			 (int)CVAL(outbuf,smb_com),
 			 smb_fn_name(CVAL(outbuf,smb_com)),
 			 nt_errstr(ntstatus)));
 	} else {
-		/* We're returning a DOS error only. */
-		if (NT_STATUS_IS_DOS(ntstatus)) {
-			eclass = NT_STATUS_DOS_CLASS(ntstatus);
-			ecode = NT_STATUS_DOS_CODE(ntstatus);
-		} else 	if (eclass == 0 && NT_STATUS_V(ntstatus)) {
+		/* We're returning a DOS error only,
+		 * nt_status_to_dos() pulls DOS error codes out of the
+		 * NTSTATUS */
+		if (NT_STATUS_IS_DOS(ntstatus) || (eclass == 0 && NT_STATUS_V(ntstatus))) {
 			ntstatus_to_dos(ntstatus, &eclass, &ecode);
 		}
 
@@ -92,7 +92,11 @@ void error_packet_set(char *outbuf, uint8 eclass, uint32 ecode, NTSTATUS ntstatu
 		SSVAL(outbuf,smb_rcls,eclass);
 		SSVAL(outbuf,smb_err,ecode);  
 
-		DEBUG(3,("error packet at %s(%d) cmd=%d (%s) eclass=%d ecode=%d\n",
+		/* This must not start with the word 'error', as this
+		 * is reserved in the subunit stream protocol, causing
+		 * false errors to show up when debugging is turned
+		 * on */
+		DEBUG(3,("DOS error packet at %s(%d) cmd=%d (%s) eclass=%d ecode=%d\n",
 			  file, line,
 			  (int)CVAL(outbuf,smb_com),
 			  smb_fn_name(CVAL(outbuf,smb_com)),

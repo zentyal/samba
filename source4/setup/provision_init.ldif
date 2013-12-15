@@ -17,9 +17,12 @@ passwordAttribute: trustAuthOutgoing
 passwordAttribute: trustAuthIncoming
 passwordAttribute: initialAuthOutgoing
 passwordAttribute: initialAuthIncoming
+passwordAttribute: pekList
+passwordAttribute: msDS-ExecuteScriptPassword
 
 dn: @OPTIONS
 checkBaseOnSearch: TRUE
+disallowDNFilter: TRUE
 
 dn: @SAMBA_DSDB
 backendType: ${BACKEND_TYPE}

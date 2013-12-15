@@ -75,11 +75,11 @@ char *tldap_talloc_single_attribute(struct tldap_message *msg,
 	size_t len;
 
 	if (!tldap_get_single_valueblob(msg, attribute, &val)) {
-		return false;
+		return NULL;
 	}
 	if (!convert_string_talloc(mem_ctx, CH_UTF8, CH_UNIX,
 				   val.data, val.length,
-				   &result, &len, false)) {
+				   &result, &len)) {
 		return NULL;
 	}
 	return result;
@@ -198,8 +198,7 @@ bool tldap_add_mod_str(TALLOC_CTX *mem_ctx,
 	bool ret;
 
 	if (!convert_string_talloc(talloc_tos(), CH_UNIX, CH_UTF8, str,
-				   strlen(str), &utf8.data, &utf8.length,
-				   false)) {
+				   strlen(str), &utf8.data, &utf8.length)) {
 		return false;
 	}
 
@@ -291,17 +290,17 @@ static int compare_utf8_blobs(const DATA_BLOB *d1, const DATA_BLOB *d2)
 	int ret;
 
 	if (!convert_string_talloc(talloc_tos(), CH_UTF8, CH_UNIX, d1->data,
-				   d1->length, &s1, &s1len, false)) {
+				   d1->length, &s1, &s1len)) {
 		/* can't do much here */
 		return 0;
 	}
 	if (!convert_string_talloc(talloc_tos(), CH_UTF8, CH_UNIX, d2->data,
-				   d2->length, &s2, &s2len, false)) {
+				   d2->length, &s2, &s2len)) {
 		/* can't do much here */
 		TALLOC_FREE(s1);
 		return 0;
 	}
-	ret = StrCaseCmp(s1, s2);
+	ret = strcasecmp_m(s1, s2);
 	TALLOC_FREE(s2);
 	TALLOC_FREE(s1);
 	return ret;
@@ -326,7 +325,7 @@ bool tldap_make_mod_fmt(struct tldap_message *existing, TALLOC_CTX *mem_ctx,
 
 	blob.length = strlen(newval);
 	if (blob.length != 0) {
-		blob.data = CONST_DISCARD(uint8_t *, newval);
+		blob.data = discard_const_p(uint8_t, newval);
 	}
 	ret = tldap_make_mod_blob_int(existing, mem_ctx, pmods, pnum_mods,
 				      attrib, blob, compare_utf8_blobs);

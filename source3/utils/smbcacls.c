@@ -30,6 +30,7 @@
 #include "libsmb/libsmb.h"
 #include "libsmb/clirap.h"
 #include "passdb/machine_sid.h"
+#include "../librpc/gen_ndr/ndr_lsa_c.h"
 
 static int test_args;
 
@@ -40,6 +41,10 @@ static int test_args;
 static int numeric;
 
 static int sddl;
+static int query_sec_info = -1;
+static int set_sec_info = -1;
+
+static const char *domain_sid = NULL;
 
 enum acl_mode {SMB_ACL_SET, SMB_ACL_DELETE, SMB_ACL_MODIFY, SMB_ACL_ADD };
 enum chown_mode {REQUEST_NONE, REQUEST_CHOWN, REQUEST_CHGRP, REQUEST_INHERIT};
@@ -77,7 +82,7 @@ static NTSTATUS cli_lsa_lookup_sid(struct cli_state *cli,
 				   enum lsa_SidType *type,
 				   char **domain, char **name)
 {
-	uint16 orig_cnum = cli->cnum;
+	uint16 orig_cnum = cli_state_get_tid(cli);
 	struct rpc_pipe_client *p = NULL;
 	struct policy_handle handle;
 	NTSTATUS status;
@@ -86,9 +91,9 @@ static NTSTATUS cli_lsa_lookup_sid(struct cli_state *cli,
 	char **domains;
 	char **names;
 
-	status = cli_tcon_andx(cli, "IPC$", "?????", "", 0);
+	status = cli_tree_connect(cli, "IPC$", "?????", "", 0);
 	if (!NT_STATUS_IS_OK(status)) {
-		return status;
+		goto tcon_fail;
 	}
 
 	status = cli_rpc_pipe_open_noauth(cli, &ndr_table_lsarpc.syntax_id,
@@ -117,7 +122,8 @@ static NTSTATUS cli_lsa_lookup_sid(struct cli_state *cli,
  fail:
 	TALLOC_FREE(p);
 	cli_tdis(cli);
-	cli->cnum = orig_cnum;
+ tcon_fail:
+	cli_state_set_tid(cli, orig_cnum);
 	TALLOC_FREE(frame);
 	return status;
 }
@@ -127,7 +133,7 @@ static NTSTATUS cli_lsa_lookup_name(struct cli_state *cli,
 				    enum lsa_SidType *type,
 				    struct dom_sid *sid)
 {
-	uint16 orig_cnum = cli->cnum;
+	uint16 orig_cnum = cli_state_get_tid(cli);
 	struct rpc_pipe_client *p;
 	struct policy_handle handle;
 	NTSTATUS status;
@@ -135,9 +141,9 @@ static NTSTATUS cli_lsa_lookup_name(struct cli_state *cli,
 	struct dom_sid *sids;
 	enum lsa_SidType *types;
 
-	status = cli_tcon_andx(cli, "IPC$", "?????", "", 0);
+	status = cli_tree_connect(cli, "IPC$", "?????", "", 0);
 	if (!NT_STATUS_IS_OK(status)) {
-		return status;
+		goto tcon_fail;
 	}
 
 	status = cli_rpc_pipe_open_noauth(cli, &ndr_table_lsarpc.syntax_id,
@@ -165,10 +171,89 @@ static NTSTATUS cli_lsa_lookup_name(struct cli_state *cli,
  fail:
 	TALLOC_FREE(p);
 	cli_tdis(cli);
-	cli->cnum = orig_cnum;
+ tcon_fail:
+	cli_state_set_tid(cli, orig_cnum);
 	TALLOC_FREE(frame);
 	return status;
 }
+
+
+static NTSTATUS cli_lsa_lookup_domain_sid(struct cli_state *cli,
+					  struct dom_sid *sid)
+{
+	union lsa_PolicyInformation *info = NULL;
+	uint16 orig_cnum = cli_state_get_tid(cli);
+	struct rpc_pipe_client *rpc_pipe = NULL;
+	struct policy_handle handle;
+	NTSTATUS status, result;
+	TALLOC_CTX *frame = talloc_stackframe();
+	const struct ndr_syntax_id *lsarpc_syntax = &ndr_table_lsarpc.syntax_id;
+
+	status = cli_tree_connect(cli, "IPC$", "?????", "", 0);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+
+	status = cli_rpc_pipe_open_noauth(cli, lsarpc_syntax, &rpc_pipe);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto tdis;
+	}
+
+	status = rpccli_lsa_open_policy(rpc_pipe, frame, True,
+					GENERIC_EXECUTE_ACCESS, &handle);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto tdis;
+	}
+
+	status = dcerpc_lsa_QueryInfoPolicy2(rpc_pipe->binding_handle,
+					     frame, &handle,
+					     LSA_POLICY_INFO_DOMAIN,
+					     &info, &result);
+
+	if (any_nt_status_not_ok(status, result, &status)) {
+		goto tdis;
+	}
+
+	*sid = *info->domain.sid;
+
+tdis:
+	TALLOC_FREE(rpc_pipe);
+	cli_tdis(cli);
+done:
+	cli_state_set_tid(cli, orig_cnum);
+	TALLOC_FREE(frame);
+	return status;
+}
+
+static struct dom_sid *get_domain_sid(struct cli_state *cli)
+{
+	NTSTATUS status;
+
+	struct dom_sid *sid = talloc(talloc_tos(), struct dom_sid);
+	if (sid == NULL) {
+		DEBUG(0, ("Out of memory\n"));
+		return NULL;
+	}
+
+	if (domain_sid) {
+		if (!dom_sid_parse(domain_sid, sid)) {
+			DEBUG(0,("failed to parse domain sid\n"));
+			TALLOC_FREE(sid);
+		}
+	} else {
+		status = cli_lsa_lookup_domain_sid(cli, sid);
+
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(0,("failed to lookup domain sid: %s\n", nt_errstr(status)));
+			TALLOC_FREE(sid);
+		}
+
+	}
+
+	DEBUG(2,("Domain SID: %s\n", sid_string_dbg(sid)));
+	return sid;
+}
+
 
 /* convert a SID to a string, either numeric or username/group */
 static void SidToString(struct cli_state *cli, fstring str, const struct dom_sid *sid)
@@ -632,6 +717,48 @@ static struct security_descriptor *sec_desc_parse(TALLOC_CTX *ctx, struct cli_st
 	return ret;
 }
 
+static const struct {
+	uint16_t mask;
+	const char *str;
+	const char *desc;
+} sec_desc_ctrl_bits[] = {
+	{SEC_DESC_OWNER_DEFAULTED,       "OD", "Owner Defaulted"},
+	{SEC_DESC_GROUP_DEFAULTED,       "GD", "Group Defaulted"},
+	{SEC_DESC_DACL_PRESENT,          "DP", "DACL Present"},
+	{SEC_DESC_DACL_DEFAULTED,        "DD", "DACL Defaulted"},
+	{SEC_DESC_SACL_PRESENT,          "SP", "SACL Present"},
+	{SEC_DESC_SACL_DEFAULTED,        "SD", "SACL Defaulted"},
+	{SEC_DESC_DACL_TRUSTED,          "DT", "DACL Trusted"},
+	{SEC_DESC_SERVER_SECURITY,       "SS", "Server Security"},
+	{SEC_DESC_DACL_AUTO_INHERIT_REQ, "DR", "DACL Inheritance Required"},
+	{SEC_DESC_SACL_AUTO_INHERIT_REQ, "SR", "SACL Inheritance Required"},
+	{SEC_DESC_DACL_AUTO_INHERITED,   "DI", "DACL Auto Inherited"},
+	{SEC_DESC_SACL_AUTO_INHERITED,   "SI", "SACL Auto Inherited"},
+	{SEC_DESC_DACL_PROTECTED,        "PD", "DACL Protected"},
+	{SEC_DESC_SACL_PROTECTED,        "PS", "SACL Protected"},
+	{SEC_DESC_RM_CONTROL_VALID,      "RM", "RM Control Valid"},
+	{SEC_DESC_SELF_RELATIVE ,        "SR", "Self Relative"},
+};
+
+static void print_acl_ctrl(FILE *file, uint16_t ctrl)
+{
+	int i;
+	const char* separator = "";
+
+	fprintf(file, "CONTROL:");
+	if (numeric) {
+		fprintf(file, "0x%x\n", ctrl);
+		return;
+	}
+
+	for (i = ARRAY_SIZE(sec_desc_ctrl_bits) - 1; i >= 0; i--) {
+		if (ctrl & sec_desc_ctrl_bits[i].mask) {
+			fprintf(file, "%s%s", separator, sec_desc_ctrl_bits[i].str);
+			separator = "|";
+		}
+	}
+	fputc('\n', file);
+}
 
 /* print a ascii version of a security descriptor on a FILE handle */
 static void sec_desc_print(struct cli_state *cli, FILE *f, struct security_descriptor *sd)
@@ -640,7 +767,7 @@ static void sec_desc_print(struct cli_state *cli, FILE *f, struct security_descr
 	uint32 i;
 
 	fprintf(f, "REVISION:%d\n", sd->revision);
-	fprintf(f, "CONTROL:0x%x\n", sd->type);
+	print_acl_ctrl(f, sd->type);
 
 	/* Print owner and group sid */
 
@@ -710,11 +837,27 @@ static struct security_descriptor *get_secdesc(struct cli_state *cli, const char
 	uint16_t fnum = (uint16_t)-1;
 	struct security_descriptor *sd;
 	NTSTATUS status;
+	uint32_t sec_info;
+	uint32_t desired_access = 0;
 
-	/* The desired access below is the only one I could find that works
-	   with NT4, W2KP and Samba */
+	if (query_sec_info == -1) {
+		sec_info = SECINFO_OWNER | SECINFO_GROUP | SECINFO_DACL;
+	} else {
+		sec_info = query_sec_info;
+	}
 
-	status = cli_ntcreate(cli, filename, 0, CREATE_ACCESS_READ,
+	if (sec_info & (SECINFO_OWNER | SECINFO_GROUP | SECINFO_DACL)) {
+		desired_access |= SEC_STD_READ_CONTROL;
+	}
+	if (sec_info & SECINFO_SACL) {
+		desired_access |= SEC_FLAG_SYSTEM_SECURITY;
+	}
+
+	if (desired_access == 0) {
+		desired_access |= SEC_STD_READ_CONTROL;
+	}
+
+	status = cli_ntcreate(cli, filename, 0, desired_access,
 			      0, FILE_SHARE_READ|FILE_SHARE_WRITE,
 			      FILE_OPEN, 0x0, 0x0, &fnum);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -722,12 +865,14 @@ static struct security_descriptor *get_secdesc(struct cli_state *cli, const char
 		return NULL;
 	}
 
-	sd = cli_query_secdesc(cli, fnum, talloc_tos());
+	status = cli_query_security_descriptor(cli, fnum, sec_info,
+					       talloc_tos(), &sd);
 
 	cli_close(cli, fnum);
 
-	if (!sd) {
-		printf("Failed to get security descriptor\n");
+	if (!NT_STATUS_IS_OK(status)) {
+		printf("Failed to get security descriptor: %s\n",
+		       nt_errstr(status));
 		return NULL;
 	}
         return sd;
@@ -742,12 +887,41 @@ static bool set_secdesc(struct cli_state *cli, const char *filename,
 	uint16_t fnum = (uint16_t)-1;
         bool result=true;
 	NTSTATUS status;
+	uint32_t desired_access = 0;
+	uint32_t sec_info;
 
-	/* The desired access below is the only one I could find that works
-	   with NT4, W2KP and Samba */
+	if (set_sec_info == -1) {
+		sec_info = 0;
+
+		if (sd->dacl || (sd->type & SEC_DESC_DACL_PRESENT)) {
+			sec_info |= SECINFO_DACL;
+		}
+		if (sd->sacl || (sd->type & SEC_DESC_SACL_PRESENT)) {
+			sec_info |= SECINFO_SACL;
+		}
+		if (sd->owner_sid) {
+			sec_info |= SECINFO_OWNER;
+		}
+		if (sd->group_sid) {
+			sec_info |= SECINFO_GROUP;
+		}
+	} else {
+		sec_info = set_sec_info;
+	}
+
+	/* Make the desired_access more specific. */
+	if (sec_info & SECINFO_DACL) {
+		desired_access |= SEC_STD_WRITE_DAC;
+	}
+	if (sec_info & SECINFO_SACL) {
+		desired_access |= SEC_FLAG_SYSTEM_SECURITY;
+	}
+	if (sec_info & (SECINFO_OWNER | SECINFO_GROUP)) {
+		desired_access |= SEC_STD_WRITE_OWNER;
+	}
 
 	status = cli_ntcreate(cli, filename, 0,
-			      WRITE_DAC_ACCESS|WRITE_OWNER_ACCESS,
+			      desired_access,
 			      0, FILE_SHARE_READ|FILE_SHARE_WRITE,
 			      FILE_OPEN, 0x0, 0x0, &fnum);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -755,7 +929,7 @@ static bool set_secdesc(struct cli_state *cli, const char *filename,
 		return false;
 	}
 
-	status = cli_set_secdesc(cli, fnum, sd);
+	status = cli_set_security_descriptor(cli, fnum, sec_info, sd);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("ERROR: security description set failed: %s\n",
                        nt_errstr(status));
@@ -771,25 +945,29 @@ dump the acls for a file
 *******************************************************/
 static int cacl_dump(struct cli_state *cli, const char *filename)
 {
-	int result = EXIT_FAILED;
 	struct security_descriptor *sd;
 
-	if (test_args)
+	if (test_args) {
 		return EXIT_OK;
-
-	sd = get_secdesc(cli, filename);
-
-	if (sd) {
-		if (sddl) {
-			printf("%s\n", sddl_encode(talloc_tos(), sd,
-					   get_global_sam_sid()));
-		} else {
-			sec_desc_print(cli, stdout, sd);
-		}
-		result = EXIT_OK;
 	}
 
-	return result;
+	sd = get_secdesc(cli, filename);
+	if (sd == NULL) {
+		return EXIT_FAILED;
+	}
+
+	if (sddl) {
+		char *str = sddl_encode(talloc_tos(), sd, get_domain_sid(cli));
+		if (str == NULL) {
+			return EXIT_FAILED;
+		}
+		printf("%s\n", str);
+		TALLOC_FREE(str);
+	} else {
+		sec_desc_print(cli, stdout, sd);
+	}
+
+	return EXIT_OK;
 }
 
 /***************************************************** 
@@ -900,7 +1078,7 @@ static int cacl_set(struct cli_state *cli, const char *filename,
 	int result = EXIT_OK;
 
 	if (sddl) {
-		sd = sddl_decode(talloc_tos(), the_acl, get_global_sam_sid());
+		sd = sddl_decode(talloc_tos(), the_acl, get_domain_sid(cli));
 	} else {
 		sd = sec_desc_parse(talloc_tos(), cli, the_acl);
 	}
@@ -1132,11 +1310,8 @@ static struct cli_state *connect_one(struct user_auth_info *auth_info,
 				     const char *server, const char *share)
 {
 	struct cli_state *c = NULL;
-	struct sockaddr_storage ss;
 	NTSTATUS nt_status;
 	uint32_t flags = 0;
-
-	zero_sockaddr(&ss);
 
 	if (get_cmdline_auth_info_use_kerberos(auth_info)) {
 		flags |= CLI_FULL_CONNECTION_USE_KERBEROS |
@@ -1150,8 +1325,8 @@ static struct cli_state *connect_one(struct user_auth_info *auth_info,
 
 	set_cmdline_auth_info_getpass(auth_info);
 
-	nt_status = cli_full_connection(&c, global_myname(), server, 
-				&ss, 0,
+	nt_status = cli_full_connection(&c, lp_netbios_name(), server,
+				NULL, 0,
 				share, "?????",
 				get_cmdline_auth_info_username(auth_info),
 				lp_workgroup(),
@@ -1203,7 +1378,14 @@ static struct cli_state *connect_one(struct user_auth_info *auth_info,
 		{ "inherit", 'I', POPT_ARG_STRING, NULL, 'I', "Inherit allow|remove|copy" },
 		{ "numeric", 0, POPT_ARG_NONE, &numeric, 1, "Don't resolve sids or masks to names" },
 		{ "sddl", 0, POPT_ARG_NONE, &sddl, 1, "Output and input acls in sddl format" },
+		{ "query-security-info", 0, POPT_ARG_INT, &query_sec_info, 1,
+		  "The security-info flags for queries"
+		},
+		{ "set-security-info", 0, POPT_ARG_INT, &set_sec_info, 1,
+		  "The security-info flags for modifications"
+		},
 		{ "test-args", 't', POPT_ARG_NONE, &test_args, 1, "Test arguments"},
+		{ "domain-sid", 0, POPT_ARG_STRING, &domain_sid, 0, "Domain SID for sddl", "SID"},
 		POPT_COMMON_SAMBA
 		POPT_COMMON_CONNECTION
 		POPT_COMMON_CREDENTIALS
@@ -1224,7 +1406,7 @@ static struct cli_state *connect_one(struct user_auth_info *auth_info,
 
 	setlinebuf(stdout);
 
-	lp_load(get_dyn_CONFIGFILE(),True,False,False,True);
+	lp_load_global(get_dyn_CONFIGFILE());
 	load_interfaces();
 
 	auth_info = user_auth_info_init(frame);

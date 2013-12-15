@@ -10,6 +10,22 @@ set -e
 #	them to be readable only by root.
 umask 022
 
+if dpkg --compare-versions "$2" gt 2:4.0 &&
+	dpkg --compare-versions "$2" lt-nl 2:4.0.11+dfsg ; then
+	# CVE-2013-4475
+	KEYFILE=/var/lib/samba/private/tls/key.pem
+	if [ -e $KEYFILE ]
+	then
+		KEYPERMS=`stat -c %a $KEYFILE`
+		if [ "$KEYPERMS" != "600" ]
+		then
+			echo "moving world readable public key to /var/lib/samba/private/tls/CVE-2013-4475"
+			mkdir -m 700 /var/lib/samba/private/tls/CVE-2013-4475
+			mv -n /var/lib/samba/private/tls/*pem /var/lib/samba/private/tls/CVE-2013-4475
+		fi
+	fi
+fi
+
 if dpkg --compare-versions "$2" lt-nl 2:3.6.15-2; then
 	if [ -e /etc/default/samba ]; then
 		# this config file's one setting is now obsolete; remove it
@@ -23,22 +39,8 @@ if dpkg --compare-versions "$2" lt-nl 2:3.6.15-2; then
 	fi
 fi
 
-# bug #454770
-if dpkg --compare-versions "$2" lt-nl 2:3.6.13-2 \
-	&& dpkg --compare-versions "$2" ge 3.0.24 \
-	&& [ -e /etc/samba/schannel_store.tdb ] \
-	&& ! [ -e /var/lib/samba/schannel_store.tdb ]
-then
-	mv /etc/samba/schannel_store.tdb /var/lib/samba/schannel_store.tdb
-fi
-
-# bug #454770
-if dpkg --compare-versions "$2" lt-nl 2:3.6.13-2 \
-	&& dpkg --compare-versions "$2" ge 3.0.24 \
-	&& [ -e /etc/samba/idmap2.tdb ] \
-	&& ! [ -e /var/lib/samba/idmap2.tdb ]
-then
-	mv /etc/samba/idmap2.tdb /var/lib/samba/idmap2.tdb
+if dpkg --compare-versions "$2" lt-nl 2:4.0.12+dfsg-2~; then
+	update-alternatives --remove-all smbstatus || true
 fi
 
 # add the sambashare group
@@ -65,9 +67,6 @@ if [ ! -e /var/lib/samba/usershares ]
 then
 	install -d -m 1770 -g sambashare /var/lib/samba/usershares
 fi
-
-update-alternatives --install /usr/bin/smbstatus smbstatus /usr/bin/smbstatus.samba3 10 \
-	--slave /usr/share/man/man1/smbstatus.1.gz smbstatus.1.gz /usr/share/man/man1/smbstatus.samba3.1.gz
 
 #DEBHELPER#
 

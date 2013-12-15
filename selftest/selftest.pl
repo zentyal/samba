@@ -16,111 +16,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-=pod
-
-=head1 NAME
-
-selftest - Samba test runner
-
-=head1 SYNOPSIS
-
-selftest --help
-
-selftest [--srcdir=DIR] [--builddir=DIR] [--exeext=EXT][--target=samba4|samba3|win|kvm] [--socket-wrapper] [--quick] [--exclude=FILE] [--include=FILE] [--one] [--prefix=prefix] [--testlist=FILE] [TESTS]
-
-=head1 DESCRIPTION
-
-A simple test runner. TESTS is a regular expression with tests to run.
-
-=head1 OPTIONS
-
-=over 4
-
-=item I<--help>
-
-Show list of available options.
-
-=item I<--srcdir=DIR>
-
-Source directory.
-
-=item I<--builddir=DIR>
-
-Build directory.
-
-=item I<--exeext=EXT>
-
-Executable extention
-
-=item I<--prefix=DIR>
-
-Change directory to run tests in. Default is 'st'.
-
-=item I<--target samba4|samba3|win|kvm>
-
-Specify test target against which to run. Default is 'samba4'.
-
-=item I<--quick>
-
-Run only a limited number of tests. Intended to run in about 30 seconds on 
-moderately recent systems.
-		
-=item I<--socket-wrapper>
-
-Use socket wrapper library for communication with server. Only works 
-when the server is running locally.
-
-Will prevent TCP and UDP ports being opened on the local host but 
-(transparently) redirects these calls to use unix domain sockets.
-
-=item I<--exclude>
-
-Specify a file containing a list of tests that should be skipped. Possible 
-candidates are tests that segfault the server, flip or don't end. 
-
-=item I<--include>
-
-Specify a file containing a list of tests that should be run. Same format 
-as the --exclude flag.
-
-Not includes specified means all tests will be run.
-
-=item I<--one>
-
-Abort as soon as one test fails.
-
-=item I<--testlist>
-
-Load a list of tests from the specified location.
-
-=back
-
-=head1 ENVIRONMENT
-
-=over 4
-
-=item I<SMBD_VALGRIND>
-
-=item I<TORTURE_MAXTIME>
-
-=item I<VALGRIND>
-
-=item I<TLS_ENABLED>
-
-=item I<srcdir>
-
-=back
-
-=head1 LICENSE
-
-selftest is licensed under the GNU General Public License L<http://www.gnu.org/licenses/gpl.html>.
-
-=head1 AUTHOR
-
-Jelmer Vernooij
-
-=cut
-
 use strict;
 
 use FindBin qw($RealBin $Script);
@@ -142,27 +37,25 @@ if ($@) {
 }
 
 my $opt_help = 0;
-my $opt_target = "samba4";
+my $opt_target = "samba";
 my $opt_quick = 0;
 my $opt_socket_wrapper = 0;
 my $opt_socket_wrapper_pcap = undef;
 my $opt_socket_wrapper_keep_pcap = undef;
+my $opt_random_order = 0;
 my $opt_one = 0;
 my @opt_exclude = ();
 my @opt_include = ();
-my $opt_verbose = 0;
-my $opt_image = undef;
 my $opt_testenv = 0;
 my $opt_list = 0;
 my $ldap = undef;
 my $opt_resetup_env = undef;
-my $opt_bindir = undef;
+my $opt_binary_mapping = "";
 my $opt_load_list = undef;
 my @testlists = ();
 
 my $srcdir = ".";
-my $builddir = ".";
-my $exeext = "";
+my $bindir = "./bin";
 my $prefix = "./st";
 
 my @includes = ();
@@ -300,32 +193,26 @@ Usage: $Script [OPTIONS] TESTNAME-REGEX
 
 Generic options:
  --help                     this help page
- --target=samba[34]|win|kvm Samba version to target
- --testlist=FILE	    file to read available tests from
+ --target=samba[3]|win      Samba version to target
+ --testlist=FILE            file to read available tests from
 
 Paths:
  --prefix=DIR               prefix to run tests in [st]
  --srcdir=DIR               source directory [.]
- --builddir=DIR             output directory [.]
- --exeext=EXT               executable extention []
+ --bindir=DIR               binaries directory [./bin]
 
 Target Specific:
- --socket-wrapper-pcap	    save traffic to pcap directories
+ --socket-wrapper-pcap      save traffic to pcap directories
  --socket-wrapper-keep-pcap keep all pcap files, not just those for tests that 
                             failed
  --socket-wrapper           enable socket wrapper
- --bindir=PATH              path to target binaries
 
 Samba4 Specific:
  --ldap=openldap|fedora-ds  back samba onto specified ldap server
 
-Kvm Specific:
- --image=PATH               path to KVM image
-
 Behaviour:
  --quick                    run quick overall test
  --one                      abort when the first test fails
- --verbose                  be verbose
  --testenv                  run a shell in the requested test environment
  --list                     list available tests
 ";
@@ -344,17 +231,15 @@ my $result = GetOptions (
 		'exclude=s' => \@opt_exclude,
 		'include=s' => \@opt_include,
 		'srcdir=s' => \$srcdir,
-		'builddir=s' => \$builddir,
-		'exeext=s' => \$exeext,
-		'verbose' => \$opt_verbose,
+		'bindir=s' => \$bindir,
 		'testenv' => \$opt_testenv,
 		'list' => \$opt_list,
 		'ldap:s' => \$ldap,
 		'resetup-environment' => \$opt_resetup_env,
-		'bindir:s' => \$opt_bindir,
-		'image=s' => \$opt_image,
 		'testlist=s' => \@testlists,
+		'random-order' => \$opt_random_order,
 		'load-list=s' => \$opt_load_list,
+		'binary-mapping=s' => \$opt_binary_mapping
 	    );
 
 exit(1) if (not $result);
@@ -377,7 +262,6 @@ unless (defined($ENV{VALGRIND})) {
 # make all our python scripts unbuffered
 $ENV{PYTHONUNBUFFERED} = 1;
 
-my $bindir = ($opt_bindir or "$builddir/bin");
 my $bindir_abs = abs_path($bindir);
 
 # Backwards compatibility:
@@ -401,15 +285,20 @@ $prefix =~ s+/$++;
 
 die("using an empty prefix isn't allowed") unless $prefix ne "";
 
-#Ensure we have the test prefix around
-mkdir($prefix, 0777) unless -d $prefix;
+# Ensure we have the test prefix around.
+#
+# We need restrictive
+# permissions on this as some subdirectories in this tree will have
+# wider permissions (ie 0777) and this would allow other users on the
+# host to subvert the test process.
+mkdir($prefix, 0700) unless -d $prefix;
+chmod 0700, $prefix;
 
 my $prefix_abs = abs_path($prefix);
 my $tmpdir_abs = abs_path("$prefix/tmp");
 mkdir($tmpdir_abs, 0777) unless -d $tmpdir_abs;
 
 my $srcdir_abs = abs_path($srcdir);
-my $builddir_abs = abs_path($builddir);
 
 die("using an empty absolute prefix isn't allowed") unless $prefix_abs ne "";
 die("using '/' as absolute prefix isn't allowed") unless $prefix_abs ne "/";
@@ -419,10 +308,7 @@ $ENV{KRB5CCNAME} = "$prefix/krb5ticket";
 $ENV{PREFIX_ABS} = $prefix_abs;
 $ENV{SRCDIR} = $srcdir;
 $ENV{SRCDIR_ABS} = $srcdir_abs;
-$ENV{BUILDDIR} = $builddir;
-$ENV{BUILDDIR_ABS} = $builddir_abs;
 $ENV{BINDIR} = $bindir_abs;
-$ENV{EXEEXT} = $exeext;
 
 my $tls_enabled = not $opt_quick;
 $ENV{TLS_ENABLED} = ($tls_enabled?"yes":"no");
@@ -453,63 +339,51 @@ my $socket_wrapper_dir;
 if ($opt_socket_wrapper) {
 	$socket_wrapper_dir = SocketWrapper::setup_dir("$prefix_abs/w", $opt_socket_wrapper_pcap);
 	print "SOCKET_WRAPPER_DIR=$socket_wrapper_dir\n";
-} else {
+} elsif (not $opt_list) {
 	 unless ($< == 0) { 
-		 print "WARNING: Not using socket wrapper, but also not running as root. Will not be able to listen on proper ports\n";
+		 warn("not using socket wrapper, but also not running as root. Will not be able to listen on proper ports");
 	 }
 }
 
 my $target;
 my $testenv_default = "none";
 
-if ($opt_target eq "samba4") {
-	$testenv_default = "all";
-	require target::Samba4;
-	$target = new Samba4($bindir, $ldap, $srcdir, $exeext);
-} elsif ($opt_target eq "samba3") {
-	if ($opt_socket_wrapper and `$bindir/smbd -b | grep SOCKET_WRAPPER` eq "") {
-		die("You must include --enable-socket-wrapper when compiling Samba in order to execute 'make test'.  Exiting....");
+my %binary_mapping = ();
+if ($opt_binary_mapping) {
+    my @binmapping_list = split(/,/, $opt_binary_mapping);
+    foreach my $mapping (@binmapping_list) {
+	my ($bin, $map) = split(/\:/, $mapping);
+	$binary_mapping{$bin} = $map;
+    }
+}
+
+$ENV{BINARY_MAPPING} = $opt_binary_mapping;
+
+# After this many seconds, the server will self-terminate.  All tests
+# must terminate in this time, and testenv will only stay alive this
+# long
+
+my $server_maxtime = 7500;
+if (defined($ENV{SMBD_MAXTIME}) and $ENV{SMBD_MAXTIME} ne "") {
+    $server_maxtime = $ENV{SMBD_MAXTIME};
+}
+
+unless ($opt_list) {
+	if ($opt_target eq "samba") {
+		if ($opt_socket_wrapper and `$bindir/smbd -b | grep SOCKET_WRAPPER` eq "") {
+			die("You must include --enable-socket-wrapper when compiling Samba in order to execute 'make test'.  Exiting....");
+		}
+		$testenv_default = "dc";
+		require target::Samba;
+		$target = new Samba($bindir, \%binary_mapping, $ldap, $srcdir, $server_maxtime);
+	} elsif ($opt_target eq "samba3") {
+		if ($opt_socket_wrapper and `$bindir/smbd -b | grep SOCKET_WRAPPER` eq "") {
+			die("You must include --enable-socket-wrapper when compiling Samba in order to execute 'make test'.  Exiting....");
+		}
+		$testenv_default = "member";
+		require target::Samba3;
+		$target = new Samba3($bindir, \%binary_mapping, $srcdir_abs, $server_maxtime);
 	}
-	$testenv_default = "member";
-	require target::Samba3;
-	$target = new Samba3($bindir, $srcdir_abs);
-} elsif ($opt_target eq "win") {
-	die("Windows tests will not run with socket wrapper enabled.") 
-		if ($opt_socket_wrapper);
-	$testenv_default = "dc";
-	require target::Windows;
-	$target = new Windows();
-} elsif ($opt_target eq "kvm") {
-	die("Kvm tests will not run with socket wrapper enabled.") 
-		if ($opt_socket_wrapper);
-	require target::Kvm;
-	die("No image specified") unless ($opt_image);
-	$target = new Kvm($opt_image, undef);
-}
-
-#
-# Start a Virtual Distributed Ethernet Switch
-# Returns the pid of the switch.
-#
-sub start_vde_switch($)
-{
-	my ($path) = @_;
-
-	system("vde_switch --pidfile $path/vde.pid --sock $path/vde.sock --daemon");
-
-	open(PID, "$path/vde.pid");
-	<PID> =~ /([0-9]+)/;
-	my $pid = $1;
-	close(PID);
-
-	return $pid;
-}
-
-# Stop a Virtual Distributed Ethernet Switch
-sub stop_vde_switch($)
-{
-	my ($pid) = @_;
-	kill 9, $pid;
 }
 
 sub read_test_regexes($)
@@ -569,19 +443,35 @@ sub write_clientconf($$$)
 	        mkdir("$clientdir/lockdir", 0777);
 	}
 
+	if ( -d "$clientdir/statedir" ) {
+	        unlink <$clientdir/statedir/*>;
+	} else {
+	        mkdir("$clientdir/statedir", 0777);
+	}
+
+	if ( -d "$clientdir/cachedir" ) {
+	        unlink <$clientdir/cachedir/*>;
+	} else {
+	        mkdir("$clientdir/cachedir", 0777);
+	}
+
+	# this is ugly, but the ncalrpcdir needs exactly 0755
+	# otherwise tests fail.
+	my $mask = umask;
+	umask 0022;
+	if ( -d "$clientdir/ncalrpcdir/np" ) {
+	        unlink <$clientdir/ncalrpcdir/np/*>;
+		rmdir "$clientdir/ncalrpcdir/np";
+	}
 	if ( -d "$clientdir/ncalrpcdir" ) {
 	        unlink <$clientdir/ncalrpcdir/*>;
-	} else {
-	        mkdir("$clientdir/ncalrpcdir", 0777);
+		rmdir "$clientdir/ncalrpcdir";
 	}
+	mkdir("$clientdir/ncalrpcdir", 0755);
+	umask $mask;
 
 	open(CF, ">$conffile");
 	print CF "[global]\n";
-	if (defined($ENV{VALGRIND})) {
-		print CF "\ticonv:native = true\n";
-	} else {
-		print CF "\ticonv:native = false\n";
-	}
 	print CF "\tnetbios name = client\n";
 	if (defined($vars->{DOMAIN})) {
 		print CF "\tworkgroup = $vars->{DOMAIN}\n";
@@ -595,9 +485,11 @@ sub write_clientconf($$$)
 	print CF "
 	private dir = $clientdir/private
 	lock dir = $clientdir/lockdir
+	state directory = $clientdir/statedir
+	cache directory = $clientdir/cachedir
 	ncalrpc dir = $clientdir/ncalrpcdir
-	name resolve order = bcast file
-	panic action = $RealBin/gdb_backtrace \%PID\% \%PROG\%
+	name resolve order = file bcast
+	panic action = $RealBin/gdb_backtrace \%d
 	max xmit = 32K
 	notify:inotify = false
 	ldb:nosync = true
@@ -670,17 +562,11 @@ if ($opt_socket_wrapper) {
 } else {
 	$ENV{SELFTEST_INTERFACES} = "";
 }
-if ($opt_verbose) {
-	$ENV{SELFTEST_VERBOSE} = "1";
-} else {
-	$ENV{SELFTEST_VERBOSE} = "";
-}
 if ($opt_quick) {
 	$ENV{SELFTEST_QUICK} = "1";
 } else {
 	$ENV{SELFTEST_QUICK} = "";
 }
-$ENV{SELFTEST_TARGET} = $opt_target;
 $ENV{SELFTEST_MAXTIME} = $torture_maxtime;
 
 my @available = ();
@@ -727,13 +613,17 @@ foreach my $testsuite (@available) {
 		}
 		if ($match) {
 			if (defined($skipreason)) {
+				if (not $opt_list) {
 					Subunit::skip_testsuite($name, $skipreason);
+				}
 			} else {
 				push(@todo, $testsuite);
 			}
 		}
 	} elsif (defined($skipreason)) {
-		Subunit::skip_testsuite($name, $skipreason);
+		if (not $opt_list) {
+			Subunit::skip_testsuite($name, $skipreason);
+		}
 	} else {
 		push(@todo, $testsuite);
 	}
@@ -752,8 +642,10 @@ if (defined($restricted)) {
 
 my $suitestotal = $#todo + 1;
 
-Subunit::progress($suitestotal);
-Subunit::report_time(time());
+unless ($opt_list) {
+	Subunit::progress($suitestotal);
+	Subunit::report_time(time());
+}
 
 my $i = 0;
 $| = 1;
@@ -818,7 +710,15 @@ my @exported_envvars = (
 	"WINBINDD_SOCKET_DIR",
 	"WINBINDD_PRIV_PIPE_DIR",
 	"NMBD_SOCKET_DIR",
-	"LOCAL_PATH"
+	"LOCAL_PATH",
+
+        # nss_wrapper
+        "NSS_WRAPPER_PASSWD",
+        "NSS_WRAPPER_GROUP",
+
+        # UID/GID for rfc2307 mapping tests
+        "UID_RFC2307TEST",
+        "GID_RFC2307TEST"
 );
 
 $SIG{INT} = $SIG{QUIT} = $SIG{TERM} = sub { 
@@ -852,11 +752,17 @@ sub setup_env($$)
 		}
 	} else {
 		$testenv_vars = $target->setup_env($envname, $prefix);
-		if (defined($testenv_vars) && not defined($testenv_vars->{target})) {
-		       $testenv_vars->{target} = $target;
+		if (defined($testenv_vars) and $testenv_vars eq "UNKNOWN") {
+		    return $testenv_vars;
+		} elsif (defined($testenv_vars) && not defined($testenv_vars->{target})) {
+		        $testenv_vars->{target} = $target;
+		}
+		if (not defined($testenv_vars)) {
+			warn("$opt_target can't start up known environment '$envname'");
 		}
 	}
 
+	
 	return undef unless defined($testenv_vars);
 
 	$running_envs{$envname} = $testenv_vars;
@@ -924,6 +830,12 @@ sub teardown_env($)
 # This 'global' file needs to be empty when we start
 unlink("$prefix_abs/dns_host_file");
 
+if ($opt_random_order) {
+	require List::Util;
+	my @newtodo = List::Util::shuffle(@todo);
+	@todo = @newtodo;
+}
+
 if ($opt_testenv) {
 	my $testenv_name = $ENV{SELFTEST_TESTENV};
 	$testenv_name = $testenv_default unless defined($testenv_name);
@@ -937,8 +849,7 @@ if ($opt_testenv) {
 
 	my $envvarstr = exported_envvars_str($testenv_vars);
 
-	my $term = ($ENV{TERMINAL} or "xterm -e");
-	system("$term 'echo -e \"
+	my @term_args = ("echo -e \"
 Welcome to the Samba4 Test environment '$testenv_name'
 
 This matches the client environment used in make test
@@ -949,7 +860,17 @@ TORTURE_OPTIONS=\$TORTURE_OPTIONS
 SMB_CONF_PATH=\$SMB_CONF_PATH
 
 $envvarstr
-\" && LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} bash'");
+\" && LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} bash");
+	my @term = ();
+	if ($ENV{TERMINAL}) {
+	    @term = ($ENV{TERMINAL});
+	} else {
+	    @term = ("xterm", "-e");
+	    unshift(@term_args, ("bash", "-c"));
+	}
+
+	system(@term, @term_args);
+
 	teardown_env($testenv_name);
 } elsif ($opt_list) {
 	foreach (@todo) {
@@ -989,6 +910,11 @@ $envvarstr
 			Subunit::start_testsuite($name);
 			Subunit::end_testsuite($name, "error",
 				"unable to set up environment $envname - exiting");
+			next;
+		} elsif ($envvars eq "UNKNOWN") {
+			Subunit::start_testsuite($name);
+			Subunit::end_testsuite($name, "skip",
+				"environment $envname is unknown in this test backend - skipping");
 			next;
 		}
 

@@ -22,23 +22,84 @@
 #include "includes.h"
 #include "smbd/smbd.h"
 #include "smbd/globals.h"
-#include "rpc_server/rpc_ncacn_np.h"
+#include "lib/util/bitmap.h"
 
-/* The connections bitmap is expanded in increments of BITMAP_BLOCK_SZ. The
- * maximum size of the bitmap is the largest positive integer, but you will hit
- * the "max connections" limit, looong before that.
- */
+/*******************************************************************
+ Static cache for storing per-user share access value. This really
+ belongs inside the vuid_cache.array struct but we can't change the
+ VFS ABI for 4.0.x. This is fixed in 4.1.x. JRA.
+********************************************************************/
 
-#define BITMAP_BLOCK_SZ 128
+struct connection_share_access_list {
+	struct connection_share_access_list *next, *prev;
+	connection_struct *conn;
+	uint32_t vuid_cache_share_access_array[VUID_CACHE_SIZE];
+};
 
-/****************************************************************************
- Init the conn structures.
-****************************************************************************/
+static struct connection_share_access_list *conn_share_access_list;
 
-void conn_init(struct smbd_server_connection *sconn)
+/*******************************************************************
+ Destructor function for per-user share access value.
+********************************************************************/
+
+static int free_csal_entry(struct connection_share_access_list *csal)
 {
-	sconn->smb1.tcons.Connections = NULL;
-	sconn->smb1.tcons.bmap = bitmap_talloc(sconn, BITMAP_BLOCK_SZ);
+	DLIST_REMOVE(conn_share_access_list, csal);
+	return 0;
+}
+
+/*******************************************************************
+ Utility function to find a per-user share access value struct.
+********************************************************************/
+
+static struct connection_share_access_list *find_csal_entry(connection_struct *conn)
+{
+	struct connection_share_access_list *csal;
+
+	for (csal = conn_share_access_list; csal; csal = csal->next) {
+		if (csal->conn == conn) {
+			DLIST_PROMOTE(conn_share_access_list, csal);
+			return csal;
+		}
+	}
+	return NULL;
+}
+
+/*******************************************************************
+ Accessor functions for per-user share access value.
+ These are the only two functions exposed externally.
+********************************************************************/
+
+uint32_t get_connection_share_access_list_entry(connection_struct *conn,
+						unsigned int i)
+{
+	struct connection_share_access_list *csal =
+			find_csal_entry(conn);
+
+	if (csal == NULL) {
+		/*
+		 * This is a faked up connection struct
+		 * for internal purposes.
+		 * Return full access.
+		 */
+		return SEC_RIGHTS_FILE_ALL;
+	}
+
+	return csal->vuid_cache_share_access_array[i];
+}
+
+void set_connection_share_access_list_entry(connection_struct *conn,
+						unsigned int i,
+						uint32_t val)
+{
+	struct connection_share_access_list *csal =
+			find_csal_entry(conn);
+
+	if (csal == NULL) {
+		return;
+	}
+
+	csal->vuid_cache_share_access_array[i] = val;
 }
 
 /****************************************************************************
@@ -47,78 +108,25 @@ void conn_init(struct smbd_server_connection *sconn)
 
 int conn_num_open(struct smbd_server_connection *sconn)
 {
-	return sconn->num_tcons_open;
+	return sconn->num_connections;
 }
 
 /****************************************************************************
  Check if a snum is in use.
 ****************************************************************************/
 
-bool conn_snum_used(int snum)
+bool conn_snum_used(struct smbd_server_connection *sconn,
+		    int snum)
 {
-	struct smbd_server_connection *sconn = smbd_server_conn;
+	struct connection_struct *conn;
 
-	if (sconn->using_smb2) {
-		/* SMB2 */
-		struct smbd_smb2_session *sess;
-		for (sess = sconn->smb2.sessions.list; sess; sess = sess->next) {
-			struct smbd_smb2_tcon *ptcon;
-
-			for (ptcon = sess->tcons.list; ptcon; ptcon = ptcon->next) {
-				if (ptcon->compat_conn &&
-						ptcon->compat_conn->params &&
-						(ptcon->compat_conn->params->service == snum)) {
-					return true;
-				}
-			}
-		}
-	} else {
-		/* SMB1 */
-		connection_struct *conn;
-		for (conn=sconn->smb1.tcons.Connections;conn;conn=conn->next) {
-			if (conn->params->service == snum) {
-				return true;
-			}
+	for (conn=sconn->connections; conn; conn=conn->next) {
+		if (conn->params->service == snum) {
+			return true;
 		}
 	}
+
 	return false;
-}
-
-/****************************************************************************
- Find a conn given a cnum.
-****************************************************************************/
-
-connection_struct *conn_find(struct smbd_server_connection *sconn,unsigned cnum)
-{
-	if (sconn->using_smb2) {
-		/* SMB2 */
-		struct smbd_smb2_session *sess;
-		for (sess = sconn->smb2.sessions.list; sess; sess = sess->next) {
-			struct smbd_smb2_tcon *ptcon;
-
-			for (ptcon = sess->tcons.list; ptcon; ptcon = ptcon->next) {
-				if (ptcon->compat_conn &&
-						ptcon->compat_conn->cnum == cnum) {
-					return ptcon->compat_conn;
-				}
-			}
-		}
-	} else {
-		/* SMB1 */
-		int count=0;
-		connection_struct *conn;
-		for (conn=sconn->smb1.tcons.Connections;conn;conn=conn->next,count++) {
-			if (conn->cnum == cnum) {
-				if (count > 10) {
-					DLIST_PROMOTE(sconn->smb1.tcons.Connections,
-						conn);
-				}
-				return conn;
-			}
-		}
-	}
-
-	return NULL;
 }
 
 /****************************************************************************
@@ -130,254 +138,87 @@ connection_struct *conn_find(struct smbd_server_connection *sconn,unsigned cnum)
 connection_struct *conn_new(struct smbd_server_connection *sconn)
 {
 	connection_struct *conn;
-	int i;
-        int find_offset = 1;
+	struct connection_share_access_list *csal;
 
-	if (sconn->using_smb2) {
-		/* SMB2 */
-		if (!(conn=TALLOC_ZERO_P(NULL, connection_struct)) ||
-		    !(conn->params = TALLOC_P(conn, struct share_params))) {
-			DEBUG(0,("TALLOC_ZERO() failed!\n"));
-			TALLOC_FREE(conn);
-			return NULL;
-		}
-		conn->sconn = sconn;
-		return conn;
-	}
-
-	/* SMB1 */
-find_again:
-	i = bitmap_find(sconn->smb1.tcons.bmap, find_offset);
-
-	if (i == -1) {
-                /* Expand the connections bitmap. */
-                int             oldsz = sconn->smb1.tcons.bmap->n;
-                int             newsz = sconn->smb1.tcons.bmap->n +
-					BITMAP_BLOCK_SZ;
-                struct bitmap * nbmap;
-
-                if (newsz <= oldsz) {
-                        /* Integer wrap. */
-		        DEBUG(0,("ERROR! Out of connection structures\n"));
-                        return NULL;
-                }
-
-		DEBUG(4,("resizing connections bitmap from %d to %d\n",
-                        oldsz, newsz));
-
-                nbmap = bitmap_talloc(sconn, newsz);
-		if (!nbmap) {
-			DEBUG(0,("ERROR! malloc fail.\n"));
-			return NULL;
-		}
-
-                bitmap_copy(nbmap, sconn->smb1.tcons.bmap);
-		TALLOC_FREE(sconn->smb1.tcons.bmap);
-
-                sconn->smb1.tcons.bmap = nbmap;
-                find_offset = oldsz; /* Start next search in the new portion. */
-
-                goto find_again;
-	}
-
-	/* The bitmap position is used below as the connection number
-	 * conn->cnum). This ends up as the TID field in the SMB header,
-	 * which is limited to 16 bits (we skip 0xffff which is the
-	 * NULL TID).
-	 */
-	if (i > 65534) {
-		DEBUG(0, ("Maximum connection limit reached\n"));
-		return NULL;
-	}
-
-	if (!(conn=TALLOC_ZERO_P(NULL, connection_struct)) ||
-	    !(conn->params = TALLOC_P(conn, struct share_params))) {
+	if (!(conn=talloc_zero(NULL, connection_struct)) ||
+	    !(conn->params = talloc(conn, struct share_params)) ||
+	    !(conn->connectpath = talloc_strdup(conn, "")) ||
+	    !(conn->origpath = talloc_strdup(conn, "")) ||
+	    !(csal = talloc_zero(conn, struct connection_share_access_list))) {
 		DEBUG(0,("TALLOC_ZERO() failed!\n"));
 		TALLOC_FREE(conn);
 		return NULL;
 	}
+	talloc_set_destructor(csal, free_csal_entry);
+
 	conn->sconn = sconn;
-	conn->cnum = i;
 	conn->force_group_gid = (gid_t)-1;
 
-	bitmap_set(sconn->smb1.tcons.bmap, i);
-
-	sconn->num_tcons_open++;
-
-	string_set(&conn->connectpath,"");
-	string_set(&conn->origpath,"");
-
-	DLIST_ADD(sconn->smb1.tcons.Connections, conn);
+	DLIST_ADD(sconn->connections, conn);
+	DLIST_ADD(conn_share_access_list, csal);
+	sconn->num_connections++;
 
 	return conn;
 }
 
 /****************************************************************************
- Close all conn structures.
- Return true if any were closed.
+ Clear a vuid out of the connection's vuid cache
 ****************************************************************************/
 
-bool conn_close_all(struct smbd_server_connection *sconn)
+static void conn_clear_vuid_cache(connection_struct *conn, uint64_t vuid)
 {
-	bool ret = false;
-	if (sconn->using_smb2) {
-		/* SMB2 */
-		struct smbd_smb2_session *sess;
-		for (sess = sconn->smb2.sessions.list; sess; sess = sess->next) {
-			struct smbd_smb2_tcon *tcon, *tc_next;
+	int i;
 
-			for (tcon = sess->tcons.list; tcon; tcon = tc_next) {
-				tc_next = tcon->next;
-				TALLOC_FREE(tcon);
-				ret = true;
+	for (i=0; i<VUID_CACHE_SIZE; i++) {
+		struct vuid_cache_entry *ent;
+
+		ent = &conn->vuid_cache.array[i];
+
+		if (ent->vuid == vuid) {
+			ent->vuid = UID_FIELD_INVALID;
+			/*
+			 * We need to keep conn->session_info around
+			 * if it's equal to ent->session_info as a SMBulogoff
+			 * is often followed by a SMBtdis (with an invalid
+			 * vuid). The debug code (or regular code in
+			 * vfs_full_audit) wants to refer to the
+			 * conn->session_info pointer to print debug
+			 * statements. Theoretically this is a bug,
+			 * as once the vuid is gone the session_info
+			 * on the conn struct isn't valid any more,
+			 * but there's enough code that assumes
+			 * conn->session_info is never null that
+			 * it's easier to hold onto the old pointer
+			 * until we get a new sessionsetupX.
+			 * As everything is hung off the
+			 * conn pointer as a talloc context we're not
+			 * leaking memory here. See bug #6315. JRA.
+			 */
+			if (conn->session_info == ent->session_info) {
+				ent->session_info = NULL;
+			} else {
+				TALLOC_FREE(ent->session_info);
 			}
-		}
-	} else {
-		/* SMB1 */
-		connection_struct *conn, *next;
-
-		for (conn=sconn->smb1.tcons.Connections;conn;conn=next) {
-			next=conn->next;
-			set_current_service(conn, 0, True);
-			close_cnum(conn, conn->vuid);
-			ret = true;
-		}
-	}
-	return ret;
-}
-
-/****************************************************************************
- Update last used timestamps.
-****************************************************************************/
-
-static void conn_lastused_update(struct smbd_server_connection *sconn,time_t t)
-{
-	if (sconn->using_smb2) {
-		/* SMB2 */
-		struct smbd_smb2_session *sess;
-		for (sess = sconn->smb2.sessions.list; sess; sess = sess->next) {
-			struct smbd_smb2_tcon *ptcon;
-
-			for (ptcon = sess->tcons.list; ptcon; ptcon = ptcon->next) {
-				connection_struct *conn = ptcon->compat_conn;
-				/* Update if connection wasn't idle. */
-				if (conn && conn->lastused != conn->lastused_count) {
-					conn->lastused = t;
-					conn->lastused_count = t;
-				}
-			}
-		}
-	} else {
-		/* SMB1 */
-		connection_struct *conn;
-		for (conn=sconn->smb1.tcons.Connections;conn;conn=conn->next) {
-			/* Update if connection wasn't idle. */
-			if (conn->lastused != conn->lastused_count) {
-				conn->lastused = t;
-				conn->lastused_count = t;
-			}
+			ent->read_only = False;
 		}
 	}
-}
-
-/****************************************************************************
- Idle inactive connections.
-****************************************************************************/
-
-bool conn_idle_all(struct smbd_server_connection *sconn, time_t t)
-{
-	int deadtime = lp_deadtime()*60;
-
-	conn_lastused_update(sconn, t);
-
-	if (deadtime <= 0) {
-		deadtime = DEFAULT_SMBD_TIMEOUT;
-	}
-
-	if (sconn->using_smb2) {
-		/* SMB2 */
-		struct smbd_smb2_session *sess;
-		for (sess = sconn->smb2.sessions.list; sess; sess = sess->next) {
-			struct smbd_smb2_tcon *ptcon;
-
-			for (ptcon = sess->tcons.list; ptcon; ptcon = ptcon->next) {
-				time_t age;
-				connection_struct *conn = ptcon->compat_conn;
-
-				if (conn == NULL) {
-					continue;
-				}
-
-				age = t - conn->lastused;
-				/* close dirptrs on connections that are idle */
-				if (age > DPTR_IDLE_TIMEOUT) {
-					dptr_idlecnum(conn);
-				}
-
-				if (conn->num_files_open > 0 || age < deadtime) {
-					return false;
-				}
-			}
-		}
-	} else {
-		/* SMB1 */
-		connection_struct *conn;
-		for (conn=sconn->smb1.tcons.Connections;conn;conn=conn->next) {
-			time_t age = t - conn->lastused;
-
-			/* close dirptrs on connections that are idle */
-			if (age > DPTR_IDLE_TIMEOUT) {
-				dptr_idlecnum(conn);
-			}
-
-			if (conn->num_files_open > 0 || age < deadtime) {
-				return false;
-			}
-		}
-	}
-
-	/*
-	 * Check all pipes for any open handles. We cannot
-	 * idle with a handle open.
-	 */
-	if (check_open_pipes()) {
-		return false;
-	}
-
-	return true;
 }
 
 /****************************************************************************
  Clear a vuid out of the validity cache, and as the 'owner' of a connection.
+
+ Called from invalidate_vuid()
 ****************************************************************************/
 
-void conn_clear_vuid_caches(struct smbd_server_connection *sconn,uint16_t vuid)
+void conn_clear_vuid_caches(struct smbd_server_connection *sconn, uint64_t vuid)
 {
 	connection_struct *conn;
 
-	if (sconn->using_smb2) {
-		/* SMB2 */
-		struct smbd_smb2_session *sess;
-		for (sess = sconn->smb2.sessions.list; sess; sess = sess->next) {
-			struct smbd_smb2_tcon *ptcon;
-
-			for (ptcon = sess->tcons.list; ptcon; ptcon = ptcon->next) {
-				if (ptcon->compat_conn) {
-					if (ptcon->compat_conn->vuid == vuid) {
-						ptcon->compat_conn->vuid = UID_FIELD_INVALID;
-					}
-					conn_clear_vuid_cache(ptcon->compat_conn, vuid);
-				}
-			}
+	for (conn=sconn->connections; conn;conn=conn->next) {
+		if (conn->vuid == vuid) {
+			conn->vuid = UID_FIELD_INVALID;
 		}
-	} else {
-		/* SMB1 */
-		for (conn=sconn->smb1.tcons.Connections;conn;conn=conn->next) {
-			if (conn->vuid == vuid) {
-				conn->vuid = UID_FIELD_INVALID;
-			}
-			conn_clear_vuid_cache(conn, vuid);
-		}
+		conn_clear_vuid_cache(conn, vuid);
 	}
 }
 
@@ -412,9 +253,6 @@ static void conn_free_internal(connection_struct *conn)
 	free_namearray(conn->veto_oplock_list);
 	free_namearray(conn->aio_write_behind_list);
 
-	string_free(&conn->connectpath);
-	string_free(&conn->origpath);
-
 	ZERO_STRUCTP(conn);
 	talloc_destroy(conn);
 }
@@ -430,91 +268,9 @@ void conn_free(connection_struct *conn)
 		return;
 	}
 
-	if (conn->sconn->using_smb2) {
-		/* SMB2 */
-		conn_free_internal(conn);
-		return;
-	}
-
-	/* SMB1 */
-	DLIST_REMOVE(conn->sconn->smb1.tcons.Connections, conn);
-
-	if (conn->sconn->smb1.tcons.bmap != NULL) {
-		/*
-		 * Can be NULL for fake connections created by
-		 * create_conn_struct()
-		 */
-		bitmap_clear(conn->sconn->smb1.tcons.bmap, conn->cnum);
-	}
-
-	SMB_ASSERT(conn->sconn->num_tcons_open > 0);
-	conn->sconn->num_tcons_open--;
+	DLIST_REMOVE(conn->sconn->connections, conn);
+	SMB_ASSERT(conn->sconn->num_connections > 0);
+	conn->sconn->num_connections--;
 
 	conn_free_internal(conn);
-}
-
-/****************************************************************************
- Receive a smbcontrol message to forcibly unmount a share.
- The message contains just a share name and all instances of that
- share are unmounted.
- The special sharename '*' forces unmount of all shares.
-****************************************************************************/
-
-void msg_force_tdis(struct messaging_context *msg,
-		    void *private_data,
-		    uint32_t msg_type,
-		    struct server_id server_id,
-		    DATA_BLOB *data)
-{
-	struct smbd_server_connection *sconn;
-	connection_struct *conn, *next;
-	fstring sharename;
-
-	sconn = msg_ctx_to_sconn(msg);
-	if (sconn == NULL) {
-		DEBUG(1, ("could not find sconn\n"));
-		return;
-	}
-
-	fstrcpy(sharename, (const char *)data->data);
-
-	if (strcmp(sharename, "*") == 0) {
-		DEBUG(1,("Forcing close of all shares\n"));
-		conn_close_all(sconn);
-		goto done;
-	}
-
-	if (sconn->using_smb2) {
-		/* SMB2 */
-		struct smbd_smb2_session *sess;
-		for (sess = sconn->smb2.sessions.list; sess; sess = sess->next) {
-			struct smbd_smb2_tcon *tcon, *tc_next;
-
-			for (tcon = sess->tcons.list; tcon; tcon = tc_next) {
-				tc_next = tcon->next;
-				if (tcon->compat_conn &&
-						strequal(lp_servicename(SNUM(tcon->compat_conn)),
-								sharename)) {
-					DEBUG(1,("Forcing close of share %s cnum=%d\n",
-						sharename, tcon->compat_conn->cnum));
-					TALLOC_FREE(tcon);
-				}
-			}
-		}
-	} else {
-		/* SMB1 */
-		for (conn=sconn->smb1.tcons.Connections;conn;conn=next) {
-			next=conn->next;
-			if (strequal(lp_servicename(SNUM(conn)), sharename)) {
-				DEBUG(1,("Forcing close of share %s cnum=%d\n",
-					sharename, conn->cnum));
-				close_cnum(conn, (uint16)-1);
-			}
-		}
-	}
-
- done:
-
-	change_to_root_user();
-	reload_services(msg, -1, true);
 }

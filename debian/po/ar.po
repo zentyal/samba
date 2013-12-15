@@ -4,23 +4,135 @@
 # This file is distributed under the same license as the xserver-xorg package.
 #
 # younes <behloul.younes@gmail.com>, 2006.
-# Ossama M. Khayat <okhayat@yahoo.com>, 2006, 2007.
-# Ossama Khayat <okhayat@yahoo.com>, 2010.
-#
+# Ossama M. Khayat <okhayat@yahoo.com>, 2006, 2007, 2008.
 msgid ""
 msgstr ""
 "Project-Id-Version: ar\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2013-05-13 11:53-0700\n"
-"PO-Revision-Date: 2010-09-09 01:19+0300\n"
-"Last-Translator: Ossama Khayat <okhayat@yahoo.com>\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2013-10-22 20:32+0200\n"
+"PO-Revision-Date: 2008-06-21 05:10+0300\n"
+"Last-Translator: Ossama M. Khayat <okhayat@yahoo.com>\n"
 "Language-Team: Arabic <support@arabeyes.org>\n"
 "Language: ar\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
 "X-Generator: KBabel 1.11.4\n"
-"Plural-Forms: \n"
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid "Upgrade from Samba 3?"
+msgstr "تريد الترقيمة من سامبا3؟"
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid ""
+"It is possible to migrate the existing configuration files from Samba 3 to "
+"Samba 4. This is likely to fail for complex setups, but should provide a "
+"good starting point for most existing installations."
+msgstr ""
+"من الممكن ترحيل ملفات التهيئة الموجودة من سامبا3 إلى سامبا4. قد تفشل العملية "
+"أحياناً في حالات الإعداد المعقدة، ولكن قد يساعد هذا الخيار كبداية سهلة لمعظم "
+"التثبيتات الموجودة مسبقاً."
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid "Server role"
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Domain controllers manage NT4-style or Active Directory domains and provide "
+"services such as identity management and domain logons. Each domain needs to "
+"have a at least one domain controller."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Member servers can be part of a NT4-style or Active Directory domain but do "
+"not provide any domain services. Workstations and file or print servers are "
+"usually regular domain members."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"A standalone server can not be used in a domain and only supports file "
+"sharing and Windows for Workgroups-style logins."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"If no server role is specified, the Samba server will not be provisioned, so "
+"this can be done manually by the user."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+#, fuzzy
+msgid "Realm name:"
+msgstr "Realm:"
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid ""
+"Please specify the Kerberos realm for the domain that this domain controller "
+"controls."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Usually this is the a capitalized version of your DNS hostname."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "New password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "If this field is left blank, a random password will be generated."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "A password can be set later by running, as root:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:5001
+msgid "Repeat password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "Password input error"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr ""
 
 #. Type: title
 #. Description
@@ -110,35 +222,132 @@ msgstr ""
 "استخدامها عند التصفح باستخدام الواجهات المختلفة، واسم النطاق المستخدم في "
 "الإعداد \"security=domain\"."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "تشفير كلمة المرور ؟"
+#~ msgid "Use password encryption?"
+#~ msgstr "تشفير كلمة المرور ؟"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"تتصل جميع عملاء ويندوز الجديدة مع خوادم SMB/CIFS باستخدام كلمات مرور مشفرة. "
-"إذا أردت استخدام كلمات مرور غير مشفرة عليك بتغيير مُعطى في قاعدة تسجيلات "
-"ويندوز."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "تتصل جميع عملاء ويندوز الجديدة مع خوادم SMB/CIFS باستخدام كلمات مرور "
+#~ "مشفرة. إذا أردت استخدام كلمات مرور غير مشفرة عليك بتغيير مُعطى في قاعدة "
+#~ "تسجيلات ويندوز."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"يُستحسن بشدة تمكين هذا الخيار حيث أن دعم كلمات المرور الغير مشفرة لم يعد "
-"متوفراً في منتجات ميكروسوفت.\n"
-"إن فعلت ذلك، فتأكد من وجود ملف /etc/samba/smbpasswd صالح وأن تضع فيه كلمات "
-"المرور الخاصة بكل مستخدم باستخدام الأمر smbpasswd."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "يُستحسن بشدة تمكين هذا الخيار حيث أن دعم كلمات المرور الغير مشفرة لم يعد "
+#~ "متوفراً في منتجات ميكروسوفت.\n"
+#~ "إن فعلت ذلك، فتأكد من وجود ملف /etc/samba/smbpasswd صالح وأن تضع فيه "
+#~ "كلمات المرور الخاصة بكل مستخدم باستخدام الأمر smbpasswd."
 
+#~ msgid "daemons"
+#~ msgstr "daemons"
+
+#~ msgid "inetd"
+#~ msgstr "inetd"
+
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "كيف تريد تشغيل Samba؟"
+
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "يمكن لرقيب smbd الاشتغال كرقيب عادي أو عبر inetd. ينصح بتشغييله كرقيب."
+
+#~ msgid "Set up Samba 4 as a PDC?"
+#~ msgstr "إعداد سامبا4 كمُتحكّم أولي بالنطاق PDC؟"
+
+#~ msgid ""
+#~ "Even when using this option, you will need to set up DNS such that it "
+#~ "serves the data from the zone file in that directory before you can use "
+#~ "the Active Directory domain."
+#~ msgstr ""
+#~ "حتى عند استخدام هذا الخيار، تحتاج إلى إعداد خادم أسماء النطاقات بحيث يوفّر "
+#~ "البيانات من ملف النطاق في ذلك الدليل قبل أن تتمكن من استخدام نطاق Active "
+#~ "Directory."
+
+#~ msgid ""
+#~ "Please specify the Kerberos realm this server will be in. In many cases,  "
+#~ "this will be the same as the DNS domain name."
+#~ msgstr ""
+#~ "الرجاء تحديد Kerberos realm الذي سيكون هذا الخادم فيه. في كثير من "
+#~ "الحالات، يكون هذا هو نفسه اسم النطاق."
+
+#~| msgid ""
+#~| "Please specify the workgroup you want this server to appear to be in "
+#~| "when queried by clients. Note that this parameter also controls the "
+#~| "domain name used with the security=domain setting."
+#~ msgid ""
+#~ "Please specify the domain you want this server to appear to be in when "
+#~ "queried by clients."
+#~ msgstr ""
+#~ "الرجاء تحديد اسم النطاق الذي تريد أن يظهر فيه هذا الخادم الاستعلام عنه من "
+#~ "قبل العملاء."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "إحداث قاعدة كلمات المرور لSamba  في /var/lib/samba/passdb.tdb ؟"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "حتى يكون هناك توافق مع اﻹعدادت الافتراصية لأغلبية نسخ Windows، يجب تهيئة "
+#~ "Samba لاستعمال كلمات مرور مشفرة، اﻷمر الذي يتطلب حفظها في ملف منفصل عن /"
+#~ "etc/passwd. ويمكن إنشاء ذلك الملف تلقائياً، إلا أن كلمات المرور يجب أن "
+#~ "تضاف يدوياً بتنفيذ الأمر smbpaswd وإبقاء الملف محدثاً في المستقبل."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "إن لم تنشئه، فستضطر إلى إعادة تهيئة Samba (وربما بعض الأجهزة العميلة) "
+#~ "لاستخدام كلمات مرور مجردة."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "راجع /usr/share/doc/samba-doc/htmldocs/ENCRYPTION في رزمة samba-doc "
+#~ "لتفاصيل أكثر."
+
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "الربط التسلسلي لملفات passdb غير مدعوم"
+
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "بدءً من النسخة 3.0.23 من samba، لم يعد دعم ربط ملفات passdb عبر المعطى "
+#~ "\"passdb backend\" متوفراً. يبدو أن ملف smb.conf لديك يحتوي هذا المعطى "
+#~ "والذي يحدد قائمة من ملفات دعم passdb. لن تعمل نسخة samba الجديدة حتى تقوم "
+#~ "بتصحيح هذا المعطى."
+
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr "نَقْل /etc/samba/smbpasswd إلى /var/lib/samba/passdb.tdb ؟"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "النسخة 3.0 من Samba أدخلت  واجهة أكمل لقاعدة  SAM, و التي تلغي بدورها "
+#~ "ملف /etc/samba/smbpasswd."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "من فضلك أكّد إذا ما كنت تفضل هجرة آلية لملف smbpasswd المتواجد إلى /var/"
+#~ "lib/samba/passdb.tdb. لا تختر هذا الخيار إذا كنت تنوي استعمال قاعدة كلمات "
+#~ "مرور خلفية ( pdb backend) مثل LDAP."

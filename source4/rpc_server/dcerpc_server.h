@@ -23,7 +23,7 @@
 #ifndef SAMBA_DCERPC_SERVER_H
 #define SAMBA_DCERPC_SERVER_H
 
-#include "librpc/gen_ndr/server_id4.h"
+#include "librpc/gen_ndr/server_id.h"
 #include "librpc/rpc/dcerpc.h"
 #include "librpc/ndr/libndr.h"
 
@@ -111,7 +111,7 @@ struct dcesrv_call_state {
 	struct tevent_context *event_ctx;
 
 	/* the message_context that will be used for async replies */
-	struct messaging_context *msg_ctx;
+	struct imessaging_context *msg_ctx;
 
 	/* this is the pointer to the allocated function struct */
 	void *r;
@@ -170,6 +170,9 @@ struct dcesrv_connection_context {
 
 /* the state associated with a dcerpc server connection */
 struct dcesrv_connection {
+	/* for the broken_connections DLIST */
+	struct dcesrv_connection *prev, *next;
+
 	/* the top level context for this server */
 	struct dcesrv_context *dce_ctx;
 
@@ -200,7 +203,7 @@ struct dcesrv_connection {
 	struct tevent_context *event_ctx;
 
 	/* the message_context that will be used for this connection */
-	struct messaging_context *msg_ctx;
+	struct imessaging_context *msg_ctx;
 
 	/* the server_id that will be used for this connection */
 	struct server_id server_id;
@@ -208,7 +211,8 @@ struct dcesrv_connection {
 	/* the transport level session key */
 	DATA_BLOB transport_session_key;
 
-	bool processing;
+	/* is this connection pending termination?  If so, why? */
+	const char *terminate;
 
 	const char *packet_log_dir;
 
@@ -288,6 +292,8 @@ struct dcesrv_context {
 	struct loadparm_context *lp_ctx;
 
 	struct idr_context *assoc_groups_idr;
+
+	struct dcesrv_connection *broken_connections;
 };
 
 /* this structure is used by modules to determine the size of some critical types */
@@ -319,7 +325,7 @@ NTSTATUS dcesrv_endpoint_connect(struct dcesrv_context *dce_ctx,
 				 const struct dcesrv_endpoint *ep,
 				 struct auth_session_info *session_info,
 				 struct tevent_context *event_ctx,
-				 struct messaging_context *msg_ctx,
+				 struct imessaging_context *msg_ctx,
 				 struct server_id server_id,
 				 uint32_t state_flags,
 				 struct dcesrv_connection **_p);

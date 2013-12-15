@@ -39,7 +39,7 @@ static void store_printer_guid(struct messaging_context *msg_ctx,
 			       const char *printer, struct GUID guid)
 {
 	TALLOC_CTX *tmp_ctx;
-	struct auth_serversupplied_info *session_info = NULL;
+	struct auth_session_info *session_info = NULL;
 	const char *guid_str;
 	DATA_BLOB blob;
 	NTSTATUS status;
@@ -88,7 +88,7 @@ done:
 }
 
 WERROR nt_printer_guid_get(TALLOC_CTX *mem_ctx,
-			   const struct auth_serversupplied_info *session_info,
+			   const struct auth_session_info *session_info,
 			   struct messaging_context *msg_ctx,
 			   const char *printer, struct GUID *guid)
 {
@@ -168,7 +168,7 @@ static WERROR nt_printer_info_to_mods(TALLOC_CTX *ctx,
 	char *info_str;
 
 	ads_mod_str(ctx, mods, SPOOL_REG_PRINTERNAME, info2->sharename);
-	ads_mod_str(ctx, mods, SPOOL_REG_SHORTSERVERNAME, global_myname());
+	ads_mod_str(ctx, mods, SPOOL_REG_SHORTSERVERNAME, lp_netbios_name());
 	ads_mod_str(ctx, mods, SPOOL_REG_SERVERNAME, get_mydnsfullname());
 
 	info_str = talloc_asprintf(ctx, "\\\\%s\\%s",
@@ -266,10 +266,10 @@ static WERROR nt_printer_publish_ads(struct messaging_context *msg_ctx,
 	DEBUG(5, ("publishing printer %s\n", printer));
 
 	/* figure out where to publish */
-	ads_rc = ads_find_machine_acct(ads, &res, global_myname());
+	ads_rc = ads_find_machine_acct(ads, &res, lp_netbios_name());
 	if (!ADS_ERR_OK(ads_rc)) {
 		DEBUG(0, ("failed to find machine account for %s\n",
-			  global_myname()));
+			  lp_netbios_name()));
 		TALLOC_FREE(ctx);
 		return WERR_NOT_FOUND;
 	}
@@ -378,7 +378,7 @@ static WERROR nt_printer_unpublish_ads(ADS_STRUCT *ads,
 
 	/* remove the printer from the directory */
 	ads_rc = ads_find_printer_on_server(ads, &res,
-					    printer, global_myname());
+					    printer, lp_netbios_name());
 
 	if (ADS_ERR_OK(ads_rc) && res && ads_count_replies(ads, res)) {
 		prt_dn = ads_get_dn(ads, talloc_tos(), res);
@@ -407,7 +407,7 @@ static WERROR nt_printer_unpublish_ads(ADS_STRUCT *ads,
  ***************************************************************************/
 
 WERROR nt_printer_publish(TALLOC_CTX *mem_ctx,
-			  const struct auth_serversupplied_info *session_info,
+			  const struct auth_session_info *session_info,
 			  struct messaging_context *msg_ctx,
 			  struct spoolss_PrinterInfo2 *pinfo2,
 			  int action)
@@ -489,7 +489,7 @@ WERROR check_published_printers(struct messaging_context *msg_ctx)
 	int snum;
 	int n_services = lp_numservices();
 	TALLOC_CTX *tmp_ctx = NULL;
-	struct auth_serversupplied_info *session_info = NULL;
+	struct auth_session_info *session_info = NULL;
 	struct spoolss_PrinterInfo2 *pinfo2;
 	NTSTATUS status;
 	WERROR result;
@@ -529,7 +529,7 @@ WERROR check_published_printers(struct messaging_context *msg_ctx)
 		}
 
 		result = winreg_get_printer_internal(tmp_ctx, session_info, msg_ctx,
-					    lp_servicename(snum),
+					    lp_servicename(talloc_tos(), snum),
 					    &pinfo2);
 		if (!W_ERROR_IS_OK(result)) {
 			continue;
@@ -551,7 +551,7 @@ done:
 }
 
 bool is_printer_published(TALLOC_CTX *mem_ctx,
-			  const struct auth_serversupplied_info *session_info,
+			  const struct auth_session_info *session_info,
 			  struct messaging_context *msg_ctx,
 			  const char *servername,
 			  const char *printer,
@@ -588,7 +588,7 @@ bool is_printer_published(TALLOC_CTX *mem_ctx,
 }
 #else
 WERROR nt_printer_guid_get(TALLOC_CTX *mem_ctx,
-			   const struct auth_serversupplied_info *session_info,
+			   const struct auth_session_info *session_info,
 			   struct messaging_context *msg_ctx,
 			   const char *printer, struct GUID *guid)
 {
@@ -596,7 +596,7 @@ WERROR nt_printer_guid_get(TALLOC_CTX *mem_ctx,
 }
 
 WERROR nt_printer_publish(TALLOC_CTX *mem_ctx,
-			  const struct auth_serversupplied_info *session_info,
+			  const struct auth_session_info *session_info,
 			  struct messaging_context *msg_ctx,
 			  struct spoolss_PrinterInfo2 *pinfo2,
 			  int action)
@@ -610,7 +610,7 @@ WERROR check_published_printers(struct messaging_context *msg_ctx)
 }
 
 bool is_printer_published(TALLOC_CTX *mem_ctx,
-			  const struct auth_serversupplied_info *session_info,
+			  const struct auth_session_info *session_info,
 			  struct messaging_context *msg_ctx,
 			  const char *servername,
 			  const char *printer,

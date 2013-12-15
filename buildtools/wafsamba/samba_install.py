@@ -103,6 +103,8 @@ def install_library(self):
     if getattr(self, 'samba_realname', None):
         install_name = self.samba_realname
         install_link = None
+        if getattr(self, 'soname', ''):
+            install_link = self.soname
         if getattr(self, 'samba_type', None) == 'PYTHON':
             inst_name    = bld.make_libname(t.target, nolibprefix=True, python=True)
         else:
@@ -134,12 +136,13 @@ def install_library(self):
 
     # tell waf to install the library
     bld.install_as(os.path.join(install_path, install_name),
-                   os.path.join(self.path.abspath(bld.env), inst_name))
+                   os.path.join(self.path.abspath(bld.env), inst_name),
+                   chmod=MODE_755)
     if install_link and install_link != install_name:
         # and the symlink if needed
-        bld.symlink_as(os.path.join(install_path, install_link), install_name)
+        bld.symlink_as(os.path.join(install_path, install_link), os.path.basename(install_name))
     if dev_link:
-        bld.symlink_as(os.path.join(install_path, dev_link), install_name)
+        bld.symlink_as(os.path.join(install_path, dev_link), os.path.basename(install_name))
 
 
 @feature('cshlib')

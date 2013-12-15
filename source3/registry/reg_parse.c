@@ -34,12 +34,9 @@
 #include "reg_format.h"
 
 #include <stdio.h>
-#include <unistd.h>
-#include <wchar.h>
 #include <talloc.h>
 #include <stdbool.h>
 #include <string.h>
-#include <sys/types.h>
 #include <regex.h>
 #include <assert.h>
 #include <stdint.h>
@@ -163,7 +160,7 @@ static bool act_val_sz(struct reg_parse* p, cbuf* value, bool cont)
 
 		if (convert_string_talloc(p->valblob, CH_UNIX, CH_UTF16LE,
 					  src, strlen(src)+1,
-					  &dst, &dlen, true))
+					  &dst, &dlen))
 		{
 			cbuf_swapptr(p->valblob, &dst, dlen);
 		} else {
@@ -622,7 +619,7 @@ static bool lookslike_utf16(const char* line, size_t len, bool* little_endian)
 	bool le;
 
 	size_t l = MIN(len/2, 64);
-	uint16_t* u = (uint16_t*)line;
+	const uint16_t* u = (const uint16_t*)line;
 	int i;
 
 	assert(len >= 2);
@@ -936,7 +933,8 @@ int reg_parse_file(const char* fname, const struct reg_parse_callback* cb,
 
 	fd = open(fname, O_RDONLY);
 	if (fd < 0) {
-		DEBUG(0, ("reg_parse_file: open failed: %s\n", strerror(errno)));
+		DEBUG(0, ("reg_parse_file: open %s failed: %s\n", fname,
+			  strerror(errno)));
 		return -1;
 	}
 

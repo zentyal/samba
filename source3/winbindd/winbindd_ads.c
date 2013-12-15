@@ -78,14 +78,14 @@ static ADS_STRUCT *ads_cached_connection(struct winbindd_domain *domain)
 		}
 	}
 
-	/* we don't want this to affect the users ccache */
-	setenv("KRB5CCNAME", "MEMORY:winbind_ccache", 1);
-
 	ads = ads_init(domain->alt_name, domain->name, NULL);
 	if (!ads) {
 		DEBUG(1,("ads_init for domain %s failed\n", domain->name));
 		return NULL;
 	}
+
+	/* we don't want ads operations to affect the default ccache */
+	ads->auth.ccache_name = SMB_STRDUP("MEMORY:winbind_ccache");
 
 	/* the machine acct password might have change - fetch it every time */
 
@@ -99,7 +99,10 @@ static ADS_STRUCT *ads_cached_connection(struct winbindd_domain *domain)
 			return NULL;
 		}
 		ads->auth.realm = SMB_STRDUP( ads->server.realm );
-		strupper_m( ads->auth.realm );
+		if (!strupper_m( ads->auth.realm )) {
+			ads_destroy( &ads );
+			return NULL;
+		}
 	}
 	else {
 		struct winbindd_domain *our_domain = domain;
@@ -114,7 +117,10 @@ static ADS_STRUCT *ads_cached_connection(struct winbindd_domain *domain)
 
 		if ( our_domain->alt_name[0] != '\0' ) {
 			ads->auth.realm = SMB_STRDUP( our_domain->alt_name );
-			strupper_m( ads->auth.realm );
+			if (!strupper_m( ads->auth.realm )) {
+				ads_destroy( &ads );
+				return NULL;
+			}
 		}
 		else
 			ads->auth.realm = SMB_STRDUP( lp_realm() );
@@ -203,7 +209,7 @@ static NTSTATUS query_user_list(struct winbindd_domain *domain,
 		goto done;
 	}
 
-	(*pinfo) = TALLOC_ZERO_ARRAY(mem_ctx, struct wbint_userinfo, count);
+	(*pinfo) = talloc_zero_array(mem_ctx, struct wbint_userinfo, count);
 	if (!*pinfo) {
 		status = NT_STATUS_NO_MEMORY;
 		goto done;
@@ -359,7 +365,7 @@ static NTSTATUS enum_dom_groups(struct winbindd_domain *domain,
 		goto done;
 	}
 
-	(*info) = TALLOC_ZERO_ARRAY(mem_ctx, struct wb_acct_info, count);
+	(*info) = talloc_zero_array(mem_ctx, struct wb_acct_info, count);
 	if (!*info) {
 		status = NT_STATUS_NO_MEMORY;
 		goto done;
@@ -785,7 +791,7 @@ static NTSTATUS lookup_usergroups_memberof(struct winbindd_domain *domain,
 		goto done;
 	}
 
-	group_sids = TALLOC_ZERO_ARRAY(mem_ctx, struct dom_sid, num_strings + 1);
+	group_sids = talloc_zero_array(mem_ctx, struct dom_sid, num_strings + 1);
 	if (!group_sids) {
 		status = NT_STATUS_NO_MEMORY;
 		goto done;
@@ -1101,10 +1107,10 @@ static NTSTATUS lookup_groupmem(struct winbindd_domain *domain,
 	 * cache. Only the rest is passed to the lsa_lookup_sids call. */
 
 	if (num_members) {
-		(*sid_mem) = TALLOC_ZERO_ARRAY(mem_ctx, struct dom_sid, num_members);
-		(*names) = TALLOC_ZERO_ARRAY(mem_ctx, char *, num_members);
-		(*name_types) = TALLOC_ZERO_ARRAY(mem_ctx, uint32, num_members);
-		(sid_mem_nocache) = TALLOC_ZERO_ARRAY(tmp_ctx, struct dom_sid, num_members);
+		(*sid_mem) = talloc_zero_array(mem_ctx, struct dom_sid, num_members);
+		(*names) = talloc_zero_array(mem_ctx, char *, num_members);
+		(*name_types) = talloc_zero_array(mem_ctx, uint32, num_members);
+		(sid_mem_nocache) = talloc_zero_array(tmp_ctx, struct dom_sid, num_members);
 
 		if ((members == NULL) || (*sid_mem == NULL) ||
 		    (*names == NULL) || (*name_types == NULL) ||

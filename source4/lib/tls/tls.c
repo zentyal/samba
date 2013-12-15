@@ -22,13 +22,14 @@
 */
 
 #include "includes.h"
+#include "system/filesys.h"
 #include "lib/events/events.h"
 #include "lib/socket/socket.h"
 #include "lib/tls/tls.h"
 #include "param/param.h"
 
 #if ENABLE_GNUTLS
-#include "gnutls/gnutls.h"
+#include <gnutls/gnutls.h>
 
 #define DH_BITS 1024
 
@@ -126,21 +127,21 @@ static ssize_t tls_pull(gnutls_transport_ptr ptr, void *buf, size_t size)
 		return 0;
 	}
 	if (NT_STATUS_IS_ERR(status)) {
-		EVENT_FD_NOT_READABLE(tls->fde);
-		EVENT_FD_NOT_WRITEABLE(tls->fde);
+		TEVENT_FD_NOT_READABLE(tls->fde);
+		TEVENT_FD_NOT_WRITEABLE(tls->fde);
 		errno = EBADF;
 		return -1;
 	}
 	if (!NT_STATUS_IS_OK(status)) {
-		EVENT_FD_READABLE(tls->fde);
+		TEVENT_FD_READABLE(tls->fde);
 		errno = EAGAIN;
 		return -1;
 	}
 	if (tls->output_pending) {
-		EVENT_FD_WRITEABLE(tls->fde);
+		TEVENT_FD_WRITEABLE(tls->fde);
 	}
 	if (size != nread) {
-		EVENT_FD_READABLE(tls->fde);
+		TEVENT_FD_READABLE(tls->fde);
 	}
 	return nread;
 }
@@ -152,7 +153,7 @@ static ssize_t tls_push(gnutls_transport_ptr ptr, const void *buf, size_t size)
 {
 	struct tls_context *tls = talloc_get_type(ptr, struct tls_context);
 	NTSTATUS status;
-	size_t nwritten;
+	size_t nwritten, total_nwritten = 0;
 	DATA_BLOB b;
 
 	if (!tls->tls_enabled) {
@@ -162,19 +163,32 @@ static ssize_t tls_push(gnutls_transport_ptr ptr, const void *buf, size_t size)
 	b.data = discard_const(buf);
 	b.length = size;
 
-	status = socket_send(tls->socket, &b, &nwritten);
-	if (NT_STATUS_EQUAL(status, STATUS_MORE_ENTRIES)) {
-		errno = EAGAIN;
-		return -1;
-	}
-	if (!NT_STATUS_IS_OK(status)) {
-		EVENT_FD_WRITEABLE(tls->fde);
-		return -1;
-	}
-	if (size != nwritten) {
-		EVENT_FD_WRITEABLE(tls->fde);
-	}
-	return nwritten;
+	/* Cope with socket_wrapper 1500 byte chunking for PCAP */
+	do {
+		status = socket_send(tls->socket, &b, &nwritten);
+		
+		if (NT_STATUS_EQUAL(status, STATUS_MORE_ENTRIES)) {
+			errno = EAGAIN;
+			return -1;
+		}
+		if (!NT_STATUS_IS_OK(status)) {
+			TEVENT_FD_WRITEABLE(tls->fde);
+			return -1;
+		}
+
+		total_nwritten += nwritten;
+
+		if (size == nwritten) {
+			break;
+		}
+
+		b.data += nwritten;
+		b.length -= nwritten;
+
+		TEVENT_FD_WRITEABLE(tls->fde);
+	} while (b.length);
+
+	return total_nwritten;
 }
 
 /*
@@ -205,7 +219,7 @@ static NTSTATUS tls_handshake(struct tls_context *tls)
 	ret = gnutls_handshake(tls->session);
 	if (ret == GNUTLS_E_INTERRUPTED || ret == GNUTLS_E_AGAIN) {
 		if (gnutls_record_get_direction(tls->session) == 1) {
-			EVENT_FD_WRITEABLE(tls->fde);
+			TEVENT_FD_WRITEABLE(tls->fde);
 		}
 		return STATUS_MORE_ENTRIES;
 	}
@@ -298,7 +312,7 @@ static NTSTATUS tls_socket_recv(struct socket_context *sock, void *buf,
 	ret = gnutls_record_recv(tls->session, buf, wantlen);
 	if (ret == GNUTLS_E_INTERRUPTED || ret == GNUTLS_E_AGAIN) {
 		if (gnutls_record_get_direction(tls->session) == 1) {
-			EVENT_FD_WRITEABLE(tls->fde);
+			TEVENT_FD_WRITEABLE(tls->fde);
 		}
 		tls->interrupted = true;
 		return STATUS_MORE_ENTRIES;
@@ -334,7 +348,7 @@ static NTSTATUS tls_socket_send(struct socket_context *sock,
 	ret = gnutls_record_send(tls->session, blob->data, blob->length);
 	if (ret == GNUTLS_E_INTERRUPTED || ret == GNUTLS_E_AGAIN) {
 		if (gnutls_record_get_direction(tls->session) == 1) {
-			EVENT_FD_WRITEABLE(tls->fde);
+			TEVENT_FD_WRITEABLE(tls->fde);
 		}
 		tls->interrupted = true;
 		return STATUS_MORE_ENTRIES;
@@ -356,6 +370,7 @@ struct tls_params *tls_initialise(TALLOC_CTX *mem_ctx, struct loadparm_context *
 {
 	struct tls_params *params;
 	int ret;
+	struct stat st;
 	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
 	const char *keyfile = lpcfg_tls_keyfile(tmp_ctx, lp_ctx);
 	const char *certfile = lpcfg_tls_certfile(tmp_ctx, lp_ctx);
@@ -384,6 +399,21 @@ struct tls_params *tls_initialise(TALLOC_CTX *mem_ctx, struct loadparm_context *
 		}
 		tls_cert_generate(params, hostname, keyfile, certfile, cafile);
 		talloc_free(hostname);
+	}
+
+	if (file_exist(keyfile) &&
+	    !file_check_permissions(keyfile, geteuid(), 0600, &st))
+	{
+		DEBUG(0, ("Invalid permissions on TLS private key file '%s':\n"
+			  "owner uid %u should be %u, mode 0%o should be 0%o\n"
+			  "This is known as CVE-2013-4476.\n"
+			  "Removing all tls .pem files will cause an "
+			  "auto-regeneration with the correct permissions.\n",
+			  keyfile,
+			  (unsigned int)st.st_uid, geteuid(),
+			  (unsigned int)(st.st_mode & 0777), 0600));
+		talloc_free(tmp_ctx);
+		return NULL;
 	}
 
 	ret = gnutls_global_init();
@@ -505,7 +535,9 @@ struct socket_context *tls_init_server(struct tls_params *params,
 	gnutls_transport_set_ptr(tls->session, (gnutls_transport_ptr)tls);
 	gnutls_transport_set_pull_function(tls->session, (gnutls_pull_func)tls_pull);
 	gnutls_transport_set_push_function(tls->session, (gnutls_push_func)tls_push);
+#if GNUTLS_VERSION_MAJOR < 3
 	gnutls_transport_set_lowat(tls->session, 0);
+#endif
 
 	tls->plain_chars = plain_chars;
 	if (plain_chars) {
@@ -574,7 +606,9 @@ struct socket_context *tls_init_client(struct socket_context *socket_ctx,
 	gnutls_transport_set_ptr(tls->session, (gnutls_transport_ptr)tls);
 	gnutls_transport_set_pull_function(tls->session, (gnutls_pull_func)tls_pull);
 	gnutls_transport_set_push_function(tls->session, (gnutls_push_func)tls_push);
+#if GNUTLS_VERSION_MAJOR < 3
 	gnutls_transport_set_lowat(tls->session, 0);
+#endif
 	tls->tls_detect = false;
 
 	tls->output_pending  = false;
@@ -638,11 +672,6 @@ static const struct socket_ops tls_socket_ops = {
 	.fn_get_fd		= tls_socket_get_fd
 };
 
-bool tls_support(struct tls_params *params)
-{
-	return params->tls_enabled;
-}
-
 #else
 
 /* for systems without tls we just fail the operations, and the caller
@@ -673,11 +702,6 @@ struct socket_context *tls_init_client(struct socket_context *socket,
 				       const char *ca_path)
 {
 	return NULL;
-}
-
-bool tls_support(struct tls_params *params)
-{
-	return false;
 }
 
 #endif

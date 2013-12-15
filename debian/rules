@@ -1,111 +1,154 @@
 #!/usr/bin/make -f
+# By Jelmer Vernooij <jelmer@samba.org>
+#
+DESTDIR = $(CURDIR)/debian/tmp
 
-# Set the host and build architectures for use with config.cache loading,
-# cross-building, etc.
-DEB_HOST_ARCH_OS	:= $(shell dpkg-architecture -qDEB_HOST_ARCH_OS)
-DEB_HOST_MULTIARCH	?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
+export DEB_LDFLAGS_MAINT_APPEND = -Wl,--as-needed
 
-export DEB_CFLAGS_MAINT_APPEND  := -Wall
-export DEB_BUILD_MAINT_OPTIONS	:= hardening=+bindnow
+PYVERS=$(shell pyversions -vr)
 
-# Ignore these files which would otherwise be pulled into our examples
-export DH_ALWAYS_EXCLUDE := COPYING:Makefile.internal:history
+DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
+LDB_VERSION = $(shell pkg-config --modversion ldb)
+LDB_NEXT_VERSION = $(shell python -c "x = '$(LDB_VERSION)'.split('.'); x[-1] = str(int(x[-1])+1); print '.'.join(x)")
+# samba ships ldb modules, which are specific to the ldb version, so we need a
+# strict dependency on the upstream ldb version
+# this also mean samba needs a rebuild when the upstream ldb version changes
+LDB_DEPENDS = "libldb1 (<< 1:$(LDB_NEXT_VERSION)~), libldb1 (>> 1:$(LDB_VERSION)~)"
+export PYTHON=$(shell which `pyversions -d`)
+export PYTHON_CONFIG="$(PYTHON)-config"
+WAF = $(PYTHON) ./buildtools/bin/waf -v
 
-DESTDIR=`pwd`/debian/tmp
+# turn DEB_BUILD_OPTIONS='foo,bar' into DEB_BUILD_OPT_FOO and DEB_BUILD_OPT_BAR
+d_b_o:=$(shell echo "$$DEB_BUILD_OPTIONS"|sed 's/[^-[:alnum:]]/ /g'|tr a-z A-Z)
+$(foreach o, $(d_b_o), $(eval DEB_BUILD_OPT_$o := 1))
 
-%:
-	dh $@ --sourcedirectory=source3
+# for xsltproc wrapper
+export PATH:=$(CURDIR)/debian/bin:$(PATH)
+export SOURCE_DATE=$(shell debian/get_source_changedate.pl)
+
+ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+WAF += -j $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+endif
 
 conf_args = \
-		--cache-file=./config.cache \
-		--with-fhs \
-		--enable-static \
-		--with-privatedir=/etc/samba \
+		--prefix=/usr \
+		--enable-fhs \
+		--sysconfdir=/etc \
+		--localstatedir=/var \
+		--with-privatedir=/var/lib/samba/private \
+		--with-smbpasswd-file=/etc/samba/smbpasswd \
 		--with-piddir=/var/run/samba \
-		--with-rootsbindir=/sbin \
 		--with-pammodulesdir=/lib/$(DEB_HOST_MULTIARCH)/security \
 		--with-pam \
 		--with-syslog \
 		--with-utmp \
-		--with-readline \
 		--with-pam_smbpass \
 		--with-winbind \
-		--with-shared-modules=idmap_rid,idmap_ad,idmap_adex,idmap_hash,idmap_ldap,idmap_tdb2 \
+		--with-shared-modules=idmap_rid,idmap_ad,idmap_adex,idmap_hash,idmap_ldap,idmap_tdb2,vfs_dfs_samba4,auth_samba4 \
 		--with-automount \
 		--with-ldap \
 		--with-ads \
 		--with-dnsupdate \
-		--without-libtdb \
-		--without-libnetapi \
-		--with-modulesdir=/usr/lib/samba \
-		--datadir=/usr/share/samba \
-		--with-swatdir=/usr/share/samba/swat \
+		--libdir=/usr/lib/$(DEB_HOST_MULTIARCH) \
+		--with-modulesdir=/usr/lib/$(DEB_HOST_MULTIARCH)/samba \
+		--datadir=/usr/share \
 		--with-lockdir=/var/run/samba \
 		--with-statedir=/var/lib/samba \
 		--with-cachedir=/var/cache/samba \
-		--with-codepagedir=/usr/share/samba \
-		--with-nmbdsocketdir=/var/run/samba \
-		--enable-external-libtalloc \
-		--without-libtalloc \
-		--without-cifsmount \
 		--disable-avahi \
-		--without-libtdb \
-		--enable-external-libtdb \
-		--disable-smbtorture4 \
-		--with-ctdb=/usr --with-cluster-support=yes
+		--with-ctdb=/usr --with-cluster-support \
+		--disable-rpath \
+		--disable-ntdb \
+		--disable-rpath-install \
+		--bundled-libraries=NONE,pytevent,iniparser \
+		--builtin-libraries=replace,ccan \
+		--minimum-library-version="$(shell ./debian/autodeps.py --minimum-library-version)" \
+		--without-getpass-replacement
 
-ifeq ($(DEB_HOST_ARCH_OS),linux)
-  conf_args += \
-		--with-acl-support \
-		--with-quotas \
-		--without-cifsupcall          
-	  else
-  conf_args +=	--without-quotas
-endif
+%:
+	dh $* --with python2
 
 override_dh_auto_configure:
-	if [ -f debian/config.cache ]; then \
-		cp -f debian/config.cache source3/config.cache; \
-	fi
-	dh_auto_configure -- $(conf_args)
+	$(shell dpkg-buildflags --export=configure) $(WAF) configure \
+		$(conf_args)
 
-override_dh_auto_build:
-	dh_auto_build --parallel -- everything nsswitch
-
-# our test suite requires including a wrapper lib we don't want to ship.
-override_dh_auto_test:
+override_dh_auto_clean:
+	-$(WAF) clean
+	find . -name "*.pyc" | xargs rm -f
+	rm -rf buildtools/bin/.waf-*
+	rm -rf bin
+	rm -f .lock-wscript
 
 override_dh_auto_install:
-	dh_auto_install
+	DESTDIR="$(DESTDIR)" $(WAF) install
 
-	# Rename to *.samba3 for alternatives
-	mv $(DESTDIR)/usr/bin/smbstatus $(DESTDIR)/usr/bin/smbstatus.samba3
-	mv $(DESTDIR)/usr/bin/nmblookup $(DESTDIR)/usr/bin/nmblookup.samba3
-	mv $(DESTDIR)/usr/share/man/man1/nmblookup.1 $(DESTDIR)/usr/share/man/man1/nmblookup.samba3.1
-	mv $(DESTDIR)/usr/share/man/man1/smbstatus.1 $(DESTDIR)/usr/share/man/man1/smbstatus.samba3.1
-	mv $(DESTDIR)/usr/bin/net $(DESTDIR)/usr/bin/net.samba3
-	mv $(DESTDIR)/usr/share/man/man8/net.8 $(DESTDIR)/usr/share/man/man8/net.samba3.8
-	mv $(DESTDIR)/usr/bin/testparm $(DESTDIR)/usr/bin/testparm.samba3
-	mv $(DESTDIR)/usr/share/man/man1/testparm.1 $(DESTDIR)/usr/share/man/man1/testparm.samba3.1
+override_dh_auto_build:
+	DESTDIR="$(DESTDIR)" $(WAF)
 
-	# Install other stuff not installed by "make install"
-	install -m 0755 debian/mksmbpasswd.awk $(DESTDIR)/usr/sbin/mksmbpasswd
-	install -m 0644 nsswitch/libnss_winbind.so $(DESTDIR)/lib/$(DEB_HOST_MULTIARCH)/libnss_winbind.so.2
-	install -m 0644 nsswitch/libnss_wins.so $(DESTDIR)/lib/$(DEB_HOST_MULTIARCH)/libnss_wins.so.2
+override_dh_auto_test:
+	# Running make test requires configuration with --enable-selftest, which
+	# we don't want to do for production systems.
+
+override_dh_install:
+	# get list of files in build log
+	find ${DESTDIR}
+	# Alternatives are used
+	# Already provided by libparse-yapp-perl
+	rm $(DESTDIR)/usr/share/perl5/Parse/Yapp/Driver.pm
+	# MIT plugin not required, we are using Heimdal
+	rm $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/mit_samba.so
+	# SWAT is not packaged any more (gone from upstream 4.1)
+	rm $(DESTDIR)/usr/sbin/swat
+	rm $(DESTDIR)/usr/share/man/man8/swat.8
+	rm -rf $(DESTDIR)/usr/share/samba/swat
+	rm $(DESTDIR)/usr/share/samba/codepages/*.msg
+	# Included in python-tevent
+	rm $(DESTDIR)/usr/lib/python*/*-packages/_tevent.so
+	rm $(DESTDIR)/usr/lib/python*/*-packages/tevent.py
+	# Already included in various system packages
+	rm -r $(DESTDIR)/usr/lib/python*/*-packages/samba/external
+	# Already documented in debian/copyright
+	-rm $(DESTDIR)/usr/share/samba/setup/ad-schema/licence.txt
+	# System ldb loads its modules from a different path
+	mkdir -p $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/ldb/modules/ldb
+	ln -sf ../../../samba/ldb $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/ldb/modules/ldb/samba
+	# pam stuff
 	mkdir -p $(DESTDIR)/usr/share/pam-configs
 	install -m 0644 debian/libpam-smbpass.pam-config $(DESTDIR)/usr/share/pam-configs/smbpasswd-migrate
 	install -m 0644 debian/winbind.pam-config $(DESTDIR)/usr/share/pam-configs/winbind
-	mkdir -p $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig
-	install -m 0644 source3/pkgconfig/wbclient.pc $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig
-	install -m 0644 source3/pkgconfig/smbclient.pc $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig
-
+	mv $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/libnss_* $(DESTDIR)/lib/$(DEB_HOST_MULTIARCH)/
+	# we don't ship the symlinks
+	rm $(DESTDIR)/lib/$(DEB_HOST_MULTIARCH)/libnss_*.so
+	#Remove unused ldb share configuration plugin
+	rm $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/samba/share/ldb.so
+	#Remove unused vfstest manpage as there is no more vfstest apparently
+	rm $(DESTDIR)/usr/share/man/man1/vfstest.1
+	mkdir -p $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/plugin/krb5
+	mv $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/winbind_krb5_locator.so \
+	   $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/plugin/krb5
+	install -m 0755 debian/setoption.py $(DESTDIR)/usr/share/samba
+	install -m 0755 debian/addshare.py $(DESTDIR)/usr/share/samba
+	mkdir -p $(DESTDIR)/usr/lib/tmpfiles.d
+	echo "d /run/samba 0755 root root -" > $(DESTDIR)/usr/lib/tmpfiles.d/samba.conf
 	# Install samba-common's conffiles - they'll get moved later to their
 	# correct place by dh_install
+	cp debian/smb.conf* $(DESTDIR)/usr/share/samba/
+	install -m755 debian/panic-action $(DESTDIR)/usr/share/samba/panic-action
+	cp debian/gdbcommands $(DESTDIR)/etc/samba/
 	mkdir -p $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d
 	install -m755 debian/samba-common.dhcp $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d/samba
+	# Install other stuff not installed by "make install"
+	install -m 0755 debian/mksmbpasswd.awk $(DESTDIR)/usr/sbin/mksmbpasswd
+	dh_install --sourcedir=$(DESTDIR) --list-missing --fail-missing
+
+override_dh_python2:
+	dh_python2 --no-guessing-versions
 
 override_dh_installpam:
 	dh_installpam --name=samba
+
+get-packaged-orig-source:
+	./debian/build-orig.sh
 
 override_dh_installchangelogs:
 	dh_installchangelogs -Nlibpam-smbpass
@@ -117,6 +160,7 @@ override_dh_installinit:
 ifneq (,$(filter samba, $(shell dh_listpackages)))
 	dh_installinit -psamba --name smbd
 	dh_installinit -psamba --name nmbd
+	dh_installinit -psamba --name samba-ad-dc
 	dh_installinit -psamba --noscripts
 	dh_installinit -psamba --no-start --name reload-smbd
 endif
@@ -124,9 +168,19 @@ ifneq (,$(filter winbind, $(shell dh_listpackages)))
 	dh_installinit -pwinbind
 endif
 
-override_dh_strip:
-	dh_strip -psamba -psmbclient -pwinbind -psamba-common-bin --dbg-package=samba-dbg
-	dh_strip -Nsamba -Nsmbclient -Nwinbind -Nsamba-common-bin
+override_dh_installdocs:
+	dh_installdocs source4/NEWS
+
+override_dh_shlibdeps:
+	LD_LIBRARY_PATH=$(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/samba:$$LD_LIBRARY_PATH dh_shlibdeps -a
+
+override_dh_gencontrol:
+	dh_gencontrol -- -Vldb:Depends=$(LDB_DEPENDS)
+
+override_dh_makeshlibs:
+	# create symbols and shlibs files in separate wrapper script to deal with
+	# private libraries
+	debian/make_shlibs
 
 override_dh_fixperms:
 	dh_fixperms
@@ -139,13 +193,3 @@ endif
 ifneq (,$(filter samba, $(shell dh_listpackages)))
 	chmod 1777 debian/samba/var/spool/samba/
 endif
-
-override_dh_makeshlibs:
-	dh_makeshlibs -plibsmbclient -V'libsmbclient (>= 2:3.2.0)'
-	dh_makeshlibs -plibwbclient0 -V'libwbclient0 (>= 2:3.5.0~pre2)'
-
-override_dh_compress:
-	dh_compress -XWHATSNEW.txt
-
-override_dh_builddeb:
-	dh_builddeb -- -Zxz

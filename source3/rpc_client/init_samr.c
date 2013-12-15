@@ -34,7 +34,7 @@ void init_samr_CryptPasswordEx(const char *pwd,
 	/* samr_CryptPasswordEx */
 
 	uchar pwbuf[532];
-	MD5_CTX md5_ctx;
+	struct MD5Context md5_ctx;
 	uint8_t confounder[16];
 	DATA_BLOB confounded_session_key = data_blob(NULL, 16);
 

@@ -25,13 +25,13 @@
 #include "libcli/raw/raw_proto.h"
 #include "libcli/composite/composite.h"
 #include "libcli/smb_composite/smb_composite.h"
-#include "libcli/smb_composite/proto.h"
 #include "libcli/auth/libcli_auth.h"
 #include "auth/auth.h"
 #include "auth/gensec/gensec.h"
 #include "auth/credentials/credentials.h"
 #include "version.h"
 #include "param/param.h"
+#include "libcli/smb/smbXcli_base.h"
 
 struct sesssetup_state {
 	union smb_sesssetup setup;
@@ -65,17 +65,6 @@ static NTSTATUS session_setup_spnego(struct composite_context *c,
 				     struct smbcli_request **req);
 
 /*
-  store the user session key for a transport
-*/
-static void set_user_session_key(struct smbcli_session *session,
-				 const DATA_BLOB *session_key)
-{
-	session->user_session_key = data_blob_talloc(session, 
-						     session_key->data, 
-						     session_key->length);
-}
-
-/*
   handler for completion of a smbcli_request sub-request
 */
 static void request_handler(struct smbcli_request *req)
@@ -83,7 +72,6 @@ static void request_handler(struct smbcli_request *req)
 	struct composite_context *c = (struct composite_context *)req->async.private_data;
 	struct sesssetup_state *state = talloc_get_type(c->private_data, struct sesssetup_state);
 	struct smbcli_session *session = req->session;
-	DATA_BLOB session_key = data_blob(NULL, 0);
 	DATA_BLOB null_data_blob = data_blob(NULL, 0);
 	NTSTATUS session_key_err, nt_status;
 	struct smbcli_request *check_req = NULL;
@@ -183,7 +171,7 @@ static void request_handler(struct smbcli_request *req)
 			 * host/attacker might avoid mutal authentication
 			 * requirements */
 			
-			state->gensec_status = gensec_update(session->gensec, state,
+			state->gensec_status = gensec_update(session->gensec, state, c->event_ctx,
 							 state->setup.spnego.out.secblob,
 							 &state->setup.spnego.in.secblob);
 			c->status = state->gensec_status;
@@ -196,14 +184,24 @@ static void request_handler(struct smbcli_request *req)
 		}
 
 		if (NT_STATUS_IS_OK(state->remote_status)) {
+			DATA_BLOB session_key;
+
 			if (state->setup.spnego.in.secblob.length) {
 				c->status = NT_STATUS_INTERNAL_ERROR;
 				break;
 			}
-			session_key_err = gensec_session_key(session->gensec, &session_key);
+			session_key_err = gensec_session_key(session->gensec, session, &session_key);
 			if (NT_STATUS_IS_OK(session_key_err)) {
-				set_user_session_key(session, &session_key);
-				smbcli_transport_simple_set_signing(session->transport, session_key, null_data_blob);
+				smb1cli_conn_activate_signing(session->transport->conn,
+							      session_key,
+							      null_data_blob);
+			}
+
+			c->status = smb1cli_session_set_session_key(session->smbXcli,
+								    session_key);
+			data_blob_free(&session_key);
+			if (!NT_STATUS_IS_OK(c->status)) {
+				break;
 			}
 		}
 
@@ -216,7 +214,8 @@ static void request_handler(struct smbcli_request *req)
 			session->vuid = state->io->out.vuid;
 			state->req = smb_raw_sesssetup_send(session, &state->setup);
 			session->vuid = vuid;
-			if (state->req) {
+			if (state->req &&
+			    !smb1cli_conn_signing_is_active(state->req->transport->conn)) {
 				state->req->sign_caller_checks = true;
 			}
 			composite_continue_smb(c, state->req, request_handler, c);
@@ -232,21 +231,17 @@ static void request_handler(struct smbcli_request *req)
 	}
 
 	if (check_req) {
+		bool ok;
+
 		check_req->sign_caller_checks = false;
-		if (!smbcli_request_check_sign_mac(check_req)) {
+
+		ok = smb1cli_conn_check_signing(check_req->transport->conn,
+						check_req->in.buffer, 1);
+		if (!ok) {
 			c->status = NT_STATUS_ACCESS_DENIED;
 		}
 		talloc_free(check_req);
 		check_req = NULL;
-	}
-
-	/* enforce the local signing required flag */
-	if (NT_STATUS_IS_OK(c->status) && !cli_credentials_is_anonymous(state->io->in.credentials)) {
-		if (!session->transport->negotiate.sign_info.doing_signing 
-		    && session->transport->negotiate.sign_info.mandatory_signing) {
-			DEBUG(0, ("SMB signing required, but server does not support it\n"));
-			c->status = NT_STATUS_ACCESS_DENIED;
-		}
 	}
 
 	if (!NT_STATUS_IS_OK(c->status)) {
@@ -280,12 +275,19 @@ static NTSTATUS session_setup_nt1(struct composite_context *c,
 				  struct smbcli_request **req) 
 {
 	NTSTATUS nt_status = NT_STATUS_INTERNAL_ERROR;
-	struct sesssetup_state *state = talloc_get_type(c->private_data, struct sesssetup_state);
-	DATA_BLOB names_blob = NTLMv2_generate_names_blob(state, session->transport->socket->hostname, cli_credentials_get_domain(io->in.credentials));
+	struct sesssetup_state *state = talloc_get_type(c->private_data,
+							struct sesssetup_state);
+	const char *domain = cli_credentials_get_domain(io->in.credentials);
+
+	/*
+	 * domain controllers tend to reject the NTLM v2 blob
+	 * if the netbiosname is not valid (e.g. IP address or FQDN)
+	 * so just leave it away (as Windows client do)
+	 */
+	DATA_BLOB names_blob = NTLMv2_generate_names_blob(state, NULL, domain);
+
 	DATA_BLOB session_key = data_blob(NULL, 0);
 	int flags = CLI_CRED_NTLM_AUTH;
-
-	smbcli_temp_set_signing(session->transport);
 
 	if (session->options.lanman_auth) {
 		flags |= CLI_CRED_LANMAN_AUTH;
@@ -333,11 +335,16 @@ static NTSTATUS session_setup_nt1(struct composite_context *c,
 	}
 
 	if (NT_STATUS_IS_OK(nt_status)) {
-		smbcli_transport_simple_set_signing(session->transport, session_key, 
-						    state->setup.nt1.in.password2);
-		set_user_session_key(session, &session_key);
-		
+		smb1cli_conn_activate_signing(session->transport->conn,
+					      session_key,
+					      state->setup.nt1.in.password2);
+
+		nt_status = smb1cli_session_set_session_key(session->smbXcli,
+							    session_key);
 		data_blob_free(&session_key);
+		if (!NT_STATUS_IS_OK(nt_status)) {
+			return nt_status;
+		}
 	}
 
 	return (*req)->status;
@@ -353,9 +360,18 @@ static NTSTATUS session_setup_old(struct composite_context *c,
 				  struct smbcli_request **req) 
 {
 	NTSTATUS nt_status;
-	struct sesssetup_state *state = talloc_get_type(c->private_data, struct sesssetup_state);
+	struct sesssetup_state *state = talloc_get_type(c->private_data,
+							struct sesssetup_state);
 	const char *password = cli_credentials_get_password(io->in.credentials);
-	DATA_BLOB names_blob = NTLMv2_generate_names_blob(state, session->transport->socket->hostname, cli_credentials_get_domain(io->in.credentials));
+	const char *domain = cli_credentials_get_domain(io->in.credentials);
+
+	/*
+	 * domain controllers tend to reject the NTLM v2 blob
+	 * if the netbiosname is not valid (e.g. IP address or FQDN)
+	 * so just leave it away (as Windows client do)
+	 */
+	DATA_BLOB names_blob = NTLMv2_generate_names_blob(state, NULL, domain);
+
 	DATA_BLOB session_key;
 	int flags = 0;
 	if (session->options.lanman_auth) {
@@ -386,9 +402,13 @@ static NTSTATUS session_setup_old(struct composite_context *c,
 							      NULL,
 							      NULL, &session_key);
 		NT_STATUS_NOT_OK_RETURN(nt_status);
-		set_user_session_key(session, &session_key);
-		
+
+		nt_status = smb1cli_session_set_session_key(session->smbXcli,
+							    session_key);
 		data_blob_free(&session_key);
+		if (!NT_STATUS_IS_OK(nt_status)) {
+			return nt_status;
+		}
 	} else if (session->options.plaintext_auth) {
 		state->setup.old.in.password = data_blob_talloc(state, password, strlen(password));
 	} else {
@@ -426,9 +446,7 @@ static NTSTATUS session_setup_spnego(struct composite_context *c,
 	state->setup.spnego.in.lanman       = talloc_asprintf(state, "Samba %s", SAMBA_VERSION_STRING);
 	state->setup.spnego.in.workgroup    = io->in.workgroup;
 
-	smbcli_temp_set_signing(session->transport);
-
-	status = gensec_client_start(session, &session->gensec, c->event_ctx,
+	status = gensec_client_start(session, &session->gensec,
 				     io->in.gensec_settings);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(1, ("Failed to start GENSEC client mode: %s\n", nt_errstr(status)));
@@ -444,7 +462,8 @@ static NTSTATUS session_setup_spnego(struct composite_context *c,
 		return status;
 	}
 
-	status = gensec_set_target_hostname(session->gensec, session->transport->socket->hostname);
+	status = gensec_set_target_hostname(session->gensec,
+			smbXcli_conn_remote_name(session->transport->conn));
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(1, ("Failed to start set GENSEC target hostname: %s\n", 
 			  nt_errstr(status)));
@@ -485,10 +504,12 @@ static NTSTATUS session_setup_spnego(struct composite_context *c,
 
 	if ((const void *)chosen_oid == (const void *)GENSEC_OID_SPNEGO) {
 		status = gensec_update(session->gensec, state,
+				       c->event_ctx,
 				       session->transport->negotiate.secblob,
 				       &state->setup.spnego.in.secblob);
 	} else {
 		status = gensec_update(session->gensec, state,
+				       c->event_ctx,
 				       data_blob(NULL, 0),
 				       &state->setup.spnego.in.secblob);
 
@@ -513,7 +534,9 @@ static NTSTATUS session_setup_spnego(struct composite_context *c,
 	 * as the session key might be the acceptor subkey
 	 * which comes within the response itself
 	 */
-	(*req)->sign_caller_checks = true;
+	if (!smb1cli_conn_signing_is_active((*req)->transport->conn)) {
+		(*req)->sign_caller_checks = true;
+	}
 
 	return (*req)->status;
 }
@@ -531,7 +554,7 @@ struct composite_context *smb_composite_sesssetup_send(struct smbcli_session *se
 	struct sesssetup_state *state;
 	NTSTATUS status;
 
-	c = composite_create(session, session->transport->socket->event.ctx);
+	c = composite_create(session, session->transport->ev);
 	if (c == NULL) return NULL;
 
 	state = talloc_zero(c, struct sesssetup_state);

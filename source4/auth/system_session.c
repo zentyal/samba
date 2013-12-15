@@ -190,7 +190,7 @@ static NTSTATUS auth_domain_admin_user_info_dc(TALLOC_CTX *mem_ctx,
 	sid_append_rid(&user_info_dc->sids[PRIMARY_USER_SID_INDEX], DOMAIN_RID_ADMINISTRATOR);
 
 	user_info_dc->sids[PRIMARY_GROUP_SID_INDEX] = *domain_sid;
-	sid_append_rid(&user_info_dc->sids[PRIMARY_USER_SID_INDEX], DOMAIN_RID_USERS);
+	sid_append_rid(&user_info_dc->sids[PRIMARY_GROUP_SID_INDEX], DOMAIN_RID_USERS);
 
 	user_info_dc->sids[2] = global_sid_Builtin_Administrators;
 
@@ -267,6 +267,8 @@ static NTSTATUS auth_domain_admin_session_info(TALLOC_CTX *parent_ctx,
 	NTSTATUS nt_status;
 	struct auth_user_info_dc *user_info_dc = NULL;
 	TALLOC_CTX *mem_ctx = talloc_new(parent_ctx);
+
+	NT_STATUS_HAVE_NO_MEMORY(mem_ctx);
 
 	nt_status = auth_domain_admin_user_info_dc(mem_ctx, lpcfg_netbios_name(lp_ctx),
 						  lpcfg_workgroup(lp_ctx), domain_sid,

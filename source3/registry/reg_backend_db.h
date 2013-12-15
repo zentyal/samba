@@ -32,11 +32,5 @@ WERROR regdb_transaction_start(void);
 WERROR regdb_transaction_commit(void);
 WERROR regdb_transaction_cancel(void);
 int regdb_get_seqnum(void);
-bool regdb_store_keys(const char *key, struct regsubkey_ctr *ctr);
-int regdb_fetch_keys(const char *key, struct regsubkey_ctr *ctr);
-int regdb_fetch_values(const char* key, struct regval_ctr *values);
-bool regdb_store_values(const char *key, struct regval_ctr *values);
-bool regdb_subkeys_need_update(struct regsubkey_ctr *subkeys);
-bool regdb_values_need_update(struct regval_ctr *values);
 
 #endif /* _REG_BACKEND_DB_H */

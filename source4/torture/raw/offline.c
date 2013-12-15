@@ -29,6 +29,7 @@
 #include "lib/events/events.h"
 #include "libcli/composite/composite.h"
 #include "libcli/smb_composite/smb_composite.h"
+#include "torture/raw/proto.h"
 
 #define BASEDIR "\\testoffline"
 
@@ -354,7 +355,7 @@ static void report_rate(struct tevent_context *ev, struct tevent_timer *te,
 	       latencies[OP_LOADFILE],
 	       worst_latencies[OP_LOADFILE]);
 	fflush(stdout);
-	event_add_timed(ev, state, timeval_current_ofs(1, 0), report_rate, state);
+	tevent_add_timer(ev, state, timeval_current_ofs(1, 0), report_rate, state);
 
 	for (i=0;i<OP_ENDOFLIST;i++) {
 		if (latencies[i] > worst_latencies[i]) {
@@ -470,12 +471,12 @@ bool torture_test_offline(struct torture_context *torture)
 	tv = timeval_current();	
 
 	if (progress) {
-		event_add_timed(torture->ev, state, timeval_current_ofs(1, 0), report_rate, state);
+		tevent_add_timer(torture->ev, state, timeval_current_ofs(1, 0), report_rate, state);
 	}
 
 	printf("Running for %d seconds\n", timelimit);
 	while (timeval_elapsed(&tv) < timelimit) {
-		event_loop_once(torture->ev);
+		tevent_loop_once(torture->ev);
 
 		if (test_failed) {
 			DEBUG(0,("test failed\n"));
@@ -489,7 +490,7 @@ bool torture_test_offline(struct torture_context *torture)
 		while (state[i].loadfile || 
 		       state[i].savefile ||
 		       state[i].req) {
-			event_loop_once(torture->ev);
+			tevent_loop_once(torture->ev);
 		}
 	}	
 

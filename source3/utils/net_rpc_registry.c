@@ -211,9 +211,9 @@ static NTSTATUS registry_enumkeys(TALLOC_CTX *ctx,
 		return NT_STATUS_OK;
 	}
 
-	if ((!(names = TALLOC_ZERO_ARRAY(mem_ctx, char *, num_subkeys))) ||
-	    (!(classes = TALLOC_ZERO_ARRAY(mem_ctx, char *, num_subkeys))) ||
-	    (!(modtimes = TALLOC_ZERO_ARRAY(mem_ctx, NTTIME *,
+	if ((!(names = talloc_zero_array(mem_ctx, char *, num_subkeys))) ||
+	    (!(classes = talloc_zero_array(mem_ctx, char *, num_subkeys))) ||
+	    (!(modtimes = talloc_zero_array(mem_ctx, NTTIME *,
 					    num_subkeys)))) {
 		status = NT_STATUS_NO_MEMORY;
 		goto error;
@@ -333,8 +333,8 @@ static NTSTATUS registry_enumvalues(TALLOC_CTX *ctx,
 		return NT_STATUS_OK;
 	}
 
-	if ((!(names = TALLOC_ARRAY(mem_ctx, char *, num_values))) ||
-	    (!(values = TALLOC_ARRAY(mem_ctx, struct registry_value *,
+	if ((!(names = talloc_array(mem_ctx, char *, num_values))) ||
+	    (!(values = talloc_array(mem_ctx, struct registry_value *,
 				     num_values)))) {
 		status = NT_STATUS_NO_MEMORY;
 		goto error;
@@ -456,8 +456,8 @@ static NTSTATUS registry_enumvalues2(TALLOC_CTX *ctx,
 		return NT_STATUS_OK;
 	}
 
-	if ((!(names = TALLOC_ARRAY(mem_ctx, char *, num_values))) ||
-	    (!(values = TALLOC_ARRAY(mem_ctx, struct regval_blob *,
+	if ((!(names = talloc_array(mem_ctx, char *, num_values))) ||
+	    (!(values = talloc_array(mem_ctx, struct regval_blob *,
 				     num_values)))) {
 		status = NT_STATUS_NO_MEMORY;
 		goto error;
@@ -509,7 +509,7 @@ static NTSTATUS registry_enumvalues2(TALLOC_CTX *ctx,
 			goto error;
 		}
 
-		assert(value_length<=data_size); //???
+		assert(value_length<=data_size); /*??? */
 
 		values[i] = regval_compose(values,
 					   name_buf.name,
@@ -647,7 +647,7 @@ static int rpc_registry_setvalue(struct net_context *c, int argc,
 		return -1;
 	}
 
-	return run_rpc_command(c, NULL, &ndr_table_winreg.syntax_id, 0,
+	return run_rpc_command(c, NULL, &ndr_table_winreg, 0,
 		rpc_registry_setvalue_internal, argc, argv );
 }
 
@@ -707,7 +707,7 @@ static int rpc_registry_deletevalue(struct net_context *c, int argc,
 		return -1;
 	}
 
-	return run_rpc_command(c, NULL, &ndr_table_winreg.syntax_id, 0,
+	return run_rpc_command(c, NULL, &ndr_table_winreg, 0,
 		rpc_registry_deletevalue_internal, argc, argv );
 }
 
@@ -835,7 +835,7 @@ static int rpc_registry_getvalue(struct net_context *c, int argc,
 		return -1;
 	}
 
-	return run_rpc_command(c, NULL, &ndr_table_winreg.syntax_id, 0,
+	return run_rpc_command(c, NULL, &ndr_table_winreg, 0,
 		rpc_registry_getvalue_full, argc, argv);
 }
 
@@ -863,7 +863,7 @@ static int rpc_registry_getvalueraw(struct net_context *c, int argc,
 		return -1;
 	}
 
-	return run_rpc_command(c, NULL, &ndr_table_winreg.syntax_id, 0,
+	return run_rpc_command(c, NULL, &ndr_table_winreg, 0,
 		rpc_registry_getvalue_raw, argc, argv);
 }
 
@@ -949,7 +949,7 @@ static int rpc_registry_createkey(struct net_context *c, int argc,
 		return -1;
 	}
 
-	return run_rpc_command(c, NULL, &ndr_table_winreg.syntax_id, 0,
+	return run_rpc_command(c, NULL, &ndr_table_winreg, 0,
 		rpc_registry_createkey_internal, argc, argv );
 }
 
@@ -1015,7 +1015,7 @@ static int rpc_registry_deletekey(struct net_context *c, int argc, const char **
 		return -1;
 	}
 
-	return run_rpc_command(c, NULL, &ndr_table_winreg.syntax_id, 0,
+	return run_rpc_command(c, NULL, &ndr_table_winreg, 0,
 		rpc_registry_deletekey_internal, argc, argv );
 }
 
@@ -1095,7 +1095,7 @@ static NTSTATUS rpc_registry_enumerate_internal(struct net_context *c,
 static int rpc_registry_enumerate(struct net_context *c, int argc,
 				  const char **argv )
 {
-	return run_rpc_command(c, NULL, &ndr_table_winreg.syntax_id, 0,
+	return run_rpc_command(c, NULL, &ndr_table_winreg, 0,
 		rpc_registry_enumerate_internal, argc, argv );
 }
 
@@ -1136,12 +1136,12 @@ static NTSTATUS rpc_registry_save_internal(struct net_context *c,
 	status = dcerpc_winreg_SaveKey(b, mem_ctx, &pol_key, &filename, NULL, &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		d_fprintf(stderr, _("Unable to save [%s] to %s:%s\n"), argv[0],
-			  cli->desthost, argv[1]);
+			  pipe_hnd->desthost, argv[1]);
 	}
 	if (!W_ERROR_IS_OK(result)) {
 		status = werror_to_ntstatus(result);
 		d_fprintf(stderr, _("Unable to save [%s] to %s:%s\n"), argv[0],
-			  cli->desthost, argv[1]);
+			  pipe_hnd->desthost, argv[1]);
 	}
 
 	/* cleanup */
@@ -1157,7 +1157,7 @@ static NTSTATUS rpc_registry_save_internal(struct net_context *c,
 
 static int rpc_registry_save(struct net_context *c, int argc, const char **argv )
 {
-	return run_rpc_command(c, NULL, &ndr_table_winreg.syntax_id, 0,
+	return run_rpc_command(c, NULL, &ndr_table_winreg, 0,
 		rpc_registry_save_internal, argc, argv );
 }
 
@@ -1451,7 +1451,7 @@ static NTSTATUS rpc_registry_getsd_internal(struct net_context *c,
 		return status;
 	}
 
-	sd = TALLOC_ZERO_P(mem_ctx, struct KeySecurityData);
+	sd = talloc_zero(mem_ctx, struct KeySecurityData);
 	if (!sd) {
 		status = NT_STATUS_NO_MEMORY;
 		goto out;
@@ -1501,7 +1501,7 @@ static NTSTATUS rpc_registry_getsd_internal(struct net_context *c,
 
 static int rpc_registry_getsd(struct net_context *c, int argc, const char **argv)
 {
-	return run_rpc_command(c, NULL, &ndr_table_winreg.syntax_id, 0,
+	return run_rpc_command(c, NULL, &ndr_table_winreg, 0,
 		rpc_registry_getsd_internal, argc, argv);
 }
 
@@ -1656,7 +1656,7 @@ static NTSTATUS rpc_registry_export_internal(struct net_context *c,
 static int rpc_registry_export(struct net_context *c, int argc,
 			       const char **argv )
 {
-	return run_rpc_command(c, NULL, &ndr_table_winreg.syntax_id, 0,
+	return run_rpc_command(c, NULL, &ndr_table_winreg, 0,
 			       rpc_registry_export_internal, argc, argv );
 }
 
@@ -1994,7 +1994,7 @@ static NTSTATUS rpc_registry_import_internal(struct net_context *c,
 static int rpc_registry_import(struct net_context *c, int argc,
 			       const char **argv )
 {
-	return run_rpc_command(c, NULL, &ndr_table_winreg.syntax_id, 0,
+	return run_rpc_command(c, NULL, &ndr_table_winreg, 0,
 			       rpc_registry_import_internal, argc, argv );
 }
 

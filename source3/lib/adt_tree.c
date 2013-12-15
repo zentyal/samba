@@ -134,7 +134,7 @@ static struct tree_node *pathtree_birth_child(struct tree_node *node,
 			/* the strings should never match assuming that we 
 			   have called pathtree_find_child() first */
 
-			if ( StrCaseCmp( infant->key, node->children[i-1]->key ) > 0 ) {
+			if ( strcasecmp_m( infant->key, node->children[i-1]->key ) > 0 ) {
 				DEBUG(11,("pathtree_birth_child: storing infant in i == [%d]\n", 
 					i));
 				node->children[i] = infant;
@@ -183,7 +183,7 @@ static struct tree_node *pathtree_find_child(struct tree_node *node,
 		DEBUG(11,("pathtree_find_child: child key => [%s]\n",
 			node->children[i]->key));
 
-		result = StrCaseCmp( node->children[i]->key, key );
+		result = strcasecmp_m( node->children[i]->key, key );
 
 		if ( result == 0 )
 			next = node->children[i];
@@ -206,23 +206,23 @@ static struct tree_node *pathtree_find_child(struct tree_node *node,
  Add a new node into the tree given a key path and a blob of data
  *************************************************************************/
 
-WERROR pathtree_add(struct sorted_tree *tree, const char *path, void *data_p)
+bool pathtree_add(struct sorted_tree *tree, const char *path, void *data_p)
 {
 	char *str, *base, *path2;
 	struct tree_node *current, *next;
-	WERROR ret = WERR_OK;
+	bool ret = true;
 
 	DEBUG(8,("pathtree_add: Enter\n"));
 
 	if ( !path || *path != '\\' ) {
 		DEBUG(0,("pathtree_add: Attempt to add a node with a bad path [%s]\n",
 			path ? path : "NULL" ));
-		return WERR_INVALID_PARAM;
+		return false;
 	}
 
 	if ( !tree ) {
 		DEBUG(0,("pathtree_add: Attempt to add a node to an uninitialized tree!\n"));
-		return WERR_INVALID_PARAM;
+		return false;
 	}
 
 	/* move past the first '\\' */
@@ -231,7 +231,7 @@ WERROR pathtree_add(struct sorted_tree *tree, const char *path, void *data_p)
 	path2 = SMB_STRDUP( path );
 	if ( !path2 ) {
 		DEBUG(0,("pathtree_add: strdup() failed on string [%s]!?!?!\n", path));
-		return WERR_NOMEM;
+		return false;
 	}
 
 
@@ -259,7 +259,7 @@ WERROR pathtree_add(struct sorted_tree *tree, const char *path, void *data_p)
 			next = pathtree_birth_child( current, base );
 			if ( !next ) {
 				DEBUG(0,("pathtree_add: Failed to create new child!\n"));
-				ret = WERR_NOMEM;
+				ret = false;
 				goto done;
 			}
 		}

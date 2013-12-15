@@ -26,6 +26,7 @@
 #include "registry.h"
 #include "reg_api.h"
 #include "reg_api_util.h"
+#include "libcli/registry/util_reg.h"
 
 /**
  * Utility function to open a complete registry path including the hive prefix.
@@ -81,9 +82,6 @@ WERROR reg_open_path(TALLOC_CTX *mem_ctx, const char *orig_path,
 	*pkey = key;
 	return WERR_OK;
 }
-
-#if 0
-/* these two functions are unused. */
 
 /**
  * Utility function to create a registry key without opening the hive
@@ -141,8 +139,8 @@ WERROR reg_create_path(TALLOC_CTX *mem_ctx, const char *orig_path,
 }
 
 /*
- * Utility function to create a registry key without opening the hive
- * before. Will not delete a hive.
+ * Utility function to recursively delete a registry key without opening the
+ * hive before. Will not delete a hive.
  */
 
 WERROR reg_delete_path(const struct security_token *token,
@@ -174,9 +172,76 @@ WERROR reg_delete_path(const struct security_token *token,
 		return err;
 	}
 
-	err = reg_deletekey(hive, p+1);
+	err = reg_deletekey_recursive(hive, p+1);
 	SAFE_FREE(path);
 	TALLOC_FREE(hive);
 	return err;
 }
-#endif /* #if 0 */
+
+struct registry_value *registry_value_dw(TALLOC_CTX *mem_ctx, uint32_t dw)
+{
+	struct registry_value *ret;
+
+	ret = talloc_zero(mem_ctx, struct registry_value);
+	if (ret == NULL) {
+		return NULL;
+	}
+
+	ret->data = data_blob_talloc(ret, NULL, sizeof(uint32_t));
+	if (ret->data.data == NULL) {
+		talloc_free(ret);
+		return NULL;
+	}
+
+	ret->type = REG_DWORD;
+
+	SIVAL(ret->data.data, 0, dw);
+
+	return ret;
+}
+
+struct registry_value *registry_value_sz(TALLOC_CTX *mem_ctx, const char *str)
+{
+	struct registry_value *ret;
+
+	ret = talloc_zero(mem_ctx, struct registry_value);
+	if (ret == NULL) {
+		return NULL;
+	}
+
+	if (!push_reg_sz(ret, &ret->data, str)) {
+		talloc_free(ret);
+		return NULL;
+	}
+
+	ret->type = REG_SZ;
+
+	return ret;
+}
+
+struct registry_value *registry_value_multi_sz(TALLOC_CTX *mem_ctx, const char **str)
+{
+	struct registry_value *ret;
+
+	ret = talloc_zero(mem_ctx, struct registry_value);
+	if (ret == NULL) {
+		return NULL;
+	}
+
+	if (!push_reg_multi_sz(ret, &ret->data, str)) {
+		talloc_free(ret);
+		return NULL;
+	}
+
+	ret->type = REG_MULTI_SZ;
+
+	return ret;
+}
+
+int registry_value_cmp(const struct registry_value* v1, const struct registry_value* v2)
+{
+	if (v1->type == v2->type) {
+		return data_blob_cmp(&v1->data, &v2->data);
+	}
+	return v1->type - v2->type;
+}

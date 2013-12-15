@@ -20,7 +20,7 @@
 #include "includes.h"
 #include "auth.h"
 #include "system/passwd.h"
-#include "smbd/globals.h"
+#include "../lib/tsocket/tsocket.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_AUTH
@@ -39,8 +39,19 @@ static NTSTATUS check_unix_security(const struct auth_context *auth_context,
 {
 	NTSTATUS nt_status;
 	struct passwd *pass = NULL;
+	const char *rhost;
 
 	DEBUG(10, ("Check auth for: [%s]\n", user_info->mapped.account_name));
+
+	if (tsocket_address_is_inet(user_info->remote_host, "ip")) {
+		rhost = tsocket_address_inet_addr_string(user_info->remote_host,
+							 talloc_tos());
+		if (rhost == NULL) {
+			return NT_STATUS_NO_MEMORY;
+		}
+	} else {
+		rhost = "127.0.0.1";
+	}
 
 	become_root();
 	pass = Get_Pwnam_alloc(talloc_tos(), user_info->mapped.account_name);
@@ -49,7 +60,7 @@ static NTSTATUS check_unix_security(const struct auth_context *auth_context,
 	    done.  We may need to revisit this **/
 	nt_status = pass_check(pass,
 				pass ? pass->pw_name : user_info->mapped.account_name,
-			       smbd_server_conn->client_id.name,
+				rhost,
 				user_info->password.plaintext,
 				true);
 
@@ -73,7 +84,7 @@ static NTSTATUS auth_init_unix(struct auth_context *auth_context, const char* pa
 {
 	struct auth_methods *result;
 
-	result = TALLOC_ZERO_P(auth_context, struct auth_methods);
+	result = talloc_zero(auth_context, struct auth_methods);
 	if (result == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}

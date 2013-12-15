@@ -20,6 +20,7 @@
 #include "includes.h"
 #include "printing/pcap.h"
 #include "printing/load.h"
+#include "lib/param/loadparm.h"
 
 /***************************************************************************
 auto-load some homes and printer services
@@ -39,7 +40,7 @@ static void add_auto_printers(void)
 	if (pnum < 0)
 		return;
 
-	auto_serv = lp_auto_services();
+	auto_serv = lp_auto_services(talloc_tos());
 	str = SMB_STRDUP(auto_serv);
 	TALLOC_FREE(auto_serv);
 	if (str == NULL) {

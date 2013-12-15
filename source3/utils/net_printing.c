@@ -216,7 +216,7 @@ static int net_printing_dump(struct net_context *c, int argc,
 	int ret = -1;
 	TALLOC_CTX *ctx = talloc_stackframe();
 	TDB_CONTEXT *tdb;
-	TDB_DATA kbuf, newkey, dbuf;
+	TDB_DATA kbuf, dbuf;
 	struct printing_opts *o;
 	const char *save_dos_charset = lp_dos_charset();
 	bool do_string_conversion = false;
@@ -254,11 +254,11 @@ static int net_printing_dump(struct net_context *c, int argc,
 		do_string_conversion = true;
 	}
 
-	for (kbuf = tdb_firstkey(tdb);
+	for (kbuf = tdb_firstkey_compat(tdb);
 	     kbuf.dptr;
-	     newkey = tdb_nextkey(tdb, kbuf), free(kbuf.dptr), kbuf=newkey)
+	     kbuf = tdb_nextkey_compat(tdb, kbuf))
 	{
-		dbuf = tdb_fetch(tdb, kbuf);
+		dbuf = tdb_fetch_compat(tdb, kbuf);
 		if (!dbuf.dptr) {
 			continue;
 		}
@@ -317,7 +317,7 @@ static NTSTATUS printing_migrate_internal(struct net_context *c,
 	struct printing_opts *o;
 	TALLOC_CTX *tmp_ctx;
 	TDB_CONTEXT *tdb;
-	TDB_DATA kbuf, newkey, dbuf;
+	TDB_DATA kbuf, dbuf;
 	NTSTATUS status;
 	const char *save_dos_charset = lp_dos_charset();
 	bool do_string_conversion = false;
@@ -347,11 +347,11 @@ static NTSTATUS printing_migrate_internal(struct net_context *c,
 		do_string_conversion = true;
 	}
 
-	for (kbuf = tdb_firstkey(tdb);
+	for (kbuf = tdb_firstkey_compat(tdb);
 	     kbuf.dptr;
-	     newkey = tdb_nextkey(tdb, kbuf), free(kbuf.dptr), kbuf = newkey)
+	     kbuf = tdb_nextkey_compat(tdb, kbuf))
 	{
-		dbuf = tdb_fetch(tdb, kbuf);
+		dbuf = tdb_fetch_compat(tdb, kbuf);
 		if (!dbuf.dptr) {
 			continue;
 		}
@@ -390,11 +390,11 @@ static NTSTATUS printing_migrate_internal(struct net_context *c,
 		SAFE_FREE(dbuf.dptr);
 	}
 
-	for (kbuf = tdb_firstkey(tdb);
+	for (kbuf = tdb_firstkey_compat(tdb);
 	     kbuf.dptr;
-	     newkey = tdb_nextkey(tdb, kbuf), free(kbuf.dptr), kbuf = newkey)
+	     kbuf = tdb_nextkey_compat(tdb, kbuf))
 	{
-		dbuf = tdb_fetch(tdb, kbuf);
+		dbuf = tdb_fetch_compat(tdb, kbuf);
 		if (!dbuf.dptr) {
 			continue;
 		}
@@ -439,7 +439,7 @@ static int net_printing_migrate(struct net_context *c,
 
 	return run_rpc_command(c,
 			       NULL,
-			       &ndr_table_winreg.syntax_id,
+			       &ndr_table_winreg,
 			       0,
 			       printing_migrate_internal,
 			       argc,

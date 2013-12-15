@@ -41,15 +41,6 @@ configure_smb_conf() {
 			s/^\([[:space:]]*\)workgroup[[:space:]]*=.*/\1workgroup = ${WORKGROUP}/i" \
 		"$CONFIG"
 
-	# Encrypt passwords?
-	db_get samba-common/encrypt_passwords || true
-	ENCRYPT_PASSWORDS="${RET}"
-
-	sed -i -e "s/^\([[:space:]]*\)\[global\]/\1\[global\]/i
-		/^[[:space:]]*\[global\]/,/^[[:space:]]*\[/ \
-		        s/^\([[:space:]]*\)encrypt passwords[[:space:]]*=.*/\1encrypt passwords = ${ENCRYPT_PASSWORDS}/i" \
-		"$CONFIG"
-
 	# Install DHCP support
 	db_get samba-common/dhcp
 	if [ "$RET" = true ] && \

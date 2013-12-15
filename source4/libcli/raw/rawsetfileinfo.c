@@ -79,6 +79,7 @@ bool smb_raw_setfileinfo_passthru(TALLOC_CTX *mem_ctx,
 	case RAW_SFILEINFO_RENAME_INFORMATION_SMB2:
 		NEED_BLOB(20);
 		SIVAL(blob->data, 0, parms->rename_information.in.overwrite);
+		SIVAL(blob->data, 4, 0);
 		SBVAL(blob->data, 8, parms->rename_information.in.root_fid);
 		len = smbcli_blob_append_string(NULL, mem_ctx, blob,
 						parms->rename_information.in.new_name, 
@@ -262,11 +263,11 @@ static bool smb_raw_setinfo_backend(struct smbcli_tree *tree,
 		return smb_raw_setfileinfo_passthru(mem_ctx, parms->generic.level,
 						    parms, blob);
 
-		/* Unhandled levels */
-
+	/* Unhandled levels */
 	case RAW_SFILEINFO_UNIX_LINK:
 	case RAW_SFILEINFO_UNIX_HLINK:
 	case RAW_SFILEINFO_RENAME_INFORMATION_SMB2:
+	case RAW_SFILEINFO_LINK_INFORMATION:
 		break;
 	}
 

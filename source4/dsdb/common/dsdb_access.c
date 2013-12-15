@@ -93,7 +93,6 @@ int dsdb_check_access_on_dn_internal(struct ldb_context *ldb,
 	struct security_descriptor *sd = NULL;
 	struct dom_sid *sid = NULL;
 	struct object_tree *root = NULL;
-	struct object_tree *new_node = NULL;
 	NTSTATUS status;
 	uint32_t access_granted;
 	int ret;
@@ -108,8 +107,8 @@ int dsdb_check_access_on_dn_internal(struct ldb_context *ldb,
 	}
 	sid = samdb_result_dom_sid(mem_ctx, acl_res->msgs[0], "objectSid");
 	if (guid) {
-		if (!insert_in_object_tree(mem_ctx, guid, access_mask, &root,
-					   &new_node)) {
+		if (!insert_in_object_tree(mem_ctx, guid, access_mask, NULL,
+					   &root)) {
 			return ldb_operr(ldb);
 		}
 	}
@@ -124,6 +123,9 @@ int dsdb_check_access_on_dn_internal(struct ldb_context *ldb,
 			       dn,
 			       true,
 			       10);
+		ldb_asprintf_errstring(ldb,
+				       "dsdb_access: Access check failed on %s",
+				       ldb_dn_get_linearized(dn));
 		return LDB_ERR_INSUFFICIENT_ACCESS_RIGHTS;
 	}
 	return LDB_SUCCESS;
@@ -149,9 +151,12 @@ int dsdb_check_access_on_dn(struct ldb_context *ldb,
 		"objectSid",
 		NULL
 	};
-	NTSTATUS status = GUID_from_string(ext_right, &guid);
-	if (!NT_STATUS_IS_OK(status)) {
-		return LDB_ERR_OPERATIONS_ERROR;
+
+	if (ext_right != NULL) {
+		NTSTATUS status = GUID_from_string(ext_right, &guid);
+		if (!NT_STATUS_IS_OK(status)) {
+			return LDB_ERR_OPERATIONS_ERROR;
+		}
 	}
 
 	ret = dsdb_search_dn(ldb, mem_ctx, &acl_res, dn, acl_attrs, DSDB_SEARCH_SHOW_DELETED);
@@ -165,6 +170,6 @@ int dsdb_check_access_on_dn(struct ldb_context *ldb,
 						token,
 						dn,
 						access_mask,
-						&guid);
+						ext_right ? &guid : NULL);
 }
 

@@ -67,13 +67,19 @@ static bool mapfile_read_line(fstring key, fstring value)
 	if (!lw_map_file)
 		return false;
 
-	if ((p = x_fgets(buffer, sizeof(buffer)-1, lw_map_file)) == NULL) {
+	p = x_fgets(buffer, sizeof(buffer)-1, lw_map_file);
+	if (p == NULL) {
 		return false;
 	}
 
 	/* Strip newlines and carriage returns */
 
-	len = strlen_m(buffer) - 1;
+	len = strlen_m(buffer);
+	if (len == 0) {
+		return false;
+	}
+	len -= 1;
+
 	while ((buffer[len] == '\n') || (buffer[len] == '\r')) {
 		buffer[len--] = '\0';
 	}
@@ -87,8 +93,8 @@ static bool mapfile_read_line(fstring key, fstring value)
 	*p = '\0';
 	p++;
 
-	fstrcpy(key, buffer);
-	fstrcpy(value, p);
+	strlcpy(key, buffer, sizeof(fstring));
+	strlcpy(value, p, sizeof(fstring));
 
 	/* Eat whitespace */
 

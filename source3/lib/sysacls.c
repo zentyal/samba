@@ -107,11 +107,11 @@ int sys_acl_get_permset(SMB_ACL_ENTRY_T entry_d, SMB_ACL_PERMSET_T *permset_p)
 void *sys_acl_get_qualifier(SMB_ACL_ENTRY_T entry_d)
 {
 	if (entry_d->a_type == SMB_ACL_USER) {
-		return &entry_d->uid;
+		return &entry_d->info.user.uid;
 		}
 
 	if (entry_d->a_type == SMB_ACL_GROUP) {
-		return &entry_d->gid;
+		return &entry_d->info.group.gid;
 	}
 
 	errno = EINVAL;
@@ -148,7 +148,7 @@ int sys_acl_get_perm(SMB_ACL_PERMSET_T permset_d, SMB_ACL_PERM_T perm)
 	return *permset_d & perm;
 }
 
-char *sys_acl_to_text(SMB_ACL_T acl_d, ssize_t *len_p)
+char *sys_acl_to_text(const struct smb_acl_t *acl_d, ssize_t *len_p)
 {
 	int	i;
 	int	len, maxlen;
@@ -189,15 +189,15 @@ char *sys_acl_to_text(SMB_ACL_T acl_d, ssize_t *len_p)
 				break;
  
 			case SMB_ACL_USER:
-				id = uidtoname(ap->uid);
+				id = uidtoname(ap->info.user.uid);
 			case SMB_ACL_USER_OBJ:
 				tag = "user";
 				break;
 
 			case SMB_ACL_GROUP:
-				if ((gr = getgrgid(ap->gid)) == NULL) {
+				if ((gr = getgrgid(ap->info.group.gid)) == NULL) {
 					slprintf(idbuf, sizeof(idbuf)-1, "%ld",
-						(long)ap->gid);
+						(long)ap->info.group.gid);
 					id = idbuf;
 				} else {
 					id = gr->gr_name;
@@ -233,13 +233,14 @@ char *sys_acl_to_text(SMB_ACL_T acl_d, ssize_t *len_p)
 		if ((len + nbytes) > maxlen) {
 			maxlen += nbytes + 20 * (acl_d->count - i);
 			if ((text = (char *)SMB_REALLOC(text, maxlen)) == NULL) {
-			errno = ENOMEM;
+				errno = ENOMEM;
 				return NULL;
+			}
 		}
-	}
 
-		slprintf(&text[len], nbytes-1, "%s:%s:%s\n", tag, id, perms);
-		len += nbytes - 1;
+
+		slprintf(&text[len], nbytes, "%s:%s:%s\n", tag, id, perms);
+		len += (nbytes - 1);
 	}
 
 	if (len_p)
@@ -248,31 +249,24 @@ char *sys_acl_to_text(SMB_ACL_T acl_d, ssize_t *len_p)
 	return text;
 }
 
-SMB_ACL_T sys_acl_init(int count)
+SMB_ACL_T sys_acl_init(TALLOC_CTX *mem_ctx)
 {
 	SMB_ACL_T	a;
 
-	if (count < 0) {
-		errno = EINVAL;
-		return NULL;
-	}
-
-	/*
-	 * note that since the definition of the structure pointed
-	 * to by the SMB_ACL_T includes the first element of the
-	 * acl[] array, this actually allocates an ACL with room
-	 * for (count+1) entries
-	 */
-	if ((a = (struct smb_acl_t *)SMB_MALLOC(
-		     sizeof(struct smb_acl_t) +
-		     count * sizeof(struct smb_acl_entry))) == NULL) {
+	if ((a = talloc(mem_ctx, struct smb_acl_t)) == NULL) {
 		errno = ENOMEM;
 		return NULL;
 	}
  
-	a->size = count + 1;
 	a->count = 0;
 	a->next = -1;
+
+	a->acl = talloc_array(a, struct smb_acl_entry, 0);
+	if (!a->acl) {
+		TALLOC_FREE(a);
+		errno = ENOMEM;
+		return NULL;
+	}
 
 	return a;
 }
@@ -281,24 +275,25 @@ int sys_acl_create_entry(SMB_ACL_T *acl_p, SMB_ACL_ENTRY_T *entry_p)
 {
 	SMB_ACL_T	acl_d;
 	SMB_ACL_ENTRY_T	entry_d;
+	struct smb_acl_entry *acl;
 
 	if (acl_p == NULL || entry_p == NULL || (acl_d = *acl_p) == NULL) {
 		errno = EINVAL;
 		return -1;
 	}
 
-	if (acl_d->count >= acl_d->size) {
-		errno = ENOSPC;
+	acl = talloc_realloc(acl_d, acl_d->acl, struct smb_acl_entry, acl_d->count+1);
+	if (!acl) {
+		errno = ENOMEM;
 		return -1;
 	}
-
-	entry_d		= &acl_d->acl[acl_d->count++];
+	acl_d->acl = acl;
+	entry_d		= &acl_d->acl[acl_d->count];
 	entry_d->a_type	= SMB_ACL_TAG_INVALID;
-	entry_d->uid	= -1;
-	entry_d->gid	= -1;
 	entry_d->a_perm	= 0;
 	*entry_p	= entry_d;
 
+	acl_d->count++;
 	return 0;
 }
 
@@ -324,11 +319,11 @@ int sys_acl_set_tag_type(SMB_ACL_ENTRY_T entry_d, SMB_ACL_TAG_T tag_type)
 int sys_acl_set_qualifier(SMB_ACL_ENTRY_T entry_d, void *qual_p)
 {
 	if (entry_d->a_type == SMB_ACL_USER) {
-		entry_d->uid = *((uid_t *)qual_p);
+		entry_d->info.user.uid = *((uid_t *)qual_p);
 		return 0;
 		}
 	if (entry_d->a_type == SMB_ACL_GROUP) {
-		entry_d->gid = *((gid_t *)qual_p);
+		entry_d->info.group.gid = *((gid_t *)qual_p);
 		return 0;
 	}
 
@@ -354,17 +349,6 @@ int sys_acl_free_text(char *text)
 	return 0;
 }
 
-int sys_acl_free_acl(SMB_ACL_T acl_d) 
-{
-	SAFE_FREE(acl_d);
-	return 0;
-}
-
-int sys_acl_free_qualifier(void *qual, SMB_ACL_TAG_T tagtype)
-{
-	return 0;
-}
-
 int sys_acl_valid(SMB_ACL_T acl_d)
 {
 	errno = EINVAL;
@@ -380,14 +364,14 @@ int sys_acl_valid(SMB_ACL_T acl_d)
 #if defined(HAVE_POSIX_ACLS)
  
 SMB_ACL_T sys_acl_get_file(vfs_handle_struct *handle, 
-			   const char *path_p, SMB_ACL_TYPE_T type)
+			   const char *path_p, SMB_ACL_TYPE_T type, TALLOC_CTX *mem_ctx)
 {
-	return posixacl_sys_acl_get_file(handle, path_p, type);
+	return posixacl_sys_acl_get_file(handle, path_p, type, mem_ctx);
 }
  
-SMB_ACL_T sys_acl_get_fd(vfs_handle_struct *handle, files_struct *fsp)
+SMB_ACL_T sys_acl_get_fd(vfs_handle_struct *handle, files_struct *fsp, TALLOC_CTX *mem_ctx)
 {
-	return posixacl_sys_acl_get_fd(handle, fsp);
+	return posixacl_sys_acl_get_fd(handle, fsp, mem_ctx);
 }
  
 int sys_acl_set_file(vfs_handle_struct *handle,
@@ -411,14 +395,16 @@ int sys_acl_delete_def_file(vfs_handle_struct *handle,
 #elif defined(HAVE_AIX_ACLS)
 
 SMB_ACL_T sys_acl_get_file(vfs_handle_struct *handle,
-			   const char *path_p, SMB_ACL_TYPE_T type)
+			   const char *path_p, SMB_ACL_TYPE_T type,
+			   TALLOC_CTX *mem_ctx)
 {
-	return aixacl_sys_acl_get_file(handle, path_p, type);
+	return aixacl_sys_acl_get_file(handle, path_p, type, mem_ctx);
 }
 
-SMB_ACL_T sys_acl_get_fd(vfs_handle_struct *handle, files_struct *fsp)
+SMB_ACL_T sys_acl_get_fd(vfs_handle_struct *handle, files_struct *fsp,
+			   TALLOC_CTX *mem_ctx)
 {
-	return aixacl_sys_acl_get_fd(handle, fsp);
+	return aixacl_sys_acl_get_fd(handle, fsp, mem_ctx);
 }
 
 int sys_acl_set_file(vfs_handle_struct *handle,
@@ -442,14 +428,17 @@ int sys_acl_delete_def_file(vfs_handle_struct *handle,
 #elif defined(HAVE_TRU64_ACLS)
  
 SMB_ACL_T sys_acl_get_file(vfs_handle_struct *handle,
-			   const char *path_p, SMB_ACL_TYPE_T type)
+			   const char *path_p, SMB_ACL_TYPE_T type,
+			   TALLOC_CTX *mem_ctx)
 {
-	return tru64acl_sys_acl_get_file(handle, path_p, type);
+	return tru64acl_sys_acl_get_file(handle, path_p, type,
+					 mem_ctx);
 }
 
-SMB_ACL_T sys_acl_get_fd(vfs_handle_struct *handle, files_struct *fsp)
+SMB_ACL_T sys_acl_get_fd(vfs_handle_struct *handle, files_struct *fsp,
+			 TALLOC_CTX *mem_ctx)
 {
-	return tru64acl_sys_acl_get_fd(handle, fsp);
+	return tru64acl_sys_acl_get_fd(handle, fsp, mem_ctx);
 }
 
 int sys_acl_set_file(vfs_handle_struct *handle,
@@ -473,14 +462,18 @@ int sys_acl_delete_def_file(vfs_handle_struct *handle,
 #elif defined(HAVE_SOLARIS_ACLS) || defined(HAVE_UNIXWARE_ACLS)
 
 SMB_ACL_T sys_acl_get_file(vfs_handle_struct *handle,
-			   const char *path_p, SMB_ACL_TYPE_T type)
+			   const char *path_p, SMB_ACL_TYPE_T type,
+			   TALLOC_CTX *mem_ctx)
 {
-	return solarisacl_sys_acl_get_file(handle, path_p, type);
+	return solarisacl_sys_acl_get_file(handle, path_p, type,
+					   mem_ctx);
 }
 
-SMB_ACL_T sys_acl_get_fd(vfs_handle_struct *handle, files_struct *fsp)
+SMB_ACL_T sys_acl_get_fd(vfs_handle_struct *handle, files_struct *fsp,
+			 TALLOC_CTX *mem_ctx)
 {
-	return solarisacl_sys_acl_get_fd(handle, fsp);
+	return solarisacl_sys_acl_get_fd(handle, fsp,
+					 mem_ctx);
 }
 
 int sys_acl_set_file(vfs_handle_struct *handle,
@@ -504,14 +497,16 @@ int sys_acl_delete_def_file(vfs_handle_struct *handle,
 #elif defined(HAVE_HPUX_ACLS)
 
 SMB_ACL_T sys_acl_get_file(vfs_handle_struct *handle,
-			   const char *path_p, SMB_ACL_TYPE_T type)
+			   const char *path_p, SMB_ACL_TYPE_T type,
+			   TALLOC_CTX *mem_ctx)
 {
-	return hpuxacl_sys_acl_get_file(handle, path_p, type);
+	return hpuxacl_sys_acl_get_file(handle, path_p, type, mem_ctx);
 }
 
-SMB_ACL_T sys_acl_get_fd(vfs_handle_struct *handle, files_struct *fsp)
+SMB_ACL_T sys_acl_get_fd(vfs_handle_struct *handle, files_struct *fsp,
+			   TALLOC_CTX *mem_ctx)
 {
-	return hpuxacl_sys_acl_get_fd(handle, fsp);
+	return hpuxacl_sys_acl_get_fd(handle, fsp, mem_ctx);
 }
 
 int sys_acl_set_file(vfs_handle_struct *handle,
@@ -535,14 +530,16 @@ int sys_acl_delete_def_file(vfs_handle_struct *handle,
 #elif defined(HAVE_IRIX_ACLS)
 
 SMB_ACL_T sys_acl_get_file(vfs_handle_struct *handle,
-			   const char *path_p, SMB_ACL_TYPE_T type)
+			   const char *path_p, SMB_ACL_TYPE_T type,
+			   TALLOC_CTX *mem_ctx)
 {
-	return irixacl_sys_acl_get_file(handle, path_p, type);
+	return irixacl_sys_acl_get_file(handle, path_p, type, mem_ctx);
 }
 
-SMB_ACL_T sys_acl_get_fd(vfs_handle_struct *handle, files_struct *fsp)
+SMB_ACL_T sys_acl_get_fd(vfs_handle_struct *handle, files_struct *fsp,
+			 TALLOC_CTX *mem_ctx)
 {
-	return irixacl_sys_acl_get_fd(handle, fsp);
+	return irixacl_sys_acl_get_fd(handle, fsp, mem_ctx);
 }
 
 int sys_acl_set_file(vfs_handle_struct *handle,
@@ -566,7 +563,8 @@ int sys_acl_delete_def_file(vfs_handle_struct *handle,
 #else /* No ACLs. */
 
 SMB_ACL_T sys_acl_get_file(vfs_handle_struct *handle,
-			   const char *path_p, SMB_ACL_TYPE_T type)
+			   const char *path_p, SMB_ACL_TYPE_T type,
+			   TALLOC_CTX *mem_ctx)
 {
 #ifdef ENOTSUP
 	errno = ENOTSUP;
@@ -576,7 +574,8 @@ SMB_ACL_T sys_acl_get_file(vfs_handle_struct *handle,
 	return NULL;
 }
 
-SMB_ACL_T sys_acl_get_fd(vfs_handle_struct *handle, files_struct *fsp)
+SMB_ACL_T sys_acl_get_fd(vfs_handle_struct *handle, files_struct *fsp,
+			 TALLOC_CTX *mem_ctx)
 {
 #ifdef ENOTSUP
 	errno = ENOTSUP;

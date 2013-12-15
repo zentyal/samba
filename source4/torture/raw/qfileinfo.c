@@ -25,6 +25,7 @@
 #include "torture/util.h"
 #include "torture/rpc/torture_rpc.h"
 #include "param/param.h"
+#include "torture/raw/proto.h"
 
 static struct {
 	const char *name;
@@ -778,7 +779,7 @@ static bool torture_raw_qfileinfo_internals(struct torture_context *torture,
 	s1 = fnum_find("BASIC_INFO");
 	if (s1 && is_ipc) {
 		if (s1->basic_info.out.attrib != FILE_ATTRIBUTE_NORMAL) {
-			printf("(%d) attrib basic_info/nlink incorrect - %d should be %d\n", __LINE__, s1->basic_info.out.attrib, FILE_ATTRIBUTE_NORMAL);
+			printf("(%d) attrib basic_info/nlink incorrect - %d should be %d\n", __LINE__, s1->basic_info.out.attrib, (int)FILE_ATTRIBUTE_NORMAL);
 			ret = false;
 		}
 	}
@@ -888,7 +889,7 @@ bool torture_raw_qfileinfo_pipe(struct torture_context *torture,
 	struct smbcli_tree *ipc_tree;
 	NTSTATUS status;
 
-	if (!(p = dcerpc_pipe_init(torture, cli->tree->session->transport->socket->event.ctx))) {
+	if (!(p = dcerpc_pipe_init(torture, torture->ev))) {
 		return false;
 	}
 

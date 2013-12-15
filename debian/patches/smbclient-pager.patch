@@ -3,11 +3,9 @@ Author: Steve Langasek <vorlon@debian.org>
 Bug-Debian: http://bugs.debian.org/135603
 Forwarded: not-needed
 
-Index: samba/source3/include/local.h
-===================================================================
---- samba.orig/source3/include/local.h
-+++ samba/source3/include/local.h
-@@ -113,7 +113,7 @@
+--- a/source3/include/local.h
++++ b/source3/include/local.h
+@@ -93,7 +93,7 @@
  /* the default pager to use for the client "more" command. Users can
     override this with the PAGER environment variable */
  #ifndef PAGER

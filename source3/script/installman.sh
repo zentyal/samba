@@ -13,14 +13,15 @@ if [ $# -ge 4 ] ; then
   GROFF=$4                    # sh cmd line, including options 
 fi
 
-if test ! -d $SRCDIR../docs/manpages; then
+if test ! -d $SRCDIR../bin/docs/manpages; then
 	echo "No manpages present.  Development version maybe?"
 	exit 0
 fi
 
 # Get the configured feature set
 test -f "${SRCDIR}/config.log" && \
-	eval `grep "^[[:alnum:]]*=.*" "${SRCDIR}/config.log"`
+	eval `grep "^[[:alnum:]]*=.*" "${SRCDIR}/config.log" |
+	      grep -v ^MANDIR | grep -v ^SRCDIR`
 
 for lang in $langs; do
     if [ "X$lang" = XC ]; then
@@ -43,7 +44,7 @@ for lang in $langs; do
 
     for sect in 1 5 7 8 ; do
 	for m in $langdir/man$sect ; do
-	    for s in $SRCDIR../docs/manpages/$lang/*$sect; do
+	    for s in $SRCDIR../bin/docs/manpages/$lang/*$sect; do
 	    MP_BASENAME=`basename $s`
 
 	    # Check if this man page if required by the configured feature set

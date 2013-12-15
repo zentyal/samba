@@ -25,7 +25,7 @@
 
 typedef struct 
 {
-	MD5_CTX ctx;
+        struct MD5Context ctx;
         uint8_t k_ipad[65];    
         uint8_t k_opad[65];
 

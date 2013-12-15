@@ -24,9 +24,6 @@
 #include "secrets.h"
 #include "auth.h"
 
-static char *alloc_sub_basic(const char *smb_name, const char *domain_name,
-			     const char *str);
-
 userdom_struct current_user_info;
 fstring remote_proto="UNKNOWN";
 
@@ -40,7 +37,7 @@ static char *local_machine;
 
 void free_local_machine_name(void)
 {
-	SAFE_FREE(local_machine);
+	TALLOC_FREE(local_machine);
 }
 
 bool set_local_machine_name(const char *local_name, bool perm)
@@ -53,24 +50,27 @@ bool set_local_machine_name(const char *local_name, bool perm)
 		return true;
 	}
 
-	tmp_local_machine = SMB_STRDUP(local_name);
+	tmp_local_machine = talloc_strdup(NULL, local_name);
 	if (!tmp_local_machine) {
 		return false;
 	}
 	trim_char(tmp_local_machine,' ',' ');
 
-	SAFE_FREE(local_machine);
+	TALLOC_FREE(local_machine);
 	len = strlen(tmp_local_machine);
-	local_machine = SMB_CALLOC_ARRAY(char, len+1);
+	local_machine = (char *)TALLOC_ZERO(NULL, len+1);
 	if (!local_machine) {
-		SAFE_FREE(tmp_local_machine);
+		TALLOC_FREE(tmp_local_machine);
 		return false;
 	}
 	/* alpha_strcpy includes the space for the terminating nul. */
 	alpha_strcpy(local_machine,tmp_local_machine,
 			SAFE_NETBIOS_CHARS,len+1);
-	strlower_m(local_machine);
-	SAFE_FREE(tmp_local_machine);
+	if (!strlower_m(local_machine)) {
+		TALLOC_FREE(tmp_local_machine);
+		return false;
+	}
+	TALLOC_FREE(tmp_local_machine);
 
 	already_perm = perm;
 
@@ -80,7 +80,7 @@ bool set_local_machine_name(const char *local_name, bool perm)
 const char *get_local_machine_name(void)
 {
 	if (!local_machine || !*local_machine) {
-		return global_myname();
+		return lp_netbios_name();
 	}
 
 	return local_machine;
@@ -104,25 +104,28 @@ bool set_remote_machine_name(const char *remote_name, bool perm)
 		return true;
 	}
 
-	tmp_remote_machine = SMB_STRDUP(remote_name);
+	tmp_remote_machine = talloc_strdup(NULL, remote_name);
 	if (!tmp_remote_machine) {
 		return false;
 	}
 	trim_char(tmp_remote_machine,' ',' ');
 
-	SAFE_FREE(remote_machine);
+	TALLOC_FREE(remote_machine);
 	len = strlen(tmp_remote_machine);
-	remote_machine = SMB_CALLOC_ARRAY(char, len+1);
+	remote_machine = (char *)TALLOC_ZERO(NULL, len+1);
 	if (!remote_machine) {
-		SAFE_FREE(tmp_remote_machine);
+		TALLOC_FREE(tmp_remote_machine);
 		return false;
 	}
 
 	/* alpha_strcpy includes the space for the terminating nul. */
 	alpha_strcpy(remote_machine,tmp_remote_machine,
 			SAFE_NETBIOS_CHARS,len+1);
-	strlower_m(remote_machine);
-	SAFE_FREE(tmp_remote_machine);
+	if (!strlower_m(remote_machine)) {
+		TALLOC_FREE(tmp_remote_machine);
+		return false;
+	}
+	TALLOC_FREE(tmp_remote_machine);
 
 	already_perm = perm;
 
@@ -151,17 +154,20 @@ void sub_set_smb_name(const char *name)
 		return;
 	}
 
-	tmp = SMB_STRDUP(name);
+	tmp = talloc_strdup(NULL, name);
 	if (!tmp) {
 		return;
 	}
 	trim_char(tmp, ' ', ' ');
-	strlower_m(tmp);
+	if (!strlower_m(tmp)) {
+		TALLOC_FREE(tmp);
+		return;
+	}
 
 	len = strlen(tmp);
 
 	if (len == 0) {
-		SAFE_FREE(tmp);
+		TALLOC_FREE(tmp);
 		return;
 	}
 
@@ -174,10 +180,10 @@ void sub_set_smb_name(const char *name)
 		is_machine_account = True;
 	}
 
-	SAFE_FREE(smb_user_name);
-	smb_user_name = SMB_CALLOC_ARRAY(char, len+1);
+	TALLOC_FREE(smb_user_name);
+	smb_user_name = (char *)TALLOC_ZERO(NULL, len+1);
 	if (!smb_user_name) {
-		SAFE_FREE(tmp);
+		TALLOC_FREE(tmp);
 		return;
 	}
 
@@ -186,7 +192,7 @@ void sub_set_smb_name(const char *name)
 			SAFE_NETBIOS_CHARS,
 			len+1);
 
-	SAFE_FREE(tmp);
+	TALLOC_FREE(tmp);
 
 	if (is_machine_account) {
 		len = strlen(smb_user_name);
@@ -210,17 +216,17 @@ void sub_set_socket_ids(const char *peeraddr, const char *peername,
 
 	if (sub_peername != NULL &&
 			sub_peername != sub_peeraddr) {
-		free(discard_const_p(char,sub_peername));
+		talloc_free(discard_const_p(char,sub_peername));
 		sub_peername = NULL;
 	}
-	sub_peername = SMB_STRDUP(peername);
+	sub_peername = talloc_strdup(NULL, peername);
 	if (sub_peername == NULL) {
 		sub_peername = sub_peeraddr;
 	}
 
 	/*
 	 * Shouldn't we do the ::ffff: cancellation here as well? The
-	 * original code in alloc_sub_basic() did not do it, so I'm
+	 * original code in talloc_sub_basic() did not do it, so I'm
 	 * leaving it out here as well for compatibility.
 	 */
 	strlcpy(sub_sockaddr, sockaddr, sizeof(sub_sockaddr));
@@ -267,13 +273,14 @@ const char *get_current_username(void)
 /*******************************************************************
  Given a pointer to a %$(NAME) in p and the whole string in str
  expand it as an environment variable.
+ str must be a talloced string.
  Return a new allocated and expanded string.
  Based on code by Branko Cibej <branko.cibej@hermes.si>
  When this is called p points at the '%' character.
  May substitute multiple occurrencies of the same env var.
 ********************************************************************/
 
-static char * realloc_expand_env_var(char *str, char *p)
+static char *realloc_expand_env_var(char *str, char *p)
 {
 	char *envname;
 	char *envval;
@@ -301,7 +308,7 @@ static char * realloc_expand_env_var(char *str, char *p)
 	copylen = q - r;
 
 	/* reserve space for use later add %$() chars */
-	if ( (envname = (char *)SMB_MALLOC(copylen + 1 + 4)) == NULL ) {
+	if ( (envname = talloc_array(talloc_tos(), char, copylen + 1 + 4)) == NULL ) {
 		return NULL;
 	}
 
@@ -310,7 +317,7 @@ static char * realloc_expand_env_var(char *str, char *p)
 
 	if ((envval = getenv(envname)) == NULL) {
 		DEBUG(0,("expand_env_var: Environment variable [%s] not set\n", envname));
-		SAFE_FREE(envname);
+		TALLOC_FREE(envname);
 		return str;
 	}
 
@@ -323,106 +330,7 @@ static char * realloc_expand_env_var(char *str, char *p)
 	strncpy(envname,p,copylen);
 	envname[copylen] = '\0';
 	r = realloc_string_sub(str, envname, envval);
-	SAFE_FREE(envname);
-
-	return r;
-}
-
-/*******************************************************************
-*******************************************************************/
-
-static char *longvar_domainsid( void )
-{
-	struct dom_sid sid;
-	fstring tmp;
-	char *sid_string;
-
-	if ( !secrets_fetch_domain_sid( lp_workgroup(), &sid ) ) {
-		return NULL;
-	}
-
-	sid_string = SMB_STRDUP( sid_to_fstring( tmp, &sid ) );
-
-	if ( !sid_string ) {
-		DEBUG(0,("longvar_domainsid: failed to dup SID string!\n"));
-	}
-
-	return sid_string;
-}
-
-/*******************************************************************
-*******************************************************************/
-
-struct api_longvar {
-	const char *name;
-	char* (*fn)( void );
-};
-
-static struct api_longvar longvar_table[] = {
-	{ "DomainSID",		longvar_domainsid },
-	{ NULL, 		NULL }
-};
-
-static char *get_longvar_val( const char *varname )
-{
-	int i;
-
-	DEBUG(7,("get_longvar_val: expanding variable [%s]\n", varname));
-
-	for ( i=0; longvar_table[i].name; i++ ) {
-		if ( strequal( longvar_table[i].name, varname ) ) {
-			return longvar_table[i].fn();
-		}
-	}
-
-	return NULL;
-}
-
-/*******************************************************************
- Expand the long smb.conf variable names given a pointer to a %(NAME).
- Return the number of characters by which the pointer should be advanced.
- When this is called p points at the '%' character.
-********************************************************************/
-
-static char *realloc_expand_longvar(char *str, char *p)
-{
-	fstring varname;
-	char *value;
-	char *q, *r;
-	int copylen;
-
-	if ( p[0] != '%' || p[1] != '(' ) {
-		return str;
-	}
-
-	/* Look for the terminating ')'.*/
-
-	if ((q = strchr_m(p,')')) == NULL) {
-		DEBUG(0,("realloc_expand_longvar: Unterminated environment variable [%s]\n", p));
-		return str;
-	}
-
-	/* Extract the name from within the %(NAME) string.*/
-
-	r = p+2;
-	copylen = MIN( (q-r), (sizeof(varname)-1) );
-	strncpy(varname, r, copylen);
-	varname[copylen] = '\0';
-
-	if ((value = get_longvar_val(varname)) == NULL) {
-		DEBUG(0,("realloc_expand_longvar: Variable [%s] not set.  Skipping\n", varname));
-		return str;
-	}
-
-	/* Copy the full %(NAME) into envname so it can be replaced.*/
-
-	copylen = MIN( (q+1-p),(sizeof(varname)-1) );
-	strncpy( varname, p, copylen );
-	varname[copylen] = '\0';
-	r = realloc_string_sub(str, varname, value);
-	SAFE_FREE( value );
-
-	/* skip over the %(varname) */
+	TALLOC_FREE(envname);
 
 	return r;
 }
@@ -494,7 +402,7 @@ static const char *automount_server(const char *user_name)
 	if (local_machine_name && *local_machine_name) {
 		server_name = talloc_strdup(ctx, local_machine_name);
 	} else {
-		server_name = talloc_strdup(ctx, global_myname());
+		server_name = talloc_strdup(ctx, lp_netbios_name());
 	}
 
 	if (!server_name) {
@@ -539,36 +447,22 @@ void standard_sub_basic(const char *smb_name, const char *domain_name,
 {
 	char *s;
 
-	if ( (s = alloc_sub_basic( smb_name, domain_name, str )) != NULL ) {
+	if ( (s = talloc_sub_basic(talloc_tos(), smb_name, domain_name, str )) != NULL ) {
 		strncpy( str, s, len );
 	}
 
-	SAFE_FREE( s );
+	TALLOC_FREE( s );
 }
 
 /****************************************************************************
  Do some standard substitutions in a string.
- This function will return an allocated string that have to be freed.
+ This function will return an talloced string that has to be freed.
 ****************************************************************************/
 
-char *talloc_sub_basic(TALLOC_CTX *mem_ctx, const char *smb_name,
-		       const char *domain_name, const char *str)
-{
-	char *a, *t;
-
-	if ( (a = alloc_sub_basic(smb_name, domain_name, str)) == NULL ) {
-		return NULL;
-	}
-	t = talloc_strdup(mem_ctx, a);
-	SAFE_FREE(a);
-	return t;
-}
-
-/****************************************************************************
-****************************************************************************/
-
-static char *alloc_sub_basic(const char *smb_name, const char *domain_name,
-			     const char *str)
+char *talloc_sub_basic(TALLOC_CTX *mem_ctx,
+			const char *smb_name,
+			const char *domain_name,
+			const char *str)
 {
 	char *b, *p, *s, *r, *a_string;
 	fstring pidstr, vnnstr;
@@ -578,13 +472,13 @@ static char *alloc_sub_basic(const char *smb_name, const char *domain_name,
 	/* workaround to prevent a crash while looking at bug #687 */
 
 	if (!str) {
-		DEBUG(0,("alloc_sub_basic: NULL source string!  This should not happen\n"));
+		DEBUG(0,("talloc_sub_basic: NULL source string!  This should not happen\n"));
 		return NULL;
 	}
 
-	a_string = SMB_STRDUP(str);
+	a_string = talloc_strdup(mem_ctx, str);
 	if (a_string == NULL) {
-		DEBUG(0, ("alloc_sub_basic: Out of memory!\n"));
+		DEBUG(0, ("talloc_sub_basic: Out of memory!\n"));
 		return NULL;
 	}
 
@@ -637,13 +531,13 @@ static char *alloc_sub_basic(const char *smb_name, const char *domain_name,
 				sub_sockaddr[0] ? sub_sockaddr : "0.0.0.0");
 			break;
 		case 'L' : 
-			if ( StrnCaseCmp(p, "%LOGONSERVER%", strlen("%LOGONSERVER%")) == 0 ) {
+			if ( strncasecmp_m(p, "%LOGONSERVER%", strlen("%LOGONSERVER%")) == 0 ) {
 				break;
 			}
 			if (local_machine_name && *local_machine_name) {
 				a_string = realloc_string_sub(a_string, "%L", local_machine_name); 
 			} else {
-				a_string = realloc_string_sub(a_string, "%L", global_myname()); 
+				a_string = realloc_string_sub(a_string, "%L", lp_netbios_name());
 			}
 			break;
 		case 'N':
@@ -664,7 +558,7 @@ static char *alloc_sub_basic(const char *smb_name, const char *domain_name,
 					get_remote_arch_str());
 			break;
 		case 'd' :
-			slprintf(pidstr,sizeof(pidstr)-1, "%d",(int)sys_getpid());
+			slprintf(pidstr,sizeof(pidstr)-1, "%d",(int)getpid());
 			a_string = realloc_string_sub(a_string, "%d", pidstr);
 			break;
 		case 'h' :
@@ -685,9 +579,6 @@ static char *alloc_sub_basic(const char *smb_name, const char *domain_name,
 		case '$' :
 			a_string = realloc_expand_env_var(a_string, p); /* Expand environment variables */
 			break;
-		case '(':
-			a_string = realloc_expand_longvar( a_string, p );
-			break;
 		case 'V' :
 			slprintf(vnnstr,sizeof(vnnstr)-1, "%u", get_my_vnn());
 			a_string = realloc_string_sub(a_string, "%V", vnnstr);
@@ -707,7 +598,7 @@ static char *alloc_sub_basic(const char *smb_name, const char *domain_name,
 	goto done;
 
 error:
-	SAFE_FREE(a_string);
+	TALLOC_FREE(a_string);
 
 done:
 	TALLOC_FREE(tmp_ctx);
@@ -808,17 +699,21 @@ char *talloc_sub_specified(TALLOC_CTX *mem_ctx,
 /****************************************************************************
 ****************************************************************************/
 
-static char *alloc_sub_advanced(const char *servicename, const char *user, 
-			 const char *connectpath, gid_t gid, 
-			 const char *smb_name, const char *domain_name,
-			 const char *str)
+char *talloc_sub_advanced(TALLOC_CTX *ctx,
+			const char *servicename,
+			const char *user,
+			const char *connectpath,
+			gid_t gid,
+			const char *smb_name,
+			const char *domain_name,
+			const char *str)
 {
 	char *a_string, *ret_string;
 	char *b, *p, *s;
 
-	a_string = SMB_STRDUP(str);
+	a_string = talloc_strdup(talloc_tos(), str);
 	if (a_string == NULL) {
-		DEBUG(0, ("alloc_sub_advanced: Out of memory!\n"));
+		DEBUG(0, ("talloc_sub_advanced: Out of memory!\n"));
 		return NULL;
 	}
 
@@ -872,62 +767,52 @@ static char *alloc_sub_advanced(const char *servicename, const char *user,
 		}
 	}
 
-	ret_string = alloc_sub_basic(smb_name, domain_name, a_string);
-	SAFE_FREE(a_string);
+	ret_string = talloc_sub_basic(ctx, smb_name, domain_name, a_string);
+	TALLOC_FREE(a_string);
 	return ret_string;
 }
-
-/*
- * This obviously is inefficient and needs to be merged into
- * alloc_sub_advanced...
- */
-
-char *talloc_sub_advanced(TALLOC_CTX *mem_ctx,
-			  const char *servicename, const char *user,
-			  const char *connectpath, gid_t gid,
-			  const char *smb_name, const char *domain_name,
-			  const char *str)
-{
-	char *a, *t;
-
-	if (!(a = alloc_sub_advanced(servicename, user, connectpath, gid,
-				     smb_name, domain_name, str))) {
-		return NULL;
-	}
-	t = talloc_strdup(mem_ctx, a);
-	SAFE_FREE(a);
-	return t;
-}
-
 
 void standard_sub_advanced(const char *servicename, const char *user,
 			   const char *connectpath, gid_t gid,
 			   const char *smb_name, const char *domain_name,
 			   char *str, size_t len)
 {
-	char *s;
+	char *s = talloc_sub_advanced(talloc_tos(),
+				servicename, user, connectpath,
+				gid, smb_name, domain_name, str);
 
-	s = alloc_sub_advanced(servicename, user, connectpath,
-			       gid, smb_name, domain_name, str);
-
-	if ( s ) {
-		strncpy( str, s, len );
-		SAFE_FREE( s );
+	if (!s) {
+		return;
 	}
+	strlcpy( str, s, len );
+	TALLOC_FREE( s );
 }
 
-/****************************************************************************
- Do some standard substitutions in a string.
-****************************************************************************/
+/******************************************************************************
+ version of standard_sub_basic() for string lists; uses talloc_sub_basic()
+ for the work
+ *****************************************************************************/
 
-char *standard_sub_conn(TALLOC_CTX *ctx, connection_struct *conn, const char *str)
+bool str_list_sub_basic( char **list, const char *smb_name,
+			 const char *domain_name )
 {
-	return talloc_sub_advanced(ctx,
-				lp_servicename(SNUM(conn)),
-				conn->session_info->unix_name,
-				conn->connectpath,
-				conn->session_info->utok.gid,
-				get_smb_user_name(),
-				"",
-				str);
+	TALLOC_CTX *ctx = list;
+	char *s, *tmpstr;
+
+	while ( *list ) {
+		s = *list;
+		tmpstr = talloc_sub_basic(ctx, smb_name, domain_name, s);
+		if ( !tmpstr ) {
+			DEBUG(0,("str_list_sub_basic: "
+				"talloc_sub_basic() return NULL!\n"));
+			return false;
+		}
+
+		TALLOC_FREE(*list);
+		*list = tmpstr;
+
+		list++;
+	}
+
+	return true;
 }

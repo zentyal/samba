@@ -21,6 +21,7 @@
 #include "includes.h"
 #include "torture/ndr/ndr.h"
 #include "librpc/gen_ndr/ndr_ntlmssp.h"
+#include "torture/ndr/proto.h"
 
 static const uint8_t ntlmssp_NEGOTIATE_MESSAGE_data[] = {
 	0x4e, 0x54, 0x4c, 0x4d, 0x53, 0x53, 0x50, 0x00, 0x01, 0x00, 0x00, 0x00,
@@ -111,9 +112,10 @@ struct torture_suite *ndr_ntlmssp_suite(TALLOC_CTX *ctx)
 {
 	struct torture_suite *suite = torture_suite_create(ctx, "ntlmssp");
 
-	torture_suite_add_ndr_pull_fn_test(suite, NEGOTIATE_MESSAGE, ntlmssp_NEGOTIATE_MESSAGE_data, NDR_IN, ntlmssp_NEGOTIATE_MESSAGE_check);
-	/* torture_suite_add_ndr_pull_fn_test(suite, CHALLENGE_MESSAGE, ntlmssp_CHALLENGE_MESSAGE_data, NDR_IN, ntlmssp_CHALLENGE_MESSAGE_check);
-	torture_suite_add_ndr_pull_fn_test(suite, AUTHENTICATE_MESSAGE, ntlmssp_AUTHENTICATE_MESSAGE_data, NDR_IN, ntlmssp_AUTHENTICATE_MESSAGE_check); */
-
+	torture_suite_add_ndr_pull_test(suite, NEGOTIATE_MESSAGE, ntlmssp_NEGOTIATE_MESSAGE_data, ntlmssp_NEGOTIATE_MESSAGE_check);
+#if 0
+	torture_suite_add_ndr_pull_test(suite, CHALLENGE_MESSAGE, ntlmssp_CHALLENGE_MESSAGE_data, ntlmssp_CHALLENGE_MESSAGE_check);
+	torture_suite_add_ndr_pull_test(suite, AUTHENTICATE_MESSAGE, ntlmssp_AUTHENTICATE_MESSAGE_data, ntlmssp_AUTHENTICATE_MESSAGE_check);
+#endif
 	return suite;
 }

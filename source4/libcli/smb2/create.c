@@ -106,11 +106,66 @@ struct smb2_request *smb2_create_send(struct smb2_tree *tree, struct smb2_create
 		}
 	}
 
+	if (io->in.durable_open_v2) {
+		uint8_t data[32];
+		uint32_t flags = 0;
+		DATA_BLOB guid_blob;
+
+		SIVAL(data, 0, io->in.timeout);
+		if (io->in.persistent_open) {
+			flags = SMB2_DHANDLE_FLAG_PERSISTENT;
+		}
+		SIVAL(data, 4, flags);
+		SBVAL(data, 8, 0x0); /* reserved */
+		status = GUID_to_ndr_blob(&io->in.create_guid, req, /* TALLOC_CTX */
+					  &guid_blob);
+		if (!NT_STATUS_IS_OK(status)) {
+			talloc_free(req);
+			return NULL;
+		}
+		memcpy(data+16, guid_blob.data, 16);
+
+		status = smb2_create_blob_add(req, &blobs,
+					      SMB2_CREATE_TAG_DH2Q,
+					      data_blob_const(data, 32));
+		if (!NT_STATUS_IS_OK(status)) {
+			talloc_free(req);
+			return NULL;
+		}
+	}
+
 	if (io->in.durable_handle) {
 		uint8_t data[16];
 		smb2_push_handle(data, io->in.durable_handle);
 		status = smb2_create_blob_add(req, &blobs,
 					      SMB2_CREATE_TAG_DHNC, data_blob_const(data, 16));
+		if (!NT_STATUS_IS_OK(status)) {
+			talloc_free(req);
+			return NULL;
+		}
+	}
+
+	if (io->in.durable_handle_v2) {
+		uint8_t data[36];
+		DATA_BLOB guid_blob;
+		uint32_t flags = 0;
+
+		smb2_push_handle(data, io->in.durable_handle_v2);
+		status = GUID_to_ndr_blob(&io->in.create_guid, req, /* TALLOC_CTX */
+					  &guid_blob);
+		if (!NT_STATUS_IS_OK(status)) {
+			talloc_free(req);
+			return NULL;
+		}
+		memcpy(data+16, guid_blob.data, 16);
+		if (io->in.persistent_open) {
+			flags = SMB2_DHANDLE_FLAG_PERSISTENT;
+		}
+		SIVAL(data, 32, flags);
+
+		status = smb2_create_blob_add(req, &blobs,
+					      SMB2_CREATE_TAG_DH2C,
+					      data_blob_const(data, 36));
 		if (!NT_STATUS_IS_OK(status)) {
 			talloc_free(req);
 			return NULL;
@@ -273,6 +328,32 @@ NTSTATUS smb2_create_recv(struct smb2_request *req, TALLOC_CTX *mem_ctx, struct 
 			io->out.lease_response.lease_state = IVAL(data, 16);
 			io->out.lease_response.lease_flags = IVAL(data, 20);
 			io->out.lease_response.lease_duration = BVAL(data, 24);
+		}
+		if (strcmp(io->out.blobs.blobs[i].tag, SMB2_CREATE_TAG_DHNQ) == 0) {
+			if (io->out.blobs.blobs[i].data.length != 8) {
+				smb2_request_destroy(req);
+				return NT_STATUS_INVALID_NETWORK_RESPONSE;
+			}
+			io->out.durable_open = true;
+		}
+		if (strcmp(io->out.blobs.blobs[i].tag, SMB2_CREATE_TAG_DH2Q) == 0) {
+			uint32_t flags;
+			uint8_t *data;
+
+			if (io->out.blobs.blobs[i].data.length != 8) {
+				smb2_request_destroy(req);
+				return NT_STATUS_INVALID_NETWORK_RESPONSE;
+			}
+
+			io->out.durable_open = false;
+			io->out.durable_open_v2 = true;
+
+			data = io->out.blobs.blobs[i].data.data;
+			io->out.timeout = IVAL(data, 0);
+			flags = IVAL(data, 4);
+			if ((flags & SMB2_DHANDLE_FLAG_PERSISTENT) != 0) {
+				io->out.persistent_open = true;
+			}
 		}
 	}
 

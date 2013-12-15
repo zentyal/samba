@@ -85,12 +85,9 @@ struct smbsrv_session *smbsrv_session_find_sesssetup(struct smbsrv_connection *s
 	p = idr_find(smb_conn->sessions.idtree_vuid, vuid);
 	if (!p) return NULL;
 
-	/* only return an unfinished session */
-	sess = talloc_get_type(p, struct smbsrv_session);
-	if (sess && !sess->session_info) {
-		return sess;
-	}
-	return NULL;
+	sess = talloc_get_type_abort(p, struct smbsrv_session);
+
+	return sess;
 }
 
 /*
@@ -139,9 +136,6 @@ struct smbsrv_session *smbsrv_session_new(struct smbsrv_connection *smb_conn,
 {
 	struct smbsrv_session *sess = NULL;
 	int i;
-
-	/* Ensure no vuid gets registered in share level security. */
-	if (smb_conn->config.security == SEC_SHARE) return NULL;
 
 	sess = talloc_zero(mem_ctx, struct smbsrv_session);
 	if (!sess) return NULL;

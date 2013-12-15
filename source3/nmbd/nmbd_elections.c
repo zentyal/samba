@@ -51,13 +51,16 @@ static void send_election_dgram(struct subnet_record *subrec, const char *workgr
 	SIVAL(p,5,timeup*1000); /* ms - Despite what the spec says. */
 	p += 13;
 	unstrcpy(srv_name, server_name);
-	strupper_m(srv_name);
+	if (!strupper_m(srv_name)) {
+		DEBUG(2,("strupper_m failed for %s\n", srv_name));
+		return;
+	}
 	/* The following call does UNIX -> DOS charset conversion. */
 	push_ascii(p, srv_name, sizeof(outbuf)-PTR_DIFF(p,outbuf)-1, STR_TERMINATE);
 	p = skip_string(outbuf,sizeof(outbuf),p);
 
 	send_mailslot(False, BROWSE_MAILSLOT, outbuf, PTR_DIFF(p,outbuf),
-		global_myname(), 0,
+		lp_netbios_name(), 0,
 		workgroup_name, 0x1e,
 		subrec->bcast_ip, subrec->myip, DGRAM_PORT);
 }
@@ -194,7 +197,7 @@ yet registered on subnet %s\n", nmb_namestr(&nmbname), subrec->subnet_name ));
 				}
 
 				send_election_dgram(subrec, work->work_group, work->ElectionCriterion,
-						t - StartupTime, global_myname());
+						t - StartupTime, lp_netbios_name());
 	      
 				if (work->ElectionCount++ >= 4) {
 					/* Won election (4 packets were sent out uncontested. */
@@ -231,7 +234,7 @@ static bool win_election(struct work_record *work, int version,
 			version, ELECTION_VERSION,
 			criterion, mycriterion,
 			timeup, mytimeup,
-			server_name, global_myname()));
+			server_name, lp_netbios_name()));
 
 	if (version > ELECTION_VERSION)
 		return(False);
@@ -248,7 +251,7 @@ static bool win_election(struct work_record *work, int version,
 	if (timeup < mytimeup)
 		return(True);
 
-	if (StrCaseCmp(global_myname(), server_name) > 0)
+	if (strcasecmp_m(lp_netbios_name(), server_name) > 0)
 		return(False);
   
 	return(True);

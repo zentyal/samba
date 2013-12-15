@@ -28,9 +28,13 @@
 #include "../lib/util/util_ldb.h"
 #include "param/param.h"
 #include "auth/session.h"
-#include "heimdal/lib/hx509/hx_locl.h"
-#include "heimdal/lib/hcrypto/rsa.h"
-#include "heimdal/lib/hcrypto/bn.h"
+#include "system/network.h"
+#include <com_err.h>
+#include <hx509.h>
+#include <hcrypto/rsa.h>
+#include <hcrypto/bn.h>
+#include <hcrypto/sha.h>
+#include <der.h>
 #include "../lib/tsocket/tsocket.h"
 #include "../libcli/security/security.h"
 
@@ -1265,7 +1269,7 @@ static WERROR dcesrv_bkrp_BackupKey(struct dcesrv_call_state *dce_call,
 		}
 	}
 
-	if (lpcfg_server_role(dce_call->conn->dce_ctx->lp_ctx) != ROLE_DOMAIN_CONTROLLER) {
+	if (lpcfg_server_role(dce_call->conn->dce_ctx->lp_ctx) != ROLE_ACTIVE_DIRECTORY_DC) {
 		return WERR_NOT_SUPPORTED;
 	}
 

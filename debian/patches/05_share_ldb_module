@@ -1,0 +1,22 @@
+=== modified file 'source4/param/wscript_build'
+--- a/source4/param/wscript_build
++++ b/source4/param/wscript_build
+@@ -18,7 +18,7 @@
+ 	source='share_classic.c',
+ 	subsystem='share',
+ 	init_function='share_classic_init',
+-	deps='samba-util'
++	deps='samba-util samba-hostconfig'
+ 	)
+ 
+ 
+@@ -26,7 +26,8 @@
+ 	source='share_ldb.c',
+ 	subsystem='share',
+ 	init_function='share_ldb_init',
+-	deps='ldbsamba auth_system_session'
++	deps='ldbsamba auth_system_session',
++	internal_module=False,
+ 	)
+ 
+ 

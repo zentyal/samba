@@ -190,7 +190,7 @@ static NTSTATUS check_privilege_for_user(struct rpc_pipe_client *pipe_hnd,
 	}
 
 	for (i = 0; i < rights.count; i++) {
-		if (StrCaseCmp(rights.names[i].string, right) == 0) {
+		if (strcasecmp_m(rights.names[i].string, right) == 0) {
 			return NT_STATUS_OK;
 		}
 	}
@@ -506,7 +506,7 @@ static NTSTATUS rpc_rights_grant_internal(struct net_context *c,
 		return status;
 
 	rights.count = argc-1;
-	rights.names = TALLOC_ARRAY(mem_ctx, struct lsa_StringLarge,
+	rights.names = talloc_array(mem_ctx, struct lsa_StringLarge,
 				    rights.count);
 	if (!rights.names) {
 		return NT_STATUS_NO_MEMORY;
@@ -579,7 +579,7 @@ static NTSTATUS rpc_rights_revoke_internal(struct net_context *c,
 		return status;
 
 	rights.count = argc-1;
-	rights.names = TALLOC_ARRAY(mem_ctx, struct lsa_StringLarge,
+	rights.names = talloc_array(mem_ctx, struct lsa_StringLarge,
 				    rights.count);
 	if (!rights.names) {
 		return NT_STATUS_NO_MEMORY;
@@ -630,7 +630,7 @@ static int rpc_rights_list(struct net_context *c, int argc, const char **argv )
 		return 0;
 	}
 
-	return run_rpc_command(c, NULL, &ndr_table_lsarpc.syntax_id, 0,
+	return run_rpc_command(c, NULL, &ndr_table_lsarpc, 0,
 		rpc_rights_list_internal, argc, argv );
 }
 
@@ -652,7 +652,7 @@ static int rpc_rights_grant(struct net_context *c, int argc, const char **argv )
 		return 0;
 	}
 
-	return run_rpc_command(c, NULL, &ndr_table_lsarpc.syntax_id, 0,
+	return run_rpc_command(c, NULL, &ndr_table_lsarpc, 0,
 		rpc_rights_grant_internal, argc, argv );
 }
 
@@ -674,7 +674,7 @@ static int rpc_rights_revoke(struct net_context *c, int argc, const char **argv)
 		return 0;
 	}
 
-	return run_rpc_command(c, NULL, &ndr_table_lsarpc.syntax_id, 0,
+	return run_rpc_command(c, NULL, &ndr_table_lsarpc, 0,
 		rpc_rights_revoke_internal, argc, argv );
 }
 
@@ -751,13 +751,13 @@ struct rpc_sh_cmd *net_rpc_rights_cmds(struct net_context *c, TALLOC_CTX *mem_ct
 {
 	static struct rpc_sh_cmd cmds[] = {
 
-	{ "list", NULL, &ndr_table_lsarpc.syntax_id, rpc_sh_rights_list,
+	{ "list", NULL, &ndr_table_lsarpc, rpc_sh_rights_list,
 	  N_("View available or assigned privileges") },
 
-	{ "grant", NULL, &ndr_table_lsarpc.syntax_id, rpc_sh_rights_grant,
+	{ "grant", NULL, &ndr_table_lsarpc, rpc_sh_rights_grant,
 	  N_("Assign privilege[s]") },
 
-	{ "revoke", NULL, &ndr_table_lsarpc.syntax_id, rpc_sh_rights_revoke,
+	{ "revoke", NULL, &ndr_table_lsarpc, rpc_sh_rights_revoke,
 	  N_("Revoke privilege[s]") },
 
 	{ NULL, NULL, 0, NULL, NULL }

@@ -801,8 +801,9 @@ static bool parse_lpq_plp(char *line,print_queue_struct *buf,bool first)
 		fstring tmp;
 		char *p = strrchr_m(tok[6],'/');
 		if (p) {
+			size_t len = strlen(tok[6])+1;
 			fstrcpy(tmp,p+1);
-			fstrcpy(tok[6],tmp);
+			strlcpy(tok[6],tmp, len);
 		}
 	}
 
@@ -1116,7 +1117,9 @@ bool parse_lpq_entry(enum printing_types printing_type,char *line,
 			printer status line: 
 			handle them so that most severe condition is shown */
 		int i;
-		strlower_m(line);
+		if (!strlower_m(line)) {
+			return false;
+		}
       
 		switch (status->status) {
 			case LPSTAT_OK:

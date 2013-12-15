@@ -18,40 +18,12 @@
 
 
 #include "includes.h"
+#include "passdb.h"
 
 static int testsam_debug_level = DBGC_ALL;
 
 #undef DBGC_CLASS
 #define DBGC_CLASS testsam_debug_level
-
-/***************************************************************
- Start enumeration of the passwd list.
-****************************************************************/
-
-static NTSTATUS testsam_setsampwent(struct pdb_methods *methods, BOOL update, uint32 acb_mask)
-{
-	DEBUG(10, ("testsam_setsampwent called\n"));
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
-
-/***************************************************************
- End enumeration of the passwd list.
-****************************************************************/
-
-static void testsam_endsampwent(struct pdb_methods *methods)
-{
-	DEBUG(10, ("testsam_endsampwent called\n"));
-}
-
-/*****************************************************************
- Get one struct samu from the list (next in line)
-*****************************************************************/
-
-static NTSTATUS testsam_getsampwent(struct pdb_methods *methods, struct samu *user)
-{
-	DEBUG(10, ("testsam_getsampwent called\n"));
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
 
 /******************************************************************
  Lookup a name in the SAM database
@@ -103,7 +75,7 @@ static NTSTATUS testsam_add_sam_account (struct pdb_methods *methods, struct sam
 	return NT_STATUS_NOT_IMPLEMENTED;
 }
 
-NTSTATUS testsam_init(struct pdb_methods **pdb_method, const char *location)
+static NTSTATUS testsam_init(struct pdb_methods **pdb_method, const char *location)
 {
 	NTSTATUS nt_status;
 
@@ -116,9 +88,6 @@ NTSTATUS testsam_init(struct pdb_methods **pdb_method, const char *location)
 	/* Functions your pdb module doesn't provide should not be
 	   set, make_pdb_methods() already provide suitable defaults for missing functions */
 
-	(*pdb_method)->setsampwent = testsam_setsampwent;
-	(*pdb_method)->endsampwent = testsam_endsampwent;
-	(*pdb_method)->getsampwent = testsam_getsampwent;
 	(*pdb_method)->getsampwnam = testsam_getsampwnam;
 	(*pdb_method)->getsampwsid = testsam_getsampwsid;
 	(*pdb_method)->add_sam_account = testsam_add_sam_account;
@@ -138,7 +107,9 @@ NTSTATUS testsam_init(struct pdb_methods **pdb_method, const char *location)
 	return NT_STATUS_OK;
 }
 
-NTSTATUS init_module(void) {
+NTSTATUS pdb_testsam_init(void);
+NTSTATUS pdb_testsam_init(void)
+{
 	return smb_register_passdb(PASSDB_INTERFACE_VERSION, "testsam",
 				   testsam_init);
 }

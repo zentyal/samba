@@ -31,6 +31,8 @@
 #include "nsswitch/libwbclient/wbclient.h"
 #include "libcli/security/security.h"
 
+_PUBLIC_ NTSTATUS auth4_winbind_init(void);
+
 static NTSTATUS get_info3_from_wbcAuthUserInfo(TALLOC_CTX *mem_ctx,
 					       struct wbcAuthUserInfo *info,
 					       struct netr_SamInfo3 *info3)
@@ -43,9 +45,9 @@ static NTSTATUS get_info3_from_wbcAuthUserInfo(TALLOC_CTX *mem_ctx,
 	user_sid = (struct dom_sid *)(void *)&info->sids[0].sid;
 	group_sid = (struct dom_sid *)(void *)&info->sids[1].sid;
 
-	info3->base.last_logon = info->logon_time;
-	info3->base.last_logoff = info->logoff_time;
-	info3->base.acct_expiry = info->kickoff_time;
+	info3->base.logon_time = info->logon_time;
+	info3->base.logoff_time = info->logoff_time;
+	info3->base.kickoff_time = info->kickoff_time;
 	info3->base.last_password_change = info->pass_last_set_time;
 	info3->base.allow_password_change = info->pass_can_change_time;
 	info3->base.force_password_change = info->pass_must_change_time;
@@ -64,7 +66,7 @@ static NTSTATUS get_info3_from_wbcAuthUserInfo(TALLOC_CTX *mem_ctx,
 						      info->home_drive);
 	info3->base.logon_server.string = talloc_strdup(mem_ctx,
 							info->logon_server);
-	info3->base.domain.string = talloc_strdup(mem_ctx,
+	info3->base.logon_domain.string = talloc_strdup(mem_ctx,
 						  info->domain_name);
 
 	info3->base.logon_count = info->logon_count;
@@ -75,7 +77,11 @@ static NTSTATUS get_info3_from_wbcAuthUserInfo(TALLOC_CTX *mem_ctx,
 	memcpy(info3->base.LMSessKey.key, info->lm_session_key,
 	       sizeof(info3->base.LMSessKey.key));
 	info3->base.acct_flags = info->acct_flags;
-	memset(info3->base.unknown, 0, sizeof(info3->base.unknown));
+	info3->base.sub_auth_status = 0;
+	info3->base.last_successful_logon = 0;
+	info3->base.last_failed_logon = 0;
+	info3->base.failed_logon_count = 0;
+	info3->base.reserved = 0;
 
 	if (info->num_sids < 2) {
 		return NT_STATUS_INVALID_PARAMETER;
@@ -218,6 +224,7 @@ static NTSTATUS winbind_check_password(struct auth_method_context *ctx,
 						      user_info->client.account_name,
 						      s->req.in.validation_level,
 						      &s->req.out.validation,
+						       true, /* This user was authenticated */
 						      user_info_dc);
 	NT_STATUS_NOT_OK_RETURN(status);
 
@@ -302,27 +309,27 @@ static NTSTATUS winbind_check_password_wbclient(struct auth_method_context *ctx,
 
 	validation.sam3 = &info3;
 	nt_status = make_user_info_dc_netlogon_validation(mem_ctx,
-					user_info->client.account_name,
-					3, &validation, user_info_dc);
+							  user_info->client.account_name,
+							  3, &validation,
+							  true, /* This user was authenticated */
+							  user_info_dc);
 	return nt_status;
 
 }
 
 static const struct auth_operations winbind_ops = {
 	.name		= "winbind",
-	.get_challenge	= auth_get_challenge_not_implemented,
 	.want_check	= winbind_want_check,
 	.check_password	= winbind_check_password
 };
 
 static const struct auth_operations winbind_wbclient_ops = {
 	.name		= "winbind_wbclient",
-	.get_challenge	= auth_get_challenge_not_implemented,
 	.want_check	= winbind_want_check,
 	.check_password	= winbind_check_password_wbclient
 };
 
-_PUBLIC_ NTSTATUS auth_winbind_init(void)
+_PUBLIC_ NTSTATUS auth4_winbind_init(void)
 {
 	NTSTATUS ret;
 

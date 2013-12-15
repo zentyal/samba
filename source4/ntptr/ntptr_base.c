@@ -25,6 +25,7 @@
 #include "includes.h"
 #include "ntptr/ntptr.h"
 #include "param/param.h"
+#include "lib/util/samba_modules.h"
 
 /* the list of currently registered NTPTR backends */
 static struct ntptr_backend {
@@ -68,12 +69,12 @@ NTSTATUS ntptr_register(const void *_ops)
 	return NT_STATUS_OK;
 }
 
-NTSTATUS ntptr_init(struct loadparm_context *lp_ctx)
+NTSTATUS ntptr_init(void)
 {
 #define _MODULE_PROTO(init) extern NTSTATUS init(void);
 	STATIC_ntptr_MODULES_PROTO;
 	init_module_fn static_init[] = { STATIC_ntptr_MODULES };
-	init_module_fn *shared_init = load_samba_modules(NULL, lp_ctx, "ntptr");
+	init_module_fn *shared_init = load_samba_modules(NULL, "ntptr");
 
 	run_init_functions(static_init);
 	run_init_functions(shared_init);

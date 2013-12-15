@@ -15,17 +15,21 @@ cd ${srcdir}
 
 [ -d $PIDL_OUTPUTDIR ] || mkdir -p $PIDL_OUTPUTDIR || exit 1
 
-PIDL="$PIDL $ARGS"
+PIDL_DIR=`dirname $PIDL`
+PIDL_CMD="$PIDL $ARGS"
 
 if [ $FULL = 1 ]; then
 	echo "Rebuilding all idl files"
-	$PIDL $IDL_FILES || exit 1
+	$PIDL_CMD $IDL_FILES || exit 1
 	exit 0
 fi
 
 ##
-## Find newer files rather than rebuild all of them
+## Find newer files rather than rebuild all of them. Also handle the case
+## where the pidl compiler itself is newer.
 ##
+PIDL_NEWEST=`find $PIDL_DIR -type f -print | xargs ls -rt | tail -1`
+echo "jfyi: PIDL_NEWEST is $PIDL_NEWEST"
 
 list=""
 for f in ${IDL_FILES}; do
@@ -42,6 +46,10 @@ for f in ${IDL_FILES}; do
 		list="$list $f"
 		break
 	    }
+	    test "`find $PIDL_NEWEST -newer $PIDL_OUTPUTDIR/$o`" != "" && {
+		list="$list $f"
+		break
+	    }
 	done
 done
 
@@ -50,8 +58,8 @@ done
 ##
 
 if [ "x$list" != x ]; then
-	# echo "${PIDL} ${list}"
-	$PIDL $list || exit 1
+	# echo "${PIDL_CMD} ${list}"
+	$PIDL_CMD $list || exit 1
 fi
 
 cd ${oldpwd}

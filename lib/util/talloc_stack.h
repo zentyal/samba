@@ -44,13 +44,24 @@
  * not explicitly freed.
  */
 
-TALLOC_CTX *talloc_stackframe(void);
-TALLOC_CTX *talloc_stackframe_pool(size_t poolsize);
+#define talloc_stackframe() _talloc_stackframe(__location__)
+#define talloc_stackframe_pool(sz) _talloc_stackframe_pool(__location__, (sz))
+TALLOC_CTX *_talloc_stackframe(const char *location);
+TALLOC_CTX *_talloc_stackframe_pool(const char *location, size_t poolsize);
 
 /*
  * Get us the current top of the talloc stack.
  */
 
-TALLOC_CTX *talloc_tos(void);
+#define talloc_tos() _talloc_tos(__location__)
+TALLOC_CTX *_talloc_tos(const char *location);
+
+/*
+ * return true if a talloc stackframe exists
+ * this can be used to prevent memory leaks for code that can
+ * optionally use a talloc stackframe (eg. nt_errstr())
+ */
+
+bool talloc_stackframe_exists(void);
 
 #endif

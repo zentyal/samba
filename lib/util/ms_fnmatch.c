@@ -29,6 +29,7 @@
  */
 
 #include "includes.h"
+#include "libcli/smb/smb_constants.h"
 
 static int null_match(const char *p)
 {
@@ -154,7 +155,7 @@ static int ms_fnmatch_core(const char *p, const char *n,
 	return -1;
 }
 
-int ms_fnmatch(const char *pattern, const char *string, enum protocol_types protocol)
+int ms_fnmatch_protocol(const char *pattern, const char *string, int protocol)
 {
 	int ret, count, i;
 	struct max_n *max_n = NULL;
@@ -192,7 +193,7 @@ int ms_fnmatch(const char *pattern, const char *string, enum protocol_types prot
 				p[i] = '<';
 			}
 		}
-		ret = ms_fnmatch(p, string, PROTOCOL_NT1);
+		ret = ms_fnmatch_protocol(p, string, PROTOCOL_NT1);
 		talloc_free(p);
 		return ret;
 	}
@@ -217,5 +218,5 @@ int ms_fnmatch(const char *pattern, const char *string, enum protocol_types prot
 /** a generic fnmatch function - uses for non-CIFS pattern matching */
 int gen_fnmatch(const char *pattern, const char *string)
 {
-	return ms_fnmatch(pattern, string, PROTOCOL_NT1);
+	return ms_fnmatch_protocol(pattern, string, PROTOCOL_NT1);
 }

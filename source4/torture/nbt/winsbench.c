@@ -246,8 +246,8 @@ static bool bench_wins(struct torture_context *tctx)
 	state->registered = talloc_zero_array(state, bool, state->num_names);
 	state->wins_server = address;
 	state->wins_port = lpcfg_nbt_port(tctx->lp_ctx);
-	load_interfaces(tctx, lpcfg_interfaces(tctx->lp_ctx), &ifaces);
-	state->my_ip = talloc_strdup(tctx, iface_best_ip(ifaces, address));
+	load_interface_list(tctx, tctx->lp_ctx, &ifaces);
+	state->my_ip = talloc_strdup(tctx, iface_list_best_ip(ifaces, address));
 	state->ttl = timelimit;
 
 	my_ip = socket_address_from_strings(nbtsock, nbtsock->sock->backend_name, 
@@ -270,11 +270,11 @@ static bool bench_wins(struct torture_context *tctx)
 			}
 		}
 
-		event_loop_once(nbtsock->event_ctx);
+		tevent_loop_once(nbtsock->event_ctx);
 	}
 
 	while (num_sent != (state->pass_count + state->fail_count)) {
-		event_loop_once(nbtsock->event_ctx);
+		tevent_loop_once(nbtsock->event_ctx);
 	}
 
 	torture_comment(tctx, "%.1f queries per second (%d failures)  \n", 

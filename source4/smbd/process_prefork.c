@@ -32,18 +32,7 @@
 #include "param/param.h"
 #include "ldb_wrap.h"
 
-#ifdef HAVE_SETPROCTITLE
-#ifdef HAVE_SETPROCTITLE_H
-#include <setproctitle.h>
-#endif
-#else
-#define setproctitle none_setproctitle
-static int none_setproctitle(const char *fmt, ...) PRINTF_ATTRIBUTE(1, 2);
-static int none_setproctitle(const char *fmt, ...)
-{
-	return 0;
-}
-#endif
+NTSTATUS process_model_prefork_init(void);
 
 /*
   called when the process model is selected
@@ -134,7 +123,7 @@ static void prefork_new_task(struct tevent_context *ev,
 
 		/* We don't want any kids hanging around for this one,
 		 * let the parent do all the work */
-		event_loop_wait(ev2);
+		tevent_loop_wait(ev2);
 		
 		talloc_free(ev2);
 		exit(0);
@@ -158,7 +147,7 @@ static void prefork_new_task(struct tevent_context *ev,
 			/* we can't return to the top level here, as that event context is gone,
 			   so we now process events in the new event context until there are no
 			   more to process */	   
-			event_loop_wait(ev2);
+			tevent_loop_wait(ev2);
 			
 			talloc_free(ev2);
 			exit(0);
@@ -176,7 +165,7 @@ static void prefork_new_task(struct tevent_context *ev,
 	/* we can't return to the top level here, as that event context is gone,
 	   so we now process events in the new event context until there are no
 	   more to process */	   
-	event_loop_wait(ev_parent);
+	tevent_loop_wait(ev_parent);
 	
 	talloc_free(ev_parent);
 	exit(0);

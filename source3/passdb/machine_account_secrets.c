@@ -26,15 +26,12 @@
 #include "passdb.h"
 #include "../libcli/auth/libcli_auth.h"
 #include "secrets.h"
-#include "dbwrap.h"
+#include "dbwrap/dbwrap.h"
 #include "../librpc/ndr/libndr.h"
 #include "util_tdb.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_PASSDB
-
-/* Urrrg. global.... */
-bool global_machine_password_needs_changing;
 
 /**
  * Form a key for fetching the domain sid
@@ -53,9 +50,63 @@ static const char *domain_sid_keystr(const char *domain)
 	return keystr;
 }
 
-bool secrets_store_domain_sid(const char *domain, const struct dom_sid  *sid)
+static const char *protect_ids_keystr(const char *domain)
+{
+	char *keystr;
+
+	keystr = talloc_asprintf_strupper_m(talloc_tos(), "%s/%s",
+					    SECRETS_PROTECT_IDS, domain);
+	SMB_ASSERT(keystr != NULL);
+	return keystr;
+}
+
+/* N O T E: never use this outside of passdb modules that store the SID on their own */
+bool secrets_mark_domain_protected(const char *domain)
 {
 	bool ret;
+
+	ret = secrets_store(protect_ids_keystr(domain), "TRUE", 5);
+	if (!ret) {
+		DEBUG(0, ("Failed to protect the Domain IDs\n"));
+	}
+	return ret;
+}
+
+bool secrets_clear_domain_protection(const char *domain)
+{
+	bool ret;
+	void *protection = secrets_fetch(protect_ids_keystr(domain), NULL);
+	
+	if (protection) {
+		SAFE_FREE(protection);
+		ret = secrets_delete(protect_ids_keystr(domain));
+		if (!ret) {
+			DEBUG(0, ("Failed to remove Domain IDs protection\n"));
+		}
+		return ret;
+	}
+	return true;
+}
+
+bool secrets_store_domain_sid(const char *domain, const struct dom_sid  *sid)
+{
+#if _SAMBA_BUILD_ == 4
+	char *protect_ids;
+#endif
+	bool ret;
+
+#if _SAMBA_BUILD_ == 4
+	protect_ids = secrets_fetch(protect_ids_keystr(domain), NULL);
+	if (protect_ids) {
+		if (strncmp(protect_ids, "TRUE", 4)) {
+			DEBUG(0, ("Refusing to store a Domain SID, "
+				  "it has been marked as protected!\n"));
+			SAFE_FREE(protect_ids);
+			return false;
+		}
+	}
+	SAFE_FREE(protect_ids);
+#endif
 
 	ret = secrets_store(domain_sid_keystr(domain), sid, sizeof(struct dom_sid ));
 
@@ -87,10 +138,28 @@ bool secrets_fetch_domain_sid(const char *domain, struct dom_sid  *sid)
 
 bool secrets_store_domain_guid(const char *domain, struct GUID *guid)
 {
+#if _SAMBA_BUILD_ == 4
+	char *protect_ids;
+#endif
 	fstring key;
 
+#if _SAMBA_BUILD_ == 4
+	protect_ids = secrets_fetch(protect_ids_keystr(domain), NULL);
+	if (protect_ids) {
+		if (strncmp(protect_ids, "TRUE", 4)) {
+			DEBUG(0, ("Refusing to store a Domain SID, "
+				  "it has been marked as protected!\n"));
+			SAFE_FREE(protect_ids);
+			return false;
+		}
+	}
+	SAFE_FREE(protect_ids);
+#endif
+
 	slprintf(key, sizeof(key)-1, "%s/%s", SECRETS_DOMAIN_GUID, domain);
-	strupper_m(key);
+	if (!strupper_m(key)) {
+		return false;
+	}
 	return secrets_store(key, guid, sizeof(struct GUID));
 }
 
@@ -102,7 +171,9 @@ bool secrets_fetch_domain_guid(const char *domain, struct GUID *guid)
 	struct GUID new_guid;
 
 	slprintf(key, sizeof(key)-1, "%s/%s", SECRETS_DOMAIN_GUID, domain);
-	strupper_m(key);
+	if (!strupper_m(key)) {
+		return false;
+	}
 	dyn_guid = (struct GUID *)secrets_fetch(key, &size);
 
 	if (!dyn_guid) {
@@ -229,7 +300,7 @@ void *secrets_get_trust_account_lock(TALLOC_CTX *mem_ctx, const char *domain)
 
 	db_ctx = secrets_db_ctx();
 
-	return db_ctx->fetch_locked(
+	return dbwrap_fetch_locked(
 		db_ctx, mem_ctx, string_term_tdb_data(trust_keystr(domain)));
 }
 
@@ -240,7 +311,8 @@ void *secrets_get_trust_account_lock(TALLOC_CTX *mem_ctx, const char *domain)
 enum netr_SchannelType get_default_sec_channel(void)
 {
 	if (lp_server_role() == ROLE_DOMAIN_BDC ||
-	    lp_server_role() == ROLE_DOMAIN_PDC) {
+	    lp_server_role() == ROLE_DOMAIN_PDC ||
+	    lp_server_role() == ROLE_ACTIVE_DIRECTORY_DC) {
 		return SEC_CHAN_BDC;
 	} else {
 		return SEC_CHAN_WKSTA;
@@ -255,7 +327,7 @@ enum netr_SchannelType get_default_sec_channel(void)
 ************************************************************************/
 
 bool secrets_fetch_trust_account_password_legacy(const char *domain,
-						 uint8 ret_pwd[16],
+						 uint8_t ret_pwd[16],
 						 time_t *pass_last_set_time,
 						 enum netr_SchannelType *channel)
 {
@@ -283,14 +355,6 @@ bool secrets_fetch_trust_account_password_legacy(const char *domain,
 		*channel = get_default_sec_channel();
 	}
 
-	/* Test if machine password has expired and needs to be changed */
-	if (lp_machine_password_timeout()) {
-		if (pass->mod_time > 0 && time(NULL) > (pass->mod_time +
-				(time_t)lp_machine_password_timeout())) {
-			global_machine_password_needs_changing = True;
-		}
-	}
-
 	SAFE_FREE(pass);
 	return True;
 }
@@ -301,7 +365,7 @@ bool secrets_fetch_trust_account_password_legacy(const char *domain,
  the above secrets_lock_trust_account_password().
 ************************************************************************/
 
-bool secrets_fetch_trust_account_password(const char *domain, uint8 ret_pwd[16],
+bool secrets_fetch_trust_account_password(const char *domain, uint8_t ret_pwd[16],
 					  time_t *pass_last_set_time,
 					  enum netr_SchannelType *channel)
 {
@@ -333,19 +397,6 @@ static bool secrets_delete_prev_machine_password(const char *domain)
 	}
 	SAFE_FREE(oldpass);
 	return secrets_delete(machine_prev_password_keystr(domain));
-}
-
-/************************************************************************
- Routine to delete the plaintext machine account password and old
- password if any
-************************************************************************/
-
-bool secrets_delete_machine_password(const char *domain)
-{
-	if (!secrets_delete_prev_machine_password(domain)) {
-		return false;
-	}
-	return secrets_delete(machine_password_keystr(domain));
 }
 
 /************************************************************************
@@ -405,8 +456,8 @@ bool secrets_store_machine_password(const char *pass, const char *domain,
 				    enum netr_SchannelType sec_channel)
 {
 	bool ret;
-	uint32 last_change_time;
-	uint32 sec_channel_type;
+	uint32_t last_change_time;
+	uint32_t sec_channel_type;
 
 	if (!secrets_store_prev_machine_password(domain)) {
 		return false;
@@ -422,6 +473,92 @@ bool secrets_store_machine_password(const char *pass, const char *domain,
 	SIVAL(&sec_channel_type, 0, sec_channel);
 	ret = secrets_store(machine_sec_channel_type_keystr(domain), &sec_channel_type, sizeof(sec_channel_type));
 
+	return ret;
+}
+
+/************************************************************************
+ Set the machine trust account password, the old pw and last change
+ time, domain SID and salting principals based on values passed in
+ (added to supprt the secrets_tdb_sync module on secrets.ldb)
+************************************************************************/
+
+bool secrets_store_machine_pw_sync(const char *pass, const char *oldpass, const char *domain,
+				   const char *realm,
+				   const char *salting_principal, uint32_t supported_enc_types,
+				   const struct dom_sid *domain_sid, uint32_t last_change_time,
+				   bool delete_join)
+{
+	bool ret;
+	uint8_t last_change_time_store[4];
+	TALLOC_CTX *frame = talloc_stackframe();
+	void *value;
+
+	if (delete_join) {
+		secrets_delete_machine_password_ex(domain);
+		secrets_delete_domain_sid(domain);
+		TALLOC_FREE(frame);
+		return true;
+	}
+
+	ret = secrets_store(machine_password_keystr(domain), pass, strlen(pass)+1);
+	if (!ret) {
+		TALLOC_FREE(frame);
+		return ret;
+	}
+
+	if (oldpass) {
+		ret = secrets_store(machine_prev_password_keystr(domain), oldpass, strlen(oldpass)+1);
+	} else {
+		value = secrets_fetch_prev_machine_password(domain);
+		if (value) {
+			SAFE_FREE(value);
+			ret = secrets_delete_prev_machine_password(domain);
+		}
+	}
+	if (!ret) {
+		TALLOC_FREE(frame);
+		return ret;
+	}
+
+	/* We delete this and instead have the read code fall back to
+	 * a default based on server role, as our caller can't specify
+	 * this with any more certainty */
+	value = secrets_fetch(machine_sec_channel_type_keystr(domain), NULL);
+	if (value) {
+		SAFE_FREE(value);
+		ret = secrets_delete(machine_sec_channel_type_keystr(domain));
+		if (!ret) {
+			TALLOC_FREE(frame);
+			return ret;
+		}
+	}
+
+	SIVAL(&last_change_time_store, 0, last_change_time);
+	ret = secrets_store(machine_last_change_time_keystr(domain),
+			    &last_change_time_store, sizeof(last_change_time));
+
+	if (!ret) {
+		TALLOC_FREE(frame);
+		return ret;
+	}
+
+	ret = secrets_store_domain_sid(domain, domain_sid);
+
+	if (!ret) {
+		TALLOC_FREE(frame);
+		return ret;
+	}
+
+	if (realm && salting_principal) {
+		char *key = talloc_asprintf(frame, "%s/DES/%s", SECRETS_SALTING_PRINCIPAL, realm);
+		if (!key) {
+			TALLOC_FREE(frame);
+			return false;
+		}
+		ret = secrets_store(key, salting_principal, strlen(salting_principal)+1 );
+	}
+
+	TALLOC_FREE(frame);
 	return ret;
 }
 
@@ -450,7 +587,7 @@ char *secrets_fetch_machine_password(const char *domain,
 
 	if (pass_last_set_time) {
 		size_t size;
-		uint32 *last_set_time;
+		uint32_t *last_set_time;
 		last_set_time = (unsigned int *)secrets_fetch(machine_last_change_time_keystr(domain), &size);
 		if (last_set_time) {
 			*pass_last_set_time = IVAL(last_set_time,0);
@@ -462,7 +599,7 @@ char *secrets_fetch_machine_password(const char *domain,
 
 	if (channel) {
 		size_t size;
-		uint32 *channel_type;
+		uint32_t *channel_type;
 		channel_type = (unsigned int *)secrets_fetch(machine_sec_channel_type_keystr(domain), &size);
 		if (channel_type) {
 			*channel = IVAL(channel_type,0);

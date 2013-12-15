@@ -30,23 +30,21 @@ struct rap_call *new_rap_cli_call(TALLOC_CTX *mem_ctx, uint16_t callno)
 {
 	struct rap_call *call;
 
-	call = talloc(mem_ctx, struct rap_call);
-
-	if (call == NULL)
+	call = talloc_zero(mem_ctx, struct rap_call);
+	if (call == NULL) {
 		return NULL;
+	}
 
 	call->callno = callno;
 	call->rcv_paramlen = 4;
 
-	call->paramdesc = NULL;
-	call->datadesc = NULL;
-	call->auxdatadesc = NULL;
-
-	call->ndr_push_param = ndr_push_init_ctx(mem_ctx);
+	call->ndr_push_param = ndr_push_init_ctx(call);
 	call->ndr_push_param->flags = RAPNDR_FLAGS;
 
-	call->ndr_push_data = ndr_push_init_ctx(mem_ctx);
+	call->ndr_push_data = ndr_push_init_ctx(call);
 	call->ndr_push_data->flags = RAPNDR_FLAGS;
+
+	call->pull_mem_ctx = mem_ctx;
 
 	return call;
 }
@@ -221,9 +219,10 @@ NTSTATUS rap_cli_do_call(struct smbcli_tree *tree,
 
 	call->ndr_pull_param = ndr_pull_init_blob(&trans.out.params, call);
 	call->ndr_pull_param->flags = RAPNDR_FLAGS;
-
+	call->ndr_pull_param->current_mem_ctx = call->pull_mem_ctx;
 	call->ndr_pull_data = ndr_pull_init_blob(&trans.out.data, call);
 	call->ndr_pull_data->flags = RAPNDR_FLAGS;
+	call->ndr_pull_data->current_mem_ctx = call->pull_mem_ctx;
 
 	return result;
 }

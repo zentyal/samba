@@ -72,11 +72,12 @@
 		ok = false; \
 	} \
 	if (!ok) { \
-		torture_comment(tctx,"(%s) Incorrect value %s='%s' - " \
-		    "should be '%s'\n", \
-		    __location__, #v, (v)?(v):"NULL", \
-		    (correct)?(correct):"NULL"); \
-		ret = false; \
+		torture_result(tctx, TORTURE_FAIL, \
+			       "(%s) Incorrect value %s='%s' - "	\
+			       "should be '%s'\n",			\
+			       __location__, #v, (v)?(v):"NULL",	\
+			       (correct)?(correct):"NULL");		\
+		ret = false;						\
 	}} while (0)
 
 
@@ -243,7 +244,7 @@ static bool test_stream_dir(struct torture_context *tctx,
 	sname1 = talloc_asprintf(mem_ctx, "%s:%s", fname, "Stream One");
 	torture_comment(tctx, "%s\n", sname1);
 
-	torture_comment(tctx, "(%s) opening non-existant directory stream\n",
+	torture_comment(tctx, "(%s) opening non-existent directory stream\n",
 	    __location__);
 	ZERO_STRUCT(io.smb2);
 	io.smb2.in.create_options = NTCREATEX_OPTIONS_DIRECTORY;
@@ -327,7 +328,7 @@ static bool test_stream_io(struct torture_context *tctx,
 	status = torture_smb2_testdir(tree, DNAME, &h);
 	CHECK_STATUS(status, NT_STATUS_OK);
 
-	torture_comment(tctx, "(%s) creating a stream on a non-existant file\n",
+	torture_comment(tctx, "(%s) creating a stream on a non-existent file\n",
 		__location__);
 
 	ZERO_STRUCT(io.smb2);
@@ -612,7 +613,7 @@ static bool test_stream_delete(struct torture_context *tctx,
 	status = torture_smb2_testdir(tree, DNAME, &h);
 	CHECK_STATUS(status, NT_STATUS_OK);
 
-	torture_comment(tctx, "(%s) opening non-existant file stream\n",
+	torture_comment(tctx, "(%s) opening non-existent file stream\n",
 	    __location__);
 	ZERO_STRUCT(io.smb2);
 	io.smb2.in.create_flags = 0;
@@ -1128,17 +1129,19 @@ done:
 	sfinfo.generic.in.file.handle = h1; \
 	status = smb2_setinfo_file(tree, &sfinfo); \
 	if (!NT_STATUS_EQUAL(status, rightstatus)) { \
-		torture_comment(tctx,"(%s) %s - %s (should be %s)\n", \
-		    __location__, #call, \
-		    nt_errstr(status), nt_errstr(rightstatus)); \
-		ret = false; \
+		torture_result(tctx, TORTURE_FAIL,			\
+			       "(%s) %s - %s (should be %s)\n",		\
+			       __location__, #call,			\
+			       nt_errstr(status), nt_errstr(rightstatus)); \
+		ret = false;						\
 	} \
 	finfo1.generic.level = RAW_FILEINFO_ALL_INFORMATION; \
 	finfo1.generic.in.file.handle = h1; \
 	status2 = smb2_getinfo_file(tree, tctx, &finfo1); \
 	if (!NT_STATUS_IS_OK(status2)) { \
-		torture_comment(tctx,"(%s) %s pathinfo - %s\n", \
-		    __location__, #call, nt_errstr(status)); \
+		torture_result(tctx, TORTURE_FAIL,	     \
+			       "(%s) %s pathinfo - %s\n",    \
+			       __location__, #call, nt_errstr(status)); \
 		ret = false; \
 	}} while (0)
 

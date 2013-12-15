@@ -1,0 +1,3 @@
+winbind4 binary: no-shlibs-control-file lib/libnss_winbind.so.2
+winbind4 binary: package-name-doesnt-match-sonames libnss-winbind2
+winbind4 binary: binary-or-shlib-defines-rpath

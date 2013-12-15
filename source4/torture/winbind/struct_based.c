@@ -25,6 +25,7 @@
 #include "librpc/gen_ndr/netlogon.h"
 #include "param/param.h"
 #include "../libcli/auth/pam_errors.h"
+#include "torture/winbind/proto.h"
 
 #define DO_STRUCT_REQ_REP_EXT(op,req,rep,expected,strict,warnaction,cmt) do { \
 	NSS_STATUS __got, __expected = (expected); \
@@ -913,7 +914,6 @@ static bool parse_domain_user(struct torture_context *torture,
 	fstrcpy(user, p+1);
 	fstrcpy(domain, domuser);
 	domain[PTR_DIFF(p, domuser)] = 0;
-	strupper_m(domain);
 
 	return true;
 }

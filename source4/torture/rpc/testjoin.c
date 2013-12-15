@@ -29,6 +29,7 @@
 #include "../lib/crypto/crypto.h"
 #include "libnet/libnet.h"
 #include "lib/cmdline/popt_common.h"
+#include "librpc/gen_ndr/ndr_lsa_c.h"
 #include "librpc/gen_ndr/ndr_samr_c.h"
 
 #include "libcli/auth/libcli_auth.h"
@@ -39,6 +40,7 @@
 struct test_join {
 	struct dcerpc_pipe *p;
 	struct policy_handle user_handle;
+	struct policy_handle domain_handle;
 	struct libnet_JoinDomain *libnet_r;
 	struct dom_sid *dom_sid;
 	const char *dom_netbios_name;
@@ -132,7 +134,6 @@ struct test_join *torture_create_testuser_max_pwlen(struct torture_context *tort
 	struct samr_SetUserInfo s;
 	union samr_UserInfo u;
 	struct policy_handle handle;
-	struct policy_handle domain_handle;
 	uint32_t access_granted;
 	uint32_t rid;
 	DATA_BLOB session_key;
@@ -266,7 +267,7 @@ struct test_join *torture_create_testuser_max_pwlen(struct torture_context *tort
 	o.in.connect_handle = &handle;
 	o.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 	o.in.sid = *l.out.sid;
-	o.out.domain_handle = &domain_handle;
+	o.out.domain_handle = &join->domain_handle;
 
 	status = dcerpc_samr_OpenDomain_r(b, join, &o);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -282,7 +283,7 @@ struct test_join *torture_create_testuser_max_pwlen(struct torture_context *tort
 
 again:
 	name.string = username;
-	r.in.domain_handle = &domain_handle;
+	r.in.domain_handle = &join->domain_handle;
 	r.in.account_name = &name;
 	r.in.acct_flags = acct_type;
 	r.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
@@ -297,7 +298,7 @@ again:
 	}
 
 	if (NT_STATUS_EQUAL(r.out.result, NT_STATUS_USER_EXISTS)) {
-		status = DeleteUser_byname(b, join, &domain_handle, name.string);
+		status = DeleteUser_byname(b, join, &join->domain_handle, name.string);
 		if (NT_STATUS_IS_OK(status)) {
 			goto again;
 		}
@@ -394,6 +395,79 @@ failed:
 	return NULL;
 }
 
+/*
+ * Set privileges on an account.
+ */
+
+static void init_lsa_StringLarge(struct lsa_StringLarge *name, const char *s)
+{
+	name->string = s;
+}
+static void init_lsa_String(struct lsa_String *name, const char *s)
+{
+	name->string = s;
+}
+
+bool torture_setup_privs(struct torture_context *tctx,
+			struct dcerpc_pipe *p,
+			uint32_t num_privs,
+			const char **privs,
+			const struct dom_sid *user_sid)
+{
+	struct dcerpc_binding_handle *b = p->binding_handle;
+	struct policy_handle *handle;
+	int i;
+
+	torture_assert(tctx,
+		test_lsa_OpenPolicy2(b, tctx, &handle),
+		"failed to open policy");
+
+	for (i=0; i < num_privs; i++) {
+		struct lsa_LookupPrivValue r;
+		struct lsa_LUID luid;
+		struct lsa_String name;
+
+		init_lsa_String(&name, privs[i]);
+
+		r.in.handle = handle;
+		r.in.name = &name;
+		r.out.luid = &luid;
+
+		torture_assert_ntstatus_ok(tctx,
+			dcerpc_lsa_LookupPrivValue_r(b, tctx, &r),
+			"lsa_LookupPrivValue failed");
+		if (!NT_STATUS_IS_OK(r.out.result)) {
+			torture_comment(tctx, "lsa_LookupPrivValue failed for '%s' with %s\n",
+				privs[i], nt_errstr(r.out.result));
+			return false;
+		}
+	}
+
+	{
+		struct lsa_AddAccountRights r;
+		struct lsa_RightSet rights;
+
+		rights.count = num_privs;
+		rights.names = talloc_zero_array(tctx, struct lsa_StringLarge, rights.count);
+		for (i=0; i < rights.count; i++) {
+			init_lsa_StringLarge(&rights.names[i], privs[i]);
+		}
+
+		r.in.handle = handle;
+		r.in.sid = discard_const_p(struct dom_sid, user_sid);
+		r.in.rights = &rights;
+
+		torture_assert_ntstatus_ok(tctx,
+			dcerpc_lsa_AddAccountRights_r(b, tctx, &r),
+			"lsa_AddAccountRights failed");
+		torture_assert_ntstatus_ok(tctx, r.out.result,
+			"lsa_AddAccountRights failed");
+	}
+
+	test_lsa_Close(b, tctx, handle);
+
+	return true;
+}
 
 struct test_join *torture_create_testuser(struct torture_context *torture,
 					  const char *username,
@@ -402,6 +476,20 @@ struct test_join *torture_create_testuser(struct torture_context *torture,
 					  const char **random_password)
 {
 	return torture_create_testuser_max_pwlen(torture, username, domain, acct_type, random_password, 255);
+}
+
+NTSTATUS torture_delete_testuser(struct torture_context *torture,
+				 struct test_join *join,
+				 const char *username)
+{
+	NTSTATUS status;
+
+	status = DeleteUser_byname(join->p->binding_handle,
+				   torture,
+				   &join->domain_handle,
+				   username);
+
+	return status;
 }
 
 _PUBLIC_ struct test_join *torture_join_domain(struct torture_context *tctx,
@@ -416,10 +504,10 @@ _PUBLIC_ struct test_join *torture_join_domain(struct torture_context *tctx,
 	struct samr_SetUserInfo s;
 	union samr_UserInfo u;
 	
-	tj = talloc(tctx, struct test_join);
+	tj = talloc_zero(tctx, struct test_join);
 	if (!tj) return NULL;
 
-	libnet_r = talloc(tj, struct libnet_JoinDomain);
+	libnet_r = talloc_zero(tj, struct libnet_JoinDomain);
 	if (!libnet_r) {
 		talloc_free(tj);
 		return NULL;
@@ -583,14 +671,14 @@ static NTSTATUS torture_leave_ads_domain(struct torture_context *torture,
 	ldb_set_opaque(ldb_ctx, "loadparm", cmdline_lp_ctx);
 
 	rtn = ldb_connect(ldb_ctx, remote_ldb_url, 0, NULL);
-	if (rtn != 0) {
+	if (rtn != LDB_SUCCESS) {
 		libnet_r->out.error_string = NULL;
 		talloc_free(tmp_ctx);
 		return NT_STATUS_UNSUCCESSFUL;
 	}
 
 	rtn = ldb_delete(ldb_ctx, server_dn);
-	if (rtn != 0) {
+	if (rtn != LDB_SUCCESS) {
 		libnet_r->out.error_string = NULL;
 		talloc_free(tmp_ctx);
 		return NT_STATUS_UNSUCCESSFUL;

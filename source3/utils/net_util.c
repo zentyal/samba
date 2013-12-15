@@ -98,11 +98,11 @@ NTSTATUS net_rpc_lookup_name(struct net_context *c,
 ****************************************************************************/
 
 NTSTATUS connect_to_service(struct net_context *c,
-					struct cli_state **cli_ctx,
-					struct sockaddr_storage *server_ss,
-					const char *server_name,
-					const char *service_name,
-					const char *service_type)
+			    struct cli_state **cli_ctx,
+			    const struct sockaddr_storage *server_ss,
+			    const char *server_name,
+			    const char *service_name,
+			    const char *service_type)
 {
 	NTSTATUS nt_status;
 	int flags = 0;
@@ -125,7 +125,8 @@ NTSTATUS connect_to_service(struct net_context *c,
 					server_ss, c->opt_port,
 					service_name, service_type,
 					c->opt_user_name, c->opt_workgroup,
-					c->opt_password, flags, Undefined);
+					c->opt_password, flags,
+					SMB_SIGNING_DEFAULT);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		d_fprintf(stderr, _("Could not connect to server %s\n"),
 			  server_name);
@@ -187,7 +188,7 @@ NTSTATUS connect_to_service(struct net_context *c,
 
 NTSTATUS connect_to_ipc(struct net_context *c,
 			struct cli_state **cli_ctx,
-			struct sockaddr_storage *server_ss,
+			const struct sockaddr_storage *server_ss,
 			const char *server_name)
 {
 	return connect_to_service(c, cli_ctx, server_ss, server_name, "IPC$",
@@ -200,7 +201,7 @@ NTSTATUS connect_to_ipc(struct net_context *c,
 
 NTSTATUS connect_to_ipc_anonymous(struct net_context *c,
 				struct cli_state **cli_ctx,
-				struct sockaddr_storage *server_ss,
+				const struct sockaddr_storage *server_ss,
 				const char *server_name)
 {
 	NTSTATUS nt_status;
@@ -209,7 +210,7 @@ NTSTATUS connect_to_ipc_anonymous(struct net_context *c,
 					server_name, server_ss, c->opt_port,
 					"IPC$", "IPC",
 					"", "",
-					"", 0, Undefined);
+					"", 0, SMB_SIGNING_DEFAULT);
 
 	if (NT_STATUS_IS_OK(nt_status)) {
 		return nt_status;
@@ -217,80 +218,6 @@ NTSTATUS connect_to_ipc_anonymous(struct net_context *c,
 		DEBUG(1,("Cannot connect to server (anonymously).  Error was %s\n", nt_errstr(nt_status)));
 		return nt_status;
 	}
-}
-
-/****************************************************************************
- Return malloced user@realm for krb5 login.
-****************************************************************************/
-
-static char *get_user_and_realm(const char *username)
-{
-	char *user_and_realm = NULL;
-
-	if (!username) {
-		return NULL;
-	}
-	if (strchr_m(username, '@')) {
-		user_and_realm = SMB_STRDUP(username);
-	} else {
-		if (asprintf(&user_and_realm, "%s@%s", username, lp_realm()) == -1) {
-			user_and_realm = NULL;
-		}
-	}
-	return user_and_realm;
-}
-
-/****************************************************************************
- Connect to \\server\ipc$ using KRB5.
-****************************************************************************/
-
-NTSTATUS connect_to_ipc_krb5(struct net_context *c,
-			struct cli_state **cli_ctx,
-			struct sockaddr_storage *server_ss,
-			const char *server_name)
-{
-	NTSTATUS nt_status;
-	char *user_and_realm = NULL;
-
-	/* FIXME: Should get existing kerberos ticket if possible. */
-	c->opt_password = net_prompt_pass(c, c->opt_user_name);
-	if (!c->opt_password) {
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	user_and_realm = get_user_and_realm(c->opt_user_name);
-	if (!user_and_realm) {
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	nt_status = cli_full_connection(cli_ctx, NULL, server_name,
-					server_ss, c->opt_port,
-					"IPC$", "IPC",
-					user_and_realm, c->opt_workgroup,
-					c->opt_password,
-					CLI_FULL_CONNECTION_USE_KERBEROS,
-					Undefined);
-
-	SAFE_FREE(user_and_realm);
-
-	if (!NT_STATUS_IS_OK(nt_status)) {
-		DEBUG(1,("Cannot connect to server using kerberos.  Error was %s\n", nt_errstr(nt_status)));
-		return nt_status;
-	}
-
-        if (c->smb_encrypt) {
-		nt_status = cli_cm_force_encryption(*cli_ctx,
-					user_and_realm,
-					c->opt_password,
-					c->opt_workgroup,
-                                        "IPC$");
-		if (!NT_STATUS_IS_OK(nt_status)) {
-			cli_shutdown(*cli_ctx);
-			*cli_ctx = NULL;
-		}
-	}
-
-	return nt_status;
 }
 
 /**
@@ -360,7 +287,7 @@ int net_use_krb_machine_account(struct net_context *c)
 
 	c->opt_password = secrets_fetch_machine_password(
 				c->opt_target_workgroup, NULL, NULL);
-	if (asprintf(&user_name, "%s$@%s", global_myname(), lp_realm()) == -1) {
+	if (asprintf(&user_name, "%s$@%s", lp_netbios_name(), lp_realm()) == -1) {
 		return -1;
 	}
 	c->opt_user_name = user_name;
@@ -382,7 +309,7 @@ int net_use_machine_account(struct net_context *c)
 
 	c->opt_password = secrets_fetch_machine_password(
 				c->opt_target_workgroup, NULL, NULL);
-	if (asprintf(&user_name, "%s$", global_myname()) == -1) {
+	if (asprintf(&user_name, "%s$", lp_netbios_name()) == -1) {
 		return -1;
 	}
 	c->opt_user_name = user_name;
@@ -499,7 +426,7 @@ NTSTATUS net_make_ipc_connection(struct net_context *c, unsigned flags,
 
 NTSTATUS net_make_ipc_connection_ex(struct net_context *c ,const char *domain,
 				    const char *server,
-				    struct sockaddr_storage *pss,
+				    const struct sockaddr_storage *pss,
 				    unsigned flags, struct cli_state **pcli)
 {
 	char *server_name = NULL;
@@ -531,7 +458,7 @@ NTSTATUS net_make_ipc_connection_ex(struct net_context *c ,const char *domain,
 	/* store the server in the affinity cache if it was a PDC */
 
 	if ( (flags & NET_FLAGS_PDC) && NT_STATUS_IS_OK(nt_status) )
-		saf_store( cli->server_domain, cli->desthost );
+		saf_store(cli->server_domain, server_name);
 
 	SAFE_FREE(server_name);
 	if (!NT_STATUS_IS_OK(nt_status)) {
@@ -586,7 +513,7 @@ int net_run_function(struct net_context *c, int argc, const char **argv,
 
 	if (argc != 0) {
 		for (i=0; table[i].funcname != NULL; i++) {
-			if (StrCaseCmp(argv[0], table[i].funcname) == 0)
+			if (strcasecmp_m(argv[0], table[i].funcname) == 0)
 				return table[i].fn(c, argc-1, argv+1);
 		}
 	}

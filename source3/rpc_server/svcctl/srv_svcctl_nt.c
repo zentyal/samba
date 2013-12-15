@@ -23,6 +23,7 @@
  */
 
 #include "includes.h"
+#include "system/passwd.h" /* uid_wrapper */
 #include "ntdomain.h"
 #include "../librpc/gen_ndr/srv_svcctl.h"
 #include "../libcli/security/security.h"
@@ -71,7 +72,7 @@ bool init_service_op_table( void )
 	int num_services = SVCCTL_NUM_INTERNAL_SERVICES + str_list_length( service_list );
 	int i;
 
-	if ( !(svcctl_ops = TALLOC_ARRAY( NULL, struct service_control_op, num_services+1)) ) {
+	if ( !(svcctl_ops = talloc_array( NULL, struct service_control_op, num_services+1)) ) {
 		DEBUG(0,("init_service_op_table: talloc() failed!\n"));
 		return False;
 	}
@@ -209,7 +210,7 @@ static WERROR create_open_service_handle(struct pipes_struct *p,
 	WERROR result = WERR_OK;
 	struct service_control_op *s_op;
 
-	if ( !(info = TALLOC_ZERO_P( NULL, SERVICE_INFO )) )
+	if ( !(info = talloc_zero( NULL, SERVICE_INFO )) )
 		return WERR_NOMEM;
 
 	/* the Service Manager has a NULL name */
@@ -409,7 +410,7 @@ WERROR _svcctl_QueryServiceStatus(struct pipes_struct *p,
 
 static int enumerate_status(TALLOC_CTX *ctx,
 			    struct messaging_context *msg_ctx,
-			    struct auth_serversupplied_info *session_info,
+			    struct auth_session_info *session_info,
 			    struct ENUM_SERVICE_STATUSW **status)
 {
 	int num_services = 0;
@@ -421,7 +422,7 @@ static int enumerate_status(TALLOC_CTX *ctx,
 	while ( svcctl_ops[num_services].name )
 		num_services++;
 
-	if ( !(st = TALLOC_ARRAY( ctx, struct ENUM_SERVICE_STATUSW, num_services )) ) {
+	if ( !(st = talloc_array( ctx, struct ENUM_SERVICE_STATUSW, num_services )) ) {
 		DEBUG(0,("enumerate_status: talloc() failed!\n"));
 		return -1;
 	}
@@ -636,7 +637,7 @@ WERROR _svcctl_QueryServiceStatusEx(struct pipes_struct *p,
 
 			/* Get the status of the service.. */
 			info->ops->service_status( info->name, &svc_stat_proc.status );
-			svc_stat_proc.process_id     = sys_getpid();
+			svc_stat_proc.process_id     = getpid();
 			svc_stat_proc.service_flags  = 0x0;
 
 			ndr_err = ndr_push_struct_blob(&blob, p->mem_ctx, &svc_stat_proc,
@@ -670,7 +671,7 @@ WERROR _svcctl_QueryServiceStatusEx(struct pipes_struct *p,
 
 static WERROR fill_svc_config(TALLOC_CTX *mem_ctx,
 			      struct messaging_context *msg_ctx,
-			      struct auth_serversupplied_info *session_info,
+			      struct auth_session_info *session_info,
 			      const char *name,
 			      struct QUERY_SERVICE_CONFIG *config)
 {
@@ -716,7 +717,7 @@ static WERROR fill_svc_config(TALLOC_CTX *mem_ctx,
 
 	if ( strequal( name, "NETLOGON" ) && ( lp_servicenumber(name) == -1 ) )
 		config->start_type = SVCCTL_DISABLED;
-	else if ( strequal( name, "WINS" ) && ( !lp_wins_support() ))
+	else if ( strequal( name, "WINS" ) && ( !lp_we_are_a_wins_server() ))
 		config->start_type = SVCCTL_DISABLED;
 	else
 		config->start_type = SVCCTL_DEMAND_START;
@@ -1004,195 +1005,195 @@ WERROR _svcctl_SetServiceObjectSecurity(struct pipes_struct *p,
 WERROR _svcctl_DeleteService(struct pipes_struct *p,
 			     struct svcctl_DeleteService *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
 WERROR _svcctl_SetServiceStatus(struct pipes_struct *p,
 				struct svcctl_SetServiceStatus *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
 WERROR _svcctl_NotifyBootConfigStatus(struct pipes_struct *p,
 				      struct svcctl_NotifyBootConfigStatus *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
 WERROR _svcctl_SCSetServiceBitsW(struct pipes_struct *p,
 				 struct svcctl_SCSetServiceBitsW *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
 WERROR _svcctl_ChangeServiceConfigW(struct pipes_struct *p,
 				    struct svcctl_ChangeServiceConfigW *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
 WERROR _svcctl_CreateServiceW(struct pipes_struct *p,
 			      struct svcctl_CreateServiceW *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
 WERROR _svcctl_QueryServiceLockStatusW(struct pipes_struct *p,
 				       struct svcctl_QueryServiceLockStatusW *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
 WERROR _svcctl_GetServiceKeyNameW(struct pipes_struct *p,
 				  struct svcctl_GetServiceKeyNameW *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
 WERROR _svcctl_SCSetServiceBitsA(struct pipes_struct *p,
 				 struct svcctl_SCSetServiceBitsA *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
 WERROR _svcctl_ChangeServiceConfigA(struct pipes_struct *p,
 				    struct svcctl_ChangeServiceConfigA *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
 WERROR _svcctl_CreateServiceA(struct pipes_struct *p,
 			      struct svcctl_CreateServiceA *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
 WERROR _svcctl_EnumDependentServicesA(struct pipes_struct *p,
 				      struct svcctl_EnumDependentServicesA *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
 WERROR _svcctl_EnumServicesStatusA(struct pipes_struct *p,
 				   struct svcctl_EnumServicesStatusA *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
 WERROR _svcctl_OpenSCManagerA(struct pipes_struct *p,
 			      struct svcctl_OpenSCManagerA *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
 WERROR _svcctl_OpenServiceA(struct pipes_struct *p,
 			    struct svcctl_OpenServiceA *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
 WERROR _svcctl_QueryServiceConfigA(struct pipes_struct *p,
 				   struct svcctl_QueryServiceConfigA *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
 WERROR _svcctl_QueryServiceLockStatusA(struct pipes_struct *p,
 				       struct svcctl_QueryServiceLockStatusA *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
 WERROR _svcctl_StartServiceA(struct pipes_struct *p,
 			     struct svcctl_StartServiceA *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
 WERROR _svcctl_GetServiceDisplayNameA(struct pipes_struct *p,
 				      struct svcctl_GetServiceDisplayNameA *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
 WERROR _svcctl_GetServiceKeyNameA(struct pipes_struct *p,
 				  struct svcctl_GetServiceKeyNameA *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
 WERROR _svcctl_GetCurrentGroupeStateW(struct pipes_struct *p,
 				      struct svcctl_GetCurrentGroupeStateW *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
 WERROR _svcctl_EnumServiceGroupW(struct pipes_struct *p,
 				 struct svcctl_EnumServiceGroupW *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
 WERROR _svcctl_ChangeServiceConfig2A(struct pipes_struct *p,
 				     struct svcctl_ChangeServiceConfig2A *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
 WERROR _svcctl_ChangeServiceConfig2W(struct pipes_struct *p,
 				     struct svcctl_ChangeServiceConfig2W *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
 WERROR _svcctl_QueryServiceConfig2A(struct pipes_struct *p,
 				    struct svcctl_QueryServiceConfig2A *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
 WERROR _EnumServicesStatusExA(struct pipes_struct *p,
 			      struct EnumServicesStatusExA *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
 WERROR _EnumServicesStatusExW(struct pipes_struct *p,
 			      struct EnumServicesStatusExW *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }
 
 WERROR _svcctl_SCSendTSMessage(struct pipes_struct *p,
 			       struct svcctl_SCSendTSMessage *r)
 {
-	p->rng_fault_state = True;
+	p->fault_state = DCERPC_FAULT_OP_RNG_ERROR;
 	return WERR_NOT_SUPPORTED;
 }

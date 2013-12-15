@@ -120,8 +120,7 @@ bool initialize_nmbd_proxy_logon(void)
 	}
 
 	/* we create a connected udp socket */
-	status = cldap_socket_init(ctx, nmbd_event_context(), NULL,
-				   server_addr, &ctx->cldap_sock);
+	status = cldap_socket_init(ctx, NULL, server_addr, &ctx->cldap_sock);
 	TALLOC_FREE(server_addr);
 	if (!NT_STATUS_IS_OK(status)) {
 		TALLOC_FREE(ctx);
@@ -157,7 +156,7 @@ static void nmbd_proxy_logon_done(struct tevent_req *subreq);
 static void nmbd_proxy_logon(struct nmbd_proxy_logon_context *ctx,
 			     struct in_addr local_ip,
 			     struct packet_struct *p,
-			     uint8_t *buf,
+			     const uint8_t *buf,
 			     uint32_t len)
 {
 	struct nmbd_proxy_logon_state *state;
@@ -173,7 +172,7 @@ static void nmbd_proxy_logon(struct nmbd_proxy_logon_context *ctx,
 	fstring source_name;
 	struct dgram_packet *dgram = &p->packet.dgram;
 
-	state = TALLOC_ZERO_P(ctx, struct nmbd_proxy_logon_state);
+	state = talloc_zero(ctx, struct nmbd_proxy_logon_state);
 	if (!state) {
 		DEBUG(0,("failed to allocate nmbd_proxy_logon_state\n"));
 		return;
@@ -249,7 +248,7 @@ static void nmbd_proxy_logon(struct nmbd_proxy_logon_context *ctx,
 	state->io.in.version		= nt_version;
 	state->io.in.map_response	= false;
 
-	subreq = cldap_netlogon_send(state,
+	subreq = cldap_netlogon_send(state, nmbd_event_context(),
 				     ctx->cldap_sock,
 				     &state->io);
 	if (!subreq) {
@@ -291,7 +290,7 @@ static void nmbd_proxy_logon_done(struct tevent_req *subreq)
 
 	send_mailslot(true, state->remote_mailslot,
 		      (char *)response.data, response.length,
-		      global_myname(), 0x0,
+		      lp_netbios_name(), 0x0,
 		      state->remote_name,
 		      state->remote_name_type,
 		      state->p->ip,
@@ -328,9 +327,9 @@ void process_logon_packet(struct packet_struct *p, const char *buf,int len,
 			inet_ntoa(p->ip) ));
 		return;
 	}
-	ip = ((struct sockaddr_in *)pss)->sin_addr;
+	ip = ((const struct sockaddr_in *)pss)->sin_addr;
 
-	if (!lp_domain_logons()) {
+	if (!IS_DC) {
 		DEBUG(5,("process_logon_packet: Logon packet received from IP %s and domain \
 logons are not enabled.\n", inet_ntoa(p->ip) ));
 		return;
@@ -338,7 +337,7 @@ logons are not enabled.\n", inet_ntoa(p->ip) ));
 
 	pull_ascii_nstring(source_name, sizeof(source_name), dgram->source_name.name);
 
-	pdc_name = talloc_asprintf(talloc_tos(), "\\\\%s", global_myname());
+	pdc_name = talloc_asprintf(talloc_tos(), "\\\\%s", lp_netbios_name());
 	if (!pdc_name) {
 		return;
 	}
@@ -391,7 +390,7 @@ logons are not enabled.\n", inet_ntoa(p->ip) ));
 		send_mailslot(True, request.req.logon0.mailslot_name,
 				(char *)blob_out.data,
 				blob_out.length,
-				global_myname(), 0x0,
+				lp_netbios_name(), 0x0,
 				source_name,
 				dgram->source_name.name_type,
 				p->ip, ip, p->port);
@@ -411,7 +410,7 @@ logons are not enabled.\n", inet_ntoa(p->ip) ));
 			"reporting %s domain %s 0x%x ntversion=%x lm_nt token=%x lm_20 token=%x\n",
 			request.req.pdc.computer_name,
 			inet_ntoa(p->ip),
-			global_myname(),
+			lp_netbios_name(),
 			lp_workgroup(),
 			NETLOGON_RESPONSE_FROM_PDC,
 			request.req.pdc.nt_version,
@@ -419,9 +418,9 @@ logons are not enabled.\n", inet_ntoa(p->ip) ));
 			request.req.pdc.lm20_token));
 
 		get_pdc.command			= NETLOGON_RESPONSE_FROM_PDC;
-		get_pdc.pdc_name		= global_myname();
+		get_pdc.pdc_name		= lp_netbios_name();
 		get_pdc._pad			= data_blob_null;
-		get_pdc.unicode_pdc_name	= global_myname();
+		get_pdc.unicode_pdc_name	= lp_netbios_name();
 		get_pdc.domain_name		= lp_workgroup();
 		get_pdc.nt_version		= NETLOGON_NT_VERSION_1;
 		get_pdc.lmnt_token		= 0xffff;
@@ -443,7 +442,7 @@ logons are not enabled.\n", inet_ntoa(p->ip) ));
 		send_mailslot(True, request.req.pdc.mailslot_name,
 			(char *)blob_out.data,
 			blob_out.length,
-			global_myname(), 0x0,
+			lp_netbios_name(), 0x0,
 			source_name,
 			dgram->source_name.name_type,
 			p->ip, ip, p->port);
@@ -456,10 +455,11 @@ logons are not enabled.\n", inet_ntoa(p->ip) ));
 		bool user_unknown = false;
 
 		struct netlogon_samlogon_response samlogon;
+		struct NETLOGON_SAM_LOGON_RESPONSE_NT40 nt4;
 
 		if (global_nmbd_proxy_logon) {
 			nmbd_proxy_logon(global_nmbd_proxy_logon,
-					 ip, p, (uint8_t *)buf, len);
+					 ip, p, (const uint8_t *)buf, len);
 			return;
 		}
 
@@ -483,99 +483,21 @@ logons are not enabled.\n", inet_ntoa(p->ip) ));
 			user_unknown = true;
 		}
 
-		/* we want the simple version unless we are an ADS PDC..which means  */
-		/* never, at least for now */
-
-		if ((request.req.logon.nt_version < (NETLOGON_NT_VERSION_1 | NETLOGON_NT_VERSION_5 | NETLOGON_NT_VERSION_5EX_WITH_IP)) ||
-		    (SEC_ADS != lp_security()) || (ROLE_DOMAIN_PDC != lp_server_role())) {
-
-			struct NETLOGON_SAM_LOGON_RESPONSE_NT40 nt4;
-
-			nt4.command		= user_unknown ? LOGON_SAM_LOGON_USER_UNKNOWN :
-								 LOGON_SAM_LOGON_RESPONSE;
-			nt4.pdc_name		= pdc_name;
-			nt4.user_name		= request.req.logon.user_name;
-			nt4.domain_name		= lp_workgroup();
-			nt4.nt_version		= NETLOGON_NT_VERSION_1;
-			nt4.lmnt_token		= 0xffff;
-			nt4.lm20_token		= 0xffff;
-
-			samlogon.ntver = NETLOGON_NT_VERSION_1;
-			samlogon.data.nt4 = nt4;
-
-			if (DEBUGLEVEL >= 10) {
-				NDR_PRINT_DEBUG(NETLOGON_SAM_LOGON_RESPONSE_NT40, &nt4);
-			}
+		nt4.command		= user_unknown ? LOGON_SAM_LOGON_USER_UNKNOWN :
+			LOGON_SAM_LOGON_RESPONSE;
+		nt4.pdc_name		= pdc_name;
+		nt4.user_name		= request.req.logon.user_name;
+		nt4.domain_name		= lp_workgroup();
+		nt4.nt_version		= NETLOGON_NT_VERSION_1;
+		nt4.lmnt_token		= 0xffff;
+		nt4.lm20_token		= 0xffff;
+		
+		samlogon.ntver = NETLOGON_NT_VERSION_1;
+		samlogon.data.nt4 = nt4;
+		
+		if (DEBUGLEVEL >= 10) {
+			NDR_PRINT_DEBUG(NETLOGON_SAM_LOGON_RESPONSE_NT40, &nt4);
 		}
-#ifdef HAVE_ADS
-		else {
-
-			struct NETLOGON_SAM_LOGON_RESPONSE_EX nt5_ex;
-			struct GUID domain_guid;
-			struct nbt_sockaddr saddr;
-			char *domain;
-			const char *hostname;
-
-			saddr.sockaddr_family	= 2; /* AF_INET */
-			saddr.pdc_ip		= inet_ntoa(ip);
-			saddr.remaining		= data_blob_talloc_zero(talloc_tos(), 8); /* ??? */
-
-			domain = get_mydnsdomname(talloc_tos());
-			if (!domain) {
-				DEBUG(2,("get_mydnsdomname failed.\n"));
-				return;
-			}
-
-			hostname = get_mydnsfullname();
-			if (!hostname) {
-				DEBUG(2,("get_mydnsfullname failed.\n"));
-				return;
-			}
-
-			if (!secrets_fetch_domain_guid(domain, &domain_guid)) {
-				DEBUG(2,("Could not fetch DomainGUID for %s\n", domain));
-				return;
-			}
-
-			nt5_ex.command		= user_unknown ? LOGON_SAM_LOGON_USER_UNKNOWN_EX :
-								 LOGON_SAM_LOGON_RESPONSE_EX;
-			nt5_ex.sbz		= 0;
-			nt5_ex.server_type	= NBT_SERVER_PDC |
-						  NBT_SERVER_GC |
-						  NBT_SERVER_LDAP |
-						  NBT_SERVER_DS |
-						  NBT_SERVER_KDC |
-						  NBT_SERVER_TIMESERV |
-						  NBT_SERVER_CLOSEST |
-						  NBT_SERVER_WRITABLE;
-			nt5_ex.domain_uuid	= domain_guid;
-			nt5_ex.forest		= domain;
-			nt5_ex.dns_domain	= domain;
-			nt5_ex.pdc_dns_name	= hostname;
-			nt5_ex.domain_name	= lp_workgroup();
-			nt5_ex.pdc_name		= global_myname();
-			nt5_ex.user_name	= request.req.logon.user_name;
-			nt5_ex.server_site	= "Default-First-Site-Name";
-			nt5_ex.client_site	= "Default-First-Site-Name";
-			nt5_ex.sockaddr_size	= 0x10; /* the w32 winsock addr size */
-			nt5_ex.sockaddr		= saddr;
-			nt5_ex.next_closest_site= NULL;
-			nt5_ex.nt_version	= NETLOGON_NT_VERSION_1 |
-						  NETLOGON_NT_VERSION_5EX |
-						  NETLOGON_NT_VERSION_5EX_WITH_IP;
-			nt5_ex.lmnt_token	= 0xffff;
-			nt5_ex.lm20_token	= 0xffff;
-
-			samlogon.ntver = NETLOGON_NT_VERSION_1 |
-					 NETLOGON_NT_VERSION_5EX |
-					 NETLOGON_NT_VERSION_5EX_WITH_IP;
-			samlogon.data.nt5_ex = nt5_ex;
-
-			if (DEBUGLEVEL >= 10) {
-				NDR_PRINT_DEBUG(NETLOGON_SAM_LOGON_RESPONSE_EX, &nt5_ex);
-			}
-		}
-#endif /* HAVE_ADS */
 
 		response.response_type = NETLOGON_SAMLOGON;
 		response.data.samlogon = samlogon;
@@ -583,6 +505,7 @@ logons are not enabled.\n", inet_ntoa(p->ip) ));
 		status = push_nbt_netlogon_response(&blob_out, talloc_tos(), &response);
 		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(0,("process_logon_packet: failed to push packet\n"));
+			SAFE_FREE(source_addr);
 			return;
 		}
 
@@ -604,8 +527,7 @@ logons are not enabled.\n", inet_ntoa(p->ip) ));
 				  source_name, source_addr,
 				  lp_init_logon_delay()));
 
-			when = timeval_current_ofs(0,
-				lp_init_logon_delay() * 1000);
+			when = timeval_current_ofs_msec(lp_init_logon_delay());
 			p->locked = true;
 			event_add_timed(nmbd_event_context(),
 					NULL,
@@ -622,7 +544,7 @@ logons are not enabled.\n", inet_ntoa(p->ip) ));
 			send_mailslot(true, request.req.logon.mailslot_name,
 				(char *)blob_out.data,
 				blob_out.length,
-				global_myname(), 0x0,
+				lp_netbios_name(), 0x0,
 				source_name,
 				dgram->source_name.name_type,
 				p->ip, ip, p->port);

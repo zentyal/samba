@@ -1,20 +1,143 @@
 # Thai translation of samba.
-# Copyright (C) 2006-2011 Software in the Public Interest, Inc.
-# This file is distributed under the same license as the exim4 package.
-# Theppitak Karoonboonyanan <thep@linux.thai.net>, 2006-2011.
+# Copyright (C) 2006-2013 Software in the Public Interest, Inc.
+# This file is distributed under the same license as the samba package.
+# Theppitak Karoonboonyanan <thep@linux.thai.net>, 2006-2013.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2013-05-13 11:53-0700\n"
-"PO-Revision-Date: 2011-05-12 18:06+0700\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2013-10-22 20:32+0200\n"
+"PO-Revision-Date: 2013-11-02 20:15+0700\n"
 "Last-Translator:  Theppitak Karoonboonyanan <thep@linux.thai.net>\n"
-"Language-Team: Thai <thai-l10n@googlegroup.com>\n"
+"Language-Team: Thai <thai-l10n@googlegroups.com>\n"
 "Language: th\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid "Upgrade from Samba 3?"
+msgstr "จะปรับรุ่นขึ้นจาก Samba 3 หรือไม่?"
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid ""
+"It is possible to migrate the existing configuration files from Samba 3 to "
+"Samba 4. This is likely to fail for complex setups, but should provide a "
+"good starting point for most existing installations."
+msgstr ""
+"คุณสามารถปรับย้ายแฟ้มค่าตั้งจาก Samba 3 มาเป็น Samba 4 ได้ "
+"การปรับนี้อาจใช้การไม่ได้สำหรับค่าตั้งที่ซับซ้อน แต่อาจเป็นจุดเริ่มต้นที่ดีสำหรับการติดตั้งเดิมส่วนใหญ่"
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid "Server role"
+msgstr "บทบาทของเซิร์ฟเวอร์"
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Domain controllers manage NT4-style or Active Directory domains and provide "
+"services such as identity management and domain logons. Each domain needs to "
+"have a at least one domain controller."
+msgstr ""
+"ตัวควบคุมโดเมนจะจัดการโดเมนแบบ NT4 หรือ Active Directory และให้บริการต่างๆ "
+"เช่นการจัดการชื่อเอกลักษณ์และการเข้าระบบในโดเมน "
+"แต่ละโดเมนจะต้องมีตัวควบคุมโดเมนอย่างน้อยหนึ่งตัวเสมอ"
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Member servers can be part of a NT4-style or Active Directory domain but do "
+"not provide any domain services. Workstations and file or print servers are "
+"usually regular domain members."
+msgstr ""
+"เซิร์ฟเวอร์สมาชิกสามารถเข้าเป็นส่วนหนึ่งของโดเมนแบบ NT4 หรือ Active Directory ได้ "
+"แต่จะไม่ให้บริการใดๆ เกี่ยวกับโดเมนเลย "
+"เครื่องสถานีงานและเซิร์ฟเวอร์บริการแฟ้มหรือบริการพิมพ์มักจะเป็นสมาชิกแบบปกติของโดเมน"
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"A standalone server can not be used in a domain and only supports file "
+"sharing and Windows for Workgroups-style logins."
+msgstr ""
+"เซิร์ฟเวอร์แบบ standalone ไม่สามารถใช้งานภายในโดเมนได้ "
+"และจะรองรับการแบ่งปันแฟ้มและการเข้าระบบในแบบ Windows for Workgroups เท่านั้น"
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"If no server role is specified, the Samba server will not be provisioned, so "
+"this can be done manually by the user."
+msgstr ""
+"ถ้าไม่มีการระบุบทบาทของเซิร์ฟเวอร์ ก็จะไม่มีการจัดเตรียมเซิร์ฟเวอร์ Samba "
+"เพื่อที่ผู้ใช้จะสามารถจัดเตรียมเองได้"
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Realm name:"
+msgstr "ชื่อ realm:"
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid ""
+"Please specify the Kerberos realm for the domain that this domain controller "
+"controls."
+msgstr "กรุณาระบุ realm ของ Kerberos ของโดเมนที่ตัวควบคุมโดเมนนี้ควบคุมอยู่"
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Usually this is the a capitalized version of your DNS hostname."
+msgstr "โดยปกติแล้วก็จะเป็นชื่อโฮสต์ของคุณใน DNS โดยสะกดด้วยตัวพิมพ์ใหญ่ทั้งหมด"
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "New password for the Samba \"administrator\" user:"
+msgstr "ตั้งรหัสผ่านใหม่สำหรับผู้ใช้ \"administrator\" ของ Samba:"
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "If this field is left blank, a random password will be generated."
+msgstr "ถ้าปล่อยช่องนี้ว่างไว้ ก็จะสร้างรหัสผ่านสุ่มให้แทน"
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "A password can be set later by running, as root:"
+msgstr "คุณสามารถเปลี่ยนรหัสผ่านภายหลังได้โดยใช้คำสั่งต่อไปนี้ในฐานะ root:"
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:5001
+msgid "Repeat password for the Samba \"administrator\" user:"
+msgstr "ป้อนรหัสผ่านสำหรับผู้ใช้ \"administrator\" ของ Samba ซ้ำอีกครั้ง:"
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "Password input error"
+msgstr "การป้อนรหัสผ่านผิดพลาด"
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr "รหัสผ่านที่คุณป้อนทั้งสองครั้งไม่ตรงกัน กรุณาลองใหม่"
 
 #. Type: title
 #. Description
@@ -102,34 +225,136 @@ msgstr ""
 "กำหนดเวิร์กกรุ๊ปปริยายที่จะใช้เมื่อท่องดูด้วยโปรแกรมต่างๆ และกำหนดชื่อโดเมนที่จะใช้ในกรณีที่ตั้งค่า "
 "\"security=domain\" ด้วย"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "ใช้การเข้ารหัสลับกับรหัสผ่านหรือไม่?"
+#~ msgid " $ samba-tool user setpassword administrator"
+#~ msgstr " $ samba-tool user setpassword administrator"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"เครื่องลูกข่ายวินโดวส์รุ่นใหม่ๆ ทั้งหมด จะติดต่อกับเซิร์ฟเวอร์ SMB/CIFS โดยใช้รหัสผ่านที่เข้ารหัสลับ "
-"ถ้าคุณต้องการจะใช้รหัสผ่านแบบข้อความธรรมดา คุณจะต้องเปลี่ยนค่าค่าหนึ่งในเรจิสตรีของวินโดวส์"
+#~ msgid "Use password encryption?"
+#~ msgstr "ใช้การเข้ารหัสลับกับรหัสผ่านหรือไม่?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"ขอแนะนำอย่างยิ่งให้เปิดใช้ตัวเลือกนี้ "
-"เนื่องจากไม่มีการดูแลการรองรับรหัสผ่านแบบข้อความธรรมดาในผลิตภัณฑ์ต่างๆ "
-"ของไมโครซอฟท์อีกต่อไปแล้ว และถ้าคุณเปิดใช้ กรุณาตรวจสอบให้แน่ใจว่าคุณมีแฟ้ม /etc/samba/"
-"smbpasswd ที่ใช้การได้ และคุณได้ตั้งรหัสผ่านในนั้นสำหรับผู้ใช้แต่ละคน โดยใช้คำสั่ง smbpasswd"
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "เครื่องลูกข่ายวินโดวส์รุ่นใหม่ๆ ทั้งหมด จะติดต่อกับเซิร์ฟเวอร์ SMB/CIFS "
+#~ "โดยใช้รหัสผ่านที่เข้ารหัสลับ ถ้าคุณต้องการจะใช้รหัสผ่านแบบข้อความธรรมดา "
+#~ "คุณจะต้องเปลี่ยนค่าค่าหนึ่งในเรจิสตรีของวินโดวส์"
 
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "ขอแนะนำอย่างยิ่งให้เปิดใช้ตัวเลือกนี้ "
+#~ "เนื่องจากไม่มีการดูแลการรองรับรหัสผ่านแบบข้อความธรรมดาในผลิตภัณฑ์ต่างๆ "
+#~ "ของไมโครซอฟท์อีกต่อไปแล้ว และถ้าคุณเปิดใช้ กรุณาตรวจสอบให้แน่ใจว่าคุณมีแฟ้ม /etc/samba/"
+#~ "smbpasswd ที่ใช้การได้ และคุณได้ตั้งรหัสผ่านในนั้นสำหรับผู้ใช้แต่ละคน โดยใช้คำสั่ง smbpasswd"
+
+#~ msgid "Samba server"
+#~ msgstr "เซิร์ฟเวอร์ samba"
+
+#~ msgid "daemons"
+#~ msgstr "ดีมอน"
+
+#~ msgid "inetd"
+#~ msgstr "inetd"
+
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "คุณต้องการเรียกใช้ Samba แบบไหน?"
+
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "ดีมอน smbd ของ Samba สามารถทำงานแบบดีมอนธรรมดา หรือเรียกจาก inetd ก็ได้ "
+#~ "ทางที่ขอแนะนำคือเรียกแบบดีมอน"
+
+#~ msgid "Set up Samba 4 as a PDC?"
+#~ msgstr "จะตั้งค่า Samba 4 ให้เป็น PDC หรือไม่?"
+
+#~ msgid ""
+#~ "Even when using this option, you will need to set up DNS such that it "
+#~ "serves the data from the zone file in that directory before you can use "
+#~ "the Active Directory domain."
+#~ msgstr ""
+#~ "และถึงแม้คุณจะเลือกตัวเลือกนี้ คุณก็ยังต้องตั้งค่า DNS ให้ใช้ข้อมูลจากแฟ้มโซนในไดเรกทอรีนั้น "
+#~ "เพื่อให้ใช้โดเมนของ Active Directory ได้"
+
+#~ msgid ""
+#~ "Please specify the Kerberos realm this server will be in. In many cases,  "
+#~ "this will be the same as the DNS domain name."
+#~ msgstr ""
+#~ "กรุณาระบุ realm ของ Kerberos ที่เซิร์ฟเวอร์นี้เป็นสมาชิกอยู่ โดยทั่วไป "
+#~ "ค่านี้มักเป็นค่าเดียวกับชื่อโดเมนของ DNS"
+
+#~ msgid ""
+#~ "Please specify the domain you want this server to appear to be in when "
+#~ "queried by clients."
+#~ msgstr "กรุณาระบุโดเมนที่คุณต้องการให้เซิร์ฟเวอร์นี้ประกาศเป็นสมาชิกเมื่อถูกถามโดยเครื่องลูกข่าย"
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "จะสร้างฐานข้อมูลรหัสผ่าน samba /var/lib/samba/passdb.tdb หรือไม่?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "เพื่อให้ทำงานร่วมกับค่าปกติในวินโดวส์รุ่นส่วนใหญ่ได้ จึงต้องตั้งค่า Samba "
+#~ "ให้ใช้รหัสผ่านแบบเข้ารหัสลับ ซึ่งจำเป็นต้องเก็บรหัสผ่านของผู้ใช้ไว้ในแฟ้มแยกต่างหากจาก /etc/"
+#~ "passwd  แฟ้มดังกล่าวสามารถสร้างโดยอัตโนมัติได้ แต่รหัสผ่านจะต้องเพิ่มเองโดยใช้คำสั่ง "
+#~ "smbpasswd และต้องปรับข้อมูลอยู่เสมอในอนาคต"
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "หากจะไม่สร้างแฟ้มดังกล่าว คุณจะต้องตั้งค่า Samba (และอาจจะต้องตั้งค่าเครื่องลูกต่างๆ ด้วย) "
+#~ "ให้ใช้รหัสผ่านแบบข้อความธรรมดา"
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
+#~ "package for more details."
+#~ msgstr ""
+#~ "ดูรายละเอียดเพิ่มเติมได้ที่ /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html "
+#~ "จากแพกเกจ samba-doc "
+
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "ไม่สนับสนุนการเชื่อมลูกโซ่แบ็กเอนด์ของ passdb"
+
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "ตั้งแต่รุ่น 3.0.23 เป็นต้นไป samba ไม่สนับสนุนการเชื่อมลูกโซ่หลายแบ็กเอนด์ในพารามิเตอร์ "
+#~ "\"passdb backend\" แต่ดูเหมือนแฟ้ม smb.conf ของคุณจะมีพารามิเตอร์ passdb backend "
+#~ "เป็นรายชื่อแบ็กเอนด์หลายตัว ซึ่ง samba รุ่นใหม่นี้จะไม่ทำงาน จนกว่าคุณจะแก้ไขค่านี้"
+
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr "ย้าย /etc/samba/smbpasswd ไปเป็น /var/lib/samba/passdb.tdb หรือไม่?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Samba 3.0 มีอินเทอร์เฟซฐานข้อมูล SAM ที่สมบูรณ์กว่า ซึ่งมาแทนแฟ้ม /etc/samba/smbpasswd"
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "กรุณายืนยันว่าคุณต้องการย้ายจากการใช้แฟ้ม smbpasswd ไปใช้ /var/lib/samba/passdb.tdb "
+#~ "โดยอัตโนมัติหรือไม่  อย่าเลือกตัวเลือกนี้ถ้าคุณมีแผนที่จะใช้แบ็กเอนด์ pdb อื่น (เช่น LDAP) แทน"
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "ดูรายละเอียดเพิ่มเติมได้ที่ /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-"
+#~ "Guide/pwencrypt.html จากแพกเกจ samba-doc "

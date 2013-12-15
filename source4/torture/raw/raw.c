@@ -47,7 +47,7 @@ NTSTATUS torture_raw_init(void)
 	torture_suite_add_1smb_test(suite, "mkdir", torture_raw_mkdir);
 	torture_suite_add_suite(suite, torture_raw_oplock(suite));
 	torture_suite_add_1smb_test(suite, "hold-oplock", torture_hold_oplock);
-	torture_suite_add_2smb_test(suite, "notify", torture_raw_notify);
+	torture_suite_add_suite(suite, torture_raw_notify(suite));
 	torture_suite_add_1smb_test(suite, "mux", torture_raw_mux);
 	torture_suite_add_1smb_test(suite, "ioctl", torture_raw_ioctl);
 	torture_suite_add_1smb_test(suite, "chkpath", torture_raw_chkpath);
@@ -55,23 +55,25 @@ NTSTATUS torture_raw_init(void)
 	torture_suite_add_suite(suite, torture_raw_read(suite));
 	torture_suite_add_suite(suite, torture_raw_write(suite));
 	torture_suite_add_suite(suite, torture_raw_lock(suite));
-	torture_suite_add_1smb_test(suite, "context", torture_raw_context);
+	torture_suite_add_suite(suite, torture_raw_context(suite));
+	torture_suite_add_suite(suite, torture_raw_session(suite));
 	torture_suite_add_suite(suite, torture_raw_rename(suite));
 	torture_suite_add_1smb_test(suite, "seek", torture_raw_seek);
 	torture_suite_add_1smb_test(suite, "eas", torture_raw_eas);
 	torture_suite_add_suite(suite, torture_raw_streams(suite));
 	torture_suite_add_suite(suite, torture_raw_acls(suite));
-	torture_suite_add_1smb_test(suite, "composite", torture_raw_composite);
-	torture_suite_add_simple_test(suite, "samba3hide", torture_samba3_hide);
-	torture_suite_add_simple_test(suite, "samba3closeerr", torture_samba3_closeerr);
-	torture_suite_add_simple_test(suite, "samba3rootdirfid",
+	torture_suite_add_suite(suite, torture_raw_composite(suite));
+	torture_suite_add_1smb_test(suite, "samba3hide", torture_samba3_hide);
+	torture_suite_add_1smb_test(suite, "samba3closeerr", torture_samba3_closeerr);
+	torture_suite_add_1smb_test(suite, "samba3rootdirfid",
 				      torture_samba3_rootdirfid);
-	torture_suite_add_simple_test(suite, "samba3checkfsp", torture_samba3_checkfsp);
-	torture_suite_add_simple_test(suite, "samba3oplocklogoff", torture_samba3_oplock_logoff);
+	torture_suite_add_1smb_test(suite, "samba3checkfsp", torture_samba3_checkfsp);
+	torture_suite_add_1smb_test(suite, "samba3oplocklogoff", torture_samba3_oplock_logoff);
+	torture_suite_add_1smb_test(suite, "samba3badnameblob", torture_samba3_check_openX_badname);
 	torture_suite_add_simple_test(suite, "samba3badpath", torture_samba3_badpath);
-	torture_suite_add_simple_test(suite, "samba3caseinsensitive",
+	torture_suite_add_1smb_test(suite, "samba3caseinsensitive",
 				      torture_samba3_caseinsensitive);
-	torture_suite_add_simple_test(suite, "samba3posixtimedlock",
+	torture_suite_add_1smb_test(suite, "samba3posixtimedlock",
 				      torture_samba3_posixtimedlock);
 	torture_suite_add_simple_test(suite, "scan-eamax", torture_max_eas);
 

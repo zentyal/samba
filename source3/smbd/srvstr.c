@@ -24,8 +24,7 @@
 
 /* Make sure we can't write a string past the end of the buffer */
 
-size_t srvstr_push_fn(const char *function, unsigned int line,
-		      const char *base_ptr, uint16 smb_flags2, void *dest,
+size_t srvstr_push_fn(const char *base_ptr, uint16 smb_flags2, void *dest,
 		      const char *src, int dest_len, int flags)
 {
 	if (dest_len < 0) {
@@ -33,7 +32,7 @@ size_t srvstr_push_fn(const char *function, unsigned int line,
 	}
 
 	/* 'normal' push into size-specified buffer */
-	return push_string_base(function, line, base_ptr, smb_flags2, dest, src,
+	return push_string_base(base_ptr, smb_flags2, dest, src,
 				dest_len, flags);
 }
 
@@ -57,7 +56,7 @@ ssize_t message_push_string(uint8 **outbuf, const char *str, int flags)
 	 */
 	grow_size = (strlen(str) + 2) * 4;
 
-	if (!(tmp = TALLOC_REALLOC_ARRAY(NULL, *outbuf, uint8,
+	if (!(tmp = talloc_realloc(NULL, *outbuf, uint8,
 					 buf_size + grow_size))) {
 		DEBUG(0, ("talloc failed\n"));
 		return -1;

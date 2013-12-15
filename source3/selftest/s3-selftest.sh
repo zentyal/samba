@@ -1,8 +1,12 @@
 #!/bin/sh
 
-FILTER_XFAIL="${PYTHON} -u ${SELFTESTDIR}/filter-subunit --expected-failures=${SOURCEDIR}/selftest/knownfail"
+FILTER_XFAIL="${PYTHON} -u ${SELFTESTDIR}/filter-subunit --expected-failures=${SELFTESTDIR}/knownfail --flapping=${SELFTESTDIR}/flapping"
 if [ "x${SUBUNIT_FORMATTER}" = x"" ]; then
 	SUBUNIT_FORMATTER="${PYTHON} -u ${SELFTESTDIR}/format-subunit --prefix=${SELFTESTPREFIX} --immediate"
+fi
+
+if [ x"${FAIL_IMMEDIATELY}" != x"" ]; then
+	FILTER_XFAIL="${FILTER_XFAIL} --fail-immediately"
 fi
 
 cleanup_and_exit() {
@@ -20,9 +24,10 @@ st_test_done() {
 if [ "x${RUN_FROM_BUILD_FARM}" = "xyes" ]; then
 	( rm -f ${SELFTESTPREFIX}/st_done && \
 		${PERL} ${SELFTESTDIR}/selftest.pl \
-			--builddir=. --prefix=${SELFTESTPREFIX} --target=samba3 \
+	                --binary-mapping=smbtorture3:smbtorture3,nmblookup3:nmblookup,nmblookup4:nmblookup4,smbclient3:smbclient,smbclient4:smbclient4,ntlm_auth3:ntlm_auth,smbtorture4:smbtorture \
+			--prefix=${SELFTESTPREFIX} --target=samba3 \
 			--testlist="${PYTHON} ${SOURCEDIR}/selftest/tests.py|" \
-			--exclude=${SOURCEDIR}/selftest/skip \
+			--exclude=${SELFTESTDIR}/skip \
 	                --srcdir="${SOURCEDIR}/.." \
 			--socket-wrapper ${TESTS} \
 	&& touch ${SELFTESTPREFIX}/st_done ) | \
@@ -33,9 +38,10 @@ if [ "x${RUN_FROM_BUILD_FARM}" = "xyes" ]; then
 else
 	( rm -f ${SELFTESTPREFIX}/st_done && \
 		${PERL} ${SELFTESTDIR}/selftest.pl \
-			--builddir=. --prefix=${SELFTESTPREFIX} --target=samba3 \
+	                --binary-mapping=smbtorture3:smbtorture3,nmblookup3:nmblookup,nmblookup4:nmblookup4,smbclient3:smbclient,smbclient4:smbclient4,ntlm_auth3:ntlm_auth,smbtorture4:smbtorture \
+			--prefix=${SELFTESTPREFIX} --target=samba3 \
 			--testlist="${PYTHON} ${SOURCEDIR}/selftest/tests.py|" \
-			--exclude=${SOURCEDIR}/selftest/skip \
+			--exclude=${SELFTESTDIR}/skip \
 	                --srcdir="${SOURCEDIR}/.." \
 			--socket-wrapper ${TESTS} \
 	&& touch ${SELFTESTPREFIX}/st_done ) | \

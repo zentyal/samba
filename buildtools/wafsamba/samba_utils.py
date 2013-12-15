@@ -3,7 +3,7 @@
 
 import Build, os, sys, Options, Utils, Task, re, fnmatch, Logs
 from TaskGen import feature, before
-from Configure import conf
+from Configure import conf, ConfigurationContext
 from Logs import debug
 import shlex
 
@@ -65,7 +65,7 @@ def ADD_LD_LIBRARY_PATH(path):
 
 def needs_private_lib(bld, target):
     '''return True if a target links to a private library'''
-    for lib in getattr(target, "uselib_local", []):
+    for lib in getattr(target, "final_libs", []):
         t = bld.name_to_obj(lib, bld.env)
         if t and getattr(t, 'private_library', False):
             return True
@@ -215,6 +215,8 @@ def TO_LIST(str, delimiter=None):
         return []
     if isinstance(str, list):
         return str
+    if len(str) == 0:
+        return []
     lst = str.split(delimiter)
     # the string may have had quotes in it, now we
     # check if we did have quotes, and use the slower shlex
@@ -233,8 +235,7 @@ def subst_vars_error(string, env):
         if re.match('\$\{\w+\}', v):
             vname = v[2:-1]
             if not vname in env:
-                Logs.error("Failed to find variable %s in %s" % (vname, string))
-                sys.exit(1)
+                raise KeyError("Failed to find variable %s in %s" % (vname, string))
             v = env[vname]
         out.append(v)
     return ''.join(out)
@@ -255,7 +256,7 @@ def ENFORCE_GROUP_ORDERING(bld):
         @feature('*')
         @before('exec_rule', 'apply_core', 'collect')
         def force_previous_groups(self):
-            if getattr(self.bld, 'enforced_group_ordering', False) == True:
+            if getattr(self.bld, 'enforced_group_ordering', False):
                 return
             self.bld.enforced_group_ordering = True
 
@@ -273,7 +274,7 @@ def ENFORCE_GROUP_ORDERING(bld):
                         debug('group: Forcing up to group %s for target %s',
                               group_name(g), self.name or self.target)
                         break
-                if stop != None:
+                if stop is not None:
                     break
             if stop is None:
                 return
@@ -387,9 +388,17 @@ def RUN_COMMAND(cmd,
 # make sure we have md5. some systems don't have it
 try:
     from hashlib import md5
+    try:
+        foo = md5.md5('abcd')
+    except ValueError:
+        raise
 except:
     try:
         import md5
+        try:
+            foo = md5.md5('abcd')
+        except ValueError:
+            raise
     except:
         import Constants
         Constants.SIG_NIL = hash('abcd')
@@ -487,6 +496,13 @@ def CHECK_MAKEFLAGS(bld):
             if Logs.verbose > 2:
                 Logs.zones = ['*']
         elif opt[0].isupper() and opt.find('=') != -1:
+            # this allows us to set waf options on the make command line
+            # for example, if you do "make FOO=blah", then we set the
+            # option 'FOO' in Options.options, to blah. If you look in wafsamba/wscript
+            # you will see that the command line accessible options have their dest=
+            # set to uppercase, to allow for passing of options from make in this way
+            # this is also how "make test TESTS=testpattern" works, and
+            # "make VERBOSE=1" as well as things like "make SYMBOLCHECK=1"
             loc = opt.find('=')
             setattr(Options.options, opt[0:loc], opt[loc+1:])
         elif opt[0] != '-':
@@ -494,15 +510,15 @@ def CHECK_MAKEFLAGS(bld):
                 if v == 'j':
                     jobs_set = True
                 elif v == 'k':
-                    Options.options.keep = True                
+                    Options.options.keep = True
         elif opt == '-j':
             jobs_set = True
         elif opt == '-k':
-            Options.options.keep = True                
+            Options.options.keep = True
     if not jobs_set:
         # default to one job
         Options.options.jobs = 1
-            
+
 Build.BuildContext.CHECK_MAKEFLAGS = CHECK_MAKEFLAGS
 
 option_groups = {}
@@ -618,3 +634,35 @@ def get_tgt_list(bld):
             sys.exit(1)
         tgt_list.append(t)
     return tgt_list
+
+from Constants import WSCRIPT_FILE
+def PROCESS_SEPARATE_RULE(self, rule):
+    ''' cause waf to process additional script based on `rule'.
+        You should have file named wscript_<stage>_rule in the current directory
+        where stage is either 'configure' or 'build'
+    '''
+    ctxclass = self.__class__.__name__
+    stage = ''
+    if ctxclass == 'ConfigurationContext':
+        stage = 'configure'
+    elif ctxclass == 'BuildContext':
+        stage = 'build'
+    file_path = os.path.join(self.curdir, WSCRIPT_FILE+'_'+stage+'_'+rule)
+    txt = load_file(file_path)
+    if txt:
+        dc = {'ctx': self}
+        if getattr(self.__class__, 'pre_recurse', None):
+            dc = self.pre_recurse(txt, file_path, self.curdir)
+        exec(compile(txt, file_path, 'exec'), dc)
+        if getattr(self.__class__, 'post_recurse', None):
+            dc = self.post_recurse(txt, file_path, self.curdir)
+
+Build.BuildContext.PROCESS_SEPARATE_RULE = PROCESS_SEPARATE_RULE
+ConfigurationContext.PROCESS_SEPARATE_RULE = PROCESS_SEPARATE_RULE
+
+def AD_DC_BUILD_IS_ENABLED(self):
+    if self.CONFIG_SET('AD_DC_BUILD_IS_ENABLED'):
+        return True
+    return False
+
+Build.BuildContext.AD_DC_BUILD_IS_ENABLED = AD_DC_BUILD_IS_ENABLED

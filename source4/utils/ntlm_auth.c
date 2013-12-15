@@ -142,33 +142,6 @@ static bool parse_ntlm_auth_domain_user(const char *domuser, char **domain,
 	return true;
 }
 
-/**
- * Decode a base64 string into a DATA_BLOB - simple and slow algorithm
- **/
-static DATA_BLOB base64_decode_data_blob(TALLOC_CTX *mem_ctx, const char *s)
-{
-	DATA_BLOB ret = data_blob_talloc(mem_ctx, s, strlen(s)+1);
-	ret.length = ldb_base64_decode((char *)ret.data);
-	return ret;
-}
-
-/**
- * Encode a base64 string into a talloc()ed string caller to free.
- **/
-static char *base64_encode_data_blob(TALLOC_CTX *mem_ctx, DATA_BLOB data)
-{
-	return ldb_base64_encode(mem_ctx, (const char *)data.data, data.length);
-}
-
-/**
- * Decode a base64 string in-place - wrapper for the above
- **/
-static void base64_decode_inplace(char *s)
-{
-	ldb_base64_decode(s);
-}
-
-
 
 /* Authenticate a user with a plaintext password */
 
@@ -291,7 +264,7 @@ static void manage_gensec_get_pw_request(enum stdio_helper_mode stdio_helper_mod
 	}
 
 	if (strlen(buf) > 3) {
-		in = base64_decode_data_blob(NULL, buf + 3);
+		in = base64_decode_data_blob(buf + 3);
 	} else {
 		in = data_blob(NULL, 0);
 	}
@@ -393,7 +366,7 @@ static void manage_gensec_request(enum stdio_helper_mode stdio_helper_mode,
 	};
 	struct gensec_ntlm_state *state;
 	struct tevent_context *ev;
-	struct messaging_context *msg;
+	struct imessaging_context *msg;
 
 	NTSTATUS nt_status;
 	bool first = false;
@@ -433,7 +406,7 @@ static void manage_gensec_request(enum stdio_helper_mode stdio_helper_mode,
 			mux_printf(mux_id, "OK\n");
 			return;
 		}
-		in = base64_decode_data_blob(NULL, buf + 3);
+		in = base64_decode_data_blob(buf + 3);
 	} else {
 		in = data_blob(NULL, 0);
 	}
@@ -476,7 +449,7 @@ static void manage_gensec_request(enum stdio_helper_mode stdio_helper_mode,
 		case NTLMSSP_CLIENT_1:
 			/* setup the client side */
 
-			nt_status = gensec_client_start(NULL, &state->gensec_state, ev, 
+			nt_status = gensec_client_start(NULL, &state->gensec_state,
 							lpcfg_gensec_settings(NULL, lp_ctx));
 			if (!NT_STATUS_IS_OK(nt_status)) {
 				talloc_free(mem_ctx);
@@ -488,9 +461,9 @@ static void manage_gensec_request(enum stdio_helper_mode stdio_helper_mode,
 		case SQUID_2_5_NTLMSSP:
 		{
 			const char *winbind_method[] = { "winbind", NULL };
-			struct auth_context *auth_context;
+			struct auth4_context *auth_context;
 
-			msg = messaging_client_init(state, lpcfg_messaging_path(state, lp_ctx), ev);
+			msg = imessaging_client_init(state, lp_ctx, ev);
 			if (!msg) {
 				talloc_free(mem_ctx);
 				exit(1);
@@ -508,7 +481,7 @@ static void manage_gensec_request(enum stdio_helper_mode stdio_helper_mode,
 				exit(1);
 			}
 			
-			if (!NT_STATUS_IS_OK(gensec_server_start(state, ev, 
+			if (!NT_STATUS_IS_OK(gensec_server_start(state,
 								 lpcfg_gensec_settings(state, lp_ctx),
 								 auth_context, &state->gensec_state))) {
 				talloc_free(mem_ctx);
@@ -602,7 +575,7 @@ static void manage_gensec_request(enum stdio_helper_mode stdio_helper_mode,
 		char *grouplist = NULL;
 		struct auth_session_info *session_info;
 
-		nt_status = gensec_session_info(state->gensec_state, &session_info); 
+		nt_status = gensec_session_info(state->gensec_state, mem_ctx, &session_info);
 		if (!NT_STATUS_IS_OK(nt_status)) {
 			DEBUG(1, ("gensec_session_info failed: %s\n", nt_errstr(nt_status)));
 			mux_printf(mux_id, "BH %s\n", nt_errstr(nt_status));
@@ -631,7 +604,7 @@ static void manage_gensec_request(enum stdio_helper_mode stdio_helper_mode,
 	if (strncmp(buf, "GK", 2) == 0) {
 		char *base64_key;
 		DEBUG(10, ("Requested session key\n"));
-		nt_status = gensec_session_key(state->gensec_state, &session_key);
+		nt_status = gensec_session_key(state->gensec_state, mem_ctx, &session_key);
 		if(!NT_STATUS_IS_OK(nt_status)) {
 			DEBUG(1, ("gensec_session_key failed: %s\n", nt_errstr(nt_status)));
 			mux_printf(mux_id, "BH No session key\n");
@@ -659,7 +632,7 @@ static void manage_gensec_request(enum stdio_helper_mode stdio_helper_mode,
 		return;
 	}
 
-	nt_status = gensec_update(state->gensec_state, mem_ctx, in, &out);
+	nt_status = gensec_update(state->gensec_state, mem_ctx, ev, in, &out);
 	
 	/* don't leak 'bad password'/'no such user' info to the network client */
 	nt_status = nt_status_squash(nt_status);
@@ -698,7 +671,7 @@ static void manage_gensec_request(enum stdio_helper_mode stdio_helper_mode,
 	} else if /* OK */ (state->gensec_state->gensec_role == GENSEC_SERVER) {
 		struct auth_session_info *session_info;
 
-		nt_status = gensec_session_info(state->gensec_state, &session_info);
+		nt_status = gensec_session_info(state->gensec_state, mem_ctx, &session_info);
 		if (!NT_STATUS_IS_OK(nt_status)) {
 			reply_code = "BH Failed to retrive session info";
 			reply_arg = nt_errstr(nt_status);
@@ -1130,7 +1103,7 @@ int main(int argc, const char **argv)
 		return 1;
 	}
 
-	gensec_init(cmdline_lp_ctx);
+	gensec_init();
 
 	if (opt_domain == NULL) {
 		opt_domain = lpcfg_workgroup(cmdline_lp_ctx);

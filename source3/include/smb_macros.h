@@ -5,17 +5,17 @@
    Copyright (C) John H Terpstra 1996-1999
    Copyright (C) Luke Kenneth Casson Leighton 1996-1999
    Copyright (C) Paul Ashton 1998 - 1999
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -104,9 +104,7 @@
 #define SMB_LARGE_LKLEN_OFFSET_HIGH(indx) (12 + (20 * (indx)))
 #define SMB_LARGE_LKLEN_OFFSET_LOW(indx) (16 + (20 * (indx)))
 
-#define ERROR_DOS(class,code) error_packet(outbuf,class,code,NT_STATUS_OK,__LINE__,__FILE__)
 #define ERROR_NT(status) error_packet(outbuf,0,0,status,__LINE__,__FILE__)
-#define ERROR_FORCE_NT(status) error_packet(outbuf,-1,-1,status,__LINE__,__FILE__)
 #define ERROR_BOTH(status,class,code) error_packet(outbuf,class,code,status,__LINE__,__FILE__)
 
 #define reply_nterror(req,status) reply_nt_error(req,status,__LINE__,__FILE__)
@@ -123,6 +121,7 @@
 
 /* Extra macros added by Ying Chen at IBM - speed increase by inlining. */
 #define smb_buf(buf) (((char *)(buf)) + smb_size + CVAL(buf,smb_wct)*2)
+#define smb_buf_const(buf) (((const char *)(buf)) + smb_size + CVAL(buf,smb_wct)*2)
 #define smb_buflen(buf) (SVAL(buf,smb_vwv0 + (int)CVAL(buf, smb_wct)*2))
 
 /* the remaining number of bytes in smb buffer 'buf' from pointer 'p'. */
@@ -133,15 +132,14 @@
 /* Note that chain_size must be available as an extern int to this macro. */
 #define smb_offset(p,buf) (PTR_DIFF(p,buf+4))
 
-#define smb_len(buf) (PVAL(buf,3)|(PVAL(buf,2)<<8)|((PVAL(buf,1)&1)<<16))
-#define _smb_setlen(buf,len) do { buf[0] = 0; buf[1] = ((len)&0x10000)>>16; \
-        buf[2] = ((len)&0xFF00)>>8; buf[3] = (len)&0xFF; } while (0)
+#define smb_len(buf) smb_len_nbt(buf)
+#define _smb_setlen(buf, len) _smb_setlen_nbt(buf, len)
+#define smb_setlen(buf, len) smb_setlen_nbt(buf, len)
 
-#define smb_len_large(buf) (PVAL(buf,3)|(PVAL(buf,2)<<8)|(PVAL(buf,1)<<16))
-#define _smb_setlen_large(buf,len) do { buf[0] = 0; buf[1] = ((len)&0xFF0000)>>16; \
-        buf[2] = ((len)&0xFF00)>>8; buf[3] = (len)&0xFF; } while (0)
+#define smb_len_large(buf) smb_len_tcp(buf)
+#define _smb_setlen_large(buf, len) _smb_setlen_tcp(buf, len)
 
-#define ENCRYPTION_REQUIRED(conn) ((conn) ? ((conn)->encrypt_level == Required) : false)
+#define ENCRYPTION_REQUIRED(conn) ((conn) ? ((conn)->encrypt_level == SMB_SIGNING_REQUIRED) : false)
 #define IS_CONN_ENCRYPTED(conn) ((conn) ? (conn)->encrypted_tid : false)
 
 /****************************************************************************
@@ -173,7 +171,7 @@ copy an IP address from one buffer to another
  Return True if a server has CIFS UNIX capabilities.
 ********************************************************************/
 
-#define SERVER_HAS_UNIX_CIFS(c) ((c)->capabilities & CAP_UNIX)
+#define SERVER_HAS_UNIX_CIFS(c) (smb1cli_conn_capabilities(c->conn) & CAP_UNIX)
 
 /****************************************************************************
  Make a filename into unix format.
@@ -181,7 +179,6 @@ copy an IP address from one buffer to another
 
 #define IS_DIRECTORY_SEP(c) ((c) == '\\' || (c) == '/')
 #define unix_format(fname) string_replace(fname,'\\','/')
-#define unix_format_w(fname) string_replace_w(fname, UCS2_CHAR('\\'), UCS2_CHAR('/'))
 
 /****************************************************************************
  Make a file into DOS format.
@@ -193,7 +190,7 @@ copy an IP address from one buffer to another
  Check to see if we are a DC for this domain
 *****************************************************************************/
 
-#define IS_DC  (lp_server_role()==ROLE_DOMAIN_PDC || lp_server_role()==ROLE_DOMAIN_BDC) 
+#define IS_DC  (lp_server_role()==ROLE_DOMAIN_PDC || lp_server_role()==ROLE_DOMAIN_BDC || lp_server_role() == ROLE_ACTIVE_DIRECTORY_DC) 
 
 /*
  * If you add any entries to KERBEROS_VERIFY defines, please modify the below expressions
@@ -218,39 +215,12 @@ copy an IP address from one buffer to another
 #define SMB_XMALLOC_P(type) (type *)smb_xmalloc_array(sizeof(type),1)
 #define SMB_XMALLOC_ARRAY(type,count) (type *)smb_xmalloc_array(sizeof(type),(count))
 
-/* The new talloc is paranoid malloc checker safe. */
-
-#if 0
-
-Disable these now we have checked all code paths and ensured
-NULL returns on zero request. JRA.
-
-#define TALLOC(ctx, size) talloc_zeronull(ctx, size, __location__)
-#define TALLOC_P(ctx, type) (type *)talloc_zeronull(ctx, sizeof(type), #type)
-#define TALLOC_ARRAY(ctx, type, count) (type *)_talloc_array_zeronull(ctx, sizeof(type), count, #type)
-#define TALLOC_MEMDUP(ctx, ptr, size) _talloc_memdup_zeronull(ctx, ptr, size, __location__)
-#define TALLOC_ZERO(ctx, size) _talloc_zero_zeronull(ctx, size, __location__)
-#define TALLOC_ZERO_P(ctx, type) (type *)_talloc_zero_zeronull(ctx, sizeof(type), #type)
-#define TALLOC_ZERO_ARRAY(ctx, type, count) (type *)_talloc_zero_array_zeronull(ctx, sizeof(type), count, #type)
-#define TALLOC_SIZE(ctx, size) talloc_zeronull(ctx, size, __location__)
-#define TALLOC_ZERO_SIZE(ctx, size) _talloc_zero_zeronull(ctx, size, __location__)
-
-#else
-
 #define TALLOC(ctx, size) talloc_named_const(ctx, size, __location__)
-#define TALLOC_P(ctx, type) (type *)talloc_named_const(ctx, sizeof(type), #type)
-#define TALLOC_ARRAY(ctx, type, count) (type *)_talloc_array(ctx, sizeof(type), count, #type)
-#define TALLOC_MEMDUP(ctx, ptr, size) _talloc_memdup(ctx, ptr, size, __location__)
 #define TALLOC_ZERO(ctx, size) _talloc_zero(ctx, size, __location__)
-#define TALLOC_ZERO_P(ctx, type) (type *)_talloc_zero(ctx, sizeof(type), #type)
-#define TALLOC_ZERO_ARRAY(ctx, type, count) (type *)_talloc_zero_array(ctx, sizeof(type), count, #type)
 #define TALLOC_SIZE(ctx, size) talloc_named_const(ctx, size, __location__)
 #define TALLOC_ZERO_SIZE(ctx, size) _talloc_zero(ctx, size, __location__)
 
-#endif
-
 #define TALLOC_REALLOC(ctx, ptr, count) _talloc_realloc(ctx, ptr, count, __location__)
-#define TALLOC_REALLOC_ARRAY(ctx, ptr, type, count) (type *)_talloc_realloc_array(ctx, ptr, sizeof(type), count, #type)
 #define talloc_destroy(ctx) talloc_free(ctx)
 #ifndef TALLOC_FREE
 #define TALLOC_FREE(ctx) do { talloc_free(ctx); ctx=NULL; } while(0)
@@ -313,7 +283,7 @@ NULL returns on zero request. JRA.
 #define ADD_TO_ARRAY(mem_ctx, type, elem, array, num) \
 do { \
 	*(array) = ((mem_ctx) != NULL) ? \
-		TALLOC_REALLOC_ARRAY(mem_ctx, (*(array)), type, (*(num))+1) : \
+		talloc_realloc(mem_ctx, (*(array)), type, (*(num))+1) : \
 		SMB_REALLOC_ARRAY((*(array)), type, (*(num))+1); \
 	SMB_ASSERT((*(array)) != NULL); \
 	(*(array))[*(num)] = (elem); \
@@ -330,5 +300,8 @@ do { \
 extern const char toupper_ascii_fast_table[];
 #define toupper_ascii_fast(c) toupper_ascii_fast_table[(unsigned int)(c)];
 #endif
+
+#define trans_oob(bufsize, offset, length) \
+	smb_buffer_oob(bufsize, offset, length)
 
 #endif /* _SMB_MACROS_H */

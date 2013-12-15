@@ -39,15 +39,17 @@
    is set.
 */
 
-#ifdef _SAMBA_BUILD_
+#include "config.h"
+
+#ifdef HAVE_LIBREPLACE
 
 #define SOCKET_WRAPPER_NOT_REPLACE
-#include "../replace/replace.h"
+#include "replace.h"
 #include "system/network.h"
 #include "system/filesys.h"
 #include "system/time.h"
 
-#else /* _SAMBA_BUILD_ */
+#else /* HAVE_LIBREPLACE */
 
 #include <sys/types.h>
 #include <sys/time.h>
@@ -66,7 +68,7 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#endif
+#endif /* HAVE_LIBREPLACE */
 
 #ifndef _PUBLIC_
 #define _PUBLIC_
@@ -127,6 +129,8 @@
 #define real_writev writev
 #define real_socket socket
 #define real_close close
+#define real_dup dup
+#define real_dup2 dup2
 #endif
 
 #ifdef HAVE_GETTIMEOFDAY_TZ
@@ -147,7 +151,10 @@
 #define SOCKET_TYPE_CHAR_TCP_V6		'X'
 #define SOCKET_TYPE_CHAR_UDP_V6		'Y'
 
-#define MAX_WRAPPED_INTERFACES 16
+/* This limit is to avoid broadcast sendto() needing to stat too many
+ * files.  It may be raised (with a performance cost) to up to 254
+ * without changing the format above */
+#define MAX_WRAPPED_INTERFACES 40
 
 #ifdef HAVE_IPV6
 /*
@@ -207,11 +214,14 @@ static size_t socket_length(int family)
 	return 0;
 }
 
-
+struct socket_info_fd {
+	struct socket_info_fd *prev, *next;
+	int fd;
+};
 
 struct socket_info
 {
-	int fd;
+	struct socket_info_fd *fds;
 
 	int family;
 	int type;
@@ -222,7 +232,6 @@ struct socket_info
 	int connected;
 	int defer_connect;
 
-	char *path;
 	char *tmp_path;
 
 	struct sockaddr *myname;
@@ -551,6 +560,11 @@ static int convert_in_un_alloc(struct socket_info *si, const struct sockaddr *in
 
 	if (bcast) *bcast = is_bcast;
 
+	if (iface == 0 || iface > MAX_WRAPPED_INTERFACES) {
+		errno = EINVAL;
+		return -1;
+	}
+
 	if (prt == 0) {
 		/* handle auto-allocation of ephemeral ports */
 		for (prt = 5001; prt < 10000; prt++) {
@@ -576,8 +590,12 @@ static struct socket_info *find_socket_info(int fd)
 {
 	struct socket_info *i;
 	for (i = sockets; i; i = i->next) {
-		if (i->fd == fd) 
-			return i;
+		struct socket_info_fd *f;
+		for (f = i->fds; f; f = f->next) {
+			if (f->fd == fd) {
+				return i;
+			}
+		}
 	}
 
 	return NULL;
@@ -1396,6 +1414,7 @@ static void swrap_dump_packet(struct socket_info *si,
 _PUBLIC_ int swrap_socket(int family, int type, int protocol)
 {
 	struct socket_info *si;
+	struct socket_info_fd *fi;
 	int fd;
 	int real_type = type;
 #ifdef SOCK_CLOEXEC
@@ -1457,6 +1476,10 @@ _PUBLIC_ int swrap_socket(int family, int type, int protocol)
 	if (fd == -1) return -1;
 
 	si = (struct socket_info *)calloc(1, sizeof(struct socket_info));
+	if (si == NULL) {
+		errno = ENOMEM;
+		return -1;
+	}
 
 	si->family = family;
 
@@ -1464,16 +1487,26 @@ _PUBLIC_ int swrap_socket(int family, int type, int protocol)
 	 * the type, not the flags */
 	si->type = real_type;
 	si->protocol = protocol;
-	si->fd = fd;
 
+	fi = (struct socket_info_fd *)calloc(1, sizeof(struct socket_info_fd));
+	if (fi == NULL) {
+		free(si);
+		errno = ENOMEM;
+		return -1;
+	}
+
+	fi->fd = fd;
+
+	SWRAP_DLIST_ADD(si->fds, fi);
 	SWRAP_DLIST_ADD(sockets, si);
 
-	return si->fd;
+	return fd;
 }
 
 _PUBLIC_ int swrap_accept(int s, struct sockaddr *addr, socklen_t *addrlen)
 {
 	struct socket_info *parent_si, *child_si;
+	struct socket_info_fd *child_fi;
 	int fd;
 	struct sockaddr_un un_addr;
 	socklen_t un_addrlen = sizeof(un_addr);
@@ -1526,7 +1559,19 @@ _PUBLIC_ int swrap_accept(int s, struct sockaddr *addr, socklen_t *addrlen)
 	child_si = (struct socket_info *)malloc(sizeof(struct socket_info));
 	memset(child_si, 0, sizeof(*child_si));
 
-	child_si->fd = fd;
+	child_fi = (struct socket_info_fd *)calloc(1, sizeof(struct socket_info_fd));
+	if (child_fi == NULL) {
+		free(child_si);
+		free(my_addr);
+		close(fd);
+		errno = ENOMEM;
+		return -1;
+	}
+
+	child_fi->fd = fd;
+
+	SWRAP_DLIST_ADD(child_si->fds, child_fi);
+
 	child_si->family = parent_si->family;
 	child_si->type = parent_si->type;
 	child_si->protocol = parent_si->protocol;
@@ -1548,6 +1593,7 @@ _PUBLIC_ int swrap_accept(int s, struct sockaddr *addr, socklen_t *addrlen)
 	ret = real_getsockname(fd, (struct sockaddr *)(void *)&un_my_addr,
 			       &un_my_addrlen);
 	if (ret == -1) {
+		free(child_fi);
 		free(child_si);
 		close(fd);
 		return ret;
@@ -1557,6 +1603,7 @@ _PUBLIC_ int swrap_accept(int s, struct sockaddr *addr, socklen_t *addrlen)
 	ret = sockaddr_convert_from_un(child_si, &un_my_addr, un_my_addrlen,
 				       child_si->family, my_addr, &len);
 	if (ret == -1) {
+		free(child_fi);
 		free(child_si);
 		free(my_addr);
 		close(fd);
@@ -1585,7 +1632,7 @@ static int autobind_start;
    assign it here.
    Note: this might change the family from ipv6 to ipv4
 */
-static int swrap_auto_bind(struct socket_info *si, int family)
+static int swrap_auto_bind(int fd, struct socket_info *si, int family)
 {
 	struct sockaddr_un un_addr;
 	int i;
@@ -1674,7 +1721,7 @@ static int swrap_auto_bind(struct socket_info *si, int family)
 			 type, socket_wrapper_default_iface(), port);
 		if (stat(un_addr.sun_path, &st) == 0) continue;
 
-		ret = real_bind(si->fd, (struct sockaddr *)(void *)&un_addr,
+		ret = real_bind(fd, (struct sockaddr *)(void *)&un_addr,
 				sizeof(un_addr));
 		if (ret == -1) return ret;
 
@@ -1707,7 +1754,7 @@ _PUBLIC_ int swrap_connect(int s, const struct sockaddr *serv_addr, socklen_t ad
 	}
 
 	if (si->bound == 0) {
-		ret = swrap_auto_bind(si, serv_addr->sa_family);
+		ret = swrap_auto_bind(s, si, serv_addr->sa_family);
 		if (ret == -1) return -1;
 	}
 
@@ -1897,7 +1944,8 @@ _PUBLIC_ int swrap_ioctl(int s, int r, void *p)
 	return ret;
 }
 
-static ssize_t swrap_sendmsg_before(struct socket_info *si,
+static ssize_t swrap_sendmsg_before(int fd,
+				    struct socket_info *si,
 				    struct msghdr *msg,
 				    struct iovec *tmp_iov,
 				    struct sockaddr_un *tmp_un,
@@ -1982,7 +2030,7 @@ static ssize_t swrap_sendmsg_before(struct socket_info *si,
 		}
 
 		if (si->bound == 0) {
-			ret = swrap_auto_bind(si, si->family);
+			ret = swrap_auto_bind(fd, si, si->family);
 			if (ret == -1) return -1;
 		}
 
@@ -1994,7 +2042,7 @@ static ssize_t swrap_sendmsg_before(struct socket_info *si,
 					     tmp_un, 0, NULL);
 		if (ret == -1) return -1;
 
-		ret = real_connect(si->fd, (struct sockaddr *)(void *)tmp_un,
+		ret = real_connect(fd, (struct sockaddr *)(void *)tmp_un,
 				   sizeof(*tmp_un));
 
 		/* to give better errors */
@@ -2159,7 +2207,7 @@ _PUBLIC_ ssize_t swrap_sendto(int s, const void *buf, size_t len, int flags, con
 	msg.msg_flags = 0;             /* flags on received message */
 #endif
 
-	ret = swrap_sendmsg_before(si, &msg, &tmp, &un_addr, &to_un, &to, &bcast);
+	ret = swrap_sendmsg_before(s, si, &msg, &tmp, &un_addr, &to_un, &to, &bcast);
 	if (ret == -1) return -1;
 
 	buf = msg.msg_iov[0].iov_base;
@@ -2189,7 +2237,8 @@ _PUBLIC_ ssize_t swrap_sendto(int s, const void *buf, size_t len, int flags, con
 		return len;
 	}
 
-	ret = real_sendto(s, buf, len, flags, msg.msg_name, msg.msg_namelen);
+	ret = real_sendto(s, buf, len, flags, (struct sockaddr *)msg.msg_name,
+			  msg.msg_namelen);
 
 	swrap_sendmsg_after(si, &msg, to, ret);
 
@@ -2279,7 +2328,7 @@ _PUBLIC_ ssize_t swrap_send(int s, const void *buf, size_t len, int flags)
 	msg.msg_flags = 0;             /* flags on received message */
 #endif
 
-	ret = swrap_sendmsg_before(si, &msg, &tmp, &un_addr, NULL, NULL, NULL);
+	ret = swrap_sendmsg_before(s, si, &msg, &tmp, &un_addr, NULL, NULL, NULL);
 	if (ret == -1) return -1;
 
 	buf = msg.msg_iov[0].iov_base;
@@ -2322,7 +2371,7 @@ _PUBLIC_ ssize_t swrap_sendmsg(int s, const struct msghdr *omsg, int flags)
 	msg.msg_flags = omsg->msg_flags;           /* flags on received message */
 #endif
 
-	ret = swrap_sendmsg_before(si, &msg, &tmp, &un_addr, &to_un, &to, &bcast);
+	ret = swrap_sendmsg_before(s, si, &msg, &tmp, &un_addr, &to_un, &to, &bcast);
 	if (ret == -1) return -1;
 
 	if (bcast) {
@@ -2457,7 +2506,7 @@ int swrap_readv(int s, const struct iovec *vector, size_t count)
 	return ret;
 }
 
-int swrap_writev(int s, const struct iovec *vector, size_t count)
+ssize_t swrap_writev(int s, const struct iovec *vector, size_t count)
 {
 	struct msghdr msg;
 	struct iovec tmp;
@@ -2483,7 +2532,7 @@ int swrap_writev(int s, const struct iovec *vector, size_t count)
 	msg.msg_flags = 0;             /* flags on received message */
 #endif
 
-	ret = swrap_sendmsg_before(si, &msg, &tmp, &un_addr, NULL, NULL, NULL);
+	ret = swrap_sendmsg_before(s, si, &msg, &tmp, &un_addr, NULL, NULL, NULL);
 	if (ret == -1) return -1;
 
 	ret = real_writev(s, msg.msg_iov, msg.msg_iovlen);
@@ -2496,9 +2545,23 @@ int swrap_writev(int s, const struct iovec *vector, size_t count)
 _PUBLIC_ int swrap_close(int fd)
 {
 	struct socket_info *si = find_socket_info(fd);
+	struct socket_info_fd *fi;
 	int ret;
 
 	if (!si) {
+		return real_close(fd);
+	}
+
+	for (fi = si->fds; fi; fi = fi->next) {
+		if (fi->fd == fd) {
+			SWRAP_DLIST_REMOVE(si->fds, fi);
+			free(fi);
+			break;
+		}
+	}
+
+	if (si->fds) {
+		/* there are still references left */
 		return real_close(fd);
 	}
 
@@ -2515,7 +2578,6 @@ _PUBLIC_ int swrap_close(int fd)
 		swrap_dump_packet(si, NULL, SWRAP_CLOSE_ACK, NULL, 0);
 	}
 
-	if (si->path) free(si->path);
 	if (si->myname) free(si->myname);
 	if (si->peername) free(si->peername);
 	if (si->tmp_path) {
@@ -2525,4 +2587,68 @@ _PUBLIC_ int swrap_close(int fd)
 	free(si);
 
 	return ret;
+}
+
+_PUBLIC_ int swrap_dup(int fd)
+{
+	struct socket_info *si;
+	struct socket_info_fd *fi;
+
+	si = find_socket_info(fd);
+
+	if (!si) {
+		return real_dup(fd);
+	}
+
+	fi = (struct socket_info_fd *)calloc(1, sizeof(struct socket_info_fd));
+	if (fi == NULL) {
+		errno = ENOMEM;
+		return -1;
+	}
+
+	fi->fd = real_dup(fd);
+	if (fi->fd == -1) {
+		int saved_errno = errno;
+		free(fi);
+		errno = saved_errno;
+		return -1;
+	}
+
+	SWRAP_DLIST_ADD(si->fds, fi);
+	return fi->fd;
+}
+
+_PUBLIC_ int swrap_dup2(int fd, int newfd)
+{
+	struct socket_info *si;
+	struct socket_info_fd *fi;
+
+	si = find_socket_info(fd);
+
+	if (!si) {
+		return real_dup2(fd, newfd);
+	}
+
+	if (find_socket_info(newfd)) {
+		/* dup2() does an implicit close of newfd, which we
+		 * need to emulate */
+		swrap_close(newfd);
+	}
+
+	fi = (struct socket_info_fd *)calloc(1, sizeof(struct socket_info_fd));
+	if (fi == NULL) {
+		errno = ENOMEM;
+		return -1;
+	}
+
+	fi->fd = real_dup2(fd, newfd);
+	if (fi->fd == -1) {
+		int saved_errno = errno;
+		free(fi);
+		errno = saved_errno;
+		return -1;
+	}
+
+	SWRAP_DLIST_ADD(si->fds, fi);
+	return fi->fd;
 }

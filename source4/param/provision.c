@@ -25,8 +25,8 @@
 #include "librpc/ndr/libndr.h"
 #include "param/provision.h"
 #include "param/secrets.h"
-#include "lib/talloc/pytalloc.h"
-#include "scripting/python/modules.h"
+#include <pytalloc.h>
+#include "python/modules.h"
 #include "param/pyparam.h"
 #include "dynconfig/dynconfig.h"
 
@@ -167,6 +167,8 @@ NTSTATUS provision_bare(TALLOC_CTX *mem_ctx, struct loadparm_context *lp_ctx,
 	
 	PyDict_SetItemString(parameters, "debuglevel", PyInt_FromLong(DEBUGLEVEL));
 
+	PyDict_SetItemString(parameters, "use_ntvfs", PyInt_FromLong(settings->use_ntvfs));
+
 	py_result = PyEval_CallObjectWithKeywords(provision_fn, NULL, parameters);
 
 	Py_DECREF(parameters);
@@ -186,7 +188,7 @@ NTSTATUS provision_bare(TALLOC_CTX *mem_ctx, struct loadparm_context *lp_ctx,
 		return NT_STATUS_UNSUCCESSFUL;
 	}
 	result->lp_ctx = lpcfg_from_py_object(mem_ctx, py_lp_ctx);
-	result->samdb = PyLdb_AsLdbContext(PyObject_GetAttrString(py_result, "samdb"));
+	result->samdb = pyldb_Ldb_AsLdbContext(PyObject_GetAttrString(py_result, "samdb"));
 
 	return NT_STATUS_OK;
 }
@@ -203,7 +205,7 @@ static PyObject *py_dom_sid_FromSid(struct dom_sid *sid)
 	if (dom_sid_Type == NULL)
 		return NULL;
 
-	return py_talloc_reference((PyTypeObject *)dom_sid_Type, sid);
+	return pytalloc_reference((PyTypeObject *)dom_sid_Type, sid);
 }
 
 NTSTATUS provision_store_self_join(TALLOC_CTX *mem_ctx, struct loadparm_context *lp_ctx,
@@ -330,7 +332,9 @@ failure:
 }
 
 
-struct ldb_context *provision_get_schema(TALLOC_CTX *mem_ctx, struct loadparm_context *lp_ctx,
+struct ldb_context *provision_get_schema(TALLOC_CTX *mem_ctx,
+					 struct loadparm_context *lp_ctx,
+					 const char *schema_dn,
 					 DATA_BLOB *override_prefixmap)
 {
 	PyObject *schema_mod, *schema_dict, *schema_fn, *py_result, *parameters;
@@ -362,6 +366,11 @@ struct ldb_context *provision_get_schema(TALLOC_CTX *mem_ctx, struct loadparm_co
 	
 	parameters = PyDict_New();
 
+	if (schema_dn) {
+		PyDict_SetItemString(parameters, "schemadn",
+				     PyString_FromString(schema_dn));
+	}
+
 	if (override_prefixmap) {
 		PyDict_SetItemString(parameters, "override_prefixmap",
 				     PyString_FromStringAndSize((const char *)override_prefixmap->data,
@@ -378,5 +387,5 @@ struct ldb_context *provision_get_schema(TALLOC_CTX *mem_ctx, struct loadparm_co
 		return NULL;
 	}
 
-	return PyLdb_AsLdbContext(PyObject_GetAttrString(py_result, "ldb"));
+	return pyldb_Ldb_AsLdbContext(PyObject_GetAttrString(py_result, "ldb"));
 }

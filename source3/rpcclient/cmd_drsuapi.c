@@ -40,7 +40,7 @@ static WERROR cracknames(struct rpc_pipe_client *cli,
 	struct drsuapi_DsNameString *names;
 	struct dcerpc_binding_handle *b = cli->binding_handle;
 
-	names = TALLOC_ZERO_ARRAY(mem_ctx, struct drsuapi_DsNameString, argc);
+	names = talloc_zero_array(mem_ctx, struct drsuapi_DsNameString, argc);
 	W_ERROR_HAVE_NO_MEMORY(names);
 
 	for (i=0; i<argc; i++) {
@@ -583,8 +583,8 @@ static WERROR cmd_drsuapi_getncchanges(struct rpc_pipe_client *cli,
 struct cmd_set drsuapi_commands[] = {
 
 	{ "DRSUAPI" },
-	{ "dscracknames", RPC_RTYPE_WERROR, NULL, cmd_drsuapi_cracknames, &ndr_table_drsuapi.syntax_id, NULL, "Crack Name", "" },
-	{ "dsgetdcinfo", RPC_RTYPE_WERROR, NULL, cmd_drsuapi_getdcinfo, &ndr_table_drsuapi.syntax_id, NULL, "Get Domain Controller Info", "" },
-	{ "dsgetncchanges", RPC_RTYPE_WERROR, NULL, cmd_drsuapi_getncchanges, &ndr_table_drsuapi.syntax_id, NULL, "Get NC Changes", "" },
+	{ "dscracknames", RPC_RTYPE_WERROR, NULL, cmd_drsuapi_cracknames, &ndr_table_drsuapi, NULL, "Crack Name", "" },
+	{ "dsgetdcinfo", RPC_RTYPE_WERROR, NULL, cmd_drsuapi_getdcinfo, &ndr_table_drsuapi, NULL, "Get Domain Controller Info", "" },
+	{ "dsgetncchanges", RPC_RTYPE_WERROR, NULL, cmd_drsuapi_getncchanges, &ndr_table_drsuapi, NULL, "Get NC Changes", "" },
 	{ NULL }
 };

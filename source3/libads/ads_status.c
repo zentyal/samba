@@ -22,6 +22,7 @@
 
 #include "includes.h"
 #include "smb_krb5.h"
+#include "system/gssapi.h"
 #include "smb_ldap.h"
 #include "libads/ads_status.h"
 
@@ -115,8 +116,6 @@ const char *ads_errstr(ADS_STATUS status)
 #ifdef HAVE_KRB5
 	case ENUM_ADS_ERROR_KRB5: 
 		return error_message(status.err.rc);
-#endif
-#ifdef HAVE_GSSAPI
 	case ENUM_ADS_ERROR_GSS:
 	{
 		char *ret;
@@ -147,7 +146,7 @@ const char *ads_errstr(ADS_STATUS status)
 	}
 }
 
-#ifdef HAVE_GSSAPI
+#ifdef HAVE_KRB5
 NTSTATUS gss_err_to_ntstatus(uint32 maj, uint32 min)
 {
         ADS_STATUS adss = ADS_ERROR_GSS(maj, min);

@@ -20,13 +20,12 @@
 #include "includes.h"
 #include "system/filesys.h"
 #include "smbd/smbd.h"
-
-extern SMB_ACL_T aixacl_to_smbacl( struct acl *file_acl);
-extern struct acl *aixacl_smb_to_aixacl(SMB_ACL_TYPE_T acltype, SMB_ACL_T theacl);
+#include "vfs_aixacl_util.h"
 
 SMB_ACL_T aixacl_sys_acl_get_file(vfs_handle_struct *handle,
-				    const char *path_p,
-				    SMB_ACL_TYPE_T type)
+				  const char *path_p,
+				  SMB_ACL_TYPE_T type,
+				  TALLOC_CTX *mem_ctx)
 {
 	struct acl *file_acl = (struct acl *)NULL;
 	struct smb_acl_t *result = (struct smb_acl_t *)NULL;
@@ -73,7 +72,7 @@ SMB_ACL_T aixacl_sys_acl_get_file(vfs_handle_struct *handle,
 	DEBUG(10,("Got facl and returned it\n"));
 
 	
-	result = aixacl_to_smbacl(file_acl);
+	result = aixacl_to_smbacl(file_acl, mem_ctx);
 	SAFE_FREE(file_acl);
 	return result;
 	
@@ -82,7 +81,8 @@ SMB_ACL_T aixacl_sys_acl_get_file(vfs_handle_struct *handle,
 }
 
 SMB_ACL_T aixacl_sys_acl_get_fd(vfs_handle_struct *handle,
-				files_struct *fsp)
+				files_struct *fsp,
+				TALLOC_CTX *mem_ctx)
 {
 
 	struct acl *file_acl = (struct acl *)NULL;
@@ -124,7 +124,7 @@ SMB_ACL_T aixacl_sys_acl_get_fd(vfs_handle_struct *handle,
 
 	DEBUG(10,("Got facl and returned it\n"));
 
-	result = aixacl_to_smbacl(file_acl);
+	result = aixacl_to_smbacl(file_acl, mem_ctx);
 	SAFE_FREE(file_acl);
 	return result;
 	
@@ -180,11 +180,11 @@ int aixacl_sys_acl_delete_def_file(vfs_handle_struct *handle,
 }
 
 static struct vfs_fn_pointers vfs_aixacl_fns = {
-	.sys_acl_get_file = aixacl_sys_acl_get_file,
-	.sys_acl_get_fd = aixacl_sys_acl_get_fd,
-	.sys_acl_set_file = aixacl_sys_acl_set_file,
-	.sys_acl_set_fd = aixacl_sys_acl_set_fd,
-	.sys_acl_delete_def_file = aixacl_sys_acl_delete_def_file,
+	.sys_acl_get_file_fn = aixacl_sys_acl_get_file,
+	.sys_acl_get_fd_fn = aixacl_sys_acl_get_fd,
+	.sys_acl_set_file_fn = aixacl_sys_acl_set_file,
+	.sys_acl_set_fd_fn = aixacl_sys_acl_set_fd,
+	.sys_acl_delete_def_file_fn = aixacl_sys_acl_delete_def_file,
 };
 
 NTSTATUS vfs_aixacl_init(void);

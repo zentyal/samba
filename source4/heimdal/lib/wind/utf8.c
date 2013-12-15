@@ -183,7 +183,7 @@ wind_ucs4utf8(const uint32_t *in, size_t in_len, char *out, size_t *out_len)
 
     for (o = 0, i = 0; i < in_len; i++) {
 	ch = in[i];
-	
+
 	if (ch < 0x80) {
 	    len = 1;
 	} else if (ch < 0x800) {
@@ -194,7 +194,7 @@ wind_ucs4utf8(const uint32_t *in, size_t in_len, char *out, size_t *out_len)
 	    len = 4;
 	} else
 	    return WIND_ERR_INVALID_UTF32;
-	
+
 	o += len;
 
 	if (out) {
@@ -204,13 +204,13 @@ wind_ucs4utf8(const uint32_t *in, size_t in_len, char *out, size_t *out_len)
 	    switch(len) {
 	    case 4:
 		out[3] = (ch | 0x80) & 0xbf;
-		ch = ch << 6;
+		ch = ch >> 6;
 	    case 3:
 		out[2] = (ch | 0x80) & 0xbf;
-		ch = ch << 6;
+		ch = ch >> 6;
 	    case 2:
 		out[1] = (ch | 0x80) & 0xbf;
-		ch = ch << 6;
+		ch = ch >> 6;
 	    case 1:
 		out[0] = ch | first_char[len - 1];
 	    }
@@ -341,13 +341,13 @@ wind_ucs2write(const uint16_t *in, size_t in_len, unsigned int *flags,
      * first to the output data */
     if ((*flags) & WIND_RW_BOM) {
 	uint16_t bom = 0xfffe;
-	
+
 	if (len < 2)
 	    return WIND_ERR_OVERRUN;
 
 	if ((*flags) & WIND_RW_LE) {
-	    p[0] = (bom >> 8) & 0xff;
-	    p[1] = (bom     ) & 0xff;
+	    p[0] = (bom     ) & 0xff;
+	    p[1] = (bom >> 8) & 0xff;
 	} else {
 	    p[1] = (bom     ) & 0xff;
 	    p[0] = (bom >> 8) & 0xff;
@@ -360,8 +360,8 @@ wind_ucs2write(const uint16_t *in, size_t in_len, unsigned int *flags,
 	if (len < 2)
 	    return WIND_ERR_OVERRUN;
 	if ((*flags) & WIND_RW_LE) {
-	    p[0] = (in[0] >> 8) & 0xff;
-	    p[1] = (in[0]     ) & 0xff;
+	    p[0] = (in[0]     ) & 0xff;
+	    p[1] = (in[0] >> 8) & 0xff;
 	} else {
 	    p[1] = (in[0]     ) & 0xff;
 	    p[0] = (in[0] >> 8) & 0xff;
@@ -462,14 +462,14 @@ wind_ucs2utf8(const uint16_t *in, size_t in_len, char *out, size_t *out_len)
 
     for (o = 0, i = 0; i < in_len; i++) {
 	ch = in[i];
-	
+
 	if (ch < 0x80) {
 	    len = 1;
 	} else if (ch < 0x800) {
 	    len = 2;
 	} else
 	    len = 3;
-	
+
 	o += len;
 
 	if (out) {
@@ -479,10 +479,10 @@ wind_ucs2utf8(const uint16_t *in, size_t in_len, char *out, size_t *out_len)
 	    switch(len) {
 	    case 3:
 		out[2] = (ch | 0x80) & 0xbf;
-		ch = ch << 6;
+		ch = ch >> 6;
 	    case 2:
 		out[1] = (ch | 0x80) & 0xbf;
-		ch = ch << 6;
+		ch = ch >> 6;
 	    case 1:
 		out[0] = ch | first_char[len - 1];
 	    }

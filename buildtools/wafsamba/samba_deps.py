@@ -80,7 +80,7 @@ def build_dependencies(self):
         # extra link flags from pkg_config
         libs = self.final_syslibs.copy()
 
-        (ccflags, ldflags) = library_flags(self, list(libs))
+        (ccflags, ldflags, cpppath) = library_flags(self, list(libs))
         new_ldflags        = getattr(self, 'samba_ldflags', [])[:]
         new_ldflags.extend(ldflags)
         self.ldflags       = new_ldflags
@@ -88,6 +88,10 @@ def build_dependencies(self):
         if getattr(self, 'allow_undefined_symbols', False) and self.env.undefined_ldflags:
             for f in self.env.undefined_ldflags:
                 self.ldflags.remove(f)
+
+        if getattr(self, 'allow_undefined_symbols', False) and self.env.undefined_ignore_ldflags:
+            for f in self.env.undefined_ignore_ldflags:
+                self.ldflags.append(f)
 
         debug('deps: computed dependencies for target %s: uselib=%s uselib_local=%s add_objects=%s',
               self.sname, self.uselib, self.uselib_local, self.add_objects)
@@ -132,7 +136,7 @@ def build_includes(self):
     includes = []
 
     # maybe add local includes
-    if getattr(self, 'local_include', True) == True and getattr(self, 'local_include_first', True):
+    if getattr(self, 'local_include', True) and getattr(self, 'local_include_first', True):
         includes.append('.')
 
     includes.extend(self.samba_includes_extended)
@@ -149,7 +153,7 @@ def build_includes(self):
         t = bld.name_to_obj(d, bld.env)
         bld.ASSERT(t is not None, "Unable to find dependency %s for %s" % (d, self.sname))
         inclist = getattr(t, 'samba_includes_extended', [])[:]
-        if getattr(t, 'local_include', True) == True:
+        if getattr(t, 'local_include', True):
             inclist.append('.')
         if inclist == []:
             continue
@@ -165,7 +169,7 @@ def build_includes(self):
         relpath = os_path_relpath(inc, mypath)
         includes.append(relpath)
 
-    if getattr(self, 'local_include', True) == True and not getattr(self, 'local_include_first', True):
+    if getattr(self, 'local_include', True) and not getattr(self, 'local_include_first', True):
         includes.append('.')
 
     # now transform the includes list to be relative to the top directory
@@ -184,8 +188,6 @@ def build_includes(self):
     self.includes = unique_list(includes_top)
     debug('deps: includes for target %s: includes=%s',
           self.sname, self.includes)
-
-
 
 
 def add_init_functions(self):
@@ -212,7 +214,7 @@ def add_init_functions(self):
     if m is not None:
         modules.append(m)
 
-    sentinal = getattr(self, 'init_function_sentinal', 'NULL')
+    sentinel = getattr(self, 'init_function_sentinel', 'NULL')
 
     targets    = LOCAL_CACHE(bld, 'TARGET_TYPE')
     cflags = getattr(self, 'samba_cflags', [])[:]
@@ -220,8 +222,8 @@ def add_init_functions(self):
     if modules == []:
         sname = sname.replace('-','_')
         sname = sname.replace('/','_')
-        cflags.append('-DSTATIC_%s_MODULES=%s' % (sname, sentinal))
-        if sentinal == 'NULL':
+        cflags.append('-DSTATIC_%s_MODULES=%s' % (sname, sentinel))
+        if sentinel == 'NULL':
             cflags.append('-DSTATIC_%s_MODULES_PROTO' % sname)
         self.ccflags = cflags
         return
@@ -234,17 +236,16 @@ def add_init_functions(self):
             if targets[d['TARGET']] != 'DISABLED':
                 init_fn_list.append(d['INIT_FUNCTION'])
         if init_fn_list == []:
-            cflags.append('-DSTATIC_%s_MODULES=%s' % (m, sentinal))
-            if sentinal == 'NULL':
+            cflags.append('-DSTATIC_%s_MODULES=%s' % (m, sentinel))
+            if sentinel == 'NULL':
                 cflags.append('-DSTATIC_%s_MODULES_PROTO' % m)
         else:
-            cflags.append('-DSTATIC_%s_MODULES=%s' % (m, ','.join(init_fn_list) + ',' + sentinal))
+            cflags.append('-DSTATIC_%s_MODULES=%s' % (m, ','.join(init_fn_list) + ',' + sentinel))
             proto=''
             for f in init_fn_list:
                 proto = proto + '_MODULE_PROTO(%s)' % f
             cflags.append('-DSTATIC_%s_MODULES_PROTO=%s' % (m, proto))
     self.ccflags = cflags
-
 
 
 def check_duplicate_sources(bld, tgt_list):
@@ -293,11 +294,11 @@ def check_duplicate_sources(bld, tgt_list):
         for tname in subsystems[s]:
             if len(subsystems[s][tname]) > 1:
                 raise Utils.WafError("ERROR: source %s is in more than one subsystem of target '%s': %s" % (s, tname, subsystems[s][tname]))
-                
+
     return ret
 
 
-def check_orpaned_targets(bld, tgt_list):
+def check_orphaned_targets(bld, tgt_list):
     '''check if any build targets are orphaned'''
 
     target_dict = LOCAL_CACHE(bld, 'TARGET_TYPE')
@@ -305,7 +306,7 @@ def check_orpaned_targets(bld, tgt_list):
     debug('deps: checking for orphaned targets')
 
     for t in tgt_list:
-        if getattr(t, 'samba_used', False) == True:
+        if getattr(t, 'samba_used', False):
             continue
         type = target_dict[t.sname]
         if not type in ['BINARY', 'LIBRARY', 'MODULE', 'ET', 'PYTHON']:
@@ -1144,7 +1145,7 @@ def check_project_rules(bld):
 
     debug('deps: project rules stage1 completed')
 
-    #check_orpaned_targets(bld, tgt_list)
+    #check_orphaned_targets(bld, tgt_list)
 
     if not check_duplicate_sources(bld, tgt_list):
         Logs.error("Duplicate sources present - aborting")

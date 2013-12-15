@@ -2,17 +2,17 @@
    Unix SMB/CIFS implementation.
    Samba internal messaging functions
    Copyright (C) 2007 by Volker Lendecke
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -22,6 +22,24 @@
 #include "util_tdb.h"
 
 #ifdef CLUSTER_SUPPORT
+
+/*
+ * It is not possible to include ctdb.h and tdb_compat.h (included via
+ * some other include above) without warnings. This fixes those
+ * warnings.
+ */
+
+#ifdef typesafe_cb
+#undef typesafe_cb
+#endif
+
+#ifdef typesafe_cb_preargs
+#undef typesafe_cb_preargs
+#endif
+
+#ifdef typesafe_cb_postargs
+#undef typesafe_cb_postargs
+#endif
 
 #include "ctdb.h"
 #include "ctdb_private.h"
@@ -41,6 +59,10 @@ static int global_ctdb_connection_pid;
 
 struct ctdbd_connection *messaging_ctdbd_connection(void)
 {
+	if (!lp_clustering()) {
+		return NULL;
+	}
+
 	if (global_ctdb_connection_pid == 0 &&
 	    global_ctdbd_connection == NULL) {
 		struct event_context *ev;
@@ -51,7 +73,7 @@ struct ctdbd_connection *messaging_ctdbd_connection(void)
 			DEBUG(0,("event_context_init failed\n"));
 		}
 
-		msg = messaging_init(NULL, procid_self(), ev);
+		msg = messaging_init(NULL, ev);
 		if (!msg) {
 			DEBUG(0,("messaging_init failed\n"));
 			return NULL;
@@ -105,12 +127,12 @@ NTSTATUS messaging_ctdbd_init(struct messaging_context *msg_ctx,
 	struct messaging_ctdbd_context *ctx;
 	NTSTATUS status;
 
-	if (!(result = TALLOC_P(mem_ctx, struct messaging_backend))) {
+	if (!(result = talloc(mem_ctx, struct messaging_backend))) {
 		DEBUG(0, ("talloc failed\n"));
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	if (!(ctx = TALLOC_P(result, struct messaging_ctdbd_context))) {
+	if (!(ctx = talloc(result, struct messaging_ctdbd_context))) {
 		DEBUG(0, ("talloc failed\n"));
 		TALLOC_FREE(result);
 		return NT_STATUS_NO_MEMORY;
@@ -154,6 +176,11 @@ NTSTATUS messaging_ctdbd_init(struct messaging_context *msg_ctx,
 			      struct messaging_backend **presult)
 {
 	return NT_STATUS_NOT_IMPLEMENTED;
+}
+
+struct ctdbd_connection *messaging_ctdbd_connection(void)
+{
+	return NULL;
 }
 
 #endif

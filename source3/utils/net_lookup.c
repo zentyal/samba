@@ -19,7 +19,7 @@
 #include "includes.h"
 #include "utils/net.h"
 #include "libads/sitename_cache.h"
-#include "libads/dns.h"
+#include "../lib/addns/dnsquery.h"
 #include "../librpc/gen_ndr/ndr_netlogon.h"
 #include "smb_krb5.h"
 #include "../libcli/security/security.h"
@@ -106,6 +106,7 @@ static int net_lookup_ldap(struct net_context *c, int argc, const char **argv)
 	NTSTATUS status;
 	int ret;
 	char h_name[MAX_DNS_NAME_LENGTH];
+	const char *dns_hosts_file;
 
 	if (argc > 0)
 		domain = argv[0];
@@ -123,7 +124,9 @@ static int net_lookup_ldap(struct net_context *c, int argc, const char **argv)
 
 	DEBUG(9, ("Lookup up ldap for domain %s\n", domain));
 
-	status = ads_dns_query_dcs( ctx, domain, sitename, &dcs, &numdcs );
+	dns_hosts_file = lp_parm_const_string(-1, "resolv", "host file", NULL);
+	status = ads_dns_query_dcs(ctx, dns_hosts_file, domain, sitename,
+				   &dcs, &numdcs);
 	if ( NT_STATUS_IS_OK(status) && numdcs ) {
 		print_ldap_srvlist(dcs, numdcs);
 		TALLOC_FREE( ctx );
@@ -161,7 +164,8 @@ static int net_lookup_ldap(struct net_context *c, int argc, const char **argv)
 
 	DEBUG(9, ("Looking up ldap for domain %s\n", domain));
 
-	status = ads_dns_query_dcs( ctx, domain, sitename, &dcs, &numdcs );
+	status = ads_dns_query_dcs(ctx, dns_hosts_file, domain, sitename,
+				   &dcs, &numdcs);
 	if ( NT_STATUS_IS_OK(status) && numdcs ) {
 		print_ldap_srvlist(dcs, numdcs);
 		TALLOC_FREE( ctx );
@@ -291,7 +295,7 @@ static int net_lookup_kdc(struct net_context *c, int argc, const char **argv)
 	}
 
 	if (argc > 0) {
-                realm = argv[0];
+		realm = argv[0];
 	} else if (lp_realm() && *lp_realm()) {
 		realm = lp_realm();
 	} else {
@@ -461,7 +465,7 @@ int net_lookup(struct net_context *c, int argc, const char **argv)
 		return net_lookup_usage(c, argc, argv);
 	}
 	for (i=0; table[i].funcname; i++) {
-		if (StrCaseCmp(argv[0], table[i].funcname) == 0)
+		if (strcasecmp_m(argv[0], table[i].funcname) == 0)
 			return table[i].fn(c, argc-1, argv+1);
 	}
 

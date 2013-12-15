@@ -11,12 +11,16 @@
 
 set -e
 
+# start nmbd, smbd and samba-ad-dc unconditionally
+# the init scripts themselves check if they are needed or not
 case $1 in
 	start)
 		/etc/init.d/nmbd start
 		/etc/init.d/smbd start
+		/etc/init.d/samba-ad-dc start
 		;;
 	stop)
+		/etc/init.d/samba-ad-dc stop
 		/etc/init.d/smbd stop
 		/etc/init.d/nmbd stop
 		;;
@@ -26,14 +30,20 @@ case $1 in
 	restart|force-reload)
 		/etc/init.d/nmbd "$1"
 		/etc/init.d/smbd "$1"
+		/etc/init.d/samba-ad-dc "$1"
 		;;
 	status)
 		status=0
-		NMBD_DISABLED=`testparm -s --parameter-name='disable netbios' 2>/dev/null`
-		if [ "$NMBD_DISABLED" != "Yes" ]; then
-			/etc/init.d/nmbd status || status=$?
+		NMBD_DISABLED=`testparm -s --parameter-name='disable netbios' 2>/dev/null || true`
+		SERVER_ROLE=`samba-tool testparm --parameter-name="server role"  2>/dev/null | tail -1 || true`
+		if [ "$SERVER_ROLE" != "active directory domain controller" ]; then
+			if [ "$NMBD_DISABLED" != "Yes" ]; then
+				/etc/init.d/nmbd status || status=$?
+			fi
+			/etc/init.d/smbd status || status=$?
+		else
+			/etc/init.d/samba-ad-dc status || status=$?
 		fi
-		/etc/init.d/smbd status || status=$?
 		exit $status
 		;;
 	*)

@@ -69,7 +69,7 @@ krb5_DES_random_to_key(krb5_context context,
 }
 
 static struct _krb5_key_type keytype_des_old = {
-    KEYTYPE_DES,
+    ETYPE_DES_CBC_CRC,
     "des-old",
     56,
     8,
@@ -77,11 +77,13 @@ static struct _krb5_key_type keytype_des_old = {
     krb5_DES_random_key,
     krb5_DES_schedule_old,
     _krb5_des_salt,
-    krb5_DES_random_to_key
+    krb5_DES_random_to_key,
+    NULL,
+    NULL
 };
 
 static struct _krb5_key_type keytype_des = {
-    KEYTYPE_DES,
+    ETYPE_DES_CBC_CRC,
     "des",
     56,
     8,

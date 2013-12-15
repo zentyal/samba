@@ -38,6 +38,9 @@
 
 #include <config.h>
 
+#include <assert.h>
+#include <heimbase.h>
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>

@@ -22,11 +22,6 @@
 
 #include "../replace/replace.h"
 
-#if _SAMBA_BUILD_ == 4
-# undef _SAMBA_BUILD_
-# define _SAMBA_BUILD_ 3
-#endif
-
 /* make sure we have included the correct config.h */
 #ifndef NO_CONFIG_H /* for some tests */
 #ifndef CONFIG_H_IS_FROM_SAMBA
@@ -142,21 +137,6 @@
 #endif
 #endif
 
-/* mutually exclusive (SuSE 8.2) */
-#if HAVE_ATTR_XATTR_H
-#include <attr/xattr.h>
-#elif HAVE_SYS_XATTR_H
-#include <sys/xattr.h>
-#endif
-
-#ifdef HAVE_SYS_EA_H
-#include <sys/ea.h>
-#endif
-
-#ifdef HAVE_SYS_EXTATTR_H
-#include <sys/extattr.h>
-#endif
-
 #ifdef HAVE_SYS_UIO_H
 #include <sys/uio.h>
 #endif
@@ -167,10 +147,6 @@
 
 #if HAVE_NETGROUP_H
 #include <netgroup.h>
-#endif
-
-#if defined(HAVE_AIO_H) && defined(WITH_AIO)
-#include <aio.h>
 #endif
 
 /* Special macros that are no-ops except when run under Valgrind on
@@ -264,15 +240,11 @@ typedef sig_atomic_t volatile SIG_ATOMIC_T;
  */
 
 #ifndef SMB_DEV_T
-#  if defined(HAVE_EXPLICIT_LARGEFILE_SUPPORT) && defined(HAVE_DEV64_T)
-#    define SMB_DEV_T dev64_t
-#  else
-#    define SMB_DEV_T dev_t
-#  endif
+# define SMB_DEV_T dev_t
 #endif
 
 #ifndef LARGE_SMB_DEV_T
-#  if (defined(HAVE_EXPLICIT_LARGEFILE_SUPPORT) && defined(HAVE_DEV64_T)) || (defined(SIZEOF_DEV_T) && (SIZEOF_DEV_T == 8))
+#  if (defined(SIZEOF_DEV_T) && (SIZEOF_DEV_T == 8))
 #    define LARGE_SMB_DEV_T 1
 #  endif
 #endif
@@ -290,15 +262,11 @@ typedef sig_atomic_t volatile SIG_ATOMIC_T;
  */
 
 #ifndef SMB_INO_T
-#  if defined(HAVE_EXPLICIT_LARGEFILE_SUPPORT) && defined(HAVE_INO64_T)
-#    define SMB_INO_T ino64_t
-#  else
 #    define SMB_INO_T ino_t
-#  endif
 #endif
 
 #ifndef LARGE_SMB_INO_T
-#  if (defined(HAVE_EXPLICIT_LARGEFILE_SUPPORT) && defined(HAVE_INO64_T)) || (defined(SIZEOF_INO_T) && (SIZEOF_INO_T == 8))
+#  if (defined(SIZEOF_INO_T) && (SIZEOF_INO_T == 8))
 #    define LARGE_SMB_INO_T 1
 #  endif
 #endif
@@ -311,14 +279,6 @@ typedef sig_atomic_t volatile SIG_ATOMIC_T;
 #define INO_T_VAL(p, ofs) ((SMB_INO_T)(IVAL((p),(ofs))))
 #endif
 
-#ifndef SMB_OFF_T
-#  if defined(HAVE_EXPLICIT_LARGEFILE_SUPPORT) && defined(HAVE_OFF64_T)
-#    define SMB_OFF_T off64_t
-#  else
-#    define SMB_OFF_T off_t
-#  endif
-#endif
-
 /* TODO: remove this macros */
 #define SBIG_UINT(p, ofs, v) SBVAL(p, ofs, v)
 #define BIG_UINT(p, ofs) BVAL(p, ofs)
@@ -327,38 +287,16 @@ typedef sig_atomic_t volatile SIG_ATOMIC_T;
 /* this should really be a 64 bit type if possible */
 typedef uint64_t br_off;
 
-#define SMB_OFF_T_BITS (sizeof(SMB_OFF_T)*8)
+#define SMB_OFF_T_BITS (sizeof(off_t)*8)
 
 /*
  * Set the define that tells us if we can do 64 bit
  * NT SMB calls.
  */
 
-#ifndef LARGE_SMB_OFF_T
-#  if (defined(HAVE_EXPLICIT_LARGEFILE_SUPPORT) && defined(HAVE_OFF64_T)) || (defined(SIZEOF_OFF_T) && (SIZEOF_OFF_T == 8))
-#    define LARGE_SMB_OFF_T 1
-#  endif
-#endif
-
-#ifdef LARGE_SMB_OFF_T
 #define SOFF_T(p, ofs, v) (SIVAL(p,ofs,(v)&0xFFFFFFFF), SIVAL(p,(ofs)+4,(v)>>32))
 #define SOFF_T_R(p, ofs, v) (SIVAL(p,(ofs)+4,(v)&0xFFFFFFFF), SIVAL(p,ofs,(v)>>32))
-#define IVAL_TO_SMB_OFF_T(buf,off) ((SMB_OFF_T)(( ((uint64_t)(IVAL((buf),(off)))) & ((uint64_t)0xFFFFFFFF) )))
-#else 
-#define SOFF_T(p, ofs, v) (SIVAL(p,ofs,v),SIVAL(p,(ofs)+4,0))
-#define SOFF_T_R(p, ofs, v) (SIVAL(p,(ofs)+4,v),SIVAL(p,ofs,0))
-#define IVAL_TO_SMB_OFF_T(buf,off) ((SMB_OFF_T)(( ((uint32)(IVAL((buf),(off)))) & 0xFFFFFFFF )))
-#endif
-
-#ifndef HAVE_BLKSIZE_T
-/* This is mainly for HP/UX which defines st_blksize as long */
-typedef long blksize_t;
-#endif
-
-#ifndef HAVE_BLKCNT_T
-/* This is mainly for HP/UX which doesn't have blkcnt_t */
-typedef long blkcnt_t;
-#endif
+#define IVAL_TO_SMB_OFF_T(buf,off) ((off_t)(( ((uint64_t)(IVAL((buf),(off)))) & ((uint64_t)0xFFFFFFFF) )))
 
 /*
  * Type for stat structure.
@@ -396,82 +334,6 @@ struct stat_ex {
 
 typedef struct stat_ex SMB_STRUCT_STAT;
 
-/*
- * Type for dirent structure.
- */
-
-#ifndef SMB_STRUCT_DIRENT
-#  if defined(HAVE_EXPLICIT_LARGEFILE_SUPPORT) && defined(HAVE_STRUCT_DIRENT64)
-#    define SMB_STRUCT_DIRENT struct dirent64
-#  else
-#    define SMB_STRUCT_DIRENT struct dirent
-#  endif
-#endif
-
-/*
- * Type for DIR structure.
- */
-
-#ifndef SMB_STRUCT_DIR
-#  if defined(HAVE_EXPLICIT_LARGEFILE_SUPPORT) && defined(HAVE_STRUCT_DIR64)
-#    define SMB_STRUCT_DIR DIR64
-#  else
-#    define SMB_STRUCT_DIR DIR
-#  endif
-#endif
-
-/*
- * Defines for 64 bit fcntl locks.
- */
-
-#ifndef SMB_STRUCT_FLOCK
-#  if defined(HAVE_EXPLICIT_LARGEFILE_SUPPORT) && defined(HAVE_STRUCT_FLOCK64) && defined(HAVE_OFF64_T)
-#    define SMB_STRUCT_FLOCK struct flock64
-#  else
-#    define SMB_STRUCT_FLOCK struct flock
-#  endif
-#endif
-
-#ifndef SMB_F_SETLKW
-#  if defined(HAVE_EXPLICIT_LARGEFILE_SUPPORT) && defined(HAVE_STRUCT_FLOCK64) && defined(HAVE_OFF64_T)
-#    define SMB_F_SETLKW F_SETLKW64
-#  else
-#    define SMB_F_SETLKW F_SETLKW
-#  endif
-#endif
-
-#ifndef SMB_F_SETLK
-#  if defined(HAVE_EXPLICIT_LARGEFILE_SUPPORT) && defined(HAVE_STRUCT_FLOCK64) && defined(HAVE_OFF64_T)
-#    define SMB_F_SETLK F_SETLK64
-#  else
-#    define SMB_F_SETLK F_SETLK
-#  endif
-#endif
-
-#ifndef SMB_F_GETLK
-#  if defined(HAVE_EXPLICIT_LARGEFILE_SUPPORT) && defined(HAVE_STRUCT_FLOCK64) && defined(HAVE_OFF64_T)
-#    define SMB_F_GETLK F_GETLK64
-#  else
-#    define SMB_F_GETLK F_GETLK
-#  endif
-#endif
-
-/*
- * Type for aiocb structure.
- */
-
-#ifndef SMB_STRUCT_AIOCB
-#  if defined(WITH_AIO)
-#    if defined(HAVE_EXPLICIT_LARGEFILE_SUPPORT) && defined(HAVE_AIOCB64)
-#      define SMB_STRUCT_AIOCB struct aiocb64
-#    else
-#      define SMB_STRUCT_AIOCB struct aiocb
-#    endif
-#  else
-#    define SMB_STRUCT_AIOCB int /* AIO not being used but we still need the define.... */
-#  endif
-#endif
-
 enum timestamp_set_resolution {
 	TIMESTAMP_SET_SECONDS = 0,
 	TIMESTAMP_SET_MSEC,
@@ -503,7 +365,7 @@ typedef char fstring[FSTRING_LEN];
 #endif
 
 /* Lists, trees, caching, database... */
-#include "../lib/util/util.h"
+#include "../lib/util/samba_util.h"
 #include "../lib/util/util_net.h"
 #include "../lib/util/xfile.h"
 #include "../lib/util/memory.h"
@@ -523,21 +385,26 @@ typedef char fstring[FSTRING_LEN];
 #include "../libcli/util/ntstatus.h"
 #include "../libcli/util/error.h"
 #include "../lib/util/charset/charset.h"
-#include "dynconfig.h"
+#include "dynconfig/dynconfig.h"
 #include "locking.h"
 #include "smb_perfcount.h"
 #include "smb.h"
 #include "../lib/util/byteorder.h"
 
-#include "module.h"
+#include "../lib/util/samba_modules.h"
 #include "../lib/util/talloc_stack.h"
 #include "../lib/util/smb_threads.h"
 #include "../lib/util/smb_threads_internal.h"
+
+/* samba_setXXid functions. */
+#include "../lib/util/setid.h"
 
 /***** prototypes *****/
 #ifndef NO_PROTO_H
 #include "proto.h"
 #endif
+
+#include "lib/param/loadparm.h"
 
 /* String routines */
 
@@ -581,19 +448,6 @@ typedef char fstring[FSTRING_LEN];
 #define MAX_SEC_CTX_DEPTH 8    /* Maximum number of security contexts */
 
 
-#ifdef GLIBC_HACK_FCNTL64
-/* this is a gross hack. 64 bit locking is completely screwed up on
-   i386 Linux in glibc 2.1.95 (which ships with RedHat 7.0). This hack
-   "fixes" the problem with the current 2.4.0test kernels 
-*/
-#define fcntl fcntl64
-#undef F_SETLKW 
-#undef F_SETLK 
-#define F_SETLK 13
-#define F_SETLKW 14
-#endif
-
-
 /* add varargs prototypes with printf checking */
 /*PRINTFLIKE2 */
 int fdprintf(int , const char *, ...) PRINTF_ATTRIBUTE(2,3);
@@ -608,8 +462,6 @@ void sys_adminlog(int priority, const char *format_str, ...) PRINTF_ATTRIBUTE(2,
 /* PRINTFLIKE2 */
 int fstr_sprintf(fstring s, const char *fmt, ...) PRINTF_ATTRIBUTE(2,3);
 
-int d_vfprintf(FILE *f, const char *format, va_list ap) PRINTF_ATTRIBUTE(2,0);
-
 int smb_xvasprintf(char **ptr, const char *format, va_list ap) PRINTF_ATTRIBUTE(2,0);
 
 int asprintf_strupper_m(char **strp, const char *fmt, ...) PRINTF_ATTRIBUTE(2,3);
@@ -621,14 +473,6 @@ char *talloc_asprintf_strupper_m(TALLOC_CTX *t, const char *fmt, ...) PRINTF_ATT
  */
 #if defined(HAVE_SYS_FS_VX_QUOTA_H)
 #define VXFS_QUOTA
-#endif
-
-#ifndef XATTR_CREATE
-#define XATTR_CREATE  0x1       /* set value, fail if attr already exists */
-#endif
-
-#ifndef XATTR_REPLACE
-#define XATTR_REPLACE 0x2       /* set value, fail if attr does not exist */
 #endif
 
 #ifdef TRUE
@@ -648,18 +492,9 @@ char *talloc_asprintf_strupper_m(TALLOC_CTX *t, const char *fmt, ...) PRINTF_ATT
 #undef HAVE_MMAP
 #endif
 
-#ifndef CONST_DISCARD
-#define CONST_DISCARD(type, ptr)      ((type) ((void *) (ptr)))
-#endif
-
-void smb_panic( const char *why ) _NORETURN_;
 void dump_core(void) _NORETURN_;
 void exit_server(const char *const reason) _NORETURN_;
 void exit_server_cleanly(const char *const reason) _NORETURN_;
-void exit_server_fault(void) _NORETURN_;
-
-/* samba3 doesn't use uwrap yet */
-#define uwrap_enabled() 0
 
 #define BASE_RID (0x000003E8L)
 

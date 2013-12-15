@@ -27,6 +27,7 @@
 #include "smb_server/smb_server.h"
 #include "ntvfs/ntvfs.h"
 #include "librpc/gen_ndr/ndr_nbt.h"
+#include "libcli/nbt/libnbt.h"
 
 
 /****************************************************************************
@@ -847,6 +848,7 @@ static void reply_read_and_X_send(struct ntvfs_request *ntvfs)
 void smbsrv_reply_read_and_X(struct smbsrv_request *req)
 {
 	union smb_read *io;
+	uint16_t high_part = 0;
 
 	/* parse request */
 	if (req->in.wct != 12) {
@@ -868,13 +870,18 @@ void smbsrv_reply_read_and_X(struct smbsrv_request *req)
 		io->readx.in.read_for_execute = false;
 	}
 
-	if (req->smb_conn->negotiate.client_caps & CAP_LARGE_READX) {
-		uint32_t high_part = IVAL(req->in.vwv, VWV(7));
-		if (high_part == 1) {
-			io->readx.in.maxcnt |= high_part << 16;
-		}
+	if (req->smb_conn->negotiate.protocol == PROTOCOL_NT1) {
+		high_part = SVAL(req->in.vwv, VWV(7));
 	}
-	
+	if (high_part != UINT16_MAX) {
+		io->readx.in.maxcnt |= high_part << 16;
+	}
+
+	/*
+	 * Windows truncates the length to 0x10000
+	 */
+	io->readx.in.maxcnt = MIN(io->readx.in.maxcnt, 0x10000);
+
 	/* the 64 bit variant */
 	if (req->in.wct == 12) {
 		uint32_t offset_high = IVAL(req->in.vwv, VWV(10));
@@ -2333,7 +2340,7 @@ void smbsrv_reply_special(struct smbsrv_request *req)
 	SIVAL(buf, 0, 0);
 	
 	switch (msg_type) {
-	case 0x81: /* session request */
+	case NBSSrequest: /* session request */
 		if (req->smb_conn->negotiate.done_nbt_session) {
 			DEBUG(0,("Warning: ignoring secondary session request\n"));
 			return;
@@ -2353,14 +2360,14 @@ void smbsrv_reply_special(struct smbsrv_request *req)
 		
 	case 0x89: /* session keepalive request 
 		      (some old clients produce this?) */
-		SCVAL(buf, 0, SMBkeepalive);
+		SCVAL(buf, 0, NBSSkeepalive);
 		SCVAL(buf, 3, 0);
 		req->out.buffer = buf;
 		req->out.size = 4;
 		smbsrv_send_reply_nosign(req);
 		return;
 		
-	case SMBkeepalive: 
+	case NBSSkeepalive:
 		/* session keepalive - swallow it */
 		talloc_free(req);
 		return;

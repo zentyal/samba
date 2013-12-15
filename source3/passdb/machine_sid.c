@@ -21,9 +21,9 @@
 */
 
 #include "includes.h"
-#include "passdb.h"
+#include "passdb/machine_sid.h"
 #include "secrets.h"
-#include "dbwrap.h"
+#include "dbwrap/dbwrap.h"
 #include "../libcli/security/security.h"
 
 /* NOTE! the global_sam_sid is the SID of our local SAM. This is only
@@ -97,7 +97,7 @@ static struct dom_sid *pdb_generate_sam_sid(void)
 		}
 	}
 
-	if (secrets_fetch_domain_sid(global_myname(), sam_sid)) {
+	if (secrets_fetch_domain_sid(lp_netbios_name(), sam_sid)) {
 
 		/* We got our sid. If not a pdc/bdc, we're done. */
 		if ( !IS_DC )
@@ -120,7 +120,7 @@ static struct dom_sid *pdb_generate_sam_sid(void)
 			/* Domain name sid doesn't match global sam sid. Re-store domain sid as 'local' sid. */
 
 			DEBUG(0,("pdb_generate_sam_sid: Mismatched SIDs as a pdc/bdc.\n"));
-			if (!secrets_store_domain_sid(global_myname(), &domain_sid)) {
+			if (!secrets_store_domain_sid(lp_netbios_name(), &domain_sid)) {
 				DEBUG(0,("pdb_generate_sam_sid: Can't re-store domain SID for local sid as PDC/BDC.\n"));
 				SAFE_FREE(sam_sid);
 				return NULL;
@@ -139,7 +139,7 @@ static struct dom_sid *pdb_generate_sam_sid(void)
 
 	if (read_sid_from_file(fname, sam_sid)) {
 		/* remember it for future reference and unlink the old MACHINE.SID */
-		if (!secrets_store_domain_sid(global_myname(), sam_sid)) {
+		if (!secrets_store_domain_sid(lp_netbios_name(), sam_sid)) {
 			DEBUG(0,("pdb_generate_sam_sid: Failed to store SID from file.\n"));
 			SAFE_FREE(fname);
 			SAFE_FREE(sam_sid);
@@ -166,7 +166,7 @@ static struct dom_sid *pdb_generate_sam_sid(void)
            generate one and save it */
 	generate_random_sid(sam_sid);
 
-	if (!secrets_store_domain_sid(global_myname(), sam_sid)) {
+	if (!secrets_store_domain_sid(lp_netbios_name(), sam_sid)) {
 		DEBUG(0,("pdb_generate_sam_sid: Failed to store generated machine SID.\n"));
 		SAFE_FREE(sam_sid);
 		return NULL;
@@ -204,16 +204,16 @@ struct dom_sid *get_global_sam_sid(void)
 		smb_panic("could not open secrets db");
 	}
 
-	if (db->transaction_start(db) != 0) {
+	if (dbwrap_transaction_start(db) != 0) {
 		smb_panic("could not start transaction on secrets db");
 	}
 
 	if (!(global_sam_sid = pdb_generate_sam_sid())) {
-		db->transaction_cancel(db);
+		dbwrap_transaction_cancel(db);
 		smb_panic("could not generate a machine SID");
 	}
 
-	if (db->transaction_commit(db) != 0) {
+	if (dbwrap_transaction_commit(db) != 0) {
 		smb_panic("could not start commit secrets db");
 	}
 
@@ -229,10 +229,10 @@ void reset_global_sam_sid(void)
 }
 
 /*****************************************************************
- Check if the SID is our domain SID (S-1-5-21-x-y-z).
+ Check if the SID is our sam SID (S-1-5-21-x-y-z).
 *****************************************************************/  
 
-bool sid_check_is_domain(const struct dom_sid *sid)
+bool sid_check_is_our_sam(const struct dom_sid *sid)
 {
 	return dom_sid_equal(sid, get_global_sam_sid());
 }
@@ -241,11 +241,11 @@ bool sid_check_is_domain(const struct dom_sid *sid)
  Check if the SID is our domain SID (S-1-5-21-x-y-z).
 *****************************************************************/  
 
-bool sid_check_is_in_our_domain(const struct dom_sid *sid)
+bool sid_check_is_in_our_sam(const struct dom_sid *sid)
 {
 	struct dom_sid dom_sid;
 
 	sid_copy(&dom_sid, sid);
 	sid_split_rid(&dom_sid, NULL);
-	return sid_check_is_domain(&dom_sid);
+	return sid_check_is_our_sam(&dom_sid);
 }

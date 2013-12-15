@@ -31,12 +31,10 @@
 
 static void smb2srv_sesssetup_send(struct smb2srv_request *req, union smb_sesssetup *io)
 {
-	uint16_t credit;
-
 	if (NT_STATUS_IS_OK(req->status)) {
-		credit = 0x0003;
+		/* nothing */
 	} else if (NT_STATUS_EQUAL(req->status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
-		credit = 0x0002;
+		/* nothing */
 	} else {
 		smb2srv_send_error(req, req->status);
 		return;
@@ -44,7 +42,6 @@ static void smb2srv_sesssetup_send(struct smb2srv_request *req, union smb_sessse
 
 	SMB2SRV_CHECK(smb2srv_setup_reply(req, 0x08, true, io->smb2.out.secblob.length));
 
-	SSVAL(req->out.hdr, SMB2_HDR_CREDIT,	credit);
 	SBVAL(req->out.hdr, SMB2_HDR_SESSION_ID,	io->smb2.out.uid);
 
 	SSVAL(req->out.body, 0x02, io->smb2.out.session_flags);
@@ -67,6 +64,7 @@ static void smb2srv_sesssetup_callback(struct tevent_req *subreq)
 	union smb_sesssetup *io = ctx->io;
 	struct smbsrv_session *smb_sess = ctx->smb_sess;
 	struct auth_session_info *session_info = NULL;
+	enum security_user_level user_level;
 	NTSTATUS status;
 
 	packet_recv_enable(req->smb_conn->packet);
@@ -79,7 +77,7 @@ static void smb2srv_sesssetup_callback(struct tevent_req *subreq)
 		goto failed;
 	}
 
-	status = gensec_session_info(smb_sess->gensec_ctx, &session_info);
+	status = gensec_session_info(smb_sess->gensec_ctx, smb_sess, &session_info);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto failed;
 	}
@@ -92,10 +90,16 @@ static void smb2srv_sesssetup_callback(struct tevent_req *subreq)
 	}
 	req->session = smb_sess;
 
-	if (smb_sess->smb2_signing.required) {
-		/* activate smb2 signing on the session */
-		smb_sess->smb2_signing.active = true;
+	user_level = security_session_user_level(smb_sess->session_info, NULL);
+	if (user_level >= SECURITY_USER) {
+		if (smb_sess->smb2_signing.required) {
+			/* activate smb2 signing on the session */
+			smb_sess->smb2_signing.active = true;
+		}
+		/* we need to sign the session setup response */
+		req->is_signed = true;
 	}
+
 done:
 	io->smb2.out.uid = smb_sess->vuid;
 failed:
@@ -163,6 +167,11 @@ static void smb2srv_sesssetup_backend(struct smb2srv_request *req, union smb_ses
 	}
 
 	if (!smb_sess) {
+		status = NT_STATUS_USER_SESSION_DELETED;
+		goto failed;
+	}
+
+	if (smb_sess->session_info) {
 		/* see WSPP test suite - test 11 */
 		status = NT_STATUS_REQUEST_NOT_ACCEPTED;
 		goto failed;

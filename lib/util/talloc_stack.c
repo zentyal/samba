@@ -96,6 +96,17 @@ static int talloc_pop(TALLOC_CTX *frame)
 		(struct talloc_stackframe *)SMB_THREAD_GET_TLS(global_ts);
 	int i;
 
+	/* Catch lazy frame-freeing. */
+	if (ts->talloc_stack[ts->talloc_stacksize-1] != frame) {
+		DEBUG(0, ("Freed frame %s, expected %s.\n",
+			  talloc_get_name(frame),
+			  talloc_get_name(ts->talloc_stack
+					  [ts->talloc_stacksize-1])));
+#ifdef DEVELOPER
+		smb_panic("Frame not freed in order.");
+#endif
+	}
+
 	for (i=ts->talloc_stacksize-1; i>0; i--) {
 		if (frame == ts->talloc_stack[i]) {
 			break;
@@ -115,9 +126,10 @@ static int talloc_pop(TALLOC_CTX *frame)
  * not explicitly freed.
  */
 
-static TALLOC_CTX *talloc_stackframe_internal(size_t poolsize)
+static TALLOC_CTX *talloc_stackframe_internal(const char *location,
+					      size_t poolsize)
 {
-	TALLOC_CTX **tmp, *top, *parent;
+	TALLOC_CTX **tmp, *top;
 	struct talloc_stackframe *ts =
 		(struct talloc_stackframe *)SMB_THREAD_GET_TLS(global_ts);
 
@@ -135,22 +147,23 @@ static TALLOC_CTX *talloc_stackframe_internal(size_t poolsize)
 		ts->talloc_stack_arraysize = ts->talloc_stacksize + 1;
         }
 
-	if (ts->talloc_stacksize == 0) {
-		parent = ts->talloc_stack;
-	} else {
-		parent = ts->talloc_stack[ts->talloc_stacksize-1];
-	}
-
 	if (poolsize) {
-		top = talloc_pool(parent, poolsize);
+		top = talloc_pool(ts->talloc_stack, poolsize);
 	} else {
+		TALLOC_CTX *parent;
+		/* We chain parentage, so if one is a pool we draw from it. */
+		if (ts->talloc_stacksize == 0) {
+			parent = ts->talloc_stack;
+		} else {
+			parent = ts->talloc_stack[ts->talloc_stacksize-1];
+		}
 		top = talloc_new(parent);
 	}
 
 	if (top == NULL) {
 		goto fail;
 	}
-
+	talloc_set_name_const(top, location);
 	talloc_set_destructor(top, talloc_pop);
 
 	ts->talloc_stack[ts->talloc_stacksize++] = top;
@@ -161,30 +174,51 @@ static TALLOC_CTX *talloc_stackframe_internal(size_t poolsize)
 	return NULL;
 }
 
-TALLOC_CTX *talloc_stackframe(void)
+TALLOC_CTX *_talloc_stackframe(const char *location)
 {
-	return talloc_stackframe_internal(0);
+	return talloc_stackframe_internal(location, 0);
 }
 
-TALLOC_CTX *talloc_stackframe_pool(size_t poolsize)
+TALLOC_CTX *_talloc_stackframe_pool(const char *location, size_t poolsize)
 {
-	return talloc_stackframe_internal(poolsize);
+	return talloc_stackframe_internal(location, poolsize);
 }
 
 /*
  * Get us the current top of the talloc stack.
  */
 
-TALLOC_CTX *talloc_tos(void)
+TALLOC_CTX *_talloc_tos(const char *location)
 {
 	struct talloc_stackframe *ts =
 		(struct talloc_stackframe *)SMB_THREAD_GET_TLS(global_ts);
 
 	if (ts == NULL || ts->talloc_stacksize == 0) {
-		talloc_stackframe();
+		_talloc_stackframe(location);
 		ts = (struct talloc_stackframe *)SMB_THREAD_GET_TLS(global_ts);
-		DEBUG(0, ("no talloc stackframe around, leaking memory\n"));
+		DEBUG(0, ("no talloc stackframe at %s, leaking memory\n",
+			  location));
+#ifdef DEVELOPER
+		smb_panic("No talloc stackframe");
+#endif
 	}
 
 	return ts->talloc_stack[ts->talloc_stacksize-1];
+}
+
+/*
+ * return true if a talloc stackframe exists
+ * this can be used to prevent memory leaks for code that can
+ * optionally use a talloc stackframe (eg. nt_errstr())
+ */
+
+bool talloc_stackframe_exists(void)
+{
+	struct talloc_stackframe *ts =
+		(struct talloc_stackframe *)SMB_THREAD_GET_TLS(global_ts);
+
+	if (ts == NULL || ts->talloc_stacksize == 0) {
+		return false;
+	}
+	return true;
 }

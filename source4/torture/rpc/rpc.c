@@ -75,7 +75,7 @@ _PUBLIC_ NTSTATUS torture_rpc_connection(struct torture_context *tctx,
 	NTSTATUS status;
 	struct dcerpc_binding *binding;
 
-	dcerpc_init(tctx->lp_ctx);
+	dcerpc_init();
 
 	status = torture_rpc_binding(tctx, &binding);
 	if (NT_STATUS_IS_ERR(status))
@@ -478,8 +478,10 @@ NTSTATUS torture_rpc_init(void)
 	torture_suite_add_suite(suite, torture_rpc_object_uuid(suite));
 	torture_suite_add_suite(suite, torture_rpc_winreg(suite));
 	torture_suite_add_suite(suite, torture_rpc_spoolss(suite));
+#ifdef AD_DC_BUILD_IS_ENABLED
 	torture_suite_add_suite(suite, torture_rpc_spoolss_notify(suite));
 	torture_suite_add_suite(suite, torture_rpc_spoolss_win(suite));
+#endif
 	torture_suite_add_suite(suite, torture_rpc_spoolss_driver(suite));
 	torture_suite_add_suite(suite, torture_rpc_spoolss_access(suite));
 	torture_suite_add_simple_test(suite, "samr", torture_rpc_samr);
@@ -503,6 +505,7 @@ NTSTATUS torture_rpc_init(void)
 	torture_suite_add_suite(suite, torture_rpc_samr_passwords_lockout(suite));
 	torture_suite_add_suite(suite, torture_rpc_samr_user_privileges(suite));
 	torture_suite_add_suite(suite, torture_rpc_samr_large_dc(suite));
+	torture_suite_add_suite(suite, torture_rpc_samr_priv(suite));
 	torture_suite_add_suite(suite, torture_rpc_epmapper(suite));
 	torture_suite_add_suite(suite, torture_rpc_initshutdown(suite));
 	torture_suite_add_suite(suite, torture_rpc_oxidresolve(suite));
@@ -525,7 +528,10 @@ NTSTATUS torture_rpc_init(void)
 	torture_suite_add_simple_test(suite, "asyncbind", torture_async_bind);
 	torture_suite_add_suite(suite, torture_rpc_ntsvcs(suite));
 	torture_suite_add_suite(suite, torture_rpc_bind(suite));
+#ifdef AD_DC_BUILD_IS_ENABLED /* Add Heimdal-specific KDC test */
 	torture_suite_add_suite(suite, torture_rpc_backupkey(suite));
+#endif
+	torture_suite_add_suite(suite, torture_rpc_fsrvp(suite));
 
 	suite->description = talloc_strdup(suite, "DCE/RPC protocol and interface tests");
 

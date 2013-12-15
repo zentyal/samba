@@ -18,8 +18,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: 3.0.22-1\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2013-05-13 11:53-0700\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2013-10-22 20:32+0200\n"
 "PO-Revision-Date: 2006-10-03 19:36-0500\n"
 "Last-Translator: Carlos Z.F. Liu <carlosliu@users.sourceforge.ent>\n"
 "Language-Team: Debian Chinese [GB] <debian-chinese-gb@lists.debian.org>\n"
@@ -27,6 +27,117 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid "Upgrade from Samba 3?"
+msgstr ""
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid ""
+"It is possible to migrate the existing configuration files from Samba 3 to "
+"Samba 4. This is likely to fail for complex setups, but should provide a "
+"good starting point for most existing installations."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid "Server role"
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Domain controllers manage NT4-style or Active Directory domains and provide "
+"services such as identity management and domain logons. Each domain needs to "
+"have a at least one domain controller."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Member servers can be part of a NT4-style or Active Directory domain but do "
+"not provide any domain services. Workstations and file or print servers are "
+"usually regular domain members."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"A standalone server can not be used in a domain and only supports file "
+"sharing and Windows for Workgroups-style logins."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"If no server role is specified, the Samba server will not be provisioned, so "
+"this can be done manually by the user."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Realm name:"
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid ""
+"Please specify the Kerberos realm for the domain that this domain controller "
+"controls."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Usually this is the a capitalized version of your DNS hostname."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "New password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "If this field is left blank, a random password will be generated."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "A password can be set later by running, as root:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:5001
+msgid "Repeat password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "Password input error"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr ""
 
 #. Type: title
 #. Description
@@ -103,44 +214,128 @@ msgstr "工作组/域名："
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
-"请指定本服务器在收到客户端查询时将要显示的工作组。请注意，此参数同样也控制了 "
-"security=demain 设置所用的域名。"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "使用口令加密吗？"
+#~ msgid "Use password encryption?"
+#~ msgstr "使用口令加密吗？"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"较新的 Windows 客户端都使用加密的口令与 SMB 服务器通讯。如果您想使用明文密"
-"码，您将需要修改您的 Windows 注册表中的一个参数。"
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "较新的 Windows 客户端都使用加密的口令与 SMB 服务器通讯。如果您想使用明文密"
+#~ "码，您将需要修改您的 Windows 注册表中的一个参数。"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"强烈推荐开启此选项。如果选中，请确保您拥有一个有效的 /etc/samba/smbpasswd 文"
-"件，并且此文件包含用 smbpasswd 命令为每个用户设定的密码。"
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "强烈推荐开启此选项。如果选中，请确保您拥有一个有效的 /etc/samba/smbpasswd "
+#~ "文件，并且此文件包含用 smbpasswd 命令为每个用户设定的密码。"
 
+#~ msgid "daemons"
+#~ msgstr "守护进程"
+
+#~ msgid "inetd"
+#~ msgstr "inetd"
+
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "您想如何运行 Samba？"
+
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Samba 守护进程 smbd 可以作为普通守护进程或者从 inetd 启动。以守护进程的方"
+#~ "式运行是推荐的方式。"
+
+#, fuzzy
+#~| msgid ""
+#~| "Please specify the workgroup you want this server to appear to be in "
+#~| "when queried by clients. Note that this parameter also controls the "
+#~| "domain name used with the security=domain setting."
+#~ msgid ""
+#~ "Please specify the domain you want this server to appear to be in when "
+#~ "queried by clients."
+#~ msgstr ""
+#~ "请指定本服务器在收到客户端查询时将要显示的工作组。请注意，此参数同样也控制"
+#~ "了 security=demain 设置所用的域名。"
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "要创建 samba 密码数据库 /var/lib/samba/passdb.tdb 吗？"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "要与大多数 Windows 的默认设置兼容，Samba 必须被设置为使用加密口令。这需要"
+#~ "将用户口令保存独立于 /etc/passwd 之外的一个文件中。此文件可以自动创建，但"
+#~ "口令必须通过运行 smbpasswd 来手动添加并保持更新。"
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "如果您无法创建它，您就必须重新配置 samba (可能还包括您的客户端机器) 以使用"
+#~ "明文口令。"
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
+#~ "package for more details."
+#~ msgstr ""
+#~ "更多详情，请参阅 smaba-doc 软件包中的 /usr/share/doc/samba-doc/htmldocs/"
+#~ "ENCRYPTION.html。"
+
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "不支持串联 passdb 后端"
+
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "从版本 3.0.23 开始，samba 的 \"passdb backend\" 参数不再支持多个后端的串"
+#~ "联。而在你的 smb.conf 文件中的 passdb backend 参数包含了一个后端列表。如果"
+#~ "不修改这个问题的话，新版本的 samba 将不能工作。"
+
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr "要移动 /etc/samba/smbpasswd 到 /var/lib/samba/passdb.tdb 吗？"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Samba 3.0 引入了一种更完整的 SAM 数据库接口，并用其取代了 /etc/samba/"
+#~ "smbpasswd 文件。"
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "请确定您是否想将现有的 smbpasswd 文件自动移植为 /var/lib/samba/passdb."
+#~ "tdb。如果您计划使用其它的 pdb 后端 (如 LDAP) 的话，请不要选中此选项。"
+
+#~ msgid "daemons, inetd"
+#~ msgstr "守护进程, inetd"
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "更多详情，请参阅 smaba-doc 软件包中的 /usr/share/doc/samba-doc/htmldocs/"
+#~ "ENCRYPTION.html。"

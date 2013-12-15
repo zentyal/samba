@@ -63,6 +63,9 @@ struct dcecli_connection {
 	const char *binding_string;
 	struct tevent_context *event_ctx;
 
+	struct tevent_immediate *io_trigger;
+	bool io_trigger_pending;
+
 	/** Directory in which to save ndrdump-parseable files */
 	const char *packet_log_dir;
 
@@ -121,6 +124,14 @@ struct dcerpc_pipe {
 
 	/** timeout for individual rpc requests, in seconds */
 	uint32_t request_timeout;
+
+	/*
+	 * Set for the timeout in dcerpc_pipe_connect_b_send(), to
+	 * allow the timeout not to destory the stack during a nested
+	 * event loop caused by gensec_update()
+	 */
+	bool inhibit_timeout_processing;
+	bool timed_out;
 };
 
 /* default timeout for all rpc requests, in seconds */
@@ -198,7 +209,7 @@ NTSTATUS dcerpc_bind_auth_schannel(TALLOC_CTX *tmp_ctx,
 				   struct loadparm_context *lp_ctx,
 				   uint8_t auth_level);
 struct tevent_context *dcerpc_event_context(struct dcerpc_pipe *p);
-NTSTATUS dcerpc_init(struct loadparm_context *lp_ctx);
+NTSTATUS dcerpc_init(void);
 struct smbcli_tree *dcerpc_smb_tree(struct dcecli_connection *c);
 uint16_t dcerpc_smb_fnum(struct dcecli_connection *c);
 NTSTATUS dcerpc_secondary_context(struct dcerpc_pipe *p, 

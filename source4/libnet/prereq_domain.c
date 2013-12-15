@@ -29,7 +29,8 @@
 #include "librpc/gen_ndr/ndr_lsa.h"
 
 
-bool samr_domain_opened(struct libnet_context *ctx, const char *domain_name,
+bool samr_domain_opened(struct libnet_context *ctx, TALLOC_CTX *mem_ctx,
+			const char *domain_name,
 			struct composite_context **parent_ctx,
 			struct libnet_DomainOpen *domain_open,
 			void (*continue_fn)(struct composite_context*),
@@ -45,7 +46,7 @@ bool samr_domain_opened(struct libnet_context *ctx, const char *domain_name,
 		 * if it's not been explicitly specified.
 		 */
 
-		if (policy_handle_empty(&ctx->samr.handle)) {
+		if (ndr_policy_handle_empty(&ctx->samr.handle)) {
 			domain_open->in.type        = DOMAIN_SAMR;
 			domain_open->in.domain_name = cli_credentials_get_domain(ctx->cred);
 			domain_open->in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
@@ -62,7 +63,7 @@ bool samr_domain_opened(struct libnet_context *ctx, const char *domain_name,
 		 * opening a new domain otherwise.
 		 */
 
-		if (policy_handle_empty(&ctx->samr.handle) ||
+		if (ndr_policy_handle_empty(&ctx->samr.handle) ||
 		    !strequal(domain_name, ctx->samr.name)) {
 			domain_open->in.type        = DOMAIN_SAMR;
 			domain_open->in.domain_name = domain_name;
@@ -76,7 +77,7 @@ bool samr_domain_opened(struct libnet_context *ctx, const char *domain_name,
 	}
 
 	/* send request to open the domain */
-	domopen_req = libnet_DomainOpen_send(ctx, domain_open, monitor);
+	domopen_req = libnet_DomainOpen_send(ctx, mem_ctx, domain_open, monitor);
 	if (composite_nomem(domopen_req, *parent_ctx)) return false;
 	
 	composite_continue(*parent_ctx, domopen_req, continue_fn, *parent_ctx);
@@ -84,7 +85,8 @@ bool samr_domain_opened(struct libnet_context *ctx, const char *domain_name,
 }
 
 
-bool lsa_domain_opened(struct libnet_context *ctx, const char *domain_name,
+bool lsa_domain_opened(struct libnet_context *ctx, TALLOC_CTX *mem_ctx,
+		       const char *domain_name,
 		       struct composite_context **parent_ctx,
 		       struct libnet_DomainOpen *domain_open,
 		       void (*continue_fn)(struct composite_context*),
@@ -100,7 +102,7 @@ bool lsa_domain_opened(struct libnet_context *ctx, const char *domain_name,
 		 * if it's not been explicitly specified.
 		 */
 
-		if (policy_handle_empty(&ctx->lsa.handle)) {
+		if (ndr_policy_handle_empty(&ctx->lsa.handle)) {
 			domain_open->in.type        = DOMAIN_LSA;
 			domain_open->in.domain_name = cli_credentials_get_domain(ctx->cred);
 			domain_open->in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
@@ -119,7 +121,7 @@ bool lsa_domain_opened(struct libnet_context *ctx, const char *domain_name,
 		 * opening a new domain otherwise.
 		 */
 
-		if (policy_handle_empty(&ctx->lsa.handle) ||
+		if (ndr_policy_handle_empty(&ctx->lsa.handle) ||
 		    !strequal(domain_name, ctx->lsa.name)) {
 			domain_open->in.type        = DOMAIN_LSA;
 			domain_open->in.domain_name = domain_name;
@@ -133,7 +135,7 @@ bool lsa_domain_opened(struct libnet_context *ctx, const char *domain_name,
 	}
 
 	/* send request to open the domain */
-	domopen_req = libnet_DomainOpen_send(ctx, domain_open, monitor);
+	domopen_req = libnet_DomainOpen_send(ctx, mem_ctx, domain_open, monitor);
 	/* see the comment above to find out why true is returned here */
 	if (composite_nomem(domopen_req, *parent_ctx)) return true;
 	

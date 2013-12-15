@@ -2,12 +2,12 @@
 .\"     Title: vfs_streams_depot
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 09/18/2013
+.\"      Date: 12/06/2013
 .\"    Manual: System Administration tools
-.\"    Source: Samba 3.6
+.\"    Source: Samba 4.0
 .\"  Language: English
 .\"
-.TH "VFS_STREAMS_DEPOT" "8" "09/18/2013" "Samba 3\&.6" "System Administration tools"
+.TH "VFS_STREAMS_DEPOT" "8" "12/06/2013" "Samba 4\&.0" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -48,6 +48,39 @@ enables storing of NTFS alternate data streams in the file system\&. As a normal
 streams_depot:directory = PATH
 .RS 4
 Path of the directory where the alternate data streams should be stored\&. Defaults to the sharepath/\&.streams\&.
+.RE
+.PP
+streams_depot:delete_lost = [ yes | no ]
+.RS 4
+In the case of an already existing data streams directory for a newly created file the streams directory will be renamed to "lost\-%lu", random()\&. With this option lost stream directories will be removed instead of renamed\&.
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+
+no(default)
+\- rename lost streams to "lost\-%lu", random()\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+
+yes
+\- remove lost streams\&.
+.RE
+.sp
+.RE
 .RE
 .SH "EXAMPLES"
 .sp

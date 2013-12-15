@@ -25,6 +25,11 @@ unset TMPDIR
 # See if the daemon is there
 test -x $DAEMON || exit 0
 
+SERVER_ROLE=`samba-tool testparm --parameter-name="server role"  2>/dev/null | tail -1`
+if [ "$SERVER_ROLE" = "active directory domain controller" ]; then
+    exit 0
+fi
+
 . /lib/lsb/init-functions
 
 case "$1" in

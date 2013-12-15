@@ -138,7 +138,7 @@ static int load_proxy_info(struct ldb_module *module)
 	ldb_set_opaque(proxy->upstream, "credentials", creds);
 
 	ret = ldb_connect(proxy->upstream, url, 0, NULL);
-	if (ret != 0) {
+	if (ret != LDB_SUCCESS) {
 		ldb_debug(ldb, LDB_DEBUG_FATAL, "proxy failed to connect to %s\n", url);
 		goto failed;
 	}
@@ -339,6 +339,9 @@ static int proxy_search_bytree(struct ldb_module *module, struct ldb_request *re
 #endif
 
 	newtree = proxy_convert_tree(ac, proxy, req->op.search.tree);
+	if (newtree == NULL) {
+		goto failed;
+	}
 
 	/* convert the basedn of this search */
 	base = ldb_dn_copy(ac, req->op.search.base);

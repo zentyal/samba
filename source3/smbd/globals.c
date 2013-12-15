@@ -22,14 +22,10 @@
 #include "smbd/globals.h"
 #include "memcache.h"
 #include "messages.h"
-#include <tdb.h>
+#include "tdb_compat.h"
 
-#if defined(WITH_AIO)
-struct aio_extra *aio_list_head = NULL;
-struct tevent_signal *aio_signal_event = NULL;
-int aio_pending_size = 0;
+int aio_pending_size = 100;	/* tevent supports 100 signals SA_SIGINFO */
 int outstanding_aio_calls = 0;
-#endif
 
 #ifdef USE_DMAPI
 struct smbd_dmapi_context *dmapi_ctx = NULL;
@@ -53,21 +49,20 @@ TDB_CONTEXT *tdb_mangled_cache = NULL;
 */
 unsigned mangle_prefix = 0;
 
-struct msg_state *smbd_msg_state = NULL;
-
 bool logged_ioctl_message = false;
 
 time_t last_smb_conf_reload_time = 0;
 time_t last_printer_reload_time = 0;
+pid_t background_lpq_updater_pid = -1;
+
 /****************************************************************************
  structure to hold a linked list of queued messages.
  for processing.
 ****************************************************************************/
-struct pending_message_list *deferred_open_queue = NULL;
 uint32_t common_flags2 = FLAGS2_LONG_PATH_COMPONENTS|FLAGS2_32_BIT_ERROR_CODES|FLAGS2_EXTENDED_ATTRIBUTES;
 
-struct smb_srv_trans_enc_ctx *partial_srv_trans_enc_ctx = NULL;
-struct smb_srv_trans_enc_ctx *srv_trans_enc_ctx = NULL;
+struct smb_trans_enc_state *partial_srv_trans_enc_ctx = NULL;
+struct smb_trans_enc_state *srv_trans_enc_ctx = NULL;
 
 /* A stack of security contexts.  We include the current context as being
    the first one, so there is room for another MAX_SEC_CTX_DEPTH more. */
@@ -91,41 +86,11 @@ struct vfs_init_function_entry *backends = NULL;
 char *sparse_buf = NULL;
 char *LastDir = NULL;
 
-/* Current number of oplocks we have outstanding. */
-int32_t exclusive_oplocks_open = 0;
-int32_t level_II_oplocks_open = 0;
-struct kernel_oplocks *koplocks = NULL;
-
-int am_parent = 1;
+struct smbd_parent_context *am_parent = NULL;
 struct memcache *smbd_memcache_ctx = NULL;
 bool exit_firsttime = true;
-struct child_pid *children = 0;
-int num_children = 0;
 
-struct smbd_server_connection *smbd_server_conn = NULL;
-
-struct smbd_server_connection *msg_ctx_to_sconn(struct messaging_context *msg_ctx)
-{
-	struct server_id my_id, msg_id;
-
-	my_id = messaging_server_id(smbd_server_conn->msg_ctx);
-	msg_id = messaging_server_id(msg_ctx);
-
-	if (!procid_equal(&my_id, &msg_id)) {
-		return NULL;
-	}
-	return smbd_server_conn;
-}
-
-struct messaging_context *smbd_messaging_context(void)
-{
-	struct messaging_context *msg_ctx = server_messaging_context();
-	if (likely(msg_ctx != NULL)) {
-		return msg_ctx;
-	}
-	smb_panic("Could not init smbd's messaging context.\n");
-	return NULL;
-}
+struct smbXsrv_connection *global_smbXsrv_connection = NULL;
 
 struct memcache *smbd_memcache(void)
 {
@@ -145,18 +110,9 @@ struct memcache *smbd_memcache(void)
 	return smbd_memcache_ctx;
 }
 
-
 void smbd_init_globals(void)
 {
 	ZERO_STRUCT(conn_ctx_stack);
 
 	ZERO_STRUCT(sec_ctx_stack);
-
-	smbd_server_conn = talloc_zero(smbd_event_context(), struct smbd_server_connection);
-	if (!smbd_server_conn) {
-		exit_server("failed to create smbd_server_connection");
-	}
-
-	smbd_server_conn->smb1.echo_handler.trusted_fd = -1;
-	smbd_server_conn->smb1.echo_handler.socket_lock_fd = -1;
 }

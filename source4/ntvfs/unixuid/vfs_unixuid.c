@@ -28,38 +28,23 @@
 #include "libcli/wbclient/wbclient.h"
 #define TEVENT_DEPRECATED
 #include <tevent.h>
+#include "../lib/util/setid.h"
 
-#if defined(UID_WRAPPER)
-#if !defined(UID_WRAPPER_REPLACE) && !defined(UID_WRAPPER_NOT_REPLACE)
-#define UID_WRAPPER_REPLACE
-#include "../uid_wrapper/uid_wrapper.h"
-#endif
-#else
-#define uwrap_enabled() 0
-#endif
-
+NTSTATUS ntvfs_unixuid_init(void);
 
 struct unixuid_private {
 	struct wbc_context *wbc_ctx;
-	struct unix_sec_ctx *last_sec_ctx;
+	struct security_unix_token *last_sec_ctx;
 	struct security_token *last_token;
 };
 
 
-
-struct unix_sec_ctx {
-	uid_t uid;
-	gid_t gid;
-	unsigned int ngroups;
-	gid_t *groups;
-};
-
 /*
-  pull the current security context into a unix_sec_ctx
+  pull the current security context into a security_unix_token
 */
-static struct unix_sec_ctx *save_unix_security(TALLOC_CTX *mem_ctx)
+static struct security_unix_token *save_unix_security(TALLOC_CTX *mem_ctx)
 {
-	struct unix_sec_ctx *sec = talloc(mem_ctx, struct unix_sec_ctx);
+	struct security_unix_token *sec = talloc(mem_ctx, struct security_unix_token);
 	if (sec == NULL) {
 		return NULL;
 	}
@@ -85,19 +70,19 @@ static struct unix_sec_ctx *save_unix_security(TALLOC_CTX *mem_ctx)
 }
 
 /*
-  set the current security context from a unix_sec_ctx
+  set the current security context from a security_unix_token
 */
-static NTSTATUS set_unix_security(struct unix_sec_ctx *sec)
+static NTSTATUS set_unix_security(struct security_unix_token *sec)
 {
-	seteuid(0);
+	samba_seteuid(0);
 
-	if (setgroups(sec->ngroups, sec->groups) != 0) {
+	if (samba_setgroups(sec->ngroups, sec->groups) != 0) {
 		return NT_STATUS_ACCESS_DENIED;
 	}
-	if (setegid(sec->gid) != 0) {
+	if (samba_setegid(sec->gid) != 0) {
 		return NT_STATUS_ACCESS_DENIED;
 	}
-	if (seteuid(sec->uid) != 0) {
+	if (samba_seteuid(sec->uid) != 0) {
 		return NT_STATUS_ACCESS_DENIED;
 	}
 	return NT_STATUS_OK;
@@ -116,7 +101,7 @@ static int unixuid_event_nesting_hook(struct tevent_context *ev,
 				      void *stack_ptr,
 				      const char *location)
 {
-	struct unix_sec_ctx *sec_ctx;
+	struct security_unix_token *sec_ctx;
 
 	if (unixuid_nesting_level == 0) {
 		/* we don't need to do anything unless we are nested
@@ -130,8 +115,8 @@ static int unixuid_event_nesting_hook(struct tevent_context *ev,
 			DEBUG(0,("%s: Failed to save security context\n", location));
 			return -1;
 		}
-		*(struct unix_sec_ctx **)stack_ptr = sec_ctx;
-		if (seteuid(0) != 0 || setegid(0) != 0) {
+		*(struct security_unix_token **)stack_ptr = sec_ctx;
+		if (samba_seteuid(0) != 0 || samba_setegid(0) != 0) {
 			DEBUG(0,("%s: Failed to change to root\n", location));
 			return -1;			
 		}
@@ -139,7 +124,7 @@ static int unixuid_event_nesting_hook(struct tevent_context *ev,
 		/* called when we come out of a nesting level */
 		NTSTATUS status;
 
-		sec_ctx = *(struct unix_sec_ctx **)stack_ptr;
+		sec_ctx = *(struct security_unix_token **)stack_ptr;
 		if (sec_ctx == NULL) {
 			/* this happens the first time this function
 			   is called, as we install the hook while
@@ -147,7 +132,7 @@ static int unixuid_event_nesting_hook(struct tevent_context *ev,
 			return 0;
 		}
 
-		sec_ctx = talloc_get_type_abort(sec_ctx, struct unix_sec_ctx);
+		sec_ctx = talloc_get_type_abort(sec_ctx, struct security_unix_token);
 		status = set_unix_security(sec_ctx);
 		talloc_free(sec_ctx);
 		if (!NT_STATUS_IS_OK(status)) {
@@ -162,79 +147,29 @@ static int unixuid_event_nesting_hook(struct tevent_context *ev,
 
 
 /*
-  form a unix_sec_ctx from the current security_token
+  form a security_unix_token from the current security_token
 */
 static NTSTATUS nt_token_to_unix_security(struct ntvfs_module_context *ntvfs,
 					  struct ntvfs_request *req,
 					  struct security_token *token,
-					  struct unix_sec_ctx **sec)
+					  struct security_unix_token **sec)
 {
 	struct unixuid_private *priv = ntvfs->private_data;
-	int i;
-	NTSTATUS status;
-	struct id_map *ids;
-	struct composite_context *ctx;
-	*sec = talloc(req, struct unix_sec_ctx);
 
-	/* we can't do unix security without a user and group */
-	if (token->num_sids < 2) {
-		return NT_STATUS_ACCESS_DENIED;
-	}
-
-	ids = talloc_array(req, struct id_map, token->num_sids);
-	NT_STATUS_HAVE_NO_MEMORY(ids);
-
-	(*sec)->ngroups = token->num_sids - 2;
-	(*sec)->groups = talloc_array(*sec, gid_t, (*sec)->ngroups);
-	NT_STATUS_HAVE_NO_MEMORY((*sec)->groups);
-
-	for (i=0;i<token->num_sids;i++) {
-		ZERO_STRUCT(ids[i].xid);
-		ids[i].sid = &token->sids[i];
-		ids[i].status = ID_UNKNOWN;
-	}
-
-	ctx = wbc_sids_to_xids_send(priv->wbc_ctx, ids, token->num_sids, ids);
-	NT_STATUS_HAVE_NO_MEMORY(ctx);
-
-	status = wbc_sids_to_xids_recv(ctx, &ids);
-	NT_STATUS_NOT_OK_RETURN(status);
-
-	if (ids[0].xid.type == ID_TYPE_BOTH ||
-	    ids[0].xid.type == ID_TYPE_UID) {
-		(*sec)->uid = ids[0].xid.id;
-	} else {
-		return NT_STATUS_INVALID_SID;
-	}
-
-	if (ids[1].xid.type == ID_TYPE_BOTH ||
-	    ids[1].xid.type == ID_TYPE_GID) {
-		(*sec)->gid = ids[1].xid.id;
-	} else {
-		return NT_STATUS_INVALID_SID;
-	}
-
-	for (i=0;i<(*sec)->ngroups;i++) {
-		if (ids[i+2].xid.type == ID_TYPE_BOTH ||
-		    ids[i+2].xid.type == ID_TYPE_GID) {
-			(*sec)->groups[i] = ids[i+2].xid.id;
-		} else {
-			return NT_STATUS_INVALID_SID;
-		}
-	}
-
-	return NT_STATUS_OK;
+	return security_token_to_unix_token(req,
+					    priv->wbc_ctx,
+					    token, sec);
 }
 
 /*
   setup our unix security context according to the session authentication info
 */
 static NTSTATUS unixuid_setup_security(struct ntvfs_module_context *ntvfs,
-				       struct ntvfs_request *req, struct unix_sec_ctx **sec)
+				       struct ntvfs_request *req, struct security_unix_token **sec)
 {
 	struct unixuid_private *priv = ntvfs->private_data;
 	struct security_token *token;
-	struct unix_sec_ctx *newsec;
+	struct security_unix_token *newsec;
 	NTSTATUS status;
 
 	/* If we are asked to set up, but have not had a successful
@@ -281,7 +216,7 @@ static NTSTATUS unixuid_setup_security(struct ntvfs_module_context *ntvfs,
 */
 #define PASS_THRU_REQ(ntvfs, req, op, args) do { \
 	NTSTATUS status2; \
-	struct unix_sec_ctx *sec; \
+	struct security_unix_token *sec; \
 	status = unixuid_setup_security(ntvfs, req, &sec); \
 	NT_STATUS_NOT_OK_RETURN(status); \
 	unixuid_nesting_level++; \
@@ -746,37 +681,37 @@ NTSTATUS ntvfs_unixuid_init(void)
 	ZERO_STRUCT(ops);
 
 	/* fill in all the operations */
-	ops.connect = unixuid_connect;
-	ops.disconnect = unixuid_disconnect;
-	ops.unlink = unixuid_unlink;
-	ops.chkpath = unixuid_chkpath;
-	ops.qpathinfo = unixuid_qpathinfo;
-	ops.setpathinfo = unixuid_setpathinfo;
-	ops.open = unixuid_open;
-	ops.mkdir = unixuid_mkdir;
-	ops.rmdir = unixuid_rmdir;
-	ops.rename = unixuid_rename;
-	ops.copy = unixuid_copy;
-	ops.ioctl = unixuid_ioctl;
-	ops.read = unixuid_read;
-	ops.write = unixuid_write;
-	ops.seek = unixuid_seek;
-	ops.flush = unixuid_flush;	
-	ops.close = unixuid_close;
-	ops.exit = unixuid_exit;
-	ops.lock = unixuid_lock;
-	ops.setfileinfo = unixuid_setfileinfo;
-	ops.qfileinfo = unixuid_qfileinfo;
-	ops.fsinfo = unixuid_fsinfo;
-	ops.lpq = unixuid_lpq;
-	ops.search_first = unixuid_search_first;
-	ops.search_next = unixuid_search_next;
-	ops.search_close = unixuid_search_close;
-	ops.trans = unixuid_trans;
-	ops.logoff = unixuid_logoff;
-	ops.async_setup = unixuid_async_setup;
-	ops.cancel = unixuid_cancel;
-	ops.notify = unixuid_notify;
+	ops.connect_fn = unixuid_connect;
+	ops.disconnect_fn = unixuid_disconnect;
+	ops.unlink_fn = unixuid_unlink;
+	ops.chkpath_fn = unixuid_chkpath;
+	ops.qpathinfo_fn = unixuid_qpathinfo;
+	ops.setpathinfo_fn = unixuid_setpathinfo;
+	ops.open_fn = unixuid_open;
+	ops.mkdir_fn = unixuid_mkdir;
+	ops.rmdir_fn = unixuid_rmdir;
+	ops.rename_fn = unixuid_rename;
+	ops.copy_fn = unixuid_copy;
+	ops.ioctl_fn = unixuid_ioctl;
+	ops.read_fn = unixuid_read;
+	ops.write_fn = unixuid_write;
+	ops.seek_fn = unixuid_seek;
+	ops.flush_fn = unixuid_flush;
+	ops.close_fn = unixuid_close;
+	ops.exit_fn = unixuid_exit;
+	ops.lock_fn = unixuid_lock;
+	ops.setfileinfo_fn = unixuid_setfileinfo;
+	ops.qfileinfo_fn = unixuid_qfileinfo;
+	ops.fsinfo_fn = unixuid_fsinfo;
+	ops.lpq_fn = unixuid_lpq;
+	ops.search_first_fn = unixuid_search_first;
+	ops.search_next_fn = unixuid_search_next;
+	ops.search_close_fn = unixuid_search_close;
+	ops.trans_fn = unixuid_trans;
+	ops.logoff_fn = unixuid_logoff;
+	ops.async_setup_fn = unixuid_async_setup;
+	ops.cancel_fn = unixuid_cancel;
+	ops.notify_fn = unixuid_notify;
 
 	ops.name = "unixuid";
 

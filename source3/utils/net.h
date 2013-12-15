@@ -80,6 +80,10 @@ struct net_context {
 	int opt_lock;
 	int opt_auto;
 	int opt_repair;
+	int opt_reg_version;
+	const char *opt_output;
+	int opt_wipe;
+	const char *opt_precheck;
 
 	int opt_have_ip;
 	struct sockaddr_storage opt_dest_ip;
@@ -149,7 +153,7 @@ struct rpc_sh_cmd {
 	struct rpc_sh_cmd *(*sub)(struct net_context *c,
 				  TALLOC_CTX *mem_ctx,
 				  struct rpc_sh_ctx *ctx);
-	const struct ndr_syntax_id *interface;
+	const struct ndr_interface_table *table;
 	NTSTATUS (*fn)(struct net_context *c, TALLOC_CTX *mem_ctx,
 		       struct rpc_sh_ctx *ctx,
 		       struct rpc_pipe_client *pipe_hnd,

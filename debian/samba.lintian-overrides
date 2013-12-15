@@ -1,1 +1,7 @@
 samba: non-standard-dir-perm var/spool/samba/ 1777 != 0755
+# reload-smbd is upstart-only
+samba: init.d-script-not-marked-as-conffile etc/init.d/reload-smbd
+samba: init.d-script-not-included-in-package etc/init.d/reload-smbd
+# /etc/init.d/samba is not a real init script, just a compatibility wrapper
+samba: script-in-etc-init.d-not-registered-via-update-rc.d etc/init.d/samba
+samba: init.d-script-does-not-source-init-functions etc/init.d/samba

@@ -72,7 +72,7 @@ static void sid2gid_recv_gid(struct composite_context *ctx)
 
 	struct id_map *ids = NULL;
 
-	state->ctx->status = wb_sids2xids_recv(ctx, &ids);
+	state->ctx->status = wb_sids2xids_recv(ctx, &ids, NULL);
 	if (!composite_is_ok(state->ctx)) return;
 
 	if (ids->status != ID_MAPPED) {
@@ -84,8 +84,10 @@ static void sid2gid_recv_gid(struct composite_context *ctx)
 	    ids->xid.type == ID_TYPE_GID) {
 		state->gid = ids->xid.id;
 		composite_done(state->ctx);
+		return;
 	} else {
 		composite_error(state->ctx, NT_STATUS_INVALID_SID);
+		return;
 	}
 }
 

@@ -3,17 +3,17 @@
    messages.c header
    Copyright (C) Andrew Tridgell 2000
    Copyright (C) 2001, 2002 by Martin Pool
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -42,18 +42,10 @@
 #define FLAG_MSG_GENERAL		0x0001
 #define FLAG_MSG_SMBD			0x0002
 #define FLAG_MSG_NMBD			0x0004
-#define FLAG_MSG_PRINT_NOTIFY		0x0008
+#define FLAG_MSG_WINBIND		0x0008
 #define FLAG_MSG_PRINT_GENERAL		0x0010
 /* dbwrap messages 4001-4999 */
 #define FLAG_MSG_DBWRAP			0x0020
-
-
-/*
- * Virtual Node Numbers are identifying a node within a cluster. Ctdbd sets
- * this, we retrieve our vnn from it.
- */
-
-#define NONCLUSTER_VNN (0xFFFFFFFF)
 
 /*
  * ctdb gives us 64-bit server ids for messaging_send. This is done to avoid
@@ -106,6 +98,9 @@ NTSTATUS messaging_tdb_init(struct messaging_context *msg_ctx,
 
 bool messaging_tdb_parent_init(TALLOC_CTX *mem_ctx);
 
+void *messaging_tdb_event(TALLOC_CTX *mem_ctx, struct messaging_context *msg,
+			  struct tevent_context *ev);
+
 NTSTATUS messaging_ctdbd_init(struct messaging_context *msg_ctx,
 			      TALLOC_CTX *mem_ctx,
 			      struct messaging_backend **presult);
@@ -115,9 +110,7 @@ bool message_send_all(struct messaging_context *msg_ctx,
 		      int msg_type,
 		      const void *buf, size_t len,
 		      int *n_sent);
-struct event_context *messaging_event_context(struct messaging_context *msg_ctx);
 struct messaging_context *messaging_init(TALLOC_CTX *mem_ctx, 
-					 struct server_id server_id, 
 					 struct event_context *ev);
 
 struct server_id messaging_server_id(const struct messaging_context *msg_ctx);
@@ -125,8 +118,7 @@ struct server_id messaging_server_id(const struct messaging_context *msg_ctx);
 /*
  * re-init after a fork
  */
-NTSTATUS messaging_reinit(struct messaging_context *msg_ctx,
-			  struct server_id id);
+NTSTATUS messaging_reinit(struct messaging_context *msg_ctx);
 
 NTSTATUS messaging_register(struct messaging_context *msg_ctx,
 			    void *private_data,
@@ -141,6 +133,7 @@ void messaging_deregister(struct messaging_context *ctx, uint32_t msg_type,
 NTSTATUS messaging_send(struct messaging_context *msg_ctx,
 			struct server_id server, 
 			uint32_t msg_type, const DATA_BLOB *data);
+
 NTSTATUS messaging_send_buf(struct messaging_context *msg_ctx,
 			    struct server_id server, uint32_t msg_type,
 			    const uint8 *buf, size_t len);

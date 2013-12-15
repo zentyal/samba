@@ -26,19 +26,21 @@
 struct smb_request *smbd_smb2_fake_smb_request(struct smbd_smb2_request *req)
 {
 	struct smb_request *smbreq;
-	const uint8_t *inhdr;
-	int i = req->current_idx;
+	const uint8_t *inhdr = SMBD_SMB2_IN_HDR_PTR(req);
 
-	inhdr = (const uint8_t *)req->in.vector[i+0].iov_base;
-
-	smbreq = talloc_zero(req, struct smb_request);
-	if (smbreq == NULL) {
-		return NULL;
+	if (req->smb1req) {
+		smbreq = req->smb1req;
+	} else {
+		smbreq = talloc_zero(req, struct smb_request);
+		if (smbreq == NULL) {
+			return NULL;
+		}
 	}
 
-	smbreq->vuid = req->session->compat_vuser->vuid;
-	smbreq->tid = req->tcon->compat_conn->cnum;
-	smbreq->conn = req->tcon->compat_conn;
+	smbreq->request_time = req->request_time;
+	smbreq->vuid = req->session->compat->vuid;
+	smbreq->tid = req->tcon->compat->cnum;
+	smbreq->conn = req->tcon->compat;
 	smbreq->sconn = req->sconn;
 	smbreq->smbpid = (uint16_t)IVAL(inhdr, SMB2_HDR_PID);
 	smbreq->flags2 = FLAGS2_UNICODE_STRINGS |
@@ -54,6 +56,18 @@ struct smb_request *smbd_smb2_fake_smb_request(struct smbd_smb2_request *req)
 	req->smb1req = smbreq;
 
 	return smbreq;
+}
+
+/*********************************************************
+ Are there unread bytes for recvfile ?
+*********************************************************/
+
+size_t smbd_smb2_unread_bytes(struct smbd_smb2_request *req)
+{
+	if (req->smb1req) {
+		return req->smb1req->unread_bytes;
+	}
+	return 0;
 }
 
 /*********************************************************

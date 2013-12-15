@@ -25,6 +25,7 @@
 #include "lib/stream/packet.h"
 #include "auth/gensec/gensec.h"
 #include "auth/gensec/gensec_proto.h"
+#include "auth/gensec/gensec_socket.h"
 
 static const struct socket_ops gensec_socket_ops;
 
@@ -56,105 +57,6 @@ static NTSTATUS gensec_socket_init_fn(struct socket_context *sock)
 	sock->backend_name = "gensec";
 
 	return NT_STATUS_OK;
-}
-
-/* These functions are for use here only (public because SPNEGO must
- * use them for recursion) */
-_PUBLIC_ NTSTATUS gensec_wrap_packets(struct gensec_security *gensec_security, 
-			     TALLOC_CTX *mem_ctx, 
-			     const DATA_BLOB *in, 
-			     DATA_BLOB *out,
-			     size_t *len_processed) 
-{
-	if (!gensec_security->ops->wrap_packets) {
-		NTSTATUS nt_status;
-		size_t max_input_size;
-		DATA_BLOB unwrapped, wrapped;
-		max_input_size = gensec_max_input_size(gensec_security);
-		unwrapped = data_blob_const(in->data, MIN(max_input_size, (size_t)in->length));
-		
-		nt_status = gensec_wrap(gensec_security, 
-					mem_ctx,
-					&unwrapped, &wrapped);
-		if (!NT_STATUS_IS_OK(nt_status)) {
-			return nt_status;
-		}
-		
-		*out = data_blob_talloc(mem_ctx, NULL, 4);
-		if (!out->data) {
-			return NT_STATUS_NO_MEMORY;
-		}
-		RSIVAL(out->data, 0, wrapped.length);
-		
-		if (!data_blob_append(mem_ctx, out, wrapped.data, wrapped.length)) {
-			return NT_STATUS_NO_MEMORY;
-		}
-		*len_processed = unwrapped.length;
-		return NT_STATUS_OK;
-	}
-	return gensec_security->ops->wrap_packets(gensec_security, mem_ctx, in, out,
-						  len_processed);
-}
-
-/* These functions are for use here only (public because SPNEGO must
- * use them for recursion) */
-NTSTATUS gensec_unwrap_packets(struct gensec_security *gensec_security, 
-					TALLOC_CTX *mem_ctx, 
-					const DATA_BLOB *in, 
-					DATA_BLOB *out,
-					size_t *len_processed) 
-{
-	if (!gensec_security->ops->unwrap_packets) {
-		DATA_BLOB wrapped;
-		NTSTATUS nt_status;
-		size_t packet_size;
-		if (in->length < 4) {
-			/* Missing the header we already had! */
-			DEBUG(0, ("Asked to unwrap packet of bogus length!  How did we get the short packet?!\n"));
-			return NT_STATUS_INVALID_PARAMETER;
-		}
-		
-		packet_size = RIVAL(in->data, 0);
-		
-		wrapped = data_blob_const(in->data + 4, packet_size);
-		
-		if (wrapped.length > (in->length - 4)) {
-			DEBUG(0, ("Asked to unwrap packed of bogus length %d > %d!  How did we get this?!\n",
-				  (int)wrapped.length, (int)(in->length - 4)));
-			return NT_STATUS_INTERNAL_ERROR;
-		}
-		
-		nt_status = gensec_unwrap(gensec_security, 
-					  mem_ctx,
-					  &wrapped, out);
-		if (!NT_STATUS_IS_OK(nt_status)) {
-			return nt_status;
-		}
-		
-		*len_processed = packet_size + 4;
-		return nt_status;
-	}
-	return gensec_security->ops->unwrap_packets(gensec_security, mem_ctx, in, out,
-						    len_processed);
-}
-
-/* These functions are for use here only (public because SPNEGO must
- * use them for recursion) */
-NTSTATUS gensec_packet_full_request(struct gensec_security *gensec_security,
-				    DATA_BLOB blob, size_t *size) 
-{
-	if (gensec_security->ops->packet_full_request) {
-		return gensec_security->ops->packet_full_request(gensec_security,
-								 blob, size);
-	}
-	if (gensec_security->ops->unwrap_packets) {
-		if (blob.length) {
-			*size = blob.length;
-			return NT_STATUS_OK;
-		}
-		return STATUS_MORE_ENTRIES;
-	}
-	return packet_full_request_u32(NULL, blob, size);
 }
 
 static NTSTATUS gensec_socket_full_request(void *private_data, DATA_BLOB blob, size_t *size)
@@ -203,7 +105,7 @@ static void gensec_socket_trigger_read(struct tevent_context *ev,
 	struct gensec_socket *gensec_socket = talloc_get_type(private_data, struct gensec_socket);
 
 	gensec_socket->in_extra_read++;
-	gensec_socket->recv_handler(gensec_socket->recv_private, EVENT_FD_READ);
+	gensec_socket->recv_handler(gensec_socket->recv_private, TEVENT_FD_READ);
 	gensec_socket->in_extra_read--;
 
 	/* It may well be that, having run the recv handler, we still
@@ -211,7 +113,7 @@ static void gensec_socket_trigger_read(struct tevent_context *ev,
 	 */
 	if (gensec_socket->read_buffer.length && gensec_socket->recv_handler) {
 		/* Schedule this funcion to run again */
-		event_add_timed(gensec_socket->ev, gensec_socket, timeval_zero(), 
+		tevent_add_timer(gensec_socket->ev, gensec_socket, timeval_zero(), 
 				gensec_socket_trigger_read, gensec_socket);
 	}
 }
@@ -274,7 +176,7 @@ static NTSTATUS gensec_socket_recv(struct socket_context *sock, void *buf,
 		/* Manually call a read event, to get this moving
 		 * again (as the socket should be dry, so the normal
 		 * event handler won't trigger) */
-		event_add_timed(gensec_socket->ev, gensec_socket, timeval_zero(), 
+		tevent_add_timer(gensec_socket->ev, gensec_socket, timeval_zero(), 
 				gensec_socket_trigger_read, gensec_socket);
 	}
 

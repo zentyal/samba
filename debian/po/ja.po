@@ -13,16 +13,142 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2013-05-13 11:53-0700\n"
-"PO-Revision-Date: 2011-05-12 18:19+0900\n"
+"Project-Id-Version: samba4\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2013-10-22 20:32+0200\n"
+"PO-Revision-Date: 2013-10-23 23:04+0900\n"
 "Last-Translator: Kenshi Muto <kmuto@debian.org>\n"
 "Language-Team: Japanese <debian-japanese@lists.debian.org>\n"
 "Language: ja\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid "Upgrade from Samba 3?"
+msgstr "Samba 3 からアップグレードしますか?"
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid ""
+"It is possible to migrate the existing configuration files from Samba 3 to "
+"Samba 4. This is likely to fail for complex setups, but should provide a "
+"good starting point for most existing installations."
+msgstr ""
+"Samba 3 から Samba 4 に既存の設定ファイルを移行することが可能です。これは、複"
+"雑なセットアップでは失敗することはあるものの、大半の既存のインストール状態に"
+"とって良い開始点を提供することになります。"
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid "Server role"
+msgstr "サーバロール"
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Domain controllers manage NT4-style or Active Directory domains and provide "
+"services such as identity management and domain logons. Each domain needs to "
+"have a at least one domain controller."
+msgstr ""
+"ドメインコントローラは NT4 スタイルまたは Active Directory ドメインを管理し、"
+"認証管理やドメインログオンなどのサービスを提供します。各ドメインは少なくとも "
+"1 つのドメインコントローラを持つ必要があります。"
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Member servers can be part of a NT4-style or Active Directory domain but do "
+"not provide any domain services. Workstations and file or print servers are "
+"usually regular domain members."
+msgstr ""
+"メンバサーバは、NT4 スタイルまたは Active Directory ドメインの一部になること"
+"ができますが、ドメインサービスは何も提供しません。ワークステーションおよび"
+"ファイル/プリントサーバは通常、普通のドメインメンバです。"
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"A standalone server can not be used in a domain and only supports file "
+"sharing and Windows for Workgroups-style logins."
+msgstr ""
+"スタンドアロンサーバは、ドメインでは利用できず、ファイル共有および Windows "
+"for Workgroups スタイルのログインのみをサポートします。"
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"If no server role is specified, the Samba server will not be provisioned, so "
+"this can be done manually by the user."
+msgstr ""
+"サーバロールが指定されない場合、Samba サーバは供給されず、ユーザが手動でこれ"
+"を行うことになります。"
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Realm name:"
+msgstr "レルム名:"
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid ""
+"Please specify the Kerberos realm for the domain that this domain controller "
+"controls."
+msgstr ""
+"このドメインコントローラが制御するドメインの Kerberos レルムを指定してくださ"
+"い。"
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Usually this is the a capitalized version of your DNS hostname."
+msgstr "通常これは、あなたの DNS ホスト名の大文字版です。"
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "New password for the Samba \"administrator\" user:"
+msgstr "Samba の \"administrator\" ユーザの新しいパスワード:"
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "If this field is left blank, a random password will be generated."
+msgstr "この欄を空のままにすると、ランダムなパスワードが生成されます。"
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "A password can be set later by running, as root:"
+msgstr "root で次のように実行することで、パスワードを後から設定できます:"
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:5001
+msgid "Repeat password for the Samba \"administrator\" user:"
+msgstr "Samba の \"administrator\" ユーザのパスワードの繰り返し:"
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "Password input error"
+msgstr "パスワード入力エラー"
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr "入力した 2 つのパスワードが一致しません。再度試してください。"
 
 #. Type: title
 #. Description
@@ -115,35 +241,5 @@ msgstr ""
 "ドでブラウジングされたときに使われるデフォルトのワークグループ、そして"
 "\"security=domain\" 設定が使われたときのドメイン名を制御します。"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "パスワードの暗号化を使いますか?"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"ほとんどの Windows クライアントは暗号化されたパスワードを使って SMB/CIFS サー"
-"バとやり取りします。クリアテキストパスワードを使いたい場合は、あなたの "
-"Windows のレジストリにあるパラメータを変更する必要があります。"
-
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"プレインテキストパスワードのサポートはもう Microsoft Windows 製品では保守され"
-"ていないので、ここで「はい」と答えることを強くお勧めします。この場合、有効"
-"な /etc/samba/smbpasswd ファイルがあることを確認し、各ユーザのパスワードは "
-"smbpasswd コマンドを使って設定してください。"
-
+#~ msgid " $ samba-tool user setpassword administrator"
+#~ msgstr " $ samba-tool user setpassword administrator"

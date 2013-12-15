@@ -175,6 +175,7 @@ static bool test_delete_includes(struct smbconf_ctx *ctx)
 	ret = true;
 
 done:
+	talloc_free(mem_ctx);
 	return ret;
 }
 
@@ -183,7 +184,7 @@ static bool create_conf_file(const char *filename)
 	FILE *f;
 
 	printf("TEST: creating file\n");
-	f = sys_fopen(filename, "w");
+	f = fopen(filename, "w");
 	if (!f) {
 		printf("failure: failed to open %s for writing: %s\n",
 		       filename, strerror(errno));
@@ -304,12 +305,7 @@ int main(int argc, const char **argv)
 
 	poptFreeContext(pc);
 
-	ret = lp_load(get_dyn_CONFIGFILE(),
-		      true,  /* globals_only */
-		      false, /* save_defaults */
-		      false, /* add_ipc */
-		      true   /* initialize globals */);
-
+	ret = lp_load_global(get_dyn_CONFIGFILE());
 	if (!ret) {
 		printf("failure: error loading the configuration\n");
 		goto done;

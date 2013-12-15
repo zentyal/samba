@@ -80,6 +80,7 @@
 #include "../librpc/gen_ndr/rap.h"
 #include "../librpc/gen_ndr/svcctl.h"
 #include "libsmb/clirap.h"
+#include "../libcli/smb/smbXcli_base.h"
 
 #define WORDSIZE 2
 #define DWORDSIZE 4
@@ -1126,7 +1127,7 @@ int cli_NetFileClose(struct cli_state *cli, uint32 file_id )
 		if (res == 0) {
 			/* nothing to do */
 		} else if (res == 2314){
-			DEBUG(1, ("NetFileClose2 - attempt to close non-existant file open instance\n"));
+			DEBUG(1, ("NetFileClose2 - attempt to close non-existent file open instance\n"));
 		} else {
 			DEBUG(4,("NetFileClose2 res=%d\n", res));
 		}
@@ -1533,8 +1534,10 @@ bool cli_get_pdc_name(struct cli_state *cli, const char *workgroup, char **pdc_n
 				TALLOC_FREE(frame);
 			}
 		} else {
-			DEBUG(4,("cli_get_pdc_name: machine %s failed the NetServerEnum call. "
-				"Error was : %s.\n", cli->desthost, cli_errstr(cli) ));
+			DEBUG(4, ("cli_get_pdc_name: machine %s failed the "
+				  "NetServerEnum call. Error was : %s.\n",
+				  smbXcli_conn_remote_name(cli->conn),
+				  win_errstr(W_ERROR(cli->rap_error))));
 		}
 	}
 
@@ -1754,7 +1757,7 @@ bool cli_get_server_name(TALLOC_CTX *mem_ctx, struct cli_state *cli,
 * PURPOSE:  Remotes a NetServerEnum2 API call to the current server
 *           requesting server_info_0 level information of machines
 *           matching the given server type. If the returned server
-*           list contains the machine name contained in cli->desthost
+*           list contains the machine name contained in smbXcli_conn_remote_name(->conn)
 *           then we conclude the server type checks out. This routine
 *           is useful to retrieve list of server's of a certain
 *           type when all you have is a null session connection and
@@ -1789,6 +1792,7 @@ bool cli_ns_check_server_type(struct cli_state *cli, char *workgroup, uint32 sty
 		+RAP_MACHNAME_LEN];             /* workgroup     */
 	bool found_server = false;
 	int res = -1;
+	const char *remote_name = smbXcli_conn_remote_name(cli->conn);
 
 	/* send a SMBtrans command with api NetServerEnum */
 	p = make_header(param, RAP_NetServerEnum2,
@@ -1824,14 +1828,16 @@ bool cli_ns_check_server_type(struct cli_state *cli, char *workgroup, uint32 sty
 						RAP_MACHNAME_LEN,
 						RAP_MACHNAME_LEN,
 						endp);
-				if (strequal(ret_server, cli->desthost)) {
+				if (strequal(ret_server, remote_name)) {
 					found_server = true;
 					break;
 				}
 			}
 		} else {
-			DEBUG(4,("cli_ns_check_server_type: machine %s failed the NetServerEnum call. "
-				"Error was : %s.\n", cli->desthost, cli_errstr(cli) ));
+			DEBUG(4, ("cli_ns_check_server_type: machine %s "
+				  "failed the NetServerEnum call. Error was : "
+				  "%s.\n", remote_name,
+				  win_errstr(W_ERROR(cli->rap_error))));
 		}
 	}
 
@@ -1870,12 +1876,16 @@ bool cli_NetWkstaUserLogoff(struct cli_state *cli, const char *user, const char 
 	PUTDWORD(p, 0); /* Null pointer */
 	PUTDWORD(p, 0); /* Null pointer */
 	strlcpy(upperbuf, user, sizeof(upperbuf));
-	strupper_m(upperbuf);
+	if (!strupper_m(upperbuf)) {
+		return false;
+	}
 	tmp = upperbuf;
 	PUTSTRINGF(p, tmp, RAP_USERNAME_LEN);
 	p++; /* strange format, but ok */
 	strlcpy(upperbuf, workstation, sizeof(upperbuf));
-	strupper_m(upperbuf);
+	if (!strupper_m(upperbuf)) {
+		return false;
+	}
 	tmp = upperbuf;
 	PUTSTRINGF(p, tmp, RAP_MACHNAME_LEN);
 	PUTWORD(p, CLI_BUFFER_SIZE);

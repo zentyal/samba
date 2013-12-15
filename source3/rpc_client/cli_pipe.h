@@ -52,8 +52,6 @@ unsigned int rpccli_set_timeout(struct rpc_pipe_client *cli,
 
 bool rpccli_is_connected(struct rpc_pipe_client *rpc_cli);
 
-bool rpccli_get_pwd_hash(struct rpc_pipe_client *cli, uint8_t nt_hash[16]);
-
 NTSTATUS rpccli_ncalrpc_bind_data(TALLOC_CTX *mem_ctx,
 				  struct pipe_auth_data **presult);
 
@@ -68,6 +66,7 @@ NTSTATUS rpccli_schannel_bind_data(TALLOC_CTX *mem_ctx,
 
 NTSTATUS rpc_pipe_open_tcp(TALLOC_CTX *mem_ctx,
 			   const char *host,
+			   const struct sockaddr_storage *ss_addr,
 			   const struct ndr_syntax_id *abstract_syntax,
 			   struct rpc_pipe_client **presult);
 
@@ -86,23 +85,27 @@ NTSTATUS cli_rpc_pipe_open_noauth_transport(struct cli_state *cli,
 					    const struct ndr_syntax_id *interface,
 					    struct rpc_pipe_client **presult);
 
-NTSTATUS cli_rpc_pipe_open_ntlmssp(struct cli_state *cli,
-				   const struct ndr_syntax_id *interface,
-				   enum dcerpc_transport_t transport,
-				   enum dcerpc_AuthLevel auth_level,
-				   const char *domain,
-				   const char *username,
-				   const char *password,
-				   struct rpc_pipe_client **presult);
+NTSTATUS cli_rpc_pipe_open_generic_auth(struct cli_state *cli,
+					const struct ndr_interface_table *table,
+					enum dcerpc_transport_t transport,
+					enum dcerpc_AuthType auth_type,
+					enum dcerpc_AuthLevel auth_level,
+					const char *server,
+					const char *domain,
+					const char *username,
+					const char *password,
+					struct rpc_pipe_client **presult);
 
-NTSTATUS cli_rpc_pipe_open_spnego_ntlmssp(struct cli_state *cli,
-					  const struct ndr_syntax_id *interface,
-					  enum dcerpc_transport_t transport,
-					  enum dcerpc_AuthLevel auth_level,
-					  const char *domain,
-					  const char *username,
-					  const char *password,
-					  struct rpc_pipe_client **presult);
+NTSTATUS cli_rpc_pipe_open_spnego(struct cli_state *cli,
+				  const struct ndr_interface_table *table,
+				  enum dcerpc_transport_t transport,
+				  const char *oid,
+				  enum dcerpc_AuthLevel auth_level,
+				  const char *server,
+				  const char *domain,
+				  const char *username,
+				  const char *password,
+				  struct rpc_pipe_client **presult);
 
 NTSTATUS cli_rpc_pipe_open_schannel_with_key(struct cli_state *cli,
 					     const struct ndr_syntax_id *interface,
@@ -136,15 +139,6 @@ NTSTATUS cli_rpc_pipe_open_krb5(struct cli_state *cli,
 				const char *username,
 				const char *password,
 				struct rpc_pipe_client **presult);
-
-NTSTATUS cli_rpc_pipe_open_spnego_krb5(struct cli_state *cli,
-					const struct ndr_syntax_id *interface,
-					enum dcerpc_transport_t transport,
-					enum dcerpc_AuthLevel auth_level,
-					const char *server,
-					const char *username,
-					const char *password,
-					struct rpc_pipe_client **presult);
 
 NTSTATUS cli_get_session_key(TALLOC_CTX *mem_ctx,
 			     struct rpc_pipe_client *cli,

@@ -1,0 +1,67 @@
+#!/bin/sh -e
+
+. /usr/share/debconf/confmodule
+
+if [ "$1" = "configure" ]; then
+	db_get samba4/server-role || true
+	SERVER_ROLE="$RET"
+fi
+
+if [ "$1" = "configure" -a "$SERVER_ROLE" != "none" ]; then
+	db_get samba-common/workgroup || true
+	DOMAIN="$RET"
+	db_get samba4/realm || true
+	REALM="$RET"
+	# FIXME: Urgh.. ideally samba-tool would be able to update this:
+	# Update realm setting and server role setting
+	if [ -f "/etc/samba/smb.conf" ]; then
+		/usr/share/samba/setoption.py "realm" "${REALM}"
+		/usr/share/samba/setoption.py "server role" "${SERVER_ROLE}"
+		if [ "$SERVER_ROLE" = "domain controller" ]; then
+			/usr/share/samba/addshare.py sysvol /var/lib/samba/sysvol
+			/usr/share/samba/addshare.py netlogon "/var/lib/samba/sysvol/$REALM/scripts"
+		fi
+	fi
+
+	# See if we're upgrading from Samba 3
+	if [ ! -z "$2" ] && dpkg --compare-versions "$2" lt "3.9.0"; then
+		db_get samba4/upgrade-from-v3 || true
+		if [ "$RET" = "true" ]; then
+			samba-tool domain samba3upgrade --dbdir=/var/lib/samba
+		fi
+	elif [ ! -z "$2" ] && dpkg --compare-versions "$2" lt "4.0.0~alpha12"; then
+		# Upgrade from previous Samba 4 installation
+		if [ -f /etc/samba/smb.conf ]; then
+			samba-tool domain upgradeprovision --full
+		fi
+	elif [ -e /var/lib/samba/private/sam.ldb ]; then
+		# Upgrade from previous Samba 4 installation
+		if [ -f /etc/samba/smb.conf ]; then
+			samba-tool dbcheck --fix --yes
+		fi
+	fi
+	# Provision from scratch if we need to
+	if [ ! -e /var/lib/samba/private/sam.ldb ]; then
+		db_get samba4/admin_password
+		if [ -z "$RET" ]; then
+			PASSOPTION=" "
+		else
+			PASSOPTION="--adminpass='$RET' "
+		fi
+
+		# Install from scratch
+		# samba-common.postinst takes care of setting the work group.
+		samba-tool domain provision --realm="$REALM" --domain="$DOMAIN" \
+		    --server-role="$SERVER_ROLE" --use-ntvfs $PASSOPTION
+
+		# Forget we ever saw the password
+		db_set samba4/admin_password ""
+		db_set samba4/admin_password_again ""
+	fi
+fi
+
+#DEBHELPER#
+
+db_stop
+
+exit 0

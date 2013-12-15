@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2013-05-13 11:53-0700\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2013-10-22 20:32+0200\n"
 "PO-Revision-Date: 2007-03-13 10:26+0300\n"
 "Last-Translator: Siim Põder <siim@p6drad-teel.net>\n"
 "Language-Team: \n"
@@ -24,6 +24,117 @@ msgstr ""
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "X-Poedit-Country: ESTONIA\n"
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid "Upgrade from Samba 3?"
+msgstr ""
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid ""
+"It is possible to migrate the existing configuration files from Samba 3 to "
+"Samba 4. This is likely to fail for complex setups, but should provide a "
+"good starting point for most existing installations."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid "Server role"
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Domain controllers manage NT4-style or Active Directory domains and provide "
+"services such as identity management and domain logons. Each domain needs to "
+"have a at least one domain controller."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Member servers can be part of a NT4-style or Active Directory domain but do "
+"not provide any domain services. Workstations and file or print servers are "
+"usually regular domain members."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"A standalone server can not be used in a domain and only supports file "
+"sharing and Windows for Workgroups-style logins."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"If no server role is specified, the Samba server will not be provisioned, so "
+"this can be done manually by the user."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Realm name:"
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid ""
+"Please specify the Kerberos realm for the domain that this domain controller "
+"controls."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Usually this is the a capitalized version of your DNS hostname."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "New password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "If this field is left blank, a random password will be generated."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "A password can be set later by running, as root:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:5001
+msgid "Repeat password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "Password input error"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr ""
 
 #. Type: title
 #. Description
@@ -103,46 +214,131 @@ msgstr "Töögrupi/domeeni nimi:"
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
-"Palun vali töögrupp, kuhu see server kuulub. Pane tähele, et seesama seade "
-"määrab ka domeeni, mida kasutatakse koos security=domain valikuga."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Kasutada paroolide krüpteerimist?"
+#~ msgid "Use password encryption?"
+#~ msgstr "Kasutada paroolide krüpteerimist?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Kõik hiljutised Windows kliendid suhtlevad SMB serveritega kasutades "
-"krüpteeritud paroole. Kui soovid kasutada avatud paroole, pead Windows "
-"registris muutma üht seadet."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Kõik hiljutised Windows kliendid suhtlevad SMB serveritega kasutades "
+#~ "krüpteeritud paroole. Kui soovid kasutada avatud paroole, pead Windows "
+#~ "registris muutma üht seadet."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Selle seade valimine on ülimalt soovitatav. Kui ta valid, palun veendu et "
-"sul oleks sobiv /etc/samba/smbpasswd fail ning sea igale seal olevale "
-"kasutajale smbpasswd käsu abil parool."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Selle seade valimine on ülimalt soovitatav. Kui ta valid, palun veendu et "
+#~ "sul oleks sobiv /etc/samba/smbpasswd fail ning sea igale seal olevale "
+#~ "kasutajale smbpasswd käsu abil parool."
 
+#~ msgid "daemons"
+#~ msgstr "deemonitena"
+
+#~ msgid "inetd"
+#~ msgstr "inetd'ist"
+
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Kuidas soovid Samba käivitada?"
+
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Samba deemon võib käivituda kui tavaline deemon või inetd'ist. Soovitatav "
+#~ "lähenemine on käivitamine tavalise deemonina."
+
+#, fuzzy
+#~| msgid ""
+#~| "Please specify the workgroup you want this server to appear to be in "
+#~| "when queried by clients. Note that this parameter also controls the "
+#~| "domain name used with the security=domain setting."
+#~ msgid ""
+#~ "Please specify the domain you want this server to appear to be in when "
+#~ "queried by clients."
+#~ msgstr ""
+#~ "Palun vali töögrupp, kuhu see server kuulub. Pane tähele, et seesama "
+#~ "seade määrab ka domeeni, mida kasutatakse koos security=domain valikuga."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "Luua samba paroolide andmebaas, /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "Et ühilduda enamike Windows versioonidega, tuleb Samba seadistada "
+#~ "krüpteeritud paroole kasutama. Selle jaoks on tarvis kasutajate paroole "
+#~ "väljaspool /etc/passwd hoida. Selle faili võib automaatselt luua, kuid "
+#~ "paroolid tuleb sinna käsitsi lisada ning ka hiljem värsketena hoida."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "Kui sa seda ei loo, tuleb sul Samba ümber seadistada (ning tõenäoliselt "
+#~ "ka kliendimasinad) kasutamaks avatud paroole."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
+#~ "package for more details."
+#~ msgstr ""
+#~ "End detailidega kurssi viimaks loe /usr/share/doc/samba-doc/htmldocs/"
+#~ "ENCRYPTION.html pakist samba-doc."
+
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr ""
+#~ "passdb backends mitme järjestikkuse variandi määramine pole toetatud"
+
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "Samba versioonid alates 3.0.23 ei toeta enam \"passdb backend\" "
+#~ "parameetri juures mitmest variandist koosnevat nimekirja. Paistab, et "
+#~ "sinu smb.conf failis on passdb backend parameetrile määratud nimekiri. "
+#~ "Uus samba versioon ei tööta, kuni sellega tegeletud on."
+
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr "Kanda /etc/samba/smbpasswd üle /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Samba 3.0 võttis kasutusele täielikuma SAM andmebaasiliidese, mis ületab /"
+#~ "etc/samba/smbpasswd faili."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "Palun kinnita, kas soovid olemasoleva smbpasswd faili automaatset "
+#~ "ülekandmist /var/lib/samba/passdb.tdb. Ära nõustu, kui soovid kasutada "
+#~ "hoopis mõnd muud pdb lahendust (näiteks LDAP)."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "End detailidega kurssi viimaks loe /usr/share/doc/samba-doc/htmldocs/"
+#~ "ENCRYPTION.html pakist samba-doc."

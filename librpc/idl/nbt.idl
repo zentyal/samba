@@ -8,9 +8,9 @@
    encoding if it doesn't work out
 */
 
-import "misc.idl", "security.idl", "svcctl.idl", "samr.idl";
+import "misc.idl", "security.idl";
 [
-	helper("../libcli/netlogon/netlogon.h", "../libcli/nbt/libnbt.h"),
+	helper("../librpc/ndr/ndr_nbt.h"),
 	helpstring("NBT messages"),
 	uuid("6def41b6-86e4-4c32-997c-ed33af7bcd8e")
 ]
@@ -393,8 +393,6 @@ interface nbt
 		LOGON_SAM_LOGON_USER_UNKNOWN_EX   = 25 /* was NETLOGON_RESPONSE_FROM_PDC_USER */
 	} netlogon_command;
 
-	typedef bitmap samr_AcctFlags samr_AcctFlags;
-
 	/* query to dc hand marshaled, as it has 'optional'
 	 * parts */
 	typedef [nopull,nopush] struct {
@@ -402,7 +400,8 @@ interface nbt
 		nstring              computer_name;
 		nstring              user_name;
 		astring              mailslot_name;
-		samr_AcctFlags       acct_control;
+		uint32               acct_control;
+		/* samr_AcctFlags       acct_control; */
 		[value(ndr_size_dom_sid0(&sid, ndr->flags))] uint32 sid_size;
 		/* The manual alignment is required because this
 		 * structure is marked flag(NDR_NOALIGN) via the
@@ -511,8 +510,6 @@ interface nbt
 		uint16 lm20_token;
 	} nbt_netlogon_response2;
 
-	typedef enum netr_SamDatabaseID netr_SamDatabaseID;
-
 	/* used to announce SAM changes - MS-NRPC 2.2.1.5.1 */
 	typedef struct {
 		netr_SamDatabaseID   db_index;
@@ -545,7 +542,11 @@ interface nbt
 		[case(NETLOGON_ANNOUNCE_UAS)] NETLOGON_DB_CHANGE uas;
 	} nbt_netlogon_request;
 
-#if 0
+#if 0 
+	/* These responses are all handled manually, as they cannot be encoded in IDL fully
+	   
+	   See push_nbt_netlogon_response()
+	*/
 		[case(NETLOGON_RESPONSE_FROM_PDC)] nbt_netlogon_response_from_pdc response;
 		[case(NETLOGON_RESPONSE_FROM_PDC_USER)] nbt_netlogon_response_from_pdc2 response2;
 

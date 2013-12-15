@@ -44,9 +44,11 @@ typedef int ber_int_t;
 #ifndef LDAP_CONST
 #define LDAP_CONST const
 #endif
-#ifndef LDAP_OPT_SUCCESS
-#define LDAP_OPT_SUCCESS 0
-#endif
+
+#ifdef HAVE_LDAP_PVT_H
+#include <ldap_pvt.h>
+#endif /* HAVE_LDAP_PVT_H */
+
 /* Solaris 8 and maybe other LDAP implementations spell this "..._INPROGRESS": */
 #if defined(LDAP_SASL_BIND_INPROGRESS) && !defined(LDAP_SASL_BIND_IN_PROGRESS)
 #define LDAP_SASL_BIND_IN_PROGRESS LDAP_SASL_BIND_INPROGRESS
@@ -57,9 +59,6 @@ typedef int ber_int_t;
 #if !defined(LDAPS_PORT)
 #define LDAPS_PORT 636
 #endif
-
-/* function declarations not included in proto.h */
-LDAP *ldap_open_with_timeout(const char *server, int port, unsigned int to);
 
 #endif /* HAVE_LDAP_H */
 
@@ -75,6 +74,37 @@ struct ldapsam_privates;
 
 #ifndef LDAP_OPT_SUCCESS
 #define LDAP_OPT_SUCCESS 0
+#endif
+
+#define LDAP_DEFAULT_TIMEOUT   15
+#define LDAP_CONNECTION_DEFAULT_TIMEOUT 2
+#define LDAP_PAGE_SIZE 1024
+
+#define ADS_PAGE_CTL_OID 	"1.2.840.113556.1.4.319"
+
+/*
+ * Work around versions of the LDAP client libs that don't have the OIDs
+ * defined, or have them defined under the old name.
+ * This functionality is really a factor of the server, not the client
+ *
+ */
+
+#if defined(LDAP_EXOP_X_MODIFY_PASSWD) && !defined(LDAP_EXOP_MODIFY_PASSWD)
+#define LDAP_EXOP_MODIFY_PASSWD LDAP_EXOP_X_MODIFY_PASSWD
+#elif !defined(LDAP_EXOP_MODIFY_PASSWD)
+#define LDAP_EXOP_MODIFY_PASSWD "1.3.6.1.4.1.4203.1.11.1"
+#endif
+
+#if defined(LDAP_EXOP_X_MODIFY_PASSWD_ID) && !defined(LDAP_EXOP_MODIFY_PASSWD_ID)
+#define LDAP_TAG_EXOP_MODIFY_PASSWD_ID LDAP_EXOP_X_MODIFY_PASSWD_ID
+#elif !defined(LDAP_EXOP_MODIFY_PASSWD_ID)
+#define LDAP_TAG_EXOP_MODIFY_PASSWD_ID        ((ber_tag_t) 0x80U)
+#endif
+
+#if defined(LDAP_EXOP_X_MODIFY_PASSWD_NEW) && !defined(LDAP_EXOP_MODIFY_PASSWD_NEW)
+#define LDAP_TAG_EXOP_MODIFY_PASSWD_NEW LDAP_EXOP_X_MODIFY_PASSWD_NEW
+#elif !defined(LDAP_EXOP_MODIFY_PASSWD_NEW)
+#define LDAP_TAG_EXOP_MODIFY_PASSWD_NEW       ((ber_tag_t) 0x82U)
 #endif
 
 #endif /* _SMB_LDAP_H */

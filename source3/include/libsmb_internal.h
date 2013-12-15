@@ -40,7 +40,7 @@
  */
 typedef struct DOS_ATTR_DESC {
 	int mode;
-	SMB_OFF_T size;
+	off_t size;
 	time_t create_time;
 	time_t access_time;
 	time_t write_time;
@@ -48,6 +48,10 @@ typedef struct DOS_ATTR_DESC {
 	SMB_INO_T inode;
 } DOS_ATTR_DESC;
 
+/*
+ * Extension of libsmbclient.h's #defines
+ */
+#define SMB_CTX_FLAG_USE_NT_HASH (1 << 4)
 
 /*
  * Internal flags for extended attributes
@@ -96,7 +100,7 @@ struct smbc_dir_list {
 struct _SMBCFILE {
 	int cli_fd; 
 	char *fname;
-	SMB_OFF_T offset;
+	off_t offset;
 	struct _SMBCSRV *srv;
 	bool file;
 	struct smbc_dir_list *dir_list, *dir_end, *dir_next;
@@ -366,9 +370,9 @@ SMBC_close_ctx(SMBCCTX *context,
 bool
 SMBC_getatr(SMBCCTX * context,
             SMBCSRV *srv,
-            char *path,
+            const char *path,
             uint16 *mode,
-            SMB_OFF_T *size,
+            off_t *size,
             struct timespec *create_time_ts,
             struct timespec *access_time_ts,
             struct timespec *write_time_ts,
@@ -448,15 +452,6 @@ SMBC_check_server(SMBCCTX * context,
 int
 SMBC_remove_unused_server(SMBCCTX * context,
                           SMBCSRV * srv);
-
-void
-SMBC_call_auth_fn(TALLOC_CTX *ctx,
-                  SMBCCTX *context,
-                  const char *server,
-                  const char *share,
-                  char **pp_workgroup,
-                  char **pp_username,
-                  char **pp_password);
 
 void
 SMBC_get_auth_data(const char *server, const char *share,

@@ -23,6 +23,7 @@
 import sys
 
 from subunit import TestProtocolClient, get_default_formatter
+from subunit.test_results import AutoTimingTestResultDecorator
 from testtools.run import (
     BUFFEROUTPUT,
     CATCHBREAK,
@@ -39,6 +40,7 @@ class SubunitTestRunner(object):
     def run(self, test):
         "Run the given test case or test suite."
         result = TestProtocolClient(self.stream)
+        result = AutoTimingTestResultDecorator(result)
         test(result)
         return result
 
@@ -49,7 +51,7 @@ class SubunitTestProgram(TestProgram):
 
     def usageExit(self, msg=None):
         if msg:
-            print msg
+            print (msg)
         usage = {'progName': self.progName, 'catchbreak': '', 'failfast': '',
                  'buffer': ''}
         if self.failfast != False:

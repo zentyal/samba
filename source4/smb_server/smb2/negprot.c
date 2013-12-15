@@ -79,7 +79,7 @@ static NTSTATUS smb2srv_negprot_secblob(struct smb2srv_request *req, DATA_BLOB *
 		return nt_status;
 	}
 
-	nt_status = gensec_update(gensec_security, req, null_data_blob, &blob);
+	nt_status = gensec_update(gensec_security, req, req->smb_conn->connection->event.ctx, null_data_blob, &blob);
 	if (!NT_STATUS_IS_OK(nt_status) && !NT_STATUS_EQUAL(nt_status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
 		DEBUG(0, ("Failed to get SPNEGO to give us the first token: %s\n", nt_errstr(nt_status)));
 		smbsrv_terminate_connection(req->smb_conn, "Failed to start SPNEGO - no first token\n");
@@ -97,6 +97,8 @@ static NTSTATUS smb2srv_negprot_backend(struct smb2srv_request *req, struct smb2
 	struct timeval boot_time;
 	uint16_t i;
 	uint16_t dialect = 0;
+	enum smb_signing_setting signing_setting;
+	struct loadparm_context *lp_ctx = req->smb_conn->lp_ctx;
 
 	/* we only do one dialect for now */
 	if (io->in.dialect_count < 1) {
@@ -113,18 +115,42 @@ static NTSTATUS smb2srv_negprot_backend(struct smb2srv_request *req, struct smb2
 		return NT_STATUS_NOT_SUPPORTED;
 	}
 
-	req->smb_conn->negotiate.protocol = PROTOCOL_SMB2;
+	req->smb_conn->negotiate.protocol = PROTOCOL_SMB2_02;
 
 	current_time = timeval_current(); /* TODO: handle timezone?! */
 	boot_time = timeval_current(); /* TODO: fix me */
 
 	ZERO_STRUCT(io->out);
-	switch (lpcfg_server_signing(req->smb_conn->lp_ctx)) {
+
+	signing_setting = lpcfg_server_signing(lp_ctx);
+	if (signing_setting == SMB_SIGNING_DEFAULT) {
+		/*
+		 * If we are a domain controller, SMB signing is
+		 * really important, as it can prevent a number of
+		 * attacks on communications between us and the
+		 * clients
+		 *
+		 * However, it really sucks (no sendfile, CPU
+		 * overhead) performance-wise when used on a
+		 * file server, so disable it by default
+		 * on non-DCs
+		 */
+
+		if (lpcfg_server_role(lp_ctx) >= ROLE_ACTIVE_DIRECTORY_DC) {
+			signing_setting = SMB_SIGNING_REQUIRED;
+		} else {
+			signing_setting = SMB_SIGNING_OFF;
+		}
+	}
+
+	switch (signing_setting) {
+	case SMB_SIGNING_DEFAULT:
+		smb_panic(__location__);
+		break;
 	case SMB_SIGNING_OFF:
 		io->out.security_mode = 0;
 		break;
-	case SMB_SIGNING_SUPPORTED:
-	case SMB_SIGNING_AUTO:
+	case SMB_SIGNING_IF_REQUIRED:
 		io->out.security_mode = SMB2_NEGOTIATE_SIGNING_ENABLED;
 		break;
 	case SMB_SIGNING_REQUIRED:

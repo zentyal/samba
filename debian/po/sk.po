@@ -13,20 +13,145 @@
 #
 # Miroslav Kure <kurem@debian.cz>, 2006.
 # Peter Mann <Peter.Mann@tuke.sk>, 2006.
-# Ivan Masár <helix84@centrum.sk>, 2009, 2012.
+# Ivan Masár <helix84@centrum.sk>, 2008, 2012.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2013-05-13 11:53-0700\n"
-"PO-Revision-Date: 2012-02-24 11:59+0100\n"
+"Project-Id-Version: samba4\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2013-10-22 20:32+0200\n"
+"PO-Revision-Date: 2012-06-17 19:40+0100\n"
 "Last-Translator: Ivan Masár <helix84@centrum.sk>\n"
-"Language-Team: Slovak <sk-i18n@lists.linux.sk>\n"
+"Language-Team: Slovak <debian-l10n-slovak@lists.debian.org>\n"
 "Language: sk\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid "Upgrade from Samba 3?"
+msgstr "Aktualizovať zo Samba 3?"
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid ""
+"It is possible to migrate the existing configuration files from Samba 3 to "
+"Samba 4. This is likely to fail for complex setups, but should provide a "
+"good starting point for most existing installations."
+msgstr ""
+"Je možné previesť existujúce konfiguračné súbory zo Samba 3 do Samba 4. To "
+"pri zložitých nastaveniach pravdepodobne nebude fungovať, ale malo by to "
+"poskytnúť dobrý počiatočný stav pre ďalšie úpravy pri väčšine existujúcich "
+"inštalácií."
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid "Server role"
+msgstr "Úloha servera"
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Domain controllers manage NT4-style or Active Directory domains and provide "
+"services such as identity management and domain logons. Each domain needs to "
+"have a at least one domain controller."
+msgstr ""
+"Ovládače domény (domain controllers) spravujú domény v štýle NT4 alebo "
+"Active Directory a poskytujú služby ako správa identt a prihlasovanie do "
+"domén. Každá doména musí mať aspoň jeden ovláač domény."
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Member servers can be part of a NT4-style or Active Directory domain but do "
+"not provide any domain services. Workstations and file or print servers are "
+"usually regular domain members."
+msgstr ""
+"Členské servery môžu byť súčasťou domény v štýle NT4 alebo Active Directory, "
+"ale neposkytujú žiadne doménové služby. Pracovné stanice a súborové alebo "
+"tlačové servery sú zvyčajne obyčajní členovia domény."
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"A standalone server can not be used in a domain and only supports file "
+"sharing and Windows for Workgroups-style logins."
+msgstr ""
+"Samostatný server nie je možné použiť v doméne a podporuje iba zdieľanie "
+"súborov a prihlasovanie v štýle Windows for Workgroups."
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"If no server role is specified, the Samba server will not be provisioned, so "
+"this can be done manually by the user."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Realm name:"
+msgstr "Názov oblasti (realm):"
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid ""
+"Please specify the Kerberos realm for the domain that this domain controller "
+"controls."
+msgstr ""
+"Prosím, určite oblasť Kerberos pre doménu, ktorú ovláda tento ovládač domény."
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Usually this is the a capitalized version of your DNS hostname."
+msgstr ""
+"Toto je zvyčajne váš názov počítača podľa DNS napísaný veľkými písmenami."
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "New password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "If this field is left blank, a random password will be generated."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "A password can be set later by running, as root:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:5001
+msgid "Repeat password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "Password input error"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr ""
 
 #. Type: title
 #. Description
@@ -119,35 +244,93 @@ msgstr ""
 "ako k serveru, pri prehliadaní rôznymi rozhraniami a názov domény, ktorá sa "
 "používa pri nastavení „security=domain“."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Použiť šifrovanie hesiel?"
+#~ msgid "Use password encryption?"
+#~ msgstr "Použiť šifrovanie hesiel?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Všetky súčasné počítače Windows používajú na komunikáciu so SMB/CIFS "
-"servermi šifrované heslá. Ak chcete použiť nešifrované heslá, musíte zmeniť "
-"parameter v registroch systému Windows."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Všetky súčasné počítače Windows používajú na komunikáciu so SMB/CIFS "
+#~ "servermi šifrované heslá. Ak chcete použiť nešifrované heslá, musíte "
+#~ "zmeniť parameter v registroch systému Windows."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Povolenie tejto voľby sa dôrazne odporúča, pretože podpora nešifrovaných "
-"hesiel v produktoch Microsoft Windows sa už neudržiava. V tom prípade sa "
-"uistite, že máte platný súbor /etc/samba/smbpasswd a že v ňom nastavíte "
-"heslá všetkým používateľom príkazom smbpasswd."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Povolenie tejto voľby sa dôrazne odporúča, pretože podpora nešifrovaných "
+#~ "hesiel v produktoch Microsoft Windows sa už neudržiava. V tom prípade sa "
+#~ "uistite, že máte platný súbor /etc/samba/smbpasswd a že v ňom nastavíte "
+#~ "heslá všetkým používateľom príkazom smbpasswd."
 
+#~ msgid "Samba server"
+#~ msgstr "Samba server"
+
+#~ msgid "daemons"
+#~ msgstr "démoni"
+
+#~ msgid "inetd"
+#~ msgstr "inetd"
+
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Ako chcete spúšťať Sambu?"
+
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Samba server smbd sa môže spúšťať ako obyčajný démon (odporúča sa) alebo "
+#~ "sa môže spúšťať z inetd."
+
+#~ msgid "Set up Samba 4 as a PDC?"
+#~ msgstr "Nastaviť Samba 4 ako PDC?"
+
+#~ msgid ""
+#~ "Even when using this option, you will need to set up DNS such that it "
+#~ "serves the data from the zone file in that directory before you can use "
+#~ "the Active Directory domain."
+#~ msgstr ""
+#~ "Aj pri použití tejto voľby budete musieť nastaviť DNS tak, aby "
+#~ "poskytovalo údaje zo súboru zóny v danom adresári predtým, než budete "
+#~ "môcť použiť doménu Active Directory."
+
+#~ msgid ""
+#~ "Please specify the Kerberos realm this server will be in. In many cases,  "
+#~ "this will be the same as the DNS domain name."
+#~ msgstr ""
+#~ "Prosím, zadajte v ktorej doméne Kerberos sa tento server bude nachádzať. "
+#~ "V mnohých prípadoch to bude rovnaká hodnota ako názov domény DNS."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "Vytvoriť databázu hesiel /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "Kvôli kompatibilite s predvoleným nastavením väčšiny verzií Windows sa "
+#~ "musí Samba nastaviť na používanie šifrovaných hesiel. To vyžaduje "
+#~ "uloženie používateľských hesiel v inom súbore ako /etc/passwd. Tento "
+#~ "súbor sa môže vytvoriť automaticky, ale heslá do neho musíte pridať "
+#~ "manuálne programom smbpasswd a taktiež ho musíte neustále aktualizovať."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "Ak tento súbor nevytvoríte, budete musieť nastaviť Sambu (a zrejme aj "
+#~ "počítače klientov) aby používali nešifrované heslá."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Podrobnosti nájdete v súbore /usr/share/doc/samba-doc/htmldocs/ENCRYPTION."
+#~ "html z balíka samba-doc."

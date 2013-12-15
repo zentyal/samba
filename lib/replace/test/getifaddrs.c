@@ -26,6 +26,7 @@
 #ifndef AUTOCONF_TEST
 #include "replace.h"
 #include "system/network.h"
+#include "replace-test.h"
 #endif
 
 #ifdef HAVE_INET_NTOP

@@ -22,32 +22,24 @@
 #include "includes.h"
 #include "cluster/cluster.h"
 #include "cluster/cluster_private.h"
-#include <tdb.h>
-#include "lib/util/tdb_wrap.h"
+#include "lib/tdb_wrap/tdb_wrap.h"
 #include "system/filesys.h"
 #include "param/param.h"
-#include "librpc/gen_ndr/server_id4.h"
+#include "librpc/gen_ndr/server_id.h"
 
 /*
   server a server_id for the local node
 */
-static struct server_id local_id(struct cluster_ops *ops, uint64_t id, uint32_t id2)
+static struct server_id local_id(struct cluster_ops *ops, uint64_t pid, uint32_t task_id)
 {
 	struct server_id server_id;
 	ZERO_STRUCT(server_id);
-	server_id.id = id;
-	server_id.id2 = id2;
+	server_id.pid = pid;
+	server_id.task_id = task_id;
+	server_id.vnn = NONCLUSTER_VNN;
+	/* This is because we are not in the s3 serverid database */
+	server_id.unique_id = SERVERID_UNIQUE_ID_NOT_TO_VERIFY;
 	return server_id;
-}
-
-
-/*
-  return a server_id as a string
-*/
-static const char *local_id_string(struct cluster_ops *ops,
-				   TALLOC_CTX *mem_ctx, struct server_id id)
-{
-	return talloc_asprintf(mem_ctx, "%u.%llu.%u", id.node, (unsigned long long)id.id, id.id2);
 }
 
 
@@ -63,7 +55,7 @@ static struct tdb_wrap *local_tdb_tmp_open(struct cluster_ops *ops,
 	char *path = smbd_tmp_path(mem_ctx, lp_ctx, dbname);
 	struct tdb_wrap *w;
 	w = tdb_wrap_open(mem_ctx, path, 0, flags,
-			  O_RDWR|O_CREAT, 0600);
+			  O_RDWR|O_CREAT, 0600, lp_ctx);
 	talloc_free(path);
 	return w;
 }
@@ -80,7 +72,7 @@ static void *local_backend_handle(struct cluster_ops *ops)
   dummy message init function - not needed as all messages are local
 */
 static NTSTATUS local_message_init(struct cluster_ops *ops,
-				   struct messaging_context *msg, 
+				   struct imessaging_context *msg,
 				   struct server_id server,
 				   cluster_message_fn_t handler)
 {
@@ -98,7 +90,6 @@ static NTSTATUS local_message_send(struct cluster_ops *ops,
 
 static struct cluster_ops cluster_local_ops = {
 	.cluster_id           = local_id,
-	.cluster_id_string    = local_id_string,
 	.cluster_tdb_tmp_open = local_tdb_tmp_open,
 	.backend_handle       = local_backend_handle,
 	.message_init         = local_message_init,

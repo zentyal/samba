@@ -471,6 +471,11 @@ static bool test_handles_mixed_shared(struct torture_context *torture)
 	torture_assert_ntstatus_equal(torture, status, NT_STATUS_UNSUCCESSFUL,
 				      "opening lsa pipe4");
 
+	/*
+	 * We use ~assoc_group_id instead of p1->assoc_group_id, because
+	 * this way we are less likely to use an id which is already in use.
+	 */
+	assoc_group_id = ~assoc_group_id;
 	torture_comment(torture, "connect samr pipe5 with assoc_group_id[0x%08X]- should fail\n", ++assoc_group_id);
 	status = torture_rpc_connection_transport(torture, &p5, &ndr_table_samr,
 						  transport,
@@ -504,10 +509,15 @@ static bool test_handles_random_assoc(struct torture_context *torture)
 	status = torture_rpc_connection(torture, &p1, &ndr_table_samr);
 	torture_assert_ntstatus_ok(torture, status, "opening samr pipe1");
 
-	transport	= p1->conn->transport.transport;
-	assoc_group_id	= p1->assoc_group_id;
+	torture_comment(torture, "pipe1 uses assoc_group_id[0x%08X]\n",
+			p1->assoc_group_id);
 
-	torture_comment(torture, "pipe1 uses assoc_group_id[0x%08X]\n", assoc_group_id);
+	transport	= p1->conn->transport.transport;
+	/*
+	 * We use ~p1->assoc_group_id instead of p1->assoc_group_id, because
+	 * this way we are less likely to use an id which is already in use.
+	 */
+	assoc_group_id	= ~p1->assoc_group_id;
 
 	torture_comment(torture, "connect samr pipe2 with assoc_group_id[0x%08X]- should fail\n", ++assoc_group_id);
 	status = torture_rpc_connection_transport(torture, &p2, &ndr_table_samr,

@@ -29,25 +29,9 @@
 #include "libsmbclient.h"
 #include "get_auth_data_fn.h"
 
-int global_id = 0;
-
-void print_list_fn(struct print_job_info *pji)
-{
-
-  fprintf(stdout, "Print job: ID: %u, Prio: %u, Size: %lu, User: %s, Name: %s\n",
-	  pji->id,
-          pji->priority,
-          (unsigned long) pji->size,
-          pji->user,
-          pji->name);
-
-  global_id = pji->id;
-
-}
-
 int main(int argc, char *argv[])
 {
-  int err, fd, dh1, dh2, dh3, dsize, dirc;
+  int err, fd, dh1, dsize, dirc;
   const char *file = "smb://samba/public/testfile.txt";
   const char *file2 = "smb://samba/public/testfile2.txt";
   char buff[256];
@@ -74,7 +58,7 @@ int main(int argc, char *argv[])
 
     }
 
-    fprintf(stdout, "Directory handles: %u, %u, %u\n", dh1, dh2, dh3);
+    fprintf(stdout, "Directory handle: %u\n", dh1);
 
     /* Now, list those directories, but in funny ways ... */
 
@@ -130,7 +114,7 @@ int main(int argc, char *argv[])
 
   /* Now, write some date to the file ... */
 
-  bzero(buff, sizeof(buff));
+  memset(buff, '\0', sizeof(buff));
   strcpy(buff, "Some test data for the moment ...");
 
   err = smbc_write(fd, buff, sizeof(buff));
@@ -256,10 +240,10 @@ int main(int argc, char *argv[])
   }
 
   fprintf(stdout, "Stat'ed file:   %s. Size = %d, mode = %04X\n", file2, 
-	  (int)st2.st_size, st2.st_mode);
+	  (int)st2.st_size, (unsigned int)st2.st_mode);
   fprintf(stdout, "    time: %s\n", ctime(&st2.st_atime));
   fprintf(stdout, "Earlier stat:   %s, Size = %d, mode = %04X\n", file, 
-	  (int)st1.st_size, st1.st_mode);
+	  (int)st1.st_size, (unsigned int)st1.st_mode);
   fprintf(stdout, "    time: %s\n", ctime(&st1.st_atime));
 
   /* Now, make a directory ... */

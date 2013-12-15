@@ -22,17 +22,17 @@
 #include "smbd/smbd.h"
 #include "system/filesys.h"
 
-static int compare_dirent (const SMB_STRUCT_DIRENT *da, const SMB_STRUCT_DIRENT *db)
+static int compare_dirent (const struct dirent *da, const struct dirent *db)
 {
-	return StrCaseCmp(da->d_name, db->d_name);
+	return strcasecmp_m(da->d_name, db->d_name);
 }
 
 struct dirsort_privates {
 	long pos;
-	SMB_STRUCT_DIRENT *directory_list;
+	struct dirent *directory_list;
 	unsigned int number_of_entries;
 	struct timespec mtime;
-	SMB_STRUCT_DIR *source_directory;
+	DIR *source_directory;
 	files_struct *fsp; /* If open via FDOPENDIR. */
 	struct smb_filename *smb_fname; /* If open via OPENDIR */
 };
@@ -93,13 +93,13 @@ static bool open_and_sort_dir(vfs_handle_struct *handle,
 	/* Set up an array and read the directory entries into it */
 	TALLOC_FREE(data->directory_list); /* destroy previous cache if needed */
 	data->directory_list = talloc_zero_array(data,
-						 SMB_STRUCT_DIRENT,
-						 total_count);
+					struct dirent,
+					total_count);
 	if (!data->directory_list) {
 		return false;
 	}
 	for (i = 0; i < total_count; i++) {
-		SMB_STRUCT_DIRENT *dp = SMB_VFS_NEXT_READDIR(handle,
+		struct dirent *dp = SMB_VFS_NEXT_READDIR(handle,
 						data->source_directory,
 						NULL);
 		if (dp == NULL) {
@@ -115,7 +115,7 @@ static bool open_and_sort_dir(vfs_handle_struct *handle,
 	return true;
 }
 
-static SMB_STRUCT_DIR *dirsort_opendir(vfs_handle_struct *handle,
+static DIR *dirsort_opendir(vfs_handle_struct *handle,
 				       const char *fname, const char *mask,
 				       uint32 attr)
 {
@@ -159,7 +159,7 @@ static SMB_STRUCT_DIR *dirsort_opendir(vfs_handle_struct *handle,
 	return data->source_directory;
 }
 
-static SMB_STRUCT_DIR *dirsort_fdopendir(vfs_handle_struct *handle,
+static DIR *dirsort_fdopendir(vfs_handle_struct *handle,
 					files_struct *fsp,
 					const char *mask,
 					uint32 attr)
@@ -197,8 +197,8 @@ static SMB_STRUCT_DIR *dirsort_fdopendir(vfs_handle_struct *handle,
 	return data->source_directory;
 }
 
-static SMB_STRUCT_DIRENT *dirsort_readdir(vfs_handle_struct *handle,
-					  SMB_STRUCT_DIR *dirp,
+static struct dirent *dirsort_readdir(vfs_handle_struct *handle,
+					  DIR *dirp,
 					  SMB_STRUCT_STAT *sbuf)
 {
 	struct dirsort_privates *data = NULL;
@@ -223,7 +223,7 @@ static SMB_STRUCT_DIRENT *dirsort_readdir(vfs_handle_struct *handle,
 	return &data->directory_list[data->pos++];
 }
 
-static void dirsort_seekdir(vfs_handle_struct *handle, SMB_STRUCT_DIR *dirp,
+static void dirsort_seekdir(vfs_handle_struct *handle, DIR *dirp,
 			    long offset)
 {
 	struct dirsort_privates *data = NULL;
@@ -232,7 +232,7 @@ static void dirsort_seekdir(vfs_handle_struct *handle, SMB_STRUCT_DIR *dirp,
 	data->pos = offset;
 }
 
-static long dirsort_telldir(vfs_handle_struct *handle, SMB_STRUCT_DIR *dirp)
+static long dirsort_telldir(vfs_handle_struct *handle, DIR *dirp)
 {
 	struct dirsort_privates *data = NULL;
 	SMB_VFS_HANDLE_GET_DATA(handle, data, struct dirsort_privates,
@@ -241,7 +241,7 @@ static long dirsort_telldir(vfs_handle_struct *handle, SMB_STRUCT_DIR *dirp)
 	return data->pos;
 }
 
-static void dirsort_rewinddir(vfs_handle_struct *handle, SMB_STRUCT_DIR *dirp)
+static void dirsort_rewinddir(vfs_handle_struct *handle, DIR *dirp)
 {
 	struct dirsort_privates *data = NULL;
 	SMB_VFS_HANDLE_GET_DATA(handle, data, struct dirsort_privates, return);
@@ -250,12 +250,12 @@ static void dirsort_rewinddir(vfs_handle_struct *handle, SMB_STRUCT_DIR *dirp)
 }
 
 static struct vfs_fn_pointers vfs_dirsort_fns = {
-	.opendir = dirsort_opendir,
-	.fdopendir = dirsort_fdopendir,
-	.readdir = dirsort_readdir,
-	.seekdir = dirsort_seekdir,
-	.telldir = dirsort_telldir,
-	.rewind_dir = dirsort_rewinddir,
+	.opendir_fn = dirsort_opendir,
+	.fdopendir_fn = dirsort_fdopendir,
+	.readdir_fn = dirsort_readdir,
+	.seekdir_fn = dirsort_seekdir,
+	.telldir_fn = dirsort_telldir,
+	.rewind_dir_fn = dirsort_rewinddir,
 };
 
 NTSTATUS vfs_dirsort_init(void)

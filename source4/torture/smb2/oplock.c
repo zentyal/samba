@@ -329,7 +329,7 @@ static void torture_wait_for_oplock_break(struct torture_context *tctx)
 	/* Wait .1 seconds for an oplock break */
 	ne = tevent_timeval_current_ofs(0, 100000);
 
-	if ((te = event_add_timed(tctx->ev, tmp_ctx, ne, timeout_cb, &timesup))
+	if ((te = tevent_add_timer(tctx->ev, tmp_ctx, ne, timeout_cb, &timesup))
 	    == NULL)
 	{
 		torture_comment(tctx, "Failed to wait for an oplock break. "
@@ -338,7 +338,7 @@ static void torture_wait_for_oplock_break(struct torture_context *tctx)
 	}
 
 	while (!timesup && break_info.count < old_count + 1) {
-		if (event_loop_once(tctx->ev) != 0) {
+		if (tevent_loop_once(tctx->ev) != 0) {
 			torture_comment(tctx, "Failed to wait for an oplock "
 					      "break. test results may not be "
 					      "accurate.");
@@ -364,7 +364,6 @@ static bool test_smb2_oplock_exclusive1(struct torture_context *tctx,
 	NTSTATUS status;
 	bool ret = true;
 	union smb_open io;
-	union smb_unlink unl;
 	struct smb2_handle h1;
 	struct smb2_handle h;
 
@@ -411,8 +410,6 @@ static bool test_smb2_oplock_exclusive1(struct torture_context *tctx,
 	CHECK_VAL(break_info.failures, 0);
 
 	torture_comment(tctx, "unlink it - should also be no break\n");
-	unl.unlink.in.pattern = fname;
-	unl.unlink.in.attrib = 0;
 	status = smb2_util_unlink(tree2, fname);
 	torture_assert_ntstatus_equal(tctx, status, NT_STATUS_SHARING_VIOLATION,
 				      "Incorrect status");
@@ -435,7 +432,6 @@ static bool test_smb2_oplock_exclusive2(struct torture_context *tctx,
 	NTSTATUS status;
 	bool ret = true;
 	union smb_open io;
-	union smb_unlink unl;
 	struct smb2_handle h, h1, h2;
 
 	status = torture_smb2_testdir(tree1, BASEDIR, &h);
@@ -490,8 +486,6 @@ static bool test_smb2_oplock_exclusive2(struct torture_context *tctx,
 
 	/* now we have 2 level II oplocks... */
 	torture_comment(tctx, "try to unlink it - should cause a break\n");
-	unl.unlink.in.pattern = fname;
-	unl.unlink.in.attrib = 0;
 	status = smb2_util_unlink(tree2, fname);
 	torture_assert_ntstatus_ok(tctx, status, "Error unlinking the file");
 	torture_wait_for_oplock_break(tctx);
@@ -734,6 +728,7 @@ static bool test_smb2_oplock_exclusive6(struct torture_context *tctx,
 	bool ret = true;
 	union smb_open io;
 	union smb_setfileinfo sinfo;
+	struct smb2_close closeio;
 	struct smb2_handle h, h1;
 
 	status = torture_smb2_testdir(tree1, BASEDIR, &h);
@@ -772,7 +767,8 @@ static bool test_smb2_oplock_exclusive6(struct torture_context *tctx,
 	h1 = io.smb2.out.file.handle;
 	CHECK_VAL(io.smb2.out.oplock_level, SMB2_OPLOCK_LEVEL_EXCLUSIVE);
 
-	torture_comment(tctx, "rename should not generate a break but get "
+	torture_comment(tctx, "rename with the parent directory handle open "
+			"for DELETE should not generate a break but get "
 			"a sharing violation\n");
 	ZERO_STRUCT(sinfo);
 	sinfo.rename_information.level = RAW_SFILEINFO_RENAME_INFORMATION;
@@ -781,8 +777,44 @@ static bool test_smb2_oplock_exclusive6(struct torture_context *tctx,
 	sinfo.rename_information.in.new_name = fname2;
 	status = smb2_setinfo_file(tree1, &sinfo);
 
-	torture_comment(tctx, "trying rename while first file open\n");
+	torture_comment(tctx, "trying rename while parent handle open for delete.\n");
 	torture_assert_ntstatus_equal(tctx, status, NT_STATUS_SHARING_VIOLATION,
+				      "Incorrect status");
+	torture_wait_for_oplock_break(tctx);
+	CHECK_VAL(break_info.count, 0);
+	CHECK_VAL(break_info.failures, 0);
+
+	/* Close the parent directory handle. */
+	ZERO_STRUCT(closeio);
+	closeio.in.file.handle = h;
+	status = smb2_close(tree1, &closeio);
+	torture_assert_ntstatus_equal(tctx, status, NT_STATUS_OK,
+				      "Incorrect status");
+
+	/* Re-open without DELETE access. */
+	ZERO_STRUCT(io);
+	io.smb2.in.oplock_level = 0;
+	io.smb2.in.desired_access = SEC_RIGHTS_FILE_ALL & (~SEC_STD_DELETE);
+	io.smb2.in.file_attributes   = FILE_ATTRIBUTE_DIRECTORY;
+	io.smb2.in.create_disposition = NTCREATEX_DISP_OPEN;
+	io.smb2.in.share_access = NTCREATEX_SHARE_ACCESS_READ|NTCREATEX_SHARE_ACCESS_WRITE|NTCREATEX_SHARE_ACCESS_DELETE;
+	io.smb2.in.create_options = NTCREATEX_OPTIONS_DIRECTORY;
+	io.smb2.in.fname = BASEDIR;
+
+	status = smb2_create(tree1, tctx, &(io.smb2));
+	torture_assert_ntstatus_ok(tctx, status, "Error opening the base directory");
+
+	torture_comment(tctx, "rename with the parent directory handle open "
+			"without DELETE should succeed without a break\n");
+	ZERO_STRUCT(sinfo);
+	sinfo.rename_information.level = RAW_SFILEINFO_RENAME_INFORMATION;
+	sinfo.rename_information.in.file.handle = h1;
+	sinfo.rename_information.in.overwrite = true;
+	sinfo.rename_information.in.new_name = fname2;
+	status = smb2_setinfo_file(tree1, &sinfo);
+
+	torture_comment(tctx, "trying rename while parent handle open without delete\n");
+	torture_assert_ntstatus_equal(tctx, status, NT_STATUS_OK,
 				      "Incorrect status");
 	torture_wait_for_oplock_break(tctx);
 	CHECK_VAL(break_info.count, 0);
@@ -2925,7 +2957,6 @@ static bool test_smb2_oplock_brl1(struct torture_context *tctx,
 	/*int fname, f;*/
 	bool ret = true;
 	uint8_t buf[1000];
-	bool correct = true;
 	union smb_open io;
 	NTSTATUS status;
 	struct smb2_lock lck;
@@ -2977,7 +3008,7 @@ static bool test_smb2_oplock_brl1(struct torture_context *tctx,
 	status = smb2_util_write(tree1, h1,buf, 0, sizeof(buf));
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_OK)) {
 		torture_comment(tctx, "Failed to create file\n");
-		correct = false;
+		ret = false;
 		goto done;
 	}
 
@@ -3048,7 +3079,6 @@ static bool test_smb2_oplock_brl2(struct torture_context *tctx, struct smb2_tree
 	/*int fname, f;*/
 	bool ret = true;
 	uint8_t buf[1000];
-	bool correct = true;
 	union smb_open io;
 	NTSTATUS status;
 	struct smb2_handle h, h1;
@@ -3100,7 +3130,7 @@ static bool test_smb2_oplock_brl2(struct torture_context *tctx, struct smb2_tree
 	status = smb2_util_write(tree1, h1, buf, 0, sizeof(buf));
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_OK)) {
 		torture_comment(tctx, "Failed to create file\n");
-		correct = false;
+		ret = false;
 		goto done;
 	}
 
@@ -3150,7 +3180,6 @@ static bool test_smb2_oplock_brl3(struct torture_context *tctx, struct smb2_tree
 	const char *fname = BASEDIR "\\test_batch_brl.dat";
 	bool ret = true;
 	uint8_t buf[1000];
-	bool correct = true;
 	union smb_open io;
 	NTSTATUS status;
 	struct smb2_handle h, h1, h2;
@@ -3201,7 +3230,7 @@ static bool test_smb2_oplock_brl3(struct torture_context *tctx, struct smb2_tree
 
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_OK)) {
 		torture_comment(tctx, "Failed to create file\n");
-		correct = false;
+		ret = false;
 		goto done;
 	}
 
@@ -3534,8 +3563,7 @@ bool test_smb2_hold_oplock(struct torture_context *tctx,
 			   struct smb2_tree *tree)
 {
 	struct torture_context *mem_ctx = talloc_new(tctx);
-	struct tevent_context *ev =
-		(struct tevent_context *)tree->session->transport->socket->event.ctx;
+	struct tevent_context *ev = tctx->ev;
 	int i;
 	struct smb2_handle h;
 	NTSTATUS status;
@@ -3596,7 +3624,7 @@ bool test_smb2_hold_oplock(struct torture_context *tctx,
 	}
 
 	torture_comment(tctx, "Waiting for oplock events\n");
-	event_loop_wait(ev);
+	tevent_loop_wait(ev);
 	smb2_deltree(tree, BASEDIR);
 	talloc_free(mem_ctx);
 	return true;

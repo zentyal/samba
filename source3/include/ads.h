@@ -26,7 +26,7 @@ enum ads_saslwrap_type {
 
 typedef struct ads_struct {
 	int is_mine;	/* do I own this structure's memory? */
-	
+
 	/* info needed to find the server */
 	struct {
 		char *realm;
@@ -45,6 +45,7 @@ typedef struct ads_struct {
 		char *kdc_server;
 		unsigned flags;
 		int time_offset;
+		char *ccache_name;
 		time_t tgt_expire;
 		time_t tgs_expire;
 		time_t renewable;
@@ -126,17 +127,6 @@ typedef void **ADS_MODLIST;
 #define ADS_LDAP_MATCHING_RULE_BIT_OR	"1.2.840.113556.1.4.804"
 
 #define ADS_PINGS          0x0000FFFF  /* Ping response */
-
-/* ads auth control flags */
-#define ADS_AUTH_DISABLE_KERBEROS 0x0001
-#define ADS_AUTH_NO_BIND          0x0002
-#define ADS_AUTH_ANON_BIND        0x0004
-#define ADS_AUTH_SIMPLE_BIND      0x0008
-#define ADS_AUTH_ALLOW_NTLMSSP    0x0010
-#define ADS_AUTH_SASL_SIGN        0x0020
-#define ADS_AUTH_SASL_SEAL        0x0040
-#define ADS_AUTH_SASL_FORCE       0x0080
-#define ADS_AUTH_USER_CREDS       0x0100
 
 enum ads_extended_dn_flags {
 	ADS_EXTENDED_DN_HEX_STRING	= 0,

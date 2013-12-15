@@ -39,15 +39,3 @@ _Description: Workgroup/Domain Name:
  workgroup to be used when browsing with various frontends, and the domain
  name used with the "security=domain" setting.
 
-Template: samba-common/encrypt_passwords
-Type: boolean
-Default: true
-_Description: Use password encryption?
- All recent Windows clients communicate with SMB/CIFS servers using encrypted
- passwords. If you want to use clear text passwords you will need to change
- a parameter in your Windows registry.
- .
- Enabling this option is highly recommended as support for plain text
- passwords is no longer maintained in Microsoft Windows products. If
- you do, make sure you have a valid /etc/samba/smbpasswd file and that
- you set passwords in there for each user using the smbpasswd command.

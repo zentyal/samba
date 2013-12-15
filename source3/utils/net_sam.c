@@ -26,7 +26,10 @@
 #include "../libcli/security/security.h"
 #include "lib/winbind_util.h"
 #include "passdb.h"
+#include "passdb/pdb_ldap_util.h"
+#include "passdb/pdb_ldap_schema.h"
 #include "lib/privileges.h"
+#include "secrets.h"
 
 /*
  * Set a user's data
@@ -299,7 +302,7 @@ static int net_sam_set_pwdmustchangenow(struct net_context *c, int argc,
 static int net_sam_set_comment(struct net_context *c, int argc,
 			       const char **argv)
 {
-	GROUP_MAP map;
+	GROUP_MAP *map;
 	struct dom_sid sid;
 	enum lsa_SidType type;
 	const char *dom, *name;
@@ -330,14 +333,24 @@ static int net_sam_set_comment(struct net_context *c, int argc,
 		return -1;
 	}
 
-	if (!pdb_getgrsid(&map, sid)) {
+	map = talloc_zero(talloc_tos(), GROUP_MAP);
+	if (!map) {
+		d_fprintf(stderr, _("Out of memory!\n"));
+		return -1;
+	}
+
+	if (!pdb_getgrsid(map, sid)) {
 		d_fprintf(stderr, _("Could not load group %s\n"), argv[0]);
 		return -1;
 	}
 
-	fstrcpy(map.comment, argv[1]);
+	map->comment = talloc_strdup(map, argv[1]);
+	if (!map->comment) {
+		d_fprintf(stderr, _("Out of memory!\n"));
+		return -1;
+	}
 
-	status = pdb_update_group_mapping_entry(&map);
+	status = pdb_update_group_mapping_entry(map);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		d_fprintf(stderr, _("Updating group mapping entry failed with "
@@ -348,6 +361,7 @@ static int net_sam_set_comment(struct net_context *c, int argc,
 	d_printf("Updated comment of group %s\\%s to %s\n", dom, name,
 		 argv[1]);
 
+	TALLOC_FREE(map);
 	return 0;
 }
 
@@ -499,7 +513,7 @@ static int net_sam_policy_set(struct net_context *c, int argc, const char **argv
 		const char **names;
                 int i, count;
 
-                account_policy_names_list(&names, &count);
+                account_policy_names_list(talloc_tos(), &names, &count);
 		d_fprintf(stderr, _("No account policy \"%s\"!\n\n"), argv[0]);
 		d_fprintf(stderr, _("Valid account policies are:\n"));
 
@@ -507,7 +521,8 @@ static int net_sam_policy_set(struct net_context *c, int argc, const char **argv
 			d_fprintf(stderr, "%s\n", names[i]);
 		}
 
-		SAFE_FREE(names);
+		TALLOC_FREE(names);
+
 		return -1;
 	}
 
@@ -551,7 +566,7 @@ static int net_sam_policy_show(struct net_context *c, int argc, const char **arg
 		const char **names;
 		int count;
 		int i;
-                account_policy_names_list(&names, &count);
+                account_policy_names_list(talloc_tos(), &names, &count);
                 d_fprintf(stderr, _("No account policy by that name!\n"));
                 if (count != 0) {
                         d_fprintf(stderr, _("Valid account policies "
@@ -560,7 +575,7 @@ static int net_sam_policy_show(struct net_context *c, int argc, const char **arg
 				d_fprintf(stderr, "%s\n", names[i]);
 			}
                 }
-                SAFE_FREE(names);
+                TALLOC_FREE(names);
                 return -1;
         }
 
@@ -592,7 +607,7 @@ static int net_sam_policy_list(struct net_context *c, int argc, const char **arg
 		return 0;
 	}
 
-	account_policy_names_list(&names, &count);
+	account_policy_names_list(talloc_tos(), &names, &count);
         if (count != 0) {
 		d_fprintf(stderr, _("Valid account policies "
 			  "are:\n"));
@@ -600,7 +615,7 @@ static int net_sam_policy_list(struct net_context *c, int argc, const char **arg
 			d_fprintf(stderr, "%s\n", names[i]);
 		}
 	}
-        SAFE_FREE(names);
+        TALLOC_FREE(names);
         return -1;
 }
 
@@ -806,38 +821,32 @@ static int net_sam_rights(struct net_context *c, int argc, const char **argv)
  * Map a unix group to a domain group
  */
 
-static NTSTATUS map_unix_group(const struct group *grp, GROUP_MAP *pmap)
+static NTSTATUS map_unix_group(const struct group *grp, GROUP_MAP *map)
 {
-	NTSTATUS status;
-	GROUP_MAP map;
-	const char *grpname, *dom, *name;
+	const char *dom, *name;
 	uint32 rid;
 
-	if (pdb_getgrgid(&map, grp->gr_gid)) {
+	if (pdb_getgrgid(map, grp->gr_gid)) {
 		return NT_STATUS_GROUP_EXISTS;
 	}
 
-	map.gid = grp->gr_gid;
-	grpname = grp->gr_name;
+	map->gid = grp->gr_gid;
 
-	if (lookup_name(talloc_tos(), grpname, LOOKUP_NAME_LOCAL,
+	if (lookup_name(talloc_tos(), grp->gr_name, LOOKUP_NAME_LOCAL,
 			&dom, &name, NULL, NULL)) {
 
-		const char *tmp = talloc_asprintf(
-			talloc_tos(), "Unix Group %s", grp->gr_name);
+		map->nt_name = talloc_asprintf(map, "Unix Group %s",
+							grp->gr_name);
 
 		DEBUG(5, ("%s exists as %s\\%s, retrying as \"%s\"\n",
-			  grpname, dom, name, tmp));
-		grpname = tmp;
+			  grp->gr_name, dom, name, map->nt_name));
 	}
 
-	if (lookup_name(talloc_tos(), grpname, LOOKUP_NAME_LOCAL,
+	if (lookup_name(talloc_tos(), grp->gr_name, LOOKUP_NAME_LOCAL,
 			NULL, NULL, NULL, NULL)) {
 		DEBUG(3, ("\"%s\" exists, can't map it\n", grp->gr_name));
 		return NT_STATUS_GROUP_EXISTS;
 	}
-
-	fstrcpy(map.nt_name, grpname);
 
 	if (pdb_capabilities() & PDB_CAP_STORE_RIDS) {
 		if (!pdb_new_rid(&rid)) {
@@ -849,22 +858,17 @@ static NTSTATUS map_unix_group(const struct group *grp, GROUP_MAP *pmap)
 		rid = algorithmic_pdb_gid_to_group_rid( grp->gr_gid );
 	}
 
-	sid_compose(&map.sid, get_global_sam_sid(), rid);
-	map.sid_name_use = SID_NAME_DOM_GRP;
-	fstrcpy(map.comment, talloc_asprintf(talloc_tos(), "Unix Group %s",
-					     grp->gr_name));
+	sid_compose(&map->sid, get_global_sam_sid(), rid);
+	map->sid_name_use = SID_NAME_DOM_GRP;
+	map->comment = talloc_asprintf(map, "Unix Group %s", grp->gr_name);
 
-	status = pdb_add_group_mapping_entry(&map);
-	if (NT_STATUS_IS_OK(status)) {
-		*pmap = map;
-	}
-	return status;
+	return pdb_add_group_mapping_entry(map);
 }
 
 static int net_sam_mapunixgroup(struct net_context *c, int argc, const char **argv)
 {
 	NTSTATUS status;
-	GROUP_MAP map;
+	GROUP_MAP *map;
 	struct group *grp;
 
 	if (argc != 1 || c->display_usage) {
@@ -880,7 +884,13 @@ static int net_sam_mapunixgroup(struct net_context *c, int argc, const char **ar
 		return -1;
 	}
 
-	status = map_unix_group(grp, &map);
+	map = talloc_zero(talloc_tos(), GROUP_MAP);
+	if (!map) {
+		d_fprintf(stderr, _("Out of memory!\n"));
+		return -1;
+	}
+
+	status = map_unix_group(grp, map);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		d_fprintf(stderr, _("Mapping group %s failed with %s\n"),
@@ -889,8 +899,9 @@ static int net_sam_mapunixgroup(struct net_context *c, int argc, const char **ar
 	}
 
 	d_printf(_("Mapped unix group %s to SID %s\n"), argv[0],
-		 sid_string_tos(&map.sid));
+		 sid_string_tos(&map->sid));
 
+	TALLOC_FREE(map);
 	return 0;
 }
 
@@ -898,24 +909,17 @@ static int net_sam_mapunixgroup(struct net_context *c, int argc, const char **ar
  * Remove a group mapping
  */
 
-static NTSTATUS unmap_unix_group(const struct group *grp, GROUP_MAP *pmap)
+static NTSTATUS unmap_unix_group(const struct group *grp)
 {
-        GROUP_MAP map;
-        const char *grpname;
         struct dom_sid dom_sid;
 
-        map.gid = grp->gr_gid;
-        grpname = grp->gr_name;
-
-        if (!lookup_name(talloc_tos(), grpname, LOOKUP_NAME_LOCAL,
+        if (!lookup_name(talloc_tos(), grp->gr_name, LOOKUP_NAME_LOCAL,
                         NULL, NULL, NULL, NULL)) {
                 DEBUG(3, ("\"%s\" does not exist, can't unmap it\n", grp->gr_name));
                 return NT_STATUS_NO_SUCH_GROUP;
         }
 
-        fstrcpy(map.nt_name, grpname);
-
-        if (!pdb_gid_to_sid(map.gid, &dom_sid)) {
+        if (!pdb_gid_to_sid(grp->gr_gid, &dom_sid)) {
                 return NT_STATUS_UNSUCCESSFUL;
         }
 
@@ -925,7 +929,6 @@ static NTSTATUS unmap_unix_group(const struct group *grp, GROUP_MAP *pmap)
 static int net_sam_unmapunixgroup(struct net_context *c, int argc, const char **argv)
 {
 	NTSTATUS status;
-	GROUP_MAP map;
 	struct group *grp;
 
 	if (argc != 1 || c->display_usage) {
@@ -942,7 +945,7 @@ static int net_sam_unmapunixgroup(struct net_context *c, int argc, const char **
 		return -1;
 	}
 
-	status = unmap_unix_group(grp, &map);
+	status = unmap_unix_group(grp);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		d_fprintf(stderr, _("Unmapping group %s failed with %s.\n"),
@@ -1581,14 +1584,17 @@ static int net_sam_provision(struct net_context *c, int argc, const char **argv)
 	char *ldap_bk;
 	char *ldap_uri = NULL;
 	char *p;
-	struct smbldap_state *ls;
-	GROUP_MAP gmap;
+	struct smbldap_state *state = NULL;
+	GROUP_MAP *gmap = NULL;
 	struct dom_sid gsid;
 	gid_t domusers_gid = -1;
 	gid_t domadmins_gid = -1;
 	struct samu *samuser;
 	struct passwd *pwd;
 	bool is_ipa = false;
+	char *bind_dn = NULL;
+	char *bind_secret = NULL;
+	NTSTATUS status;
 
 	if (c->display_usage) {
 		d_printf(  "%s\n"
@@ -1643,7 +1649,18 @@ static int net_sam_provision(struct net_context *c, int argc, const char **argv)
 		goto failed;
 	}
 
-	if (!NT_STATUS_IS_OK(smbldap_init(tc, NULL, ldap_uri, &ls))) {
+	if (!fetch_ldap_pw(&bind_dn, &bind_secret)) {
+		d_fprintf(stderr, _("Failed to retrieve LDAP password from secrets.tdb\n"));
+		goto failed;
+	}
+
+	status = smbldap_init(tc, NULL, ldap_uri, false, bind_dn, bind_secret, &state);
+
+	memset(bind_secret, '\0', strlen(bind_secret));
+	SAFE_FREE(bind_secret);
+	SAFE_FREE(bind_dn);
+
+	if (!NT_STATUS_IS_OK(status)) {
 		d_fprintf(stderr, _("Unable to connect to the LDAP server.\n"));
 		goto failed;
 	}
@@ -1652,7 +1669,13 @@ static int net_sam_provision(struct net_context *c, int argc, const char **argv)
 
 	sid_compose(&gsid, get_global_sam_sid(), DOMAIN_RID_USERS);
 
-	if (!pdb_getgrsid(&gmap, gsid)) {
+	gmap = talloc_zero(tc, GROUP_MAP);
+	if (!gmap) {
+		d_printf(_("Out of memory!\n"));
+		goto failed;
+	}
+
+	if (!pdb_getgrsid(gmap, gsid)) {
 		LDAPMod **mods = NULL;
 		char *dn;
 		char *uname;
@@ -1676,7 +1699,8 @@ static int net_sam_provision(struct net_context *c, int argc, const char **argv)
 
 		uname = talloc_strdup(tc, "domusers");
 		wname = talloc_strdup(tc, "Domain Users");
-		dn = talloc_asprintf(tc, "cn=%s,%s", "domusers", lp_ldap_group_suffix());
+		dn = talloc_asprintf(tc, "cn=%s,%s", "domusers",
+				     lp_ldap_group_suffix(talloc_tos()));
 		gidstr = talloc_asprintf(tc, "%u", (unsigned int)domusers_gid);
 		gtype = talloc_asprintf(tc, "%d", SID_NAME_DOM_GRP);
 
@@ -1699,9 +1723,9 @@ static int net_sam_provision(struct net_context *c, int argc, const char **argv)
 				sid_string_talloc(tc, &gsid));
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "sambaGroupType", gtype);
 
-		talloc_autofree_ldapmod(tc, mods);
+		smbldap_talloc_autofree_ldapmod(tc, mods);
 
-		rc = smbldap_add(ls, dn, mods);
+		rc = smbldap_add(state, dn, mods);
 
 		if (rc != LDAP_SUCCESS) {
 			d_fprintf(stderr, _("Failed to add Domain Users group "
@@ -1709,16 +1733,16 @@ static int net_sam_provision(struct net_context *c, int argc, const char **argv)
 		}
 
 		if (is_ipa) {
-			if (!pdb_getgrsid(&gmap, gsid)) {
+			if (!pdb_getgrsid(gmap, gsid)) {
 				d_fprintf(stderr, _("Failed to read just "
 						    "created domain group.\n"));
 				goto failed;
 			} else {
-				domusers_gid = gmap.gid;
+				domusers_gid = gmap->gid;
 			}
 		}
 	} else {
-		domusers_gid = gmap.gid;
+		domusers_gid = gmap->gid;
 		d_printf(_("found!\n"));
 	}
 
@@ -1728,7 +1752,7 @@ domu_done:
 
 	sid_compose(&gsid, get_global_sam_sid(), DOMAIN_RID_ADMINS);
 
-	if (!pdb_getgrsid(&gmap, gsid)) {
+	if (!pdb_getgrsid(gmap, gsid)) {
 		LDAPMod **mods = NULL;
 		char *dn;
 		char *uname;
@@ -1752,7 +1776,8 @@ domu_done:
 
 		uname = talloc_strdup(tc, "domadmins");
 		wname = talloc_strdup(tc, "Domain Admins");
-		dn = talloc_asprintf(tc, "cn=%s,%s", "domadmins", lp_ldap_group_suffix());
+		dn = talloc_asprintf(tc, "cn=%s,%s", "domadmins",
+				     lp_ldap_group_suffix(talloc_tos()));
 		gidstr = talloc_asprintf(tc, "%u", (unsigned int)domadmins_gid);
 		gtype = talloc_asprintf(tc, "%d", SID_NAME_DOM_GRP);
 
@@ -1775,9 +1800,9 @@ domu_done:
 				sid_string_talloc(tc, &gsid));
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "sambaGroupType", gtype);
 
-		talloc_autofree_ldapmod(tc, mods);
+		smbldap_talloc_autofree_ldapmod(tc, mods);
 
-		rc = smbldap_add(ls, dn, mods);
+		rc = smbldap_add(state, dn, mods);
 
 		if (rc != LDAP_SUCCESS) {
 			d_fprintf(stderr, _("Failed to add Domain Admins group "
@@ -1785,16 +1810,16 @@ domu_done:
 		}
 
 		if (is_ipa) {
-			if (!pdb_getgrsid(&gmap, gsid)) {
+			if (!pdb_getgrsid(gmap, gsid)) {
 				d_fprintf(stderr, _("Failed to read just "
 						    "created domain group.\n"));
 				goto failed;
 			} else {
-				domadmins_gid = gmap.gid;
+				domadmins_gid = gmap->gid;
 			}
 		}
 	} else {
-		domadmins_gid = gmap.gid;
+		domadmins_gid = gmap->gid;
 		d_printf(_("found!\n"));
 	}
 
@@ -1842,7 +1867,8 @@ doma_done:
 		}
 
 		name = talloc_strdup(tc, "Administrator");
-		dn = talloc_asprintf(tc, "uid=Administrator,%s", lp_ldap_user_suffix());
+		dn = talloc_asprintf(tc, "uid=Administrator,%s",
+				     lp_ldap_user_suffix(talloc_tos()));
 		uidstr = talloc_asprintf(tc, "%u", (unsigned int)uid);
 		gidstr = talloc_asprintf(tc, "%u", (unsigned int)domadmins_gid);
 		dir = talloc_sub_specified(tc, lp_template_homedir(),
@@ -1860,13 +1886,6 @@ doma_done:
 		}
 
 		sid_compose(&sid, get_global_sam_sid(), DOMAIN_RID_ADMINISTRATOR);
-
-		if (!winbind_allocate_uid(&uid)) {
-			d_fprintf(stderr,
-				  _("Unable to allocate a new uid to create "
-				    "the Administrator user!\n"));
-			goto done;
-		}
 
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", LDAP_OBJ_ACCOUNT);
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "objectClass", LDAP_OBJ_POSIXACCOUNT);
@@ -1899,9 +1918,9 @@ doma_done:
 				pdb_encode_acct_ctrl(ACB_NORMAL|ACB_DISABLED,
 				NEW_PW_FORMAT_SPACE_PADDED_LEN));
 
-		talloc_autofree_ldapmod(tc, mods);
+		smbldap_talloc_autofree_ldapmod(tc, mods);
 
-		rc = smbldap_add(ls, dn, mods);
+		rc = smbldap_add(state, dn, mods);
 
 		if (rc != LDAP_SUCCESS) {
 			d_fprintf(stderr, _("Failed to add Administrator user "
@@ -1973,7 +1992,8 @@ doma_done:
 			}
 		}
 
-		dn = talloc_asprintf(tc, "uid=%s,%s", pwd->pw_name, lp_ldap_user_suffix ());
+		dn = talloc_asprintf(tc, "uid=%s,%s", pwd->pw_name,
+				     lp_ldap_user_suffix (talloc_tos()));
 		uidstr = talloc_asprintf(tc, "%u", (unsigned int)pwd->pw_uid);
 		gidstr = talloc_asprintf(tc, "%u", (unsigned int)pwd->pw_gid);
 		if (!dn || !uidstr || !gidstr) {
@@ -2010,9 +2030,9 @@ doma_done:
 				pdb_encode_acct_ctrl(ACB_NORMAL|ACB_DISABLED,
 				NEW_PW_FORMAT_SPACE_PADDED_LEN));
 
-		talloc_autofree_ldapmod(tc, mods);
+		smbldap_talloc_autofree_ldapmod(tc, mods);
 
-		rc = smbldap_add(ls, dn, mods);
+		rc = smbldap_add(state, dn, mods);
 
 		if (rc != LDAP_SUCCESS) {
 			d_fprintf(stderr, _("Failed to add Guest user to "
@@ -2045,7 +2065,7 @@ doma_done:
 		goto done;
 	}
 
-	if (!pdb_getgrgid(&gmap, pwd->pw_gid)) {
+	if (!pdb_getgrgid(gmap, pwd->pw_gid)) {
 		LDAPMod **mods = NULL;
 		char *dn;
 		char *uname;
@@ -2058,7 +2078,8 @@ doma_done:
 
 		uname = talloc_strdup(tc, "domguests");
 		wname = talloc_strdup(tc, "Domain Guests");
-		dn = talloc_asprintf(tc, "cn=%s,%s", "domguests", lp_ldap_group_suffix());
+		dn = talloc_asprintf(tc, "cn=%s,%s", "domguests",
+				     lp_ldap_group_suffix(talloc_tos()));
 		gidstr = talloc_asprintf(tc, "%u", (unsigned int)pwd->pw_gid);
 		gtype = talloc_asprintf(tc, "%d", SID_NAME_DOM_GRP);
 
@@ -2083,9 +2104,9 @@ doma_done:
 				sid_string_talloc(tc, &gsid));
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "sambaGroupType", gtype);
 
-		talloc_autofree_ldapmod(tc, mods);
+		smbldap_talloc_autofree_ldapmod(tc, mods);
 
-		rc = smbldap_add(ls, dn, mods);
+		rc = smbldap_add(state, dn, mods);
 
 		if (rc != LDAP_SUCCESS) {
 			d_fprintf(stderr,
@@ -2098,11 +2119,11 @@ doma_done:
 
 
 done:
-	talloc_free(tc);
+	talloc_free(state);
 	return 0;
 
 failed:
-	talloc_free(tc);
+	talloc_free(state);
 	return -1;
 }
 

@@ -53,6 +53,7 @@ typedef int flex_int32_t;
 typedef unsigned char flex_uint8_t; 
 typedef unsigned short int flex_uint16_t;
 typedef unsigned int flex_uint32_t;
+#endif /* ! C99 */
 
 /* Limits of integral types. */
 #ifndef INT8_MIN
@@ -82,8 +83,6 @@ typedef unsigned int flex_uint32_t;
 #ifndef UINT32_MAX
 #define UINT32_MAX             (4294967295U)
 #endif
-
-#endif /* ! C99 */
 
 #endif /* ! FLEXINT_H */
 
@@ -141,15 +140,7 @@ typedef unsigned int flex_uint32_t;
 
 /* Size of default input buffer. */
 #ifndef YY_BUF_SIZE
-#ifdef __ia64__
-/* On IA-64, the buffer size is 16k, not 8k.
- * Moreover, YY_BUF_SIZE is 2*YY_READ_BUF_SIZE in the general case.
- * Ditto for the __ia64__ case accordingly.
- */
-#define YY_BUF_SIZE 32768
-#else
 #define YY_BUF_SIZE 16384
-#endif /* __ia64__ */
 #endif
 
 /* The state buf must be large enough to hold one state per character in the main buffer.
@@ -476,8 +467,6 @@ int yy_flex_debug = 0;
 #define YY_MORE_ADJ 0
 #define YY_RESTORE_YY_MORE_OFFSET
 char *yytext;
-#line 1 "sel-lex.l"
-#line 2 "sel-lex.l"
 /*
  * Copyright (c) 2004, 2008 Kungliga Tekniska Högskolan
  * (Royal Institute of Technology, Stockholm, Sweden).
@@ -542,8 +531,6 @@ struct hx_expr_input _hx509_expr_input;
 #define YY_INPUT(buf,res,maxsize) (res = lex_input(buf, maxsize))
 
 #undef ECHO
-
-#line 547 "lex.yy.c"
 
 #define INITIAL 0
 
@@ -624,12 +611,7 @@ static int input (void );
 
 /* Amount of stuff to slurp up with each read. */
 #ifndef YY_READ_BUF_SIZE
-#ifdef __ia64__
-/* On IA-64, the buffer size is 16k, not 8k */
-#define YY_READ_BUF_SIZE 16384
-#else
 #define YY_READ_BUF_SIZE 8192
-#endif /* __ia64__ */
 #endif
 
 /* Copy whatever the last rule matched to the standard output. */
@@ -648,7 +630,7 @@ static int input (void );
 	if ( YY_CURRENT_BUFFER_LVALUE->yy_is_interactive ) \
 		{ \
 		int c = '*'; \
-		size_t n; \
+		unsigned n; \
 		for ( n = 0; n < max_size && \
 			     (c = getc( yyin )) != EOF && c != '\n'; ++n ) \
 			buf[n] = (char) c; \
@@ -730,11 +712,6 @@ YY_DECL
 	register char *yy_cp, *yy_bp;
 	register int yy_act;
     
-#line 68 "sel-lex.l"
-
-
-#line 737 "lex.yy.c"
-
 	if ( !(yy_init) )
 		{
 		(yy_init) = 1;
@@ -818,37 +795,30 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 70 "sel-lex.l"
 { return kw_TRUE; }
 	YY_BREAK
 case 2:
 YY_RULE_SETUP
-#line 71 "sel-lex.l"
 { return kw_FALSE; }
 	YY_BREAK
 case 3:
 YY_RULE_SETUP
-#line 72 "sel-lex.l"
 { return kw_AND; }
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 73 "sel-lex.l"
 { return kw_OR; }
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 74 "sel-lex.l"
 { return kw_IN; }
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 75 "sel-lex.l"
 { return kw_TAILMATCH; }
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 77 "sel-lex.l"
 {
 			  yylval.string = strdup ((const char *)yytext);
 			  return IDENTIFIER;
@@ -856,31 +826,25 @@ YY_RULE_SETUP
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 81 "sel-lex.l"
 { yylval.string = handle_string(); return STRING; }
 	YY_BREAK
 case 9:
 /* rule 9 can match eol */
 YY_RULE_SETUP
-#line 82 "sel-lex.l"
 { ++lineno; }
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 83 "sel-lex.l"
 { return *yytext; }
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 84 "sel-lex.l"
 ;
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 85 "sel-lex.l"
 ECHO;
 	YY_BREAK
-#line 884 "lex.yy.c"
 case YY_STATE_EOF(INITIAL):
 	yyterminate();
 
@@ -1638,8 +1602,8 @@ YY_BUFFER_STATE yy_scan_string (yyconst char * yystr )
 
 /** Setup the input buffer state to scan the given bytes. The next call to yylex() will
  * scan from a @e copy of @a bytes.
- * @param yybytes the byte buffer to scan
- * @param _yybytes_len the number of bytes in the buffer pointed to by @a bytes.
+ * @param bytes the byte buffer to scan
+ * @param len the number of bytes in the buffer pointed to by @a bytes.
  * 
  * @return the newly allocated buffer state object.
  */
@@ -1877,10 +1841,6 @@ void yyfree (void * ptr )
 }
 
 #define YYTABLES_NAME "yytables"
-
-#line 85 "sel-lex.l"
-
-
 
 static char *
 handle_string(void)

@@ -26,12 +26,6 @@
 	This parameter does not affect directory masks. See the parameter <smbconfoption name="directory mask"/>
 	for details.
 	</para>
-
-    <para>
-	Note that this parameter does not apply to permissions set by Windows NT/2000 ACL editors. If the
-	administrator wishes to enforce a mask on access control lists also, they need to set the <smbconfoption
-	name="security mask"/>.
-	</para>
 </description>
 
 <related>force create mode</related>

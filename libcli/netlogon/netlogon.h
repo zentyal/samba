@@ -26,19 +26,6 @@
 
 #include "librpc/gen_ndr/ndr_misc.h"
 #include "librpc/gen_ndr/ndr_security.h"
-#include "librpc/gen_ndr/ndr_svcctl.h"
-#include "librpc/gen_ndr/ndr_samr.h"
-
-struct netlogon_samlogon_response
-{
-	uint32_t ntver;
-	union {
-		struct NETLOGON_SAM_LOGON_RESPONSE_NT40 nt4;
-		struct NETLOGON_SAM_LOGON_RESPONSE nt5;
-		struct NETLOGON_SAM_LOGON_RESPONSE_EX nt5_ex;
-	} data;
-
-};
 
 struct nbt_netlogon_response
 {
@@ -51,5 +38,4 @@ struct nbt_netlogon_response
 };
 
 #include "../libcli/netlogon/netlogon_proto.h"
-#include "../libcli/netlogon/ndr_netlogon_proto.h"
 #endif /* __CLDAP_SERVER_PROTO_H__ */

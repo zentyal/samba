@@ -120,7 +120,7 @@ enum FAKE_FILE_TYPE is_fake_file(const struct smb_filename *smb_fname)
 ****************************************************************************/
 
 NTSTATUS open_fake_file(struct smb_request *req, connection_struct *conn,
-				uint16_t current_vuid,
+				uint64_t current_vuid,
 				enum FAKE_FILE_TYPE fake_file_type,
 				const struct smb_filename *smb_fname,
 				uint32 access_mask,
@@ -130,12 +130,11 @@ NTSTATUS open_fake_file(struct smb_request *req, connection_struct *conn,
 	NTSTATUS status;
 
 	status = smbd_calculate_access_mask(conn, smb_fname,
-					    false, /* fake files do not exist */
 					    access_mask, &access_mask);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(10, ("open_fake_file: smbd_calculate_access_mask "
 			"on service[%s] file[%s] returned %s\n",
-			lp_servicename(SNUM(conn)),
+			lp_servicename(talloc_tos(), SNUM(conn)),
 			smb_fname_str_dbg(smb_fname),
 			nt_errstr(status)));
 		return status;
@@ -145,9 +144,9 @@ NTSTATUS open_fake_file(struct smb_request *req, connection_struct *conn,
 	if (geteuid() != sec_initial_uid()) {
 		DEBUG(3, ("open_fake_file_shared: access_denied to "
 			  "service[%s] file[%s] user[%s]\n",
-			  lp_servicename(SNUM(conn)),
+			  lp_servicename(talloc_tos(), SNUM(conn)),
 			  smb_fname_str_dbg(smb_fname),
-			  conn->session_info->unix_name));
+			  conn->session_info->unix_info->unix_name));
 		return NT_STATUS_ACCESS_DENIED;
 
 	}
@@ -157,8 +156,8 @@ NTSTATUS open_fake_file(struct smb_request *req, connection_struct *conn,
 		return status;
 	}
 
-	DEBUG(5,("open_fake_file_shared: fname = %s, FID = %d, access_mask = 0x%x\n",
-		 smb_fname_str_dbg(smb_fname), fsp->fnum,
+	DEBUG(5,("open_fake_file_shared: fname = %s, %s, access_mask = 0x%x\n",
+		 smb_fname_str_dbg(smb_fname), fsp_fnum_dbg(fsp),
 		 (unsigned int)access_mask));
 
 	fsp->conn = conn;

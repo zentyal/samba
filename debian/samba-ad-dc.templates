@@ -1,0 +1,54 @@
+Template: samba4/upgrade-from-v3
+Type: boolean
+Default: true
+_Description: Upgrade from Samba 3?
+ It is possible to migrate the existing configuration files from Samba 3 to
+ Samba 4. This is likely to fail for complex setups, but should provide a
+ good starting point for most existing installations.
+
+Template: samba4/server-role
+Type: select
+Choices: domain controller, member, standalone, none
+Default: domain controller
+_Description: Server role
+ Domain controllers manage NT4-style or Active Directory domains and
+ provide services such as identity management and domain logons. Each
+ domain needs to have a at least one domain controller.
+ .
+ Member servers can be part of a NT4-style or Active Directory domain but
+ do not provide any domain services. Workstations and file or print servers
+ are usually regular domain members.
+ .
+ A standalone server can not be used in a domain and only supports file
+ sharing and Windows for Workgroups-style logins.
+ .
+ If no server role is specified, the Samba server will not be provisioned,
+ so this can be done manually by the user.
+
+Template: samba4/realm
+Type: string
+Default: REALM
+_Description: Realm name:
+ Please specify the Kerberos realm for the domain that this domain controller
+ controls.
+ .
+ Usually this is the a capitalized version of your DNS hostname.
+
+Template: samba4/admin_password
+Type: password
+#flag:translate!:4
+_Description: New password for the Samba "administrator" user:
+ If this field is left blank, a random password will be generated.
+ .
+ A password can be set later by running, as root:
+ .
+  $ samba-tool user setpassword administrator
+
+Template: samba4/admin_password_again
+Type: password
+_Description: Repeat password for the Samba "administrator" user:
+
+Template: samba4/password_mismatch
+Type: error
+_Description: Password input error
+ The two passwords you entered were not the same. Please try again.

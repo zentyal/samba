@@ -6,7 +6,7 @@ AC_PREREQ(2.54)
 AC_INIT([Samba],[3],[samba-technical@samba.org])
 
 AC_CONFIG_SRCDIR([include/includes.h])
-AC_CONFIG_HEADER(include/config.h)
+AC_CONFIG_HEADER(include/autoconf/config.h)
 AC_DEFINE(CONFIG_H_IS_FROM_SAMBA,1,[Marker for samba's config.h])
 
 case "$PATH" in
@@ -25,10 +25,15 @@ m4_include(pkg.m4)
 AC_LIBREPLACE_CC_CHECKS
 AC_LIBREPLACE_RUNTIME_LIB_PATH_VAR
 
-SAMBA_CPPFLAGS="-Iinclude -I${srcdir-.}/include  -I. -I${srcdir-.}"
+m4_include(../lib/ccan/libccan.m4)
+
+SAMBA_CPPFLAGS="-Iinclude/autoconf -Iautoconf -Iautoconf/source3"
+SAMBA_CPPFLAGS="${SAMBA_CPPFLAGS} -Iinclude -I${srcdir-.}/include  -I. -I${srcdir-.}"
 SAMBA_CPPFLAGS="${SAMBA_CPPFLAGS} -I${srcdir-.}/../lib/replace"
+SAMBA_CPPFLAGS="${SAMBA_CPPFLAGS} ${CCAN_CFLAGS}"
 SAMBA_CPPFLAGS="${SAMBA_CPPFLAGS} -I${srcdir-.}/librpc"
 SAMBA_CPPFLAGS="${SAMBA_CPPFLAGS} -I${srcdir-.}/.."
+SAMBA_CPPFLAGS="${SAMBA_CPPFLAGS} -I${srcdir-.}/../lib/tdb_compat"
 
 SAMBA_CONFIGURE_CPPFLAGS="${SAMBA_CPPFLAGS} -I${srcdir-.}/../lib/popt"
 
@@ -77,7 +82,6 @@ AC_SUBST(ACL_LIBS)
 AC_SUBST(PASSDB_LIBS)
 AC_SUBST(IDMAP_LIBS)
 AC_SUBST(KRB5_LIBS)
-AC_SUBST(UUID_LIBS)
 AC_SUBST(LDAP_LIBS)
 AC_SUBST(GPEXT_LIBS)
 AC_SUBST(PAM_MODULES)
@@ -113,6 +117,7 @@ fi
 
 m4_include(../lib/socket_wrapper/config.m4)
 m4_include(../lib/nss_wrapper/config.m4)
+m4_include(../lib/uid_wrapper/config.m4)
 
 m4_include(m4/swat.m4)
 
@@ -188,29 +193,21 @@ AC_ARG_WITH(profiling-data,
   AC_MSG_RESULT(no)
 )
 
-dnl Checks for programs.
-AC_ARG_ENABLE(smbtorture4,
-	[AS_HELP_STRING([--enable-smbtorture4], [Enable building smbtorture4 (default=auto)])])
-
-if test x$enable_smbtorture4 != xno; then
-	smbtorture4_possible=yes
-else
-	smbtorture4_possible=no
-fi
-
 AC_PROG_INSTALL
 AC_PROG_AWK
 # Check for GNU make
 m4_include(../m4/check_make.m4)
 AC_SAMBA_GNU_MAKE([true], [true])
 
+selftest_possible="yes"
+
 # Check for perl
 m4_include(../m4/check_perl.m4)
-AC_SAMBA_PERL([true], [smbtorture4_possible=no])
+AC_SAMBA_PERL([true], [selftest_possible=no])
 
 # Check for python
 m4_include(../m4/check_python.m4)
-AC_SAMBA_PYTHON_DEVEL([true], [smbtorture4_possible=no])
+AC_SAMBA_PYTHON_DEVEL([true], [selftest_possible=no])
 
 AC_CHECK_TOOL(AR, ar)
 
@@ -258,9 +255,6 @@ if test "$ac_cv_prog_gnu_ld" = "yes"; then
            fi
         fi
 fi
-
-dnl look for executable suffix
-AC_EXEEXT
 
 dnl Check if C compiler understands -c and -o at the same time
 AC_PROG_CC_C_O
@@ -426,7 +420,6 @@ default_static_modules="$default_static_modules auth_sam"
 default_static_modules="$default_static_modules auth_unix"
 default_static_modules="$default_static_modules auth_winbind"
 default_static_modules="$default_static_modules auth_wbc"
-default_static_modules="$default_static_modules auth_server"
 default_static_modules="$default_static_modules auth_domain"
 default_static_modules="$default_static_modules auth_builtin"
 default_static_modules="$default_static_modules vfs_default"
@@ -446,8 +439,6 @@ default_shared_modules="$default_shared_modules vfs_cap"
 default_shared_modules="$default_shared_modules vfs_expand_msdfs"
 default_shared_modules="$default_shared_modules vfs_shadow_copy"
 default_shared_modules="$default_shared_modules vfs_shadow_copy2"
-default_shared_modules="$default_shared_modules charset_CP850"
-default_shared_modules="$default_shared_modules charset_CP437"
 default_shared_modules="$default_shared_modules auth_script"
 default_shared_modules="$default_shared_modules vfs_readahead"
 default_shared_modules="$default_shared_modules vfs_xattr_tdb"
@@ -462,12 +453,19 @@ default_shared_modules="$default_shared_modules vfs_scannedonly"
 default_shared_modules="$default_shared_modules vfs_crossrename"
 default_shared_modules="$default_shared_modules vfs_linux_xfs_sgid"
 default_shared_modules="$default_shared_modules vfs_time_audit"
+default_shared_modules="$default_shared_modules vfs_media_harmony"
+default_shared_modules="$default_shared_modules vfs_commit"
 default_shared_modules="$default_shared_modules idmap_autorid"
+default_shared_modules="$default_shared_modules idmap_tdb2"
+default_shared_modules="$default_shared_modules idmap_rid"
+default_shared_modules="$default_shared_modules idmap_hash"
 
 if test "x$developer" = xyes; then
-   default_static_modules="$default_static_modules rpc_rpcecho pdb_ads"
-   default_static_modules="$default_static_modules auth_netlogond"
-   default_shared_modules="$default_shared_modules charset_weird perfcount_test"
+   default_shared_modules="$default_shared_modules perfcount_test"
+fi
+
+if test x"$selftest" = x"yes" -o "x$developer" = xyes; then
+   default_shared_modules="$default_shared_modules vfs_fake_acls"
 fi
 
 #
@@ -490,63 +488,24 @@ case "$host_os" in
       ;;
 
 #
-# CRAY Unicos has broken const handling
-       *unicos*)
-	  AC_MSG_RESULT([disabling const])
-	  CPPFLAGS="$CPPFLAGS -Dconst="
-	  ;;
-	
-#
 # AIX4.x doesn't even admit to having large
 # files *at all* unless the -D_LARGE_FILE or -D_LARGE_FILE_API flags are set.
 #
     *aix4*)
 	  AC_MSG_RESULT([enabling large file support])
-      CPPFLAGS="$CPPFLAGS -D_LARGE_FILES"
+	  CPPFLAGS="$CPPFLAGS -D_LARGE_FILES"
 	  AC_DEFINE(_LARGE_FILES, 1, [Whether to enable large file support])
       ;;
 #
 # Defines needed for Solaris 2.6/2.7 aka 7.0 to make it admit
 # to the existance of large files..
-# Note that -D_LARGEFILE64_SOURCE is different from the Sun
-# recommendations on large file support, however it makes the
-# compile work using gcc 2.7 and 2.8, whereas using the Sun
-# recommendation makes the compile fail on gcc2.7. JRA.
 #
 # Solaris uses SYSV printing.  Make sure to set that here.  --jerry
 #
 	*solaris*)
 		AC_DEFINE(SYSV, 1, [Whether to enable System V compatibility])
-		case `uname -r` in
-			5.0|5.0.*|5.1|5.1.*|5.2|5.2.*|5.3|5.3.*|5.5|5.5.*)
-	  			AC_MSG_RESULT([no large file support])
-				;;
-			5.*)
-			LDFLAGS="$LDFLAGS -lthread"
-			CPPFLAGS="$CPPFLAGS -D_REENTRANT"
-			AC_MSG_RESULT([enabling large file support])
-			if test "$ac_cv_prog_gcc" = yes; then
-				${CC-cc} -v >conftest.c 2>&1
-				ac_cv_gcc_compiler_version_number=`grep 'gcc version' conftest.c`
-				rm -fr conftest.c
-				case "$ac_cv_gcc_compiler_version_number" in
-					*"gcc version 2.6"*|*"gcc version 2.7"*)
-						CPPFLAGS="$CPPFLAGS -D_LARGEFILE64_SOURCE"
-						AC_DEFINE(_LARGEFILE64_SOURCE, 1, [Whether to enable large file support])
-						;;
-					*)
-						CPPFLAGS="$CPPFLAGS -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64"
-						AC_DEFINE(_LARGEFILE64_SOURCE, 1, [Whether to enable large file support])
-						AC_DEFINE(_FILE_OFFSET_BITS, 64, [File offset bits])
-						;;
-				esac
-			else
-				CPPFLAGS="$CPPFLAGS -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64"
-				AC_DEFINE(_LARGEFILE64_SOURCE, 1, [Whether to enable large file support])
-				AC_DEFINE(_FILE_OFFSET_BITS, 64, [File offset bits])
-			fi
-			;;
-		esac
+		LDFLAGS="$LDFLAGS -lthread"
+		CPPFLAGS="$CPPFLAGS -D_REENTRANT"
 		;;
 #
 # IRIX uses SYSV printing.  Make sure to set that here
@@ -577,95 +536,11 @@ case "$host_os" in
 		AC_DEFINE(_SYSV, 1, [Whether to enable System V compatibility])
     esac
     ;;
+# GNU systems
 #
-# Tests needed for SINIX large file support.
-#
-    *sysv4*)
-      if test $host = mips-sni-sysv4 ; then
-        AC_MSG_CHECKING([for LFS support])
-        old_CPPFLAGS="$CPPFLAGS"
-        CPPFLAGS="-D_LARGEFILE64_SOURCE $CPPFLAGS"
-        AC_TRY_RUN([
-#include <unistd.h>
-main () {
-#if _LFS64_LARGEFILE == 1
-exit(0);
-#else
-exit(1);
-#endif
-}], [SINIX_LFS_SUPPORT=yes], [SINIX_LFS_SUPPORT=no], [SINIX_LFS_SUPPORT=cross])
-        CPPFLAGS="$old_CPPFLAGS"
-        if test x$SINIX_LFS_SUPPORT = xyes ; then
-          CPPFLAGS="-D_LARGEFILE64_SOURCE $CPPFLAGS"
-		  AC_DEFINE(_LARGEFILE64_SOURCE, 1, [Whether to enable large file support])
-          CFLAGS="`getconf LFS64_CFLAGS` $CFLAGS"
-          LDFLAGS="`getconf LFS64_LDFLAGS` $LDFLAGS"
-          LIBS="`getconf LFS64_LIBS` $LIBS"
-        fi
-      AC_MSG_RESULT([$SINIX_LFS_SUPPORT])
-      fi
-    ;;
-
-# Systems with LFS support.
-#
-    gnu* | k*bsd*-gnu | kopensolaris*-gnu)
-	CPPFLAGS="-D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE $CPPFLAGS"
-	AC_DEFINE(_LARGEFILE64_SOURCE, 1, [Whether to enable large file support])
-	AC_DEFINE(_FILE_OFFSET_BITS, 64, [File offset bits])
+    *linux* | *hurd* | gnu* | k*bsd*-gnu | kopensolaris*-gnu)
+	CPPFLAGS="-D_GNU_SOURCE $CPPFLAGS"
 	AC_DEFINE(_GNU_SOURCE, 1, [Whether to use GNU libc extensions])
-	;;
-
-# Tests for linux LFS support. Need kernel 2.4 and glibc2.2 or greater support.
-#
-    *linux*)
-        AC_MSG_CHECKING([for LFS support])
-        old_CPPFLAGS="$CPPFLAGS"
-        CPPFLAGS="-D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE $CPPFLAGS"
-       AC_TRY_RUN([
-#include <unistd.h>
-#include <sys/utsname.h>
-#include <string.h>
-#include <stdlib.h>
-main() {
-#if _LFS64_LARGEFILE == 1
-       struct utsname uts;
-       char *release;
-       int major, minor;
-
-       /* Ensure this is glibc 2.2 or higher */
-#if defined(__GLIBC__) && defined(__GLIBC_MINOR__)
-       int libc_major = __GLIBC__;
-       int libc_minor = __GLIBC_MINOR__;
-
-       if (libc_major < 2)
-              exit(1);
-       if (libc_minor < 2)
-              exit(1);
-#endif
-
-       /* Ensure this is kernel 2.4 or higher */
-
-       uname(&uts);
-       release = strdup(uts.release);
-       major = atoi(strsep(&release, "."));
-       minor = atoi(strsep(&release, "."));
-
-       if (major > 2 || (major == 2 && minor > 3))
-               exit(0);
-       exit(1);
-#else
-       exit(1);
-#endif
-}
-], [LINUX_LFS_SUPPORT=yes], [LINUX_LFS_SUPPORT=no], [LINUX_LFS_SUPPORT=cross])
-	CPPFLAGS="$old_CPPFLAGS"
-	if test x$LINUX_LFS_SUPPORT = xyes ; then
-		CPPFLAGS="-D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE $CPPFLAGS"
-		AC_DEFINE(_LARGEFILE64_SOURCE, 1, [Whether to enable large file support])
-		AC_DEFINE(_FILE_OFFSET_BITS, 64, [File offset bits])
-		AC_DEFINE(_GNU_SOURCE, 1, [Whether to use GNU libc extensions])
-	fi
-	AC_MSG_RESULT([$LINUX_LFS_SUPPORT])
 	;;
 
 #
@@ -676,33 +551,10 @@ main() {
 	AC_DEFINE(BROKEN_UNICODE_COMPOSE_CHARACTERS, 1, [Does this system use unicode compose characters])
 
 # Add a system specific charset module.
-	default_shared_modules="$default_shared_modules charset_macosxfs"
+	default_shared_modules="$default_shared_modules"
 
 	;;
-    *hurd*)
-        AC_MSG_CHECKING([for LFS support])
-        old_CPPFLAGS="$CPPFLAGS"
-        CPPFLAGS="-D_LARGEFILE64_SOURCE -D_GNU_SOURCE $CPPFLAGS"
-        AC_TRY_RUN([
-#include <unistd.h>
-main () {
-#if _LFS64_LARGEFILE == 1
-exit(0);
-#else
-exit(1);
-#endif
-}], [GLIBC_LFS_SUPPORT=yes], [GLIBC_LFS_SUPPORT=no], [GLIBC_LFS_SUPPORT=cross])
-        CPPFLAGS="$old_CPPFLAGS"
-        if test x$GLIBC_LFS_SUPPORT = xyes ; then
-          CPPFLAGS="-D_LARGEFILE64_SOURCE -D_GNU_SOURCE $CPPFLAGS"
-		  AC_DEFINE(_LARGEFILE64_SOURCE, 1, [Whether to enable large file support])
-          AC_DEFINE(_GNU_SOURCE, 1, [Whether to use GNU libc extensions])
-        fi
-      AC_MSG_RESULT([$GLIBC_LFS_SUPPORT])
-    ;;
     *qnx*)
-        CPPFLAGS="-D_LARGEFILE64_SOURCE $CPPFLAGS"
-        AC_DEFINE(_LARGEFILE64_SOURCE, 1, [Whether to enable large file support])
         ;;
 
 esac
@@ -721,7 +573,7 @@ LIBREPLACE_DIR=`echo ${libreplacedir} | sed -e "s;${srcdir};;" -e "s;^/;;"`
 LIBREPLACE_OBJS="${LIBREPLACEOBJ}"
 AC_SUBST(LIBREPLACE_OBJS)
 
-LIBREPLACE_LIBS="${LIBREPLACE_NETWORK_LIBS}"
+LIBREPLACE_LIBS="${LIBREPLACE_NETWORK_LIBS} ${LIBREPLACE_FILESYS_LIBS}"
 AC_SUBST(LIBREPLACE_LIBS)
 
 
@@ -744,6 +596,7 @@ AC_CHECK_HEADERS(langinfo.h locale.h)
 AC_CHECK_HEADERS(xfs/libxfs.h)
 AC_CHECK_HEADERS(netgroup.h)
 AC_CHECK_HEADERS(linux/falloc.h)
+AC_CHECK_HEADERS(CommonCrypto/CommonDigest.h)
 
 dnl check for OS implementation of md5 conformant to rfc1321
 samba_cv_md5lib=none
@@ -773,15 +626,17 @@ if test x"$ac_cv_header_md5_h" = x"yes" -a \
 	CRYPTO_MD5_OBJ=
 fi
 
-AC_SUBST(CRYPTO_MD5_OBJ)
+if test "x$ac_cv_header_CommonCrypto_CommonDigest_h" == "xyes"; then
+	CRYPTO_MD5_OBJ=
+fi
 
+AC_SUBST(CRYPTO_MD5_OBJ)
 
 AC_CHECK_HEADERS(rpcsvc/yp_prot.h,,,[[
 #if HAVE_RPC_RPC_H
 #include <rpc/rpc.h>
 #endif
 ]])
-
 ## These fail to compile on IRIX so just check for their presence
 AC_CHECK_HEADERS(sys/mode.h,,,)
 
@@ -790,6 +645,14 @@ old_CPPFLAGS="$CPPFLAGS"
 CPPFLAGS="-Iinclude $CPPFLAGS"
 AC_CHECK_HEADERS([CoreFoundation/CFStringEncodingConverter.h], [], [AC_CHECK_HEADERS([CFStringEncodingConverter.h])])
 CPPFLAGS="$old_CPPFLAGS"
+
+# To link lib/util/charset/charset_macosxfs.c, we need to tell the linker
+# about CoreFoundation, at least on os X 10.4..10.7 resp. darwin8..12
+case "$host_os" in
+    *darwin*)
+		LDFLAGS="$LDFLAGS -framework CoreFoundation"
+	;;
+esac
 
 # In valgrind 1.0.x, it's just valgrind.h.  In 1.9.x+ there's a
 # subdirectory of headers.
@@ -818,9 +681,6 @@ esac
 AC_CHECK_HEADERS(shadow.h)
 AC_CHECK_HEADERS(nss.h nss_common.h nsswitch.h ns_api.h sys/security.h)
 AC_CHECK_HEADERS(syscall.h sys/syscall.h)
-
-AC_CHECK_HEADERS(sys/attributes.h attr/xattr.h sys/xattr.h sys/extattr.h sys/uio.h)
-AC_CHECK_HEADERS(sys/ea.h sys/proplist.h)
 
 AC_CHECK_HEADERS(sys/cdefs.h glob.h)
 
@@ -988,7 +848,7 @@ fi
 # nothing until kernel 2.1.44! very dumb.
 AC_CACHE_CHECK([for real setresuid],samba_cv_have_setresuid,[
     AC_TRY_RUN([#include <errno.h>
-main() { setresuid(1,1,1); setresuid(2,2,2); exit(errno==EPERM?0:1);}],
+main() { setresuid(1,1,1); setresuid(2,2,2); return(errno==EPERM?0:1);}],
 	samba_cv_have_setresuid=yes,samba_cv_have_setresuid=no,samba_cv_have_setresuid=cross)])
 if test x"$samba_cv_have_setresuid" = x"yes"; then
     AC_DEFINE(HAVE_SETRESUID,1,[Whether the system has setresuid])
@@ -999,7 +859,7 @@ fi
 AC_CACHE_CHECK([for real setresgid],samba_cv_have_setresgid,[
     AC_TRY_RUN([#include <unistd.h>
 #include <errno.h>
-main() { errno = 0; setresgid(1,1,1); exit(errno != 0 ? (errno==EPERM ? 0 : 1) : 0);}],
+main() { errno = 0; setresgid(1,1,1); return(errno != 0 ? (errno==EPERM ? 0 : 1) : 0);}],
 	samba_cv_have_setresgid=yes,samba_cv_have_setresgid=no,samba_cv_have_setresgid=cross)])
 if test x"$samba_cv_have_setresgid" = x"yes"; then
     AC_DEFINE(HAVE_SETRESGID,1,[Whether the system has setresgid])
@@ -1093,7 +953,7 @@ AC_CHECK_FUNCS(yp_get_default_domain)
 # Check if we have execl, if not we need to compile smbrun.
 AC_CHECK_FUNCS(execl)
 if test x"$ac_cv_func_execl" = x"no"; then
-    EXTRA_BIN_PROGS="$EXTRA_BIN_PROGS bin/smbrun\$(EXEEXT)"
+    EXTRA_BIN_PROGS="$EXTRA_BIN_PROGS bin/smbrun"
 fi
 
 AC_CHECK_FUNCS(getcwd fchown chmod fchmod mknod mknod64)
@@ -1105,17 +965,15 @@ AC_CHECK_FUNCS(setsid glob strpbrk crypt16 getauthuid)
 AC_CHECK_FUNCS(sigprocmask sigblock sigaction sigset innetgr setnetgrent getnetgrent endnetgrent)
 AC_CHECK_FUNCS(initgroups select rdchk getgrnam getgrent pathconf)
 AC_CHECK_FUNCS(getgrset)
-AC_CHECK_FUNCS(setpriv setgidx setuidx setgroups sysconf stat64 fstat64)
-AC_CHECK_FUNCS(lstat64 fopen64 atexit grantpt posix_openpt lseek64 ftruncate64 posix_fallocate posix_fallocate64)
-AC_CHECK_FUNCS(fallocate fallocate64)
-AC_CHECK_FUNCS(fseeko fseek64 fseeko64 ftell64 ftello64 setluid getpwanam)
-AC_CHECK_FUNCS(opendir64 readdir64 seekdir64 telldir64 rewinddir64 closedir64)
-AC_CHECK_FUNCS(fdopendir fdopendir64)
+AC_CHECK_FUNCS(setpriv setgidx setuidx setgroups syscall sysconf)
+AC_CHECK_FUNCS(atexit grantpt posix_openpt posix_fallocate)
+AC_CHECK_FUNCS(fallocate)
+AC_CHECK_FUNCS(fseeko setluid getpwanam)
+AC_CHECK_FUNCS(fdopendir)
 AC_CHECK_FUNCS(getpwent_r)
-AC_CHECK_FUNCS(getdents64)
 AC_CHECK_FUNCS(setenv strcasecmp fcvt fcvtl)
 AC_CHECK_FUNCS(syslog vsyslog timegm)
-AC_CHECK_FUNCS(setlocale nl_langinfo)
+AC_CHECK_FUNCS(setlocale)
 AC_CHECK_FUNCS(nanosleep,,[AC_CHECK_LIB_EXT(rt, LIBS, nanosleep)])
 AC_CHECK_FUNCS(lutimes futimes utimensat futimens)
 AC_CHECK_FUNCS(mlock munlock mlockall munlockall)
@@ -1124,7 +982,7 @@ AC_CHECK_HEADERS(sys/mman.h)
 # setbuffer, shmget, shm_open are needed for smbtorture
 AC_CHECK_FUNCS(shmget shm_open)
 AC_CHECK_FUNCS(gettext dgettext)
-AC_CHECK_FUNCS(bindtextdomain textdomain)
+AC_CHECK_FUNCS(bindtextdomain textdomain bind_textdomain_codeset)
 AC_CHECK_FUNCS(strupr)
 
 # Find a method of generating a stack trace
@@ -1134,8 +992,9 @@ AC_SEARCH_LIBS(backtrace_symbols, [execinfo])
 AC_CHECK_FUNCS(backtrace_symbols)
 AC_CHECK_LIB(exc, trace_back_stack)
 
-# check for sysctlbyname for BSD systems
+# check for sysctlbyname and sysctl for BSD systems
 AC_CHECK_FUNCS(sysctlbyname)
+AC_CHECK_FUNCS(sysctl)
 
 #################################################
 # Check to see if core dump directory is defined in linux
@@ -1152,29 +1011,7 @@ AC_CHECK_HEADERS(gpfs_gpl.h)
 if test x"$ac_cv_header_gpfs_gpl_h" = x"yes"; then
     AC_DEFINE(HAVE_GPFS,1,[Whether GPFS GPL headers are available])
     default_shared_modules="$default_shared_modules vfs_gpfs"
-    default_shared_modules="$default_shared_modules vfs_gpfs_hsm_notify"
 fi
-
-#############################################
-# check if building on Isilon OneFS
-printf "%s" "checking for Isilon OneFS... "
-save_LIBS="$LIBS"
-LIBS="$LIBS -lisi_version"
-AC_TRY_LINK([#include <isi_version/isi_version.h>],
-          [get_isilon_copyright()],
-          samba_cv_HAVE_ONEFS=yes,
-          samba_cv_HAVE_ONEFS=no)
-echo $samba_cv_HAVE_ONEFS
-if test x"$samba_cv_HAVE_ONEFS" = x"yes"; then
-    AC_DEFINE(HAVE_ONEFS,1,[Whether building on Isilon OneFS])
-    default_shared_modules="$default_shared_modules vfs_onefs vfs_onefs_shadow_copy perfcount_onefs"
-    default_static_modules="$default_static_modules"
-    ONEFS_LIBS="-lisi_acl -lisi_ecs -lisi_event -lisi_util"
-    # Need to also add general libs for oplocks support
-    save_LIBS="$save_LIBS -lisi_ecs -lisi_event -lisi_util -ldevstat"
-fi
-AC_SUBST(ONEFS_LIBS)
-LIBS="$save_LIBS"
 
 # Note that all the libunwind symbols in the API are defined to internal
 # platform-specific version, so we must include libunwind.h before checking
@@ -1284,11 +1121,9 @@ AC_CHECK_FUNCS(_acl __acl _facl __facl _open __open _chdir __chdir)
 AC_CHECK_FUNCS(_close __close _fchdir __fchdir _fcntl __fcntl)
 AC_CHECK_FUNCS(getdents __getdents _lseek __lseek _read __read)
 AC_CHECK_FUNCS(getdirentries _write __write _fork __fork)
-AC_CHECK_FUNCS(_stat64 __stat64 _fstat64 __fstat64 _lstat64 __lstat64)
-AC_CHECK_FUNCS(__sys_llseek llseek _llseek __llseek readdir64 _readdir64 __readdir64)
-AC_CHECK_FUNCS(pread _pread __pread pread64 _pread64 __pread64)
-AC_CHECK_FUNCS(pwrite _pwrite __pwrite pwrite64 _pwrite64 __pwrite64)
-AC_CHECK_FUNCS(open64 _open64 __open64 creat64)
+AC_CHECK_FUNCS(__sys_llseek llseek _llseek __llseek)
+AC_CHECK_FUNCS(pread _pread __pread)
+AC_CHECK_FUNCS(pwrite _pwrite __pwrite)
 AC_CHECK_FUNCS(prctl)
 
 AC_TRY_COMPILE([
@@ -1315,11 +1150,11 @@ main() {
        int libc_minor = __GLIBC_MINOR__;
 
        if (libc_major < 2)
-              exit(1);
+              return(1);
        if ((libc_major == 2) && (libc_minor <= 3))
-              exit(1);
+              return(1);
 #endif
-       exit(0);
+       return(0);
 }
 ], [samba_cv_linux_getgrouplist_ok=yes],
    [samba_cv_linux_getgrouplist_ok=no],
@@ -1332,52 +1167,6 @@ main() {
        AC_CHECK_FUNCS(getgrouplist)
        ;;
 esac
-
-#
-# stat64 family may need <sys/stat.h> on some systems, notably ReliantUNIX
-#
-
-if test x$ac_cv_func_stat64 = xno ; then
-  AC_MSG_CHECKING([for stat64 in <sys/stat.h>])
-  AC_TRY_LINK([
-#if defined(HAVE_UNISTD_H)
-#include <unistd.h>
-#endif
-#include <sys/stat.h>
-], [struct stat64 st64; exit(stat64(".",&st64));], [ac_cv_func_stat64=yes])
-  AC_MSG_RESULT([$ac_cv_func_stat64])
-  if test x$ac_cv_func_stat64 = xyes ; then
-    AC_DEFINE(HAVE_STAT64,1,[Whether stat64() is available])
-  fi
-fi
-
-if test x$ac_cv_func_lstat64 = xno ; then
-  AC_MSG_CHECKING([for lstat64 in <sys/stat.h>])
-  AC_TRY_LINK([
-#if defined(HAVE_UNISTD_H)
-#include <unistd.h>
-#endif
-#include <sys/stat.h>
-], [struct stat64 st64; exit(lstat64(".",&st64));], [ac_cv_func_lstat64=yes])
-  AC_MSG_RESULT([$ac_cv_func_lstat64])
-  if test x$ac_cv_func_lstat64 = xyes ; then
-    AC_DEFINE(HAVE_LSTAT64,[Whether lstat64() is available])
-  fi
-fi
-
-if test x$ac_cv_func_fstat64 = xno ; then
-  AC_MSG_CHECKING([for fstat64 in <sys/stat.h>])
-  AC_TRY_LINK([
-#if defined(HAVE_UNISTD_H)
-#include <unistd.h>
-#endif
-#include <sys/stat.h>
-], [struct stat64 st64; exit(fstat64(0,&st64));], [ac_cv_func_fstat64=yes])
-  AC_MSG_RESULT([$ac_cv_func_fstat64])
-  if test x$ac_cv_func_fstat64 = xyes ; then
-    AC_DEFINE(HAVE_FSTAT64,1,[Whether fstat64() is available])
-  fi
-fi
 
 #################################################
 # Check whether struct stat has timestamps with sub-second resolution.
@@ -1427,11 +1216,11 @@ fi
 AC_CACHE_CHECK([whether we can compile with __attribute__((destructor))],
 	       samba_cv_function_attribute_destructor,
 	       [
-	         AC_COMPILE_IFELSE(
+	         AC_COMPILE_IFELSE([AC_LANG_SOURCE(
 			[
 				__attribute__((destructor))
 				static void cleanup(void) { }
-			],
+			])],
 			samba_cv_function_attribute_destructor=yes)
 		])
 
@@ -1445,6 +1234,7 @@ fi
 AC_CHECK_LIB(resolv, dn_expand)
 AC_CHECK_LIB(resolv, _dn_expand)
 AC_CHECK_LIB(resolv, __dn_expand)
+AC_CHECK_LIB(inet, dn_expand)
 
 #
 # Check for the functions putprpwnam, set_auth_parameters,
@@ -1471,62 +1261,6 @@ AC_LIBTESTFUNC(security, getprpwnam)
 AC_LIBTESTFUNC(sec, getprpwnam)
 
 AC_CHECK_FUNCS(strsignal)
-
-############################################
-# Check for EA implementations
-case "$host_os" in
-  *osf*)
-	AC_SEARCH_LIBS(getproplist, [proplist])
-	AC_CHECK_FUNCS(getproplist fgetproplist setproplist fsetproplist)
-	AC_CHECK_FUNCS(delproplist fdelproplist add_proplist_entry get_proplist_entry)
-	AC_CHECK_FUNCS(sizeof_proplist_entry)
-  ;;
-  *freebsd4* | *dragonfly* )
-	AC_DEFINE(BROKEN_EXTATTR, 1, [Does extattr API work])
-  ;;
-  *solaris*)
-	AC_CHECK_FUNCS(attropen)
-  ;;
-  *)
-	AC_SEARCH_LIBS(getxattr, [attr])
-	AC_CHECK_FUNCS(getxattr,[
-		AC_CHECK_FUNCS(lgetxattr fgetxattr listxattr llistxattr flistxattr removexattr lremovexattr fremovexattr setxattr lsetxattr fsetxattr)
-		])
-	AC_CHECK_FUNCS(getea,[
-		AC_CHECK_FUNCS(fgetea lgetea listea flistea llistea removeea fremoveea lremoveea setea fsetea lsetea)
-		])
-	AC_CHECK_FUNCS(attr_get,[
-		AC_CHECK_FUNCS(attr_list attr_set attr_remove attr_getf attr_listf attr_setf attr_removef)
-		])
-	AC_CHECK_FUNCS(extattr_delete_file,[
-		AC_CHECK_FUNCS(extattr_delete_fd extattr_delete_link extattr_get_fd extattr_get_file extattr_get_link extattr_list_fd extattr_list_file extattr_list_link extattr_set_fd extattr_set_file extattr_set_link)
-		])
-  ;;
-esac
-
-########################################################
-# Do xattr functions take additional options like on Darwin?
-if test x"$ac_cv_func_getxattr" = x"yes" ; then
-	AC_CACHE_CHECK([whether xattr interface takes additional options], smb_attr_cv_xattr_add_opt, [
-		old_LIBS=$LIBS
-		LIBS="$LIBS $ACL_LIBS"
-		AC_TRY_COMPILE([
-			#include <sys/types.h>
-			#if HAVE_ATTR_XATTR_H
-			#include <attr/xattr.h>
-			#elif HAVE_SYS_XATTR_H
-			#include <sys/xattr.h>
-			#endif
-		],[
-			getxattr(0, 0, 0, 0, 0, 0);
-		],
-	        [smb_attr_cv_xattr_add_opt=yes],
-		[smb_attr_cv_xattr_add_opt=no;LIBS=$old_LIBS])
-	])
-	if test x"$smb_attr_cv_xattr_add_opt" = x"yes"; then
-		AC_DEFINE(XATTR_ADD_OPT, 1, [xattr functions have additional options])
-	fi
-fi
 
 AC_DISABLE_STATIC
 AC_ENABLE_SHARED
@@ -1644,7 +1378,6 @@ DSO_EXPORTS=""
 				SONAMEFLAG="-Wl,-h,"
 			fi
 			AC_DEFINE(STAT_ST_BLOCKSIZE,512,[The size of a block])
-			AC_DEFINE(BROKEN_GETGRNAM,1,[Does getgrnam work correctly])
 			;;
 		*sunos*) AC_DEFINE(SUNOS4,1,[Whether the host os is sunos4])
 			BLDSHARED="true"
@@ -1652,7 +1385,6 @@ DSO_EXPORTS=""
 			SONAMEFLAG="-Wl,-h,"
 			PICFLAG="-KPIC"   # Is this correct for SunOS
 			AC_DEFINE(STAT_ST_BLOCKSIZE,512)
-			AC_DEFINE(BROKEN_GETGRNAM,1,[Does getgrnam work correctly])
 			;;
 		*netbsd* | *freebsd* | *dragonfly* )
 			BLDSHARED="true"
@@ -1661,7 +1393,6 @@ DSO_EXPORTS=""
 			SONAMEFLAG="-Wl,-soname,"
 			PICFLAG="-fPIC -DPIC"
 			AC_DEFINE(STAT_ST_BLOCKSIZE,512,[The size of a block])
-			AC_DEFINE(BROKEN_GETGRNAM,1,[Does getgrnam work correctly])
 			;;
 		*openbsd*)  BLDSHARED="true"
 			LDSHFLAGS="-shared"
@@ -1669,14 +1400,8 @@ DSO_EXPORTS=""
 			SONAMEFLAG="-Wl,-soname,"
 			PICFLAG="-fPIC"
 			AC_DEFINE(STAT_ST_BLOCKSIZE,512,[The size of a block])
-			AC_DEFINE(BROKEN_GETGRNAM,1,[Does getgrnam work correctly])
 			;;
-		*irix*) AC_DEFINE(IRIX,1,[Whether the host os is irix])
-			case "$host_os" in
-			*irix6*) AC_DEFINE(IRIX6,1,[Whether the host os is irix6])
-			;;
-			esac
-			BLDSHARED="true"
+		*irix*) BLDSHARED="true"
 			LDSHFLAGS="-Wl,-set_version,sgi1.0 -shared"
 			SONAMEFLAG="-Wl,-soname,"
 			if test "${GCC}" = "yes"; then
@@ -1755,7 +1480,6 @@ DSO_EXPORTS=""
 				PICFLAG="-fPIC"
 			fi
 			AC_DEFINE(STAT_ST_BLOCKSIZE,512)
-			AC_DEFINE(BROKEN_GETGRNAM,1,[Does getgrnam work correctly])
 			for flags in "-expect_unresolved '*'" "-Wl,-expect_unresolved,'*'" ; do
 				saved_ldflags="$LDFLAGS"
 				AC_MSG_CHECKING([if $flags works])
@@ -1768,11 +1492,9 @@ DSO_EXPORTS=""
 				test x"$LDSHFLAGS_Z_NODEFS" != x && break
 			done
 			;;
-		*sco*) AC_DEFINE(SCO,1,[Whether the host os is sco unix])
-			AC_DEFINE(STAT_ST_BLOCKSIZE,512)
+		*sco*) AC_DEFINE(STAT_ST_BLOCKSIZE,512)
 			;;
-		*unixware*) AC_DEFINE(UNIXWARE,1,[Whether the host os is unixware])
-			BLDSHARED="true"
+		*unixware*) BLDSHARED="true"
 			LDSHFLAGS="-shared"
 			SONAMEFLAG="-Wl,-soname,"
 			PICFLAG="-KPIC"
@@ -2003,7 +1725,7 @@ if test x"$BLDSHARED" != x"true"; then
 	SHLD="shared-libraries-disabled"
 	PICFLAG="${PIE_CFLAGS}"
 	SHLIBEXT="shared_libraries_disabled"
-	smbtorture4_possible=no
+	smbtorture_possible=no
 fi
 
 AC_MSG_CHECKING([used PICFLAG])
@@ -2128,9 +1850,7 @@ fi
 if test "x$enable_external_libtalloc" = xno
 then
 	m4_include(../lib/talloc/libtalloc.m4)
-	if test x"$USESHARED" = x"no" ; then
-		LINK_LIBTALLOC=STATIC
-	fi
+	LINK_LIBTALLOC=STATIC
 	LIBTALLOCVERSION=`grep ^VERSION ${tallocdir}/wscript | sed -e "s/'//g" -e 's/.* //'`
 	SMB_LIBRARY(talloc, 2, ${LIBTALLOCVERSION})
 	LIBTALLOC_OBJ0=""
@@ -2141,7 +1861,7 @@ then
 	SAMBA_CONFIGURE_CPPFLAGS="${SAMBA_CONFIGURE_CPPFLAGS} ${TALLOC_CFLAGS}"
 	AC_SUBST(LIBTALLOC_OBJ0)
 
-	TALLOCTORT="bin/talloctort\$(EXEEXT)"
+	TALLOCTORT="bin/talloctort"
 	AC_SUBST(TALLOCTORT)
 fi
 
@@ -2166,18 +1886,16 @@ fi
 if test "x$enable_external_libtevent" = xno
 then
 	m4_include(../lib/tevent/libtevent.m4)
-	if test x"$USESHARED" = x"no" ; then
-		LINK_LIBTEVENT=STATIC
-	fi
+	LINK_LIBTEVENT=STATIC
 	LIBTEVENTVERSION=`grep ^VERSION ${teventdir}/wscript | sed -e "s/'//g" -e 's/.* //'`
 	SMB_LIBRARY(tevent, 0, ${LIBTEVENTVERSION})
 	LIBTEVENT_OBJ0=""
 	for obj in ${TEVENT_OBJ}; do
 		LIBTEVENT_OBJ0="${LIBTEVENT_OBJ0} ${teventdir}/${obj}"
 	done
+	AC_SUBST(LIBTEVENT_OBJ0)
 	SAMBA_CPPFLAGS="${SAMBA_CPPFLAGS} ${TEVENT_CFLAGS}"
 	SAMBA_CONFIGURE_CPPFLAGS="${SAMBA_CONFIGURE_CPPFLAGS} ${TEVENT_CFLAGS}"
-	AC_SUBST(LIBTEVENT_OBJ0)
 fi
 
 
@@ -2204,9 +1922,7 @@ AC_SUBST(LIBTDB_OBJ0)
 if test "x$enable_external_libtdb" = xno
 then
 	m4_include(../lib/tdb/libtdb.m4)
-	if test x"$USESHARED" = x"no" ; then
-		LINK_LIBTDB=STATIC
-	fi
+	LINK_LIBTDB=STATIC
 	LIBTDBVERSION=`grep ^VERSION ${tdbdir}/wscript | sed -e "s/'//g" -e 's/.* //'`
 	SMB_LIBRARY(tdb, 1, ${LIBTDBVERSION})
 	LIBTDB_OBJ0=""
@@ -2218,40 +1934,75 @@ then
 	SAMBA_CPPFLAGS="${SAMBA_CPPFLAGS} ${TDB_CFLAGS}"
 	SAMBA_CONFIGURE_CPPFLAGS="${SAMBA_CONFIGURE_CPPFLAGS} ${TDB_CFLAGS}"
 
-	TDBBACKUP="bin/tdbbackup\$(EXEEXT)"
+	TDBBACKUP="bin/tdbbackup"
 	AC_SUBST(TDBBACKUP)
-	TDBDUMP="bin/tdbdump\$(EXEEXT)"
+	TDBDUMP="bin/tdbdump"
 	AC_SUBST(TDBDUMP)
-	TDBRESTORE="bin/tdbrestore\$(EXEEXT)"
+	TDBRESTORE="bin/tdbrestore"
 	AC_SUBST(TDBRESTORE)
-	TDBTOOL="bin/tdbtool\$(EXEEXT)"
+	TDBTOOL="bin/tdbtool"
 	AC_SUBST(TDBTOOL)
-	TDBTORTURE="bin/tdbtorture\$(EXEEXT)"
+	TDBTORTURE="bin/tdbtorture"
 	AC_SUBST(TDBTORTURE)
-	ac_cv_have_tdb_err_nesting=yes
-else
-	AC_TRY_COMPILE([#include <tdb.h>],
-		       [enum TDB_ERROR err = TDB_ERR_NESTING],
-		       ac_cv_have_tdb_err_nesting=yes,
-		       ac_cv_have_tdb_err_nesting=no)
 fi
 
-if test x"$ac_cv_have_tdb_err_nesting" = xyes; then
-   AC_DEFINE(HAVE_TDB_ERR_NESTING, 1, [Whether we have TDB_ERR_NESTING])
+AC_ARG_ENABLE(external_libntdb,
+	[AS_HELP_STRING([--enable-external-libntdb],
+		[Enable external ntdb [default=auto]])],
+		[ enable_external_libntdb=$enableval ],
+		[ enable_external_libntdb=auto ])
+
+if test "x$enable_external_libntdb" != xno
+then
+	PKG_CHECK_MODULES(LIBNTDB, ntdb >= 1.0,
+		[ enable_external_libntdb=yes ],
+		[
+		if test x$enable_external_libntdb = xyes; then
+			AC_MSG_ERROR([Unable to find libntdb])
+		else
+			enable_external_libntdb=no
+		fi
+		])
+fi
+
+AC_SUBST(LIBNTDB_OBJ0)
+if test "x$enable_external_libntdb" = xno
+then
+	m4_include(../lib/ntdb/libntdb.m4)
+	LINK_LIBNTDB=STATIC
+	LIBNTDBVERSION=`grep ^VERSION ${ntdbdir}/wscript | sed -e "s/'//g" -e 's/.* //'`
+	SMB_LIBRARY(ntdb, 1, ${LIBNTDBVERSION})
+	LIBNTDB_OBJ0=""
+	LIBNTDB_LIBS="$LIBNTDB_LIBS $NTDB_DEPS"
+	for obj in ${NTDB_OBJ}; do
+		LIBNTDB_OBJ0="${LIBNTDB_OBJ0} ${ntdbdir}/${obj}"
+	done
+	AC_SUBST(LIBNTDB_OBJ0)
+	SAMBA_CPPFLAGS="${SAMBA_CPPFLAGS} ${NTDB_CFLAGS}"
+	SAMBA_CONFIGURE_CPPFLAGS="${SAMBA_CONFIGURE_CPPFLAGS} ${NTDB_CFLAGS}"
+
+	NTDBBACKUP="bin/ntdbbackup"
+	AC_SUBST(NTDBBACKUP)
+	NTDBDUMP="bin/ntdbdump"
+	AC_SUBST(NTDBDUMP)
+	NTDBRESTORE="bin/ntdbrestore"
+	AC_SUBST(NTDBRESTORE)
+	NTDBTOOL="bin/ntdbtool"
+	AC_SUBST(NTDBTOOL)
+	NTDBTORTURE="bin/ntdbtorture"
+	AC_SUBST(NTDBTORTURE)
 fi
 
 SMB_LIBRARY(netapi, 0)
 SMB_LIBRARY(smbclient, 0)
 SMB_LIBRARY(smbsharemodes, 0)
-SMB_LIBRARY(addns, 0, [], no, [undefined API])
-
 
 
 ################
 
 AC_CACHE_CHECK([for long long],samba_cv_have_longlong,[
 AC_TRY_RUN([#include <stdio.h>
-main() { long long x = 1000000; x *= x; exit(((x/1000000) == 1000000)? 0: 1); }],
+main() { long long x = 1000000; x *= x; return(((x/1000000) == 1000000)? 0: 1); }],
 samba_cv_have_longlong=yes,samba_cv_have_longlong=no,samba_cv_have_longlong=cross)])
 if test x"$samba_cv_have_longlong" = x"yes"; then
     AC_DEFINE(HAVE_LONGLONG,1,[Whether the host supports long long's])
@@ -2274,7 +2025,7 @@ fi
 
 AC_CACHE_CHECK([for 64 bit time_t],samba_cv_SIZEOF_TIME_T,[
 AC_TRY_RUN([#include <time.h>
-main() { exit((sizeof(time_t) == 8) ? 0 : 1); }],
+main() { return((sizeof(time_t) == 8) ? 0 : 1); }],
 samba_cv_SIZEOF_TIME_T=yes,samba_cv_SIZEOF_TIME_T=no,samba_cv_SIZEOF_TIME_T=cross)])
 if test x"$samba_cv_SIZEOF_TIME_T" = x"yes"; then
     AC_DEFINE(SIZEOF_TIME_T,8,[The size of the 'time_t' type])
@@ -2293,11 +2044,11 @@ main() {
 			max_time = 67768036191676799ll;
 			tm = gmtime(&max_time);
 			if (tm) {
-				exit(0);
+				return(0);
 			}
 		}
 	}
-	exit(1);
+	return(1);
 }],
 samba_cv_TIME_T_MAX=yes,samba_cv_TIME_T_MAX=no,samba_cv_TIME_T_MAX=cross)])
 if test x"$samba_cv_TIME_T_MAX" = x"yes"; then
@@ -2305,26 +2056,21 @@ if test x"$samba_cv_TIME_T_MAX" = x"yes"; then
 fi
 
 
+#
+# As a gating factor for large file support, in order to
+# use >4GB files we must have the following minimal support
+# available: a 64 bit off_t
+# If we don't have all of these then fail the build
+#
+
+AC_MSG_CHECKING([if large file support can be enabled])
 AC_CACHE_CHECK([for 64 bit off_t],samba_cv_SIZEOF_OFF_T,[
 AC_TRY_RUN([#include <stdio.h>
 #include <sys/stat.h>
-main() { exit((sizeof(off_t) == 8) ? 0 : 1); }],
+main() { return((sizeof(off_t) == 8) ? 0 : 1); }],
 samba_cv_SIZEOF_OFF_T=yes,samba_cv_SIZEOF_OFF_T=no,samba_cv_SIZEOF_OFF_T=cross)])
-if test x"$samba_cv_SIZEOF_OFF_T" = x"yes"; then
-    AC_DEFINE(SIZEOF_OFF_T,8,[The size of the 'off_t' type])
-fi
-
-AC_CACHE_CHECK([for off64_t],samba_cv_HAVE_OFF64_T,[
-AC_TRY_RUN([
-#if defined(HAVE_UNISTD_H)
-#include <unistd.h>
-#endif
-#include <stdio.h>
-#include <sys/stat.h>
-main() { struct stat64 st; off64_t s; if (sizeof(off_t) == sizeof(off64_t)) exit(1); exit((lstat64("/dev/null", &st)==0)?0:1); }],
-samba_cv_HAVE_OFF64_T=yes,samba_cv_HAVE_OFF64_T=no,samba_cv_HAVE_OFF64_T=cross)])
-if test x"$samba_cv_HAVE_OFF64_T" = x"yes"; then
-    AC_DEFINE(HAVE_OFF64_T,1,[Whether off64_t is available])
+if test x"$samba_cv_SIZEOF_OFF_T" = x"no"; then
+    AC_MSG_ERROR(["large file support support not available: sizeof(off_t) != 8"])
 fi
 
 AC_CACHE_CHECK([for 64 bit ino_t],samba_cv_SIZEOF_INO_T,[
@@ -2334,23 +2080,10 @@ AC_TRY_RUN([
 #endif
 #include <stdio.h>
 #include <sys/stat.h>
-main() { exit((sizeof(ino_t) == 8) ? 0 : 1); }],
+main() { return((sizeof(ino_t) == 8) ? 0 : 1); }],
 samba_cv_SIZEOF_INO_T=yes,samba_cv_SIZEOF_INO_T=no,samba_cv_SIZEOF_INO_T=cross)])
 if test x"$samba_cv_SIZEOF_INO_T" = x"yes"; then
     AC_DEFINE(SIZEOF_INO_T,8,[The size of the 'ino_t' type])
-fi
-
-AC_CACHE_CHECK([for ino64_t],samba_cv_HAVE_INO64_T,[
-AC_TRY_RUN([
-#if defined(HAVE_UNISTD_H)
-#include <unistd.h>
-#endif
-#include <stdio.h>
-#include <sys/stat.h>
-main() { struct stat64 st; ino64_t s; if (sizeof(ino_t) == sizeof(ino64_t)) exit(1); exit((lstat64("/dev/null", &st)==0)?0:1); }],
-samba_cv_HAVE_INO64_T=yes,samba_cv_HAVE_INO64_T=no,samba_cv_HAVE_INO64_T=cross)])
-if test x"$samba_cv_HAVE_INO64_T" = x"yes"; then
-    AC_DEFINE(HAVE_INO64_T,1,[Whether the 'ino64_t' type is available])
 fi
 
 AC_CACHE_CHECK([for 64 bit dev_t],samba_cv_SIZEOF_DEV_T,[
@@ -2360,49 +2093,10 @@ AC_TRY_RUN([
 #endif
 #include <stdio.h>
 #include <sys/stat.h>
-main() { exit((sizeof(dev_t) == 8) ? 0 : 1); }],
+main() { return((sizeof(dev_t) == 8) ? 0 : 1); }],
 samba_cv_SIZEOF_DEV_T=yes,samba_cv_SIZEOF_DEV_T=no,samba_cv_SIZEOF_DEV_T=cross)])
 if test x"$samba_cv_SIZEOF_DEV_T" = x"yes"; then
     AC_DEFINE(SIZEOF_DEV_T,8,[The size of the 'dev_t' type])
-fi
-
-AC_CACHE_CHECK([for dev64_t],samba_cv_HAVE_DEV64_T,[
-AC_TRY_RUN([
-#if defined(HAVE_UNISTD_H)
-#include <unistd.h>
-#endif
-#include <stdio.h>
-#include <sys/stat.h>
-main() { struct stat64 st; dev64_t s; if (sizeof(dev_t) == sizeof(dev64_t)) exit(1); exit((lstat64("/dev/null", &st)==0)?0:1); }],
-samba_cv_HAVE_DEV64_T=yes,samba_cv_HAVE_DEV64_T=no,samba_cv_HAVE_DEV64_T=cross)])
-if test x"$samba_cv_HAVE_DEV64_T" = x"yes"; then
-    AC_DEFINE(HAVE_DEV64_T,1,[Whether the 'dev64_t' type is available])
-fi
-
-AC_CACHE_CHECK([for struct dirent64],samba_cv_HAVE_STRUCT_DIR64,[
-AC_TRY_COMPILE([
-#if defined(HAVE_UNISTD_H)
-#include <unistd.h>
-#endif
-#include <sys/types.h>
-#include <dirent.h>],
-[DIR64 de;],
-samba_cv_HAVE_STRUCT_DIR64=yes,samba_cv_HAVE_STRUCT_DIR64=no)])
-if test x"$samba_cv_HAVE_STRUCT_DIR64" = x"yes" && test x"$ac_cv_func_readdir64" = x"yes"; then
-    AC_DEFINE(HAVE_STRUCT_DIR64,1,[Whether the 'DIR64' abstract data type is available])
-fi
-
-AC_CACHE_CHECK([for struct dirent64],samba_cv_HAVE_STRUCT_DIRENT64,[
-AC_TRY_COMPILE([
-#if defined(HAVE_UNISTD_H)
-#include <unistd.h>
-#endif
-#include <sys/types.h>
-#include <dirent.h>],
-[struct dirent64 de;],
-samba_cv_HAVE_STRUCT_DIRENT64=yes,samba_cv_HAVE_STRUCT_DIRENT64=no)])
-if test x"$samba_cv_HAVE_STRUCT_DIRENT64" = x"yes" && test x"$ac_cv_func_readdir64" = x"yes"; then
-    AC_DEFINE(HAVE_STRUCT_DIRENT64,1,[Whether the 'dirent64' struct is available])
 fi
 
 AC_CACHE_CHECK([for major macro],samba_cv_HAVE_DEVICE_MAJOR_FN,[
@@ -2441,14 +2135,6 @@ if test x"$samba_cv_HAVE_MAKEDEV" = x"yes"; then
     AC_DEFINE(HAVE_MAKEDEV,1,[Whether the macro for makedev is available])
 fi
 
-AC_CACHE_CHECK([for unsigned char],samba_cv_HAVE_UNSIGNED_CHAR,[
-AC_TRY_RUN([#include <stdio.h>
-main() { char c; c=250; exit((c > 0)?0:1); }],
-samba_cv_HAVE_UNSIGNED_CHAR=yes,samba_cv_HAVE_UNSIGNED_CHAR=no,samba_cv_HAVE_UNSIGNED_CHAR=cross)])
-if test x"$samba_cv_HAVE_UNSIGNED_CHAR" = x"yes"; then
-    AC_DEFINE(HAVE_UNSIGNED_CHAR,1,[Whether the 'unsigned char' type is available])
-fi
-
 AC_CACHE_CHECK([whether seekdir returns void],samba_cv_SEEKDIR_RETURNS_VOID,[
 AC_TRY_COMPILE([#include <sys/types.h>
 #include <dirent.h>
@@ -2474,7 +2160,7 @@ AC_TRY_RUN([#include <sys/types.h>
 #include <dirent.h>
 main() { struct dirent *di; DIR *d = opendir("."); di = readdir(d);
 if (di && di->d_name[-2] == '.' && di->d_name[-1] == 0 &&
-di->d_name[0] == 0) exit(0); exit(1);} ],
+di->d_name[0] == 0) return(0); return(1);} ],
 samba_cv_HAVE_BROKEN_READDIR_NAME=yes,samba_cv_HAVE_BROKEN_READDIR_NAME=no,samba_cv_HAVE_BROKEN_READDIR_NAME=cross)])
 if test x"$samba_cv_HAVE_BROKEN_READDIR_NAME" = x"yes"; then
     AC_DEFINE(HAVE_BROKEN_READDIR_NAME,1,[Whether readdir() returns the wrong name offset])
@@ -2483,7 +2169,7 @@ fi
 AC_CACHE_CHECK([for utimbuf],samba_cv_HAVE_UTIMBUF,[
 AC_TRY_COMPILE([#include <sys/types.h>
 #include <utime.h>],
-[struct utimbuf tbuf;  tbuf.actime = 0; tbuf.modtime = 1; exit(utime("foo.c",&tbuf));],
+[struct utimbuf tbuf;  tbuf.actime = 0; tbuf.modtime = 1; return(utime("foo.c",&tbuf));],
 samba_cv_HAVE_UTIMBUF=yes,samba_cv_HAVE_UTIMBUF=no,samba_cv_HAVE_UTIMBUF=cross)])
 if test x"$samba_cv_HAVE_UTIMBUF" = x"yes"; then
     AC_DEFINE(HAVE_UTIMBUF,1,[Whether struct utimbuf is available])
@@ -2580,25 +2266,6 @@ if test x"$samba_cv_HAVE_UT_UT_EXIT" = x"yes"; then
     AC_DEFINE(HAVE_UT_UT_EXIT,1,[Whether the utmp struct has a property ut_exit])
 fi
 
-dnl Look for the IPv6 varient by preference. Many systems have both.
-AC_CACHE_CHECK([for ut_addr_v6 in utmp],samba_cv_HAVE_UT_UT_ADDR_V6,[
-AC_TRY_COMPILE([#include <sys/types.h>
-#include <utmp.h>],
-[struct utmp ut;  ut.ut_addr_v6[0] = 0;],
-samba_cv_HAVE_UT_UT_ADDR_V6=yes,samba_cv_HAVE_UT_UT_ADDR_V6=no,samba_cv_HAVE_UT_UT_ADDR_V6=cross)])
-if test x"$samba_cv_HAVE_UT_UT_ADDR_V6" = x"yes"; then
-    AC_DEFINE(HAVE_UT_UT_ADDR_V6,1,[Whether the utmp struct has a property ut_addr_v6])
-fi
-
-AC_CACHE_CHECK([for ut_addr in utmp],samba_cv_HAVE_UT_UT_ADDR,[
-AC_TRY_COMPILE([#include <sys/types.h>
-#include <utmp.h>],
-[struct utmp ut;  ut.ut_addr = 0;],
-samba_cv_HAVE_UT_UT_ADDR=yes,samba_cv_HAVE_UT_UT_ADDR=no,samba_cv_HAVE_UT_UT_ADDR=cross)])
-if test x"$samba_cv_HAVE_UT_UT_ADDR" = x"yes"; then
-    AC_DEFINE(HAVE_UT_UT_ADDR,1,[Whether the utmp struct has a property ut_addr])
-fi
-
 if test x$ac_cv_func_pututline = xyes ; then
   AC_CACHE_CHECK([whether pututline returns pointer],samba_cv_PUTUTLINE_RETURNS_UTMP,[
   AC_TRY_COMPILE([#include <sys/types.h>
@@ -2618,6 +2285,19 @@ samba_cv_HAVE_UX_UT_SYSLEN=yes,samba_cv_HAVE_UX_UT_SYSLEN=no,samba_cv_HAVE_UX_UT
 if test x"$samba_cv_HAVE_UX_UT_SYSLEN" = x"yes"; then
     AC_DEFINE(HAVE_UX_UT_SYSLEN,1,[Whether the utmpx struct has a property ut_syslen])
 fi
+
+AC_CACHE_CHECK([whether sizeof ut_line in utmp is ok],samba_cv_HAVE_UX_UT_LINE,[
+AC_TRY_RUN([#include <stdio.h>
+#include <sys/types.h>
+#include <utmp.h>
+int main(void) {
+ if (sizeof(((struct utmp *)NULL)->ut_line) < 15) {
+     return 1;
+ }
+ return 0;
+}
+],
+samba_cv_HAVE_UX_UT_LINE=yes,samba_cv_HAVE_UX_UT_LINE=no,samba_cv_HAVE_UX_UT_LINE=cross)])
 
 fi
 # end utmp details
@@ -2639,21 +2319,15 @@ if test x"$samba_cv_HAVE_LINUX_FALLOCATE" = x"yes" && test x"$ac_cv_func_falloca
     AC_DEFINE(HAVE_LINUX_FALLOCATE,1,[Whether the Linux 'fallocate' function is available])
 fi
 
-AC_CACHE_CHECK([for linux fallocate64],samba_cv_HAVE_LINUX_FALLOCATE64,[
-AC_TRY_COMPILE([
+AC_CACHE_CHECK([for getcwd takes NULL],samba_cv_GETCWD_TAKES_NULL,[
+AC_TRY_RUN([
 #if defined(HAVE_UNISTD_H)
 #include <unistd.h>
 #endif
-#include <sys/types.h>
-#define _GNU_SOURCE
-#include <fcntl.h>
-#if defined(HAVE_LINUX_FALLOC_H)
-#include <linux/falloc.h>
-#endif],
-[int ret = fallocate64(0, FALLOC_FL_KEEP_SIZE, 0, 10);],
-samba_cv_HAVE_LINUX_FALLOCATE64=yes,samba_cv_HAVE_LINUX_FALLOCATE64=no)])
-if test x"$samba_cv_HAVE_LINUX_FALLOCATE64" = x"yes" && test x"$ac_cv_func_fallocate64" = x"yes"; then
-    AC_DEFINE(HAVE_LINUX_FALLOCATE64,1,[Whether the Linux 'fallocate64' function is available])
+main() { char *s = getcwd(NULL,0); if (s) return(0); return(1); }],
+samba_cv_GETCWD_TAKES_NULL=yes,samba_cv_GETCWD_TAKES_NULL=no,samba_cv_GETCWD_TAKES_NULL=cross)])
+if test x"$samba_cv_GETCWD_TAKES_NULL" = x"yes"; then
+    AC_DEFINE(GETCWD_TAKES_NULL,1,[Whether the getcwd function takes NULL as an argument])
 fi
 
 ICONV_LOOK_DIRS="/usr /usr/local /sw /opt"
@@ -2733,7 +2407,6 @@ for i in $ICONV_LOOK_DIRS ; do
         export LDFLAGS LIBS CPPFLAGS
 
 	default_dos_charset=no
-	default_display_charset=no
 	default_unix_charset=no
 
 	# check for default dos charset name
@@ -2741,15 +2414,6 @@ for i in $ICONV_LOOK_DIRS ; do
 	    rjs_CHARSET($j)
 	    default_dos_charset="$ICONV_CHARSET"
 	    if test x"$default_dos_charset" = x"$j"; then
-		break
-	    fi
-	done
-
-	# check for default display charset name
-	for j in ASCII 646 ; do
-	    rjs_CHARSET($j)
-	    default_display_charset="$ICONV_CHARSET"
-	    if test x"$default_display_charset" = x"$j"; then
 		break
 	    fi
 	done
@@ -2765,15 +2429,12 @@ for i in $ICONV_LOOK_DIRS ; do
 
 	if test "$default_dos_charset" != "no" -a \
 		"$default_dos_charset" != "cross" -a \
-		"$default_display_charset" != "no" -a \
-		"$default_display_charset" != "cross" -a \
 		"$default_unix_charset" != "no" -a \
 		"$default_unix_charset" != "cross"
 	then
 		samba_cv_HAVE_NATIVE_ICONV=yes
 	else
 	    if test "$default_dos_charset" = "cross" -o \
-		     "$default_display_charset" = "cross" -o \
 		     "$default_unix_charset" = "cross"
 	    then
 		    samba_cv_HAVE_NATIVE_ICONV=cross
@@ -2790,11 +2451,10 @@ for i in $ICONV_LOOK_DIRS ; do
 	# match the results we get at runtime anyway.
 	if test x"$samba_cv_HAVE_NATIVE_ICONV" = x"cross" ; then
 	    default_dos_charset="CP850"
-	    default_display_charset="ASCII"
 	    default_unix_charset="UTF-8"
 	    samba_cv_HAVE_NATIVE_ICONV=yes
 	    AC_MSG_WARN(assuming the libiconv in $iconv_current_LDFLAGS can convert)
-	    AC_MSG_WARN([$default_dos_charset, $default_display_charset and $default_unix_charset to UCS-16LE])
+	    AC_MSG_WARN([$default_dos_charset and $default_unix_charset to UCS-16LE])
 	fi
 
         if test x"$samba_cv_HAVE_NATIVE_ICONV" = x"yes" ; then
@@ -2813,12 +2473,10 @@ for i in $ICONV_LOOK_DIRS ; do
 
 	    # Turn the #defines into string literals
 	    default_dos_charset="\"$default_dos_charset\""
-	    default_display_charset="\"$default_display_charset\""
 	    default_unix_charset="\"$default_unix_charset\""
 
 	    AC_DEFINE(HAVE_NATIVE_ICONV,1,[Whether to use native iconv])
 	    AC_DEFINE_UNQUOTED(DEFAULT_DOS_CHARSET,$default_dos_charset,[Default dos charset name])
-	    AC_DEFINE_UNQUOTED(DEFAULT_DISPLAY_CHARSET,$default_display_charset,[Default display charset name])
 	    AC_DEFINE_UNQUOTED(DEFAULT_UNIX_CHARSET,$default_unix_charset,[Default unix charset name])
 
            break
@@ -2840,7 +2498,6 @@ if test x"$ICONV_FOUND" = x"no" -o x"$samba_cv_HAVE_NATIVE_ICONV" != x"yes" ; th
     AC_MSG_WARN([Sufficient support for iconv function was not found.
     Install libiconv from http://freshmeat.net/projects/libiconv/ for better charset compatibility!])
    AC_DEFINE_UNQUOTED(DEFAULT_DOS_CHARSET,"ASCII",[Default dos charset name])
-   AC_DEFINE_UNQUOTED(DEFAULT_DISPLAY_CHARSET,"ASCII",[Default display charset name])
    AC_DEFINE_UNQUOTED(DEFAULT_UNIX_CHARSET,"UTF8",[Default unix charset name])
 fi
 
@@ -2871,7 +2528,7 @@ AC_TRY_RUN([
 #define F_NOTIFY 1026
 #endif
 main() {
-       	exit(fcntl(open("/tmp", O_RDONLY), F_NOTIFY, 0) == -1 ?  1 : 0);
+	return(fcntl(open("/tmp", O_RDONLY), F_NOTIFY, 0) == -1 ?  1 : 0);
 }
 ],
 samba_cv_HAVE_KERNEL_CHANGE_NOTIFY=yes,samba_cv_HAVE_KERNEL_CHANGE_NOTIFY=no,samba_cv_HAVE_KERNEL_CHANGE_NOTIFY=cross)])
@@ -2879,19 +2536,10 @@ if test x"$samba_cv_HAVE_KERNEL_CHANGE_NOTIFY" = x"yes"; then
     AC_DEFINE(HAVE_KERNEL_CHANGE_NOTIFY,1,[Whether kernel notifies changes])
 fi
 
-AC_CACHE_CHECK([for inotify support],samba_cv_HAVE_INOTIFY,[
-AC_CHECK_HEADERS(linux/inotify.h asm/unistd.h sys/inotify.h)
-AC_CHECK_FUNCS(inotify_init)
-AC_HAVE_DECL(__NR_inotify_init, [#include <asm/unistd.h>])
-],
-samba_cv_HAVE_INOTIFY=yes,
-samba_cv_HAVE_INOTIFY=no,
-samba_cv_HAVE_INOTIFY=cross)
+AC_CHECK_HEADER(sys/inotify.h)
 
-if test x"$ac_cv_func_inotify_init" = x"yes"; then
-    if test  x"$ac_cv_header_sys_inotify_h" = x"yes" -o x"$ac_cv_header_linux_inotify_h" = x"yes"; then
-        AC_DEFINE(HAVE_INOTIFY,1,[Whether kernel or sys has inotify support])
-    fi
+if test x"ac_cv_header_sys_inotify_h" = x"yes"; then
+    AC_DEFINE(HAVE_INOTIFY,1,[For inotify support])
 fi
 
 #################################################
@@ -2984,7 +2632,7 @@ AC_TRY_RUN([
 #define LOCK_READ	64
 #endif
 main() {
-       	exit(flock(open("/dev/null", O_RDWR), LOCK_MAND|LOCK_READ) != 0);
+	return(flock(open("/dev/null", O_RDWR), LOCK_MAND|LOCK_READ) != 0);
 }
 ],
 samba_cv_HAVE_KERNEL_SHARE_MODES=yes,samba_cv_HAVE_KERNEL_SHARE_MODES=no,samba_cv_HAVE_KERNEL_SHARE_MODES=cross)])
@@ -3024,11 +2672,11 @@ main() {
  cap_t cap;
  cap_value_t vals[1];
  if (!(cap = cap_get_proc()))
-   exit(1);
+   return(1);
  vals[0] = CAP_CHOWN;
  cap_set_flag(cap, CAP_INHERITABLE, 1, vals, CAP_CLEAR);
  cap_set_proc(cap);
- exit(0);
+ return(0);
 }],
 		samba_cv_HAVE_POSIX_CAPABILITIES=yes,
 		samba_cv_HAVE_POSIX_CAPABILITIES=no,
@@ -3145,12 +2793,85 @@ AC_CHECK_FUNCS(getpagesize)
 # look for a method of setting the effective uid
 seteuid=no;
 
+################################################
+# Start by checking for 32-bit system call definitions on Linux.
+
+case "$host_os" in
+*linux*)
+AC_CACHE_CHECK([for Linux 32-bit system calls],samba_cv_USE_LINUX_32BIT_SYSCALLS,[
+AC_TRY_COMPILE([
+#if defined(HAVE_UNISTD_H)
+#include <unistd.h>
+#endif
+#include <stdlib.h>
+#include <stdio.h>
+#include <sys/types.h>
+#include <errno.h>
+
+#ifdef HAVE_SYS_PRIV_H
+#include <sys/priv.h>
+#endif
+#ifdef HAVE_SYS_ID_H
+#include <sys/id.h>
+#endif
+
+#if defined(HAVE_SYSCALL_H)
+#include <syscall.h>
+#endif
+
+#if defined(HAVE_SYS_SYSCALL_H)
+#include <sys/syscall.h>
+#endif
+],
+[
+syscall(SYS_setresuid32, -1, -1, -1);
+syscall(SYS_setresgid32, -1, -1, -1);
+syscall(SYS_setreuid32, -1, -1);
+syscall(SYS_setregid32, -1, -1);
+syscall(SYS_setuid32, -1);
+syscall(SYS_setgid32, -1);
+syscall(SYS_setgroups32, 0, NULL);
+], samba_cv_USE_LINUX_32BIT_SYSCALLS=yes,samba_cv_USE_LINUX_32BIT_SYSCALLS=no,samba_cv_USE_LINUX_32BIT_SYSCALLS=cross)])
+
+if test x"$samba_cv_USE_LINUX_32BIT_SYSCALLS" = x"yes"; then
+    AC_DEFINE(USE_LINUX_32BIT_SYSCALLS,1,[Use Linux 32-bit system calls])
+    AC_CACHE_CHECK([for Linux thread-specific credentials with 32-bit system calls],samba_cv_USE_LINUX_THREAD_CREDENTIALS,[
+    AC_TRY_RUN([
+#define AUTOCONF_TEST 1
+#define USE_LINUX_THREAD_CREDENTIALS 1
+#define USE_LINUX_32BIT_SYSCALLS 1
+#include "${srcdir-.}/../lib/util/setid.c"
+#include "${srcdir-.}/lib/util_sec.c"],
+           samba_cv_USE_LINUX_THREAD_CREDENTIALS=yes,samba_cv_USE_LINUX_THREAD_CREDENTIALS=no,samba_cv_USE_LINUX_THREAD_CREDENTIALS=cross)])
+if test x"$samba_cv_USE_LINUX_THREAD_CREDENTIALS" = x"yes"; then
+    seteuid=yes;
+    AC_DEFINE(USE_LINUX_THREAD_CREDENTIALS,1,[Whether we can use Linux thread-specific credentials with 32-bit system calls])
+fi
+fi
+
+if test $seteuid = no; then
+AC_CACHE_CHECK([for Linux thread-specific credentials],samba_cv_USE_LINUX_THREAD_CREDENTIALS,[
+AC_TRY_RUN([
+#define AUTOCONF_TEST 1
+#define USE_LINUX_THREAD_CREDENTIALS 1
+#include "${srcdir-.}/../lib/util/setid.c"
+#include "${srcdir-.}/lib/util_sec.c"],
+           samba_cv_USE_LINUX_THREAD_CREDENTIALS=yes,samba_cv_USE_LINUX_THREAD_CREDENTIALS=no,samba_cv_USE_LINUX_THREAD_CREDENTIALS=cross)])
+if test x"$samba_cv_USE_LINUX_THREAD_CREDENTIALS" = x"yes"; then
+    seteuid=yes;AC_DEFINE(USE_LINUX_THREAD_CREDENTIALS,1,[Whether we can use Linux thread-specific credentials])
+fi
+fi
+
+;;
+esac
+
 if test $seteuid = no; then
 AC_CACHE_CHECK([for setreuid],samba_cv_USE_SETREUID,[
 AC_TRY_RUN([
 #define AUTOCONF_TEST 1
 #define USE_SETREUID 1
 #include "confdefs.h"
+#include "${srcdir-.}/../lib/util/setid.c"
 #include "${srcdir-.}/lib/util_sec.c"],
            samba_cv_USE_SETREUID=yes,samba_cv_USE_SETREUID=no,samba_cv_USE_SETREUID=cross)])
 if test x"$samba_cv_USE_SETREUID" = x"yes"; then
@@ -3166,6 +2887,7 @@ AC_TRY_RUN([
 #define AUTOCONF_TEST 1
 #define USE_SETRESUID 1
 #include "confdefs.h"
+#include "${srcdir-.}/../lib/util/setid.c"
 #include "${srcdir-.}/lib/util_sec.c"],
            samba_cv_USE_SETRESUID=yes,samba_cv_USE_SETRESUID=no,samba_cv_USE_SETRESUID=cross)])
 if test x"$samba_cv_USE_SETRESUID" = x"yes"; then
@@ -3179,6 +2901,7 @@ AC_TRY_RUN([
 #define AUTOCONF_TEST 1
 #define USE_SETEUID 1
 #include "confdefs.h"
+#include "${srcdir-.}/../lib/util/setid.c"
 #include "${srcdir-.}/lib/util_sec.c"],
            samba_cv_USE_SETEUID=yes,samba_cv_USE_SETEUID=no,samba_cv_USE_SETEUID=cross)])
 if test x"$samba_cv_USE_SETEUID" = x"yes"; then
@@ -3192,6 +2915,7 @@ AC_TRY_RUN([
 #define AUTOCONF_TEST 1
 #define USE_SETUIDX 1
 #include "confdefs.h"
+#include "${srcdir-.}/../lib/util/setid.c"
 #include "${srcdir-.}/lib/util_sec.c"],
            samba_cv_USE_SETUIDX=yes,samba_cv_USE_SETUIDX=no,samba_cv_USE_SETUIDX=cross)])
 if test x"$samba_cv_USE_SETUIDX" = x"yes"; then
@@ -3222,61 +2946,19 @@ if test x"$samba_cv_HAVE_FCNTL_LOCK" = x"yes"; then
     AC_DEFINE(HAVE_FCNTL_LOCK,1,[Whether fcntl locking is available])
 fi
 
-AC_CACHE_CHECK([for broken (glibc2.1/x86) 64 bit fcntl locking],samba_cv_HAVE_BROKEN_FCNTL64_LOCKS,[
-AC_TRY_RUN([#include "${srcdir-.}/../tests/fcntl_lock64.c"],
-           samba_cv_HAVE_BROKEN_FCNTL64_LOCKS=yes,samba_cv_HAVE_BROKEN_FCNTL64_LOCKS=no,samba_cv_HAVE_BROKEN_FCNTL64_LOCKS=cross)])
-if test x"$samba_cv_HAVE_BROKEN_FCNTL64_LOCKS" = x"yes"; then
-    AC_DEFINE(HAVE_BROKEN_FCNTL64_LOCKS,1,[Whether fcntl64 locks are broken])
-
-else
-
-dnl
-dnl Don't check for 64 bit fcntl locking if we know that the
-dnl glibc2.1 broken check has succeeded.
-dnl
-
-  AC_CACHE_CHECK([for 64 bit fcntl locking],samba_cv_HAVE_STRUCT_FLOCK64,[
-  AC_TRY_RUN([
-#if defined(HAVE_UNISTD_H)
-#include <unistd.h>
-#endif
-#include <stdio.h>
-#include <stdlib.h>
-
-#ifdef HAVE_FCNTL_H
-#include <fcntl.h>
-#endif
-
-#ifdef HAVE_SYS_FCNTL_H
-#include <sys/fcntl.h>
-#endif
-main() { struct flock64 fl64;
-#if defined(F_SETLKW64) && defined(F_SETLK64) && defined(F_GETLK64)
-exit(0);
-#else
-exit(1);
-#endif
-}],
-       samba_cv_HAVE_STRUCT_FLOCK64=yes,samba_cv_HAVE_STRUCT_FLOCK64=no,samba_cv_HAVE_STRUCT_FLOCK64=cross)])
-
-  if test x"$samba_cv_HAVE_STRUCT_FLOCK64" = x"yes"; then
-      AC_DEFINE(HAVE_STRUCT_FLOCK64,1,[Whether the flock64 struct is available])
-  fi
-fi
-
 # glibc up to 2.3.6 had dangerously broken posix_fallocate(). DON'T USE IT.
 AC_CACHE_CHECK([for broken posix_fallocate],samba_cv_HAVE_BROKEN_POSIX_FALLOCATE,[
 AC_TRY_COMPILE([
   #define _XOPEN_SOURCE 600
   #include <stdlib.h>
   #if defined(__GLIBC__) && ((__GLIBC__ < 2) || (__GLIBC__ == 2 && __GLIBC_MINOR__ < 4))
-    probably broken posix_fallocate
+  #error probably broken posix_fallocate
   #endif
 ], [
 ], 
 samba_cv_HAVE_BROKEN_POSIX_FALLOCATE=no,samba_cv_HAVE_BROKEN_POSIX_FALLOCATE=yes)])
 if test x"$samba_cv_HAVE_BROKEN_POSIX_FALLOCATE" = xyes; then
-	AC_DEFINE(HAVE_BROKEN_POSIX_FALLOCATE,, Whether we have a broken posix_fallocate)
+	AC_DEFINE(HAVE_BROKEN_POSIX_FALLOCATE, 1, Whether we have a broken posix_fallocate)
 fi
 
 
@@ -3290,7 +2972,33 @@ if test x"$samba_cv_HAVE_STAT_ST_BLOCKS" = x"yes"; then
     AC_DEFINE(HAVE_STAT_ST_BLOCKS,1,[Whether the stat struct has a st_block property])
 fi
 
-AC_CHECK_TYPES([blksize_t, blkcnt_t], [], [], [[#include <sys/stat.h>]])
+AC_CACHE_CHECK([for 32 bit blkcnt_t],samba_cv_SIZEOF_BLKCNT_T_4,[
+AC_TRY_RUN([
+#if defined(HAVE_UNISTD_H)
+#include <unistd.h>
+#endif
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+main() { return((sizeof(blkcnt_t) == 4) ? 0 : 1); }],
+samba_cv_SIZEOF_BLKCNT_T_4=yes,samba_cv_SIZEOF_BLKCNT_T_4=no,samba_cv_SIZEOF_BLKCNT_T_4=cross)])
+if test x"$samba_cv_SIZEOF_BLKCNT_T_4" = x"yes"; then
+    AC_DEFINE(SIZEOF_BLKCNT_T_4,1,[The size of the 'blkcnt_t' type])
+fi
+
+AC_CACHE_CHECK([for 64 bit blkcnt_t],samba_cv_SIZEOF_BLKCNT_T_8,[
+AC_TRY_RUN([
+#if defined(HAVE_UNISTD_H)
+#include <unistd.h>
+#endif
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+main() { return((sizeof(blkcnt_t) == 8) ? 0 : 1); }],
+samba_cv_SIZEOF_BLKCNT_T_8=yes,samba_cv_SIZEOF_BLKCNT_T_8=no,samba_cv_SIZEOF_BLKCNT_T_8=cross)])
+if test x"$samba_cv_SIZEOF_BLKCNT_T_8" = x"yes"; then
+    AC_DEFINE(SIZEOF_BLKCNT_T_8,1,[The size of the 'blkcnt_t' type])
+fi
 
 AC_CACHE_CHECK([for st_blksize in struct stat],samba_cv_HAVE_STAT_ST_BLKSIZE,[
 AC_TRY_COMPILE([#include <sys/types.h>
@@ -3346,7 +3054,7 @@ main() {
 	char *newpath;
 	signal(SIGSEGV, exit_on_core);
 	newpath = realpath("/tmp", NULL);
-	exit((newpath != NULL) ? 0 : 1);
+	return((newpath != NULL) ? 0 : 1);
 }
 ],
 samba_cv_REALPATH_TAKES_NULL=yes,samba_cv_REALPATH_TAKES_NULL=no,samba_cv_REALPATH_TAKES_NULL=cross)])
@@ -3489,8 +3197,6 @@ AC_MSG_RESULT($with_ldap_support)
 
 SMBLDAP=""
 AC_SUBST(SMBLDAP)
-SMBLDAPUTIL=""
-AC_SUBST(SMBLDAPUTIL)
 
 if test x"$with_ldap_support" != x"no"; then
 
@@ -3598,10 +3304,9 @@ if test x"$with_ldap_support" != x"no"; then
   if test x"$ac_cv_lib_ext_ldap_ldap_init" = x"yes"; then
     AC_DEFINE(HAVE_LDAP,1,[Whether ldap is available])
     CPPFLAGS="$CPPFLAGS -DLDAP_DEPRECATED"
-    default_static_modules="$default_static_modules pdb_ldap idmap_ldap";
+    default_static_modules="$default_static_modules pdb_ldapsam idmap_ldap";
     default_shared_modules="$default_shared_modules";
     SMBLDAP="lib/smbldap.o"
-    SMBLDAPUTIL="lib/smbldap_util.o"
     with_ldap_support=yes
     AC_MSG_CHECKING(whether LDAP support is used)
     AC_MSG_RESULT(yes)
@@ -3652,16 +3357,16 @@ else
     # Check to see whether there is enough LDAP functionality to be able
     # to build AD support.
 
-# HPUX only has ldap_init; ok, we take care of this in smbldap.c
+# HPUX and Solaris only has ldap_init; ok, we take care of this in smbldap.c
 case "$host_os" in
-	*hpux*)
+	*hpux* | *solaris*)
     AC_CHECK_FUNC_EXT(ldap_init,$LDAP_LIBS)
 
     if test x"$ac_cv_func_ext_ldap_init" != x"yes"; then
 	if test x"$with_ads_support" = x"yes"; then
-	    AC_MSG_ERROR(Active Directory support on HPUX requires ldap_init)
+	    AC_MSG_ERROR(Active Directory support on HPUX or Solaris requires ldap_init)
 	elif test x"$with_ads_support" = x"auto"; then
-	    AC_MSG_WARN(Disabling Active Directory support (requires ldap_init on HPUX))
+	    AC_MSG_WARN(Disabling Active Directory support (requires ldap_init on HPUX or Solaris))
 	    with_ads_support=no
 	fi
     fi
@@ -3711,7 +3416,6 @@ if test x"$with_ads_support" != x"no"; then
         ;;
       yes)
         AC_MSG_RESULT(/usr)
-        FOUND_KRB5=yes
         ;;
       *)
         AC_MSG_RESULT($withval)
@@ -3800,6 +3504,21 @@ if test x"$with_ads_support" != x"no"; then
     fi
   fi
 
+  if test x$FOUND_KRB5 = x"no"; then
+    #################################################
+    # see if this box has Solaris MIT kerberos implementation
+    AC_MSG_CHECKING(for Solaris MIT kerberos)
+    if test -x "$KRB5CONFIG" && $KRB5CONFIG --version | grep -s Solaris | grep -s MIT > /dev/null ; then
+       FOUND_KRB5=yes
+       KRB5_LIBS="-lgss -lkrb5"
+       KRB5_CFLAGS="`$KRB5CONFIG --cflags`"
+       KRB5_CPPFLAGS="`$KRB5CONFIG --cflags`"
+       AC_MSG_RESULT(yes)
+    else
+      AC_MSG_RESULT(no)
+    fi
+  fi
+
   ac_save_CFLAGS=$CFLAGS
   ac_save_CPPFLAGS=$CPPFLAGS
   ac_save_LDFLAGS=$LDFLAGS
@@ -3864,7 +3583,7 @@ if test x"$with_ads_support" != x"no"; then
 
   # now check for gssapi headers.  This is also done here to allow for
   # different kerberos include paths
-  AC_CHECK_HEADERS(gssapi.h gssapi/gssapi_generic.h gssapi/gssapi.h gssapi/gssapi_ext.h com_err.h)
+  AC_CHECK_HEADERS(gssapi.h gssapi/gssapi_generic.h gssapi/gssapi.h gssapi/gssapi_ext.h gssapi/gssapi_krb5.h com_err.h)
 
   ##################################################################
   # we might need the k5crypto and com_err libraries on some systems
@@ -3889,16 +3608,29 @@ if test x"$with_ads_support" != x"no"; then
   # now see if we can find the gssapi libs in standard paths
   if test x"$have_gssapi" != x"yes"; then
      AC_CHECK_LIB_EXT(gssapi_krb5, KRB5_LIBS,gss_display_status,[],[],have_gssapi=yes)
-     AC_CHECK_FUNC_EXT(gss_wrap_iov, $KRB5_LIBS)
+     AC_CHECK_LIB_EXT(gss, KRB5_LIBS,gss_display_status,[],[],have_gssapi=yes)
   fi
+  ################################################################
+  # test for AD / GSSAPI support being enabled
+  if test x"$have_gssapi" != xyes ; then
+  	AC_MSG_WARN([Samba cannot be supported without GSSAPI])
+	use_ads=no
+  else
+	AC_DEFINE(HAVE_GSSAPI, , [Whether the platform has GSSAPI support])
+  fi
+
+  # This is for FreeBSD (and possibly others). gss_mech_krb5 is a
+  # #define to GSS_KRB5_MECHANISM, which is defined in -lgssapi_krb5
+  # Also, gsskrb5_extract_authz_data_from_sec_context is in -lgssapi_krb5
+  AC_CHECK_LIB_EXT(gssapi_krb5, KRB5_LIBS, GSS_KRB5_MECHANISM,
+  		   [KRB5_LIBS="$KRB5_LIBS -lgssapi_krb5"])
 
   AC_CHECK_FUNC_EXT(krb5_set_real_time, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(krb5_set_default_in_tkt_etypes, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(krb5_set_default_tgs_enctypes, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(krb5_set_default_tgs_ktypes, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(krb5_principal2salt, $KRB5_LIBS)
-  AC_CHECK_FUNC_EXT(krb5_use_enctype, $KRB5_LIBS)
-  AC_CHECK_FUNC_EXT(krb5_string_to_key, $KRB5_LIBS)
+  AC_CHECK_FUNC_EXT(krb5_c_string_to_key, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(krb5_get_pw_salt, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(krb5_string_to_key_salt, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(krb5_auth_con_setkey, $KRB5_LIBS)
@@ -3912,20 +3644,16 @@ if test x"$with_ads_support" != x"no"; then
   AC_CHECK_FUNC_EXT(krb5_kt_free_entry, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(krb5_krbhst_init, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(krb5_krbhst_get_addrinfo, $KRB5_LIBS)
-  AC_CHECK_FUNC_EXT(krb5_c_enctype_compare, $KRB5_LIBS)
-  AC_CHECK_FUNC_EXT(krb5_enctypes_compatible_keys, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(krb5_crypto_init, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(krb5_crypto_destroy, $KRB5_LIBS)
-  AC_CHECK_FUNC_EXT(krb5_decode_ap_req, $KRB5_LIBS)
-  AC_CHECK_FUNC_EXT(free_AP_REQ, $KRB5_LIBS)
-  AC_CHECK_FUNC_EXT(krb5_verify_checksum, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(krb5_c_verify_checksum, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(krb5_principal_compare_any_realm, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(krb5_parse_name_norealm, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(krb5_princ_size, $KRB5_LIBS)
+  AC_CHECK_FUNC_EXT(krb5_make_principal, $KRB5_LIBS)
+  AC_CHECK_FUNC_EXT(krb5_principal_get_num_comp, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(krb5_get_init_creds_opt_set_pac_request, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(krb5_get_renewed_creds, $KRB5_LIBS)
-  AC_CHECK_FUNC_EXT(krb5_get_kdc_cred, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(krb5_free_error_contents, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(initialize_krb5_error_table, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(krb5_get_init_creds_opt_alloc, $KRB5_LIBS)
@@ -3940,7 +3668,20 @@ if test x"$with_ads_support" != x"no"; then
   AC_CHECK_FUNC_EXT(krb5_get_credentials_for_user, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(krb5_get_host_realm, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(krb5_free_host_realm, $KRB5_LIBS)
+  AC_CHECK_FUNC_EXT(krb5_get_init_creds_keytab, $KRB5_LIBS)
+  AC_CHECK_FUNC_EXT(krb5_build_principal_alloc_va, $KRB5_LIBS)
+  AC_CHECK_FUNC_EXT(krb5_cc_get_lifetime, $KRB5_LIBS)
+  AC_CHECK_FUNC_EXT(krb5_cc_retrieve_cred, $KRB5_LIBS)
+  AC_CHECK_FUNC_EXT(krb5_free_checksum_contents, $KRB5_LIBS)
+  AC_CHECK_FUNC_EXT(krb5_create_checksum, $KRB5_LIBS)
+  AC_CHECK_FUNC_EXT(krb5_c_make_checksum, $KRB5_LIBS)
+  AC_CHECK_FUNC_EXT(gss_krb5_import_cred, $KRB5_LIBS)
   AC_CHECK_FUNC_EXT(gss_get_name_attribute, $KRB5_LIBS)
+  AC_CHECK_FUNC_EXT(gsskrb5_extract_authz_data_from_sec_context, $KRB5_LIBS)
+  AC_CHECK_FUNC_EXT(gss_mech_krb5, $KRB5_LIBS)
+  AC_CHECK_FUNC_EXT(gss_oid_equal, $KRB5_LIBS)
+  AC_CHECK_FUNC_EXT(gss_inquire_sec_context_by_oid, $KRB5_LIBS)
+  AC_CHECK_FUNC_EXT(gss_wrap_iov, $KRB5_LIBS)
 
   # MIT krb5 1.8 does not expose this call (yet)
   AC_CHECK_DECLS(krb5_get_credentials_for_user, [], [], [#include <krb5.h>])
@@ -3950,30 +3691,6 @@ if test x"$with_ads_support" != x"no"; then
   AC_CHECK_DECLS(krb5_auth_con_set_req_cksumtype, [], [], [#include <krb5.h>])
 
   LIBS="$KRB5_LIBS $LIBS"
-
-  AC_CACHE_CHECK(whether krb5_ticket contains kvno and enctype,
-	smb_krb5_cv_ticket_has_keyinfo,
-	[
-	    AC_TRY_COMPILE(
-	    [
-		#include <krb5.h>
-	    ],
-	    [
-		krb5_ticket ticket;
-		krb5_kvno kvno;
-		krb5_enctype enctype;
-
-		enctype = ticket.enc_part.enctype;
-		kvno = ticket.enc_part.kvno;
-	    ],
-	    [ smb_krb5_cv_ticket_has_keyinfo=yes ],
-	    [ smb_krb5_cv_ticket_has_keyinfo=no ])
-	])
-
-  if test x"$smb_krb5_cv_ticket_has_keyinfo" = x"yes" ; then
-	AC_DEFINE(KRB5_TICKET_HAS_KEYINFO, 1,
-	    [Whether the krb5_ticket structure contains the kvno and enctype])
-  fi
 
   AC_CACHE_CHECK(whether krb5_get_init_creds_opt_free takes a context argument,
 	  smb_krb5_cv_creds_opt_free_context,
@@ -3994,16 +3711,6 @@ if test x"$with_ads_support" != x"no"; then
 	AC_DEFINE(KRB5_CREDS_OPT_FREE_REQUIRES_CONTEXT, 1,
 	    [Whether krb5_get_init_creds_opt_free takes a context argument])
   fi
-
-  AC_CACHE_CHECK(whether krb5_verify_checksum takes 7 arguments, smb_krb5_cv_verify_checksum, [
-    AC_TRY_COMPILE([
-	#include <krb5.h>],
-	[krb5_verify_checksum(0, 0, 0, 0, 0, 0, 0);],
-	[smb_krb5_cv_verify_checksum=7],
-	[smb_krb5_cv_verify_checksum=6],
-    )
-  ])
-  AC_DEFINE_UNQUOTED(KRB5_VERIFY_CHECKSUM_ARGS, $smb_krb5_cv_verify_checksum, [Number of arguments to krb5_verify_checksum])
 
   AC_CACHE_CHECK([for checksum in krb5_checksum],
                 samba_cv_HAVE_CHECKSUM_IN_KRB5_CHECKSUM,[
@@ -4065,18 +3772,6 @@ if test x"$with_ads_support" != x"no"; then
                [Whether the type krb5_crypto exists])
   fi
 
-  AC_CACHE_CHECK([for krb5_encrypt_block type],
-                samba_cv_HAVE_KRB5_ENCRYPT_BLOCK,[
-    AC_TRY_COMPILE([#include <krb5.h>],
-      [krb5_encrypt_block block;],
-      samba_cv_HAVE_KRB5_ENCRYPT_BLOCK=yes,
-      samba_cv_HAVE_KRB5_ENCRYPT_BLOCK=no)])
-
-  if test x"$samba_cv_HAVE_KRB5_ENCRYPT_BLOCK" = x"yes"; then
-    AC_DEFINE(HAVE_KRB5_ENCRYPT_BLOCK,1,
-               [Whether the type krb5_encrypt_block exists])
-  fi
-
   AC_CACHE_CHECK([for addrtype in krb5_address],
                 samba_cv_HAVE_ADDRTYPE_IN_KRB5_ADDRESS,[
     AC_TRY_COMPILE([#include <krb5.h>],
@@ -4099,41 +3794,6 @@ if test x"$with_ads_support" != x"no"; then
   if test x"$samba_cv_HAVE_ADDR_TYPE_IN_KRB5_ADDRESS" = x"yes"; then
     AC_DEFINE(HAVE_ADDR_TYPE_IN_KRB5_ADDRESS,1,
               [Whether the krb5_address struct has a addr_type property])
-  fi
-
-  AC_CACHE_CHECK([for enc_part2 in krb5_ticket],
-		 samba_cv_HAVE_KRB5_TKT_ENC_PART2,
-                 [AC_TRY_COMPILE([#include <krb5.h>],
-    [krb5_ticket tkt; tkt.enc_part2->authorization_data[0]->contents = NULL;],
-    samba_cv_HAVE_KRB5_TKT_ENC_PART2=yes,samba_cv_HAVE_KRB5_TKT_ENC_PART2=no)])
-
-  if test x"$samba_cv_HAVE_KRB5_TKT_ENC_PART2" = x"yes"; then
-    AC_DEFINE(HAVE_KRB5_TKT_ENC_PART2,1,
-              [Whether the krb5_ticket struct has a enc_part2 property])
-  fi
-
-  AC_CACHE_CHECK([for keyblock in krb5_creds],
-                 samba_cv_HAVE_KRB5_KEYBLOCK_IN_CREDS,[
-    AC_TRY_COMPILE([#include <krb5.h>],
-      [krb5_creds creds; krb5_keyblock kb; creds.keyblock = kb;],
-      samba_cv_HAVE_KRB5_KEYBLOCK_IN_CREDS=yes,
-      samba_cv_HAVE_KRB5_KEYBLOCK_IN_CREDS=no)])
-
-  if test x"$samba_cv_HAVE_KRB5_KEYBLOCK_IN_CREDS" = x"yes"; then
-    AC_DEFINE(HAVE_KRB5_KEYBLOCK_IN_CREDS,1,
-              [Whether the krb5_creds struct has a keyblock property])
-  fi
-
-  AC_CACHE_CHECK([for session in krb5_creds],
-                 samba_cv_HAVE_KRB5_SESSION_IN_CREDS,[
-    AC_TRY_COMPILE([#include <krb5.h>],
-      [krb5_creds creds; krb5_keyblock kb; creds.session = kb;],
-      samba_cv_HAVE_KRB5_SESSION_IN_CREDS=yes,
-      samba_cv_HAVE_KRB5_SESSION_IN_CREDS=no)])
-
-  if test x"$samba_cv_HAVE_KRB5_SESSION_IN_CREDS" = x"yes"; then
-    AC_DEFINE(HAVE_KRB5_SESSION_IN_CREDS,1,
-              [Whether the krb5_creds struct has a session property])
   fi
 
   AC_CACHE_CHECK([for keyvalue in krb5_keyblock],
@@ -4357,19 +4017,6 @@ if test x"$with_ads_support" != x"no"; then
                [Whether the type krb5_addresses type exists])
   fi
 
-  AC_CACHE_CHECK([whether krb5_mk_error takes 3 arguments MIT or 9 Heimdal],
-		samba_cv_HAVE_SHORT_KRB5_MK_ERROR_INTERFACE, [
-    AC_TRY_COMPILE([#include <krb5.h>],
-    [
-    krb5_mk_error(0,0,0);],
-    samba_cv_HAVE_SHORT_KRB5_MK_ERROR_INTERFACE=yes,
-    samba_cv_HAVE_SHORT_KRB5_MK_ERROR_INTERFACE=no)])
-
-  if test x"$samba_cv_HAVE_SHORT_KRB5_MK_ERROR_INTERFACE" = x"yes"; then
-    AC_DEFINE(HAVE_SHORT_KRB5_MK_ERROR_INTERFACE,1,
-              [whether krb5_mk_error takes 3 arguments MIT or 9 Heimdal])
-  fi
-
   if test x"$ac_cv_func_ext_krb5_enctype_to_string" = x"yes"; then
     AC_CACHE_CHECK([for krb5_error_code krb5_enctype_to_string(krb5_context context, krb5_enctype enctype, char **str)],
         smb_krb5_cv_enctype_to_string_takes_krb5_context_arg,[
@@ -4435,6 +4082,19 @@ if test x"$with_ads_support" != x"no"; then
                [Whether the macro krb5_princ_realm is defined])
   fi
 
+  AC_HAVE_DECL(KRB5_PDU_NONE,[#include <krb5.h>])
+
+  AC_CACHE_CHECK([for flags in krb5_creds],
+                samba_cv_HAVE_FLAGS_IN_KRB5_CREDS,[
+    AC_TRY_COMPILE([#include <krb5.h>],
+      [krb5_creds creds; creds.flags.b.initial = 0;],
+      samba_cv_HAVE_FLAGS_IN_KRB5_CREDS=yes,
+      samba_cv_HAVE_FLAGS_IN_KRB5_CREDS=no)])
+
+  if test x"$samba_cv_HAVE_FLAGS_IN_KRB5_CREDS" = x"yes"; then
+    AC_DEFINE(HAVE_FLAGS_IN_KRB5_CREDS,1,
+               [Whether the krb5_creds struct has a flags property])
+  fi
   #
   #
   # Now the decisions whether we can support krb5
@@ -4447,16 +4107,67 @@ if test x"$with_ads_support" != x"no"; then
     use_ads=no
   fi
 
+  if test x"$ac_cv_func_ext_krb5_set_real_time" != x"yes"; then
+    AC_MSG_WARN(krb5_set_real_time encryption type not found in -lkrb5)
+    use_ads=no
+  fi
+
   if test x"$ac_cv_lib_ext_krb5_krb5_mk_req_extended" != x"yes"; then
     AC_MSG_WARN(krb5_mk_req_extended not found in -lkrb5)
     use_ads=no
   fi
 
-  if test x"$ac_cv_func_ext_krb5_principal2salt" != x"yes" -a \
-          x"$ac_cv_func_ext_krb5_get_pw_salt" != x"yes"
+  if test x"$ac_cv_func_ext_krb5_get_host_realm" != x"yes"
   then
-    AC_MSG_WARN(no CREATE_KEY_FUNCTIONS detected)
+    AC_MSG_WARN(krb5_get_host_realm not found in -lkrb5)
     use_ads=no
+  fi
+
+  if test x"$ac_cv_func_ext_krb5_free_host_realm" != x"yes"
+  then
+    AC_MSG_WARN(krb5_free_host_realm not found in -lkrb5)
+    use_ads=no
+  fi
+
+  if test x"$ac_cv_func_ext_krb5_fwd_tgt_creds" != x"yes"
+  then
+    AC_MSG_WARN(krb5_fwd_tgt_creds not found in -lkrb5)
+    use_ads=no
+  fi
+
+  if test x"$ac_cv_func_ext_krb5_get_init_creds_opt_alloc" != x"yes"
+  then
+    AC_MSG_WARN(krb5_get_init_creds_opt_alloc found in -lkrb5)
+    use_ads=no
+  fi
+
+  if test x"$smb_krb5_cv_creds_opt_free_context" != x"yes"
+  then
+    AC_MSG_WARN(krb5_get_init_creds_opt_free not found or was too old in -lkrb5)
+    use_ads=no
+  fi
+
+  if test x"$ac_cv_func_ext_krb5_get_renewed_creds" != x"yes"
+  then
+    AC_MSG_WARN(krb5_get_renewed_creds not found in -lkrb5)
+    use_ads=no
+  fi
+
+  if test x"$ac_cv_func_ext_krb5_principal_compare_any_realm" != x"yes"
+  then
+    AC_MSG_WARN(krb5_principal_compare_any_realm not found in -lkrb5)
+    use_ads=no
+  fi
+
+  if test x"$ac_cv_func_ext_krb5_principal2salt" != x"yes" -o \
+     	  x"$ac_cv_func_ext_krb5_c_string_to_key" != x"yes"
+  then
+	if test x"$ac_cv_func_ext_krb5_get_pw_salt" != x"yes" -o \
+     	     x"$ac_cv_func_ext_krb5_string_to_key_salt" != x"yes"
+	then
+	      AC_MSG_WARN(no CREATE_KEY_FUNCTIONS detected)
+	      use_ads=no
+	fi
   fi
 
   if test x"$ac_cv_func_ext_krb5_get_permitted_enctypes" != x"yes" -a \
@@ -4473,38 +4184,29 @@ if test x"$with_ads_support" != x"no"; then
     use_ads=no
   fi
 
-  if test x"$ac_cv_func_ext_krb5_c_verify_checksum" != x"yes" -a \
-          x"$ac_cv_func_ext_krb5_verify_checksum" != x"yes"
+  if test x"$ac_cv_func_ext_krb5_c_verify_checksum" != x"yes"
   then
-    AC_MSG_WARN(no KRB5_VERIFY_CHECKSUM_FUNCTION detected)
+    AC_MSG_WARN(krb5_c_verify_checksum not found in -lkrb5)
     use_ads=no
   fi
 
-  if test x"$smb_krb5_cv_ticket_has_keyinfo" != x"yes" ; then
+  if test x"$ac_cv_func_ext_gss_wrap_iov" != x"yes" ; then
+    AC_MSG_WARN(gss_wrap_iov not found in -lgssapi)
+    use_ads=no
+  fi
 
-      # We only need the following functions if we can't get the enctype
-      # and kvno out of the ticket directly (ie. on Heimdal).
-
-      if test x"$ac_cv_func_ext_free_AP_REQ" != x"yes"
-      then
-	AC_MSG_WARN(no KRB5_AP_REQ_FREE_FUNCTION detected)
-	use_ads=no
-      fi
-
-      if test x"$ac_cv_func_ext_krb5_decode_ap_req" != x"yes"
-      then
-	AC_MSG_WARN(no KRB5_AP_REQ_DECODING_FUNCTION detected)
-	use_ads=no
-      fi
-
+  if test x"$ac_cv_func_ext_gss_get_name_attribute" != x"yes" ; then
+    if test x"$ac_cv_func_ext_gsskrb5_extract_authz_data_from_sec_context" != x"yes" -o \
+            x"$ac_cv_func_ext_gss_inquire_sec_context_by_oid" != x"yes"
+    then
+      AC_MSG_WARN(need either gss_get_name_attribute or gsskrb5_extract_authz_data_from_sec_context and gss_inquire_sec_context_by_oid in -lgssapi for PAC support)
+      use_ads=no
+    fi
   fi
 
   if test x"$use_ads" = x"yes"; then
     AC_DEFINE(WITH_ADS,1,[Whether to include Active Directory support])
     AC_DEFINE(HAVE_KRB5,1,[Whether to have KRB5 support])
-    if test x"$have_gssapi" = x"yes"; then
-      AC_DEFINE(HAVE_GSSAPI,1,[Whether GSSAPI is available])
-    fi
   else
     if test x"$with_ads_support" = x"yes"; then
 	AC_MSG_ERROR(krb5 libs don't have all features required for Active Directory support)
@@ -4515,6 +4217,7 @@ if test x"$with_ads_support" != x"no"; then
     AC_REMOVE_DEFINE(HAVE_GSSAPI_H)
     AC_REMOVE_DEFINE(HAVE_GSSAPI_GSSAPI_GENERIC_H)
     AC_REMOVE_DEFINE(HAVE_GSSAPI_GSSAPI_H)
+    AC_REMOVE_DEFINE(HAVE_GSSAPI)
     KRB5_LIBS=""
     with_ads_support=no
   fi
@@ -4522,10 +4225,6 @@ if test x"$with_ads_support" != x"no"; then
   AC_MSG_RESULT([$use_ads])
 
 LIBS="$ac_save_LIBS"
-fi
-
-if test x"$use_ads" != xyes; then
-	smbtorture4_possible=no
 fi
 
 AC_CHECK_LIB_EXT(nscd, NSCD_LIBS, nscd_flush_cache)
@@ -4552,7 +4251,7 @@ if test x"$with_dnsupdate_support" != x"no"; then
 
   ################################################################
   # first test for AD / GSSAPI support being enabled
-	if test x"$have_gssapi" != xyes ; then
+	if test x"$have_gssapi" != xyes -o x"$use_ads" != xyes ; then
 		if test x"$with_dnsupdate_support" = x"yes" ; then
 			AC_MSG_ERROR(DNS Updates support only possible with AD and GSSAPI support)
 		else
@@ -4560,51 +4259,12 @@ if test x"$with_dnsupdate_support" != x"no"; then
 			with_dnsupdate_support=no
 		fi
 	fi
-  ##################################################################
-  # then test for uuid.h (necessary to generate unique DNS keynames
-  # (uuid.h is required for this test)
-	AC_CHECK_HEADERS(uuid/uuid.h)
-
-	
-	if test x"$ac_cv_header_uuid_uuid_h" != x"yes"; then
-		if test x"$with_dnsupdate_support" = x"yes"; then
-			AC_MSG_ERROR(uuid.h is needed to enable DNS Updates support)
-		else
-			AC_MSG_NOTICE(uuid.h is needed to enable DNS Updates support)
-		fi
-		with_dnsupdate_support=no
-	fi
 fi
 
 if test x"$with_dnsupdate_support" != x"no"; then
-
-  ########################################################
-  # Now see if we can find the uuid libs in standard paths
-  # On some systems, the uuid API is in libc, so we have to
-  # be careful not to insert a spurious -luuid.
-
-  UUID_LIBS=""
-  AC_LIBTESTFUNC(uuid, uuid_generate,
-	  [
-	    case " $LIBS " in
-		*\ -luuid\ *)
-		UUID_LIBS="-luuid"
-		SMB_REMOVE_LIB(uuid)
-		;;
-	    esac
-
-	    with_dnsupdate_support=yes
-	    AC_DEFINE(WITH_DNS_UPDATES,1,[Whether to enable DNS Update support])
-	],
-	[
-	    if test x"$with_dnsupdate_support" = x"yes"; then
-		AC_MSG_ERROR(libuuid is needed to enable DNS Updates support)
-	    else
-		AC_MSG_WARN(libuuid is needed to enable DNS Updates support)
-	    fi
-	    with_dnsupdate_support=no
-	])
+      AC_DEFINE(WITH_DNS_UPDATES,1,[Whether to enable DNS Update support])
 fi
+
   # finally print out the result:
 AC_MSG_CHECKING(whether DNS Updates support is used)
 AC_MSG_RESULT([$with_dnsupdate_support])
@@ -4876,24 +4536,17 @@ AC_ARG_WITH(syslog-facility,
   if test "$withval" = "no" ; then
     AC_MSG_ERROR([argument to --with-syslog-facility must be a string])
   else
-     AC_MSG_RESULT([$withval])
      if test "$withval" != "yes" ; then
         syslog_facility="$withval"
 	AC_DEFINE_UNQUOTED(SYSLOG_FACILITY,$syslog_facility, [syslog facility to log to])
      fi
   fi
-],
-AC_MSG_RESULT(no)
-)
+])
 
 #################################################
 # check for experimental disk-quotas support
 
 samba_cv_WITH_QUOTAS=auto
-samba_cv_TRY_QUOTAS=no
-samba_cv_RUN_QUOTA_TESTS=auto
-samba_cv_WITH_SYS_QUOTAS=auto
-samba_cv_TRY_SYS_QUOTAS=auto
 samba_cv_SYSQUOTA_FOUND=no
 
 AC_MSG_CHECKING(whether to try disk-quotas support)
@@ -4903,90 +4556,34 @@ AC_ARG_WITH(quotas,
   yes)
     AC_MSG_RESULT(yes)
     samba_cv_WITH_QUOTAS=yes
-    samba_cv_TRY_QUOTAS=yes
-    samba_cv_RUN_QUOTA_TESTS=yes
-    #set sys quotas to auto in this case
-    samba_cv_TRY_SYS_QUOTAS=auto
     ;;
   auto)
     AC_MSG_RESULT(auto)
     samba_cv_WITH_QUOTAS=auto
-    samba_cv_TRY_QUOTAS=auto
-    samba_cv_RUN_QUOTA_TESTS=auto
-    #set sys quotas to auto in this case
-    samba_cv_TRY_SYS_QUOTAS=auto
     ;;
   no)
     AC_MSG_RESULT(no)
     samba_cv_WITH_QUOTAS=no
-    samba_cv_TRY_QUOTAS=no
-    samba_cv_RUN_QUOTA_TESTS=no
     ;;
   *)
-    AC_MSG_RESULT(${samba_cv_TRY_QUOTAS})
+    AC_MSG_RESULT(${samba_cv_WITH_QUOTAS})
     ;;
   esac ],
-  AC_MSG_RESULT(${samba_cv_TRY_QUOTAS})
+  AC_MSG_RESULT(${samba_cv_WITH_QUOTAS})
 )
-
-AC_MSG_CHECKING(whether to try the new lib/sysquotas.c interface)
-AC_ARG_WITH(sys-quotas,
-[AS_HELP_STRING([--with-sys-quotas], [Include lib/sysquotas.c support (default=auto)])],
-[ case "$withval" in
-  yes)
-    AC_MSG_RESULT(yes)
-    samba_cv_WITH_SYS_QUOTAS=yes
-    samba_cv_TRY_SYS_QUOTAS=yes
-    samba_cv_RUN_QUOTA_TESTS=yes
-    ;;
-  auto)
-    AC_MSG_RESULT(auto)
-    samba_cv_WITH_SYS_QUOTAS=auto
-    samba_cv_TRY_SYS_QUOTAS=auto
-    samba_cv_RUN_QUOTA_TESTS=auto
-    ;;
-  no)
-    AC_MSG_RESULT(no)
-    samba_cv_WITH_SYS_QUOTAS=no
-    samba_cv_TRY_SYS_QUOTAS=no
-    ;;
-  *)
-    AC_MSG_RESULT(${samba_cv_TRY_SYS_QUOTAS})
-    ;;
-  esac ],
-  AC_MSG_RESULT(${samba_cv_TRY_SYS_QUOTAS})
-)
-
-if test x"$samba_cv_TRY_SYS_QUOTAS" = x"auto"; then
-AC_MSG_CHECKING(whether to try the lib/sysquotas.c interface on ${host_os})
-  case "$host_os" in
-	*linux*)
-	    AC_MSG_RESULT(yes)
-            samba_cv_TRY_SYS_QUOTAS=yes
-            samba_cv_RUN_QUOTA_TESTS=yes
-	    ;;
-	*)
-	    AC_MSG_RESULT(no)
-            samba_cv_TRY_SYS_QUOTAS=no
-	    ;;
-  esac
-fi
 
 #############################################
 # only check for quota stuff if --with-quotas
-if test x"$samba_cv_RUN_QUOTA_TESTS" != x"no"; then
+if test x"$samba_cv_WITH_QUOTAS" != x"no"; then
 
 case "$host_os" in
 	# on linux we didn't need to test we have builtin support
 	*linux*)
 	    samba_cv_SYSQUOTA_FOUND=yes
 	    AC_DEFINE(HAVE_QUOTACTL_LINUX,1,[Whether Linux quota support is available])
-	    samba_cv_sysquotas_file="lib/sysquotas_linux.c"
 	    AC_MSG_CHECKING(whether to use the lib/sysquotas_linux.c builtin support)
 	    AC_MSG_RESULT(yes)
 
-	    AC_DEFINE(HAVE_LINUX_XFS_QUOTAS,1,[Whether Linux xfs quota support is available])
-	    samba_cv_found_xfs_header=yes
 	    AC_MSG_CHECKING(whether to use the lib/sysquotas_xfs.c builtin support)
 	    AC_MSG_RESULT(yes)
 	    ;;
@@ -5007,13 +4604,19 @@ AC_CHECK_HEADER(asm/types.h,[
 # For quotas on Veritas VxFS filesystems
 AC_CHECK_HEADERS(sys/fs/vx_quota.h)
 
-# For quotas on Linux XFS filesystems
-AC_CHECK_HEADERS(linux/dqblk_xfs.h)
+# For quotas on XFS filesystems, Linux style
+AC_CHECK_HEADERS(xfs/xqm.h,[
+	    AC_DEFINE(HAVE_XFS_QUOTAS,1,[Whether xfs quota support is available])
+	])
 
 # For sys/quota.h and linux/quota.h
 AC_CHECK_HEADERS(sys/quota.h)
 
-if test x"$samba_cv_found_xfs_header" != x"yes"; then
+# For quotas on BSD systems
+AC_CHECK_HEADERS(ufs/ufs/quota.h)
+
+
+if test x"$ac_cv_header_xfs_xqm_h" != x"yes"; then
 # if we have xfs quota support <sys/quota.h> (IRIX) we should use it
 AC_CACHE_CHECK([for XFS QUOTA in <sys/quota.h>],samba_cv_HAVE_SYS_QUOTA_XFS, [
 AC_TRY_COMPILE([
@@ -5028,7 +4631,7 @@ AC_TRY_COMPILE([
 ],[int i = Q_XGETQUOTA;],
 samba_cv_HAVE_SYS_QUOTA_XFS=yes,samba_cv_HAVE_SYS_QUOTA_XFS=no)])
 if test "$samba_cv_HAVE_SYS_QUOTA_XFS"x = "yes"x; then
-	samba_cv_found_xfs_header=yes
+	AC_DEFINE(HAVE_XFS_QUOTAS,1,[Whether xfs quota support is available])
 fi
 fi
 
@@ -5056,12 +4659,11 @@ AC_TRY_RUN_STRICT([
 #define HAVE_QUOTACTL_4A 1
 #define AUTOCONF_TEST 1
 #include "confdefs.h"
-#include "${srcdir-.}/../tests/sysquotas.c"],[$CFLAGS $Werror_FLAGS],[$CPPFLAGS],[$LDFLAGS],
+#include "${srcdir-.}/../../tests/sysquotas.c"],[$CFLAGS $Werror_FLAGS],[$CPPFLAGS],[$LDFLAGS],
            samba_cv_HAVE_QUOTACTL_4A=yes,samba_cv_HAVE_QUOTACTL_4A=no,samba_cv_HAVE_QUOTACTL_4A=cross)])
 if test x"$samba_cv_HAVE_QUOTACTL_4A" = x"yes"; then
     samba_cv_SYSQUOTA_FOUND=yes;
     AC_DEFINE(HAVE_QUOTACTL_4A,1,[Whether long quotactl(int cmd, char *special, qid_t id, caddr_t addr) is available])
-    samba_cv_sysquotas_file="lib/sysquotas_4A.c"
 fi
 fi
 
@@ -5071,30 +4673,36 @@ AC_TRY_RUN_STRICT([
 #define HAVE_QUOTACTL_4B 1
 #define AUTOCONF_TEST 1
 #include "confdefs.h"
-#include "${srcdir-.}/../tests/sysquotas.c"],[$CFLAGS $Werror_FLAGS],[$CPPFLAGS],[$LDFLAGS],
+#include "${srcdir-.}/../../tests/sysquotas.c"],[$CFLAGS $Werror_FLAGS],[$CPPFLAGS],[$LDFLAGS],
            samba_cv_HAVE_QUOTACTL_4B=yes,samba_cv_HAVE_QUOTACTL_4B=no,samba_cv_HAVE_QUOTACTL_4B=cross)])
 if test x"$samba_cv_HAVE_QUOTACTL_4B" = x"yes"; then
-    echo "int quotactl(const char *path, int cmd, int id, char *addr) is not reworked for the new sys_quota api"
     samba_cv_SYSQUOTA_FOUND=yes;
     AC_DEFINE(HAVE_QUOTACTL_4B,1,[Whether int quotactl(const char *path, int cmd, int id, char *addr) is available])
-    samba_cv_sysquotas_file="lib/sysquotas_4B.c"
+    AC_CHECK_MEMBERS([struct dqblk.dqb_curbytes], # Darwin bytecount style
+	[ AC_DEFINE([HAVE_STRUCT_DQBLK_DQB_CURBYTES],[1],[darwin style quota bytecount])],,
+	[#include <sys/types.h>
+	#include <sys/quota.h>])
+
 fi
 fi
 
-if test x"$samba_cv_SYSQUOTA_FOUND" != x"yes"; then
-AC_CACHE_CHECK([for CRAY int quotactl (char *spec, int request, char *arg)],samba_cv_HAVE_QUOTACTL_3,[
-AC_TRY_RUN_STRICT([
-#define HAVE_QUOTACTL_3 1
-#define AUTOCONF_TEST 1
-#include "confdefs.h"
-#include "${srcdir-.}/../tests/sysquotas.c"],[$CFLAGS $Werror_FLAGS],[$CPPFLAGS],[$LDFLAGS],
-           samba_cv_HAVE_QUOTACTL_3=yes,samba_cv_HAVE_QUOTACTL_3=no,samba_cv_HAVE_QUOTACTL_3=cross)])
-if test x"$samba_cv_HAVE_QUOTACTL_3" = x"yes"; then
-    echo "CRAY int quotactl (char *spec, int request, char *arg) is NOT reworked for the sys_quota api"
-    samba_cv_SYSQUOTA_FOUND=yes;
-    AC_DEFINE(HAVE_QUOTACTL_3,1,[Whether CRAY int quotactl (char *spec, int request, char *arg); is available])
-    samba_cv_sysquotas_file="lib/sysquotas_3.c"
-fi
+AC_CACHE_CHECK([for NFS QUOTAS],samba_cv_HAVE_NFS_QUOTAS,[
+AC_TRY_COMPILE([
+#include <rpc/rpc.h>
+#include <rpc/types.h>
+#include <rpcsvc/rquota.h>
+#ifdef HAVE_RPC_NETTYPE_H
+#include <rpc/nettype.h>
+#endif
+#include <rpc/xdr.h>
+],[clnt_create("", RQUOTAPROG, RQUOTAVERS, "udp");],
+		   samba_cv_HAVE_NFS_QUOTAS=yes, samba_cv_HAVE_NFS_QUOTAS=no)])
+
+if test x"$samba_cv_HAVE_NFS_QUOTAS" = x"yes"; then
+    AC_DEFINE(HAVE_NFS_QUOTAS,1,[NFS quota support is available])
+    AC_CHECK_MEMBER(struct getquota_rslt.getquota_rslt_u,
+		AC_DEFINE(HAVE_GETQUOTA_RSLT_GETQUOTA_RSLT_U, 1, [Defined if struct getquota_rslt has getquota_rslt_u]),,
+		[#include <rpcsvc/rquota.h>])
 fi
 
 #################################################
@@ -5111,117 +4719,24 @@ AC_CHECK_HEADERS(devnm.h)
 # check for devnm
 AC_CHECK_FUNCS(devnm)
 
-if test x"$samba_cv_WITH_SYS_QUOTAS" = x"yes"; then
-    if test x"$samba_cv_SYSQUOTA_FOUND" != x"yes"; then
-	# if --with-sys-quotas=yes then build it
-	# you have can use the get/set quota command smb.conf
-	# options then
-	samba_cv_SYSQUOTA_FOUND=auto
-    fi
-    if test x"$samba_cv_TRY_SYS_QUOTAS" != x"yes"; then
-	# if --with-sys-quotas=yes then build it
-	# you have can use the get/set quota command smb.conf
-	# options then
-	samba_cv_TRY_SYS_QUOTAS=auto
-    fi
-fi
-
-if test x"$samba_cv_SYSQUOTA_FOUND" != x"no"; then
-AC_CACHE_CHECK([whether the sys_quota interface works],samba_cv_SYSQUOTA_WORKS,[
-SAVE_CPPFLAGS="$CPPFLAGS"
-CPPFLAGS="$CPPFLAGS ${SAMBA_CONFIGURE_CPPFLAGS}"
-AC_TRY_COMPILE([
-#include "confdefs.h"
-#define NO_PROTO_H 1
-#define NO_CONFIG_H 1
-#define HAVE_SYS_QUOTAS 1
-#include "${srcdir-.}/${samba_cv_sysquotas_file}"
-#include "${srcdir-.}/lib/sysquotas.c"
-],[],samba_cv_SYSQUOTA_WORKS=yes,samba_cv_SYSQUOTA_WORKS=no)
-CPPFLAGS="$SAVE_CPPFLAGS"
-])
-if test x"$samba_cv_SYSQUOTA_WORKS" = x"yes"; then
 AC_MSG_CHECKING(whether to use the new lib/sysquotas.c interface)
-    if test x"$samba_cv_TRY_SYS_QUOTAS" != x"no"; then
+if test x"$samba_cv_SYSQUOTA_FOUND" = x"yes"; then
+	AC_MSG_RESULT(yes)
 	AC_DEFINE(WITH_QUOTAS,1,[Whether to use disk quota support])
 	AC_DEFINE(HAVE_SYS_QUOTAS,1,[Whether the new lib/sysquotas.c interface can be used])
-	samba_cv_WE_USE_SYS_QUOTAS=yes
+else
+    AC_MSG_RESULT(no)
+    AC_MSG_CHECKING(whether to use the old quota support)
+    if test x"$samba_cv_WITH_QUOTAS" = x"yes"; then
+        AC_DEFINE(WITH_QUOTAS,1,[Whether to use old quota support])
 	AC_MSG_RESULT(yes)
     else
-        AC_MSG_RESULT(no)
-    fi
-fi
-fi
-
-if test x"$samba_cv_SYSQUOTA_FOUND" != x"no"; then
-AC_CACHE_CHECK([whether the sys_quota interface works with NFS],samba_cv_SYSQUOTA_WORKS_NFS,[
-SAVE_CPPFLAGS="$CPPFLAGS"
-CPPFLAGS="$CPPFLAGS ${SAMBA_CONFIGURE_CPPFLAGS}"
-AC_TRY_COMPILE([
-#include "confdefs.h"
-#define NO_PROTO_H 1
-#define NO_CONFIG_H 1
-#define HAVE_SYS_QUOTAS 1
-#define HAVE_NFS_QUOTAS 1
-#include "${srcdir-.}/lib/sysquotas_nfs.c"
-],[],samba_cv_SYSQUOTA_WORKS_NFS=yes,samba_cv_SYSQUOTA_WORKS_NFS=no)
-CPPFLAGS="$SAVE_CPPFLAGS"
-])
-if test x"$samba_cv_SYSQUOTA_WORKS_NFS" = x"yes"; then
-    if test x"$samba_cv_WE_USE_SYS_QUOTAS" = x"yes"; then
-	AC_DEFINE(HAVE_NFS_QUOTAS,1,[Whether nfs quota support is available])
-    fi
-fi
-fi
-
-if test x"$samba_cv_SYSQUOTA_FOUND" != x"no" -a x"$samba_cv_found_xfs_header" = x"yes"; then
-AC_CACHE_CHECK([whether the sys_quota interface works with XFS],samba_cv_SYSQUOTA_WORKS_XFS,[
-SAVE_CPPFLAGS="$CPPFLAGS"
-CPPFLAGS="$CPPFLAGS ${SAMBA_CONFIGURE_CPPFLAGS}"
-AC_TRY_COMPILE([
-#include "confdefs.h"
-#define NO_PROTO_H 1
-#define NO_CONFIG_H 1
-#define HAVE_SYS_QUOTAS 1
-#define HAVE_XFS_QUOTAS 1
-#include "${srcdir-.}/lib/sysquotas_xfs.c"
-],[],samba_cv_SYSQUOTA_WORKS_XFS=yes,samba_cv_SYSQUOTA_WORKS_XFS=no)
-CPPFLAGS="$SAVE_CPPFLAGS"
-])
-if test x"$samba_cv_SYSQUOTA_WORKS_XFS" = x"yes"; then
-    if test x"$samba_cv_WE_USE_SYS_QUOTAS" = x"yes"; then
-	AC_DEFINE(HAVE_XFS_QUOTAS,1,[Whether xfs quota support is available])
-    fi
-fi
-fi
-
-AC_CACHE_CHECK([whether the old quota support works],samba_cv_QUOTA_WORKS,[
-SAVE_CPPFLAGS="$CPPFLAGS"
-CPPFLAGS="$CPPFLAGS ${SAMBA_CONFIGURE_CPPFLAGS}"
-AC_TRY_COMPILE([
-#include "confdefs.h"
-#define NO_PROTO_H 1
-#define NO_CONFIG_H 1
-#include "${srcdir-.}/smbd/quotas.c"
-],[],samba_cv_QUOTA_WORKS=yes,samba_cv_QUOTA_WORKS=no)
-CPPFLAGS="$SAVE_CPPFLAGS"
-])
-if test x"$samba_cv_QUOTA_WORKS" = x"yes"; then
-AC_MSG_CHECKING(whether to use the old quota support)
-    if test x"$samba_cv_WE_USE_SYS_QUOTAS" != x"yes"; then
-      if test x"$samba_cv_TRY_QUOTAS" != x"no"; then
-        AC_DEFINE(WITH_QUOTAS,1,[Whether to use disk quota support])
-	AC_MSG_RESULT(yes)
-      else
 	AC_MSG_RESULT(no)
-      fi
-    else
-      AC_MSG_RESULT(no)
     fi
 fi
 
 ####################
-# End of quota check samba_cv_RUN_QUOTA_TESTS
+# End of quota check samba_cv_WITH_QUOTAS
 fi
 
 #################################################
@@ -5249,6 +4764,11 @@ if test x"$WITH_UTMP" = x"yes" -a x"$ac_cv_header_utmp_h" = x"no"; then
 	WITH_UTMP=no
 fi
 
+if test x"$WITH_UTMP" = x"yes" -a x"$samba_cv_HAVE_UX_UT_LINE" != x"yes"; then
+	utmp_no_reason=", sizeof ut_line not ok"
+	WITH_UTMP=no
+fi
+
 # Display test results
 
 if test x"$WITH_UTMP" = x"yes"; then
@@ -5263,30 +4783,6 @@ fi
 # these tests are taken from the GNU fileutils package
 AC_CHECKING(how to get filesystem space usage)
 space=no
-
-# Test for statvfs64.
-if test $space = no; then
-  # SVR4
-  AC_CACHE_CHECK([statvfs64 function (SVR4)], fu_cv_sys_stat_statvfs64,
-  [AC_TRY_RUN([
-#if defined(HAVE_UNISTD_H)
-#include <unistd.h>
-#endif
-#include <sys/types.h>
-#include <sys/statvfs.h>
-  main ()
-  {
-    struct statvfs64 fsd;
-    exit (statvfs64 (".", &fsd));
-  }],
-  fu_cv_sys_stat_statvfs64=yes,
-  fu_cv_sys_stat_statvfs64=no,
-  fu_cv_sys_stat_statvfs64=cross)])
-  if test $fu_cv_sys_stat_statvfs64 = yes; then
-    space=yes
-    AC_DEFINE(STAT_STATVFS64,1,[Whether statvfs64() is available])
-  fi
-fi
 
 # Perform only the link test since it seems there are no variants of the
 # statvfs function.  This check is more than just AC_CHECK_FUNCS(statvfs)
@@ -5358,7 +4854,7 @@ if test $space = no; then
   {
     struct statfs fsd;
     fsd.f_fsize = 0;
-    exit (statfs (".", &fsd, sizeof (struct statfs)));
+    return (statfs (".", &fsd, sizeof (struct statfs)));
   }],
   fu_cv_sys_stat_statfs3_osf1=yes,
   fu_cv_sys_stat_statfs3_osf1=no,
@@ -5389,7 +4885,7 @@ member (AIX, 4.3BSD)])
   {
   struct statfs fsd;
   fsd.f_bsize = 0;
-  exit (statfs (".", &fsd));
+  return (statfs (".", &fsd));
   }],
   fu_cv_sys_stat_statfs2_bsize=yes,
   fu_cv_sys_stat_statfs2_bsize=no,
@@ -5410,7 +4906,7 @@ if test $space = no; then
   main ()
   {
   struct statfs fsd;
-  exit (statfs (".", &fsd, sizeof fsd, 0));
+  return (statfs (".", &fsd, sizeof fsd, 0));
   }],
     fu_cv_sys_stat_statfs4=yes,
     fu_cv_sys_stat_statfs4=no,
@@ -5438,7 +4934,7 @@ member (4.4BSD and NetBSD)])
   {
   struct statfs fsd;
   fsd.f_fsize = 0;
-  exit (statfs (".", &fsd));
+  return (statfs (".", &fsd));
   }],
   fu_cv_sys_stat_statfs2_fsize=yes,
   fu_cv_sys_stat_statfs2_fsize=no,
@@ -5469,7 +4965,7 @@ if test $space = no; then
   struct fs_data fsd;
   /* Ultrix's statfs returns 1 for success,
      0 for not mounted, -1 for failure.  */
-  exit (statfs (".", &fsd) != 1);
+  return (statfs (".", &fsd) != 1);
   }],
   fu_cv_sys_stat_fs_data=yes,
   fu_cv_sys_stat_fs_data=no,
@@ -5480,30 +4976,6 @@ if test $space = no; then
     AC_DEFINE(STAT_STATFS2_FS_DATA,1,[Whether statfs requires 2 arguments and struct fs_data is available])
   fi
 fi
-
-#
-# As a gating factor for large file support, in order to
-# use <4GB files we must have the following minimal support
-# available.
-# long long, and a 64 bit off_t or off64_t.
-# If we don't have all of these then disable large
-# file support.
-#
-AC_MSG_CHECKING([if large file support can be enabled])
-AC_TRY_COMPILE([
-#if defined(HAVE_LONGLONG) && (defined(HAVE_OFF64_T) || (defined(SIZEOF_OFF_T) && (SIZEOF_OFF_T == 8)))
-#include <sys/types.h>
-#else
-__COMPILE_ERROR_
-#endif
-],
-[int i],
-samba_cv_HAVE_EXPLICIT_LARGEFILE_SUPPORT=yes,samba_cv_HAVE_EXPLICIT_LARGEFILE_SUPPORT=no)
-if test x"$samba_cv_HAVE_EXPLICIT_LARGEFILE_SUPPORT" = x"yes"; then
-	AC_DEFINE(HAVE_EXPLICIT_LARGEFILE_SUPPORT,1,[Whether large file support can be enabled])
-fi
-AC_MSG_RESULT([$samba_cv_HAVE_EXPLICIT_LARGEFILE_SUPPORT])
-
 
 #################################################
 # check for cluster extensions
@@ -5545,7 +5017,7 @@ ctdb_broken="no"
 SAVED_CPPFLAGS="$CPPFLAGS"
 CPPFLAGS="$CPPFLAGS ${SAMBA_CONFIGURE_CPPFLAGS} $CTDB_CPPFLAGS"
 
-AC_CHECK_HEADERS(ctdb.h ctdb_private.h,,,[
+AC_CHECK_HEADERS(ctdb.h ctdb_private.h ctdb_protocol.h ,,,[
 #include "confdefs.h"
 #define NO_CONFIG_H
 #include "replace.h"
@@ -5565,7 +5037,7 @@ then
 fi
 
 if test "x$have_cluster_support" = "xyes" -a \
-	"x$ac_cv_header_ctdb_h" != "xyes"
+	"x$ac_cv_header_ctdb_private_h" != "xyes"
 then
 	have_cluster_support=no
 	ctdb_broken="ctdb_private.h is required for cluster support"
@@ -5608,6 +5080,57 @@ if test "x$have_cluster_support" = "xyes" ; then
 			AC_MSG_WARN([ignoring missing SCHEDULE_FOR_DELETION (--enable-old-ctdb)])
 		else
 			ctdb_broken="support for SCHEDULE_FOR_DELETION control missing"
+			have_cluster_support=no
+		fi
+	fi
+fi
+
+if test "x$have_cluster_support" = "xyes" ; then
+	AC_HAVE_DECL(CTDB_CONTROL_CHECK_SRVIDS,[
+	#include "confdefs.h"
+	#define NO_CONFIG_H
+	#include "replace.h"
+	#include "system/wait.h"
+	#include "system/network.h"
+	#include <talloc.h>
+	#include <tdb.h>
+	#include <ctdb.h>
+	#include <ctdb_private.h>
+	])
+	if test x"$ac_cv_have_CTDB_CONTROL_CHECK_SRVIDS_decl" != x"yes"
+	then
+		if test "x$enable_old_ctdb" = "xyes" ; then
+			AC_MSG_WARN([ignoring missing CHECK_SRVIDS (--enable-old-ctdb)])
+		else
+			ctdb_broken="support for CHECK_SRVIDS control missing"
+			have_cluster_support=no
+		fi
+	fi
+fi
+
+AC_ARG_ENABLE([ctdb-readonly-records],
+	AS_HELP_STRING([--enable-ctdb-readonly-records],
+		[Turn on CTDB readonly records support (default=yes)]),
+	[want_ctdb_readonly=$enableval],
+	[want_ctdb_readonly=yes])
+
+if test "x$have_cluster_support" = "xyes" -a "x$want_ctdb_readonly" = "xyes" ; then
+	AC_HAVE_DECL(CTDB_WANT_READONLY,[
+	#include "confdefs.h"
+	#define NO_CONFIG_H
+	#include "replace.h"
+	#include "system/wait.h"
+	#include "system/network.h"
+	#include <talloc.h>
+	#include <tdb.h>
+	#include <ctdb.h>
+	])
+
+	if test "x$ac_cv_have_CTDB_WANT_READONLY_decl" != "xyes" ; then
+		if test "x$enable_old_ctdb" = "xyes" ; then
+			AC_MSG_WARN([ignoring missing READONLY support (--enable-old-ctdb)])
+		else
+			ctdb_broken="support for CTDB readonly records missing"
 			have_cluster_support=no
 		fi
 	fi
@@ -5721,7 +5244,6 @@ AC_MSG_RESULT($with_acl_support)
 
 if test x"$with_acl_support" = x"no"; then
 	AC_MSG_RESULT(Disabling ACL support)
-	AC_DEFINE(HAVE_NO_ACLS,1,[Whether no ACLs support should be built in])
 else
 	AC_MSG_NOTICE(checking whether ACL support is available:)
 	case "$host_os" in
@@ -5759,7 +5281,6 @@ else
 		;;
 	*darwin*)
 		AC_MSG_NOTICE(ACLs on Darwin currently not supported)
-		AC_DEFINE(HAVE_NO_ACLS,1,[Whether no ACLs support is available])
 		;;
 	*)
 		AC_CHECK_LIB(acl,acl_get_file,[ACL_LIBS="$ACL_LIBS -lacl"])
@@ -5808,7 +5329,6 @@ else
    			default_static_modules="$default_static_modules vfs_posixacl"
 		else
 			AC_MSG_NOTICE(ACL support is not avaliable)
-			AC_DEFINE(HAVE_NO_ACLS,1,[Whether no ACLs support is available])
 		fi
 		;;
         esac
@@ -5831,15 +5351,21 @@ esac
 #################################################
 # check for AIO support
 
+with_aio=auto
 AC_MSG_CHECKING(whether to support asynchronous io)
 AC_ARG_WITH(aio-support,
-[AS_HELP_STRING([--with-aio-support], [Include asynchronous io support (default=no)])],
-[ case "$withval" in
-  yes)
+[AS_HELP_STRING([--with-aio-support], [Include asynchronous io support (default=auto)])],
+[  case "$withval" in
+    yes|no)
+	with_aio=$withval
+	;;
+   esac ])
 
-	AC_MSG_RESULT(yes)
-	case "$host_os" in
-	*)
+AC_MSG_RESULT($with_aio)
+
+if test x"$with_aio" = x"no"; then
+    AC_DEFINE(HAVE_NO_AIO,1,[Whether no asynchronous io support should be built in])
+else
 		AIO_LIBS=$LIBS
 		no_rt_LIBS=$LIBS
 		AC_CHECK_LIB(rt,aio_read,[AIO_LIBS="$LIBS -lrt"])
@@ -5853,127 +5379,98 @@ AC_ARG_WITH(aio-support,
 [ struct aiocb a; return aio_read(&a);],
 samba_cv_HAVE_AIO=yes,samba_cv_HAVE_AIO=no)
 		LIBS=$aio_LIBS])
-		AC_CACHE_CHECK([for 64-bit asynchronous io support],samba_cv_HAVE_AIO64,[
-		aio_LIBS=$LIBS
-		LIBS=$AIO_LIBS
-		AC_TRY_LINK([#include <sys/types.h>
-#include <aio.h>],
-[ struct aiocb64 a; return aio_read64(&a);],
-samba_cv_HAVE_AIO64=yes,samba_cv_HAVE_AIO64=no)
-		LIBS=$aio_LIBS])
-		if test x"$samba_cv_HAVE_AIO64" = x"yes"; then
-			AC_DEFINE(HAVE_AIOCB64,1,[Whether 64 bit aio is available])
-			AC_DEFINE(WITH_AIO, 1, [Using asynchronous io])
-			LIBS=$AIO_LIBS
-		elif test x"$samba_cv_HAVE_AIO" = x"yes"; then
-			AC_DEFINE(WITH_AIO, 1, [Using asynchronous io])
-			LIBS=$AIO_LIBS
-		fi
-
 		if test x"$samba_cv_HAVE_AIO" = x"yes"; then
+			AC_DEFINE(HAVE_AIO, 1, [Using asynchronous io])
+			LIBS=$AIO_LIBS
 			AC_MSG_CHECKING(for aio_read)
-			AC_LINK_IFELSE([#include <aio.h>
-int main() { struct aiocb a; return aio_read(&a); }],
+			AC_LINK_IFELSE([AC_LANG_SOURCE([#include <aio.h>
+int main() { struct aiocb a; return aio_read(&a); }])],
 [AC_DEFINE(HAVE_AIO_READ, 1, [Have aio_read]) AC_MSG_RESULT(yes)],
 [AC_MSG_RESULT(no)])
 
 			AC_MSG_CHECKING(for aio_write)
-			AC_LINK_IFELSE([#include <aio.h>
-int main() { struct aiocb a; return aio_write(&a); }],
+			AC_LINK_IFELSE([AC_LANG_SOURCE([#include <aio.h>
+int main() { struct aiocb a; return aio_write(&a); }])],
 [AC_DEFINE(HAVE_AIO_WRITE, 1, [Have aio_write]) AC_MSG_RESULT(yes)],
 [AC_MSG_RESULT(no)])
 
 			AC_MSG_CHECKING(for aio_fsync)
-			AC_LINK_IFELSE([#include <aio.h>
-int main() { struct aiocb a; return aio_fsync(1, &a); }],
+			AC_LINK_IFELSE([AC_LANG_SOURCE([#include <aio.h>
+int main() { struct aiocb a; return aio_fsync(1, &a); }])],
 [AC_DEFINE(HAVE_AIO_FSYNC, 1, [Have aio_fsync]) AC_MSG_RESULT(yes)],
 [AC_MSG_RESULT(no)])
 
 			AC_MSG_CHECKING(for aio_return)
-			AC_LINK_IFELSE([#include <aio.h>
-int main() { struct aiocb a; return aio_return(&a); }],
+			AC_LINK_IFELSE([AC_LANG_SOURCE([#include <aio.h>
+int main() { struct aiocb a; return aio_return(&a); }])],
 [AC_DEFINE(HAVE_AIO_RETURN, 1, [Have aio_return]) AC_MSG_RESULT(yes)],
 [AC_MSG_RESULT(no)])
 
 			AC_MSG_CHECKING(for aio_error)
-			AC_LINK_IFELSE([#include <aio.h>
-int main() { struct aiocb a; return aio_error(&a); }],
+			AC_LINK_IFELSE([AC_LANG_SOURCE([#include <aio.h>
+int main() { struct aiocb a; return aio_error(&a); }])],
 [AC_DEFINE(HAVE_AIO_ERROR, 1, [Have aio_error]) AC_MSG_RESULT(yes)],
 [AC_MSG_RESULT(no)])
 
 			AC_MSG_CHECKING(for aio_cancel)
-			AC_LINK_IFELSE([#include <aio.h>
-int main() { struct aiocb a; return aio_cancel(1, &a); }],
+			AC_LINK_IFELSE([AC_LANG_SOURCE([#include <aio.h>
+int main() { struct aiocb a; return aio_cancel(1, &a); }])],
 [AC_DEFINE(HAVE_AIO_CANCEL, 1, [Have aio_cancel]) AC_MSG_RESULT(yes)],
 [AC_MSG_RESULT(no)])
 
 			AC_MSG_CHECKING(for aio_suspend)
-			AC_LINK_IFELSE([#include <aio.h>
-int main() { struct aiocb a; struct timespec t; return aio_suspend(&a, 1, &t); }],
+			AC_LINK_IFELSE([AC_LANG_SOURCE([#include <aio.h>
+int main() { struct aiocb a; struct timespec t; return aio_suspend(&a, 1, &t); }])],
 [AC_DEFINE(HAVE_AIO_SUSPEND, 1, [Have aio_suspend]) AC_MSG_RESULT(yes)],
 [AC_MSG_RESULT(no)])
+		else
+			AC_DEFINE(HAVE_NO_AIO,1,[Whether no asynchronous io support is available])
+			AC_MSG_RESULT(no)
 		fi
+fi
 
-		if test x"$samba_cv_HAVE_AIO64" = x"yes"; then
-			AC_MSG_CHECKING(for aio_read64)
-			AC_LINK_IFELSE([#include <aio.h>
-int main() { struct aiocb a; return aio_read64(&a); }],
-[AC_DEFINE(HAVE_AIO_READ64, 1, [Have aio_read64]) AC_MSG_RESULT(yes)],
-[AC_MSG_RESULT(no)])
+if test x"$samba_cv_msghdr_msg_control" = x"yes" -o \
+	x"$samba_cv_msghdr_msg_acctright" = x"yes"; then
+	default_shared_modules="$default_shared_modules vfs_aio_fork"
+fi
 
-			AC_MSG_CHECKING(for aio_write64)
-			AC_LINK_IFELSE([#include <aio.h>
-int main() { struct aiocb a; return aio_write64(&a); }],
-[AC_DEFINE(HAVE_AIO_WRITE64, 1, [Have aio_write64]) AC_MSG_RESULT(yes)],
-[AC_MSG_RESULT(no)])
-
-			AC_MSG_CHECKING(for aio_fsync64)
-			AC_LINK_IFELSE([#include <aio.h>
-int main() { struct aiocb a; return aio_fsync64(1, &a); }],
-[AC_DEFINE(HAVE_AIO_FSYNC64, 1, [Have aio_fsync64]) AC_MSG_RESULT(yes)],
-[AC_MSG_RESULT(no)])
-
-			AC_MSG_CHECKING(for aio_return64)
-			AC_LINK_IFELSE([#include <aio.h>
-int main() { struct aiocb a; return aio_return64(&a); }],
-[AC_DEFINE(HAVE_AIO_RETURN64, 1, [Have aio_return64]) AC_MSG_RESULT(yes)],
-[AC_MSG_RESULT(no)])
-
-			AC_MSG_CHECKING(for aio_error64)
-			AC_LINK_IFELSE([#include <aio.h>
-int main() { struct aiocb a; return aio_error64(&a); }],
-[AC_DEFINE(HAVE_AIO_ERROR64, 1, [Have aio_error64]) AC_MSG_RESULT(yes)],
-[AC_MSG_RESULT(no)])
-
-			AC_MSG_CHECKING(for aio_cancel64)
-			AC_LINK_IFELSE([#include <aio.h>
-int main() { struct aiocb a; return aio_cancel64(1, &a); }],
-[AC_DEFINE(HAVE_AIO_CANCEL64, 1, [Have aio_cancel64]) AC_MSG_RESULT(yes)],
-[AC_MSG_RESULT(no)])
-
-			AC_MSG_CHECKING(for aio_suspend64)
-			AC_LINK_IFELSE([#include <aio.h>
-int main() { struct aiocb a; return aio_suspend64(&a, 1, NULL); }],
-[AC_DEFINE(HAVE_AIO_SUSPEND64, 1, [Have aio_suspend64]) AC_MSG_RESULT(yes)],
-[AC_MSG_RESULT(no)])
-		fi
-            ;;
-        esac
-        ;;
-  *)
-    AC_MSG_RESULT(no)
-    AC_DEFINE(HAVE_NO_AIO,1,[Whether no asynchronous io support is available])
+# Check for Linux kernel aio support.
+case "$host_os" in
+*linux*)
+    AC_CHECK_LIB(aio,io_submit,[AIO_LIBS="$LIBS -laio"])
+    AC_CACHE_CHECK([for Linux kernel asynchronous io support],samba_cv_HAVE_LINUX_KERNEL_AIO,[
+    aio_LIBS=$LIBS
+    LIBS=$AIO_LIBS
+    AC_TRY_LINK([#include <unistd.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#include <sys/eventfd.h>
+#include <libaio.h>],
+[ struct io_event ioev;
+struct iocb *ioc;
+io_context_t ctx;
+struct timespec ts;
+int fd;
+char *buf;
+fd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+io_queue_init(128,&ctx);
+io_prep_pwrite(ioc, 1, buf, 1, 0);
+io_prep_pread(ioc, 1, buf, 1, 0);
+io_set_eventfd(ioc, fd);
+io_set_callback(ioc, (io_callback_t)(0));
+io_submit(ctx, 1, &ioc);
+io_getevents(ctx, 1, 1, &ioev, &ts);],
+samba_cv_HAVE_LINUX_KERNEL_AIO=yes,samba_cv_HAVE_LINUX_KERNEL_AIO=no)
+		LIBS=$aio_LIBS])
+    if test x"$samba_cv_HAVE_LINUX_KERNEL_AIO" = x"yes"; then
+	default_shared_modules="$default_shared_modules vfs_aio_linux"
+    fi
     ;;
-  esac ],
-  AC_DEFINE(HAVE_NO_AIO,1,[Whether no asynchronous io support should be built in])
-  AC_MSG_RESULT(no)
-)
+esac
 
 if test x"$samba_cv_HAVE_AIO" = x"yes"; then
-	if test x"$samba_cv_msghdr_msg_control" = x"yes" -o \
-		x"$samba_cv_msghdr_msg_acctright" = x"yes"; then
-		default_shared_modules="$default_shared_modules vfs_aio_fork"
-	fi
+  default_shared_modules="$default_shared_modules vfs_aio_posix"
 fi
 
 #################################################
@@ -5997,16 +5494,6 @@ AC_ARG_WITH(sendfile-support,
 if test x$with_sendfile_support != xno ; then
     case "$host_os" in
 	*linux* | gnu* | k*bsd*-gnu | kopensolaris*-gnu)
-		AC_CACHE_CHECK([for linux sendfile64 support],samba_cv_HAVE_SENDFILE64,[
-		AC_TRY_LINK([#include <sys/sendfile.h>],
-[\
-int tofd, fromfd;
-off64_t offset;
-size_t total;
-ssize_t nwritten = sendfile64(tofd, fromfd, &offset, total);
-],
-samba_cv_HAVE_SENDFILE64=yes,samba_cv_HAVE_SENDFILE64=no)])
-
 		AC_CACHE_CHECK([for linux sendfile support],samba_cv_HAVE_SENDFILE,[
 		AC_TRY_LINK([#include <sys/sendfile.h>],
 [\
@@ -6017,32 +5504,10 @@ ssize_t nwritten = sendfile(tofd, fromfd, &offset, total);
 ],
 samba_cv_HAVE_SENDFILE=yes,samba_cv_HAVE_SENDFILE=no)])
 
-# Try and cope with broken Linux sendfile....
-		AC_CACHE_CHECK([for broken linux sendfile support],samba_cv_HAVE_BROKEN_LINUX_SENDFILE,[
-		AC_TRY_LINK([\
-#if defined(_FILE_OFFSET_BITS) && (_FILE_OFFSET_BITS == 64)
-#undef _FILE_OFFSET_BITS
-#endif
-#include <sys/sendfile.h>],
-[\
-int tofd, fromfd;
-off_t offset;
-size_t total;
-ssize_t nwritten = sendfile(tofd, fromfd, &offset, total);
-],
-samba_cv_HAVE_BROKEN_LINUX_SENDFILE=yes,samba_cv_HAVE_BROKEN_LINUX_SENDFILE=no)])
-
-	if test x"$samba_cv_HAVE_SENDFILE64" = x"yes"; then
-    		AC_DEFINE(HAVE_SENDFILE64,1,[Whether 64-bit sendfile() is available])
-		AC_DEFINE(LINUX_SENDFILE_API,1,[Whether linux sendfile() API is available])
-		AC_DEFINE(WITH_SENDFILE,1,[Whether sendfile() should be used])
-	elif test x"$samba_cv_HAVE_SENDFILE" = x"yes"; then
+        if test x"$samba_cv_HAVE_SENDFILE" = x"yes"; then
     		AC_DEFINE(HAVE_SENDFILE,1,[Whether sendfile() is available])
 		AC_DEFINE(LINUX_SENDFILE_API,1,[Whether linux sendfile() API is available])
 		AC_DEFINE(WITH_SENDFILE,1,[Whether sendfile() should be used])
-	elif test x"$samba_cv_HAVE_BROKEN_LINUX_SENDFILE" = x"yes"; then
-		AC_DEFINE(LINUX_BROKEN_SENDFILE_API,1,[Whether (linux) sendfile() is broken])
-		AC_DEFINE(WITH_SENDFILE,1,[Whether sendfile should be used])
 	else
 		AC_MSG_RESULT(no);
 	fi
@@ -6078,34 +5543,41 @@ samba_cv_HAVE_SENDFILE=yes,samba_cv_HAVE_SENDFILE=no)])
 		AC_MSG_RESULT(no);
 	fi
 	;;
-
-	*hpux*)
-		AC_CACHE_CHECK([for hpux sendfile64 support],samba_cv_HAVE_SENDFILE64,[
-		AC_TRY_LINK([\
+	*darwin*)
+		AC_CACHE_CHECK([for Darwin sendfile support],
+			samba_cv_HAVE_SENDFILE,
+			[
+			AC_TRY_LINK([
+#include <sys/types.h>
 #include <sys/socket.h>
-#include <sys/uio.h>],
-[\
-	int fromfd, tofd;
-	size_t total=0;
-	struct iovec hdtrl[2];
-	ssize_t nwritten;
-	off64_t offset;
+#include <sys/uio.h>
+			],
+			[
+	int fromfd, tofd, ret;
+	off_t offset, nwritten;
+	struct sf_hdtr hdr;
+	struct iovec hdtrl;
+	hdr.headers = &hdtrl;
+	hdr.hdr_cnt = 1;
+	hdr.trailers = (void *)0;
+	hdr.trl_cnt = 0;
+	hdtrl.iov_base = (void *)0;
+	hdtrl.iov_len = 0;
+	ret = sendfile(fromfd, tofd, offset, &nwritten, &hdr, 0);
+			],
+			samba_cv_HAVE_SENDFILE=yes,
+			samba_cv_HAVE_SENDFILE=no)])
 
-	hdtrl[0].iov_base = 0;
-	hdtrl[0].iov_len = 0;
-
-	nwritten = sendfile64(tofd, fromfd, offset, total, &hdtrl[0], 0);
-],
-samba_cv_HAVE_SENDFILE64=yes,samba_cv_HAVE_SENDFILE64=no)])
-	if test x"$samba_cv_HAVE_SENDFILE64" = x"yes"; then
-    		AC_DEFINE(HAVE_SENDFILE64,1,[Whether sendfile64() is available])
-		AC_DEFINE(HPUX_SENDFILE_API,1,[Whether the hpux sendfile() API is available])
+	if test x"$samba_cv_HAVE_SENDFILE" = x"yes"; then
+		AC_DEFINE(HAVE_SENDFILE,1,[Whether sendfile() support is available])
+		AC_DEFINE(DARWIN_SENDFILE_API,1,[Whether the Darwin sendfile() API is available])
 		AC_DEFINE(WITH_SENDFILE,1,[Whether sendfile() support should be included])
 	else
 		AC_MSG_RESULT(no);
 	fi
-
-		AC_CACHE_CHECK([for hpux sendfile support],samba_cv_HAVE_SENDFILE,[
+	;;
+	*hpux*|*osf*)
+		AC_CACHE_CHECK([for osf/hpux sendfile support],samba_cv_HAVE_SENDFILE,[
 		AC_TRY_LINK([\
 #include <sys/socket.h>
 #include <sys/uio.h>],
@@ -6124,7 +5596,7 @@ samba_cv_HAVE_SENDFILE64=yes,samba_cv_HAVE_SENDFILE64=no)])
 samba_cv_HAVE_SENDFILE=yes,samba_cv_HAVE_SENDFILE=no)])
 	if test x"$samba_cv_HAVE_SENDFILE" = x"yes"; then
     		AC_DEFINE(HAVE_SENDFILE,1,[Whether sendfile() is available])
-		AC_DEFINE(HPUX_SENDFILE_API,1,[Whether the hpux sendfile() API is available])
+		AC_DEFINE(HPUX_SENDFILE_API,1,[Whether the osf/hpux sendfile() API is available])
 		AC_DEFINE(WITH_SENDFILE,1,[Whether sendfile() support should be included])
 	else
 		AC_MSG_RESULT(no);
@@ -6133,39 +5605,6 @@ samba_cv_HAVE_SENDFILE=yes,samba_cv_HAVE_SENDFILE=no)])
 
 	*solaris*)
 		AC_CHECK_LIB(sendfile,sendfilev)
-		AC_CACHE_CHECK([for solaris sendfilev64 support],samba_cv_HAVE_SENDFILEV64,[
-		AC_TRY_LINK([\
-#include <sys/sendfile.h>],
-[\
-        int sfvcnt;
-        size_t xferred;
-        struct sendfilevec vec[2];
-	ssize_t nwritten;
-	int tofd;
-
-	sfvcnt = 2;
-
-	vec[0].sfv_fd = SFV_FD_SELF;
-	vec[0].sfv_flag = 0;
-	vec[0].sfv_off = 0;
-	vec[0].sfv_len = 0;
-
-	vec[1].sfv_fd = 0;
-	vec[1].sfv_flag = 0;
-	vec[1].sfv_off = 0;
-	vec[1].sfv_len = 0;
-	nwritten = sendfilev64(tofd, vec, sfvcnt, &xferred);
-],
-samba_cv_HAVE_SENDFILEV64=yes,samba_cv_HAVE_SENDFILEV64=no)])
-
-	if test x"$samba_cv_HAVE_SENDFILEV64" = x"yes"; then
-    		AC_DEFINE(HAVE_SENDFILEV64,1,[Whether sendfilev64() is available])
-		AC_DEFINE(SOLARIS_SENDFILE_API,1,[Whether the soloris sendfile() API is available])
-		AC_DEFINE(WITH_SENDFILE,1,[Whether sendfile() support should be included])
-	else
-		AC_MSG_RESULT(no);
-	fi
-
 		AC_CACHE_CHECK([for solaris sendfilev support],samba_cv_HAVE_SENDFILEV,[
 		AC_TRY_LINK([\
 #include <sys/sendfile.h>],
@@ -6208,7 +5647,6 @@ samba_cv_HAVE_SENDFILEV=yes,samba_cv_HAVE_SENDFILEV=no)])
 	size_t total=0;
 	struct sf_parms hdtrl;
 	ssize_t nwritten;
-	off64_t offset;
 
 	hdtrl.header_data = 0;
 	hdtrl.header_length = 0;
@@ -6279,6 +5717,24 @@ if test x"$samba_cv_HAVE_POSIX_FADVISE" = x"yes"; then
 fi
 
 ############################################
+# See if we have the openat syscall.
+
+AC_CACHE_CHECK([for openat],
+		samba_cv_HAVE_OPENAT,[
+    AC_TRY_LINK([
+#if defined(HAVE_UNISTD_H)
+#include <unistd.h>
+#endif
+#include <fcntl.h>],
+    [int fd = openat(AT_FDCWD, ".", O_RDONLY);],
+    samba_cv_HAVE_OPENAT=yes,
+    samba_cv_HAVE_OPENAT=no)])
+
+if test x"$samba_cv_HAVE_OPENAT" = x"yes"; then
+    AC_DEFINE(HAVE_OPENAT,1, [Whether openat is available])
+fi
+
+############################################
 # See if we have the Linux splice syscall.
 
 case "$host_os" in
@@ -6290,7 +5746,7 @@ AC_CACHE_CHECK([for Linux splice],
 #include <unistd.h>
 #endif
 #include <fcntl.h>],
-    [long ret = splice(0,0,1,0,400,0);],
+    [long ret = splice(0,0,1,0,400,SPLICE_F_MOVE);],
     samba_cv_HAVE_LINUX_SPLICE=yes,
     samba_cv_HAVE_LINUX_SPLICE=no)])
 ;;
@@ -6368,7 +5824,7 @@ case "$host_os" in
 		NSSSONAMEVERSIONSUFFIX=".2"
 		WINBIND_NSS_EXTRA_OBJS="../nsswitch/winbind_nss_linux.o"
 		;;
-	*freebsd[[5-9]]*)
+	*freebsd[[5-9]]* | *freebsd1[[0-9]]*)
 		# FreeBSD winbind client is implemented as a wrapper around
 		# the Linux version.
 		NSSSONAMEVERSIONSUFFIX=".1"
@@ -6378,7 +5834,7 @@ case "$host_os" in
 		WINBIND_WINS_NSS="../nsswitch/nss_wins.$SHLIBEXT"
 		;;
 
-	*netbsd*[[3-9]]*)
+	*netbsd*[[3-9]]* | *netbsd1[[0-9]]*)
 		# NetBSD winbind client is implemented as a wrapper
 		# around the Linux version. It needs getpwent_r() to
 		# indicate libc's use of the correct nsdispatch API.
@@ -6417,6 +5873,8 @@ case "$host_os" in
 		WINBIND_NSS_LDSHFLAGS="-Wl,-bexpall,-bM:SRE,-ewb_aix_init"
 		WINBIND_NSS="../nsswitch/WINBIND"
 		WINBIND_WINS_NSS=""
+		;;
+	*darwin*)
 		;;
 	*)
 		HAVE_WINBIND=no
@@ -6462,7 +5920,7 @@ if test x"$HAVE_WBCLIENT" = x"yes"; then
 	LIBWBCLIENT_LIBS="$LIBWBCLIENT_LIBS $WBCLIENT_LDFLAGS"
 	AC_MSG_RESULT(yes)
 	AC_DEFINE(WITH_WINBIND,1,[Whether to link to wbclient])
-	EXTRA_BIN_PROGS="$EXTRA_BIN_PROGS bin/wbinfo\$(EXEEXT)"
+	EXTRA_BIN_PROGS="$EXTRA_BIN_PROGS bin/wbinfo"
 else
 	if test x"$enable_developer" = x"yes" -a x"$LINK_LIBWBCLIENT" = x"STATIC" ; then
 		BUILD_LIBWBCLIENT_SHARED=no
@@ -6495,8 +5953,8 @@ if test x"$HAVE_WINBIND" = x"yes"; then
         AC_MSG_RESULT(yes)
 	AC_DEFINE(WITH_WINBIND,1,[Whether to build winbind])
 
-	EXTRA_BIN_PROGS="$EXTRA_BIN_PROGS bin/wbinfo\$(EXEEXT)"
-	EXTRA_SBIN_PROGS="$EXTRA_SBIN_PROGS bin/winbindd\$(EXEEXT)"
+	EXTRA_BIN_PROGS="$EXTRA_BIN_PROGS bin/wbinfo"
+	EXTRA_SBIN_PROGS="$EXTRA_SBIN_PROGS bin/winbindd"
         if test $BLDSHARED = true -a x"$create_pam_modules" = x"yes"; then
 		PAM_MODULES="$PAM_MODULES pam_winbind"
 		INSTALL_PAM_MODULES="installpammodules"
@@ -6550,31 +6008,6 @@ AC_CHECK_MEMBERS([struct secmethod_table.method_attrlist], , ,
        [#include <usersec.h>])
 AC_CHECK_MEMBERS([struct secmethod_table.method_version], , ,
        [#include <usersec.h>])
-
-AC_CACHE_CHECK([for SO_PEERCRED],samba_cv_HAVE_PEERCRED,[
-AC_TRY_COMPILE([#include <sys/types.h>
-#include <sys/socket.h>],
-[struct ucred cred;
- socklen_t cred_len;
- int ret = getsockopt(0, SOL_SOCKET, SO_PEERCRED, &cred, &cred_len);
-],
-samba_cv_HAVE_PEERCRED=yes,samba_cv_HAVE_PEERCRED=no,samba_cv_HAVE_PEERCRED=cross)])
-if test x"$samba_cv_HAVE_PEERCRED" = x"yes"; then
-    AC_DEFINE(HAVE_PEERCRED,1,[Whether we can use SO_PEERCRED to get socket credentials])
-fi
-
-AC_CACHE_CHECK([for getpeereid],samba_cv_HAVE_GETPEEREID,[
-AC_TRY_LINK([#include <sys/types.h>
-#include <unistd.h>],
-[uid_t uid; gid_t gid; int ret;
- ret = getpeereid(0, &uid, &gid);
-],
-samba_cv_HAVE_GETPEEREID=yes,samba_cv_HAVE_GETPEEREID=no)])
-if test x"$samba_cv_HAVE_GETPEEREID" = xyes; then
-   AC_DEFINE(HAVE_GETPEEREID,1,
-	     [Whether we have getpeereid to get socket credentials])
-fi
-
 
 #################################################
 # Check to see if we should use the included popt
@@ -6749,23 +6182,24 @@ fi
 # Check if user wants pthreadpool support
 
 AC_ARG_ENABLE(pthreadpool,
-[AS_HELP_STRING([--enable-pthreadpool], [Enable pthreads pool helper support (default=no)])])
+[AS_HELP_STRING([--enable-pthreadpool], [Enable pthreads pool helper support (default=yes)])])
 
 if test x"$enable_pthreadpool" = xyes -a x"$samba_cv_HAVE_PTHREAD" != x"yes"; then
 	AC_MSG_ERROR([pthreadpool support cannot be enabled when pthread support was not found])
 fi
 
-if test x"$enable_pthreadpool" = x"yes" -a x"$samba_cv_HAVE_PTHREAD" = x"yes"; then
+if test x"$enable_pthreadpool" != x"no" -a x"$samba_cv_HAVE_PTHREAD" = x"yes"; then
     LIBS="$LIBS $PTHREAD_LDFLAGS"
     CFLAGS="$CFLAGS $PTHREAD_CFLAGS"
-    AC_DEFINE(WITH_PTHREADPOOL, 1, [Whether to include pthreadpool helpers])
     AC_SUBST(PTHREADPOOL_OBJ, "lib/pthreadpool/pthreadpool.o")
-    PTHREADPOOLTEST="bin/pthreadpooltest\$(EXEEXT)"
-    AC_SUBST(PTHREADPOOLTEST)
-    if test x"$samba_cv_HAVE_AIO" = x"yes"; then
-        default_shared_modules="$default_shared_modules vfs_aio_pthread"
-    fi
+    default_shared_modules="$default_shared_modules vfs_aio_pthread"
+else
+    AC_SUBST(PTHREADPOOL_OBJ, "lib/pthreadpool/pthreadpool_sync.o")
 fi
+
+PTHREADPOOLTEST="bin/pthreadpooltest"
+AC_SUBST(PTHREADPOOLTEST)
+
 
 #################################################
 # Check to see if we should use the included iniparser
@@ -6801,6 +6235,12 @@ fi
 AC_SUBST(BUILD_INIPARSER)
 AC_SUBST(INIPARSERLIBS)
 AC_SUBST(FLAGS1)
+
+AC_ARG_ENABLE(fault-handler,[AS_HELP_STRING([--disable-fault-handler], [Disable the default handler])])
+
+if test x"$enable_fault_handler" = x"no"; then
+	AC_DEFINE(HAVE_DISABLE_FAULT_HANDLER, 1, [Disable the default signal handler])
+fi
 
 ###################################################
 # Check for different/missing (set|get|end)netgrent prototypes
@@ -6838,13 +6278,43 @@ fi
 
 CFLAGS=$CFLAGS_SAVE
 
+# Checks for POSIX ignorant BSD style statvfs() function
+# Start
+AC_CHECK_HEADERS(sys/param.h sys/mount.h)
+
+AC_MSG_CHECKING([checking for posix ignorant *bsd style statfs struct])
+AC_CACHE_VAL(bsdstatvfs_cv_statfs,[
+	     AC_TRY_RUN([
+		#ifdef HAVE_SYS_PARAM_H
+		#include <sys/param.h>
+		#endif
+		#ifdef HAVE_SYS_MOUNT_H
+		#include <sys/mount.h>
+		#endif
+		int main (void)
+		{
+			struct statfs fsd;
+			fsd.f_bsize = 0;
+			fsd.f_iosize = 0;
+			return (statfs (".", &fsd));
+		}],
+		bsdstatvfs_cv_statfs=yes,
+		bsdstatvfs_cv_statfs=no,
+		bsdstatvfs_cv_statfs=no)])
+AC_MSG_RESULT($bsdstatvfs_cv_statfs)
+
+if test $bsdstatvfs_cv_statfs = yes; then
+  AC_DEFINE(BSD_STYLE_STATVFS,1,[Whether statfs struct is *bsd style])
+fi
+# End of checks POSIX ignorant BSD style statvfs() function
+
 # Checks for the vfs_fileid module
 # Start
 AC_CHECK_FUNC(getmntent)
 
 AC_CHECK_HEADERS(sys/statfs.h)
 
-AC_MSG_CHECKING([vfs_fileid: checking for statfs() and struct statfs.f_fsid)])
+AC_MSG_CHECKING([vfs_fileid: checking for statfs() and struct statfs.f_fsid])
 AC_CACHE_VAL(vfsfileid_cv_statfs,[
 	     AC_TRY_RUN([
 		#include <sys/types.h>
@@ -6911,16 +6381,20 @@ AC_ARG_WITH(shared-modules,
 	done
 fi ])
 
+# additionally, support pdb_ldap -> pdb_ldapsam replacement
+if test x"$MODULE_pdb_ldap" != x ; then
+	MODULE_pdb_ldapsam="$MODULE_pdb_ldap"
+fi
+
 if test x"$MODULE_DEFAULT_vfs_notify_fam" = xSTATIC -o \
 		x"$MODULE_vfs_notify_fam" = xSTATIC ; then
 	SMBD_FAM_LIBS="$SMB_FAM_LIBS"
 	AC_SUBST(SMBD_FAM_LIBS)
 fi
 
-SMB_MODULE(pdb_ldap, passdb/pdb_ldap.o passdb/pdb_nds.o passdb/pdb_ipa.o,
+SMB_MODULE(pdb_ldapsam, passdb/pdb_ldap.o passdb/pdb_nds.o passdb/pdb_ipa.o passdb/pdb_ldap_util.o,
 		   "bin/ldapsam.$SHLIBEXT", PDB,
 		   [ PASSDB_LIBS="$PASSDB_LIBS $LDAP_LIBS" ] )
-SMB_MODULE(pdb_ads, passdb/pdb_ads.o \$(TLDAP_OBJ), "bin/ads.$SHLIBEXT", PDB)
 SMB_MODULE(pdb_smbpasswd, passdb/pdb_smbpasswd.o, "bin/smbpasswd.$SHLIBEXT", PDB)
 SMB_MODULE(pdb_tdbsam, passdb/pdb_tdb.o, "bin/tdbsam.$SHLIBEXT", PDB)
 SMB_MODULE(pdb_wbc_sam, passdb/pdb_wbc_sam.o, "bin/wbc_sam.$SHLIBEXT", PDB)
@@ -6935,27 +6409,18 @@ SMB_MODULE(idmap_rid, winbindd/idmap_rid.o, "bin/rid.$SHLIBEXT", IDMAP)
 SMB_MODULE(idmap_autorid, winbindd/idmap_autorid.o, "bin/autorid.$SHLIBEXT", IDMAP)
 SMB_MODULE(idmap_ad, winbindd/idmap_ad.o, "bin/ad.$SHLIBEXT", IDMAP)
 SMB_MODULE(idmap_hash, \$(IDMAP_HASH_OBJ), "bin/hash.$SHLIBEXT", IDMAP)
-SMB_MODULE(idmap_adex, \$(IDMAP_ADEX_OBJ), "bin/adex.$SHLIBEXT", IDMAP)
 SMB_SUBSYSTEM(IDMAP, winbindd/idmap.o)
 
 SMB_MODULE(nss_info_template, winbindd/nss_info_template.o, "bin/template.$SHLIBEXT", NSS_INFO)
 SMB_SUBSYSTEM(NSS_INFO, winbindd/nss_info.o)
 
-SMB_MODULE(charset_weird, modules/weird.o, "bin/weird.$SHLIBEXT", CHARSET)
-SMB_MODULE(charset_CP850, modules/CP850.o, "bin/CP850.$SHLIBEXT", CHARSET)
-SMB_MODULE(charset_CP437, modules/CP437.o, "bin/CP437.$SHLIBEXT", CHARSET)
-SMB_MODULE(charset_macosxfs, modules/charset_macosxfs.o,"bin/macosxfs.$SHLIBEXT", CHARSET)
-SMB_SUBSYSTEM(CHARSET,lib/iconv.o)
-
 SMB_MODULE(auth_sam, \$(AUTH_SAM_OBJ), "bin/sam.$SHLIBEXT", AUTH)
 SMB_MODULE(auth_unix, \$(AUTH_UNIX_OBJ), "bin/unix.$SHLIBEXT", AUTH)
 SMB_MODULE(auth_winbind, \$(AUTH_WINBIND_OBJ), "bin/winbind.$SHLIBEXT", AUTH)
 SMB_MODULE(auth_wbc, \$(AUTH_WBC_OBJ), "bin/wbc.$SHLIBEXT", AUTH)
-SMB_MODULE(auth_server, \$(AUTH_SERVER_OBJ), "bin/smbserver.$SHLIBEXT", AUTH)
 SMB_MODULE(auth_domain, \$(AUTH_DOMAIN_OBJ), "bin/domain.$SHLIBEXT", AUTH)
 SMB_MODULE(auth_builtin, \$(AUTH_BUILTIN_OBJ), "bin/builtin.$SHLIBEXT", AUTH)
 SMB_MODULE(auth_script, \$(AUTH_SCRIPT_OBJ), "bin/script.$SHLIBEXT", AUTH)
-SMB_MODULE(auth_netlogond, \$(AUTH_NETLOGOND_OBJ), "bin/netlogond.$SHLIBEXT", AUTH)
 SMB_SUBSYSTEM(AUTH,auth/auth.o)
 
 SMB_MODULE(vfs_default, \$(VFS_DEFAULT_OBJ), "bin/default.$SHLIBEXT", VFS)
@@ -6965,6 +6430,7 @@ SMB_MODULE(vfs_extd_audit, \$(VFS_EXTD_AUDIT_OBJ), "bin/extd_audit.$SHLIBEXT", V
 SMB_MODULE(vfs_full_audit, \$(VFS_FULL_AUDIT_OBJ), "bin/full_audit.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_netatalk, \$(VFS_NETATALK_OBJ), "bin/netatalk.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_fake_perms, \$(VFS_FAKE_PERMS_OBJ), "bin/fake_perms.$SHLIBEXT", VFS)
+SMB_MODULE(vfs_fake_acls, \$(VFS_FAKE_ACLS_OBJ), "bin/fake_acls.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_default_quota, \$(VFS_DEFAULT_QUOTA_OBJ), "bin/default_quota.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_readonly, \$(VFS_READONLY_OBJ), "bin/readonly.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_cap, \$(VFS_CAP_OBJ), "bin/cap.$SHLIBEXT", VFS)
@@ -6987,12 +6453,13 @@ SMB_MODULE(vfs_cacheprime, \$(VFS_CACHEPRIME_OBJ), "bin/cacheprime.$SHLIBEXT", V
 SMB_MODULE(vfs_prealloc, \$(VFS_PREALLOC_OBJ), "bin/prealloc.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_commit, \$(VFS_COMMIT_OBJ), "bin/commit.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_gpfs, \$(VFS_GPFS_OBJ), "bin/gpfs.$SHLIBEXT", VFS)
-SMB_MODULE(vfs_gpfs_hsm_notify, \$(VFS_GPFS_PREFETCH_OBJ), "bin/gpfs_hsm_notify.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_readahead, \$(VFS_READAHEAD_OBJ), "bin/readahead.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_tsmsm, \$(VFS_TSMSM_OBJ), "bin/tsmsm.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_fileid, \$(VFS_FILEID_OBJ), "bin/fileid.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_aio_fork, \$(VFS_AIO_FORK_OBJ), "bin/aio_fork.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_aio_pthread, \$(VFS_AIO_PTHREAD_OBJ), "bin/aio_pthread.$SHLIBEXT", VFS)
+SMB_MODULE(vfs_aio_posix, \$(VFS_AIO_POSIX_OBJ), "bin/aio_posix.$SHLIBEXT", VFS)
+SMB_MODULE(vfs_aio_linux, \$(VFS_AIO_LINUX_OBJ), "bin/aio_linux.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_preopen, \$(VFS_PREOPEN_OBJ), "bin/preopen.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_syncops, \$(VFS_SYNCOPS_OBJ), "bin/syncops.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_zfsacl, \$(VFS_ZFSACL_OBJ), "bin/zfsacl.$SHLIBEXT", VFS)
@@ -7000,17 +6467,15 @@ SMB_MODULE(vfs_notify_fam, \$(VFS_NOTIFY_FAM_OBJ), "bin/notify_fam.$SHLIBEXT", V
 SMB_MODULE(vfs_acl_xattr, \$(VFS_ACL_XATTR_OBJ), "bin/acl_xattr.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_acl_tdb, \$(VFS_ACL_TDB_OBJ), "bin/acl_tdb.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_smb_traffic_analyzer, \$(VFS_SMB_TRAFFIC_ANALYZER_OBJ), "bin/smb_traffic_analyzer.$SHLIBEXT", VFS)
-SMB_MODULE(vfs_onefs, \$(VFS_ONEFS), "bin/onefs.$SHLIBEXT", VFS)
-SMB_MODULE(vfs_onefs_shadow_copy, \$(VFS_ONEFS_SHADOW_COPY), "bin/onefs_shadow_copy.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_dirsort, \$(VFS_DIRSORT_OBJ), "bin/dirsort.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_scannedonly, \$(VFS_SCANNEDONLY_OBJ), "bin/scannedonly.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_crossrename, \$(VFS_CROSSRENAME_OBJ), "bin/crossrename.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_linux_xfs_sgid, \$(VFS_LINUX_XFS_SGID_OBJ), "bin/linux_xfs_sgid.$SHLIBEXT", VFS)
 SMB_MODULE(vfs_time_audit, \$(VFS_TIME_AUDIT_OBJ), "bin/time_audit.$SHLIBEXT", VFS)
+SMB_MODULE(vfs_media_harmony, \$(VFS_MEDIA_HARMONY_OBJ), "bin/media_harmony.$SHLIBEXT", VFS)
 
 SMB_SUBSYSTEM(VFS,smbd/vfs.o)
 
-SMB_MODULE(perfcount_onefs, \$(PERFCOUNT_ONEFS), "bin/pc_onefs.$SHLIBEXT", PERFCOUNT)
 SMB_MODULE(perfcount_test, \$(PERFCOUNT_TEST), "bin/pc_test.$SHLIBEXT", PERFCOUNT)
 SMB_SUBSYSTEM(PERFCOUNT,smbd/perfcount.o)
 
@@ -7031,10 +6496,13 @@ fi
 #################################################
 # If run from the build farm, enable NASTY hacks
 #################################################
-AC_MSG_CHECKING(whether to enable build farm hacks)
-if test x"$RUN_FROM_BUILD_FARM" = x"yes"; then
+AC_MSG_CHECKING(whether to enable features for selftest)
+if test x"$selftest" = x"yes"; then
 	AC_MSG_RESULT(yes)
-	AC_DEFINE(ENABLE_BUILD_FARM_HACKS, 1, [Defined if running in the build farm])
+	AC_DEFINE(ENABLE_SELFTEST, 1, [Support features needed for selftest])
+	if test x"$selftest_possible" != xyes; then
+		AC_MSG_ERROR(selftest support only possible with python, including development headers, and perl installed)
+	fi
 else
 	AC_MSG_RESULT(no)
 fi
@@ -7113,18 +6581,6 @@ fi
 
 m4_include(../lib/zlib/zlib.m4)
 
-if test x$smbtorture4_possible = xyes; then
-	saved_USESHARED="$USESHARED"
-	USESHARED="false"
-	smbtorture4_path="bin/smbtorture4"
-	smbtorture4_option="-t bin/smbtorture4"
-	AC_SUBST(smbtorture4_path)
-	AC_SUBST(smbtorture4_option)
-	USESHARED="$saved_USESHARED"
-	SMBTORTURE4="bin/smbtorture4"
-	AC_SUBST(SMBTORTURE4)
-fi
-
 AC_SUBST(ZLIB_LIBS)
 AC_SUBST(ZLIB_OBJS)
 AC_ZLIB([ZLIB_OBJS=""], [
@@ -7137,6 +6593,9 @@ AC_ZLIB([ZLIB_OBJS=""], [
 	done
 	CFLAGS="-I../lib/zlib $CFLAGS"
 ])
+
+AC_DEFINE(STATIC_gensec_MODULES, [gensec_spnego_init,gensec_ntlmssp_init,NULL],[gensec modules])
+AC_DEFINE(STATIC_gensec_MODULES_PROTO, [_MODULE_PROTO(gensec_spnego_init)_MODULE_PROTO(gensec_ntlmssp_init)],[gensec protos])
 
 AC_ARG_ENABLE(dmalloc, [AS_HELP_STRING([--enable-dmalloc], [Enable heap debugging [default=no]])])
 
@@ -7167,9 +6626,6 @@ fi
 if test x"$with_ldap_support" != x"no"; then
     AC_MSG_RESULT([    LDAP_LIBS = $LDAP_LIBS])
 fi
-if test x"$with_dnsupdate_support" != x"no"; then
-    AC_MSG_RESULT([    UUID_LIBS = $UUID_LIBS])
-fi
 if test x"$have_dnssd_support" != x"no"; then
     AC_MSG_RESULT([    DNSSD_LIBS = $DNSSD_LIBS])
 fi
@@ -7187,7 +6643,7 @@ AC_TRY_RUN([#include "${srcdir-.}/../tests/summary.c"],
 dnl Merge in developer cflags from now on
 AC_SUBST(DEVELOPER_CFLAGS)
 if test x"$krb5_developer" = x"yes" -o x"$developer" = x"yes" -o x"$picky_developer" = x"yes"; then
-    CFLAGS="${CFLAGS} \$(DEVELOPER_CFLAGS)"
+    CFLAGS="${CFLAGS} \$(DEVELOPER_CFLAGS) ${CFLAGS_APPEND}"
 fi
 
 # Stuff the smbd-only libraries at the end of the smbd link
@@ -7206,7 +6662,7 @@ fi
 ])
 
 AC_OUTPUT(Makefile
-	  script/findsmb smbadduser script/gen-8bit-gap.sh script/installbin.sh script/uninstallbin.sh
+	  script/findsmb smbadduser script/installbin.sh script/uninstallbin.sh
 	  lib/netapi/examples/Makefile
 	  lib/netapi/tests/Makefile
 	  pkgconfig/smbclient.pc

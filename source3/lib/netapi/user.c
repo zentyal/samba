@@ -575,7 +575,7 @@ WERROR NetUserDel_r(struct libnetapi_ctx *ctx,
 	status = dcerpc_samr_OpenDomain(b, talloc_tos(),
 					&connect_handle,
 					SAMR_DOMAIN_ACCESS_OPEN_ACCOUNT,
-					CONST_DISCARD(struct dom_sid *, &global_sid_Builtin),
+					discard_const_p(struct dom_sid, &global_sid_Builtin),
 					&builtin_handle,
 					&result);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -602,6 +602,14 @@ WERROR NetUserDel_r(struct libnetapi_ctx *ctx,
 	}
 	if (!NT_STATUS_IS_OK(result)) {
 		werr = ntstatus_to_werror(result);
+		goto done;
+	}
+	if (user_rids.count != 1) {
+		werr = WERR_BAD_NET_RESP;
+		goto done;
+	}
+	if (name_types.count != 1) {
+		werr = WERR_BAD_NET_RESP;
 		goto done;
 	}
 
@@ -1436,7 +1444,7 @@ static WERROR convert_samr_dispinfo_to_NET_DISPLAY_USER(TALLOC_CTX *mem_ctx,
 	struct NET_DISPLAY_USER *user = NULL;
 	int i;
 
-	user = TALLOC_ZERO_ARRAY(mem_ctx,
+	user = talloc_zero_array(mem_ctx,
 				 struct NET_DISPLAY_USER,
 				 info->count);
 	W_ERROR_HAVE_NO_MEMORY(user);
@@ -1480,7 +1488,7 @@ static WERROR convert_samr_dispinfo_to_NET_DISPLAY_MACHINE(TALLOC_CTX *mem_ctx,
 	struct NET_DISPLAY_MACHINE *machine = NULL;
 	int i;
 
-	machine = TALLOC_ZERO_ARRAY(mem_ctx,
+	machine = talloc_zero_array(mem_ctx,
 				    struct NET_DISPLAY_MACHINE,
 				    info->count);
 	W_ERROR_HAVE_NO_MEMORY(machine);
@@ -1522,7 +1530,7 @@ static WERROR convert_samr_dispinfo_to_NET_DISPLAY_GROUP(TALLOC_CTX *mem_ctx,
 	struct NET_DISPLAY_GROUP *group = NULL;
 	int i;
 
-	group = TALLOC_ZERO_ARRAY(mem_ctx,
+	group = talloc_zero_array(mem_ctx,
 				  struct NET_DISPLAY_GROUP,
 				  info->count);
 	W_ERROR_HAVE_NO_MEMORY(group);
@@ -1803,6 +1811,14 @@ WERROR NetUserGetInfo_r(struct libnetapi_ctx *ctx,
 		werr = ntstatus_to_werror(result);
 		goto done;
 	}
+	if (user_rids.count != 1) {
+		werr = WERR_BAD_NET_RESP;
+		goto done;
+	}
+	if (name_types.count != 1) {
+		werr = WERR_BAD_NET_RESP;
+		goto done;
+	}
 
 	status = libnetapi_samr_lookup_user_map_USER_INFO(ctx, pipe_cli,
 							  domain_sid,
@@ -1965,6 +1981,14 @@ WERROR NetUserSetInfo_r(struct libnetapi_ctx *ctx,
 	}
 	if (!NT_STATUS_IS_OK(result)) {
 		werr = ntstatus_to_werror(result);
+		goto done;
+	}
+	if (user_rids.count != 1) {
+		werr = WERR_BAD_NET_RESP;
+		goto done;
+	}
+	if (name_types.count != 1) {
+		werr = WERR_BAD_NET_RESP;
 		goto done;
 	}
 
@@ -3026,6 +3050,14 @@ WERROR NetUserGetGroups_r(struct libnetapi_ctx *ctx,
 		werr = ntstatus_to_werror(result);
 		goto done;
 	}
+	if (user_rids.count != 1) {
+		werr = WERR_BAD_NET_RESP;
+		goto done;
+	}
+	if (name_types.count != 1) {
+		werr = WERR_BAD_NET_RESP;
+		goto done;
+	}
 
 	status = dcerpc_samr_OpenUser(b, talloc_tos(),
 				      &domain_handle,
@@ -3079,6 +3111,14 @@ WERROR NetUserGetGroups_r(struct libnetapi_ctx *ctx,
 	if (!NT_STATUS_IS_OK(result) &&
 	    !NT_STATUS_EQUAL(result, STATUS_SOME_UNMAPPED)) {
 		werr = ntstatus_to_werror(result);
+		goto done;
+	}
+	if (names.count != rid_array->count) {
+		werr = WERR_BAD_NET_RESP;
+		goto done;
+	}
+	if (types.count != rid_array->count) {
+		werr = WERR_BAD_NET_RESP;
 		goto done;
 	}
 
@@ -3137,7 +3177,6 @@ WERROR NetUserSetGroups_r(struct libnetapi_ctx *ctx,
 	size_t num_del_rids = 0;
 
 	uint32_t *member_rids = NULL;
-	size_t num_member_rids = 0;
 
 	struct GROUP_USERS_INFO_0 *i0 = NULL;
 	struct GROUP_USERS_INFO_1 *i1 = NULL;
@@ -3201,6 +3240,14 @@ WERROR NetUserSetGroups_r(struct libnetapi_ctx *ctx,
 		werr = ntstatus_to_werror(result);
 		goto done;
 	}
+	if (user_rids.count != 1) {
+		werr = WERR_BAD_NET_RESP;
+		goto done;
+	}
+	if (name_types.count != 1) {
+		werr = WERR_BAD_NET_RESP;
+		goto done;
+	}
 
 	status = dcerpc_samr_OpenUser(b, talloc_tos(),
 				      &domain_handle,
@@ -3261,9 +3308,16 @@ WERROR NetUserSetGroups_r(struct libnetapi_ctx *ctx,
 		werr = ntstatus_to_werror(result);
 		goto done;
 	}
+	if (group_rids.count != r->in.num_entries) {
+		werr = WERR_BAD_NET_RESP;
+		goto done;
+	}
+	if (name_types.count != r->in.num_entries) {
+		werr = WERR_BAD_NET_RESP;
+		goto done;
+	}
 
 	member_rids = group_rids.ids;
-	num_member_rids = group_rids.count;
 
 	status = dcerpc_samr_GetGroupsForUser(b, talloc_tos(),
 					      &user_handle,
@@ -3539,6 +3593,14 @@ WERROR NetUserGetLocalGroups_r(struct libnetapi_ctx *ctx,
 		werr = ntstatus_to_werror(result);
 		goto done;
 	}
+	if (user_rids.count != 1) {
+		werr = WERR_BAD_NET_RESP;
+		goto done;
+	}
+	if (name_types.count != 1) {
+		werr = WERR_BAD_NET_RESP;
+		goto done;
+	}
 
 	status = dcerpc_samr_OpenUser(b, talloc_tos(),
 				      &domain_handle,
@@ -3574,7 +3636,7 @@ WERROR NetUserGetLocalGroups_r(struct libnetapi_ctx *ctx,
 	}
 
 	sid_array.num_sids = rid_array->count + 1;
-	sid_array.sids = TALLOC_ARRAY(ctx, struct lsa_SidPtr, sid_array.num_sids);
+	sid_array.sids = talloc_array(ctx, struct lsa_SidPtr, sid_array.num_sids);
 	if (!sid_array.sids) {
 		werr = WERR_NOMEM;
 		goto done;
@@ -3658,6 +3720,14 @@ WERROR NetUserGetLocalGroups_r(struct libnetapi_ctx *ctx,
 	}
 	if (!NT_STATUS_IS_OK(result)) {
 		werr = ntstatus_to_werror(result);
+		goto done;
+	}
+	if (names.count != num_rids) {
+		werr = WERR_BAD_NET_RESP;
+		goto done;
+	}
+	if (types.count != num_rids) {
+		werr = WERR_BAD_NET_RESP;
 		goto done;
 	}
 

@@ -20,46 +20,48 @@
 #ifndef _SMB_ACLS_H
 #define _SMB_ACLS_H
 
+#include "librpc/gen_ndr/smb_acl.h"
+
+struct vfs_handle_struct;
+struct files_struct;
+
 typedef int			SMB_ACL_TYPE_T;
 typedef mode_t			*SMB_ACL_PERMSET_T;
 typedef mode_t			SMB_ACL_PERM_T;
-#define SMB_ACL_READ 				4
-#define SMB_ACL_WRITE 				2
-#define SMB_ACL_EXECUTE				1
-
-/* Types of ACLs. */
-enum smb_acl_tag_t {
-	SMB_ACL_TAG_INVALID=0,
-	SMB_ACL_USER=1,
-	SMB_ACL_USER_OBJ,
-	SMB_ACL_GROUP,
-	SMB_ACL_GROUP_OBJ,
-	SMB_ACL_OTHER,
-	SMB_ACL_MASK
-};
 
 typedef enum smb_acl_tag_t SMB_ACL_TAG_T;
-
-struct smb_acl_entry {
-	enum smb_acl_tag_t a_type;
-	SMB_ACL_PERM_T a_perm;
-	uid_t uid;
-	gid_t gid;
-};
-
-typedef struct smb_acl_t {
-	int	size;
-	int	count;
-	int	next;
-	struct smb_acl_entry acl[1];
-} *SMB_ACL_T;
+typedef struct smb_acl_t *SMB_ACL_T;
 
 typedef struct smb_acl_entry 	*SMB_ACL_ENTRY_T;
 
-#define SMB_ACL_FIRST_ENTRY			0
-#define SMB_ACL_NEXT_ENTRY			1
+/* The following definitions come from lib/sysacls.c  */
 
-#define SMB_ACL_TYPE_ACCESS			0
-#define SMB_ACL_TYPE_DEFAULT		1
+int sys_acl_get_entry(SMB_ACL_T acl_d, int entry_id, SMB_ACL_ENTRY_T *entry_p);
+int sys_acl_get_tag_type(SMB_ACL_ENTRY_T entry_d, SMB_ACL_TAG_T *type_p);
+int sys_acl_get_permset(SMB_ACL_ENTRY_T entry_d, SMB_ACL_PERMSET_T *permset_p);
+void *sys_acl_get_qualifier(SMB_ACL_ENTRY_T entry_d);
+int sys_acl_clear_perms(SMB_ACL_PERMSET_T permset_d);
+int sys_acl_add_perm(SMB_ACL_PERMSET_T permset_d, SMB_ACL_PERM_T perm);
+int sys_acl_get_perm(SMB_ACL_PERMSET_T permset_d, SMB_ACL_PERM_T perm);
+char *sys_acl_to_text(const struct smb_acl_t *acl_d, ssize_t *len_p);
+SMB_ACL_T sys_acl_init(TALLOC_CTX *mem_ctx);
+int sys_acl_create_entry(SMB_ACL_T *acl_p, SMB_ACL_ENTRY_T *entry_p);
+int sys_acl_set_tag_type(SMB_ACL_ENTRY_T entry_d, SMB_ACL_TAG_T tag_type);
+int sys_acl_set_qualifier(SMB_ACL_ENTRY_T entry_d, void *qual_p);
+int sys_acl_set_permset(SMB_ACL_ENTRY_T entry_d, SMB_ACL_PERMSET_T permset_d);
+int sys_acl_free_text(char *text);
+int sys_acl_valid(SMB_ACL_T acl_d);
+SMB_ACL_T sys_acl_get_file(struct vfs_handle_struct *handle,
+			   const char *path_p, SMB_ACL_TYPE_T type,
+			   TALLOC_CTX *mem_ctx);
+SMB_ACL_T sys_acl_get_fd(struct vfs_handle_struct *handle, struct files_struct *fsp,
+			 TALLOC_CTX *mem_ctx);
+int sys_acl_set_file(struct vfs_handle_struct *handle,
+		     const char *name, SMB_ACL_TYPE_T type, SMB_ACL_T acl_d);
+int sys_acl_set_fd(struct vfs_handle_struct *handle, struct files_struct *fsp,
+		   SMB_ACL_T acl_d);
+int sys_acl_delete_def_file(struct vfs_handle_struct *handle,
+			    const char *path);
+int no_acl_syscall_error(int err);
 
 #endif /* _SMB_ACLS_H */

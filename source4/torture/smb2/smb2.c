@@ -30,17 +30,28 @@ static bool wrap_simple_1smb2_test(struct torture_context *torture_ctx,
 {
 	bool (*fn) (struct torture_context *, struct smb2_tree *);
 	bool ret;
-
 	struct smb2_tree *tree1;
+	TALLOC_CTX *mem_ctx = talloc_new(torture_ctx);
 
-	if (!torture_smb2_connection(torture_ctx, &tree1))
+	if (!torture_smb2_connection(torture_ctx, &tree1)) {
+		torture_fail(torture_ctx,
+			    "Establishing SMB2 connection failed\n");
 		return false;
+	}
+
+	/*
+	 * This is a trick:
+	 * The test might close the connection. If we steal the tree context
+	 * before that and free the parent instead of tree directly, we avoid
+	 * a double free error.
+	 */
+	talloc_steal(mem_ctx, tree1);
 
 	fn = test->fn;
 
 	ret = fn(torture_ctx, tree1);
 
-	talloc_free(tree1);
+	talloc_free(mem_ctx);
 
 	return ret;
 }
@@ -74,25 +85,34 @@ static bool wrap_simple_2smb2_test(struct torture_context *torture_ctx,
 				   struct torture_test *test)
 {
 	bool (*fn) (struct torture_context *, struct smb2_tree *, struct smb2_tree *);
-	bool ret;
+	bool ret = false;
 
 	struct smb2_tree *tree1;
 	struct smb2_tree *tree2;
 	TALLOC_CTX *mem_ctx = talloc_new(torture_ctx);
 
-	if (!torture_smb2_connection(torture_ctx, &tree1) ||
-	    !torture_smb2_connection(torture_ctx, &tree2)) {
-		return false;
+	if (!torture_smb2_connection(torture_ctx, &tree1)) {
+		torture_fail(torture_ctx,
+		    "Establishing SMB2 connection failed\n");
+		goto done;
 	}
 
 	talloc_steal(mem_ctx, tree1);
+
+	if (!torture_smb2_connection(torture_ctx, &tree2)) {
+		torture_fail(torture_ctx,
+		    "Establishing SMB2 connection failed\n");
+		goto done;
+	}
+
 	talloc_steal(mem_ctx, tree2);
 
 	fn = test->fn;
 
 	ret = fn(torture_ctx, tree1, tree2);
 
-	/* the test may already closed some of the connections */
+done:
+	/* the test may already have closed some of the connections */
 	talloc_free(mem_ctx);
 
 	return ret;
@@ -127,10 +147,7 @@ NTSTATUS torture_smb2_init(void)
 {
 	struct torture_suite *suite = torture_suite_create(talloc_autofree_context(), "smb2");
 	torture_suite_add_simple_test(suite, "connect", torture_smb2_connect);
-	torture_suite_add_simple_test(suite, "scan", torture_smb2_scan);
-	torture_suite_add_simple_test(suite, "scangetinfo", torture_smb2_getinfo_scan);
-	torture_suite_add_simple_test(suite, "scansetinfo", torture_smb2_setinfo_scan);
-	torture_suite_add_simple_test(suite, "scanfind", torture_smb2_find_scan);
+	torture_suite_add_suite(suite, torture_smb2_scan_init());
 	torture_suite_add_simple_test(suite, "getinfo", torture_smb2_getinfo);
 	torture_suite_add_simple_test(suite, "setinfo", torture_smb2_setinfo);
 	torture_suite_add_suite(suite, torture_smb2_lock_init());
@@ -139,13 +156,17 @@ NTSTATUS torture_smb2_init(void)
 	torture_suite_add_suite(suite, torture_smb2_acls_init());
 	torture_suite_add_suite(suite, torture_smb2_notify_init());
 	torture_suite_add_suite(suite, torture_smb2_durable_open_init());
+	torture_suite_add_suite(suite, torture_smb2_durable_v2_open_init());
 	torture_suite_add_suite(suite, torture_smb2_dir_init());
 	torture_suite_add_suite(suite, torture_smb2_lease_init());
 	torture_suite_add_suite(suite, torture_smb2_compound_init());
 	torture_suite_add_suite(suite, torture_smb2_oplocks_init());
 	torture_suite_add_suite(suite, torture_smb2_streams_init());
+	torture_suite_add_suite(suite, torture_smb2_ioctl_init());
+	torture_suite_add_suite(suite, torture_smb2_rename_init());
 	torture_suite_add_1smb2_test(suite, "bench-oplock", test_smb2_bench_oplock);
 	torture_suite_add_1smb2_test(suite, "hold-oplock", test_smb2_hold_oplock);
+	torture_suite_add_suite(suite, torture_smb2_session_init());
 
 	suite->description = talloc_strdup(suite, "SMB2-specific tests");
 

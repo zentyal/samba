@@ -1,4 +1,4 @@
-/* 
+/*
  *  Unix SMB/CIFS implementation.
  *  Generate AFS tickets
  *  Copyright (C) Volker Lendecke 2003
@@ -7,12 +7,12 @@
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation; either version 3 of the License, or
  *  (at your option) any later version.
- *  
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
- *  
+ *
  *  You should have received a copy of the GNU General Public License
  *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
@@ -93,11 +93,11 @@ static bool afs_createtoken(const char *username, const char *cell,
 	des_key_schedule key_schedule;
 
 	if (!secrets_init()) 
-		return False;
+		return false;
 
 	if (!secrets_fetch_afs_key(cell, &key)) {
 		DEBUG(1, ("Could not fetch AFS service key\n"));
-		return False;
+		return false;
 	}
 
 	ct->AuthHandle = key.kvno;
@@ -126,7 +126,7 @@ static bool afs_createtoken(const char *username, const char *cell,
 	p += 4;
 
 	/* We need to create a session key */
-	generate_random_buffer(p, 8);
+	generate_random_buffer((uint8_t *)p, 8);
 
 	/* Our client code needs the the key in the clear, it does not
            know the server-key ... */
@@ -176,14 +176,15 @@ static bool afs_createtoken(const char *username, const char *cell,
 	len = PTR_DIFF(p, clear_ticket);
 
 	des_key_sched((const_des_cblock *)key.key, key_schedule);
-	des_pcbc_encrypt(clear_ticket, clear_ticket,
+	des_pcbc_encrypt((const unsigned char*) clear_ticket,
+			 (unsigned char*) clear_ticket,
 			 len, key_schedule, (C_Block *)key.key, 1);
 
 	ZERO_STRUCT(key);
 
 	*ticket = data_blob(clear_ticket, len);
 
-	return True;
+	return true;
 }
 
 char *afs_createtoken_str(const char *username, const char *cell)
@@ -236,11 +237,12 @@ bool afs_login(connection_struct *conn)
 	}
 
 	afs_username = talloc_sub_advanced(ctx,
-				lp_servicename(SNUM(conn)),
-				conn->session_info->unix_name,
-				conn->connectpath, conn->session_info->utok.gid,
-				conn->session_info->sanitized_username,
-				conn->session_info->info3->base.domain.string,
+				lp_servicename(ctx, SNUM(conn)),
+				conn->session_info->unix_info->unix_name,
+				conn->connectpath,
+				conn->session_info->unix_token->gid,
+				conn->session_info->unix_info->sanitized_username,
+				conn->session_info->info->domain_name,
 				afs_username);
 	if (!afs_username) {
 		return false;
@@ -257,7 +259,9 @@ bool afs_login(connection_struct *conn)
 
 	/* The pts command always generates completely lower-case user
 	 * names. */
-	strlower_m(afs_username);
+	if (!strlower_m(afs_username)) {
+		return false;
+	}
 
 	cell = strchr(afs_username, '@');
 
@@ -274,7 +278,7 @@ bool afs_login(connection_struct *conn)
 		   afs_username, cell));
 
 	if (!afs_createtoken(afs_username, cell, &ticket, &ct))
-		return False;
+		return false;
 
 	/* For which Unix-UID do we want to set the token? */
 	ct.ViceId = getuid();
@@ -294,7 +298,7 @@ bool afs_login(connection_struct *conn)
 
 bool afs_login(connection_struct *conn)
 {
-	return True;
+	return true;
 }
 
 char *afs_createtoken_str(const char *username, const char *cell)

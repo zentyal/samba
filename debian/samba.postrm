@@ -1,11 +1,19 @@
-#!/bin/sh
+#! /bin/sh -e
 
 set -e
+
 if [ "$1" = purge ]; then
-	rm -rf /var/cache/samba/browse.dat
-	rm -rf /var/lib/samba/printers/
-	rm -rf /var/log/samba/log.nmbd* /var/log/samba/log.smbd* /var/log/samba/cores/
-	rm -rf /var/run/samba/nmbd.pid /var/run/samba/smbd.pid /var/run/samba/*.tdb
+
+	# Remove Samba's state files, both volatile and non-volatile
+	rm -Rf /var/run/samba/ /var/cache/samba/ /var/lib/samba
+
+	# Remove log files
+	rm -Rf /var/log/samba/
+
+	if [ -e /usr/share/debconf/confmodule ]; then
+		. /usr/share/debconf/confmodule
+		db_purge
+	fi
 fi
 
 #DEBHELPER#

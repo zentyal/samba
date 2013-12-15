@@ -23,7 +23,7 @@
 
 #include "includes.h"
 #include "lib/privileges.h"
-#include "dbwrap.h"
+#include "dbwrap/dbwrap.h"
 #include "libcli/security/privileges_private.h"
 #include "../libcli/security/security.h"
 #include "passdb.h"
@@ -76,6 +76,7 @@ static bool get_privileges( const struct dom_sid *sid, uint64_t *mask )
 	struct db_context *db = get_account_pol_db();
 	fstring tmp, keystr;
 	TDB_DATA data;
+	NTSTATUS status;
 
 	/* Fail if the admin has not enable privileges */
 
@@ -90,9 +91,9 @@ static bool get_privileges( const struct dom_sid *sid, uint64_t *mask )
 
 	fstr_sprintf(keystr, "%s%s", PRIVPREFIX, sid_to_fstring(tmp, sid));
 
-	data = dbwrap_fetch_bystring( db, talloc_tos(), keystr );
+	status = dbwrap_fetch_bystring(db, talloc_tos(), keystr, &data);
 
-	if ( !data.dptr ) {
+	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(4, ("get_privileges: No privileges assigned to SID "
 			  "[%s]\n", sid_string_dbg(sid)));
 		return False;
@@ -209,28 +210,34 @@ static int priv_traverse_fn(struct db_record *rec, void *state)
 	int  prefixlen = strlen(PRIVPREFIX);
 	struct dom_sid sid;
 	fstring sid_string;
+	TDB_DATA key;
+
+	key = dbwrap_record_get_key(rec);
 
 	/* check we have a PRIV_+SID entry */
 
-	if ( strncmp((char *)rec->key.dptr, PRIVPREFIX, prefixlen) != 0)
+	if (strncmp((char *)key.dptr, PRIVPREFIX, prefixlen) != 0)
 		return 0;
 
 	/* check to see if we are looking for a particular privilege */
 
-	fstrcpy( sid_string, (char *)&(rec->key.dptr[strlen(PRIVPREFIX)]) );
+	fstrcpy( sid_string, (char *)&(key.dptr[strlen(PRIVPREFIX)]) );
 
 	if (priv->privilege != 0) {
 		uint64_t mask;
+		TDB_DATA value;
 
-		if (rec->value.dsize == 4*4) {
-			mask = map_old_SE_PRIV(rec->value.dptr);
+		value = dbwrap_record_get_value(rec);
+
+		if (value.dsize == 4*4) {
+			mask = map_old_SE_PRIV(value.dptr);
 		} else {
-			if (rec->value.dsize != sizeof( uint64_t ) ) {
+			if (value.dsize != sizeof( uint64_t ) ) {
 				DEBUG(3, ("get_privileges: Invalid privileges record assigned to SID "
 					  "[%s]\n", sid_string));
 				return 0;
 			}
-			mask = BVAL(rec->value.dptr, 0);
+			mask = BVAL(value.dptr, 0);
 		}
 
 		/* if the SID does not have the specified privilege
@@ -271,6 +278,7 @@ NTSTATUS privilege_enumerate_accounts(struct dom_sid **sids, int *num_sids)
 {
 	struct db_context *db = get_account_pol_db();
 	PRIV_SID_LIST priv;
+	NTSTATUS status;
 
 	if (db == NULL) {
 		return NT_STATUS_ACCESS_DENIED;
@@ -278,7 +286,10 @@ NTSTATUS privilege_enumerate_accounts(struct dom_sid **sids, int *num_sids)
 
 	ZERO_STRUCT(priv);
 
-	db->traverse_read(db, priv_traverse_fn, &priv);
+	status = dbwrap_traverse_read(db, priv_traverse_fn, &priv, NULL);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
 
 	/* give the memory away; caller will free */
 
@@ -297,6 +308,7 @@ NTSTATUS privilege_enum_sids(enum sec_privilege privilege, TALLOC_CTX *mem_ctx,
 {
 	struct db_context *db = get_account_pol_db();
 	PRIV_SID_LIST priv;
+	NTSTATUS status;
 
 	if (db == NULL) {
 		return NT_STATUS_ACCESS_DENIED;
@@ -307,7 +319,10 @@ NTSTATUS privilege_enum_sids(enum sec_privilege privilege, TALLOC_CTX *mem_ctx,
 	priv.privilege = sec_privilege_mask(privilege);
 	priv.mem_ctx = mem_ctx;
 
-	db->traverse_read(db, priv_traverse_fn, &priv);
+	status = dbwrap_traverse_read(db, priv_traverse_fn, &priv, NULL);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
 
 	/* give the memory away; caller will free */
 

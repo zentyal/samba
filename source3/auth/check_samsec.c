@@ -492,7 +492,7 @@ NTSTATUS check_sam_security(const DATA_BLOB *challenge,
 		goto done;
 	}
 
-	(*server_info)->user_session_key =
+	(*server_info)->session_key =
 		data_blob_talloc(*server_info, user_sess_key.data,
 				 user_sess_key.length);
 	data_blob_free(&user_sess_key);
@@ -531,13 +531,13 @@ NTSTATUS check_sam_security_info3(const DATA_BLOB *challenge,
 		goto done;
 	}
 
-	info3 = TALLOC_ZERO_P(mem_ctx, struct netr_SamInfo3);
+	info3 = talloc_zero(mem_ctx, struct netr_SamInfo3);
 	if (info3 == NULL) {
 		status = NT_STATUS_NO_MEMORY;
 		goto done;
 	}
 
-	status = serverinfo_to_SamInfo3(server_info, NULL, 0, info3);
+	status = serverinfo_to_SamInfo3(server_info, info3);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(10, ("serverinfo_to_SamInfo3 failed: %s\n",
 			   nt_errstr(status)));

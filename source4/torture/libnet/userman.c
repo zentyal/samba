@@ -65,7 +65,7 @@ static bool test_useradd_async(struct torture_context *tctx,
 
 	torture_comment(tctx, "Testing async libnet_rpc_useradd\n");
 
-	c = libnet_rpc_useradd_send(p, &user, msg_handler);
+	c = libnet_rpc_useradd_send(p, mem_ctx, &user, msg_handler);
 	if (!c) {
 		torture_comment(tctx, "Failed to call async libnet_rpc_useradd\n");
 		return false;
@@ -250,10 +250,10 @@ static bool test_userdel(struct torture_context *tctx,
 		if (timeval_compare(&t, mod->in.change.fld)) { \
 			torture_comment(tctx, "'%s' field does not match\n", #fld); \
 			torture_comment(tctx, "received: '%s (+%ld us)'\n", \
-			       timestring(mem_ctx, t.tv_sec), t.tv_usec); \
+			       timestring(mem_ctx, t.tv_sec), (long)t.tv_usec); \
 			torture_comment(tctx, "expected: '%s (+%ld us)'\n", \
 			       timestring(mem_ctx, mod->in.change.fld->tv_sec), \
-			       mod->in.change.fld->tv_usec); \
+			       (long)mod->in.change.fld->tv_usec); \
 			return false; \
 		} \
 	}

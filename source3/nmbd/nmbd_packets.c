@@ -150,7 +150,7 @@ static uint16 name_trn_id=0;
 static uint16 generate_name_trn_id(void)
 {
 	if (!name_trn_id) {
-		name_trn_id = ((unsigned)time(NULL)%(unsigned)0x7FFF) + ((unsigned)sys_getpid()%(unsigned)100);
+		name_trn_id = ((unsigned)time(NULL)%(unsigned)0x7FFF) + ((unsigned)getpid()%(unsigned)100);
 	}
 	name_trn_id = (name_trn_id+1) % (unsigned)0x7FFF;
 	return name_trn_id;
@@ -963,9 +963,10 @@ void reply_netbios_packet(struct packet_struct *orig_packet,
 			return;
 	}
 
-	DEBUG(4,("reply_netbios_packet: sending a reply of packet type: %s %s to ip %s \
-for id %hu\n", packet_type, nmb_namestr(&orig_nmb->question.question_name),
-			inet_ntoa(packet.ip), orig_nmb->header.name_trn_id));
+	DEBUG(4, ("reply_netbios_packet: sending a reply of packet type: %s "
+		  "%s to ip %s for id %d\n", packet_type,
+		  nmb_namestr(&orig_nmb->question.question_name),
+		  inet_ntoa(packet.ip), orig_nmb->header.name_trn_id));
 
 	nmb->header.name_trn_id = orig_nmb->header.name_trn_id;
 	nmb->header.opcode = opcode;
@@ -1073,9 +1074,9 @@ static void process_browse_packet(struct packet_struct *p, const char *buf,int l
 
 	/* Drop the packet if it's a different NetBIOS scope, or the source is from one of our names. */
 	pull_ascii(scope, dgram->dest_name.scope, 64, 64, STR_TERMINATE);
-	if (!strequal(scope, global_scope())) {
+	if (!strequal(scope, lp_netbios_scope())) {
 		DEBUG(7,("process_browse_packet: Discarding datagram from IP %s. Scope (%s) \
-mismatch with our scope (%s).\n", inet_ntoa(p->ip), scope, global_scope()));
+mismatch with our scope (%s).\n", inet_ntoa(p->ip), scope, lp_netbios_scope()));
 		return;
 	}
 
@@ -1161,9 +1162,9 @@ static void process_lanman_packet(struct packet_struct *p, const char *buf,int l
 	/* Drop the packet if it's a different NetBIOS scope, or the source is from one of our names. */
 
 	pull_ascii(scope, dgram->dest_name.scope, 64, 64, STR_TERMINATE);
-	if (!strequal(scope, global_scope())) {
+	if (!strequal(scope, lp_netbios_scope())) {
 		DEBUG(7,("process_lanman_packet: Discarding datagram from IP %s. Scope (%s) \
-mismatch with our scope (%s).\n", inet_ntoa(p->ip), scope, global_scope()));
+mismatch with our scope (%s).\n", inet_ntoa(p->ip), scope, lp_netbios_scope()));
 		return;
 	}
 
@@ -1291,28 +1292,28 @@ packet sent to name %s from IP %s\n",
 
 	DEBUG(4,("process_dgram: datagram from %s to %s IP %s for %s of type %d len=%d\n",
 		nmb_namestr(&dgram->source_name),nmb_namestr(&dgram->dest_name),
-		inet_ntoa(p->ip), smb_buf(buf),CVAL(buf2,0),len));
+		inet_ntoa(p->ip), smb_buf_const(buf),CVAL(buf2,0),len));
 
 	/* Datagram packet received for the browser mailslot */
-	if (strequal(smb_buf(buf),BROWSE_MAILSLOT)) {
+	if (strequal(smb_buf_const(buf),BROWSE_MAILSLOT)) {
 		process_browse_packet(p,buf2,len);
 		return;
 	}
 
 	/* Datagram packet received for the LAN Manager mailslot */
-	if (strequal(smb_buf(buf),LANMAN_MAILSLOT)) {
+	if (strequal(smb_buf_const(buf),LANMAN_MAILSLOT)) {
 		process_lanman_packet(p,buf2,len);
 		return;
 	}
 
 	/* Datagram packet received for the domain logon mailslot */
-	if (strequal(smb_buf(buf),NET_LOGON_MAILSLOT)) {
+	if (strequal(smb_buf_const(buf),NET_LOGON_MAILSLOT)) {
 		process_logon_packet(p,buf2,len,NET_LOGON_MAILSLOT);
 		return;
 	}
 
 	/* Datagram packet received for the NT domain logon mailslot */
-	if (strequal(smb_buf(buf),NT_LOGON_MAILSLOT)) {
+	if (strequal(smb_buf_const(buf),NT_LOGON_MAILSLOT)) {
 		process_logon_packet(p,buf2,len,NT_LOGON_MAILSLOT);
 		return;
 	}
@@ -1435,15 +1436,17 @@ static struct subnet_record *find_subnet_for_nmb_packet( struct packet_struct *p
 
 		rrec = find_response_record( &subrec, nmb->header.name_trn_id);
 		if(rrec == NULL) {
-			DEBUG(3,("find_subnet_for_nmb_packet: response record not found for response id %hu\n",
-				nmb->header.name_trn_id));
+			DEBUG(3, ("find_subnet_for_nmb_packet: response "
+				  "record not found for response id %d\n",
+				  nmb->header.name_trn_id));
 			nb_packet_dispatch(packet_server, p);
 			return NULL;
 		}
 
 		if(subrec == NULL) {
-			DEBUG(0,("find_subnet_for_nmb_packet: subnet record not found for response id %hu\n",
-				nmb->header.name_trn_id));
+			DEBUG(0, ("find_subnet_for_nmb_packet: subnet record "
+				  "not found for response id %d\n",
+				  nmb->header.name_trn_id));
 			return NULL;
 		}
 
@@ -1565,8 +1568,9 @@ static void process_nmb_response(struct packet_struct *p)
 		return;
 
 	if(rrec == NULL) {
-		DEBUG(0,("process_nmb_response: response packet received but no response record \
-found for id = %hu. Ignoring packet.\n", nmb->header.name_trn_id));
+		DEBUG(0, ("process_nmb_response: response packet received but "
+			  "no response record found for id = %d. Ignoring "
+			  "packet.\n", nmb->header.name_trn_id));
 		return;
 	}
 
@@ -1698,7 +1702,12 @@ static bool create_listen_pollfds(struct pollfd **pfds,
 	for (subrec = FIRST_SUBNET;
 	     subrec != NULL;
 	     subrec = NEXT_SUBNET_EXCLUDING_UNICAST(subrec)) {
-		count += 2;	/* nmb_sock and dgram_sock */
+		if (subrec->nmb_sock != -1) {
+			count += 1;
+		}
+		if (subrec->dgram_sock != -1) {
+			count += 1;
+		}
 		if (subrec->nmb_bcast != -1) {
 			count += 1;
 		}
@@ -1707,18 +1716,18 @@ static bool create_listen_pollfds(struct pollfd **pfds,
 		}
 	}
 
-	fds = TALLOC_ZERO_ARRAY(NULL, struct pollfd, count);
+	fds = talloc_zero_array(NULL, struct pollfd, count);
 	if (fds == NULL) {
 		DEBUG(1, ("create_listen_pollfds: malloc fail for fds. "
 			  "size %d\n", count));
 		return true;
 	}
 
-	attrs = TALLOC_ARRAY(NULL, struct socket_attributes, count);
+	attrs = talloc_array(NULL, struct socket_attributes, count);
 	if (fds == NULL) {
 		DEBUG(1, ("create_listen_pollfds: malloc fail for attrs. "
 			  "size %d\n", count));
-		SAFE_FREE(fds);
+		TALLOC_FREE(fds);
 		return true;
 	}
 
@@ -1736,10 +1745,12 @@ static bool create_listen_pollfds(struct pollfd **pfds,
 
 	for (subrec = FIRST_SUBNET; subrec; subrec = NEXT_SUBNET_EXCLUDING_UNICAST(subrec)) {
 
-		fds[num].fd = subrec->nmb_sock;
-		attrs[num].type = NMB_PACKET;
-		attrs[num].broadcast = false;
-		num += 1;
+		if (subrec->nmb_sock != -1) {
+			fds[num].fd = subrec->nmb_sock;
+			attrs[num].type = NMB_PACKET;
+			attrs[num].broadcast = false;
+			num += 1;
+		}
 
 		if (subrec->nmb_bcast != -1) {
 			fds[num].fd = subrec->nmb_bcast;
@@ -1748,10 +1759,12 @@ static bool create_listen_pollfds(struct pollfd **pfds,
 			num += 1;
 		}
 
-		fds[num].fd = subrec->dgram_sock;
-		attrs[num].type = DGRAM_PACKET;
-		attrs[num].broadcast = false;
-		num += 1;
+		if (subrec->dgram_sock != -1) {
+			fds[num].fd = subrec->dgram_sock;
+			attrs[num].type = DGRAM_PACKET;
+			attrs[num].broadcast = false;
+			num += 1;
+		}
 
 		if (subrec->dgram_bcast != -1) {
 			fds[num].fd = subrec->dgram_bcast;
@@ -1855,7 +1868,7 @@ static void free_processed_packet_list(struct processed_packet **pp_processed_pa
   return True if the socket is dead
 ***************************************************************************/
 
-bool listen_for_packets(bool run_election)
+bool listen_for_packets(struct messaging_context *msg, bool run_election)
 {
 	static struct pollfd *fds = NULL;
 	static struct socket_attributes *attrs = NULL;
@@ -1885,7 +1898,7 @@ bool listen_for_packets(bool run_election)
 	 * create_listen_pollfds.
 	 */
 
-	fds = TALLOC_REALLOC_ARRAY(NULL, fds, struct pollfd, listen_number);
+	fds = talloc_realloc(NULL, fds, struct pollfd, listen_number);
 	if (fds == NULL) {
 		return true;
 	}
@@ -1894,7 +1907,7 @@ bool listen_for_packets(bool run_election)
 #ifndef SYNC_DNS
 	dns_fd = asyncdns_fd();
 	if (dns_fd != -1) {
-		fds = TALLOC_REALLOC_ARRAY(NULL, fds, struct pollfd, num_sockets+1);
+		fds = talloc_realloc(NULL, fds, struct pollfd, num_sockets+1);
 		if (fds == NULL) {
 			return true;
 		}
@@ -1926,7 +1939,7 @@ bool listen_for_packets(bool run_election)
 	event_add_to_poll_args(nmbd_event_context(), NULL,
 			       &fds, &num_sockets, &timeout);
 
-	pollrtn = sys_poll(fds, num_sockets, timeout);
+	pollrtn = poll(fds, num_sockets, timeout);
 
 	if (run_events_poll(nmbd_event_context(), pollrtn, fds, num_sockets)) {
 		return False;
@@ -1939,7 +1952,7 @@ bool listen_for_packets(bool run_election)
 #ifndef SYNC_DNS
 	if ((dns_fd != -1) && (dns_pollidx != -1) &&
 	    (fds[dns_pollidx].revents & (POLLIN|POLLHUP|POLLERR))) {
-		run_dns_queue();
+		run_dns_queue(msg);
 	}
 #endif
 
@@ -1986,21 +1999,23 @@ bool listen_for_packets(bool run_election)
 			continue;
 		}
 
-		if ((is_loopback_ip_v4(packet->ip) || ismyip_v4(packet->ip)) &&
-		    packet->port == client_port)
-		{
-			if (client_port == DGRAM_PORT) {
-				DEBUG(7,("discarding own dgram packet from %s:%d\n",
-					inet_ntoa(packet->ip),packet->port));
-				free_packet(packet);
-				continue;
-			}
+		if (!IS_DC) {
+			if ((is_loopback_ip_v4(packet->ip) || ismyip_v4(packet->ip)) &&
+			packet->port == client_port)
+			{
+				if (client_port == DGRAM_PORT) {
+					DEBUG(7,("discarding own dgram packet from %s:%d\n",
+						inet_ntoa(packet->ip),packet->port));
+					free_packet(packet);
+					continue;
+				}
 
-			if (packet->packet.nmb.header.nm_flags.bcast) {
-				DEBUG(7,("discarding own nmb bcast packet from %s:%d\n",
-					inet_ntoa(packet->ip),packet->port));
-				free_packet(packet);
-				continue;
+				if (packet->packet.nmb.header.nm_flags.bcast) {
+					DEBUG(7,("discarding own nmb bcast packet from %s:%d\n",
+						inet_ntoa(packet->ip),packet->port));
+					free_packet(packet);
+					continue;
+				}
 			}
 		}
 
@@ -2088,7 +2103,7 @@ bool send_mailslot(bool unique, const char *mailslot,char *buf, size_t len,
 	SSVAL(ptr,smb_vwv15,1);
 	SSVAL(ptr,smb_vwv16,2);
 	p2 = smb_buf(ptr);
-	safe_strcpy_base(p2, mailslot, dgram->data, sizeof(dgram->data));
+	strlcpy_base(p2, mailslot, dgram->data, sizeof(dgram->data));
 	p2 = skip_string(ptr,MAX_DGRAM_SIZE,p2);
 
 	if (((p2+len) > dgram->data+sizeof(dgram->data)) || ((p2+len) < p2)) {

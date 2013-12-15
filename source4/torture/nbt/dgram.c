@@ -86,11 +86,13 @@ static bool nbt_test_netlogon(struct torture_context *tctx)
 
 	/* do an initial name resolution to find its IP */
 	torture_assert_ntstatus_ok(tctx, 
-				   resolve_name(lpcfg_resolve_context(tctx->lp_ctx), &name, tctx, &address, tctx->ev),
+				   resolve_name_ex(lpcfg_resolve_context(tctx->lp_ctx),
+						   0, 0,
+						   &name, tctx, &address, tctx->ev),
 				   talloc_asprintf(tctx, "Failed to resolve %s", name.name));
 
-	load_interfaces(tctx, lpcfg_interfaces(tctx->lp_ctx), &ifaces);
-	myaddress = talloc_strdup(dgmsock, iface_best_ip(ifaces, address));
+	load_interface_list(tctx, tctx->lp_ctx, &ifaces);
+	myaddress = talloc_strdup(dgmsock, iface_list_best_ip(ifaces, address));
 
 
 	socket_address = socket_address_from_strings(dgmsock, dgmsock->sock->backend_name,
@@ -137,7 +139,7 @@ static bool nbt_test_netlogon(struct torture_context *tctx)
 	torture_assert_ntstatus_ok(tctx, status, "Failed to send netlogon request");
 
 	while (timeval_elapsed(&tv) < 5 && !dgmslot->private_data) {
-		event_loop_once(dgmsock->event_ctx);
+		tevent_loop_once(dgmsock->event_ctx);
 	}
 
 	response = talloc_get_type(dgmslot->private_data, struct nbt_netlogon_response);
@@ -180,11 +182,13 @@ static bool nbt_test_netlogon2(struct torture_context *tctx)
 
 	/* do an initial name resolution to find its IP */
 	torture_assert_ntstatus_ok(tctx, 
-				   resolve_name(lpcfg_resolve_context(tctx->lp_ctx), &name, tctx, &address, tctx->ev),
+				   resolve_name_ex(lpcfg_resolve_context(tctx->lp_ctx),
+						   0, 0,
+						   &name, tctx, &address, tctx->ev),
 				   talloc_asprintf(tctx, "Failed to resolve %s", name.name));
 
-	load_interfaces(tctx, lpcfg_interfaces(tctx->lp_ctx), &ifaces);
-	myaddress = talloc_strdup(dgmsock, iface_best_ip(ifaces, address));
+	load_interface_list(tctx, tctx->lp_ctx, &ifaces);
+	myaddress = talloc_strdup(dgmsock, iface_list_best_ip(ifaces, address));
 
 	socket_address = socket_address_from_strings(dgmsock, dgmsock->sock->backend_name,
 						     myaddress, lpcfg_dgram_port(tctx->lp_ctx));
@@ -231,7 +235,7 @@ static bool nbt_test_netlogon2(struct torture_context *tctx)
 	torture_assert_ntstatus_ok(tctx, status, "Failed to send netlogon request");
 
 	while (timeval_elapsed(&tv) < 5 && dgmslot->private_data == NULL) {
-		event_loop_once(dgmsock->event_ctx);
+		tevent_loop_once(dgmsock->event_ctx);
 	}
 
 	response = talloc_get_type(dgmslot->private_data, struct nbt_netlogon_response);
@@ -242,7 +246,12 @@ static bool nbt_test_netlogon2(struct torture_context *tctx)
 	map_netlogon_samlogon_response(&response->data.samlogon);
 
 	torture_assert_int_equal(tctx, response->data.samlogon.data.nt5_ex.command, LOGON_SAM_LOGON_RESPONSE_EX, "Got incorrect netlogon response command");
+
 	torture_assert_int_equal(tctx, response->data.samlogon.data.nt5_ex.nt_version, NETLOGON_NT_VERSION_5EX_WITH_IP|NETLOGON_NT_VERSION_5EX|NETLOGON_NT_VERSION_1, "Got incorrect netlogon response command");
+
+	torture_assert(tctx,
+		       strstr(response->data.samlogon.data.nt5_ex.pdc_name, "\\\\") == NULL,
+		       "PDC name should not be in UNC form");
 
 	/* setup (another) temporary mailslot listener for replies */
 	dgmslot = dgram_mailslot_temp(dgmsock, NBT_MAILSLOT_GETDC,
@@ -271,7 +280,7 @@ static bool nbt_test_netlogon2(struct torture_context *tctx)
 	torture_assert_ntstatus_ok(tctx, status, "Failed to send netlogon request");
 
 	while (timeval_elapsed(&tv) < 5 && dgmslot->private_data == NULL) {
-		event_loop_once(dgmsock->event_ctx);
+		tevent_loop_once(dgmsock->event_ctx);
 	}
 
 	response = talloc_get_type(dgmslot->private_data, struct nbt_netlogon_response);
@@ -284,6 +293,10 @@ static bool nbt_test_netlogon2(struct torture_context *tctx)
 	torture_assert_int_equal(tctx, response->data.samlogon.data.nt5_ex.command, LOGON_SAM_LOGON_USER_UNKNOWN, "Got incorrect netlogon response command");
 
 	torture_assert_str_equal(tctx, response->data.samlogon.data.nt5_ex.user_name, TEST_NAME"$", "Got incorrect user in netlogon response");
+
+	torture_assert(tctx,
+		       strstr(response->data.samlogon.data.nt5_ex.pdc_name, "\\\\") != NULL,
+		       "PDC name should be in UNC form");
 
 	join_ctx = torture_join_domain(tctx, TEST_NAME, 
 				       ACB_WSTRUST, &machine_credentials);
@@ -323,7 +336,7 @@ static bool nbt_test_netlogon2(struct torture_context *tctx)
 
 
 	while (timeval_elapsed(&tv) < 5 && dgmslot->private_data == NULL) {
-		event_loop_once(dgmsock->event_ctx);
+		tevent_loop_once(dgmsock->event_ctx);
 	}
 
 	response = talloc_get_type(dgmslot->private_data, struct nbt_netlogon_response);
@@ -334,6 +347,10 @@ static bool nbt_test_netlogon2(struct torture_context *tctx)
 	map_netlogon_samlogon_response(&response->data.samlogon);
 
 	torture_assert_int_equal(tctx, response->data.samlogon.data.nt5_ex.command, LOGON_SAM_LOGON_USER_UNKNOWN, "Got incorrect netlogon response command");
+
+	torture_assert(tctx,
+		       strstr(response->data.samlogon.data.nt5_ex.pdc_name, "\\\\") != NULL,
+		       "PDC name should be in UNC form");
 
 	/* setup (another) temporary mailslot listener for replies */
 	dgmslot = dgram_mailslot_temp(dgmsock, NBT_MAILSLOT_GETDC,
@@ -365,7 +382,7 @@ static bool nbt_test_netlogon2(struct torture_context *tctx)
 
 
 	while (timeval_elapsed(&tv) < 5 && dgmslot->private_data == NULL) {
-		event_loop_once(dgmsock->event_ctx);
+		tevent_loop_once(dgmsock->event_ctx);
 	}
 
 	response = talloc_get_type(dgmslot->private_data, struct nbt_netlogon_response);
@@ -376,6 +393,10 @@ static bool nbt_test_netlogon2(struct torture_context *tctx)
 	map_netlogon_samlogon_response(&response->data.samlogon);
 
 	torture_assert_int_equal(tctx, response->data.samlogon.data.nt5_ex.command, LOGON_SAM_LOGON_RESPONSE, "Got incorrect netlogon response command");
+
+	torture_assert(tctx,
+		       strstr(response->data.samlogon.data.nt5_ex.pdc_name, "\\\\") != NULL,
+		       "PDC name should be in UNC form");
 
 	dgmslot->private_data = NULL;
 
@@ -404,7 +425,7 @@ static bool nbt_test_netlogon2(struct torture_context *tctx)
 
 
 	while (timeval_elapsed(&tv) < 5 && dgmslot->private_data == NULL) {
-		event_loop_once(dgmsock->event_ctx);
+		tevent_loop_once(dgmsock->event_ctx);
 	}
 
 	response = talloc_get_type(dgmslot->private_data, struct nbt_netlogon_response);
@@ -415,6 +436,10 @@ static bool nbt_test_netlogon2(struct torture_context *tctx)
 	map_netlogon_samlogon_response(&response->data.samlogon);
 
 	torture_assert_int_equal(tctx, response->data.samlogon.data.nt5_ex.command, LOGON_SAM_LOGON_USER_UNKNOWN, "Got incorrect netlogon response command");
+
+	torture_assert(tctx,
+		       strstr(response->data.samlogon.data.nt5_ex.pdc_name, "\\\\") != NULL,
+		       "PDC name should be in UNC form");
 
 	torture_leave_domain(tctx, join_ctx);
 	return true;
@@ -450,11 +475,12 @@ static bool nbt_test_ntlogon(struct torture_context *tctx)
 
 	/* do an initial name resolution to find its IP */
 	torture_assert_ntstatus_ok(tctx, 
-				   resolve_name(lpcfg_resolve_context(tctx->lp_ctx), &name, tctx, &address, tctx->ev),
+				   resolve_name_ex(lpcfg_resolve_context(tctx->lp_ctx),
+						   0, 0, &name, tctx, &address, tctx->ev),
 				   talloc_asprintf(tctx, "Failed to resolve %s", name.name));
 
-	load_interfaces(tctx, lpcfg_interfaces(tctx->lp_ctx), &ifaces);
-	myaddress = talloc_strdup(dgmsock, iface_best_ip(ifaces, address));
+	load_interface_list(tctx, tctx->lp_ctx, &ifaces);
+	myaddress = talloc_strdup(dgmsock, iface_list_best_ip(ifaces, address));
 
 	socket_address = socket_address_from_strings(dgmsock, dgmsock->sock->backend_name,
 						     myaddress, lpcfg_dgram_port(tctx->lp_ctx));
@@ -476,11 +502,11 @@ static bool nbt_test_ntlogon(struct torture_context *tctx)
 
 	join_ctx = torture_join_domain(tctx, TEST_NAME, 
 				       ACB_WSTRUST, &machine_credentials);
-	dom_sid = torture_join_sid(join_ctx);
 
 	torture_assert(tctx, join_ctx != NULL,
 		       talloc_asprintf(tctx, "Failed to join domain %s as %s\n",
 				       lpcfg_workgroup(tctx->lp_ctx), TEST_NAME));
+	dom_sid = torture_join_sid(join_ctx);
 
 	/* setup a temporary mailslot listener for replies */
 	dgmslot = dgram_mailslot_temp(dgmsock, NBT_MAILSLOT_GETDC,
@@ -512,7 +538,7 @@ static bool nbt_test_ntlogon(struct torture_context *tctx)
 	torture_assert_ntstatus_ok(tctx, status, "Failed to send ntlogon request");
 
 	while (timeval_elapsed(&tv) < 5 && dgmslot->private_data == NULL) {
-		event_loop_once(dgmsock->event_ctx);
+		tevent_loop_once(dgmsock->event_ctx);
 	}
 
 	response = talloc_get_type(dgmslot->private_data, struct nbt_netlogon_response);
@@ -526,6 +552,9 @@ static bool nbt_test_ntlogon(struct torture_context *tctx)
 
 	torture_assert_str_equal(tctx, response->data.samlogon.data.nt5_ex.user_name, TEST_NAME"$", "Got incorrect user in netlogon response");
 
+	torture_assert(tctx,
+		       strstr(response->data.samlogon.data.nt5_ex.pdc_name, "\\\\") != NULL,
+		       "PDC name should be in UNC form");
 
 	/* setup a temporary mailslot listener for replies */
 	dgmslot = dgram_mailslot_temp(dgmsock, NBT_MAILSLOT_GETDC,
@@ -556,7 +585,7 @@ static bool nbt_test_ntlogon(struct torture_context *tctx)
 	torture_assert_ntstatus_ok(tctx, status, "Failed to send ntlogon request");
 
 	while (timeval_elapsed(&tv) < 5 && dgmslot->private_data == NULL) {
-		event_loop_once(dgmsock->event_ctx);
+		tevent_loop_once(dgmsock->event_ctx);
 	}
 
 	response = talloc_get_type(dgmslot->private_data, struct nbt_netlogon_response);
@@ -570,6 +599,9 @@ static bool nbt_test_ntlogon(struct torture_context *tctx)
 
 	torture_assert_str_equal(tctx, response->data.samlogon.data.nt5_ex.user_name, TEST_NAME"$", "Got incorrect user in netlogon response");
 
+	torture_assert(tctx,
+		       strstr(response->data.samlogon.data.nt5_ex.pdc_name, "\\\\") != NULL,
+		       "PDC name should be in UNC form");
 
 	/* setup (another) temporary mailslot listener for replies */
 	dgmslot = dgram_mailslot_temp(dgmsock, NBT_MAILSLOT_GETDC,
@@ -597,7 +629,7 @@ static bool nbt_test_ntlogon(struct torture_context *tctx)
 	torture_assert_ntstatus_ok(tctx, status, "Failed to send ntlogon request");
 
 	while (timeval_elapsed(&tv) < 5 && !dgmslot->private_data) {
-		event_loop_once(dgmsock->event_ctx);
+		tevent_loop_once(dgmsock->event_ctx);
 	}
 
 	response = talloc_get_type(dgmslot->private_data, struct nbt_netlogon_response);
@@ -635,7 +667,7 @@ static bool nbt_test_ntlogon(struct torture_context *tctx)
 	torture_assert_ntstatus_ok(tctx, status, "Failed to send ntlogon request");
 
 	while (timeval_elapsed(&tv) < 5 && !dgmslot->private_data) {
-		event_loop_once(dgmsock->event_ctx);
+		tevent_loop_once(dgmsock->event_ctx);
 	}
 
 	response = talloc_get_type(dgmslot->private_data, struct nbt_netlogon_response);

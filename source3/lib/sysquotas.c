@@ -30,8 +30,6 @@
 /*#endif HAVE_QUOTACTL_4A */
 #elif defined(HAVE_QUOTACTL_4B)
 
-#error HAVE_QUOTACTL_4B not implemeted
-
 /*#endif HAVE_QUOTACTL_4B */
 #elif defined(HAVE_QUOTACTL_3)
 
@@ -174,7 +172,7 @@ static struct {
 	int (*get_quota)(const char *path, const char *bdev, enum SMB_QUOTA_TYPE qtype, unid_t id, SMB_DISK_QUOTA *dp);
 	int (*set_quota)(const char *path, const char *bdev, enum SMB_QUOTA_TYPE qtype, unid_t id, SMB_DISK_QUOTA *dp);
 } sys_quota_backends[] = {
-#ifdef HAVE_XFS_QUOTAS
+#if defined HAVE_XFS_QUOTAS
 	{"xfs", sys_get_xfs_quota, 	sys_set_xfs_quota},
 	{"gfs", sys_get_xfs_quota, 	sys_set_xfs_quota},
 	{"gfs2", sys_get_xfs_quota, 	sys_set_xfs_quota},
@@ -191,7 +189,7 @@ static int command_get_quota(const char *path, enum SMB_QUOTA_TYPE qtype, unid_t
 	const char *get_quota_command;
 	char **lines = NULL;
 
-	get_quota_command = lp_get_quota_command();
+	get_quota_command = lp_get_quota_command(talloc_tos());
 	if (get_quota_command && *get_quota_command) {
 		const char *p;
 		char *p2;
@@ -212,7 +210,7 @@ static int command_get_quota(const char *path, enum SMB_QUOTA_TYPE qtype, unid_t
 				return -1;
 		}
 
-		if (asprintf(&syscmd, "%s \"%s\" %d %d",
+		if (asprintf(&syscmd, "%s %s %d %d",
 			get_quota_command, path, qtype, _id) < 0) {
 			return -1;
 		}
@@ -229,7 +227,7 @@ static int command_get_quota(const char *path, enum SMB_QUOTA_TYPE qtype, unid_t
 
 			/* we need to deal with long long unsigned here, if supported */
 
-			dp->qflags = (enum SMB_QUOTA_TYPE)strtoul(line, &p2, 10);
+			dp->qflags = strtoul(line, &p2, 10);
 			p = p2;
 			while (p && *p && isspace(*p)) {
 				p++;
@@ -335,7 +333,7 @@ static int command_set_quota(const char *path, enum SMB_QUOTA_TYPE qtype, unid_t
 {
 	const char *set_quota_command;
 
-	set_quota_command = lp_set_quota_command();
+	set_quota_command = lp_set_quota_command(talloc_tos());
 	if (set_quota_command && *set_quota_command) {
 		char **lines = NULL;
 		char *syscmd = NULL;
@@ -355,7 +353,7 @@ static int command_set_quota(const char *path, enum SMB_QUOTA_TYPE qtype, unid_t
 		}
 
 		if (asprintf(&syscmd,
-			"%s \"%s\" %d %d "
+			"%s %s %d %d "
 			"%u %llu %llu "
 			"%llu %llu %llu ",
 			set_quota_command, path, qtype, _id, dp->qflags,
@@ -410,7 +408,7 @@ int sys_get_quota(const char *path, enum SMB_QUOTA_TYPE qtype, unid_t id, SMB_DI
 	}
 
 	errno = 0;
-	DEBUG(10,("sys_get_quota() uid(%u, %u)\n", (unsigned)getuid(), (unsigned)geteuid()));
+	DEBUG(10,("sys_get_quota() uid(%u, %u), fs(%s)\n", (unsigned)getuid(), (unsigned)geteuid(), fs));
 
 	for (i=0;(fs && sys_quota_backends[i].name && sys_quota_backends[i].get_quota);i++) {
 		if (strcmp(fs,sys_quota_backends[i].name)==0) {

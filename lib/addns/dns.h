@@ -27,6 +27,8 @@
 
 #include "../replace/replace.h"
 #include "system/network.h"
+#include "system/kerberos.h"
+#include "system/gssapi.h"
 
 /* make sure we have included the correct config.h */
 #ifndef NO_CONFIG_H /* for some tests */
@@ -36,190 +38,11 @@
 #endif
 #endif /* NO_CONFIG_H */
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <fcntl.h>
 #include <time.h>
-#include <string.h>
-#include <errno.h>
 #include <netdb.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <stdarg.h>
-
-#ifdef HAVE_UUID_UUID_H
-#include <uuid/uuid.h>
-#endif
-
-#ifdef HAVE_KRB5_H
-#include <krb5.h>
-#endif
-
-#ifdef HAVE_INTTYPES_H
-#include <inttypes.h>
-
-#ifndef int16
-#define int16 int16_t
-#endif
-
-#ifndef uint16
-#define uint16 uint16_t
-#endif
-
-#ifndef int32
-#define int32 int32_t
-#endif
-
-#ifndef uint32
-#define uint32 uint32_t
-#endif
-#endif
-
-#ifdef HAVE_KRB5_H
-#include <krb5.h>
-#endif
-
-#if HAVE_GSSAPI_GSSAPI_H
-#include <gssapi/gssapi.h>
-#elif HAVE_GSSAPI_GSSAPI_GENERIC_H
-#include <gssapi/gssapi_generic.h>
-#elif HAVE_GSSAPI_H
-#include <gssapi.h>
-#endif
-
-#if defined(HAVE_GSSAPI_H) || defined(HAVE_GSSAPI_GSSAPI_H) || defined(HAVE_GSSAPI_GSSAPI_GENERIC_H)
-#define HAVE_GSSAPI_SUPPORT    1
-#endif
 
 #include <talloc.h>
-
-#if 0
-
-Disable these now we have checked all code paths and ensured
-NULL returns on zero request. JRA.
-
-void *_talloc_zero_zeronull(const void *ctx, size_t size, const char *name);
-void *_talloc_memdup_zeronull(const void *t, const void *p, size_t size, const char *name);
-void *_talloc_array_zeronull(const void *ctx, size_t el_size, unsigned count, const char *name);
-void *_talloc_zero_array_zeronull(const void *ctx, size_t el_size, unsigned count, const char *name);
-void *talloc_zeronull(const void *context, size_t size, const char *name);
-
-#define TALLOC(ctx, size) talloc_zeronull(ctx, size, __location__)
-#define TALLOC_P(ctx, type) (type *)talloc_zeronull(ctx, sizeof(type), #type)
-#define TALLOC_ARRAY(ctx, type, count) (type *)_talloc_array_zeronull(ctx, sizeof(type), count, #type)
-#define TALLOC_MEMDUP(ctx, ptr, size) _talloc_memdup_zeronull(ctx, ptr, size, __location__)
-#define TALLOC_ZERO(ctx, size) _talloc_zero_zeronull(ctx, size, __location__)
-#define TALLOC_ZERO_P(ctx, type) (type *)_talloc_zero_zeronull(ctx, sizeof(type), #type)
-#define TALLOC_ZERO_ARRAY(ctx, type, count) (type *)_talloc_zero_array_zeronull(ctx, sizeof(type), count, #type)
-#define TALLOC_SIZE(ctx, size) talloc_zeronull(ctx, size, __location__)
-#define TALLOC_ZERO_SIZE(ctx, size) _talloc_zero_zeronull(ctx, size, __location__)
-
-#else
-
-#define TALLOC(ctx, size) talloc_named_const(ctx, size, __location__)
-#define TALLOC_P(ctx, type) (type *)talloc_named_const(ctx, sizeof(type), #type)
-#define TALLOC_ARRAY(ctx, type, count) (type *)_talloc_array(ctx, sizeof(type), count, #type)
-#define TALLOC_MEMDUP(ctx, ptr, size) _talloc_memdup(ctx, ptr, size, __location__)
-#define TALLOC_ZERO(ctx, size) _talloc_zero(ctx, size, __location__)
-#define TALLOC_ZERO_P(ctx, type) (type *)_talloc_zero(ctx, sizeof(type), #type)
-#define TALLOC_ZERO_ARRAY(ctx, type, count) (type *)_talloc_zero_array(ctx, sizeof(type), count, #type)
-#define TALLOC_SIZE(ctx, size) talloc_named_const(ctx, size, __location__)
-#define TALLOC_ZERO_SIZE(ctx, size) _talloc_zero(ctx, size, __location__)
-
-#endif
-
-#define TALLOC_REALLOC(ctx, ptr, count) _talloc_realloc(ctx, ptr, count, __location__)
-#define TALLOC_REALLOC_ARRAY(ctx, ptr, type, count) (type *)_talloc_realloc_array(ctx, ptr, sizeof(type), count, #type)
-#define talloc_destroy(ctx) talloc_free(ctx)
-#ifndef TALLOC_FREE
-#define TALLOC_FREE(ctx) do { talloc_free(ctx); ctx=NULL; } while(0)
-#endif
-
-/*******************************************************************
-   Type definitions for int16, int32, uint16 and uint32.  Needed
-   for Samba coding style
-*******************************************************************/
-
-#ifndef uint8
-#  define uint8 unsigned char
-#endif
-
-#if !defined(int16) && !defined(HAVE_INT16_FROM_RPC_RPC_H)
-#  if (SIZEOF_SHORT == 4)
-#    define int16 __ERROR___CANNOT_DETERMINE_TYPE_FOR_INT16;
-#  else /* SIZEOF_SHORT != 4 */
-#    define int16 short
-#  endif /* SIZEOF_SHORT != 4 */
-   /* needed to work around compile issue on HP-UX 11.x */
-#  define _INT16        1
-#endif
-
-/*
- * Note we duplicate the size tests in the unsigned
- * case as int16 may be a typedef from rpc/rpc.h
- */
-
-#if !defined(uint16) && !defined(HAVE_UINT16_FROM_RPC_RPC_H)
-#  if (SIZEOF_SHORT == 4)
-#    define uint16 __ERROR___CANNOT_DETERMINE_TYPE_FOR_INT16;
-#  else /* SIZEOF_SHORT != 4 */
-#    define uint16 unsigned short
-#  endif /* SIZEOF_SHORT != 4 */
-#endif
-
-#if !defined(int32) && !defined(HAVE_INT32_FROM_RPC_RPC_H)
-#  if (SIZEOF_INT == 4)
-#    define int32 int
-#  elif (SIZEOF_LONG == 4)
-#    define int32 long
-#  elif (SIZEOF_SHORT == 4)
-#    define int32 short
-#  else
-     /* uggh - no 32 bit type?? probably a CRAY. just hope this works ... */
-#    define int32 int
-#  endif
-#  ifndef _INT32
-     /* needed to work around compile issue on HP-UX 11.x */
-#    define _INT32        1
-#  endif
-#endif
-
-/*
- * Note we duplicate the size tests in the unsigned
- * case as int32 may be a typedef from rpc/rpc.h
- */
-
-#if !defined(uint32) && !defined(HAVE_UINT32_FROM_RPC_RPC_H)
-#  if (SIZEOF_INT == 4)
-#    define uint32 unsigned int
-#  elif (SIZEOF_LONG == 4)
-#    define uint32 unsigned long
-#  elif (SIZEOF_SHORT == 4)
-#    define uint32 unsigned short
-#  else
-      /* uggh - no 32 bit type?? probably a CRAY. just hope this works ... */
-#    define uint32 unsigned
-#  endif
-#endif
-
-/*
- * check for 8 byte long long
- */
-
-#if !defined(uint64)
-#  if (SIZEOF_LONG == 8)
-#    define uint64 unsigned long
-#  elif (SIZEOF_LONG_LONG == 8)
-#    define uint64 unsigned long long
-#  endif /* don't lie.  If we don't have it, then don't use it */
-#endif
-
-/* needed on Sun boxes */
-#ifndef INADDR_NONE
-#define INADDR_NONE          0xFFFFFFFF
-#endif
 
 #include "dnserr.h"
 
@@ -247,6 +70,7 @@ void *talloc_zeronull(const void *context, size_t size, const char *name);
 #define QTYPE_MD        3
 #define QTYPE_CNAME	5
 #define QTYPE_SOA	6
+#define QTYPE_AAAA	28
 #define QTYPE_ANY	255
 #define	QTYPE_TKEY	249
 #define QTYPE_TSIG	250
@@ -328,8 +152,8 @@ struct dns_domain_name {
 
 struct dns_question {
 	struct dns_domain_name *name;
-	uint16 q_type;
-	uint16 q_class;
+	uint16_t q_type;
+	uint16_t q_class;
 };
 
 /*
@@ -340,36 +164,36 @@ struct dns_question {
 
 struct dns_zone {
 	struct dns_domain_name *name;
-	uint16 z_type;
-	uint16 z_class;
+	uint16_t z_type;
+	uint16_t z_class;
 };
 
 struct dns_rrec {
 	struct dns_domain_name *name;
-	uint16 type;
-	uint16 r_class;
-	uint32 ttl;
-	uint16 data_length;
-	uint8 *data;
+	uint16_t type;
+	uint16_t r_class;
+	uint32_t ttl;
+	uint16_t data_length;
+	uint8_t *data;
 };
 
 struct dns_tkey_record {
 	struct dns_domain_name *algorithm;
 	time_t inception;
 	time_t expiration;
-	uint16 mode;
-	uint16 error;
-	uint16 key_length;
-	uint8 *key;
+	uint16_t mode;
+	uint16_t error;
+	uint16_t key_length;
+	uint8_t *key;
 };
 
 struct dns_request {
-	uint16 id;
-	uint16 flags;
-	uint16 num_questions;
-	uint16 num_answers;
-	uint16 num_auths;
-	uint16 num_additionals;
+	uint16_t id;
+	uint16_t flags;
+	uint16_t num_questions;
+	uint16_t num_answers;
+	uint16_t num_auths;
+	uint16_t num_additionals;
 	struct dns_question **questions;
 	struct dns_rrec **answers;
 	struct dns_rrec **auths;
@@ -383,12 +207,12 @@ struct dns_request {
  */
 
 struct dns_update_request {
-	uint16 id;
-	uint16 flags;
-	uint16 num_zones;
-	uint16 num_preqs;
-	uint16 num_updates;
-	uint16 num_additionals;
+	uint16_t id;
+	uint16_t flags;
+	uint16_t num_zones;
+	uint16_t num_preqs;
+	uint16_t num_updates;
+	uint16_t num_additionals;
 	struct dns_zone **zones;
 	struct dns_rrec **preqs;
 	struct dns_rrec **updates;
@@ -396,13 +220,13 @@ struct dns_update_request {
 };
 
 struct dns_connection {
-	int32 hType;
+	int32_t hType;
 	int s;
 	struct sockaddr RecvAddr;
 };
 
 struct dns_buffer {
-	uint8 *data;
+	uint8_t *data;
 	size_t size;
 	size_t offset;
 	DNS_ERROR error;
@@ -418,7 +242,7 @@ char *dns_generate_keyname( TALLOC_CTX *mem_ctx );
 /* from dnsrecord.c */
 
 DNS_ERROR dns_create_query( TALLOC_CTX *mem_ctx, const char *name,
-			    uint16 q_type, uint16 q_class,
+			    uint16_t q_type, uint16_t q_class,
 			    struct dns_request **preq );
 DNS_ERROR dns_create_update( TALLOC_CTX *mem_ctx, const char *name,
 			     struct dns_update_request **preq );
@@ -427,39 +251,42 @@ DNS_ERROR dns_create_probe(TALLOC_CTX *mem_ctx, const char *zone,
 			   const struct sockaddr_storage *sslist,
 			   struct dns_update_request **preq);
 DNS_ERROR dns_create_rrec(TALLOC_CTX *mem_ctx, const char *name,
-			  uint16 type, uint16 r_class, uint32 ttl,
-			  uint16 data_length, uint8 *data,
+			  uint16_t type, uint16_t r_class, uint32_t ttl,
+			  uint16_t data_length, uint8_t *data,
 			  struct dns_rrec **prec);
 DNS_ERROR dns_add_rrec(TALLOC_CTX *mem_ctx, struct dns_rrec *rec,
-		       uint16 *num_records, struct dns_rrec ***records);
+		       uint16_t *num_records, struct dns_rrec ***records);
 DNS_ERROR dns_create_tkey_record(TALLOC_CTX *mem_ctx, const char *keyname,
 				 const char *algorithm_name, time_t inception,
-				 time_t expiration, uint16 mode, uint16 error,
-				 uint16 key_length, const uint8 *key,
+				 time_t expiration, uint16_t mode, uint16_t error,
+				 uint16_t key_length, const uint8_t *key,
 				 struct dns_rrec **prec);
 DNS_ERROR dns_create_name_in_use_record(TALLOC_CTX *mem_ctx,
 					const char *name,
 					const struct sockaddr_storage *ip,
 					struct dns_rrec **prec);
 DNS_ERROR dns_create_delete_record(TALLOC_CTX *mem_ctx, const char *name,
-				   uint16 type, uint16 r_class,
+				   uint16_t type, uint16_t r_class,
 				   struct dns_rrec **prec);
 DNS_ERROR dns_create_name_not_in_use_record(TALLOC_CTX *mem_ctx,
-					    const char *name, uint32 type,
+					    const char *name, uint32_t type,
 					    struct dns_rrec **prec);
 DNS_ERROR dns_create_a_record(TALLOC_CTX *mem_ctx, const char *host,
-			      uint32 ttl, const struct sockaddr_storage *pss,
+			      uint32_t ttl, const struct sockaddr_storage *pss,
 			      struct dns_rrec **prec);
+DNS_ERROR dns_create_aaaa_record(TALLOC_CTX *mem_ctx, const char *host,
+				 uint32_t ttl, const struct sockaddr_storage *pss,
+				 struct dns_rrec **prec);
 DNS_ERROR dns_unmarshall_tkey_record(TALLOC_CTX *mem_ctx, struct dns_rrec *rec,
 				     struct dns_tkey_record **ptkey);
 DNS_ERROR dns_create_tsig_record(TALLOC_CTX *mem_ctx, const char *keyname,
 				 const char *algorithm_name,
-				 time_t time_signed, uint16 fudge,
-				 uint16 mac_length, const uint8 *mac,
-				 uint16 original_id, uint16 error,
+				 time_t time_signed, uint16_t fudge,
+				 uint16_t mac_length, const uint8_t *mac,
+				 uint16_t original_id, uint16_t error,
 				 struct dns_rrec **prec);
 DNS_ERROR dns_add_rrec(TALLOC_CTX *mem_ctx, struct dns_rrec *rec,
-		       uint16 *num_records, struct dns_rrec ***records);
+		       uint16_t *num_records, struct dns_rrec ***records);
 DNS_ERROR dns_create_update_request(TALLOC_CTX *mem_ctx,
 				    const char *domainname,
 				    const char *hostname,
@@ -469,7 +296,7 @@ DNS_ERROR dns_create_update_request(TALLOC_CTX *mem_ctx,
 
 /* from dnssock.c */
 
-DNS_ERROR dns_open_connection( const char *nameserver, int32 dwType,
+DNS_ERROR dns_open_connection( const char *nameserver, int32_t dwType,
 		    TALLOC_CTX *mem_ctx,
 		    struct dns_connection **conn );
 DNS_ERROR dns_send(struct dns_connection *conn, const struct dns_buffer *buf);
@@ -486,14 +313,14 @@ DNS_ERROR dns_update_transaction(TALLOC_CTX *mem_ctx,
 /* from dnsmarshall.c */
 
 struct dns_buffer *dns_create_buffer(TALLOC_CTX *mem_ctx);
-void dns_marshall_buffer(struct dns_buffer *buf, const uint8 *data,
+void dns_marshall_buffer(struct dns_buffer *buf, const uint8_t *data,
 			 size_t len);
-void dns_marshall_uint16(struct dns_buffer *buf, uint16 val);
-void dns_marshall_uint32(struct dns_buffer *buf, uint32 val);
-void dns_unmarshall_buffer(struct dns_buffer *buf, uint8 *data,
+void dns_marshall_uint16(struct dns_buffer *buf, uint16_t val);
+void dns_marshall_uint32(struct dns_buffer *buf, uint32_t val);
+void dns_unmarshall_buffer(struct dns_buffer *buf, uint8_t *data,
 			   size_t len);
-void dns_unmarshall_uint16(struct dns_buffer *buf, uint16 *val);
-void dns_unmarshall_uint32(struct dns_buffer *buf, uint32 *val);
+void dns_unmarshall_uint16(struct dns_buffer *buf, uint16_t *val);
+void dns_unmarshall_uint32(struct dns_buffer *buf, uint32_t *val);
 void dns_unmarshall_domain_name(TALLOC_CTX *mem_ctx,
 				struct dns_buffer *buf,
 				struct dns_domain_name **pname);
@@ -516,12 +343,12 @@ DNS_ERROR dns_unmarshall_update_request(TALLOC_CTX *mem_ctx,
 					struct dns_update_request **pupreq);
 struct dns_request *dns_update2request(struct dns_update_request *update);
 struct dns_update_request *dns_request2update(struct dns_request *request);
-uint16 dns_response_code(uint16 flags);
+uint16_t dns_response_code(uint16_t flags);
 const char *dns_errstr(DNS_ERROR err);
 
 /* from dnsgss.c */
 
-#ifdef HAVE_GSSAPI_SUPPORT
+#ifdef HAVE_GSSAPI
 
 void display_status( const char *msg, OM_uint32 maj_stat, OM_uint32 min_stat ); 
 DNS_ERROR dns_negotiate_sec_ctx( const char *target_realm,
@@ -533,8 +360,8 @@ DNS_ERROR dns_sign_update(struct dns_update_request *req,
 			  gss_ctx_id_t gss_ctx,
 			  const char *keyname,
 			  const char *algorithmname,
-			  time_t time_signed, uint16 fudge);
+			  time_t time_signed, uint16_t fudge);
 
-#endif	/* HAVE_GSSAPI_SUPPORT */
+#endif	/* HAVE_GSSAPI */
 
 #endif	/* _DNS_H */

@@ -1,0 +1,6 @@
+#!/bin/sh
+
+# wrapper around cups-config, to work around #726726
+
+DEB_HOST_MULTIARCH=`dpkg-architecture -qDEB_HOST_MULTIARCH`
+/usr/bin/cups-config "$@" | sed "s;-L/usr/lib/${DEB_HOST_MULTIARCH}; ;g"

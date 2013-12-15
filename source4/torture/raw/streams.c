@@ -23,10 +23,13 @@
 #include "system/locale.h"
 #include "torture/torture.h"
 #include "libcli/raw/libcliraw.h"
+#include "libcli/security/dom_sid.h"
+#include "libcli/security/security_descriptor.h"
 #include "system/filesys.h"
 #include "libcli/libcli.h"
 #include "torture/util.h"
 #include "lib/util/tsort.h"
+#include "torture/raw/proto.h"
 
 #define BASEDIR "\\teststreams"
 
@@ -197,14 +200,12 @@ static bool test_stream_dir(struct torture_context *tctx,
 	bool ret = true;
 	const char *basedir_data;
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	basedir_data = talloc_asprintf(tctx, "%s::$DATA", BASEDIR);
 	sname1 = talloc_asprintf(tctx, "%s:%s", fname, "Stream One");
 
-	printf("(%s) opening non-existant directory stream\n", __location__);
+	printf("(%s) opening non-existent directory stream\n", __location__);
 	io.generic.level = RAW_OPEN_NTCREATEX;
 	io.ntcreatex.in.root_fid.fnum = 0;
 	io.ntcreatex.in.flags = 0;
@@ -278,14 +279,12 @@ static bool test_stream_io(struct torture_context *tctx,
 	const char *three[] = { "::$DATA", ":Stream One:$DATA",
 				":Second Stream:$DATA" };
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	sname1 = talloc_asprintf(tctx, "%s:%s", fname, "Stream One");
 	sname2 = talloc_asprintf(tctx, "%s:%s:$DaTa", fname, "Second Stream");
 
-	printf("(%s) creating a stream on a non-existant file\n", __location__);
+	printf("(%s) creating a stream on a non-existent file\n", __location__);
 	io.generic.level = RAW_OPEN_NTCREATEX;
 	io.ntcreatex.in.root_fid.fnum = 0;
 	io.ntcreatex.in.flags = 0;
@@ -415,9 +414,7 @@ static bool test_stream_sharemodes(struct torture_context *tctx,
 	int fnum1 = -1;
 	int fnum2 = -1;
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	sname1 = talloc_asprintf(tctx, "%s:%s", fname, "Stream One");
 	sname2 = talloc_asprintf(tctx, "%s:%s:$DaTa", fname, "Second Stream");
@@ -510,13 +507,11 @@ static bool test_stream_delete(struct torture_context *tctx,
 	ssize_t retsize;
 	union smb_fileinfo finfo;
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	sname1 = talloc_asprintf(tctx, "%s:%s", fname, "Stream One");
 
-	printf("(%s) opening non-existant file stream\n", __location__);
+	printf("(%s) opening non-existent file stream\n", __location__);
 	io.generic.level = RAW_OPEN_NTCREATEX;
 	io.ntcreatex.in.root_fid.fnum = 0;
 	io.ntcreatex.in.flags = 0;
@@ -653,6 +648,7 @@ static bool test_stream_names(struct torture_context *tctx,
 {
 	NTSTATUS status;
 	union smb_open io;
+	union smb_fileinfo info;
 	union smb_fileinfo finfo;
 	union smb_fileinfo stinfo;
 	union smb_setfileinfo sinfo;
@@ -686,9 +682,7 @@ static bool test_stream_names(struct torture_context *tctx,
 		":?Stream*:$DATA"
 	};
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	sname1 = talloc_asprintf(tctx, "%s:%s", fname, "\x05Stream\n One");
 	sname1b = talloc_asprintf(tctx, "%s:", sname1);
@@ -704,10 +698,12 @@ static bool test_stream_names(struct torture_context *tctx,
 	io.generic.level = RAW_OPEN_NTCREATEX;
 	io.ntcreatex.in.root_fid.fnum = 0;
 	io.ntcreatex.in.flags = 0;
-	io.ntcreatex.in.access_mask = SEC_FILE_WRITE_DATA;
+	io.ntcreatex.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 	io.ntcreatex.in.create_options = 0;
 	io.ntcreatex.in.file_attr = FILE_ATTRIBUTE_NORMAL;
-	io.ntcreatex.in.share_access = 0;
+	io.ntcreatex.in.share_access =
+		NTCREATEX_SHARE_ACCESS_READ |
+		NTCREATEX_SHARE_ACCESS_WRITE;
 	io.ntcreatex.in.alloc_size = 0;
 	io.ntcreatex.in.open_disposition = NTCREATEX_DISP_CREATE;
 	io.ntcreatex.in.impersonation = NTCREATEX_IMPERSONATION_ANONYMOUS;
@@ -717,6 +713,22 @@ static bool test_stream_names(struct torture_context *tctx,
 	status = smb_raw_open(cli->tree, tctx, &io);
 	CHECK_STATUS(status, NT_STATUS_OK);
 	fnum1 = io.ntcreatex.out.file.fnum;
+
+	torture_comment(tctx, "Adding two EAs to base file\n");
+	ZERO_STRUCT(sinfo);
+	sinfo.generic.level = RAW_SFILEINFO_EA_SET;
+	sinfo.generic.in.file.fnum = fnum1;
+	sinfo.ea_set.in.num_eas = 2;
+	sinfo.ea_set.in.eas = talloc_array(tctx, struct ea_struct, 2);
+	sinfo.ea_set.in.eas[0].flags = 0;
+	sinfo.ea_set.in.eas[0].name.s = "EAONE";
+	sinfo.ea_set.in.eas[0].value = data_blob_string_const("VALUE1");
+	sinfo.ea_set.in.eas[1].flags = 0;
+	sinfo.ea_set.in.eas[1].name.s = "SECONDEA";
+	sinfo.ea_set.in.eas[1].value = data_blob_string_const("ValueTwo");
+
+	status = smb_raw_setfileinfo(cli->tree, &sinfo);
+	CHECK_STATUS(status, NT_STATUS_OK);
 
 	/*
 	 * Make sure the create time of the streams are different from the
@@ -728,10 +740,12 @@ static bool test_stream_names(struct torture_context *tctx,
 	io.generic.level = RAW_OPEN_NTCREATEX;
 	io.ntcreatex.in.root_fid.fnum = 0;
 	io.ntcreatex.in.flags = 0;
-	io.ntcreatex.in.access_mask = SEC_FILE_WRITE_DATA;
+	io.ntcreatex.in.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 	io.ntcreatex.in.create_options = 0;
 	io.ntcreatex.in.file_attr = FILE_ATTRIBUTE_NORMAL;
-	io.ntcreatex.in.share_access = 0;
+	io.ntcreatex.in.share_access =
+		NTCREATEX_SHARE_ACCESS_READ |
+		NTCREATEX_SHARE_ACCESS_WRITE;
 	io.ntcreatex.in.alloc_size = 0;
 	io.ntcreatex.in.open_disposition = NTCREATEX_DISP_CREATE;
 	io.ntcreatex.in.impersonation = NTCREATEX_IMPERSONATION_ANONYMOUS;
@@ -741,6 +755,29 @@ static bool test_stream_names(struct torture_context *tctx,
 	status = smb_raw_open(cli->tree, tctx, &io);
 	CHECK_STATUS(status, NT_STATUS_OK);
 	fnum1 = io.ntcreatex.out.file.fnum;
+
+	torture_comment(tctx, "Adding one EAs to first stream file\n");
+	ZERO_STRUCT(sinfo);
+	sinfo.generic.level = RAW_SFILEINFO_EA_SET;
+	sinfo.generic.in.file.fnum = fnum1;
+	sinfo.ea_set.in.num_eas = 1;
+	sinfo.ea_set.in.eas = talloc_array(tctx, struct ea_struct, 1);
+	sinfo.ea_set.in.eas[0].flags = 0;
+	sinfo.ea_set.in.eas[0].name.s = "STREAMEA";
+	sinfo.ea_set.in.eas[0].value = data_blob_string_const("EA_VALUE1");
+
+	status = smb_raw_setfileinfo(cli->tree, &sinfo);
+	CHECK_STATUS(status, NT_STATUS_INVALID_PARAMETER);
+
+	status = torture_check_ea(cli, sname1, "STREAMEA", "EA_VALUE1");
+	CHECK_STATUS(status, NT_STATUS_INVALID_PARAMETER);
+
+	ZERO_STRUCT(info);
+	info.generic.level = RAW_FILEINFO_ALL_EAS;
+	info.all_eas.in.file.path = sname1;
+
+	status = smb_raw_pathinfo(cli->tree, tctx, &info);
+	CHECK_STATUS(status, NT_STATUS_INVALID_PARAMETER);
 
 	/*
 	 * A different stream does not give a sharing violation
@@ -995,9 +1032,7 @@ static bool test_stream_names2(struct torture_context *tctx,
 	int fnum1 = -1;
 	uint8_t i;
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	printf("(%s) testing stream names\n", __location__);
 	io.generic.level = RAW_OPEN_NTCREATEX;
@@ -1090,9 +1125,7 @@ static bool test_stream_rename(struct torture_context *tctx,
 	bool check_fnum;
 	const char *call_name;
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	sname1 = talloc_asprintf(tctx, "%s:%s", fname, "Stream One");
 	sname2 = talloc_asprintf(tctx, "%s:%s:$DaTa", fname, "Second Stream");
@@ -1171,9 +1204,7 @@ static bool test_stream_rename2(struct torture_context *tctx,
 	union smb_setfileinfo sinfo;
 	union smb_rename rio;
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	sname1 = talloc_asprintf(tctx, "%s:%s", fname1, "Stream One");
 	sname2 = talloc_asprintf(tctx, "%s:%s", fname1, "Stream Two");
@@ -1370,9 +1401,7 @@ static bool test_stream_rename3(struct torture_context *tctx,
 	bool check_fnum;
 	const char *call_name;
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	sname1 = talloc_asprintf(tctx, "%s:%s", fname, "MStream Two:$DATA");
 	sname2 = talloc_asprintf(tctx, "%s:%s:$DaTa", fname, "Second Stream");
@@ -1488,9 +1517,7 @@ static bool test_stream_create_disposition(struct torture_context *tctx,
 	bool ret = false;
 	int fnum = -1;
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	fname_stream = talloc_asprintf(tctx, "%s:%s", fname, stream);
 
@@ -1628,6 +1655,7 @@ static bool test_stream_create_disposition(struct torture_context *tctx,
 	return ret;
 }
 
+#if 0
 /* Test streaminfo with enough streams on a file to fill up the buffer.  */
 static bool test_stream_large_streaminfo(struct torture_context *tctx,
 					 struct smbcli_state *cli)
@@ -1641,9 +1669,7 @@ static bool test_stream_large_streaminfo(struct torture_context *tctx,
 	int i;
 	union smb_fileinfo finfo;
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	lstream_name = talloc_array(tctx, char, LONG_STREAM_SIZE);
 
@@ -1673,6 +1699,7 @@ static bool test_stream_large_streaminfo(struct torture_context *tctx,
 	smbcli_deltree(cli->tree, BASEDIR);
 	return ret;
 }
+#endif
 
 /* Test the effect of setting attributes on a stream. */
 static bool test_stream_attributes(struct torture_context *tctx,
@@ -1689,9 +1716,7 @@ static bool test_stream_attributes(struct torture_context *tctx,
 	union smb_setfileinfo sfinfo;
 	time_t basetime = (time(NULL) - 86400) & ~1;
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	torture_comment(tctx, "(%s) testing attribute setting on stream\n", __location__);
 
@@ -1709,13 +1734,7 @@ static bool test_stream_attributes(struct torture_context *tctx,
 	status = smb_raw_pathinfo(cli->tree, tctx, &finfo);
 	CHECK_STATUS(status, NT_STATUS_OK);
 
-	if (finfo.basic_info.out.attrib != FILE_ATTRIBUTE_ARCHIVE) {
-		printf("(%s) Incorrect attrib %x - should be %x\n", \
-		       __location__, (unsigned int)finfo.basic_info.out.attrib,
-			(unsigned int)FILE_ATTRIBUTE_ARCHIVE);
-		ret = false;
-		goto done;
-	}
+	torture_assert_int_equal_goto(tctx, finfo.all_info.out.attrib & ~FILE_ATTRIBUTE_NONINDEXED, FILE_ATTRIBUTE_ARCHIVE, ret, done, "attrib incorrect");
 
 	/* Now open the stream name. */
 
@@ -1746,12 +1765,7 @@ static bool test_stream_attributes(struct torture_context *tctx,
         sfinfo.generic.level = RAW_SFILEINFO_BASIC_INFORMATION;
         sfinfo.generic.in.file.fnum = fnum;
         status = smb_raw_setfileinfo(cli->tree, &sfinfo);
-        if (!NT_STATUS_EQUAL(status, NT_STATUS_OK)) { 
-                printf("(%s) %s - %s (should be %s)\n", __location__, "SETATTR", 
-                        nt_errstr(status), nt_errstr(NT_STATUS_OK));
-                ret = false;
-		goto done;
-        }
+	torture_assert_ntstatus_equal_goto(tctx, status, NT_STATUS_OK, ret, done, "smb_raw_setfileinfo failed");
 
 	smbcli_close(cli->tree, fnum);
 	fnum = -1;
@@ -1760,27 +1774,11 @@ static bool test_stream_attributes(struct torture_context *tctx,
 	finfo.generic.level = RAW_FILEINFO_ALL_INFO;
 	finfo.generic.in.file.path = fname;
 	status = smb_raw_pathinfo(cli->tree, tctx, &finfo);
-	if (!NT_STATUS_IS_OK(status)) {
-		printf("(%s) %s pathinfo - %s\n", __location__, "SETATTRE", nt_errstr(status));
-		ret = false;
-		goto done;
-	}
+	torture_assert_ntstatus_equal_goto(tctx, status, NT_STATUS_OK, ret, done, "smb_raw_pathinfo failed");
 
-	if (finfo.all_info.out.attrib != FILE_ATTRIBUTE_READONLY) {
-		printf("(%s) attrib incorrect. Was 0x%x, should be 0x%x\n",
-			__location__,
-			(unsigned int)finfo.all_info.out.attrib,
-			(unsigned int)FILE_ATTRIBUTE_READONLY);
-		ret = false;
-		goto done;
-	}
+	torture_assert_int_equal_goto(tctx, finfo.all_info.out.attrib & ~FILE_ATTRIBUTE_NONINDEXED, FILE_ATTRIBUTE_READONLY, ret, done, "attrib incorrect");
 
-	if (nt_time_to_unix(finfo.all_info.out.write_time) != basetime) {
-		printf("(%s) time incorrect.\n",
-			__location__);
-		ret = false;
-		goto done;
-	}
+	torture_assert_int_equal_goto(tctx, nt_time_to_unix(finfo.all_info.out.write_time), basetime, ret, done, "time incorrect");
 
  done:
 
@@ -1812,9 +1810,7 @@ static bool test_stream_summary_tab(struct torture_context *tctx,
 	union smb_rename rio;
 	ssize_t retsize;
 
-	if (!torture_setup_dir(cli, BASEDIR)) {
-		return false;
-	}
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
 
 	fname_stream = talloc_asprintf(tctx, "%s%s", fname, stream);
 	fname_tmp_stream = talloc_asprintf(tctx, "%s%s", fname,
@@ -1891,6 +1887,184 @@ static bool test_stream_summary_tab(struct torture_context *tctx,
 	return ret;
 }
 
+/* Test how streams interact with base file permissions */
+/* Regression test for bug:
+   https://bugzilla.samba.org/show_bug.cgi?id=10229
+   bug #10229 - No access check verification on stream files.
+*/
+static bool test_stream_permissions(struct torture_context *tctx,
+					   struct smbcli_state *cli)
+{
+	NTSTATUS status;
+	bool ret = true;
+	union smb_open io;
+	const char *fname = BASEDIR "\\stream_permissions.txt";
+	const char *stream = "Stream One:$DATA";
+	const char *fname_stream;
+	union smb_fileinfo finfo;
+	union smb_setfileinfo sfinfo;
+	int fnum = -1;
+	union smb_fileinfo q;
+	union smb_setfileinfo set;
+	struct security_ace ace;
+	struct security_descriptor *sd;
+
+	torture_assert(tctx, torture_setup_dir(cli, BASEDIR),
+		"Failed to setup up test directory: " BASEDIR);
+
+	torture_comment(tctx, "(%s) testing permissions on streams\n", __location__);
+
+	fname_stream = talloc_asprintf(tctx, "%s:%s", fname, stream);
+
+	/* Create a file with a stream with attribute FILE_ATTRIBUTE_ARCHIVE. */
+	ret = create_file_with_stream(tctx, cli, fname_stream);
+	if (!ret) {
+		goto done;
+	}
+
+	ZERO_STRUCT(finfo);
+	finfo.generic.level = RAW_FILEINFO_BASIC_INFO;
+	finfo.generic.in.file.path = fname;
+	status = smb_raw_pathinfo(cli->tree, tctx, &finfo);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	torture_assert_int_equal_goto(tctx,
+		finfo.all_info.out.attrib & ~FILE_ATTRIBUTE_NONINDEXED,
+		FILE_ATTRIBUTE_ARCHIVE, ret, done, "attrib incorrect");
+
+	/* Change the attributes on the base file name. */
+	ZERO_STRUCT(sfinfo);
+	sfinfo.generic.level = RAW_SFILEINFO_SETATTR;
+	sfinfo.generic.in.file.path        = fname;
+	sfinfo.setattr.in.attrib           = FILE_ATTRIBUTE_READONLY;
+
+	status = smb_raw_setpathinfo(cli->tree, &sfinfo);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	/* Try and open the stream name for WRITE_DATA. Should
+	   fail with ACCESS_DENIED. */
+
+	ZERO_STRUCT(io);
+	io.generic.level = RAW_OPEN_NTCREATEX;
+	io.ntcreatex.in.root_fid.fnum = 0;
+	io.ntcreatex.in.flags = 0;
+	io.ntcreatex.in.access_mask = SEC_FILE_WRITE_DATA;
+	io.ntcreatex.in.create_options = 0;
+	io.ntcreatex.in.file_attr = 0;
+	io.ntcreatex.in.share_access = 0;
+	io.ntcreatex.in.alloc_size = 0;
+	io.ntcreatex.in.open_disposition = NTCREATEX_DISP_OPEN;
+	io.ntcreatex.in.impersonation = NTCREATEX_IMPERSONATION_ANONYMOUS;
+	io.ntcreatex.in.security_flags = 0;
+	io.ntcreatex.in.fname = fname_stream;
+
+	status = smb_raw_open(cli->tree, tctx, &io);
+	CHECK_STATUS(status, NT_STATUS_ACCESS_DENIED);
+
+	/* Change the attributes on the base file back. */
+	ZERO_STRUCT(sfinfo);
+	sfinfo.generic.level = RAW_SFILEINFO_SETATTR;
+	sfinfo.generic.in.file.path        = fname;
+	sfinfo.setattr.in.attrib           = 0;
+
+	status = smb_raw_setpathinfo(cli->tree, &sfinfo);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	/* Re-open the file name. */
+
+	ZERO_STRUCT(io);
+	io.generic.level = RAW_OPEN_NTCREATEX;
+	io.ntcreatex.in.root_fid.fnum = 0;
+	io.ntcreatex.in.flags = 0;
+	io.ntcreatex.in.access_mask = (SEC_FILE_READ_DATA|SEC_FILE_WRITE_DATA|
+		SEC_STD_READ_CONTROL|SEC_STD_WRITE_DAC|
+		SEC_FILE_WRITE_ATTRIBUTE);
+	io.ntcreatex.in.create_options = 0;
+	io.ntcreatex.in.file_attr = 0;
+	io.ntcreatex.in.share_access = 0;
+	io.ntcreatex.in.alloc_size = 0;
+	io.ntcreatex.in.open_disposition = NTCREATEX_DISP_OPEN;
+	io.ntcreatex.in.impersonation = NTCREATEX_IMPERSONATION_ANONYMOUS;
+	io.ntcreatex.in.security_flags = 0;
+	io.ntcreatex.in.fname = fname;
+
+	status = smb_raw_open(cli->tree, tctx, &io);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	fnum = io.ntcreatex.out.file.fnum;
+
+	/* Get the existing security descriptor. */
+	ZERO_STRUCT(q);
+	q.query_secdesc.level = RAW_FILEINFO_SEC_DESC;
+	q.query_secdesc.in.file.fnum = fnum;
+	q.query_secdesc.in.secinfo_flags =
+		SECINFO_OWNER |
+		SECINFO_GROUP |
+		SECINFO_DACL;
+	status = smb_raw_fileinfo(cli->tree, tctx, &q);
+	CHECK_STATUS(status, NT_STATUS_OK);
+	sd = q.query_secdesc.out.sd;
+
+	/* Now add a DENY WRITE security descriptor for Everyone. */
+	torture_comment(tctx, "add a new ACE to the DACL\n");
+
+	ace.type = SEC_ACE_TYPE_ACCESS_DENIED;
+	ace.flags = 0;
+	ace.access_mask = SEC_FILE_WRITE_DATA;
+	ace.trustee = *dom_sid_parse_talloc(tctx, SID_WORLD);
+
+	status = security_descriptor_dacl_add(sd, &ace);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	/* security_descriptor_dacl_add adds to the *end* of
+	   the ace array, we need it at the start. Swap.. */
+	ace = sd->dacl->aces[0];
+	sd->dacl->aces[0] = sd->dacl->aces[sd->dacl->num_aces-1];
+	sd->dacl->aces[sd->dacl->num_aces-1] = ace;
+
+	ZERO_STRUCT(set);
+	set.set_secdesc.level = RAW_SFILEINFO_SEC_DESC;
+	set.set_secdesc.in.file.fnum = fnum;
+	set.set_secdesc.in.secinfo_flags = SECINFO_DACL;
+	set.set_secdesc.in.sd = sd;
+
+	status = smb_raw_setfileinfo(cli->tree, &set);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	smbcli_close(cli->tree, fnum);
+	fnum = -1;
+
+	/* Try and open the stream name for WRITE_DATA. Should
+	   fail with ACCESS_DENIED. */
+
+	ZERO_STRUCT(io);
+	io.generic.level = RAW_OPEN_NTCREATEX;
+	io.ntcreatex.in.root_fid.fnum = 0;
+	io.ntcreatex.in.flags = 0;
+	io.ntcreatex.in.access_mask = SEC_FILE_WRITE_DATA;
+	io.ntcreatex.in.create_options = 0;
+	io.ntcreatex.in.file_attr = 0;
+	io.ntcreatex.in.share_access = 0;
+	io.ntcreatex.in.alloc_size = 0;
+	io.ntcreatex.in.open_disposition = NTCREATEX_DISP_OPEN;
+	io.ntcreatex.in.impersonation = NTCREATEX_IMPERSONATION_ANONYMOUS;
+	io.ntcreatex.in.security_flags = 0;
+	io.ntcreatex.in.fname = fname_stream;
+
+	status = smb_raw_open(cli->tree, tctx, &io);
+	CHECK_STATUS(status, NT_STATUS_ACCESS_DENIED);
+
+ done:
+
+	if (fnum != -1) {
+		smbcli_close(cli->tree, fnum);
+	}
+	smbcli_unlink(cli->tree, fname);
+
+	smbcli_deltree(cli->tree, BASEDIR);
+	return ret;
+}
+
 /* 
    basic testing of streams calls
 */
@@ -1911,9 +2085,12 @@ struct torture_suite *torture_raw_streams(TALLOC_CTX *tctx)
 	    test_stream_create_disposition);
 	torture_suite_add_1smb_test(suite, "attr", test_stream_attributes);
 	torture_suite_add_1smb_test(suite, "sumtab", test_stream_summary_tab);
+	torture_suite_add_1smb_test(suite, "perms", test_stream_permissions);
 
-	/* torture_suite_add_1smb_test(suite, "LARGESTREAMINFO", */
-	/*     test_stream_large_streaminfo); */
+#if 0
+	torture_suite_add_1smb_test(suite, "LARGESTREAMINFO",
+		test_stream_large_streaminfo);
+#endif
 
 	return suite;
 }

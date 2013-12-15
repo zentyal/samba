@@ -27,6 +27,10 @@ case $1 in
 		if init_is_upstart; then
 			exit 1
 		fi
+		SERVER_ROLE=`samba-tool testparm --parameter-name="server role"  2>/dev/null | tail -1`
+		if [ "$SERVER_ROLE" = "active directory domain controller" ]; then
+		    exit 0
+		fi
 
 		if [ -n `which testparm` ]
 		then

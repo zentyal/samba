@@ -58,6 +58,13 @@ interface drsuapi
 		DRSUAPI_DRS_GET_ALL_GROUP_MEMBERSHIP  = 0x80000000
 	} drsuapi_DrsOptions;
 
+	/* see DRS_MSG_REPMOD_V1 */
+	typedef [public,bitmap32bit] bitmap {
+		DRSUAPI_DRS_UPDATE_FLAGS              = 0x00000001,
+		DRSUAPI_DRS_UPDATE_ADDRESS            = 0x00000002,
+		DRSUAPI_DRS_UPDATE_SCHEDULE           = 0x00000004
+        } drsuapi_DrsUpdate;
+
 	/*****************/
         /* Function 0x00 */
         typedef [bitmap32bit] bitmap {
@@ -197,7 +204,7 @@ interface drsuapi
 	typedef struct {
 		[ref] drsuapi_DsReplicaObjectIdentifier *naming_context;
 		GUID source_dsa_guid;
-		astring *source_dsa_dns; /* Source DSA dns_name in <guid>._msdcs.<domain_dns> form */
+		[charset(DOS),string] char *source_dsa_dns; /* Source DSA dns_name in <guid>._msdcs.<domain_dns> form */
 		drsuapi_DrsOptions options;
 	} drsuapi_DsReplicaSyncRequest1;
 
@@ -392,6 +399,7 @@ interface drsuapi
 		DRSUAPI_ATTID_possSuperiors			= 0x00020008,
 		DRSUAPI_ATTID_displayName			= 0x0002000d,
 		DRSUAPI_ATTID_hasMasterNCs			= 0x0002000e,
+		DRSUAPI_ATTID_nCName				= 0x00020010,
 		DRSUAPI_ATTID_subClassOf			= 0x00020015,
 		DRSUAPI_ATTID_governsID				= 0x00020016,
 		DRSUAPI_ATTID_mustContain			= 0x00020018,
@@ -798,7 +806,7 @@ interface drsuapi
         /* Function 0x06 */
 	typedef struct {
 		[ref] drsuapi_DsReplicaObjectIdentifier *naming_context;
-		[charset(UTF16),string] uint16 *source_dsa_address;
+		[charset(UTF8), string] uint8 *source_dsa_address;
 		drsuapi_DrsOptions options;
 	} drsuapi_DsReplicaDelRequest1;
 

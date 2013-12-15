@@ -2,10 +2,10 @@
    Unix SMB/CIFS implementation.
    Authentication utility functions
    Copyright (C) Andrew Tridgell 1992-1998
-   Copyright (C) Andrew Bartlett 2001
+   Copyright (C) Andrew Bartlett 2001-2011
    Copyright (C) Jeremy Allison 2000-2001
    Copyright (C) Rafal Szczesniak 2002
-   Copyright (C) Volker Lendecke 2006
+   Copyright (C) Volker Lendecke 2006-2008
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -30,6 +30,10 @@
 #include "../lib/util/util_pw.h"
 #include "lib/winbind_util.h"
 #include "passdb.h"
+#include "../librpc/gen_ndr/ndr_auth.h"
+#include "../auth/auth_sam_reply.h"
+#include "../librpc/gen_ndr/idmap.h"
+#include "lib/param/loadparm.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_AUTH
@@ -44,7 +48,7 @@ static int _smb_create_user(const char *domain, const char *unix_username, const
 	char *add_script;
 	int ret;
 
-	add_script = talloc_strdup(ctx, lp_adduser_script());
+	add_script = lp_adduser_script(ctx);
 	if (!add_script || !*add_script) {
 		return -1;
 	}
@@ -89,8 +93,9 @@ NTSTATUS make_user_info_map(struct auth_usersupplied_info **user_info,
 			    const char *smb_name,
 			    const char *client_domain,
 			    const char *workstation_name,
-			    DATA_BLOB *lm_pwd,
-			    DATA_BLOB *nt_pwd,
+			    const struct tsocket_address *remote_address,
+			    const DATA_BLOB *lm_pwd,
+			    const DATA_BLOB *nt_pwd,
 			    const struct samr_Password *lm_interactive_pwd,
 			    const struct samr_Password *nt_interactive_pwd,
 			    const char *plaintext,
@@ -138,12 +143,12 @@ NTSTATUS make_user_info_map(struct auth_usersupplied_info **user_info,
 
 	result = make_user_info(user_info, smb_name, internal_username,
 			      client_domain, domain, workstation_name,
-			      lm_pwd, nt_pwd,
+			      remote_address, lm_pwd, nt_pwd,
 			      lm_interactive_pwd, nt_interactive_pwd,
 			      plaintext, password_state);
 	if (NT_STATUS_IS_OK(result)) {
 		/* We have tried mapping */
-		(*user_info)->mapped_state = True;
+		(*user_info)->mapped_state = true;
 		/* did we actually map the user to a different name? */
 		(*user_info)->was_mapped = was_mapped;
 	}
@@ -159,6 +164,7 @@ bool make_user_info_netlogon_network(struct auth_usersupplied_info **user_info,
 				     const char *smb_name, 
 				     const char *client_domain, 
 				     const char *workstation_name,
+				     const struct tsocket_address *remote_address,
 				     uint32 logon_parameters,
 				     const uchar *lm_network_pwd,
 				     int lm_pwd_len,
@@ -173,6 +179,7 @@ bool make_user_info_netlogon_network(struct auth_usersupplied_info **user_info,
 	status = make_user_info_map(user_info,
 				    smb_name, client_domain, 
 				    workstation_name,
+				    remote_address,
 				    lm_pwd_len ? &lm_blob : NULL, 
 				    nt_pwd_len ? &nt_blob : NULL,
 				    NULL, NULL, NULL,
@@ -181,7 +188,7 @@ bool make_user_info_netlogon_network(struct auth_usersupplied_info **user_info,
 	if (NT_STATUS_IS_OK(status)) {
 		(*user_info)->logon_parameters = logon_parameters;
 	}
-	ret = NT_STATUS_IS_OK(status) ? True : False;
+	ret = NT_STATUS_IS_OK(status) ? true : false;
 
 	data_blob_free(&lm_blob);
 	data_blob_free(&nt_blob);
@@ -197,50 +204,22 @@ bool make_user_info_netlogon_interactive(struct auth_usersupplied_info **user_in
 					 const char *smb_name, 
 					 const char *client_domain, 
 					 const char *workstation_name,
+					 const struct tsocket_address *remote_address,
 					 uint32 logon_parameters,
 					 const uchar chal[8], 
 					 const uchar lm_interactive_pwd[16], 
-					 const uchar nt_interactive_pwd[16], 
-					 const uchar *dc_sess_key)
+					 const uchar nt_interactive_pwd[16])
 {
 	struct samr_Password lm_pwd;
 	struct samr_Password nt_pwd;
 	unsigned char local_lm_response[24];
 	unsigned char local_nt_response[24];
-	unsigned char key[16];
-
-	memcpy(key, dc_sess_key, 16);
 
 	if (lm_interactive_pwd)
 		memcpy(lm_pwd.hash, lm_interactive_pwd, sizeof(lm_pwd.hash));
 
 	if (nt_interactive_pwd)
 		memcpy(nt_pwd.hash, nt_interactive_pwd, sizeof(nt_pwd.hash));
-
-#ifdef DEBUG_PASSWORD
-	DEBUG(100,("key:"));
-	dump_data(100, key, sizeof(key));
-
-	DEBUG(100,("lm owf password:"));
-	dump_data(100, lm_pwd.hash, sizeof(lm_pwd.hash));
-
-	DEBUG(100,("nt owf password:"));
-	dump_data(100, nt_pwd.hash, sizeof(nt_pwd.hash));
-#endif
-
-	if (lm_interactive_pwd)
-		arcfour_crypt(lm_pwd.hash, key, sizeof(lm_pwd.hash));
-
-	if (nt_interactive_pwd)
-		arcfour_crypt(nt_pwd.hash, key, sizeof(nt_pwd.hash));
-
-#ifdef DEBUG_PASSWORD
-	DEBUG(100,("decrypt of lm owf password:"));
-	dump_data(100, lm_pwd.hash, sizeof(lm_pwd));
-
-	DEBUG(100,("decrypt of nt owf password:"));
-	dump_data(100, nt_pwd.hash, sizeof(nt_pwd));
-#endif
 
 	if (lm_interactive_pwd)
 		SMBOWFencrypt(lm_pwd.hash, chal,
@@ -249,9 +228,6 @@ bool make_user_info_netlogon_interactive(struct auth_usersupplied_info **user_in
 	if (nt_interactive_pwd)
 		SMBOWFencrypt(nt_pwd.hash, chal,
 			      local_nt_response);
-
-	/* Password info paranoia */
-	ZERO_STRUCT(key);
 
 	{
 		bool ret;
@@ -272,6 +248,7 @@ bool make_user_info_netlogon_interactive(struct auth_usersupplied_info **user_in
 		nt_status = make_user_info_map(
 			user_info, 
 			smb_name, client_domain, workstation_name,
+			remote_address,
 			lm_interactive_pwd ? &local_lm_blob : NULL,
 			nt_interactive_pwd ? &local_nt_blob : NULL,
 			lm_interactive_pwd ? &lm_pwd : NULL,
@@ -282,7 +259,7 @@ bool make_user_info_netlogon_interactive(struct auth_usersupplied_info **user_in
 			(*user_info)->logon_parameters = logon_parameters;
 		}
 
-		ret = NT_STATUS_IS_OK(nt_status) ? True : False;
+		ret = NT_STATUS_IS_OK(nt_status) ? true : false;
 		data_blob_free(&local_lm_blob);
 		data_blob_free(&local_nt_blob);
 		return ret;
@@ -297,6 +274,7 @@ bool make_user_info_netlogon_interactive(struct auth_usersupplied_info **user_in
 bool make_user_info_for_reply(struct auth_usersupplied_info **user_info,
 			      const char *smb_name, 
 			      const char *client_domain,
+			      const struct tsocket_address *remote_address,
 			      const uint8 chal[8],
 			      DATA_BLOB plaintext_password)
 {
@@ -337,12 +315,13 @@ bool make_user_info_for_reply(struct auth_usersupplied_info **user_info,
 						   (const char *)plaintext_password.data,
 						   plaintext_password.length);
 	if (!plaintext_password_string) {
-		return False;
+		return false;
 	}
 
-	ret = make_user_info_map(
-		user_info, smb_name, client_domain, 
+	ret = make_user_info(
+		user_info, smb_name, smb_name, client_domain, client_domain, 
 		get_remote_machine_name(),
+		remote_address,
 		local_lm_blob.data ? &local_lm_blob : NULL,
 		local_nt_blob.data ? &local_nt_blob : NULL,
 		NULL, NULL,
@@ -355,7 +334,7 @@ bool make_user_info_for_reply(struct auth_usersupplied_info **user_info,
 	}
 
 	data_blob_free(&local_lm_blob);
-	return NT_STATUS_IS_OK(ret) ? True : False;
+	return NT_STATUS_IS_OK(ret) ? true : false;
 }
 
 /****************************************************************************
@@ -364,23 +343,26 @@ bool make_user_info_for_reply(struct auth_usersupplied_info **user_info,
 
 NTSTATUS make_user_info_for_reply_enc(struct auth_usersupplied_info **user_info,
                                       const char *smb_name,
-                                      const char *client_domain, 
+                                      const char *client_domain,
+				      const struct tsocket_address *remote_address,
                                       DATA_BLOB lm_resp, DATA_BLOB nt_resp)
 {
-	return make_user_info_map(user_info, smb_name, 
-				  client_domain, 
-				  get_remote_machine_name(), 
-				  lm_resp.data && (lm_resp.length > 0) ? &lm_resp : NULL,
-				  nt_resp.data && (nt_resp.length > 0) ? &nt_resp : NULL,
-				  NULL, NULL, NULL,
-				  AUTH_PASSWORD_RESPONSE);
+	return make_user_info(user_info, smb_name, smb_name, 
+			      client_domain, client_domain, 
+			      get_remote_machine_name(),
+			      remote_address,
+			      lm_resp.data && (lm_resp.length > 0) ? &lm_resp : NULL,
+			      nt_resp.data && (nt_resp.length > 0) ? &nt_resp : NULL,
+			      NULL, NULL, NULL,
+			      AUTH_PASSWORD_RESPONSE);
 }
 
 /****************************************************************************
- Create a guest user_info blob, for anonymous authenticaion.
+ Create a guest user_info blob, for anonymous authentication.
 ****************************************************************************/
 
-bool make_user_info_guest(struct auth_usersupplied_info **user_info)
+bool make_user_info_guest(const struct tsocket_address *remote_address,
+			  struct auth_usersupplied_info **user_info)
 {
 	NTSTATUS nt_status;
 
@@ -388,12 +370,13 @@ bool make_user_info_guest(struct auth_usersupplied_info **user_info)
 				   "","", 
 				   "","", 
 				   "", 
+				   remote_address,
 				   NULL, NULL, 
 				   NULL, NULL, 
 				   NULL,
 				   AUTH_PASSWORD_RESPONSE);
 
-	return NT_STATUS_IS_OK(nt_status) ? True : False;
+	return NT_STATUS_IS_OK(nt_status) ? true : false;
 }
 
 static NTSTATUS log_nt_token(struct security_token *token)
@@ -403,8 +386,8 @@ static NTSTATUS log_nt_token(struct security_token *token)
 	char *group_sidstr;
 	size_t i;
 
-	if ((lp_log_nt_token_command() == NULL) ||
-	    (strlen(lp_log_nt_token_command()) == 0)) {
+	if ((lp_log_nt_token_command(frame) == NULL) ||
+	    (strlen(lp_log_nt_token_command(frame)) == 0)) {
 		TALLOC_FREE(frame);
 		return NT_STATUS_OK;
 	}
@@ -417,7 +400,7 @@ static NTSTATUS log_nt_token(struct security_token *token)
 	}
 
 	command = talloc_string_sub(
-		frame, lp_log_nt_token_command(),
+		frame, lp_log_nt_token_command(frame),
 		"%s", sid_string_talloc(frame, &token->sids[0]));
 	command = talloc_string_sub(frame, command, "%t", group_sidstr);
 
@@ -442,13 +425,103 @@ static NTSTATUS log_nt_token(struct security_token *token)
  * server_info->sids (the info3/sam groups). Find the unix gids.
  */
 
-NTSTATUS create_local_token(struct auth_serversupplied_info *server_info)
+NTSTATUS create_local_token(TALLOC_CTX *mem_ctx,
+			    const struct auth_serversupplied_info *server_info,
+			    DATA_BLOB *session_key,
+			    const char *smb_username, /* for ->sanitized_username, for %U subs */
+			    struct auth_session_info **session_info_out)
 {
 	struct security_token *t;
 	NTSTATUS status;
 	size_t i;
 	struct dom_sid tmp_sid;
-	struct wbcUnixId *ids;
+	struct auth_session_info *session_info;
+	struct unixid *ids;
+	fstring tmp;
+
+	/* Ensure we can't possible take a code path leading to a
+	 * null defref. */
+	if (!server_info) {
+		return NT_STATUS_LOGON_FAILURE;
+	}
+
+	session_info = talloc_zero(mem_ctx, struct auth_session_info);
+	if (!session_info) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	session_info->unix_token = talloc_zero(session_info, struct security_unix_token);
+	if (!session_info->unix_token) {
+		TALLOC_FREE(session_info);
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	session_info->unix_token->uid = server_info->utok.uid;
+	session_info->unix_token->gid = server_info->utok.gid;
+
+	session_info->unix_info = talloc_zero(session_info, struct auth_user_info_unix);
+	if (!session_info->unix_info) {
+		TALLOC_FREE(session_info);
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	session_info->unix_info->unix_name = talloc_strdup(session_info, server_info->unix_name);
+	if (!session_info->unix_info->unix_name) {
+		TALLOC_FREE(session_info);
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	/* This is a potentially untrusted username for use in %U */
+	alpha_strcpy(tmp, smb_username, ". _-$", sizeof(tmp));
+	session_info->unix_info->sanitized_username =
+				talloc_strdup(session_info->unix_info, tmp);
+
+	if (session_key) {
+		data_blob_free(&session_info->session_key);
+		session_info->session_key = data_blob_talloc(session_info,
+								  session_key->data,
+								  session_key->length);
+		if (!session_info->session_key.data && session_key->length) {
+			return NT_STATUS_NO_MEMORY;
+		}
+	} else {
+		session_info->session_key = data_blob_talloc( session_info, server_info->session_key.data,
+							      server_info->session_key.length);
+	}
+
+	/* We need to populate session_info->info with the information found in server_info->info3 */
+	status = make_user_info_SamBaseInfo(session_info, "", &server_info->info3->base,
+					    server_info->guest == false,
+					    &session_info->info);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("conversion of info3 into auth_user_info failed!\n"));
+		TALLOC_FREE(session_info);
+		return status;
+	}
+
+	if (server_info->security_token) {
+		/* Just copy the token, it has already been finalised
+		 * (nasty hack to support a cached guest/system session_info
+		 */
+
+		session_info->security_token = dup_nt_token(session_info, server_info->security_token);
+		if (!session_info->security_token) {
+			TALLOC_FREE(session_info);
+			return NT_STATUS_NO_MEMORY;
+		}
+
+		session_info->unix_token->ngroups = server_info->utok.ngroups;
+		if (server_info->utok.ngroups != 0) {
+			session_info->unix_token->groups = (gid_t *)talloc_memdup(
+				session_info->unix_token, server_info->utok.groups,
+				sizeof(gid_t)*session_info->unix_token->ngroups);
+		} else {
+			session_info->unix_token->groups = NULL;
+		}
+
+		*session_info_out = session_info;
+		return NT_STATUS_OK;
+	}
 
 	/*
 	 * If winbind is not around, we can not make much use of the SIDs the
@@ -458,20 +531,23 @@ NTSTATUS create_local_token(struct auth_serversupplied_info *server_info)
 
 	if (((lp_server_role() == ROLE_DOMAIN_MEMBER) && !winbind_ping()) ||
 	    (server_info->nss_token)) {
-		status = create_token_from_username(server_info,
+		char *found_username = NULL;
+		status = create_token_from_username(session_info,
 						    server_info->unix_name,
 						    server_info->guest,
-						    &server_info->utok.uid,
-						    &server_info->utok.gid,
-						    &server_info->unix_name,
-						    &server_info->security_token);
-
+						    &session_info->unix_token->uid,
+						    &session_info->unix_token->gid,
+						    &found_username,
+						    &session_info->security_token);
+		if (NT_STATUS_IS_OK(status)) {
+			session_info->unix_info->unix_name = found_username;
+		}
 	} else {
-		status = create_local_nt_token_from_info3(server_info,
+		status = create_local_nt_token_from_info3(session_info,
 							  server_info->guest,
 							  server_info->info3,
 							  &server_info->extra,
-							  &server_info->security_token);
+							  &session_info->security_token);
 	}
 
 	if (!NT_STATUS_IS_OK(status)) {
@@ -480,35 +556,38 @@ NTSTATUS create_local_token(struct auth_serversupplied_info *server_info)
 
 	/* Convert the SIDs to gids. */
 
-	server_info->utok.ngroups = 0;
-	server_info->utok.groups = NULL;
+	session_info->unix_token->ngroups = 0;
+	session_info->unix_token->groups = NULL;
 
-	t = server_info->security_token;
+	t = session_info->security_token;
 
-	ids = TALLOC_ARRAY(talloc_tos(), struct wbcUnixId,
+	ids = talloc_array(talloc_tos(), struct unixid,
 			   t->num_sids);
 	if (ids == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	if (!sids_to_unix_ids(t->sids, t->num_sids, ids)) {
+	if (!sids_to_unixids(t->sids, t->num_sids, ids)) {
 		TALLOC_FREE(ids);
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	/* Start at index 1, where the groups start. */
+	for (i=0; i<t->num_sids; i++) {
 
-	for (i=1; i<t->num_sids; i++) {
+		if (i == 0 && ids[i].type != ID_TYPE_BOTH) {
+			continue;
+		}
 
-		if (ids[i].type != WBC_ID_TYPE_GID) {
+		if (ids[i].type != ID_TYPE_GID &&
+		    ids[i].type != ID_TYPE_BOTH) {
 			DEBUG(10, ("Could not convert SID %s to gid, "
 				   "ignoring it\n",
 				   sid_string_dbg(&t->sids[i])));
 			continue;
 		}
-		if (!add_gid_to_array_unique(server_info, ids[i].id.gid,
-					     &server_info->utok.groups,
-					     &server_info->utok.ngroups)) {
+		if (!add_gid_to_array_unique(session_info, ids[i].id,
+					     &session_info->unix_token->groups,
+					     &session_info->unix_token->ngroups)) {
 			return NT_STATUS_NO_MEMORY;
 		}
 	}
@@ -526,28 +605,33 @@ NTSTATUS create_local_token(struct auth_serversupplied_info *server_info)
 	 * the nt token.
 	 */
 
-	uid_to_unix_users_sid(server_info->utok.uid, &tmp_sid);
+	uid_to_unix_users_sid(session_info->unix_token->uid, &tmp_sid);
 
-	add_sid_to_array_unique(server_info->security_token, &tmp_sid,
-				&server_info->security_token->sids,
-				&server_info->security_token->num_sids);
+	add_sid_to_array_unique(session_info->security_token, &tmp_sid,
+				&session_info->security_token->sids,
+				&session_info->security_token->num_sids);
 
-	for ( i=0; i<server_info->utok.ngroups; i++ ) {
-		gid_to_unix_groups_sid(server_info->utok.groups[i], &tmp_sid);
-		add_sid_to_array_unique(server_info->security_token, &tmp_sid,
-					&server_info->security_token->sids,
-					&server_info->security_token->num_sids);
+	for ( i=0; i<session_info->unix_token->ngroups; i++ ) {
+		gid_to_unix_groups_sid(session_info->unix_token->groups[i], &tmp_sid);
+		add_sid_to_array_unique(session_info->security_token, &tmp_sid,
+					&session_info->security_token->sids,
+					&session_info->security_token->num_sids);
 	}
 
-	security_token_debug(DBGC_AUTH, 10, server_info->security_token);
+	security_token_debug(DBGC_AUTH, 10, session_info->security_token);
 	debug_unix_user_token(DBGC_AUTH, 10,
-			      server_info->utok.uid,
-			      server_info->utok.gid,
-			      server_info->utok.ngroups,
-			      server_info->utok.groups);
+			      session_info->unix_token->uid,
+			      session_info->unix_token->gid,
+			      session_info->unix_token->ngroups,
+			      session_info->unix_token->groups);
 
-	status = log_nt_token(server_info->security_token);
-	return status;
+	status = log_nt_token(session_info->security_token);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	*session_info_out = session_info;
+	return NT_STATUS_OK;
 }
 
 /***************************************************************************
@@ -629,7 +713,7 @@ NTSTATUS make_server_info_pw(struct auth_serversupplied_info **server_info,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	status = samu_to_SamInfo3(result, sampass, global_myname(),
+	status = samu_to_SamInfo3(result, sampass, lp_netbios_name(),
 				  &result->info3, &result->extra);
 	TALLOC_FREE(sampass);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -640,10 +724,8 @@ NTSTATUS make_server_info_pw(struct auth_serversupplied_info **server_info,
 	}
 
 	result->unix_name = talloc_strdup(result, unix_username);
-	result->sanitized_username = sanitize_username(result, unix_username);
 
-	if ((result->unix_name == NULL)
-	    || (result->sanitized_username == NULL)) {
+	if (result->unix_name == NULL) {
 		TALLOC_FREE(result);
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -657,39 +739,35 @@ NTSTATUS make_server_info_pw(struct auth_serversupplied_info **server_info,
 }
 
 static NTSTATUS get_system_info3(TALLOC_CTX *mem_ctx,
-				 struct passwd *pwd,
 				 struct netr_SamInfo3 *info3)
 {
-	struct dom_sid domain_sid;
-	const char *tmp;
+	NTSTATUS status;
+	struct dom_sid *system_sid;
 
 	/* Set account name */
-	tmp = talloc_strdup(mem_ctx, pwd->pw_name);
-	if (tmp == NULL) {
-		return NT_STATUS_NO_MEMORY;
-	}
-	init_lsa_String(&info3->base.account_name, tmp);
+	init_lsa_String(&info3->base.account_name, "SYSTEM");
 
 	/* Set domain name */
-	tmp = talloc_strdup(mem_ctx, get_global_sam_name());
-	if (tmp == NULL) {
+	init_lsa_StringLarge(&info3->base.logon_domain, "NT AUTHORITY");
+
+
+	/* The SID set here will be overwirtten anyway, but try and make it SID_NT_SYSTEM anyway */
+	/* Domain sid is NT_AUTHORITY */
+	
+	system_sid = dom_sid_parse_talloc(mem_ctx, SID_NT_SYSTEM);
+	if (system_sid == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
-	init_lsa_StringLarge(&info3->base.domain, tmp);
-
-	/* Domain sid */
-	sid_copy(&domain_sid, get_global_sam_sid());
-
-	info3->base.domain_sid = dom_sid_dup(mem_ctx, &domain_sid);
-	if (info3->base.domain_sid == NULL) {
-		return NT_STATUS_NO_MEMORY;
+	
+	status = dom_sid_split_rid(mem_ctx, system_sid, &info3->base.domain_sid, 
+				   &info3->base.rid);
+	TALLOC_FREE(system_sid);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
 	}
-
-	/* Admin rid */
-	info3->base.rid = DOMAIN_RID_ADMINISTRATOR;
-
-	/* Primary gid */
-	info3->base.primary_gid = BUILTIN_RID_ADMINISTRATORS;
+	
+	/* Primary gid is the same */
+	info3->base.primary_gid = info3->base.rid;
 
 	return NT_STATUS_OK;
 }
@@ -709,7 +787,7 @@ static NTSTATUS get_guest_info3(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_NO_SUCH_USER;
 	}
 
-	/* Set acount name */
+	/* Set account name */
 	tmp = talloc_strdup(mem_ctx, pwd->pw_name);
 	if (tmp == NULL) {
 		return NT_STATUS_NO_MEMORY;
@@ -721,7 +799,7 @@ static NTSTATUS get_guest_info3(TALLOC_CTX *mem_ctx,
 	if (tmp == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
-	init_lsa_StringLarge(&info3->base.domain, tmp);
+	init_lsa_StringLarge(&info3->base.logon_domain, tmp);
 
 	/* Domain sid */
 	sid_copy(&domain_sid, get_global_sam_sid());
@@ -737,6 +815,9 @@ static NTSTATUS get_guest_info3(TALLOC_CTX *mem_ctx,
 	/* Primary gid */
 	info3->base.primary_gid = DOMAIN_RID_GUESTS;
 
+	/* Set as guest */
+	info3->base.user_flags = NETLOGON_GUEST;
+
 	TALLOC_FREE(pwd);
 	return NT_STATUS_OK;
 }
@@ -745,17 +826,21 @@ static NTSTATUS get_guest_info3(TALLOC_CTX *mem_ctx,
  Make (and fill) a user_info struct for a guest login.
  This *must* succeed for smbd to start. If there is no mapping entry for
  the guest gid, then create one.
+
+ The resulting structure is a 'session_info' because
+ create_local_token() has already been called on it.  This is quite
+ nasty, as the auth subsystem isn't expect this, but the behavior is
+ left as-is for now.
 ***************************************************************************/
 
-static NTSTATUS make_new_server_info_guest(struct auth_serversupplied_info **server_info)
+static NTSTATUS make_new_session_info_guest(struct auth_session_info **session_info, struct auth_serversupplied_info **server_info)
 {
 	static const char zeros[16] = {0};
 	const char *guest_account = lp_guestaccount();
-	const char *domain = global_myname();
+	const char *domain = lp_netbios_name();
 	struct netr_SamInfo3 info3;
 	TALLOC_CTX *tmp_ctx;
 	NTSTATUS status;
-	fstring tmp;
 
 	tmp_ctx = talloc_stackframe();
 	if (tmp_ctx == NULL) {
@@ -766,6 +851,8 @@ static NTSTATUS make_new_server_info_guest(struct auth_serversupplied_info **ser
 
 	status = get_guest_info3(tmp_ctx, &info3);
 	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("get_guest_info3 failed with %s\n",
+			  nt_errstr(status)));
 		goto done;
 	}
 
@@ -775,82 +862,30 @@ static NTSTATUS make_new_server_info_guest(struct auth_serversupplied_info **ser
 					server_info,
 					&info3);
 	if (!NT_STATUS_IS_OK(status)) {
-		goto done;
-	}
-
-	(*server_info)->guest = True;
-
-	status = create_local_token(*server_info);
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(10, ("create_local_token failed: %s\n",
-			   nt_errstr(status)));
-		goto done;
-	}
-
-	/* annoying, but the Guest really does have a session key, and it is
-	   all zeros! */
-	(*server_info)->user_session_key = data_blob(zeros, sizeof(zeros));
-	(*server_info)->lm_session_key = data_blob(zeros, sizeof(zeros));
-
-	alpha_strcpy(tmp, (*server_info)->info3->base.account_name.string,
-		     ". _-$", sizeof(tmp));
-	(*server_info)->sanitized_username = talloc_strdup(*server_info, tmp);
-
-	status = NT_STATUS_OK;
-done:
-	TALLOC_FREE(tmp_ctx);
-	return status;
-}
-
-/****************************************************************************
-  Fake a auth_session_info just from a username (as a
-  session_info structure, with create_local_token() already called on
-  it.
-****************************************************************************/
-
-static NTSTATUS make_system_session_info_from_pw(TALLOC_CTX *mem_ctx,
-						 struct passwd *pwd,
-						 struct auth_serversupplied_info **server_info)
-{
-	const char *domain = global_myname();
-	struct netr_SamInfo3 info3;
-	TALLOC_CTX *tmp_ctx;
-	NTSTATUS status;
-
-	tmp_ctx = talloc_stackframe();
-	if (tmp_ctx == NULL) {
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	ZERO_STRUCT(info3);
-
-	status = get_system_info3(tmp_ctx, pwd, &info3);
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0, ("Failed creating system info3 with %s\n",
-			  nt_errstr(status)));
-		goto done;
-	}
-
-	status = make_server_info_info3(mem_ctx,
-					pwd->pw_name,
-					domain,
-					server_info,
-					&info3);
-	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("make_server_info_info3 failed with %s\n",
 			  nt_errstr(status)));
 		goto done;
 	}
 
-	(*server_info)->nss_token = true;
+	(*server_info)->guest = true;
 
-	/* Now turn the server_info into a session_info with the full token etc */
-	status = create_local_token(*server_info);
+	/* This should not be done here (we should produce a server
+	 * info, and later construct a session info from it), but for
+	 * now this does not change the previous behavior */
+	status = create_local_token(tmp_ctx, *server_info, NULL,
+				    (*server_info)->info3->base.account_name.string,
+				    session_info);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("create_local_token failed: %s\n",
 			  nt_errstr(status)));
 		goto done;
 	}
+	talloc_steal(NULL, *session_info);
+	talloc_steal(NULL, *server_info);
+
+	/* annoying, but the Guest really does have a session key, and it is
+	   all zeros! */
+	(*session_info)->session_key = data_blob(zeros, sizeof(zeros));
 
 	status = NT_STATUS_OK;
 done:
@@ -864,51 +899,99 @@ done:
 ***************************************************************************/
 
 static NTSTATUS make_new_session_info_system(TALLOC_CTX *mem_ctx,
-					    struct auth_serversupplied_info **session_info)
+					    struct auth_session_info **session_info)
 {
-	struct passwd *pwd;
 	NTSTATUS status;
+	struct auth_serversupplied_info *server_info;
+	TALLOC_CTX *tmp_ctx;
 
-	pwd = getpwuid_alloc(mem_ctx, sec_initial_uid());
-	if (pwd == NULL) {
-		return NT_STATUS_NO_SUCH_USER;
+	tmp_ctx = talloc_stackframe();
+	if (tmp_ctx == NULL) {
+		return NT_STATUS_NO_MEMORY;
 	}
 
-	status = make_system_session_info_from_pw(mem_ctx,
-						  pwd,
-						  session_info);
-	TALLOC_FREE(pwd);
+	server_info = make_server_info(tmp_ctx);
+	if (!server_info) {
+		status = NT_STATUS_NO_MEMORY;
+		DEBUG(0, ("failed making server_info\n"));
+		goto done;
+	}
+
+	server_info->info3 = talloc_zero(server_info, struct netr_SamInfo3);
+	if (!server_info->info3) {
+		status = NT_STATUS_NO_MEMORY;
+		DEBUG(0, ("talloc failed setting info3\n"));
+		goto done;
+	}
+
+	status = get_system_info3(server_info, server_info->info3);
 	if (!NT_STATUS_IS_OK(status)) {
-		return status;
+		DEBUG(0, ("Failed creating system info3 with %s\n",
+			  nt_errstr(status)));
+		goto done;
 	}
 
-	(*session_info)->system = true;
+	server_info->utok.uid = sec_initial_uid();
+	server_info->utok.gid = sec_initial_gid();
+	server_info->unix_name = talloc_asprintf(server_info,
+						 "NT AUTHORITY%cSYSTEM",
+						 *lp_winbind_separator());
 
-	status = add_sid_to_array_unique((*session_info)->security_token->sids,
+	if (!server_info->unix_name) {
+		status = NT_STATUS_NO_MEMORY;
+		DEBUG(0, ("talloc_asprintf failed setting unix_name\n"));
+		goto done;
+	}
+
+	server_info->security_token = talloc_zero(server_info, struct security_token);
+	if (!server_info->security_token) {
+		status = NT_STATUS_NO_MEMORY;
+		DEBUG(0, ("talloc failed setting security token\n"));
+		goto done;
+	}
+
+	status = add_sid_to_array_unique(server_info->security_token->sids,
 					 &global_sid_System,
-					 &(*session_info)->security_token->sids,
-					 &(*session_info)->security_token->num_sids);
+					 &server_info->security_token->sids,
+					 &server_info->security_token->num_sids);
 	if (!NT_STATUS_IS_OK(status)) {
-		TALLOC_FREE((*session_info));
-		return status;
+		goto done;
 	}
 
-	return NT_STATUS_OK;
+	/* SYSTEM has all privilages */
+	server_info->security_token->privilege_mask = ~0;
+
+	/* Now turn the server_info into a session_info with the full token etc */
+	status = create_local_token(mem_ctx, server_info, NULL, "SYSTEM", session_info);
+	talloc_free(server_info);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("create_local_token failed: %s\n",
+			  nt_errstr(status)));
+		goto done;
+	}
+
+	talloc_steal(mem_ctx, *session_info);
+
+done:
+	TALLOC_FREE(tmp_ctx);
+	return status;
 }
 
 /****************************************************************************
-  Fake a auth_serversupplied_info just from a username
+  Fake a auth_session_info just from a username (as a
+  session_info structure, with create_local_token() already called on
+  it.
 ****************************************************************************/
 
-NTSTATUS make_serverinfo_from_username(TALLOC_CTX *mem_ctx,
-				       const char *username,
-				       bool use_guest_token,
-				       bool is_guest,
-				       struct auth_serversupplied_info **presult)
+NTSTATUS make_session_info_from_username(TALLOC_CTX *mem_ctx,
+					 const char *username,
+					 bool is_guest,
+					 struct auth_session_info **session_info)
 {
-	struct auth_serversupplied_info *result;
 	struct passwd *pwd;
 	NTSTATUS status;
+	struct auth_serversupplied_info *result;
 
 	pwd = Get_Pwnam_alloc(talloc_tos(), username);
 	if (pwd == NULL) {
@@ -917,8 +1000,6 @@ NTSTATUS make_serverinfo_from_username(TALLOC_CTX *mem_ctx,
 
 	status = make_server_info_pw(&result, pwd->pw_name, pwd);
 
-	TALLOC_FREE(pwd);
-
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
@@ -926,24 +1007,30 @@ NTSTATUS make_serverinfo_from_username(TALLOC_CTX *mem_ctx,
 	result->nss_token = true;
 	result->guest = is_guest;
 
-	if (use_guest_token) {
-		status = make_server_info_guest(mem_ctx, &result);
-	} else {
-		status = create_local_token(result);
-	}
+	/* Now turn the server_info into a session_info with the full token etc */
+	status = create_local_token(mem_ctx, result, NULL, pwd->pw_name, session_info);
+	TALLOC_FREE(result);
+	TALLOC_FREE(pwd);
 
-	if (!NT_STATUS_IS_OK(status)) {
-		TALLOC_FREE(result);
-		return status;
-	}
-
-	*presult = talloc_steal(mem_ctx, result);
-	return NT_STATUS_OK;
+	return status;
 }
 
-
-struct auth_serversupplied_info *copy_serverinfo(TALLOC_CTX *mem_ctx,
-						 const struct auth_serversupplied_info *src)
+/* This function MUST only used to create the cached server_info for
+ * guest.
+ *
+ * This is a lossy conversion.  Variables known to be lost so far
+ * include:
+ *
+ * - nss_token (not needed because the only read doesn't happen
+ * for the GUEST user, as this routine populates ->security_token
+ *
+ * - extra (not needed because the guest account must have valid RIDs per the output of get_guest_info3())
+ *
+ * - The 'server_info' parameter allows the missing 'info3' to be copied across.
+ */
+static struct auth_serversupplied_info *copy_session_info_serverinfo_guest(TALLOC_CTX *mem_ctx,
+									   const struct auth_session_info *src,
+									   struct auth_serversupplied_info *server_info)
 {
 	struct auth_serversupplied_info *dst;
 
@@ -952,48 +1039,93 @@ struct auth_serversupplied_info *copy_serverinfo(TALLOC_CTX *mem_ctx,
 		return NULL;
 	}
 
-	dst->guest = src->guest;
-	dst->system = src->system;
-	dst->utok.uid = src->utok.uid;
-	dst->utok.gid = src->utok.gid;
-	dst->utok.ngroups = src->utok.ngroups;
-	if (src->utok.ngroups != 0) {
-		dst->utok.groups = (gid_t *)TALLOC_MEMDUP(
-			dst, src->utok.groups,
+	/* This element must be provided to convert back to an auth_serversupplied_info */
+	SMB_ASSERT(src->unix_info);
+
+	dst->guest = true;
+	dst->system = false;
+
+	/* This element must be provided to convert back to an
+	 * auth_serversupplied_info.  This needs to be from the
+	 * auth_session_info because the group values in particular
+	 * may change during create_local_token() processing */
+	SMB_ASSERT(src->unix_token);
+	dst->utok.uid = src->unix_token->uid;
+	dst->utok.gid = src->unix_token->gid;
+	dst->utok.ngroups = src->unix_token->ngroups;
+	if (src->unix_token->ngroups != 0) {
+		dst->utok.groups = (gid_t *)talloc_memdup(
+			dst, src->unix_token->groups,
 			sizeof(gid_t)*dst->utok.ngroups);
 	} else {
 		dst->utok.groups = NULL;
 	}
 
-	if (src->security_token) {
-		dst->security_token = dup_nt_token(dst, src->security_token);
-		if (!dst->security_token) {
-			TALLOC_FREE(dst);
-			return NULL;
-		}
+	/* We must have a security_token as otherwise the lossy
+	 * conversion without nss_token would cause create_local_token
+	 * to take the wrong path */
+	SMB_ASSERT(src->security_token);
+
+	dst->security_token = dup_nt_token(dst, src->security_token);
+	if (!dst->security_token) {
+		TALLOC_FREE(dst);
+		return NULL;
 	}
 
-	dst->user_session_key = data_blob_talloc( dst, src->user_session_key.data,
-						src->user_session_key.length);
+	dst->session_key = data_blob_talloc( dst, src->session_key.data,
+						src->session_key.length);
 
-	dst->lm_session_key = data_blob_talloc(dst, src->lm_session_key.data,
-						src->lm_session_key.length);
+	/* This is OK because this functions is only used for the
+	 * GUEST account, which has all-zero keys for both values */
+	dst->lm_session_key = data_blob_talloc(dst, src->session_key.data,
+						src->session_key.length);
 
-	dst->info3 = copy_netr_SamInfo3(dst, src->info3);
+	dst->info3 = copy_netr_SamInfo3(dst, server_info->info3);
 	if (!dst->info3) {
 		TALLOC_FREE(dst);
 		return NULL;
 	}
-	dst->extra = src->extra;
 
-	dst->unix_name = talloc_strdup(dst, src->unix_name);
+	dst->unix_name = talloc_strdup(dst, src->unix_info->unix_name);
 	if (!dst->unix_name) {
 		TALLOC_FREE(dst);
 		return NULL;
 	}
 
-	dst->sanitized_username = talloc_strdup(dst, src->sanitized_username);
-	if (!dst->sanitized_username) {
+	return dst;
+}
+
+struct auth_session_info *copy_session_info(TALLOC_CTX *mem_ctx,
+					     const struct auth_session_info *src)
+{
+	struct auth_session_info *dst;
+	DATA_BLOB blob;
+	enum ndr_err_code ndr_err;
+
+	ndr_err = ndr_push_struct_blob(
+		&blob, talloc_tos(), src,
+		(ndr_push_flags_fn_t)ndr_push_auth_session_info);
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		DEBUG(0, ("copy_session_info(): ndr_push_auth_session_info failed: "
+			   "%s\n", ndr_errstr(ndr_err)));
+		return NULL;
+	}
+
+	dst = talloc(mem_ctx, struct auth_session_info);
+	if (dst == NULL) {
+		DEBUG(0, ("talloc failed\n"));
+		TALLOC_FREE(blob.data);
+		return NULL;
+	}
+
+	ndr_err = ndr_pull_struct_blob(
+		&blob, dst, dst,
+		(ndr_pull_flags_fn_t)ndr_pull_auth_session_info);
+	TALLOC_FREE(blob.data);
+
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		DEBUG(0, ("copy_session_info(): ndr_pull_auth_session_info failed: "
+			   "%s\n", ndr_errstr(ndr_err)));
 		TALLOC_FREE(dst);
 		return NULL;
 	}
@@ -1006,37 +1138,50 @@ struct auth_serversupplied_info *copy_serverinfo(TALLOC_CTX *mem_ctx,
  * SMB level session key with SystemLibraryDTC
  */
 
-bool session_info_set_session_key(struct auth_serversupplied_info *info,
+bool session_info_set_session_key(struct auth_session_info *info,
 				 DATA_BLOB session_key)
 {
-	TALLOC_FREE(info->user_session_key.data);
+	TALLOC_FREE(info->session_key.data);
 
-	info->user_session_key = data_blob_talloc(
+	info->session_key = data_blob_talloc(
 		info, session_key.data, session_key.length);
 
-	return (info->user_session_key.data != NULL);
+	return (info->session_key.data != NULL);
 }
 
-static struct auth_serversupplied_info *guest_info = NULL;
+static struct auth_session_info *guest_info = NULL;
+
+static struct auth_serversupplied_info *guest_server_info = NULL;
 
 bool init_guest_info(void)
 {
 	if (guest_info != NULL)
-		return True;
+		return true;
 
-	return NT_STATUS_IS_OK(make_new_server_info_guest(&guest_info));
+	return NT_STATUS_IS_OK(make_new_session_info_guest(&guest_info, &guest_server_info));
 }
 
 NTSTATUS make_server_info_guest(TALLOC_CTX *mem_ctx,
 				struct auth_serversupplied_info **server_info)
 {
-	*server_info = copy_serverinfo(mem_ctx, guest_info);
+	/* This is trickier than it would appear to need to be because
+	 * we are trying to avoid certain costly operations when the
+	 * structure is converted to a 'auth_session_info' again in
+	 * create_local_token() */
+	*server_info = copy_session_info_serverinfo_guest(mem_ctx, guest_info, guest_server_info);
 	return (*server_info != NULL) ? NT_STATUS_OK : NT_STATUS_NO_MEMORY;
 }
 
-static struct auth_serversupplied_info *system_info = NULL;
+NTSTATUS make_session_info_guest(TALLOC_CTX *mem_ctx,
+				struct auth_session_info **session_info)
+{
+	*session_info = copy_session_info(mem_ctx, guest_info);
+	return (*session_info != NULL) ? NT_STATUS_OK : NT_STATUS_NO_MEMORY;
+}
 
-NTSTATUS init_system_info(void)
+static struct auth_session_info *system_info = NULL;
+
+NTSTATUS init_system_session_info(void)
 {
 	if (system_info != NULL)
 		return NT_STATUS_OK;
@@ -1045,43 +1190,16 @@ NTSTATUS init_system_info(void)
 }
 
 NTSTATUS make_session_info_system(TALLOC_CTX *mem_ctx,
-				struct auth_serversupplied_info **session_info)
+				struct auth_session_info **session_info)
 {
 	if (system_info == NULL) return NT_STATUS_UNSUCCESSFUL;
-	*session_info = copy_serverinfo(mem_ctx, system_info);
+	*session_info = copy_session_info(mem_ctx, system_info);
 	return (*session_info != NULL) ? NT_STATUS_OK : NT_STATUS_NO_MEMORY;
 }
 
-const struct auth_serversupplied_info *get_session_info_system(void)
+const struct auth_session_info *get_session_info_system(void)
 {
     return system_info;
-}
-
-bool copy_current_user(struct current_user *dst, struct current_user *src)
-{
-	gid_t *groups;
-	struct security_token *nt_token;
-
-	groups = (gid_t *)memdup(src->ut.groups,
-				 sizeof(gid_t) * src->ut.ngroups);
-	if ((src->ut.ngroups != 0) && (groups == NULL)) {
-		return False;
-	}
-
-	nt_token = dup_nt_token(NULL, src->nt_user_token);
-	if (nt_token == NULL) {
-		SAFE_FREE(groups);
-		return False;
-	}
-
-	dst->conn = src->conn;
-	dst->vuid = src->vuid;
-	dst->ut.uid = src->ut.uid;
-	dst->ut.gid = src->ut.gid;
-	dst->ut.ngroups = src->ut.ngroups;
-	dst->ut.groups = groups;
-	dst->nt_user_token = nt_token;
-	return True;
 }
 
 /***************************************************************************
@@ -1103,7 +1221,9 @@ static NTSTATUS check_account(TALLOC_CTX *mem_ctx, const char *domain,
 	if (!lower_username) {
 		return NT_STATUS_NO_MEMORY;
 	}
-	strlower_m( lower_username );
+	if (!strlower_m( lower_username )) {
+		return NT_STATUS_INVALID_PARAMETER;
+	}
 
 	orig_dom_user = talloc_asprintf(mem_ctx,
 				"%s%c%s",
@@ -1121,7 +1241,7 @@ static NTSTATUS check_account(TALLOC_CTX *mem_ctx, const char *domain,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	passwd = smb_getpwnam(mem_ctx, dom_user, &real_username, True );
+	passwd = smb_getpwnam(mem_ctx, dom_user, &real_username, true );
 	if (!passwd) {
 		DEBUG(3, ("Failed to find authenticated user %s via "
 			  "getpwnam(), denying access.\n", dom_user));
@@ -1134,7 +1254,7 @@ static NTSTATUS check_account(TALLOC_CTX *mem_ctx, const char *domain,
 
 	*pwd = passwd;
 
-	/* This is pointless -- there is no suport for differing 
+	/* This is pointless -- there is no support for differing
 	   unix and windows names.  Make sure to always store the 
 	   one we actually looked up and succeeded. Have I mentioned
 	   why I hate the 'winbind use default domain' parameter?   
@@ -1285,7 +1405,7 @@ NTSTATUS make_server_info_info3(TALLOC_CTX *mem_ctx,
 		nt_username = sent_nt_username;
 	}
 
-	nt_domain = talloc_strdup(mem_ctx, info3->base.domain.string);
+	nt_domain = talloc_strdup(mem_ctx, info3->base.logon_domain.string);
 	if (!nt_domain) {
 		/* If the server didn't give us one, just use the one we sent
 		 * them */
@@ -1321,13 +1441,6 @@ NTSTATUS make_server_info_info3(TALLOC_CTX *mem_ctx,
 
 	result->unix_name = talloc_strdup(result, found_username);
 
-	result->sanitized_username = sanitize_username(result,
-						       result->unix_name);
-	if (result->sanitized_username == NULL) {
-		TALLOC_FREE(result);
-		return NT_STATUS_NO_MEMORY;
-	}
-
 	/* copy in the info3 */
 	result->info3 = copy_netr_SamInfo3(result, info3);
 	if (result->info3 == NULL) {
@@ -1343,9 +1456,9 @@ NTSTATUS make_server_info_info3(TALLOC_CTX *mem_ctx,
 	/* ensure we are never given NULL session keys */
 
 	if (memcmp(info3->base.key.key, zeros, sizeof(zeros)) == 0) {
-		result->user_session_key = data_blob_null;
+		result->session_key = data_blob_null;
 	} else {
-		result->user_session_key = data_blob_talloc(
+		result->session_key = data_blob_talloc(
 			result, info3->base.key.key,
 			sizeof(info3->base.key.key));
 	}
@@ -1359,6 +1472,8 @@ NTSTATUS make_server_info_info3(TALLOC_CTX *mem_ctx,
 	}
 
 	result->nss_token |= username_was_mapped;
+
+	result->guest = (info3->base.user_flags & NETLOGON_GUEST);
 
 	*server_info = result;
 
@@ -1403,7 +1518,7 @@ bool is_trusted_domain(const char* dom_name)
 	/* no trusted domains for a standalone server */
 
 	if ( lp_server_role() == ROLE_STANDALONE )
-		return False;
+		return false;
 
 	if (dom_name == NULL || dom_name[0] == '\0') {
 		return false;
@@ -1422,7 +1537,7 @@ bool is_trusted_domain(const char* dom_name)
 		ret = pdb_get_trusteddom_pw(dom_name, NULL, NULL, NULL);
 		unbecome_root();
 		if (ret)
-			return True;
+			return true;
 	}
 	else {
 		wbcErr result;
@@ -1432,12 +1547,12 @@ bool is_trusted_domain(const char* dom_name)
 		result = wb_is_trusted_domain(dom_name);
 
 		if (result == WBC_ERR_SUCCESS) {
-			return True;
+			return true;
 		}
 
 		if (result == WBC_ERR_DOMAIN_NOT_FOUND) {
 			/* winbind could not find the domain */
-			return False;
+			return false;
 		}
 
 		/* The only other possible result is that winbind is not up
@@ -1452,9 +1567,67 @@ bool is_trusted_domain(const char* dom_name)
 	 * domains (like a domain member would use  */
 
 	if ( trustdom_cache_fetch(dom_name, &trustdom_sid) ) {
-		return True;
+		return true;
 	}
 
-	return False;
+	return false;
 }
 
+
+
+/*
+  on a logon error possibly map the error to success if "map to guest"
+  is set approriately
+*/
+NTSTATUS do_map_to_guest_server_info(NTSTATUS status,
+				     struct auth_serversupplied_info **server_info,
+				     const char *user, const char *domain)
+{
+	user = user ? user : "";
+	domain = domain ? domain : "";
+
+	if (NT_STATUS_EQUAL(status, NT_STATUS_NO_SUCH_USER)) {
+		if ((lp_map_to_guest() == MAP_TO_GUEST_ON_BAD_USER) ||
+		    (lp_map_to_guest() == MAP_TO_GUEST_ON_BAD_PASSWORD)) {
+			DEBUG(3,("No such user %s [%s] - using guest account\n",
+				 user, domain));
+			return make_server_info_guest(NULL, server_info);
+		}
+	} else if (NT_STATUS_EQUAL(status, NT_STATUS_WRONG_PASSWORD)) {
+		if (lp_map_to_guest() == MAP_TO_GUEST_ON_BAD_PASSWORD) {
+			DEBUG(3,("Registered username %s for guest access\n",
+				user));
+			return make_server_info_guest(NULL, server_info);
+		}
+	}
+
+	return status;
+}
+
+/*
+  Extract session key from a session info and return it in a blob
+  if intent is KEY_USE_16BYTES, truncate it to 16 bytes
+
+  See sections 3.2.4.15 and 3.3.4.2 of MS-SMB
+  Also see https://lists.samba.org/archive/cifs-protocol/2012-January/002265.html for details
+
+  Note that returned session_key is referencing the original key, it is supposed to be
+  short-lived. If original session_info->session_key is gone, the reference will be broken.
+*/
+NTSTATUS session_extract_session_key(const struct auth_session_info *session_info, DATA_BLOB *session_key, enum session_key_use_intent intent)
+{
+
+	if (session_key == NULL || session_info == NULL) {
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	if (session_info->session_key.length == 0) {
+		return NT_STATUS_NO_USER_SESSION_KEY;
+	}
+
+	*session_key = session_info->session_key;
+	if (intent == KEY_USE_16BYTES) {
+		session_key->length = MIN(session_info->session_key.length, 16);
+	}
+	return NT_STATUS_OK;
+}

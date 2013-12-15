@@ -82,8 +82,9 @@
     intervention.
 
   - if TDB_NOSYNC is passed to flags in tdb_open then transactions are
-    still available, but no transaction recovery area is used and no
-    fsync/msync calls are made.
+    still available, but no fsync/msync calls are made.  This means we
+    are still proof against a process dying during transaction commit,
+    but not against machine reboot.
 
   - if TDB_ALLOW_NESTING is passed to flags in tdb open, or added using
     tdb_add_flags() transaction nesting is enabled.
@@ -382,9 +383,10 @@ static void transaction_next_hash_chain(struct tdb_context *tdb, uint32_t *chain
 /*
   out of bounds check during a transaction
 */
-static int transaction_oob(struct tdb_context *tdb, tdb_off_t len, int probe)
+static int transaction_oob(struct tdb_context *tdb, tdb_off_t off,
+			   tdb_len_t len, int probe)
 {
-	if (len <= tdb->map_size) {
+	if (off + len >= off && off + len <= tdb->map_size) {
 		return 0;
 	}
 	tdb->ecode = TDB_ERR_IO;
@@ -507,7 +509,7 @@ static int _tdb_transaction_start(struct tdb_context *tdb,
 
 	/* make sure we know about any file expansions already done by
 	   anyone else */
-	tdb->methods->tdb_oob(tdb, tdb->map_size + 1, 1);
+	tdb->methods->tdb_oob(tdb, tdb->map_size, 1, 1);
 	tdb->transaction->old_map_size = tdb->map_size;
 
 	/* finally hook the io methods, replacing them with
@@ -697,7 +699,7 @@ static int tdb_recovery_allocate(struct tdb_context *tdb,
 {
 	struct tdb_record rec;
 	const struct tdb_methods *methods = tdb->transaction->io_methods;
-	tdb_off_t recovery_head;
+	tdb_off_t recovery_head, new_end;
 
 	if (tdb_recovery_area(tdb, methods, &recovery_head, &rec) == -1) {
 		TDB_LOG((tdb, TDB_DEBUG_FATAL, "tdb_recovery_allocate: failed to read recovery head\n"));
@@ -706,6 +708,7 @@ static int tdb_recovery_allocate(struct tdb_context *tdb,
 
 	*recovery_size = tdb_recovery_size(tdb);
 
+	/* Existing recovery area? */
 	if (recovery_head != 0 && *recovery_size <= rec.rec_len) {
 		/* it fits in the existing area */
 		*recovery_max_size = rec.rec_len;
@@ -713,35 +716,51 @@ static int tdb_recovery_allocate(struct tdb_context *tdb,
 		return 0;
 	}
 
-	/* we need to free up the old recovery area, then allocate a
-	   new one at the end of the file. Note that we cannot use
-	   tdb_allocate() to allocate the new one as that might return
-	   us an area that is being currently used (as of the start of
-	   the transaction) */
-	if (recovery_head != 0) {
-		if (tdb_free(tdb, recovery_head, &rec) == -1) {
-			TDB_LOG((tdb, TDB_DEBUG_FATAL, "tdb_recovery_allocate: failed to free previous recovery area\n"));
-			return -1;
+	/* If recovery area in middle of file, we need a new one. */
+	if (recovery_head == 0
+	    || recovery_head + sizeof(rec) + rec.rec_len != tdb->map_size) {
+		/* we need to free up the old recovery area, then allocate a
+		   new one at the end of the file. Note that we cannot use
+		   tdb_allocate() to allocate the new one as that might return
+		   us an area that is being currently used (as of the start of
+		   the transaction) */
+		if (recovery_head) {
+			if (tdb_free(tdb, recovery_head, &rec) == -1) {
+				TDB_LOG((tdb, TDB_DEBUG_FATAL,
+					 "tdb_recovery_allocate: failed to"
+					 " free previous recovery area\n"));
+				return -1;
+			}
+
+			/* the tdb_free() call might have increased
+			 * the recovery size */
+			*recovery_size = tdb_recovery_size(tdb);
 		}
+
+		/* New head will be at end of file. */
+		recovery_head = tdb->map_size;
 	}
 
-	/* the tdb_free() call might have increased the recovery size */
-	*recovery_size = tdb_recovery_size(tdb);
+	/* Now we know where it will be. */
+	*recovery_offset = recovery_head;
 
-	/* round up to a multiple of page size */
-	*recovery_max_size = TDB_ALIGN(sizeof(rec) + *recovery_size, tdb->page_size) - sizeof(rec);
-	*recovery_offset = tdb->map_size;
-	recovery_head = *recovery_offset;
+	/* Expand by more than we need, so we don't do it often. */
+	*recovery_max_size = tdb_expand_adjust(tdb->map_size,
+					       *recovery_size,
+					       tdb->page_size)
+		- sizeof(rec);
+
+	new_end = recovery_head + sizeof(rec) + *recovery_max_size;
 
 	if (methods->tdb_expand_file(tdb, tdb->transaction->old_map_size, 
-				     (tdb->map_size - tdb->transaction->old_map_size) +
-				     sizeof(rec) + *recovery_max_size) == -1) {
+				     new_end - tdb->transaction->old_map_size)
+	    == -1) {
 		TDB_LOG((tdb, TDB_DEBUG_FATAL, "tdb_recovery_allocate: failed to create recovery area\n"));
 		return -1;
 	}
 
 	/* remap the file (if using mmap) */
-	methods->tdb_oob(tdb, tdb->map_size + 1, 1);
+	methods->tdb_oob(tdb, tdb->map_size, 1, 1);
 
 	/* we have to reset the old map size so that we don't try to expand the file
 	   again in the transaction commit, which would destroy the recovery area */
@@ -958,13 +977,11 @@ static int _tdb_transaction_prepare_commit(struct tdb_context *tdb)
 		return -1;
 	}
 
-	if (!(tdb->flags & TDB_NOSYNC)) {
-		/* write the recovery data to the end of the file */
-		if (transaction_setup_recovery(tdb, &tdb->transaction->magic_offset) == -1) {
-			TDB_LOG((tdb, TDB_DEBUG_FATAL, "tdb_transaction_prepare_commit: failed to setup recovery data\n"));
-			_tdb_transaction_cancel(tdb);
-			return -1;
-		}
+	/* write the recovery data to the end of the file */
+	if (transaction_setup_recovery(tdb, &tdb->transaction->magic_offset) == -1) {
+		TDB_LOG((tdb, TDB_DEBUG_FATAL, "tdb_transaction_prepare_commit: failed to setup recovery data\n"));
+		_tdb_transaction_cancel(tdb);
+		return -1;
 	}
 
 	tdb->transaction->prepared = true;
@@ -980,7 +997,7 @@ static int _tdb_transaction_prepare_commit(struct tdb_context *tdb)
 			return -1;
 		}
 		tdb->map_size = tdb->transaction->old_map_size;
-		methods->tdb_oob(tdb, tdb->map_size + 1, 1);
+		methods->tdb_oob(tdb, tdb->map_size, 1, 1);
 	}
 
 	/* Keep the open lock until the actual commit */

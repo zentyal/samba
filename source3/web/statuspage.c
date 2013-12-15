@@ -21,6 +21,9 @@
 #include "web/swat_proto.h"
 #include "libcli/security/security.h"
 #include "locking/proto.h"
+#include "librpc/gen_ndr/open_files.h"
+#include "lib/conn_tdb.h"
+#include "../lib/util/pidfile.h"
 
 #define _(x) lang_msg_rotate(talloc_tos(),x)
 
@@ -87,7 +90,7 @@ static char *mapPid2Machine (struct server_id pid)
 	/* show machine name rather PID on table "Open Files"? */
 	if (PID_or_Machine) {
 		for (map = pidmap; map != NULL; map = map->next) {
-			if (procid_equal(&pid, &map->pid)) {
+			if (serverid_equal(&pid, &map->pid)) {
 				if (map->machine == NULL)	/* no machine name */
 					break;			/* show PID */
 
@@ -188,7 +191,7 @@ static int traverse_fn1(const struct connections_key *key,
 			const struct connections_data *crec,
 			void *private_data)
 {
-	if (crec->cnum == -1 && process_exists(crec->pid)) {
+	if (crec->cnum == TID_FIELD_INVALID && process_exists(crec->pid)) {
 		char buf[30];
 		slprintf(buf,sizeof(buf)-1,"kill_%s", procid_str_static(&crec->pid));
 		if (cgi_variable(buf)) {
@@ -204,8 +207,8 @@ static int traverse_fn2(const struct connections_key *key,
                         const struct connections_data *crec,
                         void *private_data)
 {
-	if (crec->cnum == -1 || !process_exists(crec->pid) ||
-	    procid_equal(&crec->pid, &smbd_pid))
+	if (crec->cnum == TID_FIELD_INVALID || !process_exists(crec->pid) ||
+	    serverid_equal(&crec->pid, &smbd_pid))
 		return 0;
 
 	addPid2Machine (crec->pid, crec->machine);
@@ -228,7 +231,7 @@ static int traverse_fn3(const struct connections_key *key,
                         const struct connections_data *crec,
                         void *private_data)
 {
-	if (crec->cnum == -1 || !process_exists(crec->pid))
+	if (crec->cnum == TID_FIELD_INVALID || !process_exists(crec->pid))
 		return 0;
 
 	printf("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>\n",
@@ -251,7 +254,7 @@ void status_page(void)
 	TALLOC_CTX *ctx = talloc_stackframe();
 	const char form_name[] = "status";
 
-	smbd_pid = pid_to_procid(pidfile_pid("smbd"));
+	smbd_pid = pid_to_procid(pidfile_pid(lp_piddir(), "smbd"));
 
 	if (!verify_xsrf_token(form_name)) {
 		goto output_page;

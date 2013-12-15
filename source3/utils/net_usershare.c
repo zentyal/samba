@@ -135,7 +135,7 @@ int net_usershare_usage(struct net_context *c, int argc, const char **argv)
 
 static char *get_basepath(TALLOC_CTX *ctx)
 {
-	char *basepath = talloc_strdup(ctx, lp_usershare_path());
+	char *basepath = lp_usershare_path(ctx);
 
 	if (!basepath) {
 		return NULL;
@@ -174,7 +174,7 @@ static int net_usershare_delete(struct net_context *c, int argc, const char **ar
 
 	us_path = talloc_asprintf(talloc_tos(),
 				"%s/%s",
-				lp_usershare_path(),
+				lp_usershare_path(talloc_tos()),
 				sharename);
 	if (!us_path) {
 		TALLOC_FREE(sharename);
@@ -208,8 +208,8 @@ static struct file_list *flist;
 
 static int get_share_list(TALLOC_CTX *ctx, const char *wcard, bool only_ours)
 {
-	SMB_STRUCT_DIR *dp;
-	SMB_STRUCT_DIRENT *de;
+	DIR *dp;
+	struct dirent *de;
 	uid_t myuid = geteuid();
 	struct file_list *fl = NULL;
 	char *basepath = get_basepath(ctx);
@@ -217,7 +217,7 @@ static int get_share_list(TALLOC_CTX *ctx, const char *wcard, bool only_ours)
 	if (!basepath) {
 		return -1;
 	}
-	dp = sys_opendir(basepath);
+	dp = opendir(basepath);
 	if (!dp) {
 		d_fprintf(stderr,
 			_("get_share_list: cannot open usershare directory %s. "
@@ -226,7 +226,7 @@ static int get_share_list(TALLOC_CTX *ctx, const char *wcard, bool only_ours)
 		return -1;
 	}
 
-	while((de = sys_readdir(dp)) != 0) {
+	while((de = readdir(dp)) != 0) {
 		SMB_STRUCT_STAT sbuf;
 		char *path;
 		const char *n = de->d_name;
@@ -249,7 +249,7 @@ static int get_share_list(TALLOC_CTX *ctx, const char *wcard, bool only_ours)
 					basepath,
 					n);
 		if (!path) {
-			sys_closedir(dp);
+			closedir(dp);
 			return -1;
 		}
 
@@ -278,21 +278,21 @@ static int get_share_list(TALLOC_CTX *ctx, const char *wcard, bool only_ours)
 		}
 
 		/* (Finally) - add to list. */
-		fl = TALLOC_P(ctx, struct file_list);
+		fl = talloc(ctx, struct file_list);
 		if (!fl) {
-			sys_closedir(dp);
+			closedir(dp);
 			return -1;
 		}
 		fl->pathname = talloc_strdup(ctx, n);
 		if (!fl->pathname) {
-			sys_closedir(dp);
+			closedir(dp);
 			return -1;
 		}
 
 		DLIST_ADD(flist, fl);
 	}
 
-	sys_closedir(dp);
+	closedir(dp);
 	return 0;
 }
 
@@ -359,9 +359,9 @@ static int info_fn(struct file_list *fl, void *priv)
 	}
 
 #ifdef O_NOFOLLOW
-	fd = sys_open(basepath, O_RDONLY|O_NOFOLLOW, 0);
+	fd = open(basepath, O_RDONLY|O_NOFOLLOW, 0);
 #else
-	fd = sys_open(basepath, O_RDONLY, 0);
+	fd = open(basepath, O_RDONLY, 0);
 #endif
 
 	if (fd == -1) {
@@ -523,7 +523,9 @@ static int net_usershare_info(struct net_context *c, int argc, const char **argv
 			return net_usershare_info_usage(c, argc, argv);
 	}
 
-	strlower_m(wcard);
+	if (!strlower_m(wcard)) {
+		return -1;
+	}
 
 	ctx = talloc_init("share_info");
 	ret = get_share_list(ctx, wcard, only_ours);
@@ -546,8 +548,8 @@ static int net_usershare_info(struct net_context *c, int argc, const char **argv
 
 static int count_num_usershares(void)
 {
-	SMB_STRUCT_DIR *dp;
-	SMB_STRUCT_DIRENT *de;
+	DIR *dp;
+	struct dirent *de;
 	int num_usershares = 0;
 	TALLOC_CTX *ctx = talloc_tos();
 	char *basepath = get_basepath(ctx);
@@ -556,7 +558,7 @@ static int count_num_usershares(void)
 		return -1;
 	}
 
-	dp = sys_opendir(basepath);
+	dp = opendir(basepath);
 	if (!dp) {
 		d_fprintf(stderr,
 			_("count_num_usershares: cannot open usershare "
@@ -565,7 +567,7 @@ static int count_num_usershares(void)
 		return -1;
 	}
 
-	while((de = sys_readdir(dp)) != 0) {
+	while((de = readdir(dp)) != 0) {
 		SMB_STRUCT_STAT sbuf;
 		char *path;
 		const char *n = de->d_name;
@@ -588,7 +590,7 @@ static int count_num_usershares(void)
 				basepath,
 				n);
 		if (!path) {
-			sys_closedir(dp);
+			closedir(dp);
 			return -1;
 		}
 
@@ -610,7 +612,7 @@ static int count_num_usershares(void)
 		num_usershares++;
 	}
 
-	sys_closedir(dp);
+	closedir(dp);
 	return num_usershares;
 }
 
@@ -1036,7 +1038,9 @@ static int net_usershare_list(struct net_context *c, int argc,
 			return net_usershare_list_usage(c, argc, argv);
 	}
 
-	strlower_m(wcard);
+	if (!strlower_m(wcard)) {
+		return -1;
+	}
 
 	ctx = talloc_init("share_list");
 	ret = get_share_list(ctx, wcard, only_ours);
@@ -1059,7 +1063,7 @@ static int net_usershare_list(struct net_context *c, int argc,
 
 int net_usershare(struct net_context *c, int argc, const char **argv)
 {
-	SMB_STRUCT_DIR *dp;
+	DIR *dp;
 
 	struct functable func[] = {
 		{
@@ -1104,13 +1108,13 @@ int net_usershare(struct net_context *c, int argc, const char **argv)
 		return -1;
 	}
 
-	dp = sys_opendir(lp_usershare_path());
+	dp = opendir(lp_usershare_path(talloc_tos()));
 	if (!dp) {
 		int err = errno;
 		d_fprintf(stderr,
 			_("net usershare: cannot open usershare directory %s. "
 			  "Error %s\n"),
-			lp_usershare_path(), strerror(err) );
+			lp_usershare_path(talloc_tos()), strerror(err) );
 		if (err == EACCES) {
 			d_fprintf(stderr,
 				_("You do not have permission to create a "
@@ -1123,7 +1127,7 @@ int net_usershare(struct net_context *c, int argc, const char **argv)
 		}
 		return -1;
 	}
-	sys_closedir(dp);
+	closedir(dp);
 
 	return net_run_function(c, argc, argv, "net usershare", func);
 }

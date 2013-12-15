@@ -3,7 +3,6 @@
  *  RPC Pipe client / server routines
  *
  *  Copyright (c) Andreas Schneider            2010.
- *  Copyright (C) Bjoern Baumbach <bb@sernet.de> 2011
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -27,20 +26,6 @@
 #include "librpc/gen_ndr/ndr_spoolss_c.h"
 #include "librpc/gen_ndr/ndr_security.h"
 #include "rpc_client/cli_winreg_spoolss.h"
-
-static const char *driver_file_basename(const char *file)
-{
-	const char *basefile;
-
-	basefile = strrchr(file, '\\');
-	if (basefile == NULL) {
-		basefile = file;
-	} else {
-		basefile++;
-	}
-
-	return basefile;
-}
 
 NTSTATUS printing_tdb_migrate_form(TALLOC_CTX *mem_ctx,
 				   struct rpc_pipe_client *winreg_pipe,
@@ -116,7 +101,6 @@ NTSTATUS printing_tdb_migrate_driver(TALLOC_CTX *mem_ctx,
 	WERROR result;
 	const char *driver_name;
 	uint32_t driver_version;
-	int i;
 
 	blob = data_blob_const(data, length);
 
@@ -139,18 +123,7 @@ NTSTATUS printing_tdb_migrate_driver(TALLOC_CTX *mem_ctx,
 	ZERO_STRUCT(d3);
 	ZERO_STRUCT(a);
 
-	/* remove paths from file names */
-	if (r.dependent_files != NULL) {
-		for (i = 0 ; r.dependent_files[i] != NULL; i++) {
-			r.dependent_files[i] = driver_file_basename(r.dependent_files[i]);
-		}
-	}
 	a.string = r.dependent_files;
-
-	r.driverpath = driver_file_basename(r.driverpath);
-	r.configfile = driver_file_basename(r.configfile);
-	r.datafile = driver_file_basename(r.datafile);
-	r.helpfile = driver_file_basename(r.helpfile);
 
 	d3.architecture = r.environment;
 	d3.config_file = r.configfile;
@@ -309,13 +282,13 @@ NTSTATUS printing_tdb_migrate_printer(TALLOC_CTX *mem_ctx,
 	/* migrate printerdata */
 	for (j = 0; j < r.count; j++) {
 		char *valuename;
-		char *keyname;
+		const char *keyname;
 
 		if (r.printer_data[j].type == REG_NONE) {
 			continue;
 		}
 
-		keyname = CONST_DISCARD(char *, r.printer_data[j].name);
+		keyname = r.printer_data[j].name;
 		valuename = strchr(keyname, '\\');
 		if (valuename == NULL) {
 			continue;

@@ -311,7 +311,7 @@ void smbsrv_send_reply_nosign(struct smbsrv_request *req)
 	}
 
 	if (req->out.size > NBT_HDR_SIZE) {
-		_smb_setlen(req->out.buffer, req->out.size - NBT_HDR_SIZE);
+		_smb_setlen_nbt(req->out.buffer, req->out.size - NBT_HDR_SIZE);
 	}
 
 	blob = data_blob_const(req->out.buffer, req->out.size);
@@ -483,6 +483,7 @@ static size_t req_pull_ucs2(struct request_bufinfo *bufinfo, const char **dest, 
 	int src_len, src_len2, alignment=0;
 	bool ret;
 	char *dest2;
+	size_t converted_size = 0;
 
 	if (!(flags & STR_NOALIGN) && ucs2_align(bufinfo->align_base, src, flags)) {
 		src++;
@@ -512,7 +513,7 @@ static size_t req_pull_ucs2(struct request_bufinfo *bufinfo, const char **dest, 
 		return src_len2 + alignment;
 	}
 
-	ret = convert_string_talloc(bufinfo->mem_ctx, CH_UTF16, CH_UNIX, src, src_len2, (void **)&dest2, NULL, false);
+	ret = convert_string_talloc(bufinfo->mem_ctx, CH_UTF16, CH_UNIX, src, src_len2, (void **)&dest2, &converted_size);
 
 	if (!ret) {
 		*dest = NULL;
@@ -541,6 +542,7 @@ static size_t req_pull_ascii(struct request_bufinfo *bufinfo, const char **dest,
 	int src_len, src_len2;
 	bool ret;
 	char *dest2;
+	size_t converted_size = 0;
 
 	if (flags & STR_NO_RANGE_CHECK) {
 		src_len = byte_len;
@@ -561,7 +563,7 @@ static size_t req_pull_ascii(struct request_bufinfo *bufinfo, const char **dest,
 		src_len2++;
 	}
 
-	ret = convert_string_talloc(bufinfo->mem_ctx, CH_DOS, CH_UNIX, src, src_len2, (void **)&dest2, NULL, false);
+	ret = convert_string_talloc(bufinfo->mem_ctx, CH_DOS, CH_UNIX, src, src_len2, (void **)&dest2, &converted_size);
 
 	if (!ret) {
 		*dest = NULL;

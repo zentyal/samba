@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2013-05-13 11:53-0700\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2013-10-22 20:32+0200\n"
 "PO-Revision-Date: 2006-08-15 07:59-0500\n"
 "Last-Translator: Priti Patil <prithisd@gmail.com>\n"
 "Language-Team:  Marathi, janabhaaratii, C-DAC, Mumbai, India "
@@ -24,6 +24,117 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid "Upgrade from Samba 3?"
+msgstr ""
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid ""
+"It is possible to migrate the existing configuration files from Samba 3 to "
+"Samba 4. This is likely to fail for complex setups, but should provide a "
+"good starting point for most existing installations."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid "Server role"
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Domain controllers manage NT4-style or Active Directory domains and provide "
+"services such as identity management and domain logons. Each domain needs to "
+"have a at least one domain controller."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Member servers can be part of a NT4-style or Active Directory domain but do "
+"not provide any domain services. Workstations and file or print servers are "
+"usually regular domain members."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"A standalone server can not be used in a domain and only supports file "
+"sharing and Windows for Workgroups-style logins."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"If no server role is specified, the Samba server will not be provisioned, so "
+"this can be done manually by the user."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Realm name:"
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid ""
+"Please specify the Kerberos realm for the domain that this domain controller "
+"controls."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Usually this is the a capitalized version of your DNS hostname."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "New password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "If this field is left blank, a random password will be generated."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "A password can be set later by running, as root:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:5001
+msgid "Repeat password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "Password input error"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr ""
 
 #. Type: title
 #. Description
@@ -50,10 +161,11 @@ msgid ""
 "be read from /etc/samba/dhcp.conf."
 msgstr ""
 "संगणकाच्या जाळ्यावर,तुमच्या संगणकाला,डीएचसीपी परिसेवकामधून आयपी पत्ता मिळाला असेल,तर "
-"तो डीएचसीपी परिसेवक,संगणकाच्या जाळ्यावर असलेल्या डब्ल्यूआयएनएस परिसेवकांबद्दलही (\"नेटबॉयस"
-"( एनईटी बीआयओएस) नांवाचा परिसेवक\") माहिती देऊ शकेल. यासाठीच तुमच्या smb.conf "
-"संचिकेत बदल करणे आवश्यक आहे, तसे केल्याने डीएचसीपीने पुरविलेली डब्ल्यूआयएनएस निर्धारणे /ईटीसी/"
-"सांबा/डीएचसीपी सीओएनएफ (/etc/samba/dhcp.conf./) मधून आपोआप वाचली जाऊ शकतात."
+"तो डीएचसीपी परिसेवक,संगणकाच्या जाळ्यावर असलेल्या डब्ल्यूआयएनएस परिसेवकांबद्दलही "
+"(\"नेटबॉयस( एनईटी बीआयओएस) नांवाचा परिसेवक\") माहिती देऊ शकेल. यासाठीच तुमच्या smb."
+"conf संचिकेत बदल करणे आवश्यक आहे, तसे केल्याने डीएचसीपीने पुरविलेली डब्ल्यूआयएनएस निर्धारणे /"
+"ईटीसी/सांबा/डीएचसीपी सीओएनएफ (/etc/samba/dhcp.conf./) मधून आपोआप वाचली जाऊ "
+"शकतात."
 
 #. Type: boolean
 #. Description
@@ -107,47 +219,123 @@ msgstr "कार्यगट/प्रक्षेत्राचे नाव:
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
-"ग्राहकांनी पृच्छा केल्यावर हा परिसेवक कोणत्या कार्यगटात दिसायला हवा याचा नेमका उल्लेख "
-"करा. लक्षात ठेवा की हेच चलितमूल्य सुरक्षा-प्रक्षेत्र निर्धारण बरोबर वापरले असता "
-"प्रक्षेत्रनामही नियंत्रित करते."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "कूटलिखित परवलीचा शब्द वापरावा का?"
+#~ msgid "Use password encryption?"
+#~ msgstr "कूटलिखित परवलीचा शब्द वापरावा का?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"विंडोजचे सर्व ग्राहक कूटलिखित परवलीचे शब्द वापरुन एसएमबी परिसेवकांशी संवाद साधतात. "
-"तुम्हाला स्पष्ट परवलीचे शब्द वापरायचे असतील तर तुम्हाला तुमच्या विंडोजमधील नोंदीमध्ये एखादे "
-"चलितमूल्य बदलावे लागेल."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "विंडोजचे सर्व ग्राहक कूटलिखित परवलीचे शब्द वापरुन एसएमबी परिसेवकांशी संवाद साधतात. "
+#~ "तुम्हाला स्पष्ट परवलीचे शब्द वापरायचे असतील तर तुम्हाला तुमच्या विंडोजमधील नोंदीमध्ये "
+#~ "एखादे चलितमूल्य बदलावे लागेल."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"हाच पर्याय कार्यान्वित करण्याची शिफारस केली जात आहे. तुम्ही तसे केल्यास,तुमच्याजवळ वैध अशी "
-"(/etc/samba/smbpasswd)ईटीसी/सांबा/एसएमबी पासवर्ड संचिका आहे, तसेच ,एसएमबी पासवर्ड "
-"आज्ञावली वापरुन, प्रत्येक उपयोजकासाठी परवलीचे शब्द निर्धारित केल्याची खात्री करा."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "हाच पर्याय कार्यान्वित करण्याची शिफारस केली जात आहे. तुम्ही तसे केल्यास,तुमच्याजवळ वैध "
+#~ "अशी (/etc/samba/smbpasswd)ईटीसी/सांबा/एसएमबी पासवर्ड संचिका आहे, तसेच ,एसएमबी "
+#~ "पासवर्ड आज्ञावली वापरुन, प्रत्येक उपयोजकासाठी परवलीचे शब्द निर्धारित केल्याची खात्री "
+#~ "करा."
 
+#~ msgid "daemons"
+#~ msgstr "डिमन्स"
+
+#~ msgid "inetd"
+#~ msgstr "आयएनइटीडी"
+
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "तुम्हाला सांबा कशा प्रकारे चालू करावयाचा आहे?"
+
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "सांबा डिमन एसएमबीडी हा प्रोग्राम सर्वसाधारण डिमन म्हणून किंवा आयएनइटीडी मधून "
+#~ "चालविता येतो. डिमन म्हणून चालविणे अधिक श्रेयस्कर."
+
+#, fuzzy
+#~| msgid ""
+#~| "Please specify the workgroup you want this server to appear to be in "
+#~| "when queried by clients. Note that this parameter also controls the "
+#~| "domain name used with the security=domain setting."
+#~ msgid ""
+#~ "Please specify the domain you want this server to appear to be in when "
+#~ "queried by clients."
+#~ msgstr ""
+#~ "ग्राहकांनी पृच्छा केल्यावर हा परिसेवक कोणत्या कार्यगटात दिसायला हवा याचा नेमका उल्लेख "
+#~ "करा. लक्षात ठेवा की हेच चलितमूल्य सुरक्षा-प्रक्षेत्र निर्धारण बरोबर वापरले असता "
+#~ "प्रक्षेत्रनामही नियंत्रित करते."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr ""
+#~ "var/lib/samba/passdb.tdb /व्हीएआर /एलआयबी/सांबा /एसएमबी पासडीबी.टीडीबी? या "
+#~ "सांबा परवलीच्या शब्दाची डेटाबेस (माहिती) तयार करा."
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "विंडोजच्या बहुतेक आवृत्तींमधील डिफॉल्टशी सहत्व ठेवण्यासाठी कूटलिखित परवलीचे शब्द वापरुन "
+#~ "सांबा संरचित केला पाहिजे. यासाठी परवलीचे शब्द,ईटीसी/पासवर्ड पेक्षा अलग संचिकेत साठवून "
+#~ "ठेवणे आवश्यक आहे. ही या संचिकेची रचना स्वयंचलित करता येते,परंतु यात परवलीचे शब्द,एसएमबी "
+#~ "पासवर्ड चालवून स्वहस्ते टाकले पाहिजेत व भविष्यकाळात अद्ययावत ठेवले पाहिजे."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "तुम्ही ही रचना न केल्यास तुम्हाला सांबा(व कदाचित तुमच्या ग्राहकांचे संगणक),साध्या शब्दांचे "
+#~ "परवलीचे शब्द वापरुन पुनःसंरचित करावे लागतील."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
+#~ "package for more details."
+#~ msgstr ""
+#~ "अधिक माहितीसाठी सांबा-डीओसी पॅकेजमधील /usr/share/doc/samba-doc/htmldocs/"
+#~ "ENCRYPTION.html (यूएसआर/शेअर/डीओसी/सांबा-डीओसी/एचटीएमएलडीओसीएस/एनक्रिप्शन."
+#~ "एचटीएमएल) हे पॅकेज पहा."
+
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr ""
+#~ "/ईटीसी/सांबा/एसएमबी पासवर्ड,/व्हीएआर/एलआयबी/सांबा/पासवर्ड।टीडीबी कडे हलवायचा का?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "सांबा ३.० ने पूर्णतर असा एसएएम डेटाबेस अंतराफलक प्रस्तुत केला असून तो इटीसी/सांबा/"
+#~ "एसएमबी पासवर्ड संचिकेला मागे टाकतो."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "कृपया तुम्हाला सध्याची एसएमबी पासवर्ड संचिका आपोआप/व्हीएआर/एलआयबी/सांबा/पासडीबी।"
+#~ "टीडीबी कडे स्थलांतरित झाल्यास चालेल का याची खात्री करा. तुम्हाला त्याऐवजी दुसरी "
+#~ "कोणती पीडीबी बॅकएंड(उदा.एलडीएपी)करावयाची असल्यास हा पर्याय स्वीकारु नका"
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "अधिक माहितीसाठी सांबा-डीओसी पॅकेजमधील /usr/share/doc/samba-doc/htmldocs/"
+#~ "ENCRYPTION.html (यूएसआर/शेअर/डीओसी/सांबा-डीओसी/एचटीएमएलडीओसीएस/एनक्रिप्शन."
+#~ "एचटीएमएल) हे पॅकेज पहा."

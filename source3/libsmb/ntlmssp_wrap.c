@@ -2,7 +2,7 @@
    NLTMSSP wrappers
 
    Copyright (C) Andrew Tridgell      2001
-   Copyright (C) Andrew Bartlett 2001-2003
+   Copyright (C) Andrew Bartlett 2001-2003,2011
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,159 +19,116 @@
 */
 
 #include "includes.h"
-#include "libcli/auth/ntlmssp.h"
-#include "ntlmssp_wrap.h"
+#include "auth/ntlmssp/ntlmssp.h"
+#include "auth/ntlmssp/ntlmssp_private.h"
+#include "auth_generic.h"
+#include "auth/gensec/gensec.h"
+#include "auth/credentials/credentials.h"
+#include "librpc/rpc/dcerpc.h"
+#include "lib/param/param.h"
 
-NTSTATUS auth_ntlmssp_sign_packet(struct auth_ntlmssp_state *ans,
-				  TALLOC_CTX *sig_mem_ctx,
-				  const uint8_t *data,
-				  size_t length,
-				  const uint8_t *whole_pdu,
-				  size_t pdu_length,
-				  DATA_BLOB *sig)
+static NTSTATUS gensec_ntlmssp3_client_update(struct gensec_security *gensec_security,
+					      TALLOC_CTX *out_mem_ctx,
+					      struct tevent_context *ev,
+					      const DATA_BLOB request,
+					      DATA_BLOB *reply)
 {
-	return ntlmssp_sign_packet(ans->ntlmssp_state,
-				   sig_mem_ctx,
-				   data, length,
-				   whole_pdu, pdu_length,
-				   sig);
-}
-
-NTSTATUS auth_ntlmssp_check_packet(struct auth_ntlmssp_state *ans,
-				   const uint8_t *data,
-				   size_t length,
-				   const uint8_t *whole_pdu,
-				   size_t pdu_length,
-				   const DATA_BLOB *sig)
-{
-	return ntlmssp_check_packet(ans->ntlmssp_state,
-				    data, length,
-				    whole_pdu, pdu_length,
-				    sig);
-}
-
-NTSTATUS auth_ntlmssp_seal_packet(struct auth_ntlmssp_state *ans,
-				  TALLOC_CTX *sig_mem_ctx,
-				  uint8_t *data,
-				  size_t length,
-				  const uint8_t *whole_pdu,
-				  size_t pdu_length,
-				  DATA_BLOB *sig)
-{
-	return ntlmssp_seal_packet(ans->ntlmssp_state,
-				   sig_mem_ctx,
-				   data, length,
-				   whole_pdu, pdu_length,
-				   sig);
-}
-
-NTSTATUS auth_ntlmssp_unseal_packet(struct auth_ntlmssp_state *ans,
-				    uint8_t *data,
-				    size_t length,
-				    const uint8_t *whole_pdu,
-				    size_t pdu_length,
-				    const DATA_BLOB *sig)
-{
-	return ntlmssp_unseal_packet(ans->ntlmssp_state,
-				     data, length,
-				     whole_pdu, pdu_length,
-				     sig);
-}
-
-bool auth_ntlmssp_negotiated_sign(struct auth_ntlmssp_state *ans)
-{
-	return ans->ntlmssp_state->neg_flags & NTLMSSP_NEGOTIATE_SIGN;
-}
-
-bool auth_ntlmssp_negotiated_seal(struct auth_ntlmssp_state *ans)
-{
-	return ans->ntlmssp_state->neg_flags & NTLMSSP_NEGOTIATE_SEAL;
-}
-
-struct ntlmssp_state *auth_ntlmssp_get_ntlmssp_state(
-					struct auth_ntlmssp_state *ans)
-{
-	return ans->ntlmssp_state;
-}
-
-/* Needed for 'map to guest' and 'smb username' processing */
-const char *auth_ntlmssp_get_username(struct auth_ntlmssp_state *ans)
-{
-	return ans->ntlmssp_state->user;
-}
-
-const char *auth_ntlmssp_get_domain(struct auth_ntlmssp_state *ans)
-{
-	return ans->ntlmssp_state->domain;
-}
-
-const char *auth_ntlmssp_get_client(struct auth_ntlmssp_state *ans)
-{
-	return ans->ntlmssp_state->client.netbios_name;
-}
-
-const uint8_t *auth_ntlmssp_get_nt_hash(struct auth_ntlmssp_state *ans)
-{
-	return ans->ntlmssp_state->nt_hash;
-}
-
-NTSTATUS auth_ntlmssp_set_username(struct auth_ntlmssp_state *ans,
-				   const char *user)
-{
-	return ntlmssp_set_username(ans->ntlmssp_state, user);
-}
-
-NTSTATUS auth_ntlmssp_set_domain(struct auth_ntlmssp_state *ans,
-				 const char *domain)
-{
-	return ntlmssp_set_domain(ans->ntlmssp_state, domain);
-}
-
-NTSTATUS auth_ntlmssp_set_password(struct auth_ntlmssp_state *ans,
-				   const char *password)
-{
-	return ntlmssp_set_password(ans->ntlmssp_state, password);
-}
-
-void auth_ntlmssp_and_flags(struct auth_ntlmssp_state *ans, uint32_t flags)
-{
-	ans->ntlmssp_state->neg_flags &= flags;
-}
-
-void auth_ntlmssp_or_flags(struct auth_ntlmssp_state *ans, uint32_t flags)
-{
-	ans->ntlmssp_state->neg_flags |= flags;
-}
-
-DATA_BLOB auth_ntlmssp_get_session_key(struct auth_ntlmssp_state *ans)
-{
-	return ans->ntlmssp_state->session_key;
-}
-
-NTSTATUS auth_ntlmssp_update(struct auth_ntlmssp_state *ans,
-			     const DATA_BLOB request, DATA_BLOB *reply)
-{
-	return ntlmssp_update(ans->ntlmssp_state, request, reply);
-}
-
-NTSTATUS auth_ntlmssp_client_start(TALLOC_CTX *mem_ctx,
-				   const char *netbios_name,
-				   const char *netbios_domain,
-				   bool use_ntlmv2,
-				   struct auth_ntlmssp_state **_ans)
-{
-	struct auth_ntlmssp_state *ans;
 	NTSTATUS status;
+	struct gensec_ntlmssp_context *gensec_ntlmssp =
+		talloc_get_type_abort(gensec_security->private_data,
+				      struct gensec_ntlmssp_context);
 
-	ans = talloc_zero(mem_ctx, struct auth_ntlmssp_state);
-
-	status = ntlmssp_client_start(ans,
-					netbios_name, netbios_domain,
-					use_ntlmv2, &ans->ntlmssp_state);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
+	status = ntlmssp_update(gensec_ntlmssp->ntlmssp_state, request, reply);
+	if (NT_STATUS_IS_OK(status) ||
+	    NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
+		talloc_steal(out_mem_ctx, reply->data);
 	}
 
-	*_ans = ans;
+	return status;
+}
+
+static NTSTATUS gensec_ntlmssp3_client_start(struct gensec_security *gensec_security)
+{
+	NTSTATUS nt_status;
+	struct gensec_ntlmssp_context *gensec_ntlmssp;
+	const char *user, *domain;
+	const char *password;
+
+	nt_status = gensec_ntlmssp_start(gensec_security);
+	NT_STATUS_NOT_OK_RETURN(nt_status);
+
+	gensec_ntlmssp =
+		talloc_get_type_abort(gensec_security->private_data,
+				      struct gensec_ntlmssp_context);
+
+	nt_status = ntlmssp_client_start(gensec_ntlmssp,
+					 lp_netbios_name(), lp_workgroup(),
+					 lp_client_ntlmv2_auth(), &gensec_ntlmssp->ntlmssp_state);
+	if (!NT_STATUS_IS_OK(nt_status)) {
+		return nt_status;
+	}
+
+	cli_credentials_get_ntlm_username_domain(gensec_security->credentials, gensec_ntlmssp, &user, &domain);
+	if (!user || !domain) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	nt_status = ntlmssp_set_username(gensec_ntlmssp->ntlmssp_state, user);
+	if (!NT_STATUS_IS_OK(nt_status)) {
+		return nt_status;
+	}
+
+	nt_status = ntlmssp_set_domain(gensec_ntlmssp->ntlmssp_state, domain);
+	if (!NT_STATUS_IS_OK(nt_status)) {
+		return nt_status;
+	}
+
+	password = cli_credentials_get_password(gensec_security->credentials);
+	if (!password) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	nt_status = ntlmssp_set_password(gensec_ntlmssp->ntlmssp_state, password);
+	if (!NT_STATUS_IS_OK(nt_status)) {
+		return nt_status;
+	}
+
+	if (gensec_security->want_features & GENSEC_FEATURE_SESSION_KEY) {
+		gensec_ntlmssp->ntlmssp_state->neg_flags |= NTLMSSP_NEGOTIATE_SIGN;
+	}
+	if (gensec_security->want_features & GENSEC_FEATURE_SIGN) {
+		gensec_ntlmssp->ntlmssp_state->neg_flags |= NTLMSSP_NEGOTIATE_SIGN;
+	}
+	if (gensec_security->want_features & GENSEC_FEATURE_SEAL) {
+		gensec_ntlmssp->ntlmssp_state->neg_flags |= NTLMSSP_NEGOTIATE_SIGN;
+		gensec_ntlmssp->ntlmssp_state->neg_flags |= NTLMSSP_NEGOTIATE_SEAL;
+	}
+
 	return NT_STATUS_OK;
 }
+
+static const char *gensec_ntlmssp3_client_oids[] = {
+	GENSEC_OID_NTLMSSP,
+	NULL
+};
+
+const struct gensec_security_ops gensec_ntlmssp3_client_ops = {
+	.name		= "ntlmssp3_client",
+	.sasl_name	= GENSEC_SASL_NAME_NTLMSSP, /* "NTLM" */
+	.auth_type	= DCERPC_AUTH_TYPE_NTLMSSP,
+	.oid            = gensec_ntlmssp3_client_oids,
+	.client_start   = gensec_ntlmssp3_client_start,
+	.magic 	        = gensec_ntlmssp_magic,
+	.update 	= gensec_ntlmssp3_client_update,
+	.sig_size	= gensec_ntlmssp_sig_size,
+	.sign_packet	= gensec_ntlmssp_sign_packet,
+	.check_packet	= gensec_ntlmssp_check_packet,
+	.seal_packet	= gensec_ntlmssp_seal_packet,
+	.unseal_packet	= gensec_ntlmssp_unseal_packet,
+	.wrap           = gensec_ntlmssp_wrap,
+	.unwrap         = gensec_ntlmssp_unwrap,
+	.session_key	= gensec_ntlmssp_session_key,
+	.have_feature   = gensec_ntlmssp_have_feature,
+	.enabled        = true,
+	.priority       = GENSEC_NTLMSSP
+};

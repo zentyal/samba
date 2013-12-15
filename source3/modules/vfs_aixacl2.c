@@ -21,14 +21,12 @@
 #include "system/filesys.h"
 #include "smbd/smbd.h"
 #include "nfs4_acls.h"
+#include "vfs_aixacl_util.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_VFS
 
 #define AIXACL2_MODULE_NAME "aixacl2"
-
-extern SMB_ACL_T aixacl_to_smbacl( struct acl *file_acl);
-extern struct acl *aixacl_smb_to_aixacl(SMB_ACL_TYPE_T acltype, SMB_ACL_T theacl);
 
 typedef union aixjfs2_acl_t {
 	nfs4_acl_int_t jfs2_acl[1];
@@ -157,6 +155,7 @@ static bool aixjfs2_get_nfs4_acl(const char *name,
 
 static NTSTATUS aixjfs2_fget_nt_acl(vfs_handle_struct *handle,
 	files_struct *fsp, uint32 security_info,
+	TALLOC_CTX *mem_ctx,
 	struct security_descriptor **ppdesc)
 {
 	SMB4ACL_T *pacl = NULL;
@@ -169,17 +168,21 @@ static NTSTATUS aixjfs2_fget_nt_acl(vfs_handle_struct *handle,
 	if (retryPosix)
 	{
 		DEBUG(10, ("retrying with posix acl...\n"));
-		return posix_fget_nt_acl(fsp, security_info, ppdesc);
+		return posix_fget_nt_acl(fsp, security_info,
+					 mem_ctx, ppdesc);
 	}
 	if (result==False)
 		return NT_STATUS_ACCESS_DENIED;
 
-	return smb_fget_nt_acl_nfs4(fsp, security_info, ppdesc, pacl);
+	return smb_fget_nt_acl_nfs4(fsp, security_info, ppdesc,
+				    mem_ctx, pacl);
 }
 
 static NTSTATUS aixjfs2_get_nt_acl(vfs_handle_struct *handle,
 	const char *name,
-	uint32 security_info, struct security_descriptor **ppdesc)
+	uint32 security_info,
+	TALLOC_CTX *mem_ctx,
+	struct security_descriptor **ppdesc)
 {
 	SMB4ACL_T *pacl = NULL;
 	bool	result;
@@ -191,16 +194,17 @@ static NTSTATUS aixjfs2_get_nt_acl(vfs_handle_struct *handle,
 	{
 		DEBUG(10, ("retrying with posix acl...\n"));
 		return posix_get_nt_acl(handle->conn, name, security_info,
-					ppdesc);
+					mem_ctx, ppdesc);
 	}
 	if (result==False)
 		return NT_STATUS_ACCESS_DENIED;
 
-	return smb_get_nt_acl_nfs4(handle->conn, name, security_info, ppdesc,
+	return smb_get_nt_acl_nfs4(handle->conn, name, security_info,
+				   mem_ctx, ppdesc,
 				   pacl);
 }
 
-static SMB_ACL_T aixjfs2_get_posix_acl(const char *path, acl_type_t type)
+static SMB_ACL_T aixjfs2_get_posix_acl(const char *path, acl_type_t type, TALLOC_CTX *mem_ctx)
 {
         aixc_acl_t *pacl;
 	AIXJFS2_ACL_T *acl;
@@ -222,21 +226,22 @@ static SMB_ACL_T aixjfs2_get_posix_acl(const char *path, acl_type_t type)
         DEBUG(10, ("len: %d, mode: %d\n",
                    pacl->acl_len, pacl->acl_mode));
 
-        result = aixacl_to_smbacl(pacl);
+        result = aixacl_to_smbacl(pacl, mem_ctx);
         if (result == NULL) {
                 goto done;
         }
 
  done:
         if (errno != 0) {
-                SAFE_FREE(result);
+                TALLOC_FREE(result);
         }
         return result;
 }
 
 SMB_ACL_T aixjfs2_sys_acl_get_file(vfs_handle_struct *handle,
                                     const char *path_p,
-                                    SMB_ACL_TYPE_T type)
+				   SMB_ACL_TYPE_T type,
+				   TALLOC_CTX *mem_ctx)
 {
         acl_type_t aixjfs2_type;
 
@@ -252,7 +257,7 @@ SMB_ACL_T aixjfs2_sys_acl_get_file(vfs_handle_struct *handle,
                 smb_panic("exiting");
         }
 
-        return aixjfs2_get_posix_acl(path_p, aixjfs2_type);
+        return aixjfs2_get_posix_acl(path_p, aixjfs2_type, mem_ctx);
 }
 
 SMB_ACL_T aixjfs2_sys_acl_get_fd(vfs_handle_struct *handle,
@@ -487,14 +492,14 @@ int aixjfs2_sys_acl_delete_def_file(vfs_handle_struct *handle,
 }
 
 static struct vfs_fn_pointers vfs_aixacl2_fns = {
-	.fget_nt_acl = aixjfs2_fget_nt_acl,
-	.get_nt_acl = aixjfs2_get_nt_acl,
-	.fset_nt_acl = aixjfs2_fset_nt_acl,
-	.sys_acl_get_file = aixjfs2_sys_acl_get_file,
-	.sys_acl_get_fd = aixjfs2_sys_acl_get_fd,
-	.sys_acl_set_file = aixjfs2_sys_acl_set_file,
-	.sys_acl_set_fd = aixjfs2_sys_acl_set_fd,
-	.sys_acl_delete_def_file = aixjfs2_sys_acl_delete_def_file
+	.fget_nt_acl_fn = aixjfs2_fget_nt_acl,
+	.get_nt_acl_fn = aixjfs2_get_nt_acl,
+	.fset_nt_acl_fn = aixjfs2_fset_nt_acl,
+	.sys_acl_get_file_fn = aixjfs2_sys_acl_get_file,
+	.sys_acl_get_fd_fn = aixjfs2_sys_acl_get_fd,
+	.sys_acl_set_file_fn = aixjfs2_sys_acl_set_file,
+	.sys_acl_set_fd_fn = aixjfs2_sys_acl_set_fd,
+	.sys_acl_delete_def_file_fn = aixjfs2_sys_acl_delete_def_file
 };
 
 NTSTATUS vfs_aixacl2_init(void);

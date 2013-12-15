@@ -26,6 +26,11 @@ class wintest():
             self.run_cmd('ifconfig ${INTERFACE} inet6 del ${INTERFACE_IPV6}/64', checkfail=False)
             self.run_cmd('ifconfig ${INTERFACE} inet6 add ${INTERFACE_IPV6}/64 up')
 
+        self.run_cmd('ifconfig ${NAMED_INTERFACE} ${NAMED_INTERFACE_NET} up')
+        if self.getvar('NAMED_INTERFACE_IPV6'):
+            self.run_cmd('ifconfig ${NAMED_INTERFACE} inet6 del ${NAMED_INTERFACE_IPV6}/64', checkfail=False)
+            self.run_cmd('ifconfig ${NAMED_INTERFACE} inet6 add ${NAMED_INTERFACE_IPV6}/64 up')
+
     def stop_vms(self):
         '''Shut down any existing alive VMs, so they do not collide with what we are doing'''
         self.info('Shutting down any of our VMs already running')
@@ -325,20 +330,15 @@ nameserver %s
     def configure_bind(self, kerberos_support=False, include=None):
         self.chdir('${PREFIX}')
 
-        nameserver = self.get_nameserver()
-        if nameserver == self.getvar('INTERFACE_IP'):
-            raise RuntimeError("old /etc/resolv.conf must not contain %s as a nameserver, this will create loops with the generated dns configuration" % nameserver)
-        self.setvar('DNSSERVER', nameserver)
-
-        if self.getvar('INTERFACE_IPV6'):
-            ipv6_listen = 'listen-on-v6 port 53 { ${INTERFACE_IPV6}; };'
+        if self.getvar('NAMED_INTERFACE_IPV6'):
+            ipv6_listen = 'listen-on-v6 port 53 { ${NAMED_INTERFACE_IPV6}; };'
         else:
             ipv6_listen = ''
         self.setvar('BIND_LISTEN_IPV6', ipv6_listen)
 
         if not kerberos_support:
             self.setvar("NAMED_TKEY_OPTION", "")
-        else:
+        elif self.getvar('NAMESERVER_BACKEND') != 'SAMBA_INTERNAL':
             if self.named_supports_gssapi_keytab():
                 self.setvar("NAMED_TKEY_OPTION",
                          'tkey-gssapi-keytab "${PREFIX}/private/dns.keytab";')
@@ -350,8 +350,10 @@ nameserver %s
                  ''')
             self.putenv('KEYTAB_FILE', '${PREFIX}/private/dns.keytab')
             self.putenv('KRB5_KTNAME', '${PREFIX}/private/dns.keytab')
+        else:
+            self.setvar("NAMED_TKEY_OPTION", "")
 
-        if include:
+        if include and self.getvar('NAMESERVER_BACKEND') != 'SAMBA_INTERNAL':
             self.setvar("NAMED_INCLUDE", 'include "%s";' % include)
         else:
             self.setvar("NAMED_INCLUDE", '')
@@ -360,7 +362,7 @@ nameserver %s
 
         self.write_file("etc/named.conf", '''
 options {
-	listen-on port 53 { ${INTERFACE_IP};  };
+	listen-on port 53 { ${NAMED_INTERFACE_IP};  };
 	${BIND_LISTEN_IPV6}
 	directory 	"${PREFIX}/var/named";
 	dump-file 	"${PREFIX}/var/named/data/cache_dump.db";
@@ -386,15 +388,30 @@ key "rndc-key" {
 };
 
 controls {
-	inet ${INTERFACE_IP} port 953
+	inet ${NAMED_INTERFACE_IP} port 953
 	allow { any; } keys { "rndc-key"; };
 };
 
 ${NAMED_INCLUDE}
 ''')
+        
+        if self.getvar('NAMESERVER_BACKEND') == 'SAMBA_INTERNAL':
+              self.write_file('etc/named.conf',
+                         '''
+zone "%s" IN {
+      type forward;
+      forward only;
+      forwarders {
+         %s;
+      };
+};
+''' % (self.getvar('LCREALM'), self.getvar('INTERFACE_IP')),
+                     mode='a')
+          
 
         # add forwarding for the windows domains
         domains = self.get_domains()
+
         for d in domains:
             self.write_file('etc/named.conf',
                          '''
@@ -418,7 +435,7 @@ key "rndc-key" {
 
 options {
 	default-key "rndc-key";
-	default-server  ${INTERFACE_IP};
+	default-server  ${NAMED_INTERFACE_IP};
 	default-port 953;
 };
 ''')
@@ -427,7 +444,7 @@ options {
     def stop_bind(self):
         '''Stop our private BIND from listening and operating'''
         self.rndc_cmd("stop", checkfail=False)
-        self.port_wait("${INTERFACE_IP}", 53, wait_for_fail=True)
+        self.port_wait("${NAMED_INTERFACE_IP}", 53, wait_for_fail=True)
 
         self.run_cmd("rm -rf var/named")
 
@@ -437,14 +454,14 @@ options {
         self.info("Restarting bind9")
         self.chdir('${PREFIX}')
 
-        self.set_nameserver(self.getvar('INTERFACE_IP'))
+        self.set_nameserver(self.getvar('NAMED_INTERFACE_IP'))
 
         self.run_cmd("mkdir -p var/named/data")
         self.run_cmd("chown -R ${BIND_USER} var/named")
 
         self.bind_child = self.run_child("${BIND9} -u ${BIND_USER} -n 1 -c ${PREFIX}/etc/named.conf -g")
 
-        self.port_wait("${INTERFACE_IP}", 53)
+        self.port_wait("${NAMED_INTERFACE_IP}", 53)
         self.rndc_cmd("flush")
 
     def restart_bind(self, kerberos_support=False, include=None):
@@ -491,8 +508,25 @@ options {
 
     def port_wait(self, hostname, port, retries=200, delay=3, wait_for_fail=False):
         '''wait for a host to come up on the network'''
-        self.retry_cmd("nc -v -z -w 1 %s %u" % (hostname, port), ['succeeded'],
-                       retries=retries, delay=delay, wait_for_fail=wait_for_fail)
+
+        while retries > 0:
+            child = self.pexpect_spawn("nc -v -z -w 1 %s %u" % (hostname, port), crlf=False, timeout=1)
+            child.expect([pexpect.EOF, pexpect.TIMEOUT])
+            child.close()
+            i = child.exitstatus
+            if wait_for_fail:
+                #wait for timeout or fail
+                if i == None or i > 0:
+                    return
+            else:
+                if i == 0:
+                    return
+
+            time.sleep(delay)
+            retries -= 1
+            self.info("retrying (retries=%u delay=%u)" % (retries, delay))
+
+        raise RuntimeError("gave up waiting for %s:%d" % (hostname, port))
 
     def run_net_time(self, child):
         '''run net time on windows'''
@@ -531,14 +565,15 @@ options {
         child.expect('\d+.\d+.\d+.\d+')
         self.setvar('WIN_SUBNET_MASK', child.after)
         child.expect('Default Gateway')
-        child.expect('\d+.\d+.\d+.\d+')
-        self.setvar('WIN_DEFAULT_GATEWAY', child.after)
-        child.expect("C:")
+        i = child.expect(['\d+.\d+.\d+.\d+', "C:"])
+        if i == 0:
+            self.setvar('WIN_DEFAULT_GATEWAY', child.after)
+            child.expect("C:")
 
     def get_is_dc(self, child):
         '''check if a windows machine is a domain controller'''
         child.sendline("dcdiag")
-        i = child.expect(["is not a Directory Server",
+        i = child.expect(["is not a [Directory Server|DC]",
                           "is not recognized as an internal or external command",
                           "Home Server = ",
                           "passed test Replications"])
@@ -563,7 +598,7 @@ options {
             return True
 
     def set_noexpire(self, child, username):
-        '''Ensure this user's password does not expire'''
+        """Ensure this user's password does not expire"""
         child.sendline('wmic useraccount where name="%s" set PasswordExpires=FALSE' % username)
         child.expect("update successful")
         child.expect("C:")
@@ -571,23 +606,23 @@ options {
     def run_tlntadmn(self, child):
         '''remove the annoying telnet restrictions'''
         child.sendline('tlntadmn config maxconn=1024')
-        child.expect("The settings were successfully updated")
+        child.expect(["The settings were successfully updated", "Access is denied"])
         child.expect("C:")
 
     def disable_firewall(self, child):
         '''remove the annoying firewall'''
         child.sendline('netsh advfirewall set allprofiles state off')
-        i = child.expect(["Ok", "The following command was not found: advfirewall set allprofiles state off"])
+        i = child.expect(["Ok", "The following command was not found: advfirewall set allprofiles state off", "The requested operation requires elevation", "Access is denied"])
         child.expect("C:")
         if i == 1:
             child.sendline('netsh firewall set opmode mode = DISABLE profile = ALL')
-            i = child.expect(["Ok", "The following command was not found"])
+            i = child.expect(["Ok", "The following command was not found", "Access is denied"])
             if i != 0:
                 self.info("Firewall disable failed - ignoring")
             child.expect("C:")
 
     def set_dns(self, child):
-        child.sendline('netsh interface ip set dns "${WIN_NIC}" static ${INTERFACE_IP} primary')
+        child.sendline('netsh interface ip set dns "${WIN_NIC}" static ${NAMED_INTERFACE_IP} primary')
         i = child.expect(['C:', pexpect.EOF, pexpect.TIMEOUT], timeout=5)
         if i > 0:
             return True
@@ -643,6 +678,7 @@ options {
         '''open a telnet connection to a windows server, return the pexpect child'''
         set_route = False
         set_dns = False
+        set_telnetclients = True
         if self.getvar('WIN_IP'):
             ip = self.getvar('WIN_IP')
         else:
@@ -666,12 +702,24 @@ options {
             child.expect("password:")
             child.sendline(password)
             i = child.expect(["C:",
+                              "TelnetClients",
                               "Denying new connections due to the limit on number of connections",
                               "No more connections are allowed to telnet server",
                               "Unable to connect to remote host",
                               "No route to host",
                               "Connection refused",
                               pexpect.EOF])
+            if i == 1:
+                if set_telnetclients:
+                    self.run_cmd('bin/net rpc group addmem TelnetClients "authenticated users" -S $WIN_IP -U$WIN_USER%$WIN_PASS')
+                    child.close()
+                    retries -= 1
+                    set_telnetclients = False
+                    self.info("retrying (retries=%u delay=%u)" % (retries, delay))
+                    continue
+                else:
+                    raise RuntimeError("Failed to connect with telnet due to missing TelnetClients membership")
+
             if i != 0:
                 child.close()
                 time.sleep(delay)
@@ -810,7 +858,7 @@ RebootOnCompletion=No
         child.sendline("shutdown -r -t 0")
         self.port_wait("${WIN_IP}", 139, wait_for_fail=True)
         self.port_wait("${WIN_IP}", 139)
-        self.retry_cmd("host -t SRV _ldap._tcp.${WIN_REALM} ${WIN_IP}", ['has SRV record'] )
+        self.retry_cmd("host -t SRV _ldap._tcp.${WIN_REALM} ${WIN_IP}", ['has SRV record'], retries=60, delay=5 )
 
 
     def start_winvm(self, vm):
@@ -824,10 +872,18 @@ RebootOnCompletion=No
     def run_winjoin(self, vm, domain, username="administrator", password="${PASSWORD1}"):
         '''join a windows box to a domain'''
         child = self.open_telnet("${WIN_HOSTNAME}", "${WIN_USER}", "${WIN_PASS}", set_time=True, set_ip=True, set_noexpire=True)
-        child.sendline("ipconfig /flushdns")
-        child.expect("C:")
-        child.sendline("netdom join ${WIN_HOSTNAME} /Domain:%s /UserD:%s /PasswordD:%s" % (domain, username, password))
-        child.expect("The command completed successfully")
+        retries = 5
+        while retries > 0:
+            child.sendline("ipconfig /flushdns")
+            child.expect("C:")
+            child.sendline("netdom join ${WIN_HOSTNAME} /Domain:%s /UserD:%s /PasswordD:%s" % (domain, username, password))
+            i = child.expect(["The command completed successfully", 
+                             "The specified domain either does not exist or could not be contacted."])
+            if i == 0:
+                break
+            time.sleep(10)
+            retries -= 1
+
         child.expect("C:")
         child.sendline("shutdown /r -t 0")
         self.wait_reboot()
@@ -842,8 +898,16 @@ RebootOnCompletion=No
         self.setwinvars(vm)
         self.info('Testing smbclient')
         self.chdir('${PREFIX}')
-        self.cmd_contains("bin/smbclient --version", ["${SAMBA_VERSION}"])
-        self.retry_cmd('bin/smbclient -L ${WIN_HOSTNAME} -U%s%%%s %s' % (username, password, args), ["IPC"])
+        smbclient = self.getvar("smbclient")
+        self.cmd_contains("%s --version" % (smbclient), ["${SAMBA_VERSION}"])
+        self.retry_cmd('%s -L ${WIN_HOSTNAME} -U%s%%%s %s' % (smbclient, username, password, args), ["IPC"], retries=60, delay=5)
+
+    def test_net_use(self, vm, realm, domain, username, password):
+        self.setwinvars(vm)
+        self.info('Testing net use against Samba3 member')
+        child = self.open_telnet("${WIN_HOSTNAME}", "%s\\%s" % (domain, username), password)
+        child.sendline("net use t: \\\\${HOSTNAME}.%s\\test" % realm)
+        child.expect("The command completed successfully")
 
 
     def setup(self, testname, subdir):
@@ -857,6 +921,14 @@ RebootOnCompletion=No
         self.parser.add_option("--prefix", type='string', default=None, help='override install prefix')
         self.parser.add_option("--sourcetree", type='string', default=None, help='override sourcetree location')
         self.parser.add_option("--nocleanup", action='store_true', default=False, help='disable cleanup code')
+        self.parser.add_option("--use-ntvfs", action='store_true', default=False, help='use NTVFS for the fileserver')
+        self.parser.add_option("--dns-backend", type="choice",
+            choices=["SAMBA_INTERNAL", "BIND9_FLATFILE", "BIND9_DLZ", "NONE"],
+            help="The DNS server backend. SAMBA_INTERNAL is the builtin name server (default), " \
+                 "BIND9_FLATFILE uses bind9 text database to store zone information, " \
+                 "BIND9_DLZ uses samba4 AD to store zone information, " \
+                 "NONE skips the DNS setup entirely (not recommended)",
+            default="SAMBA_INTERNAL")
 
         self.opts, self.args = self.parser.parse_args()
 
@@ -868,6 +940,11 @@ RebootOnCompletion=No
         self.putenv('TDB_NO_FSYNC', '1')
 
         self.load_config(self.opts.conf)
+
+        nameserver = self.get_nameserver()
+        if nameserver == self.getvar('NAMED_INTERFACE_IP'):
+            raise RuntimeError("old /etc/resolv.conf must not contain %s as a nameserver, this will create loops with the generated dns configuration" % nameserver)
+        self.setvar('DNSSERVER', nameserver)
 
         self.set_skip(self.opts.skip)
         self.set_vms(self.opts.vms)
@@ -890,3 +967,12 @@ RebootOnCompletion=No
             self.info('cleaning')
             self.chdir('${SOURCETREE}/' + subdir)
             self.run_cmd('make clean')
+
+        if self.opts.use_ntvfs:
+            self.setvar('USE_NTVFS', "--use-ntvfs")
+        else:
+            self.setvar('USE_NTVFS', "")
+
+        self.setvar('NAMESERVER_BACKEND', self.opts.dns_backend)
+
+        self.setvar('DNS_FORWARDER', "--option=dns forwarder=%s" % nameserver)

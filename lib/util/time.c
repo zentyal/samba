@@ -148,7 +148,7 @@ _PUBLIC_ void unix_to_nt_time(NTTIME *nt, time_t t)
 		return;
 	}	
 
-	if (t == TIME_T_MAX) {
+	if (t == TIME_T_MAX || t == INT64_MAX) {
 		*nt = 0x7fffffffffffffffLL;
 		return;
 	}
@@ -580,6 +580,24 @@ _PUBLIC_ struct timeval timeval_current_ofs(uint32_t secs, uint32_t usecs)
 }
 
 /**
+  return a timeval milliseconds into the future
+*/
+_PUBLIC_ struct timeval timeval_current_ofs_msec(uint32_t msecs)
+{
+	struct timeval tv = timeval_current();
+	return timeval_add(&tv, msecs / 1000, (msecs % 1000) * 1000);
+}
+
+/**
+  return a timeval microseconds into the future
+*/
+_PUBLIC_ struct timeval timeval_current_ofs_usec(uint32_t usecs)
+{
+	struct timeval tv = timeval_current();
+	return timeval_add(&tv, usecs / 1000000, usecs % 1000000);
+}
+
+/**
   compare two timeval structures. 
   Return -1 if tv1 < tv2
   Return 0 if tv1 == tv2
@@ -720,8 +738,6 @@ static int tm_diff(struct tm *a, struct tm *b)
 }
 
 
-int extra_time_offset=0;
-
 /**
   return the UTC offset in seconds west of UTC, or 0 if it cannot be determined
  */
@@ -735,7 +751,7 @@ _PUBLIC_ int get_time_zone(time_t t)
 	tm = localtime(&t);
 	if (!tm)
 		return 0;
-	return tm_diff(&tm_utc,tm)+60*extra_time_offset;
+	return tm_diff(&tm_utc,tm);
 }
 
 struct timespec nt_time_to_unix_timespec(NTTIME *nt)
@@ -801,4 +817,121 @@ bool null_timespec(struct timespec ts)
 		ts.tv_sec == (time_t)-1;
 }
 
+/****************************************************************************
+ Convert a normalized timeval to a timespec.
+****************************************************************************/
 
+struct timespec convert_timeval_to_timespec(const struct timeval tv)
+{
+	struct timespec ts;
+	ts.tv_sec = tv.tv_sec;
+	ts.tv_nsec = tv.tv_usec * 1000;
+	return ts;
+}
+
+/****************************************************************************
+ Convert a normalized timespec to a timeval.
+****************************************************************************/
+
+struct timeval convert_timespec_to_timeval(const struct timespec ts)
+{
+	struct timeval tv;
+	tv.tv_sec = ts.tv_sec;
+	tv.tv_usec = ts.tv_nsec / 1000;
+	return tv;
+}
+
+/****************************************************************************
+ Return a timespec for the current time
+****************************************************************************/
+
+_PUBLIC_ struct timespec timespec_current(void)
+{
+	struct timespec ts;
+	clock_gettime(CLOCK_REALTIME, &ts);
+	return ts;
+}
+
+/****************************************************************************
+ Return the lesser of two timespecs.
+****************************************************************************/
+
+struct timespec timespec_min(const struct timespec *ts1,
+			   const struct timespec *ts2)
+{
+	if (ts1->tv_sec < ts2->tv_sec) return *ts1;
+	if (ts1->tv_sec > ts2->tv_sec) return *ts2;
+	if (ts1->tv_nsec < ts2->tv_nsec) return *ts1;
+	return *ts2;
+}
+
+/****************************************************************************
+  compare two timespec structures. 
+  Return -1 if ts1 < ts2
+  Return 0 if ts1 == ts2
+  Return 1 if ts1 > ts2
+****************************************************************************/
+
+_PUBLIC_ int timespec_compare(const struct timespec *ts1, const struct timespec *ts2)
+{
+	if (ts1->tv_sec  > ts2->tv_sec)  return 1;
+	if (ts1->tv_sec  < ts2->tv_sec)  return -1;
+	if (ts1->tv_nsec > ts2->tv_nsec) return 1;
+	if (ts1->tv_nsec < ts2->tv_nsec) return -1;
+	return 0;
+}
+
+/****************************************************************************
+ Round up a timespec if nsec > 500000000, round down if lower,
+ then zero nsec.
+****************************************************************************/
+
+void round_timespec_to_sec(struct timespec *ts)
+{
+	ts->tv_sec = convert_timespec_to_time_t(*ts);
+	ts->tv_nsec = 0;
+}
+
+/****************************************************************************
+ Round a timespec to usec value.
+****************************************************************************/
+
+void round_timespec_to_usec(struct timespec *ts)
+{
+	struct timeval tv = convert_timespec_to_timeval(*ts);
+	*ts = convert_timeval_to_timespec(tv);
+	while (ts->tv_nsec > 1000000000) {
+		ts->tv_sec += 1;
+		ts->tv_nsec -= 1000000000;
+	}
+}
+
+/****************************************************************************
+ Put a 8 byte filetime from a struct timespec. Uses GMT.
+****************************************************************************/
+
+_PUBLIC_ void unix_timespec_to_nt_time(NTTIME *nt, struct timespec ts)
+{
+	uint64_t d;
+
+	if (ts.tv_sec ==0 && ts.tv_nsec == 0) {
+		*nt = 0;
+		return;
+	}
+	if (ts.tv_sec == TIME_T_MAX) {
+		*nt = 0x7fffffffffffffffLL;
+		return;
+	}
+	if (ts.tv_sec == (time_t)-1) {
+		*nt = (uint64_t)-1;
+		return;
+	}
+
+	d = ts.tv_sec;
+	d += TIME_FIXUP_CONSTANT_INT;
+	d *= 1000*1000*10;
+	/* d is now in 100ns units. */
+	d += (ts.tv_nsec / 100);
+
+	*nt = d;
+}

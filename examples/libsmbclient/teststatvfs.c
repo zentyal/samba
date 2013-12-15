@@ -11,13 +11,10 @@
 
 int main(int argc, char * argv[]) 
 { 
-    int             i;
-    int             fd;
     int             ret;
     int             debug = 0;
     char *          p;
     char            path[2048];
-    struct stat     statbuf;
     struct statvfs  statvfsbuf;
     
     smbc_init(get_auth_data_fn, debug); 
@@ -61,8 +58,10 @@ int main(int argc, char * argv[])
                    (unsigned long long) statvfsbuf.f_ffree);
             printf("Available Files: %llu\n",
                    (unsigned long long) statvfsbuf.f_favail);
+#ifdef HAVE_FSID_INT
             printf("File System ID: %lu\n",
                    (unsigned long) statvfsbuf.f_fsid);
+#endif
             printf("\n");
 
             printf("Flags: 0x%lx\n", statvfsbuf.f_flag);

@@ -20,16 +20,6 @@
 <title>Account Information Databases</title>
 
 <para>
-<indexterm><primary>account backends</primary></indexterm>
-<indexterm><primary>password backends</primary></indexterm>
-<indexterm><primary>scalability</primary></indexterm>
-<indexterm><primary>ADS</primary></indexterm>
-Early releases of Samba-3 implemented new capability to work concurrently with multiple account backends. This
-capability was removed beginning with release of Samba 3.0.23. Commencing with Samba 3.0.23 it is possible to
-work with only one specified passwd backend.
-</para>
-
-<para>
 <indexterm><primary>passdb backend</primary></indexterm>
 <indexterm><primary>smbpasswd</primary></indexterm>
 <indexterm><primary>tdbsam</primary></indexterm>
@@ -66,14 +56,6 @@ entities.
 
 <sect1>
 <title>Features and Benefits</title>
-
-<para>
-Samba-3 provides for complete backward compatibility with Samba-2.2.x functionality
-as follows:
-<indexterm><primary>SAM backend</primary><secondary>smbpasswd</secondary></indexterm>
-<indexterm><primary>SAM backend</primary><secondary>ldapsam_compat</secondary></indexterm>
-<indexterm><primary>encrypted passwords</primary></indexterm>
-</para>
 
 <sect2>
 	<title>Backward Compatibility Account Storage Systems</title>
@@ -117,21 +99,6 @@ as follows:
 			<para>
 			This backend should be used only for backward compatibility with older
 			versions of Samba. It may be deprecated in future releases.
-			</para>
-		</listitem>
-	</varlistentry>
-
-	<varlistentry><term>ldapsam_compat (Samba-2.2 LDAP Compatibility)</term>
-		<listitem>
-			<para>
-<indexterm><primary>ldapsam_compat</primary></indexterm>
-<indexterm><primary>Samba-2.2.x LDAP schema</primary></indexterm>
-<indexterm><primary>OpenLDAP backend</primary></indexterm>
-			There is a password backend option that allows continued operation with
-			an existing OpenLDAP backend that uses the Samba-2.2.x LDAP schema extension.
-			This option is provided primarily as a migration tool, although there is
-			no reason to force migration at this time. This tool will eventually
-			be deprecated.
 			</para>
 		</listitem>
 	</varlistentry>
@@ -347,10 +314,10 @@ Samba-3 introduces a number of new password backend capabilities.
 
 		<note>
 		<para>
-<indexterm><primary>Windows XP Home</primary></indexterm>
+<indexterm><primary>Windows Home edition</primary></indexterm>
 <indexterm><primary>domain member</primary></indexterm>
 <indexterm><primary>domain logons</primary></indexterm>
- 		MS Windows XP Home does not have facilities to become a domain member, and it cannot participate in domain logons.
+ 		MS Windows Home editions do not have facilities to become a domain member, and cannot participate in domain logons.
 		</para>
 		</note>
 
@@ -361,9 +328,8 @@ Samba-3 introduces a number of new password backend capabilities.
 		<itemizedlist>
 			<listitem><para>Windows NT 3.5x.</para></listitem>
 			<listitem><para>Windows NT 4.0.</para></listitem>
-			<listitem><para>Windows 2000 Professional.</para></listitem>
-			<listitem><para>Windows 200x Server/Advanced Server.</para></listitem>
-			<listitem><para>Windows XP Professional.</para></listitem>
+			<listitem><para>Windows editions labeled Professional.</para></listitem>
+			<listitem><para>Windows editions labeled Server/Advanced Server.</para></listitem>
 		</itemizedlist>
 
 		<para>
@@ -419,7 +385,7 @@ Samba-3 introduces a number of new password backend capabilities.
 <indexterm><primary>password prompt</primary></indexterm>
 <indexterm><primary>SMB encryption</primary></indexterm>
 				Windows NT does not like talking to a server that does not support encrypted passwords. It will refuse to
-				browse the server if the server is also in user-level security mode. It will insist on prompting the user for
+				browse the server. It will insist on prompting the user for
 				the password on each connection, which is very annoying. The only thing you can do to stop this is to use SMB
 				encryption.
 				</para></listitem>
@@ -1677,25 +1643,6 @@ regarding this facility.
 <sect1>
 <title>Password Backends</title>
 
-<para>
-<indexterm><primary>account database</primary></indexterm>
-<indexterm><primary>SMB/CIFS server</primary></indexterm>
-Samba offers flexibility in backend account database design. The flexibility is immediately obvious as one
-begins to explore this capability. Recent changes to Samba (since 3.0.23) have removed the mulitple backend
-feature in order to simplify problems that broke some installations. This removal has made the internal
-operation of Samba-3 more consistent and predictable.
-</para>
-
-<para>
-<indexterm><primary>multiple backends</primary></indexterm>
-<indexterm><primary>tdbsam databases</primary></indexterm>
-Beginning with Samba 3.0.23 it is no longer possible to specify use of mulitple passdb backends. Earlier
-versions of Samba-3 made it possible to specify multiple password backends, and even multiple
-backends of the same type. The multiple passdb backend capability caused many problems with name to SID and
-SID to name ID resolution.  The Samba team wrestled with the challenges and decided that this feature needed
-to be removed.
-</para>
-
 	<sect2>
 	<title>Plaintext</title>
 
@@ -2658,18 +2605,6 @@ sambaNTPassword: 878D8014606CDA29677A44EFA1353FC7
 		Read the <link linkend="acctmgmttools">Account Management Tools</link> for details.</para>
 
 	</sect2>
-
-	<sect2>
-	<title>Configuration of <parameter>auth methods</parameter></title>
-
-	<para>
-	When explicitly setting an <smbconfoption name="auth methods"/> parameter,
-	<parameter>guest</parameter> must be specified as the first entry on the line &smbmdash;
-	for example, <smbconfoption name="auth methods">guest sam</smbconfoption>.
-	</para>
-
-	</sect2>
-
 </sect1>
 
 </chapter>

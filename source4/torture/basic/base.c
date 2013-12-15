@@ -40,6 +40,7 @@ static struct smbcli_state *open_nbt_connection(struct torture_context *tctx)
 	struct smbcli_state *cli;
 	const char *host = torture_setting_string(tctx, "host", NULL);
 	struct smbcli_options options;
+	bool ok;
 
 	make_nbt_name_client(&calling, lpcfg_netbios_name(tctx->lp_ctx));
 
@@ -53,15 +54,22 @@ static struct smbcli_state *open_nbt_connection(struct torture_context *tctx)
 
 	lpcfg_smbcli_options(tctx->lp_ctx, &options);
 
-	if (!smbcli_socket_connect(cli, host, lpcfg_smb_ports(tctx->lp_ctx), tctx->ev,
-				   lpcfg_resolve_context(tctx->lp_ctx), &options,
-                   lpcfg_socket_options(tctx->lp_ctx))) {
+	ok = smbcli_socket_connect(cli, host, lpcfg_smb_ports(tctx->lp_ctx),
+				   tctx->ev,
+				   lpcfg_resolve_context(tctx->lp_ctx),
+				   &options,
+				   lpcfg_socket_options(tctx->lp_ctx),
+				   &calling, &called);
+	if (!ok) {
 		torture_comment(tctx, "Failed to connect with %s\n", host);
 		goto failed;
 	}
 
-	if (!smbcli_transport_establish(cli, &calling, &called)) {
-		torture_comment(tctx, "%s rejected the session\n",host);
+	cli->transport = smbcli_transport_init(cli->sock, cli,
+					       true, &cli->options);
+	cli->sock = NULL;
+	if (!cli->transport) {
+		torture_comment(tctx, "smbcli_transport_init failed\n");
 		goto failed;
 	}
 
@@ -274,18 +282,20 @@ static bool run_trans2test(struct torture_context *tctx,
 		torture_comment(tctx, "ERROR: qpathinfo failed (%s)\n", smbcli_errstr(cli->tree));
 		correct = false;
 	} else {
+		time_t t = time(NULL);
+
 		if (c_time != m_time) {
 			torture_comment(tctx, "create time=%s", ctime(&c_time));
 			torture_comment(tctx, "modify time=%s", ctime(&m_time));
 			torture_comment(tctx, "This system appears to have sticky create times\n");
 		}
-		if (a_time % (60*60) == 0) {
+		if ((abs(a_time - t) > 60) && (a_time % (60*60) == 0)) {
 			torture_comment(tctx, "access time=%s", ctime(&a_time));
 			torture_comment(tctx, "This system appears to set a midnight access time\n");
 			correct = false;
 		}
 
-		if (abs(m_time - time(NULL)) > 60*60*24*7) {
+		if (abs(m_time - t) > 60*60*24*7) {
 			torture_comment(tctx, "ERROR: totally incorrect times - maybe word reversed? mtime=%s", ctime(&m_time));
 			correct = false;
 		}
@@ -358,15 +368,23 @@ static bool run_negprot_nowait(struct torture_context *tctx)
 	torture_comment(tctx, "Filling send buffer\n");
 
 	for (i=0;i<100;i++) {
-		struct smbcli_request *req;
-		req = smb_raw_negotiate_send(cli->transport, lpcfg_unicode(tctx->lp_ctx), PROTOCOL_NT1);
-		event_loop_once(cli->transport->socket->event.ctx);
-		if (req->state == SMBCLI_REQUEST_ERROR) {
+		struct tevent_req *req;
+		req = smb_raw_negotiate_send(cli, tctx->ev,
+					     cli->transport,
+					     PROTOCOL_NT1);
+		tevent_loop_once(tctx->ev);
+		if (!tevent_req_is_in_progress(req)) {
+			NTSTATUS status;
+
+			status = smb_raw_negotiate_recv(req);
+			TALLOC_FREE(req);
 			if (i > 0) {
-				torture_comment(tctx, "Failed to fill pipe packet[%d] - %s (ignored)\n", i+1, nt_errstr(req->status));
+				torture_comment(tctx, "Failed to fill pipe packet[%d] - %s (ignored)\n",
+						i+1, nt_errstr(status));
 				break;
 			} else {
-				torture_comment(tctx, "Failed to fill pipe - %s \n", nt_errstr(req->status));
+				torture_comment(tctx, "Failed to fill pipe - %s \n",
+						nt_errstr(status));
 				torture_close_connection(cli);
 				return false;
 			}
@@ -717,15 +735,12 @@ static bool run_vuidtest(struct torture_context *tctx,
 	size_t size;
 	time_t c_time, a_time, m_time;
 
-	uint16_t orig_vuid;
 	NTSTATUS result;
 
 	smbcli_unlink(cli->tree, fname);
 
 	fnum = smbcli_open(cli->tree, fname, 
 			O_RDWR | O_CREAT | O_TRUNC, DENY_NONE);
-
-	orig_vuid = cli->session->vuid;
 
 	cli->session->vuid += 1234;
 

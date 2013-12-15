@@ -2,12 +2,12 @@
 .\"     Title: vfs_shadow_copy2
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 09/18/2013
+.\"      Date: 12/06/2013
 .\"    Manual: System Administration tools
-.\"    Source: Samba 3.6
+.\"    Source: Samba 4.0
 .\"  Language: English
 .\"
-.TH "VFS_SHADOW_COPY2" "8" "09/18/2013" "Samba 3\&.6" "System Administration tools"
+.TH "VFS_SHADOW_COPY2" "8" "12/06/2013" "Samba 4\&.0" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -201,6 +201,13 @@ shadow:fixinodes = yes/no
 If you enable
 shadow:fixinodes
 then this module will modify the apparent inode number of files in the snapshot directories using a hash of the files path\&. This is needed for snapshot systems where the snapshots have the same device:inode number as the original files (such as happens with GPFS snapshots)\&. If you don\*(Aqt set this option then the \*(Aqrestore\*(Aq button in the shadow copy UI will fail with a sharing violation\&.
+.RE
+.PP
+shadow:snapdirseverywhere = yes/no
+.RS 4
+If you enable
+shadow:snapdirseverywhere
+then this module will look out for snapshot directories in the current and all parent directories of the current working directory\&. An example where this is needed are independent filesets in IBM\*(Aqs GPFS, but other filesystems might support snapshotting only particular subtrees of the filesystem as well\&.
 .RE
 .SH "EXAMPLES"
 .PP

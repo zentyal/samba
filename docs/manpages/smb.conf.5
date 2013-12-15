@@ -2,12 +2,12 @@
 .\"     Title: smb.conf
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 09/18/2013
+.\"      Date: 12/06/2013
 .\"    Manual: File Formats and Conventions
-.\"    Source: Samba 3.6
+.\"    Source: Samba 4.0
 .\"  Language: English
 .\"
-.TH "SMB\&.CONF" "5" "09/18/2013" "Samba 3\&.6" "File Formats and Conventions"
+.TH "SMB\&.CONF" "5" "12/06/2013" "Samba 4\&.0" "File Formats and Conventions"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -456,7 +456,7 @@ the Internet name of the client machine\&.
 .PP
 %R
 .RS 4
-the selected protocol level after protocol negotiation\&. It can be one of CORE, COREPLUS, LANMAN1, LANMAN2 or NT1\&.
+the selected protocol level after protocol negotiation\&. It can be one of CORE, COREPLUS, LANMAN1, LANMAN2, NT1, SMB2_02, SMB2_10, SMB2_22, SMB2_24, SMB3_00 or SMB2_FF\&.
 .RE
 .PP
 %d
@@ -474,14 +474,14 @@ The architecture of the remote machine\&. It currently recognizes Samba (\fBSamb
 .RS 4
 the IP address of the client machine\&.
 .sp
-Before 3\&.6\&.0 it could contain IPv4 mapped IPv6 addresses, now it only contains IPv4 or IPv6 addresses\&.
+Before 4\&.0\&.0 it could contain IPv4 mapped IPv6 addresses, now it only contains IPv4 or IPv6 addresses\&.
 .RE
 .PP
 %i
 .RS 4
 the local IP address to which a client connected\&.
 .sp
-Before 3\&.6\&.0 it could contain IPv4 mapped IPv6 addresses, now it only contains IPv4 or IPv6 addresses\&.
+Before 4\&.0\&.0 it could contain IPv4 mapped IPv6 addresses, now it only contains IPv4 or IPv6 addresses\&.
 .RE
 .PP
 %T
@@ -597,94 +597,6 @@ to permit long filenames to retain their case, while short names are lowercased\
 .RE
 .PP
 By default, Samba 3\&.0 has the same semantics as a Windows NT server, in that it is case insensitive but case preserving\&. As a special case for directories with large numbers of files, if the case options are set as follows, "case sensitive = yes", "case preserve = no", "short preserve case = no" then the "default case" option will be applied and will modify all filenames sent from the client when accessing this share\&.
-.SH "NOTE ABOUT USERNAME/PASSWORD VALIDATION"
-.PP
-There are a number of ways in which a user can connect to a service\&. The server uses the following steps in determining if it will allow a connection to a specified service\&. If all the steps fail, the connection request is rejected\&. However, if one of the steps succeeds, the following steps are not checked\&.
-.PP
-If the service is marked
-\(lqguest only = yes\(rq
-and the server is running with share\-level security (\(lqsecurity = share\(rq, steps 1 to 5 are skipped\&.
-.sp
-.RS 4
-.ie n \{\
-\h'-04' 1.\h'+01'\c
-.\}
-.el \{\
-.sp -1
-.IP "  1." 4.2
-.\}
-If the client has passed a username/password pair and that username/password pair is validated by the UNIX system\*(Aqs password programs, the connection is made as that username\&. This includes the
-\e\eserver\eservice%\fIusername\fR
-method of passing a username\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04' 2.\h'+01'\c
-.\}
-.el \{\
-.sp -1
-.IP "  2." 4.2
-.\}
-If the client has previously registered a username with the system and now supplies a correct password for that username, the connection is allowed\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04' 3.\h'+01'\c
-.\}
-.el \{\
-.sp -1
-.IP "  3." 4.2
-.\}
-The client\*(Aqs NetBIOS name and any previously used usernames are checked against the supplied password\&. If they match, the connection is allowed as the corresponding user\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04' 4.\h'+01'\c
-.\}
-.el \{\
-.sp -1
-.IP "  4." 4.2
-.\}
-If the client has previously validated a username/password pair with the server and the client has passed the validation token, that username is used\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04' 5.\h'+01'\c
-.\}
-.el \{\
-.sp -1
-.IP "  5." 4.2
-.\}
-If a
-user =
-field is given in the
-smb\&.conf
-file for the service and the client has supplied a password, and that password matches (according to the UNIX system\*(Aqs password checking) with one of the usernames from the
-user =
-field, the connection is made as the username in the
-user =
-line\&. If one of the usernames in the
-user =
-list begins with a
-@, that name expands to a list of names in the group of the same name\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04' 6.\h'+01'\c
-.\}
-.el \{\
-.sp -1
-.IP "  6." 4.2
-.\}
-If the service is a guest service, a connection is made as the username given in the
-guest account =
-for the service, irrespective of the supplied password\&.
-.RE
 .SH "REGISTRY-BASED CONFIGURATION"
 .PP
 Starting with Samba version 3\&.2\&.0, the capability to store Samba configuration in the registry is available\&. The configuration is stored in the registry key
@@ -768,7 +680,7 @@ This a full path name to a script called by
 that should stop a shutdown procedure issued by the
 \m[blue]\fBshutdown script\fR\m[]\&.
 .sp
-If the connected user posseses the
+If the connected user possesses the
 \fBSeRemoteShutdownPrivilege\fR, right, this command will be run as root\&.
 .sp
 Default:
@@ -790,10 +702,26 @@ Default:
 \fI\fIaccess based share enum\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
+acl allow execute always (S)
+.\" acl allow execute always
+.PP
+.RS 4
+This boolean parameter controls the behaviour of
+\fBsmbd\fR(8)
+when receiving a protocol request of "open for execution" from a Windows client\&. With Samba 3\&.6 and older, the execution right in the ACL was not checked, so a client could execute a file even if it did not have execute rights on the file\&. In Samba 4\&.0, this has been fixed, so that by default, i\&.e\&. when this parameter is set to "False", "open for execution" is now denied when execution permissions are not present\&.
+.sp
+If this parameter is set to "True", Samba does not check execute permissions on "open for execution", thus re\-establishing the behaviour of Samba 3\&.6\&. This can be useful to smoothen upgrades from older Samba versions to 4\&.0 and newer\&. This setting is not not meant to be used as a permanent setting, but as a temporary relief: It is recommended to fix the permissions in the ACLs and reset this parameter to the default after a certain transition period\&.
+.sp
+Default:
+\fI\fIacl allow execute always\fR\fR\fI = \fR\fIFalse\fR\fI \fR
+.RE
+
 acl check permissions (S)
 .\" acl check permissions
 .PP
 .RS 4
+Please note this parameter is now deprecated in Samba 3\&.6\&.2 and will be removed in a future version of Samba\&.
+.sp
 This boolean parameter controls what
 \fBsmbd\fR(8)does on receiving a protocol request of "open for delete" from a Windows client\&. If a Windows client doesn\*(Aqt have permissions to delete a file then they expect this to be denied at open time\&. POSIX systems normally only detect restrictions on delete by actually attempting to delete the file or directory\&. As Windows clients can (and do) "back out" a delete request by unsetting the "delete on close" bit Samba cannot delete the file immediately on "open for delete" request as we cannot restore such a deleted file\&. With this parameter set to true (the default) then smbd checks the file system permissions directly on "open for delete" and denies the request without actually deleting the file if the file system permissions would seem to deny it\&. This is not perfect, as it\*(Aqs possible a user could have deleted a file without Samba being able to check the permissions correctly, but it is close enough to Windows semantics for mostly correct behaviour\&. Samba will correctly check POSIX ACL semantics in this case\&.
 .sp
@@ -801,25 +729,6 @@ If this parameter is set to "false" Samba doesn\*(Aqt check permissions on "open
 .sp
 Default:
 \fI\fIacl check permissions\fR\fR\fI = \fR\fITrue\fR\fI \fR
-.RE
-
-acl compatibility (G)
-.\" acl compatibility
-.PP
-.RS 4
-This parameter specifies what OS ACL semantics should be compatible with\&. Possible values are
-\fIwinnt\fR
-for Windows NT 4,
-\fIwin2k\fR
-for Windows 2000 and above and
-\fIauto\fR\&. If you specify
-\fIauto\fR, the value for this parameter will be based upon the version of the client\&. There should be no reason to change this parameter from the default\&.
-.sp
-Default:
-\fI\fIacl compatibility\fR\fR\fI = \fR\fIAuto\fR\fI \fR
-.sp
-Example:
-\fI\fIacl compatibility\fR\fR\fI = \fR\fIwin2k\fR\fI \fR
 .RE
 
 acl group control (S)
@@ -830,7 +739,7 @@ In a POSIX filesystem, only the owner of a file or directory and the superuser c
 \fIprimary group owner\fR
 of a file or directory to modify the permissions and ACLs on that file\&.
 .sp
-On a Windows server, groups may be the owner of a file or directory \- thus allowing anyone in that group to modify the permissions on it\&. This allows the delegation of security controls on a point in the filesystem to the group owner of a directory and anything below it also owned by that group\&. This means there are multiple people with permissions to modify ACLs on a file or directory, easing managability\&.
+On a Windows server, groups may be the owner of a file or directory \- thus allowing anyone in that group to modify the permissions on it\&. This allows the delegation of security controls on a point in the filesystem to the group owner of a directory and anything below it also owned by that group\&. This means there are multiple people with permissions to modify ACLs on a file or directory, easing manageability\&.
 .sp
 This parameter allows Samba to also permit delegation of the control over a point in the exported directory hierarchy in much the same way as Windows\&. This allows all members of a UNIX group to control the permissions on a file or directory they have group ownership on\&.
 .sp
@@ -897,8 +806,8 @@ Example:
 \fI\fIadd machine script\fR\fR\fI = \fR\fI/usr/sbin/adduser \-n \-g machines \-c Machine \-d /var/lib/nobody \-s /bin/false %u\fR\fI \fR
 .RE
 
-add port command (G)
-.\" add port command
+addport command (G)
+.\" addport command
 .PP
 .RS 4
 Samba 3\&.0\&.23 introduced support for adding printer ports remotely using the Windows "Add Standard TCP/IP Port Wizard"\&. This option defines an external program to be executed when smbd receives a request to add a new Port to the system\&. The script is passed two parameters:
@@ -929,10 +838,10 @@ Samba 3\&.0\&.23 introduced support for adding printer ports remotely using the 
 The deviceURI is in the format of socket://<hostname>[:<portnumber>] or lpd://<hostname>/<queuename>\&.
 .sp
 Default:
-\fI\fIadd port command\fR\fR\fI = \fR\fI\fR\fI \fR
+\fI\fIaddport command\fR\fR\fI = \fR\fI\fR\fI \fR
 .sp
 Example:
-\fI\fIadd port command\fR\fR\fI = \fR\fI/etc/samba/scripts/addport\&.sh\fR\fI \fR
+\fI\fIaddport command\fR\fR\fI = \fR\fI/etc/samba/scripts/addport\&.sh\fR\fI \fR
 .RE
 
 addprinter command (G)
@@ -1152,17 +1061,6 @@ Normally, a Samba server requires that UNIX users are created for all users acce
 \fION DEMAND\fR
 when a user accesses the Samba server\&.
 .sp
-In order to use this option,
-\fBsmbd\fR(8)
-must
-\fINOT\fR
-be set to
-\m[blue]\fBsecurity = share\fR\m[]
-and
-\m[blue]\fBadd user script\fR\m[]
-must be set to a full pathname for a script that will create a UNIX user given one argument of
-\fI%u\fR, which expands into the UNIX user name to create\&.
-.sp
 When the Windows user attempts to access the Samba server, at login (session setup in the SMB protocol) time,
 \fBsmbd\fR(8)
 contacts the
@@ -1241,10 +1139,6 @@ This is a list of users who will be granted administrative privileges on the sha
 .sp
 You should use this option very carefully, as any user in this list will be able to do anything they like on the share, irrespective of file permissions\&.
 .sp
-This parameter will not work with the
-\m[blue]\fBsecurity = share\fR\m[]
-in Samba 3\&.0\&. This is by design\&.
-.sp
 Default:
 \fI\fIadmin users\fR\fR\fI = \fR\fI\fR\fI \fR
 .sp
@@ -1262,6 +1156,19 @@ parameter is a local AFS import\&. The special AFS features include the attempt 
 .sp
 Default:
 \fI\fIafs share\fR\fR\fI = \fR\fIno\fR\fI \fR
+.RE
+
+afs token lifetime (G)
+.\" afs token lifetime
+.PP
+.RS 4
+This parameter controls the lifetime of tokens that the AFS fake\-kaserver claims\&. In reality these never expire but this lifetime controls when the afs client will forget the token\&.
+.sp
+Set this parameter to 0 to get
+\fBNEVERDATE\fR\&.
+.sp
+Default:
+\fI\fIafs token lifetime\fR\fR\fI = \fR\fI604800\fR\fI \fR
 .RE
 
 afs username map (G)
@@ -1344,7 +1251,7 @@ algorithmic rid base (G)
 .RS 4
 This determines how Samba will use its algorithmic mapping from uids/gid to the RIDs needed to construct NT Security Identifiers\&.
 .sp
-Setting this option to a larger value could be useful to sites transitioning from WinNT and Win2k, as existing user and group rids would otherwise clash with sytem users etc\&.
+Setting this option to a larger value could be useful to sites transitioning from WinNT and Win2k, as existing user and group rids would otherwise clash with system users etc\&.
 .sp
 All UIDs and GIDs must be able to be resolved into SIDs for the correct operation of ACLs on the server\&. As such the algorithmic mapping can\*(Aqt be \*(Aqturned off\*(Aq, but pushing it \*(Aqout of the way\*(Aq should resolve the issues\&. Users and groups can then be assigned \*(Aqlow\*(Aq RIDs in arbitrary\-rid supporting backends\&.
 .sp
@@ -1368,6 +1275,25 @@ Default:
 .sp
 Example:
 \fI\fIallocation roundup size\fR\fR\fI = \fR\fI0 # (to disable roundups)\fR\fI \fR
+.RE
+
+allow dns updates (G)
+.\" allow dns updates
+.PP
+.RS 4
+This option determines what kind of updates to the DNS are allowed\&.
+.sp
+DNS updates can either be disallowed completely by setting it to
+\fBdisabled\fR, enabled over secure connections only by setting it to
+\fBsecure only\fR
+or allowed in all cases by setting it to
+\fBnonsecure\fR\&.
+.sp
+Default:
+\fI\fIallow dns updates\fR\fR\fI = \fR\fIsecure only\fR\fI \fR
+.sp
+Example:
+\fI\fIallow dns updates\fR\fR\fI = \fR\fIdisabled\fR\fI \fR
 .RE
 
 allow insecure wide links (G)
@@ -1412,34 +1338,6 @@ This is useful if you only want your Samba server to serve resources to users in
 .sp
 Default:
 \fI\fIallow trusted domains\fR\fR\fI = \fR\fIyes\fR\fI \fR
-.RE
-
-announce as (G)
-.\" announce as
-.PP
-.RS 4
-This specifies what type of server
-\fBnmbd\fR(8)
-will announce itself as, to a network neighborhood browse list\&. By default this is set to Windows NT\&. The valid options are : "NT Server" (which can also be written as "NT"), "NT Workstation", "Win95" or "WfW" meaning Windows NT Server, Windows NT Workstation, Windows 95 and Windows for Workgroups respectively\&. Do not change this parameter unless you have a specific need to stop Samba appearing as an NT server as this may prevent Samba servers from participating as browser servers correctly\&.
-.sp
-Default:
-\fI\fIannounce as\fR\fR\fI = \fR\fINT Server\fR\fI \fR
-.sp
-Example:
-\fI\fIannounce as\fR\fR\fI = \fR\fIWin95\fR\fI \fR
-.RE
-
-announce version (G)
-.\" announce version
-.PP
-.RS 4
-This specifies the major and minor version numbers that nmbd will use when announcing itself as a server\&. The default is 4\&.9\&. Do not change this parameter unless you have a specific need to set a Samba server to be a downlevel server\&.
-.sp
-Default:
-\fI\fIannounce version\fR\fR\fI = \fR\fI4\&.9\fR\fI \fR
-.sp
-Example:
-\fI\fIannounce version\fR\fR\fI = \fR\fI2\&.0\fR\fI \fR
 .RE
 
 async smb echo handler (G)
@@ -1826,6 +1724,19 @@ Example:
 \fI\fIcheck password script\fR\fR\fI = \fR\fI/usr/local/sbin/crackcheck\fR\fI \fR
 .RE
 
+cldap port (G)
+.\" cldap port
+.PP
+.RS 4
+This option controls the port used by the CLDAP protocol\&.
+.sp
+Default:
+\fI\fIcldap port\fR\fR\fI = \fR\fI389\fR\fI \fR
+.sp
+Example:
+\fI\fIcldap port\fR\fR\fI = \fR\fI3389\fR\fI \fR
+.RE
+
 client lanman auth (G)
 .\" client lanman auth
 .PP
@@ -1885,8 +1796,181 @@ Default:
 \fI\fIclient ldap sasl wrapping\fR\fR\fI = \fR\fIplain\fR\fI \fR
 .RE
 
-client ntlmv2 auth (G)
-.\" client ntlmv2 auth
+client max protocol (G)
+.\" client max protocol
+.PP
+.RS 4
+The value of the parameter (a string) is the highest protocol level that will be supported by the client\&.
+.sp
+Possible values are :
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBCORE\fR: Earliest version\&. No concept of user names\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBCOREPLUS\fR: Slight improvements on CORE for efficiency\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBLANMAN1\fR: First
+\fImodern\fR
+version of the protocol\&. Long filename support\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBLANMAN2\fR: Updates to Lanman1 protocol\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBNT1\fR: Current up to date version of the protocol\&. Used by Windows NT\&. Known as CIFS\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBSMB2\fR: Re\-implementation of the SMB protocol\&. Used by Windows Vista and later versions of Windows\&. SMB2 has sub protocols available\&.
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBSMB2_02\fR: The earliest SMB2 version\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBSMB2_10\fR: Windows 7 SMB2 version\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBSMB2_22\fR: Early Windows 8 SMB2 version\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBSMB2_24\fR: Windows 8 beta SMB2 version\&.
+.RE
+.sp
+.RE
+By default SMB2 selects the SMB2_10 variant\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBSMB3\fR: The same as SMB2\&. Used by Windows 8\&. SMB3 has sub protocols available\&.
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBSMB3_00\fR: Windows 8 SMB3 version\&. (mostly the same as SMB2_24)
+.RE
+.sp
+.RE
+By default SMB3 selects the SMB3_00 variant\&.
+.RE
+.sp
+.RE
+Normally this option should not be set as the automatic negotiation phase in the SMB protocol takes care of choosing the appropriate protocol\&.
+.sp
+Default:
+\fI\fIclient max protocol\fR\fR\fI = \fR\fISMB3\fR\fI \fR
+.sp
+Example:
+\fI\fIclient max protocol\fR\fR\fI = \fR\fILANMAN1\fR\fI \fR
+.RE
+
+client min protocol (G)
+.\" client min protocol
+.PP
+.RS 4
+This setting controls the minimum protocol version that the client will attempt to use\&.
+.sp
+Normally this option should not be set as the automatic negotiation phase in the SMB protocol takes care of choosing the appropriate protocol\&.
+.sp
+Default:
+\fI\fIclient min protocol\fR\fR\fI = \fR\fICORE\fR\fI \fR
+.sp
+Example:
+\fI\fIclient min protocol\fR\fR\fI = \fR\fINT1\fR\fI \fR
+.RE
+
+client NTLMv2 auth (G)
+.\" client NTLMv2 auth
 .PP
 .RS 4
 This parameter determines whether or not
@@ -1907,7 +1991,7 @@ client lanman auth\&.
 Note that Windows Vista and later versions already use NTLMv2 by default, and some sites (particularly those following \*(Aqbest practice\*(Aq security polices) only allow NTLMv2 responses, and not the weaker LM or NTLM\&.
 .sp
 Default:
-\fI\fIclient ntlmv2 auth\fR\fR\fI = \fR\fIyes\fR\fI \fR
+\fI\fIclient NTLMv2 auth\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
 
 client plaintext auth (G)
@@ -2091,7 +2175,7 @@ create krb5 conf (G)
 .\" create krb5 conf
 .PP
 .RS 4
-Setting this paramter to
+Setting this parameter to
 no
 prevents winbind from creating custom krb5\&.conf files\&. Winbind normally does this because the krb5 libraries are not AD\-site\-aware and thus would pick any domain controller out of potentially very many\&. Winbind is site\-aware and makes the krb5 libraries use a local DC by creating its own krb5\&.conf files\&.
 .sp
@@ -2130,9 +2214,6 @@ parameter which is set to 000 by default\&.
 This parameter does not affect directory masks\&. See the parameter
 \m[blue]\fBdirectory mask\fR\m[]
 for details\&.
-.sp
-Note that this parameter does not apply to permissions set by Windows NT/2000 ACL editors\&. If the administrator wishes to enforce a mask on access control lists also, they need to set the
-\m[blue]\fBsecurity mask\fR\m[]\&.
 .sp
 Default:
 \fI\fIcreate mask\fR\fR\fI = \fR\fI0744\fR\fI \fR
@@ -2197,7 +2278,7 @@ This parameter specifies a timeout in seconds for the connection between Samba a
 .sp
 When something in the cluster blocks, it can happen that we wait indefinitely long for ctdb, just adding to the blocking condition\&. In a well\-running cluster this should never happen, but there are too many components in a cluster that might have hickups\&. Choosing the right balance for this value is very tricky, because on a busy cluster long service times to transfer something across the cluster might be valid\&. Setting it too short will degrade the service your cluster presents, setting it too long might make the cluster itself not recover from something severely broken for too long\&.
 .sp
-Be aware that if you set this parameter, this needs to be in the file smb\&.conf, it is not really helpful to put this into a registry configuration (typical on a cluster), because to access the registry contact to ctdb is requred\&.
+Be aware that if you set this parameter, this needs to be in the file smb\&.conf, it is not really helpful to put this into a registry configuration (typical on a cluster), because to access the registry contact to ctdb is required\&.
 .sp
 Setting
 \fIctdb timeout\fR
@@ -2292,6 +2373,19 @@ Example:
 .sp
 Example:
 \fI\fIcups server\fR\fR\fI = \fR\fImycupsserver:1631\fR\fI \fR
+.RE
+
+dcerpc endpoint servers (G)
+.\" dcerpc endpoint servers
+.PP
+.RS 4
+Specifies which DCE/RPC endpoint servers should be run\&.
+.sp
+Default:
+\fI\fIdcerpc endpoint servers\fR\fR\fI = \fR\fIrpcecho\fR\fI \fR
+.sp
+Example:
+\fI\fIdcerpc endpoint servers\fR\fR\fI = \fR\fIepmapper wkssvc rpcecho samr netlogon lsarpc spoolss drsuapi dssetup unixinfo browser eventlog6 backupkey\fR\fI \fR
 .RE
 
 deadtime (G)
@@ -2704,7 +2798,7 @@ By default this parameter is zero, meaning no caching will be done\&.
 \fINo default\fR
 .sp
 Example:
-\fI\fIdfree cache time\fR\fR\fI = \fR\fIdfree cache time = 60\fR\fI \fR
+\fI\fIdfree cache time\fR\fR\fI = \fR\fI60\fR\fI \fR
 .RE
 
 dfree command (S)
@@ -2766,6 +2860,16 @@ Example:
 \fI\fIdfree command\fR\fR\fI = \fR\fI/usr/local/samba/bin/dfree\fR\fI \fR
 .RE
 
+dgram port (G)
+.\" dgram port
+.PP
+.RS 4
+Specifies which ports the server should listen on for NetBIOS datagram traffic\&.
+.sp
+Default:
+\fI\fIdgram port\fR\fR\fI = \fR\fI138\fR\fI \fR
+.RE
+
 directory mode
 .\" directory mode
 .PP
@@ -2790,9 +2894,6 @@ Following this Samba will bit\-wise \*(AqOR\*(Aq the UNIX mode created from this
 \m[blue]\fBforce directory mode\fR\m[]
 parameter\&. This parameter is set to 000 by default (i\&.e\&. no extra mode bits are added)\&.
 .sp
-Note that this parameter does not apply to permissions set by Windows NT/2000 ACL editors\&. If the administrator wishes to enforce a mask on access control lists also, they need to set the
-\m[blue]\fBdirectory security mask\fR\m[]\&.
-.sp
 Default:
 \fI\fIdirectory mask\fR\fR\fI = \fR\fI0755\fR\fI \fR
 .sp
@@ -2814,24 +2915,9 @@ directory security mask (S)
 .\" directory security mask
 .PP
 .RS 4
-This parameter controls what UNIX permission bits will be set when a Windows NT client is manipulating the UNIX permission on a directory using the native NT security dialog box\&.
+This parameter has been removed for Samba 4\&.0\&.0\&.
 .sp
-This parameter is applied as a mask (AND\*(Aqed with) to the incoming permission bits, thus resetting any bits not in this mask\&. Make sure not to mix up this parameter with
-\m[blue]\fBforce directory security mode\fR\m[], which works similar like this one but uses logical OR instead of AND\&. Essentially, zero bits in this mask are a set of bits that will always be set to zero\&.
-.sp
-Essentially, all bits set to zero in this mask will result in setting to zero the corresponding bits on the file permissions regardless of the previous status of this bits on the file\&.
-.sp
-If not set explicitly this parameter is set to 0777 meaning a user is allowed to set all the user/group/world permissions on a directory\&.
-.sp
-\fINote\fR
-that users who can access the Samba server through other means can easily bypass this restriction, so it is primarily useful for standalone "appliance" systems\&. Administrators of most normal systems will probably want to leave it as the default of
-\fB0777\fR\&.
-.sp
-Default:
-\fI\fIdirectory security mask\fR\fR\fI = \fR\fI0777\fR\fI \fR
-.sp
-Example:
-\fI\fIdirectory security mask\fR\fR\fI = \fR\fI0700\fR\fI \fR
+\fINo default\fR
 .RE
 
 disable netbios (G)
@@ -2869,20 +2955,6 @@ Default:
 \fI\fIdisable spoolss\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
-display charset (G)
-.\" display charset
-.PP
-.RS 4
-Specifies the charset that samba will use to print messages to stdout and stderr\&. The default value is "LOCALE", which means automatically set, depending on the current locale\&. The value should generally be the same as the value of the parameter
-\m[blue]\fBunix charset\fR\m[]\&.
-.sp
-Default:
-\fI\fIdisplay charset\fR\fR\fI = \fR\fI"LOCALE" or "ASCII" (depending on the system)\fR\fI \fR
-.sp
-Example:
-\fI\fIdisplay charset\fR\fR\fI = \fR\fIUTF8\fR\fI \fR
-.RE
-
 dmapi support (S)
 .\" dmapi support
 .PP
@@ -2895,6 +2967,21 @@ This parameter is only available if a supported DMAPI implementation was found a
 .sp
 Default:
 \fI\fIdmapi support\fR\fR\fI = \fR\fIno\fR\fI \fR
+.RE
+
+dns forwarder (G)
+.\" dns forwarder
+.PP
+.RS 4
+This option specifies the DNS server that DNS requests will be forwarded to if they can not be handled by Samba itself\&.
+.sp
+The DNS forwarder is only used if the internal DNS server in Samba is used\&.
+.sp
+Default:
+\fI\fIdns forwarder\fR\fR\fI = \fR\fI\fR\fI \fR
+.sp
+Example:
+\fI\fIdns forwarder\fR\fR\fI = \fR\fI192\&.168\&.0\&.1\fR\fI \fR
 .RE
 
 dns proxy (G)
@@ -2912,6 +2999,19 @@ spawns a second copy of itself to do the DNS name lookup requests, as doing a na
 .sp
 Default:
 \fI\fIdns proxy\fR\fR\fI = \fR\fIyes\fR\fI \fR
+.RE
+
+dns update command (G)
+.\" dns update command
+.PP
+.RS 4
+This option sets the command that is called when there are DNS updates\&. It should update the local machines DNS names using TSIG\-GSS\&.
+.sp
+Default:
+\fI\fIdns update command\fR\fR\fI = \fR\fI$prefix/sbin/samba_dnsupdate\fR\fI \fR
+.sp
+Example:
+\fI\fIdns update command\fR\fR\fI = \fR\fI/usr/local/sbin/dnsupdate\fR\fI \fR
 .RE
 
 domain logons (G)
@@ -3040,6 +3140,23 @@ Default:
 \fI\fIdos filetimes\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
 
+durable handles (S)
+.\" durable handles
+.PP
+.RS 4
+This boolean parameter controls whether Samba can grant SMB2 durable file handles on a share\&.
+.sp
+Note that durable handles are only enabled if
+\m[blue]\fBkernel oplocks = no\fR\m[],
+\m[blue]\fBkernel share modes = no\fR\m[], and
+\m[blue]\fBposix locking = no\fR\m[], i\&.e\&. if the share is configured for CIFS/SMB2 only access, not supporting interoperability features with local UNIX processes or NFS operations\&.
+.sp
+Also note that, for the time being, durability is not granted for a handle that has the delete on close flag set\&.
+.sp
+Default:
+\fI\fIdurable handles\fR\fR\fI = \fR\fIyes\fR\fI \fR
+.RE
+
 ea support (S)
 .\" ea support
 .PP
@@ -3056,7 +3173,7 @@ enable asu support (G)
 .\" enable asu support
 .PP
 .RS 4
-Hosts running the "Advanced Server for Unix (ASU)" product require some special accomodations such as creating a builtin [ADMIN$] share that only supports IPC connections\&. The has been the default behavior in smbd for many years\&. However, certain Microsoft applications such as the Print Migrator tool require that the remote server support an [ADMIN$} file share\&. Disabling this parameter allows for creating an [ADMIN$] file share in smb\&.conf\&.
+Hosts running the "Advanced Server for Unix (ASU)" product require some special accomodations such as creating a builtin [ADMIN$] share that only supports IPC connections\&. The has been the default behavior in smbd for many years\&. However, certain Microsoft applications such as the Print Migrator tool require that the remote server support an [ADMIN$] file share\&. Disabling this parameter allows for creating an [ADMIN$] file share in smb\&.conf\&.
 .sp
 Default:
 \fI\fIenable asu support\fR\fR\fI = \fR\fIno\fR\fI \fR
@@ -3120,7 +3237,7 @@ must either have access to a local
 file (see the
 \fBsmbpasswd\fR(8)
 program for information on how to set up and maintain this file), or set the
-\m[blue]\fBsecurity = [server|domain|ads]\fR\m[]
+\m[blue]\fBsecurity = [domain|ads]\fR\m[]
 parameter which causes
 smbd
 to authenticate against another server\&.
@@ -3167,7 +3284,7 @@ eventlog list (G)
 .PP
 .RS 4
 This option defines a list of log names that Samba will report to the Microsoft EventViewer utility\&. The listed eventlogs will be associated with tdb file on disk in the
-$(lockdir)/eventlog\&.
+$(statedir)/eventlog\&.
 .sp
 The administrator must use an external process to parse the normal Unix logs such as
 /var/log/messages
@@ -3277,34 +3394,9 @@ force directory security mode (S)
 .\" force directory security mode
 .PP
 .RS 4
-This parameter controls what UNIX permission bits can be modified when a Windows NT client is manipulating the UNIX permission on a directory using the native NT security dialog box\&.
+This parameter has been removed for Samba 4\&.0\&.0\&.
 .sp
-This parameter is applied as a mask (OR\*(Aqed with) to the changed permission bits, thus forcing any bits in this mask that the user may have modified to be on\&. Make sure not to mix up this parameter with
-\m[blue]\fBdirectory security mask\fR\m[], which works in a similar manner to this one, but uses a logical AND instead of an OR\&.
-.sp
-Essentially, this mask may be treated as a set of bits that, when modifying security on a directory, to will enable (1) any flags that are off (0) but which the mask has set to on (1)\&.
-.sp
-If not set explicitly this parameter is 0000, which allows a user to modify all the user/group/world permissions on a directory without restrictions\&.
-.if n \{\
-.sp
-.\}
-.RS 4
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.br
-.ps +1
-\fBNote\fR
-.ps -1
-.br
-Users who can access the Samba server through other means can easily bypass this restriction, so it is primarily useful for standalone "appliance" systems\&. Administrators of most normal systems will probably want to leave it set as 0000\&.
-.sp .5v
-.RE
-Default:
-\fI\fIforce directory security mode\fR\fR\fI = \fR\fI0\fR\fI \fR
-.sp
-Example:
-\fI\fIforce directory security mode\fR\fR\fI = \fR\fI700\fR\fI \fR
+\fINo default\fR
 .RE
 
 group
@@ -3364,23 +3456,9 @@ force security mode (S)
 .\" force security mode
 .PP
 .RS 4
-This parameter controls what UNIX permission bits can be modified when a Windows NT client is manipulating the UNIX permission on a file using the native NT security dialog box\&.
+This parameter has been removed for Samba 4\&.0\&.0\&.
 .sp
-This parameter is applied as a mask (OR\*(Aqed with) to the changed permission bits, thus forcing any bits in this mask that the user may have modified to be on\&. Make sure not to mix up this parameter with
-\m[blue]\fBsecurity mask\fR\m[], which works similar like this one but uses logical AND instead of OR\&.
-.sp
-Essentially, one bits in this mask may be treated as a set of bits that, when modifying security on a file, the user has always set to be on\&.
-.sp
-If not set explicitly this parameter is set to 0, and allows a user to modify all the user/group/world permissions on a file, with no restrictions\&.
-.sp
-\fI Note\fR
-that users who can access the Samba server through other means can easily bypass this restriction, so it is primarily useful for standalone "appliance" systems\&. Administrators of most normal systems will probably want to leave this set to 0000\&.
-.sp
-Default:
-\fI\fIforce security mode\fR\fR\fI = \fR\fI0\fR\fI \fR
-.sp
-Example:
-\fI\fIforce security mode\fR\fR\fI = \fR\fI700\fR\fI \fR
+\fINo default\fR
 .RE
 
 force unknown acl user (S)
@@ -3443,15 +3521,11 @@ The
 get quota command
 should only be used whenever there is no operating system API available from the OS that samba can use\&.
 .sp
-This option is only available you have compiled Samba with the
-\-\-with\-sys\-quotas
-option or on Linux with
-\-\-with\-quotas
-and a working quota api was found in the system\&.
+This option is only available Samba was compiled with quotas support\&.
 .sp
 This parameter should specify the path to a script that queries the quota information for the specified user/group for the partition that the specified directory is on\&.
 .sp
-Such a script should take 3 arguments:
+Such a script is being given 3 arguments:
 .sp
 .RS 4
 .ie n \{\
@@ -3487,7 +3561,9 @@ uid of user or gid of group
 .RE
 .sp
 .RE
-The type of query can be one of :
+The directory is actually mostly just "\&." \- It needs to be treated relatively to the current working directory that the script can also query\&.
+.sp
+The type of query can be one of:
 .sp
 .RS 4
 .ie n \{\
@@ -3534,7 +3610,7 @@ The type of query can be one of :
 .RE
 .sp
 .RE
-This script should print one line as output with spaces between the arguments\&. The arguments are:
+This script should print one line as output with spaces between the columns\&. The printed columns should be:
 .sp
 .RS 4
 .ie n \{\
@@ -3544,7 +3620,7 @@ This script should print one line as output with spaces between the arguments\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-Arg 1 \- quota flags (0 = no quotas, 1 = quotas enabled, 2 = quotas enabled and enforced)
+1 \- quota flags (0 = no quotas, 1 = quotas enabled, 2 = quotas enabled and enforced)
 .RE
 .sp
 .RS 4
@@ -3555,7 +3631,7 @@ Arg 1 \- quota flags (0 = no quotas, 1 = quotas enabled, 2 = quotas enabled and 
 .sp -1
 .IP \(bu 2.3
 .\}
-Arg 2 \- number of currently used blocks
+2 \- number of currently used blocks
 .RE
 .sp
 .RS 4
@@ -3566,7 +3642,7 @@ Arg 2 \- number of currently used blocks
 .sp -1
 .IP \(bu 2.3
 .\}
-Arg 3 \- the softlimit number of blocks
+3 \- the softlimit number of blocks
 .RE
 .sp
 .RS 4
@@ -3577,7 +3653,7 @@ Arg 3 \- the softlimit number of blocks
 .sp -1
 .IP \(bu 2.3
 .\}
-Arg 4 \- the hardlimit number of blocks
+4 \- the hardlimit number of blocks
 .RE
 .sp
 .RS 4
@@ -3588,7 +3664,7 @@ Arg 4 \- the hardlimit number of blocks
 .sp -1
 .IP \(bu 2.3
 .\}
-Arg 5 \- currently used number of inodes
+5 \- currently used number of inodes
 .RE
 .sp
 .RS 4
@@ -3599,7 +3675,7 @@ Arg 5 \- currently used number of inodes
 .sp -1
 .IP \(bu 2.3
 .\}
-Arg 6 \- the softlimit number of inodes
+6 \- the softlimit number of inodes
 .RE
 .sp
 .RS 4
@@ -3610,7 +3686,7 @@ Arg 6 \- the softlimit number of inodes
 .sp -1
 .IP \(bu 2.3
 .\}
-Arg 7 \- the hardlimit number of inodes
+7 \- the hardlimit number of inodes
 .RE
 .sp
 .RS 4
@@ -3621,7 +3697,7 @@ Arg 7 \- the hardlimit number of inodes
 .sp -1
 .IP \(bu 2.3
 .\}
-Arg 8(optional) \- the number of bytes in a block(default is 1024)
+8 (optional) \- the number of bytes in a block(default is 1024)
 .RE
 .sp
 .RE
@@ -4003,8 +4079,8 @@ Default:
 \fI\fIidmap cache time\fR\fR\fI = \fR\fI604800 (one week)\fR\fI \fR
 .RE
 
-idmap config (G)
-.\" idmap config
+idmap config:OPTION (G)
+.\" idmap config:OPTION
 .PP
 .RS 4
 ID mapping in Samba is the mapping between Windows SIDs and Unix user and group IDs\&. This is performed by Winbindd with a configurable plugin interface\&. Samba\*(Aqs ID mapping is configured by options starting with the
@@ -4013,20 +4089,20 @@ prefix\&. An idmap option consists of the
 \m[blue]\fBidmap config\fR\m[]
 prefix, followed by a domain name or the asterisk character (*), a colon, and the name of an idmap setting for the chosen domain\&.
 .sp
-The idmap configuration is hence divided into groups, one group for each domain to be configured, and one group with the the asterisk instead of a proper domain name, which speifies the default configuration that is used to catch all domains that do not have an explicit idmap configuration of their own\&.
+The idmap configuration is hence divided into groups, one group for each domain to be configured, and one group with the the asterisk instead of a proper domain name, which specifies the default configuration that is used to catch all domains that do not have an explicit idmap configuration of their own\&.
 .sp
 There are three general options available:
 .PP
 backend = backend_name
 .RS 4
-This specifies the name of the idmap plugin to use as the SID/uid/gid backend for this domain\&. The standard backends are tdb (\fBidmap_tdb\fR(8)), tdb2 (\fBidmap_tdb2\fR(8)), ldap (\fBidmap_ldap\fR(8)), , rid (\fBidmap_rid\fR(8)), , hash (\fBidmap_hash\fR(8)), , autorid (\fBidmap_autorid\fR(8)), , ad (\fBidmap_ad\fR(8)), , adex (\fBidmap_adex\fR(8)), , and nss\&. (\fBidmap_nss\fR(8)), The corresponding manual pages contain the details, but here is a summary\&.
+This specifies the name of the idmap plugin to use as the SID/uid/gid backend for this domain\&. The standard backends are tdb (\fBidmap_tdb\fR(8)), tdb2 (\fBidmap_tdb2\fR(8)), ldap (\fBidmap_ldap\fR(8)), , rid (\fBidmap_rid\fR(8)), , hash (\fBidmap_hash\fR(8)), , autorid (\fBidmap_autorid\fR(8)), , ad (\fBidmap_ad\fR(8)), , and nss\&. (\fBidmap_nss\fR(8)), The corresponding manual pages contain the details, but here is a summary\&.
 .sp
-The first three of these create mappings of their own using internal unixid counters and store the mappings in a database\&. These are suitable for use in the default idmap configuration\&. The rid and hash backends use a pure algorithmic calculation to determine the unixid for a SID\&. The autorid module is a mixture of the tdb and rid backend\&. It creates ranges for each domain encountered and then uses the rid algorithm for each of these automatically configured domains individually\&. The ad and adex backends both use unix IDs stored in Active Directory via the standard schema extensions\&. The nss backend reverses the standard winbindd setup and gets the unixids via names from nsswitch which can be useful in an ldap setup\&.
+The first three of these create mappings of their own using internal unixid counters and store the mappings in a database\&. These are suitable for use in the default idmap configuration\&. The rid and hash backends use a pure algorithmic calculation to determine the unixid for a SID\&. The autorid module is a mixture of the tdb and rid backend\&. It creates ranges for each domain encountered and then uses the rid algorithm for each of these automatically configured domains individually\&. The ad backend usees unix IDs stored in Active Directory via the standard schema extensions\&. The nss backend reverses the standard winbindd setup and gets the unixids via names from nsswitch which can be useful in an ldap setup\&.
 .RE
 .PP
 range = low \- high
 .RS 4
-Defines the available matching uid and gid range for which the backend is authoritative\&. For allocating backends, this also defines the start and the end of the range for allocating new unid IDs\&.
+Defines the available matching uid and gid range for which the backend is authoritative\&. For allocating backends, this also defines the start and the end of the range for allocating new unique IDs\&.
 .sp
 winbind uses this parameter to find the backend that is authoritative for a unix ID to SID mapping, so it must be set for each individually configured domain and for the default configuration\&. The configured ranges must be mutually disjoint\&.
 .RE
@@ -4354,6 +4430,8 @@ packets\&. If this parameter is zero, no keepalive packets will be sent\&. Keepa
 Keepalives should, in general, not be needed if the socket has the SO_KEEPALIVE attribute set on it by default\&. (see
 \m[blue]\fBsocket options\fR\m[])\&. Basically you should only use this option if you strike difficulties\&.
 .sp
+Please note this option only applies to SMB1 client connections, and has no effect on SMB2 clients\&.
+.sp
 Default:
 \fI\fIkeepalive\fR\fR\fI = \fR\fI300\fR\fI \fR
 .sp
@@ -4436,13 +4514,13 @@ Default:
 \fI\fIkernel change notify\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
 
-kernel oplocks (G)
+kernel oplocks (S)
 .\" kernel oplocks
 .PP
 .RS 4
 For UNIXes that support kernel based
 \m[blue]\fBoplocks\fR\m[]
-(currently only IRIX and the Linux 2\&.4 kernel), this parameter allows the use of them to be turned on or off\&.
+(currently only IRIX and the Linux 2\&.4 kernel), this parameter allows the use of them to be turned on or off\&. However, this disables Level II oplocks for clients as the Linux and IRIX kernels do not support them properly\&.
 .sp
 Kernel oplocks support allows Samba
 \fIoplocks \fR
@@ -4452,11 +4530,52 @@ has oplocked\&. This allows complete data consistency between SMB/CIFS, NFS and 
 \fIvery\fR
 cool feature :\-)\&.
 .sp
+If you do not need this interaction, you should disable the parameter on Linux and IRIX to get Level II oplocks and the associated performance benefit\&.
+.sp
 This parameter defaults to
-\fBon\fR, but is translated to a no\-op on systems that no not have the necessary kernel support\&. You should never need to touch this parameter\&.
+\fBno\fR
+and is translated to a no\-op on systems that do not have the necessary kernel support\&.
 .sp
 Default:
-\fI\fIkernel oplocks\fR\fR\fI = \fR\fIyes\fR\fI \fR
+\fI\fIkernel oplocks\fR\fR\fI = \fR\fIno\fR\fI \fR
+.RE
+
+kernel share modes (S)
+.\" kernel share modes
+.PP
+.RS 4
+This parameter controls whether SMB share modes are translated into UNIX flocks\&.
+.sp
+Kernel share modes provide a minimal level of interoperability with local UNIX processes and NFS operations by preventing access with flocks corresponding to the SMB share modes\&. Generally, it is very desirable to leave this enabled\&.
+.sp
+Note that in order to use SMB2 durable file handles on a share, you have to turn kernel share modes off\&.
+.sp
+This parameter defaults to
+\fByes\fR
+and is translated to a no\-op on systems that do not have the necessary kernel flock support\&.
+.sp
+Default:
+\fI\fIkernel share modes\fR\fR\fI = \fR\fIyes\fR\fI \fR
+.RE
+
+kpasswd port (G)
+.\" kpasswd port
+.PP
+.RS 4
+Specifies which ports the Kerberos server should listen on for password changes\&.
+.sp
+Default:
+\fI\fIkpasswd port\fR\fR\fI = \fR\fI464\fR\fI \fR
+.RE
+
+krb5 port (G)
+.\" krb5 port
+.PP
+.RS 4
+Specifies which port the KDC should listen on for Kerberos traffic\&.
+.sp
+Default:
+\fI\fIkrb5 port\fR\fR\fI = \fR\fI88\fR\fI \fR
 .RE
 
 lanman auth (G)
@@ -4547,7 +4666,7 @@ manpage\&. A typical useful value will be
 \fI1\fR
 for tracing function calls\&.
 .sp
-The debug ouput from the LDAP libraries appears with the prefix [LDAP] in Samba\*(Aqs logging output\&. The level at which LDAP logging is printed is controlled by the parameter
+The debug output from the LDAP libraries appears with the prefix [LDAP] in Samba\*(Aqs logging output\&. The level at which LDAP logging is printed is controlled by the parameter
 \fIldap debug threshold\fR\&.
 .sp
 Default:
@@ -4685,6 +4804,14 @@ Example:
 \fI\fIldap page size\fR\fR\fI = \fR\fI512\fR\fI \fR
 .RE
 
+ldap password sync
+.\" ldap password sync
+.PP
+.RS 4
+This parameter is a synonym for
+ldap passwd sync\&.
+.RE
+
 ldap passwd sync (G)
 .\" ldap passwd sync
 .PP
@@ -4757,7 +4884,7 @@ ldapsam:editposix (G)
 Editposix is an option that leverages ldapsam:trusted to make it simpler to manage a domain controller eliminating the need to set up custom scripts to add and manage the posix users and groups\&. This option will instead directly manipulate the ldap tree to create, remove and modify user and group entries\&. This option also requires a running winbindd as it is used to allocate new uids/gids on user/group creation\&. The allocation range must be therefore configured\&.
 .sp
 To use this option, a basic ldap tree must be provided and the ldap suffix parameters must be properly configured\&. On virgin servers the default users and groups (Administrator, Guest, Domain Users, Domain Admins, Domain Guests) can be precreated with the command
-net sam provision\&. To run this command the ldap server must be running, Winindd must be running and the smb\&.conf ldap options must be properly configured\&. The typical ldap setup used with the
+net sam provision\&. To run this command the ldap server must be running, Winbindd must be running and the smb\&.conf ldap options must be properly configured\&. The typical ldap setup used with the
 \m[blue]\fBldapsam:trusted = yes\fR\m[]
 option is usually sufficient to use
 \m[blue]\fBldapsam:editposix = yes\fR\m[]
@@ -5156,17 +5283,6 @@ Be careful about disabling locking either globally or in a specific service, as 
 \fINo default\fR
 .RE
 
-lock spin count (G)
-.\" lock spin count
-.PP
-.RS 4
-This parameter has been made inoperative in Samba 3\&.0\&.24\&. The functionality it contolled is now controlled by the parameter
-\m[blue]\fBlock spin time\fR\m[]\&.
-.sp
-Default:
-\fI\fIlock spin count\fR\fR\fI = \fR\fI0\fR\fI \fR
-.RE
-
 lock spin time (G)
 .\" lock spin time
 .PP
@@ -5437,6 +5553,18 @@ Default:
 .sp
 Example:
 \fI\fIlog level\fR\fR\fI = \fR\fI3 passdb:5 auth:10 winbind:2\fR\fI \fR
+.RE
+
+log nt token command (G)
+.\" log nt token command
+.PP
+.RS 4
+This option can be set to a command that will be called when new nt tokens are created\&.
+.sp
+This is only useful for development purposes\&.
+.sp
+Default:
+\fI\fIlog nt token command\fR\fR\fI = \fR\fI\fR\fI \fR
 .RE
 
 logon drive (G)
@@ -6108,16 +6236,6 @@ map to guest (G)
 .\" map to guest
 .PP
 .RS 4
-This parameter is only useful in
-\m[blue]\fBSECURITY = security\fR\m[]
-modes other than
-\fIsecurity = share\fR
-and
-\fIsecurity = server\fR
-\- i\&.e\&.
-\fBuser\fR, and
-\fBdomain\fR\&.
-.sp
 This parameter can take four different values, which tell
 \fBsmbd\fR(8)
 what to do with user login requests that don\*(Aqt match a valid UNIX user in some way\&.
@@ -6179,17 +6297,9 @@ parameter this way :\-)\&.
 .RE
 .sp
 .RE
-Note that this parameter is needed to set up "Guest" share services when using
-\fIsecurity\fR
-modes other than share and server\&. This is because in these modes the name of the resource being requested is
+Note that this parameter is needed to set up "Guest" share services\&. This is because in these modes the name of the resource being requested is
 \fInot\fR
-sent to the server until after the server has successfully authenticated the client so the server cannot make authentication decisions at the correct time (connection to the share) for "Guest" shares\&. This parameter is not useful with
-\fIsecurity = server\fR
-as in this security mode no information is returned about whether a user logon failed due to a bad username or bad password, the same error is returned from a modern server in both cases\&.
-.sp
-For people familiar with the older Samba releases, this parameter maps to the old compile\-time setting of the
-\fB GUEST_SESSSETUP\fR
-value in local\&.h\&.
+sent to the server until after the server has successfully authenticated the client so the server cannot make authentication decisions at the correct time (connection to the share) for "Guest" shares\&.
 .sp
 Default:
 \fI\fImap to guest\fR\fR\fI = \fR\fINever\fR\fI \fR
@@ -6309,100 +6419,6 @@ Default:
 .sp
 Example:
 \fI\fImax print jobs\fR\fR\fI = \fR\fI5000\fR\fI \fR
-.RE
-
-protocol
-.\" protocol
-.PP
-.RS 4
-This parameter is a synonym for
-max protocol\&.
-.RE
-
-max protocol (G)
-.\" max protocol
-.PP
-.RS 4
-The value of the parameter (a string) is the highest protocol level that will be supported by the server\&.
-.sp
-Possible values are :
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-\fBCORE\fR: Earliest version\&. No concept of user names\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-\fBCOREPLUS\fR: Slight improvements on CORE for efficiency\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-\fBLANMAN1\fR: First
-\fI modern\fR
-version of the protocol\&. Long filename support\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-\fBLANMAN2\fR: Updates to Lanman1 protocol\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-\fBNT1\fR: Current up to date version of the protocol\&. Used by Windows NT\&. Known as CIFS\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-\fBSMB2\fR: Re\-implementation of the SMB protocol\&. Used by Windows Vista and newer\&.
-.RE
-.sp
-.RE
-Normally this option should not be set as the automatic negotiation phase in the SMB protocol takes care of choosing the appropriate protocol\&.
-.sp
-Default:
-\fI\fImax protocol\fR\fR\fI = \fR\fINT1\fR\fI \fR
-.sp
-Example:
-\fI\fImax protocol\fR\fR\fI = \fR\fILANMAN1\fR\fI \fR
 .RE
 
 max reported print jobs (S)
@@ -6607,27 +6623,6 @@ Example:
 \fI\fImin print space\fR\fR\fI = \fR\fI2000\fR\fI \fR
 .RE
 
-min protocol (G)
-.\" min protocol
-.PP
-.RS 4
-The value of the parameter (a string) is the lowest SMB protocol dialect than Samba will support\&. Please refer to the
-\m[blue]\fBmax protocol\fR\m[]
-parameter for a list of valid protocol names and a brief description of each\&. You may also wish to refer to the C source code in
-source/smbd/negprot\&.c
-for a listing of known protocol dialects supported by clients\&.
-.sp
-If you are viewing this parameter as a security measure, you should also refer to the
-\m[blue]\fBlanman auth\fR\m[]
-parameter\&. Otherwise, you should never need to change this parameter\&.
-.sp
-Default:
-\fI\fImin protocol\fR\fR\fI = \fR\fICORE\fR\fI \fR
-.sp
-Example:
-\fI\fImin protocol\fR\fR\fI = \fR\fINT1\fR\fI \fR
-.RE
-
 min receivefile size (G)
 .\" min receivefile size
 .PP
@@ -6638,7 +6633,7 @@ when processing SMBwriteX calls\&. Any incoming SMBwriteX call on a non\-signed 
 .sp
 Note this option will have NO EFFECT if set on a SMB signed connection\&.
 .sp
-The default is zero, which diables this option\&.
+The default is zero, which disables this option\&.
 .sp
 Default:
 \fI\fImin receivefile size\fR\fR\fI = \fR\fI0\fR\fI \fR
@@ -6796,14 +6791,54 @@ Example:
 \fI\fIname resolve order\fR\fR\fI = \fR\fIlmhosts bcast host\fR\fI \fR
 .RE
 
+socket address
+.\" socket address
+.PP
+.RS 4
+This parameter is a synonym for
+nbt client socket address\&.
+.RE
+
+nbt client socket address (G)
+.\" nbt client socket address
+.PP
+.RS 4
+This option allows you to control what address Samba will send NBT client packets from, and process replies using, including in nmbd\&.
+.sp
+Setting this option should never be necessary on usual Samba servers running only one nmbd\&.
+.sp
+By default Samba will send UDP packets from the OS default address for the destination, and accept replies on 0\&.0\&.0\&.0\&.
+.sp
+This parameter is deprecated\&. See
+\m[blue]\fBbind interfaces only = Yes\fR\m[]
+and
+\m[blue]\fBinterfaces\fR\m[]
+for the previous behaviour of controlling the normal listening sockets\&.
+.sp
+Default:
+\fI\fInbt client socket address\fR\fR\fI = \fR\fI0\&.0\&.0\&.0\fR\fI \fR
+.sp
+Example:
+\fI\fInbt client socket address\fR\fR\fI = \fR\fI192\&.168\&.2\&.20\fR\fI \fR
+.RE
+
+nbt port (G)
+.\" nbt port
+.PP
+.RS 4
+Specifies which port the server should use for NetBIOS over IP name services traffic\&.
+.sp
+Default:
+\fI\fInbt port\fR\fR\fI = \fR\fI137\fR\fI \fR
+.RE
+
 ncalrpc dir (G)
 .\" ncalrpc dir
 .PP
 .RS 4
 This directory will hold a series of named pipes to allow RPC over inter\-process communication\&.
 .sp
-\&.
-	This will allow Samba and other unix processes to interact over DCE/RPC without using TCP/IP\&. Additionally a sub\-directory \*(Aqnp\*(Aq has restricted permissions, and allows a trusted communication channel between Samba processes
+This will allow Samba and other unix processes to interact over DCE/RPC without using TCP/IP\&. Additionally a sub\-directory \*(Aqnp\*(Aq has restricted permissions, and allows a trusted communication channel between Samba processes
 .sp
 Default:
 \fI\fIncalrpc dir\fR\fR\fI = \fR\fI${prefix}/var/ncalrpc\fR\fI \fR
@@ -6852,8 +6887,8 @@ Default:
 \fI\fInetbios scope\fR\fR\fI = \fR\fI\fR\fI \fR
 .RE
 
-nis homedir (G)
-.\" nis homedir
+NIS homedir (G)
+.\" NIS homedir
 .PP
 .RS 4
 Get the home share server from a NIS map\&. For UNIX systems that use an automounter, the user\*(Aqs home directory will often be mounted on a workstation on demand from a remote server\&.
@@ -6867,7 +6902,7 @@ and return the server listed there\&.
 Note that for this option to work there must be a working NIS system and the Samba server with this option must also be a logon server\&.
 .sp
 Default:
-\fI\fInis homedir\fR\fR\fI = \fR\fIno\fR\fI \fR
+\fI\fINIS homedir\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
 nmbd bind explicit broadcast (G)
@@ -6882,6 +6917,18 @@ option\&. You should not need to unset this option\&.
 .sp
 Default:
 \fI\fInmbd bind explicit broadcast\fR\fR\fI = \fR\fIyes\fR\fI \fR
+.RE
+
+nsupdate command (G)
+.\" nsupdate command
+.PP
+.RS 4
+This option sets the path to the
+nsupdate
+command which is used for GSS\-TSIG dynamic DNS updates\&.
+.sp
+Default:
+\fI\fInsupdate command\fR\fR\fI = \fR\fI$prefix/sbin/nsupdate \-g\fR\fI \fR
 .RE
 
 nt acl support (S)
@@ -6926,6 +6973,21 @@ Default:
 \fI\fInt pipe support\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
 
+ntp signd socket directory (G)
+.\" ntp signd socket directory
+.PP
+.RS 4
+This setting controls the location of the socket that the NTP daemon uses to communicate with Samba for signing packets\&.
+.sp
+If a non\-default path is specified here, then it is also necessary to make NTP aware of the new path using the
+\fBntpsigndsocket\fR
+directive in
+ntp\&.conf\&.
+.sp
+Default:
+\fI\fIntp signd socket directory\fR\fR\fI = \fR\fI$prefix/run/samba/ntp_signd\fR\fI \fR
+.RE
+
 nt status support (G)
 .\" nt status support
 .PP
@@ -6940,6 +7002,18 @@ You should not need to ever disable this parameter\&.
 .sp
 Default:
 \fI\fInt status support\fR\fR\fI = \fR\fIyes\fR\fI \fR
+.RE
+
+ntvfs handler (S)
+.\" ntvfs handler
+.PP
+.RS 4
+This specifies the NTVFS handlers for this share\&.
+.sp
+Note that this option is only used when the NTVFS file server is in use\&. It is not used with the (default) s3fs file server\&.
+.sp
+Default:
+\fI\fIntvfs handler\fR\fR\fI = \fR\fIunixuid default\fR\fI \fR
 .RE
 
 null passwords (G)
@@ -6970,19 +7044,16 @@ only user (S)
 .\" only user
 .PP
 .RS 4
-This is a boolean option that controls whether connections with usernames not in the
-\fIuser\fR
-list will be allowed\&. By default this option is disabled so that a client can supply a username to be used by the server\&. Enabling this parameter will force the server to only use the login names from the
-\fIuser\fR
-list and is only really useful in
-\m[blue]\fBsecurity = share\fR\m[]
-level security\&.
+To restrict a service to a particular set of users you can use the
+\m[blue]\fBvalid users\fR\m[]
+parameter\&.
 .sp
-Note that this also means Samba won\*(Aqt try to deduce usernames from the service name\&. This can be annoying for the [homes] section\&. To get around this you could use
-user = %S
-which means your
-\fIuser\fR
-list will be just the service name, which for home directories is the name of the user\&.
+This parameter is deprecated
+.sp
+However, it currently operates only in conjunction with
+\m[blue]\fBusername\fR\m[]\&. The supported way to restrict a service to a particular set of users is the
+\m[blue]\fBvalid users\fR\m[]
+parameter\&.
 .sp
 Default:
 \fI\fIonly user\fR\fR\fI = \fR\fIno\fR\fI \fR
@@ -7130,18 +7201,6 @@ Default:
 .sp
 Example:
 \fI\fIpanic action\fR\fR\fI = \fR\fI"/bin/sleep 90000"\fR\fI \fR
-.RE
-
-paranoid server security (G)
-.\" paranoid server security
-.PP
-.RS 4
-Some version of NT 4\&.x allow non\-guest users with a bad passowrd\&. When this option is enabled, samba will not use a broken NT 4\&.x server as password server, but instead complain to the logs and exit\&.
-.sp
-Disabling this option prevents Samba from making this check, which involves deliberatly attempting a bad logon to the remote server\&.
-.sp
-Default:
-\fI\fIparanoid server security\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
 
 passdb backend (G)
@@ -7396,18 +7455,13 @@ password server (G)
 .\" password server
 .PP
 .RS 4
-By specifying the name of another SMB server or Active Directory domain controller with this option, and using
-security = [ads|domain|server]
+By specifying the name of a domain controller with this option, and using
+security = [ads|domain]
 it is possible to get Samba to do all its username/password validation using a specific remote server\&.
 .sp
-If the
-\fIsecurity\fR
-parameter is set to
-\fBdomain\fR
-or
-\fBads\fR, then this option
+Ideally, this option
 \fIshould not\fR
-be used, as the default \*(Aq*\*(Aq indicates to Samba to determine the best DC to contact dynamically, just as all other hosts in an AD domain do\&. This allows the domain to be maintained without modification to the smb\&.conf file\&. The cryptograpic protection on the authenticated RPC calls used to verify passwords ensures that this default is safe\&.
+be used, as the default \*(Aq*\*(Aq indicates to Samba to determine the best DC to contact dynamically, just as all other hosts in an AD domain do\&. This allows the domain to be maintained (addition and removal of domain controllers) without modification to the smb\&.conf file\&. The cryptographic protection on the authenticated RPC calls used to verify passwords ensures that this default is safe\&.
 .sp
 \fIIt is strongly recommended that you use the default of \*(Aq*\*(Aq\fR, however if in your particular environment you have reason to specify a particular DC list, then the list of machines in this option must be a list of names or IP addresses of Domain controllers for the Domain\&. If you use the default of \*(Aq*\*(Aq, or list several hosts in the
 \fIpassword server\fR
@@ -7421,100 +7475,6 @@ If parameter is a name, it is looked up using the parameter
 \m[blue]\fBname resolve order\fR\m[]
 and so may resolved by any method and order described in that parameter\&.
 .sp
-If the
-\fIsecurity\fR
-parameter is set to
-\fBserver\fR, these additional restrictions apply:
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-You may list several password servers in the
-\fIpassword server\fR
-parameter, however if an
-smbd
-makes a connection to a password server, and then the password server fails, no more users will be able to be authenticated from this
-smbd\&. This is a restriction of the SMB/CIFS protocol when in
-security = server
-mode and cannot be fixed in Samba\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-You will have to ensure that your users are able to login from the Samba server, as when in
-security = server
-mode the network logon will appear to come from the Samba server rather than from the users workstation\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-The client must not select NTLMv2 authentication\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-The password server must be a machine capable of using the "LM1\&.2X002" or the "NT LM 0\&.12" protocol, and it must be in user level security mode\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-Using a password server means your UNIX box (running Samba) is only as secure as (a host masqurading as) your password server\&.
-\fIDO NOT CHOOSE A PASSWORD SERVER THAT YOU DON\*(AqT COMPLETELY TRUST\fR\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-Never point a Samba server at itself for password serving\&. This will cause a loop and could lock up your Samba server!
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-The name of the password server takes the standard substitutions, but probably the only useful one is
-\fI%m \fR, which means the Samba server will use the incoming client as the password server\&. If you use this then you better trust your clients, and you had better restrict them with hosts allow!
-.RE
-.sp
-.RE
 Default:
 \fI\fIpassword server\fR\fR\fI = \fR\fI*\fR\fI \fR
 .sp
@@ -7577,7 +7537,7 @@ Default:
 \fI\fIpid directory\fR\fR\fI = \fR\fI${prefix}/var/locks\fR\fI \fR
 .sp
 Example:
-\fI\fIpid directory\fR\fR\fI = \fR\fIpid directory = /var/run/\fR\fI \fR
+\fI\fIpid directory\fR\fR\fI = \fR\fI/var/run/\fR\fI \fR
 .RE
 
 posix locking (S)
@@ -7793,7 +7753,7 @@ This parameter may be used to override the compiled\-in default printcap name us
 section above for reasons why you might want to do this\&.
 .sp
 To use the CUPS printing interface set
-printcap name = cups\&. This should be supplemented by an addtional setting
+printcap name = cups\&. This should be supplemented by an additional setting
 \m[blue]\fBprinting = cups\fR\m[]
 in the [global] section\&.
 printcap name = cups
@@ -7932,21 +7892,6 @@ Example:
 \fI\fIprint command\fR\fR\fI = \fR\fI/usr/local/samba/bin/myprintscript %p %s\fR\fI \fR
 .RE
 
-printer admin (S)
-.\" printer admin
-.PP
-.RS 4
-This lists users who can do anything to printers via the remote administration interfaces offered by MS\-RPC (usually using a NT workstation)\&. This parameter can be set per\-share or globally\&. Note: The root user always has admin rights\&. Use caution with use in the global stanza as this can cause side effects\&.
-.sp
-This parameter has been marked deprecated in favor of using the SePrintOperatorPrivilege and individual print security descriptors\&. It will be removed in a future release\&.
-.sp
-Default:
-\fI\fIprinter admin\fR\fR\fI = \fR\fI\fR\fI \fR
-.sp
-Example:
-\fI\fIprinter admin\fR\fR\fI = \fR\fIadmin, @staff\fR\fI \fR
-.RE
-
 printer
 .\" printer
 .PP
@@ -7996,8 +7941,12 @@ Currently nine printing styles are supported\&. They are
 \fBSYSV\fR,
 \fBHPUX\fR,
 \fBQNX\fR,
-\fBSOFTQ\fR, and
-\fBCUPS\fR\&.
+\fBSOFTQ\fR,
+\fBCUPS\fR
+and
+\fBIPRINT\fR\&.
+.sp
+Be aware that CUPS and IPRINT are only available if the CUPS development library was available at the time Samba was compiled or packaged\&.
 .sp
 To see what the defaults are for the other print commands when using the various options use the
 \fBtestparm\fR(1)
@@ -8040,6 +7989,14 @@ causes smbd to attempt this connection\&.
 .sp
 Default:
 \fI\fIprint notify backchannel\fR\fR\fI = \fR\fIyes\fR\fI \fR
+.RE
+
+private directory
+.\" private directory
+.PP
+.RS 4
+This parameter is a synonym for
+private dir\&.
 .RE
 
 private dir (G)
@@ -8126,15 +8083,19 @@ option is set to\&. The list can include group names using the syntax described 
 \m[blue]\fBinvalid users\fR\m[]
 parameter\&.
 .sp
-This parameter will not work with the
-\m[blue]\fBsecurity = share\fR\m[]
-in Samba 3\&.0\&. This is by design\&.
-.sp
 Default:
 \fI\fIread list\fR\fR\fI = \fR\fI\fR\fI \fR
 .sp
 Example:
 \fI\fIread list\fR\fR\fI = \fR\fImary, @students\fR\fI \fR
+.RE
+
+write ok
+.\" write ok
+.PP
+.RS 4
+This parameter is a synonym for
+read only\&.
 .RE
 
 read only (S)
@@ -8338,7 +8299,7 @@ HKEY_LOCAL_MACHINE\eSYSTEM\eCurrentControlSet\e
 .RE
 .\}
 .sp
-registry key in Windows 2000 and Windows NT\&. When set to 0, user and group list information is returned to anyone who asks\&. When set to 1, only an authenticated user can retrive user and group list information\&. For the value 2, supported by Windows 2000/XP and Samba, no anonymous connections are allowed at all\&. This can break third party and Microsoft applications which expect to be allowed to perform operations anonymously\&.
+registry key in Windows 2000 and Windows NT\&. When set to 0, user and group list information is returned to anyone who asks\&. When set to 1, only an authenticated user can retrieve user and group list information\&. For the value 2, supported by Windows 2000/XP and Samba, no anonymous connections are allowed at all\&. This can break third party and Microsoft applications which expect to be allowed to perform operations anonymously\&.
 .sp
 The security advantage of using restrict anonymous = 1 is dubious, as user and group list information can be obtained using other means\&.
 .if n \{\
@@ -8360,6 +8321,23 @@ on any share\&.
 .RE
 Default:
 \fI\fIrestrict anonymous\fR\fR\fI = \fR\fI0\fR\fI \fR
+.RE
+
+rndc command (G)
+.\" rndc command
+.PP
+.RS 4
+This option specifies the path to the name server control utility\&.
+.sp
+The
+rndc
+utility should be a part of the bind installation\&.
+.sp
+Default:
+\fI\fIrndc command\fR\fR\fI = \fR\fI/usr/sbin/rndc\fR\fI \fR
+.sp
+Example:
+\fI\fIrndc command\fR\fR\fI = \fR\fI/usr/local/bind9/sbin/rndc\fR\fI \fR
 .RE
 
 root
@@ -8443,38 +8421,69 @@ Default:
 \fI\fIroot preexec\fR\fR\fI = \fR\fI\fR\fI \fR
 .RE
 
-rpc_server (G)
-.\" rpc_server
+rpc big endian (G)
+.\" rpc big endian
 .PP
 .RS 4
-Defines what kind of rpc server to use for a named pipe\&. The rpc_server prefix must be followed by the pipe name, and a value\&.
+Setting this option will force the RPC client and server to transfer data in big endian\&.
 .sp
-Three possible values are currently supported:
-embedded
-daemon
-external
+If it is disabled, data will be transferred in little endian\&.
 .sp
-The classic method is to run every pipe as an internal function
-\fIembedded\fR
-in smbd\&.
+The behaviour is independent of the endianness of the host machine\&.
 .sp
-An alternative method is to fork a
-\fIdaemon\fR
-early on at smbd startup time\&. This is supported only for selected pipes\&.
+Default:
+\fI\fIrpc big endian\fR\fR\fI = \fR\fIFalse\fR\fI \fR
+.RE
+
+rpc_daemon:DAEMON (G)
+.\" rpc_daemon:DAEMON
+.PP
+.RS 4
+Defines whether to use the embedded code or start a separate daemon for the defined rpc services\&. The rpc_daemon prefix must be followed by the server name, and a value\&.
+.sp
+Two possible values are currently supported:
+disabled
+fork
+.sp
+The classic method is to run rpc services as internal daemons embedded in smbd, therefore the external daemons are
+\fIdisabled\fR
+by default\&.
 .sp
 Choosing the
-\fIexternal\fR
-option allows to run a completely independent (3rd party) server capable of interfacing with samba via the MS\-RPC interface over named pipes\&.
+\fIfork\fR
+option will cause samba to fork a separate proces for each daemon configured this way\&. Each daemon may in turn fork a number of children used to handle requests from multiple smbds and direct tcp/ip connections (if the Endpoint Mapper is enabled)\&. Communication with smbd happens over named pipes and require that said pipes are forward to the external daemon (see
+\m[blue]\fBrpc_server\fR\m[])\&.
 .sp
-Currently only the spoolss pipe can be configured in
-\fIdaemon\fR
-mode like this:
+Forked RPC Daemons support dynamically forking children to handle connections\&. The heuristics about how many children to keep around and how fast to allow them to fork and also how many clients each child is allowed to handle concurrently is defined by parametrical options named after the daemon\&. Five options are currently supported:
+prefork_min_children
+prefork_max_children
+prefork_spawn_rate
+prefork_max_allowed_clients
+prefork_child_min_life
+To set one of these options use the follwing syntax:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-	rpc_server:spoolss = daemon
+	damonname:prefork_min_children = 5
+	
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+Samba includes separate daemons for spoolss and the lsarpc/lsass, netlogon and samr pipes\&. Currently three daemons are available and they are called:
+epmd
+lsasd
+spoolssd
+Example:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+	rpc_daemon:spoolssd = fork
 	
 .fi
 .if n \{\
@@ -8482,31 +8491,249 @@ mode like this:
 .\}
 .sp
 Default:
-\fI\fIrpc_server\fR\fR\fI = \fR\fInone\fR\fI \fR
+\fI\fIrpc_daemon:DAEMON\fR\fR\fI = \fR\fIdisabled\fR\fI \fR
+.RE
+
+rpc_server:SERVER (G)
+.\" rpc_server:SERVER
+.PP
+.RS 4
+With this option you can define if a rpc service should be running internal/embedded in smbd or should be redirected to an external daemon like Samba4, the endpoint mapper daemon, the spoolss daemon or the new LSA service daemon\&. The rpc_server prefix must be followed by the pipe name, and a value\&.
+.sp
+This option can be set for each available rpc service in Samba\&. The following list shows all available pipe names services you can modify with this option\&.
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+epmapper \- Endpoint Mapper
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+winreg \- Remote Registry Service
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+srvsvc \- Remote Server Services
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+lsarpc \- Local Security Authority
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+samr \- Security Account Management
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+netlogon \- Netlogon Remote Protocol
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+netdfs \- Settings for Distributed File System
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+dssetup \- Active Directory Setup
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+wkssvc \- Workstation Services
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+spoolss \- Network Printing Spooler
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+svcctl \- Service Control
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+ntsvcs \- Plug and Play Services
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+eventlog \- Event Logger
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+initshutdown \- Init Shutdown Service
+.RE
+.sp
+.RE
+Three possible values currently supported are:
+embedded
+external
+disabled
+.sp
+The classic method is to run every pipe as an internal function
+\fIembedded\fR
+in smbd\&. The defaults may vary depending on the service\&.
+.sp
+Choosing the
+\fIexternal\fR
+option allows to run a separate daemon or even a completely independent (3rd party) server capable of interfacing with samba via the MS\-RPC interface over named pipes\&.
+.sp
+Currently in Samba3 we support three daemons, spoolssd, epmd and lsasd\&. These daemons can be enabled using the
+\fIrpc_daemon\fR
+option\&. For spoolssd you have to to enable the daemon and proxy the named pipe with:
+.sp
+Examples:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+			rpc_daemon:lsasd = fork
+			rpc_server:lsarpc = external
+			rpc_server:samr = external
+			rpc_server:netlogon = external
+
+			rpc_server:spoolss = external
+			rpc_server:epmapper = disabled
+		
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+There is one special option which allows you to enable rpc services to listen for ncacn_ip_tcp connections too\&. Currently this is only used for testing and doesn\*(Aqt scale!
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+			rpc_server:tcpip = yes
+		
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+Default:
+\fI\fIrpc_server:SERVER\fR\fR\fI = \fR\fIembedded\fR\fI \fR
+.RE
+
+samba kcc command (G)
+.\" samba kcc command
+.PP
+.RS 4
+This option specifies the path to the Samba KCC command\&. This script is used for replication topology replication\&.
+.sp
+It should not be necessary to modify this option except for testing purposes or if the
+samba_kcc
+was installed in a non\-default location\&.
+.sp
+Default:
+\fI\fIsamba kcc command\fR\fR\fI = \fR\fI$prefix/sbin/samba_kcc\fR\fI \fR
+.sp
+Example:
+\fI\fIsamba kcc command\fR\fR\fI = \fR\fI/usr/local/bin/kcc\fR\fI \fR
 .RE
 
 security mask (S)
 .\" security mask
 .PP
 .RS 4
-This parameter controls what UNIX permission bits will be set when a Windows NT client is manipulating the UNIX permission on a file using the native NT security dialog box\&.
+This parameter has been removed for Samba 4\&.0\&.0\&.
 .sp
-This parameter is applied as a mask (AND\*(Aqed with) to the incoming permission bits, thus resetting any bits not in this mask\&. Make sure not to mix up this parameter with
-\m[blue]\fBforce security mode\fR\m[], which works in a manner similar to this one but uses a logical OR instead of an AND\&.
-.sp
-Essentially, all bits set to zero in this mask will result in setting to zero the corresponding bits on the file permissions regardless of the previous status of this bits on the file\&.
-.sp
-If not set explicitly this parameter is 0777, allowing a user to set all the user/group/world permissions on a file\&.
-.sp
-\fI Note\fR
-that users who can access the Samba server through other means can easily bypass this restriction, so it is primarily useful for standalone "appliance" systems\&. Administrators of most normal systems will probably want to leave it set to
-\fB0777\fR\&.
-.sp
-Default:
-\fI\fIsecurity mask\fR\fR\fI = \fR\fI0777\fR\fI \fR
-.sp
-Example:
-\fI\fIsecurity mask\fR\fR\fI = \fR\fI0770\fR\fI \fR
+\fINo default\fR
 .RE
 
 security (G)
@@ -8517,24 +8744,13 @@ This option affects how clients respond to Samba and is one of the most importan
 smb\&.conf
 file\&.
 .sp
-The option sets the "security mode bit" in replies to protocol negotiations with
-\fBsmbd\fR(8)
-to turn share level security on or off\&. Clients decide based on this bit whether (and how) to transfer user and password information to the server\&.
-.sp
 The default is
-security = user, as this is the most common setting needed when talking to Windows 98 and Windows NT\&.
+security = user, as this is the most common setting, used for a standalone file server or a DC\&.
 .sp
 The alternatives are
 security = ads
 or
-security = domain, which support joining Samba to a Windows domain, along with
-security = share
-and
-security = server, both of which are deprecated\&.
-.sp
-In versions of Samba prior to 2\&.0\&.0, the default was
-security = share
-mainly because that was the only option at one stage\&.
+security = domain, which support joining Samba to a Windows domain
 .sp
 You should use
 security = user
@@ -8542,18 +8758,19 @@ and
 \m[blue]\fBmap to guest\fR\m[]
 if you want to mainly setup shares without a password (guest shares)\&. This is commonly used for a shared printer server\&.
 .sp
-It is possible to use
-smbd
-in a
-\fI hybrid mode\fR
-where it is offers both user and share level security under different
-\m[blue]\fBNetBIOS aliases\fR\m[]\&.
-.sp
 The different settings will now be explained\&.
+.sp
+\fISECURITY = AUTO\fR
+.sp
+This is the default security setting in Samba, and causes Samba to consult the
+\m[blue]\fBserver role\fR\m[]
+parameter (if set) to determine the security mode\&.
 .sp
 \fISECURITY = USER\fR
 .sp
-This is the default security setting in Samba\&. With user\-level security a client must first "log\-on" with a valid username and password (which can be mapped using the
+If
+\m[blue]\fBserver role\fR\m[]
+is not specified, this is the default security setting in Samba\&. With user\-level security a client must first "log\-on" with a valid username and password (which can be mapped using the
 \m[blue]\fBusername map\fR\m[]
 parameter)\&. Encrypted passwords (see the
 \m[blue]\fBencrypted passwords\fR\m[]
@@ -8570,9 +8787,6 @@ sent to the server until after the server has successfully authenticated the cli
 \m[blue]\fBguest account\fR\m[]\&. See the
 \m[blue]\fBmap to guest\fR\m[]
 parameter for details on doing this\&.
-.sp
-See also the section
-NOTE ABOUT USERNAME/PASSWORD VALIDATION\&.
 .sp
 \fISECURITY = DOMAIN\fR
 .sp
@@ -8600,213 +8814,12 @@ sent to the server until after the server has successfully authenticated the cli
 \m[blue]\fBmap to guest\fR\m[]
 parameter for details on doing this\&.
 .sp
-See also the section
-NOTE ABOUT USERNAME/PASSWORD VALIDATION\&.
-.sp
 See also the
 \m[blue]\fBpassword server\fR\m[]
 parameter and the
 \m[blue]\fBencrypted passwords\fR\m[]
 parameter\&.
 .sp
-\fISECURITY = SHARE\fR
-.if n \{\
-.sp
-.\}
-.RS 4
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.br
-.ps +1
-\fBNote\fR
-.ps -1
-.br
-This option is deprecated as it is incompatible with SMB2
-.sp .5v
-.RE
-When clients connect to a share level security server, they need not log onto the server with a valid username and password before attempting to connect to a shared resource (although modern clients such as Windows 95/98 and Windows NT will send a logon request with a username but no password when talking to a
-security = share
-server)\&. Instead, the clients send authentication information (passwords) on a per\-share basis, at the time they attempt to connect to that share\&.
-.sp
-Note that
-smbd
-\fIALWAYS\fR
-uses a valid UNIX user to act on behalf of the client, even in
-security = share
-level security\&.
-.sp
-As clients are not required to send a username to the server in share level security,
-smbd
-uses several techniques to determine the correct UNIX user to use on behalf of the client\&.
-.sp
-A list of possible UNIX usernames to match with the given client password is constructed using the following methods :
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-If the
-\m[blue]\fBguest only\fR\m[]
-parameter is set, then all the other stages are missed and only the
-\m[blue]\fBguest account\fR\m[]
-username is checked\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-Is a username is sent with the share connection request, then this username (after mapping \- see
-\m[blue]\fBusername map\fR\m[]), is added as a potential username\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-If the client did a previous
-\fIlogon \fR
-request (the SessionSetup SMB call) then the username sent in this SMB will be added as a potential username\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-The name of the service the client requested is added as a potential username\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-The NetBIOS name of the client is added to the list as a potential username\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-Any users on the
-\m[blue]\fBuser\fR\m[]
-list are added as potential usernames\&.
-.RE
-.sp
-.RE
-If the
-\fIguest only\fR
-parameter is not set, then this list is then tried with the supplied password\&. The first user for whom the password matches will be used as the UNIX user\&.
-.sp
-If the
-\fIguest only\fR
-parameter is set, or no username can be determined then if the share is marked as available to the
-\fIguest account\fR, then this guest user will be used, otherwise access is denied\&.
-.sp
-Note that it can be
-\fIvery\fR
-confusing in share\-level security as to which UNIX username will eventually be used in granting access\&.
-.sp
-See also the section
-NOTE ABOUT USERNAME/PASSWORD VALIDATION\&.
-.sp
-\fISECURITY = SERVER\fR
-.sp
-In this depicted mode Samba will try to validate the username/password by passing it to another SMB server, such as an NT box\&. If this fails it will revert to
-security = user\&. It expects the
-\m[blue]\fBencrypted passwords\fR\m[]
-parameter to be set to
-\fByes\fR, unless the remote server does not support them\&. However note that if encrypted passwords have been negotiated then Samba cannot revert back to checking the UNIX password file, it must have a valid
-smbpasswd
-file to check users against\&. See the chapter about the User Database in the Samba HOWTO Collection for details on how to set this up\&.
-.if n \{\
-.sp
-.\}
-.RS 4
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.br
-.ps +1
-\fBNote\fR
-.ps -1
-.br
-This mode of operation has significant pitfalls since it is more vulnerable to man\-in\-the\-middle attacks and server impersonation\&. In particular, this mode of operation can cause significant resource consumption on the PDC, as it must maintain an active connection for the duration of the user\*(Aqs session\&. Furthermore, if this connection is lost, there is no way to reestablish it, and further authentications to the Samba server may fail (from a single client, till it disconnects)\&.
-.sp .5v
-.RE
-.if n \{\
-.sp
-.\}
-.RS 4
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.br
-.ps +1
-\fBNote\fR
-.ps -1
-.br
-If the client selects NTLMv2 authentication, then this mode of operation
-\fIwill fail\fR
-.sp .5v
-.RE
-.if n \{\
-.sp
-.\}
-.RS 4
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.br
-.ps +1
-\fBNote\fR
-.ps -1
-.br
-From the client\*(Aqs point of view,
-security = server
-is the same as
-security = user\&. It only affects how the server deals with the authentication, it does not in any way affect what the client sees\&.
-.sp .5v
-.RE
-.if n \{\
-.sp
-.\}
-.RS 4
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.br
-.ps +1
-\fBNote\fR
-.ps -1
-.br
-This option is deprecated, and may be removed in future
-.sp .5v
-.RE
 \fINote\fR
 that the name of the resource being requested is
 \fInot\fR
@@ -8814,9 +8827,6 @@ sent to the server until after the server has successfully authenticated the cli
 \m[blue]\fBguest account\fR\m[]\&. See the
 \m[blue]\fBmap to guest\fR\m[]
 parameter for details on doing this\&.
-.sp
-See also the section
-NOTE ABOUT USERNAME/PASSWORD VALIDATION\&.
 .sp
 See also the
 \m[blue]\fBpassword server\fR\m[]
@@ -8839,22 +8849,256 @@ Example:
 \fI\fIsecurity\fR\fR\fI = \fR\fIDOMAIN\fR\fI \fR
 .RE
 
-send spnego principal (G)
-.\" send spnego principal
+max protocol
+.\" max protocol
 .PP
 .RS 4
-This parameter determines whether or not
-\fBsmbd\fR(8)
-will send the server\-supplied principal sometimes given in the SPNEGO exchange\&.
+This parameter is a synonym for
+server max protocol\&.
+.RE
+
+protocol
+.\" protocol
+.PP
+.RS 4
+This parameter is a synonym for
+server max protocol\&.
+.RE
+
+server max protocol (G)
+.\" server max protocol
+.PP
+.RS 4
+The value of the parameter (a string) is the highest protocol level that will be supported by the server\&.
 .sp
-If enabled, Samba can attempt to help clients to use Kerberos to contact it, even when known only by IP address or a name not registered with our KDC as a service principal name\&. Kerberos relies on names, so ordinarily cannot function in this situation\&.
+Possible values are :
 .sp
-If disabled, Samba will send the string not_defined_in_RFC4178@please_ignore as the \*(Aqrfc4178 hint\*(Aq, following the updated RFC and Windows 2008 behaviour in this area\&.
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBLANMAN1\fR: First
+\fImodern\fR
+version of the protocol\&. Long filename support\&.
+.RE
 .sp
-Note that Windows XP SP2 and later versions already ignored this value in all circumstances\&.
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBLANMAN2\fR: Updates to Lanman1 protocol\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBNT1\fR: Current up to date version of the protocol\&. Used by Windows NT\&. Known as CIFS\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBSMB2\fR: Re\-implementation of the SMB protocol\&. Used by Windows Vista and later versions of Windows\&. SMB2 has sub protocols available\&.
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBSMB2_02\fR: The earliest SMB2 version\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBSMB2_10\fR: Windows 7 SMB2 version\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBSMB2_22\fR: Early Windows 8 SMB2 version\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBSMB2_24\fR: Windows 8 beta SMB2 version\&.
+.RE
+.sp
+.RE
+By default SMB2 selects the SMB2_10 variant\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBSMB3\fR: The same as SMB2\&. Used by Windows 8\&. SMB3 has sub protocols available\&.
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBSMB3_00\fR: Windows 8 SMB3 version\&. (mostly the same as SMB2_24)
+.RE
+.sp
+.RE
+By default SMB3 selects the SMB3_00 variant\&.
+.RE
+.sp
+.RE
+Normally this option should not be set as the automatic negotiation phase in the SMB protocol takes care of choosing the appropriate protocol\&.
 .sp
 Default:
-\fI\fIsend spnego principal\fR\fR\fI = \fR\fIno\fR\fI \fR
+\fI\fIserver max protocol\fR\fR\fI = \fR\fISMB3\fR\fI \fR
+.sp
+Example:
+\fI\fIserver max protocol\fR\fR\fI = \fR\fILANMAN1\fR\fI \fR
+.RE
+
+min protocol
+.\" min protocol
+.PP
+.RS 4
+This parameter is a synonym for
+server min protocol\&.
+.RE
+
+server min protocol (G)
+.\" server min protocol
+.PP
+.RS 4
+This setting controls the minimum protocol version that the server will allow the client to use\&.
+.sp
+Normally this option should not be set as the automatic negotiation phase in the SMB protocol takes care of choosing the appropriate protocol\&.
+.sp
+Default:
+\fI\fIserver min protocol\fR\fR\fI = \fR\fILANMAN1\fR\fI \fR
+.sp
+Example:
+\fI\fIserver min protocol\fR\fR\fI = \fR\fINT1\fR\fI \fR
+.RE
+
+server role (G)
+.\" server role
+.PP
+.RS 4
+This option determines the basic operating mode of a Samba server and is one of the most important settings in the
+smb\&.conf
+file\&.
+.sp
+The default is
+server role = auto, as causes Samba to operate according to the
+\m[blue]\fBsecurity\fR\m[]
+setting, or if not specified as a simple file server that is not connected to any domain\&.
+.sp
+The alternatives are
+server role = standalone
+or
+server role = member server, which support joining Samba to a Windows domain, along with
+server role = domain controller, which run Samba as a Windows domain controller\&.
+.sp
+You should use
+server role = standalone
+and
+\m[blue]\fBmap to guest\fR\m[]
+if you want to mainly setup shares without a password (guest shares)\&. This is commonly used for a shared printer server\&.
+.sp
+\fISERVER ROLE = AUTO\fR
+.sp
+This is the default server role in Samba, and causes Samba to consult the
+\m[blue]\fBsecurity\fR\m[]
+parameter (if set) to determine the server role, giving compatable behaviours to previous Samba versions\&.
+.sp
+\fISERVER ROLE = STANDALONE\fR
+.sp
+If
+\m[blue]\fBsecurity\fR\m[]
+is also not specified, this is the default security setting in Samba\&. In standalone operation, a client must first "log\-on" with a valid username and password (which can be mapped using the
+\m[blue]\fBusername map\fR\m[]
+parameter) stored on this machine\&. Encrypted passwords (see the
+\m[blue]\fBencrypted passwords\fR\m[]
+parameter) are by default used in this security mode\&. Parameters such as
+\m[blue]\fBuser\fR\m[]
+and
+\m[blue]\fBguest only\fR\m[]
+if set are then applied and may change the UNIX user to use on this connection, but only after the user has been successfully authenticated\&.
+.sp
+\fISERVER ROLE = MEMBER SERVER\fR
+.sp
+This mode will only work correctly if
+\fBnet\fR(8)
+has been used to add this machine into a Windows Domain\&. It expects the
+\m[blue]\fBencrypted passwords\fR\m[]
+parameter to be set to
+\fByes\fR\&. In this mode Samba will try to validate the username/password by passing it to a Windows or Samba Domain Controller, in exactly the same way that a Windows Server would do\&.
+.sp
+\fINote\fR
+that a valid UNIX user must still exist as well as the account on the Domain Controller to allow Samba to have a valid UNIX account to map file access to\&. Winbind can provide this\&.
+.sp
+\fISERVER ROLE = CLASSIC PRIMARY DOMAIN CONTROLLER\fR
+.sp
+This mode of operation runs a classic Samba primary domain controller, providing domain logon services to Windows and Samba clients of an NT4\-like domain\&. Clients must be joined to the domain to create a secure, trusted path across the network\&. There must be only one PDC per NetBIOS scope (typcially a broadcast network or clients served by a single WINS server)\&.
+.sp
+\fISERVER ROLE = NETBIOS BACKUP DOMAIN CONTROLLER\fR
+.sp
+This mode of operation runs a classic Samba backup domain controller, providing domain logon services to Windows and Samba clients of an NT4\-like domain\&. As a BDC, this allows multiple Samba servers to provide rudundent logon services to a single NetBIOS scope\&.
+.sp
+\fISERVER ROLE = ACTIVE DIRECTORY DOMAIN CONTROLLER\fR
+.sp
+This mode of operation runs Samba as an active directory domain controller, providing domain logon services to Windows and Samba clients of the domain\&. This role requires special configuration, see the
+Samba4 HOWTO
+.sp
+Default:
+\fI\fIserver role\fR\fR\fI = \fR\fIAUTO\fR\fI \fR
+.sp
+Example:
+\fI\fIserver role\fR\fR\fI = \fR\fIDOMAIN CONTROLLER\fR\fI \fR
 .RE
 
 server schannel (G)
@@ -8879,6 +9123,26 @@ Default:
 .sp
 Example:
 \fI\fIserver schannel\fR\fR\fI = \fR\fIyes\fR\fI \fR
+.RE
+
+server services (G)
+.\" server services
+.PP
+.RS 4
+This option contains the services that the Samba daemon will run\&.
+.sp
+An entry in the
+smb\&.conf
+file can either override the previous value completely or entries can be removed from or added to it by prefixing them with
+\fB+\fR
+or
+\fB\-\fR\&.
+.sp
+Default:
+\fI\fIserver services\fR\fR\fI = \fR\fIs3fs rpc nbt wrepl ldap cldap kdc drepl winbind ntp_signd kcc dnsupdate dns\fR\fI \fR
+.sp
+Example:
+\fI\fIserver services\fR\fR\fI = \fR\fI\-s3fs +smb\fR\fI \fR
 .RE
 
 server signing (G)
@@ -8946,7 +9210,7 @@ set primary group script (G)
 .\" set primary group script
 .PP
 .RS 4
-Thanks to the Posix subsystem in NT a Windows User has a primary group in addition to the auxiliary groups\&. This script sets the primary group in the unix userdatase when an administrator sets the primary group from the windows user manager or when fetching a SAM with
+Thanks to the Posix subsystem in NT a Windows User has a primary group in addition to the auxiliary groups\&. This script sets the primary group in the unix user database when an administrator sets the primary group from the windows user manager or when fetching a SAM with
 net rpc vampire\&.
 \fI%u\fR
 will be replaced with the user whose primary group is to be set\&.
@@ -8968,11 +9232,7 @@ The
 set quota command
 should only be used whenever there is no operating system API available from the OS that samba can use\&.
 .sp
-This option is only available if Samba was configured with the argument
-\-\-with\-sys\-quotas
-or on linux when
-\&./configure \-\-with\-quotas
-was used and a working quota api was found in the system\&. Most packages are configured with these options already\&.
+This option is only available if Samba was compiled with quota support\&.
 .sp
 This parameter should specify the path to a script that can set quota for the specified arguments\&.
 .sp
@@ -8986,7 +9246,18 @@ The specified script should take the following arguments:
 .sp -1
 .IP \(bu 2.3
 .\}
-1 \- quota type
+1 \- path to where the quota needs to be set\&. This needs to be interpreted relative to the current working directory that the script may also check for\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+2 \- quota type
 .sp
 .RS 4
 .ie n \{\
@@ -9043,7 +9314,7 @@ The specified script should take the following arguments:
 .sp -1
 .IP \(bu 2.3
 .\}
-2 \- id (uid for user, gid for group, \-1 if N/A)
+3 \- id (uid for user, gid for group, \-1 if N/A)
 .RE
 .sp
 .RS 4
@@ -9054,7 +9325,7 @@ The specified script should take the following arguments:
 .sp -1
 .IP \(bu 2.3
 .\}
-3 \- quota state (0 = disable, 1 = enable, 2 = enable and enforce)
+4 \- quota state (0 = disable, 1 = enable, 2 = enable and enforce)
 .RE
 .sp
 .RS 4
@@ -9065,7 +9336,7 @@ The specified script should take the following arguments:
 .sp -1
 .IP \(bu 2.3
 .\}
-4 \- block softlimit
+5 \- block softlimit
 .RE
 .sp
 .RS 4
@@ -9076,7 +9347,7 @@ The specified script should take the following arguments:
 .sp -1
 .IP \(bu 2.3
 .\}
-5 \- block hardlimit
+6 \- block hardlimit
 .RE
 .sp
 .RS 4
@@ -9087,7 +9358,7 @@ The specified script should take the following arguments:
 .sp -1
 .IP \(bu 2.3
 .\}
-6 \- inode softlimit
+7 \- inode softlimit
 .RE
 .sp
 .RS 4
@@ -9098,7 +9369,7 @@ The specified script should take the following arguments:
 .sp -1
 .IP \(bu 2.3
 .\}
-7 \- inode hardlimit
+8 \- inode hardlimit
 .RE
 .sp
 .RS 4
@@ -9109,7 +9380,7 @@ The specified script should take the following arguments:
 .sp -1
 .IP \(bu 2.3
 .\}
-8(optional) \- block size, defaults to 1024
+9(optional) \- block size, defaults to 1024
 .RE
 .sp
 .RE
@@ -9122,6 +9393,22 @@ Example:
 \fI\fIset quota command\fR\fR\fI = \fR\fI/usr/local/sbin/set_quota\fR\fI \fR
 .RE
 
+share backend (G)
+.\" share backend
+.PP
+.RS 4
+This option specifies the backend that will be used to access the configuration of file shares\&.
+.sp
+Traditionally, Samba file shares have been configured in the
+\fBsmb\&.conf\fR
+file and this is still the default\&.
+.sp
+At the moment there are no other supported backends\&.
+.sp
+Default:
+\fI\fIshare backend\fR\fR\fI = \fR\fIclassic\fR\fI \fR
+.RE
+
 share:fake_fscaps (G)
 .\" share:fake_fscaps
 .PP
@@ -9132,30 +9419,6 @@ the SPARSE_FILES file system capability flag is set\&. Use other decimal values 
 .sp
 Default:
 \fI\fIshare:fake_fscaps\fR\fR\fI = \fR\fI0\fR\fI \fR
-.RE
-
-share modes (S)
-.\" share modes
-.PP
-.RS 4
-This enables or disables the honoring of the
-\fIshare modes\fR
-during a file open\&. These modes are used by clients to gain exclusive read or write access to a file\&.
-.sp
-This is a deprecated option from old versions of Samba, and will be removed in the next major release\&.
-.sp
-These open modes are not directly supported by UNIX, so they are simulated using shared memory\&.
-.sp
-The share modes that are enabled by this option are the standard Windows share modes\&.
-.sp
-This option gives full share compatibility and is enabled by default\&.
-.sp
-You should
-\fINEVER\fR
-turn this parameter off as many Windows applications will break if you do so\&.
-.sp
-Default:
-\fI\fIshare modes\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
 
 short preserve case (S)
@@ -9180,9 +9443,7 @@ show add printer wizard (G)
 .RS 4
 With the introduction of MS\-RPC based printing support for Windows NT/2000 client in Samba 2\&.2, a "Printers\&.\&.\&." folder will appear on Samba hosts in the share listing\&. Normally this folder will contain an icon for the MS Add Printer Wizard (APW)\&. However, it is possible to disable this feature regardless of the level of privilege of the connected user\&.
 .sp
-Under normal circumstances, the Windows NT/2000 client will open a handle on the printer server with OpenPrinterEx() asking for Administrator privileges\&. If the user does not have administrative access on the print server (i\&.e is not root or a member of the
-\fIprinter admin\fR
-group), the OpenPrinterEx() call fails and the client makes another open call with a request for a lower privilege level\&. This should succeed, however the APW icon will not be displayed\&.
+Under normal circumstances, the Windows NT/2000 client will open a handle on the printer server with OpenPrinterEx() asking for Administrator privileges\&. If the user does not have administrative access on the print server (i\&.e is not root or the priviledge SePrintOperatorPrivilege, the OpenPrinterEx() call fails and the client makes another open call with a request for a lower privilege level\&. This should succeed, however the APW icon will not be displayed\&.
 .sp
 Disabling the
 \fIshow add printer wizard\fR
@@ -9214,7 +9475,7 @@ This a full path name to a script called by
 \fBsmbd\fR(8)
 that should start a shutdown procedure\&.
 .sp
-If the connected user posseses the
+If the connected user possesses the
 \fBSeRemoteShutdownPrivilege\fR, right, this command will be run as root\&.
 .sp
 The %z %t %r %f variables are expanded as follows:
@@ -9320,10 +9581,12 @@ This option specifies the protocol value that
 \fBsmbd\fR(8)
 will return to a client, informing the client of the largest size that may be returned by a single SMB2 read call\&.
 .sp
-The maximum is 65536 bytes (64KB), which is the same as a Windows Vista SMB2 server\&.
+The maximum is 1048576 bytes (1MiB), which is the same as a Windows Server 2008 r2\&.
+.sp
+Please note that the default is 1MiB, but it\*(Aqs limit is based on the smb2 dialect (64KiB for SMB2\&.0, 1MiB for SMB2\&.1 with LargeMTU)\&. Large MTU is not supported over NBT (tcp port 139)\&.
 .sp
 Default:
-\fI\fIsmb2 max read\fR\fR\fI = \fR\fI65536\fR\fI \fR
+\fI\fIsmb2 max read\fR\fR\fI = \fR\fI1048576\fR\fI \fR
 .RE
 
 smb2 max trans (G)
@@ -9334,10 +9597,12 @@ This option specifies the protocol value that
 \fBsmbd\fR(8)
 will return to a client, informing the client of the largest size of buffer that may be used in querying file meta\-data via QUERY_INFO and related SMB2 calls\&.
 .sp
-The maximum is 65536 bytes (64KB), which is the same as a Windows Vista SMB2 server\&.
+The maximum is 1048576 bytes (1MiB), which is the same as a Windows Server 2008 r2\&.
+.sp
+Please note that the default is 1MiB, but it\*(Aqs limit is based on the smb2 dialect (64KiB for SMB2\&.0, 1MiB for SMB2\&.1 with LargeMTU)\&. Large MTU is not supported over NBT (tcp port 139)\&.
 .sp
 Default:
-\fI\fIsmb2 max trans\fR\fR\fI = \fR\fI65536\fR\fI \fR
+\fI\fIsmb2 max trans\fR\fR\fI = \fR\fI1048576\fR\fI \fR
 .RE
 
 smb2 max write (G)
@@ -9348,10 +9613,12 @@ This option specifies the protocol value that
 \fBsmbd\fR(8)
 will return to a client, informing the client of the largest size that may be sent to the server by a single SMB2 write call\&.
 .sp
-The maximum is 65536 bytes (64KB), which is the same as a Windows Vista SMB2 server\&.
+The maximum is 1048576 bytes (1MiB), which is the same as a Windows Server 2008 r2\&.
+.sp
+Please note that the default is 1MiB, but it\*(Aqs limit is based on the smb2 dialect (64KiB for SMB2\&.0, 1MiB for SMB2\&.1 with LargeMTU)\&. Large MTU is not supported over NBT (tcp port 139)\&.
 .sp
 Default:
-\fI\fIsmb2 max write\fR\fR\fI = \fR\fI65536\fR\fI \fR
+\fI\fIsmb2 max write\fR\fR\fI = \fR\fI1048576\fR\fI \fR
 .RE
 
 smb encrypt (S)
@@ -9408,23 +9675,6 @@ Specifies which ports the server should listen on for SMB traffic\&.
 .sp
 Default:
 \fI\fIsmb ports\fR\fR\fI = \fR\fI445 139\fR\fI \fR
-.RE
-
-socket address (G)
-.\" socket address
-.PP
-.RS 4
-This option allows you to control what address Samba will listen for connections on\&. This is used to support multiple virtual interfaces on the one server, each with a different configuration\&.
-.sp
-Setting this option should never be necessary on usual Samba servers running only one nmbd\&.
-.sp
-By default Samba will accept connections on any address\&.
-.sp
-Default:
-\fI\fIsocket address\fR\fR\fI = \fR\fI\fR\fI \fR
-.sp
-Example:
-\fI\fIsocket address\fR\fR\fI = \fR\fI192\&.168\&.2\&.20\fR\fI \fR
 .RE
 
 socket options (G)
@@ -9583,6 +9833,20 @@ Example:
 \fI\fIsocket options\fR\fR\fI = \fR\fIIPTOS_LOWDELAY\fR\fI \fR
 .RE
 
+spn update command (G)
+.\" spn update command
+.PP
+.RS 4
+This option sets the command that for updating servicePrincipalName names from
+spn_update_list\&.
+.sp
+Default:
+\fI\fIspn update command\fR\fR\fI = \fR\fI$prefix/sbin/samba_spnupdate\fR\fI \fR
+.sp
+Example:
+\fI\fIspn update command\fR\fR\fI = \fR\fI/usr/local/sbin/spnupdate\fR\fI \fR
+.RE
+
 stat cache (G)
 .\" stat cache
 .PP
@@ -9642,7 +9906,7 @@ This is a boolean that controls the handling of disk space allocation in the ser
 \fByes\fR
 the server will change from UNIX behaviour of not committing real disk storage blocks when a file is extended to the Windows behaviour of actually forcing the disk system to allocate real storage blocks when a file is created or extended to be a given size\&. In UNIX terminology this means that Samba will stop creating sparse files\&.
 .sp
-This option is really desgined for file systems that support fast allocation of large numbers of blocks such as extent\-based file systems\&. On file systems that don\*(Aqt support extents (most notably ext3) this can make Samba slower\&. When you work with large files over >100MB on file systems without extents you may even run into problems with clients running into timeouts\&.
+This option is really designed for file systems that support fast allocation of large numbers of blocks such as extent\-based file systems\&. On file systems that don\*(Aqt support extents (most notably ext3) this can make Samba slower\&. When you work with large files over >100MB on file systems without extents you may even run into problems with clients running into timeouts\&.
 .sp
 When you have an extent based filesystem it\*(Aqs likely that we can make use of unwritten extents which allows Samba to allocate even large amounts of space very fast and you will not see any timeout problems caused by strict allocate\&. With strict allocate in use you will also get much better out of quota messages in case you use quotas\&. Another advantage of activating this setting is that it will help to reduce file fragmentation\&.
 .sp
@@ -9783,33 +10047,6 @@ daemon uses this parameter to fill in the login shell for that user\&.
 \fINo default\fR
 .RE
 
-time offset (G)
-.\" time offset
-.PP
-.RS 4
-This deprecated parameter is a setting in minutes to add to the normal GMT to local time conversion\&. This is useful if you are serving a lot of PCs that have incorrect daylight saving time handling\&.
-.if n \{\
-.sp
-.\}
-.RS 4
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.br
-.ps +1
-\fBNote\fR
-.ps -1
-.br
-This option is deprecated, and will be removed in the next major release
-.sp .5v
-.RE
-Default:
-\fI\fItime offset\fR\fR\fI = \fR\fI0\fR\fI \fR
-.sp
-Example:
-\fI\fItime offset\fR\fR\fI = \fR\fI60\fR\fI \fR
-.RE
-
 time server (G)
 .\" time server
 .PP
@@ -9820,6 +10057,79 @@ advertises itself as a time server to Windows clients\&.
 .sp
 Default:
 \fI\fItime server\fR\fR\fI = \fR\fIno\fR\fI \fR
+.RE
+
+tls cafile (G)
+.\" tls cafile
+.PP
+.RS 4
+This option can be set to a file (PEM format) containing CA certificates of root CAs to trust to sign certificates or intermediate CA certificates\&.
+.sp
+Default:
+\fI\fItls cafile\fR\fR\fI = \fR\fI\fR\fI \fR
+.RE
+
+tls certfile (G)
+.\" tls certfile
+.PP
+.RS 4
+This option can be set to a file (PEM format) containing the RSA certificate\&.
+.sp
+Default:
+\fI\fItls certfile\fR\fR\fI = \fR\fI\fR\fI \fR
+.RE
+
+tls crlfile (G)
+.\" tls crlfile
+.PP
+.RS 4
+This option can be set to a file containing a certificate revocation list (CRL)\&.
+.sp
+Default:
+\fI\fItls crlfile\fR\fR\fI = \fR\fI\fR\fI \fR
+.RE
+
+tls dh params file (G)
+.\" tls dh params file
+.PP
+.RS 4
+This option can be set to a file with Diffie\-Hellman parameters which will be used with EDH ciphers\&.
+.sp
+Default:
+\fI\fItls dh params file\fR\fR\fI = \fR\fI\fR\fI \fR
+.RE
+
+tls enabled (G)
+.\" tls enabled
+.PP
+.RS 4
+If this option is set to
+\fByes\fR, then Samba will use TLS when possible in communication\&.
+.sp
+Default:
+\fI\fItls enabled\fR\fR\fI = \fR\fIyes\fR\fI \fR
+.RE
+
+tls keyfile (G)
+.\" tls keyfile
+.PP
+.RS 4
+This option can be set to a file (PEM format) containing the RSA private key\&. This file must be accessible without a pass\-phrase, i\&.e\&. it must not be encrypted\&.
+.sp
+Default:
+\fI\fItls keyfile\fR\fR\fI = \fR\fI\fR\fI \fR
+.RE
+
+unicode (G)
+.\" unicode
+.PP
+.RS 4
+Specifies whether the server and client should support unicode\&.
+.sp
+If this option is set to false, the use of ASCII will be forced\&.
+.sp
+Default:
+\fI\fIunicode\fR\fR\fI = \fR\fITrue\fR\fI \fR
 .RE
 
 unix charset (G)
@@ -9878,7 +10188,7 @@ use client driver (S)
 This parameter applies only to Windows NT/2000 clients\&. It has no effect on Windows 95/98/ME clients\&. When serving a printer to Windows NT/2000 clients without first installing a valid printer driver on the Samba host, the client will be required to install a local printer driver\&. From this point on, the client will treat the print as a local printer and not a network printer connection\&. This is much the same behavior that will occur when
 disable spoolss = yes\&.
 .sp
-The differentiating factor is that under normal circumstances, the NT/2000 client will attempt to open the network printer using MS\-RPC\&. The problem is that because the client considers the printer to be local, it will attempt to issue the OpenPrinterEx() call requesting access rights associated with the logged on user\&. If the user possesses local administator rights but not root privilege on the Samba host (often the case), the OpenPrinterEx() call will fail\&. The result is that the client will now display an "Access Denied; Unable to connect" message in the printer queue window (even though jobs may successfully be printed)\&.
+The differentiating factor is that under normal circumstances, the NT/2000 client will attempt to open the network printer using MS\-RPC\&. The problem is that because the client considers the printer to be local, it will attempt to issue the OpenPrinterEx() call requesting access rights associated with the logged on user\&. If the user possesses local administrator rights but not root privilege on the Samba host (often the case), the OpenPrinterEx() call will fail\&. The result is that the client will now display an "Access Denied; Unable to connect" message in the printer queue window (even though jobs may successfully be printed)\&.
 .sp
 If this parameter is enabled for a printer, then any attempt to open the printer with the PRINTER_ACCESS_ADMINISTER right is mapped to PRINTER_ACCESS_USE instead\&. Thus allowing the OpenPrinterEx() call to succeed\&.
 \fIThis parameter MUST not be enabled on a print share which has valid print driver installed on the Samba server\&.\fR
@@ -9961,7 +10271,7 @@ username map (G)
 .RS 4
 This option allows you to specify a file containing a mapping of usernames from the clients to the server\&. This can be used for several purposes\&. The most common is to map usernames that users use on DOS or Windows machines to those that the UNIX box uses\&. The other is to map multiple users to a single username so that they can more easily share files\&.
 .sp
-Please note that for user or share mode security, the username map is applied prior to validating the user credentials\&. Domain member servers (domain or ads) apply the username map after the user has been successfully authenticated by the domain controller and require fully qualified enties in the map table (e\&.g\&. biddle =
+Please note that for user mode security, the username map is applied prior to validating the user credentials\&. Domain member servers (domain or ads) apply the username map after the user has been successfully authenticated by the domain controller and require fully qualified entries in the map table (e\&.g\&. biddle =
 DOMAIN\efoo)\&.
 .sp
 The map file is parsed line by line\&. Each line should contain a single UNIX username on the left then a \*(Aq=\*(Aq followed by a list of usernames on the right\&. The list of usernames on the right may contain names of the form @group in which case they will match any UNIX username in that group\&. The special client name \*(Aq*\*(Aq is a wildcard and matches any name\&. Each line of the map file may be up to 1023 characters long\&.
@@ -10046,9 +10356,7 @@ is remapped to
 then you will actually be connecting to \e\eserver\emary and will need to supply a password suitable for
 \fBmary\fR
 not
-\fBfred\fR\&. The only exception to this is the username passed to the
-\m[blue]\fBpassword server\fR\m[]
-(if you have one)\&. The password server will receive whatever username the client supplies without modification\&.
+\fBfred\fR\&. The only exception to this is the username passed to a Domain Controller (if you have one)\&. The DC will receive whatever username the client supplies without modification\&.
 .sp
 Also note that no reverse mapping is done\&. The main effect this has is with printing\&. Users who have been mapped may have trouble deleting print jobs as PrintManager under WfWg will think they don\*(Aqt own the print job\&.
 .sp
@@ -10098,35 +10406,16 @@ username (S)
 .\" username
 .PP
 .RS 4
-Multiple users may be specified in a comma\-delimited list, in which case the supplied password will be tested against each username in turn (left to right)\&.
-.sp
-The deprecated
-\fIusername\fR
-line is needed only when the PC is unable to supply its own username\&. This is the case for the COREPLUS protocol or where your users have different WfWg usernames to UNIX usernames\&. In both these cases you may also be better using the \e\eserver\eshare%user syntax instead\&.
-.sp
-The
-\fIusername\fR
-line is not a great solution in many cases as it means Samba will try to validate the supplied password against each of the usernames in the
-\fIusername\fR
-line in turn\&. This is slow and a bad idea for lots of users in case of duplicate passwords\&. You may get timeouts or security breaches using this parameter unwisely\&.
-.sp
-Samba relies on the underlying UNIX security\&. This parameter does not restrict who can login, it just offers hints to the Samba server as to what usernames might correspond to the supplied password\&. Users can login as whoever they please and they will be able to do no more damage than if they started a telnet session\&. The daemon runs as the user that they log in as, so they cannot do anything that user cannot do\&.
-.sp
 To restrict a service to a particular set of users you can use the
 \m[blue]\fBvalid users\fR\m[]
 parameter\&.
 .sp
-If any of the usernames begin with a \*(Aq@\*(Aq then the name will be looked up first in the NIS netgroups list (if Samba is compiled with netgroup support), followed by a lookup in the UNIX groups database and will expand to a list of all users in the group of that name\&.
+This parameter is deprecated
 .sp
-If any of the usernames begin with a \*(Aq+\*(Aq then the name will be looked up only in the UNIX groups database and will expand to a list of all users in the group of that name\&.
-.sp
-If any of the usernames begin with a \*(Aq&\*(Aq then the name will be looked up only in the NIS netgroups database (if Samba is compiled with netgroup support) and will expand to a list of all users in the netgroup group of that name\&.
-.sp
-Note that searching though a groups database can take quite some time, and some clients may time out during the search\&.
-.sp
-See the section
-NOTE ABOUT USERNAME/PASSWORD VALIDATION
-for more information on how this parameter determines access to the services\&.
+However, it currently operates only in conjunction with
+\m[blue]\fBonly user\fR\m[]\&. The supported way to restrict a service to a particular set of users is the
+\m[blue]\fBvalid users\fR\m[]
+parameter\&.
 .sp
 Default:
 \fI\fIusername\fR\fR\fI = \fR\fI # The guest account if a guest service, else <empty string>\&.\fR\fI \fR
@@ -10171,7 +10460,7 @@ usershare path (G)
 .\" usershare path
 .PP
 .RS 4
-This parameter specifies the absolute path of the directory on the filesystem used to store the user defined share definition files\&. This directory must be owned by root, and have no access for other, and be writable only by the group owner\&. In addition the "sticky" bit must also be set, restricting rename and delete to owners of a file (in the same way the /tmp directory is usually configured)\&. Members of the group owner of this directory are the users allowed to create usershares\&. If this parameter is undefined then no user defined shares are allowed\&.
+This parameter specifies the absolute path of the directory on the filesystem used to store the user defined share definition files\&. This directory must be owned by root, and have no access for other, and be writable only by the group owner\&. In addition the "sticky" bit must also be set, restricting rename and delete to owners of a file (in the same way the /tmp directory is usually configured)\&. Members of the group owner of this directory are the users allowed to create usershares\&.
 .sp
 For example, a valid usershare directory might be /usr/local/samba/lib/usershares, set up as follows\&.
 .sp
@@ -10192,7 +10481,7 @@ For example, a valid usershare directory might be /usr/local/samba/lib/usershare
 In this case, only members of the group "power_users" can create user defined shares\&.
 .sp
 Default:
-\fI\fIusershare path\fR\fR\fI = \fR\fINULL\fR\fI \fR
+\fI\fIusershare path\fR\fR\fI = \fR\fISTATEDIR/usershare\fR\fI \fR
 .RE
 
 usershare prefix allow list (G)
@@ -10257,7 +10546,7 @@ use spnego (G)
 .\" use spnego
 .PP
 .RS 4
-This deprecated variable controls controls whether samba will try to use Simple and Protected NEGOciation (as specified by rfc2478) with WindowsXP and Windows2000 clients to agree upon an authentication mechanism\&.
+This deprecated variable controls whether samba will try to use Simple and Protected NEGOciation (as specified by rfc2478) with WindowsXP and Windows2000 clients to agree upon an authentication mechanism\&.
 .sp
 Unless further issues are discovered with our SPNEGO implementation, there is no reason this should ever be disabled\&.
 .sp
@@ -10310,6 +10599,12 @@ list then access is denied for that user\&.
 .sp
 The current servicename is substituted for
 \fI%S\fR\&. This is useful in the [homes] section\&.
+.sp
+\fINote: \fRWhen used in the [global] section this parameter may have unwanted side effects\&. For example: If samba is configured as a MASTER BROWSER (see
+\fIlocal master\fR,
+\fIos level\fR,
+\fIdomain master\fR,
+\fIpreferred master\fR) this option will prevent workstations from being able to browse the network\&.
 .sp
 Default:
 \fI\fIvalid users\fR\fR\fI = \fR\fI # No valid users list (anyone can login) \fR\fI \fR
@@ -10436,6 +10731,19 @@ Default:
 \fI\fIvolume\fR\fR\fI = \fR\fI # the name of the share\fR\fI \fR
 .RE
 
+web port (G)
+.\" web port
+.PP
+.RS 4
+Specifies which port the Samba web server should listen on\&.
+.sp
+Default:
+\fI\fIweb port\fR\fR\fI = \fR\fI901\fR\fI \fR
+.sp
+Example:
+\fI\fIweb port\fR\fR\fI = \fR\fI80\fR\fI \fR
+.RE
+
 wide links (S)
 .\" wide links
 .PP
@@ -10468,6 +10776,26 @@ option has been enabled\&.
 .sp
 Default:
 \fI\fIwinbind cache time\fR\fR\fI = \fR\fI300\fR\fI \fR
+.RE
+
+winbindd privileged socket directory (G)
+.\" winbindd privileged socket directory
+.PP
+.RS 4
+This setting controls the location of the winbind daemon\*(Aqs privileged socket\&.
+.sp
+Default:
+\fI\fIwinbindd privileged socket directory\fR\fR\fI = \fR\fI$prefix/lib/winbindd_privileged\fR\fI \fR
+.RE
+
+winbindd socket directory (G)
+.\" winbindd socket directory
+.PP
+.RS 4
+This setting controls the location of the winbind daemon\*(Aqs socket\&.
+.sp
+Default:
+\fI\fIwinbindd socket directory\fR\fR\fI = \fR\fI$prefix/run/samba/winbindd\fR\fI \fR
 .RE
 
 winbind enum groups (G)
@@ -10604,7 +10932,7 @@ winbind normalize names (G)
 .RS 4
 This parameter controls whether winbindd will replace whitespace in user and group names with an underscore (_) character\&. For example, whether the name "Space Kadet" should be replaced with the string "space_kadet"\&. Frequently Unix shell scripts will have difficulty with usernames contains whitespace due to the default field separator in the shell\&. If your domain possesses names containing the underscore character, this option may cause problems unless the name aliasing feature is supported by your nss_info plugin\&.
 .sp
-This feature also enables the name aliasing API which can be used to make domain user and group names to a non\-qualified version\&. Please refer to the manpage for the configured idmap and nss_info plugin for the specifics on how to configure name aliasing for a specific configuration\&. Name aliasing takes precedence (and is mutually exclusive) over the whitespace replacement mechanism discussed previsouly\&.
+This feature also enables the name aliasing API which can be used to make domain user and group names to a non\-qualified version\&. Please refer to the manpage for the configured idmap and nss_info plugin for the specifics on how to configure name aliasing for a specific configuration\&. Name aliasing takes precedence (and is mutually exclusive) over the whitespace replacement mechanism discussed previously\&.
 .sp
 Default:
 \fI\fIwinbind normalize names\fR\fR\fI = \fR\fIno\fR\fI \fR
@@ -10642,10 +10970,10 @@ and
 .sp -1
 .IP \(bu 2.3
 .\}
-\fI<sfu | rfc2307 >\fR
-\- When Samba is running in security = ads and your Active Directory Domain Controller does support the Microsoft "Services for Unix" (SFU) LDAP schema, winbind can retrieve the login shell and the home directory attributes directly from your Directory Server\&. Note that retrieving UID and GID from your ADS\-Server requires to use
+\fI<sfu | sfu20 | rfc2307 >\fR
+\- When Samba is running in security = ads and your Active Directory Domain Controller does support the Microsoft "Services for Unix" (SFU) LDAP schema, winbind can retrieve the login shell and the home directory attributes directly from your Directory Server\&. For SFU 3\&.0 or 3\&.5 simply choose "sfu", if you use SFU 2\&.0 please choose "sfu20"\&. Note that retrieving UID and GID from your ADS\-Server requires to use
 \fIidmap config DOMAIN:backend\fR
-= ad as well\&.
+= ad as well\&. The primary group membership is currently always calculated via the "primaryGroupID" LDAP attribute\&.
 .RE
 .sp
 .RE
@@ -10709,6 +11037,18 @@ forces winbindd to use RPC instead of LDAP to retrieve information from Domain C
 .sp
 Default:
 \fI\fIwinbind rpc only\fR\fR\fI = \fR\fIno\fR\fI \fR
+.RE
+
+winbind sealed pipes (G)
+.\" winbind sealed pipes
+.PP
+.RS 4
+This option controls whether any requests made over the Samba 4 winbind pipe will be sealed\&. Disabling sealing can be useful for debugging purposes\&.
+.sp
+Note that this option only applies to the Samba 4 winbind and not to the standard winbind\&.
+.sp
+Default:
+\fI\fIwinbind sealed pipes\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
 
 winbind separator (G)
@@ -10972,10 +11312,6 @@ option is set to\&. The list can include group names using the @group syntax\&.
 .sp
 Note that if a user is in both the read list and the write list then they will be given write access\&.
 .sp
-By design, this parameter will not work with the
-\m[blue]\fBsecurity = share\fR\m[]
-in Samba 3\&.0\&.
-.sp
 Default:
 \fI\fIwrite list\fR\fR\fI = \fR\fI\fR\fI \fR
 .sp
@@ -11025,7 +11361,7 @@ and
 special sections make life for an administrator easy, but the various combinations of default attributes can be tricky\&. Take extreme care when designing these sections\&. In particular, ensure that the permissions on spool directories are correct\&.
 .SH "VERSION"
 .PP
-This man page is correct for version 3 of the Samba suite\&.
+This man page is correct for version 4 of the Samba suite\&.
 .SH "SEE ALSO"
 .PP
 
@@ -11034,10 +11370,12 @@ This man page is correct for version 3 of the Samba suite\&.
 \fBswat\fR(8),
 \fBsmbd\fR(8),
 \fBnmbd\fR(8),
+\fBwinbindd\fR(8),
+\fBsamba\fR(8),
+\fBsamba-tool\fR(8),
 \fBsmbclient\fR(1),
 \fBnmblookup\fR(1),
-\fBtestparm\fR(1),
-\fBtestprns\fR(1)\&.
+\fBtestparm\fR(1)\&.
 .SH "AUTHOR"
 .PP
 The original Samba software and related utilities were created by Andrew Tridgell\&. Samba is now developed by the Samba Team as an Open Source project similar to the way the Linux kernel is developed\&.

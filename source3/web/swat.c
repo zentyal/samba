@@ -36,6 +36,8 @@
 #include "passdb.h"
 #include "intl/lang_tdb.h"
 #include "../lib/crypto/md5.h"
+#include "lib/param/loadparm.h"
+#include "messages.h"
 
 static int demo_mode = False;
 static int passwd_only = False;
@@ -87,7 +89,7 @@ static char *fix_backslash(const char *str)
 	return newstring;
 }
 
-static const char *fix_quotes(TALLOC_CTX *ctx, const char *str)
+static const char *fix_quotes(TALLOC_CTX *ctx, char *str)
 {
 	char *newstring = NULL;
 	char *p = NULL;
@@ -105,7 +107,7 @@ static const char *fix_quotes(TALLOC_CTX *ctx, const char *str)
 		}
 		++p;
 	}
-	newstring = TALLOC_ARRAY(ctx, char, newstring_len);
+	newstring = talloc_array(ctx, char, newstring_len);
 	if (!newstring) {
 		return "";
 	}
@@ -151,7 +153,7 @@ static char *make_parm_name(const char *label)
 void get_xsrf_token(const char *username, const char *pass,
 		    const char *formname, time_t xsrf_time, char token_str[33])
 {
-	MD5_CTX md5_ctx;
+	struct MD5Context md5_ctx;
 	uint8_t token[16];
 	int i;
 	char *nonce = cgi_nonce();
@@ -176,7 +178,8 @@ void get_xsrf_token(const char *username, const char *pass,
 		char tmp[3];
 
 		snprintf(tmp, sizeof(tmp), "%02x", token[i]);
-		strlcat(token_str, tmp, sizeof(tmp));
+		/* FIXME ! Truncate check. JRA. */
+		(void)strlcat(token_str, tmp, sizeof(tmp));
 	}
 }
 
@@ -324,13 +327,15 @@ static void print_footer(void)
 static void show_parameter(int snum, struct parm_struct *parm)
 {
 	int i;
-	void *ptr = parm->ptr;
+	void *ptr;
 	char *utf8_s1, *utf8_s2;
 	size_t converted_size;
 	TALLOC_CTX *ctx = talloc_stackframe();
 
 	if (parm->p_class == P_LOCAL && snum >= 0) {
-		ptr = lp_local_ptr_by_snum(snum, ptr);
+		ptr = lp_local_ptr_by_snum(snum, parm);
+	} else {
+		ptr = lp_parm_ptr(NULL, parm);
 	}
 
 	printf("<tr><td>%s</td><td>", get_parm_translated(ctx,
@@ -408,6 +413,7 @@ static void show_parameter(int snum, struct parm_struct *parm)
 		break;
 
 	case P_INTEGER:
+	case P_BYTES:
 		printf("<input type=text size=8 name=\"parm_%s\" value=\"%d\">", make_parm_name(parm->label), *(int *)ptr);
 		printf("<input type=button value=\"%s\" onClick=\"swatform.parm_%s.value=\'%d\'\">",
 			_("Set Default"), make_parm_name(parm->label),(int)(parm->def.ivalue));
@@ -470,10 +476,11 @@ static void show_parameters(int snum, int allparameters, unsigned int parm_filte
 
 		if (!( parm_filter & FLAG_ADVANCED )) {
 			if (!(parm->flags & FLAG_BASIC)) {
-					void *ptr = parm->ptr;
-
+				void *ptr;
 				if (parm->p_class == P_LOCAL && snum >= 0) {
-					ptr = lp_local_ptr_by_snum(snum, ptr);
+					ptr = lp_local_ptr_by_snum(snum, parm);
+				} else {
+					ptr = lp_parm_ptr(NULL, parm);
 				}
 
 				switch (parm->type) {
@@ -497,6 +504,7 @@ static void show_parameters(int snum, int allparameters, unsigned int parm_filte
 					break;
 
 				case P_INTEGER:
+				case P_BYTES:
 				case P_OCTAL:
 					if (*(int *)ptr == (int)(parm->def.ivalue)) continue;
 					break;
@@ -556,7 +564,7 @@ static int save_reload(int snum)
 	FILE *f;
 	struct stat st;
 
-	f = sys_fopen(get_dyn_CONFIGFILE(),"w");
+	f = fopen(get_dyn_CONFIGFILE(),"w");
 	if (!f) {
 		printf(_("failed to open %s for writing"), get_dyn_CONFIGFILE());
 		printf("\n");
@@ -587,8 +595,23 @@ static int save_reload(int snum)
         }
 	iNumNonAutoPrintServices = lp_numservices();
 	if (pcap_cache_loaded()) {
-		load_printers(server_event_context(),
-			      server_messaging_context());
+		struct tevent_context *ev_ctx;
+		struct messaging_context *msg_ctx;
+
+		ev_ctx = s3_tevent_context_init(NULL);
+		if (ev_ctx == NULL) {
+			printf("s3_tevent_context_init() failed\n");
+			return 0;
+		}
+		msg_ctx = messaging_init(ev_ctx, ev_ctx);
+		if (msg_ctx == NULL) {
+			printf("messaging_init() failed\n");
+			return 0;
+		}
+
+		load_printers(ev_ctx, msg_ctx);
+
+		talloc_free(ev_ctx);
 	}
 
 	return 1;
@@ -607,7 +630,7 @@ static void commit_parameter(int snum, struct parm_struct *parm, const char *v)
 		   variable globally. We need to change the parameter in 
 		   all shares where it is currently set to the default */
 		for (i=0;i<lp_numservices();i++) {
-			s = lp_servicename(i);
+			s = lp_servicename(talloc_tos(), i);
 			if (s && (*s) && lp_is_default(i, parm)) {
 				lp_do_parameter(i, parm->label, v);
 			}
@@ -880,7 +903,7 @@ static void wizard_page(void)
 	else
 	{
 		/* Now determine smb.conf WINS settings */
-		if (lp_wins_support())
+		if (lp_we_are_a_wins_server())
 			winstype = 1;
 		if (lp_wins_server_list() && strlen(*lp_wins_server_list()))
  		        winstype = 2;
@@ -888,7 +911,7 @@ static void wizard_page(void)
 		/* Do we have a homes share? */
 		have_home = lp_servicenumber(HOMES_NAME);
 	}
-	if ((winstype == 2) && lp_wins_support())
+	if ((winstype == 2) && lp_we_are_a_wins_server())
 		winstype = 3;
 
 	role = lp_server_role();
@@ -1092,7 +1115,7 @@ output_page:
 	if (snum < 0)
 		printf("<option value=\" \"> \n");
 	for (i=0;i<lp_numservices();i++) {
-		s = lp_servicename(i);
+		s = lp_servicename(talloc_tos(), i);
 		if (s && (*s) && strcmp(s,"IPC$") && !lp_print_ok(i)) {
 			push_utf8_talloc(talloc_tos(), &utf8_s, s, &converted_size);
 			printf("<option %s value=\"%s\">%s\n", 
@@ -1449,7 +1472,7 @@ output_page:
 	if (snum < 0 || !lp_print_ok(snum))
 		printf("<option value=\" \"> \n");
 	for (i=0;i<lp_numservices();i++) {
-		s = lp_servicename(i);
+		s = lp_servicename(talloc_tos(), i);
 		if (s && (*s) && strcmp(s,"IPC$") && lp_print_ok(i)) {
                     if (i >= iNumNonAutoPrintServices)
                         printf("<option %s value=\"%s\">[*]%s\n",
@@ -1535,7 +1558,7 @@ const char *lang_msg_rotate(TALLOC_CTX *ctx, const char *msgid)
 	};
 	TALLOC_CTX *frame = talloc_stackframe();
 
-	fault_setup(NULL);
+	fault_setup();
 	umask(S_IWGRP | S_IWOTH);
 
 #if defined(HAVE_SET_AUTH_PARAMETERS)
@@ -1573,8 +1596,23 @@ const char *lang_msg_rotate(TALLOC_CTX *ctx, const char *msgid)
 	load_interfaces();
 	iNumNonAutoPrintServices = lp_numservices();
 	if (pcap_cache_loaded()) {
-		load_printers(server_event_context(),
-			      server_messaging_context());
+		struct tevent_context *ev_ctx;
+		struct messaging_context *msg_ctx;
+
+		ev_ctx = s3_tevent_context_init(NULL);
+		if (ev_ctx == NULL) {
+			printf("s3_tevent_context_init() failed\n");
+			return 0;
+		}
+		msg_ctx = messaging_init(ev_ctx, ev_ctx);
+		if (msg_ctx == NULL) {
+			printf("messaging_init() failed\n");
+			return 0;
+		}
+
+		load_printers(ev_ctx, msg_ctx);
+
+		talloc_free(ev_ctx);
 	}
 
 	cgi_setup(get_dyn_SWATDIR(), !demo_mode);

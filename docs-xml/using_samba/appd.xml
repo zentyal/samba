@@ -291,14 +291,6 @@ exit</programlisting>
 
 
 
-<sect2 role="" label="D.1.4" id="appd-SECT-1.4">
-<title>smbsh</title>
-
-
-<para>The <emphasis>smbsh</emphasis>
-<indexterm id="appd-idx-993744-0"><primary>smbsh program</primary></indexterm> program lets you use a remote Windows share on your Samba server as if the share was a regular Unix directory. When it's run, it provides an extra directory tree under <filename>/smb</filename>. Subdirectories of <filename>/smb</filename> are servers, and subdirectories of the servers are their individual disk and printer shares. Commands run by <emphasis>smbsh</emphasis> treat the <filename>/smb</filename> filesystem as if it were local to Unix. This means that you don't need <emphasis>smbmount</emphasis> in your kernel to mount Windows filesystems the way you mount with NFS filesystems. However, you do need to configure Samba with the <literal>--with-smbwrappers</literal> option to enable <filename>smbsh</filename>.</para>
-
-
 <sect3 role="" label="D.1.4.1" id="appd-SECT-1.4.1">
 <title>Options</title>
 
@@ -1317,24 +1309,6 @@ received 6 names
 </varlistentry>
 </variablelist>
 </sect3>
-</sect2>
-
-
-
-
-
-<sect2 role="" label="D.1.11" id="appd-SECT-1.11">
-<title>testprns</title>
-
-
-<para>The<indexterm id="appd-idx-993761-0"><primary>testprns program</primary></indexterm>
-<indexterm id="appd-idx-993761-1"><primary>printers</primary><secondary>names</secondary><tertiary>checking</tertiary></indexterm> <emphasis>testprns</emphasis> program checks a specified printer name against the system printer capabilities (<filename>printcap</filename>) file. Its command line is:</para>
-
-
-<programlisting>testprns <replaceable>printername</replaceable> [<replaceable>printcapname</replaceable>]</programlisting>
-
-
-<para>If the <literal>printcapname</literal> isn't specified, Samba attempts to use one located in the <filename>smb.conf</filename> file. If one isn't specified there, Samba will try <filename>/etc/printcap</filename>. If that fails, the program will generate an error.</para>
 </sect2>
 
 

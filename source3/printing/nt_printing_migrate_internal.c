@@ -69,7 +69,7 @@ static NTSTATUS migrate_internal(TALLOC_CTX *mem_ctx,
 				 struct rpc_pipe_client *winreg_pipe)
 {
 	const char *backup_suffix = ".bak";
-	TDB_DATA kbuf, newkey, dbuf;
+	TDB_DATA kbuf, dbuf;
 	TDB_CONTEXT *tdb;
 	NTSTATUS status;
 	int rc;
@@ -86,11 +86,11 @@ static NTSTATUS migrate_internal(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_NO_SUCH_FILE;
 	}
 
-	for (kbuf = tdb_firstkey(tdb);
+	for (kbuf = tdb_firstkey_compat(tdb);
 	     kbuf.dptr;
-	     newkey = tdb_nextkey(tdb, kbuf), free(kbuf.dptr), kbuf = newkey)
+	     kbuf = tdb_nextkey_compat(tdb, kbuf))
 	{
-		dbuf = tdb_fetch(tdb, kbuf);
+		dbuf = tdb_fetch_compat(tdb, kbuf);
 		if (!dbuf.dptr) {
 			continue;
 		}
@@ -143,11 +143,11 @@ static NTSTATUS migrate_internal(TALLOC_CTX *mem_ctx,
 		SAFE_FREE(dbuf.dptr);
 	}
 
-	for (kbuf = tdb_firstkey(tdb);
+	for (kbuf = tdb_firstkey_compat(tdb);
 	     kbuf.dptr;
-	     newkey = tdb_nextkey(tdb, kbuf), free(kbuf.dptr), kbuf = newkey)
+	     kbuf = tdb_nextkey_compat(tdb, kbuf))
 	{
-		dbuf = tdb_fetch(tdb, kbuf);
+		dbuf = tdb_fetch_compat(tdb, kbuf);
 		if (!dbuf.dptr) {
 			continue;
 		}
@@ -192,12 +192,13 @@ bool nt_printing_tdb_migrate(struct messaging_context *msg_ctx)
 	bool drivers_exists = file_exist(drivers_path);
 	bool printers_exists = file_exist(printers_path);
 	bool forms_exists = file_exist(forms_path);
-	struct auth_serversupplied_info *session_info;
+	struct auth_session_info *session_info;
 	struct rpc_pipe_client *winreg_pipe = NULL;
 	TALLOC_CTX *tmp_ctx = talloc_stackframe();
 	NTSTATUS status;
 
 	if (!drivers_exists && !printers_exists && !forms_exists) {
+		talloc_free(tmp_ctx);
 		return true;
 	}
 

@@ -277,15 +277,15 @@ static void unbecomeDC_send_cldap(struct libnet_UnbecomeDC_state *s)
 						lpcfg_cldap_port(s->libnet->lp_ctx),
 						&dest_address);
 	if (ret != 0) {
-		c->status = map_nt_error_from_unix(errno);
+		c->status = map_nt_error_from_unix_common(errno);
 		if (!composite_is_ok(c)) return;
 	}
 
-	c->status = cldap_socket_init(s, s->libnet->event_ctx,
-				      NULL, dest_address, &s->cldap.sock);
+	c->status = cldap_socket_init(s, NULL, dest_address, &s->cldap.sock);
 	if (!composite_is_ok(c)) return;
 
-	req = cldap_netlogon_send(s, s->cldap.sock, &s->cldap.io);
+	req = cldap_netlogon_send(s, s->libnet->event_ctx,
+				  s->cldap.sock, &s->cldap.io);
 	if (composite_nomem(req, c)) return;
 	tevent_req_set_callback(req, unbecomeDC_recv_cldap, s);
 }
@@ -549,6 +549,10 @@ static void unbecomeDC_drsuapi_connect_send(struct libnet_UnbecomeDC_state *s)
 	c->status = dcerpc_parse_binding(s, binding_str, &s->drsuapi.binding);
 	talloc_free(binding_str);
 	if (!composite_is_ok(c)) return;
+
+	if (DEBUGLEVEL >= 10) {
+		s->drsuapi.binding->flags |= DCERPC_DEBUG_PRINT_BOTH;
+	}
 
 	creq = dcerpc_pipe_connect_b_send(s, s->drsuapi.binding, &ndr_table_drsuapi,
 					  s->libnet->cred, s->libnet->event_ctx,

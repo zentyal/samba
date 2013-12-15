@@ -5,26 +5,6 @@
 #ifndef _LOCAL_H
 #define _LOCAL_H
 
-/* The default workgroup - usually overridden in smb.conf */
-#ifndef WORKGROUP
-#define WORKGROUP "WORKGROUP"
-#endif
-
-/* This defines the section name in the configuration file that will contain */
-/* global parameters - that is, parameters relating to the whole server, not */
-/* just services. This name is then reserved, and may not be used as a       */
-/* a service name. It will default to "global" if not defined here.          */
-#define GLOBAL_NAME "global"
-#define GLOBAL_NAME2 "globals"
-
-/* This defines the section name in the configuration file that will
-   refer to the special "homes" service */
-#define HOMES_NAME "homes"
-
-/* This defines the section name in the configuration file that will
-   refer to the special "printers" service */
-#define PRINTERS_NAME "printers"
-
 /* Yves Gaige <yvesg@hptnodur.grenoble.hp.com> requested this set this 	     */
 /* to a maximum of 8 if old smb clients break because of long printer names. */
 #define MAXPRINTERLEN 15
@@ -171,34 +151,8 @@
    it are worked out */
 #define USE_READ_PREDICTION 0
 
-/*
- * Default passwd chat script.
- */
-
-#define DEFAULT_PASSWD_CHAT "*new*password* %n\\n *new*password* %n\\n *changed*"
-
 /* Minimum length of allowed password when changing UNIX password. */
 #define MINPASSWDLENGTH 5
-
-/* maximum ID number used for session control. This cannot be larger
-   than 62*62 for the current code */
-#define MAX_SESSION_ID 3000
-
-/* For the benifit of PAM and the 'session exec' scripts, we fake up a terminal
-   name. This can be in one of two forms:  The first for systems not using
-   utmp (and therefore not constrained as to length or the need for a number
-   < 3000 or so) and the second for systems with this 'well behaved terminal
-   like name' constraint.
-*/
-
-#ifndef SESSION_TEMPLATE
-/* Paramaters are 'pid' and 'vuid' */
-#define SESSION_TEMPLATE "smb/%lu/%d"
-#endif
-
-#ifndef SESSION_UTMP_TEMPLATE
-#define SESSION_UTMP_TEMPLATE "smb/%d"
-#endif
 
 /* the maximum age in seconds of a password. Should be a lp_ parameter */
 #define MAX_PASSWORD_AGE (21*24*60*60)
@@ -211,9 +165,6 @@
 
 /* this enables the "rabbit pellet" fix for SMBwritebraw */
 #define RABBIT_PELLET_FIX 1
-
-/* Max number of jobs per print queue. */
-#define PRINT_MAX_JOBID 10000
 
 /* Max number of open RPC pipes. */
 #define MAX_OPEN_PIPES 2048
@@ -247,7 +198,7 @@
 #define INVALID_SHARENAME_CHARS "%<>*?|/\\+=;:\","
 
 /* Seconds between connection attempts to a remote server. */
-#define FAILED_CONNECTION_CACHE_TIMEOUT 30
+#define FAILED_CONNECTION_CACHE_TIMEOUT (LONG_CONNECT_TIMEOUT * 2 / 1000)
 
 /* Default hash size for the winbindd cache. */
 #define WINBINDD_CACHE_TDB_DEFAULT_HASH_SIZE 5000
@@ -261,9 +212,9 @@
 #define CLIENT_NDR_PADDING_SIZE 8
 #define SERVER_NDR_PADDING_SIZE 8
 
-#define DEFAULT_SMB2_MAX_READ (64*1024)
-#define DEFAULT_SMB2_MAX_WRITE (64*1024)
-#define DEFAULT_SMB2_MAX_TRANSACT (64*1024)
+#define DEFAULT_SMB2_MAX_READ (1024*1024)
+#define DEFAULT_SMB2_MAX_WRITE (1024*1024)
+#define DEFAULT_SMB2_MAX_TRANSACT (1024*1024)
 #define DEFAULT_SMB2_MAX_CREDITS 8192
 
 #endif

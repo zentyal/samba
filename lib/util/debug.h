@@ -79,9 +79,12 @@ bool dbghdr( int level, const char *location, const char *func);
 #define DBGC_MSDFS		17
 #define DBGC_DMAPI		18
 #define DBGC_REGISTRY		19
+#define DBGC_SCAVENGER		20
+#define DBGC_DNS		21
+#define DBGC_LDB		22
 
 /* Always ensure this is updated when new fixed classes area added, to ensure the array in debug.c is the right size */
-#define DBGC_MAX_FIXED		19
+#define DBGC_MAX_FIXED		22
 
 /* So you can define DBGC_CLASS before including debug.h */
 #ifndef DBGC_CLASS
@@ -197,7 +200,7 @@ extern int  *DEBUGLEVEL_CLASS;
  * for example.  This makes it easy to override for debug to stderr on
  * the command line, as the smb.conf cannot reset it back to
  * file-based logging */
-enum debug_logtype {DEBUG_DEFAULT_STDERR = 0, DEBUG_STDOUT = 1, DEBUG_FILE = 2, DEBUG_STDERR = 3};
+enum debug_logtype {DEBUG_DEFAULT_STDERR = 0, DEBUG_DEFAULT_STDOUT = 1, DEBUG_FILE = 2, DEBUG_STDOUT = 3, DEBUG_STDERR = 4, DEBUG_CALLBACK = 5};
 
 struct debug_settings {
 	size_t max_log_size;
@@ -229,8 +232,16 @@ void dbgflush( void );
 bool dbghdrclass(int level, int cls, const char *location, const char *func);
 bool dbghdr(int level, const char *location, const char *func);
 bool debug_get_output_is_stderr(void);
+bool debug_get_output_is_stdout(void);
 void debug_schedule_reopen_logs(void);
 char *debug_list_class_names_and_levels(void);
+
+typedef void (*debug_callback_fn)(void *private_ptr, int level, const char *msg);
+
+/**
+   Set a callback for all debug messages.  Use in dlz_bind9 to push output to the bind logs
+ */
+void debug_set_callback(void *private_ptr, debug_callback_fn fn);
 
 /**
   log suspicious usage - print comments and backtrace

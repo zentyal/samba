@@ -18,23 +18,41 @@
 # three separated by newlines. All other lines in the output are considered
 # comments.
 
+import errno
 import os
 import subprocess
+import sys
 
 def srcdir():
-    return os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+    return os.path.normpath(os.getenv("SRCDIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")))
 
 def source4dir():
-    return os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../source4"))
+    return os.path.normpath(os.path.join(srcdir(), "source4"))
+
+def source3dir():
+    return os.path.normpath(os.path.join(srcdir(), "source3"))
 
 def bindir():
-    return os.path.normpath(os.path.join(os.getenv("BUILDDIR", "."), "bin"))
+    return os.path.normpath(os.getenv("BINDIR", "./bin"))
+
+binary_mapping = {}
 
 def binpath(name):
-    return os.path.join(bindir(), "%s%s" % (name, os.getenv("EXEEXT", "")))
+    if name in binary_mapping:
+        name = binary_mapping[name]
+    return os.path.join(bindir(), name)
 
-perl = os.getenv("PERL", "perl")
-perl = perl.split()
+binary_mapping_string = os.getenv("BINARY_MAPPING", None)
+if binary_mapping_string is not None:
+    for binmapping_entry in binary_mapping_string.split(','):
+        try:
+            (from_path, to_path) = binmapping_entry.split(':', 1)
+        except ValueError:
+            continue
+        binary_mapping[from_path] = to_path
+
+# Split perl variable to allow $PERL to be set to e.g. "perl -W"
+perl = os.getenv("PERL", "perl").split()
 
 if subprocess.call(perl + ["-e", "eval require Test::More;"]) == 0:
     has_perl_test_more = True
@@ -50,15 +68,17 @@ else:
 
 python = os.getenv("PYTHON", "python")
 
-#Set a default value, overridden if we find a working one on the system
+# Set a default value, overridden if we find a working one on the system
 tap2subunit = "PYTHONPATH=%s/lib/subunit/python:%s/lib/testtools %s %s/lib/subunit/filters/tap2subunit" % (srcdir(), srcdir(), python, srcdir())
 
-sub = subprocess.Popen("tap2subunit 2> /dev/null", stdout=subprocess.PIPE, stdin=subprocess.PIPE, shell=True)
+sub = subprocess.Popen("tap2subunit", stdin=subprocess.PIPE,
+    stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
 sub.communicate("")
 
 if sub.returncode == 0:
-    cmd = "echo -ne \"1..1\nok 1 # skip doesn't seem to work yet\n\" | tap2subunit 2> /dev/null | grep skip"
-    sub = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+    cmd = "echo -ne \"1..1\nok 1 # skip doesn't seem to work yet\n\" | tap2subunit | grep skip"
+    sub = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE,
+        stderr=subprocess.PIPE, shell=True)
     if sub.returncode == 0:
         tap2subunit = "tap2subunit"
 
@@ -87,20 +107,20 @@ def plantestsuite(name, env, cmdline, allow_empty_output=False):
         filter_subunit_args.append("--fail-on-empty")
     if "$LISTOPT" in cmdline:
         filter_subunit_args.append("$LISTOPT")
-    print "%s 2>&1 | %s/selftest/filter-subunit %s --prefix=\"%s.\"" % (cmdline,
+    print "%s 2>&1 | %s/selftest/filter-subunit %s --prefix=\"%s.\" --suffix=\"(%s)\"" % (cmdline,
                                                                         srcdir(),
                                                                         " ".join(filter_subunit_args),
-                                                                        name)
+                                                                        name, env)
     if allow_empty_output:
-        print "WARNING: allowing empty subunit output from %s" % name
+        print >>sys.stderr, "WARNING: allowing empty subunit output from %s" % name
 
 
-def add_prefix(prefix, support_list=False):
+def add_prefix(prefix, env, support_list=False):
     if support_list:
         listopt = "$LISTOPT "
     else:
         listopt = ""
-    return "%s/selftest/filter-subunit %s--fail-on-empty --prefix=\"%s.\"" % (srcdir(), listopt, prefix)
+    return "%s/selftest/filter-subunit %s--fail-on-empty --prefix=\"%s.\" --suffix=\"(%s)\"" % (srcdir(), listopt, prefix, env)
 
 
 def plantestsuite_loadlist(name, env, cmdline):
@@ -114,12 +134,16 @@ def plantestsuite_loadlist(name, env, cmdline):
     if isinstance(cmdline, list):
         cmdline = " ".join(cmdline)
     support_list = ("$LISTOPT" in cmdline)
-    print "%s $LOADLIST 2>&1 | %s" % (cmdline, add_prefix(name, support_list))
+    print "%s $LOADLIST 2>&1 | %s" % (cmdline, add_prefix(name, env, support_list))
 
 
 def plantestsuite_idlist(name, env, cmdline):
     print "-- TEST-IDLIST --"
-    print name
+    if env == "none":
+        fullname = name
+    else:
+        fullname = "%s(%s)" % (name, env)
+    print fullname
     print env
     if isinstance(cmdline, list):
         cmdline = " ".join(cmdline)
@@ -133,7 +157,7 @@ def skiptestsuite(name, reason):
     :param reason: Reason the test suite was skipped
     """
     # FIXME: Report this using subunit, but re-adjust the testsuite count somehow
-    print "skipping %s (%s)" % (name, reason)
+    print >>sys.stderr, "skipping %s (%s)" % (name, reason)
 
 
 def planperltestsuite(name, path):
@@ -148,10 +172,79 @@ def planperltestsuite(name, path):
         skiptestsuite(name, "Test::More not available")
 
 
-def planpythontestsuite(env, module):
-    if has_system_subunit_run:
-        plantestsuite_idlist(module, env, [python, "-m", "subunit.run", "$LISTOPT", module])
-    else:
-        plantestsuite_idlist(module, env, "PYTHONPATH=$PYTHONPATH:%s/lib/subunit/python:%s/lib/testtools %s -m subunit.run $LISTOPT %s" % (srcdir(), srcdir(), python, module))
+def planpythontestsuite(env, module, name=None, extra_path=[]):
+    if name is None:
+        name = module
+    pypath = list(extra_path)
+    if not has_system_subunit_run:
+        pypath.extend(["%s/lib/subunit/python" % srcdir(),
+            "%s/lib/testtools" % srcdir()])
+    args = [python, "-m", "subunit.run", "$LISTOPT", module]
+    if pypath:
+        args.insert(0, "PYTHONPATH=%s" % ":".join(["$PYTHONPATH"] + pypath))
+    plantestsuite_idlist(name, env, args)
 
 
+def get_env_torture_options():
+    ret = []
+    if not os.getenv("SELFTEST_VERBOSE"):
+        ret.append("--option=torture:progress=no")
+    if os.getenv("SELFTEST_QUICK"):
+        ret.append("--option=torture:quick=yes")
+    return ret
+
+
+samba4srcdir = source4dir()
+samba3srcdir = source3dir()
+bbdir = os.path.join(srcdir(), "testprogs/blackbox")
+configuration = "--configfile=$SMB_CONF_PATH"
+
+smbtorture4 = binpath("smbtorture4")
+smbtorture4_testsuite_list = subprocess.Popen([smbtorture4, "--list-suites"], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate("")[0].splitlines()
+
+smbtorture4_options = [
+    configuration,
+    "--maximum-runtime=$SELFTEST_MAXTIME",
+    "--basedir=$SELFTEST_TMPDIR",
+    "--format=subunit"
+    ] + get_env_torture_options()
+
+
+def print_smbtorture4_version():
+    """Print the version of Samba smbtorture4 comes from.
+
+    :return: Whether smbtorture4 was successfully run
+    """
+    try:
+        sub = subprocess.Popen([smbtorture4, "-V"], stdout=sys.stderr)
+    except OSError, e:
+        if e.errno == errno.ENOENT:
+            return False
+        raise
+    sub.communicate("")
+    return (sub.returncode == 0)
+
+
+def plansmbtorture4testsuite(name, env, options, target, modname=None):
+    if modname is None:
+        modname = "samba4.%s" % name
+    if isinstance(options, list):
+        options = " ".join(options)
+    options = " ".join(smbtorture4_options + ["--target=%s" % target]) + " " + options
+    cmdline = "%s $LISTOPT %s %s" % (valgrindify(smbtorture4), options, name)
+    plantestsuite_loadlist(modname, env, cmdline)
+
+
+def smbtorture4_testsuites(prefix):
+    return filter(lambda x: x.startswith(prefix), smbtorture4_testsuite_list)
+
+
+smbclient3 = binpath('smbclient3')
+smbtorture3 = binpath('smbtorture3')
+ntlm_auth3 = binpath('ntlm_auth3')
+net = binpath('net')
+scriptdir = os.path.join(srcdir(), "script/tests")
+
+wbinfo = binpath('wbinfo')
+dbwrap_tool = binpath('dbwrap_tool')
+vfstest = binpath('vfstest')

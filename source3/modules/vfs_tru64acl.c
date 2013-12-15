@@ -24,7 +24,8 @@
 
 /* prototypes for private functions first - for clarity */
 
-static struct smb_acl_t *tru64_acl_to_smb_acl(const struct acl *tru64_acl);
+static struct smb_acl_t *tru64_acl_to_smb_acl(const struct acl *tru64_acl,
+					      TALLOC_CTX *mem_ctx);
 static bool tru64_ace_to_smb_ace(acl_entry_t tru64_ace, 
 				struct smb_acl_entry *smb_ace);
 static acl_t smb_acl_to_tru64_acl(const SMB_ACL_T smb_acl);
@@ -38,7 +39,8 @@ static SMB_ACL_PERM_T tru64_permset_to_smb(const acl_perm_t tru64_permset);
 
 SMB_ACL_T tru64acl_sys_acl_get_file(vfs_handle_struct *handle,
 				    const char *path_p,
-				    SMB_ACL_TYPE_T type)
+				    SMB_ACL_TYPE_T type,
+				    TALLOC_CTX *mem_ctx)
 {
         struct smb_acl_t *result;
         acl_type_t the_acl_type;
@@ -64,13 +66,14 @@ SMB_ACL_T tru64acl_sys_acl_get_file(vfs_handle_struct *handle,
                 return NULL;
         }
 
-        result = tru64_acl_to_smb_acl(tru64_acl);
+        result = tru64_acl_to_smb_acl(tru64_acl, mem_ctx);
         acl_free(tru64_acl);
         return result;
 }
 
 SMB_ACL_T tru64acl_sys_acl_get_fd(vfs_handle_struct *handle,
-				  files_struct *fsp)
+				  files_struct *fsp,
+				  TALLOC_CTX *mem_ctx)
 {
 	struct smb_acl_t *result;
 	acl_t tru64_acl = acl_get_fd(fsp->fh->fd, ACL_TYPE_ACCESS);
@@ -79,7 +82,7 @@ SMB_ACL_T tru64acl_sys_acl_get_fd(vfs_handle_struct *handle,
 		return NULL;
 	}
 	
-	result = tru64_acl_to_smb_acl(tru64_acl);
+	result = tru64_acl_to_smb_acl(tru64_acl, mem_ctx);
 	acl_free(tru64_acl);
 	return result;
 }
@@ -153,35 +156,35 @@ int tru64acl_sys_acl_delete_def_file(vfs_handle_struct *handle,
 
 /* private functions */
 
-static struct smb_acl_t *tru64_acl_to_smb_acl(const struct acl *tru64_acl) 
+static struct smb_acl_t *tru64_acl_to_smb_acl(const struct acl *tru64_acl,
+					      TALLOC_CTX *mem_ctx)
 {
 	struct smb_acl_t *result;
 	acl_entry_t entry;
 
 	DEBUG(10, ("Hi! This is tru64_acl_to_smb_acl.\n"));
 	
-	if ((result = SMB_MALLOC_P(struct smb_acl_t)) == NULL) {
-		DEBUG(0, ("SMB_MALLOC_P failed in tru64_acl_to_smb_acl\n"));
+	if ((result = sys_acl_init(mem_ctx)) == NULL) {
+		DEBUG(0, ("sys_acl_init() failed in tru64_acl_to_smb_acl\n"));
 		errno = ENOMEM;
 		goto fail;
 	}
-	ZERO_STRUCTP(result);
 	if (acl_first_entry((struct acl *)tru64_acl) != 0) {
 		DEBUG(10, ("acl_first_entry failed: %s\n", strerror(errno)));
 		goto fail;
 	}
 	while ((entry = acl_get_entry((struct acl *)tru64_acl)) != NULL) {
-		result = SMB_REALLOC(result, sizeof(struct smb_acl_t) +
-					(sizeof(struct smb_acl_entry) * 
-					 (result->count + 1)));
-		if (result == NULL) {
-			DEBUG(0, ("SMB_REALLOC failed in tru64_acl_to_smb_acl\n"));
+		result->acl = talloc_realloc(result, result->acl, struct smb_acl_entry, 
+					     result->count + 1);
+		if (result->acl == NULL) {
+			TALLOC_FREE(result);
+			DEBUG(0, ("talloc_realloc failed in tru64_acl_to_smb_acl\n"));
 			errno = ENOMEM;
 			goto fail;
 		}
 		/* XYZ */
 		if (!tru64_ace_to_smb_ace(entry, &result->acl[result->count])) {
-			SAFE_FREE(result);
+			TALLOC_FREE(result);
 			goto fail;
 		}
 		result->count += 1;
@@ -189,9 +192,7 @@ static struct smb_acl_t *tru64_acl_to_smb_acl(const struct acl *tru64_acl)
 	return result;
 
 fail:
-	if (result != NULL) {
-		SAFE_FREE(result);
-	}
+	TALLOC_FREE(result);
 	DEBUG(1, ("tru64_acl_to_smb_acl failed!\n"));
 	return NULL;
 }
@@ -302,23 +303,23 @@ static acl_t smb_acl_to_tru64_acl(const SMB_ACL_T smb_acl)
 		switch (smb_entry->a_type) {
 		case SMB_ACL_USER:
 			if (acl_set_qualifier(tru64_entry, 
-						(int *)&smb_entry->uid) != 0) 
+						(int *)&smb_entry->info.user.uid) != 0) 
 			{
 				DEBUG(3, ("acl_set_qualifier failed: %s\n",
 					strerror(errno)));
 				goto fail;
 			}
-			DEBUGADD(10, (" - setting uid to %d\n", smb_entry->uid));
+			DEBUGADD(10, (" - setting uid to %d\n", smb_entry->info.user.uid));
 			break;
 		case SMB_ACL_GROUP:
 			if (acl_set_qualifier(tru64_entry, 
-						(int *)&smb_entry->gid) != 0)
+						(int *)&smb_entry->info.group.gid) != 0)
 			{
 				DEBUG(3, ("acl_set_qualifier failed: %s\n",
 					strerror(errno)));
 				goto fail;
 			}
-			DEBUGADD(10, (" - setting gid to %d\n", smb_entry->gid));
+			DEBUGADD(10, (" - setting gid to %d\n", smb_entry->info.group.gid));
 			break;
 		default:
 			break;
@@ -470,11 +471,11 @@ static SMB_ACL_PERM_T tru64_permset_to_smb(const acl_perm_t tru64_permset)
 /* VFS operations structure */
 
 static struct vfs_fn_pointers tru64acl_fns = {
-	.sys_acl_get_file = tru64acl_sys_acl_get_file,
-	.sys_acl_get_fd = tru64acl_sys_acl_get_fd,
-	.sys_acl_set_file = tru64acl_sys_acl_set_file,
-	.sys_acl_set_fd = tru64acl_sys_acl_set_fd,
-	.sys_acl_delete_def_file = tru64acl_sys_acl_delete_def_file,
+	.sys_acl_get_file_fn = tru64acl_sys_acl_get_file,
+	.sys_acl_get_fd_fn = tru64acl_sys_acl_get_fd,
+	.sys_acl_set_file_fn = tru64acl_sys_acl_set_file,
+	.sys_acl_set_fd_fn = tru64acl_sys_acl_set_fd,
+	.sys_acl_delete_def_file_fn = tru64acl_sys_acl_delete_def_file,
 };
 
 NTSTATUS vfs_tru64acl_init(void);

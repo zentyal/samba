@@ -2,12 +2,12 @@
 .\"     Title: idmap_autorid
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 09/18/2013
+.\"      Date: 12/06/2013
 .\"    Manual: System Administration tools
-.\"    Source: Samba 3.6
+.\"    Source: Samba 4.0
 .\"  Language: English
 .\"
-.TH "IDMAP_AUTORID" "8" "09/18/2013" "Samba 3\&.6" "System Administration tools"
+.TH "IDMAP_AUTORID" "8" "12/06/2013" "Samba 4\&.0" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -44,9 +44,21 @@ rangesize = numberofidsperdomain
 .RS 4
 Defines the available number of uids/gids per domain\&. The minimum needed value is 2000\&. SIDs with RIDs larger than this value cannot be mapped, are ignored and the corresponding map is discarded\&. Choose this value carefully, as this should not be changed after the first ranges for domains have been defined, otherwise mappings between domains will get intermixed leading to unpredictable results\&. Please note that RIDs in Windows Domains usually start with 500 for builtin users and 1000 for regular users\&. As the parameter cannot be changed later, please plan accordingly for your expected number of users in a domain with safety margins\&.
 .sp
-One range will be used for local users and groups\&. Thus the number of local users and groups that can be created is limited by this option as well\&. If you plan to create a large amount of local users or groups, you will need set this parameter accordingly\&.
+One range will be used for local users and groups and for non\-domain well\-known SIDs like Everyone (S\-1\-1\-0) or Creator Owner (S\-1\-3\-0)\&. A chosen list of well\-known SIDs will be preallocated on first start to create deterministic mappings for those\&.
+.sp
+Thus the number of local users and groups that can be created is limited by this option as well\&. If you plan to create a large amount of local users or groups, you will need set this parameter accordingly\&.
 .sp
 The default value is 100000\&.
+.RE
+.PP
+read only = [ yes | no ]
+.RS 4
+Turn the module into read\-only mode\&. No new ranges will be allocated nor will new mappings be created in the idmap pool\&. Defaults to no\&.
+.RE
+.PP
+ignore builtin = [ yes | no ]
+.RS 4
+Ignore any mapping requests for the BUILTIN domain\&. Defaults to no\&.
 .RE
 .SH "THE MAPPING FORMULAS"
 .PP

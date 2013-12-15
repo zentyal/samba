@@ -20,13 +20,14 @@
  */
 
 #include "includes.h"
-#include "rpc_server.h"
 #include "fake_file.h"
 #include "rpc_dce.h"
 #include "ntdomain.h"
 #include "rpc_server/rpc_ncacn_np.h"
 #include "rpc_server/srv_pipe_hnd.h"
 #include "rpc_server/srv_pipe.h"
+#include "rpc_server/rpc_server.h"
+#include "rpc_server/rpc_config.h"
 #include "../lib/tsocket/tsocket.h"
 #include "../lib/util/tevent_ntstatus.h"
 
@@ -37,7 +38,7 @@
  Ensures we have at least RPC_HEADER_LEN amount of data in the incoming buffer.
 ****************************************************************************/
 
-static ssize_t fill_rpc_header(struct pipes_struct *p, char *data, size_t data_to_copy)
+static ssize_t fill_rpc_header(struct pipes_struct *p, const char *data, size_t data_to_copy)
 {
 	size_t len_needed_to_complete_hdr =
 		MIN(data_to_copy, RPC_HEADER_LEN - p->in_data.pdu.length);
@@ -126,7 +127,7 @@ static void free_pipe_context(struct pipes_struct *p)
  Accepts incoming data on an rpc pipe. Processes the data in pdu sized units.
 ****************************************************************************/
 
-ssize_t process_incoming_data(struct pipes_struct *p, char *data, size_t n)
+ssize_t process_incoming_data(struct pipes_struct *p, const char *data, size_t n)
 {
 	size_t data_to_copy = MIN(n, RPC_MAX_PDU_FRAG_LEN
 					- p->in_data.pdu.length);
@@ -231,7 +232,7 @@ ssize_t process_incoming_data(struct pipes_struct *p, char *data, size_t n)
  Accepts incoming data on an internal rpc pipe.
 ****************************************************************************/
 
-static ssize_t write_to_internal_pipe(struct pipes_struct *p, char *data, size_t n)
+static ssize_t write_to_internal_pipe(struct pipes_struct *p, const char *data, size_t n)
 {
 	size_t data_left = n;
 
@@ -280,7 +281,7 @@ static ssize_t read_from_internal_pipe(struct pipes_struct *p, char *data,
 	}
 
 	DEBUG(6,(" name: %s len: %u\n",
-		 get_pipe_name_from_syntax(talloc_tos(), &p->syntax),
+		 get_pipe_name_from_syntax(talloc_tos(), &p->contexts->syntax),
 		 (unsigned int)n));
 
 	/*
@@ -298,7 +299,7 @@ static ssize_t read_from_internal_pipe(struct pipes_struct *p, char *data,
                 DEBUG(5,("read_from_pipe: too large read (%u) requested on "
 			 "pipe %s. We can only service %d sized reads.\n",
 			 (unsigned int)n,
-			 get_pipe_name_from_syntax(talloc_tos(), &p->syntax),
+			 get_pipe_name_from_syntax(talloc_tos(), &p->contexts->syntax),
 			 RPC_MAX_PDU_FRAG_LEN ));
 		n = RPC_MAX_PDU_FRAG_LEN;
 	}
@@ -319,7 +320,7 @@ static ssize_t read_from_internal_pipe(struct pipes_struct *p, char *data,
 
 		DEBUG(10,("read_from_pipe: %s: current_pdu_len = %u, "
 			  "current_pdu_sent = %u returning %d bytes.\n",
-			  get_pipe_name_from_syntax(talloc_tos(), &p->syntax),
+			  get_pipe_name_from_syntax(talloc_tos(), &p->contexts->syntax),
 			  (unsigned int)p->out_data.frag.length,
 			  (unsigned int)p->out_data.current_pdu_sent,
 			  (int)data_returned));
@@ -340,7 +341,7 @@ static ssize_t read_from_internal_pipe(struct pipes_struct *p, char *data,
 
 	DEBUG(10,("read_from_pipe: %s: fault_state = %d : data_sent_length "
 		  "= %u, p->out_data.rdata.length = %u.\n",
-		  get_pipe_name_from_syntax(talloc_tos(), &p->syntax),
+		  get_pipe_name_from_syntax(talloc_tos(), &p->contexts->syntax),
 		  (int)p->fault_state,
 		  (unsigned int)p->out_data.data_sent_length,
 		  (unsigned int)p->out_data.rdata.length));
@@ -362,7 +363,7 @@ static ssize_t read_from_internal_pipe(struct pipes_struct *p, char *data,
 
 	if(!create_next_pdu(p)) {
 		DEBUG(0,("read_from_pipe: %s: create_next_pdu failed.\n",
-			 get_pipe_name_from_syntax(talloc_tos(), &p->syntax)));
+			 get_pipe_name_from_syntax(talloc_tos(), &p->contexts->syntax)));
 		return -1;
 	}
 
@@ -411,15 +412,14 @@ bool fsp_is_np(struct files_struct *fsp)
 NTSTATUS np_open(TALLOC_CTX *mem_ctx, const char *name,
 		 const struct tsocket_address *local_address,
 		 const struct tsocket_address *remote_address,
-		 struct client_address *client_id,
-		 struct auth_serversupplied_info *session_info,
+		 struct auth_session_info *session_info,
 		 struct messaging_context *msg_ctx,
 		 struct fake_file_handle **phandle)
 {
-	const char *rpcsrv_type;
+	enum rpc_service_mode_e pipe_mode;
 	const char **proxy_list;
 	struct fake_file_handle *handle;
-	bool external = false;
+	struct ndr_syntax_id syntax;
 
 	proxy_list = lp_parm_string_list(-1, "np", "proxy", NULL);
 
@@ -430,47 +430,47 @@ NTSTATUS np_open(TALLOC_CTX *mem_ctx, const char *name,
 
 	/* Check what is the server type for this pipe.
 	   Defaults to "embedded" */
-	rpcsrv_type = lp_parm_const_string(GLOBAL_SECTION_SNUM,
-					   "rpc_server", name,
-					   "embedded");
-	if (StrCaseCmp(rpcsrv_type, "embedded") != 0) {
-		external = true;
-	}
+	pipe_mode = rpc_service_mode(name);
 
 	/* Still support the old method for defining external servers */
 	if ((proxy_list != NULL) && str_list_check_ci(proxy_list, name)) {
-		external = true;
+		pipe_mode = RPC_SERVICE_MODE_EXTERNAL;
 	}
 
-	if (external) {
-		struct np_proxy_state *p;
+	switch (pipe_mode) {
+	case RPC_SERVICE_MODE_EXTERNAL:
 
-		p = make_external_rpc_pipe_p(handle, name,
+		handle->private_data = (void *)make_external_rpc_pipe_p(
+					     handle, name,
 					     local_address,
 					     remote_address,
 					     session_info);
 
 		handle->type = FAKE_FILE_TYPE_NAMED_PIPE_PROXY;
-		handle->private_data = p;
-	} else {
-		struct pipes_struct *p;
-		struct ndr_syntax_id syntax;
+		break;
+
+	case RPC_SERVICE_MODE_EMBEDDED:
 
 		if (!is_known_pipename(name, &syntax)) {
 			TALLOC_FREE(handle);
 			return NT_STATUS_OBJECT_NAME_NOT_FOUND;
 		}
 
-		p = make_internal_rpc_pipe_p(handle, &syntax, client_id,
+		handle->private_data = (void *)make_internal_rpc_pipe_p(
+					     handle, &syntax, remote_address,
 					     session_info, msg_ctx);
 
 		handle->type = FAKE_FILE_TYPE_NAMED_PIPE;
-		handle->private_data = p;
+		break;
+
+	case RPC_SERVICE_MODE_DISABLED:
+		handle->private_data = NULL;
+		break;
 	}
 
 	if (handle->private_data == NULL) {
 		TALLOC_FREE(handle);
-		return NT_STATUS_PIPE_NOT_AVAILABLE;
+		return NT_STATUS_OBJECT_NAME_NOT_FOUND;
 	}
 
 	*phandle = handle;
@@ -535,7 +535,7 @@ struct tevent_req *np_write_send(TALLOC_CTX *mem_ctx, struct event_context *ev,
 		struct pipes_struct *p = talloc_get_type_abort(
 			handle->private_data, struct pipes_struct);
 
-		state->nwritten = write_to_internal_pipe(p, (char *)data, len);
+		state->nwritten = write_to_internal_pipe(p, (const char *)data, len);
 
 		status = (state->nwritten >= 0)
 			? NT_STATUS_OK : NT_STATUS_UNEXPECTED_IO_ERROR;
@@ -549,7 +549,7 @@ struct tevent_req *np_write_send(TALLOC_CTX *mem_ctx, struct event_context *ev,
 
 		state->ev = ev;
 		state->p = p;
-		state->iov.iov_base = CONST_DISCARD(void *, data);
+		state->iov.iov_base = discard_const_p(void, data);
 		state->iov.iov_len = len;
 
 		subreq = tstream_writev_queue_send(state, ev,
@@ -687,7 +687,7 @@ struct np_read_state {
 	struct np_proxy_state *p;
 	struct np_ipc_readv_next_vector_state next_vector;
 
-	size_t nread;
+	ssize_t nread;
 	bool is_data_outstanding;
 };
 

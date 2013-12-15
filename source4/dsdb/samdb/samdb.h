@@ -53,8 +53,19 @@ struct dsdb_control_current_partition {
 	struct ldb_dn *dn;
 };
 
+
+/*
+  flags in dsdb_repl_flags to control replication logic
+ */
+#define DSDB_REPL_FLAG_PRIORITISE_INCOMING 1
+#define DSDB_REPL_FLAG_PARTIAL_REPLICA     2
+#define DSDB_REPL_FLAG_ADD_NCNAME	   4
+
+
 #define DSDB_CONTROL_REPLICATED_UPDATE_OID "1.3.6.1.4.1.7165.4.3.3"
-/* DSDB_CONTROL_REPLICATED_UPDATE_OID has NULL data */
+struct dsdb_control_replicated_update {
+	uint32_t dsdb_repl_flags;
+};
 
 #define DSDB_CONTROL_DN_STORAGE_FORMAT_OID "1.3.6.1.4.1.7165.4.3.4"
 /* DSDB_CONTROL_DN_STORAGE_FORMAT_OID has NULL data and behaves very
@@ -81,7 +92,6 @@ struct dsdb_control_password_change_status {
 #define DSDB_CONTROL_PASSWORD_HASH_VALUES_OID "1.3.6.1.4.1.7165.4.3.9"
 
 #define DSDB_CONTROL_PASSWORD_CHANGE_OID "1.3.6.1.4.1.7165.4.3.10"
-
 struct dsdb_control_password_change {
 	const struct samr_Password *old_nt_pwd_hash;
 	const struct samr_Password *old_lm_pwd_hash;
@@ -103,12 +113,38 @@ struct dsdb_control_password_change {
 */
 #define DSDB_CONTROL_CHANGEREPLMETADATA_OID "1.3.6.1.4.1.7165.4.3.14"
 
+/* passed when we want to get the behaviour of the non-global catalog port */
+#define DSDB_CONTROL_NO_GLOBAL_CATALOG "1.3.6.1.4.1.7165.4.3.17"
+
+/* passed when we want special behaviour for partial replicas */
+#define DSDB_CONTROL_PARTIAL_REPLICA "1.3.6.1.4.1.7165.4.3.18"
+
+/* passed when we want special behaviour for dbcheck */
+#define DSDB_CONTROL_DBCHECK "1.3.6.1.4.1.7165.4.3.19"
+
+/* passed when dbcheck wants to modify a read only replica (very special case) */
+#define DSDB_CONTROL_DBCHECK_MODIFY_RO_REPLICA "1.3.6.1.4.1.7165.4.3.19.1"
+
+/* passed when importing plain text password on upgrades */
+#define DSDB_CONTROL_PASSWORD_BYPASS_LAST_SET_OID "1.3.6.1.4.1.7165.4.3.20"
+
+/*
+ * passed from the descriptor module in order to
+ * store the recalucated nTSecurityDescriptor without
+ * modifying the replPropertyMetaData.
+ */
+#define DSDB_CONTROL_SEC_DESC_PROPAGATION_OID "1.3.6.1.4.1.7165.4.3.21"
+
 #define DSDB_EXTENDED_REPLICATED_OBJECTS_OID "1.3.6.1.4.1.7165.4.4.1"
 struct dsdb_extended_replicated_object {
 	struct ldb_message *msg;
 	struct ldb_val guid_value;
+	struct ldb_val parent_guid_value;
 	const char *when_changed;
 	struct replPropertyMetaDataBlob *meta_data;
+
+	/* Only used for internal processing in repl_meta_data */
+	struct ldb_dn *last_known_parent;
 };
 
 struct dsdb_extended_replicated_objects {
@@ -116,8 +152,11 @@ struct dsdb_extended_replicated_objects {
 	 * this is the version of the dsdb_extended_replicated_objects
 	 * version 0: initial implementation
 	 */
-#define DSDB_EXTENDED_REPLICATED_OBJECTS_VERSION 1
+#define DSDB_EXTENDED_REPLICATED_OBJECTS_VERSION 2
 	uint32_t version;
+
+	/* DSDB_REPL_FLAG_* flags */
+	uint32_t dsdb_repl_flags;
 
 	struct ldb_dn *partition_dn;
 
@@ -131,16 +170,6 @@ struct dsdb_extended_replicated_objects {
 	const struct drsuapi_DsReplicaLinkedAttribute *linked_attributes;
 };
 
-struct dsdb_naming_fsmo {
-	bool we_are_master;
-	struct ldb_dn *master_dn;
-};
-
-struct dsdb_pdc_fsmo {
-	bool we_are_master;
-	struct ldb_dn *master_dn;
-};
-
 #define DSDB_EXTENDED_CREATE_PARTITION_OID "1.3.6.1.4.1.7165.4.4.4"
 struct dsdb_create_partition_exop {
 	struct ldb_dn *new_dn;
@@ -151,6 +180,8 @@ struct dsdb_create_partition_exop {
  * req->op.extended.data
  */
 #define DSDB_EXTENDED_SCHEMA_UPDATE_NOW_OID "1.3.6.1.4.1.7165.4.4.2"
+
+#define DSDB_EXTENDED_SCHEMA_UPGRADE_IN_PROGRESS_OID "1.3.6.1.4.1.7165.4.4.6"
 
 #define DSDB_OPENLDAP_DEREFERENCE_CONTROL "1.3.6.1.4.1.4203.666.5.16"
 
@@ -174,6 +205,13 @@ struct dsdb_openldap_dereference_result_control {
 	struct dsdb_openldap_dereference_result **attributes;
 };
 
+struct samldb_msds_intid_persistant {
+	uint32_t msds_intid;
+	uint64_t usn;
+};
+
+#define SAMLDB_MSDS_INTID_OPAQUE "SAMLDB_MSDS_INTID_OPAQUE"
+
 #define DSDB_PARTITION_DN "@PARTITION"
 #define DSDB_PARTITION_ATTR "partition"
 
@@ -182,6 +220,7 @@ struct dsdb_extended_dn_store_format {
 	bool store_extended_dn_in_ldb;
 };
 
+#define DSDB_OPAQUE_LAST_SCHEMA_UPDATE_MSG_OPAQUE_NAME "DSDB_OPAQUE_LAST_SCHEMA_UPDATE"
 #define DSDB_OPAQUE_PARTITION_MODULE_MSG_OPAQUE_NAME "DSDB_OPAQUE_PARTITION_MODULE_MSG"
 
 /* this takes a struct dsdb_fsmo_extended_op */
@@ -192,4 +231,19 @@ struct dsdb_fsmo_extended_op {
 	struct GUID destination_dsa_guid;
 };
 
+/*
+ * passed from the descriptor module in order to
+ * store the recalucated nTSecurityDescriptor without
+ * modifying the replPropertyMetaData.
+ */
+#define DSDB_EXTENDED_SEC_DESC_PROPAGATION_OID "1.3.6.1.4.1.7165.4.4.7"
+struct dsdb_extended_sec_desc_propagation_op {
+	struct ldb_dn *nc_root;
+	struct ldb_dn *dn;
+	bool include_self;
+};
+
+#define DSDB_ACL_CHECKS_DIRSYNC_FLAG 0x1
+
+#define DSDB_METADATA_SCHEMA_SEQ_NUM	"SCHEMA_SEQ_NUM"
 #endif /* __SAMDB_H__ */

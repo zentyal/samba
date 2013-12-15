@@ -29,14 +29,6 @@
 #define FLAG_CR_NTDS_NC 0x00000001
 #define FLAG_CR_NTDS_DOMAIN 0x00000002
 
-#define NTDSCONN_OPT_IS_GENERATED 0x00000001
-#define NTDSCONN_OPT_TWOWAY_SYNC 0x00000002
-#define NTDSCONN_OPT_OVERRIDE_NOTIFY_DEFAULT 0x00000004
-#define NTDSCONN_OPT_USE_NOTIFY 0x00000008
-#define NTDSCONN_OPT_DISABLE_INTERSITE_COMPRESSION 0x00000010
-#define NTDSCONN_OPT_USER_OWNED_SCHEDULE 0x00000020
-#define NTDSCONN_OPT_RODC_TOPOLOGY 0x00000040
-
 #define NTDSDSA_OPT_IS_GC 0x00000001
 
 #define NTDSSETTINGS_OPT_IS_TOPL_DETECT_STALE_DISABLED 0x00000008
@@ -1015,7 +1007,7 @@ static NTSTATUS kcctpl_bridgehead_dc_failed(struct ldb_context *ldb,
 	tmp_ctx = talloc_new(ldb);
 	NT_STATUS_HAVE_NO_MEMORY(tmp_ctx);
 
-	settings_dn = samdb_ntds_settings_dn(ldb);
+	settings_dn = samdb_ntds_settings_dn(ldb, tmp_ctx);
 	if (!settings_dn) {
 		DEBUG(1, (__location__ ": failed to find our own NTDS Settings "
 			  "DN\n"));

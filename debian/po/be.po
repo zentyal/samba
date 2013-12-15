@@ -7,8 +7,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba_2:3.3.0-3_be\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2013-05-13 11:53-0700\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2013-10-22 20:32+0200\n"
 "PO-Revision-Date: 2009-02-19 04:33+0200\n"
 "Last-Translator: Pavel Piatruk <piatruk.p@gmail.com>\n"
 "Language-Team: Belarusian (Official spelling) <be@d-i.tanatos.org>\n"
@@ -17,6 +17,117 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "X-Generator: KBabel 1.11.4\n"
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid "Upgrade from Samba 3?"
+msgstr ""
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid ""
+"It is possible to migrate the existing configuration files from Samba 3 to "
+"Samba 4. This is likely to fail for complex setups, but should provide a "
+"good starting point for most existing installations."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid "Server role"
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Domain controllers manage NT4-style or Active Directory domains and provide "
+"services such as identity management and domain logons. Each domain needs to "
+"have a at least one domain controller."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Member servers can be part of a NT4-style or Active Directory domain but do "
+"not provide any domain services. Workstations and file or print servers are "
+"usually regular domain members."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"A standalone server can not be used in a domain and only supports file "
+"sharing and Windows for Workgroups-style logins."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"If no server role is specified, the Samba server will not be provisioned, so "
+"this can be done manually by the user."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Realm name:"
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid ""
+"Please specify the Kerberos realm for the domain that this domain controller "
+"controls."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Usually this is the a capitalized version of your DNS hostname."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "New password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "If this field is left blank, a random password will be generated."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "A password can be set later by running, as root:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:5001
+msgid "Repeat password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "Password input error"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr ""
 
 #. Type: title
 #. Description
@@ -111,35 +222,72 @@ msgstr ""
 "з'явіцца ваша сістэма ў якасці сервера; стандартную групу пры прагляданні "
 "сеціва; імя дамену, якое ўжываецца пры выкарыстанні наладкі security=domain."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Шыфраваць паролі?"
+#~ msgid "Use password encryption?"
+#~ msgstr "Шыфраваць паролі?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Усе апошнія версіі кліентаў Windows стасуюцца з серверамі SMB/CIFS, "
-"выкарыстоўваючы шыфраванне пароляў. Каб ужываць паролі простым тэкстам, Вам "
-"давядзецца выправіць параметр у рэгістры Windows."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Усе апошнія версіі кліентаў Windows стасуюцца з серверамі SMB/CIFS, "
+#~ "выкарыстоўваючы шыфраванне пароляў. Каб ужываць паролі простым тэкстам, "
+#~ "Вам давядзецца выправіць параметр у рэгістры Windows."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Дужа рэкамендуем уключыць гэтую опцыю, бо прадукты Microsoft Windows больш "
-"не падтрымліваюць пароляў простым тэкстам . У гэтым выпадку пераканайцеся, "
-"што Вы маеце дзейсны файл /etc/samba/smbpasswd і што для кожнага "
-"карыстальніка ў ім створаны пароль з дапамогай каманды smbpasswd."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Дужа рэкамендуем уключыць гэтую опцыю, бо прадукты Microsoft Windows "
+#~ "больш не падтрымліваюць пароляў простым тэкстам . У гэтым выпадку "
+#~ "пераканайцеся, што Вы маеце дзейсны файл /etc/samba/smbpasswd і што для "
+#~ "кожнага карыстальніка ў ім створаны пароль з дапамогай каманды smbpasswd."
 
+#~ msgid "daemons"
+#~ msgstr "дэманы"
+
+#~ msgid "inetd"
+#~ msgstr "inetd"
+
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Якім чынам мусіць запускацца Samba?"
+
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Служба Samba smbd можа запускацца як звычайны дэман, або з дапамогай "
+#~ "inetd. Рэкамендаваны падыход -- запуск у якасці звычайнага дэмана."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "Стварыць базу пароляў samba у файле /var/lib/samba/passdb.tdb?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "Каб адпавядаць стандартным наладкам большасці версіяў Windows, Samba "
+#~ "мусіць выкарыстоўваць шыфраваныя паролі. Дзеля гэтага паролі трэба "
+#~ "захоўваць у месцы, адрозным ад файлу /etc/passwd. Адпаведнае сховішча "
+#~ "можна стварыць аўтаматычна, але паролі трэба дадаваць самастойна з "
+#~ "дапамогай каманды smbpasswd, і сачыць за іх адпаведнасцю надалей."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "Калі сховішча не будзе створана, трэба пераналадзіць Samba (і, верагодна, "
+#~ "кліентскія машыны таксама) такім чынам, каб выкарыстоўваць паролі простым "
+#~ "тэкстам."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Больш інфармацыі даступна ў файле /usr/share/doc/samba-doc/htmldocs/"
+#~ "Samba3-Developers-Guide/pwencrypt.html ю"

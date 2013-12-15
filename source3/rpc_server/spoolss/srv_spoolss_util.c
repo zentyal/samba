@@ -21,28 +21,37 @@
 
 #include "includes.h"
 #include "rpc_server/rpc_ncacn_np.h"
+#include "../lib/tsocket/tsocket.h"
 #include "../librpc/gen_ndr/ndr_spoolss.h"
 #include "../librpc/gen_ndr/ndr_winreg.h"
 #include "srv_spoolss_util.h"
 #include "rpc_client/cli_winreg_spoolss.h"
 
 WERROR winreg_printer_binding_handle(TALLOC_CTX *mem_ctx,
-				     const struct auth_serversupplied_info *session_info,
+				     const struct auth_session_info *session_info,
 				     struct messaging_context *msg_ctx,
 				     struct dcerpc_binding_handle **winreg_binding_handle)
 {
-	static struct client_address client_id;
+	struct tsocket_address *local;
 	NTSTATUS status;
+	int rc;
 
-	strlcpy(client_id.addr, "127.0.0.1", sizeof(client_id.addr));
-	client_id.name = "127.0.0.1";
+	rc = tsocket_address_inet_from_strings(mem_ctx,
+					       "ip",
+					       "127.0.0.1",
+					       0,
+					       &local);
+	if (rc < 0) {
+		return WERR_NOMEM;
+	}
 
 	status = rpcint_binding_handle(mem_ctx,
 				       &ndr_table_winreg,
-				       &client_id,
+				       local,
 				       session_info,
 				       msg_ctx,
 				       winreg_binding_handle);
+	talloc_free(local);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("winreg_printer_binding_handle: Could not connect to winreg pipe: %s\n",
 			  nt_errstr(status)));
@@ -53,89 +62,153 @@ WERROR winreg_printer_binding_handle(TALLOC_CTX *mem_ctx,
 }
 
 WERROR winreg_delete_printer_key_internal(TALLOC_CTX *mem_ctx,
-					  const struct auth_serversupplied_info *session_info,
+					  const struct auth_session_info *session_info,
 					  struct messaging_context *msg_ctx,
 					  const char *printer,
 					  const char *key)
 {
 	WERROR result;
 	struct dcerpc_binding_handle *b;
+	TALLOC_CTX *tmp_ctx;
 
-	result = winreg_printer_binding_handle(mem_ctx, session_info, msg_ctx, &b);
-	W_ERROR_NOT_OK_RETURN(result);
+	tmp_ctx = talloc_stackframe();
+	if (tmp_ctx == NULL) {
+		return WERR_NOMEM;
+	}
 
-	return winreg_delete_printer_key(mem_ctx, b,
-					 printer,
-					 key);
+	result = winreg_printer_binding_handle(tmp_ctx, session_info, msg_ctx, &b);
+	if (!W_ERROR_IS_OK(result)) {
+		talloc_free(tmp_ctx);
+		return result;
+	}
+
+	result = winreg_delete_printer_key(tmp_ctx,
+					   b,
+					   printer,
+					   key);
+
+	talloc_free(tmp_ctx);
+	return result;
 }
 
 WERROR winreg_printer_update_changeid_internal(TALLOC_CTX *mem_ctx,
-					       const struct auth_serversupplied_info *session_info,
+					       const struct auth_session_info *session_info,
 					       struct messaging_context *msg_ctx,
 					       const char *printer)
 {
 	WERROR result;
 	struct dcerpc_binding_handle *b;
+	TALLOC_CTX *tmp_ctx;
 
-	result = winreg_printer_binding_handle(mem_ctx, session_info, msg_ctx, &b);
-	W_ERROR_NOT_OK_RETURN(result);
+	tmp_ctx = talloc_stackframe();
+	if (tmp_ctx == NULL) {
+		return WERR_NOMEM;
+	}
 
-	return winreg_printer_update_changeid(mem_ctx, b,
-					      printer);
+	result = winreg_printer_binding_handle(tmp_ctx, session_info, msg_ctx, &b);
+	if (!W_ERROR_IS_OK(result)) {
+		talloc_free(tmp_ctx);
+		return result;
+	}
+
+	result = winreg_printer_update_changeid(mem_ctx,
+						b,
+						printer);
+
+	talloc_free(tmp_ctx);
+	return result;
 }
 
 WERROR winreg_printer_get_changeid_internal(TALLOC_CTX *mem_ctx,
-					    const struct auth_serversupplied_info *session_info,
+					    const struct auth_session_info *session_info,
 					    struct messaging_context *msg_ctx,
 					    const char *printer,
 					    uint32_t *pchangeid)
 {
 	WERROR result;
 	struct dcerpc_binding_handle *b;
+	TALLOC_CTX *tmp_ctx;
 
-	result = winreg_printer_binding_handle(mem_ctx, session_info, msg_ctx, &b);
-	W_ERROR_NOT_OK_RETURN(result);
+	tmp_ctx = talloc_stackframe();
+	if (tmp_ctx == NULL) {
+		return WERR_NOMEM;
+	}
 
-	return winreg_printer_get_changeid(mem_ctx, b,
-					   printer,
-					   pchangeid);
+	result = winreg_printer_binding_handle(tmp_ctx, session_info, msg_ctx, &b);
+	if (!W_ERROR_IS_OK(result)) {
+		talloc_free(tmp_ctx);
+		return result;
+	}
+
+	result = winreg_printer_get_changeid(mem_ctx,
+					     b,
+					     printer,
+					     pchangeid);
+
+	talloc_free(tmp_ctx);
+	return result;
 }
 
 WERROR winreg_get_printer_internal(TALLOC_CTX *mem_ctx,
-				   const struct auth_serversupplied_info *session_info,
+				   const struct auth_session_info *session_info,
 				   struct messaging_context *msg_ctx,
 				   const char *printer,
 				   struct spoolss_PrinterInfo2 **pinfo2)
 {
 	WERROR result;
 	struct dcerpc_binding_handle *b;
+	TALLOC_CTX *tmp_ctx;
 
-	result = winreg_printer_binding_handle(mem_ctx, session_info, msg_ctx, &b);
-	W_ERROR_NOT_OK_RETURN(result);
+	tmp_ctx = talloc_stackframe();
+	if (tmp_ctx == NULL) {
+		return WERR_NOMEM;
+	}
 
-	return winreg_get_printer(mem_ctx, b,
-				  printer,
-				  pinfo2);
+	result = winreg_printer_binding_handle(tmp_ctx, session_info, msg_ctx, &b);
+	if (!W_ERROR_IS_OK(result)) {
+		talloc_free(tmp_ctx);
+		return result;
+	}
 
+	result = winreg_get_printer(mem_ctx,
+				    b,
+				    printer,
+				    pinfo2);
+
+	talloc_free(tmp_ctx);
+	return result;
 }
 
 WERROR winreg_create_printer_internal(TALLOC_CTX *mem_ctx,
-				      const struct auth_serversupplied_info *session_info,
+				      const struct auth_session_info *session_info,
 				      struct messaging_context *msg_ctx,
 				      const char *sharename)
 {
 	WERROR result;
 	struct dcerpc_binding_handle *b;
+	TALLOC_CTX *tmp_ctx;
 
-	result = winreg_printer_binding_handle(mem_ctx, session_info, msg_ctx, &b);
-	W_ERROR_NOT_OK_RETURN(result);
+	tmp_ctx = talloc_stackframe();
+	if (tmp_ctx == NULL) {
+		return WERR_NOMEM;
+	}
 
-	return winreg_create_printer(mem_ctx, b,
-				     sharename);
+	result = winreg_printer_binding_handle(tmp_ctx, session_info, msg_ctx, &b);
+	if (!W_ERROR_IS_OK(result)) {
+		talloc_free(tmp_ctx);
+		return result;
+	}
+
+	result = winreg_create_printer(mem_ctx,
+				       b,
+				       sharename);
+
+	talloc_free(tmp_ctx);
+	return result;
 }
 
 WERROR winreg_update_printer_internal(TALLOC_CTX *mem_ctx,
-				      const struct auth_serversupplied_info *session_info,
+				      const struct auth_session_info *session_info,
 				      struct messaging_context *msg_ctx,
 				      const char *sharename,
 				      uint32_t info2_mask,
@@ -145,20 +218,33 @@ WERROR winreg_update_printer_internal(TALLOC_CTX *mem_ctx,
 {
 	WERROR result;
 	struct dcerpc_binding_handle *b;
+	TALLOC_CTX *tmp_ctx;
 
-	result = winreg_printer_binding_handle(mem_ctx, session_info, msg_ctx, &b);
-	W_ERROR_NOT_OK_RETURN(result);
+	tmp_ctx = talloc_stackframe();
+	if (tmp_ctx == NULL) {
+		return WERR_NOMEM;
+	}
 
-	return winreg_update_printer(mem_ctx, b,
-				     sharename,
-				     info2_mask,
-				     info2,
-				     devmode,
-				     secdesc);
+	result = winreg_printer_binding_handle(tmp_ctx, session_info, msg_ctx, &b);
+	if (!W_ERROR_IS_OK(result)) {
+		talloc_free(tmp_ctx);
+		return result;
+	}
+
+	result = winreg_update_printer(mem_ctx,
+				       b,
+				       sharename,
+				       info2_mask,
+				       info2,
+				       devmode,
+				       secdesc);
+
+	talloc_free(tmp_ctx);
+	return result;
 }
 
 WERROR winreg_set_printer_dataex_internal(TALLOC_CTX *mem_ctx,
-					  const struct auth_serversupplied_info *session_info,
+					  const struct auth_session_info *session_info,
 					  struct messaging_context *msg_ctx,
 					  const char *printer,
 					  const char *key,
@@ -169,21 +255,34 @@ WERROR winreg_set_printer_dataex_internal(TALLOC_CTX *mem_ctx,
 {
 	WERROR result;
 	struct dcerpc_binding_handle *b;
+	TALLOC_CTX *tmp_ctx;
 
-	result = winreg_printer_binding_handle(mem_ctx, session_info, msg_ctx, &b);
-	W_ERROR_NOT_OK_RETURN(result);
+	tmp_ctx = talloc_stackframe();
+	if (tmp_ctx == NULL) {
+		return WERR_NOMEM;
+	}
 
-	return winreg_set_printer_dataex(mem_ctx, b,
-					 printer,
-					 key,
-					 value,
-					 type,
-					 data,
-					 data_size);
+	result = winreg_printer_binding_handle(tmp_ctx, session_info, msg_ctx, &b);
+	if (!W_ERROR_IS_OK(result)) {
+		talloc_free(tmp_ctx);
+		return result;
+	}
+
+	result = winreg_set_printer_dataex(mem_ctx,
+					   b,
+					   printer,
+					   key,
+					   value,
+					   type,
+					   data,
+					   data_size);
+
+	talloc_free(tmp_ctx);
+	return result;
 }
 
 WERROR winreg_enum_printer_dataex_internal(TALLOC_CTX *mem_ctx,
-					   const struct auth_serversupplied_info *session_info,
+					   const struct auth_session_info *session_info,
 					   struct messaging_context *msg_ctx,
 					   const char *printer,
 					   const char *key,
@@ -192,19 +291,32 @@ WERROR winreg_enum_printer_dataex_internal(TALLOC_CTX *mem_ctx,
 {
 	WERROR result;
 	struct dcerpc_binding_handle *b;
+	TALLOC_CTX *tmp_ctx;
 
-	result = winreg_printer_binding_handle(mem_ctx, session_info, msg_ctx, &b);
-	W_ERROR_NOT_OK_RETURN(result);
+	tmp_ctx = talloc_stackframe();
+	if (tmp_ctx == NULL) {
+		return WERR_NOMEM;
+	}
 
-	return winreg_enum_printer_dataex(mem_ctx, b,
-					  printer,
-					  key,
-					  pnum_values,
-					  penum_values);
+	result = winreg_printer_binding_handle(tmp_ctx, session_info, msg_ctx, &b);
+	if (!W_ERROR_IS_OK(result)) {
+		talloc_free(tmp_ctx);
+		return result;
+	}
+
+	result = winreg_enum_printer_dataex(mem_ctx,
+					    b,
+					    printer,
+					    key,
+					    pnum_values,
+					    penum_values);
+
+	talloc_free(tmp_ctx);
+	return result;
 }
 
 WERROR winreg_get_printer_dataex_internal(TALLOC_CTX *mem_ctx,
-					  const struct auth_serversupplied_info *session_info,
+					  const struct auth_session_info *session_info,
 					  struct messaging_context *msg_ctx,
 					  const char *printer,
 					  const char *key,
@@ -215,21 +327,34 @@ WERROR winreg_get_printer_dataex_internal(TALLOC_CTX *mem_ctx,
 {
 	WERROR result;
 	struct dcerpc_binding_handle *b;
+	TALLOC_CTX *tmp_ctx;
 
-	result = winreg_printer_binding_handle(mem_ctx, session_info, msg_ctx, &b);
-	W_ERROR_NOT_OK_RETURN(result);
+	tmp_ctx = talloc_stackframe();
+	if (tmp_ctx == NULL) {
+		return WERR_NOMEM;
+	}
 
-	return winreg_get_printer_dataex(mem_ctx, b,
-					 printer,
-					 key,
-					 value,
-					 type,
-					 data,
-					 data_size);
+	result = winreg_printer_binding_handle(tmp_ctx, session_info, msg_ctx, &b);
+	if (!W_ERROR_IS_OK(result)) {
+		talloc_free(tmp_ctx);
+		return result;
+	}
+
+	result = winreg_get_printer_dataex(mem_ctx,
+					   b,
+					   printer,
+					   key,
+					   value,
+					   type,
+					   data,
+					   data_size);
+
+	talloc_free(tmp_ctx);
+	return result;
 }
 
 WERROR winreg_delete_printer_dataex_internal(TALLOC_CTX *mem_ctx,
-					     const struct auth_serversupplied_info *session_info,
+					     const struct auth_session_info *session_info,
 					     struct messaging_context *msg_ctx,
 					     const char *printer,
 					     const char *key,
@@ -237,18 +362,31 @@ WERROR winreg_delete_printer_dataex_internal(TALLOC_CTX *mem_ctx,
 {
 	WERROR result;
 	struct dcerpc_binding_handle *b;
+	TALLOC_CTX *tmp_ctx;
 
-	result = winreg_printer_binding_handle(mem_ctx, session_info, msg_ctx, &b);
-	W_ERROR_NOT_OK_RETURN(result);
+	tmp_ctx = talloc_stackframe();
+	if (tmp_ctx == NULL) {
+		return WERR_NOMEM;
+	}
 
-	return winreg_delete_printer_dataex(mem_ctx, b,
-					    printer,
-					    key,
-					    value);
+	result = winreg_printer_binding_handle(tmp_ctx, session_info, msg_ctx, &b);
+	if (!W_ERROR_IS_OK(result)) {
+		talloc_free(tmp_ctx);
+		return result;
+	}
+
+	result = winreg_delete_printer_dataex(mem_ctx,
+					      b,
+					      printer,
+					      key,
+					      value);
+
+	talloc_free(tmp_ctx);
+	return result;
 }
 
 WERROR winreg_get_driver_internal(TALLOC_CTX *mem_ctx,
-				  const struct auth_serversupplied_info *session_info,
+				  const struct auth_session_info *session_info,
 				  struct messaging_context *msg_ctx,
 				  const char *architecture,
 				  const char *driver_name,
@@ -257,19 +395,32 @@ WERROR winreg_get_driver_internal(TALLOC_CTX *mem_ctx,
 {
 	WERROR result;
 	struct dcerpc_binding_handle *b;
+	TALLOC_CTX *tmp_ctx;
 
-	result = winreg_printer_binding_handle(mem_ctx, session_info, msg_ctx, &b);
-	W_ERROR_NOT_OK_RETURN(result);
+	tmp_ctx = talloc_stackframe();
+	if (tmp_ctx == NULL) {
+		return WERR_NOMEM;
+	}
 
-	return winreg_get_driver(mem_ctx, b,
-				 architecture,
-				 driver_name,
-				 driver_version,
-				 _info8);
+	result = winreg_printer_binding_handle(tmp_ctx, session_info, msg_ctx, &b);
+	if (!W_ERROR_IS_OK(result)) {
+		talloc_free(tmp_ctx);
+		return result;
+	}
+
+	result = winreg_get_driver(mem_ctx,
+				   b,
+				   architecture,
+				   driver_name,
+				   driver_version,
+				   _info8);
+
+	talloc_free(tmp_ctx);
+	return result;
 }
 
 WERROR winreg_get_driver_list_internal(TALLOC_CTX *mem_ctx,
-				       const struct auth_serversupplied_info *session_info,
+				       const struct auth_session_info *session_info,
 				       struct messaging_context *msg_ctx,
 				       const char *architecture,
 				       uint32_t version,
@@ -278,36 +429,62 @@ WERROR winreg_get_driver_list_internal(TALLOC_CTX *mem_ctx,
 {
 	WERROR result;
 	struct dcerpc_binding_handle *b;
+	TALLOC_CTX *tmp_ctx;
 
-	result = winreg_printer_binding_handle(mem_ctx, session_info, msg_ctx, &b);
-	W_ERROR_NOT_OK_RETURN(result);
+	tmp_ctx = talloc_stackframe();
+	if (tmp_ctx == NULL) {
+		return WERR_NOMEM;
+	}
 
-	return winreg_get_driver_list(mem_ctx, b,
-				      architecture,
-				      version,
-				      num_drivers,
-				      drivers_p);
+	result = winreg_printer_binding_handle(tmp_ctx, session_info, msg_ctx, &b);
+	if (!W_ERROR_IS_OK(result)) {
+		talloc_free(tmp_ctx);
+		return result;
+	}
+
+	result = winreg_get_driver_list(mem_ctx,
+					b,
+					architecture,
+					version,
+					num_drivers,
+					drivers_p);
+
+	talloc_free(tmp_ctx);
+	return result;
 }
 
 WERROR winreg_del_driver_internal(TALLOC_CTX *mem_ctx,
-				  const struct auth_serversupplied_info *session_info,
+				  const struct auth_session_info *session_info,
 				  struct messaging_context *msg_ctx,
 				  struct spoolss_DriverInfo8 *info8,
 				  uint32_t version)
 {
 	WERROR result;
 	struct dcerpc_binding_handle *b;
+	TALLOC_CTX *tmp_ctx;
 
-	result = winreg_printer_binding_handle(mem_ctx, session_info, msg_ctx, &b);
-	W_ERROR_NOT_OK_RETURN(result);
+	tmp_ctx = talloc_stackframe();
+	if (tmp_ctx == NULL) {
+		return WERR_NOMEM;
+	}
 
-	return winreg_del_driver(mem_ctx, b,
-				 info8,
-				 version);
+	result = winreg_printer_binding_handle(tmp_ctx, session_info, msg_ctx, &b);
+	if (!W_ERROR_IS_OK(result)) {
+		talloc_free(tmp_ctx);
+		return result;
+	}
+
+	result = winreg_del_driver(mem_ctx,
+				   b,
+				   info8,
+				   version);
+
+	talloc_free(tmp_ctx);
+	return result;
 }
 
 WERROR winreg_add_driver_internal(TALLOC_CTX *mem_ctx,
-				  const struct auth_serversupplied_info *session_info,
+				  const struct auth_session_info *session_info,
 				  struct messaging_context *msg_ctx,
 				  struct spoolss_AddDriverInfoCtr *r,
 				  const char **driver_name,
@@ -315,133 +492,237 @@ WERROR winreg_add_driver_internal(TALLOC_CTX *mem_ctx,
 {
 	WERROR result;
 	struct dcerpc_binding_handle *b;
+	TALLOC_CTX *tmp_ctx;
 
-	result = winreg_printer_binding_handle(mem_ctx, session_info, msg_ctx, &b);
-	W_ERROR_NOT_OK_RETURN(result);
+	tmp_ctx = talloc_stackframe();
+	if (tmp_ctx == NULL) {
+		return WERR_NOMEM;
+	}
 
-	return winreg_add_driver(mem_ctx, b,
-				 r,
-				 driver_name,
-				 driver_version);
+	result = winreg_printer_binding_handle(tmp_ctx, session_info, msg_ctx, &b);
+	if (!W_ERROR_IS_OK(result)) {
+		talloc_free(tmp_ctx);
+		return result;
+	}
+
+	result = winreg_add_driver(mem_ctx,
+				   b,
+				   r,
+				   driver_name,
+				   driver_version);
+
+	talloc_free(tmp_ctx);
+	return result;
 }
 
 WERROR winreg_get_printer_secdesc_internal(TALLOC_CTX *mem_ctx,
-					   const struct auth_serversupplied_info *session_info,
+					   const struct auth_session_info *session_info,
 					   struct messaging_context *msg_ctx,
 					   const char *sharename,
 					   struct spoolss_security_descriptor **psecdesc)
 {
 	WERROR result;
 	struct dcerpc_binding_handle *b;
+	TALLOC_CTX *tmp_ctx;
 
-	result = winreg_printer_binding_handle(mem_ctx, session_info, msg_ctx, &b);
-	W_ERROR_NOT_OK_RETURN(result);
+	tmp_ctx = talloc_stackframe();
+	if (tmp_ctx == NULL) {
+		return WERR_NOMEM;
+	}
 
-	return winreg_get_printer_secdesc(mem_ctx, b,
-					  sharename,
-					  psecdesc);
+	result = winreg_printer_binding_handle(tmp_ctx, session_info, msg_ctx, &b);
+	if (!W_ERROR_IS_OK(result)) {
+		talloc_free(tmp_ctx);
+		return result;
+	}
+
+	result = winreg_get_printer_secdesc(mem_ctx,
+					    b,
+					    sharename,
+					    psecdesc);
+
+	talloc_free(tmp_ctx);
+	return result;
 }
 
 WERROR winreg_set_printer_secdesc_internal(TALLOC_CTX *mem_ctx,
-					   const struct auth_serversupplied_info *session_info,
+					   const struct auth_session_info *session_info,
 					   struct messaging_context *msg_ctx,
 					   const char *sharename,
 					   const struct spoolss_security_descriptor *secdesc)
 {
 	WERROR result;
 	struct dcerpc_binding_handle *b;
+	TALLOC_CTX *tmp_ctx;
 
-	result = winreg_printer_binding_handle(mem_ctx, session_info, msg_ctx, &b);
-	W_ERROR_NOT_OK_RETURN(result);
+	tmp_ctx = talloc_stackframe();
+	if (tmp_ctx == NULL) {
+		return WERR_NOMEM;
+	}
 
-	return winreg_set_printer_secdesc(mem_ctx, b,
-					  sharename,
-					  secdesc);
+	result = winreg_printer_binding_handle(tmp_ctx, session_info, msg_ctx, &b);
+	if (!W_ERROR_IS_OK(result)) {
+		talloc_free(tmp_ctx);
+		return result;
+	}
+
+	result = winreg_set_printer_secdesc(mem_ctx,
+					    b,
+					    sharename,
+					    secdesc);
+
+	talloc_free(tmp_ctx);
+	return result;
 }
 
 WERROR winreg_printer_enumforms1_internal(TALLOC_CTX *mem_ctx,
-					  const struct auth_serversupplied_info *session_info,
+					  const struct auth_session_info *session_info,
 					  struct messaging_context *msg_ctx,
 					  uint32_t *pnum_info,
 					  union spoolss_FormInfo **pinfo)
 {
 	WERROR result;
 	struct dcerpc_binding_handle *b;
+	TALLOC_CTX *tmp_ctx;
 
-	result = winreg_printer_binding_handle(mem_ctx, session_info, msg_ctx, &b);
-	W_ERROR_NOT_OK_RETURN(result);
+	tmp_ctx = talloc_stackframe();
+	if (tmp_ctx == NULL) {
+		return WERR_NOMEM;
+	}
 
-	return winreg_printer_enumforms1(mem_ctx, b,
-					 pnum_info,
-					 pinfo);
+	result = winreg_printer_binding_handle(tmp_ctx, session_info, msg_ctx, &b);
+	if (!W_ERROR_IS_OK(result)) {
+		talloc_free(tmp_ctx);
+		return result;
+	}
+
+	result = winreg_printer_enumforms1(mem_ctx,
+					   b,
+					   pnum_info,
+					   pinfo);
+
+	talloc_free(tmp_ctx);
+	return result;
 }
 
 WERROR winreg_printer_getform1_internal(TALLOC_CTX *mem_ctx,
-					const struct auth_serversupplied_info *session_info,
+					const struct auth_session_info *session_info,
 					struct messaging_context *msg_ctx,
 					const char *form_name,
 					struct spoolss_FormInfo1 *r)
 {
 	WERROR result;
 	struct dcerpc_binding_handle *b;
+	TALLOC_CTX *tmp_ctx;
 
-	result = winreg_printer_binding_handle(mem_ctx, session_info, msg_ctx, &b);
-	W_ERROR_NOT_OK_RETURN(result);
+	tmp_ctx = talloc_stackframe();
+	if (tmp_ctx == NULL) {
+		return WERR_NOMEM;
+	}
 
-	return winreg_printer_getform1(mem_ctx, b,
-				       form_name,
-				       r);
+	result = winreg_printer_binding_handle(tmp_ctx, session_info, msg_ctx, &b);
+	if (!W_ERROR_IS_OK(result)) {
+		talloc_free(tmp_ctx);
+		return result;
+	}
+
+	result = winreg_printer_getform1(mem_ctx,
+					 b,
+					 form_name,
+					 r);
+
+	talloc_free(tmp_ctx);
+	return result;
 }
 
 WERROR winreg_printer_addform1_internal(TALLOC_CTX *mem_ctx,
-					const struct auth_serversupplied_info *session_info,
+					const struct auth_session_info *session_info,
 					struct messaging_context *msg_ctx,
 					struct spoolss_AddFormInfo1 *form)
 {
 	WERROR result;
 	struct dcerpc_binding_handle *b;
+	TALLOC_CTX *tmp_ctx;
 
-	result = winreg_printer_binding_handle(mem_ctx, session_info, msg_ctx, &b);
-	W_ERROR_NOT_OK_RETURN(result);
+	tmp_ctx = talloc_stackframe();
+	if (tmp_ctx == NULL) {
+		return WERR_NOMEM;
+	}
 
-	return winreg_printer_addform1(mem_ctx, b,
-				       form);
+	result = winreg_printer_binding_handle(tmp_ctx, session_info, msg_ctx, &b);
+	if (!W_ERROR_IS_OK(result)) {
+		talloc_free(tmp_ctx);
+		return result;
+	}
+
+	result = winreg_printer_addform1(mem_ctx,
+					 b,
+					 form);
+
+	talloc_free(tmp_ctx);
+	return result;
 }
 
 WERROR winreg_printer_setform1_internal(TALLOC_CTX *mem_ctx,
-					const struct auth_serversupplied_info *session_info,
+					const struct auth_session_info *session_info,
 					struct messaging_context *msg_ctx,
 					const char *form_name,
 					struct spoolss_AddFormInfo1 *form)
 {
 	WERROR result;
 	struct dcerpc_binding_handle *b;
+	TALLOC_CTX *tmp_ctx;
 
-	result = winreg_printer_binding_handle(mem_ctx, session_info, msg_ctx, &b);
-	W_ERROR_NOT_OK_RETURN(result);
+	tmp_ctx = talloc_stackframe();
+	if (tmp_ctx == NULL) {
+		return WERR_NOMEM;
+	}
 
-	return winreg_printer_setform1(mem_ctx, b,
-				       form_name,
-				       form);
+	result = winreg_printer_binding_handle(tmp_ctx, session_info, msg_ctx, &b);
+	if (!W_ERROR_IS_OK(result)) {
+		talloc_free(tmp_ctx);
+		return result;
+	}
+
+	result = winreg_printer_setform1(mem_ctx,
+					 b,
+					 form_name,
+					 form);
+
+	talloc_free(tmp_ctx);
+	return result;
 }
 
 WERROR winreg_printer_deleteform1_internal(TALLOC_CTX *mem_ctx,
-					   const struct auth_serversupplied_info *session_info,
+					   const struct auth_session_info *session_info,
 					   struct messaging_context *msg_ctx,
 					   const char *form_name)
 {
 	WERROR result;
 	struct dcerpc_binding_handle *b;
+	TALLOC_CTX *tmp_ctx;
 
-	result = winreg_printer_binding_handle(mem_ctx, session_info, msg_ctx, &b);
-	W_ERROR_NOT_OK_RETURN(result);
+	tmp_ctx = talloc_stackframe();
+	if (tmp_ctx == NULL) {
+		return WERR_NOMEM;
+	}
 
-	return winreg_printer_deleteform1(mem_ctx, b,
-					  form_name);
+	result = winreg_printer_binding_handle(tmp_ctx, session_info, msg_ctx, &b);
+	if (!W_ERROR_IS_OK(result)) {
+		talloc_free(tmp_ctx);
+		return result;
+	}
+
+	result = winreg_printer_deleteform1(mem_ctx,
+					    b,
+					    form_name);
+
+	talloc_free(tmp_ctx);
+	return result;
 }
 
 WERROR winreg_enum_printer_key_internal(TALLOC_CTX *mem_ctx,
-					const struct auth_serversupplied_info *session_info,
+					const struct auth_session_info *session_info,
 					struct messaging_context *msg_ctx,
 					const char *printer,
 					const char *key,
@@ -450,13 +731,26 @@ WERROR winreg_enum_printer_key_internal(TALLOC_CTX *mem_ctx,
 {
 	WERROR result;
 	struct dcerpc_binding_handle *b;
+	TALLOC_CTX *tmp_ctx;
 
-	result = winreg_printer_binding_handle(mem_ctx, session_info, msg_ctx, &b);
-	W_ERROR_NOT_OK_RETURN(result);
+	tmp_ctx = talloc_stackframe();
+	if (tmp_ctx == NULL) {
+		return WERR_NOMEM;
+	}
 
-	return winreg_enum_printer_key(mem_ctx, b,
-				       printer,
-				       key,
-				       pnum_subkeys,
-				       psubkeys);
+	result = winreg_printer_binding_handle(tmp_ctx, session_info, msg_ctx, &b);
+	if (!W_ERROR_IS_OK(result)) {
+		talloc_free(tmp_ctx);
+		return result;
+	}
+
+	result = winreg_enum_printer_key(mem_ctx,
+					 b,
+					 printer,
+					 key,
+					 pnum_subkeys,
+					 psubkeys);
+
+	talloc_free(tmp_ctx);
+	return result;
 }

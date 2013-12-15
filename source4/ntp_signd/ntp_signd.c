@@ -41,6 +41,8 @@
 #include "system/network.h"
 #include "system/passwd.h"
 
+NTSTATUS server_service_ntp_signd_init(void);
+
 /*
   top level context structure for the ntp_signd server
 */
@@ -107,7 +109,7 @@ static NTSTATUS ntp_signd_process(struct ntp_signd_connection *ntp_signd_conn,
 	enum ndr_err_code ndr_err;
 	struct ldb_result *res;
 	const char *attrs[] = { "unicodePwd", "userAccountControl", "cn", NULL };
-	MD5_CTX ctx;
+	struct MD5Context ctx;
 	struct samr_Password *nt_hash;
 	uint32_t user_account_control;
 	int ret;
@@ -178,8 +180,12 @@ static NTSTATUS ntp_signd_process(struct ntp_signd_connection *ntp_signd_conn,
 	}
 
 	if (res->count == 0) {
-		DEBUG(5, ("Failed to find SID %s in SAM for NTP signing\n",
+		DEBUG(2, ("Failed to find SID %s in SAM for NTP signing\n",
 			  dom_sid_string(mem_ctx, sid)));
+		return signing_failure(ntp_signd_conn,
+				       mem_ctx,
+				       output,
+				       sign_request.packet_id);
 	} else if (res->count != 1) {
 		DEBUG(1, ("Found SID %s %u times in SAM for NTP signing\n",
 			  dom_sid_string(mem_ctx, sid), res->count));
@@ -492,7 +498,7 @@ static void ntp_signd_task_init(struct task_server *task)
 
 	const char *address;
 
-	if (!directory_create_or_exist(lpcfg_ntp_signd_socket_directory(task->lp_ctx), geteuid(), 0755)) {
+	if (!directory_create_or_exist(lpcfg_ntp_signd_socket_directory(task->lp_ctx), geteuid(), 0750)) {
 		char *error = talloc_asprintf(task, "Cannot create NTP signd pipe directory: %s", 
 					      lpcfg_ntp_signd_socket_directory(task->lp_ctx));
 		task_server_terminate(task,

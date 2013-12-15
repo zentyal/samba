@@ -7,7 +7,7 @@
 DIRNAME=$(dirname $0)
 TOPDIR=${DIRNAME}/../..
 SRCDIR=${TOPDIR}/source3
-VERSION_H=${SRCDIR}/include/version.h
+VERSION_H=${SRCDIR}/include/autoconf/version.h
 SPECFILE=${DIRNAME}/samba.spec
 
 ##
@@ -45,8 +45,19 @@ else
 	echo "GITHASH: ${GITHASH}"
 fi
 
-sed -e s/PVERSION/${VERSION}/g \
-	-e s/GITHASH/${GITHASH}/g \
+if test "x$BUILD_GPFS" = "xno"; then
+	echo "GPFS: not build by default"
+	PGPFS_DEFAULT="%{?_with_gpfs: 1} %{?!_with_gpfs: 0}"
+else
+	echo "GPFS: build by default"
+	PGPFS_DEFAULT="%{?_with_no_gpfs: 0} %{?!_with_no_gpfs: 1}"
+fi
+
+sed \
+	-e "s/PVERSION/${VERSION}/g" \
+	-e "s/GITHASH/${GITHASH}/g" \
+	-e "s/PGPFS_NO_DEFAULT/${PGPFS_NO_DEFAULT}/g" \
+	-e "s/PGPFS_DEFAULT/${PGPFS_DEFAULT}/g" \
 	< ${SPECFILE}.tmpl \
 	> ${SPECFILE}
 

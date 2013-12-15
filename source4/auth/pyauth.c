@@ -30,6 +30,9 @@
 #include "auth/credentials/pycredentials.h"
 #include <tevent.h>
 #include "librpc/rpc/pyrpc_util.h"
+#include "lib/events/events.h"
+
+void initauth(void);
 
 staticforward PyTypeObject PyAuthContext;
 
@@ -44,72 +47,9 @@ typedef intargfunc ssizeargfunc;
 #define Py_RETURN_NONE return Py_INCREF(Py_None), Py_None
 #endif
 
-static PyObject *py_auth_session_get_security_token(PyObject *self, void *closure)
+static PyObject *PyAuthSession_FromSession(struct auth_session_info *session)
 {
-	struct auth_session_info *session = py_talloc_get_type(self, struct auth_session_info);
-	PyObject *py_security_token;
-	py_security_token = py_return_ndr_struct("samba.dcerpc.security", "token",
-						 session->security_token, session->security_token);
-	return py_security_token;
-}
-
-static int py_auth_session_set_security_token(PyObject *self, PyObject *value, void *closure)
-{
-	struct auth_session_info *session = py_talloc_get_type(self, struct auth_session_info);
-	session->security_token = talloc_reference(session, py_talloc_get_ptr(value));
-	return 0;
-}
-
-static PyObject *py_auth_session_get_session_key(PyObject *self, void *closure)
-{
-	struct auth_session_info *session = py_talloc_get_type(self, struct auth_session_info);
-	return PyString_FromStringAndSize((char *)session->session_key.data, session->session_key.length);
-}
-
-static int py_auth_session_set_session_key(PyObject *self, PyObject *value, void *closure)
-{
-	DATA_BLOB val;
-	struct auth_session_info *session = py_talloc_get_type(self, struct auth_session_info);
-	val.data = (uint8_t *)PyString_AsString(value);
-	val.length = PyString_Size(value);
-
-	session->session_key = data_blob_talloc(session, val.data, val.length);
-	return 0;
-}
-
-static PyObject *py_auth_session_get_credentials(PyObject *self, void *closure)
-{
-	struct auth_session_info *session = py_talloc_get_type(self, struct auth_session_info);
-	PyObject *py_credentials;
-	/* This is evil, as the credentials are not IDL structures */
-	py_credentials = py_return_ndr_struct("samba.credentials", "Credentials", session->credentials, session->credentials);
-	return py_credentials;
-}
-
-static int py_auth_session_set_credentials(PyObject *self, PyObject *value, void *closure)
-{
-	struct auth_session_info *session = py_talloc_get_type(self, struct auth_session_info);
-	session->credentials = talloc_reference(session, PyCredentials_AsCliCredentials(value));
-	return 0;
-}
-
-static PyGetSetDef py_auth_session_getset[] = {
-	{ discard_const_p(char, "security_token"), (getter)py_auth_session_get_security_token, (setter)py_auth_session_set_security_token, NULL },
-	{ discard_const_p(char, "session_key"), (getter)py_auth_session_get_session_key, (setter)py_auth_session_set_session_key, NULL },
-	{ discard_const_p(char, "credentials"), (getter)py_auth_session_get_credentials, (setter)py_auth_session_set_credentials, NULL },
-	{ NULL }
-};
-
-static PyTypeObject PyAuthSession = {
-	.tp_name = "AuthSession",
-	.tp_basicsize = sizeof(py_talloc_Object),
-	.tp_flags = Py_TPFLAGS_DEFAULT,
-	.tp_getset = py_auth_session_getset,
-};
-
-PyObject *PyAuthSession_FromSession(struct auth_session_info *session)
-{
-	return py_talloc_reference(&PyAuthSession, session);
+	return py_return_ndr_struct("samba.dcerpc.auth", "session_info", session, session);
 }
 
 static PyObject *py_system_session(PyObject *module, PyObject *args)
@@ -207,12 +147,12 @@ static PyObject *py_user_session(PyObject *module, PyObject *args, PyObject *kwa
 		return NULL;
 	}
 
-	ldb_ctx = PyLdb_AsLdbContext(py_ldb);
+	ldb_ctx = pyldb_Ldb_AsLdbContext(py_ldb);
 
 	if (py_dn == Py_None) {
 		user_dn = NULL;
 	} else {
-		if (!PyObject_AsDn(ldb_ctx, py_dn, ldb_ctx, &user_dn)) {
+		if (!pyldb_Object_AsDn(ldb_ctx, py_dn, ldb_ctx, &user_dn)) {
 			talloc_free(mem_ctx);
 			return NULL;
 		}
@@ -266,24 +206,24 @@ static const char **PyList_AsStringList(TALLOC_CTX *mem_ctx, PyObject *list,
 	return ret;
 }
 
-static PyObject *PyAuthContext_FromContext(struct auth_context *auth_context)
+static PyObject *PyAuthContext_FromContext(struct auth4_context *auth_context)
 {
-	return py_talloc_reference(&PyAuthContext, auth_context);
+	return pytalloc_reference(&PyAuthContext, auth_context);
 }
 
 static PyObject *py_auth_context_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 {
 	PyObject *py_lp_ctx = Py_None;
 	PyObject *py_ldb = Py_None;
-	PyObject *py_messaging_ctx = Py_None;
+	PyObject *py_imessaging_ctx = Py_None;
 	PyObject *py_auth_context = Py_None;
 	PyObject *py_methods = Py_None;
 	TALLOC_CTX *mem_ctx;
-	struct auth_context *auth_context;
-	struct messaging_context *messaging_context = NULL;
+	struct auth4_context *auth_context;
+	struct imessaging_context *imessaging_context = NULL;
 	struct loadparm_context *lp_ctx;
 	struct tevent_context *ev;
-	struct ldb_context *ldb;
+	struct ldb_context *ldb = NULL;
 	NTSTATUS nt_status;
 	const char **methods;
 
@@ -291,7 +231,7 @@ static PyObject *py_auth_context_new(PyTypeObject *type, PyObject *args, PyObjec
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OOOO",
 					 discard_const_p(char *, kwnames),
-					 &py_lp_ctx, &py_messaging_ctx, &py_ldb, &py_methods))
+					 &py_lp_ctx, &py_imessaging_ctx, &py_ldb, &py_methods))
 		return NULL;
 
 	mem_ctx = talloc_new(NULL);
@@ -301,23 +241,27 @@ static PyObject *py_auth_context_new(PyTypeObject *type, PyObject *args, PyObjec
 	}
 
 	if (py_ldb != Py_None) {
-		ldb = PyLdb_AsLdbContext(py_ldb);
+		ldb = pyldb_Ldb_AsLdbContext(py_ldb);
 	}
 
 	lp_ctx = lpcfg_from_py_object(mem_ctx, py_lp_ctx);
+	if (lp_ctx == NULL) {
+		PyErr_NoMemory();
+		return NULL;
+	}
 
-	ev = tevent_context_init(mem_ctx);
+	ev = s4_event_context_init(mem_ctx);
 	if (ev == NULL) {
 		PyErr_NoMemory();
 		return NULL;
 	}
 
-	if (py_messaging_ctx != Py_None) {
-		messaging_context = py_talloc_get_type(py_messaging_ctx, struct messaging_context);
+	if (py_imessaging_ctx != Py_None) {
+		imessaging_context = pytalloc_get_type(py_imessaging_ctx, struct imessaging_context);
 	}
 
 	if (py_methods == Py_None && py_ldb == Py_None) {
-		nt_status = auth_context_create(mem_ctx, ev, messaging_context, lp_ctx, &auth_context);
+		nt_status = auth_context_create(mem_ctx, ev, imessaging_context, lp_ctx, &auth_context);
 	} else {
 		if (py_methods != Py_None) {
 			methods = PyList_AsStringList(mem_ctx, py_methods, "methods");
@@ -329,7 +273,7 @@ static PyObject *py_auth_context_new(PyTypeObject *type, PyObject *args, PyObjec
 			methods = auth_methods_from_lp(mem_ctx, lp_ctx);
 		}
 		nt_status = auth_context_create_methods(mem_ctx, methods, ev, 
-							messaging_context, lp_ctx, 
+							imessaging_context, lp_ctx,
 							ldb, &auth_context);
 	}
 
@@ -359,10 +303,9 @@ static PyObject *py_auth_context_new(PyTypeObject *type, PyObject *args, PyObjec
 
 static PyTypeObject PyAuthContext = {
 	.tp_name = "AuthContext",
-	.tp_basicsize = sizeof(py_talloc_Object),
+	.tp_basicsize = sizeof(pytalloc_Object),
 	.tp_flags = Py_TPFLAGS_DEFAULT,
 	.tp_new = py_auth_context_new,
-	.tp_basicsize = sizeof(py_talloc_Object),
 };
 
 static PyMethodDef py_auth_methods[] = {
@@ -376,14 +319,7 @@ void initauth(void)
 {
 	PyObject *m;
 
-	PyAuthSession.tp_base = PyTalloc_GetObjectType();
-	if (PyAuthSession.tp_base == NULL)
-		return;
-
-	if (PyType_Ready(&PyAuthSession) < 0)
-		return;
-
-	PyAuthContext.tp_base = PyTalloc_GetObjectType();
+	PyAuthContext.tp_base = pytalloc_GetObjectType();
 	if (PyAuthContext.tp_base == NULL)
 		return;
 
@@ -395,8 +331,6 @@ void initauth(void)
 	if (m == NULL)
 		return;
 
-	Py_INCREF(&PyAuthSession);
-	PyModule_AddObject(m, "AuthSession", (PyObject *)&PyAuthSession);
 	Py_INCREF(&PyAuthContext);
 	PyModule_AddObject(m, "AuthContext", (PyObject *)&PyAuthContext);
 

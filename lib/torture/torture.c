@@ -88,7 +88,7 @@ _PUBLIC_ NTSTATUS torture_temp_dir(struct torture_context *tctx,
 	NT_STATUS_HAVE_NO_MEMORY(*tempdir);
 
 	if (mkdtemp(*tempdir) == NULL) {
-		return map_nt_error_from_unix(errno);
+		return map_nt_error_from_unix_common(errno);
 	}
 
 	return NT_STATUS_OK;
@@ -154,7 +154,7 @@ _PUBLIC_ NTSTATUS torture_deltree_outputdir(struct torture_context *tctx)
 
 	if (local_deltree(tctx->outputdir) == -1) {
 		if (errno != 0) {
-			return map_nt_error_from_unix(errno);
+			return map_nt_error_from_unix_common(errno);
 		}
 		return NT_STATUS_UNSUCCESSFUL;
 	}
@@ -443,7 +443,8 @@ static bool internal_torture_run_test(struct torture_context *context,
 
 	    if (!success && context->last_result == TORTURE_OK) {
 		    if (context->last_reason == NULL)
-			    context->last_reason = talloc_strdup(context, "Unknown error/failure");
+			    context->last_reason = talloc_strdup(context,
+					"Unknown error/failure. Missing torture_fail() or torture_assert_*() call?");
 		    context->last_result = TORTURE_ERROR;
 	    }
 	}

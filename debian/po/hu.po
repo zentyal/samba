@@ -6,8 +6,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2013-05-13 11:53-0700\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2013-10-22 20:32+0200\n"
 "PO-Revision-Date: 2007-03-13 09:20+0100\n"
 "Last-Translator: SZERVÁC Attila <sas@321.hu>\n"
 "Language-Team: Hungarian <hu@li.org>\n"
@@ -17,6 +17,117 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "X-Poedit-Language: Hungarian\n"
 "X-Poedit-Country: HUNGARY\n"
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid "Upgrade from Samba 3?"
+msgstr ""
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid ""
+"It is possible to migrate the existing configuration files from Samba 3 to "
+"Samba 4. This is likely to fail for complex setups, but should provide a "
+"good starting point for most existing installations."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid "Server role"
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Domain controllers manage NT4-style or Active Directory domains and provide "
+"services such as identity management and domain logons. Each domain needs to "
+"have a at least one domain controller."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Member servers can be part of a NT4-style or Active Directory domain but do "
+"not provide any domain services. Workstations and file or print servers are "
+"usually regular domain members."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"A standalone server can not be used in a domain and only supports file "
+"sharing and Windows for Workgroups-style logins."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"If no server role is specified, the Samba server will not be provisioned, so "
+"this can be done manually by the user."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Realm name:"
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid ""
+"Please specify the Kerberos realm for the domain that this domain controller "
+"controls."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Usually this is the a capitalized version of your DNS hostname."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "New password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "If this field is left blank, a random password will be generated."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "A password can be set later by running, as root:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:5001
+msgid "Repeat password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "Password input error"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr ""
 
 #. Type: title
 #. Description
@@ -99,47 +210,134 @@ msgstr "Munkacsoport/Tartomány neve:"
 #. Type: string
 #. Description
 #: ../samba-common.templates:4001
-#, fuzzy
 msgid ""
 "Please specify the workgroup for this system.  This setting controls which "
 "workgroup the system will appear in when used as a server, the default "
 "workgroup to be used when browsing with various frontends, and the domain "
 "name used with the \"security=domain\" setting."
 msgstr ""
-"Add meg e kiszolgáló által megjelenítendő munkacsoport, mikor azt lekérdezik "
-"a kliensek. Vedd figyelembe, hogy e paraméter meghatározza a tartomány nevét "
-"is, ha engedélyezve van a security=domain beállítás."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Használsz kódolt jelszavakat?"
+#~ msgid "Use password encryption?"
+#~ msgstr "Használsz kódolt jelszavakat?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Az újabb Windows kliensek kódolt jelszavakkal kommunikálnak az SMB "
-"kiszolgálókkal. Ha sima szöveges jelszavakat kívánsz alkalmazni, meg kell "
-"változtatni egy beállítást a kliensek regisztrációjában."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Az újabb Windows kliensek kódolt jelszavakkal kommunikálnak az SMB "
+#~ "kiszolgálókkal. Ha sima szöveges jelszavakat kívánsz alkalmazni, meg kell "
+#~ "változtatni egy beállítást a kliensek regisztrációjában."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
 #, fuzzy
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"E lehetőség bekapcsolása erősen ajánlott. Ha ezt teszed, győződj meg róla "
-"hogy érvényes /etc/samba/smbpasswd fájllal rendelkezel és hogy beállítottad "
-"a jelszavakat minden felhasználóhoz a smbpasswd paranccsal."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "E lehetőség bekapcsolása erősen ajánlott. Ha ezt teszed, győződj meg róla "
+#~ "hogy érvényes /etc/samba/smbpasswd fájllal rendelkezel és hogy "
+#~ "beállítottad a jelszavakat minden felhasználóhoz a smbpasswd paranccsal."
 
+#~ msgid "daemons"
+#~ msgstr "démonok"
+
+#~ msgid "inetd"
+#~ msgstr "inetd"
+
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Hogyan induljon a Samba?"
+
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Az smbd Samba démon futhat normál démonként vagy az inetd-n keresztül. A "
+#~ "démonként való futtatása a javasolt beállítás."
+
+#, fuzzy
+#~| msgid ""
+#~| "Please specify the workgroup you want this server to appear to be in "
+#~| "when queried by clients. Note that this parameter also controls the "
+#~| "domain name used with the security=domain setting."
+#~ msgid ""
+#~ "Please specify the domain you want this server to appear to be in when "
+#~ "queried by clients."
+#~ msgstr ""
+#~ "Add meg e kiszolgáló által megjelenítendő munkacsoport, mikor azt "
+#~ "lekérdezik a kliensek. Vedd figyelembe, hogy e paraméter meghatározza a "
+#~ "tartomány nevét is, ha engedélyezve van a security=domain beállítás."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "Létrehozod a samba jelszóadatbázist (/var/lib/samba/passdb.tdb)?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "Az újabb Windows kliensekkel való kompatibilitás érdekében a Samba-t "
+#~ "kódolt jelszavak használatára kell beállítani. Ez megköveteli a "
+#~ "jelszavak /etc/passwd fájltól különálló tárolását. Ez a fájl "
+#~ "automatikusan létrejön, de a jelszavakat kézzel kell felvenni az "
+#~ "smbpasswd parancs futtatásával és a továbbiakban kezelni."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "Ha nem hozod létre, újra be kell állítani a Samba-t (és valószínűleg a "
+#~ "klienseket is) a sima szöveges jelszavakhoz."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
+#~ "package for more details."
+#~ msgstr ""
+#~ "Lásd a samba-doc csomag /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html "
+#~ "odalát a részletekért."
+
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr "A passdb hátterek láncolása nem támogatott"
+
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "A 3.0.23 verziótól a samba nem támogatja több háttér láncolását a "
+#~ "\"passdb backend\" paraméterben. Ezzel szemben úgy fest, az smb.conf "
+#~ "fájlod egy hátterek listájából álló passdb háttér paramétert tartalmaz. A "
+#~ "samba új verziója ennek javításával fog működni."
+
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr ""
+#~ "Áthelyezed a /etc/samba/smbpasswd tartalmát a /var/lib/samba/passdb.tdb-"
+#~ "be?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "A Samba 3.0 sokkal átfogóbb SAM adatbázis felületet ad, mellyel elavul a /"
+#~ "etc/samba/smbpasswd fájl."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "Erősítsd meg a létező smbpasswd fájl áthelyezését a /var/lib/samba/passdb."
+#~ "tdb fájlba. Ha másik pdb hátteret használnál (például LDAP), válaszolj "
+#~ "nemmel."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Lásd a samba-doc csomag /usr/share/doc/samba-doc/htmldocs/Samba3-"
+#~ "Developers-Guide/pwencrypt.html odalát a részletekért."

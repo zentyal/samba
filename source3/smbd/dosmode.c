@@ -23,6 +23,7 @@
 #include "librpc/gen_ndr/ndr_xattr.h"
 #include "../libcli/security/security.h"
 #include "smbd/smbd.h"
+#include "lib/param/loadparm.h"
 
 static uint32_t filter_mode_by_protocol(uint32_t mode)
 {
@@ -170,6 +171,12 @@ static uint32 dos_mode_from_sbuf(connection_struct *conn,
 	int result = 0;
 	enum mapreadonly_options ro_opts = (enum mapreadonly_options)lp_map_readonly(SNUM(conn));
 
+#if defined(UF_IMMUTABLE) && defined(SF_IMMUTABLE)
+	/* if we can find out if a file is immutable we should report it r/o */
+	if (smb_fname->st.st_ex_flags & (UF_IMMUTABLE | SF_IMMUTABLE)) {
+		result |= FILE_ATTRIBUTE_READONLY;
+	}
+#endif
 	if (ro_opts == MAP_READONLY_YES) {
 		/* Original Samba method - map inverse of user "w" bit. */
 		if ((smb_fname->st.st_ex_mode & S_IWUSR) == 0) {
@@ -411,6 +418,10 @@ static bool set_ea_dos_attribute(connection_struct *conn,
 		/* Check if we have write access. */
 		if(!CAN_WRITE(conn) || !lp_dos_filemode(SNUM(conn)))
 			return false;
+
+		if (!can_write_to_file(conn, smb_fname)) {
+			return false;
+		}
 
 		/*
 		 * We need to open the file with write access whilst
@@ -704,6 +715,12 @@ int file_set_dosmode(connection_struct *conn, struct smb_filename *smb_fname,
 	int ret = -1, lret = -1;
 	uint32_t old_mode;
 	struct timespec new_create_timespec;
+	files_struct *fsp = NULL;
+
+	if (!CAN_WRITE(conn)) {
+		errno = EROFS;
+		return -1;
+	}
 
 	/* We only allow READONLY|HIDDEN|SYSTEM|DIRECTORY|ARCHIVE here. */
 	dosmode &= (SAMBA_ATTRIBUTES_MASK | FILE_ATTRIBUTE_OFFLINE);
@@ -846,29 +863,30 @@ int file_set_dosmode(connection_struct *conn, struct smb_filename *smb_fname,
 		bits on a file. Just like file_ntimes below.
 	*/
 
-	/* Check if we have write access. */
-	if (CAN_WRITE(conn)) {
-		/*
-		 * We need to open the file with write access whilst
-		 * still in our current user context. This ensures we
-		 * are not violating security in doing the fchmod.
-		 */
-		files_struct *fsp;
-		if (!NT_STATUS_IS_OK(open_file_fchmod(conn, smb_fname,
-				     &fsp)))
-			return -1;
-		become_root();
-		ret = SMB_VFS_FCHMOD(fsp, unixmode);
-		unbecome_root();
-		close_file(NULL, fsp, NORMAL_CLOSE);
-		if (!newfile) {
-			notify_fname(conn, NOTIFY_ACTION_MODIFIED,
-				     FILE_NOTIFY_CHANGE_ATTRIBUTES,
-				     smb_fname->base_name);
-		}
-		if (ret == 0) {
-			smb_fname->st.st_ex_mode = unixmode;
-		}
+	if (!can_write_to_file(conn, smb_fname)) {
+		errno = EACCES;
+		return -1;
+	}
+
+	/*
+	 * We need to open the file with write access whilst
+	 * still in our current user context. This ensures we
+	 * are not violating security in doing the fchmod.
+	 */
+	if (!NT_STATUS_IS_OK(open_file_fchmod(conn, smb_fname,
+			     &fsp)))
+		return -1;
+	become_root();
+	ret = SMB_VFS_FCHMOD(fsp, unixmode);
+	unbecome_root();
+	close_file(NULL, fsp, NORMAL_CLOSE);
+	if (!newfile) {
+		notify_fname(conn, NOTIFY_ACTION_MODIFIED,
+			     FILE_NOTIFY_CHANGE_ATTRIBUTES,
+			     smb_fname->base_name);
+	}
+	if (ret == 0) {
+		smb_fname->st.st_ex_mode = unixmode;
 	}
 
 	return( ret );
@@ -888,7 +906,7 @@ NTSTATUS file_set_sparse(connection_struct *conn,
 			"on readonly share[%s]\n",
 			smb_fname_str_dbg(fsp->fsp_name),
 			sparse,
-			lp_servicename(SNUM(conn))));
+			lp_servicename(talloc_tos(), SNUM(conn))));
 		return NT_STATUS_MEDIA_WRITE_PROTECTED;
 	}
 

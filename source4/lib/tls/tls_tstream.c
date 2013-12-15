@@ -19,13 +19,14 @@
 
 #include "includes.h"
 #include "system/network.h"
+#include "system/filesys.h"
 #include "../util/tevent_unix.h"
 #include "../lib/tsocket/tsocket.h"
 #include "../lib/tsocket/tsocket_internal.h"
 #include "lib/tls/tls.h"
 
 #if ENABLE_GNUTLS
-#include "gnutls/gnutls.h"
+#include <gnutls/gnutls.h>
 
 #define DH_BITS 1024
 
@@ -1029,7 +1030,9 @@ struct tevent_req *_tstream_tls_connect_send(TALLOC_CTX *mem_ctx,
 					   (gnutls_pull_func)tstream_tls_pull_function);
 	gnutls_transport_set_push_function(tlss->tls_session,
 					   (gnutls_push_func)tstream_tls_push_function);
+#if GNUTLS_VERSION_MAJOR < 3
 	gnutls_transport_set_lowat(tlss->tls_session, 0);
+#endif
 
 	tlss->handshake.req = req;
 	tstream_tls_retry_handshake(state->tls_stream);
@@ -1081,6 +1084,7 @@ NTSTATUS tstream_tls_params_server(TALLOC_CTX *mem_ctx,
 	struct tstream_tls_params *tlsp;
 #if ENABLE_GNUTLS
 	int ret;
+	struct stat st;
 
 	if (!enabled || key_file == NULL || *key_file == 0) {
 		tlsp = talloc_zero(mem_ctx, struct tstream_tls_params);
@@ -1106,6 +1110,20 @@ NTSTATUS tstream_tls_params_server(TALLOC_CTX *mem_ctx,
 	if (!file_exist(ca_file)) {
 		tls_cert_generate(tlsp, dns_host_name,
 				  key_file, cert_file, ca_file);
+	}
+
+	if (file_exist(key_file) &&
+	    !file_check_permissions(key_file, geteuid(), 0600, &st))
+	{
+		DEBUG(0, ("Invalid permissions on TLS private key file '%s':\n"
+			  "owner uid %u should be %u, mode 0%o should be 0%o\n"
+			  "This is known as CVE-2013-4476.\n"
+			  "Removing all tls .pem files will cause an "
+			  "auto-regeneration with the correct permissions.\n",
+			  key_file,
+			  (unsigned int)st.st_uid, geteuid(),
+			  (unsigned int)(st.st_mode & 0777), 0600));
+		return NT_STATUS_CANT_ACCESS_DOMAIN_INFO;
 	}
 
 	ret = gnutls_certificate_allocate_credentials(&tlsp->x509_cred);
@@ -1278,7 +1296,9 @@ struct tevent_req *_tstream_tls_accept_send(TALLOC_CTX *mem_ctx,
 					   (gnutls_pull_func)tstream_tls_pull_function);
 	gnutls_transport_set_push_function(tlss->tls_session,
 					   (gnutls_push_func)tstream_tls_push_function);
+#if GNUTLS_VERSION_MAJOR < 3
 	gnutls_transport_set_lowat(tlss->tls_session, 0);
+#endif
 
 	tlss->handshake.req = req;
 	tstream_tls_retry_handshake(state->tls_stream);

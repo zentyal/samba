@@ -274,7 +274,7 @@ static NTSTATUS libnet_SetPassword_samr_handle_26(struct libnet_context *ctx, TA
 	DATA_BLOB session_key;
 	DATA_BLOB confounded_session_key = data_blob_talloc(mem_ctx, NULL, 16);
 	uint8_t confounder[16];	
-	MD5_CTX md5;
+	struct MD5Context md5;
 
 	if (r->samr_handle.in.info21) {
 		return NT_STATUS_INVALID_PARAMETER_MIX;
@@ -330,7 +330,7 @@ static NTSTATUS libnet_SetPassword_samr_handle_25(struct libnet_context *ctx, TA
 	DATA_BLOB session_key;
 	DATA_BLOB confounded_session_key = data_blob_talloc(mem_ctx, NULL, 16);
 	uint8_t confounder[16];	
-	MD5_CTX md5;
+	struct MD5Context md5;
 
 	if (!r->samr_handle.in.info21) {
 		return NT_STATUS_INVALID_PARAMETER_MIX;
@@ -627,8 +627,16 @@ static NTSTATUS libnet_SetPassword_samr(struct libnet_context *ctx, TALLOC_CTX *
 		r->samr.out.error_string = talloc_asprintf(mem_ctx,
 						"samr_LookupNames for [%s] returns %d RIDs",
 						r->samr.in.account_name, ln.out.rids->count);
-		status = NT_STATUS_INVALID_PARAMETER;
+		status = NT_STATUS_INVALID_NETWORK_RESPONSE;
 		goto disconnect;	
+	}
+
+	if (ln.out.types->count != 1) {
+		r->samr.out.error_string = talloc_asprintf(mem_ctx,
+						"samr_LookupNames for [%s] returns %d RID TYPEs",
+						r->samr.in.account_name, ln.out.types->count);
+		status = NT_STATUS_INVALID_NETWORK_RESPONSE;
+		goto disconnect;
 	}
 
 	/* prepare samr_OpenUser */

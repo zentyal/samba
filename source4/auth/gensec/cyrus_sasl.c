@@ -24,7 +24,10 @@
 #include "auth/credentials/credentials.h"
 #include "auth/gensec/gensec.h"
 #include "auth/gensec/gensec_proto.h"
+#include "auth/gensec/gensec_toplevel_proto.h"
 #include <sasl/sasl.h>
+
+NTSTATUS gensec_sasl_init(void);
 
 struct gensec_sasl_state {
 	sasl_conn_t *conn;
@@ -97,12 +100,12 @@ static int gensec_sasl_get_password(sasl_conn_t *conn, void *context, int id,
 		*psecret = NULL;
 		return SASL_OK;
 	}
-	secret = talloc_size(gensec_security, sizeof(sasl_secret_t)+strlen(password));
+	secret = talloc_size(gensec_security, sizeof(sasl_secret_t)+strlen(password)+1);
 	if (!secret) {
 		return SASL_NOMEM;
 	}
 	secret->len = strlen(password);
-	safe_strcpy((char*)secret->data, password, secret->len+1);
+	strlcpy((char*)secret->data, password, secret->len+1);
 	*psecret = secret;
 	return SASL_OK;
 }
@@ -202,6 +205,7 @@ static NTSTATUS gensec_sasl_client_start(struct gensec_security *gensec_security
 
 static NTSTATUS gensec_sasl_update(struct gensec_security *gensec_security, 
 				   TALLOC_CTX *out_mem_ctx, 
+				   struct tevent_context *ev,
 				   const DATA_BLOB in, DATA_BLOB *out) 
 {
 	struct gensec_sasl_state *gensec_sasl_state = talloc_get_type(gensec_security->private_data,

@@ -797,72 +797,6 @@ but in most cases the following will suffice:
 
 </sect2>
 
-<sect2>
-<title>Why Is This Better Than <parameter>security = server</parameter>?</title>
-
-<para>
-<indexterm><primary>domain security</primary></indexterm>
-<indexterm><primary>UNIX users</primary></indexterm>
-<indexterm><primary>authentication</primary></indexterm>
-Currently, domain security in Samba does not free you from having to create local UNIX users to represent the
-users attaching to your server. This means that if domain user <constant>DOM\fred</constant> attaches to your
-domain security Samba server, there needs to be a local UNIX user fred to represent that user in the UNIX file
-system. This is similar to the older Samba security mode <smbconfoption
-name="security">server</smbconfoption>, where Samba would pass through the authentication request to a Windows
-NT server in the same way as a Windows 95 or Windows 98 server would.
-</para>
-
-<para>
-<indexterm><primary>winbind</primary></indexterm>
-<indexterm><primary>UID</primary></indexterm>
-<indexterm><primary>GID</primary></indexterm>
-Please refer to <link linkend="winbind">Winbind: Use of Domain Accounts</link>, for information on a system
-to automatically assign UNIX UIDs and GIDs to Windows NT domain users and groups.
-</para>
-
-<para>
-<indexterm><primary>domain-level</primary></indexterm>
-<indexterm><primary>authentication</primary></indexterm>
-<indexterm><primary>RPC</primary></indexterm>
-The advantage of domain-level security is that the authentication in domain-level security is passed down the
-authenticated RPC channel in exactly the same way that an NT server would do it. This means Samba servers now
-participate in domain trust relationships in exactly the same way NT servers do (i.e., you can add Samba
-servers into a resource domain and have the authentication passed on from a resource domain PDC to an account
-domain PDC).
-</para>
-
-<para>
-<indexterm><primary>PDC</primary></indexterm>
-<indexterm><primary>BDC</primary></indexterm>
-<indexterm><primary>connection resources</primary></indexterm>
-In addition, with <smbconfoption name="security">server</smbconfoption>, every Samba daemon on a server has to
-keep a connection open to the authenticating server for as long as that daemon lasts. This can drain the
-connection resources on a Microsoft NT server and cause it to run out of available connections. With
-<smbconfoption name="security">domain</smbconfoption>, however, the Samba daemons connect to the PDC or BDC
-only for as long as is necessary to authenticate the user and then drop the connection, thus conserving PDC
-connection resources.
-</para>
-
-<para>
-<indexterm><primary>PDC</primary></indexterm>
-<indexterm><primary>authentication reply</primary></indexterm>
-<indexterm><primary>SID</primary></indexterm>
-<indexterm><primary>NT groups</primary></indexterm>
-Finally, acting in the same manner as an NT server authenticating to a PDC means that as part of the
-authentication reply, the Samba server gets the user identification information such as the user SID, the list
-of NT groups the user belongs to, and so on.
-</para>
-
-<note>
-<para>
-Much of the text of this document was first published in the Web magazine 
-<ulink url="http://www.linuxworld.com"><emphasis>LinuxWorld</emphasis></ulink> as the article <ulink
-url="http://www.linuxworld.com/linuxworld/lw-1998-10/lw-10-samba.html"/>
-<emphasis>Doing the NIS/NT Samba</emphasis>.
-</para>
-</note>
-
-</sect2>
 </sect1>
 
 <sect1 id="ads-member">
@@ -979,11 +913,7 @@ When manually configuring <filename>krb5.conf</filename>, the minimal configurat
 <screen>
 [libdefaults]
 	default_realm = YOUR.KERBEROS.REALM
-
-[realms]
-	YOUR.KERBEROS.REALM = {
-	kdc = your.kerberos.server
-	}
+	dns_lookup_kdc = true
 
 [domain_realms]
 	.kerberos.server = YOUR.KERBEROS.REALM
@@ -991,13 +921,10 @@ When manually configuring <filename>krb5.conf</filename>, the minimal configurat
 </para>
 
 <para>
-<indexterm><primary>Heimdal</primary></indexterm>
-When using Heimdal versions before 0.6, use the following configuration settings:
+If you must specify the KDC directly, the minimal configuration is:
 <screen>
 [libdefaults]
 	default_realm      = YOUR.KERBEROS.REALM
-	default_etypes     = des-cbc-crc des-cbc-md5
-	default_etypes_des = des-cbc-crc des-cbc-md5
 
 [realms]
         YOUR.KERBEROS.REALM = {
@@ -1015,19 +942,6 @@ When using Heimdal versions before 0.6, use the following configuration settings
 Test your config by doing a <userinput>kinit
 <replaceable>USERNAME</replaceable>@<replaceable>REALM</replaceable></userinput> and
 making sure that your password is accepted by the Win2000 KDC.
-</para>
-
-<para>
-<indexterm><primary>Heimdal</primary></indexterm>
-<indexterm><primary>ADS</primary></indexterm>
-<indexterm><primary>KDC</primary></indexterm>
-<indexterm><primary>Windows 2003</primary></indexterm>
-With Heimdal versions earlier than 0.6.x you can use only newly created accounts
-in ADS or accounts that have had the password changed once after migration, or
-in case of <constant>Administrator</constant> after installation. At the
-moment, a Windows 2003 KDC can only be used with Heimdal releases later than 0.6
-(and no default etypes in krb5.conf). Unfortunately, this whole area is still
-in a state of flux.
 </para>
 
 <note><para>
@@ -1052,25 +966,6 @@ great while getting initial credentials</errorname></quote> if the time differen
 <indexterm><primary>clock skew</primary></indexterm>
 <indexterm><primary>Kerberos</primary></indexterm>
 Clock skew limits are configurable in the Kerberos protocols. The default setting is five minutes.
-</para>
-
-<para>
-<indexterm><primary>DNS</primary></indexterm>
-<indexterm><primary>KDC</primary></indexterm>
-<indexterm><primary>hostname</primary></indexterm>
-<indexterm><primary>realm</primary></indexterm>
-You also must ensure that you can do a reverse DNS lookup on the IP address of your KDC. Also, the name that
-this reverse lookup maps to must either be the NetBIOS name of the KDC (i.e., the hostname with no domain
-attached) or it can be the NetBIOS name followed by the realm.
-</para>
-
-<para>
-<indexterm><primary>/etc/hosts</primary></indexterm>
-<indexterm><primary>KDC</primary></indexterm>
-<indexterm><primary>realm</primary></indexterm>
-The easiest way to ensure you get this right is to add a <filename>/etc/hosts</filename> entry mapping the IP
-address of your KDC to its NetBIOS name. If you do not get this correct, then you will get a <errorname>local
-error</errorname> when you try to join the realm.
 </para>
 
 <para>
@@ -1160,15 +1055,6 @@ name, it may need to be quadrupled to pass through the shell escape and ldap esc
 	<replaceable>USERNAME</replaceable>@<replaceable>REALM</replaceable></userinput>.
 	<replaceable>USERNAME</replaceable> must be a user who has rights to add a machine to the domain.
 	</para></listitem></varlistentry>
-
-	<varlistentry><term>Unsupported encryption/or checksum types</term>
-	<listitem><para>
-	<indexterm><primary>/etc/krb5.conf</primary></indexterm>
-	<indexterm><primary>unsupported encryption</primary></indexterm>
-	<indexterm><primary>Kerberos</primary></indexterm>
-	Make sure that the <filename>/etc/krb5.conf</filename> is correctly configured
-	for the type and version of Kerberos installed on the system.
-	</para></listitem></varlistentry>
 </variablelist>
 </para>
 
@@ -1217,27 +1103,6 @@ Samba can use both DES-CBC-MD5 encryption as well as ARCFOUR-HMAC-MD5 encoding.
 On your Samba server try to login to a Windows 2000 server or your Samba
 server using &smbclient; and Kerberos. Use &smbclient; as usual, but
 specify the <option>-k</option> option to choose Kerberos authentication.
-</para>
-
-</sect2>
-
-<sect2>
-<title>Notes</title>
-
-<para>
-<indexterm><primary>administrator password</primary></indexterm>
-<indexterm><primary>change password</primary></indexterm>
-<indexterm><primary>encryption types</primary></indexterm>
-You must change the administrator password at least once after installing a domain controller, 
-to create the right encryption types.
-</para>
-
-<para>
-<indexterm><primary>_kerberos._udp</primary></indexterm>
-<indexterm><primary>_ldap._tcp</primary></indexterm>
-<indexterm><primary>default DNS setup</primary></indexterm>
-Windows 200x does not seem to create the <parameter>_kerberos._udp</parameter> and
-<parameter>_ldap._tcp</parameter> in the default DNS setup. Perhaps this will be fixed later in service packs.
 </para>
 
 </sect2>
@@ -1400,24 +1265,5 @@ account to which the Samba backend database account can be mapped.
 </para>
 
 </sect2>
-
-<sect2>
-	<title>I Can't Join a Windows 2003 PDC</title>
-
-	<para>
-<indexterm><primary>SMB signing</primary></indexterm>
-<indexterm><primary>SMB</primary></indexterm>
-<indexterm><primary>Windows 2003</primary></indexterm>
-<indexterm><primary>SMB/CIFS</primary></indexterm>
-	Windows 2003 requires SMB signing. Client-side SMB signing has been implemented in Samba-3.0.
-	Set <smbconfoption name="client use spnego">yes</smbconfoption> when communicating 
-	with a Windows 2003 server. This will not interfere with other Windows clients that do not
-	support the more advanced security features of Windows 2003 because the client will simply
-	negotiate a protocol that both it and the server suppport. This is a well-known fall-back facility
-	that is built into the SMB/CIFS protocols.
-	</para>
-
-</sect2>
-
 </sect1>
 </chapter>

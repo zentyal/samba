@@ -36,6 +36,8 @@
 #include "libsmb/clirap.h"
 #include "trans2.h"
 #include "libsmb/nmblib.h"
+#include "include/ntioctl.h"
+#include "../libcli/smb/smbXcli_base.h"
 
 #ifndef REGISTER
 #define REGISTER 0
@@ -49,7 +51,6 @@ extern char tar_type;
 static int port = 0;
 static char *service;
 static char *desthost;
-static char *calling_name;
 static bool grepable = false;
 static char *cmdstr = NULL;
 const char *cmd_ptr = NULL;
@@ -88,6 +89,7 @@ static bool prompt = true;
 static bool recurse = false;
 static bool showacls = false;
 bool lowercase = false;
+static bool backup_intent = false;
 
 static struct sockaddr_storage dest_ss;
 static char dest_ss_str[INET6_ADDRSTRLEN];
@@ -250,7 +252,7 @@ static int readfile(uint8_t *b, int n, XFILE *f)
 
 struct push_state {
 	XFILE *f;
-	SMB_OFF_T nread;
+	off_t nread;
 };
 
 static size_t push_source(uint8_t *buf, size_t n, void *priv)
@@ -311,8 +313,11 @@ static int do_dskattr(void)
 	TALLOC_CTX *ctx = talloc_tos();
 	NTSTATUS status;
 
-	if ( !cli_resolve_path(ctx, "", auth_info, cli, client_get_cur_dir(), &targetcli, &targetpath)) {
-		d_printf("Error in dskattr: %s\n", cli_errstr(cli));
+	status = cli_resolve_path(ctx, "", auth_info, cli,
+				  client_get_cur_dir(), &targetcli,
+				  &targetpath);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("Error in dskattr: %s\n", nt_errstr(status));
 		return 1;
 	}
 
@@ -365,6 +370,7 @@ static int do_cd(const char *new_dir)
 	uint32 attributes;
 	int ret = 1;
 	TALLOC_CTX *ctx = talloc_stackframe();
+	NTSTATUS status;
 
 	newdir = talloc_strdup(ctx, new_dir);
 	if (!newdir) {
@@ -406,8 +412,10 @@ static int do_cd(const char *new_dir)
 	new_cd = clean_name(ctx, new_cd);
 	client_set_cur_dir(new_cd);
 
-	if ( !cli_resolve_path(ctx, "", auth_info, cli, new_cd, &targetcli, &targetpath)) {
-		d_printf("cd %s: %s\n", new_cd, cli_errstr(cli));
+	status = cli_resolve_path(ctx, "", auth_info, cli, new_cd,
+				  &targetcli, &targetpath);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("cd %s: %s\n", new_cd, nt_errstr(status));
 		client_set_cur_dir(saved_dir);
 		goto out;
 	}
@@ -420,8 +428,7 @@ static int do_cd(const char *new_dir)
 	/* Use a trans2_qpathinfo to test directories for modern servers.
 	   Except Win9x doesn't support the qpathinfo_basic() call..... */
 
-	if (targetcli->protocol > PROTOCOL_LANMAN2 && !targetcli->win95) {
-		NTSTATUS status;
+	if (smbXcli_conn_protocol(targetcli->conn) > PROTOCOL_LANMAN2 && !targetcli->win95) {
 
 		status = cli_qpathinfo_basic(targetcli, targetpath, &sbuf,
 					     &attributes);
@@ -437,7 +444,6 @@ static int do_cd(const char *new_dir)
 			goto out;
 		}
 	} else {
-		NTSTATUS status;
 
 		targetpath = talloc_asprintf(ctx,
 				"%s%s",
@@ -548,7 +554,7 @@ static NTSTATUS display_finfo(struct cli_state *cli_state, struct file_info *fin
 	if (!showacls) {
 		d_printf("  %-30s%7.7s %8.0f  %s",
 			 finfo->name,
-			 attrib_string(finfo->mode),
+			 attrib_string(talloc_tos(), finfo->mode),
 		 	(double)finfo->size,
 			time_to_asc(t));
 		dir_total += finfo->size;
@@ -570,7 +576,7 @@ static NTSTATUS display_finfo(struct cli_state *cli_state, struct file_info *fin
 		}
 		/* print file meta date header */
 		d_printf( "FILENAME:%s\n", finfo->name);
-		d_printf( "MODE:%s\n", attrib_string(finfo->mode));
+		d_printf( "MODE:%s\n", attrib_string(talloc_tos(), finfo->mode));
 		d_printf( "SIZE:%.0f\n", (double)finfo->size);
 		d_printf( "MTIME:%s", time_to_asc(t));
 		status = cli_ntcreate(cli_state, afname, 0,
@@ -582,12 +588,12 @@ static NTSTATUS display_finfo(struct cli_state *cli_state, struct file_info *fin
 				   afname, nt_errstr(status)));
 		} else {
 			struct security_descriptor *sd = NULL;
-			sd = cli_query_secdesc(cli_state, fnum, ctx);
-			if (!sd) {
+			status = cli_query_secdesc(cli_state, fnum,
+						   ctx, &sd);
+			if (!NT_STATUS_IS_OK(status)) {
 				DEBUG( 0, ("display_finfo() failed to "
-					"get security descriptor: %s",
-					cli_errstr(cli_state)));
-				status = cli_nt_error(cli_state);
+					   "get security descriptor: %s",
+					   nt_errstr(status)));
 			} else {
 				display_sec_desc(sd);
 			}
@@ -703,7 +709,7 @@ static void add_to_do_list_queue(const char *entry)
 		}
 	}
 	if (do_list_queue) {
-		safe_strcpy_base(do_list_queue + do_list_queue_end,
+		strlcpy_base(do_list_queue + do_list_queue_end,
 				 entry, do_list_queue, do_list_queue_size);
 		do_list_queue_end = new_end;
 		DEBUG(4,("added %s to do_list_queue (start=%d, end=%d)\n",
@@ -858,8 +864,12 @@ NTSTATUS do_list(const char *mask,
 
 			/* check for dfs */
 
-			if ( !cli_resolve_path(ctx, "", auth_info, cli, head, &targetcli, &targetpath ) ) {
-				d_printf("do_list: [%s] %s\n", head, cli_errstr(cli));
+			status = cli_resolve_path(ctx, "", auth_info, cli,
+						  head, &targetcli,
+						  &targetpath);
+			if (!NT_STATUS_IS_OK(status)) {
+				d_printf("do_list: [%s] %s\n", head,
+					 nt_errstr(status));
 				remove_do_list_queue_head();
 				continue;
 			}
@@ -897,8 +907,9 @@ NTSTATUS do_list(const char *mask,
 		}
 	} else {
 		/* check for dfs */
-		if (cli_resolve_path(ctx, "", auth_info, cli, mask, &targetcli, &targetpath)) {
-
+		status = cli_resolve_path(ctx, "", auth_info, cli, mask,
+					  &targetcli, &targetpath);
+		if (NT_STATUS_IS_OK(status)) {
 			status = cli_list(targetcli, targetpath, attribute,
 					  do_list_helper, targetcli);
 			if (!NT_STATUS_IS_OK(status)) {
@@ -908,8 +919,8 @@ NTSTATUS do_list(const char *mask,
 			}
 			TALLOC_FREE(targetpath);
 		} else {
-			d_printf("do_list: [%s] %s\n", mask, cli_errstr(cli));
-			ret_status = cli_nt_error(cli);
+			d_printf("do_list: [%s] %s\n", mask, nt_errstr(status));
+			ret_status = status;
 		}
 	}
 
@@ -1060,9 +1071,9 @@ static int do_get(const char *rname, const char *lname_in, bool reget)
 	bool newhandle = false;
 	struct timespec tp_start;
 	uint16 attr;
-	SMB_OFF_T size;
+	off_t size;
 	off_t start = 0;
-	SMB_OFF_T nread = 0;
+	off_t nread = 0;
 	int rc = 0;
 	struct cli_state *targetcli = NULL;
 	char *targetname = NULL;
@@ -1075,11 +1086,16 @@ static int do_get(const char *rname, const char *lname_in, bool reget)
 	}
 
 	if (lowercase) {
-		strlower_m(lname);
+		if (!strlower_m(lname)) {
+			d_printf("strlower_m %s failed\n", lname);
+			return 1;
+		}
 	}
 
-	if (!cli_resolve_path(ctx, "", auth_info, cli, rname, &targetcli, &targetname ) ) {
-		d_printf("Failed to open %s: %s\n", rname, cli_errstr(cli));
+	status = cli_resolve_path(ctx, "", auth_info, cli, rname, &targetcli,
+				  &targetname);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("Failed to open %s: %s\n", rname, nt_errstr(status));
 		return 1;
 	}
 
@@ -1096,16 +1112,16 @@ static int do_get(const char *rname, const char *lname_in, bool reget)
 		handle = fileno(stdout);
 	} else {
 		if (reget) {
-			handle = sys_open(lname, O_WRONLY|O_CREAT, 0644);
+			handle = open(lname, O_WRONLY|O_CREAT, 0644);
 			if (handle >= 0) {
-				start = sys_lseek(handle, 0, SEEK_END);
+				start = lseek(handle, 0, SEEK_END);
 				if (start == -1) {
 					d_printf("Error seeking local file\n");
 					return 1;
 				}
 			}
 		} else {
-			handle = sys_open(lname, O_WRONLY|O_CREAT|O_TRUNC, 0644);
+			handle = open(lname, O_WRONLY|O_CREAT|O_TRUNC, 0644);
 		}
 		newhandle = true;
 	}
@@ -1283,7 +1299,9 @@ static NTSTATUS do_mget(struct cli_state *cli_state, struct file_info *finfo,
 
 	string_replace(finfo->name,'\\','/');
 	if (lowercase) {
-		strlower_m(finfo->name);
+		if (!strlower_m(finfo->name)) {
+			return NT_STATUS_INVALID_PARAMETER;
+		}
 	}
 
 	if (!directory_exist(finfo->name) &&
@@ -1469,8 +1487,10 @@ static bool do_mkdir(const char *name)
 	char *targetname = NULL;
 	NTSTATUS status;
 
-	if (!cli_resolve_path(ctx, "", auth_info, cli, name, &targetcli, &targetname)) {
-		d_printf("mkdir %s: %s\n", name, cli_errstr(cli));
+	status = cli_resolve_path(ctx, "", auth_info, cli, name, &targetcli,
+				  &targetname);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("mkdir %s: %s\n", name, nt_errstr(status));
 		return false;
 	}
 
@@ -1525,6 +1545,7 @@ static int cmd_mkdir(void)
 	TALLOC_CTX *ctx = talloc_tos();
 	char *mask = NULL;
 	char *buf = NULL;
+        NTSTATUS status;
 
 	mask = talloc_strdup(ctx, client_get_cur_dir());
 	if (!mask) {
@@ -1555,7 +1576,9 @@ static int cmd_mkdir(void)
 			return 1;
 		}
 
-		if (!cli_resolve_path(ctx, "", auth_info, cli, mask, &targetcli, &targetname)) {
+		status = cli_resolve_path(ctx, "", auth_info, cli, mask,
+					  &targetcli, &targetname);
+		if (!NT_STATUS_IS_OK(status)) {
 			return 1;
 		}
 
@@ -1615,7 +1638,7 @@ static int cmd_altname(void)
 
 static char *attr_str(TALLOC_CTX *mem_ctx, uint16_t mode)
 {
-	char *attrs = TALLOC_ZERO_ARRAY(mem_ctx, char, 17);
+	char *attrs = talloc_zero_array(mem_ctx, char, 17);
 	int i = 0;
 
 	if (!(mode & FILE_ATTRIBUTE_NORMAL)) {
@@ -1670,7 +1693,7 @@ static int do_allinfo(const char *name)
 {
 	fstring altname;
 	struct timespec b_time, a_time, m_time, c_time;
-	SMB_OFF_T size;
+	off_t size;
 	uint16_t mode;
 	SMB_INO_T ino;
 	NTTIME tmp;
@@ -1723,6 +1746,23 @@ static int do_allinfo(const char *name)
 	for (i=0; i<num_streams; i++) {
 		d_printf("stream: [%s], %lld bytes\n", streams[i].name,
 			 (unsigned long long)streams[i].size);
+	}
+
+	if (mode & FILE_ATTRIBUTE_REPARSE_POINT) {
+		char *subst, *print;
+		uint32_t flags;
+
+		status = cli_readlink(cli, name, talloc_tos(), &subst, &print,
+				      &flags);
+		if (!NT_STATUS_IS_OK(status)) {
+			d_fprintf(stderr, "cli_readlink returned %s\n",
+				  nt_errstr(status));
+		} else {
+			d_printf("symlink: subst=[%s], print=[%s], flags=%x\n",
+				 subst, print, flags);
+			TALLOC_FREE(subst);
+			TALLOC_FREE(print);
+		}
 	}
 
 	status = cli_ntcreate(cli, name, 0,
@@ -1814,7 +1854,7 @@ static int do_put(const char *rname, const char *lname, bool reput)
 	TALLOC_CTX *ctx = talloc_tos();
 	uint16_t fnum;
 	XFILE *f;
-	SMB_OFF_T start = 0;
+	off_t start = 0;
 	int rc = 0;
 	struct timespec tp_start;
 	struct cli_state *targetcli;
@@ -1822,8 +1862,10 @@ static int do_put(const char *rname, const char *lname, bool reput)
 	struct push_state state;
 	NTSTATUS status;
 
-	if (!cli_resolve_path(ctx, "", auth_info, cli, rname, &targetcli, &targetname)) {
-		d_printf("Failed to open %s: %s\n", rname, cli_errstr(cli));
+	status = cli_resolve_path(ctx, "", auth_info, cli, rname,
+				  &targetcli, &targetname);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("Failed to open %s: %s\n", rname, nt_errstr(status));
 		return 1;
 	}
 
@@ -2048,7 +2090,7 @@ static int cmd_select(void)
 static int file_find(struct file_list **list, const char *directory,
 		      const char *expression, bool match)
 {
-	SMB_STRUCT_DIR *dir;
+	DIR *dir;
 	struct file_list *entry;
         struct stat statbuf;
         int ret;
@@ -2056,7 +2098,7 @@ static int file_find(struct file_list **list, const char *directory,
 	bool isdir;
 	const char *dname;
 
-        dir = sys_opendir(directory);
+        dir = opendir(directory);
 	if (!dir)
 		return -1;
 
@@ -2085,14 +2127,14 @@ static int file_find(struct file_list **list, const char *directory,
 
 				if (ret == -1) {
 					SAFE_FREE(path);
-					sys_closedir(dir);
+					closedir(dir);
 					return -1;
 				}
 			}
 			entry = SMB_MALLOC_P(struct file_list);
 			if (!entry) {
 				d_printf("Out of memory in file_find\n");
-				sys_closedir(dir);
+				closedir(dir);
 				return -1;
 			}
 			entry->file_path = path;
@@ -2103,7 +2145,7 @@ static int file_find(struct file_list **list, const char *directory,
 		}
         }
 
-	sys_closedir(dir);
+	closedir(dir);
 	return 0;
 }
 
@@ -2212,7 +2254,9 @@ static int do_cancel(int job)
 		d_printf("Job %d cancelled\n",job);
 		return 0;
 	} else {
-		d_printf("Error cancelling job %d : %s\n",job,cli_errstr(cli));
+		NTSTATUS status = cli_nt_error(cli);
+		d_printf("Error cancelling job %d : %s\n",
+			 job, nt_errstr(status));
 		return 1;
 	}
 }
@@ -2264,12 +2308,12 @@ static int cmd_print(void)
 		rname = talloc_asprintf(ctx,
 					"%s-%d",
 					p+1,
-					(int)sys_getpid());
+					(int)getpid());
 	}
 	if (strequal(lname,"-")) {
 		rname = talloc_asprintf(ctx,
 				"stdin-%d",
-				(int)sys_getpid());
+				(int)getpid());
 	}
 	if (!rname) {
 		return 1;
@@ -2400,8 +2444,10 @@ static int cmd_wdel(void)
 		return 1;
 	}
 
-	if (!cli_resolve_path(ctx, "", auth_info, cli, mask, &targetcli, &targetname)) {
-		d_printf("cmd_wdel %s: %s\n", mask, cli_errstr(cli));
+	status = cli_resolve_path(ctx, "", auth_info, cli, mask, &targetcli,
+				  &targetname);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("cmd_wdel %s: %s\n", mask, nt_errstr(status));
 		return 1;
 	}
 
@@ -2424,6 +2470,7 @@ static int cmd_open(void)
 	char *targetname = NULL;
 	struct cli_state *targetcli;
 	uint16_t fnum = (uint16_t)-1;
+        NTSTATUS status;
 
 	if (!next_token_talloc(ctx, &cmd_ptr,&buf,NULL)) {
 		d_printf("open <filename>\n");
@@ -2437,20 +2484,27 @@ static int cmd_open(void)
 		return 1;
 	}
 
-	if (!cli_resolve_path(ctx, "", auth_info, cli, mask, &targetcli, &targetname)) {
-		d_printf("open %s: %s\n", mask, cli_errstr(cli));
+	status = cli_resolve_path(ctx, "", auth_info, cli, mask, &targetcli,
+				  &targetname);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("open %s: %s\n", mask, nt_errstr(status));
 		return 1;
 	}
 
-	if (!NT_STATUS_IS_OK(cli_ntcreate(targetcli, targetname, 0,
+	status = cli_ntcreate(targetcli, targetname, 0,
 			FILE_READ_DATA|FILE_WRITE_DATA, 0,
-			FILE_SHARE_READ|FILE_SHARE_WRITE, FILE_OPEN, 0x0, 0x0, &fnum))) {
-		if (NT_STATUS_IS_OK(cli_ntcreate(targetcli, targetname, 0,
+			FILE_SHARE_READ|FILE_SHARE_WRITE, FILE_OPEN,
+			0x0, 0x0, &fnum);
+	if (!NT_STATUS_IS_OK(status)) {
+		status = cli_ntcreate(targetcli, targetname, 0,
 				FILE_READ_DATA, 0,
-				FILE_SHARE_READ|FILE_SHARE_WRITE, FILE_OPEN, 0x0, 0x0, &fnum))) {
+				FILE_SHARE_READ|FILE_SHARE_WRITE, FILE_OPEN,
+				0x0, 0x0, &fnum);
+		if (NT_STATUS_IS_OK(status)) {
 			d_printf("open file %s: for read/write fnum %d\n", targetname, fnum);
 		} else {
-			d_printf("Failed to open file %s. %s\n", targetname, cli_errstr(cli));
+			d_printf("Failed to open file %s. %s\n",
+				 targetname, nt_errstr(status));
 		}
 	} else {
 		d_printf("open file %s: for read/write fnum %d\n", targetname, fnum);
@@ -2513,6 +2567,7 @@ static int cmd_posix_open(void)
 	struct cli_state *targetcli;
 	mode_t mode;
 	uint16_t fnum;
+        NTSTATUS status;
 
 	if (!next_token_talloc(ctx, &cmd_ptr,&buf,NULL)) {
 		d_printf("posix_open <filename> 0<mode>\n");
@@ -2532,19 +2587,28 @@ static int cmd_posix_open(void)
 	}
 	mode = (mode_t)strtol(buf, (char **)NULL, 8);
 
-	if (!cli_resolve_path(ctx, "", auth_info, cli, mask, &targetcli, &targetname)) {
-		d_printf("posix_open %s: %s\n", mask, cli_errstr(cli));
+	status = cli_resolve_path(ctx, "", auth_info, cli, mask, &targetcli,
+				  &targetname);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("posix_open %s: %s\n", mask, nt_errstr(status));
 		return 1;
 	}
 
-	if (!NT_STATUS_IS_OK(cli_posix_open(targetcli, targetname, O_CREAT|O_RDWR, mode, &fnum))) {
-		if (NT_STATUS_IS_OK(cli_posix_open(targetcli, targetname, O_CREAT|O_RDONLY, mode, &fnum))) {
-			d_printf("posix_open file %s: for readonly fnum %d\n", targetname, fnum);
+	status = cli_posix_open(targetcli, targetname, O_CREAT|O_RDWR, mode,
+				&fnum);
+	if (!NT_STATUS_IS_OK(status)) {
+		status = cli_posix_open(targetcli, targetname,
+					O_CREAT|O_RDONLY, mode, &fnum);
+		if (!NT_STATUS_IS_OK(status)) {
+			d_printf("Failed to open file %s. %s\n", targetname,
+				 nt_errstr(status));
 		} else {
-			d_printf("Failed to open file %s. %s\n", targetname, cli_errstr(cli));
+			d_printf("posix_open file %s: for readonly fnum %d\n",
+				 targetname, fnum);
 		}
 	} else {
-		d_printf("posix_open file %s: for read/write fnum %d\n", targetname, fnum);
+		d_printf("posix_open file %s: for read/write fnum %d\n",
+			 targetname, fnum);
 	}
 
 	return 0;
@@ -2558,6 +2622,7 @@ static int cmd_posix_mkdir(void)
 	char *targetname = NULL;
 	struct cli_state *targetcli;
 	mode_t mode;
+        NTSTATUS status;
 
 	if (!next_token_talloc(ctx, &cmd_ptr,&buf,NULL)) {
 		d_printf("posix_mkdir <filename> 0<mode>\n");
@@ -2577,13 +2642,17 @@ static int cmd_posix_mkdir(void)
 	}
 	mode = (mode_t)strtol(buf, (char **)NULL, 8);
 
-	if (!cli_resolve_path(ctx, "", auth_info, cli, mask, &targetcli, &targetname)) {
-		d_printf("posix_mkdir %s: %s\n", mask, cli_errstr(cli));
+	status = cli_resolve_path(ctx, "", auth_info, cli, mask, &targetcli,
+				  &targetname);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("posix_mkdir %s: %s\n", mask, nt_errstr(status));
 		return 1;
 	}
 
-	if (!NT_STATUS_IS_OK(cli_posix_mkdir(targetcli, targetname, mode))) {
-		d_printf("Failed to open file %s. %s\n", targetname, cli_errstr(cli));
+	status = cli_posix_mkdir(targetcli, targetname, mode);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("Failed to open file %s. %s\n",
+			 targetname, nt_errstr(status));
 	} else {
 		d_printf("posix_mkdir created directory %s\n", targetname);
 	}
@@ -2597,6 +2666,7 @@ static int cmd_posix_unlink(void)
 	char *buf = NULL;
 	char *targetname = NULL;
 	struct cli_state *targetcli;
+        NTSTATUS status;
 
 	if (!next_token_talloc(ctx, &cmd_ptr,&buf,NULL)) {
 		d_printf("posix_unlink <filename>\n");
@@ -2610,13 +2680,17 @@ static int cmd_posix_unlink(void)
 		return 1;
 	}
 
-	if (!cli_resolve_path(ctx, "", auth_info, cli, mask, &targetcli, &targetname)) {
-		d_printf("posix_unlink %s: %s\n", mask, cli_errstr(cli));
+	status = cli_resolve_path(ctx, "", auth_info, cli, mask, &targetcli,
+				  &targetname);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("posix_unlink %s: %s\n", mask, nt_errstr(status));
 		return 1;
 	}
 
-	if (!NT_STATUS_IS_OK(cli_posix_unlink(targetcli, targetname))) {
-		d_printf("Failed to unlink file %s. %s\n", targetname, cli_errstr(cli));
+	status = cli_posix_unlink(targetcli, targetname);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("Failed to unlink file %s. %s\n",
+			 targetname, nt_errstr(status));
 	} else {
 		d_printf("posix_unlink deleted file %s\n", targetname);
 	}
@@ -2631,6 +2705,7 @@ static int cmd_posix_rmdir(void)
 	char *buf = NULL;
 	char *targetname = NULL;
 	struct cli_state *targetcli;
+        NTSTATUS status;
 
 	if (!next_token_talloc(ctx, &cmd_ptr,&buf,NULL)) {
 		d_printf("posix_rmdir <filename>\n");
@@ -2644,13 +2719,17 @@ static int cmd_posix_rmdir(void)
 		return 1;
 	}
 
-	if (!cli_resolve_path(ctx, "", auth_info, cli, mask, &targetcli, &targetname)) {
-		d_printf("posix_rmdir %s: %s\n", mask, cli_errstr(cli));
+	status = cli_resolve_path(ctx, "", auth_info, cli, mask, &targetcli,
+				  &targetname);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("posix_rmdir %s: %s\n", mask, nt_errstr(status));
 		return 1;
 	}
 
-	if (!NT_STATUS_IS_OK(cli_posix_rmdir(targetcli, targetname))) {
-		d_printf("Failed to unlink directory %s. %s\n", targetname, cli_errstr(cli));
+	status = cli_posix_rmdir(targetcli, targetname);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("Failed to unlink directory %s. %s\n",
+			 targetname, nt_errstr(status));
 	} else {
 		d_printf("posix_rmdir deleted directory %s\n", targetname);
 	}
@@ -2663,6 +2742,7 @@ static int cmd_close(void)
 	TALLOC_CTX *ctx = talloc_tos();
 	char *buf = NULL;
 	int fnum;
+	NTSTATUS status;
 
 	if (!next_token_talloc(ctx, &cmd_ptr,&buf,NULL)) {
 		d_printf("close <fnum>\n");
@@ -2671,8 +2751,9 @@ static int cmd_close(void)
 
 	fnum = atoi(buf);
 	/* We really should use the targetcli here.... */
-	if (!NT_STATUS_IS_OK(cli_close(cli, fnum))) {
-		d_printf("close %d: %s\n", fnum, cli_errstr(cli));
+	status = cli_close(cli, fnum);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("close %d: %s\n", fnum, nt_errstr(status));
 		return 1;
 	}
 	return 0;
@@ -2790,6 +2871,7 @@ static int cmd_lock(void)
 	uint64_t start, len;
 	enum brl_type lock_type;
 	int fnum;
+	NTSTATUS status;
 
 	if (!next_token_talloc(ctx, &cmd_ptr,&buf,NULL)) {
 		d_printf("lock <fnum> [r|w] <hex-start> <hex-len>\n");
@@ -2825,8 +2907,9 @@ static int cmd_lock(void)
 
 	len = (uint64_t)strtol(buf, (char **)NULL, 16);
 
-	if (!NT_STATUS_IS_OK(cli_posix_lock(cli, fnum, start, len, true, lock_type))) {
-		d_printf("lock failed %d: %s\n", fnum, cli_errstr(cli));
+	status = cli_posix_lock(cli, fnum, start, len, true, lock_type);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("lock failed %d: %s\n", fnum, nt_errstr(status));
 	}
 
 	return 0;
@@ -2838,6 +2921,7 @@ static int cmd_unlock(void)
 	char *buf = NULL;
 	uint64_t start, len;
 	int fnum;
+	NTSTATUS status;
 
 	if (!next_token_talloc(ctx, &cmd_ptr,&buf,NULL)) {
 		d_printf("unlock <fnum> <hex-start> <hex-len>\n");
@@ -2859,8 +2943,9 @@ static int cmd_unlock(void)
 
 	len = (uint64_t)strtol(buf, (char **)NULL, 16);
 
-	if (!NT_STATUS_IS_OK(cli_posix_unlock(cli, fnum, start, len))) {
-		d_printf("unlock failed %d: %s\n", fnum, cli_errstr(cli));
+	status = cli_posix_unlock(cli, fnum, start, len);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("unlock failed %d: %s\n", fnum, nt_errstr(status));
 	}
 
 	return 0;
@@ -2878,6 +2963,7 @@ static int cmd_rmdir(void)
 	char *buf = NULL;
 	char *targetname = NULL;
 	struct cli_state *targetcli;
+        NTSTATUS status;
 
 	if (!next_token_talloc(ctx, &cmd_ptr,&buf,NULL)) {
 		d_printf("rmdir <dirname>\n");
@@ -2891,14 +2977,17 @@ static int cmd_rmdir(void)
 		return 1;
 	}
 
-	if (!cli_resolve_path(ctx, "", auth_info, cli, mask, &targetcli, &targetname)) {
-		d_printf("rmdir %s: %s\n", mask, cli_errstr(cli));
+	status = cli_resolve_path(ctx, "", auth_info, cli, mask, &targetcli,
+				  &targetname);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("rmdir %s: %s\n", mask, nt_errstr(status));
 		return 1;
 	}
 
-	if (!NT_STATUS_IS_OK(cli_rmdir(targetcli, targetname))) {
+	status = cli_rmdir(targetcli, targetname);
+	if (!NT_STATUS_IS_OK(status)) {
 		d_printf("%s removing remote directory file %s\n",
-			 cli_errstr(targetcli),mask);
+			 nt_errstr(status), mask);
 	}
 
 	return 0;
@@ -2917,6 +3006,7 @@ static int cmd_link(void)
 	char *buf2 = NULL;
 	char *targetname = NULL;
 	struct cli_state *targetcli;
+        NTSTATUS status;
 
 	if (!next_token_talloc(ctx, &cmd_ptr,&buf,NULL) ||
 	    !next_token_talloc(ctx, &cmd_ptr,&buf2,NULL)) {
@@ -2938,8 +3028,10 @@ static int cmd_link(void)
 		return 1;
 	}
 
-	if (!cli_resolve_path(ctx, "", auth_info, cli, oldname, &targetcli, &targetname)) {
-		d_printf("link %s: %s\n", oldname, cli_errstr(cli));
+	status = cli_resolve_path(ctx, "", auth_info, cli, oldname, &targetcli,
+				  &targetname);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("link %s: %s\n", oldname, nt_errstr(status));
 		return 1;
 	}
 
@@ -2948,8 +3040,10 @@ static int cmd_link(void)
 		return 1;
 	}
 
-	if (!NT_STATUS_IS_OK(cli_posix_hardlink(targetcli, targetname, newname))) {
-		d_printf("%s linking files (%s -> %s)\n", cli_errstr(targetcli), newname, oldname);
+	status = cli_posix_hardlink(targetcli, targetname, newname);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("%s linking files (%s -> %s)\n",
+			 nt_errstr(status), newname, oldname);
 		return 1;
 	}
 	return 0;
@@ -2967,6 +3061,7 @@ static int cmd_readlink(void)
 	char *targetname = NULL;
 	char linkname[PATH_MAX+1];
 	struct cli_state *targetcli;
+        NTSTATUS status;
 
 	if (!next_token_talloc(ctx, &cmd_ptr,&buf,NULL)) {
 		d_printf("readlink <name>\n");
@@ -2980,8 +3075,10 @@ static int cmd_readlink(void)
 		return 1;
 	}
 
-	if (!cli_resolve_path(ctx, "", auth_info, cli, name, &targetcli, &targetname)) {
-		d_printf("readlink %s: %s\n", name, cli_errstr(cli));
+	status = cli_resolve_path(ctx, "", auth_info, cli, name, &targetcli,
+				  &targetname);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("readlink %s: %s\n", name, nt_errstr(status));
 		return 1;
 	}
 
@@ -2990,10 +3087,10 @@ static int cmd_readlink(void)
 		return 1;
 	}
 
-	if (!NT_STATUS_IS_OK(cli_posix_readlink(targetcli, name,
-			linkname, PATH_MAX+1))) {
+	status = cli_posix_readlink(targetcli, name, linkname, PATH_MAX+1);
+	if (!NT_STATUS_IS_OK(status)) {
 		d_printf("%s readlink on file %s\n",
-			cli_errstr(targetcli), name);
+			 nt_errstr(status), name);
 		return 1;
 	}
 
@@ -3015,6 +3112,7 @@ static int cmd_symlink(void)
 	char *buf = NULL;
 	char *buf2 = NULL;
 	struct cli_state *newcli;
+	NTSTATUS status;
 
 	if (!next_token_talloc(ctx, &cmd_ptr,&buf,NULL) ||
 	    !next_token_talloc(ctx, &cmd_ptr,&buf2,NULL)) {
@@ -3024,28 +3122,29 @@ static int cmd_symlink(void)
 	/* Oldname (link target) must be an untouched blob. */
 	oldname = buf;
 
-	newname = talloc_asprintf(ctx,
-			"%s%s",
-			client_get_cur_dir(),
-			buf2);
-	if (!newname) {
-		return 1;
+	if (SERVER_HAS_UNIX_CIFS(cli)) {
+		newname = talloc_asprintf(ctx, "%s%s", client_get_cur_dir(),
+					  buf2);
+		if (!newname) {
+			return 1;
+		}
+		/* New name must be present in share namespace. */
+		status = cli_resolve_path(ctx, "", auth_info, cli, newname,
+					  &newcli, &newname);
+		if (!NT_STATUS_IS_OK(status)) {
+			d_printf("link %s: %s\n", oldname, nt_errstr(status));
+			return 1;
+		}
+		status = cli_posix_symlink(newcli, oldname, newname);
+	} else {
+		status = cli_symlink(
+			cli, oldname, buf2,
+			buf2[0] == '\\' ? 0 : SYMLINK_FLAG_RELATIVE);
 	}
 
-	/* New name must be present in share namespace. */
-	if (!cli_resolve_path(ctx, "", auth_info, cli, newname, &newcli, &newname)) {
-		d_printf("link %s: %s\n", oldname, cli_errstr(cli));
-		return 1;
-	}
-
-	if (!SERVER_HAS_UNIX_CIFS(newcli)) {
-		d_printf("Server doesn't support UNIX CIFS calls.\n");
-		return 1;
-	}
-
-	if (!NT_STATUS_IS_OK(cli_posix_symlink(newcli, oldname, newname))) {
+	if (!NT_STATUS_IS_OK(status)) {
 		d_printf("%s symlinking files (%s -> %s)\n",
-			cli_errstr(newcli), newname, newname);
+			 nt_errstr(status), oldname, newname);
 		return 1;
 	}
 
@@ -3065,6 +3164,7 @@ static int cmd_chmod(void)
 	char *targetname = NULL;
 	struct cli_state *targetcli;
 	mode_t mode;
+        NTSTATUS status;
 
 	if (!next_token_talloc(ctx, &cmd_ptr,&buf,NULL) ||
 	    !next_token_talloc(ctx, &cmd_ptr,&buf2,NULL)) {
@@ -3081,8 +3181,10 @@ static int cmd_chmod(void)
 
 	mode = (mode_t)strtol(buf, NULL, 8);
 
-	if (!cli_resolve_path(ctx, "", auth_info, cli, src, &targetcli, &targetname)) {
-		d_printf("chmod %s: %s\n", src, cli_errstr(cli));
+	status = cli_resolve_path(ctx, "", auth_info, cli, src, &targetcli,
+				  &targetname);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("chmod %s: %s\n", src, nt_errstr(status));
 		return 1;
 	}
 
@@ -3091,9 +3193,10 @@ static int cmd_chmod(void)
 		return 1;
 	}
 
-	if (!NT_STATUS_IS_OK(cli_posix_chmod(targetcli, targetname, mode))) {
+	status = cli_posix_chmod(targetcli, targetname, mode);
+	if (!NT_STATUS_IS_OK(status)) {
 		d_printf("%s chmod file %s 0%o\n",
-			cli_errstr(targetcli), src, (unsigned int)mode);
+			 nt_errstr(status), src, (unsigned int)mode);
 		return 1;
 	}
 
@@ -3235,8 +3338,10 @@ static int cmd_getfacl(void)
 		return 1;
 	}
 
-	if (!cli_resolve_path(ctx, "", auth_info, cli, src, &targetcli, &targetname)) {
-		d_printf("stat %s: %s\n", src, cli_errstr(cli));
+	status = cli_resolve_path(ctx, "", auth_info, cli, src, &targetcli,
+				  &targetname);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("stat %s: %s\n", src, nt_errstr(status));
 		return 1;
 	}
 
@@ -3259,15 +3364,17 @@ static int cmd_getfacl(void)
 		return 1;
 	}
 
+	status = cli_posix_stat(targetcli, targetname, &sbuf);
 	if (!NT_STATUS_IS_OK(cli_posix_stat(targetcli, targetname, &sbuf))) {
 		d_printf("%s getfacl doing a stat on file %s\n",
-			cli_errstr(targetcli), src);
+			 nt_errstr(status), src);
 		return 1;
 	}
 
-	if (!NT_STATUS_IS_OK(cli_posix_getfacl(targetcli, targetname, ctx, &rb_size, &retbuf))) {
+	status = cli_posix_getfacl(targetcli, targetname, ctx, &rb_size, &retbuf);
+	if (!NT_STATUS_IS_OK(status)) {
 		d_printf("%s getfacl file %s\n",
-			cli_errstr(targetcli), src);
+			 nt_errstr(status), src);
 		return 1;
 	}
 
@@ -3372,11 +3479,6 @@ static int cmd_getfacl(void)
 	return 0;
 }
 
-static void printf_cb(const char *buf, void *private_data)
-{
-	printf("%s", buf);
-}
-
 /****************************************************************************
  Get the EA list of a file
 ****************************************************************************/
@@ -3404,9 +3506,10 @@ static int cmd_geteas(void)
 		return 1;
 	}
 
-	if (!cli_resolve_path(ctx, "", auth_info, cli, src, &targetcli,
-			      &targetname)) {
-		d_printf("stat %s: %s\n", src, cli_errstr(cli));
+	status = cli_resolve_path(ctx, "", auth_info, cli, src, &targetcli,
+				  &targetname);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("stat %s: %s\n", src, nt_errstr(status));
 		return 1;
 	}
 
@@ -3419,8 +3522,8 @@ static int cmd_geteas(void)
 
 	for (i=0; i<num_eas; i++) {
 		d_printf("%s (%d) =\n", eas[i].name, (int)eas[i].flags);
-		dump_data_cb(eas[i].value.data, eas[i].value.length, false,
-			     printf_cb, NULL);
+		dump_data_file(eas[i].value.data, eas[i].value.length, false,
+			       stdout);
 		d_printf("\n");
 	}
 
@@ -3460,9 +3563,10 @@ static int cmd_setea(void)
 		return 1;
 	}
 
-	if (!cli_resolve_path(ctx, "", auth_info, cli, src, &targetcli,
-			      &targetname)) {
-		d_printf("stat %s: %s\n", src, cli_errstr(cli));
+	status = cli_resolve_path(ctx, "", auth_info, cli, src, &targetcli,
+				  &targetname);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("stat %s: %s\n", src, nt_errstr(status));
 		return 1;
 	}
 
@@ -3491,6 +3595,7 @@ static int cmd_stat(void)
 	SMB_STRUCT_STAT sbuf;
 	struct tm *lt;
 	time_t tmp_time;
+        NTSTATUS status;
 
 	if (!next_token_talloc(ctx, &cmd_ptr,&name,NULL)) {
 		d_printf("stat file\n");
@@ -3504,8 +3609,10 @@ static int cmd_stat(void)
 		return 1;
 	}
 
-	if (!cli_resolve_path(ctx, "", auth_info, cli, src, &targetcli, &targetname)) {
-		d_printf("stat %s: %s\n", src, cli_errstr(cli));
+	status = cli_resolve_path(ctx, "", auth_info, cli, src, &targetcli,
+				  &targetname);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("stat %s: %s\n", src, nt_errstr(status));
 		return 1;
 	}
 
@@ -3514,9 +3621,10 @@ static int cmd_stat(void)
 		return 1;
 	}
 
-	if (!NT_STATUS_IS_OK(cli_posix_stat(targetcli, targetname, &sbuf))) {
+	status = cli_posix_stat(targetcli, targetname, &sbuf);
+	if (!NT_STATUS_IS_OK(status)) {
 		d_printf("%s stat file %s\n",
-			cli_errstr(targetcli), src);
+			 nt_errstr(status), src);
 		return 1;
 	}
 
@@ -3590,6 +3698,7 @@ static int cmd_chown(void)
 	char *buf, *buf2, *buf3;
 	struct cli_state *targetcli;
 	char *targetname = NULL;
+        NTSTATUS status;
 
 	if (!next_token_talloc(ctx, &cmd_ptr,&buf,NULL) ||
 	    !next_token_talloc(ctx, &cmd_ptr,&buf2,NULL) ||
@@ -3608,8 +3717,10 @@ static int cmd_chown(void)
 	if (!src) {
 		return 1;
 	}
-	if (!cli_resolve_path(ctx, "", auth_info, cli, src, &targetcli, &targetname) ) {
-		d_printf("chown %s: %s\n", src, cli_errstr(cli));
+	status = cli_resolve_path(ctx, "", auth_info, cli, src, &targetcli,
+				  &targetname);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("chown %s: %s\n", src, nt_errstr(status));
 		return 1;
 	}
 
@@ -3618,9 +3729,10 @@ static int cmd_chown(void)
 		return 1;
 	}
 
-	if (!NT_STATUS_IS_OK(cli_posix_chown(targetcli, targetname, uid, gid))) {
+	status = cli_posix_chown(targetcli, targetname, uid, gid);
+	if (!NT_STATUS_IS_OK(status)) {
 		d_printf("%s chown file %s uid=%d, gid=%d\n",
-			cli_errstr(targetcli), src, (int)uid, (int)gid);
+			 nt_errstr(status), src, (int)uid, (int)gid);
 		return 1;
 	}
 
@@ -3639,6 +3751,7 @@ static int cmd_rename(void)
 	struct cli_state *targetcli;
 	char *targetsrc;
 	char *targetdest;
+        NTSTATUS status;
 
 	if (!next_token_talloc(ctx, &cmd_ptr,&buf,NULL) ||
 	    !next_token_talloc(ctx, &cmd_ptr,&buf2,NULL)) {
@@ -3662,19 +3775,24 @@ static int cmd_rename(void)
 		return 1;
 	}
 
-	if (!cli_resolve_path(ctx, "", auth_info, cli, src, &targetcli, &targetsrc)) {
-		d_printf("rename %s: %s\n", src, cli_errstr(cli));
+	status = cli_resolve_path(ctx, "", auth_info, cli, src, &targetcli,
+				  &targetsrc);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("rename %s: %s\n", src, nt_errstr(status));
 		return 1;
 	}
 
-	if (!cli_resolve_path(ctx, "", auth_info, cli, dest, &targetcli, &targetdest)) {
-		d_printf("rename %s: %s\n", dest, cli_errstr(cli));
+	status = cli_resolve_path(ctx, "", auth_info, cli, dest, &targetcli,
+				  &targetdest);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("rename %s: %s\n", dest, nt_errstr(status));
 		return 1;
 	}
 
-	if (!NT_STATUS_IS_OK(cli_rename(targetcli, targetsrc, targetdest))) {
+	status = cli_rename(targetcli, targetsrc, targetdest);
+	if (!NT_STATUS_IS_OK(status)) {
 		d_printf("%s renaming files %s -> %s \n",
-			cli_errstr(targetcli),
+			nt_errstr(status),
 			targetsrc,
 			targetdest);
 		return 1;
@@ -3689,12 +3807,13 @@ static int cmd_rename(void)
 
 static int cmd_volume(void)
 {
-	fstring volname;
-	uint32 serial_num;
+	char *volname;
+	uint32_t serial_num;
 	time_t create_date;
 	NTSTATUS status;
 
-	status = cli_get_fs_volume_info(cli, volname, &serial_num,
+	status = cli_get_fs_volume_info(cli, talloc_tos(),
+					&volname, &serial_num,
 					&create_date);
 	if (!NT_STATUS_IS_OK(status)) {
 		d_printf("Error %s getting volume info\n", nt_errstr(status));
@@ -3717,6 +3836,7 @@ static int cmd_hardlink(void)
 	char *buf, *buf2;
 	struct cli_state *targetcli;
 	char *targetname;
+        NTSTATUS status;
 
 	if (!next_token_talloc(ctx, &cmd_ptr,&buf,NULL) ||
 	    !next_token_talloc(ctx, &cmd_ptr,&buf2,NULL)) {
@@ -3740,13 +3860,17 @@ static int cmd_hardlink(void)
 		return 1;
 	}
 
-	if (!cli_resolve_path(ctx, "", auth_info, cli, src, &targetcli, &targetname)) {
-		d_printf("hardlink %s: %s\n", src, cli_errstr(cli));
+	status = cli_resolve_path(ctx, "", auth_info, cli, src, &targetcli,
+				  &targetname);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("hardlink %s: %s\n", src, nt_errstr(status));
 		return 1;
 	}
 
-	if (!NT_STATUS_IS_OK(cli_nt_hardlink(targetcli, targetname, dest))) {
-		d_printf("%s doing an NT hard link of files\n",cli_errstr(targetcli));
+	status = cli_nt_hardlink(targetcli, targetname, dest);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("%s doing an NT hard link of files\n",
+			 nt_errstr(status));
 		return 1;
 	}
 
@@ -3793,6 +3917,62 @@ static int cmd_newer(void)
 }
 
 /****************************************************************************
+ Watch directory changes
+****************************************************************************/
+
+static int cmd_notify(void)
+{
+	TALLOC_CTX *frame = talloc_stackframe();
+	char *name, *buf;
+	NTSTATUS status;
+	uint16_t fnum;
+
+	name = talloc_strdup(talloc_tos(), client_get_cur_dir());
+	if (name == NULL) {
+		goto fail;
+	}
+	if (!next_token_talloc(talloc_tos(), &cmd_ptr, &buf, NULL)) {
+		goto usage;
+	}
+	name = talloc_asprintf_append(name, "%s", buf);
+	if (name == NULL) {
+		goto fail;
+	}
+	status = cli_ntcreate(
+		cli, name, 0, FILE_READ_DATA, 0,
+		FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,
+		FILE_OPEN, 0, 0, &fnum);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("Could not open file: %s\n", nt_errstr(status));
+		goto fail;
+	}
+
+	while (1) {
+		uint32_t i, num_changes;
+		struct notify_change *changes;
+
+		status = cli_notify(cli, fnum, 1000, FILE_NOTIFY_CHANGE_ALL,
+				    true,
+				    talloc_tos(), &num_changes, &changes);
+		if (!NT_STATUS_IS_OK(status)) {
+			d_printf("notify returned %s\n",
+				 nt_errstr(status));
+			goto fail;
+		}
+		for (i=0; i<num_changes; i++) {
+			printf("%4.4x %s\n", changes[i].action,
+			       changes[i].name);
+		}
+		TALLOC_FREE(changes);
+	}
+usage:
+	d_printf("notify <file>\n");
+fail:
+	TALLOC_FREE(frame);
+	return 1;
+}
+
+/****************************************************************************
  Set the archive level.
 ****************************************************************************/
 
@@ -3808,6 +3988,18 @@ static int cmd_archive(void)
 	}
 
 	return 0;
+}
+
+/****************************************************************************
+ Toggle the backup_intent state.
+****************************************************************************/
+
+static int cmd_backup(void)
+{
+	backup_intent = !backup_intent;
+	cli_set_backup_intent(cli, backup_intent);
+	DEBUG(2,("backup intent is now %s\n",backup_intent?"on":"off"));
+	return 1;
 }
 
 /****************************************************************************
@@ -3886,11 +4078,12 @@ static int cmd_lcd(void)
 				buf, strerror(errno));
 		}
 	}
-	d = TALLOC_ARRAY(ctx, char, PATH_MAX+1);
+	d = sys_getwd();
 	if (!d) {
 		return 1;
 	}
-	DEBUG(2,("the local directory is now %s\n",sys_getwd(d)));
+	DEBUG(2,("the local directory is now %s\n",d));
+	SAFE_FREE(d);
 	return 0;
 }
 
@@ -4084,8 +4277,11 @@ static bool browse_host(bool sort)
 		return true;
 	}
 
-	if((ret = cli_RNetShareEnum(cli, browse_fn, NULL)) == -1)
-		d_printf("Error returning browse list: %s\n", cli_errstr(cli));
+	if((ret = cli_RNetShareEnum(cli, browse_fn, NULL)) == -1) {
+		NTSTATUS status = cli_nt_error(cli);
+		d_printf("Error returning browse list: %s\n",
+			 nt_errstr(status));
+	}
 
 	return (ret != -1);
 }
@@ -4145,11 +4341,12 @@ static int cmd_vuid(void)
 	char *buf;
 
 	if (!next_token_talloc(ctx, &cmd_ptr,&buf,NULL)) {
-		d_printf("Current VUID is %d\n", cli->vuid);
+		d_printf("Current VUID is %d\n",
+			 cli_state_get_uid(cli));
 		return 0;
 	}
 
-	cli->vuid = atoi(buf);
+	cli_state_set_uid(cli, atoi(buf));
 	return 0;
 }
 
@@ -4187,7 +4384,100 @@ static int cmd_logon(void)
 		return -1;
 	}
 
-	d_printf("Current VUID is %d\n", cli->vuid);
+	d_printf("Current VUID is %d\n", cli_state_get_uid(cli));
+	return 0;
+}
+
+/**
+ * close the session
+ */
+
+static int cmd_logoff(void)
+{
+	NTSTATUS status;
+
+	status = cli_ulogoff(cli);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("logoff failed: %s\n", nt_errstr(status));
+		return -1;
+	}
+
+	d_printf("logoff successful\n");
+	return 0;
+}
+
+
+/**
+ * tree connect (connect to a share)
+ */
+
+static int cmd_tcon(void)
+{
+	TALLOC_CTX *ctx = talloc_tos();
+	char *sharename;
+	NTSTATUS status;
+
+	if (!next_token_talloc(ctx, &cmd_ptr, &sharename, NULL)) {
+		d_printf("tcon <sharename>\n");
+		return 0;
+	}
+
+	if (!sharename) {
+		return 1;
+	}
+
+	status = cli_tree_connect(cli, sharename, "?????", "", 0);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("tcon failed: %s\n", nt_errstr(status));
+		return -1;
+	}
+
+	talloc_free(sharename);
+
+	d_printf("tcon to %s successful, tid: %u\n", sharename,
+		 cli_state_get_tid(cli));
+	return 0;
+}
+
+/**
+ * tree disconnect (disconnect from a share)
+ */
+
+static int cmd_tdis(void)
+{
+	NTSTATUS status;
+
+	status = cli_tdis(cli);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("tdis failed: %s\n", nt_errstr(status));
+		return -1;
+	}
+
+	d_printf("tdis successful\n");
+	return 0;
+}
+
+
+/**
+ * get or set tid
+ */
+
+static int cmd_tid(void)
+{
+	TALLOC_CTX *ctx = talloc_tos();
+	char *tid_str;
+
+	if (!next_token_talloc(ctx, &cmd_ptr, &tid_str, NULL)) {
+		if (cli_state_has_tcon(cli)) {
+			d_printf("current tid is %d\n", cli_state_get_tid(cli));
+		} else {
+			d_printf("no tcon currently\n");
+		}
+	} else {
+		uint16_t tid = atoi(tid_str);
+		cli_state_set_tid(cli, tid);
+	}
+
 	return 0;
 }
 
@@ -4211,14 +4501,17 @@ static int cmd_show_connect( void )
 	TALLOC_CTX *ctx = talloc_tos();
 	struct cli_state *targetcli;
 	char *targetpath;
+	NTSTATUS status;
 
-	if (!cli_resolve_path(ctx, "", auth_info, cli, client_get_cur_dir(),
-				&targetcli, &targetpath ) ) {
-		d_printf("showconnect %s: %s\n", cur_dir, cli_errstr(cli));
+	status = cli_resolve_path(ctx, "", auth_info, cli,
+				  client_get_cur_dir(), &targetcli,
+				  &targetpath);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_printf("showconnect %s: %s\n", cur_dir, nt_errstr(status));
 		return 1;
 	}
 
-	d_printf("//%s/%s\n", targetcli->desthost, targetcli->share);
+	d_printf("//%s/%s\n", smbXcli_conn_remote_name(targetcli->conn), targetcli->share);
 	return 0;
 }
 
@@ -4306,6 +4599,7 @@ static struct {
    {COMPL_NONE,COMPL_NONE}},
   {"altname",cmd_altname,"<file> show alt name",{COMPL_NONE,COMPL_NONE}},
   {"archive",cmd_archive,"<level>\n0=ignore archive bit\n1=only get archive files\n2=only get archive files and reset archive bit\n3=get all files and reset archive bit",{COMPL_NONE,COMPL_NONE}},
+  {"backup",cmd_backup,"toggle backup intent state",{COMPL_NONE,COMPL_NONE}},  
   {"blocksize",cmd_block,"blocksize <number> (default 20)",{COMPL_NONE,COMPL_NONE}},
   {"cancel",cmd_cancel,"<jobid> cancel a print queue entry",{COMPL_NONE,COMPL_NONE}},
   {"case_sensitive",cmd_setcase,"toggle the case sensitive flag to server",{COMPL_NONE,COMPL_NONE}},
@@ -4339,6 +4633,7 @@ static struct {
   {"more",cmd_more,"<remote name> view a remote file with your pager",{COMPL_REMOTE,COMPL_NONE}},  
   {"mput",cmd_mput,"<mask> put all matching files",{COMPL_REMOTE,COMPL_NONE}},
   {"newer",cmd_newer,"<file> only mget files newer than the specified local file",{COMPL_LOCAL,COMPL_NONE}},
+  {"notify",cmd_notify,"<file>Get notified of dir changes",{COMPL_REMOTE,COMPL_NONE}},
   {"open",cmd_open,"<mask> open a file",{COMPL_REMOTE,COMPL_NONE}},
   {"posix", cmd_posix, "turn on all POSIX capabilities", {COMPL_REMOTE,COMPL_NONE}},
   {"posix_encrypt",cmd_posix_encrypt,"<domain> <user> <password> start up transport encryption",{COMPL_REMOTE,COMPL_NONE}},
@@ -4377,6 +4672,10 @@ static struct {
   {"logon",cmd_logon,"establish new logon",{COMPL_NONE,COMPL_NONE}},
   {"listconnect",cmd_list_connect,"list open connections",{COMPL_NONE,COMPL_NONE}},
   {"showconnect",cmd_show_connect,"display the current active connection",{COMPL_NONE,COMPL_NONE}},
+  {"tcon",cmd_tcon,"connect to a share" ,{COMPL_NONE,COMPL_NONE}},
+  {"tdis",cmd_tdis,"disconnect from a share",{COMPL_NONE,COMPL_NONE}},
+  {"tid",cmd_tid,"show or set the current tid (tree-id)",{COMPL_NONE,COMPL_NONE}},
+  {"logoff",cmd_logoff,"log off (close the session)",{COMPL_NONE,COMPL_NONE}},
   {"..",cmd_cd_oneup,"change the remote directory (up one level)",{COMPL_REMOTE,COMPL_NONE}},
 
   /* Yes, this must be here, see crh's comment above. */
@@ -4457,12 +4756,15 @@ static int process_command_string(const char *cmd_in)
 	/* establish the connection if not already */
 
 	if (!cli) {
-		cli = cli_cm_open(talloc_tos(), NULL,
-				have_ip ? dest_ss_str : desthost,
-				service, auth_info,
-				true, smb_encrypt,
-				max_protocol, port, name_type);
-		if (!cli) {
+		NTSTATUS status;
+
+		status = cli_cm_open(talloc_tos(), NULL,
+				     have_ip ? dest_ss_str : desthost,
+				     service, auth_info,
+				     true, smb_encrypt,
+				     max_protocol, port, name_type,
+				     &cli);
+		if (!NT_STATUS_IS_OK(status)) {
 			return 1;
 		}
 	}
@@ -4637,7 +4939,9 @@ static char **remote_completion(const char *text, int len)
 		goto cleanup;
 	}
 
-	if (!cli_resolve_path(ctx, "", auth_info, cli, dirmask, &targetcli, &targetpath)) {
+	status = cli_resolve_path(ctx, "", auth_info, cli, dirmask, &targetcli,
+				  &targetpath);
+	if (!NT_STATUS_IS_OK(status)) {
 		goto cleanup;
 	}
 	status = cli_list(targetcli, targetpath, FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN,
@@ -4675,6 +4979,7 @@ static char **remote_completion(const char *text, int len)
 
 	info.matches[0] = SMB_STRNDUP(info.matches[1], info.samelen);
 	info.matches[info.count] = NULL;
+	TALLOC_FREE(ctx);
 	return info.matches;
 
 cleanup:
@@ -4787,7 +5092,8 @@ static void readline_callback(void)
 	static time_t last_t;
 	struct timespec now;
 	time_t t;
-	int ret, revents;
+	NTSTATUS status;
+	unsigned char garbage[16];
 
 	clock_gettime_mono(&now);
 	t = now.tv_sec;
@@ -4797,73 +5103,18 @@ static void readline_callback(void)
 
 	last_t = t;
 
- again:
-
-	if (cli->fd == -1)
+	/* Ping the server to keep the connection alive using SMBecho. */
+	memset(garbage, 0xf0, sizeof(garbage));
+	status = cli_echo(cli, 1, data_blob_const(garbage, sizeof(garbage)));
+	if (NT_STATUS_IS_OK(status)) {
 		return;
-
-	/* We deliberately use receive_smb_raw instead of
-	   client_receive_smb as we want to receive
-	   session keepalives and then drop them here.
-	*/
-
-	ret = poll_intr_one_fd(cli->fd, POLLIN|POLLHUP, 0, &revents);
-
-	if ((ret > 0) && (revents & (POLLIN|POLLHUP|POLLERR))) {
-		NTSTATUS status;
-		size_t len;
-
-		set_smb_read_error(&cli->smb_rw_error, SMB_READ_OK);
-
-		status = receive_smb_raw(cli->fd, cli->inbuf, cli->bufsize, 0, 0, &len);
-
-		if (!NT_STATUS_IS_OK(status)) {
-			DEBUG(0, ("Read from server failed, maybe it closed "
-				  "the connection\n"));
-
-			finished = true;
-			smb_readline_done();
-			if (NT_STATUS_EQUAL(status, NT_STATUS_END_OF_FILE)) {
-				set_smb_read_error(&cli->smb_rw_error,
-						   SMB_READ_EOF);
-				return;
-			}
-
-			if (NT_STATUS_EQUAL(status, NT_STATUS_IO_TIMEOUT)) {
-				set_smb_read_error(&cli->smb_rw_error,
-						   SMB_READ_TIMEOUT);
-				return;
-			}
-
-			set_smb_read_error(&cli->smb_rw_error, SMB_READ_ERROR);
-			return;
-		}
-		if(CVAL(cli->inbuf,0) != SMBkeepalive) {
-			DEBUG(0, ("Read from server "
-				"returned unexpected packet!\n"));
-			return;
-		}
-
-		goto again;
 	}
 
-	/* Ping the server to keep the connection alive using SMBecho. */
-	{
-		NTSTATUS status;
-		unsigned char garbage[16];
-		memset(garbage, 0xf0, sizeof(garbage));
-		status = cli_echo(cli, 1, data_blob_const(garbage, sizeof(garbage)));
-
-		if (NT_STATUS_IS_OK(status)) {
-			return;
-		}
-
-		if (!cli_state_is_connected(cli)) {
-			DEBUG(0, ("SMBecho failed (%s). The connection is "
-				"disconnected now\n", nt_errstr(status)));
-			finished = true;
-			smb_readline_done();
-		}
+	if (!cli_state_is_connected(cli)) {
+		DEBUG(0,("SMBecho failed (%s). The connection is "
+			 "disconnected now\n", nt_errstr(status)));
+		finished = true;
+		smb_readline_done();
 	}
 }
 
@@ -4933,12 +5184,13 @@ static int process_stdin(void)
 static int process(const char *base_directory)
 {
 	int rc = 0;
+	NTSTATUS status;
 
-	cli = cli_cm_open(talloc_tos(), NULL,
-			have_ip ? dest_ss_str : desthost,
-			service, auth_info, true, smb_encrypt,
-			max_protocol, port, name_type);
-	if (!cli) {
+	status = cli_cm_open(talloc_tos(), NULL,
+			     have_ip ? dest_ss_str : desthost,
+			     service, auth_info, true, smb_encrypt,
+			     max_protocol, port, name_type, &cli);
+	if (!NT_STATUS_IS_OK(status)) {
 		return 1;
 	}
 
@@ -4966,11 +5218,15 @@ static int process(const char *base_directory)
 
 static int do_host_query(const char *query_host)
 {
-	cli = cli_cm_open(talloc_tos(), NULL,
-			have_ip ? dest_ss_str : query_host, "IPC$", auth_info, true, smb_encrypt,
-			max_protocol, port, name_type);
-	if (!cli)
+	NTSTATUS status;
+
+	status = cli_cm_open(talloc_tos(), NULL,
+			     have_ip ? dest_ss_str : query_host,
+			     "IPC$", auth_info, true, smb_encrypt,
+			     max_protocol, port, name_type, &cli);
+	if (!NT_STATUS_IS_OK(status)) {
 		return 1;
+	}
 
 	browse_host(true);
 
@@ -4986,16 +5242,20 @@ static int do_host_query(const char *query_host)
 		}
 	}
 
-	if (port != 139) {
+	if (port != NBT_SMB_PORT) {
 
 		/* Workgroups simply don't make sense over anything
 		   else but port 139... */
 
 		cli_shutdown(cli);
-		cli = cli_cm_open(talloc_tos(), NULL,
-				have_ip ? dest_ss_str : query_host, "IPC$",
-				auth_info, true, smb_encrypt,
-				max_protocol, 139, name_type);
+		status = cli_cm_open(talloc_tos(), NULL,
+				     have_ip ? dest_ss_str : query_host,
+				     "IPC$", auth_info, true, smb_encrypt,
+				     max_protocol, NBT_SMB_PORT, name_type,
+				     &cli);
+		if (!NT_STATUS_IS_OK(status)) {
+			cli = NULL;
+		}
 	}
 
 	if (cli == NULL) {
@@ -5020,12 +5280,15 @@ static int do_tar_op(const char *base_directory)
 
 	/* do we already have a connection? */
 	if (!cli) {
-		cli = cli_cm_open(talloc_tos(), NULL,
-			have_ip ? dest_ss_str : desthost,
-			service, auth_info, true, smb_encrypt,
-			max_protocol, port, name_type);
-		if (!cli)
+		NTSTATUS status;
+
+		status = cli_cm_open(talloc_tos(), NULL,
+				     have_ip ? dest_ss_str : desthost,
+				     service, auth_info, true, smb_encrypt,
+				     max_protocol, port, name_type, &cli);
+		if (!NT_STATUS_IS_OK(status)) {
 			return 1;
+		}
 	}
 
 	recurse=true;
@@ -5051,43 +5314,13 @@ static int do_tar_op(const char *base_directory)
 
 static int do_message_op(struct user_auth_info *a_info)
 {
-	struct sockaddr_storage ss;
-	struct nmb_name called, calling;
-	fstring server_name;
-	char name_type_hex[10];
-	int msg_port;
 	NTSTATUS status;
 
-	make_nmb_name(&calling, calling_name, 0x0);
-	make_nmb_name(&called , desthost, name_type);
-
-	fstrcpy(server_name, desthost);
-	snprintf(name_type_hex, sizeof(name_type_hex), "#%X", name_type);
-	fstrcat(server_name, name_type_hex);
-
-        zero_sockaddr(&ss);
-	if (have_ip)
-		ss = dest_ss;
-
-	/* we can only do messages over port 139 (to windows clients at least) */
-
-	msg_port = port ? port : 139;
-
-	if (!(cli=cli_initialise())) {
-		d_printf("Connection to %s failed\n", desthost);
-		return 1;
-	}
-	cli_set_port(cli, msg_port);
-
-	status = cli_connect(cli, server_name, &ss);
+	status = cli_connect_nb(desthost, have_ip ? &dest_ss : NULL,
+				port ? port : NBT_SMB_PORT, name_type,
+				lp_netbios_name(), SMB_SIGNING_DEFAULT, 0, &cli);
 	if (!NT_STATUS_IS_OK(status)) {
 		d_printf("Connection to %s failed. Error %s\n", desthost, nt_errstr(status));
-		return 1;
-	}
-
-	if (!cli_session_request(cli, &calling, &called)) {
-		d_printf("session request failed\n");
-		cli_shutdown(cli);
 		return 1;
 	}
 
@@ -5111,7 +5344,6 @@ static int do_message_op(struct user_auth_info *a_info)
 	poptContext pc;
 	char *p;
 	int rc = 0;
-	fstring new_workgroup;
 	bool tar_opt = false;
 	bool service_opt = false;
 	struct poptOption long_options[] = {
@@ -5141,12 +5373,6 @@ static int do_message_op(struct user_auth_info *a_info)
 		exit(ENOMEM);
 	}
 
-	/* initialize the workgroup name so we can determine whether or
-	   not it was set by a command line option */
-
-	set_global_myworkgroup( "" );
-	set_global_myname( "" );
-
         /* set default debug level to 1 regardless of what smb.conf sets */
 	setup_logging( "smbclient", DEBUG_DEFAULT_STDERR );
 	load_case_tables();
@@ -5162,8 +5388,6 @@ static int do_message_op(struct user_auth_info *a_info)
 	/* skip argv(0) */
 	pc = poptGetContext("smbclient", argc, (const char **) argv, long_options, 0);
 	poptSetOtherOptionHelp(pc, "service <password>");
-
-        lp_set_in_client(true); /* Make sure that we tell lp_load we are */
 
 	while ((opt = poptGetNextOpt(pc)) != -1) {
 
@@ -5205,7 +5429,7 @@ static int do_message_op(struct user_auth_info *a_info)
 				exit(ENOMEM);
 			}
 			if( !port )
-				port = 139;
+				port = NBT_SMB_PORT;
  			message = true;
  			break;
 		case 'I':
@@ -5292,22 +5516,10 @@ static int do_message_op(struct user_auth_info *a_info)
 					       poptGetArg(pc));
 	}
 
-	/* save the workgroup...
-
-	   FIXME!! do we need to do this for other options as well
-	   (or maybe a generic way to keep lp_load() from overwriting
-	   everything)?  */
-
-	fstrcpy( new_workgroup, lp_workgroup() );
-	calling_name = talloc_strdup(frame, global_myname() );
-	if (!calling_name) {
-		exit(ENOMEM);
-	}
-
 	if ( override_logfile )
-		setup_logging( lp_logfile(), DEBUG_FILE );
+		setup_logging( lp_logfile(talloc_tos()), DEBUG_FILE );
 
-	if (!lp_load(get_dyn_CONFIGFILE(),true,false,false,true)) {
+	if (!lp_load_client(get_dyn_CONFIGFILE())) {
 		fprintf(stderr, "%s: Can't load %s - run testparm to debug it\n",
 			argv[0], get_dyn_CONFIGFILE());
 	}
@@ -5337,17 +5549,6 @@ static int do_message_op(struct user_auth_info *a_info)
 		}
 	}
 
-	if ( strlen(new_workgroup) != 0 ) {
-		set_global_myworkgroup( new_workgroup );
-	}
-
-	if ( strlen(calling_name) != 0 ) {
-		set_global_myname( calling_name );
-	} else {
-		TALLOC_FREE(calling_name);
-		calling_name = talloc_strdup(frame, global_myname() );
-	}
-
 	smb_encrypt = get_cmdline_auth_info_smb_encrypt(auth_info);
 	if (!init_names()) {
 		fprintf(stderr, "init_names() failed\n");
@@ -5355,7 +5556,7 @@ static int do_message_op(struct user_auth_info *a_info)
 	}
 
 	if(new_name_resolve_order)
-		lp_set_name_resolve_order(new_name_resolve_order);
+		lp_set_cmdline("name resolve order", new_name_resolve_order);
 
 	if (!tar_type && !query_host && !service && !message) {
 		poptPrintUsage(pc, stderr, 0);
@@ -5372,10 +5573,8 @@ static int do_message_op(struct user_auth_info *a_info)
 	if (tar_type) {
 		if (cmdstr)
 			process_command_string(cmdstr);
-		return do_tar_op(base_directory);
-	}
-
-	if (query_host && *query_host) {
+		rc = do_tar_op(base_directory);
+	} else if (query_host && *query_host) {
 		char *qhost = query_host;
 		char *slash;
 
@@ -5393,15 +5592,11 @@ static int do_message_op(struct user_auth_info *a_info)
 			sscanf(p, "%x", &name_type);
 		}
 
-		return do_host_query(qhost);
-	}
-
-	if (message) {
-		return do_message_op(auth_info);
-	}
-
-	if (process(base_directory)) {
-		return 1;
+		rc = do_host_query(qhost);
+	} else if (message) {
+		rc = do_message_op(auth_info);
+	} else if (process(base_directory)) {
+		rc = 1;
 	}
 
 	TALLOC_FREE(frame);

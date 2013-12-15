@@ -76,7 +76,7 @@ void nb_alarm(int ignore)
 void nbio_shmem(int n)
 {
 	nprocs = n;
-	children = (struct children *)shm_setup(sizeof(*children) * nprocs);
+	children = (struct children *)anonymous_shared_allocate(sizeof(*children) * nprocs);
 	if (!children) {
 		printf("Failed to setup shared memory!\n");
 		exit(1);
@@ -135,10 +135,13 @@ void nb_setup(struct cli_state *cli)
 
 void nb_unlink(const char *fname)
 {
-	if (!NT_STATUS_IS_OK(cli_unlink(c, fname, FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN))) {
+	NTSTATUS status;
+
+	status = cli_unlink(c, fname, FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN);
+	if (!NT_STATUS_IS_OK(status)) {
 #if NBDEBUG
 		printf("(%d) unlink %s failed (%s)\n", 
-		       line_count, fname, cli_errstr(c));
+		       line_count, fname, nt_errstr(status));
 #endif
 	}
 }
@@ -166,7 +169,7 @@ void nb_createx(const char *fname,
 				create_options, 0, &fd);
 	if (!NT_STATUS_IS_OK(status) && handle != -1) {
 		printf("ERROR: cli_ntcreate failed for %s - %s\n",
-		       fname, cli_errstr(c));
+		       fname, nt_errstr(status));
 		exit(1);
 	}
 	if (NT_STATUS_IS_OK(status) && handle == -1) {
@@ -209,12 +212,23 @@ void nb_writex(int handle, int offset, int size, int ret_size)
 
 void nb_readx(int handle, int offset, int size, int ret_size)
 {
-	int i, ret;
+	int i;
+	NTSTATUS status;
+	size_t nread;
 
 	i = find_handle(handle);
-	if ((ret=cli_read(c, ftable[i].fd, buf, offset, size)) != ret_size) {
-		printf("(%d) ERROR: read failed on handle %d ofs=%d size=%d res=%d fd %d errno %d (%s)\n",
-			line_count, handle, offset, size, ret, ftable[i].fd, errno, strerror(errno));
+	status = cli_read(c, ftable[i].fd, buf, offset, size, &nread);
+	if (!NT_STATUS_IS_OK(status)) {
+		printf("(%d) ERROR: read failed on handle %d ofs=%d size=%d "
+		       "fd %d nterror %s\n",
+		       line_count, handle, offset, size,
+		       ftable[i].fd, nt_errstr(status));
+		exit(1);
+	} else if (nread != ret_size) {
+		printf("(%d) ERROR: read failed on handle %d ofs=%d size=%d "
+		       "nread=%lu ret_size=%d fd %d\n",
+		       line_count, handle, offset, size, (unsigned long)nread,
+		       ret_size, ftable[i].fd);
 		exit(1);
 	}
 	children[nbio_id].bytes_in += ret_size;
@@ -233,18 +247,24 @@ void nb_close(int handle)
 
 void nb_rmdir(const char *fname)
 {
-	if (!NT_STATUS_IS_OK(cli_rmdir(c, fname))) {
+	NTSTATUS status;
+
+	status = cli_rmdir(c, fname);
+	if (!NT_STATUS_IS_OK(status)) {
 		printf("ERROR: rmdir %s failed (%s)\n", 
-		       fname, cli_errstr(c));
+		       fname, nt_errstr(status));
 		exit(1);
 	}
 }
 
 void nb_rename(const char *oldname, const char *newname)
 {
-	if (!NT_STATUS_IS_OK(cli_rename(c, oldname, newname))) {
+	NTSTATUS status;
+
+	status = cli_rename(c, oldname, newname);
+	if (!NT_STATUS_IS_OK(status)) {
 		printf("ERROR: rename %s %s failed (%s)\n", 
-		       oldname, newname, cli_errstr(c));
+		       oldname, newname, nt_errstr(status));
 		exit(1);
 	}
 }

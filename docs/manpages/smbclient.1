@@ -2,12 +2,12 @@
 .\"     Title: smbclient
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 09/18/2013
+.\"      Date: 12/06/2013
 .\"    Manual: User Commands
-.\"    Source: Samba 3.6
+.\"    Source: Samba 4.0
 .\"  Language: English
 .\"
-.TH "SMBCLIENT" "1" "09/18/2013" "Samba 3\&.6" "User Commands"
+.TH "SMBCLIENT" "1" "12/06/2013" "Samba 4\&.0" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -205,7 +205,7 @@ This parameter sets the maximum protocol version announced by the client\&.
 Make queries to the external server using the machine account of the local server\&.
 .RE
 .PP
-\-h|\-\-help
+\-?|\-\-help
 .RS 4
 Print a summary of command line options\&.
 .RE
@@ -269,7 +269,7 @@ file\&.
 Prints the program version number\&.
 .RE
 .PP
-\-s|\-\-configfile <configuration file>
+\-s|\-\-configfile=<configuration file>
 .RS 4
 The file specified contains the configuration details required by the server\&. The information in this file includes server\-specific information such as what printcap file to use, as well as descriptions of all the services that the server is to provide\&. See
 smb\&.conf
@@ -281,6 +281,13 @@ for more information\&. The default configuration file name is determined at com
 Base directory name for log/debug files\&. The extension
 \fB"\&.progname"\fR
 will be appended (e\&.g\&. log\&.smbclient, log\&.smbd, etc\&.\&.\&.)\&. The log file is never removed by the client\&.
+.RE
+.PP
+\-\-option=<name>=<value>
+.RS 4
+Set the
+\fBsmb.conf\fR(5)
+option "<name>" to value "<value>" from the command line\&. This overrides compiled\-in defaults and options read from the configuration file\&.
 .RE
 .PP
 \-N|\-\-no\-pass
@@ -637,6 +644,11 @@ archive <number>
 Sets the archive level when operating on files\&. 0 means ignore the archive bit, 1 means only operate on files with this bit set, 2 means only operate on files with this bit set and reset it after operation, 3 means operate on all files and reset it after operation\&. The default is 0\&.
 .RE
 .PP
+backup
+.RS 4
+Toggle the state of the "backup intent" flag sent to the server on directory listings and file opens\&. If the "backup intent" flag is true, the server will try and bypass some file system checks if the user has been granted SE_BACKUP or SE_RESTORE privilages\&. This state is useful when performing a backup or restore operation\&.
+.RE
+.PP
 blocksize <number>
 .RS 4
 Sets the blocksize parameter for a tar operation\&. The default is 20\&. Causes tar file to be written out in blocksize*TBLOCK (normally 512 byte) units\&.
@@ -765,6 +777,11 @@ This command depends on the server supporting the CIFS UNIX extensions and will 
 logon <username> <password>
 .RS 4
 Establishes a new vuid for this session by logging on again\&. Replaces the current vuid\&. Prints out the new vuid\&. Used for internal Samba testing purposes\&.
+.RE
+.PP
+logoff
+.RS 4
+Logs the user off the server, closing the session\&. Used for internal Samba testing purposes\&.
 .RE
 .PP
 lowercase
@@ -987,6 +1004,21 @@ Prints the current volume name of the share\&.
 vuid <number>
 .RS 4
 Changes the currently used vuid in the protocol to the given arbitrary number\&. Without an argument prints out the current vuid being used\&. Used for internal Samba testing purposes\&.
+.RE
+.PP
+tcon <sharename>
+.RS 4
+Establishes a new tree connect (connection to a share)\&. Replaces the current tree connect\&. Prints the new tid (tree id)\&. Used for internal Samba testing purposes\&.
+.RE
+.PP
+tdis
+.RS 4
+Close the current share connection (tree disconnect)\&. Used for internal Samba testing purposes\&.
+.RE
+.PP
+tid <number>
+.RS 4
+Changes the current tree id (tid) in the protocol to a new arbitrary number\&. Without an argument, it prints out the tid currently used\&. Used for internal Samba testing purposes\&.
 .RE
 .SH "NOTES"
 .PP

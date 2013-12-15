@@ -20,16 +20,15 @@
 
 #ifndef __POLICY_H__
 #define __POLICY_H__
-#include "libcli/libcli.h"
 
 #define GPLINK_OPT_DISABLE		(1 << 0)
 #define GPLINK_OPT_ENFORCE		(1 << 1)
-
 
 #define GPO_FLAG_USER_DISABLE		(1 << 0)
 #define GPO_FLAG_MACHINE_DISABLE	(1 << 1)
 
 struct security_token;
+struct nbt_dc_name;
 
 enum gpo_inheritance {
 	GPO_INHERIT = 0,
@@ -42,7 +41,7 @@ struct gp_context {
 	struct cli_credentials *credentials;
 	struct tevent_context *ev_ctx;
 	struct smbcli_state *cli;
-	struct nbt_dc_name active_dc;
+	struct nbt_dc_name *active_dc;
 };
 
 struct gp_object {
@@ -123,5 +122,6 @@ NTSTATUS gp_get_ini_uint(struct gp_ini_context *ini, const char *section, const 
 NTSTATUS gp_create_gpo (struct gp_context *gp_ctx, const char *display_name, struct gp_object **ret);
 NTSTATUS gp_create_gpt_security_descriptor (TALLOC_CTX *mem_ctx, struct security_descriptor *ds_sd, struct security_descriptor **ret);
 NTSTATUS gp_set_acl (struct gp_context *gp_ctx, const char *dn_str, const struct security_descriptor *sd);
+uint32_t gp_ads_to_dir_access_mask(uint32_t access_mask);
 
 #endif

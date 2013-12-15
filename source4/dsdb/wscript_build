@@ -7,16 +7,16 @@ bld.SAMBA_LIBRARY('samdb',
 	pc_files='samdb.pc',
 	autoproto='samdb/samdb_proto.h',
 	public_deps='krb5',
+	public_headers='',
 	vnum='0.0.1',
-	deps='ndr NDR_DRSUAPI NDR_DRSBLOBS auth_system_session LIBCLI_AUTH ndr SAMDB_SCHEMA ldbsamba samdb-common LIBCLI_DRSUAPI LIBCLI_LDAP_NDR samba-util com_err authkrb5 credentials ldbwrap',
+	deps='ndr NDR_DRSUAPI NDR_DRSBLOBS auth_system_session LIBCLI_AUTH ndr SAMDB_SCHEMA ldbsamba samdb-common LIBCLI_DRSUAPI cli-ldap-common samba-util com_err authkrb5 samba-credentials ldbwrap errors krb5samba',
 	)
-
 
 bld.SAMBA_LIBRARY('samdb-common',
 	source='common/util.c common/util_groups.c common/util_samr.c common/dsdb_dn.c common/dsdb_access.c',
 	autoproto='common/proto.h',
 	private_library=True,
-	deps='ldb NDR_DRSBLOBS UTIL_LDB LIBCLI_AUTH samba-hostconfig samba_socket LIBCLI_LDAP_NDR flag_mapping'
+	deps='ldb NDR_DRSBLOBS util_ldb LIBCLI_AUTH samba-hostconfig samba_socket cli-ldap-common flag_mapping'
 	)
 
 
@@ -34,6 +34,7 @@ bld.SAMBA_MODULE('service_drepl',
 	init_function='server_service_drepl_init',
 	deps='samdb process_model RPC_NDR_DRSUAPI',
 	internal_module=False,
+	enabled=bld.AD_DC_BUILD_IS_ENABLED()
 	)
 
 
@@ -42,8 +43,9 @@ bld.SAMBA_MODULE('service_kcc',
 	autoproto='kcc/kcc_service_proto.h',
 	subsystem='service',
 	init_function='server_service_kcc_init',
-	deps='samdb process_model RPC_NDR_IRPC RPC_NDR_DRSUAPI',
+	deps='samdb process_model RPC_NDR_IRPC RPC_NDR_DRSUAPI UTIL_RUNCMD',
 	internal_module=False,
+	enabled=bld.AD_DC_BUILD_IS_ENABLED()
 	)
 
 
@@ -52,7 +54,8 @@ bld.SAMBA_MODULE('service_dns_update',
 	subsystem='service',
 	init_function='server_service_dnsupdate_init',
 	deps='samdb UTIL_RUNCMD samba-util ldb samdb-common errors talloc auth_system_session samba-hostconfig',
-	internal_module=False
+	internal_module=False,
+	enabled=bld.AD_DC_BUILD_IS_ENABLED()
 	)
 
 bld.SAMBA_PYTHON('python_dsdb',

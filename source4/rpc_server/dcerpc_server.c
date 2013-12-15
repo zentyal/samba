@@ -39,6 +39,7 @@
 #include "smbd/process_model.h"
 #include "lib/messaging/irpc.h"
 #include "librpc/rpc/rpc_common.h"
+#include "lib/util/samba_modules.h"
 
 /* this is only used when the client asks for an unknown interface */
 #define DUMMY_ASSOC_GROUP 0x0FFFFFFF
@@ -366,7 +367,7 @@ _PUBLIC_ NTSTATUS dcesrv_endpoint_connect(struct dcesrv_context *dce_ctx,
 				 const struct dcesrv_endpoint *ep,
 				 struct auth_session_info *session_info,
 				 struct tevent_context *event_ctx,
-				 struct messaging_context *msg_ctx,
+				 struct imessaging_context *msg_ctx,
 				 struct server_id server_id,
 				 uint32_t state_flags,
 				 struct dcesrv_connection **_p)
@@ -385,6 +386,8 @@ _PUBLIC_ NTSTATUS dcesrv_endpoint_connect(struct dcesrv_context *dce_ctx,
 		return NT_STATUS_NO_MEMORY;
 	}
 
+	p->prev = NULL;
+	p->next = NULL;
 	p->dce_ctx = dce_ctx;
 	p->endpoint = ep;
 	p->contexts = NULL;
@@ -401,7 +404,7 @@ _PUBLIC_ NTSTATUS dcesrv_endpoint_connect(struct dcesrv_context *dce_ctx,
 	p->event_ctx = event_ctx;
 	p->msg_ctx = msg_ctx;
 	p->server_id = server_id;
-	p->processing = false;
+	p->terminate = NULL;
 	p->state_flags = state_flags;
 	ZERO_STRUCT(p->transport);
 
@@ -543,8 +546,8 @@ static NTSTATUS dcesrv_bind(struct dcesrv_call_state *call)
 
 	transfer_syntax_version = call->pkt.u.bind.ctx_list[0].transfer_syntaxes[0].if_version;
 	transfer_syntax_uuid = &call->pkt.u.bind.ctx_list[0].transfer_syntaxes[0].uuid;
-	if (!GUID_equal(&ndr_transfer_syntax.uuid, transfer_syntax_uuid) != 0 ||
-	    ndr_transfer_syntax.if_version != transfer_syntax_version) {
+	if (!GUID_equal(&ndr_transfer_syntax_ndr.uuid, transfer_syntax_uuid) != 0 ||
+	    ndr_transfer_syntax_ndr.if_version != transfer_syntax_version) {
 		char *uuid_str = GUID_string(call, transfer_syntax_uuid);
 		/* we only do NDR encoded dcerpc */
 		DEBUG(0,("Non NDR transfer syntax requested - %s\n", uuid_str));
@@ -656,7 +659,7 @@ static NTSTATUS dcesrv_bind(struct dcesrv_call_state *call)
 	}
 	pkt.u.bind_ack.ctx_list[0].result = result;
 	pkt.u.bind_ack.ctx_list[0].reason = reason;
-	pkt.u.bind_ack.ctx_list[0].syntax = ndr_transfer_syntax;
+	pkt.u.bind_ack.ctx_list[0].syntax = ndr_transfer_syntax_ndr;
 	pkt.u.bind_ack.auth_info = data_blob(NULL, 0);
 
 	status = dcesrv_auth_bind_ack(call, &pkt);
@@ -730,8 +733,8 @@ static NTSTATUS dcesrv_alter_new_context(struct dcesrv_call_state *call, uint32_
 
 	transfer_syntax_version = call->pkt.u.alter.ctx_list[0].transfer_syntaxes[0].if_version;
 	transfer_syntax_uuid = &call->pkt.u.alter.ctx_list[0].transfer_syntaxes[0].uuid;
-	if (!GUID_equal(transfer_syntax_uuid, &ndr_transfer_syntax.uuid) ||
-	    ndr_transfer_syntax.if_version != transfer_syntax_version) {
+	if (!GUID_equal(transfer_syntax_uuid, &ndr_transfer_syntax_ndr.uuid) ||
+	    ndr_transfer_syntax_ndr.if_version != transfer_syntax_version) {
 		/* we only do NDR encoded dcerpc */
 		return NT_STATUS_RPC_PROTSEQ_NOT_SUPPORTED;
 	}
@@ -845,7 +848,7 @@ static NTSTATUS dcesrv_alter(struct dcesrv_call_state *call)
 	}
 	pkt.u.alter_resp.ctx_list[0].result = result;
 	pkt.u.alter_resp.ctx_list[0].reason = reason;
-	pkt.u.alter_resp.ctx_list[0].syntax = ndr_transfer_syntax;
+	pkt.u.alter_resp.ctx_list[0].syntax = ndr_transfer_syntax_ndr;
 	pkt.u.alter_resp.auth_info = data_blob(NULL, 0);
 	pkt.u.alter_resp.secondary_address = "";
 
@@ -1142,6 +1145,7 @@ _PUBLIC_ NTSTATUS dcesrv_init_context(TALLOC_CTX *mem_ctx,
 	dce_ctx->lp_ctx = lp_ctx;
 	dce_ctx->assoc_groups_idr = idr_init(dce_ctx);
 	NT_STATUS_HAVE_NO_MEMORY(dce_ctx->assoc_groups_idr);
+	dce_ctx->broken_connections = NULL;
 
 	for (i=0;endpoint_servers[i];i++) {
 		const struct dcesrv_endpoint_server *ep_server;
@@ -1235,7 +1239,7 @@ void dcerpc_server_init(struct loadparm_context *lp_ctx)
 	}
 	initialized = true;
 
-	shared_init = load_samba_modules(NULL, lp_ctx, "dcerpc_server");
+	shared_init = load_samba_modules(NULL, "dcerpc_server");
 
 	run_init_functions(static_init);
 	run_init_functions(shared_init);
@@ -1268,12 +1272,45 @@ const struct dcesrv_critical_sizes *dcerpc_module_version(void)
 
 static void dcesrv_terminate_connection(struct dcesrv_connection *dce_conn, const char *reason)
 {
+	struct dcesrv_context *dce_ctx = dce_conn->dce_ctx;
 	struct stream_connection *srv_conn;
 	srv_conn = talloc_get_type(dce_conn->transport.private_data,
 				   struct stream_connection);
 
-	stream_terminate_connection(srv_conn, reason);
+	if (dce_conn->pending_call_list == NULL) {
+		char *full_reason = talloc_asprintf(dce_conn, "dcesrv: %s", reason);
+
+		DLIST_REMOVE(dce_ctx->broken_connections, dce_conn);
+		stream_terminate_connection(srv_conn, full_reason ? full_reason : reason);
+		return;
+	}
+
+	if (dce_conn->terminate != NULL) {
+		return;
+	}
+
+	DEBUG(3,("dcesrv: terminating connection due to '%s' defered due to pending calls\n",
+		 reason));
+	dce_conn->terminate = talloc_strdup(dce_conn, reason);
+	if (dce_conn->terminate == NULL) {
+		dce_conn->terminate = "dcesrv: defered terminating connection - no memory";
+	}
+	DLIST_ADD_END(dce_ctx->broken_connections, dce_conn, NULL);
 }
+
+static void dcesrv_cleanup_broken_connections(struct dcesrv_context *dce_ctx)
+{
+	struct dcesrv_connection *cur, *next;
+
+	next = dce_ctx->broken_connections;
+	while (next != NULL) {
+		cur = next;
+		next = cur->next;
+
+		dcesrv_terminate_connection(cur, cur->terminate);
+	}
+}
+
 /* We need this include to be able to compile on some plateforms
  * (ie. freebsd 7.2) as it seems that <sys/uio.h> is not included
  * correctly.
@@ -1353,7 +1390,7 @@ static void dcesrv_sock_reply_done(struct tevent_req *subreq)
 	ret = tstream_writev_queue_recv(subreq, &sys_errno);
 	TALLOC_FREE(subreq);
 	if (ret == -1) {
-		status = map_nt_error_from_unix(sys_errno);
+		status = map_nt_error_from_unix_common(sys_errno);
 		dcesrv_terminate_connection(substate->dce_conn, nt_errstr(status));
 		return;
 	}
@@ -1384,6 +1421,8 @@ static void dcesrv_sock_accept(struct stream_connection *srv_conn)
 	int ret;
 	struct tevent_req *subreq;
 	struct loadparm_context *lp_ctx = dcesrv_sock->dcesrv_ctx->lp_ctx;
+
+	dcesrv_cleanup_broken_connections(dcesrv_sock->dcesrv_ctx);
 
 	if (!srv_conn->session_info) {
 		status = auth_anonymous_session_info(srv_conn,
@@ -1436,7 +1475,7 @@ static void dcesrv_sock_accept(struct stream_connection *srv_conn)
 						  socket_get_fd(srv_conn->socket),
 						  &dcesrv_conn->stream);
 		if (ret == -1) {
-			status = map_nt_error_from_unix(errno);
+			status = map_nt_error_from_unix_common(errno);
 			DEBUG(0, ("dcesrv_sock_accept: "
 				  "failed to setup tstream: %s\n",
 				  nt_errstr(status)));
@@ -1472,9 +1511,22 @@ static void dcesrv_read_fragment_done(struct tevent_req *subreq)
 {
 	struct dcesrv_connection *dce_conn = tevent_req_callback_data(subreq,
 					     struct dcesrv_connection);
+	struct dcesrv_context *dce_ctx = dce_conn->dce_ctx;
 	struct ncacn_packet *pkt;
 	DATA_BLOB buffer;
 	NTSTATUS status;
+
+	if (dce_conn->terminate) {
+		/*
+		 * if the current connection is broken
+		 * we need to clean it up before any other connection
+		 */
+		dcesrv_terminate_connection(dce_conn, dce_conn->terminate);
+		dcesrv_cleanup_broken_connections(dce_ctx);
+		return;
+	}
+
+	dcesrv_cleanup_broken_connections(dce_ctx);
 
 	status = dcerpc_read_ncacn_packet_recv(subreq, dce_conn,
 					       &pkt, &buffer);
@@ -1648,7 +1700,7 @@ static NTSTATUS add_socket_rpc_tcp_iface(struct dcesrv_context *dce_ctx, struct 
 
 	status = stream_setup_socket(dcesrv_sock, event_ctx, dce_ctx->lp_ctx,
 				     model_ops, &dcesrv_stream_ops, 
-				     "ipv4", address, &port, 
+				     "ip", address, &port,
 				     lpcfg_socket_options(dce_ctx->lp_ctx),
 				     dcesrv_sock);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -1678,18 +1730,24 @@ static NTSTATUS dcesrv_add_ep_tcp(struct dcesrv_context *dce_ctx,
 		int i;
 		struct interface *ifaces;
 
-		load_interfaces(dce_ctx, lpcfg_interfaces(lp_ctx), &ifaces);
+		load_interface_list(dce_ctx, lp_ctx, &ifaces);
 
-		num_interfaces = iface_count(ifaces);
+		num_interfaces = iface_list_count(ifaces);
 		for(i = 0; i < num_interfaces; i++) {
-			const char *address = iface_n_ip(ifaces, i);
+			const char *address = iface_list_n_ip(ifaces, i);
 			status = add_socket_rpc_tcp_iface(dce_ctx, e, event_ctx, model_ops, address);
 			NT_STATUS_NOT_OK_RETURN(status);
 		}
 	} else {
-		status = add_socket_rpc_tcp_iface(dce_ctx, e, event_ctx, model_ops, 
-						  lpcfg_socket_address(lp_ctx));
-		NT_STATUS_NOT_OK_RETURN(status);
+		const char **wcard;
+		int i;
+		wcard = iface_list_wildcard(dce_ctx, lp_ctx);
+		NT_STATUS_HAVE_NO_MEMORY(wcard);
+		for (i=0; wcard[i]; i++) {
+			status = add_socket_rpc_tcp_iface(dce_ctx, e, event_ctx, model_ops, wcard[i]);
+			NT_STATUS_NOT_OK_RETURN(status);
+		}
+		talloc_free(wcard);
 	}
 
 	return NT_STATUS_OK;

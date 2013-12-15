@@ -1,20 +1,143 @@
 # Turkish translation of samba.
 # This file is distributed under the same license as the samba package.
 # Mehmet Türker <mturker@innova.com.tr>, 2004.
-# Atila KOÇ <akoc@artielektronik.com.tr>, 2012.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: samba\n"
-"Report-Msgid-Bugs-To: samba@packages.debian.org\n"
-"POT-Creation-Date: 2013-05-13 11:53-0700\n"
-"PO-Revision-Date: 2012-05-10 10:24+0200\n"
-"Last-Translator: Atila KOÇ <akoc@artielektronik.com.tr>\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2013-10-22 20:32+0200\n"
+"PO-Revision-Date: 2008-06-20 17:28+0200\n"
+"Last-Translator: İsmail BAYDAN <ibaydan@gmail.com>\n"
 "Language-Team: Turkish <debian-l10n-turkish@lists.debian.org>\n"
 "Language: tr\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid "Upgrade from Samba 3?"
+msgstr "Samba 3'ten güncelleştir?"
+
+#. Type: boolean
+#. Description
+#: ../samba-ad-dc.templates:1001
+msgid ""
+"It is possible to migrate the existing configuration files from Samba 3 to "
+"Samba 4. This is likely to fail for complex setups, but should provide a "
+"good starting point for most existing installations."
+msgstr ""
+"Varolan yapılandırma dosyalarının Samba 3'ten Samba 4'e transferi mümkündür. "
+"Karmaşık yapılandırmalar için bunun başarısız olması mümkündür, fakat "
+"kurulumların çoğunluğu için iyi bir başlangıç noktası sağlayacaktır."
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid "Server role"
+msgstr "Sunucu rolü"
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Domain controllers manage NT4-style or Active Directory domains and provide "
+"services such as identity management and domain logons. Each domain needs to "
+"have a at least one domain controller."
+msgstr ""
+"Alan kontrolcüleri NT4-style yada Aktif Dizin alanlarını yönetim vealan "
+"girişleri ve kimlik yönetimi gibi servisler sunar.Her alanın en az birtane "
+"alan kontrolcüsü olmalı."
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"Member servers can be part of a NT4-style or Active Directory domain but do "
+"not provide any domain services. Workstations and file or print servers are "
+"usually regular domain members."
+msgstr ""
+"Üye sunucular NT4-style yada Aktif Dizin alanının bir parçası olabilirfakat "
+"herhangi bir alan servisi sunamazlar.İş istasyonları yada yazıcı "
+"sunucularıgenellikle normal alan üyerleridirler."
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"A standalone server can not be used in a domain and only supports file "
+"sharing and Windows for Workgroups-style logins."
+msgstr ""
+"Tek başına bir sunucu alan içinde kullanılamaz ve sadece dosya paylaşımı ve "
+"çalıma grupları stili Windows kulanıcı girişlerini destekler."
+
+#. Type: select
+#. Description
+#: ../samba-ad-dc.templates:2001
+msgid ""
+"If no server role is specified, the Samba server will not be provisioned, so "
+"this can be done manually by the user."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Realm name:"
+msgstr "Realm adı:"
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid ""
+"Please specify the Kerberos realm for the domain that this domain controller "
+"controls."
+msgstr ""
+"Lütfen bu alan kontrolcüsünün kontrol ettiği alan için Kerberos realmını "
+"belirtiniz"
+
+#. Type: string
+#. Description
+#: ../samba-ad-dc.templates:3001
+msgid "Usually this is the a capitalized version of your DNS hostname."
+msgstr "Genellikle bu büyük harfle yazılmış sizin DNS konak adıdır."
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "New password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "If this field is left blank, a random password will be generated."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:4001
+msgid "A password can be set later by running, as root:"
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../samba-ad-dc.templates:5001
+msgid "Repeat password for the Samba \"administrator\" user:"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "Password input error"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../samba-ad-dc.templates:6001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr ""
 
 #. Type: title
 #. Description
@@ -27,8 +150,8 @@ msgstr "Samba sunucusu ve yardımcı uygulamaları"
 #: ../samba-common.templates:2001
 msgid "Modify smb.conf to use WINS settings from DHCP?"
 msgstr ""
-"smb.conf dosyası WINS ayarlarını DHCP sunucusundan alacak şekilde "
-"değiştirilsin mi?"
+"WINS ayarlarını DHCP'den kullanmak için smb.conf dosyasında değişiklik "
+"yapılsın mı?"
 
 #. Type: boolean
 #. Description
@@ -42,9 +165,9 @@ msgid ""
 msgstr ""
 "Eğer bilgisayarınız IP adresini ağınızdaki bir DHCP sunucusundan alıyorsa, "
 "DHCP sunucusu ayrıca ağınızda bulunan WINS sunucuları (\"NetBIOS alanadı "
-"sunucuları\") hakkında da bilgi verebilir. Bu özellikten yararlanmak, smb."
-"conf dosyanızda DHCP tarafından sunulan WINS ayarlarının kendiliğinden /etc/"
-"samba/dhcp.conf dosyasından okunmasını sağlayacak bir değişikliği gerektirir."
+"sunucuları\") hakkında da bilgi verebilir.  Bu, smb.conf dosyanızda DHCP "
+"tarafından sunulan WINS ayarlarının otomatik olarak /etc/samba/dhcp.conf "
+"dosyasından okunmasını sağlayan bir değişikliği gerektirir."
 
 #. Type: boolean
 #. Description
@@ -52,14 +175,14 @@ msgstr ""
 msgid ""
 "The dhcp3-client package must be installed to take advantage of this feature."
 msgstr ""
-"Bu özellikten yararlanabilmek için dhcp3-client paketinin de kurulmuş olması "
+"Bu özellikten yararlanabilmek için dhcp3-client paketinin kurulmuş olması "
 "gerekir."
 
 #. Type: boolean
 #. Description
 #: ../samba-common.templates:3001
 msgid "Configure smb.conf automatically?"
-msgstr "smb.conf dosyası kendiliğinden yapılandırılsın mı?"
+msgstr "smb.conf dosyası otomatik olarak yapılandırılsın mı?"
 
 #. Type: boolean
 #. Description
@@ -112,36 +235,156 @@ msgstr ""
 "çalışma grubu olacak ve ayrıca \"security=domain\" ayarında alan adı olarak "
 "kullanılacaktır."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid "Use password encryption?"
-msgstr "Parola şifrelemesi kullanılsın mı?"
+#~ msgid "Use password encryption?"
+#~ msgstr "Parola şifrelenmesi kullanılsın mı?"
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"All recent Windows clients communicate with SMB/CIFS servers using encrypted "
-"passwords. If you want to use clear text passwords you will need to change a "
-"parameter in your Windows registry."
-msgstr ""
-"Yeni Windows istemcileri SMB/CIFS sunucularıyla şifrelenmiş parolalar "
-"kullanarak iletişim kurarlar. Eğer düz metin parolalar kullanmak "
-"istiyorsanız Windows kayıt defterinde bir parametreyi değiştirmeniz "
-"gerekecektir."
+#~ msgid ""
+#~ "All recent Windows clients communicate with SMB/CIFS servers using "
+#~ "encrypted passwords. If you want to use clear text passwords you will "
+#~ "need to change a parameter in your Windows registry."
+#~ msgstr ""
+#~ "Yeni Windows istemcileri SMB/CIFS sunucularıyla şifrelenmiş parolalar "
+#~ "kullanarak iletişim kurarlar. Eğer düz metin parolalar kullanmak "
+#~ "istiyorsanız Windows kayıt defterinde bir parametreyi değiştirmeniz "
+#~ "gerekecektir."
 
-#. Type: boolean
-#. Description
-#: ../samba-common.templates:5001
-msgid ""
-"Enabling this option is highly recommended as support for plain text "
-"passwords is no longer maintained in Microsoft Windows products. If you do, "
-"make sure you have a valid /etc/samba/smbpasswd file and that you set "
-"passwords in there for each user using the smbpasswd command."
-msgstr ""
-"Düz metin parola desteği artık Microsoft Windows ürünlerinde bulunmadığından "
-"bu seçeneği kullanmanız şiddetle önerilir. Eğer bu seçeneği kullanacaksanız, "
-"geçerli bir /etc/samba/smbpasswd dosyanız olduğundan emin olunuz ve "
-"smbpasswd komutunu kullanarak bütün kullanıcılar için parola belirleyiniz."
+#~ msgid ""
+#~ "Enabling this option is highly recommended as support for plain text "
+#~ "passwords is no longer maintained in Microsoft Windows products. If you "
+#~ "do, make sure you have a valid /etc/samba/smbpasswd file and that you set "
+#~ "passwords in there for each user using the smbpasswd command."
+#~ msgstr ""
+#~ "Düz metin parola desteği artık Microsoft Windows ürünlerinde "
+#~ "bulunmadığından bu seçeneği kullanmanız şiddetle önerilir. Eğer bu "
+#~ "seçeneği kullanacaksanız, geçerli bir /etc/samba/smbpasswd dosyanız "
+#~ "olduğundan emin olunuz ve smbpasswd komutunu kullanarak bütün "
+#~ "kullanıcılar için parola belirleyiniz."
 
+#~ msgid "Samba server"
+#~ msgstr "Samba sunucusu"
+
+#~ msgid "daemons"
+#~ msgstr "artalan süreçleri"
+
+#~ msgid "inetd"
+#~ msgstr "inetd"
+
+#~ msgid "How do you want to run Samba?"
+#~ msgstr "Samba'nın nasıl çalışmasını istersiniz?"
+
+#~ msgid ""
+#~ "The Samba daemon smbd can run as a normal daemon or from inetd. Running "
+#~ "as a daemon is the recommended approach."
+#~ msgstr ""
+#~ "Samba artalan süreci smbd, normal bir artalan süreci olarak veya "
+#~ "inetd'den çalışabilir. Tavsiye edilen yaklaşım artalan süreci olarak "
+#~ "çalıştırmaktır."
+
+#~ msgid "Set up Samba 4 as a PDC?"
+#~ msgstr "Samba 4'ü PDC olarak ayarla?"
+
+#~ msgid ""
+#~ "Even when using this option, you will need to set up DNS such that it "
+#~ "serves the data from the zone file in that directory before you can use "
+#~ "the Active Directory domain."
+#~ msgstr ""
+#~ "Bu seçeneği kullanıyor olsanız bile, Active Directory etki alanı "
+#~ "kullanıma girmeden öncebu dizindeki bölge dosyasındaki veriyi sunan bir "
+#~ "DNS yapılandırmanız gerekecek."
+
+#~ msgid ""
+#~ "Please specify the Kerberos realm this server will be in. In many cases,  "
+#~ "this will be the same as the DNS domain name."
+#~ msgstr ""
+#~ "Lütfen bu sunucunun içinde yer alacağı Kerberos realm'ı belirtin. Çoğu "
+#~ "durumda, bu isim DNS etki alanı ile aynıdır."
+
+#~| msgid ""
+#~| "Please specify the workgroup you want this server to appear to be in "
+#~| "when queried by clients. Note that this parameter also controls the "
+#~| "domain name used with the security=domain setting."
+#~ msgid ""
+#~ "Please specify the domain you want this server to appear to be in when "
+#~ "queried by clients."
+#~ msgstr ""
+#~ "Lütfen sunucunuzun istemciler tarafından sorgulandığında içerisinde "
+#~ "gözükmesini istediğiniz etki alanını belirtiniz."
+
+#~ msgid "Create samba password database, /var/lib/samba/passdb.tdb?"
+#~ msgstr "Samba parola veritabanı /var/lib/samba/passwd.tdb yaratılsın mı?"
+
+#~ msgid ""
+#~ "To be compatible with the defaults in most versions of Windows, Samba "
+#~ "must be configured to use encrypted passwords.  This requires user "
+#~ "passwords to be stored in a file separate from /etc/passwd.  This file "
+#~ "can be created automatically, but the passwords must be added manually by "
+#~ "running smbpasswd and be kept up-to-date in the future."
+#~ msgstr ""
+#~ "Windows'un çoğu versiyonunda öntanımlı olarak kullanılan değerler ile "
+#~ "uyumlu olabilmesi için Samba'nın şifrelenmiş parolaları kullanacak "
+#~ "şekilde ayarlanması gerekir. Bu yöntem kullanıcı parolalarının /etc/"
+#~ "passwd dosyası dışında saklanmasını gerektirir. Bu dosya otomatik olarak "
+#~ "yaratılabilir, fakat parolaların smbpasswd komutu çalıştırılarak "
+#~ "eklenmesi ve ilerleyen zamanlarda güncel tutulması gerekir."
+
+#~ msgid ""
+#~ "If you do not create it, you will have to reconfigure Samba (and probably "
+#~ "your client machines) to use plaintext passwords."
+#~ msgstr ""
+#~ "Eğer yaratmazsanız, daha sonra Sambayı (ve büyük ihtimalle istemci "
+#~ "makineleri de) düz metin parolalarını kullanması için tekrar "
+#~ "yapılandırmanız gerekir."
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/ENCRYPTION.html from the samba-doc "
+#~ "package for more details."
+#~ msgstr ""
+#~ "Daha detaylıı bilgi için samba-doc paketinden /usr/share/doc/samba-doc/"
+#~ "htmldocs/ENCRYPTION.html dosyasına gözatın."
+
+#~ msgid "Chaining passdb backends is not supported"
+#~ msgstr ""
+#~ "Parola veritabanı için çoklu arkayüz kullanılabilmesi özelliği  "
+#~ "desteklenmiyor"
+
+#~ msgid ""
+#~ "Beginning with version 3.0.23, samba no longer supports chaining multiple "
+#~ "backends in the \"passdb backend\" parameter.  It appears that your smb."
+#~ "conf file contains a passdb backend parameter consisting of a list of "
+#~ "backends.  The new version of samba will not work until you correct this."
+#~ msgstr ""
+#~ "Versiyon 3.0.23 ile beraber, samba artık \"passdb backend\" "
+#~ "parametresindeki çoklu arkayüz kullanılabilmesi özelliğini  "
+#~ "desteklemiyor. Öyle gözüküyorki, smb.conf dosyanızdaki parola veritabanı "
+#~ "arkayüz parametresi bir liste içeriyor. Bunu düzeltene kadar yeni samba "
+#~ "versiyonu çalışmayacaktır."
+
+#~ msgid "Move /etc/samba/smbpasswd to /var/lib/samba/passdb.tdb?"
+#~ msgstr "/etc/samba/smbpasswd /var/lib/samba/passwd.tdb'ye taşınsın mı?"
+
+#~ msgid ""
+#~ "Samba 3.0 introduced a more complete SAM database interface which "
+#~ "supersedes the /etc/samba/smbpasswd file."
+#~ msgstr ""
+#~ "Samba 3.0 daha stabil ve /etc/samba/smbpasswd dosyasının da yerine "
+#~ "geçecek bir SAM veritabanını içerir."
+
+#~ msgid ""
+#~ "Please confirm whether you would like the existing smbpasswd file to be "
+#~ "automatically migrated to /var/lib/samba/passdb.tdb.  Do not choose this "
+#~ "option if you plan to use another pdb backend (e.g., LDAP) instead."
+#~ msgstr ""
+#~ "Lütfen smbpasswd dosyasının otomatik olarak /var/lib/samba/passdb.tdb "
+#~ "dosyasına dönüştürülmesini isteyip istemediğinizi onaylayınız. Eğer başka "
+#~ "bir pdb arkayüzü (ör. LDAP) kullanmayı planlıyorsanız, burada 'hayır' "
+#~ "cevabını vermelisiniz."
+
+#~ msgid "daemons, inetd"
+#~ msgstr "artalan süreçleri, inetd"
+
+#~ msgid ""
+#~ "See /usr/share/doc/samba-doc/htmldocs/Samba3-Developers-Guide/pwencrypt."
+#~ "html from the samba-doc package for more details."
+#~ msgstr ""
+#~ "Daha ayrıntılı bilgi için samba-doc paketinden /usr/share/doc/samba-doc/"
+#~ "htmldocs/ENCRYPTION.html dosyasına göz atınız."

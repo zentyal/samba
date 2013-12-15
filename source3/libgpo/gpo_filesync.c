@@ -50,12 +50,12 @@ NTSTATUS gpo_copy_file(TALLOC_CTX *mem_ctx,
 	int read_size = io_bufsize;
 	off_t nread = 0;
 
-	result = cli_open(cli, nt_path, O_RDONLY, DENY_NONE, &fnum);
+	result = cli_openx(cli, nt_path, O_RDONLY, DENY_NONE, &fnum);
 	if (!NT_STATUS_IS_OK(result)) {
 		goto out;
 	}
 
-	if ((fd = sys_open(unix_path, O_WRONLY|O_CREAT|O_TRUNC, 0644)) == -1) {
+	if ((fd = open(unix_path, O_WRONLY|O_CREAT|O_TRUNC, 0644)) == -1) {
 		result = map_nt_error_from_unix(errno);
 		goto out;
 	}
@@ -66,10 +66,14 @@ NTSTATUS gpo_copy_file(TALLOC_CTX *mem_ctx,
 	}
 
 	while (1) {
+		size_t n = 0;
 
-		int n = cli_read(cli, fnum, data, nread, read_size);
+		result = cli_read(cli, fnum, data, nread, read_size, &n);
+		if (!NT_STATUS_IS_OK(result)) {
+			goto out;
+		}
 
-		if (n <= 0)
+		if (n == 0)
 			break;
 
 		if (write(fd, data, n) != n) {
@@ -227,8 +231,8 @@ NTSTATUS gpo_sync_directories(TALLOC_CTX *mem_ctx,
 
 	ctx.mem_ctx 	= mem_ctx;
 	ctx.cli 	= cli;
-	ctx.remote_path	= CONST_DISCARD(char *, nt_path);
-	ctx.local_path	= CONST_DISCARD(char *, local_path);
+	ctx.remote_path	= discard_const_p(char, nt_path);
+	ctx.local_path	= discard_const_p(char, local_path);
 	ctx.attribute 	= (FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_DIRECTORY);
 
 	ctx.mask = talloc_asprintf(mem_ctx,

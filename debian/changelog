@@ -1,8 +1,8 @@
-samba (2:4.0.13+dfsg-1~bpo70+1) UNRELEASED; urgency=medium
+samba (2:4.0.13+dfsg-1~bpo70+1) wheezy-backports; urgency=medium
 
   * Rebuild for wheezy-backports.
 
- -- Ivo De Decker <ivo.dedecker@ugent.be>  Sun, 15 Dec 2013 23:37:50 +0100
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Mon, 16 Dec 2013 22:57:24 +0100
 
 samba (2:4.0.13+dfsg-1) unstable; urgency=high
 

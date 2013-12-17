@@ -405,15 +405,19 @@ static void roh_recv_CONN_C2_done(struct tevent_req *subreq)
 }
 
 
+static struct send_request_state
+{
+	struct iovec iov;
+	struct roh_connection *roh;
+};
 static void roh_sock_send_request_done(struct tevent_req *);
 static NTSTATUS roh_sock_send_request(struct dcecli_connection *conn,
 				      DATA_BLOB *data,
 				      bool trigger_read)
 {
-	struct roh_connection	*roh;
-	struct tevent_req	*req;
-	struct iovec		iov;
-	DATA_BLOB		blob;
+	struct roh_connection		*roh;
+	struct tevent_req		*req;
+	struct send_request_state 	*state;
 
 	DEBUG(8, ("%s: Sending request (%d bytes, trigger_read: %s):\n",
 		  __func__, (int)data->length, trigger_read ? "true":"false"));
@@ -421,36 +425,38 @@ static NTSTATUS roh_sock_send_request(struct dcecli_connection *conn,
 
 	roh = talloc_get_type_abort(conn->transport.private_data,
 				    struct roh_connection);
-
 	if (roh->default_channel_in == NULL ) {
 		return NT_STATUS_CONNECTION_DISCONNECTED;
 	}
 
-	iov.iov_base = (char *) data->data;
-	iov.iov_len = data->length;
-	req = tstream_writev_queue_send(roh->default_channel_in,
-					roh->ev, roh->default_channel_in->streams.active,
-					roh->default_channel_in->send_queue, &iov, 1);
+	state = talloc(roh->default_channel_in, struct send_request_state);
+	state->iov.iov_base = talloc_memdup(state, data->data, data->length);
+	state->iov.iov_len = data->length;
+	state->roh = roh;
+
+	req = tstream_writev_queue_send(state, roh->ev,
+	    roh->default_channel_in->streams.active,
+	    roh->default_channel_in->send_queue, &state->iov, 1);
 	if (req == NULL ) {
 		return NT_STATUS_NO_MEMORY;
 	}
-	tevent_req_set_callback(req, roh_sock_send_request_done, conn);
+	tevent_req_set_callback(req, roh_sock_send_request_done, state);
 
 	return NT_STATUS_OK;
 }
 
 static void roh_sock_send_request_done(struct tevent_req *req)
 {
-	struct dcecli_connection *conn;
-	struct roh_connection *roh;
-	int bytes_written, sys_errno;
+	struct send_request_state       *state;
+	struct roh_connection           *roh;
+	int bytes_written;
+	int sys_errno;
 
-	conn = tevent_req_callback_data(req, struct dcecli_connection);
-	roh = talloc_get_type_abort(conn->transport.private_data,
-			struct roh_connection);
-
+	state = tevent_req_callback_data(req, struct send_request_state);
 	bytes_written = tstream_writev_queue_recv(req, &sys_errno);
-	TALLOC_FREE(req);
+	roh = state->roh;
+	TALLOC_FREE(state);
+
 	if (bytes_written <= 0) {
 		DEBUG(0, ("%s: error: %s (%d)\n", __func__, strerror(sys_errno),
 			  sys_errno));

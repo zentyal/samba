@@ -112,6 +112,7 @@ struct tevent_req *dcerpc_pipe_open_roh_send(TALLOC_CTX *mem_ctx,
 	state->roh->connection_state = ROH_STATE_OPEN_START;
 	state->roh->connection_cookie = GUID_random();
 	state->roh->association_group_id_cookie = GUID_random();
+	state->roh->receive_loop_running = false;
 
 	/* Additional initialization steps (3.2.2.3) */
 	state->roh->proxy_use = false;
@@ -404,8 +405,7 @@ static void roh_recv_CONN_C2_done(struct tevent_req *subreq)
 	tevent_req_done(req);
 }
 
-
-static struct send_request_state
+struct send_request_state
 {
 	struct iovec iov;
 	struct roh_connection *roh;
@@ -442,6 +442,10 @@ static NTSTATUS roh_sock_send_request(struct dcecli_connection *conn,
 	}
 	tevent_req_set_callback(req, roh_sock_send_request_done, state);
 
+	if (trigger_read) {
+	    roh_sock_send_read(conn);
+	}
+
 	return NT_STATUS_OK;
 }
 
@@ -477,12 +481,18 @@ static NTSTATUS roh_sock_send_read(struct dcecli_connection *conn)
 	DEBUG(8, ("%s: Waiting for packet\n", __func__));
 	roh = talloc_get_type_abort(conn->transport.private_data, struct roh_connection);
 
+	if (roh->receive_loop_running) {
+		return NT_STATUS_OK;
+	}
+
 	req = dcerpc_read_ncacn_packet_send(roh, roh->ev,
-					    roh->default_channel_out->streams.active);
+		roh->default_channel_out->streams.active);
 	if (req == NULL ) {
 		return NT_STATUS_NO_MEMORY;
 	}
+	roh->receive_loop_running = true;
 	tevent_req_set_callback(req, roh_sock_send_read_done, conn);
+
 	return NT_STATUS_OK;
 }
 
@@ -498,23 +508,30 @@ static void roh_sock_send_read_done(struct tevent_req *req)
 	roh = talloc_get_type_abort(conn->transport.private_data, struct roh_connection);
 
 	status = dcerpc_read_ncacn_packet_recv(req, roh, &pkt, &buffer);
-	if (tevent_req_nterror(req, status)) {
-		DEBUG(0, ("%s: Error receiving packet\n", __func__));
+	TALLOC_FREE(req);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("%s: Error receiving packet: %s\n", __func__, nt_errstr(status)));
 		return;
 	}
-	TALLOC_FREE(req);
 
 	DEBUG(8, ("%s: Packet received (%zu bytes):\n", __func__, buffer.length));
 	dump_data(8, buffer.data, buffer.length);
 
 	if (pkt->ptype == DCERPC_PKT_RTS) {
-		/* This is a protocol packet process it */
+		/* TODO This is a protocol packet process it */
 		DEBUG(8, ("%s: Protocol packet received\n", __func__));
 	} else {
 		conn->transport.recv_data(conn, &buffer, NT_STATUS_OK);
 	}
 
-	roh_sock_send_read(conn);
+	req = dcerpc_read_ncacn_packet_send(conn, roh->ev,
+		roh->default_channel_out->streams.active);
+	if (req == NULL) {
+		status = NT_STATUS_NO_MEMORY;
+		DEBUG(0, ("%s: %s\n", __func__, nt_errstr(status)));
+		return;
+	}
+	tevent_req_set_callback(req, roh_sock_send_read_done, conn);
 }
 
 static NTSTATUS roh_sock_shutdown_pipe(struct dcecli_connection *p,

@@ -83,6 +83,7 @@ struct roh_connection {
 
 	enum roh_protocol_version protocol_version;
 	enum roh_connection_state connection_state;
+	bool receive_loop_running;
 
 	struct GUID connection_cookie;
 	struct GUID association_group_id_cookie;

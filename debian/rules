@@ -172,6 +172,10 @@ override_dh_makeshlibs:
 	# private libraries
 	debian/make_shlibs
 
+override_dh_strip:
+	# add debug symbols for all samba packages to the same debug package
+	dh_strip -a --dbg-package=samba-dbg
+
 override_dh_fixperms:
 	dh_fixperms
 ifneq (,$(filter samba-common, $(shell dh_listpackages)))

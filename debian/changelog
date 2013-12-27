@@ -1,9 +1,9 @@
-samba (2:4.1.3+dfsg-2) UNRELEASED; urgency=medium
+samba (2:4.1.3+dfsg-2) unstable; urgency=medium
 
   * Add debug symbols for all binaries to samba-dbg. Closes: #732493
   * Add lintian overrides for empty prerm scripts.
 
- -- Ivo De Decker <ivo.dedecker@ugent.be>  Thu, 26 Dec 2013 13:49:13 +0100
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Fri, 27 Dec 2013 12:39:54 +0100
 
 samba (2:4.1.3+dfsg-1) experimental; urgency=low
 

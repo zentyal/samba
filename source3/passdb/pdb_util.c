@@ -26,6 +26,7 @@
 #include "../libcli/security/security.h"
 #include "passdb.h"
 #include "lib/winbind_util.h"
+#include "../librpc/gen_ndr/idmap.h"
 
 /**
  * Add sid as a member of builtin_sid.
@@ -67,21 +68,49 @@ static NTSTATUS add_sid_to_builtin(const struct dom_sid *builtin_sid,
  * @param[in] rid BUILTIN rid to create
  * @return Normal NTSTATUS return.
  */
-static NTSTATUS create_builtin(uint32 rid)
+NTSTATUS pdb_create_builtin(uint32_t rid)
 {
 	NTSTATUS status = NT_STATUS_OK;
 	struct dom_sid sid;
 	gid_t gid;
+	bool mapresult;
 
 	if (!sid_compose(&sid, &global_sid_Builtin, rid)) {
 		return NT_STATUS_NO_SUCH_ALIAS;
 	}
 
-	if (!sid_to_gid(&sid, &gid)) {
-		if (!lp_winbind_nested_groups() || !winbind_ping()) {
-			return NT_STATUS_PROTOCOL_UNREACHABLE;
+	if (!pdb_is_responsible_for_builtin()) {
+		/*
+		 * if this backend is not responsible for BUILTIN
+		 *
+		 * Use the gid from the mapping request for entry.
+		 * If the mapping fails, bail out
+		 */
+		mapresult = sid_to_gid(&sid, &gid);
+		if (!mapresult) {
+			status = NT_STATUS_NO_SUCH_GROUP;
+		} else {
+			status = pdb_create_builtin_alias(rid, gid);
 		}
-		status = pdb_create_builtin_alias(rid);
+	} else {
+		/*
+		 * this backend is responsible for BUILTIN
+		 *
+		 * a failed mapping result means that the entry
+		 * does not exist yet, so create it
+		 *
+		 * we use pdb_sid_to_id intentionally here to
+		 * directly query the passdb backend (sid_to_gid
+		 * would finally do the same)
+		 */
+		struct unixid id;
+		mapresult = pdb_sid_to_id(&sid, &id);
+		if (!mapresult) {
+			if (!lp_winbind_nested_groups() || !winbind_ping()) {
+				return NT_STATUS_PROTOCOL_UNREACHABLE;
+			}
+			status = pdb_create_builtin_alias(rid, 0);
+		}
 	}
 	return status;
 }
@@ -94,7 +123,7 @@ NTSTATUS create_builtin_users(const struct dom_sid *dom_sid)
 	NTSTATUS status;
 	struct dom_sid dom_users;
 
-	status = create_builtin(BUILTIN_RID_USERS);
+	status = pdb_create_builtin(BUILTIN_RID_USERS);
 	if ( !NT_STATUS_IS_OK(status) ) {
 		DEBUG(5,("create_builtin_users: Failed to create Users\n"));
 		return status;
@@ -123,7 +152,7 @@ NTSTATUS create_builtin_administrators(const struct dom_sid *dom_sid)
 	TALLOC_CTX *ctx;
 	bool ret;
 
-	status = create_builtin(BUILTIN_RID_ADMINISTRATORS);
+	status = pdb_create_builtin(BUILTIN_RID_ADMINISTRATORS);
 	if ( !NT_STATUS_IS_OK(status) ) {
 		DEBUG(5,("create_builtin_administrators: Failed to create Administrators\n"));
 		return status;

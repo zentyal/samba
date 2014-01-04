@@ -9,6 +9,9 @@ __all__ = [
     ]
 
 
+from testtools.tags import TagContext
+
+
 class LoggingBase(object):
     """Basic support for logging of results."""
 
@@ -16,6 +19,7 @@ class LoggingBase(object):
         self._events = []
         self.shouldStop = False
         self._was_successful = True
+        self.testsRun = 0
 
 
 class Python26TestResult(LoggingBase):
@@ -34,6 +38,7 @@ class Python26TestResult(LoggingBase):
 
     def startTest(self, test):
         self._events.append(('startTest', test))
+        self.testsRun += 1
 
     def stop(self):
         self.shouldStop = True
@@ -48,6 +53,20 @@ class Python26TestResult(LoggingBase):
 class Python27TestResult(Python26TestResult):
     """A precisely python 2.7 like test result, that logs."""
 
+    def __init__(self):
+        super(Python27TestResult, self).__init__()
+        self.failfast = False
+
+    def addError(self, test, err):
+        super(Python27TestResult, self).addError(test, err)
+        if self.failfast:
+            self.stop()
+
+    def addFailure(self, test, err):
+        super(Python27TestResult, self).addFailure(test, err)
+        if self.failfast:
+            self.stop()
+
     def addExpectedFailure(self, test, err):
         self._events.append(('addExpectedFailure', test, err))
 
@@ -56,6 +75,8 @@ class Python27TestResult(Python26TestResult):
 
     def addUnexpectedSuccess(self, test):
         self._events.append(('addUnexpectedSuccess', test))
+        if self.failfast:
+            self.stop()
 
     def startTestRun(self):
         self._events.append(('startTestRun',))
@@ -66,6 +87,10 @@ class Python27TestResult(Python26TestResult):
 
 class ExtendedTestResult(Python27TestResult):
     """A test result like the proposed extended unittest result API."""
+
+    def __init__(self):
+        super(ExtendedTestResult, self).__init__()
+        self._tags = TagContext()
 
     def addError(self, test, err=None, details=None):
         self._was_successful = False
@@ -100,8 +125,22 @@ class ExtendedTestResult(Python27TestResult):
     def startTestRun(self):
         super(ExtendedTestResult, self).startTestRun()
         self._was_successful = True
+        self._tags = TagContext()
+
+    def startTest(self, test):
+        super(ExtendedTestResult, self).startTest(test)
+        self._tags = TagContext(self._tags)
+
+    def stopTest(self, test):
+        self._tags = self._tags.parent
+        super(ExtendedTestResult, self).stopTest(test)
+
+    @property
+    def current_tags(self):
+        return self._tags.get_current_tags()
 
     def tags(self, new_tags, gone_tags):
+        self._tags.change_tags(new_tags, gone_tags)
         self._events.append(('tags', new_tags, gone_tags))
 
     def time(self, time):

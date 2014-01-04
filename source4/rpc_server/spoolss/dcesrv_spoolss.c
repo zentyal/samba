@@ -269,9 +269,8 @@ static WERROR dcesrv_spoolss_OpenPrinter(struct dcesrv_call_state *dce_call, TAL
 	r2->in.datatype		= r->in.datatype;
 	r2->in.devmode_ctr	= r->in.devmode_ctr;
 	r2->in.access_mask	= r->in.access_mask;
-	r2->in.level		= 1;
-	r2->in.userlevel.level1	= NULL;
-
+	r2->in.userlevel_ctr.level	= 1;
+	r2->in.userlevel_ctr.user_info.level1 = NULL;
 	r2->out.handle		= r->out.handle;
 
 	/* TODO: we should take care about async replies here,
@@ -1593,10 +1592,10 @@ static WERROR dcesrv_spoolss_60(struct dcesrv_call_state *dce_call, TALLOC_CTX *
 
 
 /*
-  spoolss_61
+  spoolss_RpcSendRecvBidiData
 */
-static WERROR dcesrv_spoolss_61(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
-		       struct spoolss_61 *r)
+static WERROR dcesrv_spoolss_RpcSendRecvBidiData(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
+		       struct spoolss_RpcSendRecvBidiData *r)
 {
 	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
 }
@@ -1722,6 +1721,43 @@ static WERROR dcesrv_spoolss_6d(struct dcesrv_call_state *dce_call, TALLOC_CTX *
 }
 
 
+/*
+  spoolss_RpcGetJobNamedPropertyValue
+*/
+static WERROR dcesrv_spoolss_RpcGetJobNamedPropertyValue(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
+		       struct spoolss_RpcGetJobNamedPropertyValue *r)
+{
+	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
+}
+
+
+/*
+  spoolss_RpcSetJobNamedProperty
+*/
+static WERROR dcesrv_spoolss_RpcSetJobNamedProperty(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
+		       struct spoolss_RpcSetJobNamedProperty *r)
+{
+	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
+}
+
+
+/*
+  spoolss_RpcDeleteJobNamedProperty
+*/
+static WERROR dcesrv_spoolss_RpcDeleteJobNamedProperty(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
+		       struct spoolss_RpcDeleteJobNamedProperty *r)
+{
+	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
+}
+
+/*
+  spoolss_RpcEnumJobNamedProperties
+*/
+static WERROR dcesrv_spoolss_RpcEnumJobNamedProperties(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
+		       struct spoolss_RpcEnumJobNamedProperties *r)
+{
+	DCESRV_FAULT(DCERPC_FAULT_OP_RNG_ERROR);
+}
 
 /* include the generated boilerplate */
 #include "librpc/gen_ndr/ndr_spoolss_s.c"

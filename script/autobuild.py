@@ -16,8 +16,6 @@ os.environ['TDB_NO_FSYNC'] = '1'
 cleanup_list = []
 
 builddirs = {
-    "samba3"  : "source3",
-    "samba3-ctdb" : "source3",
     "samba"  : ".",
     "samba-ctdb" : ".",
     "samba-libs"  : ".",
@@ -33,31 +31,9 @@ builddirs = {
     "retry"   : "."
     }
 
-defaulttasks = [ "samba3", "samba3-ctdb", "samba", "samba-ctdb", "samba-libs", "ldb", "tdb", "ntdb", "talloc", "replace", "tevent", "pidl" ]
+defaulttasks = [ "samba", "samba-ctdb", "samba-libs", "ldb", "tdb", "ntdb", "talloc", "replace", "tevent", "pidl" ]
 
 tasks = {
-    "samba3" : [ ("autogen", "./autogen.sh", "text/plain"),
-                 ("configure", "./configure.developer ${PREFIX}", "text/plain"),
-                 ("make basics", "make basics", "text/plain"),
-                 # we split 'make -j 4', 'make bin/smbtorture' and 'make -j 4 everything'
-                 # because it makes it much easier to find errors.
-                 ("make", "make -j 4", "text/plain"), # don't use too many processes
-                 ("make bin/smbtorture", "make bin/smbtorture", "text/plain"),
-                 ("make everything", "make -j 4 everything", "text/plain"),
-                 ("install", "make install", "text/plain"),
-                 ("test", "make test FAIL_IMMEDIATELY=1", "text/plain"),
-                 ("check-clean-tree", "../script/clean-source-tree.sh", "text/plain"),
-                 ("clean", "make clean", "text/plain") ],
-
-    "samba3-ctdb" : [ ("random-sleep", "../script/random-sleep.sh 60 600", "text/plain"),
-                      ("autogen", "./autogen.sh", "text/plain"),
-                      ("configure", "./configure.developer ${PREFIX} --with-cluster-support --with-ctdb=../ctdb", "text/plain"),
-                      ("make basics", "make basics", "text/plain"),
-                      ("make", "make all", "text/plain"), # don't use too many processes
-                      ("check", "LD_LIBRARY_PATH=./bin ./bin/smbd -b | grep CLUSTER_SUPPORT", "text/plain"),
-                      ("check-clean-tree", "../script/clean-source-tree.sh", "text/plain"),
-                      ("clean", "make clean", "text/plain") ],
-
     # We have 'test' before 'install' because, 'test' should work without 'install'
     "samba" : [ ("configure", "./configure.developer ${PREFIX} --with-selftest-prefix=./bin/ab", "text/plain"),
                 ("make", "make -j", "text/plain"),
@@ -94,6 +70,10 @@ tasks = {
                       ("tdb-make", "cd lib/tdb && make", "text/plain"),
                       ("tdb-install", "cd lib/tdb && make install", "text/plain"),
 
+                      ("ntdb-configure", "cd lib/ntdb && PYTHONPATH=${PYTHON_PREFIX}/site-packages:$PYTHONPATH PKG_CONFIG_PATH=$PKG_CONFIG_PATH:${PREFIX_DIR}/lib/pkgconfig ./configure --bundled-libraries=NONE --abi-check --enable-debug -C ${PREFIX}", "text/plain"),
+                      ("ntdb-make", "cd lib/ntdb && make", "text/plain"),
+                      ("ntdb-install", "cd lib/ntdb && make install", "text/plain"),
+
                       ("tevent-configure", "cd lib/tevent && PYTHONPATH=${PYTHON_PREFIX}/site-packages:$PYTHONPATH PKG_CONFIG_PATH=$PKG_CONFIG_PATH:${PREFIX_DIR}/lib/pkgconfig ./configure --bundled-libraries=NONE --abi-check --enable-debug -C ${PREFIX}", "text/plain"),
                       ("tevent-make", "cd lib/tevent && make", "text/plain"),
                       ("tevent-install", "cd lib/tevent && make install", "text/plain"),
@@ -102,7 +82,7 @@ tasks = {
                       ("ldb-make", "cd lib/ldb && make", "text/plain"),
                       ("ldb-install", "cd lib/ldb && make install", "text/plain"),
 
-                      ("configure", "PYTHONPATH=${PYTHON_PREFIX}/site-packages:$PYTHONPATH PKG_CONFIG_PATH=$PKG_CONFIG_PATH:${PREFIX_DIR}/lib/pkgconfig ./configure --bundled-libraries=!talloc,!tdb,!pytdb,!ldb,!pyldb,!tevent,!pytevent --abi-check --enable-debug -C ${PREFIX}", "text/plain"),
+                      ("configure", "PYTHONPATH=${PYTHON_PREFIX}/site-packages:$PYTHONPATH PKG_CONFIG_PATH=$PKG_CONFIG_PATH:${PREFIX_DIR}/lib/pkgconfig ./configure --bundled-libraries=!talloc,!tdb,!pytdb,!ntdb,!pyntdb,!ldb,!pyldb,!tevent,!pytevent --abi-check --enable-debug -C ${PREFIX}", "text/plain"),
                       ("make", "make", "text/plain"),
                       ("install", "make install", "text/plain")],
 

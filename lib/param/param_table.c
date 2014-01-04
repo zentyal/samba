@@ -48,9 +48,7 @@ static const struct enum_list enum_security[] = {
 	{SEC_AUTO, "AUTO"},
 	{SEC_USER, "USER"},
 	{SEC_DOMAIN, "DOMAIN"},
-#if (defined(HAVE_ADS) || _SAMBA_BUILD_ >= 4)
 	{SEC_ADS, "ADS"},
-#endif
 	{-1, NULL}
 };
 
@@ -120,11 +118,6 @@ static const struct enum_list enum_dns_update_settings[] = {
 	{DNS_UPDATE_OFF, "Off"},
 	{DNS_UPDATE_ON, "nonsecure and secure"},
 	{DNS_UPDATE_ON, "nonsecure"},
-	{DNS_UPDATE_ON, "Yes"},
-	{DNS_UPDATE_ON, "True"},
-	{DNS_UPDATE_ON, "1"},
-	{DNS_UPDATE_ON, "On"},
-	{DNS_UPDATE_ON, "enabled"},
 	{DNS_UPDATE_SIGNED, "secure only"},
 	{DNS_UPDATE_SIGNED, "secure"},
 	{DNS_UPDATE_SIGNED, "signed"},
@@ -666,15 +659,6 @@ static struct parm_struct parm_table[] = {
 		.special	= NULL,
 		.enum_list	= NULL,
 		.flags		= FLAG_ADVANCED,
-	},
-	{
-		.label		= "password level",
-		.type		= P_INTEGER,
-		.p_class	= P_GLOBAL,
-		.offset		= GLOBAL_VAR(pwordlevel),
-		.special	= NULL,
-		.enum_list	= NULL,
-		.flags		= FLAG_ADVANCED | FLAG_DEPRECATED,
 	},
 	{
 		.label		= "username level",
@@ -1900,6 +1884,15 @@ static struct parm_struct parm_table[] = {
 		.type		= P_BOOL,
 		.p_class	= P_GLOBAL,
 		.offset		= GLOBAL_VAR(bUseMmap),
+		.special	= NULL,
+		.enum_list	= NULL,
+		.flags		= FLAG_ADVANCED,
+	},
+	{
+		.label		= "use ntdb",
+		.type		= P_BOOL,
+		.p_class	= P_GLOBAL,
+		.offset		= GLOBAL_VAR(bUseNtdb),
 		.special	= NULL,
 		.enum_list	= NULL,
 		.flags		= FLAG_ADVANCED,
@@ -3722,15 +3715,6 @@ static struct parm_struct parm_table[] = {
 		.type		= P_STRING,
 		.p_class	= P_LOCAL,
 		.offset		= LOCAL_VAR(fstype),
-		.special	= NULL,
-		.enum_list	= NULL,
-		.flags		= FLAG_ADVANCED | FLAG_SHARE,
-	},
-	{
-		.label		= "set directory",
-		.type		= P_BOOLREV,
-		.p_class	= P_LOCAL,
-		.offset		= LOCAL_VAR(bNo_set_dir),
 		.special	= NULL,
 		.enum_list	= NULL,
 		.flags		= FLAG_ADVANCED | FLAG_SHARE,

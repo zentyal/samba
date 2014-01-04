@@ -140,9 +140,9 @@ static PyObject *py_interface_ips(PyObject *self, PyObject *args)
 	struct loadparm_context *lp_ctx;
 	struct interface *ifaces;
 	int i, ifcount;
-	int all_interfaces;
+	int all_interfaces = 1;
 
-	if (!PyArg_ParseTuple(args, "Oi", &py_lp_ctx, &all_interfaces))
+	if (!PyArg_ParseTuple(args, "O|i", &py_lp_ctx, &all_interfaces))
 		return NULL;
 
 	tmp_ctx = talloc_new(NULL);
@@ -264,6 +264,8 @@ static PyMethodDef py_misc_methods[] = {
 	{ "get_debug_level", (PyCFunction)py_get_debug_level, METH_NOARGS,
 		"get debug level" },
 	{ "interface_ips", (PyCFunction)py_interface_ips, METH_VARARGS,
+		"interface_ips(lp_ctx[, all_interfaces) -> list_of_ifaces\n"
+		"\n"
 		"get interface IP address list"},
 	{ "strcasecmp_m", (PyCFunction)py_strcasecmp_m, METH_VARARGS,
 		"(for testing) compare two strings using Samba's strcasecmp_m()"},

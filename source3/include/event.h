@@ -18,17 +18,13 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#define TEVENT_COMPAT_DEFINES
 #include <tevent.h>
-
-#undef event_context_init
-#define event_context_init(mem_ctx) s3_tevent_context_init(mem_ctx)
 
 /* The following definitions come from lib/events.c  */
 struct pollfd;
-struct timeval *get_timed_events_timeout(struct event_context *event_ctx,
+struct timeval *get_timed_events_timeout(struct tevent_context *event_ctx,
 					 struct timeval *to_ret);
-void dump_event_list(struct event_context *event_ctx);
+void dump_event_list(struct tevent_context *event_ctx);
 struct tevent_context *s3_tevent_context_init(TALLOC_CTX *mem_ctx);
 
 bool event_add_to_poll_args(struct tevent_context *ev, TALLOC_CTX *mem_ctx,
@@ -37,7 +33,7 @@ bool event_add_to_poll_args(struct tevent_context *ev, TALLOC_CTX *mem_ctx,
 bool run_events_poll(struct tevent_context *ev, int pollrtn,
 		     struct pollfd *pfds, int num_pfds);
 
-struct idle_event *event_add_idle(struct event_context *event_ctx,
+struct idle_event *event_add_idle(struct tevent_context *event_ctx,
 				  TALLOC_CTX *mem_ctx,
 				  struct timeval interval,
 				  const char *name,

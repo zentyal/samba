@@ -451,7 +451,7 @@ parameter is defined as follows:
 .RS 4
 .\}
 .nf
-Long Printer Name:\e
+Long Driver Name:\e
 Driver File Name:\e
 Data File Name:\e
 Config File Name:\e
@@ -650,7 +650,7 @@ Sam Logon
 .RE
 .SS "FSRVP"
 .PP
-fss_is_path_sup
+fss_is_path_sup <share>
 .RS 4
 Check whether a share supports shadow\-copy requests
 .RE
@@ -660,29 +660,29 @@ fss_get_sup_version
 Get supported FSRVP version from server
 .RE
 .PP
-fss_create_expose
+fss_create_expose <context> <[ro|rw]> <share1> [share2] \&.\&.\&. [shareN]
 .RS 4
-Request shadow\-copy creation and exposure
+Request shadow\-copy creation and exposure as a new share
 .RE
 .PP
-fss_delete
+fss_delete <base_share> <shadow_copy_set_id> <shadow_copy_id>
 .RS 4
 Request shadow\-copy share deletion
 .RE
 .PP
-fss_has_shadow_copy
+fss_has_shadow_copy <base_share>
 .RS 4
 Check for an associated share shadow\-copy
 .RE
 .PP
-fss_get_mapping
+fss_get_mapping <base_share> <shadow_copy_set_id> <shadow_copy_id>
 .RS 4
 Get shadow\-copy share mapping information
 .RE
 .PP
-fss_recovery_complete
+fss_recovery_complete <shadow_copy_set_id>
 .RS 4
-Flag read\-write snapshot as recovery complete, allowing further shadow\-copy requests
+Flag read\-write shadow\-copy as recovery complete, allowing further shadow\-copy requests
 .RE
 .SS "GENERAL COMMANDS"
 .PP

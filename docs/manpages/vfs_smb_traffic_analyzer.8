@@ -187,7 +187,7 @@ Several drawbacks have been seen with protocol version 1 over time\&.
 .\}
 
 Problematic parsing \-
-Protocol version 1 uses hyphen and comma to seperate blocks of data\&. Once there is a filename with a hyphen, you will run into problems because the receiver decodes the data in a wrong way\&.
+Protocol version 1 uses hyphen and comma to separate blocks of data\&. Once there is a filename with a hyphen, you will run into problems because the receiver decodes the data in a wrong way\&.
 .RE
 .sp
 .RS 4
@@ -240,7 +240,7 @@ Protocol version 2 is an approach to solve the problems introduced with protcol 
 .sp -1
 .IP \(bu 2.3
 .\}
-The data from the module may be send encrypted, with a key stored in secrets\&.tdb\&. The Receiver then has to use the same key\&. The module does AES block encryption over the data to send\&.
+The data from the module may be send encrypted, with a key stored in secrets\&.tdb (or secrets\&.ntdb)\&. The Receiver then has to use the same key\&. The module does AES block encryption over the data to send\&.
 .RE
 .sp
 .RS 4

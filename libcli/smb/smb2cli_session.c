@@ -102,7 +102,8 @@ struct tevent_req *smb2cli_session_setup_send(TALLOC_CTX *mem_ctx,
 				  NULL, /* tcon */
 				  session,
 				  state->fixed, sizeof(state->fixed),
-				  dyn, dyn_len);
+				  dyn, dyn_len,
+				  UINT16_MAX); /* max_dyn_len */
 	if (tevent_req_nomem(subreq, req)) {
 		return tevent_req_post(req, ev);
 	}
@@ -258,7 +259,8 @@ struct tevent_req *smb2cli_logoff_send(TALLOC_CTX *mem_ctx,
 				  NULL, /* tcon */
 				  session,
 				  state->fixed, sizeof(state->fixed),
-				  NULL, 0);
+				  NULL, 0, /* dyn* */
+				  0); /* max_dyn_len */
 	if (tevent_req_nomem(subreq, req)) {
 		return tevent_req_post(req, ev);
 	}
@@ -313,7 +315,7 @@ NTSTATUS smb2cli_logoff(struct smbXcli_conn *conn,
 		status = NT_STATUS_INVALID_PARAMETER;
 		goto fail;
 	}
-	ev = tevent_context_init(frame);
+	ev = samba_tevent_context_init(frame);
 	if (ev == NULL) {
 		goto fail;
 	}

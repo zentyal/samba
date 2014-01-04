@@ -355,11 +355,12 @@ def print_dns_record(outf, rec):
     elif rec.wType == dnsp.DNS_TYPE_CNAME:
         mesg = 'CNAME: %s' % (rec.data.str)
     elif rec.wType == dnsp.DNS_TYPE_SOA:
-        mesg = 'SOA: serial=%d, refresh=%d, retry=%d, expire=%d, ns=%s, email=%s' % (
+        mesg = 'SOA: serial=%d, refresh=%d, retry=%d, expire=%d, minttl=%d, ns=%s, email=%s' % (
                     rec.data.dwSerialNo,
                     rec.data.dwRefresh,
                     rec.data.dwRetry,
                     rec.data.dwExpire,
+                    rec.data.dwMinimumTtl,
                     rec.data.NamePrimaryServer.str,
                     rec.data.ZoneAdministratorEmail.str)
     elif rec.wType == dnsp.DNS_TYPE_MX:
@@ -424,7 +425,7 @@ class PTRRecord(dnsserver.DNS_RPC_RECORD):
         self.wType = dnsp.DNS_TYPE_PTR
         self.dwFlags = rank | node_flag
         self.dwSerial = serial
-        self.dwTtleSeconds = ttl
+        self.dwTtlSeconds = ttl
         self._ptr = ptr[:]
         ptr_name = dnsserver.DNS_RPC_NAME()
         ptr_name.str = self._ptr
@@ -498,6 +499,7 @@ class SOARecord(dnsserver.DNS_RPC_RECORD):
         soa.dwRefresh = refresh
         soa.dwRetry = retry
         soa.dwExpire = expire
+        soa.dwMinimumTtl = minimum
         soa.NamePrimaryServer.str = self._mname
         soa.NamePrimaryServer.len = len(mname)
         soa.ZoneAdministratorEmail.str = self._rname
@@ -1076,11 +1078,12 @@ class cmd_update_record(Command):
          CNAME  fqdn_string
          NS     fqdn_string
          MX     "fqdn_string preference"
+         SOA    "fqdn_dns fqdn_email serial refresh retry expire minimumttl"
          SRV    "fqdn_string port priority weight"
          TXT    "'string1' 'string2' ..."
     """
 
-    synopsis = '%prog <server> <zone> <name> <A|AAAA|PTR|CNAME|NS|MX|SRV|TXT> <olddata> <newdata>'
+    synopsis = '%prog <server> <zone> <name> <A|AAAA|PTR|CNAME|NS|MX|SOA|SRV|TXT> <olddata> <newdata>'
 
     takes_args = [ 'server', 'zone', 'name', 'rtype', 'olddata', 'newdata' ]
 
@@ -1093,7 +1096,7 @@ class cmd_update_record(Command):
     def run(self, server, zone, name, rtype, olddata, newdata,
                 sambaopts=None, credopts=None, versionopts=None):
 
-        if rtype.upper() not in ('A','AAAA','PTR','CNAME','NS','MX','SRV','TXT'):
+        if rtype.upper() not in ('A','AAAA','PTR','CNAME','NS','MX','SOA','SRV','TXT'):
             raise CommandError('Updating record of type %s is not supported' % rtype)
 
         record_type = dns_type_flag(rtype)
@@ -1127,7 +1130,7 @@ class cmd_update_record(Command):
                                         name,
                                         add_rec_buf,
                                         del_rec_buf)
-        self.outf.write('Record updated succefully\n')
+        self.outf.write('Record updated successfully\n')
 
 
 class cmd_delete_record(Command):
@@ -1179,7 +1182,7 @@ class cmd_delete_record(Command):
                                         name,
                                         None,
                                         del_rec_buf)
-        self.outf.write('Record deleted succefully\n')
+        self.outf.write('Record deleted successfully\n')
 
 
 class cmd_dns(SuperCommand):

@@ -83,7 +83,8 @@ bool run_smb2_basic(int dummy)
 			FILE_DELETE_ON_CLOSE, /* create_options, */
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
-			&fid_volatile);
+			&fid_volatile,
+			NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("smb2cli_create returned %s\n", nt_errstr(status));
 		return false;
@@ -91,7 +92,7 @@ bool run_smb2_basic(int dummy)
 
 	status = smb2cli_write(cli->conn, cli->timeout, cli->smb2.session,
 			       cli->smb2.tcon, strlen(hello), 0, fid_persistent,
-			       fid_volatile, 0, 0, (const uint8_t *)hello);
+			       fid_volatile, 0, 0, (const uint8_t *)hello, NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("smb2cli_write returned %s\n", nt_errstr(status));
 		return false;
@@ -145,7 +146,8 @@ bool run_smb2_basic(int dummy)
 			FILE_SYNCHRONOUS_IO_NONALERT|FILE_DIRECTORY_FILE, /* create_options, */
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
-			&fid_volatile);
+			&fid_volatile,
+			NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("smb2cli_create returned %s\n", nt_errstr(status));
 		return false;
@@ -341,7 +343,8 @@ bool run_smb2_session_reconnect(int dummy)
 			FILE_DELETE_ON_CLOSE, /* create_options, */
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
-			&fid_volatile);
+			&fid_volatile,
+			NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("smb2cli_create on cli1 %s\n", nt_errstr(status));
 		return false;
@@ -349,7 +352,7 @@ bool run_smb2_session_reconnect(int dummy)
 
 	status = smb2cli_write(cli1->conn, cli1->timeout, cli1->smb2.session,
 			       cli1->smb2.tcon, strlen(hello), 0, fid_persistent,
-			       fid_volatile, 0, 0, (const uint8_t *)hello);
+			       fid_volatile, 0, 0, (const uint8_t *)hello, NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("smb2cli_write returned %s\n", nt_errstr(status));
 		return false;
@@ -428,9 +431,9 @@ bool run_smb2_session_reconnect(int dummy)
 		return false;
 	}
 
-	ev = event_context_init(talloc_tos());
+	ev = samba_tevent_context_init(talloc_tos());
 	if (ev == NULL) {
-		printf("event_context_init() returned NULL\n");
+		printf("samba_tevent_context_init() returned NULL\n");
 		return false;
 	}
 
@@ -545,7 +548,7 @@ bool run_smb2_session_reconnect(int dummy)
 
 	status = smb2cli_write(cli2->conn, cli2->timeout, cli2->smb2.session,
 			       cli2->smb2.tcon, strlen(hello), 0, fid_persistent,
-			       fid_volatile, 0, 0, (const uint8_t *)hello);
+			       fid_volatile, 0, 0, (const uint8_t *)hello, NULL);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_FILE_CLOSED) &&
 	    !NT_STATUS_EQUAL(status, NT_STATUS_NETWORK_NAME_DELETED))
 	{
@@ -575,7 +578,8 @@ bool run_smb2_session_reconnect(int dummy)
 			FILE_DELETE_ON_CLOSE, /* create_options, */
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
-			&fid_volatile);
+			&fid_volatile,
+			NULL);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_ACCESS_DENIED) &&
 	    !NT_STATUS_EQUAL(status, NT_STATUS_NETWORK_NAME_DELETED)) {
 		printf("smb2cli_create on cli2 %s\n", nt_errstr(status));
@@ -605,7 +609,7 @@ bool run_smb2_session_reconnect(int dummy)
 
 	status = smb2cli_write(cli2->conn, cli2->timeout, cli2->smb2.session,
 			       cli1->smb2.tcon, strlen(hello), 0, fid_persistent,
-			       fid_volatile, 0, 0, (const uint8_t *)hello);
+			       fid_volatile, 0, 0, (const uint8_t *)hello, NULL);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_FILE_CLOSED) &&
 	    !NT_STATUS_EQUAL(status, NT_STATUS_NETWORK_NAME_DELETED))
 	{
@@ -635,7 +639,8 @@ bool run_smb2_session_reconnect(int dummy)
 			FILE_DELETE_ON_CLOSE, /* create_options, */
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
-			&fid_volatile);
+			&fid_volatile,
+			NULL);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_NETWORK_NAME_DELETED) &&
 	    !NT_STATUS_EQUAL(status, NT_STATUS_NETWORK_NAME_DELETED))
 	{
@@ -662,7 +667,8 @@ bool run_smb2_session_reconnect(int dummy)
 			FILE_DELETE_ON_CLOSE, /* create_options, */
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
-			&fid_volatile);
+			&fid_volatile,
+			NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("smb2cli_create on cli2 %s\n", nt_errstr(status));
 		return false;
@@ -670,7 +676,7 @@ bool run_smb2_session_reconnect(int dummy)
 
 	status = smb2cli_write(cli2->conn, cli2->timeout, cli2->smb2.session,
 			       cli2->smb2.tcon, strlen(hello), 0, fid_persistent,
-			       fid_volatile, 0, 0, (const uint8_t *)hello);
+			       fid_volatile, 0, 0, (const uint8_t *)hello, NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("smb2cli_write returned %s\n", nt_errstr(status));
 		return false;
@@ -757,7 +763,8 @@ bool run_smb2_tcon_dependence(int dummy)
 			FILE_DELETE_ON_CLOSE, /* create_options, */
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
-			&fid_volatile);
+			&fid_volatile,
+			NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("smb2cli_create on cli %s\n", nt_errstr(status));
 		return false;
@@ -765,7 +772,7 @@ bool run_smb2_tcon_dependence(int dummy)
 
 	status = smb2cli_write(cli->conn, cli->timeout, cli->smb2.session,
 			       cli->smb2.tcon, strlen(hello), 0, fid_persistent,
-			       fid_volatile, 0, 0, (const uint8_t *)hello);
+			       fid_volatile, 0, 0, (const uint8_t *)hello, NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("smb2cli_write returned %s\n", nt_errstr(status));
 		return false;
@@ -937,9 +944,9 @@ bool run_smb2_multi_channel(int dummy)
 		return false;
 	}
 
-	ev = event_context_init(talloc_tos());
+	ev = samba_tevent_context_init(talloc_tos());
 	if (ev == NULL) {
-		printf("event_context_init() returned NULL\n");
+		printf("samba_tevent_context_init() returned NULL\n");
 		return false;
 	}
 
@@ -1164,7 +1171,8 @@ bool run_smb2_multi_channel(int dummy)
 			FILE_DELETE_ON_CLOSE, /* create_options, */
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
-			&fid_volatile);
+			&fid_volatile,
+			NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("smb2cli_create on cli2 %s\n", nt_errstr(status));
 		return false;
@@ -1172,7 +1180,7 @@ bool run_smb2_multi_channel(int dummy)
 
 	status = smb2cli_write(cli1->conn, cli1->timeout, cli1->smb2.session,
 			       cli1->smb2.tcon, strlen(hello), 0, fid_persistent,
-			       fid_volatile, 0, 0, (const uint8_t *)hello);
+			       fid_volatile, 0, 0, (const uint8_t *)hello, NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("smb2cli_write returned %s\n", nt_errstr(status));
 		return false;
@@ -1324,7 +1332,8 @@ bool run_smb2_multi_channel(int dummy)
 			FILE_DELETE_ON_CLOSE, /* create_options, */
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
-			&fid_volatile);
+			&fid_volatile,
+			NULL);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_INVALID_HANDLE)) {
 		printf("smb2cli_create %s\n", nt_errstr(status));
 		return false;
@@ -1341,7 +1350,8 @@ bool run_smb2_multi_channel(int dummy)
 			FILE_DELETE_ON_CLOSE, /* create_options, */
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
-			&fid_volatile);
+			&fid_volatile,
+			NULL);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_INVALID_HANDLE)) {
 		printf("smb2cli_create %s\n", nt_errstr(status));
 		return false;
@@ -1358,7 +1368,8 @@ bool run_smb2_multi_channel(int dummy)
 			FILE_DELETE_ON_CLOSE, /* create_options, */
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
-			&fid_volatile);
+			&fid_volatile,
+			NULL);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_INVALID_HANDLE)) {
 		printf("smb2cli_create %s\n", nt_errstr(status));
 		return false;
@@ -1489,7 +1500,8 @@ bool run_smb2_session_reauth(int dummy)
 			FILE_DELETE_ON_CLOSE, /* create_options, */
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
-			&fid_volatile);
+			&fid_volatile,
+			NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("smb2cli_create %s\n", nt_errstr(status));
 		return false;
@@ -1508,7 +1520,8 @@ bool run_smb2_session_reauth(int dummy)
 			FILE_SYNCHRONOUS_IO_NONALERT|FILE_DIRECTORY_FILE, /* create_options, */
 			NULL, /* smb2_create_blobs *blobs */
 			&dir_persistent,
-			&dir_volatile);
+			&dir_volatile,
+			NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("smb2cli_create returned %s\n", nt_errstr(status));
 		return false;
@@ -1556,9 +1569,9 @@ bool run_smb2_session_reauth(int dummy)
 		return false;
 	}
 
-	ev = event_context_init(talloc_tos());
+	ev = samba_tevent_context_init(talloc_tos());
 	if (ev == NULL) {
-		printf("event_context_init() returned NULL\n");
+		printf("samba_tevent_context_init() returned NULL\n");
 		return false;
 	}
 
@@ -1691,7 +1704,8 @@ bool run_smb2_session_reauth(int dummy)
 			FILE_DELETE_ON_CLOSE, /* create_options, */
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
-			&fid_volatile);
+			&fid_volatile,
+			NULL);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_INVALID_HANDLE)) {
 		printf("smb2cli_create %s\n", nt_errstr(status));
 		return false;
@@ -1710,7 +1724,8 @@ bool run_smb2_session_reauth(int dummy)
 			FILE_SYNCHRONOUS_IO_NONALERT|FILE_DIRECTORY_FILE, /* create_options, */
 			NULL, /* smb2_create_blobs *blobs */
 			&dir_persistent,
-			&dir_volatile);
+			&dir_volatile,
+			NULL);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_INVALID_HANDLE)) {
 		printf("smb2cli_create returned %s\n", nt_errstr(status));
 		return false;
@@ -1865,7 +1880,8 @@ bool run_smb2_session_reauth(int dummy)
 			FILE_DELETE_ON_CLOSE, /* create_options, */
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
-			&fid_volatile);
+			&fid_volatile,
+			NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("smb2cli_create %s\n", nt_errstr(status));
 		return false;

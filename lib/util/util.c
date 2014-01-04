@@ -63,6 +63,7 @@ int create_unlink_tmp(const char *dir)
 {
 	char *fname;
 	int fd;
+	mode_t mask;
 
 	if (!dir) {
 		dir = tmpdir();
@@ -73,7 +74,9 @@ int create_unlink_tmp(const char *dir)
 		errno = ENOMEM;
 		return -1;
 	}
+	mask = umask(S_IRWXO | S_IRWXG);
 	fd = mkstemp(fname);
+	umask(mask);
 	if (fd == -1) {
 		TALLOC_FREE(fname);
 		return -1;
@@ -187,12 +190,13 @@ _PUBLIC_ bool directory_exist(const char *dname)
  * @retval true if the directory already existed and has the right permissions 
  * or was successfully created.
  */
-_PUBLIC_ bool directory_create_or_exist(const char *dname, uid_t uid, 
-			       mode_t dir_perms)
+_PUBLIC_ bool directory_create_or_exist(const char *dname,
+					uid_t uid,
+					mode_t dir_perms)
 {
 	int ret;
-  	struct stat st;
-      
+	struct stat st;
+
 	ret = lstat(dname, &st);
 	if (ret == -1) {
 		mode_t old_umask;
@@ -223,6 +227,44 @@ _PUBLIC_ bool directory_create_or_exist(const char *dname, uid_t uid,
 		}
 	}
 
+	return true;
+}
+
+/**
+ * @brief Try to create a specified directory if it doesn't exist.
+ *
+ * The function creates a directory with the given uid and permissions if it
+ * doesn't exixt. If it exists it makes sure the uid and permissions are
+ * correct and it will fail if they are different.
+ *
+ * @param[in]  dname  The directory to create.
+ *
+ * @param[in]  uid    The uid the directory needs to belong too.
+ *
+ * @param[in]  dir_perms  The expected permissions of the directory.
+ *
+ * @return True on success, false on error.
+ */
+_PUBLIC_ bool directory_create_or_exist_strict(const char *dname,
+					       uid_t uid,
+					       mode_t dir_perms)
+{
+	struct stat st;
+	bool ok;
+	int rc;
+
+	ok = directory_create_or_exist(dname, uid, dir_perms);
+	if (!ok) {
+		return false;
+	}
+
+	rc = lstat(dname, &st);
+	if (rc == -1) {
+		DEBUG(0, ("lstat failed on created directory %s: %s\n",
+			  dname, strerror(errno)));
+		return false;
+	}
+
 	/* Check ownership and permission on existing directory */
 	if (!S_ISDIR(st.st_mode)) {
 		DEBUG(0, ("directory %s isn't a directory\n",
@@ -237,12 +279,12 @@ _PUBLIC_ bool directory_create_or_exist(const char *dname, uid_t uid,
 	if ((st.st_mode & 0777) != dir_perms) {
 		DEBUG(0, ("invalid permissions on directory "
 			  "'%s': has 0%o should be 0%o\n", dname,
-			  (st.st_mode & 0777), dir_perms));
+			  (unsigned int)(st.st_mode & 0777), (unsigned int)dir_perms));
 		return false;
 	}
 
 	return true;
-}       
+}
 
 
 /**
@@ -386,6 +428,19 @@ _PUBLIC_ bool fcntl_lock(int fd, int op, off_t offset, off_t count, int type)
 	return true;
 }
 
+struct debug_channel_level {
+	int channel;
+	int level;
+};
+
+static void debugadd_channel_cb(const char *buf, void *private_data)
+{
+	struct debug_channel_level *dcl =
+		(struct debug_channel_level *)private_data;
+
+	DEBUGADDC(dcl->channel, dcl->level,("%s", buf));
+}
+
 static void debugadd_cb(const char *buf, void *private_data)
 {
 	int *plevel = (int *)private_data;
@@ -502,6 +557,22 @@ _PUBLIC_ void dump_data(int level, const uint8_t *buf, int len)
 		return;
 	}
 	dump_data_cb(buf, len, false, debugadd_cb, &level);
+}
+
+/**
+ * Write dump of binary data to the log file.
+ *
+ * The data is only written if the log level is at least level for
+ * debug class dbgc_class.
+ */
+_PUBLIC_ void dump_data_dbgc(int dbgc_class, int level, const uint8_t *buf, int len)
+{
+	struct debug_channel_level dcl = { dbgc_class, level };
+
+	if (!DEBUGLVLC(dbgc_class, level)) {
+		return;
+	}
+	dump_data_cb(buf, len, false, debugadd_channel_cb, &dcl);
 }
 
 /**

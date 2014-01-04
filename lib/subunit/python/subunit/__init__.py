@@ -121,8 +121,14 @@ import re
 import subprocess
 import sys
 import unittest
+if sys.version_info > (3, 0):
+    from io import UnsupportedOperation as _UnsupportedOperation
+else:
+    _UnsupportedOperation = AttributeError
+
 
 from testtools import content, content_type, ExtendedToOriginalDecorator
+from testtools.content import TracebackContent
 from testtools.compat import _b, _u, BytesIO, StringIO
 try:
     from testtools.testresult.real import _StringException
@@ -141,6 +147,19 @@ from testtools import testresult
 
 from subunit import chunked, details, iso8601, test_results
 
+# same format as sys.version_info: "A tuple containing the five components of
+# the version number: major, minor, micro, releaselevel, and serial. All
+# values except releaselevel are integers; the release level is 'alpha',
+# 'beta', 'candidate', or 'final'. The version_info value corresponding to the
+# Python version 2.0 is (2, 0, 0, 'final', 0)."  Additionally we use a
+# releaselevel of 'dev' for unreleased under-development code.
+#
+# If the releaselevel is 'alpha' then the major/minor/micro components are not
+# established at this point, and setup.py will use a version of next-$(revno).
+# If the releaselevel is 'final', then the tarball will be major.minor.micro.
+# Otherwise it is major.minor.micro~$(revno).
+
+__version__ = (0, 0, 9, 'final', 0)
 
 PROGRESS_SET = 0
 PROGRESS_CUR = 1
@@ -182,8 +201,14 @@ def tags_to_new_gone(tags):
 class DiscardStream(object):
     """A filelike object which discards what is written to it."""
 
+    def fileno(self):
+        raise _UnsupportedOperation()
+
     def write(self, bytes):
         pass
+
+    def read(self, len=0):
+        return _b('')
 
 
 class _ParserState(object):
@@ -599,8 +624,8 @@ class TestProtocolClient(testresult.TestResult):
 
     def __init__(self, stream):
         testresult.TestResult.__init__(self)
+        stream = _make_stream_binary(stream)
         self._stream = stream
-        _make_stream_binary(stream)
         self._progress_fmt = _b("progress: ")
         self._bytes_eol = _b("\n")
         self._progress_plus = _b("+")
@@ -624,6 +649,8 @@ class TestProtocolClient(testresult.TestResult):
             to subunit.Content objects.
         """
         self._addOutcome("error", test, error=error, details=details)
+        if self.failfast:
+            self.stop()
 
     def addExpectedFailure(self, test, error=None, details=None):
         """Report an expected failure in test test.
@@ -654,6 +681,8 @@ class TestProtocolClient(testresult.TestResult):
             to subunit.Content objects.
         """
         self._addOutcome("failure", test, error=error, details=details)
+        if self.failfast:
+            self.stop()
 
     def _addOutcome(self, outcome, test, error=None, details=None,
         error_permitted=True):
@@ -673,7 +702,7 @@ class TestProtocolClient(testresult.TestResult):
         :param error_permitted: If True then one and only one of error or
             details must be supplied. If False then error must not be supplied
             and details is still optional.  """
-        self._stream.write(_b("%s: %s" % (outcome, test.id())))
+        self._stream.write(_b("%s: " % outcome) + self._test_id(test))
         if error_permitted:
             if error is None and details is None:
                 raise ValueError
@@ -682,10 +711,9 @@ class TestProtocolClient(testresult.TestResult):
                 raise ValueError
         if error is not None:
             self._stream.write(self._start_simple)
-            # XXX: this needs to be made much stricter, along the lines of
-            # Martin[gz]'s work in testtools. Perhaps subunit can use that?
-            for line in self._exc_info_to_unicode(error, test).splitlines():
-                self._stream.write(("%s\n" % line).encode('utf8'))
+            tb_content = TracebackContent(error, test)
+            for bytes in tb_content.iter_bytes():
+                self._stream.write(bytes)
         elif details is not None:
             self._write_details(details)
         else:
@@ -719,11 +747,19 @@ class TestProtocolClient(testresult.TestResult):
         """
         self._addOutcome("uxsuccess", test, details=details,
             error_permitted=False)
+        if self.failfast:
+            self.stop()
+
+    def _test_id(self, test):
+        result = test.id()
+        if type(result) is not bytes:
+            result = result.encode('utf8')
+        return result
 
     def startTest(self, test):
         """Mark a test as starting its test run."""
         super(TestProtocolClient, self).startTest(test)
-        self._stream.write(_b("test: %s\n" % test.id()))
+        self._stream.write(_b("test: ") + self._test_id(test) + _b("\n"))
         self._stream.flush()
 
     def stopTest(self, test):
@@ -754,6 +790,15 @@ class TestProtocolClient(testresult.TestResult):
             offset = _b(str(offset))
         self._stream.write(self._progress_fmt + prefix + offset +
             self._bytes_eol)
+
+    def tags(self, new_tags, gone_tags):
+        """Inform the client about tags added/removed from the stream."""
+        if not new_tags and not gone_tags:
+            return
+        tags = set([tag.encode('utf8') for tag in new_tags])
+        tags.update([_b("-") + tag.encode('utf8') for tag in gone_tags])
+        tag_line = _b("tags: ") + _b(" ").join(tags) + _b("\n")
+        self._stream.write(tag_line)
 
     def time(self, a_datetime):
         """Inform the client of the time.
@@ -1122,7 +1167,7 @@ class ProtocolTestCase(object):
     :seealso: TestProtocolServer (the subunit wire protocol parser).
     """
 
-    def __init__(self, stream, passthrough=None, forward=False):
+    def __init__(self, stream, passthrough=None, forward=None):
         """Create a ProtocolTestCase reading from stream.
 
         :param stream: A filelike object which a subunit stream can be read
@@ -1132,9 +1177,11 @@ class ProtocolTestCase(object):
         :param forward: A stream to pass subunit input on to. If not supplied
             subunit input is not forwarded.
         """
+        stream = _make_stream_binary(stream)
         self._stream = stream
-        _make_stream_binary(stream)
         self._passthrough = passthrough
+        if forward is not None:
+            forward = _make_stream_binary(forward)
         self._forward = forward
 
     def __call__(self, result=None):
@@ -1217,11 +1264,6 @@ def get_default_formatter():
         return stream
 
 
-if sys.version_info > (3, 0):
-    from io import UnsupportedOperation as _NoFilenoError
-else:
-    _NoFilenoError = AttributeError
-
 def read_test_list(path):
     """Read a list of test ids from a file on disk.
 
@@ -1236,15 +1278,37 @@ def read_test_list(path):
 
 
 def _make_stream_binary(stream):
-    """Ensure that a stream will be binary safe. See _make_binary_on_windows."""
+    """Ensure that a stream will be binary safe. See _make_binary_on_windows.
+    
+    :return: A binary version of the same stream (some streams cannot be
+        'fixed' but can be unwrapped).
+    """
     try:
         fileno = stream.fileno()
-    except _NoFilenoError:
-        return
-    _make_binary_on_windows(fileno)
+    except _UnsupportedOperation:
+        pass
+    else:
+        _make_binary_on_windows(fileno)
+    return _unwrap_text(stream)
 
 def _make_binary_on_windows(fileno):
     """Win32 mangles \r\n to \n and that breaks streams. See bug lp:505078."""
     if sys.platform == "win32":
         import msvcrt
         msvcrt.setmode(fileno, os.O_BINARY)
+
+
+def _unwrap_text(stream):
+    """Unwrap stream if it is a text stream to get the original buffer."""
+    if sys.version_info > (3, 0):
+        try:
+            # Read streams
+            if type(stream.read(0)) is str:
+                return stream.buffer
+        except (_UnsupportedOperation, IOError):
+            # Cannot read from the stream: try via writes
+            try:
+                stream.write(_b(''))
+            except TypeError:
+                return stream.buffer
+    return stream

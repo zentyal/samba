@@ -868,7 +868,7 @@ static struct functable net_func[] = {
 			break;
 		case 'U':
 			c->opt_user_specified = true;
-			c->opt_user_name = SMB_STRDUP(c->opt_user_name);
+			c->opt_user_name = talloc_strdup(c, c->opt_user_name);
 			p = strchr(c->opt_user_name,'%');
 			if (p) {
 				*p = 0;
@@ -945,10 +945,12 @@ static struct functable net_func[] = {
 		c->opt_password = getenv("PASSWD");
 	}
 
+	popt_burn_cmdline_password(argc, argv);
+
 	/* Failing to init the msg_ctx isn't a fatal error. Only
 	   root-level things (joining/leaving domains etc.) will be denied. */
 
-	c->msg_ctx = messaging_init(c, event_context_init(c));
+	c->msg_ctx = messaging_init(c, samba_tevent_context_init(c));
 
 	rc = net_run_function(c, argc_new-1, argv_new+1, "net", net_func);
 

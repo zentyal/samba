@@ -261,7 +261,6 @@ static void show_build(void)
 		CONFIG_OPTION(CACHEDIR),
 		CONFIG_OPTION(PIDDIR),
 		CONFIG_OPTION(PRIVATE_DIR),
-		CONFIG_OPTION(SWATDIR),
 		CONFIG_OPTION(CODEPAGEDIR),
 		CONFIG_OPTION(SETUPDIR),
 		CONFIG_OPTION(WINBINDD_SOCKET_DIR),
@@ -369,7 +368,7 @@ static int binary_smbd_main(const char *binary_name, int argc, const char *argv[
 	umask(0);
 
 	DEBUG(0,("%s version %s started.\n", binary_name, SAMBA_VERSION_STRING));
-	DEBUGADD(0,("Copyright Andrew Tridgell and the Samba Team 1992-2012\n"));
+	DEBUGADD(0,("Copyright Andrew Tridgell and the Samba Team 1992-2013\n"));
 
 	if (sizeof(uint16_t) < 2 || sizeof(uint32_t) < 4 || sizeof(uint64_t) < 8) {
 		DEBUG(0,("ERROR: Samba is not configured correctly for the word size on your machine\n"));
@@ -448,6 +447,10 @@ static int binary_smbd_main(const char *binary_name, int argc, const char *argv[
 #ifdef SIGTTIN
 	signal(SIGTTIN, SIG_IGN);
 #endif
+
+	if (fstat(0, &st) != 0) {
+		exit(1);
+	}
 
 	if (S_ISFIFO(st.st_mode) || S_ISSOCK(st.st_mode)) {
 		tevent_add_fd(event_ctx,

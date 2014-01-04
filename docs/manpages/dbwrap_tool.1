@@ -31,7 +31,7 @@
 dbwrap_tool \- low level TDB/CTDB manipulation tool using the dbwrap interface
 .SH "SYNOPSIS"
 .HP \w'\ 'u
-dbwrap_tool [\-d\ <debug\ level>] [\-s\ <config\ file>] [\-l\ <log\ file\ base>] [\-V] [\-\-option=<name>=<value>] {<database>} {<operation>} [<key>\ [<type>\ [<value>]\ ]]
+dbwrap_tool [\-\-persistent] [\-d\ <debug\ level>] [\-s\ <config\ file>] [\-l\ <log\ file\ base>] [\-V] [\-\-option=<name>=<value>] {<database>} {<operation>} [<key>\ [<type>\ [<value>]\ ]]
 .SH "DESCRIPTION"
 .PP
 This tool is part of the
@@ -73,6 +73,17 @@ store: create or modify a record
 .IP \(bu 2.3
 .\}
 delete: remove a record
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+exists: test for existance of a record
 .RE
 .sp
 .RS 4
@@ -159,6 +170,11 @@ hex: hex strings like "68656C6C6F20776F726C6400" ("hello world")
 .RE
 .SH "OPTIONS"
 .PP
+\-\-persistent
+.RS 4
+Open the database as a persistent database\&. If this option is not specified, the database is opened as non\-persistent\&.
+.RE
+.PP
 \-d|\-\-debuglevel=level
 .RS 4
 \fIlevel\fR
@@ -218,6 +234,10 @@ dbwrap_tool <database> store <key> <type> <value>
 .HP \w'\ 'u
 dbwrap_tool <database> delete <key>
 		
+.SS "exists"
+.HP \w'\ 'u
+dbwrap_tool <database> exists <key>
+		
 .SS "erase"
 .HP \w'\ 'u
 dbwrap_tool <database> erase 
@@ -234,29 +254,29 @@ dbwrap_tool <database> listwatchers
 List all keys from winbindd_idmap\&.tdb
 .RS 4
 dbwrap_tool
-winbindd_idmap\&.tdb listkeys
+\-\-persistent winbindd_idmap\&.tdb listkeys
 .RE
 .PP
 Fetch record with key "USER HWM" as uint32
 .RS 4
 dbwrap_tool
-winbindd_idmap\&.tdb fetch "USER HWM" uint32
+\-\-persistent winbindd_idmap\&.tdb fetch "USER HWM" uint32
 .RE
 .PP
 Remove record with key "USER HWM"
 .RS 4
 dbwrap_tool
-winbindd_idmap\&.tdb remove "USER HWM"
+\-\-persistent winbindd_idmap\&.tdb remove "USER HWM"
 .RE
 .PP
 Store and overwrite record "USER HWM" with value 214
 .RS 4
 uint32:
 dbwrap_tool
-winbindd_idmap\&.tdb store "USER HWM" uint32 214
+\-\-persistent winbindd_idmap\&.tdb store "USER HWM" uint32 214
 hex:
 dbwrap_tool
-winbindd_idmap\&.tdb store "USER HWM" hex D6000000
+\-\-persistent winbindd_idmap\&.tdb store "USER HWM" hex D6000000
 .RE
 .SH "NOTES"
 .PP

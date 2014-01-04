@@ -60,6 +60,12 @@ static int tsocket_bsd_error_from_errno(int ret,
 		return sys_errno;
 	}
 
+	/* ENOMEM is retryable on Solaris/illumos, and possibly other systems. */
+	if (sys_errno == ENOMEM) {
+		*retry = true;
+		return sys_errno;
+	}
+
 #ifdef EWOULDBLOCK
 	if (sys_errno == EWOULDBLOCK) {
 		*retry = true;
@@ -203,7 +209,7 @@ struct tsocket_address_bsd {
 };
 
 int _tsocket_address_bsd_from_sockaddr(TALLOC_CTX *mem_ctx,
-				       struct sockaddr *sa,
+				       const struct sockaddr *sa,
 				       size_t sa_socklen,
 				       struct tsocket_address **_addr,
 				       const char *location)
@@ -383,7 +389,7 @@ int _tsocket_address_inet_from_strings(TALLOC_CTX *mem_ctx,
 		return -1;
 	}
 
-	snprintf(port_str, sizeof(port_str) - 1, "%u", port);
+	snprintf(port_str, sizeof(port_str), "%u", port);
 
 	ret = getaddrinfo(addr, port_str, &hints, &result);
 	if (ret != 0) {

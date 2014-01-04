@@ -87,6 +87,7 @@ static bool defaults_saved = false;
 	char *szUsershareTemplateShare;					\
 	char *szIdmapUID;						\
 	char *szIdmapGID;						\
+	char *szIdmapBackend;						\
 	int winbindMaxDomainConnections;				\
 	int ismb2_max_credits;						\
 	char *tls_keyfile;						\
@@ -1076,7 +1077,7 @@ static void add_to_file_list(struct loadparm_context *lp_ctx,
 bool lpcfg_file_list_changed(struct loadparm_context *lp_ctx)
 {
 	struct file_lists *f;
-	DEBUG(6, ("lp_file_list_changed()\n"));
+	DEBUG(6, ("lpcfg_file_list_changed()\n"));
 
 	for (f = lp_ctx->file_lists; f != NULL; f = f->next) {
 		char *n2;
@@ -1300,7 +1301,8 @@ static bool set_variable(TALLOC_CTX *mem_ctx, int parmnum, void *parm_ptr,
 		case P_BOOL: {
 			bool b;
 			if (!set_boolean(pszParmValue, &b)) {
-				DEBUG(0,("lp_do_parameter(%s): value is not boolean!\n", pszParmValue));
+				DEBUG(0, ("set_variable(%s): value is not "
+					  "boolean!\n", pszParmValue));
 				return false;
 			}
 			*(bool *)parm_ptr = b;
@@ -1310,7 +1312,8 @@ static bool set_variable(TALLOC_CTX *mem_ctx, int parmnum, void *parm_ptr,
 		case P_BOOLREV: {
 			bool b;
 			if (!set_boolean(pszParmValue, &b)) {
-				DEBUG(0,("lp_do_parameter(%s): value is not boolean!\n", pszParmValue));
+				DEBUG(0, ("set_variable(%s): value is not "
+					  "boolean!\n", pszParmValue));
 				return false;
 			}
 			*(bool *)parm_ptr = !b;
@@ -1339,8 +1342,8 @@ static bool set_variable(TALLOC_CTX *mem_ctx, int parmnum, void *parm_ptr,
 				}
 			}
 
-			DEBUG(0,("lp_do_parameter(%s): value is not "
-			    "a valid size specifier!\n", pszParmValue));
+			DEBUG(0, ("set_variable(%s): value is not "
+			          "a valid size specifier!\n", pszParmValue));
 			return false;
 		}
 
@@ -2150,7 +2153,6 @@ struct loadparm_context *loadparm_init(TALLOC_CTX *mem_ctx)
 	lpcfg_do_global_parameter(lp_ctx, "max xmit", "12288");
 	lpcfg_do_global_parameter(lp_ctx, "host msdfs", "true");
 
-	lpcfg_do_global_parameter(lp_ctx, "password level", "0");
 	lpcfg_do_global_parameter(lp_ctx, "LargeReadwrite", "True");
 	lpcfg_do_global_parameter(lp_ctx, "server min protocol", "CORE");
 	lpcfg_do_global_parameter(lp_ctx, "server max protocol", "NT1");
@@ -2183,14 +2185,12 @@ struct loadparm_context *loadparm_init(TALLOC_CTX *mem_ctx)
 	lpcfg_do_global_parameter(lp_ctx, "winbind separator", "\\");
 	lpcfg_do_global_parameter(lp_ctx, "winbind sealed pipes", "True");
 	lpcfg_do_global_parameter(lp_ctx, "winbindd socket directory", dyn_WINBINDD_SOCKET_DIR);
-#if _SAMBA_BUILD_ >= 4
 	lpcfg_do_global_parameter(lp_ctx, "winbindd privileged socket directory", dyn_WINBINDD_PRIVILEGED_SOCKET_DIR);
 	lpcfg_do_global_parameter(lp_ctx, "ntp signd socket directory", dyn_NTP_SIGND_SOCKET_DIR);
 	lpcfg_do_global_parameter_var(lp_ctx, "dns update command", "%s/samba_dnsupdate", dyn_SCRIPTSBINDIR);
 	lpcfg_do_global_parameter_var(lp_ctx, "spn update command", "%s/samba_spnupdate", dyn_SCRIPTSBINDIR);
 	lpcfg_do_global_parameter_var(lp_ctx, "samba kcc command",
 					"%s/samba_kcc", dyn_SCRIPTSBINDIR);
-#endif
 	lpcfg_do_global_parameter(lp_ctx, "template shell", "/bin/false");
 	lpcfg_do_global_parameter(lp_ctx, "template homedir", "/home/%WORKGROUP%/%ACCOUNTNAME%");
 

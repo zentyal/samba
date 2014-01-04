@@ -13,6 +13,7 @@ import samba.getopt as options
 from samba.dcerpc import drsuapi, misc
 from samba.samdb import SamDB
 from samba.auth import system_session
+from samba.ndr import ndr_unpack
 
 def do_DsBind(drs):
     '''make a DsBind call, returning the binding handle'''
@@ -100,18 +101,35 @@ if __name__ == "__main__":
     parser.add_option("", "--dn", dest="dn", help="DN to replicate",)
     parser.add_option("", "--exop", dest="exop", help="extended operation",)
     parser.add_option("", "--pas", dest="use_pas", action='store_true', default=False,
-                      help="send partial attribute set",)
+                      help="send partial attribute set (for RODC)")
     parser.add_option("", "--nb-iter", type='int', help="Number of getncchange iterations")
-    parser.add_option("", "--dest-dsa", type='str',
-                      default='"9c637462-5b8c-4467-aef2-bdb1f57bc4ef"', help="destination DSA GUID")
+    parser.add_option("", "--dest-dsa", type='str', help="destination DSA GUID")
+    parser.add_option("", "--rodc", action='store_true', default=False,
+                      help='use RODC replica flags')
+    parser.add_option("", "--partial-rw", action='store_true', default=False,
+                      help='use RW partial replica flags, not be confused with --pas')
     parser.add_option("", "--replica-flags", type='int',
                       default=drsuapi.DRSUAPI_DRS_INIT_SYNC |
                       drsuapi.DRSUAPI_DRS_PER_SYNC |
+                      drsuapi.DRSUAPI_DRS_WRIT_REP |
                       drsuapi.DRSUAPI_DRS_GET_ANC |
                       drsuapi.DRSUAPI_DRS_NEVER_SYNCED,
                       help='replica flags')
 
     (opts, args) = parser.parse_args()
+    if opts.rodc:
+        opts.replica_flags = drsuapi.DRSUAPI_DRS_INIT_SYNC |\
+                             drsuapi.DRSUAPI_DRS_PER_SYNC |\
+                             drsuapi.DRSUAPI_DRS_GET_ANC |\
+                             drsuapi.DRSUAPI_DRS_NEVER_SYNCED |\
+                             drsuapi.DRSUAPI_DRS_SPECIAL_SECRET_PROCESSING |\
+                             drsuapi.DRSUAPI_DRS_GET_ALL_GROUP_MEMBERSHIP
+
+    if opts.partial_rw:
+        opts.replica_flags = drsuapi.DRSUAPI_DRS_INIT_SYNC |\
+                             drsuapi.DRSUAPI_DRS_PER_SYNC |\
+                             drsuapi.DRSUAPI_DRS_GET_ANC |\
+                             drsuapi.DRSUAPI_DRS_NEVER_SYNCED
 
     lp = sambaopts.get_loadparm()
     creds = credopts.get_credentials(lp)
@@ -121,6 +139,9 @@ if __name__ == "__main__":
 
     if creds.is_anonymous():
         parser.error("You must supply credentials")
+
+    if opts.partial_rw and opts.rodc:
+        parser.error("Can't specify --partial-rw and --rodc")
 
     server = args[0]
 
@@ -148,8 +169,24 @@ if __name__ == "__main__":
     else:
         exop = int(opts.exop)
 
+    dest_dsa = opts.dest_dsa
+    if not dest_dsa:
+        print "no dest_dsa specified trying to figure out from ldap"
+        msgs = samdb.search(controls=["search_options:1:2"],
+                           expression='(objectclass=ntdsdsa)')
+        if len(msgs) == 1:
+            dest_dsa = str(ndr_unpack(misc.GUID,  msgs[0]["invocationId"][0]))
+            print "Found this dsa: %s" % dest_dsa
+        else:
+            # TODO fixme
+            pass
+        if not dest_dsa:
+            print "Unable to find the dest_dsa automatically please specify it"
+            import sys
+            sys.exit(1)
+
     null_guid = misc.GUID()
-    req8.destination_dsa_guid               = misc.GUID(opts.dest_dsa)
+    req8.destination_dsa_guid               = misc.GUID(dest_dsa)
     req8.source_dsa_invocation_id	    = misc.GUID(samdb.get_invocation_id())
     req8.naming_context			    = drsuapi.DsReplicaObjectIdentifier()
     req8.naming_context.dn                  = opts.dn.decode("utf-8")

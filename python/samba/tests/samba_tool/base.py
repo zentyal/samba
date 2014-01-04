@@ -72,7 +72,7 @@ class SambaToolCmdTest(samba.tests.TestCaseInTempDir):
 
     def runsubcmd(self, name, sub, *args):
         """run a command with sub commands"""
-        # The reason we need this function seperate from runcmd is
+        # The reason we need this function separate from runcmd is
         # that the .outf StringIO assignment is overriden if we use
         # runcmd, so we can't capture stdout and stderr
         cmd = cmd_sambatool.subcommands[name].subcommands[sub]
@@ -102,6 +102,12 @@ class SambaToolCmdTest(samba.tests.TestCaseInTempDir):
         name += random.choice(string.ascii_lowercase)
         name += ''.join(random.choice(string.ascii_uppercase + string.ascii_lowercase+ string.digits) for x in range(count - 3))
         return name
+
+    def randomXid(self):
+        # pick some hopefully unused, high UID/GID range to avoid interference
+        # from the system the test runs on
+        xid = random.randint(4711000, 4799000)
+        return xid
 
     def assertWithin(self, val1, val2, delta, msg=""):
         """Assert that val1 is within delta of val2, useful for time computations"""

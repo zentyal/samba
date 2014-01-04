@@ -58,12 +58,10 @@ conf_args = \
 		--disable-avahi \
 		--with-ctdb=/usr --with-cluster-support \
 		--disable-rpath \
-		--disable-ntdb \
 		--disable-rpath-install \
 		--bundled-libraries=NONE,pytevent,iniparser \
 		--builtin-libraries=replace,ccan \
-		--minimum-library-version="$(shell ./debian/autodeps.py --minimum-library-version)" \
-		--without-getpass-replacement
+		--minimum-library-version="$(shell ./debian/autodeps.py --minimum-library-version)"
 
 %:
 	dh $* --with python2
@@ -97,11 +95,6 @@ override_dh_install:
 	rm $(DESTDIR)/usr/share/perl5/Parse/Yapp/Driver.pm
 	# MIT plugin not required, we are using Heimdal
 	rm $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/mit_samba.so
-	# SWAT is not packaged any more (gone from upstream 4.1)
-	rm $(DESTDIR)/usr/sbin/swat
-	rm $(DESTDIR)/usr/share/man/man8/swat.8
-	rm -rf $(DESTDIR)/usr/share/samba/swat
-	rm $(DESTDIR)/usr/share/samba/codepages/*.msg
 	# Included in python-tevent
 	rm $(DESTDIR)/usr/lib/python*/*-packages/_tevent.so
 	rm $(DESTDIR)/usr/lib/python*/*-packages/tevent.py
@@ -168,9 +161,6 @@ ifneq (,$(filter winbind, $(shell dh_listpackages)))
 	dh_installinit -pwinbind
 endif
 
-override_dh_installdocs:
-	dh_installdocs source4/NEWS
-
 override_dh_shlibdeps:
 	LD_LIBRARY_PATH=$(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/samba:$$LD_LIBRARY_PATH dh_shlibdeps -a
 
@@ -181,6 +171,10 @@ override_dh_makeshlibs:
 	# create symbols and shlibs files in separate wrapper script to deal with
 	# private libraries
 	debian/make_shlibs
+
+override_dh_strip:
+	# add debug symbols for all samba packages to the same debug package
+	dh_strip -a --dbg-package=samba-dbg
 
 override_dh_fixperms:
 	dh_fixperms

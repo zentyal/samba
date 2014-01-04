@@ -3,9 +3,12 @@
 set -e 
 
 if dpkg --compare-versions "$2" lt-nl 2:4.0.12+dfsg-2~; then
-	update-alternatives --remove-all nmblookup || true
-	update-alternatives --remove-all net || true
-	update-alternatives --remove-all testparm || true
+	for alternative in nmblookup net testparm; do
+		if update-alternatives --list $alternative >/dev/null 2>&1
+		then
+			update-alternatives --remove-all $alternative
+		fi
+	done
 fi
 
 #DEBHELPER#

@@ -23,6 +23,8 @@
 #ifndef _WINBINDD_PROTO_H_
 #define _WINBINDD_PROTO_H_
 
+#include "ads.h"
+
 /* The following definitions come from winbindd/winbindd.c  */
 struct messaging_context *winbind_messaging_context(void);
 void request_error(struct winbindd_cli_state *state);
@@ -32,9 +34,9 @@ bool winbindd_setup_stdin_handler(bool parent, bool foreground);
 bool winbindd_setup_sig_hup_handler(const char *lfile);
 bool winbindd_use_idmap_cache(void);
 bool winbindd_use_cache(void);
-void winbindd_register_handlers(bool foreground);
 const char *get_winbind_pipe_dir(void);
 char *get_winbind_priv_pipe_dir(void);
+struct tevent_context *winbind_event_context(void);
 int main(int argc, char **argv, char **envp);
 
 /* The following definitions come from winbindd/winbindd_ads.c  */
@@ -899,5 +901,8 @@ NTSTATUS open_internal_samr_conn(TALLOC_CTX *mem_ctx,
 				 struct winbindd_domain *domain,
 				 struct rpc_pipe_client **samr_pipe,
 				 struct policy_handle *samr_domain_hnd);
+
+/* The following definitions come from winbindd/winbindd_ads.c  */
+ADS_STATUS ads_idmap_cached_connection(ADS_STRUCT **adsp, const char *dom_name);
 
 #endif /*  _WINBINDD_PROTO_H_  */

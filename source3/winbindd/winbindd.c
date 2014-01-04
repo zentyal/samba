@@ -49,14 +49,42 @@ static bool interactive = False;
 
 extern bool override_logfile;
 
+struct tevent_context *winbind_event_context(void)
+{
+	static struct tevent_context *ev = NULL;
+
+	if (ev != NULL) {
+		return ev;
+	}
+
+	/*
+	 * Note we MUST use the NULL context here, not the autofree context,
+	 * to avoid side effects in forked children exiting.
+	 */
+	ev = samba_tevent_context_init(NULL);
+	if (ev == NULL) {
+		smb_panic("Could not init winbindd's messaging context.\n");
+	}
+	return ev;
+}
+
 struct messaging_context *winbind_messaging_context(void)
 {
-	struct messaging_context *msg_ctx = server_messaging_context();
-	if (likely(msg_ctx != NULL)) {
-		return msg_ctx;
+	static struct messaging_context *msg = NULL;
+
+	if (msg != NULL) {
+		return msg;
 	}
-	smb_panic("Could not init winbindd's messaging context.\n");
-	return NULL;
+
+	/*
+	 * Note we MUST use the NULL context here, not the autofree context,
+	 * to avoid side effects in forked children exiting.
+	 */
+	msg = messaging_init(NULL, winbind_event_context());
+	if (msg == NULL) {
+		smb_panic("Could not init winbindd's messaging context.\n");
+	}
+	return msg;
 }
 
 /* Reload configuration */
@@ -184,7 +212,9 @@ static void terminate(bool is_parent)
 #endif
 
 	if (is_parent) {
-		serverid_deregister(procid_self());
+		struct messaging_context *msg = winbind_messaging_context();
+		struct server_id self = messaging_server_id(msg);
+		serverid_deregister(self);
 		pidfile_unlink(lp_piddir(), "winbindd");
 	}
 
@@ -831,7 +861,7 @@ static void new_connection(int listen_sock, bool privileged)
 
 	if (sock == -1) {
 		if (errno != EINTR) {
-			DEBUG(0, ("Faild to accept socket - %s\n",
+			DEBUG(0, ("Failed to accept socket - %s\n",
 				  strerror(errno)));
 		}
 		return;
@@ -1087,7 +1117,8 @@ bool winbindd_use_cache(void)
 	return !opt_nocache;
 }
 
-void winbindd_register_handlers(bool foreground)
+static void winbindd_register_handlers(struct messaging_context *msg_ctx,
+				       bool foreground)
 {
 	/* Setup signal handlers */
 
@@ -1114,7 +1145,7 @@ void winbindd_register_handlers(bool foreground)
 
 	/* get broadcast messages */
 
-	if (!serverid_register(procid_self(),
+	if (!serverid_register(messaging_server_id(msg_ctx),
 			       FLAG_MSG_GENERAL |
 			       FLAG_MSG_WINBIND |
 			       FLAG_MSG_DBWRAP)) {
@@ -1124,17 +1155,17 @@ void winbindd_register_handlers(bool foreground)
 
 	/* React on 'smbcontrol winbindd reload-config' in the same way
 	   as to SIGHUP signal */
-	messaging_register(winbind_messaging_context(), NULL,
+	messaging_register(msg_ctx, NULL,
 			   MSG_SMB_CONF_UPDATED, msg_reload_services);
-	messaging_register(winbind_messaging_context(), NULL,
+	messaging_register(msg_ctx, NULL,
 			   MSG_SHUTDOWN, msg_shutdown);
 
 	/* Handle online/offline messages. */
-	messaging_register(winbind_messaging_context(), NULL,
+	messaging_register(msg_ctx, NULL,
 			   MSG_WINBIND_OFFLINE, winbind_msg_offline);
-	messaging_register(winbind_messaging_context(), NULL,
+	messaging_register(msg_ctx, NULL,
 			   MSG_WINBIND_ONLINE, winbind_msg_online);
-	messaging_register(winbind_messaging_context(), NULL,
+	messaging_register(msg_ctx, NULL,
 			   MSG_WINBIND_ONLINESTATUS, winbind_msg_onlinestatus);
 
 	/* Handle domain online/offline messages for domains */
@@ -1143,23 +1174,23 @@ void winbindd_register_handlers(bool foreground)
 	messaging_register(winbind_messaging_context(), NULL,
 			   MSG_WINBIND_DOMAIN_ONLINE, winbind_msg_domain_online);
 
-	messaging_register(winbind_messaging_context(), NULL,
+	messaging_register(msg_ctx, NULL,
 			   MSG_DUMP_EVENT_LIST, winbind_msg_dump_event_list);
 
-	messaging_register(winbind_messaging_context(), NULL,
+	messaging_register(msg_ctx, NULL,
 			   MSG_WINBIND_VALIDATE_CACHE,
 			   winbind_msg_validate_cache);
 
-	messaging_register(winbind_messaging_context(), NULL,
+	messaging_register(msg_ctx, NULL,
 			   MSG_WINBIND_DUMP_DOMAIN_LIST,
 			   winbind_msg_dump_domain_list);
 
-	messaging_register(winbind_messaging_context(), NULL,
+	messaging_register(msg_ctx, NULL,
 			   MSG_WINBIND_IP_DROPPED,
 			   winbind_msg_ip_dropped_parent);
 
 	/* Register handler for MSG_DEBUG. */
-	messaging_register(winbind_messaging_context(), NULL,
+	messaging_register(msg_ctx, NULL,
 			   MSG_DEBUG,
 			   winbind_msg_debug);
 
@@ -1303,12 +1334,19 @@ int main(int argc, char **argv, char **envp)
 	int opt;
 	TALLOC_CTX *frame;
 	NTSTATUS status;
+	bool ok;
 
 	/*
 	 * Do this before any other talloc operation
 	 */
 	talloc_enable_null_tracking();
 	frame = talloc_stackframe();
+
+	/*
+	 * We want total control over the permissions on created files,
+	 * so set our umask to 0.
+	 */
+	umask(0);
 
 	setup_logging("winbindd", DEBUG_DEFAULT_STDOUT);
 
@@ -1442,12 +1480,18 @@ int main(int argc, char **argv, char **envp)
 		exit(1);
 	}
 
-	if (!directory_exist(lp_lockdir())) {
-		mkdir(lp_lockdir(), 0755);
+	ok = directory_create_or_exist(lp_lockdir(), geteuid(), 0755);
+	if (!ok) {
+		DEBUG(0, ("Failed to create directory %s for lock files - %s\n",
+			  lp_lockdir(), strerror(errno)));
+		exit(1);
 	}
 
-	if (!directory_exist(lp_piddir())) {
-		mkdir(lp_piddir(), 0755);
+	ok = directory_create_or_exist(lp_piddir(), geteuid(), 0755);
+	if (!ok) {
+		DEBUG(0, ("Failed to create directory %s for pid files - %s\n",
+			  lp_piddir(), strerror(errno)));
+		exit(1);
 	}
 
 	/* Setup names. */
@@ -1514,7 +1558,7 @@ int main(int argc, char **argv, char **envp)
 		exit(1);
 	}
 
-	winbindd_register_handlers(!Fork);
+	winbindd_register_handlers(winbind_messaging_context(), !Fork);
 
 	status = init_system_session_info();
 	if (!NT_STATUS_IS_OK(status)) {

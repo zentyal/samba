@@ -1,4 +1,4 @@
-/* 
+/*
    Unix SMB/CIFS implementation.
 
    Send messages to other Samba daemons
@@ -33,6 +33,7 @@
 #include "messages.h"
 #include "util_tdb.h"
 #include "../lib/util/pidfile.h"
+#include "serverid.h"
 
 #if HAVE_LIBUNWIND_H
 #include <libunwind.h>
@@ -93,9 +94,10 @@ static void wait_replies(struct tevent_context *ev_ctx,
 	struct tevent_timer *te;
 	bool timed_out = False;
 
-	if (!(te = tevent_add_timer(ev_ctx, NULL,
-				    timeval_current_ofs(timeout, 0),
-				    smbcontrol_timeout, (void *)&timed_out))) {
+	te = tevent_add_timer(ev_ctx, NULL,
+			      timeval_current_ofs(timeout, 0),
+			      smbcontrol_timeout, (void *)&timed_out);
+	if (te == NULL) {
 		DEBUG(0, ("tevent_add_timer failed\n"));
 		return;
 	}
@@ -326,7 +328,7 @@ static int stack_trace_server(const struct server_id *id,
 			      void *priv)
 {
 	if (id->vnn == get_my_vnn()) {
-		print_stack_trace(procid_to_pid(&id->pid), (int *)priv);
+		print_stack_trace(procid_to_pid(id), (int *)priv);
 	}
 	return 0;
 }
@@ -1498,7 +1500,7 @@ int main(int argc, const char **argv)
          * routines mostly return True==1 for success, but
          * shell needs 0. */ 
 
-	if (!(evt_ctx = tevent_context_init(NULL)) ||
+	if (!(evt_ctx = samba_tevent_context_init(NULL)) ||
 	    !(msg_ctx = messaging_init(NULL, evt_ctx))) {
 		fprintf(stderr, "could not init messaging context\n");
 		TALLOC_FREE(frame);

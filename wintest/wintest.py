@@ -852,12 +852,23 @@ RebootOnCompletion=No
         child.expect("C:")
         child.expect("C:")
         child.sendline("dcpromo /answer:answers.txt")
-        i = child.expect(["You must restart this computer", "failed", "Active Directory Domain Services was not installed", "C:"], timeout=240)
+        i = child.expect(["You must restart this computer", "failed", "Active Directory Domain Services was not installed", "C:", pexpect.TIMEOUT], timeout=240)
         if i == 1 or i == 2:
             raise Exception("dcpromo failed")
+        if i == 4: # timeout
+            child = self.open_telnet("${WIN_HOSTNAME}", "administrator", "${WIN_PASS}")
+
         child.sendline("shutdown -r -t 0")
         self.port_wait("${WIN_IP}", 139, wait_for_fail=True)
         self.port_wait("${WIN_IP}", 139)
+
+        child = self.open_telnet("${WIN_HOSTNAME}", "administrator", "${WIN_PASS}")
+        # Check if we became a DC by now
+        if not self.get_is_dc(child):
+            raise Exception("dcpromo failed (and wasn't a DC even after rebooting)")
+        # Give DNS registration a kick
+        child.sendline("ipconfig /registerdns")
+
         self.retry_cmd("host -t SRV _ldap._tcp.${WIN_REALM} ${WIN_IP}", ['has SRV record'], retries=60, delay=5 )
 
 
@@ -878,7 +889,7 @@ RebootOnCompletion=No
             child.expect("C:")
             child.sendline("netdom join ${WIN_HOSTNAME} /Domain:%s /UserD:%s /PasswordD:%s" % (domain, username, password))
             i = child.expect(["The command completed successfully", 
-                             "The specified domain either does not exist or could not be contacted."])
+                             "The specified domain either does not exist or could not be contacted."], timeout=120)
             if i == 0:
                 break
             time.sleep(10)

@@ -246,6 +246,11 @@ struct smbXcli_req_state {
 		 */
 		struct iovec *recv_iov;
 
+		/*
+		 * the expected max for the response dyn_len
+		 */
+		uint32_t max_dyn_len;
+
 		uint16_t credit_charge;
 
 		bool should_sign;
@@ -561,7 +566,7 @@ NTSTATUS smbXcli_conn_samba_suicide(struct smbXcli_conn *conn,
 		status = NT_STATUS_INVALID_PARAMETER_MIX;
 		goto fail;
 	}
-	ev = tevent_context_init(frame);
+	ev = samba_tevent_context_init(frame);
 	if (ev == NULL) {
 		goto fail;
 	}
@@ -588,6 +593,23 @@ uint32_t smb1cli_conn_capabilities(struct smbXcli_conn *conn)
 uint32_t smb1cli_conn_max_xmit(struct smbXcli_conn *conn)
 {
 	return conn->smb1.max_xmit;
+}
+
+bool smb1cli_conn_req_possible(struct smbXcli_conn *conn)
+{
+	size_t pending;
+	uint16_t possible = conn->smb1.server.max_mux;
+
+	pending = tevent_queue_length(conn->outgoing);
+	if (pending >= possible) {
+		return false;
+	}
+	pending += talloc_array_length(conn->pending);
+	if (pending >= possible) {
+		return false;
+	}
+
+	return true;
 }
 
 uint32_t smb1cli_conn_server_session_key(struct smbXcli_conn *conn)
@@ -714,6 +736,14 @@ static uint16_t smb1cli_alloc_mid(struct smbXcli_conn *conn)
 {
 	size_t num_pending = talloc_array_length(conn->pending);
 	uint16_t result;
+
+	if (conn->protocol == PROTOCOL_NONE) {
+		/*
+		 * This is what windows sends on the SMB1 Negprot request
+		 * and some vendors reuse the SMB1 MID as SMB2 sequence number.
+		 */
+		return 0;
+	}
 
 	while (true) {
 		size_t i;
@@ -2430,6 +2460,28 @@ bool smbXcli_conn_has_async_calls(struct smbXcli_conn *conn)
 		|| (talloc_array_length(conn->pending) != 0));
 }
 
+bool smb2cli_conn_req_possible(struct smbXcli_conn *conn, uint32_t *max_dyn_len)
+{
+	uint16_t credits = 1;
+
+	if (conn->smb2.cur_credits == 0) {
+		if (max_dyn_len != NULL) {
+			*max_dyn_len = 0;
+		}
+		return false;
+	}
+
+	if (conn->smb2.server.capabilities & SMB2_CAP_LARGE_MTU) {
+		credits = conn->smb2.cur_credits;
+	}
+
+	if (max_dyn_len != NULL) {
+		*max_dyn_len = credits * 65536;
+	}
+
+	return true;
+}
+
 uint32_t smb2cli_conn_server_capabilities(struct smbXcli_conn *conn)
 {
 	return conn->smb2.server.capabilities;
@@ -2489,7 +2541,7 @@ static bool smb2cli_req_cancel(struct tevent_req *req)
 				    0, /* timeout */
 				    tcon, session,
 				    fixed, fixed_len,
-				    NULL, 0);
+				    NULL, 0, 0);
 	if (subreq == NULL) {
 		return false;
 	}
@@ -2538,7 +2590,8 @@ struct tevent_req *smb2cli_req_create(TALLOC_CTX *mem_ctx,
 				      const uint8_t *fixed,
 				      uint16_t fixed_len,
 				      const uint8_t *dyn,
-				      uint32_t dyn_len)
+				      uint32_t dyn_len,
+				      uint32_t max_dyn_len)
 {
 	struct tevent_req *req;
 	struct smbXcli_req_state *state;
@@ -2611,6 +2664,7 @@ struct tevent_req *smb2cli_req_create(TALLOC_CTX *mem_ctx,
 	state->smb2.fixed_len = fixed_len;
 	state->smb2.dyn = dyn;
 	state->smb2.dyn_len = dyn_len;
+	state->smb2.max_dyn_len = max_dyn_len;
 
 	if (state->smb2.should_encrypt) {
 		SIVAL(state->smb2.transform, SMB2_TF_PROTOCOL_ID, SMB2_TF_MAGIC);
@@ -2787,7 +2841,12 @@ NTSTATUS smb2cli_req_compound_submit(struct tevent_req **reqs,
 		}
 
 		if (state->conn->smb2.server.capabilities & SMB2_CAP_LARGE_MTU) {
-			charge = (MAX(state->smb2.dyn_len, 1) - 1)/ 65536 + 1;
+			uint32_t max_dyn_len = 1;
+
+			max_dyn_len = MAX(max_dyn_len, state->smb2.dyn_len);
+			max_dyn_len = MAX(max_dyn_len, state->smb2.max_dyn_len);
+
+			charge = (max_dyn_len - 1)/ 65536 + 1;
 		} else {
 			charge = 1;
 		}
@@ -2971,7 +3030,8 @@ struct tevent_req *smb2cli_req_send(TALLOC_CTX *mem_ctx,
 				    const uint8_t *fixed,
 				    uint16_t fixed_len,
 				    const uint8_t *dyn,
-				    uint32_t dyn_len)
+				    uint32_t dyn_len,
+				    uint32_t max_dyn_len)
 {
 	struct tevent_req *req;
 	NTSTATUS status;
@@ -2980,7 +3040,9 @@ struct tevent_req *smb2cli_req_send(TALLOC_CTX *mem_ctx,
 				 additional_flags, clear_flags,
 				 timeout_msec,
 				 tcon, session,
-				 fixed, fixed_len, dyn, dyn_len);
+				 fixed, fixed_len,
+				 dyn, dyn_len,
+				 max_dyn_len);
 	if (req == NULL) {
 		return NULL;
 	}
@@ -4244,7 +4306,8 @@ static struct tevent_req *smbXcli_negprot_smb2_subreq(struct smbXcli_negprot_sta
 				state->timeout_msec,
 				NULL, NULL, /* tcon, session */
 				state->smb2.fixed, sizeof(state->smb2.fixed),
-				state->smb2.dyn, dialect_count*2);
+				state->smb2.dyn, dialect_count*2,
+				UINT16_MAX); /* max_dyn_len */
 }
 
 static void smbXcli_negprot_smb2_done(struct tevent_req *subreq)
@@ -4404,9 +4467,14 @@ static NTSTATUS smbXcli_negprot_dispatch_incoming(struct smbXcli_conn *conn,
 
 		/*
 		 * we got an SMB2 answer, which consumed sequence number 0
-		 * so we need to use 1 as the next one
+		 * so we need to use 1 as the next one.
+		 *
+		 * we also need to set the current credits to 0
+		 * as we consumed the initial one. The SMB2 answer
+		 * hopefully grant us a new credit.
 		 */
 		conn->smb2.mid = 1;
+		conn->smb2.cur_credits = 0;
 		tevent_req_set_callback(subreq, smbXcli_negprot_smb2_done, req);
 		conn->dispatch_incoming = smb2cli_conn_dispatch_incoming;
 		return smb2cli_conn_dispatch_incoming(conn, tmp_mem, inbuf);
@@ -4439,7 +4507,7 @@ NTSTATUS smbXcli_negprot(struct smbXcli_conn *conn,
 		status = NT_STATUS_INVALID_PARAMETER_MIX;
 		goto fail;
 	}
-	ev = tevent_context_init(frame);
+	ev = samba_tevent_context_init(frame);
 	if (ev == NULL) {
 		goto fail;
 	}
@@ -4490,6 +4558,33 @@ struct smbXcli_session *smbXcli_session_create(TALLOC_CTX *mem_ctx,
 
 	return session;
 }
+
+struct smbXcli_session *smbXcli_session_copy(TALLOC_CTX *mem_ctx,
+						struct smbXcli_session *src)
+{
+	struct smbXcli_session *session;
+
+	session = talloc_zero(mem_ctx, struct smbXcli_session);
+	if (session == NULL) {
+		return NULL;
+	}
+	session->smb2 = talloc_zero(session, struct smb2cli_session);
+	if (session->smb2 == NULL) {
+		talloc_free(session);
+		return NULL;
+	}
+
+	session->conn = src->conn;
+	*session->smb2 = *src->smb2;
+	session->smb2_channel = src->smb2_channel;
+	session->disconnect_expired = src->disconnect_expired;
+
+	DLIST_ADD_END(src->conn->sessions, session, struct smbXcli_session *);
+	talloc_set_destructor(session, smbXcli_session_destructor);
+
+	return session;
+}
+
 
 NTSTATUS smbXcli_session_application_key(struct smbXcli_session *session,
 					 TALLOC_CTX *mem_ctx,
@@ -4645,9 +4740,15 @@ NTSTATUS smb2cli_session_set_session_key(struct smbXcli_session *session,
 	struct smbXcli_conn *conn = session->conn;
 	uint16_t no_sign_flags;
 	uint8_t session_key[16];
+	bool check_signature = true;
+	uint32_t hdr_flags;
 	NTSTATUS status;
 
 	if (conn == NULL) {
+		return NT_STATUS_INVALID_PARAMETER_MIX;
+	}
+
+	if (recv_iov[0].iov_len != SMB2_HDR_BODY) {
 		return NT_STATUS_INVALID_PARAMETER_MIX;
 	}
 
@@ -4742,11 +4843,30 @@ NTSTATUS smb2cli_session_set_session_key(struct smbXcli_session *session,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	status = smb2_signing_check_pdu(session->smb2_channel.signing_key,
-					session->conn->protocol,
-					recv_iov, 3);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
+	check_signature = conn->mandatory_signing;
+
+	hdr_flags = IVAL(recv_iov[0].iov_base, SMB2_HDR_FLAGS);
+	if (hdr_flags & SMB2_HDR_FLAG_SIGNED) {
+		/*
+		 * Sadly some vendors don't sign the
+		 * final SMB2 session setup response
+		 *
+		 * At least Windows and Samba are always doing this
+		 * if there's a session key available.
+		 *
+		 * We only check the signature if it's mandatory
+		 * or SMB2_HDR_FLAG_SIGNED is provided.
+		 */
+		check_signature = true;
+	}
+
+	if (check_signature) {
+		status = smb2_signing_check_pdu(session->smb2_channel.signing_key,
+						session->conn->protocol,
+						recv_iov, 3);
+		if (!NT_STATUS_IS_OK(status)) {
+			return status;
+		}
 	}
 
 	session->smb2->should_sign = false;
@@ -4858,6 +4978,27 @@ NTSTATUS smb2cli_session_set_channel_key(struct smbXcli_session *session,
 		return status;
 	}
 
+	return NT_STATUS_OK;
+}
+
+NTSTATUS smb2cli_session_encryption_on(struct smbXcli_session *session)
+{
+	if (session->smb2->should_encrypt) {
+		return NT_STATUS_OK;
+	}
+
+	if (session->conn->protocol < PROTOCOL_SMB2_24) {
+		return NT_STATUS_NOT_SUPPORTED;
+	}
+
+	if (!(session->conn->smb2.server.capabilities & SMB2_CAP_ENCRYPTION)) {
+		return NT_STATUS_NOT_SUPPORTED;
+	}
+
+	if (session->smb2->signing_key.data == NULL) {
+		return NT_STATUS_NOT_SUPPORTED;
+	}
+	session->smb2->should_encrypt = true;
 	return NT_STATUS_OK;
 }
 

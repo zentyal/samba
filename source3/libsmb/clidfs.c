@@ -48,7 +48,23 @@ NTSTATUS cli_cm_force_encryption(struct cli_state *c,
 			const char *domain,
 			const char *sharename)
 {
-	NTSTATUS status = cli_force_encryption(c,
+	NTSTATUS status;
+
+	if (smbXcli_conn_protocol(c->conn) >= PROTOCOL_SMB2_02) {
+		status = smb2cli_session_encryption_on(c->smb2.session);
+		if (NT_STATUS_EQUAL(status,NT_STATUS_NOT_SUPPORTED)) {
+			d_printf("Encryption required and "
+				"server doesn't support "
+				"SMB3 encryption - failing connect\n");
+		} else if (!NT_STATUS_IS_OK(status)) {
+			d_printf("Encryption required and "
+				"setup failed with error %s.\n",
+				nt_errstr(status));
+		}
+		return status;
+	}
+
+	status = cli_force_encryption(c,
 					username,
 					password,
 					domain);
@@ -150,7 +166,8 @@ static NTSTATUS do_connect(TALLOC_CTX *ctx,
 	}
 	DEBUG(4,(" session request ok\n"));
 
-	status = smbXcli_negprot(c->conn, c->timeout, PROTOCOL_CORE,
+	status = smbXcli_negprot(c->conn, c->timeout,
+				 lp_cli_minprotocol(),
 				 max_protocol);
 
 	if (!NT_STATUS_IS_OK(status)) {
@@ -158,6 +175,11 @@ static NTSTATUS do_connect(TALLOC_CTX *ctx,
 			 nt_errstr(status));
 		cli_shutdown(c);
 		return status;
+	}
+
+	if (smbXcli_conn_protocol(c->conn) >= PROTOCOL_SMB2_02) {
+		/* Ensure we ask for some initial credits. */
+		smb2cli_conn_set_max_credits(c->conn, DEFAULT_SMB2_MAX_CREDITS);
 	}
 
 	username = get_cmdline_auth_info_username(auth_info);

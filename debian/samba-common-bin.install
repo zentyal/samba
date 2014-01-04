@@ -1,6 +1,7 @@
 usr/bin/dbwrap_tool
 usr/bin/net
 usr/bin/nmblookup
+usr/bin/samba-regedit
 usr/bin/samba-tool
 usr/bin/smbpasswd
 usr/bin/testparm
@@ -14,6 +15,7 @@ usr/share/man/man5/smb.conf.5
 usr/share/man/man5/smbpasswd.5
 usr/share/man/man7/samba.7
 usr/share/man/man8/net.8
+usr/share/man/man8/samba-regedit.8
 usr/share/man/man8/samba-tool.8
 usr/share/man/man8/smbpasswd.8
 usr/share/samba/addshare.py

@@ -21,7 +21,8 @@ xz samba-4.0.6.tar
 cd $GIT_DIR
 # make sure to be on the right branch
 git checkout master
-git-import-orig --upstream-version=4.0.6+dfsg ../samba-4.0.6.tar.xz
+git-import-orig --upstream-version=4.0.6+dfsg --upstream-vcs-tag=samba-4.0.6 \
+    ../samba-4.0.6.tar.xz
 # all done :)
 
 

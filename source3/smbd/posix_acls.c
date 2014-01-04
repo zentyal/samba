@@ -27,6 +27,7 @@
 #include "passdb/lookup_sid.h"
 #include "auth.h"
 #include "../librpc/gen_ndr/idmap.h"
+#include "../librpc/gen_ndr/ndr_smb_acl.h"
 #include "lib/param/loadparm.h"
 
 extern const struct generic_mapping file_generic_mapping;
@@ -3636,207 +3637,6 @@ NTSTATUS try_chown(files_struct *fsp, uid_t uid, gid_t gid)
 	return status;
 }
 
-#if 0
-/* Disable this - prevents ACL inheritance from the ACL editor. JRA. */
-
-/****************************************************************************
- Take care of parent ACL inheritance.
-****************************************************************************/
-
-NTSTATUS append_parent_acl(files_struct *fsp,
-				const struct security_descriptor *pcsd,
-				struct security_descriptor **pp_new_sd)
-{
-	struct smb_filename *smb_dname = NULL;
-	struct security_descriptor *parent_sd = NULL;
-	files_struct *parent_fsp = NULL;
-	TALLOC_CTX *mem_ctx = talloc_tos();
-	char *parent_name = NULL;
-	struct security_ace *new_ace = NULL;
-	unsigned int num_aces = pcsd->dacl->num_aces;
-	NTSTATUS status;
-	int info;
-	unsigned int i, j;
-	struct security_descriptor *psd = dup_sec_desc(talloc_tos(), pcsd);
-	bool is_dacl_protected = (pcsd->type & SEC_DESC_DACL_PROTECTED);
-
-	if (psd == NULL) {
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	if (!parent_dirname(mem_ctx, fsp->fsp_name->base_name, &parent_name,
-			    NULL)) {
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	status = create_synthetic_smb_fname(mem_ctx, parent_name, NULL, NULL,
-					    &smb_dname);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto fail;
-	}
-
-	status = SMB_VFS_CREATE_FILE(
-		fsp->conn,				/* conn */
-		NULL,					/* req */
-		0,					/* root_dir_fid */
-		smb_dname,				/* fname */
-		FILE_READ_ATTRIBUTES,			/* access_mask */
-		FILE_SHARE_NONE,			/* share_access */
-		FILE_OPEN,				/* create_disposition*/
-		FILE_DIRECTORY_FILE,			/* create_options */
-		0,					/* file_attributes */
-		INTERNAL_OPEN_ONLY,			/* oplock_request */
-		0,					/* allocation_size */
-		NULL,					/* sd */
-		NULL,					/* ea_list */
-		&parent_fsp,				/* result */
-		&info);					/* pinfo */
-
-	if (!NT_STATUS_IS_OK(status)) {
-		TALLOC_FREE(smb_dname);
-		return status;
-	}
-
-	status = SMB_VFS_GET_NT_ACL(parent_fsp->conn, smb_dname->base_name,
-				    SECINFO_DACL, &parent_sd );
-
-	close_file(NULL, parent_fsp, NORMAL_CLOSE);
-	TALLOC_FREE(smb_dname);
-
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	/*
-	 * Make room for potentially all the ACLs from
-	 * the parent. We used to add the ugw triple here,
-	 * as we knew we were dealing with POSIX ACLs.
-	 * We no longer need to do so as we can guarentee
-	 * that a default ACL from the parent directory will
-	 * be well formed for POSIX ACLs if it came from a
-	 * POSIX ACL source, and if we're not writing to a
-	 * POSIX ACL sink then we don't care if it's not well
-	 * formed. JRA.
-	 */
-
-	num_aces += parent_sd->dacl->num_aces;
-
-	if((new_ace = talloc_zero_array(mem_ctx, struct security_ace,
-					num_aces)) == NULL) {
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	/* Start by copying in all the given ACE entries. */
-	for (i = 0; i < psd->dacl->num_aces; i++) {
-		sec_ace_copy(&new_ace[i], &psd->dacl->aces[i]);
-	}
-
-	/*
-	 * Note that we're ignoring "inherit permissions" here
-	 * as that really only applies to newly created files. JRA.
-	 */
-
-	/* Finally append any inherited ACEs. */
-	for (j = 0; j < parent_sd->dacl->num_aces; j++) {
-		struct security_ace *se = &parent_sd->dacl->aces[j];
-
-		if (fsp->is_directory) {
-			if (!(se->flags & SEC_ACE_FLAG_CONTAINER_INHERIT)) {
-				/* Doesn't apply to a directory - ignore. */
-				DEBUG(10,("append_parent_acl: directory %s "
-					"ignoring non container "
-					"inherit flags %u on ACE with sid %s "
-					"from parent %s\n",
-					fsp_str_dbg(fsp),
-					(unsigned int)se->flags,
-					sid_string_dbg(&se->trustee),
-					parent_name));
-				continue;
-			}
-		} else {
-			if (!(se->flags & SEC_ACE_FLAG_OBJECT_INHERIT)) {
-				/* Doesn't apply to a file - ignore. */
-				DEBUG(10,("append_parent_acl: file %s "
-					"ignoring non object "
-					"inherit flags %u on ACE with sid %s "
-					"from parent %s\n",
-					fsp_str_dbg(fsp),
-					(unsigned int)se->flags,
-					sid_string_dbg(&se->trustee),
-					parent_name));
-				continue;
-			}
-		}
-
-		if (is_dacl_protected) {
-			/* If the DACL is protected it means we must
-			 * not overwrite an existing ACE entry with the
-			 * same SID. This is order N^2. Ouch :-(. JRA. */
-			unsigned int k;
-			for (k = 0; k < psd->dacl->num_aces; k++) {
-				if (dom_sid_equal(&psd->dacl->aces[k].trustee,
-						&se->trustee)) {
-					break;
-				}
-			}
-			if (k < psd->dacl->num_aces) {
-				/* SID matched. Ignore. */
-				DEBUG(10,("append_parent_acl: path %s "
-					"ignoring ACE with protected sid %s "
-					"from parent %s\n",
-					fsp_str_dbg(fsp),
-					sid_string_dbg(&se->trustee),
-					parent_name));
-				continue;
-			}
-		}
-
-		sec_ace_copy(&new_ace[i], se);
-		if (se->flags & SEC_ACE_FLAG_NO_PROPAGATE_INHERIT) {
-			new_ace[i].flags &= ~(SEC_ACE_FLAG_VALID_INHERIT);
-		}
-		new_ace[i].flags |= SEC_ACE_FLAG_INHERITED_ACE;
-
-		if (fsp->is_directory) {
-			/*
-			 * Strip off any inherit only. It's applied.
-			 */
-			new_ace[i].flags &= ~(SEC_ACE_FLAG_INHERIT_ONLY);
-			if (se->flags & SEC_ACE_FLAG_NO_PROPAGATE_INHERIT) {
-				/* No further inheritance. */
-				new_ace[i].flags &=
-					~(SEC_ACE_FLAG_CONTAINER_INHERIT|
-					SEC_ACE_FLAG_OBJECT_INHERIT);
-			}
-		} else {
-			/*
-			 * Strip off any container or inherit
-			 * flags, they can't apply to objects.
-			 */
-			new_ace[i].flags &= ~(SEC_ACE_FLAG_CONTAINER_INHERIT|
-						SEC_ACE_FLAG_INHERIT_ONLY|
-						SEC_ACE_FLAG_NO_PROPAGATE_INHERIT);
-		}
-		i++;
-
-		DEBUG(10,("append_parent_acl: path %s "
-			"inheriting ACE with sid %s "
-			"from parent %s\n",
-			fsp_str_dbg(fsp),
-			sid_string_dbg(&se->trustee),
-			parent_name));
-	}
-
-	psd->dacl->aces = new_ace;
-	psd->dacl->num_aces = i;
-	psd->type &= ~(SEC_DESC_DACL_AUTO_INHERITED|
-                         SEC_DESC_DACL_AUTO_INHERIT_REQ);
-
-	*pp_new_sd = psd;
-	return status;
-}
-#endif
-
 /****************************************************************************
  Reply to set a security descriptor on an fsp. security_info_sent is the
  description of the following NT ACL.
@@ -4779,74 +4579,48 @@ bool set_unix_posix_acl(connection_struct *conn, files_struct *fsp, const char *
  check.  Caller is responsible for freeing the returned security
  descriptor via TALLOC_FREE().  This is designed for dealing with 
  user space access checks in smbd outside of the VFS.  For example,
- checking access rights in OpenEventlog().
+ checking access rights in OpenEventlog() or from python.
 
- Assume we are dealing with files (for now)
 ********************************************************************/
 
-struct security_descriptor *get_nt_acl_no_snum( TALLOC_CTX *ctx, const char *fname, uint32 security_info_wanted)
+NTSTATUS get_nt_acl_no_snum(TALLOC_CTX *ctx, const char *fname,
+				uint32 security_info_wanted,
+				struct security_descriptor **sd)
 {
-	struct security_descriptor *ret_sd;
-	connection_struct *conn;
-	files_struct finfo;
-	struct fd_handle fh;
-	NTSTATUS status;
 	TALLOC_CTX *frame = talloc_stackframe();
+	connection_struct *conn;
+	NTSTATUS status = NT_STATUS_OK;
 
-	conn = talloc_zero(frame, connection_struct);
-	if (conn == NULL) {
-		DEBUG(0, ("talloc failed\n"));
-		return NULL;
+	if (!posix_locking_init(false)) {
+		TALLOC_FREE(frame);
+		return NT_STATUS_NO_MEMORY;
 	}
 
-	if (!(conn->params = talloc(conn, struct share_params))) {
-		DEBUG(0,("get_nt_acl_no_snum: talloc() failed!\n"));
-		TALLOC_FREE(frame);
-		return NULL;
-	}
+	status = create_conn_struct(ctx,
+				server_event_context(),
+				server_messaging_context(),
+				&conn,
+				-1,
+				"/",
+				NULL);
 
-	conn->params->service = -1;
-
-	set_conn_connectpath(conn, "/");
-
-	if (!smbd_vfs_init(conn)) {
-		DEBUG(0,("get_nt_acl_no_snum: Unable to create a fake connection struct!\n"));
-		conn_free(conn);
-		TALLOC_FREE(frame);
-		return NULL;
-        }
-
-	ZERO_STRUCT( finfo );
-	ZERO_STRUCT( fh );
-
-	finfo.fnum = FNUM_FIELD_INVALID;
-	finfo.conn = conn;
-	finfo.fh = &fh;
-	finfo.fh->fd = -1;
-
-	status = create_synthetic_smb_fname(frame, fname, NULL, NULL,
-					    &finfo.fsp_name);
 	if (!NT_STATUS_IS_OK(status)) {
-		conn_free(conn);
+		DEBUG(0,("create_conn_struct returned %s.\n",
+			nt_errstr(status)));
 		TALLOC_FREE(frame);
-		return NULL;
+		return status;
 	}
 
-	if (!NT_STATUS_IS_OK(SMB_VFS_FGET_NT_ACL( &finfo,
-						  security_info_wanted,
-						  ctx, &ret_sd))) {
-		DEBUG(0,("get_nt_acl_no_snum: get_nt_acl returned zero.\n"));
-		TALLOC_FREE(finfo.fsp_name);
-		conn_free(conn);
-		TALLOC_FREE(frame);
-		return NULL;
+	status = SMB_VFS_GET_NT_ACL(conn, fname, security_info_wanted, ctx, sd);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("get_nt_acl_no_snum: SMB_VFS_GET_NT_ACL returned %s.\n",
+			  nt_errstr(status)));
 	}
 
-	TALLOC_FREE(finfo.fsp_name);
 	conn_free(conn);
 	TALLOC_FREE(frame);
 
-	return ret_sd;
+	return status;
 }
 
 /* Stolen shamelessly from pvfs_default_acl() in source4 :-). */
@@ -4957,4 +4731,120 @@ NTSTATUS make_default_filesystem_acl(TALLOC_CTX *ctx,
 		return NT_STATUS_NO_MEMORY;
 	}
 	return NT_STATUS_OK;
+}
+
+int posix_sys_acl_blob_get_file(vfs_handle_struct *handle,
+				const char *path_p,
+				TALLOC_CTX *mem_ctx,
+				char **blob_description,
+				DATA_BLOB *blob)
+{
+	int ret;
+	TALLOC_CTX *frame = talloc_stackframe();
+	/* Initialise this to zero, in a portable way */
+	struct smb_acl_wrapper acl_wrapper = {
+		NULL
+	};
+	struct smb_filename *smb_fname;
+
+	smb_fname = synthetic_smb_fname_split(frame, path_p, NULL);
+	if (smb_fname == NULL) {
+		TALLOC_FREE(frame);
+		errno = ENOMEM;
+		return -1;
+	}
+
+	acl_wrapper.access_acl
+		= smb_vfs_call_sys_acl_get_file(handle,
+						path_p,
+						SMB_ACL_TYPE_ACCESS,
+						frame);
+
+	ret = smb_vfs_call_stat(handle, smb_fname);
+	if (ret == -1) {
+		TALLOC_FREE(frame);
+		return -1;
+	}
+
+	if (S_ISDIR(smb_fname->st.st_ex_mode)) {
+		acl_wrapper.default_acl
+			= smb_vfs_call_sys_acl_get_file(handle,
+							path_p,
+							SMB_ACL_TYPE_DEFAULT,
+							frame);
+	}
+
+	acl_wrapper.owner = smb_fname->st.st_ex_uid;
+	acl_wrapper.group = smb_fname->st.st_ex_gid;
+	acl_wrapper.mode = smb_fname->st.st_ex_mode;
+
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_push_struct_blob(blob, mem_ctx,
+							  &acl_wrapper,
+							  (ndr_push_flags_fn_t)ndr_push_smb_acl_wrapper))) {
+		errno = EINVAL;
+		TALLOC_FREE(frame);
+		return -1;
+	}
+
+	*blob_description = talloc_strdup(mem_ctx, "posix_acl");
+	if (!*blob_description) {
+		errno = EINVAL;
+		TALLOC_FREE(frame);
+		return -1;
+	}
+
+	TALLOC_FREE(frame);
+	return 0;
+}
+
+int posix_sys_acl_blob_get_fd(vfs_handle_struct *handle,
+			      files_struct *fsp,
+			      TALLOC_CTX *mem_ctx,
+			      char **blob_description,
+			      DATA_BLOB *blob)
+{
+	SMB_STRUCT_STAT sbuf;
+	TALLOC_CTX *frame;
+	struct smb_acl_wrapper acl_wrapper;
+	int ret;
+
+	/* This ensures that we also consider the default ACL */
+	if (fsp->is_directory ||  fsp->fh->fd == -1) {
+		return posix_sys_acl_blob_get_file(handle, fsp->fsp_name->base_name,
+						   mem_ctx, blob_description, blob);
+	}
+	frame = talloc_stackframe();
+
+	acl_wrapper.default_acl = NULL;
+
+	acl_wrapper.access_acl = smb_vfs_call_sys_acl_get_file(handle, fsp->fsp_name->base_name,
+							       SMB_ACL_TYPE_ACCESS, frame);
+
+	ret = smb_vfs_call_fstat(handle, fsp, &sbuf);
+	if (ret == -1) {
+		TALLOC_FREE(frame);
+		return -1;
+	}
+
+	acl_wrapper.owner = sbuf.st_ex_uid;
+	acl_wrapper.group = sbuf.st_ex_gid;
+	acl_wrapper.mode = sbuf.st_ex_mode;
+
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_push_struct_blob(blob, mem_ctx,
+							  &acl_wrapper,
+							  (ndr_push_flags_fn_t)ndr_push_smb_acl_wrapper))) {
+		errno = EINVAL;
+		TALLOC_FREE(frame);
+		return -1;
+	}
+
+	*blob_description = talloc_strdup(mem_ctx, "posix_acl");
+	if (!*blob_description) {
+		errno = EINVAL;
+		TALLOC_FREE(frame);
+		return -1;
+	}
+
+	TALLOC_FREE(frame);
+	return 0;
 }

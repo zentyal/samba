@@ -612,7 +612,7 @@ struct op_controls_flags {
 };
 
 static bool check_keep_control_for_attribute(struct op_controls_flags* controls_flags, const char* attr) {
-	if (ldb_attr_cmp(attr, "msDS-KeyVersionNumber") == 0 && controls_flags->bypassoperational) {
+	if (controls_flags->bypassoperational && ldb_attr_cmp(attr, "msDS-KeyVersionNumber") == 0 ) {
 		return true;
 	}
 	return false;
@@ -631,16 +631,18 @@ static const struct {
 };
 
 
-/*
-  a list of attribute names that are hidden, but can be searched for
-  using another (non-hidden) name to produce the correct result
-*/
-static const struct {
+struct op_attributes_replace {
 	const char *attr;
 	const char *replace;
 	const char *extra_attr;
 	int (*constructor)(struct ldb_module *, struct ldb_message *, enum ldb_scope, struct ldb_request *);
-} search_sub[] = {
+};
+
+/*
+  a list of attribute names that are hidden, but can be searched for
+  using another (non-hidden) name to produce the correct result
+*/
+static const struct op_attributes_replace search_sub[] = {
 	{ "createTimeStamp", "whenCreated", NULL , NULL },
 	{ "modifyTimeStamp", "whenChanged", NULL , construct_modifyTimeStamp},
 	{ "structuralObjectClass", "objectClass", NULL , NULL },
@@ -667,10 +669,12 @@ enum op_remove {
 
   Some of these are attributes that were once stored, but are now calculated
 */
-static const struct {
+struct op_attributes_operations {
 	const char *attr;
 	enum op_remove op;
-} operational_remove[] = {
+};
+
+static const struct op_attributes_operations operational_remove[] = {
 	{ "nTSecurityDescriptor",    OPERATIONAL_SD_FLAGS },
 	{ "msDS-KeyVersionNumber",   OPERATIONAL_REMOVE_UNLESS_CONTROL  },
 	{ "parentGUID",              OPERATIONAL_REMOVE_ALWAYS  },
@@ -692,6 +696,10 @@ static int operational_search_post_process(struct ldb_module *module,
 					   const char * const *attrs_from_user,
 					   const char * const *attrs_searched_for,
 					   struct op_controls_flags* controls_flags,
+					   struct op_attributes_operations *list,
+					   unsigned int list_size,
+					   struct op_attributes_replace *list_replace,
+					   unsigned int list_replace_size,
 					   struct ldb_request *parent)
 {
 	struct ldb_context *ldb;
@@ -701,66 +709,27 @@ static int operational_search_post_process(struct ldb_module *module,
 	ldb = ldb_module_get_ctx(module);
 
 	/* removed any attrs that should not be shown to the user */
-	for (i=0; i<ARRAY_SIZE(operational_remove); i++) {
-		switch (operational_remove[i].op) {
-		case OPERATIONAL_REMOVE_UNASKED:
-			if (ldb_attr_in_list(attrs_from_user, operational_remove[i].attr)) {
-				continue;
-			}
-			if (ldb_attr_in_list(attrs_searched_for, operational_remove[i].attr)) {
-				continue;
-			}
-		case OPERATIONAL_REMOVE_ALWAYS:
-			ldb_msg_remove_attr(msg, operational_remove[i].attr);
-			break;
-		case OPERATIONAL_REMOVE_UNLESS_CONTROL:
-			if (!check_keep_control_for_attribute(controls_flags, operational_remove[i].attr)) {
-				ldb_msg_remove_attr(msg, operational_remove[i].attr);
-				break;
-			} else {
-				continue;
-			}
-		case OPERATIONAL_SD_FLAGS:
-			if (ldb_attr_in_list(attrs_from_user, operational_remove[i].attr)) {
-				continue;
-			}
-			if (controls_flags->sd) {
-				if (attrs_from_user == NULL) {
-					continue;
-				}
-				if (attrs_from_user[0] == NULL) {
-					continue;
-				}
-				if (ldb_attr_in_list(attrs_from_user, "*")) {
-					continue;
-				}
-			}
-			ldb_msg_remove_attr(msg, operational_remove[i].attr);
-			break;
-		}
+	for (i=0; i < list_size; i++) {
+		ldb_msg_remove_attr(msg, list[i].attr);
 	}
 
-	for (a=0;attrs_from_user && attrs_from_user[a];a++) {
-		if (check_keep_control_for_attribute(controls_flags, attrs_from_user[a])) {
+	for (a=0; a < list_replace_size; a++) {
+		if (check_keep_control_for_attribute(controls_flags,
+						     list_replace[a].attr)) {
 			continue;
 		}
-		for (i=0;i<ARRAY_SIZE(search_sub);i++) {
-			if (ldb_attr_cmp(attrs_from_user[a], search_sub[i].attr) != 0) {
-				continue;
-			}
 
-			/* construct the new attribute, using either a supplied
-			   constructor or a simple copy */
-			constructed_attributes = true;
-			if (search_sub[i].constructor != NULL) {
-				if (search_sub[i].constructor(module, msg, scope, parent) != LDB_SUCCESS) {
-					goto failed;
-				}
-			} else if (ldb_msg_copy_attr(msg,
-						     search_sub[i].replace,
-						     search_sub[i].attr) != LDB_SUCCESS) {
+		/* construct the new attribute, using either a supplied
+			constructor or a simple copy */
+		constructed_attributes = true;
+		if (list_replace[a].constructor != NULL) {
+			if (list_replace[a].constructor(module, msg, scope, parent) != LDB_SUCCESS) {
 				goto failed;
 			}
+		} else if (ldb_msg_copy_attr(msg,
+					     list_replace[a].replace,
+					     list_replace[a].attr) != LDB_SUCCESS) {
+			goto failed;
 		}
 	}
 
@@ -769,16 +738,16 @@ static int operational_search_post_process(struct ldb_module *module,
 	 * - we aren't requesting all attributes
 	 */
 	if ((constructed_attributes) && (!ldb_attr_in_list(attrs_from_user, "*"))) {
-		for (i=0;i<ARRAY_SIZE(search_sub);i++) {
+		for (i=0; i < list_replace_size; i++) {
 			/* remove the added search helper attributes, unless
 			 * they were asked for by the user */
-			if (search_sub[i].replace != NULL && 
-			    !ldb_attr_in_list(attrs_from_user, search_sub[i].replace)) {
-				ldb_msg_remove_attr(msg, search_sub[i].replace);
+			if (list_replace[i].replace != NULL &&
+			    !ldb_attr_in_list(attrs_from_user, list_replace[i].replace)) {
+				ldb_msg_remove_attr(msg, list_replace[i].replace);
 			}
-			if (search_sub[i].extra_attr != NULL && 
-			    !ldb_attr_in_list(attrs_from_user, search_sub[i].extra_attr)) {
-				ldb_msg_remove_attr(msg, search_sub[i].extra_attr);
+			if (list_replace[i].extra_attr != NULL &&
+			    !ldb_attr_in_list(attrs_from_user, list_replace[i].extra_attr)) {
+				ldb_msg_remove_attr(msg, list_replace[i].extra_attr);
 			}
 		}
 	}
@@ -802,6 +771,10 @@ struct operational_context {
 	enum ldb_scope scope;
 	const char * const *attrs;
 	struct op_controls_flags* controls_flags;
+	struct op_attributes_operations *list_operations;
+	unsigned int list_operations_size;
+	struct op_attributes_replace *attrs_to_replace;
+	unsigned int attrs_to_replace_size;
 };
 
 static int operational_callback(struct ldb_request *req, struct ldb_reply *ares)
@@ -829,7 +802,12 @@ static int operational_callback(struct ldb_request *req, struct ldb_reply *ares)
 						      ac->scope,
 						      ac->attrs,
 						      req->op.search.attrs,
-						      ac->controls_flags, req);
+						      ac->controls_flags,
+						      ac->list_operations,
+						      ac->list_operations_size,
+						      ac->attrs_to_replace,
+						      ac->attrs_to_replace_size,
+						      req);
 		if (ret != 0) {
 			return ldb_module_done(ac->req, NULL, NULL,
 						LDB_ERR_OPERATIONS_ERROR);
@@ -847,6 +825,74 @@ static int operational_callback(struct ldb_request *req, struct ldb_reply *ares)
 
 	talloc_free(ares);
 	return LDB_SUCCESS;
+}
+
+static struct op_attributes_operations* operation_get_op_list(TALLOC_CTX *ctx,
+							      const char* const* attrs,
+							      const char* const* searched_attrs,
+							      struct op_controls_flags* controls_flags)
+{
+	int idx = 0;
+	int i;
+	struct op_attributes_operations *list = talloc_zero_array(ctx,
+								  struct op_attributes_operations,
+								  ARRAY_SIZE(operational_remove) + 1);
+
+	if (list == NULL) {
+		return NULL;
+	}
+
+	for (i=0; i<ARRAY_SIZE(operational_remove); i++) {
+		switch (operational_remove[i].op) {
+		case OPERATIONAL_REMOVE_UNASKED:
+			if (ldb_attr_in_list(attrs, operational_remove[i].attr)) {
+				continue;
+			}
+			if (ldb_attr_in_list(searched_attrs, operational_remove[i].attr)) {
+				continue;
+			}
+			list[idx].attr = operational_remove[i].attr;
+			list[idx].op = OPERATIONAL_REMOVE_UNASKED;
+			idx++;
+			break;
+
+		case OPERATIONAL_REMOVE_ALWAYS:
+			list[idx].attr = operational_remove[i].attr;
+			list[idx].op = OPERATIONAL_REMOVE_ALWAYS;
+			idx++;
+			break;
+
+		case OPERATIONAL_REMOVE_UNLESS_CONTROL:
+			if (!check_keep_control_for_attribute(controls_flags, operational_remove[i].attr)) {
+				list[idx].attr = operational_remove[i].attr;
+				list[idx].op = OPERATIONAL_REMOVE_UNLESS_CONTROL;
+				idx++;
+			}
+			break;
+
+		case OPERATIONAL_SD_FLAGS:
+			if (ldb_attr_in_list(attrs, operational_remove[i].attr)) {
+				continue;
+			}
+			if (controls_flags->sd) {
+				if (attrs == NULL) {
+					continue;
+				}
+				if (attrs[0] == NULL) {
+					continue;
+				}
+				if (ldb_attr_in_list(attrs, "*")) {
+					continue;
+				}
+			}
+			list[idx].attr = operational_remove[i].attr;
+			list[idx].op = OPERATIONAL_SD_FLAGS;
+			idx++;
+			break;
+		}
+	}
+
+	return list;
 }
 
 static int operational_search(struct ldb_module *module, struct ldb_request *req)
@@ -893,6 +939,8 @@ static int operational_search(struct ldb_module *module, struct ldb_request *req
 	ac->controls_flags->bypassoperational =
 		(ldb_request_get_control(req, LDB_CONTROL_BYPASS_OPERATIONAL_OID) != NULL);
 
+	ac->attrs_to_replace = NULL;
+	ac->attrs_to_replace_size = 0;
 	/* in the list of attributes we are looking for, rename any
 	   attributes to the alias for any hidden attributes that can
 	   be fetched directly using non-hidden names */
@@ -901,8 +949,18 @@ static int operational_search(struct ldb_module *module, struct ldb_request *req
 			continue;
 		}
 		for (i=0;i<ARRAY_SIZE(search_sub);i++) {
-			if (ldb_attr_cmp(ac->attrs[a], search_sub[i].attr) == 0 &&
-			    search_sub[i].replace) {
+
+			if (ldb_attr_cmp(ac->attrs[a], search_sub[i].attr) == 0 ) {
+				ac->attrs_to_replace = talloc_realloc(ac,
+								      ac->attrs_to_replace,
+								      struct op_attributes_replace,
+								      ac->attrs_to_replace_size + 1);
+
+				ac->attrs_to_replace[ac->attrs_to_replace_size] = search_sub[i];
+				ac->attrs_to_replace_size++;
+				if (!search_sub[i].replace) {
+					continue;
+				}
 
 				if (search_sub[i].extra_attr) {
 					const char **search_attrs2;
@@ -930,7 +988,16 @@ static int operational_search(struct ldb_module *module, struct ldb_request *req
 			}
 		}
 	}
+	ac->list_operations = operation_get_op_list(ac, ac->attrs,
+						    search_attrs == NULL?req->op.search.attrs:search_attrs,
+						    ac->controls_flags);
+	ac->list_operations_size = 0;
+	i = 0;
 
+	while (ac->list_operations && ac->list_operations[i].attr != NULL) {
+		i++;
+	}
+	ac->list_operations_size = i;
 	ret = ldb_build_search_req_ex(&down_req, ldb, ac,
 					req->op.search.base,
 					req->op.search.scope,

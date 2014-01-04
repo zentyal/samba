@@ -74,6 +74,8 @@ static struct smb_Dir *OpenDir_fsp(TALLOC_CTX *mem_ctx, connection_struct *conn,
 			const char *mask,
 			uint32 attr);
 
+static void DirCacheAdd(struct smb_Dir *dirp, const char *name, long offset);
+
 #define INVALID_DPTR_KEY (-3)
 
 /****************************************************************************
@@ -424,9 +426,8 @@ static struct smb_Dir *open_dir_with_privilege(connection_struct *conn,
 					const char *wcard,
 					uint32_t attr)
 {
-	NTSTATUS status;
 	struct smb_Dir *dir_hnd = NULL;
-	struct smb_filename *smb_fname_cwd = NULL;
+	struct smb_filename *smb_fname_cwd;
 	char *saved_dir = vfs_GetWd(talloc_tos(), conn);
 	struct privilege_paths *priv_paths = req->priv_paths;
 	int ret;
@@ -440,11 +441,9 @@ static struct smb_Dir *open_dir_with_privilege(connection_struct *conn,
 	}
 
 	/* Now check the stat value is the same. */
-	status = create_synthetic_smb_fname(talloc_tos(), ".",
-					NULL, NULL,
-					&smb_fname_cwd);
+	smb_fname_cwd = synthetic_smb_fname(talloc_tos(), ".", NULL, NULL);
 
-	if (!NT_STATUS_IS_OK(status)) {
+	if (smb_fname_cwd == NULL) {
 		goto out;
 	}
 	ret = SMB_VFS_STAT(conn, smb_fname_cwd);
@@ -512,14 +511,14 @@ NTSTATUS dptr_create(connection_struct *conn,
 		dir_hnd = OpenDir_fsp(NULL, conn, fsp, wcard, attr);
 	} else {
 		int ret;
-		struct smb_filename *smb_dname = NULL;
-		NTSTATUS status = create_synthetic_smb_fname(talloc_tos(),
-						path,
-						NULL,
-						NULL,
-						&smb_dname);
-		if (!NT_STATUS_IS_OK(status)) {
-			return status;
+		bool backup_intent = (req && req->priv_paths);
+		struct smb_filename *smb_dname;
+		NTSTATUS status;
+
+		smb_dname = synthetic_smb_fname(talloc_tos(), path,
+						NULL, NULL);
+		if (smb_dname == NULL) {
+			return NT_STATUS_NO_MEMORY;
 		}
 		if (lp_posix_pathnames()) {
 			ret = SMB_VFS_LSTAT(conn, smb_dname);
@@ -534,11 +533,12 @@ NTSTATUS dptr_create(connection_struct *conn,
 		}
 		status = smbd_check_access_rights(conn,
 						smb_dname,
+						backup_intent,
 						SEC_DIR_LIST);
 		if (!NT_STATUS_IS_OK(status)) {
 			return status;
 		}
-		if (req && req->priv_paths) {
+		if (backup_intent) {
 			dir_hnd = open_dir_with_privilege(conn,
 						req,
 						path,
@@ -887,15 +887,6 @@ bool dptr_SearchDir(struct dptr_struct *dptr, const char *name, long *poffset, S
 }
 
 /****************************************************************************
- Add the name we're returning into the underlying cache.
-****************************************************************************/
-
-void dptr_DirCacheAdd(struct dptr_struct *dptr, const char *name, long offset)
-{
-	DirCacheAdd(dptr->dir_hnd, name, offset);
-}
-
-/****************************************************************************
  Initialize variables & state data at the beginning of all search SMB requests.
 ****************************************************************************/
 void dptr_init_search_op(struct dptr_struct *dptr)
@@ -1051,7 +1042,6 @@ bool smbd_dirptr_get_entry(TALLOC_CTX *ctx,
 		struct smb_filename smb_fname;
 		uint32_t mode = 0;
 		bool ok;
-		NTSTATUS status;
 
 		cur_offset = dptr_TellDir(dirptr);
 		prev_offset = cur_offset;
@@ -1147,9 +1137,9 @@ bool smbd_dirptr_get_entry(TALLOC_CTX *ctx,
 
 		TALLOC_FREE(dname);
 
-		status = copy_smb_filename(ctx, &smb_fname, _smb_fname);
+		*_smb_fname = cp_smb_filename(ctx, &smb_fname);
 		TALLOC_FREE(pathreal);
-		if (!NT_STATUS_IS_OK(status)) {
+		if (*_smb_fname == NULL) {
 			return false;
 		}
 		*_fname = fname;
@@ -1288,6 +1278,7 @@ static bool user_can_read_file(connection_struct *conn,
 
 	return NT_STATUS_IS_OK(smbd_check_access_rights(conn,
 				smb_fname,
+				false,
 				FILE_READ_DATA));
 }
 
@@ -1362,7 +1353,6 @@ bool is_visible_file(connection_struct *conn, const char *dir_path,
 	bool hide_special = lp_hide_special_files(SNUM(conn));
 	char *entry = NULL;
 	struct smb_filename *smb_fname_base = NULL;
-	NTSTATUS status;
 	bool ret = false;
 
 	if ((strcmp(".",name) == 0) || (strcmp("..",name) == 0)) {
@@ -1383,9 +1373,9 @@ bool is_visible_file(connection_struct *conn, const char *dir_path,
 		}
 
 		/* Create an smb_filename with stream_name == NULL. */
-		status = create_synthetic_smb_fname(talloc_tos(), entry, NULL,
-						    pst, &smb_fname_base);
-		if (!NT_STATUS_IS_OK(status)) {
+		smb_fname_base = synthetic_smb_fname(talloc_tos(), entry, NULL,
+						     pst);
+		if (smb_fname_base == NULL) {
 			ret = false;
 			goto out;
 		}
@@ -1678,7 +1668,7 @@ long TellDir(struct smb_Dir *dirp)
  Add an entry into the dcache.
 ********************************************************************/
 
-void DirCacheAdd(struct smb_Dir *dirp, const char *name, long offset)
+static void DirCacheAdd(struct smb_Dir *dirp, const char *name, long offset)
 {
 	struct name_cache_entry *e;
 

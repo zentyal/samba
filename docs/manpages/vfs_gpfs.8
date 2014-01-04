@@ -81,6 +81,10 @@ Lease support on GPFS
 .PP
 NOTE:This module follows the posix\-acl behaviour and hence allows permission stealing via chown\&. Samba might allow at a later point in time, to restrict the chown via this module as such restrictions are the responsibility of the underlying filesystem than of Samba\&.
 .PP
+This module makes use of the smb\&.conf parameter
+\m[blue]\fBacl map full control = acl map full control\fR\m[]
+When set to yes (the default), this parameter will add in the FILE_DELETE_CHILD bit on a returned ACE entry for a file (not a directory) that already contains all file permissions except for FILE_DELETE and FILE_DELETE_CHILD\&. This can prevent Windows applications that request GENERIC_ALL access from getting ACCESS_DENIED errors when running against a filesystem with NFSv4 compatible ACLs\&.
+.PP
 This module is stackable\&.
 .PP
 Since Samba 4\&.0 all options are per share options\&.
@@ -434,7 +438,7 @@ no
 .PP
 nfs4:mode = [ simple | special ]
 .RS 4
-Enable/Disable substitution of special IDs on GPFS\&. This parameter should not affect the windows users in anyway\&. It only ensures that Samba sets the special IDs \- OWNER@ and GROUP@ ( mappings to simple uids ) that are relevant to GPFS\&.
+Controls substitution of special IDs (OWNER@ and GROUP@) on GPFS\&. The use of mode simple is recommended\&. In this mode only non inheriting ACL entries for the file owner and group are mapped to special IDs\&.
 .sp
 The following MODEs are understood by the module:
 .sp
@@ -447,7 +451,7 @@ The following MODEs are understood by the module:
 .IP \(bu 2.3
 .\}
 simple(default)
-\- do not use special IDs in GPFS ACEs
+\- use OWNER@ and GROUP@ special IDs for non inheriting ACEs only\&.
 .RE
 .sp
 .RS 4
@@ -458,8 +462,8 @@ simple(default)
 .sp -1
 .IP \(bu 2.3
 .\}
-special
-\- use special IDs in GPFS ACEs\&.
+special(deprecated)
+\- use OWNER@ and GROUP@ special IDs in ACEs for all file owner and group ACEs\&.
 .RE
 .sp
 .RE

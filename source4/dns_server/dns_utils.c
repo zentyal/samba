@@ -30,6 +30,9 @@
 #include "dsdb/common/util.h"
 #include "dns_server/dns_server.h"
 
+#undef DBGC_CLASS
+#define DBGC_CLASS DBGC_DNS
+
 uint8_t werr_to_dns_err(WERROR werr)
 {
 	if (W_ERROR_EQUAL(WERR_OK, werr)) {
@@ -205,7 +208,9 @@ WERROR dns_lookup_records(struct dns_server *dns,
 	}
 
 	recs = talloc_zero_array(mem_ctx, struct dnsp_DnssrvRpcRecord, el->num_values);
-	W_ERROR_HAVE_NO_MEMORY(recs);
+	if (recs == NULL) {
+		return WERR_NOMEM;
+	}
 	for (ri = 0; ri < el->num_values; ri++) {
 		struct ldb_val *v = &el->values[ri];
 		enum ndr_err_code ndr_err;

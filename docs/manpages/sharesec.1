@@ -31,7 +31,7 @@
 sharesec \- Set or get share ACLs
 .SH "SYNOPSIS"
 .HP \w'\ 'u
-sharesec {sharename} [\-r,\ \-\-remove=ACL] [\-m,\ \-\-modify=ACL] [\-a,\ \-\-add=ACL] [\-R,\ \-\-replace=ACLs] [\-D,\ \-\-delete] [\-v,\ \-\-view] [\-M,\ \-\-machine\-sid] [\-F,\ \-\-force] [\-d,\ \-\-debuglevel=DEBUGLEVEL] [\-s,\ \-\-configfile=CONFIGFILE] [\-l,\ \-\-log\-basename=LOGFILEBASE] [\-V,\ \-\-version] [\-?,\ \-\-help] [\-\-usage]
+sharesec {sharename} [\-r,\ \-\-remove=ACL] [\-m,\ \-\-modify=ACL] [\-a,\ \-\-add=ACL] [\-R,\ \-\-replace=ACLs] [\-D,\ \-\-delete] [\-v,\ \-\-view] [\-\-view\-all] [\-M,\ \-\-machine\-sid] [\-F,\ \-\-force] [\-d,\ \-\-debuglevel=DEBUGLEVEL] [\-s,\ \-\-configfile=CONFIGFILE] [\-l,\ \-\-log\-basename=LOGFILEBASE] [\-V,\ \-\-version] [\-?,\ \-\-help] [\-\-usage]
 .SH "DESCRIPTION"
 .PP
 This tool is part of the
@@ -80,6 +80,16 @@ Remove ACEs\&.
 \-R|\-\-replace=ACLS
 .RS 4
 Overwrite an existing share permission ACL\&.
+.RE
+.PP
+\-v|\-\-view
+.RS 4
+List a share acl
+.RE
+.PP
+\-\-view\-all
+.RS 4
+List all share acls
 .RE
 .PP
 \-?|\-\-help

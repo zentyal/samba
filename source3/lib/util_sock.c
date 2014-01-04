@@ -502,7 +502,7 @@ int open_socket_in(int type,
 
 struct open_socket_out_state {
 	int fd;
-	struct event_context *ev;
+	struct tevent_context *ev;
 	struct sockaddr_storage ss;
 	socklen_t salen;
 	uint16_t port;
@@ -524,7 +524,7 @@ static int open_socket_out_state_destructor(struct open_socket_out_state *s)
 **************************************************************************/
 
 struct tevent_req *open_socket_out_send(TALLOC_CTX *mem_ctx,
-					struct event_context *ev,
+					struct tevent_context *ev,
 					const struct sockaddr_storage *pss,
 					uint16_t port,
 					int timeout)
@@ -586,7 +586,7 @@ struct tevent_req *open_socket_out_send(TALLOC_CTX *mem_ctx,
 
 	subreq = async_connect_send(state, state->ev, state->fd,
 				    (struct sockaddr *)&state->ss,
-				    state->salen);
+				    state->salen, NULL, NULL, NULL);
 	if ((subreq == NULL)
 	    || !tevent_req_set_endtime(
 		    subreq, state->ev,
@@ -638,7 +638,7 @@ static void open_socket_out_connected(struct tevent_req *subreq)
 
 		subreq = async_connect_send(state, state->ev, state->fd,
 					    (struct sockaddr *)&state->ss,
-					    state->salen);
+					    state->salen, NULL, NULL, NULL);
 		if (tevent_req_nomem(subreq, req)) {
 			return;
 		}
@@ -691,11 +691,11 @@ NTSTATUS open_socket_out(const struct sockaddr_storage *pss, uint16_t port,
 			 int timeout, int *pfd)
 {
 	TALLOC_CTX *frame = talloc_stackframe();
-	struct event_context *ev;
+	struct tevent_context *ev;
 	struct tevent_req *req;
 	NTSTATUS status = NT_STATUS_NO_MEMORY;
 
-	ev = event_context_init(frame);
+	ev = samba_tevent_context_init(frame);
 	if (ev == NULL) {
 		goto fail;
 	}
@@ -715,7 +715,7 @@ NTSTATUS open_socket_out(const struct sockaddr_storage *pss, uint16_t port,
 }
 
 struct open_socket_out_defer_state {
-	struct event_context *ev;
+	struct tevent_context *ev;
 	struct sockaddr_storage ss;
 	uint16_t port;
 	int timeout;
@@ -726,7 +726,7 @@ static void open_socket_out_defer_waited(struct tevent_req *subreq);
 static void open_socket_out_defer_connected(struct tevent_req *subreq);
 
 struct tevent_req *open_socket_out_defer_send(TALLOC_CTX *mem_ctx,
-					      struct event_context *ev,
+					      struct tevent_context *ev,
 					      struct timeval wait_time,
 					      const struct sockaddr_storage *pss,
 					      uint16_t port,
@@ -853,6 +853,7 @@ int open_udp_socket(const char *host, int port)
 	    salen = sizeof(struct sockaddr_in);
 	} else {
 		DEBUG(1, ("unknown socket family %d", ss.ss_family));
+		close(res);
 		return -1;
 	}
 
@@ -1235,53 +1236,21 @@ int create_pipe_sock(const char *socket_dir,
 {
 #ifdef HAVE_UNIXSOCKET
 	struct sockaddr_un sunaddr;
-	struct stat st;
-	int sock;
+	bool ok;
+	int sock = -1;
 	mode_t old_umask;
 	char *path = NULL;
 
 	old_umask = umask(0);
 
-	/* Create the socket directory or reuse the existing one */
-
-	if (lstat(socket_dir, &st) == -1) {
-		if (errno == ENOENT) {
-			/* Create directory */
-			if (mkdir(socket_dir, dir_perms) == -1) {
-				DEBUG(0, ("error creating socket directory "
-					"%s: %s\n", socket_dir,
-					strerror(errno)));
-				goto out_umask;
-			}
-		} else {
-			DEBUG(0, ("lstat failed on socket directory %s: %s\n",
-				socket_dir, strerror(errno)));
-			goto out_umask;
-		}
-	} else {
-		/* Check ownership and permission on existing directory */
-		if (!S_ISDIR(st.st_mode)) {
-			DEBUG(0, ("socket directory '%s' isn't a directory\n",
-				socket_dir));
-			goto out_umask;
-		}
-		if (st.st_uid != sec_initial_uid()) {
-			DEBUG(0, ("invalid ownership on directory "
-				  "'%s'\n", socket_dir));
-			umask(old_umask);
-			goto out_umask;
-		}
-		if ((st.st_mode & 0777) != dir_perms) {
-			DEBUG(0, ("invalid permissions on directory "
-				  "'%s': has 0%o should be 0%o\n", socket_dir,
-				  (st.st_mode & 0777), dir_perms));
-			umask(old_umask);
-			goto out_umask;
-		}
+	ok = directory_create_or_exist_strict(socket_dir,
+					      sec_initial_uid(),
+					      dir_perms);
+	if (!ok) {
+		goto out_close;
 	}
 
 	/* Create the socket file */
-
 	sock = socket(AF_UNIX, SOCK_STREAM, 0);
 
 	if (sock == -1) {
@@ -1315,7 +1284,6 @@ out_close:
 	if (sock != -1)
 		close(sock);
 
-out_umask:
 	umask(old_umask);
 	return -1;
 

@@ -82,12 +82,13 @@ static int readonly_connect(vfs_handle_struct *handle,
 
       /* Wipe out the VUID cache. */
       for (i=0; i< VUID_CACHE_SIZE; i++) {
-        struct vuid_cache_entry *ent = ent = &conn->vuid_cache.array[i];
+        struct vuid_cache_entry *ent = &conn->vuid_cache->array[i];
         ent->vuid = UID_FIELD_INVALID;
         TALLOC_FREE(ent->session_info);
         ent->read_only = false;
+        ent->share_access = 0;
       }
-      conn->vuid_cache.next_entry = 0;
+      conn->vuid_cache->next_entry = 0;
     }
 
     return 0;

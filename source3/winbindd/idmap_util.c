@@ -24,6 +24,7 @@
 #include "idmap.h"
 #include "idmap_cache.h"
 #include "../libcli/security/security.h"
+#include "secrets.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_IDMAP
@@ -67,8 +68,9 @@ backend:
 
 	ret = idmap_backends_unixid_to_sid(domname, &map);
 	if ( ! NT_STATUS_IS_OK(ret)) {
-		DEBUG(10, ("error mapping uid [%lu]\n", (unsigned long)uid));
-		return ret;
+		DEBUG(10, ("error mapping uid [%lu]: %s\n", (unsigned long)uid,
+			   nt_errstr(ret)));
+		map.status = ID_UNMAPPED;
 	}
 
 	if (map.status != ID_MAPPED) {
@@ -130,8 +132,9 @@ backend:
 
 	ret = idmap_backends_unixid_to_sid(domname, &map);
 	if ( ! NT_STATUS_IS_OK(ret)) {
-		DEBUG(10, ("error mapping gid [%lu]\n", (unsigned long)gid));
-		return ret;
+		DEBUG(10, ("error mapping gid [%lu]: %s\n", (unsigned long)gid,
+			   nt_errstr(ret)));
+		map.status = ID_UNMAPPED;
 	}
 
 	if (map.status != ID_MAPPED) {
@@ -171,4 +174,69 @@ bool idmap_unix_id_is_in_range(uint32_t id, struct idmap_domain *dom)
 	}
 
 	return true;
+}
+
+/**
+ * Helper for unixids_to_sids: find entry by id in mapping array,
+ * search up to IDMAP_AD_MAX_IDS entries
+ */
+struct id_map *idmap_find_map_by_id(struct id_map **maps, enum id_type type,
+				    uint32_t id)
+{
+	int i;
+
+	for (i = 0; i < IDMAP_LDAP_MAX_IDS; i++) {
+		if (maps[i] == NULL) { /* end of the run */
+			return NULL;
+		}
+		if ((maps[i]->xid.type == type) && (maps[i]->xid.id == id)) {
+			return maps[i];
+		}
+	}
+
+	return NULL;
+}
+
+/**
+ * Helper for sids_to_unix_ids: find entry by SID in mapping array,
+ * search up to IDMAP_AD_MAX_IDS entries
+ */
+struct id_map *idmap_find_map_by_sid(struct id_map **maps, struct dom_sid *sid)
+{
+	int i;
+
+	for (i = 0; i < IDMAP_LDAP_MAX_IDS; i++) {
+		if (maps[i] == NULL) { /* end of the run */
+			return NULL;
+		}
+		if (dom_sid_equal(maps[i]->sid, sid)) {
+			return maps[i];
+		}
+	}
+
+	return NULL;
+}
+
+char *idmap_fetch_secret(const char *backend, const char *domain,
+			 const char *identity)
+{
+	char *tmp, *ret;
+	int r;
+
+	r = asprintf(&tmp, "IDMAP_%s_%s", backend, domain);
+
+	if (r < 0)
+		return NULL;
+
+	/* make sure the key is case insensitive */
+	if (!strupper_m(tmp)) {
+		SAFE_FREE(tmp);
+		return NULL;
+	}
+
+	ret = secrets_fetch_generic(tmp, identity);
+
+	SAFE_FREE(tmp);
+
+	return ret;
 }

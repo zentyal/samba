@@ -1,4 +1,3 @@
-0002-lib-replace-Allow-OS-vendor-to-assert-that-getpass-i.patch
 05_share_ldb_module
 07_private_lib
 25_heimdal_api_changes

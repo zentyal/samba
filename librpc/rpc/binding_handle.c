@@ -209,7 +209,7 @@ NTSTATUS dcerpc_binding_handle_raw_call(struct dcerpc_binding_handle *h,
 	if (h->sync_ev) {
 		ev = h->sync_ev;
 	} else {
-		ev = tevent_context_init(frame);
+		ev = samba_tevent_context_init(frame);
 	}
 	if (ev == NULL) {
 		talloc_free(frame);
@@ -515,7 +515,7 @@ NTSTATUS dcerpc_binding_handle_call(struct dcerpc_binding_handle *h,
 	TALLOC_CTX *frame = talloc_stackframe();
 	struct tevent_context *ev;
 	struct tevent_req *subreq;
-	NTSTATUS status;
+	NTSTATUS status = NT_STATUS_NO_MEMORY;
 
 	/*
 	 * TODO: allow only one sync call
@@ -524,33 +524,25 @@ NTSTATUS dcerpc_binding_handle_call(struct dcerpc_binding_handle *h,
 	if (h->sync_ev) {
 		ev = h->sync_ev;
 	} else {
-		ev = tevent_context_init(frame);
+		ev = samba_tevent_context_init(frame);
 	}
 	if (ev == NULL) {
-		talloc_free(frame);
-		return NT_STATUS_NO_MEMORY;
+		goto fail;
 	}
 
 	subreq = dcerpc_binding_handle_call_send(frame, ev,
 						 h, object, table,
 						 opnum, r_mem, r_ptr);
 	if (subreq == NULL) {
-		talloc_free(frame);
-		return NT_STATUS_NO_MEMORY;
+		goto fail;
 	}
 
-	if (!tevent_req_poll(subreq, ev)) {
-		status = map_nt_error_from_unix_common(errno);
-		talloc_free(frame);
-		return status;
+	if (!tevent_req_poll_ntstatus(subreq, ev, &status)) {
+		goto fail;
 	}
 
 	status = dcerpc_binding_handle_call_recv(subreq);
-	if (!NT_STATUS_IS_OK(status)) {
-		talloc_free(frame);
-		return status;
-	}
-
+fail:
 	TALLOC_FREE(frame);
-	return NT_STATUS_OK;
+	return status;
 }

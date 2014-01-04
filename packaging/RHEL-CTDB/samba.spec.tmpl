@@ -306,6 +306,8 @@ find $RPM_BUILD_ROOT -name "*.old" -exec rm -f {} \;
 rm -f $RPM_BUILD_ROOT%{_mandir}/man1/log2pcap.1*
 rm -f $RPM_BUILD_ROOT%{_mandir}/man1/smbsh.1*
 rm -f $RPM_BUILD_ROOT%{_mandir}/man5/vfstest.1*
+rm -f $RPM_BUILD_ROOT%{_mandir}/man8/samba-tool.8*
+rm -f $RPM_BUILD_ROOT%{_mandir}/man8/samba.8*
 
 
 %clean
@@ -405,6 +407,7 @@ exit 0
 %{_libarchdir}/samba/vfs/dirsort.so
 %{_libarchdir}/samba/vfs/expand_msdfs.so
 %{_libarchdir}/samba/vfs/extd_audit.so
+%{_libarchdir}/samba/vfs/fake_acls.so
 %{_libarchdir}/samba/vfs/fake_perms.so
 %{_libarchdir}/samba/vfs/fileid.so
 %{_libarchdir}/samba/vfs/full_audit.so

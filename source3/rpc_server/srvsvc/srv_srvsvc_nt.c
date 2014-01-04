@@ -1226,16 +1226,6 @@ WERROR _srvsvc_NetSessDel(struct pipes_struct *p,
 	bool not_root = False;
 	WERROR werr;
 
-	username = r->in.user;
-	machine = r->in.client;
-
-	/* strip leading backslashes if any */
-	if (machine && machine[0] == '\\' && machine[1] == '\\') {
-		machine += 2;
-	}
-
-	num_sessions = list_sessions(p->mem_ctx, &session_list);
-
 	DEBUG(5,("_srvsvc_NetSessDel: %d\n", __LINE__));
 
 	werr = WERR_ACCESS_DENIED;
@@ -1248,6 +1238,16 @@ WERROR _srvsvc_NetSessDel(struct pipes_struct *p,
 
 		goto done;
 	}
+
+	username = r->in.user;
+	machine = r->in.client;
+
+	/* strip leading backslashes if any */
+	if (machine && machine[0] == '\\' && machine[1] == '\\') {
+		machine += 2;
+	}
+
+	num_sessions = list_sessions(p->mem_ctx, &session_list);
 
 	for (snum = 0; snum < num_sessions; snum++) {
 
@@ -2037,12 +2037,12 @@ WERROR _srvsvc_NetGetFileSecurity(struct pipes_struct *p,
 		goto error_exit;
 	}
 
-	nt_status = create_conn_struct(talloc_tos(),
-				       server_event_context(),
-				       server_messaging_context(),
-				       &conn,
-				       snum, lp_pathname(talloc_tos(), snum),
-				       p->session_info, &oldcwd);
+	nt_status = create_conn_struct_cwd(talloc_tos(),
+					   server_event_context(),
+					   server_messaging_context(),
+					   &conn,
+					   snum, lp_pathname(talloc_tos(), snum),
+					   p->session_info, &oldcwd);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(10, ("create_conn_struct failed: %s\n",
 			   nt_errstr(nt_status)));
@@ -2184,12 +2184,12 @@ WERROR _srvsvc_NetSetFileSecurity(struct pipes_struct *p,
 		goto error_exit;
 	}
 
-	nt_status = create_conn_struct(talloc_tos(),
-				       server_event_context(),
-				       server_messaging_context(),
-				       &conn,
-				       snum, lp_pathname(talloc_tos(), snum),
-				       p->session_info, &oldcwd);
+	nt_status = create_conn_struct_cwd(talloc_tos(),
+					   server_event_context(),
+					   server_messaging_context(),
+					   &conn,
+					   snum, lp_pathname(talloc_tos(), snum),
+					   p->session_info, &oldcwd);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(10, ("create_conn_struct failed: %s\n",
 			   nt_errstr(nt_status)));

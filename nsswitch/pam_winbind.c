@@ -164,25 +164,6 @@ static inline void textdomain_init(void)
 #endif
 
 
-/*
- * Work around the pam API that has functions with void ** as parameters
- * These lead to strict aliasing warnings with gcc.
- */
-static int _pam_get_item(const pam_handle_t *pamh,
-			 int item_type,
-			 const void *_item)
-{
-	const void **item = (const void **)_item;
-	return pam_get_item(pamh, item_type, item);
-}
-static int _pam_get_data(const pam_handle_t *pamh,
-			 const char *module_data_name,
-			 const void *_data)
-{
-	const void **data = (const void **)_data;
-	return pam_get_data(pamh, module_data_name, data);
-}
-
 /* some syslogging */
 
 #ifdef HAVE_PAM_VSYSLOG
@@ -202,7 +183,7 @@ static void _pam_log_int(const pam_handle_t *pamh,
 	char *format2 = NULL;
 	const char *service;
 
-	_pam_get_item(pamh, PAM_SERVICE, &service);
+	pam_get_item(pamh, PAM_SERVICE, (const void **) &service);
 
 	format2 = (char *)malloc(strlen(MODULE_NAME)+strlen(format)+strlen(service)+5);
 	if (format2 == NULL) {
@@ -645,7 +626,7 @@ static int converse(const pam_handle_t *pamh,
 	int retval;
 	struct pam_conv *conv;
 
-	retval = _pam_get_item(pamh, PAM_CONV, &conv);
+	retval = pam_get_item(pamh, PAM_CONV, (const void **) &conv);
 	if (retval == PAM_SUCCESS) {
 		retval = conv->conv(nargs,
 				    (const struct pam_message **)message,
@@ -812,13 +793,11 @@ static bool _pam_winbind_change_pwd(struct pwb_context *ctx)
 {
 	struct pam_message msg, *pmsg;
 	struct pam_response *resp = NULL;
-	const char *prompt;
 	int ret;
 	bool retval = false;
-	prompt = _("Do you want to change your password now?");
 	pmsg = &msg;
 	msg.msg_style = PAM_RADIO_TYPE;
-	msg.msg = prompt;
+	msg.msg = _("Do you want to change your password now?");
 	ret = converse(ctx->pamh, 1, &pmsg, &resp);
 	if (resp == NULL) {
 		if (ret == PAM_SUCCESS) {
@@ -2129,7 +2108,9 @@ static int _winbind_read_password(struct pwb_context *ctx,
 
 	if (on(WINBIND_TRY_FIRST_PASS_ARG, ctrl) ||
 	    on(WINBIND_USE_FIRST_PASS_ARG, ctrl)) {
-		retval = _pam_get_item(ctx->pamh, authtok_flag, &item);
+		retval = pam_get_item(ctx->pamh,
+				      authtok_flag,
+				      (const void **) &item);
 		if (retval != PAM_SUCCESS) {
 			/* very strange. */
 			_pam_log(ctx, LOG_ALERT,
@@ -2237,7 +2218,7 @@ static int _winbind_read_password(struct pwb_context *ctx,
 	retval = pam_set_item(ctx->pamh, authtok_flag, token);
 	_pam_delete(token);	/* clean it up */
 	if (retval != PAM_SUCCESS ||
-	    (retval = _pam_get_item(ctx->pamh, authtok_flag, &item)) != PAM_SUCCESS) {
+	    (retval = pam_get_item(ctx->pamh, authtok_flag, (const void **) &item)) != PAM_SUCCESS) {
 
 		_pam_log(ctx, LOG_CRIT, "error manipulating password");
 		return retval;
@@ -2808,7 +2789,7 @@ int pam_sm_acct_mgmt(pam_handle_t *pamh, int flags,
 {
 	const char *username;
 	int ret = PAM_USER_UNKNOWN;
-	void *tmp = NULL;
+	const char *tmp = NULL;
 	struct pwb_context *ctx = NULL;
 
 	ret = _pam_winbind_init_context(pamh, flags, argc, argv, &ctx);
@@ -2849,7 +2830,7 @@ int pam_sm_acct_mgmt(pam_handle_t *pamh, int flags,
 		pam_get_data(pamh, PAM_WINBIND_NEW_AUTHTOK_REQD,
 			     (const void **)&tmp);
 		if (tmp != NULL) {
-			ret = atoi((const char *)tmp);
+			ret = atoi(tmp);
 			switch (ret) {
 			case PAM_AUTHTOK_EXPIRED:
 				/* fall through, since new token is required in this case */
@@ -2975,8 +2956,8 @@ static bool _pam_require_krb5_auth_after_chauthtok(struct pwb_context *ctx,
 	char *new_authtok_reqd_during_auth = NULL;
 	struct passwd *pwd = NULL;
 
-	_pam_get_data(ctx->pamh, PAM_WINBIND_NEW_AUTHTOK_REQD_DURING_AUTH,
-		      &new_authtok_reqd_during_auth);
+	pam_get_data(ctx->pamh, PAM_WINBIND_NEW_AUTHTOK_REQD_DURING_AUTH,
+		      (const void **) &new_authtok_reqd_during_auth);
 	pam_set_data(ctx->pamh, PAM_WINBIND_NEW_AUTHTOK_REQD_DURING_AUTH,
 		     NULL, NULL);
 
@@ -3007,7 +2988,8 @@ int pam_sm_chauthtok(pam_handle_t * pamh, int flags,
 
 	/* <DO NOT free() THESE> */
 	const char *user;
-	char *pass_old, *pass_new;
+	const char *pass_old;
+	const char *pass_new;
 	/* </DO NOT free() THESE> */
 
 	char *Announce;
@@ -3130,7 +3112,7 @@ int pam_sm_chauthtok(pam_handle_t * pamh, int flags,
 		 * get the old token back.
 		 */
 
-		ret = _pam_get_item(pamh, PAM_OLDAUTHTOK, &pass_old);
+		ret = pam_get_item(pamh, PAM_OLDAUTHTOK, (const void **) &pass_old);
 
 		if (ret != PAM_SUCCESS) {
 			_pam_log(ctx, LOG_NOTICE,
@@ -3180,8 +3162,8 @@ int pam_sm_chauthtok(pam_handle_t * pamh, int flags,
 		 * By reaching here we have approved the passwords and must now
 		 * rebuild the password database file.
 		 */
-		_pam_get_data(pamh, PAM_WINBIND_PWD_LAST_SET,
-			      &pwdlastset_update);
+		pam_get_data(pamh, PAM_WINBIND_PWD_LAST_SET,
+			     (const void **) &pwdlastset_update);
 
 		/*
 		 * if cached creds were enabled, make sure to set the

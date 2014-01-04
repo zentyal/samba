@@ -25,6 +25,8 @@
 #include "ntdomain.h"
 #include "messages.h"
 
+#include "lib/util/util_process.h"
+
 #include "librpc/rpc/dcerpc_ep.h"
 #include "../librpc/gen_ndr/srv_epmapper.h"
 #include "rpc_server/rpc_server.h"
@@ -168,12 +170,14 @@ void start_epmd(struct tevent_context *ev_ctx,
 		smb_panic("reinit_after_fork() failed");
 	}
 
+	prctl_set_comment("epmd");
+
 	epmd_reopen_logs();
 
 	epmd_setup_sig_term_handler(ev_ctx);
 	epmd_setup_sig_hup_handler(ev_ctx, msg_ctx);
 
-	ok = serverid_register(procid_self(),
+	ok = serverid_register(messaging_server_id(msg_ctx),
 			       FLAG_MSG_GENERAL |
 			       FLAG_MSG_PRINT_GENERAL);
 	if (!ok) {
@@ -218,7 +222,7 @@ void start_epmd(struct tevent_context *ev_ctx,
 		exit(1);
 	}
 
-	DEBUG(1, ("Endpoint Mapper Daemon Started (%d)\n", getpid()));
+	DEBUG(1, ("Endpoint Mapper Daemon Started (%u)\n", (unsigned int)getpid()));
 
 	/* loop forever */
 	rc = tevent_loop_wait(ev_ctx);

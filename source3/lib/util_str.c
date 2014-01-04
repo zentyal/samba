@@ -852,7 +852,7 @@ uint64_t STR_TO_SMB_BIG_UINT(const char *nptr, const char **entptr)
 	while (*p && isspace(*p))
 		p++;
 
-	sscanf(p,"%"PRIu64,&val);
+	sscanf(p,"%"SCNu64,&val);
 	if (entptr) {
 		while (*p && isdigit(*p))
 			p++;
@@ -1282,7 +1282,7 @@ char **str_list_make_v3(TALLOC_CTX *mem_ctx, const char *string,
 			list = tmp;
 
 			memset (&list[num], 0,
-				((sizeof(char**)) * (S_LIST_ABS +1)));
+				((sizeof(char*)) * (S_LIST_ABS +1)));
 		}
 
 		list[num] = tok;

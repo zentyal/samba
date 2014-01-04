@@ -70,6 +70,12 @@ closedir
 connect
 .RE
 .RS 4
+copy_chunk_send
+.RE
+.RS 4
+copy_chunk_recv
+.RE
+.RS 4
 disconnect
 .RE
 .RS 4
@@ -323,14 +329,14 @@ Prepend audit messages with STRING\&. STRING is processed for standard substitut
 \fBsmb.conf\fR(5)\&. The default prefix is "%u|%I"\&.
 .RE
 .PP
-vfs_full_audit:success = LIST
+full_audit:success = LIST
 .RS 4
-LIST is a list of VFS operations that should be recorded if they succeed\&. Operations are specified using the names listed above\&. Operations can be unset by prefixing the names with "!"\&.
+LIST is a list of VFS operations that should be recorded if they succeed\&. Operations are specified using the names listed above\&. Operations can be unset by prefixing the names with "!"\&. The default is all operations\&.
 .RE
 .PP
-vfs_full_audit:failure = LIST
+full_audit:failure = LIST
 .RS 4
-LIST is a list of VFS operations that should be recorded if they failed\&. Operations are specified using the names listed above\&. Operations can be unset by prefixing the names with "!"\&.
+LIST is a list of VFS operations that should be recorded if they failed\&. Operations are specified using the names listed above\&. Operations can be unset by prefixing the names with "!"\&. The default is all operations\&.
 .RE
 .PP
 full_audit:facility = FACILITY

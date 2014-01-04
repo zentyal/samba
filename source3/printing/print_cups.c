@@ -428,7 +428,7 @@ static bool cups_cache_reload_async(int fd)
 	return ret;
 }
 
-static struct fd_event *cache_fd_event;
+static struct tevent_fd *cache_fd_event;
 
 static bool cups_pcap_load_async(struct tevent_context *ev,
 				 struct messaging_context *msg_ctx,
@@ -488,14 +488,14 @@ static bool cups_pcap_load_async(struct tevent_context *ev,
 
 struct cups_async_cb_args {
 	int pipe_fd;
-	struct event_context *event_ctx;
+	struct tevent_context *event_ctx;
 	struct messaging_context *msg_ctx;
-	void (*post_cache_fill_fn)(struct event_context *,
+	void (*post_cache_fill_fn)(struct tevent_context *,
 				   struct messaging_context *);
 };
 
-static void cups_async_callback(struct event_context *event_ctx,
-				struct fd_event *event,
+static void cups_async_callback(struct tevent_context *event_ctx,
+				struct tevent_fd *event,
 				uint16 flags,
 				void *p)
 {
@@ -586,9 +586,9 @@ bool cups_cache_reload(struct tevent_context *ev,
 		*p_pipe_fd ));
 
 	/* Trigger an event when the pipe can be read. */
-	cache_fd_event = event_add_fd(ev,
+	cache_fd_event = tevent_add_fd(ev,
 				NULL, *p_pipe_fd,
-				EVENT_FD_READ,
+				TEVENT_FD_READ,
 				cups_async_callback,
 				(void *)cb_args);
 	if (!cache_fd_event) {

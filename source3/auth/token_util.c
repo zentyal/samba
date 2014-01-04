@@ -565,6 +565,8 @@ static NTSTATUS create_token_from_sid(TALLOC_CTX *mem_ctx,
 	uint32_t num_group_sids;
 	uint32_t num_gids;
 	uint32_t i;
+	uint32_t high, low;
+	bool range_ok;
 
 	if (sid_check_is_in_our_sam(user_sid)) {
 		bool ret;
@@ -610,7 +612,7 @@ static NTSTATUS create_token_from_sid(TALLOC_CTX *mem_ctx,
 		*found_username = talloc_strdup(mem_ctx,
 						pdb_get_username(sam_acct));
 
-		if (found_username == NULL) {
+		if (*found_username == NULL) {
 			result = NT_STATUS_NO_MEMORY;
 			goto done;
 		}
@@ -705,7 +707,7 @@ static NTSTATUS create_token_from_sid(TALLOC_CTX *mem_ctx,
 
 		/* Ensure we're returning the found_username on the right context. */
 		*found_username = talloc_strdup(mem_ctx, pass->pw_name);
-		if (found_username == NULL) {
+		if (*found_username == NULL) {
 			result = NT_STATUS_NO_MEMORY;
 			goto done;
 		}
@@ -757,13 +759,13 @@ static NTSTATUS create_token_from_sid(TALLOC_CTX *mem_ctx,
 	   to 'valid user = "Domain Admins"'.  --jerry */
 
 	num_gids = num_group_sids;
+	range_ok = lp_idmap_default_range(&low, &high);
 	for ( i=0; i<num_gids; i++ ) {
-		gid_t high, low;
 
 		/* don't pickup anything managed by Winbind */
-
-		if ( lp_idmap_gid(&low, &high) && (gids[i] >= low) && (gids[i] <= high) )
+		if (range_ok && (gids[i] >= low) && (gids[i] <= high)) {
 			continue;
+		}
 
 		gid_to_unix_groups_sid(gids[i], &unix_group_sid);
 
@@ -837,16 +839,19 @@ NTSTATUS create_token_from_username(TALLOC_CTX *mem_ctx, const char *username,
 		goto done;
 	}
 
+	/*
+	 * If result == NT_STATUS_OK then
+	 * we know we have a valid token. Ensure
+	 * we also have a valid username to match.
+	 */
+
 	if (*found_username == NULL) {
 		*found_username = talloc_strdup(mem_ctx, username);
+		if (*found_username == NULL) {
+			result = NT_STATUS_NO_MEMORY;
+		}
 	}
 
-	if ((*token == NULL) || (*found_username == NULL)) {
-		result = NT_STATUS_NO_MEMORY;
-		goto done;
-	}
-
-	result = NT_STATUS_OK;
 done:
 	TALLOC_FREE(tmp_ctx);
 	return result;
@@ -866,7 +871,7 @@ bool user_sid_in_group_sid(const struct dom_sid *sid, const struct dom_sid *grou
 	gid_t gid;
 	char *found_username;
 	struct security_token *token;
-	bool result;
+	bool result = false;
 	enum lsa_SidType type;
 	TALLOC_CTX *mem_ctx = talloc_stackframe();
 
@@ -888,8 +893,7 @@ bool user_sid_in_group_sid(const struct dom_sid *sid, const struct dom_sid *grou
 
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(10, ("could not create token for %s\n", dom_sid_string(mem_ctx, sid)));
-		TALLOC_FREE(mem_ctx);
-		return False;
+		goto done;
 	}
 
 	result = security_token_has_sid(token, group_sid);

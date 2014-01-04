@@ -1,0 +1,70 @@
+'\" t
+.\"     Title: vfs_btrfs
+.\"    Author: [see the "AUTHOR" section]
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 12/06/2013
+.\"    Manual: System Administration tools
+.\"    Source: Samba 4.0
+.\"  Language: English
+.\"
+.TH "VFS_BTRFS" "8" "12/06/2013" "Samba 4\&.0" "System Administration tools"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.SH "NAME"
+vfs_btrfs \- Utilize features provided by the Btrfs filesystem
+.SH "SYNOPSIS"
+.HP \w'\ 'u
+vfs objects = btrfs
+.SH "DESCRIPTION"
+.PP
+This VFS module is part of the
+\fBsamba\fR(8)
+suite\&.
+.PP
+The
+vfs_btrfs
+VFS module exposes Btrfs specific features for use by Samba\&.
+.PP
+Btrfs allows for multiple files to share the same on\-disk data through the use cloned ranges\&. When an SMB client issues a request to copy duplicate data (via FSCTL_SRV_COPYCHUNK), this module maps the request to a Btrfs clone range IOCTL, instead of performing reads and writes required by a traditional copy\&. Doing so saves storage capacity and greatly reduces disk IO\&.
+.PP
+This module is stackable\&.
+.SH "CONFIGURATION"
+.PP
+
+vfs_btrfs
+requires that the underlying share path is a Btrfs filesystem\&.
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+		\fI[share]\fR
+		\m[blue]\fBvfs objects = btrfs\fR\m[]
+	
+.fi
+.if n \{\
+.RE
+.\}
+.SH "VERSION"
+.PP
+This man page is correct for version 4\&.1\&.0 of the Samba suite\&.
+.SH "AUTHOR"
+.PP
+The original Samba software and related utilities were created by Andrew Tridgell\&. Samba is now developed by the Samba Team as an Open Source project similar to the way the Linux kernel is developed\&.

@@ -35,11 +35,7 @@ The
 smb\&.conf
 file is a configuration file for the Samba suite\&.
 smb\&.conf
-contains runtime configuration information for the Samba programs\&. The
-smb\&.conf
-file is designed to be configured and administered by the
-\fBswat\fR(8)
-program\&. The complete description of the file format and possible parameters held within are here for reference purposes\&.
+contains runtime configuration information for the Samba programs\&. The complete description of the file format and possible parameters held within are here for reference purposes\&.
 .SH "FILE FORMAT"
 .PP
 The file consists of sections and parameters\&. A section begins with the name of the section in square brackets and continues until the next section begins\&. Sections contain parameters of the form:
@@ -1440,8 +1436,6 @@ is not added to the
 \m[blue]\fBinterfaces\fR\m[]
 parameter list
 \fBsmbpasswd\fR(8)
-and
-\fBswat\fR(8)
 may not work as expected due to the reasons covered below\&.
 .sp
 To change a users SMB password, the
@@ -1464,27 +1458,6 @@ can be forced to use the primary IP interface of the local host by using its
 parameter, with
 \fIremote machine\fR
 set to the IP name of the primary interface of the local host\&.
-.sp
-The
-swat
-status page tries to connect with
-smbd
-and
-nmbd
-at the address
-\fI127\&.0\&.0\&.1\fR
-to determine if they are running\&. Not adding
-\fI127\&.0\&.0\&.1\fR
-will cause
-smbd
-and
-nmbd
-to always show "not running" even if they really are\&. This can prevent
-swat
-from starting/stopping/restarting
-smbd
-and
-nmbd\&.
 .sp
 Default:
 \fI\fIbind interfaces only\fR\fR\fI = \fR\fIno\fR\fI \fR
@@ -1961,6 +1934,10 @@ client min protocol (G)
 This setting controls the minimum protocol version that the client will attempt to use\&.
 .sp
 Normally this option should not be set as the automatic negotiation phase in the SMB protocol takes care of choosing the appropriate protocol\&.
+.sp
+See
+Related command: \m[blue]\fBclient max protocol\fR\m[]
+for a full list of avaiable protocols
 .sp
 Default:
 \fI\fIclient min protocol\fR\fR\fI = \fR\fICORE\fR\fI \fR
@@ -3859,6 +3836,8 @@ hide unreadable (S)
 .RS 4
 This parameter prevents clients from seeing the existance of files that cannot be read\&. Defaults to off\&.
 .sp
+Please note that enabling this can slow down listing large directories significantly\&. Samba has to evaluate the ACLs of all directory members, which can be a lot of effort\&.
+.sp
 Default:
 \fI\fIhide unreadable\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
@@ -3868,6 +3847,8 @@ hide unwriteable files (S)
 .PP
 .RS 4
 This parameter prevents clients from seeing the existance of files that cannot be written to\&. Defaults to off\&. Note that unwriteable directories are shown as usual\&.
+.sp
+Please note that enabling this can slow down listing large directories significantly\&. Samba has to evaluate the ACLs of all directory members, which can be a lot of effort\&.
 .sp
 Default:
 \fI\fIhide unwriteable files\fR\fR\fI = \fR\fIno\fR\fI \fR
@@ -4455,7 +4436,7 @@ Valid options are:
 .sp -1
 .IP \(bu 2.3
 .\}
-secrets only \- use only the secrets\&.tdb for ticket verification (default)
+secrets only \- use only the secrets\&.(n)tdb for ticket verification (default)
 .RE
 .sp
 .RS 4
@@ -4488,7 +4469,7 @@ dedicated keytab \- use a dedicated keytab for ticket verification
 .sp -1
 .IP \(bu 2.3
 .\}
-secrets and keytab \- use the secrets\&.tdb first, then the system keytab
+secrets and keytab \- use the secrets\&.(n)tdb first, then the system keytab
 .RE
 .sp
 .RE
@@ -4628,7 +4609,8 @@ defines the Distinguished Name (DN) name used by Samba to contact the ldap serve
 \m[blue]\fBldap admin dn\fR\m[]
 is used in conjunction with the admin dn password stored in the
 private/secrets\&.tdb
-file\&. See the
+(or
+private/secrets\&.ntdb) file\&. See the
 \fBsmbpasswd\fR(8)
 man page for more information on how to accomplish this\&.
 .sp
@@ -5930,7 +5912,9 @@ machine password timeout (G)
 If a Samba server is a member of a Windows NT Domain (see the
 \m[blue]\fBsecurity = domain\fR\m[]
 parameter) then periodically a running smbd process will try and change the MACHINE ACCOUNT PASSWORD stored in the TDB called
-private/secrets\&.tdb\&. This parameter specifies how often this password will be changed, in seconds\&. The default is one week (expressed in seconds), the same as a Windows NT Domain member server\&.
+private/secrets\&.tdb
+(or
+private/secrets\&.ntdb)\&. This parameter specifies how often this password will be changed, in seconds\&. The default is one week (expressed in seconds), the same as a Windows NT Domain member server\&.
 .sp
 See also
 \fBsmbpasswd\fR(8), and the
@@ -6123,6 +6107,10 @@ map archive (S)
 .RS 4
 This controls whether the DOS archive attribute should be mapped to the UNIX owner execute bit\&. The DOS archive bit is set when a file has been modified since its last backup\&. One motivation for this option is to keep Samba/your PC from making any file it touches from becoming executable under UNIX\&. This can be quite annoying for shared source code, documents, etc\&.\&.\&.
 .sp
+Note that this parameter will be ignored if the
+\m[blue]\fBstore dos attributes\fR\m[]
+parameter is set, as the DOS archive attribute will then be stored inside a UNIX extended attribute\&.
+.sp
 Note that this requires the
 \m[blue]\fBcreate mask\fR\m[]
 parameter to be set such that owner execute bit is not masked out (i\&.e\&. it must include 100)\&. See the parameter
@@ -6138,6 +6126,10 @@ map hidden (S)
 .PP
 .RS 4
 This controls whether DOS style hidden files should be mapped to the UNIX world execute bit\&.
+.sp
+Note that this parameter will be ignored if the
+\m[blue]\fBstore dos attributes\fR\m[]
+parameter is set, as the DOS hidden attribute will then be stored inside a UNIX extended attribute\&.
 .sp
 Note that this requires the
 \m[blue]\fBcreate mask\fR\m[]
@@ -6212,6 +6204,10 @@ method\&. This may be useful for exporting mounted CDs\&.
 .RE
 .sp
 .RE
+Note that this parameter will be ignored if the
+\m[blue]\fBstore dos attributes\fR\m[]
+parameter is set, as the DOS \*(Aqread\-only\*(Aq attribute will then be stored inside a UNIX extended attribute\&.
+.sp
 Default:
 \fI\fImap readonly\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
@@ -6221,6 +6217,10 @@ map system (S)
 .PP
 .RS 4
 This controls whether DOS style system files should be mapped to the UNIX group execute bit\&.
+.sp
+Note that this parameter will be ignored if the
+\m[blue]\fBstore dos attributes\fR\m[]
+parameter is set, as the DOS system attribute will then be stored inside a UNIX extended attribute\&.
 .sp
 Note that this requires the
 \m[blue]\fBcreate mask\fR\m[]
@@ -7010,6 +7010,84 @@ ntvfs handler (S)
 .RS 4
 This specifies the NTVFS handlers for this share\&.
 .sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+posix: Maps POSIX FS semantics to NT semantics
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+unixuid: Sets up user credentials based on POSIX gid/uid\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+cifs: Proxies a remote CIFS FS\&. Mainly useful for testing\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+nbench: Filter module that saves data useful to the nbench benchmark suite\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+ipc: Allows using SMB for inter process communication\&. Only used for the IPC$ share\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+posix: Maps POSIX FS semantics to NT semantics
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+print: Allows printing over SMB\&. This is LANMAN\-style printing, not the be confused with the spoolss DCE/RPC interface used by later versions of Windows\&.
+.RE
+.sp
+.RE
 Note that this option is only used when the NTVFS file server is in use\&. It is not used with the (default) s3fs file server\&.
 .sp
 Default:
@@ -7413,42 +7491,6 @@ Default:
 .sp
 Example:
 \fI\fIpasswd program\fR\fR\fI = \fR\fI/bin/passwd %u\fR\fI \fR
-.RE
-
-password level (G)
-.\" password level
-.PP
-.RS 4
-Some client/server combinations have difficulty with mixed\-case passwords\&. One offending client is Windows for Workgroups, which for some reason forces passwords to upper case when using the LANMAN1 protocol, but leaves them alone when using COREPLUS! Another problem child is the Windows 95/98 family of operating systems\&. These clients upper case clear text passwords even when NT LM 0\&.12 selected by the protocol negotiation request/response\&.
-.sp
-This deprecated parameter defines the maximum number of characters that may be upper case in passwords\&.
-.sp
-For example, say the password given was "FRED"\&. If
-\fI password level\fR
-is set to 1, the following combinations would be tried if "FRED" failed:
-.sp
-"Fred", "fred", "fRed", "frEd","freD"
-.sp
-If
-\fIpassword level\fR
-was set to 2, the following combinations would also be tried:
-.sp
-"FRed", "FrEd", "FreD", "fREd", "fReD", "frED", \&.\&.
-.sp
-And so on\&.
-.sp
-The higher value this parameter is set to the more likely it is that a mixed case password will be matched against a single case password\&. However, you should be aware that use of this parameter reduces security and increases the time taken to process a new connection\&.
-.sp
-A value of zero will cause only two attempts to be made \- the password as is and the password in all\-lower case\&.
-.sp
-This parameter is used only when using plain\-text passwords\&. It is not at all used when encrypted passwords as in use (that is the default since samba\-3\&.0\&.0)\&. Use this only when
-\m[blue]\fBencrypt passwords = No\fR\m[]\&.
-.sp
-Default:
-\fI\fIpassword level\fR\fR\fI = \fR\fI0\fR\fI \fR
-.sp
-Example:
-\fI\fIpassword level\fR\fR\fI = \fR\fI4\fR\fI \fR
 .RE
 
 password server (G)
@@ -8006,7 +8048,9 @@ private dir (G)
 This parameters defines the directory smbd will use for storing such files as
 smbpasswd
 and
-secrets\&.tdb\&.
+secrets\&.tdb
+(or
+secrets\&.ntdb)\&.
 .sp
 Default:
 \fI\fIprivate dir\fR\fR\fI = \fR\fI${prefix}/private\fR\fI \fR
@@ -8442,8 +8486,18 @@ rpc_daemon:DAEMON (G)
 Defines whether to use the embedded code or start a separate daemon for the defined rpc services\&. The rpc_daemon prefix must be followed by the server name, and a value\&.
 .sp
 Two possible values are currently supported:
-disabled
-fork
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+		disabled
+		fork
+	
+.fi
+.if n \{\
+.RE
+.\}
 .sp
 The classic method is to run rpc services as internal daemons embedded in smbd, therefore the external daemons are
 \fIdisabled\fR
@@ -8455,11 +8509,22 @@ option will cause samba to fork a separate proces for each daemon configured thi
 \m[blue]\fBrpc_server\fR\m[])\&.
 .sp
 Forked RPC Daemons support dynamically forking children to handle connections\&. The heuristics about how many children to keep around and how fast to allow them to fork and also how many clients each child is allowed to handle concurrently is defined by parametrical options named after the daemon\&. Five options are currently supported:
-prefork_min_children
-prefork_max_children
-prefork_spawn_rate
-prefork_max_allowed_clients
-prefork_child_min_life
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+		prefork_min_children
+		prefork_max_children
+		prefork_spawn_rate
+		prefork_max_allowed_clients
+		prefork_child_min_life
+	
+.fi
+.if n \{\
+.RE
+.\}
+.sp
 To set one of these options use the follwing syntax:
 .sp
 .if n \{\
@@ -8474,9 +8539,20 @@ To set one of these options use the follwing syntax:
 .\}
 .sp
 Samba includes separate daemons for spoolss and the lsarpc/lsass, netlogon and samr pipes\&. Currently three daemons are available and they are called:
-epmd
-lsasd
-spoolssd
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+		epmd
+		lsasd
+		spoolssd
+	
+.fi
+.if n \{\
+.RE
+.\}
+.sp
 Example:
 .sp
 .if n \{\
@@ -9017,6 +9093,10 @@ This setting controls the minimum protocol version that the server will allow th
 .sp
 Normally this option should not be set as the automatic negotiation phase in the SMB protocol takes care of choosing the appropriate protocol\&.
 .sp
+See
+Related command: \m[blue]\fBserver max protocol\fR\m[]
+for a full list of available protocols\&.
+.sp
 Default:
 \fI\fIserver min protocol\fR\fR\fI = \fR\fILANMAN1\fR\fI \fR
 .sp
@@ -9087,7 +9167,7 @@ This mode of operation runs a classic Samba primary domain controller, providing
 .sp
 \fISERVER ROLE = NETBIOS BACKUP DOMAIN CONTROLLER\fR
 .sp
-This mode of operation runs a classic Samba backup domain controller, providing domain logon services to Windows and Samba clients of an NT4\-like domain\&. As a BDC, this allows multiple Samba servers to provide rudundent logon services to a single NetBIOS scope\&.
+This mode of operation runs a classic Samba backup domain controller, providing domain logon services to Windows and Samba clients of an NT4\-like domain\&. As a BDC, this allows multiple Samba servers to provide redundant logon services to a single NetBIOS scope\&.
 .sp
 \fISERVER ROLE = ACTIVE DIRECTORY DOMAIN CONTROLLER\fR
 .sp
@@ -9189,21 +9269,6 @@ Default:
 .sp
 Example:
 \fI\fIserver string\fR\fR\fI = \fR\fIUniversity of GNUs Samba Server\fR\fI \fR
-.RE
-
-set directory (S)
-.\" set directory
-.PP
-.RS 4
-If
-set directory = no, then users of the service may not use the setdir command to change directory\&.
-.sp
-The
-setdir
-command is only implemented in the Digital Pathworks client\&. See the Pathworks documentation for details\&.
-.sp
-Default:
-\fI\fIset directory\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
 set primary group script (G)
@@ -9443,7 +9508,7 @@ show add printer wizard (G)
 .RS 4
 With the introduction of MS\-RPC based printing support for Windows NT/2000 client in Samba 2\&.2, a "Printers\&.\&.\&." folder will appear on Samba hosts in the share listing\&. Normally this folder will contain an icon for the MS Add Printer Wizard (APW)\&. However, it is possible to disable this feature regardless of the level of privilege of the connected user\&.
 .sp
-Under normal circumstances, the Windows NT/2000 client will open a handle on the printer server with OpenPrinterEx() asking for Administrator privileges\&. If the user does not have administrative access on the print server (i\&.e is not root or the priviledge SePrintOperatorPrivilege, the OpenPrinterEx() call fails and the client makes another open call with a request for a lower privilege level\&. This should succeed, however the APW icon will not be displayed\&.
+Under normal circumstances, the Windows NT/2000 client will open a handle on the printer server with OpenPrinterEx() asking for Administrator privileges\&. If the user does not have administrative access on the print server (i\&.e is not root or has granted the SePrintOperatorPrivilege), the OpenPrinterEx() call fails and the client makes another open call with a request for a lower privilege level\&. This should succeed, however the APW icon will not be displayed\&.
 .sp
 Disabling the
 \fIshow add printer wizard\fR
@@ -9681,6 +9746,26 @@ socket options (G)
 .\" socket options
 .PP
 .RS 4
+.if n \{\
+.sp
+.\}
+.RS 4
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.br
+.ps +1
+\fBWarning\fR
+.ps -1
+.br
+Modern server operating systems are tuned for high network performance in the majority of situations; when you set socket options you are overriding those settings\&. Linux in particular has an auto\-tuning mechanism for buffer sizes that will be disabled if you specify a socket buffer size\&. This can potentially cripple your TCP/IP stack\&.
+.sp
+Getting the socket options correct can make a big difference to your performance, but getting them wrong can degrade it by just as much\&. As with any other low level setting, if you must make changes to it, make small changes and
+\fItest\fR
+the effect before making any large changes\&.
+.sp .5v
+.RE
+.sp
 This option allows you to set socket options to be used when talking with the client\&.
 .sp
 Socket options are controls on the networking layer of the operating systems which allow the connection to be tuned\&.
@@ -9886,13 +9971,13 @@ store dos attributes (S)
 If this parameter is set Samba attempts to first read DOS attributes (SYSTEM, HIDDEN, ARCHIVE or READ\-ONLY) from a filesystem extended attribute, before mapping DOS attributes to UNIX permission bits (such as occurs with
 \m[blue]\fBmap hidden\fR\m[]
 and
-\m[blue]\fBmap readonly\fR\m[])\&. When set, DOS attributes will be stored onto an extended attribute in the UNIX filesystem, associated with the file or directory\&. For no other mapping to occur as a fall\-back, the parameters
+\m[blue]\fBmap readonly\fR\m[])\&. When set, DOS attributes will be stored onto an extended attribute in the UNIX filesystem, associated with the file or directory\&. When this parameter is set it will override the parameters
 \m[blue]\fBmap hidden\fR\m[],
 \m[blue]\fBmap system\fR\m[],
 \m[blue]\fBmap archive\fR\m[]
 and
 \m[blue]\fBmap readonly\fR\m[]
-must be set to off\&. This parameter writes the DOS attributes as a string into the extended attribute named "user\&.DOSATTRIB"\&. This extended attribute is explicitly hidden from smbd clients requesting an EA list\&. On Linux the filesystem must have been mounted with the mount option user_xattr in order for extended attributes to work, also extended attributes must be compiled into the Linux kernel\&. In Samba 3\&.5\&.0 and above the "user\&.DOSATTRIB" extended attribute has been extended to store the create time for a file as well as the DOS attributes\&. This is done in a backwards compatible way so files created by Samba 3\&.5\&.0 and above can still have the DOS attribute read from this extended attribute by earlier versions of Samba, but they will not be able to read the create time stored there\&. Storing the create time separately from the normal filesystem meta\-data allows Samba to faithfully reproduce NTFS semantics on top of a POSIX filesystem\&.
+and they will behave as if they were set to off\&. This parameter writes the DOS attributes as a string into the extended attribute named "user\&.DOSATTRIB"\&. This extended attribute is explicitly hidden from smbd clients requesting an EA list\&. On Linux the filesystem must have been mounted with the mount option user_xattr in order for extended attributes to work, also extended attributes must be compiled into the Linux kernel\&. In Samba 3\&.5\&.0 and above the "user\&.DOSATTRIB" extended attribute has been extended to store the create time for a file as well as the DOS attributes\&. This is done in a backwards compatible way so files created by Samba 3\&.5\&.0 and above can still have the DOS attribute read from this extended attribute by earlier versions of Samba, but they will not be able to read the create time stored there\&. Storing the create time separately from the normal filesystem meta\-data allows Samba to faithfully reproduce NTFS semantics on top of a POSIX filesystem\&.
 .sp
 Default:
 \fI\fIstore dos attributes\fR\fR\fI = \fR\fIno\fR\fI \fR
@@ -10207,6 +10292,32 @@ by default on HPUX\&. On all other systems this parameter should be left alone\&
 .sp
 Default:
 \fI\fIuse mmap\fR\fR\fI = \fR\fIyes\fR\fI \fR
+.RE
+
+use ntdb (G)
+.\" use ntdb
+.PP
+.RS 4
+Beginning in Samba 4\&.1, a growing number of databases can use the NTDB format rather than TDB\&.
+.sp
+If you enable this option these databases will default to a
+\&.ntdb
+extension rather than
+\&.tdb\&. If the
+\&.tdb
+file exists, it will automatically be converted to NTDB and renamed to
+\&.tdb\&.bak\&.
+.sp
+Filenames explicitly specified in
+smb\&.conf
+will be respected (ie\&. the format will depend on the
+\&.ntdb
+or
+\&.tdb
+extension)\&.
+.sp
+Default:
+\fI\fIuse ntdb\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
 username level (G)
@@ -11367,7 +11478,6 @@ This man page is correct for version 4 of the Samba suite\&.
 
 \fBsamba\fR(7),
 \fBsmbpasswd\fR(8),
-\fBswat\fR(8),
 \fBsmbd\fR(8),
 \fBnmbd\fR(8),
 \fBwinbindd\fR(8),

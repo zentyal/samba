@@ -293,40 +293,6 @@ static NTSTATUS cli_session_setup_lanman2_recv(struct tevent_req *req)
 	return tevent_req_simple_recv_ntstatus(req);
 }
 
-static NTSTATUS cli_session_setup_lanman2(struct cli_state *cli, const char *user,
-					  const char *pass, size_t passlen,
-					  const char *workgroup)
-{
-	TALLOC_CTX *frame = talloc_stackframe();
-	struct event_context *ev;
-	struct tevent_req *req;
-	NTSTATUS status = NT_STATUS_NO_MEMORY;
-
-	if (smbXcli_conn_has_async_calls(cli->conn)) {
-		/*
-		 * Can't use sync call while an async call is in flight
-		 */
-		status = NT_STATUS_INVALID_PARAMETER;
-		goto fail;
-	}
-	ev = event_context_init(frame);
-	if (ev == NULL) {
-		goto fail;
-	}
-	req = cli_session_setup_lanman2_send(frame, ev, cli, user, pass, passlen,
-					     workgroup);
-	if (req == NULL) {
-		goto fail;
-	}
-	if (!tevent_req_poll_ntstatus(req, ev, &status)) {
-		goto fail;
-	}
-	status = cli_session_setup_lanman2_recv(req);
- fail:
-	TALLOC_FREE(frame);
-	return status;
-}
-
 /****************************************************************************
  Work out suitable capabilities to offer the server.
 ****************************************************************************/
@@ -375,7 +341,7 @@ struct cli_session_setup_guest_state {
 static void cli_session_setup_guest_done(struct tevent_req *subreq);
 
 struct tevent_req *cli_session_setup_guest_create(TALLOC_CTX *mem_ctx,
-						  struct event_context *ev,
+						  struct tevent_context *ev,
 						  struct cli_state *cli,
 						  struct tevent_req **psmbreq)
 {
@@ -434,7 +400,7 @@ struct tevent_req *cli_session_setup_guest_create(TALLOC_CTX *mem_ctx,
 }
 
 struct tevent_req *cli_session_setup_guest_send(TALLOC_CTX *mem_ctx,
-						struct event_context *ev,
+						struct tevent_context *ev,
 						struct cli_state *cli)
 {
 	struct tevent_req *req, *subreq;
@@ -446,7 +412,7 @@ struct tevent_req *cli_session_setup_guest_send(TALLOC_CTX *mem_ctx,
 	}
 
 	status = smb1cli_req_chain_submit(&subreq, 1);
-	if (NT_STATUS_IS_OK(status)) {
+	if (!NT_STATUS_IS_OK(status)) {
 		tevent_req_nterror(req, status);
 		return tevent_req_post(req, ev);
 	}
@@ -534,44 +500,6 @@ static void cli_session_setup_guest_done(struct tevent_req *subreq)
 NTSTATUS cli_session_setup_guest_recv(struct tevent_req *req)
 {
 	return tevent_req_simple_recv_ntstatus(req);
-}
-
-static NTSTATUS cli_session_setup_guest(struct cli_state *cli)
-{
-	TALLOC_CTX *frame = talloc_stackframe();
-	struct event_context *ev;
-	struct tevent_req *req;
-	NTSTATUS status = NT_STATUS_OK;
-
-	if (smbXcli_conn_has_async_calls(cli->conn)) {
-		/*
-		 * Can't use sync call while an async call is in flight
-		 */
-		status = NT_STATUS_INVALID_PARAMETER;
-		goto fail;
-	}
-
-	ev = event_context_init(frame);
-	if (ev == NULL) {
-		status = NT_STATUS_NO_MEMORY;
-		goto fail;
-	}
-
-	req = cli_session_setup_guest_send(frame, ev, cli);
-	if (req == NULL) {
-		status = NT_STATUS_NO_MEMORY;
-		goto fail;
-	}
-
-	if (!tevent_req_poll(req, ev)) {
-		status = map_nt_error_from_unix(errno);
-		goto fail;
-	}
-
-	status = cli_session_setup_guest_recv(req);
- fail:
-	TALLOC_FREE(frame);
-	return status;
 }
 
 /****************************************************************************
@@ -737,40 +665,6 @@ static void cli_session_setup_plain_done(struct tevent_req *subreq)
 static NTSTATUS cli_session_setup_plain_recv(struct tevent_req *req)
 {
 	return tevent_req_simple_recv_ntstatus(req);
-}
-
-static NTSTATUS cli_session_setup_plain(struct cli_state *cli,
-					const char *user, const char *pass,
-					const char *workgroup)
-{
-	TALLOC_CTX *frame = talloc_stackframe();
-	struct event_context *ev;
-	struct tevent_req *req;
-	NTSTATUS status = NT_STATUS_NO_MEMORY;
-
-	if (smbXcli_conn_has_async_calls(cli->conn)) {
-		/*
-		 * Can't use sync call while an async call is in flight
-		 */
-		status = NT_STATUS_INVALID_PARAMETER;
-		goto fail;
-	}
-	ev = event_context_init(frame);
-	if (ev == NULL) {
-		goto fail;
-	}
-	req = cli_session_setup_plain_send(frame, ev, cli, user, pass,
-					   workgroup);
-	if (req == NULL) {
-		goto fail;
-	}
-	if (!tevent_req_poll_ntstatus(req, ev, &status)) {
-		goto fail;
-	}
-	status = cli_session_setup_plain_recv(req);
- fail:
-	TALLOC_FREE(frame);
-	return status;
 }
 
 /****************************************************************************
@@ -1098,41 +992,6 @@ static void cli_session_setup_nt1_done(struct tevent_req *subreq)
 static NTSTATUS cli_session_setup_nt1_recv(struct tevent_req *req)
 {
 	return tevent_req_simple_recv_ntstatus(req);
-}
-
-static NTSTATUS cli_session_setup_nt1(struct cli_state *cli, const char *user,
-				      const char *pass, size_t passlen,
-				      const char *ntpass, size_t ntpasslen,
-				      const char *workgroup)
-{
-	TALLOC_CTX *frame = talloc_stackframe();
-	struct event_context *ev;
-	struct tevent_req *req;
-	NTSTATUS status = NT_STATUS_NO_MEMORY;
-
-	if (smbXcli_conn_has_async_calls(cli->conn)) {
-		/*
-		 * Can't use sync call while an async call is in flight
-		 */
-		status = NT_STATUS_INVALID_PARAMETER;
-		goto fail;
-	}
-	ev = event_context_init(frame);
-	if (ev == NULL) {
-		goto fail;
-	}
-	req = cli_session_setup_nt1_send(frame, ev, cli, user, pass, passlen,
-					 ntpass, ntpasslen, workgroup);
-	if (req == NULL) {
-		goto fail;
-	}
-	if (!tevent_req_poll_ntstatus(req, ev, &status)) {
-		goto fail;
-	}
-	status = cli_session_setup_nt1_recv(req);
- fail:
-	TALLOC_FREE(frame);
-	return status;
 }
 
 /* The following is calculated from :
@@ -1554,33 +1413,6 @@ static ADS_STATUS cli_session_setup_kerberos_recv(struct tevent_req *req)
 	return state->ads_status;
 }
 
-static ADS_STATUS cli_session_setup_kerberos(struct cli_state *cli,
-					     const char *principal)
-{
-	struct tevent_context *ev;
-	struct tevent_req *req;
-	ADS_STATUS status = ADS_ERROR_NT(NT_STATUS_NO_MEMORY);
-
-	if (smbXcli_conn_has_async_calls(cli->conn)) {
-		return ADS_ERROR_NT(NT_STATUS_INVALID_PARAMETER);
-	}
-	ev = tevent_context_init(talloc_tos());
-	if (ev == NULL) {
-		goto fail;
-	}
-	req = cli_session_setup_kerberos_send(ev, ev, cli, principal);
-	if (req == NULL) {
-		goto fail;
-	}
-	if (!tevent_req_poll(req, ev)) {
-		status = ADS_ERROR_SYSTEM(errno);
-		goto fail;
-	}
-	status = cli_session_setup_kerberos_recv(req);
-fail:
-	TALLOC_FREE(ev);
-	return status;
-}
 #endif	/* HAVE_KRB5 */
 
 /****************************************************************************
@@ -1829,33 +1661,64 @@ static NTSTATUS cli_session_setup_ntlmssp_recv(struct tevent_req *req)
 	return NT_STATUS_OK;
 }
 
-static NTSTATUS cli_session_setup_ntlmssp(struct cli_state *cli,
-					  const char *user,
-					  const char *pass,
-					  const char *domain)
-{
-	struct tevent_context *ev;
-	struct tevent_req *req;
-	NTSTATUS status = NT_STATUS_NO_MEMORY;
+#ifdef HAVE_KRB5
 
-	if (smbXcli_conn_has_async_calls(cli->conn)) {
-		return NT_STATUS_INVALID_PARAMETER;
+static char *cli_session_setup_get_principal(
+	TALLOC_CTX *mem_ctx, const char *spnego_principal,
+	const char *remote_name, const char *dest_realm)
+{
+	char *principal = NULL;
+
+	if (!lp_client_use_spnego_principal() ||
+	    strequal(principal, ADS_IGNORE_PRINCIPAL)) {
+		spnego_principal = NULL;
 	}
-	ev = tevent_context_init(talloc_tos());
-	if (ev == NULL) {
-		goto fail;
+	if (spnego_principal != NULL) {
+		DEBUG(3, ("cli_session_setup_spnego: using spnego provided "
+			  "principal %s\n", spnego_principal));
+		return talloc_strdup(mem_ctx, spnego_principal);
 	}
-	req = cli_session_setup_ntlmssp_send(ev, ev, cli, user, pass, domain);
-	if (req == NULL) {
-		goto fail;
+	if (is_ipaddress(remote_name) ||
+	    strequal(remote_name, STAR_SMBSERVER)) {
+		return NULL;
 	}
-	if (!tevent_req_poll_ntstatus(req, ev, &status)) {
-		goto fail;
+
+	DEBUG(3, ("cli_session_setup_spnego: using target "
+		  "hostname not SPNEGO principal\n"));
+
+	if (dest_realm) {
+		char *realm = strupper_talloc(talloc_tos(), dest_realm);
+		if (realm == NULL) {
+			return NULL;
+		}
+		principal = talloc_asprintf(talloc_tos(), "cifs/%s@%s",
+					    remote_name, realm);
+		TALLOC_FREE(realm);
+	} else {
+		principal = kerberos_get_principal_from_service_hostname(
+			talloc_tos(), "cifs", remote_name, lp_realm());
 	}
-	status = cli_session_setup_ntlmssp_recv(req);
-fail:
-	TALLOC_FREE(ev);
-	return status;
+	DEBUG(3, ("cli_session_setup_spnego: guessed server principal=%s\n",
+		  principal ? principal : "<null>"));
+
+	return principal;
+}
+#endif
+
+static char *cli_session_setup_get_account(TALLOC_CTX *mem_ctx,
+					   const char *principal)
+{
+	char *account, *p;
+
+	account = talloc_strdup(mem_ctx, principal);
+	if (account == NULL) {
+		return NULL;
+	}
+	p = strchr_m(account, '@');
+	if (p != NULL) {
+		*p = '\0';
+	}
+	return account;
 }
 
 /****************************************************************************
@@ -1865,30 +1728,60 @@ fail:
  dest_realm: The realm we're connecting to, if NULL we use our default realm.
 ****************************************************************************/
 
-static ADS_STATUS cli_session_setup_spnego(struct cli_state *cli,
-			      const char *user,
-			      const char *pass,
-			      const char *user_domain,
-			      const char * dest_realm)
+struct cli_session_setup_spnego_state {
+	struct tevent_context *ev;
+	struct cli_state *cli;
+	const char *user;
+	const char *account;
+	const char *pass;
+	const char *user_domain;
+	const char *dest_realm;
+	ADS_STATUS result;
+};
+
+#ifdef HAVE_KRB5
+static void cli_session_setup_spnego_done_krb(struct tevent_req *subreq);
+#endif
+
+static void cli_session_setup_spnego_done_ntlmssp(struct tevent_req *subreq);
+
+static struct tevent_req *cli_session_setup_spnego_send(
+	TALLOC_CTX *mem_ctx, struct tevent_context *ev, struct cli_state *cli,
+	const char *user, const char *pass, const char *user_domain,
+	const char *dest_realm)
 {
+	struct tevent_req *req, *subreq;
+	struct cli_session_setup_spnego_state *state;
 	char *principal = NULL;
 	char *OIDs[ASN1_MAX_OIDS];
 	int i;
 	const DATA_BLOB *server_blob;
-	DATA_BLOB blob = data_blob_null;
-	const char *p = NULL;
-	char *account = NULL;
 	NTSTATUS status;
 
-	server_blob = smbXcli_conn_server_gss_blob(cli->conn);
-	if (server_blob) {
-		blob = data_blob(server_blob->data, server_blob->length);
+	req = tevent_req_create(mem_ctx, &state,
+				struct cli_session_setup_spnego_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->ev = ev;
+	state->cli = cli;
+	state->user = user;
+	state->pass = pass;
+	state->user_domain = user_domain;
+	state->dest_realm = dest_realm;
+
+	state->account = cli_session_setup_get_account(state, user);
+	if (tevent_req_nomem(state->account, req)) {
+		return tevent_req_post(req, ev);
 	}
 
-	DEBUG(3,("Doing spnego session setup (blob length=%lu)\n", (unsigned long)blob.length));
+	server_blob = smbXcli_conn_server_gss_blob(cli->conn);
+
+	DEBUG(3,("Doing spnego session setup (blob length=%lu)\n",
+		 (unsigned long)server_blob->length));
 
 	/* the server might not even do spnego */
-	if (blob.length == 0) {
+	if (server_blob->length == 0) {
 		DEBUG(3,("server didn't supply a full spnego negprot\n"));
 		goto ntlmssp;
 	}
@@ -1901,12 +1794,13 @@ static ADS_STATUS cli_session_setup_spnego(struct cli_state *cli,
 	 * negprot reply. It is WRONG to depend on the principal sent in the
 	 * negprot reply, but right now we do it. If we don't receive one,
 	 * we try to best guess, then fall back to NTLM.  */
-	if (!spnego_parse_negTokenInit(talloc_tos(), blob, OIDs, &principal, NULL) ||
+	if (!spnego_parse_negTokenInit(state, *server_blob, OIDs,
+				       &principal, NULL) ||
 			OIDs[0] == NULL) {
-		data_blob_free(&blob);
-		return ADS_ERROR_NT(NT_STATUS_INVALID_PARAMETER);
+		state->result = ADS_ERROR_NT(NT_STATUS_INVALID_PARAMETER);
+		tevent_req_done(req);
+		return tevent_req_post(req, ev);
 	}
-	data_blob_free(&blob);
 
 	/* make sure the server understands kerberos */
 	for (i=0;OIDs[i];i++) {
@@ -1925,8 +1819,9 @@ static ADS_STATUS cli_session_setup_spnego(struct cli_state *cli,
 
 	status = cli_set_username(cli, user);
 	if (!NT_STATUS_IS_OK(status)) {
-		TALLOC_FREE(principal);
-		return ADS_ERROR_NT(status);
+		state->result = ADS_ERROR_NT(status);
+		tevent_req_done(req);
+		return tevent_req_post(req, ev);
 	}
 
 #ifdef HAVE_KRB5
@@ -1934,8 +1829,8 @@ static ADS_STATUS cli_session_setup_spnego(struct cli_state *cli,
 	 * and do not store results */
 
 	if (user && *user && cli->got_kerberos_mechanism && cli->use_kerberos) {
-		ADS_STATUS rc;
 		const char *remote_name = smbXcli_conn_remote_name(cli->conn);
+		char *tmp;
 
 		if (pass && *pass) {
 			int ret;
@@ -1948,75 +1843,101 @@ static ADS_STATUS cli_session_setup_spnego(struct cli_state *cli,
 				DEBUG(0, ("Kinit failed: %s\n", error_message(ret)));
 				if (cli->fallback_after_kerberos)
 					goto ntlmssp;
-				return ADS_ERROR_KRB5(ret);
+				state->result = ADS_ERROR_KRB5(ret);
+				tevent_req_done(req);
+				return tevent_req_post(req, ev);
 			}
 		}
 
-		/* We may not be allowed to use the server-supplied SPNEGO principal, or it may not have been supplied to us
-		 */
-		if (!lp_client_use_spnego_principal() || strequal(principal, ADS_IGNORE_PRINCIPAL)) {
-			TALLOC_FREE(principal);
-		}
-
-		if (principal == NULL &&
-			!is_ipaddress(remote_name) &&
-			!strequal(STAR_SMBSERVER,
-				  remote_name)) {
-			DEBUG(3,("cli_session_setup_spnego: using target "
-				 "hostname not SPNEGO principal\n"));
-
-			if (dest_realm) {
-				char *realm = strupper_talloc(talloc_tos(), dest_realm);
-				if (realm) {
-					principal = talloc_asprintf(talloc_tos(),
-								    "cifs/%s@%s",
-								    remote_name,
-								    realm);
-					TALLOC_FREE(realm);
-				}
-			} else {
-				principal = kerberos_get_principal_from_service_hostname(talloc_tos(),
-											 "cifs",
-											 remote_name,
-											 lp_realm());
-			}
-
-			if (!principal) {
-				return ADS_ERROR_NT(NT_STATUS_NO_MEMORY);
-			}
-			DEBUG(3,("cli_session_setup_spnego: guessed "
-				"server principal=%s\n",
-				principal ? principal : "<null>"));
-		}
+		tmp = cli_session_setup_get_principal(
+			talloc_tos(), principal, remote_name, dest_realm);
+		TALLOC_FREE(principal);
+		principal = tmp;
 
 		if (principal) {
-			rc = cli_session_setup_kerberos(cli, principal);
-			if (ADS_ERR_OK(rc) || !cli->fallback_after_kerberos) {
-				TALLOC_FREE(principal);
-				return rc;
+			subreq = cli_session_setup_kerberos_send(
+				state, ev, cli, principal);
+			if (tevent_req_nomem(subreq, req)) {
+				return tevent_req_post(req, ev);
 			}
+			tevent_req_set_callback(
+				subreq, cli_session_setup_spnego_done_krb,
+				req);
+			return req;
 		}
 	}
 #endif
 
-	TALLOC_FREE(principal);
-
 ntlmssp:
-
-	account = talloc_strdup(talloc_tos(), user);
-	if (!account) {
-		return ADS_ERROR_NT(NT_STATUS_NO_MEMORY);
+	subreq = cli_session_setup_ntlmssp_send(
+		state, ev, cli, state->account, pass, user_domain);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
 	}
-
-	/* when falling back to ntlmssp while authenticating with a machine
-	 * account strip off the realm - gd */
-
-	if ((p = strchr_m(user, '@')) != NULL) {
-		account[PTR_DIFF(p,user)] = '\0';
-	}
-
-	return ADS_ERROR_NT(cli_session_setup_ntlmssp(cli, account, pass, user_domain));
+	tevent_req_set_callback(
+		subreq, cli_session_setup_spnego_done_ntlmssp, req);
+	return req;
 }
+
+#ifdef HAVE_KRB5
+static void cli_session_setup_spnego_done_krb(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct cli_session_setup_spnego_state *state = tevent_req_data(
+		req, struct cli_session_setup_spnego_state);
+
+	state->result = cli_session_setup_kerberos_recv(subreq);
+	TALLOC_FREE(subreq);
+
+	if (ADS_ERR_OK(state->result) ||
+	    !state->cli->fallback_after_kerberos) {
+		tevent_req_done(req);
+		return;
+	}
+
+	subreq = cli_session_setup_ntlmssp_send(
+		state, state->ev, state->cli, state->account, state->pass,
+		state->user_domain);
+	if (tevent_req_nomem(subreq, req)) {
+		return;
+	}
+	tevent_req_set_callback(subreq, cli_session_setup_spnego_done_ntlmssp,
+				req);
+}
+#endif
+
+static void cli_session_setup_spnego_done_ntlmssp(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct cli_session_setup_spnego_state *state = tevent_req_data(
+		req, struct cli_session_setup_spnego_state);
+	NTSTATUS status;
+
+	status = cli_session_setup_ntlmssp_recv(subreq);
+	TALLOC_FREE(subreq);
+	state->result = ADS_ERROR_NT(status);
+	tevent_req_done(req);
+}
+
+static ADS_STATUS cli_session_setup_spnego_recv(struct tevent_req *req)
+{
+	struct cli_session_setup_spnego_state *state = tevent_req_data(
+		req, struct cli_session_setup_spnego_state);
+
+	return state->result;
+}
+
+struct cli_session_setup_state {
+	uint8_t dummy;
+};
+
+static void cli_session_setup_done_lanman2(struct tevent_req *subreq);
+static void cli_session_setup_done_spnego(struct tevent_req *subreq);
+static void cli_session_setup_done_guest(struct tevent_req *subreq);
+static void cli_session_setup_done_plain(struct tevent_req *subreq);
+static void cli_session_setup_done_nt1(struct tevent_req *subreq);
 
 /****************************************************************************
  Send a session setup. The username and workgroup is in UNIX character
@@ -2024,23 +1945,34 @@ ntlmssp:
  password is in plaintext, the same should be done.
 ****************************************************************************/
 
-NTSTATUS cli_session_setup(struct cli_state *cli,
-			   const char *user,
-			   const char *pass, int passlen,
-			   const char *ntpass, int ntpasslen,
-			   const char *workgroup)
+struct tevent_req *cli_session_setup_send(TALLOC_CTX *mem_ctx,
+					  struct tevent_context *ev,
+					  struct cli_state *cli,
+					  const char *user,
+					  const char *pass, int passlen,
+					  const char *ntpass, int ntpasslen,
+					  const char *workgroup)
 {
+	struct tevent_req *req, *subreq;
+	struct cli_session_setup_state *state;
 	char *p;
 	char *user2;
 	uint16_t sec_mode = smb1cli_conn_server_security_mode(cli->conn);
 
+	req = tevent_req_create(mem_ctx, &state,
+				struct cli_session_setup_state);
+	if (req == NULL) {
+		return NULL;
+	}
+
 	if (user) {
-		user2 = talloc_strdup(talloc_tos(), user);
+		user2 = talloc_strdup(state, user);
 	} else {
-		user2 = talloc_strdup(talloc_tos(), "");
+		user2 = talloc_strdup(state, "");
 	}
 	if (user2 == NULL) {
-		return NT_STATUS_NO_MEMORY;
+		tevent_req_oom(req);
+		return tevent_req_post(req, ev);
 	}
 
 	if (!workgroup) {
@@ -2053,13 +1985,15 @@ NTSTATUS cli_session_setup(struct cli_state *cli,
 		*p = 0;
 		user = p+1;
 		if (!strupper_m(user2)) {
-			return NT_STATUS_INVALID_PARAMETER;
+			tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
+			return tevent_req_post(req, ev);
 		}
 		workgroup = user2;
 	}
 
 	if (smbXcli_conn_protocol(cli->conn) < PROTOCOL_LANMAN1) {
-		return NT_STATUS_OK;
+		tevent_req_done(req);
+		return tevent_req_post(req, ev);
 	}
 
 	/* now work out what sort of session setup we are going to
@@ -2072,44 +2006,68 @@ NTSTATUS cli_session_setup(struct cli_state *cli,
 		if (!lp_client_lanman_auth() && passlen != 24 && (*pass)) {
 			DEBUG(1, ("Server requested LM password but 'client lanman auth = no'"
 				  " or 'client ntlmv2 auth = yes'\n"));
-			return NT_STATUS_ACCESS_DENIED;
+			tevent_req_nterror(req, NT_STATUS_ACCESS_DENIED);
+			return tevent_req_post(req, ev);
 		}
 
 		if ((sec_mode & NEGOTIATE_SECURITY_CHALLENGE_RESPONSE) == 0 &&
 		    !lp_client_plaintext_auth() && (*pass)) {
 			DEBUG(1, ("Server requested PLAINTEXT password but 'client plaintext auth = no'"
 				  " or 'client ntlmv2 auth = yes'\n"));
-			return NT_STATUS_ACCESS_DENIED;
+			tevent_req_nterror(req, NT_STATUS_ACCESS_DENIED);
+			return tevent_req_post(req, ev);
 		}
 
-		return cli_session_setup_lanman2(cli, user, pass, passlen,
-						 workgroup);
+		subreq = cli_session_setup_lanman2_send(
+			state, ev, cli, user, pass, passlen, workgroup);
+		if (tevent_req_nomem(subreq, req)) {
+			return tevent_req_post(req, ev);
+		}
+		tevent_req_set_callback(subreq, cli_session_setup_done_lanman2,
+					req);
+		return req;
 	}
 
 	if (smbXcli_conn_protocol(cli->conn) >= PROTOCOL_SMB2_02) {
 		const char *remote_realm = cli_state_remote_realm(cli);
-		ADS_STATUS status = cli_session_setup_spnego(cli, user, pass,
-							     workgroup,
-							     remote_realm);
-		if (!ADS_ERR_OK(status)) {
-			DEBUG(3, ("SMB2-SPNEGO login failed: %s\n", ads_errstr(status)));
-			return ads_ntstatus(status);
+
+		subreq = cli_session_setup_spnego_send(
+			state, ev, cli, user, pass, workgroup, remote_realm);
+		if (tevent_req_nomem(subreq, req)) {
+			return tevent_req_post(req, ev);
 		}
-		return NT_STATUS_OK;
+		tevent_req_set_callback(subreq, cli_session_setup_done_spnego,
+					req);
+		return req;
 	}
 
 	/* if no user is supplied then we have to do an anonymous connection.
 	   passwords are ignored */
 
-	if (!user || !*user)
-		return cli_session_setup_guest(cli);
+	if (!user || !*user) {
+		subreq = cli_session_setup_guest_send(state, ev, cli);
+		if (tevent_req_nomem(subreq, req)) {
+			return tevent_req_post(req, ev);
+		}
+		tevent_req_set_callback(subreq, cli_session_setup_done_guest,
+					req);
+		return req;
+	}
 
 	/* if the server is share level then send a plaintext null
            password at this point. The password is sent in the tree
            connect */
 
-	if ((sec_mode & NEGOTIATE_SECURITY_USER_LEVEL) == 0)
-		return cli_session_setup_plain(cli, user, "", workgroup);
+	if ((sec_mode & NEGOTIATE_SECURITY_USER_LEVEL) == 0) {
+		subreq = cli_session_setup_plain_send(
+			state, ev, cli, user, "", workgroup);
+		if (tevent_req_nomem(subreq, req)) {
+			return tevent_req_post(req, ev);
+		}
+		tevent_req_set_callback(subreq, cli_session_setup_done_plain,
+					req);
+		return req;
+	}
 
 	/* if the server doesn't support encryption then we have to use 
 	   plaintext. The second password is ignored */
@@ -2118,36 +2076,162 @@ NTSTATUS cli_session_setup(struct cli_state *cli,
 		if (!lp_client_plaintext_auth() && (*pass)) {
 			DEBUG(1, ("Server requested PLAINTEXT password but 'client plaintext auth = no'"
 				  " or 'client ntlmv2 auth = yes'\n"));
-			return NT_STATUS_ACCESS_DENIED;
+			tevent_req_nterror(req, NT_STATUS_ACCESS_DENIED);
+			return tevent_req_post(req, ev);
 		}
-		return cli_session_setup_plain(cli, user, pass, workgroup);
+		subreq = cli_session_setup_plain_send(
+			state, ev, cli, user, pass, workgroup);
+		if (tevent_req_nomem(subreq, req)) {
+			return tevent_req_post(req, ev);
+		}
+		tevent_req_set_callback(subreq, cli_session_setup_done_plain,
+					req);
+		return req;
 	}
 
 	/* if the server supports extended security then use SPNEGO */
 
 	if (smb1cli_conn_capabilities(cli->conn) & CAP_EXTENDED_SECURITY) {
 		const char *remote_realm = cli_state_remote_realm(cli);
-		ADS_STATUS status = cli_session_setup_spnego(cli, user, pass,
-							     workgroup,
-							     remote_realm);
-		if (!ADS_ERR_OK(status)) {
-			DEBUG(3, ("SPNEGO login failed: %s\n", ads_errstr(status)));
-			return ads_ntstatus(status);
-		}
-	} else {
-		NTSTATUS status;
 
-		/* otherwise do a NT1 style session setup */
-		status = cli_session_setup_nt1(cli, user, pass, passlen,
-					       ntpass, ntpasslen, workgroup);
-		if (!NT_STATUS_IS_OK(status)) {
-			DEBUG(3,("cli_session_setup: NT1 session setup "
-				 "failed: %s\n", nt_errstr(status)));
-			return status;
+		subreq = cli_session_setup_spnego_send(
+			state, ev, cli, user, pass, workgroup, remote_realm);
+		if (tevent_req_nomem(subreq, req)) {
+			return tevent_req_post(req, ev);
 		}
+		tevent_req_set_callback(subreq, cli_session_setup_done_spnego,
+					req);
+		return req;
+	} else {
+		/* otherwise do a NT1 style session setup */
+
+		subreq = cli_session_setup_nt1_send(
+			state, ev, cli, user, pass, passlen, ntpass, ntpasslen,
+			workgroup);
+		if (tevent_req_nomem(subreq, req)) {
+			return tevent_req_post(req, ev);
+		}
+		tevent_req_set_callback(subreq, cli_session_setup_done_nt1,
+					req);
+		return req;
 	}
 
-	return NT_STATUS_OK;
+	tevent_req_done(req);
+	return tevent_req_post(req, ev);
+}
+
+static void cli_session_setup_done_lanman2(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	NTSTATUS status;
+
+	status = cli_session_setup_lanman2_recv(subreq);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+	tevent_req_done(req);
+}
+
+static void cli_session_setup_done_spnego(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	ADS_STATUS status;
+
+	status = cli_session_setup_spnego_recv(subreq);
+	TALLOC_FREE(subreq);
+	if (!ADS_ERR_OK(status)) {
+		DEBUG(3, ("SPNEGO login failed: %s\n", ads_errstr(status)));
+		tevent_req_nterror(req, ads_ntstatus(status));
+		return;
+	}
+	tevent_req_done(req);
+}
+
+static void cli_session_setup_done_guest(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	NTSTATUS status;
+
+	status = cli_session_setup_guest_recv(subreq);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+	tevent_req_done(req);
+}
+
+static void cli_session_setup_done_plain(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	NTSTATUS status;
+
+	status = cli_session_setup_plain_recv(subreq);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+	tevent_req_done(req);
+}
+
+static void cli_session_setup_done_nt1(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	NTSTATUS status;
+
+	status = cli_session_setup_nt1_recv(subreq);
+	TALLOC_FREE(subreq);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(3, ("cli_session_setup: NT1 session setup "
+			  "failed: %s\n", nt_errstr(status)));
+		tevent_req_nterror(req, status);
+		return;
+	}
+	tevent_req_done(req);
+}
+
+NTSTATUS cli_session_setup_recv(struct tevent_req *req)
+{
+	return tevent_req_simple_recv_ntstatus(req);
+}
+
+NTSTATUS cli_session_setup(struct cli_state *cli,
+			   const char *user,
+			   const char *pass, int passlen,
+			   const char *ntpass, int ntpasslen,
+			   const char *workgroup)
+{
+	struct tevent_context *ev;
+	struct tevent_req *req;
+	NTSTATUS status = NT_STATUS_NO_MEMORY;
+
+	if (smbXcli_conn_has_async_calls(cli->conn)) {
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+	ev = samba_tevent_context_init(talloc_tos());
+	if (ev == NULL) {
+		goto fail;
+	}
+	req = cli_session_setup_send(ev, ev, cli, user, pass, passlen,
+				     ntpass, ntpasslen, workgroup);
+	if (req == NULL) {
+		goto fail;
+	}
+	if (!tevent_req_poll_ntstatus(req, ev, &status)) {
+		goto fail;
+	}
+	status = cli_session_setup_recv(req);
+ fail:
+	TALLOC_FREE(ev);
+	return status;
 }
 
 /****************************************************************************
@@ -2161,7 +2245,7 @@ struct cli_ulogoff_state {
 
 static void cli_ulogoff_done(struct tevent_req *subreq);
 
-struct tevent_req *cli_ulogoff_send(TALLOC_CTX *mem_ctx,
+static struct tevent_req *cli_ulogoff_send(TALLOC_CTX *mem_ctx,
 				    struct tevent_context *ev,
 				    struct cli_state *cli)
 {
@@ -2204,7 +2288,7 @@ static void cli_ulogoff_done(struct tevent_req *subreq)
 	tevent_req_done(req);
 }
 
-NTSTATUS cli_ulogoff_recv(struct tevent_req *req)
+static NTSTATUS cli_ulogoff_recv(struct tevent_req *req)
 {
 	return tevent_req_simple_recv_ntstatus(req);
 }
@@ -2215,10 +2299,22 @@ NTSTATUS cli_ulogoff(struct cli_state *cli)
 	struct tevent_req *req;
 	NTSTATUS status = NT_STATUS_NO_MEMORY;
 
+	if (smbXcli_conn_protocol(cli->conn) >= PROTOCOL_SMB2_02) {
+		status = smb2cli_logoff(cli->conn,
+					cli->timeout,
+					cli->smb2.session);
+		if (!NT_STATUS_IS_OK(status)) {
+			return status;
+		}
+		smb2cli_session_set_id_and_flags(cli->smb2.session,
+						 UINT64_MAX, 0);
+		return NT_STATUS_OK;
+	}
+
 	if (smbXcli_conn_has_async_calls(cli->conn)) {
 		return NT_STATUS_INVALID_PARAMETER;
 	}
-	ev = tevent_context_init(talloc_tos());
+	ev = samba_tevent_context_init(talloc_tos());
 	if (ev == NULL) {
 		goto fail;
 	}
@@ -2248,7 +2344,7 @@ struct cli_tcon_andx_state {
 static void cli_tcon_andx_done(struct tevent_req *subreq);
 
 struct tevent_req *cli_tcon_andx_create(TALLOC_CTX *mem_ctx,
-					struct event_context *ev,
+					struct tevent_context *ev,
 					struct cli_state *cli,
 					const char *share, const char *dev,
 					const char *pass, int passlen,
@@ -2400,7 +2496,7 @@ struct tevent_req *cli_tcon_andx_create(TALLOC_CTX *mem_ctx,
 }
 
 struct tevent_req *cli_tcon_andx_send(TALLOC_CTX *mem_ctx,
-				      struct event_context *ev,
+				      struct tevent_context *ev,
 				      struct cli_state *cli,
 				      const char *share, const char *dev,
 				      const char *pass, int passlen)
@@ -2506,9 +2602,9 @@ NTSTATUS cli_tcon_andx(struct cli_state *cli, const char *share,
 		       const char *dev, const char *pass, int passlen)
 {
 	TALLOC_CTX *frame = talloc_stackframe();
-	struct event_context *ev;
+	struct tevent_context *ev;
 	struct tevent_req *req;
-	NTSTATUS status = NT_STATUS_OK;
+	NTSTATUS status = NT_STATUS_NO_MEMORY;
 
 	if (smbXcli_conn_has_async_calls(cli->conn)) {
 		/*
@@ -2518,20 +2614,17 @@ NTSTATUS cli_tcon_andx(struct cli_state *cli, const char *share,
 		goto fail;
 	}
 
-	ev = event_context_init(frame);
+	ev = samba_tevent_context_init(frame);
 	if (ev == NULL) {
-		status = NT_STATUS_NO_MEMORY;
 		goto fail;
 	}
 
 	req = cli_tcon_andx_send(frame, ev, cli, share, dev, pass, passlen);
 	if (req == NULL) {
-		status = NT_STATUS_NO_MEMORY;
 		goto fail;
 	}
 
-	if (!tevent_req_poll(req, ev)) {
-		status = map_nt_error_from_unix(errno);
+	if (!tevent_req_poll_ntstatus(req, ev, &status)) {
 		goto fail;
 	}
 
@@ -2541,34 +2634,129 @@ NTSTATUS cli_tcon_andx(struct cli_state *cli, const char *share,
 	return status;
 }
 
-NTSTATUS cli_tree_connect(struct cli_state *cli, const char *share,
-			  const char *dev, const char *pass, int passlen)
+struct cli_tree_connect_state {
+	struct cli_state *cli;
+};
+
+static struct tevent_req *cli_raw_tcon_send(
+	TALLOC_CTX *mem_ctx, struct tevent_context *ev, struct cli_state *cli,
+	const char *service, const char *pass, const char *dev);
+static NTSTATUS cli_raw_tcon_recv(struct tevent_req *req,
+				  uint16 *max_xmit, uint16 *tid);
+
+static void cli_tree_connect_smb2_done(struct tevent_req *subreq);
+static void cli_tree_connect_andx_done(struct tevent_req *subreq);
+static void cli_tree_connect_raw_done(struct tevent_req *subreq);
+
+static struct tevent_req *cli_tree_connect_send(
+	TALLOC_CTX *mem_ctx, struct tevent_context *ev, struct cli_state *cli,
+	const char *share, const char *dev, const char *pass, int passlen)
 {
+	struct tevent_req *req, *subreq;
+	struct cli_tree_connect_state *state;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct cli_tree_connect_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->cli = cli;
+
+	cli->share = talloc_strdup(cli, share);
+	if (tevent_req_nomem(cli->share, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	if (smbXcli_conn_protocol(cli->conn) >= PROTOCOL_SMB2_02) {
+		subreq = smb2cli_tcon_send(state, ev, cli, share);
+		if (tevent_req_nomem(subreq, req)) {
+			return tevent_req_post(req, ev);
+		}
+		tevent_req_set_callback(subreq, cli_tree_connect_smb2_done,
+					req);
+		return req;
+	}
+
+	if (smbXcli_conn_protocol(cli->conn) >= PROTOCOL_LANMAN1) {
+		subreq = cli_tcon_andx_send(state, ev, cli, share, dev,
+					    pass, passlen);
+		if (tevent_req_nomem(subreq, req)) {
+			return tevent_req_post(req, ev);
+		}
+		tevent_req_set_callback(subreq, cli_tree_connect_andx_done,
+					req);
+		return req;
+	}
+
+	subreq = cli_raw_tcon_send(state, ev, cli, share, pass, dev);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, cli_tree_connect_raw_done, req);
+
+	return req;
+}
+
+static void cli_tree_connect_smb2_done(struct tevent_req *subreq)
+{
+	tevent_req_simple_finish_ntstatus(
+		subreq, smb2cli_tcon_recv(subreq));
+}
+
+static void cli_tree_connect_andx_done(struct tevent_req *subreq)
+{
+	tevent_req_simple_finish_ntstatus(
+		subreq, cli_tcon_andx_recv(subreq));
+}
+
+static void cli_tree_connect_raw_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct cli_tree_connect_state *state = tevent_req_data(
+		req, struct cli_tree_connect_state);
 	NTSTATUS status;
 	uint16_t max_xmit = 0;
 	uint16_t tid = 0;
 
-	cli->share = talloc_strdup(cli, share);
-	if (!cli->share) {
-		return NT_STATUS_NO_MEMORY;
+	status = cli_raw_tcon_recv(subreq, &max_xmit, &tid);
+	if (tevent_req_nterror(req, status)) {
+		return;
 	}
+	cli_state_set_tid(state->cli, tid);
+	tevent_req_done(req);
+}
 
-	if (smbXcli_conn_protocol(cli->conn) >= PROTOCOL_SMB2_02) {
-		return smb2cli_tcon(cli, share);
+static NTSTATUS cli_tree_connect_recv(struct tevent_req *req)
+{
+	return tevent_req_simple_recv_ntstatus(req);
+}
+
+NTSTATUS cli_tree_connect(struct cli_state *cli, const char *share,
+			  const char *dev, const char *pass, int passlen)
+{
+	struct tevent_context *ev;
+	struct tevent_req *req;
+	NTSTATUS status = NT_STATUS_NO_MEMORY;
+
+	if (smbXcli_conn_has_async_calls(cli->conn)) {
+		return NT_STATUS_INVALID_PARAMETER;
 	}
-
-	if (smbXcli_conn_protocol(cli->conn) >= PROTOCOL_LANMAN1) {
-		return cli_tcon_andx(cli, share, dev, pass, passlen);
+	ev = samba_tevent_context_init(talloc_tos());
+	if (ev == NULL) {
+		goto fail;
 	}
-
-	status = cli_raw_tcon(cli, share, pass, dev, &max_xmit, &tid);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
+	req = cli_tree_connect_send(ev, ev, cli, share, dev, pass, passlen);
+	if (req == NULL) {
+		goto fail;
 	}
-
-	cli_state_set_tid(cli, tid);
-
-	return NT_STATUS_OK;
+	if (!tevent_req_poll_ntstatus(req, ev, &status)) {
+		goto fail;
+	}
+	status = cli_tree_connect_recv(req);
+fail:
+	TALLOC_FREE(ev);
+	return status;
 }
 
 /****************************************************************************
@@ -2581,7 +2769,7 @@ struct cli_tdis_state {
 
 static void cli_tdis_done(struct tevent_req *subreq);
 
-struct tevent_req *cli_tdis_send(TALLOC_CTX *mem_ctx,
+static struct tevent_req *cli_tdis_send(TALLOC_CTX *mem_ctx,
 				 struct tevent_context *ev,
 				 struct cli_state *cli)
 {
@@ -2620,7 +2808,7 @@ static void cli_tdis_done(struct tevent_req *subreq)
 	tevent_req_done(req);
 }
 
-NTSTATUS cli_tdis_recv(struct tevent_req *req)
+static NTSTATUS cli_tdis_recv(struct tevent_req *req)
 {
 	return tevent_req_simple_recv_ntstatus(req);
 }
@@ -2631,10 +2819,14 @@ NTSTATUS cli_tdis(struct cli_state *cli)
 	struct tevent_req *req;
 	NTSTATUS status = NT_STATUS_NO_MEMORY;
 
+	if (smbXcli_conn_protocol(cli->conn) >= PROTOCOL_SMB2_02) {
+		return smb2cli_tdis(cli);
+	}
+
 	if (smbXcli_conn_has_async_calls(cli->conn)) {
 		return NT_STATUS_INVALID_PARAMETER;
 	}
-	ev = tevent_context_init(talloc_tos());
+	ev = samba_tevent_context_init(talloc_tos());
 	if (ev == NULL) {
 		goto fail;
 	}
@@ -2651,122 +2843,252 @@ fail:
 	return status;
 }
 
-static NTSTATUS cli_connect_sock(const char *host, int name_type,
-				 const struct sockaddr_storage *pss,
-				 const char *myname, uint16_t port,
-				 int sec_timeout, int *pfd, uint16_t *pport)
-{
-	TALLOC_CTX *frame = talloc_stackframe();
-	const char *prog;
-	unsigned int i, num_addrs;
+struct cli_connect_sock_state {
 	const char **called_names;
 	const char **calling_names;
 	int *called_types;
-	NTSTATUS status;
 	int fd;
+	uint16_t port;
+};
+
+static void cli_connect_sock_done(struct tevent_req *subreq);
+
+/*
+ * Async only if we don't have to look up the name, i.e. "pss" is set with a
+ * nonzero address.
+ */
+
+static struct tevent_req *cli_connect_sock_send(
+	TALLOC_CTX *mem_ctx, struct tevent_context *ev,
+	const char *host, int name_type, const struct sockaddr_storage *pss,
+	const char *myname, uint16_t port)
+{
+	struct tevent_req *req, *subreq;
+	struct cli_connect_sock_state *state;
+	const char *prog;
+	unsigned i, num_addrs;
+	NTSTATUS status;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct cli_connect_sock_state);
+	if (req == NULL) {
+		return NULL;
+	}
 
 	prog = getenv("LIBSMB_PROG");
 	if (prog != NULL) {
-		fd = sock_exec(prog);
-		if (fd == -1) {
-			return map_nt_error_from_unix(errno);
+		state->fd = sock_exec(prog);
+		if (state->fd == -1) {
+			status = map_nt_error_from_unix(errno);
+			tevent_req_nterror(req, status);
+		} else {
+			state->port = 0;
+			tevent_req_done(req);
 		}
-		port = 0;
-		goto done;
+		return tevent_req_post(req, ev);
 	}
 
 	if ((pss == NULL) || is_zero_addr(pss)) {
 		struct sockaddr_storage *addrs;
-		status = resolve_name_list(talloc_tos(), host, name_type,
+
+		/*
+		 * Here we cheat. resolve_name_list is not async at all. So
+		 * this call will only be really async if the name lookup has
+		 * been done externally.
+		 */
+
+		status = resolve_name_list(state, host, name_type,
 					   &addrs, &num_addrs);
 		if (!NT_STATUS_IS_OK(status)) {
-			goto fail;
+			tevent_req_nterror(req, status);
+			return tevent_req_post(req, ev);
 		}
 		pss = addrs;
 	} else {
 		num_addrs = 1;
 	}
 
-	called_names = talloc_array(talloc_tos(), const char *, num_addrs);
-	if (called_names == NULL) {
-		status = NT_STATUS_NO_MEMORY;
-		goto fail;
+	state->called_names = talloc_array(state, const char *, num_addrs);
+	if (tevent_req_nomem(state->called_names, req)) {
+		return tevent_req_post(req, ev);
 	}
-	called_types = talloc_array(talloc_tos(), int, num_addrs);
-	if (called_types == NULL) {
-		status = NT_STATUS_NO_MEMORY;
-		goto fail;
+	state->called_types = talloc_array(state, int, num_addrs);
+	if (tevent_req_nomem(state->called_types, req)) {
+		return tevent_req_post(req, ev);
 	}
-	calling_names = talloc_array(talloc_tos(), const char *, num_addrs);
-	if (calling_names == NULL) {
-		status = NT_STATUS_NO_MEMORY;
-		goto fail;
+	state->calling_names = talloc_array(state, const char *, num_addrs);
+	if (tevent_req_nomem(state->calling_names, req)) {
+		return tevent_req_post(req, ev);
 	}
 	for (i=0; i<num_addrs; i++) {
-		called_names[i] = host;
-		called_types[i] = name_type;
-		calling_names[i] = myname;
+		state->called_names[i] = host;
+		state->called_types[i] = name_type;
+		state->calling_names[i] = myname;
 	}
-	status = smbsock_any_connect(pss, called_names, called_types,
-				     calling_names, NULL, num_addrs, port,
-				     sec_timeout, &fd, NULL, &port);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto fail;
+
+	subreq = smbsock_any_connect_send(
+		state, ev, pss, state->called_names, state->called_types,
+		state->calling_names, NULL, num_addrs, port);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
 	}
-	set_socket_options(fd, lp_socket_options());
-done:
-	*pfd = fd;
-	*pport = port;
-	status = NT_STATUS_OK;
-fail:
-	TALLOC_FREE(frame);
-	return status;
+	tevent_req_set_callback(subreq, cli_connect_sock_done, req);
+	return req;
+}
+
+static void cli_connect_sock_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct cli_connect_sock_state *state = tevent_req_data(
+		req, struct cli_connect_sock_state);
+	NTSTATUS status;
+
+	status = smbsock_any_connect_recv(subreq, &state->fd, NULL,
+					  &state->port);
+	TALLOC_FREE(subreq);
+	if (tevent_req_nterror(req, status)) {
+		return;
+	}
+	set_socket_options(state->fd, lp_socket_options());
+	tevent_req_done(req);
+}
+
+static NTSTATUS cli_connect_sock_recv(struct tevent_req *req,
+				      int *pfd, uint16_t *pport)
+{
+	struct cli_connect_sock_state *state = tevent_req_data(
+		req, struct cli_connect_sock_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		return status;
+	}
+	*pfd = state->fd;
+	*pport = state->port;
+	return NT_STATUS_OK;
+}
+
+struct cli_connect_nb_state {
+	const char *desthost;
+	int signing_state;
+	int flags;
+	struct cli_state *cli;
+};
+
+static void cli_connect_nb_done(struct tevent_req *subreq);
+
+static struct tevent_req *cli_connect_nb_send(
+	TALLOC_CTX *mem_ctx, struct tevent_context *ev,
+	const char *host, const struct sockaddr_storage *dest_ss,
+	uint16_t port, int name_type, const char *myname,
+	int signing_state, int flags)
+{
+	struct tevent_req *req, *subreq;
+	struct cli_connect_nb_state *state;
+	char *p;
+
+	req = tevent_req_create(mem_ctx, &state, struct cli_connect_nb_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->desthost = host;
+	state->signing_state = signing_state;
+	state->flags = flags;
+
+	p = strchr(host, '#');
+	if (p != NULL) {
+		name_type = strtol(p+1, NULL, 16);
+		host = talloc_strndup(state, host, p - host);
+		if (tevent_req_nomem(host, req)) {
+			return tevent_req_post(req, ev);
+		}
+	}
+
+	subreq = cli_connect_sock_send(state, ev, host, name_type, dest_ss,
+				       myname, port);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, cli_connect_nb_done, req);
+	return req;
+}
+
+static void cli_connect_nb_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct cli_connect_nb_state *state = tevent_req_data(
+		req, struct cli_connect_nb_state);
+	NTSTATUS status;
+	int fd;
+	uint16_t port;
+
+	status = cli_connect_sock_recv(subreq, &fd, &port);
+	TALLOC_FREE(subreq);
+	if (tevent_req_nterror(req, status)) {
+		return;
+	}
+
+	state->cli = cli_state_create(state, fd, state->desthost, NULL,
+				      state->signing_state, state->flags);
+	if (tevent_req_nomem(state->cli, req)) {
+		close(fd);
+		return;
+	}
+	tevent_req_done(req);
+}
+
+static NTSTATUS cli_connect_nb_recv(struct tevent_req *req,
+				    struct cli_state **pcli)
+{
+	struct cli_connect_nb_state *state = tevent_req_data(
+		req, struct cli_connect_nb_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		return status;
+	}
+	*pcli = talloc_move(NULL, &state->cli);
+	return NT_STATUS_OK;
 }
 
 NTSTATUS cli_connect_nb(const char *host, const struct sockaddr_storage *dest_ss,
 			uint16_t port, int name_type, const char *myname,
 			int signing_state, int flags, struct cli_state **pcli)
 {
-	TALLOC_CTX *frame = talloc_stackframe();
-	struct cli_state *cli;
+	struct tevent_context *ev;
+	struct tevent_req *req;
 	NTSTATUS status = NT_STATUS_NO_MEMORY;
-	int fd = -1;
-	char *desthost;
-	char *p;
 
-	desthost = talloc_strdup(talloc_tos(), host);
-	if (desthost == NULL) {
+	ev = samba_tevent_context_init(talloc_tos());
+	if (ev == NULL) {
 		goto fail;
 	}
-
-	p = strchr(host, '#');
-	if (p != NULL) {
-		name_type = strtol(p+1, NULL, 16);
-		host = talloc_strndup(talloc_tos(), host, p - host);
-		if (host == NULL) {
-			goto fail;
-		}
-	}
-
-	status = cli_connect_sock(host, name_type, dest_ss, myname, port,
-				  20, &fd, &port);
-	if (!NT_STATUS_IS_OK(status)) {
+	req = cli_connect_nb_send(ev, ev, host, dest_ss, port, name_type,
+				  myname, signing_state, flags);
+	if (req == NULL) {
 		goto fail;
 	}
-
-	cli = cli_state_create(NULL, fd, desthost, NULL, signing_state, flags);
-	if (cli == NULL) {
-		close(fd);
-		fd = -1;
+	if (!tevent_req_set_endtime(req, ev, timeval_current_ofs(20, 0))) {
 		goto fail;
 	}
-
-	*pcli = cli;
-	status = NT_STATUS_OK;
+	if (!tevent_req_poll_ntstatus(req, ev, &status)) {
+		goto fail;
+	}
+	status = cli_connect_nb_recv(req, pcli);
 fail:
-	TALLOC_FREE(frame);
+	TALLOC_FREE(ev);
 	return status;
 }
+
+struct cli_start_connection_state {
+	struct tevent_context *ev;
+	struct cli_state *cli;
+};
+
+static void cli_start_connection_connected(struct tevent_req *subreq);
+static void cli_start_connection_done(struct tevent_req *subreq);
 
 /**
    establishes a connection to after the negprot. 
@@ -2775,35 +3097,121 @@ fail:
    @param dest_ss (optional) The the destination IP, NULL for name based lookup
    @param port (optional) The destination port (0 for default)
 */
+
+static struct tevent_req *cli_start_connection_send(
+	TALLOC_CTX *mem_ctx, struct tevent_context *ev,
+	const char *my_name, const char *dest_host,
+	const struct sockaddr_storage *dest_ss, int port,
+	int signing_state, int flags)
+{
+	struct tevent_req *req, *subreq;
+	struct cli_start_connection_state *state;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct cli_start_connection_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->ev = ev;
+
+	subreq = cli_connect_nb_send(state, ev, dest_host, dest_ss, port,
+				     0x20, my_name, signing_state, flags);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, cli_start_connection_connected, req);
+	return req;
+}
+
+static void cli_start_connection_connected(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct cli_start_connection_state *state = tevent_req_data(
+		req, struct cli_start_connection_state);
+	NTSTATUS status;
+
+	status = cli_connect_nb_recv(subreq, &state->cli);
+	TALLOC_FREE(subreq);
+	if (tevent_req_nterror(req, status)) {
+		return;
+	}
+
+	subreq = smbXcli_negprot_send(state, state->ev, state->cli->conn,
+				      state->cli->timeout,
+				      lp_cli_minprotocol(),
+				      lp_cli_maxprotocol());
+	if (tevent_req_nomem(subreq, req)) {
+		return;
+	}
+	tevent_req_set_callback(subreq, cli_start_connection_done, req);
+}
+
+static void cli_start_connection_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct cli_start_connection_state *state = tevent_req_data(
+		req, struct cli_start_connection_state);
+	NTSTATUS status;
+
+	status = smbXcli_negprot_recv(subreq);
+	TALLOC_FREE(subreq);
+	if (tevent_req_nterror(req, status)) {
+		return;
+	}
+
+	if (smbXcli_conn_protocol(state->cli->conn) >= PROTOCOL_SMB2_02) {
+		/* Ensure we ask for some initial credits. */
+		smb2cli_conn_set_max_credits(state->cli->conn,
+					     DEFAULT_SMB2_MAX_CREDITS);
+	}
+
+	tevent_req_done(req);
+}
+
+static NTSTATUS cli_start_connection_recv(struct tevent_req *req,
+					  struct cli_state **output_cli)
+{
+	struct cli_start_connection_state *state = tevent_req_data(
+		req, struct cli_start_connection_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		return status;
+	}
+	*output_cli = state->cli;
+
+	return NT_STATUS_OK;
+}
+
 NTSTATUS cli_start_connection(struct cli_state **output_cli, 
 			      const char *my_name, 
 			      const char *dest_host, 
 			      const struct sockaddr_storage *dest_ss, int port,
 			      int signing_state, int flags)
 {
-	NTSTATUS nt_status;
-	struct cli_state *cli;
+	struct tevent_context *ev;
+	struct tevent_req *req;
+	NTSTATUS status = NT_STATUS_NO_MEMORY;
 
-	nt_status = cli_connect_nb(dest_host, dest_ss, port, 0x20, my_name,
-				   signing_state, flags, &cli);
-	if (!NT_STATUS_IS_OK(nt_status)) {
-		DEBUG(10, ("cli_connect_nb failed: %s\n",
-			   nt_errstr(nt_status)));
-		return nt_status;
+	ev = samba_tevent_context_init(talloc_tos());
+	if (ev == NULL) {
+		goto fail;
 	}
-
-	nt_status = smbXcli_negprot(cli->conn, cli->timeout, PROTOCOL_CORE,
-				    PROTOCOL_NT1);
-	if (!NT_STATUS_IS_OK(nt_status)) {
-		DEBUG(1, ("failed negprot: %s\n", nt_errstr(nt_status)));
-		cli_shutdown(cli);
-		return nt_status;
+	req = cli_start_connection_send(ev, ev, my_name, dest_host, dest_ss,
+					port, signing_state, flags);
+	if (req == NULL) {
+		goto fail;
 	}
-
-	*output_cli = cli;
-	return NT_STATUS_OK;
+	if (!tevent_req_poll_ntstatus(req, ev, &status)) {
+		goto fail;
+	}
+	status = cli_start_connection_recv(req, output_cli);
+fail:
+	TALLOC_FREE(ev);
+	return status;
 }
-
 
 /**
    establishes a connection right up to doing tconX, password specified.
@@ -2818,95 +3226,247 @@ NTSTATUS cli_start_connection(struct cli_state **output_cli,
    @param password User's password, unencrypted unix string.
 */
 
-NTSTATUS cli_full_connection(struct cli_state **output_cli, 
-			     const char *my_name, 
-			     const char *dest_host, 
+struct cli_full_connection_state {
+	struct tevent_context *ev;
+	const char *service;
+	const char *service_type;
+	const char *user;
+	const char *domain;
+	const char *password;
+	int pw_len;
+	int flags;
+	struct cli_state *cli;
+};
+
+static int cli_full_connection_state_destructor(
+	struct cli_full_connection_state *s);
+static void cli_full_connection_started(struct tevent_req *subreq);
+static void cli_full_connection_sess_set_up(struct tevent_req *subreq);
+static void cli_full_connection_done(struct tevent_req *subreq);
+
+struct tevent_req *cli_full_connection_send(
+	TALLOC_CTX *mem_ctx, struct tevent_context *ev,
+	const char *my_name, const char *dest_host,
+	const struct sockaddr_storage *dest_ss, int port,
+	const char *service, const char *service_type,
+	const char *user, const char *domain,
+	const char *password, int flags, int signing_state)
+{
+	struct tevent_req *req, *subreq;
+	struct cli_full_connection_state *state;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct cli_full_connection_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	talloc_set_destructor(state, cli_full_connection_state_destructor);
+
+	state->ev = ev;
+	state->service = service;
+	state->service_type = service_type;
+	state->user = user;
+	state->domain = domain;
+	state->password = password;
+	state->flags = flags;
+
+	state->pw_len = state->password ? strlen(state->password)+1 : 0;
+	if (state->password == NULL) {
+		state->password = "";
+	}
+
+	subreq = cli_start_connection_send(
+		state, ev, my_name, dest_host, dest_ss, port,
+		signing_state, flags);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, cli_full_connection_started, req);
+	return req;
+}
+
+static int cli_full_connection_state_destructor(
+	struct cli_full_connection_state *s)
+{
+	if (s->cli != NULL) {
+		cli_shutdown(s->cli);
+		s->cli = NULL;
+	}
+	return 0;
+}
+
+static void cli_full_connection_started(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct cli_full_connection_state *state = tevent_req_data(
+		req, struct cli_full_connection_state);
+	NTSTATUS status;
+
+	status = cli_start_connection_recv(subreq, &state->cli);
+	TALLOC_FREE(subreq);
+	if (tevent_req_nterror(req, status)) {
+		return;
+	}
+	subreq = cli_session_setup_send(
+		state, state->ev, state->cli, state->user,
+		state->password, state->pw_len, state->password, state->pw_len,
+		state->domain);
+	if (tevent_req_nomem(subreq, req)) {
+		return;
+	}
+	tevent_req_set_callback(subreq, cli_full_connection_sess_set_up, req);
+}
+
+static void cli_full_connection_sess_set_up(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct cli_full_connection_state *state = tevent_req_data(
+		req, struct cli_full_connection_state);
+	NTSTATUS status;
+
+	status = cli_session_setup_recv(subreq);
+	TALLOC_FREE(subreq);
+
+	if (!NT_STATUS_IS_OK(status) &&
+	    (state->flags & CLI_FULL_CONNECTION_ANONYMOUS_FALLBACK)) {
+
+		state->flags &= ~CLI_FULL_CONNECTION_ANONYMOUS_FALLBACK;
+
+		subreq = cli_session_setup_send(
+			state, state->ev, state->cli, "", "", 0, "", 0,
+			state->domain);
+		if (tevent_req_nomem(subreq, req)) {
+			return;
+		}
+		tevent_req_set_callback(
+			subreq, cli_full_connection_sess_set_up, req);
+		return;
+	}
+
+	if (tevent_req_nterror(req, status)) {
+		return;
+	}
+
+	if (state->service != NULL) {
+		subreq = cli_tree_connect_send(
+			state, state->ev, state->cli,
+			state->service, state->service_type,
+			state->password, state->pw_len);
+		if (tevent_req_nomem(subreq, req)) {
+			return;
+		}
+		tevent_req_set_callback(subreq, cli_full_connection_done, req);
+		return;
+	}
+
+	status = cli_init_creds(state->cli, state->user, state->domain,
+				state->password);
+	if (tevent_req_nterror(req, status)) {
+		return;
+	}
+	tevent_req_done(req);
+}
+
+static void cli_full_connection_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct cli_full_connection_state *state = tevent_req_data(
+		req, struct cli_full_connection_state);
+	NTSTATUS status;
+
+	status = cli_tree_connect_recv(subreq);
+	TALLOC_FREE(subreq);
+	if (tevent_req_nterror(req, status)) {
+		return;
+	}
+	status = cli_init_creds(state->cli, state->user, state->domain,
+				state->password);
+	if (tevent_req_nterror(req, status)) {
+		return;
+	}
+	tevent_req_done(req);
+}
+
+NTSTATUS cli_full_connection_recv(struct tevent_req *req,
+				  struct cli_state **output_cli)
+{
+	struct cli_full_connection_state *state = tevent_req_data(
+		req, struct cli_full_connection_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		return status;
+	}
+	*output_cli = state->cli;
+	talloc_set_destructor(state, NULL);
+	return NT_STATUS_OK;
+}
+
+NTSTATUS cli_full_connection(struct cli_state **output_cli,
+			     const char *my_name,
+			     const char *dest_host,
 			     const struct sockaddr_storage *dest_ss, int port,
 			     const char *service, const char *service_type,
-			     const char *user, const char *domain, 
+			     const char *user, const char *domain,
 			     const char *password, int flags,
 			     int signing_state)
 {
-	NTSTATUS nt_status;
-	struct cli_state *cli = NULL;
-	int pw_len = password ? strlen(password)+1 : 0;
+	struct tevent_context *ev;
+	struct tevent_req *req;
+	NTSTATUS status = NT_STATUS_NO_MEMORY;
 
-	*output_cli = NULL;
-
-	if (password == NULL) {
-		password = "";
+	ev = samba_tevent_context_init(talloc_tos());
+	if (ev == NULL) {
+		goto fail;
 	}
-
-	nt_status = cli_start_connection(&cli, my_name, dest_host,
-					 dest_ss, port, signing_state,
-					 flags);
-
-	if (!NT_STATUS_IS_OK(nt_status)) {
-		return nt_status;
+	req = cli_full_connection_send(
+		ev, ev, my_name, dest_host, dest_ss, port, service,
+		service_type, user, domain, password, flags, signing_state);
+	if (req == NULL) {
+		goto fail;
 	}
-
-	nt_status = cli_session_setup(cli, user, password, pw_len, password,
-				      pw_len, domain);
-	if (!NT_STATUS_IS_OK(nt_status)) {
-
-		if (!(flags & CLI_FULL_CONNECTION_ANONYMOUS_FALLBACK)) {
-			DEBUG(1,("failed session setup with %s\n",
-				 nt_errstr(nt_status)));
-			cli_shutdown(cli);
-			return nt_status;
-		}
-
-		nt_status = cli_session_setup(cli, "", "", 0, "", 0, domain);
-		if (!NT_STATUS_IS_OK(nt_status)) {
-			DEBUG(1,("anonymous failed session setup with %s\n",
-				 nt_errstr(nt_status)));
-			cli_shutdown(cli);
-			return nt_status;
-		}
+	if (!tevent_req_poll_ntstatus(req, ev, &status)) {
+		goto fail;
 	}
-
-	if (service) {
-		nt_status = cli_tree_connect(cli, service, service_type,
-					     password, pw_len);
-		if (!NT_STATUS_IS_OK(nt_status)) {
-			DEBUG(1,("failed tcon_X with %s\n", nt_errstr(nt_status)));
-			cli_shutdown(cli);
-			if (NT_STATUS_IS_OK(nt_status)) {
-				nt_status = NT_STATUS_UNSUCCESSFUL;
-			}
-			return nt_status;
-		}
-	}
-
-	nt_status = cli_init_creds(cli, user, domain, password);
-	if (!NT_STATUS_IS_OK(nt_status)) {
-		cli_shutdown(cli);
-		return nt_status;
-	}
-
-	*output_cli = cli;
-	return NT_STATUS_OK;
+	status = cli_full_connection_recv(req, output_cli);
+ fail:
+	TALLOC_FREE(ev);
+	return status;
 }
 
 /****************************************************************************
  Send an old style tcon.
 ****************************************************************************/
-NTSTATUS cli_raw_tcon(struct cli_state *cli, 
-		      const char *service, const char *pass, const char *dev,
-		      uint16 *max_xmit, uint16 *tid)
-{
-	struct tevent_req *req;
+struct cli_raw_tcon_state {
 	uint16_t *ret_vwv;
+};
+
+static void cli_raw_tcon_done(struct tevent_req *subreq);
+
+static struct tevent_req *cli_raw_tcon_send(
+	TALLOC_CTX *mem_ctx, struct tevent_context *ev, struct cli_state *cli,
+	const char *service, const char *pass, const char *dev)
+{
+	struct tevent_req *req, *subreq;
+	struct cli_raw_tcon_state *state;
 	uint8_t *bytes;
-	NTSTATUS status;
+
+	req = tevent_req_create(mem_ctx, &state, struct cli_raw_tcon_state);
+	if (req == NULL) {
+		return NULL;
+	}
 
 	if (!lp_client_plaintext_auth() && (*pass)) {
 		DEBUG(1, ("Server requested PLAINTEXT password but 'client plaintext auth = no'"
 			  " or 'client ntlmv2 auth = yes'\n"));
-		return NT_STATUS_ACCESS_DENIED;
+		tevent_req_nterror(req, NT_STATUS_ACCESS_DENIED);
+		return tevent_req_post(req, ev);
 	}
 
-	bytes = talloc_array(talloc_tos(), uint8_t, 0);
+	bytes = talloc_array(state, uint8_t, 0);
 	bytes = smb_bytes_push_bytes(bytes, 4, NULL, 0);
 	bytes = smb_bytes_push_str(bytes, smbXcli_conn_use_unicode(cli->conn),
 				   service, strlen(service)+1, NULL);
@@ -2917,17 +3477,74 @@ NTSTATUS cli_raw_tcon(struct cli_state *cli,
 	bytes = smb_bytes_push_str(bytes, smbXcli_conn_use_unicode(cli->conn),
 				   dev, strlen(dev)+1, NULL);
 
-	status = cli_smb(talloc_tos(), cli, SMBtcon, 0, 0, NULL,
-			 talloc_get_size(bytes), bytes, &req,
-			 2, NULL, &ret_vwv, NULL, NULL);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
+	if (tevent_req_nomem(bytes, req)) {
+		return tevent_req_post(req, ev);
 	}
 
-	*max_xmit = SVAL(ret_vwv + 0, 0);
-	*tid = SVAL(ret_vwv + 1, 0);
+	subreq = cli_smb_send(state, ev, cli, SMBtcon, 0, 0, NULL,
+			      talloc_get_size(bytes), bytes);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, cli_raw_tcon_done, req);
+	return req;
+}
 
+static void cli_raw_tcon_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct cli_raw_tcon_state *state = tevent_req_data(
+		req, struct cli_raw_tcon_state);
+	NTSTATUS status;
+
+	status = cli_smb_recv(subreq, state, NULL, 2, NULL, &state->ret_vwv,
+			      NULL, NULL);
+	TALLOC_FREE(subreq);
+	if (tevent_req_nterror(req, status)) {
+		return;
+	}
+	tevent_req_done(req);
+}
+
+static NTSTATUS cli_raw_tcon_recv(struct tevent_req *req,
+				  uint16 *max_xmit, uint16 *tid)
+{
+	struct cli_raw_tcon_state *state = tevent_req_data(
+		req, struct cli_raw_tcon_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		return status;
+	}
+	*max_xmit = SVAL(state->ret_vwv + 0, 0);
+	*tid = SVAL(state->ret_vwv + 1, 0);
 	return NT_STATUS_OK;
+}
+
+NTSTATUS cli_raw_tcon(struct cli_state *cli,
+		      const char *service, const char *pass, const char *dev,
+		      uint16 *max_xmit, uint16 *tid)
+{
+	struct tevent_context *ev;
+	struct tevent_req *req;
+	NTSTATUS status = NT_STATUS_NO_MEMORY;
+
+	ev = samba_tevent_context_init(talloc_tos());
+	if (ev == NULL) {
+		goto fail;
+	}
+	req = cli_raw_tcon_send(ev, ev, cli, service, pass, dev);
+	if (req == NULL) {
+		goto fail;
+	}
+	if (!tevent_req_poll_ntstatus(req, ev, &status)) {
+		goto fail;
+	}
+	status = cli_raw_tcon_recv(req, max_xmit, tid);
+fail:
+	TALLOC_FREE(ev);
+	return status;
 }
 
 /* Return a cli_state pointing at the IPC$ share for the given server */

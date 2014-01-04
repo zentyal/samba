@@ -147,7 +147,15 @@
 /* Bump to version 30 - Samba 4.0.0 will ship with interface version 30 */
 /* Leave at 30 - not yet released. Added conn->cwd to save vfs_GetWd() calls. */
 /* Leave at 30 - not yet released. Changed sys_acl_blob_get_file interface to remove type */
-#define SMB_VFS_INTERFACE_VERSION 30
+/* Bump to version 31 - Samba 4.1.0 will ship with interface version 31 */
+/* Leave at 31 - not yet released. Make struct vuid_cache_entry in
+		connection_struct a pointer. */
+/* Leave at 31 - not yet released. Add share_access to vuid_cache_entry. */
+/* Leave at 31 - not yet released. add SMB_VFS_COPY_CHUNK() */
+/* Leave at 31 - not yet released. Remove the unused
+		fsp->pending_break_messages array */
+
+#define SMB_VFS_INTERFACE_VERSION 31
 
 /*
     All intercepted VFS operations must be declared as static functions inside module source
@@ -207,19 +215,16 @@ typedef struct files_struct {
 	uint32 share_access;		/* NTCreateX share constants (FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE). */
 
 	bool update_write_time_triggered;
-	struct timed_event *update_write_time_event;
+	struct tevent_timer *update_write_time_event;
 	bool update_write_time_on_close;
 	struct timespec close_write_time;
 	bool write_time_forced;
 
 	int oplock_type;
 	int sent_oplock_break;
-	struct timed_event *oplock_timeout;
+	struct tevent_timer *oplock_timeout;
 	struct lock_struct last_lock_failure;
 	int current_lock_count; /* Count the number of outstanding locks and pending locks. */
-
-	struct share_mode_entry *pending_break_messages;
-	int num_pending_break_messages;
 
 	bool can_lock;
 	bool can_read;
@@ -275,6 +280,7 @@ struct vuid_cache_entry {
 	struct auth_session_info *session_info;
 	uint64_t vuid; /* SMB2 compat */
 	bool read_only;
+	uint32_t share_access;
 };
 
 struct vuid_cache {
@@ -306,7 +312,7 @@ typedef struct connection_struct {
 	uint32_t cnum; /* an index passed over the wire */
 	struct share_params *params;
 	bool force_user;
-	struct vuid_cache vuid_cache;
+	struct vuid_cache *vuid_cache;
 	bool printer;
 	bool ipc;
 	bool read_only; /* Attributes for the current user of the share. */
@@ -609,6 +615,17 @@ struct vfs_fn_pointers {
 	int (*chflags_fn)(struct vfs_handle_struct *handle, const char *path, unsigned int flags);
 	struct file_id (*file_id_create_fn)(struct vfs_handle_struct *handle,
 					    const SMB_STRUCT_STAT *sbuf);
+	struct tevent_req *(*copy_chunk_send_fn)(struct vfs_handle_struct *handle,
+						 TALLOC_CTX *mem_ctx,
+						 struct tevent_context *ev,
+						 struct files_struct *src_fsp,
+						 off_t src_off,
+						 struct files_struct *dest_fsp,
+						 off_t dest_off,
+						 off_t num);
+	NTSTATUS (*copy_chunk_recv_fn)(struct vfs_handle_struct *handle,
+				       struct tevent_req *req,
+				       off_t *copied);
 
 	NTSTATUS (*streaminfo_fn)(struct vfs_handle_struct *handle,
 				  struct files_struct *fsp,
@@ -1080,7 +1097,18 @@ NTSTATUS smb_vfs_call_fsctl(struct vfs_handle_struct *handle,
 			    uint32_t in_len,
 			    uint8_t **_out_data,
 			    uint32_t max_out_len,
-			    uint32_t *out_len); 
+			    uint32_t *out_len);
+struct tevent_req *smb_vfs_call_copy_chunk_send(struct vfs_handle_struct *handle,
+						TALLOC_CTX *mem_ctx,
+						struct tevent_context *ev,
+						struct files_struct *src_fsp,
+						off_t src_off,
+						struct files_struct *dest_fsp,
+						off_t dest_off,
+						off_t num);
+NTSTATUS smb_vfs_call_copy_chunk_recv(struct vfs_handle_struct *handle,
+				      struct tevent_req *req,
+				      off_t *copied);
 NTSTATUS smb_vfs_call_fget_nt_acl(struct vfs_handle_struct *handle,
 				  struct files_struct *fsp,
 				  uint32 security_info,

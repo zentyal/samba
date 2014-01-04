@@ -1,4 +1,4 @@
- /* 
+ /*
    Unix SMB/CIFS implementation.
 
    trivial database library
@@ -33,14 +33,14 @@ static tdb_off_t tdb_dump_record(struct tdb_context *tdb, int hash,
 	struct tdb_record rec;
 	tdb_off_t tailer_ofs, tailer;
 
-	if (tdb->methods->tdb_read(tdb, offset, (char *)&rec, 
+	if (tdb->methods->tdb_read(tdb, offset, (char *)&rec,
 				   sizeof(rec), DOCONV()) == -1) {
 		printf("ERROR: failed to read record at %u\n", offset);
 		return 0;
 	}
 
-	printf(" rec: hash=%d offset=0x%08x next=0x%08x rec_len=%d "
-	       "key_len=%d data_len=%d full_hash=0x%x magic=0x%x\n",
+	printf(" rec: hash=%d offset=0x%08x next=0x%08x rec_len=%u "
+	       "key_len=%u data_len=%u full_hash=0x%x magic=0x%x\n",
 	       hash, offset, rec.next, rec.rec_len, rec.key_len, rec.data_len,
 	       rec.full_hash, rec.magic);
 
@@ -83,7 +83,7 @@ static int tdb_dump_chain(struct tdb_context *tdb, int i)
 _PUBLIC_ void tdb_dump_all(struct tdb_context *tdb)
 {
 	int i;
-	for (i=0;i<tdb->header.hash_size;i++) {
+	for (i=0;i<tdb->hash_size;i++) {
 		tdb_dump_chain(tdb, i);
 	}
 	printf("freelist:\n");
@@ -110,7 +110,7 @@ _PUBLIC_ int tdb_printfreelist(struct tdb_context *tdb)
 
 	printf("freelist top=[0x%08x]\n", rec_ptr );
 	while (rec_ptr) {
-		if (tdb->methods->tdb_read(tdb, rec_ptr, (char *)&rec, 
+		if (tdb->methods->tdb_read(tdb, rec_ptr, (char *)&rec,
 					   sizeof(rec), DOCONV()) == -1) {
 			tdb_unlock(tdb, -1, F_WRLCK);
 			return -1;
@@ -122,15 +122,14 @@ _PUBLIC_ int tdb_printfreelist(struct tdb_context *tdb)
 			return -1;
 		}
 
-		printf("entry offset=[0x%08x], rec.rec_len = [0x%08x (%d)] (end = 0x%08x)\n", 
+		printf("entry offset=[0x%08x], rec.rec_len = [0x%08x (%u)] (end = 0x%08x)\n",
 		       rec_ptr, rec.rec_len, rec.rec_len, rec_ptr + rec.rec_len);
 		total_free += rec.rec_len;
 
 		/* move to the next record */
 		rec_ptr = rec.next;
 	}
-	printf("total rec_len = [0x%08x (%d)]\n", (int)total_free, 
-               (int)total_free);
+	printf("total rec_len = [0x%08lx (%lu)]\n", total_free, total_free);
 
 	return tdb_unlock(tdb, -1, F_WRLCK);
 }

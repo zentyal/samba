@@ -87,7 +87,7 @@ else:
 ncacn_np_tests = ["rpc.schannel", "rpc.join", "rpc.lsa", "rpc.dssetup", "rpc.altercontext", "rpc.multibind", "rpc.netlogon", "rpc.handles", "rpc.samsync", "rpc.samba3-sessionkey", "rpc.samba3-getusername", "rpc.samba3-lsa", "rpc.samba3-bind", "rpc.samba3-netlogon", "rpc.asyncbind", "rpc.lsalookup", "rpc.lsa-getuser", "rpc.schannel2", "rpc.authcontext"]
 ncalrpc_tests = ["rpc.schannel", "rpc.join", "rpc.lsa", "rpc.dssetup", "rpc.altercontext", "rpc.multibind", "rpc.netlogon", "rpc.drsuapi", "rpc.asyncbind", "rpc.lsalookup", "rpc.lsa-getuser", "rpc.schannel2", "rpc.authcontext"]
 drs_rpc_tests = smbtorture4_testsuites("drs.rpc")
-ncacn_ip_tcp_tests = ["rpc.schannel", "rpc.join", "rpc.lsa", "rpc.dssetup", "rpc.multibind", "rpc.netlogon", "rpc.asyncbind", "rpc.lsalookup", "rpc.lsa-getuser", "rpc.schannel2", "rpc.authcontext"] + drs_rpc_tests
+ncacn_ip_tcp_tests = ["rpc.schannel", "rpc.join", "rpc.lsa", "rpc.dssetup", "rpc.multibind", "rpc.netlogon", "rpc.asyncbind", "rpc.lsalookup", "rpc.lsa-getuser", "rpc.schannel2", "rpc.authcontext", "rpc.samr.passwords.validate"] + drs_rpc_tests
 slow_ncacn_np_tests = ["rpc.samlogon", "rpc.samr.users", "rpc.samr.large-dc", "rpc.samr.users.privileges", "rpc.samr.passwords", "rpc.samr.passwords.pwdlastset"]
 slow_ncacn_ip_tcp_tests = ["rpc.samr", "rpc.cracknames"]
 
@@ -459,31 +459,6 @@ plantestsuite("samba4.blackbox.group.py", "none", ["PYTHON=%s" % python, os.path
 plantestsuite("samba4.blackbox.spn.py(dc:local)", "dc:local", ["PYTHON=%s" % python, os.path.join(samba4srcdir, "setup/tests/blackbox_spn.sh"), '$PREFIX/dc'])
 plantestsuite("samba4.ldap.bind(dc)", "dc", [python, os.path.join(srcdir(), "auth/credentials/tests/bind.py"), '$SERVER', '-U"$USERNAME%$PASSWORD"'])
 
-# DRS python tests
-planoldpythontestsuite("vampire_dc", "samba.tests.blackbox.samba_tool_drs",
-        environ={'DC1': '$DC_SERVER', 'DC2': '$VAMPIRE_DC_SERVER'},
-        extra_args=['-U$DOMAIN/$DC_USERNAME%$DC_PASSWORD'])
-planoldpythontestsuite("vampire_dc:local", "replica_sync",
-        extra_path=[os.path.join(samba4srcdir, 'torture/drs/python')],
-        name="samba4.drs.replica_sync.python(vampire_dc)",
-        environ={'DC1': '$DC_SERVER', 'DC2': '$VAMPIRE_DC_SERVER'},
-        extra_args=['-U$DOMAIN/$DC_USERNAME%$DC_PASSWORD'])
-planoldpythontestsuite("vampire_dc", "delete_object",
-        extra_path=[os.path.join(samba4srcdir, 'torture/drs/python')],
-        name="samba4.drs.delete_object.python(vampire_dc)",
-        environ={'DC1': '$DC_SERVER', 'DC2': '$VAMPIRE_DC_SERVER'},
-        extra_args=['-U$DOMAIN/$DC_USERNAME%$DC_PASSWORD'])
-planoldpythontestsuite("vampire_dc", "fsmo",
-        name="samba4.drs.fsmo.python(vampire_dc)",
-        extra_path=[os.path.join(samba4srcdir, 'torture/drs/python')],
-        environ={'DC1': "$DC_SERVER", 'DC2': "$VAMPIRE_DC_SERVER"},
-        extra_args=['-U$DOMAIN/$DC_USERNAME%$DC_PASSWORD'])
-planoldpythontestsuite("vampire_dc", "repl_schema",
-        extra_path=[os.path.join(samba4srcdir, 'torture/drs/python')],
-        name="samba4.drs.repl_schema.python(vampire_dc)",
-        environ={'DC1': "$DC_SERVER", 'DC2': '$VAMPIRE_DC_SERVER'},
-        extra_args=['-U$DOMAIN/$DC_USERNAME%$DC_PASSWORD'])
-
 # This makes sure we test the rid allocation code
 t = "rpc.samr.large-dc"
 plansmbtorture4testsuite(t, "vampire_dc", ['$SERVER', '-U$USERNAME%$PASSWORD', '--workgroup=$DOMAIN'], modname=("samba4.%s.one" % t))
@@ -500,6 +475,32 @@ plantestsuite("samba4.blackbox.renamedc.sh", "none", ["PYTHON=%s" % python, os.p
 
 # Demote the vampire DC, it must be the last test on the VAMPIRE DC
 for env in ['vampire_dc', 'promoted_dc']:
+
+    # DRS python tests
+    planoldpythontestsuite(env, "samba.tests.blackbox.samba_tool_drs",
+                           environ={'DC1': '$DC_SERVER', 'DC2': '$%s_SERVER' % env.upper()},
+                           extra_args=['-U$DOMAIN/$DC_USERNAME%$DC_PASSWORD'])
+    planoldpythontestsuite("%s:local" % env, "replica_sync",
+                           extra_path=[os.path.join(samba4srcdir, 'torture/drs/python')],
+                           name="samba4.drs.replica_sync.python(%s)" % env,
+                           environ={'DC1': '$DC_SERVER', 'DC2': '$%s_SERVER' % env.upper()},
+                           extra_args=['-U$DOMAIN/$DC_USERNAME%$DC_PASSWORD'])
+    planoldpythontestsuite(env, "delete_object",
+                           extra_path=[os.path.join(samba4srcdir, 'torture/drs/python')],
+                           name="samba4.drs.delete_object.python(%s)" % env,
+                           environ={'DC1': '$DC_SERVER', 'DC2': '$%s_SERVER' % env.upper()},
+                           extra_args=['-U$DOMAIN/$DC_USERNAME%$DC_PASSWORD'])
+    planoldpythontestsuite(env, "fsmo",
+                           name="samba4.drs.fsmo.python(%s)" % env,
+                           extra_path=[os.path.join(samba4srcdir, 'torture/drs/python')],
+                           environ={'DC1': "$DC_SERVER", 'DC2': '$%s_SERVER' % env.upper()},
+                           extra_args=['-U$DOMAIN/$DC_USERNAME%$DC_PASSWORD'])
+    planoldpythontestsuite(env, "repl_schema",
+                           extra_path=[os.path.join(samba4srcdir, 'torture/drs/python')],
+                           name="samba4.drs.repl_schema.python(%s)" % env,
+                           environ={'DC1': "$DC_SERVER", 'DC2': '$%s_SERVER' % env.upper()},
+                           extra_args=['-U$DOMAIN/$DC_USERNAME%$DC_PASSWORD'])
+
     plantestsuite("samba4.blackbox.samba_tool_demote(%s)" % env, env, [os.path.join(samba4srcdir, "utils/tests/test_demote.sh"), '$SERVER', '$SERVER_IP', '$USERNAME', '$PASSWORD', '$DOMAIN', '$DC_SERVER', '$PREFIX/%s' % env, smbclient4])
 # TODO: Verifying the databases really should be a part of the
 # environment teardown.

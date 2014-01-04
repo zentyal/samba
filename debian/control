@@ -28,6 +28,8 @@ Build-Depends: bison,
                libheimntlm0-heimdal (>= 1.6~),
                libldap2-dev,
                libldb-dev (>= 1:1.1.16~),
+               libncurses5-dev,
+               libntdb-dev (>= 1.0),
                libpam0g-dev,
                libparse-yapp-perl,
                libpopt-dev,
@@ -44,6 +46,7 @@ Build-Depends: bison,
                python-dnspython,
                python-ldb (>= 1:1.1.16~),
                python-ldb-dev (>= 1:1.1.16~),
+               python-ntdb,
                python-talloc-dev (>= 2.0.7~),
                python-tdb (>= 1.2.11~),
                python-testtools,
@@ -65,6 +68,7 @@ Depends: adduser,
          procps,
          python,
          python-dnspython,
+         python-ntdb,
          python-samba,
          samba-common (= ${source:Version}),
          samba-common-bin (=${binary:Version}),
@@ -74,7 +78,7 @@ Depends: adduser,
          ${misc:Depends},
          ${python:Depends},
          ${shlibs:Depends}
-Recommends: attr, logrotate
+Recommends: attr, logrotate, samba-vfs-modules
 Suggests: bind9 (>= 1:9.5.1),
           bind9utils,
           ctdb,
@@ -87,6 +91,7 @@ Replaces: libsamdb0 (<< 4.0.0~alpha17~),
           samba-ad-dc,
           samba-common (<= 2.0.5a-2),
           samba-doc (<< 2:4.0.5~),
+          samba-libs (<< 2:4.1.1+dfsg-1),
           samba4
 Conflicts: libldb1 (<< 1:1.1.15),
            samba (<< 2:3.3.0~rc2-5),
@@ -369,6 +374,19 @@ Description: Samba Directory Services Database
  .
  This package contains LDB plugins which add support for various Active
  Directory features to the LDB library.
+
+Package: samba-vfs-modules
+Architecture: any
+Replaces: samba-libs (<< 2:4.1.1+dfsg-1)
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Enhances: samba
+Description: Samba Virtual FileSystem plugins
+ Samba is an implementation of the SMB/CIFS protocol for Unix systems,
+ providing support for cross-platform file sharing with Microsoft Windows, OS X,
+ and other Unix systems.  Samba can also function as a domain controller
+ or member server in both NT4-style and Active Directory domains.
+ .
+ This package contains plugins for the Samba server Virtual FileSystem.
 
 Package: libpam-smbpass
 Section: admin

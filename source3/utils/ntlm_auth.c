@@ -301,7 +301,7 @@ const char *get_winbind_domain(void)
 
 	if (winbindd_request_response(WINBINDD_DOMAIN_NAME, NULL, &response) !=
 	    NSS_STATUS_SUCCESS) {
-		DEBUG(0, ("could not obtain winbind domain name!\n"));
+		DEBUG(1, ("could not obtain winbind domain name!\n"));
 		return lp_workgroup();
 	}
 
@@ -327,7 +327,7 @@ const char *get_winbind_netbios_name(void)
 
 	if (winbindd_request_response(WINBINDD_NETBIOS_NAME, NULL, &response) !=
 	    NSS_STATUS_SUCCESS) {
-		DEBUG(0, ("could not obtain winbind netbios name!\n"));
+		DEBUG(1, ("could not obtain winbind netbios name!\n"));
 		return lp_netbios_name();
 	}
 
@@ -388,7 +388,7 @@ static bool get_require_membership_sid(void) {
 	if (!parse_ntlm_auth_domain_user(require_membership_of, 
 					 request.data.name.dom_name, 
 					 request.data.name.name)) {
-		DEBUG(0, ("Could not parse %s into seperate domain/name parts!\n", 
+		DEBUG(0, ("Could not parse %s into separate domain/name parts!\n",
 			  require_membership_of));
 		return False;
 	}
@@ -2899,7 +2899,13 @@ enum {
 	} 
 
 	if (!opt_password) {
-		opt_password = getpass("password: ");
+		char pwd[256] = {0};
+		int rc;
+
+		rc = samba_getpass("Password: ", pwd, sizeof(pwd), false, false);
+		if (rc == 0) {
+			opt_password = SMB_STRDUP(pwd);
+		}
 	}
 
 	if (diagnostics) {

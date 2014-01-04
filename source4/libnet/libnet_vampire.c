@@ -219,20 +219,12 @@ NTSTATUS libnet_vampire_cb_check_options(void *private_data,
 static NTSTATUS libnet_vampire_cb_apply_schema(struct libnet_vampire_cb_state *s,
 					       const struct libnet_BecomeDC_StoreChunk *c)
 {
-	struct schema_list {
-		struct schema_list *next, *prev;
-		const struct drsuapi_DsReplicaObjectListItemEx *obj;
-	};
-
 	WERROR status;
 	struct dsdb_schema_prefixmap *pfm_remote;
 	const struct drsuapi_DsReplicaOIDMapping_Ctr *mapping_ctr;
-	struct schema_list *schema_list = NULL, *schema_list_item, *schema_list_next_item;
-	struct dsdb_schema *working_schema;
 	struct dsdb_schema *provision_schema;
 	uint32_t object_count = 0;
 	struct drsuapi_DsReplicaObjectListItemEx *first_object;
-	const struct drsuapi_DsReplicaObjectListItemEx *cur;
 	uint32_t linked_attributes_count;
 	struct drsuapi_DsReplicaLinkedAttribute *linked_attributes;
 	const struct drsuapi_DsReplicaCursor2CtrEx *uptodateness_vector;
@@ -243,17 +235,10 @@ static NTSTATUS libnet_vampire_cb_apply_schema(struct libnet_vampire_cb_state *s
 	struct ldb_message *msg;
 	struct ldb_message_element *prefixMap_el;
 	uint32_t i;
-	int ret, pass_no;
+	int ret;
 	bool ok;
 	uint64_t seq_num;
-	uint32_t ignore_attids[] = {
-			DRSUAPI_ATTID_auxiliaryClass,
-			DRSUAPI_ATTID_mayContain,
-			DRSUAPI_ATTID_mustContain,
-			DRSUAPI_ATTID_possSuperiors,
-			DRSUAPI_ATTID_systemPossSuperiors,
-			DRSUAPI_ATTID_INVALID
-	};
+	uint32_t cycle_before_switching;
 
 	DEBUG(0,("Analyze and apply schema objects\n"));
 
@@ -288,6 +273,18 @@ static NTSTATUS libnet_vampire_cb_apply_schema(struct libnet_vampire_cb_state *s
 	default:
 		return NT_STATUS_INVALID_PARAMETER;
 	}
+	/* We must set these up to ensure the replMetaData is written
+	 * correctly, before our NTDS Settings entry is replicated */
+	ok = samdb_set_ntds_invocation_id(s->ldb, &c->dest_dsa->invocation_id);
+	if (!ok) {
+		DEBUG(0,("Failed to set cached ntds invocationId\n"));
+		return NT_STATUS_FOOBAR;
+	}
+	ok = samdb_set_ntds_objectGUID(s->ldb, &c->dest_dsa->ntds_guid);
+	if (!ok) {
+		DEBUG(0,("Failed to set cached ntds objectGUID\n"));
+		return NT_STATUS_FOOBAR;
+	}
 
 	status = dsdb_schema_pfm_from_drsuapi_pfm(mapping_ctr, true,
 						  s, &pfm_remote, NULL);
@@ -308,6 +305,11 @@ static NTSTATUS libnet_vampire_cb_apply_schema(struct libnet_vampire_cb_state *s
 	NT_STATUS_HAVE_NO_MEMORY(tmp_dns_name);
 	s_dsa->other_info->dns_name = tmp_dns_name;
 
+	if (s->self_made_schema == NULL) {
+		DEBUG(0,("libnet_vampire_cb_apply_schema: called with out self_made_schema\n"));
+		return NT_STATUS_INTERNAL_ERROR;
+	}
+
 	schema_ldb = provision_get_schema(s, s->lp_ctx,
 					  c->forest->schema_dn_str,
 					  &s->prefixmap_blob);
@@ -325,95 +327,25 @@ static NTSTATUS libnet_vampire_cb_apply_schema(struct libnet_vampire_cb_state *s
 		talloc_free(schema_ldb);
 	}
 
-	/* create a list of objects yet to be converted */
-	for (cur = first_object; cur; cur = cur->next_object) {
-		schema_list_item = talloc(s, struct schema_list);
-		schema_list_item->obj = cur;
-		DLIST_ADD_END(schema_list, schema_list_item, struct schema_list);
+	cycle_before_switching = lpcfg_parm_long(s->lp_ctx, NULL,
+						 "become dc",
+						 "schema convert retrial", 1);
+
+	status = dsdb_repl_resolve_working_schema(s->ldb, s,
+						  pfm_remote,
+						  cycle_before_switching,
+						  provision_schema,
+						  s->self_made_schema,
+						  object_count,
+						  first_object);
+	if (!W_ERROR_IS_OK(status)) {
+		DEBUG(0, ("%s: dsdb_repl_resolve_working_schema() failed: %s",
+			  __location__, win_errstr(status)));
+		return werror_to_ntstatus(status);
 	}
-
-	/* resolve objects until all are resolved and in local schema */
-	pass_no = 1;
-	working_schema = provision_schema;
-
-	while (schema_list) {
-		uint32_t converted_obj_count = 0;
-		uint32_t failed_obj_count = 0;
-		TALLOC_CTX *tmp_ctx = talloc_new(s);
-		NT_STATUS_HAVE_NO_MEMORY(tmp_ctx);
-
-		for (schema_list_item = schema_list; schema_list_item; schema_list_item=schema_list_next_item) {
-			struct dsdb_extended_replicated_object object;
-
-			cur = schema_list_item->obj;
-
-			/* Save the next item, now we have saved out
-			 * the current one, so we can DLIST_REMOVE it
-			 * safely */
-			schema_list_next_item = schema_list_item->next;
-
-			/*
-			 * Convert the objects into LDB messages using the
-			 * schema we have so far. It's ok if we fail to convert
-			 * an object. We should convert more objects on next pass.
-			 */
-			status = dsdb_convert_object_ex(s->ldb, working_schema, pfm_remote,
-							cur, c->gensec_skey,
-							ignore_attids,
-							0,
-							tmp_ctx, &object);
-			if (!W_ERROR_IS_OK(status)) {
-				DEBUG(1,("Warning: Failed to convert schema object %s into ldb msg\n",
-					 cur->object.identifier->dn));
-
-				failed_obj_count++;
-			} else {
-				/*
-				 * Convert the schema from ldb_message format
-				 * (OIDs as OID strings) into schema, using
-				 * the remote prefixMap
-				 */
-				status = dsdb_schema_set_el_from_ldb_msg(s->ldb,
-									 s->self_made_schema,
-									 object.msg);
-				if (!W_ERROR_IS_OK(status)) {
-					DEBUG(1,("Warning: failed to convert object %s into a schema element: %s\n",
-						 ldb_dn_get_linearized(object.msg->dn),
-						 win_errstr(status)));
-					failed_obj_count++;
-				} else {
-					DLIST_REMOVE(schema_list, schema_list_item);
-					converted_obj_count++;
-				}
-			}
-		}
-		talloc_free(tmp_ctx);
-
-		DEBUG(4,("Schema load pass %d: %d/%d of %d objects left to be converted.\n",
-			 pass_no, failed_obj_count, converted_obj_count, object_count));
-		pass_no++;
-
-		/* check if we converted any objects in this pass */
-		if (converted_obj_count == 0) {
-			DEBUG(0,("Can't continue Schema load: didn't manage to convert any objects: all %d remaining of %d objects failed to convert\n", failed_obj_count, object_count));
-			return NT_STATUS_INTERNAL_ERROR;
-		}
-
-		if (schema_list) {
-			/* prepare for another cycle */
-			working_schema = s->self_made_schema;
-
-			ret = dsdb_setup_sorted_accessors(s->ldb, working_schema);
-			if (LDB_SUCCESS != ret) {
-				DEBUG(0,("Failed to create schema-cache indexes!\n"));
-				return NT_STATUS_INTERNAL_ERROR;
-			}
-		}
-	};
 
 	/* free temp objects for 1st conversion phase */
 	talloc_unlink(s, provision_schema);
-	TALLOC_FREE(schema_list);
 
 	/*
 	 * attach the schema we just brought over DRS to the ldb,
@@ -492,19 +424,6 @@ static NTSTATUS libnet_vampire_cb_apply_schema(struct libnet_vampire_cb_state *s
 	talloc_free(s_dsa);
 	talloc_free(schema_objs);
 
-	/* We must set these up to ensure the replMetaData is written
-	 * correctly, before our NTDS Settings entry is replicated */
-	ok = samdb_set_ntds_invocation_id(s->ldb, &c->dest_dsa->invocation_id);
-	if (!ok) {
-		DEBUG(0,("Failed to set cached ntds invocationId\n"));
-		return NT_STATUS_FOOBAR;
-	}
-	ok = samdb_set_ntds_objectGUID(s->ldb, &c->dest_dsa->ntds_guid);
-	if (!ok) {
-		DEBUG(0,("Failed to set cached ntds objectGUID\n"));
-		return NT_STATUS_FOOBAR;
-	}
-
 	s->schema = dsdb_get_schema(s->ldb, s);
 	if (!s->schema) {
 		DEBUG(0,("Failed to get loaded dsdb_schema\n"));
@@ -527,7 +446,6 @@ NTSTATUS libnet_vampire_cb_schema_chunk(void *private_data,
 	struct drsuapi_DsReplicaObjectListItemEx *cur;
 	uint32_t nc_linked_attributes_count;
 	uint32_t linked_attributes_count;
-	struct drsuapi_DsReplicaLinkedAttribute *linked_attributes;
 
 	switch (c->ctr_level) {
 	case 1:
@@ -537,7 +455,6 @@ NTSTATUS libnet_vampire_cb_schema_chunk(void *private_data,
 		first_object			= c->ctr1->first_object;
 		nc_linked_attributes_count	= 0;
 		linked_attributes_count		= 0;
-		linked_attributes		= NULL;
 		break;
 	case 6:
 		mapping_ctr			= &c->ctr6->mapping_ctr;
@@ -546,7 +463,6 @@ NTSTATUS libnet_vampire_cb_schema_chunk(void *private_data,
 		first_object			= c->ctr6->first_object;
 		nc_linked_attributes_count	= c->ctr6->nc_linked_attributes_count;
 		linked_attributes_count		= c->ctr6->linked_attributes_count;
-		linked_attributes		= c->ctr6->linked_attributes;
 		break;
 	default:
 		return NT_STATUS_INVALID_PARAMETER;
@@ -646,6 +562,7 @@ NTSTATUS libnet_vampire_cb_store_chunk(void *private_data,
 	char *tmp_dns_name;
 	uint32_t i;
 	uint64_t seq_num;
+	bool is_exop = false;
 
 	s_dsa			= talloc_zero(s, struct repsFromTo1);
 	NT_STATUS_HAVE_NO_MEMORY(s_dsa);
@@ -689,12 +606,21 @@ NTSTATUS libnet_vampire_cb_store_chunk(void *private_data,
 		req_replica_flags = 0;
 		break;
 	case 5:
+		if (c->req5->extended_op != DRSUAPI_EXOP_NONE) {
+			is_exop = true;
+		}
 		req_replica_flags = c->req5->replica_flags;
 		break;
 	case 8:
+		if (c->req8->extended_op != DRSUAPI_EXOP_NONE) {
+			is_exop = true;
+		}
 		req_replica_flags = c->req8->replica_flags;
 		break;
 	case 10:
+		if (c->req10->extended_op != DRSUAPI_EXOP_NONE) {
+			is_exop = true;
+		}
 		req_replica_flags = c->req10->replica_flags;
 		break;
 	default:
@@ -731,13 +657,24 @@ NTSTATUS libnet_vampire_cb_store_chunk(void *private_data,
 	}
 	s->total_objects += object_count;
 
-	if (nc_object_count) {
-		DEBUG(0,("Partition[%s] objects[%u/%u] linked_values[%u/%u]\n",
-			c->partition->nc.dn, s->total_objects, nc_object_count,
-			linked_attributes_count, nc_linked_attributes_count));
+	if (is_exop) {
+		if (nc_object_count) {
+			DEBUG(0,("Exop on[%s] objects[%u/%u] linked_values[%u/%u]\n",
+				c->partition->nc.dn, s->total_objects, nc_object_count,
+				linked_attributes_count, nc_linked_attributes_count));
+		} else {
+			DEBUG(0,("Exop on[%s] objects[%u] linked_values[%u]\n",
+			c->partition->nc.dn, s->total_objects, linked_attributes_count));
+		}
 	} else {
-		DEBUG(0,("Partition[%s] objects[%u] linked_values[%u]\n",
-		c->partition->nc.dn, s->total_objects, linked_attributes_count));
+		if (nc_object_count) {
+			DEBUG(0,("Partition[%s] objects[%u/%u] linked_values[%u/%u]\n",
+				c->partition->nc.dn, s->total_objects, nc_object_count,
+				linked_attributes_count, nc_linked_attributes_count));
+		} else {
+			DEBUG(0,("Partition[%s] objects[%u] linked_values[%u]\n",
+			c->partition->nc.dn, s->total_objects, linked_attributes_count));
+		}
 	}
 
 

@@ -64,9 +64,9 @@ int dsdb_get_sd_from_ldb_message(struct ldb_context *ldb,
 	enum ndr_err_code ndr_err;
 
 	sd_element = ldb_msg_find_element(acl_res, "nTSecurityDescriptor");
-	if (!sd_element) {
-		*sd = NULL;
-		return LDB_SUCCESS;
+	if (sd_element == NULL) {
+		return ldb_error(ldb, LDB_ERR_INSUFFICIENT_ACCESS_RIGHTS,
+				 "nTSecurityDescriptor is missing");
 	}
 	*sd = talloc(mem_ctx, struct security_descriptor);
 	if(!*sd) {
@@ -101,10 +101,7 @@ int dsdb_check_access_on_dn_internal(struct ldb_context *ldb,
 	if (ret != LDB_SUCCESS) {
 		return ldb_operr(ldb);
 	}
-	/* Theoretically we pass the check if the object has no sd */
-	if (!sd) {
-		return LDB_SUCCESS;
-	}
+
 	sid = samdb_result_dom_sid(mem_ctx, acl_res->msgs[0], "objectSid");
 	if (guid) {
 		if (!insert_in_object_tree(mem_ctx, guid, access_mask, NULL,
@@ -159,7 +156,13 @@ int dsdb_check_access_on_dn(struct ldb_context *ldb,
 		}
 	}
 
-	ret = dsdb_search_dn(ldb, mem_ctx, &acl_res, dn, acl_attrs, DSDB_SEARCH_SHOW_DELETED);
+	/*
+	 * We need AS_SYSTEM in order to get the nTSecurityDescriptor attribute.
+	 * Also the result of this search not controlled by the client
+	 * nor is the result exposed to the client.
+	 */
+	ret = dsdb_search_dn(ldb, mem_ctx, &acl_res, dn, acl_attrs,
+			     DSDB_FLAG_AS_SYSTEM | DSDB_SEARCH_SHOW_RECYCLED);
 	if (ret != LDB_SUCCESS) {
 		DEBUG(10,("access_check: failed to find object %s\n", ldb_dn_get_linearized(dn)));
 		return ret;

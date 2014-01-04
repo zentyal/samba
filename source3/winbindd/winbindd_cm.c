@@ -244,7 +244,7 @@ static bool fork_child_dc_connect(struct winbindd_domain *domain)
 		messaging_send_buf(winbind_messaging_context(),
 				   pid_to_procid(parent_pid),
 				   MSG_WINBIND_FAILED_TO_GO_ONLINE,
-				   (uint8 *)domain->name,
+				   (const uint8_t *)domain->name,
 				   strlen(domain->name)+1);
 		_exit(1);
 	}
@@ -256,7 +256,7 @@ static bool fork_child_dc_connect(struct winbindd_domain *domain)
 		messaging_send_buf(winbind_messaging_context(),
 				   pid_to_procid(parent_pid),
 				   MSG_WINBIND_FAILED_TO_GO_ONLINE,
-				   (uint8 *)domain->name,
+				   (const uint8_t *)domain->name,
 				   strlen(domain->name)+1);
 		_exit(1);
 	}
@@ -266,7 +266,7 @@ static bool fork_child_dc_connect(struct winbindd_domain *domain)
 		messaging_send_buf(winbind_messaging_context(),
 				   pid_to_procid(parent_pid),
 				   MSG_WINBIND_FAILED_TO_GO_ONLINE,
-				   (uint8 *)domain->name,
+				   (const uint8_t *)domain->name,
 				   strlen(domain->name)+1);
 		_exit(0);
 	}
@@ -277,7 +277,7 @@ static bool fork_child_dc_connect(struct winbindd_domain *domain)
 	messaging_send_buf(winbind_messaging_context(),
 			   pid_to_procid(parent_pid),
 			   MSG_WINBIND_TRY_TO_GO_ONLINE,
-			   (uint8 *)domain->name,
+			   (const uint8_t *)domain->name,
 			   strlen(domain->name)+1);
 	_exit(0);
 }
@@ -286,8 +286,8 @@ static bool fork_child_dc_connect(struct winbindd_domain *domain)
  Handler triggered if we're offline to try and detect a DC.
 ****************************************************************/
 
-static void check_domain_online_handler(struct event_context *ctx,
-					struct timed_event *te,
+static void check_domain_online_handler(struct tevent_context *ctx,
+					struct tevent_timer *te,
 					struct timeval now,
 					void *private_data)
 {
@@ -422,7 +422,7 @@ void set_domain_offline(struct winbindd_domain *domain)
 
 	calc_new_online_timeout_check(domain);
 
-	domain->check_online_event = event_add_timed(winbind_event_context(),
+	domain->check_online_event = tevent_add_timer(winbind_event_context(),
 						NULL,
 						timeval_current_ofs(domain->check_online_timeout,0),
 						check_domain_online_handler,
@@ -455,7 +455,7 @@ void set_domain_offline(struct winbindd_domain *domain)
 			messaging_send_buf(winbind_messaging_context(),
 					   pid_to_procid(idmap->pid), 
 					   MSG_WINBIND_OFFLINE, 
-					   (uint8 *)domain->name, 
+					   (const uint8_t *)domain->name,
 					   strlen(domain->name)+1);
 		}			
 	}
@@ -541,7 +541,7 @@ static void set_domain_online(struct winbindd_domain *domain)
 			messaging_send_buf(winbind_messaging_context(),
 					   pid_to_procid(idmap->pid), 
 					   MSG_WINBIND_ONLINE, 
-					   (uint8 *)domain->name, 
+					   (const uint8_t *)domain->name,
 					   strlen(domain->name)+1);
 		}			
 	}
@@ -598,7 +598,7 @@ void set_domain_online_request(struct winbindd_domain *domain)
 
 	TALLOC_FREE(domain->check_online_event);
 
-	domain->check_online_event = event_add_timed(winbind_event_context(),
+	domain->check_online_event = tevent_add_timer(winbind_event_context(),
 						     NULL,
 						     tev,
 						     check_domain_online_handler,
@@ -623,7 +623,7 @@ static void winbind_add_failed_connection_entry(
 	/* If this was the saf name for the last thing we talked to,
 	   remove it. */
 	saf_delete(domain->name);
-	if (*domain->alt_name) {
+	if (domain->alt_name != NULL) {
 		add_failed_connection_entry(domain->alt_name, server, result);
 		saf_delete(domain->alt_name);
 	}
@@ -727,13 +727,23 @@ static bool get_dc_name_via_netlogon(struct winbindd_domain *domain,
 				talloc_destroy(mem_ctx);
 				return false;
 			}
-			if (strlen(domain->alt_name) == 0) {
-				fstrcpy(domain->alt_name,
-					domain_info->domain_name);
+			if (domain->alt_name == NULL) {
+				domain->alt_name = talloc_strdup(domain,
+								 domain_info->domain_name);
+				if (domain->alt_name == NULL) {
+					DEBUG(0, ("talloc_strdup failed\n"));
+					talloc_destroy(mem_ctx);
+					return false;
+				}
 			}
-			if (strlen(domain->forest_name) == 0) {
-				fstrcpy(domain->forest_name,
-					domain_info->forest_name);
+			if (domain->forest_name == NULL) {
+				domain->forest_name = talloc_strdup(domain,
+								    domain_info->forest_name);
+				if (domain->forest_name == NULL) {
+					DEBUG(0, ("talloc_strdup failed\n"));
+					talloc_destroy(mem_ctx);
+					return false;
+				}
 			}
 		}
 	} else {
@@ -893,8 +903,9 @@ static NTSTATUS cm_prepare_connection(const struct winbindd_domain *domain,
 
 	cli_set_timeout(*cli, 10000); /* 10 seconds */
 
-	result = smbXcli_negprot((*cli)->conn, (*cli)->timeout, PROTOCOL_CORE,
-				 PROTOCOL_LATEST);
+	result = smbXcli_negprot((*cli)->conn, (*cli)->timeout,
+				 lp_cli_minprotocol(),
+				 lp_cli_maxprotocol());
 
 	if (!NT_STATUS_IS_OK(result)) {
 		DEBUG(1, ("cli_negprot failed: %s\n", nt_errstr(result)));
@@ -1173,12 +1184,13 @@ static bool add_sockaddr_to_array(TALLOC_CTX *mem_ctx,
 static bool dcip_to_name(TALLOC_CTX *mem_ctx,
 		const struct winbindd_domain *domain,
 		struct sockaddr_storage *pss,
-		fstring name )
+		char **name)
 {
 	struct ip_service ip_list;
 	uint32_t nt_version = NETLOGON_NT_VERSION_1;
 	NTSTATUS status;
 	const char *dc_name;
+	fstring nbtname;
 
 	ip_list.ss = *pss;
 	ip_list.port = 0;
@@ -1200,8 +1212,12 @@ static bool dcip_to_name(TALLOC_CTX *mem_ctx,
 		ads_status = ads_connect(ads);
 		if (ADS_ERR_OK(ads_status)) {
 			/* We got a cldap packet. */
-			fstrcpy(name, ads->config.ldap_server_name);
-			namecache_store(name, 0x20, 1, &ip_list);
+			*name = talloc_strdup(mem_ctx,
+					     ads->config.ldap_server_name);
+			if (*name == NULL) {
+				return false;
+			}
+			namecache_store(*name, 0x20, 1, &ip_list);
 
 			DEBUG(10,("dcip_to_name: flags = 0x%x\n", (unsigned int)ads->config.flags));
 
@@ -1217,7 +1233,7 @@ static bool dcip_to_name(TALLOC_CTX *mem_ctx,
 									domain->name,
 									sitename,
 									pss,
-									name);
+									*name);
 
 					SAFE_FREE(sitename);
 				} else {
@@ -1226,13 +1242,13 @@ static bool dcip_to_name(TALLOC_CTX *mem_ctx,
 									domain->name,
 									NULL,
 									pss,
-									name);
+									*name);
 				}
 				winbindd_set_locator_kdc_envs(domain);
 
 				/* Ensure we contact this DC also. */
-				saf_store( domain->name, name);
-				saf_store( domain->alt_name, name);
+				saf_store(domain->name, *name);
+				saf_store(domain->alt_name, *name);
 			}
 
 			ads_destroy( &ads );
@@ -1248,16 +1264,27 @@ static bool dcip_to_name(TALLOC_CTX *mem_ctx,
 			   &domain->sid, nt_version, mem_ctx, &nt_version,
 			   &dc_name, NULL);
 	if (NT_STATUS_IS_OK(status)) {
-		fstrcpy(name, dc_name);
-		namecache_store(name, 0x20, 1, &ip_list);
+		*name = talloc_strdup(mem_ctx, dc_name);
+		if (*name == NULL) {
+			return false;
+		}
+		namecache_store(*name, 0x20, 1, &ip_list);
 		return True;
 	}
 
 	/* try node status request */
 
-	if ( name_status_find(domain->name, 0x1c, 0x20, pss, name) ) {
-		namecache_store(name, 0x20, 1, &ip_list);
-		return True;
+	if (name_status_find(domain->name, 0x1c, 0x20, pss, nbtname) ) {
+		namecache_store(nbtname, 0x20, 1, &ip_list);
+
+		if (name != NULL) {
+			*name = talloc_strdup(mem_ctx, nbtname);
+			if (*name == NULL) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 	return False;
 }
@@ -1406,7 +1433,7 @@ static bool get_dcs(TALLOC_CTX *mem_ctx, struct winbindd_domain *domain,
 
 static bool find_new_dc(TALLOC_CTX *mem_ctx,
 			struct winbindd_domain *domain,
-			fstring dcname, struct sockaddr_storage *pss, int *fd)
+			char **dcname, struct sockaddr_storage *pss, int *fd)
 {
 	struct dc_name_ip *dcs = NULL;
 	int num_dcs = 0;
@@ -1465,8 +1492,11 @@ static bool find_new_dc(TALLOC_CTX *mem_ctx,
 
 	if (*dcnames[fd_index] != '\0' && !is_ipaddress(dcnames[fd_index])) {
 		/* Ok, we've got a name for the DC */
-		fstrcpy(dcname, dcnames[fd_index]);
-		return True;
+		*dcname = talloc_strdup(mem_ctx, dcnames[fd_index]);
+		if (*dcname == NULL) {
+			return false;
+		}
+		return true;
 	}
 
 	/* Try to figure out the name */
@@ -1604,22 +1634,31 @@ static NTSTATUS cm_open_connection(struct winbindd_domain *domain,
 
 		/* convert an ip address to a name */
 		if (is_ipaddress( saf_servername ) ) {
-			fstring saf_name;
+			char *dcname = NULL;
 			struct sockaddr_storage ss;
 
 			if (!interpret_string_addr(&ss, saf_servername,
 						AI_NUMERICHOST)) {
 				return NT_STATUS_UNSUCCESSFUL;
 			}
-			if (dcip_to_name(mem_ctx, domain, &ss, saf_name )) {
-				strlcpy(domain->dcname, saf_name, sizeof(domain->dcname));
+			if (dcip_to_name(mem_ctx, domain, &ss, &dcname)) {
+				domain->dcname = talloc_strdup(domain,
+							       dcname);
+				if (domain->dcname == NULL) {
+					SAFE_FREE(saf_servername);
+					return NT_STATUS_NO_MEMORY;
+				}
 			} else {
 				winbind_add_failed_connection_entry(
 					domain, saf_servername,
 					NT_STATUS_UNSUCCESSFUL);
 			}
 		} else {
-			fstrcpy( domain->dcname, saf_servername );
+			domain->dcname = talloc_strdup(domain, saf_servername);
+			if (domain->dcname == NULL) {
+				SAFE_FREE(saf_servername);
+				return NT_STATUS_NO_MEMORY;
+			}
 		}
 
 		SAFE_FREE( saf_servername );
@@ -1628,13 +1667,14 @@ static NTSTATUS cm_open_connection(struct winbindd_domain *domain,
 	for (retries = 0; retries < 3; retries++) {
 		int fd = -1;
 		bool retry = False;
+		char *dcname = NULL;
 
 		result = NT_STATUS_DOMAIN_CONTROLLER_NOT_FOUND;
 
 		DEBUG(10,("cm_open_connection: dcname is '%s' for domain %s\n",
-			domain->dcname, domain->name ));
+			domain->dcname ? domain->dcname : "", domain->name ));
 
-		if (*domain->dcname 
+		if (domain->dcname != NULL
 			&& NT_STATUS_IS_OK(check_negative_conn_cache( domain->name, domain->dcname))
 			&& (resolve_name(domain->dcname, &domain->dcaddr, 0x20, true)))
 		{
@@ -1648,8 +1688,8 @@ static NTSTATUS cm_open_connection(struct winbindd_domain *domain,
 			}
 		}
 
-		if ((fd == -1) 
-			&& !find_new_dc(mem_ctx, domain, domain->dcname, &domain->dcaddr, &fd))
+		if ((fd == -1) &&
+		    !find_new_dc(mem_ctx, domain, &dcname, &domain->dcaddr, &fd))
 		{
 			/* This is the one place where we will
 			   set the global winbindd offline state
@@ -1657,6 +1697,15 @@ static NTSTATUS cm_open_connection(struct winbindd_domain *domain,
 			   is found in the winbindd cache. */
 			set_global_winbindd_state_offline();
 			break;
+		}
+		if (dcname != NULL) {
+			talloc_free(domain->dcname);
+
+			domain->dcname = talloc_move(domain, &dcname);
+			if (domain->dcname == NULL) {
+				result = NT_STATUS_NO_MEMORY;
+				break;
+			}
 		}
 
 		new_conn->cli = NULL;
@@ -2108,20 +2157,35 @@ no_dssetup:
 		domain->active_directory = True;
 
 		if (lsa_info->dns.name.string) {
-			fstrcpy(domain->name, lsa_info->dns.name.string);
+			talloc_free(domain->name);
+			domain->name = talloc_strdup(domain,
+						     lsa_info->dns.name.string);
+			if (domain->name == NULL) {
+				goto done;
+			}
 		}
 
 		if (lsa_info->dns.dns_domain.string) {
-			fstrcpy(domain->alt_name,
-				lsa_info->dns.dns_domain.string);
+			talloc_free(domain->alt_name);
+			domain->alt_name =
+				talloc_strdup(domain,
+					      lsa_info->dns.dns_domain.string);
+			if (domain->alt_name == NULL) {
+				goto done;
+			}
 		}
 
 		/* See if we can set some domain trust flags about
 		   ourself */
 
 		if (lsa_info->dns.dns_forest.string) {
-			fstrcpy(domain->forest_name,
-				lsa_info->dns.dns_forest.string);
+			talloc_free(domain->forest_name);
+			domain->forest_name =
+				talloc_strdup(domain,
+					      lsa_info->dns.dns_forest.string);
+			if (domain->forest_name == NULL) {
+				goto done;
+			}
 
 			if (strequal(domain->forest_name, domain->alt_name)) {
 				domain->domain_flags |= NETR_TRUST_FLAG_TREEROOT;
@@ -2150,8 +2214,10 @@ no_dssetup:
 		if (NT_STATUS_IS_OK(status) && NT_STATUS_IS_OK(result)) {
 
 			if (lsa_info->account_domain.name.string) {
-				fstrcpy(domain->name,
-					lsa_info->account_domain.name.string);
+				talloc_free(domain->name);
+				domain->name =
+					talloc_strdup(domain,
+						      lsa_info->account_domain.name.string);
 			}
 
 			if (lsa_info->account_domain.sid) {
@@ -2242,7 +2308,7 @@ NTSTATUS cm_connect_sam(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 	struct netlogon_creds_CredentialState *p_creds;
 	char *machine_password = NULL;
 	char *machine_account = NULL;
-	char *domain_name = NULL;
+	const char *domain_name = NULL;
 
 	if (sid_check_is_our_sam(&domain->sid)) {
 		return open_internal_samr_conn(mem_ctx, domain, cli, sam_handle);
@@ -2677,7 +2743,7 @@ NTSTATUS cm_connect_netlogon(struct winbindd_domain *domain,
 	NTSTATUS result;
 
 	uint32_t neg_flags = NETLOGON_NEG_AUTH2_ADS_FLAGS | NETLOGON_NEG_SUPPORTS_AES;
-	uint8  mach_pwd[16];
+	uint8_t  mach_pwd[16];
 	enum netr_SchannelType sec_chan_type;
 	const char *account_name;
 	struct rpc_pipe_client *netlogon_pipe = NULL;

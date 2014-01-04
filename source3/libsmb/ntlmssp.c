@@ -146,7 +146,7 @@ NTSTATUS ntlmssp_set_domain(struct ntlmssp_state *ntlmssp_state, const char *dom
  * Request features for the NTLMSSP negotiation
  *
  * @param ntlmssp_state NTLMSSP state
- * @param feature_list List of space seperated features requested from NTLMSSP.
+ * @param feature_list List of space separated features requested from NTLMSSP.
  */
 void ntlmssp_want_feature_list(struct ntlmssp_state *ntlmssp_state, char *feature_list)
 {
@@ -537,7 +537,7 @@ noccache:
 			return NT_STATUS_NO_MEMORY;
 		}
 	} else if (ntlmssp_state->neg_flags & NTLMSSP_NEGOTIATE_NTLM2) {
-		struct MD5Context md5_session_nonce_ctx;
+		MD5_CTX md5_session_nonce_ctx;
 		uint8_t session_nonce[16];
 		uint8_t session_nonce_hash[16];
 		uint8_t user_session_key[16];

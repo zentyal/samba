@@ -43,7 +43,7 @@ bool found_lm_clients = False;
 
 time_t StartupTime = 0;
 
-struct event_context *nmbd_event_context(void)
+struct tevent_context *nmbd_event_context(void)
 {
 	return server_event_context();
 }
@@ -800,12 +800,19 @@ static bool open_sockets(bool isdaemon, int port)
 	};
 	TALLOC_CTX *frame;
 	NTSTATUS status;
+	bool ok;
 
 	/*
 	 * Do this before any other talloc operation
 	 */
 	talloc_enable_null_tracking();
 	frame = talloc_stackframe();
+
+	/*
+	 * We want total control over the permissions on created files,
+	 * so set our umask to 0.
+	 */
+	umask(0);
 
 	setup_logging(argv[0], DEBUG_DEFAULT_STDOUT);
 
@@ -957,12 +964,18 @@ static bool open_sockets(bool isdaemon, int port)
 	}
 #endif
 
-	if (!directory_exist(lp_lockdir())) {
-		mkdir(lp_lockdir(), 0755);
+	ok = directory_create_or_exist(lp_lockdir(), geteuid(), 0755);
+	if (!ok) {
+		DEBUG(0, ("Failed to create directory %s for lock files - %s\n",
+			  lp_lockdir(), strerror(errno)));
+		exit(1);
 	}
 
-	if (!directory_exist(lp_piddir())) {
-		mkdir(lp_piddir(), 0755);
+	ok = directory_create_or_exist(lp_piddir(), geteuid(), 0755);
+	if (!ok) {
+		DEBUG(0, ("Failed to create directory %s for pid files - %s\n",
+			  lp_piddir(), strerror(errno)));
+		exit(1);
 	}
 
 	pidfile_create(lp_piddir(), "nmbd");

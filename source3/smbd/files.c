@@ -115,11 +115,10 @@ NTSTATUS file_new(struct smb_request *req, connection_struct *conn,
 	 * few NULL checks, so make sure it's initialized with something. to
 	 * be safe until an audit can be done.
 	 */
-	status = create_synthetic_smb_fname(fsp, "", NULL, NULL,
-					    &fsp->fsp_name);
-	if (!NT_STATUS_IS_OK(status)) {
+	fsp->fsp_name = synthetic_smb_fname(fsp, "", NULL, NULL);
+	if (fsp->fsp_name == NULL) {
 		file_free(NULL, fsp);
-		return status;
+		return NT_STATUS_NO_MEMORY;
 	}
 
 	DEBUG(5,("allocated file structure %s (%u used)\n",
@@ -582,21 +581,14 @@ files_struct *file_fsp(struct smb_request *req, uint16 fid)
 	return fsp;
 }
 
-struct files_struct *file_fsp_smb2(struct smbd_smb2_request *smb2req,
-				   uint64_t persistent_id,
-				   uint64_t volatile_id)
+struct files_struct *file_fsp_get(struct smbd_smb2_request *smb2req,
+				  uint64_t persistent_id,
+				  uint64_t volatile_id)
 {
 	struct smbXsrv_open *op;
 	NTSTATUS status;
 	NTTIME now = 0;
 	struct files_struct *fsp;
-
-	if (smb2req->compat_chain_fsp != NULL) {
-		if (smb2req->compat_chain_fsp->deferred_close) {
-			return NULL;
-		}
-		return smb2req->compat_chain_fsp;
-	}
 
 	now = timeval_to_nttime(&smb2req->request_time);
 
@@ -633,6 +625,27 @@ struct files_struct *file_fsp_smb2(struct smbd_smb2_request *smb2req,
 	}
 
 	if (fsp->deferred_close) {
+		return NULL;
+	}
+
+	return fsp;
+}
+
+struct files_struct *file_fsp_smb2(struct smbd_smb2_request *smb2req,
+				   uint64_t persistent_id,
+				   uint64_t volatile_id)
+{
+	struct files_struct *fsp;
+
+	if (smb2req->compat_chain_fsp != NULL) {
+		if (smb2req->compat_chain_fsp->deferred_close) {
+			return NULL;
+		}
+		return smb2req->compat_chain_fsp;
+	}
+
+	fsp = file_fsp_get(smb2req, persistent_id, volatile_id);
+	if (fsp == NULL) {
 		return NULL;
 	}
 
@@ -709,12 +722,11 @@ NTSTATUS file_name_hash(connection_struct *conn,
 NTSTATUS fsp_set_smb_fname(struct files_struct *fsp,
 			   const struct smb_filename *smb_fname_in)
 {
-	NTSTATUS status;
 	struct smb_filename *smb_fname_new;
 
-	status = copy_smb_filename(fsp, smb_fname_in, &smb_fname_new);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
+	smb_fname_new = cp_smb_filename(fsp, smb_fname_in);
+	if (smb_fname_new == NULL) {
+		return NT_STATUS_NO_MEMORY;
 	}
 
 	TALLOC_FREE(fsp->fsp_name);

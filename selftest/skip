@@ -33,6 +33,7 @@
 ^samba3.smbtorture_s3.*.utable
 ^samba3.smbtorture_s3.*.pipe_number
 ^samba3.smbtorture_s3.LOCAL-DBTRANS #hangs for some reason
+^samba3.smbtorture_s3.*.DIR1 #loops on 64 bit linux with ext4
 ^samba3.*base.charset
 ^samba3.*raw.context
 ^samba3.*raw.ioctl
@@ -40,6 +41,7 @@
 ^samba3.*raw.qfsinfo
 ^samba3.*raw.sfileinfo.base
 ^samba3.smb2.hold-oplock                # Not a test, but a way to block other clients for a test
+^samba3.smb2.durable-open-disconnect    # Not a test, but a way to create a disconnected durable
 ^samba3.smb2.scan                       # No tests
 ^samba4.base.iometer
 ^samba4.base.casetable
@@ -101,9 +103,6 @@ bench # don't run benchmarks in our selftest
 # ktutil might not be installed or from mit...
 # we should build a samba4ktutil and use that instead
 ^samba4.blackbox.ktpass # this test isn't portable ...
-^samba4.drs.repl_schema.python # flakey test
-^samba4.smb2.ioctl # snapshots not supported by default
-^samba4.drs.delete_object.python # flakey test
 ^samba4.rpc.unixinfo # This contains a server-side getpwuid call which hangs the server when nss_winbindd is in use
 ^samba.tests.dcerpc.unix  # This contains a server-side getpwuid call which hangs the server when nss_winbindd is in use
 base.dir2 # This test spins on modern ext4, so we have to skip it

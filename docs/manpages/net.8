@@ -153,7 +153,7 @@ Tries to set the date and time of the local server to that on the remote server 
 .SS "TIME ZONE"
 .PP
 Displays the timezone in hours from GMT on the remote computer\&.
-.SS "[RPC|ADS] JOIN [TYPE] [\-U username[%password]] [createupn=UPN] [createcomputer=OU] [options]"
+.SS "[RPC|ADS] JOIN [TYPE] [\-U username[%password]] [createupn=UPN] [createcomputer=OU] [machinepass=PASS] [osName=string osVer=string] [options]"
 .PP
 Join a domain\&. If the account already exists on the server, and [TYPE] is MEMBER, the machine will attempt to join automatically\&. (Assuming that the machine has been created in server manager) Otherwise, a password will be prompted for, and a new account may be created\&.
 .PP
@@ -162,6 +162,10 @@ Join a domain\&. If the account already exists on the server, and [TYPE] is MEMB
 [UPN] (ADS only) set the principalname attribute during the join\&. The default format is host/netbiosname@REALM\&.
 .PP
 [OU] (ADS only) Precreate the computer account in a specific OU\&. The OU string reads from top to bottom without RDNs, and is delimited by a \*(Aq/\*(Aq\&. Please note that \*(Aq\e\*(Aq is used for escape by both the shell and ldap, so it may need to be doubled or quadrupled to pass through, and it is not used as a delimiter\&.
+.PP
+[PASS] (ADS only) Set a specific password on the computer account being created by the join\&.
+.PP
+[osName=string osVer=String] (ADS only) Set the operatingSystem and operatingSystemVersion attribute during the join\&. Both parameters must be specified for either to take effect\&.
 .SS "[RPC] OLDJOIN [options]"
 .PP
 Join a domain\&. Use the OLDJOIN option to join the domain using the old style of domain joining \- you need to create a trust account in server manager first\&.
@@ -741,7 +745,9 @@ Dump remote SAM database to local LDIF file or standard output\&.
 .SS "RPC GETSID"
 .PP
 Fetch domain SID and store it in the local
-secrets\&.tdb\&.
+secrets\&.tdb
+(or
+secrets\&.ntdb)\&.
 .SS "ADS LEAVE"
 .PP
 Make the remote host leave the domain it is part of\&.
@@ -1158,7 +1164,7 @@ net registry export      \- Export a registration entries (\&.reg) file\&.
 net registry convert     \- Convert a registration entries (\&.reg) file\&.
 .RE
 .RS 4
-net registry check       \- Check and reapair a registry database\&.
+net registry check       \- Check and repair a registry database\&.
 .RE
 .SS "REGISTRY ENUMERATE key "
 .PP

@@ -1128,16 +1128,18 @@ NTSTATUS resolve_username_to_alias( TALLOC_CTX *mem_ctx,
 	if (!cache->tdb)
 		goto do_query;
 
-	if ( (upper_name = SMB_STRDUP(name)) == NULL )
+	upper_name = talloc_strdup(mem_ctx, name);
+	if (upper_name == NULL) {
 		return NT_STATUS_NO_MEMORY;
+	}
 	if (!strupper_m(upper_name)) {
-		SAFE_FREE(name);
+		talloc_free(upper_name);
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
 	centry = wcache_fetch(cache, domain, "NSS/NA/%s", upper_name);
 
-	SAFE_FREE( upper_name );
+	talloc_free(upper_name);
 
 	if (!centry)
 		goto do_query;
@@ -1206,16 +1208,18 @@ NTSTATUS resolve_alias_to_username( TALLOC_CTX *mem_ctx,
 	if (!cache->tdb)
 		goto do_query;
 
-	if ( (upper_name = SMB_STRDUP(alias)) == NULL )
+	upper_name = talloc_strdup(mem_ctx, alias);
+	if (upper_name == NULL) {
 		return NT_STATUS_NO_MEMORY;
+	}
 	if (!strupper_m(upper_name)) {
-		SAFE_FREE(alias);
+		talloc_free(upper_name);
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
 	centry = wcache_fetch(cache, domain, "NSS/AN/%s", upper_name);
 
-	SAFE_FREE( upper_name );
+	talloc_free(upper_name);
 
 	if (!centry)
 		goto do_query;
@@ -4339,8 +4343,16 @@ static bool add_wbdomain_to_tdc_array( struct winbindd_domain *new_dom,
 	if ( !list )
 		return false;
 
-	list[idx].domain_name = talloc_strdup( list, new_dom->name );
-	list[idx].dns_name = talloc_strdup( list, new_dom->alt_name );
+	list[idx].domain_name = talloc_strdup(list, new_dom->name);
+	if (list[idx].domain_name == NULL) {
+		return false;
+	}
+	if (new_dom->alt_name != NULL) {
+		list[idx].dns_name = talloc_strdup(list, new_dom->alt_name);
+		if (list[idx].dns_name == NULL) {
+			return false;
+		}
+	}
 
 	if ( !is_null_sid( &new_dom->sid ) ) {
 		sid_copy( &list[idx].sid, &new_dom->sid );
@@ -4423,7 +4435,7 @@ static int pack_tdc_domains( struct winbindd_tdc_domain *domains,
 
 		len += tdb_pack( buffer+len, buflen-len, "fffddd",
 				 domains[i].domain_name,
-				 domains[i].dns_name,
+				 domains[i].dns_name ? domains[i].dns_name : "",
 				 sid_to_fstring(tmp, &domains[i].sid),
 				 domains[i].trust_flags,
 				 domains[i].trust_attribs,
@@ -4474,7 +4486,9 @@ static size_t unpack_tdc_domains( unsigned char *buf, int buflen,
 	}
 
 	for ( i=0; i<num_domains; i++ ) {
-		len += tdb_unpack( buf+len, buflen-len, "fffddd",
+		int this_len;
+
+		this_len = tdb_unpack( buf+len, buflen-len, "fffddd",
 				   domain_name,
 				   dns_name,
 				   sid_string,
@@ -4482,11 +4496,12 @@ static size_t unpack_tdc_domains( unsigned char *buf, int buflen,
 				   &attribs,
 				   &type );
 
-		if ( len == -1 ) {
+		if ( this_len == -1 ) {
 			DEBUG(5,("unpack_tdc_domains: Failed to unpack domain array\n"));
 			TALLOC_FREE( list );			
 			return 0;
 		}
+		len += this_len;
 
 		DEBUG(11,("unpack_tdc_domains: Unpacking domain %s (%s) "
 			  "SID %s, flags = 0x%x, attribs = 0x%x, type = 0x%x\n",
@@ -4494,7 +4509,10 @@ static size_t unpack_tdc_domains( unsigned char *buf, int buflen,
 			  flags, attribs, type));
 
 		list[i].domain_name = talloc_strdup( list, domain_name );
-		list[i].dns_name = talloc_strdup( list, dns_name );
+		list[i].dns_name = NULL;
+		if (dns_name[0] != '\0') {
+			list[i].dns_name = talloc_strdup(list, dns_name);
+		}
 		if ( !string_to_sid( &(list[i].sid), sid_string ) ) {			
 			DEBUG(10,("unpack_tdc_domains: no SID for domain %s\n",
 				  domain_name));
@@ -4621,6 +4639,38 @@ bool wcache_tdc_add_domain( struct winbindd_domain *domain )
 	return ret;	
 }
 
+static struct winbindd_tdc_domain *wcache_tdc_dup_domain(
+	TALLOC_CTX *mem_ctx, const struct winbindd_tdc_domain *src)
+{
+	struct winbindd_tdc_domain *dst;
+
+	dst = talloc(mem_ctx, struct winbindd_tdc_domain);
+	if (dst == NULL) {
+		goto fail;
+	}
+	dst->domain_name = talloc_strdup(dst, src->domain_name);
+	if (dst->domain_name == NULL) {
+		goto fail;
+	}
+
+	dst->dns_name = NULL;
+	if (src->dns_name != NULL) {
+		dst->dns_name = talloc_strdup(dst, src->dns_name);
+		if (dst->dns_name == NULL) {
+			goto fail;
+		}
+	}
+
+	sid_copy(&dst->sid, &src->sid);
+	dst->trust_flags = src->trust_flags;
+	dst->trust_type = src->trust_type;
+	dst->trust_attribs = src->trust_attribs;
+	return dst;
+fail:
+	TALLOC_FREE(dst);
+	return NULL;
+}
+
 /*********************************************************************
  ********************************************************************/
 
@@ -4648,17 +4698,7 @@ struct winbindd_tdc_domain * wcache_tdc_fetch_domain( TALLOC_CTX *ctx, const cha
 			DEBUG(10,("wcache_tdc_fetch_domain: Found domain %s\n",
 				  name));
 
-			d = talloc( ctx, struct winbindd_tdc_domain );
-			if ( !d )
-				break;			
-
-			d->domain_name = talloc_strdup( d, dom_list[i].domain_name );
-			d->dns_name = talloc_strdup( d, dom_list[i].dns_name );
-			sid_copy( &d->sid, &dom_list[i].sid );
-			d->trust_flags   = dom_list[i].trust_flags;
-			d->trust_type    = dom_list[i].trust_type;
-			d->trust_attribs = dom_list[i].trust_attribs;
-
+			d = wcache_tdc_dup_domain(ctx, &dom_list[i]);
 			break;
 		}
 	}
@@ -4698,19 +4738,7 @@ struct winbindd_tdc_domain*
 				   dom_list[i].domain_name,
 				   sid_string_dbg(sid)));
 
-			d = talloc(ctx, struct winbindd_tdc_domain);
-			if (!d)
-				break;
-
-			d->domain_name = talloc_strdup(d,
-						       dom_list[i].domain_name);
-
-			d->dns_name = talloc_strdup(d, dom_list[i].dns_name);
-			sid_copy(&d->sid, &dom_list[i].sid);
-			d->trust_flags = dom_list[i].trust_flags;
-			d->trust_type = dom_list[i].trust_type;
-			d->trust_attribs = dom_list[i].trust_attribs;
-
+			d = wcache_tdc_dup_domain(ctx, &dom_list[i]);
 			break;
 		}
 	}
@@ -4845,7 +4873,7 @@ struct winbindd_methods cache_methods = {
 	trusted_domains
 };
 
-static bool wcache_ndr_key(TALLOC_CTX *mem_ctx, char *domain_name,
+static bool wcache_ndr_key(TALLOC_CTX *mem_ctx, const char *domain_name,
 			   uint32_t opnum, const DATA_BLOB *req,
 			   TDB_DATA *pkey)
 {

@@ -378,7 +378,7 @@ struct smbd_smb2_create_state {
 	struct smbd_smb2_request *smb2req;
 	struct smb_request *smb1req;
 	bool open_was_deferred;
-	struct timed_event *te;
+	struct tevent_timer *te;
 	struct tevent_immediate *im;
 	struct timeval request_time;
 	struct file_id id;
@@ -552,6 +552,7 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 		uint32_t durable_timeout_msec = 0;
 		bool do_durable_reconnect = false;
 		struct smb2_create_blob *dh2q = NULL;
+		uint64_t persistent_id = 0;
 
 		exta = smb2_create_blob_find(&in_context_blobs,
 					     SMB2_CREATE_TAG_EXTA);
@@ -688,41 +689,13 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 		}
 
 		if (dhnc) {
-			NTTIME now = timeval_to_nttime(&smb2req->request_time);
-			uint64_t persistent_id;
-
 			persistent_id = BVAL(dhnc->data.data, 0);
-
-			status = smb2srv_open_recreate(smb2req->sconn->conn,
-						smb1req->conn->session_info,
-						persistent_id, create_guid,
-						now, &op);
-			if (!NT_STATUS_IS_OK(status)) {
-				DEBUG(3, ("smbd_smb2_create_send: "
-					  "smb2srv_open_recreate v1 failed: %s\n",
-					  nt_errstr(status)));
-				tevent_req_nterror(req, status);
-				return tevent_req_post(req, ev);
-			}
-
-			DEBUG(10, ("smb2_create_send: DHNC: %s recreate the "
-				   "smb2srv_open struct for a durable handle.\n",
-				   op->global->durable ? "did" : "could not"));
-
-			if (!op->global->durable) {
-				talloc_free(op);
-				tevent_req_nterror(req,
-					NT_STATUS_OBJECT_NAME_NOT_FOUND);
-				return tevent_req_post(req, ev);
-			}
 
 			do_durable_reconnect = true;
 		}
 
 		if (dh2c) {
 			const uint8_t *p = dh2c->data.data;
-			NTTIME now = timeval_to_nttime(&smb2req->request_time);
-			uint64_t persistent_id;
 			DATA_BLOB create_guid_blob;
 
 			persistent_id = BVAL(p, 0);
@@ -731,29 +704,6 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 			status = GUID_from_ndr_blob(&create_guid_blob,
 						    &create_guid);
 			if (tevent_req_nterror(req, status)) {
-				return tevent_req_post(req, ev);
-			}
-
-			status = smb2srv_open_recreate(smb2req->sconn->conn,
-						       smb1req->conn->session_info,
-						       persistent_id, create_guid,
-						       now, &op);
-			if (!NT_STATUS_IS_OK(status)) {
-				DEBUG(3, ("smbd_smb2_create_send: "
-					  "smb2srv_open_recreate v2 failed: %s\n",
-					  nt_errstr(status)));
-				tevent_req_nterror(req, status);
-				return tevent_req_post(req, ev);
-			}
-
-			DEBUG(10, ("smb2_create_send: DH2C: %s recreate the "
-				   "smb2srv_open struct for a durable handle.\n",
-				   op->global->durable ? "did" : "could not"));
-
-			if (!op->global->durable) {
-				talloc_free(op);
-				tevent_req_nterror(req,
-					NT_STATUS_OBJECT_NAME_NOT_FOUND);
 				return tevent_req_post(req, ev);
 			}
 
@@ -818,12 +768,37 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 		 */
 		if (do_durable_reconnect) {
 			DATA_BLOB new_cookie = data_blob_null;
+			NTTIME now = timeval_to_nttime(&smb2req->request_time);
+
+			status = smb2srv_open_recreate(smb2req->sconn->conn,
+						smb1req->conn->session_info,
+						persistent_id, create_guid,
+						now, &op);
+			if (!NT_STATUS_IS_OK(status)) {
+				DEBUG(3, ("smbd_smb2_create_send: "
+					  "smb2srv_open_recreate failed: %s\n",
+					  nt_errstr(status)));
+				tevent_req_nterror(req, status);
+				return tevent_req_post(req, ev);
+			}
+
+			DEBUG(10, ("smb2_create_send: %s to recreate the "
+				   "smb2srv_open struct for a durable handle.\n",
+				   op->global->durable ? "succeded" : "failed"));
+
+			if (!op->global->durable) {
+				talloc_free(op);
+				tevent_req_nterror(req,
+					NT_STATUS_OBJECT_NAME_NOT_FOUND);
+				return tevent_req_post(req, ev);
+			}
 
 			status = SMB_VFS_DURABLE_RECONNECT(smb1req->conn,
 						smb1req,
-						op,
+						op, /* smbXsrv_open input */
 						op->global->backend_cookie,
-						op, &result, &new_cookie);
+						op, /* TALLOC_CTX */
+						&result, &new_cookie);
 			if (!NT_STATUS_IS_OK(status)) {
 				NTSTATUS return_status;
 
@@ -925,6 +900,7 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 
 				status = smbd_calculate_access_mask(smb1req->conn,
 							result->fsp_name,
+							false,
 							SEC_FLAG_MAXIMUM_ALLOWED,
 							&max_access_granted);
 
@@ -1343,55 +1319,6 @@ bool schedule_deferred_open_message_smb2(
 	return true;
 }
 
-/*********************************************************
- Re-process this call.
-*********************************************************/
-
-static void smb2_deferred_open_timer(struct event_context *ev,
-					struct timed_event *te,
-					struct timeval _tval,
-					void *private_data)
-{
-	NTSTATUS status;
-	struct smbd_smb2_create_state *state = NULL;
-	struct smbd_smb2_request *smb2req = talloc_get_type(private_data,
-						struct smbd_smb2_request);
-
-	DEBUG(10,("smb2_deferred_open_timer: [idx=%d], %s\n",
-		smb2req->current_idx,
-		tevent_req_default_print(smb2req->subreq, talloc_tos()) ));
-
-	state = tevent_req_data(smb2req->subreq,
-			struct smbd_smb2_create_state);
-	if (!state) {
-		return;
-	}
-	/*
-	 * Null this out, don't talloc_free. It will
-	 * be talloc_free'd by the tevent library when
-	 * this returns.
-	 */
-	state->te = NULL;
-	/* Ensure we don't have any outstanding immediate event. */
-	TALLOC_FREE(state->im);
-
-	/*
-	 * This is subtle. We must null out the callback
-	 * before rescheduling, else the first call to
-	 * tevent_req_nterror() causes the _receive()
-	 * function to be called, this causing tevent_req_post()
-	 * to crash.
-	 */
-	tevent_req_set_callback(smb2req->subreq, NULL, NULL);
-
-	status = smbd_smb2_request_dispatch(smb2req);
-
-	if (!NT_STATUS_IS_OK(status)) {
-		smbd_server_connection_terminate(smb2req->sconn,
-				nt_errstr(status));
-	}
-}
-
 static bool smbd_smb2_create_cancel(struct tevent_req *req)
 {
 	struct smbd_smb2_request *smb2req = NULL;
@@ -1415,8 +1342,6 @@ static bool smbd_smb2_create_cancel(struct tevent_req *req)
 		return false;
 	}
 
-	remove_deferred_open_entry(state->id, mid,
-				   messaging_server_id(smb2req->sconn->msg_ctx));
 	remove_deferred_open_message_smb2_internal(smb2req, mid);
 
 	tevent_req_defer_callback(req, smb2req->sconn->ev_ctx);
@@ -1464,14 +1389,6 @@ bool push_deferred_open_message_smb2(struct smbd_smb2_request *smb2req,
 				true) ));
 
 	state->open_was_deferred = true;
-	state->te = tevent_add_timer(smb2req->sconn->ev_ctx,
-				state,
-				end_time,
-				smb2_deferred_open_timer,
-				smb2req);
-        if (!state->te) {
-		return false;
-	}
 
 	/* allow this request to be canceled */
 	tevent_req_set_cancel_fn(req, smbd_smb2_create_cancel);

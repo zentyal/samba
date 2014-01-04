@@ -31,6 +31,7 @@ struct ndr_pull_test_data {
 	ndr_pull_flags_fn_t pull_fn;
 	ndr_push_flags_fn_t push_fn;
 	int ndr_flags;
+	int flags;
 };
 
 static bool wrap_ndr_pullpush_test(struct torture_context *tctx,
@@ -42,15 +43,24 @@ static bool wrap_ndr_pullpush_test(struct torture_context *tctx,
 	struct ndr_pull *ndr = ndr_pull_init_blob(&(data->data), tctx);
 	void *ds = talloc_zero_size(ndr, data->struct_size);
 	bool ret;
+	uint32_t highest_ofs;
+
+	ndr->flags |= data->flags;
 
 	ndr->flags |= LIBNDR_FLAG_REF_ALLOC;
 
 	torture_assert_ndr_success(tctx, data->pull_fn(ndr, data->ndr_flags, ds),
 				   "pulling");
 
-	torture_assert(tctx, ndr->offset == ndr->data_size,
+	if (ndr->offset > ndr->relative_highest_offset) {
+		highest_ofs = ndr->offset;
+	} else {
+		highest_ofs = ndr->relative_highest_offset;
+	}
+
+	torture_assert(tctx, highest_ofs == ndr->data_size,
 				   talloc_asprintf(tctx,
-					   "%d unread bytes", ndr->data_size - ndr->offset));
+					   "%d unread bytes", ndr->data_size - highest_ofs));
 
 	if (check_fn != NULL) {
 		ret = check_fn(tctx, ds);
@@ -76,6 +86,7 @@ _PUBLIC_ struct torture_test *_torture_suite_add_ndr_pullpush_test(
 	DATA_BLOB db,
 	size_t struct_size,
 	int ndr_flags,
+	int flags,
 	bool (*check_fn) (struct torture_context *ctx, void *data))
 {
 	struct torture_test *test;
@@ -93,6 +104,7 @@ _PUBLIC_ struct torture_test *_torture_suite_add_ndr_pullpush_test(
 	data = talloc(test, struct ndr_pull_test_data);
 	data->data = db;
 	data->ndr_flags = ndr_flags;
+	data->flags = flags;
 	data->struct_size = struct_size;
 	data->pull_fn = pull_fn;
 	data->push_fn = push_fn;
@@ -115,6 +127,7 @@ static bool wrap_ndr_inout_pull_test(struct torture_context *tctx,
 	const struct ndr_pull_test_data *data = (const struct ndr_pull_test_data *)test->data;
 	void *ds = talloc_zero_size(tctx, data->struct_size);
 	struct ndr_pull *ndr;
+	uint32_t highest_ofs;
 
 	/* handle NDR_IN context */
 
@@ -127,8 +140,14 @@ static bool wrap_ndr_inout_pull_test(struct torture_context *tctx,
 		data->pull_fn(ndr, NDR_IN, ds),
 		"ndr pull of context failed");
 
-	torture_assert(tctx, ndr->offset == ndr->data_size,
-		talloc_asprintf(tctx, "%d unread bytes", ndr->data_size - ndr->offset));
+	if (ndr->offset > ndr->relative_highest_offset) {
+		highest_ofs = ndr->offset;
+	} else {
+		highest_ofs = ndr->relative_highest_offset;
+	}
+
+	torture_assert(tctx, highest_ofs == ndr->data_size,
+		talloc_asprintf(tctx, "%d unread bytes", ndr->data_size - highest_ofs));
 
 	talloc_free(ndr);
 
@@ -143,8 +162,14 @@ static bool wrap_ndr_inout_pull_test(struct torture_context *tctx,
 		data->pull_fn(ndr, NDR_OUT, ds),
 		"ndr pull failed");
 
-	torture_assert(tctx, ndr->offset == ndr->data_size,
-		talloc_asprintf(tctx, "%d unread bytes", ndr->data_size - ndr->offset));
+	if (ndr->offset > ndr->relative_highest_offset) {
+		highest_ofs = ndr->offset;
+	} else {
+		highest_ofs = ndr->relative_highest_offset;
+	}
+
+	torture_assert(tctx, highest_ofs == ndr->data_size,
+		talloc_asprintf(tctx, "%d unread bytes", ndr->data_size - highest_ofs));
 
 	talloc_free(ndr);
 
@@ -373,9 +398,7 @@ struct torture_suite *torture_local_ndr(TALLOC_CTX *mem_ctx)
 	torture_suite_add_suite(suite, ndr_drsblobs_suite(suite));
 	torture_suite_add_suite(suite, ndr_nbt_suite(suite));
 	torture_suite_add_suite(suite, ndr_ntlmssp_suite(suite));
-#ifdef AD_DC_BUILD_IS_ENABLED /* Add Heimdal-specific KDC test */
 	torture_suite_add_suite(suite, ndr_backupkey_suite(suite));
-#endif
 	torture_suite_add_suite(suite, ndr_string_suite(suite));
 
 	torture_suite_add_simple_test(suite, "string terminator",

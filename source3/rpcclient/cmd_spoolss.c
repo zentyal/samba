@@ -25,6 +25,7 @@
 #include "includes.h"
 #include "rpcclient.h"
 #include "../librpc/gen_ndr/ndr_spoolss_c.h"
+#include "../librpc/gen_ndr/ndr_spoolss.h"
 #include "rpc_client/cli_spoolss.h"
 #include "rpc_client/init_spoolss.h"
 #include "nt_printing.h"
@@ -831,6 +832,7 @@ static void display_printer_data(const char *v,
 	union spoolss_PrinterData r;
 	DATA_BLOB blob = data_blob_const(data, length);
 	WERROR result;
+	enum ndr_err_code ndr_err;
 
 	result = pull_spoolss_PrinterData(talloc_tos(), &blob, &r, type);
 	if (!W_ERROR_IS_OK(result)) {
@@ -861,6 +863,25 @@ static void display_printer_data(const char *v,
 		}
 		TALLOC_FREE(hex);
 		putchar('\n');
+
+		if (strequal(v, "OsVersion")) {
+			struct spoolss_OSVersion os;
+			ndr_err = ndr_pull_struct_blob(&blob, talloc_tos(), &os,
+				(ndr_pull_flags_fn_t)ndr_pull_spoolss_OSVersion);
+			if (NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+				printf("%s: OsVersion:\n", v);
+				NDR_PRINT_DEBUG(spoolss_OSVersion, &os);
+			}
+		}
+		if (strequal(v, "OsVersionEx")) {
+			struct spoolss_OSVersionEx os;
+			ndr_err = ndr_pull_struct_blob(&blob, talloc_tos(), &os,
+				(ndr_pull_flags_fn_t)ndr_pull_spoolss_OSVersionEx);
+			if (NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+				printf("%s: OsVersionEx:\n", v);
+				NDR_PRINT_DEBUG(spoolss_OSVersionEx, &os);
+			}
+		}
 		break;
 	}
 	case REG_MULTI_SZ:
@@ -1629,7 +1650,7 @@ static char *get_driver_3_param(TALLOC_CTX *mem_ctx, char *str,
 /********************************************************************************
  fill in the members of a spoolss_AddDriverInfo3 struct using a character
  string in the form of
- 	 <Long Printer Name>:<Driver File Name>:<Data File Name>:\
+	 <Long Driver Name>:<Driver File Name>:<Data File Name>:\
 	     <Config File Name>:<Help File Name>:<Language Monitor Name>:\
 	     <Default Data Type>:<Comma Separated list of Files>
  *******************************************************************************/
@@ -1672,7 +1693,11 @@ static bool init_drv_info_3_members(TALLOC_CTX *mem_ctx, struct spoolss_AddDrive
 	}
 
 	while (str != NULL) {
-		add_string_to_array(deps, str, &file_array, &count);
+		bool ok;
+		ok = add_string_to_array(deps, str, &file_array, &count);
+		if (!ok) {
+			return false;
+		}
 		str = strtok_r(NULL, ",", &saveptr);
 	}
 
@@ -1710,7 +1735,7 @@ static WERROR cmd_spoolss_addprinterdriver(struct rpc_pipe_client *cli,
 	if (argc != 3 && argc != 4)
 	{
 		printf ("Usage: %s <Environment> \\\n", argv[0]);
-		printf ("\t<Long Printer Name>:<Driver File Name>:<Data File Name>:\\\n");
+		printf ("\t<Long Driver Name>:<Driver File Name>:<Data File Name>:\\\n");
     		printf ("\t<Config File Name>:<Help File Name>:<Language Monitor Name>:\\\n");
 	    	printf ("\t<Default Data Type>:<Comma Separated list of Files> \\\n");
 		printf ("\t[version]\n");
@@ -1792,8 +1817,8 @@ static WERROR cmd_spoolss_addprinterex(struct rpc_pipe_client *cli,
 	info2.comment		= "Created by rpcclient";
 	info2.printprocessor	= "winprint";
 	info2.datatype		= "RAW";
-	info2.devmode_ptr	= 0;
-	info2.secdesc_ptr	= 0;
+	info2.devmode_ptr	= NULL;
+	info2.secdesc_ptr	= NULL;
 	info2.attributes 	= PRINTER_ATTRIBUTE_SHARED;
 	info2.priority 		= 0;
 	info2.defaultpriority	= 0;
@@ -2100,7 +2125,7 @@ static WERROR cmd_spoolss_addform(struct rpc_pipe_client *cli, TALLOC_CTX *mem_c
 	WERROR werror;
 	NTSTATUS status;
 	const char *printername;
-	union spoolss_AddFormInfo info;
+	struct spoolss_AddFormInfoCtr info_ctr;
 	struct spoolss_AddFormInfo1 info1;
 	struct spoolss_AddFormInfo2 info2;
 	uint32_t level = 1;
@@ -2141,7 +2166,8 @@ static WERROR cmd_spoolss_addform(struct rpc_pipe_client *cli, TALLOC_CTX *mem_c
 		info1.area.right	= 20;
 		info1.area.bottom	= 30;
 
-		info.info1 = &info1;
+		info_ctr.level		= 1;
+		info_ctr.info.info1	= &info1;
 
 		break;
 	case 2:
@@ -2160,7 +2186,8 @@ static WERROR cmd_spoolss_addform(struct rpc_pipe_client *cli, TALLOC_CTX *mem_c
 		info2.display_name	= argv[2];
 		info2.lang_id		= 0;
 
-		info.info2 = &info2;
+		info_ctr.level		= 2;
+		info_ctr.info.info2	= &info2;
 
 		break;
 	default:
@@ -2170,11 +2197,9 @@ static WERROR cmd_spoolss_addform(struct rpc_pipe_client *cli, TALLOC_CTX *mem_c
 
 	/* Add the form */
 
-
 	status = dcerpc_spoolss_AddForm(b, mem_ctx,
 					&handle,
-					level,
-					info,
+					&info_ctr,
 					&werror);
 	if (!NT_STATUS_IS_OK(status)) {
 		werror = ntstatus_to_werror(status);
@@ -2199,7 +2224,7 @@ static WERROR cmd_spoolss_setform(struct rpc_pipe_client *cli, TALLOC_CTX *mem_c
 	WERROR werror;
 	NTSTATUS status;
 	const char *printername;
-	union spoolss_AddFormInfo info;
+	struct spoolss_AddFormInfoCtr info_ctr;
 	struct spoolss_AddFormInfo1 info1;
 	struct dcerpc_binding_handle *b = cli->binding_handle;
 
@@ -2232,15 +2257,15 @@ static WERROR cmd_spoolss_setform(struct rpc_pipe_client *cli, TALLOC_CTX *mem_c
 	info1.area.bottom	= 3000;
 	info1.form_name		= argv[2];
 
-	info.info1 = &info1;
+	info_ctr.info.info1 = &info1;
+	info_ctr.level = 1;
 
 	/* Set the form */
 
 	status = dcerpc_spoolss_SetForm(b, mem_ctx,
 					&handle,
 					argv[2],
-					1,
-					info,
+					&info_ctr,
 					&werror);
 	if (!NT_STATUS_IS_OK(status)) {
 		werror = ntstatus_to_werror(status);
@@ -3708,6 +3733,108 @@ static WERROR cmd_spoolss_create_printer_ic(struct rpc_pipe_client *cli,
 	return result;
 }
 
+static WERROR cmd_spoolss_play_gdi_script_on_printer_ic(struct rpc_pipe_client *cli,
+							TALLOC_CTX *mem_ctx, int argc,
+							const char **argv)
+{
+	WERROR result;
+	NTSTATUS status;
+	struct policy_handle handle, gdi_handle;
+	const char *printername;
+	struct spoolss_DevmodeContainer devmode_ctr;
+	struct dcerpc_binding_handle *b = cli->binding_handle;
+	DATA_BLOB in,out;
+	uint32_t count = 0;
+
+	RPCCLIENT_PRINTERNAME(printername, cli, argv[1]);
+
+	result = rpccli_spoolss_openprinter_ex(cli, mem_ctx,
+					       printername,
+					       SEC_FLAG_MAXIMUM_ALLOWED,
+					       &handle);
+	if (!W_ERROR_IS_OK(result)) {
+		return result;
+	}
+
+	ZERO_STRUCT(devmode_ctr);
+
+	status = dcerpc_spoolss_CreatePrinterIC(b, mem_ctx,
+						&handle,
+						&gdi_handle,
+						&devmode_ctr,
+						&result);
+	if (!NT_STATUS_IS_OK(status)) {
+		result = ntstatus_to_werror(status);
+		goto done;
+	}
+	if (!W_ERROR_IS_OK(result)) {
+		goto done;
+	}
+
+	in = data_blob_string_const("");
+	out = data_blob_talloc_zero(mem_ctx, 4);
+
+	status = dcerpc_spoolss_PlayGDIScriptOnPrinterIC(b, mem_ctx,
+							 &gdi_handle,
+							 in.data,
+							 in.length,
+							 out.data,
+							 out.length,
+							 0, /* ul */
+							 &result);
+	if (!NT_STATUS_IS_OK(status)) {
+		result = ntstatus_to_werror(status);
+		goto done;
+	}
+	if (!W_ERROR_IS_OK(result)) {
+		goto done;
+	}
+
+	count = IVAL(out.data, 0);
+
+	out = data_blob_talloc_zero(mem_ctx,
+				    count * sizeof(struct UNIVERSAL_FONT_ID) + 4);
+
+	status = dcerpc_spoolss_PlayGDIScriptOnPrinterIC(b, mem_ctx,
+							 &gdi_handle,
+							 in.data,
+							 in.length,
+							 out.data,
+							 out.length,
+							 0, /* ul */
+							 &result);
+	if (!NT_STATUS_IS_OK(status)) {
+		result = ntstatus_to_werror(status);
+		goto done;
+	}
+	if (!W_ERROR_IS_OK(result)) {
+		goto done;
+	}
+
+	{
+		enum ndr_err_code ndr_err;
+		struct UNIVERSAL_FONT_ID_ctr r;
+
+		ndr_err = ndr_pull_struct_blob(&out, mem_ctx, &r,
+			(ndr_pull_flags_fn_t)ndr_pull_UNIVERSAL_FONT_ID_ctr);
+		if (NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+			NDR_PRINT_DEBUG(UNIVERSAL_FONT_ID_ctr, &r);
+		}
+	}
+
+ done:
+	if (is_valid_policy_hnd(&gdi_handle)) {
+		WERROR _result;
+		dcerpc_spoolss_DeletePrinterIC(b, mem_ctx, &gdi_handle, &_result);
+	}
+	if (is_valid_policy_hnd(&handle)) {
+		WERROR _result;
+		dcerpc_spoolss_ClosePrinter(b, mem_ctx, &handle, &_result);
+	}
+
+	return result;
+}
+
 /* List of commands exported by this module */
 struct cmd_set spoolss_commands[] = {
 
@@ -3749,6 +3876,7 @@ struct cmd_set spoolss_commands[] = {
 	{ "enumprocdatatypes",	RPC_RTYPE_WERROR, NULL, cmd_spoolss_enum_proc_data_types, &ndr_table_spoolss, NULL, "Enumerate Print Processor Data Types", "" },
 	{ "enummonitors",	RPC_RTYPE_WERROR, NULL, cmd_spoolss_enum_monitors,      &ndr_table_spoolss, NULL, "Enumerate Print Monitors", "" },
 	{ "createprinteric",	RPC_RTYPE_WERROR, NULL, cmd_spoolss_create_printer_ic,  &ndr_table_spoolss, NULL, "Create Printer IC", "" },
+	{ "playgdiscriptonprinteric",	RPC_RTYPE_WERROR, NULL, cmd_spoolss_play_gdi_script_on_printer_ic,  &ndr_table_spoolss, NULL, "Create Printer IC", "" },
 
 	{ NULL }
 };

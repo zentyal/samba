@@ -218,8 +218,9 @@ static NTSTATUS parse_dfs_path(connection_struct *conn,
 }
 
 /********************************************************
- Fake up a connection struct for the VFS layer.
- Note: this performs a vfs connect and CHANGES CWD !!!! JRA.
+ Fake up a connection struct for the VFS layer, for use in
+ applications (such as the python bindings), that do not want the
+ global working directory changed under them.
 *********************************************************/
 
 NTSTATUS create_conn_struct(TALLOC_CTX *ctx,
@@ -228,17 +229,37 @@ NTSTATUS create_conn_struct(TALLOC_CTX *ctx,
 			    connection_struct **pconn,
 			    int snum,
 			    const char *path,
-			    const struct auth_session_info *session_info,
-			    char **poldcwd)
+			    const struct auth_session_info *session_info)
 {
 	connection_struct *conn;
 	char *connpath;
-	char *oldcwd;
 	const char *vfs_user;
+	struct smbd_server_connection *sconn;
+	const char *servicename = lp_const_servicename(snum);
 
-	conn = talloc_zero(ctx, connection_struct);
-	if (conn == NULL) {
+	sconn = talloc_zero(ctx, struct smbd_server_connection);
+	if (sconn == NULL) {
 		return NT_STATUS_NO_MEMORY;
+	}
+
+	sconn->ev_ctx = ev;
+	sconn->msg_ctx = msg;
+	sconn->sock = -1;
+	sconn->smb1.echo_handler.trusted_fd = -1;
+	sconn->smb1.echo_handler.socket_lock_fd = -1;
+
+	conn = conn_new(sconn);
+	if (conn == NULL) {
+		TALLOC_FREE(sconn);
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	/* Now we have conn, we need to make sconn a child of conn,
+	 * for a proper talloc tree */
+	talloc_steal(conn, sconn);
+
+	if (snum == -1 && servicename == NULL) {
+		servicename = "Unknown Service (snum == -1)";
 	}
 
 	connpath = talloc_strdup(conn, path);
@@ -247,39 +268,18 @@ NTSTATUS create_conn_struct(TALLOC_CTX *ctx,
 		return NT_STATUS_NO_MEMORY;
 	}
 	connpath = talloc_string_sub(conn,
-				connpath,
-				"%S",
-				lp_servicename(talloc_tos(), snum));
+				     connpath,
+				     "%S",
+				     servicename);
 	if (!connpath) {
 		TALLOC_FREE(conn);
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	conn->sconn = talloc_zero(conn, struct smbd_server_connection);
-	if (conn->sconn == NULL) {
-		TALLOC_FREE(conn);
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	conn->sconn->ev_ctx = ev;
-	conn->sconn->msg_ctx = msg;
-	conn->sconn->sock = -1;
-	conn->sconn->smb1.echo_handler.trusted_fd = -1;
-	conn->sconn->smb1.echo_handler.socket_lock_fd = -1;
-
 	/* needed for smbd_vfs_init() */
-
-	if (!(conn->params = talloc_zero(conn, struct share_params))) {
-		DEBUG(0, ("TALLOC failed\n"));
-		TALLOC_FREE(conn);
-		return NT_STATUS_NO_MEMORY;
-	}
 
 	conn->params->service = snum;
 	conn->cnum = TID_FIELD_INVALID;
-
-	DLIST_ADD(conn->sconn->connections, conn);
-	conn->sconn->num_connections++;
 
 	if (session_info != NULL) {
 		conn->session_info = copy_session_info(conn, session_info);
@@ -304,7 +304,7 @@ NTSTATUS create_conn_struct(TALLOC_CTX *ctx,
 	 */
 	if (conn->session_info) {
 		share_access_check(conn->session_info->security_token,
-				   lp_servicename(talloc_tos(), snum),
+				   servicename,
 				   MAXIMUM_ALLOWED_ACCESS,
 				   &conn->share_access);
 
@@ -314,7 +314,7 @@ NTSTATUS create_conn_struct(TALLOC_CTX *ctx,
 				DEBUG(0,("create_conn_struct: connection to %s "
 					 "denied due to security "
 					 "descriptor.\n",
-					 lp_servicename(talloc_tos(), snum)));
+					 servicename));
 				conn_free(conn);
 				return NT_STATUS_ACCESS_DENIED;
 			} else {
@@ -334,13 +334,44 @@ NTSTATUS create_conn_struct(TALLOC_CTX *ctx,
 	}
 
 	/* this must be the first filesystem operation that we do */
-	if (SMB_VFS_CONNECT(conn, lp_servicename(talloc_tos(), snum), vfs_user) < 0) {
+	if (SMB_VFS_CONNECT(conn, servicename, vfs_user) < 0) {
 		DEBUG(0,("VFS connect failed!\n"));
 		conn_free(conn);
 		return NT_STATUS_UNSUCCESSFUL;
 	}
 
 	conn->fs_capabilities = SMB_VFS_FS_CAPABILITIES(conn, &conn->ts_res);
+	*pconn = conn;
+
+	return NT_STATUS_OK;
+}
+
+/********************************************************
+ Fake up a connection struct for the VFS layer.
+ Note: this performs a vfs connect and CHANGES CWD !!!! JRA.
+
+ The old working directory is returned on *poldcwd, allocated on ctx.
+*********************************************************/
+
+NTSTATUS create_conn_struct_cwd(TALLOC_CTX *ctx,
+				struct tevent_context *ev,
+				struct messaging_context *msg,
+				connection_struct **pconn,
+				int snum,
+				const char *path,
+				const struct auth_session_info *session_info,
+				char **poldcwd)
+{
+	connection_struct *conn;
+	char *oldcwd;
+
+	NTSTATUS status = create_conn_struct(ctx, ev,
+					     msg, &conn,
+					     snum, path,
+					     session_info);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
 
 	/*
 	 * Windows seems to insist on doing trans2getdfsreferral() calls on
@@ -350,14 +381,14 @@ NTSTATUS create_conn_struct(TALLOC_CTX *ctx,
 
 	oldcwd = vfs_GetWd(ctx, conn);
 	if (oldcwd == NULL) {
-		NTSTATUS status = map_nt_error_from_unix(errno);
+		status = map_nt_error_from_unix(errno);
 		DEBUG(3, ("vfs_GetWd failed: %s\n", strerror(errno)));
 		conn_free(conn);
 		return status;
 	}
 
 	if (vfs_ChDir(conn,conn->connectpath) != 0) {
-		NTSTATUS status = map_nt_error_from_unix(errno);
+		status = map_nt_error_from_unix(errno);
 		DEBUG(3,("create_conn_struct: Can't ChDir to new conn path %s. "
 			"Error was %s\n",
 			conn->connectpath, strerror(errno) ));
@@ -981,11 +1012,11 @@ NTSTATUS get_referred_path(TALLOC_CTX *ctx,
 		return NT_STATUS_OK;
 	}
 
-	status = create_conn_struct(ctx,
-				    server_event_context(),
-				    server_messaging_context(),
-				    &conn, snum,
-				    lp_pathname(talloc_tos(), snum), NULL, &oldpath);
+	status = create_conn_struct_cwd(ctx,
+					server_event_context(),
+					server_messaging_context(),
+					&conn, snum,
+					lp_pathname(talloc_tos(), snum), NULL, &oldpath);
 	if (!NT_STATUS_IS_OK(status)) {
 		TALLOC_FREE(pdp);
 		return status;
@@ -1173,11 +1204,11 @@ static bool junction_to_local_path(const struct junction_map *jucn,
 	if(snum < 0) {
 		return False;
 	}
-	status = create_conn_struct(talloc_tos(),
-				    server_event_context(),
-				    server_messaging_context(),
-				    conn_out,
-				    snum, lp_pathname(talloc_tos(), snum), NULL, oldpath);
+	status = create_conn_struct_cwd(talloc_tos(),
+					server_event_context(),
+					server_messaging_context(),
+					conn_out,
+					snum, lp_pathname(talloc_tos(), snum), NULL, oldpath);
 	if (!NT_STATUS_IS_OK(status)) {
 		return False;
 	}
@@ -1248,14 +1279,12 @@ bool create_msdfs_link(const struct junction_map *jucn)
 
 	if(SMB_VFS_SYMLINK(conn, msdfs_link, path) < 0) {
 		if (errno == EEXIST) {
-			struct smb_filename *smb_fname = NULL;
-			NTSTATUS status;
+			struct smb_filename *smb_fname;
 
-			status = create_synthetic_smb_fname(talloc_tos(), path,
-							    NULL, NULL,
-							    &smb_fname);
-			if (!NT_STATUS_IS_OK(status)) {
-				errno = map_errno_from_nt_status(status);
+			smb_fname = synthetic_smb_fname(talloc_tos(), path,
+							NULL, NULL);
+			if (smb_fname == NULL) {
+				errno = ENOMEM;
 				goto out;
 			}
 
@@ -1288,18 +1317,15 @@ bool remove_msdfs_link(const struct junction_map *jucn)
 	char *cwd;
 	connection_struct *conn;
 	bool ret = False;
-	struct smb_filename *smb_fname = NULL;
-	NTSTATUS status;
+	struct smb_filename *smb_fname;
 
 	if (!junction_to_local_path(jucn, &path, &conn, &cwd)) {
 		return false;
 	}
 
-	status = create_synthetic_smb_fname(talloc_tos(), path,
-					    NULL, NULL,
-					    &smb_fname);
-	if (!NT_STATUS_IS_OK(status)) {
-		errno = map_errno_from_nt_status(status);
+	smb_fname = synthetic_smb_fname(talloc_tos(), path, NULL, NULL);
+	if (smb_fname == NULL) {
+		errno = ENOMEM;
 		return false;
 	}
 
@@ -1338,11 +1364,11 @@ static int count_dfs_links(TALLOC_CTX *ctx, int snum)
 	 * Fake up a connection struct for the VFS layer.
 	 */
 
-	status = create_conn_struct(talloc_tos(),
-				    server_event_context(),
-				    server_messaging_context(),
-				    &conn,
-				    snum, connect_path, NULL, &cwd);
+	status = create_conn_struct_cwd(talloc_tos(),
+					server_event_context(),
+					server_messaging_context(),
+					&conn,
+					snum, connect_path, NULL, &cwd);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(3, ("create_conn_struct failed: %s\n",
 			  nt_errstr(status)));
@@ -1414,11 +1440,11 @@ static int form_junctions(TALLOC_CTX *ctx,
 	 * Fake up a connection struct for the VFS layer.
 	 */
 
-	status = create_conn_struct(ctx,
-				    server_event_context(),
-				    server_messaging_context(),
-				    &conn, snum, connect_path, NULL,
-				    &cwd);
+	status = create_conn_struct_cwd(ctx,
+					server_event_context(),
+					server_messaging_context(),
+					&conn, snum, connect_path, NULL,
+					&cwd);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(3, ("create_conn_struct failed: %s\n",
 			  nt_errstr(status)));

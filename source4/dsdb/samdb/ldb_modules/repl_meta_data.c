@@ -2,10 +2,10 @@
    ldb database library
 
    Copyright (C) Simo Sorce  2004-2008
-   Copyright (C) Andrew Bartlett <abartlet@samba.org> 2005
-   Copyright (C) Andrew Tridgell 2005
+   Copyright (C) Andrew Bartlett <abartlet@samba.org> 2005-2013
+   Copyright (C) Andrew Tridgell 2005-2009
    Copyright (C) Stefan Metzmacher <metze@samba.org> 2007
-   Copyright (C) Matthieu Patou <mat@samba.org> 2010
+   Copyright (C) Matthieu Patou <mat@samba.org> 2010-2011
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -92,7 +92,12 @@ struct replmd_replicated_request {
 
 	uint64_t seq_num;
 	bool is_urgent;
+
+	bool isDeleted;
 };
+
+static int replmd_replicated_apply_merge(struct replmd_replicated_request *ar);
+static int replmd_delete_internals(struct ldb_module *module, struct ldb_request *req, bool re_delete);
 
 enum urgent_situation {
 	REPL_URGENT_ON_CREATE = 1,
@@ -100,6 +105,70 @@ enum urgent_situation {
 	REPL_URGENT_ON_DELETE = 4
 };
 
+enum deletion_state {
+	OBJECT_NOT_DELETED=1,
+	OBJECT_DELETED=2,
+	OBJECT_RECYCLED=3,
+	OBJECT_TOMBSTONE=4,
+	OBJECT_REMOVED=5
+};
+
+static void replmd_deletion_state(struct ldb_module *module,
+				  const struct ldb_message *msg,
+				  enum deletion_state *current_state,
+				  enum deletion_state *next_state)
+{
+	int ret;
+	bool enabled = false;
+
+	if (msg == NULL) {
+		*current_state = OBJECT_REMOVED;
+		if (next_state != NULL) {
+			*next_state = OBJECT_REMOVED;
+		}
+		return;
+	}
+
+	ret = dsdb_recyclebin_enabled(module, &enabled);
+	if (ret != LDB_SUCCESS) {
+		enabled = false;
+	}
+
+	if (ldb_msg_check_string_attribute(msg, "isDeleted", "TRUE")) {
+		if (!enabled) {
+			*current_state = OBJECT_TOMBSTONE;
+			if (next_state != NULL) {
+				*next_state = OBJECT_REMOVED;
+			}
+			return;
+		}
+
+		if (ldb_msg_check_string_attribute(msg, "isRecycled", "TRUE")) {
+			*current_state = OBJECT_RECYCLED;
+			if (next_state != NULL) {
+				*next_state = OBJECT_REMOVED;
+			}
+			return;
+		}
+
+		*current_state = OBJECT_DELETED;
+		if (next_state != NULL) {
+			*next_state = OBJECT_RECYCLED;
+		}
+		return;
+	}
+
+	*current_state = OBJECT_NOT_DELETED;
+	if (next_state == NULL) {
+		return;
+	}
+
+	if (enabled) {
+		*next_state = OBJECT_DELETED;
+	} else {
+		*next_state = OBJECT_TOMBSTONE;
+	}
+}
 
 static const struct {
 	const char *update_name;
@@ -152,7 +221,7 @@ static bool replmd_check_urgent_attribute(const struct ldb_message_element *el)
 }
 
 
-static int replmd_replicated_apply_next(struct replmd_replicated_request *ar);
+static int replmd_replicated_apply_isDeleted(struct replmd_replicated_request *ar);
 
 /*
   initialise the module
@@ -454,10 +523,7 @@ static int replmd_op_callback(struct ldb_request *req, struct ldb_reply *ares)
 	}
 
 	if (ac->apply_mode) {
-		talloc_free(ares);
-		ac->index_current++;
-
-		ret = replmd_replicated_apply_next(ac);
+		ret = replmd_replicated_apply_isDeleted(ac);
 		if (ret != LDB_SUCCESS) {
 			return ldb_module_done(ac->req, NULL, NULL, ret);
 		}
@@ -661,6 +727,13 @@ static int replmd_ldb_message_element_attid_sort(const struct ldb_message_elemen
 	a1 = dsdb_attribute_by_lDAPDisplayName(schema, e1->name);
 	a2 = dsdb_attribute_by_lDAPDisplayName(schema, e2->name);
 
+	/*
+	 * TODO: remove this check, we should rely on e1 and e2 having valid attribute names
+	 *       in the schema
+	 */
+	if (!a1 || !a2) {
+		return strcasecmp(e1->name, e2->name);
+	}
 	if (a1->attributeID_id == a2->attributeID_id) {
 		return 0;
 	}
@@ -1077,6 +1150,7 @@ static int replmd_update_rpmd_element(struct ldb_context *ldb,
 	uint32_t i;
 	const struct dsdb_attribute *a;
 	struct replPropertyMetaData1 *md1;
+	bool may_skip = false;
 
 	a = dsdb_attribute_by_lDAPDisplayName(schema, el->name);
 	if (a == NULL) {
@@ -1095,13 +1169,34 @@ static int replmd_update_rpmd_element(struct ldb_context *ldb,
 		return LDB_SUCCESS;
 	}
 
-	/* if the attribute's value haven't changed then return LDB_SUCCESS
-	 * Unless we have the provision control or if the attribute is
-	 * interSiteTopologyGenerator as this page explain: http://support.microsoft.com/kb/224815
-	 * this attribute is periodicaly written by the DC responsible for the intersite generation
-	 * in a given site
+	/*
+	 * if the attribute's value haven't changed, and this isn't
+	 * just a delete of everything then return LDB_SUCCESS Unless
+	 * we have the provision control or if the attribute is
+	 * interSiteTopologyGenerator as this page explain:
+	 * http://support.microsoft.com/kb/224815 this attribute is
+	 * periodicaly written by the DC responsible for the intersite
+	 * generation in a given site
+	 *
+	 * Unchanged could be deleting or replacing an already-gone
+	 * thing with an unconstrained delete/empty replace or a
+	 * replace with the same value, but not an add with the same
+	 * value because that could be about adding a duplicate (which
+	 * is for someone else to error out on).
 	 */
-	if (old_el != NULL && ldb_msg_element_compare(el, old_el) == 0) {
+	if (old_el != NULL && ldb_msg_element_equal_ordered(el, old_el)) {
+		if (LDB_FLAG_MOD_TYPE(el->flags) == LDB_FLAG_MOD_REPLACE) {
+			may_skip = true;
+		}
+	} else if (old_el == NULL && el->num_values == 0) {
+		if (LDB_FLAG_MOD_TYPE(el->flags) == LDB_FLAG_MOD_REPLACE) {
+			may_skip = true;
+		} else if (LDB_FLAG_MOD_TYPE(el->flags) == LDB_FLAG_MOD_DELETE) {
+			may_skip = true;
+		}
+	}
+
+	if (may_skip) {
 		if (strcmp(el->name, "interSiteTopologyGenerator") != 0 &&
 		    !ldb_request_get_control(req, LDB_CONTROL_PROVISION_OID)) {
 			/*
@@ -2704,8 +2799,11 @@ static int replmd_rename_callback(struct ldb_request *req, struct ldb_reply *are
 }
 
 /*
-   remove links from objects that point at this object when an object
-   is deleted
+ * remove links from objects that point at this object when an object
+ * is deleted.  We remove it from the NEXT module per MS-DRSR 5.160
+ * RemoveObj which states that link removal due to the object being
+ * deleted is NOT an originating update - they just go away!
+ *
  */
 static int replmd_delete_remove_link(struct ldb_module *module,
 				     const struct dsdb_schema *schema,
@@ -2786,8 +2884,13 @@ static int replmd_delete_remove_link(struct ldb_module *module,
 
   This also handles the mapping of delete to a rename operation
   to allow deletes to be replicated.
+
+  It also handles the incoming deleted objects, to ensure they are
+  fully deleted here.  In that case re_delete is true, and we do not
+  use this as a signal to change the deleted state, just reinforce it.
+
  */
-static int replmd_delete(struct ldb_module *module, struct ldb_request *req)
+static int replmd_delete_internals(struct ldb_module *module, struct ldb_request *req, bool re_delete)
 {
 	int ret = LDB_ERR_OTHER;
 	bool retb, disallow_move_on_delete;
@@ -2813,10 +2916,7 @@ static int replmd_delete(struct ldb_module *module, struct ldb_request *req)
 		"trustType", "trustAttributes", "userAccountControl", "uSNChanged", "uSNCreated", "whenCreated",
 		"whenChanged", NULL};
 	unsigned int i, el_count = 0;
-	enum deletion_state { OBJECT_NOT_DELETED=1, OBJECT_DELETED=2, OBJECT_RECYCLED=3,
-						OBJECT_TOMBSTONE=4, OBJECT_REMOVED=5 };
 	enum deletion_state deletion_state, next_deletion_state;
-	bool enabled;
 
 	if (ldb_dn_is_special(req->op.del.dn)) {
 		return ldb_next_request(module, req);
@@ -2830,6 +2930,7 @@ static int replmd_delete(struct ldb_module *module, struct ldb_request *req)
 
 	schema = dsdb_get_schema(ldb, tmp_ctx);
 	if (!schema) {
+		talloc_free(tmp_ctx);
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
@@ -2843,36 +2944,24 @@ static int replmd_delete(struct ldb_module *module, struct ldb_request *req)
 				    DSDB_SEARCH_REVEAL_INTERNALS |
 				    DSDB_SEARCH_SHOW_DN_IN_STORAGE_FORMAT, req);
 	if (ret != LDB_SUCCESS) {
+		ldb_asprintf_errstring(ldb_module_get_ctx(module),
+				       "repmd_delete: Failed to %s %s, because we failed to find it: %s",
+				       re_delete ? "re-delete" : "delete",
+				       ldb_dn_get_linearized(old_dn),
+				       ldb_errstring(ldb_module_get_ctx(module)));
 		talloc_free(tmp_ctx);
 		return ret;
 	}
 	old_msg = res->msgs[0];
 
+	replmd_deletion_state(module, old_msg,
+			      &deletion_state,
+			      &next_deletion_state);
 
-	ret = dsdb_recyclebin_enabled(module, &enabled);
-	if (ret != LDB_SUCCESS) {
-		talloc_free(tmp_ctx);
-		return ret;
-	}
-
-	if (ldb_msg_check_string_attribute(old_msg, "isDeleted", "TRUE")) {
-		if (!enabled) {
-			deletion_state = OBJECT_TOMBSTONE;
-			next_deletion_state = OBJECT_REMOVED;
-		} else if (ldb_msg_check_string_attribute(old_msg, "isRecycled", "TRUE")) {
-			deletion_state = OBJECT_RECYCLED;
-			next_deletion_state = OBJECT_REMOVED;
-		} else {
-			deletion_state = OBJECT_DELETED;
-			next_deletion_state = OBJECT_RECYCLED;
-		}
-	} else {
-		deletion_state = OBJECT_NOT_DELETED;
-		if (enabled) {
-			next_deletion_state = OBJECT_DELETED;
-		} else {
-			next_deletion_state = OBJECT_TOMBSTONE;
-		}
+	/* This supports us noticing an incoming isDeleted and acting on it */
+	if (re_delete) {
+		SMB_ASSERT(deletion_state > OBJECT_NOT_DELETED);
+		next_deletion_state = deletion_state;
 	}
 
 	if (next_deletion_state == OBJECT_REMOVED) {
@@ -2905,45 +2994,62 @@ static int replmd_delete(struct ldb_module *module, struct ldb_request *req)
 
 	msg->dn = old_dn;
 
-	if (deletion_state == OBJECT_NOT_DELETED){
-		/* consider the SYSTEM_FLAG_DISALLOW_MOVE_ON_DELETE flag */
-		disallow_move_on_delete =
-			(ldb_msg_find_attr_as_int(old_msg, "systemFlags", 0)
-				& SYSTEM_FLAG_DISALLOW_MOVE_ON_DELETE);
+	/* consider the SYSTEM_FLAG_DISALLOW_MOVE_ON_DELETE flag */
+	disallow_move_on_delete =
+		(ldb_msg_find_attr_as_int(old_msg, "systemFlags", 0)
+		 & SYSTEM_FLAG_DISALLOW_MOVE_ON_DELETE);
 
-		/* work out where we will be renaming this object to */
-		if (!disallow_move_on_delete) {
-			ret = dsdb_get_deleted_objects_dn(ldb, tmp_ctx, old_dn,
-							  &new_dn);
-			if (ret != LDB_SUCCESS) {
-				/* this is probably an attempted delete on a partition
-				 * that doesn't allow delete operations, such as the
-				 * schema partition */
-				ldb_asprintf_errstring(ldb, "No Deleted Objects container for DN %s",
-							   ldb_dn_get_linearized(old_dn));
-				talloc_free(tmp_ctx);
-				return LDB_ERR_UNWILLING_TO_PERFORM;
-			}
-		} else {
+	/* work out where we will be renaming this object to */
+	if (!disallow_move_on_delete) {
+		struct ldb_dn *deleted_objects_dn;
+		ret = dsdb_get_deleted_objects_dn(ldb, tmp_ctx, old_dn,
+						  &deleted_objects_dn);
+
+		/*
+		 * We should not move objects if we can't find the
+		 * deleted objects DN.  Not moving (or otherwise
+		 * harming) the Deleted Objects DN itself is handled
+		 * in the caller.
+		 */
+		if (re_delete && (ret != LDB_SUCCESS)) {
 			new_dn = ldb_dn_get_parent(tmp_ctx, old_dn);
 			if (new_dn == NULL) {
 				ldb_module_oom(module);
 				talloc_free(tmp_ctx);
 				return LDB_ERR_OPERATIONS_ERROR;
 			}
+		} else if (ret != LDB_SUCCESS) {
+			/* this is probably an attempted delete on a partition
+			 * that doesn't allow delete operations, such as the
+			 * schema partition */
+			ldb_asprintf_errstring(ldb, "No Deleted Objects container for DN %s",
+					       ldb_dn_get_linearized(old_dn));
+			talloc_free(tmp_ctx);
+			return LDB_ERR_UNWILLING_TO_PERFORM;
+		} else {
+			new_dn = deleted_objects_dn;
 		}
+	} else {
+		new_dn = ldb_dn_get_parent(tmp_ctx, old_dn);
+		if (new_dn == NULL) {
+			ldb_module_oom(module);
+			talloc_free(tmp_ctx);
+			return LDB_ERR_OPERATIONS_ERROR;
+		}
+	}
 
+	if (deletion_state == OBJECT_NOT_DELETED) {
 		/* get the objects GUID from the search we just did */
 		guid = samdb_result_guid(old_msg, "objectGUID");
 
 		/* Add a formatted child */
 		retb = ldb_dn_add_child_fmt(new_dn, "%s=%s\\0ADEL:%s",
-						rdn_name,
-						ldb_dn_escape_value(tmp_ctx, *rdn_value),
-						GUID_string(tmp_ctx, &guid));
+					    rdn_name,
+					    ldb_dn_escape_value(tmp_ctx, *rdn_value),
+					    GUID_string(tmp_ctx, &guid));
 		if (!retb) {
 			DEBUG(0,(__location__ ": Unable to add a formatted child to dn: %s",
-					ldb_dn_get_linearized(new_dn)));
+				 ldb_dn_get_linearized(new_dn)));
 			talloc_free(tmp_ctx);
 			return LDB_ERR_OPERATIONS_ERROR;
 		}
@@ -2956,6 +3062,30 @@ static int replmd_delete(struct ldb_module *module, struct ldb_request *req)
 			return ret;
 		}
 		msg->elements[el_count++].flags = LDB_FLAG_MOD_REPLACE;
+	} else {
+		/*
+		 * No matter what has happened with other renames etc, try again to
+		 * get this to be under the deleted DN. See MS-DRSR 5.160 RemoveObj
+		 */
+
+		struct ldb_dn *rdn = ldb_dn_copy(tmp_ctx, old_dn);
+		retb = ldb_dn_remove_base_components(rdn, ldb_dn_get_comp_num(rdn) - 1);
+		if (!retb) {
+			DEBUG(0,(__location__ ": Unable to add a prepare rdn of %s",
+				 ldb_dn_get_linearized(rdn)));
+			talloc_free(tmp_ctx);
+			return LDB_ERR_OPERATIONS_ERROR;
+		}
+		SMB_ASSERT(ldb_dn_get_comp_num(rdn) == 1);
+
+		retb = ldb_dn_add_child(new_dn, rdn);
+		if (!retb) {
+			DEBUG(0,(__location__ ": Unable to add rdn %s to base dn: %s",
+				 ldb_dn_get_linearized(rdn),
+				 ldb_dn_get_linearized(new_dn)));
+			talloc_free(tmp_ctx);
+			return LDB_ERR_OPERATIONS_ERROR;
+		}
 	}
 
 	/*
@@ -2975,19 +3105,25 @@ static int replmd_delete(struct ldb_module *module, struct ldb_request *req)
 	  see MS-ADTS "Tombstone Requirements" section 3.1.1.5.5.1.1
 	 */
 
-	/* we need the storage form of the parent GUID */
-	ret = dsdb_module_search_dn(module, tmp_ctx, &parent_res,
-				    ldb_dn_get_parent(tmp_ctx, old_dn), NULL,
-				    DSDB_FLAG_NEXT_MODULE |
-				    DSDB_SEARCH_SHOW_DN_IN_STORAGE_FORMAT |
-				    DSDB_SEARCH_REVEAL_INTERNALS|
-				    DSDB_SEARCH_SHOW_RECYCLED, req);
-	if (ret != LDB_SUCCESS) {
-		talloc_free(tmp_ctx);
-		return ret;
-	}
+	if (deletion_state == OBJECT_NOT_DELETED) {
+		/* we need the storage form of the parent GUID */
+		ret = dsdb_module_search_dn(module, tmp_ctx, &parent_res,
+					    ldb_dn_get_parent(tmp_ctx, old_dn), NULL,
+					    DSDB_FLAG_NEXT_MODULE |
+					    DSDB_SEARCH_SHOW_DN_IN_STORAGE_FORMAT |
+					    DSDB_SEARCH_REVEAL_INTERNALS|
+					    DSDB_SEARCH_SHOW_RECYCLED, req);
+		if (ret != LDB_SUCCESS) {
+			ldb_asprintf_errstring(ldb_module_get_ctx(module),
+					       "repmd_delete: Failed to %s %s, because we failed to find it's parent (%s): %s",
+					       re_delete ? "re-delete" : "delete",
+					       ldb_dn_get_linearized(old_dn),
+					       ldb_dn_get_linearized(ldb_dn_get_parent(tmp_ctx, old_dn)),
+					       ldb_errstring(ldb_module_get_ctx(module)));
+			talloc_free(tmp_ctx);
+			return ret;
+		}
 
-	if (deletion_state == OBJECT_NOT_DELETED){
 		ret = ldb_msg_add_steal_string(msg, "lastKnownParent",
 						   ldb_dn_get_extended_linearized(tmp_ctx, parent_res->msgs[0]->dn, 1));
 		if (ret != LDB_SUCCESS) {
@@ -2997,39 +3133,34 @@ static int replmd_delete(struct ldb_module *module, struct ldb_request *req)
 			return ret;
 		}
 		msg->elements[el_count++].flags = LDB_FLAG_MOD_REPLACE;
+
+		if (next_deletion_state == OBJECT_DELETED) {
+			ret = ldb_msg_add_value(msg, "msDS-LastKnownRDN", rdn_value, NULL);
+			if (ret != LDB_SUCCESS) {
+				DEBUG(0,(__location__ ": Failed to add msDS-LastKnownRDN string to the msg\n"));
+				ldb_module_oom(module);
+				talloc_free(tmp_ctx);
+				return ret;
+			}
+			msg->elements[el_count++].flags = LDB_FLAG_MOD_ADD;
+		}
 	}
 
-	switch (next_deletion_state){
-
-	case OBJECT_DELETED:
-
-		ret = ldb_msg_add_value(msg, "msDS-LastKnownRDN", rdn_value, NULL);
-		if (ret != LDB_SUCCESS) {
-			DEBUG(0,(__location__ ": Failed to add msDS-LastKnownRDN string to the msg\n"));
-			ldb_module_oom(module);
-			talloc_free(tmp_ctx);
-			return ret;
-		}
-		msg->elements[el_count++].flags = LDB_FLAG_MOD_ADD;
-
-		ret = ldb_msg_add_empty(msg, "objectCategory", LDB_FLAG_MOD_REPLACE, NULL);
-		if (ret != LDB_SUCCESS) {
-			talloc_free(tmp_ctx);
-			ldb_module_oom(module);
-			return ret;
-		}
-
-		ret = ldb_msg_add_empty(msg, "sAMAccountType", LDB_FLAG_MOD_REPLACE, NULL);
-		if (ret != LDB_SUCCESS) {
-			talloc_free(tmp_ctx);
-			ldb_module_oom(module);
-			return ret;
-		}
-
-		break;
+	switch (next_deletion_state) {
 
 	case OBJECT_RECYCLED:
 	case OBJECT_TOMBSTONE:
+
+		/*
+		 * MS-ADTS 3.1.1.5.5.1.1 Tombstone Requirements
+		 * describes what must be removed from a tombstone
+		 * object
+		 *
+		 * MS-ADTS 3.1.1.5.5.1.3 Recycled-Object Requirements
+		 * describes what must be removed from a recycled
+		 * object
+		 *
+		 */
 
 		/*
 		 * we also mark it as recycled, meaning this object can't be
@@ -3047,7 +3178,7 @@ static int replmd_delete(struct ldb_module *module, struct ldb_request *req)
 				talloc_free(tmp_ctx);
 				return ret;
 			}
-			msg->elements[el_count++].flags = LDB_FLAG_MOD_ADD;
+			msg->elements[el_count++].flags = LDB_FLAG_MOD_REPLACE;
 		}
 
 		/* work out which of the old attributes we will be removing */
@@ -3093,6 +3224,41 @@ static int replmd_delete(struct ldb_module *module, struct ldb_request *req)
 				return ret;
 			}
 		}
+
+		/* Duplicate with the below - we remove the
+		 * samAccountType as an originating update, in case it
+		 * somehow came back.  The objectCategory will have
+		 * gone in the above */
+		ret = ldb_msg_add_empty(msg, "sAMAccountType", LDB_FLAG_MOD_REPLACE, NULL);
+		if (ret != LDB_SUCCESS) {
+			talloc_free(tmp_ctx);
+			ldb_module_oom(module);
+			return ret;
+		}
+
+		break;
+
+	case OBJECT_DELETED:
+		/*
+		 * MS-ADTS 3.1.1.5.5.1.2 Deleted-Object Requirements
+		 * describes what must be removed from a deleted
+		 * object
+		 */
+
+		ret = ldb_msg_add_empty(msg, "objectCategory", LDB_FLAG_MOD_REPLACE, NULL);
+		if (ret != LDB_SUCCESS) {
+			talloc_free(tmp_ctx);
+			ldb_module_oom(module);
+			return ret;
+		}
+
+		ret = ldb_msg_add_empty(msg, "sAMAccountType", LDB_FLAG_MOD_REPLACE, NULL);
+		if (ret != LDB_SUCCESS) {
+			talloc_free(tmp_ctx);
+			ldb_module_oom(module);
+			return ret;
+		}
+
 		break;
 
 	default:
@@ -3135,6 +3301,11 @@ static int replmd_delete(struct ldb_module *module, struct ldb_request *req)
 		}
 	}
 
+	/*
+	 * TODO: Per MS-DRSR 5.160 RemoveObj we should remove links directly, not as an originating update!
+	 *
+	 */
+
 	ret = dsdb_module_modify(module, msg, DSDB_FLAG_OWN_MODULE, req);
 	if (ret != LDB_SUCCESS) {
 		ldb_asprintf_errstring(ldb, "replmd_delete: Failed to modify object %s in delete - %s",
@@ -3143,7 +3314,11 @@ static int replmd_delete(struct ldb_module *module, struct ldb_request *req)
 		return ret;
 	}
 
-	if (deletion_state == OBJECT_NOT_DELETED) {
+	/*
+	 * No matter what has happned with other renames, try again to
+	 * get this to be under the deleted DN.
+	 */
+	if (strcmp(ldb_dn_get_linearized(old_dn), ldb_dn_get_linearized(new_dn)) != 0) {
 		/* now rename onto the new DN */
 		ret = dsdb_module_rename(module, old_dn, new_dn, DSDB_FLAG_NEXT_MODULE, req);
 		if (ret != LDB_SUCCESS){
@@ -3161,6 +3336,10 @@ static int replmd_delete(struct ldb_module *module, struct ldb_request *req)
 	return ldb_module_done(req, NULL, NULL, LDB_SUCCESS);
 }
 
+static int replmd_delete(struct ldb_module *module, struct ldb_request *req)
+{
+	return replmd_delete_internals(module, req, false);
+}
 
 
 static int replmd_replicated_request_error(struct replmd_replicated_request *ar, int ret)
@@ -3512,7 +3691,6 @@ static int replmd_op_possible_conflict_callback(struct ldb_request *req, struct 
 	if (rename_incoming_record) {
 		struct GUID guid;
 		struct ldb_dn *new_dn;
-		struct ldb_message *new_msg;
 
 		/*
 		 * We want to run the original callback here, which
@@ -3544,19 +3722,12 @@ static int replmd_op_possible_conflict_callback(struct ldb_request *req, struct 
 			goto failed;
 		}
 
-		DEBUG(1,(__location__ ": Resolving conflict record via incoming rename '%s' -> '%s'\n",
+		DEBUG(2,(__location__ ": Resolving conflict record via incoming rename '%s' -> '%s'\n",
 			 ldb_dn_get_linearized(conflict_dn), ldb_dn_get_linearized(new_dn)));
 
 		/* re-submit the request, but with a different
 		   callback, so we don't loop forever. */
-		new_msg = ldb_msg_copy_shallow(req, msg);
-		if (!new_msg) {
-			goto failed;
-			DEBUG(0,(__location__ ": Failed to copy conflict DN message for %s\n",
-				 ldb_dn_get_linearized(conflict_dn)));
-		}
-		new_msg->dn = new_dn;
-		req->op.add.message = new_msg;
+		msg->dn = new_dn;
 		req->callback = replmd_op_name_modify_callback;
 
 		return ldb_next_request(ar->module, req);
@@ -3579,7 +3750,7 @@ static int replmd_op_possible_conflict_callback(struct ldb_request *req, struct 
 			goto failed;
 		}
 
-		DEBUG(1,(__location__ ": Resolving conflict record via existing rename '%s' -> '%s'\n",
+		DEBUG(2,(__location__ ": Resolving conflict record via existing rename '%s' -> '%s'\n",
 			 ldb_dn_get_linearized(conflict_dn), ldb_dn_get_linearized(new_dn)));
 
 		ret = dsdb_module_rename(ar->module, conflict_dn, new_dn,
@@ -3656,15 +3827,6 @@ static int replmd_replicated_apply_add(struct replmd_replicated_request *ar)
 	int ret;
 	bool remote_isDeleted = false;
 
-	/*
-	 * TODO: check if the parent object exist
-	 */
-
-	/*
-	 * TODO: handle the conflict case where an object with the
-	 *       same name exist
-	 */
-
 	ldb = ldb_module_get_ctx(ar->module);
 	msg = ar->objs->objects[ar->index_current].msg;
 	md = ar->objs->objects[ar->index_current].meta_data;
@@ -3739,6 +3901,8 @@ static int replmd_replicated_apply_add(struct replmd_replicated_request *ar)
 		}
 	}
 
+	ar->isDeleted = remote_isDeleted;
+
 	if (DEBUGLVL(4)) {
 		char *s = ldb_ldif_message_string(ldb, ar, LDB_CHANGETYPE_ADD, msg);
 		DEBUG(4, ("DRS replication add message:\n%s\n", s));
@@ -3787,6 +3951,10 @@ static int replmd_replicated_apply_search_for_parent_callback(struct ldb_request
 	}
 	if (ares->error != LDB_SUCCESS &&
 	    ares->error != LDB_ERR_NO_SUCH_OBJECT) {
+		/*
+		 * TODO: deal with the above error that the parent object doesn't exist
+		 */
+
 		return ldb_module_done(ar->req, ares->controls,
 					ares->response, ares->error);
 	}
@@ -3866,7 +4034,11 @@ static int replmd_replicated_apply_search_for_parent_callback(struct ldb_request
 		break;
 
 	case LDB_REPLY_DONE:
-		ret = replmd_replicated_apply_add(ar);
+		if (ar->search_msg != NULL) {
+			ret = replmd_replicated_apply_merge(ar);
+		} else {
+			ret = replmd_replicated_apply_add(ar);
+		}
 		if (ret != LDB_SUCCESS) {
 			return ldb_module_done(ar->req, NULL, NULL, ret);
 		}
@@ -3877,7 +4049,10 @@ static int replmd_replicated_apply_search_for_parent_callback(struct ldb_request
 }
 
 /*
- * Look for the parent object, so we put the new object in the right place
+ * Look for the parent object, so we put the new object in the right
+ * place This is akin to NameObject in MS-DRSR - this routine and the
+ * callbacks find the right parent name, and correct name for this
+ * object
  */
 
 static int replmd_replicated_apply_search_for_parent(struct replmd_replicated_request *ar)
@@ -3892,7 +4067,11 @@ static int replmd_replicated_apply_search_for_parent(struct replmd_replicated_re
 	ldb = ldb_module_get_ctx(ar->module);
 
 	if (!ar->objs->objects[ar->index_current].parent_guid_value.data) {
-		return replmd_replicated_apply_add(ar);
+		if (ar->search_msg != NULL) {
+			return replmd_replicated_apply_merge(ar);
+		} else {
+			return replmd_replicated_apply_add(ar);
+		}
 	}
 
 	tmp_str = ldb_binary_encode(ar, ar->objs->objects[ar->index_current].parent_guid_value);
@@ -3931,84 +4110,52 @@ static int replmd_replicated_apply_search_for_parent(struct replmd_replicated_re
  */
 static int replmd_replicated_handle_rename(struct replmd_replicated_request *ar,
 					   struct ldb_message *msg,
-					   struct replPropertyMetaDataBlob *rmd,
-					   struct replPropertyMetaDataBlob *omd,
-					   struct ldb_request *parent,
-					   bool *renamed)
+					   struct ldb_request *parent)
 {
-	struct replPropertyMetaData1 *md_remote;
-	struct replPropertyMetaData1 *md_local;
+	struct ldb_request *req;
+	int ret;
+	TALLOC_CTX *tmp_ctx = talloc_new(msg);
+	struct ldb_result *res;
 
-	*renamed = true;
+	DEBUG(4,("replmd_replicated_request rename %s => %s\n",
+		 ldb_dn_get_linearized(ar->search_msg->dn),
+		 ldb_dn_get_linearized(msg->dn)));
 
-	if (ldb_dn_compare(msg->dn, ar->search_msg->dn) == 0) {
-		/* no rename */
-		return LDB_SUCCESS;
+
+	res = talloc_zero(tmp_ctx, struct ldb_result);
+	if (!res) {
+		talloc_free(tmp_ctx);
+		return ldb_oom(ldb_module_get_ctx(ar->module));
 	}
 
-	/* now we need to check for double renames. We could have a
-	 * local rename pending which our replication partner hasn't
-	 * received yet. We choose which one wins by looking at the
-	 * attribute stamps on the two objects, the newer one wins
-	 */
-	md_remote = replmd_replPropertyMetaData1_find_attid(rmd, DRSUAPI_ATTID_name);
-	md_local  = replmd_replPropertyMetaData1_find_attid(omd, DRSUAPI_ATTID_name);
-	/* if there is no name attribute then we have to assume the
-	   object we've received is in fact newer */
-	if (ar->objs->dsdb_repl_flags & DSDB_REPL_FLAG_PRIORITISE_INCOMING ||
-	    !md_remote || !md_local ||
-	    replmd_replPropertyMetaData1_is_newer(md_local, md_remote)) {
-		struct ldb_request *req;
-		int ret;
-		TALLOC_CTX *tmp_ctx = talloc_new(msg);
-		struct ldb_result *res;
-
-		DEBUG(4,("replmd_replicated_request rename %s => %s\n",
-			 ldb_dn_get_linearized(ar->search_msg->dn),
-			 ldb_dn_get_linearized(msg->dn)));
-
-
-		res = talloc_zero(tmp_ctx, struct ldb_result);
-		if (!res) {
-			talloc_free(tmp_ctx);
-			return ldb_oom(ldb_module_get_ctx(ar->module));
-		}
-
-		/* pass rename to the next module
-		 * so it doesn't appear as an originating update */
-		ret = ldb_build_rename_req(&req, ldb_module_get_ctx(ar->module), tmp_ctx,
-					   ar->search_msg->dn, msg->dn,
-					   NULL,
-					   ar,
-					   replmd_op_rename_callback,
-					   parent);
-		LDB_REQ_SET_LOCATION(req);
-		if (ret != LDB_SUCCESS) {
-			talloc_free(tmp_ctx);
-			return ret;
-		}
-
-		ret = dsdb_request_add_controls(req, DSDB_MODIFY_RELAX);
-		if (ret != LDB_SUCCESS) {
-			talloc_free(tmp_ctx);
-			return ret;
-		}
-
-		ret = ldb_next_request(ar->module, req);
-
-		if (ret == LDB_SUCCESS) {
-			ret = ldb_wait(req->handle, LDB_WAIT_ALL);
-		}
-
+	/* pass rename to the next module
+	 * so it doesn't appear as an originating update */
+	ret = ldb_build_rename_req(&req, ldb_module_get_ctx(ar->module), tmp_ctx,
+				   ar->search_msg->dn, msg->dn,
+				   NULL,
+				   ar,
+				   replmd_op_rename_callback,
+				   parent);
+	LDB_REQ_SET_LOCATION(req);
+	if (ret != LDB_SUCCESS) {
 		talloc_free(tmp_ctx);
 		return ret;
 	}
 
-	/* we're going to keep our old object */
-	DEBUG(4,(__location__ ": Keeping object %s and rejecting older rename to %s\n",
-		 ldb_dn_get_linearized(ar->search_msg->dn),
-		 ldb_dn_get_linearized(msg->dn)));
-	return LDB_SUCCESS;
+	ret = dsdb_request_add_controls(req, DSDB_MODIFY_RELAX);
+	if (ret != LDB_SUCCESS) {
+		talloc_free(tmp_ctx);
+		return ret;
+	}
+
+	ret = ldb_next_request(ar->module, req);
+
+	if (ret == LDB_SUCCESS) {
+		ret = ldb_wait(req->handle, LDB_WAIT_ALL);
+	}
+
+	talloc_free(tmp_ctx);
+	return ret;
 }
 
 
@@ -4062,9 +4209,22 @@ static int replmd_replicated_apply_merge(struct replmd_replicated_request *ar)
 	remote_isDeleted = ldb_msg_find_attr_as_bool(msg,
 						     "isDeleted", false);
 
-	/* handle renames that come in over DRS */
-	ret = replmd_replicated_handle_rename(ar, msg, rmd, &omd,
-					      ar->req, &renamed);
+	if (strcmp(ldb_dn_get_linearized(msg->dn), ldb_dn_get_linearized(ar->search_msg->dn)) == 0) {
+		ret = LDB_SUCCESS;
+	} else {
+		/*
+		 * handle renames, even just by case that come in over
+		 * DRS.  Changes in the parent DN don't hit us here,
+		 * because the search for a parent will clean up those
+		 * components.
+		 *
+		 * We also have already filtered out the case where
+		 * the peer has an older name to what we have (see
+		 * replmd_replicated_apply_search_callback())
+		 */
+		renamed = true;
+		ret = replmd_replicated_handle_rename(ar, msg, ar->req);
+	}
 
 	/*
 	 * This particular error code means that we already tried the
@@ -4231,24 +4391,31 @@ static int replmd_replicated_apply_merge(struct replmd_replicated_request *ar)
 	}
 
 	/*
+	 * Work out if this object is deleted, so we can prune any extra attributes.  See MS-DRSR 4.1.10.6.9
+	 * UpdateObject.
+	 *
+	 * This also controls SD propagation below
+	 */
+	if (take_remote_isDeleted) {
+		isDeleted = remote_isDeleted;
+	} else {
+		isDeleted = local_isDeleted;
+	}
+
+	ar->isDeleted = isDeleted;
+
+	/*
 	 * check if some replicated attributes left, otherwise skip the ldb_modify() call
 	 */
 	if (msg->num_elements == 0) {
 		ldb_debug(ldb, LDB_DEBUG_TRACE, "replmd_replicated_apply_merge[%u]: skip replace\n",
 			  ar->index_current);
 
-		ar->index_current++;
-		return replmd_replicated_apply_next(ar);
+		return replmd_replicated_apply_isDeleted(ar);
 	}
 
 	ldb_debug(ldb, LDB_DEBUG_TRACE, "replmd_replicated_apply_merge[%u]: replace %u attributes\n",
 		  ar->index_current, msg->num_elements);
-
-	if (take_remote_isDeleted) {
-		isDeleted = remote_isDeleted;
-	} else {
-		isDeleted = local_isDeleted;
-	}
 
 	if (renamed) {
 		sd_updated = true;
@@ -4348,16 +4515,90 @@ static int replmd_replicated_apply_search_callback(struct ldb_request *req,
 		break;
 
 	case LDB_REPLY_DONE:
+	{
+		struct replPropertyMetaData1 *md_remote;
+		struct replPropertyMetaData1 *md_local;
+
+		struct replPropertyMetaDataBlob omd;
+		const struct ldb_val *omd_value;
+		struct replPropertyMetaDataBlob *rmd;
+		struct ldb_message *msg;
+
 		ar->objs->objects[ar->index_current].last_known_parent = NULL;
 
-		if (ar->search_msg != NULL) {
-			ret = replmd_replicated_apply_merge(ar);
-		} else {
+		/*
+		 * This is the ADD case, find the appropriate parent,
+		 * as this object doesn't exist locally:
+		 */
+		if (ar->search_msg == NULL) {
 			ret = replmd_replicated_apply_search_for_parent(ar);
+			if (ret != LDB_SUCCESS) {
+				return ldb_module_done(ar->req, NULL, NULL, ret);
+			}
+			talloc_free(ares);
+			return LDB_SUCCESS;
+		}
+
+		/*
+		 * Otherwise, in the MERGE case, work out if we are
+		 * attempting a rename, and if so find the parent the
+		 * newly renamed object wants to belong under (which
+		 * may not be the parent in it's attached string DN
+		 */
+		rmd = ar->objs->objects[ar->index_current].meta_data;
+		ZERO_STRUCT(omd);
+		omd.version = 1;
+
+		/* find existing meta data */
+		omd_value = ldb_msg_find_ldb_val(ar->search_msg, "replPropertyMetaData");
+		if (omd_value) {
+			enum ndr_err_code ndr_err;
+			ndr_err = ndr_pull_struct_blob(omd_value, ar, &omd,
+						       (ndr_pull_flags_fn_t)ndr_pull_replPropertyMetaDataBlob);
+			if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+				NTSTATUS nt_status = ndr_map_error2ntstatus(ndr_err);
+				return replmd_replicated_request_werror(ar, ntstatus_to_werror(nt_status));
+			}
+
+			if (omd.version != 1) {
+				return replmd_replicated_request_werror(ar, WERR_DS_DRA_INTERNAL_ERROR);
+			}
+		}
+
+		/*
+		 * now we need to check for double renames. We could have a
+		 * local rename pending which our replication partner hasn't
+		 * received yet. We choose which one wins by looking at the
+		 * attribute stamps on the two objects, the newer one wins
+		 */
+		md_remote = replmd_replPropertyMetaData1_find_attid(rmd, DRSUAPI_ATTID_name);
+		md_local  = replmd_replPropertyMetaData1_find_attid(&omd, DRSUAPI_ATTID_name);
+		/* if there is no name attribute then we have to assume the
+		   object we've received is in fact newer */
+		if (ar->objs->dsdb_repl_flags & DSDB_REPL_FLAG_PRIORITISE_INCOMING ||
+		    !md_remote || !md_local ||
+		    replmd_replPropertyMetaData1_is_newer(md_local, md_remote)) {
+			ret = replmd_replicated_apply_search_for_parent(ar);
+		} else {
+			msg = ar->objs->objects[ar->index_current].msg;
+
+			/* Otherwise, just merge on the existing object, force no rename */
+			DEBUG(4,(__location__ ": Keeping object %s and rejecting older rename to %s\n",
+				 ldb_dn_get_linearized(ar->search_msg->dn),
+				 ldb_dn_get_linearized(msg->dn)));
+
+			/*
+			 * This assignment ensures that the strcmp()
+			 * in replmd_replicated_apply_merge() avoids
+			 * the rename call
+			 */
+			msg->dn = ar->search_msg->dn;
+			ret = replmd_replicated_apply_merge(ar);
 		}
 		if (ret != LDB_SUCCESS) {
 			return ldb_module_done(ar->req, NULL, NULL, ret);
 		}
+	}
 	}
 
 	talloc_free(ares);
@@ -4373,7 +4614,6 @@ static int replmd_replicated_apply_next(struct replmd_replicated_request *ar)
 	char *tmp_str;
 	char *filter;
 	struct ldb_request *search_req;
-	struct ldb_search_options_control *options;
 
 	if (ar->index_current >= ar->objs->num_objects) {
 		/* done with it, go to next stage */
@@ -4382,6 +4622,7 @@ static int replmd_replicated_apply_next(struct replmd_replicated_request *ar)
 
 	ldb = ldb_module_get_ctx(ar->module);
 	ar->search_msg = NULL;
+	ar->isDeleted = false;
 
 	tmp_str = ldb_binary_encode(ar, ar->objs->objects[ar->index_current].guid_value);
 	if (!tmp_str) return replmd_replicated_request_werror(ar, WERR_NOMEM);
@@ -4403,29 +4644,90 @@ static int replmd_replicated_apply_next(struct replmd_replicated_request *ar)
 				   ar->req);
 	LDB_REQ_SET_LOCATION(search_req);
 
-	ret = ldb_request_add_control(search_req, LDB_CONTROL_SHOW_RECYCLED_OID,
-				      true, NULL);
-	if (ret != LDB_SUCCESS) {
-		return ret;
-	}
+	ret = dsdb_request_add_controls(search_req, DSDB_SEARCH_SEARCH_ALL_PARTITIONS|DSDB_SEARCH_SHOW_RECYCLED);
 
-	/* we need to cope with cross-partition links, so search for
-	   the GUID over all partitions */
-	options = talloc(search_req, struct ldb_search_options_control);
-	if (options == NULL) {
-		DEBUG(0, (__location__ ": out of memory\n"));
-		return LDB_ERR_OPERATIONS_ERROR;
-	}
-	options->search_options = LDB_SEARCH_OPTION_PHANTOM_ROOT;
-
-	ret = ldb_request_add_control(search_req,
-				      LDB_CONTROL_SEARCH_OPTIONS_OID,
-				      true, options);
 	if (ret != LDB_SUCCESS) {
 		return ret;
 	}
 
 	return ldb_next_request(ar->module, search_req);
+}
+
+/*
+ * This is essentially a wrapper for replmd_replicated_apply_next()
+ *
+ * This is needed to ensure that both codepaths call this handler.
+ */
+static int replmd_replicated_apply_isDeleted(struct replmd_replicated_request *ar)
+{
+	struct ldb_dn *deleted_objects_dn;
+	struct ldb_message *msg = ar->objs->objects[ar->index_current].msg;
+	int ret = dsdb_get_deleted_objects_dn(ldb_module_get_ctx(ar->module), msg, msg->dn,
+					      &deleted_objects_dn);
+	if (ar->isDeleted && (ret != LDB_SUCCESS || ldb_dn_compare(msg->dn, deleted_objects_dn) != 0)) {
+		/*
+		 * Do a delete here again, so that if there is
+		 * anything local that conflicts with this
+		 * object being deleted, it is removed.  This
+		 * includes links.  See MS-DRSR 4.1.10.6.9
+		 * UpdateObject.
+		 *
+		 * If the object is already deleted, and there
+		 * is no more work required, it doesn't do
+		 * anything.
+		 */
+
+		/* This has been updated to point to the DN we eventually did the modify on */
+
+		struct ldb_request *del_req;
+		struct ldb_result *res;
+
+		TALLOC_CTX *tmp_ctx = talloc_new(ar);
+		if (!tmp_ctx) {
+			ret = ldb_oom(ldb_module_get_ctx(ar->module));
+			return ret;
+		}
+
+		res = talloc_zero(tmp_ctx, struct ldb_result);
+		if (!res) {
+			ret = ldb_oom(ldb_module_get_ctx(ar->module));
+			talloc_free(tmp_ctx);
+			return ret;
+		}
+
+		/* Build a delete request, which hopefully will artually turn into nothing */
+		ret = ldb_build_del_req(&del_req, ldb_module_get_ctx(ar->module), tmp_ctx,
+					msg->dn,
+					NULL,
+					res,
+					ldb_modify_default_callback,
+					ar->req);
+		LDB_REQ_SET_LOCATION(del_req);
+		if (ret != LDB_SUCCESS) {
+			talloc_free(tmp_ctx);
+			return ret;
+		}
+
+		/*
+		 * This is the guts of the call, call back
+		 * into our delete code, but setting the
+		 * re_delete flag so we delete anything that
+		 * shouldn't be there on a deleted or recycled
+		 * object
+		 */
+		ret = replmd_delete_internals(ar->module, del_req, true);
+		if (ret == LDB_SUCCESS) {
+			ret = ldb_wait(del_req->handle, LDB_WAIT_ALL);
+		}
+
+		talloc_free(tmp_ctx);
+		if (ret != LDB_SUCCESS) {
+			return ret;
+		}
+	}
+
+	ar->index_current++;
+	return replmd_replicated_apply_next(ar);
 }
 
 static int replmd_replicated_uptodate_modify_callback(struct ldb_request *req,
@@ -4544,6 +4846,10 @@ static int replmd_replicated_uptodate_modify(struct replmd_replicated_request *a
 
 	/* get our invocation_id if we have one already attached to the ldb */
 	our_invocation_id = samdb_ntds_invocation_id(ldb);
+	if (our_invocation_id == NULL) {
+		DEBUG(0, ("repl_meta_data: Could not find our own server's invocationID!\n"));
+		return replmd_replicated_request_werror(ar, WERR_DS_DRA_INTERNAL_ERROR);		
+	}
 
 	/* merge in the source_dsa vector is available */
 	for (i=0; (ruv && i < ruv->count); i++) {
@@ -4903,6 +5209,7 @@ static int replmd_process_linked_attribute(struct ldb_module *module,
 	struct drsuapi_DsReplicaLinkedAttribute *la = la_entry->la;
 	struct ldb_context *ldb = ldb_module_get_ctx(module);
 	struct ldb_message *msg;
+	struct ldb_message *target_msg = NULL;
 	TALLOC_CTX *tmp_ctx = talloc_new(la_entry);
 	const struct dsdb_schema *schema = dsdb_get_schema(ldb, tmp_ctx);
 	int ret;
@@ -4913,12 +5220,17 @@ static int replmd_process_linked_attribute(struct ldb_module *module,
 	WERROR status;
 	time_t t = time(NULL);
 	struct ldb_result *res;
-	const char *attrs[2];
+	struct ldb_result *target_res;
+	const char *attrs[4];
+	const char *attrs2[] = { "isDeleted", "isRecycled", NULL };
 	struct parsed_dn *pdn_list, *pdn;
 	struct GUID guid = GUID_zero();
 	NTSTATUS ntstatus;
 	bool active = (la->flags & DRSUAPI_DS_LINKED_ATTRIBUTE_FLAG_ACTIVE)?true:false;
 	const struct GUID *our_invocation_id;
+
+	enum deletion_state deletion_state = OBJECT_NOT_DELETED;
+	enum deletion_state target_deletion_state = OBJECT_NOT_DELETED;
 
 /*
 linked_attributes[0]:
@@ -4964,7 +5276,9 @@ linked_attributes[0]:
 	}
 
 	attrs[0] = attr->lDAPDisplayName;
-	attrs[1] = NULL;
+	attrs[1] = "isDeleted";
+	attrs[1] = "isRecycled";
+	attrs[2] = NULL;
 
 	/* get the existing message from the db for the object with
 	   this GUID, returning attribute being modified. We will then
@@ -4989,7 +5303,23 @@ linked_attributes[0]:
 	}
 	msg = res->msgs[0];
 
-	if (msg->num_elements == 0) {
+	/*
+	 * Check for deleted objects per MS-DRSR 4.1.10.6.13
+	 * ProcessLinkValue, because link updates are not applied to
+	 * recycled and tombstone objects.  We don't have to delete
+	 * any existing link, that should have happened when the
+	 * object deletion was replicated or initiated.
+	 */
+
+	replmd_deletion_state(module, msg, &deletion_state, NULL);
+
+	if (deletion_state >= OBJECT_RECYCLED) {
+		talloc_free(tmp_ctx);
+		return LDB_SUCCESS;
+	}
+
+	old_el = ldb_msg_find_element(msg, attr->lDAPDisplayName);
+	if (old_el == NULL) {
 		ret = ldb_msg_add_empty(msg, attr->lDAPDisplayName, LDB_FLAG_MOD_REPLACE, &old_el);
 		if (ret != LDB_SUCCESS) {
 			ldb_module_oom(module);
@@ -4997,7 +5327,6 @@ linked_attributes[0]:
 			return LDB_ERR_OPERATIONS_ERROR;
 		}
 	} else {
-		old_el = &msg->elements[0];
 		old_el->flags = LDB_FLAG_MOD_REPLACE;
 	}
 
@@ -5026,25 +5355,91 @@ linked_attributes[0]:
 	if (!W_ERROR_IS_OK(status)) {
 		ldb_asprintf_errstring(ldb, "Failed to parsed linked attribute blob for %s on %s - %s\n",
 				       old_el->name, ldb_dn_get_linearized(msg->dn), win_errstr(status));
+		talloc_free(tmp_ctx);
 		return LDB_ERR_OPERATIONS_ERROR;
 	}
 
 	ntstatus = dsdb_get_extended_dn_guid(dsdb_dn->dn, &guid, "GUID");
-	if (!NT_STATUS_IS_OK(ntstatus) && active) {
+	if (!NT_STATUS_IS_OK(ntstatus) && !active) {
+		/*
+		 * This strange behaviour (allowing a NULL/missing
+		 * GUID) originally comes from:
+		 *
+		 * commit e3054ce0fe0f8f62d2f5b2a77893e7a1479128bd
+		 * Author: Andrew Tridgell <tridge@samba.org>
+		 * Date:   Mon Dec 21 21:21:55 2009 +1100
+		 *
+		 *  s4-drs: cope better with NULL GUIDS from DRS
+		 *
+		 *  It is valid to get a NULL GUID over DRS for a deleted forward link. We
+		 *  need to match by DN if possible when seeing if we should update an
+		 *  existing link.
+		 *
+		 *  Pair-Programmed-With: Andrew Bartlett <abartlet@samba.org>
+		 */
+
+		ret = dsdb_module_search_dn(module, tmp_ctx, &target_res,
+					    dsdb_dn->dn, attrs2,
+					    DSDB_FLAG_NEXT_MODULE |
+					    DSDB_SEARCH_SHOW_RECYCLED |
+					    DSDB_SEARCH_SEARCH_ALL_PARTITIONS |
+					    DSDB_SEARCH_SHOW_DN_IN_STORAGE_FORMAT,
+					    parent);
+	} else if (!NT_STATUS_IS_OK(ntstatus)) {
 		ldb_asprintf_errstring(ldb, "Failed to find GUID in linked attribute blob for %s on %s from %s",
 				       old_el->name,
 				       ldb_dn_get_linearized(dsdb_dn->dn),
 				       ldb_dn_get_linearized(msg->dn));
+		talloc_free(tmp_ctx);
 		return LDB_ERR_OPERATIONS_ERROR;
+	} else {
+		ret = dsdb_module_search(module, tmp_ctx, &target_res,
+					 NULL, LDB_SCOPE_SUBTREE,
+					 attrs2,
+					 DSDB_FLAG_NEXT_MODULE |
+					 DSDB_SEARCH_SHOW_RECYCLED |
+					 DSDB_SEARCH_SEARCH_ALL_PARTITIONS |
+					 DSDB_SEARCH_SHOW_DN_IN_STORAGE_FORMAT,
+					 parent,
+					 "objectGUID=%s",
+					 GUID_string(tmp_ctx, &guid));
 	}
 
-	/* re-resolve the DN by GUID, as the DRS server may give us an
-	   old DN value */
-	ret = dsdb_module_dn_by_guid(module, dsdb_dn, &guid, &dsdb_dn->dn, parent);
 	if (ret != LDB_SUCCESS) {
+		ldb_asprintf_errstring(ldb_module_get_ctx(module), "Failed to re-resolve GUID %s: %s\n",
+				       GUID_string(tmp_ctx, &guid),
+				       ldb_errstring(ldb_module_get_ctx(module)));
+		talloc_free(tmp_ctx);
+		return ret;
+	}
+
+	if (target_res->count == 0) {
 		DEBUG(2,(__location__ ": WARNING: Failed to re-resolve GUID %s - using %s\n",
 			 GUID_string(tmp_ctx, &guid),
 			 ldb_dn_get_linearized(dsdb_dn->dn)));
+	} else if (target_res->count != 1) {
+		ldb_asprintf_errstring(ldb_module_get_ctx(module), "More than one object found matching objectGUID %s\n",
+				       GUID_string(tmp_ctx, &guid));
+		talloc_free(tmp_ctx);
+		return LDB_ERR_OPERATIONS_ERROR;
+	} else {
+		target_msg = target_res->msgs[0];
+		dsdb_dn->dn = talloc_steal(dsdb_dn, target_msg->dn);
+	}
+
+	/*
+	 * Check for deleted objects per MS-DRSR 4.1.10.6.13
+	 * ProcessLinkValue, because link updates are not applied to
+	 * recycled and tombstone objects.  We don't have to delete
+	 * any existing link, that should have happened when the
+	 * object deletion was replicated or initiated.
+	 */
+	replmd_deletion_state(module, target_msg,
+			      &target_deletion_state, NULL);
+
+	if (target_deletion_state >= OBJECT_RECYCLED) {
+		talloc_free(tmp_ctx);
+		return LDB_SUCCESS;
 	}
 
 	/* see if this link already exists */

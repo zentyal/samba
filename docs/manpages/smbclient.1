@@ -31,9 +31,9 @@
 smbclient \- ftp\-like client to access SMB/CIFS resources on servers
 .SH "SYNOPSIS"
 .HP \w'\ 'u
-smbclient [\-b\ <buffer\ size>] [\-d\ debuglevel] [\-e] [\-L\ <netbios\ name>] [\-U\ username] [\-I\ destinationIP] [\-M\ <netbios\ name>] [\-m\ maxprotocol] [\-A\ authfile] [\-N] [\-C] [\-g] [\-i\ scope] [\-O\ <socket\ options>] [\-p\ port] [\-R\ <name\ resolve\ order>] [\-s\ <smb\ config\ file>] [\-k] [\-P] [\-c\ <command>]
+smbclient [\-b\ <buffer\ size>] [\-d\ debuglevel] [\-e] [\-L\ <netbios\ name>] [\-U\ username] [\-I\ destinationIP] [\-M\ <netbios\ name>] [\-m\ maxprotocol] [\-A\ authfile] [\-N] [\-C] [\-g] [\-i\ scope] [\-O\ <socket\ options>] [\-p\ port] [\-R\ <name\ resolve\ order>] [\-s\ <smb\ config\ file>] [\-t\ <per\-operation\ timeout\ in\ seconds>] [\-k] [\-P] [\-c\ <command>]
 .HP \w'\ 'u
-smbclient {servicename} [password] [\-b\ <buffer\ size>] [\-d\ debuglevel] [\-e] [\-D\ Directory] [\-U\ username] [\-W\ workgroup] [\-M\ <netbios\ name>] [\-m\ maxprotocol] [\-A\ authfile] [\-N] [\-C] [\-g] [\-l\ log\-basename] [\-I\ destinationIP] [\-E] [\-c\ <command\ string>] [\-i\ scope] [\-O\ <socket\ options>] [\-p\ port] [\-R\ <name\ resolve\ order>] [\-s\ <smb\ config\ file>] [\-T<c|x>IXFqgbNan] [\-k]
+smbclient {servicename} [password] [\-b\ <buffer\ size>] [\-d\ debuglevel] [\-e] [\-D\ Directory] [\-U\ username] [\-W\ workgroup] [\-M\ <netbios\ name>] [\-m\ maxprotocol] [\-A\ authfile] [\-N] [\-C] [\-g] [\-l\ log\-basename] [\-I\ destinationIP] [\-E] [\-c\ <command\ string>] [\-i\ scope] [\-O\ <socket\ options>] [\-p\ port] [\-R\ <name\ resolve\ order>] [\-s\ <smb\ config\ file>] [\-t\ <per\-operation\ timeout\ in\ seconds>] [\-T<c|x>IXFqgbNan] [\-k]
 .SH "DESCRIPTION"
 .PP
 This tool is part of the
@@ -197,7 +197,7 @@ easy parseable output that allows processing with utilities such as grep and cut
 .PP
 \-m|\-\-max\-protocol protocol
 .RS 4
-This parameter sets the maximum protocol version announced by the client\&.
+This allows the user to select the highest SMB protocol level that smbclient will use to connect to the server\&. By default this is set to NT1, which is the highest available SMB1 protocol\&. To connect using SMB2 or SMB3 protocol, use the strings SMB2 or SMB3 respectively\&. Note that to connect to a Windows 2012 server with encrypted transport selecting a max\-protocol of SMB3 is required\&.
 .RE
 .PP
 \-P|\-\-machine\-pass
@@ -240,12 +240,14 @@ option may be useful if your NetBIOS names don\*(Aqt match your TCP/IP DNS host 
 .PP
 \-b|\-\-send\-buffer buffersize
 .RS 4
-This option changes the transmit/send buffer size when getting or putting a file from/to the server\&. The default is 65520 bytes\&. Setting this value smaller (to 1200 bytes) has been observed to speed up file transfers to and from a Win9x server\&.
+When sending or receiving files, smbclient uses an internal buffer sized by the maximum number of allowed requests to the connected server\&. This command allows this size to be set to any range between 0 (which means use the default server controlled size) bytes and 16776960 (0xFFFF00) bytes\&. Using the server controlled size is the most efficient as smbclient will pipeline as many simultaneous reads or writes needed to keep the server as busy as possible\&. Setting this to any other size will slow down the transfer\&. This can also be set using the
+iosize
+command inside smbclient\&.
 .RE
 .PP
 \-e|\-\-encrypt
 .RS 4
-This command line parameter requires the remote server support the UNIX extensions\&. Request that the connection be encrypted\&. This is new for Samba 3\&.2 and will only work with Samba 3\&.2 or above servers\&. Negotiates SMB encryption using GSSAPI\&. Uses the given credentials for the encryption negotiation (either kerberos or NTLMv1/v2 if given domain/username/password triple\&. Fails the connection if encryption cannot be negotiated\&.
+This command line parameter requires the remote server support the UNIX extensions or that the SMB3 protocol has been selected\&. Requests that the connection be encrypted\&. Negotiates SMB encryption using either SMB3 or POSIX extensions via GSSAPI\&. Uses the given credentials for the encryption negotiation (either kerberos or NTLMv1/v2 if given domain/username/password triple\&. Fails the connection if encryption cannot be negotiated\&.
 .RE
 .PP
 \-d|\-\-debuglevel=level
@@ -380,6 +382,13 @@ Set the SMB domain of the username\&. This overrides the default domain which is
 TCP socket options to set on the client socket\&. See the socket options parameter in the
 smb\&.conf
 manual page for the list of valid options\&.
+.RE
+.PP
+\-t|\-\-timeout <timeout\-seconds>
+.RS 4
+This allows the user to tune the default timeout used for each SMB request\&. The default setting is 20 seconds\&. Increase it if requests to the server sometimes time out\&. This can happen when SMB3 encryption is selected and smbclient is overwhelming the server with requests\&. This can also be set using the
+timeout
+command inside smbclient\&.
 .RE
 .PP
 \-T|\-\-tar tar options
@@ -570,7 +579,7 @@ smbclient //mypc/myshare "" \-N \-Tc backup\&.tar users/docs
 .sp
 Create the same tar file as above, but now use a DOS path name\&.
 .sp
-smbclient //mypc/myshare "" \-N \-tc backup\&.tar users\eedocs
+smbclient //mypc/myshare "" \-N \-Tc backup\&.tar users\eedocs
 .sp
 Create a tar file of the files listed in the file
 tarlist\&.
@@ -747,7 +756,7 @@ Displays the command history\&.
 .PP
 iosize <bytes>
 .RS 4
-When sending or receiving files, smbclient uses an internal memory buffer by default of size 64512 bytes\&. This command allows this size to be set to any range between 16384 (0x4000) bytes and 16776960 (0xFFFF00) bytes\&. Larger sizes may mean more efficient data transfer as smbclient will try and use the most efficient read and write calls for the connected server\&.
+When sending or receiving files, smbclient uses an internal buffer sized by the maximum number of allowed requests to the connected server\&. This command allows this size to be set to any range between 0 (which means use the default server controlled size) bytes and 16776960 (0xFFFF00) bytes\&. Using the server controlled size is the most efficient as smbclient will pipeline as many simultaneous reads or writes needed to keep the server as busy as possible\&. Setting this to any other size will slow down the transfer\&.
 .RE
 .PP
 lcd [directory name]
@@ -989,6 +998,11 @@ Blocksize\&. Must be followed by a valid (greater than zero) blocksize\&. Causes
 tarmode <full|inc|reset|noreset>
 .RS 4
 Changes tar\*(Aqs behavior with regard to archive bits\&. In full mode, tar will back up everything regardless of the archive bit setting (this is the default mode)\&. In incremental mode, tar will only back up files with the archive bit set\&. In reset mode, tar will reset the archive bit on all files it backs up (implies read/write share)\&.
+.RE
+.PP
+timeout <per\-operation timeout in seconds>
+.RS 4
+This allows the user to tune the default timeout used for each SMB request\&. The default setting is 20 seconds\&. Increase it if requests to the server sometimes time out\&. This can happen when SMB3 encryption is selected and smbclient is overwhelming the server with requests\&.
 .RE
 .PP
 unlock <filenum> <hex\-start> <hex\-len>

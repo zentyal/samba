@@ -1,3 +1,45 @@
+samba (2:4.1.3+dfsg-2) unstable; urgency=medium
+
+  * Add debug symbols for all binaries to samba-dbg. Closes: #732493
+  * Add lintian overrides for empty prerm scripts.
+
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Fri, 27 Dec 2013 12:39:54 +0100
+
+samba (2:4.1.3+dfsg-1) experimental; urgency=low
+
+  [ Jelmer Vernooij ]
+  * New upstream release.
+   + Drop 0002-lib-replace-Allow-OS-vendor-to-assert-that-getpass-i.patch:
+     upstream no longer uses getpass.
+  * Add source dependency on libntdb1, and stop passing --disable-ntdb,
+    which has been removed.
+  * Remove handling for SWAT, which is no longer shipped upstream.
+  * Split VFS modules out from samba-libs into a separate binary
+    package.
+  * Move service and process_model modules from the samba-libs to the
+    samba package. Prevents dependencies on libkdc2-heimdal and
+    libhdb9-heimdal.
+
+  [ Ivo De Decker ]
+  * Add build-dep on python-ntdb.
+  * Add build-dep on libncurses5-dev.
+  * Add depends on python-ntdb to samba.
+  * New upstream release.
+
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Mon, 09 Dec 2013 23:24:27 +0100
+
+samba (2:4.0.13+dfsg-2) UNRELEASED; urgency=low
+
+  [ Steve Langasek ]
+  * Check for alternative's presence before calling update-alternatives
+    --remove-all, instead of silently ignoring all errors from
+    update-alternatives.
+
+  [ Debconf translations ]
+  * Spanish (Javier Fernández-Sanguino).  Closes: #731800
+
+ -- Steve Langasek <vorlon@debian.org>  Mon, 09 Dec 2013 11:13:59 -0800
+
 samba (2:4.0.13+dfsg-1~bpo70+1) wheezy-backports; urgency=medium
 
   * Rebuild for wheezy-backports.

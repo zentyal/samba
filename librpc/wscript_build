@@ -217,6 +217,11 @@ bld.SAMBA_SUBSYSTEM('NDR_DNSP',
     public_deps='ndr'
     )
 
+bld.SAMBA_SUBSYSTEM('NDR_NFS4ACL',
+    source='gen_ndr/ndr_nfs4acl.c',
+    public_deps='ndr NDR_SECURITY'
+    )
+
 bld.SAMBA_SUBSYSTEM('NDR_NTPRINTING',
     source='gen_ndr/ndr_ntprinting.c ndr/ndr_ntprinting.c',
     public_deps='ndr'
@@ -637,7 +642,7 @@ bld.SAMBA_LIBRARY('ndr',
     public_deps='errors talloc samba-util',
     public_headers='gen_ndr/misc.h gen_ndr/ndr_misc.h ndr/libndr.h:ndr.h',
     header_path= [('*gen_ndr*', 'gen_ndr')],
-    vnum='0.0.1',
+    vnum='0.0.2',
     abi_directory='ABI',
     abi_match='ndr_* GUID_*',
     )

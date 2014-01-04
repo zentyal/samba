@@ -205,6 +205,7 @@ bool smbd_dirptr_lanman2_entry(TALLOC_CTX *ctx,
 
 NTSTATUS smbd_calculate_access_mask(connection_struct *conn,
 				    const struct smb_filename *smb_fname,
+				    bool use_privs,
 				    uint32_t access_mask,
 				    uint32_t *access_mask_out);
 
@@ -666,7 +667,7 @@ struct smbd_server_connection {
 	} oplocks;
 
 	struct {
-		struct fd_event *fde;
+		struct tevent_fd *fde;
 
 		struct {
 			/*
@@ -683,7 +684,7 @@ struct smbd_server_connection {
 			/*
 			 * fde for the trusted_fd
 			 */
-			struct fd_event *trusted_fde;
+			struct tevent_fd *trusted_fde;
 
 			/*
 			 * Reference count for the fcntl lock to
@@ -732,7 +733,7 @@ struct smbd_server_connection {
 			struct blocking_lock_record *blocking_lock_cancelled_queue;
 
 			/* The event that makes us process our blocking lock queue */
-			struct timed_event *brl_timeout;
+			struct tevent_timer *brl_timeout;
 
 			bool blocking_lock_unlock_state;
 			bool blocking_lock_cancel_state;
@@ -745,7 +746,7 @@ struct smbd_server_connection {
 		bool negprot_2ff;
 		struct {
 			/* The event that makes us process our blocking lock queue */
-			struct timed_event *brl_timeout;
+			struct tevent_timer *brl_timeout;
 			bool blocking_lock_unlock_state;
 		} locks;
 		struct smbd_smb2_request *requests;

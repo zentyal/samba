@@ -5,3 +5,6 @@ samba: init.d-script-not-included-in-package etc/init.d/reload-smbd
 # /etc/init.d/samba is not a real init script, just a compatibility wrapper
 samba: script-in-etc-init.d-not-registered-via-update-rc.d etc/init.d/samba
 samba: init.d-script-does-not-source-init-functions etc/init.d/samba
+# empty prerm script to allow upgrades from earlier version with broken prerm
+# script (bug introduced in 2:4.0.10+dfsg-3, fixed in 2:4.0.13+dfsg-1)
+samba: maintainer-script-ignores-errors prerm

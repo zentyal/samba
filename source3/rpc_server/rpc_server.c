@@ -133,7 +133,7 @@ int create_named_pipe_socket(const char *pipe_name)
 		goto out;
 	}
 
-	if (!directory_create_or_exist(np_dir, geteuid(), 0700)) {
+	if (!directory_create_or_exist_strict(np_dir, geteuid(), 0700)) {
 		DEBUG(0, ("Failed to create pipe directory %s - %s\n",
 			  np_dir, strerror(errno)));
 		goto out;
@@ -1028,6 +1028,7 @@ void dcerpc_ncacn_accept(struct tevent_context *ev_ctx,
 					system_user = true;
 				}
 			}
+			/* FALL TROUGH */
 		case NCACN_NP:
 			pipe_name = talloc_strdup(ncacn_conn,
 						  name);

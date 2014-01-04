@@ -28,18 +28,20 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 		uint16 millisecond;
 	} spoolss_Time;
 
-	typedef struct {
+	typedef [public] struct {
 		[value(ndr_size_spoolss_Time(time, ndr->flags))] uint32 size;
 		[unique] spoolss_Time *time;
 	} spoolss_TimeCtr;
 
 	typedef enum {
 		PROCESSOR_ARCHITECTURE_INTEL		= 0x0000,
+		PROCESSOR_ARCHITECTURE_ARM		= 0x0005,
 		PROCESSOR_ARCHITECTURE_IA64		= 0x0006,
 		PROCESSOR_ARCHITECTURE_AMD64		= 0x0009
 	} spoolss_ProcessorArchitecture;
 
 	typedef [v1_enum] enum {
+		PROCESSOR_ARM				= 0x00000000,
 		PROCESSOR_INTEL_386			= 0x00000182,
 		PROCESSOR_INTEL_486			= 0x000001E6,
 		PROCESSOR_INTEL_PENTIUM			= 0x0000024A,
@@ -425,10 +427,10 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 		uint32 dwSize;
 		[value(SPOOLSS_DM_SIGNATURE_JTEXP)] spoolss_DM_Signature dwSignature;
 		[value(0)] uint32 dwVersion;
-		[value(16)] uint32 wJTHdrSize;
-		uint32 wCoreMFOSize;
-		[string,charset(UTF16)] uint16 *ModelName;
-		nstring_array FeatureOptionPairs;
+		[value(16)] uint16 wJTHdrSize;
+		uint16 wCoreMFOSize; /* must be sizeof the two following elements, must be dwSize - 16*/
+		nstring ModelName;
+		[flag(STR_UTF8|STR_NULLTERM|NDR_REMAINING)] string_array FeatureOptionPairs;
 	} spoolss_JTEXP;
 
 	/* Device Mode Extra Data: OEM_DMEXTRA */
@@ -883,7 +885,7 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 
 	/******************/
 	/* Function: 0x01 */
-	typedef struct {
+	typedef [public] struct {
 		[value(_ndr_size_spoolss_DeviceMode(devmode, ndr->flags))] uint32 _ndr_size;
 		[subcontext(4),subcontext_size(_ndr_size)] spoolss_DeviceMode *devmode;
 	} spoolss_DevmodeContainer;
@@ -1009,9 +1011,9 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 		[string,charset(UTF16)] uint16 *print_processor;
 		[string,charset(UTF16)] uint16 *parameters;
 		[string,charset(UTF16)] uint16 *driver_name;
-		uint32 _devmode_ptr; /* pointer to truncated devicemode */
+		uint32 *_devmode_ptr; /* pointer to truncated devicemode */
 		[string,charset(UTF16)] uint16 *text_status;
-		uint32 _secdesc_ptr;
+		uint32 *_secdesc_ptr;
 		spoolss_JobStatus status;
 		[range(0,99)] uint32 priority;
 		uint32 position;
@@ -1035,9 +1037,9 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 		[string,charset(UTF16)] uint16 *print_processor;
 		[string,charset(UTF16)] uint16 *parameters;
 		[string,charset(UTF16)] uint16 *driver_name;
-		uint32 _devmode_ptr; /* pointer to truncated devicemode */
+		uint32 *_devmode_ptr; /* pointer to truncated devicemode */
 		[string,charset(UTF16)] uint16 *text_status;
-		uint32 _secdesc_ptr;
+		uint32 *_secdesc_ptr;
 		spoolss_JobStatus status;
 		[range(0,99)] uint32 priority;
 		uint32 position;
@@ -1051,7 +1053,7 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 		uint32 size_high;
 	} spoolss_SetJobInfo4;
 
-	typedef [public] union {
+	typedef [ms_union,public] union {
 		[case(1)] spoolss_SetJobInfo1 *info1;
 		[case(2)] spoolss_SetJobInfo2 *info2;
 		[case(3)] spoolss_JobInfo3    *info3;
@@ -1059,7 +1061,7 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 		[default];
 	} spoolss_SetJobInfo;
 
-	typedef struct {
+	typedef [public] struct {
 		uint32 level;
 		[switch_is(level)] spoolss_SetJobInfo info;
 	} spoolss_JobInfoContainer;
@@ -1198,12 +1200,12 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 		[string,charset(UTF16)] uint16 *drivername;
 		[string,charset(UTF16)] uint16 *comment;
 		[string,charset(UTF16)] uint16 *location;
-		uint32 devmode_ptr;
+		uint32 *devmode_ptr;
 		[string,charset(UTF16)] uint16 *sepfile;
 		[string,charset(UTF16)] uint16 *printprocessor;
 		[string,charset(UTF16)] uint16 *datatype;
 		[string,charset(UTF16)] uint16 *parameters;
-		uint32 secdesc_ptr;
+		uint32 *secdesc_ptr;
 		spoolss_PrinterAttributes attributes;
 		[range(0,99)] uint32 priority;
 		uint32 defaultpriority;
@@ -1215,7 +1217,7 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 	} spoolss_SetPrinterInfo2;
 
 	typedef struct {
-		uint32 sec_desc_ptr;
+		uint32 *sec_desc_ptr;
 	} spoolss_SetPrinterInfo3;
 
 	typedef struct {
@@ -1242,14 +1244,14 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 	} spoolss_SetPrinterInfo7;
 
 	typedef struct {
-		uint32 devmode_ptr;
+		uint32 *devmode_ptr;
 	} spoolss_SetPrinterInfo8;
 
 	typedef struct {
-		uint32 devmode_ptr;
+		uint32 *devmode_ptr;
 	} spoolss_SetPrinterInfo9;
 
-	typedef [switch_type(uint32)] union {
+	typedef [ms_union,switch_type(uint32)] union {
 		[case(0)] spoolss_SetPrinterInfo0 *info0;
 		[case(1)] spoolss_SetPrinterInfo1 *info1;
 		[case(2)] spoolss_SetPrinterInfo2 *info2;
@@ -1263,12 +1265,12 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 		[default];
 	} spoolss_SetPrinterInfo;
 
-	typedef struct {
+	typedef [public] struct {
 		uint32 level;
 		[switch_is(level)] spoolss_SetPrinterInfo info;
 	} spoolss_SetPrinterInfoCtr;
 
-	WERROR spoolss_SetPrinter(
+	[public] WERROR spoolss_SetPrinter(
 		[in,ref] policy_handle *handle,
 		[in,ref] spoolss_SetPrinterInfoCtr *info_ctr,
 		[in,ref] spoolss_DevmodeContainer *devmode_ctr,
@@ -1347,7 +1349,17 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 	} spoolss_AddDriverInfo4;
 
 	typedef [bitmap32bit] bitmap {
-		PRINTER_DRIVER_PACKAGE_AWARE = 0x00000002
+		PRINTER_DRIVER_PACKAGE_AWARE		= 0x00000001,
+		PRINTER_DRIVER_XPS			= 0x00000002,
+		PRINTER_DRIVER_SANDBOX_ENABLED 		= 0x00000004,
+		PRINTER_DRIVER_CLASS 			= 0x00000008,
+		PRINTER_DRIVER_DERIVED 			= 0x00000010,
+		PRINTER_DRIVER_NOT_SHAREABLE 		= 0x00000020,
+		PRINTER_DRIVER_CATEGORY_FAX		= 0x00000040,
+		PRINTER_DRIVER_CATEGORY_FILE		= 0x00000080,
+		PRINTER_DRIVER_CATEGORY_VIRTUAL		= 0x00000100,
+		PRINTER_DRIVER_CATEGORY_SERVICE		= 0x00000200,
+		PRINTER_DRIVER_SOFT_RESET_REQUIRED	= 0x00000400
 	} spoolss_DriverAttributes;
 
 	typedef struct {
@@ -1409,14 +1421,14 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 		[value(((ndr_size_spoolss_StringArray(color_profiles, ndr->flags)-4)/2))] uint32 _ndr_size_color_profiles;
 		spoolss_StringArray *color_profiles;
 		[string,charset(UTF16)] uint16 *inf_path;
-		uint32 printer_driver_attributes;
+		spoolss_DriverAttributes printer_driver_attributes;
 		[value(((ndr_size_spoolss_StringArray(core_driver_dependencies, ndr->flags)-4)/2))] uint32 _ndr_size_core_driver_dependencies;
 		spoolss_StringArray *core_driver_dependencies;
 		NTTIME min_inbox_driver_ver_date;
 		hyper min_inbox_driver_ver_version;
 	} spoolss_AddDriverInfo8;
 
-	typedef [switch_type(uint32)] union {
+	typedef [ms_union,switch_type(uint32)] union {
 		[case(1)] spoolss_AddDriverInfo1 *info1;
 		[case(2)] spoolss_AddDriverInfo2 *info2;
 		[case(3)] spoolss_AddDriverInfo3 *info3;
@@ -1425,7 +1437,7 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 		[case(8)] spoolss_AddDriverInfo8 *info8;
 	} spoolss_AddDriverInfo;
 
-	typedef struct {
+	typedef [public] struct {
 		uint32 level;
 		[switch_is(level)] spoolss_AddDriverInfo info;
 	} spoolss_AddDriverInfoCtr;
@@ -1537,7 +1549,7 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 		[relative] nstring *vendor_setup;
 		[relative] nstring_array *color_profiles;
 		[relative] nstring *inf_path;
-		uint32 printer_driver_attributes;
+		spoolss_DriverAttributes printer_driver_attributes;
 		[relative] nstring_array *core_driver_dependencies;
 		NTTIME min_inbox_driver_ver_date;
 		hyper min_inbox_driver_ver_version;
@@ -1734,17 +1746,21 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 		[string,charset(UTF16)] uint16 *datatype;
 	} spoolss_DocumentInfo1;
 
-	typedef [switch_type(uint32)] union {
+	typedef [ms_union,switch_type(uint32)] union {
 		[case(1)] spoolss_DocumentInfo1 *info1;
 		[case(2)]; /* TODO */
 		[case(3)]; /* TODO */
 		[default];
 	} spoolss_DocumentInfo;
 
+	typedef [public] struct {
+		uint32 level;
+		[switch_is(level)] spoolss_DocumentInfo info;
+	} spoolss_DocumentInfoCtr;
+
 	WERROR spoolss_StartDocPrinter(
 		[in,ref] policy_handle *handle,
-		[in] uint32 level,
-		[in,switch_is(level)] spoolss_DocumentInfo info,
+		[in,ref] spoolss_DocumentInfoCtr *info_ctr,
 		[out,ref] uint32 *job_id
 	);
 
@@ -1817,6 +1833,7 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 	const string SPL_ARCH_W32PPC		= "W32PPC";
 	const string SPL_ARCH_IA64		= "IA64";
 	const string SPL_ARCH_X64		= "x64";
+	const string SPL_ARCH_ARM		= "ARM";
 
 	const string SPOOLSS_ARCHITECTURE_ALL			= "All";
 	const string SPOOLSS_ARCHITECTURE_ALL_CLUSTER		= "AllCluster";
@@ -1824,6 +1841,7 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 	const string SPOOLSS_ARCHITECTURE_IA_64			= "Windows IA64";
 	const string SPOOLSS_ARCHITECTURE_x64			= "Windows x64";
 	const string SPOOLSS_ARCHITECTURE_4_0			= "Windows 4.0";
+	const string SPOOLSS_ARCHITECTURE_ARM			= "Windows ARM";
 	const string SPOOLSS_DEFAULT_SERVER_PATH		= "C:\\WINDOWS\\system32\\spool";
 
 	typedef [public,gensize] struct {
@@ -2029,15 +2047,19 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 		uint32 lang_id;
 	} spoolss_AddFormInfo2;
 
-	typedef [switch_type(uint32)] union {
+	typedef [ms_union,switch_type(uint32)] union {
 		[case(1)] spoolss_AddFormInfo1 *info1;
 		[case(2)] spoolss_AddFormInfo2 *info2;
 	} spoolss_AddFormInfo;
 
+	typedef [public] struct {
+		uint32 level;
+		[switch_is(level)] spoolss_AddFormInfo info;
+	} spoolss_AddFormInfoCtr;
+
 	WERROR spoolss_AddForm(
 		[in,ref] policy_handle *handle,
-		[in] uint32 level,
-		[in,switch_is(level)] spoolss_AddFormInfo info
+		[in,ref] spoolss_AddFormInfoCtr *info_ctr
 	);
 
 	/******************/
@@ -2064,8 +2086,7 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 	WERROR spoolss_SetForm(
 		[in,ref] policy_handle *handle,
 		[in] [string,charset(UTF16)] uint16 form_name[],
-		[in] uint32 level,
-		[in,switch_is(level)] spoolss_AddFormInfo info
+		[in,ref] spoolss_AddFormInfoCtr *info_ctr
 	);
 
 	/******************/
@@ -2258,14 +2279,14 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 		DATA_BLOB monitor_data; /* relative ?? */
 	} spoolss_SetPortInfoFF;
 
-	typedef [switch_type(uint32)] union {
+	typedef [ms_union,switch_type(uint32)] union {
 		[case(1)] spoolss_SetPortInfo1 *info1;
 		[case(2)] spoolss_SetPortInfo2 *info2;
 		[case(3)] spoolss_SetPortInfo3 *info3;
 		[case(0xff)] spoolss_SetPortInfoFF *infoFF;
 	} spoolss_SetPortInfo;
 
-	typedef struct {
+	typedef [public] struct {
 		uint32 level;
 		[switch_is(level)] spoolss_SetPrinterInfo info;
 	} spoolss_SetPortInfoContainer;
@@ -2299,7 +2320,24 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 
 	/******************/
 	/* Function: 0x29 */
-	[todo] WERROR spoolss_PlayGDIScriptOnPrinterIC(
+
+	typedef struct {
+		uint32 Checksum;
+		uint32 Index;
+	} UNIVERSAL_FONT_ID;
+
+	typedef [public] struct {
+		uint32 count;
+		UNIVERSAL_FONT_ID fonts[count];
+	} UNIVERSAL_FONT_ID_ctr;
+
+	WERROR spoolss_PlayGDIScriptOnPrinterIC(
+		[in,ref] policy_handle *gdi_handle,
+		[in,ref] [size_is(cIn)] uint8 *pIn,
+		[in] uint32 cIn,
+		[out,ref] [size_is(cOut)] uint8 *pOut,
+		[in] uint32 cOut,
+		[in] uint32 ul
 	);
 
 	/******************/
@@ -2327,6 +2365,27 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 
 	/******************/
 	/* Function: 0x2e */
+
+	typedef struct {
+		[string,charset(URF16)] uint16 *monitor_name;
+	} spoolss_AddMonitorInfo1;
+
+	typedef struct {
+		[string,charset(URF16)] uint16 *monitor_name;
+		[string,charset(URF16)] uint16 *environment;
+		[string,charset(URF16)] uint16 *dll_name;
+	} spoolss_AddMonitorInfo2;
+
+	typedef [ms_union,switch_type(uint32)] union {
+		[case(1)] spoolss_AddMonitorInfo1 *info1;
+		[case(2)] spoolss_AddMonitorInfo2 *info2;
+	} spoolss_AddMonitorInfo;
+
+	typedef [public] struct {
+		uint32 level;
+		[switch_is(level)] spoolss_MonitorInfo info;
+	} spoolss_MonitorContainer;
+
 	[todo] WERROR spoolss_AddMonitor(
 	);
 
@@ -2337,7 +2396,10 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 
 	/******************/
 	/* Function: 0x30 */
-	[todo] WERROR spoolss_DeletePrintProcessor(
+	WERROR spoolss_DeletePrintProcessor(
+		[in,unique] [string,charset(UTF16)] uint16 *server,
+		[in,unique] [string,charset(UTF16)] uint16 *architecture,
+		[in] [string,charset(UTF16)] uint16 print_processor_name[]
 	);
 
 	/******************/
@@ -2511,7 +2573,7 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 	/******************/
 	/* Function: 0x3d */
 
-	typedef struct {
+	typedef [public] struct {
 		uint32 monitor_data_size;
 		[size_is(monitor_data_size),unique] uint8 *monitor_data;
 	} spoolss_PortVarContainer;
@@ -2622,7 +2684,7 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 		PRINTER_NOTIFY_OPTIONS_REFRESH	= 0x00000001
 	} spoolssNotifyOptionFlags;
 
-	typedef struct {
+	typedef [public] struct {
 		[value(2)] uint32 version;
 		spoolssNotifyOptionFlags flags;
 		uint32 count;
@@ -2654,7 +2716,7 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 		NOTIFY_TABLE_SECURITYDESCRIPTOR = 0x0005
 	} spoolss_NotifyTable;
 
-	typedef [switch_type(uint32)] union {
+	typedef [ms_union, switch_type(uint32)] union {
 		[case(1)] uint32 integer[2];
 		[case(2)] spoolss_NotifyString string;
 		[case(3)] spoolss_DevmodeContainer devmode;
@@ -2670,14 +2732,14 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 		[switch_is(variable_type)] spoolss_NotifyData data;
 	} spoolss_Notify;
 
-	typedef struct {
+	typedef [public] struct {
 		[value(2)] uint32 version;
 		uint32 flags;
 		uint32 count;
 		[size_is(count)] spoolss_Notify notifies[];
 	} spoolss_NotifyInfo;
 
-	typedef [switch_type(uint32)] union {
+	typedef [ms_union,switch_type(uint32)] union {
 		[case(0)] spoolss_NotifyInfo *info0;
 	} spoolss_ReplyPrinterInfo;
 
@@ -2737,13 +2799,13 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 		udlong reserved;
 	} spoolss_UserLevel3;
 
-	typedef [switch_type(uint32)] union {
+	typedef [ms_union,switch_type(uint32)] union {
 		[case(1)]  spoolss_UserLevel1 *level1;
 		[case(2)]  spoolss_UserLevel2 *level2;
 		[case(3)]  spoolss_UserLevel3 *level3;
 	} spoolss_UserLevel;
 
-	typedef struct {
+	typedef [public] struct {
 		uint32 level;
 		[switch_is(level)] spoolss_UserLevel user_info;
 	} spoolss_UserLevelCtr;
@@ -2817,8 +2879,7 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 		[in,unique]           [string,charset(UTF16)] uint16 *datatype,
 		[in]	              spoolss_DevmodeContainer devmode_ctr,
 		[in]	              spoolss_AccessRights access_mask,
-		[in]	              uint32 level,
-		[in,switch_is(level)] spoolss_UserLevel userlevel,
+		[in]	              spoolss_UserLevelCtr userlevel_ctr,
 		[out,ref]	      policy_handle *handle
 	);
 
@@ -3014,11 +3075,11 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 		PROTOCOL_LPR_TYPE	= 2
 	} spoolss_PortProtocol;
 
-	typedef [public] struct {
+	typedef [public,gensize] struct {
 		[charset(UTF16)] uint16 portname[64];
 		[value(0x00000001)] uint32 version;
 		spoolss_PortProtocol protocol;
-		[value(sizeof(r))] uint32 size;
+		[value(ndr_size_spoolss_PortData1(r, ndr->flags))] uint32 size;
 		uint32 reserved;
 		[charset(UTF16)] uint16 hostaddress[49];
 		[charset(UTF16)] uint16 snmpcommunity[33];
@@ -3032,11 +3093,11 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 		uint32 snmp_dev_index;
 	} spoolss_PortData1;
 
-	typedef [public] struct {
+	typedef [public,gensize] struct {
 		[charset(UTF16)] uint16 portname[64];
 		[value(0x00000002)] uint32 version;
 		spoolss_PortProtocol protocol;
-		[value(sizeof(r))] uint32 size;
+		[value(ndr_size_spoolss_PortData2(r, ndr->flags))] uint32 size;
 		uint32 reserved;
 		[charset(UTF16)] uint16 hostaddress[128];
 		[charset(UTF16)] uint16 snmpcommunity[33];
@@ -3121,7 +3182,76 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 
 	/******************/
 	/* Function: 0x61 */
-	[todo] WERROR spoolss_61(
+
+	const string BIDI_ACTION_ENUM_SCHEMA = "EnumSchema";
+	const string BIDI_ACTION_GET = "Get";
+	const string BIDI_ACTION_SET = "Set";
+	const string BIDI_ACTION_GET_ALL = "GetAll";
+
+	typedef enum {
+		BIDI_NULL	= 0x00000000,
+		BIDI_INT	= 0x00000001,
+		BIDI_FLOAT	= 0x00000002,
+		BIDI_BOOL	= 0x00000003,
+		BIDI_STRING	= 0x00000004,
+		BIDI_TEXT	= 0x00000005,
+		BIDI_ENUM	= 0x00000006,
+		BIDI_BLOB	= 0x00000007
+	} BIDI_TYPE;
+
+	typedef struct {
+		uint32 cbBuf;
+		[size_is(cbBuf), unique] uint8 *pszString;
+	} RPC_BINARY_CONTAINER;
+
+	typedef [ms_union,switch_type(uint32)] union {
+		[case(BIDI_NULL)]	uint32 bData;
+		[case(BIDI_BOOL)]	uint32 bData;
+		[case(BIDI_INT)] 	uint32 iData;
+		[case(BIDI_STRING)]	[unique] [string,charset(UTF16)] uint16 *sData;
+		[case(BIDI_TEXT)]	[unique] [string,charset(UTF16)] uint16 *sData;
+		[case(BIDI_ENUM)]	[unique] [string,charset(UTF16)] uint16 *sData;
+		/*[case(BIDI_FLOAT)]	float fData;*/
+		[case(BIDI_BLOB)]	RPC_BINARY_CONTAINER biData;
+	} RPC_BIDI_DATA_u;
+
+	typedef struct {
+		uint32 dwBidiType;
+		[switch_is(dwBidiType)] RPC_BIDI_DATA_u u;
+	} RPC_BIDI_DATA;
+
+	typedef struct {
+		uint32 dwReqNumber;
+		[unique] [string,charset(UTF16)] uint16 *pSchema;
+		RPC_BIDI_DATA data;
+	} RPC_BIDI_REQUEST_DATA;
+
+	typedef [public] struct {
+		[value(1)] uint32 Version;
+		uint32 Flags;
+		uint32 Count;
+		[size_is(Count), unique] RPC_BIDI_REQUEST_DATA *aData[];
+	} RPC_BIDI_REQUEST_CONTAINER;
+
+	typedef struct {
+		uint32 dwResult;
+		uint32 dwReqNumber;
+		[unique] [string,charset(UTF16)] uint16 *pSchema;
+		RPC_BIDI_DATA data;
+	} RPC_BIDI_RESPONSE_DATA;
+
+	typedef [public] struct {
+		[value(1)] uint32 Version;
+		uint32 Flags;
+		uint32 Count;
+		[size_is(Count), unique] RPC_BIDI_RESPONSE_DATA *aData[];
+	} RPC_BIDI_RESPONSE_CONTAINER;
+
+	WERROR spoolss_RpcSendRecvBidiData(
+		[in] policy_handle hPrinter,
+		[in,unique] [string,charset(UTF16)] uint16 *pAction,
+		[in] RPC_BIDI_REQUEST_CONTAINER *pReqData,
+		[out] RPC_BIDI_RESPONSE_CONTAINER **ppRespData
 	);
 
 	/******************/
@@ -3146,14 +3276,14 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 
 	/******************/
 	/* Function: 0x66 */
-	typedef struct {
+	typedef [public] struct {
 		GUID core_driver_guid;
 		NTTIME driver_date;
 		hyper driver_version;
 		[charset(UTF8)] uint8 formname[520];
 	} spoolss_CorePrinterDriver;
 
-	WERROR spoolss_GetCorePrinterDrivers(
+	[public] WERROR spoolss_GetCorePrinterDrivers(
 		[in,unique] [string,charset(UTF16)] uint16 *servername,
 		[in,ref] [string,charset(UTF16)] uint16 *architecture,
 		[in] uint32 core_driver_size,
@@ -3202,5 +3332,77 @@ cpp_quote("#define spoolss_security_descriptor security_descriptor")
 	/******************/
 	/* Function: 0x6d */
 	[todo] WERROR spoolss_6d(
+	);
+
+	/******************/
+	/* Function: 0x6e */
+
+	const string SPLFILE_CONTENT_TYPE_PROP_NAME		= "Spool File Contents";
+	const string SPLFILE_CONTENT_TYPE_XPS_MS		= "TYPE_XPS_MS";
+	const string SPLFILE_CONTENT_TYPE_XPS_OPEN		= "TYPE_XPS_OPEN";
+	const string SPLFILE_CONTENT_TYPE_PDL_POSTSCRIPT	= "TYPE_PDL_POSTSCRIPT";
+	const string SPLFILE_CONTENT_TYPE_PDL_UNKNOWN		= "TYPE_PDL_UNKNOWN";
+
+	typedef enum {
+		kRpcPropertyTypeString	= 1,
+		kRpcPropertyTypeInt32	= 2,
+		kRpcPropertyTypeInt64	= 3,
+		kRpcPropertyTypeByte	= 4,
+		kRpcPropertyTypeBuffer	= 5
+	} RPC_EPrintPropertyType;
+
+	typedef struct {
+		uint32 cbBuf;
+		[size_is(cbBuf)] uint8 *pBuf;
+	} propertyBlob;
+
+	typedef [ms_union,switch_type(RPC_EPrintPropertyType)] union {
+		[case(kRpcPropertyTypeString)] [string,charset(UTF16)] uint16 *propertyString;
+		[case(kRpcPropertyTypeInt32)] uint32 propertyInt32;
+		[case(kRpcPropertyTypeInt64)] hyper propertyInt64;
+		[case(kRpcPropertyTypeByte)] uint8 propertyByte;
+		[case(kRpcPropertyTypeBuffer)] propertyBlob propertyBlob;
+	} RPC_PrintPropertyValueUnion;
+
+	typedef [public] struct {
+		RPC_EPrintPropertyType ePropertyType;
+		[switch_is(ePropertyType)] RPC_PrintPropertyValueUnion value;
+	} RPC_PrintPropertyValue;
+
+	typedef [public] struct {
+		[string,charset(UTF16)] uint16 *propertyName;
+		RPC_PrintPropertyValue propertyValue;
+	} RPC_PrintNamedProperty;
+
+	WERROR spoolss_RpcGetJobNamedPropertyValue(
+		[in,ref] policy_handle *hPrinter,
+		[in] uint32 JobId,
+		[in] [string,charset(UTF16)] uint16 *pszName,
+		[out,ref] RPC_PrintPropertyValue *pValue
+	);
+
+	/******************/
+	/* Function: 0x6f */
+	[public] WERROR spoolss_RpcSetJobNamedProperty(
+		[in,ref] policy_handle *hPrinter,
+		[in] uint32 JobId,
+		[in,ref] RPC_PrintNamedProperty *pProperty
+	);
+
+	/******************/
+	/* Function: 0x70 */
+	WERROR spoolss_RpcDeleteJobNamedProperty(
+		[in,ref] policy_handle *hPrinter,
+		[in] uint32 JobId,
+		[in] [string,charset(UTF16)] uint16 *pszName
+	);
+
+	/******************/
+	/* Function: 0x71 */
+	WERROR spoolss_RpcEnumJobNamedProperties(
+		[in,ref] policy_handle *hPrinter,
+		[in] uint32 JobId,
+		[out,ref] uint32 *pcProperties,
+		[out,ref,size_is(,*pcProperties)] RPC_PrintNamedProperty **ppProperties
 	);
 }

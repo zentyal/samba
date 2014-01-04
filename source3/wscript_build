@@ -67,7 +67,8 @@ LIB_SRC = '''
           lib/fncall.c
           libads/krb5_errs.c lib/system_smbd.c lib/audit.c
 	  lib/tevent_wait.c
-          lib/idmap_cache.c'''
+          lib/idmap_cache.c
+          lib/util_ea.c'''
 
 LIB_UTIL_SRC = '''
                lib/system.c
@@ -134,7 +135,8 @@ LIBSMB_SRC = '''libsmb/clientgen.c libsmb/cliconnect.c libsmb/clifile.c
              libsmb/cli_np_tstream.c
              libsmb/reparse_symlink.c
              libsmb/clisymlink.c
-             libsmb/smbsock_connect.c'''
+             libsmb/smbsock_connect.c
+             libsmb/cli_smb2_fnum.c'''
 
 LIBMSRPC_SRC = '''
                rpc_client/cli_pipe.c
@@ -370,6 +372,10 @@ SMBD_SRC_SRV = '''smbd/server_reload.c smbd/files.c smbd/connection.c
                smbd/smb2_write.c
                smbd/smb2_lock.c
                smbd/smb2_ioctl.c
+               smbd/smb2_ioctl_dfs.c
+               smbd/smb2_ioctl_filesys.c
+               smbd/smb2_ioctl_named_pipe.c
+               smbd/smb2_ioctl_network_fs.c
                smbd/smb2_keepalive.c
                smbd/smb2_find.c
                smbd/smb2_notify.c
@@ -416,11 +422,6 @@ NMBD_SRC1 = '''nmbd/asyncdns.c nmbd/nmbd.c nmbd/nmbd_become_dmb.c
             nmbd/nmbd_workgroupdb.c nmbd/nmbd_synclists.c'''
 
 NMBD_SRC = '${NMBD_SRC1}'
-
-SWAT_SRC1 = '''web/cgi.c web/diagnose.c web/startstop.c web/statuspage.c
-               web/swat.c web/neg_lang.c'''
-
-SWAT_SRC = '''${SWAT_SRC1}'''
 
 STATUS_SRC = '''utils/status.c utils/status_profile.c smbd/notify_internal.c'''
 
@@ -558,6 +559,7 @@ SMBTORTURE_SRC1 = '''torture/torture.c torture/nbio.c torture/scanner.c torture/
                 lib/tevent_barrier.c
                 torture/test_dbwrap_watch.c
                 torture/test_idmap_tdb_common.c
+                torture/test_dbwrap_ctdb.c
                 torture/t_strappend.c'''
 
 SMBTORTURE_SRC = '''${SMBTORTURE_SRC1}
@@ -978,6 +980,7 @@ bld.SAMBA3_LIBRARY('smbd_base',
                     ccan-hash
                     NDR_SMB_ACL
                     netapi
+		    NDR_IOCTL
                     ''' + bld.env['dmapi_lib'],
                     private_library=True,
                     vars=locals())
@@ -1212,27 +1215,6 @@ bld.SAMBA3_BINARY('winbindd/winbindd',
                  WB_REQTRANS
                  ''',
                  enabled=bld.env.build_winbind,
-                 install_path='${SBINDIR}',
-                 vars=locals())
-
-bld.SAMBA3_BINARY('web/swat',
-                 source=SWAT_SRC,
-                 deps='''
-                 talloc
-                 tevent
-                 samba3core
-                 libsmb
-                 param
-                 pdb
-                 popt_samba3
-                 smbd_base
-                 LOCKING
-                 PLAINTEXT_AUTH
-                 PASSCHANGE
-                 PRINTBASE
-                 PRINTING
-                 ''',
-                 enabled=bld.env.build_swat,
                  install_path='${SBINDIR}',
                  vars=locals())
 
@@ -1635,12 +1617,14 @@ bld.SAMBA3_PYTHON('pylibsmb',
                   realname='samba/samba3/libsmb_samba_internal.so'
                   )
 
-swat_dir = os.path.join(bld.curdir, '../swat')
-swat_files = recursive_dirlist(swat_dir, swat_dir, '*')
-swat_msg_dir = os.path.join(bld.curdir, 'po')
-swat_msg_files = recursive_dirlist(swat_msg_dir, swat_msg_dir, '*.msg')
-bld.INSTALL_FILES('${SWATDIR}', swat_files, base_name='../swat')
-bld.INSTALL_FILES('${CODEPAGEDIR}', swat_msg_files, base_name='po')
+bld.SAMBA3_BINARY('samba-regedit',
+                  source="""utils/regedit.c utils/regedit_samba3.c
+                            utils/regedit_wrap.c utils/regedit_treeview.c
+                            utils/regedit_valuelist.c utils/regedit_dialog.c
+                            utils/regedit_hexedit.c""",
+                  deps='ncurses menu panel form registry param popt_samba3 smbregistry',
+                  enabled=bld.env.build_regedit,
+                  vars=locals())
 
 ########################## INCLUDES #################################
 
@@ -1667,4 +1651,3 @@ bld.RECURSE('lib/netapi/examples')
 bld.ENFORCE_GROUP_ORDERING()
 bld.CHECK_PROJECT_RULES()
 
-bld.SYMBOL_CHECK()

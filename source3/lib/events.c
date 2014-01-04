@@ -234,23 +234,23 @@ bool run_events_poll(struct tevent_context *ev, int pollrtn,
 		}
 
 		if (pfd->revents & (POLLHUP|POLLERR)) {
-			/* If we only wait for EVENT_FD_WRITE, we
+			/* If we only wait for TEVENT_FD_WRITE, we
 			   should not tell the event handler about it,
 			   and remove the writable flag, as we only
 			   report errors when waiting for read events
 			   to match the select behavior. */
-			if (!(fde->flags & EVENT_FD_READ)) {
-				EVENT_FD_NOT_WRITEABLE(fde);
+			if (!(fde->flags & TEVENT_FD_READ)) {
+				TEVENT_FD_NOT_WRITEABLE(fde);
 				continue;
 			}
-			flags |= EVENT_FD_READ;
+			flags |= TEVENT_FD_READ;
 		}
 
 		if (pfd->revents & POLLIN) {
-			flags |= EVENT_FD_READ;
+			flags |= TEVENT_FD_READ;
 		}
 		if (pfd->revents & POLLOUT) {
-			flags |= EVENT_FD_WRITE;
+			flags |= TEVENT_FD_WRITE;
 		}
 		if (flags & fde->flags) {
 			DLIST_DEMOTE(ev->fd_events, fde, struct tevent_fd);
@@ -390,41 +390,6 @@ static bool s3_tevent_init(void)
 	return initialized;
 }
 
-/*
-  this is used to catch debug messages from events
-*/
-static void s3_event_debug(void *context, enum tevent_debug_level level,
-			   const char *fmt, va_list ap)  PRINTF_ATTRIBUTE(3,0);
-
-static void s3_event_debug(void *context, enum tevent_debug_level level,
-			   const char *fmt, va_list ap)
-{
-	int samba_level = -1;
-	char *s = NULL;
-	switch (level) {
-	case TEVENT_DEBUG_FATAL:
-		samba_level = 0;
-		break;
-	case TEVENT_DEBUG_ERROR:
-		samba_level = 1;
-		break;
-	case TEVENT_DEBUG_WARNING:
-		samba_level = 2;
-		break;
-	case TEVENT_DEBUG_TRACE:
-		samba_level = 11;
-		break;
-
-	};
-	if (CHECK_DEBUGLVL(samba_level)) {
-		if (vasprintf(&s, fmt, ap) == -1) {
-			return;
-		}
-		DEBUG(samba_level, ("s3_event: %s", s));
-		free(s);
-	}
-}
-
 struct tevent_context *s3_tevent_context_init(TALLOC_CTX *mem_ctx)
 {
 	struct tevent_context *ev;
@@ -433,7 +398,7 @@ struct tevent_context *s3_tevent_context_init(TALLOC_CTX *mem_ctx)
 
 	ev = tevent_context_init_byname(mem_ctx, "s3");
 	if (ev) {
-		tevent_set_debug(ev, s3_event_debug, NULL);
+		samba_tevent_set_debug(ev, "s3_tevent");
 	}
 
 	return ev;

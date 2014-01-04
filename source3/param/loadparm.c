@@ -124,6 +124,7 @@ static bool defaults_saved = false;
 	char *szUsershareTemplateShare;					\
 	char *szIdmapUID;						\
 	char *szIdmapGID;						\
+	char *szIdmapBackend;						\
 	int winbindMaxDomainConnections;				\
 	int ismb2_max_credits;						\
 	char *tls_keyfile;						\
@@ -213,7 +214,6 @@ static struct loadparm_service sDefault =
 	.bAccessBasedShareEnum = false,
 	.bAvailable = true,
 	.bRead_only = true,
-	.bNo_set_dir = true,
 	.bGuest_only = false,
 	.bAdministrative_share = false,
 	.bGuest_ok = false,
@@ -820,7 +820,6 @@ static void init_globals(bool reinit_globals)
 	Globals.lpqcachetime = 30;	/* changed to handle large print servers better -- jerry */
 	Globals.bDisableSpoolss = false;
 	Globals.iMaxSmbdProcesses = 0;/* no limit specified */
-	Globals.pwordlevel = 0;
 	Globals.unamelevel = 0;
 	Globals.deadtime = 0;
 	Globals.getwd_cache = true;
@@ -830,6 +829,8 @@ static void init_globals(bool reinit_globals)
 	Globals.open_files_db_hash_size = SMB_OPEN_DATABASE_TDB_HASH_SIZE;
 	Globals.srv_maxprotocol = PROTOCOL_SMB3_00;
 	Globals.srv_minprotocol = PROTOCOL_LANMAN1;
+	Globals.cli_maxprotocol = PROTOCOL_NT1;
+	Globals.cli_minprotocol = PROTOCOL_CORE;
 	Globals.security = SEC_USER;
 	Globals.bEncryptPasswords = true;
 	Globals.clientSchannel = Auto;
@@ -2885,52 +2886,9 @@ static bool handle_ldap_debug_level(struct loadparm_context *unused, int snum, c
 	return true;
 }
 
-/***************************************************************************
- Handle idmap/non unix account uid and gid allocation parameters.  The format of these
- parameters is:
-
- [global]
-
-        idmap uid = 1000-1999
-        idmap gid = 700-899
-
- We only do simple parsing checks here.  The strings are parsed into useful
- structures in the idmap daemon code.
-
-***************************************************************************/
-
-/* Some lp_ routines to return idmap [ug]id information */
-
-static uid_t idmap_uid_low, idmap_uid_high;
-static gid_t idmap_gid_low, idmap_gid_high;
-
-bool lp_idmap_uid(uid_t *low, uid_t *high)
-{
-        if (idmap_uid_low == 0 || idmap_uid_high == 0)
-                return false;
-
-        if (low)
-                *low = idmap_uid_low;
-
-        if (high)
-                *high = idmap_uid_high;
-
-        return true;
-}
-
-bool lp_idmap_gid(gid_t *low, gid_t *high)
-{
-        if (idmap_gid_low == 0 || idmap_gid_high == 0)
-                return false;
-
-        if (low)
-                *low = idmap_gid_low;
-
-        if (high)
-                *high = idmap_gid_high;
-
-        return true;
-}
+/*
+ * idmap related parameters
+ */
 
 static bool handle_idmap_backend(struct loadparm_context *unused, int snum, const char *pszParmValue, char **ptr)
 {
@@ -2938,8 +2896,6 @@ static bool handle_idmap_backend(struct loadparm_context *unused, int snum, cons
 
 	return true;
 }
-
-/* Do some simple checks on "idmap [ug]id" parameter values */
 
 static bool handle_idmap_uid(struct loadparm_context *unused, int snum, const char *pszParmValue, char **ptr)
 {
@@ -2953,6 +2909,83 @@ static bool handle_idmap_gid(struct loadparm_context *unused, int snum, const ch
 	lp_do_parameter(snum, "idmap config * : range", pszParmValue);
 
 	return true;
+}
+
+bool lp_idmap_range(const char *domain_name, uint32_t *low, uint32_t *high)
+{
+	char *config_option = NULL;
+	const char *range = NULL;
+	bool ret = false;
+
+	SMB_ASSERT(low != NULL);
+	SMB_ASSERT(high != NULL);
+
+	if ((domain_name == NULL) || (domain_name[0] == '\0')) {
+		domain_name = "*";
+	}
+
+	config_option = talloc_asprintf(talloc_tos(), "idmap config %s",
+					domain_name);
+	if (config_option == NULL) {
+		DEBUG(0, ("out of memory\n"));
+		return false;
+	}
+
+	range = lp_parm_const_string(-1, config_option, "range", NULL);
+	if (range == NULL) {
+		DEBUG(1, ("idmap range not specified for domain '%s'\n", domain_name));
+		goto done;
+	}
+
+	if (sscanf(range, "%u - %u", low, high) != 2) {
+		DEBUG(1, ("error parsing idmap range '%s' for domain '%s'\n",
+			  range, domain_name));
+		goto done;
+	}
+
+	ret = true;
+
+done:
+	talloc_free(config_option);
+	return ret;
+
+}
+
+bool lp_idmap_default_range(uint32_t *low, uint32_t *high)
+{
+	return lp_idmap_range("*", low, high);
+}
+
+const char *lp_idmap_backend(const char *domain_name)
+{
+	char *config_option = NULL;
+	const char *backend = NULL;
+
+	if ((domain_name == NULL) || (domain_name[0] == '\0')) {
+		domain_name = "*";
+	}
+
+	config_option = talloc_asprintf(talloc_tos(), "idmap config %s",
+					domain_name);
+	if (config_option == NULL) {
+		DEBUG(0, ("out of memory\n"));
+		return false;
+	}
+
+	backend = lp_parm_const_string(-1, config_option, "backend", NULL);
+	if (backend == NULL) {
+		DEBUG(1, ("idmap backend not specified for domain '%s'\n", domain_name));
+		goto done;
+	}
+
+done:
+	talloc_free(config_option);
+	return backend;
+}
+
+const char *lp_idmap_default_backend(void)
+{
+	return lp_idmap_backend("*");
 }
 
 /***************************************************************************
@@ -3975,7 +4008,7 @@ void lp_killservice(int iServiceIn)
 
 /***************************************************************************
  Save the curent values of all global and sDefault parameters into the 
- defaults union. This allows swat and testparm to show only the
+ defaults union. This allows testparm to show only the
  changed (ie. non-default) parameters.
 ***************************************************************************/
 

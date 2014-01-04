@@ -290,7 +290,7 @@ static files_struct *initial_break_processing(
 		/* The file could have been closed in the meantime - return success. */
 		if( DEBUGLVL( 3 ) ) {
 			dbgtext( "initial_break_processing: cannot find open file with " );
-			dbgtext( "file_id %s gen_id = %lu", file_id_string_tos(&id), file_id);
+			dbgtext( "file_id %s gen_id = %lu, ", file_id_string_tos(&id), file_id);
 			dbgtext( "allowing break to succeed.\n" );
 		}
 		return NULL;
@@ -320,8 +320,8 @@ static files_struct *initial_break_processing(
 	return fsp;
 }
 
-static void oplock_timeout_handler(struct event_context *ctx,
-				   struct timed_event *te,
+static void oplock_timeout_handler(struct tevent_context *ctx,
+				   struct tevent_timer *te,
 				   struct timeval now,
 				   void *private_data)
 {
@@ -332,7 +332,6 @@ static void oplock_timeout_handler(struct event_context *ctx,
 	DEBUG(0, ("Oplock break failed for file %s -- replying anyway\n",
 		  fsp_str_dbg(fsp)));
 	remove_oplock(fsp);
-	reply_to_oplock_break_requests(fsp);
 }
 
 /*******************************************************************
@@ -520,24 +519,15 @@ static void process_oplock_break_message(struct messaging_context *msg_ctx,
 
 	if (fsp == NULL) {
 		/* We hit a race here. Break messages are sent, and before we
-		 * get to process this message, we have closed the file. Reply
-		 * with 'ok, oplock broken' */
+		 * get to process this message, we have closed the file. */
 		DEBUG(3, ("Did not find fsp\n"));
-
-		/* We just send the same message back. */
-		messaging_send_buf(msg_ctx, src, MSG_SMB_BREAK_RESPONSE,
-				   (uint8 *)data->data,
-				   MSG_SMB_SHARE_MODE_ENTRY_SIZE);
 		return;
 	}
 
 	if (fsp->sent_oplock_break != NO_BREAK_SENT) {
-		/* Remember we have to inform the requesting PID when the
-		 * client replies */
-		msg.pid = src;
-		ADD_TO_ARRAY(NULL, struct share_mode_entry, msg,
-			     &fsp->pending_break_messages,
-			     &fsp->num_pending_break_messages);
+		/*
+		 * Nothing to do anymore
+		 */
 		return;
 	}
 
@@ -546,10 +536,6 @@ static void process_oplock_break_message(struct messaging_context *msg_ctx,
 		DEBUG(3, ("Already downgraded oplock on %s: %s\n",
 			  file_id_string_tos(&fsp->file_id),
 			  fsp_str_dbg(fsp)));
-		/* We just send the same message back. */
-		messaging_send_buf(msg_ctx, src, MSG_SMB_BREAK_RESPONSE,
-				   (uint8 *)data->data,
-				   MSG_SMB_SHARE_MODE_ENTRY_SIZE);
 		return;
 	}
 
@@ -577,11 +563,6 @@ static void process_oplock_break_message(struct messaging_context *msg_ctx,
 	}
 
 	fsp->sent_oplock_break = break_to_level2 ? LEVEL_II_BREAK_SENT:BREAK_TO_NONE_SENT;
-
-	msg.pid = src;
-	ADD_TO_ARRAY(NULL, struct share_mode_entry, msg,
-		     &fsp->pending_break_messages,
-		     &fsp->num_pending_break_messages);
 
 	add_oplock_timeout_handler(fsp);
 }
@@ -645,104 +626,6 @@ static void process_kernel_oplock_break(struct messaging_context *msg_ctx,
 	fsp->sent_oplock_break = BREAK_TO_NONE_SENT;
 
 	add_oplock_timeout_handler(fsp);
-}
-
-void reply_to_oplock_break_requests(files_struct *fsp)
-{
-	struct smbd_server_connection *sconn = fsp->conn->sconn;
-	struct kernel_oplocks *koplocks = sconn->oplocks.kernel_ops;
-	int i;
-
-	/*
-	 * If kernel oplocks already notifies smbds when oplocks are
-	 * broken/removed, just return.
-	 */
-	if (koplocks &&
-	    (koplocks->flags & KOPLOCKS_OPLOCK_BROKEN_NOTIFICATION)) {
-		return;
-	}
-
-	for (i=0; i<fsp->num_pending_break_messages; i++) {
-		struct share_mode_entry *e = &fsp->pending_break_messages[i];
-		char msg[MSG_SMB_SHARE_MODE_ENTRY_SIZE];
-
-		share_mode_entry_to_message(msg, e);
-
-		messaging_send_buf(fsp->conn->sconn->msg_ctx, e->pid,
-				   MSG_SMB_BREAK_RESPONSE,
-				   (uint8 *)msg,
-				   MSG_SMB_SHARE_MODE_ENTRY_SIZE);
-	}
-
-	SAFE_FREE(fsp->pending_break_messages);
-	fsp->num_pending_break_messages = 0;
-	TALLOC_FREE(fsp->oplock_timeout);
-	return;
-}
-
-static void process_oplock_break_response(struct messaging_context *msg_ctx,
-					  void *private_data,
-					  uint32_t msg_type,
-					  struct server_id src,
-					  DATA_BLOB *data)
-{
-	struct share_mode_entry msg;
-	struct smbd_server_connection *sconn =
-		talloc_get_type_abort(private_data,
-		struct smbd_server_connection);
-
-	if (data->data == NULL) {
-		DEBUG(0, ("Got NULL buffer\n"));
-		return;
-	}
-
-	if (data->length != MSG_SMB_SHARE_MODE_ENTRY_SIZE) {
-		DEBUG(0, ("Got invalid msg len %u\n",
-			  (unsigned int)data->length));
-		return;
-	}
-
-	/* De-linearize incoming message. */
-	message_to_share_mode_entry(&msg, (char *)data->data);
-
-	DEBUG(10, ("Got oplock break response from pid %s: %s/%llu mid %llu\n",
-		   server_id_str(talloc_tos(), &src),
-		   file_id_string_tos(&msg.id),
-		   (unsigned long long)msg.share_file_id,
-		   (unsigned long long)msg.op_mid));
-
-	schedule_deferred_open_message_smb(sconn, msg.op_mid);
-}
-
-static void process_open_retry_message(struct messaging_context *msg_ctx,
-				       void *private_data,
-				       uint32_t msg_type,
-				       struct server_id src,
-				       DATA_BLOB *data)
-{
-	struct share_mode_entry msg;
-	struct smbd_server_connection *sconn =
-		talloc_get_type_abort(private_data,
-		struct smbd_server_connection);
-
-	if (data->data == NULL) {
-		DEBUG(0, ("Got NULL buffer\n"));
-		return;
-	}
-
-	if (data->length != MSG_SMB_SHARE_MODE_ENTRY_SIZE) {
-		DEBUG(0, ("Got invalid msg len %d\n", (int)data->length));
-		return;
-	}
-
-	/* De-linearize incoming message. */
-	message_to_share_mode_entry(&msg, (char *)data->data);
-
-	DEBUG(10, ("Got open retry msg from pid %s: %s mid %llu\n",
-		   server_id_str(talloc_tos(), &src), file_id_string_tos(&msg.id),
-		   (unsigned long long)msg.op_mid));
-
-	schedule_deferred_open_message_smb(sconn, msg.op_mid);
 }
 
 struct break_to_none_state {
@@ -988,13 +871,8 @@ bool init_oplocks(struct smbd_server_connection *sconn)
 			   process_oplock_break_message);
 	messaging_register(sconn->msg_ctx, sconn, MSG_SMB_ASYNC_LEVEL2_BREAK,
 			   process_oplock_async_level2_break_message);
-	messaging_register(sconn->msg_ctx, sconn, MSG_SMB_BREAK_RESPONSE,
-			   process_oplock_break_response);
 	messaging_register(sconn->msg_ctx, sconn, MSG_SMB_KERNEL_BREAK,
 			   process_kernel_oplock_break);
-	messaging_register(sconn->msg_ctx, sconn, MSG_SMB_OPEN_RETRY,
-			   process_open_retry_message);
-
 	return true;
 }
 

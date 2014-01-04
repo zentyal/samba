@@ -649,7 +649,7 @@ static NTSTATUS get_md4pw(struct samr_Password *md4pw, const char *mach_acct,
 #if 0
 
     /*
-     * Currently this code is redundent as we already have a filter
+     * Currently this code is redundant as we already have a filter
      * by hostname list. What this code really needs to do is to
      * get a hosts allowed/hosts denied list from the SAM database
      * on a per user basis, and make the access decision there.
@@ -1466,7 +1466,6 @@ static NTSTATUS _netr_LogonSamLogon_base(struct pipes_struct *p,
 	struct auth_serversupplied_info *server_info = NULL;
 	struct auth_context *auth_context = NULL;
 	const char *fn;
-	struct netr_SamBaseInfo *base;
 
 	switch (p->opnum) {
 		case NDR_NETR_LOGONSAMLOGON:
@@ -1693,17 +1692,14 @@ static NTSTATUS _netr_LogonSamLogon_base(struct pipes_struct *p,
 	case 2:
 		status = serverinfo_to_SamInfo2(server_info,
 						r->out.validation->sam2);
-		base = &r->out.validation->sam2->base;
 		break;
 	case 3:
 		status = serverinfo_to_SamInfo3(server_info,
 						r->out.validation->sam3);
-		base = &r->out.validation->sam3->base;
 		break;
 	case 6:
 		status = serverinfo_to_SamInfo6(server_info,
 						r->out.validation->sam6);
-		base = &r->out.validation->sam6->base;
 		break;
 	}
 
@@ -1713,22 +1709,9 @@ static NTSTATUS _netr_LogonSamLogon_base(struct pipes_struct *p,
 		return status;
 	}
 
-	if (r->in.validation_level == 6) {
-		/* no further crypto to be applied - gd */
-		return NT_STATUS_OK;
-	}
-
-	if (creds->negotiate_flags & NETLOGON_NEG_SUPPORTS_AES) {
-		netlogon_creds_aes_encrypt(creds, base->key.key, 16);
-		netlogon_creds_aes_encrypt(creds, base->LMSessKey.key, 8);
-	} else if (creds->negotiate_flags & NETLOGON_NEG_ARCFOUR) {
-		netlogon_creds_arcfour_crypt(creds, base->key.key, 16);
-		netlogon_creds_arcfour_crypt(creds, base->LMSessKey.key, 8);
-	} else {
-		/* key is unencrypted when neither AES nor RC4 bits are set */
-		netlogon_creds_des_encrypt_LMKey(creds, &base->LMSessKey);
-	}
-
+	netlogon_creds_encrypt_samlogon_validation(creds,
+						   r->in.validation_level,
+						   r->out.validation);
 	return NT_STATUS_OK;
 }
 
@@ -2528,28 +2511,26 @@ static NTSTATUS get_password_from_trustAuth(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_UNSUCCESSFUL;
 	}
 
-
 	if (trustAuth.count != 0 && trustAuth.current.count != 0 &&
 	    trustAuth.current.array[0].AuthType == TRUST_AUTH_TYPE_CLEAR) {
-		mdfour(previous_pw_enc->hash,
+		mdfour(current_pw_enc->hash,
 		       trustAuth.current.array[0].AuthInfo.clear.password,
 		       trustAuth.current.array[0].AuthInfo.clear.size);
+		netlogon_creds_des_encrypt(creds, current_pw_enc);
 	} else {
 		return NT_STATUS_UNSUCCESSFUL;
 	}
 
-	netlogon_creds_des_encrypt(creds, current_pw_enc);
 
 	if (trustAuth.previous.count != 0 &&
 	    trustAuth.previous.array[0].AuthType == TRUST_AUTH_TYPE_CLEAR) {
 		mdfour(previous_pw_enc->hash,
 		       trustAuth.previous.array[0].AuthInfo.clear.password,
 		       trustAuth.previous.array[0].AuthInfo.clear.size);
+		netlogon_creds_des_encrypt(creds, previous_pw_enc);
 	} else {
-		mdfour(previous_pw_enc->hash, NULL, 0);
+		ZERO_STRUCTP(previous_pw_enc);
 	}
-
-	netlogon_creds_des_encrypt(creds, previous_pw_enc);
 
 	return NT_STATUS_OK;
 }
@@ -2568,9 +2549,6 @@ NTSTATUS _netr_ServerGetTrustInfo(struct pipes_struct *p,
 	bool trusted;
 	struct netr_TrustInfo *trust_info;
 	struct pdb_trusted_domain *td;
-	DATA_BLOB trustAuth_blob;
-	struct samr_Password *new_owf_enc;
-	struct samr_Password *old_owf_enc;
 	struct loadparm_context *lp_ctx;
 
 	lp_ctx = loadparm_init_s3(p->mem_ctx, loadparm_s3_helpers());
@@ -2644,34 +2622,24 @@ NTSTATUS _netr_ServerGetTrustInfo(struct pipes_struct *p,
 			*r->out.trust_info = trust_info;
 		}
 
-		new_owf_enc = talloc_zero(p->mem_ctx, struct samr_Password);
-		old_owf_enc = talloc_zero(p->mem_ctx, struct samr_Password);
-		if (new_owf_enc == NULL || old_owf_enc == NULL) {
-			return NT_STATUS_NO_MEMORY;
+		if (td->trust_auth_incoming.data == NULL) {
+			return NT_STATUS_INVALID_PARAMETER;
 		}
 
-/* TODO: which trustAuth shall we use if we have in/out trust or do they have to
- * be equal ? */
-		if (td->trust_direction & NETR_TRUST_FLAG_INBOUND) {
-			trustAuth_blob = td->trust_auth_incoming;
-		} else if (td->trust_direction & NETR_TRUST_FLAG_OUTBOUND) {
-			trustAuth_blob = td->trust_auth_outgoing;
-		}
-
-		status = get_password_from_trustAuth(p->mem_ctx, &trustAuth_blob,
+		status = get_password_from_trustAuth(p->mem_ctx,
+						     &td->trust_auth_incoming,
 						     creds,
-						     new_owf_enc, old_owf_enc);
+						     r->out.new_owf_password,
+						     r->out.old_owf_password);
 
 		if (!NT_STATUS_IS_OK(status)) {
 			return status;
 		}
 
-		r->out.new_owf_password = new_owf_enc;
-		r->out.old_owf_password = old_owf_enc;
 	} else {
 /* TODO: look for machine password */
-		r->out.new_owf_password = NULL;
-		r->out.old_owf_password = NULL;
+		ZERO_STRUCTP(r->out.new_owf_password);
+		ZERO_STRUCTP(r->out.old_owf_password);
 
 		return NT_STATUS_NOT_IMPLEMENTED;
 	}

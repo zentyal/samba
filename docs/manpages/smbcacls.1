@@ -31,7 +31,7 @@
 smbcacls \- Set or get ACLs on an NT file or directory names
 .SH "SYNOPSIS"
 .HP \w'\ 'u
-smbcacls {//server/share} {/filename} [\-D|\-\-delete\ acls] [\-M|\-\-modify\ acls] [\-a|\-\-add\ acls] [\-S|\-\-set\ acls] [\-C|\-\-chown\ name] [\-G|\-\-chgrp\ name] [\-I\ allow|romove|copy] [\-\-numeric] [\-t] [\-U\ username] [\-h] [\-d]
+smbcacls {//server/share} {/filename} [\-D|\-\-delete\ acls] [\-M|\-\-modify\ acls] [\-a|\-\-add\ acls] [\-S|\-\-set\ acls] [\-C|\-\-chown\ name] [\-G|\-\-chgrp\ name] [\-I\ allow|romove|copy] [\-\-numeric] [\-t] [\-U\ username] [\-h] [\-d] [\-e] [\-m|\-\-max\-protocol\ LEVEL]
 .SH "DESCRIPTION"
 .PP
 This tool is part of the
@@ -95,6 +95,16 @@ option\&. To set the check box pass allow\&. To unset the check box pass either 
 \-\-numeric
 .RS 4
 This option displays all ACL information in numeric format\&. The default is to convert SIDs to names and ACE types and masks to a readable string format\&.
+.RE
+.PP
+\-e
+.RS 4
+This command line parameter requires the remote server support the UNIX extensions or that the SMB3 protocol has been selected\&. Requests that the connection be encrypted\&. Negotiates SMB encryption using either SMB3 or POSIX extensions via GSSAPI\&. Uses the given credentials for the encryption negotiation (either kerberos or NTLMv1/v2 if given domain/username/password triple\&. Fails the connection if encryption cannot be negotiated\&.
+.RE
+.PP
+\-m|\-\-max\-protocol PROTOCOL_NAME
+.RS 4
+This allows the user to select the highest SMB protocol level that smbcacls will use to connect to the server\&. By default this is set to NT1, which is the highest available SMB1 protocol\&. To connect using SMB2 or SMB3 protocol, use the strings SMB2 or SMB3 respectively\&. Note that to connect to a Windows 2012 server with encrypted transport selecting a max\-protocol of SMB3 is required\&.
 .RE
 .PP
 \-t|\-\-test\-args

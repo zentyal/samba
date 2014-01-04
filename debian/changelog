@@ -1,6 +1,8 @@
 samba (2:4.1.3+dfsg-2~bpo70+1) UNRELEASED; urgency=medium
 
   * Rebuild for wheezy-backports.
+  * Update version of talloc build-deps to 2.0.8.
+    In sid, the version is newer, so this issue doesn't show up.
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Sat, 04 Jan 2014 12:02:53 +0100
 

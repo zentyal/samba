@@ -2,12 +2,12 @@
 .\"     Title: wbinfo
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 12/06/2013
+.\"      Date: 01/10/2014
 .\"    Manual: User Commands
 .\"    Source: Samba 4.0
 .\"  Language: English
 .\"
-.TH "WBINFO" "1" "12/06/2013" "Samba 4\&.0" "User Commands"
+.TH "WBINFO" "1" "01/10/2014" "Samba 4\&.0" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -31,7 +31,7 @@
 wbinfo \- Query information from winbind daemon
 .SH "SYNOPSIS"
 .HP \w'\ 'u
-wbinfo [\-a\ user%password] [\-\-all\-domains] [\-\-allocate\-gid] [\-\-allocate\-uid] [\-c] [\-\-ccache\-save] [\-\-change\-user\-password] [\-D\ domain] [\-\-domain\ domain] [\-\-dsgetdcname\ domain] [\-g] [\-\-getdcname\ domain] [\-\-get\-auth\-user] [\-G\ gid] [\-\-gid\-info\ gid] [\-\-group\-info\ group] [\-\-help|\-?] [\-i\ user] [\-I\ ip] [\-K\ user%password] [\-\-lanman] [\-m] [\-n\ name] [\-N\ netbios\-name] [\-\-ntlmv2] [\-\-online\-status] [\-\-own\-domain] [\-p] [\-P|\-\-ping\-dc] [\-r\ user] [\-R|\-\-lookup\-rids] [\-s\ sid] [\-\-separator] [\-\-set\-auth\-user\ user%password] [\-S\ sid] [\-\-sid\-aliases\ sid] [\-\-sid\-to\-fullname\ sid] [\-t] [\-u] [\-\-uid\-info\ uid] [\-\-usage] [\-\-user\-domgroups\ sid] [\-\-user\-sidinfo\ sid] [\-\-user\-sids\ sid] [\-U\ uid] [\-V] [\-\-verbose] [\-Y\ sid]
+wbinfo [\-a\ user%password] [\-\-all\-domains] [\-\-allocate\-gid] [\-\-allocate\-uid] [\-c] [\-\-ccache\-save] [\-\-change\-user\-password] [\-D\ domain] [\-\-dc\-info\ domain] [\-\-domain\ domain] [\-\-dsgetdcname\ domain] [\-g] [\-\-getdcname\ domain] [\-\-get\-auth\-user] [\-G\ gid] [\-\-gid\-info\ gid] [\-\-group\-info\ group] [\-\-help|\-?] [\-i\ user] [\-I\ ip] [\-K\ user%password] [\-\-krb5ccname\ cctype] [\-\-lanman] [\-\-logoff] [\-\-logoff\-uid\ uid] [\-\-logoff\-user\ username] [\-\-lookup\-sids] [\-m] [\-n\ name] [\-N\ netbios\-name] [\-\-ntlmv2] [\-\-online\-status] [\-\-own\-domain] [\-p] [\-P|\-\-ping\-dc] [\-\-pam\-logon\ user%password] [\-r\ user] [\-R|\-\-lookup\-rids] [\-\-remove\-gid\-mapping\ gid,sid] [\-\-remove\-uid\-mapping\ uid,sid] [\-s\ sid] [\-\-separator] [\-\-sequence] [\-\-set\-auth\-user\ user%password] [\-\-set\-gid\-mapping\ gid,sid] [\-\-set\-uid\-mapping\ uid,sid] [\-S\ sid] [\-\-sid\-aliases\ sid] [\-\-sid\-to\-fullname\ sid] [\-\-sids\-to\-unix\-ids\ sidlist] [\-t] [\-u] [\-\-uid\-info\ uid] [\-\-usage] [\-\-user\-domgroups\ sid] [\-\-user\-sidinfo\ sid] [\-\-user\-sids\ sid] [\-U\ uid] [\-V] [\-\-verbose] [\-Y\ sid]
 .SH "DESCRIPTION"
 .PP
 This tool is part of the
@@ -103,6 +103,11 @@ Store user and password for ccache\&.
 \-\-change\-user\-password \fIusername\fR
 .RS 4
 Change the password of a user\&. The old and new password will be prompted\&.
+.RE
+.PP
+\-\-dc\-info \fIdomain\fR
+.RS 4
+Displays information about the current domain controller for a domain\&.
 .RE
 .PP
 \-\-domain \fIname\fR
@@ -187,9 +192,34 @@ parameter\&.
 Attempt to authenticate a user via Kerberos\&.
 .RE
 .PP
+\-\-krb5ccname \fIKRB5CCNAME\fR
+.RS 4
+Allows to request a sepcific kerberos credential cache type used for authentication\&.
+.RE
+.PP
 \-\-lanman
 .RS 4
 Use lanman cryptography for user authentication\&.
+.RE
+.PP
+\-\-logoff
+.RS 4
+Logoff a user\&.
+.RE
+.PP
+\-\-logoff\-uid \fIUID\fR
+.RS 4
+Define user uid used during logoff request\&.
+.RE
+.PP
+\-\-logoff\-user \fIUSERNAME\fR
+.RS 4
+Define username used during logoff request\&.
+.RE
+.PP
+\-\-lookup\-sids \fISID1,SID2\&.\&.\&.\fR
+.RS 4
+Looks up SIDs\&. SIDs must be specified as ASCII strings in the traditional Microsoft format\&. For example, S\-1\-5\-21\-1455342024\-3071081365\-2475485837\-500\&.
 .RE
 .PP
 \-m|\-\-trusted\-domains
@@ -237,6 +267,11 @@ Show whether domains are marked as online or offline\&. An optional domain argum
 List own domain\&.
 .RE
 .PP
+\-\-pam\-logon \fIusername%password\fR
+.RS 4
+Attempt to authenticate a user in the same way pam_winbind would do\&.
+.RE
+.PP
 \-p|\-\-ping
 .RS 4
 Check whether
@@ -259,6 +294,16 @@ Try to obtain the list of UNIX group ids to which the user belongs\&. This only 
 Converts RIDs to names\&. Uses a comma separated list of rids\&.
 .RE
 .PP
+\-\-remove\-gid\-mapping \fIGID,SID\fR
+.RS 4
+Removes an existing GID to SID mapping from the database\&.
+.RE
+.PP
+\-\-remove\-uid\-mapping \fIUID,SID\fR
+.RS 4
+Removes an existing UID to SID mapping from the database\&.
+.RE
+.PP
 \-s|\-\-sid\-to\-name \fIsid\fR
 .RS 4
 Use
@@ -273,11 +318,26 @@ option above\&. SIDs must be specified as ASCII strings in the traditional Micro
 Get the active winbind separator\&.
 .RE
 .PP
+\-\-sequence
+.RS 4
+This command has been deprecated\&. Please use the \-\-online\-status option instead\&.
+.RE
+.PP
 \-\-set\-auth\-user \fIusername%password\fR
 .RS 4
 Store username and password used by
 \fBwinbindd\fR(8)
 during session setup to a domain controller\&. This enables winbindd to operate in a Windows 2000 domain with Restrict Anonymous turned on (a\&.k\&.a\&. Permissions compatible with Windows 2000 servers only)\&.
+.RE
+.PP
+\-\-set\-gid\-mapping \fIGID,SID\fR
+.RS 4
+Create a GID to SID mapping in the database\&.
+.RE
+.PP
+\-\-set\-uid\-mapping \fIUID,SID\fR
+.RS 4
+Create a UID to SID mapping in the database\&.
 .RE
 .PP
 \-S|\-\-sid\-to\-uid \fIsid\fR
@@ -295,6 +355,11 @@ Get SID aliases for a given SID\&.
 \-\-sid\-to\-fullname \fIsid\fR
 .RS 4
 Converts a SID to a full username (DOMAIN\eusername)\&.
+.RE
+.PP
+\-\-sids\-to\-unix\-ids \fIsid1,sid2,sid3\&.\&.\&.\fR
+.RS 4
+Resolve SIDs to Unix IDs\&. SIDs must be specified as ASCII strings in the traditional Microsoft format\&. For example, S\-1\-5\-21\-1455342024\-3071081365\-2475485837\-500\&.
 .RE
 .PP
 \-t|\-\-check\-secret

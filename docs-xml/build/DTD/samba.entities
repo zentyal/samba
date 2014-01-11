@@ -464,13 +464,44 @@ Try to use the credentials cached by winbind.
 </varlistentry>
 '>
 
-
-<!ENTITY stdarg.help '
+<!ENTITY stdarg.signing '
 <varlistentry>
-<term>-?|--help</term>
-<listitem><para>Print a summary of command line options.
+<term>-S|--signing on|off|required</term>
+<listitem><para>Set the client signing state.
 </para></listitem>
-</varlistentry>'>
+</varlistentry>
+'>
+
+<!ENTITY stdarg.machinepass '
+<varlistentry>
+<term>-P|--machine-pass</term>
+<listitem><para>Use stored machine account password.
+</para></listitem>
+</varlistentry>
+'>
+
+<!ENTITY stdarg.encrypt '
+<varlistentry>
+<term>-e|--encrypt</term>
+<listitem><para>
+This command line parameter requires the remote
+server support the UNIX extensions or that the SMB3 protocol has been selected.
+Requests that the connection be encrypted. Negotiates SMB encryption using either
+SMB3 or POSIX extensions via GSSAPI. Uses the given credentials for
+the encryption negotiation (either kerberos or NTLMv1/v2 if given
+domain/username/password triple. Fails the connection if encryption
+cannot be negotiated.
+</para></listitem>
+</varlistentry>
+'>
+
+<!ENTITY stdarg.pwnthash '
+<varlistentry>
+<term>--pw-nt-hash</term>
+<listitem><para>The supplied password is the NT hash.
+</para></listitem>
+</varlistentry>
+'>
 
 <!ENTITY popt.common.credentials '
 &stdarg.nopass;
@@ -478,6 +509,31 @@ Try to use the credentials cached by winbind.
 &stdarg.useccache;
 &stdarg.authfile;
 &stdarg.username;
+&stdarg.signing;
+&stdarg.machinepass;
+&stdarg.encrypt;
+&stdarg.pwnthash;
+'>
+
+<!ENTITY stdarg.help '
+<varlistentry>
+<term>-?|--help</term>
+<listitem><para>Print a summary of command line options.
+</para></listitem>
+</varlistentry>
+'>
+
+<!ENTITY stdarg.usage '
+<varlistentry>
+<term>--usage</term>
+<listitem><para>Display brief usage message.
+</para></listitem>
+</varlistentry>
+'>
+
+<!ENTITY popt.autohelp '
+&stdarg.help;
+&stdarg.usage;
 '>
 
 <!-- Entities for the various programs -->

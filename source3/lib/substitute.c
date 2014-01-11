@@ -499,10 +499,20 @@ char *talloc_sub_basic(TALLOC_CTX *mem_ctx,
 			break;
 		case 'G' : {
 			struct passwd *pass;
-			r = talloc_strdup(tmp_ctx, smb_name);
+
+			if (domain_name != NULL && domain_name[0] != '\0') {
+				r = talloc_asprintf(tmp_ctx,
+						    "%s%c%s",
+						    domain_name,
+						    *lp_winbind_separator(),
+						    smb_name);
+			} else {
+				r = talloc_strdup(tmp_ctx, smb_name);
+			}
 			if (r == NULL) {
 				goto error;
 			}
+
 			pass = Get_Pwnam_alloc(tmp_ctx, r);
 			if (pass != NULL) {
 				a_string = realloc_string_sub(
@@ -613,6 +623,7 @@ done:
 char *talloc_sub_specified(TALLOC_CTX *mem_ctx,
 			const char *input_string,
 			const char *username,
+			const char *grpname,
 			const char *domain,
 			uid_t uid,
 			gid_t gid)
@@ -648,9 +659,18 @@ char *talloc_sub_specified(TALLOC_CTX *mem_ctx,
 			break;
 		case 'G' :
 			if (gid != -1) {
-				a_string = talloc_string_sub(
-					tmp_ctx, a_string, "%G",
-					gidtoname(gid));
+				const char *name;
+
+				if (grpname != NULL) {
+					name = grpname;
+				} else {
+					name = gidtoname(gid);
+				}
+
+				a_string = talloc_string_sub(tmp_ctx,
+							     a_string,
+							     "%G",
+							     name);
 			} else {
 				a_string = talloc_string_sub(
 					tmp_ctx, a_string,
@@ -659,9 +679,18 @@ char *talloc_sub_specified(TALLOC_CTX *mem_ctx,
 			break;
 		case 'g' :
 			if (gid != -1) {
-				a_string = talloc_string_sub(
-					tmp_ctx, a_string, "%g",
-					gidtoname(gid));
+				const char *name;
+
+				if (grpname != NULL) {
+					name = grpname;
+				} else {
+					name = gidtoname(gid);
+				}
+
+				a_string = talloc_string_sub(tmp_ctx,
+							     a_string,
+							     "%g",
+							     name);
 			} else {
 				a_string = talloc_string_sub(
 					tmp_ctx, a_string, "%g", "NO_GROUP");

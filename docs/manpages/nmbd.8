@@ -2,12 +2,12 @@
 .\"     Title: nmbd
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 12/06/2013
+.\"      Date: 01/10/2014
 .\"    Manual: System Administration tools
 .\"    Source: Samba 4.0
 .\"  Language: English
 .\"
-.TH "NMBD" "8" "12/06/2013" "Samba 4\&.0" "System Administration tools"
+.TH "NMBD" "8" "01/10/2014" "Samba 4\&.0" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -31,7 +31,7 @@
 nmbd \- NetBIOS name server to provide NetBIOS over IP naming services to clients
 .SH "SYNOPSIS"
 .HP \w'\ 'u
-nmbd [\-D] [\-F] [\-S] [\-a] [\-i] [\-o] [\-h] [\-V] [\-d\ <debug\ level>] [\-H\ <lmhosts\ file>] [\-l\ <log\ directory>] [\-p\ <port\ number>] [\-s\ <configuration\ file>]
+nmbd [\-D|\-\-daemon] [\-F|\-\-foreground] [\-S|\-\-log\-stdout] [\-i|\-\-interactive] [\-V] [\-d\ <debug\ level>] [\-H|\-\-hosts\ <lmhosts\ file>] [\-l\ <log\ directory>] [\-p|\-\-port\ <port\ number>] [\-s\ <configuration\ file>] [\-\-no\-process\-group]
 .SH "DESCRIPTION"
 .PP
 This program is part of the
@@ -64,7 +64,7 @@ nmbd
 can act as a WINS proxy, relaying broadcast queries from clients that do not understand how to talk the WINS protocol to a WINS server\&.
 .SH "OPTIONS"
 .PP
-\-D
+\-D|\-\-daemon
 .RS 4
 If specified, this parameter causes
 nmbd
@@ -75,7 +75,7 @@ inetd
 meta\-daemon, although this is not recommended\&.
 .RE
 .PP
-\-F
+\-F|\-\-foreground
 .RS 4
 If specified, this parameter causes the main
 nmbd
@@ -90,14 +90,14 @@ daemontools
 package, or the AIX process monitor\&.
 .RE
 .PP
-\-S
+\-S|\-\-log\-stdout
 .RS 4
 If specified, this parameter causes
 nmbd
 to log to standard output rather than a file\&.
 .RE
 .PP
-\-i
+\-i|\-\-interactive
 .RS 4
 If this parameter is specified it causes the server to run "interactively", not as a daemon, even if the server is executed on the command line of a shell\&. Setting this parameter negates the implicit daemon mode when run from the command line\&.
 nmbd
@@ -111,7 +111,12 @@ parameter had been given\&.
 Print a summary of command line options\&.
 .RE
 .PP
-\-H <filename>
+\-\-usage
+.RS 4
+Display brief usage message\&.
+.RE
+.PP
+\-H|\-\-hosts <filename>
 .RS 4
 NetBIOS lmhosts file\&. The lmhosts file is a list of NetBIOS names to IP addresses that is loaded by the nmbd server and used via the name resolution mechanism
 \m[blue]\fBname resolve order\fR\m[]
@@ -175,11 +180,16 @@ Set the
 option "<name>" to value "<value>" from the command line\&. This overrides compiled\-in defaults and options read from the configuration file\&.
 .RE
 .PP
-\-p <UDP port number>
+\-p|\-\-port <UDP port number>
 .RS 4
 UDP port number is a positive integer value\&. This option changes the default UDP port number (normally 137) that
 nmbd
 responds to name queries on\&. Don\*(Aqt use this option unless you are an expert, in which case you won\*(Aqt need help!
+.RE
+.PP
+\-\-no\-process\-group
+.RS 4
+Do not create a new process group for nmbd\&.
 .RE
 .SH "FILES"
 .PP

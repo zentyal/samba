@@ -2,12 +2,12 @@
 .\"     Title: smbclient
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 12/06/2013
+.\"      Date: 01/10/2014
 .\"    Manual: User Commands
 .\"    Source: Samba 4.0
 .\"  Language: English
 .\"
-.TH "SMBCLIENT" "1" "12/06/2013" "Samba 4\&.0" "User Commands"
+.TH "SMBCLIENT" "1" "01/10/2014" "Samba 4\&.0" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -205,11 +205,6 @@ This allows the user to select the highest SMB protocol level that smbclient wil
 Make queries to the external server using the machine account of the local server\&.
 .RE
 .PP
-\-?|\-\-help
-.RS 4
-Print a summary of command line options\&.
-.RE
-.PP
 \-I|\-\-ip\-address IP\-address
 .RS 4
 \fIIP address\fR
@@ -245,9 +240,9 @@ iosize
 command inside smbclient\&.
 .RE
 .PP
-\-e|\-\-encrypt
+\-B|\-\-browse
 .RS 4
-This command line parameter requires the remote server support the UNIX extensions or that the SMB3 protocol has been selected\&. Requests that the connection be encrypted\&. Negotiates SMB encryption using either SMB3 or POSIX extensions via GSSAPI\&. Uses the given credentials for the encryption negotiation (either kerberos or NTLMv1/v2 if given domain/username/password triple\&. Fails the connection if encryption cannot be negotiated\&.
+Browse SMB servers using DNS\&.
 .RE
 .PP
 \-d|\-\-debuglevel=level
@@ -353,6 +348,26 @@ rpcclient
 to prompt for a password and type it in directly\&.
 .RE
 .PP
+\-S|\-\-signing on|off|required
+.RS 4
+Set the client signing state\&.
+.RE
+.PP
+\-P|\-\-machine\-pass
+.RS 4
+Use stored machine account password\&.
+.RE
+.PP
+\-e|\-\-encrypt
+.RS 4
+This command line parameter requires the remote server support the UNIX extensions or that the SMB3 protocol has been selected\&. Requests that the connection be encrypted\&. Negotiates SMB encryption using either SMB3 or POSIX extensions via GSSAPI\&. Uses the given credentials for the encryption negotiation (either kerberos or NTLMv1/v2 if given domain/username/password triple\&. Fails the connection if encryption cannot be negotiated\&.
+.RE
+.PP
+\-\-pw\-nt\-hash
+.RS 4
+The supplied password is the NT hash\&.
+.RE
+.PP
 \-n|\-\-netbiosname <primary NetBIOS name>
 .RS 4
 This option allows you to override the NetBIOS name that Samba uses for itself\&. This is identical to setting the
@@ -382,6 +397,16 @@ Set the SMB domain of the username\&. This overrides the default domain which is
 TCP socket options to set on the client socket\&. See the socket options parameter in the
 smb\&.conf
 manual page for the list of valid options\&.
+.RE
+.PP
+\-?|\-\-help
+.RS 4
+Print a summary of command line options\&.
+.RE
+.PP
+\-\-usage
+.RS 4
+Display brief usage message\&.
 .RE
 .PP
 \-t|\-\-timeout <timeout\-seconds>
@@ -655,7 +680,7 @@ Sets the archive level when operating on files\&. 0 means ignore the archive bit
 .PP
 backup
 .RS 4
-Toggle the state of the "backup intent" flag sent to the server on directory listings and file opens\&. If the "backup intent" flag is true, the server will try and bypass some file system checks if the user has been granted SE_BACKUP or SE_RESTORE privilages\&. This state is useful when performing a backup or restore operation\&.
+Toggle the state of the "backup intent" flag sent to the server on directory listings and file opens\&. If the "backup intent" flag is true, the server will try and bypass some file system checks if the user has been granted SE_BACKUP or SE_RESTORE privileges\&. This state is useful when performing a backup or restore operation\&.
 .RE
 .PP
 blocksize <number>

@@ -222,6 +222,7 @@ char *talloc_sub_basic(TALLOC_CTX *mem_ctx, const char *smb_name,
 char *talloc_sub_specified(TALLOC_CTX *mem_ctx,
 			const char *input_string,
 			const char *username,
+			const char *grpname,
 			const char *domain,
 			uid_t uid,
 			gid_t gid);
@@ -480,6 +481,7 @@ bool map_open_params_to_ntcreate(const char *smb_base_fname,
 				 uint32 *pcreate_options,
 				 uint32_t *pprivate_flags);
 struct security_unix_token *copy_unix_token(TALLOC_CTX *ctx, const struct security_unix_token *tok);
+bool dir_check_ftype(uint32_t mode, uint32_t dirtype);
 void init_modules(void);
 
 /* The following definitions come from lib/util_builtin.c  */

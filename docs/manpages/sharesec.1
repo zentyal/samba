@@ -2,12 +2,12 @@
 .\"     Title: sharesec
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 12/06/2013
+.\"      Date: 01/10/2014
 .\"    Manual: User Commands
 .\"    Source: Samba 4.0
 .\"  Language: English
 .\"
-.TH "SHARESEC" "1" "12/06/2013" "Samba 4\&.0" "User Commands"
+.TH "SHARESEC" "1" "01/10/2014" "Samba 4\&.0" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -31,7 +31,7 @@
 sharesec \- Set or get share ACLs
 .SH "SYNOPSIS"
 .HP \w'\ 'u
-sharesec {sharename} [\-r,\ \-\-remove=ACL] [\-m,\ \-\-modify=ACL] [\-a,\ \-\-add=ACL] [\-R,\ \-\-replace=ACLs] [\-D,\ \-\-delete] [\-v,\ \-\-view] [\-\-view\-all] [\-M,\ \-\-machine\-sid] [\-F,\ \-\-force] [\-d,\ \-\-debuglevel=DEBUGLEVEL] [\-s,\ \-\-configfile=CONFIGFILE] [\-l,\ \-\-log\-basename=LOGFILEBASE] [\-V,\ \-\-version] [\-?,\ \-\-help] [\-\-usage]
+sharesec {sharename} [\-r,\ \-\-remove=ACL] [\-m,\ \-\-modify=ACL] [\-a,\ \-\-add=ACL] [\-R,\ \-\-replace=ACLs] [\-D,\ \-\-delete] [\-v,\ \-\-view] [\-\-view\-all] [\-M,\ \-\-machine\-sid] [\-F,\ \-\-force] [\-d,\ \-\-debuglevel=DEBUGLEVEL] [\-s,\ \-\-configfile=CONFIGFILE] [\-l,\ \-\-log\-basename=LOGFILEBASE] [\-\-version] [\-?,\ \-\-help] [\-\-usage] [\-S,\ \-\-setsddl=STRING] [\-V,\ \-\-viewsddl]
 .SH "DESCRIPTION"
 .PP
 This tool is part of the
@@ -90,6 +90,16 @@ List a share acl
 \-\-view\-all
 .RS 4
 List all share acls
+.RE
+.PP
+\-S|\-\-setsddl=STRING
+.RS 4
+Set security descriptor by providing ACL in SDDL format\&.
+.RE
+.PP
+\-V|\-\-viewsddl
+.RS 4
+List a share acl in SDDL format\&.
 .RE
 .PP
 \-?|\-\-help

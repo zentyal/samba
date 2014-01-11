@@ -962,32 +962,6 @@ struct dptr_struct *dptr_fetch_lanman2(struct smbd_server_connection *sconn,
 	return(dptr);
 }
 
-/****************************************************************************
- Check that a file matches a particular file type.
-****************************************************************************/
-
-bool dir_check_ftype(connection_struct *conn, uint32 mode, uint32 dirtype)
-{
-	uint32 mask;
-
-	/* Check the "may have" search bits. */
-	if (((mode & ~dirtype) & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_DIRECTORY)) != 0)
-		return False;
-
-	/* Check the "must have" bits, which are the may have bits shifted eight */
-	/* If must have bit is set, the file/dir can not be returned in search unless the matching
-		file attribute is set */
-	mask = ((dirtype >> 8) & (FILE_ATTRIBUTE_DIRECTORY|FILE_ATTRIBUTE_ARCHIVE|FILE_ATTRIBUTE_READONLY|FILE_ATTRIBUTE_HIDDEN|FILE_ATTRIBUTE_SYSTEM)); /* & 0x37 */
-	if(mask) {
-		if((mask & (mode & (FILE_ATTRIBUTE_DIRECTORY|FILE_ATTRIBUTE_ARCHIVE|FILE_ATTRIBUTE_READONLY|FILE_ATTRIBUTE_HIDDEN|FILE_ATTRIBUTE_SYSTEM))) == mask)   /* check if matching attribute present */
-			return True;
-		else
-			return False;
-	}
-
-	return True;
-}
-
 static bool mangle_mask_match(connection_struct *conn,
 		const char *filename,
 		const char *mask)
@@ -1106,7 +1080,7 @@ bool smbd_dirptr_get_entry(TALLOC_CTX *ctx,
 			continue;
 		}
 
-		if (!dir_check_ftype(conn, mode, dirtype)) {
+		if (!dir_check_ftype(mode, dirtype)) {
 			DEBUG(5,("[%s] attribs 0x%x didn't match 0x%x\n",
 				fname, (unsigned int)mode, (unsigned int)dirtype));
 			TALLOC_FREE(dname);

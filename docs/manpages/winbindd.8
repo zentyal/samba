@@ -2,12 +2,12 @@
 .\"     Title: winbindd
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 12/06/2013
+.\"      Date: 01/10/2014
 .\"    Manual: System Administration tools
 .\"    Source: Samba 4.0
 .\"  Language: English
 .\"
-.TH "WINBINDD" "8" "12/06/2013" "Samba 4\&.0" "System Administration tools"
+.TH "WINBINDD" "8" "01/10/2014" "Samba 4\&.0" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -31,7 +31,7 @@
 winbindd \- Name Service Switch daemon for resolving names from NT servers
 .SH "SYNOPSIS"
 .HP \w'\ 'u
-winbindd [\-D] [\-F] [\-S] [\-i] [\-d\ <debug\ level>] [\-s\ <smb\ config\ file>] [\-n]
+winbindd [\-D|\-\-daemon] [\-F|\-\-foreground] [\-S|\-\-stdout] [\-i|\-\-interactive] [\-d\ <debug\ level>] [\-s\ <smb\ config\ file>] [\-n|\-\-no\-caching] [\-\-no\-process\-group]
 .SH "DESCRIPTION"
 .PP
 This program is part of the
@@ -143,14 +143,14 @@ hosts:		files wins
 .\}
 .SH "OPTIONS"
 .PP
-\-D
+\-D|\-\-daemon
 .RS 4
 If specified, this parameter causes the server to operate as a daemon\&. That is, it detaches itself and runs in the background on the appropriate port\&. This switch is assumed if
 winbindd
 is executed on the command line of a shell\&.
 .RE
 .PP
-\-F
+\-F|\-\-foreground
 .RS 4
 If specified, this parameter causes the main
 winbindd
@@ -165,7 +165,7 @@ daemontools
 package, or the AIX process monitor\&.
 .RE
 .PP
-\-S
+\-S|\-\-stdout
 .RS 4
 If specified, this parameter causes
 winbindd
@@ -219,7 +219,12 @@ option "<name>" to value "<value>" from the command line\&. This overrides compi
 Print a summary of command line options\&.
 .RE
 .PP
-\-i
+\-\-usage
+.RS 4
+Display brief usage message\&.
+.RE
+.PP
+\-i|\-\-interactive
 .RS 4
 Tells
 winbindd
@@ -232,9 +237,14 @@ also logs to standard output, as if the
 parameter had been given\&.
 .RE
 .PP
-\-n
+\-n|\-\-no\-caching
 .RS 4
 Disable some caching\&. This means winbindd will often have to wait for a response from the domain controller before it can respond to a client and this thus makes things slower\&. The results will however be more accurate, since results from the cache might not be up\-to\-date\&. This might also temporarily hang winbindd if the DC doesn\*(Aqt respond\&. This does not disable the samlogon cache, which is required for group membership tracking in trusted environments\&.
+.RE
+.PP
+\-\-no\-process\-group
+.RS 4
+Do not create a new process group for winbindd\&.
 .RE
 .SH "NAME AND ID RESOLUTION"
 .PP
@@ -506,7 +516,7 @@ winbindd, then in general the user and groups ids allocated by winbindd will not
 \m[blue]\fBidmap config * : backend\fR\m[]
 is configured\&.
 .PP
-If the the Windows NT SID to UNIX user and group id mapping file is damaged or destroyed then the mappings will be lost\&.
+If the Windows NT SID to UNIX user and group id mapping file is damaged or destroyed then the mappings will be lost\&.
 .SH "SIGNALS"
 .PP
 The following signals can be used to manipulate the

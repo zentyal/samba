@@ -2,12 +2,12 @@
 .\"     Title: smbcacls
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 12/06/2013
+.\"      Date: 01/10/2014
 .\"    Manual: User Commands
 .\"    Source: Samba 4.0
 .\"  Language: English
 .\"
-.TH "SMBCACLS" "1" "12/06/2013" "Samba 4\&.0" "User Commands"
+.TH "SMBCACLS" "1" "01/10/2014" "Samba 4\&.0" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -31,7 +31,7 @@
 smbcacls \- Set or get ACLs on an NT file or directory names
 .SH "SYNOPSIS"
 .HP \w'\ 'u
-smbcacls {//server/share} {/filename} [\-D|\-\-delete\ acls] [\-M|\-\-modify\ acls] [\-a|\-\-add\ acls] [\-S|\-\-set\ acls] [\-C|\-\-chown\ name] [\-G|\-\-chgrp\ name] [\-I\ allow|romove|copy] [\-\-numeric] [\-t] [\-U\ username] [\-h] [\-d] [\-e] [\-m|\-\-max\-protocol\ LEVEL]
+smbcacls {//server/share} {/filename} [\-D|\-\-delete\ acls] [\-M|\-\-modify\ acls] [\-a|\-\-add\ acls] [\-S|\-\-set\ acls] [\-C|\-\-chown\ name] [\-G|\-\-chgrp\ name] [\-I\ allow|romove|copy] [\-\-numeric] [\-t] [\-U\ username] [\-d] [\-e] [\-m|\-\-max\-protocol\ LEVEL] [\-\-query\-security\-info\ FLAGS] [\-\-set\-security\-info\ FLAGS] [\-\-sddl] [\-\-domain\-sid\ SID]
 .SH "DESCRIPTION"
 .PP
 This tool is part of the
@@ -97,11 +97,6 @@ option\&. To set the check box pass allow\&. To unset the check box pass either 
 This option displays all ACL information in numeric format\&. The default is to convert SIDs to names and ACE types and masks to a readable string format\&.
 .RE
 .PP
-\-e
-.RS 4
-This command line parameter requires the remote server support the UNIX extensions or that the SMB3 protocol has been selected\&. Requests that the connection be encrypted\&. Negotiates SMB encryption using either SMB3 or POSIX extensions via GSSAPI\&. Uses the given credentials for the encryption negotiation (either kerberos or NTLMv1/v2 if given domain/username/password triple\&. Fails the connection if encryption cannot be negotiated\&.
-.RE
-.PP
 \-m|\-\-max\-protocol PROTOCOL_NAME
 .RS 4
 This allows the user to select the highest SMB protocol level that smbcacls will use to connect to the server\&. By default this is set to NT1, which is the highest available SMB1 protocol\&. To connect using SMB2 or SMB3 protocol, use the strings SMB2 or SMB3 respectively\&. Note that to connect to a Windows 2012 server with encrypted transport selecting a max\-protocol of SMB3 is required\&.
@@ -112,9 +107,24 @@ This allows the user to select the highest SMB protocol level that smbcacls will
 Don\*(Aqt actually do anything, only validate the correctness of the arguments\&.
 .RE
 .PP
-\-?|\-\-help
+\-\-query\-security\-info FLAGS
 .RS 4
-Print a summary of command line options\&.
+The security\-info flags for queries\&.
+.RE
+.PP
+\-\-set\-security\-info FLAGS
+.RS 4
+The security\-info flags for queries\&.
+.RE
+.PP
+\-\-sddl
+.RS 4
+Output and input acls in sddl format\&.
+.RE
+.PP
+\-\-domain\-sid SID
+.RS 4
+SID used for sddl processing\&.
 .RE
 .PP
 \-d|\-\-debuglevel=level
@@ -218,6 +228,67 @@ ps
 command\&. To be safe always allow
 rpcclient
 to prompt for a password and type it in directly\&.
+.RE
+.PP
+\-S|\-\-signing on|off|required
+.RS 4
+Set the client signing state\&.
+.RE
+.PP
+\-P|\-\-machine\-pass
+.RS 4
+Use stored machine account password\&.
+.RE
+.PP
+\-e|\-\-encrypt
+.RS 4
+This command line parameter requires the remote server support the UNIX extensions or that the SMB3 protocol has been selected\&. Requests that the connection be encrypted\&. Negotiates SMB encryption using either SMB3 or POSIX extensions via GSSAPI\&. Uses the given credentials for the encryption negotiation (either kerberos or NTLMv1/v2 if given domain/username/password triple\&. Fails the connection if encryption cannot be negotiated\&.
+.RE
+.PP
+\-\-pw\-nt\-hash
+.RS 4
+The supplied password is the NT hash\&.
+.RE
+.PP
+\-n|\-\-netbiosname <primary NetBIOS name>
+.RS 4
+This option allows you to override the NetBIOS name that Samba uses for itself\&. This is identical to setting the
+\m[blue]\fBnetbios name\fR\m[]
+parameter in the
+smb\&.conf
+file\&. However, a command line setting will take precedence over settings in
+smb\&.conf\&.
+.RE
+.PP
+\-i|\-\-scope <scope>
+.RS 4
+This specifies a NetBIOS scope that
+nmblookup
+will use to communicate with when generating NetBIOS names\&. For details on the use of NetBIOS scopes, see rfc1001\&.txt and rfc1002\&.txt\&. NetBIOS scopes are
+\fIvery\fR
+rarely used, only set this parameter if you are the system administrator in charge of all the NetBIOS systems you communicate with\&.
+.RE
+.PP
+\-W|\-\-workgroup=domain
+.RS 4
+Set the SMB domain of the username\&. This overrides the default domain which is the domain defined in smb\&.conf\&. If the domain specified is the same as the servers NetBIOS name, it causes the client to log on using the servers local SAM (as opposed to the Domain SAM)\&.
+.RE
+.PP
+\-O|\-\-socket\-options socket options
+.RS 4
+TCP socket options to set on the client socket\&. See the socket options parameter in the
+smb\&.conf
+manual page for the list of valid options\&.
+.RE
+.PP
+\-?|\-\-help
+.RS 4
+Print a summary of command line options\&.
+.RE
+.PP
+\-\-usage
+.RS 4
+Display brief usage message\&.
 .RE
 .SH "ACL FORMAT"
 .PP

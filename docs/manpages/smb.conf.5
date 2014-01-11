@@ -2,12 +2,12 @@
 .\"     Title: smb.conf
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 12/06/2013
+.\"      Date: 01/10/2014
 .\"    Manual: File Formats and Conventions
 .\"    Source: Samba 4.0
 .\"  Language: English
 .\"
-.TH "SMB\&.CONF" "5" "12/06/2013" "Samba 4\&.0" "File Formats and Conventions"
+.TH "SMB\&.CONF" "5" "01/10/2014" "Samba 4\&.0" "File Formats and Conventions"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -706,7 +706,7 @@ This boolean parameter controls the behaviour of
 \fBsmbd\fR(8)
 when receiving a protocol request of "open for execution" from a Windows client\&. With Samba 3\&.6 and older, the execution right in the ACL was not checked, so a client could execute a file even if it did not have execute rights on the file\&. In Samba 4\&.0, this has been fixed, so that by default, i\&.e\&. when this parameter is set to "False", "open for execution" is now denied when execution permissions are not present\&.
 .sp
-If this parameter is set to "True", Samba does not check execute permissions on "open for execution", thus re\-establishing the behaviour of Samba 3\&.6\&. This can be useful to smoothen upgrades from older Samba versions to 4\&.0 and newer\&. This setting is not not meant to be used as a permanent setting, but as a temporary relief: It is recommended to fix the permissions in the ACLs and reset this parameter to the default after a certain transition period\&.
+If this parameter is set to "True", Samba does not check execute permissions on "open for execution", thus re\-establishing the behaviour of Samba 3\&.6\&. This can be useful to smoothen upgrades from older Samba versions to 4\&.0 and newer\&. This setting is not meant to be used as a permanent setting, but as a temporary relief: It is recommended to fix the permissions in the ACLs and reset this parameter to the default after a certain transition period\&.
 .sp
 Default:
 \fI\fIacl allow execute always\fR\fR\fI = \fR\fIFalse\fR\fI \fR
@@ -741,7 +741,7 @@ This parameter allows Samba to also permit delegation of the control over a poin
 .sp
 This parameter is best used with the
 \m[blue]\fBinherit owner\fR\m[]
-option and also on on a share containing directories with the UNIX
+option and also on a share containing directories with the UNIX
 \fIsetgid bit\fR
 set on them, which causes new files and directories created within it to inherit the group ownership from the containing directory\&.
 .sp
@@ -2882,7 +2882,7 @@ directory name cache size (S)
 .\" directory name cache size
 .PP
 .RS 4
-This parameter specifies the the size of the directory name cache\&. It will be needed to turn this off for *BSD systems\&.
+This parameter specifies the size of the directory name cache\&. It will be needed to turn this off for *BSD systems\&.
 .sp
 Default:
 \fI\fIdirectory name cache size\fR\fR\fI = \fR\fI100\fR\fI \fR
@@ -3282,7 +3282,7 @@ NTFS and Windows VFAT file systems keep a create time for all files and director
 .sp
 This option is mainly used as a compatibility option for Visual C++ when used against Samba shares\&. Visual C++ generated makefiles have the object directory as a dependency for each object file, and a make rule to create the directory\&. Also, when NMAKE compares timestamps it uses the creation time when examining a directory\&. Thus the object directory will be created if it does not exist, but once it does exist it will always have an earlier timestamp than the object files it contains\&.
 .sp
-However, Unix time semantics mean that the create time reported by Samba will be updated whenever a file is created or or deleted in the directory\&. NMAKE finds all object files in the object directory\&. The timestamp of the last one built is then compared to the timestamp of the object directory\&. If the directory\*(Aqs timestamp if newer, then all object files will be rebuilt\&. Enabling this option ensures directories always predate their contents and an NMAKE build will proceed as expected\&.
+However, Unix time semantics mean that the create time reported by Samba will be updated whenever a file is created or deleted in the directory\&. NMAKE finds all object files in the object directory\&. The timestamp of the last one built is then compared to the timestamp of the object directory\&. If the directory\*(Aqs timestamp if newer, then all object files will be rebuilt\&. Enabling this option ensures directories always predate their contents and an NMAKE build will proceed as expected\&.
 .sp
 Default:
 \fI\fIfake directory create times\fR\fR\fI = \fR\fIno\fR\fI \fR
@@ -4070,7 +4070,7 @@ prefix\&. An idmap option consists of the
 \m[blue]\fBidmap config\fR\m[]
 prefix, followed by a domain name or the asterisk character (*), a colon, and the name of an idmap setting for the chosen domain\&.
 .sp
-The idmap configuration is hence divided into groups, one group for each domain to be configured, and one group with the the asterisk instead of a proper domain name, which specifies the default configuration that is used to catch all domains that do not have an explicit idmap configuration of their own\&.
+The idmap configuration is hence divided into groups, one group for each domain to be configured, and one group with the asterisk instead of a proper domain name, which specifies the default configuration that is used to catch all domains that do not have an explicit idmap configuration of their own\&.
 .sp
 There are three general options available:
 .PP
@@ -6080,7 +6080,7 @@ mangling method (G)
 .\" mangling method
 .PP
 .RS 4
-controls the algorithm used for the generating the mangled names\&. Can take two different values, "hash" and "hash2"\&. "hash" is the algorithm that was used used in Samba for many years and was the default in Samba 2\&.2\&.x "hash2" is now the default and is newer and considered a better algorithm (generates less collisions) in the names\&. Many Win32 applications store the mangled names and so changing to algorithms must not be done lightly as these applications may break unless reinstalled\&.
+controls the algorithm used for the generating the mangled names\&. Can take two different values, "hash" and "hash2"\&. "hash" is the algorithm that was used in Samba for many years and was the default in Samba 2\&.2\&.x "hash2" is now the default and is newer and considered a better algorithm (generates less collisions) in the names\&. Many Win32 applications store the mangled names and so changing to algorithms must not be done lightly as these applications may break unless reinstalled\&.
 .sp
 Default:
 \fI\fImangling method\fR\fR\fI = \fR\fIhash2\fR\fI \fR
@@ -6937,7 +6937,7 @@ nt acl support (S)
 .RS 4
 This boolean parameter controls whether
 \fBsmbd\fR(8)
-will attempt to map UNIX permissions into Windows NT access control lists\&. The UNIX permissions considered are the the traditional UNIX owner and group permissions, as well as POSIX ACLs set on any files or directories\&. This parameter was formally a global parameter in releases prior to 2\&.2\&.2\&.
+will attempt to map UNIX permissions into Windows NT access control lists\&. The UNIX permissions considered are the traditional UNIX owner and group permissions, as well as POSIX ACLs set on any files or directories\&. This parameter was formally a global parameter in releases prior to 2\&.2\&.2\&.
 .sp
 Default:
 \fI\fInt acl support\fR\fR\fI = \fR\fIyes\fR\fI \fR
@@ -8748,7 +8748,7 @@ option allows to run a separate daemon or even a completely independent (3rd par
 .sp
 Currently in Samba3 we support three daemons, spoolssd, epmd and lsasd\&. These daemons can be enabled using the
 \fIrpc_daemon\fR
-option\&. For spoolssd you have to to enable the daemon and proxy the named pipe with:
+option\&. For spoolssd you have to enable the daemon and proxy the named pipe with:
 .sp
 Examples:
 .sp
@@ -9698,7 +9698,7 @@ This controls whether the remote client is allowed or required to use SMB encryp
 and
 \fIdisabled\fR\&. This may be set on a per\-share basis, but clients may chose to encrypt the entire session, not just traffic to a specific share\&. If this is set to mandatory then all traffic to a share
 \fImust\fR
-must be encrypted once the connection has been made to the share\&. The server would return "access denied" to all non\-encrypted requests on such a share\&. Selecting encrypted traffic reduces throughput as smaller packet sizes must be used (no huge UNIX style read/writes allowed) as well as the overhead of encrypting and signing all the data\&.
+be encrypted once the connection has been made to the share\&. The server would return "access denied" to all non\-encrypted requests on such a share\&. Selecting encrypted traffic reduces throughput as smaller packet sizes must be used (no huge UNIX style read/writes allowed) as well as the overhead of encrypting and signing all the data\&.
 .sp
 If SMB encryption is selected, Windows style SMB signing (see the
 \m[blue]\fBserver signing\fR\m[]
@@ -10367,7 +10367,7 @@ username map script (G)
 .RS 4
 This script is a mutually exclusive alternative to the
 \m[blue]\fBusername map\fR\m[]
-parameter\&. This parameter specifies and external program or script that must accept a single command line option (the username transmitted in the authentication request) and return a line line on standard output (the name to which the account should mapped)\&. In this way, it is possible to store username map tables in an LDAP or NIS directory services\&.
+parameter\&. This parameter specifies and external program or script that must accept a single command line option (the username transmitted in the authentication request) and return a line on standard output (the name to which the account should mapped)\&. In this way, it is possible to store username map tables in an LDAP or NIS directory services\&.
 .sp
 Default:
 \fI\fIusername map script\fR\fR\fI = \fR\fI\fR\fI \fR

@@ -20,13 +20,14 @@
 <refsynopsisdiv>
 	<cmdsynopsis>
 		<command>winbindd</command>
-		<arg choice="opt">-D</arg>
-		<arg choice="opt">-F</arg>
-		<arg choice="opt">-S</arg>
-		<arg choice="opt">-i</arg>
+		<arg choice="opt">-D|--daemon</arg>
+		<arg choice="opt">-F|--foreground</arg>
+		<arg choice="opt">-S|--stdout</arg>
+		<arg choice="opt">-i|--interactive</arg>
 		<arg choice="opt">-d &lt;debug level&gt;</arg>
 		<arg choice="opt">-s &lt;smb config file&gt;</arg>
-		<arg choice="opt">-n</arg>
+		<arg choice="opt">-n|--no-caching</arg>
+		<arg choice="opt">--no-process-group</arg>
 	</cmdsynopsis>
 </refsynopsisdiv>
 
@@ -135,7 +136,7 @@ hosts:		files wins
 
 	<variablelist>
 		<varlistentry>
-		<term>-D</term>
+		<term>-D|--daemon</term>
 		<listitem><para>If specified, this parameter causes
 		the server to operate as a daemon. That is, it detaches
 		itself and runs in the background on the appropriate port.
@@ -145,7 +146,7 @@ hosts:		files wins
 		</varlistentry>
 
 		<varlistentry>
-		<term>-F</term>
+		<term>-F|--foreground</term>
 		<listitem><para>If specified, this parameter causes
 		the main <command>winbindd</command> process to not daemonize,
 		i.e. double-fork and disassociate with the terminal.
@@ -160,7 +161,7 @@ hosts:		files wins
 		</varlistentry>
 
 		<varlistentry>
-		<term>-S</term>
+		<term>-S|--stdout</term>
 		<listitem><para>If specified, this parameter causes
 		<command>winbindd</command> to log to standard output rather
 		than a file.</para></listitem>
@@ -168,10 +169,10 @@ hosts:		files wins
 
 		&stdarg.server.debug;
 		&popt.common.samba;
-		&stdarg.help;
+		&popt.autohelp;
 
 		<varlistentry>
-		<term>-i</term>
+		<term>-i|--interactive</term>
 		<listitem><para>Tells <command>winbindd</command> to not
 		become a daemon and detach from the current terminal. This
 		option is used by developers when interactive debugging
@@ -182,7 +183,7 @@ hosts:		files wins
 		</varlistentry>
 
 		<varlistentry>
-		<term>-n</term>
+		<term>-n|--no-caching</term>
 		<listitem><para>Disable some caching. This means winbindd will
 		often have to wait for a response from the domain controller
 		before it can respond to a client and this thus makes things
@@ -191,6 +192,12 @@ hosts:		files wins
 		might also temporarily hang winbindd if the DC doesn't respond.
 		This does not disable the samlogon cache, which is required for
 		group membership tracking in trusted environments.
+		</para></listitem>
+		</varlistentry>
+
+		<varlistentry>
+		<term>--no-process-group</term>
+		<listitem><para>Do not create a new process group for winbindd.
 		</para></listitem>
 		</varlistentry>
 
@@ -364,7 +371,7 @@ auth  required    /lib/security/pam_unix.so \
 	be the same.  The user and group ids will only be valid for the local
 	machine, unless a shared <smbconfoption name="idmap config * : backend"/> is configured.</para>
 
-	<para>If the the Windows NT SID to UNIX user and group id mapping
+	<para>If the Windows NT SID to UNIX user and group id mapping
 	file is damaged or destroyed then the mappings will be lost. </para>
 </refsect1>
 

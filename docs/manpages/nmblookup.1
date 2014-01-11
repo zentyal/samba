@@ -2,12 +2,12 @@
 .\"     Title: nmblookup
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 12/06/2013
+.\"      Date: 01/10/2014
 .\"    Manual: User Commands
 .\"    Source: Samba 4.0
 .\"  Language: English
 .\"
-.TH "NMBLOOKUP" "1" "12/06/2013" "Samba 4\&.0" "User Commands"
+.TH "NMBLOOKUP" "1" "01/10/2014" "Samba 4\&.0" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -31,7 +31,7 @@
 nmblookup \- NetBIOS over TCP/IP client used to lookup NetBIOS names
 .SH "SYNOPSIS"
 .HP \w'\ 'u
-nmblookup [\-M] [\-R] [\-S] [\-r] [\-A] [\-h] [\-B\ <broadcast\ address>] [\-U\ <unicast\ address>] [\-d\ <debug\ level>] [\-s\ <smb\ config\ file>] [\-i\ <NetBIOS\ scope>] [\-T] [\-f] {name}
+nmblookup [\-M|\-\-master\-browser] [\-R|\-\-recursion] [\-S|\-\-status] [\-r|\-\-root\-port] [\-A|\-\-lookup\-by\-ip] [\-B|\-\-broadcast\ <broadcast\ address>] [\-U|\-\-unicast\ <unicast\ address>] [\-d\ <debug\ level>] [\-s\ <smb\ config\ file>] [\-i\ <NetBIOS\ scope>] [\-T|\-\-translate] [\-f|\-\-flags] {name}
 .SH "DESCRIPTION"
 .PP
 This tool is part of the
@@ -42,9 +42,9 @@ nmblookup
 is used to query NetBIOS names and map them to IP addresses in a network using NetBIOS over TCP/IP queries\&. The options allow the name queries to be directed at a particular IP broadcast area or to a particular machine\&. All queries are done over UDP\&.
 .SH "OPTIONS"
 .PP
-\-M
+\-M|\-\-master\-browser
 .RS 4
-Searches for a master browser by looking up the NetBIOS name
+Searches for a master browser by looking up the NetBIOS
 \fIname\fR
 with a type of
 \fB0x1d\fR\&. If
@@ -54,24 +54,24 @@ is "\-" then it does a lookup on the special name
 \fBnmblookup \-M \-\- \-\fR\&.
 .RE
 .PP
-\-R
+\-R|\-\-recursion
 .RS 4
 Set the recursion desired bit in the packet to do a recursive lookup\&. This is used when sending a name query to a machine running a WINS server and the user wishes to query the names in the WINS server\&. If this bit is unset the normal (broadcast responding) NetBIOS processing code on a machine is used instead\&. See RFC1001, RFC1002 for details\&.
 .RE
 .PP
-\-S
+\-S|\-\-status
 .RS 4
 Once the name query has returned an IP address then do a node status query as well\&. A node status query returns the NetBIOS names registered by a host\&.
 .RE
 .PP
-\-r
+\-r|\-\-root\-port
 .RS 4
 Try and bind to UDP port 137 to send and receive UDP datagrams\&. The reason for this option is a bug in Windows 95 where it ignores the source port of the requesting packet and only replies to UDP port 137\&. Unfortunately, on most UNIX systems root privilege is needed to bind to this port, and in addition, if the
 \fBnmbd\fR(8)
 daemon is running on this machine it also binds to this port\&.
 .RE
 .PP
-\-A
+\-A|\-\-lookup\-by\-ip
 .RS 4
 Interpret
 \fIname\fR
@@ -114,7 +114,12 @@ manual page for the list of valid options\&.
 Print a summary of command line options\&.
 .RE
 .PP
-\-B <broadcast address>
+\-\-usage
+.RS 4
+Display brief usage message\&.
+.RE
+.PP
+\-B|\-\-broadcast <broadcast address>
 .RS 4
 Send the query to the given broadcast address\&. Without this option the default behavior of nmblookup is to send the query to the broadcast address of the network interfaces as either auto\-detected or defined in the
 \fIinterfaces\fR
@@ -123,7 +128,7 @@ parameter of the
 file\&.
 .RE
 .PP
-\-U <unicast address>
+\-U|\-\-unicast <unicast address>
 .RS 4
 Do a unicast query to the specified address or host
 \fIunicast address\fR\&. This option (along with the
@@ -173,7 +178,7 @@ Set the
 option "<name>" to value "<value>" from the command line\&. This overrides compiled\-in defaults and options read from the configuration file\&.
 .RE
 .PP
-\-T
+\-T|\-\-translate
 .RS 4
 This causes any IP addresses found in the lookup to be looked up via a reverse DNS lookup into a DNS name, and printed out before each
 .sp
@@ -182,7 +187,7 @@ This causes any IP addresses found in the lookup to be looked up via a reverse D
 pair that is the normal output\&.
 .RE
 .PP
-\-f
+\-f|\-\-flags
 .RS 4
 Show which flags apply to the name that has been looked up\&. Possible answers are zero or more of: Response, Authoritative, Truncated, Recursion_Desired, Recursion_Available, Broadcast\&.
 .RE

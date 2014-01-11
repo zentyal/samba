@@ -367,6 +367,7 @@ struct smbXsrv_connection {
 	 * this session_table is used for SMB1 and SMB2,
 	 */
 	struct smbXsrv_session_table *session_table;
+	uint64_t last_session_id;
 	/*
 	 * this tcon_table is only used for SMB1.
 	 */
@@ -467,11 +468,22 @@ NTSTATUS smbXsrv_open_global_traverse(
 
 NTSTATUS smbXsrv_open_cleanup(uint64_t persistent_id);
 
+struct smbd_smb2_send_queue {
+	struct smbd_smb2_send_queue *prev, *next;
+
+	DATA_BLOB *sendfile_header;
+	struct iovec *vector;
+	int count;
+
+	TALLOC_CTX *mem_ctx;
+};
 
 struct smbd_smb2_request {
 	struct smbd_smb2_request *prev, *next;
 
 	struct smbd_server_connection *sconn;
+
+	struct smbd_smb2_send_queue queue_entry;
 
 	/* the session the request operates on, maybe NULL */
 	struct smbXsrv_session *session;
@@ -720,7 +732,6 @@ struct smbd_server_connection {
 			 *  Set by us for CORE protocol.
 			 */
 			int max_send;
-			uint64_t last_session_tag;
 		} sessions;
 		struct smb_signing_state *signing_state;
 
@@ -740,9 +751,21 @@ struct smbd_server_connection {
 		} locks;
 	} smb1;
 	struct {
-		struct tevent_queue *recv_queue;
-		struct tevent_queue *send_queue;
-		struct tstream_context *stream;
+		struct smbd_smb2_request_read_state {
+			struct smbd_smb2_request *req;
+			struct {
+				uint8_t nbt[NBT_HDR_SIZE];
+				bool done;
+			} hdr;
+			struct iovec vector;
+			bool doing_receivefile;
+			size_t min_recv_size;
+			size_t pktlen;
+			uint8_t *pktbuf;
+		} request_read_state;
+		struct smbd_smb2_send_queue *send_queue;
+		size_t send_queue_len;
+		struct tevent_fd *fde;
 		bool negprot_2ff;
 		struct {
 			/* The event that makes us process our blocking lock queue */

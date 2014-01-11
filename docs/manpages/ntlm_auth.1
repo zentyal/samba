@@ -2,12 +2,12 @@
 .\"     Title: ntlm_auth
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 12/06/2013
+.\"      Date: 01/10/2014
 .\"    Manual: User Commands
 .\"    Source: Samba 4.0
 .\"  Language: English
 .\"
-.TH "NTLM_AUTH" "1" "12/06/2013" "Samba 4\&.0" "User Commands"
+.TH "NTLM_AUTH" "1" "01/10/2014" "Samba 4\&.0" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -31,7 +31,7 @@
 ntlm_auth \- tool to allow external access to Winbind\*(Aqs NTLM authentication function
 .SH "SYNOPSIS"
 .HP \w'\ 'u
-ntlm_auth [\-d\ debuglevel] [\-l\ logdir] [\-s\ <smb\ config\ file>]
+ntlm_auth
 .SH "DESCRIPTION"
 .PP
 This tool is part of the
@@ -312,20 +312,31 @@ or prompts for one\&.
 Require that a user be a member of specified group (either name or SID) for authentication to succeed\&.
 .RE
 .PP
-\-d|\-\-debuglevel=level
+\-\-pam\-winbind\-conf=FILENAME
 .RS 4
-\fIlevel\fR
-is an integer from 0 to 10\&. The default value if this parameter is not specified is 0\&.
-.sp
-The higher this value, the more detail will be logged to the log files about the activities of the server\&. At level 0, only critical errors and serious warnings will be logged\&. Level 1 is a reasonable level for day\-to\-day running \- it generates a small amount of information about operations carried out\&.
-.sp
-Levels above 1 will generate considerable amounts of log data, and should only be used when investigating a problem\&. Levels above 3 are designed for use only by developers and generate HUGE amounts of log data, most of which is extremely cryptic\&.
-.sp
-Note that specifying this parameter here will override the
-\m[blue]\fBlog level\fR\m[]
-parameter in the
+Define the path to the pam_winbind\&.conf file\&.
+.RE
+.PP
+\-\-target\-hostname=HOSTNAME
+.RS 4
+Define the target hostname\&.
+.RE
+.PP
+\-\-target\-service=SERVICE
+.RS 4
+Define the target service\&.
+.RE
+.PP
+\-\-use\-cached\-creds
+.RS 4
+Whether to use credentials cached by winbindd\&.
+.RE
+.PP
+\-\-configfile=<configuration file>
+.RS 4
+The file specified contains the configuration details required by the server\&. The information in this file includes server\-specific information such as what printcap file to use, as well as descriptions of all the services that the server is to provide\&. See
 smb\&.conf
-file\&.
+for more information\&. The default configuration file name is determined at compile time\&.
 .RE
 .PP
 \-V|\-\-version
@@ -333,30 +344,14 @@ file\&.
 Prints the program version number\&.
 .RE
 .PP
-\-s|\-\-configfile=<configuration file>
-.RS 4
-The file specified contains the configuration details required by the server\&. The information in this file includes server\-specific information such as what printcap file to use, as well as descriptions of all the services that the server is to provide\&. See
-smb\&.conf
-for more information\&. The default configuration file name is determined at compile time\&.
-.RE
-.PP
-\-l|\-\-log\-basename=logdirectory
-.RS 4
-Base directory name for log/debug files\&. The extension
-\fB"\&.progname"\fR
-will be appended (e\&.g\&. log\&.smbclient, log\&.smbd, etc\&.\&.\&.)\&. The log file is never removed by the client\&.
-.RE
-.PP
-\-\-option=<name>=<value>
-.RS 4
-Set the
-\fBsmb.conf\fR(5)
-option "<name>" to value "<value>" from the command line\&. This overrides compiled\-in defaults and options read from the configuration file\&.
-.RE
-.PP
 \-?|\-\-help
 .RS 4
 Print a summary of command line options\&.
+.RE
+.PP
+\-\-usage
+.RS 4
+Display brief usage message\&.
 .RE
 .SH "EXAMPLE SETUP"
 .PP

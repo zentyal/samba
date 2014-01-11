@@ -1,5 +1,6 @@
-samba (2:4.1.3+dfsg-3) UNRELEASED; urgency=medium
+samba (2:4.1.4+dfsg-1) UNRELEASED; urgency=medium
 
+  * New upstream release.
   * Update version of talloc build-deps to 2.0.8.
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Sat, 04 Jan 2014 13:49:23 +0100

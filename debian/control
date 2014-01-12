@@ -348,6 +348,7 @@ Section: python
 Provides: ${python:Provides}
 Depends: python-ldb,
          python-tdb,
+         python-ntdb,
          python-crypto,
          ${misc:Depends},
          ${python:Depends},

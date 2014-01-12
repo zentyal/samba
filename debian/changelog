@@ -2,6 +2,7 @@ samba (2:4.1.4+dfsg-1) UNRELEASED; urgency=medium
 
   * New upstream release.
   * Update version of talloc build-deps to 2.0.8.
+  * python-samba: add depends on python-ntdb.
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Sat, 04 Jan 2014 13:49:23 +0100
 

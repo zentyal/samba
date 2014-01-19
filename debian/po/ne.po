@@ -171,8 +171,8 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:2001
 msgid ""
-"The dhcp3-client package must be installed to take advantage of this feature."
-msgstr "यो विशेषताको फाइदा लिन dhcp3-क्लाइन्ट प्याकेज स्थापना गरिएको हुन पर्छ ।"
+"The dhcp-client package must be installed to take advantage of this feature."
+msgstr "यो विशेषताको फाइदा लिन dhcp-क्लाइन्ट प्याकेज स्थापना गरिएको हुन पर्छ ।"
 
 #. Type: boolean
 #. Description

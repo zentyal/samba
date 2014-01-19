@@ -168,8 +168,8 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:2001
 msgid ""
-"The dhcp3-client package must be installed to take advantage of this feature."
-msgstr "Paket bu dhcp3-client nak wareesna koo istale ngir jariñoo defiin wii."
+"The dhcp-client package must be installed to take advantage of this feature."
+msgstr "Paket bu dhcp-client nak wareesna koo istale ngir jariñoo defiin wii."
 
 #. Type: boolean
 #. Description

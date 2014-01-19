@@ -1,8 +1,7 @@
-diff --git a/source4/heimdal_build/krb5-types.h b/source4/heimdal_build/krb5-types.h
-deleted file mode 100644
-index 4f55a80..0000000
---- a/source4/heimdal_build/krb5-types.h
-+++ /dev/null
+Index: samba-4.1.3+dfsg/source4/heimdal_build/krb5-types.h
+===================================================================
+--- samba-4.1.3+dfsg.orig/source4/heimdal_build/krb5-types.h	2013-06-13 04:21:02.000000000 -0500
++++ /dev/null	1970-01-01 00:00:00.000000000 +0000
 @@ -1,14 +0,0 @@
 -/* krb5-types.h -- this file was generated for i686-pc-linux-gnu by
 -                   $Id: bits.c,v 1.23 2005/01/05 15:22:02 lha Exp $ */
@@ -18,11 +17,11 @@ index 4f55a80..0000000
 -typedef ssize_t krb5_ssize_t;
 -
 -#endif /* __krb5_types_h__ */
-diff --git a/source4/rpc_server/backupkey/dcesrv_backupkey.c b/source4/rpc_server/backupkey/dcesrv_backupkey.c
-index 87799db..dac3678 100644
---- a/source4/rpc_server/backupkey/dcesrv_backupkey.c
-+++ b/source4/rpc_server/backupkey/dcesrv_backupkey.c
-@@ -972,7 +972,7 @@ static WERROR create_req(TALLOC_CTX *ctx, hx509_context *hctx, hx509_request *re
+Index: samba-4.1.3+dfsg/source4/rpc_server/backupkey/dcesrv_backupkey.c
+===================================================================
+--- samba-4.1.3+dfsg.orig/source4/rpc_server/backupkey/dcesrv_backupkey.c	2013-06-13 04:21:02.000000000 -0500
++++ samba-4.1.3+dfsg/source4/rpc_server/backupkey/dcesrv_backupkey.c	2014-01-07 06:06:59.000000000 -0600
+@@ -972,7 +972,7 @@
  static WERROR generate_bkrp_cert(TALLOC_CTX *ctx, struct dcesrv_call_state *dce_call, struct ldb_context *ldb_ctx, const char *dn)
  {
  
@@ -31,16 +30,39 @@ index 87799db..dac3678 100644
  	WERROR w_err;
  	RSA *rsa;
  	hx509_context hctx;
-diff --git a/source4/kdc/hdb-samba4-plugin.c b/source4/kdc/hdb-samba4-plugin.c
-index 568386d..9135df8 100644
---- a/source4/kdc/hdb-samba4-plugin.c
-+++ b/source4/kdc/hdb-samba4-plugin.c
-@@ -78,7 +78,7 @@ static krb5_error_code hdb_samba4_create(krb5_context context, struct HDB **db,
+Index: samba-4.1.3+dfsg/source4/kdc/hdb-samba4-plugin.c
+===================================================================
+--- samba-4.1.3+dfsg.orig/source4/kdc/hdb-samba4-plugin.c	2013-06-13 04:21:02.000000000 -0500
++++ samba-4.1.3+dfsg/source4/kdc/hdb-samba4-plugin.c	2014-01-09 14:39:14.580300241 -0600
+@@ -70,6 +70,18 @@
+ 	return EINVAL;
+ }
+ 
++#if HDB_INTERFACE_VERSION >= 8
++static krb5_error_code KRB5_LIB_CALL * hdb_samba4_init(krb5_context context, void **ctx)
++{
++	*ctx = NULL;
++	return 0;
++}
++
++static void KRB5_LIB_CALL * hdb_samba4_fini(void *ctx)
++{
++}
++#endif
++
+ /* Only used in the hdb-backed keytab code
+  * for a keytab of 'samba4&<address>' or samba4, to find
+  * kpasswd's key in the main DB, and to
+@@ -78,7 +90,11 @@
   * The <address> is the string form of a pointer to a talloced struct hdb_samba_context
   */
  struct hdb_method hdb_samba4_interface = {
 -	.interface_version = HDB_INTERFACE_VERSION,
 +	HDB_INTERFACE_VERSION,
++#if HDB_INTERFACE_VERSION >= 8
++	.init = hdb_samba4_init,
++	.fini = hdb_samba4_fini,
++#endif
  	.prefix = "samba4",
  	.create = hdb_samba4_create
  };

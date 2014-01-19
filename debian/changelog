@@ -5,6 +5,11 @@ samba (2:4.1.4+dfsg-2) UNRELEASED; urgency=medium
   * Bump standards version to 3.9.5 (no changes).
   * Move libpac, db_glue and hdb module from samba-libs to samba package
     to reduce size and dependency set of libs package.
+  * Fix compatibility with newer versions of the Heimdal HDB API.
+    + Update 26_heimdal_compat: Fix initialization of HDB plugin. Thanks Jeff
+      Clark. Closes: #732342
+    + Add dependency on specific version of the Heimdal HDB API.
+      Closes: #732344
 
  -- Jelmer Vernooij <jelmer@debian.org>  Sat, 18 Jan 2014 20:26:35 +0000
 

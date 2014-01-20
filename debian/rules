@@ -128,8 +128,8 @@ override_dh_install:
 	cp debian/smb.conf* $(DESTDIR)/usr/share/samba/
 	install -m755 debian/panic-action $(DESTDIR)/usr/share/samba/panic-action
 	cp debian/gdbcommands $(DESTDIR)/etc/samba/
-	mkdir -p $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d
-	install -m755 debian/samba-common.dhcp $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d/samba
+	mkdir -p $(DESTDIR)/etc/dhcp/dhclient-enter-hooks.d
+	install -m755 debian/samba-common.dhcp $(DESTDIR)/etc/dhcp/dhclient-enter-hooks.d/samba
 	# Install other stuff not installed by "make install"
 	install -m 0755 debian/mksmbpasswd.awk $(DESTDIR)/usr/sbin/mksmbpasswd
 	dh_install --sourcedir=$(DESTDIR) --list-missing --fail-missing

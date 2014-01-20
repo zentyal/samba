@@ -17,6 +17,8 @@ samba (2:4.1.4+dfsg-2) UNRELEASED; urgency=medium
     the package.  Closes: #736070.
   * Move the dhcp client hook from /etc/dhcp3 to /etc/dhcp.
     Closes: #649100.
+  * debian/bin/xsltproc: don't use $FAKETIME as the variable name in our
+    wrapper script, this seems to make faketime unhappy.
 
  -- Jelmer Vernooij <jelmer@debian.org>  Sat, 18 Jan 2014 20:26:35 +0000
 

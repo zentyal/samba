@@ -7,11 +7,11 @@
 
 export TZ=UTC
 
-FAKETIME=`which faketime`
+FAKETIMEPROG=`which faketime`
 
-if [ -x "$FAKETIME" -a -n "$SOURCE_DATE" ]
+if [ -x "$FAKETIMEPROG" -a -n "$SOURCE_DATE" ]
 then
-	$FAKETIME "$SOURCE_DATE" /usr/bin/xsltproc "$@"
+	$FAKETIMEPROG "$SOURCE_DATE" /usr/bin/xsltproc "$@"
 else
 	/usr/bin/xsltproc "$@"
 fi

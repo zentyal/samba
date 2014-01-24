@@ -89,6 +89,7 @@ Suggests: bind9 (>= 1:9.5.1),
           winbind
 Enhances: bind9, ntp
 Replaces: libsamdb0 (<< 4.0.0~alpha17~),
+          python-samba (<< 2:4.1.4+dfsg-3),
           samba-ad-dc,
           samba-common (<= 2.0.5a-2),
           samba-doc (<< 2:4.0.5~),

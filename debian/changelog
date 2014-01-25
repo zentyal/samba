@@ -1,4 +1,4 @@
-samba (2:4.1.4+dfsg-3) UNRELEASED; urgency=medium
+samba (2:4.1.4+dfsg-3) unstable; urgency=medium
 
   * Move samba.dckeytab module to samba package, as it relies on hdb.
     Closes: #736405, #736430

@@ -1,3 +1,9 @@
+samba (2:4.1.4+dfsg-4) UNRELEASED; urgency=medium
+
+  * Fix watch file.
+
+ -- Jelmer Vernooij <jelmer@debian.org>  Sun, 02 Feb 2014 14:22:17 +0000
+
 samba (2:4.1.4+dfsg-3) unstable; urgency=medium
 
   * Move samba.dckeytab module to samba package, as it relies on hdb.

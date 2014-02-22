@@ -30,39 +30,3 @@ Index: samba-4.1.3+dfsg/source4/rpc_server/backupkey/dcesrv_backupkey.c
  	WERROR w_err;
  	RSA *rsa;
  	hx509_context hctx;
-Index: samba-4.1.3+dfsg/source4/kdc/hdb-samba4-plugin.c
-===================================================================
---- samba-4.1.3+dfsg.orig/source4/kdc/hdb-samba4-plugin.c	2013-06-13 04:21:02.000000000 -0500
-+++ samba-4.1.3+dfsg/source4/kdc/hdb-samba4-plugin.c	2014-01-09 14:39:14.580300241 -0600
-@@ -70,6 +70,18 @@
- 	return EINVAL;
- }
- 
-+#if HDB_INTERFACE_VERSION >= 8
-+static krb5_error_code KRB5_LIB_CALL * hdb_samba4_init(krb5_context context, void **ctx)
-+{
-+	*ctx = NULL;
-+	return 0;
-+}
-+
-+static void KRB5_LIB_CALL * hdb_samba4_fini(void *ctx)
-+{
-+}
-+#endif
-+
- /* Only used in the hdb-backed keytab code
-  * for a keytab of 'samba4&<address>' or samba4, to find
-  * kpasswd's key in the main DB, and to
-@@ -78,7 +90,11 @@
-  * The <address> is the string form of a pointer to a talloced struct hdb_samba_context
-  */
- struct hdb_method hdb_samba4_interface = {
--	.interface_version = HDB_INTERFACE_VERSION,
-+	HDB_INTERFACE_VERSION,
-+#if HDB_INTERFACE_VERSION >= 8
-+	.init = hdb_samba4_init,
-+	.fini = hdb_samba4_fini,
-+#endif
- 	.prefix = "samba4",
- 	.create = hdb_samba4_create
- };

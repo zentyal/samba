@@ -46,16 +46,31 @@ static NTSTATUS copychunk_check_limits(struct srv_copychunk_copy *cc_copy)
 	uint32_t i;
 	uint32_t total_len = 0;
 
+	/*
+	 * [MS-SMB2] 3.3.5.15.6 Handling a Server-Side Data Copy Request
+	 * Send and invalid parameter response if:
+	 * - The ChunkCount value is greater than
+	 *   ServerSideCopyMaxNumberofChunks
+	 */
 	if (cc_copy->chunk_count > COPYCHUNK_MAX_CHUNKS) {
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
 	for (i = 0; i < cc_copy->chunk_count; i++) {
-		if (cc_copy->chunks[i].length > COPYCHUNK_MAX_CHUNK_LEN) {
+		/*
+		 * - The Length value in a single chunk is greater than
+		 *   ServerSideCopyMaxChunkSize or equal to zero.
+		 */
+		if ((cc_copy->chunks[i].length == 0)
+		 || (cc_copy->chunks[i].length > COPYCHUNK_MAX_CHUNK_LEN)) {
 			return NT_STATUS_INVALID_PARAMETER;
 		}
 		total_len += cc_copy->chunks[i].length;
 	}
+	/*
+	 * - Sum of Lengths in all chunks is greater than
+	 *   ServerSideCopyMaxDataSize
+	 */
 	if (total_len > COPYCHUNK_MAX_TOTAL_LEN) {
 		return NT_STATUS_INVALID_PARAMETER;
 	}
@@ -394,8 +409,8 @@ static NTSTATUS fsctl_validate_neg_info(TALLOC_CTX *mem_ctx,
 
 	SIVAL(out_output->data, 0x00, conn->smb2.server.capabilities);
 	memcpy(out_output->data+0x04, out_guid_blob.data, 16);
-	SIVAL(out_output->data, 0x14, conn->smb2.server.security_mode);
-	SIVAL(out_output->data, 0x16, conn->smb2.server.dialect);
+	SSVAL(out_output->data, 0x14, conn->smb2.server.security_mode);
+	SSVAL(out_output->data, 0x16, conn->smb2.server.dialect);
 
 	return NT_STATUS_OK;
 }

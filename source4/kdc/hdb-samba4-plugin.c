@@ -60,6 +60,8 @@ static krb5_error_code hdb_samba4_create(krb5_context context, struct HDB **db, 
 
 	if (NT_STATUS_IS_OK(nt_status)) {
 		return 0;
+	} else if (NT_STATUS_EQUAL(nt_status, NT_STATUS_ERROR_DS_INCOMPATIBLE_VERSION)) {
+		return EINVAL;
 	} else if (NT_STATUS_EQUAL(nt_status, NT_STATUS_CANT_ACCESS_DOMAIN_INFO)) {
 		
 		krb5_set_error_message(context, EINVAL, "Failed to open Samba4 LDB at %s", lpcfg_private_path(base_ctx, base_ctx->lp_ctx, "sam.ldb"));
@@ -70,6 +72,22 @@ static krb5_error_code hdb_samba4_create(krb5_context context, struct HDB **db, 
 	return EINVAL;
 }
 
+#if (HDB_INTERFACE_VERSION != 8 && HDB_INTERFACE_VERSION != 7)
+#error "Unsupported Heimdal HDB version"
+#endif
+
+#if HDB_INTERFACE_VERSION >= 8
+static krb5_error_code hdb_samba4_init(krb5_context context, void **ctx)
+{
+	*ctx = NULL;
+	return 0;
+}
+
+static void hdb_samba4_fini(void *ctx)
+{
+}
+#endif
+
 /* Only used in the hdb-backed keytab code
  * for a keytab of 'samba4&<address>' or samba4, to find
  * kpasswd's key in the main DB, and to
@@ -78,7 +96,11 @@ static krb5_error_code hdb_samba4_create(krb5_context context, struct HDB **db, 
  * The <address> is the string form of a pointer to a talloced struct hdb_samba_context
  */
 struct hdb_method hdb_samba4_interface = {
-	.interface_version = HDB_INTERFACE_VERSION,
+	HDB_INTERFACE_VERSION,
+#if HDB_INTERFACE_VERSION >= 8
+	.init = hdb_samba4_init,
+	.fini = hdb_samba4_fini,
+#endif
 	.prefix = "samba4",
 	.create = hdb_samba4_create
 };

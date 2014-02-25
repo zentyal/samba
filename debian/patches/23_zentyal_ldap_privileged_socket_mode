@@ -1,7 +1,7 @@
-Index: samba4/source4/ldap_server/ldap_server.c
+Index: samba/source4/ldap_server/ldap_server.c
 ===================================================================
---- samba4.orig/source4/ldap_server/ldap_server.c	2013-08-14 00:22:50.061330394 +0200
-+++ samba4/source4/ldap_server/ldap_server.c	2013-08-14 00:22:50.041330394 +0200
+--- samba.orig/source4/ldap_server/ldap_server.c	2014-02-25 12:14:31.425115305 +0100
++++ samba/source4/ldap_server/ldap_server.c	2014-02-25 12:14:31.413115305 +0100
 @@ -886,10 +886,11 @@
    open the ldap server sockets
  */
@@ -36,11 +36,11 @@ Index: samba4/source4/ldap_server/ldap_server.c
  		task_server_terminate(task, "Cannot create ldap "
  				      "privileged ldapi directory", true);
  		return;
-Index: samba4/lib/param/param_table.c
+Index: samba/lib/param/param_table.c
 ===================================================================
---- samba4.orig/lib/param/param_table.c	2013-08-14 00:22:50.061330394 +0200
-+++ samba4/lib/param/param_table.c	2013-08-14 00:23:35.000000000 +0200
-@@ -1120,6 +1120,15 @@
+--- samba.orig/lib/param/param_table.c	2014-02-25 12:14:31.425115305 +0100
++++ samba/lib/param/param_table.c	2014-02-25 12:14:31.413115305 +0100
+@@ -1130,6 +1130,15 @@
  		.enum_list	= NULL,
  		.flags		= FLAG_ADVANCED | FLAG_GLOBAL,
  	},
@@ -56,19 +56,19 @@ Index: samba4/lib/param/param_table.c
  
  
  	{N_("Logging Options"), P_SEP, P_SEPARATOR},
-Index: samba4/lib/param/param_functions.c
+Index: samba/lib/param/param_functions.c
 ===================================================================
---- samba4.orig/lib/param/param_functions.c	2013-08-14 00:22:50.061330394 +0200
-+++ samba4/lib/param/param_functions.c	2013-08-14 00:23:35.000000000 +0200
-@@ -407,3 +407,4 @@
+--- samba.orig/lib/param/param_functions.c	2014-02-25 12:14:31.425115305 +0100
++++ samba/lib/param/param_functions.c	2014-02-25 12:14:31.417115305 +0100
+@@ -408,3 +408,4 @@
  FN_GLOBAL_STRING(username_map, szUsernameMap)
  FN_GLOBAL_STRING(usershare_path, szUsersharePath)
  FN_GLOBAL_STRING(wins_hook, szWINSHook)
 +FN_GLOBAL_INTEGER(ldap_priv_socket_mode, iLdap_priv_socket_mode)
-Index: samba4/lib/param/loadparm.c
+Index: samba/lib/param/loadparm.c
 ===================================================================
---- samba4.orig/lib/param/loadparm.c	2013-08-14 00:22:50.061330394 +0200
-+++ samba4/lib/param/loadparm.c	2013-08-14 00:23:35.000000000 +0200
+--- samba.orig/lib/param/loadparm.c	2014-02-25 12:14:31.425115305 +0100
++++ samba/lib/param/loadparm.c	2014-02-25 12:14:31.417115305 +0100
 @@ -2226,6 +2226,8 @@
          lpcfg_do_global_parameter(lp_ctx, "allow dns updates", "secure only");
          lpcfg_do_global_parameter(lp_ctx, "dns forwarder", "");

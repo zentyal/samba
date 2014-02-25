@@ -45,7 +45,7 @@ conf_args = \
 		--with-utmp \
 		--with-pam_smbpass \
 		--with-winbind \
-		--with-shared-modules=idmap_rid,idmap_ad,idmap_adex,idmap_hash,idmap_ldap,idmap_tdb2,vfs_dfs_samba4,auth_samba4 \
+		--with-shared-modules=idmap_rid,idmap_ad,idmap_adex,idmap_hash,idmap_ldap,vfs_dfs_samba4,auth_samba4 \
 		--with-automount \
 		--with-ldap \
 		--with-ads \
@@ -57,7 +57,6 @@ conf_args = \
 		--with-statedir=/var/lib/samba \
 		--with-cachedir=/var/cache/samba \
 		--disable-avahi \
-		--with-ctdb=/usr --with-cluster-support \
 		--disable-rpath \
 		--disable-rpath-install \
 		--bundled-libraries=NONE,pytevent,iniparser \
@@ -131,6 +130,11 @@ override_dh_install:
 	cp debian/gdbcommands $(DESTDIR)/etc/samba/
 	mkdir -p $(DESTDIR)/etc/dhcp/dhclient-enter-hooks.d
 	install -m755 debian/samba-common.dhcp $(DESTDIR)/etc/dhcp/dhclient-enter-hooks.d/samba
+	# Ubuntu things
+	mkdir -p $(DESTDIR)/etc/ufw/applications.d
+	install -m644 debian/samba.ufw.profile $(DESTDIR)/etc/ufw/applications.d/samba
+	mkdir -p $(DESTDIR)/usr/share/apport/package-hooks
+	install -D -m 644 debian/source_samba.py $(DESTDIR)/usr/share/apport/package-hooks/source_samba.py
 	# Install other stuff not installed by "make install"
 	install -m 0755 debian/mksmbpasswd.awk $(DESTDIR)/usr/sbin/mksmbpasswd
 	mkdir -p debian/samba/usr/lib/$(PYSHORT)/dist-packages/samba

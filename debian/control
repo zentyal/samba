@@ -1,7 +1,8 @@
 Source: samba
 Section: net
 Priority: optional
-Maintainer: Debian Samba Maintainers <pkg-samba-maint@lists.alioth.debian.org>
+Maintainer: Zentyal Packaging Maintainers <pkg-team@zentyal.com>
+XSBC-Original-Maintainer: Debian Samba Maintainers <pkg-samba-maint@lists.alioth.debian.org>
 Uploaders: Steve Langasek <vorlon@debian.org>,
            Christian Perrier <bubulle@debian.org>,
            Jelmer Vernooij <jelmer@debian.org>,
@@ -22,7 +23,6 @@ Build-Depends: bison,
                libblkid-dev,
                libbsd-dev,
                libcap-dev [linux-any],
-               libctdb-dev (>= 2),
                libcups2-dev,
                libgnutls-dev,
                libheimntlm0-heimdal (>= 1.6~),
@@ -36,7 +36,6 @@ Build-Depends: bison,
                libreadline-dev,
                libsubunit-dev,
                libtalloc-dev (>= 2.0.8~),
-               libtdb-dev (>= 1.2.11~),
                libtevent-dev (>= 0.9.18~),
                perl,
                perl-modules,
@@ -62,7 +61,6 @@ Package: samba
 Architecture: any
 Pre-Depends: dpkg (>= 1.15.6~), ${misc:Pre-Depends}
 Depends: adduser,
-         heimdal-hdb-api-8,
          libpam-modules,
          libpam-runtime (>= 1.0.1-11),
          lsb-base (>= 4.1+Debian),
@@ -82,11 +80,11 @@ Depends: adduser,
 Recommends: attr, logrotate, samba-vfs-modules
 Suggests: bind9 (>= 1:9.5.1),
           bind9utils,
-          ctdb,
           ldb-tools,
           ntp,
           smbldap-tools,
-          winbind
+          winbind,
+          ufw
 Enhances: bind9, ntp
 Replaces: libsamdb0 (<< 4.0.0~alpha17~),
           python-samba (<< 2:4.1.4+dfsg-3),
@@ -222,7 +220,7 @@ Replaces: samba (<< 2.999+3.0.alpha21-4),
           smbget
 Provides: samba-client
 Suggests: cifs-utils, heimdal-clients
-Conflicts: samba-doc (<< 2:4.0.5~), samba4-clients (<< 4.0.5)
+Conflicts: samba-doc (<< 2:4.0.5~), samba4-clients (<< 4.0.3+dfsg1-0.1ubuntu3)
 Description: command-line SMB/CIFS clients for Unix
  Samba is an implementation of the SMB/CIFS protocol for Unix systems,
  providing support for cross-platform file and printer sharing with
@@ -563,6 +561,8 @@ Architecture: any
 Multi-Arch: same
 Pre-Depends: dpkg (>= 1.15.6~), ${misc:Pre-Depends}
 Depends: ${misc:Depends}, ${shlibs:Depends}
+Replaces:  likewise-open (<< 4.1.0.2956)
+Conflicts:  likewise-open (<< 4.1.0.2956)
 Breaks: libpam-smbpass (<< 2:3.4.1),
         libsmbclient (<< 2:3.4.1),
         samba (<< 2:3.4.1),

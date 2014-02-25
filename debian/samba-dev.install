@@ -35,6 +35,7 @@ usr/include/samba-4.0/gen_ndr/ndr_samr.h
 usr/include/samba-4.0/gen_ndr/ndr_samr_c.h
 usr/include/samba-4.0/gen_ndr/ndr_svcctl.h
 usr/include/samba-4.0/gen_ndr/ndr_svcctl_c.h
+usr/include/samba-4.0/gen_ndr/ndr_security.h
 usr/include/samba-4.0/gen_ndr/netlogon.h
 usr/include/samba-4.0/gen_ndr/samr.h
 usr/include/samba-4.0/gen_ndr/security.h
@@ -63,6 +64,7 @@ usr/include/samba-4.0/roles.h
 usr/include/samba-4.0/rpc_common.h
 usr/include/samba-4.0/samba/session.h
 usr/include/samba-4.0/samba/version.h
+usr/include/samba-4.0/samba/dynconfig.h
 usr/include/samba-4.0/samba_util.h
 usr/include/samba-4.0/share.h
 usr/include/samba-4.0/smb2.h
@@ -105,6 +107,11 @@ usr/include/samba-4.0/util/time.h
 usr/include/samba-4.0/util/xfile.h
 usr/include/samba-4.0/util_ldb.h
 usr/include/samba-4.0/smb2_lease.h
+usr/include/samba-4.0/security/security_descriptor.h
+usr/include/samba-4.0/security/sddl.h
+usr/include/samba-4.0/security/dom_sid.h
+usr/include/samba-4.0/security/secace.h
+usr/include/samba-4.0/security/secdesc.h
 usr/lib/*/libdcerpc-atsvc.so
 usr/lib/*/libdcerpc-binding.so
 usr/lib/*/libdcerpc-samr.so
@@ -120,8 +127,10 @@ usr/lib/*/libpdb.so
 usr/lib/*/libregistry.so
 usr/lib/*/libsamba-credentials.so
 usr/lib/*/libsamba-hostconfig.so
+usr/lib/*/libsamba-security.so
 usr/lib/*/libsamba-policy.so
 usr/lib/*/libsamba-util.so
+usr/lib/*/libsamba-errors.so
 usr/lib/*/libsamdb.so
 usr/lib/*/libsmbclient-raw.so
 usr/lib/*/libsmbconf.so
@@ -141,8 +150,10 @@ usr/lib/*/pkgconfig/netapi.pc
 usr/lib/*/pkgconfig/registry.pc
 usr/lib/*/pkgconfig/samba-credentials.pc
 usr/lib/*/pkgconfig/samba-hostconfig.pc
+usr/lib/*/pkgconfig/samba-security.pc
 usr/lib/*/pkgconfig/samba-policy.pc
 usr/lib/*/pkgconfig/samba-util.pc
+usr/lib/*/pkgconfig/samba-errors.pc
 usr/lib/*/pkgconfig/samdb.pc
 usr/lib/*/pkgconfig/smbclient-raw.pc
 usr/lib/*/pkgconfig/torture.pc

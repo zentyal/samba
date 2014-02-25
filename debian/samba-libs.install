@@ -13,8 +13,10 @@ usr/lib/*/libpdb.so.0
 usr/lib/*/libregistry.so.*
 usr/lib/*/libsamba-credentials.so.0*
 usr/lib/*/libsamba-hostconfig.so.*
+usr/lib/*/libsamba-errors.so.*
 usr/lib/*/libsamba-policy.so.*
 usr/lib/*/libsamba-util.so.*
+usr/lib/*/libsamba-security.so.*
 usr/lib/*/libsamdb.so.*
 usr/lib/*/libsmbclient-raw.so.0*
 usr/lib/*/libsmbconf.so.0
@@ -48,7 +50,6 @@ usr/lib/*/samba/libdbwrap.so.*
 usr/lib/*/samba/libdcerpc-samba.so.*
 usr/lib/*/samba/libdcerpc-samba4.so.*
 usr/lib/*/samba/libdfs_server_ad.so.*
-usr/lib/*/samba/liberrors.so.*
 usr/lib/*/samba/libevents.so.*
 usr/lib/*/samba/libflag_mapping.so.*
 usr/lib/*/samba/libgpo.so.*
@@ -74,7 +75,6 @@ usr/lib/*/samba/libprinting_migrate.so.*
 usr/lib/*/samba/libprocess_model.so.*
 usr/lib/*/samba/libsamba-modules.so.*
 usr/lib/*/samba/libsamba-net.so.*
-usr/lib/*/samba/libsamba-security.so.*
 usr/lib/*/samba/libsamba-sockets.so.*
 usr/lib/*/samba/libsamba3-util.so.*
 usr/lib/*/samba/libsamba_python.so.*

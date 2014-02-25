@@ -32,3 +32,4 @@ usr/share/man/man8/samba.8
 usr/share/man/man8/smbd.8
 usr/share/man/man8/smbta-util.8
 usr/share/samba/setup
+etc/ufw/applications.d/samba

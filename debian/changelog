@@ -1,3 +1,9 @@
+samba (2:4.1.5+dfsg-1~zentyal1) UNRELEASED; urgency=low
+
+  * New upstream release
+
+ -- Samuel Cabrero <scabrero@zentyal.com>  Tue, 25 Feb 2014 16:01:53 +0100
+
 samba (2:4.1.5+dfsg-1) unstable; urgency=medium
 
   [ Jelmer Vernooij ]
@@ -9,12 +15,52 @@ samba (2:4.1.5+dfsg-1) unstable; urgency=medium
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Sat, 22 Feb 2014 23:17:59 +0100
 
+samba (2:4.1.4+dfsg-3~zentyal1) saucy; urgency=low
+
+  * Add upstream patch: smbd: Fix memory overwrites
+
+ -- Samuel Cabrero <scabrero@zentyal.com>  Thu, 13 Feb 2014 14:56:02 +0100
+
 samba (2:4.1.4+dfsg-3) unstable; urgency=medium
 
   * Move samba.dckeytab module to samba package, as it relies on hdb.
     Closes: #736405, #736430
 
  -- Jelmer Vernooij <jelmer@debian.org>  Fri, 24 Jan 2014 23:35:14 +0000
+
+samba (2:4.1.4+dfsg-2~zentyal1) saucy; urgency=low
+
+  * Merge from Debian Unstable:
+    - debian/VERSION.patch: Update vendor string to "Zentyal".
+  * debian/smb.conf;
+    - Add "(Samba, Zentyal)" to server string.
+    - Comment out the default [homes] share, and add a comment about
+      "valid users = %s" to show users how to restrict access to
+      \\server\username to only username.
+  + debian/samba-common.config:
+    - Do not change prioritiy to high if dhclient3 is installed.
+  + debian/control:
+    - Don't build against or suggest ctdb and tdb.
+  + debian/rules:
+    - Drop explicit configuration options for ctdb and tdb.
+  + Add ufw integration:
+    - Created debian/samba.ufw.profile:
+    - debian/rules, debian/samba.install: install profile
+  + Add apport hook:
+   - Created debian/source_samba.py.
+   - debian/rules, debia/samb-common-bin.install: install hook.
+  + debian/samba.logrotate: call upstart interfaces unconditionally instead
+    of hacking arround with pid files.
+  + Set sbmclients conflicts with samba4-clients less than
+    4.0.3+dfsg1-0.1ubuntu4, first dummy transitional package version.
+  * debian/control:
+    - Drop dependency on heimdal-hdb-api-8, as heimdal version in saucy is
+      lower than debian unstable one.
+  * debian/samba-common.dirs:
+    - Add etc/dhcp/dhclient-enter-hooks.d
+  * Add zentyal patches
+
+ -- Samuel Cabrero <scabrero@zentyal.com>  Wed, 05 Feb 2014 00:52:13 +0100
 
 samba (2:4.1.4+dfsg-2) unstable; urgency=medium
 

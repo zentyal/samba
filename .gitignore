@@ -9,7 +9,6 @@ TAGS
 cscope*.out
 autom4te.cache
 source3/.clang_complete
-*.patch
 *.pyc
 semantic.cache
 pidl/blib

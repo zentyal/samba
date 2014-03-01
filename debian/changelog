@@ -1,6 +1,8 @@
 samba (2:4.1.5+dfsg-1~bpo70+1) UNRELEASED; urgency=medium
 
   * Rebuild for wheezy-backports.
+  * Replace dependency on newer Heimdal HDB API with dependency
+    on libhdb9-heimdal before the API change.
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Sat, 01 Mar 2014 16:19:32 +0100
 

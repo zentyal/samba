@@ -14,7 +14,8 @@ LDB_NEXT_VERSION = $(shell python -c "x = '$(LDB_VERSION)'.split('.'); x[-1] = s
 # strict dependency on the upstream ldb version
 # this also mean samba needs a rebuild when the upstream ldb version changes
 LDB_DEPENDS = "libldb1 (<< 1:$(LDB_NEXT_VERSION)~), libldb1 (>> 1:$(LDB_VERSION)~)"
-export PYTHON=$(shell which `pyversions -d`)
+export PYSHORT=$(shell pyversions -d)
+export PYTHON=$(shell which $(PYSHORT))
 export PYTHON_CONFIG="$(PYTHON)-config"
 WAF = $(PYTHON) ./buildtools/bin/waf -v
 
@@ -128,10 +129,13 @@ override_dh_install:
 	cp debian/smb.conf* $(DESTDIR)/usr/share/samba/
 	install -m755 debian/panic-action $(DESTDIR)/usr/share/samba/panic-action
 	cp debian/gdbcommands $(DESTDIR)/etc/samba/
-	mkdir -p $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d
-	install -m755 debian/samba-common.dhcp $(DESTDIR)/etc/dhcp3/dhclient-enter-hooks.d/samba
+	mkdir -p $(DESTDIR)/etc/dhcp/dhclient-enter-hooks.d
+	install -m755 debian/samba-common.dhcp $(DESTDIR)/etc/dhcp/dhclient-enter-hooks.d/samba
 	# Install other stuff not installed by "make install"
 	install -m 0755 debian/mksmbpasswd.awk $(DESTDIR)/usr/sbin/mksmbpasswd
+	mkdir -p debian/samba/usr/lib/$(PYSHORT)/dist-packages/samba
+	mv $(DESTDIR)/usr/lib/$(PYSHORT)/dist-packages/samba/dckeytab.so \
+	   debian/samba/usr/lib/$(PYSHORT)/dist-packages/samba/dckeytab.so
 	dh_install --sourcedir=$(DESTDIR) --list-missing --fail-missing
 
 override_dh_python2:

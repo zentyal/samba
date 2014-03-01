@@ -12,7 +12,7 @@ _Description: Modify smb.conf to use WINS settings from DHCP?
  change to your smb.conf file so that DHCP-provided WINS settings will
  automatically be read from /etc/samba/dhcp.conf.
  .
- The dhcp3-client package must be installed to take advantage of this
+ The dhcp-client package must be installed to take advantage of this
  feature.
 
 Template: samba-common/do_debconf

@@ -1,4 +1,4 @@
-etc/dhcp3/
+etc/dhcp/
 etc/samba/
 etc/samba/gdbcommands
 usr/share/samba/codepages/*.dat

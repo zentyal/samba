@@ -31,10 +31,13 @@
 		<arg choice="opt">--numeric</arg>
 		<arg choice="opt">-t</arg>
 		<arg choice="opt">-U username</arg>
-		<arg choice="opt">-h</arg>
 		<arg choice="opt">-d</arg>
 		<arg choice="opt">-e</arg>
 		<arg choice="opt">-m|--max-protocol LEVEL</arg>
+		<arg choice="opt">--query-security-info FLAGS</arg>
+		<arg choice="opt">--set-security-info FLAGS</arg>
+		<arg choice="opt">--sddl</arg>
+		<arg choice="opt">--domain-sid SID</arg>
 	</cmdsynopsis>
 </refsynopsisdiv>
 
@@ -141,18 +144,6 @@
 		</varlistentry>
 		
 		<varlistentry>
-		<term>-e</term>
-		<listitem><para>This command line parameter requires the remote
-		server support the UNIX extensions or that the SMB3 protocol has been selected.
-		Requests that the connection be encrypted. Negotiates SMB encryption using either
-		SMB3 or POSIX extensions via GSSAPI. Uses the given credentials for
-		the encryption negotiation (either kerberos or NTLMv1/v2 if given
-		domain/username/password triple. Fails the connection if encryption
-		cannot be negotiated.
-		</para></listitem>
-		</varlistentry>
-
-		<varlistentry>
 		<term>-m|--max-protocol PROTOCOL_NAME</term>
 		<listitem><para>This allows the user to select the
 		highest SMB protocol level that smbcacls will use to
@@ -172,11 +163,36 @@
 		the arguments.
 		</para></listitem>
 		</varlistentry>
-				
-		&stdarg.help;
+
+		<varlistentry>
+		<term>--query-security-info FLAGS</term>
+		<listitem><para>The security-info flags for queries.
+		</para></listitem>
+		</varlistentry>
+
+		<varlistentry>
+		<term>--set-security-info FLAGS</term>
+		<listitem><para>The security-info flags for queries.
+		</para></listitem>
+		</varlistentry>
+
+		<varlistentry>
+		<term>--sddl</term>
+		<listitem><para>Output and input acls in sddl format.
+		</para></listitem>
+		</varlistentry>
+
+		<varlistentry>
+		<term>--domain-sid SID</term>
+		<listitem><para>SID used for sddl processing.
+		</para></listitem>
+		</varlistentry>
+
 		&stdarg.server.debug;
 		&popt.common.samba;
 		&popt.common.credentials;
+		&popt.common.connection;
+		&popt.autohelp;
 	</variablelist>
 </refsect1>
 

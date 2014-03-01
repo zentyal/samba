@@ -7,7 +7,7 @@ Uploaders: Steve Langasek <vorlon@debian.org>,
            Jelmer Vernooij <jelmer@debian.org>,
            Ivo De Decker <ivo.dedecker@ugent.be>
 Homepage: http://www.samba.org
-Standards-Version: 3.9.4
+Standards-Version: 3.9.5
 Build-Depends: bison,
                comerr-dev,
                debhelper (>> 9),
@@ -22,7 +22,7 @@ Build-Depends: bison,
                libblkid-dev,
                libbsd-dev,
                libcap-dev [linux-any],
-               libctdb-dev (>= 1.10+git20110412),
+               libctdb-dev (>= 2),
                libcups2-dev,
                libgnutls-dev,
                libheimntlm0-heimdal (>= 1.6~),
@@ -62,6 +62,7 @@ Package: samba
 Architecture: any
 Pre-Depends: dpkg (>= 1.15.6~), ${misc:Pre-Depends}
 Depends: adduser,
+         heimdal-hdb-api-8,
          libpam-modules,
          libpam-runtime (>= 1.0.1-11),
          lsb-base (>= 4.1+Debian),
@@ -88,10 +89,11 @@ Suggests: bind9 (>= 1:9.5.1),
           winbind
 Enhances: bind9, ntp
 Replaces: libsamdb0 (<< 4.0.0~alpha17~),
+          python-samba (<< 2:4.1.4+dfsg-3),
           samba-ad-dc,
           samba-common (<= 2.0.5a-2),
           samba-doc (<< 2:4.0.5~),
-          samba-libs (<< 2:4.1.1+dfsg-1),
+          samba-libs (<< 2:4.1.4+dfsg-2),
           samba4
 Conflicts: libldb1 (<< 1:1.1.15),
            samba (<< 2:3.3.0~rc2-5),
@@ -348,6 +350,7 @@ Section: python
 Provides: ${python:Provides}
 Depends: python-ldb,
          python-tdb,
+         python-ntdb,
          python-crypto,
          ${misc:Depends},
          ${python:Depends},

@@ -173,7 +173,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:2001
 msgid ""
-"The dhcp3-client package must be installed to take advantage of this feature."
+"The dhcp-client package must be installed to take advantage of this feature."
 msgstr ""
 "ཌི་ཨེཅ་སི་པི་༣-ཞབས་ཏོག་སྤྱོད་མི་ཐུམ་སྒྲིལ་འདི་ ཁྱད་རྣམ་འདི་གི་ཕན་ཐོགས་ལུ་གཞི་བཙུགས་འབད་དགོཔ་ཨིན།"
 

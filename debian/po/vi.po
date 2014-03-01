@@ -165,8 +165,8 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:2001
 msgid ""
-"The dhcp3-client package must be installed to take advantage of this feature."
-msgstr "Để nhớ dịp tính năng này, bạn cần phải cài đặt gói « dhcp3-client »."
+"The dhcp-client package must be installed to take advantage of this feature."
+msgstr "Để nhớ dịp tính năng này, bạn cần phải cài đặt gói « dhcp-client »."
 
 #. Type: boolean
 #. Description

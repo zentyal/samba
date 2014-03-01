@@ -24,9 +24,7 @@ usr/lib/*/samba/auth/
 usr/lib/*/samba/bind9/dlz_bind9.so
 usr/lib/*/samba/bind9/dlz_bind9_9.so
 usr/lib/*/samba/gensec/*.so
-usr/lib/*/samba/hdb/hdb_samba4.so
 usr/lib/*/samba/libCHARSET3.so.*
-usr/lib/*/samba/libHDB_SAMBA4.so.*
 usr/lib/*/samba/libLIBWBCLIENT_OLD.so.*
 usr/lib/*/samba/libMESSAGING.so.*
 usr/lib/*/samba/libaddns.so.*
@@ -46,7 +44,6 @@ usr/lib/*/samba/libcli_spoolss.so.*
 usr/lib/*/samba/libcliauth.so.*
 usr/lib/*/samba/libcluster.so.*
 usr/lib/*/samba/libcmdline-credentials.so.*
-usr/lib/*/samba/libdb-glue.so.*
 usr/lib/*/samba/libdbwrap.so.*
 usr/lib/*/samba/libdcerpc-samba.so.*
 usr/lib/*/samba/libdcerpc-samba4.so.*
@@ -71,7 +68,6 @@ usr/lib/*/samba/libnet_keytab.so.*
 usr/lib/*/samba/libnetif.so.*
 usr/lib/*/samba/libnpa_tstream.so.*
 usr/lib/*/samba/libntvfs.so.*
-usr/lib/*/samba/libpac.so.*
 usr/lib/*/samba/libpopt_samba3.so.*
 usr/lib/*/samba/libposix_eadb.so.*
 usr/lib/*/samba/libprinting_migrate.so.*

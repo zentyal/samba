@@ -177,8 +177,8 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:2001
 msgid ""
-"The dhcp3-client package must be installed to take advantage of this feature."
-msgstr "La pako dhcp3-client devas esti instalita por profiti ĉi tiun trajton."
+"The dhcp-client package must be installed to take advantage of this feature."
+msgstr "La pako dhcp-client devas esti instalita por profiti ĉi tiun trajton."
 
 #. Type: boolean
 #. Description

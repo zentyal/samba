@@ -1,0 +1,11 @@
+#!/bin/sh
+
+set -e
+
+if [ $(readlink -f /etc/dhcp/dhclient-enter-hooks.d/samba) = /etc/dhcp3/dhclient-enter-hooks.d/samba ] \
+   && dpkg --compare-versions "$2" le-nl 2:4.1.4+dfsg-2~
+then
+	rm -f /etc/dhcp/dhclient-enter-hooks.d/samba
+fi
+
+#DEBHELPER#

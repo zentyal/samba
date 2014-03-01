@@ -96,3 +96,13 @@ fi
 db_stop
 
 #DEBHELPER#
+
+# Clean up the now-empty dir which our conffile was previously in,
+# since it wasn't empty at the time dpkg could automatically remove it
+# for us.
+if dpkg --compare-versions "$2" lt-nl 2:4.1.4+dfsg-2~
+then
+	rmdir -p --ignore-fail-on-non-empty /etc/dhcp3/dhclient-enter-hooks.d
+fi
+
+

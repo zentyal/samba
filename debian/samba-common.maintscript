@@ -1,0 +1,1 @@
+mv_conffile /etc/dhcp3/dhclient-enter-hooks.d/samba /etc/dhcp/dhclient-enter-hooks.d/samba 2:4.1.4+dfsg-2~

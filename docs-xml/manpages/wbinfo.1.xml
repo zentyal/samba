@@ -27,6 +27,7 @@
 		<arg choice="opt">--ccache-save</arg>
 		<arg choice="opt">--change-user-password</arg>
 		<arg choice="opt">-D domain</arg>
+		<arg choice="opt">--dc-info domain</arg>
 		<arg choice="opt">--domain domain</arg>
 		<arg choice="opt">--dsgetdcname domain</arg>
 		<arg choice="opt">-g</arg>
@@ -39,7 +40,12 @@
 		<arg choice="opt">-i user</arg>
 		<arg choice="opt">-I ip</arg>
 		<arg choice="opt">-K user%password</arg>
+		<arg choice="opt">--krb5ccname cctype</arg>
 		<arg choice="opt">--lanman</arg>
+		<arg choice="opt">--logoff</arg>
+		<arg choice="opt">--logoff-uid uid</arg>
+		<arg choice="opt">--logoff-user username</arg>
+		<arg choice="opt">--lookup-sids</arg>
 		<arg choice="opt">-m</arg>
 		<arg choice="opt">-n name</arg>
 		<arg choice="opt">-N netbios-name</arg>
@@ -48,14 +54,21 @@
 		<arg choice="opt">--own-domain</arg>
 		<arg choice="opt">-p</arg>
 		<arg choice="opt">-P|--ping-dc</arg>
+		<arg choice="opt">--pam-logon user%password</arg>
 		<arg choice="opt">-r user</arg>
 		<arg choice="opt">-R|--lookup-rids</arg>
+		<arg choice="opt">--remove-gid-mapping gid,sid</arg>
+		<arg choice="opt">--remove-uid-mapping uid,sid</arg>
 		<arg choice="opt">-s sid</arg>
 		<arg choice="opt">--separator</arg>
+		<arg choice="opt">--sequence</arg>
 		<arg choice="opt">--set-auth-user user%password</arg>
+		<arg choice="opt">--set-gid-mapping gid,sid</arg>
+		<arg choice="opt">--set-uid-mapping uid,sid</arg>
 		<arg choice="opt">-S sid</arg>
 		<arg choice="opt">--sid-aliases sid</arg>
 		<arg choice="opt">--sid-to-fullname sid</arg>
+		<arg choice="opt">--sids-to-unix-ids sidlist</arg>
 		<arg choice="opt">-t</arg>
 		<arg choice="opt">-u</arg>
 		<arg choice="opt">--uid-info uid</arg>
@@ -138,6 +151,12 @@
 		<varlistentry>
 		<term>--change-user-password <replaceable>username</replaceable></term>
 		<listitem><para>Change the password of a user. The old and new password will be prompted.
+		</para></listitem>
+		</varlistentry>
+
+		<varlistentry>
+		<term>--dc-info <replaceable>domain</replaceable></term>
+		<listitem><para>Displays information about the current domain controller for a domain.
 		</para></listitem>
 		</varlistentry>
 
@@ -238,8 +257,40 @@
 		</varlistentry>
 
 		<varlistentry>
+		<term>--krb5ccname <replaceable>KRB5CCNAME</replaceable></term>
+		<listitem><para>Allows to request a sepcific kerberos credential
+				cache type used for authentication.
+		</para></listitem>
+		</varlistentry>
+
+		<varlistentry>
 		<term>--lanman</term>
 		<listitem><para>Use lanman cryptography for user authentication.
+		</para></listitem>
+		</varlistentry>
+
+		<varlistentry>
+		<term>--logoff</term>
+		<listitem><para>Logoff a user.
+		</para></listitem>
+		</varlistentry>
+
+		<varlistentry>
+		<term>--logoff-uid <replaceable>UID</replaceable></term>
+		<listitem><para>Define user uid used during logoff request.
+		</para></listitem>
+		</varlistentry>
+
+		<varlistentry>
+		<term>--logoff-user <replaceable>USERNAME</replaceable></term>
+		<listitem><para>Define username used during logoff request.
+		</para></listitem>
+		</varlistentry>
+
+		<varlistentry>
+		<term>--lookup-sids <replaceable>SID1,SID2...</replaceable></term>
+		<listitem><para>Looks up SIDs. SIDs must be specified as ASCII strings in the traditional Microsoft
+				format. For example, S-1-5-21-1455342024-3071081365-2475485837-500.
 		</para></listitem>
 		</varlistentry>
 
@@ -298,6 +349,13 @@
 		</varlistentry>
 
 		<varlistentry>
+		<term>--pam-logon <replaceable>username%password</replaceable></term>
+		<listitem><para>Attempt to authenticate a user in the same way
+				pam_winbind would do.
+		</para></listitem>
+		</varlistentry>
+
+		<varlistentry>
 		<term>-p|--ping</term>
 		<listitem><para>Check whether <citerefentry><refentrytitle>winbindd</refentrytitle>
 		<manvolnum>8</manvolnum></citerefentry> is still alive.
@@ -330,6 +388,18 @@
 		</varlistentry>
 
 		<varlistentry>
+		<term>--remove-gid-mapping <replaceable>GID,SID</replaceable></term>
+		<listitem><para>Removes an existing GID to SID mapping from the database.
+		</para></listitem>
+		</varlistentry>
+
+		<varlistentry>
+		<term>--remove-uid-mapping <replaceable>UID,SID</replaceable></term>
+		<listitem><para>Removes an existing UID to SID mapping from the database.
+		</para></listitem>
+		</varlistentry>
+
+		<varlistentry>
 		<term>-s|--sid-to-name <replaceable>sid</replaceable></term>
 		<listitem><para>Use <parameter>-s</parameter> to resolve
 		a SID to a name.  This is the inverse of the <parameter>-n
@@ -345,6 +415,13 @@
 		</varlistentry>
 
 		<varlistentry>
+		<term>--sequence</term>
+		<listitem><para>This command has been deprecated.  Please use
+				the --online-status option instead.
+		</para></listitem>
+		</varlistentry>
+
+		<varlistentry>
 		<term>--set-auth-user <replaceable>username%password</replaceable></term>
 		<listitem><para>Store username and password used by <citerefentry>
                 <refentrytitle>winbindd</refentrytitle><manvolnum>8</manvolnum>
@@ -352,6 +429,18 @@
 		winbindd to operate in a Windows 2000 domain with Restrict
 		Anonymous turned on (a.k.a. Permissions compatible with
 		Windows 2000 servers only).
+		</para></listitem>
+		</varlistentry>
+
+		<varlistentry>
+		<term>--set-gid-mapping <replaceable>GID,SID</replaceable></term>
+		<listitem><para>Create a GID to SID mapping in the database.
+		</para></listitem>
+		</varlistentry>
+
+		<varlistentry>
+		<term>--set-uid-mapping <replaceable>UID,SID</replaceable></term>
+		<listitem><para>Create a UID to SID mapping in the database.
 		</para></listitem>
 		</varlistentry>
 
@@ -374,6 +463,14 @@
 		<listitem><para>Converts a SID to a full username
 				(DOMAIN\username).
 		</para></listitem>
+		</varlistentry>
+
+		<varlistentry>
+		<term>--sids-to-unix-ids <replaceable>sid1,sid2,sid3...</replaceable></term>
+		<listitem><para>Resolve SIDs to Unix IDs.
+		SIDs must be specified as ASCII strings
+		in the traditional Microsoft format. For example,
+		S-1-5-21-1455342024-3071081365-2475485837-500. </para></listitem>
 		</varlistentry>
 
 		<varlistentry>

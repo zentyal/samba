@@ -89,7 +89,10 @@ static bool is_in_internal_domain(const struct dom_sid *sid)
 }
 
 
-/* Add a trusted domain to our list of domains */
+/* Add a trusted domain to our list of domains.
+   If the domain already exists in the list,
+   return it and don't re-initialize.  */
+
 static struct winbindd_domain *add_trusted_domain(const char *domain_name, const char *alt_name,
 						  struct winbindd_methods *methods,
 						  const struct dom_sid *sid)
@@ -99,6 +102,7 @@ static struct winbindd_domain *add_trusted_domain(const char *domain_name, const
 	char *idmap_config_option;
 	const char *param;
 	const char **ignored_domains, **dom;
+	int role = lp_server_role();
 
 	ignored_domains = lp_parm_string_list(-1, "winbind", "ignore domains", NULL);
 	for (dom=ignored_domains; dom && *dom; dom++) {
@@ -146,7 +150,10 @@ static struct winbindd_domain *add_trusted_domain(const char *domain_name, const
 
 	if (domain != NULL) {
 		/*
-		 * We found a match. Possibly update the SID
+		 * We found a match on domain->name or
+		 * domain->alt_name. Possibly update the SID
+		 * if the stored SID was the NULL SID
+		 * and return the matching entry.
 		 */
 		if ((sid != NULL)
 		    && dom_sid_equal(&domain->sid, &global_sid_NULL)) {
@@ -196,6 +203,15 @@ static struct winbindd_domain *add_trusted_domain(const char *domain_name, const
 		sid_copy(&domain->sid, sid);
 	}
 
+	/* Is this our primary domain ? */
+	if (strequal(domain_name, get_global_sam_name()) &&
+			(role != ROLE_DOMAIN_MEMBER)) {
+		domain->primary = true;
+	} else if (strequal(domain_name, lp_workgroup()) &&
+			(role == ROLE_DOMAIN_MEMBER)) {
+		domain->primary = true;
+	}
+
 	/* Link to domain list */
 	DLIST_ADD_END(_domain_list, domain, struct winbindd_domain *);
 
@@ -231,6 +247,8 @@ static struct winbindd_domain *add_trusted_domain(const char *domain_name, const
 	}
 
 done:
+
+	setup_domain_child(domain);
 
 	DEBUG(2,("Added domain %s %s %s\n",
 		 domain->name, domain->alt_name,
@@ -305,9 +323,7 @@ static void trustdom_list_done(struct tevent_req *req)
 	while ((p != NULL) && (*p != '\0')) {
 		char *q, *sidstr, *alt_name;
 		struct dom_sid sid;
-		struct winbindd_domain *domain;
 		char *alternate_name = NULL;
-		bool domain_exists;
 
 		alt_name = strchr(p, '\\');
 		if (alt_name == NULL) {
@@ -341,26 +357,16 @@ static void trustdom_list_done(struct tevent_req *req)
 		if ( !strequal( alt_name, "(null)" ) )
 			alternate_name = alt_name;
 
-		/* Check if we already have a child for the domain */
-		domain_exists = (find_domain_from_name_noinit(p) != NULL);
-
 		/*
 		 * We always call add_trusted_domain() cause on an existing
 		 * domain structure, it will update the SID if necessary.
 		 * This is important because we need the SID for sibling
 		 * domains.
 		 */
-		domain = add_trusted_domain(p, alternate_name,
+		(void)add_trusted_domain(p, alternate_name,
 					    &cache_methods,
 					    &sid);
 
-		/*
-		 * If the domain doesn't exist yet and got correctly added,
-		 * setup a new domain child.
-		 */
-		if (!domain_exists && domain != NULL) {
-			setup_domain_child(domain);
-		}
 		p=q;
 		if (p != NULL)
 			p += 1;
@@ -434,9 +440,6 @@ static void rescan_forest_root_trusts( void )
 						dom_list[i].dns_name,
 						&cache_methods,
 						&dom_list[i].sid );
-			if (d != NULL) {
-				setup_domain_child(d);
-			}
 		}
 
 		if (d == NULL) {
@@ -506,9 +509,6 @@ static void rescan_forest_trusts( void )
 							dom_list[i].dns_name,
 							&cache_methods,
 							&dom_list[i].sid );
-				if (d != NULL) {
-					setup_domain_child(d);
-				}
 			}
 
 			if (d == NULL) {
@@ -609,7 +609,6 @@ enum winbindd_result winbindd_dual_init_connection(struct winbindd_domain *domai
 /* Look up global info for the winbind daemon */
 bool init_domain_list(void)
 {
-	struct winbindd_domain *domain;
 	int role = lp_server_role();
 
 	/* Free existing list */
@@ -617,26 +616,18 @@ bool init_domain_list(void)
 
 	/* BUILTIN domain */
 
-	domain = add_trusted_domain("BUILTIN", NULL, &cache_methods,
+	(void)add_trusted_domain("BUILTIN", NULL, &cache_methods,
 				    &global_sid_Builtin);
-	if (domain) {
-		setup_domain_child(domain);
-	}
 
 	/* Local SAM */
 
-	domain = add_trusted_domain(get_global_sam_name(), NULL,
+	(void)add_trusted_domain(get_global_sam_name(), NULL,
 				    &cache_methods, get_global_sam_sid());
-	if (domain) {
-		if ( role != ROLE_DOMAIN_MEMBER ) {
-			domain->primary = True;
-		}
-		setup_domain_child(domain);
-	}
 
 	/* Add ourselves as the first entry. */
 
 	if ( role == ROLE_DOMAIN_MEMBER ) {
+		struct winbindd_domain *domain;
 		struct dom_sid our_sid;
 
 		if (!secrets_fetch_domain_sid(lp_workgroup(), &our_sid)) {
@@ -647,9 +638,6 @@ bool init_domain_list(void)
 		domain = add_trusted_domain( lp_workgroup(), lp_realm(),
 					     &cache_methods, &our_sid);
 		if (domain) {
-			domain->primary = True;
-			setup_domain_child(domain);
-
 			/* Even in the parent winbindd we'll need to
 			   talk to the DC, so try and see if we can
 			   contact it. Theoretically this isn't neccessary

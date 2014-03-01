@@ -19,7 +19,7 @@
 <refsynopsisdiv>
 	<cmdsynopsis>
 		<command>dbwrap_tool</command>
-		<arg choice="opt">--persistent</arg>
+		<arg choice="opt">-p|--persistent</arg>
 		<arg choice="opt">-d &lt;debug level&gt;</arg>
 		<arg choice="opt">-s &lt;config file&gt;</arg>
 		<arg choice="opt">-l &lt;log file base&gt;</arg>
@@ -49,7 +49,7 @@
 		<listitem><para>fetch: fetch a record</para></listitem>
 		<listitem><para>store: create or modify a record</para></listitem>
 		<listitem><para>delete: remove a record</para></listitem>
-		<listitem><para>exists: test for existance of a record</para></listitem>
+		<listitem><para>exists: test for existence of a record</para></listitem>
 		<listitem><para>erase: remove all records</para></listitem>
 		<listitem><para>listkeys: list all available records</para></listitem>
 		<listitem><para>listwatchers: list processes, which are waiting for changes in a record</para></listitem>
@@ -70,14 +70,14 @@
 
 	<variablelist>
 		<varlistentry>
-			<term>--persistent</term>
+			<term>-p|--persistent</term>
 			<listitem><para>Open the database as a persistent database.
 			If this option is not specified, the database is opened as
 			non-persistent.
 			</para></listitem>
 		</varlistentry>
 		&popt.common.samba.client;
-		&stdarg.help;
+		&popt.autohelp;
 	</variablelist>
 </refsect1>
 

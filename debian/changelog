@@ -1,3 +1,12 @@
+samba (2:4.1.6+dfsg-1) unstable; urgency=high
+
+  * New upstream security release. Fixes:
+    - CVE-2013-4496: password lockout not enforced for SAMR password changes
+    - CVE-2013-6442: smbcacls can remove a file or directory ACL by mistake
+  * Backport fix for readline 6.3 from master
+
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Sat, 15 Mar 2014 12:13:59 +0100
+
 samba (2:4.1.5+dfsg-1~zentyal1) UNRELEASED; urgency=low
 
   * New upstream release

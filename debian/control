@@ -597,10 +597,3 @@ Description: Samba winbind client library - development files
  required for building applications against libwbclient, a library for client
  applications that interact via the winbind pipe protocol with a Samba
  winbind server.
-
-Package: samba4
-Section: oldlibs
-Architecture: all
-Depends: samba, ${misc:Depends}
-Description: transitional dummy package
- Transitional package to ensure proper upgrade from old samba4 to samba.

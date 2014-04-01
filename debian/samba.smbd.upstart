@@ -10,12 +10,12 @@ pre-start script
     SERVER_ROLE=`samba-tool testparm --parameter-name="server role"  2>/dev/null | tail -1`
     [ "$SERVER_ROLE" = "active directory domain controller" ] { stop; exit 0; }
 
-	RUN_MODE="daemons"
-	[ -r /etc/default/samba ] && . /etc/default/samba
+    RUN_MODE="daemons"
+    [ -r /etc/default/samba ] && . /etc/default/samba
 
-	[ "$RUN_MODE" = inetd ] && { stop; exit 0; }
+    [ "$RUN_MODE" = inetd ] && { stop; exit 0; }
 
-	install -o root -g root -m 755 -d /var/run/samba
+    install -o root -g root -m 755 -d /var/run/samba
 end script
 
 exec smbd -F

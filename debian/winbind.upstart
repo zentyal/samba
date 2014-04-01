@@ -10,10 +10,10 @@ pre-start script
     SERVER_ROLE=`samba-tool testparm --parameter-name="server role"  2>/dev/null | tail -1`
     [ "$SERVER_ROLE" = "active directory domain controller" ] { stop; exit 0; }
 
-	test -x /usr/sbin/winbindd || exit 0
-	mkdir -p /var/run/samba/winbindd_privileged
-	chgrp winbindd_priv /var/run/samba/winbindd_privileged
-	chmod 0750 /var/run/samba/winbindd_privileged
+    test -x /usr/sbin/winbindd || exit 0
+    mkdir -p /var/run/samba/winbindd_privileged
+    chgrp winbindd_priv /var/run/samba/winbindd_privileged
+    chmod 0750 /var/run/samba/winbindd_privileged
 end script
 
 script

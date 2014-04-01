@@ -9,7 +9,7 @@ respawn
 
 pre-start script
     SERVER_ROLE=`samba-tool testparm --parameter-name="server role"  2>/dev/null | tail -1`
-    [ "$SERVER_ROLE" = "active directory domain controller" ] { stop; exit 0; }
+    [ "$SERVER_ROLE" = "active directory domain controller" ] && { stop; exit 0; }
 
     [ -f /etc/samba/smb.conf ] || { stop; exit 0; }
 

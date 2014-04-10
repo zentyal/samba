@@ -3,6 +3,7 @@ samba (2:3.6.6-6+deb7u3) UNRELEASED; urgency=medium
   * Security update
   * CVE-2012-6150: pam_winbind login without require_membership_of
     restrictions
+  * CVE-2013-4496: Password lockout not enforced for SAMR password changes
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Thu, 10 Apr 2014 21:37:32 +0200
 

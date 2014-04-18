@@ -1,3 +1,9 @@
+samba (2:4.1.7+dfsg-1) UNRELEASED; urgency=medium
+
+  * New upstream release.
+
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Fri, 18 Apr 2014 21:57:36 +0200
+
 samba (2:4.1.6+dfsg-1) unstable; urgency=high
 
   * New upstream security release. Fixes:

@@ -3,6 +3,7 @@ samba (2:4.1.7+dfsg-1) UNRELEASED; urgency=medium
   * New upstream release.
   * Remove readline63.patch, integrated upstream.
   * Add build-dep on libkrb5-dev, no longer pulled in by libcups2-dev.
+  * Don't try to delete Parse/Yapp/Driver.pm, which is no longer installed.
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Fri, 18 Apr 2014 21:57:36 +0200
 

@@ -503,29 +503,13 @@ bool iface_list_same_net(const char *ip1, const char *ip2, const char *netmask)
    return the list of wildcard interfaces
    this will include the IPv4 0.0.0.0, and may include IPv6 ::
 */
-const char **iface_list_wildcard(TALLOC_CTX *mem_ctx, struct loadparm_context *lp_ctx)
+char **iface_list_wildcard(TALLOC_CTX *mem_ctx)
 {
-	const char **ret;
-	ret = (const char **)str_list_make(mem_ctx, "0.0.0.0", NULL);
-	if (ret == NULL) return NULL;
-
+	char **ret;
 #ifdef HAVE_IPV6
-	if (lpcfg_parm_bool(lp_ctx, NULL, "ipv6", "enable", true)) {
-		struct interface *local_interfaces = NULL;
-
-		load_interface_list(ret, lp_ctx, &local_interfaces);
-
-		if (iface_list_first_v6(local_interfaces)) {
-			TALLOC_FREE(local_interfaces);
-			/*
-			 * only add "::" if we have at least
-			 * one ipv6 interface
-			 */
-			return str_list_add(ret, "::");
-		}
-		TALLOC_FREE(local_interfaces);
-	}
+	ret = str_list_make(mem_ctx, "::,0.0.0.0", NULL);
+#else
+	ret = str_list_make(mem_ctx, "0.0.0.0", NULL);
 #endif
-
 	return ret;
 }

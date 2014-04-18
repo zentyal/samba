@@ -28,6 +28,7 @@
 #include "../lib/tsocket/tsocket.h"
 #include "../libcli/security/security.h"
 #include "../lib/util/tevent_ntstatus.h"
+#include "lib/smbd_tevent_queue.h"
 
 static struct tevent_req *smbd_smb2_session_setup_send(TALLOC_CTX *mem_ctx,
 					struct tevent_context *ev,
@@ -751,44 +752,190 @@ static NTSTATUS smbd_smb2_session_setup_recv(struct tevent_req *req,
 	return status;
 }
 
+static struct tevent_req *smbd_smb2_logoff_send(TALLOC_CTX *mem_ctx,
+					struct tevent_context *ev,
+					struct smbd_smb2_request *smb2req);
+static NTSTATUS smbd_smb2_logoff_recv(struct tevent_req *req);
+static void smbd_smb2_request_logoff_done(struct tevent_req *subreq);
+
 NTSTATUS smbd_smb2_request_process_logoff(struct smbd_smb2_request *req)
 {
 	NTSTATUS status;
-	DATA_BLOB outbody;
+	struct tevent_req *subreq = NULL;
 
 	status = smbd_smb2_request_verify_sizes(req, 0x04);
 	if (!NT_STATUS_IS_OK(status)) {
 		return smbd_smb2_request_error(req, status);
 	}
 
+	subreq = smbd_smb2_logoff_send(req, req->sconn->ev_ctx, req);
+	if (subreq == NULL) {
+		return smbd_smb2_request_error(req, NT_STATUS_NO_MEMORY);
+	}
+	tevent_req_set_callback(subreq, smbd_smb2_request_logoff_done, req);
+
 	/*
-	 * TODO: cancel all outstanding requests on the session
+	 * Wait a long time before going async on this to allow
+	 * requests we're waiting on to finish. Set timeout to 10 secs.
 	 */
-	status = smbXsrv_session_logoff(req->session);
+	return smbd_smb2_request_pending_queue(req, subreq, 10000000);
+}
+
+static void smbd_smb2_request_logoff_done(struct tevent_req *subreq)
+{
+	struct smbd_smb2_request *smb2req =
+		tevent_req_callback_data(subreq,
+		struct smbd_smb2_request);
+	DATA_BLOB outbody;
+	NTSTATUS status;
+	NTSTATUS error;
+
+	status = smbd_smb2_logoff_recv(subreq);
+	TALLOC_FREE(subreq);
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0, ("smbd_smb2_request_process_logoff: "
-			  "smbXsrv_session_logoff() failed: %s\n",
-			  nt_errstr(status)));
+		error = smbd_smb2_request_error(smb2req, status);
+		if (!NT_STATUS_IS_OK(error)) {
+			smbd_server_connection_terminate(smb2req->sconn,
+							nt_errstr(error));
+			return;
+		}
+		return;
+	}
+
+	outbody = data_blob_talloc(smb2req->out.vector, NULL, 0x04);
+	if (outbody.data == NULL) {
+		error = smbd_smb2_request_error(smb2req, NT_STATUS_NO_MEMORY);
+		if (!NT_STATUS_IS_OK(error)) {
+			smbd_server_connection_terminate(smb2req->sconn,
+							nt_errstr(error));
+			return;
+		}
+		return;
+	}
+
+	SSVAL(outbody.data, 0x00, 0x04);        /* struct size */
+	SSVAL(outbody.data, 0x02, 0);           /* reserved */
+
+	error = smbd_smb2_request_done(smb2req, outbody, NULL);
+	if (!NT_STATUS_IS_OK(error)) {
+		smbd_server_connection_terminate(smb2req->sconn,
+						nt_errstr(error));
+		return;
+	}
+}
+
+struct smbd_smb2_logout_state {
+	struct smbd_smb2_request *smb2req;
+	struct tevent_queue *wait_queue;
+};
+
+static void smbd_smb2_logoff_wait_done(struct tevent_req *subreq);
+
+static struct tevent_req *smbd_smb2_logoff_send(TALLOC_CTX *mem_ctx,
+					struct tevent_context *ev,
+					struct smbd_smb2_request *smb2req)
+{
+	struct tevent_req *req;
+	struct smbd_smb2_logout_state *state;
+	struct tevent_req *subreq;
+	struct smbd_smb2_request *preq;
+
+	req = tevent_req_create(mem_ctx, &state,
+			struct smbd_smb2_logout_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->smb2req = smb2req;
+
+	state->wait_queue = tevent_queue_create(state, "logoff_wait_queue");
+	if (tevent_req_nomem(state->wait_queue, req)) {
+		return tevent_req_post(req, ev);
+	}
+
+	/*
+	 * Make sure that no new request will be able to use this session.
+	 */
+	smb2req->session->status = NT_STATUS_USER_SESSION_DELETED;
+
+	for (preq = smb2req->sconn->smb2.requests; preq != NULL; preq = preq->next) {
+		if (preq == smb2req) {
+			/* Can't cancel current request. */
+			continue;
+		}
+		if (preq->session != smb2req->session) {
+			/* Request on different session. */
+			continue;
+		}
+
 		/*
-		 * If we hit this case, there is something completely
-		 * wrong, so we better disconnect the transport connection.
+		 * Never cancel anything in a compound
+		 * request. Way too hard to deal with
+		 * the result.
 		 */
-		return status;
+		if (!preq->compound_related && preq->subreq != NULL) {
+			tevent_req_cancel(preq->subreq);
+		}
+
+		/*
+		 * Now wait until the request is finished.
+		 *
+		 * We don't set a callback, as we just want to block the
+		 * wait queue and the talloc_free() of the request will
+		 * remove the item from the wait queue.
+		 */
+		subreq = smbd_tevent_queue_wait_send(preq, ev, state->wait_queue);
+		if (tevent_req_nomem(subreq, req)) {
+			return tevent_req_post(req, ev);
+		}
+	}
+
+	/*
+	 * Now we add our own waiter to the end of the queue,
+	 * this way we get notified when all pending requests are finished
+	 * and send to the socket.
+	 */
+	subreq = smbd_tevent_queue_wait_send(state, ev, state->wait_queue);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, smbd_smb2_logoff_wait_done, req);
+
+	return req;
+}
+
+static void smbd_smb2_logoff_wait_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct smbd_smb2_logout_state *state = tevent_req_data(
+		req, struct smbd_smb2_logout_state);
+	NTSTATUS status;
+
+	smbd_tevent_queue_wait_recv(subreq);
+	TALLOC_FREE(subreq);
+
+	/*
+	 * As we've been awoken, we may have changed
+	 * uid in the meantime. Ensure we're still
+	 * root (SMB2_OP_LOGOFF has .as_root = true).
+	 */
+	change_to_root_user();
+
+	status = smbXsrv_session_logoff(state->smb2req->session);
+	if (tevent_req_nterror(req, status)) {
+		return;
 	}
 
 	/*
 	 * we may need to sign the response, so we need to keep
 	 * the session until the response is sent to the wire.
 	 */
-	talloc_steal(req, req->session);
+	talloc_steal(state->smb2req, state->smb2req->session);
 
-	outbody = data_blob_talloc(req->out.vector, NULL, 0x04);
-	if (outbody.data == NULL) {
-		return smbd_smb2_request_error(req, NT_STATUS_NO_MEMORY);
-	}
+	tevent_req_done(req);
+}
 
-	SSVAL(outbody.data, 0x00, 0x04);	/* struct size */
-	SSVAL(outbody.data, 0x02, 0);		/* reserved */
-
-	return smbd_smb2_request_done(req, outbody, NULL);
+static NTSTATUS smbd_smb2_logoff_recv(struct tevent_req *req)
+{
+	return tevent_req_simple_recv_ntstatus(req);
 }

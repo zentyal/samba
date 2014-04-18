@@ -363,10 +363,19 @@ removeea setea
                         headers='netinet/in.h arpa/nameser.h resolv.h')
 
 
+    # try to find libintl (if --without-gettext is not given)
     conf.env.intl_libs=''
     if not Options.options.disable_gettext:
+        # any extra path given to look at?
+        if not Options.options.gettext_location == 'None':
+           conf.env['CFLAGS'].extend(["-I%s" % Options.options.gettext_location]);
+           conf.env['LDFLAGS'].extend(["-L%s" % Options.options.gettext_location]);
+        else:
+           conf.env['CFLAGS'].extend(["-I/usr/local"]);
+           conf.env['LDFLAGS'].extend(["-L/usr/local"]);
         conf.CHECK_HEADERS('libintl.h')
         conf.CHECK_LIB('intl')
+        conf.CHECK_DECLS('dgettext gettext bindtextdomain textdomain bind_textdomain_codeset', headers="libintl.h")
         # *textdomain functions are not strictly necessary
         conf.CHECK_FUNCS_IN('bindtextdomain textdomain bind_textdomain_codeset',
                             '', checklibc=True, headers='libintl.h')
@@ -385,18 +394,27 @@ removeea setea
         else:
             # Some hosts need lib iconv for linking with lib intl
             # So we try with flags just in case it helps.
-            oldflags = conf.env['EXTRA_LDFLAGS'];
-            conf.env['EXTRA_LDFLAGS'].extend("-liconv")
+            oldflags = list(conf.env['EXTRA_LDFLAGS']);
+            conf.env['EXTRA_LDFLAGS'].extend(["-liconv"])
             conf.CHECK_FUNCS_IN('dgettext gettext bindtextdomain textdomain bind_textdomain_codeset',
                                 'intl', checklibc=False, headers='libintl.h')
             conf.env['EXTRA_LDFLAGS'] = oldflags
             if conf.env['HAVE_GETTEXT'] and conf.env['HAVE_DGETTEXT']:
                 # save for dependency definitions
                 conf.env.intl_libs='iconv intl'
-            else:
-                conf.fatal('library gettext not found, try specifying the path to ' +
-                           'it with --with-gettext=</path/to/gettext> or ' +
-                           '--without-gettext to build without''')
+
+    # did we find both prototypes and a library to link against?
+    # if not, unset the detected values (see Bug #9911)
+    if not (conf.env['HAVE_GETTEXT'] and conf.env['HAVE_DECL_GETTEXT']):
+       conf.undefine('HAVE_GETTEXT')
+       conf.undefine('HAVE_DECL_GETTEXT')
+    if not (conf.env['HAVE_DGETTEXT'] and conf.env['HAVE_DECL_DGETTEXT']):
+       conf.undefine('HAVE_DGETTEXT')
+       conf.undefine('HAVE_DECL_DGETTEXT')
+
+    # did the user insist on gettext (--with-gettext)?
+    if Options.options.gettext_location != 'None' and (not conf.env['HAVE_GETTEXT'] or not conf.env['HAVE_DGETTEXT']):
+        conf.fatal('library gettext not found at specified location')
 
     conf.CHECK_FUNCS_IN('pthread_create', 'pthread', checklibc=True, headers='pthread.h')
 

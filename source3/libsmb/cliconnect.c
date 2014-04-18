@@ -2575,21 +2575,22 @@ static void cli_tcon_andx_done(struct tevent_req *subreq)
 	 * Avoids issues when connecting to Win9x boxes sharing files
 	 */
 
-	cli->dfsroot = false;
-
 	if ((wct > 2) && (smbXcli_conn_protocol(cli->conn) >= PROTOCOL_LANMAN2)) {
 		optional_support = SVAL(vwv+2, 0);
-	}
-
-	if (optional_support & SMB_SHARE_IN_DFS) {
-		cli->dfsroot = true;
 	}
 
 	if (optional_support & SMB_EXTENDED_SIGNATURES) {
 		smb1cli_session_protect_session_key(cli->smb1.session);
 	}
 
-	cli_state_set_tid(cli, SVAL(inhdr, HDR_TID));
+	smb1cli_tcon_set_values(state->cli->smb1.tcon,
+				SVAL(inhdr, HDR_TID),
+				optional_support,
+				0, /* maximal_access */
+				0, /* guest_maximal_access */
+				NULL, /* service */
+				NULL); /* fs_type */
+
 	tevent_req_done(req);
 }
 
@@ -2723,7 +2724,15 @@ static void cli_tree_connect_raw_done(struct tevent_req *subreq)
 	if (tevent_req_nterror(req, status)) {
 		return;
 	}
-	cli_state_set_tid(state->cli, tid);
+
+	smb1cli_tcon_set_values(state->cli->smb1.tcon,
+				tid,
+				0, /* optional_support */
+				0, /* maximal_access */
+				0, /* guest_maximal_access */
+				NULL, /* service */
+				NULL); /* fs_type */
+
 	tevent_req_done(req);
 }
 

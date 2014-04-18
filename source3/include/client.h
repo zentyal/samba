@@ -22,7 +22,7 @@
 #ifndef _CLIENT_H
 #define _CLIENT_H
 
-#define CLI_BUFFER_SIZE (0xFFFF)
+#define CLI_BUFFER_SIZE SMB_BUFFER_SIZE_MAX
 
 /* default client timeout to 20 seconds on most commands */
 #define CLIENT_TIMEOUT (20 * 1000)
@@ -77,7 +77,6 @@ struct cli_state {
 	uint32_t server_posix_capabilities;
 	/* What the client requested. */
 	uint32_t requested_posix_capabilities;
-	bool dfsroot;
 	bool backup_intent;
 
 	/* The list of pipes currently open on this connection. */
@@ -90,8 +89,6 @@ struct cli_state {
 	bool got_kerberos_mechanism; /* Server supports krb5 in SPNEGO. */
 
 	bool use_oplocks; /* should we use oplocks? */
-
-	bool case_sensitive; /* False by default. */
 
 	/* Where (if anywhere) this is mounted under DFS. */
 	char *dfs_mountpoint;

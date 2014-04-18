@@ -1,6 +1,7 @@
 samba (2:4.1.7+dfsg-1) UNRELEASED; urgency=medium
 
   * New upstream release.
+  * Remove readline63.patch, integrated upstream.
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Fri, 18 Apr 2014 21:57:36 +0200
 

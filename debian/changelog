@@ -1,3 +1,10 @@
+samba (2:4.1.7+dfsg-3) UNRELEASED; urgency=medium
+
+  * Remove smbd and nmbd from required-start and required-stop in
+    samba.init. Closes: #739887
+
+ -- Jelmer Vernooij <jelmer@debian.org>  Sun, 20 Apr 2014 22:12:12 +0200
+
 samba (2:4.1.7+dfsg-2) unstable; urgency=medium
 
   * Build-depend on heimdal-dev instead of libkrb5-dev.

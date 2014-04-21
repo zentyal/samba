@@ -208,6 +208,14 @@ enum smb_signing_setting {
 #define NEGOTIATE_SECURITY_SIGNATURES_ENABLED	0x04
 #define NEGOTIATE_SECURITY_SIGNATURES_REQUIRED	0x08
 
+/*
+ * The negotiated buffer size for non LARGE_READX/WRITEX
+ * should be limited to uint16_t and has to be at least
+ * 500, which is the default for MinClientBufferSize on Windows.
+ */
+#define SMB_BUFFER_SIZE_MIN 500
+#define SMB_BUFFER_SIZE_MAX 65535
+
 /* Capabilities.  see ftp.microsoft.com/developr/drg/cifs/cifs/cifs4.txt */
 
 #define CAP_RAW_MODE		0x00000001
@@ -362,6 +370,25 @@ enum csc_policy {
 /* oplock levels sent in oplock break */
 #define OPLOCK_BREAK_TO_NONE     0
 #define OPLOCK_BREAK_TO_LEVEL_II 1
+
+/* Filesystem Attributes. */
+#define FILE_CASE_SENSITIVE_SEARCH      0x00000001
+#define FILE_CASE_PRESERVED_NAMES       0x00000002
+#define FILE_UNICODE_ON_DISK            0x00000004
+/* According to cifs9f, this is 4, not 8 */
+/* Acconding to testing, this actually sets the security attribute! */
+#define FILE_PERSISTENT_ACLS            0x00000008
+#define FILE_FILE_COMPRESSION           0x00000010
+#define FILE_VOLUME_QUOTAS              0x00000020
+#define FILE_SUPPORTS_SPARSE_FILES      0x00000040
+#define FILE_SUPPORTS_REPARSE_POINTS    0x00000080
+#define FILE_SUPPORTS_REMOTE_STORAGE    0x00000100
+#define FS_LFN_APIS                     0x00004000
+#define FILE_VOLUME_IS_COMPRESSED       0x00008000
+#define FILE_SUPPORTS_OBJECT_IDS        0x00010000
+#define FILE_SUPPORTS_ENCRYPTION        0x00020000
+#define FILE_NAMED_STREAMS              0x00040000
+#define FILE_READ_ONLY_VOLUME           0x00080000
 
 
 /* ioctl codes */

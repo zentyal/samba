@@ -1265,6 +1265,7 @@ NTSTATUS cli_qpathinfo_basic_recv(struct tevent_req *req,
 		return status;
 	}
 
+	sbuf->st_ex_btime = interpret_long_date((char *)state->data);
 	sbuf->st_ex_atime = interpret_long_date((char *)state->data+8);
 	sbuf->st_ex_mtime = interpret_long_date((char *)state->data+16);
 	sbuf->st_ex_ctime = interpret_long_date((char *)state->data+24);
@@ -1359,6 +1360,115 @@ NTSTATUS cli_qpathinfo_alt_name(struct cli_state *cli, const char *fname, fstrin
 
 	TALLOC_FREE(converted);
 	TALLOC_FREE(rdata);
+
+	return NT_STATUS_OK;
+}
+
+/****************************************************************************
+ Send a qpathinfo SMB_QUERY_FILE_STADNDARD_INFO call.
+****************************************************************************/
+
+NTSTATUS cli_qpathinfo_standard(struct cli_state *cli, const char *fname,
+				uint64_t *allocated, uint64_t *size,
+				uint32_t *nlinks,
+				bool *is_del_pending, bool *is_dir)
+{
+	uint8_t *rdata;
+	uint32_t num_rdata;
+	NTSTATUS status;
+
+	if (smbXcli_conn_protocol(cli->conn) >= PROTOCOL_SMB2_02) {
+		return NT_STATUS_NOT_IMPLEMENTED;
+	}
+
+	status = cli_qpathinfo(talloc_tos(), cli, fname,
+			       SMB_QUERY_FILE_STANDARD_INFO,
+			       24, CLI_BUFFER_SIZE, &rdata, &num_rdata);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	if (allocated) {
+		*allocated = BVAL(rdata, 0);
+	}
+
+	if (size) {
+		*size = BVAL(rdata, 8);
+	}
+
+	if (nlinks) {
+		*nlinks = IVAL(rdata, 16);
+	}
+
+	if (is_del_pending) {
+		*is_del_pending = CVAL(rdata, 20);
+	}
+
+	if (is_dir) {
+		*is_dir = CVAL(rdata, 20);
+	}
+
+	TALLOC_FREE(rdata);
+
+	return NT_STATUS_OK;
+}
+
+
+/* like cli_qpathinfo2 but do not use SMB_QUERY_FILE_ALL_INFO with smb1 */
+NTSTATUS cli_qpathinfo3(struct cli_state *cli, const char *fname,
+			struct timespec *create_time,
+			struct timespec *access_time,
+			struct timespec *write_time,
+			struct timespec *change_time,
+			off_t *size, uint16 *mode,
+			SMB_INO_T *ino)
+{
+	NTSTATUS status = NT_STATUS_OK;
+	SMB_STRUCT_STAT st;
+	uint32_t attr;
+	uint64_t pos;
+
+	if (smbXcli_conn_protocol(cli->conn) >= PROTOCOL_SMB2_02) {
+		return cli_qpathinfo2(cli, fname,
+				      create_time, access_time, write_time, change_time,
+				      size, mode, ino);
+	}
+
+	if (create_time || access_time || write_time || change_time || mode) {
+		status = cli_qpathinfo_basic(cli, fname, &st, &attr);
+		if (!NT_STATUS_IS_OK(status)) {
+			return status;
+		}
+	}
+
+	if (size) {
+		status = cli_qpathinfo_standard(cli, fname,
+						NULL, &pos, NULL, NULL, NULL);
+		if (!NT_STATUS_IS_OK(status)) {
+			return status;
+		}
+
+		*size = pos;
+	}
+
+	if (create_time) {
+		*create_time = st.st_ex_btime;
+	}
+	if (access_time) {
+		*access_time = st.st_ex_atime;
+	}
+	if (write_time) {
+		*write_time = st.st_ex_mtime;
+	}
+	if (change_time) {
+		*change_time = st.st_ex_ctime;
+	}
+	if (mode) {
+		*mode = attr;
+	}
+	if (ino) {
+		*ino = 0;
+	}
 
 	return NT_STATUS_OK;
 }

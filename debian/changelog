@@ -1,3 +1,27 @@
+samba (3:4.1.7+dfsg-2~zentyal1) trusty; urgency=low
+
+  * New upstream release
+
+ -- Samuel Cabrero <scabrero@zentyal.com>  Mon, 21 Apr 2014 08:44:52 +0200
+
+samba (2:4.1.7+dfsg-2) unstable; urgency=medium
+
+  * Build-depend on heimdal-dev instead of libkrb5-dev.
+  * Add versioned build-dep on libgmp10 for now, which should be pulled in by
+    libhogweed2, to be able to build in outdated build environments (like on
+    most buildds). This is a workaround for #745233.
+
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Sun, 20 Apr 2014 13:44:39 +0200
+
+samba (2:4.1.7+dfsg-1) unstable; urgency=medium
+
+  * New upstream release.
+  * Remove readline63.patch, integrated upstream.
+  * Add build-dep on libkrb5-dev, no longer pulled in by libcups2-dev.
+  * Don't try to delete Parse/Yapp/Driver.pm, which is no longer installed.
+
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Sat, 19 Apr 2014 13:39:09 +0200
+
 samba (3:4.1.6+dfsg-1~zentyal2) trusty; urgency=low
 
   * Trusty build

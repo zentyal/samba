@@ -558,11 +558,24 @@ SMBC_getatr(SMBCCTX * context,
 		return True;
         }
 
+	srv->no_pathinfo2 = True;
+
+	if (!srv->no_pathinfo3 &&
+            NT_STATUS_IS_OK(cli_qpathinfo3(targetcli, targetpath,
+                           create_time_ts,
+                           access_time_ts,
+                           write_time_ts,
+                           change_time_ts,
+			   size, mode, ino))) {
+		TALLOC_FREE(frame);
+		return True;
+        }
+
+	srv->no_pathinfo3 = True;
+
 	/* if this is NT then don't bother with the getatr */
 	if (smb1cli_conn_capabilities(targetcli->conn) & CAP_NT_SMBS) {
-                errno = EPERM;
-		TALLOC_FREE(frame);
-                return False;
+		goto all_failed;
         }
 
 	if (NT_STATUS_IS_OK(cli_getatr(targetcli, targetpath, mode, size, &write_time))) {
@@ -581,10 +594,16 @@ SMBC_getatr(SMBCCTX * context,
                 if (change_time_ts != NULL) {
                         *change_time_ts = w_time_ts;
                 }
-		srv->no_pathinfo2 = True;
+		if (ino) {
+			*ino = 0;
+		}
 		TALLOC_FREE(frame);
 		return True;
 	}
+
+all_failed:
+	srv->no_pathinfo2 = False;
+	srv->no_pathinfo3 = False;
 
         errno = EPERM;
 	TALLOC_FREE(frame);

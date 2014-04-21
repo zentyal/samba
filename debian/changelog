@@ -1,3 +1,9 @@
+samba4 (4.1.7-zentyal1) precise; urgency=low
+
+  * New upstream release
+
+ -- Samuel Cabrero <scabrero@zentyal.com>  Mon, 21 Apr 2014 10:36:46 +0200
+
 samba4 (4.1.5-zentyal1) precise; urgency=low
 
   * New upstream release

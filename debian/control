@@ -28,8 +28,6 @@ Build-Depends: bison,
                libcap-dev [linux-any],
                libctdb-dev (>= 2),
                libcups2-dev,
-# workaround for #745233 and outdated buildd-chroots
-               libgmp10 (>= 2:6.0.0),
                libgnutls-dev,
                libheimntlm0-heimdal (>= 1.6~),
                libldap2-dev,

@@ -1,7 +1,11 @@
 samba (2:4.1.7+dfsg-3) UNRELEASED; urgency=medium
 
+  [ Jelmer Vernooij ]
   * Remove smbd and nmbd from required-start and required-stop in
     samba.init. Closes: #739887
+
+  [ Ivo De Decker ]
+  * Remove workaround for #745233.
 
  -- Jelmer Vernooij <jelmer@debian.org>  Sun, 20 Apr 2014 22:12:12 +0200
 

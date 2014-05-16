@@ -3,6 +3,8 @@ samba (2:4.1.7+dfsg-2~bpo70+1) UNRELEASED; urgency=medium
   * Rebuild for wheezy-backports.
   * Revert workaround for #745233. It's not relevant for backports, and the
     newer version of libgmp isn't in wheezy.
+  * Remove build-dep on heimdal-dev, as libcups2-dev depends on libkrb5-dev in
+    wheezy, which conflicts with heimdal-dev.
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Fri, 16 May 2014 14:42:03 +0200
 

@@ -91,9 +91,6 @@ override_dh_auto_test:
 override_dh_install:
 	# get list of files in build log
 	find ${DESTDIR}
-	# Alternatives are used
-	# Already provided by libparse-yapp-perl
-	rm $(DESTDIR)/usr/share/perl5/Parse/Yapp/Driver.pm
 	# MIT plugin not required, we are using Heimdal
 	rm $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/mit_samba.so
 	# Included in python-tevent

@@ -234,7 +234,7 @@ static NTSTATUS do_connect(TALLOC_CTX *ctx,
 	   here before trying to connect to the original share.
 	   cli_check_msdfs_proxy() will fail if it is a normal share. */
 
-	if ((smb1cli_conn_capabilities(c->conn) & CAP_DFS) &&
+	if (smbXcli_conn_dfs_supported(c->conn) &&
 			cli_check_msdfs_proxy(ctx, c, sharename,
 				&newserver, &newshare,
 				force_encrypt,
@@ -622,7 +622,7 @@ static bool cli_dfs_check_error(struct cli_state *cli, NTSTATUS expected,
 {
 	/* only deal with DS when we negotiated NT_STATUS codes and UNICODE */
 
-	if (!(smb1cli_conn_capabilities(cli->conn) & CAP_UNICODE)) {
+	if (!(smbXcli_conn_use_unicode(cli->conn))) {
 		return false;
 	}
 	if (!(smb1cli_conn_capabilities(cli->conn) & CAP_STATUS32)) {
@@ -645,9 +645,7 @@ NTSTATUS cli_dfs_get_referral(TALLOC_CTX *ctx,
 			size_t *num_refs,
 			size_t *consumed)
 {
-	unsigned int data_len = 0;
 	unsigned int param_len = 0;
-	uint16_t setup[1];
 	uint16_t recv_flags2;
 	uint8_t *param = NULL;
 	uint8_t *rdata = NULL;
@@ -663,8 +661,6 @@ NTSTATUS cli_dfs_get_referral(TALLOC_CTX *ctx,
 
 	*num_refs = 0;
 	*refs = NULL;
-
-	SSVAL(setup, 0, TRANSACT2_GET_DFS_REFERRAL);
 
 	param = talloc_array(talloc_tos(), uint8_t, 2);
 	if (!param) {
@@ -683,20 +679,63 @@ NTSTATUS cli_dfs_get_referral(TALLOC_CTX *ctx,
 	param_len = talloc_get_size(param);
 	path_ucs = (smb_ucs2_t *)&param[2];
 
-	status = cli_trans(talloc_tos(), cli, SMBtrans2,
-			   NULL, 0xffff, 0, 0,
-			   setup, 1, 0,
-			   param, param_len, 2,
-			   NULL, 0, CLI_BUFFER_SIZE,
-			   &recv_flags2,
-			   NULL, 0, NULL, /* rsetup */
-			   NULL, 0, NULL,
-			   &rdata, 4, &data_len);
-	if (!NT_STATUS_IS_OK(status)) {
-		goto out;
-	}
+	if (smbXcli_conn_protocol(cli->conn) >= PROTOCOL_SMB2_02) {
+		DATA_BLOB in_input_buffer;
+		DATA_BLOB in_output_buffer = data_blob_null;
+		DATA_BLOB out_input_buffer = data_blob_null;
+		DATA_BLOB out_output_buffer = data_blob_null;
 
-	endp = (char *)rdata + data_len;
+		in_input_buffer.data = param;
+		in_input_buffer.length = param_len;
+
+		status = smb2cli_ioctl(cli->conn,
+				       cli->timeout,
+				       cli->smb2.session,
+				       cli->smb2.tcon,
+				       UINT64_MAX, /* in_fid_persistent */
+				       UINT64_MAX, /* in_fid_volatile */
+				       FSCTL_DFS_GET_REFERRALS,
+				       0, /* in_max_input_length */
+				       &in_input_buffer,
+				       CLI_BUFFER_SIZE, /* in_max_output_length */
+				       &in_output_buffer,
+				       SMB2_IOCTL_FLAG_IS_FSCTL,
+				       talloc_tos(),
+				       &out_input_buffer,
+				       &out_output_buffer);
+		if (!NT_STATUS_IS_OK(status)) {
+			goto out;
+		}
+
+		if (out_output_buffer.length < 4) {
+			status = NT_STATUS_INVALID_NETWORK_RESPONSE;
+			goto out;
+		}
+
+		recv_flags2 = FLAGS2_UNICODE_STRINGS;
+		rdata = out_output_buffer.data;
+		endp = (char *)rdata + out_output_buffer.length;
+	} else {
+		unsigned int data_len = 0;
+		uint16_t setup[1];
+
+		SSVAL(setup, 0, TRANSACT2_GET_DFS_REFERRAL);
+
+		status = cli_trans(talloc_tos(), cli, SMBtrans2,
+				   NULL, 0xffff, 0, 0,
+				   setup, 1, 0,
+				   param, param_len, 2,
+				   NULL, 0, CLI_BUFFER_SIZE,
+				   &recv_flags2,
+				   NULL, 0, NULL, /* rsetup */
+				   NULL, 0, NULL,
+				   &rdata, 4, &data_len);
+		if (!NT_STATUS_IS_OK(status)) {
+			goto out;
+		}
+
+		endp = (char *)rdata + data_len;
+	}
 
 	consumed_ucs  = SVAL(rdata, 0);
 	num_referrals = SVAL(rdata, 2);
@@ -822,6 +861,8 @@ NTSTATUS cli_resolve_path(TALLOC_CTX *ctx,
 	SMB_STRUCT_STAT sbuf;
 	uint32 attributes;
 	NTSTATUS status;
+	struct smbXcli_tcon *root_tcon = NULL;
+	struct smbXcli_tcon *target_tcon = NULL;
 
 	if ( !rootcli || !path || !targetcli ) {
 		return NT_STATUS_INVALID_PARAMETER;
@@ -829,7 +870,13 @@ NTSTATUS cli_resolve_path(TALLOC_CTX *ctx,
 
 	/* Don't do anything if this is not a DFS root. */
 
-	if ( !rootcli->dfsroot) {
+	if (smbXcli_conn_protocol(rootcli->conn) >= PROTOCOL_SMB2_02) {
+		root_tcon = rootcli->smb2.tcon;
+	} else {
+		root_tcon = rootcli->smb1.tcon;
+	}
+
+	if (!smbXcli_tcon_is_dfs_share(root_tcon)) {
 		*targetcli = rootcli;
 		*pp_targetpath = talloc_strdup(ctx, path);
 		if (!*pp_targetpath) {
@@ -1029,8 +1076,14 @@ NTSTATUS cli_resolve_path(TALLOC_CTX *ctx,
 
   done:
 
+	if (smbXcli_conn_protocol((*targetcli)->conn) >= PROTOCOL_SMB2_02) {
+		target_tcon = (*targetcli)->smb2.tcon;
+	} else {
+		target_tcon = (*targetcli)->smb1.tcon;
+	}
+
 	/* If returning true ensure we return a dfs root full path. */
-	if ((*targetcli)->dfsroot) {
+	if (smbXcli_tcon_is_dfs_share(target_tcon)) {
 		dfs_path = talloc_strdup(ctx, *pp_targetpath);
 		if (!dfs_path) {
 			return NT_STATUS_NO_MEMORY;

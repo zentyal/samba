@@ -167,6 +167,9 @@ struct smbXcli_session {
 };
 
 struct smbXcli_tcon {
+	bool is_smb1;
+	uint32_t fs_attributes;
+
 	struct {
 		uint16_t tcon_id;
 		uint16_t optional_support;
@@ -1269,6 +1272,19 @@ struct tevent_req *smb1cli_req_create(TALLOC_CTX *mem_ctx,
 
 	if (tcon) {
 		tid = tcon->smb1.tcon_id;
+
+		if (tcon->fs_attributes & FILE_CASE_SENSITIVE_SEARCH) {
+			clear_flags |= FLAG_CASELESS_PATHNAMES;
+		} else {
+			/* Default setting, case insensitive. */
+			additional_flags |= FLAG_CASELESS_PATHNAMES;
+		}
+
+		if (smbXcli_conn_dfs_supported(conn) &&
+		    smbXcli_tcon_is_dfs_share(tcon))
+		{
+			additional_flags2 |= FLAGS2_DFS_PATHNAMES;
+		}
 	}
 
 	state->smb1.recv_cmd = 0xFF;
@@ -2458,6 +2474,15 @@ bool smbXcli_conn_has_async_calls(struct smbXcli_conn *conn)
 {
 	return ((tevent_queue_length(conn->outgoing) != 0)
 		|| (talloc_array_length(conn->pending) != 0));
+}
+
+bool smbXcli_conn_dfs_supported(struct smbXcli_conn *conn)
+{
+	if (conn->protocol >= PROTOCOL_SMB2_02) {
+		return (smb2cli_conn_server_capabilities(conn) & SMB2_CAP_DFS);
+	}
+
+	return (smb1cli_conn_capabilities(conn) & CAP_DFS);
 }
 
 bool smb2cli_conn_req_possible(struct smbXcli_conn *conn, uint32_t *max_dyn_len)
@@ -5014,6 +5039,38 @@ struct smbXcli_tcon *smbXcli_tcon_create(TALLOC_CTX *mem_ctx)
 	return tcon;
 }
 
+void smbXcli_tcon_set_fs_attributes(struct smbXcli_tcon *tcon,
+				    uint32_t fs_attributes)
+{
+	tcon->fs_attributes = fs_attributes;
+}
+
+uint32_t smbXcli_tcon_get_fs_attributes(struct smbXcli_tcon *tcon)
+{
+	return tcon->fs_attributes;
+}
+
+bool smbXcli_tcon_is_dfs_share(struct smbXcli_tcon *tcon)
+{
+	if (tcon == NULL) {
+		return false;
+	}
+
+	if (tcon->is_smb1) {
+		if (tcon->smb1.optional_support & SMB_SHARE_IN_DFS) {
+			return true;
+		}
+
+		return false;
+	}
+
+	if (tcon->smb2.capabilities & SMB2_SHARE_CAP_DFS) {
+		return true;
+	}
+
+	return false;
+}
+
 uint16_t smb1cli_tcon_current_id(struct smbXcli_tcon *tcon)
 {
 	return tcon->smb1.tcon_id;
@@ -5021,6 +5078,7 @@ uint16_t smb1cli_tcon_current_id(struct smbXcli_tcon *tcon)
 
 void smb1cli_tcon_set_id(struct smbXcli_tcon *tcon, uint16_t tcon_id)
 {
+	tcon->is_smb1 = true;
 	tcon->smb1.tcon_id = tcon_id;
 }
 
@@ -5032,6 +5090,8 @@ bool smb1cli_tcon_set_values(struct smbXcli_tcon *tcon,
 			     const char *service,
 			     const char *fs_type)
 {
+	tcon->is_smb1 = true;
+	tcon->fs_attributes = 0;
 	tcon->smb1.tcon_id = tcon_id;
 	tcon->smb1.optional_support = optional_support;
 	tcon->smb1.maximal_access = maximal_access;
@@ -5070,6 +5130,8 @@ void smb2cli_tcon_set_values(struct smbXcli_tcon *tcon,
 			     uint32_t capabilities,
 			     uint32_t maximal_access)
 {
+	tcon->is_smb1 = false;
+	tcon->fs_attributes = 0;
 	tcon->smb2.tcon_id = tcon_id;
 	tcon->smb2.type = type;
 	tcon->smb2.flags = flags;

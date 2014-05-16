@@ -1561,24 +1561,16 @@ static bool process_request_pdu(struct pipes_struct *p, struct ncacn_packet *pkt
 		}
 	}
 
-	if (pkt->pfc_flags & DCERPC_PFC_FLAG_LAST) {
-		bool ret = False;
-		/*
-		 * Ok - we finally have a complete RPC stream.
-		 * Call the rpc command to process it.
-		 */
-
-		/*
-		 * Process the complete data stream here.
-		 */
-		if (pipe_init_outgoing_data(p)) {
-			ret = api_pipe_request(p, pkt);
-		}
-
-		return ret;
+	if (!(pkt->pfc_flags & DCERPC_PFC_FLAG_LAST)) {
+		return true;
 	}
 
-	return True;
+	/*
+	 * Ok - we finally have a complete RPC stream.
+	 * Call the rpc command to process it.
+	 */
+
+	return api_pipe_request(p, pkt);
 }
 
 /****************************************************************************
@@ -1626,6 +1618,10 @@ void process_complete_pdu(struct pipes_struct *p)
 
 	DEBUG(10, ("Processing packet type %u\n", (unsigned int)pkt->ptype));
 
+	if (!pipe_init_outgoing_data(p)) {
+		goto done;
+	}
+
 	switch (pkt->ptype) {
 	case DCERPC_PKT_REQUEST:
 		reply = process_request_pdu(p, pkt);
@@ -1658,9 +1654,7 @@ void process_complete_pdu(struct pipes_struct *p)
 		/*
 		 * We assume that a pipe bind is only in one pdu.
 		 */
-		if (pipe_init_outgoing_data(p)) {
-			reply = api_pipe_bind_req(p, pkt);
-		}
+		reply = api_pipe_bind_req(p, pkt);
 		break;
 
 	case DCERPC_PKT_BIND_ACK:
@@ -1675,9 +1669,7 @@ void process_complete_pdu(struct pipes_struct *p)
 		/*
 		 * We assume that a pipe bind is only in one pdu.
 		 */
-		if (pipe_init_outgoing_data(p)) {
-			reply = api_pipe_alter_context(p, pkt);
-		}
+		reply = api_pipe_alter_context(p, pkt);
 		break;
 
 	case DCERPC_PKT_ALTER_RESP:
@@ -1689,9 +1681,7 @@ void process_complete_pdu(struct pipes_struct *p)
 		/*
 		 * The third packet in an auth exchange.
 		 */
-		if (pipe_init_outgoing_data(p)) {
-			reply = api_pipe_bind_auth3(p, pkt);
-		}
+		reply = api_pipe_bind_auth3(p, pkt);
 		break;
 
 	case DCERPC_PKT_SHUTDOWN:

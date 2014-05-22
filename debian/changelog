@@ -1,13 +1,8 @@
-samba4 (4.1.7-zentyal2) precise; urgency=medium
-
-  * Fix for recycle bin permissions:
-    - Inherit NT acl from parent folder for created directories
-
- -- Samuel Cabrero <scabrero@zentyal.com>  Wed, 21 May 2014 16:49:05 +0200
-
 samba4 (4.1.7-zentyal1) precise; urgency=low
 
   * New upstream release
+  * Fix for recycle bin permissions:
+    - Inherit NT acl from parent folder for created directories
 
  -- Samuel Cabrero <scabrero@zentyal.com>  Mon, 21 Apr 2014 10:36:46 +0200
 

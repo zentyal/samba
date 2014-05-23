@@ -1,3 +1,9 @@
+samba (3:4.1.7+dfsg-2~zentyal2) trusty; urgency=medium
+
+  * Add patch for recyclebin permissions
+
+ -- Samuel Cabrero <scabrero@zentyal.com>  Fri, 23 May 2014 11:28:33 +0200
+
 samba (3:4.1.7+dfsg-2~zentyal1) trusty; urgency=low
 
   * New upstream release

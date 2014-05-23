@@ -1,0 +1,337 @@
+Index: samba/source3/modules/vfs_recycle.c
+===================================================================
+--- samba.orig/source3/modules/vfs_recycle.c	2014-05-21 17:24:30.599077758 +0200
++++ samba/source3/modules/vfs_recycle.c	2014-05-22 01:25:23.198303532 +0200
+@@ -26,6 +26,11 @@
+ #include "smbd/smbd.h"
+ #include "system/filesys.h"
+ #include "../librpc/gen_ndr/ndr_netlogon.h"
++#include <../../libcli/security/secdesc.h>
++#include <../../libcli/security/security_token.h>
++#include <../../libcli/security/dom_sid.h>
++#include "idmap.h"
++#include "lookup_sid.h"
+ #include "auth.h"
+ 
+ #define ALLOC_CHECK(ptr, label) do { if ((ptr) == NULL) { DEBUG(0, ("recycle.bin: out of memory!\n")); errno = ENOMEM; goto label; } } while(0)
+@@ -167,6 +172,16 @@
+ 	return (mode_t)dirmode;
+ }
+ 
++static bool recycle_inherit_nt_acl_enabled(vfs_handle_struct *handle)
++{
++	bool inherit;
++
++	inherit = lp_parm_bool(SNUM(handle->conn), "recycle", "inherit_nt_acl", false);
++
++	DEBUG(10, ("recycle: inherit_nt_acl = %s\n", inherit ? "true" : "false"));
++	return inherit;
++}
++
+ static mode_t recycle_subdir_mode(vfs_handle_struct *handle)
+ {
+ 	int dirmode;
+@@ -249,6 +264,261 @@
+ 	return size;
+ }
+ 
++static NTSTATUS recycle_inherit_nt_acl(vfs_handle_struct *handle,
++		const char *parent_dir, const char *dir)
++{
++	NTSTATUS status;
++	TALLOC_CTX *frame = talloc_stackframe();
++	struct security_descriptor *parent_desc = NULL;
++	struct security_descriptor *psd = NULL;
++	bool inheritable_components = false;
++	bool inherit_owner = lp_inherit_owner(SNUM(handle->conn));
++	struct security_token *token = handle->conn->session_info->security_token;
++	const struct dom_sid *owner_sid = NULL;
++	const struct dom_sid *group_sid = NULL;
++	bool try_builtin_administrators = false;
++	const struct dom_sid *BA_U_sid = NULL;
++	const struct dom_sid *BA_G_sid = NULL;
++	bool try_system = false;
++	const struct dom_sid *SY_U_sid = NULL;
++	const struct dom_sid *SY_G_sid = NULL;
++	uint32_t security_info_sent = (SECINFO_OWNER | SECINFO_GROUP | SECINFO_DACL);
++	size_t size = 0;
++	files_struct *fsp;
++	struct smb_filename *smb_fname = NULL;
++	int flags, ret;
++	mode_t mode;
++
++	/* Generate files_struct for dir */
++	mode = 00400;
++
++	fsp = talloc_zero(frame, struct files_struct);
++	if (fsp == NULL) {
++		TALLOC_FREE(frame);
++		return NT_STATUS_NO_MEMORY;
++	}
++	fsp->fh = talloc_zero(fsp, struct fd_handle);
++	if (fsp->fh == NULL) {
++		TALLOC_FREE(frame);
++		return NT_STATUS_NO_MEMORY;
++	}
++	fsp->conn = handle->conn;
++	smb_fname = synthetic_smb_fname_split(frame, dir, NULL);
++	if (smb_fname == NULL) {
++		TALLOC_FREE(frame);
++		return NT_STATUS_NO_MEMORY;
++	}
++	fsp->fsp_name = smb_fname;
++#ifdef O_DIRECTORY
++	flags = O_RDONLY|O_DIRECTORY;
++#else
++	/* POSIX allows us to open a directory with O_RDONLY. */
++	flags = O_RDONLY;
++#endif
++	fsp->fh->fd = SMB_VFS_OPEN(handle->conn, smb_fname, fsp, O_RDWR, mode);
++	if (fsp->fh->fd == -1 && errno == EISDIR) {
++		fsp->fh->fd = SMB_VFS_OPEN(handle->conn, smb_fname, fsp, flags, mode);
++	}
++	if (fsp->fh->fd == -1) {
++		DEBUG(1, ("recycle: Opening created directory, error=%d (%s)\n", errno, strerror(errno)));
++		TALLOC_FREE(frame);
++		return NT_STATUS_UNSUCCESSFUL;
++	}
++	ret = SMB_VFS_FSTAT(fsp, &smb_fname->st);
++	if (ret == -1) {
++		/* If we have an fd, this stat should succeed. */
++		DEBUG(1, ("recycle: Error doing fstat on open file %s (%s)\n",
++				 smb_fname_str_dbg(smb_fname),
++				 strerror(errno)));
++		status = map_nt_error_from_unix(errno);
++	} else {
++		status = NT_STATUS_OK;
++	}
++	if (!NT_STATUS_IS_OK(status)) {
++		goto out;
++	}
++	fsp->file_id = vfs_file_id_from_sbuf(handle->conn, &smb_fname->st);
++	fsp->vuid = UID_FIELD_INVALID;
++	fsp->file_pid = 0;
++	fsp->can_lock = True;
++	fsp->can_read = True;
++	fsp->can_write = True;
++	fsp->print_file = NULL;
++	fsp->modified = False;
++	fsp->sent_oplock_break = NO_BREAK_SENT;
++	fsp->is_directory = S_ISDIR(smb_fname->st.st_ex_mode);
++
++	/* Get NT ACL from parent */
++	status = SMB_VFS_GET_NT_ACL(handle->conn,
++					    parent_dir,
++					    security_info_sent,
++					    frame,
++					    &parent_desc);
++	if (!NT_STATUS_IS_OK(status)) {
++		TALLOC_FREE(frame);
++		return status;
++	}
++
++	inheritable_components = sd_has_inheritable_components(parent_desc, fsp->is_directory);
++	if (!inheritable_components && !inherit_owner) {
++		TALLOC_FREE(frame);
++		/* Nothing to inherit and not setting owner. */
++		return NT_STATUS_OK;
++	}
++
++	/* Create an inherited descriptor from the parent. */
++//	if (DEBUGLEVEL >= 10) {
++//		DEBUG(10,("inherit_new_acl: parent acl for %s is:\n",
++//			fsp_str_dbg(fsp) ));
++//		NDR_PRINT_DEBUG(security_descriptor, parent_desc);
++//	}
++
++	/* Inherit from parent descriptor if "inherit owner" set. */
++	if (inherit_owner) {
++		owner_sid = parent_desc->owner_sid;
++		group_sid = parent_desc->group_sid;
++	}
++
++	if (owner_sid == NULL) {
++		if (security_token_has_builtin_administrators(token)) {
++			try_builtin_administrators = true;
++		} else if (security_token_is_system(token)) {
++			try_builtin_administrators = true;
++			try_system = true;
++		}
++	}
++
++	if (group_sid == NULL && token->num_sids == PRIMARY_GROUP_SID_INDEX) {
++		if (security_token_is_system(token)) {
++			try_builtin_administrators = true;
++			try_system = true;
++		}
++	}
++
++	if (try_builtin_administrators) {
++		struct unixid ids;
++		bool ok;
++
++		ZERO_STRUCT(ids);
++		ok = sids_to_unixids(&global_sid_Builtin_Administrators, 1, &ids);
++		if (ok) {
++			switch (ids.type) {
++			case ID_TYPE_BOTH:
++				BA_U_sid = &global_sid_Builtin_Administrators;
++				BA_G_sid = &global_sid_Builtin_Administrators;
++				break;
++			case ID_TYPE_UID:
++				BA_U_sid = &global_sid_Builtin_Administrators;
++				break;
++			case ID_TYPE_GID:
++				BA_G_sid = &global_sid_Builtin_Administrators;
++				break;
++			default:
++				break;
++			}
++		}
++	}
++
++	if (try_system) {
++		struct unixid ids;
++		bool ok;
++
++		ZERO_STRUCT(ids);
++		ok = sids_to_unixids(&global_sid_System, 1, &ids);
++		if (ok) {
++			switch (ids.type) {
++			case ID_TYPE_BOTH:
++				SY_U_sid = &global_sid_System;
++				SY_G_sid = &global_sid_System;
++				break;
++			case ID_TYPE_UID:
++				SY_U_sid = &global_sid_System;
++				break;
++			case ID_TYPE_GID:
++				SY_G_sid = &global_sid_System;
++				break;
++			default:
++				break;
++			}
++		}
++	}
++
++	if (owner_sid == NULL) {
++		owner_sid = BA_U_sid;
++	}
++
++	if (owner_sid == NULL) {
++		owner_sid = SY_U_sid;
++	}
++
++	if (group_sid == NULL) {
++		group_sid = SY_G_sid;
++	}
++
++	if (try_system && group_sid == NULL) {
++		group_sid = BA_G_sid;
++	}
++
++	if (owner_sid == NULL) {
++		owner_sid = &token->sids[PRIMARY_USER_SID_INDEX];
++	}
++	if (group_sid == NULL) {
++		if (token->num_sids == PRIMARY_GROUP_SID_INDEX) {
++			group_sid = &token->sids[PRIMARY_USER_SID_INDEX];
++		} else {
++			group_sid = &token->sids[PRIMARY_GROUP_SID_INDEX];
++		}
++	}
++
++	status = se_create_child_secdesc(frame,
++			&psd,
++			&size,
++			parent_desc,
++			owner_sid,
++			group_sid,
++			fsp->is_directory);
++	if (!NT_STATUS_IS_OK(status)) {
++		TALLOC_FREE(frame);
++		return status;
++	}
++
++	/* If inheritable_components == false,
++	   se_create_child_secdesc()
++	   creates a security desriptor with a NULL dacl
++	   entry, but with SEC_DESC_DACL_PRESENT. We need
++	   to remove that flag.
++	  */
++	if (!inheritable_components) {
++		security_info_sent &= ~SECINFO_DACL;
++		psd->type &= ~SEC_DESC_DACL_PRESENT;
++	}
++
++//	if (DEBUGLEVEL >= 10) {
++//		DEBUG(10,("inherit_new_acl: child acl for %s is:\n",
++//			fsp_str_dbg(fsp) ));
++//		NDR_PRINT_DEBUG(security_descriptor, psd);
++//	}
++
++	if (inherit_owner) {
++		/* We need to be root to force this. */
++		become_root();
++	}
++	status = SMB_VFS_FSET_NT_ACL(fsp, security_info_sent, psd);
++	if (inherit_owner) {
++		unbecome_root();
++	}
++
++out:
++	ret = SMB_VFS_CLOSE(fsp);
++	if (ret == -1 ) {
++		DEBUG(1, ("recycle: close created directory error=%d (%s)\n", errno, strerror(errno)));
++	}
++
++	TALLOC_FREE(frame);
++
++	return status;
++}
++
+ /**
+  * Create directory tree
+  * @param conn connection
+@@ -263,10 +533,15 @@
+ 	char *tmp_str = NULL;
+ 	char *token;
+ 	char *tok_str;
++	char *parent_dir = NULL;
+ 	bool ret = False;
+ 	char *saveptr;
++	bool inherit_nt_acl;
++	NTSTATUS status;
++	TALLOC_CTX *frame = talloc_stackframe();
+ 
+ 	mode = recycle_directory_mode(handle);
++	inherit_nt_acl = recycle_inherit_nt_acl_enabled(handle);
+ 
+ 	tmp_str = SMB_STRDUP(dname);
+ 	ALLOC_CHECK(tmp_str, done);
+@@ -298,15 +573,25 @@
+ 				ret = False;
+ 				goto done;
+ 			}
++			if (inherit_nt_acl) {
++				DEBUG(5, ("recycle: inherit ACL from %s to %s\n", parent_dir ? parent_dir : ".", new_dir));
++				status = recycle_inherit_nt_acl(handle, parent_dir ? parent_dir : ".", new_dir);
++				if (NT_STATUS_IS_ERR(status)) {
++					DEBUG(1, ("recycle: failed to inherit nt acl for %s from parent %s: %s\n",
++						new_dir, parent_dir, nt_errstr(status)));
++				}
++			}
+ 		}
+ 		if (strlcat(new_dir, "/", len+1) >= len+1) {
+ 			goto done;
+ 		}
++		parent_dir = talloc_asprintf(frame, "%s/%s", parent_dir ? parent_dir : ".", token);
+ 		mode = recycle_subdir_mode(handle);
+ 	}
+ 
+ 	ret = True;
+ done:
++	TALLOC_FREE(frame);
+ 	SAFE_FREE(tmp_str);
+ 	SAFE_FREE(new_dir);
+ 	return ret;

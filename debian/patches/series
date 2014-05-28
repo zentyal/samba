@@ -12,3 +12,4 @@ fix-enable-developer.diff
 45-python-samba-tool-Print-message-on-success-disabling.patch
 46-Add-test-for-guest-access-to-SMB-and-LDAP.patch
 47-Test-guest-access-in-domain-member-environment.patch
+48-Fix-talloc-frames-not-freed-in-order

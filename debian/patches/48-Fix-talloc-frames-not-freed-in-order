@@ -1,0 +1,104 @@
+Index: samba/source3/passdb/pdb_samba_dsdb.c
+===================================================================
+--- samba.orig/source3/passdb/pdb_samba_dsdb.c	2014-05-28 11:40:16.805559882 +0200
++++ samba/source3/passdb/pdb_samba_dsdb.c	2014-05-28 15:51:35.881029161 +0200
+@@ -339,6 +339,7 @@
+ 
+ 	msg = ldb_msg_new(frame);
+ 	if (!msg) {
++		talloc_free(frame);
+ 		return false;
+ 	}
+ 
+@@ -375,6 +376,7 @@
+ 					   pw, strlen(pw),
+ 					   (void *)&pw_utf16.data,
+ 					   &pw_utf16.length)) {
++			talloc_free(frame);
+ 			return LDB_ERR_OPERATIONS_ERROR;
+ 		}
+ 		ret |= ldb_msg_add_value(msg, "clearTextPassword", &pw_utf16, NULL);
+@@ -1010,6 +1012,7 @@
+ 
+ 	status = idmap_xids_to_sids(state->idmap_ctx, tmp_ctx, id_maps);
+ 	if (!NT_STATUS_IS_OK(status)) {
++		talloc_free(tmp_ctx);
+ 		return status;
+ 	}
+ 	status = pdb_samba_dsdb_getgrsid(m, map, *id_map.sid);
+@@ -1508,6 +1511,7 @@
+ 
+ 	if (ldb_transaction_start(state->ldb) != LDB_SUCCESS) {
+ 		DEBUG(0, ("Failed to start transaction in dsdb_add_domain_alias(): %s\n", ldb_errstring(state->ldb)));
++		talloc_free(tmp_ctx);
+ 		return NT_STATUS_INTERNAL_ERROR;
+ 	}
+ 
+@@ -1529,15 +1533,18 @@
+ 		DEBUG(10, ("ldb_delete failed %s\n",
+ 			   ldb_errstring(state->ldb)));
+ 		ldb_transaction_cancel(state->ldb);
++		talloc_free(tmp_ctx);
+ 		return NT_STATUS_LDAP(rc);
+ 	}
+ 
+ 	if (ldb_transaction_commit(state->ldb) != LDB_SUCCESS) {
+ 		DEBUG(0, ("Failed to commit transaction in pdb_samba_dsdb_delete_alias(): %s\n",
+ 			  ldb_errstring(state->ldb)));
++		talloc_free(tmp_ctx);
+ 		return NT_STATUS_INTERNAL_ERROR;
+ 	}
+ 
++	talloc_free(tmp_ctx);
+ 	return NT_STATUS_OK;
+ }
+ 
+@@ -2044,6 +2051,7 @@
+ 
+ 	status = idmap_xids_to_sids(state->idmap_ctx, tmp_ctx, id_maps);
+ 	if (!NT_STATUS_IS_OK(status)) {
++		talloc_free(tmp_ctx);
+ 		return false;
+ 	}
+ 	*sid = *id_map.sid;
+@@ -2072,12 +2080,16 @@
+ 	status = idmap_sids_to_xids(state->idmap_ctx, tmp_ctx, id_maps);
+ 	talloc_free(tmp_ctx);
+ 	if (!NT_STATUS_IS_OK(status)) {
++		talloc_free(tmp_ctx);
+ 		return false;
+ 	}
+ 	if (id_map.xid.type != ID_TYPE_NOT_SPECIFIED) {
+ 		*id = id_map.xid;
++		talloc_free(tmp_ctx);
+ 		return true;
+ 	}
++
++	talloc_free(tmp_ctx);
+ 	return false;
+ }
+ 
+Index: samba/source3/smbd/posix_acls.c
+===================================================================
+--- samba.orig/source3/smbd/posix_acls.c	2014-05-28 11:40:16.841559883 +0200
++++ samba/source3/smbd/posix_acls.c	2014-05-28 15:55:14.506081017 +0200
+@@ -4796,6 +4796,7 @@
+ 	conn = talloc_zero(frame, connection_struct);
+ 	if (conn == NULL) {
+ 		DEBUG(0, ("talloc failed\n"));
++		talloc_free(frame);
+ 		return NULL;
+ 	}
+ 
+Index: samba/source4/torture/libnetapi/libnetapi.c
+===================================================================
+--- samba.orig/source4/torture/libnetapi/libnetapi.c	2014-05-28 11:23:22.833651806 +0200
++++ samba/source4/torture/libnetapi/libnetapi.c	2014-05-28 15:57:12.990304783 +0200
+@@ -35,6 +35,7 @@
+ 
+ 	if (!lp_load(lpcfg_configfile(tctx->lp_ctx), true, false, false, true)) {
+ 		fprintf(stderr, "error loading %s\n", lpcfg_configfile(tctx->lp_ctx));
++		talloc_free(frame);
+ 		return W_ERROR_V(WERR_GENERAL_FAILURE);
+ 	}
+ 

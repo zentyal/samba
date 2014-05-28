@@ -1,8 +1,9 @@
 samba4 (4.0.18-zentyal1) precise; urgency=low
 
   * New upstream release
+  * Include patch for talloc stack frames not freed in order
 
- -- Samuel Cabrero <scabrero@zentyal.com>  Wed, 28 May 2014 11:42:54 +0200
+ -- Samuel Cabrero <scabrero@zentyal.com>  Wed, 28 May 2014 16:12:05 +0200
 
 samba4 (4.0.15-zentyal1) precise; urgency=low
 

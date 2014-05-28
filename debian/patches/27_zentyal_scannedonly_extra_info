@@ -1,5 +1,7 @@
---- a/source3/modules/vfs_scannedonly.c
-+++ b/source3/modules/vfs_scannedonly.c
+Index: samba/source3/modules/vfs_scannedonly.c
+===================================================================
+--- samba.orig/source3/modules/vfs_scannedonly.c	2014-05-28 11:53:55.775994624 +0200
++++ samba/source3/modules/vfs_scannedonly.c	2014-05-28 11:53:55.783990981 +0200
 @@ -311,28 +311,55 @@
  	}
  }

@@ -1,5 +1,7 @@
---- a/source3/modules/vfs_scannedonly.c
-+++ b/source3/modules/vfs_scannedonly.c
+Index: samba/source3/modules/vfs_scannedonly.c
+===================================================================
+--- samba.orig/source3/modules/vfs_scannedonly.c	2014-05-28 11:50:04.000000000 +0200
++++ samba/source3/modules/vfs_scannedonly.c	2014-05-28 11:54:37.042159701 +0200
 @@ -50,6 +50,7 @@
  #include "includes.h"
  #include "smbd/smbd.h"

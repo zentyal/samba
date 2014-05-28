@@ -1,7 +1,7 @@
 Index: samba/source3/modules/zavs_clamav.c
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ samba/source3/modules/zavs_clamav.c	2012-11-27 17:38:27.000000000 +0100
++++ samba/source3/modules/zavs_clamav.c	2014-05-28 11:53:55.728016481 +0200
 @@ -0,0 +1,168 @@
 +/*
 + * Copyright (C) 2012 eBox Technologies S.L.
@@ -174,7 +174,7 @@ Index: samba/source3/modules/zavs_clamav.c
 Index: samba/source3/modules/zavs_filetype.c
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ samba/source3/modules/zavs_filetype.c	2012-11-27 17:40:07.000000000 +0100
++++ samba/source3/modules/zavs_filetype.c	2014-05-28 11:53:55.728016481 +0200
 @@ -0,0 +1,179 @@
 +/*
 + * Copyright (C) 2012 eBox Technologies S.L.
@@ -358,7 +358,7 @@ Index: samba/source3/modules/zavs_filetype.c
 Index: samba/source3/modules/zavs_log.c
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ samba/source3/modules/zavs_log.c	2012-11-27 17:50:42.000000000 +0100
++++ samba/source3/modules/zavs_log.c	2014-05-28 11:53:55.728016481 +0200
 @@ -0,0 +1,102 @@
 +/*
 + * Copyright (C) 2012 eBox Technologies S.L.
@@ -465,7 +465,7 @@ Index: samba/source3/modules/zavs_log.c
 Index: samba/source3/modules/zavs_core.h
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ samba/source3/modules/zavs_core.h	2012-11-26 16:09:53.000000000 +0100
++++ samba/source3/modules/zavs_core.h	2014-05-28 11:54:33.019818671 +0200
 @@ -0,0 +1,12 @@
 +#ifndef __VFS_ZAVS_H__
 +#define __VFS_ZAVS_H__
@@ -482,7 +482,7 @@ Index: samba/source3/modules/zavs_core.h
 Index: samba/source3/modules/zavs_log.h
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ samba/source3/modules/zavs_log.h	2012-11-27 17:37:03.000000000 +0100
++++ samba/source3/modules/zavs_log.h	2014-05-28 11:53:55.728016481 +0200
 @@ -0,0 +1,31 @@
 +#ifndef __VFS_ZAVS_LOG_H__
 +#define __VFS_ZAVS_LOG_H__
@@ -518,7 +518,7 @@ Index: samba/source3/modules/zavs_log.h
 Index: samba/source3/modules/zavs_module.c
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ samba/source3/modules/zavs_module.c	2012-11-27 17:49:21.000000000 +0100
++++ samba/source3/modules/zavs_module.c	2014-05-28 11:53:55.728016481 +0200
 @@ -0,0 +1,91 @@
 +/*
 + * Copyright (C) 2012 eBox Technologies S.L.
@@ -614,7 +614,7 @@ Index: samba/source3/modules/zavs_module.c
 Index: samba/source3/modules/zavs_param.h
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ samba/source3/modules/zavs_param.h	2012-11-26 17:12:33.000000000 +0100
++++ samba/source3/modules/zavs_param.h	2014-05-28 11:53:55.728016481 +0200
 @@ -0,0 +1,78 @@
 +#ifndef __ZAVS_PARAM_H_
 +#define __ZAVS_PARAM_H_
@@ -697,7 +697,7 @@ Index: samba/source3/modules/zavs_param.h
 Index: samba/source3/modules/zavs_fileaccesslog.h
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ samba/source3/modules/zavs_fileaccesslog.h	2012-11-26 17:24:36.000000000 +0100
++++ samba/source3/modules/zavs_fileaccesslog.h	2014-05-28 11:53:55.728016481 +0200
 @@ -0,0 +1,27 @@
 +#ifndef __ZAVS_FILEACCESSLOG_H_
 +#define __ZAVS_FILEACCESSLOG_H_
@@ -729,7 +729,7 @@ Index: samba/source3/modules/zavs_fileaccesslog.h
 Index: samba/source3/modules/zavs_fileaccesslog.c
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ samba/source3/modules/zavs_fileaccesslog.c	2012-11-26 17:24:38.000000000 +0100
++++ samba/source3/modules/zavs_fileaccesslog.c	2014-05-28 11:53:55.728016481 +0200
 @@ -0,0 +1,330 @@
 +/*
 + * Copyright (C) 2012 eBox Technologies S.L.
@@ -1064,7 +1064,7 @@ Index: samba/source3/modules/zavs_fileaccesslog.c
 Index: samba/source3/modules/zavs_quarantine.h
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ samba/source3/modules/zavs_quarantine.h	2012-11-26 19:07:36.000000000 +0100
++++ samba/source3/modules/zavs_quarantine.h	2014-05-28 11:53:55.728016481 +0200
 @@ -0,0 +1,27 @@
 +#ifndef __ZAVS_QUARANTINE_H_
 +#define __ZAVS_QUARANTINE_H_
@@ -1096,7 +1096,7 @@ Index: samba/source3/modules/zavs_quarantine.h
 Index: samba/source3/modules/zavs_quarantine.c
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ samba/source3/modules/zavs_quarantine.c	2012-11-27 17:41:00.000000000 +0100
++++ samba/source3/modules/zavs_quarantine.c	2014-05-28 11:53:55.728016481 +0200
 @@ -0,0 +1,146 @@
 +/*
 + * Copyright (C) 2012 eBox Technologies S.L.
@@ -1247,7 +1247,7 @@ Index: samba/source3/modules/zavs_quarantine.c
 Index: samba/source3/modules/zavs_filetype.h
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ samba/source3/modules/zavs_filetype.h	2012-11-26 17:27:56.000000000 +0100
++++ samba/source3/modules/zavs_filetype.h	2014-05-28 11:53:55.732014659 +0200
 @@ -0,0 +1,17 @@
 +#ifndef __ZAVS_FILETYPE_H_
 +#define __ZAVS_FILETYPE_H_
@@ -1269,7 +1269,7 @@ Index: samba/source3/modules/zavs_filetype.h
 Index: samba/source3/modules/zavs_param.c
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ samba/source3/modules/zavs_param.c	2012-11-27 17:07:58.000000000 +0100
++++ samba/source3/modules/zavs_param.c	2014-05-28 11:53:55.732014659 +0200
 @@ -0,0 +1,100 @@
 +/*
 + * Copyright (C) 2012 eBox Technologies S.L.
@@ -1374,7 +1374,7 @@ Index: samba/source3/modules/zavs_param.c
 Index: samba/source3/modules/zavs_core.c
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ samba/source3/modules/zavs_core.c	2012-11-27 17:49:31.000000000 +0100
++++ samba/source3/modules/zavs_core.c	2014-05-28 11:53:55.732014659 +0200
 @@ -0,0 +1,194 @@
 +/*
 + * Copyright (C) 2012 eBox Technologies S.L.
@@ -1573,7 +1573,7 @@ Index: samba/source3/modules/zavs_core.c
 Index: samba/source3/modules/zavs_clamav.h
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ samba/source3/modules/zavs_clamav.h	2012-11-26 17:21:23.000000000 +0100
++++ samba/source3/modules/zavs_clamav.h	2014-05-28 11:53:55.732014659 +0200
 @@ -0,0 +1,19 @@
 +#ifndef __ZAVS_CLAMAV_H__
 +#define __ZAVS_CLAMAV_H__
@@ -1597,7 +1597,7 @@ Index: samba/source3/modules/zavs_clamav.h
 Index: samba/source3/modules/zavs_fileregexp.h
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ samba/source3/modules/zavs_fileregexp.h	2012-11-26 17:30:26.000000000 +0100
++++ samba/source3/modules/zavs_fileregexp.h	2014-05-28 11:53:55.732014659 +0200
 @@ -0,0 +1,17 @@
 +#ifndef __ZAVS_FILEREGEXP_H_
 +#define __ZAVS_FILEREGEXP_H_
@@ -1619,7 +1619,7 @@ Index: samba/source3/modules/zavs_fileregexp.h
 Index: samba/source3/modules/zavs_fileregexp.c
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ samba/source3/modules/zavs_fileregexp.c	2012-11-27 17:39:25.000000000 +0100
++++ samba/source3/modules/zavs_fileregexp.c	2014-05-28 11:53:55.732014659 +0200
 @@ -0,0 +1,132 @@
 +/*
 + * Copyright (C) 2012 eBox Technologies S.L.

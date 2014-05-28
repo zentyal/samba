@@ -1,5 +1,7 @@
---- a/source3/modules/wscript_build
-+++ b/source3/modules/wscript_build
+Index: samba/source3/modules/wscript_build
+===================================================================
+--- samba.orig/source3/modules/wscript_build	2014-05-28 11:50:04.000000000 +0200
++++ samba/source3/modules/wscript_build	2014-05-28 11:53:55.740011014 +0200
 @@ -50,7 +50,7 @@
  VFS_LINUX_XFS_SGID_SRC = 'vfs_linux_xfs_sgid.c'
  VFS_TIME_AUDIT_SRC = 'vfs_time_audit.c'
@@ -24,8 +26,10 @@
  PERFCOUNT_TEST_SRC = 'perfcount_test.c'
  
  bld.SAMBA3_SUBSYSTEM('perfcount',
---- a/source3/wscript
-+++ b/source3/wscript
+Index: samba/source3/wscript
+===================================================================
+--- samba.orig/source3/wscript	2014-05-28 11:50:04.000000000 +0200
++++ samba/source3/wscript	2014-05-28 11:53:55.740011014 +0200
 @@ -26,6 +26,7 @@
      opt.SAMBA3_ADD_OPTION('swat')
      opt.SAMBA3_ADD_OPTION('ads', default=None) # None means autodetection

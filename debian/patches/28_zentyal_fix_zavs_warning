@@ -1,5 +1,7 @@
---- a/source3/modules/zavs_core.h
-+++ b/source3/modules/zavs_core.h
+Index: samba/source3/modules/zavs_core.h
+===================================================================
+--- samba.orig/source3/modules/zavs_core.h	2014-05-28 11:53:55.728016481 +0200
++++ samba/source3/modules/zavs_core.h	2014-05-28 11:53:55.795985518 +0200
 @@ -7,6 +7,6 @@
  void zavs_close_handler(vfs_handle_struct *handle, files_struct *fsp);
  

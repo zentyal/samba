@@ -1,5 +1,7 @@
---- a/source4/ldap_server/ldap_server.c
-+++ b/source4/ldap_server/ldap_server.c
+Index: samba/source4/ldap_server/ldap_server.c
+===================================================================
+--- samba.orig/source4/ldap_server/ldap_server.c	2014-05-28 11:50:04.000000000 +0200
++++ samba/source4/ldap_server/ldap_server.c	2014-05-28 11:53:55.748007372 +0200
 @@ -886,10 +886,11 @@
    open the ldap server sockets
  */
@@ -34,8 +36,10 @@
  		task_server_terminate(task, "Cannot create ldap "
  				      "privileged ldapi directory", true);
  		return;
---- a/lib/param/param_table.c
-+++ b/lib/param/param_table.c
+Index: samba/lib/param/param_table.c
+===================================================================
+--- samba.orig/lib/param/param_table.c	2014-05-28 11:50:04.000000000 +0200
++++ samba/lib/param/param_table.c	2014-05-28 11:54:42.923762795 +0200
 @@ -1146,6 +1146,15 @@
  		.enum_list	= NULL,
  		.flags		= FLAG_ADVANCED | FLAG_GLOBAL,
@@ -52,15 +56,19 @@
  
  
  	{N_("Logging Options"), P_SEP, P_SEPARATOR},
---- a/lib/param/param_functions.c
-+++ b/lib/param/param_functions.c
+Index: samba/lib/param/param_functions.c
+===================================================================
+--- samba.orig/lib/param/param_functions.c	2014-05-28 11:50:04.000000000 +0200
++++ samba/lib/param/param_functions.c	2014-05-28 11:54:42.891775754 +0200
 @@ -411,3 +411,4 @@
  FN_GLOBAL_STRING(username_map, szUsernameMap)
  FN_GLOBAL_STRING(usershare_path, szUsersharePath)
  FN_GLOBAL_STRING(wins_hook, szWINSHook)
 +FN_GLOBAL_INTEGER(ldap_priv_socket_mode, iLdap_priv_socket_mode)
---- a/lib/param/loadparm.c
-+++ b/lib/param/loadparm.c
+Index: samba/lib/param/loadparm.c
+===================================================================
+--- samba.orig/lib/param/loadparm.c	2014-05-28 11:50:04.000000000 +0200
++++ samba/lib/param/loadparm.c	2014-05-28 11:54:42.903770896 +0200
 @@ -2226,6 +2226,8 @@
          lpcfg_do_global_parameter(lp_ctx, "allow dns updates", "secure only");
          lpcfg_do_global_parameter(lp_ctx, "dns forwarder", "");

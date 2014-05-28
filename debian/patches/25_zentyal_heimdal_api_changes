@@ -1,5 +1,7 @@
---- a/source4/kdc/wdc-samba4.c
-+++ b/source4/kdc/wdc-samba4.c
+Index: samba/source4/kdc/wdc-samba4.c
+===================================================================
+--- samba.orig/source4/kdc/wdc-samba4.c	2014-05-28 11:50:04.000000000 +0200
++++ samba/source4/kdc/wdc-samba4.c	2014-05-28 11:53:55.764000087 +0200
 @@ -128,7 +128,7 @@
  			talloc_free(mem_ctx);
  			return EINVAL;

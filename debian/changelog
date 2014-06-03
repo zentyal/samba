@@ -1,4 +1,4 @@
-samba (2:4.1.7+dfsg-3) UNRELEASED; urgency=medium
+samba (2:4.1.8+dfsg-1) UNRELEASED; urgency=medium
 
   [ Jelmer Vernooij ]
   * Remove smbd and nmbd from required-start and required-stop in
@@ -6,6 +6,9 @@ samba (2:4.1.7+dfsg-3) UNRELEASED; urgency=medium
 
   [ Ivo De Decker ]
   * Remove workaround for #745233.
+  * New upstream release. Fixes:
+    - CVE-2014-0239: dns: Don't reply to replies. Closes: #749845
+    - CVE-2014-0178: Malformed FSCTL_SRV_ENUMERATE_SNAPSHOTS response.
 
  -- Jelmer Vernooij <jelmer@debian.org>  Sun, 20 Apr 2014 22:12:12 +0200
 

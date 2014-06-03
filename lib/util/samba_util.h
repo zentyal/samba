@@ -739,7 +739,7 @@ char *smb_xstrndup(const char *s, size_t n);
 /**
  Like strdup but for memory.
 **/
-_PUBLIC_ void *memdup(const void *p, size_t size);
+_PUBLIC_ void *smb_memdup(const void *p, size_t size);
 
 /**
  * Write a password to the log file.
@@ -840,6 +840,18 @@ _PUBLIC_ void close_low_fds(bool stdin_too, bool stdout_too, bool stderr_too);
  Become a daemon, discarding the controlling terminal.
 **/
 _PUBLIC_ void become_daemon(bool do_fork, bool no_process_group, bool log_stdout);
+
+/**
+ Exit daemon and print error message to the log at level 0
+ Optionally report failure to systemd if systemd integration is enabled
+**/
+_PUBLIC_ void exit_daemon(const char *msg, int error);
+
+/**
+ Report that the daemon is ready to serve connections to the log at level 0
+ Optionally report status to systemd if systemd integration is enabled
+**/
+_PUBLIC_ void daemon_ready(const char *daemon);
 
 /**
  * @brief Get a password from the console.

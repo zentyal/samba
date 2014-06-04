@@ -47,6 +47,11 @@ struct dcerpc_binding {
 	uint32_t flags;
 	uint32_t assoc_group_id;
 	char assoc_group_string[11]; /* 0x3456789a + '\0' */
+
+	/* ncacn_http transport specific options */
+	const char *RpcProxy;
+	const char *HttpProxy;
+	const char *HttpConnectOption;
 };
 
 static const struct {
@@ -105,6 +110,7 @@ static const struct ncacn_option {
 	{"bigendian", DCERPC_PUSH_BIGENDIAN},
 	{"smb2", DCERPC_SMB2},
 	{"ndr64", DCERPC_NDR64},
+	{"tls", DCERPC_HTTP_USE_TLS},
 };
 
 static const struct ncacn_option *ncacn_option_by_name(const char *name)
@@ -271,6 +277,12 @@ _PUBLIC_ char *dcerpc_binding_string(TALLOC_CTX *mem_ctx, const struct dcerpc_bi
 		option_section = true;
 	} else if (b->flags) {
 		option_section = true;
+	} else if (b->RpcProxy) {
+		option_section = true;
+	} else if (b->HttpProxy) {
+		option_section = true;
+	} else if (b->HttpConnectOption) {
+		option_section = true;
 	}
 
 	if (!option_section) {
@@ -330,6 +342,36 @@ _PUBLIC_ char *dcerpc_binding_string(TALLOC_CTX *mem_ctx, const struct dcerpc_bi
 		o = s;
 		s = talloc_asprintf_append_buffer(s, ",assoc_group_id=0x%08x",
 						  b->assoc_group_id);
+		if (s == NULL) {
+			talloc_free(o);
+			return NULL;
+		}
+	}
+
+	if (b->RpcProxy) {
+		o = s;
+		s = talloc_asprintf_append_buffer(s, ",RpcProxy=%s",
+		                                  b->RpcProxy);
+		if (s == NULL) {
+			talloc_free(o);
+			return NULL;
+		}
+	}
+
+	if (b->HttpProxy) {
+		o = s;
+		s = talloc_asprintf_append_buffer(s, ",HttpProxy=%s",
+		                                  b->HttpProxy);
+		if (s == NULL) {
+			talloc_free(o);
+			return NULL;
+		}
+	}
+
+	if (b->HttpConnectOption) {
+		o = s;
+		s = talloc_asprintf_append_buffer(s, ",HttpConnectionOption=%s",
+		                                  b->HttpConnectOption);
 		if (s == NULL) {
 			talloc_free(o);
 			return NULL;
@@ -686,6 +728,9 @@ _PUBLIC_ const char *dcerpc_binding_get_string_option(const struct dcerpc_bindin
 		_SPECIAL(endpoint),
 		_SPECIAL(target_hostname),
 		_SPECIAL(target_principal),
+		_SPECIAL(RpcProxy),
+		_SPECIAL(HttpProxy),
+		_SPECIAL(HttpConnectOption),
 #undef _SPECIAL
 	};
 	const struct ncacn_option *no = NULL;
@@ -788,6 +833,9 @@ _PUBLIC_ NTSTATUS dcerpc_binding_set_string_option(struct dcerpc_binding *b,
 		_SPECIAL(endpoint),
 		_SPECIAL(target_hostname),
 		_SPECIAL(target_principal),
+		_SPECIAL(RpcProxy),
+		_SPECIAL(HttpProxy),
+		_SPECIAL(HttpConnectOption)
 #undef _SPECIAL
 	};
 	const struct ncacn_option *no = NULL;
@@ -1417,6 +1465,30 @@ _PUBLIC_ struct dcerpc_binding *dcerpc_binding_dup(TALLOC_CTX *mem_ctx,
 	if (b->endpoint != NULL) {
 		n->endpoint = talloc_strdup(n, b->endpoint);
 		if (n->endpoint == NULL) {
+			talloc_free(n);
+			return NULL;
+		}
+	}
+
+	if (b->RpcProxy != NULL) {
+		n->RpcProxy = talloc_strdup(n, b->RpcProxy);
+		if (n->RpcProxy == NULL) {
+			talloc_free(n);
+			return NULL;
+		}
+	}
+
+	if (b->HttpProxy != NULL) {
+		n->HttpProxy = talloc_strdup(n, b->HttpProxy);
+		if (n->HttpProxy == NULL) {
+			talloc_free(n);
+			return NULL;
+		}
+	}
+
+	if (b->HttpConnectOption != NULL) {
+		n->HttpConnectOption = talloc_strdup(n, b->HttpConnectOption);
+		if (n->HttpConnectOption == NULL) {
 			talloc_free(n);
 			return NULL;
 		}

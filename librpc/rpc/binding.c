@@ -904,7 +904,7 @@ _PUBLIC_ NTSTATUS dcerpc_binding_set_string_option(struct dcerpc_binding *b,
 	}
 
 	for (i=0; i < ARRAY_SIZE(specials); i++) {
-		ret = strcmp(specials[i].name, name);
+		ret = strcasecmp(specials[i].name, name);
 		if (ret != 0) {
 			continue;
 		}

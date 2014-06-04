@@ -432,6 +432,11 @@ _PUBLIC_ NTSTATUS dcerpc_parse_binding(TALLOC_CTX *mem_ctx, const char *_s, stru
 			return NT_STATUS_INVALID_PARAMETER_MIX;
 		}
 		options[strlen(options)-1] = 0;
+
+		/* Remove trailing comma from last option */
+		if (options[strlen(options)-1] == ',') {
+			options[strlen(options) -1] = '\0';
+		}
 	}
 
 	p = strchr(s, '@');

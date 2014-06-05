@@ -403,6 +403,142 @@ static NTSTATUS dcerpc_pipe_connect_ncacn_ip_tcp_recv(struct composite_context *
 }
 
 
+struct pipe_http_state {
+	struct dcerpc_pipe_connect io;
+	const char *localaddr;
+	const char *rpc_server;
+	uint32_t rpc_server_port;
+	char *rpc_proxy;
+	uint32_t rpc_proxy_port;
+	char *http_proxy;
+	uint32_t http_proxy_port;
+	bool use_tls;
+	bool use_proxy;
+};
+
+/*
+  Stage 2 of ncacn_http: rpc pipe opened (or not)
+ */
+static void continue_pipe_open_ncacn_http(struct tevent_req *subreq)
+{
+	struct composite_context *c = NULL;
+	struct pipe_http_state *s = NULL;
+	struct tstream_context *stream = NULL;
+	struct tevent_queue *queue = NULL;
+
+	c = tevent_req_callback_data(subreq, struct composite_context);
+	s = talloc_get_type(c->private_data, struct pipe_http_state);
+
+	/* receive result of RoH connect request */
+	c->status = dcerpc_pipe_open_roh_recv(subreq, s->io.conn,
+	                                      &stream, &queue);
+	TALLOC_FREE(subreq);
+	if (!composite_is_ok(c)) return;
+
+	s->io.conn->transport.transport = NCACN_HTTP;
+	s->io.conn->transport.stream = stream;
+	s->io.conn->transport.write_queue = queue;
+	s->io.conn->transport.pending_reads = 0;
+
+	composite_done(c);
+}
+
+/*
+  Initiate async open of a rpc connection to a rpc pipe using HTTP transport,
+  and using the binding structure to determine the endpoint and options
+*/
+static struct composite_context* dcerpc_pipe_connect_ncacn_http_send(
+		TALLOC_CTX *mem_ctx, struct dcerpc_pipe_connect *io)
+{
+	struct composite_context *c;
+	struct pipe_http_state *s;
+	struct tevent_req *subreq;
+	const char *endpoint;
+	const char *use_proxy;
+	char *proxy;
+	char *port;
+
+	/* composite context allocation and setup */
+	c = composite_create(mem_ctx, io->conn->event_ctx);
+	if (c == NULL) return NULL;
+
+	s = talloc_zero(c, struct pipe_http_state);
+	if (composite_nomem(s, c)) return c;
+	c->private_data = s;
+
+	/* store input parameters in state structure */
+	s->io		= *io;
+	s->localaddr 	= dcerpc_binding_get_string_option(io->binding,
+							"localaddress");
+	/* RPC server and port (the endpoint) */
+	s->rpc_server = dcerpc_binding_get_string_option(io->binding, "host");
+	endpoint = dcerpc_binding_get_string_option(io->binding, "endpoint");
+	if (endpoint == NULL) {
+		composite_error(c, NT_STATUS_INVALID_PARAMETER_MIX);
+		return c;
+	}
+	s->rpc_server_port = atoi(endpoint);
+	if (s->rpc_server_port == 0) {
+		composite_error(c, NT_STATUS_INVALID_PARAMETER_MIX);
+		return c;
+	}
+
+	/* Use TLS */
+	s->use_tls = dcerpc_binding_get_flags(io->binding)
+			& DCERPC_HTTP_USE_TLS;
+
+	/* RPC Proxy */
+	proxy = port = talloc_strdup(s, dcerpc_binding_get_string_option(
+			io->binding, "RpcProxy"));
+	s->rpc_proxy  = strsep(&port, ":");
+	if (proxy && port) {
+		s->rpc_proxy_port = atoi(port);
+	} else {
+		s->rpc_proxy_port = s->use_tls ? 443 : 80;
+	}
+
+	/* HTTP Proxy */
+	proxy = port = talloc_strdup(c, dcerpc_binding_get_string_option(
+			io->binding, "HttpProxy"));
+	s->http_proxy = strsep(&port, ":");
+	if (proxy && port) {
+		s->http_proxy_port = atoi(port);
+	} else {
+		s->http_proxy_port = s->use_tls ? 443 : 80;
+	}
+
+	/* Use local proxy */
+	use_proxy = dcerpc_binding_get_string_option(io->binding,
+	                                         "HttpConnectOption");
+	if (use_proxy && strcasecmp(use_proxy, "UseHttpProxy")) {
+		s->use_proxy = true;
+	}
+
+	/* If use local proxy set, the http proxy should be provided */
+	if (s->use_proxy && !s->http_proxy) {
+		composite_error(c, NT_STATUS_INVALID_PARAMETER_MIX);
+		return c;
+	}
+
+	subreq = dcerpc_pipe_open_roh_send(s->io.conn, s->localaddr,
+	                                   s->rpc_server, s->rpc_server_port,
+	                                   s->rpc_proxy, s->rpc_proxy_port,
+	                                   s->http_proxy, s->http_proxy_port,
+	                                   s->use_tls, s->use_proxy,
+	                                   s->io.creds,
+	                                   io->resolve_ctx);
+	if (composite_nomem(subreq, c)) return c;
+
+	tevent_req_set_callback(subreq, continue_pipe_open_ncacn_http, c);
+	return c;
+}
+
+static NTSTATUS dcerpc_pipe_connect_ncacn_http_recv(struct composite_context *c)
+{
+	return composite_wait_free(c);
+}
+
+
 struct pipe_unix_state {
 	struct dcerpc_pipe_connect io;
 	const char *path;
@@ -559,6 +695,7 @@ static void continue_connect(struct composite_context *c, struct pipe_connect_st
 static void continue_pipe_connect_ncacn_np_smb2(struct composite_context *ctx);
 static void continue_pipe_connect_ncacn_np_smb(struct composite_context *ctx);
 static void continue_pipe_connect_ncacn_ip_tcp(struct composite_context *ctx);
+static void continue_pipe_connect_ncacn_http(struct composite_context *ctx);
 static void continue_pipe_connect_ncacn_unix(struct composite_context *ctx);
 static void continue_pipe_connect_ncalrpc(struct composite_context *ctx);
 static void continue_pipe_connect(struct composite_context *c, struct pipe_connect_state *s);
@@ -597,6 +734,7 @@ static void continue_connect(struct composite_context *c, struct pipe_connect_st
 	struct composite_context *ncacn_np_smb2_req;
 	struct composite_context *ncacn_np_smb_req;
 	struct composite_context *ncacn_ip_tcp_req;
+	struct composite_context *ncacn_http_req;
 	struct composite_context *ncacn_unix_req;
 	struct composite_context *ncalrpc_req;
 	enum dcerpc_transport_t transport;
@@ -633,6 +771,11 @@ static void continue_connect(struct composite_context *c, struct pipe_connect_st
 	case NCACN_IP_TCP:
 		ncacn_ip_tcp_req = dcerpc_pipe_connect_ncacn_ip_tcp_send(c, &pc);
 		composite_continue(c, ncacn_ip_tcp_req, continue_pipe_connect_ncacn_ip_tcp, c);
+		return;
+
+	case NCACN_HTTP:
+		ncacn_http_req = dcerpc_pipe_connect_ncacn_http_send(c, &pc);
+		composite_continue(c, ncacn_http_req, continue_pipe_connect_ncacn_http, c);
 		return;
 
 	case NCACN_UNIX_STREAM:
@@ -703,6 +846,23 @@ static void continue_pipe_connect_ncacn_ip_tcp(struct composite_context *ctx)
 						       struct pipe_connect_state);
 
 	c->status = dcerpc_pipe_connect_ncacn_ip_tcp_recv(ctx);
+	if (!composite_is_ok(c)) return;
+
+	continue_pipe_connect(c, s);
+}
+
+
+/*
+  Stage 3 of pipe_connect_b: Receive result of pipe connect request on http
+*/
+static void continue_pipe_connect_ncacn_http(struct composite_context *ctx)
+{
+	struct composite_context *c = talloc_get_type(ctx->async.private_data,
+						      struct composite_context);
+	struct pipe_connect_state *s = talloc_get_type(c->private_data,
+						       struct pipe_connect_state);
+
+	c->status = dcerpc_pipe_connect_ncacn_http_recv(ctx);
 	if (!composite_is_ok(c)) return;
 
 	continue_pipe_connect(c, s);
@@ -847,6 +1007,7 @@ _PUBLIC_ struct composite_context* dcerpc_pipe_connect_b_send(TALLOC_CTX *parent
 	switch (transport) {
 	case NCACN_NP:
 	case NCACN_IP_TCP:
+	case NCACN_HTTP:
 	case NCALRPC:
 		endpoint = dcerpc_binding_get_string_option(s->binding, "endpoint");
 		break;

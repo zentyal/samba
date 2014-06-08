@@ -1,4 +1,4 @@
-samba (2:4.1.8+dfsg-1) UNRELEASED; urgency=medium
+samba (2:4.1.8+dfsg-1) unstable; urgency=medium
 
   [ Jelmer Vernooij ]
   * Remove smbd and nmbd from required-start and required-stop in
@@ -15,7 +15,7 @@ samba (2:4.1.8+dfsg-1) UNRELEASED; urgency=medium
     This fixes the FTBFS, and should make samba installable with the new ldb
     version. Closes: #750541, 750796
 
- -- Jelmer Vernooij <jelmer@debian.org>  Sun, 20 Apr 2014 22:12:12 +0200
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Sun, 08 Jun 2014 23:37:53 +0200
 
 samba (2:4.1.7+dfsg-2) unstable; urgency=medium
 

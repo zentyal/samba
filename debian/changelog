@@ -9,6 +9,11 @@ samba (2:4.1.8+dfsg-1) UNRELEASED; urgency=medium
   * New upstream release. Fixes:
     - CVE-2014-0239: dns: Don't reply to replies. Closes: #749845
     - CVE-2014-0178: Malformed FSCTL_SRV_ENUMERATE_SNAPSHOTS response.
+  * Use the upstream version of the smb.conf.5 manpage, instead of building
+    it. This is an ugly temporary workaround because xsltproc crashes on some
+    architectures when building this manpage (due to #750593).
+    This fixes the FTBFS, and should make samba installable with the new ldb
+    version. Closes: #750541, 750796
 
  -- Jelmer Vernooij <jelmer@debian.org>  Sun, 20 Apr 2014 22:12:12 +0200
 

@@ -1,3 +1,9 @@
+samba (3:4.1.7+dfsg-2~zentyal3) trusty; urgency=medium
+
+  * Add patch s4-auth-krb-Fix-talloc-access-after-free-in-smb_krb5.patch
+
+ -- Samuel Cabrero <scabrero@zentyal.com>  Thu, 12 Jun 2014 10:44:19 +0200
+
 samba (3:4.1.7+dfsg-2~zentyal2) trusty; urgency=medium
 
   * Add patch for recyclebin permissions

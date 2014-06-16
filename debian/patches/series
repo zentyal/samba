@@ -13,6 +13,7 @@ VERSION.patch
 waf_smbpasswd_location
 add-so-version-to-private-libraries
 do-not-install-smbclient4-and-nmbclient4
+xsltproc_dont_build_smb.conf.5.patch
 23_zentyal_ldap_privileged_socket_mode
 24_zentyal_dlz_dynamic_updates_tsig_keys
 26_zentyal_scannedonly

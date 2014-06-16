@@ -1,3 +1,9 @@
+samba (3:4.1.8+dfsg-1~zentyal1) trusty; urgency=medium
+
+  * New upstream release
+
+ -- Samuel Cabrero <scabrero@zentyal.com>  Mon, 16 Jun 2014 10:24:14 +0200
+
 samba (2:4.1.8+dfsg-1) unstable; urgency=medium
 
   [ Jelmer Vernooij ]

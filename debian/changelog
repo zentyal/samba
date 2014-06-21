@@ -4,6 +4,7 @@ samba (2:3.6.6-6+deb7u4) UNRELEASED; urgency=high
   * CVE-2014-0178: Uninitialized memory exposure when handling shadow_copy
     data
   * CVE-2014-0244: nmbd denial of service
+  * CVE-2014-3493: smbd denial of service: server crash/memory corruption
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Sun, 22 Jun 2014 00:00:38 +0200
 

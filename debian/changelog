@@ -1,10 +1,10 @@
-samba (2:4.1.9+dfsg-1) UNRELEASED; urgency=high
+samba (2:4.1.9+dfsg-1) unstable; urgency=high
 
   * New upstream security release. Fixes:
     - CVE-2014-0244: nmbd denial of service
     - CVE-2014-3493: smbd denial of service: server crash/memory corruption
 
- -- Ivo De Decker <ivo.dedecker@ugent.be>  Mon, 23 Jun 2014 18:14:00 +0200
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Mon, 23 Jun 2014 18:33:27 +0200
 
 samba (2:4.1.8+dfsg-1) unstable; urgency=medium
 

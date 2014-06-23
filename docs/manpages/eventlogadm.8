@@ -1,13 +1,13 @@
 '\" t
 .\"     Title: eventlogadm
 .\"    Author: [see the "AUTHOR" section]
-.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 06/03/2014
+.\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
+.\"      Date: 06/22/2014
 .\"    Manual: System Administration tools
 .\"    Source: Samba 4.0
 .\"  Language: English
 .\"
-.TH "EVENTLOGADM" "8" "06/03/2014" "Samba 4\&.0" "System Administration tools"
+.TH "EVENTLOGADM" "8" "06/22/2014" "Samba 4\&.0" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -105,7 +105,6 @@ The event log record field are:
 .sp -1
 .IP \(bu 2.3
 .\}
-
 LEN
 \- This field should be 0, since
 eventlogadm
@@ -120,7 +119,6 @@ will calculate this value\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-
 RS1
 \- This must be the value 1699505740\&.
 .RE
@@ -133,7 +131,6 @@ RS1
 .sp -1
 .IP \(bu 2.3
 .\}
-
 RCN
 \- This field should be 0\&.
 .RE
@@ -146,7 +143,6 @@ RCN
 .sp -1
 .IP \(bu 2.3
 .\}
-
 TMG
 \- The time the eventlog record was generated; format is the number of seconds since 00:00:00 January 1, 1970, UTC\&.
 .RE
@@ -159,7 +155,6 @@ TMG
 .sp -1
 .IP \(bu 2.3
 .\}
-
 TMW
 \- The time the eventlog record was written; format is the number of seconds since 00:00:00 January 1, 1970, UTC\&.
 .RE
@@ -172,7 +167,6 @@ TMW
 .sp -1
 .IP \(bu 2.3
 .\}
-
 EID
 \- The eventlog ID\&.
 .RE
@@ -185,7 +179,6 @@ EID
 .sp -1
 .IP \(bu 2.3
 .\}
-
 ETP
 \- The event type \-\- one of "INFO", "ERROR", "WARNING", "AUDIT SUCCESS" or "AUDIT FAILURE"\&.
 .RE
@@ -198,7 +191,6 @@ ETP
 .sp -1
 .IP \(bu 2.3
 .\}
-
 ECT
 \- The event category; this depends on the message file\&. It is primarily used as a means of filtering in the eventlog viewer\&.
 .RE
@@ -211,7 +203,6 @@ ECT
 .sp -1
 .IP \(bu 2.3
 .\}
-
 RS2
 \- This field should be 0\&.
 .RE
@@ -224,7 +215,6 @@ RS2
 .sp -1
 .IP \(bu 2.3
 .\}
-
 CRN
 \- This field should be 0\&.
 .RE
@@ -237,7 +227,6 @@ CRN
 .sp -1
 .IP \(bu 2.3
 .\}
-
 USL
 \- This field should be 0\&.
 .RE
@@ -250,7 +239,6 @@ USL
 .sp -1
 .IP \(bu 2.3
 .\}
-
 SRC
 \- This field contains the source name associated with the event log\&. If a message file is used with an event log, there will be a registry entry for associating this source name with a message file DLL\&.
 .RE
@@ -263,7 +251,6 @@ SRC
 .sp -1
 .IP \(bu 2.3
 .\}
-
 SRN
 \- The name of the machine on which the eventlog was generated\&. This is typically the host name\&.
 .RE
@@ -276,7 +263,6 @@ SRN
 .sp -1
 .IP \(bu 2.3
 .\}
-
 STR
 \- The text associated with the eventlog\&. There may be more than one string in a record\&.
 .RE
@@ -289,7 +275,6 @@ STR
 .sp -1
 .IP \(bu 2.3
 .\}
-
 DAT
 \- This field should be left unset\&.
 .RE

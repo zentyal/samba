@@ -1,13 +1,13 @@
 '\" t
 .\"     Title: vfs_gpfs
 .\"    Author: [see the "AUTHOR" section]
-.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 06/03/2014
+.\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
+.\"      Date: 06/22/2014
 .\"    Manual: System Administration tools
 .\"    Source: Samba 4.0
 .\"  Language: English
 .\"
-.TH "VFS_GPFS" "8" "06/03/2014" "Samba 4\&.0" "System Administration tools"
+.TH "VFS_GPFS" "8" "06/22/2014" "Samba 4\&.0" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -102,7 +102,6 @@ Enable/Disable cross node sharemode handling for GPFS\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-
 yes(default)
 \- propagate sharemodes across all GPFS nodes\&.
 .RE
@@ -115,7 +114,6 @@ yes(default)
 .sp -1
 .IP \(bu 2.3
 .\}
-
 no
 \- do not propagate sharemodes across all GPFS nodes\&. This should only be used if the GPFS file system is exclusively exported by Samba\&. Access by local unix application or NFS exports could lead to corrupted files\&.
 .RE
@@ -139,7 +137,6 @@ options to the same value\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-
 yes(default)
 \- propagate leases across all GPFS nodes\&.
 .RE
@@ -152,7 +149,6 @@ yes(default)
 .sp -1
 .IP \(bu 2.3
 .\}
-
 no
 \- do not propagate leases across all GPFS nodes\&. This should only be used if the GPFS file system is exclusively exported by Samba\&. Access by local unix application or NFS exports could lead to corrupted files\&.
 .RE
@@ -172,7 +168,6 @@ Enable/Disable announcing if this FS has HSM enabled\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-
 no(default)
 \- Do not announce HSM\&.
 .RE
@@ -185,7 +180,6 @@ no(default)
 .sp -1
 .IP \(bu 2.3
 .\}
-
 yes
 \- Announce HSM\&.
 .RE
@@ -207,7 +201,6 @@ function\&. This improves the casesensitive wildcard file name access\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-
 yes(default)
 \- use
 gpfs_get_realfilename_path()\&.
@@ -221,7 +214,6 @@ gpfs_get_realfilename_path()\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-
 no
 \- do not use
 gpfs_get_realfilename_path()\&. It seems that
@@ -244,7 +236,6 @@ Enable/Disable usage of the windows attributes in GPFS\&. GPFS is able to store 
 .sp -1
 .IP \(bu 2.3
 .\}
-
 no(default)
 \- do not use GPFS windows attributes\&.
 .RE
@@ -257,7 +248,6 @@ no(default)
 .sp -1
 .IP \(bu 2.3
 .\}
-
 yes
 \- use GPFS windows attributes\&.
 .RE
@@ -277,7 +267,6 @@ GPFS ACLs doesn\*(Aqt know about the \*(AqAPPEND\*(Aq right\&. This option lets 
 .sp -1
 .IP \(bu 2.3
 .\}
-
 yes(default)
 \- map \*(AqAPPEND\*(Aq to \*(AqWRITE\*(Aq\&.
 .RE
@@ -290,7 +279,6 @@ yes(default)
 .sp -1
 .IP \(bu 2.3
 .\}
-
 no
 \- do not map \*(AqAPPEND\*(Aq to \*(AqWRITE\*(Aq\&.
 .RE
@@ -310,7 +298,6 @@ This option lets Samba use or ignore GPFS ACLs\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-
 yes(default)
 \- use GPFS ACLs\&.
 .RE
@@ -323,7 +310,6 @@ yes(default)
 .sp -1
 .IP \(bu 2.3
 .\}
-
 no
 \- do not use GPFS ACLs and pass everything to the next SMB_VFS module\&.
 .RE
@@ -347,7 +333,6 @@ to enable an explicit check for this flag and if set, it will return NT_STATUS_N
 .sp -1
 .IP \(bu 2.3
 .\}
-
 no(default)
 \- ignore the DESC_DACL_PROTECTED flags\&.
 .RE
@@ -360,7 +345,6 @@ no(default)
 .sp -1
 .IP \(bu 2.3
 .\}
-
 yes
 \- reject ACLs with DESC_DACL_PROTECTED\&.
 .RE
@@ -382,7 +366,6 @@ If any of the soft or hard quota limits has been reached, the free space will be
 .sp -1
 .IP \(bu 2.3
 .\}
-
 yes
 \- include the quotas when reporting the share size and free space
 .RE
@@ -395,7 +378,6 @@ yes
 .sp -1
 .IP \(bu 2.3
 .\}
-
 no(default)
 \- do not include quotas, simply report the size and free space of the file system
 .RE
@@ -415,7 +397,6 @@ If set to yes the gpfs_prealloc function will be used in the fallocate callback 
 .sp -1
 .IP \(bu 2.3
 .\}
-
 yes (default)
 \- Use gpfs_prealloc for the fallocate callback\&.
 .RE
@@ -428,7 +409,6 @@ yes (default)
 .sp -1
 .IP \(bu 2.3
 .\}
-
 no
 \- Do not use gpfs_prealloc for the fallocate callback\&.
 .RE

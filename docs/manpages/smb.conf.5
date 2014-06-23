@@ -1,13 +1,13 @@
 '\" t
 .\"     Title: smb.conf
 .\"    Author: [see the "AUTHOR" section]
-.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 06/03/2014
+.\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
+.\"      Date: 06/22/2014
 .\"    Manual: File Formats and Conventions
 .\"    Source: Samba 4.0
 .\"  Language: English
 .\"
-.TH "SMB\&.CONF" "5" "06/03/2014" "Samba 4\&.0" "File Formats and Conventions"
+.TH "SMB\&.CONF" "5" "06/22/2014" "Samba 4\&.0" "File Formats and Conventions"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -1093,8 +1093,7 @@ add user to group script (G)
 .PP
 .RS 4
 Full path to the script that will be called when a user is added to a group using the Windows NT domain administration tools\&. It will be run by
-\fBsmbd\fR(8)
-\fIAS ROOT\fR\&. Any
+\fBsmbd\fR(8)\fIAS ROOT\fR\&. Any
 \fI%g\fR
 will be replaced with the group name and any
 \fI%u\fR
@@ -1453,8 +1452,7 @@ smbpasswd
 will fail to connect in it\*(Aqs default mode\&.
 smbpasswd
 can be forced to use the primary IP interface of the local host by using its
-\fBsmbpasswd\fR(8)
-\fI\-r \fR\fI\fIremote machine\fR\fR
+\fBsmbpasswd\fR(8)\fI\-r \fR\fI\fIremote machine\fR\fR
 parameter, with
 \fIremote machine\fR
 set to the IP name of the primary interface of the local host\&.
@@ -1750,8 +1748,7 @@ and
 \fIseal\fR
 are only available if Samba has been compiled against a modern OpenLDAP version (2\&.3\&.x or higher)\&.
 .sp
-This option is needed in the case of Domain Controllers enforcing the usage of signed LDAP connections (e\&.g\&. Windows 2000 SP3 or higher)\&. LDAP sign and seal can be controlled with the registry key "HKLM\eSystem\eCurrentControlSet\eServices\e
-NTDS\eParameters\eLDAPServerIntegrity" on the Windows server side\&.
+This option is needed in the case of Domain Controllers enforcing the usage of signed LDAP connections (e\&.g\&. Windows 2000 SP3 or higher)\&. LDAP sign and seal can be controlled with the registry key "HKLM\eSystem\eCurrentControlSet\eServices\eNTDS\eParameters\eLDAPServerIntegrity" on the Windows server side\&.
 .sp
 Depending on the used KRB5 library (MIT and older Heimdal versions) it is possible that the message "integrity only" is not supported\&. In this case,
 \fIsign\fR
@@ -2582,8 +2579,7 @@ delete group script (G)
 .PP
 .RS 4
 This is the full pathname to a script that will be run
-\fIAS ROOT\fR
-\fBsmbd\fR(8)
+\fIAS ROOT\fR\fBsmbd\fR(8)
 when a group is requested to be deleted\&. It will expand any
 \fI%g\fR
 to the group name passed\&. This script is only useful for installations using the Windows NT domain administration tools\&.
@@ -2702,8 +2698,7 @@ delete user from group script (G)
 .PP
 .RS 4
 Full path to the script that will be called when a user is removed from a group using the Windows NT domain administration tools\&. It will be run by
-\fBsmbd\fR(8)
-\fIAS ROOT\fR\&. Any
+\fBsmbd\fR(8)\fIAS ROOT\fR\&. Any
 \fI%g\fR
 will be replaced with the group name and any
 \fI%u\fR
@@ -5002,8 +4997,7 @@ script\&.
 LDAP connections should be secured where possible\&. This may be done setting
 \fIeither\fR
 this parameter to
-\fIStart_tls\fR
-\fIor\fR
+\fIStart_tls\fR\fIor\fR
 by specifying
 \fIldaps://\fR
 in the URL argument of
@@ -5042,9 +5036,7 @@ Please note that this parameter does only affect
 \fIrpc\fR
 methods\&. To enable the LDAPv3 StartTLS extended operation (RFC2830) for
 \fIads\fR, set
-\m[blue]\fBldap ssl = yes\fR\m[]
-\fIand\fR
-\m[blue]\fBldap ssl ads = yes\fR\m[]\&. See
+\m[blue]\fBldap ssl = yes\fR\m[]\fIand\fR\m[blue]\fBldap ssl ads = yes\fR\m[]\&. See
 smb\&.conf(5)
 for more information on
 \m[blue]\fBldap ssl ads\fR\m[]\&.
@@ -5207,8 +5199,7 @@ in elections for local master browser\&.
 Setting this value to
 \fBno\fR
 will cause
-nmbd
-\fInever\fR
+nmbd\fInever\fR
 to become a local master browser\&.
 .sp
 Default:
@@ -5571,7 +5562,6 @@ logon home (G)
 .RS 4
 This parameter specifies the home directory location when a Win95/98 or NT Workstation logs into a Samba PDC\&. It allows you to do
 .sp
-
 C:\e>\fBNET USE H: /HOME\fR
 .sp
 from a command prompt, for example\&.
@@ -5580,7 +5570,6 @@ This option takes the standard substitutions, allowing you to have separate logo
 .sp
 This parameter can be used with Win9X workstations to ensure that roaming profiles are stored in a subdirectory of the user\*(Aqs home directory\&. This is done in the following way:
 .sp
-
 logon home = \e\e%N\e%U\eprofile
 .sp
 This tells Samba to return the above string, with substitutions made when a client requests the info, generally in a NetUserGetInfo request\&. Win9X clients truncate the info to \e\eserver\eshare when a user does
@@ -6168,7 +6157,6 @@ The three settings are :
 .sp -1
 .IP \(bu 2.3
 .\}
-
 \fBYes\fR
 \- The read only DOS attribute is mapped to the inverse of the user or owner write bit in the unix permission mode set\&. If the owner write bit is not set, the read only attribute is reported as being set on the file\&. If the read only DOS attribute is set, Samba sets the owner, group and others write bits to zero\&. Write bits set in an ACL are ignored by Samba\&. If the read only DOS attribute is unset, Samba simply sets the write bit of the owner to one\&.
 .RE
@@ -6181,7 +6169,6 @@ The three settings are :
 .sp -1
 .IP \(bu 2.3
 .\}
-
 \fBPermissions\fR
 \- The read only DOS attribute is mapped to the effective permissions of the connecting user, as evaluated by
 \fBsmbd\fR(8)
@@ -6196,7 +6183,6 @@ by reading the unix permissions and POSIX ACL (if present)\&. If the connecting 
 .sp -1
 .IP \(bu 2.3
 .\}
-
 \fBNo\fR
 \- The read only DOS attribute is unaffected by permissions, and can only be set by the
 \m[blue]\fBstore dos attributes\fR\m[]
@@ -6725,7 +6711,6 @@ The options are: "lmhosts", "host", "wins" and "bcast"\&. They cause names to be
 .sp -1
 .IP \(bu 2.3
 .\}
-
 \fBlmhosts\fR
 : Lookup an IP address in the Samba lmhosts file\&. If the line in lmhosts has no name type attached to the NetBIOS name (see the manpage for lmhosts for details) then any name type matches for lookup\&.
 .RE
@@ -6738,7 +6723,6 @@ The options are: "lmhosts", "host", "wins" and "bcast"\&. They cause names to be
 .sp -1
 .IP \(bu 2.3
 .\}
-
 \fBhost\fR
 : Do a standard host name to IP address resolution, using the system
 /etc/hosts, NIS, or DNS lookups\&. This method of name resolution is operating system depended for instance on IRIX or Solaris this may be controlled by the
@@ -7639,7 +7623,6 @@ This option specifies a command to be run whenever the service is connected to\&
 .sp
 An interesting example is to send the users a welcome message every time they log in\&. Maybe a message of the day? Here is an example:
 .sp
-
 preexec = csh \-c \*(Aqecho \e"Welcome to %S!\e" | /usr/local/samba/bin/smbclient \-M %m \-I %I\*(Aq &
 .sp
 Of course, this could get annoying after a while :\-)
@@ -8734,9 +8717,7 @@ initshutdown \- Init Shutdown Service
 .sp
 .RE
 Three possible values currently supported are:
-embedded
-external
-disabled
+embeddedexternaldisabled
 .sp
 The classic method is to run every pipe as an internal function
 \fIembedded\fR
@@ -10588,8 +10569,6 @@ This parameter specifies the absolute path of the directory on the filesystem us
 .sp
 For example, a valid usershare directory might be /usr/local/samba/lib/usershares, set up as follows\&.
 .sp
-
-.sp
 .if n \{\
 .RS 4
 .\}
@@ -11488,7 +11467,6 @@ special sections make life for an administrator easy, but the various combinatio
 This man page is correct for version 4 of the Samba suite\&.
 .SH "SEE ALSO"
 .PP
-
 \fBsamba\fR(7),
 \fBsmbpasswd\fR(8),
 \fBsmbd\fR(8),

@@ -2,10 +2,10 @@
 
 ### BEGIN INIT INFO
 # Provides:          samba
-# Required-Start:    smbd nmbd
-# Required-Stop:     smbd nmbd
-# Default-Start:     
-# Default-Stop:      
+# Required-Start:
+# Required-Stop:
+# Default-Start:
+# Default-Stop:
 # Short-Description: ensure Samba daemons are started (nmbd and smbd)
 ### END INIT INFO
 

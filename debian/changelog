@@ -1,6 +1,8 @@
 samba (2:3.6.6-6+deb7u4~bpo60+1) UNRELEASED; urgency=medium
 
   * Rebuild for squeeze-backports.
+  * Refresh patches from security update, to make them apply with patch from
+    squeeze.
 
  -- Ivo De Decker <ivo.dedecker@ugent.be>  Mon, 23 Jun 2014 18:51:05 +0200
 

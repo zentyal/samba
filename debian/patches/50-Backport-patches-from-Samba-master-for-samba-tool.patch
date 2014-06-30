@@ -1,0 +1,851 @@
+From 951b71f2a1587df4fb472a28aba5c7996237ac48 Mon Sep 17 00:00:00 2001
+From: Kamen Mazdrashki <kamenim@samba.org>
+Date: Mon, 30 Jun 2014 16:19:18 +0200
+Subject: [PATCH 1/2] Backport patches from Samba/master for samba-tool
+
+This patch also includes lates version of repl_meta_data.c
+in attempt to minimize Samba DB corruption due to replication
+
+Change-Id: I0c84e6ff2a1d12a5d0c5c7cac91946687537644e
+---
+ lib/ldb/pyldb.c                                 | 128 +++++++++++-
+ python/samba/dbchecker.py                       | 132 ++++++++++++-
+ source4/dsdb/kcc/kcc_deleted.c                  |   2 +-
+ source4/dsdb/samdb/ldb_modules/repl_meta_data.c | 250 +++++++++++++++++++-----
+ 4 files changed, 448 insertions(+), 64 deletions(-)
+
+diff --git a/lib/ldb/pyldb.c b/lib/ldb/pyldb.c
+index 8c9d6b9..78b8012 100644
+--- a/lib/ldb/pyldb.c
++++ b/lib/ldb/pyldb.c
+@@ -64,10 +64,6 @@ typedef inquiry lenfunc;
+ typedef intargfunc ssizeargfunc;
+ #endif
+ 
+-#ifndef Py_RETURN_NONE
+-#define Py_RETURN_NONE return Py_INCREF(Py_None), Py_None
+-#endif
+-
+ #define SIGN(a) (((a) == 0)?0:((a) < 0?-1:1))
+ 
+ 
+@@ -193,7 +189,7 @@ static void PyErr_SetLdbError(PyObject *error, int ret, struct ldb_context *ldb_
+ 				      ldb_ctx == NULL?ldb_strerror(ret):ldb_errstring(ldb_ctx)));
+ }
+ 
+-static PyObject *PyObject_FromLdbValue(struct ldb_val *val)
++static PyObject *PyObject_FromLdbValue(const struct ldb_val *val)
+ {
+ 	return PyString_FromStringAndSize((const char *)val->data, val->length);
+ }
+@@ -556,6 +552,103 @@ static PyObject *py_ldb_dn_is_child_of(PyLdbDnObject *self, PyObject *args)
+ 	return PyBool_FromLong(ldb_dn_compare_base(base, dn) == 0);
+ }
+ 
++static PyObject *py_ldb_dn_get_component_name(PyLdbDnObject *self, PyObject *args)
++{
++	struct ldb_dn *dn;
++	const char *name;
++	unsigned int num = 0;
++
++	if (!PyArg_ParseTuple(args, "I", &num))
++		return NULL;
++
++	dn = pyldb_Dn_AsDn((PyObject *)self);
++
++	name = ldb_dn_get_component_name(dn, num);
++	if (name == NULL) {
++		Py_RETURN_NONE;
++	}
++
++	return PyString_FromString(name);
++}
++
++static PyObject *py_ldb_dn_get_component_value(PyLdbDnObject *self, PyObject *args)
++{
++	struct ldb_dn *dn;
++	const struct ldb_val *val;
++	unsigned int num = 0;
++
++	if (!PyArg_ParseTuple(args, "I", &num))
++		return NULL;
++
++	dn = pyldb_Dn_AsDn((PyObject *)self);
++
++	val = ldb_dn_get_component_val(dn, num);
++	if (val == NULL) {
++		Py_RETURN_NONE;
++	}
++
++	return PyObject_FromLdbValue(val);
++}
++
++static PyObject *py_ldb_dn_set_component(PyLdbDnObject *self, PyObject *args)
++{
++	unsigned int num = 0;
++	char *name = NULL;
++	PyObject *value = Py_None;
++	struct ldb_val val = { NULL, };
++	int err;
++
++	if (!PyArg_ParseTuple(args, "IsO", &num, &name, &value))
++		return NULL;
++
++	if (value != Py_None) {
++		if (!PyString_Check(value)) {
++			PyErr_SetString(PyExc_TypeError, "Expected a string argument");
++			return NULL;
++		}
++		val.data = (uint8_t *)PyString_AsString(value);
++		val.length = PyString_Size(value);
++	}
++
++	err = ldb_dn_set_component(self->dn, num, name, val);
++	if (err != LDB_SUCCESS) {
++		PyErr_SetString(PyExc_TypeError, "Failed to set component");
++		return NULL;
++	}
++
++	Py_RETURN_NONE;
++}
++
++static PyObject *py_ldb_dn_get_rdn_name(PyLdbDnObject *self)
++{
++	struct ldb_dn *dn;
++	const char *name;
++
++	dn = pyldb_Dn_AsDn((PyObject *)self);
++
++	name = ldb_dn_get_rdn_name(dn);
++	if (name == NULL) {
++		Py_RETURN_NONE;
++	}
++
++	return PyString_FromString(name);
++}
++
++static PyObject *py_ldb_dn_get_rdn_value(PyLdbDnObject *self)
++{
++	struct ldb_dn *dn;
++	const struct ldb_val *val;
++
++	dn = pyldb_Dn_AsDn((PyObject *)self);
++
++	val = ldb_dn_get_rdn_val(dn);
++	if (val == NULL) {
++		Py_RETURN_NONE;
++	}
++
++	return PyObject_FromLdbValue(val);
++}
++
+ static PyMethodDef py_ldb_dn_methods[] = {
+ 	{ "validate", (PyCFunction)py_ldb_dn_validate, METH_NOARGS, 
+ 		"S.validate() -> bool\n"
+@@ -601,8 +694,23 @@ static PyMethodDef py_ldb_dn_methods[] = {
+ 		"S.get_extended_component(name) -> string\n\n"
+ 		"returns a DN extended component as a binary string"},
+ 	{ "set_extended_component", (PyCFunction)py_ldb_dn_set_extended_component, METH_VARARGS,
+-		"S.set_extended_component(name, value) -> string\n\n"
++		"S.set_extended_component(name, value) -> None\n\n"
+ 		"set a DN extended component as a binary string"},
++	{ "get_component_name", (PyCFunction)py_ldb_dn_get_component_name, METH_VARARGS,
++		"S.get_component_name(num) -> string\n"
++		"get the attribute name of the specified component" },
++	{ "get_component_value", (PyCFunction)py_ldb_dn_get_component_value, METH_VARARGS,
++		"S.get_component_value(num) -> string\n"
++		"get the attribute value of the specified component as a binary string" },
++	{ "set_component", (PyCFunction)py_ldb_dn_set_component, METH_VARARGS,
++		"S.get_component_value(num, name, value) -> None\n"
++		"set the attribute name and value of the specified component" },
++	{ "get_rdn_name", (PyCFunction)py_ldb_dn_get_rdn_name, METH_NOARGS,
++		"S.get_rdn_name() -> string\n"
++		"get the RDN attribute name" },
++	{ "get_rdn_value", (PyCFunction)py_ldb_dn_get_rdn_value, METH_NOARGS,
++		"S.get_rdn_value() -> string\n"
++		"get the RDN attribute value as a binary string" },
+ 	{ NULL }
+ };
+ 
+@@ -1075,6 +1183,10 @@ static struct ldb_message *PyDict_AsMessage(TALLOC_CTX *mem_ctx,
+ 	PyObject *dn_value = PyDict_GetItemString(py_obj, "dn");
+ 
+ 	msg = ldb_msg_new(mem_ctx);
++	if (msg == NULL) {
++		PyErr_NoMemory();
++		return NULL;
++	}
+ 	msg->elements = talloc_zero_array(msg, struct ldb_message_element, PyDict_Size(py_obj));
+ 
+ 	if (dn_value) {
+@@ -3088,6 +3200,8 @@ static int py_module_request(struct ldb_module *mod, struct ldb_request *req)
+ 	py_result = PyObject_CallMethod(py_ldb, discard_const_p(char, "request"),
+ 					discard_const_p(char, ""));
+ 
++	Py_XDECREF(py_result);
++
+ 	return LDB_ERR_OPERATIONS_ERROR;
+ }
+ 
+@@ -3099,6 +3213,8 @@ static int py_module_extended(struct ldb_module *mod, struct ldb_request *req)
+ 	py_result = PyObject_CallMethod(py_ldb, discard_const_p(char, "extended"),
+ 					discard_const_p(char, ""));
+ 
++	Py_XDECREF(py_result);
++
+ 	return LDB_ERR_OPERATIONS_ERROR;
+ }
+ 
+diff --git a/python/samba/dbchecker.py b/python/samba/dbchecker.py
+index 4281e6b..c658610 100644
+--- a/python/samba/dbchecker.py
++++ b/python/samba/dbchecker.py
+@@ -63,6 +63,7 @@ class dbcheck(object):
+         self.fix_instancetype = False
+         self.fix_replmetadata_zero_invocationid = False
+         self.fix_deleted_deleted_objects = False
++        self.fix_dn = False
+         self.reset_well_known_acls = reset_well_known_acls
+         self.reset_all_well_known_acls = False
+         self.in_transaction = in_transaction
+@@ -73,6 +74,7 @@ class dbcheck(object):
+         self.ntds_dsa = ldb.Dn(samdb, samdb.get_dsServiceName())
+         self.class_schemaIDGUID = {}
+         self.wellknown_sds = get_wellknown_sds(self.samdb)
++        self.fix_all_missing_objectclass = False
+ 
+         self.name_map = {}
+         try:
+@@ -174,6 +176,18 @@ class dbcheck(object):
+             return False
+         return c
+ 
++    def do_delete(self, dn, controls, msg):
++        '''delete dn with optional verbose output'''
++        if self.verbose:
++            self.report("delete DN %s" % dn)
++        try:
++            controls = controls + ["local_oid:%s:0" % dsdb.DSDB_CONTROL_DBCHECK]
++            self.samdb.delete(dn, controls=controls)
++        except Exception, err:
++            self.report("%s : %s" % (msg, err))
++            return False
++        return True
++
+     def do_modify(self, m, controls, msg, validate=True):
+         '''perform a modify with optional verbose output'''
+         if self.verbose:
+@@ -272,6 +286,16 @@ newSuperior: %s""" % (str(from_dn), str(to_rdn), str(to_base)))
+         '''see if a dsdb_Dn is the special Deleted Objects DN'''
+         return dsdb_dn.prefix == "B:32:%s:" % dsdb.DS_GUID_DELETED_OBJECTS_CONTAINER
+ 
++    def err_missing_objectclass(self, dn):
++        """handle object without objectclass"""
++        self.report("ERROR: missing objectclass in object %s.  If you have another working DC, please run 'samba-tool drs replicate --full-sync --local <destinationDC> <sourceDC> %s'" % (dn, self.samdb.get_nc_root(dn)))
++        if not self.confirm_all("If you cannot re-sync from another DC, do you wish to delete object '%s'?" % dn, 'fix_all_missing_objectclass'):
++            self.report("Not deleting object with missing objectclass '%s'" % dn)
++            return
++        if self.do_delete(dn, ["relax:0"],
++                          "Failed to remove DN %s" % dn):
++            self.report("Removed DN %s" % dn)
++
+     def err_deleted_dn(self, dn, attrname, val, dsdb_dn, correct_dn):
+         """handle a DN pointing to a deleted object"""
+         self.report("ERROR: target DN is deleted for %s in object %s - %s" % (attrname, dn, val))
+@@ -463,6 +487,26 @@ newSuperior: %s""" % (str(from_dn), str(to_rdn), str(to_base)))
+         else:
+             self.samdb.transaction_cancel()
+ 
++    def err_wrong_dn(self, obj, new_dn, rdn_attr, rdn_val, name_val):
++        '''handle a wrong dn'''
++
++        new_rdn = ldb.Dn(self.samdb, str(new_dn))
++        new_rdn.remove_base_components(len(new_rdn) - 1)
++        new_parent = new_dn.parent()
++
++        attributes = ""
++        if rdn_val != name_val:
++            attributes += "%s=%r " % (rdn_attr, rdn_val)
++        attributes += "name=%r" % (name_val)
++
++        self.report("ERROR: wrong dn[%s] %s new_dn[%s]" % (obj.dn, attributes, new_dn))
++        if not self.confirm_all("Rename %s to %s?" % (obj.dn, new_dn), 'fix_dn'):
++            self.report("Not renaming %s to %s" % (obj.dn, new_dn))
++            return
++
++        if self.do_rename(obj.dn, new_rdn, new_parent, ["show_recycled:1", "relax:0"],
++                          "Failed to rename object %s into %s" % (obj.dn, new_dn)):
++            self.report("Renamed %s into %s" % (obj.dn, new_dn))
+ 
+     def err_wrong_instancetype(self, obj, calculated_instancetype):
+         '''handle a wrong instanceType'''
+@@ -985,6 +1029,16 @@ newSuperior: %s""" % (str(from_dn), str(to_rdn), str(to_base)))
+         '''check one object'''
+         if self.verbose:
+             self.report("Checking object %s" % dn)
++        if "dn" in map(str.lower, attrs):
++            attrs.append("name")
++        if "distinguishedname" in map(str.lower, attrs):
++            attrs.append("name")
++        if str(dn.get_rdn_name()).lower() in map(str.lower, attrs):
++            attrs.append("name")
++        if 'name' in map(str.lower, attrs):
++            attrs.append(dn.get_rdn_name())
++            attrs.append("isDeleted")
++            attrs.append("systemFlags")
+         if '*' in attrs:
+             attrs.append("replPropertyMetaData")
+ 
+@@ -1018,11 +1072,52 @@ newSuperior: %s""" % (str(from_dn), str(to_rdn), str(to_base)))
+         list_attrs_from_md = []
+         list_attrs_seen = []
+         got_repl_property_meta_data = False
++        got_objectclass = False
++
++        nc_dn = self.samdb.get_nc_root(obj.dn)
++        try:
++            deleted_objects_dn = self.samdb.get_wellknown_dn(nc_dn,
++                                                 samba.dsdb.DS_GUID_DELETED_OBJECTS_CONTAINER)
++        except KeyError, e:
++            deleted_objects_dn = ldb.Dn(self.samdb, "CN=Deleted Objects,%s" % nc_dn)
++
++        object_rdn_attr = None
++        object_rdn_val = None
++        name_val = None
++        isDeleted = False
++        systemFlags = 0
+ 
+         for attrname in obj:
+             if attrname == 'dn':
+                 continue
+ 
++            if str(attrname).lower() == 'objectclass':
++                got_objectclass = True
++
++            if str(attrname).lower() == "name":
++                if len(obj[attrname]) != 1:
++                    error_count += 1
++                    self.report("ERROR: Not fixing num_values(%d) for '%s' on '%s'" %
++                                (len(obj[attrname]), attrname, str(obj.dn)))
++                else:
++                    name_val = obj[attrname][0]
++
++            if str(attrname).lower() == str(obj.dn.get_rdn_name()).lower():
++                object_rdn_attr = attrname
++                if len(obj[attrname]) != 1:
++                    error_count += 1
++                    self.report("ERROR: Not fixing num_values(%d) for '%s' on '%s'" %
++                                (len(obj[attrname]), attrname, str(obj.dn)))
++                else:
++                    object_rdn_val = obj[attrname][0]
++
++            if str(attrname).lower() == 'isdeleted':
++                if obj[attrname][0] != "FALSE":
++                    isDeleted = True
++
++            if str(attrname).lower() == 'systemflags':
++                systemFlags = int(obj[attrname][0])
++
+             if str(attrname).lower() == 'replpropertymetadata':
+                 if self.has_replmetadata_zero_invocationid(dn, obj[attrname]):
+                     error_count += 1
+@@ -1110,10 +1205,41 @@ newSuperior: %s""" % (str(from_dn), str(to_rdn), str(to_base)))
+                     error_count += 1
+                     self.err_wrong_instancetype(obj, calculated_instancetype)
+ 
++        if not got_objectclass and ("*" in attrs or "objectclass" in map(str.lower, attrs)):
++            error_count += 1
++            self.err_missing_objectclass(dn)
++
++        if ("*" in attrs or "name" in map(str.lower, attrs)):
++            if name_val is None:
++                error_count += 1
++                self.report("ERROR: Not fixing missing 'name' on '%s'" % (str(obj.dn)))
++            if object_rdn_attr is None:
++                error_count += 1
++                self.report("ERROR: Not fixing missing '%s' on '%s'" % (obj.dn.get_rdn_name(), str(obj.dn)))
++
++        if name_val is not None:
++            parent_dn = None
++            if isDeleted:
++                if not (systemFlags & samba.dsdb.SYSTEM_FLAG_DISALLOW_MOVE_ON_DELETE):
++                    parent_dn = deleted_objects_dn
++            if parent_dn is None:
++                parent_dn = obj.dn.parent()
++            expected_dn = ldb.Dn(self.samdb, "RDN=RDN,%s" % (parent_dn))
++            expected_dn.set_component(0, obj.dn.get_rdn_name(), name_val)
++
++            if obj.dn == deleted_objects_dn:
++                expected_dn = obj.dn
++
++            if expected_dn != obj.dn:
++                error_count += 1
++                self.err_wrong_dn(obj, expected_dn, object_rdn_attr, object_rdn_val, name_val)
++            elif obj.dn.get_rdn_value() != object_rdn_val:
++                error_count += 1
++                self.report("ERROR: Not fixing %s=%r on '%s'" % (object_rdn_attr, object_rdn_val, str(obj.dn)))
++
+         show_dn = True
+         if got_repl_property_meta_data:
+-            rdn = (str(dn).split(","))[0]
+-            if rdn == "CN=Deleted Objects":
++            if obj.dn == deleted_objects_dn:
+                 isDeletedAttId = 131120
+                 # It's 29/12/9999 at 23:59:59 UTC as specified in MS-ADTS 7.1.1.4.2 Deleted Objects Container
+ 
+@@ -1142,7 +1268,7 @@ newSuperior: %s""" % (str(from_dn), str(to_rdn), str(to_base)))
+                     self.fix_metadata(dn, att)
+ 
+         if self.is_fsmo_role(dn):
+-            if "fSMORoleOwner" not in obj:
++            if "fSMORoleOwner" not in obj and ("*" in attrs or "fsmoroleowner" in map(str.lower, attrs)):
+                 self.err_no_fsmoRoleOwner(obj)
+                 error_count += 1
+ 
+diff --git a/source4/dsdb/kcc/kcc_deleted.c b/source4/dsdb/kcc/kcc_deleted.c
+index 63bb97c..331d4fb 100644
+--- a/source4/dsdb/kcc/kcc_deleted.c
++++ b/source4/dsdb/kcc/kcc_deleted.c
+@@ -128,7 +128,7 @@ NTSTATUS kccsrv_check_deleted(struct kccsrv_service *s, TALLOC_CTX *mem_ctx)
+ 				whenChanged = ldb_string_to_time(tstring);
+ 			}
+ 			if (t - whenChanged > tombstoneLifetime*60*60*24) {
+-				ret = dsdb_delete(s->samdb, res->msgs[i]->dn, DSDB_SEARCH_SHOW_DELETED);
++				ret = dsdb_delete(s->samdb, res->msgs[i]->dn, DSDB_SEARCH_SHOW_DELETED|DSDB_MODIFY_RELAX);
+ 				if (ret != LDB_SUCCESS) {
+ 					DEBUG(1,(__location__ ": Failed to remove deleted object %s\n",
+ 						 ldb_dn_get_linearized(res->msgs[i]->dn)));
+diff --git a/source4/dsdb/samdb/ldb_modules/repl_meta_data.c b/source4/dsdb/samdb/ldb_modules/repl_meta_data.c
+index 91a5d92..83dabdf 100644
+--- a/source4/dsdb/samdb/ldb_modules/repl_meta_data.c
++++ b/source4/dsdb/samdb/ldb_modules/repl_meta_data.c
+@@ -660,7 +660,15 @@ static int replmd_replPropertyMetaData1_attid_sort(const struct replPropertyMeta
+ 						   const struct replPropertyMetaData1 *m2,
+ 						   const uint32_t *rdn_attid)
+ {
+-	if (m1->attid == m2->attid) {
++	/*
++	 * This assignment seems inoccous, but it is critical for the
++	 * system, as we need to do the comparisons as a unsigned
++	 * quantity, not signed (enums are signed integers)
++	 */
++	uint32_t attid_1 = m1->attid;
++	uint32_t attid_2 = m2->attid;
++
++	if (attid_1 == attid_2) {
+ 		return 0;
+ 	}
+ 
+@@ -669,7 +677,7 @@ static int replmd_replPropertyMetaData1_attid_sort(const struct replPropertyMeta
+ 	 * so we need to return a value greater than zero
+ 	 * which means m1 is greater than m2
+ 	 */
+-	if (m1->attid == *rdn_attid) {
++	if (attid_1 == *rdn_attid) {
+ 		return 1;
+ 	}
+ 
+@@ -678,38 +686,78 @@ static int replmd_replPropertyMetaData1_attid_sort(const struct replPropertyMeta
+ 	 * so we need to return a value less than zero
+ 	 * which means m2 is greater than m1
+ 	 */
+-	if (m2->attid == *rdn_attid) {
++	if (attid_2 == *rdn_attid) {
+ 		return -1;
+ 	}
+ 
+-	return m1->attid > m2->attid ? 1 : -1;
++	/*
++	 * See above regarding this being an unsigned comparison.
++	 * Otherwise when the high bit is set on non-standard
++	 * attributes, they would end up first, before objectClass
++	 * (0).
++	 */
++	return attid_1 > attid_2 ? 1 : -1;
++}
++
++static int replmd_replPropertyMetaDataCtr1_verify(struct ldb_context *ldb,
++						  struct replPropertyMetaDataCtr1 *ctr1,
++						  const struct dsdb_attribute *rdn_sa,
++						  struct ldb_dn *dn)
++{
++	if (ctr1->count == 0) {
++		ldb_debug_set(ldb, LDB_DEBUG_FATAL,
++			      "No elements found in replPropertyMetaData for %s!\n",
++			      ldb_dn_get_linearized(dn));
++		return LDB_ERR_CONSTRAINT_VIOLATION;
++	}
++	if (ctr1->array[ctr1->count - 1].attid != rdn_sa->attributeID_id) {
++		ldb_debug_set(ldb, LDB_DEBUG_FATAL,
++			      "No rDN found in replPropertyMetaData for %s!\n",
++			      ldb_dn_get_linearized(dn));
++		return LDB_ERR_CONSTRAINT_VIOLATION;
++	}
++
++	/* the objectClass attribute is value 0x00000000, so must be first */
++	if (ctr1->array[0].attid != DRSUAPI_ATTID_objectClass) {
++		ldb_debug_set(ldb, LDB_DEBUG_FATAL,
++			      "No objectClass found in replPropertyMetaData for %s!\n",
++			      ldb_dn_get_linearized(dn));
++		return LDB_ERR_OBJECT_CLASS_VIOLATION;
++	}
++
++	return LDB_SUCCESS;
+ }
+ 
+-static int replmd_replPropertyMetaDataCtr1_sort(struct replPropertyMetaDataCtr1 *ctr1,
+-						const struct dsdb_schema *schema,
+-						struct ldb_dn *dn)
++static int replmd_replPropertyMetaDataCtr1_sort_and_verify(struct ldb_context *ldb,
++							   struct replPropertyMetaDataCtr1 *ctr1,
++							   const struct dsdb_schema *schema,
++							   struct ldb_dn *dn)
+ {
+ 	const char *rdn_name;
+ 	const struct dsdb_attribute *rdn_sa;
+ 
+ 	rdn_name = ldb_dn_get_rdn_name(dn);
+ 	if (!rdn_name) {
+-		DEBUG(0,(__location__ ": No rDN for %s?\n", ldb_dn_get_linearized(dn)));
+-		return LDB_ERR_OPERATIONS_ERROR;
++		ldb_debug_set(ldb, LDB_DEBUG_FATAL,
++			      __location__ ": No rDN for %s?\n",
++			      ldb_dn_get_linearized(dn));
++		return LDB_ERR_INVALID_DN_SYNTAX;
+ 	}
+ 
+ 	rdn_sa = dsdb_attribute_by_lDAPDisplayName(schema, rdn_name);
+ 	if (rdn_sa == NULL) {
+-		DEBUG(0,(__location__ ": No sa found for rDN %s for %s\n", rdn_name, ldb_dn_get_linearized(dn)));
+-		return LDB_ERR_OPERATIONS_ERROR;
++		ldb_debug_set(ldb, LDB_DEBUG_FATAL,
++			      __location__ ": No sa found for rDN %s for %s\n",
++			      rdn_name, ldb_dn_get_linearized(dn));
++		return LDB_ERR_UNDEFINED_ATTRIBUTE_TYPE;
+ 	}
+ 
+ 	DEBUG(6,("Sorting rpmd with attid exception %u rDN=%s DN=%s\n",
+ 		 rdn_sa->attributeID_id, rdn_name, ldb_dn_get_linearized(dn)));
+ 
+-	LDB_TYPESAFE_QSORT(ctr1->array, ctr1->count, &rdn_sa->attributeID_id, replmd_replPropertyMetaData1_attid_sort);
+-
+-	return LDB_SUCCESS;
++	LDB_TYPESAFE_QSORT(ctr1->array, ctr1->count, &rdn_sa->attributeID_id,
++			   replmd_replPropertyMetaData1_attid_sort);
++	return replmd_replPropertyMetaDataCtr1_verify(ldb, ctr1, rdn_sa, dn);
+ }
+ 
+ static int replmd_ldb_message_element_attid_sort(const struct ldb_message_element *e1,
+@@ -1025,8 +1073,9 @@ static int replmd_add(struct ldb_module *module, struct ldb_request *req)
+ 	/*
+ 	 * sort meta data array, and move the rdn attribute entry to the end
+ 	 */
+-	ret = replmd_replPropertyMetaDataCtr1_sort(&nmd.ctr.ctr1, ac->schema, msg->dn);
++	ret = replmd_replPropertyMetaDataCtr1_sort_and_verify(ldb, &nmd.ctr.ctr1, ac->schema, msg->dn);
+ 	if (ret != LDB_SUCCESS) {
++		ldb_asprintf_errstring(ldb, "%s: error during direct ADD: %s", __func__, ldb_errstring(ldb));
+ 		talloc_free(ac);
+ 		return ret;
+ 	}
+@@ -1080,7 +1129,17 @@ static int replmd_add(struct ldb_module *module, struct ldb_request *req)
+ 	 */
+ 	replmd_ldb_message_sort(msg, ac->schema);
+ 
++	/*
++	 * Assert that we do have an objectClass
++	 */
+ 	objectclass_el = ldb_msg_find_element(msg, "objectClass");
++	if (objectclass_el == NULL) {
++		ldb_asprintf_errstring(ldb, __location__
++				       ": objectClass missing on %s\n",
++				       ldb_dn_get_linearized(msg->dn));
++		talloc_free(ac);
++		return LDB_ERR_OBJECT_CLASS_VIOLATION;
++	}
+ 	is_urgent = replmd_check_urgent_objectclass(objectclass_el,
+ 							REPL_URGENT_ON_CREATE);
+ 
+@@ -1398,12 +1457,6 @@ static int replmd_update_rpmd(struct ldb_module *module,
+ 			return ret;
+ 		}
+ 
+-		objectclass_el = ldb_msg_find_element(res->msgs[0], "objectClass");
+-		if (is_urgent && replmd_check_urgent_objectclass(objectclass_el,
+-								situation)) {
+-			*is_urgent = true;
+-		}
+-
+ 		db_seq = ldb_msg_find_attr_as_uint64(res->msgs[0], "uSNChanged", 0);
+ 		if (*seq_num <= db_seq) {
+ 			DEBUG(0,(__location__ ": changereplmetada control provided but max(local_usn)"\
+@@ -1428,12 +1481,6 @@ static int replmd_update_rpmd(struct ldb_module *module,
+ 			return ret;
+ 		}
+ 
+-		objectclass_el = ldb_msg_find_element(res->msgs[0], "objectClass");
+-		if (is_urgent && replmd_check_urgent_objectclass(objectclass_el,
+-								situation)) {
+-			*is_urgent = true;
+-		}
+-
+ 		omd_value = ldb_msg_find_ldb_val(res->msgs[0], "replPropertyMetaData");
+ 		if (!omd_value) {
+ 			DEBUG(0,(__location__ ": Object %s does not have a replPropertyMetaData attribute\n",
+@@ -1464,12 +1511,33 @@ static int replmd_update_rpmd(struct ldb_module *module,
+ 				return ret;
+ 			}
+ 
+-			if (is_urgent && !*is_urgent && (situation == REPL_URGENT_ON_UPDATE)) {
++			if (!*is_urgent && (situation == REPL_URGENT_ON_UPDATE)) {
+ 				*is_urgent = replmd_check_urgent_attribute(&msg->elements[i]);
+ 			}
+ 
+ 		}
+ 	}
++
++	/*
++	 * Assert that we have an objectClass attribute - this is major
++	 * corruption if we don't have this!
++	 */
++	objectclass_el = ldb_msg_find_element(res->msgs[0], "objectClass");
++	if (objectclass_el != NULL) {
++		/*
++		 * Now check if this objectClass means we need to do urgent replication
++		 */
++		if (!*is_urgent && replmd_check_urgent_objectclass(objectclass_el,
++								   situation)) {
++			*is_urgent = true;
++		}
++	} else if (!ldb_request_get_control(req, DSDB_CONTROL_DBCHECK)) {
++		ldb_asprintf_errstring(ldb, __location__
++				       ": objectClass missing on %s\n",
++				       ldb_dn_get_linearized(msg->dn));
++		return LDB_ERR_OBJECT_CLASS_VIOLATION;
++	}
++
+ 	/*
+ 	 * replmd_update_rpmd_element has done an update if the
+ 	 * seq_num is set
+@@ -1504,8 +1572,9 @@ static int replmd_update_rpmd(struct ldb_module *module,
+ 			return LDB_ERR_OPERATIONS_ERROR;
+ 		}
+ 
+-		ret = replmd_replPropertyMetaDataCtr1_sort(&omd.ctr.ctr1, schema, msg->dn);
++		ret = replmd_replPropertyMetaDataCtr1_sort_and_verify(ldb, &omd.ctr.ctr1, schema, msg->dn);
+ 		if (ret != LDB_SUCCESS) {
++			ldb_asprintf_errstring(ldb, "%s: %s", __func__, ldb_errstring(ldb));
+ 			return ret;
+ 		}
+ 
+@@ -2922,6 +2991,20 @@ static int replmd_delete_internals(struct ldb_module *module, struct ldb_request
+ 		return ldb_next_request(module, req);
+ 	}
+ 
++	/*
++	 * We have to allow dbcheck to remove an object that
++	 * is beyond repair, and to do so totally.  This could
++	 * mean we we can get a partial object from the other
++	 * DC, causing havoc, so dbcheck suggests
++	 * re-replication first.  dbcheck sets both DBCHECK
++	 * and RELAX in this situation.
++	 */
++	if (ldb_request_get_control(req, LDB_CONTROL_RELAX_OID)
++	    && ldb_request_get_control(req, DSDB_CONTROL_DBCHECK)) {
++		/* really, really remove it */
++		return ldb_next_request(module, req);
++	}
++
+ 	tmp_ctx = talloc_new(ldb);
+ 	if (!tmp_ctx) {
+ 		ldb_oom(ldb);
+@@ -2965,17 +3048,25 @@ static int replmd_delete_internals(struct ldb_module *module, struct ldb_request
+ 	}
+ 
+ 	if (next_deletion_state == OBJECT_REMOVED) {
+-		struct auth_session_info *session_info =
+-				(struct auth_session_info *)ldb_get_opaque(ldb, "sessionInfo");
+-		if (security_session_user_level(session_info, NULL) != SECURITY_SYSTEM) {
+-			ldb_asprintf_errstring(ldb, "Refusing to delete deleted object %s",
+-					ldb_dn_get_linearized(old_msg->dn));
+-			return LDB_ERR_UNWILLING_TO_PERFORM;
++		/*
++		 * We have to prevent objects being deleted, even if
++		 * the administrator really wants them gone, as
++		 * without the tombstone, we can get a partial object
++		 * from the other DC, causing havoc.
++		 *
++		 * The only other valid case is when the 180 day
++		 * timeout has expired, when relax is specified.
++		 */
++		if (ldb_request_get_control(req, LDB_CONTROL_RELAX_OID)) {
++			/* it is already deleted - really remove it this time */
++			talloc_free(tmp_ctx);
++			return ldb_next_request(module, req);
+ 		}
+ 
+-		/* it is already deleted - really remove it this time */
+-		talloc_free(tmp_ctx);
+-		return ldb_next_request(module, req);
++		ldb_asprintf_errstring(ldb, "Refusing to delete tombstone object %s.  "
++				       "This check is to prevent corruption of the replicated state.",
++				       ldb_dn_get_linearized(old_msg->dn));
++		return LDB_ERR_UNWILLING_TO_PERFORM;
+ 	}
+ 
+ 	rdn_name = ldb_dn_get_rdn_name(old_dn);
+@@ -3214,8 +3305,13 @@ static int replmd_delete_internals(struct ldb_module *module, struct ldb_request
+ 				*/
+ 				continue;
+ 			}
+-			if (!sa->linkID && ldb_attr_in_list(preserved_attrs, el->name)) {
+-				continue;
++			if (!sa->linkID) {
++				if (ldb_attr_in_list(preserved_attrs, el->name)) {
++					continue;
++				}
++				if (sa->searchFlags & SEARCH_FLAG_PRESERVEONDELETE) {
++					continue;
++				}
+ 			}
+ 			ret = ldb_msg_add_empty(msg, el->name, LDB_FLAG_MOD_DELETE, &el);
+ 			if (ret != LDB_SUCCESS) {
+@@ -3826,6 +3922,8 @@ static int replmd_replicated_apply_add(struct replmd_replicated_request *ar)
+ 	unsigned int i;
+ 	int ret;
+ 	bool remote_isDeleted = false;
++	const struct dsdb_attribute *rdn_sa;
++	const char *rdn_name;
+ 
+ 	ldb = ldb_module_get_ctx(ar->module);
+ 	msg = ar->objs->objects[ar->index_current].msg;
+@@ -3861,6 +3959,13 @@ static int replmd_replicated_apply_add(struct replmd_replicated_request *ar)
+ 		struct ldb_message_element *el = &msg->elements[i];
+ 
+ 		if (el->num_values == 0) {
++			if (ldb_attr_cmp(msg->elements[i].name, "objectClass") == 0) {
++				ldb_asprintf_errstring(ldb, __location__
++						       ": empty objectClass sent on %s, aborting replication\n",
++						       ldb_dn_get_linearized(msg->dn));
++				return replmd_replicated_request_error(ar, LDB_ERR_OBJECT_CLASS_VIOLATION);
++			}
++
+ 			DEBUG(4,(__location__ ": Removing attribute %s with num_values==0\n",
+ 				 el->name));
+ 			memmove(el, el+1, sizeof(*el)*(msg->num_elements - (i+1)));
+@@ -3870,12 +3975,38 @@ static int replmd_replicated_apply_add(struct replmd_replicated_request *ar)
+ 		}
+ 	}
+ 
++	if (DEBUGLVL(4)) {
++		char *s = ldb_ldif_message_string(ldb, ar, LDB_CHANGETYPE_ADD, msg);
++		DEBUG(4, ("DRS replication add message:\n%s\n", s));
++		talloc_free(s);
++	}
++
+ 	remote_isDeleted = ldb_msg_find_attr_as_bool(msg,
+ 						     "isDeleted", false);
+ 
+ 	/*
+ 	 * the meta data array is already sorted by the caller
+ 	 */
++
++	rdn_name = ldb_dn_get_rdn_name(msg->dn);
++	if (rdn_name == NULL) {
++		ldb_asprintf_errstring(ldb, __location__ ": No rDN for %s?\n", ldb_dn_get_linearized(msg->dn));
++		return replmd_replicated_request_error(ar, LDB_ERR_INVALID_DN_SYNTAX);
++	}
++
++	rdn_sa = dsdb_attribute_by_lDAPDisplayName(ar->schema, rdn_name);
++	if (rdn_sa == NULL) {
++		ldb_asprintf_errstring(ldb, ": No schema attribute found for rDN %s for %s\n",
++				       rdn_name, ldb_dn_get_linearized(msg->dn));
++		return replmd_replicated_request_error(ar, LDB_ERR_UNDEFINED_ATTRIBUTE_TYPE);
++	}
++
++	ret = replmd_replPropertyMetaDataCtr1_verify(ldb, &md->ctr.ctr1, rdn_sa, msg->dn);
++	if (ret != LDB_SUCCESS) {
++		ldb_asprintf_errstring(ldb, "%s: error during DRS repl ADD: %s", __func__, ldb_errstring(ldb));
++		return replmd_replicated_request_error(ar, ret);
++	}
++
+ 	for (i=0; i < md->ctr.ctr1.count; i++) {
+ 		md->ctr.ctr1.array[i].local_usn = ar->seq_num;
+ 	}
+@@ -3903,12 +4034,6 @@ static int replmd_replicated_apply_add(struct replmd_replicated_request *ar)
+ 
+ 	ar->isDeleted = remote_isDeleted;
+ 
+-	if (DEBUGLVL(4)) {
+-		char *s = ldb_ldif_message_string(ldb, ar, LDB_CHANGETYPE_ADD, msg);
+-		DEBUG(4, ("DRS replication add message:\n%s\n", s));
+-		talloc_free(s);
+-	}
+-
+ 	ret = ldb_build_add_req(&change_req,
+ 				ldb,
+ 				ar,
+@@ -4300,11 +4425,19 @@ static int replmd_replicated_apply_merge(struct replmd_replicated_request *ar)
+ 			}
+ 
+ 			if (ar->objs->dsdb_repl_flags & DSDB_REPL_FLAG_PRIORITISE_INCOMING) {
+-				/* if we compare equal then do an
+-				   update. This is used when a client
+-				   asks for a FULL_SYNC, and can be
+-				   used to recover a corrupt
+-				   replica */
++				/*
++				 * if we compare equal then do an
++				 * update. This is used when a client
++				 * asks for a FULL_SYNC, and can be
++				 * used to recover a corrupt
++				 * replica.
++				 *
++				 * This call is a bit tricky, what we
++				 * are doing it turning the 'is_newer'
++				 * call into a 'not is older' by
++				 * swapping i and j, and negating the
++				 * outcome.
++				*/
+ 				cmp = !replmd_replPropertyMetaData1_is_newer(&rmd->ctr.ctr1.array[i],
+ 									     &nmd.ctr.ctr1.array[j]);
+ 			} else {
+@@ -4385,8 +4518,9 @@ static int replmd_replicated_apply_merge(struct replmd_replicated_request *ar)
+ 	 *
+ 	 * sort the new meta data array
+ 	 */
+-	ret = replmd_replPropertyMetaDataCtr1_sort(&nmd.ctr.ctr1, ar->schema, msg->dn);
++	ret = replmd_replPropertyMetaDataCtr1_sort_and_verify(ldb, &nmd.ctr.ctr1, ar->schema, msg->dn);
+ 	if (ret != LDB_SUCCESS) {
++		ldb_asprintf_errstring(ldb, "%s: error during DRS repl merge: %s", __func__, ldb_errstring(ldb));
+ 		return ret;
+ 	}
+ 
+@@ -4460,6 +4594,14 @@ static int replmd_replicated_apply_merge(struct replmd_replicated_request *ar)
+ 	/* we want to replace the old values */
+ 	for (i=0; i < msg->num_elements; i++) {
+ 		msg->elements[i].flags = LDB_FLAG_MOD_REPLACE;
++		if (ldb_attr_cmp(msg->elements[i].name, "objectClass") == 0) {
++			if (msg->elements[i].num_values == 0) {
++				ldb_asprintf_errstring(ldb, __location__
++						       ": objectClass removed on %s, aborting replication\n",
++						       ldb_dn_get_linearized(msg->dn));
++				return replmd_replicated_request_error(ar, LDB_ERR_OBJECT_CLASS_VIOLATION);
++			}
++		}
+ 	}
+ 
+ 	if (DEBUGLVL(4)) {
+@@ -5277,8 +5419,8 @@ linked_attributes[0]:
+ 
+ 	attrs[0] = attr->lDAPDisplayName;
+ 	attrs[1] = "isDeleted";
+-	attrs[1] = "isRecycled";
+-	attrs[2] = NULL;
++	attrs[2] = "isRecycled";
++	attrs[3] = NULL;
+ 
+ 	/* get the existing message from the db for the object with
+ 	   this GUID, returning attribute being modified. We will then
+-- 
+1.9.1
+

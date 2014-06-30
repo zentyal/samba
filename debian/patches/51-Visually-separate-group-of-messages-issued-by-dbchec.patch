@@ -1,0 +1,53 @@
+From 8aaf9730cdbcea977a1401f9be73fb622b7b7aaf Mon Sep 17 00:00:00 2001
+From: Kamen Mazdrashki <kamenim@samba.org>
+Date: Mon, 30 Jun 2014 16:20:09 +0200
+Subject: [PATCH 2/2] Visually separate group of messages issued by dbchecker
+ module
+
+So it is easier to read diagnostic logs
+
+Change-Id: I6476396f37945b7352be094a690b4ae3e40f8bd0
+---
+ python/samba/dbchecker.py | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/python/samba/dbchecker.py b/python/samba/dbchecker.py
+index c658610..398ddbf 100644
+--- a/python/samba/dbchecker.py
++++ b/python/samba/dbchecker.py
+@@ -75,6 +75,7 @@ class dbcheck(object):
+         self.class_schemaIDGUID = {}
+         self.wellknown_sds = get_wellknown_sds(self.samdb)
+         self.fix_all_missing_objectclass = False
++        self.reported_msgs = 0
+ 
+         self.name_map = {}
+         try:
+@@ -138,8 +139,15 @@ class dbcheck(object):
+         self.report('Checked %u objects (%u errors)' % (len(res), error_count))
+         return error_count
+ 
++    def report_mark(self):
++        if self.reported_msgs > 0:
++            self.report("---")
++            self.reported_msgs = 0
++        pass
++
+     def report(self, msg):
+         '''print a message unless quiet is set'''
++        self.reported_msgs = int(self.reported_msgs) + 1
+         if not self.quiet:
+             print(msg)
+ 
+@@ -1042,6 +1050,8 @@ newSuperior: %s""" % (str(from_dn), str(to_rdn), str(to_base)))
+         if '*' in attrs:
+             attrs.append("replPropertyMetaData")
+ 
++	self.report_mark()
++
+         try:
+             sd_flags = 0
+             sd_flags |= security.SECINFO_OWNER
+-- 
+1.9.1
+

@@ -21,3 +21,5 @@
 46-Add-test-for-guest-access-to-SMB-and-LDAP.patch
 47-Test-guest-access-in-domain-member-environment.patch
 48-vfs-recycle-inherit-nt-acls.patch
+50-Backport-patches-from-Samba-master-for-samba-tool.patch
+51-Visually-separate-group-of-messages-issued-by-dbchec.patch

@@ -1,3 +1,13 @@
+samba4 (4.1.7-zentyal-sb1) precise; urgency=low
+
+  * merged latest version for dbchecker from upstream master
+    @cf75ef9f73f2cdbf2a039bbc9468f5da6a14834e
+  * merged latest version for repl_meta_data module from upstream master
+    @cf75ef9f73f2cdbf2a039bbc9468f5da6a14834e
+  * visually separate messages from 'samba-tool dbcheck' output
+
+ -- Kamen Mazdrashki <kmazdrashki@zentyal.com>  Mon, 30 Jun 2014 17:30:00 +0200
+
 samba4 (4.1.7-zentyal1) precise; urgency=low
 
   * New upstream release

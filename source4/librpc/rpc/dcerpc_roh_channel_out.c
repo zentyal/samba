@@ -114,9 +114,15 @@ struct tevent_req *roh_connect_channel_out_send(TALLOC_CTX *mem_ctx,
 
 	/* Initialize channel structure */
 	state->roh->default_channel_out = talloc_zero(roh, struct roh_channel);
+	if (tevent_req_nomem(state->roh->default_channel_out, req))
+		return tevent_req_post(req, ev);
+
 	state->roh->default_channel_out->send_queue =
 		tevent_queue_create(state->roh->default_channel_out,
 		"RoH OUT virtual channel send queue");
+	if (tevent_req_nomem(state->roh->default_channel_out->send_queue, req))
+		return tevent_req_post(req, ev);
+
 	state->roh->default_channel_out->channel_cookie = GUID_random();
 
 	subreq = tstream_inet_tcp_connect_send(state, ev, state->local_address,

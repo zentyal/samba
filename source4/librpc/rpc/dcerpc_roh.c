@@ -97,10 +97,13 @@ NTSTATUS dcerpc_pipe_open_roh_recv(
 {
 	struct roh_open_connection_state *state;
 	struct tstream_roh_context *roh_stream_ctx;
-
 	NTSTATUS status;
 
 	state = tevent_req_data(req, struct roh_open_connection_state);
+	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
+		return status;
+	}
 
 	*stream = tstream_context_create(mem_ctx,
 			&tstream_roh_ops,
@@ -116,10 +119,6 @@ NTSTATUS dcerpc_pipe_open_roh_recv(
 	roh_stream_ctx->roh_conn = talloc_move(mem_ctx, &state->roh);
 	*queue = roh_stream_ctx->roh_conn->default_channel_in->send_queue;
 
-	if (tevent_req_is_nterror(req, &status)) {
-		tevent_req_received(req);
-		return status;
-	}
 	tevent_req_received(req);
 
 	return NT_STATUS_OK;
@@ -218,14 +217,15 @@ static void roh_continue_resolve_name(struct composite_context *ctx)
 			&state->rpcproxy_addresses);
 	if (tevent_req_nterror(state->req, status)) {
 		DEBUG(2, ("%s: No server found: %s\n", __func__,
-					nt_errstr(status)));
+				nt_errstr(status)));
 		return;
 	}
+
 	state->rpcproxy_address_index = 0;
 	if (state->rpcproxy_addresses[state->rpcproxy_address_index] == NULL) {
+		DEBUG(2, ("%s: No server found\n", __func__));
 		tevent_req_nterror(state->req,
 				NT_STATUS_OBJECT_NAME_NOT_FOUND);
-		DEBUG(2, ("%s: No server found\n", __func__));
 		return;
 	}
 

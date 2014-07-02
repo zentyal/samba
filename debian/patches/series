@@ -21,3 +21,4 @@
 46-Add-test-for-guest-access-to-SMB-and-LDAP.patch
 47-Test-guest-access-in-domain-member-environment.patch
 48-vfs-recycle-inherit-nt-acls.patch
+49-dlz-bind9-skip-loading-duplicated-zones

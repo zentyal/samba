@@ -1,3 +1,11 @@
+samba4 (4.1.9-zentyal1) precise; urgency=medium
+
+  * New upstream release
+  * s4-dns: dlz_bind9: Skip loading duplicated zones
+    (..InProgress-<guid>-<name>)
+
+ -- Samuel Cabrero <scabrero@zentyal.com>  Wed, 02 Jul 2014 13:10:41 +0200
+
 samba4 (4.1.7-zentyal1) precise; urgency=low
 
   * New upstream release

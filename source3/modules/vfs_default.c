@@ -1141,7 +1141,7 @@ static NTSTATUS vfswrap_fsctl(struct vfs_handle_struct *handle,
 		if (!labels) {
 			*out_len = 16;
 		} else {
-			*out_len = 12 + labels_data_count + 4;
+			*out_len = 12 + labels_data_count;
 		}
 
 		if (max_out_len < *out_len) {
@@ -1151,7 +1151,7 @@ static NTSTATUS vfswrap_fsctl(struct vfs_handle_struct *handle,
 			return NT_STATUS_BUFFER_TOO_SMALL;
 		}
 
-		cur_pdata = talloc_array(ctx, char, *out_len);
+		cur_pdata = talloc_zero_array(ctx, char, *out_len);
 		if (cur_pdata == NULL) {
 			TALLOC_FREE(shadow_data);
 			return NT_STATUS_NO_MEMORY;
@@ -1168,7 +1168,7 @@ static NTSTATUS vfswrap_fsctl(struct vfs_handle_struct *handle,
 		}
 
 		/* needed_data_count 4 bytes */
-		SIVAL(cur_pdata, 8, labels_data_count + 4);
+		SIVAL(cur_pdata, 8, labels_data_count);
 
 		cur_pdata += 12;
 
@@ -1393,6 +1393,10 @@ static struct tevent_req *vfswrap_copy_chunk_send(struct vfs_handle_struct *hand
 		off_t this_num = MIN(sizeof(vfs_cc_state->buf),
 				     num - vfs_cc_state->copied);
 
+		if (src_fsp->op == NULL) {
+			tevent_req_nterror(req, NT_STATUS_INTERNAL_ERROR);
+			return tevent_req_post(req, ev);
+		}
 		init_strict_lock_struct(src_fsp,
 					src_fsp->op->global->open_persistent_id,
 					src_off,
@@ -1425,6 +1429,11 @@ static struct tevent_req *vfswrap_copy_chunk_send(struct vfs_handle_struct *hand
 		}
 
 		src_off += ret;
+
+		if (dest_fsp->op == NULL) {
+			tevent_req_nterror(req, NT_STATUS_INTERNAL_ERROR);
+			return tevent_req_post(req, ev);
+		}
 
 		init_strict_lock_struct(dest_fsp,
 					dest_fsp->op->global->open_persistent_id,

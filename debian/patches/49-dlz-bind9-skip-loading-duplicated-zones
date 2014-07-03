@@ -1,0 +1,14 @@
+Index: samba/source4/dns_server/dlz_bind9.c
+===================================================================
+--- samba.orig/source4/dns_server/dlz_bind9.c	2014-07-02 13:23:37.554391728 +0200
++++ samba/source4/dns_server/dlz_bind9.c	2014-07-02 13:24:30.018392515 +0200
+@@ -1194,7 +1194,8 @@
+ 			}
+ 			/* Ignore zones that are not handled in BIND */
+ 			if ((strcmp(zone, "RootDNSServers") == 0) ||
+-			    (strcmp(zone, "..TrustAnchors") == 0)) {
++			    (strcmp(zone, "..TrustAnchors") == 0) ||
++			    (strncmp(zone, "..InProgress", 12) == 0)) {
+ 				continue;
+ 			}
+ 			zone_dn = ldb_dn_copy(tmp_ctx, dn);

@@ -1,3 +1,11 @@
+samba (3:4.1.9+dfsg-1~zentyal1) trusty; urgency=medium
+
+  * New upstream release
+  * s4-dns: dlz_bind9: Skip loading duplicated zones
+    (..InProgress-<guid>-<name>)
+
+ -- Samuel Cabrero <scabrero@zentyal.com>  Thu, 03 Jul 2014 10:41:22 +0200
+
 samba (2:4.1.9+dfsg-1) unstable; urgency=high
 
   * New upstream security release. Fixes:

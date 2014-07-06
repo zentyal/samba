@@ -59,7 +59,7 @@ Build-Depends: bison,
                xsltproc,
                zlib1g-dev (>= 1:1.2.3)
 Vcs-Browser: http://anonscm.debian.org/gitweb/?p=pkg-samba/samba.git
-Vcs-Git: git://anonscm.debian.org/pkg-samba/samba.git
+Vcs-Git: git://anonscm.debian.org/pkg-samba/samba.git -b master
 XS-Testsuite: autopkgtest
 
 Package: samba

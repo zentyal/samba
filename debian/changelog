@@ -1,6 +1,8 @@
 samba (2:4.1.9+dfsg-2) UNRELEASED; urgency=medium
 
   * Depend on libgnutls28-dev rather than libgnutls-dev. Closes: #753146
+  * Remove outdated-autotools-helper-file overrides for config.guess and
+    config.sub; files are no longer present upstream.
 
  -- Jelmer Vernooij <jelmer@debian.org>  Sun, 29 Jun 2014 19:43:52 +0200
 

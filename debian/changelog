@@ -1,11 +1,16 @@
 samba (2:4.1.9+dfsg-2) UNRELEASED; urgency=medium
 
+  [ Jelmer Vernooij ]
   * Depend on libgnutls28-dev rather than libgnutls-dev. Closes: #753146
   * Remove outdated-autotools-helper-file overrides for config.guess and
     config.sub; files are no longer present upstream.
   * Add branch to Vcs-Git header.
   * samba.smbd.upstart: Remove leftover code for RUN_MODE=inetd, which
     was already removed elsewhere.
+
+  [ Debconf translations ]0
+  * New Brazilian Portugese translation from Adriano Rafael Gomes.
+    Closes: #752719
 
  -- Jelmer Vernooij <jelmer@debian.org>  Sun, 29 Jun 2014 19:43:52 +0200
 

@@ -48,6 +48,7 @@ usr/lib/*/samba/libdbwrap.so.*
 usr/lib/*/samba/libdcerpc-samba.so.*
 usr/lib/*/samba/libdcerpc-samba4.so.*
 usr/lib/*/samba/libdfs_server_ad.so.*
+usr/lib/*/samba/libdsdb-module.so.*
 usr/lib/*/samba/liberrors.so.*
 usr/lib/*/samba/libevents.so.*
 usr/lib/*/samba/libflag_mapping.so.*

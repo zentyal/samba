@@ -1,4 +1,4 @@
-samba (2:4.1.9+dfsg-2) UNRELEASED; urgency=medium
+samba (2:4.1.9+dfsg-2) unstable; urgency=medium
 
   [ Jelmer Vernooij ]
   * Depend on libgnutls28-dev rather than libgnutls-dev. Closes: #753146
@@ -7,16 +7,14 @@ samba (2:4.1.9+dfsg-2) UNRELEASED; urgency=medium
   * Add branch to Vcs-Git header.
   * samba.smbd.upstart: Remove leftover code for RUN_MODE=inetd, which
     was already removed elsewhere.
-
-  [ Debconf translations ]
-  * New Brazilian Portugese translation from Adriano Rafael Gomes.
-    Closes: #752719
-
-  [ Jelmer Vernooij ]
   * Move dsdb-module library from samba-dsdb-modules to samba-libs, to
     prevent circular dependencies between samba-dsdb-modules and samba-
     libs. This is necessary since dsdb-module is now used by the dcerpc-
     server library.
+
+  [ Debconf translations ]
+  * New Brazilian Portugese translation from Adriano Rafael Gomes.
+    Closes: #752719
 
  -- Jelmer Vernooij <jelmer@debian.org>  Sun, 29 Jun 2014 19:43:52 +0200
 

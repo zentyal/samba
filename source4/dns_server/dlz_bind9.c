@@ -853,14 +853,12 @@ static isc_result_t dlz_lookup_types(struct dlz_bind9_data *state,
 		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 			state->log(ISC_LOG_ERROR, "samba_dlz: failed to parse dnsRecord for %s",
 				   ldb_dn_get_linearized(dn));
-			talloc_free(tmp_ctx);
-			return ISC_R_FAILURE;
+			continue;
 		}
 
 		result = b9_putrr(state, lookup, &rec, types);
 		if (result != ISC_R_SUCCESS) {
-			talloc_free(tmp_ctx);
-			return result;
+			continue;
 		}
 	}
 

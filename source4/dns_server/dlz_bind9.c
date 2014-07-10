@@ -826,6 +826,7 @@ static isc_result_t dlz_lookup_types(struct dlz_bind9_data *state,
 	struct ldb_result *res;
 	struct ldb_message_element *el;
 	struct ldb_dn *dn;
+	unsigned int records_sent = 0;
 
 	for (i=0; zone_prefixes[i]; i++) {
 		dn = ldb_dn_copy(tmp_ctx, ldb_get_default_basedn(state->samdb));
@@ -870,9 +871,14 @@ static isc_result_t dlz_lookup_types(struct dlz_bind9_data *state,
 		}
 
 		result = b9_putrr(state, lookup, &rec, types);
-		if (result != ISC_R_SUCCESS) {
-			continue;
+		if (result == ISC_R_SUCCESS) {
+			records_sent++;
 		}
+	}
+
+	if (records_sent == 0) {
+		talloc_free(tmp_ctx);
+		return ISC_R_NOTFOUND;
 	}
 
 	talloc_free(tmp_ctx);

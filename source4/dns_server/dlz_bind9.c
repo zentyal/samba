@@ -403,9 +403,15 @@ static isc_result_t b9_putrr(struct dlz_bind9_data *state,
 {
 	isc_result_t result;
 	const char *type, *data;
-	TALLOC_CTX *tmp_ctx = talloc_new(state);
+	TALLOC_CTX *tmp_ctx;
+
+	tmp_ctx = talloc_new(state);
+	if (tmp_ctx == NULL) {
+		return ISC_R_NOMEMORY;
+	}
 
 	if (!b9_format(state, tmp_ctx, rec, &type, &data)) {
+		talloc_free(tmp_ctx);
 		return ISC_R_FAILURE;
 	}
 
@@ -421,6 +427,7 @@ static isc_result_t b9_putrr(struct dlz_bind9_data *state,
 		}
 		if (types[i] == NULL) {
 			/* skip it */
+			talloc_free(tmp_ctx);
 			return ISC_R_SUCCESS;
 		}
 	}
@@ -443,9 +450,15 @@ static isc_result_t b9_putnamedrr(struct dlz_bind9_data *state,
 {
 	isc_result_t result;
 	const char *type, *data;
-	TALLOC_CTX *tmp_ctx = talloc_new(state);
+	TALLOC_CTX *tmp_ctx;
+
+	tmp_ctx = talloc_new(state);
+	if (tmp_ctx == NULL) {
+		return ISC_R_NOMEMORY;
+	}
 
 	if (!b9_format(state, tmp_ctx, rec, &type, &data)) {
+		talloc_free(tmp_ctx);
 		return ISC_R_FAILURE;
 	}
 

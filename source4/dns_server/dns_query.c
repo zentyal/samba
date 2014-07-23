@@ -110,6 +110,26 @@ static WERROR create_response_rr(const struct dns_name_question *question,
 		}
 		ans[ai].rdata.txt_record.txt = tmp;
 		break;
+	case DNS_QTYPE_WINS:
+		ans[ai].rdata.wins_record.dwMappingFlags  = rec->data.wins.dwMappingFlags;
+		ans[ai].rdata.wins_record.dwLookupTimeout = rec->data.wins.dwLookupTimeout;
+		ans[ai].rdata.wins_record.dwCacheTimeout  = rec->data.wins.dwCacheTimeout;
+		ans[ai].rdata.wins_record.cWinsServerCount = rec->data.wins.cWinsServerCount;
+		ans[ai].rdata.wins_record.aipWinsServers =
+			talloc_realloc(ans, ans[ai].rdata.wins_record.aipWinsServers,
+				const char *, rec->data.wins.cWinsServerCount);
+		for (i = 0; i < rec->data.wins.cWinsServerCount; i++) {
+			ans[ai].rdata.wins_record.aipWinsServers[i] = talloc_strdup(ans,
+				rec->data.wins.aipWinsServers[i]);
+		}
+		break;
+	case DNS_QTYPE_WINSR:
+		ans[ai].rdata.winsr_record.dwMappingFlags  = rec->data.winsr.dwMappingFlags;
+		ans[ai].rdata.winsr_record.dwLookupTimeout = rec->data.winsr.dwLookupTimeout;
+		ans[ai].rdata.winsr_record.dwCacheTimeout  = rec->data.winsr.dwCacheTimeout;
+		ans[ai].rdata.winsr_record.nameResultDomain  = talloc_strdup(ans,
+				rec->data.winsr.nameResultDomain);
+		break;
 	default:
 		DEBUG(0, ("Got unhandled type %u query.\n", rec->wType));
 		return DNS_ERR(NOT_IMPLEMENTED);

@@ -117,7 +117,9 @@ interface dns
 		DNS_QTYPE_AXFR   = 0x00FC,
 		DNS_QTYPE_MAILB  = 0x00FD,
 		DNS_QTYPE_MAILA  = 0x00FE,
-		DNS_QTYPE_ALL    = 0x00FF
+		DNS_QTYPE_ALL    = 0x00FF,
+		DNS_QTYPE_WINS   = 0xFF01,
+		DNS_QTYPE_WINSR  = 0xFF02
 	} dns_qtype;
 
 	typedef [public,enum16bit] enum {
@@ -182,6 +184,21 @@ interface dns
 	} dns_srv_record;
 
 	typedef [public] struct {
+		uint32		dwMappingFlags;
+		uint32		dwLookupTimeout;
+		uint32		dwCacheTimeout;
+		uint32		cWinsServerCount;
+		[flag(NDR_BIG_ENDIAN)] ipv4address aipWinsServers[cWinsServerCount];
+	} dns_wins_record;
+
+	typedef [public] struct {
+		uint32		dwMappingFlags;
+		uint32		dwLookupTimeout;
+		uint32		dwCacheTimeout;
+		dns_string 	nameResultDomain;
+	} dns_winsr_record;
+
+	typedef [public] struct {
 		uint16     option_code;
 		uint16     option_length;
 		uint8      option_data[option_length];
@@ -241,6 +258,8 @@ interface dns
 		[case(DNS_QTYPE_OPT)]	dns_opt_record	 opt_record;
 		[case(DNS_QTYPE_TSIG)]	dns_tsig_record	 tsig_record;
 		[case(DNS_QTYPE_TKEY)]	dns_tkey_record	 tkey_record;
+		[case(DNS_QTYPE_WINS)]	dns_wins_record  wins_record;
+		[case(DNS_QTYPE_WINSR)]	dns_winsr_record winsr_record;
 		[default];
 	} dns_rdata;
 

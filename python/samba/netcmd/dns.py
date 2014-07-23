@@ -168,6 +168,10 @@ def dns_type_flag(rec_type):
         record_type = dnsp.DNS_TYPE_SRV
     elif rtype == 'TXT':
         record_type = dnsp.DNS_TYPE_TXT
+    elif rtype == 'WINS':
+        record_type = dnsp.DNS_TYPE_WINS
+    elif rtype == 'WINSR':
+        record_type = dnsp.DNS_TYPE_WINSR
     elif rtype == 'ALL':
         record_type = dnsp.DNS_TYPE_ALL
     else:
@@ -371,6 +375,19 @@ def print_dns_record(outf, rec):
     elif rec.wType == dnsp.DNS_TYPE_TXT:
         slist = ['"%s"' % name.str for name in rec.data.str]
         mesg = 'TXT: %s' % ','.join(slist)
+    elif rec.wType == dnsp.DNS_TYPE_WINS:
+        slist = ['"%s"' % server for server in rec.data.aipWinsServers]
+        mesg = 'WINS: (MappingFlag=0x%08X, LookupTimeout=%d, CacheTimeout=%d) %s' % (
+                    rec.data.dwMappingFlags,
+                    rec.data.dwLookupTimeout,
+                    rec.data.dwCacheTimeout,
+                    ','.join(slist))
+    elif rec.wType == dnsp.DNS_TYPE_WINSR:
+        mesg = 'WINSR: (MappingFlag=0x%08X, LookupTimeout=%d, CacheTimeout=%d) %s' % (
+                    rec.data.dwMappingFlags,
+                    rec.data.dwLookupTimeout,
+                    rec.data.dwCacheTimeout,
+                    rec.data.nameResultDomain.str)
     else:
         mesg = 'Unknown: '
     outf.write('    %s (flags=%x, serial=%d, ttl=%d)\n' % (
@@ -549,6 +566,50 @@ class TXTRecord(dnsserver.DNS_RPC_RECORD):
         txt.str = names
         self.data = txt
 
+class WINSRecord(dnsserver.DNS_RPC_RECORD):
+
+    def __init__(self, winsServers, localFlag=False, lookupTimeout=2, cacheTimeout=900,
+                 serial=1, ttl=0, rank=dnsp.DNS_RANK_ZONE, node_flag=0):
+        super(WINSRecord, self).__init__()
+        self.wType = dnsp.DNS_TYPE_WINS
+        self.dwFlags = rank | node_flag
+        self.dwSerial = serial
+        self.dwTtlSeconds = ttl
+        wins = dnsserver.DNS_RPC_RECORD_WINS()
+        wins.dwMappingFlags = 0
+        if localFlag:
+            wins.dwMappingFlags |= dnsp.DNS_WINS_FLAG_LOCAL
+        wins.dwLookupTimeout = lookupTimeout
+        wins.dwCacheTimeout = cacheTimeout
+        self._slist = []
+        for s in winsServers:
+            self._slist.append(s[:])
+        wins.cWinsServerCount = len(self._slist)
+        wins.aipWinsServers = self._slist
+        self.data = wins
+
+class WINSRRecord(dnsserver.DNS_RPC_RECORD):
+
+    def __init__(self, resultDomain, scopeFlag=False, localFlag=False,
+                 lookupTimeout=2, cacheTimeout=900, serial=1, ttl=0,
+                 rank=dnsp.DNS_RANK_ZONE, node_flag=0):
+        super(WINSRRecord, self).__init__()
+        self.wType = dnsp.DNS_TYPE_WINSR
+        self.dwFlags = rank | node_flag
+        self.dwSerial = serial
+        self.dwTtlSeconds = ttl
+        self._resultDomain = resultDomain[:]
+        winsr = dnsserver.DNS_RPC_RECORD_WINSR()
+        winsr.dwMappingFlags = 0
+        if scopeFlag:
+            winsr.dwMappingFlags |= dnsp.DNS_WINS_FLAG_SCOPE
+        if localFlag:
+            winsr.dwMappingFlags |= dnsp.DNS_WINS_FLAG_LOCAL
+        winsr.dwLookupTimeout = lookupTimeout
+        winsr.dwCacheTimeout = cacheTimeout
+        winsr.nameResultDomain.str = self._resultDomain
+        winsr.nameResultDomain.len = len(self._resultDomain)
+        self.data = winsr
 
 # Convert data into a dns record
 def data_to_dns_record(record_type, data):
@@ -595,6 +656,14 @@ def data_to_dns_record(record_type, data):
     elif record_type == dnsp.DNS_TYPE_TXT:
         slist = shlex.split(data)
         rec = TXTRecord(slist)
+    elif record_type == dnsp.DNS_TYPE_WINS:
+        tmp = data.split(' ')
+        if len(tmp) < 1:
+            raise CommandError('Data requires at least 1 element')
+        winsServers = tmp
+        rec = WINSRecord(winsServers)
+    elif record_type == dnsp.DNS_TYPE_WINSR:
+        rec = WINSRRecord(data)
     else:
         raise CommandError('Unsupported record type')
     return rec
@@ -669,6 +738,21 @@ def dns_record_match(dns_conn, server, zone, name, record_type, data):
                 for i in xrange(rec.data.count):
                     found = found and \
                             (rec.data.str[i].str == urec.data.str[i].str)
+        elif record_type == dnsp.DNS_TYPE_WINS:
+            if (rec.data.dwMappingFlags == urec.data.dwMappingFlags and \
+                rec.data.dwLookupTimeout == urec.data.dwLookupTimeout and \
+                rec.data.dwCacheTimeout == urec.data.dwCacheTimeout and \
+                rec.data.cWinsServerCount == urec.data.cWinsServerCount):
+                found = True
+                for i in xrange(rec.data.cWinsServerCount):
+                    found = found and \
+                            (rec.data.aipWinsServers[i] == urec.data.aipWinsServers[i])
+        elif record_type == dnsp.DNS_TYPE_WINSR:
+            if (rec.data.dwMappingFlags == urec.data.dwMappingFlags and \
+                rec.data.dwLookupTimeout == urec.data.dwLookupTimeout and \
+                rec.data.dwCacheTimeout == urec.data.dwCacheTimeout and \
+                dns_name_equal(rec.data.nameResultDomain, urec.data.nameResultDomain)):
+                    found = True
 
         if found:
             rec_match = rec
@@ -922,7 +1006,7 @@ class cmd_zonedelete(Command):
 class cmd_query(Command):
     """Query a name."""
 
-    synopsis = '%prog <server> <zone> <name> <A|AAAA|CNAME|MX|NS|SOA|SRV|TXT|ALL> [options]'
+    synopsis = '%prog <server> <zone> <name> <A|AAAA|CNAME|MX|NS|SOA|SRV|TXT|WINS|WINSR|ALL> [options]'
 
     takes_args = [ 'server', 'zone', 'name', 'rtype' ]
 
@@ -1033,9 +1117,11 @@ class cmd_add_record(Command):
          MX     "fqdn_string preference"
          SRV    "fqdn_string port priority weight"
          TXT    "'string1' 'string2' ..."
+         WINS   "ipv4_address_string_1 ... ipv4_address_string_N"
+         WINSR  "result_domain"
     """
 
-    synopsis = '%prog <server> <zone> <name> <A|AAAA|PTR|CNAME|NS|MX|SRV|TXT> <data>'
+    synopsis = '%prog <server> <zone> <name> <A|AAAA|PTR|CNAME|NS|MX|SRV|TXT|WINS|WINSR> <data>'
 
     takes_args = [ 'server', 'zone', 'name', 'rtype', 'data' ]
 
@@ -1048,7 +1134,7 @@ class cmd_add_record(Command):
     def run(self, server, zone, name, rtype, data, sambaopts=None,
             credopts=None, versionopts=None):
 
-        if rtype.upper() not in ('A','AAAA','PTR','CNAME','NS','MX','SRV','TXT'):
+        if rtype.upper() not in ('A','AAAA','PTR','CNAME','NS','MX','SRV','TXT', 'WINS', 'WINSR'):
             raise CommandError('Adding record of type %s is not supported' % rtype)
 
         record_type = dns_type_flag(rtype)
@@ -1084,9 +1170,11 @@ class cmd_update_record(Command):
          SOA    "fqdn_dns fqdn_email serial refresh retry expire minimumttl"
          SRV    "fqdn_string port priority weight"
          TXT    "'string1' 'string2' ..."
+         WINS   "ipv4_address_string_1 ... ipv4_address_string_N"
+         WINSR  "result_domain"
     """
 
-    synopsis = '%prog <server> <zone> <name> <A|AAAA|PTR|CNAME|NS|MX|SOA|SRV|TXT> <olddata> <newdata>'
+    synopsis = '%prog <server> <zone> <name> <A|AAAA|PTR|CNAME|NS|MX|SOA|SRV|TXT|WINS|WINSR> <olddata> <newdata>'
 
     takes_args = [ 'server', 'zone', 'name', 'rtype', 'olddata', 'newdata' ]
 
@@ -1099,7 +1187,7 @@ class cmd_update_record(Command):
     def run(self, server, zone, name, rtype, olddata, newdata,
                 sambaopts=None, credopts=None, versionopts=None):
 
-        if rtype.upper() not in ('A','AAAA','PTR','CNAME','NS','MX','SOA','SRV','TXT'):
+        if rtype.upper() not in ('A','AAAA','PTR','CNAME','NS','MX','SOA','SRV','TXT','WINS','WINSR'):
             raise CommandError('Updating record of type %s is not supported' % rtype)
 
         record_type = dns_type_flag(rtype)
@@ -1148,9 +1236,11 @@ class cmd_delete_record(Command):
          MX     "fqdn_string preference"
          SRV    "fqdn_string port priority weight"
          TXT    "'string1' 'string2' ..."
+         WINS   "ipv4_address_string_1 .... ipv4_address_string_N"
+         WINSR  "result_domain"
     """
 
-    synopsis = '%prog <server> <zone> <name> <A|AAAA|PTR|CNAME|NS|MX|SRV|TXT> <data>'
+    synopsis = '%prog <server> <zone> <name> <A|AAAA|PTR|CNAME|NS|MX|SRV|TXT|WINS|WINSR> <data>'
 
     takes_args = [ 'server', 'zone', 'name', 'rtype', 'data' ]
 
@@ -1162,7 +1252,7 @@ class cmd_delete_record(Command):
 
     def run(self, server, zone, name, rtype, data, sambaopts=None, credopts=None, versionopts=None):
 
-        if rtype.upper() not in ('A','AAAA','PTR','CNAME','NS','MX','SRV','TXT'):
+        if rtype.upper() not in ('A','AAAA','PTR','CNAME','NS','MX','SRV','TXT', 'WINS','WINSR'):
             raise CommandError('Deleting record of type %s is not supported' % rtype)
 
         record_type = dns_type_flag(rtype)

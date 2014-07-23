@@ -140,6 +140,12 @@ interface dnsp
 		DCPROMO_CONVERT_FOREST  = 0x02
 	} dns_dcpromo_flag;
 
+	typedef [bitmap32bit] bitmap {
+		DNS_WINS_FLAG_NONE	= 0x00000000,
+		DNS_WINS_FLAG_SCOPE	= 0x80000000,
+		DNS_WINS_FLAG_LOCAL	= 0x00010000
+	} dns_wins_flag;
+
 	typedef [public] struct {
 		uint32		serial;
 		uint32		refresh;
@@ -166,6 +172,21 @@ interface dnsp
 		uint16          wPort;
 		dnsp_name       nameTarget;
 	} dnsp_srv;
+
+	typedef [public] struct {
+		dns_wins_flag	dwMappingFlags;
+		uint32		dwLookupTimeout;
+		uint32		dwCacheTimeout;
+		uint32		cWinsServerCount;
+		[flag(NDR_BIG_ENDIAN)] ipv4address aipWinsServers[cWinsServerCount];
+	} dnsp_wins;
+
+	typedef [public] struct {
+		dns_wins_flag	dwMappingFlags;
+		uint32		dwLookupTimeout;
+		uint32		dwCacheTimeout;
+		dnsp_name	nameResultDomain;
+	} dnsp_winsr;
 
 	typedef struct {
 		uint32  addrCount;
@@ -210,6 +231,8 @@ interface dnsp
 		[case(DNS_TYPE_HINFO)]                      dnsp_hinfo hinfo;
 		[case(DNS_TYPE_AAAA)]                       ipv6address ipv6;
 		[case(DNS_TYPE_SRV)] [flag(NDR_BIG_ENDIAN)] dnsp_srv srv;
+		[case(DNS_TYPE_WINS)]                       dnsp_wins wins;
+		[case(DNS_TYPE_WINSR)]                      dnsp_winsr winsr;
 		[default] [flag(NDR_REMAINING)] DATA_BLOB data;
 	} dnsRecordData;
 

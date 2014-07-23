@@ -22,3 +22,5 @@
 47-Test-guest-access-in-domain-member-environment.patch
 48-vfs-recycle-inherit-nt-acls.patch
 49-dlz-bind9-skip-loading-duplicated-zones
+50-idl-drsuapi-Manage-all-possible-lengths-of-drsuapi_D.patch
+51-Order-switch-statements.patch

@@ -21,7 +21,10 @@ import random
 import socket
 import samba.ndr as ndr
 import samba.dcerpc.dns as dns
+from samba.dcerpc import dnsp, dnsserver
 from samba.tests import TestCase
+from samba.netcmd.dns import WINSRecord, WINSRRecord
+from samba import credentials, param
 
 FILTER=''.join([(len(repr(chr(x)))==3) and chr(x) or '.' for x in range(256)])
 
@@ -727,6 +730,165 @@ class TestDNSUpdates(DNSTest):
         self.assertEqual(ans.rdata.preference, 10)
         self.assertEqual(ans.rdata.exchange, 'mail.%s' % self.get_dns_domain())
 
+class TestWinsQueries(DNSTest):
+
+    def get_loadparm(self):
+        lp = param.LoadParm()
+        lp.load(os.getenv("SMB_CONF_PATH"))
+        return lp
+
+    def get_credentials(self, lp):
+        creds = credentials.Credentials()
+        creds.guess(lp)
+        creds.set_machine_account(lp)
+        creds.set_krb_forwardable(credentials.NO_KRB_FORWARDABLE)
+        return creds
+
+    def setUp(self):
+        super(TestWinsQueries, self).setUp()
+        self.lp = self.get_loadparm()
+        self.creds = self.get_credentials(self.lp)
+        self.server = os.getenv("SERVER_IP")
+        self.zone = self.get_dns_domain()
+        self.rev_zone = '123.168.192.in-addr.arpa'
+        self.rpc_conn = dnsserver.dnsserver("ncacn_ip_tcp:%s" % (self.server),
+                                            self.lp, self.creds)
+
+        # Add WINS record to direct zone
+        self.wins_rec = WINSRecord(['1.2.3.4'])
+        add_rec_buf = dnsserver.DNS_RPC_RECORD_BUF()
+        add_rec_buf.rec = self.wins_rec
+        self.rpc_conn.DnssrvUpdateRecord2(dnsserver.DNS_CLIENT_VERSION_LONGHORN,
+                                          0,
+                                          self.server,
+                                          self.zone,
+                                          self.zone,
+                                          add_rec_buf,
+                                          None)
+
+        # Create reverse zone
+        zone_create = dnsserver.DNS_RPC_ZONE_CREATE_INFO_LONGHORN()
+        zone_create.pszZoneName = self.rev_zone
+        zone_create.dwZoneType = dnsp.DNS_ZONE_TYPE_PRIMARY
+        zone_create.fAllowUpdate = dnsp.DNS_ZONE_UPDATE_SECURE
+        zone_create.fAging = 0
+        zone_create.dwDpFlags = dnsserver.DNS_DP_DOMAIN_DEFAULT
+        self.rpc_conn.DnssrvOperation2(dnsserver.DNS_CLIENT_VERSION_LONGHORN,
+                                       0,
+                                       self.server,
+                                       None,
+                                       0,
+                                       'ZoneCreate',
+                                       dnsserver.DNSSRV_TYPEID_ZONE_CREATE,
+                                       zone_create)
+
+        # Add WINS-R
+        self.winsr_rec = WINSRRecord(self.get_dns_domain())
+        add_rec_buf = dnsserver.DNS_RPC_RECORD_BUF()
+        add_rec_buf.rec = self.winsr_rec
+        self.rpc_conn.DnssrvUpdateRecord2(dnsserver.DNS_CLIENT_VERSION_LONGHORN,
+                                          0,
+                                          self.server,
+                                          self.rev_zone,
+                                          self.rev_zone,
+                                          add_rec_buf,
+                                          None)
+
+    def tearDown(self):
+        super(TestWinsQueries, self).tearDown()
+
+        # Delete wins record
+        del_rec_buf = dnsserver.DNS_RPC_RECORD_BUF()
+        del_rec_buf.rec = self.wins_rec
+        self.rpc_conn.DnssrvUpdateRecord2(dnsserver.DNS_CLIENT_VERSION_LONGHORN,
+                                     0,
+                                     self.server,
+                                     self.zone,
+                                     self.zone,
+                                     None,
+                                     del_rec_buf)
+
+        # Delete reverse zone
+        self.rpc_conn.DnssrvOperation2(dnsserver.DNS_CLIENT_VERSION_LONGHORN,
+                                       0,
+                                       self.server,
+                                       self.rev_zone,
+                                       0,
+                                       'DeleteZoneFromDs',
+                                       dnsserver.DNSSRV_TYPEID_NULL,
+                                       None)
+
+    def test_wins_query(self):
+        p = self.make_name_packet(dns.DNS_OPCODE_QUERY)
+        questions = []
+
+        name = self.get_dns_domain()
+        q = self.make_name_question(name, dns.DNS_QTYPE_WINS, dns.DNS_QCLASS_IN)
+        questions.append(q)
+
+        self.finish_name_packet(p, questions)
+        response = self.dns_transaction_udp(p)
+        self.assert_dns_rcode_equals(response, dns.DNS_RCODE_OK)
+        self.assert_dns_opcode_equals(response, dns.DNS_OPCODE_QUERY)
+        self.assertEquals(response.ancount, 1)
+        self.assertEquals(response.answers[0].rr_type, dns.DNS_QTYPE_WINS)
+
+        self.assertEquals(response.answers[0].rdata.dwMappingFlags, self.wins_rec.data.dwMappingFlags)
+        self.assertEquals(response.answers[0].rdata.dwLookupTimeout, self.wins_rec.data.dwLookupTimeout)
+        self.assertEquals(response.answers[0].rdata.dwCacheTimeout, self.wins_rec.data.dwCacheTimeout)
+        self.assertEquals(response.answers[0].rdata.cWinsServerCount, self.wins_rec.data.cWinsServerCount)
+        for i in range(0, self.wins_rec.data.cWinsServerCount):
+            self.assertEquals(response.answers[0].rdata.aipWinsServers[i], self.wins_rec.data.aipWinsServers[i])
+
+    def test_winsr_query(self):
+        p = self.make_name_packet(dns.DNS_OPCODE_QUERY)
+        questions = []
+
+        name = self.rev_zone
+        q = self.make_name_question(name, dns.DNS_QTYPE_WINSR, dns.DNS_QCLASS_IN)
+        questions.append(q)
+
+        self.finish_name_packet(p, questions)
+        response = self.dns_transaction_udp(p)
+        self.assert_dns_rcode_equals(response, dns.DNS_RCODE_OK)
+        self.assert_dns_opcode_equals(response, dns.DNS_OPCODE_QUERY)
+        self.assertEquals(response.ancount, 1)
+        self.assertEquals(response.answers[0].rr_type, dns.DNS_QTYPE_WINSR)
+
+        self.assertEquals(response.answers[0].rdata.dwMappingFlags, self.winsr_rec.data.dwMappingFlags)
+        self.assertEquals(response.answers[0].rdata.dwLookupTimeout, self.winsr_rec.data.dwLookupTimeout)
+        self.assertEquals(response.answers[0].rdata.dwCacheTimeout, self.winsr_rec.data.dwCacheTimeout)
+        self.assertEquals(response.answers[0].rdata.nameResultDomain, self.winsr_rec.data.nameResultDomain.str)
+
+    def test_forward_soa_query(self):
+        p = self.make_name_packet(dns.DNS_OPCODE_QUERY)
+        questions = []
+
+        name = self.get_dns_domain()
+        q = self.make_name_question(name, dns.DNS_QTYPE_SOA, dns.DNS_QCLASS_IN)
+        questions.append(q)
+
+        self.finish_name_packet(p, questions)
+        response = self.dns_transaction_udp(p)
+        self.assert_dns_rcode_equals(response, dns.DNS_RCODE_OK)
+        self.assert_dns_opcode_equals(response, dns.DNS_OPCODE_QUERY)
+        self.assertEquals(response.ancount, 1)
+        self.assertEquals(response.answers[0].rr_type, dns.DNS_QTYPE_SOA)
+
+    def test_reverse_soa_query(self):
+        p = self.make_name_packet(dns.DNS_OPCODE_QUERY)
+        questions = []
+
+        name = self.rev_zone
+        q = self.make_name_question(name, dns.DNS_QTYPE_SOA, dns.DNS_QCLASS_IN)
+        questions.append(q)
+
+        self.finish_name_packet(p, questions)
+        response = self.dns_transaction_udp(p)
+        self.assert_dns_rcode_equals(response, dns.DNS_RCODE_OK)
+        self.assert_dns_opcode_equals(response, dns.DNS_OPCODE_QUERY)
+        self.assertEquals(response.ancount, 1)
+        self.assertEquals(response.answers[0].rr_type, dns.DNS_QTYPE_SOA)
 
 class TestComplexQueries(DNSTest):
 

@@ -349,6 +349,29 @@ void dnsp_to_dns_copy(TALLOC_CTX *mem_ctx, struct dnsp_DnssrvRpcRecord *dnsp,
 		}
 		break;
 
+	case DNS_TYPE_WINS:
+		dns->data.wins.dwMappingFlags = dnsp->data.wins.dwMappingFlags;
+		dns->data.wins.dwLookupTimeout = dnsp->data.wins.dwLookupTimeout;
+		dns->data.wins.dwCacheTimeout = dnsp->data.wins.dwCacheTimeout;
+		dns->data.wins.cWinsServerCount = dnsp->data.wins.cWinsServerCount;
+		dns->data.wins.aipWinsServers = talloc_realloc(
+			mem_ctx, dns->data.wins.aipWinsServers,
+			const char *, dnsp->data.wins.cWinsServerCount);
+		for (i=0; i<dnsp->data.wins.cWinsServerCount; i++) {
+			dns->data.wins.aipWinsServers[i] = talloc_strdup(
+				mem_ctx, dnsp->data.wins.aipWinsServers[i]);
+		}
+		break;
+
+	case DNS_TYPE_WINSR:
+		dns->data.winsr.dwMappingFlags = dnsp->data.winsr.dwMappingFlags;
+		dns->data.winsr.dwLookupTimeout = dnsp->data.winsr.dwLookupTimeout;
+		dns->data.winsr.dwCacheTimeout = dnsp->data.winsr.dwCacheTimeout;
+		dns->data.winsr.nameResultDomain.str =
+			talloc_strdup(mem_ctx, dnsp->data.winsr.nameResultDomain);
+		dns->data.winsr.nameResultDomain.len = strlen(dnsp->data.winsr.nameResultDomain);
+		break;
+
 	default:
 		memcpy(&dns->data, &dnsp->data, sizeof(union DNS_RPC_DATA));
 		DEBUG(0, ("dnsserver: Found Unhandled DNS record type=%d", dnsp->wType));
@@ -462,6 +485,28 @@ struct dnsp_DnssrvRpcRecord *dns_to_dnsp_copy(TALLOC_CTX *mem_ctx, struct DNS_RP
 		} else {
 			dnsp->data.srv.nameTarget = talloc_strdup(mem_ctx, dns->data.srv.nameTarget.str);
 		}
+		break;
+
+	case DNS_TYPE_WINS:
+		dnsp->data.wins.dwMappingFlags = dns->data.wins.dwMappingFlags;
+		dnsp->data.wins.dwLookupTimeout = dns->data.wins.dwLookupTimeout;
+		dnsp->data.wins.dwCacheTimeout = dns->data.wins.dwCacheTimeout;
+		dnsp->data.wins.cWinsServerCount = dns->data.wins.cWinsServerCount;
+		dnsp->data.wins.aipWinsServers = talloc_realloc(
+			mem_ctx, dnsp->data.wins.aipWinsServers,
+			const char *, dns->data.wins.cWinsServerCount);
+		for (i=0; i<dns->data.wins.cWinsServerCount; i++) {
+			dnsp->data.wins.aipWinsServers[i] = talloc_strdup(
+				mem_ctx, dns->data.wins.aipWinsServers[i]);
+		}
+		break;
+
+	case DNS_TYPE_WINSR:
+		dnsp->data.winsr.dwMappingFlags = dns->data.winsr.dwMappingFlags;
+		dnsp->data.winsr.dwLookupTimeout = dns->data.winsr.dwLookupTimeout;
+		dnsp->data.winsr.dwCacheTimeout = dns->data.winsr.dwCacheTimeout;
+		dnsp->data.winsr.nameResultDomain =
+			talloc_strdup(mem_ctx, dns->data.winsr.nameResultDomain.str);
 		break;
 
 	default:
@@ -992,6 +1037,28 @@ bool dns_record_match(struct dnsp_DnssrvRpcRecord *rec1, struct dnsp_DnssrvRpcRe
 			rec1->data.srv.wWeight == rec2->data.srv.wWeight &&
 			rec1->data.srv.wPort == rec2->data.srv.wPort &&
 			dns_name_equal(rec1->data.srv.nameTarget, rec2->data.srv.nameTarget);
+
+	case DNS_TYPE_WINS:
+		if (rec1->data.wins.dwMappingFlags != rec2->data.wins.dwMappingFlags ||
+			rec1->data.wins.dwLookupTimeout != rec2->data.wins.dwLookupTimeout ||
+			rec1->data.wins.dwCacheTimeout != rec2->data.wins.dwCacheTimeout ||
+			rec1->data.wins.cWinsServerCount != rec2->data.wins.cWinsServerCount) {
+			return false;
+		}
+		for (i=0; i<rec1->data.wins.cWinsServerCount; i++) {
+			if (strcmp(rec1->data.wins.aipWinsServers[i],
+				rec2->data.wins.aipWinsServers[i]) != 0) {
+				return false;
+			}
+		}
+		return true;
+
+	case DNS_TYPE_WINSR:
+		return (rec1->data.winsr.dwMappingFlags == rec2->data.winsr.dwMappingFlags &&
+			rec1->data.winsr.dwLookupTimeout == rec2->data.winsr.dwLookupTimeout &&
+			rec1->data.winsr.dwCacheTimeout == rec2->data.winsr.dwCacheTimeout &&
+			dns_name_equal(rec1->data.winsr.nameResultDomain,
+				rec2->data.winsr.nameResultDomain));
 
 	default:
 		DEBUG(0, ("dnsserver: unhandled record type %u", rec1->wType));

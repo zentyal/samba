@@ -117,6 +117,23 @@ import "misc.idl", "dnsp.idl";
 	}
 	DNS_RPC_RECORD_SRV;
 
+	typedef struct {
+		uint32		dwMappingFlags;
+		uint32		dwLookupTimeout;
+		uint32		dwCacheTimeout;
+		uint32		cWinsServerCount;
+		[flag(NDR_BIG_ENDIAN)] ipv4address aipWinsServers[cWinsServerCount];
+	}
+	DNS_RPC_RECORD_WINS;
+
+	typedef struct {
+		uint32		dwMappingFlags;
+		uint32		dwLookupTimeout;
+		uint32		dwCacheTimeout;
+		DNS_RPC_NAME	nameResultDomain;
+	}
+	DNS_RPC_RECORD_WINSR;
+
 	typedef [nodiscriminant,gensize,flag(NDR_NOALIGN)] union {
 		[case(DNS_TYPE_TOMBSTONE)] 		    NTTIME timestamp;
 		[case(DNS_TYPE_A)] [flag(NDR_BIG_ENDIAN)]   ipv4address ipv4;
@@ -135,6 +152,8 @@ import "misc.idl", "dnsp.idl";
 		[case(DNS_TYPE_AAAA)]   			ipv6address ipv6;
 		[case(DNS_TYPE_SRV)]   				DNS_RPC_RECORD_SRV srv;
 		[case(DNS_TYPE_DNAME)] 				DNS_RPC_NAME name;
+		[case(DNS_TYPE_WINS)] 				DNS_RPC_RECORD_WINS  wins;
+		[case(DNS_TYPE_WINSR)]				DNS_RPC_RECORD_WINSR winsr;
 	}
 	DNS_RPC_DATA;
 

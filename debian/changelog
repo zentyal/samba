@@ -1,3 +1,9 @@
+samba (3:4.1.9+dfsg-1~zentyal2) trusty; urgency=medium
+
+  * Added patches for drsuapi.idl dsBind response blob length
+
+ -- Samuel Cabrero <scabrero@zentyal.com>  Thu, 24 Jul 2014 10:25:08 +0200
+
 samba (3:4.1.9+dfsg-1~zentyal1) trusty; urgency=medium
 
   * New upstream release

@@ -4,9 +4,11 @@ Bug-Debian: http://bugs.debian.org/598313
 Forwarded: yes
 Bug: https://bugzilla.samba.org/show_bug.cgi?id=7499
 
---- a/lib/util/debug.c
-+++ b/lib/util/debug.c
-@@ -475,15 +475,17 @@
+Index: samba/lib/util/debug.c
+===================================================================
+--- samba.orig/lib/util/debug.c	2014-07-24 10:35:16.743881735 +0200
++++ samba/lib/util/debug.c	2014-07-24 10:35:16.735881736 +0200
+@@ -478,15 +478,17 @@
  
  	if (state.logtype == DEBUG_FILE) {
  #ifdef WITH_SYSLOG
@@ -30,8 +32,10 @@ Bug: https://bugzilla.samba.org/show_bug.cgi?id=7499
  #endif
  	}
  }
---- a/nsswitch/wins.c
-+++ b/nsswitch/wins.c
+Index: samba/nsswitch/wins.c
+===================================================================
+--- samba.orig/nsswitch/wins.c	2014-07-24 10:35:16.743881735 +0200
++++ samba/nsswitch/wins.c	2014-07-24 10:35:16.735881736 +0200
 @@ -52,7 +52,7 @@
  	lp_set_cmdline("log level", "0");
  

@@ -1,3 +1,9 @@
+samba4 (4.1.10-zentyal1) precise; urgency=medium
+
+  * New upstream release
+
+ -- Samuel Cabrero <scabrero@zentyal.com>  Mon, 28 Jul 2014 11:21:43 +0200
+
 samba4 (4.1.9-zentyal2) precise; urgency=medium
 
   * Added patches for drsuapi.idl dsBind response blob length

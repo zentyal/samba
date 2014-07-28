@@ -1,7 +1,7 @@
 Index: samba/source4/ldap_server/ldap_server.c
 ===================================================================
---- samba.orig/source4/ldap_server/ldap_server.c	2014-02-25 12:14:31.425115305 +0100
-+++ samba/source4/ldap_server/ldap_server.c	2014-02-25 12:14:31.413115305 +0100
+--- samba.orig/source4/ldap_server/ldap_server.c	2014-07-28 11:26:32.359641587 +0200
++++ samba/source4/ldap_server/ldap_server.c	2014-07-28 11:26:32.347641587 +0200
 @@ -886,10 +886,11 @@
    open the ldap server sockets
  */
@@ -15,7 +15,7 @@ Index: samba/source4/ldap_server/ldap_server.c
  #endif
  	const char *dns_host_name;
  	struct ldapsrv_service *ldap_service;
-@@ -1001,7 +1002,19 @@
+@@ -1007,7 +1008,19 @@
  	 * Make sure the directory for the privileged ldapi socket exists, and
  	 * is of the correct permissions
  	 */
@@ -38,8 +38,8 @@ Index: samba/source4/ldap_server/ldap_server.c
  		return;
 Index: samba/lib/param/param_table.c
 ===================================================================
---- samba.orig/lib/param/param_table.c	2014-02-25 12:14:31.425115305 +0100
-+++ samba/lib/param/param_table.c	2014-02-25 12:14:31.413115305 +0100
+--- samba.orig/lib/param/param_table.c	2014-07-28 11:26:32.359641587 +0200
++++ samba/lib/param/param_table.c	2014-07-28 11:26:42.363641737 +0200
 @@ -1130,6 +1130,15 @@
  		.enum_list	= NULL,
  		.flags		= FLAG_ADVANCED | FLAG_GLOBAL,
@@ -58,8 +58,8 @@ Index: samba/lib/param/param_table.c
  	{N_("Logging Options"), P_SEP, P_SEPARATOR},
 Index: samba/lib/param/param_functions.c
 ===================================================================
---- samba.orig/lib/param/param_functions.c	2014-02-25 12:14:31.425115305 +0100
-+++ samba/lib/param/param_functions.c	2014-02-25 12:14:31.417115305 +0100
+--- samba.orig/lib/param/param_functions.c	2014-07-28 11:26:32.359641587 +0200
++++ samba/lib/param/param_functions.c	2014-07-28 11:26:42.367641738 +0200
 @@ -408,3 +408,4 @@
  FN_GLOBAL_STRING(username_map, szUsernameMap)
  FN_GLOBAL_STRING(usershare_path, szUsersharePath)
@@ -67,8 +67,8 @@ Index: samba/lib/param/param_functions.c
 +FN_GLOBAL_INTEGER(ldap_priv_socket_mode, iLdap_priv_socket_mode)
 Index: samba/lib/param/loadparm.c
 ===================================================================
---- samba.orig/lib/param/loadparm.c	2014-02-25 12:14:31.425115305 +0100
-+++ samba/lib/param/loadparm.c	2014-02-25 12:14:31.417115305 +0100
+--- samba.orig/lib/param/loadparm.c	2014-07-28 11:26:32.359641587 +0200
++++ samba/lib/param/loadparm.c	2014-07-28 11:26:42.367641738 +0200
 @@ -2226,6 +2226,8 @@
          lpcfg_do_global_parameter(lp_ctx, "allow dns updates", "secure only");
          lpcfg_do_global_parameter(lp_ctx, "dns forwarder", "");

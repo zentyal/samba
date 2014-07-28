@@ -79,7 +79,7 @@ Index: samba4-4.1.4/source4/dns_server/dlz_bind9.c
 +        goto failed;
 +    }
 +
- 	if (smb_krb5_init_context(state, state->ev_ctx, state->lp, &state->smb_krb5_ctx) != 0) {
+ 	if (smb_krb5_init_context(state, state->lp, &state->smb_krb5_ctx) != 0) {
  		result = ISC_R_NOMEMORY;
  		goto failed;
 @@ -1176,151 +1221,238 @@

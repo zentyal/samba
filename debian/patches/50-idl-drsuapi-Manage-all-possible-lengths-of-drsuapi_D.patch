@@ -22,8 +22,8 @@ Reviewed-by: Kamen Mazdrashki <kamenim@samba.org>
 
 Index: samba/librpc/idl/drsuapi.idl
 ===================================================================
---- samba.orig/librpc/idl/drsuapi.idl	2014-07-24 10:48:22.863853985 +0200
-+++ samba/librpc/idl/drsuapi.idl	2014-07-24 10:49:17.531852056 +0200
+--- samba.orig/librpc/idl/drsuapi.idl	2014-07-28 11:37:25.755651392 +0200
++++ samba/librpc/idl/drsuapi.idl	2014-07-28 11:37:25.739651391 +0200
 @@ -129,6 +129,14 @@
  		uint32 repl_epoch;
  	} drsuapi_DsBindInfo28;
@@ -69,8 +69,8 @@ Index: samba/librpc/idl/drsuapi.idl
  
 Index: samba/source3/libnet/libnet_dssync.c
 ===================================================================
---- samba.orig/source3/libnet/libnet_dssync.c	2014-07-24 10:48:22.863853985 +0200
-+++ samba/source3/libnet/libnet_dssync.c	2014-07-24 10:48:22.851853986 +0200
+--- samba.orig/source3/libnet/libnet_dssync.c	2014-07-28 11:37:25.755651392 +0200
++++ samba/source3/libnet/libnet_dssync.c	2014-07-28 11:37:25.739651391 +0200
 @@ -195,9 +195,19 @@
  		ctx->remote_info28.repl_epoch		= 0;
  		break;
@@ -110,8 +110,8 @@ Index: samba/source3/libnet/libnet_dssync.c
  			  bind_info.length));
 Index: samba/source3/rpcclient/cmd_drsuapi.c
 ===================================================================
---- samba.orig/source3/rpcclient/cmd_drsuapi.c	2014-07-24 10:48:22.863853985 +0200
-+++ samba/source3/rpcclient/cmd_drsuapi.c	2014-07-24 10:48:22.851853986 +0200
+--- samba.orig/source3/rpcclient/cmd_drsuapi.c	2014-07-28 11:37:25.755651392 +0200
++++ samba/source3/rpcclient/cmd_drsuapi.c	2014-07-28 11:37:25.743651391 +0200
 @@ -420,8 +420,12 @@
  		supported_extensions = bind_info.info.info24.supported_extensions;
  	} else if (bind_info.length == 28) {
@@ -127,9 +127,9 @@ Index: samba/source3/rpcclient/cmd_drsuapi.c
  	if (!nc_dn) {
 Index: samba/source4/dsdb/repl/drepl_out_helpers.c
 ===================================================================
---- samba.orig/source4/dsdb/repl/drepl_out_helpers.c	2014-07-24 10:48:22.863853985 +0200
-+++ samba/source4/dsdb/repl/drepl_out_helpers.c	2014-07-24 10:48:29.000000000 +0200
-@@ -183,10 +183,35 @@
+--- samba.orig/source4/dsdb/repl/drepl_out_helpers.c	2014-07-28 11:37:25.755651392 +0200
++++ samba/source4/dsdb/repl/drepl_out_helpers.c	2014-07-28 11:37:25.743651391 +0200
+@@ -186,10 +186,35 @@
  			info28->repl_epoch		= info48->repl_epoch;
  			break;
  		}
@@ -168,8 +168,8 @@ Index: samba/source4/dsdb/repl/drepl_out_helpers.c
  	tevent_req_done(req);
 Index: samba/source4/libnet/libnet_become_dc.c
 ===================================================================
---- samba.orig/source4/libnet/libnet_become_dc.c	2014-07-24 10:48:22.863853985 +0200
-+++ samba/source4/libnet/libnet_become_dc.c	2014-07-24 10:48:29.000000000 +0200
+--- samba.orig/source4/libnet/libnet_become_dc.c	2014-07-28 11:37:25.755651392 +0200
++++ samba/source4/libnet/libnet_become_dc.c	2014-07-28 11:37:25.747651392 +0200
 @@ -1708,10 +1708,33 @@
  			drsuapi->remote_info28.repl_epoch		= info48->repl_epoch;
  			break;
@@ -207,8 +207,8 @@ Index: samba/source4/libnet/libnet_become_dc.c
  	return WERR_OK;
 Index: samba/source4/libnet/libnet_unbecome_dc.c
 ===================================================================
---- samba.orig/source4/libnet/libnet_unbecome_dc.c	2014-07-24 10:48:22.863853985 +0200
-+++ samba/source4/libnet/libnet_unbecome_dc.c	2014-07-24 10:48:29.000000000 +0200
+--- samba.orig/source4/libnet/libnet_unbecome_dc.c	2014-07-28 11:37:25.755651392 +0200
++++ samba/source4/libnet/libnet_unbecome_dc.c	2014-07-28 11:37:25.747651392 +0200
 @@ -644,10 +644,33 @@
  			s->drsuapi.remote_info28.repl_epoch		= info48->repl_epoch;
  			break;
@@ -246,8 +246,8 @@ Index: samba/source4/libnet/libnet_unbecome_dc.c
  	unbecomeDC_drsuapi_remove_ds_server_send(s);
 Index: samba/source4/torture/drs/rpc/dssync.c
 ===================================================================
---- samba.orig/source4/torture/drs/rpc/dssync.c	2014-07-24 10:48:22.863853985 +0200
-+++ samba/source4/torture/drs/rpc/dssync.c	2014-07-24 10:48:29.000000000 +0200
+--- samba.orig/source4/torture/drs/rpc/dssync.c	2014-07-28 11:37:25.755651392 +0200
++++ samba/source4/torture/drs/rpc/dssync.c	2014-07-28 11:37:25.747651392 +0200
 @@ -238,9 +238,28 @@
  			b->peer_bind_info28.repl_epoch		= info48->repl_epoch;
  			break;
@@ -280,8 +280,8 @@ Index: samba/source4/torture/drs/rpc/dssync.c
  			       b->req.out.bind_info->length);
 Index: samba/source4/torture/drs/rpc/msds_intid.c
 ===================================================================
---- samba.orig/source4/torture/drs/rpc/msds_intid.c	2014-07-24 10:48:22.863853985 +0200
-+++ samba/source4/torture/drs/rpc/msds_intid.c	2014-07-24 10:48:29.000000000 +0200
+--- samba.orig/source4/torture/drs/rpc/msds_intid.c	2014-07-28 11:37:25.755651392 +0200
++++ samba/source4/torture/drs/rpc/msds_intid.c	2014-07-28 11:37:25.751651392 +0200
 @@ -237,9 +237,28 @@
  		bi->srv_info48.repl_epoch		= info28->repl_epoch;
  		break;
@@ -314,8 +314,8 @@ Index: samba/source4/torture/drs/rpc/msds_intid.c
  		               "DsBind: unknown BindInfo length: %u",
 Index: samba/source4/torture/rpc/dsgetinfo.c
 ===================================================================
---- samba.orig/source4/torture/rpc/dsgetinfo.c	2014-07-24 10:48:22.863853985 +0200
-+++ samba/source4/torture/rpc/dsgetinfo.c	2014-07-24 10:48:29.000000000 +0200
+--- samba.orig/source4/torture/rpc/dsgetinfo.c	2014-07-28 11:37:25.755651392 +0200
++++ samba/source4/torture/rpc/dsgetinfo.c	2014-07-28 11:37:25.751651392 +0200
 @@ -200,9 +200,28 @@
  			b->peer_bind_info28.repl_epoch		= info48->repl_epoch;
  			break;

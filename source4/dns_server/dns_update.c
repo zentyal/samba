@@ -742,6 +742,7 @@ WERROR dns_server_process_update(struct dns_server *dns,
 {
 	struct dns_name_question *zone;
 	const struct dns_server_zone *z;
+	struct dns_server_zone *zlist;
 	size_t host_part_len = 0;
 	WERROR werror = DNS_ERR(NOT_IMPLEMENTED);
 	struct dns_server_tkey *tkey = NULL;
@@ -763,7 +764,11 @@ WERROR dns_server_process_update(struct dns_server *dns,
 
 	DEBUG(2, ("Got a dns update request.\n"));
 
-	for (z = dns->zones; z != NULL; z = z->next) {
+	werror = dns_db_enumerate_zones(mem_ctx, dns, &zlist);
+	if (!W_ERROR_IS_OK(werror)) {
+		return DNS_ERR(SERVER_FAILURE);
+	}
+	for (z = zlist; z != NULL; z = z->next) {
 		bool match;
 
 		match = dns_name_match(z->name, zone->name, &host_part_len);

@@ -29,6 +29,7 @@
 #include "dsdb/samdb/samdb.h"
 #include "dsdb/common/util.h"
 #include "dns_server/dns_server.h"
+#include "lib/util/dlinklist.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_DNS
@@ -307,11 +308,190 @@ WERROR dns_replace_records(struct dns_server *dns,
 	return WERR_OK;
 }
 
-bool dns_authorative_for_zone(struct dns_server *dns,
+static bool dns_has_soa(struct dns_server *dns, struct ldb_dn *dn, const char *zone)
+{
+	const char *attrs[] = { "dnsRecord", NULL };
+	struct ldb_result *res;
+	struct ldb_message_element *el;
+	TALLOC_CTX *tmp_ctx;
+	int ret, i;
+
+	tmp_ctx = talloc_new(dns);
+	if (tmp_ctx == NULL) {
+		return false;
+	}
+
+	if (!ldb_dn_add_child_fmt(dn, "DC=@,DC=%s", zone)) {
+		talloc_free(tmp_ctx);
+		return false;
+	}
+
+	ret = ldb_search(dns->samdb, tmp_ctx, &res, dn, LDB_SCOPE_BASE,
+			 attrs, "objectClass=dnsNode");
+	if (ret != LDB_SUCCESS) {
+		talloc_free(tmp_ctx);
+		return false;
+	}
+
+	el = ldb_msg_find_element(res->msgs[0], "dnsRecord");
+	if (el == NULL) {
+		talloc_free(tmp_ctx);
+		return false;
+	}
+	for (i=0; i<el->num_values; i++) {
+		struct dnsp_DnssrvRpcRecord rec;
+		enum ndr_err_code ndr_err;
+
+		ndr_err = ndr_pull_struct_blob(&el->values[i], tmp_ctx, &rec,
+					       (ndr_pull_flags_fn_t)ndr_pull_dnsp_DnssrvRpcRecord);
+		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+			continue;
+		}
+		if (rec.wType == DNS_TYPE_SOA) {
+			talloc_free(tmp_ctx);
+			return true;
+		}
+	}
+
+	talloc_free(tmp_ctx);
+	return false;
+}
+
+static int dns_server_sort_zones(struct ldb_message **m1, struct ldb_message **m2)
+{
+	const char *n1, *n2;
+	size_t l1, l2;
+
+	n1 = ldb_msg_find_attr_as_string(*m1, "name", NULL);
+	n2 = ldb_msg_find_attr_as_string(*m2, "name", NULL);
+
+	l1 = strlen(n1);
+	l2 = strlen(n2);
+
+	/* If the string lengths are not equal just sort by length */
+	if (l1 != l2) {
+		/* If m1 is the larger zone name, return it first */
+		return l2 - l1;
+	}
+
+	/*TODO: We need to compare DNs here, we want the DomainDNSZones first */
+	return 0;
+}
+
+WERROR dns_db_enumerate_zones(TALLOC_CTX *mem_ctx, struct dns_server *dns,
+			      struct dns_server_zone **zones)
+{
+	TALLOC_CTX *tmp_ctx;
+	unsigned int i;
+	static const char *zone_prefixes[] = {
+		"CN=MicrosoftDNS,DC=DomainDnsZones",
+		"CN=MicrosoftDNS,DC=ForestDnsZones",
+		"CN=MicrosoftDNS,CN=System",
+		NULL
+	};
+
+	if (zones == NULL) {
+		return WERR_INVALID_PARAM;
+	}
+	*zones = NULL;
+
+	tmp_ctx = talloc_new(mem_ctx);
+	if (tmp_ctx == NULL) {
+		return WERR_NOMEM;
+	}
+
+	for (i=0; zone_prefixes[i]; i++) {
+		const char *attrs[] = { "name", NULL };
+		int j, ret;
+		struct ldb_result *res;
+		struct ldb_dn *dn;
+
+		dn = ldb_dn_copy(tmp_ctx, ldb_get_default_basedn(dns->samdb));
+		if (dn == NULL) {
+			talloc_free(tmp_ctx);
+			return WERR_NOMEM;
+		}
+
+		if (!ldb_dn_add_child_fmt(dn, "%s", zone_prefixes[i])) {
+			talloc_free(tmp_ctx);
+			return WERR_NOMEM;
+		}
+
+		ret = ldb_search(dns->samdb, tmp_ctx, &res, dn,
+				LDB_SCOPE_SUBTREE, attrs,
+				"objectClass=dnsZone");
+		if (ret != LDB_SUCCESS) {
+			DEBUG(0, ("%s: search failed: %s", __func__,
+					ldb_errstring(dns->samdb)));
+			continue;
+		}
+		TYPESAFE_QSORT(res->msgs, res->count, dns_server_sort_zones);
+
+		for (j=0; j<res->count; j++) {
+			const char *zone;
+			struct ldb_dn *zone_dn;
+			struct dns_server_zone *z;
+
+			zone = ldb_msg_find_attr_as_string(res->msgs[j],
+					"name", NULL);
+			if (zone == NULL) {
+				continue;
+			}
+
+			/* Ignore zones that are not handled */
+			if ((strcmp(zone, "RootDNSServers") == 0) ||
+			    (strcmp(zone, "..TrustAnchors") == 0)) {
+				continue;
+			}
+
+			zone_dn = ldb_dn_copy(tmp_ctx, dn);
+			if (zone_dn == NULL) {
+				talloc_free(tmp_ctx);
+				return WERR_NOMEM;
+			}
+
+			/* Check for duplicated zones, stored in different
+			 * partitions
+			 */
+			for (z = *zones; z != NULL; z = z->next) {
+				if (strcmp(zone, z->name) == 0) {
+					DEBUG(0, ("%s: Ignoring duplicate "
+						"zone '%s' from '%s'",
+						__func__, zone,
+						ldb_dn_get_linearized(zone_dn)));
+					continue;
+				}
+			}
+
+			if (!dns_has_soa(dns, zone_dn, zone)) {
+				continue;
+			}
+
+			z = talloc_zero(mem_ctx, struct dns_server_zone);
+			if (z == NULL) {
+				talloc_free(tmp_ctx);
+				return WERR_NOMEM;
+			}
+			z->name = talloc_strdup(z, zone);
+			z->dn = talloc_move(z, &res->msgs[j]->dn);
+			DLIST_ADD_END(*zones, z, NULL);
+
+			DEBUG(5, ("%s: Found zone '%s'\n", __func__, zone));
+		}
+	}
+
+	talloc_free(tmp_ctx);
+	return WERR_OK;
+}
+
+bool dns_authorative_for_zone(TALLOC_CTX *mem_ctx,
+			      struct dns_server *dns,
 			      const char *name)
 {
 	const struct dns_server_zone *z;
+	struct dns_server_zone *zlist;
 	size_t host_part_len = 0;
+	WERROR err;
 
 	if (name == NULL) {
 		return false;
@@ -320,7 +500,14 @@ bool dns_authorative_for_zone(struct dns_server *dns,
 	if (strcmp(name, "") == 0) {
 		return true;
 	}
-	for (z = dns->zones; z != NULL; z = z->next) {
+
+	err = dns_db_enumerate_zones(mem_ctx, dns, &zlist);
+	if (!W_ERROR_IS_OK(err)) {
+		// TODO return the WERR
+		return false;
+	}
+
+	for (z = zlist; z != NULL; z = z->next) {
 		bool match;
 
 		match = dns_name_match(z->name, name, &host_part_len);
@@ -343,7 +530,9 @@ WERROR dns_name2dn(struct dns_server *dns,
 	struct ldb_dn *base;
 	struct ldb_dn *dn;
 	const struct dns_server_zone *z;
+	struct dns_server_zone *zlist;
 	size_t host_part_len = 0;
+	WERROR err;
 
 	if (name == NULL) {
 		return DNS_ERR(FORMAT_ERROR);
@@ -359,7 +548,12 @@ WERROR dns_name2dn(struct dns_server *dns,
 		return WERR_OK;
 	}
 
-	for (z = dns->zones; z != NULL; z = z->next) {
+	err = dns_db_enumerate_zones(mem_ctx, dns, &zlist);
+	if (!W_ERROR_IS_OK(err)) {
+		return err;
+	}
+
+	for (z = zlist; z != NULL; z = z->next) {
 		bool match;
 
 		match = dns_name_match(z->name, name, &host_part_len);

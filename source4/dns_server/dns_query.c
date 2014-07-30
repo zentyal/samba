@@ -630,7 +630,7 @@ struct tevent_req *dns_server_process_query_send(
 		return tevent_req_post(req, ev);
 	}
 
-	if (dns_authorative_for_zone(dns, in->questions[0].name)) {
+	if (dns_authorative_for_zone(mem_ctx, dns, in->questions[0].name)) {
 		WERROR err;
 
 		req_state->flags |= DNS_FLAG_AUTHORITATIVE;

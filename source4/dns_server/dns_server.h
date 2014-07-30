@@ -53,7 +53,6 @@ struct dns_server_tkey_store {
 struct dns_server {
 	struct task_server *task;
 	struct ldb_context *samdb;
-	struct dns_server_zone *zones;
 	struct dns_server_tkey_store *tkeys;
 	struct cli_credentials *server_credentials;
 	uint16_t max_payload;
@@ -91,7 +90,8 @@ bool dns_name_match(const char *zone, const char *name, size_t *host_part_len);
 bool dns_name_equal(const char *name1, const char *name2);
 bool dns_records_match(struct dnsp_DnssrvRpcRecord *rec1,
 		       struct dnsp_DnssrvRpcRecord *rec2);
-bool dns_authorative_for_zone(struct dns_server *dns,
+bool dns_authorative_for_zone(TALLOC_CTX *mem_ctx,
+			      struct dns_server *dns,
 			      const char *name);
 WERROR dns_lookup_records(struct dns_server *dns,
 			  TALLOC_CTX *mem_ctx,
@@ -123,6 +123,9 @@ WERROR dns_sign_tsig(struct dns_server *dns,
 		     struct dns_request_state *state,
 		     struct dns_name_packet *packet,
 		     uint16_t error);
+
+WERROR dns_db_enumerate_zones(TALLOC_CTX *mem_ctx, struct dns_server *dns,
+			      struct dns_server_zone **zones);
 
 #define DNS_ERR(err_str) WERR_DNS_ERROR_RCODE_##err_str
 #endif /* __DNS_SERVER_H__ */

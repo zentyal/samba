@@ -739,9 +739,9 @@ class TestWinsQueries(DNSTest):
 
     def get_credentials(self, lp):
         creds = credentials.Credentials()
+        creds.set_username(os.getenv("USERNAME"))
+        creds.set_password(os.getenv("PASSWORD"))
         creds.guess(lp)
-        creds.set_machine_account(lp)
-        creds.set_krb_forwardable(credentials.NO_KRB_FORWARDABLE)
         return creds
 
     def setUp(self):

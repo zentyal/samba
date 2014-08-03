@@ -57,7 +57,6 @@ usr/lib/*/samba/libgse.so.*
 usr/lib/*/samba/libiniparser.so.*
 usr/lib/*/samba/libinterfaces.so.*
 usr/lib/*/samba/libkrb5samba.so.*
-usr/lib/*/samba/libldb-cmdline.so.*
 usr/lib/*/samba/libldbsamba.so.*
 usr/lib/*/samba/liblibcli_lsa3.so.*
 usr/lib/*/samba/liblibcli_netlogon3.so.*

@@ -1,4 +1,4 @@
-samba (2:4.1.11+dfsg-1) UNRELEASED; urgency=medium
+samba (2:4.1.11+dfsg-1) unstable; urgency=high
 
   * New upstream release. Fixes:
    + CVE-2014-3560: Remote code execution in nmbd. Closes: #756759

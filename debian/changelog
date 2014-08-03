@@ -1,6 +1,7 @@
 samba (2:4.1.11+dfsg-1) UNRELEASED; urgency=medium
 
-  * New upstream release.
+  * New upstream release. Fixes:
+   + CVE-2014-3560: Remote code execution in nmbd. Closes: #756759
 
  -- Jelmer Vernooij <jelmer@debian.org>  Sun, 03 Aug 2014 03:47:07 +0200
 

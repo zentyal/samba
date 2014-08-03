@@ -1,3 +1,9 @@
+samba (2:4.1.11+dfsg-1) UNRELEASED; urgency=medium
+
+  * New upstream release.
+
+ -- Jelmer Vernooij <jelmer@debian.org>  Sun, 03 Aug 2014 03:47:07 +0200
+
 samba (2:4.1.9+dfsg-2) unstable; urgency=medium
 
   [ Jelmer Vernooij ]

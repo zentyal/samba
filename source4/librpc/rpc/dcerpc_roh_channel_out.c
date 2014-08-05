@@ -284,8 +284,10 @@ struct tevent_req *roh_send_RPC_DATA_OUT_send(TALLOC_CTX *mem_ctx,
 
 	/* TODO Authentication is forced. Should only be sent
 	 * after 401 response code */
-	creds = talloc_asprintf(state, "%s:%s", credentials->username,
-			credentials->password);
+	creds = talloc_asprintf(state, "%s@%s:%s",
+		cli_credentials_get_username(credentials),
+		cli_credentials_get_realm(credentials),
+		cli_credentials_get_password(credentials));
 	b.data = (uint8_t *) creds;
 	b.length = strlen(creds);
 	b64 = base64_encode_data_blob(state, b);

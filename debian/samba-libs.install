@@ -48,6 +48,7 @@ usr/lib/*/samba/libdbwrap.so.*
 usr/lib/*/samba/libdcerpc-samba.so.*
 usr/lib/*/samba/libdcerpc-samba4.so.*
 usr/lib/*/samba/libdfs_server_ad.so.*
+usr/lib/*/samba/libdsdb-module.so.*
 usr/lib/*/samba/liberrors.so.*
 usr/lib/*/samba/libevents.so.*
 usr/lib/*/samba/libflag_mapping.so.*
@@ -56,7 +57,6 @@ usr/lib/*/samba/libgse.so.*
 usr/lib/*/samba/libiniparser.so.*
 usr/lib/*/samba/libinterfaces.so.*
 usr/lib/*/samba/libkrb5samba.so.*
-usr/lib/*/samba/libldb-cmdline.so.*
 usr/lib/*/samba/libldbsamba.so.*
 usr/lib/*/samba/liblibcli_lsa3.so.*
 usr/lib/*/samba/liblibcli_netlogon3.so.*

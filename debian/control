@@ -24,7 +24,7 @@ Build-Depends: bison,
                libcap-dev [linux-any],
                libctdb-dev (>= 1.10+git20110412),
                libcups2-dev,
-               libgnutls-dev,
+               libgnutls28-dev,
                libheimntlm0-heimdal (>= 1.6~),
                libldap2-dev,
                libldb-dev (>= 1:1.1.16~),
@@ -55,7 +55,7 @@ Build-Depends: bison,
                xsltproc,
                zlib1g-dev (>= 1:1.2.3)
 Vcs-Browser: http://anonscm.debian.org/gitweb/?p=pkg-samba/samba.git
-Vcs-Git: git://anonscm.debian.org/pkg-samba/samba.git
+Vcs-Git: git://anonscm.debian.org/pkg-samba/samba.git -b master
 XS-Testsuite: autopkgtest
 
 Package: samba
@@ -158,6 +158,7 @@ Replaces: libdcerpc-server0 (<< 2:4.0.9),
 # see bug #726472
 Conflicts: libpam-smbpass (<< 2:4),
            samba-common-bin (<< 2:4),
+           samba-dsdb-modules (<< 2:4.1.9+dfsg-2),
            samba (<< 2:4),
            winbind (<< 2:4)
 Description: Samba core libraries
@@ -365,7 +366,7 @@ Description: Python bindings for Samba
 
 Package: samba-dsdb-modules
 Architecture: any
-Replaces: libgensec0 (<< 4.0.0~alpha17~git20110724.dfsg1-1)
+Replaces: libgensec0 (<< 4.0.0~alpha17~git20110724.dfsg1-1), samba-libs (<< 2:4.1.9+dfsg-2)
 Section: libs
 Depends: ${misc:Depends}, ${shlibs:Depends}
 Enhances: libldb1

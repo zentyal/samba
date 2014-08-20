@@ -1,11 +1,11 @@
-samba (2:4.1.11+dfsg-1~bpo70+1) UNRELEASED; urgency=medium
+samba (2:4.1.11+dfsg-1~bpo70+1) wheezy-backports; urgency=medium
 
   * Rebuild for wheezy-backports.
   * Restore build-dep on libgnutls-dev instead of libgnutls28-dev for
     wheezy-backports.
   * Update build-dep version for libldb-dev and libtdb-dev.
 
- -- Ivo De Decker <ivo.dedecker@ugent.be>  Wed, 20 Aug 2014 20:25:46 +0200
+ -- Ivo De Decker <ivo.dedecker@ugent.be>  Wed, 20 Aug 2014 22:39:49 +0200
 
 samba (2:4.1.11+dfsg-1) unstable; urgency=high
 

@@ -1,7 +1,7 @@
-Index: samba4/libcli/util/wscript_build
+Index: samba/libcli/util/wscript_build
 ===================================================================
---- samba4.orig/libcli/util/wscript_build	2014-02-04 23:55:22.089520450 +0100
-+++ samba4/libcli/util/wscript_build	2014-02-04 23:55:22.081520450 +0100
+--- samba.orig/libcli/util/wscript_build	2014-07-24 10:35:37.655880997 +0200
++++ samba/libcli/util/wscript_build	2014-07-24 10:35:37.639880998 +0200
 @@ -1,11 +1,13 @@
  #!/usr/bin/env python
  
@@ -18,10 +18,10 @@ Index: samba4/libcli/util/wscript_build
 +	              vnum='0.0.1',
                    )
  
-Index: samba4/libcli/util/samba-errors.pc.in
+Index: samba/libcli/util/samba-errors.pc.in
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ samba4/libcli/util/samba-errors.pc.in	2014-02-04 23:55:22.081520450 +0100
++++ samba/libcli/util/samba-errors.pc.in	2014-07-24 10:35:37.643880997 +0200
 @@ -0,0 +1,10 @@
 +prefix=@prefix@
 +exec_prefix=@exec_prefix@
@@ -33,10 +33,10 @@ Index: samba4/libcli/util/samba-errors.pc.in
 +Version: @PACKAGE_VERSION@
 +Libs: @LIB_RPATH@ -L${libdir} -lsamba-errors
 +Cflags: -I${includedir} -DHAVE_IMMEDIATE_STRUCTURES=1
-Index: samba4/libcli/smb/wscript
+Index: samba/libcli/smb/wscript
 ===================================================================
---- samba4.orig/libcli/smb/wscript	2014-02-04 23:55:22.089520450 +0100
-+++ samba4/libcli/smb/wscript	2014-02-04 23:55:22.081520450 +0100
+--- samba.orig/libcli/smb/wscript	2014-07-24 10:35:37.655880997 +0200
++++ samba/libcli/smb/wscript	2014-07-24 10:35:37.643880997 +0200
 @@ -6,7 +6,7 @@
          source='''
              read_smb.c
@@ -55,10 +55,10 @@ Index: samba4/libcli/smb/wscript
  	public_deps='talloc samba-util',
  	private_library=True,
  	public_headers='''
-Index: samba4/auth/credentials/wscript_build
+Index: samba/auth/credentials/wscript_build
 ===================================================================
---- samba4.orig/auth/credentials/wscript_build	2014-02-04 23:55:22.089520450 +0100
-+++ samba4/auth/credentials/wscript_build	2014-02-04 23:55:22.081520450 +0100
+--- samba.orig/auth/credentials/wscript_build	2014-07-24 10:35:37.655880997 +0200
++++ samba/auth/credentials/wscript_build	2014-07-24 10:35:37.643880997 +0200
 @@ -5,7 +5,7 @@
  	autoproto='credentials_proto.h',
  	public_headers='credentials.h',
@@ -68,10 +68,10 @@ Index: samba4/auth/credentials/wscript_build
  	vnum='0.0.1'
  	)
  
-Index: samba4/auth/gensec/wscript_build
+Index: samba/auth/gensec/wscript_build
 ===================================================================
---- samba4.orig/auth/gensec/wscript_build	2014-02-04 23:55:22.089520450 +0100
-+++ samba4/auth/gensec/wscript_build	2014-02-04 23:55:22.081520450 +0100
+--- samba.orig/auth/gensec/wscript_build	2014-07-24 10:35:37.655880997 +0200
++++ samba/auth/gensec/wscript_build	2014-07-24 10:35:37.643880997 +0200
 @@ -3,7 +3,7 @@
  	source='gensec.c gensec_start.c gensec_util.c',
  	pc_files='gensec.pc',
@@ -81,10 +81,10 @@ Index: samba4/auth/gensec/wscript_build
  	public_headers='gensec.h',
  	deps='com_err',
  	vnum='0.0.1'
-Index: samba4/lib/dbwrap/wscript_build
+Index: samba/lib/dbwrap/wscript_build
 ===================================================================
---- samba4.orig/lib/dbwrap/wscript_build	2014-02-04 23:55:22.089520450 +0100
-+++ samba4/lib/dbwrap/wscript_build	2014-02-04 23:55:22.081520450 +0100
+--- samba.orig/lib/dbwrap/wscript_build	2014-07-24 10:35:37.655880997 +0200
++++ samba/lib/dbwrap/wscript_build	2014-07-24 10:35:37.643880997 +0200
 @@ -1,6 +1,6 @@
  SRC = '''dbwrap.c dbwrap_util.c dbwrap_rbt.c dbwrap_cache.c dbwrap_tdb.c
           dbwrap_local_open.c'''
@@ -93,10 +93,10 @@ Index: samba4/lib/dbwrap/wscript_build
  
  if not bld.env.disable_ntdb:
     SRC += " dbwrap_ntdb.c"
-Index: samba4/lib/ldb-samba/wscript_build
+Index: samba/lib/ldb-samba/wscript_build
 ===================================================================
---- samba4.orig/lib/ldb-samba/wscript_build	2014-02-04 23:55:22.089520450 +0100
-+++ samba4/lib/ldb-samba/wscript_build	2014-02-04 23:55:22.081520450 +0100
+--- samba.orig/lib/ldb-samba/wscript_build	2014-07-24 10:35:37.655880997 +0200
++++ samba/lib/ldb-samba/wscript_build	2014-07-24 10:35:37.643880997 +0200
 @@ -8,7 +8,7 @@
                    source='ldif_handlers.c',
                    autoproto='ldif_handlers_proto.h',
@@ -106,10 +106,10 @@ Index: samba4/lib/ldb-samba/wscript_build
                    private_library=True
                    )
  
-Index: samba4/lib/torture/wscript_build
+Index: samba/lib/torture/wscript_build
 ===================================================================
---- samba4.orig/lib/torture/wscript_build	2014-02-04 23:55:22.089520450 +0100
-+++ samba4/lib/torture/wscript_build	2014-02-04 23:55:22.081520450 +0100
+--- samba.orig/lib/torture/wscript_build	2014-07-24 10:35:37.655880997 +0200
++++ samba/lib/torture/wscript_build	2014-07-24 10:35:37.643880997 +0200
 @@ -4,6 +4,6 @@
  	source='torture.c subunit.c simple.c',
  	vnum='0.0.1',
@@ -118,10 +118,10 @@ Index: samba4/lib/torture/wscript_build
 +	public_deps='samba-hostconfig samba-util samba-errors talloc tevent subunit',
  	public_headers='torture.h'
  	)
-Index: samba4/lib/util/wscript_build
+Index: samba/lib/util/wscript_build
 ===================================================================
---- samba4.orig/lib/util/wscript_build	2014-02-04 23:55:22.089520450 +0100
-+++ samba4/lib/util/wscript_build	2014-02-04 23:55:22.081520450 +0100
+--- samba.orig/lib/util/wscript_build	2014-07-24 10:35:37.655880997 +0200
++++ samba/lib/util/wscript_build	2014-07-24 10:35:37.647880997 +0200
 @@ -20,7 +20,7 @@
  
  bld.SAMBA_LIBRARY('samba-modules',
@@ -140,10 +140,10 @@ Index: samba4/lib/util/wscript_build
  	public_headers='tevent_ntstatus.h tevent_unix.h tevent_werror.h',
  	header_path=[ ('*', 'util') ],
  	pc_files=[],
-Index: samba4/libcli/auth/wscript_build
+Index: samba/libcli/auth/wscript_build
 ===================================================================
---- samba4.orig/libcli/auth/wscript_build	2014-02-04 23:55:22.089520450 +0100
-+++ samba4/libcli/auth/wscript_build	2014-02-04 23:55:22.081520450 +0100
+--- samba.orig/libcli/auth/wscript_build	2014-07-24 10:35:37.655880997 +0200
++++ samba/libcli/auth/wscript_build	2014-07-24 10:35:37.647880997 +0200
 @@ -2,7 +2,7 @@
  
  bld.SAMBA_LIBRARY('cliauth',
@@ -153,20 +153,20 @@ Index: samba4/libcli/auth/wscript_build
                    private_library=True,
                    grouping_library=True)
  
-Index: samba4/libcli/dns/wscript_build
+Index: samba/libcli/dns/wscript_build
 ===================================================================
---- samba4.orig/libcli/dns/wscript_build	2014-02-04 23:55:22.089520450 +0100
-+++ samba4/libcli/dns/wscript_build	2014-02-04 23:55:22.081520450 +0100
+--- samba.orig/libcli/dns/wscript_build	2014-07-24 10:35:37.655880997 +0200
++++ samba/libcli/dns/wscript_build	2014-07-24 10:35:37.647880997 +0200
 @@ -6,4 +6,4 @@
  
  bld.SAMBA_SUBSYSTEM('dnshostsfile',
          source='dns_hosts_file.c',
 -        public_deps='samba-util errors')
 +        public_deps='samba-util samba-errors')
-Index: samba4/libcli/ldap/wscript_build
+Index: samba/libcli/ldap/wscript_build
 ===================================================================
---- samba4.orig/libcli/ldap/wscript_build	2014-02-04 23:55:22.089520450 +0100
-+++ samba4/libcli/ldap/wscript_build	2014-02-04 23:55:22.081520450 +0100
+--- samba.orig/libcli/ldap/wscript_build	2014-07-24 10:35:37.655880997 +0200
++++ samba/libcli/ldap/wscript_build	2014-07-24 10:35:37.647880997 +0200
 @@ -2,7 +2,7 @@
  
  bld.SAMBA_LIBRARY('cli-ldap-common',
@@ -176,10 +176,10 @@ Index: samba4/libcli/ldap/wscript_build
                    public_headers='ldap_message.h ldap_errors.h ldap_ndr.h',
                    deps='samba-util asn1util NDR_SECURITY tevent',
                    private_library=True
-Index: samba4/librpc/tools/wscript_build
+Index: samba/librpc/tools/wscript_build
 ===================================================================
---- samba4.orig/librpc/tools/wscript_build	2014-02-04 23:55:22.089520450 +0100
-+++ samba4/librpc/tools/wscript_build	2014-02-04 23:55:22.081520450 +0100
+--- samba.orig/librpc/tools/wscript_build	2014-07-24 10:35:37.655880997 +0200
++++ samba/librpc/tools/wscript_build	2014-07-24 10:35:37.647880997 +0200
 @@ -3,5 +3,5 @@
  bld.SAMBA_BINARY('ndrdump',
  	source='ndrdump.c',
@@ -187,10 +187,10 @@ Index: samba4/librpc/tools/wscript_build
 -	deps='samba-hostconfig samba-util popt POPT_SAMBA ndr-table errors'
 +	deps='samba-hostconfig samba-util popt POPT_SAMBA ndr-table samba-errors'
  	)
-Index: samba4/librpc/wscript_build
+Index: samba/librpc/wscript_build
 ===================================================================
---- samba4.orig/librpc/wscript_build	2014-02-04 23:55:22.089520450 +0100
-+++ samba4/librpc/wscript_build	2014-02-04 23:55:22.081520450 +0100
+--- samba.orig/librpc/wscript_build	2014-07-24 10:35:37.655880997 +0200
++++ samba/librpc/wscript_build	2014-07-24 10:35:37.647880997 +0200
 @@ -291,7 +291,7 @@
  
  bld.SAMBA_SUBSYSTEM('NDR_COMPRESSION',
@@ -209,10 +209,10 @@ Index: samba4/librpc/wscript_build
      public_headers='gen_ndr/misc.h gen_ndr/ndr_misc.h ndr/libndr.h:ndr.h',
      header_path= [('*gen_ndr*', 'gen_ndr')],
      vnum='0.0.2',
-Index: samba4/source4/auth/kerberos/wscript_build
+Index: samba/source4/auth/kerberos/wscript_build
 ===================================================================
---- samba4.orig/source4/auth/kerberos/wscript_build	2014-02-04 23:55:22.089520450 +0100
-+++ samba4/source4/auth/kerberos/wscript_build	2014-02-04 23:55:22.081520450 +0100
+--- samba.orig/source4/auth/kerberos/wscript_build	2014-07-24 10:35:37.655880997 +0200
++++ samba/source4/auth/kerberos/wscript_build	2014-07-24 10:35:37.647880997 +0200
 @@ -9,7 +9,7 @@
                    source='kerberos_pac.c',
                    autoproto='proto.h',
@@ -222,10 +222,10 @@ Index: samba4/source4/auth/kerberos/wscript_build
                    private_library=True
                    )
  
-Index: samba4/source4/dsdb/wscript_build
+Index: samba/source4/dsdb/wscript_build
 ===================================================================
---- samba4.orig/source4/dsdb/wscript_build	2014-02-04 23:55:22.089520450 +0100
-+++ samba4/source4/dsdb/wscript_build	2014-02-04 23:55:22.081520450 +0100
+--- samba.orig/source4/dsdb/wscript_build	2014-07-24 10:35:37.655880997 +0200
++++ samba/source4/dsdb/wscript_build	2014-07-24 10:35:37.647880997 +0200
 @@ -9,7 +9,7 @@
  	public_deps='krb5',
  	public_headers='',
@@ -244,10 +244,10 @@ Index: samba4/source4/dsdb/wscript_build
  	internal_module=False,
  	enabled=bld.AD_DC_BUILD_IS_ENABLED()
  	)
-Index: samba4/source4/lib/socket/wscript_build
+Index: samba/source4/lib/socket/wscript_build
 ===================================================================
---- samba4.orig/source4/lib/socket/wscript_build	2014-02-04 23:55:22.089520450 +0100
-+++ samba4/source4/lib/socket/wscript_build	2014-02-04 23:55:22.081520450 +0100
+--- samba.orig/source4/lib/socket/wscript_build	2014-07-24 10:35:37.655880997 +0200
++++ samba/source4/lib/socket/wscript_build	2014-07-24 10:35:37.647880997 +0200
 @@ -10,7 +10,7 @@
  bld.SAMBA_MODULE('socket_ip',
      source='socket_ip.c',
@@ -257,10 +257,10 @@ Index: samba4/source4/lib/socket/wscript_build
      internal_module=True
      )
  
-Index: samba4/source4/libcli/ldap/wscript_build
+Index: samba/source4/libcli/ldap/wscript_build
 ===================================================================
---- samba4.orig/source4/libcli/ldap/wscript_build	2014-02-04 23:55:22.089520450 +0100
-+++ samba4/source4/libcli/ldap/wscript_build	2014-02-04 23:55:22.081520450 +0100
+--- samba.orig/source4/libcli/ldap/wscript_build	2014-07-24 10:35:37.655880997 +0200
++++ samba/source4/libcli/ldap/wscript_build	2014-07-24 10:35:37.647880997 +0200
 @@ -3,7 +3,7 @@
  bld.SAMBA_LIBRARY('cli-ldap',
                    source='ldap_client.c ldap_bind.c ldap_ildap.c ldap_controls.c',
@@ -270,10 +270,10 @@ Index: samba4/source4/libcli/ldap/wscript_build
                    public_headers='libcli_ldap.h:ldap-util.h',
                    deps='cli_composite samba_socket NDR_SAMR LIBTLS ndr LP_RESOLVE gensec cli-ldap-common',
                    private_library=True
-Index: samba4/source4/libcli/wbclient/wscript_build
+Index: samba/source4/libcli/wbclient/wscript_build
 ===================================================================
---- samba4.orig/source4/libcli/wbclient/wscript_build	2014-02-04 23:55:22.089520450 +0100
-+++ samba4/source4/libcli/wbclient/wscript_build	2014-02-04 23:55:22.089520450 +0100
+--- samba.orig/source4/libcli/wbclient/wscript_build	2014-07-24 10:35:37.655880997 +0200
++++ samba/source4/libcli/wbclient/wscript_build	2014-07-24 10:35:37.647880997 +0200
 @@ -2,7 +2,7 @@
  
  bld.SAMBA_LIBRARY('LIBWBCLIENT_OLD',
@@ -283,10 +283,10 @@ Index: samba4/source4/libcli/wbclient/wscript_build
                    deps='NDR_WINBIND MESSAGING RPC_NDR_WINBIND',
                    private_library=True
  	)
-Index: samba4/source4/libcli/wscript_build
+Index: samba/source4/libcli/wscript_build
 ===================================================================
---- samba4.orig/source4/libcli/wscript_build	2014-02-04 23:55:22.089520450 +0100
-+++ samba4/source4/libcli/wscript_build	2014-02-04 23:55:22.089520450 +0100
+--- samba.orig/source4/libcli/wscript_build	2014-07-24 10:35:37.655880997 +0200
++++ samba/source4/libcli/wscript_build	2014-07-24 10:35:37.651880997 +0200
 @@ -76,7 +76,7 @@
  bld.SAMBA_SUBSYSTEM('LIBCLI_SMB',
  	source='clireadwrite.c cliconnect.c clifile.c clilist.c clitrans2.c climessage.c clideltree.c',
@@ -305,11 +305,11 @@ Index: samba4/source4/libcli/wscript_build
  	public_headers='raw/request.h:smb_request.h raw/signing.h:smb_raw_signing.h raw/libcliraw.h:smb_cliraw.h raw/interfaces.h:smb_raw_interfaces.h raw/smb.h:smb_raw.h raw/trans2.h:smb_raw_trans2.h',
  	private_library=False,
  	pc_files='raw/smbclient-raw.pc',
-Index: samba4/source3/wscript_build
+Index: samba/source3/wscript_build
 ===================================================================
---- samba4.orig/source3/wscript_build	2014-02-04 23:55:22.089520450 +0100
-+++ samba4/source3/wscript_build	2014-02-04 23:55:22.089520450 +0100
-@@ -1124,7 +1124,7 @@
+--- samba.orig/source3/wscript_build	2014-07-24 10:35:37.655880997 +0200
++++ samba/source3/wscript_build	2014-07-24 10:35:37.651880997 +0200
+@@ -1125,7 +1125,7 @@
  
  bld.SAMBA3_SUBSYSTEM('errors3',
                       source='libsmb/errormap.c libsmb/smberr.c lib/errmap_unix.c',
@@ -318,10 +318,10 @@ Index: samba4/source3/wscript_build
  
  bld.SAMBA3_SUBSYSTEM('LIBCLI_SAMR',
                      source=LIBCLI_SAMR_SRC,
-Index: samba4/source4/torture/drs/wscript_build
+Index: samba/source4/torture/drs/wscript_build
 ===================================================================
---- samba4.orig/source4/torture/drs/wscript_build	2014-02-04 23:54:36.000000000 +0100
-+++ samba4/source4/torture/drs/wscript_build	2014-02-05 00:05:44.245529786 +0100
+--- samba.orig/source4/torture/drs/wscript_build	2014-07-24 10:35:37.655880997 +0200
++++ samba/source4/torture/drs/wscript_build	2014-07-24 10:35:37.651880997 +0200
 @@ -5,7 +5,7 @@
  	autoproto='proto.h',
  	subsystem='smbtorture',

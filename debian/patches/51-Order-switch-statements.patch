@@ -1,0 +1,228 @@
+From ee32bc2cfbe77c623b60fb44715e324c2cc45952 Mon Sep 17 00:00:00 2001
+From: Samuel Cabrero <scabrero@zentyal.com>
+Date: Sun, 6 Jul 2014 22:02:42 +0200
+Subject: [PATCH 2/2] Order switch statements
+
+Signed-off-by: Samuel Cabrero <scabrero@zentyal.com>
+Reviewed-by: Andrew Bartlett <abartlet@samba.org>
+Reviewed-by: Kamen Mazdrashki <kamenim@samba.org>
+
+Autobuild-User(master): Andrew Bartlett <abartlet@samba.org>
+Autobuild-Date(master): Mon Jul  7 07:47:44 CEST 2014 on sn-devel-104
+---
+ source4/dsdb/repl/drepl_out_helpers.c | 20 ++++++++++----------
+ source4/libnet/libnet_become_dc.c     | 18 +++++++++---------
+ source4/libnet/libnet_unbecome_dc.c   | 18 +++++++++---------
+ source4/torture/drs/rpc/dssync.c      | 18 +++++++++---------
+ source4/torture/drs/rpc/msds_intid.c  |  8 ++++----
+ source4/torture/rpc/dsgetinfo.c       | 18 +++++++++---------
+ 6 files changed, 50 insertions(+), 50 deletions(-)
+
+Index: samba/source4/dsdb/repl/drepl_out_helpers.c
+===================================================================
+--- samba.orig/source4/dsdb/repl/drepl_out_helpers.c	2014-07-24 10:34:43.167882920 +0200
++++ samba/source4/dsdb/repl/drepl_out_helpers.c	2014-07-24 10:34:43.155882921 +0200
+@@ -173,16 +173,6 @@
+ 			info28->repl_epoch		= 0;
+ 			break;
+ 		}
+-		case 48: {
+-			struct drsuapi_DsBindInfo48 *info48;
+-			info48 = &state->bind_r.out.bind_info->info.info48;
+-
+-			info28->supported_extensions	= info48->supported_extensions;
+-			info28->site_guid		= info48->site_guid;
+-			info28->pid			= info48->pid;
+-			info28->repl_epoch		= info48->repl_epoch;
+-			break;
+-		}
+ 		case 28: {
+ 			*info28 = state->bind_r.out.bind_info->info.info28;
+ 			break;
+@@ -197,6 +187,16 @@
+ 			info28->repl_epoch		= info32->repl_epoch;
+ 			break;
+ 		}
++		case 48: {
++			struct drsuapi_DsBindInfo48 *info48;
++			info48 = &state->bind_r.out.bind_info->info.info48;
++
++			info28->supported_extensions	= info48->supported_extensions;
++			info28->site_guid		= info48->site_guid;
++			info28->pid			= info48->pid;
++			info28->repl_epoch		= info48->repl_epoch;
++			break;
++		}
+ 		case 52: {
+ 			struct drsuapi_DsBindInfo52 *info52;
+ 			info52 = &state->bind_r.out.bind_info->info.info52;
+Index: samba/source4/libnet/libnet_become_dc.c
+===================================================================
+--- samba.orig/source4/libnet/libnet_become_dc.c	2014-07-24 10:34:43.167882920 +0200
++++ samba/source4/libnet/libnet_become_dc.c	2014-07-24 10:34:43.155882921 +0200
+@@ -1699,15 +1699,6 @@
+ 			drsuapi->remote_info28.repl_epoch		= 0;
+ 			break;
+ 		}
+-		case 48: {
+-			struct drsuapi_DsBindInfo48 *info48;
+-			info48 = &drsuapi->bind_r.out.bind_info->info.info48;
+-			drsuapi->remote_info28.supported_extensions	= info48->supported_extensions;
+-			drsuapi->remote_info28.site_guid		= info48->site_guid;
+-			drsuapi->remote_info28.pid			= info48->pid;
+-			drsuapi->remote_info28.repl_epoch		= info48->repl_epoch;
+-			break;
+-		}
+ 		case 28: {
+ 			drsuapi->remote_info28 = drsuapi->bind_r.out.bind_info->info.info28;
+ 			break;
+@@ -1721,6 +1712,15 @@
+ 			drsuapi->remote_info28.repl_epoch		= info32->repl_epoch;
+ 			break;
+ 		}
++		case 48: {
++			struct drsuapi_DsBindInfo48 *info48;
++			info48 = &drsuapi->bind_r.out.bind_info->info.info48;
++			drsuapi->remote_info28.supported_extensions	= info48->supported_extensions;
++			drsuapi->remote_info28.site_guid		= info48->site_guid;
++			drsuapi->remote_info28.pid			= info48->pid;
++			drsuapi->remote_info28.repl_epoch		= info48->repl_epoch;
++			break;
++		}
+ 		case 52: {
+ 			struct drsuapi_DsBindInfo52 *info52;
+ 			info52 = &drsuapi->bind_r.out.bind_info->info.info52;
+Index: samba/source4/libnet/libnet_unbecome_dc.c
+===================================================================
+--- samba.orig/source4/libnet/libnet_unbecome_dc.c	2014-07-24 10:34:43.167882920 +0200
++++ samba/source4/libnet/libnet_unbecome_dc.c	2014-07-24 10:34:43.155882921 +0200
+@@ -635,15 +635,6 @@
+ 			s->drsuapi.remote_info28.repl_epoch		= 0;
+ 			break;
+ 		}
+-		case 48: {
+-			struct drsuapi_DsBindInfo48 *info48;
+-			info48 = &s->drsuapi.bind_r.out.bind_info->info.info48;
+-			s->drsuapi.remote_info28.supported_extensions	= info48->supported_extensions;
+-			s->drsuapi.remote_info28.site_guid		= info48->site_guid;
+-			s->drsuapi.remote_info28.pid			= info48->pid;
+-			s->drsuapi.remote_info28.repl_epoch		= info48->repl_epoch;
+-			break;
+-		}
+ 		case 28: {
+ 			s->drsuapi.remote_info28 = s->drsuapi.bind_r.out.bind_info->info.info28;
+ 			break;
+@@ -657,6 +648,15 @@
+ 			s->drsuapi.remote_info28.repl_epoch		= info32->repl_epoch;
+ 			break;
+ 		}
++		case 48: {
++			struct drsuapi_DsBindInfo48 *info48;
++			info48 = &s->drsuapi.bind_r.out.bind_info->info.info48;
++			s->drsuapi.remote_info28.supported_extensions	= info48->supported_extensions;
++			s->drsuapi.remote_info28.site_guid		= info48->site_guid;
++			s->drsuapi.remote_info28.pid			= info48->pid;
++			s->drsuapi.remote_info28.repl_epoch		= info48->repl_epoch;
++			break;
++		}
+ 		case 52: {
+ 			struct drsuapi_DsBindInfo52 *info52;
+ 			info52 = &s->drsuapi.bind_r.out.bind_info->info.info52;
+Index: samba/source4/torture/drs/rpc/dssync.c
+===================================================================
+--- samba.orig/source4/torture/drs/rpc/dssync.c	2014-07-24 10:34:43.167882920 +0200
++++ samba/source4/torture/drs/rpc/dssync.c	2014-07-24 10:34:43.159882921 +0200
+@@ -229,15 +229,6 @@
+ 			b->peer_bind_info28.repl_epoch		= 0;
+ 			break;
+ 		}
+-		case 48: {
+-			struct drsuapi_DsBindInfo48 *info48;
+-			info48 = &b->req.out.bind_info->info.info48;
+-			b->peer_bind_info28.supported_extensions= info48->supported_extensions;
+-			b->peer_bind_info28.site_guid		= info48->site_guid;
+-			b->peer_bind_info28.pid			= info48->pid;
+-			b->peer_bind_info28.repl_epoch		= info48->repl_epoch;
+-			break;
+-		}
+ 		case 28: {
+ 			b->peer_bind_info28 = b->req.out.bind_info->info.info28;
+ 			break;
+@@ -251,6 +242,15 @@
+ 			b->peer_bind_info28.repl_epoch		= info32->repl_epoch;
+ 			break;
+ 		}
++		case 48: {
++			struct drsuapi_DsBindInfo48 *info48;
++			info48 = &b->req.out.bind_info->info.info48;
++			b->peer_bind_info28.supported_extensions= info48->supported_extensions;
++			b->peer_bind_info28.site_guid		= info48->site_guid;
++			b->peer_bind_info28.pid			= info48->pid;
++			b->peer_bind_info28.repl_epoch		= info48->repl_epoch;
++			break;
++		}
+ 		case 52: {
+ 			struct drsuapi_DsBindInfo52 *info52;
+ 			info52 = &b->req.out.bind_info->info.info52;
+Index: samba/source4/torture/drs/rpc/msds_intid.c
+===================================================================
+--- samba.orig/source4/torture/drs/rpc/msds_intid.c	2014-07-24 10:34:43.167882920 +0200
++++ samba/source4/torture/drs/rpc/msds_intid.c	2014-07-24 10:34:43.159882921 +0200
+@@ -237,10 +237,6 @@
+ 		bi->srv_info48.repl_epoch		= info28->repl_epoch;
+ 		break;
+ 	}
+-	case 48: {
+-		bi->srv_info48 = r.out.bind_info->info.info48;
+-		break;
+-	}
+ 	case 32: {
+ 		struct drsuapi_DsBindInfo32 *info32;
+ 		info32 = &r.out.bind_info->info.info32;
+@@ -250,6 +246,10 @@
+ 		bi->srv_info48.repl_epoch		= info32->repl_epoch;
+ 		break;
+ 	}
++	case 48: {
++		bi->srv_info48 = r.out.bind_info->info.info48;
++		break;
++	}
+ 	case 52: {
+ 		struct drsuapi_DsBindInfo52 *info52;
+ 		info52 = &r.out.bind_info->info.info52;
+Index: samba/source4/torture/rpc/dsgetinfo.c
+===================================================================
+--- samba.orig/source4/torture/rpc/dsgetinfo.c	2014-07-24 10:34:43.167882920 +0200
++++ samba/source4/torture/rpc/dsgetinfo.c	2014-07-24 10:34:43.159882921 +0200
+@@ -191,15 +191,6 @@
+ 			b->peer_bind_info28.repl_epoch		= 0;
+ 			break;
+ 		}
+-		case 48: {
+-			struct drsuapi_DsBindInfo48 *info48;
+-			info48 = &b->req.out.bind_info->info.info48;
+-			b->peer_bind_info28.supported_extensions= info48->supported_extensions;
+-			b->peer_bind_info28.site_guid		= info48->site_guid;
+-			b->peer_bind_info28.pid			= info48->pid;
+-			b->peer_bind_info28.repl_epoch		= info48->repl_epoch;
+-			break;
+-		}
+ 		case 28: {
+ 			b->peer_bind_info28 = b->req.out.bind_info->info.info28;
+ 			break;
+@@ -213,6 +204,15 @@
+ 			b->peer_bind_info28.repl_epoch		= info32->repl_epoch;
+ 			break;
+ 		}
++		case 48: {
++			struct drsuapi_DsBindInfo48 *info48;
++			info48 = &b->req.out.bind_info->info.info48;
++			b->peer_bind_info28.supported_extensions= info48->supported_extensions;
++			b->peer_bind_info28.site_guid		= info48->site_guid;
++			b->peer_bind_info28.pid			= info48->pid;
++			b->peer_bind_info28.repl_epoch		= info48->repl_epoch;
++			break;
++		}
+ 		case 52: {
+ 			struct drsuapi_DsBindInfo52 *info52;
+ 			info52 = &b->req.out.bind_info->info.info52;

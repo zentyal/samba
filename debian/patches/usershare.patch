@@ -7,9 +7,11 @@ Bug-Debian: http://bugs.debian.org/443230
 Bug-Ubuntu: https://bugs.launchpad.net/ubuntu/+source/samba/+bug/128548
 Forwarded: not-needed
 
---- a/docs/manpages/net.8
-+++ b/docs/manpages/net.8
-@@ -944,9 +944,9 @@
+Index: samba/docs/manpages/net.8
+===================================================================
+--- samba.orig/docs/manpages/net.8	2014-07-24 10:35:23.651881491 +0200
++++ samba/docs/manpages/net.8	2014-07-24 10:35:23.643881492 +0200
+@@ -1144,9 +1144,9 @@
  .RE
  .SS "USERSHARE"
  .PP
@@ -21,9 +23,11 @@ Forwarded: not-needed
  .PP
  The usershare commands are:
  .RS 4
---- a/source3/param/loadparm.c
-+++ b/source3/param/loadparm.c
-@@ -1014,7 +1014,7 @@
+Index: samba/source3/param/loadparm.c
+===================================================================
+--- samba.orig/source3/param/loadparm.c	2014-07-24 10:35:23.651881491 +0200
++++ samba/source3/param/loadparm.c	2014-07-24 10:35:23.647881492 +0200
+@@ -1016,7 +1016,7 @@
  	string_set(&Globals.szUsersharePath, s);
  	SAFE_FREE(s);
  	string_set(&Globals.szUsershareTemplateShare, "");

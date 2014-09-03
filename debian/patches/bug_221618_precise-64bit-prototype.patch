@@ -5,9 +5,9 @@ Forwarded: http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=221618#27
 
 Index: samba/source3/include/libsmbclient.h
 ===================================================================
---- samba.orig/source3/include/libsmbclient.h
-+++ samba/source3/include/libsmbclient.h
-@@ -79,6 +79,16 @@
+--- samba.orig/source3/include/libsmbclient.h	2014-07-24 10:35:11.235881930 +0200
++++ samba/source3/include/libsmbclient.h	2014-07-24 10:35:11.227881930 +0200
+@@ -80,6 +80,16 @@
  #include <fcntl.h>
  #include <utime.h>
  

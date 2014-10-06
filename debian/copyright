@@ -5,6 +5,7 @@ Source: http://www.samba.org/
 Files-Excluded:
   source4/heimdal/lib/wind/*.txt
   source4/ldap_server/devdocs
+  lib/zlib/contrib/dotzlib/DotZLib.chm
 
 Files: debian/*
 Copyright:

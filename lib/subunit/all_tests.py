@@ -1,12 +1,12 @@
-#!/usr/bin/env python
-#  subunit: extensions to python unittest to get test results from subprocesses.
-#  Copyright (C) 2009  Robert Collins <robertc@robertcollins.net>
+#
+#  subunit: extensions to Python unittest to get test results from subprocesses.
+#  Copyright (C) 2013  Robert Collins <robertc@robertcollins.net>
 #
 #  Licensed under either the Apache License, Version 2.0 or the BSD 3-clause
 #  license at the users choice. A copy of both licenses are available in the
 #  project source as Apache-2.0 and BSD. You may not use this file except in
 #  compliance with one of these two licences.
-#  
+#
 #  Unless required by applicable law or agreed to in writing, software
 #  distributed under these licenses is distributed on an "AS IS" BASIS, WITHOUT
 #  WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
@@ -14,14 +14,23 @@
 #  limitations under that license.
 #
 
-"""A filter to change tags on a subunit stream.
+import unittest
 
-subunit-tags foo -> adds foo
-subunit-tags foo -bar -> adds foo and removes bar
-"""
+import subunit
 
-import sys
 
-from subunit import tag_stream
+class ShellTests(subunit.ExecTestCase):
 
-sys.exit(tag_stream(sys.stdin, sys.stdout, sys.argv[1:]))
+    def test_sourcing(self):
+        """./shell/tests/test_source_library.sh"""
+
+    def test_functions(self):
+        """./shell/tests/test_function_output.sh"""
+
+
+def test_suite():
+    result = unittest.TestSuite()
+    result.addTest(subunit.test_suite())
+    result.addTest(ShellTests('test_sourcing'))
+    result.addTest(ShellTests('test_functions'))
+    return result

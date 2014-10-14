@@ -19,9 +19,14 @@
 from optparse import OptionParser
 import sys
 
-from subunit import DiscardStream, ProtocolTestCase
+from testtools import (
+    CopyStreamResult, StreamToExtendedDecorator, StreamResultRouter,
+    StreamSummary)
+
+from subunit import ByteStreamToStreamResult
+from subunit.filters import find_stream, run_tests_from_stream
 from subunit.test_results import (
-    AutoTimingTestResultDecorator,
+    CatFiles,
     TestIdPrintingResult,
     )
 
@@ -30,18 +35,25 @@ parser = OptionParser(description=__doc__)
 parser.add_option("--times", action="store_true",
     help="list the time each test took (requires a timestamped stream)",
         default=False)
+parser.add_option("--exists", action="store_true",
+    help="list tests that are reported as existing (as well as ran)",
+        default=False)
 parser.add_option("--no-passthrough", action="store_true",
     help="Hide all non subunit input.", default=False, dest="no_passthrough")
 (options, args) = parser.parse_args()
-result = AutoTimingTestResultDecorator(
-    TestIdPrintingResult(sys.stdout, options.times))
-if options.no_passthrough:
-    passthrough_stream = DiscardStream()
-else:
-    passthrough_stream = None
-test = ProtocolTestCase(sys.stdin, passthrough=passthrough_stream)
+test = ByteStreamToStreamResult(
+    find_stream(sys.stdin, args), non_subunit_name="stdout")
+result = TestIdPrintingResult(sys.stdout, options.times, options.exists)
+if not options.no_passthrough:
+    result = StreamResultRouter(result)
+    cat = CatFiles(sys.stdout)
+    result.add_rule(cat, 'test_id', test_id=None)
+summary = StreamSummary()
+result = CopyStreamResult([result, summary])
+result.startTestRun()
 test.run(result)
-if result.wasSuccessful():
+result.stopTestRun()
+if summary.wasSuccessful():
     exit_code = 0
 else:
     exit_code = 1

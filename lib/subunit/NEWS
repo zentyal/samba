@@ -5,6 +5,209 @@ subunit release notes
 NEXT (In development)
 ---------------------
 
+0.0.21
+------
+
+BUGFIXES
+~~~~~~~~
+
+* Brown bag bugfix - 0.0.20's setup.py referenced cvs not csv.
+  (Robert Collins, #1361924)
+
+0.0.20
+------
+
+BUGFIXES
+~~~~~~~~
+
+* subunit2csv is now installed when using pip.
+  (Robert Collins, #1279669)
+
+* testscenarios is now a test dependency, not an install dependency.
+  (Arfrever Frehtes Taifersar Arahesis, #1292757)
+
+* The python-subunit tarball can now have setup run from the current
+  directory. (Robert Collins, #1361857)
+
+0.0.19
+------
+
+IMPROVEMENTS
+~~~~~~~~~~~~
+
+* ``subunit.run`` in Python will now exit 0 as long as the test stream has
+  been generated correctly - this has always been the intent but API friction
+  with testtools had prevented it working.
+  (Robert Collins)
+
+0.0.18
+------
+
+IMPROVEMENTS
+~~~~~~~~~~~~
+
+* Fix compatibility with testtools 0.9.35 which dropped the 'all' compat
+  symbol. This breaks support for Python versions lower than 2.6.
+  (Robert Collins, #1274056)
+
+0.0.17
+------
+
+IMPROVEMENTS
+~~~~~~~~~~~~
+
+* Add ``subunit-output`` tool that can generate a Subunit v2 bytestream from
+  arguments passed on the command line. (Thomi Richards, #1252084)
+
+0.0.16
+------
+
+BUG FIXES
+~~~~~~~~~
+
+* Perl files should now honour perl system config.
+  (Benedikt Morbach, #1233198)
+
+* Python 3.1 and 3.2 have an inconsistent memoryview implementation which
+  required a workaround for NUL byte detection. (Robert Collins, #1216246)
+
+* The test suite was failing 6 tests due to testtools changing it's output
+  formatting of exceptions. (Robert Collins)
+
+* V2 parser errors now set appropriate mime types for the encapsulated packet
+  data and the error message. (Robert Collins)
+
+* When tests fail to import ``python subunit.run -l ...`` will now write a 
+  subunit file attachment listing the failed imports and exit 2, rather than
+  listing the stub objects from the importer and exiting 0.
+  (Robert Collins, #1245672)
+
+IMPROVEMENTS
+~~~~~~~~~~~~
+
+* Most filters will now accept a file path argument instead of only reading
+  from stdin. (Robert Collins, #409206)
+
+0.0.15
+------
+
+BUG FIXES
+~~~~~~~~~
+
+* Clients of subunit did not expect memoryview objects in StreamResult events.
+  (Robert Collins)
+
+* Memoryview and struct were mutually incompatible in 2.7.3 and 3.2.
+  (Robert Collins, #1216163)
+
+0.0.14
+------
+
+BUG FIXES
+~~~~~~~~~
+
+* Memoryview detection was broken and thus it's use was never really tested.
+  (Robert Collins, 1216101)
+
+* TestProtocol2's tag tests were set sort order dependent.
+  (Robert Collins, #1025392)
+
+* TestTestProtocols' test_tags_both was set sort order dependent.
+  (Robert Collins, #1025392)
+
+* TestTestProtocols' test_*_details were dictionary sort order dependent.
+  (Robert Collins, #1025392)
+
+* TestSubUnitTags's test_add_tag was also se sort order dependent.
+  (Robert Collins, #1025392)
+
+0.0.13
+------
+
+IMPROVEMENTS
+~~~~~~~~~~~~
+
+* subunit should now build with automake 1.11 again. (Robert Collins)
+
+* `subunit-stats` no longer outputs encapsulated stdout as subunit.
+  (Robert Collins, #1171987)
+
+* The logic for `subunit.run` is now importable via python -
+  `subunit.run.main`. (Robert Collins, #606770)
+
+BUG FIXES
+~~~~~~~~~
+
+* Removed GPL files that were (C) non Subunit Developers - they are
+  incompatible for binary distribution, which affects redistributors.
+  (Robert Collins, #1185591)
+
+0.0.12
+------
+
+BUG FIXES
+~~~~~~~~~
+
+* Subunit v2 packets with both file content and route code were not being
+  parsed correctly - they would incorrectly emit a parser error, due to trying
+  to parse the route code length from the first byes of the file content.
+  (Robert Collins, 1172815)
+
+0.0.11
+------
+
+v2 protocol draft included in this release. The v2 protocol trades off human
+readability for a massive improvement in robustness, the ability to represent
+concurrent tests in a single stream, cheaper parsing, and that provides
+significantly better in-line debugging support and structured forwarding
+of non-test data (such as stdout or stdin data).
+
+This change includes two new filters (subunit-1to2 and subunit-2to1). Use
+these filters to convert old streams to v2 and convert v2 streams to v1.
+
+All the other filters now only parse and emit v2 streams. V2 is still in
+draft format, so if you want to delay and wait for v2 to be finalised, you
+should use subunit-2to1 before any serialisation steps take place.
+With the ability to encapsulate multiple non-test streams, another significant
+cange is that filters which emit subunit now encapsulate any non-subunit they
+encounter, labelling it 'stdout'. This permits multiplexing such streams and
+detangling the stdout streams from each input.
+
+The subunit libraries (Python etc) have not changed their behaviour: they
+still emit v1 from their existing API calls. New API's are being added
+and applications should migrate once their language has those API's available.
+
+IMPROVEMENTS
+~~~~~~~~~~~~
+
+* ``subunit.run`` now replaces sys.stdout to ensure that stdout is unbuffered
+  - without this pdb output is not reliably visible when stdout is a pipe
+  as it usually is. (Robert Collins)
+
+* v2 protocol draft included in this release. (Python implementation only so
+  far). (Robert Collins)
+
+* Two new Python classes -- ``StreamResultToBytes`` and
+  ``ByteStreamToStreamResult`` handle v2 generation and parsing.
+  (Robert Collins)
+
+0.0.10
+------
+
+BUG FIXES
+~~~~~~~~~
+
+* make_stream_binary is now public for reuse. (Robert Collins)
+
+* NAME was not defined in the protocol BNF. (Robert Collins)
+
+* UnsupportedOperation is available in the Python2.6 io library, so ask
+  forgiveness rather than permission for obtaining it. (Robert Collins)
+
+* Streams with no fileno() attribute are now supported, but they are not
+  checked for being in binary mode: be sure to take care of that if using
+  the library yourself. (Robert Collins)
+
 0.0.9
 -----
 

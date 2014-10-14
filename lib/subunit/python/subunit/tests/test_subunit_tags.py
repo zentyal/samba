@@ -16,54 +16,70 @@
 
 """Tests for subunit.tag_stream."""
 
-import unittest
+from io import BytesIO
 
-from testtools.compat import StringIO
+import testtools
+from testtools.matchers import Contains
 
 import subunit
 import subunit.test_results
 
 
-class TestSubUnitTags(unittest.TestCase):
+class TestSubUnitTags(testtools.TestCase):
 
     def setUp(self):
-        self.original = StringIO()
-        self.filtered = StringIO()
+        super(TestSubUnitTags, self).setUp()
+        self.original = BytesIO()
+        self.filtered = BytesIO()
 
     def test_add_tag(self):
-        self.original.write("tags: foo\n")
-        self.original.write("test: test\n")
-        self.original.write("tags: bar -quux\n")
-        self.original.write("success: test\n")
+        # Literal values to avoid set sort-order dependencies. Python code show
+        # derivation.
+        # reference = BytesIO()
+        # stream = subunit.StreamResultToBytes(reference)
+        # stream.status(
+        #     test_id='test', test_status='inprogress', test_tags=set(['quux', 'foo']))
+        # stream.status(
+        #     test_id='test', test_status='success', test_tags=set(['bar', 'quux', 'foo']))
+        reference = [
+            b'\xb3)\x82\x17\x04test\x02\x04quux\x03foo\x05\x97n\x86\xb3)'
+                b'\x83\x1b\x04test\x03\x03bar\x04quux\x03fooqn\xab)',
+            b'\xb3)\x82\x17\x04test\x02\x04quux\x03foo\x05\x97n\x86\xb3)'
+                b'\x83\x1b\x04test\x03\x04quux\x03foo\x03bar\xaf\xbd\x9d\xd6',
+            b'\xb3)\x82\x17\x04test\x02\x04quux\x03foo\x05\x97n\x86\xb3)'
+                b'\x83\x1b\x04test\x03\x04quux\x03bar\x03foo\x03\x04b\r',
+            b'\xb3)\x82\x17\x04test\x02\x04quux\x03foo\x05\x97n\x86\xb3)'
+                b'\x83\x1b\x04test\x03\x03bar\x03foo\x04quux\xd2\x18\x1bC',
+            b'\xb3)\x82\x17\x04test\x02\x03foo\x04quux\xa6\xe1\xde\xec\xb3)'
+                b'\x83\x1b\x04test\x03\x03foo\x04quux\x03bar\x08\xc2X\x83',
+            b'\xb3)\x82\x17\x04test\x02\x03foo\x04quux\xa6\xe1\xde\xec\xb3)'
+                b'\x83\x1b\x04test\x03\x03bar\x03foo\x04quux\xd2\x18\x1bC',
+            b'\xb3)\x82\x17\x04test\x02\x03foo\x04quux\xa6\xe1\xde\xec\xb3)'
+                b'\x83\x1b\x04test\x03\x03foo\x03bar\x04quux:\x05e\x80',
+            ]
+        stream = subunit.StreamResultToBytes(self.original)
+        stream.status(
+            test_id='test', test_status='inprogress', test_tags=set(['foo']))
+        stream.status(
+            test_id='test', test_status='success', test_tags=set(['foo', 'bar']))
         self.original.seek(0)
-        result = subunit.tag_stream(self.original, self.filtered, ["quux"])
-        self.assertEqual([
-            "tags: quux",
-            "tags: foo",
-            "test: test",
-            "tags: bar",
-            "success: test",
-            ],
-            self.filtered.getvalue().splitlines())
+        self.assertEqual(
+            0, subunit.tag_stream(self.original, self.filtered, ["quux"]))
+        self.assertThat(reference, Contains(self.filtered.getvalue()))
 
     def test_remove_tag(self):
-        self.original.write("tags: foo\n")
-        self.original.write("test: test\n")
-        self.original.write("tags: bar -quux\n")
-        self.original.write("success: test\n")
+        reference = BytesIO()
+        stream = subunit.StreamResultToBytes(reference)
+        stream.status(
+            test_id='test', test_status='inprogress', test_tags=set(['foo']))
+        stream.status(
+            test_id='test', test_status='success', test_tags=set(['foo']))
+        stream = subunit.StreamResultToBytes(self.original)
+        stream.status(
+            test_id='test', test_status='inprogress', test_tags=set(['foo']))
+        stream.status(
+            test_id='test', test_status='success', test_tags=set(['foo', 'bar']))
         self.original.seek(0)
-        result = subunit.tag_stream(self.original, self.filtered, ["-bar"])
-        self.assertEqual([
-            "tags: -bar",
-            "tags: foo",
-            "test: test",
-            "tags: -quux",
-            "success: test",
-            ],
-            self.filtered.getvalue().splitlines())
-
-
-def test_suite():
-    loader = subunit.tests.TestUtil.TestLoader()
-    result = loader.loadTestsFromName(__name__)
-    return result
+        self.assertEqual(
+            0, subunit.tag_stream(self.original, self.filtered, ["-bar"]))
+        self.assertEqual(reference.getvalue(), self.filtered.getvalue())

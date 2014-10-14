@@ -6,7 +6,7 @@
 #  license at the users choice. A copy of both licenses are available in the
 #  project source as Apache-2.0 and BSD. You may not use this file except in
 #  compliance with one of these two licences.
-#  
+#
 #  Unless required by applicable law or agreed to in writing, software
 #  distributed under these licenses is distributed on an "AS IS" BASIS, WITHOUT
 #  WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
@@ -14,10 +14,29 @@
 #  limitations under that license.
 #
 
+import sys
+from unittest import TestLoader
+
+from testscenarios import generate_scenarios
+
+
+# Before the test module imports to avoid circularity.
+# For testing: different pythons have different str() implementations.
+if sys.version_info > (3, 0):
+    _remote_exception_repr = "testtools.testresult.real._StringException"
+    _remote_exception_str = "Traceback (most recent call last):\ntesttools.testresult.real._StringException"
+    _remote_exception_str_chunked = "57\r\n" + _remote_exception_str + ": boo qux\n0\r\n"
+else:
+    _remote_exception_repr = "_StringException" 
+    _remote_exception_str = "Traceback (most recent call last):\n_StringException" 
+    _remote_exception_str_chunked = "3D\r\n" + _remote_exception_str + ": boo qux\n0\r\n"
+
+
 from subunit.tests import (
-    TestUtil,
     test_chunked,
     test_details,
+    test_filters,
+    test_output_filter,
     test_progress_model,
     test_run,
     test_subunit_filter,
@@ -25,19 +44,26 @@ from subunit.tests import (
     test_subunit_tags,
     test_tap2subunit,
     test_test_protocol,
+    test_test_protocol2,
     test_test_results,
     )
 
+
 def test_suite():
-    result = TestUtil.TestSuite()
-    result.addTest(test_chunked.test_suite())
-    result.addTest(test_details.test_suite())
-    result.addTest(test_progress_model.test_suite())
-    result.addTest(test_test_results.test_suite())
-    result.addTest(test_test_protocol.test_suite())
-    result.addTest(test_tap2subunit.test_suite())
-    result.addTest(test_subunit_filter.test_suite())
-    result.addTest(test_subunit_tags.test_suite())
-    result.addTest(test_subunit_stats.test_suite())
-    result.addTest(test_run.test_suite())
+    loader = TestLoader()
+    result = loader.loadTestsFromModule(test_chunked)
+    result.addTest(loader.loadTestsFromModule(test_details))
+    result.addTest(loader.loadTestsFromModule(test_filters))
+    result.addTest(loader.loadTestsFromModule(test_progress_model))
+    result.addTest(loader.loadTestsFromModule(test_test_results))
+    result.addTest(loader.loadTestsFromModule(test_test_protocol))
+    result.addTest(loader.loadTestsFromModule(test_test_protocol2))
+    result.addTest(loader.loadTestsFromModule(test_tap2subunit))
+    result.addTest(loader.loadTestsFromModule(test_subunit_filter))
+    result.addTest(loader.loadTestsFromModule(test_subunit_tags))
+    result.addTest(loader.loadTestsFromModule(test_subunit_stats))
+    result.addTest(loader.loadTestsFromModule(test_run))
+    result.addTests(
+        generate_scenarios(loader.loadTestsFromModule(test_output_filter))
+    )
     return result

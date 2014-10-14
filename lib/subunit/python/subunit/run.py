@@ -20,38 +20,79 @@
   $ python -m subunit.run mylib.tests.test_suite
 """
 
+import io
+import os
 import sys
 
-from subunit import TestProtocolClient, get_default_formatter
+from testtools import ExtendedToStreamDecorator
+from testtools.testsuite import iterate_tests
+
+from subunit import StreamResultToBytes, get_default_formatter
 from subunit.test_results import AutoTimingTestResultDecorator
 from testtools.run import (
     BUFFEROUTPUT,
     CATCHBREAK,
     FAILFAST,
+    list_test,
     TestProgram,
     USAGE_AS_MAIN,
     )
 
 
 class SubunitTestRunner(object):
-    def __init__(self, verbosity=None, failfast=None, buffer=None, stream=None):
+    def __init__(self, verbosity=None, failfast=None, buffer=None, stream=None,
+        stdout=None):
         """Create a TestToolsTestRunner.
 
         :param verbosity: Ignored.
         :param failfast: Stop running tests at the first failure.
         :param buffer: Ignored.
+        :param stream: Upstream unittest stream parameter.
+        :param stdout: Testtools stream parameter.
+
+        Either stream or stdout can be supplied, and stream will take
+        precedence.
         """
         self.failfast = failfast
-        self.stream = stream or sys.stdout
+        self.stream = stream or stdout or sys.stdout
 
     def run(self, test):
         "Run the given test case or test suite."
-        result = TestProtocolClient(self.stream)
+        result, _ = self._list(test)
+        result = ExtendedToStreamDecorator(result)
         result = AutoTimingTestResultDecorator(result)
         if self.failfast is not None:
             result.failfast = self.failfast
-        test(result)
+        result.startTestRun()
+        try:
+            test(result)
+        finally:
+            result.stopTestRun()
         return result
+
+    def list(self, test):
+        "List the test."
+        result, errors = self._list(test)
+        if errors:
+            failed_descr = '\n'.join(errors).encode('utf8')
+            result.status(file_name="import errors", runnable=False,
+                file_bytes=failed_descr, mime_type="text/plain;charset=utf8")
+            sys.exit(2)
+
+    def _list(self, test):
+        test_ids, errors = list_test(test)
+        try:
+            fileno = self.stream.fileno()
+        except:
+            fileno = None
+        if fileno is not None:
+            stream = os.fdopen(fileno, 'wb', 0)
+        else:
+            stream = self.stream
+        result = StreamResultToBytes(stream)
+        for test_id in test_ids:
+            result.status(test_id=test_id, test_status='exists')
+        return result, errors
 
 
 class SubunitTestProgram(TestProgram):
@@ -77,8 +118,28 @@ class SubunitTestProgram(TestProgram):
         sys.exit(2)
 
 
-if __name__ == '__main__':
-    stream = get_default_formatter()
+def main(argv=None, stdout=None):
+    if argv is None:
+        argv = sys.argv
     runner = SubunitTestRunner
-    SubunitTestProgram(module=None, argv=sys.argv, testRunner=runner,
-        stdout=sys.stdout)
+    # stdout is None except in unit tests.
+    if stdout is None:
+        stdout = sys.stdout
+        # XXX: This is broken code- SUBUNIT_FORMATTER is not being honoured.
+        stream = get_default_formatter()
+        # Disable the default buffering, for Python 2.x where pdb doesn't do it
+        # on non-ttys.
+        if hasattr(stdout, 'fileno'):
+            # Patch stdout to be unbuffered, so that pdb works well on 2.6/2.7.
+            binstdout = io.open(stdout.fileno(), 'wb', 0)
+            if sys.version_info[0] > 2:
+                sys.stdout = io.TextIOWrapper(binstdout, encoding=sys.stdout.encoding)
+            else:
+                sys.stdout = binstdout
+            stdout = sys.stdout
+    SubunitTestProgram(module=None, argv=argv, testRunner=runner,
+        stdout=stdout, exit=False)
+
+
+if __name__ == '__main__':
+    main()

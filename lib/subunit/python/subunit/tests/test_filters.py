@@ -1,12 +1,12 @@
-#!/usr/bin/env python
-#  subunit: extensions to python unittest to get test results from subprocesses.
-#  Copyright (C) 2009  Robert Collins <robertc@robertcollins.net>
+#
+#  subunit: extensions to Python unittest to get test results from subprocesses.
+#  Copyright (C) 2013  Robert Collins <robertc@robertcollins.net>
 #
 #  Licensed under either the Apache License, Version 2.0 or the BSD 3-clause
 #  license at the users choice. A copy of both licenses are available in the
 #  project source as Apache-2.0 and BSD. You may not use this file except in
 #  compliance with one of these two licences.
-#  
+#
 #  Unless required by applicable law or agreed to in writing, software
 #  distributed under these licenses is distributed on an "AS IS" BASIS, WITHOUT
 #  WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
@@ -14,14 +14,22 @@
 #  limitations under that license.
 #
 
-"""A filter to change tags on a subunit stream.
-
-subunit-tags foo -> adds foo
-subunit-tags foo -bar -> adds foo and removes bar
-"""
-
 import sys
+from tempfile import NamedTemporaryFile
 
-from subunit import tag_stream
+from testtools import TestCase
 
-sys.exit(tag_stream(sys.stdin, sys.stdout, sys.argv[1:]))
+from subunit.filters import find_stream
+
+
+class TestFindStream(TestCase):
+
+    def test_no_argv(self):
+        self.assertEqual('foo', find_stream('foo', []))
+
+    def test_opens_file(self):
+        f = NamedTemporaryFile()
+        f.write(b'foo')
+        f.flush()
+        stream = find_stream('bar', [f.name])
+        self.assertEqual(b'foo', stream.read())

@@ -6,6 +6,7 @@ EXTRA_DIST =  \
 	Makefile.am \
 	NEWS \
 	README \
+	all_tests.py \
 	c++/README \
 	c/README \
 	c/check-subunit-0.9.3.patch \
@@ -20,21 +21,22 @@ EXTRA_DIST =  \
 	python/iso8601/README.subunit \
 	python/iso8601/setup.py \
 	python/iso8601/test_iso8601.py \
-	python/subunit/tests/TestUtil.py \
 	python/subunit/tests/__init__.py \
 	python/subunit/tests/sample-script.py \
 	python/subunit/tests/sample-two-script.py \
 	python/subunit/tests/test_chunked.py \
 	python/subunit/tests/test_details.py \
+	python/subunit/tests/test_filters.py \
+	python/subunit/tests/test_output_filter.py \
 	python/subunit/tests/test_progress_model.py \
-	python/subunit/tests/test_subunit_filter.py \
 	python/subunit/tests/test_run.py \
+	python/subunit/tests/test_subunit_filter.py \
 	python/subunit/tests/test_subunit_stats.py \
 	python/subunit/tests/test_subunit_tags.py \
 	python/subunit/tests/test_tap2subunit.py \
 	python/subunit/tests/test_test_protocol.py \
+	python/subunit/tests/test_test_protocol2.py \
 	python/subunit/tests/test_test_results.py \
-	runtests.py \
 	setup.py \
 	shell/README \
 	shell/share/subunit.sh \
@@ -47,9 +49,12 @@ ACLOCAL_AMFLAGS = -I m4
 include_subunitdir = $(includedir)/subunit
 
 dist_bin_SCRIPTS = \
+	filters/subunit-1to2 \
+	filters/subunit-2to1 \
 	filters/subunit-filter \
 	filters/subunit-ls \
 	filters/subunit-notify \
+	filters/subunit-output \
 	filters/subunit-stats \
 	filters/subunit-tags \
 	filters/subunit2csv \
@@ -58,8 +63,7 @@ dist_bin_SCRIPTS = \
 	filters/subunit2pyunit \
 	filters/tap2subunit
 
-TESTS_ENVIRONMENT = SHELL_SHARE='$(top_srcdir)/shell/share/' PYTHONPATH='$(abs_top_srcdir)/python':${PYTHONPATH}
-TESTS = runtests.py $(check_PROGRAMS)
+TESTS = $(check_PROGRAMS)
 
 ## install libsubunit.pc
 pcdatadir = $(libdir)/pkgconfig
@@ -75,7 +79,9 @@ pkgpython_PYTHON = \
 	python/subunit/iso8601.py \
 	python/subunit/progress_model.py \
 	python/subunit/run.py \
-	python/subunit/test_results.py
+	python/subunit/v2.py \
+	python/subunit/test_results.py \
+	python/subunit/_output.py
 
 lib_LTLIBRARIES = libsubunit.la
 lib_LTLIBRARIES +=  libcppunit_subunit.la
@@ -86,9 +92,6 @@ include_subunit_HEADERS = \
 
 check_PROGRAMS = \
 	c/tests/test_child
-
-check_SCRIPTS = \
-	runtests.py
 
 libsubunit_la_SOURCES = \
 	c/lib/child.c \
@@ -108,6 +111,9 @@ all-local: perl/Makefile
 
 check-local: perl/Makefile
 	$(MAKE) -C perl check
+	SHELL_SHARE='$(top_srcdir)/shell/share/' \
+	PYTHONPATH='$(abs_top_srcdir)/python':'$(abs_top_srcdir)':${PYTHONPATH} \
+	$(PYTHON) -m testtools.run all_tests.test_suite
 
 clean-local:
 	find . -type f -name "*.pyc" -exec rm {} ';'

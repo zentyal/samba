@@ -20,13 +20,14 @@ import csv
 import datetime
 
 import testtools
-from testtools.compat import all
 from testtools.content import (
     text_content,
     TracebackContent,
     )
+from testtools import StreamResult
 
 from subunit import iso8601
+import subunit
 
 
 # NOT a TestResult, because we are implementing the interface, not inheriting
@@ -525,16 +526,24 @@ class TestResultFilter(TestResultDecorator):
 
 
 class TestIdPrintingResult(testtools.TestResult):
+    """Print test ids to a stream.
 
-    def __init__(self, stream, show_times=False):
+    Implements both TestResult and StreamResult, for compatibility.
+    """
+
+    def __init__(self, stream, show_times=False, show_exists=False):
         """Create a FilterResult object outputting to stream."""
         super(TestIdPrintingResult, self).__init__()
         self._stream = stream
+        self.show_exists = show_exists
+        self.show_times = show_times
+
+    def startTestRun(self):
         self.failed_tests = 0
         self.__time = None
-        self.show_times = show_times
         self._test = None
         self._test_duration = 0
+        self._active_tests = {}
 
     def addError(self, test, err):
         self.failed_tests += 1
@@ -557,21 +566,44 @@ class TestIdPrintingResult(testtools.TestResult):
     def addExpectedFailure(self, test, err=None, details=None):
         self._test = test
 
-    def reportTest(self, test, duration):
+    def reportTest(self, test_id, duration):
         if self.show_times:
             seconds = duration.seconds
             seconds += duration.days * 3600 * 24
             seconds += duration.microseconds / 1000000.0
-            self._stream.write(test.id() + ' %0.3f\n' % seconds)
+            self._stream.write(test_id + ' %0.3f\n' % seconds)
         else:
-            self._stream.write(test.id() + '\n')
+            self._stream.write(test_id + '\n')
 
     def startTest(self, test):
         self._start_time = self._time()
 
+    def status(self, test_id=None, test_status=None, test_tags=None,
+        runnable=True, file_name=None, file_bytes=None, eof=False,
+        mime_type=None, route_code=None, timestamp=None):
+        if not test_id:
+            return
+        if timestamp is not None:
+            self.time(timestamp)
+        if test_status=='exists':
+            if self.show_exists:
+                self.reportTest(test_id, 0)
+        elif test_status in ('inprogress', None):
+            self._active_tests[test_id] = self._time()
+        else:
+            self._end_test(test_id)
+
+    def _end_test(self, test_id):
+        test_start = self._active_tests.pop(test_id, None)
+        if not test_start:
+            test_duration = 0
+        else:
+            test_duration = self._time() - test_start
+        self.reportTest(test_id, test_duration)
+
     def stopTest(self, test):
         test_duration = self._time() - self._start_time
-        self.reportTest(self._test, test_duration)
+        self.reportTest(self._test.id(), test_duration)
 
     def time(self, time):
         self.__time = time
@@ -582,6 +614,10 @@ class TestIdPrintingResult(testtools.TestResult):
     def wasSuccessful(self):
         "Tells whether or not this result was a success"
         return self.failed_tests == 0
+
+    def stopTestRun(self):
+        for test_id in list(self._active_tests.keys()):
+            self._end_test(test_id)
 
 
 class TestByTestResult(testtools.TestResult):
@@ -676,3 +712,17 @@ class CsvResult(TestByTestResult):
     def startTestRun(self):
         super(CsvResult, self).startTestRun()
         self._write_row(['test', 'status', 'start_time', 'stop_time'])
+
+
+class CatFiles(StreamResult):
+    """Cat file attachments received to a stream."""
+
+    def __init__(self, byte_stream):
+        self.stream = subunit.make_stream_binary(byte_stream)
+
+    def status(self, test_id=None, test_status=None, test_tags=None,
+        runnable=True, file_name=None, file_bytes=None, eof=False,
+        mime_type=None, route_code=None, timestamp=None):
+        if file_name is not None:
+            self.stream.write(file_bytes)
+            self.stream.flush()

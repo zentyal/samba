@@ -7,6 +7,7 @@ __metaclass__ = type
 import codecs
 import datetime
 import doctest
+from itertools import chain, combinations
 import os
 import shutil
 import sys
@@ -15,17 +16,33 @@ import threading
 from unittest import TestSuite
 import warnings
 
+from extras import safe_hasattr, try_imports
+
+Queue = try_imports(['Queue.Queue', 'queue.Queue'])
+
 from testtools import (
+    CopyStreamResult,
     ExtendedToOriginalDecorator,
+    ExtendedToStreamDecorator,
     MultiTestResult,
     PlaceHolder,
+    StreamFailFast,
+    StreamResult,
+    StreamResultRouter,
+    StreamSummary,
+    StreamTagger,
+    StreamToDict,
+    StreamToExtendedDecorator,
+    StreamToQueue,
     Tagger,
     TestCase,
+    TestControl,
     TestResult,
     TestResultDecorator,
     TestByTestResult,
     TextTestResult,
     ThreadsafeForwardingResult,
+    TimestampingStreamResult,
     testresult,
     )
 from testtools.compat import (
@@ -44,11 +61,12 @@ from testtools.content import (
     TracebackContent,
     )
 from testtools.content_type import ContentType, UTF8_TEXT
-from testtools.helpers import safe_hasattr
 from testtools.matchers import (
+    AllMatch,
     Contains,
     DocTestMatches,
     Equals,
+    HasLength,
     MatchesAny,
     MatchesException,
     Raises,
@@ -63,6 +81,7 @@ from testtools.testresult.doubles import (
     Python26TestResult,
     Python27TestResult,
     ExtendedTestResult,
+    StreamResult as LoggingStreamResult,
     )
 from testtools.testresult.real import (
     _details_to_str,
@@ -221,18 +240,21 @@ class TagsContract(Python27Contract):
     def test_no_tags_by_default(self):
         # Results initially have no tags.
         result = self.makeResult()
+        result.startTestRun()
         self.assertEqual(frozenset(), result.current_tags)
 
     def test_adding_tags(self):
         # Tags are added using 'tags' and thus become visible in
         # 'current_tags'.
         result = self.makeResult()
+        result.startTestRun()
         result.tags(set(['foo']), set())
         self.assertEqual(set(['foo']), result.current_tags)
 
     def test_removing_tags(self):
         # Tags are removed using 'tags'.
         result = self.makeResult()
+        result.startTestRun()
         result.tags(set(['foo']), set())
         result.tags(set(), set(['foo']))
         self.assertEqual(set(), result.current_tags)
@@ -240,6 +262,7 @@ class TagsContract(Python27Contract):
     def test_startTestRun_resets_tags(self):
         # startTestRun makes a new test run, and thus clears all the tags.
         result = self.makeResult()
+        result.startTestRun()
         result.tags(set(['foo']), set())
         result.startTestRun()
         self.assertEqual(set(), result.current_tags)
@@ -437,12 +460,593 @@ class TestAdaptedPython27TestResultContract(TestCase, DetailsContract):
         return ExtendedToOriginalDecorator(Python27TestResult())
 
 
+class TestAdaptedStreamResult(TestCase, DetailsContract):
+
+    def makeResult(self):
+        return ExtendedToStreamDecorator(StreamResult())
+
+
 class TestTestResultDecoratorContract(TestCase, StartTestRunContract):
 
     run_test_with = FullStackRunTest
 
     def makeResult(self):
         return TestResultDecorator(TestResult())
+
+
+# DetailsContract because ExtendedToStreamDecorator follows Python for
+# uxsuccess handling.
+class TestStreamToExtendedContract(TestCase, DetailsContract):
+
+    def makeResult(self):
+        return ExtendedToStreamDecorator(
+            StreamToExtendedDecorator(ExtendedTestResult()))
+
+
+class TestStreamResultContract(object):
+
+    def _make_result(self):
+        raise NotImplementedError(self._make_result)
+
+    def test_startTestRun(self):
+        result = self._make_result()
+        result.startTestRun()
+        result.stopTestRun()
+
+    def test_files(self):
+        # Test parameter combinations when files are being emitted.
+        result = self._make_result()
+        result.startTestRun()
+        self.addCleanup(result.stopTestRun)
+        now = datetime.datetime.now(utc)
+        inputs = list(dict(
+            eof=True,
+            mime_type="text/plain",
+            route_code=_u("1234"),
+            test_id=_u("foo"),
+            timestamp=now,
+            ).items())
+        param_dicts = self._power_set(inputs)
+        for kwargs in param_dicts:
+            result.status(file_name=_u("foo"), file_bytes=_b(""), **kwargs)
+            result.status(file_name=_u("foo"), file_bytes=_b("bar"), **kwargs)
+
+    def test_test_status(self):
+        # Tests non-file attachment parameter combinations.
+        result = self._make_result()
+        result.startTestRun()
+        self.addCleanup(result.stopTestRun)
+        now = datetime.datetime.now(utc)
+        args = [[_u("foo"), s] for s in ['exists', 'inprogress', 'xfail',
+            'uxsuccess', 'success', 'fail', 'skip']]
+        inputs = list(dict(
+            runnable=False,
+            test_tags=set(['quux']),
+            route_code=_u("1234"),
+            timestamp=now,
+            ).items())
+        param_dicts = self._power_set(inputs)
+        for kwargs in param_dicts:
+            for arg in args:
+                result.status(test_id=arg[0], test_status=arg[1], **kwargs)
+
+    def _power_set(self, iterable):
+        "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
+        s = list(iterable)
+        param_dicts = []
+        for ss in chain.from_iterable(combinations(s, r) for r in range(len(s)+1)):
+            param_dicts.append(dict(ss))
+        return param_dicts
+
+
+class TestBaseStreamResultContract(TestCase, TestStreamResultContract):
+
+    def _make_result(self):
+        return StreamResult()
+
+
+class TestCopyStreamResultContract(TestCase, TestStreamResultContract):
+
+    def _make_result(self):
+        return CopyStreamResult([StreamResult(), StreamResult()])
+
+
+class TestDoubleStreamResultContract(TestCase, TestStreamResultContract):
+
+    def _make_result(self):
+        return LoggingStreamResult()
+
+
+class TestExtendedToStreamDecoratorContract(TestCase, TestStreamResultContract):
+
+    def _make_result(self):
+        return ExtendedToStreamDecorator(StreamResult())
+
+
+class TestStreamSummaryResultContract(TestCase, TestStreamResultContract):
+
+    def _make_result(self):
+        return StreamSummary()
+
+
+class TestStreamTaggerContract(TestCase, TestStreamResultContract):
+
+    def _make_result(self):
+        return StreamTagger([StreamResult()], add=set(), discard=set())
+
+
+class TestStreamToDictContract(TestCase, TestStreamResultContract):
+
+    def _make_result(self):
+        return StreamToDict(lambda x:None)
+
+
+class TestStreamToExtendedDecoratorContract(TestCase, TestStreamResultContract):
+
+    def _make_result(self):
+        return StreamToExtendedDecorator(ExtendedTestResult())
+
+
+class TestStreamToQueueContract(TestCase, TestStreamResultContract):
+
+    def _make_result(self):
+        queue = Queue()
+        return StreamToQueue(queue, "foo")
+
+
+class TestStreamFailFastContract(TestCase, TestStreamResultContract):
+
+    def _make_result(self):
+        return StreamFailFast(lambda:None)
+
+
+class TestStreamResultRouterContract(TestCase, TestStreamResultContract):
+
+    def _make_result(self):
+        return StreamResultRouter(StreamResult())
+
+
+class TestDoubleStreamResultEvents(TestCase):
+
+    def test_startTestRun(self):
+        result = LoggingStreamResult()
+        result.startTestRun()
+        self.assertEqual([('startTestRun',)], result._events)
+
+    def test_stopTestRun(self):
+        result = LoggingStreamResult()
+        result.startTestRun()
+        result.stopTestRun()
+        self.assertEqual([('startTestRun',), ('stopTestRun',)], result._events)
+
+    def test_file(self):
+        result = LoggingStreamResult()
+        result.startTestRun()
+        now = datetime.datetime.now(utc)
+        result.status(file_name="foo", file_bytes="bar", eof=True, mime_type="text/json",
+            test_id="id", route_code='abc', timestamp=now)
+        self.assertEqual(
+            [('startTestRun',),
+             ('status', 'id', None, None, True, 'foo', 'bar', True, 'text/json', 'abc', now)],
+            result._events)
+
+    def test_status(self):
+        result = LoggingStreamResult()
+        result.startTestRun()
+        now = datetime.datetime.now(utc)
+        result.status("foo", "success", test_tags=set(['tag']),
+            runnable=False, route_code='abc', timestamp=now)
+        self.assertEqual(
+            [('startTestRun',),
+             ('status', 'foo', 'success', set(['tag']), False, None, None, False, None, 'abc', now)],
+            result._events)
+
+
+class TestCopyStreamResultCopies(TestCase):
+
+    def setUp(self):
+        super(TestCopyStreamResultCopies, self).setUp()
+        self.target1 = LoggingStreamResult()
+        self.target2 = LoggingStreamResult()
+        self.targets = [self.target1._events, self.target2._events]
+        self.result = CopyStreamResult([self.target1, self.target2])
+
+    def test_startTestRun(self):
+        self.result.startTestRun()
+        self.assertThat(self.targets, AllMatch(Equals([('startTestRun',)])))
+
+    def test_stopTestRun(self):
+        self.result.startTestRun()
+        self.result.stopTestRun()
+        self.assertThat(self.targets,
+            AllMatch(Equals([('startTestRun',), ('stopTestRun',)])))
+
+    def test_status(self):
+        self.result.startTestRun()
+        now = datetime.datetime.now(utc)
+        self.result.status("foo", "success", test_tags=set(['tag']),
+            runnable=False, file_name="foo", file_bytes=b'bar', eof=True,
+            mime_type="text/json", route_code='abc', timestamp=now)
+        self.assertThat(self.targets,
+            AllMatch(Equals([('startTestRun',),
+                ('status', 'foo', 'success', set(['tag']), False, "foo",
+                 b'bar', True, "text/json", 'abc', now)
+                ])))
+
+
+class TestStreamTagger(TestCase):
+
+    def test_adding(self):
+        log = LoggingStreamResult()
+        result = StreamTagger([log], add=['foo'])
+        result.startTestRun()
+        result.status()
+        result.status(test_tags=set(['bar']))
+        result.status(test_tags=None)
+        result.stopTestRun()
+        self.assertEqual([
+            ('startTestRun',),
+            ('status', None, None, set(['foo']), True, None, None, False, None, None, None),
+            ('status', None, None, set(['foo', 'bar']), True, None, None, False, None, None, None),
+            ('status', None, None, set(['foo']), True, None, None, False, None, None, None),
+            ('stopTestRun',),
+            ], log._events)
+
+    def test_discarding(self):
+        log = LoggingStreamResult()
+        result = StreamTagger([log], discard=['foo'])
+        result.startTestRun()
+        result.status()
+        result.status(test_tags=None)
+        result.status(test_tags=set(['foo']))
+        result.status(test_tags=set(['bar']))
+        result.status(test_tags=set(['foo', 'bar']))
+        result.stopTestRun()
+        self.assertEqual([
+            ('startTestRun',),
+            ('status', None, None, None, True, None, None, False, None, None, None),
+            ('status', None, None, None, True, None, None, False, None, None, None),
+            ('status', None, None, None, True, None, None, False, None, None, None),
+            ('status', None, None, set(['bar']), True, None, None, False, None, None, None),
+            ('status', None, None, set(['bar']), True, None, None, False, None, None, None),
+            ('stopTestRun',),
+            ], log._events)
+
+
+class TestStreamToDict(TestCase):
+
+    def test_hung_test(self):
+        tests = []
+        result = StreamToDict(tests.append)
+        result.startTestRun()
+        result.status('foo', 'inprogress')
+        self.assertEqual([], tests)
+        result.stopTestRun()
+        self.assertEqual([
+            {'id': 'foo', 'tags': set(), 'details': {}, 'status': 'inprogress',
+             'timestamps': [None, None]}
+            ], tests)
+
+    def test_all_terminal_states_reported(self):
+        tests = []
+        result = StreamToDict(tests.append)
+        result.startTestRun()
+        result.status('success', 'success')
+        result.status('skip', 'skip')
+        result.status('exists', 'exists')
+        result.status('fail', 'fail')
+        result.status('xfail', 'xfail')
+        result.status('uxsuccess', 'uxsuccess')
+        self.assertThat(tests, HasLength(6))
+        self.assertEqual(
+            ['success', 'skip', 'exists', 'fail', 'xfail', 'uxsuccess'],
+            [test['id'] for test in tests])
+        result.stopTestRun()
+        self.assertThat(tests, HasLength(6))
+
+    def test_files_reported(self):
+        tests = []
+        result = StreamToDict(tests.append)
+        result.startTestRun()
+        result.status(file_name="some log.txt",
+            file_bytes=_b("1234 log message"), eof=True,
+            mime_type="text/plain; charset=utf8", test_id="foo.bar")
+        result.status(file_name="another file",
+            file_bytes=_b("""Traceback..."""), test_id="foo.bar")
+        result.stopTestRun()
+        self.assertThat(tests, HasLength(1))
+        test = tests[0]
+        self.assertEqual("foo.bar", test['id'])
+        self.assertEqual("unknown", test['status'])
+        details = test['details']
+        self.assertEqual(
+            _u("1234 log message"), details['some log.txt'].as_text())
+        self.assertEqual(
+            _b("Traceback..."),
+            _b('').join(details['another file'].iter_bytes()))
+        self.assertEqual(
+            "application/octet-stream", repr(details['another file'].content_type))
+
+    def test_bad_mime(self):
+        # Testtools was making bad mime types, this tests that the specific
+        # corruption is catered for.
+        tests = []
+        result = StreamToDict(tests.append)
+        result.startTestRun()
+        result.status(file_name="file", file_bytes=b'a',
+            mime_type='text/plain; charset=utf8, language=python',
+            test_id='id')
+        result.stopTestRun()
+        self.assertThat(tests, HasLength(1))
+        test = tests[0]
+        self.assertEqual("id", test['id'])
+        details = test['details']
+        self.assertEqual(_u("a"), details['file'].as_text())
+        self.assertEqual(
+            "text/plain; charset=\"utf8\"",
+            repr(details['file'].content_type))
+
+    def test_timestamps(self):
+        tests = []
+        result = StreamToDict(tests.append)
+        result.startTestRun()
+        result.status(test_id='foo', test_status='inprogress', timestamp="A")
+        result.status(test_id='foo', test_status='success', timestamp="B")
+        result.status(test_id='bar', test_status='inprogress', timestamp="C")
+        result.stopTestRun()
+        self.assertThat(tests, HasLength(2))
+        self.assertEqual(["A", "B"], tests[0]['timestamps'])
+        self.assertEqual(["C", None], tests[1]['timestamps'])
+
+
+class TestExtendedToStreamDecorator(TestCase):
+
+    def test_explicit_time(self):
+        log = LoggingStreamResult()
+        result = ExtendedToStreamDecorator(log)
+        result.startTestRun()
+        now = datetime.datetime.now(utc)
+        result.time(now)
+        result.startTest(self)
+        result.addSuccess(self)
+        result.stopTest(self)
+        result.stopTestRun()
+        self.assertEqual([
+            ('startTestRun',),
+            ('status',
+             'testtools.tests.test_testresult.TestExtendedToStreamDecorator.test_explicit_time',
+             'inprogress',
+             None,
+             True,
+             None,
+             None,
+             False,
+             None,
+             None,
+             now),
+            ('status',
+             'testtools.tests.test_testresult.TestExtendedToStreamDecorator.test_explicit_time',
+             'success',
+              set(),
+              True,
+              None,
+              None,
+              False,
+              None,
+              None,
+              now),
+             ('stopTestRun',)], log._events)
+
+    def test_wasSuccessful_after_stopTestRun(self):
+        log = LoggingStreamResult()
+        result = ExtendedToStreamDecorator(log)
+        result.startTestRun()
+        result.status(test_id='foo', test_status='fail')
+        result.stopTestRun()
+        self.assertEqual(False, result.wasSuccessful())
+
+
+class TestStreamFailFast(TestCase):
+
+    def test_inprogress(self):
+        result = StreamFailFast(self.fail)
+        result.status('foo', 'inprogress')
+
+    def test_exists(self):
+        result = StreamFailFast(self.fail)
+        result.status('foo', 'exists')
+
+    def test_xfail(self):
+        result = StreamFailFast(self.fail)
+        result.status('foo', 'xfail')
+
+    def test_uxsuccess(self):
+        calls = []
+        def hook():
+            calls.append("called")
+        result = StreamFailFast(hook)
+        result.status('foo', 'uxsuccess')
+        result.status('foo', 'uxsuccess')
+        self.assertEqual(['called', 'called'], calls)
+
+    def test_success(self):
+        result = StreamFailFast(self.fail)
+        result.status('foo', 'success')
+
+    def test_fail(self):
+        calls = []
+        def hook():
+            calls.append("called")
+        result = StreamFailFast(hook)
+        result.status('foo', 'fail')
+        result.status('foo', 'fail')
+        self.assertEqual(['called', 'called'], calls)
+
+    def test_skip(self):
+        result = StreamFailFast(self.fail)
+        result.status('foo', 'skip')
+
+
+class TestStreamSummary(TestCase):
+
+    def test_attributes(self):
+        result = StreamSummary()
+        result.startTestRun()
+        self.assertEqual([], result.failures)
+        self.assertEqual([], result.errors)
+        self.assertEqual([], result.skipped)
+        self.assertEqual([], result.expectedFailures)
+        self.assertEqual([], result.unexpectedSuccesses)
+        self.assertEqual(0, result.testsRun)
+
+    def test_startTestRun(self):
+        result = StreamSummary()
+        result.startTestRun()
+        result.failures.append('x')
+        result.errors.append('x')
+        result.skipped.append('x')
+        result.expectedFailures.append('x')
+        result.unexpectedSuccesses.append('x')
+        result.testsRun = 1
+        result.startTestRun()
+        self.assertEqual([], result.failures)
+        self.assertEqual([], result.errors)
+        self.assertEqual([], result.skipped)
+        self.assertEqual([], result.expectedFailures)
+        self.assertEqual([], result.unexpectedSuccesses)
+        self.assertEqual(0, result.testsRun)
+
+    def test_wasSuccessful(self):
+        # wasSuccessful returns False if any of
+        # failures/errors is non-empty.
+        result = StreamSummary()
+        result.startTestRun()
+        self.assertEqual(True, result.wasSuccessful())
+        result.failures.append('x')
+        self.assertEqual(False, result.wasSuccessful())
+        result.startTestRun()
+        result.errors.append('x')
+        self.assertEqual(False, result.wasSuccessful())
+        result.startTestRun()
+        result.skipped.append('x')
+        self.assertEqual(True, result.wasSuccessful())
+        result.startTestRun()
+        result.expectedFailures.append('x')
+        self.assertEqual(True, result.wasSuccessful())
+        result.startTestRun()
+        result.unexpectedSuccesses.append('x')
+        self.assertEqual(True, result.wasSuccessful())
+
+    def test_stopTestRun(self):
+        result = StreamSummary()
+        # terminal successful codes.
+        result.startTestRun()
+        result.status("foo", "inprogress")
+        result.status("foo", "success")
+        result.status("bar", "skip")
+        result.status("baz", "exists")
+        result.stopTestRun()
+        self.assertEqual(True, result.wasSuccessful())
+        # Existence is terminal but doesn't count as 'running' a test.
+        self.assertEqual(2, result.testsRun)
+
+    def test_stopTestRun_inprogress_test_fails(self):
+        # Tests inprogress at stopTestRun trigger a failure.
+        result = StreamSummary()
+        result.startTestRun()
+        result.status("foo", "inprogress")
+        result.stopTestRun()
+        self.assertEqual(False, result.wasSuccessful())
+        self.assertThat(result.errors, HasLength(1))
+        self.assertEqual("foo", result.errors[0][0].id())
+        self.assertEqual("Test did not complete", result.errors[0][1])
+        # interim state detection handles route codes - while duplicate ids in
+        # one run is undesirable, it may happen (e.g. with repeated tests).
+        result.startTestRun()
+        result.status("foo", "inprogress")
+        result.status("foo", "inprogress", route_code="A")
+        result.status("foo", "success", route_code="A")
+        result.stopTestRun()
+        self.assertEqual(False, result.wasSuccessful())
+
+    def test_status_skip(self):
+        # when skip is seen, a synthetic test is reported with reason captured
+        # from the 'reason' file attachment if any.
+        result = StreamSummary()
+        result.startTestRun()
+        result.status(file_name="reason",
+            file_bytes=_b("Missing dependency"), eof=True,
+            mime_type="text/plain; charset=utf8", test_id="foo.bar")
+        result.status("foo.bar", "skip")
+        self.assertThat(result.skipped, HasLength(1))
+        self.assertEqual("foo.bar", result.skipped[0][0].id())
+        self.assertEqual(_u("Missing dependency"), result.skipped[0][1])
+
+    def _report_files(self, result):
+        result.status(file_name="some log.txt",
+            file_bytes=_b("1234 log message"), eof=True,
+            mime_type="text/plain; charset=utf8", test_id="foo.bar")
+        result.status(file_name="traceback",
+            file_bytes=_b("""Traceback (most recent call last):
+  File "testtools/tests/test_testresult.py", line 607, in test_stopTestRun
+      AllMatch(Equals([('startTestRun',), ('stopTestRun',)])))
+testtools.matchers._impl.MismatchError: Differences: [
+[('startTestRun',), ('stopTestRun',)] != []
+[('startTestRun',), ('stopTestRun',)] != []
+]
+"""), eof=True, mime_type="text/plain; charset=utf8", test_id="foo.bar")
+
+    files_message = Equals(_u("""some log.txt: {{{1234 log message}}}
+
+Traceback (most recent call last):
+  File "testtools/tests/test_testresult.py", line 607, in test_stopTestRun
+      AllMatch(Equals([('startTestRun',), ('stopTestRun',)])))
+testtools.matchers._impl.MismatchError: Differences: [
+[('startTestRun',), ('stopTestRun',)] != []
+[('startTestRun',), ('stopTestRun',)] != []
+]
+"""))
+
+    def test_status_fail(self):
+        # when fail is seen, a synthetic test is reported with all files
+        # attached shown as the message.
+        result = StreamSummary()
+        result.startTestRun()
+        self._report_files(result)
+        result.status("foo.bar", "fail")
+        self.assertThat(result.errors, HasLength(1))
+        self.assertEqual("foo.bar", result.errors[0][0].id())
+        self.assertThat(result.errors[0][1], self.files_message)
+
+    def test_status_xfail(self):
+        # when xfail is seen, a synthetic test is reported with all files
+        # attached shown as the message.
+        result = StreamSummary()
+        result.startTestRun()
+        self._report_files(result)
+        result.status("foo.bar", "xfail")
+        self.assertThat(result.expectedFailures, HasLength(1))
+        self.assertEqual("foo.bar", result.expectedFailures[0][0].id())
+        self.assertThat(result.expectedFailures[0][1], self.files_message)
+
+    def test_status_uxsuccess(self):
+        # when uxsuccess is seen, a synthetic test is reported.
+        result = StreamSummary()
+        result.startTestRun()
+        result.status("foo.bar", "uxsuccess")
+        self.assertThat(result.unexpectedSuccesses, HasLength(1))
+        self.assertEqual("foo.bar", result.unexpectedSuccesses[0].id())
+
+
+class TestTestControl(TestCase):
+
+    def test_default(self):
+        self.assertEqual(False, TestControl().shouldStop)
+
+    def test_stop(self):
+        control = TestControl()
+        control.stop()
+        self.assertEqual(True, control.shouldStop)
 
 
 class TestTestResult(TestCase):
@@ -785,6 +1389,7 @@ class TestTextTestResult(TestCase):
             DocTestMatches("...\nFAILED (failures=1)\n", doctest.ELLIPSIS))
 
     def test_stopTestRun_shows_details(self):
+        self.skip("Disabled per bug 1188420")
         def run_tests():
             self.result.startTestRun()
             make_erroring_test().run(self.result)
@@ -1095,6 +1700,193 @@ class TestMergeTags(TestCase):
         expected = set(['coming', 'present']), set(['missing'])
         self.assertEqual(
             expected, _merge_tags(current_tags, changing_tags))
+
+
+class TestStreamResultRouter(TestCase):
+
+    def test_start_stop_test_run_no_fallback(self):
+        result = StreamResultRouter()
+        result.startTestRun()
+        result.stopTestRun()
+
+    def test_no_fallback_errors(self):
+        self.assertRaises(Exception, StreamResultRouter().status, test_id='f')
+
+    def test_fallback_calls(self):
+        fallback = LoggingStreamResult()
+        result = StreamResultRouter(fallback)
+        result.startTestRun()
+        result.status(test_id='foo')
+        result.stopTestRun()
+        self.assertEqual([
+            ('startTestRun',),
+            ('status', 'foo', None, None, True, None, None, False, None, None,
+             None),
+            ('stopTestRun',),
+            ],
+            fallback._events)
+
+    def test_fallback_no_do_start_stop_run(self):
+        fallback = LoggingStreamResult()
+        result = StreamResultRouter(fallback, do_start_stop_run=False)
+        result.startTestRun()
+        result.status(test_id='foo')
+        result.stopTestRun()
+        self.assertEqual([
+            ('status', 'foo', None, None, True, None, None, False, None, None,
+             None)
+            ],
+            fallback._events)
+
+    def test_add_rule_bad_policy(self):
+        router = StreamResultRouter()
+        target = LoggingStreamResult()
+        self.assertRaises(ValueError, router.add_rule, target, 'route_code_prefixa',
+            route_prefix='0')
+
+    def test_add_rule_extra_policy_arg(self):
+        router = StreamResultRouter()
+        target = LoggingStreamResult()
+        self.assertRaises(TypeError, router.add_rule, target, 'route_code_prefix',
+            route_prefix='0', foo=1)
+
+    def test_add_rule_missing_prefix(self):
+        router = StreamResultRouter()
+        target = LoggingStreamResult()
+        self.assertRaises(TypeError, router.add_rule, target, 'route_code_prefix')
+
+    def test_add_rule_slash_in_prefix(self):
+        router = StreamResultRouter()
+        target = LoggingStreamResult()
+        self.assertRaises(TypeError, router.add_rule, target, 'route_code_prefix',
+            route_prefix='0/')
+
+    def test_add_rule_route_code_consume_False(self):
+        fallback = LoggingStreamResult()
+        target = LoggingStreamResult()
+        router = StreamResultRouter(fallback)
+        router.add_rule(target, 'route_code_prefix', route_prefix='0')
+        router.status(test_id='foo', route_code='0')
+        router.status(test_id='foo', route_code='0/1')
+        router.status(test_id='foo')
+        self.assertEqual([
+            ('status', 'foo', None, None, True, None, None, False, None, '0',
+             None),
+            ('status', 'foo', None, None, True, None, None, False, None, '0/1',
+             None),
+            ],
+            target._events)
+        self.assertEqual([
+            ('status', 'foo', None, None, True, None, None, False, None, None,
+             None),
+            ],
+            fallback._events)
+
+    def test_add_rule_route_code_consume_True(self):
+        fallback = LoggingStreamResult()
+        target = LoggingStreamResult()
+        router = StreamResultRouter(fallback)
+        router.add_rule(
+            target, 'route_code_prefix', route_prefix='0', consume_route=True)
+        router.status(test_id='foo', route_code='0') # -> None
+        router.status(test_id='foo', route_code='0/1') # -> 1
+        router.status(test_id='foo', route_code='1') # -> fallback as-is.
+        self.assertEqual([
+            ('status', 'foo', None, None, True, None, None, False, None, None,
+             None),
+            ('status', 'foo', None, None, True, None, None, False, None, '1',
+             None),
+            ],
+            target._events)
+        self.assertEqual([
+            ('status', 'foo', None, None, True, None, None, False, None, '1',
+             None),
+            ],
+            fallback._events)
+
+    def test_add_rule_test_id(self):
+        nontest = LoggingStreamResult()
+        test = LoggingStreamResult()
+        router = StreamResultRouter(test)
+        router.add_rule(nontest, 'test_id', test_id=None)
+        router.status(test_id='foo', file_name="bar", file_bytes=b'')
+        router.status(file_name="bar", file_bytes=b'')
+        self.assertEqual([
+            ('status', 'foo', None, None, True, 'bar', b'', False, None, None,
+             None),], test._events)
+        self.assertEqual([
+            ('status', None, None, None, True, 'bar', b'', False, None, None,
+             None),], nontest._events)
+
+    def test_add_rule_do_start_stop_run(self):
+        nontest = LoggingStreamResult()
+        router = StreamResultRouter()
+        router.add_rule(nontest, 'test_id', test_id=None, do_start_stop_run=True)
+        router.startTestRun()
+        router.stopTestRun()
+        self.assertEqual([
+            ('startTestRun',),
+            ('stopTestRun',),
+            ], nontest._events)
+
+    def test_add_rule_do_start_stop_run_after_startTestRun(self):
+        nontest = LoggingStreamResult()
+        router = StreamResultRouter()
+        router.startTestRun()
+        router.add_rule(nontest, 'test_id', test_id=None, do_start_stop_run=True)
+        router.stopTestRun()
+        self.assertEqual([
+            ('startTestRun',),
+            ('stopTestRun',),
+            ], nontest._events)
+
+
+class TestStreamToQueue(TestCase):
+
+    def make_result(self):
+        queue = Queue()
+        return queue, StreamToQueue(queue, "foo")
+
+    def test_status(self):
+        def check_event(event_dict, route=None, time=None):
+            self.assertEqual("status", event_dict['event'])
+            self.assertEqual("test", event_dict['test_id'])
+            self.assertEqual("fail", event_dict['test_status'])
+            self.assertEqual(set(["quux"]), event_dict['test_tags'])
+            self.assertEqual(False, event_dict['runnable'])
+            self.assertEqual("file", event_dict['file_name'])
+            self.assertEqual(_b("content"), event_dict['file_bytes'])
+            self.assertEqual(True, event_dict['eof'])
+            self.assertEqual("quux", event_dict['mime_type'])
+            self.assertEqual("test", event_dict['test_id'])
+            self.assertEqual(route, event_dict['route_code'])
+            self.assertEqual(time, event_dict['timestamp'])
+        queue, result = self.make_result()
+        result.status("test", "fail", test_tags=set(["quux"]), runnable=False,
+            file_name="file", file_bytes=_b("content"), eof=True,
+            mime_type="quux", route_code=None, timestamp=None)
+        self.assertEqual(1, queue.qsize())
+        a_time = datetime.datetime.now(utc)
+        result.status("test", "fail", test_tags=set(["quux"]), runnable=False,
+            file_name="file", file_bytes=_b("content"), eof=True,
+            mime_type="quux", route_code="bar", timestamp=a_time)
+        self.assertEqual(2, queue.qsize())
+        check_event(queue.get(False), route="foo", time=None)
+        check_event(queue.get(False), route="foo/bar", time=a_time)
+
+    def testStartTestRun(self):
+        queue, result = self.make_result()
+        result.startTestRun()
+        self.assertEqual(
+            {'event':'startTestRun', 'result':result}, queue.get(False))
+        self.assertTrue(queue.empty())
+
+    def testStopTestRun(self):
+        queue, result = self.make_result()
+        result.stopTestRun()
+        self.assertEqual(
+            {'event':'stopTestRun', 'result':result}, queue.get(False))
+        self.assertTrue(queue.empty())
 
 
 class TestExtendedToOriginalResultDecoratorBase(TestCase):
@@ -1558,13 +2350,13 @@ class TestNonAsciiResults(TestCase):
 
     def _test_external_case(self, testline, coding="ascii", modulelevel="",
             suffix=""):
-        """Create and run a test case in a separate module"""
+        """Create and run a test case in a seperate module"""
         self._setup_external_case(testline, coding, modulelevel, suffix)
         return self._run_external_case()
 
     def _setup_external_case(self, testline, coding="ascii", modulelevel="",
             suffix=""):
-        """Create a test case in a separate module"""
+        """Create a test case in a seperate module"""
         _, prefix, self.modname = self.id().rsplit(".", 2)
         self.dir = tempfile.mkdtemp(prefix=prefix, suffix=suffix)
         self.addCleanup(shutil.rmtree, self.dir)
@@ -1580,7 +2372,7 @@ class TestNonAsciiResults(TestCase):
             "        %s\n" % (coding, modulelevel, testline))
 
     def _run_external_case(self):
-        """Run the prepared test case in a separate module"""
+        """Run the prepared test case in a seperate module"""
         sys.path.insert(0, self.dir)
         self.addCleanup(sys.path.remove, self.dir)
         module = __import__(self.modname)
@@ -1588,11 +2380,6 @@ class TestNonAsciiResults(TestCase):
         stream = StringIO()
         self._run(stream, module.Test())
         return stream.getvalue()
-
-    def _silence_deprecation_warnings(self):
-        """Shut up DeprecationWarning for this test only"""
-        warnings.simplefilter("ignore", DeprecationWarning)
-        self.addCleanup(warnings.filters.remove, warnings.filters[0])
 
     def _get_sample_text(self, encoding="unicode_internal"):
         if encoding is None and str_is_unicode:
@@ -1635,7 +2422,7 @@ class TestNonAsciiResults(TestCase):
         if sys.version_info > (3, 3):
             return MatchesAny(Contains("FileExistsError: "),
                               Contains("PermissionError: "))
-        elif os.name != "nt" or sys.version_info < (2, 5):
+        elif os.name != "nt":
             return Contains(self._as_output("OSError: "))
         else:
             return Contains(self._as_output("WindowsError: "))
@@ -1699,15 +2486,6 @@ class TestNonAsciiResults(TestCase):
             "UnprintableError: <unprintable UnprintableError object>\n"),
             textoutput)
 
-    def test_string_exception(self):
-        """Raise a string rather than an exception instance if supported"""
-        if sys.version_info > (2, 6):
-            self.skip("No string exceptions in Python 2.6 or later")
-        elif sys.version_info > (2, 5):
-            self._silence_deprecation_warnings()
-        textoutput = self._test_external_case(testline="raise 'plain str'")
-        self.assertIn(self._as_output("\nplain str\n"), textoutput)
-
     def test_non_ascii_dirname(self):
         """Script paths in the traceback can be non-ascii"""
         text, raw = self._get_sample_text(sys.getfilesystemencoding())
@@ -1737,9 +2515,6 @@ class TestNonAsciiResults(TestCase):
 
     def test_syntax_error_import_binary(self):
         """Importing a binary file shouldn't break SyntaxError formatting"""
-        if sys.version_info < (2, 5):
-            # Python 2.4 assumes the file is latin-1 and tells you off
-            self._silence_deprecation_warnings()
         self._setup_external_case("import bad")
         f = open(os.path.join(self.dir, "bad.py"), "wb")
         try:
@@ -2088,6 +2863,38 @@ class TestTagger(TestCase):
              ('addSuccess', test2),
              ('stopTest', test2),
              ], result._events)
+
+
+class TestTimestampingStreamResult(TestCase):
+
+    def test_startTestRun(self):
+        result = TimestampingStreamResult(LoggingStreamResult())
+        result.startTestRun()
+        self.assertEqual([('startTestRun',)], result.targets[0]._events)
+
+    def test_stopTestRun(self):
+        result = TimestampingStreamResult(LoggingStreamResult())
+        result.stopTestRun()
+        self.assertEqual([('stopTestRun',)], result.targets[0]._events)
+
+    def test_status_no_timestamp(self):
+        result = TimestampingStreamResult(LoggingStreamResult())
+        result.status(test_id="A", test_status="B", test_tags="C",
+            runnable="D", file_name="E", file_bytes=b"F", eof=True,
+            mime_type="G", route_code="H")
+        events = result.targets[0]._events
+        self.assertThat(events, HasLength(1))
+        self.assertThat(events[0], HasLength(11))
+        self.assertEqual(
+            ("status", "A", "B", "C", "D", "E", b"F", True, "G", "H"),
+            events[0][:10])
+        self.assertNotEqual(None, events[0][10])
+        self.assertIsInstance(events[0][10], datetime.datetime)
+
+    def test_status_timestamp(self):
+        result = TimestampingStreamResult(LoggingStreamResult())
+        result.status(timestamp="F")
+        self.assertEqual("F", result.targets[0]._events[0][10])
 
 
 def test_suite():

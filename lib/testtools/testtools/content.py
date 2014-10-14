@@ -7,18 +7,29 @@ __all__ = [
     'Content',
     'content_from_file',
     'content_from_stream',
+    'json_content',
     'text_content',
     'TracebackContent',
     ]
 
 import codecs
+import inspect
 import json
 import os
 import sys
 import traceback
 
-from testtools import try_import
-from testtools.compat import _b, _format_exc_info, str_is_unicode, _u
+from extras import try_import
+
+from testtools.compat import (
+    _b,
+    _format_exception_only,
+    _format_stack_list,
+    _isbytes,
+    _TB_HEADER,
+    _u,
+    str_is_unicode,
+)
 from testtools.content_type import ContentType, JSON, UTF8_TEXT
 
 
@@ -102,28 +113,25 @@ class Content(object):
     def _iter_text(self):
         """Worker for iter_text - does the decoding."""
         encoding = self.content_type.parameters.get('charset', 'ISO-8859-1')
-        try:
-            # 2.5+
-            decoder = codecs.getincrementaldecoder(encoding)()
-            for bytes in self.iter_bytes():
-                yield decoder.decode(bytes)
-            final = decoder.decode(_b(''), True)
-            if final:
-                yield final
-        except AttributeError:
-            # < 2.5
-            bytes = ''.join(self.iter_bytes())
-            yield bytes.decode(encoding)
+        decoder = codecs.getincrementaldecoder(encoding)()
+        for bytes in self.iter_bytes():
+            yield decoder.decode(bytes)
+        final = decoder.decode(_b(''), True)
+        if final:
+            yield final
 
     def __repr__(self):
         return "<Content type=%r, value=%r>" % (
             self.content_type, _join_b(self.iter_bytes()))
 
 
-class TracebackContent(Content):
-    """Content object for tracebacks.
+class StackLinesContent(Content):
+    """Content object for stack lines.
 
-    This adapts an exc_info tuple to the Content interface.
+    This adapts a list of "preprocessed" stack lines into a content object.
+    The stack lines are most likely produced from ``traceback.extract_stack``
+    or ``traceback.extract_tb``.
+
     text/x-traceback;language=python is used for the mime type, in order to
     provide room for other languages to format their tracebacks differently.
     """
@@ -133,65 +141,113 @@ class TracebackContent(Content):
     # system-under-test is rarely unittest or testtools.
     HIDE_INTERNAL_STACK = True
 
-    def __init__(self, err, test):
-        """Create a TracebackContent for err."""
-        if err is None:
-            raise ValueError("err may not be None")
+    def __init__(self, stack_lines, prefix_content="", postfix_content=""):
+        """Create a StackLinesContent for ``stack_lines``.
+
+        :param stack_lines: A list of preprocessed stack lines, probably
+            obtained by calling ``traceback.extract_stack`` or
+            ``traceback.extract_tb``.
+        :param prefix_content: If specified, a unicode string to prepend to the
+            text content.
+        :param postfix_content: If specified, a unicode string to append to the
+            text content.
+        """
         content_type = ContentType('text', 'x-traceback',
             {"language": "python", "charset": "utf8"})
-        value = self._exc_info_to_unicode(err, test)
-        super(TracebackContent, self).__init__(
+        value = prefix_content + \
+            self._stack_lines_to_unicode(stack_lines) + \
+            postfix_content
+        super(StackLinesContent, self).__init__(
             content_type, lambda: [value.encode("utf8")])
 
-    def _exc_info_to_unicode(self, err, test):
-        """Converts a sys.exc_info()-style tuple of values into a string.
-
-        Copied from Python 2.7's unittest.TestResult._exc_info_to_string.
+    def _stack_lines_to_unicode(self, stack_lines):
+        """Converts a list of pre-processed stack lines into a unicode string.
         """
-        exctype, value, tb = err
-        # Skip test runner traceback levels
-        if self.HIDE_INTERNAL_STACK:
-            while tb and self._is_relevant_tb_level(tb):
-                tb = tb.tb_next
 
         # testtools customization. When str is unicode (e.g. IronPython,
         # Python 3), traceback.format_exception returns unicode. For Python 2,
         # it returns bytes. We need to guarantee unicode.
         if str_is_unicode:
-            format_exception = traceback.format_exception
+            format_stack_lines = traceback.format_list
         else:
-            format_exception = _format_exc_info
+            format_stack_lines = _format_stack_list
 
-        if (self.HIDE_INTERNAL_STACK and test.failureException
-            and isinstance(value, test.failureException)):
-            # Skip assert*() traceback levels
-            length = self._count_relevant_tb_levels(tb)
-            msgLines = format_exception(exctype, value, tb, length)
-        else:
-            msgLines = format_exception(exctype, value, tb)
+        msg_lines = format_stack_lines(stack_lines)
 
-        if getattr(self, 'buffer', None):
-            output = sys.stdout.getvalue()
-            error = sys.stderr.getvalue()
-            if output:
-                if not output.endswith('\n'):
-                    output += '\n'
-                msgLines.append(STDOUT_LINE % output)
-            if error:
-                if not error.endswith('\n'):
-                    error += '\n'
-                msgLines.append(STDERR_LINE % error)
-        return ''.join(msgLines)
+        return ''.join(msg_lines)
 
-    def _is_relevant_tb_level(self, tb):
-        return '__unittest' in tb.tb_frame.f_globals
 
-    def _count_relevant_tb_levels(self, tb):
-        length = 0
-        while tb and not self._is_relevant_tb_level(tb):
-            length += 1
+def TracebackContent(err, test):
+    """Content object for tracebacks.
+
+    This adapts an exc_info tuple to the Content interface.
+    text/x-traceback;language=python is used for the mime type, in order to
+    provide room for other languages to format their tracebacks differently.
+    """
+    if err is None:
+        raise ValueError("err may not be None")
+
+    exctype, value, tb = err
+    # Skip test runner traceback levels
+    if StackLinesContent.HIDE_INTERNAL_STACK:
+        while tb and '__unittest' in tb.tb_frame.f_globals:
             tb = tb.tb_next
-        return length
+
+    # testtools customization. When str is unicode (e.g. IronPython,
+    # Python 3), traceback.format_exception_only returns unicode. For Python 2,
+    # it returns bytes. We need to guarantee unicode.
+    if str_is_unicode:
+        format_exception_only = traceback.format_exception_only
+    else:
+        format_exception_only = _format_exception_only
+
+    limit = None
+    # Disabled due to https://bugs.launchpad.net/testtools/+bug/1188420
+    if (False
+        and StackLinesContent.HIDE_INTERNAL_STACK
+        and test.failureException
+        and isinstance(value, test.failureException)):
+        # Skip assert*() traceback levels
+        limit = 0
+        while tb and not self._is_relevant_tb_level(tb):
+            limit += 1
+            tb = tb.tb_next
+
+    prefix = _TB_HEADER
+    stack_lines = traceback.extract_tb(tb, limit)
+    postfix = ''.join(format_exception_only(exctype, value))
+
+    return StackLinesContent(stack_lines, prefix, postfix)
+
+
+def StacktraceContent(prefix_content="", postfix_content=""):
+    """Content object for stack traces.
+
+    This function will create and return a content object that contains a
+    stack trace.
+
+    The mime type is set to 'text/x-traceback;language=python', so other
+    languages can format their stack traces differently.
+
+    :param prefix_content: A unicode string to add before the stack lines.
+    :param postfix_content: A unicode string to add after the stack lines.
+    """
+    stack = inspect.stack()[1:]
+
+    if StackLinesContent.HIDE_INTERNAL_STACK:
+        limit = 1
+        while limit < len(stack) and '__unittest' not in stack[limit][0].f_globals:
+            limit += 1
+    else:
+        limit = -1
+
+    frames_only = [line[0] for line in stack[:limit]]
+    processed_stack = [ ]
+    for frame in reversed(frames_only):
+        filename, line, function, context, _ = inspect.getframeinfo(frame)
+        context = ''.join(context)
+        processed_stack.append((filename, line, function, context))
+    return StackLinesContent(processed_stack, prefix_content, postfix_content)
 
 
 def json_content(json_data):
@@ -208,6 +264,8 @@ def text_content(text):
 
     This is useful for adding details which are short strings.
     """
+    if _isbytes(text):
+        raise TypeError('text_content must be given a string, not bytes.')
     return Content(UTF8_TEXT, lambda: [text.encode('utf8')])
 
 
@@ -238,13 +296,12 @@ def content_from_file(path, content_type=None, chunk_size=DEFAULT_CHUNK_SIZE,
     if content_type is None:
         content_type = UTF8_TEXT
     def reader():
-        # This should be try:finally:, but python2.4 makes that hard. When
-        # We drop older python support we can make this use a context manager
-        # for maximum simplicity.
-        stream = open(path, 'rb')
-        for chunk in _iter_chunks(stream, chunk_size, seek_offset, seek_whence):
-            yield chunk
-        stream.close()
+        with open(path, 'rb') as stream:
+            for chunk in _iter_chunks(stream,
+                                      chunk_size,
+                                      seek_offset,
+                                      seek_whence):
+                yield chunk
     return content_from_reader(reader, content_type, buffer_now)
 
 

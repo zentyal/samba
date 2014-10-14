@@ -8,6 +8,7 @@ import sys
 import unittest
 
 from testtools import (
+    DecorateTestCaseResult,
     ErrorHolder,
     MultipleExceptions,
     PlaceHolder,
@@ -23,15 +24,23 @@ from testtools.compat import (
     _b,
     _u,
     )
-from testtools.content import TracebackContent
+from testtools.content import (
+    text_content,
+    TracebackContent,
+    )
 from testtools.matchers import (
     Annotate,
     DocTestMatches,
     Equals,
+    HasLength,
     MatchesException,
     Raises,
     )
-from testtools.testcase import Nullary
+from testtools.testcase import (
+    attr,
+    Nullary,
+    WithAttributes,
+    )
 from testtools.testresult.doubles import (
     Python26TestResult,
     Python27TestResult,
@@ -109,7 +118,8 @@ class TestPlaceHolder(TestCase):
         log = []
         test.run(LoggingResult(log))
         self.assertEqual(
-            [('startTest', test), ('addSuccess', test), ('stopTest', test)],
+            [('tags', set(), set()), ('startTest', test), ('addSuccess', test),
+             ('stopTest', test), ('tags', set(), set()),],
             log)
 
     def test_supplies_details(self):
@@ -118,9 +128,27 @@ class TestPlaceHolder(TestCase):
         result = ExtendedTestResult()
         test.run(result)
         self.assertEqual(
-            [('startTest', test),
+            [('tags', set(), set()),
+             ('startTest', test),
              ('addSuccess', test, details),
-             ('stopTest', test)],
+             ('stopTest', test),
+             ('tags', set(), set()),
+             ],
+            result._events)
+
+    def test_supplies_timestamps(self):
+        test = PlaceHolder('foo', details={}, timestamps=["A", "B"])
+        result = ExtendedTestResult()
+        test.run(result)
+        self.assertEqual(
+            [('time', "A"),
+             ('tags', set(), set()),
+             ('startTest', test),
+             ('time', "B"),
+             ('addSuccess', test),
+             ('stopTest', test),
+             ('tags', set(), set()),
+             ],
             result._events)
 
     def test_call_is_run(self):
@@ -140,6 +168,19 @@ class TestPlaceHolder(TestCase):
     def test_debug(self):
         # A PlaceHolder can be debugged.
         self.makePlaceHolder().debug()
+
+    def test_supports_tags(self):
+        result = ExtendedTestResult()
+        tags = set(['foo', 'bar'])
+        case = PlaceHolder("foo", tags=tags)
+        case.run(result)
+        self.assertEqual([
+            ('tags', tags, set()),
+            ('startTest', case),
+            ('addSuccess', case),
+            ('stopTest', case),
+            ('tags', set(), tags),
+            ], result._events)
 
 
 class TestErrorHolder(TestCase):
@@ -194,9 +235,11 @@ class TestErrorHolder(TestCase):
         log = result._events
         test.run(result)
         self.assertEqual(
-            [('startTest', test),
+            [('tags', set(), set()),
+             ('startTest', test),
              ('addError', test, test._details),
-             ('stopTest', test)], log)
+             ('stopTest', test),
+             ('tags', set(), set())], log)
 
     def test_call_is_run(self):
         # A PlaceHolder can be called, in which case it behaves like run.
@@ -258,6 +301,19 @@ class TestAssertions(TestCase):
     def test_assertRaises(self):
         # assertRaises asserts that a callable raises a particular exception.
         self.assertRaises(RuntimeError, self.raiseError, RuntimeError)
+
+    def test_assertRaises_exception_w_metaclass(self):
+        # assertRaises works when called for exceptions with custom metaclasses
+        class MyExMeta(type):
+            def __init__(cls, name, bases, dct):
+                """ Do some dummy metaclass stuff """
+                dct.update({'answer': 42})
+                type.__init__(cls, name, bases, dct)
+
+        class MyEx(Exception):
+            __metaclass__ = MyExMeta
+
+        self.assertRaises(MyEx, self.raiseError, MyEx)
 
     def test_assertRaises_fails_when_no_error_raised(self):
         # assertRaises raises self.failureException when it's passed a
@@ -344,6 +400,16 @@ class TestAssertions(TestCase):
             '%r not in %r' % ('qux', 'foo bar baz'),
             self.assertIn, 'qux', 'foo bar baz')
 
+    def test_assertIn_failure_with_message(self):
+        # assertIn(needle, haystack) fails the test when 'needle' is not in
+        # 'haystack'.
+        self.assertFails('3 not in [0, 1, 2]: foo bar', self.assertIn, 3,
+                         [0, 1, 2], 'foo bar')
+        self.assertFails(
+            '%r not in %r: foo bar' % ('qux', 'foo bar baz'),
+            self.assertIn, 'qux', 'foo bar baz', 'foo bar')
+
+
     def test_assertNotIn_success(self):
         # assertNotIn(needle, haystack) asserts that 'needle' is not in
         # 'haystack'.
@@ -358,6 +424,18 @@ class TestAssertions(TestCase):
         self.assertFails(
             "'foo bar baz' matches Contains('foo')",
             self.assertNotIn, 'foo', 'foo bar baz')
+
+
+    def test_assertNotIn_failure_with_message(self):
+        # assertNotIn(needle, haystack) fails the test when 'needle' is in
+        # 'haystack'.
+        self.assertFails('[1, 2, 3] matches Contains(3): foo bar', self.assertNotIn,
+            3, [1, 2, 3], 'foo bar')
+        self.assertFails(
+            "'foo bar baz' matches Contains('foo'): foo bar",
+            self.assertNotIn, 'foo', 'foo bar baz', "foo bar")
+
+
 
     def test_assertIsInstance(self):
         # assertIsInstance asserts that an object is an instance of a class.
@@ -513,6 +591,48 @@ class TestAssertions(TestCase):
         self.assertFails(
             expected, self.assertThat, matchee, matcher, verbose=True)
 
+    def test_expectThat_matches_clean(self):
+        class Matcher(object):
+            def match(self, foo):
+                return None
+        self.expectThat("foo", Matcher())
+
+    def test_expectThat_mismatch_fails_test(self):
+        class Test(TestCase):
+            def test(self):
+                self.expectThat("foo", Equals("bar"))
+        result = Test("test").run()
+        self.assertFalse(result.wasSuccessful())
+
+    def test_expectThat_does_not_exit_test(self):
+        class Test(TestCase):
+            marker = False
+            def test(self):
+                self.expectThat("foo", Equals("bar"))
+                Test.marker = True
+        result = Test("test").run()
+        self.assertFalse(result.wasSuccessful())
+        self.assertTrue(Test.marker)
+
+    def test_expectThat_adds_detail(self):
+        class Test(TestCase):
+            def test(self):
+                self.expectThat("foo", Equals("bar"))
+        test = Test("test")
+        result = test.run()
+        details = test.getDetails()
+        self.assertTrue("Failed expectation" in details)
+
+    def test__force_failure_fails_test(self):
+        class Test(TestCase):
+            def test_foo(self):
+                self.force_failure = True
+                self.remaining_code_run = True
+        test = Test('test_foo')
+        result = test.run()
+        self.assertFalse(result.wasSuccessful())
+        self.assertTrue(test.remaining_code_run)
+
     def get_error_string(self, e):
         """Get the string showing how 'e' would be formatted in test output.
 
@@ -607,6 +727,18 @@ class TestAssertions(TestCase):
 
         expected_error = 'None matches Is(None)'
         self.assertFails(expected_error, self.assertIsNotNone, None)
+
+
+    def test_fail_preserves_traceback_detail(self):
+        class Test(TestCase):
+            def test(self):
+                self.addDetail('traceback', text_content('foo'))
+                self.fail('bar')
+        test = Test('test')
+        result = ExtendedTestResult()
+        test.run(result)
+        self.assertEqual(set(['traceback', 'traceback-1']),
+            set(result._events[1][2].keys()))
 
 
 class TestAddCleanup(TestCase):
@@ -777,6 +909,18 @@ class TestAddCleanup(TestCase):
             set(self.logging_result._events[1][2].keys()))
 
 
+class TestRunTestUsage(TestCase):
+
+    def test_last_resort_in_place(self):
+        class TestBase(TestCase):
+            def test_base_exception(self):
+                raise SystemExit(0)
+        result = ExtendedTestResult()
+        test = TestBase("test_base_exception")
+        self.assertRaises(SystemExit, test.run, result)
+        self.assertFalse(result.wasSuccessful())
+
+
 class TestWithDetails(TestCase):
 
     run_test_with = FullStackRunTest
@@ -873,6 +1017,28 @@ class TestExpectedFailure(TestWithDetails):
         case = self.make_xfail_case_succeeds()
         self.assertDetailsProvided(case, "addUnexpectedSuccess",
             ["foo", "reason"])
+
+    @skipIf(not hasattr(unittest, 'expectedFailure'), 'Need py27+')
+    def test_unittest_expectedFailure_decorator_works_with_failure(self):
+        class ReferenceTest(TestCase):
+            @unittest.expectedFailure
+            def test_fails_expectedly(self):
+                self.assertEquals(1, 0)
+
+        test = ReferenceTest('test_fails_expectedly')
+        result = test.run()
+        self.assertEqual(True, result.wasSuccessful())
+
+    @skipIf(not hasattr(unittest, 'expectedFailure'), 'Need py27+')
+    def test_unittest_expectedFailure_decorator_works_with_success(self):
+        class ReferenceTest(TestCase):
+            @unittest.expectedFailure
+            def test_passes_unexpectedly(self):
+                self.assertEquals(1, 1)
+
+        test = ReferenceTest('test_passes_unexpectedly')
+        result = test.run()
+        self.assertEqual(False, result.wasSuccessful())
 
 
 class TestUniqueFactories(TestCase):
@@ -1039,10 +1205,31 @@ class TestDetailsProvided(TestWithDetails):
         self.assertDetailsProvided(Case("test"), "addFailure",
             ["foo", "foo-1", "traceback"])
 
+    def test_addDetailUniqueName_works(self):
+        content = self.get_content()
+        class Case(TestCase):
+            def test(self):
+                self.addDetailUniqueName("foo", content)
+                self.addDetailUniqueName("foo", content)
+        self.assertDetailsProvided(Case("test"), "addSuccess",
+            ["foo", "foo-1"])
+
 
 class TestSetupTearDown(TestCase):
 
     run_test_with = FullStackRunTest
+
+    def test_setUpCalledTwice(self):
+        class CallsTooMuch(TestCase):
+            def test_method(self):
+                self.setUp()
+        result = unittest.TestResult()
+        CallsTooMuch('test_method').run(result)
+        self.assertThat(result.errors, HasLength(1))
+        self.assertThat(result.errors[0][1],
+            DocTestMatches(
+                "...ValueError...File...testtools/tests/test_testcase.py...",
+                ELLIPSIS))
 
     def test_setUpNotCalled(self):
         class DoesnotcallsetUp(TestCase):
@@ -1052,7 +1239,23 @@ class TestSetupTearDown(TestCase):
                 pass
         result = unittest.TestResult()
         DoesnotcallsetUp('test_method').run(result)
-        self.assertEqual(1, len(result.errors))
+        self.assertThat(result.errors, HasLength(1))
+        self.assertThat(result.errors[0][1],
+            DocTestMatches(
+                "...ValueError...File...testtools/tests/test_testcase.py...",
+                ELLIPSIS))
+
+    def test_tearDownCalledTwice(self):
+        class CallsTooMuch(TestCase):
+            def test_method(self):
+                self.tearDown()
+        result = unittest.TestResult()
+        CallsTooMuch('test_method').run(result)
+        self.assertThat(result.errors, HasLength(1))
+        self.assertThat(result.errors[0][1],
+            DocTestMatches(
+                "...ValueError...File...testtools/tests/test_testcase.py...",
+                ELLIPSIS))
 
     def test_tearDownNotCalled(self):
         class DoesnotcalltearDown(TestCase):
@@ -1062,7 +1265,17 @@ class TestSetupTearDown(TestCase):
                 pass
         result = unittest.TestResult()
         DoesnotcalltearDown('test_method').run(result)
-        self.assertEqual(1, len(result.errors))
+        self.assertThat(result.errors, HasLength(1))
+        self.assertThat(result.errors[0][1],
+            DocTestMatches(
+                "...ValueError...File...testtools/tests/test_testcase.py...",
+                ELLIPSIS))
+
+
+require_py27_minimum = skipIf(
+    sys.version < '2.7',
+    "Requires python 2.7 or greater"
+)
 
 
 class TestSkipping(TestCase):
@@ -1167,6 +1380,71 @@ class TestSkipping(TestCase):
         test = SkippingTest("test_that_is_decorated_with_skipUnless")
         test.run(result)
         self.assertEqual('addSuccess', result._events[1][0])
+
+    def check_skip_decorator_does_not_run_setup(self, decorator, reason):
+        class SkippingTest(TestCase):
+
+            setup_ran = False
+
+            def setUp(self):
+                super(SkippingTest, self).setUp()
+                self.setup_ran = True
+
+            # Use the decorator passed to us:
+            @decorator
+            def test_skipped(self):
+                self.fail()
+
+        test = SkippingTest('test_skipped')
+        result = test.run()
+        self.assertTrue(result.wasSuccessful())
+        self.assertTrue(reason in result.skip_reasons, result.skip_reasons)
+        self.assertFalse(test.setup_ran)
+
+    def test_testtools_skip_decorator_does_not_run_setUp(self):
+        reason = self.getUniqueString()
+        self.check_skip_decorator_does_not_run_setup(
+            skip(reason),
+            reason
+        )
+
+    def test_testtools_skipIf_decorator_does_not_run_setUp(self):
+        reason = self.getUniqueString()
+        self.check_skip_decorator_does_not_run_setup(
+            skipIf(True, reason),
+            reason
+        )
+
+    def test_testtools_skipUnless_decorator_does_not_run_setUp(self):
+        reason = self.getUniqueString()
+        self.check_skip_decorator_does_not_run_setup(
+            skipUnless(False, reason),
+            reason
+        )
+
+    @require_py27_minimum
+    def test_unittest_skip_decorator_does_not_run_setUp(self):
+        reason = self.getUniqueString()
+        self.check_skip_decorator_does_not_run_setup(
+            unittest.skip(reason),
+            reason
+        )
+
+    @require_py27_minimum
+    def test_unittest_skipIf_decorator_does_not_run_setUp(self):
+        reason = self.getUniqueString()
+        self.check_skip_decorator_does_not_run_setup(
+            unittest.skipIf(True, reason),
+            reason
+        )
+
+    @require_py27_minimum
+    def test_unittest_skipUnless_decorator_does_not_run_setUp(self):
+        reason = self.getUniqueString()
+        self.check_skip_decorator_does_not_run_setup(
+            unittest.skipUnless(False, reason),
+            reason
+        )
 
 
 class TestOnException(TestCase):
@@ -1328,6 +1606,126 @@ class TestNullary(TestCase):
         # If the function raises, so does Nullary when called.
         wrapped = Nullary(lambda: 1/0)
         self.assertRaises(ZeroDivisionError, wrapped)
+
+
+class TestAttributes(TestCase):
+
+    def test_simple_attr(self):
+        # Adding an attr to a test changes its id().
+        class MyTest(WithAttributes, TestCase):
+            @attr('foo')
+            def test_bar(self):
+                pass
+        case = MyTest('test_bar')
+        self.assertEqual('testtools.tests.test_testcase.MyTest.test_bar[foo]',
+            case.id())
+
+    def test_multiple_attributes(self):
+        class MyTest(WithAttributes, TestCase):
+            # Not sorted here, forward or backwards.
+            @attr('foo', 'quux', 'bar')
+            def test_bar(self):
+                pass
+        case = MyTest('test_bar')
+        self.assertEqual(
+            'testtools.tests.test_testcase.MyTest.test_bar[bar,foo,quux]',
+            case.id())
+
+    def test_multiple_attr_decorators(self):
+        class MyTest(WithAttributes, TestCase):
+            # Not sorted here, forward or backwards.
+            @attr('bar')
+            @attr('quux')
+            @attr('foo')
+            def test_bar(self):
+                pass
+        case = MyTest('test_bar')
+        self.assertEqual(
+            'testtools.tests.test_testcase.MyTest.test_bar[bar,foo,quux]',
+            case.id())
+
+
+class TestDecorateTestCaseResult(TestCase):
+
+    def setUp(self):
+        super(TestDecorateTestCaseResult, self).setUp()
+        self.log = []
+
+    def make_result(self, result):
+        self.log.append(('result', result))
+        return LoggingResult(self.log)
+
+    def test___call__(self):
+        case = DecorateTestCaseResult(PlaceHolder('foo'), self.make_result)
+        case(None)
+        case('something')
+        self.assertEqual([('result', None),
+            ('tags', set(), set()),
+            ('startTest', case.decorated),
+            ('addSuccess', case.decorated),
+            ('stopTest', case.decorated),
+            ('tags', set(), set()),
+            ('result', 'something'),
+            ('tags', set(), set()),
+            ('startTest', case.decorated),
+            ('addSuccess', case.decorated),
+            ('stopTest', case.decorated),
+            ('tags', set(), set())
+            ], self.log)
+
+    def test_run(self):
+        case = DecorateTestCaseResult(PlaceHolder('foo'), self.make_result)
+        case.run(None)
+        case.run('something')
+        self.assertEqual([('result', None),
+            ('tags', set(), set()),
+            ('startTest', case.decorated),
+            ('addSuccess', case.decorated),
+            ('stopTest', case.decorated),
+            ('tags', set(), set()),
+            ('result', 'something'),
+            ('tags', set(), set()),
+            ('startTest', case.decorated),
+            ('addSuccess', case.decorated),
+            ('stopTest', case.decorated),
+            ('tags', set(), set())
+            ], self.log)
+
+    def test_before_after_hooks(self):
+        case = DecorateTestCaseResult(PlaceHolder('foo'), self.make_result,
+            before_run=lambda result: self.log.append('before'),
+            after_run=lambda result: self.log.append('after'))
+        case.run(None)
+        case(None)
+        self.assertEqual([
+            ('result', None),
+            'before',
+            ('tags', set(), set()),
+            ('startTest', case.decorated),
+            ('addSuccess', case.decorated),
+            ('stopTest', case.decorated),
+            ('tags', set(), set()),
+            'after',
+            ('result', None),
+            'before',
+            ('tags', set(), set()),
+            ('startTest', case.decorated),
+            ('addSuccess', case.decorated),
+            ('stopTest', case.decorated),
+            ('tags', set(), set()),
+            'after',
+            ], self.log)
+
+    def test_other_attribute(self):
+        orig = PlaceHolder('foo')
+        orig.thing = 'fred'
+        case = DecorateTestCaseResult(orig, self.make_result)
+        self.assertEqual('fred', case.thing)
+        self.assertRaises(AttributeError, getattr, case, 'other')
+        case.other = 'barbara'
+        self.assertEqual('barbara', orig.other)
+        del case.thing
+        self.assertRaises(AttributeError, getattr, orig, 'thing')
 
 
 def test_suite():

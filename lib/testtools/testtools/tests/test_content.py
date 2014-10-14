@@ -5,12 +5,13 @@ import os
 import tempfile
 import unittest
 
-from testtools import TestCase
+from testtools import TestCase, skipUnless
 from testtools.compat import (
     _b,
     _u,
     BytesIO,
     StringIO,
+    str_is_unicode,
     )
 from testtools.content import (
     attach_file,
@@ -19,6 +20,8 @@ from testtools.content import (
     content_from_stream,
     JSON,
     json_content,
+    StackLinesContent,
+    StacktraceContent,
     TracebackContent,
     text_content,
     )
@@ -188,10 +191,58 @@ class TestContent(TestCase):
         expected = Content(UTF8_TEXT, lambda: [data.encode('utf8')])
         self.assertEqual(expected, text_content(data))
 
+    @skipUnless(str_is_unicode, "Test only applies in python 3.")
+    def test_text_content_raises_TypeError_when_passed_bytes(self):
+        data = _b("Some Bytes")
+        self.assertRaises(TypeError, text_content, data)
+
     def test_json_content(self):
         data = {'foo': 'bar'}
         expected = Content(JSON, lambda: [_b('{"foo": "bar"}')])
         self.assertEqual(expected, json_content(data))
+
+
+class TestStackLinesContent(TestCase):
+
+    def _get_stack_line_and_expected_output(self):
+        stack_lines = [
+            ('/path/to/file', 42, 'some_function', 'print("Hello World")'),
+        ]
+        expected = '  File "/path/to/file", line 42, in some_function\n' \
+                   '    print("Hello World")\n'
+        return stack_lines, expected
+
+    def test_single_stack_line(self):
+        stack_lines, expected = self._get_stack_line_and_expected_output()
+        actual = StackLinesContent(stack_lines).as_text()
+
+        self.assertEqual(expected, actual)
+
+    def test_prefix_content(self):
+        stack_lines, expected = self._get_stack_line_and_expected_output()
+        prefix = self.getUniqueString() + '\n'
+        content = StackLinesContent(stack_lines, prefix_content=prefix)
+        actual = content.as_text()
+        expected = prefix  + expected
+
+        self.assertEqual(expected, actual)
+
+    def test_postfix_content(self):
+        stack_lines, expected = self._get_stack_line_and_expected_output()
+        postfix = '\n' + self.getUniqueString()
+        content = StackLinesContent(stack_lines, postfix_content=postfix)
+        actual = content.as_text()
+        expected = expected + postfix
+
+        self.assertEqual(expected, actual)
+
+    def test___init___sets_content_type(self):
+        stack_lines, expected = self._get_stack_line_and_expected_output()
+        content = StackLinesContent(stack_lines)
+        expected_content_type = ContentType("text", "x-traceback",
+            {"language": "python", "charset": "utf8"})
+
+        self.assertEqual(expected_content_type, content.content_type)
 
 
 class TestTracebackContent(TestCase):
@@ -208,6 +259,33 @@ class TestTracebackContent(TestCase):
         result = unittest.TestResult()
         expected = result._exc_info_to_string(an_exc_info, self)
         self.assertEqual(expected, ''.join(list(content.iter_text())))
+
+
+class TestStacktraceContent(TestCase):
+
+    def test___init___sets_ivars(self):
+        content = StacktraceContent()
+        content_type = ContentType("text", "x-traceback",
+            {"language": "python", "charset": "utf8"})
+
+        self.assertEqual(content_type, content.content_type)
+
+    def test_prefix_is_used(self):
+        prefix = self.getUniqueString()
+        actual = StacktraceContent(prefix_content=prefix).as_text()
+
+        self.assertTrue(actual.startswith(prefix))
+
+    def test_postfix_is_used(self):
+        postfix = self.getUniqueString()
+        actual = StacktraceContent(postfix_content=postfix).as_text()
+
+        self.assertTrue(actual.endswith(postfix))
+
+    def test_top_frame_is_skipped_when_no_stack_is_specified(self):
+        actual = StacktraceContent().as_text()
+
+        self.assertTrue('testtools/content.py' not in actual)
 
 
 class TestAttachFile(TestCase):

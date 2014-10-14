@@ -1,22 +1,24 @@
 #!/usr/bin/env python
 """Distutils installer for testtools."""
 
-from distutils.core import setup
+from setuptools import setup
+from distutils.command.build_py import build_py
 import email
 import os
+import sys
 
 import testtools
+cmd_class = {}
+if getattr(testtools, 'TestCommand', None) is not None:
+    cmd_class['test'] = testtools.TestCommand
 
 
-def get_revno():
-    import bzrlib.errors
-    import bzrlib.workingtree
-    try:
-        t = bzrlib.workingtree.WorkingTree.open_containing(__file__)[0]
-    except (bzrlib.errors.NotBranchError, bzrlib.errors.NoWorkingTree):
-        return None
-    else:
-        return t.branch.revno()
+class testtools_build_py(build_py):
+    def build_module(self, module, module_file, package):
+        if sys.version_info >= (3,) and module == '_compat2x':
+            return
+        return build_py.build_module(self, module, module_file, package)
+cmd_class['build_py'] = testtools_build_py
 
 
 def get_version_from_pkg_info():
@@ -43,18 +45,10 @@ def get_version():
     pkg_info_version = get_version_from_pkg_info()
     if pkg_info_version:
         return pkg_info_version
-    revno = get_revno()
-    if revno is None:
-        # Apparently if we just say "snapshot" then distribute won't accept it
-        # as satisfying versioned dependencies. This is a problem for the
-        # daily build version.
-        return "snapshot-%s" % (version,)
-    if phase == 'alpha':
-        # No idea what the next version will be
-        return 'next-r%s' % revno
-    else:
-        # Preserve the version number but give it a revno prefix
-        return version + '-r%s' % revno
+    # Apparently if we just say "snapshot" then distribute won't accept it
+    # as satisfying versioned dependencies. This is a problem for the
+    # daily build version.
+    return "snapshot-%s" % (version,)
 
 
 def get_long_description():
@@ -66,7 +60,7 @@ def get_long_description():
 setup(name='testtools',
       author='Jonathan M. Lange',
       author_email='jml+testtools@mumak.net',
-      url='https://launchpad.net/testtools',
+      url='https://github.com/testing-cabal/testtools',
       description=('Extensions to the Python standard library unit testing '
                    'framework'),
       long_description=get_long_description(),
@@ -81,5 +75,12 @@ setup(name='testtools',
         'testtools.tests',
         'testtools.tests.matchers',
         ],
-      cmdclass={'test': testtools.TestCommand},
-      zip_safe=False)
+      cmdclass=cmd_class,
+      zip_safe=False,
+      install_requires=[
+        'extras',
+        # 'mimeparse' has not been uploaded by the maintainer with Python3 compat
+        # but someone kindly uploaded a fixed version as 'python-mimeparse'.
+        'python-mimeparse',
+        ],
+      )

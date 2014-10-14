@@ -1,4 +1,4 @@
-# See README for copyright and licensing details.
+# Copyright (c) 2008-2013 testtools developers. See LICENSE for details.
 
 PYTHON=python
 SOURCES=$(shell find testtools -name "*.py")
@@ -34,7 +34,7 @@ apidocs:
 	PYTHONWARNINGS='ignore::DeprecationWarning' \
 		pydoctor --make-html --add-package testtools \
 		--docformat=restructuredtext --project-name=testtools \
-		--project-url=https://launchpad.net/testtools
+		--project-url=https://github.com/testing-cabal/testtools
 
 doc/news.rst:
 	ln -s ../NEWS doc/news.rst

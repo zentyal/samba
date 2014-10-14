@@ -19,6 +19,7 @@ __all__ = [
     ]
 
 import codecs
+import io
 import linecache
 import locale
 import os
@@ -27,14 +28,14 @@ import sys
 import traceback
 import unicodedata
 
-from testtools.helpers import try_imports
+from extras import try_imports
 
 BytesIO = try_imports(['StringIO.StringIO', 'io.BytesIO'])
 StringIO = try_imports(['StringIO.StringIO', 'io.StringIO'])
 
 try:
     from testtools import _compat2x as _compat
-except SyntaxError:
+except (SyntaxError, ImportError):
     from testtools import _compat3x as _compat
 
 reraise = _compat.reraise
@@ -85,34 +86,6 @@ else:
     str_is_unicode = sys.platform == "cli"
 
 _u.__doc__ = __u_doc
-
-
-if sys.version_info > (2, 5):
-    all = all
-    _error_repr = BaseException.__repr__
-    def isbaseexception(exception):
-        """Return whether exception inherits from BaseException only"""
-        return (isinstance(exception, BaseException)
-            and not isinstance(exception, Exception))
-else:
-    def all(iterable):
-        """If contents of iterable all evaluate as boolean True"""
-        for obj in iterable:
-            if not obj:
-                return False
-        return True
-    def _error_repr(exception):
-        """Format an exception instance as Python 2.5 and later do"""
-        return exception.__class__.__name__ + repr(exception.args)
-    def isbaseexception(exception):
-        """Return whether exception would inherit from BaseException only
-
-        This approximates the hierarchy in Python 2.5 and later, compare the
-        difference between the diagrams at the bottom of the pages:
-        <http://docs.python.org/release/2.4.4/lib/module-exceptions.html>
-        <http://docs.python.org/release/2.5.4/lib/module-exceptions.html>
-        """
-        return isinstance(exception, (KeyboardInterrupt, SystemExit))
 
 
 # GZ 2011-08-24: Using isinstance checks like this encourages bad interfaces,
@@ -169,7 +142,7 @@ def text_repr(text, multiline=None):
     prefix = repr(text[:0])[:-2]
     if multiline:
         # To escape multiline strings, split and process each line in turn,
-        # making sure that quotes are not escaped. 
+        # making sure that quotes are not escaped.
         if is_py3k:
             offset = len(prefix) + 1
             lines = []
@@ -215,14 +188,15 @@ def unicode_output_stream(stream):
     The wrapper only allows unicode to be written, not non-ascii bytestrings,
     which is a good thing to ensure sanity and sanitation.
     """
-    if sys.platform == "cli":
-        # Best to never encode before writing in IronPython
+    if (sys.platform == "cli" or
+        isinstance(stream, (io.TextIOWrapper, io.StringIO))):
+        # Best to never encode before writing in IronPython, or if it is
+        # already a TextIO [which in the io library has no encoding
+        # attribute).
         return stream
     try:
         writer = codecs.getwriter(stream.encoding or "")
     except (AttributeError, LookupError):
-        # GZ 2010-06-16: Python 3 StringIO ends up here, but probably needs
-        #                different handling as it doesn't want bytestrings
         return codecs.getwriter("ascii")(stream, "replace")
     if writer.__module__.rsplit(".", 1)[1].startswith("utf"):
         # The current stream has a unicode encoding so no error handler is needed
@@ -324,31 +298,33 @@ def _exception_to_text(evalue):
     return None
 
 
-# GZ 2010-05-23: This function is huge and horrible and I welcome suggestions
-#                on the best way to break it up
-_TB_HEADER = _u('Traceback (most recent call last):\n')
-def _format_exc_info(eclass, evalue, tb, limit=None):
-    """Format a stack trace and the exception information as unicode
+def _format_stack_list(stack_lines):
+    """Format 'stack_lines' and return a list of unicode strings.
 
-    Compatibility function for Python 2 which ensures each component of a
-    traceback is correctly decoded according to its origins.
-
-    Based on traceback.format_exception and related functions.
+    :param stack_lines: A list of filename, lineno, name, and line variables,
+        probably obtained by calling traceback.extract_tb or
+        traceback.extract_stack.
     """
     fs_enc = sys.getfilesystemencoding()
-    if tb:
-        list = [_TB_HEADER]
-        extracted_list = []
-        for filename, lineno, name, line in traceback.extract_tb(tb, limit):
+    extracted_list = []
+    for filename, lineno, name, line in stack_lines:
             extracted_list.append((
                 filename.decode(fs_enc, "replace"),
                 lineno,
                 name.decode("ascii", "replace"),
                 line and line.decode(
                     _get_source_encoding(filename), "replace")))
-        list.extend(traceback.format_list(extracted_list))
-    else:
-        list = []
+    return traceback.format_list(extracted_list)
+
+
+def _format_exception_only(eclass, evalue):
+    """Format the excption part of a traceback.
+
+    :param eclass: The type of the exception being formatted.
+    :param evalue: The exception instance.
+    :returns: A list of unicode strings.
+    """
+    list = []
     if evalue is None:
         # Is a (deprecated) string exception
         list.append((eclass + "\n").decode("ascii", "replace"))
@@ -377,6 +353,7 @@ def _format_exc_info(eclass, evalue, tb, limit=None):
                 else:
                     line = line.decode("ascii", "replace")
             if filename:
+                fs_enc = sys.getfilesystemencoding()
                 filename = filename.decode(fs_enc, "replace")
             evalue = eclass(msg, (filename, lineno, offset, line))
             list.extend(traceback.format_exception_only(eclass, evalue))
@@ -387,7 +364,24 @@ def _format_exc_info(eclass, evalue, tb, limit=None):
         list.append("%s: %s\n" % (sclass, svalue))
     elif svalue is None:
         # GZ 2010-05-24: Not a great fallback message, but keep for the moment
-        list.append("%s: <unprintable %s object>\n" % (sclass, sclass))
+        list.append(_u("%s: <unprintable %s object>\n" % (sclass, sclass)))
     else:
-        list.append("%s\n" % sclass)
+        list.append(_u("%s\n" % sclass))
     return list
+
+
+_TB_HEADER = _u('Traceback (most recent call last):\n')
+
+
+def _format_exc_info(eclass, evalue, tb, limit=None):
+    """Format a stack trace and the exception information as unicode
+
+    Compatibility function for Python 2 which ensures each component of a
+    traceback is correctly decoded according to its origins.
+
+    Based on traceback.format_exception and related functions.
+    """
+    return [_TB_HEADER] \
+        + _format_stack_list(traceback.extract_tb(tb, limit)) \
+        + _format_exception_only(eclass, evalue)
+

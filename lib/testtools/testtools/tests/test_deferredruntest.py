@@ -5,6 +5,8 @@
 import os
 import signal
 
+from extras import try_import
+
 from testtools import (
     skipIf,
     TestCase,
@@ -13,7 +15,6 @@ from testtools import (
 from testtools.content import (
     text_content,
     )
-from testtools.helpers import try_import
 from testtools.matchers import (
     Equals,
     KeysEqual,
@@ -51,6 +52,12 @@ class X(object):
         def tearDown(self):
             self.calls.append('tearDown')
             super(X.Base, self).tearDown()
+
+    class BaseExceptionRaised(Base):
+        expected_calls = ['setUp', 'tearDown', 'clean-up']
+        expected_results = [('addError', SystemExit)]
+        def test_something(self):
+            raise SystemExit(0)
 
     class ErrorInSetup(Base):
         expected_calls = ['setUp', 'clean-up']
@@ -102,7 +109,10 @@ class X(object):
         def test_runner(self):
             result = ExtendedTestResult()
             test = self.test_factory('test_something', runTest=self.runner)
-            test.run(result)
+            if self.test_factory is X.BaseExceptionRaised:
+                self.assertRaises(SystemExit, test.run, result)
+            else:
+                test.run(result)
             self.assertEqual(test.calls, self.test_factory.expected_calls)
             self.assertResultsMatch(test, result)
 
@@ -117,6 +127,7 @@ def make_integration_tests():
         ]
 
     tests = [
+        X.BaseExceptionRaised,
         X.ErrorInSetup,
         X.ErrorInTest,
         X.ErrorInTearDown,
@@ -545,7 +556,7 @@ class TestAsynchronousDeferredRunTest(NeedsTwistedTestCase):
                 self.addCleanup(lambda: 3 / 0)
                 # Dirty the reactor.
                 from twisted.internet.protocol import ServerFactory
-                reactor.listenTCP(0, ServerFactory())
+                reactor.listenTCP(0, ServerFactory(), interface='127.0.0.1')
                 # Unhandled error.
                 defer.maybeDeferred(lambda: 2 / 0)
                 # Actual error.

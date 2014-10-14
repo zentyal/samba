@@ -11,7 +11,7 @@ automated testing already.
 If you are a test author of an unusually large or unusually unusual test
 suite, you might be interested in :doc:`for-framework-folk`.
 
-You might also be interested in the `testtools API docs`_.
+You might also be interested in the :doc:`testtools API docs </api>`.
 
 
 Introduction
@@ -163,7 +163,8 @@ The first argument to ``ExpectedException`` is the type of exception you
 expect to see raised.  The second argument is optional, and can be either a
 regular expression or a matcher. If it is a regular expression, the ``str()``
 of the raised exception must match the regular expression. If it is a matcher,
-then the raised exception object must match it.
+then the raised exception object must match it. The optional third argument
+``msg`` will cause the raised error to be annotated with that message.
 
 
 assertIn, assertNotIn
@@ -287,6 +288,60 @@ Which is roughly equivalent to::
       self.assertNotEqual(result, 50)
 
 
+``assert_that`` Function
+------------------------
+
+In addition to ``self.assertThat``, testtools also provides the ``assert_that``
+function in ``testtools.assertions`` This behaves like the method version does::
+
+    class TestSquare(TestCase):
+
+        def test_square():
+            result = square(7)
+            assert_that(result, Equals(49))
+
+        def test_square_silly():
+            result = square(7)
+            assert_that(result, Not(Equals(50)))
+
+
+Delayed Assertions
+~~~~~~~~~~~~~~~~~~
+
+A failure in the ``self.assertThat`` method will immediately fail the test: No
+more test code will be run after the assertion failure.
+
+The ``expectThat`` method behaves the same as ``assertThat`` with one
+exception: when failing the test it does so at the end of the test code rather
+than when the mismatch is detected. For example::
+
+  import subprocess
+
+  from testtools import TestCase
+  from testtools.matchers import Equals
+
+
+  class SomeProcessTests(TestCase):
+
+      def test_process_output(self):
+          process = subprocess.Popen(
+            ["my-app", "/some/path"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+          )
+
+          stdout, stderrr = process.communicate()
+
+          self.expectThat(process.returncode, Equals(0))
+          self.expectThat(stdout, Equals("Expected Output"))
+          self.expectThat(stderr, Equals(""))
+
+In this example, should the ``expectThat`` call fail, the failure will be
+recorded in the test result, but the test will continue as normal. If all
+three assertions fail, the test result will have three failures recorded, and
+the failure details for each failed assertion will be attached to the test
+result.
+
 Stock matchers
 --------------
 
@@ -407,7 +462,7 @@ example::
       except RuntimeError:
           exc_info = sys.exc_info()
       self.assertThat(exc_info, MatchesException(RuntimeError))
-      self.assertThat(exc_info, MatchesException(RuntimeError('bar'))
+      self.assertThat(exc_info, MatchesException(RuntimeError('bar')))
 
 Most of the time, you will want to uses `The raises helper`_ instead.
 
@@ -443,6 +498,18 @@ be able to do, if you think about it::
 
   def test_matches_regex_example(self):
       self.assertThat('foo', MatchesRegex('fo+'))
+
+
+HasLength
+~~~~~~~~~
+
+Check the length of a collection.  The following assertion will fail::
+
+  self.assertThat([1, 2, 3], HasLength(2))
+
+But this one won't::
+
+  self.assertThat([1, 2, 3], HasLength(3))
 
 
 File- and path-related matchers
@@ -585,7 +652,7 @@ Used to add custom notes to a matcher.  For example::
   def test_annotate_example(self):
       result = 43
       self.assertThat(
-          result, Annotate("Not the answer to the Question!", Equals(42))
+          result, Annotate("Not the answer to the Question!", Equals(42)))
 
 Since the annotation is only ever displayed when there is a mismatch
 (e.g. when ``result`` does not equal 42), it's a good idea to phrase the note
@@ -613,7 +680,7 @@ matching. This can be used to aid in creating trivial matchers as functions, for
 example::
 
   def test_after_preprocessing_example(self):
-      def HasFileContent(content):
+      def PathHasFileContent(content):
           def _read(path):
               return open(path).read()
           return AfterPreprocessing(_read, Equals(content))
@@ -780,6 +847,35 @@ Which will produce the error message::
   MismatchError: 42 is not prime.
 
 
+MatchesPredicateWithParams
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Sometimes you can't use a trivial predicate and instead need to pass in some
+parameters each time. In that case, MatchesPredicateWithParams is your go-to
+tool for creating ad hoc matchers. MatchesPredicateWithParams takes a predicate
+function and message and returns a factory to produce matchers from that. The
+predicate needs to return a boolean (or any truthy object), and accept the
+object to match + whatever was passed into the factory.
+
+For example, you might have an ``divisible`` function and want to make a
+matcher based on it::
+
+  def test_divisible_numbers(self):
+      IsDivisibleBy = MatchesPredicateWithParams(
+          divisible, '{0} is not divisible by {1}')
+      self.assertThat(7, IsDivisibleBy(1))
+      self.assertThat(7, IsDivisibleBy(7))
+      self.assertThat(7, IsDivisibleBy(2))
+      # This will fail.
+
+Which will produce the error message::
+
+  Traceback (most recent call last):
+    File "...", line ..., in test_divisible
+      self.assertThat(7, IsDivisibleBy(2))
+  MismatchError: 7 is not divisible by 2.
+
+
 Raises
 ~~~~~~
 
@@ -838,9 +934,9 @@ returns a non-None value.  For example::
 
   def test_is_divisible_by_example(self):
       # This succeeds, since IsDivisibleBy(5).match(10) returns None.
-      self.assertThat(10, IsDivisbleBy(5))
+      self.assertThat(10, IsDivisibleBy(5))
       # This fails, since IsDivisibleBy(7).match(10) returns a mismatch.
-      self.assertThat(10, IsDivisbleBy(7))
+      self.assertThat(10, IsDivisibleBy(7))
 
 The mismatch is responsible for what sort of error message the failing test
 generates.  Here's an example mismatch::
@@ -1201,6 +1297,13 @@ Here are some tips for converting your Trial tests into testtools tests.
   ``AsynchronousDeferredRunTest`` does not.  If you rely on this behavior, use
   ``AsynchronousDeferredRunTestForBrokenTwisted``.
 
+force_failure
+-------------
+
+Setting the ``testtools.TestCase.force_failure`` instance variable to ``True``
+will cause the test to be marked as a failure, but won't stop the test code
+from running (see :ref:`force_failure`).
+
 
 Test helpers
 ============
@@ -1280,6 +1383,29 @@ details of certain variables don't actually matter.
 See pages 419-423 of `xUnit Test Patterns`_ by Gerard Meszaros for a detailed
 discussion of creation methods.
 
+Test attributes
+---------------
+
+Inspired by the ``nosetests`` ``attr`` plugin, testtools provides support for
+marking up test methods with attributes, which are then exposed in the test
+id and can be used when filtering tests by id. (e.g. via ``--load-list``)::
+
+  from testtools.testcase import attr, WithAttributes
+
+  class AnnotatedTests(WithAttributes, TestCase):
+
+      @attr('simple')
+      def test_one(self):
+          pass
+
+      @attr('more', 'than', 'one')
+      def test_two(self):
+          pass
+
+      @attr('or')
+      @attr('stacked')
+      def test_three(self):
+          pass
 
 General helpers
 ===============
@@ -1288,7 +1414,7 @@ Conditional imports
 -------------------
 
 Lots of the time we would like to conditionally import modules.  testtools
-needs to do this itself, and graciously extends the ability to its users.
+uses the small library extras to do this. This used to be part of testtools.
 
 Instead of::
 
@@ -1317,9 +1443,9 @@ You can do::
 Safe attribute testing
 ----------------------
 
-``hasattr`` is broken_ on many versions of Python.  testtools provides
-``safe_hasattr``, which can be used to safely test whether an object has a
-particular attribute.
+``hasattr`` is broken_ on many versions of Python. The helper ``safe_hasattr``
+can be used to safely test whether an object has a particular attribute. Like
+``try_import`` this used to be in testtools but is now in extras.
 
 
 Nullary callables
@@ -1354,7 +1480,6 @@ Here, ``repr(nullary)`` will be the same as ``repr(f)``.
 .. _doctest: http://docs.python.org/library/doctest.html
 .. _Deferred: http://twistedmatrix.com/documents/current/core/howto/defer.html
 .. _discover: http://pypi.python.org/pypi/discover
-.. _`testtools API docs`: http://mumak.net/testtools/apidocs/
 .. _Distutils: http://docs.python.org/library/distutils.html
 .. _`setup configuration`: http://docs.python.org/distutils/configfile.html
 .. _broken: http://chipaca.com/post/3210673069/hasattr-17-less-harmful

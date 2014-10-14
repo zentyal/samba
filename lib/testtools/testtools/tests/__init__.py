@@ -1,6 +1,7 @@
+# Copyright (c) 2008-2013 testtools developers. See LICENSE for details.
+
 """Tests for testtools itself."""
 
-# See README for copyright and licensing details.
 
 from unittest import TestSuite
 
@@ -8,6 +9,7 @@ from unittest import TestSuite
 def test_suite():
     from testtools.tests import (
         matchers,
+        test_assert_that,
         test_compat,
         test_content,
         test_content_type,
@@ -26,6 +28,7 @@ def test_suite():
         )
     modules = [
         matchers,
+        test_assert_that,
         test_compat,
         test_content,
         test_content_type,

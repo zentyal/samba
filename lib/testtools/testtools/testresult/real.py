@@ -5,24 +5,43 @@
 __metaclass__ = type
 __all__ = [
     'ExtendedToOriginalDecorator',
+    'ExtendedToStreamDecorator',
     'MultiTestResult',
+    'StreamFailFast',
+    'StreamResult',
+    'StreamSummary',
+    'StreamTagger',
+    'StreamToDict',
+    'StreamToExtendedDecorator',
+    'StreamToQueue',
     'Tagger',
+    'TestControl',
     'TestResult',
     'TestResultDecorator',
     'ThreadsafeForwardingResult',
+    'TimestampingStreamResult',
     ]
 
 import datetime
+from operator import methodcaller
 import sys
 import unittest
 
-from testtools.compat import all, str_is_unicode, _u
+from extras import safe_hasattr, try_import, try_imports
+parse_mime_type = try_import('mimeparse.parse_mime_type')
+Queue = try_imports(['Queue.Queue', 'queue.Queue'])
+
+from testtools.compat import str_is_unicode, _u, _b
 from testtools.content import (
+    Content,
     text_content,
     TracebackContent,
     )
-from testtools.helpers import safe_hasattr
+from testtools.content_type import ContentType
 from testtools.tags import TagContext
+# circular import
+# from testtools.testcase import PlaceHolder
+PlaceHolder = None
 
 # From http://docs.python.org/library/datetime.html
 _ZERO = datetime.timedelta(0)
@@ -241,6 +260,531 @@ class TestResult(unittest.TestResult):
 
         deprecated in favour of stopTestRun.
         """
+
+
+class StreamResult(object):
+    """A test result for reporting the activity of a test run.
+
+    Typical use
+
+      >>> result = StreamResult()
+      >>> result.startTestRun()
+      >>> try:
+      ...     case.run(result)
+      ... finally:
+      ...     result.stopTestRun()
+
+    The case object will be either a TestCase or a TestSuite, and
+    generally make a sequence of calls like::
+
+      >>> result.status(self.id(), 'inprogress')
+      >>> result.status(self.id(), 'success')
+
+    General concepts
+
+    StreamResult is built to process events that are emitted by tests during a
+    test run or test enumeration. The test run may be running concurrently, and
+    even be spread out across multiple machines.
+
+    All events are timestamped to prevent network buffering or scheduling
+    latency causing false timing reports. Timestamps are datetime objects in
+    the UTC timezone.
+
+    A route_code is a unicode string that identifies where a particular test
+    run. This is optional in the API but very useful when multiplexing multiple
+    streams together as it allows identification of interactions between tests
+    that were run on the same hardware or in the same test process. Generally
+    actual tests never need to bother with this - it is added and processed
+    by StreamResult's that do multiplexing / run analysis. route_codes are
+    also used to route stdin back to pdb instances.
+
+    The StreamResult base class does no accounting or processing, rather it
+    just provides an empty implementation of every method, suitable for use
+    as a base class regardless of intent.
+    """
+
+    def startTestRun(self):
+        """Start a test run.
+
+        This will prepare the test result to process results (which might imply
+        connecting to a database or remote machine).
+        """
+
+    def stopTestRun(self):
+        """Stop a test run.
+
+        This informs the result that no more test updates will be received. At
+        this point any test ids that have started and not completed can be
+        considered failed-or-hung.
+        """
+
+    def status(self, test_id=None, test_status=None, test_tags=None,
+        runnable=True, file_name=None, file_bytes=None, eof=False,
+        mime_type=None, route_code=None, timestamp=None):
+        """Inform the result about a test status.
+
+        :param test_id: The test whose status is being reported. None to
+            report status about the test run as a whole.
+        :param test_status: The status for the test. There are two sorts of
+            status - interim and final status events. As many interim events
+            can be generated as desired, but only one final event. After a
+            final status event any further file or status events from the
+            same test_id+route_code may be discarded or associated with a new
+            test by the StreamResult. (But no exception will be thrown).
+
+            Interim states:
+              * None - no particular status is being reported, or status being
+                reported is not associated with a test (e.g. when reporting on
+                stdout / stderr chatter).
+              * inprogress - the test is currently running. Emitted by tests when
+                they start running and at any intermediary point they might
+                choose to indicate their continual operation.
+
+            Final states:
+              * exists - the test exists. This is used when a test is not being
+                executed. Typically this is when querying what tests could be run
+                in a test run (which is useful for selecting tests to run).
+              * xfail - the test failed but that was expected. This is purely
+                informative - the test is not considered to be a failure.
+              * uxsuccess - the test passed but was expected to fail. The test
+                will be considered a failure.
+              * success - the test has finished without error.
+              * fail - the test failed (or errored). The test will be considered
+                a failure.
+              * skip - the test was selected to run but chose to be skipped. E.g.
+                a test dependency was missing. This is purely informative - the
+                test is not considered to be a failure.
+
+        :param test_tags: Optional set of tags to apply to the test. Tags
+            have no intrinsic meaning - that is up to the test author.
+        :param runnable: Allows status reports to mark that they are for
+            tests which are not able to be explicitly run. For instance,
+            subtests will report themselves as non-runnable.
+        :param file_name: The name for the file_bytes. Any unicode string may
+            be used. While there is no semantic value attached to the name
+            of any attachment, the names 'stdout' and 'stderr' and 'traceback'
+            are recommended for use only for output sent to stdout, stderr and
+            tracebacks of exceptions. When file_name is supplied, file_bytes
+            must be a bytes instance.
+        :param file_bytes: A bytes object containing content for the named
+            file. This can just be a single chunk of the file - emitting
+            another file event with more later. Must be None unleses a
+            file_name is supplied.
+        :param eof: True if this chunk is the last chunk of the file, any
+            additional chunks with the same name should be treated as an error
+            and discarded. Ignored unless file_name has been supplied.
+        :param mime_type: An optional MIME type for the file. stdout and
+            stderr will generally be "text/plain; charset=utf8". If None,
+            defaults to application/octet-stream. Ignored unless file_name
+            has been supplied.
+        """
+
+
+def domap(*args, **kwargs):
+    return list(map(*args, **kwargs))
+
+
+class CopyStreamResult(StreamResult):
+    """Copies all event it receives to multiple results.
+
+    This provides an easy facility for combining multiple StreamResults.
+
+    For TestResult the equivalent class was ``MultiTestResult``.
+    """
+
+    def __init__(self, targets):
+        super(CopyStreamResult, self).__init__()
+        self.targets = targets
+
+    def startTestRun(self):
+        super(CopyStreamResult, self).startTestRun()
+        domap(methodcaller('startTestRun'), self.targets)
+
+    def stopTestRun(self):
+        super(CopyStreamResult, self).stopTestRun()
+        domap(methodcaller('stopTestRun'), self.targets)
+
+    def status(self, *args, **kwargs):
+        super(CopyStreamResult, self).status(*args, **kwargs)
+        domap(methodcaller('status', *args, **kwargs), self.targets)
+
+
+class StreamFailFast(StreamResult):
+    """Call the supplied callback if an error is seen in a stream.
+
+    An example callback::
+
+       def do_something():
+           pass
+    """
+
+    def __init__(self, on_error):
+        self.on_error = on_error
+
+    def status(self, test_id=None, test_status=None, test_tags=None,
+        runnable=True, file_name=None, file_bytes=None, eof=False,
+        mime_type=None, route_code=None, timestamp=None):
+        if test_status in ('uxsuccess', 'fail'):
+            self.on_error()
+
+
+class StreamResultRouter(StreamResult):
+    """A StreamResult that routes events.
+
+    StreamResultRouter forwards received events to another StreamResult object,
+    selected by a dynamic forwarding policy. Events where no destination is
+    found are forwarded to the fallback StreamResult, or an error is raised.
+
+    Typical use is to construct a router with a fallback and then either
+    create up front mapping rules, or create them as-needed from the fallback
+    handler::
+
+      >>> router = StreamResultRouter()
+      >>> sink = doubles.StreamResult()
+      >>> router.add_rule(sink, 'route_code_prefix', route_prefix='0',
+      ...     consume_route=True)
+      >>> router.status(test_id='foo', route_code='0/1', test_status='uxsuccess')
+
+    StreamResultRouter has no buffering.
+
+    When adding routes (and for the fallback) whether to call startTestRun and
+    stopTestRun or to not call them is controllable by passing
+    'do_start_stop_run'. The default is to call them for the fallback only.
+    If a route is added after startTestRun has been called, and
+    do_start_stop_run is True then startTestRun is called immediately on the
+    new route sink.
+
+    There is no a-priori defined lookup order for routes: if they are ambiguous
+    the behaviour is undefined. Only a single route is chosen for any event.
+    """
+
+    _policies = {}
+
+    def __init__(self, fallback=None, do_start_stop_run=True):
+        """Construct a StreamResultRouter with optional fallback.
+
+        :param fallback: A StreamResult to forward events to when no route
+            exists for them.
+        :param do_start_stop_run: If False do not pass startTestRun and
+            stopTestRun onto the fallback.
+        """
+        self.fallback = fallback
+        self._route_code_prefixes = {}
+        self._test_ids = {}
+        # Records sinks that should have do_start_stop_run called on them.
+        self._sinks = []
+        if do_start_stop_run and fallback:
+            self._sinks.append(fallback)
+        self._in_run = False
+
+    def startTestRun(self):
+        super(StreamResultRouter, self).startTestRun()
+        for sink in self._sinks:
+            sink.startTestRun()
+        self._in_run = True
+
+    def stopTestRun(self):
+        super(StreamResultRouter, self).stopTestRun()
+        for sink in self._sinks:
+            sink.stopTestRun()
+        self._in_run = False
+
+    def status(self, **kwargs):
+        route_code = kwargs.get('route_code', None)
+        test_id = kwargs.get('test_id', None)
+        if route_code is not None:
+            prefix = route_code.split('/')[0]
+        else:
+            prefix = route_code
+        if prefix in self._route_code_prefixes:
+            target, consume_route = self._route_code_prefixes[prefix]
+            if route_code is not None and consume_route:
+                route_code = route_code[len(prefix) + 1:]
+                if not route_code:
+                    route_code = None
+                kwargs['route_code'] = route_code
+        elif test_id in self._test_ids:
+            target = self._test_ids[test_id]
+        else:
+            target = self.fallback
+        target.status(**kwargs)
+
+    def add_rule(self, sink, policy, do_start_stop_run=False, **policy_args):
+        """Add a rule to route events to sink when they match a given policy.
+
+        :param sink: A StreamResult to receive events.
+        :param policy: A routing policy. Valid policies are
+            'route_code_prefix' and 'test_id'.
+        :param do_start_stop_run: If True then startTestRun and stopTestRun
+            events will be passed onto this sink.
+
+        :raises: ValueError if the policy is unknown
+        :raises: TypeError if the policy is given arguments it cannot handle.
+
+        ``route_code_prefix`` routes events based on a prefix of the route
+        code in the event. It takes a ``route_prefix`` argument to match on
+        (e.g. '0') and a ``consume_route`` argument, which, if True, removes
+        the prefix from the ``route_code`` when forwarding events.
+
+        ``test_id`` routes events based on the test id.  It takes a single
+        argument, ``test_id``.  Use ``None`` to select non-test events.
+        """
+        policy_method = StreamResultRouter._policies.get(policy, None)
+        if not policy_method:
+            raise ValueError("bad policy %r" % (policy,))
+        policy_method(self, sink, **policy_args)
+        if do_start_stop_run:
+            self._sinks.append(sink)
+        if self._in_run:
+            sink.startTestRun()
+
+    def _map_route_code_prefix(self, sink, route_prefix, consume_route=False):
+        if '/' in route_prefix:
+            raise TypeError(
+                "%r is more than one route step long" % (route_prefix,))
+        self._route_code_prefixes[route_prefix] = (sink, consume_route)
+    _policies['route_code_prefix'] = _map_route_code_prefix
+
+    def _map_test_id(self, sink, test_id):
+        self._test_ids[test_id] = sink
+    _policies['test_id'] = _map_test_id
+
+
+class StreamTagger(CopyStreamResult):
+    """Adds or discards tags from StreamResult events."""
+
+    def __init__(self, targets, add=None, discard=None):
+        """Create a StreamTagger.
+
+        :param targets: A list of targets to forward events onto.
+        :param add: Either None or an iterable of tags to add to each event.
+        :param discard: Either None or an iterable of tags to discard from each
+            event.
+        """
+        super(StreamTagger, self).__init__(targets)
+        self.add = frozenset(add or ())
+        self.discard = frozenset(discard or ())
+
+    def status(self, *args, **kwargs):
+        test_tags = kwargs.get('test_tags') or set()
+        test_tags.update(self.add)
+        test_tags.difference_update(self.discard)
+        kwargs['test_tags'] = test_tags or None
+        super(StreamTagger, self).status(*args, **kwargs)
+
+
+class StreamToDict(StreamResult):
+    """A specialised StreamResult that emits a callback as tests complete.
+
+    Top level file attachments are simply discarded. Hung tests are detected
+    by stopTestRun and notified there and then.
+
+    The callback is passed a dict with the following keys:
+
+      * id: the test id.
+      * tags: The tags for the test. A set of unicode strings.
+      * details: A dict of file attachments - ``testtools.content.Content``
+        objects.
+      * status: One of the StreamResult status codes (including inprogress) or
+        'unknown' (used if only file events for a test were received...)
+      * timestamps: A pair of timestamps - the first one received with this
+        test id, and the one in the event that triggered the notification.
+        Hung tests have a None for the second end event. Timestamps are not
+        compared - their ordering is purely order received in the stream.
+
+    Only the most recent tags observed in the stream are reported.
+    """
+
+    def __init__(self, on_test):
+        """Create a StreamToDict calling on_test on test completions.
+
+        :param on_test: A callback that accepts one parameter - a dict
+            describing a test.
+        """
+        super(StreamToDict, self).__init__()
+        self.on_test = on_test
+        if parse_mime_type is None:
+            raise ImportError("mimeparse module missing.")
+
+    def startTestRun(self):
+        super(StreamToDict, self).startTestRun()
+        self._inprogress = {}
+
+    def status(self, test_id=None, test_status=None, test_tags=None,
+        runnable=True, file_name=None, file_bytes=None, eof=False,
+        mime_type=None, route_code=None, timestamp=None):
+        super(StreamToDict, self).status(test_id, test_status,
+            test_tags=test_tags, runnable=runnable, file_name=file_name,
+            file_bytes=file_bytes, eof=eof, mime_type=mime_type,
+            route_code=route_code, timestamp=timestamp)
+        key = self._ensure_key(test_id, route_code, timestamp)
+        # update fields
+        if not key:
+            return
+        if test_status is not None:
+            self._inprogress[key]['status'] = test_status
+        self._inprogress[key]['timestamps'][1] = timestamp
+        case = self._inprogress[key]
+        if file_name is not None:
+            if file_name not in case['details']:
+                if mime_type is None:
+                    mime_type = 'application/octet-stream'
+                primary, sub, parameters = parse_mime_type(mime_type)
+                if 'charset' in parameters:
+                    if ',' in parameters['charset']:
+                        # testtools was emitting a bad encoding, workaround it,
+                        # Though this does lose data - probably want to drop
+                        # this in a few releases.
+                        parameters['charset'] = parameters['charset'][
+                            :parameters['charset'].find(',')]
+                content_type = ContentType(primary, sub, parameters)
+                content_bytes = []
+                case['details'][file_name] = Content(
+                    content_type, lambda:content_bytes)
+            case['details'][file_name].iter_bytes().append(file_bytes)
+        if test_tags is not None:
+            self._inprogress[key]['tags'] = test_tags
+        # notify completed tests.
+        if test_status not in (None, 'inprogress'):
+            self.on_test(self._inprogress.pop(key))
+
+    def stopTestRun(self):
+        super(StreamToDict, self).stopTestRun()
+        while self._inprogress:
+            case = self._inprogress.popitem()[1]
+            case['timestamps'][1] = None
+            self.on_test(case)
+
+    def _ensure_key(self, test_id, route_code, timestamp):
+        if test_id is None:
+            return
+        key = (test_id, route_code)
+        if key not in self._inprogress:
+            self._inprogress[key] = {
+                'id': test_id,
+                'tags': set(),
+                'details': {},
+                'status': 'unknown',
+                'timestamps': [timestamp, None]}
+        return key
+
+
+_status_map = {
+    'inprogress': 'addFailure',
+    'unknown': 'addFailure',
+    'success': 'addSuccess',
+    'skip': 'addSkip',
+    'fail': 'addFailure',
+    'xfail': 'addExpectedFailure',
+    'uxsuccess': 'addUnexpectedSuccess',
+    }
+
+
+def test_dict_to_case(test_dict):
+    """Convert a test dict into a TestCase object.
+
+    :param test_dict: A test dict as generated by StreamToDict.
+    :return: A PlaceHolder test object.
+    """
+    # Circular import.
+    global PlaceHolder
+    if PlaceHolder is None:
+        from testtools.testcase import PlaceHolder
+    outcome = _status_map[test_dict['status']]
+    return PlaceHolder(test_dict['id'], outcome=outcome,
+        details=test_dict['details'], tags=test_dict['tags'],
+        timestamps=test_dict['timestamps'])
+
+
+class StreamSummary(StreamToDict):
+    """A specialised StreamResult that summarises a stream.
+
+    The summary uses the same representation as the original
+    unittest.TestResult contract, allowing it to be consumed by any test
+    runner.
+    """
+
+    def __init__(self):
+        super(StreamSummary, self).__init__(self._gather_test)
+        self._handle_status = {
+            'success': self._success,
+            'skip': self._skip,
+            'exists': self._exists,
+            'fail': self._fail,
+            'xfail': self._xfail,
+            'uxsuccess': self._uxsuccess,
+            'unknown': self._incomplete,
+            'inprogress': self._incomplete,
+            }
+
+    def startTestRun(self):
+        super(StreamSummary, self).startTestRun()
+        self.failures = []
+        self.errors = []
+        self.testsRun = 0
+        self.skipped = []
+        self.expectedFailures = []
+        self.unexpectedSuccesses = []
+
+    def wasSuccessful(self):
+        """Return False if any failure has occured.
+
+        Note that incomplete tests can only be detected when stopTestRun is
+        called, so that should be called before checking wasSuccessful.
+        """
+        return (not self.failures and not self.errors)
+
+    def _gather_test(self, test_dict):
+        if test_dict['status'] == 'exists':
+            return
+        self.testsRun += 1
+        case = test_dict_to_case(test_dict)
+        self._handle_status[test_dict['status']](case)
+
+    def _incomplete(self, case):
+        self.errors.append((case, "Test did not complete"))
+
+    def _success(self, case):
+        pass
+
+    def _skip(self, case):
+        if 'reason' not in case._details:
+            reason = "Unknown"
+        else:
+            reason = case._details['reason'].as_text()
+        self.skipped.append((case, reason))
+
+    def _exists(self, case):
+        pass
+
+    def _fail(self, case):
+        message = _details_to_str(case._details, special="traceback")
+        self.errors.append((case, message))
+
+    def _xfail(self, case):
+        message = _details_to_str(case._details, special="traceback")
+        self.expectedFailures.append((case, message))
+
+    def _uxsuccess(self, case):
+        case._outcome = 'addUnexpectedSuccess'
+        self.unexpectedSuccesses.append(case)
+
+
+class TestControl(object):
+    """Controls a running test run, allowing it to be interrupted.
+
+    :ivar shouldStop: If True, tests should not run and should instead
+        return immediately. Similarly a TestSuite should check this between
+        each test and if set stop dispatching any new tests and return.
+    """
+
+    def __init__(self):
+        super(TestControl, self).__init__()
+        self.shouldStop = False
+
+    def stop(self):
+        """Indicate that tests should stop running."""
+        self.shouldStop = True
 
 
 class MultiTestResult(TestResult):
@@ -737,6 +1281,241 @@ class ExtendedToOriginalDecorator(object):
         return self.decorated.wasSuccessful()
 
 
+class ExtendedToStreamDecorator(CopyStreamResult, StreamSummary, TestControl):
+    """Permit using old TestResult API code with new StreamResult objects.
+
+    This decorates a StreamResult and converts old (Python 2.6 / 2.7 /
+    Extended) TestResult API calls into StreamResult calls.
+
+    It also supports regular StreamResult calls, making it safe to wrap around
+    any StreamResult.
+    """
+
+    def __init__(self, decorated):
+        super(ExtendedToStreamDecorator, self).__init__([decorated])
+        # Deal with mismatched base class constructors.
+        TestControl.__init__(self)
+        self._started = False
+
+    def _get_failfast(self):
+        return len(self.targets) == 2
+    def _set_failfast(self, value):
+        if value:
+            if len(self.targets) == 2:
+                return
+            self.targets.append(StreamFailFast(self.stop))
+        else:
+            del self.targets[1:]
+    failfast = property(_get_failfast, _set_failfast)
+
+    def startTest(self, test):
+        if not self._started:
+            self.startTestRun()
+        self.status(test_id=test.id(), test_status='inprogress', timestamp=self._now())
+        self._tags = TagContext(self._tags)
+
+    def stopTest(self, test):
+        self._tags = self._tags.parent
+
+    def addError(self, test, err=None, details=None):
+        self._check_args(err, details)
+        self._convert(test, err, details, 'fail')
+    addFailure = addError
+
+    def _convert(self, test, err, details, status, reason=None):
+        if not self._started:
+            self.startTestRun()
+        test_id = test.id()
+        now = self._now()
+        if err is not None:
+            if details is None:
+                details = {}
+            details['traceback'] = TracebackContent(err, test)
+        if details is not None:
+            for name, content in details.items():
+                mime_type = repr(content.content_type)
+                file_bytes = None
+                for next_bytes in content.iter_bytes():
+                    if file_bytes is not None:
+                        self.status(file_name=name, file_bytes=file_bytes,
+                            mime_type=mime_type, test_id=test_id, timestamp=now)
+                    file_bytes = next_bytes
+                self.status(file_name=name, file_bytes=file_bytes, eof=True,
+                    mime_type=mime_type, test_id=test_id, timestamp=now)
+        if reason is not None:
+            self.status(file_name='reason', file_bytes=reason.encode('utf8'),
+                eof=True, mime_type="text/plain; charset=utf8",
+                test_id=test_id, timestamp=now)
+        self.status(test_id=test_id, test_status=status,
+            test_tags=self.current_tags, timestamp=now)
+
+    def addExpectedFailure(self, test, err=None, details=None):
+        self._check_args(err, details)
+        self._convert(test, err, details, 'xfail')
+
+    def addSkip(self, test, reason=None, details=None):
+        self._convert(test, None, details, 'skip', reason)
+
+    def addUnexpectedSuccess(self, test, details=None):
+        self._convert(test, None, details, 'uxsuccess')
+
+    def addSuccess(self, test, details=None):
+        self._convert(test, None, details, 'success')
+
+    def _check_args(self, err, details):
+        param_count = 0
+        if err is not None:
+            param_count += 1
+        if details is not None:
+            param_count += 1
+        if param_count != 1:
+            raise ValueError("Must pass only one of err '%s' and details '%s"
+                % (err, details))
+
+    def startTestRun(self):
+        super(ExtendedToStreamDecorator, self).startTestRun()
+        self._tags = TagContext()
+        self.shouldStop = False
+        self.__now = None
+        self._started = True
+
+    def stopTest(self, test):
+        self._tags = self._tags.parent
+
+    @property
+    def current_tags(self):
+        """The currently set tags."""
+        return self._tags.get_current_tags()
+
+    def tags(self, new_tags, gone_tags):
+        """Add and remove tags from the test.
+
+        :param new_tags: A set of tags to be added to the stream.
+        :param gone_tags: A set of tags to be removed from the stream.
+        """
+        self._tags.change_tags(new_tags, gone_tags)
+
+    def _now(self):
+        """Return the current 'test time'.
+
+        If the time() method has not been called, this is equivalent to
+        datetime.now(), otherwise its the last supplied datestamp given to the
+        time() method.
+        """
+        if self.__now is None:
+            return datetime.datetime.now(utc)
+        else:
+            return self.__now
+
+    def time(self, a_datetime):
+        self.__now = a_datetime
+
+    def wasSuccessful(self):
+        if not self._started:
+            self.startTestRun()
+        return super(ExtendedToStreamDecorator, self).wasSuccessful()
+
+
+class StreamToExtendedDecorator(StreamResult):
+    """Convert StreamResult API calls into ExtendedTestResult calls.
+
+    This will buffer all calls for all concurrently active tests, and
+    then flush each test as they complete.
+
+    Incomplete tests will be flushed as errors when the test run stops.
+
+    Non test file attachments are accumulated into a test called
+    'testtools.extradata' flushed at the end of the run.
+    """
+
+    def __init__(self, decorated):
+        # ExtendedToOriginalDecorator takes care of thunking details back to
+        # exceptions/reasons etc.
+        self.decorated = ExtendedToOriginalDecorator(decorated)
+        # StreamToDict buffers and gives us individual tests.
+        self.hook = StreamToDict(self._handle_tests)
+
+    def status(self, test_id=None, test_status=None, *args, **kwargs):
+        if test_status == 'exists':
+            return
+        self.hook.status(
+            test_id=test_id, test_status=test_status, *args, **kwargs)
+
+    def startTestRun(self):
+        self.decorated.startTestRun()
+        self.hook.startTestRun()
+
+    def stopTestRun(self):
+        self.hook.stopTestRun()
+        self.decorated.stopTestRun()
+
+    def _handle_tests(self, test_dict):
+        case = test_dict_to_case(test_dict)
+        case.run(self.decorated)
+
+
+class StreamToQueue(StreamResult):
+    """A StreamResult which enqueues events as a dict to a queue.Queue.
+
+    Events have their route code updated to include the route code
+    StreamToQueue was constructed with before they are submitted. If the event
+    route code is None, it is replaced with the StreamToQueue route code,
+    otherwise it is prefixed with the supplied code + a hyphen.
+
+    startTestRun and stopTestRun are forwarded to the queue. Implementors that
+    dequeue events back into StreamResult calls should take care not to call
+    startTestRun / stopTestRun on other StreamResult objects multiple times
+    (e.g. by filtering startTestRun and stopTestRun).
+
+    ``StreamToQueue`` is typically used by
+    ``ConcurrentStreamTestSuite``, which creates one ``StreamToQueue``
+    per thread, forwards status events to the the StreamResult that
+    ``ConcurrentStreamTestSuite.run()`` was called with, and uses the
+    stopTestRun event to trigger calling join() on the each thread.
+
+    Unlike ThreadsafeForwardingResult which this supercedes, no buffering takes
+    place - any event supplied to a StreamToQueue will be inserted into the
+    queue immediately.
+
+    Events are forwarded as a dict with a key ``event`` which is one of
+    ``startTestRun``, ``stopTestRun`` or ``status``. When ``event`` is
+    ``status`` the dict also has keys matching the keyword arguments
+    of ``StreamResult.status``, otherwise it has one other key ``result`` which
+    is the result that invoked ``startTestRun``.
+    """
+
+    def __init__(self, queue, routing_code):
+        """Create a StreamToQueue forwarding to target.
+
+        :param queue: A ``queue.Queue`` to receive events.
+        :param routing_code: The routing code to apply to messages.
+        """
+        super(StreamToQueue, self).__init__()
+        self.queue = queue
+        self.routing_code = routing_code
+
+    def startTestRun(self):
+        self.queue.put(dict(event='startTestRun', result=self))
+
+    def status(self, test_id=None, test_status=None, test_tags=None,
+        runnable=True, file_name=None, file_bytes=None, eof=False,
+        mime_type=None, route_code=None, timestamp=None):
+        self.queue.put(dict(event='status', test_id=test_id,
+            test_status=test_status, test_tags=test_tags, runnable=runnable,
+            file_name=file_name, file_bytes=file_bytes, eof=eof,
+            mime_type=mime_type, route_code=self.route_code(route_code),
+            timestamp=timestamp))
+
+    def stopTestRun(self):
+        self.queue.put(dict(event='stopTestRun', result=self))
+
+    def route_code(self, route_code):
+        """Adjust route_code on the way through."""
+        if route_code is None:
+            return self.routing_code
+        return self.routing_code + _u("/") + route_code
+
+
 class TestResultDecorator(object):
     """General pass-through decorator.
 
@@ -899,6 +1678,23 @@ class TestByTestResult(TestResult):
         super(TestByTestResult, self).addUnexpectedSuccess(test, details)
         self._status = 'success'
         self._details = details
+
+
+class TimestampingStreamResult(CopyStreamResult):
+    """A StreamResult decorator that assigns a timestamp when none is present.
+
+    This is convenient for ensuring events are timestamped.
+    """
+
+    def __init__(self, target):
+        super(TimestampingStreamResult, self).__init__([target])
+
+    def status(self, *args, **kwargs):
+        timestamp = kwargs.pop('timestamp', None)
+        if timestamp is None:
+            timestamp = datetime.datetime.now(utc)
+        super(TimestampingStreamResult, self).status(
+            *args, timestamp=timestamp, **kwargs)
 
 
 class _StringException(Exception):

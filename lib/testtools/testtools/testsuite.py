@@ -5,16 +5,19 @@
 __metaclass__ = type
 __all__ = [
   'ConcurrentTestSuite',
+  'ConcurrentStreamTestSuite',
+  'filter_by_ids',
   'iterate_tests',
   'sorted_tests',
   ]
 
-from testtools.helpers import safe_hasattr, try_imports
-
-Queue = try_imports(['Queue.Queue', 'queue.Queue'])
-
+import sys
 import threading
 import unittest
+
+from extras import safe_hasattr, try_imports
+
+Queue = try_imports(['Queue.Queue', 'queue.Queue'])
 
 import testtools
 
@@ -98,9 +101,100 @@ class ConcurrentTestSuite(unittest.TestSuite):
 
     def _run_test(self, test, process_result, queue):
         try:
-            test.run(process_result)
+            try:
+                test.run(process_result)
+            except Exception as e:
+                # The run logic itself failed.
+                case = testtools.ErrorHolder(
+                    "broken-runner",
+                    error=sys.exc_info())
+                case.run(process_result)
         finally:
             queue.put(test)
+
+
+class ConcurrentStreamTestSuite(object):
+    """A TestSuite whose run() parallelises."""
+
+    def __init__(self, make_tests):
+        """Create a ConcurrentTestSuite to execute tests returned by make_tests.
+
+        :param make_tests: A helper function that should return some number
+            of concurrently executable test suite / test case objects.
+            make_tests must take no parameters and return an iterable of
+            tuples. Each tuple must be of the form (case, route_code), where
+            case is a TestCase-like object with a run(result) method, and
+            route_code is either None or a unicode string.
+        """
+        super(ConcurrentStreamTestSuite, self).__init__()
+        self.make_tests = make_tests
+
+    def run(self, result):
+        """Run the tests concurrently.
+
+        This calls out to the provided make_tests helper to determine the
+        concurrency to use and to assign routing codes to each worker.
+
+        ConcurrentTestSuite provides no special mechanism to stop the tests
+        returned by make_tests, it is up to the made tests to honour the
+        shouldStop attribute on the result object they are run with, which will
+        be set if the test run is to be aborted.
+
+        The tests are run with an ExtendedToStreamDecorator wrapped around a
+        StreamToQueue instance. ConcurrentStreamTestSuite dequeues events from
+        the queue and forwards them to result. Tests can therefore be either
+        original unittest tests (or compatible tests), or new tests that emit
+        StreamResult events directly.
+
+        :param result: A StreamResult instance. The caller is responsible for
+            calling startTestRun on this instance prior to invoking suite.run,
+            and stopTestRun subsequent to the run method returning.
+        """
+        tests = self.make_tests()
+        try:
+            threads = {}
+            queue = Queue()
+            for test, route_code in tests:
+                to_queue = testtools.StreamToQueue(queue, route_code)
+                process_result = testtools.ExtendedToStreamDecorator(
+                    testtools.TimestampingStreamResult(to_queue))
+                runner_thread = threading.Thread(
+                    target=self._run_test,
+                    args=(test, process_result, route_code))
+                threads[to_queue] = runner_thread, process_result
+                runner_thread.start()
+            while threads:
+                event_dict = queue.get()
+                event = event_dict.pop('event')
+                if event == 'status':
+                    result.status(**event_dict)
+                elif event == 'stopTestRun':
+                    thread = threads.pop(event_dict['result'])[0]
+                    thread.join()
+                elif event == 'startTestRun':
+                    pass
+                else:
+                    raise ValueError('unknown event type %r' % (event,))
+        except:
+            for thread, process_result in threads.values():
+                # Signal to each TestControl in the ExtendedToStreamDecorator
+                # that the thread should stop running tests and cleanup
+                process_result.stop()
+            raise
+
+    def _run_test(self, test, process_result, route_code):
+        process_result.startTestRun()
+        try:
+            try:
+                test.run(process_result)
+            except Exception as e:
+                # The run logic itself failed.
+                case = testtools.ErrorHolder(
+                    "broken-runner-'%s'" % (route_code,),
+                    error=sys.exc_info())
+                case.run(process_result)
+        finally:
+            process_result.stopTestRun()
 
 
 class FixtureSuite(unittest.TestSuite):
@@ -147,8 +241,77 @@ def _flatten_tests(suite_or_case, unpack_outer=False):
         return [(suite_id, suite_or_case)]
 
 
+def filter_by_ids(suite_or_case, test_ids):
+    """Remove tests from suite_or_case where their id is not in test_ids.
+    
+    :param suite_or_case: A test suite or test case.
+    :param test_ids: Something that supports the __contains__ protocol.
+    :return: suite_or_case, unless suite_or_case was a case that itself
+        fails the predicate when it will return a new unittest.TestSuite with
+        no contents.
+
+    This helper exists to provide backwards compatability with older versions
+    of Python (currently all versions :)) that don't have a native
+    filter_by_ids() method on Test(Case|Suite).
+
+    For subclasses of TestSuite, filtering is done by:
+        - attempting to call suite.filter_by_ids(test_ids)
+        - if there is no method, iterating the suite and identifying tests to
+          remove, then removing them from _tests, manually recursing into
+          each entry.
+
+    For objects with an id() method - TestCases, filtering is done by:
+        - attempting to return case.filter_by_ids(test_ids)
+        - if there is no such method, checking for case.id() in test_ids
+          and returning case if it is, or TestSuite() if it is not.
+
+    For anything else, it is not filtered - it is returned as-is.
+
+    To provide compatability with this routine for a custom TestSuite, just
+    define a filter_by_ids() method that will return a TestSuite equivalent to
+    the original minus any tests not in test_ids.
+    Similarly to provide compatability for a custom TestCase that does
+    something unusual define filter_by_ids to return a new TestCase object
+    that will only run test_ids that are in the provided container. If none
+    would run, return an empty TestSuite().
+
+    The contract for this function does not require mutation - each filtered
+    object can choose to return a new object with the filtered tests. However
+    because existing custom TestSuite classes in the wild do not have this
+    method, we need a way to copy their state correctly which is tricky:
+    thus the backwards-compatible code paths attempt to mutate in place rather
+    than guessing how to reconstruct a new suite.
+    """
+    # Compatible objects
+    if safe_hasattr(suite_or_case, 'filter_by_ids'):
+        return suite_or_case.filter_by_ids(test_ids)
+    # TestCase objects.
+    if safe_hasattr(suite_or_case, 'id'):
+        if suite_or_case.id() in test_ids:
+            return suite_or_case
+        else:
+            return unittest.TestSuite()
+    # Standard TestSuites or derived classes [assumed to be mutable].
+    if isinstance(suite_or_case, unittest.TestSuite):
+        filtered = []
+        for item in suite_or_case:
+            filtered.append(filter_by_ids(item, test_ids))
+        suite_or_case._tests[:] = filtered
+    # Everything else:
+    return suite_or_case
+
+
 def sorted_tests(suite_or_case, unpack_outer=False):
     """Sort suite_or_case while preserving non-vanilla TestSuites."""
+    # Duplicate test id can induce TypeError in Python 3.3.
+    # Detect the duplicate test id, raise exception when found.
+    seen = set()
+    for test_case in iterate_tests(suite_or_case):
+        test_id = test_case.id()
+        if test_id not in seen:
+            seen.add(test_id)
+        else:
+            raise ValueError('Duplicate test id detected: %s' % (test_id,))
     tests = _flatten_tests(suite_or_case, unpack_outer=unpack_outer)
     tests.sort()
     return unittest.TestSuite([test for (sort_key, test) in tests])

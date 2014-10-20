@@ -1,6 +1,7 @@
 samba (2:4.1.13+dfsg-1) UNRELEASED; urgency=medium
 
   * New upstream release.
+  * Bump standards version to 3.9.6 (no changes).
 
  -- Ivo De Decker <ivodd@debian.org>  Mon, 20 Oct 2014 23:45:05 +0200
 

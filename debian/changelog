@@ -1,3 +1,9 @@
+samba (2:4.1.13+dfsg-1) UNRELEASED; urgency=medium
+
+  * New upstream release.
+
+ -- Ivo De Decker <ivodd@debian.org>  Mon, 20 Oct 2014 23:45:05 +0200
+
 samba (2:4.1.11+dfsg-2) unstable; urgency=medium
 
   * Updated Italian translation. Thanks Luca Monducci. Closes: #760743

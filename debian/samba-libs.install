@@ -66,6 +66,7 @@ usr/lib/*/samba/libndr-samba.so.*
 usr/lib/*/samba/libndr-samba4.so.*
 usr/lib/*/samba/libnet_keytab.so.*
 usr/lib/*/samba/libnetif.so.*
+usr/lib/*/samba/libnon_posix_acls.so.0
 usr/lib/*/samba/libnpa_tstream.so.*
 usr/lib/*/samba/libntvfs.so.*
 usr/lib/*/samba/libpopt_samba3.so.*
@@ -94,10 +95,9 @@ usr/lib/*/samba/libtdb-wrap.so.*
 usr/lib/*/samba/libtdb_compat.so.*
 usr/lib/*/samba/libtrusts_util.so.*
 usr/lib/*/samba/libutil_cmdline.so.*
+usr/lib/*/samba/libutil_ntdb.so.0
 usr/lib/*/samba/libutil_reg.so.*
 usr/lib/*/samba/libutil_setid.so.*
 usr/lib/*/samba/libutil_tdb.so.*
 usr/lib/*/samba/libxattr_tdb.so.*
-usr/lib/*/samba/libnon_posix_acls.so.0
-usr/lib/*/samba/libutil_ntdb.so.0
 usr/share/man/man8/idmap_rfc2307.8

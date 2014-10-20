@@ -93,7 +93,8 @@ Replaces: libsamdb0 (<< 4.0.0~alpha17~),
           samba-common (<= 2.0.5a-2),
           samba-doc (<< 2:4.0.5~),
           samba-libs (<< 2:4.1.4+dfsg-2),
-          samba4
+          samba4 (<< 3:4.1.9)
+Breaks: samba4 (<< 3:4.1.9)
 Conflicts: libldb1 (<< 1:1.1.15),
            samba (<< 2:3.3.0~rc2-5),
            samba-ad-dc,
@@ -597,3 +598,10 @@ Description: Samba winbind client library - development files
  required for building applications against libwbclient, a library for client
  applications that interact via the winbind pipe protocol with a Samba
  winbind server.
+
+Package: samba4
+Section: oldlibs
+Architecture: all
+Depends: samba, ${misc:Depends}
+Description: transitional dummy package
+ Transitional package to ensure proper upgrade from old samba4 to samba.

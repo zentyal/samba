@@ -1726,6 +1726,16 @@ WERROR _spoolss_OpenPrinterEx(struct pipes_struct *p,
 		return WERR_INVALID_PARAM;
 	}
 
+	/*
+	 * The printcap printer share inventory is updated on client
+	 * enumeration. For clients that do not perform enumeration prior to
+	 * access, such as cupssmbadd, we reinitialise the printer share
+	 * inventory on open as well.
+	 */
+	become_root();
+	delete_and_reload_printers(server_event_context(), p->msg_ctx);
+	unbecome_root();
+
 	/* some sanity check because you can open a printer or a print server */
 	/* aka: \\server\printer or \\server */
 
@@ -4284,15 +4294,6 @@ static WERROR construct_printer_info8(TALLOC_CTX *mem_ctx,
 	return WERR_OK;
 }
 
-
-/********************************************************************
-********************************************************************/
-
-static bool snum_is_shared_printer(int snum)
-{
-	return (lp_browseable(snum) && lp_snum_ok(snum) && lp_print_ok(snum));
-}
-
 /********************************************************************
  Spoolss_enumprinters.
 ********************************************************************/
@@ -4307,7 +4308,7 @@ static WERROR enum_all_printers_info_level(TALLOC_CTX *mem_ctx,
 					   uint32_t *count_p)
 {
 	int snum;
-	int n_services = lp_numservices();
+	int n_services;
 	union spoolss_PrinterInfo *info = NULL;
 	uint32_t count = 0;
 	WERROR result = WERR_OK;
@@ -4319,6 +4320,15 @@ static WERROR enum_all_printers_info_level(TALLOC_CTX *mem_ctx,
 		return WERR_NOMEM;
 	}
 
+	/*
+	 * printer shares are updated on client enumeration. The background
+	 * printer process updates printer_list.tdb at regular intervals.
+	 */
+	become_root();
+	delete_and_reload_printers(server_event_context(), msg_ctx);
+	unbecome_root();
+
+	n_services = lp_numservices();
 	*count_p = 0;
 	*info_p = NULL;
 

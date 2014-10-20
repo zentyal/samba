@@ -107,12 +107,12 @@ void (*CatchSignal(int signum,void (*handler)(int )))(int);
 /**
  Ignore SIGCLD via whatever means is necessary for this OS.
 **/
-void CatchChild(void);
+void (*CatchChild(void))(int);
 
 /**
  Catch SIGCLD but leave the child around so it's status can be reaped.
 **/
-void CatchChildLeaveStatus(void);
+void (*CatchChildLeaveStatus(void))(int);
 
 struct sockaddr;
 
@@ -852,6 +852,12 @@ _PUBLIC_ void exit_daemon(const char *msg, int error);
  Optionally report status to systemd if systemd integration is enabled
 **/
 _PUBLIC_ void daemon_ready(const char *daemon);
+
+/*
+ * Report the daemon status. For example if it is not ready to serve connections
+ * and is waiting for some event to happen.
+ */
+_PUBLIC_ void daemon_status(const char *name, const char *msg);
 
 /**
  * @brief Get a password from the console.

@@ -2,12 +2,12 @@
 .\"     Title: smb.conf
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 07/31/2014
+.\"      Date: 10/20/2014
 .\"    Manual: File Formats and Conventions
 .\"    Source: Samba 4.0
 .\"  Language: English
 .\"
-.TH "SMB\&.CONF" "5" "07/31/2014" "Samba 4\&.0" "File Formats and Conventions"
+.TH "SMB\&.CONF" "5" "10/20/2014" "Samba 4\&.0" "File Formats and Conventions"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -4217,7 +4217,7 @@ inherit owner (S)
 .RS 4
 The ownership of new files and directories is normally governed by effective uid of the connected user\&. This option allows the Samba administrator to specify that the ownership for new files and directories should be controlled by the ownership of the parent directory\&.
 .sp
-Common scenarios where this behavior is useful is in implementing drop\-boxes where users can create and edit files but not delete them and to ensure that newly create files in a user\*(Aqs roaming profile directory are actually owner by the user\&.
+Common scenarios where this behavior is useful is in implementing drop\-boxes, where users can create and edit files but not delete them and ensuring that newly created files in a user\*(Aqs roaming profile directory are actually owned by the user\&.
 .sp
 Default:
 \fI\fIinherit owner\fR\fR\fI = \fR\fIno\fR\fI \fR
@@ -11128,6 +11128,18 @@ Default:
 .sp
 Example:
 \fI\fIwinbind refresh tickets\fR\fR\fI = \fR\fItrue\fR\fI \fR
+.RE
+
+winbind request timeout (G)
+.\" winbind request timeout
+.PP
+.RS 4
+This parameter specifies the number of seconds the
+\fBwinbindd\fR(8)
+daemon will wait before disconnecting either a client connection with no outstanding requests (idle) or a client connection with a request that has remained outstanding (hung) for longer than this number of seconds\&.
+.sp
+Default:
+\fI\fIwinbind request timeout\fR\fR\fI = \fR\fI60\fR\fI \fR
 .RE
 
 winbind rpc only (G)

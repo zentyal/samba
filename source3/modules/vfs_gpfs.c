@@ -1444,7 +1444,6 @@ static int vfs_gpfs_stat(struct vfs_handle_struct *handle,
 		smb_fname->st.st_ex_calculated_birthtime = false;
 		smb_fname->st.st_ex_btime.tv_sec = attrs.creationTime.tv_sec;
 		smb_fname->st.st_ex_btime.tv_nsec = attrs.creationTime.tv_nsec;
-		smb_fname->st.vfs_private = attrs.winAttrs;
 	}
 	return 0;
 }
@@ -1512,7 +1511,6 @@ static int vfs_gpfs_lstat(struct vfs_handle_struct *handle,
 		smb_fname->st.st_ex_calculated_birthtime = false;
 		smb_fname->st.st_ex_btime.tv_sec = attrs.creationTime.tv_sec;
 		smb_fname->st.st_ex_btime.tv_nsec = attrs.creationTime.tv_nsec;
-		smb_fname->st.vfs_private = attrs.winAttrs;
 	}
 	return 0;
 }
@@ -1636,6 +1634,7 @@ static bool vfs_gpfs_is_offline(struct vfs_handle_struct *handle,
 	char *path = NULL;
 	NTSTATUS status;
 	struct gpfs_config_data *config;
+	int ret;
 
 	SMB_VFS_HANDLE_GET_DATA(handle, config,
 				struct gpfs_config_data,
@@ -1651,17 +1650,12 @@ static bool vfs_gpfs_is_offline(struct vfs_handle_struct *handle,
 		return -1;
 	}
 
-	if (VALID_STAT(*sbuf)) {
-		attrs.winAttrs = sbuf->vfs_private;
-	} else {
-		int ret;
-		ret = get_gpfs_winattrs(path, &attrs);
-
-		if (ret == -1) {
-			TALLOC_FREE(path);
-			return false;
-		}
+	ret = get_gpfs_winattrs(path, &attrs);
+	if (ret == -1) {
+		TALLOC_FREE(path);
+		return false;
 	}
+
 	if ((attrs.winAttrs & GPFS_WINATTR_OFFLINE) != 0) {
 		DEBUG(10, ("%s is offline\n", path));
 		TALLOC_FREE(path);
@@ -1682,7 +1676,8 @@ static ssize_t vfs_gpfs_sendfile(vfs_handle_struct *handle, int tofd,
 				 files_struct *fsp, const DATA_BLOB *hdr,
 				 off_t offset, size_t n)
 {
-	if ((fsp->fsp_name->st.vfs_private & GPFS_WINATTR_OFFLINE) != 0) {
+	if (SMB_VFS_IS_OFFLINE(handle->conn, fsp->fsp_name, &fsp->fsp_name->st))
+	{
 		errno = ENOSYS;
 		return -1;
 	}
@@ -1953,15 +1948,14 @@ static ssize_t vfs_gpfs_pread(vfs_handle_struct *handle, files_struct *fsp,
 			      void *data, size_t n, off_t offset)
 {
 	ssize_t ret;
+	bool was_offline;
+
+	was_offline = SMB_VFS_IS_OFFLINE(handle->conn, fsp->fsp_name,
+					 &fsp->fsp_name->st);
 
 	ret = SMB_VFS_NEXT_PREAD(handle, fsp, data, n, offset);
 
-	DEBUG(10, ("vfs_private = %x\n",
-		   (unsigned int)fsp->fsp_name->st.vfs_private));
-
-	if ((ret != -1) &&
-	    ((fsp->fsp_name->st.vfs_private & GPFS_WINATTR_OFFLINE) != 0)) {
-		fsp->fsp_name->st.vfs_private &= ~GPFS_WINATTR_OFFLINE;
+	if ((ret != -1) && was_offline) {
 		notify_fname(handle->conn, NOTIFY_ACTION_MODIFIED,
 			     FILE_NOTIFY_CHANGE_ATTRIBUTES,
 			     fsp->fsp_name->base_name);
@@ -1974,6 +1968,7 @@ struct vfs_gpfs_pread_state {
 	struct files_struct *fsp;
 	ssize_t ret;
 	int err;
+	bool was_offline;
 };
 
 static void vfs_gpfs_pread_done(struct tevent_req *subreq);
@@ -1992,6 +1987,8 @@ static struct tevent_req *vfs_gpfs_pread_send(struct vfs_handle_struct *handle,
 	if (req == NULL) {
 		return NULL;
 	}
+	state->was_offline = SMB_VFS_IS_OFFLINE(handle->conn, fsp->fsp_name,
+						&fsp->fsp_name->st);
 	state->fsp = fsp;
 	subreq = SMB_VFS_NEXT_PREAD_SEND(state, ev, handle, fsp, data,
 					 n, offset);
@@ -2025,12 +2022,7 @@ static ssize_t vfs_gpfs_pread_recv(struct tevent_req *req, int *err)
 	}
 	*err = state->err;
 
-	DEBUG(10, ("vfs_private = %x\n",
-		   (unsigned int)fsp->fsp_name->st.vfs_private));
-
-	if ((state->ret != -1) &&
-	    ((fsp->fsp_name->st.vfs_private & GPFS_WINATTR_OFFLINE) != 0)) {
-		fsp->fsp_name->st.vfs_private &= ~GPFS_WINATTR_OFFLINE;
+	if ((state->ret != -1) && state->was_offline) {
 		DEBUG(10, ("sending notify\n"));
 		notify_fname(fsp->conn, NOTIFY_ACTION_MODIFIED,
 			     FILE_NOTIFY_CHANGE_ATTRIBUTES,
@@ -2044,15 +2036,14 @@ static ssize_t vfs_gpfs_pwrite(vfs_handle_struct *handle, files_struct *fsp,
 			       const void *data, size_t n, off_t offset)
 {
 	ssize_t ret;
+	bool was_offline;
+
+	was_offline = SMB_VFS_IS_OFFLINE(handle->conn, fsp->fsp_name,
+					 &fsp->fsp_name->st);
 
 	ret = SMB_VFS_NEXT_PWRITE(handle, fsp, data, n, offset);
 
-	DEBUG(10, ("vfs_private = %x\n",
-		   (unsigned int)fsp->fsp_name->st.vfs_private));
-
-	if ((ret != -1) &&
-	    ((fsp->fsp_name->st.vfs_private & GPFS_WINATTR_OFFLINE) != 0)) {
-		fsp->fsp_name->st.vfs_private &= ~GPFS_WINATTR_OFFLINE;
+	if ((ret != -1) && was_offline) {
 		notify_fname(handle->conn, NOTIFY_ACTION_MODIFIED,
 			     FILE_NOTIFY_CHANGE_ATTRIBUTES,
 			     fsp->fsp_name->base_name);
@@ -2065,6 +2056,7 @@ struct vfs_gpfs_pwrite_state {
 	struct files_struct *fsp;
 	ssize_t ret;
 	int err;
+	bool was_offline;
 };
 
 static void vfs_gpfs_pwrite_done(struct tevent_req *subreq);
@@ -2084,6 +2076,8 @@ static struct tevent_req *vfs_gpfs_pwrite_send(
 	if (req == NULL) {
 		return NULL;
 	}
+	state->was_offline = SMB_VFS_IS_OFFLINE(handle->conn, fsp->fsp_name,
+						&fsp->fsp_name->st);
 	state->fsp = fsp;
 	subreq = SMB_VFS_NEXT_PWRITE_SEND(state, ev, handle, fsp, data,
 					 n, offset);
@@ -2117,12 +2111,7 @@ static ssize_t vfs_gpfs_pwrite_recv(struct tevent_req *req, int *err)
 	}
 	*err = state->err;
 
-	DEBUG(10, ("vfs_private = %x\n",
-		   (unsigned int)fsp->fsp_name->st.vfs_private));
-
-	if ((state->ret != -1) &&
-	    ((fsp->fsp_name->st.vfs_private & GPFS_WINATTR_OFFLINE) != 0)) {
-		fsp->fsp_name->st.vfs_private &= ~GPFS_WINATTR_OFFLINE;
+	if ((state->ret != -1) && state->was_offline) {
 		DEBUG(10, ("sending notify\n"));
 		notify_fname(fsp->conn, NOTIFY_ACTION_MODIFIED,
 			     FILE_NOTIFY_CHANGE_ATTRIBUTES,

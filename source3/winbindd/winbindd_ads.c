@@ -169,6 +169,7 @@ ADS_STATUS ads_idmap_cached_connection(ADS_STRUCT **adsp, const char *dom_name)
 	}
 
 	if (IS_DC) {
+		SMB_ASSERT(wb_dom->alt_name != NULL);
 		realm = SMB_STRDUP(wb_dom->alt_name);
 	} else {
 		struct winbindd_domain *our_domain = wb_dom;
@@ -187,8 +188,15 @@ ADS_STATUS ads_idmap_cached_connection(ADS_STRUCT **adsp, const char *dom_name)
 		}
 	}
 
-	status = ads_cached_connection_connect(adsp, realm, dom_name, ldap_server,
-					       password, realm, 0);
+	status = ads_cached_connection_connect(
+		adsp,			/* Returns ads struct. */
+		wb_dom->alt_name,	/* realm to connect to. */
+		dom_name,		/* 'workgroup' name for ads_init */
+		ldap_server,		/* DNS name to connect to. */
+		password,		/* password for auth realm. */
+		realm,			/* realm used for krb5 ticket. */
+		0);			/* renewable ticket time. */
+
 	SAFE_FREE(realm);
 
 	return status;
@@ -217,7 +225,7 @@ static ADS_STRUCT *ads_cached_connection(struct winbindd_domain *domain)
 	}
 
 	if ( IS_DC ) {
-
+		SMB_ASSERT(domain->alt_name != NULL);
 		realm = SMB_STRDUP(domain->alt_name);
 	}
 	else {

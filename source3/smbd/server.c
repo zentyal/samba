@@ -29,7 +29,7 @@
 #include "registry/reg_init_full.h"
 #include "libcli/auth/schannel.h"
 #include "secrets.h"
-#include "memcache.h"
+#include "../lib/util/memcache.h"
 #include "ctdbd_conn.h"
 #include "printing/queue_process.h"
 #include "rpc_server/rpc_service_setup.h"
@@ -106,24 +106,6 @@ static void smbd_parent_conf_updated(struct messaging_context *msg,
 	change_to_root_user();
 	reload_services(NULL, NULL, false);
 	printing_subsystem_update(ev_ctx, msg, false);
-}
-
-/*******************************************************************
- What to do when printcap is updated.
- ********************************************************************/
-
-static void smb_pcap_updated(struct messaging_context *msg,
-			     void *private_data,
-			     uint32_t msg_type,
-			     struct server_id server_id,
-			     DATA_BLOB *data)
-{
-	struct tevent_context *ev_ctx =
-		talloc_get_type_abort(private_data, struct tevent_context);
-
-	DEBUG(10,("Got message saying pcap was updated. Reloading.\n"));
-	change_to_root_user();
-	delete_and_reload_printers(ev_ctx, msg);
 }
 
 /*******************************************************************
@@ -881,8 +863,6 @@ static bool open_sockets_smbd(struct smbd_parent_context *parent,
 	messaging_register(msg_ctx, NULL, MSG_SMB_STAT_CACHE_DELETE,
 			   smb_stat_cache_delete);
 	messaging_register(msg_ctx, NULL, MSG_DEBUG, smbd_msg_debug);
-	messaging_register(msg_ctx, ev_ctx, MSG_PRINTER_PCAP,
-			   smb_pcap_updated);
 	messaging_register(msg_ctx, NULL, MSG_SMB_BRL_VALIDATE,
 			   brl_revalidate);
 	messaging_register(msg_ctx, NULL, MSG_SMB_FORCE_TDIS,

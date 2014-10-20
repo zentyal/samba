@@ -17,8 +17,13 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "memcache.h"
+#include "replace.h"
+#include <talloc.h>
+#include "../lib/util/samba_util.h"
+#include "../lib/util/debug.h"
+#include "../lib/util/dlinklist.h"
 #include "../lib/util/rbtree.h"
+#include "memcache.h"
 
 static struct memcache *global_cache;
 
@@ -26,7 +31,7 @@ struct memcache_element {
 	struct rb_node rb_node;
 	struct memcache_element *prev, *next;
 	size_t keylength, valuelength;
-	uint8 n;		/* This is really an enum, but save memory */
+	uint8_t n;		/* This is really an enum, but save memory */
 	char data[1];		/* placeholder for offsetof */
 };
 
@@ -63,7 +68,7 @@ static int memcache_destructor(struct memcache *cache) {
 
 	for (e = cache->mru; e != NULL; e = next) {
 		next = e->next;
-		SAFE_FREE(e);
+		TALLOC_FREE(e);
 	}
 	return 0;
 }
@@ -96,7 +101,7 @@ static struct memcache_element *memcache_node2elem(struct rb_node *node)
 static void memcache_element_parse(struct memcache_element *e,
 				   DATA_BLOB *key, DATA_BLOB *value)
 {
-	key->data = ((uint8 *)e) + offsetof(struct memcache_element, data);
+	key->data = ((uint8_t *)e) + offsetof(struct memcache_element, data);
 	key->length = e->keylength;
 	value->data = key->data + e->keylength;
 	value->length = e->valuelength;
@@ -206,7 +211,7 @@ static void memcache_delete_element(struct memcache *cache,
 
 	cache->size -= memcache_element_size(e->keylength, e->valuelength);
 
-	SAFE_FREE(e);
+	TALLOC_FREE(e);
 }
 
 static void memcache_trim(struct memcache *cache)
@@ -285,13 +290,12 @@ void memcache_add(struct memcache *cache, enum memcache_number n,
 
 	element_size = memcache_element_size(key.length, value.length);
 
-
-	e = (struct memcache_element *)SMB_MALLOC(element_size);
-
+	e = talloc_size(cache, element_size);
 	if (e == NULL) {
-		DEBUG(0, ("malloc failed\n"));
+		DEBUG(0, ("talloc failed\n"));
 		return;
 	}
+	talloc_set_type(e, struct memcache_element);
 
 	e->n = n;
 	e->keylength = key.length;

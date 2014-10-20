@@ -2,12 +2,12 @@
 .\"     Title: net
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 07/31/2014
+.\"      Date: 10/20/2014
 .\"    Manual: System Administration tools
 .\"    Source: Samba 4.0
 .\"  Language: English
 .\"
-.TH "NET" "8" "07/31/2014" "Samba 4\&.0" "System Administration tools"
+.TH "NET" "8" "10/20/2014" "Samba 4\&.0" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -337,18 +337,18 @@ command allows you to view the time on a remote server or synchronise the time o
 .PP
 Without any options, the
 NET TIME
-command displays the time on the remote server\&.
+command displays the time on the remote server\&. The remote server must be specified with the \-S option\&.
 .SS "TIME SYSTEM"
 .PP
 Displays the time on the remote server in a format ready for
-/bin/date\&.
+/bin/date\&. The remote server must be specified with the \-S option\&.
 .SS "TIME SET"
 .PP
 Tries to set the date and time of the local server to that on the remote server using
-/bin/date\&.
+/bin/date\&. The remote server must be specified with the \-S option\&.
 .SS "TIME ZONE"
 .PP
-Displays the timezone in hours from GMT on the remote computer\&.
+Displays the timezone in hours from GMT on the remote server\&. The remote server must be specified with the \-S option\&.
 .SS "[RPC|ADS] JOIN [TYPE] [\-U username[%password]] [createupn=UPN] [createcomputer=OU] [machinepass=PASS] [osName=string osVer=string] [options]"
 .PP
 Join a domain\&. If the account already exists on the server, and [TYPE] is MEMBER, the machine will attempt to join automatically\&. (Assuming that the machine has been created in server manager) Otherwise, a password will be prompted for, and a new account may be created\&.

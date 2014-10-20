@@ -65,11 +65,11 @@ load automatic printer services from pre-populated pcap cache
 void load_printers(struct tevent_context *ev,
 		   struct messaging_context *msg_ctx)
 {
-	SMB_ASSERT(pcap_cache_loaded());
+	SMB_ASSERT(pcap_cache_loaded(NULL));
 
 	add_auto_printers();
 
 	/* load all printcap printers */
 	if (lp_load_printers() && lp_servicenumber(PRINTERS_NAME) >= 0)
-		pcap_printer_fn(lp_add_one_printer, NULL);
+		pcap_printer_read_fn(lp_add_one_printer, NULL);
 }

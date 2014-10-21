@@ -1,9 +1,9 @@
-samba (2:4.1.13+dfsg-1) UNRELEASED; urgency=medium
+samba (2:4.1.13+dfsg-1) unstable; urgency=medium
 
   * New upstream release.
   * Bump standards version to 3.9.6 (no changes).
 
- -- Ivo De Decker <ivodd@debian.org>  Mon, 20 Oct 2014 23:45:05 +0200
+ -- Ivo De Decker <ivodd@debian.org>  Tue, 21 Oct 2014 20:22:19 +0200
 
 samba (2:4.1.11+dfsg-2) unstable; urgency=medium
 

@@ -395,6 +395,132 @@ static int ldb_comparator_false(const char *oid, const struct ldb_val *v1, const
 	return LDB_SUCCESS;
 }
 
+static int ldb_eval_transitive_filter_helper(
+		TALLOC_CTX *mem_ctx,
+		struct ldb_context *ldb,
+		const char *attr,
+		const struct ldb_val *v,
+		struct ldb_dn *to_visit,
+		struct ldb_dn **visited,
+		unsigned int *visited_count,
+		bool *matched)
+{
+	int ret, i, j;
+	struct ldb_result *res;
+	struct ldb_message *msg;
+	struct ldb_message_element *el;
+	const struct ldb_schema_attribute *a;
+	const char *attrs[] = { attr, NULL };
+
+	ret = ldb_search(ldb, mem_ctx, &res, to_visit, LDB_SCOPE_BASE, attrs,
+			 "(objectClass=*)");
+	if (ret != LDB_SUCCESS) {
+		return ret;
+	}
+	if (res->count != 1) {
+		return LDB_ERR_OPERATIONS_ERROR;
+	}
+	msg = res->msgs[0];
+
+	el = ldb_msg_find_element(msg, attr);
+	if (el == NULL) {
+		*matched = false;
+		return LDB_SUCCESS;
+	}
+
+	a = ldb_schema_attribute_by_name(ldb, el->name);
+	if (!a) {
+		return LDB_ERR_INVALID_ATTRIBUTE_SYNTAX;
+	}
+	if (strcmp(a->syntax->name, LDB_SYNTAX_DN) != 0) {
+		*matched = false;
+		return LDB_ERR_INVALID_ATTRIBUTE_SYNTAX;
+	}
+
+	for (i=0; i<el->num_values; i++) {
+		if (a->syntax->comparison_fn(ldb, mem_ctx, v, &el->values[i]) == 0) {
+			*matched = true;
+			return LDB_SUCCESS;
+		}
+	}
+
+	if (visited == NULL) {
+		visited = talloc_array(mem_ctx, struct ldb_dn *, 1);
+		visited[0] = to_visit;
+		(*visited_count) = 1;
+	} else {
+		visited = talloc_realloc(mem_ctx, visited, struct ldb_dn *,
+					 (*visited_count) + 1);
+		visited[(*visited_count)] = to_visit;
+		(*visited_count)++;
+	}
+
+	for (i=0; i<el->num_values; i++) {
+		bool skip = false;
+		struct ldb_dn *next_to_visit;
+
+		next_to_visit = ldb_dn_from_ldb_val(mem_ctx, ldb, &el->values[i]);
+		if (next_to_visit == NULL) {
+			return LDB_ERR_INVALID_DN_SYNTAX;
+		}
+
+		for (j=0; j < (*visited_count) - 1; j++) {
+			struct ldb_dn *visited_dn = visited[j];
+			if (ldb_dn_compare(visited_dn, next_to_visit) == 0) {
+				skip = true;
+				break;
+			}
+		}
+		if (skip) {
+			continue;
+		}
+
+		ret = ldb_eval_transitive_filter_helper(mem_ctx, ldb, attr, v,
+							next_to_visit, visited,
+							visited_count, matched);
+		if (ret != LDB_SUCCESS) {
+			return ret;
+		}
+		if (*matched) {
+			return LDB_SUCCESS;
+		}
+	}
+
+	*matched = false;
+	return LDB_SUCCESS;
+}
+
+/*
+ * This rule provides recursive search of a link attribute
+ * Implementation details on [MS-ADTS] section 3.1.1.3.4.4.3
+*/
+static int ldb_eval_transitive_filter(
+		TALLOC_CTX *mem_ctx,
+		struct ldb_context *ldb,
+		const char *attr,
+		const struct ldb_val *v,
+		struct ldb_dn *dn,
+		bool *matched)
+{
+	const struct ldb_schema_attribute *a;
+	struct ldb_val v2;
+	unsigned int count;
+
+	v2.data = NULL;
+	v2.length = 0;
+
+	/* canonicalize v, which is the value to match */
+	a = ldb_schema_attribute_by_name(ldb, attr);
+	if (!a) {
+		return LDB_ERR_INVALID_ATTRIBUTE_SYNTAX;
+	}
+	if (a->syntax->canonicalise_fn(ldb, mem_ctx, v, &v2)) {
+		return LDB_ERR_INVALID_ATTRIBUTE_SYNTAX;
+	}
+
+	return ldb_eval_transitive_filter_helper(mem_ctx, ldb, attr, &v2, dn,
+						 NULL, &count, matched);
+}
 
 /*
   extended match, handles things like bitops
@@ -430,6 +556,18 @@ static int ldb_match_extended(struct ldb_context *ldb,
 	if (tree->u.extended.attr == NULL) {
 		ldb_debug(ldb, LDB_DEBUG_ERROR, "ldb: no-attribute extended matches not supported yet");
 		return LDB_ERR_INAPPROPRIATE_MATCHING;
+	}
+
+	/* Handle special case SAMBA_LDAP_MATCH_RULE_IN_CHAIN */
+	if (strcmp(SAMBA_LDAP_MATCH_RULE_IN_CHAIN, tree->u.extended.rule_id) == 0) {
+		TALLOC_CTX *tmp_ctx = talloc_new(ldb);
+		int ret;
+		ret = ldb_eval_transitive_filter(tmp_ctx, ldb,
+						 tree->u.extended.attr,
+						 &tree->u.extended.value,
+						 msg->dn, matched);
+		talloc_free(tmp_ctx);
+		return ret;
 	}
 
 	for (i=0;i<ARRAY_SIZE(rules);i++) {

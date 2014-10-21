@@ -55,6 +55,10 @@ struct ldb_module;
 /* an extended match rule that always fails to match */
 #define SAMBA_LDAP_MATCH_ALWAYS_FALSE "1.3.6.1.4.1.7165.4.5.1"
 
+/* an extended match rule that walks the chain of ancestry in objects all the
+ * way to the root until it finds a match */
+#define SAMBA_LDAP_MATCH_RULE_IN_CHAIN "1.2.840.113556.1.4.1941"
+
 /* The const char * const * pointer to a list of secret (password)
  * attributes, not to be printed in trace messages */
 #define LDB_SECRET_ATTRIBUTE_LIST_OPAQUE "LDB_SECRET_ATTRIBUTE_LIST"

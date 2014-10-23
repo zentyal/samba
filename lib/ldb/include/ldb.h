@@ -398,6 +398,16 @@ struct ldb_dn_extended_syntax {
 const struct ldb_dn_extended_syntax *ldb_dn_extended_syntax_by_name(struct ldb_context *ldb,
 								    const char *name);
 
+struct ldb_extended_match_rule
+{
+	struct ldb_extended_match_rule *next, *prev;
+	const char *oid;
+	int (*callback)(struct ldb_context *, const char *oid,
+			const struct ldb_message *, const char *,
+			const struct ldb_val *, bool *);
+};
+int ldb_register_extended_match_rule(struct ldb_context *ldb, struct ldb_extended_match_rule *rule);
+
 /**
    The attribute is not returned by default
 */

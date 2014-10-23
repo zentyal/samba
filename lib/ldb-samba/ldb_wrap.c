@@ -166,6 +166,12 @@ char *wrap_casefold(void *context, void *mem_ctx, const char *s, size_t n)
 		return NULL;
 	}
 
+	ret = ldb_register_samba_matching_rules(ldb);
+	if (ret != LDB_SUCCESS) {
+		talloc_free(ldb);
+		return NULL;
+	}
+
 	/* we usually want Samba databases to be private. If we later
 	   find we need one public, we will need to add a parameter to
 	   ldb_wrap_connect() */

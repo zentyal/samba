@@ -211,6 +211,9 @@ static PyObject *py_ldb_register_samba_handlers(PyObject *self)
 
 	PyErr_LDB_ERROR_IS_ERR_RAISE(py_ldb_error, ret, ldb);
 
+	ret = ldb_register_samba_matching_rules(ldb);
+	PyErr_LDB_ERROR_IS_ERR_RAISE(py_ldb_error, ret, ldb);
+
 	Py_RETURN_NONE;
 }
 

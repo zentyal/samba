@@ -82,6 +82,10 @@ static int extensions_hook(struct ldb_context *ldb, enum ldb_module_hook_type t)
 		if (r != LDB_SUCCESS) {
 			return ldb_operr(ldb);
 		}
+		r = ldb_register_samba_matching_rules(ldb);
+		if (r != LDB_SUCCESS) {
+			return ldb_operr(ldb);
+		}
 		gensec_init();
 
 		if (ldb_set_opaque(ldb, "sessionInfo", system_session(cmdline_lp_ctx))) {

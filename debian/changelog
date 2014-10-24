@@ -1,3 +1,11 @@
+samba (2:4.1.13+dfsg-2) UNRELEASED; urgency=medium
+
+  * Mask /etc/init.d/samba init script for systemd. This should make systemd
+    ignore the samba init script. Thanks to Michael Biebl for the suggestion.
+    Closes: #740942
+
+ -- Ivo De Decker <ivodd@debian.org>  Fri, 24 Oct 2014 22:29:49 +0200
+
 samba (2:4.1.13+dfsg-1) unstable; urgency=medium
 
   * New upstream release.

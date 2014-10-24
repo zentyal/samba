@@ -45,6 +45,12 @@ if dpkg --compare-versions "$2" lt-nl 2:4.0.12+dfsg-2~; then
 	fi
 fi
 
+if dpkg --compare-versions "$2" lt-nl 2:4.1.13+dfsg-2~; then
+	# on upgrades from wheezy to jessie, the samba init script should not stay
+	# active, see #766690
+	update-rc.d samba remove
+fi
+
 # add the sambashare group
 if ! getent group sambashare > /dev/null 2>&1
 then

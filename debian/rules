@@ -133,9 +133,6 @@ override_dh_install:
 	mkdir -p debian/samba/usr/lib/$(PYSHORT)/dist-packages/samba
 	mv $(DESTDIR)/usr/lib/$(PYSHORT)/dist-packages/samba/dckeytab.so \
 	   debian/samba/usr/lib/$(PYSHORT)/dist-packages/samba/dckeytab.so
-	# mask /etc/init.d/samba init script for systemd
-	mkdir -p $(DESTDIR)/lib/systemd/system/
-	ln -s /dev/null $(DESTDIR)/lib/systemd/system/samba.service
 	# use upstream version of smb.conf.5 if there is no built version
 	# this is a temporary workaround for #750593 in xsltproc
 	[ -e $(DESTIDR)/usr/share/man/man5/smb.conf.5 ] || \

@@ -1,0 +1,2 @@
+# mask /etc/init.d/samba init script for systemd
+/dev/null /lib/systemd/system/samba.service

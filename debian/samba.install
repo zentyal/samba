@@ -1,4 +1,3 @@
-lib/systemd/system/samba.service
 usr/bin/eventlogadm
 usr/bin/oLschema2ldif
 usr/bin/pdbedit

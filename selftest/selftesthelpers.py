@@ -69,17 +69,29 @@ python = os.getenv("PYTHON", "python")
 
 # Set a default value, overridden if we find a working one on the system
 tap2subunit = "PYTHONPATH=%s/lib/subunit/python:%s/lib/testtools:%s/lib/extras %s %s/lib/subunit/filters/tap2subunit" % (srcdir(), srcdir(), srcdir(), python, srcdir())
+subunit2to1 = "PYTHONPATH=%s/lib/subunit/python:%s/lib/testtools:%s/lib/extras %s %s/lib/subunit/filters/subunit-2to1" % (srcdir(), srcdir(), srcdir(), python, srcdir())
 
 sub = subprocess.Popen("tap2subunit", stdin=subprocess.PIPE,
     stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
 sub.communicate("")
 
 if sub.returncode == 0:
-    cmd = "echo -ne \"1..1\nok 1 # skip doesn't seem to work yet\n\" | tap2subunit | grep skip"
+    # System tap2subunit that outputs subunitv2
+    cmd = "echo -ne \"1..1\nok 1 # skip doesn't seem to work yet\n\" | tap2subunit | subunit-2to1 | grep skip"
     sub = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE,
         stderr=subprocess.PIPE, shell=True)
     if sub.returncode == 0:
         tap2subunit = "tap2subunit"
+        subunit2to1 = "subunit-2to1"
+    else:
+        # System tap2subunit that outputs subunitv1
+        cmd = "echo -ne \"1..1\nok 1 # skip doesn't seem to work yet\n\" | tap2subunit | grep skip"
+        sub = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE,
+            stderr=subprocess.PIPE, shell=True)
+        if sub.returncode == 0:
+            tap2subunit = "tap2subunit"
+            subunit2to1 = "cat"
+
 
 def valgrindify(cmdline):
     """Run a command under valgrind, if $VALGRIND was set."""
@@ -162,7 +174,7 @@ def planperltestsuite(name, path):
     :param path: Path to the test runner
     """
     if has_perl_test_more:
-        plantestsuite(name, "none", "%s %s | %s" % (" ".join(perl), path, tap2subunit))
+        plantestsuite(name, "none", "%s %s | %s | %s" % (" ".join(perl), path, tap2subunit, subunit2to1))
     else:
         skiptestsuite(name, "Test::More not available")
 

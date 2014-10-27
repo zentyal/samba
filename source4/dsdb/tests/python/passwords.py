@@ -16,6 +16,7 @@ import os
 
 sys.path.insert(0, "bin/python")
 import samba
+samba.ensure_external_module("extras", "extras")
 samba.ensure_external_module("testtools", "testtools")
 samba.ensure_external_module("subunit", "subunit/python")
 

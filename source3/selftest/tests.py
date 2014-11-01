@@ -13,7 +13,7 @@
 # it possible to run the testsuite against other servers, such as Samba 4 or
 # Windows that have a different set of features.
 
-# The syntax for a testsuite is "-- TEST --" on a single line, followed
+# The syntax for a testsuite is "-- TEST2 --" on a single line, followed
 # by the name of the test, the environment it needs and the command to run, all
 # three separated by newlines. All other lines in the output are considered
 # comments.
@@ -37,12 +37,12 @@ def plansmbtorture4testsuite(name, env, options, description=''):
         name, env, options, target='samba3', modname=modname)
 
 
-plantestsuite("samba3.blackbox.success", "s3dc:local", [os.path.join(samba3srcdir, "script/tests/test_success.sh")])
-plantestsuite("samba3.blackbox.failure", "s3dc:local", [os.path.join(samba3srcdir, "script/tests/test_failure.sh")])
+plantestsuite("samba3.blackbox.success", "s3dc:local", [os.path.join(samba3srcdir, "script/tests/test_success.sh")], subunit_version=1)
+plantestsuite("samba3.blackbox.failure", "s3dc:local", [os.path.join(samba3srcdir, "script/tests/test_failure.sh")], subunit_version=1)
 
-plantestsuite("samba3.local_s3", "s3dc:local", [os.path.join(samba3srcdir, "script/tests/test_local_s3.sh")])
+plantestsuite("samba3.local_s3", "s3dc:local", [os.path.join(samba3srcdir, "script/tests/test_local_s3.sh")], subunit_version=1)
 
-plantestsuite("samba3.blackbox.registry.upgrade", "s3dc:local", [os.path.join(samba3srcdir, "script/tests/test_registry_upgrade.sh"), net, dbwrap_tool])
+plantestsuite("samba3.blackbox.registry.upgrade", "s3dc:local", [os.path.join(samba3srcdir, "script/tests/test_registry_upgrade.sh"), net, dbwrap_tool], subunit_version=1)
 
 tests = ["FDPASS", "LOCK1", "LOCK2", "LOCK3", "LOCK4", "LOCK5", "LOCK6", "LOCK7", "LOCK9",
         "UNLINK", "BROWSE", "ATTR", "TRANS2", "TORTURE",
@@ -60,34 +60,34 @@ tests = ["FDPASS", "LOCK1", "LOCK2", "LOCK3", "LOCK4", "LOCK5", "LOCK6", "LOCK7"
         "BAD-NBT-SESSION"]
 
 for t in tests:
-    plantestsuite("samba3.smbtorture_s3.plain(s3dc).%s" % t, "s3dc", [os.path.join(samba3srcdir, "script/tests/test_smbtorture_s3.sh"), t, '//$SERVER_IP/tmp', '$USERNAME', '$PASSWORD', smbtorture3, "", "-l $LOCAL_PATH"])
-    plantestsuite("samba3.smbtorture_s3.crypt_client(s3dc).%s" % t, "s3dc", [os.path.join(samba3srcdir, "script/tests/test_smbtorture_s3.sh"), t, '//$SERVER_IP/tmp', '$USERNAME', '$PASSWORD', smbtorture3, "-e", "-l $LOCAL_PATH"])
+    plantestsuite("samba3.smbtorture_s3.plain(s3dc).%s" % t, "s3dc", [os.path.join(samba3srcdir, "script/tests/test_smbtorture_s3.sh"), t, '//$SERVER_IP/tmp', '$USERNAME', '$PASSWORD', smbtorture3, "", "-l $LOCAL_PATH"], subunit_version=1)
+    plantestsuite("samba3.smbtorture_s3.crypt_client(s3dc).%s" % t, "s3dc", [os.path.join(samba3srcdir, "script/tests/test_smbtorture_s3.sh"), t, '//$SERVER_IP/tmp', '$USERNAME', '$PASSWORD', smbtorture3, "-e", "-l $LOCAL_PATH"], subunit_version=1)
     if t == "TORTURE":
         # this is a negative test to verify that the server rejects
         # access without encryption
-        plantestsuite("samba3.smbtorture_s3.crypt_server(s3dc).%s" % t, "s3dc", [os.path.join(samba3srcdir, "script/tests/test_smbtorture_s3.sh"), t, '//$SERVER_IP/tmpenc', '$USERNAME', '$PASSWORD', smbtorture3, "", "-l $LOCAL_PATH"])
-    plantestsuite("samba3.smbtorture_s3.plain(dc).%s" % t, "dc", [os.path.join(samba3srcdir, "script/tests/test_smbtorture_s3.sh"), t, '//$SERVER_IP/tmp', '$USERNAME', '$PASSWORD', smbtorture3, "", "-l $LOCAL_PATH"])
+        plantestsuite("samba3.smbtorture_s3.crypt_server(s3dc).%s" % t, "s3dc", [os.path.join(samba3srcdir, "script/tests/test_smbtorture_s3.sh"), t, '//$SERVER_IP/tmpenc', '$USERNAME', '$PASSWORD', smbtorture3, "", "-l $LOCAL_PATH"], subunit_version=1)
+    plantestsuite("samba3.smbtorture_s3.plain(dc).%s" % t, "dc", [os.path.join(samba3srcdir, "script/tests/test_smbtorture_s3.sh"), t, '//$SERVER_IP/tmp', '$USERNAME', '$PASSWORD', smbtorture3, "", "-l $LOCAL_PATH"], subunit_version=1)
 
 # non-crypt only
 
 tests = ["OPLOCK-CANCEL"]
 for t in tests:
-    plantestsuite("samba3.smbtorture_s3.plain(s3dc).%s" % t, "s3dc", [os.path.join(samba3srcdir, "script/tests/test_smbtorture_s3.sh"), t, '//$SERVER_IP/tmp', '$USERNAME', '$PASSWORD', smbtorture3, "", "-l $LOCAL_PATH"])
+    plantestsuite("samba3.smbtorture_s3.plain(s3dc).%s" % t, "s3dc", [os.path.join(samba3srcdir, "script/tests/test_smbtorture_s3.sh"), t, '//$SERVER_IP/tmp', '$USERNAME', '$PASSWORD', smbtorture3, "", "-l $LOCAL_PATH"], subunit_version=1)
 
 tests = ["RW1", "RW2", "RW3"]
 for t in tests:
-    plantestsuite("samba3.smbtorture_s3.vfs_aio_fork(simpleserver).%s" % t, "simpleserver", [os.path.join(samba3srcdir, "script/tests/test_smbtorture_s3.sh"), t, '//$SERVER_IP/vfs_aio_fork', '$USERNAME', '$PASSWORD', smbtorture3, "", "-l $LOCAL_PATH"])
+    plantestsuite("samba3.smbtorture_s3.vfs_aio_fork(simpleserver).%s" % t, "simpleserver", [os.path.join(samba3srcdir, "script/tests/test_smbtorture_s3.sh"), t, '//$SERVER_IP/vfs_aio_fork', '$USERNAME', '$PASSWORD', smbtorture3, "", "-l $LOCAL_PATH"], subunit_version=1)
 
 posix_tests = ["POSIX", "POSIX-APPEND"]
 
 for t in posix_tests:
-    plantestsuite("samba3.smbtorture_s3.plain(s3dc).%s" % t, "s3dc", [os.path.join(samba3srcdir, "script/tests/test_smbtorture_s3.sh"), t, '//$SERVER_IP/posix_share', '$USERNAME', '$PASSWORD', smbtorture3, "", "-l $LOCAL_PATH"])
-    plantestsuite("samba3.smbtorture_s3.crypt(s3dc).%s" % t, "s3dc", [os.path.join(samba3srcdir, "script/tests/test_smbtorture_s3.sh"), t, '//$SERVER_IP/posix_share', '$USERNAME', '$PASSWORD', smbtorture3, "-e", "-l $LOCAL_PATH"])
-    plantestsuite("samba3.smbtorture_s3.plain(dc).%s" % t, "dc", [os.path.join(samba3srcdir, "script/tests/test_smbtorture_s3.sh"), t, '//$SERVER_IP/posix_share', '$USERNAME', '$PASSWORD', smbtorture3, "", "-l $LOCAL_PATH"])
+    plantestsuite("samba3.smbtorture_s3.plain(s3dc).%s" % t, "s3dc", [os.path.join(samba3srcdir, "script/tests/test_smbtorture_s3.sh"), t, '//$SERVER_IP/posix_share', '$USERNAME', '$PASSWORD', smbtorture3, "", "-l $LOCAL_PATH"], subunit_version=1)
+    plantestsuite("samba3.smbtorture_s3.crypt(s3dc).%s" % t, "s3dc", [os.path.join(samba3srcdir, "script/tests/test_smbtorture_s3.sh"), t, '//$SERVER_IP/posix_share', '$USERNAME', '$PASSWORD', smbtorture3, "-e", "-l $LOCAL_PATH"], subunit_version=1)
+    plantestsuite("samba3.smbtorture_s3.plain(dc).%s" % t, "dc", [os.path.join(samba3srcdir, "script/tests/test_smbtorture_s3.sh"), t, '//$SERVER_IP/posix_share', '$USERNAME', '$PASSWORD', smbtorture3, "", "-l $LOCAL_PATH"], subunit_version=1)
 
 env = "s3dc:local"
 t = "CLEANUP3"
-plantestsuite("samba3.smbtorture_s3.plain(%s).%s" % (env, t), env, [os.path.join(samba3srcdir, "script/tests/test_smbtorture_s3.sh"), t, '//$SERVER_IP/tmp', '$USERNAME', '$PASSWORD', binpath('smbtorture3'), "", "-l $LOCAL_PATH"])
+plantestsuite("samba3.smbtorture_s3.plain(%s).%s" % (env, t), env, [os.path.join(samba3srcdir, "script/tests/test_smbtorture_s3.sh"), t, '//$SERVER_IP/tmp', '$USERNAME', '$PASSWORD', binpath('smbtorture3'), "", "-l $LOCAL_PATH"], subunit_version=1)
 
 local_tests = [
     "LOCAL-SUBSTITUTE",
@@ -117,58 +117,58 @@ local_tests = [
     "LOCAL-remove_duplicate_addrs2"]
 
 for t in local_tests:
-    plantestsuite("samba3.smbtorture_s3.%s" % t, "none", [os.path.join(samba3srcdir, "script/tests/test_smbtorture_s3.sh"), t, '//foo/bar', '""', '""', smbtorture3, ""])
+    plantestsuite("samba3.smbtorture_s3.%s" % t, "none", [os.path.join(samba3srcdir, "script/tests/test_smbtorture_s3.sh"), t, '//foo/bar', '""', '""', smbtorture3, ""], subunit_version=1)
 
-plantestsuite("samba.vfstest.stream_depot", "s3dc:local", [os.path.join(samba3srcdir, "script/tests/stream-depot/run.sh"), binpath("vfstest"), "$PREFIX", configuration])
-plantestsuite("samba.vfstest.xattr-tdb-1", "s3dc:local", [os.path.join(samba3srcdir, "script/tests/xattr-tdb-1/run.sh"), binpath("vfstest"), "$PREFIX", configuration])
-plantestsuite("samba.vfstest.acl", "s3dc:local", [os.path.join(samba3srcdir, "script/tests/vfstest-acl/run.sh"), binpath("vfstest"), "$PREFIX", configuration])
-plantestsuite("samba.vfstest.catia", "s3dc:local", [os.path.join(samba3srcdir, "script/tests/vfstest-catia/run.sh"), binpath("vfstest"), "$PREFIX", configuration])
+plantestsuite("samba.vfstest.stream_depot", "s3dc:local", [os.path.join(samba3srcdir, "script/tests/stream-depot/run.sh"), binpath("vfstest"), "$PREFIX", configuration], subunit_version=1)
+plantestsuite("samba.vfstest.xattr-tdb-1", "s3dc:local", [os.path.join(samba3srcdir, "script/tests/xattr-tdb-1/run.sh"), binpath("vfstest"), "$PREFIX", configuration], subunit_version=1)
+plantestsuite("samba.vfstest.acl", "s3dc:local", [os.path.join(samba3srcdir, "script/tests/vfstest-acl/run.sh"), binpath("vfstest"), "$PREFIX", configuration], subunit_version=1)
+plantestsuite("samba.vfstest.catia", "s3dc:local", [os.path.join(samba3srcdir, "script/tests/vfstest-catia/run.sh"), binpath("vfstest"), "$PREFIX", configuration], subunit_version=1)
 
 for options in ["--option=clientusespnego=no", " --option=clientntlmv2auth=no --option=clientlanmanauth=yes --max-protocol=LANMAN2", ""]:
     env = "s3dc"
-    plantestsuite("samba3.blackbox.smbclient_auth.plain (%s) %s" % (env, options), env, [os.path.join(samba3srcdir, "script/tests/test_smbclient_auth.sh"), '$SERVER', '$SERVER_IP', '$DC_USERNAME', '$DC_PASSWORD', smbclient3, configuration, options])
+    plantestsuite("samba3.blackbox.smbclient_auth.plain (%s) %s" % (env, options), env, [os.path.join(samba3srcdir, "script/tests/test_smbclient_auth.sh"), '$SERVER', '$SERVER_IP', '$DC_USERNAME', '$DC_PASSWORD', smbclient3, configuration, options], subunit_version=1)
 
 for env in ["s3dc", "member", "s3member", "dc", "s4member"]:
-    plantestsuite("samba3.blackbox.smbclient_machine_auth.plain (%s:local)" % env, "%s:local" % env, [os.path.join(samba3srcdir, "script/tests/test_smbclient_machine_auth.sh"), '$SERVER', smbclient3, configuration])
+    plantestsuite("samba3.blackbox.smbclient_machine_auth.plain (%s:local)" % env, "%s:local" % env, [os.path.join(samba3srcdir, "script/tests/test_smbclient_machine_auth.sh"), '$SERVER', smbclient3, configuration], subunit_version=1)
 
 for env in ["s3dc", "member", "s3member"]:
-    plantestsuite("samba3.blackbox.smbclient_auth.plain (%s)" % env, env, [os.path.join(samba3srcdir, "script/tests/test_smbclient_auth.sh"), '$SERVER', '$SERVER_IP', '$DC_USERNAME', '$DC_PASSWORD', smbclient3, configuration])
-    plantestsuite("samba3.blackbox.smbclient_auth.plain (%s) member creds" % env, env, [os.path.join(samba3srcdir, "script/tests/test_smbclient_auth.sh"), '$SERVER', '$SERVER_IP', '$SERVER/$USERNAME', '$PASSWORD', smbclient3, configuration])
+    plantestsuite("samba3.blackbox.smbclient_auth.plain (%s)" % env, env, [os.path.join(samba3srcdir, "script/tests/test_smbclient_auth.sh"), '$SERVER', '$SERVER_IP', '$DC_USERNAME', '$DC_PASSWORD', smbclient3, configuration], subunit_version=1)
+    plantestsuite("samba3.blackbox.smbclient_auth.plain (%s) member creds" % env, env, [os.path.join(samba3srcdir, "script/tests/test_smbclient_auth.sh"), '$SERVER', '$SERVER_IP', '$SERVER/$USERNAME', '$PASSWORD', smbclient3, configuration], subunit_version=1)
 
 for env in ["member", "s3member"]:
-    plantestsuite("samba3.blackbox.net_cred_change.(%s:local)" % env, "%s:local" % env, [os.path.join(samba3srcdir, "script/tests/test_net_cred_change.sh"), configuration])
+    plantestsuite("samba3.blackbox.net_cred_change.(%s:local)" % env, "%s:local" % env, [os.path.join(samba3srcdir, "script/tests/test_net_cred_change.sh"), configuration], subunit_version=1)
 
 env = "s3member"
 t = "--krb5auth=$DOMAIN/$DC_USERNAME%$DC_PASSWORD"
-plantestsuite("samba3.wbinfo_simple.(%s:local).%s" % (env, t), "%s:local" % env, [os.path.join(srcdir(), "nsswitch/tests/test_wbinfo_simple.sh"), t])
+plantestsuite("samba3.wbinfo_simple.(%s:local).%s" % (env, t), "%s:local" % env, [os.path.join(srcdir(), "nsswitch/tests/test_wbinfo_simple.sh"), t], subunit_version=1)
 
-plantestsuite("samba3.ntlm_auth.krb5(ktest:local) old ccache", "ktest:local", [os.path.join(samba3srcdir, "script/tests/test_ntlm_auth_krb5.sh"), valgrindify(python), samba3srcdir, ntlm_auth3, '$PREFIX/ktest/krb5_ccache-2', '$SERVER', configuration])
+plantestsuite("samba3.ntlm_auth.krb5(ktest:local) old ccache", "ktest:local", [os.path.join(samba3srcdir, "script/tests/test_ntlm_auth_krb5.sh"), valgrindify(python), samba3srcdir, ntlm_auth3, '$PREFIX/ktest/krb5_ccache-2', '$SERVER', configuration], subunit_version=1)
 
-plantestsuite("samba3.ntlm_auth.krb5(ktest:local)", "ktest:local", [os.path.join(samba3srcdir, "script/tests/test_ntlm_auth_krb5.sh"), valgrindify(python), samba3srcdir, ntlm_auth3, '$PREFIX/ktest/krb5_ccache-3', '$SERVER', configuration])
+plantestsuite("samba3.ntlm_auth.krb5(ktest:local)", "ktest:local", [os.path.join(samba3srcdir, "script/tests/test_ntlm_auth_krb5.sh"), valgrindify(python), samba3srcdir, ntlm_auth3, '$PREFIX/ktest/krb5_ccache-3', '$SERVER', configuration], subunit_version=1)
 
 
 for env in ["maptoguest", "simpleserver"]:
-    plantestsuite("samba3.blackbox.smbclient_auth.plain (%s) local creds" % env, env, [os.path.join(samba3srcdir, "script/tests/test_smbclient_auth.sh"), '$SERVER', '$SERVER_IP', '$USERNAME', '$PASSWORD', smbclient3, configuration + " --option=clientntlmv2auth=no --option=clientlanmanauth=yes"])
+    plantestsuite("samba3.blackbox.smbclient_auth.plain (%s) local creds" % env, env, [os.path.join(samba3srcdir, "script/tests/test_smbclient_auth.sh"), '$SERVER', '$SERVER_IP', '$USERNAME', '$PASSWORD', smbclient3, configuration + " --option=clientntlmv2auth=no --option=clientlanmanauth=yes"], subunit_version=1)
 
 env = "maptoguest"
-plantestsuite("samba3.blackbox.smbclient_auth.plain (%s) bad username" % env, env, [os.path.join(samba3srcdir, "script/tests/test_smbclient_auth.sh"), '$SERVER', '$SERVER_IP', 'notmy$USERNAME', '$PASSWORD', smbclient3, configuration + " --option=clientntlmv2auth=no --option=clientlanmanauth=yes"])
+plantestsuite("samba3.blackbox.smbclient_auth.plain (%s) bad username" % env, env, [os.path.join(samba3srcdir, "script/tests/test_smbclient_auth.sh"), '$SERVER', '$SERVER_IP', 'notmy$USERNAME', '$PASSWORD', smbclient3, configuration + " --option=clientntlmv2auth=no --option=clientlanmanauth=yes"], subunit_version=1)
 
 # plain
 for env in ["s3dc"]:
-    plantestsuite("samba3.blackbox.smbclient_s3.plain (%s)" % env, env, [os.path.join(samba3srcdir, "script/tests/test_smbclient_s3.sh"), '$SERVER', '$SERVER_IP', '$DOMAIN', '$DC_USERNAME', '$DC_PASSWORD', '$USERID', '$LOCAL_PATH', '$PREFIX', smbclient3, wbinfo, net, configuration])
+    plantestsuite("samba3.blackbox.smbclient_s3.plain (%s)" % env, env, [os.path.join(samba3srcdir, "script/tests/test_smbclient_s3.sh"), '$SERVER', '$SERVER_IP', '$DOMAIN', '$DC_USERNAME', '$DC_PASSWORD', '$USERID', '$LOCAL_PATH', '$PREFIX', smbclient3, wbinfo, net, configuration], subunit_version=1)
 
 for env in ["member", "s3member"]:
-    plantestsuite("samba3.blackbox.smbclient_s3.plain (%s) member creds" % env, env, [os.path.join(samba3srcdir, "script/tests/test_smbclient_s3.sh"), '$SERVER', '$SERVER_IP', '$SERVER', '$SERVER/$USERNAME', '$PASSWORD', '$USERID', '$LOCAL_PATH', '$PREFIX', smbclient3, wbinfo, net, configuration])
+    plantestsuite("samba3.blackbox.smbclient_s3.plain (%s) member creds" % env, env, [os.path.join(samba3srcdir, "script/tests/test_smbclient_s3.sh"), '$SERVER', '$SERVER_IP', '$SERVER', '$SERVER/$USERNAME', '$PASSWORD', '$USERID', '$LOCAL_PATH', '$PREFIX', smbclient3, wbinfo, net, configuration], subunit_version=1)
 
 for env in ["s3dc"]:
-    plantestsuite("samba3.blackbox.smbclient_s3.sign (%s)" % env, env, [os.path.join(samba3srcdir, "script/tests/test_smbclient_s3.sh"), '$SERVER', '$SERVER_IP', '$DOMAIN', '$DC_USERNAME', '$DC_PASSWORD', '$USERID', '$LOCAL_PATH', '$PREFIX', smbclient3, wbinfo, net, configuration, "--signing=required"])
+    plantestsuite("samba3.blackbox.smbclient_s3.sign (%s)" % env, env, [os.path.join(samba3srcdir, "script/tests/test_smbclient_s3.sh"), '$SERVER', '$SERVER_IP', '$DOMAIN', '$DC_USERNAME', '$DC_PASSWORD', '$USERID', '$LOCAL_PATH', '$PREFIX', smbclient3, wbinfo, net, configuration, "--signing=required"], subunit_version=1)
 
 for env in ["member", "s3member"]:
-    plantestsuite("samba3.blackbox.smbclient_s3.sign (%s) member creds" % env, env, [os.path.join(samba3srcdir, "script/tests/test_smbclient_s3.sh"), '$SERVER', '$SERVER_IP', '$SERVER', '$SERVER/$USERNAME', '$PASSWORD', '$USERID', '$LOCAL_PATH', '$PREFIX', smbclient3, wbinfo, net, configuration, "--signing=required"])
+    plantestsuite("samba3.blackbox.smbclient_s3.sign (%s) member creds" % env, env, [os.path.join(samba3srcdir, "script/tests/test_smbclient_s3.sh"), '$SERVER', '$SERVER_IP', '$SERVER', '$SERVER/$USERNAME', '$PASSWORD', '$USERID', '$LOCAL_PATH', '$PREFIX', smbclient3, wbinfo, net, configuration, "--signing=required"], subunit_version=1)
 
 for env in ["s3dc"]:
     # encrypted
-    plantestsuite("samba3.blackbox.smbclient_s3.crypt (%s)" % env, env, [os.path.join(samba3srcdir, "script/tests/test_smbclient_s3.sh"), '$SERVER', '$SERVER_IP', '$DOMAIN', '$USERNAME', '$PASSWORD', '$USERID', '$LOCAL_PATH', '$PREFIX', smbclient3, wbinfo, net, configuration, "-e"])
+    plantestsuite("samba3.blackbox.smbclient_s3.crypt (%s)" % env, env, [os.path.join(samba3srcdir, "script/tests/test_smbclient_s3.sh"), '$SERVER', '$SERVER_IP', '$DOMAIN', '$USERNAME', '$PASSWORD', '$USERID', '$LOCAL_PATH', '$PREFIX', smbclient3, wbinfo, net, configuration, "-e"], subunit_version=1)
 
 
     #
@@ -194,7 +194,7 @@ for env in ["s3dc"]:
         plantestsuite("samba3.blackbox.smbclient_tarmode (%s)" % env, env,
                       [os.path.join(samba3srcdir, "script/tests/test_smbclient_tarmode.sh"),
                        '$SERVER', '$SERVER_IP', '$USERNAME', '$PASSWORD',
-                       '$LOCAL_PATH', '$PREFIX', smbclient3, configuration])
+                       '$LOCAL_PATH', '$PREFIX', smbclient3, configuration], subunit_version=1)
 
         # Test suite for new smbclient/tar with libarchive (GSoC 13)
         plantestsuite("samba3.blackbox.smbclient_tar (%s)" % env, env,
@@ -202,44 +202,44 @@ for env in ["s3dc"]:
                        '-n', '$SERVER', '-i', '$SERVER_IP', '-s', 'tmp',
                        '-u', '$USERNAME', '-p', '$PASSWORD', '-l', '$LOCAL_PATH',
                        '-d', '$PREFIX', '-b', smbclient3,
-                       '--subunit', '--', configuration])
+                       '--subunit', '--', configuration], subunit_version=1)
 
 #TODO encrypted against member, with member creds, and with DC creds
 plantestsuite("samba3.blackbox.net.misc", "s3dc:local",
               [os.path.join(samba3srcdir, "script/tests/test_net_misc.sh"),
-               scriptdir, "$SMB_CONF_PATH", net, configuration])
+               scriptdir, "$SMB_CONF_PATH", net, configuration], subunit_version=1)
 plantestsuite("samba3.blackbox.net.local.registry", "s3dc:local",
               [os.path.join(samba3srcdir, "script/tests/test_net_registry.sh"),
-               scriptdir, "$SMB_CONF_PATH", net, configuration])
+               scriptdir, "$SMB_CONF_PATH", net, configuration], subunit_version=1)
 plantestsuite("samba3.blackbox.net.registry.check", "s3dc:local",
               [os.path.join(samba3srcdir, "script/tests/test_net_registry_check.sh"),
-               scriptdir, "$SMB_CONF_PATH", net, configuration, dbwrap_tool])
+               scriptdir, "$SMB_CONF_PATH", net, configuration, dbwrap_tool], subunit_version=1)
 plantestsuite("samba3.blackbox.net.rpc.registry", "s3dc",
               [os.path.join(samba3srcdir, "script/tests/test_net_registry.sh"),
-               scriptdir, "$SMB_CONF_PATH", net, configuration, 'rpc'])
+               scriptdir, "$SMB_CONF_PATH", net, configuration, 'rpc'], subunit_version=1)
 
 plantestsuite("samba3.blackbox.net.local.registry.roundtrip", "s3dc:local",
               [os.path.join(samba3srcdir, "script/tests/test_net_registry_roundtrip.sh"),
-               scriptdir, "$SMB_CONF_PATH", net, configuration])
+               scriptdir, "$SMB_CONF_PATH", net, configuration], subunit_version=1)
 plantestsuite("samba3.blackbox.net.rpc.registry.roundtrip", "s3dc",
               [os.path.join(samba3srcdir, "script/tests/test_net_registry_roundtrip.sh"),
-               scriptdir, "$SMB_CONF_PATH", net, configuration, 'rpc'])
+               scriptdir, "$SMB_CONF_PATH", net, configuration, 'rpc'], subunit_version=1)
 
 plantestsuite("samba3.blackbox.net.local.conf", "s3dc:local",
               [os.path.join(samba3srcdir, "script/tests/test_net_conf.sh"),
-               scriptdir, "$SMB_CONF_PATH", net, configuration])
+               scriptdir, "$SMB_CONF_PATH", net, configuration], subunit_version=1)
 plantestsuite("samba3.blackbox.net.rpc.conf", "s3dc",
               [os.path.join(samba3srcdir, "script/tests/test_net_conf.sh"),
-               scriptdir, "$SMB_CONF_PATH", net, configuration, 'rpc'])
+               scriptdir, "$SMB_CONF_PATH", net, configuration, 'rpc'], subunit_version=1)
 
 
 plantestsuite("samba3.blackbox.testparm", "s3dc:local",
               [os.path.join(samba3srcdir, "script/tests/test_testparm_s3.sh"),
-               "$LOCAL_PATH"])
+               "$LOCAL_PATH"], subunit_version=1)
 
 plantestsuite(
     "samba3.pthreadpool", "s3dc",
-    [os.path.join(samba3srcdir, "script/tests/test_pthreadpool.sh")])
+    [os.path.join(samba3srcdir, "script/tests/test_pthreadpool.sh")], subunit_version=1)
 
 #smbtorture4 tests
 
@@ -346,7 +346,7 @@ for t in tests:
         plansmbtorture4testsuite(t, "s3dc", '//$SERVER_IP/write-list-tmp -U$USERNAME%$PASSWORD')
         plansmbtorture4testsuite(t, "plugin_s4_dc", '//$SERVER/tmp -U$USERNAME%$PASSWORD')
     elif t == "idmap.rfc2307":
-        plantestsuite(t, "s3member_rfc2307", [os.path.join(samba3srcdir, "../nsswitch/tests/test_idmap_rfc2307.sh"), '$DOMAIN', 'Administrator', '2000000', '"Domain Users"', '2000001', 'ou=idmap,dc=samba,dc=example,dc=com', '$DC_SERVER', '$DC_USERNAME', '$DC_PASSWORD'])
+        plantestsuite(t, "s3member_rfc2307", [os.path.join(samba3srcdir, "../nsswitch/tests/test_idmap_rfc2307.sh"), '$DOMAIN', 'Administrator', '2000000', '"Domain Users"', '2000001', 'ou=idmap,dc=samba,dc=example,dc=com', '$DC_SERVER', '$DC_USERNAME', '$DC_PASSWORD'], subunit_version=1)
     elif t == "raw.acls":
         plansmbtorture4testsuite(t, "s3dc", '//$SERVER_IP/tmp -U$USERNAME%$PASSWORD')
         plansmbtorture4testsuite(t, "s3dc", '//$SERVER_IP/nfs4acl_simple -U$USERNAME%$PASSWORD', description='nfs4acl_xattr-simple')
@@ -388,7 +388,7 @@ for s in signseal_options:
             options = binding_string + " -U$USERNAME%$PASSWORD"
             plansmbtorture4testsuite(test, "s3dc", options, 'over ncacn_np with [%s%s%s] ' % (a, s, e))
             plantestsuite("samba3.blackbox.rpcclient over ncacn_np with [%s%s%s] " % (a, s, e), "s3dc:local", [os.path.join(samba3srcdir, "script/tests/test_rpcclient.sh"),
-                                                             "none", options, configuration])
+                                                             "none", options, configuration], subunit_version=1)
 
     # We should try more combinations in future, but this is all
     # the pre-calculated credentials cache supports at the moment
@@ -405,38 +405,42 @@ for s in signseal_options:
     for a in auth_options2:
         binding_string = "ncacn_np:$SERVER[%s%s%s]" % (a, s, e)
 
-        plantestsuite("samba3.blackbox.rpcclient krb5 ncacn_np with [%s%s%s] " % (a, s, e), "ktest:local", [os.path.join(samba3srcdir, "script/tests/test_rpcclient.sh"),
-                                                                                                                              "$PREFIX/ktest/krb5_ccache-3", binding_string, "-k", configuration])
+        plantestsuite("samba3.blackbox.rpcclient krb5 ncacn_np with [%s%s%s] " % (a, s, e),
+                      "ktest:local", [os.path.join(samba3srcdir, "script/tests/test_rpcclient.sh"),
+                      "$PREFIX/ktest/krb5_ccache-3", binding_string, "-k", configuration], subunit_version=1)
 
 plantestsuite("samba3.blackbox.rpcclient_samlogon", "s3member:local", [os.path.join(samba3srcdir, "script/tests/test_rpcclient_samlogon.sh"),
-								       "$DC_USERNAME", "$DC_PASSWORD", "ncacn_np:$DC_SERVER", configuration])
+              "$DC_USERNAME", "$DC_PASSWORD", "ncacn_np:$DC_SERVER", configuration], subunit_version=1)
 
 options_list = ["", "-e"]
 for options in options_list:
     plantestsuite("samba3.blackbox.smbclient_krb5 old ccache %s" % options, "ktest:local",
                   [os.path.join(samba3srcdir, "script/tests/test_smbclient_krb5.sh"),
                    "$PREFIX/ktest/krb5_ccache-2",
-                   smbclient3, "$SERVER", options, configuration])
+                   smbclient3, "$SERVER", options, configuration], subunit_version=1)
 
     plantestsuite("samba3.blackbox.smbclient_krb5 old ccache %s" % options, "ktest:local",
                   [os.path.join(samba3srcdir, "script/tests/test_smbclient_krb5.sh"),
                    "$PREFIX/ktest/krb5_ccache-2",
-                   smbclient3, "$SERVER", options, configuration])
+                   smbclient3, "$SERVER", options, configuration], subunit_version=1)
 
     plantestsuite("samba3.blackbox.smbclient_large_file %s" % options, "ktest:local",
                   [os.path.join(samba3srcdir, "script/tests/test_smbclient_posix_large.sh"),
                    "$PREFIX/ktest/krb5_ccache-3",
-                   smbclient3, "$SERVER", "$PREFIX", options, "-k " + configuration])
+                   smbclient3, "$SERVER", "$PREFIX", options, "-k " + configuration],
+                  subunit_version=1)
 
     plantestsuite("samba3.blackbox.smbclient_posix_large %s krb5" % options, "ktest:local",
                   [os.path.join(samba3srcdir, "script/tests/test_smbclient_posix_large.sh"),
                    "$PREFIX/ktest/krb5_ccache-3",
-                   smbclient3, "$SERVER", "$PREFIX", options, "-k " + configuration])
+                   smbclient3, "$SERVER", "$PREFIX", options, "-k " + configuration],
+                  subunit_version=1)
 
     plantestsuite("samba3.blackbox.smbclient_posix_large %s NTLM" % options, "s3dc:local",
                   [os.path.join(samba3srcdir, "script/tests/test_smbclient_posix_large.sh"),
                    "none",
-                   smbclient3, "$SERVER", "$PREFIX", options, "-U$USERNAME%$PASSWORD " + configuration])
+                   smbclient3, "$SERVER", "$PREFIX", options, "-U$USERNAME%$PASSWORD " + configuration],
+                  subunit_version=1)
 
 for e in endianness_options:
     for a in auth_options:

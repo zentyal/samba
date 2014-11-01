@@ -13,7 +13,7 @@
 # it possible to run the testsuite against other servers, such as
 # Windows that have a different set of features.
 
-# The syntax for a testsuite is "-- TEST --" on a single line, followed
+# The syntax for a testsuite is "-- TEST2 --" on a single line, followed
 # by the name of the test, the environment it needs and the command to run, all
 # three separated by newlines. All other lines in the output are considered
 # comments.
@@ -65,31 +65,36 @@ planpythontestsuite(
 plantestsuite(
     "samba4.blackbox.dbcheck.alpha13", "none",
     ["PYTHON=%s" % python, os.path.join(bbdir, "dbcheck-oldrelease.sh"),
-     '$PREFIX_ABS/provision', 'alpha13', configuration])
+     '$PREFIX_ABS/provision', 'alpha13', configuration], subunit_version=1)
 plantestsuite(
     "samba4.blackbox.dbcheck.release-4-0-0", "none",
     ["PYTHON=%s" % python, os.path.join(bbdir, "dbcheck-oldrelease.sh"),
-     '$PREFIX_ABS/provision', 'release-4-0-0', configuration])
+     '$PREFIX_ABS/provision', 'release-4-0-0', configuration], subunit_version=1)
 plantestsuite(
     "samba4.blackbox.dbcheck.release-4-1-0rc3", "none",
     ["PYTHON=%s" % python, os.path.join(bbdir, "dbcheck-oldrelease.sh"),
-     '$PREFIX_ABS/provision', 'release-4-1-0rc3', configuration])
+     '$PREFIX_ABS/provision', 'release-4-1-0rc3', configuration],
+    subunit_version=1)
 plantestsuite(
     "samba4.blackbox.dbcheck.release-4-1-6-partial-object", "none",
     ["PYTHON=%s" % python, os.path.join(bbdir, "dbcheck-oldrelease.sh"),
-     '$PREFIX_ABS/provision', 'release-4-1-6-partial-object', configuration])
+     '$PREFIX_ABS/provision', 'release-4-1-6-partial-object', configuration],
+    subunit_version=1)
 plantestsuite(
     "samba4.blackbox.upgradeprovision.alpha13", "none",
     ["PYTHON=%s" % python,
      os.path.join(bbdir, "upgradeprovision-oldrelease.sh"),
-     '$PREFIX_ABS/provision', 'alpha13', configuration])
+     '$PREFIX_ABS/provision', 'alpha13', configuration],
+    subunit_version=1)
 plantestsuite(
     "samba4.blackbox.upgradeprovision.release-4-0-0", "none",
     ["PYTHON=%s" % python,
      os.path.join(bbdir, "upgradeprovision-oldrelease.sh"),
-     '$PREFIX_ABS/provision', 'release-4-0-0', configuration])
+     '$PREFIX_ABS/provision', 'release-4-0-0', configuration],
+    subunit_version=1)
 planpythontestsuite("none", "samba.tests.upgradeprovision")
 planpythontestsuite("none", "samba.tests.xattr")
 planpythontestsuite("none", "samba.tests.ntacls")
 planpythontestsuite("none", "samba.tests.policy")
-plantestsuite("wafsamba.duplicate_symbols", "none", [os.path.join(srcdir(), "buildtools/wafsamba/test_duplicate_symbol.sh")])
+plantestsuite("wafsamba.duplicate_symbols", "none", [os.path.join(srcdir(), "buildtools/wafsamba/test_duplicate_symbol.sh")],
+        subunit_version=1)

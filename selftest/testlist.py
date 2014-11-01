@@ -78,11 +78,12 @@ def read_testlist(inf, outf):
         if l == '':
             return
         if l.startswith("-- TEST") and l.endswith(" --\n"):
-            supports_loadlist = l.startswith("-- TEST-LOADLIST")
+            supports_loadlist = l.rstrip().endswith("LOADLIST --")
+            subunit_version = int(l[7])
             name = inf.readline().rstrip("\n")
             env = inf.readline().rstrip("\n")
             cmdline = inf.readline().rstrip("\n")
-            yield (name, env, cmdline, supports_loadlist)
+            yield (name, env, cmdline, supports_loadlist, subunit_version)
         else:
             outf.write(l)
 

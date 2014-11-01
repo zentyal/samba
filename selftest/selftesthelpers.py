@@ -13,7 +13,7 @@
 # it possible to run the testsuite against other servers, such as Samba 3 or
 # Windows that have a different set of features.
 
-# The syntax for a testsuite is "-- TEST --" on a single line, followed
+# The syntax for a testsuite is "-- TEST2 --" on a single line, followed
 # by the name of the test, the environment it needs and the command to run, all
 # three separated by newlines. All other lines in the output are considered
 # comments.
@@ -69,7 +69,7 @@ python = os.getenv("PYTHON", "python")
 
 # Set a default value, overridden if we find a working one on the system
 tap2subunit = "PYTHONPATH=%s/lib/subunit/python:%s/lib/testtools:%s/lib/extras:%s/lib/mimeparse %s %s/lib/subunit/filters/tap2subunit" % (srcdir(), srcdir(), srcdir(), srcdir(), python, srcdir())
-subunit2to1 = "PYTHONPATH=%s/lib/subunit/python:%s/lib/testtools:%s/lib/extras:%s/lib/mimeparse %s %s/lib/subunit/filters/subunit-2to1" % (srcdir(), srcdir(), srcdir(), srcdir(), python, srcdir())
+tap2subunit_version = 2
 
 sub = subprocess.Popen("tap2subunit", stdin=subprocess.PIPE,
     stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
@@ -82,7 +82,7 @@ if sub.returncode == 0:
         stderr=subprocess.PIPE, shell=True)
     if sub.returncode == 0:
         tap2subunit = "tap2subunit"
-        subunit2to1 = "subunit-2to1"
+        tap2subunit_version = 2
     else:
         # System tap2subunit that outputs subunitv1
         cmd = "echo -ne \"1..1\nok 1 # skip doesn't seem to work yet\n\" | tap2subunit | grep skip"
@@ -90,7 +90,7 @@ if sub.returncode == 0:
             stderr=subprocess.PIPE, shell=True)
         if sub.returncode == 0:
             tap2subunit = "tap2subunit"
-            subunit2to1 = "cat"
+            tap2subunit_version = 1
 
 
 def valgrindify(cmdline):
@@ -101,14 +101,15 @@ def valgrindify(cmdline):
     return valgrind + " " + cmdline
 
 
-def plantestsuite(name, env, cmdline):
+def plantestsuite(name, env, cmdline, subunit_version):
     """Plan a test suite.
 
     :param name: Testsuite name
     :param env: Environment to run the testsuite in
     :param cmdline: Command line to run
+    :param subunit_version: Subunit version (1 or 2)
     """
-    print "-- TEST --"
+    print "-- TEST%d --" % (subunit_version, )
     print name
     print env
     if isinstance(cmdline, list):
@@ -130,8 +131,8 @@ def add_prefix(prefix, env, support_list=False):
     return "%s/selftest/filter-subunit %s--fail-on-empty --prefix=\"%s.\" --suffix=\"(%s)\"" % (srcdir(), listopt, prefix, env)
 
 
-def plantestsuite_loadlist(name, env, cmdline):
-    print "-- TEST-LOADLIST --"
+def plantestsuite_loadlist(name, env, cmdline, subunit_version):
+    print "-- TEST%d-LOADLIST --" % (subunit_version, )
     if env == "none":
         fullname = name
     else:
@@ -161,7 +162,10 @@ def planperltestsuite(name, path):
     :param path: Path to the test runner
     """
     if has_perl_test_more:
-        plantestsuite(name, "none", "%s %s | %s | %s" % (" ".join(perl), path, tap2subunit, subunit2to1))
+        plantestsuite(
+            name, "none",
+            "%s %s | %s" % (" ".join(perl), path, tap2subunit),
+            subunit_version=tap2subunit_version)
     else:
         skiptestsuite(name, "Test::More not available")
 
@@ -179,7 +183,7 @@ def planpythontestsuite(env, module, name=None, extra_path=[]):
     args = [python, "-m", "subunit.run", "$LISTOPT", "$LOADLIST", module]
     if pypath:
         args.insert(0, "PYTHONPATH=%s" % ":".join(["$PYTHONPATH"] + pypath))
-    plantestsuite_loadlist(name, env, args)
+    plantestsuite_loadlist(name, env, args, subunit_version=2)
 
 
 def get_env_torture_options():
@@ -214,7 +218,7 @@ def plansmbtorture4testsuite(name, env, options, target, modname=None):
         options = " ".join(options)
     options = " ".join(smbtorture4_options + ["--target=%s" % target]) + " " + options
     cmdline = "%s $LISTOPT %s %s" % (valgrindify(smbtorture4), options, name)
-    plantestsuite_loadlist(modname, env, cmdline)
+    plantestsuite_loadlist(modname, env, cmdline, subunit_version=1)
 
 
 def smbtorture4_testsuites(prefix):

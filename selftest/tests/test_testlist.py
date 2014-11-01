@@ -64,17 +64,24 @@ class ReadTestRegexesTests(TestCase):
 
 class ReadTestlistTests(TestCase):
 
-    def test_read_list(self):
-        inf = StringIO("-- TEST --\nfoo\nbar\nbla\n")
+    def test_read_list_v1(self):
+        inf = StringIO("-- TEST1 --\nfoo\nbar\nbla\n")
         outf = StringIO()
-        self.assertEquals([('foo', 'bar', 'bla', False)],
+        self.assertEquals([('foo', 'bar', 'bla', False, 1)],
+                list(read_testlist(inf, outf)))
+        self.assertEquals("", outf.getvalue())
+
+    def test_read_list_v2(self):
+        inf = StringIO("-- TEST2 --\nfoo\nbar\nbla\n")
+        outf = StringIO()
+        self.assertEquals([('foo', 'bar', 'bla', False, 2)],
                 list(read_testlist(inf, outf)))
         self.assertEquals("", outf.getvalue())
 
     def test_read_list_passes_through(self):
-        inf = StringIO("MORENOISE\n-- TEST --\nfoo\nbar\nbla\nNOISE\n")
+        inf = StringIO("MORENOISE\n-- TEST2 --\nfoo\nbar\nbla\nNOISE\n")
         outf = StringIO()
-        self.assertEquals([('foo', 'bar', 'bla', False)],
+        self.assertEquals([('foo', 'bar', 'bla', False, 2)],
                 list(read_testlist(inf, outf)))
         self.assertEquals("MORENOISE\nNOISE\n", outf.getvalue())
 
@@ -138,11 +145,11 @@ class ReadTestListFileTests(TestCase):
         self.addCleanup(os.remove, p)
         f = os.fdopen(fd, 'w')
         try:
-            f.write('noise\n-- TEST --\ndata\nenv\ncmd\n')
+            f.write('noise\n-- TEST2 --\ndata\nenv\ncmd\n')
         finally:
             f.close()
         outf = StringIO()
         self.assertEquals(
-            [('data', 'env', 'cmd', False, False)],
+            [('data', 'env', 'cmd', False, 2)],
             list(read_testlist_file(p, outf)))
         self.assertEquals("noise\n", outf.getvalue())

@@ -143,6 +143,6 @@ class ReadTestListFileTests(TestCase):
             f.close()
         outf = StringIO()
         self.assertEquals(
-            [('data', 'env', 'cmd', False, 2)],
+            [('data', 'env', 'cmd', None)],
             list(read_testlist_file(p, outf)))
         self.assertEquals("noise\n", outf.getvalue())

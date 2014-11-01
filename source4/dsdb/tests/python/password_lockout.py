@@ -14,6 +14,7 @@ import time
 
 sys.path.insert(0, "bin/python")
 import samba
+samba.ensure_external_module("mimeparse", "mimeparse")
 samba.ensure_external_module("extras", "extras")
 samba.ensure_external_module("testtools", "testtools")
 samba.ensure_external_module("subunit", "subunit/python")
@@ -23,13 +24,10 @@ import samba.getopt as options
 from samba.auth import system_session
 from samba.credentials import Credentials, DONT_USE_KERBEROS, MUST_USE_KERBEROS
 from ldb import SCOPE_BASE, LdbError
-from ldb import ERR_ATTRIBUTE_OR_VALUE_EXISTS
-from ldb import ERR_UNWILLING_TO_PERFORM, ERR_INSUFFICIENT_ACCESS_RIGHTS
-from ldb import ERR_NO_SUCH_ATTRIBUTE
 from ldb import ERR_CONSTRAINT_VIOLATION
 from ldb import ERR_INVALID_CREDENTIALS
 from ldb import Message, MessageElement, Dn
-from ldb import FLAG_MOD_ADD, FLAG_MOD_REPLACE, FLAG_MOD_DELETE
+from ldb import FLAG_MOD_REPLACE
 from samba import gensec, dsdb
 from samba.samdb import SamDB
 import samba.tests

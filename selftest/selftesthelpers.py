@@ -69,6 +69,7 @@ python = os.getenv("PYTHON", "python")
 
 # Set a default value, overridden if we find a working one on the system
 tap2subunit = "PYTHONPATH=%s/lib/subunit/python:%s/lib/testtools:%s/lib/extras:%s/lib/mimeparse %s %s/lib/subunit/filters/tap2subunit" % (srcdir(), srcdir(), srcdir(), srcdir(), python, srcdir())
+subunit2to1 = "PYTHONPATH=%s/lib/subunit/python:%s/lib/testtools:%s/lib/extras:%s/lib/mimeparse %s %s/lib/subunit/filters/subunit-2to1" % (srcdir(), srcdir(), srcdir(), srcdir(), python, srcdir())
 tap2subunit_version = 2
 
 sub = subprocess.Popen("tap2subunit", stdin=subprocess.PIPE,
@@ -93,6 +94,12 @@ if sub.returncode == 0:
             tap2subunit_version = 1
 
 
+def to_subunit1(subunit_version):
+    if subunit_version == 1:
+        return ""
+    return " | " + subunit2to1
+
+
 def valgrindify(cmdline):
     """Run a command under valgrind, if $VALGRIND was set."""
     valgrind = os.getenv("VALGRIND")
@@ -109,12 +116,14 @@ def plantestsuite(name, env, cmdline, subunit_version):
     :param cmdline: Command line to run
     :param subunit_version: Subunit version (1 or 2)
     """
-    print "-- TEST%d --" % (subunit_version, )
+    print "-- TEST --"
     print name
     print env
     if isinstance(cmdline, list):
         cmdline = " ".join(cmdline)
-    print "%s 2>&1 | " + add_prefix(name, env, "$LISTOPT" in cmdline)
+    if "$LISTOPT" in cmdline:
+        raise AssertionError("test %s supports --list, but not --load-list" % name)
+    print cmdline + " 2>&1 " + to_subunit1(subunit_version) + " | " + add_prefix(name, env)
 
 
 def add_prefix(prefix, env, support_list=False):
@@ -126,7 +135,7 @@ def add_prefix(prefix, env, support_list=False):
 
 
 def plantestsuite_loadlist(name, env, cmdline, subunit_version):
-    print "-- TEST%d-LOADLIST --" % (subunit_version, )
+    print "-- TEST-LOADLIST --"
     if env == "none":
         fullname = name
     else:
@@ -136,7 +145,10 @@ def plantestsuite_loadlist(name, env, cmdline, subunit_version):
     if isinstance(cmdline, list):
         cmdline = " ".join(cmdline)
     support_list = ("$LISTOPT" in cmdline)
-    print "%s $LOADLIST 2>&1 | %s" % (cmdline, add_prefix(name, env, support_list))
+    if not "$LISTOPT" in cmdline:
+        raise AssertionError("test %s supports --load-list, but not --list" % name)
+    print ("%s | %s" % (cmdline, add_prefix(name, env, support_list))).replace("$LISTOPT", "--list")
+    print cmdline + " $LOADLIST 2>&1 " + to_subunit1(subunit_version) + "| " + add_prefix(name, env, support_list)
 
 
 def skiptestsuite(name, reason):

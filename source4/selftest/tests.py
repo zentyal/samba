@@ -436,7 +436,7 @@ def planoldpythontestsuite(env, module, name=None, extra_path=[], environ={}, ex
     args += extra_args
     if name is None:
         name = module
-    plantestsuite(name, env, args, subunit_version=2)
+    plantestsuite_loadlist(name, env, args, subunit_version=2)
 
 planoldpythontestsuite("dc:local", "samba.tests.gensec", extra_args=['-U"$USERNAME%$PASSWORD"'])
 planoldpythontestsuite("none", "simple", extra_path=["%s/lib/tdb/python/tests" % srcdir()], name="tdb.python")
@@ -462,9 +462,9 @@ planpythontestsuite("dc:local", "samba.tests.dcerpc.rpcecho")
 planoldpythontestsuite("dc:local", "samba.tests.dcerpc.registry", extra_args=['-U"$USERNAME%$PASSWORD"'])
 planoldpythontestsuite("dc", "samba.tests.dcerpc.dnsserver", extra_args=['-U"$USERNAME%$PASSWORD"'])
 planoldpythontestsuite("plugin_s4_dc", "samba.tests.dcerpc.dnsserver", extra_args=['-U"$USERNAME%$PASSWORD"'])
-plantestsuite("samba4.ldap.python(dc)", "dc", [python, os.path.join(samba4srcdir, "dsdb/tests/python/ldap.py"), '$SERVER', '-U"$USERNAME%$PASSWORD"', '--workgroup=$DOMAIN'], subunit_version=1)
-plantestsuite("samba4.tokengroups.python(dc)", "dc:local", [python, os.path.join(samba4srcdir, "dsdb/tests/python/token_group.py"), '$SERVER', '-U"$USERNAME%$PASSWORD"', '--workgroup=$DOMAIN'], subunit_version=1)
-plantestsuite("samba4.sam.python(dc)", "dc", [python, os.path.join(samba4srcdir, "dsdb/tests/python/sam.py"), '$SERVER', '-U"$USERNAME%$PASSWORD"', '--workgroup=$DOMAIN'], subunit_version=1)
+plantestsuite("samba4.ldap.python(dc)", "dc", [python, os.path.join(samba4srcdir, "dsdb/tests/python/ldap.py"), '$SERVER', '-U"$USERNAME%$PASSWORD"', '--workgroup=$DOMAIN'], subunit_version=2)
+plantestsuite("samba4.tokengroups.python(dc)", "dc:local", [python, os.path.join(samba4srcdir, "dsdb/tests/python/token_group.py"), '$SERVER', '-U"$USERNAME%$PASSWORD"', '--workgroup=$DOMAIN'], subunit_version=2)
+plantestsuite("samba4.sam.python(dc)", "dc", [python, os.path.join(samba4srcdir, "dsdb/tests/python/sam.py"), '$SERVER', '-U"$USERNAME%$PASSWORD"', '--workgroup=$DOMAIN'], subunit_version=2)
 planoldpythontestsuite("dc", "dsdb_schema_info",
         extra_path=[os.path.join(samba4srcdir, 'dsdb/tests/python')],
         name="samba4.schemaInfo.python(dc)",

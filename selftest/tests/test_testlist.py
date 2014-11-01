@@ -64,24 +64,17 @@ class ReadTestRegexesTests(TestCase):
 
 class ReadTestlistTests(TestCase):
 
-    def test_read_list_v1(self):
-        inf = StringIO("-- TEST1 --\nfoo\nbar\nbla\n")
+    def test_read_list(self):
+        inf = StringIO("-- TEST --\nfoo\nbar\nbla\n")
         outf = StringIO()
-        self.assertEquals([('foo', 'bar', 'bla', False, 1)],
-                list(read_testlist(inf, outf)))
-        self.assertEquals("", outf.getvalue())
-
-    def test_read_list_v2(self):
-        inf = StringIO("-- TEST2 --\nfoo\nbar\nbla\n")
-        outf = StringIO()
-        self.assertEquals([('foo', 'bar', 'bla', False, 2)],
+        self.assertEquals([('foo', 'bar', 'bla', None)],
                 list(read_testlist(inf, outf)))
         self.assertEquals("", outf.getvalue())
 
     def test_read_list_passes_through(self):
-        inf = StringIO("MORENOISE\n-- TEST2 --\nfoo\nbar\nbla\nNOISE\n")
+        inf = StringIO("MORENOISE\n-- TEST --\nfoo\nbar\nbla\nNOISE\n")
         outf = StringIO()
-        self.assertEquals([('foo', 'bar', 'bla', False, 2)],
+        self.assertEquals([('foo', 'bar', 'bla', None)],
                 list(read_testlist(inf, outf)))
         self.assertEquals("MORENOISE\nNOISE\n", outf.getvalue())
 

@@ -8,10 +8,8 @@ import os
 
 sys.path.insert(0, "bin/python")
 import samba
-samba.ensure_external_module("mimeparse", "mimeparse")
-samba.ensure_external_module("extras", "extras")
-samba.ensure_external_module("testtools", "testtools")
-samba.ensure_external_module("subunit", "subunit/python")
+
+from samba.tests.subunitrun import SubunitOptions, TestProgram
 
 import samba.getopt as options
 
@@ -41,9 +39,6 @@ from samba.dsdb import (UF_NORMAL_ACCOUNT, UF_ACCOUNTDISABLE,
 from samba.dcerpc.security import (DOMAIN_RID_USERS, DOMAIN_RID_ADMINS,
     DOMAIN_RID_DOMAIN_MEMBERS, DOMAIN_RID_DCS, DOMAIN_RID_READONLY_DCS)
 
-from subunit.run import SubunitTestRunner
-import unittest
-
 from samba.dcerpc import security
 from samba.tests import delete_force
 
@@ -54,6 +49,8 @@ parser.add_option_group(options.VersionOptions(parser))
 # use command line creds if available
 credopts = options.CredentialsOptions(parser)
 parser.add_option_group(credopts)
+subunitopts = SubunitOptions(parser)
+parser.add_option_group(subunitopts)
 opts, args = parser.parse_args()
 
 if len(args) < 1:
@@ -2887,8 +2884,4 @@ if not "://" in host:
 
 ldb = SamDB(host, credentials=creds, session_info=system_session(lp), lp=lp)
 
-runner = SubunitTestRunner()
-rc = 0
-if not runner.run(unittest.makeSuite(SamTests)).wasSuccessful():
-    rc = 1
-sys.exit(rc)
+TestProgram(module=__name__, opts=subunitopts)

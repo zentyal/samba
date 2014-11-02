@@ -471,7 +471,7 @@ planoldpythontestsuite("dc", "dsdb_schema_info",
         extra_args=['-U"$DOMAIN/$DC_USERNAME%$DC_PASSWORD"'])
 plantestsuite_loadlist("samba4.urgent_replication.python(dc)", "dc:local", [python, os.path.join(samba4srcdir, "dsdb/tests/python/urgent_replication.py"), '$PREFIX_ABS/dc/private/sam.ldb', '$LOADLIST', '$LISTOPT'], subunit_version=2)
 plantestsuite_loadlist("samba4.ldap.dirsync.python(dc)", "dc", [python, os.path.join(samba4srcdir, "dsdb/tests/python/dirsync.py"), '$SERVER', '-U"$USERNAME%$PASSWORD"', '--workgroup=$DOMAIN', '$LOADLIST', '$LISTOPT'], subunit_version=2)
-plantestsuite("samba4.ldap.sites.python(dc)", "dc", [python, os.path.join(samba4srcdir, "dsdb/tests/python/sites.py"), '$SERVER', '-U"$USERNAME%$PASSWORD"', '--workgroup=$DOMAIN'], subunit_version=2)
+plantestsuite_loadlist("samba4.ldap.sites.python(dc)", "dc", [python, os.path.join(samba4srcdir, "dsdb/tests/python/sites.py"), '$SERVER', '-U"$USERNAME%$PASSWORD"', '--workgroup=$DOMAIN', '$LOADLIST', '$LISTOPT'], subunit_version=2)
 for env in ["dc", "fl2000dc", "fl2003dc", "fl2008r2dc"]:
     plantestsuite_loadlist("samba4.ldap_schema.python(%s)" % env, env, [python, os.path.join(samba4srcdir, "dsdb/tests/python/ldap_schema.py"), '$SERVER', '-U"$USERNAME%$PASSWORD"', '--workgroup=$DOMAIN', '$LOADLIST', '$LISTOPT'], subunit_version=2)
     plantestsuite("samba4.ldap.possibleInferiors.python(%s)" % env, env, [python, os.path.join(samba4srcdir, "dsdb/samdb/ldb_modules/tests/possibleinferiors.py"), "ldap://$SERVER", '-U"$USERNAME%$PASSWORD"', "-W$DOMAIN"], subunit_version=1)

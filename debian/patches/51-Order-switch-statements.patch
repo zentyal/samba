@@ -20,9 +20,9 @@ Autobuild-Date(master): Mon Jul  7 07:47:44 CEST 2014 on sn-devel-104
 
 Index: samba/source4/dsdb/repl/drepl_out_helpers.c
 ===================================================================
---- samba.orig/source4/dsdb/repl/drepl_out_helpers.c	2014-07-24 10:34:43.167882920 +0200
-+++ samba/source4/dsdb/repl/drepl_out_helpers.c	2014-07-24 10:34:43.155882921 +0200
-@@ -173,16 +173,6 @@
+--- samba.orig/source4/dsdb/repl/drepl_out_helpers.c	2014-11-06 13:12:32.184320426 +0100
++++ samba/source4/dsdb/repl/drepl_out_helpers.c	2014-11-06 13:12:32.176320384 +0100
+@@ -176,16 +176,6 @@
  			info28->repl_epoch		= 0;
  			break;
  		}
@@ -39,7 +39,7 @@ Index: samba/source4/dsdb/repl/drepl_out_helpers.c
  		case 28: {
  			*info28 = state->bind_r.out.bind_info->info.info28;
  			break;
-@@ -197,6 +187,16 @@
+@@ -200,6 +190,16 @@
  			info28->repl_epoch		= info32->repl_epoch;
  			break;
  		}
@@ -58,8 +58,8 @@ Index: samba/source4/dsdb/repl/drepl_out_helpers.c
  			info52 = &state->bind_r.out.bind_info->info.info52;
 Index: samba/source4/libnet/libnet_become_dc.c
 ===================================================================
---- samba.orig/source4/libnet/libnet_become_dc.c	2014-07-24 10:34:43.167882920 +0200
-+++ samba/source4/libnet/libnet_become_dc.c	2014-07-24 10:34:43.155882921 +0200
+--- samba.orig/source4/libnet/libnet_become_dc.c	2014-11-06 13:12:32.184320426 +0100
++++ samba/source4/libnet/libnet_become_dc.c	2014-11-06 13:12:32.176320384 +0100
 @@ -1699,15 +1699,6 @@
  			drsuapi->remote_info28.repl_epoch		= 0;
  			break;
@@ -94,8 +94,8 @@ Index: samba/source4/libnet/libnet_become_dc.c
  			info52 = &drsuapi->bind_r.out.bind_info->info.info52;
 Index: samba/source4/libnet/libnet_unbecome_dc.c
 ===================================================================
---- samba.orig/source4/libnet/libnet_unbecome_dc.c	2014-07-24 10:34:43.167882920 +0200
-+++ samba/source4/libnet/libnet_unbecome_dc.c	2014-07-24 10:34:43.155882921 +0200
+--- samba.orig/source4/libnet/libnet_unbecome_dc.c	2014-11-06 13:12:32.184320426 +0100
++++ samba/source4/libnet/libnet_unbecome_dc.c	2014-11-06 13:12:32.180320408 +0100
 @@ -635,15 +635,6 @@
  			s->drsuapi.remote_info28.repl_epoch		= 0;
  			break;
@@ -130,8 +130,8 @@ Index: samba/source4/libnet/libnet_unbecome_dc.c
  			info52 = &s->drsuapi.bind_r.out.bind_info->info.info52;
 Index: samba/source4/torture/drs/rpc/dssync.c
 ===================================================================
---- samba.orig/source4/torture/drs/rpc/dssync.c	2014-07-24 10:34:43.167882920 +0200
-+++ samba/source4/torture/drs/rpc/dssync.c	2014-07-24 10:34:43.159882921 +0200
+--- samba.orig/source4/torture/drs/rpc/dssync.c	2014-11-06 13:12:32.184320426 +0100
++++ samba/source4/torture/drs/rpc/dssync.c	2014-11-06 13:12:32.180320408 +0100
 @@ -229,15 +229,6 @@
  			b->peer_bind_info28.repl_epoch		= 0;
  			break;
@@ -166,8 +166,8 @@ Index: samba/source4/torture/drs/rpc/dssync.c
  			info52 = &b->req.out.bind_info->info.info52;
 Index: samba/source4/torture/drs/rpc/msds_intid.c
 ===================================================================
---- samba.orig/source4/torture/drs/rpc/msds_intid.c	2014-07-24 10:34:43.167882920 +0200
-+++ samba/source4/torture/drs/rpc/msds_intid.c	2014-07-24 10:34:43.159882921 +0200
+--- samba.orig/source4/torture/drs/rpc/msds_intid.c	2014-11-06 13:12:32.184320426 +0100
++++ samba/source4/torture/drs/rpc/msds_intid.c	2014-11-06 13:12:32.180320408 +0100
 @@ -237,10 +237,6 @@
  		bi->srv_info48.repl_epoch		= info28->repl_epoch;
  		break;
@@ -192,8 +192,8 @@ Index: samba/source4/torture/drs/rpc/msds_intid.c
  		info52 = &r.out.bind_info->info.info52;
 Index: samba/source4/torture/rpc/dsgetinfo.c
 ===================================================================
---- samba.orig/source4/torture/rpc/dsgetinfo.c	2014-07-24 10:34:43.167882920 +0200
-+++ samba/source4/torture/rpc/dsgetinfo.c	2014-07-24 10:34:43.159882921 +0200
+--- samba.orig/source4/torture/rpc/dsgetinfo.c	2014-11-06 13:12:32.184320426 +0100
++++ samba/source4/torture/rpc/dsgetinfo.c	2014-11-06 13:12:32.180320408 +0100
 @@ -191,15 +191,6 @@
  			b->peer_bind_info28.repl_epoch		= 0;
  			break;

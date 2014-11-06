@@ -1,8 +1,8 @@
 Index: samba/source4/dns_server/dlz_bind9.c
 ===================================================================
---- samba.orig/source4/dns_server/dlz_bind9.c	2014-07-02 13:23:37.554391728 +0200
-+++ samba/source4/dns_server/dlz_bind9.c	2014-07-02 13:24:30.018392515 +0200
-@@ -1194,7 +1194,8 @@
+--- samba.orig/source4/dns_server/dlz_bind9.c	2014-11-06 13:12:24.872293046 +0100
++++ samba/source4/dns_server/dlz_bind9.c	2014-11-06 13:12:24.872293046 +0100
+@@ -1165,7 +1165,8 @@
  			}
  			/* Ignore zones that are not handled in BIND */
  			if ((strcmp(zone, "RootDNSServers") == 0) ||

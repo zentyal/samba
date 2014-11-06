@@ -1,25 +1,19 @@
-#
-#    Translators, if you are not familiar with the PO format, gettext
-#    documentation is worth reading, especially sections dedicated to
-#    this format, e.g. by running:
-#         info -n '(gettext)PO Files'
-#         info -n '(gettext)Header Entry'
-#
-#    Some information specific to po-debconf are available at
-#            /usr/share/doc/po-debconf/README-trans
-#         or http://www.debian.org/intl/l10n/po-debconf/README-trans
-#
-#    Developers do not need to manually edit POT or PO files.
+# Debconf translations for samba.
+# Copyright (C) 2014 THE samba'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the samba package.
+# André Luís Lopes <andrelop@debian.org>, 2007.
+# Adriano Rafael Gomes <adrianorg@arg.eti.br>, 2012-2014.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: samba\n"
+"Project-Id-Version: samba 2:4.1.9+dfsg-1\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2013-10-22 20:32+0200\n"
-"PO-Revision-Date: 2007-03-12 16:16-0200\n"
-"Last-Translator: André Luís Lopes <andrelop@debian.org>\n"
-"Language-Team: Debian-BR Project <debian-l10n-portuguese@lists.debian.org>\n"
-"Language: \n"
+"PO-Revision-Date: 2014-06-25 17:58-0300\n"
+"Last-Translator: Adriano Rafael Gomes <adrianorg@arg.eti.br>\n"
+"Language-Team: Brazilian Portuguese <debian-l10n-portuguese@lists.debian."
+"org>\n"
+"Language: pt_BR\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -28,7 +22,7 @@ msgstr ""
 #. Description
 #: ../samba-ad-dc.templates:1001
 msgid "Upgrade from Samba 3?"
-msgstr ""
+msgstr "Atualizar a partir do Samba 3?"
 
 #. Type: boolean
 #. Description
@@ -38,12 +32,16 @@ msgid ""
 "Samba 4. This is likely to fail for complex setups, but should provide a "
 "good starting point for most existing installations."
 msgstr ""
+"É possível migrar os arquivos de configuração existentes a partir do Samba 3 "
+"para o Samba 4. Isso provavelmente falhará para configurações complexas, mas "
+"pode fornecer um bom ponto de partida para a maioria das instalações "
+"existentes."
 
 #. Type: select
 #. Description
 #: ../samba-ad-dc.templates:2001
 msgid "Server role"
-msgstr ""
+msgstr "Papel do servidor"
 
 #. Type: select
 #. Description
@@ -53,6 +51,9 @@ msgid ""
 "services such as identity management and domain logons. Each domain needs to "
 "have a at least one domain controller."
 msgstr ""
+"Controladores de domínio gerenciam domínios no estilo NT4 ou Active "
+"Directory e fornecem serviços como gerenciamento de identidade e logons de "
+"domínio. Cada domínio precisa ter pelo menos um controlador de domínio."
 
 #. Type: select
 #. Description
@@ -62,6 +63,10 @@ msgid ""
 "not provide any domain services. Workstations and file or print servers are "
 "usually regular domain members."
 msgstr ""
+"Servidores membro podem ser parte de um domínio no estilo NT4 ou Active "
+"Directory, mas não fornecem nenhum serviço de domínio. Estações de trabalho "
+"e servidores de arquivo ou de impressão geralmente são membros regulares de "
+"domínio."
 
 #. Type: select
 #. Description
@@ -70,6 +75,8 @@ msgid ""
 "A standalone server can not be used in a domain and only supports file "
 "sharing and Windows for Workgroups-style logins."
 msgstr ""
+"Um servidor autônomo não pode ser usado em um domínio e somente suporta "
+"compartilhamento de arquivos e logins no estilo Windows for Workgroups."
 
 #. Type: select
 #. Description
@@ -78,12 +85,14 @@ msgid ""
 "If no server role is specified, the Samba server will not be provisioned, so "
 "this can be done manually by the user."
 msgstr ""
+"Se nenhum papel de servidor for especificado, o servidor Samba não será "
+"provisionado, assim isso poderá ser feito manualmente pelo usuário."
 
 #. Type: string
 #. Description
 #: ../samba-ad-dc.templates:3001
 msgid "Realm name:"
-msgstr ""
+msgstr "Nome do domínio:"
 
 #. Type: string
 #. Description
@@ -92,48 +101,54 @@ msgid ""
 "Please specify the Kerberos realm for the domain that this domain controller "
 "controls."
 msgstr ""
+"Por favor, especifique o domínio Kerberos para o domínio que esse "
+"controlador de domínio controla."
 
 #. Type: string
 #. Description
 #: ../samba-ad-dc.templates:3001
 msgid "Usually this is the a capitalized version of your DNS hostname."
 msgstr ""
+"Geralmente, isso é uma versão em letras maiúsculas do seu nome de máquina "
+"DNS."
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "New password for the Samba \"administrator\" user:"
-msgstr ""
+msgstr "Nova senha para o usuário \"administrator\" do Samba:"
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "If this field is left blank, a random password will be generated."
-msgstr ""
+msgstr "Se esse campo for deixado em branco, uma senha aleatória será gerada."
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:4001
 msgid "A password can be set later by running, as root:"
-msgstr ""
+msgstr "Uma senha pode ser definida mais tarde, executando, como root:"
 
 #. Type: password
 #. Description
 #: ../samba-ad-dc.templates:5001
 msgid "Repeat password for the Samba \"administrator\" user:"
-msgstr ""
+msgstr "Repita a senha para o usuário \"administrator\" do Samba:"
 
 #. Type: error
 #. Description
 #: ../samba-ad-dc.templates:6001
 msgid "Password input error"
-msgstr ""
+msgstr "Erro na informação da senha"
 
 #. Type: error
 #. Description
 #: ../samba-ad-dc.templates:6001
 msgid "The two passwords you entered were not the same. Please try again."
 msgstr ""
+"As duas senhas que você informou não foram as mesmas. Por favor, tente "
+"novamente."
 
 #. Type: title
 #. Description
@@ -145,7 +160,7 @@ msgstr "Servidor Samba e utilitários"
 #. Description
 #: ../samba-common.templates:2001
 msgid "Modify smb.conf to use WINS settings from DHCP?"
-msgstr "Modificar smb.conf para usar configurações WINS fornecidas via DHCP ?"
+msgstr "Modificar smb.conf para usar configurações WINS fornecidas via DHCP?"
 
 #. Type: boolean
 #. Description
@@ -159,10 +174,9 @@ msgid ""
 msgstr ""
 "Caso seu computador obtenha as informações de endereçamento IP de um "
 "servidor DHCP na rede, o servidor DHCP poderá também fornecer informações "
-"sobre servidor WINS (\"Servidor de Nomes NetBIOS\") presentes na rede. Para "
-"que o Samba leia as configurações WINS fornecidas pelo servidor DHCP "
-"automaticamente do arquivo /etc/samba/dhcp.conf, é preciso modificar seu "
-"arquivo smb.conf."
+"sobre servidores WINS (\"servidores de nomes NetBIOS\") presentes na rede. "
+"Isso requer uma alteração no seu arquivo smb.conf, assim as configurações "
+"WINS fornecidas via DHCP serão automaticamente lidas de /etc/samba/dhcp.conf."
 
 #. Type: boolean
 #. Description
@@ -177,7 +191,7 @@ msgstr ""
 #. Description
 #: ../samba-common.templates:3001
 msgid "Configure smb.conf automatically?"
-msgstr "Configurar smb.conf automaticamente ?"
+msgstr "Configurar smb.conf automaticamente?"
 
 #. Type: boolean
 #. Description
@@ -205,7 +219,7 @@ msgid ""
 "changes yourself, and will not be able to take advantage of periodic "
 "configuration enhancements."
 msgstr ""
-"Caso você não opte por essa opção, você precisará lidar com quaisquer "
+"Caso você não escolha essa opção, você precisará lidar com quaisquer "
 "mudanças de configuração manualmente e você não poderá aproveitar os "
 "melhoramentos periódicos de configuração."
 
@@ -227,7 +241,7 @@ msgstr ""
 "Por favor, especifique o grupo de trabalho para este sistema. Esta "
 "configuração controla em qual grupo de trabalho o sistema aparecerá quando "
 "usado como um servidor, qual o grupo de trabalho padrão a ser usado ao "
-"navegar usando vários frontends, e qual o nome de domínio usado com a "
+"navegar usando vários \"frontends\", e qual o nome de domínio usado com a "
 "configuração \"security=domain\"."
 
 #~ msgid "Use password encryption?"

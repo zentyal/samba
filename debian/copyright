@@ -2,6 +2,10 @@ Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: samba
 Upstream-Contact: Samba Developers <samba-technical@lists.samba.org>
 Source: http://www.samba.org/
+Files-Excluded:
+  source4/heimdal/lib/wind/*.txt
+  source4/ldap_server/devdocs
+  lib/zlib/contrib/dotzlib/DotZLib.chm
 
 Files: debian/*
 Copyright:

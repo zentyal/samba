@@ -6,9 +6,9 @@ XSBC-Original-Maintainer: Debian Samba Maintainers <pkg-samba-maint@lists.alioth
 Uploaders: Steve Langasek <vorlon@debian.org>,
            Christian Perrier <bubulle@debian.org>,
            Jelmer Vernooij <jelmer@debian.org>,
-           Ivo De Decker <ivo.dedecker@ugent.be>
+           Ivo De Decker <ivodd@debian.org>
 Homepage: http://www.samba.org
-Standards-Version: 3.9.5
+Standards-Version: 3.9.6
 Build-Depends: bison,
                comerr-dev,
                debhelper (>> 9),
@@ -24,7 +24,6 @@ Build-Depends: bison,
                libbsd-dev,
                libcap-dev [linux-any],
                libcups2-dev,
-               libgmp10,
                libgnutls-dev,
                libheimntlm0-heimdal (>= 1.6~),
                libldap2-dev,
@@ -55,7 +54,7 @@ Build-Depends: bison,
                xsltproc,
                zlib1g-dev (>= 1:1.2.3)
 Vcs-Browser: http://anonscm.debian.org/gitweb/?p=pkg-samba/samba.git
-Vcs-Git: git://anonscm.debian.org/pkg-samba/samba.git
+Vcs-Git: git://anonscm.debian.org/pkg-samba/samba.git -b master
 XS-Testsuite: autopkgtest
 
 Package: samba
@@ -158,6 +157,7 @@ Replaces: libdcerpc-server0 (<< 2:4.0.9),
 # see bug #726472
 Conflicts: libpam-smbpass (<< 2:4),
            samba-common-bin (<< 2:4),
+           samba-dsdb-modules (<< 2:4.1.9+dfsg-2),
            samba (<< 2:4),
            winbind (<< 2:4)
 Description: Samba core libraries
@@ -365,7 +365,7 @@ Description: Python bindings for Samba
 
 Package: samba-dsdb-modules
 Architecture: any
-Replaces: libgensec0 (<< 4.0.0~alpha17~git20110724.dfsg1-1)
+Replaces: libgensec0 (<< 4.0.0~alpha17~git20110724.dfsg1-1), samba-libs (<< 2:4.1.9+dfsg-2)
 Section: libs
 Depends: ${misc:Depends}, ${shlibs:Depends}
 Enhances: libldb1

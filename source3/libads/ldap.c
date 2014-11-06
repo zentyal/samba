@@ -1927,6 +1927,97 @@ ADS_STATUS ads_clear_service_principal_names(ADS_STRUCT *ads, const char *machin
 }
 
 /**
+ * @brief Search for an element in a string array.
+ *
+ * @param[in]  el_array  The string array to search.
+ *
+ * @param[in]  num_el    The number of elements in the string array.
+ *
+ * @param[in]  el        The string to search.
+ *
+ * @return               True if found, false if not.
+ */
+bool ads_element_in_array(const char **el_array, size_t num_el, const char *el)
+{
+	size_t i;
+
+	if (el_array == NULL || num_el == 0 || el == NULL) {
+		return false;
+	}
+
+	for (i = 0; i < num_el && el_array[i] != NULL; i++) {
+		int cmp;
+
+		cmp = strcasecmp_m(el_array[i], el);
+		if (cmp == 0) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/**
+ * @brief This gets the service principal names of an existing computer account.
+ *
+ * @param[in]  mem_ctx      The memory context to use to allocate the spn array.
+ *
+ * @param[in]  ads          The ADS context to use.
+ *
+ * @param[in]  machine_name The NetBIOS name of the computer, which is used to
+ *                          identify the computer account.
+ *
+ * @param[in]  spn_array    A pointer to store the array for SPNs.
+ *
+ * @param[in]  num_spns     The number of principals stored in the array.
+ *
+ * @return                  0 on success, or a ADS error if a failure occured.
+ */
+ADS_STATUS ads_get_service_principal_names(TALLOC_CTX *mem_ctx,
+					   ADS_STRUCT *ads,
+					   const char *machine_name,
+					   char ***spn_array,
+					   size_t *num_spns)
+{
+	ADS_STATUS status;
+	LDAPMessage *res = NULL;
+	char *dn;
+	int count;
+
+	status = ads_find_machine_acct(ads,
+				       &res,
+				       machine_name);
+	if (!ADS_ERR_OK(status)) {
+		DEBUG(1,("Host Account for %s not found... skipping operation.\n",
+			 machine_name));
+		return status;
+	}
+
+	count = ads_count_replies(ads, res);
+	if (count != 1) {
+		status = ADS_ERROR(LDAP_NO_SUCH_OBJECT);
+		goto done;
+	}
+
+	dn = ads_get_dn(ads, mem_ctx, res);
+	if (dn == NULL) {
+		status = ADS_ERROR_LDAP(LDAP_NO_MEMORY);
+		goto done;
+	}
+
+	*spn_array = ads_pull_strings(ads,
+				      mem_ctx,
+				      res,
+				      "servicePrincipalName",
+				      num_spns);
+
+done:
+	ads_msgfree(ads, res);
+
+	return status;
+}
+
+/**
  * This adds a service principal name to an existing computer account
  * (found by hostname) in AD.
  * @param ads An initialized ADS_STRUCT

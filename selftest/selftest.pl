@@ -61,14 +61,6 @@ my $prefix = "./st";
 my @includes = ();
 my @excludes = ();
 
-sub pipe_handler {
-	my $sig = shift @_;
-	print STDERR "Exiting early because of SIGPIPE.\n";
-	exit(1);
-}
-
-$SIG{PIPE} = \&pipe_handler;
-
 sub find_in_list($$)
 {
 	my ($list, $fullname) = @_;
@@ -671,35 +663,41 @@ my @exported_envvars = (
 	# domain controller stuff
 	"DC_SERVER",
 	"DC_SERVER_IP",
+	"DC_SERVER_IPV6",
 	"DC_NETBIOSNAME",
 	"DC_NETBIOSALIAS",
 
 	# domain member
 	"MEMBER_SERVER",
 	"MEMBER_SERVER_IP",
+	"MEMBER_SERVER_IPV6",
 	"MEMBER_NETBIOSNAME",
 	"MEMBER_NETBIOSALIAS",
 
 	# rpc proxy controller stuff
 	"RPC_PROXY_SERVER",
 	"RPC_PROXY_SERVER_IP",
+	"RPC_PROXY_SERVER_IPV6",
 	"RPC_PROXY_NETBIOSNAME",
 	"RPC_PROXY_NETBIOSALIAS",
 
 	# domain controller stuff for Vampired DC
 	"VAMPIRE_DC_SERVER",
 	"VAMPIRE_DC_SERVER_IP",
+	"VAMPIRE_DC_SERVER_IPV6",
 	"VAMPIRE_DC_NETBIOSNAME",
 	"VAMPIRE_DC_NETBIOSALIAS",
 
 	"PROMOTED_DC_SERVER",
 	"PROMOTED_DC_SERVER_IP",
+	"PROMOTED_DC_SERVER_IPV6",
 	"PROMOTED_DC_NETBIOSNAME",
 	"PROMOTED_DC_NETBIOSALIAS",
 
 	# server stuff
 	"SERVER",
 	"SERVER_IP",
+	"SERVER_IPV6",
 	"NETBIOSNAME",
 	"NETBIOSALIAS",
 
@@ -726,11 +724,23 @@ my @exported_envvars = (
         "GID_RFC2307TEST"
 );
 
-$SIG{INT} = $SIG{QUIT} = $SIG{TERM} = sub { 
+sub sighandler($)
+{
 	my $signame = shift;
+
+	$SIG{INT} = $SIG{QUIT} = $SIG{TERM} = 'DEFAULT';
+	$SIG{PIPE} = 'IGNORE';
+
+	open(STDOUT, ">&STDERR") or die "can't dup STDOUT to STDERR: $!";
+
+	print "$0: PID[$$]: Got SIG${signame} teardown environments.\n";
 	teardown_env($_) foreach(keys %running_envs);
-	die("Received signal $signame");
+	system("pstree -p $$");
+	print "$0: PID[$$]: Exiting...\n";
+	exit(1);
 };
+
+$SIG{INT} = $SIG{QUIT} = $SIG{TERM} = $SIG{PIPE} = \&sighandler;
 
 sub setup_env($$)
 {
@@ -827,6 +837,7 @@ sub teardown_env($)
 {
 	my ($envname) = @_;
 	return if ($envname eq "none");
+	print STDERR "teardown_env($envname)\n";
 	my $env = get_running_env($envname);
 	$env->{target}->teardown_env($env);
 	delete $running_envs{$envname};

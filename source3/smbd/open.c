@@ -818,29 +818,59 @@ static NTSTATUS open_file(files_struct *fsp,
 						smb_fname,
 						false,
 						access_mask);
-			} else if (local_flags & O_CREAT){
-				status = check_parent_access(conn,
-						smb_fname,
-						SEC_DIR_ADD_FILE);
-			} else {
-				/* File didn't exist and no O_CREAT. */
-				return NT_STATUS_OBJECT_NAME_NOT_FOUND;
+
+				if (!NT_STATUS_IS_OK(status)) {
+					DEBUG(10, ("open_file: "
+						   "smbd_check_access_rights "
+						   "on file %s returned %s\n",
+						   smb_fname_str_dbg(smb_fname),
+						   nt_errstr(status)));
+				}
+
+				if (!NT_STATUS_IS_OK(status) &&
+				    !NT_STATUS_EQUAL(status,
+					NT_STATUS_OBJECT_NAME_NOT_FOUND))
+				{
+					return status;
+				}
+
+				if (NT_STATUS_EQUAL(status,
+					NT_STATUS_OBJECT_NAME_NOT_FOUND))
+				{
+					DEBUG(10, ("open_file: "
+						"file %s vanished since we "
+						"checked for existence.\n",
+						smb_fname_str_dbg(smb_fname)));
+					file_existed = false;
+					SET_STAT_INVALID(fsp->fsp_name->st);
+				}
 			}
-			if (!NT_STATUS_IS_OK(status)) {
-				DEBUG(10,("open_file: "
-					"%s on file "
-					"%s returned %s\n",
-					file_existed ?
-						"smbd_check_access_rights" :
-						"check_parent_access",
-					smb_fname_str_dbg(smb_fname),
-					nt_errstr(status) ));
-				return status;
+
+			if (!file_existed) {
+				if (!(local_flags & O_CREAT)) {
+					/* File didn't exist and no O_CREAT. */
+					return NT_STATUS_OBJECT_NAME_NOT_FOUND;
+				}
+
+				status = check_parent_access(conn,
+							     smb_fname,
+							     SEC_DIR_ADD_FILE);
+				if (!NT_STATUS_IS_OK(status)) {
+					DEBUG(10, ("open_file: "
+						   "check_parent_access on "
+						   "file %s returned %s\n",
+						   smb_fname_str_dbg(smb_fname),
+						   nt_errstr(status) ));
+					return status;
+				}
 			}
 		}
 
-		/* Actually do the open */
-		status = fd_open_atomic(conn, fsp, local_flags,
+		/*
+		 * Actually do the open - if O_TRUNC is needed handle it
+		 * below under the share mode lock.
+		 */
+		status = fd_open_atomic(conn, fsp, local_flags & ~O_TRUNC,
 				unx_mode, p_file_created);
 		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(3,("Error opening file %s (%s) (local_flags=%d) "
@@ -1079,7 +1109,7 @@ static void validate_my_share_entries(struct smbd_server_connection *sconn,
 		return;
 	}
 
-	if (share_entry->share_file_id == 0) {
+	if (share_entry->op_mid == 0) {
 		/* INTERNAL_OPEN_ONLY */
 		return;
 	}
@@ -1299,6 +1329,11 @@ static void find_oplock_types(files_struct *fsp,
 		struct share_mode_entry *e = &lck->data->share_modes[i];
 
 		if (!is_valid_share_mode_entry(e)) {
+			continue;
+		}
+
+		if (e->op_mid == 0) {
+			/* INTERNAL_OPEN_ONLY */
 			continue;
 		}
 
@@ -2414,6 +2449,17 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
 		return fsp_open;
 	}
 
+	if (new_file_created) {
+		/*
+		 * As we atomically create using O_CREAT|O_EXCL,
+		 * then if new_file_created is true, then
+		 * file_existed *MUST* have been false (even
+		 * if the file was previously detected as being
+		 * there).
+		 */
+		file_existed = false;
+	}
+
 	if (file_existed && !check_same_dev_ino(&saved_stat, &smb_fname->st)) {
 		/*
 		 * The file did exist, but some other (local or NFS)
@@ -2644,6 +2690,21 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
 			status = NT_STATUS_ACCESS_DENIED;
 		}
 		return status;
+	}
+
+	/* Should we atomically (to the client at least) truncate ? */
+	if ((!new_file_created) &&
+	    (flags2 & O_TRUNC) &&
+	    (!S_ISFIFO(fsp->fsp_name->st.st_ex_mode))) {
+		int ret;
+
+		ret = vfs_set_filelen(fsp, 0);
+		if (ret != 0) {
+			status = map_nt_error_from_unix(errno);
+			TALLOC_FREE(lck);
+			fd_close(fsp);
+			return status;
+		}
 	}
 
 	grant_fsp_oplock_type(fsp,

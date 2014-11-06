@@ -33,37 +33,6 @@
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_DNS
 
-uint8_t werr_to_dns_err(WERROR werr)
-{
-	if (W_ERROR_EQUAL(WERR_OK, werr)) {
-		return DNS_RCODE_OK;
-	} else if (W_ERROR_EQUAL(DNS_ERR(FORMAT_ERROR), werr)) {
-		return DNS_RCODE_FORMERR;
-	} else if (W_ERROR_EQUAL(DNS_ERR(SERVER_FAILURE), werr)) {
-		return DNS_RCODE_SERVFAIL;
-	} else if (W_ERROR_EQUAL(DNS_ERR(NAME_ERROR), werr)) {
-		return DNS_RCODE_NXDOMAIN;
-	} else if (W_ERROR_EQUAL(DNS_ERR(NOT_IMPLEMENTED), werr)) {
-		return DNS_RCODE_NOTIMP;
-	} else if (W_ERROR_EQUAL(DNS_ERR(REFUSED), werr)) {
-		return DNS_RCODE_REFUSED;
-	} else if (W_ERROR_EQUAL(DNS_ERR(YXDOMAIN), werr)) {
-		return DNS_RCODE_YXDOMAIN;
-	} else if (W_ERROR_EQUAL(DNS_ERR(YXRRSET), werr)) {
-		return DNS_RCODE_YXRRSET;
-	} else if (W_ERROR_EQUAL(DNS_ERR(NXRRSET), werr)) {
-		return DNS_RCODE_NXRRSET;
-	} else if (W_ERROR_EQUAL(DNS_ERR(NOTAUTH), werr)) {
-		return DNS_RCODE_NOTAUTH;
-	} else if (W_ERROR_EQUAL(DNS_ERR(NOTZONE), werr)) {
-		return DNS_RCODE_NOTZONE;
-	} else if (W_ERROR_EQUAL(DNS_ERR(BADKEY), werr)) {
-		return DNS_RCODE_BADKEY;
-	}
-	DEBUG(5, ("No mapping exists for %s\n", win_errstr(werr)));
-	return DNS_RCODE_SERVFAIL;
-}
-
 bool dns_name_match(const char *zone, const char *name, size_t *host_part_len)
 {
 	size_t zl = strlen(zone);
@@ -185,126 +154,21 @@ WERROR dns_lookup_records(struct dns_server *dns,
 			  struct dnsp_DnssrvRpcRecord **records,
 			  uint16_t *rec_count)
 {
-	static const char * const attrs[] = { "dnsRecord", NULL};
-	struct ldb_message_element *el;
-	uint16_t ri;
-	int ret;
-	struct ldb_message *msg = NULL;
-	struct dnsp_DnssrvRpcRecord *recs;
-
-	ret = dsdb_search_one(dns->samdb, mem_ctx, &msg, dn,
-			      LDB_SCOPE_BASE, attrs, 0, "%s", "(objectClass=dnsNode)");
-	if (ret != LDB_SUCCESS) {
-		/* TODO: we need to check if there's a glue record we need to
-		 * create a referral to */
-		return DNS_ERR(NAME_ERROR);
-	}
-
-	el = ldb_msg_find_element(msg, attrs[0]);
-	if (el == NULL) {
-		*records = NULL;
-		*rec_count = 0;
-		return DNS_ERR(NAME_ERROR);
-	}
-
-	recs = talloc_zero_array(mem_ctx, struct dnsp_DnssrvRpcRecord, el->num_values);
-	if (recs == NULL) {
-		return WERR_NOMEM;
-	}
-	for (ri = 0; ri < el->num_values; ri++) {
-		struct ldb_val *v = &el->values[ri];
-		enum ndr_err_code ndr_err;
-
-		ndr_err = ndr_pull_struct_blob(v, recs, &recs[ri],
-				(ndr_pull_flags_fn_t)ndr_pull_dnsp_DnssrvRpcRecord);
-		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-			DEBUG(0, ("Failed to grab dnsp_DnssrvRpcRecord\n"));
-			return DNS_ERR(SERVER_FAILURE);
-		}
-	}
-	*records = recs;
-	*rec_count = el->num_values;
-	return WERR_OK;
+	return dns_common_lookup(dns->samdb, mem_ctx, dn,
+				 records, rec_count, NULL);
 }
 
 WERROR dns_replace_records(struct dns_server *dns,
 			   TALLOC_CTX *mem_ctx,
 			   struct ldb_dn *dn,
 			   bool needs_add,
-			   const struct dnsp_DnssrvRpcRecord *records,
+			   struct dnsp_DnssrvRpcRecord *records,
 			   uint16_t rec_count)
 {
-	struct ldb_message_element *el;
-	uint16_t i;
-	int ret;
-	struct ldb_message *msg = NULL;
-
-	msg = ldb_msg_new(mem_ctx);
-	W_ERROR_HAVE_NO_MEMORY(msg);
-
-	msg->dn = dn;
-
-	ret = ldb_msg_add_empty(msg, "dnsRecord", LDB_FLAG_MOD_REPLACE, &el);
-	if (ret != LDB_SUCCESS) {
-		return DNS_ERR(SERVER_FAILURE);
-	}
-
-	el->values = talloc_zero_array(el, struct ldb_val, rec_count);
-	if (rec_count > 0) {
-		W_ERROR_HAVE_NO_MEMORY(el->values);
-	}
-
-	for (i = 0; i < rec_count; i++) {
-		static const struct dnsp_DnssrvRpcRecord zero;
-		struct ldb_val *v = &el->values[el->num_values];
-		enum ndr_err_code ndr_err;
-
-		if (memcmp(&records[i], &zero, sizeof(zero)) == 0) {
-			continue;
-		}
-		ndr_err = ndr_push_struct_blob(v, el->values, &records[i],
-				(ndr_push_flags_fn_t)ndr_push_dnsp_DnssrvRpcRecord);
-		if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-			DEBUG(0, ("Failed to grab dnsp_DnssrvRpcRecord\n"));
-			return DNS_ERR(SERVER_FAILURE);
-		}
-		el->num_values++;
-	}
-
-
-	if (el->num_values == 0) {
-		if (needs_add) {
-			return WERR_OK;
-		}
-		/* No entries left, delete the dnsNode object */
-		ret = ldb_delete(dns->samdb, msg->dn);
-		if (ret != LDB_SUCCESS) {
-			DEBUG(0, ("Deleting record failed; %d\n", ret));
-			return DNS_ERR(SERVER_FAILURE);
-		}
-		return WERR_OK;
-	}
-
-	if (needs_add) {
-		ret = ldb_msg_add_string(msg, "objectClass", "dnsNode");
-		if (ret != LDB_SUCCESS) {
-			return DNS_ERR(SERVER_FAILURE);
-		}
-
-		ret = ldb_add(dns->samdb, msg);
-		if (ret != LDB_SUCCESS) {
-			return DNS_ERR(SERVER_FAILURE);
-		}
-
-		return WERR_OK;
-	}
-
-	ret = ldb_modify(dns->samdb, msg);
-	if (ret != LDB_SUCCESS) {
-		return DNS_ERR(SERVER_FAILURE);
-	}
-
-	return WERR_OK;
+	/* TODO: Autogenerate this somehow */
+	uint32_t dwSerial = 110;
+	return dns_common_replace(dns->samdb, mem_ctx, dn,
+				  needs_add, dwSerial, records, rec_count);
 }
 
 bool dns_authorative_for_zone(struct dns_server *dns,

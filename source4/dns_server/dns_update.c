@@ -82,6 +82,9 @@ static WERROR check_one_prerequisite(struct dns_server *dns,
 			/*
 			 */
 			werror = dns_lookup_records(dns, mem_ctx, dn, &ans, &acount);
+			if (W_ERROR_EQUAL(werror, WERR_DNS_ERROR_NAME_DOES_NOT_EXIST)) {
+				return DNS_ERR(NAME_ERROR);
+			}
 			W_ERROR_NOT_OK_RETURN(werror);
 
 			if (acount == 0) {
@@ -91,6 +94,9 @@ static WERROR check_one_prerequisite(struct dns_server *dns,
 			/*
 			 */
 			werror = dns_lookup_records(dns, mem_ctx, dn, &ans, &acount);
+			if (W_ERROR_EQUAL(werror, WERR_DNS_ERROR_NAME_DOES_NOT_EXIST)) {
+				return DNS_ERR(NXRRSET);
+			}
 			if (W_ERROR_EQUAL(werror, DNS_ERR(NAME_ERROR))) {
 				return DNS_ERR(NXRRSET);
 			}
@@ -131,10 +137,11 @@ static WERROR check_one_prerequisite(struct dns_server *dns,
 			/*
 			 */
 			werror = dns_lookup_records(dns, mem_ctx, dn, &ans, &acount);
+			if (W_ERROR_EQUAL(werror, WERR_DNS_ERROR_NAME_DOES_NOT_EXIST)) {
+				werror = WERR_OK;
+			}
 			if (W_ERROR_EQUAL(werror, DNS_ERR(NAME_ERROR))) {
 				werror = WERR_OK;
-				ans = NULL;
-				acount = 0;
 			}
 
 			for (i = 0; i < acount; i++) {
@@ -163,6 +170,9 @@ static WERROR check_one_prerequisite(struct dns_server *dns,
 	*final_result = false;
 
 	werror = dns_lookup_records(dns, mem_ctx, dn, &ans, &acount);
+	if (W_ERROR_EQUAL(werror, WERR_DNS_ERROR_NAME_DOES_NOT_EXIST)) {
+		return DNS_ERR(NXRRSET);
+	}
 	if (W_ERROR_EQUAL(werror, DNS_ERR(NAME_ERROR))) {
 		return DNS_ERR(NXRRSET);
 	}
@@ -302,8 +312,6 @@ static WERROR dns_rr_to_dnsp(TALLOC_CTX *mem_ctx,
 	r->wType = rrec->rr_type;
 	r->dwTtlSeconds = rrec->ttl;
 	r->rank = DNS_RANK_ZONE;
-	/* TODO: Autogenerate this somehow */
-	r->dwSerial = 110;
 
 	/* If we get QCLASS_ANY, we're done here */
 	if (rrec->rr_class == DNS_QCLASS_ANY) {
@@ -392,7 +400,9 @@ static WERROR handle_one_update(struct dns_server *dns,
 	uint16_t rcount = 0;
 	struct ldb_dn *dn;
 	uint16_t i;
+	uint16_t first = 0;
 	WERROR werror;
+	bool tombstoned = false;
 	bool needs_add = false;
 
 	DEBUG(2, ("Looking at record: \n"));
@@ -420,14 +430,21 @@ static WERROR handle_one_update(struct dns_server *dns,
 	werror = dns_name2dn(dns, mem_ctx, update->name, &dn);
 	W_ERROR_NOT_OK_RETURN(werror);
 
-	werror = dns_lookup_records(dns, mem_ctx, dn, &recs, &rcount);
-	if (W_ERROR_EQUAL(werror, DNS_ERR(NAME_ERROR))) {
-		recs = NULL;
-		rcount = 0;
+	werror = dns_common_lookup(dns->samdb, mem_ctx, dn,
+				   &recs, &rcount, &tombstoned);
+	if (W_ERROR_EQUAL(werror, WERR_DNS_ERROR_NAME_DOES_NOT_EXIST)) {
 		needs_add = true;
 		werror = WERR_OK;
 	}
 	W_ERROR_NOT_OK_RETURN(werror);
+
+	if (tombstoned) {
+		/*
+		 * we need to keep the existing tombstone record
+		 * and ignore it
+		 */
+		first = rcount;
+	}
 
 	if (update->rr_class == zone->question_class) {
 		if (update->rr_type == DNS_QTYPE_CNAME) {
@@ -435,7 +452,7 @@ static WERROR handle_one_update(struct dns_server *dns,
 			 * If there is a record in the directory
 			 * that's not a CNAME, ignore update
 			 */
-			for (i = 0; i < rcount; i++) {
+			for (i = first; i < rcount; i++) {
 				if (recs[i].wType != DNS_TYPE_CNAME) {
 					DEBUG(5, ("Skipping update\n"));
 					return WERR_OK;
@@ -448,13 +465,14 @@ static WERROR handle_one_update(struct dns_server *dns,
 			 * per name, so replace everything with the new CNAME
 			 */
 
-			rcount = 1;
+			rcount = first;
 			recs = talloc_realloc(mem_ctx, recs,
-					struct dnsp_DnssrvRpcRecord, rcount);
+					struct dnsp_DnssrvRpcRecord, rcount + 1);
 			W_ERROR_HAVE_NO_MEMORY(recs);
 
-			werror = dns_rr_to_dnsp(recs, update, &recs[0]);
+			werror = dns_rr_to_dnsp(recs, update, &recs[rcount]);
 			W_ERROR_NOT_OK_RETURN(werror);
+			rcount += 1;
 
 			werror = dns_replace_records(dns, mem_ctx, dn,
 						     needs_add, recs, rcount);
@@ -466,7 +484,7 @@ static WERROR handle_one_update(struct dns_server *dns,
 			 * If there is a CNAME record for this name,
 			 * ignore update
 			 */
-			for (i = 0; i < rcount; i++) {
+			for (i = first; i < rcount; i++) {
 				if (recs[i].wType == DNS_TYPE_CNAME) {
 					DEBUG(5, ("Skipping update\n"));
 					return WERR_OK;
@@ -481,7 +499,7 @@ static WERROR handle_one_update(struct dns_server *dns,
 			 * serial number is smaller than existing SOA's,
 			 * ignore update
 			 */
-			for (i = 0; i < rcount; i++) {
+			for (i = first; i < rcount; i++) {
 				if (recs[i].wType == DNS_TYPE_SOA) {
 					uint16_t n, o;
 
@@ -512,7 +530,9 @@ static WERROR handle_one_update(struct dns_server *dns,
 					continue;
 				}
 
-				ZERO_STRUCT(recs[i]);
+				recs[i] = (struct dnsp_DnssrvRpcRecord) {
+					.wType = DNS_TYPE_TOMBSTONE,
+				};
 			}
 
 			werror = dns_replace_records(dns, mem_ctx, dn,
@@ -529,7 +549,7 @@ static WERROR handle_one_update(struct dns_server *dns,
 		werror = dns_rr_to_dnsp(recs, update, &recs[rcount]);
 		W_ERROR_NOT_OK_RETURN(werror);
 
-		for (i = 0; i < rcount; i++) {
+		for (i = first; i < rcount; i++) {
 			if (!dns_records_match(&recs[i], &recs[rcount])) {
 				continue;
 			}
@@ -551,7 +571,7 @@ static WERROR handle_one_update(struct dns_server *dns,
 	} else if (update->rr_class == DNS_QCLASS_ANY) {
 		if (update->rr_type == DNS_QTYPE_ALL) {
 			if (dns_name_equal(update->name, zone->name)) {
-				for (i = 0; i < rcount; i++) {
+				for (i = first; i < rcount; i++) {
 
 					if (recs[i].wType == DNS_TYPE_SOA) {
 						continue;
@@ -561,12 +581,16 @@ static WERROR handle_one_update(struct dns_server *dns,
 						continue;
 					}
 
-					ZERO_STRUCT(recs[i]);
+					recs[i] = (struct dnsp_DnssrvRpcRecord) {
+						.wType = DNS_TYPE_TOMBSTONE,
+					};
 				}
 
 			} else {
-				for (i = 0; i < rcount; i++) {
-					ZERO_STRUCT(recs[i]);
+				for (i = first; i < rcount; i++) {
+					recs[i] = (struct dnsp_DnssrvRpcRecord) {
+						.wType = DNS_TYPE_TOMBSTONE,
+					};
 				}
 			}
 
@@ -580,9 +604,11 @@ static WERROR handle_one_update(struct dns_server *dns,
 				return WERR_OK;
 			}
 		}
-		for (i = 0; i < rcount; i++) {
+		for (i = first; i < rcount; i++) {
 			if (recs[i].wType == update->rr_type) {
-				ZERO_STRUCT(recs[i]);
+				recs[i] = (struct dnsp_DnssrvRpcRecord) {
+					.wType = DNS_TYPE_TOMBSTONE,
+				};
 			}
 		}
 
@@ -607,7 +633,7 @@ static WERROR handle_one_update(struct dns_server *dns,
 			werror = dns_rr_to_dnsp(ns_rec, update, ns_rec);
 			W_ERROR_NOT_OK_RETURN(werror);
 
-			for (i = 0; i < rcount; i++) {
+			for (i = first; i < rcount; i++) {
 				if (dns_records_match(ns_rec, &recs[i])) {
 					found = true;
 					break;
@@ -624,9 +650,11 @@ static WERROR handle_one_update(struct dns_server *dns,
 		werror = dns_rr_to_dnsp(del_rec, update, del_rec);
 		W_ERROR_NOT_OK_RETURN(werror);
 
-		for (i = 0; i < rcount; i++) {
+		for (i = first; i < rcount; i++) {
 			if (dns_records_match(del_rec, &recs[i])) {
-				ZERO_STRUCT(recs[i]);
+				recs[i] = (struct dnsp_DnssrvRpcRecord) {
+					.wType = DNS_TYPE_TOMBSTONE,
+				};
 			}
 		}
 

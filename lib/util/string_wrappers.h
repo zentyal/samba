@@ -43,15 +43,10 @@ do { \
 	const char *_fstrcat_src = (const char *)(s); \
 	strlcat((d),_fstrcat_src ? _fstrcat_src : "",sizeof(fstring)); \
 } while (0)
-#define nstrcpy(d,s) \
-do { \
-	const char *_nstrcpy_src = (const char *)(s); \
-	strlcpy((d),_nstrcpy_src ? _nstrcpy_src : "",sizeof(fstring)); \
-} while (0)
 #define unstrcpy(d,s) \
 do { \
 	const char *_unstrcpy_src = (const char *)(s); \
-	strlcpy((d),_unstrcpy_src ? _unstrcpy_src : "",sizeof(fstring)); \
+	strlcpy((d),_unstrcpy_src ? _unstrcpy_src : "",sizeof(unstring)); \
 } while (0)
 
 #ifdef HAVE_COMPILER_WILL_OPTIMIZE_OUT_FNS

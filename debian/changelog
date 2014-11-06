@@ -1,3 +1,10 @@
+samba (3:4.1.13+dfsg-2~zentyal1) trusty; urgency=medium
+
+  * New upstream release
+  * Patch for getncchanges max object count field
+
+ -- Samuel Cabrero <scabrero@zentyal.com>  Thu, 06 Nov 2014 14:13:19 +0100
+
 samba (2:4.1.13+dfsg-2) unstable; urgency=medium
 
   * Mask /etc/init.d/samba init script for systemd. This should make systemd

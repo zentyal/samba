@@ -1,0 +1,21 @@
+Index: samba/source3/smbd/fake_file.c
+===================================================================
+--- samba.orig/source3/smbd/fake_file.c	2014-12-04 12:51:39.257271338 +0100
++++ samba/source3/smbd/fake_file.c	2014-12-04 15:24:31.815017775 +0100
+@@ -141,14 +141,14 @@
+ 	}
+ 
+ 	/* access check */
+-	if (geteuid() != sec_initial_uid()) {
++	if ((conn->session_info->unix_token->uid != sec_initial_uid()) &&
++	    !security_token_is_system(conn->session_info->security_token)) {
+ 		DEBUG(3, ("open_fake_file_shared: access_denied to "
+ 			  "service[%s] file[%s] user[%s]\n",
+ 			  lp_servicename(talloc_tos(), SNUM(conn)),
+ 			  smb_fname_str_dbg(smb_fname),
+ 			  conn->session_info->unix_info->unix_name));
+ 		return NT_STATUS_ACCESS_DENIED;
+-
+ 	}
+ 
+ 	status = file_new(req, conn, &fsp);

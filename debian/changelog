@@ -1,4 +1,4 @@
-samba (2:4.1.13+dfsg-3) UNRELEASED; urgency=medium
+samba (2:4.1.13+dfsg-3) unstable; urgency=medium
 
   * Update debian/rules to allow support for multiple upstream ldb
     versions, when verified. Closes: #771991

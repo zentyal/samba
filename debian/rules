@@ -8,8 +8,9 @@ export DEB_LDFLAGS_MAINT_APPEND = -Wl,--as-needed
 PYVERS=$(shell pyversions -vr)
 
 DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
-LDB_VERSION = $(shell pkg-config --modversion ldb)
-LDB_NEXT_VERSION = $(shell python -c "x = '$(LDB_VERSION)'.split('.'); x[-1] = str(int(x[-1])+1); print '.'.join(x)")
+LDB_BUILD_VERSION = $(shell pkg-config --modversion ldb)
+LDB_VERSION = $(shell ./debian/ldb-compat.py $(LDB_BUILD_VERSION) | head -1)
+LDB_NEXT_VERSION = $(shell ./debian/ldb-compat.py $(LDB_BUILD_VERSION) | tail -1)
 # samba ships ldb modules, which are specific to the ldb version, so we need a
 # strict dependency on the upstream ldb version
 # this also mean samba needs a rebuild when the upstream ldb version changes

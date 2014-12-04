@@ -1,7 +1,7 @@
 samba (2:4.1.13+dfsg-3) UNRELEASED; urgency=medium
 
   * Update debian/rules to allow support for multiple upstream ldb
-    versions, when verified.
+    versions, when verified. Closes: #771991
 
  -- Jelmer Vernooij <jelmer@debian.org>  Thu, 04 Dec 2014 21:03:54 +0100
 

@@ -3,7 +3,6 @@
 25_heimdal_api_changes
 26_heimdal_compat
 bug_221618_precise-64bit-prototype.patch
-bug_598313_upstream_7499-nss_wins-dont-clobber-daemons-logs.patch
 bug_601406_fix-perl-path-in-example.patch
 pam-examples.patch
 README_nosmbldap-tools.patch

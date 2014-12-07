@@ -1,3 +1,9 @@
+samba (2:4.2.0~rc2+dfsg-1) UNRELEASED; urgency=medium
+
+  * New upstream release.
+
+ -- Jelmer Vernooij <jelmer@debian.org>  Sun, 07 Dec 2014 15:34:36 +0000
+
 samba (2:4.1.13+dfsg-3) unstable; urgency=medium
 
   * Update debian/rules to allow support for multiple upstream ldb

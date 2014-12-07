@@ -21,14 +21,16 @@ Forwarded: not-needed
  .PP
  The usershare commands are:
  .RS 4
+diff --git a/source3/param/loadparm.c b/source3/param/loadparm.c
+index 5ab0de7..6ae18d2 100644
 --- a/source3/param/loadparm.c
 +++ b/source3/param/loadparm.c
-@@ -1014,7 +1014,7 @@
- 	string_set(&Globals.szUsersharePath, s);
- 	SAFE_FREE(s);
- 	string_set(&Globals.szUsershareTemplateShare, "");
--	Globals.iUsershareMaxShares = 0;
-+	Globals.iUsershareMaxShares = 100;
+@@ -833,7 +833,7 @@ static void init_globals(struct loadparm_context *lp_ctx, bool reinit_globals)
+ 	string_set(Globals.ctx, &Globals.usershare_path, s);
+ 	TALLOC_FREE(s);
+ 	string_set(Globals.ctx, &Globals.usershare_template_share, "");
+-	Globals.usershare_max_shares = 0;
++	Globals.usershare_max_shares = 100;
  	/* By default disallow sharing of directories not owned by the sharer. */
- 	Globals.bUsershareOwnerOnly = true;
+ 	Globals.usershare_owner_only = true;
  	/* By default disallow guest access to usershares. */

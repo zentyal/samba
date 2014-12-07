@@ -380,7 +380,7 @@ static int update_kt_prepare_commit(struct ldb_module *module)
 	int krb5_ret = smb_krb5_init_context(data,
 					     ldb_get_opaque(ldb, "loadparm"),
 					     &smb_krb5_context);
-	TALLOC_CTX *tmp_ctx;
+	TALLOC_CTX *tmp_ctx = NULL;
 
 	if (krb5_ret != 0) {
 		ldb_asprintf_errstring(ldb, "Failed to setup krb5_context: %s", error_message(krb5_ret));

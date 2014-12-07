@@ -1,38 +1,26 @@
 #!/usr/bin/env python
 
-IDMAP_AD_SRC = '''idmap_ad.c'''
-IDMAP_RFC2307_SRC = '''idmap_rfc2307.c'''
-IDMAP_RID_SRC = '''idmap_rid.c'''
-IDMAP_PASSDB_SRC = '''idmap_passdb.c'''
-IDMAP_LDAP_SRC = '''idmap_ldap.c'''
-IDMAP_NSS_SRC = '''idmap_nss.c'''
-IDMAP_TDB_SRC = '''idmap_tdb.c'''
-IDMAP_TDB2_SRC = '''idmap_tdb2.c'''
-
-IDMAP_HASH_SRC = '''idmap_hash/idmap_hash.c
-                    idmap_hash/mapfile.c'''
-
-IDMAP_AUTORID_SRC = '''idmap_autorid.c'''
-
-IDMAP_RW_SRC = 'idmap_rw.c'
-IDMAP_SRC = 'idmap.c idmap_util.c idmap_tdb_common.c ${IDMAP_RW_SRC}'
-
 bld.SAMBA3_LIBRARY('idmap',
-                   source=IDMAP_SRC,
+                   source='idmap.c idmap_util.c',
                    deps='samba-util',
-                   vars=locals(),
                    allow_undefined_symbols=True,
                    private_library=True)
 
+bld.SAMBA3_SUBSYSTEM('IDMAP_RW',
+                     source='idmap_rw.c',
+                     deps='samba-util')
+
+bld.SAMBA3_SUBSYSTEM('IDMAP_TDB_COMMON',
+                     source='idmap_tdb_common.c',
+                     deps='tdb IDMAP_RW')
+
 bld.SAMBA3_SUBSYSTEM('IDMAP_HASH',
-                    source=IDMAP_HASH_SRC,
-                    deps='samba-util krb5samba',
-                    vars=locals())
+                    source='idmap_hash/idmap_hash.c idmap_hash/mapfile.c',
+                    deps='samba-util krb5samba')
 
 bld.SAMBA3_SUBSYSTEM('IDMAP_AD',
-                    source=IDMAP_AD_SRC,
+                    source='idmap_ad.c',
                     deps='ads nss_info',
-                    vars=locals(),
                     enabled=bld.CONFIG_SET("HAVE_LDAP"))
 
 bld.SAMBA3_MODULE('idmap_ad',
@@ -47,7 +35,7 @@ bld.SAMBA3_MODULE('idmap_ad',
 bld.SAMBA3_MODULE('idmap_rfc2307',
                  subsystem='idmap',
                  allow_undefined_symbols=True,
-                 source=IDMAP_RFC2307_SRC,
+                 source='idmap_rfc2307.c',
                  init_function='',
                  deps='ads',
                  internal_module=bld.SAMBA3_IS_STATIC_MODULE('idmap_rfc2307'),
@@ -56,14 +44,14 @@ bld.SAMBA3_MODULE('idmap_rfc2307',
 bld.SAMBA3_MODULE('idmap_rid',
                  subsystem='idmap',
                  allow_undefined_symbols=True,
-                 source=IDMAP_RID_SRC,
+                 source='idmap_rid.c',
                  init_function='',
                  internal_module=bld.SAMBA3_IS_STATIC_MODULE('idmap_rid'),
                  enabled=bld.SAMBA3_IS_ENABLED_MODULE('idmap_rid'))
 
 bld.SAMBA3_MODULE('idmap_passdb',
                  subsystem='idmap',
-                 source=IDMAP_PASSDB_SRC,
+                 source='idmap_passdb.c',
                  deps='samba-util pdb',
                  init_function='',
                  internal_module=bld.SAMBA3_IS_STATIC_MODULE('idmap_passdb'),
@@ -71,16 +59,16 @@ bld.SAMBA3_MODULE('idmap_passdb',
 
 bld.SAMBA3_MODULE('idmap_ldap',
                  subsystem='idmap',
-                 source=IDMAP_LDAP_SRC,
-                 deps='smbldap smbldaphelper pdb',
+                 source='idmap_ldap.c',
+                 deps='smbldap smbldaphelper pdb IDMAP_RW',
                  init_function='',
                  internal_module=bld.SAMBA3_IS_STATIC_MODULE('idmap_ldap'),
                  enabled=bld.SAMBA3_IS_ENABLED_MODULE('idmap_ldap') and bld.CONFIG_SET("HAVE_LDAP"),
-                  allow_undefined_symbols=True)
+                 allow_undefined_symbols=True)
 
 bld.SAMBA3_MODULE('idmap_nss',
                  subsystem='idmap',
-                 source=IDMAP_NSS_SRC,
+                 source='idmap_nss.c',
                  deps='samba-util',
                  init_function='',
                  internal_module=bld.SAMBA3_IS_STATIC_MODULE('idmap_nss'),
@@ -88,16 +76,16 @@ bld.SAMBA3_MODULE('idmap_nss',
 
 bld.SAMBA3_MODULE('idmap_tdb',
                  subsystem='idmap',
-                 source=IDMAP_TDB_SRC,
-                 deps='samba-util tdb',
+                 source='idmap_tdb.c',
+                 deps='samba-util tdb IDMAP_TDB_COMMON',
                  init_function='',
                  internal_module=bld.SAMBA3_IS_STATIC_MODULE('idmap_tdb'),
                  enabled=bld.SAMBA3_IS_ENABLED_MODULE('idmap_tdb'))
 
 bld.SAMBA3_MODULE('idmap_tdb2',
                  subsystem='idmap',
-                 source=IDMAP_TDB2_SRC,
-                 deps='samba-util tdb',
+                 source='idmap_tdb2.c',
+                 deps='samba-util tdb IDMAP_TDB_COMMON',
                  init_function='',
                  internal_module=bld.SAMBA3_IS_STATIC_MODULE('idmap_tdb2'),
                  enabled=bld.SAMBA3_IS_ENABLED_MODULE('idmap_tdb2'))
@@ -111,28 +99,27 @@ bld.SAMBA3_MODULE('idmap_hash',
                  internal_module=bld.SAMBA3_IS_STATIC_MODULE('idmap_hash'),
                  enabled=bld.SAMBA3_IS_ENABLED_MODULE('idmap_hash'))
 
+bld.SAMBA3_SUBSYSTEM('IDMAP_AUTORID_TDB',
+                     source='idmap_autorid_tdb.c',
+                     deps='tdb')
+
 bld.SAMBA3_MODULE('idmap_autorid',
                  subsystem='idmap',
-                 source=IDMAP_AUTORID_SRC,
-                 deps='samba-util tdb',
+                 source='idmap_autorid.c',
+                 deps='samba-util tdb IDMAP_TDB_COMMON IDMAP_AUTORID_TDB',
                  init_function='',
                  internal_module=bld.SAMBA3_IS_STATIC_MODULE('idmap_autorid'),
                  enabled=bld.SAMBA3_IS_ENABLED_MODULE('idmap_autorid'),
-                  allow_undefined_symbols=True)
-
-
-NSS_INFO_TEMPLATE_SRC = 'nss_info_template.c'
-NSS_INFO_SRC = 'nss_info.c'
+                 allow_undefined_symbols=True)
 
 bld.SAMBA3_LIBRARY('nss_info',
-                   source=NSS_INFO_SRC,
+                   source='nss_info.c',
                    deps='samba-util param',
-                   vars=locals(),
                    private_library=True)
 
 bld.SAMBA3_MODULE('nss_info_template',
                  subsystem='nss_info',
-                 source=NSS_INFO_TEMPLATE_SRC,
+                 source='nss_info_template.c',
                  deps='samba-util krb5samba',
                  init_function='',
                  internal_module=bld.SAMBA3_IS_STATIC_MODULE('nss_info_template'),

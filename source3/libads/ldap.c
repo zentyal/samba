@@ -65,41 +65,11 @@ static void gotalarm_sig(int signum)
 			      int port, unsigned int to)
 {
 	LDAP *ldp = NULL;
+	int ldap_err;
+	char *uri;
 
 	DEBUG(10, ("Opening connection to LDAP server '%s:%d', timeout "
 		   "%u seconds\n", server, port, to));
-
-#if defined(HAVE_LDAP_INIT_FD) && defined(SOCKET_WRAPPER)
-	/* Only use this private LDAP function if we are in make test,
-	 * as this is the best way to get the emulated TCP socket into
-	 * OpenLDAP */
-	if (socket_wrapper_dir() != NULL) {
-		int fd, ldap_err;
-		NTSTATUS status;
-		char *uri;
-
-		status = open_socket_out(ss, port, to, &fd);
-
-		if (!NT_STATUS_IS_OK(status)) {
-			return NULL;
-		}
-
-#ifndef LDAP_PROTO_TCP
-#define LDAP_PROTO_TCP 1
-#endif
-		uri = talloc_asprintf(talloc_tos(), "ldap://%s:%u", server, port);
-		if (uri == NULL) {
-			return NULL;
-		}
-		ldap_err = ldap_init_fd(fd, LDAP_PROTO_TCP, uri, &ldp);
-		talloc_free(uri);
-
-		if (ldap_err != LDAP_SUCCESS) {
-			return NULL;
-		}
-		return ldp;
-	}
-#endif
 
 	if (to) {
 		/* Setup timeout */
@@ -109,13 +79,26 @@ static void gotalarm_sig(int signum)
 		/* End setup timeout. */
 	}
 
-	ldp = ldap_open(server, port);
+	uri = talloc_asprintf(talloc_tos(), "ldap://%s:%u", server, port);
+	if (uri == NULL) {
+		return NULL;
+	}
 
-	if (ldp == NULL) {
-		DEBUG(2,("Could not open connection to LDAP server %s:%d: %s\n",
-			 server, port, strerror(errno)));
+#ifdef HAVE_LDAP_INITIALIZE
+	ldap_err = ldap_initialize(&ldp, uri);
+#else
+	ldp = ldap_open(server, port);
+	if (ldp != NULL) {
+		ldap_err = LDAP_SUCCESS;
 	} else {
-		DEBUG(10, ("Connected to LDAP server '%s:%d'\n", server, port));
+		ldap_err = LDAP_OTHER;
+	}
+#endif
+	if (ldap_err != LDAP_SUCCESS) {
+		DEBUG(2,("Could not initialize connection for LDAP server '%s': %s\n",
+			 uri, ldap_err2string(ldap_err)));
+	} else {
+		DEBUG(10, ("Initialized connection for LDAP server '%s'\n", uri));
 	}
 
 	if (to) {
@@ -245,33 +228,27 @@ bool ads_closest_dc(ADS_STRUCT *ads)
   try a connection to a given ldap server, returning True and setting the servers IP
   in the ads struct if successful
  */
-static bool ads_try_connect(ADS_STRUCT *ads, const char *server, bool gc)
+static bool ads_try_connect(ADS_STRUCT *ads, bool gc,
+			    struct sockaddr_storage *ss)
 {
 	struct NETLOGON_SAM_LOGON_RESPONSE_EX cldap_reply;
 	TALLOC_CTX *frame = talloc_stackframe();
 	bool ret = false;
-	struct sockaddr_storage ss;
 	char addr[INET6_ADDRSTRLEN];
 
-	if (!server || !*server) {
+	if (ss == NULL) {
 		TALLOC_FREE(frame);
 		return False;
 	}
 
-	if (!resolve_name(server, &ss, 0x20, true)) {
-		DEBUG(5,("ads_try_connect: unable to resolve name %s\n",
-			 server ));
-		TALLOC_FREE(frame);
-		return false;
-	}
-	print_sockaddr(addr, sizeof(addr), &ss);
+	print_sockaddr(addr, sizeof(addr), ss);
 
 	DEBUG(5,("ads_try_connect: sending CLDAP request to %s (realm: %s)\n", 
 		addr, ads->server.realm));
 
 	ZERO_STRUCT( cldap_reply );
 
-	if ( !ads_cldap_netlogon_5(frame, &ss, ads->server.realm, &cldap_reply ) ) {
+	if ( !ads_cldap_netlogon_5(frame, ss, ads->server.realm, &cldap_reply ) ) {
 		DEBUG(3,("ads_try_connect: CLDAP request %s failed.\n", addr));
 		ret = false;
 		goto out;
@@ -315,7 +292,7 @@ static bool ads_try_connect(ADS_STRUCT *ads, const char *server, bool gc)
 	ads->server.workgroup          = SMB_STRDUP(cldap_reply.domain_name);
 
 	ads->ldap.port = gc ? LDAP_GC_PORT : LDAP_PORT;
-	ads->ldap.ss = ss;
+	ads->ldap.ss = *ss;
 
 	/* Store our site name. */
 	sitename_store( cldap_reply.domain_name, cldap_reply.client_site);
@@ -347,6 +324,7 @@ static NTSTATUS ads_find_dc(ADS_STRUCT *ads)
 	bool use_own_domain = False;
 	char *sitename;
 	NTSTATUS status = NT_STATUS_UNSUCCESSFUL;
+	bool ok = false;
 
 	/* if the realm and workgroup are both empty, assume they are ours */
 
@@ -401,12 +379,14 @@ static NTSTATUS ads_find_dc(ADS_STRUCT *ads)
 		DEBUG(6,("ads_find_dc: (ldap) looking for %s '%s'\n",
 			(got_realm ? "realm" : "domain"), realm));
 
-		if (get_dc_name(domain, realm, srv_name, &ip_out)) {
+		ok = get_dc_name(domain, realm, srv_name, &ip_out);
+		if (ok) {
 			/*
 			 * we call ads_try_connect() to fill in the
 			 * ads->config details
 			 */
-			if (ads_try_connect(ads, srv_name, false)) {
+			ok = ads_try_connect(ads, false, &ip_out);
+			if (ok) {
 				return NT_STATUS_OK;
 			}
 		}
@@ -414,7 +394,7 @@ static NTSTATUS ads_find_dc(ADS_STRUCT *ads)
 		return NT_STATUS_NO_LOGON_SERVERS;
 	}
 
-	sitename = sitename_fetch(realm);
+	sitename = sitename_fetch(talloc_tos(), realm);
 
  again:
 
@@ -429,7 +409,7 @@ static NTSTATUS ads_find_dc(ADS_STRUCT *ads)
 			goto again;
 		}
 
-		SAFE_FREE(sitename);
+		TALLOC_FREE(sitename);
 		return status;
 	}
 
@@ -462,9 +442,10 @@ static NTSTATUS ads_find_dc(ADS_STRUCT *ads)
 			}
 		}
 
-		if ( ads_try_connect(ads, server, false) ) {
+		ok = ads_try_connect(ads, false, &ip_list[i].ss);
+		if (ok) {
 			SAFE_FREE(ip_list);
-			SAFE_FREE(sitename);
+			TALLOC_FREE(sitename);
 			return NT_STATUS_OK;
 		}
 
@@ -481,7 +462,7 @@ static NTSTATUS ads_find_dc(ADS_STRUCT *ads)
 	if (sitename) {
 		DEBUG(1,("ads_find_dc: failed to find a valid DC on our site (%s), "
 				"trying to find another DC\n", sitename));
-		SAFE_FREE(sitename);
+		TALLOC_FREE(sitename);
 		namecache_delete(realm, 0x1C);
 		goto again;
 	}
@@ -563,9 +544,9 @@ ADS_STATUS ads_connect_gc(ADS_STRUCT *ads)
 	if (!realm)
 		realm = lp_realm();
 
-	if ((sitename = sitename_fetch(realm)) == NULL) {
+	if ((sitename = sitename_fetch(frame, realm)) == NULL) {
 		ads_lookup_site();
-		sitename = sitename_fetch(realm);
+		sitename = sitename_fetch(frame, realm);
 	}
 
 	dns_hosts_file = lp_parm_const_string(-1, "resolv", "host file", NULL);
@@ -580,8 +561,6 @@ ADS_STATUS ads_connect_gc(ADS_STRUCT *ads)
 		nt_status = ads_dns_query_gcs(frame, dns_hosts_file,
 					      realm, sitename,
 					      &gcs_list, &num_gcs);
-
-		SAFE_FREE(sitename);
 
 		if (!NT_STATUS_IS_OK(nt_status)) {
 			ads_status = ADS_ERROR_NT(nt_status);
@@ -618,7 +597,6 @@ ADS_STATUS ads_connect_gc(ADS_STRUCT *ads)
 	} while (!done);
 
 done:
-	SAFE_FREE(sitename);
 	talloc_destroy(frame);
 
 	return ads_status;
@@ -650,9 +628,19 @@ ADS_STATUS ads_connect(ADS_STRUCT *ads)
 		TALLOC_FREE(s);
 	}
 
-	if (ads->server.ldap_server)
-	{
-		if (ads_try_connect(ads, ads->server.ldap_server, ads->server.gc)) {
+	if (ads->server.ldap_server) {
+		bool ok = false;
+		struct sockaddr_storage ss;
+
+		ok = resolve_name(ads->server.ldap_server, &ss, 0x20, true);
+		if (!ok) {
+			DEBUG(5,("ads_connect: unable to resolve name %s\n",
+				 ads->server.ldap_server));
+			status = ADS_ERROR_NT(NT_STATUS_NOT_FOUND);
+			goto out;
+		}
+		ok = ads_try_connect(ads, ads->server.gc, &ss);
+		if (ok) {
 			goto got_connection;
 		}
 
@@ -713,7 +701,7 @@ got_connection:
 
 	/* Otherwise setup the TCP LDAP session */
 
-	ads->ldap.ld = ldap_open_with_timeout(ads->config.ldap_server_name,
+	ads->ldap.ld = ldap_open_with_timeout(addr,
 					      &ads->ldap.ss,
 					      ads->ldap.port, lp_ldap_timeout());
 	if (ads->ldap.ld == NULL) {

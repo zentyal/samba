@@ -496,6 +496,7 @@ static NTSTATUS smb_time_audit_create_file(vfs_handle_struct *handle,
 					   uint32_t create_options,
 					   uint32_t file_attributes,
 					   uint32_t oplock_request,
+					   struct smb2_lease *lease,
 					   uint64_t allocation_size,
 					   uint32_t private_flags,
 					   struct security_descriptor *sd,
@@ -519,6 +520,7 @@ static NTSTATUS smb_time_audit_create_file(vfs_handle_struct *handle,
 		create_options,				/* create_options */
 		file_attributes,			/* file_attributes */
 		oplock_request,				/* oplock_request */
+		lease,					/* lease */
 		allocation_size,			/* allocation_size */
 		private_flags,
 		sd,					/* sd */
@@ -1543,8 +1545,7 @@ static const char *smb_time_audit_connectpath(vfs_handle_struct *handle,
 static NTSTATUS smb_time_audit_brl_lock_windows(struct vfs_handle_struct *handle,
 						struct byte_range_lock *br_lck,
 						struct lock_struct *plock,
-						bool blocking_lock,
-						struct blocking_lock_record *blr)
+						bool blocking_lock)
 {
 	NTSTATUS result;
 	struct timespec ts1,ts2;
@@ -1552,13 +1553,13 @@ static NTSTATUS smb_time_audit_brl_lock_windows(struct vfs_handle_struct *handle
 
 	clock_gettime_mono(&ts1);
 	result = SMB_VFS_NEXT_BRL_LOCK_WINDOWS(handle, br_lck, plock,
-					       blocking_lock, blr);
+					       blocking_lock);
 	clock_gettime_mono(&ts2);
 	timediff = nsec_time_diff(&ts2,&ts1)*1.0e-9;
 
 	if (timediff > audit_timeout) {
 		smb_time_audit_log_fsp("brl_lock_windows", timediff,
-				       br_lck->fsp);
+				       brl_fsp(br_lck));
 	}
 
 	return result;
@@ -1581,7 +1582,7 @@ static bool smb_time_audit_brl_unlock_windows(struct vfs_handle_struct *handle,
 
 	if (timediff > audit_timeout) {
 		smb_time_audit_log_fsp("brl_unlock_windows", timediff,
-				       br_lck->fsp);
+				       brl_fsp(br_lck));
 	}
 
 	return result;
@@ -1589,21 +1590,20 @@ static bool smb_time_audit_brl_unlock_windows(struct vfs_handle_struct *handle,
 
 static bool smb_time_audit_brl_cancel_windows(struct vfs_handle_struct *handle,
 					      struct byte_range_lock *br_lck,
-					      struct lock_struct *plock,
-					      struct blocking_lock_record *blr)
+					      struct lock_struct *plock)
 {
 	bool result;
 	struct timespec ts1,ts2;
 	double timediff;
 
 	clock_gettime_mono(&ts1);
-	result = SMB_VFS_NEXT_BRL_CANCEL_WINDOWS(handle, br_lck, plock, blr);
+	result = SMB_VFS_NEXT_BRL_CANCEL_WINDOWS(handle, br_lck, plock);
 	clock_gettime_mono(&ts2);
 	timediff = nsec_time_diff(&ts2,&ts1)*1.0e-9;
 
 	if (timediff > audit_timeout) {
 		smb_time_audit_log_fsp("brl_cancel_windows", timediff,
-				       br_lck->fsp);
+				       brl_fsp(br_lck));
 	}
 
 	return result;
@@ -1749,6 +1749,57 @@ static NTSTATUS smb_time_audit_copy_chunk_recv(struct vfs_handle_struct *handle,
 
 	tevent_req_received(req);
 	return NT_STATUS_OK;
+}
+
+static NTSTATUS smb_time_audit_get_compression(vfs_handle_struct *handle,
+					       TALLOC_CTX *mem_ctx,
+					       struct files_struct *fsp,
+					       struct smb_filename *smb_fname,
+					       uint16_t *_compression_fmt)
+{
+	NTSTATUS result;
+	struct timespec ts1,ts2;
+	double timediff;
+
+	clock_gettime_mono(&ts1);
+	result = SMB_VFS_NEXT_GET_COMPRESSION(handle, mem_ctx, fsp, smb_fname,
+					      _compression_fmt);
+	clock_gettime_mono(&ts2);
+	timediff = nsec_time_diff(&ts2,&ts1)*1.0e-9;
+
+	if (timediff > audit_timeout) {
+		if (fsp !=  NULL) {
+			smb_time_audit_log_fsp("get_compression",
+					       timediff, fsp);
+		} else {
+			smb_time_audit_log_smb_fname("get_compression",
+						     timediff, smb_fname);
+		}
+	}
+
+	return result;
+}
+
+static NTSTATUS smb_time_audit_set_compression(vfs_handle_struct *handle,
+					       TALLOC_CTX *mem_ctx,
+					       struct files_struct *fsp,
+					       uint16_t compression_fmt)
+{
+	NTSTATUS result;
+	struct timespec ts1,ts2;
+	double timediff;
+
+	clock_gettime_mono(&ts1);
+	result = SMB_VFS_NEXT_SET_COMPRESSION(handle, mem_ctx, fsp,
+					      compression_fmt);
+	clock_gettime_mono(&ts2);
+	timediff = nsec_time_diff(&ts2,&ts1)*1.0e-9;
+
+	if (timediff > audit_timeout) {
+		smb_time_audit_log_fsp("set_compression", timediff, fsp);
+	}
+
+	return result;
 }
 
 static NTSTATUS smb_time_audit_fget_nt_acl(vfs_handle_struct *handle,
@@ -2185,7 +2236,113 @@ static bool smb_time_audit_aio_force(struct vfs_handle_struct *handle,
 	return result;
 }
 
+static bool smb_time_audit_is_offline(struct vfs_handle_struct *handle,
+				      const struct smb_filename *fname,
+				      SMB_STRUCT_STAT *sbuf)
+{
+	bool result;
+	struct timespec ts1,ts2;
+	double timediff;
 
+	clock_gettime_mono(&ts1);
+	result = SMB_VFS_NEXT_IS_OFFLINE(handle, fname, sbuf);
+	clock_gettime_mono(&ts2);
+	timediff = nsec_time_diff(&ts2,&ts1)*1.0e-9;
+
+	if (timediff > audit_timeout) {
+		smb_time_audit_log_smb_fname("is_offline", timediff, fname);
+	}
+
+	return result;
+}
+
+static int smb_time_audit_set_offline(struct vfs_handle_struct *handle,
+				      const struct smb_filename *fname)
+{
+	int result;
+	struct timespec ts1,ts2;
+	double timediff;
+
+	clock_gettime_mono(&ts1);
+	result = SMB_VFS_NEXT_SET_OFFLINE(handle, fname);
+	clock_gettime_mono(&ts2);
+	timediff = nsec_time_diff(&ts2,&ts1)*1.0e-9;
+
+	if (timediff > audit_timeout) {
+		smb_time_audit_log_smb_fname("set_offline", timediff, fname);
+	}
+
+	return result;
+}
+
+static NTSTATUS smb_time_audit_durable_cookie(struct vfs_handle_struct *handle,
+					      struct files_struct *fsp,
+					      TALLOC_CTX *mem_ctx,
+					      DATA_BLOB *cookie)
+{
+	NTSTATUS result;
+	struct timespec ts1,ts2;
+	double timediff;
+
+	clock_gettime_mono(&ts1);
+	result = SMB_VFS_NEXT_DURABLE_COOKIE(handle, fsp, mem_ctx, cookie);
+	clock_gettime_mono(&ts2);
+	timediff = nsec_time_diff(&ts2,&ts1)*1.0e-9;
+
+	if (timediff > audit_timeout) {
+		smb_time_audit_log_fsp("durable_cookie", timediff, fsp);
+	}
+
+	return result;
+}
+
+static NTSTATUS smb_time_audit_durable_disconnect(struct vfs_handle_struct *handle,
+						  struct files_struct *fsp,
+						  const DATA_BLOB old_cookie,
+						  TALLOC_CTX *mem_ctx,
+						  DATA_BLOB *new_cookie)
+{
+	NTSTATUS result;
+	struct timespec ts1,ts2;
+	double timediff;
+
+	clock_gettime_mono(&ts1);
+	result = SMB_VFS_NEXT_DURABLE_DISCONNECT(handle, fsp, old_cookie,
+						 mem_ctx, new_cookie);
+	clock_gettime_mono(&ts2);
+	timediff = nsec_time_diff(&ts2,&ts1)*1.0e-9;
+
+	if (timediff > audit_timeout) {
+		smb_time_audit_log_fsp("durable_disconnect", timediff, fsp);
+	}
+
+	return result;
+}
+
+static NTSTATUS smb_time_audit_durable_reconnect(struct vfs_handle_struct *handle,
+						 struct smb_request *smb1req,
+						 struct smbXsrv_open *op,
+						 const DATA_BLOB old_cookie,
+						 TALLOC_CTX *mem_ctx,
+						 struct files_struct **fsp,
+						 DATA_BLOB *new_cookie)
+{
+	NTSTATUS result;
+	struct timespec ts1,ts2;
+	double timediff;
+
+	clock_gettime_mono(&ts1);
+	result = SMB_VFS_NEXT_DURABLE_RECONNECT(handle, smb1req, op, old_cookie,
+						mem_ctx, fsp, new_cookie);
+	clock_gettime_mono(&ts2);
+	timediff = nsec_time_diff(&ts2,&ts1)*1.0e-9;
+
+	if (timediff > audit_timeout) {
+		smb_time_audit_log("durable_reconnect", timediff);
+	}
+
+	return result;
+}
 
 /* VFS operations */
 
@@ -2264,6 +2421,8 @@ static struct vfs_fn_pointers vfs_time_audit_fns = {
 	.translate_name_fn = smb_time_audit_translate_name,
 	.copy_chunk_send_fn = smb_time_audit_copy_chunk_send,
 	.copy_chunk_recv_fn = smb_time_audit_copy_chunk_recv,
+	.get_compression_fn = smb_time_audit_get_compression,
+	.set_compression_fn = smb_time_audit_set_compression,
 	.fget_nt_acl_fn = smb_time_audit_fget_nt_acl,
 	.get_nt_acl_fn = smb_time_audit_get_nt_acl,
 	.fset_nt_acl_fn = smb_time_audit_fset_nt_acl,
@@ -2285,6 +2444,11 @@ static struct vfs_fn_pointers vfs_time_audit_fns = {
 	.setxattr_fn = smb_time_audit_setxattr,
 	.fsetxattr_fn = smb_time_audit_fsetxattr,
 	.aio_force_fn = smb_time_audit_aio_force,
+	.is_offline_fn = smb_time_audit_is_offline,
+	.set_offline_fn = smb_time_audit_set_offline,
+	.durable_cookie_fn = smb_time_audit_durable_cookie,
+	.durable_disconnect_fn = smb_time_audit_durable_disconnect,
+	.durable_reconnect_fn = smb_time_audit_durable_reconnect,
 };
 
 

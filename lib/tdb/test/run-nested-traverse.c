@@ -11,6 +11,7 @@
 #include "../common/open.c"
 #include "../common/check.c"
 #include "../common/hash.c"
+#include "../common/mutex.c"
 #include "tap-interface.h"
 #undef fcntl
 #include <stdlib.h>
@@ -74,8 +75,8 @@ int main(int argc, char *argv[])
 	    == SUCCESS);
 
 	key.dsize = strlen("hi");
-	key.dptr = (void *)"hi";
-	data.dptr = (void *)"world";
+	key.dptr = discard_const_p(uint8_t, "hi");
+	data.dptr = discard_const_p(uint8_t, "world");
 	data.dsize = strlen("world");
 
 	ok1(tdb_store(tdb, key, data, TDB_INSERT) == 0);

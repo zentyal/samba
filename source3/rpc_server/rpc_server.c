@@ -37,38 +37,23 @@
 #define SERVER_TCP_LOW_PORT  1024
 #define SERVER_TCP_HIGH_PORT 1300
 
-static NTSTATUS auth_anonymous_session_info(TALLOC_CTX *mem_ctx,
-					    struct auth_session_info **session_info)
-{
-	NTSTATUS status;
-
-	status = make_session_info_guest(mem_ctx, session_info);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	return NT_STATUS_OK;
-}
-
 /* Creates a pipes_struct and initializes it with the information
  * sent from the client */
-static int make_server_pipes_struct(TALLOC_CTX *mem_ctx,
-				    struct messaging_context *msg_ctx,
-				    const char *pipe_name,
-				    enum dcerpc_transport_t transport,
-				    bool ncalrpc_as_system,
-				    const struct tsocket_address *local_address,
-				    const struct tsocket_address *remote_address,
-				    struct auth_session_info *session_info,
-				    struct pipes_struct **_p,
-				    int *perrno)
+int make_server_pipes_struct(TALLOC_CTX *mem_ctx,
+			     struct messaging_context *msg_ctx,
+			     const char *pipe_name,
+			     enum dcerpc_transport_t transport,
+			     const struct tsocket_address *local_address,
+			     const struct tsocket_address *remote_address,
+			     struct auth_session_info *session_info,
+			     struct pipes_struct **_p,
+			     int *perrno)
 {
 	struct pipes_struct *p;
 	int ret;
 
 	ret = make_base_pipes_struct(mem_ctx, msg_ctx, pipe_name,
 				     transport, RPC_LITTLE_ENDIAN,
-				     ncalrpc_as_system,
 				     remote_address, local_address, &p);
 	if (ret) {
 		*perrno = ret;
@@ -121,7 +106,7 @@ int create_named_pipe_socket(const char *pipe_name)
 	 * lp_ncalrpc_dir()/np should have 0700, we need to
 	 * create lp_ncalrpc_dir() first.
 	 */
-	if (!directory_create_or_exist(lp_ncalrpc_dir(), geteuid(), 0755)) {
+	if (!directory_create_or_exist(lp_ncalrpc_dir(), 0755)) {
 		DEBUG(0, ("Failed to create pipe directory %s - %s\n",
 			  lp_ncalrpc_dir(), strerror(errno)));
 		goto out;
@@ -248,42 +233,50 @@ static void named_pipe_listener(struct tevent_context *ev,
  * Accepts connections from clients and process requests using the appropriate
  * dispatcher table. */
 
-struct named_pipe_client {
-	const char *pipe_name;
-
-	struct tevent_context *ev;
-	struct messaging_context *msg_ctx;
-
-	uint16_t file_type;
-	uint16_t device_state;
-	uint64_t allocation_size;
-
-	struct tstream_context *tstream;
-
-	struct tsocket_address *client;
-	char *client_name;
-	struct tsocket_address *server;
-	char *server_name;
-
-	struct auth_session_info *session_info;
-
-	struct pipes_struct *p;
-
-	struct tevent_queue *write_queue;
-
-	struct iovec *iov;
-	size_t count;
-
-	named_pipe_termination_fn *term_fn;
-	void *private_data;
-};
-
 static int named_pipe_destructor(struct named_pipe_client *npc)
 {
 	if (npc->term_fn) {
 		npc->term_fn(npc->private_data);
 	}
 	return 0;
+}
+
+struct named_pipe_client *named_pipe_client_init(TALLOC_CTX *mem_ctx,
+						 struct tevent_context *ev_ctx,
+						 struct messaging_context *msg_ctx,
+						 const char *pipe_name,
+						 named_pipe_termination_fn *term_fn,
+						 uint16_t file_type,
+						 uint16_t device_state,
+						 uint64_t allocation_size,
+						 void *private_data)
+{
+	struct named_pipe_client *npc;
+
+	npc = talloc_zero(mem_ctx, struct named_pipe_client);
+	if (npc == NULL) {
+		DEBUG(0, ("Out of memory!\n"));
+		return NULL;
+	}
+	talloc_set_destructor(npc, named_pipe_destructor);
+
+	npc->pipe_name = talloc_strdup(npc, pipe_name);
+	if (npc->pipe_name == NULL) {
+		DEBUG(0, ("Out of memory!\n"));
+		talloc_free(npc);
+		return NULL;
+	}
+
+	npc->ev = ev_ctx;
+	npc->msg_ctx = msg_ctx;
+	npc->term_fn = term_fn;
+	npc->private_data = private_data;
+
+	npc->file_type = file_type;
+	npc->device_state = device_state;
+	npc->allocation_size = allocation_size;
+
+	return npc;
 }
 
 static void named_pipe_accept_done(struct tevent_req *subreq);
@@ -354,7 +347,6 @@ void named_pipe_accept_function(struct tevent_context *ev_ctx,
 	tevent_req_set_callback(subreq, named_pipe_accept_done, npc);
 }
 
-static void named_pipe_packet_process(struct tevent_req *subreq);
 static void named_pipe_packet_done(struct tevent_req *subreq);
 
 static void named_pipe_accept_done(struct tevent_req *subreq)
@@ -386,8 +378,10 @@ static void named_pipe_accept_done(struct tevent_req *subreq)
 	ret = make_server_pipes_struct(npc,
 				       npc->msg_ctx,
 				       npc->pipe_name, NCACN_NP,
-					false, npc->server, npc->client, npc->session_info,
-					&npc->p, &error);
+				       npc->server,
+				       npc->client,
+				       npc->session_info,
+				       &npc->p, &error);
 	if (ret != 0) {
 		DEBUG(2, ("Failed to create pipes_struct! (%s)\n",
 			  strerror(error)));
@@ -417,7 +411,7 @@ fail:
 	return;
 }
 
-static void named_pipe_packet_process(struct tevent_req *subreq)
+void named_pipe_packet_process(struct tevent_req *subreq)
 {
 	struct named_pipe_client *npc =
 		tevent_req_callback_data(subreq, struct named_pipe_client);
@@ -425,9 +419,6 @@ static void named_pipe_packet_process(struct tevent_req *subreq)
 	DATA_BLOB recv_buffer = data_blob_null;
 	struct ncacn_packet *pkt;
 	NTSTATUS status;
-	ssize_t data_left;
-	ssize_t data_used;
-	char *data;
 	uint32_t to_send;
 	size_t i;
 	bool ok;
@@ -438,23 +429,20 @@ static void named_pipe_packet_process(struct tevent_req *subreq)
 		goto fail;
 	}
 
-	data_left = recv_buffer.length;
-	data = (char *)recv_buffer.data;
-
-	while (data_left) {
-
-		data_used = process_incoming_data(npc->p, data, data_left);
-		if (data_used < 0) {
-			DEBUG(3, ("Failed to process dceprc request!\n"));
-			status = NT_STATUS_UNEXPECTED_IO_ERROR;
-			goto fail;
-		}
-
-		data_left -= data_used;
-		data += data_used;
+	/* dcerpc_read_ncacn_packet_recv() returns a full PDU */
+	npc->p->in_data.pdu_needed_len = 0;
+	npc->p->in_data.pdu = recv_buffer;
+	if (dcerpc_get_endian_flag(&recv_buffer) & DCERPC_DREP_LE) {
+		npc->p->endian = RPC_LITTLE_ENDIAN;
+	} else {
+		npc->p->endian = RPC_BIG_ENDIAN;
 	}
+	DEBUG(10, ("PDU is in %s Endian format!\n",
+		   npc->p->endian ? "Big" : "Little"));
+	process_complete_pdu(npc->p, pkt);
 
-	/* Do not leak this buffer, npc is a long lived context */
+	/* reset pipe state and free PDU */
+	npc->p->in_data.pdu.length = 0;
 	talloc_free(recv_buffer.data);
 	talloc_free(pkt);
 
@@ -620,7 +608,7 @@ int create_tcpip_socket(const struct sockaddr_storage *ifss, uint16_t *port)
 					    0,
 					    ifss,
 					    false);
-			if (fd > 0) {
+			if (fd >= 0) {
 				*port = i;
 				break;
 			}
@@ -785,7 +773,7 @@ int create_dcerpc_ncalrpc_socket(const char *name)
 		name = "DEFAULT";
 	}
 
-	if (!directory_create_or_exist(lp_ncalrpc_dir(), geteuid(), 0755)) {
+	if (!directory_create_or_exist(lp_ncalrpc_dir(), 0755)) {
 		DEBUG(0, ("Failed to create ncalrpc directory %s - %s\n",
 			  lp_ncalrpc_dir(), strerror(errno)));
 		return -1;
@@ -953,7 +941,6 @@ void dcerpc_ncacn_accept(struct tevent_context *ev_ctx,
 			 dcerpc_ncacn_disconnect_fn fn) {
 	struct dcerpc_ncacn_conn *ncacn_conn;
 	struct tevent_req *subreq;
-	bool system_user = false;
 	char *pipe_name;
 	NTSTATUS status;
 	int sys_errno;
@@ -1025,7 +1012,27 @@ void dcerpc_ncacn_accept(struct tevent_context *ev_ctx,
 					  "uid - %s!\n", strerror(errno)));
 			} else {
 				if (uid == sec_initial_uid()) {
-					system_user = true;
+					TALLOC_FREE(ncacn_conn->client);
+
+					rc = tsocket_address_unix_from_path(ncacn_conn,
+									    "/root/ncalrpc_as_system",
+									    &ncacn_conn->client);
+					if (rc < 0) {
+						DEBUG(0, ("Out of memory!\n"));
+						talloc_free(ncacn_conn);
+						close(s);
+						return;
+					}
+
+					TALLOC_FREE(ncacn_conn->client_name);
+					ncacn_conn->client_name = tsocket_address_unix_path(ncacn_conn->client,
+											    ncacn_conn);
+					if (ncacn_conn->client == NULL) {
+						DEBUG(0, ("Out of memory!\n"));
+						talloc_free(ncacn_conn);
+						close(s);
+						return;
+					}
 				}
 			}
 			/* FALL TROUGH */
@@ -1067,11 +1074,14 @@ void dcerpc_ncacn_accept(struct tevent_context *ev_ctx,
 	}
 
 	if (ncacn_conn->session_info == NULL) {
-		status = auth_anonymous_session_info(ncacn_conn,
-						     &ncacn_conn->session_info);
+		/*
+		 * TODO: use auth_anonymous_session_info() here?
+		 */
+		status = make_session_info_guest(ncacn_conn,
+						 &ncacn_conn->session_info);
 		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(2, ("Failed to create "
-				  "auth_anonymous_session_info - %s\n",
+				  "make_session_info_guest - %s\n",
 				  nt_errstr(status)));
 			talloc_free(ncacn_conn);
 			return;
@@ -1082,7 +1092,6 @@ void dcerpc_ncacn_accept(struct tevent_context *ev_ctx,
 				      ncacn_conn->msg_ctx,
 				      pipe_name,
 				      ncacn_conn->transport,
-				      system_user,
 				      ncacn_conn->server,
 				      ncacn_conn->client,
 				      ncacn_conn->session_info,
@@ -1127,10 +1136,7 @@ static void dcerpc_ncacn_packet_process(struct tevent_req *subreq)
 	struct _output_data *out = &ncacn_conn->p->out_data;
 	DATA_BLOB recv_buffer = data_blob_null;
 	struct ncacn_packet *pkt;
-	ssize_t data_left;
-	ssize_t data_used;
 	uint32_t to_send;
-	char *data;
 	NTSTATUS status;
 	bool ok;
 
@@ -1146,22 +1152,20 @@ static void dcerpc_ncacn_packet_process(struct tevent_req *subreq)
 		goto fail;
 	}
 
-	data_left = recv_buffer.length;
-	data = (char *) recv_buffer.data;
-
-	while (data_left) {
-		data_used = process_incoming_data(ncacn_conn->p, data, data_left);
-		if (data_used < 0) {
-			DEBUG(3, ("Failed to process dcerpc request!\n"));
-			status = NT_STATUS_UNEXPECTED_IO_ERROR;
-			goto fail;
-		}
-
-		data_left -= data_used;
-		data += data_used;
+	/* dcerpc_read_ncacn_packet_recv() returns a full PDU */
+	ncacn_conn->p->in_data.pdu_needed_len = 0;
+	ncacn_conn->p->in_data.pdu = recv_buffer;
+	if (dcerpc_get_endian_flag(&recv_buffer) & DCERPC_DREP_LE) {
+		ncacn_conn->p->endian = RPC_LITTLE_ENDIAN;
+	} else {
+		ncacn_conn->p->endian = RPC_BIG_ENDIAN;
 	}
+	DEBUG(10, ("PDU is in %s Endian format!\n",
+		   ncacn_conn->p->endian ? "Big" : "Little"));
+	process_complete_pdu(ncacn_conn->p, pkt);
 
-	/* Do not leak this buffer */
+	/* reset pipe state and free PDU */
+	ncacn_conn->p->in_data.pdu.length = 0;
 	talloc_free(recv_buffer.data);
 	talloc_free(pkt);
 

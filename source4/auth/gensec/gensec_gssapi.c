@@ -30,10 +30,11 @@
 #include "auth/auth.h"
 #include <ldb.h>
 #include "auth/auth_sam.h"
-#include "librpc/rpc/dcerpc.h"
+#include "librpc/gen_ndr/dcerpc.h"
 #include "auth/credentials/credentials.h"
 #include "auth/credentials/credentials_krb5.h"
 #include "auth/gensec/gensec.h"
+#include "auth/gensec/gensec_internal.h"
 #include "auth/gensec/gensec_proto.h"
 #include "auth/gensec/gensec_toplevel_proto.h"
 #include "param/param.h"
@@ -304,6 +305,9 @@ static NTSTATUS gensec_gssapi_client_creds(struct gensec_security *gensec_securi
 	case KRB5KDC_ERR_C_PRINCIPAL_UNKNOWN:
 		DEBUG(1, ("Wrong username or password: %s\n", error_string));
 		return NT_STATUS_LOGON_FAILURE;
+	case KRB5KDC_ERR_CLIENT_REVOKED:
+		DEBUG(1, ("Account locked out: %s\n", error_string));
+		return NT_STATUS_ACCOUNT_LOCKED_OUT;
 	case KRB5_KDC_UNREACH:
 		DEBUG(3, ("Cannot reach a KDC we require to contact %s : %s\n", gensec_gssapi_state->target_principal, error_string));
 		return NT_STATUS_NO_LOGON_SERVERS;
@@ -421,7 +425,9 @@ static NTSTATUS gensec_gssapi_update(struct gensec_security *gensec_security,
 	NTSTATUS nt_status = NT_STATUS_LOGON_FAILURE;
 	OM_uint32 maj_stat, min_stat;
 	OM_uint32 min_stat2;
-	gss_buffer_desc input_token, output_token;
+	gss_buffer_desc input_token = { 0, NULL };
+	gss_buffer_desc output_token = { 0, NULL };
+
 	gss_OID gss_oid_p = NULL;
 	OM_uint32 time_req = 0;
 	OM_uint32 time_rec = 0;
@@ -625,7 +631,7 @@ static NTSTATUS gensec_gssapi_update(struct gensec_security *gensec_security,
 					  gssapi_error_string(out_mem_ctx, maj_stat, min_stat, gensec_gssapi_state->gss_oid)));
 				return NT_STATUS_INVALID_PARAMETER; /* Make SPNEGO ignore us, we can't go any further here */
 			case KRB5_KDC_UNREACH:
-				DEBUG(3, ("Cannot reach a KDC we require in order to obtain a ticetk to %s: %s\n",
+				DEBUG(3, ("Cannot reach a KDC we require in order to obtain a ticket to %s: %s\n",
 					  gensec_gssapi_state->target_principal,
 					  gssapi_error_string(out_mem_ctx, maj_stat, min_stat, gensec_gssapi_state->gss_oid)));
 				return NT_STATUS_NO_LOGON_SERVERS; /* Make SPNEGO ignore us, we can't go any further here */
@@ -1027,6 +1033,12 @@ static NTSTATUS gensec_gssapi_seal_packet(struct gensec_security *gensec_securit
 	int conf_state;
 	ssize_t sig_length;
 
+	if (gensec_security->want_features & GENSEC_FEATURE_SIGN_PKT_HEADER) {
+		DEBUG(1, ("gensec_gssapi_seal_packet: "
+			  "GENSEC_FEATURE_SIGN_PKT_HEADER not supported\n"));
+		return NT_STATUS_ACCESS_DENIED;
+	}
+
 	input_token.length = length;
 	input_token.value = data;
 	
@@ -1080,6 +1092,12 @@ static NTSTATUS gensec_gssapi_unseal_packet(struct gensec_security *gensec_secur
 	DATA_BLOB in;
 
 	dump_data_pw("gensec_gssapi_unseal_packet: sig\n", sig->data, sig->length);
+
+	if (gensec_security->want_features & GENSEC_FEATURE_SIGN_PKT_HEADER) {
+		DEBUG(1, ("gensec_gssapi_unseal_packet: "
+			  "GENSEC_FEATURE_SIGN_PKT_HEADER not supported\n"));
+		return NT_STATUS_ACCESS_DENIED;
+	}
 
 	in = data_blob_talloc(gensec_security, NULL, sig->length + length);
 
@@ -1273,6 +1291,18 @@ static bool gensec_gssapi_have_feature(struct gensec_security *gensec_security,
 	/* We can always do async (rather than strict request/reply) packets.  */
 	if (feature & GENSEC_FEATURE_ASYNC_REPLIES) {
 		return true;
+	}
+	if (feature & GENSEC_FEATURE_SIGN_PKT_HEADER) {
+		if (gensec_security->want_features & GENSEC_FEATURE_SEAL) {
+			/* TODO: implement this using gss_wrap_iov() */
+			return false;
+		}
+
+		if (gensec_security->want_features & GENSEC_FEATURE_SIGN) {
+			return true;
+		}
+
+		return false;
 	}
 	return false;
 }

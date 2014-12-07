@@ -1,18 +1,18 @@
-/* 
+/*
    Unix SMB/CIFS implementation.
    SMB torture tester
    Copyright (C) Jelmer Vernooij 2006
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -61,9 +61,9 @@ struct torture_test *torture_suite_add_1smb2_test(struct torture_suite *suite,
 						  bool (*run)(struct torture_context *,
 							      struct smb2_tree *))
 {
-	struct torture_test *test; 
+	struct torture_test *test;
 	struct torture_tcase *tcase;
-	
+
 	tcase = torture_suite_add_tcase(suite, name);
 
 	test = talloc(tcase, struct torture_test);
@@ -148,7 +148,7 @@ NTSTATUS torture_smb2_init(void)
 	struct torture_suite *suite = torture_suite_create(talloc_autofree_context(), "smb2");
 	torture_suite_add_simple_test(suite, "connect", torture_smb2_connect);
 	torture_suite_add_suite(suite, torture_smb2_scan_init());
-	torture_suite_add_simple_test(suite, "getinfo", torture_smb2_getinfo);
+	torture_suite_add_suite(suite, torture_smb2_getinfo_init());
 	torture_suite_add_simple_test(suite, "setinfo", torture_smb2_setinfo);
 	torture_suite_add_suite(suite, torture_smb2_lock_init());
 	torture_suite_add_suite(suite, torture_smb2_read_init());
@@ -168,6 +168,7 @@ NTSTATUS torture_smb2_init(void)
 	torture_suite_add_1smb2_test(suite, "bench-oplock", test_smb2_bench_oplock);
 	torture_suite_add_1smb2_test(suite, "hold-oplock", test_smb2_hold_oplock);
 	torture_suite_add_suite(suite, torture_smb2_session_init());
+	torture_suite_add_suite(suite, torture_smb2_replay_init());
 
 	torture_suite_add_suite(suite, torture_smb2_doc_init());
 

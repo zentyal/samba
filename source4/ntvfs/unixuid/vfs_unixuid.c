@@ -33,7 +33,6 @@
 NTSTATUS ntvfs_unixuid_init(void);
 
 struct unixuid_private {
-	struct wbc_context *wbc_ctx;
 	struct security_unix_token *last_sec_ctx;
 	struct security_token *last_token;
 };
@@ -154,10 +153,8 @@ static NTSTATUS nt_token_to_unix_security(struct ntvfs_module_context *ntvfs,
 					  struct security_token *token,
 					  struct security_unix_token **sec)
 {
-	struct unixuid_private *priv = ntvfs->private_data;
-
 	return security_token_to_unix_token(req,
-					    priv->wbc_ctx,
+					    ntvfs->ctx->event_ctx,
 					    token, sec);
 }
 
@@ -241,13 +238,6 @@ static NTSTATUS unixuid_connect(struct ntvfs_module_context *ntvfs,
 	priv = talloc(ntvfs, struct unixuid_private);
 	if (!priv) {
 		return NT_STATUS_NO_MEMORY;
-	}
-
-	priv->wbc_ctx = wbc_init(priv, ntvfs->ctx->msg_ctx,
-				    ntvfs->ctx->event_ctx);
-	if (priv->wbc_ctx == NULL) {
-		talloc_free(priv);
-		return NT_STATUS_INTERNAL_ERROR;
 	}
 
 	priv->last_sec_ctx = NULL;

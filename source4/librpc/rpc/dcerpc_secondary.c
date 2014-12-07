@@ -31,20 +31,19 @@
 #include "auth/credentials/credentials.h"
 #include "param/param.h"
 #include "libcli/resolve/resolve.h"
-#include "lib/socket/socket.h"
+#include "lib/util/util_net.h"
 
 struct sec_conn_state {
 	struct dcerpc_pipe *pipe;
 	struct dcerpc_pipe *pipe2;
 	struct dcerpc_binding *binding;
-	struct smbcli_tree *tree;
-	struct socket_address *peer_addr;
 };
 
 
 static void continue_open_smb(struct composite_context *ctx);
 static void continue_open_tcp(struct composite_context *ctx);
-static void continue_open_pipe(struct composite_context *ctx);
+static void continue_open_ncalrpc(struct composite_context *ctx);
+static void continue_open_ncacn_unix(struct composite_context *ctx);
 static void continue_pipe_open(struct composite_context *c);
 
 
@@ -53,14 +52,20 @@ static void continue_pipe_open(struct composite_context *c);
   connection
 */
 _PUBLIC_ struct composite_context* dcerpc_secondary_connection_send(struct dcerpc_pipe *p,
-							   struct dcerpc_binding *b)
+							const struct dcerpc_binding *b)
 {
 	struct composite_context *c;
 	struct sec_conn_state *s;
 	struct composite_context *pipe_smb_req;
 	struct composite_context *pipe_tcp_req;
+	const char *localaddress = NULL;
 	struct composite_context *pipe_ncalrpc_req;
-	
+	const char *ncalrpc_dir = NULL;
+	struct composite_context *pipe_unix_req;
+	const char *host;
+	const char *target_hostname;
+	const char *endpoint;
+
 	/* composite context allocation and setup */
 	c = composite_create(p, p->conn->event_ctx);
 	if (c == NULL) return NULL;
@@ -70,7 +75,8 @@ _PUBLIC_ struct composite_context* dcerpc_secondary_connection_send(struct dcerp
 	c->private_data = s;
 
 	s->pipe     = p;
-	s->binding  = b;
+	s->binding  = dcerpc_binding_dup(s, b);
+	if (composite_nomem(s->binding, c)) return c;
 
 	/* initialise second dcerpc pipe based on primary pipe's event context */
 	s->pipe2 = dcerpc_pipe_init(c, s->pipe->conn->event_ctx);
@@ -79,42 +85,106 @@ _PUBLIC_ struct composite_context* dcerpc_secondary_connection_send(struct dcerp
 	if (DEBUGLEVEL >= 10)
 		s->pipe2->conn->packet_log_dir = s->pipe->conn->packet_log_dir;
 
+	host = dcerpc_binding_get_string_option(s->binding, "host");
+	if (host == NULL) {
+		/*
+		 * We may fallback to the host of the given connection
+		 */
+		host = dcerpc_binding_get_string_option(s->pipe->binding,
+							"host");
+	}
+	target_hostname = dcerpc_binding_get_string_option(s->binding, "target_hostname");
+	if (target_hostname == NULL) {
+		/*
+		 * We may fallback to the target_hostname of the given connection
+		 */
+		target_hostname = dcerpc_binding_get_string_option(s->pipe->binding,
+								   "target_hostname");
+	}
+	endpoint = dcerpc_binding_get_string_option(s->binding, "endpoint");
+	if (endpoint == NULL) {
+		/*
+		 * We may fallback to the endpoint of the given connection
+		 */
+		endpoint = dcerpc_binding_get_string_option(s->pipe->binding, "endpoint");
+	}
+	if (endpoint == NULL) {
+		composite_error(c, NT_STATUS_INVALID_PARAMETER_MIX);
+		return c;
+	}
+
 	/* open second dcerpc pipe using the same transport as for primary pipe */
 	switch (s->pipe->conn->transport.transport) {
 	case NCACN_NP:
-		/* get smb tree of primary dcerpc pipe opened on smb */
-		s->tree = dcerpc_smb_tree(s->pipe->conn);
-		if (!s->tree) {
-			composite_error(c, NT_STATUS_INVALID_PARAMETER);
-			return c;
-		}
-
-		pipe_smb_req = dcerpc_pipe_open_smb_send(s->pipe2, s->tree,
-							 s->binding->endpoint);
+		pipe_smb_req = dcerpc_secondary_smb_send(s->pipe->conn,
+							 s->pipe2->conn,
+							 endpoint);
 		composite_continue(c, pipe_smb_req, continue_open_smb, c);
 		return c;
 
 	case NCACN_IP_TCP:
-		s->peer_addr = dcerpc_socket_peer_addr(s->pipe->conn, s);
-		if (!s->peer_addr) {
-			composite_error(c, NT_STATUS_INVALID_PARAMETER);
+		if (host == NULL) {
+			composite_error(c, NT_STATUS_INVALID_PARAMETER_MIX);
 			return c;
 		}
 
+		if (!is_ipaddress(host)) {
+			/*
+			 * We may fallback to the host of the given connection
+			 */
+			host = dcerpc_binding_get_string_option(s->pipe->binding,
+								"host");
+			if (host == NULL) {
+				composite_error(c, NT_STATUS_INVALID_PARAMETER_MIX);
+				return c;
+			}
+			if (!is_ipaddress(host)) {
+				composite_error(c, NT_STATUS_INVALID_PARAMETER_MIX);
+				return c;
+			}
+		}
+
+		localaddress = dcerpc_binding_get_string_option(s->binding,
+								"localaddress");
+		if (localaddress == NULL) {
+			/*
+			 * We may fallback to the localaddress of the given connection
+			 */
+			localaddress = dcerpc_binding_get_string_option(s->pipe->binding,
+									"localaddress");
+		}
+
 		pipe_tcp_req = dcerpc_pipe_open_tcp_send(s->pipe2->conn,
-							 s->binding->localaddress,
-							 s->peer_addr->addr,
-							 s->binding->target_hostname,
-							 atoi(s->binding->endpoint),
+							 localaddress,
+							 host,
+							 target_hostname,
+							 atoi(endpoint),
 							 resolve_context_init(s));
 		composite_continue(c, pipe_tcp_req, continue_open_tcp, c);
 		return c;
 
 	case NCALRPC:
+		ncalrpc_dir = dcerpc_binding_get_string_option(s->binding,
+							       "ncalrpc_dir");
+		if (ncalrpc_dir == NULL) {
+			ncalrpc_dir = dcerpc_binding_get_string_option(s->pipe->binding,
+								"ncalrpc_dir");
+		}
+		if (ncalrpc_dir == NULL) {
+			composite_error(c, NT_STATUS_INVALID_PARAMETER_MIX);
+			return c;
+		}
+
+		pipe_ncalrpc_req = dcerpc_pipe_open_pipe_send(s->pipe2->conn,
+							      ncalrpc_dir,
+							      endpoint);
+		composite_continue(c, pipe_ncalrpc_req, continue_open_ncalrpc, c);
+		return c;
+
 	case NCACN_UNIX_STREAM:
-		pipe_ncalrpc_req = dcerpc_pipe_open_unix_stream_send(s->pipe2->conn, 
-							      dcerpc_unix_socket_path(s->pipe->conn));
-		composite_continue(c, pipe_ncalrpc_req, continue_open_pipe, c);
+		pipe_unix_req = dcerpc_pipe_open_unix_stream_send(s->pipe2->conn,
+								  endpoint);
+		composite_continue(c, pipe_unix_req, continue_open_ncacn_unix, c);
 		return c;
 
 	default:
@@ -134,7 +204,7 @@ static void continue_open_smb(struct composite_context *ctx)
 	struct composite_context *c = talloc_get_type(ctx->async.private_data,
 						      struct composite_context);
 	
-	c->status = dcerpc_pipe_open_smb_recv(ctx);
+	c->status = dcerpc_secondary_smb_recv(ctx);
 	if (!composite_is_ok(c)) return;
 
 	continue_pipe_open(c);
@@ -148,23 +218,50 @@ static void continue_open_tcp(struct composite_context *ctx)
 {
 	struct composite_context *c = talloc_get_type(ctx->async.private_data,
 						      struct composite_context);
-	
-	c->status = dcerpc_pipe_open_tcp_recv(ctx);
+	struct sec_conn_state *s = talloc_get_type_abort(c->private_data,
+							 struct sec_conn_state);
+	char *localaddr = NULL;
+	char *remoteaddr = NULL;
+
+	c->status = dcerpc_pipe_open_tcp_recv(ctx, s, &localaddr, &remoteaddr);
+	if (!composite_is_ok(c)) return;
+
+	c->status = dcerpc_binding_set_string_option(s->binding,
+						     "localaddress",
+						     localaddr);
+	if (!composite_is_ok(c)) return;
+
+	c->status = dcerpc_binding_set_string_option(s->binding,
+						     "host",
+						     remoteaddr);
 	if (!composite_is_ok(c)) return;
 
 	continue_pipe_open(c);
 }
 
-
 /*
   Stage 2 of secondary_connection: Receive result of pipe open request on ncalrpc
 */
-static void continue_open_pipe(struct composite_context *ctx)
+static void continue_open_ncalrpc(struct composite_context *ctx)
 {
 	struct composite_context *c = talloc_get_type(ctx->async.private_data,
 						      struct composite_context);
 
 	c->status = dcerpc_pipe_open_pipe_recv(ctx);
+	if (!composite_is_ok(c)) return;
+
+	continue_pipe_open(c);
+}
+
+/*
+  Stage 2 of secondary_connection: Receive result of pipe open request on ncacn_unix
+*/
+static void continue_open_ncacn_unix(struct composite_context *ctx)
+{
+	struct composite_context *c = talloc_get_type(ctx->async.private_data,
+						      struct composite_context);
+
+	c->status = dcerpc_pipe_open_unix_stream_recv(ctx);
 	if (!composite_is_ok(c)) return;
 
 	continue_pipe_open(c);
@@ -182,9 +279,8 @@ static void continue_pipe_open(struct composite_context *c)
 	s = talloc_get_type(c->private_data, struct sec_conn_state);
 
 	s->pipe2->conn->flags = s->pipe->conn->flags;
-	s->pipe2->binding     = s->binding;
-	if (!talloc_reference(s->pipe2, s->binding)) {
-		composite_error(c, NT_STATUS_NO_MEMORY);
+	s->pipe2->binding     = dcerpc_binding_dup(s->pipe2, s->binding);
+	if (composite_nomem(s->pipe2->binding, c)) {
 		return;
 	}
 
@@ -221,7 +317,7 @@ _PUBLIC_ NTSTATUS dcerpc_secondary_connection_recv(struct composite_context *c,
 */
 _PUBLIC_ NTSTATUS dcerpc_secondary_connection(struct dcerpc_pipe *p,
 				     struct dcerpc_pipe **p2,
-				     struct dcerpc_binding *b)
+				     const struct dcerpc_binding *b)
 {
 	struct composite_context *c;
 	
@@ -237,7 +333,7 @@ _PUBLIC_ NTSTATUS dcerpc_secondary_connection(struct dcerpc_pipe *p,
 */
 struct sec_auth_conn_state {
 	struct dcerpc_pipe *pipe2;
-	struct dcerpc_binding *binding;
+	const struct dcerpc_binding *binding;
 	const struct ndr_interface_table *table;
 	struct cli_credentials *credentials;
 	struct composite_context *ctx;
@@ -248,7 +344,7 @@ static void dcerpc_secondary_auth_connection_bind(struct composite_context *ctx)
 static void dcerpc_secondary_auth_connection_continue(struct composite_context *ctx);
 
 _PUBLIC_ struct composite_context* dcerpc_secondary_auth_connection_send(struct dcerpc_pipe *p,
-								struct dcerpc_binding *binding,
+								const struct dcerpc_binding *binding,
 								const struct ndr_interface_table *table,
 								struct cli_credentials *credentials,
 								struct loadparm_context *lp_ctx)

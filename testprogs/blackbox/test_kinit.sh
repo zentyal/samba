@@ -23,14 +23,30 @@ failed=0
 
 samba4bindir="$BINDIR"
 samba4srcdir="$SRCDIR/source4"
-samba4kinit="$samba4bindir/samba4kinit"
+samba4kinit=kinit
+if test -x $BINDIR/samba4kinit; then
+	samba4kinit=$BINDIR/samba4kinit
+fi
+
 samba_tool="$samba4bindir/samba-tool"
-ldbmodify="$samba4bindir/ldbmodify"
-ldbsearch="$samba4bindir/ldbsearch"
-rkpty="$samba4bindir/rkpty"
-samba4kpasswd="$samba4bindir/samba4kpasswd"
+texpect="$samba4bindir/texpect"
+samba4kpasswd=kpasswd
+if test -x $BINDIR/samba4kpasswd; then
+	samba4kpasswd=$BINDIR/samba4kpasswd
+fi
+
 enableaccount="$samba_tool user enable"
 machineaccountccache="$samba4srcdir/scripting/bin/machineaccountccache"
+
+ldbmodify="ldbmodify"
+if [ -x "$samba4bindir/ldbmodify" ]; then
+	ldbmodify="$samba4bindir/ldbmodify"
+fi
+
+ldbsearch="ldbsearch"
+if [ -x "$samba4bindir/ldbsearch" ]; then
+	ldbsearch="$samba4bindir/ldbsearch"
+fi
 
 . `dirname $0`/subunit.sh
 
@@ -121,7 +137,7 @@ send ${NEWUSERPASS}\n
 expect Success
 EOF
 
-testit "change user password with kpasswd" $rkpty $PREFIX/tmpkpasswdscript $samba4kpasswd nettestuser@$REALM || failed=`expr $failed + 1`
+testit "change user password with kpasswd" $texpect $PREFIX/tmpkpasswdscript $samba4kpasswd nettestuser@$REALM || failed=`expr $failed + 1`
 
 testit "kinit with user password" $samba4kinit $enctype --password-file=$PREFIX/tmpuserpassfile --request-pac nettestuser@$REALM   || failed=`expr $failed + 1`
 
@@ -138,7 +154,7 @@ send ${NEWUSERPASS}\n
 expect Success
 EOF
 
-testit "set user password with kpasswd" $rkpty $PREFIX/tmpkpasswdscript $samba4kpasswd --cache=$PREFIX/tmpccache nettestuser@$REALM || failed=`expr $failed + 1`
+testit "set user password with kpasswd" $texpect $PREFIX/tmpkpasswdscript $samba4kpasswd --cache=$PREFIX/tmpccache nettestuser@$REALM || failed=`expr $failed + 1`
 
 testit "kinit with user password" $samba4kinit $enctype --password-file=$PREFIX/tmpuserpassfile --request-pac nettestuser@$REALM   || failed=`expr $failed + 1`
 
@@ -155,7 +171,7 @@ send ${NEWUSERPASS}\n
 expect Success
 EOF
 
-testit "set user password with kpasswd and servicePrincipalName" $rkpty $PREFIX/tmpkpasswdscript $samba4kpasswd --cache=$PREFIX/tmpccache host/nettestuser@$REALM || failed=`expr $failed + 1`
+testit "set user password with kpasswd and servicePrincipalName" $texpect $PREFIX/tmpkpasswdscript $samba4kpasswd --cache=$PREFIX/tmpccache host/nettestuser@$REALM || failed=`expr $failed + 1`
 
 testit "kinit with user password" $samba4kinit $enctype --password-file=$PREFIX/tmpuserpassfile --request-pac nettestuser@$REALM   || failed=`expr $failed + 1`
 
@@ -185,7 +201,7 @@ send ${NEWUSERPASS}\n
 expect Success: Password changed
 EOF
 
-testit "kinit with user password for expired password" $rkpty $PREFIX/tmppasswordchange $samba4kinit $enctype --request-pac nettestuser@$REALM && failed=`expr $failed + 1`
+testit "kinit with user password for expired password" $texpect $PREFIX/tmppasswordchange $samba4kinit $enctype --request-pac nettestuser@$REALM && failed=`expr $failed + 1`
 
 test_smbclient "Test login with user kerberos ccache" 'ls' -k yes || failed=`expr $failed + 1`
 

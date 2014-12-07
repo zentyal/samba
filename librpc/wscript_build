@@ -300,11 +300,16 @@ bld.SAMBA_SUBSYSTEM('NDR_FSRVP',
 	public_deps='ndr'
 	)
 
+bld.SAMBA_SUBSYSTEM('NDR_WITNESS',
+    source='gen_ndr/ndr_witness.c',
+    public_deps='ndr'
+    )
+
 bld.SAMBA_SUBSYSTEM('NDR_DCERPC',
-    source='gen_ndr/ndr_dcerpc.c',
+    source='gen_ndr/ndr_dcerpc.c ndr/ndr_dcerpc.c',
     public_deps='ndr',
-    public_headers='gen_ndr/ndr_dcerpc.h gen_ndr/dcerpc.h',
-    header_path= [ ('*gen_ndr*', 'gen_ndr') ],
+    public_headers='gen_ndr/ndr_dcerpc.h gen_ndr/dcerpc.h ndr/ndr_dcerpc.h',
+    header_path=[ ('gen_ndr*', 'gen_ndr'), ('ndr*', 'ndr')]
     )
 
 bld.SAMBA_SUBSYSTEM('NDR_DRSUAPI',
@@ -346,6 +351,12 @@ bld.SAMBA_LIBRARY('ndr-standard',
 bld.SAMBA_SUBSYSTEM('NDR_XATTR',
     source='ndr/ndr_xattr.c gen_ndr/ndr_xattr.c',
     public_deps='ndr NDR_SECURITY'
+    )
+
+bld.SAMBA_SUBSYSTEM('NDR_SMB2_LEASE_STRUCT',
+    source='gen_ndr/ndr_smb2_lease_struct.c',
+    public_deps='ndr',
+    public_headers='gen_ndr/smb2_lease_struct.h'
     )
 
 bld.SAMBA_SUBSYSTEM('NDR_SCHANNEL',
@@ -605,7 +616,7 @@ bld.SAMBA_SUBSYSTEM('RPC_NDR_DNSSERVER',
     )
 
 bld.SAMBA_SUBSYSTEM('NDR_IOCTL',
-    source='gen_ndr/ndr_ioctl.c',
+    source='gen_ndr/ndr_ioctl.c ndr/ndr_ioctl.c',
     public_deps='ndr'
     )
 
@@ -614,12 +625,17 @@ bld.SAMBA_SUBSYSTEM('RPC_NDR_FSRVP',
 	public_deps='dcerpc-binding NDR_FSRVP'
 	)
 
+bld.SAMBA_SUBSYSTEM('RPC_NDR_WITNESS',
+    source='gen_ndr/ndr_witness_c.c',
+    public_deps='dcerpc-binding NDR_WITNESS'
+    )
+
 # a grouping library for NDR subsystems that may be used by more than one target
 bld.SAMBA_LIBRARY('ndr-samba',
     source=[],
     deps='''NDR_DRSBLOBS NDR_DRSUAPI NDR_IDMAP NDR_NTLMSSP NDR_SCHANNEL NDR_MGMT
     NDR_DNSP NDR_EPMAPPER NDR_XATTR NDR_UNIXINFO NDR_NAMED_PIPE_AUTH NDR_DCOM
-    NDR_NTPRINTING NDR_FSRVP NDR_OPEN_FILES NDR_SMBXSRV''',
+    NDR_NTPRINTING NDR_FSRVP NDR_WITNESS NDR_OPEN_FILES NDR_SMBXSRV''',
     private_library=True,
     grouping_library=True
     )
@@ -642,7 +658,7 @@ bld.SAMBA_LIBRARY('ndr',
     public_deps='errors talloc samba-util',
     public_headers='gen_ndr/misc.h gen_ndr/ndr_misc.h ndr/libndr.h:ndr.h',
     header_path= [('*gen_ndr*', 'gen_ndr')],
-    vnum='0.0.2',
+    vnum='0.0.3',
     abi_directory='ABI',
     abi_match='ndr_* GUID_*',
     )
@@ -653,3 +669,18 @@ bld.SAMBA_LIBRARY('dcerpc-binding',
     pc_files=[],
     public_headers='rpc/rpc_common.h',
     vnum='0.0.1')
+
+bld.SAMBA_SUBSYSTEM('NDR_WINBIND',
+	source='gen_ndr/ndr_winbind.c',
+	public_deps='ndr NDR_LSA'
+	)
+
+bld.SAMBA_SUBSYSTEM('RPC_NDR_WINBIND',
+	source='gen_ndr/ndr_winbind_c.c',
+	public_deps='dcerpc NDR_WINBIND'
+	)
+
+bld.SAMBA3_SUBSYSTEM('SRV_NDR_WINBIND',
+	source='gen_ndr/srv_winbind.c',
+	public_deps='NDR_WINBIND'
+	)

@@ -74,9 +74,9 @@ bool run_cleanup1(int dummy)
 
 bool run_cleanup2(int dummy)
 {
-	struct cli_state *cli1, *cli2;
+	struct cli_state *cli1, *cli2, *cli3;
 	const char *fname = "\\cleanup2";
-	uint16_t fnum1, fnum2;
+	uint16_t fnum1, fnum2, fnum3;
 	NTSTATUS status;
 	char buf;
 
@@ -100,10 +100,34 @@ bool run_cleanup2(int dummy)
 		return false;
 	}
 
+	if (!torture_open_connection(&cli3, 1)) {
+		return false;
+	}
+	status = cli_ntcreate(
+		cli3, fname, 0, FILE_GENERIC_READ|FILE_GENERIC_WRITE,
+		FILE_ATTRIBUTE_NORMAL,
+		FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,
+		FILE_OVERWRITE_IF, 0, 0, &fnum3, NULL);
+	if (!NT_STATUS_IS_OK(status)) {
+		printf("open of %s failed (%s)\n", fname, nt_errstr(status));
+		return false;
+	}
+	status = cli_lock32(cli3, fnum3, 1, 1, 0, WRITE_LOCK);
+	if (!NT_STATUS_IS_OK(status)) {
+		printf("lock failed (%s)\n", nt_errstr(status));
+		return false;
+	}
+
+	status = cli_lock32(cli1, fnum1, 2, 1, 0, WRITE_LOCK);
+	if (!NT_STATUS_IS_OK(status)) {
+		printf("lock failed (%s)\n", nt_errstr(status));
+		return false;
+	}
+
 	/*
 	 * Check the file is indeed locked
 	 */
-	if (!torture_open_connection(&cli2, 0)) {
+	if (!torture_open_connection(&cli2, 1)) {
 		return false;
 	}
 	status = cli_ntcreate(
@@ -133,23 +157,10 @@ bool run_cleanup2(int dummy)
 	}
 
 	/*
-	 * Right now we don't clean up immediately. Re-open the 2nd connection.
+	 * Give the suicidal smbd a bit of time to really pass away
 	 */
-#if 1
-	cli_shutdown(cli2);
-	if (!torture_open_connection(&cli2, 0)) {
-		return false;
-	}
-	status = cli_ntcreate(
-		cli2, fname, 0, FILE_GENERIC_READ|FILE_GENERIC_WRITE,
-		FILE_ATTRIBUTE_NORMAL,
-		FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,
-		FILE_OPEN, 0, 0, &fnum2, NULL);
-	if (!NT_STATUS_IS_OK(status)) {
-		printf("open of %s failed (%s)\n", fname, nt_errstr(status));
-		return false;
-	}
-#endif
+	smb_msleep(1000);
+
 	status = cli_smbwrite(cli2, fnum2, &buf, 0, 1, NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("write failed: %s\n", nt_errstr(status));

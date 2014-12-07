@@ -57,10 +57,13 @@
 #define QUERY_FPASSC(msg, field, attr) \
 	info->field = samdb_result_force_password_change(sam_ctx, mem_ctx, \
 							 a_state->domain_state->domain_dn, msg);
+#define QUERY_BPWDCT(msg, field, attr) \
+	info->field = samdb_result_effective_badPwdCount(sam_ctx, mem_ctx, \
+							 a_state->domain_state->domain_dn, msg);
 #define QUERY_LHOURS(msg, field, attr) \
 	info->field = samdb_result_logon_hours(mem_ctx, msg, attr);
 #define QUERY_AFLAGS(msg, field, attr) \
-	info->field = samdb_result_acct_flags(sam_ctx, mem_ctx, msg, a_state->domain_state->domain_dn);
+	info->field = samdb_result_acct_flags(msg, attr);
 
 
 /* these are used to make the Set[User|Group]Info code easier to follow */
@@ -107,24 +110,10 @@
  	set_el->flags = LDB_FLAG_MOD_REPLACE;				\
 } while (0)
 
-#define CHECK_FOR_MULTIPLES(value, flag, poss_flags)	\
-	do { \
-		if ((value & flag) && ((value & flag) != (value & (poss_flags)))) { \
-			return NT_STATUS_INVALID_PARAMETER;		\
-		}							\
-	} while (0)							\
-
 /* Set account flags, discarding flags that cannot be set with SAMR */
 #define SET_AFLAGS(msg, field, attr) do {				\
 	struct ldb_message_element *set_el;				\
-	if ((r->in.info->field & (ACB_NORMAL | ACB_DOMTRUST | ACB_WSTRUST | ACB_SVRTRUST)) == 0) { \
-		return NT_STATUS_INVALID_PARAMETER; \
-	}								\
-	CHECK_FOR_MULTIPLES(r->in.info->field, ACB_NORMAL, ACB_NORMAL | ACB_DOMTRUST | ACB_WSTRUST | ACB_SVRTRUST); \
-	CHECK_FOR_MULTIPLES(r->in.info->field, ACB_DOMTRUST, ACB_NORMAL | ACB_DOMTRUST | ACB_WSTRUST | ACB_SVRTRUST); \
-	CHECK_FOR_MULTIPLES(r->in.info->field, ACB_WSTRUST, ACB_NORMAL | ACB_DOMTRUST | ACB_WSTRUST | ACB_SVRTRUST); \
-	CHECK_FOR_MULTIPLES(r->in.info->field, ACB_SVRTRUST, ACB_NORMAL | ACB_DOMTRUST | ACB_WSTRUST | ACB_SVRTRUST); \
-	if (samdb_msg_add_acct_flags(sam_ctx, mem_ctx, msg, attr, (r->in.info->field & ~(ACB_AUTOLOCK|ACB_PW_EXPIRED))) != 0) { \
+	if (samdb_msg_add_acct_flags(sam_ctx, mem_ctx, msg, attr, r->in.info->field) != 0) { \
 		return NT_STATUS_NO_MEMORY;				\
 	}								\
         set_el = ldb_msg_find_element(msg, attr);			\
@@ -1307,8 +1296,7 @@ static NTSTATUS dcesrv_samr_EnumDomainUsers(struct dcesrv_call_state *dce_call, 
 	for (i=0;i<ldb_cnt;i++) {
 		/* Check if a mask has been requested */
 		if (r->in.acct_flags
-		    && ((samdb_result_acct_flags(d_state->sam_ctx, mem_ctx,
-						 res[i], d_state->domain_dn) & r->in.acct_flags) == 0)) {
+		    && ((samdb_result_acct_flags(res[i], NULL) & r->in.acct_flags) == 0)) {
 			continue;
 		}
 		entries[count].idx = samdb_result_rid_from_sid(mem_ctx, res[i],
@@ -1756,13 +1744,22 @@ static NTSTATUS dcesrv_samr_OpenGroup(struct dcesrv_call_state *dce_call, TALLOC
 	}
 
 	/* search for the group record */
-	ret = gendb_search(d_state->sam_ctx,
-			   mem_ctx, d_state->domain_dn, &msgs, attrs,
-			   "(&(objectSid=%s)(objectClass=group)"
-			   "(|(groupType=%d)(groupType=%d)))",
-			   ldap_encode_ndr_dom_sid(mem_ctx, sid),
-			   GTYPE_SECURITY_UNIVERSAL_GROUP,
-			   GTYPE_SECURITY_GLOBAL_GROUP);
+	if (d_state->builtin) {
+		ret = gendb_search(d_state->sam_ctx,
+				   mem_ctx, d_state->domain_dn, &msgs, attrs,
+				   "(&(objectSid=%s)(objectClass=group)"
+				   "(groupType=%d))",
+				   ldap_encode_ndr_dom_sid(mem_ctx, sid),
+				   GTYPE_SECURITY_BUILTIN_LOCAL_GROUP);
+	} else {
+		ret = gendb_search(d_state->sam_ctx,
+				   mem_ctx, d_state->domain_dn, &msgs, attrs,
+				   "(&(objectSid=%s)(objectClass=group)"
+				   "(|(groupType=%d)(groupType=%d)))",
+				   ldap_encode_ndr_dom_sid(mem_ctx, sid),
+				   GTYPE_SECURITY_UNIVERSAL_GROUP,
+				   GTYPE_SECURITY_GLOBAL_GROUP);
+	}
 	if (ret == 0) {
 		return NT_STATUS_NO_SUCH_GROUP;
 	}
@@ -2748,8 +2745,10 @@ static NTSTATUS dcesrv_samr_QueryUserInfo(struct dcesrv_call_state *dce_call, TA
 						      "pwdLastSet",
 						      "logonHours",
 						      "badPwdCount",
+						      "badPasswordTime",
 						      "logonCount",
 						      "userAccountControl",
+						      "msDS-User-Account-Control-Computed",
 						      NULL};
 		attrs = attrs2;
 		break;
@@ -2777,10 +2776,12 @@ static NTSTATUS dcesrv_samr_QueryUserInfo(struct dcesrv_call_state *dce_call, TA
 						      "lastLogoff",
 						      "logonHours",
 						      "badPwdCount",
+						      "badPasswordTime",
 						      "logonCount",
 						      "pwdLastSet",
 						      "accountExpires",
 						      "userAccountControl",
+						      "msDS-User-Account-Control-Computed",
 						      NULL};
 		attrs = attrs2;
 		break;
@@ -2853,6 +2854,7 @@ static NTSTATUS dcesrv_samr_QueryUserInfo(struct dcesrv_call_state *dce_call, TA
 	case 16:
 	{
 		static const char * const attrs2[] = {"userAccountControl",
+						      "msDS-User-Account-Control-Computed",
 						      "pwdLastSet",
 						      NULL};
 		attrs = attrs2;
@@ -2895,8 +2897,10 @@ static NTSTATUS dcesrv_samr_QueryUserInfo(struct dcesrv_call_state *dce_call, TA
 						      "objectSid",
 						      "primaryGroupID",
 						      "userAccountControl",
+						      "msDS-User-Account-Control-Computed",
 						      "logonHours",
 						      "badPwdCount",
+						      "badPasswordTime",
 						      "logonCount",
 						      "countryCode",
 						      "codePage",
@@ -2966,9 +2970,10 @@ static NTSTATUS dcesrv_samr_QueryUserInfo(struct dcesrv_call_state *dce_call, TA
 		QUERY_APASSC(msg, info3.allow_password_change, "pwdLastSet");
 		QUERY_FPASSC(msg, info3.force_password_change, "pwdLastSet");
 		QUERY_LHOURS(msg, info3.logon_hours,           "logonHours");
+		/* level 3 gives the raw badPwdCount value */
 		QUERY_UINT  (msg, info3.bad_password_count,    "badPwdCount");
 		QUERY_UINT  (msg, info3.logon_count,           "logonCount");
-		QUERY_AFLAGS(msg, info3.acct_flags,            "userAccountControl");
+		QUERY_AFLAGS(msg, info3.acct_flags,            "msDS-User-Account-Control-Computed");
 		break;
 
 	case 4:
@@ -2989,11 +2994,11 @@ static NTSTATUS dcesrv_samr_QueryUserInfo(struct dcesrv_call_state *dce_call, TA
 		QUERY_UINT64(msg, info5.last_logon,            "lastLogon");
 		QUERY_UINT64(msg, info5.last_logoff,           "lastLogoff");
 		QUERY_LHOURS(msg, info5.logon_hours,           "logonHours");
-		QUERY_UINT  (msg, info5.bad_password_count,    "badPwdCount");
+		QUERY_BPWDCT(msg, info5.bad_password_count,    "badPwdCount");
 		QUERY_UINT  (msg, info5.logon_count,           "logonCount");
 		QUERY_UINT64(msg, info5.last_password_change,  "pwdLastSet");
 		QUERY_UINT64(msg, info5.acct_expiry,           "accountExpires");
-		QUERY_AFLAGS(msg, info5.acct_flags,            "userAccountControl");
+		QUERY_AFLAGS(msg, info5.acct_flags,            "msDS-User-Account-Control-Computed");
 		break;
 
 	case 6:
@@ -3035,7 +3040,7 @@ static NTSTATUS dcesrv_samr_QueryUserInfo(struct dcesrv_call_state *dce_call, TA
 		break;
 
 	case 16:
-		QUERY_AFLAGS(msg, info16.acct_flags,    "userAccountControl");
+		QUERY_AFLAGS(msg, info16.acct_flags,    "msDS-User-Account-Control-Computed");
 		break;
 
 	case 17:
@@ -3074,10 +3079,10 @@ static NTSTATUS dcesrv_samr_QueryUserInfo(struct dcesrv_call_state *dce_call, TA
 
 		QUERY_RID   (msg, info21.rid,                  "objectSid");
 		QUERY_UINT  (msg, info21.primary_gid,          "primaryGroupID");
-		QUERY_AFLAGS(msg, info21.acct_flags,           "userAccountControl");
+		QUERY_AFLAGS(msg, info21.acct_flags,           "msDS-User-Account-Control-Computed");
 		info->info21.fields_present = 0x08FFFFFF;
 		QUERY_LHOURS(msg, info21.logon_hours,          "logonHours");
-		QUERY_UINT  (msg, info21.bad_password_count,   "badPwdCount");
+		QUERY_BPWDCT(msg, info21.bad_password_count,   "badPwdCount");
 		QUERY_UINT  (msg, info21.logon_count,          "logonCount");
 		if ((info->info21.acct_flags & ACB_PW_EXPIRED) != 0) {
 			info->info21.password_expired = PASS_MUST_CHANGE_AT_NEXT_LOGON;
@@ -3734,10 +3739,7 @@ static NTSTATUS dcesrv_samr_QueryDisplayInfo(struct dcesrv_call_state *dce_call,
 			entriesGeneral[count].rid =
 				objectsid->sub_auths[objectsid->num_auths-1];
 			entriesGeneral[count].acct_flags =
-				samdb_result_acct_flags(d_state->sam_ctx,
-							mem_ctx,
-							res->msgs[i],
-							d_state->domain_dn);
+				samdb_result_acct_flags(res->msgs[i], NULL);
 			entriesGeneral[count].account_name.string =
 				ldb_msg_find_attr_as_string(res->msgs[i],
 							    "sAMAccountName", "");
@@ -3755,10 +3757,8 @@ static NTSTATUS dcesrv_samr_QueryDisplayInfo(struct dcesrv_call_state *dce_call,
 
 			/* No idea why we need to or in ACB_NORMAL here, but this is what Win2k3 seems to do... */
 			entriesFull[count].acct_flags =
-				samdb_result_acct_flags(d_state->sam_ctx,
-							mem_ctx,
-							res->msgs[i],
-							d_state->domain_dn) | ACB_NORMAL;
+				samdb_result_acct_flags(res->msgs[i],
+							NULL) | ACB_NORMAL;
 			entriesFull[count].account_name.string =
 				ldb_msg_find_attr_as_string(res->msgs[i],
 							    "sAMAccountName", "");
@@ -4305,7 +4305,8 @@ static NTSTATUS dcesrv_samr_ValidatePassword(struct dcesrv_call_state *dce_call,
 	DATA_BLOB password;
 	enum samr_ValidationStatus res;
 	NTSTATUS status;
-	enum dcerpc_transport_t transport = dce_call->conn->endpoint->ep_description->transport;
+	enum dcerpc_transport_t transport =
+		dcerpc_binding_get_transport(dce_call->conn->endpoint->ep_description);
 
 	if (transport != NCACN_IP_TCP && transport != NCALRPC) {
 		DCESRV_FAULT(DCERPC_FAULT_ACCESS_DENIED);

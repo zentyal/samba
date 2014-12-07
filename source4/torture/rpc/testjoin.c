@@ -660,7 +660,8 @@ static NTSTATUS torture_leave_ads_domain(struct torture_context *torture,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	remote_ldb_url = talloc_asprintf(tmp_ctx, "ldap://%s", libnet_r->out.samr_binding->host);
+	remote_ldb_url = talloc_asprintf(tmp_ctx, "ldap://%s",
+		dcerpc_binding_get_string_option(libnet_r->out.samr_binding, "host"));
 	if (!remote_ldb_url) {
 		libnet_r->out.error_string = NULL;
 		talloc_free(tmp_ctx);
@@ -709,8 +710,7 @@ _PUBLIC_ void torture_leave_domain(struct torture_context *torture, struct test_
 	status = dcerpc_samr_DeleteUser_r(join->p->binding_handle, join, &d);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("DeleteUser failed\n");
-	}
-	if (!NT_STATUS_IS_OK(d.out.result)) {
+	} else if (!NT_STATUS_IS_OK(d.out.result)) {
 		printf("Delete of machine account %s failed\n",
 		       join->netbios_name);
 	} else {

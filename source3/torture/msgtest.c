@@ -46,6 +46,7 @@ static void pong_message(struct messaging_context *msg_ctx,
 	int i, n;
 	char buf[12];
 	int ret;
+	TALLOC_CTX *frame = talloc_stackframe();
 
 	load_case_tables();
 
@@ -56,12 +57,14 @@ static void pong_message(struct messaging_context *msg_ctx,
 	if (!(evt_ctx = samba_tevent_context_init(NULL)) ||
 	    !(msg_ctx = messaging_init(NULL, evt_ctx))) {
 		fprintf(stderr, "could not init messaging context\n");
+		TALLOC_FREE(frame);
 		exit(1);
 	}
 
 	if (argc != 3) {
 		fprintf(stderr, "%s: Usage - %s pid count\n", argv[0],
 			argv[0]);
+		TALLOC_FREE(frame);
 		exit(1);
 	}
 
@@ -82,7 +85,7 @@ static void pong_message(struct messaging_context *msg_ctx,
 		}
 	}
 
-	/* Now test that the duplicate filtering code works. */
+	/* Ensure all messages get through to ourselves. */
 	pong_count = 0;
 
 	strlcpy(buf, "1234567890", sizeof(buf));
@@ -94,15 +97,25 @@ static void pong_message(struct messaging_context *msg_ctx,
 				   MSG_PING,(uint8 *)buf, 11);
 	}
 
-	for (i=0;i<n;i++) {
+	/*
+	 * We have to loop at least 2 times for
+	 * each message as local ping messages are
+	 * handled by an immediate callback, that
+	 * has to be dispatched, which sends a pong
+	 * message, which also has to be dispatched.
+	 * Above we sent 2*n messages, which means
+	 * we have to dispatch 4*n times.
+	 */
+
+	while (pong_count < n*2) {
 		ret = tevent_loop_once(evt_ctx);
 		if (ret != 0) {
 			break;
 		}
 	}
 
-	if (pong_count != 2) {
-		fprintf(stderr, "Duplicate filter failed (%d).\n", pong_count);
+	if (pong_count != 2*n) {
+		fprintf(stderr, "Message count failed (%d).\n", pong_count);
 	}
 
 	/* Speed testing */
@@ -152,6 +165,7 @@ static void pong_message(struct messaging_context *msg_ctx,
 		       (ping_count+pong_count)/timeval_elapsed(&tv));
 	}
 
+	TALLOC_FREE(frame);
 	return (0);
 }
 

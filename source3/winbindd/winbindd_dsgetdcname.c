@@ -19,7 +19,7 @@
 
 #include "includes.h"
 #include "winbindd.h"
-#include "librpc/gen_ndr/ndr_wbint_c.h"
+#include "librpc/gen_ndr/ndr_winbind_c.h"
 
 struct winbindd_dsgetdcname_state {
 	struct GUID guid;
@@ -57,7 +57,7 @@ struct tevent_req *winbindd_dsgetdcname_send(TALLOC_CTX *mem_ctx,
 	DEBUG(3, ("[%5lu]: dsgetdcname for %s\n", (unsigned long)cli->pid,
 		  request->data.dsgetdcname.domain_name));
 
-	ds_flags = get_dsgetdc_flags(request->flags);
+	ds_flags = get_dsgetdc_flags(request->data.dsgetdcname.flags);
 
 	status = GUID_from_string(request->data.dsgetdcname.domain_guid,
 				  &state->guid);

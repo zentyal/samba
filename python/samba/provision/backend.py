@@ -63,19 +63,11 @@ class BackendResult(object):
 
 class LDAPBackendResult(BackendResult):
 
-    def __init__(self, credentials, slapd_command_escaped, ldapdir):
-        self.credentials = credentials
+    def __init__(self, slapd_command_escaped, ldapdir):
         self.slapd_command_escaped = slapd_command_escaped
         self.ldapdir = ldapdir
 
     def report_logger(self, logger):
-        if self.credentials.get_bind_dn() is not None:
-            logger.info("LDAP Backend Admin DN: %s" %
-                self.credentials.get_bind_dn())
-        else:
-            logger.info("LDAP Admin User:       %s" %
-                self.credentials.get_username())
-
         if self.slapd_command_escaped is not None:
             # now display slapd_command_file.txt to show how slapd must be
             # started next time
@@ -90,11 +82,11 @@ class LDAPBackendResult(BackendResult):
 class ProvisionBackend(object):
 
     def __init__(self, backend_type, paths=None, lp=None,
-            credentials=None, names=None, logger=None):
+            names=None, logger=None):
         """Provision a backend for samba4"""
         self.paths = paths
         self.lp = lp
-        self.credentials = credentials
+        self.credentials = None
         self.names = names
         self.logger = logger
 
@@ -127,7 +119,6 @@ class LDBBackend(ProvisionBackend):
 
     def init(self):
         self.credentials = None
-        self.secrets_credentials = None
 
         # Wipe the old sam.ldb databases away
         shutil.rmtree(self.paths.samdb + ".d", True)
@@ -145,39 +136,34 @@ class LDBBackend(ProvisionBackend):
 class ExistingBackend(ProvisionBackend):
 
     def __init__(self, backend_type, paths=None, lp=None,
-            credentials=None, names=None, logger=None, ldapi_uri=None):
+            names=None, logger=None, ldapi_uri=None):
 
         super(ExistingBackend, self).__init__(backend_type=backend_type,
                 paths=paths, lp=lp,
-                credentials=credentials, names=names, logger=logger,
+                names=names, logger=logger,
                 ldap_backend_forced_uri=ldapi_uri)
 
     def init(self):
         # Check to see that this 'existing' LDAP backend in fact exists
-        ldapi_db = Ldb(self.ldapi_uri, credentials=self.credentials)
+        ldapi_db = Ldb(self.ldapi_uri)
         ldapi_db.search(base="", scope=SCOPE_BASE,
             expression="(objectClass=OpenLDAProotDSE)")
 
-        # If we have got here, then we must have a valid connection to the LDAP
-        # server, with valid credentials supplied This caused them to be set
-        # into the long-term database later in the script.
-        self.secrets_credentials = self.credentials
-
-         # For now, assume existing backends at least emulate OpenLDAP
+        # For now, assume existing backends at least emulate OpenLDAP
         self.ldap_backend_type = "openldap"
 
 
 class LDAPBackend(ProvisionBackend):
 
     def __init__(self, backend_type, paths=None, lp=None,
-                 credentials=None, names=None, logger=None, domainsid=None,
+                 names=None, logger=None, domainsid=None,
                  schema=None, hostname=None, ldapadminpass=None,
                  slapd_path=None, ldap_backend_extra_port=None,
-                 ldap_backend_forced_uri=None, ldap_dryrun_mode=True):
+                 ldap_backend_forced_uri=None, ldap_dryrun_mode=False):
 
         super(LDAPBackend, self).__init__(backend_type=backend_type,
                 paths=paths, lp=lp,
-                credentials=credentials, names=names, logger=logger)
+                names=names, logger=logger)
 
         self.domainsid = domainsid
         self.schema = schema
@@ -252,16 +238,11 @@ class LDAPBackend(ProvisionBackend):
 
         self.credentials = Credentials()
         self.credentials.guess(self.lp)
-        # Kerberos to an ldapi:// backend makes no sense
+        # Kerberos to an ldapi:// backend makes no sense (we also force EXTERNAL)
         self.credentials.set_kerberos_state(DONT_USE_KERBEROS)
+        self.credentials.set_username("samba-admin")
         self.credentials.set_password(self.ldapadminpass)
-
-        self.secrets_credentials = Credentials()
-        self.secrets_credentials.guess(self.lp)
-        # Kerberos to an ldapi:// backend makes no sense
-        self.secrets_credentials.set_kerberos_state(DONT_USE_KERBEROS)
-        self.secrets_credentials.set_username("samba-admin")
-        self.secrets_credentials.set_password(self.ldapadminpass)
+        self.credentials.set_forced_sasl_mech("EXTERNAL")
 
         self.provision()
 
@@ -271,11 +252,14 @@ class LDAPBackend(ProvisionBackend):
     def start(self):
         from samba.provision import ProvisioningError
         self.slapd_command_escaped = "\'" + "\' \'".join(self.slapd_command) + "\'"
-        f = open(os.path.join(self.ldapdir, "ldap_backend_startup.sh"), 'w')
+        ldap_backend_script = os.path.join(self.ldapdir, "ldap_backend_startup.sh")
+        f = open(ldap_backend_script, 'w')
         try:
-            f.write("#!/bin/sh\n" + self.slapd_command_escaped + "\n")
+            f.write("#!/bin/sh\n" + self.slapd_command_escaped + " $@\n")
         finally:
             f.close()
+
+        os.chmod(ldap_backend_script, 0755)
 
         # Now start the slapd, so we can provision onto it.  We keep the
         # subprocess context around, to kill this off at the successful
@@ -287,6 +271,7 @@ class LDAPBackend(ProvisionBackend):
         while self.slapd.poll() is None:
             # Wait until the socket appears
             try:
+                time.sleep(1)
                 ldapi_db = Ldb(self.ldap_uri, lp=self.lp, credentials=self.credentials)
                 ldapi_db.search(base="", scope=SCOPE_BASE,
                     expression="(objectClass=OpenLDAProotDSE)")
@@ -294,7 +279,6 @@ class LDAPBackend(ProvisionBackend):
                 # the LDAP server!
                 return
             except LdbError:
-                time.sleep(1)
                 count = count + 1
 
                 if count > 15:
@@ -320,7 +304,7 @@ class LDAPBackend(ProvisionBackend):
             self.slapd.communicate()
 
     def post_setup(self):
-        return LDAPBackendResult(self.credentials, self.slapd_command_escaped,
+        return LDAPBackendResult(self.slapd_command_escaped,
                     self.ldapdir)
 
 
@@ -329,12 +313,12 @@ class OpenLDAPBackend(LDAPBackend):
     def __init__(self, backend_type, paths=None, lp=None,
             credentials=None, names=None, logger=None, domainsid=None,
             schema=None, hostname=None, ldapadminpass=None, slapd_path=None,
-            ldap_backend_extra_port=None, ldap_dryrun_mode=True,
+            ldap_backend_extra_port=None, ldap_dryrun_mode=False,
             ol_mmr_urls=None, nosync=False, ldap_backend_forced_uri=None):
         from samba.provision import setup_path
         super(OpenLDAPBackend, self).__init__( backend_type=backend_type,
                 paths=paths, lp=lp,
-                credentials=credentials, names=names, logger=logger,
+                names=names, logger=logger,
                 domainsid=domainsid, schema=schema, hostname=hostname,
                 ldapadminpass=ldapadminpass, slapd_path=slapd_path,
                 ldap_backend_extra_port=ldap_backend_extra_port,
@@ -356,19 +340,13 @@ class OpenLDAPBackend(LDAPBackend):
                              schemadn=self.names.schemadn, files=[
                 setup_path("schema_samba4.ldif")])
 
-    def setup_db_config(self, dbdir):
-        """Setup a Berkeley database.
+    def setup_db_dir(self, dbdir):
+        """Create a database directory.
 
         :param dbdir: Database directory.
         """
-        from samba.provision import setup_path
-        if not os.path.isdir(os.path.join(dbdir, "bdb-logs")):
-            os.makedirs(os.path.join(dbdir, "bdb-logs"), 0700)
-            if not os.path.isdir(os.path.join(dbdir, "tmp")):
-                os.makedirs(os.path.join(dbdir, "tmp"), 0700)
-
-        setup_file(setup_path("DB_CONFIG"),
-            os.path.join(dbdir, "DB_CONFIG"), {"LDAPDBDIR": dbdir})
+        if not os.path.exists(dbdir):
+            os.makedirs(dbdir, 0700)
 
     def provision(self):
         from samba.provision import ProvisioningError, setup_path
@@ -412,7 +390,10 @@ class OpenLDAPBackend(LDAPBackend):
         mmr_serverids_config = ""
         mmr_syncrepl_schema_config = ""
         mmr_syncrepl_config_config = ""
+        mmr_syncrepl_domaindns_config = ""
+        mmr_syncrepl_forestdns_config = ""
         mmr_syncrepl_user_config = ""
+        mmr_pass = ""
 
         if self.ol_mmr_urls is not None:
             # For now, make these equal
@@ -447,6 +428,22 @@ class OpenLDAPBackend(LDAPBackend):
                     setup_path("mmr_syncrepl.conf"), {
                         "RID" : str(rid),
                         "MMRDN": self.names.configdn,
+                        "LDAPSERVER" : url,
+                        "MMR_PASSWORD": mmr_pass})
+
+                rid = rid + 1
+                mmr_syncrepl_domaindns_config += read_and_sub_file(
+                    setup_path("mmr_syncrepl.conf"), {
+                        "RID" : str(rid),
+                        "MMRDN": "dc=DomainDNSZones," + self.names.domaindn,
+                        "LDAPSERVER" : url,
+                        "MMR_PASSWORD": mmr_pass})
+
+                rid = rid + 1
+                mmr_syncrepl_forestdns_config += read_and_sub_file(
+                    setup_path("mmr_syncrepl.conf"), {
+                        "RID" : str(rid),
+                        "MMRDN": "dc=ForestDNSZones," + self.names.domaindn,
                         "LDAPSERVER" : url,
                         "MMR_PASSWORD": mmr_pass})
 
@@ -503,36 +500,33 @@ class OpenLDAPBackend(LDAPBackend):
                     "MMR_SERVERIDS_CONFIG": mmr_serverids_config,
                     "MMR_SYNCREPL_SCHEMA_CONFIG": mmr_syncrepl_schema_config,
                     "MMR_SYNCREPL_CONFIG_CONFIG": mmr_syncrepl_config_config,
+                    "MMR_SYNCREPL_DOMAINDNS_CONFIG": mmr_syncrepl_domaindns_config,
+                    "MMR_SYNCREPL_FORESTDNS_CONFIG": mmr_syncrepl_forestdns_config,
                     "MMR_SYNCREPL_USER_CONFIG": mmr_syncrepl_user_config,
                     "OLC_SYNCREPL_CONFIG": olc_syncrepl_config,
                     "OLC_MMR_CONFIG": olc_mmr_config,
                     "REFINT_CONFIG": refint_config,
                     "INDEX_CONFIG": index_config,
-                    "NOSYNC": nosync_config})
+                    "ADMIN_UID": str(os.getuid()),
+                    "NOSYNC": nosync_config,})
 
-        self.setup_db_config(os.path.join(self.ldapdir, "db", "user"))
-        self.setup_db_config(os.path.join(self.ldapdir, "db", "config"))
-        self.setup_db_config(os.path.join(self.ldapdir, "db", "schema"))
-
-        if not os.path.exists(os.path.join(self.ldapdir, "db", "samba", "cn=samba")):
-            os.makedirs(os.path.join(self.ldapdir, "db", "samba", "cn=samba"), 0700)
-
-        setup_file(setup_path("cn=samba.ldif"),
-                   os.path.join(self.ldapdir, "db", "samba", "cn=samba.ldif"),
-                   { "UUID": str(uuid.uuid4()),
-                     "LDAPTIME": timestring(int(time.time()))} )
-        setup_file(setup_path("cn=samba-admin.ldif"),
-                   os.path.join(self.ldapdir, "db", "samba", "cn=samba", "cn=samba-admin.ldif"),
-                   {"LDAPADMINPASS_B64": b64encode(self.ldapadminpass),
-                    "UUID": str(uuid.uuid4()),
-                    "LDAPTIME": timestring(int(time.time()))} )
+        self.setup_db_dir(os.path.join(self.ldapdir, "db", "forestdns"))
+        self.setup_db_dir(os.path.join(self.ldapdir, "db", "domaindns"))
+        self.setup_db_dir(os.path.join(self.ldapdir, "db", "user"))
+        self.setup_db_dir(os.path.join(self.ldapdir, "db", "config"))
+        self.setup_db_dir(os.path.join(self.ldapdir, "db", "schema"))
+        self.setup_db_dir(os.path.join(self.ldapdir, "db", "samba"))
 
         if self.ol_mmr_urls is not None:
-            setup_file(setup_path("cn=replicator.ldif"),
-                       os.path.join(self.ldapdir, "db", "samba", "cn=samba", "cn=replicator.ldif"),
-                       {"MMR_PASSWORD_B64": b64encode(mmr_pass),
-                        "UUID": str(uuid.uuid4()),
-                        "LDAPTIME": timestring(int(time.time()))} )
+            mmr = ""
+        else:
+            mmr = "#"
+
+        cn_samba = read_and_sub_file(
+                    setup_path("cn=samba.ldif"),
+                            { "LDAPADMINPASS": self.ldapadminpass,
+                           "MMR_PASSWORD": mmr_pass,
+                           "MMR": mmr })
 
         mapping = "schema-map-openldap-2.3"
         backend_schema = "backend-schema.schema"
@@ -573,16 +567,11 @@ class OpenLDAPBackend(LDAPBackend):
         self.slapd_command = list(self.slapd_provision_command)
 
         self.slapd_provision_command.extend([self.ldap_uri, "-d0"])
-
         uris = self.ldap_uri
         if server_port_string is not "":
             uris = uris + " " + server_port_string
 
         self.slapd_command.append(uris)
-
-        # Set the username - done here because Fedora DS still uses the admin
-        # DN and simple bind
-        self.credentials.set_username("samba-admin")
 
         # Wipe the old sam.ldb databases away
         shutil.rmtree(self.olcdir, True)
@@ -608,20 +597,25 @@ class OpenLDAPBackend(LDAPBackend):
         # Don't confuse the admin by leaving the slapd.conf around
         os.remove(self.slapdconf)
 
+        cn_samba_cmd = [self.slapd_path, "-Tadd", "-b", "cn=samba", "-F", self.olcdir]
+        p = subprocess.Popen(cn_samba_cmd, stdin=subprocess.PIPE, shell=False)
+        p.stdin.write(cn_samba)
+        p.communicate()
+
 
 class FDSBackend(LDAPBackend):
 
     def __init__(self, backend_type, paths=None, lp=None,
-            credentials=None, names=None, logger=None, domainsid=None,
+            names=None, logger=None, domainsid=None,
             schema=None, hostname=None, ldapadminpass=None, slapd_path=None,
-            ldap_backend_extra_port=None, ldap_dryrun_mode=True, root=None,
+            ldap_backend_extra_port=None, ldap_dryrun_mode=False, root=None,
             setup_ds_path=None):
 
         from samba.provision import setup_path
 
         super(FDSBackend, self).__init__(backend_type=backend_type,
                 paths=paths, lp=lp,
-                credentials=credentials, names=names, logger=logger,
+                names=names, logger=logger,
                 domainsid=domainsid, schema=schema, hostname=hostname,
                 ldapadminpass=ldapadminpass, slapd_path=slapd_path,
                 ldap_backend_extra_port=ldap_backend_extra_port,

@@ -31,14 +31,73 @@
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_AUTH
 
+static NTSTATUS make_auth4_context_s4(const struct auth_context *auth_context,
+				      TALLOC_CTX *mem_ctx,
+				      struct auth4_context **auth4_context);
+
+static struct idr_context *task_id_tree;
+
+static int free_task_id(struct server_id *server_id)
+{
+	idr_remove(task_id_tree, server_id->task_id);
+	return 0;
+}
+
+/* Return a server_id with a unique task_id element.  Free the
+ * returned pointer to de-allocate the task_id via a talloc destructor
+ * (ie, use talloc_free()) */
+static struct server_id *new_server_id_task(TALLOC_CTX *mem_ctx)
+{
+	struct server_id *server_id;
+	int task_id;
+	if (!task_id_tree) {
+		task_id_tree = idr_init(NULL);
+		if (!task_id_tree) {
+			return NULL;
+		}
+	}
+
+	server_id = talloc(mem_ctx, struct server_id);
+
+	if (!server_id) {
+		return NULL;
+	}
+	*server_id = procid_self();
+
+	/* 0 is the default server_id, so we need to start with 1 */
+	task_id = idr_get_new_above(task_id_tree, server_id, 1, INT32_MAX);
+
+	if (task_id == -1) {
+		talloc_free(server_id);
+		return NULL;
+	}
+
+	talloc_set_destructor(server_id, free_task_id);
+	server_id->task_id = task_id;
+	return server_id;
+}
+
+/*
+ * This module is not an ordinary authentication module.  It is really
+ * a way to redirect the whole authentication and authorization stack
+ * to use the source4 auth code, not a way to just handle NTLM
+ * authentication.
+ *
+ * See the comments above each function for how that hook changes the
+ * behaviour.
+ */
+
 /* 
- * This hook is currently unused, as all NTLM logins go via the hooks
- * provided by make_auth4_context_s4() below.
+ * This hook is currently used by winbindd only, as all other NTLM
+ * logins go via the hooks provided by make_auth4_context_s4() below.
  *
  * This is only left in case we find a way that it might become useful
  * in future.  Importantly, this routine returns the information
  * needed for a NETLOGON SamLogon, not what is needed to establish a
  * session.
+ *
+ * We expect we may use this hook in the source3/ winbind when this
+ * services the AD DC.  It is tested via pdbtest.
  */
 
 static NTSTATUS check_samba4_security(const struct auth_context *auth_context,
@@ -52,28 +111,26 @@ static NTSTATUS check_samba4_security(const struct auth_context *auth_context,
 	NTSTATUS nt_status;
 	struct auth_user_info_dc *user_info_dc;
 	struct auth4_context *auth4_context;
-	struct loadparm_context *lp_ctx;
 
-	lp_ctx = loadparm_init_s3(frame, loadparm_s3_helpers());
-	if (lp_ctx == NULL) {
-		DEBUG(10, ("loadparm_init_s3 failed\n"));
-		talloc_free(frame);
-		return NT_STATUS_INVALID_SERVER_STATE;
+	nt_status = make_auth4_context_s4(auth_context, mem_ctx, &auth4_context);
+	if (!NT_STATUS_IS_OK(nt_status)) {
+		TALLOC_FREE(frame);
+		goto done;
 	}
-
-	/* We create a private tevent context here to avoid nested loops in
-	 * the s3 one, as that may not be expected */
-	nt_status = auth_context_create(mem_ctx,
-					s4_event_context_init(frame), NULL, 
-					lp_ctx,
-					&auth4_context);
-	NT_STATUS_NOT_OK_RETURN(nt_status);
 		
 	nt_status = auth_context_set_challenge(auth4_context, auth_context->challenge.data, "auth_samba4");
-	NT_STATUS_NOT_OK_RETURN_AND_FREE(nt_status, auth4_context);
+	if (!NT_STATUS_IS_OK(nt_status)) {
+		TALLOC_FREE(auth4_context);
+		TALLOC_FREE(frame);
+		return nt_status;
+	}
 
 	nt_status = auth_check_password(auth4_context, auth4_context, user_info, &user_info_dc);
-	NT_STATUS_NOT_OK_RETURN_AND_FREE(nt_status, auth4_context);
+	if (!NT_STATUS_IS_OK(nt_status)) {
+		TALLOC_FREE(auth4_context);
+		TALLOC_FREE(frame);
+		return nt_status;
+	}
 	
 	nt_status = auth_convert_user_info_dc_saminfo3(mem_ctx,
 						       user_info_dc,
@@ -88,14 +145,23 @@ static NTSTATUS check_samba4_security(const struct auth_context *auth_context,
 		goto done;
 	}
 
-	nt_status = make_server_info_info3(mem_ctx, user_info->client.account_name,
-					   user_info->mapped.domain_name, server_info,
-					info3);
-	if (!NT_STATUS_IS_OK(nt_status)) {
-		DEBUG(10, ("make_server_info_info3 failed: %s\n",
-			   nt_errstr(nt_status)));
-		TALLOC_FREE(frame);
-		return nt_status;
+	if (user_info->flags & USER_INFO_INFO3_AND_NO_AUTHZ) {
+		*server_info = make_server_info(mem_ctx);
+		if (*server_info == NULL) {
+			nt_status = NT_STATUS_NO_MEMORY;
+			goto done;
+		}
+		(*server_info)->info3 = talloc_steal(*server_info, info3);
+
+	} else {
+		nt_status = make_server_info_info3(mem_ctx, user_info->client.account_name,
+						   user_info->mapped.domain_name, server_info,
+						   info3);
+		if (!NT_STATUS_IS_OK(nt_status)) {
+			DEBUG(10, ("make_server_info_info3 failed: %s\n",
+				   nt_errstr(nt_status)));
+			goto done;
+		}
 	}
 
 	nt_status = NT_STATUS_OK;
@@ -105,9 +171,25 @@ static NTSTATUS check_samba4_security(const struct auth_context *auth_context,
 	return nt_status;
 }
 
-/* Hook to allow GENSEC to handle blob-based authentication
- * mechanisms, without directly linking the mechanism code */
-static NTSTATUS prepare_gensec(TALLOC_CTX *mem_ctx,
+/*
+ * Hook to allow the source4 set of GENSEC modules to handle
+ * blob-based authentication mechanisms, without directly linking the
+ * mechanism code.
+ *
+ * This may eventually go away, when the GSSAPI acceptors are merged,
+ * when we will just rely on the make_auth4_context_s4 hook instead.
+ *
+ * Even for NTLMSSP, which has a common module, significant parts of
+ * the behaviour are overridden here, because it uses the source4 NTLM
+ * stack and the source4 mapping between the PAC/SamLogon response and
+ * the local token.
+ *
+ * It is important to override all this to ensure that the exact same
+ * token is generated and used in the SMB and LDAP servers, for NTLM
+ * and for Kerberos.
+ */
+static NTSTATUS prepare_gensec(const struct auth_context *auth_context,
+			       TALLOC_CTX *mem_ctx,
 			       struct gensec_security **gensec_context)
 {
 	NTSTATUS status;
@@ -190,9 +272,17 @@ static NTSTATUS prepare_gensec(TALLOC_CTX *mem_ctx,
 	return status;
 }
 
-/* Hook to allow handling of NTLM authentication for AD operation
- * without directly linking the s4 auth stack */
-static NTSTATUS make_auth4_context_s4(TALLOC_CTX *mem_ctx,
+/*
+ * Hook to allow handling of NTLM authentication for AD operation
+ * without directly linking the s4 auth stack
+ *
+ * This ensures we use the source4 authentication stack, as well as
+ * the authorization stack to create the user's token.  This ensures
+ * consistency between NTLM logins and NTLMSSP logins, as NTLMSSP is
+ * handled by the hook above.
+ */
+static NTSTATUS make_auth4_context_s4(const struct auth_context *auth_context,
+				      TALLOC_CTX *mem_ctx,
 				      struct auth4_context **auth4_context)
 {
 	NTSTATUS status;
@@ -233,12 +323,17 @@ static NTSTATUS make_auth4_context_s4(TALLOC_CTX *mem_ctx,
 	}
 	talloc_reparent(frame, msg_ctx, server_id);
 
-	status = auth_context_create(mem_ctx,
-					event_ctx,
-					msg_ctx,
-					lp_ctx,
-					auth4_context);
-
+	/* Allow forcing a specific auth4 module */
+	if (!auth_context->forced_samba4_methods) {
+		status = auth_context_create(mem_ctx,
+					     event_ctx,
+					     msg_ctx,
+					     lp_ctx,
+					     auth4_context);
+	} else {
+		const char * const *forced_auth_methods = (const char * const *)str_list_make(mem_ctx, auth_context->forced_samba4_methods, NULL);
+		status = auth_context_create_methods(mem_ctx, forced_auth_methods, event_ctx, msg_ctx, lp_ctx, NULL, auth4_context);
+	}
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(1, ("Failed to start auth server code: %s\n", nt_errstr(status)));
 		TALLOC_FREE(frame);
@@ -270,11 +365,20 @@ static NTSTATUS auth_init_samba4(struct auth_context *auth_context,
 	result->auth = check_samba4_security;
 	result->prepare_gensec = prepare_gensec;
 	result->make_auth4_context = make_auth4_context_s4;
+	result->flags = AUTH_METHOD_LOCAL_SAM;
+
+	if (param && *param) {
+		auth_context->forced_samba4_methods = talloc_strdup(result, param);
+		if (!auth_context->forced_samba4_methods) {
+			return NT_STATUS_NO_MEMORY;
+		}
+	}
 
         *auth_method = result;
 	return NT_STATUS_OK;
 }
 
+NTSTATUS auth_samba4_init(void);
 NTSTATUS auth_samba4_init(void)
 {
 	smb_register_auth(AUTH_INTERFACE_VERSION, "samba4",

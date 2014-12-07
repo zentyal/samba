@@ -451,8 +451,11 @@ NTSTATUS reinit_after_fork(struct messaging_context *msg_ctx,
 		goto done;
 	}
 
-	if (ev_ctx && tevent_re_initialise(ev_ctx) != 0) {
-		smb_panic(__location__ ": Failed to re-initialise event context");
+	if (ev_ctx != NULL) {
+		tevent_set_trace_callback(ev_ctx, NULL, NULL);
+		if (tevent_re_initialise(ev_ctx) != 0) {
+			smb_panic(__location__ ": Failed to re-initialise event context");
+		}
 	}
 
 	if (reinit_after_fork_pipe[0] != -1) {
@@ -593,7 +596,7 @@ char *automount_lookup(TALLOC_CTX *ctx, const char *user_name)
 {
 	char *value = NULL;
 
-	char *nis_map = (char *)lp_nis_home_map_name();
+	char *nis_map = (char *)lp_homedir_map();
 
 	char buffer[NIS_MAXATTRVAL + 1];
 	nis_result *result;
@@ -645,7 +648,7 @@ char *automount_lookup(TALLOC_CTX *ctx, const char *user_name)
 	char *nis_result;     /* yp_match inits this */
 	int nis_result_len;  /* and set this */
 	char *nis_domain;     /* yp_get_default_domain inits this */
-	char *nis_map = lp_nis_home_map_name(talloc_tos());
+	char *nis_map = lp_homedir_map(talloc_tos());
 
 	if ((nis_error = yp_get_default_domain(&nis_domain)) != 0) {
 		DEBUG(3, ("YP Error: %s\n", yperr_string(nis_error)));
@@ -1526,7 +1529,7 @@ static char *xx_path(const char *name, const char *rootpath)
 
 char *lock_path(const char *name)
 {
-	return xx_path(name, lp_lockdir());
+	return xx_path(name, lp_lock_directory());
 }
 
 /**
@@ -1539,7 +1542,7 @@ char *lock_path(const char *name)
 
 char *state_path(const char *name)
 {
-	return xx_path(name, lp_statedir());
+	return xx_path(name, lp_state_directory());
 }
 
 /**
@@ -1552,7 +1555,7 @@ char *state_path(const char *name)
 
 char *cache_path(const char *name)
 {
-	return xx_path(name, lp_cachedir());
+	return xx_path(name, lp_cache_directory());
 }
 
 /*******************************************************************
@@ -1856,7 +1859,7 @@ bool name_to_fqdn(fstring fqdn, const char *name)
 	}
 	if (full && (strcasecmp_m(full, "localhost.localdomain") == 0)) {
 		DEBUG(1, ("WARNING: your /etc/hosts file may be broken!\n"));
-		DEBUGADD(1, ("    Specifing the machine hostname for address 127.0.0.1 may lead\n"));
+		DEBUGADD(1, ("    Specifying the machine hostname for address 127.0.0.1 may lead\n"));
 		DEBUGADD(1, ("    to Kerberos authentication problems as localhost.localdomain\n"));
 		DEBUGADD(1, ("    may end up being used instead of the real machine FQDN.\n"));
 		full = hp->h_name;
@@ -1955,48 +1958,6 @@ struct server_id pid_to_procid(pid_t pid)
 struct server_id procid_self(void)
 {
 	return pid_to_procid(getpid());
-}
-
-static struct idr_context *task_id_tree;
-
-static int free_task_id(struct server_id *server_id)
-{
-	idr_remove(task_id_tree, server_id->task_id);
-	return 0;
-}
-
-/* Return a server_id with a unique task_id element.  Free the
- * returned pointer to de-allocate the task_id via a talloc destructor
- * (ie, use talloc_free()) */
-struct server_id *new_server_id_task(TALLOC_CTX *mem_ctx)
-{
-	struct server_id *server_id;
-	int task_id;
-	if (!task_id_tree) {
-		task_id_tree = idr_init(NULL);
-		if (!task_id_tree) {
-			return NULL;
-		}
-	}
-
-	server_id = talloc(mem_ctx, struct server_id);
-
-	if (!server_id) {
-		return NULL;
-	}
-	*server_id = procid_self();
-
-	/* 0 is the default server_id, so we need to start with 1 */
-	task_id = idr_get_new_above(task_id_tree, server_id, 1, INT32_MAX);
-
-	if (task_id == -1) {
-		talloc_free(server_id);
-		return NULL;
-	}
-
-	talloc_set_destructor(server_id, free_task_id);
-	server_id->task_id = task_id;
-	return server_id;
 }
 
 bool procid_is_me(const struct server_id *pid)

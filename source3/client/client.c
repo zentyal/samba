@@ -26,6 +26,7 @@
 #include "popt_common.h"
 #include "rpc_client/cli_pipe.h"
 #include "client/client_proto.h"
+#include "client/clitar_proto.h"
 #include "../librpc/gen_ndr/ndr_srvsvc_c.h"
 #include "../lib/util/select.h"
 #include "system/readline.h"
@@ -46,7 +47,6 @@
 extern int do_smb_browse(void); /* mDNS browsing */
 
 extern bool override_logfile;
-extern char tar_type;
 
 static int port = 0;
 static char *service;
@@ -74,12 +74,6 @@ static int archive_level = 0;
 
 static bool translation = false;
 static bool have_ip;
-
-/* clitar bits insert */
-extern int blocksize;
-extern bool tar_inc;
-extern bool tar_reset;
-/* clitar bits end */
 
 static bool prompt = true;
 
@@ -304,7 +298,7 @@ static void send_message(const char *username)
 
 static int do_dskattr(void)
 {
-	int total, bsize, avail;
+	uint64_t total, bsize, avail;
 	struct cli_state *targetcli = NULL;
 	char *targetpath = NULL;
 	TALLOC_CTX *ctx = talloc_tos();
@@ -318,14 +312,16 @@ static int do_dskattr(void)
 		return 1;
 	}
 
-	status = cli_dskattr(targetcli, &bsize, &total, &avail);
+	status = cli_disk_size(targetcli, &bsize, &total, &avail);
 	if (!NT_STATUS_IS_OK(status)) {
 		d_printf("Error in dskattr: %s\n", nt_errstr(status));
 		return 1;
 	}
 
-	d_printf("\n\t\t%d blocks of size %d. %d blocks available\n",
-		 total, bsize, avail);
+	d_printf("\n\t\t%" PRIu64
+		" blocks of size %" PRIu64
+		". %" PRIu64 " blocks available\n",
+		total, bsize, avail);
 
 	return 0;
 }
@@ -1729,16 +1725,16 @@ static int do_allinfo(const char *name)
 		return false;
 	}
 
-	unix_timespec_to_nt_time(&tmp, b_time);
+	tmp = unix_timespec_to_nt_time(b_time);
 	d_printf("create_time:    %s\n", nt_time_string(talloc_tos(), tmp));
 
-	unix_timespec_to_nt_time(&tmp, a_time);
+	tmp = unix_timespec_to_nt_time(a_time);
 	d_printf("access_time:    %s\n", nt_time_string(talloc_tos(), tmp));
 
-	unix_timespec_to_nt_time(&tmp, m_time);
+	tmp = unix_timespec_to_nt_time(m_time);
 	d_printf("write_time:     %s\n", nt_time_string(talloc_tos(), tmp));
 
-	unix_timespec_to_nt_time(&tmp, c_time);
+	tmp = unix_timespec_to_nt_time(c_time);
 	d_printf("change_time:    %s\n", nt_time_string(talloc_tos(), tmp));
 
 	d_printf("attributes: %s (%x)\n", attr_str(talloc_tos(), mode), mode);
@@ -1808,13 +1804,13 @@ static int do_allinfo(const char *name)
 			TALLOC_FREE(snap_name);
 			continue;
 		}
-		unix_timespec_to_nt_time(&tmp, b_time);
+		tmp = unix_timespec_to_nt_time(b_time);
 		d_printf("create_time:    %s\n", nt_time_string(talloc_tos(), tmp));
-		unix_timespec_to_nt_time(&tmp, a_time);
+		tmp = unix_timespec_to_nt_time(a_time);
 		d_printf("access_time:    %s\n", nt_time_string(talloc_tos(), tmp));
-		unix_timespec_to_nt_time(&tmp, m_time);
+		tmp =unix_timespec_to_nt_time(m_time);
 		d_printf("write_time:     %s\n", nt_time_string(talloc_tos(), tmp));
-		unix_timespec_to_nt_time(&tmp, c_time);
+		tmp = unix_timespec_to_nt_time(c_time);
 		d_printf("change_time:    %s\n", nt_time_string(talloc_tos(), tmp));
 		d_printf("size: %d\n", (int)size);
 	}
@@ -4227,7 +4223,7 @@ static bool browse_host_rpc(bool sort)
 	int i;
 	struct dcerpc_binding_handle *b;
 
-	status = cli_rpc_pipe_open_noauth(cli, &ndr_table_srvsvc.syntax_id,
+	status = cli_rpc_pipe_open_noauth(cli, &ndr_table_srvsvc,
 					  &pipe_hnd);
 
 	if (!NT_STATUS_IS_OK(status)) {
@@ -4641,7 +4637,7 @@ static struct {
    {COMPL_NONE,COMPL_NONE}},
   {"altname",cmd_altname,"<file> show alt name",{COMPL_NONE,COMPL_NONE}},
   {"archive",cmd_archive,"<level>\n0=ignore archive bit\n1=only get archive files\n2=only get archive files and reset archive bit\n3=get all files and reset archive bit",{COMPL_NONE,COMPL_NONE}},
-  {"backup",cmd_backup,"toggle backup intent state",{COMPL_NONE,COMPL_NONE}},  
+  {"backup",cmd_backup,"toggle backup intent state",{COMPL_NONE,COMPL_NONE}},
   {"blocksize",cmd_block,"blocksize <number> (default 20)",{COMPL_NONE,COMPL_NONE}},
   {"cancel",cmd_cancel,"<jobid> cancel a print queue entry",{COMPL_NONE,COMPL_NONE}},
   {"case_sensitive",cmd_setcase,"toggle the case sensitive flag to server",{COMPL_NONE,COMPL_NONE}},
@@ -4665,14 +4661,14 @@ static struct {
   {"lcd",cmd_lcd,"[directory] change/report the local current working directory",{COMPL_LOCAL,COMPL_NONE}},
   {"link",cmd_link,"<oldname> <newname> create a UNIX hard link",{COMPL_REMOTE,COMPL_REMOTE}},
   {"lock",cmd_lock,"lock <fnum> [r|w] <hex-start> <hex-len> : set a POSIX lock",{COMPL_REMOTE,COMPL_REMOTE}},
-  {"lowercase",cmd_lowercase,"toggle lowercasing of filenames for get",{COMPL_NONE,COMPL_NONE}},  
+  {"lowercase",cmd_lowercase,"toggle lowercasing of filenames for get",{COMPL_NONE,COMPL_NONE}},
   {"ls",cmd_dir,"<mask> list the contents of the current directory",{COMPL_REMOTE,COMPL_NONE}},
   {"l",cmd_dir,"<mask> list the contents of the current directory",{COMPL_REMOTE,COMPL_NONE}},
   {"mask",cmd_select,"<mask> mask all filenames against this",{COMPL_REMOTE,COMPL_NONE}},
   {"md",cmd_mkdir,"<directory> make a directory",{COMPL_NONE,COMPL_NONE}},
   {"mget",cmd_mget,"<mask> get all the matching files",{COMPL_REMOTE,COMPL_NONE}},
   {"mkdir",cmd_mkdir,"<directory> make a directory",{COMPL_NONE,COMPL_NONE}},
-  {"more",cmd_more,"<remote name> view a remote file with your pager",{COMPL_REMOTE,COMPL_NONE}},  
+  {"more",cmd_more,"<remote name> view a remote file with your pager",{COMPL_REMOTE,COMPL_NONE}},
   {"mput",cmd_mput,"<mask> put all matching files",{COMPL_REMOTE,COMPL_NONE}},
   {"newer",cmd_newer,"<file> only mget files newer than the specified local file",{COMPL_LOCAL,COMPL_NONE}},
   {"notify",cmd_notify,"<file>Get notified of dir changes",{COMPL_REMOTE,COMPL_NONE}},
@@ -4684,7 +4680,7 @@ static struct {
   {"posix_rmdir",cmd_posix_rmdir,"<name> removes a directory using POSIX interface",{COMPL_REMOTE,COMPL_NONE}},
   {"posix_unlink",cmd_posix_unlink,"<name> removes a file using POSIX interface",{COMPL_REMOTE,COMPL_NONE}},
   {"print",cmd_print,"<file name> print a file",{COMPL_NONE,COMPL_NONE}},
-  {"prompt",cmd_prompt,"toggle prompting for filenames for mget and mput",{COMPL_NONE,COMPL_NONE}},  
+  {"prompt",cmd_prompt,"toggle prompting for filenames for mget and mput",{COMPL_NONE,COMPL_NONE}},
   {"put",cmd_put,"<local name> [remote name] put a file",{COMPL_LOCAL,COMPL_REMOTE}},
   {"pwd",cmd_pwd,"show current remote directory (same as 'cd' with no args)",{COMPL_NONE,COMPL_NONE}},
   {"q",cmd_quit,"logoff the server",{COMPL_NONE,COMPL_NONE}},
@@ -4692,13 +4688,13 @@ static struct {
   {"quit",cmd_quit,"logoff the server",{COMPL_NONE,COMPL_NONE}},
   {"readlink",cmd_readlink,"filename Do a UNIX extensions readlink call on a symlink",{COMPL_REMOTE,COMPL_REMOTE}},
   {"rd",cmd_rmdir,"<directory> remove a directory",{COMPL_NONE,COMPL_NONE}},
-  {"recurse",cmd_recurse,"toggle directory recursion for mget and mput",{COMPL_NONE,COMPL_NONE}},  
+  {"recurse",cmd_recurse,"toggle directory recursion for mget and mput",{COMPL_NONE,COMPL_NONE}},
   {"reget",cmd_reget,"<remote name> [local name] get a file restarting at end of local file",{COMPL_REMOTE,COMPL_LOCAL}},
   {"rename",cmd_rename,"<src> <dest> rename some files",{COMPL_REMOTE,COMPL_REMOTE}},
   {"reput",cmd_reput,"<local name> [remote name] put a file restarting at end of remote file",{COMPL_LOCAL,COMPL_REMOTE}},
   {"rm",cmd_del,"<mask> delete all matching files",{COMPL_REMOTE,COMPL_NONE}},
   {"rmdir",cmd_rmdir,"<directory> remove a directory",{COMPL_REMOTE,COMPL_NONE}},
-  {"showacls",cmd_showacls,"toggle if ACLs are shown or not",{COMPL_NONE,COMPL_NONE}},  
+  {"showacls",cmd_showacls,"toggle if ACLs are shown or not",{COMPL_NONE,COMPL_NONE}},
   {"setea", cmd_setea, "<file name> <eaname> <eaval> Set an EA of a file",
    {COMPL_REMOTE, COMPL_LOCAL}},
   {"setmode",cmd_setmode,"<file name> <setmode string> change modes of file",{COMPL_REMOTE,COMPL_NONE}},
@@ -5324,7 +5320,8 @@ static int do_host_query(const char *query_host)
 
 static int do_tar_op(const char *base_directory)
 {
-	int ret;
+	struct tar *tar_ctx = tar_get_ctx();
+	int ret = 0;
 
 	/* do we already have a connection? */
 	if (!cli) {
@@ -5335,26 +5332,27 @@ static int do_tar_op(const char *base_directory)
 				     service, auth_info, true, smb_encrypt,
 				     max_protocol, port, name_type, &cli);
 		if (!NT_STATUS_IS_OK(status)) {
-			return 1;
+            ret = 1;
+            goto out;
 		}
 		cli_set_timeout(cli, io_timeout*1000);
 	}
 
-	recurse=true;
+	recurse = true;
 
 	if (base_directory && *base_directory)  {
 		ret = do_cd(base_directory);
 		if (ret) {
-			cli_shutdown(cli);
-			return ret;
+            goto out_cli;
 		}
 	}
 
-	ret=process_tar();
+	ret = tar_process(tar_ctx);
 
+ out_cli:
 	cli_shutdown(cli);
-
-	return(ret);
+ out:
+	return ret;
 }
 
 /****************************************************************************
@@ -5384,7 +5382,7 @@ static int do_message_op(struct user_auth_info *a_info)
   main program
 ****************************************************************************/
 
- int main(int argc,char *argv[])
+int main(int argc,char *argv[])
 {
 	const char **const_argv = discard_const_p(const char *, argv);
 	char *base_directory = NULL;
@@ -5397,6 +5395,8 @@ static int do_message_op(struct user_auth_info *a_info)
 	int rc = 0;
 	bool tar_opt = false;
 	bool service_opt = false;
+	struct tar *tar_ctx = tar_get_ctx();
+
 	struct poptOption long_options[] = {
 		POPT_AUTOHELP
 
@@ -5408,7 +5408,7 @@ static int do_message_op(struct user_auth_info *a_info)
 		{ "max-protocol", 'm', POPT_ARG_STRING, NULL, 'm', "Set the max protocol level", "LEVEL" },
 		{ "tar", 'T', POPT_ARG_STRING, NULL, 'T', "Command line tar", "<c|x>IXFqgbNan" },
 		{ "directory", 'D', POPT_ARG_STRING, NULL, 'D', "Start from directory", "DIR" },
-		{ "command", 'c', POPT_ARG_STRING, &cmdstr, 'c', "Execute semicolon separated commands" }, 
+		{ "command", 'c', POPT_ARG_STRING, &cmdstr, 'c', "Execute semicolon separated commands" },
 		{ "send-buffer", 'b', POPT_ARG_INT, &io_bufsize, 'b', "Changes the transmit/send buffer", "BYTES" },
 		{ "timeout", 't', POPT_ARG_INT, &io_timeout, 'b', "Changes the per-operation timeout", "SECONDS" },
 		{ "port", 'p', POPT_ARG_INT, &port, 'p', "Port to connect to", "PORT" },
@@ -5513,12 +5513,14 @@ static int do_message_op(struct user_auth_info *a_info)
 			 * position of the -T option in the raw argv[]. */
 			{
 				int i;
+
 				for (i = 1; i < argc; i++) {
 					if (strncmp("-T", argv[i],2)==0)
 						break;
 				}
 				i++;
-				if (!tar_parseargs(argc, argv, poptGetOptArg(pc), i)) {
+				if (tar_parse_args(tar_ctx, poptGetOptArg(pc),
+						   const_argv + i, argc - i)) {
 					poptPrintUsage(pc, stderr, 0);
 					exit(1);
 				}
@@ -5611,7 +5613,7 @@ static int do_message_op(struct user_auth_info *a_info)
 	if(new_name_resolve_order)
 		lp_set_cmdline("name resolve order", new_name_resolve_order);
 
-	if (!tar_type && !query_host && !service && !message) {
+	if (!tar_to_process(tar_ctx) && !query_host && !service && !message) {
 		poptPrintUsage(pc, stderr, 0);
 		exit(1);
 	}
@@ -5624,9 +5626,9 @@ static int do_message_op(struct user_auth_info *a_info)
 	/* Ensure we have a password (or equivalent). */
 	set_cmdline_auth_info_getpass(auth_info);
 
-	max_protocol = lp_cli_maxprotocol();
+	max_protocol = lp_client_max_protocol();
 
-	if (tar_type) {
+	if (tar_to_process(tar_ctx)) {
 		if (cmdstr)
 			process_command_string(cmdstr);
 		rc = do_tar_op(base_directory);

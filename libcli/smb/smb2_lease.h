@@ -23,28 +23,14 @@
 #ifndef _LIBCLI_SMB_SMB2_LEASE_H_
 #define _LIBCLI_SMB_SMB2_LEASE_H_
 
-/*
-  SMB2 lease structure (per MS-SMB2 2.2.13)
-*/
-struct smb2_lease_key {
-	uint64_t data[2];
-};
-
-struct smb2_lease {
-	struct smb2_lease_key lease_key;
-	uint32_t lease_state;
-	uint32_t lease_flags;
-	uint64_t lease_duration; /* should be 0 */
-	/* only for v2 */
-	struct smb2_lease_key parent_lease_key;
-	uint16_t lease_epoch;
-};
+#include "librpc/gen_ndr/smb2_lease_struct.h"
 
 /*
  * Parse a smb2 lease create context. Return -1 on error, buffer.length on
  * success. V1 and V2 differ only by length of buffer.length
  */
-ssize_t smb2_lease_pull(uint8_t *buf, size_t len, struct smb2_lease *lease);
+ssize_t smb2_lease_pull(const uint8_t *buf, size_t len,
+			struct smb2_lease *lease);
 bool smb2_lease_push(const struct smb2_lease *lease, uint8_t *buf, size_t len);
 
 #endif /* _LIBCLI_SMB_SMB2_LEASE_H_ */

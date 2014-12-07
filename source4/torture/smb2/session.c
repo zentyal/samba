@@ -75,7 +75,7 @@ bool test_session_reconnect1(struct torture_context *tctx, struct smb2_tree *tre
 	union smb_fileinfo qfinfo;
 
 	/* Add some random component to the file name. */
-	snprintf(fname, 256, "session_reconnect_%s.dat",
+	snprintf(fname, sizeof(fname), "session_reconnect_%s.dat",
 		 generate_random_str(tctx, 8));
 
 	smb2_util_unlink(tree, fname);
@@ -94,7 +94,10 @@ bool test_session_reconnect1(struct torture_context *tctx, struct smb2_tree *tre
 	/* disconnect, reconnect and then do durable reopen */
 	previous_session_id = smb2cli_session_current_id(tree->session->smbXcli);
 
-	if (!torture_smb2_connection_ext(tctx, previous_session_id, &tree2)) {
+	if (!torture_smb2_connection_ext(tctx, previous_session_id,
+					 &tree->session->transport->options,
+					 &tree2))
+	{
 		torture_warning(tctx, "session reconnect failed\n");
 		ret = false;
 		goto done;
@@ -155,7 +158,7 @@ bool test_session_reconnect2(struct torture_context *tctx, struct smb2_tree *tre
 	union smb_fileinfo qfinfo;
 
 	/* Add some random component to the file name. */
-	snprintf(fname, 256, "session_reconnect_%s.dat",
+	snprintf(fname, sizeof(fname), "session_reconnect_%s.dat",
 		 generate_random_str(tctx, 8));
 
 	smb2_util_unlink(tree, fname);
@@ -213,7 +216,7 @@ bool test_session_reauth1(struct torture_context *tctx, struct smb2_tree *tree)
 	union smb_fileinfo qfinfo;
 
 	/* Add some random component to the file name. */
-	snprintf(fname, 256, "session_reauth1_%s.dat",
+	snprintf(fname, sizeof(fname), "session_reauth1_%s.dat",
 		 generate_random_str(tctx, 8));
 
 	smb2_util_unlink(tree, fname);
@@ -282,7 +285,7 @@ bool test_session_reauth2(struct torture_context *tctx, struct smb2_tree *tree)
 	struct cli_credentials *anon_creds = NULL;
 
 	/* Add some random component to the file name. */
-	snprintf(fname, 256, "session_reauth2_%s.dat",
+	snprintf(fname, sizeof(fname), "session_reauth2_%s.dat",
 		 generate_random_str(tctx, 8));
 
 	smb2_util_unlink(tree, fname);
@@ -366,7 +369,7 @@ bool test_session_reauth3(struct torture_context *tctx, struct smb2_tree *tree)
 				| SECINFO_UNPROTECTED_DACL;
 
 	/* Add some random component to the file name. */
-	snprintf(fname, 256, "session_reauth3_%s.dat",
+	snprintf(fname, sizeof(fname), "session_reauth3_%s.dat",
 		 generate_random_str(tctx, 8));
 
 	smb2_util_unlink(tree, fname);
@@ -470,7 +473,7 @@ bool test_session_reauth4(struct torture_context *tctx, struct smb2_tree *tree)
 	struct dom_sid *extra_sid;
 
 	/* Add some random component to the file name. */
-	snprintf(fname, 256, "session_reauth4_%s.dat",
+	snprintf(fname, sizeof(fname), "session_reauth4_%s.dat",
 		 generate_random_str(tctx, 8));
 
 	smb2_util_unlink(tree, fname);
@@ -591,15 +594,15 @@ bool test_session_reauth5(struct torture_context *tctx, struct smb2_tree *tree)
 				| SECINFO_DACL
 				| SECINFO_PROTECTED_DACL
 				| SECINFO_UNPROTECTED_DACL;
-	struct security_descriptor *f_sd1, *f_sd2;
+	struct security_descriptor *f_sd1;
 	struct security_descriptor *d_sd1 = NULL;
 	struct security_ace ace;
 	struct dom_sid *extra_sid;
 
 	/* Add some random component to the file name. */
-	snprintf(dname, 256, "session_reauth5_%s.d",
+	snprintf(dname, sizeof(dname), "session_reauth5_%s.d",
 		 generate_random_str(tctx, 8));
-	snprintf(fname, 256, "%s\\file.dat", dname);
+	snprintf(fname, sizeof(fname), "%s\\file.dat", dname);
 
 	ok = smb2_util_setup_dir(tctx, tree, dname);
 	CHECK_VAL(ok, true);
@@ -644,7 +647,7 @@ bool test_session_reauth5(struct torture_context *tctx, struct smb2_tree *tree)
 
 	/* try to rename the file: fails */
 
-	snprintf(fname2, 256, "%s\\file2.dat", dname);
+	snprintf(fname2, sizeof(fname2), "%s\\file2.dat", dname);
 
 	smb2_util_unlink(tree, fname2);
 
@@ -836,8 +839,6 @@ bool test_session_reauth5(struct torture_context *tctx, struct smb2_tree *tree)
 	status = smb2_getinfo_file(tree, mem_ctx, &qfinfo);
 	CHECK_STATUS(status, NT_STATUS_OK);
 
-	f_sd2 = qfinfo.query_secdesc.out.sd;
-
 done:
 	if (dh1 != NULL) {
 		smb2_util_close(tree, *dh1);
@@ -854,6 +855,108 @@ done:
 
 	return ret;
 }
+
+/**
+ * do reauth with wrong credentials,
+ * hence triggering the error path in reauth.
+ * The invalid reauth deletes the session.
+ */
+bool test_session_reauth6(struct torture_context *tctx, struct smb2_tree *tree)
+{
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx = talloc_new(tctx);
+	char fname[256];
+	struct smb2_handle _h1;
+	struct smb2_handle *h1 = NULL;
+	struct smb2_create io1;
+	bool ret = true;
+	char *corrupted_password;
+	struct cli_credentials *broken_creds;
+	bool ok;
+	bool encrypted;
+	NTSTATUS expected;
+	enum credentials_use_kerberos krb_state;
+
+	krb_state = cli_credentials_get_kerberos_state(cmdline_credentials);
+	if (krb_state == CRED_MUST_USE_KERBEROS) {
+		torture_skip(tctx,
+			     "Can't test failing session setup with kerberos.");
+	}
+
+	encrypted = smb2cli_tcon_is_encryption_on(tree->smbXcli);
+
+	/* Add some random component to the file name. */
+	snprintf(fname, sizeof(fname), "session_reauth1_%s.dat",
+		 generate_random_str(tctx, 8));
+
+	smb2_util_unlink(tree, fname);
+
+	smb2_oplock_create_share(&io1, fname,
+				 smb2_util_share_access(""),
+				 smb2_util_oplock_level("b"));
+	io1.in.create_options |= NTCREATEX_OPTIONS_DELETE_ON_CLOSE;
+
+	status = smb2_create(tree, mem_ctx, &io1);
+	CHECK_STATUS(status, NT_STATUS_OK);
+	_h1 = io1.out.file.handle;
+	h1 = &_h1;
+	CHECK_CREATED(&io1, CREATED, FILE_ATTRIBUTE_ARCHIVE);
+	CHECK_VAL(io1.out.oplock_level, smb2_util_oplock_level("b"));
+
+	/*
+	 * reauthentication with invalid credentials:
+	 */
+
+	broken_creds = cli_credentials_shallow_copy(mem_ctx,
+						    cmdline_credentials);
+	torture_assert(tctx, (broken_creds != NULL), "talloc error");
+
+	corrupted_password = talloc_asprintf(mem_ctx, "%s%s",
+				cli_credentials_get_password(broken_creds),
+				"corrupt");
+	torture_assert(tctx, (corrupted_password != NULL), "talloc error");
+
+	ok = cli_credentials_set_password(broken_creds, corrupted_password,
+					  CRED_SPECIFIED);
+	CHECK_VAL(ok, true);
+
+	status = smb2_session_setup_spnego(tree->session,
+					   broken_creds,
+					   0 /* previous_session_id */);
+	CHECK_STATUS(status, NT_STATUS_LOGON_FAILURE);
+
+	torture_comment(tctx, "did failed reauth\n");
+	/*
+	 * now verify that the invalid session reauth has closed our session
+	 */
+
+	if (encrypted) {
+		expected = NT_STATUS_CONNECTION_DISCONNECTED;
+	} else {
+		expected = NT_STATUS_USER_SESSION_DELETED;
+	}
+
+	smb2_oplock_create_share(&io1, fname,
+				 smb2_util_share_access(""),
+				 smb2_util_oplock_level("b"));
+
+	status = smb2_create(tree, mem_ctx, &io1);
+	CHECK_STATUS(status, expected);
+
+done:
+	if (h1 != NULL) {
+		smb2_util_close(tree, *h1);
+	}
+
+	smb2_util_unlink(tree, fname);
+
+	talloc_free(tree);
+
+	talloc_free(mem_ctx);
+
+	return ret;
+}
+
 
 static bool test_session_expire1(struct torture_context *tctx)
 {
@@ -901,7 +1004,7 @@ static bool test_session_expire1(struct torture_context *tctx)
 					"smb2_connect failed");
 
 	/* Add some random component to the file name. */
-	snprintf(fname, 256, "session_expire1_%s.dat",
+	snprintf(fname, sizeof(fname), "session_expire1_%s.dat",
 		 generate_random_str(tctx, 8));
 
 	smb2_util_unlink(tree, fname);
@@ -968,6 +1071,137 @@ done:
 	return ret;
 }
 
+bool test_session_bind1(struct torture_context *tctx, struct smb2_tree *tree1)
+{
+	const char *host = torture_setting_string(tctx, "host", NULL);
+	const char *share = torture_setting_string(tctx, "share", NULL);
+	struct cli_credentials *credentials = cmdline_credentials;
+	NTSTATUS status;
+	TALLOC_CTX *mem_ctx = talloc_new(tctx);
+	char fname[256];
+	struct smb2_handle _h1;
+	struct smb2_handle *h1 = NULL;
+	struct smb2_create io1;
+	union smb_fileinfo qfinfo;
+	bool ret = false;
+	struct smb2_tree *tree2 = NULL;
+	struct smb2_transport *transport1 = tree1->session->transport;
+	struct smb2_transport *transport2 = NULL;
+	struct smb2_session *session1_1 = tree1->session;
+	struct smb2_session *session1_2 = NULL;
+	struct smb2_session *session2_1 = NULL;
+	struct smb2_session *session2_2 = NULL;
+	uint32_t caps;
+
+	caps = smb2cli_conn_server_capabilities(transport1->conn);
+	if (!(caps & SMB2_CAP_MULTI_CHANNEL)) {
+		torture_skip(tctx, "server doesn't support SMB2_CAP_MULTI_CHANNEL\n");
+	}
+
+	/* Add some random component to the file name. */
+	snprintf(fname, sizeof(fname), "session_bind1_%s.dat",
+		 generate_random_str(tctx, 8));
+
+	smb2_util_unlink(tree1, fname);
+
+	smb2_oplock_create_share(&io1, fname,
+				 smb2_util_share_access(""),
+				 smb2_util_oplock_level("b"));
+
+	status = smb2_create(tree1, mem_ctx, &io1);
+	CHECK_STATUS(status, NT_STATUS_OK);
+	_h1 = io1.out.file.handle;
+	h1 = &_h1;
+	CHECK_CREATED(&io1, CREATED, FILE_ATTRIBUTE_ARCHIVE);
+	CHECK_VAL(io1.out.oplock_level, smb2_util_oplock_level("b"));
+
+	status = smb2_connect(tctx,
+			      host,
+			      lpcfg_smb_ports(tctx->lp_ctx),
+			      share,
+			      lpcfg_resolve_context(tctx->lp_ctx),
+			      credentials,
+			      &tree2,
+			      tctx->ev,
+			      &transport1->options,
+			      lpcfg_socket_options(tctx->lp_ctx),
+			      lpcfg_gensec_settings(tctx, tctx->lp_ctx)
+			      );
+	torture_assert_ntstatus_ok_goto(tctx, status, ret, done,
+					"smb2_connect failed");
+	session2_2 = tree2->session;
+	transport2 = tree2->session->transport;
+
+	/*
+	 * Now bind the 2nd transport connection to the 1st session
+	 */
+	session1_2 = smb2_session_channel(transport2,
+					  lpcfg_gensec_settings(tctx, tctx->lp_ctx),
+					  tree2,
+					  session1_1);
+	torture_assert(tctx, session1_2 != NULL, "smb2_session_channel failed");
+
+	status = smb2_session_setup_spnego(session1_2,
+					   cmdline_credentials,
+					   0 /* previous_session_id */);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	/* use the 1st connection, 1st session */
+	ZERO_STRUCT(qfinfo);
+	qfinfo.generic.level = RAW_FILEINFO_POSITION_INFORMATION;
+	qfinfo.generic.in.file.handle = _h1;
+	tree1->session = session1_1;
+	status = smb2_getinfo_file(tree1, mem_ctx, &qfinfo);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	/* use the 2nd connection, 1st session */
+	ZERO_STRUCT(qfinfo);
+	qfinfo.generic.level = RAW_FILEINFO_POSITION_INFORMATION;
+	qfinfo.generic.in.file.handle = _h1;
+	tree1->session = session1_2;
+	status = smb2_getinfo_file(tree1, mem_ctx, &qfinfo);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	tree1->session = session1_1;
+	smb2_util_close(tree1, *h1);
+	h1 = NULL;
+
+	/*
+	 * Now bind the 1st transport connection to the 2nd session
+	 */
+	session2_1 = smb2_session_channel(transport1,
+					  lpcfg_gensec_settings(tctx, tctx->lp_ctx),
+					  tree1,
+					  session2_2);
+	torture_assert(tctx, session2_1 != NULL, "smb2_session_channel failed");
+
+	status = smb2_session_setup_spnego(session2_1,
+					   cmdline_credentials,
+					   0 /* previous_session_id */);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	tree2->session = session2_1;
+	status = smb2_util_unlink(tree2, fname);
+	CHECK_STATUS(status, NT_STATUS_OK);
+
+	ret = true;
+done:
+	talloc_free(tree2);
+	tree1->session = session1_1;
+
+	if (h1 != NULL) {
+		smb2_util_close(tree1, *h1);
+	}
+
+	smb2_util_unlink(tree1, fname);
+
+	talloc_free(tree1);
+
+	talloc_free(mem_ctx);
+
+	return ret;
+}
+
 struct torture_suite *torture_smb2_session_init(void)
 {
 	struct torture_suite *suite =
@@ -980,7 +1214,9 @@ struct torture_suite *torture_smb2_session_init(void)
 	torture_suite_add_1smb2_test(suite, "reauth3", test_session_reauth3);
 	torture_suite_add_1smb2_test(suite, "reauth4", test_session_reauth4);
 	torture_suite_add_1smb2_test(suite, "reauth5", test_session_reauth5);
+	torture_suite_add_1smb2_test(suite, "reauth6", test_session_reauth6);
 	torture_suite_add_simple_test(suite, "expire1", test_session_expire1);
+	torture_suite_add_1smb2_test(suite, "bind1", test_session_bind1);
 
 	suite->description = talloc_strdup(suite, "SMB2-SESSION tests");
 

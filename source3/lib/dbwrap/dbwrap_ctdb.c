@@ -27,8 +27,6 @@
 #include "dbwrap/dbwrap_rbt.h"
 #include "lib/param/param.h"
 
-#ifdef CLUSTER_SUPPORT
-
 /*
  * It is not possible to include ctdb.h and tdb_compat.h (included via
  * some other include above) without warnings. This fixes those
@@ -73,6 +71,12 @@ struct db_ctdb_ctx {
 	uint32_t db_id;
 	struct db_ctdb_transaction_handle *transaction;
 	struct g_lock_ctx *lock_ctx;
+
+	/* thresholds for warning messages */
+	int warn_unlock_msecs;
+	int warn_migrate_msecs;
+	int warn_migrate_attempts;
+	int warn_locktime_msecs;
 };
 
 struct db_ctdb_rec {
@@ -103,16 +107,7 @@ static int db_ctdb_ltdb_parser(TDB_DATA key, TDB_DATA data,
 	if (data.dsize < sizeof(struct ctdb_ltdb_header)) {
 		return -1;
 	}
-	if (data.dsize == sizeof(struct ctdb_ltdb_header)) {
-		/*
-		 * Making this a separate case that needs fixing
-		 * separately. This is an empty record. ctdbd does not
-		 * distinguish between empty and deleted records. Samba right
-		 * now can live without empty records, so lets treat zero-size
-		 * (i.e. deleted) records as non-existing.
-		 */
-		return -1;
-	}
+
 	state->parser(
 		key, (struct ctdb_ltdb_header *)data.dptr,
 		make_tdb_data(data.dptr + sizeof(struct ctdb_ltdb_header),
@@ -944,6 +939,9 @@ static int db_ctdb_record_destr(struct db_record* data)
 	struct db_ctdb_rec *crec = talloc_get_type_abort(
 		data->private_data, struct db_ctdb_rec);
 	int threshold;
+	int ret;
+	struct timeval before;
+	double timediff;
 
 	DEBUG(10, (DEBUGLEVEL > 10
 		   ? "Unlocking db %u key %s\n"
@@ -952,20 +950,42 @@ static int db_ctdb_record_destr(struct db_record* data)
 		   hex_encode_talloc(data, (unsigned char *)data->key.dptr,
 			      data->key.dsize)));
 
-	tdb_chainunlock(crec->ctdb_ctx->wtdb->tdb, data->key);
+	before = timeval_current();
 
-	threshold = lp_ctdb_locktime_warn_threshold();
+	ret = tdb_chainunlock(crec->ctdb_ctx->wtdb->tdb, data->key);
+
+	timediff = timeval_elapsed(&before);
+	timediff *= 1000;	/* get us milliseconds */
+
+	if (timediff > crec->ctdb_ctx->warn_unlock_msecs) {
+		char *key;
+		key = hex_encode_talloc(talloc_tos(),
+					(unsigned char *)data->key.dptr,
+					data->key.dsize);
+		DEBUG(0, ("tdb_chainunlock on db %s, key %s took %f milliseconds\n",
+			  tdb_name(crec->ctdb_ctx->wtdb->tdb), key,
+			  timediff));
+		TALLOC_FREE(key);
+	}
+
+	if (ret != 0) {
+		DEBUG(0, ("tdb_chainunlock failed\n"));
+		return -1;
+	}
+
+	threshold = crec->ctdb_ctx->warn_locktime_msecs;
 	if (threshold != 0) {
-		double timediff = timeval_elapsed(&crec->lock_time);
-		if ((timediff * 1000) > threshold) {
+		timediff = timeval_elapsed(&crec->lock_time) * 1000;
+		if (timediff > threshold) {
 			const char *key;
 
 			key = hex_encode_talloc(data,
 						(unsigned char *)data->key.dptr,
 						data->key.dsize);
-			DEBUG(0, ("Held tdb lock on db %s, key %s %f seconds\n",
-				  tdb_name(crec->ctdb_ctx->wtdb->tdb), key,
-				  timediff));
+			DEBUG(0, ("Held tdb lock on db %s, key %s "
+				  "%f milliseconds\n",
+				  tdb_name(crec->ctdb_ctx->wtdb->tdb),
+				  key, timediff));
 		}
 	}
 
@@ -1017,7 +1037,13 @@ static struct db_record *fetch_locked_internal(struct db_ctdb_ctx *ctx,
 	struct db_ctdb_rec *crec;
 	NTSTATUS status;
 	TDB_DATA ctdb_data;
-	int migrate_attempts = 0;
+	int migrate_attempts;
+	struct timeval migrate_start;
+	struct timeval chainlock_start;
+	struct timeval ctdb_start_time;
+	double chainlock_time = 0;
+	double ctdb_time = 0;
+	int duration_msecs;
 	int lockret;
 
 	if (!(result = talloc(mem_ctx, struct db_record))) {
@@ -1044,6 +1070,9 @@ static struct db_record *fetch_locked_internal(struct db_ctdb_ctx *ctx,
 		return NULL;
 	}
 
+	migrate_attempts = 0;
+	GetTimeOfDay(&migrate_start);
+
 	/*
 	 * Do a blocking lock on the record
 	 */
@@ -1058,9 +1087,12 @@ again:
 		TALLOC_FREE(keystr);
 	}
 
+	GetTimeOfDay(&chainlock_start);
 	lockret = tryonly
 		? tdb_chainlock_nonblock(ctx->wtdb->tdb, key)
 		: tdb_chainlock(ctx->wtdb->tdb, key);
+	chainlock_time += timeval_elapsed(&chainlock_start);
+
 	if (lockret != 0) {
 		DEBUG(3, ("tdb_chainlock failed\n"));
 		TALLOC_FREE(result);
@@ -1098,8 +1130,11 @@ again:
 			   ctdb_data.dptr ?
 			   ((struct ctdb_ltdb_header *)ctdb_data.dptr)->flags : 0));
 
+		GetTimeOfDay(&ctdb_start_time);
 		status = ctdbd_migrate(messaging_ctdbd_connection(), ctx->db_id,
 				       key);
+		ctdb_time += timeval_elapsed(&ctdb_start_time);
+
 		if (!NT_STATUS_IS_OK(status)) {
 			DEBUG(5, ("ctdb_migrate failed: %s\n",
 				  nt_errstr(status)));
@@ -1110,13 +1145,38 @@ again:
 		goto again;
 	}
 
-	if (migrate_attempts > 10) {
-		DEBUG(0, ("db_ctdb_fetch_locked for %s key %s needed %d "
-			  "attempts\n", tdb_name(ctx->wtdb->tdb),
+	{
+		double duration;
+		duration = timeval_elapsed(&migrate_start);
+
+		/*
+		 * Convert the duration to milliseconds to avoid a
+		 * floating-point division of
+		 * lp_parm_int("migrate_duration") by 1000.
+		 */
+		duration_msecs = duration * 1000;
+	}
+
+	if ((migrate_attempts > ctx->warn_migrate_attempts) ||
+	    (duration_msecs > ctx->warn_migrate_msecs)) {
+		int chain = 0;
+
+		if (tdb_get_flags(ctx->wtdb->tdb) & TDB_INCOMPATIBLE_HASH) {
+			chain = tdb_jenkins_hash(&key) %
+				tdb_hash_size(ctx->wtdb->tdb);
+		}
+
+		DEBUG(0, ("db_ctdb_fetch_locked for %s key %s, chain %d "
+			  "needed %d attempts, %d milliseconds, "
+			  "chainlock: %f ms, CTDB %f ms\n",
+			  tdb_name(ctx->wtdb->tdb),
 			  hex_encode_talloc(talloc_tos(),
 					    (unsigned char *)key.dptr,
 					    key.dsize),
-			  migrate_attempts));
+			  chain,
+			  migrate_attempts, duration_msecs,
+			  chainlock_time * 1000.0,
+			  ctdb_time * 1000.0));
 	}
 
 	GetTimeOfDay(&crec->lock_time);
@@ -1498,7 +1558,8 @@ struct db_context *db_open_ctdb(TALLOC_CTX *mem_ctx,
 				const char *name,
 				int hash_size, int tdb_flags,
 				int open_flags, mode_t mode,
-				enum dbwrap_lock_order lock_order)
+				enum dbwrap_lock_order lock_order,
+				uint64_t dbwrap_flags)
 {
 	struct db_context *result;
 	struct db_ctdb_ctx *db_ctdb;
@@ -1555,7 +1616,7 @@ struct db_context *db_open_ctdb(TALLOC_CTX *mem_ctx,
 	result->lock_order = lock_order;
 
 	/* only pass through specific flags */
-	tdb_flags &= TDB_SEQNUM;
+	tdb_flags &= TDB_SEQNUM|TDB_VOLATILE;
 
 	/* honor permissions if user has specified O_CREAT */
 	if (open_flags & O_CREAT) {
@@ -1577,10 +1638,36 @@ struct db_context *db_open_ctdb(TALLOC_CTX *mem_ctx,
 		return NULL;
 	}
 
+#ifdef HAVE_CTDB_WANT_READONLY_DECL
+	if (!result->persistent &&
+	    (dbwrap_flags & DBWRAP_FLAG_OPTIMIZE_READONLY_ACCESS))
+	{
+		TDB_DATA indata;
+
+		indata = make_tdb_data((uint8_t *)&db_ctdb->db_id,
+				       sizeof(db_ctdb->db_id));
+
+		status = ctdbd_control_local(
+			conn, CTDB_CONTROL_SET_DB_READONLY, 0, 0, indata,
+			NULL, NULL, &cstatus);
+		if (!NT_STATUS_IS_OK(status) || (cstatus != 0)) {
+			DEBUG(1, ("CTDB_CONTROL_SET_DB_READONLY failed: "
+				  "%s, %d\n", nt_errstr(status), cstatus));
+			TALLOC_FREE(result);
+			return NULL;
+		}
+	}
+#endif
+
 	lp_ctx = loadparm_init_s3(db_path, loadparm_s3_helpers());
 
-	db_ctdb->wtdb = tdb_wrap_open(db_ctdb, db_path, hash_size, tdb_flags,
-				      O_RDWR, 0, lp_ctx);
+	if (hash_size == 0) {
+		hash_size = lpcfg_tdb_hash_size(lp_ctx, db_path);
+	}
+
+	db_ctdb->wtdb = tdb_wrap_open(db_ctdb, db_path, hash_size,
+				      lpcfg_tdb_flags(lp_ctx, tdb_flags),
+				      O_RDWR, 0);
 	talloc_unlink(db_path, lp_ctx);
 	if (db_ctdb->wtdb == NULL) {
 		DEBUG(0, ("Could not open tdb %s: %s\n", db_path, strerror(errno)));
@@ -1598,6 +1685,14 @@ struct db_context *db_open_ctdb(TALLOC_CTX *mem_ctx,
 			return NULL;
 		}
 	}
+
+	db_ctdb->warn_unlock_msecs = lp_parm_int(-1, "ctdb",
+						 "unlock_warn_threshold", 5);
+	db_ctdb->warn_migrate_attempts = lp_parm_int(-1, "ctdb",
+						     "migrate_attempts", 10);
+	db_ctdb->warn_migrate_msecs = lp_parm_int(-1, "ctdb",
+						  "migrate_duration", 5000);
+	db_ctdb->warn_locktime_msecs = lp_ctdb_locktime_warn_threshold();
 
 	result->private_data = (void *)db_ctdb;
 	result->fetch_locked = db_ctdb_fetch_locked;
@@ -1617,18 +1712,3 @@ struct db_context *db_open_ctdb(TALLOC_CTX *mem_ctx,
 
 	return result;
 }
-
-#else /* CLUSTER_SUPPORT */
-
-struct db_context *db_open_ctdb(TALLOC_CTX *mem_ctx,
-				const char *name,
-				int hash_size, int tdb_flags,
-				int open_flags, mode_t mode,
-				enum dbwrap_lock_order lock_order)
-{
-	DEBUG(3, ("db_open_ctdb: no cluster support!\n"));
-	errno = ENOSYS;
-	return NULL;
-}
-
-#endif

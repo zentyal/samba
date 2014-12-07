@@ -4,22 +4,8 @@
 
 #include "config.h"
 #include "ntdb.h"
+#include "private.h"
 #include <ccan/err/err.h>
-#ifdef HAVE_LIBREPLACE
-#include <replace.h>
-#else
-#include <stdlib.h>
-#include <getopt.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <string.h>
-#include <errno.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <fcntl.h>
-#include <time.h>
-#include <sys/wait.h>
-#endif
 
 //#define REOPEN_PROB 30
 #define DELETE_PROB 8
@@ -96,6 +82,10 @@ static char *randbuf(int len)
 	char *buf;
 	int i;
 	buf = (char *)malloc(len+1);
+	if (buf == NULL) {
+		perror("randbuf: unable to allocate memory for buffer.\n");
+		exit(1);
+	}
 
 	for (i=0;i<len;i++) {
 		buf[i] = 'a' + (rand() % 26);

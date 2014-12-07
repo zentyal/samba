@@ -132,7 +132,7 @@ static HDBFlags uf2HDBFlags(krb5_context context, uint32_t userAccountControl, e
 		flags.client = 0;
 	}
 	if (userAccountControl & UF_LOCKOUT) {
-		flags.invalid = 1;
+		flags.locked_out = 1;
 	}
 /*
 	if (userAccountControl & UF_PASSWORD_NOTREQD) {
@@ -546,6 +546,7 @@ static krb5_error_code samba_kdc_message2entry(krb5_context context,
 {
 	struct loadparm_context *lp_ctx = kdc_db_ctx->lp_ctx;
 	uint32_t userAccountControl;
+	uint32_t msDS_User_Account_Control_Computed;
 	unsigned int i;
 	krb5_error_code ret = 0;
 	krb5_boolean is_computer = FALSE;
@@ -604,6 +605,25 @@ static krb5_error_code samba_kdc_message2entry(krb5_context context,
 
 	userAccountControl = ldb_msg_find_attr_as_uint(msg, "userAccountControl", 0);
 
+	msDS_User_Account_Control_Computed
+		= ldb_msg_find_attr_as_uint(msg,
+					    "msDS-User-Account-Control-Computed",
+					    UF_ACCOUNTDISABLE);
+
+	/*
+	 * This brings in the lockout flag, block the account if not
+	 * found.  We need the weird UF_ACCOUNTDISABLE check because
+	 * we do not want to fail open if the value is not returned,
+	 * but 0 is a valid value (all OK)
+	 */
+	if (msDS_User_Account_Control_Computed == UF_ACCOUNTDISABLE) {
+		ret = EINVAL;
+		krb5_set_error_message(context, ret, "samba_kdc_message2entry: "
+				"no msDS-User-Account-Control-Computed present");
+		goto out;
+	} else {
+		userAccountControl |= msDS_User_Account_Control_Computed;
+	}
 
 	entry_ex->entry.principal = malloc(sizeof(*(entry_ex->entry.principal)));
 	if (ent_type == SAMBA_KDC_ENT_TYPE_ANY && principal == NULL) {
@@ -1059,47 +1079,25 @@ static krb5_error_code samba_kdc_lookup_trust(krb5_context context, struct ldb_c
 					struct ldb_dn *realm_dn,
 					struct ldb_message **pmsg)
 {
-	int lret;
-	krb5_error_code ret;
-	char *filter = NULL;
+	NTSTATUS status;
 	const char * const *attrs = trust_attrs;
 
-	struct ldb_result *res = NULL;
-	char *realm_encoded = ldb_binary_encode_string(mem_ctx, realm);
-	if (!realm_encoded) {
-		if (!filter) {
-			ret = ENOMEM;
-			krb5_set_error_message(context, ret, "talloc_asprintf: out of memory");
-			return ret;
-		}
-	}
-	filter = talloc_asprintf(mem_ctx, "(&(objectClass=trustedDomain)(|(flatname=%s)(trustPartner=%s)))", 
-				 realm_encoded, realm_encoded);
-
-	if (!filter) {
-		talloc_free(realm_encoded);
-		ret = ENOMEM;
-		krb5_set_error_message(context, ret, "talloc_asprintf: out of memory");
+	status = sam_get_results_trust(ldb_ctx,
+				       mem_ctx, realm, realm, attrs,
+				       pmsg);
+	if (NT_STATUS_IS_OK(status)) {
+		return 0;
+	} else if (NT_STATUS_EQUAL(status, NT_STATUS_NOT_FOUND)) {
+		return HDB_ERR_NOENTRY;
+	} else if (NT_STATUS_EQUAL(status, NT_STATUS_NO_MEMORY)) {
+		int ret = ENOMEM;
+		krb5_set_error_message(context, ret, "get_sam_result_trust: out of memory");
+		return ret;
+	} else {
+		int ret = EINVAL;
+		krb5_set_error_message(context, ret, "get_sam_result_trust: %s", nt_errstr(status));
 		return ret;
 	}
-
-	lret = dsdb_search(ldb_ctx, mem_ctx, &res,
-			   ldb_get_default_basedn(ldb_ctx),
-			   LDB_SCOPE_SUBTREE, attrs,
-			   DSDB_SEARCH_NO_GLOBAL_CATALOG,
-			   "%s", filter);
-	if (lret != LDB_SUCCESS) {
-		DEBUG(3, ("Failed to search for %s: %s\n", filter, ldb_errstring(ldb_ctx)));
-		return HDB_ERR_NOENTRY;
-	} else if (res->count == 0 || res->count > 1) {
-		DEBUG(3, ("Failed find a single entry for %s: got %d\n", filter, res->count));
-		talloc_free(res);
-		return HDB_ERR_NOENTRY;
-	}
-	talloc_steal(mem_ctx, res->msgs);
-	*pmsg = res->msgs[0];
-	talloc_free(res);
-	return 0;
 }
 
 static krb5_error_code samba_kdc_lookup_client(krb5_context context,
@@ -1560,6 +1558,7 @@ krb5_error_code samba_kdc_firstkey(krb5_context context,
 		TALLOC_FREE(priv);
 		return ret;
 	}
+	krb5_free_default_realm(context, realm);
 
 	lret = dsdb_search(ldb_ctx, priv, &res,
 			   priv->realm_dn, LDB_SCOPE_SUBTREE, user_attrs,

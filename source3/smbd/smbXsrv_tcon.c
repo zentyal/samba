@@ -62,7 +62,8 @@ NTSTATUS smbXsrv_tcon_global_init(void)
 			 TDB_CLEAR_IF_FIRST |
 			 TDB_INCOMPATIBLE_HASH,
 			 O_RDWR | O_CREAT, 0600,
-			 DBWRAP_LOCK_ORDER_1);
+			 DBWRAP_LOCK_ORDER_1,
+			 DBWRAP_FLAG_NONE);
 	if (db_ctx == NULL) {
 		NTSTATUS status;
 
@@ -696,8 +697,9 @@ static int smbXsrv_tcon_destructor(struct smbXsrv_tcon *tcon)
 	return 0;
 }
 
-static NTSTATUS smbXsrv_tcon_create(struct smbXsrv_connection *conn,
-				    struct smbXsrv_tcon_table *table,
+static NTSTATUS smbXsrv_tcon_create(struct smbXsrv_tcon_table *table,
+				    enum protocol_types protocol,
+				    struct server_id server_id,
 				    NTTIME now,
 				    struct smbXsrv_tcon **_tcon)
 {
@@ -728,7 +730,7 @@ static NTSTATUS smbXsrv_tcon_create(struct smbXsrv_connection *conn,
 	}
 	tcon->global = global;
 
-	if (conn->protocol >= PROTOCOL_SMB2_02) {
+	if (protocol >= PROTOCOL_SMB2_02) {
 		uint64_t id = global->tcon_global_id;
 		uint8_t key_buf[SMBXSRV_TCON_LOCAL_TDB_KEY_SIZE];
 		TDB_DATA key;
@@ -769,7 +771,7 @@ static NTSTATUS smbXsrv_tcon_create(struct smbXsrv_connection *conn,
 
 	global->creation_time = now;
 
-	global->server_id = messaging_server_id(conn->msg_ctx);
+	global->server_id = server_id;
 
 	ptr = tcon;
 	val = make_tdb_data((uint8_t const *)&ptr, sizeof(ptr));
@@ -1069,15 +1071,17 @@ static int smbXsrv_tcon_disconnect_all_callback(struct db_record *local_rec,
 
 NTSTATUS smb1srv_tcon_table_init(struct smbXsrv_connection *conn)
 {
+	struct smbXsrv_client *client = conn->client;
+
 	/*
 	 * Allow a range from 1..65534 with 65534 values.
 	 */
-	conn->tcon_table = talloc_zero(conn, struct smbXsrv_tcon_table);
-	if (conn->tcon_table == NULL) {
+	client->tcon_table = talloc_zero(client, struct smbXsrv_tcon_table);
+	if (client->tcon_table == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	return smbXsrv_tcon_table_init(conn, conn->tcon_table,
+	return smbXsrv_tcon_table_init(client, client->tcon_table,
 				       1, UINT16_MAX - 1,
 				       UINT16_MAX - 1);
 }
@@ -1086,8 +1090,11 @@ NTSTATUS smb1srv_tcon_create(struct smbXsrv_connection *conn,
 			     NTTIME now,
 			     struct smbXsrv_tcon **_tcon)
 {
-	return smbXsrv_tcon_create(conn, conn->tcon_table, now,
-				   _tcon);
+	struct server_id id = messaging_server_id(conn->msg_ctx);
+
+	return smbXsrv_tcon_create(conn->client->tcon_table,
+				   conn->protocol,
+				   id, now, _tcon);
 }
 
 NTSTATUS smb1srv_tcon_lookup(struct smbXsrv_connection *conn,
@@ -1096,12 +1103,14 @@ NTSTATUS smb1srv_tcon_lookup(struct smbXsrv_connection *conn,
 {
 	uint32_t local_id = tree_id;
 
-	return smbXsrv_tcon_local_lookup(conn->tcon_table,
+	return smbXsrv_tcon_local_lookup(conn->client->tcon_table,
 					 local_id, now, tcon);
 }
 
 NTSTATUS smb1srv_tcon_disconnect_all(struct smbXsrv_connection *conn)
 {
+	struct smbXsrv_client *client = conn->client;
+
 	/*
 	 * We do not pass a vuid here,
 	 * which means the vuid is taken from
@@ -1116,7 +1125,7 @@ NTSTATUS smb1srv_tcon_disconnect_all(struct smbXsrv_connection *conn)
 	 * conn_close_all(), but we should think
 	 * about how to fix this in future.
 	 */
-	return smbXsrv_tcon_disconnect_all(conn->tcon_table, 0);
+	return smbXsrv_tcon_disconnect_all(client->tcon_table, 0);
 }
 
 NTSTATUS smb2srv_tcon_table_init(struct smbXsrv_session *session)
@@ -1138,8 +1147,11 @@ NTSTATUS smb2srv_tcon_create(struct smbXsrv_session *session,
 			     NTTIME now,
 			     struct smbXsrv_tcon **_tcon)
 {
-	return smbXsrv_tcon_create(session->connection, session->tcon_table,
-				   now, _tcon);
+	struct server_id id = messaging_server_id(session->client->msg_ctx);
+
+	return smbXsrv_tcon_create(session->tcon_table,
+				   PROTOCOL_SMB2_02,
+				   id, now, _tcon);
 }
 
 NTSTATUS smb2srv_tcon_lookup(struct smbXsrv_session *session,

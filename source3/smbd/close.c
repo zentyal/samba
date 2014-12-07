@@ -47,7 +47,7 @@ static NTSTATUS check_magic(struct files_struct *fsp)
 	char *fname = NULL;
 	NTSTATUS status;
 
-	if (!*lp_magicscript(talloc_tos(), SNUM(conn))) {
+	if (!*lp_magic_script(talloc_tos(), SNUM(conn))) {
 		return NT_STATUS_OK;
 	}
 
@@ -63,13 +63,13 @@ static NTSTATUS check_magic(struct files_struct *fsp)
 		p++;
 	}
 
-	if (!strequal(lp_magicscript(talloc_tos(), SNUM(conn)),p)) {
+	if (!strequal(lp_magic_script(talloc_tos(), SNUM(conn)),p)) {
 		status = NT_STATUS_OK;
 		goto out;
 	}
 
-	if (*lp_magicoutput(talloc_tos(), SNUM(conn))) {
-		magic_output = lp_magicoutput(talloc_tos(), SNUM(conn));
+	if (*lp_magic_output(talloc_tos(), SNUM(conn))) {
+		magic_output = lp_magic_output(talloc_tos(), SNUM(conn));
 	} else {
 		magic_output = talloc_asprintf(ctx,
 				"%s.out",
@@ -148,7 +148,7 @@ static NTSTATUS close_filestruct(files_struct *fsp)
 	NTSTATUS status = NT_STATUS_OK;
 
 	if (fsp->fh->fd != -1) {
-		if(flush_write_cache(fsp, CLOSE_FLUSH) == -1) {
+		if(flush_write_cache(fsp, SAMBA_CLOSE_FLUSH) == -1) {
 			status = map_nt_error_from_unix(errno);
 		}
 		delete_write_cache(fsp);
@@ -735,7 +735,7 @@ static NTSTATUS close_normal_file(struct smb_request *req, files_struct *fsp,
 
 	/* Remove the oplock before potentially deleting the file. */
 	if(fsp->oplock_type) {
-		release_file_oplock(fsp);
+		remove_oplock(fsp);
 	}
 
 	/* If this is an old DOS or FCB open and we have multiple opens on
@@ -948,7 +948,7 @@ static NTSTATUS rmdir_internals(TALLOC_CTX *ctx, files_struct *fsp)
 		/* We only have veto files/directories.
 		 * Are we allowed to delete them ? */
 
-		if(!lp_recursive_veto_delete(SNUM(conn))) {
+		if(!lp_delete_veto_files(SNUM(conn))) {
 			TALLOC_FREE(dir_hnd);
 			errno = ENOTEMPTY;
 			goto err;

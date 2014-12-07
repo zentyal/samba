@@ -118,7 +118,7 @@ static bool test_inq_princ_name(struct dcerpc_binding_handle *b,
 	int i;
 	bool ret = false;
 
-	for (i=0;i<100;i++) {
+	for (i=0;i<256;i++) {
 		r.in.authn_proto = i;  /* DCERPC_AUTH_TYPE_* */
 		r.in.princ_name_size = 100;
 
@@ -222,7 +222,8 @@ bool torture_rpc_mgmt(struct torture_context *torture)
 
 		printf("\nTesting pipe '%s'\n", l->table->name);
 
-		status = dcerpc_epm_map_binding(loop_ctx, b, l->table, NULL, torture->lp_ctx);
+		status = dcerpc_epm_map_binding(loop_ctx, b, l->table,
+						torture->ev, torture->lp_ctx);
 		if (!NT_STATUS_IS_OK(status)) {
 			printf("Failed to map port for uuid %s\n", 
 				   GUID_string(loop_ctx, &l->table->syntax_id.uuid));

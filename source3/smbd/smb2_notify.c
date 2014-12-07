@@ -48,6 +48,7 @@ static NTSTATUS smbd_smb2_notify_recv(struct tevent_req *req,
 static void smbd_smb2_request_notify_done(struct tevent_req *subreq);
 NTSTATUS smbd_smb2_request_process_notify(struct smbd_smb2_request *req)
 {
+	struct smbXsrv_connection *xconn = req->xconn;
 	NTSTATUS status;
 	const uint8_t *inbody;
 	uint16_t in_flags;
@@ -74,7 +75,7 @@ NTSTATUS smbd_smb2_request_process_notify(struct smbd_smb2_request *req)
 	 * 0x00010000 is what Windows 7 uses,
 	 * Windows 2008 uses 0x00080000
 	 */
-	if (in_output_buffer_length > req->sconn->smb2.max_trans) {
+	if (in_output_buffer_length > xconn->smb2.server.max_trans) {
 		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
 	}
 
@@ -121,7 +122,7 @@ static void smbd_smb2_request_notify_done(struct tevent_req *subreq)
 	if (!NT_STATUS_IS_OK(status)) {
 		error = smbd_smb2_request_error(req, status);
 		if (!NT_STATUS_IS_OK(error)) {
-			smbd_server_connection_terminate(req->sconn,
+			smbd_server_connection_terminate(req->xconn,
 							 nt_errstr(error));
 			return;
 		}
@@ -130,11 +131,11 @@ static void smbd_smb2_request_notify_done(struct tevent_req *subreq)
 
 	out_output_buffer_offset = SMB2_HDR_BODY + 0x08;
 
-	outbody = data_blob_talloc(req->out.vector, NULL, 0x08);
+	outbody = smbd_smb2_generate_outbody(req, 0x08);
 	if (outbody.data == NULL) {
 		error = smbd_smb2_request_error(req, NT_STATUS_NO_MEMORY);
 		if (!NT_STATUS_IS_OK(error)) {
-			smbd_server_connection_terminate(req->sconn,
+			smbd_server_connection_terminate(req->xconn,
 							 nt_errstr(error));
 			return;
 		}
@@ -151,7 +152,7 @@ static void smbd_smb2_request_notify_done(struct tevent_req *subreq)
 
 	error = smbd_smb2_request_done(req, outbody, &outdyn);
 	if (!NT_STATUS_IS_OK(error)) {
-		smbd_server_connection_terminate(req->sconn,
+		smbd_server_connection_terminate(req->xconn,
 						 nt_errstr(error));
 		return;
 	}
@@ -236,7 +237,7 @@ static struct tevent_req *smbd_smb2_notify_send(TALLOC_CTX *mem_ctx,
 	state->smbreq = smbreq;
 	smbreq->async_priv = (void *)req;
 
-	{
+	if (DEBUGLEVEL >= 3) {
 		char *filter_string;
 
 		filter_string = notify_filter_string(NULL, in_completion_filter);

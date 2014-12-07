@@ -24,6 +24,7 @@
 #include "includes.h"
 #include "librpc/gen_ndr/samr.h" /* for struct samrPassword */
 #include "auth/credentials/credentials.h"
+#include "auth/credentials/credentials_internal.h"
 #include "libcli/auth/libcli_auth.h"
 #include "tevent.h"
 #include "param/param.h"
@@ -103,7 +104,7 @@ _PUBLIC_ struct cli_credentials *cli_credentials_init(TALLOC_CTX *mem_ctx)
 
 	cred->machine_account = false;
 
-	cred->tries = 3;
+	cred->password_tries = 0;
 
 	cred->callback_running = false;
 
@@ -111,7 +112,35 @@ _PUBLIC_ struct cli_credentials *cli_credentials_init(TALLOC_CTX *mem_ctx)
 	cli_credentials_set_gensec_features(cred, 0);
 	cli_credentials_set_krb_forwardable(cred, CRED_AUTO_KRB_FORWARDABLE);
 
+	cred->forced_sasl_mech = NULL;
+
 	return cred;
+}
+
+_PUBLIC_ void cli_credentials_set_callback_data(struct cli_credentials *cred,
+						void *callback_data)
+{
+	cred->priv_data = callback_data;
+}
+
+_PUBLIC_ void *_cli_credentials_callback_data(struct cli_credentials *cred)
+{
+	return cred->priv_data;
+}
+
+_PUBLIC_ struct cli_credentials *cli_credentials_shallow_copy(TALLOC_CTX *mem_ctx,
+						struct cli_credentials *src)
+{
+	struct cli_credentials *dst;
+
+	dst = talloc(mem_ctx, struct cli_credentials);
+	if (dst == NULL) {
+		return NULL;
+	}
+
+	*dst = *src;
+
+	return dst;
 }
 
 /**
@@ -134,6 +163,13 @@ _PUBLIC_ void cli_credentials_set_kerberos_state(struct cli_credentials *creds,
 	creds->use_kerberos = use_kerberos;
 }
 
+_PUBLIC_ void cli_credentials_set_forced_sasl_mech(struct cli_credentials *creds,
+						   const char *sasl_mech)
+{
+	TALLOC_FREE(creds->forced_sasl_mech);
+	creds->forced_sasl_mech = talloc_strdup(creds, sasl_mech);
+}
+
 _PUBLIC_ void cli_credentials_set_krb_forwardable(struct cli_credentials *creds,
 						  enum credentials_krb_forwardable krb_forwardable)
 {
@@ -143,6 +179,11 @@ _PUBLIC_ void cli_credentials_set_krb_forwardable(struct cli_credentials *creds,
 _PUBLIC_ enum credentials_use_kerberos cli_credentials_get_kerberos_state(struct cli_credentials *creds)
 {
 	return creds->use_kerberos;
+}
+
+_PUBLIC_ const char *cli_credentials_get_forced_sasl_mech(struct cli_credentials *creds)
+{
+	return creds->forced_sasl_mech;
 }
 
 _PUBLIC_ enum credentials_krb_forwardable cli_credentials_get_krb_forwardable(struct cli_credentials *creds)
@@ -179,8 +220,10 @@ _PUBLIC_ const char *cli_credentials_get_username(struct cli_credentials *cred)
 	    	cred->callback_running = true;
 		cred->username = cred->username_cb(cred);
 	    	cred->callback_running = false;
-		cred->username_obtained = CRED_SPECIFIED;
-		cli_credentials_invalidate_ccache(cred, cred->username_obtained);
+		if (cred->username_obtained == CRED_CALLBACK) {
+			cred->username_obtained = CRED_CALLBACK_RESULT;
+			cli_credentials_invalidate_ccache(cred, cred->username_obtained);
+		}
 	}
 
 	return cred->username;
@@ -248,8 +291,10 @@ _PUBLIC_ const char *cli_credentials_get_principal_and_obtained(struct cli_crede
 	    	cred->callback_running = true;
 		cred->principal = cred->principal_cb(cred);
 	    	cred->callback_running = false;
-		cred->principal_obtained = CRED_SPECIFIED;
-		cli_credentials_invalidate_ccache(cred, cred->principal_obtained);
+		if (cred->principal_obtained == CRED_CALLBACK) {
+			cred->principal_obtained = CRED_CALLBACK_RESULT;
+			cli_credentials_invalidate_ccache(cred, cred->principal_obtained);
+		}
 	}
 
 	if (cred->principal_obtained < cred->username_obtained
@@ -267,7 +312,7 @@ _PUBLIC_ const char *cli_credentials_get_principal_and_obtained(struct cli_crede
 		}
 	}
 	*obtained = cred->principal_obtained;
-	return talloc_reference(mem_ctx, cred->principal);
+	return talloc_strdup(mem_ctx, cred->principal);
 }
 
 /**
@@ -320,6 +365,14 @@ _PUBLIC_ bool cli_credentials_authentication_requested(struct cli_credentials *c
 		return true;
 	}
 
+	/*
+	 * If we forced the mech we clearly want authentication. E.g. to use
+	 * SASL/EXTERNAL which has no credentials.
+	 */
+	if (cred->forced_sasl_mech) {
+		return true;
+	}
+
 	if (cli_credentials_is_anonymous(cred)){
 		return false;
 	}
@@ -352,11 +405,13 @@ _PUBLIC_ const char *cli_credentials_get_password(struct cli_credentials *cred)
 
 	if (cred->password_obtained == CRED_CALLBACK && 
 	    !cred->callback_running) {
-	    	cred->callback_running = true;
+		cred->callback_running = true;
 		cred->password = cred->password_cb(cred);
-	    	cred->callback_running = false;
-		cred->password_obtained = CRED_CALLBACK_RESULT;
-		cli_credentials_invalidate_ccache(cred, cred->password_obtained);
+		cred->callback_running = false;
+		if (cred->password_obtained == CRED_CALLBACK) {
+			cred->password_obtained = CRED_CALLBACK_RESULT;
+			cli_credentials_invalidate_ccache(cred, cred->password_obtained);
+		}
 	}
 
 	return cred->password;
@@ -370,6 +425,7 @@ _PUBLIC_ bool cli_credentials_set_password(struct cli_credentials *cred,
 				  enum credentials_obtained obtained)
 {
 	if (obtained >= cred->password_obtained) {
+		cred->password_tries = 0;
 		cred->password = talloc_strdup(cred, val);
 		if (cred->password) {
 			/* Don't print the actual password in talloc memory dumps */
@@ -391,6 +447,7 @@ _PUBLIC_ bool cli_credentials_set_password_callback(struct cli_credentials *cred
 					   const char *(*password_cb) (struct cli_credentials *))
 {
 	if (cred->password_obtained < CRED_CALLBACK) {
+		cred->password_tries = 3;
 		cred->password_cb = password_cb;
 		cred->password_obtained = CRED_CALLBACK;
 		cli_credentials_invalidate_ccache(cred, cred->password_obtained);
@@ -436,8 +493,8 @@ _PUBLIC_ bool cli_credentials_set_old_password(struct cli_credentials *cred,
  * @param cred credentials context
  * @retval If set, the cleartext password, otherwise NULL
  */
-_PUBLIC_ const struct samr_Password *cli_credentials_get_nt_hash(struct cli_credentials *cred, 
-							TALLOC_CTX *mem_ctx)
+_PUBLIC_ struct samr_Password *cli_credentials_get_nt_hash(struct cli_credentials *cred,
+							   TALLOC_CTX *mem_ctx)
 {
 	const char *password = cli_credentials_get_password(cred);
 
@@ -446,13 +503,22 @@ _PUBLIC_ const struct samr_Password *cli_credentials_get_nt_hash(struct cli_cred
 		if (!nt_hash) {
 			return NULL;
 		}
-		
+
 		E_md4hash(password, nt_hash->hash);    
 
 		return nt_hash;
-	} else {
-		return cred->nt_hash;
+	} else if (cred->nt_hash != NULL) {
+		struct samr_Password *nt_hash = talloc(mem_ctx, struct samr_Password);
+		if (!nt_hash) {
+			return NULL;
+		}
+
+		*nt_hash = *cred->nt_hash;
+
+		return nt_hash;
 	}
+
+	return NULL;
 }
 
 /**
@@ -473,8 +539,10 @@ _PUBLIC_ const char *cli_credentials_get_domain(struct cli_credentials *cred)
 	    	cred->callback_running = true;
 		cred->domain = cred->domain_cb(cred);
 	    	cred->callback_running = false;
-		cred->domain_obtained = CRED_SPECIFIED;
-		cli_credentials_invalidate_ccache(cred, cred->domain_obtained);
+		if (cred->domain_obtained == CRED_CALLBACK) {
+			cred->domain_obtained = CRED_CALLBACK_RESULT;
+			cli_credentials_invalidate_ccache(cred, cred->domain_obtained);
+		}
 	}
 
 	return cred->domain;
@@ -532,8 +600,10 @@ _PUBLIC_ const char *cli_credentials_get_realm(struct cli_credentials *cred)
 	    	cred->callback_running = true;
 		cred->realm = cred->realm_cb(cred);
 	    	cred->callback_running = false;
-		cred->realm_obtained = CRED_SPECIFIED;
-		cli_credentials_invalidate_ccache(cred, cred->realm_obtained);
+		if (cred->realm_obtained == CRED_CALLBACK) {
+			cred->realm_obtained = CRED_CALLBACK_RESULT;
+			cli_credentials_invalidate_ccache(cred, cred->realm_obtained);
+		}
 	}
 
 	return cred->realm;
@@ -583,7 +653,9 @@ _PUBLIC_ const char *cli_credentials_get_workstation(struct cli_credentials *cre
 	    	cred->callback_running = true;
 		cred->workstation = cred->workstation_cb(cred);
 	    	cred->callback_running = false;
-		cred->workstation_obtained = CRED_SPECIFIED;
+		if (cred->workstation_obtained == CRED_CALLBACK) {
+			cred->workstation_obtained = CRED_CALLBACK_RESULT;
+		}
 	}
 
 	return cred->workstation;
@@ -669,7 +741,7 @@ _PUBLIC_ const char *cli_credentials_get_unparsed_name(struct cli_credentials *c
 	const char *name;
 
 	if (bind_dn) {
-		name = talloc_reference(mem_ctx, bind_dn);
+		name = talloc_strdup(mem_ctx, bind_dn);
 	} else {
 		cli_credentials_get_ntlm_username_domain(credentials, mem_ctx, &username, &domain);
 		if (domain && domain[0]) {
@@ -764,7 +836,11 @@ _PUBLIC_ void cli_credentials_guess(struct cli_credentials *cred,
 _PUBLIC_ void cli_credentials_set_netlogon_creds(struct cli_credentials *cred, 
 						 struct netlogon_creds_CredentialState *netlogon_creds)
 {
-	cred->netlogon_creds = talloc_reference(cred, netlogon_creds);
+	TALLOC_FREE(cred->netlogon_creds);
+	if (netlogon_creds == NULL) {
+		return;
+	}
+	cred->netlogon_creds = netlogon_creds_copy(cred, netlogon_creds);
 }
 
 /**
@@ -870,12 +946,19 @@ _PUBLIC_ bool cli_credentials_wrong_password(struct cli_credentials *cred)
 	if (cred->password_obtained != CRED_CALLBACK_RESULT) {
 		return false;
 	}
-	
+
+	if (cred->password_tries == 0) {
+		return false;
+	}
+
+	cred->password_tries--;
+
+	if (cred->password_tries == 0) {
+		return false;
+	}
+
 	cred->password_obtained = CRED_CALLBACK;
-
-	cred->tries--;
-
-	return (cred->tries > 0);
+	return true;
 }
 
 _PUBLIC_ void cli_credentials_get_ntlm_username_domain(struct cli_credentials *cred, TALLOC_CTX *mem_ctx, 

@@ -102,7 +102,7 @@ static bool torture_decode_compare_pac(struct torture_context *tctx,
 	struct netr_SamBaseInfo *base;
 	wbcErr wbc_err;
 	NTSTATUS status;
-	int result, sid_idx, i;
+	int sid_idx, i;
 	char sid_str[50];
 
 	/* Let winbind decode the PAC */
@@ -224,12 +224,12 @@ static bool torture_winbind_pac(struct torture_context *tctx)
 	
 	do {
 		/* Do a client-server update dance */
-		status = gensec_update(gensec_client_context, tmp_ctx, tctx->ev, server_to_client, &client_to_server);
+		status = gensec_update(gensec_client_context, tmp_ctx, server_to_client, &client_to_server);
 		if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {;
 			torture_assert_ntstatus_ok(tctx, status, "gensec_update (client) failed");
 		}
 
-		status = gensec_update(gensec_server_context, tmp_ctx, tctx->ev, client_to_server, &server_to_client);
+		status = gensec_update(gensec_server_context, tmp_ctx, client_to_server, &server_to_client);
 		if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {;
 			torture_assert_ntstatus_ok(tctx, status, "gensec_update (server) failed");
 		}

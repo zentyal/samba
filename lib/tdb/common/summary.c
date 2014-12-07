@@ -18,9 +18,12 @@
 #include "tdb_private.h"
 
 #define SUMMARY_FORMAT \
-	"Size of file/data: %u/%zu\n" \
+	"Size of file/data: %llu/%zu\n" \
+	"Header offset/logical size: %zu/%zu\n" \
 	"Number of records: %zu\n" \
 	"Incompatible hash: %s\n" \
+	"Active/supported feature flags: 0x%08x/0x%08x\n" \
+	"Robust mutexes locking: %s\n" \
 	"Smallest/average/largest keys: %zu/%zu/%zu\n" \
 	"Smallest/average/largest data: %zu/%zu/%zu\n" \
 	"Smallest/average/largest padding: %zu/%zu/%zu\n" \
@@ -87,12 +90,14 @@ static size_t get_hash_length(struct tdb_context *tdb, unsigned int i)
 
 _PUBLIC_ char *tdb_summary(struct tdb_context *tdb)
 {
+	off_t file_size;
 	tdb_off_t off, rec_off;
-	struct tally freet, keys, data, dead, extra, hash, uncoal;
+	struct tally freet, keys, data, dead, extra, hashval, uncoal;
 	struct tdb_record rec;
 	char *ret = NULL;
 	bool locked;
-	size_t len, unc = 0;
+	size_t unc = 0;
+	int len;
 	struct tdb_record recovery;
 
 	/* Read-only databases use no locking at all: it's best-effort.
@@ -114,7 +119,7 @@ _PUBLIC_ char *tdb_summary(struct tdb_context *tdb)
 	tally_init(&data);
 	tally_init(&dead);
 	tally_init(&extra);
-	tally_init(&hash);
+	tally_init(&hashval);
 	tally_init(&uncoal);
 
 	for (off = TDB_DATA_START(tdb->hash_size);
@@ -161,18 +166,17 @@ _PUBLIC_ char *tdb_summary(struct tdb_context *tdb)
 		tally_add(&uncoal, unc - 1);
 
 	for (off = 0; off < tdb->hash_size; off++)
-		tally_add(&hash, get_hash_length(tdb, off));
+		tally_add(&hashval, get_hash_length(tdb, off));
 
-	/* 20 is max length of a %zu. */
-	len = strlen(SUMMARY_FORMAT) + 35*20 + 1;
-	ret = (char *)malloc(len);
-	if (!ret)
-		goto unlock;
+	file_size = tdb->hdr_ofs + tdb->map_size;
 
-	snprintf(ret, len, SUMMARY_FORMAT,
-		 tdb->map_size, keys.total+data.total,
+	len = asprintf(&ret, SUMMARY_FORMAT,
+		 (unsigned long long)file_size, keys.total+data.total,
+		 (size_t)tdb->hdr_ofs, (size_t)tdb->map_size,
 		 keys.num,
 		 (tdb->hash_fn == tdb_jenkins_hash)?"yes":"no",
+		 (unsigned)tdb->feature_flags, TDB_SUPPORTED_FEATURE_FLAGS,
+		 (tdb->feature_flags & TDB_FEATURE_FLAG_MUTEX)?"yes":"no",
 		 keys.min, tally_mean(&keys), keys.max,
 		 data.min, tally_mean(&data), data.max,
 		 extra.min, tally_mean(&extra), extra.max,
@@ -180,20 +184,23 @@ _PUBLIC_ char *tdb_summary(struct tdb_context *tdb)
 		 dead.min, tally_mean(&dead), dead.max,
 		 freet.num,
 		 freet.min, tally_mean(&freet), freet.max,
-		 hash.num,
-		 hash.min, tally_mean(&hash), hash.max,
+		 hashval.num,
+		 hashval.min, tally_mean(&hashval), hashval.max,
 		 uncoal.total,
 		 uncoal.min, tally_mean(&uncoal), uncoal.max,
-		 keys.total * 100.0 / tdb->map_size,
-		 data.total * 100.0 / tdb->map_size,
-		 extra.total * 100.0 / tdb->map_size,
-		 freet.total * 100.0 / tdb->map_size,
-		 dead.total * 100.0 / tdb->map_size,
+		 keys.total * 100.0 / file_size,
+		 data.total * 100.0 / file_size,
+		 extra.total * 100.0 / file_size,
+		 freet.total * 100.0 / file_size,
+		 dead.total * 100.0 / file_size,
 		 (keys.num + freet.num + dead.num)
 		 * (sizeof(struct tdb_record) + sizeof(uint32_t))
-		 * 100.0 / tdb->map_size,
+		 * 100.0 / file_size,
 		 tdb->hash_size * sizeof(tdb_off_t)
-		 * 100.0 / tdb->map_size);
+		 * 100.0 / file_size);
+	if (len == -1) {
+		goto unlock;
+	}
 
 unlock:
 	if (locked) {

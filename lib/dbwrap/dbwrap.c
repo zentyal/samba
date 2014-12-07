@@ -167,16 +167,7 @@ static struct dbwrap_lock_order_state *dbwrap_check_lock_order(
 	static struct db_context *locked_dbs[DBWRAP_LOCK_ORDER_MAX];
 	struct dbwrap_lock_order_state *state = NULL;
 
-	if (db->lock_order == 0) {
-		/*
-		 * lock order 0 is for example for dbwrap_rbt without
-		 * real locking. Return state nevertheless to avoid
-		 * special cases.
-		 */
-		return talloc_zero(mem_ctx, struct dbwrap_lock_order_state);
-	}
-
-	if (db->lock_order > DBWRAP_LOCK_ORDER_MAX) {
+	if (!DBWRAP_LOCK_ORDER_VALID(db->lock_order)) {
 		DEBUG(0,("Invalid lock order %d of %s\n",
 			 (int)db->lock_order, db->name));
 		smb_panic("invalid lock_order\n");
@@ -219,22 +210,21 @@ static struct db_record *dbwrap_fetch_locked_internal(
 				   TDB_DATA key))
 {
 	struct db_record *rec;
-	struct dbwrap_lock_order_state *lock_order;
-	TALLOC_CTX *frame = talloc_stackframe();
+	struct dbwrap_lock_order_state *lock_order = NULL;
 
-	lock_order = dbwrap_check_lock_order(db, frame);
-	if (lock_order == NULL) {
-		TALLOC_FREE(frame);
-		return NULL;
+	if (db->lock_order != DBWRAP_LOCK_ORDER_NONE) {
+		lock_order = dbwrap_check_lock_order(db, mem_ctx);
+		if (lock_order == NULL) {
+			return NULL;
+		}
 	}
 	rec = db_fn(db, mem_ctx, key);
 	if (rec == NULL) {
-		TALLOC_FREE(frame);
+		TALLOC_FREE(lock_order);
 		return NULL;
 	}
 	(void)talloc_steal(rec, lock_order);
 	rec->db = db;
-	TALLOC_FREE(frame);
 	return rec;
 }
 

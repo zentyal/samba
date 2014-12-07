@@ -72,6 +72,7 @@ struct auth_operations {
 						       const char *principal,
 						       struct ldb_dn *user_dn,
 						       struct auth_user_info_dc **interim_info);
+	uint32_t flags;
 };
 
 struct auth_method_context {
@@ -97,7 +98,6 @@ struct auth_critical_sizes {
 			   const struct auth_usersupplied_info *user_info_in,
 			   const struct auth_usersupplied_info **user_info_encrypted);
 
-struct wbc_context;
 #include "auth/session.h"
 #include "auth/unix_token_proto.h"
 #include "auth/system_session_proto.h"
@@ -131,7 +131,7 @@ NTSTATUS auth_system_session_info(TALLOC_CTX *parent_ctx,
 					   struct loadparm_context *lp_ctx,
 					   struct auth_session_info **_session_info) ;
 
-NTSTATUS auth_context_create_methods(TALLOC_CTX *mem_ctx, const char **methods,
+NTSTATUS auth_context_create_methods(TALLOC_CTX *mem_ctx, const char * const *methods,
 				     struct tevent_context *ev,
 				     struct imessaging_context *msg,
 				     struct loadparm_context *lp_ctx,

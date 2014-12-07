@@ -29,7 +29,6 @@ struct winbindd_getgroups_state {
 	enum lsa_SidType type;
 	int num_sids;
 	struct dom_sid *sids;
-	int next_sid;
 	int num_gids;
 	gid_t *gids;
 };
@@ -124,18 +123,13 @@ static void winbindd_getgroups_gettoken_done(struct tevent_req *subreq)
 
 	/*
 	 * Convert the group SIDs to gids. state->sids[0] contains the user
-	 * sid, so start at index 1.
+	 * sid. If the idmap backend uses ID_TYPE_BOTH, we might need the
+	 * the id of the user sid in the list of group sids, so map the
+	 * complete token.
 	 */
 
-	state->gids = talloc_array(state, gid_t, state->num_sids-1);
-	if (tevent_req_nomem(state->gids, req)) {
-		return;
-	}
-	state->num_gids = 0;
-	state->next_sid = 1;
-
 	subreq = wb_sids2xids_send(state, state->ev,
-				   &state->sids[state->next_sid], 1);
+				   state->sids, state->num_sids);
 	if (tevent_req_nomem(subreq, req)) {
 		return;
 	}
@@ -149,38 +143,84 @@ static void winbindd_getgroups_sid2gid_done(struct tevent_req *subreq)
 	struct winbindd_getgroups_state *state = tevent_req_data(
 		req, struct winbindd_getgroups_state);
 	NTSTATUS status;
-	struct unixid xid;
+	struct unixid *xids;
+	int i;
 
-	xid.type = ID_TYPE_NOT_SPECIFIED;
-	xid.id = UINT32_MAX;
+	xids = talloc_array(state, struct unixid, state->num_sids);
+	if (tevent_req_nomem(xids, req)) {
+		return;
+	}
+	for (i=0; i < state->num_sids; i++) {
+		xids[i].type = ID_TYPE_NOT_SPECIFIED;
+		xids[i].id = UINT32_MAX;
+	}
 
-	status = wb_sids2xids_recv(subreq, &xid);
+	status = wb_sids2xids_recv(subreq, xids);
 	TALLOC_FREE(subreq);
-	if (xid.type == ID_TYPE_GID || xid.type == ID_TYPE_BOTH) {
-		state->gids[state->num_gids] = (gid_t)xid.id;
-	} else {
-		state->gids[state->num_gids] = (uid_t)-1;
+	if (NT_STATUS_EQUAL(status, NT_STATUS_NONE_MAPPED) ||
+	    NT_STATUS_EQUAL(status, STATUS_SOME_UNMAPPED))
+	{
+		status = NT_STATUS_OK;
+	}
+	if (tevent_req_nterror(req, status)) {
+		return;
+	}
+
+	state->gids = talloc_array(state, gid_t, state->num_sids);
+	if (tevent_req_nomem(state->gids, req)) {
+		return;
+	}
+	state->num_gids = 0;
+
+	for (i=0; i < state->num_sids; i++) {
+		bool include_gid = false;
+		const char *debug_missing = NULL;
+
+		switch (xids[i].type) {
+		case ID_TYPE_NOT_SPECIFIED:
+			debug_missing = "not specified";
+			break;
+		case ID_TYPE_UID:
+			if (i != 0) {
+				debug_missing = "uid";
+			}
+			break;
+		case ID_TYPE_GID:
+		case ID_TYPE_BOTH:
+			include_gid = true;
+			break;
+		}
+
+		if (!include_gid) {
+			if (debug_missing == NULL) {
+				continue;
+			}
+
+			DEBUG(10, ("WARNING: skipping unix id (%u) for sid %s "
+				   "from group list because the idmap type "
+				   "is %s. "
+				   "This might be a security problem when ACLs "
+				   "contain DENY ACEs!\n",
+				   (unsigned)xids[i].id,
+				   sid_string_tos(&state->sids[i]),
+				   debug_missing));
+			continue;
+		}
+
+		state->gids[state->num_gids] = (gid_t)xids[i].id;
+		state->num_gids += 1;
 	}
 
 	/*
-	 * In case of failure, just continue with the next gid
+	 * This should not fail, as it does not do any reallocation,
+	 * just updating the talloc size.
 	 */
-	if (NT_STATUS_IS_OK(status)) {
-		state->num_gids += 1;
-	}
-	state->next_sid += 1;
-
-	if (state->next_sid >= state->num_sids) {
-		tevent_req_done(req);
+	state->gids = talloc_realloc(state, state->gids, gid_t, state->num_gids);
+	if (tevent_req_nomem(state->gids, req)) {
 		return;
 	}
 
-	subreq = wb_sids2xids_send(state, state->ev,
-				   &state->sids[state->next_sid], 1);
-	if (tevent_req_nomem(subreq, req)) {
-		return;
-	}
-	tevent_req_set_callback(subreq, winbindd_getgroups_sid2gid_done, req);
+	tevent_req_done(req);
 }
 
 NTSTATUS winbindd_getgroups_recv(struct tevent_req *req,

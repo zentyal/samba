@@ -165,7 +165,7 @@ bool saf_delete( const char *domain )
 /****************************************************************************
 ****************************************************************************/
 
-char *saf_fetch( const char *domain )
+char *saf_fetch(TALLOC_CTX *mem_ctx, const char *domain )
 {
 	char *server = NULL;
 	time_t timeout;
@@ -183,7 +183,7 @@ char *saf_fetch( const char *domain )
 		return NULL;
 	}
 
-	ret = gencache_get( key, &server, &timeout );
+	ret = gencache_get( key, mem_ctx, &server, &timeout );
 
 	TALLOC_FREE( key );
 
@@ -199,7 +199,7 @@ char *saf_fetch( const char *domain )
 		return NULL;
 	}
 
-	ret = gencache_get( key, &server, &timeout );
+	ret = gencache_get( key, mem_ctx, &server, &timeout );
 
 	TALLOC_FREE( key );
 
@@ -2799,7 +2799,7 @@ bool resolve_name(const char *name,
 		return interpret_string_addr(return_ss, name, AI_NUMERICHOST);
 	}
 
-	sitename = sitename_fetch(lp_realm()); /* wild guess */
+	sitename = sitename_fetch(talloc_tos(), lp_realm()); /* wild guess */
 
 	status = internal_resolve_name(name, name_type, sitename,
 				       &ss_list, &count,
@@ -2814,7 +2814,7 @@ bool resolve_name(const char *name,
 						(ss_list[i].ss.ss_family == AF_INET)) {
 					*return_ss = ss_list[i].ss;
 					SAFE_FREE(ss_list);
-					SAFE_FREE(sitename);
+					TALLOC_FREE(sitename);
 					return True;
 				}
 			}
@@ -2826,14 +2826,14 @@ bool resolve_name(const char *name,
 			    !is_broadcast_addr((struct sockaddr *)(void *)&ss_list[i].ss)) {
 				*return_ss = ss_list[i].ss;
 				SAFE_FREE(ss_list);
-				SAFE_FREE(sitename);
+				TALLOC_FREE(sitename);
 				return True;
 			}
 		}
 	}
 
 	SAFE_FREE(ss_list);
-	SAFE_FREE(sitename);
+	TALLOC_FREE(sitename);
 	return False;
 }
 
@@ -2873,12 +2873,12 @@ NTSTATUS resolve_name_list(TALLOC_CTX *ctx,
 		return NT_STATUS_OK;
 	}
 
-	sitename = sitename_fetch(lp_realm()); /* wild guess */
+	sitename = sitename_fetch(ctx, lp_realm()); /* wild guess */
 
 	status = internal_resolve_name(name, name_type, sitename,
 						  &ss_list, &count,
 						  lp_name_resolve_order());
-	SAFE_FREE(sitename);
+	TALLOC_FREE(sitename);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
@@ -2976,6 +2976,7 @@ bool get_pdc_ip(const char *domain, struct sockaddr_storage *pss)
 					       &count,
 					       lp_name_resolve_order());
 		if (!NT_STATUS_IS_OK(status)) {
+			SAFE_FREE(ip_list);
 			return false;
 		}
 	}
@@ -3073,18 +3074,18 @@ static NTSTATUS get_dc_list(const char *domain,
 	/* fetch the server we have affinity for.  Add the
 	   'password server' list to a search for our domain controllers */
 
-	saf_servername = saf_fetch( domain);
+	saf_servername = saf_fetch(ctx, domain);
 
 	if (strequal(domain, lp_workgroup()) || strequal(domain, lp_realm())) {
 		pserver = talloc_asprintf(ctx, "%s, %s",
 			saf_servername ? saf_servername : "",
-			lp_passwordserver());
+			lp_password_server());
 	} else {
 		pserver = talloc_asprintf(ctx, "%s, *",
 			saf_servername ? saf_servername : "");
 	}
 
-	SAFE_FREE(saf_servername);
+	TALLOC_FREE(saf_servername);
 	if (!pserver) {
 		status = NT_STATUS_NO_MEMORY;
 		goto out;

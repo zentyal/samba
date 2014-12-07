@@ -127,27 +127,54 @@ static struct dcesrv_iface_list *find_interface_list(const struct dcesrv_endpoin
 /*
  * Check if two endpoints match.
  */
-static bool endpoints_match(const struct dcerpc_binding *ep1,
-			    const struct dcerpc_binding *ep2)
+static bool endpoints_match(const struct dcerpc_binding *b1,
+			    const struct dcerpc_binding *b2)
 {
-	if (ep1->transport != ep2->transport) {
+	enum dcerpc_transport_t t1;
+	const char *ep1;
+	const char *h1;
+	enum dcerpc_transport_t t2;
+	const char *ep2;
+	const char *h2;
+
+	t1 = dcerpc_binding_get_transport(b1);
+	ep1 = dcerpc_binding_get_string_option(b1, "endpoint");
+	h1 = dcerpc_binding_get_string_option(b1, "host");
+
+	t2 = dcerpc_binding_get_transport(b2);
+	ep2 = dcerpc_binding_get_string_option(b2, "endpoint");
+	h2 = dcerpc_binding_get_string_option(b2, "host");
+
+	if (t1 != t2) {
 		return false;
 	}
 
-	if (!ep1->endpoint || !ep2->endpoint) {
-		return ep1->endpoint == ep2->endpoint;
-	}
-
-	if (!strequal(ep1->endpoint, ep2->endpoint)) {
+	if (!ep1 && ep2) {
 		return false;
 	}
 
-	if (!ep1->host || !ep2->host) {
-		return ep1->endpoint == ep2->endpoint;
+	if (ep1 && !ep2) {
+		return false;
 	}
 
-	if (!strequal(ep1->host, ep2->host)) {
+	if (ep1 && ep2) {
+		if (!strequal(ep1, ep2)) {
+			return false;
+		}
+	}
+
+	if (!h1 && h2) {
 		return false;
+	}
+
+	if (h1 && !h2) {
+		return false;
+	}
+
+	if (h1 && h2) {
+		if (!strequal(h1, h2)) {
+			return false;
+		}
 	}
 
 	return true;
@@ -187,6 +214,10 @@ static uint32_t build_ep_list(TALLOC_CTX *mem_ctx,
 		struct dcerpc_binding *description;
 
 		for (iface = d->iface_list; iface != NULL; iface = iface->next) {
+			enum dcerpc_transport_t transport;
+			const char *host = NULL;
+			const char *host_addr = NULL;
+
 			if (uuid && !interface_match_by_uuid(iface->iface, uuid)) {
 				continue;
 			}
@@ -200,18 +231,42 @@ static uint32_t build_ep_list(TALLOC_CTX *mem_ctx,
 			}
 			eps[total].name = talloc_strdup(eps,
 							iface->iface->name);
+			if (eps[total].name == NULL) {
+				return 0;
+			}
 			eps[total].syntax_id = iface->iface->syntax_id;
 
 			description = dcerpc_binding_dup(mem_ctx, d->ep_description);
 			if (description == NULL) {
 				return 0;
 			}
-			description->object = iface->iface->syntax_id;
-			if (description->transport == NCACN_IP_TCP &&
-			    srv_addr != NULL &&
-			    (strcmp(description->host, "0.0.0.0") == 0 ||
-			     strcmp(description->host, "::") == 0)) {
-				description->host = srv_addr;
+
+			status = dcerpc_binding_set_abstract_syntax(description,
+							&iface->iface->syntax_id);
+			if (!NT_STATUS_IS_OK(status)) {
+				return 0;
+			}
+
+			transport = dcerpc_binding_get_transport(description);
+			host = dcerpc_binding_get_string_option(description, "host");
+
+			if (transport == NCACN_IP_TCP) {
+				if (host == NULL) {
+					host_addr = srv_addr;
+				} else if (!is_ipaddress_v4(host)) {
+					host_addr = srv_addr;
+				} else if (strcmp(host, "0.0.0.0") == 0) {
+					host_addr = srv_addr;
+				}
+			}
+
+			if (host_addr != NULL) {
+				status = dcerpc_binding_set_string_option(description,
+									  "host",
+									  host_addr);
+				if (!NT_STATUS_IS_OK(status)) {
+					return 0;
+				}
 			}
 
 			status = dcerpc_binding_build_tower(eps,
@@ -319,6 +374,7 @@ error_status_t _epm_Insert(struct pipes_struct *p,
 		  r->in.num_ents));
 
 	for (i = 0; i < r->in.num_ents; i++) {
+		enum dcerpc_transport_t transport;
 		add_ep = false;
 		b = NULL;
 
@@ -334,8 +390,9 @@ error_status_t _epm_Insert(struct pipes_struct *p,
 			goto done;
 		}
 
+		transport = dcerpc_binding_get_transport(b);
 		DEBUG(3, ("_epm_Insert: Adding transport %s for %s\n",
-			  derpc_transport_string_by_transport(b->transport),
+			  derpc_transport_string_by_transport(transport),
 			  r->in.entries[i].annotation));
 
 		/* Check if the entry already exits */
@@ -366,7 +423,7 @@ error_status_t _epm_Insert(struct pipes_struct *p,
 			rc = EPMAPPER_STATUS_NO_MEMORY;
 			goto done;
 		}
-		iface->syntax_id = b->object;
+		iface->syntax_id = dcerpc_binding_get_abstract_syntax(b);
 
 		/*
 		 * Check if the rpc service is alrady registered on the
@@ -453,6 +510,8 @@ error_status_t _epm_Delete(struct pipes_struct *p,
 	}
 
 	for (i = 0; i < r->in.num_ents; i++) {
+		enum dcerpc_transport_t transport;
+
 		b = NULL;
 
 		status = dcerpc_binding_from_tower(tmp_ctx,
@@ -463,8 +522,9 @@ error_status_t _epm_Delete(struct pipes_struct *p,
 			goto done;
 		}
 
+		transport = dcerpc_binding_get_transport(b);
 		DEBUG(3, ("_epm_Delete: Deleting transport '%s' for '%s'\n",
-			  derpc_transport_string_by_transport(b->transport),
+			  derpc_transport_string_by_transport(transport),
 			  r->in.entries[i].annotation));
 
 		ep = find_endpoint(endpoint_table, b);
@@ -474,7 +534,7 @@ error_status_t _epm_Delete(struct pipes_struct *p,
 		}
 
 		iface.name = r->in.entries[i].annotation;
-		iface.syntax_id = b->object;
+		iface.syntax_id = dcerpc_binding_get_abstract_syntax(b);
 
 		iflist = find_interface_list(ep, &iface);
 		if (iflist == NULL) {
@@ -548,7 +608,9 @@ error_status_t _epm_Lookup(struct pipes_struct *p,
 			goto done;
 		}
 
-		if (p->local_address != NULL) {
+		if (p->local_address != NULL &&
+		    tsocket_address_is_inet(p->local_address, "ipv4"))
+		{
 			srv_addr = tsocket_address_inet_addr_string(p->local_address,
 								    tmp_ctx);
 		}
@@ -945,7 +1007,9 @@ error_status_t _epm_Map(struct pipes_struct *p,
 			obj = r->in.object;
 		}
 
-		if (p->local_address != NULL) {
+		if (p->local_address != NULL &&
+		    tsocket_address_is_inet(p->local_address, "ipv4"))
+		{
 			srv_addr = tsocket_address_inet_addr_string(p->local_address,
 								    tmp_ctx);
 		}

@@ -21,7 +21,7 @@
 #include "../lib/util/tevent_ntstatus.h"
 #include "rpc_client/rpc_transport.h"
 #include "lib/tsocket/tsocket.h"
-#include "libsmb/cli_np_tstream.h"
+#include "libcli/smb/tstream_smbXcli_np.h"
 #include "cli_pipe.h"
 
 #undef DBGC_CLASS
@@ -49,7 +49,7 @@ static bool rpc_tstream_is_connected(void *priv)
 		return false;
 	}
 
-	if (!tstream_is_cli_np(transp->stream)) {
+	if (!tstream_is_smbXcli_np(transp->stream)) {
 		return true;
 	}
 
@@ -73,9 +73,9 @@ static unsigned int rpc_tstream_set_timeout(void *priv, unsigned int timeout)
 		return 0;
 	}
 
-	if (tstream_is_cli_np(transp->stream)) {
+	if (tstream_is_smbXcli_np(transp->stream)) {
 		transp->timeout = timeout;
-		return tstream_cli_np_set_timeout(transp->stream, timeout);
+		return tstream_smbXcli_np_set_timeout(transp->stream, timeout);
 	}
 
 	orig_timeout = transp->timeout;
@@ -187,7 +187,7 @@ static struct tevent_req *rpc_tstream_read_send(TALLOC_CTX *mem_ctx,
 	}
 	if (!rpc_tstream_is_connected(transp)) {
 		NTSTATUS status = NT_STATUS_CONNECTION_DISCONNECTED;
-		if (tstream_is_cli_np(transp->stream)) {
+		if (tstream_is_smbXcli_np(transp->stream)) {
 			status = NT_STATUS_PIPE_DISCONNECTED;
 		}
 		tevent_req_nterror(req, status);
@@ -275,7 +275,7 @@ static struct tevent_req *rpc_tstream_write_send(TALLOC_CTX *mem_ctx,
 	}
 	if (!rpc_tstream_is_connected(transp)) {
 		NTSTATUS status = NT_STATUS_CONNECTION_DISCONNECTED;
-		if (tstream_is_cli_np(transp->stream)) {
+		if (tstream_is_smbXcli_np(transp->stream)) {
 			status = NT_STATUS_PIPE_DISCONNECTED;
 		}
 		tevent_req_nterror(req, status);
@@ -356,7 +356,7 @@ static int rpc_tstream_trans_next_vector(struct tstream_context *stream,
 
 static struct tevent_req *rpc_tstream_trans_send(TALLOC_CTX *mem_ctx,
 						 struct tevent_context *ev,
-						 uint8_t *data, size_t data_len,
+						 const uint8_t *data, size_t data_len,
 						 uint32_t max_rdata_len,
 						 void *priv)
 {
@@ -375,7 +375,7 @@ static struct tevent_req *rpc_tstream_trans_send(TALLOC_CTX *mem_ctx,
 
 	if (!rpc_tstream_is_connected(transp)) {
 		NTSTATUS status = NT_STATUS_CONNECTION_DISCONNECTED;
-		if (tstream_is_cli_np(transp->stream)) {
+		if (tstream_is_smbXcli_np(transp->stream)) {
 			status = NT_STATUS_PIPE_DISCONNECTED;
 		}
 		tevent_req_nterror(req, status);
@@ -389,7 +389,7 @@ static struct tevent_req *rpc_tstream_trans_send(TALLOC_CTX *mem_ctx,
 
 	endtime = timeval_current_ofs_msec(transp->timeout);
 
-	if (tstream_is_cli_np(transp->stream)) {
+	if (tstream_is_smbXcli_np(transp->stream)) {
 		use_trans = true;
 	}
 	if (tevent_queue_length(transp->write_queue) > 0) {
@@ -400,7 +400,7 @@ static struct tevent_req *rpc_tstream_trans_send(TALLOC_CTX *mem_ctx,
 	}
 
 	if (use_trans) {
-		tstream_cli_np_use_trans(transp->stream);
+		tstream_smbXcli_np_use_trans(transp->stream);
 	}
 
 	subreq = tstream_writev_queue_send(state, ev,
@@ -568,7 +568,7 @@ NTSTATUS rpc_transport_tstream_init(TALLOC_CTX *mem_ctx,
 	state->stream = talloc_move(state, stream);
 	state->timeout = 10000; /* 10 seconds. */
 
-	if (tstream_is_cli_np(state->stream)) {
+	if (tstream_is_smbXcli_np(state->stream)) {
 		result->trans_send = rpc_tstream_trans_send;
 		result->trans_recv = rpc_tstream_trans_recv;
 	} else {
@@ -584,23 +584,4 @@ NTSTATUS rpc_transport_tstream_init(TALLOC_CTX *mem_ctx,
 
 	*presult = result;
 	return NT_STATUS_OK;
-}
-
-struct cli_state *rpc_pipe_np_smb_conn(struct rpc_pipe_client *p)
-{
-	struct rpc_tstream_state *transp =
-		talloc_get_type_abort(p->transport->priv,
-		struct rpc_tstream_state);
-	bool ok;
-
-	ok = rpccli_is_connected(p);
-	if (!ok) {
-		return NULL;
-	}
-
-	if (!tstream_is_cli_np(transp->stream)) {
-		return NULL;
-	}
-
-	return tstream_cli_np_get_cli_state(transp->stream);
 }

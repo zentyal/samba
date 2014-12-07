@@ -5,16 +5,16 @@ VERSION = '1.2.1'
 
 blddir = 'bin'
 
-import sys, os, Utils
+import sys, os
 
 # find the buildtools directory
 srcdir = '.'
 while not os.path.exists(srcdir+'/buildtools') and len(srcdir.split('/')) < 5:
-    srcdir = '../' + srcdir
+    srcdir = srcdir + '/..'
 sys.path.insert(0, srcdir + '/buildtools/wafsamba')
 
 import wafsamba, samba_dist
-import Options, os, preproc
+import Options
 
 samba_dist.DIST_DIRS('lib/replace buildtools:buildtools')
 
@@ -59,10 +59,10 @@ struct foo bar = { .y = 'X', .x = 1 };
 
     # Try to find the right extra flags for -Werror behaviour
     for f in ["-Werror",       # GCC
-	      "-errwarn=%all", # Sun Studio
-	      "-qhalt=w",     # IBM xlc
-	      "-w2",           # Tru64
-	      ]:
+              "-errwarn=%all", # Sun Studio
+              "-qhalt=w",     # IBM xlc
+              "-w2",           # Tru64
+             ]:
         if conf.CHECK_CFLAGS([f], '''
 '''):
             if not 'WERROR_CFLAGS' in conf.env:
@@ -91,7 +91,11 @@ struct foo bar = { .y = 'X', .x = 1 };
     conf.CHECK_HEADERS('windows.h winsock2.h ws2tcpip.h')
     conf.CHECK_HEADERS('errno.h')
     conf.CHECK_HEADERS('gcrypt.h getopt.h iconv.h')
-    conf.CHECK_HEADERS('sys/inotify.h memory.h nss.h sasl/sasl.h')
+    conf.CHECK_HEADERS('memory.h nss.h sasl/sasl.h')
+
+    conf.CHECK_FUNCS_IN('inotify_init', 'inotify', checklibc=True,
+                        headers='sys/inotify.h')
+
     conf.CHECK_HEADERS('security/pam_appl.h zlib.h asm/unistd.h')
     conf.CHECK_HEADERS('aio.h sys/unistd.h rpc/rpc.h rpc/nettype.h alloca.h float.h')
 
@@ -284,8 +288,8 @@ struct foo bar = { .y = 'X', .x = 1 };
                 checklibc=True)
     if not conf.CHECK_FUNCS('getpeereid'):
         conf.CHECK_FUNCS_IN('getpeereid', 'bsd', headers='sys/types.h bsd/unistd.h')
-    if not conf.CHECK_FUNCS_IN('setproctitle', 'bsd', headers='sys/types.h bsd/unistd.h'):
-        conf.CHECK_FUNCS_IN('setproctitle', 'setproctitle', headers='setproctitle.h')
+    if not conf.CHECK_FUNCS_IN('setproctitle', 'setproctitle', headers='setproctitle.h'):
+        conf.CHECK_FUNCS_IN('setproctitle', 'bsd', headers='sys/types.h bsd/unistd.h')
 
     conf.CHECK_CODE('''
                 struct ucred cred;
@@ -443,6 +447,69 @@ removeea setea
 
     conf.CHECK_FUNCS_IN('pthread_create', 'pthread', checklibc=True, headers='pthread.h')
 
+    PTHREAD_CFLAGS='error'
+    PTHREAD_LDFLAGS='error'
+
+    if PTHREAD_LDFLAGS == 'error':
+        if conf.CHECK_FUNCS_IN('pthread_attr_init', 'pthread'):
+            PTHREAD_CFLAGS='-D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS'
+            PTHREAD_LDFLAGS='-lpthread'
+    if PTHREAD_LDFLAGS == 'error':
+        if conf.CHECK_FUNCS_IN('pthread_attr_init', 'pthreads'):
+            PTHREAD_CFLAGS='-D_THREAD_SAFE'
+            PTHREAD_LDFLAGS='-lpthreads'
+    if PTHREAD_LDFLAGS == 'error':
+        if conf.CHECK_FUNCS_IN('pthread_attr_init', 'c_r'):
+            PTHREAD_CFLAGS='-D_THREAD_SAFE -pthread'
+            PTHREAD_LDFLAGS='-pthread'
+    if PTHREAD_LDFLAGS == 'error':
+        if conf.CHECK_FUNCS('pthread_attr_init'):
+            PTHREAD_CFLAGS='-D_REENTRANT'
+            PTHREAD_LDFLAGS='-lpthread'
+    # especially for HP-UX, where the CHECK_FUNC macro fails to test for
+    # pthread_attr_init. On pthread_mutex_lock it works there...
+    if PTHREAD_LDFLAGS == 'error':
+        if conf.CHECK_FUNCS_IN('pthread_mutex_lock', 'pthread'):
+            PTHREAD_CFLAGS='-D_REENTRANT'
+            PTHREAD_LDFLAGS='-lpthread'
+
+    if PTHREAD_CFLAGS != 'error' and PTHREAD_LDFLAGS != 'error':
+        if conf.CONFIG_SET('replace_add_global_pthread'):
+            conf.ADD_CFLAGS(PTHREAD_CFLAGS)
+            conf.ADD_LDFLAGS(PTHREAD_LDFLAGS)
+        conf.CHECK_HEADERS('pthread.h')
+        conf.DEFINE('HAVE_PTHREAD', '1')
+
+    if conf.CONFIG_SET('HAVE_PTHREAD'):
+
+        conf.CHECK_DECLS('pthread_mutexattr_setrobust', headers='pthread.h')
+        if not conf.CONFIG_SET('HAVE_DECL_PTHREAD_MUTEXATTR_SETROBUST'):
+            conf.CHECK_DECLS('pthread_mutexattr_setrobust_np',
+                             headers='pthread.h')
+
+        conf.CHECK_FUNCS_IN('pthread_mutexattr_setrobust', 'pthread',
+                            checklibc=True, headers='pthread.h')
+        if not conf.CONFIG_SET('HAVE_PTHREAD_MUTEXATTR_SETROBUST'):
+            conf.CHECK_FUNCS_IN('pthread_mutexattr_setrobust_np', 'pthread',
+                                checklibc=True, headers='pthread.h')
+
+        conf.CHECK_DECLS('pthread_mutex_consistent', headers='pthread.h')
+        if not conf.CONFIG_SET('HAVE_DECL_PTHREAD_MUTEX_CONSISTENT'):
+            conf.CHECK_DECLS('pthread_mutex_consistent_np',
+                             headers='pthread.h')
+
+        conf.CHECK_FUNCS_IN('pthread_mutex_consistent', 'pthread',
+                            checklibc=True, headers='pthread.h')
+        if not conf.CONFIG_SET('HAVE_PTHREAD_MUTEX_CONSISTENT'):
+            conf.CHECK_FUNCS_IN('pthread_mutex_consistent_np', 'pthread',
+                                checklibc=True, headers='pthread.h')
+
+        if ((conf.CONFIG_SET('HAVE_PTHREAD_MUTEXATTR_SETROBUST') or
+             conf.CONFIG_SET('HAVE_PTHREAD_MUTEXATTR_SETROBUST_NP')) and
+            (conf.CONFIG_SET('HAVE_PTHREAD_MUTEX_CONSISTENT') or
+             conf.CONFIG_SET('HAVE_PTHREAD_MUTEX_CONSISTENT_NP'))):
+            conf.DEFINE('HAVE_ROBUST_MUTEXES', 1)
+
     conf.CHECK_FUNCS_IN('crypt', 'crypt', checklibc=True)
 
     conf.CHECK_VARIABLE('rl_event_hook', define='HAVE_DECL_RL_EVENT_HOOK', always=True,
@@ -451,6 +518,7 @@ removeea setea
     conf.CHECK_DECLS('snprintf vsnprintf asprintf vasprintf')
 
     conf.CHECK_DECLS('errno', headers='errno.h', reverse=True)
+    conf.CHECK_DECLS('EWOULDBLOCK', headers='errno.h')
     conf.CHECK_DECLS('environ getgrent_r getpwent_r', reverse=True, headers='pwd.h grp.h')
     conf.CHECK_DECLS('pread pwrite setenv setresgid setresuid', reverse=True)
 
@@ -582,7 +650,6 @@ removeea setea
                            #define %s 1
                            #define NO_CONFIG_H 1
                            #define AUTOCONF_TEST 1
-                           #define SOCKET_WRAPPER_NOT_REPLACE
                            #include "replace.c"
                            #include "inet_ntop.c"
                            #include "snprintf.c"
@@ -638,12 +705,13 @@ def build(bld):
         REPLACE_HOSTCC_SOURCE,
         use_hostcc=True,
         use_global_deps=False,
-        cflags='-DSOCKET_WRAPPER_DISABLE=1 -DNSS_WRAPPER_DISABLE=1 -DUID_WRAPPER_DISABLE=1 -D_SAMBA_HOSTCC_',
+        cflags='-D_SAMBA_HOSTCC_',
         group='compiler_libraries',
         deps = extra_libs
     )
 
     REPLACE_SOURCE = REPLACE_HOSTCC_SOURCE
+    REPLACE_SOURCE += ' cwrap.c'
 
     if not bld.CONFIG_SET('HAVE_CRYPT'):         REPLACE_SOURCE += ' crypt.c'
     if not bld.CONFIG_SET('HAVE_DLOPEN'):        REPLACE_SOURCE += ' dlfcn.c'

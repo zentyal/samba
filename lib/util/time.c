@@ -23,6 +23,7 @@
 
 #include "includes.h"
 #include "system/time.h"
+#include "lib/util/time_basic.h"
 
 /**
  * @file
@@ -46,42 +47,33 @@ _PUBLIC_ time_t get_time_t_max(void)
 }
 
 /**
-a gettimeofday wrapper
-**/
-_PUBLIC_ void GetTimeOfDay(struct timeval *tval)
-{
-#ifdef HAVE_GETTIMEOFDAY_TZ
-	gettimeofday(tval,NULL);
-#else
-	gettimeofday(tval);
-#endif
-}
-
-/**
 a wrapper to preferably get the monotonic time
 **/
 _PUBLIC_ void clock_gettime_mono(struct timespec *tp)
 {
-	if (clock_gettime(CUSTOM_CLOCK_MONOTONIC,tp) != 0) {
-		clock_gettime(CLOCK_REALTIME,tp);
+/* prefer a suspend aware monotonic CLOCK_BOOTTIME: */
+#ifdef CLOCK_BOOTTIME
+	if (clock_gettime(CLOCK_BOOTTIME,tp) == 0) {
+		return;
 	}
+#endif
+/* then try the  monotonic clock: */
+#if CUSTOM_CLOCK_MONOTONIC != CLOCK_REALTIME
+	if (clock_gettime(CUSTOM_CLOCK_MONOTONIC,tp) == 0) {
+		return;
+	}
+#endif
+	clock_gettime(CLOCK_REALTIME,tp);
 }
 
 /**
 a wrapper to preferably get the monotonic time in seconds
-as this is only second resolution we can use the cached
-(and much faster) COARSE clock variant
 **/
 _PUBLIC_ time_t time_mono(time_t *t)
 {
 	struct timespec tp;
-	int rc = -1;
-#ifdef CLOCK_MONOTONIC_COARSE
-	rc = clock_gettime(CLOCK_MONOTONIC_COARSE,&tp);
-#endif
-	if (rc != 0) {
-		clock_gettime_mono(&tp);
-	}
+
+	clock_gettime_mono(&tp);
 	if (t != NULL) {
 		*t = tp.tv_sec;
 	}
@@ -131,7 +123,7 @@ struct timespec convert_time_t_to_timespec(time_t t)
 **/
 time_t nt_time_to_unix(NTTIME nt)
 {
-	return convert_timespec_to_time_t(nt_time_to_unix_timespec(&nt));
+	return convert_timespec_to_time_t(nt_time_to_unix_timespec(nt));
 }
 
 
@@ -338,53 +330,31 @@ _PUBLIC_ time_t pull_dos_date3(const uint8_t *date_ptr, int zone_offset)
 	return t;
 }
 
-
 /****************************************************************************
  Return the date and time as a string
 ****************************************************************************/
 
 char *timeval_string(TALLOC_CTX *ctx, const struct timeval *tp, bool hires)
 {
-	time_t t;
-	struct tm *tm;
+	struct timeval_buf tmp;
+	char *result;
 
-	t = (time_t)tp->tv_sec;
-	tm = localtime(&t);
-	if (!tm) {
-		if (hires) {
-			return talloc_asprintf(ctx,
-					       "%ld.%06ld seconds since the Epoch",
-					       (long)tp->tv_sec,
-					       (long)tp->tv_usec);
-		} else {
-			return talloc_asprintf(ctx,
-					       "%ld seconds since the Epoch",
-					       (long)t);
-		}
-	} else {
-#ifdef HAVE_STRFTIME
-		char TimeBuf[60];
-		if (hires) {
-			strftime(TimeBuf,sizeof(TimeBuf)-1,"%Y/%m/%d %H:%M:%S",tm);
-			return talloc_asprintf(ctx,
-					       "%s.%06ld", TimeBuf,
-					       (long)tp->tv_usec);
-		} else {
-			strftime(TimeBuf,sizeof(TimeBuf)-1,"%Y/%m/%d %H:%M:%S",tm);
-			return talloc_strdup(ctx, TimeBuf);
-		}
-#else
-		if (hires) {
-			const char *asct = asctime(tm);
-			return talloc_asprintf(ctx, "%s.%06ld",
-					asct ? asct : "unknown",
-					(long)tp->tv_usec);
-		} else {
-			const char *asct = asctime(tm);
-			return talloc_asprintf(ctx, asct ? asct : "unknown");
-		}
-#endif
+	result = talloc_strdup(ctx, timeval_str_buf(tp, hires, &tmp));
+	if (result == NULL) {
+		return NULL;
 	}
+
+	/*
+	 * beautify the talloc_report output
+	 *
+	 * This is not just cosmetics. A C compiler might in theory make the
+	 * talloc_strdup call above a tail call with the tail call
+	 * optimization. This would render "tmp" invalid while talloc_strdup
+	 * tries to duplicate it. The talloc_set_name_const call below puts
+	 * the talloc_strdup call into non-tail position.
+	 */
+	talloc_set_name_const(result, result);
+	return result;
 }
 
 char *current_timestring(TALLOC_CTX *ctx, bool hires)
@@ -649,6 +619,24 @@ _PUBLIC_ double timeval_elapsed(const struct timeval *tv)
 	struct timeval tv2 = timeval_current();
 	return timeval_elapsed2(tv, &tv2);
 }
+/**
+ *   return the number of seconds elapsed between two times
+ **/
+_PUBLIC_ double timespec_elapsed2(const struct timespec *ts1,
+				const struct timespec *ts2)
+{
+	return (ts2->tv_sec - ts1->tv_sec) +
+	       (ts2->tv_nsec - ts1->tv_nsec)*1.0e-9;
+}
+
+/**
+ *   return the number of seconds elapsed since a given time
+ */
+_PUBLIC_ double timespec_elapsed(const struct timespec *ts)
+{
+	struct timespec ts2 = timespec_current();
+	return timespec_elapsed2(ts, &ts2);
+}
 
 /**
   return the lesser of two timevals
@@ -763,18 +751,18 @@ _PUBLIC_ int get_time_zone(time_t t)
 	return tm_diff(&tm_utc,tm);
 }
 
-struct timespec nt_time_to_unix_timespec(NTTIME *nt)
+struct timespec nt_time_to_unix_timespec(NTTIME nt)
 {
 	int64_t d;
 	struct timespec ret;
 
-	if (*nt == 0 || *nt == (int64_t)-1) {
+	if (nt == 0 || nt == (int64_t)-1) {
 		ret.tv_sec = 0;
 		ret.tv_nsec = 0;
 		return ret;
 	}
 
-	d = (int64_t)*nt;
+	d = (int64_t)nt;
 	/* d is now in 100ns units, since jan 1st 1601".
 	   Save off the ns fraction. */
 
@@ -919,21 +907,18 @@ void round_timespec_to_usec(struct timespec *ts)
  Put a 8 byte filetime from a struct timespec. Uses GMT.
 ****************************************************************************/
 
-_PUBLIC_ void unix_timespec_to_nt_time(NTTIME *nt, struct timespec ts)
+_PUBLIC_ NTTIME unix_timespec_to_nt_time(struct timespec ts)
 {
 	uint64_t d;
 
 	if (ts.tv_sec ==0 && ts.tv_nsec == 0) {
-		*nt = 0;
-		return;
+		return 0;
 	}
 	if (ts.tv_sec == TIME_T_MAX) {
-		*nt = 0x7fffffffffffffffLL;
-		return;
+		return 0x7fffffffffffffffLL;
 	}
 	if (ts.tv_sec == (time_t)-1) {
-		*nt = (uint64_t)-1;
-		return;
+		return (uint64_t)-1;
 	}
 
 	d = ts.tv_sec;
@@ -942,5 +927,5 @@ _PUBLIC_ void unix_timespec_to_nt_time(NTTIME *nt, struct timespec ts)
 	/* d is now in 100ns units. */
 	d += (ts.tv_nsec / 100);
 
-	*nt = d;
+	return d;
 }

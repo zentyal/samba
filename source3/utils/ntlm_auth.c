@@ -32,10 +32,11 @@
 #include "../libcli/auth/spnego.h"
 #include "auth/ntlmssp/ntlmssp.h"
 #include "auth/gensec/gensec.h"
+#include "auth/gensec/gensec_internal.h"
 #include "auth/credentials/credentials.h"
 #include "librpc/crypto/gse.h"
 #include "smb_krb5.h"
-#include <iniparser.h>
+#include "lib/util/tiniparser.h"
 #include "../lib/crypto/arcfour.h"
 #include "libads/kerberos_proto.h"
 #include "nsswitch/winbind_client.h"
@@ -228,7 +229,6 @@ static const char *get_password(struct cli_credentials *credentials)
 
 	/* Ask for a password */
 	x_fprintf(x_stdout, "PW\n");
-	credentials->priv_data = NULL;
 
 	manage_squid_request(NUM_HELPER_MODES /* bogus */, NULL, NULL, manage_gensec_get_pw_request, (void **)&password);
 	talloc_steal(credentials, password);
@@ -416,23 +416,23 @@ static bool get_require_membership_sid(void) {
 int get_pam_winbind_config()
 {
 	int ctrl = 0;
-	dictionary *d = NULL;
+	struct tiniparser_dictionary *d = NULL;
 
 	if (!opt_pam_winbind_conf || !*opt_pam_winbind_conf) {
 		opt_pam_winbind_conf = PAM_WINBIND_CONFIG_FILE;
 	}
 
-	d = iniparser_load(discard_const_p(char, opt_pam_winbind_conf));
+	d = tiniparser_load(opt_pam_winbind_conf);
 
 	if (!d) {
 		return 0;
 	}
 
-	if (iniparser_getboolean(d, discard_const_p(char, "global:krb5_auth"), false)) {
+	if (tiniparser_getboolean(d, "global:krb5_auth", false)) {
 		ctrl |= WINBIND_KRB5_AUTH;
 	}
 
-	iniparser_freedict(d);
+	tiniparser_freedict(d);
 
 	return ctrl;
 }
@@ -1035,7 +1035,7 @@ static NTSTATUS ntlm_auth_start_ntlmssp_server(TALLOC_CTX *mem_ctx,
 	NTSTATUS nt_status;
 
 	TALLOC_CTX *tmp_ctx;
-
+	const struct gensec_security_ops **backends;
 	struct gensec_settings *gensec_settings;
 	size_t idx = 0;
 	struct cli_credentials *server_credentials;
@@ -1079,26 +1079,26 @@ static NTSTATUS ntlm_auth_start_ntlmssp_server(TALLOC_CTX *mem_ctx,
 	gensec_settings->server_dns_name = strlower_talloc(gensec_settings,
 							   get_mydnsfullname());
 	
-	gensec_settings->backends = talloc_zero_array(gensec_settings,
-						      struct gensec_security_ops *, 4);
+	backends = talloc_zero_array(gensec_settings,
+				     const struct gensec_security_ops *, 4);
 	
-	if (gensec_settings->backends == NULL) {
+	if (backends == NULL) {
 		TALLOC_FREE(tmp_ctx);
 		return NT_STATUS_NO_MEMORY;
 	}
-	
+	gensec_settings->backends = backends;
+
 	gensec_init();
 	
 	/* These need to be in priority order, krb5 before NTLMSSP */
 #if defined(HAVE_KRB5)
-	gensec_settings->backends[idx++] = &gensec_gse_krb5_security_ops;
+	backends[idx++] = &gensec_gse_krb5_security_ops;
 #endif
-	
-	gensec_settings->backends[idx++] = gensec_security_by_oid(NULL, GENSEC_OID_NTLMSSP);
 
-	gensec_settings->backends[idx++] = gensec_security_by_oid(NULL,
-								  GENSEC_OID_SPNEGO);
-	
+	backends[idx++] = gensec_security_by_oid(NULL, GENSEC_OID_NTLMSSP);
+
+	backends[idx++] = gensec_security_by_oid(NULL, GENSEC_OID_SPNEGO);
+
 	/*
 	 * This is anonymous for now, because we just use it
 	 * to set the kerberos state at the moment
@@ -1631,7 +1631,7 @@ static void manage_gensec_request(enum stdio_helper_mode stdio_helper_mode,
 		return;
 	}
 
-	nt_status = gensec_update(state->gensec_state, mem_ctx, NULL, in, &out);
+	nt_status = gensec_update(state->gensec_state, mem_ctx, in, &out);
 
 	/* don't leak 'bad password'/'no such user' info to the network client */
 	nt_status = nt_status_squash(nt_status);
@@ -2058,7 +2058,7 @@ static void manage_gss_spnego_client_request(enum stdio_helper_mode stdio_helper
 
 		/* The server offers a list of mechanisms */
 
-		const char **mechType = (const char **)spnego.negTokenInit.mechTypes;
+		const char *const *mechType = spnego.negTokenInit.mechTypes;
 
 		while (*mechType != NULL) {
 

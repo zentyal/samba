@@ -63,6 +63,7 @@ do { \
 
 #include "lib/util/memory.h"
 
+#include "../libcli/util/ntstatus.h"
 #include "lib/util/string_wrappers.h"
 
 /**
@@ -530,6 +531,14 @@ _PUBLIC_ const char **str_list_copy_const(TALLOC_CTX *mem_ctx,
  */
 _PUBLIC_ const char **const_str_list(char **list);
 
+/**
+ * str_list_make, v3 version. The v4 version does not
+ * look at quoted strings with embedded blanks, so
+ * do NOT merge this function please!
+ */
+char **str_list_make_v3(TALLOC_CTX *mem_ctx, const char *string,
+	const char *sep);
+
 
 /* The following definitions come from lib/util/util_file.c  */
 
@@ -577,12 +586,6 @@ the list.
 **/
 _PUBLIC_ char **fd_lines_load(int fd, int *numlines, size_t maxsize, TALLOC_CTX *mem_ctx);
 
-/**
-take a list of lines and modify them to produce a list where \ continues
-a line
-**/
-_PUBLIC_ void file_lines_slashcont(char **lines);
-
 _PUBLIC_ bool file_save_mode(const char *fname, const void *packet,
 			     size_t length, mode_t mode);
 /**
@@ -591,7 +594,6 @@ _PUBLIC_ bool file_save_mode(const char *fname, const void *packet,
 _PUBLIC_ bool file_save(const char *fname, const void *packet, size_t length);
 _PUBLIC_ int vfdprintf(int fd, const char *format, va_list ap) PRINTF_ATTRIBUTE(2,0);
 _PUBLIC_ int fdprintf(int fd, const char *format, ...) PRINTF_ATTRIBUTE(2,3);
-_PUBLIC_ bool large_file_support(const char *path);
 
 /*
   compare two files, return true if the two files have the same content
@@ -641,8 +643,7 @@ _PUBLIC_ bool file_check_permissions(const char *fname,
  * @retval true if the directory already existed and has the right permissions 
  * or was successfully created.
  */
-_PUBLIC_ bool directory_create_or_exist(const char *dname, uid_t uid, 
-			       mode_t dir_perms);
+_PUBLIC_ bool directory_create_or_exist(const char *dname, mode_t dir_perms);
 
 _PUBLIC_ bool directory_create_or_exist_strict(const char *dname,
 					       uid_t uid,
@@ -792,44 +793,8 @@ int ms_fnmatch_protocol(const char *pattern, const char *string, int protocol);
 /** a generic fnmatch function - uses for non-CIFS pattern matching */
 int gen_fnmatch(const char *pattern, const char *string);
 
-/* The following definitions come from lib/util/idtree.c  */
-
-
-/**
-  initialise a idr tree. The context return value must be passed to
-  all subsequent idr calls. To destroy the idr tree use talloc_free()
-  on this context
- */
-_PUBLIC_ struct idr_context *idr_init(TALLOC_CTX *mem_ctx);
-
-/**
-  allocate the next available id, and assign 'ptr' into its slot.
-  you can retrieve later this pointer using idr_find()
-*/
-_PUBLIC_ int idr_get_new(struct idr_context *idp, void *ptr, int limit);
-
-/**
-   allocate a new id, giving the first available value greater than or
-   equal to the given starting id
-*/
-_PUBLIC_ int idr_get_new_above(struct idr_context *idp, void *ptr, int starting_id, int limit);
-
-/**
-  allocate a new id randomly in the given range
-*/
-_PUBLIC_ int idr_get_new_random(struct idr_context *idp, void *ptr, int limit);
-
-/**
-  find a pointer value previously set with idr_get_new given an id
-*/
-_PUBLIC_ void *idr_find(struct idr_context *idp, int id);
-
-/**
-  remove an id from the idr tree
-*/
-_PUBLIC_ int idr_remove(struct idr_context *idp, int id);
-
-/* The following definitions come from lib/util/become_daemon.c  */
+#include "idtree.h"
+#include "idtree_random.h"
 
 /**
  Close the low 3 fd's and open dev/null in their place
@@ -982,6 +947,12 @@ char *data_path(TALLOC_CTX *mem_ctx, const char *name);
 const char *shlib_ext(void);
 
 struct server_id;
+
+struct server_id_buf { char buf[48]; }; /* probably a bit too large ... */
+char *server_id_str_buf(struct server_id id, struct server_id_buf *dst);
+
+bool server_id_same_process(const struct server_id *p1,
+			    const struct server_id *p2);
 bool server_id_equal(const struct server_id *p1, const struct server_id *p2);
 char *server_id_str(TALLOC_CTX *mem_ctx, const struct server_id *id);
 struct server_id server_id_from_string(uint32_t local_vnn,

@@ -27,7 +27,7 @@ static enum agent_return do_operation(enum operation op, const char *name)
 		return OTHER_FAILURE;
 	}
 
-	k.dptr = (void *)name;
+	k.dptr = discard_const_p(uint8_t, name);
 	k.dsize = strlen(name);
 
 	locking_would_block = 0;
@@ -87,6 +87,15 @@ static enum agent_return do_operation(enum operation op, const char *name)
 		ret = tdb_close(tdb) == 0 ? SUCCESS : OTHER_FAILURE;
 		tdb = NULL;
 		break;
+	case PING:
+		ret = SUCCESS;
+		break;
+	case UNMAP:
+		ret = tdb_munmap(tdb) == 0 ? SUCCESS : OTHER_FAILURE;
+		if (ret == SUCCESS) {
+			tdb->flags |= TDB_NOMMAP;
+		}
+		break;
 	default:
 		ret = OTHER_FAILURE;
 	}
@@ -99,29 +108,29 @@ static enum agent_return do_operation(enum operation op, const char *name)
 
 struct agent {
 	int cmdfd, responsefd;
+	pid_t pid;
 };
 
 /* Do this before doing any tdb stuff.  Return handle, or NULL. */
 struct agent *prepare_external_agent(void)
 {
-	int pid, ret;
+	int ret;
 	int command[2], response[2];
 	char name[1+PATH_MAX];
+	struct agent *agent = malloc(sizeof(*agent));
 
 	if (pipe(command) != 0 || pipe(response) != 0) {
 		fprintf(stderr, "pipe failed: %s\n", strerror(errno));
 		exit(1);
 	}
 
-	pid = fork();
-	if (pid < 0) {
+	agent->pid = fork();
+	if (agent->pid < 0) {
 		fprintf(stderr, "fork failed: %s\n", strerror(errno));
 		exit(1);
 	}
 
-	if (pid != 0) {
-		struct agent *agent = malloc(sizeof(*agent));
-
+	if (agent->pid != 0) {
 		close(command[0]);
 		close(response[1]);
 		agent->cmdfd = command[1];
@@ -144,6 +153,20 @@ struct agent *prepare_external_agent(void)
 			abort();
 	}
 	exit(0);
+}
+
+void shutdown_agent(struct agent *agent)
+{
+	pid_t p;
+
+	close(agent->cmdfd);
+	close(agent->responsefd);
+	p = waitpid(agent->pid, NULL, WNOHANG);
+	if (p == 0) {
+		kill(agent->pid, SIGKILL);
+	}
+	waitpid(agent->pid, NULL, 0);
+	free(agent);
 }
 
 /* Ask the external agent to try to do an operation. */
@@ -193,6 +216,8 @@ const char *operation_name(enum operation op)
 	case CHECK: return "CHECK";
 	case NEEDS_RECOVERY: return "NEEDS_RECOVERY";
 	case CLOSE: return "CLOSE";
+	case PING: return "PING";
+	case UNMAP: return "UNMAP";
 	}
 	return "**INVALID**";
 }

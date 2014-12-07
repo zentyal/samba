@@ -64,10 +64,10 @@ static bool locking_init_internal(bool read_only)
 		return True;
 
 	lock_db = db_open(NULL, lock_path("locking.tdb"),
-			  lp_open_files_db_hash_size(),
+			  SMB_OPEN_DATABASE_TDB_HASH_SIZE,
 			  TDB_DEFAULT|TDB_VOLATILE|TDB_CLEAR_IF_FIRST|TDB_INCOMPATIBLE_HASH,
 			  read_only?O_RDONLY:O_RDWR|O_CREAT, 0644,
-			  DBWRAP_LOCK_ORDER_1);
+			  DBWRAP_LOCK_ORDER_1, DBWRAP_FLAG_NONE);
 
 	if (!lock_db) {
 		DEBUG(0,("ERROR: Failed to initialise locking database\n"));
@@ -171,26 +171,13 @@ static TDB_DATA unparse_share_modes(struct share_mode_data *d)
 {
 	DATA_BLOB blob;
 	enum ndr_err_code ndr_err;
-	uint32_t i;
 
 	if (DEBUGLEVEL >= 10) {
 		DEBUG(10, ("unparse_share_modes:\n"));
 		NDR_PRINT_DEBUG(share_mode_data, d);
 	}
 
-	i = 0;
-	while (i < d->num_share_modes) {
-		if (d->share_modes[i].stale) {
-			/*
-			 * Remove the stale entries before storing
-			 */
-			struct share_mode_entry *m = d->share_modes;
-			m[i] = m[d->num_share_modes-1];
-			d->num_share_modes -= 1;
-		} else {
-			i += 1;
-		}
-	}
+	remove_stale_share_mode_entries(d);
 
 	if (d->num_share_modes == 0) {
 		DEBUG(10, ("No used share mode found\n"));
@@ -344,7 +331,6 @@ static struct share_mode_lock *get_share_mode_lock_internal(
 		TALLOC_FREE(rec);
 		return NULL;
 	}
-	d->id = id;
 	d->record = talloc_move(d, &rec);
 	talloc_set_destructor(d, share_mode_data_destructor);
 
@@ -364,10 +350,12 @@ static struct share_mode_lock *get_share_mode_lock_internal(
  * talloc_reference.
  */
 static struct share_mode_lock *the_lock;
+static struct file_id the_lock_id;
 
 static int the_lock_destructor(struct share_mode_lock *l)
 {
 	the_lock = NULL;
+	ZERO_STRUCT(the_lock_id);
 	return 0;
 }
 
@@ -382,36 +370,37 @@ struct share_mode_lock *get_share_mode_lock(
 	const struct smb_filename *smb_fname,
 	const struct timespec *old_write_time)
 {
-	TALLOC_CTX *frame = talloc_stackframe();
-
 	struct share_mode_lock *lck;
+
+	lck = talloc(mem_ctx, struct share_mode_lock);
+	if (lck == NULL) {
+		DEBUG(1, ("talloc failed\n"));
+		return NULL;
+	}
 
 	if (the_lock == NULL) {
 		the_lock = get_share_mode_lock_internal(
-			frame, id, servicepath, smb_fname, old_write_time);
+			lck, id, servicepath, smb_fname, old_write_time);
 		if (the_lock == NULL) {
 			goto fail;
 		}
 		talloc_set_destructor(the_lock, the_lock_destructor);
-	}
-	if (!file_id_equal(&the_lock->data->id, &id)) {
-		DEBUG(1, ("Can not lock two share modes simultaneously\n"));
-		goto fail;
-	}
-	lck = talloc(mem_ctx, struct share_mode_lock);
-	if (lck == NULL) {
-		DEBUG(1, ("talloc failed\n"));
-		goto fail;
-	}
-	if (talloc_reference(lck, the_lock) == NULL) {
-		DEBUG(1, ("talloc_reference failed\n"));
-		goto fail;
+		the_lock_id = id;
+	} else {
+		if (!file_id_equal(&the_lock_id, &id)) {
+			DEBUG(1, ("Can not lock two share modes "
+				  "simultaneously\n"));
+			goto fail;
+		}
+		if (talloc_reference(lck, the_lock) == NULL) {
+			DEBUG(1, ("talloc_reference failed\n"));
+			goto fail;
+		}
 	}
 	lck->data = the_lock->data;
-	TALLOC_FREE(frame);
 	return lck;
 fail:
-	TALLOC_FREE(frame);
+	TALLOC_FREE(lck);
 	return NULL;
 }
 

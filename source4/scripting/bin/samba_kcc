@@ -1009,10 +1009,10 @@ class KCC(object):
 
             # IF AmIRODC() and cr!nCName corresponds to default NC then
             #     Let dsaobj be the nTDSDSA object of the dc
-            #     IF  dsaobj.msDS-Behavior-Version < DS_BEHAVIOR_WIN2008
+            #     IF  dsaobj.msDS-Behavior-Version < DS_DOMAIN_FUNCTION_2008
             #         Skip dc
             if self.my_dsa.is_ro() and part.is_default():
-                if not dsa.is_minimum_behavior(DS_BEHAVIOR_WIN2008):
+                if not dsa.is_minimum_behavior(dsdb.DS_DOMAIN_FUNCTION_2008):
                     continue
 
             # IF t!name != "IP" and the parent object of dc has no value for
@@ -1651,7 +1651,7 @@ class KCC(object):
             # an RODC, at least one writable domain controller in
             # the domain must be running Windows Server 2008
             if ro and not partial and nc_x.nc_type == NCType.domain:
-                if not dc_s.is_minimum_behavior(DS_BEHAVIOR_WIN2008):
+                if not dc_s.is_minimum_behavior(dsdb.DS_DOMAIN_FUNCTION_2008):
                     continue
 
             # If we haven't been told to turn off stale connection
@@ -1683,7 +1683,7 @@ class KCC(object):
 
                 # Pull out the NCReplica with the dn that
                 # matches NC (x) we are examining.
-                p_of_x = dsa.current_rep_table[nc_x.nc_dnstr]
+                p_of_x = dc_s.current_rep_table[nc_x.nc_dnstr]
 
                 # Replica (p) of NC (x) must be partial
                 if not p_of_x.is_partial():
@@ -1724,7 +1724,7 @@ class KCC(object):
                 # is no minimum windows behavior for those since GCs
                 # have always been present.
                 if ro and not partial and nc_x.nc_type == NCType.domain:
-                    if not dc_s.is_minimum_behavior(DS_BEHAVIOR_WIN2008):
+                    if not dc_s.is_minimum_behavior(dsdb.DS_DOMAIN_FUNCTION_2008):
                         continue
 
                 # If we haven't been told to turn off stale connection
@@ -1910,13 +1910,13 @@ class KCC(object):
         # currently importing an ldif for a test run
         if self.samdb is None:
             try:
-                self.samdb = SamDB(url=lp.samdb_url(),
+                self.samdb = SamDB(url=dburl,
                                    session_info=system_session(),
                                    credentials=creds, lp=lp)
 
             except ldb.LdbError, (num, msg):
                 logger.error("Unable to open sam database %s : %s" %
-                             (lp.samdb_url(), msg))
+                             (dburl, msg))
                 return 1
 
         try:
@@ -2027,7 +2027,7 @@ class KCC(object):
                                credentials=creds, lp=lp)
         except ldb.LdbError, (enum, estr):
             logger.error("Unable to open sam database (%s) : %s" %
-                         (lp.samdb_url(), estr))
+                         (dburl, estr))
             return 1
 
         if os.path.exists(ldif_file):
@@ -2037,8 +2037,8 @@ class KCC(object):
 
         try:
             f = open(ldif_file, "w")
-        except (enum, estr):
-            logger.error("Unable to open (%s) : %s" % (ldif_file, estr))
+        except IOError as ioerr:
+            logger.error("Unable to open (%s) : %s" % (ldif_file, str(ioerr)))
             return 1
 
         try:

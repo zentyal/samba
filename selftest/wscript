@@ -168,6 +168,9 @@ def cmd_testonly(opt):
 
     if server_wrapper != '':
         os.environ['SAMBA_VALGRIND'] = EXPAND_VARIABLES(opt, server_wrapper)
+        os.environ['NMBD_VALGRIND'] = EXPAND_VARIABLES(opt, server_wrapper)
+        os.environ['WINBINDD_VALGRIND'] = EXPAND_VARIABLES(opt, server_wrapper)
+        os.environ['SMBD_VALGRIND'] = EXPAND_VARIABLES(opt, server_wrapper)
 
     # this is needed for systems without rpath, or with rpath disabled
     ADD_LD_LIBRARY_PATH('bin/shared')
@@ -176,7 +179,7 @@ def cmd_testonly(opt):
     # if we are using a system version of ldb then we need to tell it to
     # load modules from our modules path
     if env.USING_SYSTEM_LDB:
-        os.environ['LDB_MODULES_PATH'] = 'bin/modules/ldb'
+        os.environ['LDB_MODULES_PATH'] = os.path.abspath(os.path.join(env.cwd, 'bin/modules/ldb'))
 
     # tell build system where to find config.h
     os.environ['CONFIG_H'] = 'bin/default/include/config.h'
@@ -196,6 +199,10 @@ def cmd_testonly(opt):
         env.SELFTEST_TARGET="samba"
     else:
         env.SELFTEST_TARGET="samba3"
+
+    env.OPTIONS += " --nss_wrapper_so_path=" + CONFIG_GET(opt, 'LIBNSS_WRAPPER_SO_PATH')
+    env.OPTIONS += " --socket_wrapper_so_path=" + CONFIG_GET(opt, 'LIBSOCKET_WRAPPER_SO_PATH')
+    env.OPTIONS += " --uid_wrapper_so_path=" + CONFIG_GET(opt, 'LIBUID_WRAPPER_SO_PATH')
 
     # We use the full path rather than relative path because it cause problems on some plateforms (ie. solaris 8).
     env.CORE_COMMAND = '${PERL} ${srcdir}/selftest/selftest.pl --target=${SELFTEST_TARGET} --prefix=${SELFTEST_PREFIX} --srcdir=${srcdir} --exclude=${srcdir}/selftest/skip ${TESTLISTS} ${OPTIONS} ${TESTS}'

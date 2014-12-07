@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 APPNAME = 'ntdb'
-VERSION = '0.9'
+VERSION = '1.0'
 
 blddir = 'bin'
 
@@ -10,7 +10,7 @@ import sys, os
 # find the buildtools directory
 srcdir = '.'
 while not os.path.exists(srcdir+'/buildtools') and len(srcdir.split('/')) < 5:
-    srcdir = '../' + srcdir
+    srcdir = srcdir + '/..'
 sys.path.insert(0, srcdir + '/buildtools/wafsamba')
 
 import wafsamba, samba_dist, Options, Logs, glob
@@ -92,6 +92,7 @@ def configure(conf):
                                 'test/api-record-expand.c',
                                 'test/api-simple-delete.c',
                                 'test/api-summary.c']
+    conf.env.NTDB_TEST_API_PY=['test/python-api.py']
     conf.env.NTDB_TEST_API_HELPER_SRC=['test/helpapi-external-agent.c']
     conf.env.NTDB_TEST_RUN_HELPER_SRC=['test/helprun-external-agent.c',
                                        'test/helprun-layout.c']
@@ -189,7 +190,8 @@ def build(bld):
 
             bld.SAMBA_SUBSYSTEM('ntdb-test-helpers',
                                 bld.env.NTDB_TEST_HELPER_SRC,
-                                deps='replace')
+                                deps='replace',
+                                allow_warnings=True)
             bld.SAMBA_SUBSYSTEM('ntdb-run-helpers',
                                 bld.env.NTDB_TEST_RUN_HELPER_SRC,
                                 deps='replace')
@@ -253,6 +255,18 @@ def testonly(ctx):
                 samba_utils.RUN_COMMAND("cat " + os.path.join(testdir, 'test-output'))
                 ecode = ret;
                 break;
+        if not env.disable_python:
+            for f in env.NTDB_TEST_API_PY:
+                print("..." + f)
+                cmd = "cd " + testdir + " && PYTHONPATH=%s %s %s > test-output 2>&1" % (
+                    os.path.abspath(os.path.join(Utils.g_module.blddir, "python")),
+                        env["PYTHON"], os.path.abspath(f))
+                ret = samba_utils.RUN_COMMAND(cmd)
+                if ret != 0:
+                    print("%s (%s) failed:" % (name, f))
+                    samba_utils.RUN_COMMAND("cat " + os.path.join(testdir, 'test-output'))
+                    ecode = ret
+                    break
 
     sys.exit(ecode)
 

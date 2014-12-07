@@ -46,7 +46,6 @@
 #include "libcli/smb2/smb2_calls.h"
 #include "librpc/rpc/dcerpc.h"
 #include "librpc/rpc/dcerpc_proto.h"
-#include "../source3/libsmb/smb2cli.h"
 #include "libcli/smb/smbXcli_base.h"
 
 /*
@@ -63,6 +62,7 @@ bool torture_bind_authcontext(struct torture_context *torture)
 	struct policy_handle handle;
 	struct lsa_Close close_handle;
 	struct smbcli_session *tmp;
+	uint16_t tmp_vuid;
 	struct smbcli_session *session2;
 	struct smbcli_state *cli;
 	struct dcerpc_pipe *lsa_pipe;
@@ -179,20 +179,31 @@ bool torture_bind_authcontext(struct torture_context *torture)
 	session2->vuid = setup.out.vuid;
 
 	tmp = cli->tree->session;
+	tmp_vuid = smb1cli_session_current_id(tmp->smbXcli);
+	smb1cli_session_set_id(tmp->smbXcli, session2->vuid);
 	cli->tree->session = session2;
 
 	status = dcerpc_lsa_OpenPolicy2_r(lsa_handle, mem_ctx, &openpolicy);
 
+	torture_assert(torture, smbXcli_conn_is_connected(cli->transport->conn),
+		       "smb still connected");
+	torture_assert(torture, !dcerpc_binding_handle_is_connected(lsa_handle),
+		       "dcerpc disonnected");
+
+	if (NT_STATUS_EQUAL(status, NT_STATUS_INVALID_HANDLE)) {
+		torture_comment(torture, "dcerpc_lsa_OpenPolicy2 with wrong vuid gave %s, "
+			 "expected NT_STATUS_IO_DEVICE_ERROR\n",
+			 nt_errstr(status));
+		status = NT_STATUS_IO_DEVICE_ERROR;
+	}
+
+	torture_assert_ntstatus_equal(torture, status, NT_STATUS_IO_DEVICE_ERROR,
+				      "lsa io device error");
+
+	smb1cli_session_set_id(tmp->smbXcli, tmp_vuid);
 	cli->tree->session = tmp;
 	talloc_free(lsa_pipe);
 	lsa_pipe = NULL;
-
-	if (!NT_STATUS_EQUAL(status, NT_STATUS_INVALID_HANDLE)) {
-		torture_comment(torture, "dcerpc_lsa_OpenPolicy2 with wrong vuid gave %s, "
-			 "expected NT_STATUS_INVALID_HANDLE\n",
-			 nt_errstr(status));
-		goto done;
-	}
 
 	ret = true;
  done:

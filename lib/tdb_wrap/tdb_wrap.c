@@ -1,37 +1,37 @@
-/* 
+/*
    Unix SMB/CIFS implementation.
    TDB wrap functions
 
    Copyright (C) Andrew Tridgell 2004
    Copyright (C) Jelmer Vernooij <jelmer@samba.org> 2007
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "includes.h"
+#include "replace.h"
 #include "lib/util/dlinklist.h"
-#include "lib/tdb_wrap/tdb_wrap.h"
-#include "lib/param/param.h"
 #include "ccan/str/str.h"
+#include "lib/util/debug.h"
+#include "tdb_wrap.h"
 
 /*
  Log tdb messages via DEBUG().
 */
-static void tdb_wrap_log(TDB_CONTEXT *tdb, enum tdb_debug_level level, 
+static void tdb_wrap_log(TDB_CONTEXT *tdb, enum tdb_debug_level level,
 			 const char *format, ...) PRINTF_ATTRIBUTE(3,4);
 
-static void tdb_wrap_log(TDB_CONTEXT *tdb, enum tdb_debug_level level, 
+static void tdb_wrap_log(TDB_CONTEXT *tdb, enum tdb_debug_level level,
 			 const char *format, ...)
 {
 	va_list ap;
@@ -54,7 +54,7 @@ static void tdb_wrap_log(TDB_CONTEXT *tdb, enum tdb_debug_level level,
 		break;
 	default:
 		debuglevel = 0;
-	}		
+	}
 
 	va_start(ap, format);
 	ret = vasprintf(&ptr, format, ap);
@@ -81,15 +81,14 @@ static int tdb_wrap_private_destructor(struct tdb_wrap_private *w)
 	tdb_close(w->tdb);
 	DLIST_REMOVE(tdb_list, w);
 	return 0;
-}				 
+}
 
 static struct tdb_wrap_private *tdb_wrap_private_open(TALLOC_CTX *mem_ctx,
 						      const char *name,
 						      int hash_size,
 						      int tdb_flags,
 						      int open_flags,
-						      mode_t mode,
-						      struct loadparm_context *lp_ctx)
+						      mode_t mode)
 {
 	struct tdb_wrap_private *result;
 	struct tdb_logging_context lctx;
@@ -103,23 +102,9 @@ static struct tdb_wrap_private *tdb_wrap_private_open(TALLOC_CTX *mem_ctx,
 		goto fail;
 	}
 
-	if (!lpcfg_use_mmap(lp_ctx)) {
-		tdb_flags |= TDB_NOMMAP;
-	}
-
-	if ((hash_size == 0) && (name != NULL)) {
-		const char *base;
-		base = strrchr_m(name, '/');
-
-		if (base != NULL) {
-			base += 1;
-		} else {
-			base = name;
-		}
-		hash_size = lpcfg_parm_int(lp_ctx, NULL, "tdb_hashsize", base, 0);
-	}
-
 	lctx.log_fn = tdb_wrap_log;
+	lctx.log_private = NULL;
+
 	result->tdb = tdb_open_ex(name, hash_size, tdb_flags,
 				  open_flags, mode, &lctx, NULL);
 	if (result->tdb == NULL) {
@@ -140,8 +125,7 @@ fail:
  */
 struct tdb_wrap *tdb_wrap_open(TALLOC_CTX *mem_ctx,
 			       const char *name, int hash_size, int tdb_flags,
-			       int open_flags, mode_t mode,
-			       struct loadparm_context *lp_ctx)
+			       int open_flags, mode_t mode)
 {
 	struct tdb_wrap *result;
 	struct tdb_wrap_private *w;
@@ -166,7 +150,7 @@ struct tdb_wrap *tdb_wrap_open(TALLOC_CTX *mem_ctx,
 
 	if (w == NULL) {
 		w = tdb_wrap_private_open(result, name, hash_size, tdb_flags,
-					  open_flags, mode, lp_ctx);
+					  open_flags, mode);
 	} else {
 		/*
 		 * Correctly use talloc_reference: The tdb will be
@@ -191,4 +175,3 @@ fail:
 	TALLOC_FREE(result);
 	return NULL;
 }
-

@@ -284,6 +284,9 @@ static NTSTATUS dcesrv_lsa_lookup_name(struct tevent_context *ev_ctx,
 		if (username == NULL) {
 			*authority_name = NAME_BUILTIN;
 			*sid = dom_sid_parse_talloc(mem_ctx, SID_BUILTIN);
+			if (*sid == NULL) {
+				return NT_STATUS_NO_MEMORY;
+			}
 			*rtype = SID_NAME_DOMAIN;
 			*rid = 0xFFFFFFFF;
 			return NT_STATUS_OK;
@@ -292,6 +295,9 @@ static NTSTATUS dcesrv_lsa_lookup_name(struct tevent_context *ev_ctx,
 		if (strcasecmp_m(username, NAME_NT_AUTHORITY) == 0) { 
 			*authority_name = NAME_NT_AUTHORITY;
 			*sid =  dom_sid_parse_talloc(mem_ctx, SID_NT_AUTHORITY);
+			if (*sid == NULL) {
+				return NT_STATUS_NO_MEMORY;
+			}
 			*rtype = SID_NAME_DOMAIN;
 			dom_sid_split_rid(NULL, *sid, NULL, rid);
 			return NT_STATUS_OK;
@@ -299,25 +305,42 @@ static NTSTATUS dcesrv_lsa_lookup_name(struct tevent_context *ev_ctx,
 		if (strcasecmp_m(username, NAME_BUILTIN) == 0) { 
 			*authority_name = NAME_BUILTIN;
 			*sid = dom_sid_parse_talloc(mem_ctx, SID_BUILTIN);
+			if (*sid == NULL) {
+				return NT_STATUS_NO_MEMORY;
+			}
 			*rtype = SID_NAME_DOMAIN;
 			*rid = 0xFFFFFFFF;
 			return NT_STATUS_OK;
 		}
 		if (strcasecmp_m(username, state->domain_dns) == 0) { 
-			*authority_name = state->domain_name;
-			*sid =  state->domain_sid;
+			*authority_name = talloc_strdup(mem_ctx,
+							state->domain_name);
+			if (*authority_name == NULL) {
+				return NT_STATUS_NO_MEMORY;
+			}
+			*sid =  dom_sid_dup(mem_ctx, state->domain_sid);
+			if (*sid == NULL) {
+				return NT_STATUS_NO_MEMORY;
+			}
 			*rtype = SID_NAME_DOMAIN;
 			*rid = 0xFFFFFFFF;
 			return NT_STATUS_OK;
 		}
 		if (strcasecmp_m(username, state->domain_name) == 0) { 
-			*authority_name = state->domain_name;
-			*sid =  state->domain_sid;
+			*authority_name = talloc_strdup(mem_ctx,
+							state->domain_name);
+			if (*authority_name == NULL) {
+				return NT_STATUS_NO_MEMORY;
+			}
+			*sid =  dom_sid_dup(mem_ctx, state->domain_sid);
+			if (*sid == NULL) {
+				return NT_STATUS_NO_MEMORY;
+			}
 			*rtype = SID_NAME_DOMAIN;
 			*rid = 0xFFFFFFFF;
 			return NT_STATUS_OK;
 		}
-		
+
 		/* Perhaps this is a well known user? */
 		name = talloc_asprintf(mem_ctx, "%s\\%s", NAME_NT_AUTHORITY, username);
 		if (!name) {
@@ -353,6 +376,9 @@ static NTSTATUS dcesrv_lsa_lookup_name(struct tevent_context *ev_ctx,
 		if (!*username) {
 			*authority_name = NAME_NT_AUTHORITY;
 			*sid = dom_sid_parse_talloc(mem_ctx, SID_NT_AUTHORITY);
+			if (*sid == NULL) {
+				return NT_STATUS_NO_MEMORY;
+			}
 			*rtype = SID_NAME_DOMAIN;
 			dom_sid_split_rid(NULL, *sid, NULL, rid);
 			return NT_STATUS_OK;
@@ -369,10 +395,18 @@ static NTSTATUS dcesrv_lsa_lookup_name(struct tevent_context *ev_ctx,
 		*authority_name = NAME_BUILTIN;
 		domain_dn = state->builtin_dn;
 	} else if (strcasecmp_m(domain, state->domain_dns) == 0) { 
-		*authority_name = state->domain_name;
+		*authority_name = talloc_strdup(mem_ctx,
+						state->domain_name);
+		if (*authority_name == NULL) {
+			return NT_STATUS_NO_MEMORY;
+		}
 		domain_dn = state->domain_dn;
 	} else if (strcasecmp_m(domain, state->domain_name) == 0) { 
-		*authority_name = state->domain_name;
+		*authority_name = talloc_strdup(mem_ctx,
+						state->domain_name);
+		if (*authority_name == NULL) {
+			return NT_STATUS_NO_MEMORY;
+		}
 		domain_dn = state->domain_dn;
 	} else {
 		/* Not local, need to ask winbind in future */
@@ -497,8 +531,21 @@ static NTSTATUS dcesrv_lsa_lookup_sid(struct lsa_policy_state *state, TALLOC_CTX
 		return status;
 	}
 
+	if (dom_sid_equal(state->domain_sid, sid)) {
+		*authority_name = talloc_strdup(mem_ctx, state->domain_name);
+		if (*authority_name == NULL) {
+			return NT_STATUS_NO_MEMORY;
+		}
+		*name = NULL;
+		*rtype = SID_NAME_DOMAIN;
+		return NT_STATUS_OK;
+	}
+
 	if (dom_sid_in_domain(state->domain_sid, sid)) {
-		*authority_name = state->domain_name;
+		*authority_name = talloc_strdup(mem_ctx, state->domain_name);
+		if (*authority_name == NULL) {
+			return NT_STATUS_NO_MEMORY;
+		}
 		domain_dn = state->domain_dn;
 	} else if (dom_sid_in_domain(state->builtin_sid, sid)) {
 		*authority_name = NAME_BUILTIN;
@@ -629,7 +676,7 @@ static NTSTATUS dcesrv_lsa_LookupSids_common(struct dcesrv_call_state *dce_call,
 		return STATUS_SOME_UNMAPPED;
 	}
 
-	return NT_STATUS_OK;
+	return status;
 }
 
 /*
@@ -639,7 +686,8 @@ NTSTATUS dcesrv_lsa_LookupSids2(struct dcesrv_call_state *dce_call,
 				TALLOC_CTX *mem_ctx,
 				struct lsa_LookupSids2 *r)
 {
-	enum dcerpc_transport_t transport = dce_call->conn->endpoint->ep_description->transport;
+	enum dcerpc_transport_t transport =
+		dcerpc_binding_get_transport(dce_call->conn->endpoint->ep_description);
 	struct lsa_policy_state *state;
 	struct dcesrv_handle *h;
 
@@ -668,7 +716,8 @@ NTSTATUS dcesrv_lsa_LookupSids3(struct dcesrv_call_state *dce_call,
 				TALLOC_CTX *mem_ctx,
 				struct lsa_LookupSids3 *r)
 {
-	enum dcerpc_transport_t transport = dce_call->conn->endpoint->ep_description->transport;
+	enum dcerpc_transport_t transport =
+		dcerpc_binding_get_transport(dce_call->conn->endpoint->ep_description);
 	struct dcerpc_auth *auth_info = dce_call->conn->auth_state.auth_info;
 	struct lsa_policy_state *policy_state;
 	struct lsa_LookupSids2 q;
@@ -726,7 +775,8 @@ NTSTATUS dcesrv_lsa_LookupSids3(struct dcesrv_call_state *dce_call,
 NTSTATUS dcesrv_lsa_LookupSids(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 			       struct lsa_LookupSids *r)
 {
-	enum dcerpc_transport_t transport = dce_call->conn->endpoint->ep_description->transport;
+	enum dcerpc_transport_t transport =
+		dcerpc_binding_get_transport(dce_call->conn->endpoint->ep_description);
 	struct lsa_LookupSids2 r2;
 	NTSTATUS status;
 	uint32_t i;
@@ -864,7 +914,8 @@ NTSTATUS dcesrv_lsa_LookupNames3(struct dcesrv_call_state *dce_call,
 				 TALLOC_CTX *mem_ctx,
 				 struct lsa_LookupNames3 *r)
 {
-	enum dcerpc_transport_t transport = dce_call->conn->endpoint->ep_description->transport;
+	enum dcerpc_transport_t transport =
+		dcerpc_binding_get_transport(dce_call->conn->endpoint->ep_description);
 	struct lsa_policy_state *policy_state;
 	struct dcesrv_handle *policy_handle;
 
@@ -891,7 +942,8 @@ NTSTATUS dcesrv_lsa_LookupNames3(struct dcesrv_call_state *dce_call,
 NTSTATUS dcesrv_lsa_LookupNames4(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 				 struct lsa_LookupNames4 *r)
 {
-	enum dcerpc_transport_t transport = dce_call->conn->endpoint->ep_description->transport;
+	enum dcerpc_transport_t transport =
+		dcerpc_binding_get_transport(dce_call->conn->endpoint->ep_description);
 	struct dcerpc_auth *auth_info = dce_call->conn->auth_state.auth_info;
 	struct lsa_policy_state *policy_state;
 	struct lsa_LookupNames3 q;
@@ -951,7 +1003,8 @@ NTSTATUS dcesrv_lsa_LookupNames2(struct dcesrv_call_state *dce_call,
 				 TALLOC_CTX *mem_ctx,
 				 struct lsa_LookupNames2 *r)
 {
-	enum dcerpc_transport_t transport = dce_call->conn->endpoint->ep_description->transport;
+	enum dcerpc_transport_t transport =
+		dcerpc_binding_get_transport(dce_call->conn->endpoint->ep_description);
 	struct lsa_policy_state *state;
 	struct dcesrv_handle *h;
 	uint32_t i;
@@ -1046,7 +1099,8 @@ NTSTATUS dcesrv_lsa_LookupNames2(struct dcesrv_call_state *dce_call,
 NTSTATUS dcesrv_lsa_LookupNames(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 		       struct lsa_LookupNames *r)
 {
-	enum dcerpc_transport_t transport = dce_call->conn->endpoint->ep_description->transport;
+	enum dcerpc_transport_t transport =
+		dcerpc_binding_get_transport(dce_call->conn->endpoint->ep_description);
 	struct lsa_LookupNames2 r2;
 	NTSTATUS status;
 	uint32_t i;

@@ -158,12 +158,20 @@ bool torture_parse_target(struct loadparm_context *lp_ctx, const char *target)
 
 	/* see if its a RPC transport specifier */
 	if (!smbcli_parse_unc(target, NULL, &host, &share)) {
+		const char *h;
+
 		status = dcerpc_parse_binding(talloc_autofree_context(), target, &binding_struct);
 		if (NT_STATUS_IS_ERR(status)) {
 			d_printf("Invalid option: %s is not a valid torture target (share or binding string)\n\n", target);
 			return false;
 		}
-		lpcfg_set_cmdline(lp_ctx, "torture:host", binding_struct->host);
+
+		h = dcerpc_binding_get_string_option(binding_struct, "host");
+		host = discard_const_p(char, h);
+		if (host != NULL) {
+			lpcfg_set_cmdline(lp_ctx, "torture:host", host);
+		}
+
 		if (lpcfg_parm_string(lp_ctx, NULL, "torture", "share") == NULL)
 			lpcfg_set_cmdline(lp_ctx, "torture:share", "IPC$");
 		lpcfg_set_cmdline(lp_ctx, "torture:binding", target);
@@ -353,7 +361,7 @@ _NORETURN_ static void max_runtime_handler(int sig)
 /****************************************************************************
   main program
 ****************************************************************************/
-int main(int argc,char *argv[])
+int main(int argc, const char *argv[])
 {
 	int opt, i;
 	bool correct = true;
@@ -373,7 +381,7 @@ int main(int argc,char *argv[])
 	const char *extra_module = NULL;
 	static int list_tests = 0, list_testsuites = 0;
 	int num_extra_users = 0;
-	char **restricted = NULL;
+	const char **restricted = NULL;
 	int num_restricted = -1;
 	const char *load_list = NULL;
 	enum {OPT_LOADFILE=1000,OPT_UNCLIST,OPT_TIMELIMIT,OPT_DNS, OPT_LIST,
@@ -425,7 +433,7 @@ int main(int argc,char *argv[])
 	/* we are never interested in SIGPIPE */
 	BlockSignals(true, SIGPIPE);
 
-	pc = poptGetContext("smbtorture", argc, (const char **) argv, long_options, 
+	pc = poptGetContext("smbtorture", argc, argv, long_options,
 			    POPT_CONTEXT_KEEP_FIRST);
 
 	poptSetOtherOptionHelp(pc, "<binding>|<unc> TEST1 TEST2 ...");
@@ -474,8 +482,9 @@ int main(int argc,char *argv[])
 	}
 
 	if (load_list != NULL) {
-		restricted = file_lines_load(load_list, &num_restricted, 0,
-									 talloc_autofree_context());
+		char **r;
+		r = file_lines_load(load_list, &num_restricted, 0, talloc_autofree_context());
+		restricted = discard_const_p(const char *, r);
 		if (restricted == NULL) {
 			printf("Unable to read load list file '%s'\n", load_list);
 			exit(1);
@@ -498,6 +507,8 @@ int main(int argc,char *argv[])
 		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:w2k8", "true");
 		lpcfg_set_cmdline(cmdline_lp_ctx,
 		    "torture:invalid_lock_range_support", "false");
+	} else if (strcmp(target, "w2k12") == 0) {
+		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:w2k12", "true");
 	} else if (strcmp(target, "win7") == 0) {
 		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:win7", "true");
 		lpcfg_set_cmdline(cmdline_lp_ctx, "torture:cn_max_buffer_size",

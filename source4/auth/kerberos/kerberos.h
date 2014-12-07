@@ -50,16 +50,6 @@ struct keytab_container {
 #define TOK_ID_GSS_GETMIC	((const uint8_t *)"\x01\x01")
 #define TOK_ID_GSS_WRAP		((const uint8_t *)"\x02\x01")
 
-#ifdef HAVE_KRB5_KEYBLOCK_KEYVALUE
-#define KRB5_KEY_TYPE(k)	((k)->keytype)
-#define KRB5_KEY_LENGTH(k)	((k)->keyvalue.length)
-#define KRB5_KEY_DATA(k)	((k)->keyvalue.data)
-#else
-#define	KRB5_KEY_TYPE(k)	((k)->enctype)
-#define KRB5_KEY_LENGTH(k)	((k)->length)
-#define KRB5_KEY_DATA(k)	((k)->contents)
-#endif /* HAVE_KRB5_KEYBLOCK_KEYVALUE */
-
 #define ENC_ALL_TYPES (ENC_CRC32 | ENC_RSA_MD5 | ENC_RC4_HMAC_MD5 |	\
 		       ENC_HMAC_SHA1_96_AES128 | ENC_HMAC_SHA1_96_AES256)
 
@@ -73,14 +63,6 @@ krb5_error_code krb5_auth_con_setuseruserkey(krb5_context context, krb5_auth_con
 
 #if defined(HAVE_KRB5_PRINCIPAL_GET_COMP_STRING) && !defined(HAVE_KRB5_PRINC_COMPONENT)
 const krb5_data *krb5_princ_component(krb5_context context, krb5_principal principal, int i );
-#endif
-
-#ifndef krb5_princ_size
-#if defined(HAVE_KRB5_PRINCIPAL_GET_NUM_COMP)
-#define krb5_princ_size krb5_principal_get_num_comp
-#else
-#error krb5_princ_size unavailable
-#endif
 #endif
 
 /* Samba wrapper function for krb5 functionality. */

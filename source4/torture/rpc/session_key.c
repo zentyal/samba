@@ -47,7 +47,7 @@ static bool test_CreateSecret_basic(struct dcerpc_pipe *p,
 	DATA_BLOB enc_key;
 	DATA_BLOB session_key;
 	NTTIME old_mtime, new_mtime;
-	DATA_BLOB blob1, blob2;
+	DATA_BLOB blob1;
 	const char *secret1 = "abcdef12345699qwerty";
 	char *secret2;
 	char *secname;
@@ -124,9 +124,7 @@ static bool test_CreateSecret_basic(struct dcerpc_pipe *p,
 		torture_fail(tctx, "No secret buffer returned");
 	blob1.data = r4.out.new_val->buf->data;
 	blob1.length = r4.out.new_val->buf->size;
-	
-	blob2 = data_blob_talloc(tctx, NULL, blob1.length);
-	
+
 	secret2 = sess_decrypt_string(tctx, &blob1, &session_key);
 	
 	torture_assert_str_equal(tctx, secret1, secret2, "Returned secret invalid");
@@ -163,7 +161,8 @@ static bool test_secrets(struct torture_context *torture, const void *_data)
 	torture_assert_ntstatus_ok(torture, torture_rpc_binding(torture, &binding), 
 				   "Getting bindoptions");
 
-	binding->flags |= settings->bindoptions;
+	status = dcerpc_binding_set_flags(binding, settings->bindoptions, 0);
+	torture_assert_ntstatus_ok(torture, status, "dcerpc_binding_set_flags");
 
 	status = dcerpc_pipe_connect_b(torture, &p, binding,
 				       &ndr_table_lsarpc,

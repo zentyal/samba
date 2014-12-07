@@ -44,6 +44,7 @@ static NTSTATUS smbd_smb2_getinfo_recv(struct tevent_req *req,
 static void smbd_smb2_request_getinfo_done(struct tevent_req *subreq);
 NTSTATUS smbd_smb2_request_process_getinfo(struct smbd_smb2_request *req)
 {
+	struct smbXsrv_connection *xconn = req->xconn;
 	NTSTATUS status;
 	const uint8_t *inbody;
 	uint8_t in_info_type;
@@ -90,18 +91,18 @@ NTSTATUS smbd_smb2_request_process_getinfo(struct smbd_smb2_request *req)
 	in_input_buffer.data = SMBD_SMB2_IN_DYN_PTR(req);
 	in_input_buffer.length = in_input_buffer_length;
 
-	if (in_input_buffer.length > req->sconn->smb2.max_trans) {
+	if (in_input_buffer.length > xconn->smb2.server.max_trans) {
 		DEBUG(2,("smbd_smb2_request_process_getinfo: "
 			 "client ignored max trans: %s: 0x%08X: 0x%08X\n",
 			 __location__, (unsigned)in_input_buffer.length,
-			 (unsigned)req->sconn->smb2.max_trans));
+			 (unsigned)xconn->smb2.server.max_trans));
 		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
 	}
-	if (in_output_buffer_length > req->sconn->smb2.max_trans) {
+	if (in_output_buffer_length > xconn->smb2.server.max_trans) {
 		DEBUG(2,("smbd_smb2_request_process_getinfo: "
 			 "client ignored max trans: %s: 0x%08X: 0x%08X\n",
 			 __location__, in_output_buffer_length,
-			 req->sconn->smb2.max_trans));
+			 xconn->smb2.server.max_trans));
 		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
 	}
 
@@ -152,7 +153,7 @@ static void smbd_smb2_request_getinfo_done(struct tevent_req *subreq)
 	if (!NT_STATUS_IS_OK(status)) {
 		error = smbd_smb2_request_error(req, status);
 		if (!NT_STATUS_IS_OK(error)) {
-			smbd_server_connection_terminate(req->sconn,
+			smbd_server_connection_terminate(req->xconn,
 							 nt_errstr(error));
 			return;
 		}
@@ -169,7 +170,7 @@ static void smbd_smb2_request_getinfo_done(struct tevent_req *subreq)
 						&out_output_buffer,
 						__location__);
 		if (!NT_STATUS_IS_OK(error)) {
-			smbd_server_connection_terminate(req->sconn,
+			smbd_server_connection_terminate(req->xconn,
 							 nt_errstr(error));
 			return;
 		}
@@ -178,11 +179,11 @@ static void smbd_smb2_request_getinfo_done(struct tevent_req *subreq)
 
 	out_output_buffer_offset = SMB2_HDR_BODY + 0x08;
 
-	outbody = data_blob_talloc(req->out.vector, NULL, 0x08);
+	outbody = smbd_smb2_generate_outbody(req, 0x08);
 	if (outbody.data == NULL) {
 		error = smbd_smb2_request_error(req, NT_STATUS_NO_MEMORY);
 		if (!NT_STATUS_IS_OK(error)) {
-			smbd_server_connection_terminate(req->sconn,
+			smbd_server_connection_terminate(req->xconn,
 							 nt_errstr(error));
 			return;
 		}
@@ -199,7 +200,7 @@ static void smbd_smb2_request_getinfo_done(struct tevent_req *subreq)
 
 	error = smbd_smb2_request_done_ex(req, call_status, outbody, &outdyn, __location__);
 	if (!NT_STATUS_IS_OK(error)) {
-		smbd_server_connection_terminate(req->sconn,
+		smbd_server_connection_terminate(req->xconn,
 						 nt_errstr(error));
 		return;
 	}
@@ -426,7 +427,7 @@ static struct tevent_req *smbd_smb2_getinfo_send(TALLOC_CTX *mem_ctx,
 		/* the levels directly map to the passthru levels */
 		file_info_level = in_file_info_class + 1000;
 
-		status = smbd_do_qfsinfo(conn, state,
+		status = smbd_do_qfsinfo(smb2req->xconn, conn, state,
 					 file_info_level,
 					 STR_UNICODE,
 					 in_output_buffer_length,

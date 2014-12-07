@@ -29,20 +29,23 @@
 #include "includes.h"
 #include "lib/param/param.h"
 #include "libcli/raw/libcliraw.h"
+#include "librpc/ndr/libndr.h"
 
 void lpcfg_smbcli_options(struct loadparm_context *lp_ctx,
 			 struct smbcli_options *options)
 {
 	options->max_xmit = lpcfg_max_xmit(lp_ctx);
-	options->max_mux = lpcfg_maxmux(lp_ctx);
+	options->max_mux = lpcfg_max_mux(lp_ctx);
 	options->use_spnego = lpcfg_nt_status_support(lp_ctx) && lpcfg_use_spnego(lp_ctx);
 	options->signing = lpcfg_client_signing(lp_ctx);
 	options->request_timeout = SMB_REQUEST_TIMEOUT;
 	options->ntstatus_support = lpcfg_nt_status_support(lp_ctx);
-	options->max_protocol = lpcfg_cli_maxprotocol(lp_ctx);
+	options->max_protocol = lpcfg_client_max_protocol(lp_ctx);
 	options->unicode = lpcfg_unicode(lp_ctx);
 	options->use_oplocks = true;
 	options->use_level2_oplocks = true;
+	options->smb2_capabilities = SMB2_CAP_ALL;
+	options->client_guid = GUID_random();
 }
 
 void lpcfg_smbcli_session_options(struct loadparm_context *lp_ctx,

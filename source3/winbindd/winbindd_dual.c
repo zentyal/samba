@@ -29,6 +29,7 @@
 
 #include "includes.h"
 #include "winbindd.h"
+#include "rpc_client/rpc_client.h"
 #include "nsswitch/wb_reqtrans.h"
 #include "secrets.h"
 #include "../lib/util/select.h"
@@ -48,47 +49,64 @@ static struct winbindd_child *winbindd_children = NULL;
 
 /* Read some data from a client connection */
 
-static NTSTATUS child_read_request(struct winbindd_cli_state *state)
+static NTSTATUS child_read_request(int sock, struct winbindd_request *wreq)
 {
 	NTSTATUS status;
 
-	/* Read data */
-
-	status = read_data(state->sock, (char *)state->request,
-			   sizeof(*state->request));
-
+	status = read_data(sock, (char *)wreq, sizeof(*wreq));
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(3, ("child_read_request: read_data failed: %s\n",
 			  nt_errstr(status)));
 		return status;
 	}
 
-	if (state->request->extra_len == 0) {
-		state->request->extra_data.data = NULL;
+	if (wreq->extra_len == 0) {
+		wreq->extra_data.data = NULL;
 		return NT_STATUS_OK;
 	}
 
-	DEBUG(10, ("Need to read %d extra bytes\n", (int)state->request->extra_len));
+	DEBUG(10, ("Need to read %d extra bytes\n", (int)wreq->extra_len));
 
-	state->request->extra_data.data =
-		SMB_MALLOC_ARRAY(char, state->request->extra_len + 1);
-
-	if (state->request->extra_data.data == NULL) {
+	wreq->extra_data.data = SMB_MALLOC_ARRAY(char, wreq->extra_len + 1);
+	if (wreq->extra_data.data == NULL) {
 		DEBUG(0, ("malloc failed\n"));
 		return NT_STATUS_NO_MEMORY;
 	}
 
 	/* Ensure null termination */
-	state->request->extra_data.data[state->request->extra_len] = '\0';
+	wreq->extra_data.data[wreq->extra_len] = '\0';
 
-	status= read_data(state->sock, state->request->extra_data.data,
-			  state->request->extra_len);
-
+	status = read_data(sock, wreq->extra_data.data, wreq->extra_len);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("Could not read extra data: %s\n",
 			  nt_errstr(status)));
 	}
 	return status;
+}
+
+static NTSTATUS child_write_response(int sock, struct winbindd_response *wrsp)
+{
+	struct iovec iov[2];
+	int iov_count;
+
+	iov[0].iov_base = (void *)wrsp;
+	iov[0].iov_len = sizeof(struct winbindd_response);
+	iov_count = 1;
+
+	if (wrsp->length > sizeof(struct winbindd_response)) {
+		iov[1].iov_base = (void *)wrsp->extra_data.data;
+		iov[1].iov_len = wrsp->length-iov[0].iov_len;
+		iov_count = 2;
+	}
+
+	DEBUG(10, ("Writing %d bytes to parent\n", (int)wrsp->length));
+
+	if (write_data_iov(sock, iov, iov_count) != wrsp->length) {
+		DEBUG(0, ("Could not write result\n"));
+		return NT_STATUS_INVALID_HANDLE;
+	}
+
+	return NT_STATUS_OK;
 }
 
 /*
@@ -999,10 +1017,10 @@ static void machine_password_change_handler(struct tevent_context *ctx,
 					    struct timeval now,
 					    void *private_data)
 {
+	struct messaging_context *msg_ctx = winbind_messaging_context();
 	struct winbindd_child *child =
 		(struct winbindd_child *)private_data;
 	struct rpc_pipe_client *netlogon_pipe = NULL;
-	TALLOC_CTX *frame;
 	NTSTATUS result;
 	struct timeval next_change;
 
@@ -1039,15 +1057,14 @@ static void machine_password_change_handler(struct tevent_context *ctx,
 		return;
 	}
 
-	frame = talloc_stackframe();
-
-	result = trust_pw_find_change_and_store_it(netlogon_pipe,
-						   frame,
-						   child->domain->name);
-	TALLOC_FREE(frame);
+	result = trust_pw_change(child->domain->conn.netlogon_creds,
+				 msg_ctx,
+				 netlogon_pipe->binding_handle,
+				 child->domain->name,
+				 false); /* force */
 
 	DEBUG(10, ("machine_password_change_handler: "
-		   "trust_pw_find_change_and_store_it returned %s\n",
+		   "trust_pw_change returned %s\n",
 		   nt_errstr(result)));
 
 	if (NT_STATUS_EQUAL(result, NT_STATUS_ACCESS_DENIED) ) {
@@ -1056,7 +1073,7 @@ static void machine_password_change_handler(struct tevent_context *ctx,
 			 "password was changed and we didn't know it. "
 			 "Killing connections to domain %s\n",
 			 child->domain->name));
-		TALLOC_FREE(child->domain->conn.netlogon_pipe);
+		invalidate_cm_connection(&child->domain->conn);
 	}
 
 	if (!calculate_next_machine_pwd_change(child->domain->name,
@@ -1323,11 +1340,9 @@ static void child_handler(struct tevent_context *ev, struct tevent_fd *fde,
 	struct child_handler_state *state =
 		(struct child_handler_state *)private_data;
 	NTSTATUS status;
-	struct iovec iov[2];
-	int iov_count;
 
 	/* fetch a request from the main daemon */
-	status = child_read_request(&state->cli);
+	status = child_read_request(state->cli.sock, state->cli.request);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		/* we lost contact with our parent */
@@ -1347,24 +1362,8 @@ static void child_handler(struct tevent_context *ev, struct tevent_fd *fde,
 
 	SAFE_FREE(state->cli.request->extra_data.data);
 
-	iov[0].iov_base = (void *)state->cli.response;
-	iov[0].iov_len = sizeof(struct winbindd_response);
-	iov_count = 1;
-
-	if (state->cli.response->length >
-	    sizeof(struct winbindd_response)) {
-		iov[1].iov_base =
-			(void *)state->cli.response->extra_data.data;
-		iov[1].iov_len = state->cli.response->length-iov[0].iov_len;
-		iov_count = 2;
-	}
-
-	DEBUG(10, ("Writing %d bytes to parent\n",
-		   (int)state->cli.response->length));
-
-	if (write_data_iov(state->cli.sock, iov, iov_count) !=
-	    state->cli.response->length) {
-		DEBUG(0, ("Could not write result\n"));
+	status = child_write_response(state->cli.sock, state->cli.response);
+	if (!NT_STATUS_IS_OK(status)) {
 		exit(1);
 	}
 }

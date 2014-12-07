@@ -66,10 +66,14 @@ struct auth_serversupplied_info {
 	char *unix_name;
 };
 
-typedef NTSTATUS (*prepare_gensec_fn)(TALLOC_CTX *mem_ctx,
+struct auth_context;
+
+typedef NTSTATUS (*prepare_gensec_fn)(const struct auth_context *auth_context, 
+				      TALLOC_CTX *mem_ctx,
 				      struct gensec_security **gensec_context);
 
-typedef NTSTATUS (*make_auth4_context_fn)(TALLOC_CTX *mem_ctx,
+typedef NTSTATUS (*make_auth4_context_fn)(const struct auth_context *auth_context, 
+					  TALLOC_CTX *mem_ctx,
 					  struct auth4_context **auth4_context);
 
 struct auth_context {
@@ -83,6 +87,7 @@ struct auth_context {
 
 	prepare_gensec_fn prepare_gensec;
 	make_auth4_context_fn make_auth4_context;
+	const char *forced_samba4_methods;
 };
 
 typedef struct auth_methods
@@ -101,6 +106,8 @@ typedef struct auth_methods
 	make_auth4_context_fn make_auth4_context;
 	/* Used to keep tabs on things like the cli for SMB server authentication */
 	void *private_data;
+
+	uint32_t flags;
 
 } auth_methods;
 
@@ -125,7 +132,8 @@ enum session_key_use_intent {
 
 /* Changed from 1 -> 2 to add the logon_parameters field. */
 /* Changed from 2 -> 3 when we reworked many auth structures to use IDL or be in common with Samba4 */
-#define AUTH_INTERFACE_VERSION 3
+/* Changed from 3 -> 4 when we reworked added the flags */
+#define AUTH_INTERFACE_VERSION 4
 
 #include "auth/proto.h"
 

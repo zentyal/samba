@@ -24,9 +24,9 @@
 #include "includes.h"
 #include "winbind_client.h"
 #include "libwbclient/wbclient.h"
-#include "lib/popt/popt.h"
 #include "../libcli/auth/libcli_auth.h"
 #include "lib/cmdline/popt_common.h"
+#include "lib/afs/afs_settoken.h"
 
 #ifdef DBGC_CLASS
 #undef DBGC_CLASS
@@ -1223,8 +1223,12 @@ static bool wbinfo_lookupsid(const char *sid_str)
 
 	/* Display response */
 
-	d_printf("%s%c%s %d\n",
-		 domain, winbind_separator(), name, type);
+	if (type == WBC_SID_NAME_DOMAIN) {
+		d_printf("%s %d\n", domain, type);
+	} else {
+		d_printf("%s%c%s %d\n",
+			 domain, winbind_separator(), name, type);
+	}
 
 	wbcFreeMemory(domain);
 	wbcFreeMemory(name);
@@ -1406,13 +1410,13 @@ static bool wbinfo_lookup_sids(const char *arg)
 
 		if (names[i].type == WBC_SID_NAME_DOMAIN) {
 			d_printf("%s -> %s %d\n", sidstr,
-				domain,
-				names[i].type);
+				 domain,
+				 names[i].type);
 		} else {
 			d_printf("%s -> %s%c%s %d\n", sidstr,
-				domain,
-				winbind_separator(),
-				names[i].name, names[i].type);
+				 domain,
+				 winbind_separator(),
+				 names[i].name, names[i].type);
 		}
 	}
 	wbcFreeMemory(names);
@@ -1944,9 +1948,16 @@ static bool print_domain_users(const char *domain)
 
 	/* Send request to winbind daemon */
 
-	/* '.' is the special sign for our own domain */
-	if (domain && strcmp(domain, ".") == 0) {
+	if (domain == NULL) {
 		domain = get_winbind_domain();
+	} else {
+		/* '.' is the special sign for our own domain */
+		if ((domain[0] == '\0') || strcmp(domain, ".") == 0) {
+			domain = get_winbind_domain();
+		/* '*' is the special sign for all domains */
+		} else if (strcmp(domain, "*") == 0) {
+			domain = NULL;
+		}
 	}
 
 	wbc_status = wbcListUsers(domain, &num_users, &users);
@@ -1974,9 +1985,16 @@ static bool print_domain_groups(const char *domain)
 
 	/* Send request to winbind daemon */
 
-	/* '.' is the special sign for our own domain */
-	if (domain && strcmp(domain, ".") == 0) {
+	if (domain == NULL) {
 		domain = get_winbind_domain();
+	} else {
+		/* '.' is the special sign for our own domain */
+		if ((domain[0] == '\0') || strcmp(domain, ".") == 0) {
+			domain = get_winbind_domain();
+		/* '*' is the special sign for all domains */
+		} else if (strcmp(domain, "*") == 0) {
+			domain = NULL;
+		}
 	}
 
 	wbc_status = wbcListGroups(domain, &num_groups, &groups);

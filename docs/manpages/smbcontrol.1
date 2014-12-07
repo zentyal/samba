@@ -2,12 +2,12 @@
 .\"     Title: smbcontrol
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 10/20/2014
+.\"      Date: 10/15/2014
 .\"    Manual: User Commands
-.\"    Source: Samba 4.0
+.\"    Source: Samba 4.2
 .\"  Language: English
 .\"
-.TH "SMBCONTROL" "1" "10/20/2014" "Samba 4\&.0" "User Commands"
+.TH "SMBCONTROL" "1" "10/15/2014" "Samba 4\&.2" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -116,7 +116,8 @@ destination
 .RS 4
 One of
 \fInmbd\fR,
-\fIsmbd\fR
+\fIsmbd\fR,
+\fIwinbindd\fR
 or a process ID\&.
 .sp
 The
@@ -168,6 +169,12 @@ Order smbd to close the client connections to the named share\&. Note that this 
 debug
 .RS 4
 Set debug level to the value specified by the parameter\&. This can be sent to any of the destinations\&. If this message is sent to either the smbd or winbindd daemons, the parent process will rebroadcast the message to all child processes changing the debug level in each one\&.
+.RE
+.PP
+kill\-client\-ip
+.RS 4
+Order smbd to close the client connections from a given IP address\&. This message\-type takes an argument of the IP address from which client connections will be closed\&. This message can only be sent to
+\fBsmbd\fR\&.
 .RE
 .PP
 force\-election
@@ -294,6 +301,12 @@ Remove a mapping from cache\&. Terminate
 \fBsmbd\fR
 if the id is currently in use\&.
 .RE
+.RE
+.PP
+num\-children
+.RS 4
+Query the number of smbd child processes\&. This message can only be sent to
+\fBsmbd\fR\&.
 .RE
 .SH "VERSION"
 .PP

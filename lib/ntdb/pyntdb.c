@@ -29,10 +29,6 @@
 #include "replace.h"
 #include "system/filesys.h"
 
-#ifndef Py_RETURN_NONE
-#define Py_RETURN_NONE return Py_INCREF(Py_None), Py_None
-#endif
-
 /* Include ntdb headers */
 #include <ntdb.h>
 
@@ -72,6 +68,13 @@ static PyObject *PyString_FromNtdb_Data(NTDB_DATA data)
 		return NULL; \
 	}
 
+#define PyNtdb_CHECK_CLOSED(pyobj) \
+	if (pyobj->closed) {\
+		PyErr_SetObject(PyExc_RuntimeError, \
+			Py_BuildValue("(i,s)", NTDB_ERR_EINVAL, "database is closed")); \
+		return NULL; \
+	}
+
 static void stderr_log(struct ntdb_context *ntdb,
 		       enum ntdb_log_level level,
 		       enum NTDB_ERROR ecode,
@@ -96,6 +99,7 @@ static PyObject *py_ntdb_open(PyTypeObject *type, PyObject *args, PyObject *kwar
 
 	if (name == NULL) {
 		ntdb_flags |= NTDB_INTERNAL;
+		name = "<internal>";
 	}
 
 	logattr.log.base.attr = NTDB_ATTRIBUTE_LOG;
@@ -120,53 +124,66 @@ static PyObject *py_ntdb_open(PyTypeObject *type, PyObject *args, PyObject *kwar
 
 static PyObject *obj_transaction_cancel(PyNtdbObject *self)
 {
+	PyNtdb_CHECK_CLOSED(self);
 	ntdb_transaction_cancel(self->ctx);
 	Py_RETURN_NONE;
 }
 
 static PyObject *obj_transaction_commit(PyNtdbObject *self)
 {
-	enum NTDB_ERROR ret = ntdb_transaction_commit(self->ctx);
+	enum NTDB_ERROR ret;
+	PyNtdb_CHECK_CLOSED(self);
+	ret = ntdb_transaction_commit(self->ctx);
 	PyErr_NTDB_ERROR_IS_ERR_RAISE(ret);
 	Py_RETURN_NONE;
 }
 
 static PyObject *obj_transaction_prepare_commit(PyNtdbObject *self)
 {
-	enum NTDB_ERROR ret = ntdb_transaction_prepare_commit(self->ctx);
+	enum NTDB_ERROR ret;
+	PyNtdb_CHECK_CLOSED(self);
+	ret = ntdb_transaction_prepare_commit(self->ctx);
 	PyErr_NTDB_ERROR_IS_ERR_RAISE(ret);
 	Py_RETURN_NONE;
 }
 
 static PyObject *obj_transaction_start(PyNtdbObject *self)
 {
-	enum NTDB_ERROR ret = ntdb_transaction_start(self->ctx);
+	enum NTDB_ERROR ret;
+	PyNtdb_CHECK_CLOSED(self);
+	ret = ntdb_transaction_start(self->ctx);
 	PyErr_NTDB_ERROR_IS_ERR_RAISE(ret);
 	Py_RETURN_NONE;
 }
 
 static PyObject *obj_lockall(PyNtdbObject *self)
 {
-	enum NTDB_ERROR ret = ntdb_lockall(self->ctx);
+	enum NTDB_ERROR ret;
+	PyNtdb_CHECK_CLOSED(self);
+	ret = ntdb_lockall(self->ctx);
 	PyErr_NTDB_ERROR_IS_ERR_RAISE(ret);
 	Py_RETURN_NONE;
 }
 
 static PyObject *obj_unlockall(PyNtdbObject *self)
 {
+	PyNtdb_CHECK_CLOSED(self);
 	ntdb_unlockall(self->ctx);
 	Py_RETURN_NONE;
 }
 
 static PyObject *obj_lockall_read(PyNtdbObject *self)
 {
-	enum NTDB_ERROR ret = ntdb_lockall_read(self->ctx);
+	enum NTDB_ERROR ret;
+	PyNtdb_CHECK_CLOSED(self);
+	ret = ntdb_lockall_read(self->ctx);
 	PyErr_NTDB_ERROR_IS_ERR_RAISE(ret);
 	Py_RETURN_NONE;
 }
 
 static PyObject *obj_unlockall_read(PyNtdbObject *self)
 {
+	PyNtdb_CHECK_CLOSED(self);
 	ntdb_unlockall_read(self->ctx);
 	Py_RETURN_NONE;
 }
@@ -190,6 +207,9 @@ static PyObject *obj_get(PyNtdbObject *self, PyObject *args)
 	NTDB_DATA key, data;
 	PyObject *py_key;
 	enum NTDB_ERROR ret;
+
+	PyNtdb_CHECK_CLOSED(self);
+
 	if (!PyArg_ParseTuple(args, "O", &py_key))
 		return NULL;
 
@@ -206,6 +226,9 @@ static PyObject *obj_append(PyNtdbObject *self, PyObject *args)
 	NTDB_DATA key, data;
 	PyObject *py_key, *py_data;
 	enum NTDB_ERROR ret;
+
+	PyNtdb_CHECK_CLOSED(self);
+
 	if (!PyArg_ParseTuple(args, "OO", &py_key, &py_data))
 		return NULL;
 
@@ -222,6 +245,8 @@ static PyObject *obj_firstkey(PyNtdbObject *self)
 	enum NTDB_ERROR ret;
 	NTDB_DATA key;
 
+	PyNtdb_CHECK_CLOSED(self);
+
 	ret = ntdb_firstkey(self->ctx, &key);
 	if (ret == NTDB_ERR_NOEXIST)
 		Py_RETURN_NONE;
@@ -235,6 +260,9 @@ static PyObject *obj_nextkey(PyNtdbObject *self, PyObject *args)
 	NTDB_DATA key;
 	PyObject *py_key;
 	enum NTDB_ERROR ret;
+
+	PyNtdb_CHECK_CLOSED(self);
+
 	if (!PyArg_ParseTuple(args, "O", &py_key))
 		return NULL;
 
@@ -256,6 +284,9 @@ static PyObject *obj_delete(PyNtdbObject *self, PyObject *args)
 	NTDB_DATA key;
 	PyObject *py_key;
 	enum NTDB_ERROR ret;
+
+	PyNtdb_CHECK_CLOSED(self);
+
 	if (!PyArg_ParseTuple(args, "O", &py_key))
 		return NULL;
 
@@ -269,6 +300,9 @@ static PyObject *obj_has_key(PyNtdbObject *self, PyObject *args)
 {
 	NTDB_DATA key;
 	PyObject *py_key;
+
+	PyNtdb_CHECK_CLOSED(self);
+
 	if (!PyArg_ParseTuple(args, "O", &py_key))
 		return NULL;
 
@@ -284,6 +318,7 @@ static PyObject *obj_store(PyNtdbObject *self, PyObject *args)
 	enum NTDB_ERROR ret;
 	int flag = NTDB_REPLACE;
 	PyObject *py_key, *py_value;
+	PyNtdb_CHECK_CLOSED(self);
 
 	if (!PyArg_ParseTuple(args, "OO|i", &py_key, &py_value, &flag))
 		return NULL;
@@ -299,6 +334,7 @@ static PyObject *obj_store(PyNtdbObject *self, PyObject *args)
 static PyObject *obj_add_flag(PyNtdbObject *self, PyObject *args)
 {
 	unsigned flag;
+	PyNtdb_CHECK_CLOSED(self);
 
 	if (!PyArg_ParseTuple(args, "I", &flag))
 		return NULL;
@@ -310,6 +346,8 @@ static PyObject *obj_add_flag(PyNtdbObject *self, PyObject *args)
 static PyObject *obj_remove_flag(PyNtdbObject *self, PyObject *args)
 {
 	unsigned flag;
+
+	PyNtdb_CHECK_CLOSED(self);
 
 	if (!PyArg_ParseTuple(args, "I", &flag))
 		return NULL;
@@ -360,6 +398,7 @@ static PyObject *ntdb_object_iter(PyNtdbObject *self)
 {
 	PyNtdbIteratorObject *ret;
 	enum NTDB_ERROR e;
+	PyNtdb_CHECK_CLOSED(self);
 
 	ret = PyObject_New(PyNtdbIteratorObject, &PyNtdbIterator);
 	if (!ret)
@@ -378,13 +417,16 @@ static PyObject *ntdb_object_iter(PyNtdbObject *self)
 
 static PyObject *obj_clear(PyNtdbObject *self)
 {
-	enum NTDB_ERROR ret = ntdb_wipe_all(self->ctx);
+	enum NTDB_ERROR ret;
+	PyNtdb_CHECK_CLOSED(self);
+	ret = ntdb_wipe_all(self->ctx);
 	PyErr_NTDB_ERROR_IS_ERR_RAISE(ret);
 	Py_RETURN_NONE;
 }
 
 static PyObject *obj_enable_seqnum(PyNtdbObject *self)
 {
+	PyNtdb_CHECK_CLOSED(self);
 	ntdb_add_flag(self->ctx, NTDB_SEQNUM);
 	Py_RETURN_NONE;
 }
@@ -433,16 +475,19 @@ static PyMethodDef ntdb_object_methods[] = {
 
 static PyObject *obj_get_flags(PyNtdbObject *self, void *closure)
 {
+	PyNtdb_CHECK_CLOSED(self);
 	return PyInt_FromLong(ntdb_get_flags(self->ctx));
 }
 
 static PyObject *obj_get_filename(PyNtdbObject *self, void *closure)
 {
+	PyNtdb_CHECK_CLOSED(self);
 	return PyString_FromString(ntdb_name(self->ctx));
 }
 
 static PyObject *obj_get_seqnum(PyNtdbObject *self, void *closure)
 {
+	PyNtdb_CHECK_CLOSED(self);
 	return PyInt_FromLong(ntdb_get_seqnum(self->ctx));
 }
 
@@ -476,6 +521,8 @@ static PyObject *obj_getitem(PyNtdbObject *self, PyObject *key)
 	NTDB_DATA tkey, val;
 	enum NTDB_ERROR ret;
 
+	PyNtdb_CHECK_CLOSED(self);
+
 	if (!PyString_Check(key)) {
 		PyErr_SetString(PyExc_TypeError, "Expected string as key");
 		return NULL;
@@ -498,6 +545,12 @@ static int obj_setitem(PyNtdbObject *self, PyObject *key, PyObject *value)
 {
 	NTDB_DATA tkey, tval;
 	enum NTDB_ERROR ret;
+	if (self->closed) {
+		PyErr_SetObject(PyExc_RuntimeError,
+			Py_BuildValue("(i,s)", NTDB_ERR_EINVAL, "database is closed"));
+		return -1;
+	}
+
 	if (!PyString_Check(key)) {
 		PyErr_SetString(PyExc_TypeError, "Expected string as key");
 		return -1;
@@ -530,6 +583,7 @@ static PyMappingMethods ntdb_object_mapping = {
 	.mp_subscript = (binaryfunc)obj_getitem,
 	.mp_ass_subscript = (objobjargproc)obj_setitem,
 };
+
 static PyTypeObject PyNtdb = {
 	.tp_name = "ntdb.Ntdb",
 	.tp_basicsize = sizeof(PyNtdbObject),

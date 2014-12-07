@@ -28,7 +28,7 @@ static NTSTATUS cmd_epmapper_map(struct rpc_pipe_client *p,
 				 int argc, const char **argv)
 {
 	struct dcerpc_binding_handle *b = p->binding_handle;
-	struct dcerpc_binding map_binding;
+	struct dcerpc_binding *map_binding;
 	struct epm_twr_t map_tower;
 	struct epm_twr_p_t towers[500];
 	struct policy_handle entry_handle;
@@ -41,17 +41,29 @@ static NTSTATUS cmd_epmapper_map(struct rpc_pipe_client *p,
 
 	abstract_syntax = ndr_table_lsarpc.syntax_id;
 
-	map_binding.transport = NCACN_NP;
-        map_binding.object = abstract_syntax;
-        map_binding.host = "127.0.0.1"; /* needed? */
-        map_binding.endpoint = "0"; /* correct? needed? */
+	/* 127.0.0.1[0] => correct? needed? */
+	status = dcerpc_parse_binding(tmp_ctx, "ncacn_np:127.0.0.1[0]",
+				      &map_binding);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_fprintf(stderr, "dcerpc_parse_binding returned %s\n",
+			  nt_errstr(status));
+		goto done;
+	}
 
-	status = dcerpc_binding_build_tower(tmp_ctx, &map_binding,
+	status = dcerpc_binding_set_abstract_syntax(map_binding,
+						    &abstract_syntax);
+	if (!NT_STATUS_IS_OK(status)) {
+		d_fprintf(stderr, "dcerpc_binding_set_abstract_syntax returned %s\n",
+			  nt_errstr(status));
+		goto done;
+	}
+
+	status = dcerpc_binding_build_tower(tmp_ctx, map_binding,
 					    &map_tower.tower);
 	if (!NT_STATUS_IS_OK(status)) {
 		d_fprintf(stderr, "dcerpc_binding_build_tower returned %s\n",
 			  nt_errstr(status));
-		return status;
+		goto done;
 	}
 
 	ZERO_STRUCT(towers);
@@ -64,13 +76,14 @@ static NTSTATUS cmd_epmapper_map(struct rpc_pipe_client *p,
 	if (!NT_STATUS_IS_OK(status)) {
 		d_fprintf(stderr, "dcerpc_epm_Map returned %s\n",
 			  nt_errstr(status));
-		return status;
+		goto done;
 	}
 
 	if (result != EPMAPPER_STATUS_OK) {
 		d_fprintf(stderr, "epm_Map returned %u (0x%08X)\n",
 			  result, result);
-		return NT_STATUS_UNSUCCESSFUL;
+		status = NT_STATUS_UNSUCCESSFUL;
+		goto done;
 	}
 
 	d_printf("num_tower[%u]\n", num_towers);
@@ -91,8 +104,9 @@ static NTSTATUS cmd_epmapper_map(struct rpc_pipe_client *p,
 
 		d_printf("tower[%u] %s\n", i, dcerpc_binding_string(tmp_ctx, binding));
 	}
-
-	return NT_STATUS_OK;
+done:
+	TALLOC_FREE(tmp_ctx);
+	return status;
 }
 
 static NTSTATUS cmd_epmapper_lookup(struct rpc_pipe_client *p,

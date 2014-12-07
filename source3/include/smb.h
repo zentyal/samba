@@ -30,7 +30,7 @@
 #include "libds/common/roles.h"
 
 /* logged when starting the various Samba daemons */
-#define COPYRIGHT_STARTUP_MESSAGE	"Copyright Andrew Tridgell and the Samba Team 1992-2013"
+#define COPYRIGHT_STARTUP_MESSAGE	"Copyright Andrew Tridgell and the Samba Team 1992-2014"
 
 #define SAFETY_MARGIN 1024
 #define LARGE_WRITEX_HDR_SIZE 65
@@ -264,40 +264,6 @@ Offset  Data			length.
 #define smb_vwv16	(smb_vwv+(16*2))
 #define smb_vwv17	(smb_vwv+(17*2))
 
-/* These are the trans subcommands */
-#define TRANSACT_SETNAMEDPIPEHANDLESTATE  0x01 
-#define TRANSACT_DCERPCCMD                0x26
-#define TRANSACT_WAITNAMEDPIPEHANDLESTATE 0x53
-
-/* These are the TRANS2 sub commands */
-#define TRANSACT2_OPEN				0x00
-#define TRANSACT2_FINDFIRST			0x01
-#define TRANSACT2_FINDNEXT			0x02
-#define TRANSACT2_QFSINFO			0x03
-#define TRANSACT2_SETFSINFO			0x04
-#define TRANSACT2_QPATHINFO			0x05
-#define TRANSACT2_SETPATHINFO			0x06
-#define TRANSACT2_QFILEINFO			0x07
-#define TRANSACT2_SETFILEINFO			0x08
-#define TRANSACT2_FSCTL				0x09
-#define TRANSACT2_IOCTL				0x0A
-#define TRANSACT2_FINDNOTIFYFIRST		0x0B
-#define TRANSACT2_FINDNOTIFYNEXT		0x0C
-#define TRANSACT2_MKDIR				0x0D
-#define TRANSACT2_SESSION_SETUP			0x0E
-#define TRANSACT2_GET_DFS_REFERRAL		0x10
-#define TRANSACT2_REPORT_DFS_INCONSISTANCY	0x11
-
-/* These are the NT transact sub commands. */
-#define NT_TRANSACT_CREATE                1
-#define NT_TRANSACT_IOCTL                 2
-#define NT_TRANSACT_SET_SECURITY_DESC     3
-#define NT_TRANSACT_NOTIFY_CHANGE         4
-#define NT_TRANSACT_RENAME                5
-#define NT_TRANSACT_QUERY_SECURITY_DESC   6
-#define NT_TRANSACT_GET_USER_QUOTA	  7
-#define NT_TRANSACT_SET_USER_QUOTA	  8
-
 /* These are the NT transact_get_user_quota sub commands */
 #define TRANSACT_GET_USER_QUOTA_LIST_CONTINUE	0x0000
 #define TRANSACT_GET_USER_QUOTA_LIST_START	0x0100
@@ -433,51 +399,6 @@ Offset  Data			length.
 #define OPEN_DIRECTORY 8
 #define EXTENDED_RESPONSE_REQUIRED 0x10
 
-/* ShareAccess field. */
-#define FILE_SHARE_NONE 0 /* Cannot be used in bitmask. */
-#define FILE_SHARE_READ 1
-#define FILE_SHARE_WRITE 2
-#define FILE_SHARE_DELETE 4
-
-/* Flags - combined with attributes. */
-#define FILE_FLAG_WRITE_THROUGH    0x80000000L
-#define FILE_FLAG_NO_BUFFERING     0x20000000L
-#define FILE_FLAG_RANDOM_ACCESS    0x10000000L
-#define FILE_FLAG_SEQUENTIAL_SCAN  0x08000000L
-#define FILE_FLAG_DELETE_ON_CLOSE  0x04000000L
-#define FILE_FLAG_BACKUP_SEMANTICS 0x02000000L
-#define FILE_FLAG_POSIX_SEMANTICS  0x01000000L
-
-/* CreateDisposition field. */
-#define FILE_SUPERSEDE 0		/* File exists overwrite/supersede. File not exist create. */
-#define FILE_OPEN 1			/* File exists open. File not exist fail. */
-#define FILE_CREATE 2			/* File exists fail. File not exist create. */
-#define FILE_OPEN_IF 3			/* File exists open. File not exist create. */
-#define FILE_OVERWRITE 4		/* File exists overwrite. File not exist fail. */
-#define FILE_OVERWRITE_IF 5		/* File exists overwrite. File not exist create. */
-
-/* CreateOptions field. */
-#define FILE_DIRECTORY_FILE       0x0001
-#define FILE_WRITE_THROUGH        0x0002
-#define FILE_SEQUENTIAL_ONLY      0x0004
-#define FILE_NO_INTERMEDIATE_BUFFERING 0x0008
-#define FILE_SYNCHRONOUS_IO_ALERT      0x0010	/* may be ignored */
-#define FILE_SYNCHRONOUS_IO_NONALERT   0x0020	/* may be ignored */
-#define FILE_NON_DIRECTORY_FILE   0x0040
-#define FILE_CREATE_TREE_CONNECTION    0x0080	/* ignore, should be zero */
-#define FILE_COMPLETE_IF_OPLOCKED      0x0100	/* ignore, should be zero */
-#define FILE_NO_EA_KNOWLEDGE      0x0200
-#define FILE_EIGHT_DOT_THREE_ONLY 0x0400 /* aka OPEN_FOR_RECOVERY: ignore, should be zero */
-#define FILE_RANDOM_ACCESS        0x0800
-#define FILE_DELETE_ON_CLOSE      0x1000
-#define FILE_OPEN_BY_FILE_ID	  0x2000
-#define FILE_OPEN_FOR_BACKUP_INTENT    0x4000
-#define FILE_NO_COMPRESSION       0x8000
-#define FILE_RESERVER_OPFILTER    0x00100000	/* ignore, should be zero */
-#define FILE_OPEN_REPARSE_POINT   0x00200000
-#define FILE_OPEN_NO_RECALL       0x00400000
-#define FILE_OPEN_FOR_FREE_SPACE_QUERY 0x00800000 /* ignore should be zero */
-
 #define NTCREATEX_OPTIONS_MUST_IGNORE_MASK      (0x008F0480)
 
 #define NTCREATEX_OPTIONS_INVALID_PARAM_MASK    (0xFF100030)
@@ -495,12 +416,6 @@ Offset  Data			length.
 
 /* Private options for printer support */
 #define NTCREATEX_OPTIONS_PRIVATE_DELETE_ON_CLOSE 0x0008
-
-/* Responses when opening a file. */
-#define FILE_WAS_SUPERSEDED 0
-#define FILE_WAS_OPENED 1
-#define FILE_WAS_CREATED 2
-#define FILE_WAS_OVERWRITTEN 3
 
 /* Flag for NT transact rename call. */
 #define RENAME_REPLACE_IF_EXISTS 1
@@ -548,7 +463,7 @@ Offset  Data			length.
 
 /*
  * Timestamp format used in "previous versions":
- * The is the windows-level format of the @GMT- token.
+ * This is the windows-level format of the @GMT- token.
  * It is a fixed format not to be confused with the
  * format for the POSIX-Level token of the shadow_copy2
  * VFS module that can be configured via the "shadow:format"
@@ -592,10 +507,15 @@ char *strdup(char *s);
  *  Note: In the presence of NT4.X do not set above 4.9
  *        Setting this above 4.9 can have undesired side-effects.
  *        This may change again in Samba-3.0 after further testing. JHT
+ *
+ * Version 6.1 - For older smb server versions, MMC doesn't let offline
+ *               settings to be configured during share creation. Changing
+ *               it to 6.1 to mimic Win2K8R2.
+ *
  */
  
-#define SAMBA_MAJOR_NBT_ANNOUNCE_VERSION 0x04
-#define SAMBA_MINOR_NBT_ANNOUNCE_VERSION 0x09
+#define SAMBA_MAJOR_NBT_ANNOUNCE_VERSION 0x06
+#define SAMBA_MINOR_NBT_ANNOUNCE_VERSION 0x01
 
 /* Browser Election Values */
 #define BROWSER_ELECTION_VERSION	0x010f
@@ -660,19 +580,20 @@ enum remote_arch_types {RA_UNKNOWN, RA_WFWG, RA_OS2, RA_WIN95, RA_WINNT,
 
 /* The following are Samba-private. */
 #define INTERNAL_OPEN_ONLY 		0x8
-#define FAKE_LEVEL_II_OPLOCK 		0x10	/* Client requested no_oplock, but we have to
+/* #define FAKE_LEVEL_II_OPLOCK 	0x10 */	  /* Not used anymore */
+				/* Client requested no_oplock, but we have to
 				 * inform potential level2 holders on
 				 * write. */
 /* #define DEFERRED_OPEN_ENTRY 		0x20 */   /* Not used anymore */
 /* #define UNUSED_SHARE_MODE_ENTRY 	0x40 */   /* Not used anymore */
-#define FORCE_OPLOCK_BREAK_TO_NONE 	0x80
+/* #define FORCE_OPLOCK_BREAK_TO_NONE 	0x80 */   /* Not used anymore */
 
 /* None of the following should ever appear in fsp->oplock_request. */
-#define SAMBA_PRIVATE_OPLOCK_MASK (INTERNAL_OPEN_ONLY|FORCE_OPLOCK_BREAK_TO_NONE)
+#define SAMBA_PRIVATE_OPLOCK_MASK (INTERNAL_OPEN_ONLY)
 
 #define EXCLUSIVE_OPLOCK_TYPE(lck) ((lck) & ((unsigned int)EXCLUSIVE_OPLOCK|(unsigned int)BATCH_OPLOCK))
 #define BATCH_OPLOCK_TYPE(lck) ((lck) & (unsigned int)BATCH_OPLOCK)
-#define LEVEL_II_OPLOCK_TYPE(lck) ((lck) & ((unsigned int)LEVEL_II_OPLOCK|(unsigned int)FAKE_LEVEL_II_OPLOCK))
+#define LEVEL_II_OPLOCK_TYPE(lck) ((lck) & (unsigned int)LEVEL_II_OPLOCK)
 
 /* kernel_oplock_message definition.
 
@@ -735,7 +656,8 @@ minimum length == 24.
 enum smbd_capability {
     KERNEL_OPLOCK_CAPABILITY,
     DMAPI_ACCESS_CAPABILITY,
-    LEASE_CAPABILITY
+    LEASE_CAPABILITY,
+    DAC_OVERRIDE_CAPABILITY
 };
 
 /*
@@ -889,15 +811,15 @@ struct smb_extended_info {
  */
 
 enum flush_reason_enum {
-    SEEK_FLUSH,
-    READ_FLUSH,
-    WRITE_FLUSH,
-    READRAW_FLUSH,
-    OPLOCK_RELEASE_FLUSH,
-    CLOSE_FLUSH,
-    SYNC_FLUSH,
-    SIZECHANGE_FLUSH,
+    SAMBA_SEEK_FLUSH,
+    SAMBA_READ_FLUSH,
+    SAMBA_WRITE_FLUSH,
+    SAMBA_READRAW_FLUSH,
+    SAMBA_OPLOCK_RELEASE_FLUSH,
+    SAMBA_CLOSE_FLUSH,
+    SAMBA_SYNC_FLUSH,
+    SAMBA_SIZECHANGE_FLUSH,
     /* NUM_FLUSH_REASONS must remain the last value in the enumeration. */
-    NUM_FLUSH_REASONS};
+    SAMBA_NUM_FLUSH_REASONS};
 
 #endif /* _SMB_H */

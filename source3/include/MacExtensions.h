@@ -30,19 +30,26 @@
 #define DefaultStreamTestLen	6
 #define DefaultStreamTest		":$DATA"
 #define AFPDATA_STREAM 			"::$DATA"
-#define AFPINFO_STREAM 			":AFP_AfpInfo:$DATA"
-#define AFPRESOURCE_STREAM 		":AFP_Resource:$DATA"
-#define AFPCOMMENTS_STREAM 		":Comments:$DATA"
-#define AFPDESKTOP_STREAM 		":AFP_DeskTop:$DATA"
-#define AFPIDINDEX_STREAM 		":AFP_IdIndex:$DATA"
+
+#define AFPINFO_STREAM_NAME		":AFP_AfpInfo"
+#define AFPRESOURCE_STREAM_NAME		":AFP_Resource"
+#define AFPCOMMENTS_STREAM_NAME		":Comments"
+#define AFPDESKTOP_STREAM_NAME 		":AFP_DeskTop"
+#define AFPIDINDEX_STREAM_NAME 		":AFP_IdIndex"
+
+#define AFPINFO_STREAM 			AFPINFO_STREAM_NAME ":$DATA"
+#define AFPRESOURCE_STREAM 		AFPRESOURCE_STREAM_NAME ":$DATA"
+#define AFPCOMMENTS_STREAM 		AFPCOMMENTS_STREAM_NAME ":$DATA"
+#define AFPDESKTOP_STREAM 		AFPDESKTOP_STREAM_NAME ":$DATA"
+#define AFPIDINDEX_STREAM 		AFPIDINDEX_STREAM_NAME ":$DATA"
 
 /*
 ** NT's AFP_AfpInfo stream structure
 */
-#define APF_INFO_SIZE		0x3c		
+#define AFP_INFO_SIZE		0x3c
 #define AFP_Signature		0x41465000 
 #define AFP_Version			0x00000100
-#define AFP_BackupTime		0x00000080
+#define AFP_BackupTime		0x80000000
 #define AFP_FinderSize		32
 /*
 ** Orginal AFP_AfpInfo stream used by NT 
@@ -52,10 +59,10 @@
 */
 typedef struct _AfpInfo
 {
-	 uint32       	afpi_Signature;   		/* Must be *(PDWORD)"AFP" */
-	 uint32       	afpi_Version;     		/* Must be 0x00010000 */
-	 uint32       	afpi_Reserved1;
-	 uint32       	afpi_BackupTime;  		/* Backup time for the file/dir */
+	 uint32_t      	afpi_Signature;   		/* Must be *(PDWORD)"AFP" */
+	 uint32_t      	afpi_Version;     		/* Must be 0x00010000 */
+	 uint32_t      	afpi_Reserved1;
+	 uint32_t      	afpi_BackupTime;  		/* Backup time for the file/dir */
 	 unsigned char 	afpi_FinderInfo[AFP_FinderSize];  	/* Finder Info (32 bytes) */
 	 unsigned char 	afpi_ProDosInfo[6];  	/* ProDos Info (6 bytes) # */
 	 unsigned char 	afpi_Reserved2[6];

@@ -120,6 +120,7 @@ int dom_sid_compare_domain(const struct dom_sid *sid1,
  Convert a string to a SID. Returns True on success, False on fail.
  Return the first character not parsed in endp.
 *****************************************************************/
+#define AUTHORITY_MASK (~(0xffffffffffffULL))
 
 bool dom_sid_parse_endp(const char *sidstr,struct dom_sid *sidout,
 			const char **endp)
@@ -127,7 +128,7 @@ bool dom_sid_parse_endp(const char *sidstr,struct dom_sid *sidout,
 	const char *p;
 	char *q;
 	/* BIG NOTE: this function only does SIDS where the identauth is not >= 2^32 */
-	uint32_t conv;
+	uint64_t conv;
 
 	ZERO_STRUCTP(sidout);
 
@@ -142,8 +143,8 @@ bool dom_sid_parse_endp(const char *sidstr,struct dom_sid *sidout,
 		goto format_error;
 	}
 
-	conv = (uint32_t) strtoul(p, &q, 10);
-	if (!q || (*q != '-')) {
+	conv = strtoul(p, &q, 10);
+	if (!q || (*q != '-') || conv > UINT8_MAX) {
 		goto format_error;
 	}
 	sidout->sid_rev_num = (uint8_t) conv;
@@ -154,19 +155,19 @@ bool dom_sid_parse_endp(const char *sidstr,struct dom_sid *sidout,
 	}
 
 	/* get identauth */
-	conv = (uint32_t) strtoul(q, &q, 10);
-	if (!q) {
+	conv = strtoull(q, &q, 0);
+	if (!q || conv & AUTHORITY_MASK) {
 		goto format_error;
 	}
 
-	/* identauth in decimal should be <  2^32 */
+	/* When identauth >= UINT32_MAX, it's in hex with a leading 0x */
 	/* NOTE - the conv value is in big-endian format. */
-	sidout->id_auth[0] = 0;
-	sidout->id_auth[1] = 0;
-	sidout->id_auth[2] = (conv & 0xff000000) >> 24;
-	sidout->id_auth[3] = (conv & 0x00ff0000) >> 16;
-	sidout->id_auth[4] = (conv & 0x0000ff00) >> 8;
-	sidout->id_auth[5] = (conv & 0x000000ff);
+	sidout->id_auth[0] = (conv & 0xff0000000000ULL) >> 40;
+	sidout->id_auth[1] = (conv & 0x00ff00000000ULL) >> 32;
+	sidout->id_auth[2] = (conv & 0x0000ff000000ULL) >> 24;
+	sidout->id_auth[3] = (conv & 0x000000ff0000ULL) >> 16;
+	sidout->id_auth[4] = (conv & 0x00000000ff00ULL) >> 8;
+	sidout->id_auth[5] = (conv & 0x0000000000ffULL);
 
 	sidout->num_auths = 0;
 	if (*q != '-') {
@@ -183,8 +184,8 @@ bool dom_sid_parse_endp(const char *sidstr,struct dom_sid *sidout,
 			goto format_error;
 		}
 
-		conv = strtoul(q, &end, 10);
-		if (end == q) {
+		conv = strtoull(q, &end, 10);
+		if (end == q || conv > UINT32_MAX) {
 			goto format_error;
 		}
 
@@ -364,23 +365,31 @@ bool dom_sid_in_domain(const struct dom_sid *domain_sid,
 int dom_sid_string_buf(const struct dom_sid *sid, char *buf, int buflen)
 {
 	int i, ofs;
-	uint32_t ia;
+	uint64_t ia;
 
 	if (!sid) {
 		return strlcpy(buf, "(NULL SID)", buflen);
 	}
 
-	ia = (sid->id_auth[5]) +
-		(sid->id_auth[4] << 8 ) +
-		(sid->id_auth[3] << 16) +
-		(sid->id_auth[2] << 24);
+	ia = ((uint64_t)sid->id_auth[5]) +
+		((uint64_t)sid->id_auth[4] << 8 ) +
+		((uint64_t)sid->id_auth[3] << 16) +
+		((uint64_t)sid->id_auth[2] << 24) +
+		((uint64_t)sid->id_auth[1] << 32) +
+		((uint64_t)sid->id_auth[0] << 40);
 
-	ofs = snprintf(buf, buflen, "S-%u-%lu",
-		       (unsigned int)sid->sid_rev_num, (unsigned long)ia);
+	ofs = snprintf(buf, buflen, "S-%hhu-", (unsigned char)sid->sid_rev_num);
+	if (ia >= UINT32_MAX) {
+		ofs += snprintf(buf + ofs, MAX(buflen - ofs, 0), "0x%llx",
+				(unsigned long long)ia);
+	} else {
+		ofs += snprintf(buf + ofs, MAX(buflen - ofs, 0), "%llu",
+				(unsigned long long)ia);
+	}
 
 	for (i = 0; i < sid->num_auths; i++) {
-		ofs += snprintf(buf + ofs, MAX(buflen - ofs, 0), "-%lu",
-				(unsigned long)sid->sub_auths[i]);
+		ofs += snprintf(buf + ofs, MAX(buflen - ofs, 0), "-%u",
+				(unsigned int)sid->sub_auths[i]);
 	}
 	return ofs;
 }
@@ -405,6 +414,9 @@ char *dom_sid_string(TALLOC_CTX *mem_ctx, const struct dom_sid *sid)
 	 * the length
 	 */
 	result = (char *)talloc_memdup(mem_ctx, buf, len+1);
+	if (result == NULL) {
+		return NULL;
+	}
 
 	/*
 	 * beautify the talloc_report output

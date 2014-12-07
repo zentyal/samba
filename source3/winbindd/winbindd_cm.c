@@ -79,6 +79,9 @@
 #include "auth/gensec/gensec.h"
 #include "../libcli/smb/smbXcli_base.h"
 #include "lib/param/loadparm.h"
+#include "libcli/auth/netlogon_creds_cli.h"
+#include "auth.h"
+#include "rpc_server/rpc_ncacn_np.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
@@ -91,8 +94,9 @@ struct dc_name_ip {
 extern struct winbindd_methods reconnect_methods;
 extern bool override_logfile;
 
-static NTSTATUS init_dc_connection_network(struct winbindd_domain *domain);
+static NTSTATUS init_dc_connection_network(struct winbindd_domain *domain, bool need_rw_dc);
 static void set_dc_type_and_flags( struct winbindd_domain *domain );
+static bool set_dc_type_and_flags_trustinfo( struct winbindd_domain *domain );
 static bool get_dcs(TALLOC_CTX *mem_ctx, struct winbindd_domain *domain,
 		    struct dc_name_ip **dcs, int *num_dcs);
 
@@ -173,7 +177,7 @@ static void msg_try_to_go_online(struct messaging_context *msg,
 			   the offline handler if false. Bypasses online
 			   check so always does network calls. */
 
-			init_dc_connection_network(domain);
+			init_dc_connection_network(domain, true);
 			break;
 		}
 	}
@@ -844,7 +848,7 @@ static NTSTATUS get_trust_creds(const struct winbindd_domain *domain,
 		}
 
 		if (!strupper_m(*machine_krb5_principal)) {
-			SAFE_FREE(machine_krb5_principal);
+			SAFE_FREE(*machine_krb5_principal);
 			return NT_STATUS_INVALID_PARAMETER;
 		}
 	}
@@ -878,6 +882,29 @@ static NTSTATUS cm_prepare_connection(const struct winbindd_domain *domain,
 
 	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
 
+	enum smb_signing_setting smb_sign_client_connections = lp_client_signing();
+
+	if (smb_sign_client_connections == SMB_SIGNING_DEFAULT) {
+		/*
+		 * If we are connecting to our own AD domain, require
+		 * smb signing to disrupt MITM attacks
+		 */
+		if (domain->primary && lp_security() == SEC_ADS) {
+			smb_sign_client_connections = SMB_SIGNING_REQUIRED;
+		/*
+		 * If we are in or are an AD domain and connecting to another
+		 * AD domain in our forest
+		 * then require smb signing to disrupt MITM attacks
+		 */
+		} else if ((lp_security() == SEC_ADS ||
+			    lp_server_role() == ROLE_ACTIVE_DIRECTORY_DC)
+			   && domain->active_directory
+			   && (domain->domain_trust_attribs
+			       & LSA_TRUST_ATTRIBUTE_WITHIN_FOREST)) {
+			smb_sign_client_connections = SMB_SIGNING_REQUIRED;
+		}
+	}
+
 	DEBUG(10,("cm_prepare_connection: connecting to DC %s for domain %s\n",
 		controller, domain->name ));
 
@@ -897,7 +924,7 @@ static NTSTATUS cm_prepare_connection(const struct winbindd_domain *domain,
 
 	*cli = cli_state_create(NULL, sockfd,
 				controller, domain->alt_name,
-				SMB_SIGNING_DEFAULT, flags);
+				smb_sign_client_connections, flags);
 	if (*cli == NULL) {
 		close(sockfd);
 		DEBUG(1, ("Could not cli_initialize\n"));
@@ -908,8 +935,8 @@ static NTSTATUS cm_prepare_connection(const struct winbindd_domain *domain,
 	cli_set_timeout(*cli, 10000); /* 10 seconds */
 
 	result = smbXcli_negprot((*cli)->conn, (*cli)->timeout,
-				 lp_cli_minprotocol(),
-				 lp_cli_maxprotocol());
+				 lp_client_min_protocol(),
+				 lp_client_max_protocol());
 
 	if (!NT_STATUS_IS_OK(result)) {
 		DEBUG(1, ("cli_negprot failed: %s\n", nt_errstr(result)));
@@ -1227,7 +1254,7 @@ static bool dcip_to_name(TALLOC_CTX *mem_ctx,
 
 			if (domain->primary && (ads->config.flags & NBT_SERVER_KDC)) {
 				if (ads_closest_dc(ads)) {
-					char *sitename = sitename_fetch(ads->config.realm);
+					char *sitename = sitename_fetch(mem_ctx, ads->config.realm);
 
 					/* We're going to use this KDC for this realm/domain.
 					   If we are using sites, then force the krb5 libs
@@ -1236,17 +1263,15 @@ static bool dcip_to_name(TALLOC_CTX *mem_ctx,
 					create_local_private_krb5_conf_for_domain(domain->alt_name,
 									domain->name,
 									sitename,
-									pss,
-									*name);
+									pss);
 
-					SAFE_FREE(sitename);
+					TALLOC_FREE(sitename);
 				} else {
 					/* use an off site KDC */
 					create_local_private_krb5_conf_for_domain(domain->alt_name,
 									domain->name,
 									NULL,
-									pss,
-									*name);
+									pss);
 				}
 				winbindd_set_locator_kdc_envs(domain);
 
@@ -1345,7 +1370,7 @@ static bool get_dcs(TALLOC_CTX *mem_ctx, struct winbindd_domain *domain,
 
 		get_dc_name(domain->name, domain->alt_name, dcname, &ss);
 
-		sitename = sitename_fetch(domain->alt_name);
+		sitename = sitename_fetch(mem_ctx, domain->alt_name);
 		if (sitename) {
 
 			/* Do the site-specific AD dns lookup first. */
@@ -1369,7 +1394,7 @@ static bool get_dcs(TALLOC_CTX *mem_ctx, struct winbindd_domain *domain,
 			}
 
 			SAFE_FREE(ip_list);
-			SAFE_FREE(sitename);
+			TALLOC_FREE(sitename);
 			iplist_size = 0;
 		}
 
@@ -1569,7 +1594,8 @@ bool fetch_current_dc_from_gencache(TALLOC_CTX *mem_ctx,
 				    const char *domain_name,
 				    char **p_dc_name, char **p_dc_ip)
 {
-	char *key, *value, *p;
+	char *key, *p;
+	char *value = NULL;
 	bool ret = false;
 	char *dc_name = NULL;
 	char *dc_ip = NULL;
@@ -1578,7 +1604,7 @@ bool fetch_current_dc_from_gencache(TALLOC_CTX *mem_ctx,
 	if (key == NULL) {
 		goto done;
 	}
-	if (!gencache_get(key, &value, NULL)) {
+	if (!gencache_get(key, mem_ctx, &value, NULL)) {
 		goto done;
 	}
 	p = strchr(value, ' ');
@@ -1607,7 +1633,49 @@ done:
 	TALLOC_FREE(dc_name);
 	TALLOC_FREE(dc_ip);
 	TALLOC_FREE(key);
+	TALLOC_FREE(value);
 	return ret;
+}
+
+NTSTATUS wb_open_internal_pipe(TALLOC_CTX *mem_ctx,
+			       const struct ndr_interface_table *table,
+			       struct rpc_pipe_client **ret_pipe)
+{
+	struct rpc_pipe_client *cli = NULL;
+	const struct auth_session_info *session_info;
+	NTSTATUS status = NT_STATUS_UNSUCCESSFUL;
+
+
+	session_info = get_session_info_system();
+	SMB_ASSERT(session_info != NULL);
+
+	/* create a connection to the specified pipe */
+	if (lp_parm_bool(-1, "winbindd", "use external pipes", false)) {
+		status = rpc_pipe_open_interface(mem_ctx,
+						 table,
+						 session_info,
+						 NULL,
+						 winbind_messaging_context(),
+						 &cli);
+	} else {
+		status = rpc_pipe_open_internal(mem_ctx,
+						&table->syntax_id,
+						session_info,
+						NULL,
+						winbind_messaging_context(),
+						&cli);
+	}
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("open_internal_pipe: Could not connect to %s pipe: %s\n",
+			  table->name, nt_errstr(status)));
+		return status;
+	}
+
+	if (ret_pipe) {
+		*ret_pipe = cli;
+	}
+
+	return NT_STATUS_OK;
 }
 
 static NTSTATUS cm_open_connection(struct winbindd_domain *domain,
@@ -1615,14 +1683,15 @@ static NTSTATUS cm_open_connection(struct winbindd_domain *domain,
 {
 	TALLOC_CTX *mem_ctx;
 	NTSTATUS result;
-	char *saf_servername = saf_fetch( domain->name );
+	char *saf_servername;
 	int retries;
 
 	if ((mem_ctx = talloc_init("cm_open_connection")) == NULL) {
-		SAFE_FREE(saf_servername);
 		set_domain_offline(domain);
 		return NT_STATUS_NO_MEMORY;
 	}
+
+	saf_servername = saf_fetch(mem_ctx, domain->name );
 
 	/* we have to check the server affinity cache here since 
 	   later we select a DC based on response time and not preference */
@@ -1643,13 +1712,14 @@ static NTSTATUS cm_open_connection(struct winbindd_domain *domain,
 
 			if (!interpret_string_addr(&ss, saf_servername,
 						AI_NUMERICHOST)) {
+				TALLOC_FREE(mem_ctx);
 				return NT_STATUS_UNSUCCESSFUL;
 			}
 			if (dcip_to_name(mem_ctx, domain, &ss, &dcname)) {
 				domain->dcname = talloc_strdup(domain,
 							       dcname);
 				if (domain->dcname == NULL) {
-					SAFE_FREE(saf_servername);
+					TALLOC_FREE(mem_ctx);
 					return NT_STATUS_NO_MEMORY;
 				}
 			} else {
@@ -1660,12 +1730,10 @@ static NTSTATUS cm_open_connection(struct winbindd_domain *domain,
 		} else {
 			domain->dcname = talloc_strdup(domain, saf_servername);
 			if (domain->dcname == NULL) {
-				SAFE_FREE(saf_servername);
+				TALLOC_FREE(mem_ctx);
 				return NT_STATUS_NO_MEMORY;
 			}
 		}
-
-		SAFE_FREE( saf_servername );
 	}
 
 	for (retries = 0; retries < 3; retries++) {
@@ -1726,6 +1794,7 @@ static NTSTATUS cm_open_connection(struct winbindd_domain *domain,
 	}
 
 	if (NT_STATUS_IS_OK(result)) {
+		bool seal_pipes = true;
 
 		winbindd_set_locator_kdc_envs(domain);
 
@@ -1745,6 +1814,17 @@ static NTSTATUS cm_open_connection(struct winbindd_domain *domain,
 		 */
 		store_current_dc_in_gencache(domain->name, domain->dcname,
 					     new_conn->cli);
+
+		seal_pipes = lp_winbind_sealed_pipes();
+		seal_pipes = lp_parm_bool(-1, "winbind sealed pipes",
+					  domain->name,
+					  seal_pipes);
+
+		if (seal_pipes) {
+			new_conn->auth_level = DCERPC_AUTH_LEVEL_PRIVACY;
+		} else {
+			new_conn->auth_level = DCERPC_AUTH_LEVEL_INTEGRITY;
+		}
 	} else {
 		/* Ensure we setup the retry handler. */
 		set_domain_offline(domain);
@@ -1817,6 +1897,11 @@ void invalidate_cm_connection(struct winbindd_cm_conn *conn)
 		}
 	}
 
+	conn->auth_level = DCERPC_AUTH_LEVEL_PRIVACY;
+	conn->netlogon_force_reauth = false;
+	conn->netlogon_flags = 0;
+	TALLOC_FREE(conn->netlogon_creds);
+
 	if (conn->cli) {
 		cli_shutdown(conn->cli);
 	}
@@ -1874,17 +1959,21 @@ static bool connection_ok(struct winbindd_domain *domain)
 /* Initialize a new connection up to the RPC BIND.
    Bypass online status check so always does network calls. */
 
-static NTSTATUS init_dc_connection_network(struct winbindd_domain *domain)
+static NTSTATUS init_dc_connection_network(struct winbindd_domain *domain, bool need_rw_dc)
 {
 	NTSTATUS result;
-
-	/* Internal connections never use the network. */
-	if (domain->internal) {
-		domain->initialized = True;
-		return NT_STATUS_OK;
+	bool skip_connection = domain->internal;
+	if (need_rw_dc && domain->rodc) {
+		skip_connection = false;
 	}
 
-	if (connection_ok(domain)) {
+	/* Internal connections never use the network. */
+	if (dom_sid_equal(&domain->sid, &global_sid_Builtin)) {
+		return NT_STATUS_CANT_ACCESS_DOMAIN_INFO;
+	}
+
+	/* Still ask the internal LSA and SAMR server about the local domain */
+	if (skip_connection || connection_ok(domain)) {
 		if (!domain->initialized) {
 			set_dc_type_and_flags(domain);
 		}
@@ -1892,6 +1981,14 @@ static NTSTATUS init_dc_connection_network(struct winbindd_domain *domain)
 	}
 
 	invalidate_cm_connection(&domain->conn);
+
+	if (!domain->primary && !domain->initialized) {
+		/*
+		 * Before we connect to a trust, work out if it is an
+		 * AD domain by asking our own domain.
+		 */
+		set_dc_type_and_flags_trustinfo(domain);
+	}
 
 	result = cm_open_connection(domain, &domain->conn);
 
@@ -1902,9 +1999,9 @@ static NTSTATUS init_dc_connection_network(struct winbindd_domain *domain)
 	return result;
 }
 
-NTSTATUS init_dc_connection(struct winbindd_domain *domain)
+NTSTATUS init_dc_connection(struct winbindd_domain *domain, bool need_rw_dc)
 {
-	if (domain->internal) {
+	if (dom_sid_equal(&domain->sid, &global_sid_Builtin)) {
 		return NT_STATUS_CANT_ACCESS_DOMAIN_INFO;
 	}
 
@@ -1913,14 +2010,14 @@ NTSTATUS init_dc_connection(struct winbindd_domain *domain)
 		return NT_STATUS_DOMAIN_CONTROLLER_NOT_FOUND;
 	}
 
-	return init_dc_connection_network(domain);
+	return init_dc_connection_network(domain, need_rw_dc);
 }
 
-static NTSTATUS init_dc_connection_rpc(struct winbindd_domain *domain)
+static NTSTATUS init_dc_connection_rpc(struct winbindd_domain *domain, bool need_rw_dc)
 {
 	NTSTATUS status;
 
-	status = init_dc_connection(domain);
+	status = init_dc_connection(domain, need_rw_dc);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
@@ -1959,38 +2056,46 @@ static bool set_dc_type_and_flags_trustinfo( struct winbindd_domain *domain )
 		return False;		
 	}
 
+	mem_ctx = talloc_stackframe();
 	our_domain = find_our_domain();
-
-	if ( !connection_ok(our_domain) ) {
-		DEBUG(3,("set_dc_type_and_flags_trustinfo: No connection to our domain!\n"));		
-		return False;
+	if (our_domain->internal) {
+		result = init_dc_connection(our_domain, false);
+		if (!NT_STATUS_IS_OK(result)) {
+			DEBUG(3,("set_dc_type_and_flags_trustinfo: "
+				 "Not able to make a connection to our domain: %s\n",
+				  nt_errstr(result)));
+			TALLOC_FREE(mem_ctx);
+			return false;
+		}
 	}
 
 	/* This won't work unless our domain is AD */
-
 	if ( !our_domain->active_directory ) {
+		TALLOC_FREE(mem_ctx);
 		return False;
 	}
 
-	/* Use DsEnumerateDomainTrusts to get us the trust direction
-	   and type */
-
-	result = cm_connect_netlogon(our_domain, &cli);
+	if (our_domain->internal) {
+		result = wb_open_internal_pipe(mem_ctx, &ndr_table_netlogon, &cli);
+	} else if (!connection_ok(our_domain)) {
+		DEBUG(3,("set_dc_type_and_flags_trustinfo: "
+			 "No connection to our domain!\n"));
+		TALLOC_FREE(mem_ctx);
+		return False;
+	} else {
+		result = cm_connect_netlogon(our_domain, &cli);
+	}
 
 	if (!NT_STATUS_IS_OK(result)) {
 		DEBUG(5, ("set_dc_type_and_flags_trustinfo: Could not open "
 			  "a connection to %s for PIPE_NETLOGON (%s)\n", 
 			  domain->name, nt_errstr(result)));
+		TALLOC_FREE(mem_ctx);
 		return False;
 	}
-
 	b = cli->binding_handle;
 
-	if ( (mem_ctx = talloc_init("set_dc_type_and_flags_trustinfo")) == NULL ) {
-		DEBUG(0,("set_dc_type_and_flags_trustinfo: talloc_init() failed!\n"));
-		return False;
-	}	
-
+	/* Use DsEnumerateDomainTrusts to get us the trust direction and type. */
 	result = dcerpc_netr_DsrEnumerateDomainTrusts(b, mem_ctx,
 						      cli->desthost,
 						      flags,
@@ -2000,14 +2105,14 @@ static bool set_dc_type_and_flags_trustinfo( struct winbindd_domain *domain )
 		DEBUG(0,("set_dc_type_and_flags_trustinfo: "
 			"failed to query trusted domain list: %s\n",
 			nt_errstr(result)));
-		talloc_destroy(mem_ctx);
+		TALLOC_FREE(mem_ctx);
 		return false;
 	}
 	if (!W_ERROR_IS_OK(werr)) {
 		DEBUG(0,("set_dc_type_and_flags_trustinfo: "
 			"failed to query trusted domain list: %s\n",
 			win_errstr(werr)));
-		talloc_destroy(mem_ctx);
+		TALLOC_FREE(mem_ctx);
 		return false;
 	}
 
@@ -2019,7 +2124,7 @@ static bool set_dc_type_and_flags_trustinfo( struct winbindd_domain *domain )
 			domain->domain_type           = trusts.array[i].trust_type;
 			domain->domain_trust_attribs  = trusts.array[i].trust_attributes;
 
-			if ( domain->domain_type == NETR_TRUST_TYPE_UPLEVEL )
+			if ( domain->domain_type == LSA_TRUST_TYPE_UPLEVEL )
 				domain->active_directory = True;
 
 			/* This flag is only set if the domain is *our* 
@@ -2037,7 +2142,6 @@ static bool set_dc_type_and_flags_trustinfo( struct winbindd_domain *domain )
 				 domain->active_directory ? "" : "NOT "));
 
 			domain->can_do_ncacn_ip_tcp = domain->active_directory;
-			domain->can_do_validation6 = domain->active_directory;
 
 			domain->initialized = True;
 
@@ -2045,7 +2149,7 @@ static bool set_dc_type_and_flags_trustinfo( struct winbindd_domain *domain )
 		}		
 	}
 
-	talloc_destroy( mem_ctx );
+	TALLOC_FREE(mem_ctx);
 
 	return domain->initialized;	
 }
@@ -2068,7 +2172,7 @@ static void set_dc_type_and_flags_connect( struct winbindd_domain *domain )
 	union dssetup_DsRoleInfo info;
 	union lsa_PolicyInformation *lsa_info = NULL;
 
-	if (!connection_ok(domain)) {
+	if (!domain->internal && !connection_ok(domain)) {
 		return;
 	}
 
@@ -2081,9 +2185,15 @@ static void set_dc_type_and_flags_connect( struct winbindd_domain *domain )
 
 	DEBUG(5, ("set_dc_type_and_flags_connect: domain %s\n", domain->name ));
 
-	status = cli_rpc_pipe_open_noauth(domain->conn.cli,
-					  &ndr_table_dssetup.syntax_id,
-					  &cli);
+	if (domain->internal) {
+		status = wb_open_internal_pipe(mem_ctx,
+					       &ndr_table_dssetup,
+					       &cli);
+	} else {
+		status = cli_rpc_pipe_open_noauth(domain->conn.cli,
+						  &ndr_table_dssetup,
+						  &cli);
+	}
 
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(5, ("set_dc_type_and_flags_connect: Could not bind to "
@@ -2132,9 +2242,14 @@ static void set_dc_type_and_flags_connect( struct winbindd_domain *domain )
 	}
 
 no_dssetup:
-	status = cli_rpc_pipe_open_noauth(domain->conn.cli,
-					  &ndr_table_lsarpc.syntax_id, &cli);
-
+	if (domain->internal) {
+		status = wb_open_internal_pipe(mem_ctx,
+					       &ndr_table_lsarpc,
+					       &cli);
+	} else {
+		status = cli_rpc_pipe_open_noauth(domain->conn.cli,
+						  &ndr_table_lsarpc, &cli);
+	}
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(5, ("set_dc_type_and_flags_connect: Could not bind to "
 			  "PI_LSARPC on domain %s: (%s)\n",
@@ -2238,7 +2353,6 @@ done:
 		  domain->name, domain->active_directory ? "" : "NOT "));
 
 	domain->can_do_ncacn_ip_tcp = domain->active_directory;
-	domain->can_do_validation6 = domain->active_directory;
 
 	TALLOC_FREE(cli);
 
@@ -2255,9 +2369,9 @@ static void set_dc_type_and_flags( struct winbindd_domain *domain )
 {
 	/* we always have to contact our primary domain */
 
-	if ( domain->primary ) {
+	if ( domain->primary || domain->internal) {
 		DEBUG(10,("set_dc_type_and_flags: setting up flags for "
-			  "primary domain\n"));
+			  "primary or internal domain\n"));
 		set_dc_type_and_flags_connect( domain );
 		return;		
 	}
@@ -2279,13 +2393,23 @@ static void set_dc_type_and_flags( struct winbindd_domain *domain )
 ***********************************************************************/
 
 static NTSTATUS cm_get_schannel_creds(struct winbindd_domain *domain,
-				   struct netlogon_creds_CredentialState **ppdc)
+				   struct netlogon_creds_cli_context **ppdc)
 {
 	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
 	struct rpc_pipe_client *netlogon_pipe;
 
-	if (lp_client_schannel() == False) {
-		return NT_STATUS_CANT_ACCESS_DOMAIN_INFO;
+	*ppdc = NULL;
+
+	if ((!IS_DC) && (!domain->primary)) {
+		return NT_STATUS_TRUSTED_DOMAIN_FAILURE;
+	}
+
+	if (domain->conn.netlogon_creds != NULL) {
+		if (!(domain->conn.netlogon_flags & NETLOGON_NEG_AUTHENTICATED_RPC)) {
+			return NT_STATUS_TRUSTED_DOMAIN_FAILURE;
+		}
+		*ppdc = domain->conn.netlogon_creds;
+		return NT_STATUS_OK;
 	}
 
 	result = cm_connect_netlogon(domain, &netlogon_pipe);
@@ -2293,32 +2417,36 @@ static NTSTATUS cm_get_schannel_creds(struct winbindd_domain *domain,
 		return result;
 	}
 
-	/* Return a pointer to the struct netlogon_creds_CredentialState from the
-	   netlogon pipe. */
-
-	if (!domain->conn.netlogon_pipe->dc) {
-		return NT_STATUS_INTERNAL_ERROR; /* This shouldn't happen. */
+	if (domain->conn.netlogon_creds == NULL) {
+		return NT_STATUS_TRUSTED_DOMAIN_FAILURE;
 	}
 
-	*ppdc = domain->conn.netlogon_pipe->dc;
+	if (!(domain->conn.netlogon_flags & NETLOGON_NEG_AUTHENTICATED_RPC)) {
+		return NT_STATUS_TRUSTED_DOMAIN_FAILURE;
+	}
+
+	*ppdc = domain->conn.netlogon_creds;
 	return NT_STATUS_OK;
 }
 
 NTSTATUS cm_connect_sam(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
+			bool need_rw_dc,
 			struct rpc_pipe_client **cli, struct policy_handle *sam_handle)
 {
 	struct winbindd_cm_conn *conn;
 	NTSTATUS status, result;
-	struct netlogon_creds_CredentialState *p_creds;
+	struct netlogon_creds_cli_context *p_creds;
 	char *machine_password = NULL;
 	char *machine_account = NULL;
 	const char *domain_name = NULL;
 
 	if (sid_check_is_our_sam(&domain->sid)) {
-		return open_internal_samr_conn(mem_ctx, domain, cli, sam_handle);
+		if (domain->rodc == false || need_rw_dc == false) {
+			return open_internal_samr_conn(mem_ctx, domain, cli, sam_handle);
+		}
 	}
 
-	status = init_dc_connection_rpc(domain);
+	status = init_dc_connection_rpc(domain, need_rw_dc);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
@@ -2367,7 +2495,7 @@ NTSTATUS cm_connect_sam(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 					  &ndr_table_samr,
 					  NCACN_NP,
 					  GENSEC_OID_NTLMSSP,
-					  DCERPC_AUTH_LEVEL_PRIVACY,
+					  conn->auth_level,
 					  smbXcli_conn_remote_name(conn->cli->conn),
 					  domain_name,
 					  machine_account,
@@ -2419,9 +2547,8 @@ NTSTATUS cm_connect_sam(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 		goto anonymous;
 	}
 	status = cli_rpc_pipe_open_schannel_with_key
-		(conn->cli, &ndr_table_samr.syntax_id, NCACN_NP,
-		 DCERPC_AUTH_LEVEL_PRIVACY,
-		 domain->name, &p_creds, &conn->samr_pipe);
+		(conn->cli, &ndr_table_samr, NCACN_NP,
+		 domain->name, p_creds, &conn->samr_pipe);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(10,("cm_connect_sam: failed to connect to SAMR pipe for "
@@ -2451,7 +2578,16 @@ NTSTATUS cm_connect_sam(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
  anonymous:
 
 	/* Finally fall back to anonymous. */
-	status = cli_rpc_pipe_open_noauth(conn->cli, &ndr_table_samr.syntax_id,
+	if (lp_winbind_sealed_pipes() || lp_require_strong_key()) {
+		status = NT_STATUS_DOWNGRADE_DETECTED;
+		DEBUG(1, ("Unwilling to make SAMR connection to domain %s"
+			  "without connection level security, "
+			  "must set 'winbind sealed pipes = false' and "
+			  "'require strong key = false' to proceed: %s\n",
+			  domain->name, nt_errstr(status)));
+		goto done;
+	}
+	status = cli_rpc_pipe_open_noauth(conn->cli, &ndr_table_samr,
 					  &conn->samr_pipe);
 
 	if (!NT_STATUS_IS_OK(status)) {
@@ -2524,12 +2660,12 @@ NTSTATUS cm_connect_lsa_tcp(struct winbindd_domain *domain,
 			    struct rpc_pipe_client **cli)
 {
 	struct winbindd_cm_conn *conn;
-	struct netlogon_creds_CredentialState *creds;
+	struct netlogon_creds_cli_context *creds;
 	NTSTATUS status;
 
 	DEBUG(10,("cm_connect_lsa_tcp\n"));
 
-	status = init_dc_connection_rpc(domain);
+	status = init_dc_connection_rpc(domain, false);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
@@ -2538,7 +2674,7 @@ NTSTATUS cm_connect_lsa_tcp(struct winbindd_domain *domain,
 
 	if (conn->lsa_pipe_tcp &&
 	    conn->lsa_pipe_tcp->transport->transport == NCACN_IP_TCP &&
-	    conn->lsa_pipe_tcp->auth->auth_level == DCERPC_AUTH_LEVEL_PRIVACY &&
+	    conn->lsa_pipe_tcp->auth->auth_level >= DCERPC_AUTH_LEVEL_INTEGRITY &&
 	    rpccli_is_connected(conn->lsa_pipe_tcp)) {
 		goto done;
 	}
@@ -2551,11 +2687,10 @@ NTSTATUS cm_connect_lsa_tcp(struct winbindd_domain *domain,
 	}
 
 	status = cli_rpc_pipe_open_schannel_with_key(conn->cli,
-						     &ndr_table_lsarpc.syntax_id,
+						     &ndr_table_lsarpc,
 						     NCACN_IP_TCP,
-						     DCERPC_AUTH_LEVEL_PRIVACY,
 						     domain->name,
-						     &creds,
+						     creds,
 						     &conn->lsa_pipe_tcp);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(10,("cli_rpc_pipe_open_schannel_with_key failed: %s\n",
@@ -2579,9 +2714,9 @@ NTSTATUS cm_connect_lsa(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 {
 	struct winbindd_cm_conn *conn;
 	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
-	struct netlogon_creds_CredentialState *p_creds;
+	struct netlogon_creds_cli_context *p_creds;
 
-	result = init_dc_connection_rpc(domain);
+	result = init_dc_connection_rpc(domain, false);
 	if (!NT_STATUS_IS_OK(result))
 		return result;
 
@@ -2606,7 +2741,7 @@ NTSTATUS cm_connect_lsa(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 	result = cli_rpc_pipe_open_spnego
 		(conn->cli, &ndr_table_lsarpc, NCACN_NP,
 		 GENSEC_OID_NTLMSSP,
-		 DCERPC_AUTH_LEVEL_PRIVACY,
+		 conn->auth_level,
 		 smbXcli_conn_remote_name(conn->cli->conn),
 		 conn->cli->domain, conn->cli->user_name, conn->cli->password,
 		 &conn->lsa_pipe);
@@ -2650,9 +2785,8 @@ NTSTATUS cm_connect_lsa(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 		goto anonymous;
 	}
 	result = cli_rpc_pipe_open_schannel_with_key
-		(conn->cli, &ndr_table_lsarpc.syntax_id, NCACN_NP,
-		 DCERPC_AUTH_LEVEL_PRIVACY,
-		 domain->name, &p_creds, &conn->lsa_pipe);
+		(conn->cli, &ndr_table_lsarpc, NCACN_NP,
+		 domain->name, p_creds, &conn->lsa_pipe);
 
 	if (!NT_STATUS_IS_OK(result)) {
 		DEBUG(10,("cm_connect_lsa: failed to connect to LSA pipe for "
@@ -2677,11 +2811,20 @@ NTSTATUS cm_connect_lsa(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 
  anonymous:
 
+	if (lp_winbind_sealed_pipes() || lp_require_strong_key()) {
+		result = NT_STATUS_DOWNGRADE_DETECTED;
+		DEBUG(1, ("Unwilling to make LSA connection to domain %s"
+			  "without connection level security, "
+			  "must set 'winbind sealed pipes = false' and "
+			  "'require strong key = false' to proceed: %s\n",
+			  domain->name, nt_errstr(result)));
+		goto done;
+	}
+
 	result = cli_rpc_pipe_open_noauth(conn->cli,
-					  &ndr_table_lsarpc.syntax_id,
+					  &ndr_table_lsarpc,
 					  &conn->lsa_pipe);
 	if (!NT_STATUS_IS_OK(result)) {
-		result = NT_STATUS_PIPE_NOT_AVAILABLE;
 		goto done;
 	}
 
@@ -2743,18 +2886,20 @@ NTSTATUS cm_connect_lsat(struct winbindd_domain *domain,
 NTSTATUS cm_connect_netlogon(struct winbindd_domain *domain,
 			     struct rpc_pipe_client **cli)
 {
+	struct messaging_context *msg_ctx = winbind_messaging_context();
 	struct winbindd_cm_conn *conn;
 	NTSTATUS result;
-
-	uint32_t neg_flags = NETLOGON_NEG_AUTH2_ADS_FLAGS | NETLOGON_NEG_SUPPORTS_AES;
-	uint8_t  mach_pwd[16];
 	enum netr_SchannelType sec_chan_type;
+	const char *_account_name;
 	const char *account_name;
-	struct rpc_pipe_client *netlogon_pipe = NULL;
+	struct samr_Password current_nt_hash;
+	struct samr_Password *previous_nt_hash = NULL;
+	struct netlogon_creds_CredentialState *creds = NULL;
+	bool ok;
 
 	*cli = NULL;
 
-	result = init_dc_connection_rpc(domain);
+	result = init_dc_connection_rpc(domain, true);
 	if (!NT_STATUS_IS_OK(result)) {
 		return result;
 	}
@@ -2767,64 +2912,90 @@ NTSTATUS cm_connect_netlogon(struct winbindd_domain *domain,
 	}
 
 	TALLOC_FREE(conn->netlogon_pipe);
-
-	result = cli_rpc_pipe_open_noauth(conn->cli,
-					  &ndr_table_netlogon.syntax_id,
-					  &netlogon_pipe);
-	if (!NT_STATUS_IS_OK(result)) {
-		return result;
-	}
+	conn->netlogon_flags = 0;
+	TALLOC_FREE(conn->netlogon_creds);
 
 	if ((!IS_DC) && (!domain->primary)) {
-		/* Clear the schannel request bit and drop down */
-		neg_flags &= ~NETLOGON_NEG_SCHANNEL;		
 		goto no_schannel;
 	}
 
-	if (lp_client_schannel() != False) {
-		neg_flags |= NETLOGON_NEG_SCHANNEL;
-	}
-
-	if (!get_trust_pw_hash(domain->name, mach_pwd, &account_name,
-			       &sec_chan_type))
-	{
-		TALLOC_FREE(netlogon_pipe);
+	ok = get_trust_pw_hash(domain->name,
+			       current_nt_hash.hash,
+			       &_account_name,
+			       &sec_chan_type);
+	if (!ok) {
+		DEBUG(1, ("get_trust_pw_hash failed for %s, "
+			  "unable to get NETLOGON credentials\n",
+			  domain->name));
 		return NT_STATUS_CANT_ACCESS_DOMAIN_INFO;
 	}
 
-	result = rpccli_netlogon_setup_creds(
-		 netlogon_pipe,
-		 domain->dcname, /* server name. */
-		 domain->name,   /* domain name */
-		 lp_netbios_name(), /* client name */
-		 account_name,   /* machine account */
-		 mach_pwd,       /* machine password */
-		 sec_chan_type,  /* from get_trust_pw */
-		 &neg_flags);
+	account_name = talloc_asprintf(talloc_tos(), "%s$", _account_name);
+	if (account_name == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
 
+	result = rpccli_create_netlogon_creds(domain->dcname,
+					      domain->name,
+					      account_name,
+					      sec_chan_type,
+					      msg_ctx,
+					      domain,
+					      &conn->netlogon_creds);
 	if (!NT_STATUS_IS_OK(result)) {
-		TALLOC_FREE(netlogon_pipe);
+		DEBUG(1, ("rpccli_create_netlogon_creds failed for %s, "
+			  "unable to create NETLOGON credentials: %s\n",
+			  domain->name, nt_errstr(result)));
+		SAFE_FREE(previous_nt_hash);
 		return result;
 	}
 
-	if ((lp_client_schannel() == True) &&
-			((neg_flags & NETLOGON_NEG_SCHANNEL) == 0)) {
-		DEBUG(3, ("Server did not offer schannel\n"));
-		TALLOC_FREE(netlogon_pipe);
-		return NT_STATUS_ACCESS_DENIED;
+	result = rpccli_setup_netlogon_creds(conn->cli,
+					     conn->netlogon_creds,
+					     conn->netlogon_force_reauth,
+					     current_nt_hash,
+					     previous_nt_hash);
+	conn->netlogon_force_reauth = false;
+	SAFE_FREE(previous_nt_hash);
+	if (!NT_STATUS_IS_OK(result)) {
+		DEBUG(1, ("rpccli_setup_netlogon_creds failed for %s, "
+			  "unable to setup NETLOGON credentials: %s\n",
+			  domain->name, nt_errstr(result)));
+		return result;
 	}
 
- no_schannel:
-	if ((lp_client_schannel() == False) ||
-			((neg_flags & NETLOGON_NEG_SCHANNEL) == 0)) {
-		/*
-		 * NetSamLogonEx only works for schannel
-		 */
-		domain->can_do_samlogon_ex = False;
+	result = netlogon_creds_cli_get(conn->netlogon_creds,
+					talloc_tos(),
+					&creds);
+	if (!NT_STATUS_IS_OK(result)) {
+		DEBUG(1, ("netlogon_creds_cli_get failed for %s, "
+			  "unable to get NETLOGON credentials: %s\n",
+			  domain->name, nt_errstr(result)));
+		return result;
+	}
+	conn->netlogon_flags = creds->negotiate_flags;
+	TALLOC_FREE(creds);
 
-		/* We're done - just keep the existing connection to NETLOGON
-		 * open */
-		conn->netlogon_pipe = netlogon_pipe;
+ no_schannel:
+	if (!(conn->netlogon_flags & NETLOGON_NEG_AUTHENTICATED_RPC)) {
+		if (lp_winbind_sealed_pipes() || lp_require_strong_key()) {
+			result = NT_STATUS_DOWNGRADE_DETECTED;
+			DEBUG(1, ("Unwilling to make connection to domain %s"
+				  "without connection level security, "
+				  "must set 'winbind sealed pipes = false' and "
+				  "'require strong key = false' to proceed: %s\n",
+				  domain->name, nt_errstr(result)));
+			invalidate_cm_connection(conn);
+			return result;
+		}
+		result = cli_rpc_pipe_open_noauth(conn->cli,
+					&ndr_table_netlogon,
+					&conn->netlogon_pipe);
+		if (!NT_STATUS_IS_OK(result)) {
+			invalidate_cm_connection(conn);
+			return result;
+		}
+
 		*cli = conn->netlogon_pipe;
 		return NT_STATUS_OK;
 	}
@@ -2835,13 +3006,10 @@ NTSTATUS cm_connect_netlogon(struct winbindd_domain *domain,
 	*/
 
 	result = cli_rpc_pipe_open_schannel_with_key(
-		conn->cli, &ndr_table_netlogon.syntax_id, NCACN_NP,
-		DCERPC_AUTH_LEVEL_PRIVACY, domain->name, &netlogon_pipe->dc,
+		conn->cli, &ndr_table_netlogon, NCACN_NP,
+		domain->name,
+		conn->netlogon_creds,
 		&conn->netlogon_pipe);
-
-	/* We can now close the initial netlogon pipe. */
-	TALLOC_FREE(netlogon_pipe);
-
 	if (!NT_STATUS_IS_OK(result)) {
 		DEBUG(3, ("Could not open schannel'ed NETLOGON pipe. Error "
 			  "was %s\n", nt_errstr(result)));
@@ -2849,15 +3017,6 @@ NTSTATUS cm_connect_netlogon(struct winbindd_domain *domain,
 		invalidate_cm_connection(conn);
 		return result;
 	}
-
-	/*
-	 * Always try netr_LogonSamLogonEx. We will fall back for NT4
-	 * which gives DCERPC_FAULT_OP_RNG_ERROR (function not
-	 * supported). We used to only try SamLogonEx for AD, but
-	 * Samba DCs can also do it. And because we don't distinguish
-	 * between Samba and NT4, always try it once.
-	 */
-	domain->can_do_samlogon_ex = true;
 
 	*cli = conn->netlogon_pipe;
 	return NT_STATUS_OK;

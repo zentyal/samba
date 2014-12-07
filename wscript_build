@@ -20,17 +20,25 @@ bld.env.build_public_headers = 'include/public'
 
 # these are includes which appear in public headers, but with #ifdef conditional
 # compilation, so they are safe
-bld.env.public_headers_skip = ['lib/param/param_proto.h']
+bld.env.public_headers_skip = ['lib/param/param_proto.h', 'lib/param/param_functions.h']
 
 samba_version.load_version(bld.env, is_install=bld.is_install)
 bld.SAMBA_MKVERSION('version.h')
 
 # bld.ENABLE_MAGIC_ORDERING()
 
+bld.env.ABS_TOP_SRCDIR = bld.srcnode.abspath() + '/docs-xml'
+bld.env.ABS_TOP_BUILDDIR = bld.srcnode.abspath() + '/bin/default/docs-xml'
+bld.CONFIGURE_FILE('docs-xml/build/catalog.xml',
+                   ABS_TOP_BUILDDIR = bld.env.ABS_TOP_BUILDDIR,
+                   ABS_TOP_SRCDIR=bld.env.ABS_TOP_SRCDIR)
+bld.RECURSE('docs-xml')
+
 bld.RECURSE('lib/replace')
 bld.RECURSE('lib/socket')
 bld.RECURSE('lib/talloc')
 bld.RECURSE('lib/tevent')
+bld.RECURSE('lib/texpect')
 bld.RECURSE('lib/addns')
 bld.RECURSE('lib/ccan')
 bld.RECURSE('lib/tdb_compat')
@@ -61,19 +69,21 @@ bld.RECURSE('source4/lib/registry')
 bld.RECURSE('source4/lib/messaging')
 bld.RECURSE('source4/lib/events')
 bld.RECURSE('source4/lib/cmdline')
+bld.RECURSE('source4/lib/http')
 bld.RECURSE('lib/socket_wrapper')
 bld.RECURSE('lib/nss_wrapper')
 bld.RECURSE('lib/uid_wrapper')
-bld.RECURSE('lib/popt')
-bld.RECURSE('lib/iniparser/src')
+if bld.CHECK_FOR_THIRD_PARTY():
+    bld.RECURSE('third_party/zlib')
+    bld.RECURSE('third_party/popt')
 bld.RECURSE('source4/lib/stream')
+bld.RECURSE('lib/afs')
 bld.RECURSE('lib/util')
 bld.RECURSE('lib/tdb_wrap')
 bld.RECURSE('lib/tdr')
 bld.RECURSE('lib/tsocket')
 bld.RECURSE('lib/crypto')
 bld.RECURSE('lib/torture')
-bld.RECURSE('lib/zlib')
 bld.RECURSE('source4/lib/com')
 bld.RECURSE('source4/dns_server')
 bld.RECURSE('source4/echo_server')
@@ -143,9 +153,3 @@ bld.RECURSE('testsuite/headers')
 bld.SYMBOL_CHECK()
 bld.DUP_SYMBOL_CHECK()
 
-bld.env.ABS_TOP_SRCDIR = bld.srcnode.abspath() + '/docs-xml'
-bld.env.ABS_TOP_BUILDDIR = bld.srcnode.abspath() + '/bin/default/docs-xml'
-bld.CONFIGURE_FILE('docs-xml/build/catalog.xml',
-                   ABS_TOP_BUILDDIR = bld.env.ABS_TOP_BUILDDIR,
-                   ABS_TOP_SRCDIR=bld.env.ABS_TOP_SRCDIR)
-bld.RECURSE('docs-xml')

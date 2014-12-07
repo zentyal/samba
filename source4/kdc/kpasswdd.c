@@ -181,8 +181,13 @@ static bool kpasswdd_change_password(struct kdc_server *kdc,
 						reply);
 	}
 
-	status = samdb_result_passwords(mem_ctx, kdc->task->lp_ctx, msg,
-					&oldLmHash, &oldNtHash);
+	/*
+	 * No need to check for password lockout here, the KDC will
+	 * have done that when issuing the ticket, which is not based
+	 * on the user's password
+	 */
+	status = samdb_result_passwords_no_lockout(mem_ctx, kdc->task->lp_ctx, msg,
+						   &oldLmHash, &oldNtHash);
 	if (!NT_STATUS_IS_OK(status)) {
 		return kpasswdd_make_error_reply(kdc, mem_ctx,
 						KRB5_KPASSWD_ACCESSDENIED,
@@ -548,7 +553,7 @@ enum kdc_process_ret kpasswdd_process(struct kdc_server *kdc,
 	 * older MIT clients need this, we might have to insert more
 	 * complex code */
 
-	nt_status = gensec_set_local_address(gensec_security, peer_addr);
+	nt_status = gensec_set_remote_address(gensec_security, peer_addr);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		talloc_free(tmp_ctx);
 		return KDC_PROCESS_FAILED;
@@ -571,7 +576,7 @@ enum kdc_process_ret kpasswdd_process(struct kdc_server *kdc,
 	}
 
 	/* Accept the AP-REQ and generate teh AP-REP we need for the reply */
-	nt_status = gensec_update(gensec_security, tmp_ctx, kdc->task->event_ctx, ap_req, &ap_rep);
+	nt_status = gensec_update_ev(gensec_security, tmp_ctx, kdc->task->event_ctx, ap_req, &ap_rep);
 	if (!NT_STATUS_IS_OK(nt_status) && !NT_STATUS_EQUAL(nt_status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
 
 		ret = kpasswdd_make_unauth_error_reply(kdc, mem_ctx,

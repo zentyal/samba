@@ -19,7 +19,7 @@
 
 #ifndef _CTDB_CLIENT_H
 #define _CTDB_CLIENT_H
-#include <ctdb_protocol.h>
+#include "ctdb_protocol.h"
 
 enum control_state {CTDB_CONTROL_WAIT, CTDB_CONTROL_DONE, CTDB_CONTROL_ERROR, CTDB_CONTROL_TIMEOUT};
 
@@ -65,13 +65,6 @@ struct ctdb_context *ctdb_init(struct tevent_context *ev);
 int ctdb_set_transport(struct ctdb_context *ctdb, const char *transport);
 
 /*
-  set the directory for the local databases
-*/
-int ctdb_set_tdb_dir(struct ctdb_context *ctdb, const char *dir);
-int ctdb_set_tdb_dir_persistent(struct ctdb_context *ctdb, const char *dir);
-int ctdb_set_tdb_dir_state(struct ctdb_context *ctdb, const char *dir);
-
-/*
   set some flags
 */
 void ctdb_set_flags(struct ctdb_context *ctdb, unsigned flags);
@@ -85,12 +78,6 @@ int ctdb_set_socketname(struct ctdb_context *ctdb, const char *socketname);
 const char *ctdb_get_socketname(struct ctdb_context *ctdb);
 
 /*
-  tell ctdb what nodes are available. This takes a filename, which will contain
-  1 node address per line, in a transport specific format
-*/
-int ctdb_set_nlist(struct ctdb_context *ctdb, const char *nlist);
-
-/*
   Check that a specific ip address exists in the node list and returns
   the id for the node or -1
 */
@@ -100,7 +87,6 @@ int ctdb_ip_to_nodeid(struct ctdb_context *ctdb, const char *nodeip);
   start the ctdb protocol
 */
 int ctdb_start(struct ctdb_context *ctdb);
-int ctdb_start_daemon(struct ctdb_context *ctdb, bool do_fork, bool use_syslog, const char *public_address_list);
 
 /*
   attach to a ctdb database
@@ -111,6 +97,7 @@ struct ctdb_db_context *ctdb_attach(struct ctdb_context *ctdb,
 				    bool persistent,
 				    uint32_t tdb_flags);
 
+int ctdb_detach(struct ctdb_context *ctdb, uint32_t db_id);
 
 /*
   find an attached ctdb_db handle given a name
@@ -160,7 +147,9 @@ int ctdb_client_set_message_handler(struct ctdb_context *ctdb, uint64_t srvid,
 			     void *private_data);
 int ctdb_client_remove_message_handler(struct ctdb_context *ctdb,
 				       uint64_t srvid, void *private_data);
-
+int ctdb_client_check_message_handlers(struct ctdb_context *ctdb,
+				       uint64_t *ids, uint32_t num,
+				       uint8_t *result);
 
 int ctdb_call(struct ctdb_db_context *ctdb_db, struct ctdb_call *call);
 struct ctdb_client_call_state *ctdb_call_send(struct ctdb_db_context *ctdb_db, struct ctdb_call *call);
@@ -200,6 +189,8 @@ struct ctdb_context *ctdb_cmdline_client(struct tevent_context *ev,
 
 struct ctdb_statistics;
 int ctdb_ctrl_statistics(struct ctdb_context *ctdb, uint32_t destnode, struct ctdb_statistics *status);
+int ctdb_ctrl_dbstatistics(struct ctdb_context *ctdb, uint32_t destnode, uint32_t dbid,
+			   TALLOC_CTX *mem_ctx, struct ctdb_db_statistics **dbstat);
 
 int ctdb_ctrl_shutdown(struct ctdb_context *ctdb, struct timeval timeout, uint32_t destnode);
 
@@ -290,11 +281,18 @@ int ctdb_ctrl_getdbhealth(struct ctdb_context *ctdb,
 			  uint32_t destnode,
 			  uint32_t dbid, TALLOC_CTX *mem_ctx,
 			  const char **reason);
+int ctdb_ctrl_getdbseqnum(struct ctdb_context *ctdb, struct timeval timeout,
+			  uint32_t destnode, uint32_t dbid, uint64_t *seqnum);
 int ctdb_ctrl_createdb(struct ctdb_context *ctdb, struct timeval timeout, uint32_t destnode, TALLOC_CTX *mem_ctx, const char *name, bool persistent);
 
 int ctdb_ctrl_process_exists(struct ctdb_context *ctdb, uint32_t destnode, pid_t pid);
 
 int ctdb_ctrl_ping(struct ctdb_context *ctdb, uint32_t destnode);
+
+int ctdb_ctrl_get_runstate(struct ctdb_context *ctdb, 
+			   struct timeval timeout, 
+			   uint32_t destnode,
+			   uint32_t *runstate);
 
 int ctdb_ctrl_get_config(struct ctdb_context *ctdb);
 
@@ -477,8 +475,8 @@ struct ctdb_uptime {
   ctdb_control_tcp_addr structure instead
  */
 struct ctdb_control_tcp {
-	struct sockaddr_in src; // samba uses this
-	struct sockaddr_in dest;// samba uses this
+	struct sockaddr_in src;  /* samba uses this */
+	struct sockaddr_in dest; /* samba uses this */
 };
 /* new style structure */
 struct ctdb_control_tcp_addr {
@@ -507,6 +505,11 @@ int ctdb_ctrl_setreclock(struct ctdb_context *ctdb,
 	const char *reclock);
 
 
+uint32_t *list_of_nodes(struct ctdb_context *ctdb,
+			struct ctdb_node_map *node_map,
+			TALLOC_CTX *mem_ctx,
+			uint32_t mask,
+			int exclude_pnn);
 uint32_t *list_of_connected_nodes(struct ctdb_context *ctdb,
 				struct ctdb_node_map *node_map,
 				TALLOC_CTX *mem_ctx,
@@ -519,10 +522,6 @@ uint32_t *list_of_vnnmap_nodes(struct ctdb_context *ctdb,
 				struct ctdb_vnn_map *vnn_map,
 				TALLOC_CTX *mem_ctx,
 				bool include_self);
-uint32_t *list_of_active_nodes_except_pnn(struct ctdb_context *ctdb,
-				struct ctdb_node_map *node_map,
-				TALLOC_CTX *mem_ctx,
-				uint32_t pnn);
 
 int ctdb_read_pnn_lock(int fd, int32_t pnn);
 
@@ -534,11 +533,6 @@ int ctdb_ctrl_getcapabilities(struct ctdb_context *ctdb, struct timeval timeout,
 struct ctdb_client_control_state *ctdb_ctrl_getcapabilities_send(struct ctdb_context *ctdb, TALLOC_CTX *mem_ctx, struct timeval timeout, uint32_t destnode);
 
 int ctdb_ctrl_getcapabilities_recv(struct ctdb_context *ctdb, TALLOC_CTX *mem_ctx, struct ctdb_client_control_state *state, uint32_t *capabilities);
-
-
-int32_t ctdb_ctrl_transaction_active(struct ctdb_context *ctdb,
-				     uint32_t destnode,
-				     uint32_t db_id);
 
 struct ctdb_marshall_buffer *ctdb_marshall_add(TALLOC_CTX *mem_ctx,
 					       struct ctdb_marshall_buffer *m,
@@ -557,6 +551,7 @@ int ctdb_transaction_fetch(struct ctdb_transaction_handle *h,
 int ctdb_transaction_store(struct ctdb_transaction_handle *h,
 			   TDB_DATA key, TDB_DATA data);
 int ctdb_transaction_commit(struct ctdb_transaction_handle *h);
+int ctdb_transaction_cancel(struct ctdb_transaction_handle *h);
 
 int ctdb_ctrl_recd_ping(struct ctdb_context *ctdb);
 

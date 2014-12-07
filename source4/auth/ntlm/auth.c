@@ -342,6 +342,11 @@ static void auth_check_password_async_trigger(struct tevent_context *ev,
 
 	for (method=state->auth_ctx->methods; method; method = method->next) {
 
+		if (state->user_info->flags & USER_INFO_LOCAL_SAM_ONLY
+		    && !(method->ops->flags & AUTH_METHOD_LOCAL_SAM)) {
+			continue;
+		}
+
 		/* we fill in state->method here so debug messages in
 		   the callers know which method failed */
 		state->method = method;
@@ -370,9 +375,13 @@ static void auth_check_password_async_trigger(struct tevent_context *ev,
 	}
 
 	if (NT_STATUS_EQUAL(status, NT_STATUS_NOT_IMPLEMENTED)) {
-		/* don't expose the NT_STATUS_NOT_IMPLEMENTED
-		   internals */
-		status = NT_STATUS_NO_SUCH_USER;
+		if (!(state->user_info->flags & USER_INFO_LOCAL_SAM_ONLY)) {
+			/* don't expose the NT_STATUS_NOT_IMPLEMENTED
+			 * internals, except when the caller is only probing
+			 * one method, as they may do the fallback 
+			 */
+			status = NT_STATUS_NO_SUCH_USER;
+		}
 	}
 
 	if (tevent_req_nterror(req, status)) {
@@ -461,20 +470,12 @@ static NTSTATUS auth_generate_session_info_wrapper(struct auth4_context *auth_co
 
 	if ((session_info_flags & AUTH_SESSION_INFO_UNIX_TOKEN)
 	    && NT_STATUS_IS_OK(status)) {
-		struct wbc_context *wbc_ctx = wbc_init(auth_context,
-						       auth_context->msg_ctx,
-						       auth_context->event_ctx);
-		if (!wbc_ctx) {
-			TALLOC_FREE(*session_info);
-			DEBUG(1, ("Cannot contact winbind to provide unix token\n"));
-			return NT_STATUS_INVALID_SERVER_STATE;
-		}
-		status = auth_session_info_fill_unix(wbc_ctx, auth_context->lp_ctx,
+		status = auth_session_info_fill_unix(auth_context->event_ctx,
+						     auth_context->lp_ctx,
 						     original_user_name, *session_info);
 		if (!NT_STATUS_IS_OK(status)) {
 			TALLOC_FREE(*session_info);
 		}
-		TALLOC_FREE(wbc_ctx);
 	}
 	return status;
 }
@@ -528,7 +529,7 @@ static NTSTATUS auth_generate_session_info_pac(struct auth4_context *auth_ctx,
  Make a auth_info struct for the auth subsystem
  - Allow the caller to specify the methods to use, including optionally the SAM to use
 ***************************************************************************/
-_PUBLIC_ NTSTATUS auth_context_create_methods(TALLOC_CTX *mem_ctx, const char **methods, 
+_PUBLIC_ NTSTATUS auth_context_create_methods(TALLOC_CTX *mem_ctx, const char * const *methods, 
 					      struct tevent_context *ev,
 					      struct imessaging_context *msg,
 					      struct loadparm_context *lp_ctx,
@@ -604,7 +605,7 @@ const char **auth_methods_from_lp(TALLOC_CTX *mem_ctx, struct loadparm_context *
 		auth_methods = str_list_make(mem_ctx, "anonymous sam_ignoredomain winbind", NULL);
 		break;
 	}
-	return (const char **) auth_methods;
+	return discard_const_p(const char *, auth_methods);
 }
 
 /***************************************************************************

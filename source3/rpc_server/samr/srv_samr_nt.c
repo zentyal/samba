@@ -1713,8 +1713,8 @@ NTSTATUS _samr_LookupNames(struct pipes_struct *p,
 }
 
 /****************************************************************
- _samr_ChangePasswordUser.  
- 
+ _samr_ChangePasswordUser.
+
  So old it is just not worth implementing
  because it does not supply a plaintext and so we can't do password
  complexity checking and cannot update other services that use a
@@ -2644,7 +2644,7 @@ static NTSTATUS get_user_info_18(struct pipes_struct *p,
 	if (ret == False) {
 		DEBUG(4, ("User %s not found\n", sid_string_dbg(user_sid)));
 		TALLOC_FREE(smbpass);
-		return (geteuid() == sec_initial_uid()) ? NT_STATUS_NO_SUCH_USER : NT_STATUS_ACCESS_DENIED;
+		return root_mode() ? NT_STATUS_NO_SUCH_USER : NT_STATUS_ACCESS_DENIED;
 	}
 
 	DEBUG(3,("User:[%s] 0x%x\n", pdb_get_username(smbpass), pdb_get_acct_ctrl(smbpass) ));
@@ -3257,7 +3257,7 @@ static NTSTATUS query_dom_info_2(TALLOC_CTX *mem_ctx,
 
 	unbecome_root();
 
-	r->oem_information.string	= lp_serverstring(r);
+	r->oem_information.string	= lp_server_string(r);
 	r->domain_name.string		= lp_workgroup();
 	r->primary.string		= lp_netbios_name();
 	r->sequence_num			= seq_num;
@@ -3301,7 +3301,7 @@ static NTSTATUS query_dom_info_3(TALLOC_CTX *mem_ctx,
 static NTSTATUS query_dom_info_4(TALLOC_CTX *mem_ctx,
 				 struct samr_DomOEMInformation *r)
 {
-	r->oem_information.string = lp_serverstring(r);
+	r->oem_information.string = lp_server_string(r);
 
 	return NT_STATUS_OK;
 }
@@ -3683,7 +3683,7 @@ NTSTATUS _samr_CreateUser2(struct pipes_struct *p,
 
 	/* determine which user right we need to check based on the acb_info */
 
-	if (geteuid() == sec_initial_uid()) {
+	if (root_mode()) {
 		can_add_account = true;
 	} else if (acb_info & ACB_WSTRUST) {
 		needed_priv = SEC_PRIV_MACHINE_ACCOUNT;
@@ -6377,6 +6377,23 @@ static NTSTATUS set_dom_info_12(TALLOC_CTX *mem_ctx,
 			        struct samr_DomInfo12 *r)
 {
 	time_t u_lock_duration, u_reset_time;
+
+	/*
+	 * It is not possible to set lockout_duration < lockout_window.
+	 * (The test is the other way around since the negative numbers
+	 *  are stored...)
+	 *
+	 * This constraint is documented here for the samr rpc service:
+	 * MS-SAMR 3.1.1.6 Attribute Constraints for Originating Updates
+	 * http://msdn.microsoft.com/en-us/library/cc245667%28PROT.10%29.aspx
+	 *
+	 * And here for the ldap backend:
+	 * MS-ADTS 3.1.1.5.3.2 Constraints
+	 * http://msdn.microsoft.com/en-us/library/cc223462(PROT.10).aspx
+	 */
+	if (r->lockout_duration > r->lockout_window) {
+		return NT_STATUS_INVALID_PARAMETER;
+	}
 
 	u_lock_duration = nt_time_to_unix_abs((NTTIME *)&r->lockout_duration);
 	if (u_lock_duration != -1) {

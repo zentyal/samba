@@ -167,6 +167,12 @@ static NTSTATUS cvfs_connect(struct ntvfs_module_context *ntvfs,
 	struct cli_credentials *credentials;
 	bool machine_account;
 	struct smbcli_options options;
+	TALLOC_CTX *tmp_ctx;
+
+	tmp_ctx = talloc_new(req);
+	if (tmp_ctx == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	switch (tcon->generic.level) {
 	case RAW_TCON_TCON:
@@ -179,7 +185,8 @@ static NTSTATUS cvfs_connect(struct ntvfs_module_context *ntvfs,
 		sharename = tcon->smb2.in.path;
 		break;
 	default:
-		return NT_STATUS_INVALID_LEVEL;
+		status = NT_STATUS_INVALID_LEVEL;
+		goto out;
 	}
 
 	if (strncmp(sharename, "\\\\", 2) == 0) {
@@ -192,11 +199,11 @@ static NTSTATUS cvfs_connect(struct ntvfs_module_context *ntvfs,
 	/* Here we need to determine which server to connect to.
 	 * For now we use parametric options, type cifs.
 	 */
-	host = share_string_option(scfg, SMB2_SERVER, NULL);
-	user = share_string_option(scfg, SMB2_USER, NULL);
-	pass = share_string_option(scfg, SMB2_PASSWORD, NULL);
-	domain = share_string_option(scfg, SMB2_DOMAIN, NULL);
-	remote_share = share_string_option(scfg, SMB2_SHARE, NULL);
+	host = share_string_option(tmp_ctx, scfg, SMB2_SERVER, NULL);
+	user = share_string_option(tmp_ctx, scfg, SMB2_USER, NULL);
+	pass = share_string_option(tmp_ctx, scfg, SMB2_PASSWORD, NULL);
+	domain = share_string_option(tmp_ctx, scfg, SMB2_DOMAIN, NULL);
+	remote_share = share_string_option(tmp_ctx, scfg, SMB2_SHARE, NULL);
 	if (!remote_share) {
 		remote_share = sharename;
 	}
@@ -205,21 +212,24 @@ static NTSTATUS cvfs_connect(struct ntvfs_module_context *ntvfs,
 
 	p = talloc_zero(ntvfs, struct cvfs_private);
 	if (!p) {
-		return NT_STATUS_NO_MEMORY;
+		status = NT_STATUS_NO_MEMORY;
+		goto out;
 	}
 
 	ntvfs->private_data = p;
 
 	if (!host) {
 		DEBUG(1,("CIFS backend: You must supply server\n"));
-		return NT_STATUS_INVALID_PARAMETER;
+		status = NT_STATUS_INVALID_PARAMETER;
+		goto out;
 	} 
 	
 	if (user && pass) {
 		DEBUG(5, ("CIFS backend: Using specified password\n"));
 		credentials = cli_credentials_init(p);
 		if (!credentials) {
-			return NT_STATUS_NO_MEMORY;
+			status = NT_STATUS_NO_MEMORY;
+			goto out;
 		}
 		cli_credentials_set_conf(credentials, ntvfs->ctx->lp_ctx);
 		cli_credentials_set_username(credentials, user, CRED_SPECIFIED);
@@ -236,14 +246,15 @@ static NTSTATUS cvfs_connect(struct ntvfs_module_context *ntvfs,
 		}
 		status = cli_credentials_set_machine_account(credentials, ntvfs->ctx->lp_ctx);
 		if (!NT_STATUS_IS_OK(status)) {
-			return status;
+			goto out;
 		}
 	} else if (req->session_info->credentials) {
 		DEBUG(5, ("CIFS backend: Using delegated credentials\n"));
 		credentials = req->session_info->credentials;
 	} else {
 		DEBUG(1,("CIFS backend: NO delegated credentials found: You must supply server, user and password or the client must supply delegated credentials\n"));
-		return NT_STATUS_INVALID_PARAMETER;
+		status = NT_STATUS_INVALID_PARAMETER;
+		goto out;
 	}
 
 	lpcfg_smbcli_options(ntvfs->ctx->lp_ctx, &options);
@@ -257,19 +268,29 @@ static NTSTATUS cvfs_connect(struct ntvfs_module_context *ntvfs,
 			ntvfs->ctx->event_ctx, &options,
 			lpcfg_socket_options(ntvfs->ctx->lp_ctx),
 			lpcfg_gensec_settings(p, ntvfs->ctx->lp_ctx));
-	NT_STATUS_NOT_OK_RETURN(status);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto out;
+	}
 
 	status = smb2_get_roothandle(tree, &p->roothandle);
-	NT_STATUS_NOT_OK_RETURN(status);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto out;
+	}
 
 	p->tree = tree;
 	p->transport = p->tree->session->transport;
 	p->ntvfs = ntvfs;
 
 	ntvfs->ctx->fs_type = talloc_strdup(ntvfs->ctx, "NTFS");
-	NT_STATUS_HAVE_NO_MEMORY(ntvfs->ctx->fs_type);
+	if (ntvfs->ctx->fs_type == NULL) {
+		status = NT_STATUS_NO_MEMORY;
+		goto out;
+	}
 	ntvfs->ctx->dev_type = talloc_strdup(ntvfs->ctx, "A:");
-	NT_STATUS_HAVE_NO_MEMORY(ntvfs->ctx->dev_type);
+	if (ntvfs->ctx->dev_type == NULL) {
+		status = NT_STATUS_NO_MEMORY;
+		goto out;
+	}
 
 	if (tcon->generic.level == RAW_TCON_TCONX) {
 		tcon->tconx.out.fs_type = ntvfs->ctx->fs_type;
@@ -280,7 +301,12 @@ static NTSTATUS cvfs_connect(struct ntvfs_module_context *ntvfs,
 	/* TODO: enable oplocks 
 	smbcli_oplock_handler(p->transport, oplock_handler, p);
 	*/
-	return NT_STATUS_OK;
+
+	status = NT_STATUS_OK;
+
+out:
+	TALLOC_FREE(tmp_ctx);
+	return status;
 }
 
 /*

@@ -46,9 +46,12 @@ struct loadparm_service;
 struct smbcli_options;
 struct smbcli_session_options;
 struct gensec_settings;
+struct bitmap;
+struct file_lists;
 
 #ifdef CONFIG_H_IS_FROM_SAMBA
 #include "lib/param/param_proto.h"
+#include "lib/param/param_functions.h"
 #endif
 
 const char **lpcfg_interfaces(struct loadparm_context *);
@@ -61,13 +64,15 @@ int lpcfg_allow_dns_updates(struct loadparm_context *);
 void reload_charcnv(struct loadparm_context *lp_ctx);
 
 struct loadparm_service *lpcfg_default_service(struct loadparm_context *lp_ctx);
-
+bool lpcfg_autoloaded(struct loadparm_service *, struct loadparm_service *);
 
 char *lpcfg_tls_keyfile(TALLOC_CTX *mem_ctx, struct loadparm_context *);
 char *lpcfg_tls_certfile(TALLOC_CTX *mem_ctx, struct loadparm_context *);
 char *lpcfg_tls_cafile(TALLOC_CTX *mem_ctx, struct loadparm_context *);
 char *lpcfg_tls_dhpfile(TALLOC_CTX *mem_ctx, struct loadparm_context *);
 char *lpcfg_tls_crlfile(TALLOC_CTX *mem_ctx, struct loadparm_context *);
+
+const char *lpcfg_dnsdomain(struct loadparm_context *);
 
 const char *lpcfg_servicename(const struct loadparm_service *service);
 
@@ -139,13 +144,6 @@ bool lpcfg_set_option(struct loadparm_context *lp_ctx, const char *option);
 bool lpcfg_dump_a_parameter(struct loadparm_context *lp_ctx,
 			 struct loadparm_service *service,
 			 const char *parm_name, FILE * f);
-
-/**
- * Return info about the next service  in a service. snum==-1 gives the globals.
- * Return NULL when out of parameters.
- */
-struct parm_struct *lpcfg_next_parameter(struct loadparm_context *lp_ctx, int snum, int *i,
-				      int allparameters);
 
 /**
  * Unload unused services.

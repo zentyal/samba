@@ -27,7 +27,7 @@
  */
 
 #ifndef MAX_OPEN_FUDGEFACTOR
-#define MAX_OPEN_FUDGEFACTOR 20
+#define MAX_OPEN_FUDGEFACTOR 40
 #endif
 
 /*
@@ -79,11 +79,6 @@
 /* what default type of filesystem do we want this to show up as in a
    NT file manager window? */
 #define FSTYPE_STRING "NTFS"
-
-/* the default guest account - normally set in the Makefile or smb.conf */
-#ifndef GUEST_ACCOUNT
-#define GUEST_ACCOUNT "nobody"
-#endif
 
 /* user to test password server with as invalid in security=server mode. */
 #ifndef INVALID_USER_PREFIX
@@ -211,10 +206,5 @@
 
 #define CLIENT_NDR_PADDING_SIZE 8
 #define SERVER_NDR_PADDING_SIZE 8
-
-#define DEFAULT_SMB2_MAX_READ (1024*1024)
-#define DEFAULT_SMB2_MAX_WRITE (1024*1024)
-#define DEFAULT_SMB2_MAX_TRANSACT (1024*1024)
-#define DEFAULT_SMB2_MAX_CREDITS 8192
 
 #endif

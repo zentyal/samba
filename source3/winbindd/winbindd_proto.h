@@ -27,6 +27,7 @@
 
 /* The following definitions come from winbindd/winbindd.c  */
 struct messaging_context *winbind_messaging_context(void);
+struct imessaging_context *winbind_imessaging_context(void);
 void request_error(struct winbindd_cli_state *state);
 void request_ok(struct winbindd_cli_state *state);
 bool winbindd_setup_sig_term_handler(bool parent);
@@ -34,10 +35,8 @@ bool winbindd_setup_stdin_handler(bool parent, bool foreground);
 bool winbindd_setup_sig_hup_handler(const char *lfile);
 bool winbindd_use_idmap_cache(void);
 bool winbindd_use_cache(void);
-const char *get_winbind_pipe_dir(void);
 char *get_winbind_priv_pipe_dir(void);
 struct tevent_context *winbind_event_context(void);
-int main(int argc, char **argv, char **envp);
 
 /* The following definitions come from winbindd/winbindd_ads.c  */
 
@@ -58,7 +57,6 @@ NTSTATUS rpc_lookup_sids(TALLOC_CTX *mem_ctx,
 
 /* The following definitions come from winbindd/winbindd_cache.c  */
 
-struct cache_entry *centry_start(struct winbindd_domain *domain, NTSTATUS status);
 NTSTATUS wcache_cached_creds_exist(struct winbindd_domain *domain, const struct dom_sid *sid);
 NTSTATUS wcache_get_creds(struct winbindd_domain *domain, 
 			  TALLOC_CTX *mem_ctx, 
@@ -106,6 +104,10 @@ NTSTATUS wcache_query_user(struct winbindd_domain *domain,
 			   TALLOC_CTX *mem_ctx,
 			   const struct dom_sid *user_sid,
 			   struct wbint_userinfo *info);
+NTSTATUS wcache_query_user_fullname(struct winbindd_domain *domain,
+				    TALLOC_CTX *mem_ctx,
+				    const struct dom_sid *user_sid,
+				    const char **full_name);
 NTSTATUS wcache_lookup_useraliases(struct winbindd_domain *domain,
 				   TALLOC_CTX *mem_ctx,
 				   uint32 num_sids, const struct dom_sid *sids,
@@ -166,10 +168,16 @@ void winbind_msg_domain_online(struct messaging_context *msg_ctx,
 
 void set_domain_offline(struct winbindd_domain *domain);
 void set_domain_online_request(struct winbindd_domain *domain);
+
+struct ndr_interface_table;
+NTSTATUS wb_open_internal_pipe(TALLOC_CTX *mem_ctx,
+			       const struct ndr_interface_table *table,
+			       struct rpc_pipe_client **ret_pipe);
 void invalidate_cm_connection(struct winbindd_cm_conn *conn);
 void close_conns_after_fork(void);
-NTSTATUS init_dc_connection(struct winbindd_domain *domain);
+NTSTATUS init_dc_connection(struct winbindd_domain *domain, bool need_rw_dc);
 NTSTATUS cm_connect_sam(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
+			bool need_rw_dc,
 			struct rpc_pipe_client **cli, struct policy_handle *sam_handle);
 NTSTATUS cm_connect_lsa(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 			struct rpc_pipe_client **cli, struct policy_handle *lsa_policy);
@@ -390,6 +398,17 @@ enum winbindd_result winbindd_dual_pam_logoff(struct winbindd_domain *domain,
 enum winbindd_result winbindd_dual_pam_chng_pswd_auth_crap(struct winbindd_domain *domainSt, struct winbindd_cli_state *state);
 NTSTATUS winbindd_pam_auth_pac_send(struct winbindd_cli_state *state,
 				    struct netr_SamInfo3 **info3);
+
+NTSTATUS winbind_dual_SamLogon(struct winbindd_domain *domain,
+			       TALLOC_CTX *mem_ctx,
+			       uint32_t logon_parameters,
+			       const char *name_user,
+			       const char *name_domain,
+			       const char *workstation,
+			       const uint8_t chal[8],
+			       DATA_BLOB lm_response,
+			       DATA_BLOB nt_response,
+			       struct netr_SamInfo3 **info3);
 
 /* The following definitions come from winbindd/winbindd_util.c  */
 
@@ -905,4 +924,6 @@ NTSTATUS open_internal_samr_conn(TALLOC_CTX *mem_ctx,
 /* The following definitions come from winbindd/winbindd_ads.c  */
 ADS_STATUS ads_idmap_cached_connection(ADS_STRUCT **adsp, const char *dom_name);
 
+/* The following definitions come from winbindd/winbindd_irpc.c  */
+NTSTATUS wb_irpc_register(void);
 #endif /*  _WINBINDD_PROTO_H_  */

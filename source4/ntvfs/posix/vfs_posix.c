@@ -38,7 +38,8 @@
 static void pvfs_setup_options(struct pvfs_state *pvfs)
 {
 	struct share_config *scfg = pvfs->ntvfs->ctx->config;
-	const char *eadb;
+	char *eadb;
+	char *xattr_backend;
 	bool def_perm_override = false;
 
 	if (share_bool_option(scfg, SHARE_MAP_HIDDEN, SHARE_MAP_HIDDEN_DEFAULT))
@@ -113,15 +114,16 @@ static void pvfs_setup_options(struct pvfs_state *pvfs)
 	pvfs->fs_attribs = 
 		FS_ATTR_CASE_SENSITIVE_SEARCH | 
 		FS_ATTR_CASE_PRESERVED_NAMES |
-		FS_ATTR_UNICODE_ON_DISK |
-		FS_ATTR_SPARSE_FILES;
+		FS_ATTR_UNICODE_ON_DISK;
 
 	/* allow xattrs to be stored in a external tdb */
-	eadb = share_string_option(scfg, PVFS_EADB, NULL);
+	eadb = share_string_option(pvfs, scfg, PVFS_EADB, NULL);
 	if (eadb != NULL) {
-		pvfs->ea_db = tdb_wrap_open(pvfs, eadb, 50000,  
-					    TDB_DEFAULT, O_RDWR|O_CREAT, 0600, 
-					    pvfs->ntvfs->ctx->lp_ctx);
+		pvfs->ea_db = tdb_wrap_open(
+			pvfs, eadb, 50000,
+			lpcfg_tdb_flags(pvfs->ntvfs->ctx->lp_ctx, TDB_DEFAULT),
+			O_RDWR|O_CREAT, 0600);
+		TALLOC_FREE(eadb);
 		if (pvfs->ea_db != NULL) {
 			pvfs->flags |= PVFS_FLAG_XATTR_ENABLE;
 		} else {
@@ -147,7 +149,9 @@ static void pvfs_setup_options(struct pvfs_state *pvfs)
 	}
 
 	/* enable an ACL backend */
-	pvfs->acl_ops = pvfs_acl_backend_byname(share_string_option(scfg, PVFS_ACL, "xattr"));
+	xattr_backend = share_string_option(pvfs, scfg, PVFS_ACL, "xattr");
+	pvfs->acl_ops = pvfs_acl_backend_byname(xattr_backend);
+	TALLOC_FREE(xattr_backend);
 }
 
 static int pvfs_state_destructor(struct pvfs_state *pvfs)
@@ -220,7 +224,7 @@ static NTSTATUS pvfs_connect(struct ntvfs_module_context *ntvfs,
 	NT_STATUS_HAVE_NO_MEMORY(pvfs);
 
 	/* for simplicity of path construction, remove any trailing slash now */
-	base_directory = talloc_strdup(pvfs, share_string_option(ntvfs->ctx->config, SHARE_PATH, ""));
+	base_directory = share_string_option(pvfs, ntvfs->ctx->config, SHARE_PATH, "");
 	NT_STATUS_HAVE_NO_MEMORY(base_directory);
 	if (strcmp(base_directory, "/") != 0) {
 		trim_string(base_directory, NULL, "/");
@@ -270,13 +274,6 @@ static NTSTATUS pvfs_connect(struct ntvfs_module_context *ntvfs,
 					   pvfs->ntvfs->ctx->lp_ctx,
 					   pvfs->ntvfs->ctx->event_ctx,
 					   pvfs->ntvfs->ctx->config);
-
-	pvfs->wbc_ctx = wbc_init(pvfs,
-				 pvfs->ntvfs->ctx->msg_ctx,
-				 pvfs->ntvfs->ctx->event_ctx);
-	if (pvfs->wbc_ctx == NULL) {
-		return NT_STATUS_INTERNAL_DB_CORRUPTION;
-	}
 
 	/* allocate the search handle -> ptr tree */
 	pvfs->search.idtree = idr_init(pvfs);

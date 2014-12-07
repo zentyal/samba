@@ -25,19 +25,20 @@
 #include "regedit_treeview.h"
 #include "regedit_valuelist.h"
 #include "regedit_dialog.h"
+#include "regedit_list.h"
 #include <ncurses.h>
 #include <menu.h>
 #include <panel.h>
 
 #define KEY_START_X 	0
-#define KEY_START_Y 	3
+#define KEY_START_Y 	1
 #define KEY_WIDTH 	(COLS / 4)
 #define KEY_HEIGHT	(LINES - KEY_START_Y - 2)
 #define VAL_START_X 	KEY_WIDTH
-#define VAL_START_Y 	3
+#define VAL_START_Y 	1
 #define VAL_WIDTH 	(COLS - KEY_WIDTH)
 #define VAL_HEIGHT	(LINES - VAL_START_Y - 2)
-#define HEADING_START_Y	(KEY_START_Y - 1)
+
 #define HELP1_START_Y	(LINES - 2)
 #define HELP1_START_X	0
 #define HELP1_WIDTH	(LINES)
@@ -51,12 +52,14 @@
 #define PATH_WIDTH_MAX	1024
 
 struct regedit {
+	struct registry_context *registry_context;
 	WINDOW *main_window;
 	WINDOW *path_label;
 	size_t path_len;
 	struct value_list *vl;
 	struct tree_view *keys;
 	bool tree_input;
+	struct regedit_search_opts active_search;
 };
 
 static struct regedit *regedit_main = NULL;
@@ -73,59 +76,14 @@ static void show_path(struct regedit *regedit)
 	}
 	copywin(regedit->path_label, regedit->main_window, 0, start_pad,
 		PATH_START_Y, start_win, PATH_START_Y, PATH_MAX_Y, false);
+
+	mvchgat(0, 0, COLS, A_BOLD, PAIR_YELLOW_CYAN, NULL);
 }
 
 static void print_path(struct regedit *regedit, struct tree_node *node)
 {
 	regedit->path_len = tree_node_print_path(regedit->path_label, node);
 	show_path(regedit);
-}
-
-/* load all available hives */
-static struct tree_node *load_hives(TALLOC_CTX *mem_ctx,
-				    struct registry_context *ctx)
-{
-	const char *hives[] = {
-		"HKEY_CLASSES_ROOT",
-		"HKEY_CURRENT_USER",
-		"HKEY_LOCAL_MACHINE",
-		"HKEY_PERFORMANCE_DATA",
-		"HKEY_USERS",
-		"HKEY_CURRENT_CONFIG",
-		"HKEY_DYN_DATA",
-		"HKEY_PERFORMANCE_TEXT",
-		"HKEY_PERFORMANCE_NLSTEXT",
-		NULL
-	};
-	struct tree_node *root, *prev, *node;
-	struct registry_key *key;
-	WERROR rv;
-	size_t i;
-
-	root = NULL;
-	prev = NULL;
-
-	for (i = 0; hives[i] != NULL; ++i) {
-		rv = reg_get_predefined_key_by_name(ctx, hives[i], &key);
-		if (!W_ERROR_IS_OK(rv)) {
-			continue;
-		}
-
-		node = tree_node_new(mem_ctx, NULL, hives[i], key);
-		if (node == NULL) {
-			return NULL;
-		}
-
-		if (root == NULL) {
-			root = node;
-		}
-		if (prev) {
-			tree_node_append(prev, node);
-		}
-		prev = node;
-	}
-
-	return root;
 }
 
 static void print_help(struct regedit *regedit)
@@ -136,8 +94,9 @@ static void print_help(struct regedit *regedit)
 			    "[b] Edit binary";
 	const char *msg = "KEYS";
 	const char *help = khelp;
-	const char *genhelp = "[TAB] Switch sections [q] Quit regedit "
-			      "[UP] List up [DOWN] List down";
+	const char *genhelp = "[TAB] Switch sections [q] Quit "
+			      "[UP] List up [DOWN] List down "
+			      "[/] Search [x] Next";
 	int i, pad;
 
 	if (!regedit->tree_input) {
@@ -147,15 +106,16 @@ static void print_help(struct regedit *regedit)
 
 	move(HELP1_START_Y, HELP1_START_X);
 	clrtoeol();
-	attron(A_REVERSE);
+	attron(COLOR_PAIR(PAIR_BLACK_CYAN));
 	mvaddstr(HELP1_START_Y, HELP1_START_X, help);
 	pad = COLS - strlen(msg) - strlen(help);
 	for (i = 0; i < pad; ++i) {
 		addch(' ');
 	}
-	attron(A_BOLD);
+	attroff(COLOR_PAIR(PAIR_BLACK_CYAN));
+	attron(COLOR_PAIR(PAIR_YELLOW_CYAN) | A_BOLD);
 	addstr(msg);
-	attroff(A_REVERSE | A_BOLD);
+	attroff(COLOR_PAIR(PAIR_YELLOW_CYAN) | A_BOLD);
 
 	move(HELP2_START_Y, HELP2_START_X);
 	clrtoeol();
@@ -164,24 +124,13 @@ static void print_help(struct regedit *regedit)
 
 static void print_heading(struct regedit *regedit)
 {
-	move(HEADING_START_Y, 0);
-	clrtoeol();
-
 	if (regedit->tree_input) {
-		attron(A_REVERSE);
+		tree_view_set_selected(regedit->keys, true);
+		value_list_set_selected(regedit->vl, false);
 	} else {
-		attroff(A_REVERSE);
+		tree_view_set_selected(regedit->keys, false);
+		value_list_set_selected(regedit->vl, true);
 	}
-	mvprintw(HEADING_START_Y, KEY_START_X, "Key");
-	attroff(A_REVERSE);
-
-	if (!regedit->tree_input) {
-		attron(A_REVERSE);
-	} else {
-		attroff(A_REVERSE);
-	}
-	mvprintw(HEADING_START_Y, VAL_START_X, "Value");
-	attroff(A_REVERSE);
 
 	print_help(regedit);
 }
@@ -190,17 +139,17 @@ static void load_values(struct regedit *regedit)
 {
 	struct tree_node *node;
 
-	node = item_userptr(current_item(regedit->keys->menu));
+	node = tree_view_get_current_node(regedit->keys);
 	value_list_load(regedit->vl, node->key);
 }
 
 static void add_reg_key(struct regedit *regedit, struct tree_node *node,
 			bool subkey)
 {
-	char *name;
+	const char *name;
 	const char *msg;
 
-	if (!subkey && !node->parent) {
+	if (!subkey && tree_node_is_top_level(node)) {
 		return;
 	}
 
@@ -234,18 +183,186 @@ static void add_reg_key(struct regedit *regedit, struct tree_node *node,
 				new_node = tree_node_new(parent, parent,
 							 name, new_key);
 				SMB_ASSERT(new_node);
-				tree_node_append_last(list, new_node);
+				tree_node_insert_sorted(list, new_node);
+			} else {
+				/* Reopen the parent key to make sure the
+				   new subkey will be noticed. */
+				tree_node_reopen_key(regedit->registry_context,
+						     parent);
 			}
 
 			list = tree_node_first(node);
 			tree_view_clear(regedit->keys);
 			tree_view_update(regedit->keys, list);
+			if (!subkey) {
+				node = new_node;
+			}
+			tree_view_set_current_node(regedit->keys, node);
+			load_values(regedit);
 		} else {
+			msg = get_friendly_werror_msg(rv);
 			dialog_notice(regedit, DIA_ALERT, "New Key",
-				      "Failed to create key.");
+				      "Failed to create key: %s", msg);
 		}
-		talloc_free(name);
+		talloc_free(discard_const(name));
 	}
+}
+
+enum search_flags {
+	SEARCH_NEXT = (1<<0),
+	SEARCH_PREV = (1<<1),
+	SEARCH_REPEAT = (1<<2)
+};
+static WERROR regedit_search(struct regedit *regedit, struct tree_node *node,
+			     struct value_item *vitem, unsigned flags)
+{
+	struct regedit_search_opts *opts;
+	struct tree_node *found;
+	struct value_item *found_value;
+	bool search_key, need_sync;
+	char *save_value_name;
+	WERROR rv;
+	bool (*iterate)(struct tree_node **, bool, WERROR *);
+	struct value_item *(*find_item)(struct value_list *,
+				        struct value_item *,
+				        const char *,
+				        regedit_search_match_fn_t);
+
+	opts = &regedit->active_search;
+
+	if (!opts->query || !opts->match) {
+		return WERR_OK;
+	}
+
+	SMB_ASSERT(opts->search_key || opts->search_value);
+
+	rv = WERR_OK;
+	found = NULL;
+	found_value = NULL;
+	save_value_name = NULL;
+	search_key = opts->search_key;
+	need_sync = false;
+	iterate = tree_node_next;
+	find_item = value_list_find_next_item;
+
+	if (flags & SEARCH_PREV) {
+		iterate = tree_node_prev;
+		find_item = value_list_find_prev_item;
+	}
+
+	if (opts->search_value) {
+		struct value_item *it;
+
+		it = value_list_get_current_item(regedit->vl);
+		if (it) {
+			save_value_name = talloc_strdup(regedit,
+							it->value_name);
+			if (save_value_name == NULL) {
+				return WERR_NOMEM;
+			}
+		}
+
+		if (vitem) {
+			search_key = false;
+		}
+	}
+
+	if (!vitem && (flags & SEARCH_REPEAT)) {
+		if (opts->search_value) {
+			search_key = false;
+		} else if (!iterate(&node, opts->search_recursive, &rv)) {
+			beep();
+			return rv;
+		}
+	}
+
+	do {
+		if (search_key) {
+			SMB_ASSERT(opts->search_key == true);
+			if (opts->match(node->name, opts->query)) {
+				found = node;
+			} else if (opts->search_value) {
+				search_key = false;
+			}
+		}
+		if (!search_key) {
+			SMB_ASSERT(opts->search_value == true);
+			if (!vitem) {
+				rv = value_list_load_quick(regedit->vl,
+							   node->key);
+				if (!W_ERROR_IS_OK(rv)) {
+					goto out;
+				}
+				need_sync = true;
+			}
+			found_value = find_item(regedit->vl, vitem, opts->query,
+						opts->match);
+			if (found_value) {
+				found = node;
+			} else {
+				vitem = NULL;
+				search_key = opts->search_key;
+			}
+		}
+	} while (!found && iterate(&node, opts->search_recursive, &rv));
+
+	if (!W_ERROR_IS_OK(rv)) {
+		goto out;
+	}
+
+	if (found) {
+		/* Put the cursor on the node that was found */
+		if (!tree_view_is_node_visible(regedit->keys, found)) {
+			tree_view_update(regedit->keys,
+					 tree_node_first(found));
+			print_path(regedit, found);
+		}
+		tree_view_set_current_node(regedit->keys, found);
+		if (found_value) {
+			if (need_sync) {
+				value_list_sync(regedit->vl);
+			}
+			value_list_set_current_item(regedit->vl, found_value);
+			regedit->tree_input = false;
+		} else {
+			load_values(regedit);
+			regedit->tree_input = true;
+		}
+		tree_view_show(regedit->keys);
+		value_list_show(regedit->vl);
+		print_heading(regedit);
+	} else {
+		if (need_sync) {
+			load_values(regedit);
+			value_list_set_current_item_by_name(regedit->vl,
+							    save_value_name);
+		}
+		beep();
+	}
+
+out:
+	talloc_free(save_value_name);
+
+	return rv;
+}
+
+static void regedit_search_repeat(struct regedit *regedit, unsigned flags)
+{
+	struct tree_node *node;
+	struct value_item *vitem;
+	struct regedit_search_opts *opts;
+
+	opts = &regedit->active_search;
+	if (opts->query == NULL) {
+		return;
+	}
+
+	node = tree_view_get_current_node(regedit->keys);
+	vitem = NULL;
+	if (opts->search_value && !regedit->tree_input) {
+		vitem = value_list_get_current_item(regedit->vl);
+	}
+	regedit_search(regedit, node, vitem, flags | SEARCH_REPEAT);
 }
 
 static void handle_tree_input(struct regedit *regedit, int c)
@@ -254,49 +371,74 @@ static void handle_tree_input(struct regedit *regedit, int c)
 
 	switch (c) {
 	case KEY_DOWN:
-		menu_driver(regedit->keys->menu, REQ_DOWN_ITEM);
+		tree_view_driver(regedit->keys, ML_CURSOR_DOWN);
 		load_values(regedit);
 		break;
 	case KEY_UP:
-		menu_driver(regedit->keys->menu, REQ_UP_ITEM);
+		tree_view_driver(regedit->keys, ML_CURSOR_UP);
+		load_values(regedit);
+		break;
+	case KEY_NPAGE:
+		tree_view_driver(regedit->keys, ML_CURSOR_PGDN);
+		load_values(regedit);
+		break;
+	case KEY_PPAGE:
+		tree_view_driver(regedit->keys, ML_CURSOR_PGUP);
+		load_values(regedit);
+		break;
+	case KEY_HOME:
+		tree_view_driver(regedit->keys, ML_CURSOR_HOME);
+		load_values(regedit);
+		break;
+	case KEY_END:
+		tree_view_driver(regedit->keys, ML_CURSOR_END);
 		load_values(regedit);
 		break;
 	case '\n':
 	case KEY_ENTER:
 	case KEY_RIGHT:
-		node = item_userptr(current_item(regedit->keys->menu));
+		node = tree_view_get_current_node(regedit->keys);
 		if (node && tree_node_has_children(node)) {
-			tree_node_load_children(node);
-			print_path(regedit, node->child_head);
-			tree_view_update(regedit->keys, node->child_head);
-			value_list_load(regedit->vl, node->child_head->key);
+			WERROR rv;
+
+			rv = tree_node_load_children(node);
+			if (W_ERROR_IS_OK(rv)) {
+				print_path(regedit, node->child_head);
+				tree_view_update(regedit->keys, node->child_head);
+				value_list_load(regedit->vl, node->child_head->key);
+			} else {
+				const char *msg = get_friendly_werror_msg(rv);
+				dialog_notice(regedit, DIA_ALERT, "Loading Subkeys",
+					      "Failed to load subkeys: %s", msg);
+			}
 		}
 		break;
 	case KEY_LEFT:
-		node = item_userptr(current_item(regedit->keys->menu));
-		if (node && node->parent) {
+		node = tree_view_get_current_node(regedit->keys);
+		if (node && !tree_node_is_top_level(node)) {
 			print_path(regedit, node->parent);
-			node = tree_node_first(node->parent);
-			tree_view_update(regedit->keys, node);
+			node = node->parent;
+			tree_view_update(regedit->keys, tree_node_first(node));
+			tree_view_set_current_node(regedit->keys, node);
 			value_list_load(regedit->vl, node->key);
 		}
 		break;
 	case 'n':
 	case 'N':
-		node = item_userptr(current_item(regedit->keys->menu));
+		node = tree_view_get_current_node(regedit->keys);
 		add_reg_key(regedit, node, false);
 		break;
 	case 's':
 	case 'S':
-		node = item_userptr(current_item(regedit->keys->menu));
+		node = tree_view_get_current_node(regedit->keys);
 		add_reg_key(regedit, node, true);
 		break;
 	case 'd':
 	case 'D': {
 		int sel;
 
-		node = item_userptr(current_item(regedit->keys->menu));
-		if (!node->parent) {
+		node = tree_view_get_current_node(regedit->keys);
+		if (tree_node_is_top_level(node)) {
 			break;
 		}
 		sel = dialog_notice(regedit, DIA_CONFIRM,
@@ -310,9 +452,11 @@ static void handle_tree_input(struct regedit *regedit, int c)
 
 			rv = reg_key_del(node, parent->key, node->name);
 			if (W_ERROR_IS_OK(rv)) {
+				tree_node_reopen_key(regedit->registry_context,
+						     parent);
 				tree_view_clear(regedit->keys);
 				pop = tree_node_pop(&node);
-				tree_node_free_recursive(pop);
+				talloc_free(pop);
 				node = parent->child_head;
 				if (node == NULL) {
 					node = tree_node_first(parent);
@@ -321,8 +465,9 @@ static void handle_tree_input(struct regedit *regedit, int c)
 				tree_view_update(regedit->keys, node);
 				value_list_load(regedit->vl, node->key);
 			} else {
+				const char *msg = get_friendly_werror_msg(rv);
 				dialog_notice(regedit, DIA_ALERT, "Delete Key",
-					      "Failed to delete key.");
+					      "Failed to delete key: %s", msg);
 			}
 		}
 		break;
@@ -337,13 +482,27 @@ static void handle_value_input(struct regedit *regedit, int c)
 {
 	struct value_item *vitem;
 	bool binmode = false;
+	WERROR err;
+	int sel;
 
 	switch (c) {
 	case KEY_DOWN:
-		menu_driver(regedit->vl->menu, REQ_DOWN_ITEM);
+		value_list_driver(regedit->vl, ML_CURSOR_DOWN);
 		break;
 	case KEY_UP:
-		menu_driver(regedit->vl->menu, REQ_UP_ITEM);
+		value_list_driver(regedit->vl, ML_CURSOR_UP);
+		break;
+	case KEY_NPAGE:
+		value_list_driver(regedit->vl, ML_CURSOR_PGDN);
+		break;
+	case KEY_PPAGE:
+		value_list_driver(regedit->vl, ML_CURSOR_PGUP);
+		break;
+	case KEY_HOME:
+		value_list_driver(regedit->vl, ML_CURSOR_HOME);
+		break;
+	case KEY_END:
+		value_list_driver(regedit->vl, ML_CURSOR_END);
 		break;
 	case 'b':
 	case 'B':
@@ -351,45 +510,68 @@ static void handle_value_input(struct regedit *regedit, int c)
 		/* Falthrough... */
 	case '\n':
 	case KEY_ENTER:
-		vitem = item_userptr(current_item(regedit->vl->menu));
+		vitem = value_list_get_current_item(regedit->vl);
 		if (vitem) {
 			struct tree_node *node;
-			node = item_userptr(current_item(regedit->keys->menu));
-			dialog_edit_value(regedit, node->key, vitem->type,
-					  vitem, binmode);
-			value_list_load(regedit->vl, node->key);
+			const char *name = NULL;
+			node = tree_view_get_current_node(regedit->keys);
+			sel = dialog_edit_value(regedit, node->key, vitem->type,
+					        vitem, binmode, &err, &name);
+			if (!W_ERROR_IS_OK(err)) {
+				const char *msg = get_friendly_werror_msg(err);
+				dialog_notice(regedit, DIA_ALERT, "Error",
+					      "Error editing value:\n%s", msg);
+			} else if (sel == DIALOG_OK) {
+				tree_node_reopen_key(regedit->registry_context,
+						     node);
+				value_list_load(regedit->vl, node->key);
+				value_list_set_current_item_by_name(regedit->vl,
+								    name);
+				talloc_free(discard_const(name));
+			}
 		}
 		break;
 	case 'n':
 	case 'N': {
 		int new_type;
-		int sel;
 
 		sel = dialog_select_type(regedit, &new_type);
 		if (sel == DIALOG_OK) {
 			struct tree_node *node;
-			node = item_userptr(current_item(regedit->keys->menu));
-			dialog_edit_value(regedit, node->key, new_type, NULL,
-					  false);
-			value_list_load(regedit->vl, node->key);
+			const char *name = NULL;
+			node = tree_view_get_current_node(regedit->keys);
+			sel = dialog_edit_value(regedit, node->key, new_type,
+						NULL, false, &err, &name);
+			if (!W_ERROR_IS_OK(err)) {
+				const char *msg = get_friendly_werror_msg(err);
+				dialog_notice(regedit, DIA_ALERT, "Error",
+					      "Error creating value:\n%s", msg);
+			} else if (sel == DIALOG_OK) {
+				tree_node_reopen_key(regedit->registry_context,
+						     node);
+				value_list_load(regedit->vl, node->key);
+				value_list_set_current_item_by_name(regedit->vl,
+								    name);
+				talloc_free(discard_const(name));
+			}
 		}
 		break;
 	}
 	case 'd':
 	case 'D':
-		vitem = item_userptr(current_item(regedit->vl->menu));
+		vitem = value_list_get_current_item(regedit->vl);
 		if (vitem) {
-			int sel;
-
 			sel = dialog_notice(regedit, DIA_CONFIRM,
 					    "Delete Value",
 					     "Really delete value \"%s\"?",
 					     vitem->value_name);
 			if (sel == DIALOG_OK) {
-				ITEM *it = current_item(regedit->keys->menu);
-				struct tree_node *node = item_userptr(it);
+				struct tree_node *node;
+				node = tree_view_get_current_node(regedit->keys);
 				reg_del_value(regedit, node->key,
 					      vitem->value_name);
+				tree_node_reopen_key(regedit->registry_context,
+						     node);
 				value_list_load(regedit->vl, node->key);
 			}
 		}
@@ -399,9 +581,70 @@ static void handle_value_input(struct regedit *regedit, int c)
 	value_list_show(regedit->vl);
 }
 
+static bool find_substring(const char *haystack, const char *needle)
+{
+	return strstr(haystack, needle) != NULL;
+}
+
+static bool find_substring_nocase(const char *haystack, const char *needle)
+{
+	return strcasestr(haystack, needle) != NULL;
+}
+
 static void handle_main_input(struct regedit *regedit, int c)
 {
 	switch (c) {
+	case 18: { /* CTRL-R */
+		struct tree_node *root, *node;
+		const char **path;
+
+		node = tree_view_get_current_node(regedit->keys);
+		path = tree_node_get_path(regedit, node);
+		SMB_ASSERT(path != NULL);
+
+		root = tree_node_new_root(regedit, regedit->registry_context);
+		SMB_ASSERT(root != NULL);
+
+		tree_view_set_root(regedit->keys, root);
+		tree_view_set_path(regedit->keys, path);
+		node = tree_view_get_current_node(regedit->keys);
+		value_list_load(regedit->vl, node->key);
+		tree_view_show(regedit->keys);
+		value_list_show(regedit->vl);
+		print_path(regedit, node);
+		talloc_free(discard_const(path));
+		break;
+	}
+	case 'f':
+	case 'F':
+	case '/': {
+		int rv;
+		struct regedit_search_opts *opts;
+		struct tree_node *node;
+
+		opts = &regedit->active_search;
+		rv = dialog_search_input(regedit, opts);
+		if (rv == DIALOG_OK) {
+			SMB_ASSERT(opts->query != NULL);
+			opts->match = find_substring_nocase;
+			node = regedit->keys->root->child_head;
+			if (opts->search_case) {
+				opts->match = find_substring;
+			}
+			if (!opts->search_recursive) {
+				node = tree_view_get_current_node(regedit->keys);
+				node = tree_node_first(node);
+			}
+			regedit_search(regedit, node, NULL, SEARCH_NEXT);
+		}
+		break;
+	}
+	case 'x':
+		regedit_search_repeat(regedit, SEARCH_NEXT);
+		break;
+	case 'X':
+		regedit_search_repeat(regedit, SEARCH_PREV);
+		break;
 	case '\t':
 		regedit->tree_input = !regedit->tree_input;
 		print_heading(regedit);
@@ -434,6 +677,12 @@ int regedit_getch(void)
 	return c;
 }
 
+static void regedit_panic_handler(const char *msg)
+{
+	endwin();
+	smb_panic_s3(msg);
+}
+
 static void display_window(TALLOC_CTX *mem_ctx, struct registry_context *ctx)
 {
 	struct regedit *regedit;
@@ -446,16 +695,23 @@ static void display_window(TALLOC_CTX *mem_ctx, struct registry_context *ctx)
 	cbreak();
 	noecho();
 
+	fault_configure(regedit_panic_handler);
+
 	colors = has_colors();
 	if (colors) {
 		start_color();
 		use_default_colors();
+		assume_default_colors(COLOR_WHITE, COLOR_BLUE);
+		init_pair(PAIR_YELLOW_CYAN, COLOR_YELLOW, COLOR_CYAN);
+		init_pair(PAIR_BLACK_CYAN, COLOR_BLACK, COLOR_CYAN);
+		init_pair(PAIR_YELLOW_BLUE, COLOR_YELLOW, COLOR_BLUE);
 	}
 
 	regedit = talloc_zero(mem_ctx, struct regedit);
 	SMB_ASSERT(regedit != NULL);
 	regedit_main = regedit;
 
+	regedit->registry_context = ctx;
 	regedit->main_window = stdscr;
 	keypad(regedit->main_window, TRUE);
 
@@ -465,7 +721,7 @@ static void display_window(TALLOC_CTX *mem_ctx, struct registry_context *ctx)
 	wprintw(regedit->path_label, "/");
 	show_path(regedit_main);
 
-	root = load_hives(regedit, ctx);
+	root = tree_node_new_root(regedit, ctx);
 	SMB_ASSERT(root != NULL);
 
 	regedit->keys = tree_view_new(regedit, root, KEY_HEIGHT, KEY_WIDTH,
@@ -480,7 +736,6 @@ static void display_window(TALLOC_CTX *mem_ctx, struct registry_context *ctx)
 	print_heading(regedit);
 
 	tree_view_show(regedit->keys);
-	menu_driver(regedit->keys->menu, REQ_FIRST_ITEM);
 	load_values(regedit);
 	value_list_show(regedit->vl);
 
@@ -498,7 +753,7 @@ static void display_window(TALLOC_CTX *mem_ctx, struct registry_context *ctx)
 	endwin();
 }
 
-int main(int argc, char **argv)
+int main(int argc, const char **argv)
 {
 	struct poptOption long_options[] = {
 		POPT_AUTOHELP
@@ -526,7 +781,7 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 	popt_common_set_auth_info(auth_info);
-	pc = poptGetContext("regedit", argc, (const char **)argv, long_options, 0);
+	pc = poptGetContext("regedit", argc, argv, long_options, 0);
 
 	while ((opt = poptGetNextOpt(pc)) != -1) {
 		/* TODO */
@@ -537,10 +792,10 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	/* some simple tests */
-
 	rv = reg_open_samba3(frame, &ctx);
 	if (!W_ERROR_IS_OK(rv)) {
+		fprintf(stderr, "Unable to open registry: %s\n",
+			win_errstr(rv));
 		TALLOC_FREE(frame);
 
 		return 1;

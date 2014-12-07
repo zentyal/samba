@@ -43,7 +43,6 @@ interface frsrpc
 		FRSRPC_CO_FLAG_MORPH_GEN_HEAD	= 0x00400000,
 		FRSRPC_CO_FLAG_JUST_OID_RESET	= 0x00800000,
 		FRSRPC_CO_FLAG_COMPRESSED_STAGE	= 0x01000000,
-		FRSRPC_CO_FLAG_COMPRESSED_STAGE	= 0x01000000,
 		FRSRPC_CO_FLAG_SKIP_VV_UPDATE	= 0x02000000
 	} frsrpc_CommPktCoCmdFlags;
 
@@ -344,8 +343,8 @@ interface frsrpc
 		[value(0)] uint32 upk_len;
 		[subcontext(4),subcontext_size(pkt_len)]
 			frsrpc_CommPktChunkCtr *ctr;
-		[value(0)] uint32 data_name;
-		[value(0)] uint32 data_handle;
+		[value(0)] uint3264 data_name;
+		[value(0)] uint3264 data_handle;
 	} frsrpc_FrsSendCommPktReq;
 
 	WERROR frsrpc_FrsSendCommPkt(

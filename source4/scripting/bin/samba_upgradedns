@@ -46,7 +46,8 @@ from samba.provision import (
     interface_ips_v6 )
 from samba.provision.common import (
     setup_path,
-    setup_add_ldif )
+    setup_add_ldif,
+    FILL_FULL)
 from samba.provision.sambadns import (
     ARecord,
     AAAARecord,
@@ -339,7 +340,7 @@ if __name__ == '__main__':
         logger.debug("IPv6 addresses: %s" % hostip6)
 
         create_dns_partitions(ldbs.sam, domainsid, names, domaindn, forestdn,
-                          dnsadmins_sid)
+                              dnsadmins_sid, FILL_FULL)
 
         logger.info("Populating DNS partitions")
         fill_dns_data_partitions(ldbs.sam, domainsid, site, domaindn, forestdn,
@@ -462,7 +463,7 @@ if __name__ == '__main__':
         create_samdb_copy(ldbs.sam, logger, paths, names, domainsid,
                           domainguid)
 
-        create_named_conf(paths, names.realm, dnsdomain, opts.dns_backend)
+        create_named_conf(paths, names.realm, dnsdomain, opts.dns_backend, logger)
 
         create_named_txt(paths.namedtxt, names.realm, dnsdomain, dnsname,
                          paths.private_dir, paths.dns_keytab)
@@ -499,3 +500,19 @@ if __name__ == '__main__':
                 logger.info("Failed to delete %s from sam.ldb" % dn)
 
     logger.info("Finished upgrading DNS")
+
+    services = lp.get("server services")
+    for service in services:
+        if service == "dns":
+            if opts.dns_backend.startswith("BIND"):
+                logger.info("You have switched to using %s as your dns backend,"
+                        " but still have the internal dns starting. Please"
+                        " make sure you add '-dns' to your server services"
+                        " line in your smb.conf." % opts.dns_backend)
+            break
+    else:
+        if opts.dns_backend == "SAMBA_INTERNAL":
+            logger.info("You have switched to using %s as your dns backend,"
+                    " but you still have samba starting looking for a"
+                    " BIND backend. Please remove the -dns from your"
+                    " server services line." % opts.dns_backend)

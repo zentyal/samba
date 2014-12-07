@@ -84,16 +84,28 @@ static NTSTATUS dcesrv_build_lsa_sd(TALLOC_CTX *mem_ctx,
 	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
 
 	status = dom_sid_split_rid(tmp_ctx, sid, &domain_sid, &rid);
-	NT_STATUS_NOT_OK_RETURN_AND_FREE(status, tmp_ctx);
+	if (!NT_STATUS_IS_OK(status)) {
+		TALLOC_FREE(tmp_ctx);
+		return status;
+	}
 
 	domain_admins_sid = dom_sid_add_rid(tmp_ctx, domain_sid, DOMAIN_RID_ADMINS);
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(domain_admins_sid, tmp_ctx);
+	if (domain_admins_sid == NULL) {
+		TALLOC_FREE(tmp_ctx);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	domain_admins_sid_str = dom_sid_string(tmp_ctx, domain_admins_sid);
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(domain_admins_sid_str, tmp_ctx);
+	if (domain_admins_sid_str == NULL) {
+		TALLOC_FREE(tmp_ctx);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	sidstr = dom_sid_string(tmp_ctx, sid);
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(sidstr, tmp_ctx);
+	if (sidstr == NULL) {
+		TALLOC_FREE(tmp_ctx);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	*sd = security_descriptor_dacl_create(mem_ctx,
 					      0, sidstr, NULL,
@@ -144,7 +156,8 @@ static NTSTATUS dcesrv_lsa_AddRemoveAccountRights(struct dcesrv_call_state *dce_
 static NTSTATUS dcesrv_lsa_Close(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 			  struct lsa_Close *r)
 {
-	enum dcerpc_transport_t transport = dce_call->conn->endpoint->ep_description->transport;
+	enum dcerpc_transport_t transport =
+		dcerpc_binding_get_transport(dce_call->conn->endpoint->ep_description);
 	struct dcesrv_handle *h;
 
 	if (transport != NCACN_NP && transport != NCALRPC) {
@@ -296,14 +309,11 @@ static NTSTATUS dcesrv_lsa_EnumPrivs(struct dcesrv_call_state *dce_call, TALLOC_
 			      struct lsa_EnumPrivs *r)
 {
 	struct dcesrv_handle *h;
-	struct lsa_policy_state *state;
 	uint32_t i;
 	enum sec_privilege priv;
 	const char *privname;
 
 	DCESRV_PULL_HANDLE(h, r->in.handle, LSA_HANDLE_POLICY);
-
-	state = h->data;
 
 	i = *r->in.resume_handle;
 
@@ -2589,16 +2599,28 @@ static NTSTATUS dcesrv_lsa_AddRemoveAccountRights(struct dcesrv_call_state *dce_
 	}
 
 	sidndrstr = ldap_encode_ndr_dom_sid(msg, sid);
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(sidndrstr, msg);
+	if (sidndrstr == NULL) {
+		TALLOC_FREE(msg);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	sidstr = dom_sid_string(msg, sid);
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(sidstr, msg);
+	if (sidstr == NULL) {
+		TALLOC_FREE(msg);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	dnstr = talloc_asprintf(msg, "sid=%s", sidstr);
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(dnstr, msg);
+	if (dnstr == NULL) {
+		TALLOC_FREE(msg);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	msg->dn = ldb_dn_new(msg, state->pdb, dnstr);
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(msg->dn, msg);
+	if (msg->dn == NULL) {
+		TALLOC_FREE(msg);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	if (LDB_FLAG_MOD_TYPE(ldb_flag) == LDB_FLAG_MOD_ADD) {
 		NTSTATUS status;
@@ -3345,7 +3367,7 @@ static NTSTATUS dcesrv_lsa_QuerySecret(struct dcesrv_call_state *dce_call, TALLO
 		if (!r->out.old_val) {
 			return NT_STATUS_NO_MEMORY;
 		}
-		prior_val = ldb_msg_find_ldb_val(res[0], "priorValue");
+		prior_val = ldb_msg_find_ldb_val(msg, "priorValue");
 
 		if (prior_val && prior_val->length) {
 			secret.data = prior_val->data;
@@ -3371,7 +3393,7 @@ static NTSTATUS dcesrv_lsa_QuerySecret(struct dcesrv_call_state *dce_call, TALLO
 		if (!r->out.old_mtime) {
 			return NT_STATUS_NO_MEMORY;
 		}
-		*r->out.old_mtime = ldb_msg_find_attr_as_uint64(res[0], "priorSetTime", 0);
+		*r->out.old_mtime = ldb_msg_find_attr_as_uint64(msg, "priorSetTime", 0);
 	}
 
 	if (r->in.new_val) {
@@ -3381,7 +3403,7 @@ static NTSTATUS dcesrv_lsa_QuerySecret(struct dcesrv_call_state *dce_call, TALLO
 			return NT_STATUS_NO_MEMORY;
 		}
 
-		new_val = ldb_msg_find_ldb_val(res[0], "currentValue");
+		new_val = ldb_msg_find_ldb_val(msg, "currentValue");
 
 		if (new_val && new_val->length) {
 			secret.data = new_val->data;
@@ -3407,7 +3429,7 @@ static NTSTATUS dcesrv_lsa_QuerySecret(struct dcesrv_call_state *dce_call, TALLO
 		if (!r->out.new_mtime) {
 			return NT_STATUS_NO_MEMORY;
 		}
-		*r->out.new_mtime = ldb_msg_find_attr_as_uint64(res[0], "lastSetTime", 0);
+		*r->out.new_mtime = ldb_msg_find_attr_as_uint64(msg, "lastSetTime", 0);
 	}
 
 	return NT_STATUS_OK;
@@ -3625,7 +3647,8 @@ static NTSTATUS dcesrv_lsa_RetrievePrivateData(struct dcesrv_call_state *dce_cal
 static NTSTATUS dcesrv_lsa_GetUserName(struct dcesrv_call_state *dce_call, TALLOC_CTX *mem_ctx,
 				struct lsa_GetUserName *r)
 {
-	enum dcerpc_transport_t transport = dce_call->conn->endpoint->ep_description->transport;
+	enum dcerpc_transport_t transport =
+		dcerpc_binding_get_transport(dce_call->conn->endpoint->ep_description);
 	NTSTATUS status = NT_STATUS_OK;
 	const char *account_name;
 	const char *authority_name;
@@ -4352,7 +4375,7 @@ static NTSTATUS dcesrv_lsa_lsaRSetForestTrustInformation(struct dcesrv_call_stat
 
 	trust_attributes = ldb_msg_find_attr_as_uint(dom_res[i],
 						     "trustAttributes", 0);
-	if (!(trust_attributes & NETR_TRUST_ATTRIBUTE_FOREST_TRANSITIVE)) {
+	if (!(trust_attributes & LSA_TRUST_ATTRIBUTE_FOREST_TRANSITIVE)) {
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 

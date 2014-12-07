@@ -25,10 +25,11 @@
 #include "winbindd/winbindd_proto.h"
 #include "rpc_client/cli_pipe.h"
 #include "ntdomain.h"
-#include "librpc/gen_ndr/srv_wbint.h"
+#include "librpc/gen_ndr/srv_winbind.h"
 #include "../librpc/gen_ndr/ndr_netlogon_c.h"
 #include "idmap.h"
 #include "../libcli/security/security.h"
+#include "../libcli/auth/netlogon_creds_cli.h"
 
 void _wbint_Ping(struct pipes_struct *p, struct wbint_Ping *r)
 {
@@ -580,6 +581,7 @@ NTSTATUS _wbint_CheckMachineAccount(struct pipes_struct *p,
 
 again:
 	invalidate_cm_connection(&domain->conn);
+	domain->conn.netlogon_force_reauth = true;
 
 	{
 		struct rpc_pipe_client *netlogon_pipe;
@@ -621,48 +623,27 @@ again:
 NTSTATUS _wbint_ChangeMachineAccount(struct pipes_struct *p,
 				     struct wbint_ChangeMachineAccount *r)
 {
+	struct messaging_context *msg_ctx = winbind_messaging_context();
 	struct winbindd_domain *domain;
-	int num_retries = 0;
 	NTSTATUS status;
 	struct rpc_pipe_client *netlogon_pipe;
-	TALLOC_CTX *tmp_ctx;
 
-again:
 	domain = wb_child_domain();
 	if (domain == NULL) {
 		return NT_STATUS_REQUEST_NOT_ACCEPTED;
 	}
 
-	invalidate_cm_connection(&domain->conn);
-
-	{
-		status = cm_connect_netlogon(domain, &netlogon_pipe);
-	}
-
-	/* There is a race condition between fetching the trust account
-	   password and the periodic machine password change.  So it's
-	   possible that the trust account password has been changed on us.
-	   We are returned NT_STATUS_ACCESS_DENIED if this happens. */
-
-#define MAX_RETRIES 3
-
-	if ((num_retries < MAX_RETRIES)
-	     && NT_STATUS_EQUAL(status, NT_STATUS_ACCESS_DENIED)) {
-		num_retries++;
-		goto again;
-	}
-
+	status = cm_connect_netlogon(domain, &netlogon_pipe);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(3, ("could not open handle to NETLOGON pipe\n"));
 		goto done;
 	}
 
-	tmp_ctx = talloc_new(p->mem_ctx);
-
-	status = trust_pw_find_change_and_store_it(netlogon_pipe,
-						   tmp_ctx,
-						   domain->name);
-	talloc_destroy(tmp_ctx);
+	status = trust_pw_change(domain->conn.netlogon_creds,
+				 msg_ctx,
+				 netlogon_pipe->binding_handle,
+				 domain->name,
+				 true); /* force */
 
 	/* Pass back result code - zero for success, other values for
 	   specific failures. */
@@ -736,4 +717,75 @@ NTSTATUS _wbint_PingDc(struct pipes_struct *p, struct wbint_PingDc *r)
 
 	DEBUG(5, ("winbindd_dual_ping_dc succeeded\n"));
 	return NT_STATUS_OK;
+}
+
+NTSTATUS _winbind_DsrUpdateReadOnlyServerDnsRecords(struct pipes_struct *p,
+						    struct winbind_DsrUpdateReadOnlyServerDnsRecords *r)
+{
+	struct winbindd_domain *domain;
+	NTSTATUS status;
+	struct rpc_pipe_client *netlogon_pipe;
+
+	domain = wb_child_domain();
+	if (domain == NULL) {
+		return NT_STATUS_REQUEST_NOT_ACCEPTED;
+	}
+
+	status = cm_connect_netlogon(domain, &netlogon_pipe);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(3, ("could not open handle to NETLOGON pipe\n"));
+		goto done;
+	}
+
+	status = netlogon_creds_cli_DsrUpdateReadOnlyServerDnsRecords(domain->conn.netlogon_creds,
+								      netlogon_pipe->binding_handle,
+								      r->in.site_name,
+								      r->in.dns_ttl,
+								      r->in.dns_names);
+
+	/* Pass back result code - zero for success, other values for
+	   specific failures. */
+
+	DEBUG(3,("DNS records for domain %s %s\n", domain->name,
+		NT_STATUS_IS_OK(status) ? "changed" : "unchanged"));
+
+ done:
+	DEBUG(NT_STATUS_IS_OK(status) ? 5 : 2,
+	      ("Update of DNS records via RW DC %s returned %s\n",
+	       domain->name, nt_errstr(status)));
+
+	return status;
+}
+
+NTSTATUS _winbind_SamLogon(struct pipes_struct *p,
+			struct winbind_SamLogon *r)
+{
+	struct winbindd_domain *domain;
+	NTSTATUS status;
+	DATA_BLOB lm_response, nt_response;
+	domain = wb_child_domain();
+	if (domain == NULL) {
+		return NT_STATUS_REQUEST_NOT_ACCEPTED;
+	}
+
+	/* TODO: Handle interactive logons here */
+	if (r->in.validation_level != 3 ||
+	    r->in.logon.network == NULL ||
+	    (r->in.logon_level != NetlogonNetworkInformation
+	     && r->in.logon_level != NetlogonNetworkTransitiveInformation)) {
+		return NT_STATUS_REQUEST_NOT_ACCEPTED;
+	}
+
+
+	lm_response = data_blob_talloc(p->mem_ctx, r->in.logon.network->lm.data, r->in.logon.network->lm.length);
+	nt_response = data_blob_talloc(p->mem_ctx, r->in.logon.network->nt.data, r->in.logon.network->nt.length);
+
+	status = winbind_dual_SamLogon(domain, p->mem_ctx,
+				       r->in.logon.network->identity_info.parameter_control,
+				       r->in.logon.network->identity_info.account_name.string,
+				       r->in.logon.network->identity_info.domain_name.string,
+				       r->in.logon.network->identity_info.workstation.string,
+				       r->in.logon.network->challenge,
+				       lm_response, nt_response, &r->out.validation.sam3);
+	return status;
 }

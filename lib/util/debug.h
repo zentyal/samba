@@ -23,6 +23,12 @@
 #ifndef _DEBUG_H
 #define _DEBUG_H
 
+#include <stdbool.h>
+#include <stddef.h>
+
+#include "attr.h"
+
+
 /* -------------------------------------------------------------------------- **
  * Debugging code.  See also debug.c
  */
@@ -36,7 +42,6 @@
 #define MAX_DEBUG_LEVEL 1000
 #endif
 
-int  Debug1( const char *, ... ) PRINTF_ATTRIBUTE(1,2);
 bool dbgtext( const char *, ... ) PRINTF_ATTRIBUTE(1,2);
 bool dbghdrclass( int level, int cls, const char *location, const char *func);
 bool dbghdr( int level, const char *location, const char *func);
@@ -207,7 +212,14 @@ extern int  *DEBUGLEVEL_CLASS;
  * for example.  This makes it easy to override for debug to stderr on
  * the command line, as the smb.conf cannot reset it back to
  * file-based logging */
-enum debug_logtype {DEBUG_DEFAULT_STDERR = 0, DEBUG_DEFAULT_STDOUT = 1, DEBUG_FILE = 2, DEBUG_STDOUT = 3, DEBUG_STDERR = 4, DEBUG_CALLBACK = 5};
+enum debug_logtype {
+	DEBUG_DEFAULT_STDERR = 0,
+	DEBUG_DEFAULT_STDOUT = 1,
+	DEBUG_FILE = 2,
+	DEBUG_STDOUT = 3,
+	DEBUG_STDERR = 4,
+	DEBUG_CALLBACK = 5
+};
 
 struct debug_settings {
 	size_t max_log_size;
@@ -249,39 +261,5 @@ typedef void (*debug_callback_fn)(void *private_ptr, int level, const char *msg)
    Set a callback for all debug messages.  Use in dlz_bind9 to push output to the bind logs
  */
 void debug_set_callback(void *private_ptr, debug_callback_fn fn);
-
-/**
-  log suspicious usage - print comments and backtrace
-*/	
-_PUBLIC_ void log_suspicious_usage(const char *from, const char *info);
-
-/**
-  print suspicious usage - print comments and backtrace
-*/	
-_PUBLIC_ void print_suspicious_usage(const char* from, const char* info);
-_PUBLIC_ uint32_t get_task_id(void);
-_PUBLIC_ void log_task_id(void);
-
-/* the debug operations structure - contains function pointers to
-   various debug implementations of each operation */
-struct debug_ops {
-	/* function to log (using DEBUG) suspicious usage of data structure */
-	void (*log_suspicious_usage)(const char* from, const char* info);
-
-	/* function to log (using printf) suspicious usage of data structure.
-	 * To be used in circumstances when using DEBUG would cause loop. */
-	void (*print_suspicious_usage)(const char* from, const char* info);
-
-	/* function to return process/thread id */
-	uint32_t (*get_task_id)(void);
-
-	/* function to log process/thread id */
-	void (*log_task_id)(int fd);
-};
-
-/**
-  register a set of debug handlers. 
-*/
-_PUBLIC_ void register_debug_handlers(const char *name, struct debug_ops *ops);
 
 #endif

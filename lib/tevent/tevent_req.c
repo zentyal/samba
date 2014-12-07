@@ -51,6 +51,8 @@ char *tevent_req_print(TALLOC_CTX *mem_ctx, struct tevent_req *req)
 	return req->private_print(req, mem_ctx);
 }
 
+static int tevent_req_destructor(struct tevent_req *req);
+
 struct tevent_req *_tevent_req_create(TALLOC_CTX *mem_ctx,
 				    void *pdata,
 				    size_t data_size,
@@ -61,20 +63,21 @@ struct tevent_req *_tevent_req_create(TALLOC_CTX *mem_ctx,
 	void **ppdata = (void **)pdata;
 	void *data;
 
-	req = talloc_zero(mem_ctx, struct tevent_req);
+	req = talloc_pooled_object(
+		mem_ctx, struct tevent_req, 2,
+		sizeof(struct tevent_immediate) + data_size);
 	if (req == NULL) {
 		return NULL;
 	}
+	ZERO_STRUCTP(req);
 	req->internal.private_type	= type;
 	req->internal.create_location	= location;
-	req->internal.finish_location	= NULL;
 	req->internal.state		= TEVENT_REQ_IN_PROGRESS;
 	req->internal.trigger		= tevent_create_immediate(req);
 	if (!req->internal.trigger) {
 		talloc_free(req);
 		return NULL;
 	}
-	req->internal.defer_callback_ev	= NULL;
 
 	data = talloc_zero_size(req, data_size);
 	if (data == NULL) {
@@ -85,8 +88,16 @@ struct tevent_req *_tevent_req_create(TALLOC_CTX *mem_ctx,
 
 	req->data = data;
 
+	talloc_set_destructor(req, tevent_req_destructor);
+
 	*ppdata = data;
 	return req;
+}
+
+static int tevent_req_destructor(struct tevent_req *req)
+{
+	tevent_req_received(req);
+	return 0;
 }
 
 void _tevent_req_notify_callback(struct tevent_req *req, const char *location)
@@ -102,11 +113,39 @@ void _tevent_req_notify_callback(struct tevent_req *req, const char *location)
 	}
 }
 
+static void tevent_req_cleanup(struct tevent_req *req)
+{
+	if (req->private_cleanup.fn == NULL) {
+		return;
+	}
+
+	if (req->private_cleanup.state >= req->internal.state) {
+		/*
+		 * Don't call the cleanup_function multiple times for the same
+		 * state recursively
+		 */
+		return;
+	}
+
+	req->private_cleanup.state = req->internal.state;
+	req->private_cleanup.fn(req, req->internal.state);
+}
+
 static void tevent_req_finish(struct tevent_req *req,
 			      enum tevent_req_state state,
 			      const char *location)
 {
+	/*
+	 * make sure we do not timeout after
+	 * the request was already finished
+	 */
+	TALLOC_FREE(req->internal.timer);
+
 	req->internal.state = state;
+	req->internal.finish_location = location;
+
+	tevent_req_cleanup(req);
+
 	_tevent_req_notify_callback(req, location);
 }
 
@@ -160,8 +199,9 @@ static void tevent_req_trigger(struct tevent_context *ev,
 			       struct tevent_immediate *im,
 			       void *private_data)
 {
-	struct tevent_req *req = talloc_get_type(private_data,
-				 struct tevent_req);
+	struct tevent_req *req =
+		talloc_get_type_abort(private_data,
+		struct tevent_req);
 
 	tevent_req_finish(req, req->internal.state,
 			  req->internal.finish_location);
@@ -192,13 +232,19 @@ bool tevent_req_is_in_progress(struct tevent_req *req)
 
 void tevent_req_received(struct tevent_req *req)
 {
-	TALLOC_FREE(req->data);
+	talloc_set_destructor(req, NULL);
+
 	req->private_print = NULL;
+	req->private_cancel = NULL;
 
 	TALLOC_FREE(req->internal.trigger);
 	TALLOC_FREE(req->internal.timer);
 
 	req->internal.state = TEVENT_REQ_RECEIVED;
+
+	tevent_req_cleanup(req);
+
+	TALLOC_FREE(req->data);
 }
 
 bool tevent_req_poll(struct tevent_req *req,
@@ -234,8 +280,9 @@ static void tevent_req_timedout(struct tevent_context *ev,
 			       struct timeval now,
 			       void *private_data)
 {
-	struct tevent_req *req = talloc_get_type(private_data,
-				 struct tevent_req);
+	struct tevent_req *req =
+		talloc_get_type_abort(private_data,
+		struct tevent_req);
 
 	TALLOC_FREE(req->internal.timer);
 
@@ -291,4 +338,10 @@ bool _tevent_req_cancel(struct tevent_req *req, const char *location)
 	}
 
 	return req->private_cancel(req);
+}
+
+void tevent_req_set_cleanup_fn(struct tevent_req *req, tevent_req_cleanup_fn fn)
+{
+	req->private_cleanup.state = req->internal.state;
+	req->private_cleanup.fn = fn;
 }

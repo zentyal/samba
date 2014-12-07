@@ -2,6 +2,7 @@
                  context="G"
 				 type="string"
                  advanced="1" developer="1"
+                 constant="1"
 		 xmlns:samba="http://www.samba.org/samba/DTD/samba-doc">
 <synonym>private directory</synonym>
 <description>
@@ -11,5 +12,5 @@
 </para>
 </description>
 
-<value type="default">${prefix}/private</value>
+<value type="default">&pathconfig.PRIVATE_DIR;</value>
 </samba:parameter>

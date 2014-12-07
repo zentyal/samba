@@ -154,8 +154,12 @@
 /* Leave at 31 - not yet released. add SMB_VFS_COPY_CHUNK() */
 /* Leave at 31 - not yet released. Remove the unused
 		fsp->pending_break_messages array */
+/* Leave at 31 - not yet released. add SMB_VFS_[GET/SET]_COMPRESSION() */
 
-#define SMB_VFS_INTERFACE_VERSION 31
+/* Bump to version 32 - Samba 4.2 will ship with that. */
+/* Version 32 - Add "lease" to CREATE_FILE operation */
+
+#define SMB_VFS_INTERFACE_VERSION 32
 
 /*
     All intercepted VFS operations must be declared as static functions inside module source
@@ -232,7 +236,6 @@ typedef struct files_struct {
 	bool modified;
 	bool is_directory;
 	bool aio_write_behind;
-	bool lockdb_clean;
 	bool initial_delete_on_close; /* Only set at NTCreateX if file was created. */
 	bool delete_on_close;
 	bool posix_open;
@@ -402,6 +405,7 @@ struct smb_request {
 	bool encrypted;
 	connection_struct *conn;
 	struct smbd_server_connection *sconn;
+	struct smbXsrv_connection *xconn;
 	struct smb_perfcount_data pcd;
 
 	/*
@@ -533,6 +537,7 @@ struct vfs_fn_pointers {
 				   uint32_t create_options,
 				   uint32_t file_attributes,
 				   uint32_t oplock_request,
+				   struct smb2_lease *lease,
 				   uint64_t allocation_size,
 				   uint32_t private_flags,
 				   struct security_descriptor *sd,
@@ -626,6 +631,15 @@ struct vfs_fn_pointers {
 	NTSTATUS (*copy_chunk_recv_fn)(struct vfs_handle_struct *handle,
 				       struct tevent_req *req,
 				       off_t *copied);
+	NTSTATUS (*get_compression_fn)(struct vfs_handle_struct *handle,
+				       TALLOC_CTX *mem_ctx,
+				       struct files_struct *fsp,
+				       struct smb_filename *smb_fname,
+				       uint16_t *_compression_fmt);
+	NTSTATUS (*set_compression_fn)(struct vfs_handle_struct *handle,
+				       TALLOC_CTX *mem_ctx,
+				       struct files_struct *fsp,
+				       uint16_t compression_fmt);
 
 	NTSTATUS (*streaminfo_fn)(struct vfs_handle_struct *handle,
 				  struct files_struct *fsp,
@@ -646,8 +660,7 @@ struct vfs_fn_pointers {
 	NTSTATUS (*brl_lock_windows_fn)(struct vfs_handle_struct *handle,
 					struct byte_range_lock *br_lck,
 					struct lock_struct *plock,
-					bool blocking_lock,
-					struct blocking_lock_record *blr);
+					bool blocking_lock);
 
 	bool (*brl_unlock_windows_fn)(struct vfs_handle_struct *handle,
 				      struct messaging_context *msg_ctx,
@@ -656,8 +669,7 @@ struct vfs_fn_pointers {
 
 	bool (*brl_cancel_windows_fn)(struct vfs_handle_struct *handle,
 				      struct byte_range_lock *br_lck,
-				      struct lock_struct *plock,
-				      struct blocking_lock_record *blr);
+				      struct lock_struct *plock);
 
 	bool (*strict_lock_fn)(struct vfs_handle_struct *handle,
 			       struct files_struct *fsp,
@@ -931,6 +943,7 @@ NTSTATUS smb_vfs_call_create_file(struct vfs_handle_struct *handle,
 				  uint32_t create_options,
 				  uint32_t file_attributes,
 				  uint32_t oplock_request,
+				  struct smb2_lease *lease,
 				  uint64_t allocation_size,
 				  uint32_t private_flags,
 				  struct security_descriptor *sd,
@@ -1067,16 +1080,14 @@ const char *smb_vfs_call_connectpath(struct vfs_handle_struct *handle,
 NTSTATUS smb_vfs_call_brl_lock_windows(struct vfs_handle_struct *handle,
 				       struct byte_range_lock *br_lck,
 				       struct lock_struct *plock,
-				       bool blocking_lock,
-				       struct blocking_lock_record *blr);
+				       bool blocking_lock);
 bool smb_vfs_call_brl_unlock_windows(struct vfs_handle_struct *handle,
 				     struct messaging_context *msg_ctx,
 				     struct byte_range_lock *br_lck,
 				     const struct lock_struct *plock);
 bool smb_vfs_call_brl_cancel_windows(struct vfs_handle_struct *handle,
 				     struct byte_range_lock *br_lck,
-				     struct lock_struct *plock,
-				     struct blocking_lock_record *blr);
+				     struct lock_struct *plock);
 bool smb_vfs_call_strict_lock(struct vfs_handle_struct *handle,
 			      struct files_struct *fsp,
 			      struct lock_struct *plock);
@@ -1109,6 +1120,15 @@ struct tevent_req *smb_vfs_call_copy_chunk_send(struct vfs_handle_struct *handle
 NTSTATUS smb_vfs_call_copy_chunk_recv(struct vfs_handle_struct *handle,
 				      struct tevent_req *req,
 				      off_t *copied);
+NTSTATUS smb_vfs_call_get_compression(struct vfs_handle_struct *handle,
+				      TALLOC_CTX *mem_ctx,
+				      struct files_struct *fsp,
+				      struct smb_filename *smb_fname,
+				      uint16_t *_compression_fmt);
+NTSTATUS smb_vfs_call_set_compression(struct vfs_handle_struct *handle,
+				      TALLOC_CTX *mem_ctx,
+				      struct files_struct *fsp,
+				      uint16_t compression_fmt);
 NTSTATUS smb_vfs_call_fget_nt_acl(struct vfs_handle_struct *handle,
 				  struct files_struct *fsp,
 				  uint32 security_info,

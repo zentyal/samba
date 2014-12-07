@@ -948,6 +948,7 @@ bool test_many_LookupSids(struct dcerpc_pipe *p,
 	struct lsa_SidArray sids;
 	int i;
 	struct dcerpc_binding_handle *b = p->binding_handle;
+	enum dcerpc_transport_t transport = dcerpc_binding_get_transport(p->binding);
 
 	torture_comment(tctx, "\nTesting LookupSids with lots of SIDs\n");
 
@@ -993,21 +994,26 @@ bool test_many_LookupSids(struct dcerpc_pipe *p,
 		}
 	}
 
-	if (p->binding->transport == NCACN_NP) {
+	if (transport == NCACN_NP) {
 		if (!test_LookupSids3_fail(b, tctx, &sids)) {
 			return false;
 		}
 		if (!test_LookupNames4_fail(b, tctx)) {
 			return false;
 		}
-	} else if (p->binding->transport == NCACN_IP_TCP) {
+	} else if (transport == NCACN_IP_TCP) {
 		struct lsa_TransNameArray2 names;
+		enum dcerpc_AuthType auth_type;
+		enum dcerpc_AuthLevel auth_level;
 
 		names.count = 0;
 		names.names = NULL;
 
-		if (p->conn->security_state.auth_info->auth_type == DCERPC_AUTH_TYPE_SCHANNEL &&
-		   p->conn->security_state.auth_info->auth_level >= DCERPC_AUTH_LEVEL_INTEGRITY) {
+		dcerpc_binding_handle_auth_info(p->binding_handle,
+						&auth_type, &auth_level);
+
+		if (auth_type == DCERPC_AUTH_TYPE_SCHANNEL &&
+		    auth_level >= DCERPC_AUTH_LEVEL_INTEGRITY) {
 			if (!test_LookupSids3(b, tctx, &sids)) {
 				return false;
 			}
@@ -2095,7 +2101,7 @@ static bool test_query_each_TrustDomEx(struct dcerpc_binding_handle *b,
 
 	for (i=0; i< domains->count; i++) {
 
-		if (domains->domains[i].trust_attributes & NETR_TRUST_ATTRIBUTE_FOREST_TRANSITIVE) {
+		if (domains->domains[i].trust_attributes & LSA_TRUST_ATTRIBUTE_FOREST_TRANSITIVE) {
 			ret &= test_QueryForestTrustInformation(b, tctx, handle,
 								domains->domains[i].domain_name.string);
 		}
@@ -3303,15 +3309,17 @@ bool torture_rpc_lsa(struct torture_context *tctx)
 	struct test_join *join = NULL;
 	struct cli_credentials *machine_creds;
 	struct dcerpc_binding_handle *b;
+	enum dcerpc_transport_t transport;
 
 	status = torture_rpc_connection(tctx, &p, &ndr_table_lsarpc);
 	if (!NT_STATUS_IS_OK(status)) {
 		return false;
 	}
 	b = p->binding_handle;
+	transport = dcerpc_binding_get_transport(p->binding);
 
 	/* Test lsaLookupSids3 and lsaLookupNames4 over tcpip */
-	if (p->binding->transport == NCACN_IP_TCP) {
+	if (transport == NCACN_IP_TCP) {
 		if (!test_OpenPolicy_fail(b, tctx)) {
 			ret = false;
 		}
@@ -3394,14 +3402,16 @@ bool torture_rpc_lsa_get_user(struct torture_context *tctx)
         struct dcerpc_pipe *p;
 	bool ret = true;
 	struct dcerpc_binding_handle *b;
+	enum dcerpc_transport_t transport;
 
 	status = torture_rpc_connection(tctx, &p, &ndr_table_lsarpc);
 	if (!NT_STATUS_IS_OK(status)) {
 		return false;
 	}
 	b = p->binding_handle;
+	transport = dcerpc_binding_get_transport(p->binding);
 
-	if (p->binding->transport == NCACN_IP_TCP) {
+	if (transport == NCACN_IP_TCP) {
 		if (!test_GetUserName_fail(b, tctx)) {
 			ret = false;
 		}
@@ -3423,9 +3433,9 @@ static bool testcase_LookupNames(struct torture_context *tctx,
 	struct lsa_TransNameArray tnames;
 	struct lsa_TransNameArray2 tnames2;
 	struct dcerpc_binding_handle *b = p->binding_handle;
+	enum dcerpc_transport_t transport = dcerpc_binding_get_transport(p->binding);
 
-	if (p->binding->transport != NCACN_NP &&
-	    p->binding->transport != NCALRPC) {
+	if (transport != NCACN_NP && transport != NCALRPC) {
 		torture_comment(tctx, "testcase_LookupNames is only available "
 				"over NCACN_NP or NCALRPC");
 		return true;
@@ -3514,9 +3524,9 @@ static bool testcase_TrustedDomains(struct torture_context *tctx,
 	struct lsa_trustdom_state *state =
 		talloc_get_type_abort(data, struct lsa_trustdom_state);
 	struct dcerpc_binding_handle *b = p->binding_handle;
+	enum dcerpc_transport_t transport = dcerpc_binding_get_transport(p->binding);
 
-	if (p->binding->transport != NCACN_NP &&
-	    p->binding->transport != NCALRPC) {
+	if (transport != NCACN_NP && transport != NCALRPC) {
 		torture_comment(tctx, "testcase_TrustedDomains is only available "
 				"over NCACN_NP or NCALRPC");
 		return true;
@@ -3581,9 +3591,9 @@ static bool testcase_Privileges(struct torture_context *tctx,
 {
 	struct policy_handle *handle;
 	struct dcerpc_binding_handle *b = p->binding_handle;
+	enum dcerpc_transport_t transport = dcerpc_binding_get_transport(p->binding);
 
-	if (p->binding->transport != NCACN_NP &&
-	    p->binding->transport != NCALRPC) {
+	if (transport != NCACN_NP && transport != NCALRPC) {
 		torture_skip(tctx, "testcase_Privileges is only available "
 				"over NCACN_NP or NCALRPC");
 	}

@@ -39,6 +39,7 @@ struct rpc_pipe_client {
 
 	struct ndr_syntax_id abstract_syntax;
 	struct ndr_syntax_id transfer_syntax;
+	bool verified_pcontext;
 
 	char *desthost;
 	char *srv_name_slash;
@@ -47,9 +48,6 @@ struct rpc_pipe_client {
 	uint16 max_recv_frag;
 
 	struct pipe_auth_data *auth;
-
-	/* The following is only non-null on a netlogon client pipe. */
-	struct netlogon_creds_CredentialState *dc;
 };
 
 #endif /* _RPC_CLIENT_H */

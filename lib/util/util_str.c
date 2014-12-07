@@ -133,3 +133,203 @@ _PUBLIC_ bool strequal(const char *s1, const char *s2)
 	return strcasecmp_m(s1,s2) == 0;
 }
 
+/**
+ * @file
+ * @brief String utilities.
+ **/
+
+static bool next_token_internal_talloc(TALLOC_CTX *ctx,
+				const char **ptr,
+                                char **pp_buff,
+                                const char *sep,
+                                bool ltrim)
+{
+	const char *s;
+	const char *saved_s;
+	char *pbuf;
+	bool quoted;
+	size_t len=1;
+
+	*pp_buff = NULL;
+	if (!ptr) {
+		return(false);
+	}
+
+	s = *ptr;
+
+	/* default to simple separators */
+	if (!sep) {
+		sep = " \t\n\r";
+	}
+
+	/* find the first non sep char, if left-trimming is requested */
+	if (ltrim) {
+		while (*s && strchr_m(sep,*s)) {
+			s++;
+		}
+	}
+
+	/* nothing left? */
+	if (!*s) {
+		return false;
+	}
+
+	/* When restarting we need to go from here. */
+	saved_s = s;
+
+	/* Work out the length needed. */
+	for (quoted = false; *s &&
+			(quoted || !strchr_m(sep,*s)); s++) {
+		if (*s == '\"') {
+			quoted = !quoted;
+		} else {
+			len++;
+		}
+	}
+
+	/* We started with len = 1 so we have space for the nul. */
+	*pp_buff = talloc_array(ctx, char, len);
+	if (!*pp_buff) {
+		return false;
+	}
+
+	/* copy over the token */
+	pbuf = *pp_buff;
+	s = saved_s;
+	for (quoted = false; *s &&
+			(quoted || !strchr_m(sep,*s)); s++) {
+		if ( *s == '\"' ) {
+			quoted = !quoted;
+		} else {
+			*pbuf++ = *s;
+		}
+	}
+
+	*ptr = (*s) ? s+1 : s;
+	*pbuf = 0;
+
+	return true;
+}
+
+bool next_token_talloc(TALLOC_CTX *ctx,
+			const char **ptr,
+			char **pp_buff,
+			const char *sep)
+{
+	return next_token_internal_talloc(ctx, ptr, pp_buff, sep, true);
+}
+
+/*
+ * Get the next token from a string, return false if none found.  Handles
+ * double-quotes.  This version does not trim leading separator characters
+ * before looking for a token.
+ */
+
+bool next_token_no_ltrim_talloc(TALLOC_CTX *ctx,
+			const char **ptr,
+			char **pp_buff,
+			const char *sep)
+{
+	return next_token_internal_talloc(ctx, ptr, pp_buff, sep, false);
+}
+
+/**
+ * Get the next token from a string, return False if none found.
+ * Handles double-quotes.
+ *
+ * Based on a routine by GJC@VILLAGE.COM.
+ * Extensively modified by Andrew.Tridgell@anu.edu.au
+ **/
+_PUBLIC_ bool next_token(const char **ptr,char *buff, const char *sep, size_t bufsize)
+{
+	const char *s;
+	bool quoted;
+	size_t len=1;
+
+	if (!ptr)
+		return false;
+
+	s = *ptr;
+
+	/* default to simple separators */
+	if (!sep)
+		sep = " \t\n\r";
+
+	/* find the first non sep char */
+	while (*s && strchr_m(sep,*s))
+		s++;
+
+	/* nothing left? */
+	if (!*s)
+		return false;
+
+	/* copy over the token */
+	for (quoted = false; len < bufsize && *s && (quoted || !strchr_m(sep,*s)); s++) {
+		if (*s == '\"') {
+			quoted = !quoted;
+		} else {
+			len++;
+			*buff++ = *s;
+		}
+	}
+
+	*ptr = (*s) ? s+1 : s;
+	*buff = 0;
+
+	return true;
+}
+
+/**
+ Set a boolean variable from the text value stored in the passed string.
+ Returns true in success, false if the passed string does not correctly
+ represent a boolean.
+**/
+
+_PUBLIC_ bool set_boolean(const char *boolean_string, bool *boolean)
+{
+	if (strwicmp(boolean_string, "yes") == 0 ||
+	    strwicmp(boolean_string, "true") == 0 ||
+	    strwicmp(boolean_string, "on") == 0 ||
+	    strwicmp(boolean_string, "1") == 0) {
+		*boolean = true;
+		return true;
+	} else if (strwicmp(boolean_string, "no") == 0 ||
+		   strwicmp(boolean_string, "false") == 0 ||
+		   strwicmp(boolean_string, "off") == 0 ||
+		   strwicmp(boolean_string, "0") == 0) {
+		*boolean = false;
+		return true;
+	}
+	return false;
+}
+
+/**
+return the number of bytes occupied by a buffer in CH_UTF16 format
+the result includes the null termination
+**/
+_PUBLIC_ size_t utf16_len(const void *buf)
+{
+	size_t len;
+
+	for (len = 0; SVAL(buf,len); len += 2) ;
+
+	return len + 2;
+}
+
+/**
+return the number of bytes occupied by a buffer in CH_UTF16 format
+the result includes the null termination
+limited by 'n' bytes
+**/
+_PUBLIC_ size_t utf16_len_n(const void *src, size_t n)
+{
+	size_t len;
+
+	for (len = 0; (len+2 < n) && SVAL(src, len); len += 2) ;
+
+	if (len+2 <= n) {
+		len += 2;
+	}
+
+	return len;
+}

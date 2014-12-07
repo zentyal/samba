@@ -51,7 +51,7 @@ static ssize_t default_sys_recvfile(int fromfd,
 	size_t total = 0;
 	size_t bufsize = MIN(TRANSFER_BUF_SIZE,count);
 	size_t total_written = 0;
-	char *buffer = NULL;
+	char buffer[bufsize];
 
 	DEBUG(10,("default_sys_recvfile: from = %d, to = %d, "
 		"offset=%.0f, count = %lu\n",
@@ -70,21 +70,36 @@ static ssize_t default_sys_recvfile(int fromfd,
 		}
 	}
 
-	buffer = SMB_MALLOC_ARRAY(char, bufsize);
-	if (buffer == NULL) {
-		return -1;
-	}
-
 	while (total < count) {
 		size_t num_written = 0;
 		ssize_t read_ret;
 		size_t toread = MIN(bufsize,count - total);
 
-		/* Read from socket - ignore EINTR. */
-		read_ret = sys_read(fromfd, buffer, toread);
+		/*
+		 * Read from socket - ignore EINTR.
+		 * Can't use sys_read() as that also
+		 * ignores EAGAIN and EWOULDBLOCK.
+		 */
+		do {
+			read_ret = read(fromfd, buffer, toread);
+		} while (read_ret == -1 && errno == EINTR);
+
+		if (read_ret == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+			/*
+			 * fromfd socket is in non-blocking mode.
+			 * If we already read some and wrote
+			 * it successfully, return that.
+			 * Only return -1 if this is the first read
+			 * attempt. Caller will handle both cases.
+			 */
+			if (total_written != 0) {
+				return total_written;
+			}
+			return -1;
+		}
+
 		if (read_ret <= 0) {
 			/* EOF or socket error. */
-			free(buffer);
 			return -1;
 		}
 
@@ -119,7 +134,6 @@ static ssize_t default_sys_recvfile(int fromfd,
 		total += read_ret;
 	}
 
-	free(buffer);
 	if (saved_errno) {
 		/* Return the correct write error. */
 		errno = saved_errno;
@@ -191,6 +205,19 @@ ssize_t sys_recvfile(int fromfd,
 				return default_sys_recvfile(fromfd, tofd,
 							    offset, count);
 			}
+			if (errno == EAGAIN || errno == EWOULDBLOCK) {
+				/*
+				 * fromfd socket is in non-blocking mode.
+				 * If we already read some and wrote
+				 * it successfully, return that.
+				 * Only return -1 if this is the first read
+				 * attempt. Caller will handle both cases.
+				 */
+				if (total_written != 0) {
+					return total_written;
+				}
+				return -1;
+			}
 			break;
 		}
 
@@ -247,21 +274,15 @@ ssize_t drain_socket(int sockfd, size_t count)
 {
 	size_t total = 0;
 	size_t bufsize = MIN(TRANSFER_BUF_SIZE,count);
-	char *buffer = NULL;
+	char buffer[bufsize];
 	int old_flags = 0;
 
 	if (count == 0) {
 		return 0;
 	}
 
-	buffer = SMB_MALLOC_ARRAY(char, bufsize);
-	if (buffer == NULL) {
-		return -1;
-	}
-
 	old_flags = fcntl(sockfd, F_GETFL, 0);
 	if (set_blocking(sockfd, true) == -1) {
-		free(buffer);
 		return -1;
 	}
 
@@ -281,7 +302,6 @@ ssize_t drain_socket(int sockfd, size_t count)
 
   out:
 
-	free(buffer);
 	if (fcntl(sockfd, F_SETFL, old_flags) == -1) {
 		return -1;
 	}

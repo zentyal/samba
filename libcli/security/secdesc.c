@@ -165,9 +165,6 @@ struct security_descriptor *sec_desc_merge(TALLOC_CTX *ctx, struct security_desc
 /*******************************************************************
  Creates a struct security_descriptor structure
 ********************************************************************/
-
-#define  SEC_DESC_HEADER_SIZE (2 * sizeof(uint16_t) + 4 * sizeof(uint32_t))
-
 struct security_descriptor *make_sec_desc(TALLOC_CTX *ctx,
 			enum security_descriptor_revision revision,
 			uint16_t type,
@@ -175,90 +172,58 @@ struct security_descriptor *make_sec_desc(TALLOC_CTX *ctx,
 			struct security_acl *sacl, struct security_acl *dacl, size_t *sd_size)
 {
 	struct security_descriptor *dst;
-	uint32_t offset     = 0;
 
 	if (sd_size != NULL) {
 		*sd_size = 0;
 	}
 
-	if(( dst = talloc_zero(ctx, struct security_descriptor)) == NULL)
+	dst = security_descriptor_initialise(ctx);
+	if (dst == NULL) {
 		return NULL;
+	}
 
 	dst->revision = revision;
 	dst->type = type;
 
-	if (sacl)
+	if (sacl != NULL) {
+		dst->sacl = security_acl_dup(dst, sacl);
+		if (dst->sacl == NULL) {
+			goto err_sd_free;
+		}
 		dst->type |= SEC_DESC_SACL_PRESENT;
-	if (dacl)
+	}
+
+	if (dacl != NULL) {
+		dst->dacl = security_acl_dup(dst, dacl);
+		if (dst->dacl == NULL) {
+			goto err_sd_free;
+		}
 		dst->type |= SEC_DESC_DACL_PRESENT;
-
-	dst->owner_sid = NULL;
-	dst->group_sid   = NULL;
-	dst->sacl      = NULL;
-	dst->dacl      = NULL;
-
-	if(owner_sid && ((dst->owner_sid = dom_sid_dup(dst,owner_sid)) == NULL))
-		goto error_exit;
-
-	if(grp_sid && ((dst->group_sid = dom_sid_dup(dst,grp_sid)) == NULL))
-		goto error_exit;
-
-	if(sacl && ((dst->sacl = dup_sec_acl(dst, sacl)) == NULL))
-		goto error_exit;
-
-	if(dacl && ((dst->dacl = dup_sec_acl(dst, dacl)) == NULL))
-		goto error_exit;
-
-	if (sd_size == NULL) {
-		return dst;
 	}
 
-	offset = SEC_DESC_HEADER_SIZE;
-
-	/*
-	 * Work out the linearization sizes.
-	 */
-
-	if (dst->sacl != NULL) {
-		offset += dst->sacl->size;
-	}
-	if (dst->dacl != NULL) {
-		offset += dst->dacl->size;
+	if (owner_sid != NULL) {
+		dst->owner_sid = dom_sid_dup(dst, owner_sid);
+		if (dst->owner_sid == NULL) {
+			goto err_sd_free;
+		}
 	}
 
-	if (dst->owner_sid != NULL) {
-		offset += ndr_size_dom_sid(dst->owner_sid, 0);
+	if (grp_sid != NULL) {
+		dst->group_sid = dom_sid_dup(dst, grp_sid);
+		if (dst->group_sid == NULL) {
+			goto err_sd_free;
+		}
 	}
-
-	if (dst->group_sid != NULL) {
-		offset += ndr_size_dom_sid(dst->group_sid, 0);
-	}
-
-	*sd_size = (size_t)offset;
-	return dst;
-
-error_exit:
 
 	if (sd_size != NULL) {
-		*sd_size = 0;
+		*sd_size = ndr_size_security_descriptor(dst, 0);
 	}
+
+	return dst;
+
+err_sd_free:
+	talloc_free(dst);
 	return NULL;
-}
-
-/*******************************************************************
- Duplicate a struct security_descriptor structure.
-********************************************************************/
-
-struct security_descriptor *dup_sec_desc(TALLOC_CTX *ctx, const struct security_descriptor *src)
-{
-	size_t dummy;
-
-	if(src == NULL)
-		return NULL;
-
-	return make_sec_desc( ctx, src->revision, src->type,
-				src->owner_sid, src->group_sid, src->sacl,
-				src->dacl, &dummy);
 }
 
 /*******************************************************************
@@ -409,8 +374,11 @@ struct sec_desc_buf *make_sec_desc_buf(TALLOC_CTX *ctx, size_t len, struct secur
 	/* max buffer size (allocated size) */
 	dst->sd_size = (uint32_t)len;
 
-	if(sec_desc && ((dst->sd = dup_sec_desc(ctx, sec_desc)) == NULL)) {
-		return NULL;
+	if (sec_desc != NULL) {
+		dst->sd = security_descriptor_copy(ctx, sec_desc);
+		if (dst->sd == NULL) {
+			return NULL;
+		}
 	}
 
 	return dst;
@@ -429,39 +397,6 @@ struct sec_desc_buf *dup_sec_desc_buf(TALLOC_CTX *ctx, struct sec_desc_buf *src)
 }
 
 /*******************************************************************
- Add a new SID with its permissions to struct security_descriptor.
-********************************************************************/
-
-NTSTATUS sec_desc_add_sid(TALLOC_CTX *ctx, struct security_descriptor **psd, const struct dom_sid *sid, uint32_t mask, size_t *sd_size)
-{
-	struct security_descriptor *sd   = 0;
-	struct security_acl  *dacl = 0;
-	struct security_ace  *ace  = 0;
-	NTSTATUS  status;
-
-	if (!ctx || !psd || !sid || !sd_size)
-		return NT_STATUS_INVALID_PARAMETER;
-
-	*sd_size = 0;
-
-	status = sec_ace_add_sid(ctx, &ace, psd[0]->dacl->aces, &psd[0]->dacl->num_aces, sid, mask);
-
-	if (!NT_STATUS_IS_OK(status))
-		return status;
-
-	if (!(dacl = make_sec_acl(ctx, psd[0]->dacl->revision, psd[0]->dacl->num_aces, ace)))
-		return NT_STATUS_UNSUCCESSFUL;
-
-	if (!(sd = make_sec_desc(ctx, psd[0]->revision, psd[0]->type, psd[0]->owner_sid,
-		psd[0]->group_sid, psd[0]->sacl, dacl, sd_size)))
-		return NT_STATUS_UNSUCCESSFUL;
-
-	*psd = sd;
-	 sd  = 0;
-	return NT_STATUS_OK;
-}
-
-/*******************************************************************
  Modify a SID's permissions in a struct security_descriptor.
 ********************************************************************/
 
@@ -477,39 +412,6 @@ NTSTATUS sec_desc_mod_sid(struct security_descriptor *sd, struct dom_sid *sid, u
 	if (!NT_STATUS_IS_OK(status))
 		return status;
 
-	return NT_STATUS_OK;
-}
-
-/*******************************************************************
- Delete a SID from a struct security_descriptor.
-********************************************************************/
-
-NTSTATUS sec_desc_del_sid(TALLOC_CTX *ctx, struct security_descriptor **psd, struct dom_sid *sid, size_t *sd_size)
-{
-	struct security_descriptor *sd   = 0;
-	struct security_acl  *dacl = 0;
-	struct security_ace  *ace  = 0;
-	NTSTATUS  status;
-
-	if (!ctx || !psd[0] || !sid || !sd_size)
-		return NT_STATUS_INVALID_PARAMETER;
-
-	*sd_size = 0;
-
-	status = sec_ace_del_sid(ctx, &ace, psd[0]->dacl->aces, &psd[0]->dacl->num_aces, sid);
-
-	if (!NT_STATUS_IS_OK(status))
-		return status;
-
-	if (!(dacl = make_sec_acl(ctx, psd[0]->dacl->revision, psd[0]->dacl->num_aces, ace)))
-		return NT_STATUS_UNSUCCESSFUL;
-
-	if (!(sd = make_sec_desc(ctx, psd[0]->revision, psd[0]->type, psd[0]->owner_sid,
-		psd[0]->group_sid, psd[0]->sacl, dacl, sd_size)))
-		return NT_STATUS_UNSUCCESSFUL;
-
-	*psd = sd;
-	 sd  = 0;
 	return NT_STATUS_OK;
 }
 
@@ -699,20 +601,20 @@ NTSTATUS se_create_child_secdesc(TALLOC_CTX *ctx,
 	for (i=1; i < new_ace_list_ndx;) {
 		struct security_ace *ai = &new_ace_list[i];
 		unsigned int remaining, j;
-		bool remove = false;
+		bool remove_ace = false;
 
 		for (j=0; j < i; j++) {
 			struct security_ace *aj = &new_ace_list[j];
 
-			if (!sec_ace_equal(ai, aj)) {
+			if (!security_ace_equal(ai, aj)) {
 				continue;
 			}
 
-			remove = true;
+			remove_ace = true;
 			break;
 		}
 
-		if (!remove) {
+		if (!remove_ace) {
 			i++;
 			continue;
 		}

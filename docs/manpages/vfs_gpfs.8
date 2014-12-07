@@ -2,12 +2,12 @@
 .\"     Title: vfs_gpfs
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 10/20/2014
+.\"      Date: 10/15/2014
 .\"    Manual: System Administration tools
-.\"    Source: Samba 4.0
+.\"    Source: Samba 4.2
 .\"  Language: English
 .\"
-.TH "VFS_GPFS" "8" "10/20/2014" "Samba 4\&.0" "System Administration tools"
+.TH "VFS_GPFS" "8" "10/15/2014" "Samba 4\&.2" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -182,6 +182,37 @@ no(default)
 .\}
 yes
 \- Announce HSM\&.
+.RE
+.sp
+.RE
+.RE
+.PP
+gpfs:recalls = [ yes | no ]
+.RS 4
+When this option is set to no, an attempt to open an offline file will be rejected with access denied\&. This helps preventing recall storms triggered by careless applications like Finder and Explorer\&.
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+yes(default)
+\- Open files that are offline\&. This will recall the files from HSM\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+no
+\- Reject access to offline files with access denied\&. This will prevent recalls of files from HSM\&. Using this setting also requires gpfs:hsm to be set to yes\&.
 .RE
 .sp
 .RE
@@ -411,6 +442,37 @@ yes (default)
 .\}
 no
 \- Do not use gpfs_prealloc for the fallocate callback\&.
+.RE
+.sp
+.RE
+.RE
+.PP
+gpfs:settimes = [ yes | no ]
+.RS 4
+Use the gpfs_set_times API when changing the timestamps of a file or directory\&. If the GPFS API is not available the old method of using utime and the GPFS winattr call will be used instead\&.
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+yes(default)
+\- Use gpfs_set_times\&. Fall back to utime and winattr when it is not available\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+no
+\- Do not use gpfs_set_times\&.
 .RE
 .sp
 .RE

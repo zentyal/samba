@@ -2,12 +2,16 @@
                  type="string"
                  context="G"
                  basic="1" advanced="1" developer="1"
+                 function="_tls_dhpfile"
+                 constant="1"
                  xmlns:samba="http://www.samba.org/samba/DTD/samba-doc">
  <description>
 	 <para>This option can be set to a file with Diffie-Hellman parameters
 		 which will be used with EDH ciphers.
 	 </para>
- </description>
+	 <para>This path is relative to <smbconfoption name="private dir"/> if the path
+	 does not start with a /.</para>
+</description>
 
  <related>tls certfile</related>
  <related>tls crlfile</related>

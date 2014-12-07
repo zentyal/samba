@@ -32,7 +32,12 @@
 
 #include "system/kerberos.h"
 
-struct PAC_LOGON_INFO;
+struct PAC_DATA;
+
+struct PAC_DATA_CTR {
+	DATA_BLOB pac_blob;
+	struct PAC_DATA *pac_data;
+};
 
 #include "libads/ads_status.h"
 
@@ -62,8 +67,7 @@ int kerberos_kinit_password(const char *principal,
 bool create_local_private_krb5_conf_for_domain(const char *realm,
 						const char *domain,
 						const char *sitename,
-					        const struct sockaddr_storage *pss,
-						const char *kdc_name);
+					        const struct sockaddr_storage *pss);
 
 /* The following definitions come from libads/authdata.c  */
 
@@ -78,7 +82,8 @@ NTSTATUS kerberos_return_pac(TALLOC_CTX *mem_ctx,
 			     bool add_netbios_addr,
 			     time_t renewable_time,
 			     const char *impersonate_princ_s,
-			     struct PAC_LOGON_INFO **logon_info);
+			     const char *local_service,
+			     struct PAC_DATA_CTR **pac_data_ctr);
 
 /* The following definitions come from libads/krb5_setpw.c  */
 

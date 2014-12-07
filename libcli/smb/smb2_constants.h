@@ -96,6 +96,7 @@
 #define SMB2_DIALECT_REVISION_222       0x0222
 #define SMB2_DIALECT_REVISION_224       0x0224
 #define SMB3_DIALECT_REVISION_300       0x0300
+#define SMB3_DIALECT_REVISION_302       0x0302
 #define SMB2_DIALECT_REVISION_2FF       0x02FF
 
 /* SMB2 negotiate security_mode */
@@ -180,9 +181,6 @@
 
 /* SMB2 lease bits */
 #define SMB2_LEASE_NONE                                  0x00
-#define SMB2_LEASE_READ                                  0x01
-#define SMB2_LEASE_HANDLE                                0x02
-#define SMB2_LEASE_WRITE                                 0x04
 
 /* SMB2 lease flags */
 #define SMB2_LEASE_FLAG_BREAK_IN_PROGRESS                0x00000002

@@ -67,8 +67,8 @@ static void send_nt_replies(connection_struct *conn,
 	int params_sent_thistime, data_sent_thistime, total_sent_thistime;
 	int alignment_offset = 1;
 	int data_alignment_offset = 0;
-	struct smbd_server_connection *sconn = req->sconn;
-	int max_send = sconn->smb1.sessions.max_send;
+	struct smbXsrv_connection *xconn = req->xconn;
+	int max_send = xconn->smb1.sessions.max_send;
 
 	/*
 	 * If there genuinely are no parameters or data to send just send
@@ -83,7 +83,7 @@ static void send_nt_replies(connection_struct *conn,
 					 __LINE__,__FILE__);
 		}
 		show_msg((char *)req->outbuf);
-		if (!srv_send_smb(sconn,
+		if (!srv_send_smb(xconn,
 				(char *)req->outbuf,
 				true, req->seqnum+1,
 				IS_CONN_ENCRYPTED(conn),
@@ -247,7 +247,7 @@ static void send_nt_replies(connection_struct *conn,
 
 		/* Send the packet */
 		show_msg((char *)req->outbuf);
-		if (!srv_send_smb(sconn,
+		if (!srv_send_smb(xconn,
 				(char *)req->outbuf,
 				true, req->seqnum+1,
 				IS_CONN_ENCRYPTED(conn),
@@ -457,7 +457,6 @@ void reply_ntcreate_and_X(struct smb_request *req)
 	struct timespec c_timespec;
 	struct timespec a_timespec;
 	struct timespec m_timespec;
-	struct timespec write_time_ts;
 	NTSTATUS status;
 	int oplock_request;
 	uint8_t oplock_granted = NO_OPLOCK_RETURN;
@@ -574,6 +573,7 @@ void reply_ntcreate_and_X(struct smb_request *req)
 		create_options,				/* create_options */
 		file_attributes,			/* file_attributes */
 		oplock_request,				/* oplock_request */
+		NULL,					/* lease */
 		allocation_size,			/* allocation_size */
 		0,					/* private_flags */
 		NULL,					/* sd */
@@ -582,7 +582,7 @@ void reply_ntcreate_and_X(struct smb_request *req)
 		&info);					/* pinfo */
 
 	if (!NT_STATUS_IS_OK(status)) {
-		if (open_was_deferred(req->sconn, req->mid)) {
+		if (open_was_deferred(req->xconn, req->mid)) {
 			/* We have re-scheduled this call, no error. */
 			goto out;
 		}
@@ -654,14 +654,6 @@ void reply_ntcreate_and_X(struct smb_request *req)
 	fattr = dos_mode(conn, smb_fname);
 	if (fattr == 0) {
 		fattr = FILE_ATTRIBUTE_NORMAL;
-	}
-
-	/* Deal with other possible opens having a modified
-	   write time. JRA. */
-	ZERO_STRUCT(write_time_ts);
-	get_file_infos(fsp->file_id, 0, NULL, &write_time_ts);
-	if (!null_timespec(write_time_ts)) {
-		update_stat_ex_mtime(&smb_fname->st, write_time_ts);
 	}
 
 	/* Create time. */
@@ -1000,7 +992,6 @@ static void call_nt_transact_create(connection_struct *conn,
 	struct timespec c_timespec;
 	struct timespec a_timespec;
 	struct timespec m_timespec;
-	struct timespec write_time_ts;
 	struct ea_list *ea_list = NULL;
 	NTSTATUS status;
 	size_t param_len;
@@ -1189,6 +1180,7 @@ static void call_nt_transact_create(connection_struct *conn,
 		create_options,				/* create_options */
 		file_attributes,			/* file_attributes */
 		oplock_request,				/* oplock_request */
+		NULL,					/* lease */
 		allocation_size,			/* allocation_size */
 		0,					/* private_flags */
 		sd,					/* sd */
@@ -1197,7 +1189,7 @@ static void call_nt_transact_create(connection_struct *conn,
 		&info);					/* pinfo */
 
 	if(!NT_STATUS_IS_OK(status)) {
-		if (open_was_deferred(req->sconn, req->mid)) {
+		if (open_was_deferred(req->xconn, req->mid)) {
 			/* We have re-scheduled this call, no error. */
 			return;
 		}
@@ -1266,14 +1258,6 @@ static void call_nt_transact_create(connection_struct *conn,
 	fattr = dos_mode(conn, smb_fname);
 	if (fattr == 0) {
 		fattr = FILE_ATTRIBUTE_NORMAL;
-	}
-
-	/* Deal with other possible opens having a modified
-	   write time. JRA. */
-	ZERO_STRUCT(write_time_ts);
-	get_file_infos(fsp->file_id, 0, NULL, &write_time_ts);
-	if (!null_timespec(write_time_ts)) {
-		update_stat_ex_mtime(&smb_fname->st, write_time_ts);
 	}
 
 	/* Create time. */
@@ -1356,14 +1340,17 @@ static void call_nt_transact_create(connection_struct *conn,
 
 void reply_ntcancel(struct smb_request *req)
 {
+	struct smbXsrv_connection *xconn = req->xconn;
+	struct smbd_server_connection *sconn = req->sconn;
+
 	/*
 	 * Go through and cancel any pending change notifies.
 	 */
 
 	START_PROFILE(SMBntcancel);
-	srv_cancel_sign_response(req->sconn);
-	remove_pending_change_notify_requests_by_mid(req->sconn, req->mid);
-	remove_pending_lock_requests_by_mid_smb1(req->sconn, req->mid);
+	srv_cancel_sign_response(xconn);
+	remove_pending_change_notify_requests_by_mid(sconn, req->mid);
+	remove_pending_lock_requests_by_mid_smb1(sconn, req->mid);
 
 	DEBUG(3,("reply_ntcancel: cancel called on mid = %llu.\n",
 		(unsigned long long)req->mid));
@@ -1437,6 +1424,7 @@ static NTSTATUS copy_internals(TALLOC_CTX *ctx,
 		0,					/* create_options */
 		FILE_ATTRIBUTE_NORMAL,			/* file_attributes */
 		NO_OPLOCK,				/* oplock_request */
+		NULL,					/* lease */
 		0,					/* allocation_size */
 		0,					/* private_flags */
 		NULL,					/* sd */
@@ -1461,6 +1449,7 @@ static NTSTATUS copy_internals(TALLOC_CTX *ctx,
 		0,					/* create_options */
 		fattr,					/* file_attributes */
 		NO_OPLOCK,				/* oplock_request */
+		NULL,					/* lease */
 		0,					/* allocation_size */
 		0,					/* private_flags */
 		NULL,					/* sd */
@@ -1681,7 +1670,7 @@ void reply_ntrename(struct smb_request *req)
 	}
 
 	if (!NT_STATUS_IS_OK(status)) {
-		if (open_was_deferred(req->sconn, req->mid)) {
+		if (open_was_deferred(req->xconn, req->mid)) {
 			/* We have re-scheduled this call. */
 			goto out;
 		}
@@ -1877,7 +1866,7 @@ static NTSTATUS get_null_nt_acl(TALLOC_CTX *mem_ctx, struct security_descriptor 
 
 /****************************************************************************
  Reply to query a security descriptor.
- Callable from SMB2 and SMB2.
+ Callable from SMB1 and SMB2.
  If it returns NT_STATUS_BUFFER_TOO_SMALL, pdata_size is initialized with
  the required size.
 ****************************************************************************/

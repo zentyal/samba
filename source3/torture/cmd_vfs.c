@@ -347,6 +347,7 @@ static NTSTATUS cmd_open(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, c
 		return NT_STATUS_UNSUCCESSFUL;
 	}
 
+	status = NT_STATUS_OK;
 	ret = SMB_VFS_FSTAT(fsp, &smb_fname->st);
 	if (ret == -1) {
 		/* If we have an fd, this stat should succeed. */
@@ -359,7 +360,7 @@ static NTSTATUS cmd_open(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int argc, c
 		errno = EISDIR;
 		status = NT_STATUS_FILE_IS_A_DIRECTORY;
 	}
-	
+
 	if (!NT_STATUS_IS_OK(status)) {
 		SMB_VFS_CLOSE(fsp);
 		TALLOC_FREE(fsp);
@@ -1488,6 +1489,7 @@ static NTSTATUS cmd_set_nt_acl(struct vfs_state *vfs, TALLOC_CTX *mem_ctx, int a
 		return NT_STATUS_UNSUCCESSFUL;
 	}
 
+	status = NT_STATUS_OK;
 	ret = SMB_VFS_FSTAT(fsp, &smb_fname->st);
 	if (ret == -1) {
 		/* If we have an fd, this stat should succeed. */
@@ -1544,7 +1546,6 @@ static NTSTATUS cmd_sys_acl_get_fd(struct vfs_state *vfs, TALLOC_CTX *mem_ctx,
 				   int argc, const char **argv)
 {
 	int fd;
-	NTSTATUS status;
 	SMB_ACL_T acl;
 	char *acl_text;
 
@@ -1566,7 +1567,7 @@ static NTSTATUS cmd_sys_acl_get_fd(struct vfs_state *vfs, TALLOC_CTX *mem_ctx,
 	acl = SMB_VFS_SYS_ACL_GET_FD(vfs->files[fd], talloc_tos());
 	if (!acl) {
 		printf("sys_acl_get_fd failed (%s)\n", strerror(errno));
-		return status;
+		return NT_STATUS_UNSUCCESSFUL;
 	}
 	acl_text = sys_acl_to_text(acl, NULL);
 	printf("%s", acl_text);
@@ -1578,7 +1579,6 @@ static NTSTATUS cmd_sys_acl_get_fd(struct vfs_state *vfs, TALLOC_CTX *mem_ctx,
 static NTSTATUS cmd_sys_acl_get_file(struct vfs_state *vfs, TALLOC_CTX *mem_ctx,
 				     int argc, const char **argv)
 {
-	NTSTATUS status;
 	SMB_ACL_T acl;
 	char *acl_text;
 	int type;
@@ -1591,7 +1591,7 @@ static NTSTATUS cmd_sys_acl_get_file(struct vfs_state *vfs, TALLOC_CTX *mem_ctx,
 	acl = SMB_VFS_SYS_ACL_GET_FILE(vfs->conn, argv[1], type, talloc_tos());
 	if (!acl) {
 		printf("sys_acl_get_file failed (%s)\n", strerror(errno));
-		return status;
+		return NT_STATUS_UNSUCCESSFUL;
 	}
 	acl_text = sys_acl_to_text(acl, NULL);
 	printf("%s", acl_text);
@@ -1780,7 +1780,7 @@ struct cmd_set vfs_commands[] = {
 	{ "mkdir",   cmd_mkdir,   "VFS mkdir()",    "mkdir <path>" },
 	{ "rmdir",   cmd_pathfunc,   "VFS rmdir()",    "rmdir <path>" },
 	{ "closedir",   cmd_closedir,   "VFS closedir()",    "closedir" },
-	{ "open",   cmd_open,   "VFS open()",    "open <fname>" },
+	{ "open",   cmd_open,   "VFS open()",    "open <fname> <flags> <mode>" },
 	{ "close",   cmd_close,   "VFS close()",    "close <fd>" },
 	{ "read",   cmd_read,   "VFS read()",    "read <fd> <size>" },
 	{ "write",   cmd_write,   "VFS write()",    "write <fd> <size>" },

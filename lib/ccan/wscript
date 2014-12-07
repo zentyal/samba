@@ -25,61 +25,6 @@ def configure(conf):
     conf.CHECK_CODE('int __attribute__((used)) func(int x) { return x; }',
                     addmain=False, link=False, cflags=conf.env['WERROR_CFLAGS'],
                     define='HAVE_ATTRIBUTE_USED')
-    # We try to use headers for a compile-time test.
-    conf.CHECK_CODE(code = """#ifdef __BYTE_ORDER
-                        #define B __BYTE_ORDER
-                        #elif defined(BYTE_ORDER)
-                        #define B BYTE_ORDER
-                        #endif
-
-                        #ifdef __LITTLE_ENDIAN
-                        #define LITTLE __LITTLE_ENDIAN
-                        #elif defined(LITTLE_ENDIAN)
-                        #define LITTLE LITTLE_ENDIAN
-                        #endif
-
-                        #if !defined(LITTLE) || !defined(B) || LITTLE != B
-                        #error Not little endian.
-                        #endif""",
-                           headers="endian.h sys/endian.h",
-                           define="HAVE_LITTLE_ENDIAN")
-    conf.CHECK_CODE(code = """#ifdef __BYTE_ORDER
-                        #define B __BYTE_ORDER
-                        #elif defined(BYTE_ORDER)
-                        #define B BYTE_ORDER
-                        #endif
-
-                        #ifdef __BIG_ENDIAN
-                        #define BIG __BIG_ENDIAN
-                        #elif defined(BIG_ENDIAN)
-                        #define BIG BIG_ENDIAN
-                        #endif
-
-                        #if !defined(BIG) || !defined(B) || BIG != B
-                        #error Not big endian.
-                        #endif""",
-                           headers="endian.h sys/endian.h",
-                           define="HAVE_BIG_ENDIAN")
-
-    if not conf.CONFIG_SET("HAVE_BIG_ENDIAN") and not conf.CONFIG_SET("HAVE_LITTLE_ENDIAN"):
-        # That didn't work!  Do runtime test.
-        conf.CHECK_CODE("""union { int i; char c[sizeof(int)]; } u;
-	  u.i = 0x01020304;
-	  return u.c[0] == 0x04 && u.c[1] == 0x03 && u.c[2] == 0x02 && u.c[3] == 0x01 ? 0 : 1;""",
-                        addmain=True, execute=True,
-                        define='HAVE_LITTLE_ENDIAN',
-                        msg="Checking for HAVE_LITTLE_ENDIAN - runtime")
-        conf.CHECK_CODE("""union { int i; char c[sizeof(int)]; } u;
-	  u.i = 0x01020304;
-	  return u.c[0] == 0x01 && u.c[1] == 0x02 && u.c[2] == 0x03 && u.c[3] == 0x04 ? 0 : 1;""",
-                        addmain=True, execute=True,
-                        define='HAVE_BIG_ENDIAN',
-                        msg="Checking for HAVE_BIG_ENDIAN - runtime")
-
-    # Extra sanity check.
-    if conf.CONFIG_SET("HAVE_BIG_ENDIAN") == conf.CONFIG_SET("HAVE_LITTLE_ENDIAN"):
-        Logs.error("Failed endian determination.  The PDP-11 is back?")
-        sys.exit(1)
 
     conf.CHECK_CODE('return __builtin_choose_expr(1, 0, "garbage");',
                     link=True,
@@ -127,21 +72,25 @@ def configure(conf):
     # Only check for FILE_OFFSET_BITS=64 if off_t is normally small:
     # use raw routines because wrappers include previous _GNU_SOURCE
     # or _FILE_OFFSET_BITS defines.
+    # The math for these tests is:
+    # array[-1 * !((int)(condition)) ] (condition is true) = array[0] = builds
+    # array[-1 * !((int)(condition)) ] (condition is false) = array[-1] = fails
     conf.check(fragment="""#include <sys/types.h>
-               int main(void) { return !(sizeof(off_t) < 8); }""",
-               execute=True, msg='Checking for small off_t',
+               int main(void) { static int test_array[1 - 2 * !(((long int)(sizeof(off_t))) < 8)]; }""",
+               msg='Checking for small off_t',
                define_name='SMALL_OFF_T')
     # Unreliable return value above, hence use define.
     if conf.CONFIG_SET('SMALL_OFF_T'):
         conf.check(fragment="""#include <sys/types.h>
-                   int main(void) { return !(sizeof(off_t) >= 8); }""",
-                   execute=True, msg='Checking for -D_FILE_OFFSET_BITS=64',
+		   int main(void) { static int test_array[1 - 2 * !(((long int)(sizeof(off_t))) >= 8)]; }""",
+                   msg='Checking for -D_FILE_OFFSET_BITS=64',
                    ccflags='-D_FILE_OFFSET_BITS=64',
                    define_name='HAVE_FILE_OFFSET_BITS')
 
 def ccan_module(bld, name, deps=''):
     bld.SAMBA_SUBSYSTEM('ccan-%s' % name,
                         source=bld.path.ant_glob('%s/*.c' % name),
+                        allow_warnings=True,
                         deps=deps)
     bld.env.CCAN_MODS += 'ccan-%s ' % name
 
@@ -185,5 +134,6 @@ def build(bld):
     bld.SAMBA_LIBRARY('ccan',
                       source='',
                       deps=bld.env.CCAN_MODS,
+                      allow_warnings=True,
                       private_library=True,
                       grouping_library=True)

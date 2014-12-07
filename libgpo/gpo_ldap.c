@@ -21,7 +21,6 @@
 #include "libgpo/gpo.h"
 #include "auth.h"
 #include "../libcli/security/security.h"
-#include "lib/param/loadparm.h"
 
 /****************************************************************
  parse the raw extension string into a GP_EXT structure
@@ -757,7 +756,7 @@ ADS_STATUS ads_get_gpo_list(ADS_STRUCT *ads,
 		if (ADS_ERR_OK(status)) {
 
 			if (DEBUGLEVEL >= 100) {
-				dump_gplink(ads, mem_ctx, &gp_link);
+				dump_gplink(&gp_link);
 			}
 
 			status = add_gplink_to_gpo_list(ads, mem_ctx, gpo_list,
@@ -795,7 +794,7 @@ ADS_STATUS ads_get_gpo_list(ADS_STRUCT *ads,
 			if (ADS_ERR_OK(status)) {
 
 				if (DEBUGLEVEL >= 100) {
-					dump_gplink(ads, mem_ctx, &gp_link);
+					dump_gplink(&gp_link);
 				}
 
 				/* block inheritance from now on */
@@ -841,7 +840,7 @@ ADS_STATUS ads_get_gpo_list(ADS_STRUCT *ads,
 			if (ADS_ERR_OK(status)) {
 
 				if (DEBUGLEVEL >= 100) {
-					dump_gplink(ads, mem_ctx, &gp_link);
+					dump_gplink(&gp_link);
 				}
 
 				/* block inheritance from now on */

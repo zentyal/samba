@@ -34,7 +34,6 @@
 #include "libsmb/nmblib.h"
 #include "librpc/ndr/libndr.h"
 #include "../libcli/smb/smbXcli_base.h"
-#include "smb2cli.h"
 
 #define STAR_SMBSERVER "*SMBSERVER"
 
@@ -240,7 +239,6 @@ static void cli_session_setup_lanman2_done(struct tevent_req *subreq)
 	p = bytes;
 
 	cli_state_set_uid(state->cli, SVAL(inhdr, HDR_UID));
-	cli->is_guestlogin = ((SVAL(vwv+2, 0) & 1) != 0);
 
 	status = smb_bytes_talloc_string(cli,
 					inhdr,
@@ -448,7 +446,6 @@ static void cli_session_setup_guest_done(struct tevent_req *subreq)
 	p = bytes;
 
 	cli_state_set_uid(state->cli, SVAL(inhdr, HDR_UID));
-	cli->is_guestlogin = ((SVAL(vwv+2, 0) & 1) != 0);
 
 	status = smb_bytes_talloc_string(cli,
 					inhdr,
@@ -613,7 +610,6 @@ static void cli_session_setup_plain_done(struct tevent_req *subreq)
 	p = bytes;
 
 	cli_state_set_uid(state->cli, SVAL(inhdr, HDR_UID));
-	cli->is_guestlogin = ((SVAL(vwv+2, 0) & 1) != 0);
 
 	status = smb_bytes_talloc_string(cli,
 					inhdr,
@@ -930,7 +926,6 @@ static void cli_session_setup_nt1_done(struct tevent_req *subreq)
 	p = bytes;
 
 	cli_state_set_uid(state->cli, SVAL(inhdr, HDR_UID));
-	cli->is_guestlogin = ((SVAL(vwv+2, 0) & 1) != 0);
 
 	status = smb_bytes_talloc_string(cli,
 					inhdr,
@@ -1180,7 +1175,6 @@ static void cli_sesssetup_blob_done(struct tevent_req *subreq)
 	state->inbuf = in;
 	inhdr = in + NBT_HDR_SIZE;
 	cli_state_set_uid(state->cli, SVAL(inhdr, HDR_UID));
-	cli->is_guestlogin = ((SVAL(vwv+2, 0) & 1) != 0);
 
 	blob_length = SVAL(vwv+3, 0);
 	if (blob_length > num_bytes) {
@@ -2669,7 +2663,24 @@ static struct tevent_req *cli_tree_connect_send(
 	}
 
 	if (smbXcli_conn_protocol(cli->conn) >= PROTOCOL_SMB2_02) {
-		subreq = smb2cli_tcon_send(state, ev, cli, share);
+		char *unc;
+
+		cli->smb2.tcon = smbXcli_tcon_create(cli);
+		if (tevent_req_nomem(cli->smb2.tcon, req)) {
+			return tevent_req_post(req, ev);
+		}
+
+		unc = talloc_asprintf(state, "\\\\%s\\%s",
+				      smbXcli_conn_remote_name(cli->conn),
+				      share);
+		if (tevent_req_nomem(unc, req)) {
+			return tevent_req_post(req, ev);
+		}
+
+		subreq = smb2cli_tcon_send(state, ev, cli->conn, cli->timeout,
+					   cli->smb2.session, cli->smb2.tcon,
+					   0, /* flags */
+					   unc);
 		if (tevent_req_nomem(subreq, req)) {
 			return tevent_req_post(req, ev);
 		}
@@ -2829,7 +2840,10 @@ NTSTATUS cli_tdis(struct cli_state *cli)
 	NTSTATUS status = NT_STATUS_NO_MEMORY;
 
 	if (smbXcli_conn_protocol(cli->conn) >= PROTOCOL_SMB2_02) {
-		return smb2cli_tdis(cli);
+		return smb2cli_tdis(cli->conn,
+				    cli->timeout,
+				    cli->smb2.session,
+				    cli->smb2.tcon);
 	}
 
 	if (smbXcli_conn_has_async_calls(cli->conn)) {
@@ -2875,6 +2889,7 @@ static struct tevent_req *cli_connect_sock_send(
 	struct tevent_req *req, *subreq;
 	struct cli_connect_sock_state *state;
 	const char *prog;
+	struct sockaddr_storage *addrs;
 	unsigned i, num_addrs;
 	NTSTATUS status;
 
@@ -2898,7 +2913,6 @@ static struct tevent_req *cli_connect_sock_send(
 	}
 
 	if ((pss == NULL) || is_zero_addr(pss)) {
-		struct sockaddr_storage *addrs;
 
 		/*
 		 * Here we cheat. resolve_name_list is not async at all. So
@@ -2912,8 +2926,12 @@ static struct tevent_req *cli_connect_sock_send(
 			tevent_req_nterror(req, status);
 			return tevent_req_post(req, ev);
 		}
-		pss = addrs;
 	} else {
+		addrs = talloc_array(state, struct sockaddr_storage, 1);
+		if (tevent_req_nomem(addrs, req)) {
+			return tevent_req_post(req, ev);
+		}
+		addrs[0] = *pss;
 		num_addrs = 1;
 	}
 
@@ -2936,7 +2954,7 @@ static struct tevent_req *cli_connect_sock_send(
 	}
 
 	subreq = smbsock_any_connect_send(
-		state, ev, pss, state->called_names, state->called_types,
+		state, ev, addrs, state->called_names, state->called_types,
 		state->calling_names, NULL, num_addrs, port);
 	if (tevent_req_nomem(subreq, req)) {
 		return tevent_req_post(req, ev);
@@ -3030,7 +3048,7 @@ static void cli_connect_nb_done(struct tevent_req *subreq)
 	struct cli_connect_nb_state *state = tevent_req_data(
 		req, struct cli_connect_nb_state);
 	NTSTATUS status;
-	int fd;
+	int fd = 0;
 	uint16_t port;
 
 	status = cli_connect_sock_recv(subreq, &fd, &port);
@@ -3148,8 +3166,8 @@ static void cli_start_connection_connected(struct tevent_req *subreq)
 
 	subreq = smbXcli_negprot_send(state, state->ev, state->cli->conn,
 				      state->cli->timeout,
-				      lp_cli_minprotocol(),
-				      lp_cli_maxprotocol());
+				      lp_client_min_protocol(),
+				      lp_client_max_protocol());
 	if (tevent_req_nomem(subreq, req)) {
 		return;
 	}

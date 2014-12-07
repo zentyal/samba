@@ -19,6 +19,7 @@ static int ftruncate_check(int fd, off_t length);
 #include "../common/open.c"
 #include "../common/check.c"
 #include "../common/hash.c"
+#include "../common/mutex.c"
 #include "tap-interface.h"
 #include <stdlib.h>
 #include <stdbool.h>
@@ -156,7 +157,7 @@ reset:
 
 	/* Put key for agent to fetch. */
 	key.dsize = strlen(KEY_STRING);
-	key.dptr = (void *)KEY_STRING;
+	key.dptr = discard_const_p(uint8_t, KEY_STRING);
 	if (tdb_store(tdb, key, key, TDB_INSERT) != 0)
 		return false;
 

@@ -91,7 +91,7 @@ static char *lpcfg_common_path(TALLOC_CTX* mem_ctx,
 	}
 	trim_string(dname,"","/");
 
-	ok = directory_create_or_exist(dname, geteuid(), 0755);
+	ok = directory_create_or_exist(dname, 0755);
 	if (!ok) {
 		DEBUG(1, ("Unable to create directory %s for file %s. "
 			  "Error was %s\n", dname, name, strerror(errno)));
@@ -114,7 +114,7 @@ static char *lpcfg_common_path(TALLOC_CTX* mem_ctx,
 char *lpcfg_lock_path(TALLOC_CTX* mem_ctx, struct loadparm_context *lp_ctx,
 			 const char *name)
 {
-	return lpcfg_common_path(mem_ctx, lpcfg_lockdir(lp_ctx), name);
+	return lpcfg_common_path(mem_ctx, lpcfg_lock_directory(lp_ctx), name);
 }
 
 /**
@@ -123,7 +123,7 @@ char *lpcfg_lock_path(TALLOC_CTX* mem_ctx, struct loadparm_context *lp_ctx,
 char *lpcfg_state_path(TALLOC_CTX* mem_ctx, struct loadparm_context *lp_ctx,
 		       const char *name)
 {
-	return lpcfg_common_path(mem_ctx, lpcfg_statedir(lp_ctx), name);
+	return lpcfg_common_path(mem_ctx, lpcfg_state_directory(lp_ctx), name);
 }
 
 /**
@@ -132,7 +132,7 @@ char *lpcfg_state_path(TALLOC_CTX* mem_ctx, struct loadparm_context *lp_ctx,
 char *lpcfg_cache_path(TALLOC_CTX* mem_ctx, struct loadparm_context *lp_ctx,
 		       const char *name)
 {
-	return lpcfg_common_path(mem_ctx, lpcfg_cachedir(lp_ctx), name);
+	return lpcfg_common_path(mem_ctx, lpcfg_cache_directory(lp_ctx), name);
 }
 
 /**
@@ -231,7 +231,7 @@ char *smbd_tmp_path(TALLOC_CTX *mem_ctx,
 		return NULL;
 	}
 
-	ok = directory_create_or_exist(dname, geteuid(), 0755);
+	ok = directory_create_or_exist(dname, 0755);
 	if (!ok) {
 		return NULL;
 	}

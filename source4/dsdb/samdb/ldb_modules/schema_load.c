@@ -94,8 +94,8 @@ static int schema_metadata_open(struct ldb_module *module)
 				       struct loadparm_context);
 
 	data->metadata = tdb_wrap_open(data, filename, 10,
-					      TDB_DEFAULT, open_flags, 0660,
-					      lp_ctx);
+				       lpcfg_tdb_flags(lp_ctx, TDB_DEFAULT),
+				       open_flags, 0660);
 	if (data->metadata == NULL) {
 		talloc_free(tmp_ctx);
 		return LDB_ERR_OPERATIONS_ERROR;

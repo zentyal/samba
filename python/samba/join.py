@@ -24,10 +24,12 @@ from samba import gensec, Ldb, drs_utils
 import ldb, samba, sys, uuid
 from samba.ndr import ndr_pack
 from samba.dcerpc import security, drsuapi, misc, nbt, lsa, drsblobs
+from samba.dsdb import DS_DOMAIN_FUNCTION_2003
 from samba.credentials import Credentials, DONT_USE_KERBEROS
 from samba.provision import secretsdb_self_join, provision, provision_fill, FILL_DRS, FILL_SUBDOMAIN
 from samba.provision.common import setup_path
 from samba.schema import Schema
+from samba import descriptor
 from samba.net import Net
 from samba.provision.sambadns import setup_bind9_dns
 from samba import read_and_sub_file
@@ -49,10 +51,11 @@ class DCJoinException(Exception):
 class dc_join(object):
     """Perform a DC join."""
 
-    def __init__(ctx, server=None, creds=None, lp=None, site=None,
+    def __init__(ctx, logger=None, server=None, creds=None, lp=None, site=None,
                  netbios_name=None, targetdir=None, domain=None,
                  machinepass=None, use_ntvfs=False, dns_backend=None,
                  promote_existing=False):
+        ctx.logger = logger
         ctx.creds = creds
         ctx.lp = lp
         ctx.site = site
@@ -72,9 +75,9 @@ class dc_join(object):
         if server is not None:
             ctx.server = server
         else:
-            print("Finding a writeable DC for domain '%s'" % domain)
+            ctx.logger.info("Finding a writeable DC for domain '%s'" % domain)
             ctx.server = ctx.find_dc(domain)
-            print("Found DC %s" % ctx.server)
+            ctx.logger.info("Found DC %s" % ctx.server)
 
         ctx.samdb = SamDB(url="ldap://%s" % ctx.server,
                           session_info=system_session(),
@@ -92,7 +95,8 @@ class dc_join(object):
         ctx.root_dn = str(ctx.samdb.get_root_basedn())
         ctx.schema_dn = str(ctx.samdb.get_schema_basedn())
         ctx.config_dn = str(ctx.samdb.get_config_basedn())
-        ctx.domsid = ctx.samdb.get_domain_sid()
+        ctx.domsid = security.dom_sid(ctx.samdb.get_domain_sid())
+        ctx.forestsid = ctx.domsid
         ctx.domain_name = ctx.get_domain_name()
         ctx.forest_domain_name = ctx.get_forest_domain_name()
         ctx.invocation_id = misc.GUID(str(uuid.uuid4()))
@@ -118,7 +122,7 @@ class dc_join(object):
         ctx.dnsdomain = ctx.samdb.domain_dns_name()
         ctx.dnsforest = ctx.samdb.forest_dns_name()
         ctx.domaindns_zone = 'DC=DomainDnsZones,%s' % ctx.base_dn
-        ctx.forestdns_zone = 'DC=ForestDnsZones,%s' % ctx.base_dn
+        ctx.forestdns_zone = 'DC=ForestDnsZones,%s' % ctx.root_dn
 
         res_domaindns = ctx.samdb.search(scope=ldb.SCOPE_ONELEVEL,
                                          attrs=[],
@@ -154,6 +158,7 @@ class dc_join(object):
         ctx.drsuapi = None
         ctx.managedby = None
         ctx.subdomain = False
+        ctx.adminpass = None
 
     def del_noerror(ctx, dn, recursive=False):
         if recursive:
@@ -302,8 +307,12 @@ class dc_join(object):
         res = ctx.samdb.search(base='CN=Partitions,%s' % ctx.config_dn, attrs=['fSMORoleOwner'],
                                scope=ldb.SCOPE_BASE, controls=["extended_dn:1:1"])
         if not 'fSMORoleOwner' in res[0]:
-            raise DCJoinException("Can't find naming master on partition DN %s" % ctx.partition_dn)
-        master_guid = str(misc.GUID(ldb.Dn(ctx.samdb, res[0]['fSMORoleOwner'][0]).get_extended_component('GUID')))
+            raise DCJoinException("Can't find naming master on partition DN %s in %s" % (ctx.partition_dn, ctx.samdb.url))
+        try:
+            master_guid = str(misc.GUID(ldb.Dn(ctx.samdb, res[0]['fSMORoleOwner'][0]).get_extended_component('GUID')))
+        except KeyError:
+            raise DCJoinException("Can't find GUID in naming master on partition DN %s" % res[0]['fSMORoleOwner'][0])
+
         master_host = '%s._msdcs.%s' % (master_guid, ctx.dnsforest)
         return master_host
 
@@ -364,7 +373,7 @@ class dc_join(object):
 
     def create_tmp_samdb(ctx):
         '''create a temporary samdb object for schema queries'''
-        ctx.tmp_schema = Schema(security.dom_sid(ctx.domsid),
+        ctx.tmp_schema = Schema(ctx.domsid,
                                 schemadn=ctx.schema_dn)
         ctx.tmp_samdb = SamDB(session_info=system_session(), url=None, auto_connect=False,
                               credentials=ctx.creds, lp=ctx.lp, global_schema=False,
@@ -441,8 +450,8 @@ class dc_join(object):
 
         return ctr.objects
 
-    def join_add_ntdsdsa(ctx):
-        '''add the ntdsdsa object'''
+    def join_ntdsdsa_obj(ctx):
+        '''return the ntdsdsa object to add'''
 
         print "Adding %s" % ctx.ntds_dn
         rec = {
@@ -461,16 +470,28 @@ class dc_join(object):
 
         if ctx.RODC:
             rec["objectCategory"] = "CN=NTDS-DSA-RO,%s" % ctx.schema_dn
-            rec["msDS-HasFullReplicaNCs"] = ctx.nc_list
+            rec["msDS-HasFullReplicaNCs"] = ctx.full_nc_list
             rec["options"] = "37"
-            ctx.samdb.add(rec, ["rodc_join:1:1"])
         else:
             rec["objectCategory"] = "CN=NTDS-DSA,%s" % ctx.schema_dn
-            rec["HasMasterNCs"]      = nc_list
+            rec["HasMasterNCs"]      = []
+            for nc in nc_list:
+                if nc in ctx.full_nc_list:
+                    rec["HasMasterNCs"].append(nc)
             if ctx.behavior_version >= samba.dsdb.DS_DOMAIN_FUNCTION_2003:
-                rec["msDS-HasMasterNCs"] = ctx.nc_list
+                rec["msDS-HasMasterNCs"] = ctx.full_nc_list
             rec["options"] = "1"
             rec["invocationId"] = ndr_pack(ctx.invocation_id)
+
+        return rec
+
+    def join_add_ntdsdsa(ctx):
+        '''add the ntdsdsa object'''
+
+        rec = ctx.join_ntdsdsa_obj()
+        if ctx.RODC:
+            ctx.samdb.add(rec, ["rodc_join:1:1"])
+        else:
             ctx.DsAddEntry([rec])
 
         # find the GUID of our NTDS DN
@@ -652,8 +673,8 @@ class dc_join(object):
         """add the various objects needed for the join, for subdomains post replication"""
 
         print "Adding %s" % ctx.partition_dn
-        # NOTE: windows sends a ntSecurityDescriptor here, we
-        # let it default
+        name_map = {'SubdomainAdmins': "%s-%s" % (str(ctx.domsid), security.DOMAIN_RID_ADMINS)}
+        sd_binary = descriptor.get_paritions_crossref_subdomain_descriptor(ctx.forestsid, name_map=name_map)
         rec = {
             "dn" : ctx.partition_dn,
             "objectclass" : "crossRef",
@@ -662,30 +683,14 @@ class dc_join(object):
             "nETBIOSName" : ctx.domain_name,
             "dnsRoot": ctx.dnsdomain,
             "trustParent" : ctx.parent_partition_dn,
-            "systemFlags" : str(samba.dsdb.SYSTEM_FLAG_CR_NTDS_NC|samba.dsdb.SYSTEM_FLAG_CR_NTDS_DOMAIN)}
+            "systemFlags" : str(samba.dsdb.SYSTEM_FLAG_CR_NTDS_NC|samba.dsdb.SYSTEM_FLAG_CR_NTDS_DOMAIN),
+            "ntSecurityDescriptor" : sd_binary,
+        }
+
         if ctx.behavior_version >= samba.dsdb.DS_DOMAIN_FUNCTION_2003:
             rec["msDS-Behavior-Version"] = str(ctx.behavior_version)
 
-        rec2 = {
-            "dn" : ctx.ntds_dn,
-            "objectclass" : "nTDSDSA",
-            "systemFlags" : str(samba.dsdb.SYSTEM_FLAG_DISALLOW_MOVE_ON_DELETE),
-            "dMDLocation" : ctx.schema_dn}
-
-        nc_list = [ ctx.base_dn, ctx.config_dn, ctx.schema_dn ]
-
-        if ctx.behavior_version >= samba.dsdb.DS_DOMAIN_FUNCTION_2003:
-            rec2["msDS-Behavior-Version"] = str(ctx.behavior_version)
-
-        if ctx.behavior_version >= samba.dsdb.DS_DOMAIN_FUNCTION_2003:
-            rec2["msDS-HasDomainNCs"] = ctx.base_dn
-
-        rec2["objectCategory"] = "CN=NTDS-DSA,%s" % ctx.schema_dn
-        rec2["HasMasterNCs"]      = nc_list
-        if ctx.behavior_version >= samba.dsdb.DS_DOMAIN_FUNCTION_2003:
-            rec2["msDS-HasMasterNCs"] = ctx.nc_list
-        rec2["options"] = "1"
-        rec2["invocationId"] = ndr_pack(ctx.invocation_id)
+        rec2 = ctx.join_ntdsdsa_obj()
 
         objects = ctx.DsAddEntry([rec, rec2])
         if len(objects) != 2:
@@ -712,17 +717,15 @@ class dc_join(object):
 
         print "Calling bare provision"
 
-        logger = logging.getLogger("provision")
-        logger.addHandler(logging.StreamHandler(sys.stdout))
         smbconf = ctx.lp.configfile
 
-        presult = provision(logger, system_session(), None, smbconf=smbconf,
+        presult = provision(ctx.logger, system_session(), smbconf=smbconf,
                 targetdir=ctx.targetdir, samdb_fill=FILL_DRS, realm=ctx.realm,
                 rootdn=ctx.root_dn, domaindn=ctx.base_dn,
                 schemadn=ctx.schema_dn, configdn=ctx.config_dn,
                 serverdn=ctx.server_dn, domain=ctx.domain_name,
                 hostname=ctx.myname, domainsid=ctx.domsid,
-                machinepass=ctx.acct_pass, serverrole="domain controller",
+                machinepass=ctx.acct_pass, serverrole="active directory domain controller",
                 sitename=ctx.site, lp=ctx.lp, ntdsguid=ctx.ntds_guid,
                 use_ntvfs=ctx.use_ntvfs, dns_backend=ctx.dns_backend)
         print "Provision OK for domain DN %s" % presult.domaindn
@@ -730,6 +733,9 @@ class dc_join(object):
         ctx.lp          = presult.lp
         ctx.paths       = presult.paths
         ctx.names       = presult.names
+
+        # Fix up the forestsid, it may be different if we are joining as a subdomain
+        ctx.names.forestsid = ctx.forestsid
 
     def join_provision_own_domain(ctx):
         """Provision the local SAM."""
@@ -744,26 +750,31 @@ class dc_join(object):
         ctx.samdb.set_invocation_id(str(ctx.invocation_id))
         ctx.local_samdb = ctx.samdb
 
-        print("Finding domain GUID from ncName")
+        ctx.logger.info("Finding domain GUID from ncName")
         res = ctx.local_samdb.search(base=ctx.partition_dn, scope=ldb.SCOPE_BASE, attrs=['ncName'],
-                                     controls=["extended_dn:1:1"])
-        domguid = str(misc.GUID(ldb.Dn(ctx.samdb, res[0]['ncName'][0]).get_extended_component('GUID')))
-        print("Got domain GUID %s" % domguid)
+                                     controls=["extended_dn:1:1", "reveal_internals:0"])
 
-        print("Calling own domain provision")
+        if 'nCName' not in res[0]:
+            raise DCJoinException("Can't find naming context on partition DN %s in %s" % (ctx.partition_dn, ctx.samdb.url))
 
-        logger = logging.getLogger("provision")
-        logger.addHandler(logging.StreamHandler(sys.stdout))
+        try:
+            ctx.names.domainguid = str(misc.GUID(ldb.Dn(ctx.samdb, res[0]['ncName'][0]).get_extended_component('GUID')))
+        except KeyError:
+            raise DCJoinException("Can't find GUID in naming master on partition DN %s" % res[0]['ncName'][0])
+
+        ctx.logger.info("Got domain GUID %s" % ctx.names.domainguid)
+
+        ctx.logger.info("Calling own domain provision")
 
         secrets_ldb = Ldb(ctx.paths.secrets, session_info=system_session(), lp=ctx.lp)
 
         presult = provision_fill(ctx.local_samdb, secrets_ldb,
-                                 logger, ctx.names, ctx.paths, domainsid=security.dom_sid(ctx.domsid),
-                                 domainguid=domguid,
+                                 ctx.logger, ctx.names, ctx.paths,
+                                 dom_for_fun_level=DS_DOMAIN_FUNCTION_2003,
                                  targetdir=ctx.targetdir, samdb_fill=FILL_SUBDOMAIN,
-                                 machinepass=ctx.acct_pass, serverrole="domain controller",
+                                 machinepass=ctx.acct_pass, serverrole="active directory domain controller",
                                  lp=ctx.lp, hostip=ctx.names.hostip, hostip6=ctx.names.hostip6,
-                                 dns_backend=ctx.dns_backend)
+                                 dns_backend=ctx.dns_backend, adminpass=ctx.adminpass)
         print("Provision OK for domain %s" % ctx.names.dnsdomain)
 
     def join_replicate(ctx):
@@ -824,10 +835,6 @@ class dc_join(object):
                                     destination_dsa_guid, rodc=ctx.RODC,
                                     replica_flags=ctx.replica_flags)
 
-            if 'DC=ForestDnsZones,%s' % ctx.root_dn in ctx.nc_list:
-                repl.replicate('DC=ForestDnsZones,%s' % ctx.root_dn, source_dsa_invocation_id,
-                               destination_dsa_guid, rodc=ctx.RODC,
-                               replica_flags=ctx.replica_flags)
             # FIXME At this point we should add an entry in the forestdns and domaindns NC
             # (those under CN=Partions,DC=...)
             # in order to indicate that we hold a replica for this NC
@@ -868,16 +875,13 @@ class dc_join(object):
     def join_finalise(ctx):
         """Finalise the join, mark us synchronised and setup secrets db."""
 
-        logger = logging.getLogger("provision")
-        logger.addHandler(logging.StreamHandler(sys.stdout))
-
         # FIXME we shouldn't do this in all cases
         # If for some reasons we joined in another site than the one of
         # DC we just replicated from then we don't need to send the updatereplicateref
         # as replication between sites is time based and on the initiative of the
         # requesting DC
-        print "Sending DsReplicateUpdateRefs for all the replicated partitions"
-        for nc in ctx.full_nc_list:
+        ctx.logger.info("Sending DsReplicaUpdateRefs for all the replicated partitions")
+        for nc in ctx.nc_list:
             ctx.send_DsReplicaUpdateRefs(nc)
 
         if ctx.RODC:
@@ -906,7 +910,7 @@ class dc_join(object):
                                                                "invocationId",
                                                                0)
 
-        print "Setting isSynchronized and dsServiceName"
+        ctx.logger.info("Setting isSynchronized and dsServiceName")
         m = ldb.Message()
         m.dn = ldb.Dn(ctx.local_samdb, '@ROOTDSE')
         m["isSynchronized"] = ldb.MessageElement("TRUE", ldb.FLAG_MOD_REPLACE, "isSynchronized")
@@ -919,19 +923,19 @@ class dc_join(object):
 
         secrets_ldb = Ldb(ctx.paths.secrets, session_info=system_session(), lp=ctx.lp)
 
-        print "Setting up secrets database"
+        ctx.logger.info("Setting up secrets database")
         secretsdb_self_join(secrets_ldb, domain=ctx.domain_name,
                             realm=ctx.realm,
                             dnsdomain=ctx.dnsdomain,
                             netbiosname=ctx.myname,
-                            domainsid=security.dom_sid(ctx.domsid),
+                            domainsid=ctx.domsid,
                             machinepass=ctx.acct_pass,
                             secure_channel_type=ctx.secure_channel_type,
                             key_version_number=ctx.key_version_number)
 
         if ctx.dns_backend.startswith("BIND9_"):
-            setup_bind9_dns(ctx.local_samdb, secrets_ldb, security.dom_sid(ctx.domsid),
-                            ctx.names, ctx.paths, ctx.lp, logger,
+            setup_bind9_dns(ctx.local_samdb, secrets_ldb,
+                            ctx.names, ctx.paths, ctx.lp, ctx.logger,
                             dns_backend=ctx.dns_backend,
                             dnspass=ctx.dnspass, os_level=ctx.behavior_version,
                             targetdir=ctx.targetdir,
@@ -967,7 +971,7 @@ class dc_join(object):
         info = lsa.TrustDomainInfoInfoEx()
         info.domain_name.string = ctx.dnsdomain
         info.netbios_name.string = ctx.domain_name
-        info.sid = security.dom_sid(ctx.domsid)
+        info.sid = ctx.domsid
         info.trust_direction = lsa.LSA_TRUST_DIRECTION_INBOUND | lsa.LSA_TRUST_DIRECTION_OUTBOUND
         info.trust_type = lsa.LSA_TRUST_TYPE_UPLEVEL
         info.trust_attributes = lsa.LSA_TRUST_ATTRIBUTE_WITHIN_FOREST
@@ -1037,7 +1041,8 @@ class dc_join(object):
             "flatname" : ctx.forest_domain_name,
             "trustPartner" : ctx.dnsforest,
             "trustAuthIncoming" : ndr_pack(outgoing),
-            "trustAuthOutgoing" : ndr_pack(outgoing)
+            "trustAuthOutgoing" : ndr_pack(outgoing),
+            "securityIdentifier" : ndr_pack(ctx.forestsid)
             }
         ctx.local_samdb.add(rec)
 
@@ -1045,26 +1050,32 @@ class dc_join(object):
             "dn" : "cn=%s$,cn=users,%s" % (ctx.forest_domain_name, ctx.base_dn),
             "objectclass" : "user",
             "userAccountControl" : str(samba.dsdb.UF_INTERDOMAIN_TRUST_ACCOUNT),
-            "clearTextPassword" : ctx.trustdom_pass.encode('utf-16-le')
+            "clearTextPassword" : ctx.trustdom_pass.encode('utf-16-le'),
+            "samAccountName" : "%s$" % ctx.forest_domain_name
             }
         ctx.local_samdb.add(rec)
 
 
     def do_join(ctx):
-        # full_nc_list is the list of naming context (NC) for which we will
-        # send a updateRef command to the partner DC
-        ctx.nc_list = [ ctx.config_dn, ctx.schema_dn ]
-        ctx.full_nc_list = [ctx.base_dn, ctx.config_dn, ctx.schema_dn ]
+        # nc_list is the list of naming context (NC) for which we will
+        # replicate in and send a updateRef command to the partner DC
 
-        if not ctx.subdomain:
+        # full_nc_list is the list of naming context (NC) we hold
+        # read/write copies of.  These are not subsets of each other.
+        ctx.nc_list = [ ctx.config_dn, ctx.schema_dn ]
+        ctx.full_nc_list = [ ctx.base_dn, ctx.config_dn, ctx.schema_dn ]
+
+        if ctx.subdomain and ctx.dns_backend != "NONE":
+            ctx.full_nc_list += [ctx.domaindns_zone]
+
+        elif not ctx.subdomain:
             ctx.nc_list += [ctx.base_dn]
+
             if ctx.dns_backend != "NONE":
                 ctx.nc_list += [ctx.domaindns_zone]
-
-        if ctx.dns_backend != "NONE":
-            ctx.full_nc_list += ['DC=DomainDnsZones,%s' % ctx.base_dn]
-            ctx.full_nc_list += ['DC=ForestDnsZones,%s' % ctx.root_dn]
-            ctx.nc_list += ['DC=ForestDnsZones,%s' % ctx.root_dn]
+                ctx.nc_list += [ctx.forestdns_zone]
+                ctx.full_nc_list += [ctx.domaindns_zone]
+                ctx.full_nc_list += [ctx.forestdns_zone]
 
         if ctx.promote_existing:
             ctx.promote_possible()
@@ -1086,20 +1097,20 @@ class dc_join(object):
             raise
 
 
-def join_RODC(server=None, creds=None, lp=None, site=None, netbios_name=None,
+def join_RODC(logger=None, server=None, creds=None, lp=None, site=None, netbios_name=None,
               targetdir=None, domain=None, domain_critical_only=False,
               machinepass=None, use_ntvfs=False, dns_backend=None,
               promote_existing=False):
     """Join as a RODC."""
 
-    ctx = dc_join(server, creds, lp, site, netbios_name, targetdir, domain,
+    ctx = dc_join(logger, server, creds, lp, site, netbios_name, targetdir, domain,
                   machinepass, use_ntvfs, dns_backend, promote_existing)
 
     lp.set("workgroup", ctx.domain_name)
-    print("workgroup is %s" % ctx.domain_name)
+    logger.info("workgroup is %s" % ctx.domain_name)
 
     lp.set("realm", ctx.realm)
-    print("realm is %s" % ctx.realm)
+    logger.info("realm is %s" % ctx.realm)
 
     ctx.krbtgt_dn = "CN=krbtgt_%s,CN=Users,%s" % (ctx.myname, ctx.base_dn)
 
@@ -1138,22 +1149,22 @@ def join_RODC(server=None, creds=None, lp=None, site=None, netbios_name=None,
 
     ctx.do_join()
 
-    print "Joined domain %s (SID %s) as an RODC" % (ctx.domain_name, ctx.domsid)
+    logger.info("Joined domain %s (SID %s) as an RODC" % (ctx.domain_name, ctx.domsid))
 
 
-def join_DC(server=None, creds=None, lp=None, site=None, netbios_name=None,
+def join_DC(logger=None, server=None, creds=None, lp=None, site=None, netbios_name=None,
             targetdir=None, domain=None, domain_critical_only=False,
             machinepass=None, use_ntvfs=False, dns_backend=None,
             promote_existing=False):
     """Join as a DC."""
-    ctx = dc_join(server, creds, lp, site, netbios_name, targetdir, domain,
+    ctx = dc_join(logger, server, creds, lp, site, netbios_name, targetdir, domain,
                   machinepass, use_ntvfs, dns_backend, promote_existing)
 
     lp.set("workgroup", ctx.domain_name)
-    print("workgroup is %s" % ctx.domain_name)
+    logger.info("workgroup is %s" % ctx.domain_name)
 
     lp.set("realm", ctx.realm)
-    print("realm is %s" % ctx.realm)
+    logger.info("realm is %s" % ctx.realm)
 
     ctx.userAccountControl = samba.dsdb.UF_SERVER_TRUST_ACCOUNT | samba.dsdb.UF_TRUSTED_FOR_DELEGATION
 
@@ -1170,16 +1181,20 @@ def join_DC(server=None, creds=None, lp=None, site=None, netbios_name=None,
         ctx.domain_replica_flags |= drsuapi.DRSUAPI_DRS_CRITICAL_ONLY
 
     ctx.do_join()
-    print "Joined domain %s (SID %s) as a DC" % (ctx.domain_name, ctx.domsid)
+    logger.info("Joined domain %s (SID %s) as a DC" % (ctx.domain_name, ctx.domsid))
 
-def join_subdomain(server=None, creds=None, lp=None, site=None,
+def join_subdomain(logger=None, server=None, creds=None, lp=None, site=None,
         netbios_name=None, targetdir=None, parent_domain=None, dnsdomain=None,
-        netbios_domain=None, machinepass=None, use_ntvfs=False,
+        netbios_domain=None, machinepass=None, adminpass=None, use_ntvfs=False,
         dns_backend=None):
     """Join as a DC."""
-    ctx = dc_join(server, creds, lp, site, netbios_name, targetdir, parent_domain,
+    ctx = dc_join(logger, server, creds, lp, site, netbios_name, targetdir, parent_domain,
                   machinepass, use_ntvfs, dns_backend)
     ctx.subdomain = True
+    if adminpass is None:
+        ctx.adminpass = samba.generate_random_password(12, 32)
+    else:
+        ctx.adminpass = adminpass
     ctx.parent_domain_name = ctx.domain_name
     ctx.domain_name = netbios_domain
     ctx.realm = dnsdomain
@@ -1189,14 +1204,19 @@ def join_subdomain(server=None, creds=None, lp=None, site=None,
     ctx.partition_dn = "CN=%s,CN=Partitions,%s" % (ctx.domain_name, ctx.config_dn)
     ctx.naming_master = ctx.get_naming_master()
     if ctx.naming_master != ctx.server:
-        print("Reconnecting to naming master %s" % ctx.naming_master)
+        logger.info("Reconnecting to naming master %s" % ctx.naming_master)
         ctx.server = ctx.naming_master
         ctx.samdb = SamDB(url="ldap://%s" % ctx.server,
                           session_info=system_session(),
                           credentials=ctx.creds, lp=ctx.lp)
+        res = ctx.samdb.search(base="", scope=ldb.SCOPE_BASE, attrs=['dnsHostName'],
+                               controls=[])
+        ctx.server = res[0]["dnsHostName"]
+        logger.info("DNS name of new naming master is %s" % ctx.server)
 
     ctx.base_dn = samba.dn_from_dns_name(dnsdomain)
-    ctx.domsid = str(security.random_sid())
+    ctx.forestsid = ctx.domsid
+    ctx.domsid = security.random_sid()
     ctx.acct_dn = None
     ctx.dnshostname = "%s.%s" % (ctx.myname.lower(), ctx.dnsdomain)
     ctx.trustdom_pass = samba.generate_random_password(128, 128)
@@ -1214,4 +1234,4 @@ def join_subdomain(server=None, creds=None, lp=None, site=None,
     ctx.domain_replica_flags = ctx.replica_flags
 
     ctx.do_join()
-    print "Created domain %s (SID %s) as a DC" % (ctx.domain_name, ctx.domsid)
+    ctx.logger.info("Created domain %s (SID %s) as a DC" % (ctx.domain_name, ctx.domsid))

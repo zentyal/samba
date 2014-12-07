@@ -7,7 +7,7 @@
 	<manvolnum>8</manvolnum>
 	<refmiscinfo class="source">Samba</refmiscinfo>
 	<refmiscinfo class="manual">System Administration tools</refmiscinfo>
-	<refmiscinfo class="version">4.0</refmiscinfo>
+	<refmiscinfo class="version">4.2</refmiscinfo>
 </refmeta>
 
 
@@ -135,6 +135,28 @@
 		</itemizedlist>
 		</listitem>
 
+		</varlistentry>
+
+		<varlistentry>
+		<term>gpfs:recalls = [ yes | no ]</term>
+		<listitem>
+		<para> When this option is set to no, an attempt to
+		open an offline file will be rejected with access
+		denied.  This helps preventing recall storms triggered
+		by careless applications like Finder and
+		Explorer.</para>
+
+		<itemizedlist>
+		<listitem><para><command>yes(default)</command> - Open
+		files that are offline. This will recall the files
+		from HSM.</para></listitem>
+		<listitem><para><command>no</command> - Reject access
+		to offline files with access denied. This will prevent
+		recalls of files from HSM. Using this setting also
+		requires gpfs:hsm to be set to yes.</para></listitem>
+		</itemizedlist>
+
+		</listitem>
 		</varlistentry>
 
 		<varlistentry>
@@ -316,6 +338,29 @@
 
 		</varlistentry>
 
+		<varlistentry>
+
+		<term>gpfs:settimes = [ yes | no ]</term>
+		<listitem>
+		<para>
+		Use the gpfs_set_times API when changing the
+		timestamps of a file or directory. If the GPFS API is
+		not available the old method of using utime and the
+		GPFS winattr call will be used instead.
+		</para>
+
+		<itemizedlist>
+		<listitem><para>
+		<command>yes(default)</command> - Use gpfs_set_times.
+		Fall back to utime and winattr when it is not available.
+		</para></listitem>
+		<listitem><para>
+		<command>no</command> - Do not use gpfs_set_times.
+		</para></listitem>
+		</itemizedlist>
+		</listitem>
+
+		</varlistentry>
 		<varlistentry>
 
 		<term>nfs4:mode = [ simple | special ]</term>

@@ -25,21 +25,18 @@ typedef char fstring[FSTRING_LEN];
 
 #define WINBINDD_SOCKET_NAME "pipe"            /* Name of PF_UNIX socket */
 
-/* Let the build environment override the public winbindd socket location. This
- * is needed for launchd support -- jpeach.
+/* We let the build environment set the public winbindd socket
+ * location. Therefore we no longer set
+ *
+ * #define WINBINDD_SOCKET_DIR "/tmp/.winbindd"
+ *
+ * A number of different distributions set different paths, and so it
+ * needs to come from configure in Samba.  External users of this header will
+ * need to know where the path is on their system by some other
+ * mechanism.
  */
-#ifndef WINBINDD_SOCKET_DIR
-#define WINBINDD_SOCKET_DIR  "/tmp/.winbindd"  /* Name of PF_UNIX dir */
-#endif
 
-/*
- * when compiled with socket_wrapper support
- * the location of the WINBINDD_SOCKET_DIR
- * can be overwritten via an environment variable
- */
-#define WINBINDD_SOCKET_DIR_ENVVAR "WINBINDD_SOCKET_DIR"
-
-#define WINBINDD_PRIV_SOCKET_SUBDIR "winbindd_privileged" /* name of subdirectory of lp_lockdir() to hold the 'privileged' pipe */
+#define WINBINDD_PRIV_SOCKET_SUBDIR "winbindd_privileged" /* name of subdirectory of lp_lock_directory() to hold the 'privileged' pipe */
 #define WINBINDD_DOMAIN_ENV  "WINBINDD_DOMAIN" /* Environment variables */
 #define WINBINDD_DONT_ENV    "_NO_WINBINDD"
 #define WINBINDD_LOCATOR_KDC_ADDRESS "WINBINDD_LOCATOR_KDC_ADDRESS"

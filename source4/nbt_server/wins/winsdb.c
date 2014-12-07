@@ -223,7 +223,7 @@ static NTSTATUS winsdb_addr_decode(struct winsdb_handle *h, struct winsdb_record
 	if (!p) {
 		/* support old entries, with only the address */
 		addr->address		= (const char *)talloc_steal(addr, val->data);
-		addr->wins_owner	= talloc_reference(addr, rec->wins_owner);
+		addr->wins_owner	= talloc_strdup(addr, rec->wins_owner);
 		if (!addr->wins_owner) {
 			status = NT_STATUS_NO_MEMORY;
 			goto failed;
@@ -994,7 +994,7 @@ struct winsdb_handle *winsdb_connect(TALLOC_CTX *mem_ctx,
 	if (!h->ldb) goto failed;
 
 	h->caller = caller;
-	h->hook_script = lpcfg_wins_hook(lp_ctx);
+	h->hook_script = lpcfg_wins_hook(lp_ctx, h);
 
 	h->local_owner = talloc_strdup(h, owner);
 	if (!h->local_owner) goto failed;

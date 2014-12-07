@@ -558,10 +558,51 @@ unsigned int samdb_result_hashes(TALLOC_CTX *mem_ctx, const struct ldb_message *
 	return count;
 }
 
-NTSTATUS samdb_result_passwords(TALLOC_CTX *mem_ctx, struct loadparm_context *lp_ctx, struct ldb_message *msg,
-				struct samr_Password **lm_pwd, struct samr_Password **nt_pwd) 
+NTSTATUS samdb_result_passwords_from_history(TALLOC_CTX *mem_ctx,
+					     struct loadparm_context *lp_ctx,
+					     struct ldb_message *msg,
+					     unsigned int idx,
+					     struct samr_Password **lm_pwd,
+					     struct samr_Password **nt_pwd)
 {
 	struct samr_Password *lmPwdHash, *ntPwdHash;
+
+	if (nt_pwd) {
+		unsigned int num_nt;
+		num_nt = samdb_result_hashes(mem_ctx, msg, "ntPwdHistory", &ntPwdHash);
+		if (num_nt < idx) {
+			*nt_pwd = NULL;
+		} else {
+			*nt_pwd = &ntPwdHash[idx];
+		}
+	}
+	if (lm_pwd) {
+		/* Ensure that if we have turned off LM
+		 * authentication, that we never use the LM hash, even
+		 * if we store it */
+		if (lpcfg_lanman_auth(lp_ctx)) {
+			unsigned int num_lm;
+			num_lm = samdb_result_hashes(mem_ctx, msg, "lmPwdHistory", &lmPwdHash);
+			if (num_lm < idx) {
+				*lm_pwd = NULL;
+			} else {
+				*lm_pwd = &lmPwdHash[idx];
+			}
+		} else {
+			*lm_pwd = NULL;
+		}
+	}
+	return NT_STATUS_OK;
+}
+
+NTSTATUS samdb_result_passwords_no_lockout(TALLOC_CTX *mem_ctx,
+					   struct loadparm_context *lp_ctx,
+					   struct ldb_message *msg,
+					   struct samr_Password **lm_pwd,
+					   struct samr_Password **nt_pwd)
+{
+	struct samr_Password *lmPwdHash, *ntPwdHash;
+
 	if (nt_pwd) {
 		unsigned int num_nt;
 		num_nt = samdb_result_hashes(mem_ctx, msg, "unicodePwd", &ntPwdHash);
@@ -592,6 +633,27 @@ NTSTATUS samdb_result_passwords(TALLOC_CTX *mem_ctx, struct loadparm_context *lp
 		}
 	}
 	return NT_STATUS_OK;
+}
+
+NTSTATUS samdb_result_passwords(TALLOC_CTX *mem_ctx,
+				struct loadparm_context *lp_ctx,
+				struct ldb_message *msg,
+				struct samr_Password **lm_pwd,
+				struct samr_Password **nt_pwd)
+{
+	uint16_t acct_flags;
+
+	acct_flags = samdb_result_acct_flags(msg,
+					     "msDS-User-Account-Control-Computed");
+	/* Quit if the account was locked out. */
+	if (acct_flags & ACB_AUTOLOCK) {
+		DEBUG(3,("samdb_result_passwords: Account for user %s was locked out.\n",
+			 ldb_dn_get_linearized(msg->dn)));
+		return NT_STATUS_ACCOUNT_LOCKED_OUT;
+	}
+
+	return samdb_result_passwords_no_lockout(mem_ctx, lp_ctx, msg,
+						 lm_pwd, nt_pwd);
 }
 
 /*
@@ -625,28 +687,24 @@ struct samr_LogonHours samdb_result_logon_hours(TALLOC_CTX *mem_ctx, struct ldb_
 /*
   pull a set of account_flags from a result set. 
 
-  This requires that the attributes: 
-   pwdLastSet
-   userAccountControl
-  be included in 'msg'
+  Naturally, this requires that userAccountControl and
+  (if not null) the attributes 'attr' be already
+  included in msg
 */
-uint32_t samdb_result_acct_flags(struct ldb_context *sam_ctx, TALLOC_CTX *mem_ctx, 
-				 struct ldb_message *msg, struct ldb_dn *domain_dn)
+uint32_t samdb_result_acct_flags(struct ldb_message *msg, const char *attr)
 {
 	uint32_t userAccountControl = ldb_msg_find_attr_as_uint(msg, "userAccountControl", 0);
+	uint32_t attr_flags = 0;
 	uint32_t acct_flags = ds_uf2acb(userAccountControl);
-	NTTIME must_change_time;
-	NTTIME now;
-
-	must_change_time = samdb_result_force_password_change(sam_ctx, mem_ctx, 
-							      domain_dn, msg);
-
-	/* Test account expire time */
-	unix_to_nt_time(&now, time(NULL));
-	/* check for expired password */
-	if (must_change_time < now) {
-		acct_flags |= ACB_PW_EXPIRED;
+	if (attr) {
+		attr_flags = ldb_msg_find_attr_as_uint(msg, attr, UF_ACCOUNTDISABLE);
+		if (attr_flags == UF_ACCOUNTDISABLE) {
+			DEBUG(0, ("Attribute %s not found, disabling account %s!\n", attr,
+				  ldb_dn_get_linearized(msg->dn)));
+		}
+		acct_flags |= ds_uf2acb(attr_flags);
 	}
+
 	return acct_flags;
 }
 
@@ -2126,8 +2184,11 @@ NTSTATUS samdb_set_password(struct ldb_context *ldb, TALLOC_CTX *mem_ctx,
 	ret = dsdb_autotransaction_request(ldb, req);
 
 	if (req->context != NULL) {
-		pwd_stat = talloc_steal(mem_ctx,
-					((struct ldb_control *)req->context)->data);
+		struct ldb_control *control = talloc_get_type_abort(req->context,
+								    struct ldb_control);
+		pwd_stat = talloc_get_type_abort(control->data,
+						 struct dsdb_control_password_change_status);
+		talloc_steal(mem_ctx, pwd_stat);
 	}
 
 	talloc_free(req);
@@ -2184,7 +2245,12 @@ NTSTATUS samdb_set_password(struct ldb_context *ldb, TALLOC_CTX *mem_ctx,
 	} else if (ret == LDB_ERR_NO_SUCH_OBJECT) {
 		/* don't let the caller know if an account doesn't exist */
 		status = NT_STATUS_WRONG_PASSWORD;
+	} else if (ret == LDB_ERR_INSUFFICIENT_ACCESS_RIGHTS) {
+		status = NT_STATUS_ACCESS_DENIED;
 	} else if (ret != LDB_SUCCESS) {
+		DEBUG(1, ("Failed to set password on %s: %s\n",
+			  ldb_dn_get_linearized(msg->dn),
+			  ldb_errstring(ldb)));
 		status = NT_STATUS_UNSUCCESSFUL;
 	}
 
@@ -4219,8 +4285,12 @@ int dsdb_validate_dsa_guid(struct ldb_context *ldb,
 
 	account_dn = ldb_msg_find_attr_as_dn(ldb, tmp_ctx, msg, "serverReference");
 	if (account_dn == NULL) {
-		DEBUG(1,(__location__ ": Failed to find account_dn for DSA with objectGUID %s, sid %s\n",
-			 GUID_string(tmp_ctx, dsa_guid), dom_sid_string(tmp_ctx, sid)));
+		DEBUG(1,(__location__ ": Failed to find account dn "
+			 "(serverReference) for %s, parent of DSA with "
+			 "objectGUID %s, sid %s\n",
+			 ldb_dn_get_linearized(msg->dn),
+			 GUID_string(tmp_ctx, dsa_guid),
+			 dom_sid_string(tmp_ctx, sid)));
 		talloc_free(tmp_ctx);
 		return ldb_operr(ldb);
 	}
@@ -4616,4 +4686,155 @@ _PUBLIC_ char *NS_GUID_string(TALLOC_CTX *mem_ctx, const struct GUID *guid)
 			       guid->node[0], guid->node[1],
 			       guid->node[2], guid->node[3],
 			       guid->node[4], guid->node[5]);
+}
+
+/*
+ * Return the effective badPwdCount
+ *
+ * This requires that the user_msg have (if present):
+ *  - badPasswordTime
+ *  - badPwdCount
+ *
+ * This also requires that the domain_msg have (if present):
+ *  - lockOutObservationWindow
+ */
+static int dsdb_effective_badPwdCount(struct ldb_message *user_msg,
+				      int64_t lockOutObservationWindow,
+				      NTTIME now)
+{
+	int64_t badPasswordTime;
+	badPasswordTime = ldb_msg_find_attr_as_int64(user_msg, "badPasswordTime", 0);
+
+	if (badPasswordTime - lockOutObservationWindow >= now) {
+		return ldb_msg_find_attr_as_int(user_msg, "badPwdCount", 0);
+	} else {
+		return 0;
+	}
+}
+
+/*
+ * Return the effective badPwdCount
+ *
+ * This requires that the user_msg have (if present):
+ *  - badPasswordTime
+ *  - badPwdCount
+ *
+ */
+int samdb_result_effective_badPwdCount(struct ldb_context *sam_ldb,
+				       TALLOC_CTX *mem_ctx,
+				       struct ldb_dn *domain_dn,
+				       struct ldb_message *user_msg)
+{
+	struct timeval tv_now = timeval_current();
+	NTTIME now = timeval_to_nttime(&tv_now);
+	int64_t lockOutObservationWindow = samdb_search_int64(sam_ldb, mem_ctx, 0, domain_dn,
+							      "lockOutObservationWindow", NULL);
+	return dsdb_effective_badPwdCount(user_msg, lockOutObservationWindow, now);
+}
+
+/*
+ * Prepare an update to the badPwdCount and associated attributes.
+ *
+ * This requires that the user_msg have (if present):
+ *  - objectSid
+ *  - badPasswordTime
+ *  - badPwdCount
+ *
+ * This also requires that the domain_msg have (if present):
+ *  - pwdProperties
+ *  - lockoutThreshold
+ *  - lockOutObservationWindow
+ */
+NTSTATUS dsdb_update_bad_pwd_count(TALLOC_CTX *mem_ctx,
+				   struct ldb_context *sam_ctx,
+				   struct ldb_message *user_msg,
+				   struct ldb_message *domain_msg,
+				   struct ldb_message **_mod_msg)
+{
+	int i, ret, badPwdCount;
+	int64_t lockoutThreshold, lockOutObservationWindow;
+	struct dom_sid *sid;
+	struct timeval tv_now = timeval_current();
+	NTTIME now = timeval_to_nttime(&tv_now);
+	NTSTATUS status;
+	uint32_t pwdProperties, rid = 0;
+	struct ldb_message *mod_msg;
+
+	sid = samdb_result_dom_sid(mem_ctx, user_msg, "objectSid");
+
+	pwdProperties = ldb_msg_find_attr_as_uint(domain_msg,
+						  "pwdProperties", -1);
+	if (sid && !(pwdProperties & DOMAIN_PASSWORD_LOCKOUT_ADMINS)) {
+		status = dom_sid_split_rid(NULL, sid, NULL, &rid);
+		if (!NT_STATUS_IS_OK(status)) {
+			/*
+			 * This can't happen anyway, but always try
+			 * and update the badPwdCount on failure
+			 */
+			rid = 0;
+		}
+	}
+	TALLOC_FREE(sid);
+
+	/*
+	 * Work out if we are doing password lockout on the domain.
+	 * Also, the built in administrator account is exempt:
+	 * http://msdn.microsoft.com/en-us/library/windows/desktop/aa375371%28v=vs.85%29.aspx
+	 */
+	lockoutThreshold = ldb_msg_find_attr_as_int(domain_msg,
+						    "lockoutThreshold", 0);
+	if (lockoutThreshold == 0 || (rid == DOMAIN_RID_ADMINISTRATOR)) {
+		DEBUG(5, ("Not updating badPwdCount on %s after wrong password\n",
+			  ldb_dn_get_linearized(user_msg->dn)));
+		return NT_STATUS_OK;
+	}
+
+	mod_msg = ldb_msg_new(mem_ctx);
+	if (mod_msg == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	mod_msg->dn = ldb_dn_copy(mod_msg, user_msg->dn);
+	if (mod_msg->dn == NULL) {
+		TALLOC_FREE(mod_msg);
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	lockOutObservationWindow = ldb_msg_find_attr_as_int64(domain_msg,
+							      "lockOutObservationWindow", 0);
+
+	badPwdCount = dsdb_effective_badPwdCount(user_msg, lockOutObservationWindow, now);
+
+	badPwdCount++;
+
+	ret = samdb_msg_add_int(sam_ctx, mod_msg, mod_msg, "badPwdCount", badPwdCount);
+	if (ret != LDB_SUCCESS) {
+		TALLOC_FREE(mod_msg);
+		return NT_STATUS_NO_MEMORY;
+	}
+	ret = samdb_msg_add_int64(sam_ctx, mod_msg, mod_msg, "badPasswordTime", now);
+	if (ret != LDB_SUCCESS) {
+		TALLOC_FREE(mod_msg);
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	if (badPwdCount >= lockoutThreshold) {
+		ret = samdb_msg_add_int64(sam_ctx, mod_msg, mod_msg, "lockoutTime", now);
+		if (ret != LDB_SUCCESS) {
+			TALLOC_FREE(mod_msg);
+			return NT_STATUS_NO_MEMORY;
+		}
+		DEBUG(5, ("Locked out user %s after %d wrong passwords\n",
+			  ldb_dn_get_linearized(user_msg->dn), badPwdCount));
+	} else {
+		DEBUG(5, ("Updated badPwdCount on %s after %d wrong passwords\n",
+			  ldb_dn_get_linearized(user_msg->dn), badPwdCount));
+	}
+
+	/* mark all the message elements as LDB_FLAG_MOD_REPLACE */
+	for (i=0; i< mod_msg->num_elements; i++) {
+		mod_msg->elements[i].flags = LDB_FLAG_MOD_REPLACE;
+	}
+
+	*_mod_msg = mod_msg;
+	return NT_STATUS_OK;
 }

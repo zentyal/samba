@@ -67,12 +67,18 @@
 #include "lib/param/loadparm.h"
 #include "lib/util/bitmap.h"
 #include "lib/util/tevent_unix.h"
+#include "libcli/security/sddl.h"
+#include "passdb/machine_sid.h"
 
 static int vfs_full_audit_debug_level = DBGC_VFS;
 
 struct vfs_full_audit_private_data {
 	struct bitmap *success_ops;
 	struct bitmap *failure_ops;
+	int syslog_facility;
+	int syslog_priority;
+	bool log_secdesc;
+	bool do_syslog;
 };
 
 #undef DBGC_CLASS
@@ -163,6 +169,8 @@ typedef enum _vfs_op_type {
 	SMB_VFS_OP_TRANSLATE_NAME,
 	SMB_VFS_OP_COPY_CHUNK_SEND,
 	SMB_VFS_OP_COPY_CHUNK_RECV,
+	SMB_VFS_OP_GET_COMPRESSION,
+	SMB_VFS_OP_SET_COMPRESSION,
 
 	/* NT ACL operations. */
 
@@ -285,6 +293,8 @@ static struct {
 	{ SMB_VFS_OP_TRANSLATE_NAME,	"translate_name" },
 	{ SMB_VFS_OP_COPY_CHUNK_SEND,	"copy_chunk_send" },
 	{ SMB_VFS_OP_COPY_CHUNK_RECV,	"copy_chunk_recv" },
+	{ SMB_VFS_OP_GET_COMPRESSION,	"get_compression" },
+	{ SMB_VFS_OP_SET_COMPRESSION,	"set_compression" },
 	{ SMB_VFS_OP_FGET_NT_ACL,	"fget_nt_acl" },
 	{ SMB_VFS_OP_GET_NT_ACL,	"get_nt_acl" },
 	{ SMB_VFS_OP_FSET_NT_ACL,	"fset_nt_acl" },
@@ -381,14 +391,8 @@ static char *audit_prefix(TALLOC_CTX *ctx, connection_struct *conn)
 	return result;
 }
 
-static bool log_success(vfs_handle_struct *handle, vfs_op_type op)
+static bool log_success(struct vfs_full_audit_private_data *pd, vfs_op_type op)
 {
-	struct vfs_full_audit_private_data *pd = NULL;
-
-	SMB_VFS_HANDLE_GET_DATA(handle, pd,
-		struct vfs_full_audit_private_data,
-		return True);
-
 	if (pd->success_ops == NULL) {
 		return True;
 	}
@@ -396,14 +400,8 @@ static bool log_success(vfs_handle_struct *handle, vfs_op_type op)
 	return bitmap_query(pd->success_ops, op);
 }
 
-static bool log_failure(vfs_handle_struct *handle, vfs_op_type op)
+static bool log_failure(struct vfs_full_audit_private_data *pd, vfs_op_type op)
 {
-	struct vfs_full_audit_private_data *pd = NULL;
-
-	SMB_VFS_HANDLE_GET_DATA(handle, pd,
-		struct vfs_full_audit_private_data,
-		return True);
-
 	if (pd->failure_ops == NULL)
 		return True;
 
@@ -494,16 +492,20 @@ static TALLOC_CTX *do_log_ctx(void)
 static void do_log(vfs_op_type op, bool success, vfs_handle_struct *handle,
 		   const char *format, ...)
 {
+	struct vfs_full_audit_private_data *pd;
 	fstring err_msg;
 	char *audit_pre = NULL;
 	va_list ap;
 	char *op_msg = NULL;
-	int priority;
 
-	if (success && (!log_success(handle, op)))
+	SMB_VFS_HANDLE_GET_DATA(handle, pd,
+				struct vfs_full_audit_private_data,
+				return;);
+
+	if (success && (!log_success(pd, op)))
 		goto out;
 
-	if (!success && (!log_failure(handle, op)))
+	if (!success && (!log_failure(pd, op)))
 		goto out;
 
 	if (success)
@@ -519,18 +521,25 @@ static void do_log(vfs_op_type op, bool success, vfs_handle_struct *handle,
 		goto out;
 	}
 
-	/*
-	 * Specify the facility to interoperate with other syslog callers
-	 * (smbd for example).
-	 */
-	priority = audit_syslog_priority(handle) |
-	    audit_syslog_facility(handle);
-
 	audit_pre = audit_prefix(talloc_tos(), handle->conn);
-	syslog(priority, "%s|%s|%s|%s\n",
-		audit_pre ? audit_pre : "",
-		audit_opname(op), err_msg, op_msg);
 
+	if (pd->do_syslog) {
+		int priority;
+
+		/*
+		 * Specify the facility to interoperate with other syslog
+		 * callers (smbd for example).
+		 */
+		priority = pd->syslog_priority | pd->syslog_facility;
+
+		syslog(priority, "%s|%s|%s|%s\n",
+		       audit_pre ? audit_pre : "",
+		       audit_opname(op), err_msg, op_msg);
+	} else {
+		DEBUG(1, ("%s|%s|%s|%s\n",
+			  audit_pre ? audit_pre : "",
+			  audit_opname(op), err_msg, op_msg));
+	}
  out:
 	TALLOC_FREE(audit_pre);
 	TALLOC_FREE(op_msg);
@@ -583,8 +592,28 @@ static int smb_full_audit_connect(vfs_handle_struct *handle,
 		return -1;
 	}
 
+	pd->syslog_facility = audit_syslog_facility(handle);
+	if (pd->syslog_facility == -1) {
+		DEBUG(1, ("%s: Unknown facility %s\n", __func__,
+			  lp_parm_const_string(SNUM(handle->conn),
+					       "full_audit", "facility",
+					       "USER")));
+		SMB_VFS_NEXT_DISCONNECT(handle);
+		return -1;
+	}
+
+	pd->syslog_priority = audit_syslog_priority(handle);
+
+	pd->log_secdesc = lp_parm_bool(SNUM(handle->conn),
+				       "full_audit", "log_secdesc", false);
+
+	pd->do_syslog = lp_parm_bool(SNUM(handle->conn),
+				     "full_audit", "syslog", true);
+
 #ifdef WITH_SYSLOG
-	openlog("smbd_audit", 0, audit_syslog_facility(handle));
+	if (pd->do_syslog) {
+		openlog("smbd_audit", 0, pd->syslog_facility);
+	}
 #endif
 
 	pd->success_ops = init_bitmap(
@@ -834,6 +863,7 @@ static NTSTATUS smb_full_audit_create_file(vfs_handle_struct *handle,
 				      uint32_t create_options,
 				      uint32_t file_attributes,
 				      uint32_t oplock_request,
+				      struct smb2_lease *lease,
 				      uint64_t allocation_size,
 				      uint32_t private_flags,
 				      struct security_descriptor *sd,
@@ -878,6 +908,7 @@ static NTSTATUS smb_full_audit_create_file(vfs_handle_struct *handle,
 		create_options,				/* create_options */
 		file_attributes,			/* file_attributes */
 		oplock_request,				/* oplock_request */
+		lease,					/* lease */
 		allocation_size,			/* allocation_size */
 		private_flags,
 		sd,					/* sd */
@@ -1646,16 +1677,16 @@ static const char *smb_full_audit_connectpath(vfs_handle_struct *handle,
 static NTSTATUS smb_full_audit_brl_lock_windows(struct vfs_handle_struct *handle,
 					        struct byte_range_lock *br_lck,
 					        struct lock_struct *plock,
-					        bool blocking_lock,
-						struct blocking_lock_record *blr)
+					        bool blocking_lock)
 {
 	NTSTATUS result;
 
 	result = SMB_VFS_NEXT_BRL_LOCK_WINDOWS(handle, br_lck, plock,
-	    blocking_lock, blr);
+					       blocking_lock);
 
 	do_log(SMB_VFS_OP_BRL_LOCK_WINDOWS, NT_STATUS_IS_OK(result), handle,
-	    "%s:%llu-%llu. type=%d. blocking=%d", fsp_str_do_log(br_lck->fsp),
+	    "%s:%llu-%llu. type=%d. blocking=%d",
+	       fsp_str_do_log(brl_fsp(br_lck)),
 	    plock->start, plock->size, plock->lock_type, blocking_lock);
 
 	return result;
@@ -1672,7 +1703,8 @@ static bool smb_full_audit_brl_unlock_windows(struct vfs_handle_struct *handle,
 	    plock);
 
 	do_log(SMB_VFS_OP_BRL_UNLOCK_WINDOWS, (result == 0), handle,
-	    "%s:%llu-%llu:%d", fsp_str_do_log(br_lck->fsp), plock->start,
+	       "%s:%llu-%llu:%d", fsp_str_do_log(brl_fsp(br_lck)),
+	       plock->start,
 	    plock->size, plock->lock_type);
 
 	return result;
@@ -1680,15 +1712,15 @@ static bool smb_full_audit_brl_unlock_windows(struct vfs_handle_struct *handle,
 
 static bool smb_full_audit_brl_cancel_windows(struct vfs_handle_struct *handle,
 				              struct byte_range_lock *br_lck,
-					      struct lock_struct *plock,
-					      struct blocking_lock_record *blr)
+					      struct lock_struct *plock)
 {
 	bool result;
 
-	result = SMB_VFS_NEXT_BRL_CANCEL_WINDOWS(handle, br_lck, plock, blr);
+	result = SMB_VFS_NEXT_BRL_CANCEL_WINDOWS(handle, br_lck, plock);
 
 	do_log(SMB_VFS_OP_BRL_CANCEL_WINDOWS, (result == 0), handle,
-	    "%s:%llu-%llu:%d", fsp_str_do_log(br_lck->fsp), plock->start,
+	       "%s:%llu-%llu:%d", fsp_str_do_log(brl_fsp(br_lck)),
+	       plock->start,
 	    plock->size, plock->lock_type);
 
 	return result;
@@ -1768,6 +1800,40 @@ static NTSTATUS smb_full_audit_copy_chunk_recv(struct vfs_handle_struct *handle,
 	return result;
 }
 
+static NTSTATUS smb_full_audit_get_compression(vfs_handle_struct *handle,
+					       TALLOC_CTX *mem_ctx,
+					       struct files_struct *fsp,
+					       struct smb_filename *smb_fname,
+					       uint16_t *_compression_fmt)
+{
+	NTSTATUS result;
+
+	result = SMB_VFS_NEXT_GET_COMPRESSION(handle, mem_ctx, fsp, smb_fname,
+					      _compression_fmt);
+
+	do_log(SMB_VFS_OP_GET_COMPRESSION, NT_STATUS_IS_OK(result), handle,
+	       "%s",
+	       (fsp ? fsp_str_do_log(fsp) : smb_fname_str_do_log(smb_fname)));
+
+	return result;
+}
+
+static NTSTATUS smb_full_audit_set_compression(vfs_handle_struct *handle,
+					       TALLOC_CTX *mem_ctx,
+					       struct files_struct *fsp,
+					       uint16_t compression_fmt)
+{
+	NTSTATUS result;
+
+	result = SMB_VFS_NEXT_SET_COMPRESSION(handle, mem_ctx, fsp,
+					      compression_fmt);
+
+	do_log(SMB_VFS_OP_SET_COMPRESSION, NT_STATUS_IS_OK(result), handle,
+	       "%s", fsp_str_do_log(fsp));
+
+	return result;
+}
+
 static NTSTATUS smb_full_audit_fget_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
 					   uint32 security_info,
 					   TALLOC_CTX *mem_ctx,
@@ -1805,12 +1871,24 @@ static NTSTATUS smb_full_audit_fset_nt_acl(vfs_handle_struct *handle, files_stru
 			      uint32 security_info_sent,
 			      const struct security_descriptor *psd)
 {
+	struct vfs_full_audit_private_data *pd;
 	NTSTATUS result;
+	char *sd = NULL;
+
+	SMB_VFS_HANDLE_GET_DATA(handle, pd,
+				struct vfs_full_audit_private_data,
+				return NT_STATUS_INTERNAL_ERROR);
+
+	if (pd->log_secdesc) {
+		sd = sddl_encode(talloc_tos(), psd, get_global_sam_sid());
+	}
 
 	result = SMB_VFS_NEXT_FSET_NT_ACL(handle, fsp, security_info_sent, psd);
 
-	do_log(SMB_VFS_OP_FSET_NT_ACL, NT_STATUS_IS_OK(result), handle, "%s",
-	       fsp_str_do_log(fsp));
+	do_log(SMB_VFS_OP_FSET_NT_ACL, NT_STATUS_IS_OK(result), handle,
+	       "%s [%s]", fsp_str_do_log(fsp), sd ? sd : "");
+
+	TALLOC_FREE(sd);
 
 	return result;
 }
@@ -2169,6 +2247,8 @@ static struct vfs_fn_pointers vfs_full_audit_fns = {
 	.translate_name_fn = smb_full_audit_translate_name,
 	.copy_chunk_send_fn = smb_full_audit_copy_chunk_send,
 	.copy_chunk_recv_fn = smb_full_audit_copy_chunk_recv,
+	.get_compression_fn = smb_full_audit_get_compression,
+	.set_compression_fn = smb_full_audit_set_compression,
 	.fget_nt_acl_fn = smb_full_audit_fget_nt_acl,
 	.get_nt_acl_fn = smb_full_audit_get_nt_acl,
 	.fset_nt_acl_fn = smb_full_audit_fset_nt_acl,

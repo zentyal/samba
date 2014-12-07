@@ -206,19 +206,6 @@
    incorrect parameters - what does it mean? maybe created temporary file? */
 #define NTCREATEX_ACTION_UNKNOWN 5
 
-/* These are the trans subcommands */
-#define TRANSACT_SETNAMEDPIPEHANDLESTATE  0x01 
-#define TRANSACT_DCERPCCMD                0x26
-#define TRANSACT_WAITNAMEDPIPEHANDLESTATE 0x53
-
-/* These are the NT transact sub commands. */
-#define NT_TRANSACT_CREATE                1
-#define NT_TRANSACT_IOCTL                 2
-#define NT_TRANSACT_SET_SECURITY_DESC     3
-#define NT_TRANSACT_NOTIFY_CHANGE         4
-#define NT_TRANSACT_RENAME                5
-#define NT_TRANSACT_QUERY_SECURITY_DESC   6
-
 /* Named pipe write mode flags. Used in writeX calls. */
 #define PIPE_RAW_MODE 0x4
 #define PIPE_START_MESSAGE 0x8
@@ -226,22 +213,6 @@
 /* the desired access to use when opening a pipe */
 #define DESIRED_ACCESS_PIPE 0x2019f
  
-
-/* Flags - combined with attributes. */
-#define FILE_FLAG_WRITE_THROUGH    0x80000000L
-#define FILE_FLAG_NO_BUFFERING     0x20000000L
-#define FILE_FLAG_RANDOM_ACCESS    0x10000000L
-#define FILE_FLAG_SEQUENTIAL_SCAN  0x08000000L
-#define FILE_FLAG_DELETE_ON_CLOSE  0x04000000L
-#define FILE_FLAG_BACKUP_SEMANTICS 0x02000000L /* only if backup/restore privilege? */
-#define FILE_FLAG_POSIX_SEMANTICS  0x01000000L
-
-/* Responses when opening a file. */
-#define FILE_WAS_SUPERSEDED 0
-#define FILE_WAS_OPENED 1
-#define FILE_WAS_CREATED 2
-#define FILE_WAS_OVERWRITTEN 3
-
 /* Flag for NT transact rename call. */
 #define RENAME_REPLACE_IF_EXISTS 1
 

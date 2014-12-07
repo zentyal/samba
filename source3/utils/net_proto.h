@@ -145,6 +145,7 @@ int run_rpc_command(struct net_context *c,
 			int argc,
 			const char **argv);
 int net_rpc_changetrustpw(struct net_context *c, int argc, const char **argv);
+int net_rpc_testjoin(struct net_context *c, int argc, const char **argv);
 int net_rpc_join(struct net_context *c, int argc, const char **argv);
 NTSTATUS rpc_info_internals(struct net_context *c,
 			const struct dom_sid *domain_sid,
@@ -198,14 +199,6 @@ int net_rpc(struct net_context *c, int argc, const char **argv);
 /* The following definitions come from utils/net_rpc_audit.c  */
 
 int net_rpc_audit(struct net_context *c, int argc, const char **argv);
-
-/* The following definitions come from utils/net_rpc_join.c  */
-
-NTSTATUS net_rpc_join_ok(struct net_context *c, const char *domain,
-			 const char *server,
-			 const struct sockaddr_storage *server_ss);
-int net_rpc_join_newstyle(struct net_context *c, int argc, const char **argv);
-int net_rpc_testjoin(struct net_context *c, int argc, const char **argv);
 
 /* The following definitions come from utils/net_rpc_printer.c  */
 
@@ -416,7 +409,7 @@ NTSTATUS connect_to_ipc_anonymous(struct net_context *c,
 				const char *server_name);
 NTSTATUS connect_dst_pipe(struct net_context *c, struct cli_state **cli_dst,
 			  struct rpc_pipe_client **pp_pipe_hnd,
-			  const struct ndr_syntax_id *interface);
+			  const struct ndr_interface_table *table);
 int net_use_krb_machine_account(struct net_context *c);
 int net_use_machine_account(struct net_context *c);
 bool net_find_server(struct net_context *c,

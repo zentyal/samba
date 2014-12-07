@@ -25,6 +25,7 @@
 #include "includes.h"
 #include "popt_common.h"
 #include "../libcli/security/security.h"
+#include "../librpc/gen_ndr/ndr_security.h"
 #include "passdb/machine_sid.h"
 
 static TALLOC_CTX *ctx;
@@ -65,91 +66,6 @@ static const struct perm_value standard_values[] = {
 	{ "FULL",   SEC_RIGHTS_DIR_ALL },
 	{ NULL, 0 },
 };
-
-/********************************************************************
- print an ACE on a FILE
-********************************************************************/
-
-static void print_ace(FILE *f, struct security_ace *ace)
-{
-	const struct perm_value *v;
-	int do_print = 0;
-	uint32 got_mask;
-
-	fprintf(f, "%s:", sid_string_tos(&ace->trustee));
-
-	/* Ace type */
-
-	if (ace->type == SEC_ACE_TYPE_ACCESS_ALLOWED) {
-		fprintf(f, "ALLOWED");
-	} else if (ace->type == SEC_ACE_TYPE_ACCESS_DENIED) {
-		fprintf(f, "DENIED");
-	} else {
-		fprintf(f, "%d", ace->type);
-	}
-
-	/* Not sure what flags can be set in a file ACL */
-
-	fprintf(f, "/%d/", ace->flags);
-
-	/* Standard permissions */
-
-	for (v = standard_values; v->perm; v++) {
-		if (ace->access_mask == v->mask) {
-			fprintf(f, "%s", v->perm);
-			return;
-		}
-	}
-
-	/* Special permissions.  Print out a hex value if we have
-	   leftover bits in the mask. */
-
-	got_mask = ace->access_mask;
-
- again:
-	for (v = special_values; v->perm; v++) {
-		if ((ace->access_mask & v->mask) == v->mask) {
-			if (do_print) {
-				fprintf(f, "%s", v->perm);
-			}
-			got_mask &= ~v->mask;
-		}
-	}
-
-	if (!do_print) {
-		if (got_mask != 0) {
-			fprintf(f, "0x%08x", ace->access_mask);
-		} else {
-			do_print = 1;
-			goto again;
-		}
-	}
-}
-
-/********************************************************************
- print an ascii version of a security descriptor on a FILE handle
-********************************************************************/
-
-static void sec_desc_print(FILE *f, struct security_descriptor *sd)
-{
-	uint32 i;
-
-	fprintf(f, "REVISION:%d\n", sd->revision);
-
-	/* Print owner and group sid */
-
-	fprintf(f, "OWNER:%s\n", sid_string_tos(sd->owner_sid));
-
-	fprintf(f, "GROUP:%s\n", sid_string_tos(sd->group_sid));
-
-	/* Print aces */
-	for (i = 0; sd->dacl && i < sd->dacl->num_aces; i++) {
-		struct security_ace *ace = &sd->dacl->aces[i];
-		fprintf(f, "ACL:");
-		print_ace(f, ace);
-		fprintf(f, "\n");
-	}
-}
 
 /********************************************************************
  parse an ACE in the same format as print_ace()
@@ -369,7 +285,7 @@ static bool add_ace(TALLOC_CTX *mem_ctx, struct security_acl **the_acl, struct s
 
 static int ace_compare(struct security_ace *ace1, struct security_ace *ace2)
 {
-	if (sec_ace_equal(ace1, ace2))
+	if (security_ace_equal(ace1, ace2))
 		return 0;
 
 	if (ace1->type != ace2->type)
@@ -398,7 +314,8 @@ static void sort_acl(struct security_acl *the_acl)
 	TYPESAFE_QSORT(the_acl->aces, the_acl->num_aces, ace_compare);
 
 	for (i=1;i<the_acl->num_aces;) {
-		if (sec_ace_equal(&the_acl->aces[i-1], &the_acl->aces[i])) {
+		if (security_ace_equal(&the_acl->aces[i-1],
+				       &the_acl->aces[i])) {
 			int j;
 			for (j=i; j<the_acl->num_aces-1; j++) {
 				the_acl->aces[j] = the_acl->aces[j+1];
@@ -417,6 +334,7 @@ static int change_share_sec(TALLOC_CTX *mem_ctx, const char *sharename, char *th
 	struct security_descriptor *old = NULL;
 	size_t sd_size = 0;
 	uint32 i, j;
+	char *sd_str;
 
 	if (mode != SMB_ACL_SET && mode != SMB_SD_DELETE) {
 	    if (!(old = get_share_security( mem_ctx, sharename, &sd_size )) ) {
@@ -437,14 +355,19 @@ static int change_share_sec(TALLOC_CTX *mem_ctx, const char *sharename, char *th
 		/* should not happen */
 		return 0;
 	case SMB_ACL_VIEW:
-		sec_desc_print( stdout, old);
+		sd_str = ndr_print_struct_string(mem_ctx,
+				(ndr_print_fn_t)ndr_print_security_descriptor,
+				"", old);
+		fprintf(stdout, "%s\n", sd_str);
+		talloc_free(sd_str);
 		return 0;
 	case SMB_ACL_DELETE:
 	    for (i=0;sd->dacl && i<sd->dacl->num_aces;i++) {
 		bool found = False;
 
 		for (j=0;old->dacl && j<old->dacl->num_aces;j++) {
-		    if (sec_ace_equal(&sd->dacl->aces[i], &old->dacl->aces[j])) {
+		    if (security_ace_equal(&sd->dacl->aces[i],
+					   &old->dacl->aces[j])) {
 			uint32 k;
 			for (k=j; k<old->dacl->num_aces-1;k++) {
 			    old->dacl->aces[k] = old->dacl->aces[k+1];
@@ -456,9 +379,11 @@ static int change_share_sec(TALLOC_CTX *mem_ctx, const char *sharename, char *th
 		}
 
 		if (!found) {
-		printf("ACL for ACE:");
-		print_ace(stdout, &sd->dacl->aces[i]);
-		printf(" not found\n");
+			sd_str = ndr_print_struct_string(mem_ctx,
+					(ndr_print_fn_t)ndr_print_security_ace,
+					"", &sd->dacl->aces[i]);
+			printf("ACL for ACE: %s not found\n", sd_str);
+			talloc_free(sd_str);
 		}
 	    }
 	    break;

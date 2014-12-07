@@ -27,8 +27,9 @@
 
 */
 
-/* this needs to be included before nss_wrapper.h on some systems */
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#endif
 
 #ifdef HAVE_PWD_H
 #include <pwd.h>
@@ -77,9 +78,6 @@
 #define PASSWORD_LENGTH 8
 #endif
 
-#if defined(HAVE_PUTPRPWNAM) && defined(AUTH_CLEARTEXT_SEG_CHARS)
-#define OSF1_ENH_SEC 1
-#endif
 
 #ifndef ALLOW_CHANGE_PASSWORD
 #if (defined(HAVE_TERMIOS_H) && defined(HAVE_DUP2) && defined(HAVE_SETSID))
@@ -90,25 +88,5 @@
 #if defined(HAVE_CRYPT16) && defined(HAVE_GETAUTHUID)
 #define ULTRIX_AUTH 1
 #endif
-
-#ifdef NSS_WRAPPER
-#ifndef NSS_WRAPPER_DISABLE
-#ifndef NSS_WRAPPER_NOT_REPLACE
-#define NSS_WRAPPER_REPLACE
-#endif /* NSS_WRAPPER_NOT_REPLACE */
-#include "../nss_wrapper/nss_wrapper.h"
-#endif /* NSS_WRAPPER_DISABLE */
-#endif /* NSS_WRAPPER */
-
-#ifdef UID_WRAPPER
-# ifndef UID_WRAPPER_DISABLE
-#  ifndef UID_WRAPPER_NOT_REPLACE
-#   define UID_WRAPPER_REPLACE
-#  endif /* UID_WRAPPER_NOT_REPLACE */
-#  include "../uid_wrapper/uid_wrapper.h"
-# endif /* UID_WRAPPER_DISABLE */
-#else /* UID_WRAPPER */
-# define uwrap_enabled() 0
-#endif /* UID_WRAPPER */
 
 #endif

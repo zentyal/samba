@@ -220,13 +220,13 @@ bool init_account_policy(void)
 	}
 
 	db = db_open(NULL, state_path("account_policy.tdb"), 0, TDB_DEFAULT,
-		     O_RDWR, 0600, DBWRAP_LOCK_ORDER_1);
+		     O_RDWR, 0600, DBWRAP_LOCK_ORDER_1, DBWRAP_FLAG_NONE);
 
 	if (db == NULL) { /* the account policies files does not exist or open
 			   * failed, try to create a new one */
 		db = db_open(NULL, state_path("account_policy.tdb"), 0,
 			     TDB_DEFAULT, O_RDWR|O_CREAT, 0600,
-			     DBWRAP_LOCK_ORDER_1);
+			     DBWRAP_LOCK_ORDER_1, DBWRAP_FLAG_NONE);
 		if (db == NULL) {
 			DEBUG(0,("Failed to open account policy database\n"));
 			return False;
@@ -446,7 +446,7 @@ bool cache_account_policy_get(enum pdb_policy_type type, uint32_t *value)
 		goto done;
 	}
 
-	if (gencache_get(cache_key, &cache_value, NULL)) {
+	if (gencache_get(cache_key, talloc_tos(), &cache_value, NULL)) {
 		uint32 tmp = strtoul(cache_value, NULL, 10);
 		*value = tmp;
 		ret = True;
@@ -454,7 +454,7 @@ bool cache_account_policy_get(enum pdb_policy_type type, uint32_t *value)
 
  done:
 	SAFE_FREE(cache_key);
-	SAFE_FREE(cache_value);
+	TALLOC_FREE(cache_value);
 	return ret;
 }
 

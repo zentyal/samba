@@ -2,6 +2,7 @@
 	context="G"
 	type="string"
                  advanced="1" developer="1"
+                 constant="1"
                  xmlns:samba="http://www.samba.org/samba/DTD/samba-doc">
 <description>
         <para>Specifies the charset the unix machine 
@@ -14,6 +15,6 @@
 	</para>
 </description>
 
-<value type="default">UTF8</value>
+<value type="default">UTF-8</value>
 <value type="example">ASCII</value>
 </samba:parameter>

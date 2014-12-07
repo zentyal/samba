@@ -41,7 +41,8 @@ enum gensec_priority {
 	GENSEC_SCHANNEL = 60,
 	GENSEC_NTLMSSP = 50,
 	GENSEC_SASL = 20,
-	GENSEC_OTHER = 0
+	GENSEC_OTHER = 10,
+	GENSEC_EXTERNAL = 0
 };
 
 struct gensec_security;
@@ -76,6 +77,7 @@ struct gensec_settings;
 struct tevent_context;
 struct tevent_req;
 struct smb_krb5_context;
+struct tsocket_address;
 
 struct gensec_settings {
 	struct loadparm_context *lp_ctx;
@@ -84,7 +86,7 @@ struct gensec_settings {
 	/* this allows callers to specify a specific set of ops that
 	 * should be used, rather than those loaded by the plugin
 	 * mechanism */
-	struct gensec_security_ops **backends;
+	const struct gensec_security_ops * const *backends;
 
 	/* To fill in our own name in the NTLMSSP server */
 	const char *server_dns_domain;
@@ -93,106 +95,13 @@ struct gensec_settings {
 	const char *server_netbios_name;
 };
 
-struct gensec_security_ops {
-	const char *name;
-	const char *sasl_name;
-	uint8_t auth_type;  /* 0 if not offered on DCE-RPC */
-	const char **oid;  /* NULL if not offered by SPNEGO */
-	NTSTATUS (*client_start)(struct gensec_security *gensec_security);
-	NTSTATUS (*server_start)(struct gensec_security *gensec_security);
-	/**
-	   Determine if a packet has the right 'magic' for this mechanism
-	*/
-	NTSTATUS (*magic)(struct gensec_security *gensec_security,
-			  const DATA_BLOB *first_packet);
-	NTSTATUS (*update)(struct gensec_security *gensec_security, TALLOC_CTX *out_mem_ctx,
-			   struct tevent_context *ev,
-			   const DATA_BLOB in, DATA_BLOB *out);
-	NTSTATUS (*seal_packet)(struct gensec_security *gensec_security, TALLOC_CTX *sig_mem_ctx,
-				uint8_t *data, size_t length,
-				const uint8_t *whole_pdu, size_t pdu_length,
-				DATA_BLOB *sig);
-	NTSTATUS (*sign_packet)(struct gensec_security *gensec_security, TALLOC_CTX *sig_mem_ctx,
-				const uint8_t *data, size_t length,
-				const uint8_t *whole_pdu, size_t pdu_length,
-				DATA_BLOB *sig);
-	size_t   (*sig_size)(struct gensec_security *gensec_security, size_t data_size);
-	size_t   (*max_input_size)(struct gensec_security *gensec_security);
-	size_t   (*max_wrapped_size)(struct gensec_security *gensec_security);
-	NTSTATUS (*check_packet)(struct gensec_security *gensec_security,
-				 const uint8_t *data, size_t length,
-				 const uint8_t *whole_pdu, size_t pdu_length,
-				 const DATA_BLOB *sig);
-	NTSTATUS (*unseal_packet)(struct gensec_security *gensec_security,
-				  uint8_t *data, size_t length,
-				  const uint8_t *whole_pdu, size_t pdu_length,
-				  const DATA_BLOB *sig);
-	NTSTATUS (*wrap)(struct gensec_security *gensec_security,
-				  TALLOC_CTX *mem_ctx,
-				  const DATA_BLOB *in,
-				  DATA_BLOB *out);
-	NTSTATUS (*unwrap)(struct gensec_security *gensec_security,
-			   TALLOC_CTX *mem_ctx,
-			   const DATA_BLOB *in,
-			   DATA_BLOB *out);
-	NTSTATUS (*wrap_packets)(struct gensec_security *gensec_security,
-				 TALLOC_CTX *mem_ctx,
-				 const DATA_BLOB *in,
-				 DATA_BLOB *out,
-				 size_t *len_processed);
-	NTSTATUS (*unwrap_packets)(struct gensec_security *gensec_security,
-				   TALLOC_CTX *mem_ctx,
-				   const DATA_BLOB *in,
-				   DATA_BLOB *out,
-				   size_t *len_processed);
-	NTSTATUS (*packet_full_request)(struct gensec_security *gensec_security,
-					DATA_BLOB blob, size_t *size);
-	NTSTATUS (*session_key)(struct gensec_security *gensec_security, TALLOC_CTX *mem_ctx,
-				DATA_BLOB *session_key);
-	NTSTATUS (*session_info)(struct gensec_security *gensec_security, TALLOC_CTX *mem_ctx,
-				 struct auth_session_info **session_info);
-	void (*want_feature)(struct gensec_security *gensec_security,
-				    uint32_t feature);
-	bool (*have_feature)(struct gensec_security *gensec_security,
-				    uint32_t feature);
-	NTTIME (*expire_time)(struct gensec_security *gensec_security);
-	bool enabled;
-	bool kerberos;
-	enum gensec_priority priority;
-};
-
-struct gensec_security_ops_wrapper {
-	const struct gensec_security_ops *op;
-	const char *oid;
-};
+struct gensec_security_ops;
+struct gensec_security_ops_wrapper;
 
 #define GENSEC_INTERFACE_VERSION 0
 
-struct gensec_security {
-	const struct gensec_security_ops *ops;
-	void *private_data;
-	struct cli_credentials *credentials;
-	struct gensec_target target;
-	enum gensec_role gensec_role;
-	bool subcontext;
-	uint32_t want_features;
-	uint32_t max_update_size;
-	uint8_t dcerpc_auth_level;
-	struct tsocket_address *local_addr, *remote_addr;
-	struct gensec_settings *settings;
-
-	/* When we are a server, this may be filled in to provide an
-	 * NTLM authentication backend, and user lookup (such as if no
-	 * PAC is found) */
-	struct auth4_context *auth_context;
-};
-
 /* this structure is used by backends to determine the size of some critical types */
-struct gensec_critical_sizes {
-	int interface_version;
-	int sizeof_gensec_security_ops;
-	int sizeof_gensec_security;
-};
+struct gensec_critical_sizes;
 const struct gensec_critical_sizes *gensec_interface_version(void);
 
 /* Socket wrapper */
@@ -237,9 +146,13 @@ NTSTATUS gensec_start_mech_by_sasl_list(struct gensec_security *gensec_security,
 void gensec_set_max_update_size(struct gensec_security *gensec_security,
 				uint32_t max_update_size);
 size_t gensec_max_update_size(struct gensec_security *gensec_security);
-NTSTATUS gensec_update(struct gensec_security *gensec_security, TALLOC_CTX *out_mem_ctx,
-		       struct tevent_context *ev,
+NTSTATUS gensec_update(struct gensec_security *gensec_security,
+		       TALLOC_CTX *out_mem_ctx,
 		       const DATA_BLOB in, DATA_BLOB *out);
+NTSTATUS gensec_update_ev(struct gensec_security *gensec_security,
+			  TALLOC_CTX *out_mem_ctx,
+			  struct tevent_context *ev,
+			  const DATA_BLOB in, DATA_BLOB *out);
 struct tevent_req *gensec_update_send(TALLOC_CTX *mem_ctx,
 				      struct tevent_context *ev,
 				      struct gensec_security *gensec_security,
@@ -268,12 +181,15 @@ const struct gensec_security_ops *gensec_security_by_oid(struct gensec_security 
 							 const char *oid_string);
 const struct gensec_security_ops *gensec_security_by_sasl_name(struct gensec_security *gensec_security,
 							       const char *sasl_name);
-struct gensec_security_ops **gensec_security_mechs(struct gensec_security *gensec_security,
+const struct gensec_security_ops *gensec_security_by_auth_type(
+				struct gensec_security *gensec_security,
+				uint32_t auth_type);
+const struct gensec_security_ops **gensec_security_mechs(struct gensec_security *gensec_security,
 						   TALLOC_CTX *mem_ctx);
 const struct gensec_security_ops_wrapper *gensec_security_by_oid_list(
 					struct gensec_security *gensec_security,
 					TALLOC_CTX *mem_ctx,
-					const char **oid_strings,
+					const char * const *oid_strings,
 					const char *skip);
 const char **gensec_security_oids(struct gensec_security *gensec_security,
 				  TALLOC_CTX *mem_ctx,
@@ -332,11 +248,11 @@ NTSTATUS gensec_wrap(struct gensec_security *gensec_security,
 		     const DATA_BLOB *in,
 		     DATA_BLOB *out);
 
-struct gensec_security_ops **gensec_security_all(void);
-bool gensec_security_ops_enabled(struct gensec_security_ops *ops, struct gensec_security *security);
-struct gensec_security_ops **gensec_use_kerberos_mechs(TALLOC_CTX *mem_ctx,
-						       struct gensec_security_ops **old_gensec_list,
-						       struct cli_credentials *creds);
+const struct gensec_security_ops * const *gensec_security_all(void);
+bool gensec_security_ops_enabled(const struct gensec_security_ops *ops, struct gensec_security *security);
+const struct gensec_security_ops **gensec_use_kerberos_mechs(TALLOC_CTX *mem_ctx,
+			const struct gensec_security_ops * const *old_gensec_list,
+			struct cli_credentials *creds);
 
 NTSTATUS gensec_start_mech_by_sasl_name(struct gensec_security *gensec_security,
 					const char *sasl_name);

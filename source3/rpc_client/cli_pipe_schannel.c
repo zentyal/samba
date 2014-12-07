@@ -23,145 +23,14 @@
 #include "../libcli/auth/schannel.h"
 #include "rpc_client/cli_netlogon.h"
 #include "rpc_client/cli_pipe.h"
-#include "librpc/gen_ndr/ndr_dcerpc.h"
 #include "librpc/rpc/dcerpc.h"
 #include "passdb.h"
 #include "libsmb/libsmb.h"
-#include "auth/gensec/gensec.h"
 #include "../libcli/smb/smbXcli_base.h"
+#include "libcli/auth/netlogon_creds_cli.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_RPC_CLI
-
-
-/****************************************************************************
-  Get a the schannel session key out of an already opened netlogon pipe.
- ****************************************************************************/
-static NTSTATUS get_schannel_session_key_common(struct rpc_pipe_client *netlogon_pipe,
-						struct cli_state *cli,
-						const char *domain,
-						uint32 *pneg_flags)
-{
-	enum netr_SchannelType sec_chan_type = 0;
-	unsigned char machine_pwd[16];
-	const char *machine_account;
-	NTSTATUS status;
-
-	/* Get the machine account credentials from secrets.tdb. */
-	if (!get_trust_pw_hash(domain, machine_pwd, &machine_account,
-			       &sec_chan_type))
-	{
-		DEBUG(0, ("get_schannel_session_key: could not fetch "
-			"trust account password for domain '%s'\n",
-			domain));
-		return NT_STATUS_CANT_ACCESS_DOMAIN_INFO;
-	}
-
-	status = rpccli_netlogon_setup_creds(netlogon_pipe,
-					smbXcli_conn_remote_name(cli->conn), /* server name */
-					domain,	       /* domain */
-					lp_netbios_name(), /* client name */
-					machine_account, /* machine account name */
-					machine_pwd,
-					sec_chan_type,
-					pneg_flags);
-
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(3, ("get_schannel_session_key_common: "
-			  "rpccli_netlogon_setup_creds failed with result %s "
-			  "to server %s, domain %s, machine account %s.\n",
-			  nt_errstr(status), smbXcli_conn_remote_name(cli->conn), domain,
-			  machine_account ));
-		return status;
-	}
-
-	if (((*pneg_flags) & NETLOGON_NEG_SCHANNEL) == 0) {
-		DEBUG(3, ("get_schannel_session_key: Server %s did not offer schannel\n",
-			smbXcli_conn_remote_name(cli->conn)));
-		return NT_STATUS_INVALID_NETWORK_RESPONSE;
-	}
-
-	return NT_STATUS_OK;
-}
-
-/****************************************************************************
- Open a named pipe to an SMB server and bind using schannel (bind type 68).
- Fetch the session key ourselves using a temporary netlogon pipe. This
- version uses an ntlmssp auth bound netlogon pipe to get the key.
- ****************************************************************************/
-
-static NTSTATUS get_schannel_session_key_auth_ntlmssp(struct cli_state *cli,
-						      const char *domain,
-						      const char *username,
-						      const char *password,
-						      uint32 *pneg_flags,
-						      struct rpc_pipe_client **presult)
-{
-	struct rpc_pipe_client *netlogon_pipe = NULL;
-	NTSTATUS status;
-
-	status = cli_rpc_pipe_open_spnego(
-		cli, &ndr_table_netlogon, NCACN_NP,
-		GENSEC_OID_NTLMSSP,
-		DCERPC_AUTH_LEVEL_PRIVACY,
-		smbXcli_conn_remote_name(cli->conn),
-		domain, username, password, &netlogon_pipe);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	status = get_schannel_session_key_common(netlogon_pipe, cli, domain,
-						 pneg_flags);
-	if (!NT_STATUS_IS_OK(status)) {
-		TALLOC_FREE(netlogon_pipe);
-		return status;
-	}
-
-	*presult = netlogon_pipe;
-	return NT_STATUS_OK;
-}
-
-/****************************************************************************
- Open a named pipe to an SMB server and bind using schannel (bind type 68).
- Fetch the session key ourselves using a temporary netlogon pipe. This version
- uses an ntlmssp bind to get the session key.
- ****************************************************************************/
-
-NTSTATUS cli_rpc_pipe_open_ntlmssp_auth_schannel(struct cli_state *cli,
-						 const struct ndr_syntax_id *interface,
-						 enum dcerpc_transport_t transport,
-						 enum dcerpc_AuthLevel auth_level,
-						 const char *domain,
-						 const char *username,
-						 const char *password,
-						 struct rpc_pipe_client **presult)
-{
-	uint32_t neg_flags = NETLOGON_NEG_AUTH2_ADS_FLAGS;
-	struct rpc_pipe_client *netlogon_pipe = NULL;
-	struct rpc_pipe_client *result = NULL;
-	NTSTATUS status;
-
-	status = get_schannel_session_key_auth_ntlmssp(
-		cli, domain, username, password, &neg_flags, &netlogon_pipe);
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0,("cli_rpc_pipe_open_ntlmssp_auth_schannel: failed to get schannel session "
-			"key from server %s for domain %s.\n",
-			smbXcli_conn_remote_name(cli->conn), domain ));
-		return status;
-	}
-
-	status = cli_rpc_pipe_open_schannel_with_key(
-		cli, interface, transport, auth_level, domain, &netlogon_pipe->dc,
-		&result);
-
-	/* Now we've bound using the session key we can close the netlog pipe. */
-	TALLOC_FREE(netlogon_pipe);
-
-	if (NT_STATUS_IS_OK(status)) {
-		*presult = result;
-	}
-	return status;
-}
 
 /****************************************************************************
  Open a named pipe to an SMB server and bind using schannel (bind type 68).
@@ -169,67 +38,96 @@ NTSTATUS cli_rpc_pipe_open_ntlmssp_auth_schannel(struct cli_state *cli,
  ****************************************************************************/
 
 NTSTATUS cli_rpc_pipe_open_schannel(struct cli_state *cli,
-				    const struct ndr_syntax_id *interface,
+				    struct messaging_context *msg_ctx,
+				    const struct ndr_interface_table *table,
 				    enum dcerpc_transport_t transport,
 				    enum dcerpc_AuthLevel auth_level,
 				    const char *domain,
-				    struct rpc_pipe_client **presult)
+				    struct rpc_pipe_client **presult,
+				    TALLOC_CTX *mem_ctx,
+				    struct netlogon_creds_cli_context **pcreds)
 {
-	uint32_t neg_flags = NETLOGON_NEG_AUTH2_ADS_FLAGS;
-	struct rpc_pipe_client *netlogon_pipe = NULL;
+	TALLOC_CTX *frame = talloc_stackframe();
+	const char *dc_name = smbXcli_conn_remote_name(cli->conn);
 	struct rpc_pipe_client *result = NULL;
 	NTSTATUS status;
+	struct netlogon_creds_cli_context *netlogon_creds = NULL;
+	struct netlogon_creds_CredentialState *creds = NULL;
+	uint32_t netlogon_flags = 0;
+	enum netr_SchannelType sec_chan_type = 0;
+	const char *_account_name = NULL;
+	const char *account_name = NULL;
+	struct samr_Password current_nt_hash;
+	struct samr_Password *previous_nt_hash = NULL;
+	bool ok;
 
-	status = get_schannel_session_key(cli, domain, &neg_flags,
-					  &netlogon_pipe);
+	ok = get_trust_pw_hash(domain,
+			       current_nt_hash.hash,
+			       &_account_name,
+			       &sec_chan_type);
+	if (!ok) {
+		TALLOC_FREE(frame);
+		return NT_STATUS_CANT_ACCESS_DOMAIN_INFO;
+	}
+
+	account_name = talloc_asprintf(frame, "%s$", _account_name);
+	if (account_name == NULL) {
+		SAFE_FREE(previous_nt_hash);
+		TALLOC_FREE(frame);
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	status = rpccli_create_netlogon_creds(dc_name,
+					      domain,
+					      account_name,
+					      sec_chan_type,
+					      msg_ctx,
+					      frame,
+					      &netlogon_creds);
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0,("cli_rpc_pipe_open_schannel: failed to get schannel session "
-			"key from server %s for domain %s.\n",
-			smbXcli_conn_remote_name(cli->conn), domain ));
+		SAFE_FREE(previous_nt_hash);
+		TALLOC_FREE(frame);
 		return status;
+	}
+
+	status = rpccli_setup_netlogon_creds(cli,
+					     netlogon_creds,
+					     false, /* force_reauth */
+					     current_nt_hash,
+					     previous_nt_hash);
+	SAFE_FREE(previous_nt_hash);
+	if (!NT_STATUS_IS_OK(status)) {
+		TALLOC_FREE(frame);
+		return status;
+	}
+
+	status = netlogon_creds_cli_get(netlogon_creds,
+					frame,
+					&creds);
+	if (!NT_STATUS_IS_OK(status)) {
+		TALLOC_FREE(frame);
+		return status;
+	}
+	netlogon_flags = creds->negotiate_flags;
+	TALLOC_FREE(creds);
+
+	if (!(netlogon_flags & NETLOGON_NEG_AUTHENTICATED_RPC)) {
+		TALLOC_FREE(frame);
+		return NT_STATUS_DOWNGRADE_DETECTED;
 	}
 
 	status = cli_rpc_pipe_open_schannel_with_key(
-		cli, interface, transport, auth_level, domain, &netlogon_pipe->dc,
+		cli, table, transport, domain,
+		netlogon_creds,
 		&result);
-
-	/* Now we've bound using the session key we can close the netlog pipe. */
-	TALLOC_FREE(netlogon_pipe);
 
 	if (NT_STATUS_IS_OK(status)) {
 		*presult = result;
+		if (pcreds != NULL) {
+			*pcreds = talloc_move(mem_ctx, &netlogon_creds);
+		}
 	}
 
+	TALLOC_FREE(frame);
 	return status;
-}
-
-/****************************************************************************
- Open a netlogon pipe and get the schannel session key.
- Now exposed to external callers.
- ****************************************************************************/
-
-
-NTSTATUS get_schannel_session_key(struct cli_state *cli,
-				  const char *domain,
-				  uint32 *pneg_flags,
-				  struct rpc_pipe_client **presult)
-{
-	struct rpc_pipe_client *netlogon_pipe = NULL;
-	NTSTATUS status;
-
-	status = cli_rpc_pipe_open_noauth(cli, &ndr_table_netlogon.syntax_id,
-					  &netlogon_pipe);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	status = get_schannel_session_key_common(netlogon_pipe, cli, domain,
-						 pneg_flags);
-	if (!NT_STATUS_IS_OK(status)) {
-		TALLOC_FREE(netlogon_pipe);
-		return status;
-	}
-
-	*presult = netlogon_pipe;
-	return NT_STATUS_OK;
 }

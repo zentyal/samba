@@ -37,7 +37,6 @@ help:
 	@echo " html - Build multi-file HTML versions"
 	@echo " html-single - Build single-file HTML versions"
 	@echo " htmlman - Build HTML version of manpages"
-	@echo " undocumented - Output list of undocumented smb.conf options"
 	@echo " samples - Extract examples"
 
 $(PDFDIR)/Samba3-ByExample.pdf $(PSDIR)/Samba3-ByExample.ps $(DOCBOOKDIR)/Samba3-ByExample.xml Samba3-ByExample.tex: $(wildcard Samba3-ByExample/*.xml)
@@ -222,18 +221,10 @@ $(MANPAGEDIR)/smb.conf.5.xml: parameters
 # any smbdotconf/*/*.xml file ...
 .PHONY: parameters
 
-parameters: $(SMBDOTCONFDOC)/parameters.all.xml $(SMBDOTCONFDOC)/parameters.service.xml $(SMBDOTCONFDOC)/parameters.global.xml
+parameters: $(SMBDOTCONFDOC)/parameters.all.xml
 
 $(SMBDOTCONFDOC)/parameters.all.xml: $(wildcard $(SMBDOTCONFDOC)/*/*.xml) $(SMBDOTCONFDOC)/generate-file-list.sh
 	$(SMBDOTCONFDOC)/generate-file-list.sh $(SMBDOTCONFDOC) > $@
-
-$(SMBDOTCONFDOC)/parameters.global.xml: $(SMBDOTCONFDOC)/parameters.all.xml $(SMBDOTCONFDOC)/generate-context.xsl
-	@echo "Generating list of global smb.conf options" 
-	$(XSLTPROC) --xinclude --param smb.context "'G'" --output $(SMBDOTCONFDOC)/parameters.global.xml $(SMBDOTCONFDOC)/generate-context.xsl $<
-
-$(SMBDOTCONFDOC)/parameters.service.xml: $(SMBDOTCONFDOC)/parameters.all.xml $(SMBDOTCONFDOC)/generate-context.xsl
-	@echo "Generating list of share-mode smb.conf options" 
-	$(XSLTPROC) --xinclude --param smb.context "'S'" --output $(SMBDOTCONFDOC)/parameters.service.xml $(SMBDOTCONFDOC)/generate-context.xsl $<
 
 $(OUTPUTDIR):
 	test -d $@ || mkdir $@
@@ -261,10 +252,6 @@ $(PEARSONDIR)/%.report.html: $(PEARSONDIR)/%.xml
 # Validation verification
 %-validate: %/index.xml
 	cd $(<D) && $(XMLLINT) --xinclude --noent --postvalid --noout $(<F)
-
-# Find undocumented parameters
-undocumented: $(SMBDOTCONFDOC)/parameters.all.xml scripts/find_missing_manpages
-	$(PERL) scripts/find_missing_manpages $(SRCDIR)/source3
 
 samples: $(DOCBOOKDIR)/Samba3-HOWTO.xml xslt/extract-examples.xsl scripts/indent-smb.conf.pl
 	@mkdir -p examples

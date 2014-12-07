@@ -27,6 +27,7 @@
 #include "librpc/gen_ndr/ndr_dcerpc.h"
 #include "auth/credentials/credentials.h"
 #include "auth/gensec/gensec.h"
+#include "auth/gensec/gensec_internal.h"
 #include "param/param.h"
 #include "lib/util/asn1.h"
 
@@ -351,9 +352,11 @@ static NTSTATUS gensec_spnego_server_try_fallback(struct gensec_security *gensec
 						  const DATA_BLOB in, DATA_BLOB *out) 
 {
 	int i,j;
-	struct gensec_security_ops **all_ops
-		= gensec_security_mechs(gensec_security, out_mem_ctx);
-	for (i=0; all_ops[i]; i++) {
+	const struct gensec_security_ops **all_ops;
+
+	all_ops = gensec_security_mechs(gensec_security, out_mem_ctx);
+
+	for (i=0; all_ops && all_ops[i]; i++) {
 		bool is_spnego;
 		NTSTATUS nt_status;
 
@@ -399,7 +402,7 @@ static NTSTATUS gensec_spnego_server_try_fallback(struct gensec_security *gensec
 		if (!NT_STATUS_IS_OK(nt_status)) {
 			return nt_status;
 		}
-		nt_status = gensec_update(spnego_state->sub_sec_security,
+		nt_status = gensec_update_ev(spnego_state->sub_sec_security,
 					  ev, out_mem_ctx, in, out);
 		return nt_status;
 	}
@@ -416,7 +419,7 @@ static NTSTATUS gensec_spnego_parse_negTokenInit(struct gensec_security *gensec_
 						 struct spnego_state *spnego_state, 
 						 TALLOC_CTX *out_mem_ctx, 
 						 struct tevent_context *ev,
-						 const char **mechType,
+						 const char * const *mechType,
 						 const DATA_BLOB unwrapped_in, DATA_BLOB *unwrapped_out) 
 {
 	int i;
@@ -469,7 +472,7 @@ static NTSTATUS gensec_spnego_parse_negTokenInit(struct gensec_security *gensec_
 					break;
 				}
 
-				nt_status = gensec_update(spnego_state->sub_sec_security,
+				nt_status = gensec_update_ev(spnego_state->sub_sec_security,
 							  out_mem_ctx, 
 							  ev,
 							  unwrapped_in,
@@ -523,7 +526,7 @@ static NTSTATUS gensec_spnego_parse_negTokenInit(struct gensec_security *gensec_
 			spnego_state->neg_oid = all_sec[i].oid;
 
 			/* only get the helping start blob for the first OID */
-			nt_status = gensec_update(spnego_state->sub_sec_security,
+			nt_status = gensec_update_ev(spnego_state->sub_sec_security,
 						  out_mem_ctx, 
 						  ev,
 						  null_data_blob, 
@@ -639,7 +642,7 @@ static NTSTATUS gensec_spnego_create_negTokenInit(struct gensec_security *gensec
 
 		/* In the client, try and produce the first (optimistic) packet */
 		if (spnego_state->state_position == SPNEGO_CLIENT_START) {
-			nt_status = gensec_update(spnego_state->sub_sec_security,
+			nt_status = gensec_update_ev(spnego_state->sub_sec_security,
 						  out_mem_ctx, 
 						  ev,
 						  null_data_blob,
@@ -702,7 +705,7 @@ static NTSTATUS gensec_spnego_create_negTokenInit(struct gensec_security *gensec
 	spnego_state->sub_sec_security = NULL;
 
 	DEBUG(1, ("Failed to setup SPNEGO negTokenInit request: %s\n", nt_errstr(nt_status)));
-	return NT_STATUS_INVALID_PARAMETER;
+	return nt_status;
 }
 
 
@@ -778,7 +781,7 @@ static NTSTATUS gensec_spnego_update(struct gensec_security *gensec_security, TA
 
 	switch (spnego_state->state_position) {
 	case SPNEGO_FALLBACK:
-		return gensec_update(spnego_state->sub_sec_security, ev,
+		return gensec_update_ev(spnego_state->sub_sec_security, ev,
 				     out_mem_ctx, in, out);
 	case SPNEGO_SERVER_START:
 	{
@@ -939,7 +942,7 @@ static NTSTATUS gensec_spnego_update(struct gensec_security *gensec_security, TA
 			return NT_STATUS_INVALID_PARAMETER;
 		}
 
-		nt_status = gensec_update(spnego_state->sub_sec_security,
+		nt_status = gensec_update_ev(spnego_state->sub_sec_security,
 					  out_mem_ctx, ev,
 					  spnego.negTokenTarg.responseToken,
 					  &unwrapped_out);
@@ -1007,7 +1010,7 @@ static NTSTATUS gensec_spnego_update(struct gensec_security *gensec_security, TA
 
 		if (spnego.negTokenTarg.negResult == SPNEGO_REJECT) {
 			spnego_free_data(&spnego);
-			return NT_STATUS_ACCESS_DENIED;
+			return NT_STATUS_LOGON_FAILURE;
 		}
 
 		/* Server didn't like our choice of mech, and chose something else */
@@ -1034,7 +1037,7 @@ static NTSTATUS gensec_spnego_update(struct gensec_security *gensec_security, TA
 				return nt_status;
 			}
 
-			nt_status = gensec_update(spnego_state->sub_sec_security,
+			nt_status = gensec_update_ev(spnego_state->sub_sec_security,
 						  out_mem_ctx, ev,
 						  spnego.negTokenTarg.responseToken,
 						  &unwrapped_out);
@@ -1064,7 +1067,7 @@ static NTSTATUS gensec_spnego_update(struct gensec_security *gensec_security, TA
 		} else {
 			bool new_spnego = false;
 
-			nt_status = gensec_update(spnego_state->sub_sec_security,
+			nt_status = gensec_update_ev(spnego_state->sub_sec_security,
 						  out_mem_ctx, ev,
 						  spnego.negTokenTarg.responseToken, 
 						  &unwrapped_out);

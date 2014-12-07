@@ -52,6 +52,9 @@ my $ldap = undef;
 my $opt_resetup_env = undef;
 my $opt_binary_mapping = "";
 my $opt_load_list = undef;
+my $opt_libnss_wrapper_so_path = "";
+my $opt_libsocket_wrapper_so_path = "";
+my $opt_libuid_wrapper_so_path = "";
 my @testlists = ();
 
 my $srcdir = ".";
@@ -193,6 +196,11 @@ Paths:
  --srcdir=DIR               source directory [.]
  --bindir=DIR               binaries directory [./bin]
 
+Preload cwrap:
+ --nss_wrapper_so_path=FILE the nss_wrapper library to preload
+ --socket_wrapper_so_path=FILE the socket_wrapper library to preload
+ --uid_wrapper_so_path=FILE the uid_wrapper library to preload
+
 Target Specific:
  --socket-wrapper-pcap      save traffic to pcap directories
  --socket-wrapper-keep-pcap keep all pcap files, not just those for tests that 
@@ -231,7 +239,10 @@ my $result = GetOptions (
 		'testlist=s' => \@testlists,
 		'random-order' => \$opt_random_order,
 		'load-list=s' => \$opt_load_list,
-		'binary-mapping=s' => \$opt_binary_mapping
+		'binary-mapping=s' => \$opt_binary_mapping,
+		'nss_wrapper_so_path=s' => \$opt_libnss_wrapper_so_path,
+		'socket_wrapper_so_path=s' => \$opt_libsocket_wrapper_so_path,
+		'uid_wrapper_so_path=s' => \$opt_libuid_wrapper_so_path
 	    );
 
 exit(1) if (not $result);
@@ -248,7 +259,7 @@ my @tests = @ARGV;
 # quick hack to disable rpc validation when using valgrind - its way too slow
 unless (defined($ENV{VALGRIND})) {
 	$ENV{VALIDATE} = "validate";
-	$ENV{MALLOC_CHECK_} = 2;
+	$ENV{MALLOC_CHECK_} = 3;
 }
 
 # make all our python scripts unbuffered
@@ -327,6 +338,44 @@ if ($opt_socket_wrapper_pcap) {
 	$opt_socket_wrapper = 1;
 }
 
+my $ld_preload = $ENV{LD_PRELOAD};
+
+if ($opt_libnss_wrapper_so_path) {
+	if ($ld_preload) {
+		$ld_preload = "$ld_preload:$opt_libnss_wrapper_so_path";
+	} else {
+		$ld_preload = "$opt_libnss_wrapper_so_path";
+	}
+}
+
+if ($opt_libsocket_wrapper_so_path) {
+	if ($ld_preload) {
+		$ld_preload = "$ld_preload:$opt_libsocket_wrapper_so_path";
+	} else {
+		$ld_preload = "$opt_libsocket_wrapper_so_path";
+	}
+}
+
+if ($opt_libuid_wrapper_so_path) {
+	if ($ld_preload) {
+		$ld_preload = "$ld_preload:$opt_libuid_wrapper_so_path";
+	} else {
+		$ld_preload = "$opt_libuid_wrapper_so_path";
+	}
+}
+
+$ENV{LD_PRELOAD} = $ld_preload;
+print "LD_PRELOAD=$ENV{LD_PRELOAD}\n";
+
+# Enable uid_wrapper globally
+$ENV{UID_WRAPPER} = 1;
+
+# Disable RTLD_DEEPBIND hack for Samba bind dlz module
+#
+# This is needed in order to allow the ldb_*ldap module
+# to work with a preloaded socket wrapper.
+$ENV{LDB_MODULES_DISABLE_DEEPBIND} = 1;
+
 my $socket_wrapper_dir;
 if ($opt_socket_wrapper) {
 	$socket_wrapper_dir = SocketWrapper::setup_dir("$prefix_abs/w", $opt_socket_wrapper_pcap);
@@ -362,16 +411,10 @@ if (defined($ENV{SMBD_MAXTIME}) and $ENV{SMBD_MAXTIME} ne "") {
 
 unless ($opt_list) {
 	if ($opt_target eq "samba") {
-		if ($opt_socket_wrapper and `$bindir/smbd -b | grep SOCKET_WRAPPER` eq "") {
-			die("You must include --enable-socket-wrapper when compiling Samba in order to execute 'make test'.  Exiting....");
-		}
 		$testenv_default = "dc";
 		require target::Samba;
 		$target = new Samba($bindir, \%binary_mapping, $ldap, $srcdir, $server_maxtime);
 	} elsif ($opt_target eq "samba3") {
-		if ($opt_socket_wrapper and `$bindir/smbd -b | grep SOCKET_WRAPPER` eq "") {
-			die("You must include --enable-socket-wrapper when compiling Samba in order to execute 'make test'.  Exiting....");
-		}
 		$testenv_default = "member";
 		require target::Samba3;
 		$target = new Samba3($bindir, \%binary_mapping, $srcdir_abs, $server_maxtime);
@@ -494,6 +537,7 @@ sub write_clientconf($$$)
 	resolv:host file = $prefix_abs/dns_host_file
 #We don't want to run 'speed' tests for very long
         torture:timelimit = 1
+        winbind separator = /
 ";
 	close(CF);
 }
@@ -538,7 +582,7 @@ sub read_testlist($)
 			print;
 		}
 	}
-	close(IN) or die("Error creating recipe");
+	close(IN) or die("Error creating recipe from $filename");
 	return @ret;
 }
 
@@ -710,7 +754,7 @@ my @exported_envvars = (
 
 	# misc stuff
 	"KRB5_CONFIG",
-	"WINBINDD_SOCKET_DIR",
+	"SELFTEST_WINBINDD_SOCKET_DIR",
 	"WINBINDD_PRIV_PIPE_DIR",
 	"NMBD_SOCKET_DIR",
 	"LOCAL_PATH",
@@ -845,6 +889,7 @@ sub teardown_env($)
 
 # This 'global' file needs to be empty when we start
 unlink("$prefix_abs/dns_host_file");
+unlink("$prefix_abs/hosts");
 
 if ($opt_random_order) {
 	require List::Util;
@@ -858,7 +903,9 @@ if ($opt_testenv) {
 
 	my $testenv_vars = setup_env($testenv_name, $prefix);
 
-	die("Unable to setup environment $testenv_name") unless ($testenv_vars);
+	if (not $testenv_vars or $testenv_vars eq "UNKNOWN") {
+		die("Unable to setup environment $testenv_name");
+	}
 
 	$ENV{PIDDIR} = $testenv_vars->{PIDDIR};
 	$ENV{ENVNAME} = $testenv_name;

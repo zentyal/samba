@@ -855,13 +855,12 @@ static bool init_sam_from_ldap(struct ldapsam_privates *ldap_state,
 
 		pwHistLen = MIN(pwHistLen, MAX_PW_HISTORY_LEN);
 
-		pwhist = talloc_array(ctx, uint8,
-				      pwHistLen * PW_HISTORY_ENTRY_LEN);
+		pwhist = talloc_zero_array(ctx, uint8,
+					   pwHistLen * PW_HISTORY_ENTRY_LEN);
 		if (pwhist == NULL) {
 			DEBUG(0, ("init_sam_from_ldap: talloc failed!\n"));
 			goto fn_exit;
 		}
-		memset(pwhist, '\0', pwHistLen * PW_HISTORY_ENTRY_LEN);
 
 		if (smbldap_get_single_attribute(
 				ldap_state->smbldap_state->ldap_struct,
@@ -1975,7 +1974,7 @@ static NTSTATUS ldapsam_rename_sam_account(struct pdb_methods *my_methods,
 	oldname = pdb_get_username(old_acct);
 
 	/* rename the posix user */
-	rename_script = lp_renameuser_script(talloc_tos());
+	rename_script = lp_rename_user_script(talloc_tos());
 	if (rename_script == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -4970,7 +4969,6 @@ static bool ldapsam_sid_to_id(struct pdb_methods *methods,
 
 		id->id = strtoul(gid_str, NULL, 10);
 		id->type = ID_TYPE_GID;
-		idmap_cache_set_sid2unixid(sid, id);
 		ret = True;
 		goto done;
 	}
@@ -4987,7 +4985,6 @@ static bool ldapsam_sid_to_id(struct pdb_methods *methods,
 
 	id->id = strtoul(value, NULL, 10);
 	id->type = ID_TYPE_UID;
-	idmap_cache_set_sid2unixid(sid, id);
 
 	ret = True;
  done:
@@ -5013,7 +5010,6 @@ static bool ldapsam_uid_to_sid(struct pdb_methods *methods, uid_t uid,
 	struct dom_sid user_sid;
 	int rc;
 	TALLOC_CTX *tmp_ctx = talloc_stackframe();
-	struct unixid id;
 
 	filter = talloc_asprintf(tmp_ctx,
 				 "(&(uidNumber=%u)"
@@ -5058,11 +5054,6 @@ static bool ldapsam_uid_to_sid(struct pdb_methods *methods, uid_t uid,
 
 	sid_copy(sid, &user_sid);
 
-	id.id = uid;
-	id.type = ID_TYPE_UID;
-
-	idmap_cache_set_sid2unixid(sid, &id);
-
 	ret = true;
 
  done:
@@ -5088,7 +5079,6 @@ static bool ldapsam_gid_to_sid(struct pdb_methods *methods, gid_t gid,
 	struct dom_sid group_sid;
 	int rc;
 	TALLOC_CTX *tmp_ctx = talloc_stackframe();
-	struct unixid id;
 
 	filter = talloc_asprintf(tmp_ctx,
 				 "(&(gidNumber=%u)"
@@ -5131,11 +5121,6 @@ static bool ldapsam_gid_to_sid(struct pdb_methods *methods, gid_t gid,
 
 	sid_copy(sid, &group_sid);
 
-	id.id = gid;
-	id.type = ID_TYPE_GID;
-
-	idmap_cache_set_sid2unixid(sid, &id);
-
 	ret = true;
 
  done:
@@ -5168,6 +5153,7 @@ static NTSTATUS ldapsam_create_user(struct pdb_methods *my_methods,
 	uint32_t num_result;
 	bool is_machine = False;
 	bool add_posix = False;
+	bool init_okay = False;
 	LDAPMod **mods = NULL;
 	struct samu *user;
 	char *filter;
@@ -5285,7 +5271,10 @@ static NTSTATUS ldapsam_create_user(struct pdb_methods *my_methods,
 		return NT_STATUS_UNSUCCESSFUL;
 	}
 
-	if (!init_ldap_from_sam(ldap_state, entry, &mods, user, pdb_element_is_set_or_changed)) {
+	init_okay = init_ldap_from_sam(ldap_state, entry, &mods, user, pdb_element_is_set_or_changed);
+	smbldap_talloc_autofree_ldapmod(tmp_ctx, mods);
+
+	if (!init_okay) {
 		DEBUG(1,("ldapsam_create_user: Unable to fill user structs\n"));
 		return NT_STATUS_UNSUCCESSFUL;
 	}
@@ -5371,9 +5360,7 @@ static NTSTATUS ldapsam_create_user(struct pdb_methods *my_methods,
 		smbldap_set_mod(&mods, LDAP_MOD_ADD, "loginShell", shell);
 	}
 
-	smbldap_talloc_autofree_ldapmod(tmp_ctx, mods);
-
-	if (add_posix) {	
+	if (add_posix) {
 		rc = smbldap_add(ldap_state->smbldap_state, dn, mods);
 	} else {
 		rc = smbldap_modify(ldap_state->smbldap_state, dn, mods);

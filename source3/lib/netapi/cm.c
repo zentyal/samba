@@ -111,7 +111,7 @@ static WERROR libnetapi_open_ipc_connection(struct libnetapi_ctx *ctx,
 			     server_name, "IPC$",
 			     auth_info,
 			     false, false,
-			     lp_cli_maxprotocol(),
+			     lp_client_max_protocol(),
 			     0, 0x20, &cli_ipc);
 	if (NT_STATUS_IS_OK(status)) {
 		cli_set_username(cli_ipc, ctx->username);
@@ -161,7 +161,7 @@ WERROR libnetapi_shutdown_cm(struct libnetapi_ctx *ctx)
 ********************************************************************/
 
 static NTSTATUS pipe_cm_find(struct client_ipc_connection *ipc,
-			     const struct ndr_syntax_id *interface,
+			     const struct ndr_interface_table *table,
 			     struct rpc_pipe_client **presult)
 {
 	struct client_pipe_connection *p;
@@ -169,7 +169,7 @@ static NTSTATUS pipe_cm_find(struct client_ipc_connection *ipc,
 	for (p = ipc->pipe_connections; p; p = p->next) {
 		const char *ipc_remote_name;
 
-		if (!rpc_pipe_np_smb_conn(p->pipe)) {
+		if (!rpccli_is_connected(p->pipe)) {
 			return NT_STATUS_PIPE_EMPTY;
 		}
 
@@ -177,7 +177,7 @@ static NTSTATUS pipe_cm_find(struct client_ipc_connection *ipc,
 
 		if (strequal(ipc_remote_name, p->pipe->desthost)
 		    && ndr_syntax_id_equal(&p->pipe->abstract_syntax,
-					   interface)) {
+					   &table->syntax_id)) {
 			*presult = p->pipe;
 			return NT_STATUS_OK;
 		}
@@ -191,7 +191,7 @@ static NTSTATUS pipe_cm_find(struct client_ipc_connection *ipc,
 
 static NTSTATUS pipe_cm_connect(TALLOC_CTX *mem_ctx,
 				struct client_ipc_connection *ipc,
-				const struct ndr_syntax_id *interface,
+				const struct ndr_interface_table *table,
 				struct rpc_pipe_client **presult)
 {
 	struct client_pipe_connection *p;
@@ -202,7 +202,7 @@ static NTSTATUS pipe_cm_connect(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	status = cli_rpc_pipe_open_noauth(ipc->cli, interface, &p->pipe);
+	status = cli_rpc_pipe_open_noauth(ipc->cli, table, &p->pipe);
 	if (!NT_STATUS_IS_OK(status)) {
 		TALLOC_FREE(p);
 		return status;
@@ -219,14 +219,14 @@ static NTSTATUS pipe_cm_connect(TALLOC_CTX *mem_ctx,
 
 static NTSTATUS pipe_cm_open(TALLOC_CTX *ctx,
 			     struct client_ipc_connection *ipc,
-			     const struct ndr_syntax_id *interface,
+			     const struct ndr_interface_table *table,
 			     struct rpc_pipe_client **presult)
 {
-	if (NT_STATUS_IS_OK(pipe_cm_find(ipc, interface, presult))) {
+	if (NT_STATUS_IS_OK(pipe_cm_find(ipc, table, presult))) {
 		return NT_STATUS_OK;
 	}
 
-	return pipe_cm_connect(ctx, ipc, interface, presult);
+	return pipe_cm_connect(ctx, ipc, table, presult);
 }
 
 /********************************************************************
@@ -234,7 +234,7 @@ static NTSTATUS pipe_cm_open(TALLOC_CTX *ctx,
 
 WERROR libnetapi_open_pipe(struct libnetapi_ctx *ctx,
 			   const char *server_name,
-			   const struct ndr_syntax_id *interface,
+			   const struct ndr_interface_table *table,
 			   struct rpc_pipe_client **presult)
 {
 	struct rpc_pipe_client *result = NULL;
@@ -251,10 +251,10 @@ WERROR libnetapi_open_pipe(struct libnetapi_ctx *ctx,
 		return werr;
 	}
 
-	status = pipe_cm_open(ctx, ipc, interface, &result);
+	status = pipe_cm_open(ctx, ipc, table, &result);
 	if (!NT_STATUS_IS_OK(status)) {
 		libnetapi_set_error_string(ctx, "failed to open PIPE %s: %s",
-			get_pipe_name_from_syntax(talloc_tos(), interface),
+			table->name,
 			get_friendly_nt_error_msg(status));
 		return WERR_DEST_NOT_FOUND;
 	}
@@ -269,7 +269,7 @@ WERROR libnetapi_open_pipe(struct libnetapi_ctx *ctx,
 
 WERROR libnetapi_get_binding_handle(struct libnetapi_ctx *ctx,
 				    const char *server_name,
-				    const struct ndr_syntax_id *interface,
+				    const struct ndr_interface_table *table,
 				    struct dcerpc_binding_handle **binding_handle)
 {
 	struct rpc_pipe_client *pipe_cli;
@@ -277,7 +277,7 @@ WERROR libnetapi_get_binding_handle(struct libnetapi_ctx *ctx,
 
 	*binding_handle = NULL;
 
-	result = libnetapi_open_pipe(ctx, server_name, interface, &pipe_cli);
+	result = libnetapi_open_pipe(ctx, server_name, table, &pipe_cli);
 	if (!W_ERROR_IS_OK(result)) {
 		return result;
 	}

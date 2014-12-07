@@ -27,6 +27,10 @@
 #include "lib/async_req/async_sock.h"
 #include "lib/util/tevent_unix.h"
 
+#if !defined(HAVE_STRUCT_MSGHDR_MSG_CONTROL) && !defined(HAVE_STRUCT_MSGHDR_MSG_ACCRIGHTS)
+# error Can not pass file descriptors
+#endif
+
 #undef recvmsg
 
 #ifndef MAP_FILE
@@ -150,11 +154,13 @@ static ssize_t read_fd(int fd, void *ptr, size_t nbytes, int *recvfd)
 	struct msghdr msg;
 	struct iovec iov[1];
 	ssize_t n;
-#ifndef HAVE_MSGHDR_MSG_CONTROL
+#ifndef HAVE_STRUCT_MSGHDR_MSG_CONTROL
 	int newfd;
-#endif
 
-#ifdef	HAVE_MSGHDR_MSG_CONTROL
+	msg.msg_accrights = (caddr_t) &newfd;
+	msg.msg_accrightslen = sizeof(int);
+#else
+
 	union {
 	  struct cmsghdr	cm;
 	  char				control[CMSG_SPACE(sizeof(int))];
@@ -163,13 +169,6 @@ static ssize_t read_fd(int fd, void *ptr, size_t nbytes, int *recvfd)
 
 	msg.msg_control = control_un.control;
 	msg.msg_controllen = sizeof(control_un.control);
-#else
-#if HAVE_MSGHDR_MSG_ACCTRIGHTS
-	msg.msg_accrights = (caddr_t) &newfd;
-	msg.msg_accrightslen = sizeof(int);
-#else
-#error Can not pass file descriptors
-#endif
 #endif
 
 	msg.msg_name = NULL;
@@ -185,7 +184,7 @@ static ssize_t read_fd(int fd, void *ptr, size_t nbytes, int *recvfd)
 		return(n);
 	}
 
-#ifdef	HAVE_MSGHDR_MSG_CONTROL
+#ifdef	HAVE_STRUCT_MSGHDR_MSG_CONTROL
 	if ((cmptr = CMSG_FIRSTHDR(&msg)) != NULL
 	    && cmptr->cmsg_len == CMSG_LEN(sizeof(int))) {
 		if (cmptr->cmsg_level != SOL_SOCKET) {
@@ -219,7 +218,7 @@ static ssize_t write_fd(int fd, void *ptr, size_t nbytes, int sendfd)
 	struct msghdr	msg;
 	struct iovec	iov[1];
 
-#ifdef	HAVE_MSGHDR_MSG_CONTROL
+#ifdef	HAVE_STRUCT_MSGHDR_MSG_CONTROL
 	union {
 		struct cmsghdr	cm;
 		char control[CMSG_SPACE(sizeof(int))];

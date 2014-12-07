@@ -23,6 +23,7 @@
 
 #include "includes.h"
 #include "auth.h"
+#include "libcli/security/security.h"
 
 NTSTATUS auth3_generate_session_info(struct auth4_context *auth_context,
 				     TALLOC_CTX *mem_ctx,
@@ -31,10 +32,50 @@ NTSTATUS auth3_generate_session_info(struct auth4_context *auth_context,
 				     uint32_t session_info_flags,
 				     struct auth_session_info **session_info)
 {
-	struct auth_serversupplied_info *server_info = talloc_get_type_abort(server_returned_info,
-									     struct auth_serversupplied_info);
+	struct auth_user_info_dc *user_info = NULL;
+	struct auth_serversupplied_info *server_info = NULL;
 	NTSTATUS nt_status;
 
+	/*
+	 * This is a hack, some callers...
+	 *
+	 * Some callers pass auth_user_info_dc, the SCHANNEL and
+	 * NCALRPC_AS_SYSTEM gensec modules.
+	 *
+	 * While the reset passes auth3_check_password() returned.
+	 */
+	user_info = talloc_get_type(server_returned_info,
+				    struct auth_user_info_dc);
+	if (user_info != NULL) {
+		const struct dom_sid *sid;
+		int cmp;
+
+		/*
+		 * This should only be called from SCHANNEL or NCALRPC_AS_SYSTEM
+		 */
+		if (user_info->num_sids != 1) {
+			return NT_STATUS_INTERNAL_ERROR;
+		}
+		sid = &user_info->sids[PRIMARY_USER_SID_INDEX];
+
+		cmp = dom_sid_compare(sid, &global_sid_System);
+		if (cmp == 0) {
+			return make_session_info_system(mem_ctx, session_info);
+		}
+
+		cmp = dom_sid_compare(sid, &global_sid_Anonymous);
+		if (cmp == 0) {
+			/*
+			 * TODO: use auth_anonymous_session_info() here?
+			 */
+			return make_session_info_guest(mem_ctx, session_info);
+		}
+
+		return NT_STATUS_INTERNAL_ERROR;
+	}
+
+	server_info = talloc_get_type_abort(server_returned_info,
+					    struct auth_serversupplied_info);
 	nt_status = create_local_token(mem_ctx,
 				       server_info,
 				       NULL,
@@ -116,7 +157,8 @@ NTSTATUS auth3_check_password(struct auth4_context *auth4_context,
 
 	lp_load(get_dyn_CONFIGFILE(), false, false, true, true);
 
-	nt_status = make_user_info_map(&mapped_user_info,
+	nt_status = make_user_info_map(talloc_tos(),
+                                       &mapped_user_info,
 				       user_info->client.account_name,
 				       user_info->client.domain_name,
 				       user_info->workstation_name,
@@ -134,8 +176,10 @@ NTSTATUS auth3_check_password(struct auth4_context *auth4_context,
 
 	mapped_user_info->flags = user_info->flags;
 
-	nt_status = auth_check_ntlm_password(auth_context,
-					     mapped_user_info, &server_info);
+	nt_status = auth_check_ntlm_password(mem_ctx,
+					     auth_context,
+					     mapped_user_info,
+					     &server_info);
 
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(5,("Checking NTLMSSP password for %s\\%s failed: %s\n",
@@ -146,13 +190,14 @@ NTSTATUS auth3_check_password(struct auth4_context *auth4_context,
 
 	username_was_mapped = mapped_user_info->was_mapped;
 
-	free_user_info(&mapped_user_info);
+	TALLOC_FREE(mapped_user_info);
 
 	if (!NT_STATUS_IS_OK(nt_status)) {
-		nt_status = do_map_to_guest_server_info(nt_status,
-							&server_info,
+		nt_status = do_map_to_guest_server_info(mem_ctx,
+							nt_status,
 							user_info->client.account_name,
-							user_info->client.domain_name);
+							user_info->client.domain_name,
+							&server_info);
 		*server_returned_info = talloc_steal(mem_ctx, server_info);
 		return nt_status;
 	}

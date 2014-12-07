@@ -9,6 +9,7 @@
 #include "../common/open.c"
 #include "../common/check.c"
 #include "../common/hash.c"
+#include "../common/mutex.c"
 #include "tap-interface.h"
 #include <stdlib.h>
 #include "logging.h"
@@ -26,9 +27,9 @@ int main(int argc, char *argv[])
 	ok1(tdb_check(tdb, NULL, NULL) == 0);
 
 	key.dsize = strlen("hi");
-	key.dptr = (void *)"hi";
+	key.dptr = discard_const_p(uint8_t, "hi");
 	data.dsize = strlen("world");
-	data.dptr = (void *)"world";
+	data.dptr = discard_const_p(uint8_t, "world");
 
 	ok1(tdb_store(tdb, key, data, TDB_INSERT) == 0);
 	ok1(tdb_check(tdb, NULL, NULL) == 0);

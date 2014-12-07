@@ -32,6 +32,9 @@ static bool change_section(const char *section, void *ctx_ptr)
 		talloc_free(ctx->current_section);
 	}
 	ctx->current_section = talloc_strdup(ctx, section);
+	if (!ctx->current_section) {
+		return false;
+	}
 	return true;
 }
 
@@ -41,10 +44,25 @@ static bool change_section(const char *section, void *ctx_ptr)
 static bool store_keyval_pair(const char *key, const char *value, void *ctx_ptr)
 {
 	struct gp_inifile_context *ctx = (struct gp_inifile_context *) ctx_ptr;
+
 	ctx->data = talloc_realloc(ctx, ctx->data, struct keyval_pair *, ctx->keyval_count+1);
+	if (!ctx->data) {
+		return false;
+	}
+
 	ctx->data[ctx->keyval_count] = talloc_zero(ctx, struct keyval_pair);
+	if (!ctx->data[ctx->keyval_count]) {
+		return false;
+	}
+
 	ctx->data[ctx->keyval_count]->key = talloc_asprintf(ctx, "%s:%s", ctx->current_section, key);
 	ctx->data[ctx->keyval_count]->val = talloc_strdup(ctx, value);
+
+	if (!ctx->data[ctx->keyval_count]->key ||
+	    !ctx->data[ctx->keyval_count]->val) {
+		return false;
+	}
+
 	ctx->keyval_count++;
 	return true;
 }
@@ -138,7 +156,9 @@ NTSTATUS gp_inifile_getstring(struct gp_inifile_context *ctx, const char *key, c
 
 	for (i = 0; i < ctx->keyval_count; i++) {
 		if (strcmp(ctx->data[i]->key, key) == 0) {
-			*ret = ctx->data[i]->val;
+			if (ret) {
+				*ret = ctx->data[i]->val;
+			}
 			return NT_STATUS_OK;
 		}
 	}
@@ -158,8 +178,38 @@ NTSTATUS gp_inifile_getint(struct gp_inifile_context *ctx, const char *key, int 
 		return result;
 	}
 
-	*ret = (int)strtol(value, NULL, 10);
+	if (ret) {
+		*ret = (int)strtol(value, NULL, 10);
+	}
 	return NT_STATUS_OK;
+}
+
+/****************************************************************
+****************************************************************/
+
+NTSTATUS gp_inifile_getbool(struct gp_inifile_context *ctx, const char *key, bool *ret)
+{
+	char *value;
+	NTSTATUS result;
+
+	result = gp_inifile_getstring(ctx,key, &value);
+	if (!NT_STATUS_IS_OK(result)) {
+		return result;
+	}
+
+	if (strequal(value, "Yes")) {
+		if (ret) {
+			*ret = true;
+		}
+		return NT_STATUS_OK;
+	} else if (strequal(value, "No")) {
+		if (ret) {
+			*ret = false;
+		}
+		return NT_STATUS_OK;
+	}
+
+	return NT_STATUS_NOT_FOUND;
 }
 
 /****************************************************************

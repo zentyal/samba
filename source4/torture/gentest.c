@@ -221,7 +221,8 @@ static bool connect_servers(struct tevent_context *ev,
 
 			printf("Connecting to \\\\%s\\%s as %s - instance %d\n",
 			       servers[i].server_name, servers[i].share_name, 
-			       servers[i].credentials->username, j);
+			       cli_credentials_get_username(servers[i].credentials),
+			       j);
 
 			cli_credentials_set_workstation(servers[i].credentials, 
 							"gentest", CRED_SPECIFIED);
@@ -3068,9 +3069,17 @@ static bool start_gentest(struct tevent_context *ev,
 
 	/* allocate the open_handles array */
 	open_handles = calloc(options.max_open_handles, sizeof(open_handles[0]));
+	if (open_handles == NULL) {
+		printf("Unable to allocate memory for open_handles array.\n");
+		exit(1);
+	}
 
 	srandom(options.seed);
 	op_parms = calloc(options.numops, sizeof(op_parms[0]));
+	if (op_parms == NULL) {
+		printf("Unable to allocate memory for op_parms.\n");
+		exit(1);
+	}
 
 	/* generate the seeds - after this everything is deterministic */
 	if (options.use_preset_seeds) {
@@ -3146,7 +3155,7 @@ static bool split_unc_name(const char *unc, char **server, char **share)
 /****************************************************************************
   main program
 ****************************************************************************/
- int main(int argc, char *argv[])
+int main(int argc, const char *argv[])
 {
 	int opt;
 	int i, username_count=0;
@@ -3194,7 +3203,7 @@ static bool split_unc_name(const char *unc, char **server, char **share)
 	options.max_open_handles = 20;
 	options.seeds_file = "gentest_seeds.dat";
 
-	pc = poptGetContext("gentest", argc, (const char **) argv, long_options, 
+	pc = poptGetContext("gentest", argc, argv, long_options,
 			    POPT_CONTEXT_KEEP_FIRST);
 
 	poptSetOtherOptionHelp(pc, "<unc1> <unc2>");

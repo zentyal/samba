@@ -32,15 +32,27 @@ struct db_cache_ctx {
 
 static bool dbwrap_cache_validate(struct db_cache_ctx *ctx)
 {
-	if (ctx->seqnum == dbwrap_get_seqnum(ctx->backing)) {
+	int backing_seqnum;
+
+	backing_seqnum = dbwrap_get_seqnum(ctx->backing);
+	if (backing_seqnum == ctx->seqnum) {
 		return true;
 	}
+
 	TALLOC_FREE(ctx->positive);
 	ctx->positive = db_open_rbt(ctx);
+	if (ctx->positive == NULL) {
+		return false;
+	}
+
 	TALLOC_FREE(ctx->negative);
 	ctx->negative = db_open_rbt(ctx);
+	if (ctx->negative == NULL) {
+		return false;
+	}
 
-	return ((ctx->positive != NULL) && (ctx->negative != NULL));
+	ctx->seqnum = backing_seqnum;
+	return true;
 }
 
 static NTSTATUS dbwrap_cache_parse_record(
@@ -57,12 +69,12 @@ static NTSTATUS dbwrap_cache_parse_record(
 		return NT_STATUS_NO_MEMORY;
 	}
 
+	if (dbwrap_exists(ctx->negative, key)) {
+		return NT_STATUS_NOT_FOUND;
+	}
 	status = dbwrap_parse_record(ctx->positive, key, parser, private_data);
 	if (NT_STATUS_IS_OK(status)) {
 		return status;
-	}
-	if (dbwrap_exists(ctx->negative, key)) {
-		return NT_STATUS_NOT_FOUND;
 	}
 
 	status = dbwrap_fetch(ctx->backing, talloc_tos(), key, &value);

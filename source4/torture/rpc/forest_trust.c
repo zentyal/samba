@@ -592,12 +592,13 @@ static bool test_validate_trust(struct torture_context *tctx,
 	NTSTATUS status;
 	struct cli_credentials *credentials;
 	struct dcerpc_binding *b;
-	struct dcerpc_pipe *pipe;
+	struct dcerpc_pipe *p;
 
 	struct netr_GetForestTrustInformation fr;
 	struct lsa_ForestTrustInformation *forest_trust_info;
 	int i;
 	struct samr_Password nt_hash;
+	char *dummy;
 
 	status = dcerpc_parse_binding(tctx, binding, &b);
 	torture_assert_ntstatus_ok(tctx, status, "Bad binding string");
@@ -607,7 +608,7 @@ static bool test_validate_trust(struct torture_context *tctx,
 		return false;
 	}
 
-	char *dummy = talloc_asprintf(tctx, "%s$", trusted_dom_name);
+	dummy = talloc_asprintf(tctx, "%s$", trusted_dom_name);
 	cli_credentials_set_username(credentials, dummy,
 				     CRED_SPECIFIED);
 	cli_credentials_set_domain(credentials, trusting_dom_name,
@@ -619,7 +620,7 @@ static bool test_validate_trust(struct torture_context *tctx,
 					trusted_dom_name, CRED_SPECIFIED);
 	cli_credentials_set_secure_channel_type(credentials, SEC_CHAN_DOMAIN);
 
-	status = dcerpc_pipe_connect_b(tctx, &pipe, b,
+	status = dcerpc_pipe_connect_b(tctx, &p, b,
 				       &ndr_table_netlogon, credentials,
 				       tctx->ev, tctx->lp_ctx);
 
@@ -631,7 +632,7 @@ static bool test_validate_trust(struct torture_context *tctx,
 		return false;
 	}
 
-	if (!test_SetupCredentials3(pipe, tctx, NETLOGON_NEG_AUTH2_ADS_FLAGS | NETLOGON_NEG_SUPPORTS_AES,
+	if (!test_SetupCredentials3(p, tctx, NETLOGON_NEG_AUTH2_ADS_FLAGS | NETLOGON_NEG_SUPPORTS_AES,
 				    credentials, &creds)) {
 		torture_comment(tctx, "test_SetupCredentials3 failed.\n");
 		return false;
@@ -640,7 +641,7 @@ static bool test_validate_trust(struct torture_context *tctx,
 	netlogon_creds_client_authenticator(creds, &a);
 
 	r.in.server_name = talloc_asprintf(tctx, "\\\\%s",
-					   dcerpc_server_name(pipe));
+					   dcerpc_server_name(p));
 	r.in.account_name = talloc_asprintf(tctx, "%s$", trusted_dom_name);
 	r.in.secure_channel_type = cli_credentials_get_secure_channel_type(credentials);
 	r.in.computer_name = trusted_dom_name;
@@ -652,7 +653,7 @@ static bool test_validate_trust(struct torture_context *tctx,
 	r.out.trust_info = &trust_info;
 
 	torture_assert_ntstatus_ok(tctx,
-				   dcerpc_netr_ServerGetTrustInfo_r(pipe->binding_handle, tctx, &r),
+				   dcerpc_netr_ServerGetTrustInfo_r(p->binding_handle, tctx, &r),
 				   "ServerGetTrustInfo failed");
 	torture_assert_ntstatus_ok(tctx, r.out.result,
 				   "ServerGetTrustInfo failed");
@@ -684,7 +685,7 @@ static bool test_validate_trust(struct torture_context *tctx,
 	netlogon_creds_client_authenticator(creds, &a);
 
 	fr.in.server_name = talloc_asprintf(tctx, "\\\\%s",
-					    dcerpc_server_name(pipe));
+					    dcerpc_server_name(p));
 	fr.in.computer_name = trusted_dom_name;
 	fr.in.credential = &a;
 	fr.in.flags = 0;
@@ -692,7 +693,7 @@ static bool test_validate_trust(struct torture_context *tctx,
 	fr.out.forest_trust_info = &forest_trust_info;
 
 	torture_assert_ntstatus_ok(tctx,
-				   dcerpc_netr_GetForestTrustInformation_r(pipe->binding_handle, tctx, &fr),
+				   dcerpc_netr_GetForestTrustInformation_r(p->binding_handle, tctx, &fr),
 				   "netr_GetForestTrustInformation failed");
 	if (NT_STATUS_IS_ERR(fr.out.result)) {
 		torture_comment(tctx,

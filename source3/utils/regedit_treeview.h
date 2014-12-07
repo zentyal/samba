@@ -22,7 +22,6 @@
 
 #include "includes.h"
 #include <ncurses.h>
-#include <menu.h>
 #include <panel.h>
 
 struct registry_key;
@@ -30,7 +29,6 @@ struct registry_key;
 struct tree_node {
 
 	char *name;
-	char *label;
 	struct registry_key *key;
 
 	struct tree_node *parent;
@@ -39,34 +37,53 @@ struct tree_node {
 	struct tree_node *next;
 };
 
+struct multilist;
+
 struct tree_view {
 
 	struct tree_node *root;
 	WINDOW *window;
+	WINDOW *sub;
 	PANEL *panel;
-	MENU *menu;
-	ITEM **current_items;
-	ITEM *empty[2];
+	struct multilist *list;
 };
+
+struct registry_context;
 
 struct tree_node *tree_node_new(TALLOC_CTX *ctx, struct tree_node *parent,
 				const char *name, struct registry_key *key);
+struct tree_node *tree_node_new_root(TALLOC_CTX *ctx,
+				     struct registry_context *regctx);
+#define tree_node_is_root(node) ((node)->key == NULL)
+#define tree_node_is_top_level(node) tree_node_is_root((node)->parent)
 void tree_node_append(struct tree_node *left, struct tree_node *right);
 struct tree_node *tree_node_pop(struct tree_node **plist);
 struct tree_node *tree_node_first(struct tree_node *list);
 struct tree_node *tree_node_last(struct tree_node *list);
+bool tree_node_next(struct tree_node **node, bool depth, WERROR *err);
+bool tree_node_prev(struct tree_node **node, bool depth, WERROR *err);
 void tree_node_append_last(struct tree_node *list, struct tree_node *node);
-void tree_node_free_recursive(struct tree_node *list);
 size_t tree_node_print_path(WINDOW *label, struct tree_node *node);
+const char **tree_node_get_path(TALLOC_CTX *ctx, struct tree_node *node);
 struct tree_view *tree_view_new(TALLOC_CTX *ctx, struct tree_node *root,
 				int nlines, int ncols,
 				int begin_y, int begin_x);
+void tree_view_set_selected(struct tree_view *view, bool select);
 void tree_view_resize(struct tree_view *view, int nlines, int ncols,
 			     int begin_y, int begin_x);
 void tree_view_show(struct tree_view *view);
 void tree_view_clear(struct tree_view *view);
+WERROR tree_view_set_root(struct tree_view *view, struct tree_node *root);
+WERROR tree_view_set_path(struct tree_view *view, const char **path);
 WERROR tree_view_update(struct tree_view *view, struct tree_node *list);
+WERROR tree_node_reopen_key(struct registry_context *ctx,
+			    struct tree_node *node);
 bool tree_node_has_children(struct tree_node *node);
 WERROR tree_node_load_children(struct tree_node *node);
+void tree_node_insert_sorted(struct tree_node *list, struct tree_node *node);
+bool tree_view_is_node_visible(struct tree_view *view, struct tree_node *node);
+void tree_view_set_current_node(struct tree_view *view, struct tree_node *node);
+struct tree_node *tree_view_get_current_node(struct tree_view *view);
+void tree_view_driver(struct tree_view *view, int c);
 
 #endif

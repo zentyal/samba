@@ -551,7 +551,6 @@ _PUBLIC_ void strupper_m(char *s)
 bool strupper_m(char *s)
 {
 	size_t len;
-	int errno_save;
 	bool ret = false;
 
 	/* this is quite a common operation, so we want it to be
@@ -570,14 +569,11 @@ bool strupper_m(char *s)
 	/* I assume that lowercased string takes the same number of bytes
 	 * as source string even in multibyte encoding. (VIV) */
 	len = strlen(s) + 1;
-	errno_save = errno;
-	errno = 0;
 	ret = unix_strupper(s,len,s,len);
 	/* Catch mb conversion errors that may not terminate. */
-	if (errno) {
+	if (!ret) {
 		s[len-1] = '\0';
 	}
-	errno = errno_save;
 	return ret;
 }
 
@@ -1227,70 +1223,41 @@ char *escape_shell_string(const char *src)
 	return ret;
 }
 
-/***************************************************
- str_list_make, v3 version. The v4 version does not
- look at quoted strings with embedded blanks, so
- do NOT merge this function please!
-***************************************************/
+/*
+ * This routine improves performance for operations temporarily acting on a
+ * full path. It is equivalent to the much more expensive
+ *
+ * talloc_asprintf(talloc_tos(), "%s/%s", dir, name)
+ *
+ * This actually does make a difference in metadata-heavy workloads (i.e. the
+ * "standard" client.txt nbench run.
+ */
 
-#define S_LIST_ABS 16 /* List Allocation Block Size */
-
-char **str_list_make_v3(TALLOC_CTX *mem_ctx, const char *string,
-	const char *sep)
+ssize_t full_path_tos(const char *dir, const char *name,
+		      char *tmpbuf, size_t tmpbuf_len,
+		      char **pdst, char **to_free)
 {
-	char **list;
-	const char *str;
-	char *s, *tok;
-	int num, lsize;
+	size_t dirlen, namelen, len;
+	char *dst;
 
-	if (!string || !*string)
-		return NULL;
+	dirlen = strlen(dir);
+	namelen = strlen(name);
+	len = dirlen + namelen + 1;
 
-	list = talloc_array(mem_ctx, char *, S_LIST_ABS+1);
-	if (list == NULL) {
-		return NULL;
-	}
-	lsize = S_LIST_ABS;
-
-	s = talloc_strdup(list, string);
-	if (s == NULL) {
-		DEBUG(0,("str_list_make: Unable to allocate memory"));
-		TALLOC_FREE(list);
-		return NULL;
-	}
-	if (!sep) sep = LIST_SEP;
-
-	num = 0;
-	str = s;
-
-	while (next_token_talloc(list, &str, &tok, sep)) {
-
-		if (num == lsize) {
-			char **tmp;
-
-			lsize += S_LIST_ABS;
-
-			tmp = talloc_realloc(mem_ctx, list, char *,
-						   lsize + 1);
-			if (tmp == NULL) {
-				DEBUG(0,("str_list_make: "
-					"Unable to allocate memory"));
-				TALLOC_FREE(list);
-				return NULL;
-			}
-
-			list = tmp;
-
-			memset (&list[num], 0,
-				((sizeof(char*)) * (S_LIST_ABS +1)));
+	if (len < tmpbuf_len) {
+		dst = tmpbuf;
+		*to_free = NULL;
+	} else {
+		dst = talloc_array(talloc_tos(), char, len+1);
+		if (dst == NULL) {
+			return -1;
 		}
-
-		list[num] = tok;
-		num += 1;
+		*to_free = dst;
 	}
 
-	list[num] = NULL;
-
-	TALLOC_FREE(s);
-	return list;
+	memcpy(dst, dir, dirlen);
+	dst[dirlen] = '/';
+	memcpy(dst+dirlen+1, name, namelen+1);
+	*pdst = dst;
+	return len;
 }

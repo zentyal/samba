@@ -265,7 +265,7 @@ static bool spoolss_child_init(struct tevent_context *ev_ctx,
 {
 	NTSTATUS status;
 	struct rpc_srv_callbacks spoolss_cb;
-	struct messaging_context *msg_ctx = messaging_init(NULL, ev_ctx);
+	struct messaging_context *msg_ctx = server_messaging_context();
 	bool ok;
 
 	status = reinit_after_fork(msg_ctx, ev_ctx,
@@ -350,7 +350,7 @@ static int spoolss_children_main(struct tevent_context *ev_ctx,
 {
 	struct spoolss_children_data *data;
 	bool ok;
-	int ret;
+	int ret = 0;
 
 	ok = spoolss_child_init(ev_ctx, child_id, pf);
 	if (!ok) {

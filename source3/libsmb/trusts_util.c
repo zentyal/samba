@@ -20,94 +20,15 @@
 
 #include "includes.h"
 #include "../libcli/auth/libcli_auth.h"
+#include "../libcli/auth/netlogon_creds_cli.h"
 #include "rpc_client/cli_netlogon.h"
 #include "rpc_client/cli_pipe.h"
 #include "../librpc/gen_ndr/ndr_netlogon.h"
 #include "secrets.h"
 #include "passdb.h"
 #include "libsmb/libsmb.h"
-
-/*********************************************************
- Change the domain password on the PDC.
- Store the password ourselves, but use the supplied password
- Caller must have already setup the connection to the NETLOGON pipe
-**********************************************************/
-
-NTSTATUS trust_pw_change_and_store_it(struct rpc_pipe_client *cli, TALLOC_CTX *mem_ctx, 
-				      const char *domain,
-				      const char *account_name,
-				      unsigned char orig_trust_passwd_hash[16],
-				      enum netr_SchannelType sec_channel_type)
-{
-	unsigned char new_trust_passwd_hash[16];
-	char *new_trust_passwd;
-	NTSTATUS nt_status;
-
-	switch (sec_channel_type) {
-	case SEC_CHAN_WKSTA:
-	case SEC_CHAN_DOMAIN:
-		break;
-	default:
-		return NT_STATUS_NOT_SUPPORTED;
-	}
-
-	/* Create a random machine account password */
-	new_trust_passwd = generate_random_password(mem_ctx,
-				DEFAULT_TRUST_ACCOUNT_PASSWORD_LENGTH,
-				DEFAULT_TRUST_ACCOUNT_PASSWORD_LENGTH);
-	if (new_trust_passwd == NULL) {
-		DEBUG(0, ("generate_random_password failed\n"));
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	E_md4hash(new_trust_passwd, new_trust_passwd_hash);
-
-	nt_status = rpccli_netlogon_set_trust_password(cli, mem_ctx,
-						       account_name,
-						       orig_trust_passwd_hash,
-						       new_trust_passwd,
-						       new_trust_passwd_hash,
-						       sec_channel_type);
-
-	if (NT_STATUS_IS_OK(nt_status)) {
-		DEBUG(3,("%s : trust_pw_change_and_store_it: Changed password.\n", 
-			 current_timestring(talloc_tos(), False)));
-		/*
-		 * Return the result of trying to write the new password
-		 * back into the trust account file.
-		 */
-
-		switch (sec_channel_type) {
-
-		case SEC_CHAN_WKSTA:
-			if (!secrets_store_machine_password(new_trust_passwd, domain, sec_channel_type)) {
-				nt_status = NT_STATUS_UNSUCCESSFUL;
-			}
-			break;
-
-		case SEC_CHAN_DOMAIN: {
-			char *pwd;
-			struct dom_sid sid;
-			time_t pass_last_set_time;
-
-			/* we need to get the sid first for the
-			 * pdb_set_trusteddom_pw call */
-
-			if (!pdb_get_trusteddom_pw(domain, &pwd, &sid, &pass_last_set_time)) {
-				nt_status = NT_STATUS_TRUSTED_RELATIONSHIP_FAILURE;
-			}
-			if (!pdb_set_trusteddom_pw(domain, new_trust_passwd, &sid)) {
-				nt_status = NT_STATUS_INTERNAL_DB_CORRUPTION;
-			}
-			break;
-		}
-		default:
-			break;
-		}
-	}
-
-	return nt_status;
-}
+#include "source3/include/messages.h"
+#include "source3/include/g_lock.h"
 
 /*********************************************************
  Change the domain password on the PDC.
@@ -115,95 +36,179 @@ NTSTATUS trust_pw_change_and_store_it(struct rpc_pipe_client *cli, TALLOC_CTX *m
  already setup the connection to the NETLOGON pipe
 **********************************************************/
 
-NTSTATUS trust_pw_find_change_and_store_it(struct rpc_pipe_client *cli, 
-					   TALLOC_CTX *mem_ctx, 
-					   const char *domain) 
+struct trust_pw_change_state {
+	struct g_lock_ctx *g_ctx;
+	char *g_lock_key;
+};
+
+static int trust_pw_change_state_destructor(struct trust_pw_change_state *state)
 {
-	unsigned char old_trust_passwd_hash[16];
-	enum netr_SchannelType sec_channel_type = SEC_CHAN_NULL;
-	const char *account_name;
-
-	if (!get_trust_pw_hash(domain, old_trust_passwd_hash, &account_name,
-			       &sec_channel_type)) {
-		DEBUG(0, ("could not fetch domain secrets for domain %s!\n", domain));
-		return NT_STATUS_UNSUCCESSFUL;
-	}
-
-	return trust_pw_change_and_store_it(cli, mem_ctx, domain,
-					    account_name,
-					    old_trust_passwd_hash,
-					    sec_channel_type);
+	g_lock_unlock(state->g_ctx, state->g_lock_key);
+	return 0;
 }
 
-NTSTATUS change_trust_account_password( const char *domain, const char *remote_machine)
+NTSTATUS trust_pw_change(struct netlogon_creds_cli_context *context,
+			 struct messaging_context *msg_ctx,
+			 struct dcerpc_binding_handle *b,
+			 const char *domain,
+			 bool force)
 {
-	NTSTATUS nt_status = NT_STATUS_UNSUCCESSFUL;
-	struct sockaddr_storage pdc_ss;
-	fstring dc_name;
-	struct cli_state *cli = NULL;
-	struct rpc_pipe_client *netlogon_pipe = NULL;
+	TALLOC_CTX *frame = talloc_stackframe();
+	struct trust_pw_change_state *state;
+	struct samr_Password current_nt_hash;
+	const struct samr_Password *previous_nt_hash = NULL;
+	enum netr_SchannelType sec_channel_type = SEC_CHAN_NULL;
+	const char *account_name;
+	char *new_trust_passwd;
+	char *pwd;
+	struct dom_sid sid;
+	time_t pass_last_set_time;
+	struct timeval g_timeout = { 0, };
+	int timeout = 0;
+	struct timeval tv = { 0, };
+	NTSTATUS status;
 
-	DEBUG(5,("change_trust_account_password: Attempting to change trust account password in domain %s....\n",
-		domain));
+	state = talloc_zero(frame, struct trust_pw_change_state);
+	if (state == NULL) {
+		TALLOC_FREE(frame);
+		return NT_STATUS_NO_MEMORY;
+	}
 
-	if (remote_machine == NULL || !strcmp(remote_machine, "*")) {
-		/* Use the PDC *only* for this */
+	state->g_ctx = g_lock_ctx_init(state, msg_ctx);
+	if (state->g_ctx == NULL) {
+		TALLOC_FREE(frame);
+		return NT_STATUS_NO_MEMORY;
+	}
 
-		if ( !get_pdc_ip(domain, &pdc_ss) ) {
-			DEBUG(0,("Can't get IP for PDC for domain %s\n", domain));
-			goto failed;
+	state->g_lock_key = talloc_asprintf(state,
+				"trust_password_change_%s",
+				domain);
+	if (state->g_lock_key == NULL) {
+		TALLOC_FREE(frame);
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	g_timeout = timeval_current_ofs(10, 0);
+	status = g_lock_lock(state->g_ctx,
+			     state->g_lock_key,
+			     G_LOCK_WRITE, g_timeout);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(1, ("could not get g_lock on [%s]!\n",
+			  state->g_lock_key));
+		TALLOC_FREE(frame);
+		return status;
+	}
+
+	talloc_set_destructor(state, trust_pw_change_state_destructor);
+
+	if (!get_trust_pw_hash(domain, current_nt_hash.hash,
+			       &account_name,
+			       &sec_channel_type)) {
+		DEBUG(0, ("could not fetch domain secrets for domain %s!\n", domain));
+		TALLOC_FREE(frame);
+		return NT_STATUS_TRUSTED_RELATIONSHIP_FAILURE;
+	}
+
+	switch (sec_channel_type) {
+	case SEC_CHAN_WKSTA:
+		pwd = secrets_fetch_machine_password(domain,
+						     &pass_last_set_time,
+						     NULL);
+		if (pwd == NULL) {
+			TALLOC_FREE(frame);
+			return NT_STATUS_TRUSTED_RELATIONSHIP_FAILURE;
 		}
-
-		if ( !name_status_find( domain, 0x1b, 0x20, &pdc_ss, dc_name) )
-			goto failed;
-	} else {
-		/* supoport old deprecated "smbpasswd -j DOMAIN -r MACHINE" behavior */
-		fstrcpy( dc_name, remote_machine );
+		free(pwd);
+		break;
+	case SEC_CHAN_DOMAIN:
+		if (!pdb_get_trusteddom_pw(domain, &pwd, &sid, &pass_last_set_time)) {
+			TALLOC_FREE(frame);
+			return NT_STATUS_TRUSTED_RELATIONSHIP_FAILURE;
+		}
+		break;
+	default:
+		TALLOC_FREE(frame);
+		return NT_STATUS_NOT_SUPPORTED;
 	}
 
-	/* if this next call fails, then give up.  We can't do
-	   password changes on BDC's  --jerry */
-
-	if (!NT_STATUS_IS_OK(cli_full_connection(&cli, lp_netbios_name(), dc_name,
-					   NULL, 0,
-					   "IPC$", "IPC",
-					   "", "",
-					   "", 0, SMB_SIGNING_DEFAULT))) {
-		DEBUG(0,("modify_trust_password: Connection to %s failed!\n", dc_name));
-		nt_status = NT_STATUS_UNSUCCESSFUL;
-		goto failed;
+	timeout = lp_machine_password_timeout();
+	if (timeout == 0) {
+		if (!force) {
+			DEBUG(10,("machine password never expires\n"));
+			TALLOC_FREE(frame);
+			return NT_STATUS_OK;
+		}
 	}
+
+	tv.tv_sec = pass_last_set_time;
+	DEBUG(10, ("password last changed %s\n",
+		   timeval_string(talloc_tos(), &tv, false)));
+	tv.tv_sec += timeout;
+	DEBUGADD(10, ("password valid until %s\n",
+		      timeval_string(talloc_tos(), &tv, false)));
+
+	if (!force && !timeval_expired(&tv)) {
+		TALLOC_FREE(frame);
+		return NT_STATUS_OK;
+	}
+
+	/* Create a random machine account password */
+	new_trust_passwd = generate_random_password(frame,
+				DEFAULT_TRUST_ACCOUNT_PASSWORD_LENGTH,
+				DEFAULT_TRUST_ACCOUNT_PASSWORD_LENGTH);
+	if (new_trust_passwd == NULL) {
+		DEBUG(0, ("generate_random_password failed\n"));
+		TALLOC_FREE(frame);
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	status = netlogon_creds_cli_auth(context, b,
+					 current_nt_hash,
+					 previous_nt_hash);
+	if (!NT_STATUS_IS_OK(status)) {
+		TALLOC_FREE(frame);
+		return status;
+	}
+
+	status = netlogon_creds_cli_ServerPasswordSet(context, b,
+						      new_trust_passwd, NULL);
+	if (!NT_STATUS_IS_OK(status)) {
+		TALLOC_FREE(frame);
+		return status;
+	}
+
+	DEBUG(3,("%s : trust_pw_change_and_store_it: Changed password.\n",
+		 current_timestring(talloc_tos(), False)));
 
 	/*
-	 * Ok - we have an anonymous connection to the IPC$ share.
-	 * Now start the NT Domain stuff :-).
+	 * Return the result of trying to write the new password
+	 * back into the trust account file.
 	 */
 
-	/* Shouldn't we open this with schannel ? JRA. */
+	switch (sec_channel_type) {
 
-	nt_status = cli_rpc_pipe_open_noauth(
-		cli, &ndr_table_netlogon.syntax_id, &netlogon_pipe);
-	if (!NT_STATUS_IS_OK(nt_status)) {
-		DEBUG(0,("modify_trust_password: unable to open the domain client session to machine %s. Error was : %s.\n",
-			dc_name, nt_errstr(nt_status)));
-		cli_shutdown(cli);
-		cli = NULL;
-		goto failed;
+	case SEC_CHAN_WKSTA:
+		if (!secrets_store_machine_password(new_trust_passwd, domain, sec_channel_type)) {
+			TALLOC_FREE(frame);
+			return NT_STATUS_INTERNAL_DB_CORRUPTION;
+		}
+		break;
+
+	case SEC_CHAN_DOMAIN:
+		/*
+		 * we need to get the sid first for the
+		 * pdb_set_trusteddom_pw call
+		 */
+		if (!pdb_set_trusteddom_pw(domain, new_trust_passwd, &sid)) {
+			TALLOC_FREE(frame);
+			return NT_STATUS_INTERNAL_DB_CORRUPTION;
+		}
+		break;
+
+	default:
+		break;
 	}
 
-	nt_status = trust_pw_find_change_and_store_it(
-		netlogon_pipe, netlogon_pipe, domain);
-
-	cli_shutdown(cli);
-	cli = NULL;
-
-failed:
-	if (!NT_STATUS_IS_OK(nt_status)) {
-		DEBUG(0,("%s : change_trust_account_password: Failed to change password for domain %s.\n",
-			current_timestring(talloc_tos(), False), domain));
-	}
-	else
-		DEBUG(5,("change_trust_account_password: sucess!\n"));
-
-	return nt_status;
+	TALLOC_FREE(frame);
+	return NT_STATUS_OK;
 }

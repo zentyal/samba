@@ -24,6 +24,7 @@
 #include "../libcli/security/security.h"
 #include "rpc_client/util_netlogon.h"
 #include "nsswitch/libwbclient/wbclient.h"
+#include "lib/winbind_util.h"
 #include "passdb.h"
 
 #undef DBGC_CLASS
@@ -252,6 +253,83 @@ static NTSTATUS group_sids_to_info3(struct netr_SamInfo3 *info3,
 	return NT_STATUS_OK;
 }
 
+/*
+ * Merge resource SIDs, if any, into the passed in info3 structure.
+ */
+
+static NTSTATUS merge_resource_sids(const struct PAC_LOGON_INFO *logon_info,
+				struct netr_SamInfo3 *info3)
+{
+	uint32_t i = 0;
+
+	if (!(logon_info->info3.base.user_flags & NETLOGON_RESOURCE_GROUPS)) {
+		return NT_STATUS_OK;
+	}
+
+	/*
+	 * If there are any resource groups (SID Compression) add
+	 * them to the extra sids portion of the info3 in the PAC.
+	 *
+	 * This makes the info3 look like it would if we got the info
+	 * from the DC rather than the PAC.
+	 */
+
+	/*
+	 * Construct a SID for each RID in the list and then append it
+	 * to the info3.
+	 */
+	for (i = 0; i < logon_info->res_groups.count; i++) {
+		NTSTATUS status;
+		struct dom_sid new_sid;
+		uint32_t attributes = logon_info->res_groups.rids[i].attributes;
+
+		sid_compose(&new_sid,
+			logon_info->res_group_dom_sid,
+			logon_info->res_groups.rids[i].rid);
+
+		DEBUG(10, ("Adding SID %s to extra SIDS\n",
+			sid_string_dbg(&new_sid)));
+
+		status = append_netr_SidAttr(info3, &info3->sids,
+					&info3->sidcount,
+					&new_sid,
+					attributes);
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(1, ("failed to append SID %s to extra SIDS: %s\n",
+				sid_string_dbg(&new_sid),
+				nt_errstr(status)));
+			return status;
+		}
+	}
+
+	return NT_STATUS_OK;
+}
+
+/*
+ * Create a copy of an info3 struct from the struct PAC_LOGON_INFO,
+ * then merge resource SIDs, if any, into it. If successful return
+ * the created info3 struct.
+ */
+
+NTSTATUS create_info3_from_pac_logon_info(TALLOC_CTX *mem_ctx,
+					const struct PAC_LOGON_INFO *logon_info,
+					struct netr_SamInfo3 **pp_info3)
+{
+	NTSTATUS status;
+	struct netr_SamInfo3 *info3 = copy_netr_SamInfo3(mem_ctx,
+					&logon_info->info3);
+	if (info3 == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	status = merge_resource_sids(logon_info, info3);
+	if (!NT_STATUS_IS_OK(status)) {
+		TALLOC_FREE(info3);
+		return status;
+	}
+	*pp_info3 = info3;
+	return NT_STATUS_OK;
+}
+
 #define RET_NOMEM(ptr) do { \
 	if (!ptr) { \
 		TALLOC_FREE(info3); \
@@ -436,6 +514,140 @@ NTSTATUS samu_to_SamInfo3(TALLOC_CTX *mem_ctx,
 	return NT_STATUS_OK;
 }
 
+NTSTATUS passwd_to_SamInfo3(TALLOC_CTX *mem_ctx,
+			    const char *unix_username,
+			    const struct passwd *pwd,
+			    struct netr_SamInfo3 **pinfo3)
+{
+	struct netr_SamInfo3 *info3;
+	NTSTATUS status;
+	TALLOC_CTX *tmp_ctx;
+	const char *domain_name = NULL;
+	const char *user_name = NULL;
+	struct dom_sid domain_sid;
+	struct dom_sid user_sid;
+	struct dom_sid group_sid;
+	enum lsa_SidType type;
+	uint32_t num_sids = 0;
+	struct dom_sid *user_sids = NULL;
+	bool is_null;
+	bool ok;
+
+	tmp_ctx = talloc_stackframe();
+
+	ok = lookup_name_smbconf(tmp_ctx,
+				 unix_username,
+				 LOOKUP_NAME_ALL,
+				 &domain_name,
+				 &user_name,
+				 &user_sid,
+				 &type);
+	if (!ok) {
+		status = NT_STATUS_NO_SUCH_USER;
+		goto done;
+	}
+
+	if (type != SID_NAME_USER) {
+		status = NT_STATUS_NO_SUCH_USER;
+		goto done;
+	}
+
+	ok = winbind_lookup_usersids(tmp_ctx,
+				     &user_sid,
+				     &num_sids,
+				     &user_sids);
+	/* Check if winbind is running */
+	if (ok) {
+		/*
+		 * Winbind is running and the first element of the user_sids
+		 * is the primary group.
+		 */
+		if (num_sids > 0) {
+			group_sid = user_sids[0];
+		}
+	} else {
+		/*
+		 * Winbind is not running, try to create the group_sid from the
+		 * passwd group id.
+		 */
+
+		/*
+		 * This can lead to a primary group of S-1-22-2-XX which
+		 * will be rejected by other Samba code.
+		 */
+		gid_to_sid(&group_sid, pwd->pw_gid);
+
+		ZERO_STRUCT(domain_sid);
+
+		/*
+		 * If we are a unix group, set the group_sid to the
+		 * 'Domain Users' RID of 513 which will always resolve to a
+		 * name.
+		 */
+		if (sid_check_is_in_unix_groups(&group_sid)) {
+			sid_compose(&group_sid,
+				    get_global_sam_sid(),
+				    DOMAIN_RID_USERS);
+		}
+	}
+
+	/* Make sure we have a valid group sid */
+	is_null = is_null_sid(&group_sid);
+	if (is_null) {
+		status = NT_STATUS_NO_SUCH_USER;
+		goto done;
+	}
+
+	/* Construct a netr_SamInfo3 from the information we have */
+	info3 = talloc_zero(tmp_ctx, struct netr_SamInfo3);
+	if (!info3) {
+		status = NT_STATUS_NO_MEMORY;
+		goto done;
+	}
+
+	info3->base.account_name.string = talloc_strdup(info3, unix_username);
+	if (info3->base.account_name.string == NULL) {
+		status = NT_STATUS_NO_MEMORY;
+		goto done;
+	}
+
+	ZERO_STRUCT(domain_sid);
+
+	sid_copy(&domain_sid, &user_sid);
+	sid_split_rid(&domain_sid, &info3->base.rid);
+	info3->base.domain_sid = dom_sid_dup(info3, &domain_sid);
+
+	ok = sid_peek_check_rid(&domain_sid, &group_sid,
+				&info3->base.primary_gid);
+	if (!ok) {
+		DEBUG(1, ("The primary group domain sid(%s) does not "
+			  "match the domain sid(%s) for %s(%s)\n",
+			  sid_string_dbg(&group_sid),
+			  sid_string_dbg(&domain_sid),
+			  unix_username,
+			  sid_string_dbg(&user_sid)));
+		status = NT_STATUS_INVALID_SID;
+		goto done;
+	}
+
+	info3->base.acct_flags = ACB_NORMAL;
+
+	if (num_sids) {
+		status = group_sids_to_info3(info3, user_sids, num_sids);
+		if (!NT_STATUS_IS_OK(status)) {
+			goto done;
+		}
+	}
+
+	*pinfo3 = talloc_steal(mem_ctx, info3);
+
+	status = NT_STATUS_OK;
+done:
+	talloc_free(tmp_ctx);
+
+	return status;
+}
+
 #undef RET_NOMEM
 
 #define RET_NOMEM(ptr) do { \
@@ -445,7 +657,7 @@ NTSTATUS samu_to_SamInfo3(TALLOC_CTX *mem_ctx,
 	} } while(0)
 
 struct netr_SamInfo3 *copy_netr_SamInfo3(TALLOC_CTX *mem_ctx,
-					 struct netr_SamInfo3 *orig)
+					 const struct netr_SamInfo3 *orig)
 {
 	struct netr_SamInfo3 *info3;
 	unsigned int i;
@@ -477,193 +689,3 @@ struct netr_SamInfo3 *copy_netr_SamInfo3(TALLOC_CTX *mem_ctx,
 	return info3;
 }
 
-static NTSTATUS wbcsids_to_samr_RidWithAttributeArray(
-				TALLOC_CTX *mem_ctx,
-				struct samr_RidWithAttributeArray *groups,
-				const struct dom_sid *domain_sid,
-				const struct wbcSidWithAttr *sids,
-				size_t num_sids)
-{
-	unsigned int i, j = 0;
-	bool ok;
-
-	groups->rids = talloc_array(mem_ctx,
-				    struct samr_RidWithAttribute, num_sids);
-	if (!groups->rids) {
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	/* a wbcDomainSid is the same as a dom_sid */
-	for (i = 0; i < num_sids; i++) {
-		ok = sid_peek_check_rid(domain_sid,
-					(const struct dom_sid *)&sids[i].sid,
-					&groups->rids[j].rid);
-		if (!ok) continue;
-
-		groups->rids[j].attributes = SE_GROUP_MANDATORY |
-					     SE_GROUP_ENABLED_BY_DEFAULT |
-					     SE_GROUP_ENABLED;
-		j++;
-	}
-
-	groups->count = j;
-	return NT_STATUS_OK;
-}
-
-static NTSTATUS wbcsids_to_netr_SidAttrArray(
-				const struct dom_sid *domain_sid,
-				const struct wbcSidWithAttr *sids,
-				size_t num_sids,
-				TALLOC_CTX *mem_ctx,
-				struct netr_SidAttr **_info3_sids,
-				uint32_t *info3_num_sids)
-{
-	unsigned int i, j = 0;
-	struct netr_SidAttr *info3_sids;
-
-	info3_sids = talloc_array(mem_ctx, struct netr_SidAttr, num_sids);
-	if (info3_sids == NULL) {
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	/* a wbcDomainSid is the same as a dom_sid */
-	for (i = 0; i < num_sids; i++) {
-		const struct dom_sid *sid;
-
-		sid = (const struct dom_sid *)&sids[i].sid;
-
-		if (dom_sid_in_domain(domain_sid, sid)) {
-			continue;
-		}
-
-		info3_sids[j].sid = dom_sid_dup(info3_sids, sid);
-		if (info3_sids[j].sid == NULL) {
-			talloc_free(info3_sids);
-			return NT_STATUS_NO_MEMORY;
-		}
-		info3_sids[j].attributes = SE_GROUP_MANDATORY |
-					   SE_GROUP_ENABLED_BY_DEFAULT |
-					   SE_GROUP_ENABLED;
-		j++;
-	}
-
-	*info3_num_sids = j;
-	*_info3_sids = info3_sids;
-	return NT_STATUS_OK;
-}
-
-struct netr_SamInfo3 *wbcAuthUserInfo_to_netr_SamInfo3(TALLOC_CTX *mem_ctx,
-					const struct wbcAuthUserInfo *info)
-{
-	struct netr_SamInfo3 *info3;
-	struct dom_sid user_sid;
-	struct dom_sid group_sid;
-	struct dom_sid domain_sid;
-	NTSTATUS status;
-	bool ok;
-
-	memcpy(&user_sid, &info->sids[0].sid, sizeof(user_sid));
-	memcpy(&group_sid, &info->sids[1].sid, sizeof(group_sid));
-
-	info3 = talloc_zero(mem_ctx, struct netr_SamInfo3);
-	if (!info3) return NULL;
-
-	unix_to_nt_time(&info3->base.logon_time, info->logon_time);
-	unix_to_nt_time(&info3->base.logoff_time, info->logoff_time);
-	unix_to_nt_time(&info3->base.kickoff_time, info->kickoff_time);
-	unix_to_nt_time(&info3->base.last_password_change, info->pass_last_set_time);
-	unix_to_nt_time(&info3->base.allow_password_change,
-			info->pass_can_change_time);
-	unix_to_nt_time(&info3->base.force_password_change,
-			info->pass_must_change_time);
-
-	if (info->account_name) {
-		info3->base.account_name.string	=
-				talloc_strdup(info3, info->account_name);
-		RET_NOMEM(info3->base.account_name.string);
-	}
-	if (info->full_name) {
-		info3->base.full_name.string =
-				talloc_strdup(info3, info->full_name);
-		RET_NOMEM(info3->base.full_name.string);
-	}
-	if (info->logon_script) {
-		info3->base.logon_script.string =
-				talloc_strdup(info3, info->logon_script);
-		RET_NOMEM(info3->base.logon_script.string);
-	}
-	if (info->profile_path) {
-		info3->base.profile_path.string	=
-				talloc_strdup(info3, info->profile_path);
-		RET_NOMEM(info3->base.profile_path.string);
-	}
-	if (info->home_directory) {
-		info3->base.home_directory.string =
-				talloc_strdup(info3, info->home_directory);
-		RET_NOMEM(info3->base.home_directory.string);
-	}
-	if (info->home_drive) {
-		info3->base.home_drive.string =
-				talloc_strdup(info3, info->home_drive);
-		RET_NOMEM(info3->base.home_drive.string);
-	}
-
-	info3->base.logon_count	= info->logon_count;
-	info3->base.bad_password_count = info->bad_password_count;
-
-	sid_copy(&domain_sid, &user_sid);
-	sid_split_rid(&domain_sid, &info3->base.rid);
-
-	ok = sid_peek_check_rid(&domain_sid, &group_sid,
-				&info3->base.primary_gid);
-	if (!ok) {
-		DEBUG(1, ("The primary group sid domain does not"
-			  "match user sid domain for user: %s\n",
-			  info->account_name));
-		TALLOC_FREE(info3);
-		return NULL;
-	}
-
-	status = wbcsids_to_samr_RidWithAttributeArray(info3,
-						       &info3->base.groups,
-						       &domain_sid,
-						       &info->sids[1],
-						       info->num_sids - 1);
-	if (!NT_STATUS_IS_OK(status)) {
-		TALLOC_FREE(info3);
-		return NULL;
-	}
-
-	status = wbcsids_to_netr_SidAttrArray(&domain_sid,
-					      &info->sids[1],
-					      info->num_sids - 1,
-					      info3,
-					      &info3->sids,
-					      &info3->sidcount);
-	if (!NT_STATUS_IS_OK(status)) {
-		TALLOC_FREE(info3);
-		return NULL;
-	}
-
-	info3->base.user_flags = info->user_flags;
-	memcpy(info3->base.key.key, info->user_session_key, 16);
-
-	if (info->logon_server) {
-		info3->base.logon_server.string =
-				talloc_strdup(info3, info->logon_server);
-		RET_NOMEM(info3->base.logon_server.string);
-	}
-	if (info->domain_name) {
-		info3->base.logon_domain.string =
-				talloc_strdup(info3, info->domain_name);
-		RET_NOMEM(info3->base.logon_domain.string);
-	}
-
-	info3->base.domain_sid = dom_sid_dup(info3, &domain_sid);
-	RET_NOMEM(info3->base.domain_sid);
-
-	memcpy(info3->base.LMSessKey.key, info->lm_session_key, 8);
-	info3->base.acct_flags = info->acct_flags;
-
-	return info3;
-}

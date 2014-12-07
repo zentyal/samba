@@ -2,12 +2,12 @@
 .\"     Title: vfs_btrfs
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 10/20/2014
+.\"      Date: 10/15/2014
 .\"    Manual: System Administration tools
-.\"    Source: Samba 4.0
+.\"    Source: Samba 4.2
 .\"  Language: English
 .\"
-.TH "VFS_BTRFS" "8" "10/20/2014" "Samba 4\&.0" "System Administration tools"
+.TH "VFS_BTRFS" "8" "10/15/2014" "Samba 4\&.2" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -43,6 +43,8 @@ vfs_btrfs
 VFS module exposes Btrfs specific features for use by Samba\&.
 .PP
 Btrfs allows for multiple files to share the same on\-disk data through the use cloned ranges\&. When an SMB client issues a request to copy duplicate data (via FSCTL_SRV_COPYCHUNK), this module maps the request to a Btrfs clone range IOCTL, instead of performing reads and writes required by a traditional copy\&. Doing so saves storage capacity and greatly reduces disk IO\&.
+.PP
+This module also exposes Btrfs per\-file compression support to SMB clients via the get/set compression fsctls\&.
 .PP
 This module is stackable\&.
 .SH "CONFIGURATION"

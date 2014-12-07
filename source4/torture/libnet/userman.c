@@ -42,7 +42,7 @@ static bool test_useradd(struct torture_context *tctx,
 
 	torture_comment(tctx, "Testing libnet_rpc_useradd\n");
 
-	status = libnet_rpc_useradd(p, mem_ctx, &user);
+	status = libnet_rpc_useradd(tctx->ev, p->binding_handle, mem_ctx, &user);
 	if (!NT_STATUS_IS_OK(status)) {
 		torture_comment(tctx, "Failed to call libnet_rpc_useradd - %s\n", nt_errstr(status));
 		return false;
@@ -65,7 +65,8 @@ static bool test_useradd_async(struct torture_context *tctx,
 
 	torture_comment(tctx, "Testing async libnet_rpc_useradd\n");
 
-	c = libnet_rpc_useradd_send(p, mem_ctx, &user, msg_handler);
+	c = libnet_rpc_useradd_send(mem_ctx, tctx->ev, p->binding_handle,
+				    &user, msg_handler);
 	if (!c) {
 		torture_comment(tctx, "Failed to call async libnet_rpc_useradd\n");
 		return false;
@@ -207,7 +208,7 @@ static bool test_usermod(struct torture_context *tctx, struct dcerpc_pipe *p,
 	}
 	torture_comment(tctx, "]\n");
 
-	status = libnet_rpc_usermod(p, mem_ctx, mod);
+	status = libnet_rpc_usermod(tctx->ev, p->binding_handle, mem_ctx, mod);
 	torture_assert_ntstatus_ok(tctx, status, "Failed to call sync libnet_rpc_usermod");
 
 	return true;
@@ -221,10 +222,12 @@ static bool test_userdel(struct torture_context *tctx,
 	NTSTATUS status;
 	struct libnet_rpc_userdel user;
 
+	ZERO_STRUCT(user);
+
 	user.in.domain_handle = *handle;
 	user.in.username = username;
 
-	status = libnet_rpc_userdel(p, mem_ctx, &user);
+	status = libnet_rpc_userdel(tctx->ev, p->binding_handle, mem_ctx, &user);
 	if (!NT_STATUS_IS_OK(status)) {
 		torture_comment(tctx, "Failed to call sync libnet_rpc_userdel - %s\n", nt_errstr(status));
 		return false;
@@ -284,7 +287,7 @@ static bool test_compare(struct torture_context *tctx,
 	info.in.domain_handle = *handle;
 	info.in.level = 21;             /* the most rich infolevel available */
 
-	status = libnet_rpc_userinfo(p, mem_ctx, &info);
+	status = libnet_rpc_userinfo(tctx->ev, p->binding_handle, mem_ctx, &info);
 	torture_assert_ntstatus_ok(tctx, status, "Failed to call sync libnet_rpc_userinfo");
 
 	i = &info.out.info.info21;

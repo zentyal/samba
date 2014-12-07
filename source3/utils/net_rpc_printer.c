@@ -29,6 +29,8 @@
 #include "../libcli/registry/util_reg.h"
 #include "libsmb/libsmb.h"
 #include "../libcli/smb/smbXcli_base.h"
+#include "auth/gensec/gensec.h"
+#include "auth/credentials/credentials.h"
 
 /* support itanium as well */
 static const struct print_architecture_table_node archi_table[]= {
@@ -704,9 +706,10 @@ static bool net_spoolss_open_printer_ex(struct rpc_pipe_client *pipe_hnd,
 					TALLOC_CTX *mem_ctx,
 					const char *printername,
 					uint32_t access_required,
-					const char *username,
 					struct policy_handle *hnd)
 {
+	struct cli_credentials *creds = gensec_get_credentials(pipe_hnd->auth->auth_ctx);
+	const char *username = cli_credentials_get_username(creds);
 	WERROR result;
 	fstring printername2;
 
@@ -1136,7 +1139,6 @@ static bool get_printer_info(struct rpc_pipe_client *pipe_hnd,
 	/* argument given, get a single printer by name */
 	if (!net_spoolss_open_printer_ex(pipe_hnd, mem_ctx, argv[0],
 					 MAXIMUM_ALLOWED_ACCESS,
-					 pipe_hnd->auth->user_name,
 					 &hnd))
 		return false;
 
@@ -1330,7 +1332,7 @@ static NTSTATUS rpc_printer_publish_internals_args(struct rpc_pipe_client *pipe_
 
 		/* open printer handle */
 		if (!net_spoolss_open_printer_ex(pipe_hnd, mem_ctx, sharename,
-			PRINTER_ALL_ACCESS, pipe_hnd->auth->user_name, &hnd))
+			PRINTER_ALL_ACCESS, &hnd))
 			goto done;
 
 		/* check for existing dst printer */
@@ -1487,7 +1489,7 @@ NTSTATUS rpc_printer_publish_list_internals(struct net_context *c,
 
 		/* open printer handle */
 		if (!net_spoolss_open_printer_ex(pipe_hnd, mem_ctx, sharename,
-			PRINTER_ALL_ACCESS, cli->user_name, &hnd))
+			PRINTER_ALL_ACCESS, &hnd))
 			goto done;
 
 		/* check for existing dst printer */
@@ -1578,7 +1580,7 @@ NTSTATUS rpc_printer_migrate_security_internals(struct net_context *c,
 
 	/* connect destination PI_SPOOLSS */
 	nt_status = connect_dst_pipe(c, &cli_dst, &pipe_hnd_dst,
-				     &ndr_table_spoolss.syntax_id);
+				     &ndr_table_spoolss);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		return nt_status;
 	}
@@ -1623,12 +1625,12 @@ NTSTATUS rpc_printer_migrate_security_internals(struct net_context *c,
 
 		/* open src printer handle */
 		if (!net_spoolss_open_printer_ex(pipe_hnd, mem_ctx, sharename,
-			MAXIMUM_ALLOWED_ACCESS, cli->user_name, &hnd_src))
+			MAXIMUM_ALLOWED_ACCESS, &hnd_src))
 			goto done;
 
 		/* open dst printer handle */
 		if (!net_spoolss_open_printer_ex(pipe_hnd_dst, mem_ctx, sharename,
-			PRINTER_ALL_ACCESS, cli_dst->user_name, &hnd_dst))
+			PRINTER_ALL_ACCESS, &hnd_dst))
 			goto done;
 
 		/* check for existing dst printer */
@@ -1643,7 +1645,17 @@ NTSTATUS rpc_printer_migrate_security_internals(struct net_context *c,
 
 		/* copy secdesc (info level 2) */
 		info_dst.info2.devmode = NULL;
-		info_dst.info2.secdesc = dup_sec_desc(mem_ctx, info_src.info3.secdesc);
+		if (info_src.info3.secdesc == NULL) {
+			info_dst.info2.secdesc = NULL;
+		} else {
+			info_dst.info2.secdesc
+				= security_descriptor_copy(mem_ctx,
+							info_src.info3.secdesc);
+			if (info_dst.info2.secdesc == NULL) {
+				nt_status = NT_STATUS_NO_MEMORY;
+				goto done;
+			}
+		}
 
 		if (c->opt_verbose)
 			display_sec_desc(info_dst.info2.secdesc);
@@ -1730,7 +1742,7 @@ NTSTATUS rpc_printer_migrate_forms_internals(struct net_context *c,
 
 	/* connect destination PI_SPOOLSS */
 	nt_status = connect_dst_pipe(c, &cli_dst, &pipe_hnd_dst,
-				     &ndr_table_spoolss.syntax_id);
+				     &ndr_table_spoolss);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		return nt_status;
 	}
@@ -1769,12 +1781,12 @@ NTSTATUS rpc_printer_migrate_forms_internals(struct net_context *c,
 
 		/* open src printer handle */
 		if (!net_spoolss_open_printer_ex(pipe_hnd, mem_ctx, sharename,
-			MAXIMUM_ALLOWED_ACCESS, cli->user_name, &hnd_src))
+			MAXIMUM_ALLOWED_ACCESS, &hnd_src))
 			goto done;
 
 		/* open dst printer handle */
 		if (!net_spoolss_open_printer_ex(pipe_hnd_dst, mem_ctx, sharename,
-			PRINTER_ALL_ACCESS, cli->user_name, &hnd_dst))
+			PRINTER_ALL_ACCESS, &hnd_dst))
 			goto done;
 
 		/* check for existing dst printer */
@@ -1907,7 +1919,7 @@ NTSTATUS rpc_printer_migrate_drivers_internals(struct net_context *c,
 	DEBUG(3,("copying printer-drivers\n"));
 
 	nt_status = connect_dst_pipe(c, &cli_dst, &pipe_hnd_dst,
-				     &ndr_table_spoolss.syntax_id);
+				     &ndr_table_spoolss);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		return nt_status;
 	}
@@ -1969,7 +1981,7 @@ NTSTATUS rpc_printer_migrate_drivers_internals(struct net_context *c,
 
 		/* open dst printer handle */
 		if (!net_spoolss_open_printer_ex(pipe_hnd_dst, mem_ctx, sharename,
-			PRINTER_ALL_ACCESS, cli->user_name, &hnd_dst))
+			PRINTER_ALL_ACCESS, &hnd_dst))
 			goto done;
 
 		/* check for existing dst printer */
@@ -1980,7 +1992,6 @@ NTSTATUS rpc_printer_migrate_drivers_internals(struct net_context *c,
 		/* open src printer handle */
 		if (!net_spoolss_open_printer_ex(pipe_hnd, mem_ctx, sharename,
 						 MAXIMUM_ALLOWED_ACCESS,
-						 pipe_hnd->auth->user_name,
 						 &hnd_src))
 			goto done;
 
@@ -2020,7 +2031,7 @@ NTSTATUS rpc_printer_migrate_drivers_internals(struct net_context *c,
 				goto done;
 			}
 
-			DEBUGADD(1,("Sucessfully added driver [%s] for printer [%s]\n",
+			DEBUGADD(1,("Successfully added driver [%s] for printer [%s]\n",
 				drivername, printername));
 
 		}
@@ -2039,7 +2050,7 @@ NTSTATUS rpc_printer_migrate_drivers_internals(struct net_context *c,
 			goto done;
 		}
 
-		DEBUGADD(1,("Sucessfully set driver %s for printer %s\n",
+		DEBUGADD(1,("Successfully set driver %s for printer %s\n",
 			drivername, printername));
 
 		/* close dst */
@@ -2126,7 +2137,7 @@ NTSTATUS rpc_printer_migrate_printers_internals(struct net_context *c,
 
 	/* connect destination PI_SPOOLSS */
 	nt_status = connect_dst_pipe(c, &cli_dst, &pipe_hnd_dst,
-				     &ndr_table_spoolss.syntax_id);
+				     &ndr_table_spoolss);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		return nt_status;
 	}
@@ -2166,7 +2177,7 @@ NTSTATUS rpc_printer_migrate_printers_internals(struct net_context *c,
 
 		/* open dst printer handle */
 		if (!net_spoolss_open_printer_ex(pipe_hnd_dst, mem_ctx, sharename,
-			PRINTER_ALL_ACCESS, cli->user_name, &hnd_dst)) {
+			PRINTER_ALL_ACCESS, &hnd_dst)) {
 
 			DEBUG(1,("could not open printer: %s\n", sharename));
 		}
@@ -2188,7 +2199,7 @@ NTSTATUS rpc_printer_migrate_printers_internals(struct net_context *c,
 
 		/* open src printer handle */
 		if (!net_spoolss_open_printer_ex(pipe_hnd, mem_ctx, sharename,
-			MAXIMUM_ALLOWED_ACCESS, cli->user_name, &hnd_src))
+			MAXIMUM_ALLOWED_ACCESS, &hnd_src))
 			goto done;
 
 		/* getprinter on the src server */
@@ -2301,7 +2312,7 @@ NTSTATUS rpc_printer_migrate_settings_internals(struct net_context *c,
 
 	/* connect destination PI_SPOOLSS */
 	nt_status = connect_dst_pipe(c, &cli_dst, &pipe_hnd_dst,
-				     &ndr_table_spoolss.syntax_id);
+				     &ndr_table_spoolss);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		return nt_status;
 	}
@@ -2353,12 +2364,12 @@ NTSTATUS rpc_printer_migrate_settings_internals(struct net_context *c,
 
 		/* open src printer handle */
 		if (!net_spoolss_open_printer_ex(pipe_hnd, mem_ctx, sharename,
-			MAXIMUM_ALLOWED_ACCESS, cli->user_name, &hnd_src))
+			MAXIMUM_ALLOWED_ACCESS, &hnd_src))
 			goto done;
 
 		/* open dst printer handle */
 		if (!net_spoolss_open_printer_ex(pipe_hnd_dst, mem_ctx, sharename,
-			PRINTER_ALL_ACCESS, cli_dst->user_name, &hnd_dst))
+			PRINTER_ALL_ACCESS, &hnd_dst))
 			goto done;
 
 		/* check for existing dst printer */

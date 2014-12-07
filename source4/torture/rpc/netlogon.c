@@ -2553,7 +2553,7 @@ static bool test_DsrEnumerateDomainTrusts(struct torture_context *tctx,
 
 		/* get info for transitive forest trusts */
 
-		if (r.out.trusts->array[i].trust_attributes & NETR_TRUST_ATTRIBUTE_FOREST_TRANSITIVE) {
+		if (r.out.trusts->array[i].trust_attributes & LSA_TRUST_ATTRIBUTE_FOREST_TRANSITIVE) {
 			if (!test_netr_DsRGetForestTrustInformation(tctx, p,
 								    r.out.trusts->array[i].dns_name)) {
 				return false;
@@ -3863,7 +3863,7 @@ static bool test_GetDomainInfo_async(struct torture_context *tctx,
 
 		/* even with this flush per request a w2k3 server seems to
 		   clag with multiple outstanding requests. bleergh. */
-		torture_assert_int_equal(tctx, tevent_loop_once(dcerpc_event_context(p)), 0,
+		torture_assert_int_equal(tctx, tevent_loop_once(tctx->ev), 0,
 					 "tevent_loop_once failed");
 	}
 

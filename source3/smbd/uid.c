@@ -37,7 +37,7 @@ bool change_to_guest(void)
 {
 	struct passwd *pass;
 
-	pass = Get_Pwnam_alloc(talloc_tos(), lp_guestaccount());
+	pass = Get_Pwnam_alloc(talloc_tos(), lp_guest_account());
 	if (!pass) {
 		return false;
 	}
@@ -147,7 +147,7 @@ NTSTATUS check_user_share_access(connection_struct *conn,
 
 	if ((share_access & (FILE_READ_DATA|FILE_WRITE_DATA)) == 0) {
 		/* No access, read or write. */
-		DEBUG(0,("user %s connection to %s denied due to share "
+		DEBUG(3,("user %s connection to %s denied due to share "
 			 "security descriptor.\n",
 			 session_info->unix_info->unix_name,
 			 lp_servicename(talloc_tos(), snum)));
@@ -436,7 +436,7 @@ bool smbd_change_to_root_user(void)
  user. Doesn't modify current_user.
 ****************************************************************************/
 
-bool become_authenticated_pipe_user(struct auth_session_info *session_info)
+bool smbd_become_authenticated_pipe_user(struct auth_session_info *session_info)
 {
 	if (!push_sec_ctx())
 		return False;
@@ -444,6 +444,12 @@ bool become_authenticated_pipe_user(struct auth_session_info *session_info)
 	set_sec_ctx(session_info->unix_token->uid, session_info->unix_token->gid,
 		    session_info->unix_token->ngroups, session_info->unix_token->groups,
 		    session_info->security_token);
+
+	DEBUG(5, ("Impersonated user: uid=(%d,%d), gid=(%d,%d)\n",
+		 (int)getuid(),
+		 (int)geteuid(),
+		 (int)getgid(),
+		 (int)getegid()));
 
 	return True;
 }
@@ -455,7 +461,7 @@ bool become_authenticated_pipe_user(struct auth_session_info *session_info)
  current_user.
 ****************************************************************************/
 
-bool unbecome_authenticated_pipe_user(void)
+bool smbd_unbecome_authenticated_pipe_user(void)
 {
 	return pop_sec_ctx();
 }

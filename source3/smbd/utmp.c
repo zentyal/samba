@@ -218,7 +218,7 @@ static char *uw_pathname(TALLOC_CTX *ctx,
 
 	/* For w-files, first look for explicit "wtmp dir" */
 	if (uw_name[0] == 'w') {
-		dirname = talloc_strdup(ctx, lp_wtmpdir());
+		dirname = talloc_strdup(ctx, lp_wtmp_directory());
 		if (!dirname) {
 			return NULL;
 		}
@@ -227,7 +227,7 @@ static char *uw_pathname(TALLOC_CTX *ctx,
 
 	/* For u-files and non-explicit w-dir, look for "utmp dir" */
 	if ((dirname == NULL) || (strlen(dirname) == 0)) {
-		dirname = talloc_strdup(ctx, lp_utmpdir());
+		dirname = talloc_strdup(ctx, lp_utmp_directory());
 		if (!dirname) {
 			return NULL;
 		}

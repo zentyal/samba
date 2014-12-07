@@ -30,6 +30,7 @@
 #include "lib/param/param.h"
 #include "librpc/crypto/gse.h"
 #include "auth/gensec/gensec.h"
+#include "auth/gensec/gensec_internal.h" /* TODO: remove this */
 #include "../libcli/auth/spnego.h"
 
 #ifdef HAVE_KRB5
@@ -51,7 +52,8 @@ static NTSTATUS kerberos_fetch_pac(struct auth4_context *auth_ctx,
 				   struct auth_session_info **session_info)
 {
 	TALLOC_CTX *tmp_ctx;
-	struct PAC_LOGON_INFO *logon_info = NULL;
+	struct PAC_DATA *pac_data = NULL;
+	struct PAC_DATA_CTR *pac_data_ctr = NULL;
 	NTSTATUS status = NT_STATUS_INTERNAL_ERROR;
 
 	tmp_ctx = talloc_new(mem_ctx);
@@ -60,16 +62,34 @@ static NTSTATUS kerberos_fetch_pac(struct auth4_context *auth_ctx,
 	}
 
 	if (pac_blob) {
-		status = kerberos_pac_logon_info(tmp_ctx, *pac_blob, NULL, NULL,
-						 NULL, NULL, 0, &logon_info);
+		status = kerberos_decode_pac(tmp_ctx,
+					     *pac_blob,
+					     NULL,
+					     NULL,
+					     NULL,
+					     NULL,
+					     0,
+					     &pac_data);
 		if (!NT_STATUS_IS_OK(status)) {
 			goto done;
 		}
 	}
 
-	talloc_set_name_const(logon_info, "struct PAC_LOGON_INFO");
+	pac_data_ctr = talloc(mem_ctx, struct PAC_DATA_CTR);
+	if (pac_data_ctr == NULL) {
+		status = NT_STATUS_NO_MEMORY;
+		goto done;
+	}
 
-	auth_ctx->private_data = talloc_steal(auth_ctx, logon_info);
+	talloc_set_name_const(pac_data_ctr, "struct PAC_DATA_CTR");
+
+	pac_data_ctr->pac_data = talloc_steal(pac_data_ctr, pac_data);
+	pac_data_ctr->pac_blob = data_blob_talloc(pac_data_ctr,
+						  pac_blob->data,
+						  pac_blob->length);
+
+	auth_ctx->private_data = talloc_steal(auth_ctx, pac_data_ctr);
+
 	*session_info = talloc_zero(mem_ctx, struct auth_session_info);
 	if (!*session_info) {
 		status = NT_STATUS_NO_MEMORY;
@@ -100,22 +120,22 @@ NTSTATUS kerberos_return_pac(TALLOC_CTX *mem_ctx,
 			     bool add_netbios_addr,
 			     time_t renewable_time,
 			     const char *impersonate_princ_s,
-			     struct PAC_LOGON_INFO **_logon_info)
+			     const char *local_service,
+			     struct PAC_DATA_CTR **_pac_data_ctr)
 {
 	krb5_error_code ret;
 	NTSTATUS status = NT_STATUS_INVALID_PARAMETER;
 	DATA_BLOB tkt, tkt_wrapped, ap_rep, sesskey1;
 	const char *auth_princ = NULL;
-	const char *local_service = NULL;
 	const char *cc = "MEMORY:kerberos_return_pac";
 	struct auth_session_info *session_info;
 	struct gensec_security *gensec_server_context;
-
+	const struct gensec_security_ops **backends;
 	struct gensec_settings *gensec_settings;
 	size_t idx = 0;
 	struct auth4_context *auth_context;
 	struct loadparm_context *lp_ctx;
-	struct PAC_LOGON_INFO *logon_info = NULL;
+	struct PAC_DATA_CTR *pac_data_ctr = NULL;
 
 	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
 	NT_STATUS_HAVE_NO_MEMORY(tmp_ctx);
@@ -139,10 +159,6 @@ NTSTATUS kerberos_return_pac(TALLOC_CTX *mem_ctx,
 		auth_princ = name;
 	}
 	NT_STATUS_HAVE_NO_MEMORY(auth_princ);
-
-	local_service = talloc_asprintf(mem_ctx, "%s$@%s",
-					lp_netbios_name(), lp_realm());
-	NT_STATUS_HAVE_NO_MEMORY(local_service);
 
 	ret = kerberos_kinit_password_ext(auth_princ,
 					  pass,
@@ -229,16 +245,17 @@ NTSTATUS kerberos_return_pac(TALLOC_CTX *mem_ctx,
 		goto out;
 	}
 
-	gensec_settings->backends = talloc_zero_array(gensec_settings,
-						      struct gensec_security_ops *, 2);
-	if (gensec_settings->backends == NULL) {
+	backends = talloc_zero_array(gensec_settings,
+				     const struct gensec_security_ops *, 2);
+	if (backends == NULL) {
 		status = NT_STATUS_NO_MEMORY;
 		goto out;
 	}
+	gensec_settings->backends = backends;
 
 	gensec_init();
 
-	gensec_settings->backends[idx++] = &gensec_gse_krb5_security_ops;
+	backends[idx++] = &gensec_gse_krb5_security_ops;
 
 	status = gensec_server_start(tmp_ctx, gensec_settings,
 					auth_context, &gensec_server_context);
@@ -259,7 +276,7 @@ NTSTATUS kerberos_return_pac(TALLOC_CTX *mem_ctx,
 	}
 
 	/* Do a client-server update dance */
-	status = gensec_update(gensec_server_context, tmp_ctx, NULL, tkt_wrapped, &ap_rep);
+	status = gensec_update(gensec_server_context, tmp_ctx, tkt_wrapped, &ap_rep);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(1, ("gensec_update() failed: %s\n", nt_errstr(status)));
 		goto out;
@@ -274,15 +291,15 @@ NTSTATUS kerberos_return_pac(TALLOC_CTX *mem_ctx,
 		goto out;
 	}
 
-	logon_info = talloc_get_type_abort(gensec_server_context->auth_context->private_data,
-					   struct PAC_LOGON_INFO);
-	if (logon_info == NULL) {
+	pac_data_ctr = talloc_get_type_abort(gensec_server_context->auth_context->private_data,
+					     struct PAC_DATA_CTR);
+	if (pac_data_ctr == NULL) {
 		DEBUG(1,("no PAC\n"));
 		status = NT_STATUS_INVALID_PARAMETER;
 		goto out;
 	}
 
-	*_logon_info = talloc_move(mem_ctx, &logon_info);
+	*_pac_data_ctr = talloc_move(mem_ctx, &pac_data_ctr);
 
 out:
 	talloc_free(tmp_ctx);

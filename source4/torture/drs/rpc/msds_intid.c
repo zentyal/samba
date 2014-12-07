@@ -151,13 +151,20 @@ static struct DsIntIdTestCtx *_dsintid_create_context(struct torture_context *tc
 		return NULL;
 	}
 
-	server_binding->flags |= DCERPC_SIGN | DCERPC_SEAL;
+	status = dcerpc_binding_set_flags(server_binding,
+					  DCERPC_SIGN | DCERPC_SEAL, 0);
+	if (!NT_STATUS_IS_OK(status)) {
+		torture_result(tctx, TORTURE_FAIL,
+		               "dcerpc_binding_set_flags: %s", nt_errstr(status));
+		return NULL;
+	}
 
 	/* populate test suite context */
 	ctx->creds = cmdline_credentials;
 	ctx->dsa_bind.server_binding = server_binding;
 
-	ctx->ldap_url = talloc_asprintf(ctx, "ldap://%s", server_binding->host);
+	ctx->ldap_url = talloc_asprintf(ctx, "ldap://%s",
+			dcerpc_binding_get_string_option(server_binding, "host"));
 
 	return ctx;
 }
@@ -237,9 +244,28 @@ static bool _test_DsaBind(struct torture_context *tctx,
 		bi->srv_info48.repl_epoch		= info28->repl_epoch;
 		break;
 	}
-	case 48:
+	case 32: {
+		struct drsuapi_DsBindInfo32 *info32;
+		info32 = &r.out.bind_info->info.info32;
+		bi->srv_info48.supported_extensions	= info32->supported_extensions;
+		bi->srv_info48.site_guid		= info32->site_guid;
+		bi->srv_info48.pid			= info32->pid;
+		bi->srv_info48.repl_epoch		= info32->repl_epoch;
+		break;
+	}
+	case 48: {
 		bi->srv_info48 = r.out.bind_info->info.info48;
 		break;
+	}
+	case 52: {
+		struct drsuapi_DsBindInfo52 *info52;
+		info52 = &r.out.bind_info->info.info52;
+		bi->srv_info48.supported_extensions	= info52->supported_extensions;
+		bi->srv_info48.site_guid		= info52->site_guid;
+		bi->srv_info48.pid			= info52->pid;
+		bi->srv_info48.repl_epoch		= info52->repl_epoch;
+		break;
+	}
 	default:
 		torture_result(tctx, TORTURE_FAIL,
 		               "DsBind: unknown BindInfo length: %u",
@@ -720,15 +746,13 @@ static bool torture_dsintid_tcase_teardown(struct torture_context *tctx, void *d
 void torture_drs_rpc_dsintid_tcase(struct torture_suite *suite)
 {
 	typedef bool (*run_func) (struct torture_context *test, void *tcase_data);
-
-	struct torture_test *test;
 	struct torture_tcase *tcase = torture_suite_add_tcase(suite, "msDSIntId");
 
 	torture_tcase_set_fixture(tcase,
 				  torture_dsintid_tcase_setup,
 				  torture_dsintid_tcase_teardown);
 
-	test = torture_tcase_add_simple_test(tcase, "Schema", (run_func)test_dsintid_schema);
-	test = torture_tcase_add_simple_test(tcase, "Configuration", (run_func)test_dsintid_configuration);
-	test = torture_tcase_add_simple_test(tcase, "Domain", (run_func)test_dsintid_domain);
+	torture_tcase_add_simple_test(tcase, "Schema", (run_func)test_dsintid_schema);
+	torture_tcase_add_simple_test(tcase, "Configuration", (run_func)test_dsintid_configuration);
+	torture_tcase_add_simple_test(tcase, "Domain", (run_func)test_dsintid_domain);
 }

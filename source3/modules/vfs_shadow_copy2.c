@@ -86,7 +86,7 @@ static bool shadow_copy2_find_slashes(TALLOC_CTX *mem_ctx, const char *str,
 }
 
 /**
- * Given a timstamp, build the posix level GTM-tag string
+ * Given a timestamp, build the posix level GMT-tag string
  * based on the configurable format.
  */
 static size_t shadow_copy2_posix_gmt_string(struct vfs_handle_struct *handle,
@@ -136,7 +136,7 @@ static size_t shadow_copy2_posix_gmt_string(struct vfs_handle_struct *handle,
 }
 
 /**
- * Given a timstamp, build the string to insert into a path
+ * Given a timestamp, build the string to insert into a path
  * as a path component for creating the local path to the
  * snapshot at the given timestamp of the input path.
  *
@@ -218,7 +218,7 @@ static char *shadow_copy2_snapshot_path(TALLOC_CTX *mem_ctx,
 }
 
 /**
- * Strip a snapshot component from an filename as
+ * Strip a snapshot component from a filename as
  * handed in via the smb layer.
  * Returns the parsed timestamp and the stripped filename.
  */
@@ -235,6 +235,9 @@ static bool shadow_copy2_strip_snapshot(TALLOC_CTX *mem_ctx,
 	char *stripped;
 	size_t rest_len, dst_len;
 	struct shadow_copy2_config *config;
+	const char *snapdir;
+	ssize_t snapdirlen;
+	ptrdiff_t len_before_gmt;
 
 	SMB_VFS_HANDLE_GET_DATA(handle, config, struct shadow_copy2_config,
 				return false);
@@ -243,25 +246,60 @@ static bool shadow_copy2_strip_snapshot(TALLOC_CTX *mem_ctx,
 
 	p = strstr_m(name, "@GMT-");
 	if (p == NULL) {
+		DEBUG(11, ("@GMT not found\n"));
 		goto no_snapshot;
 	}
 	if ((p > name) && (p[-1] != '/')) {
 		/* the GMT-token does not start a path-component */
+		DEBUG(10, ("not at start, p=%p, name=%p, p[-1]=%d\n",
+			   p, name, (int)p[-1]));
 		goto no_snapshot;
+	}
+
+	/*
+	 * Figure out whether we got an already converted string. One
+	 * case where this happens is in a smb2 create call with the
+	 * mxac create blob set. We do the get_acl call on
+	 * fsp->fsp_name, which is already converted. We are converted
+	 * if we got a file name of the form ".snapshots/@GMT-",
+	 * i.e. ".snapshots/" precedes "p".
+	 */
+
+	snapdir = lp_parm_const_string(SNUM(handle->conn), "shadow", "snapdir",
+				       ".snapshots");
+	snapdirlen = strlen(snapdir);
+	len_before_gmt = p - name;
+
+	if ((len_before_gmt >= (snapdirlen + 1)) && (p[-1] == '/')) {
+		const char *parent_snapdir = p - (snapdirlen+1);
+
+		DEBUG(10, ("parent_snapdir = %s\n", parent_snapdir));
+
+		if (strncmp(parent_snapdir, snapdir, snapdirlen) == 0) {
+			DEBUG(10, ("name=%s is already converted\n", name));
+			goto no_snapshot;
+		}
 	}
 	q = strptime(p, GMT_FORMAT, &tm);
 	if (q == NULL) {
+		DEBUG(10, ("strptime failed\n"));
 		goto no_snapshot;
 	}
 	tm.tm_isdst = -1;
 	timestamp = timegm(&tm);
 	if (timestamp == (time_t)-1) {
+		DEBUG(10, ("timestamp==-1\n"));
 		goto no_snapshot;
 	}
-	if ((p == name) && (q[0] == '\0')) {
-		/* the name consists of only the GMT token */
+	if (q[0] == '\0') {
+		/*
+		 * The name consists of only the GMT token or the GMT
+		 * token is at the end of the path. XP seems to send
+		 * @GMT- at the end under certain circumstances even
+		 * with a path prefix.
+		 */
 		if (pstripped != NULL) {
-			stripped = talloc_strdup(mem_ctx, "");
+			stripped = talloc_strndup(mem_ctx, name, p - name);
 			if (stripped == NULL) {
 				return false;
 			}
@@ -272,13 +310,10 @@ static bool shadow_copy2_strip_snapshot(TALLOC_CTX *mem_ctx,
 	}
 	if (q[0] != '/') {
 		/*
-		 * The GMT token is either at the end of the path
-		 * or it is not a complete path component, i.e. the
-		 * path component continues after the gmt-token.
-		 *
-		 * TODO: Is this correct? Or would the GMT tag as the
-		 * last component be a valid input?
+		 * It is not a complete path component, i.e. the path
+		 * component continues after the gmt-token.
 		 */
+		DEBUG(10, ("q[0] = %d\n", (int)q[0]));
 		goto no_snapshot;
 	}
 	q += 1;
@@ -301,6 +336,8 @@ static bool shadow_copy2_strip_snapshot(TALLOC_CTX *mem_ctx,
 			   "insert string '%s'\n", name, insert));
 
 		have_insert = (strstr(name, insert+1) != NULL);
+		DEBUG(10, ("have_insert=%d, name=%s, insert+1=%s\n",
+			   (int)have_insert, name, insert+1));
 		if (have_insert) {
 			DEBUG(10, (__location__ ": insert string '%s' found in "
 				   "path '%s' found in snapdirseverywhere mode "
@@ -463,8 +500,12 @@ static char *shadow_copy2_convert(TALLOC_CTX *mem_ctx,
 		/* never reached ... */
 	}
 
-	path = talloc_asprintf(mem_ctx, "%s/%s", handle->conn->connectpath,
-			       name);
+	if (name[0] == 0) {
+		path = talloc_strdup(mem_ctx, handle->conn->connectpath);
+	} else {
+		path = talloc_asprintf(
+			mem_ctx, "%s/%s", handle->conn->connectpath, name);
+	}
 	if (path == NULL) {
 		errno = ENOMEM;
 		goto fail;
@@ -1660,29 +1701,30 @@ static int shadow_copy2_get_real_filename(struct vfs_handle_struct *handle,
 	int saved_errno;
 	char *conv;
 
+	DEBUG(10, ("shadow_copy2_get_real_filename called for path=[%s], "
+		   "name=[%s]\n", path, name));
+
 	if (!shadow_copy2_strip_snapshot(talloc_tos(), handle, path,
 					 &timestamp, &stripped)) {
+		DEBUG(10, ("shadow_copy2_strip_snapshot failed\n"));
 		return -1;
 	}
 	if (timestamp == 0) {
+		DEBUG(10, ("timestamp == 0\n"));
 		return SMB_VFS_NEXT_GET_REAL_FILENAME(handle, path, name,
 						      mem_ctx, found_name);
-	}
-	if (stripped[0] == '\0') {
-		*found_name = talloc_strdup(mem_ctx, name);
-		if (*found_name == NULL) {
-			errno = ENOMEM;
-			return -1;
-		}
-		return 0;
 	}
 	conv = shadow_copy2_convert(talloc_tos(), handle, stripped, timestamp);
 	TALLOC_FREE(stripped);
 	if (conv == NULL) {
+		DEBUG(10, ("shadow_copy2_convert failed\n"));
 		return -1;
 	}
+	DEBUG(10, ("Calling NEXT_GET_REAL_FILE_NAME for conv=[%s], "
+		   "name=[%s]\n", conv, name));
 	ret = SMB_VFS_NEXT_GET_REAL_FILENAME(handle, conv, name,
 					     mem_ctx, found_name);
+	DEBUG(10, ("NEXT_REAL_FILE_NAME returned %d\n", (int)ret));
 	saved_errno = errno;
 	TALLOC_FREE(conv);
 	errno = saved_errno;

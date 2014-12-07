@@ -21,8 +21,6 @@
 #include "messages.h"
 #include "util_tdb.h"
 
-#ifdef CLUSTER_SUPPORT
-
 /*
  * It is not possible to include ctdb.h and tdb_compat.h (included via
  * some other include above) without warnings. This fixes those
@@ -90,23 +88,43 @@ struct ctdbd_connection *messaging_ctdbd_connection(void)
 	return global_ctdbd_connection;
 }
 
-static NTSTATUS messaging_ctdb_send(struct messaging_context *msg_ctx,
-				    struct server_id pid, int msg_type,
-				    const DATA_BLOB *data,
-				    struct messaging_backend *backend)
+static int messaging_ctdb_send(struct server_id src,
+			       struct server_id pid, int msg_type,
+			       const struct iovec *iov, int iovlen,
+			       const int *fds, size_t num_fds,
+			       struct messaging_backend *backend)
 {
 	struct messaging_ctdbd_context *ctx = talloc_get_type_abort(
 		backend->private_data, struct messaging_ctdbd_context);
-
 	struct messaging_rec msg;
+	uint8_t *buf;
+	NTSTATUS status;
 
-	msg.msg_version	= MESSAGE_VERSION;
-	msg.msg_type	= msg_type;
-	msg.dest	= pid;
-	msg.src		= msg_ctx->id;
-	msg.buf		= *data;
+	if (num_fds > 0) {
+		return ENOSYS;
+	}
 
-	return ctdbd_messaging_send(ctx->conn, pid.vnn, pid.pid, &msg);
+	buf = iov_buf(talloc_tos(), iov, iovlen);
+	if (buf == NULL) {
+		return ENOMEM;
+	}
+
+	msg = (struct messaging_rec) {
+		.msg_version	= MESSAGE_VERSION,
+		.msg_type	= msg_type,
+		.dest		= pid,
+		.src		= src,
+		.buf		= data_blob_const(buf, talloc_get_size(buf)),
+	};
+
+	status = ctdbd_messaging_send(ctx->conn, pid.vnn, pid.pid, &msg);
+
+	TALLOC_FREE(buf);
+
+	if (NT_STATUS_IS_OK(status)) {
+		return 0;
+	}
+	return map_errno_from_nt_status(status);
 }
 
 static int messaging_ctdbd_destructor(struct messaging_ctdbd_context *ctx)
@@ -168,19 +186,3 @@ NTSTATUS messaging_ctdbd_init(struct messaging_context *msg_ctx,
 	*presult = result;
 	return NT_STATUS_OK;
 }
-
-#else
-
-NTSTATUS messaging_ctdbd_init(struct messaging_context *msg_ctx,
-			      TALLOC_CTX *mem_ctx,
-			      struct messaging_backend **presult)
-{
-	return NT_STATUS_NOT_IMPLEMENTED;
-}
-
-struct ctdbd_connection *messaging_ctdbd_connection(void)
-{
-	return NULL;
-}
-
-#endif

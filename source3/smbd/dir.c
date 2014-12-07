@@ -87,52 +87,6 @@ static void DirCacheAdd(struct smb_Dir *dirp, const char *name, long offset);
 #define INVALID_DPTR_KEY (-3)
 
 /****************************************************************************
- Make a dir struct.
-****************************************************************************/
-
-bool make_dir_struct(TALLOC_CTX *ctx,
-			char *buf,
-			const char *mask,
-			const char *fname,
-			off_t size,
-			uint32 mode,
-			time_t date,
-			bool uc)
-{
-	char *p;
-	char *mask2 = talloc_strdup(ctx, mask);
-
-	if (!mask2) {
-		return False;
-	}
-
-	if ((mode & FILE_ATTRIBUTE_DIRECTORY) != 0) {
-		size = 0;
-	}
-
-	memset(buf+1,' ',11);
-	if ((p = strchr_m(mask2,'.')) != NULL) {
-		*p = 0;
-		push_ascii(buf+1,mask2,8, 0);
-		push_ascii(buf+9,p+1,3, 0);
-		*p = '.';
-	} else {
-		push_ascii(buf+1,mask2,11, 0);
-	}
-
-	memset(buf+21,'\0',DIR_STRUCT_SIZE-21);
-	SCVAL(buf,21,mode);
-	srv_put_dos_date(buf,22,date);
-	SSVAL(buf,26,size & 0xFFFF);
-	SSVAL(buf,28,(size >> 16)&0xFFFF);
-	/* We only uppercase if FLAGS2_LONG_PATH_COMPONENTS is zero in the input buf.
-	   Strange, but verified on W2K3. Needed for OS/2. JRA. */
-	push_ascii(buf+30,fname,12, uc ? STR_UPPER : 0);
-	DEBUG(8,("put name [%s] from [%s] into dir struct\n",buf+30, fname));
-	return True;
-}
-
-/****************************************************************************
  Initialise the dir bitmap.
 ****************************************************************************/
 
@@ -754,10 +708,10 @@ static const char *dptr_normal_ReadDirName(struct dptr_struct *dptr,
  Return the next visible file name, skipping veto'd and invisible files.
 ****************************************************************************/
 
-char *dptr_ReadDirName(TALLOC_CTX *ctx,
-			struct dptr_struct *dptr,
-			long *poffset,
-			SMB_STRUCT_STAT *pst)
+static char *dptr_ReadDirName(TALLOC_CTX *ctx,
+			      struct dptr_struct *dptr,
+			      long *poffset,
+			      SMB_STRUCT_STAT *pst)
 {
 	struct smb_filename smb_fname_base;
 	char *name = NULL;
@@ -1126,7 +1080,7 @@ bool smbd_dirptr_get_entry(TALLOC_CTX *ctx,
 	while (true) {
 		long cur_offset;
 		long prev_offset;
-		SMB_STRUCT_STAT sbuf;
+		SMB_STRUCT_STAT sbuf = { 0 };
 		char *dname = NULL;
 		bool isdots;
 		char *fname = NULL;
@@ -1261,6 +1215,30 @@ static bool smbd_dirptr_8_3_match_fn(TALLOC_CTX *ctx,
 	    mangle_mask_match(conn, dname, mask)) {
 		char mname[13];
 		const char *fname;
+		/*
+		 * Ensure we can push the original name as UCS2. If
+		 * not, then just don't return this name.
+		 */
+		NTSTATUS status;
+		size_t ret_len = 0;
+		size_t len = (strlen(dname) + 2) * 4; /* Allow enough space. */
+		uint8_t *tmp = talloc_array(talloc_tos(),
+					uint8,
+					len);
+
+		status = srvstr_push(NULL,
+			FLAGS2_UNICODE_STRINGS,
+			tmp,
+			dname,
+			len,
+			STR_TERMINATE,
+			&ret_len);
+
+		TALLOC_FREE(tmp);
+
+		if (!NT_STATUS_IS_OK(status)) {
+			return false;
+		}
 
 		if (!mangle_is_8_3(dname, false, conn->params)) {
 			bool ok = name_to_8_3(dname, mname, false,
@@ -1440,8 +1418,8 @@ static bool file_is_special(connection_struct *conn,
 bool is_visible_file(connection_struct *conn, const char *dir_path,
 		     const char *name, SMB_STRUCT_STAT *pst, bool use_veto)
 {
-	bool hide_unreadable = lp_hideunreadable(SNUM(conn));
-	bool hide_unwriteable = lp_hideunwriteable_files(SNUM(conn));
+	bool hide_unreadable = lp_hide_unreadable(SNUM(conn));
+	bool hide_unwriteable = lp_hide_unwriteable_files(SNUM(conn));
 	bool hide_special = lp_hide_special_files(SNUM(conn));
 	char *entry = NULL;
 	struct smb_filename *smb_fname_base = NULL;

@@ -24,13 +24,13 @@
 #include "../libcli/security/security.h"
 #include "../libcli/security/dom_sid.h"
 #include "passdb.h"
+#include "lib/afs/afs_settoken.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_VFS
 
 #include <afs/stds.h>
-#include <afs/afs.h>
-#include <afs/auth.h>
+#include <afs/afs_args.h>
 #include <afs/venus.h>
 #include <afs/prs_fs.h>
 
@@ -46,8 +46,6 @@ static char space_replacement = '%';
 
 /* Do we expect SIDs as pts names? */
 static bool sidpts;
-
-extern int afs_syscall(int, const char *, int, char *, int);
 
 struct afs_ace {
 	bool positive;
@@ -1040,7 +1038,6 @@ static NTSTATUS afsacl_get_nt_acl(struct vfs_handle_struct *handle,
 	struct afs_acl acl;
 	size_t sd_size;
 	struct smb_filename *smb_fname = NULL;
-	NTSTATUS status;
 
 	DEBUG(5, ("afsacl_get_nt_acl: %s\n", name));
 
@@ -1065,7 +1062,7 @@ static NTSTATUS afsacl_get_nt_acl(struct vfs_handle_struct *handle,
 	return (sd_size != 0) ? NT_STATUS_OK : NT_STATUS_ACCESS_DENIED;
 }
 
-NTSTATUS afsacl_fset_nt_acl(vfs_handle_struct *handle,
+static NTSTATUS afsacl_fset_nt_acl(vfs_handle_struct *handle,
 			 files_struct *fsp,
 			 uint32 security_info_sent,
 			 const struct security_descriptor *psd)

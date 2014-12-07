@@ -76,7 +76,7 @@ static NTSTATUS msrpc_query_user_list(struct winbindd_domain *domain,
 		goto done;
 	}
 
-	status = cm_connect_sam(domain, tmp_ctx, &samr_pipe, &dom_pol);
+	status = cm_connect_sam(domain, tmp_ctx, false, &samr_pipe, &dom_pol);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto done;
 	}
@@ -135,7 +135,7 @@ static NTSTATUS msrpc_enum_dom_groups(struct winbindd_domain *domain,
 		goto done;
 	}
 
-	status = cm_connect_sam(domain, tmp_ctx, &samr_pipe, &dom_pol);
+	status = cm_connect_sam(domain, tmp_ctx, false, &samr_pipe, &dom_pol);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto done;
 	}
@@ -194,7 +194,7 @@ static NTSTATUS msrpc_enum_local_groups(struct winbindd_domain *domain,
 		goto done;
 	}
 
-	status = cm_connect_sam(domain, tmp_ctx, &samr_pipe, &dom_pol);
+	status = cm_connect_sam(domain, tmp_ctx, false, &samr_pipe, &dom_pol);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto done;
 	}
@@ -439,6 +439,14 @@ static NTSTATUS msrpc_query_user(struct winbindd_domain *domain,
 		user_info->full_name = talloc_strdup(user_info,
 						     user->base.full_name.string);
 
+		if (user_info->full_name == NULL) {
+			/* this might fail so we dont check the return code */
+			wcache_query_user_fullname(domain,
+						   mem_ctx,
+						   user_sid,
+						   &user_info->full_name);
+		}
+
 		status = NT_STATUS_OK;
 		goto done;
 	}
@@ -452,7 +460,7 @@ static NTSTATUS msrpc_query_user(struct winbindd_domain *domain,
 	}
 
 	/* no cache; hit the wire */
-	status = cm_connect_sam(domain, tmp_ctx, &samr_pipe, &dom_pol);
+	status = cm_connect_sam(domain, tmp_ctx, false, &samr_pipe, &dom_pol);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto done;
 	}
@@ -512,7 +520,7 @@ static NTSTATUS msrpc_lookup_usergroups(struct winbindd_domain *domain,
 	}
 
 	/* no cache; hit the wire */
-	status = cm_connect_sam(domain, tmp_ctx, &samr_pipe, &dom_pol);
+	status = cm_connect_sam(domain, tmp_ctx, false, &samr_pipe, &dom_pol);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto done;
 	}
@@ -575,7 +583,7 @@ static NTSTATUS msrpc_lookup_useraliases(struct winbindd_domain *domain,
 		goto done;
 	}
 
-	status = cm_connect_sam(domain, tmp_ctx, &samr_pipe, &dom_pol);
+	status = cm_connect_sam(domain, tmp_ctx, false, &samr_pipe, &dom_pol);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto done;
 	}
@@ -641,7 +649,7 @@ static NTSTATUS msrpc_lookup_groupmem(struct winbindd_domain *domain,
 
 	*num_names = 0;
 
-	result = cm_connect_sam(domain, mem_ctx, &cli, &dom_pol);
+	result = cm_connect_sam(domain, mem_ctx, false, &cli, &dom_pol);
 	if (!NT_STATUS_IS_OK(result))
 		return result;
 
@@ -903,7 +911,7 @@ static NTSTATUS msrpc_sequence_number(struct winbindd_domain *domain,
 	}
 #endif /* HAVE_LDAP */
 
-	status = cm_connect_sam(domain, tmp_ctx, &samr_pipe, &dom_pol);
+	status = cm_connect_sam(domain, tmp_ctx, false, &samr_pipe, &dom_pol);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto done;
 	}
@@ -992,7 +1000,7 @@ static NTSTATUS msrpc_lockout_policy(struct winbindd_domain *domain,
 		return NT_STATUS_NOT_SUPPORTED;
 	}
 
-	status = cm_connect_sam(domain, mem_ctx, &cli, &dom_pol);
+	status = cm_connect_sam(domain, mem_ctx, false, &cli, &dom_pol);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto done;
 	}
@@ -1042,7 +1050,7 @@ static NTSTATUS msrpc_password_policy(struct winbindd_domain *domain,
 		return NT_STATUS_NOT_SUPPORTED;
 	}
 
-	status = cm_connect_sam(domain, mem_ctx, &cli, &dom_pol);
+	status = cm_connect_sam(domain, mem_ctx, false, &cli, &dom_pol);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto done;
 	}

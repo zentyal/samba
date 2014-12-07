@@ -352,7 +352,13 @@ static struct ldb_message *process_entry(TALLOC_CTX *mem_ctx, const char *entry)
 	bool single_valued = false;
 
 	ctx = talloc_new(mem_ctx);
+	if (ctx == NULL) {
+		return NULL;
+	}
 	msg = ldb_msg_new(ctx);
+	if (msg == NULL) {
+		goto failed;
+	}
 
 	ldb_msg_add_string(msg, "objectClass", "top");
 
@@ -557,7 +563,7 @@ static struct schema_conv process_file(FILE *in, FILE *out)
 					break;
 				}
 				if (ret2 == 2) {
-					fprintf(stderr, "Invalid entry %s, closing braces needs to be preceeded by a space\n", entry);
+					fprintf(stderr, "Invalid entry %s, closing braces need to be preceded by a space\n", entry);
 					ret.failures++;
 					break;
 				}

@@ -7,7 +7,7 @@
 	<manvolnum>8</manvolnum>
 	<refmiscinfo class="source">Samba</refmiscinfo>
 	<refmiscinfo class="manual">System Administration tools</refmiscinfo>
-	<refmiscinfo class="version">4.0</refmiscinfo>
+	<refmiscinfo class="version">4.2</refmiscinfo>
 </refmeta>
 
 
@@ -1339,6 +1339,59 @@ to show in the result.
 </refsect2>
 
 <refsect2>
+	<title>ADS ENCTYPES</title>
+
+<para>
+	List, modify or delete the value of the "msDS-SupportedEncryptionTypes" attribute of an account in AD.
+</para>
+
+<para>
+	This attribute allows to control which Kerberos encryption types are used for the generation of initial and service tickets. The value consists of an integer bitmask with the following values:
+</para>
+
+<para>0x00000001 DES-CBC-CRC</para>
+<para>0x00000002 DES-CBC-MD5</para>
+<para>0x00000004 RC4-HMAC</para>
+<para>0x00000008 AES128-CTS-HMAC-SHA1-96</para>
+<para>0x00000010 AES256-CTS-HMAC-SHA1-96</para>
+
+</refsect2>
+
+<refsect2>
+	<title>ADS ENCTYPES LIST <replaceable>&lt;ACCOUNTNAME&gt;</replaceable></title>
+
+<para>
+	List the value of the "msDS-SupportedEncryptionTypes" attribute of a given account.
+</para>
+
+<para>Example: <userinput>net ads enctypes list Computername</userinput></para>
+
+</refsect2>
+
+<refsect2>
+	<title>ADS ENCTYPES SET <replaceable>&lt;ACCOUNTNAME&gt;</replaceable> <replaceable>[enctypes]</replaceable></title>
+
+<para>
+	Set the value of the "msDS-SupportedEncryptionTypes" attribute of the LDAP object of ACCOUNTNAME to a given value. If the value is ommitted, the value is set to 31 which enables all the currently supported encryption types.
+</para>
+
+<para>Example: <userinput>net ads enctypes set Computername 24</userinput></para>
+
+</refsect2>
+
+<refsect2>
+	<title>ADS ENCTYPES DELETE <replaceable>&lt;ACCOUNTNAME&gt;</replaceable></title>
+
+<para>
+	Deletes the "msDS-SupportedEncryptionTypes" attribute of the LDAP object of ACCOUNTNAME.
+</para>
+
+<para>Example: <userinput>net ads enctypes set Computername 24</userinput></para>
+
+</refsect2>
+
+
+<refsect2>
 <title>SAM CREATEBUILTINGROUP &lt;NAME&gt;</title>
 
 <para>
@@ -1639,7 +1692,7 @@ Restore the mappings from the specified file or stdin.
 </refsect2>
 
 <refsect2>
-<title>IDMAP SECRET &lt;DOMAIN&gt; &lt;secret&gt;</title>
+<title>IDMAP SET SECRET &lt;DOMAIN&gt; &lt;secret&gt;</title>
 
 <para>
 Store a secret for the specified domain, used primarily for domains
@@ -1650,8 +1703,53 @@ as the password for the user DN used to bind to the ldap server.
 </refsect2>
 
 <refsect2>
+<title>IDMAP SET RANGE &lt;RANGE&gt; &lt;SID&gt; [index] [--db=&lt;DB&gt;]</title>
 
-<title>IDMAP DELETE [-f] [--db=&lt;DB&gt;] &lt;ID&gt;</title>
+<para>
+Store a domain-range mapping for a given domain (and index) in autorid database.
+</para>
+
+</refsect2>
+
+<refsect2>
+<title>IDMAP SET CONFIG &lt;config&gt; [--db=&lt;DB&gt;]</title>
+
+<para>
+Update CONFIG entry in autorid database.
+</para>
+
+</refsect2>
+
+<refsect2>
+<title>IDMAP GET RANGE &lt;SID&gt; [index] [--db=&lt;DB&gt;]</title>
+
+<para>
+Get the range for a given domain and index from autorid database.
+</para>
+
+</refsect2>
+
+<refsect2>
+<title>IDMAP GET RANGES [&lt;SID&gt;] [--db=&lt;DB&gt;]</title>
+
+<para>
+Get ranges for all domains or for one identified by given SID.
+</para>
+
+</refsect2>
+
+<refsect2>
+<title>IDMAP GET CONFIG [--db=&lt;DB&gt;]</title>
+
+<para>
+Get CONFIG entry from autorid database.
+</para>
+
+</refsect2>
+
+<refsect2>
+
+<title>IDMAP DELETE MAPPING [-f] [--db=&lt;DB&gt;] &lt;ID&gt;</title>
 
 <para>
 Delete a mapping sid &lt;-&gt; gid or sid &lt;-&gt; uid from the IDMAP database.
@@ -1663,6 +1761,26 @@ Use -f to delete an invalid partial mapping &lt;ID&gt; -&gt; xx
   See the <citerefentry><refentrytitle>smbcontrol</refentrytitle>
   <manvolnum>1</manvolnum></citerefentry> manpage for details.
 </para>
+</refsect2>
+
+<refsect2>
+<title>IDMAP DELETE RANGE [-f] [--db=&lt;TDB&gt;] &lt;RANGE&gt;|(&lt;SID&gt; [&lt;INDEX&gt;])</title>
+
+<para>
+Delete a domain range mapping identified by 'RANGE' or "domain SID and INDEX" from autorid database.
+Use -f to delete invalid mappings.
+</para>
+
+</refsect2>
+
+<refsect2>
+<title>IDMAP DELETE RANGES [-f] [--db=&lt;TDB&gt;] &lt;SID&gt;</title>
+
+<para>
+Delete all domain range mappings for a domain identified by SID.
+Use -f to delete invalid mappings.
+</para>
+
 </refsect2>
 
 <refsect2>

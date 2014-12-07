@@ -71,7 +71,7 @@ static NTSTATUS remote_op_bind(struct dcesrv_call_state *dce_call, const struct 
 	pass = lpcfg_parm_string(dce_call->conn->dce_ctx->lp_ctx, NULL, "dcerpc_remote", "password");
 	domain = lpcfg_parm_string(dce_call->conn->dce_ctx->lp_ctx, NULL, "dceprc_remote", "domain");
 
-	table = ndr_table_by_uuid(&iface->syntax_id.uuid); /* FIXME: What about if_version ? */
+	table = ndr_table_by_syntax(&iface->syntax_id);
 	if (!table) {
 		dce_call->fault_code = DCERPC_FAULT_UNK_IF;
 		return NT_STATUS_NET_WRITE_FAULT;
@@ -115,15 +115,26 @@ static NTSTATUS remote_op_bind(struct dcesrv_call_state *dce_call, const struct 
 		DEBUG(0, ("Failed to parse dcerpc binding '%s'\n", binding));
 		return status;
 	}
-	
-	DEBUG(3, ("Using binding %s\n", dcerpc_binding_string(dce_call->context, b)));
-	
+
 	/* If we already have a remote association group ID, then use that */
 	if (dce_call->context->assoc_group->proxied_id != 0) {
-		b->assoc_group_id = dce_call->context->assoc_group->proxied_id;
+		status = dcerpc_binding_set_assoc_group_id(b,
+			dce_call->context->assoc_group->proxied_id);
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(0, ("dcerpc_binding_set_assoc_group_id() - %s'\n",
+				  nt_errstr(status)));
+			return status;
+		}
 	}
 
-	b->object.if_version = if_version;
+	status = dcerpc_binding_set_abstract_syntax(b, &iface->syntax_id);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("dcerpc_binding_set_abstract_syntax() - %s'\n",
+			  nt_errstr(status)));
+		return status;
+	}
+
+	DEBUG(3, ("Using binding %s\n", dcerpc_binding_string(dce_call->context, b)));
 
 	pipe_conn_req = dcerpc_pipe_connect_b_send(dce_call->context, b, table,
 						   credentials, dce_call->event_ctx, dce_call->conn->dce_ctx->lp_ctx);
@@ -138,7 +149,8 @@ static NTSTATUS remote_op_bind(struct dcesrv_call_state *dce_call, const struct 
 	}
 
 	if (dce_call->context->assoc_group->proxied_id == 0) {
-		dce_call->context->assoc_group->proxied_id = priv->c_pipe->assoc_group_id;
+		dce_call->context->assoc_group->proxied_id =
+			dcerpc_binding_get_assoc_group_id(priv->c_pipe->binding);
 	}
 
 	if (!NT_STATUS_IS_OK(status)) {
@@ -157,6 +169,18 @@ static NTSTATUS remote_op_ndr_pull(struct dcesrv_call_state *dce_call, TALLOC_CT
 	dce_call->fault_code = 0;
 
 	if (opnum >= table->num_calls) {
+		dce_call->fault_code = DCERPC_FAULT_OP_RNG_ERROR;
+		return NT_STATUS_NET_WRITE_FAULT;
+	}
+
+	/*
+	 * We don't have support for calls with pipes.
+	 */
+	if (table->calls[opnum].in_pipes.num_pipes != 0) {
+		dce_call->fault_code = DCERPC_FAULT_OP_RNG_ERROR;
+		return NT_STATUS_NET_WRITE_FAULT;
+	}
+	if (table->calls[opnum].out_pipes.num_pipes != 0) {
 		dce_call->fault_code = DCERPC_FAULT_OP_RNG_ERROR;
 		return NT_STATUS_NET_WRITE_FAULT;
 	}
@@ -292,7 +316,7 @@ static NTSTATUS remote_register_one_iface(struct dcesrv_context *dce_ctx, const 
 static NTSTATUS remote_op_init_server(struct dcesrv_context *dce_ctx, const struct dcesrv_endpoint_server *ep_server)
 {
 	unsigned int i;
-	const char **ifaces = (const char **)str_list_make(dce_ctx, lpcfg_parm_string(dce_ctx->lp_ctx, NULL, "dcerpc_remote", "interfaces"),NULL);
+	char **ifaces = str_list_make(dce_ctx, lpcfg_parm_string(dce_ctx->lp_ctx, NULL, "dcerpc_remote", "interfaces"),NULL);
 
 	if (!ifaces) {
 		DEBUG(3,("remote_op_init_server: no interfaces configured\n"));

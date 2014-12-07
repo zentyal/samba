@@ -30,6 +30,7 @@
 #include "auth.h"
 #include "lib/param/loadparm.h"
 #include "messages.h"
+#include "lib/afs/afs_funcs.h"
 
 static bool canonicalize_connect_path(connection_struct *conn)
 {
@@ -206,7 +207,7 @@ bool set_current_service(connection_struct *conn, uint16 flags, bool do_chdir)
 	last_flags = flags;
 
 	/* Obey the client case sensitivity requests - only for clients that support it. */
-	switch (lp_casesensitive(snum)) {
+	switch (lp_case_sensitive(snum)) {
 		case Auto:
 			{
 				/* We need this uglyness due to DOS/Win9x clients that lie about case insensitivity. */
@@ -248,15 +249,15 @@ static NTSTATUS share_sanity_checks(const struct tsocket_address *remote_address
 	}
 
 	if (!lp_snum_ok(snum) ||
-	    !allow_access(lp_hostsdeny(snum), lp_hostsallow(snum),
+	    !allow_access(lp_hosts_deny(snum), lp_hosts_allow(snum),
 			  rhost, raddr)) {
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
 	if (dev[0] == '?' || !dev[0]) {
-		if (lp_print_ok(snum)) {
+		if (lp_printable(snum)) {
 			fstrcpy(dev,"LPT1:");
-		} else if (strequal(lp_fstype(talloc_tos(), snum), "IPC")) {
+		} else if (strequal(lp_fstype(snum), "IPC")) {
 			fstrcpy(dev, "IPC");
 		} else {
 			fstrcpy(dev,"A:");
@@ -268,11 +269,11 @@ static NTSTATUS share_sanity_checks(const struct tsocket_address *remote_address
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
-	if (lp_print_ok(snum)) {
+	if (lp_printable(snum)) {
 		if (!strequal(dev, "LPT1:")) {
 			return NT_STATUS_BAD_DEVICE_TYPE;
 		}
-	} else if (strequal(lp_fstype(talloc_tos(), snum), "IPC")) {
+	} else if (strequal(lp_fstype(snum), "IPC")) {
 		if (!strequal(dev, "IPC")) {
 			return NT_STATUS_BAD_DEVICE_TYPE;
 		}
@@ -281,7 +282,7 @@ static NTSTATUS share_sanity_checks(const struct tsocket_address *remote_address
 	}
 
 	/* Behave as a printer if we are supposed to */
-	if (lp_print_ok(snum) && (strcmp(dev, "A:") == 0)) {
+	if (lp_printable(snum) && (strcmp(dev, "A:") == 0)) {
 		fstrcpy(dev, "LPT1:");
 	}
 
@@ -430,7 +431,7 @@ static NTSTATUS create_connection_session_info(struct smbd_server_connection *sc
 }
 
 /****************************************************************************
-  set relavent user and group settings corresponding to force user/group
+  Set relevant user and group settings corresponding to force user/group
   configuration for the given snum.
 ****************************************************************************/
 
@@ -516,11 +517,12 @@ NTSTATUS set_conn_force_user_group(connection_struct *conn, int snum)
   connecting user if appropriate.
 ****************************************************************************/
 
-static NTSTATUS make_connection_snum(struct smbd_server_connection *sconn,
+static NTSTATUS make_connection_snum(struct smbXsrv_connection *xconn,
 					connection_struct *conn,
 					int snum, struct user_struct *vuser,
 					const char *pdev)
 {
+	struct smbd_server_connection *sconn = xconn->client->sconn;
 	struct smb_filename *smb_fname_cpath = NULL;
 	fstring dev;
 	int ret;
@@ -562,16 +564,16 @@ static NTSTATUS make_connection_snum(struct smbd_server_connection *sconn,
 		      ( lp_enable_asu_support() && strequal(dev,"ADMIN$")) );
 
 	/* Case options for the share. */
-	if (lp_casesensitive(snum) == Auto) {
+	if (lp_case_sensitive(snum) == Auto) {
 		/* We will be setting this per packet. Set to be case
 		 * insensitive for now. */
 		conn->case_sensitive = False;
 	} else {
-		conn->case_sensitive = (bool)lp_casesensitive(snum);
+		conn->case_sensitive = (bool)lp_case_sensitive(snum);
 	}
 
-	conn->case_preserve = lp_preservecase(snum);
-	conn->short_case_preserve = lp_shortpreservecase(snum);
+	conn->case_preserve = lp_preserve_case(snum);
+	conn->short_case_preserve = lp_short_preserve_case(snum);
 
 	conn->encrypt_level = lp_smb_encrypt(snum);
 
@@ -580,7 +582,7 @@ static NTSTATUS make_connection_snum(struct smbd_server_connection *sconn,
 	conn->veto_oplock_list = NULL;
 	conn->aio_write_behind_list = NULL;
 
-	conn->read_only = lp_readonly(SNUM(conn));
+	conn->read_only = lp_read_only(SNUM(conn));
 
 	status = set_conn_force_user_group(conn, snum);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -597,7 +599,7 @@ static NTSTATUS make_connection_snum(struct smbd_server_connection *sconn,
 					conn->session_info->unix_token->gid,
 					conn->session_info->unix_info->sanitized_username,
 					conn->session_info->info->domain_name,
-					lp_pathname(talloc_tos(), snum));
+					lp_path(talloc_tos(), snum));
 		if (!s) {
 			status = NT_STATUS_NO_MEMORY;
 			goto err_root_exit;
@@ -706,7 +708,7 @@ static NTSTATUS make_connection_snum(struct smbd_server_connection *sconn,
 	/* Preexecs are done here as they might make the dir we are to ChDir
 	 * to below */
 	/* execute any "root preexec = " line */
-	if (*lp_rootpreexec(talloc_tos(), snum)) {
+	if (*lp_root_preexec(talloc_tos(), snum)) {
 		char *cmd = talloc_sub_advanced(talloc_tos(),
 					lp_servicename(talloc_tos(), SNUM(conn)),
 					conn->session_info->unix_info->unix_name,
@@ -714,11 +716,11 @@ static NTSTATUS make_connection_snum(struct smbd_server_connection *sconn,
 					conn->session_info->unix_token->gid,
 					conn->session_info->unix_info->sanitized_username,
 					conn->session_info->info->domain_name,
-					lp_rootpreexec(talloc_tos(), snum));
+					lp_root_preexec(talloc_tos(), snum));
 		DEBUG(5,("cmd=%s\n",cmd));
 		ret = smbrun(cmd,NULL);
 		TALLOC_FREE(cmd);
-		if (ret != 0 && lp_rootpreexec_close(snum)) {
+		if (ret != 0 && lp_root_preexec_close(snum)) {
 			DEBUG(1,("root preexec gave %d - failing "
 				 "connection\n", ret));
 			status = NT_STATUS_ACCESS_DENIED;
@@ -802,7 +804,7 @@ static NTSTATUS make_connection_snum(struct smbd_server_connection *sconn,
 		set_namearray( &conn->hide_list,
 			       lp_hide_files(talloc_tos(), snum));
 		set_namearray( &conn->veto_oplock_list,
-			       lp_veto_oplocks(talloc_tos(), snum));
+			       lp_veto_oplock_files(talloc_tos(), snum));
 		set_namearray( &conn->aio_write_behind_list,
 				lp_aio_write_behind(talloc_tos(), snum));
 	}
@@ -857,7 +859,7 @@ static NTSTATUS make_connection_snum(struct smbd_server_connection *sconn,
 		dbgtext( "%s (%s) ", get_remote_machine_name(),
 			 tsocket_address_string(conn->sconn->remote_address,
 						talloc_tos()) );
-		dbgtext( "%s", srv_is_signing_active(sconn) ? "signed " : "");
+		dbgtext( "%s", srv_is_signing_active(xconn) ? "signed " : "");
 		dbgtext( "connect to service %s ",
 			 lp_servicename(talloc_tos(), snum) );
 		dbgtext( "initially as user %s ",
@@ -886,7 +888,7 @@ static NTSTATUS make_connection_snum(struct smbd_server_connection *sconn,
  Make a connection to a service from SMB1. Internal interface.
 ****************************************************************************/
 
-static connection_struct *make_connection_smb1(struct smbd_server_connection *sconn,
+static connection_struct *make_connection_smb1(struct smb_request *req,
 					NTTIME now,
 					int snum, struct user_struct *vuser,
 					const char *pdev,
@@ -896,7 +898,7 @@ static connection_struct *make_connection_smb1(struct smbd_server_connection *sc
 	NTSTATUS status;
 	struct connection_struct *conn;
 
-	status = smb1srv_tcon_create(sconn->conn, now, &tcon);
+	status = smb1srv_tcon_create(req->xconn, now, &tcon);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("make_connection_smb1: Couldn't find free tcon %s.\n",
 			 nt_errstr(status)));
@@ -904,7 +906,7 @@ static connection_struct *make_connection_smb1(struct smbd_server_connection *sc
 		return NULL;
 	}
 
-	conn = conn_new(sconn);
+	conn = conn_new(req->sconn);
 	if (!conn) {
 		TALLOC_FREE(tcon);
 
@@ -916,7 +918,7 @@ static connection_struct *make_connection_smb1(struct smbd_server_connection *sc
 	conn->cnum = tcon->global->tcon_wire_id;
 	conn->tcon = tcon;
 
-	*pstatus = make_connection_snum(sconn,
+	*pstatus = make_connection_snum(req->xconn,
 					conn,
 					snum,
 					vuser,
@@ -954,13 +956,14 @@ static connection_struct *make_connection_smb1(struct smbd_server_connection *sc
  We must set cnum before claiming connection.
 ****************************************************************************/
 
-connection_struct *make_connection_smb2(struct smbd_server_connection *sconn,
+connection_struct *make_connection_smb2(struct smbd_smb2_request *req,
 					struct smbXsrv_tcon *tcon,
 					int snum,
 					struct user_struct *vuser,
 					const char *pdev,
 					NTSTATUS *pstatus)
 {
+	struct smbd_server_connection *sconn = req->sconn;
 	connection_struct *conn = conn_new(sconn);
 	if (!conn) {
 		DEBUG(0,("make_connection_smb2: Couldn't find free connection.\n"));
@@ -971,7 +974,7 @@ connection_struct *make_connection_smb2(struct smbd_server_connection *sconn,
 	conn->cnum = tcon->global->tcon_wire_id;
 	conn->tcon = tcon;
 
-	*pstatus = make_connection_snum(sconn,
+	*pstatus = make_connection_snum(req->xconn,
 					conn,
 					snum,
 					vuser,
@@ -989,12 +992,13 @@ connection_struct *make_connection_smb2(struct smbd_server_connection *sconn,
  * @param service 
 ****************************************************************************/
 
-connection_struct *make_connection(struct smbd_server_connection *sconn,
+connection_struct *make_connection(struct smb_request *req,
 				   NTTIME now,
 				   const char *service_in,
 				   const char *pdev, uint64_t vuid,
 				   NTSTATUS *status)
 {
+	struct smbd_server_connection *sconn = req->sconn;
 	uid_t euid;
 	struct user_struct *vuser = NULL;
 	char *service = NULL;
@@ -1044,7 +1048,7 @@ connection_struct *make_connection(struct smbd_server_connection *sconn,
 		}
 		DEBUG(5, ("making a connection to [homes] service "
 			  "created at session setup time\n"));
-		return make_connection_smb1(sconn, now,
+		return make_connection_smb1(req, now,
 					    vuser->homes_snum,
 					    vuser,
 					    dev, status);
@@ -1053,7 +1057,7 @@ connection_struct *make_connection(struct smbd_server_connection *sconn,
 			       lp_servicename(talloc_tos(), vuser->homes_snum))) {
 		DEBUG(5, ("making a connection to 'homes' service [%s] "
 			  "created at session setup time\n", service_in));
-		return make_connection_smb1(sconn, now,
+		return make_connection_smb1(req, now,
 					    vuser->homes_snum,
 					    vuser,
 					    dev, status);
@@ -1105,7 +1109,7 @@ connection_struct *make_connection(struct smbd_server_connection *sconn,
 
 	DEBUG(5, ("making a connection to 'normal' service %s\n", service));
 
-	return make_connection_smb1(sconn, now, snum, vuser,
+	return make_connection_smb1(req, now, snum, vuser,
 				    dev, status);
 }
 
@@ -1123,7 +1127,7 @@ void close_cnum(connection_struct *conn, uint64_t vuid)
 
 	change_to_root_user();
 
-	DEBUG(IS_IPC(conn)?3:1, ("%s (%s) closed connection to service %s\n",
+	DEBUG(IS_IPC(conn)?3:2, ("%s (%s) closed connection to service %s\n",
 				 get_remote_machine_name(),
 				 tsocket_address_string(conn->sconn->remote_address,
 							talloc_tos()),
@@ -1153,7 +1157,7 @@ void close_cnum(connection_struct *conn, uint64_t vuid)
 
 	change_to_root_user();
 	/* execute any "root postexec = " line */
-	if (*lp_rootpostexec(talloc_tos(), SNUM(conn)))  {
+	if (*lp_root_postexec(talloc_tos(), SNUM(conn)))  {
 		char *cmd = talloc_sub_advanced(talloc_tos(),
 					lp_servicename(talloc_tos(), SNUM(conn)),
 					conn->session_info->unix_info->unix_name,
@@ -1161,7 +1165,7 @@ void close_cnum(connection_struct *conn, uint64_t vuid)
 					conn->session_info->unix_token->gid,
 					conn->session_info->unix_info->sanitized_username,
 					conn->session_info->info->domain_name,
-					lp_rootpostexec(talloc_tos(), SNUM(conn)));
+					lp_root_postexec(talloc_tos(), SNUM(conn)));
 		smbrun(cmd,NULL);
 		TALLOC_FREE(cmd);
 	}

@@ -27,6 +27,7 @@
 #include "torture/torture.h"
 #include "cluster/cluster.h"
 #include "param/param.h"
+#include "torture/local/proto.h"
 
 const uint32_t MSG_ID1 = 1, MSG_ID2 = 2;
 
@@ -73,8 +74,9 @@ static void deferred_echodata(struct tevent_context *ev, struct tevent_timer *te
 */
 static NTSTATUS irpc_EchoData(struct irpc_message *irpc, struct echo_EchoData *r)
 {
+	struct irpc_test_data *data = talloc_get_type_abort(irpc->private_data, struct irpc_test_data);
 	irpc->defer_reply = true;
-	tevent_add_timer(irpc->ev, irpc, timeval_zero(), deferred_echodata, irpc);
+	tevent_add_timer(data->ev, irpc, timeval_zero(), deferred_echodata, irpc);
 	return NT_STATUS_OK;
 }
 
@@ -100,6 +102,11 @@ static bool test_addone(struct torture_context *test, const void *_data,
 	r.in.in_data = value;
 
 	test_debug = true;
+	/*
+	 * Note: this makes use of nested event loops
+	 * as client and server use the same loop.
+	 */
+	dcerpc_binding_handle_set_sync_ev(irpc_handle, data->ev);
 	status = dcerpc_echo_AddOne_r(irpc_handle, test, &r);
 	test_debug = false;
 	torture_assert_ntstatus_ok(test, status, "AddOne failed");
@@ -134,6 +141,11 @@ static bool test_echodata(struct torture_context *tctx,
 	r.in.in_data = (unsigned char *)talloc_strdup(mem_ctx, "0123456789");
 	r.in.len = strlen((char *)r.in.in_data);
 
+	/*
+	 * Note: this makes use of nested event loops
+	 * as client and server use the same loop.
+	 */
+	dcerpc_binding_handle_set_sync_ev(irpc_handle, data->ev);
 	status = dcerpc_echo_EchoData_r(irpc_handle, mem_ctx, &r);
 	torture_assert_ntstatus_ok(tctx, status, "EchoData failed");
 
@@ -260,11 +272,11 @@ static bool irpc_setup(struct torture_context *tctx, void **_data)
 		       "Failed to init second messaging context");
 
 	/* register the server side function */
-	IRPC_REGISTER(data->msg_ctx1, rpcecho, ECHO_ADDONE, irpc_AddOne, NULL);
-	IRPC_REGISTER(data->msg_ctx2, rpcecho, ECHO_ADDONE, irpc_AddOne, NULL);
+	IRPC_REGISTER(data->msg_ctx1, rpcecho, ECHO_ADDONE, irpc_AddOne, data);
+	IRPC_REGISTER(data->msg_ctx2, rpcecho, ECHO_ADDONE, irpc_AddOne, data);
 
-	IRPC_REGISTER(data->msg_ctx1, rpcecho, ECHO_ECHODATA, irpc_EchoData, NULL);
-	IRPC_REGISTER(data->msg_ctx2, rpcecho, ECHO_ECHODATA, irpc_EchoData, NULL);
+	IRPC_REGISTER(data->msg_ctx1, rpcecho, ECHO_ECHODATA, irpc_EchoData, data);
+	IRPC_REGISTER(data->msg_ctx2, rpcecho, ECHO_ECHODATA, irpc_EchoData, data);
 
 	return true;
 }

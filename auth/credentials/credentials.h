@@ -25,9 +25,17 @@
 #include "../lib/util/data_blob.h"
 #include "librpc/gen_ndr/misc.h"
 
+struct cli_credentials;
 struct ccache_container;
 struct tevent_context;
 struct netlogon_creds_CredentialState;
+struct ldb_context;
+struct ldb_message;
+struct loadparm_context;
+struct ccache_container;
+struct gssapi_creds_container;
+struct smb_krb5_context;
+struct keytab_container;
 
 /* In order of priority */
 enum credentials_obtained { 
@@ -56,99 +64,6 @@ enum credentials_krb_forwardable {
 #define CLI_CRED_LANMAN_AUTH 0x04
 #define CLI_CRED_NTLM_AUTH   0x08
 #define CLI_CRED_CLEAR_AUTH  0x10   /* TODO:  Push cleartext auth with this flag */
-
-struct cli_credentials {
-	enum credentials_obtained workstation_obtained;
-	enum credentials_obtained username_obtained;
-	enum credentials_obtained password_obtained;
-	enum credentials_obtained domain_obtained;
-	enum credentials_obtained realm_obtained;
-	enum credentials_obtained ccache_obtained;
-	enum credentials_obtained client_gss_creds_obtained;
-	enum credentials_obtained principal_obtained;
-	enum credentials_obtained keytab_obtained;
-	enum credentials_obtained server_gss_creds_obtained;
-
-	/* Threshold values (essentially a MAX() over a number of the
-	 * above) for the ccache and GSS credentials, to ensure we
-	 * regenerate/pick correctly */
-
-	enum credentials_obtained ccache_threshold;
-	enum credentials_obtained client_gss_creds_threshold;
-
-	const char *workstation;
-	const char *username;
-	const char *password;
-	const char *old_password;
-	const char *domain;
-	const char *realm;
-	const char *principal;
-	char *salt_principal;
-	char *impersonate_principal;
-	char *self_service;
-	char *target_service;
-
-	const char *bind_dn;
-
-	/* Allows authentication from a keytab or similar */
-	struct samr_Password *nt_hash;
-
-	/* Allows NTLM pass-though authentication */
-	DATA_BLOB lm_response;
-	DATA_BLOB nt_response;
-
-	struct ccache_container *ccache;
-	struct gssapi_creds_container *client_gss_creds;
-	struct keytab_container *keytab;
-	struct gssapi_creds_container *server_gss_creds;
-
-	const char *(*workstation_cb) (struct cli_credentials *);
-	const char *(*password_cb) (struct cli_credentials *);
-	const char *(*username_cb) (struct cli_credentials *);
-	const char *(*domain_cb) (struct cli_credentials *);
-	const char *(*realm_cb) (struct cli_credentials *);
-	const char *(*principal_cb) (struct cli_credentials *);
-
-	/* Private handle for the callback routines to use */
-	void *priv_data;
-
-	struct netlogon_creds_CredentialState *netlogon_creds;
-	enum netr_SchannelType secure_channel_type;
-	int kvno;
-	time_t password_last_changed_time;
-
-	struct smb_krb5_context *smb_krb5_context;
-
-	/* We are flagged to get machine account details from the
-	 * secrets.ldb when we are asked for a username or password */
-	bool machine_account_pending;
-	struct loadparm_context *machine_account_pending_lp_ctx;
-	
-	/* Is this a machine account? */
-	bool machine_account;
-
-	/* Should we be trying to use kerberos? */
-	enum credentials_use_kerberos use_kerberos;
-
-	/* Should we get a forwardable ticket? */
-	enum credentials_krb_forwardable krb_forwardable;
-
-	/* gensec features which should be used for connections */
-	uint32_t gensec_features;
-
-	/* Number of retries left before bailing out */
-	int tries;
-
-	/* Whether any callback is currently running */
-	bool callback_running;
-};
-
-struct ldb_context;
-struct ldb_message;
-struct loadparm_context;
-struct ccache_container;
-
-struct gssapi_creds_container;
 
 const char *cli_credentials_get_workstation(struct cli_credentials *cred);
 bool cli_credentials_set_workstation(struct cli_credentials *cred, 
@@ -203,6 +118,8 @@ int cli_credentials_get_client_gss_creds(struct cli_credentials *cred,
 					 struct loadparm_context *lp_ctx,
 					 struct gssapi_creds_container **_gcc,
 					 const char **error_string);
+void cli_credentials_set_forced_sasl_mech(struct cli_credentials *creds,
+					  const char *sasl_mech);
 void cli_credentials_set_kerberos_state(struct cli_credentials *creds, 
 					enum credentials_use_kerberos use_kerberos);
 void cli_credentials_set_krb_forwardable(struct cli_credentials *creds,
@@ -226,8 +143,8 @@ bool cli_credentials_set_password(struct cli_credentials *cred,
 				  enum credentials_obtained obtained);
 struct cli_credentials *cli_credentials_init_anon(TALLOC_CTX *mem_ctx);
 void cli_credentials_parse_string(struct cli_credentials *credentials, const char *data, enum credentials_obtained obtained);
-const struct samr_Password *cli_credentials_get_nt_hash(struct cli_credentials *cred, 
-							TALLOC_CTX *mem_ctx);
+struct samr_Password *cli_credentials_get_nt_hash(struct cli_credentials *cred,
+						  TALLOC_CTX *mem_ctx);
 bool cli_credentials_set_realm(struct cli_credentials *cred, 
 			       const char *val, 
 			       enum credentials_obtained obtained);
@@ -291,6 +208,7 @@ const char *cli_credentials_get_impersonate_principal(struct cli_credentials *cr
 const char *cli_credentials_get_self_service(struct cli_credentials *cred);
 const char *cli_credentials_get_target_service(struct cli_credentials *cred);
 enum credentials_use_kerberos cli_credentials_get_kerberos_state(struct cli_credentials *creds);
+const char *cli_credentials_get_forced_sasl_mech(struct cli_credentials *cred);
 enum credentials_krb_forwardable cli_credentials_get_krb_forwardable(struct cli_credentials *creds);
 NTSTATUS cli_credentials_set_secrets(struct cli_credentials *cred, 
 				     struct loadparm_context *lp_ctx,
@@ -331,6 +249,17 @@ bool cli_credentials_set_realm_callback(struct cli_credentials *cred,
 					const char *(*realm_cb) (struct cli_credentials *));
 bool cli_credentials_set_workstation_callback(struct cli_credentials *cred,
 					      const char *(*workstation_cb) (struct cli_credentials *));
+
+void cli_credentials_set_callback_data(struct cli_credentials *cred,
+				       void *callback_data);
+void *_cli_credentials_callback_data(struct cli_credentials *cred);
+#define cli_credentials_callback_data(_cred, _type) \
+	talloc_get_type_abort(_cli_credentials_callback_data(_cred), _type)
+#define cli_credentials_callback_data_void(_cred) \
+	_cli_credentials_callback_data(_cred)
+
+struct cli_credentials *cli_credentials_shallow_copy(TALLOC_CTX *mem_ctx,
+						struct cli_credentials *src);
 
 /**
  * Return attached NETLOGON credentials 

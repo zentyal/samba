@@ -59,6 +59,8 @@ def write_build_options_header(fp):
     fp.write("#include \"includes.h\"\n")
     fp.write("#include \"build_env.h\"\n")
     fp.write("#include \"dynconfig/dynconfig.h\"\n")
+    fp.write("#include \"lib/cluster_support.h\"\n")
+
     fp.write("\n")
     fp.write("static int output(bool screen, const char *format, ...) PRINTF_ATTRIBUTE(2,3);\n")
     fp.write("void build_options(bool screen);\n")
@@ -129,14 +131,15 @@ def write_build_options_header(fp):
     fp.write("\n")
 
 def write_build_options_footer(fp):
+    fp.write("       /* Output the sizes of the various cluster features */\n")
+    fp.write("       output(screen, \"\\n%s\", cluster_support_features());\n")
+    fp.write("\n")
     fp.write("       /* Output the sizes of the various types */\n")
     fp.write("       output(screen, \"\\nType sizes:\\n\");\n")
     fp.write("       output(screen, \"   sizeof(char):         %lu\\n\",(unsigned long)sizeof(char));\n")
     fp.write("       output(screen, \"   sizeof(int):          %lu\\n\",(unsigned long)sizeof(int));\n")
     fp.write("       output(screen, \"   sizeof(long):         %lu\\n\",(unsigned long)sizeof(long));\n")
-    fp.write("#if HAVE_LONGLONG\n")
     fp.write("       output(screen, \"   sizeof(long long):    %lu\\n\",(unsigned long)sizeof(long long));\n")
-    fp.write("#endif\n")
     fp.write("       output(screen, \"   sizeof(uint8):        %lu\\n\",(unsigned long)sizeof(uint8));\n")
     fp.write("       output(screen, \"   sizeof(uint16):       %lu\\n\",(unsigned long)sizeof(uint16));\n")
     fp.write("       output(screen, \"   sizeof(uint32):       %lu\\n\",(unsigned long)sizeof(uint32));\n")
@@ -202,6 +205,6 @@ def SAMBA_BLDOPTIONS(bld, target):
     '''generate the bld_options.c for Samba'''
     t = bld.SAMBA_GENERATOR(target,
                             rule=write_build_options,
-                            target=target,
-                            always=True)
+                            dep_vars=['defines'],
+                            target=target)
 Build.BuildContext.SAMBA_BLDOPTIONS = SAMBA_BLDOPTIONS

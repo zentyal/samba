@@ -1,6 +1,12 @@
 samba (2:4.2.0~rc2+dfsg-1) UNRELEASED; urgency=medium
 
   * New upstream release.
+   + Drop patch do-not-install-smbclient4-and-nmbclient4: applied upstream.
+   + Drop patch
+     bug_598313_upstream_7499-nss_wins-dont-clobber-daemons-logs.patch:
+     present upstream.
+   + Refresh patch 26_heimdal_compat.26_heimdal_compat.
+   + Add build-dependency on libarchive-dev.
 
  -- Jelmer Vernooij <jelmer@debian.org>  Sun, 07 Dec 2014 15:34:36 +0000
 

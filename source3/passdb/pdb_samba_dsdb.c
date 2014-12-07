@@ -28,6 +28,8 @@
 #include "libcli/security/dom_sid.h"
 #include "source4/winbind/idmap.h"
 #include "librpc/gen_ndr/ndr_security.h"
+#include "librpc/gen_ndr/ndr_drsblobs.h"
+#include "librpc/gen_ndr/ndr_lsa.h"
 #include "libds/common/flag_mapping.h"
 #include "source4/lib/events/events.h"
 #include "source4/auth/session.h"
@@ -35,6 +37,7 @@
 #include "lib/param/param.h"
 #include "source4/dsdb/common/util.h"
 #include "source3/include/secrets.h"
+#include "source4/auth/auth_sam.h"
 
 struct pdb_samba_dsdb_state {
 	struct tevent_context *ev;
@@ -276,12 +279,12 @@ static NTSTATUS pdb_samba_dsdb_init_sam_from_priv(struct pdb_methods *m,
 	}
 	pdb_set_user_sid(sam, sid, PDB_SET);
 
-	n = ldb_msg_find_attr_as_uint(msg, "userAccountControl", 0);
+	n = samdb_result_acct_flags(msg, "msDS-User-Account-Control-Computed");
 	if (n == 0) {
 		DEBUG(10, ("Could not pull userAccountControl\n"));
 		goto fail;
 	}
-	pdb_set_acct_ctrl(sam, ds_uf2acb(n), PDB_SET);
+	pdb_set_acct_ctrl(sam, n, PDB_SET);
 
 	blob = ldb_msg_find_ldb_val(msg, "unicodePwd");
 	if (blob) {
@@ -343,6 +346,7 @@ static int pdb_samba_dsdb_replace_by_sam(struct pdb_samba_dsdb_state *state,
 
 	msg = ldb_msg_new(frame);
 	if (!msg) {
+		talloc_free(frame);
 		return false;
 	}
 
@@ -379,6 +383,7 @@ static int pdb_samba_dsdb_replace_by_sam(struct pdb_samba_dsdb_state *state,
 					   pw, strlen(pw),
 					   (void *)&pw_utf16.data,
 					   &pw_utf16.length)) {
+			talloc_free(frame);
 			return LDB_ERR_OPERATIONS_ERROR;
 		}
 		ret |= ldb_msg_add_value(msg, "clearTextPassword", &pw_utf16, NULL);
@@ -635,7 +640,8 @@ static NTSTATUS pdb_samba_dsdb_getsamupriv(struct pdb_samba_dsdb_state *state,
 		"sAMAccountName", "displayName", "homeDirectory",
 		"homeDrive", "scriptPath", "profilePath", "description",
 		"userWorkstations", "comment", "userParameters", "objectSid",
-		"primaryGroupID", "userAccountControl", "logonHours",
+		"primaryGroupID", "userAccountControl",
+		"msDS-User-Account-Control-Computed", "logonHours",
 		"badPwdCount", "logonCount", "countryCode", "codePage",
 		"unicodePwd", "dBCSPwd", NULL };
 
@@ -1029,6 +1035,7 @@ static NTSTATUS pdb_samba_dsdb_getgrgid(struct pdb_methods *m, GROUP_MAP *map,
 
 	status = idmap_xids_to_sids(state->idmap_ctx, tmp_ctx, id_maps);
 	if (!NT_STATUS_IS_OK(status)) {
+		talloc_free(tmp_ctx);
 		return status;
 	}
 	status = pdb_samba_dsdb_getgrsid(m, map, *id_map.sid);
@@ -1191,7 +1198,10 @@ static NTSTATUS pdb_samba_dsdb_enum_group_members(struct pdb_methods *m,
 	}
 
 	*pmembers = members = talloc_array(mem_ctx, uint32_t, num_sids);
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(*pmembers, tmp_ctx);
+	if (*pmembers == NULL) {
+		TALLOC_FREE(tmp_ctx);
+		return NT_STATUS_NO_MEMORY;
+	}
 	num_members = 0;
 
 	for (i = 0; i < num_sids; i++) {
@@ -1411,7 +1421,10 @@ static NTSTATUS pdb_samba_dsdb_mod_groupmem_by_sid(struct pdb_methods *m,
 	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
 	NT_STATUS_HAVE_NO_MEMORY(tmp_ctx);
 	msg = ldb_msg_new(tmp_ctx);
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(msg, tmp_ctx);
+	if (msg == NULL) {
+		TALLOC_FREE(tmp_ctx);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	msg->dn = ldb_dn_new_fmt(msg, state->ldb, "<SID=%s>", dom_sid_string(tmp_ctx, groupsid));
 	if (!msg->dn || !ldb_dn_validate(msg->dn)) {
@@ -1460,9 +1473,15 @@ static NTSTATUS pdb_samba_dsdb_mod_groupmem(struct pdb_methods *m,
 	dom_sid = samdb_domain_sid(state->ldb);
 
 	groupsid = dom_sid_add_rid(tmp_ctx, dom_sid, grouprid);
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(groupsid, tmp_ctx);
+	if (groupsid == NULL) {
+		TALLOC_FREE(tmp_ctx);
+		return NT_STATUS_NO_MEMORY;
+	}
 	membersid = dom_sid_add_rid(tmp_ctx, dom_sid, memberrid);
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(membersid, tmp_ctx);
+	if (membersid == NULL) {
+		TALLOC_FREE(tmp_ctx);
+		return NT_STATUS_NO_MEMORY;
+	}
 	status = pdb_samba_dsdb_mod_groupmem_by_sid(m, tmp_ctx, groupsid, membersid, mod_op);
 	talloc_free(tmp_ctx);
 	return status;
@@ -1527,6 +1546,7 @@ static NTSTATUS pdb_samba_dsdb_delete_alias(struct pdb_methods *m,
 
 	if (ldb_transaction_start(state->ldb) != LDB_SUCCESS) {
 		DEBUG(0, ("Failed to start transaction in dsdb_add_domain_alias(): %s\n", ldb_errstring(state->ldb)));
+		talloc_free(tmp_ctx);
 		return NT_STATUS_INTERNAL_ERROR;
 	}
 
@@ -1548,15 +1568,18 @@ static NTSTATUS pdb_samba_dsdb_delete_alias(struct pdb_methods *m,
 		DEBUG(10, ("ldb_delete failed %s\n",
 			   ldb_errstring(state->ldb)));
 		ldb_transaction_cancel(state->ldb);
+		talloc_free(tmp_ctx);
 		return NT_STATUS_LDAP(rc);
 	}
 
 	if (ldb_transaction_commit(state->ldb) != LDB_SUCCESS) {
 		DEBUG(0, ("Failed to commit transaction in pdb_samba_dsdb_delete_alias(): %s\n",
 			  ldb_errstring(state->ldb)));
+		talloc_free(tmp_ctx);
 		return NT_STATUS_INTERNAL_ERROR;
 	}
 
+	talloc_free(tmp_ctx);
 	return NT_STATUS_OK;
 }
 
@@ -1727,10 +1750,16 @@ static NTSTATUS pdb_samba_dsdb_enum_alias_memberships(struct pdb_methods *m,
 
 	for (i = 0; i < num_members; i++) {
 		sid_string = dom_sid_string(tmp_ctx, &members[i]);
-		NT_STATUS_HAVE_NO_MEMORY_AND_FREE(sid_string, tmp_ctx);
+		if (sid_string == NULL) {
+			TALLOC_FREE(tmp_ctx);
+			return NT_STATUS_NO_MEMORY;
+		}
 
 		sid_dn = talloc_asprintf(tmp_ctx, "<SID=%s>", sid_string);
-		NT_STATUS_HAVE_NO_MEMORY_AND_FREE(sid_dn, tmp_ctx);
+		if (sid_dn == NULL) {
+			TALLOC_FREE(tmp_ctx);
+			return NT_STATUS_NO_MEMORY;
+		}
 
 		sid_blob = data_blob_string_const(sid_dn);
 
@@ -1937,9 +1966,7 @@ static bool pdb_samba_dsdb_search_filter(struct pdb_methods *m,
 		}
 		sid_peek_rid(sid, &e->rid);
 
-		e->acct_flags = samdb_result_acct_flags(state->ldb, tmp_ctx,
-							res->msgs[i],
-							ldb_get_default_basedn(state->ldb));
+		e->acct_flags = samdb_result_acct_flags(res->msgs[i], "userAccountControl");
 		e->account_name = ldb_msg_find_attr_as_string(
 			res->msgs[i], "samAccountName", NULL);
 		if (e->account_name == NULL) {
@@ -2063,6 +2090,7 @@ static bool pdb_samba_dsdb_gid_to_sid(struct pdb_methods *m, gid_t gid,
 
 	status = idmap_xids_to_sids(state->idmap_ctx, tmp_ctx, id_maps);
 	if (!NT_STATUS_IS_OK(status)) {
+		talloc_free(tmp_ctx);
 		return false;
 	}
 	*sid = *id_map.sid;
@@ -2115,7 +2143,127 @@ static bool pdb_samba_dsdb_get_trusteddom_pw(struct pdb_methods *m,
 				      struct dom_sid *sid,
 				      time_t *pass_last_set_time)
 {
-	return false;
+	struct pdb_samba_dsdb_state *state = talloc_get_type_abort(
+		m->private_data, struct pdb_samba_dsdb_state);
+	TALLOC_CTX *tmp_ctx = talloc_stackframe();
+	const char * const attrs[] = {
+		"securityIdentifier",
+		"trustPartner",
+		"trustAuthOutgoing",
+		"whenCreated",
+		"msDS-SupportedEncryptionTypes",
+		"trustAttributes",
+		"trustDirection",
+		"trustType",
+		NULL
+	};
+	struct ldb_message *msg;
+	const struct ldb_val *password_val;
+	int trust_direction_flags;
+	int trust_type;
+	int i;
+	DATA_BLOB password_utf16;
+	struct trustAuthInOutBlob password_blob;
+	struct AuthenticationInformationArray *auth_array;
+	char *password_talloc;
+	size_t password_len;
+	enum ndr_err_code ndr_err;
+	NTSTATUS status;
+
+	status = sam_get_results_trust(state->ldb, tmp_ctx, domain,
+				       NULL, attrs, &msg);
+	if (!NT_STATUS_IS_OK(status)) {
+		/*
+		 * This can be called to work out of a domain is
+		 * trusted, rather than just to get the password
+		 */
+		DEBUG(2, ("Failed to get trusted domain password for %s.  "
+			  "It may not be a trusted domain.\n", domain));
+		TALLOC_FREE(tmp_ctx);
+		return false;
+	}
+
+	trust_direction_flags = ldb_msg_find_attr_as_int(msg, "trustDirection", 0);
+	if (!(trust_direction_flags & LSA_TRUST_DIRECTION_OUTBOUND)) {
+		DEBUG(2, ("Trusted domain %s is is not an outbound trust.\n",
+			  domain));
+		TALLOC_FREE(tmp_ctx);
+		return false;
+	}
+
+	trust_type = ldb_msg_find_attr_as_int(msg, "trustType", 0);
+	if (trust_type == LSA_TRUST_TYPE_MIT) {
+		DEBUG(1, ("Trusted domain %s is is not an AD trust "
+			  "(trustType == LSA_TRUST_TYPE_MIT).\n",
+			  domain));
+		TALLOC_FREE(tmp_ctx);
+		return false;
+	}
+
+	password_val = ldb_msg_find_ldb_val(msg, "trustAuthOutgoing");
+	if (password_val == NULL) {
+		DEBUG(2, ("Failed to get trusted domain password for %s, "
+			  "attribute trustAuthOutgoing not returned.\n", domain));
+		TALLOC_FREE(tmp_ctx);
+		return false;
+	}
+
+	ndr_err = ndr_pull_struct_blob(password_val, tmp_ctx, &password_blob,
+				(ndr_pull_flags_fn_t)ndr_pull_trustAuthInOutBlob);
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		DEBUG(0, ("Failed to get trusted domain password for %s, "
+			  "attribute trustAuthOutgoing coult not be parsed %s.\n",
+			  domain,
+			  ndr_map_error2string(ndr_err)));
+		TALLOC_FREE(tmp_ctx);
+		return false;
+	}
+
+	auth_array = &password_blob.current;
+
+	for (i=0; i < auth_array->count; i++) {
+		if (auth_array->array[i].AuthType == TRUST_AUTH_TYPE_CLEAR) {
+			break;
+		}
+	}
+
+	if (i == auth_array->count) {
+		DEBUG(0, ("Trusted domain %s does not have a "
+			  "clear-text password stored\n",
+			  domain));
+		TALLOC_FREE(tmp_ctx);
+		return false;
+	}
+
+	password_utf16 = data_blob_const(auth_array->array[i].AuthInfo.clear.password,
+					 auth_array->array[i].AuthInfo.clear.size);
+
+	/*
+	 * In the future, make this function return a
+	 * cli_credentials that can store a MD4 hash with cli_credential_set_nt_hash()
+	 * but for now convert to UTF8 and fail if the string can not be converted.
+	 *
+	 * We can't safely convert the random strings windows uses into
+	 * utf8.
+	 */
+	if (!convert_string_talloc(tmp_ctx,
+				   CH_UTF16, CH_UTF8,
+				   password_utf16.data, password_utf16.length,
+				   (void *)&password_talloc,
+				   &password_len)) {
+		DEBUG(0, ("FIXME: Could not convert password for trusted domain %s"
+			  " to UTF8. This may be a password set from Windows.\n",
+			  domain));
+		TALLOC_FREE(tmp_ctx);
+		return false;
+	}
+	*pwd = SMB_STRNDUP(password_talloc, password_len);
+	if (pass_last_set_time) {
+		*pass_last_set_time = nt_time_to_unix(auth_array->array[i].LastUpdateTime);
+	}
+
+	TALLOC_FREE(tmp_ctx);
+	return true;
 }
 
 static bool pdb_samba_dsdb_set_trusteddom_pw(struct pdb_methods *m,
@@ -2142,6 +2290,11 @@ static NTSTATUS pdb_samba_dsdb_enum_trusteddoms(struct pdb_methods *m,
 }
 
 static bool pdb_samba_dsdb_is_responsible_for_wellknown(struct pdb_methods *m)
+{
+	return true;
+}
+
+static bool pdb_samba_dsdb_is_responsible_for_everything_else(struct pdb_methods *m)
 {
 	return true;
 }
@@ -2199,6 +2352,8 @@ static void pdb_samba_dsdb_init_methods(struct pdb_methods *m)
 	m->enum_trusteddoms = pdb_samba_dsdb_enum_trusteddoms;
 	m->is_responsible_for_wellknown =
 				pdb_samba_dsdb_is_responsible_for_wellknown;
+	m->is_responsible_for_everything_else =
+				pdb_samba_dsdb_is_responsible_for_everything_else;
 }
 
 static void free_private_data(void **vp)

@@ -35,6 +35,7 @@ from samba.join import join_RODC, join_DC, join_subdomain
 from samba.auth import system_session
 from samba.samdb import SamDB
 from samba.dcerpc import drsuapi
+from samba.dcerpc import security
 from samba.dcerpc.samr import DOMAIN_PASSWORD_COMPLEX, DOMAIN_PASSWORD_STORE_CLEARTEXT
 from samba.netcmd import (
     Command,
@@ -64,14 +65,16 @@ from samba.dsdb import (
     UF_TRUSTED_FOR_DELEGATION
     )
 
-from samba.credentials import DONT_USE_KERBEROS
 from samba.provision import (
     provision,
+    ProvisioningError
+    )
+
+from samba.provision.common import (
     FILL_FULL,
     FILL_NT4SYNC,
-    FILL_DRS,
-    ProvisioningError,
-    )
+    FILL_DRS
+)
 
 def get_testparm_var(testparm, smbconf, varname):
     cmd = "%s -s -l --parameter-name='%s' %s 2>/dev/null" % (testparm, varname, smbconf)
@@ -80,6 +83,9 @@ def get_testparm_var(testparm, smbconf, varname):
 
 try:
    import samba.dckeytab
+except ImportError:
+   cmd_domain_export_keytab = None
+else:
    class cmd_domain_export_keytab(Command):
        """Dump Kerberos keys of the domain into a keytab."""
 
@@ -101,8 +107,6 @@ try:
            lp = sambaopts.get_loadparm()
            net = Net(None, lp)
            net.export_keytab(keytab=keytab, principal=principal)
-except:
-   cmd_domain_export_keytab = None
 
 
 class cmd_domain_info(Command):
@@ -144,7 +148,6 @@ class cmd_domain_provision(Command):
     takes_optiongroups = {
         "sambaopts": options.SambaOptions,
         "versionopts": options.VersionOptions,
-        "credopts": options.CredentialsOptions,
     }
 
     takes_options = [
@@ -202,8 +205,8 @@ class cmd_domain_provision(Command):
                 default="domain controller"),
          Option("--function-level", type="choice", metavar="FOR-FUN-LEVEL",
                 choices=["2000", "2003", "2008", "2008_R2"],
-                help="The domain and forest function level (2000 | 2003 | 2008 | 2008_R2 - always native). Default is (Windows) 2003 Native.",
-                default="2003"),
+                help="The domain and forest function level (2000 | 2003 | 2008 | 2008_R2 - always native). Default is (Windows) 2008R2 Native.",
+                default="2008_R2"),
          Option("--next-rid", type="int", metavar="NEXTRID", default=1000,
                 help="The initial nextRid value (only needed for upgrades).  Default is 1000."),
          Option("--partitions-only",
@@ -216,9 +219,24 @@ class cmd_domain_provision(Command):
          Option("--use-ntvfs", action="store_true", help="Use NTVFS for the fileserver (default = no)"),
          Option("--use-rfc2307", action="store_true", help="Use AD to store posix attributes (default = no)"),
         ]
+
+    openldap_options = [
+        Option("--ldap-dryrun-mode", help="Configure LDAP backend, but do not run any binaries and exit early.  Used only for the test environment.  DO NOT USE",
+               action="store_true"),
+        Option("--slapd-path", type="string", metavar="SLAPD-PATH",
+               help="Path to slapd for LDAP backend [e.g.:'/usr/local/libexec/slapd']. Required for Setup with LDAP-Backend. OpenLDAP Version >= 2.4.17 should be used."),
+        Option("--ldap-backend-extra-port", type="int", metavar="LDAP-BACKEND-EXTRA-PORT", help="Additional TCP port for LDAP backend server (to use for replication)"),
+        Option("--ldap-backend-forced-uri", type="string", metavar="LDAP-BACKEND-FORCED-URI",
+               help="Force the LDAP backend connection to be to a particular URI.  Use this ONLY for 'existing' backends, or when debugging the interaction with the LDAP backend and you need to intercept the LDA"),
+        Option("--ldap-backend-nosync", help="Configure LDAP backend not to call fsync() (for performance in test environments)", action="store_true"),
+        ]
+
+    if os.getenv('TEST_LDAP', "no") == "yes":
+        takes_options.extend(openldap_options)
+
     takes_args = []
 
-    def run(self, sambaopts=None, credopts=None, versionopts=None,
+    def run(self, sambaopts=None, versionopts=None,
             interactive=None,
             domain=None,
             domain_guid=None,
@@ -249,8 +267,13 @@ class cmd_domain_provision(Command):
             targetdir=None,
             ol_mmr_urls=None,
             use_xattrs=None,
+            slapd_path=None,
             use_ntvfs=None,
-            use_rfc2307=None):
+            use_rfc2307=None,
+            ldap_backend_nosync=None,
+            ldap_backend_extra_port=None,
+            ldap_backend_forced_uri=None,
+            ldap_dryrun_mode=None):
 
         self.logger = self.get_logger("provision")
         if quiet:
@@ -260,10 +283,6 @@ class cmd_domain_provision(Command):
 
         lp = sambaopts.get_loadparm()
         smbconf = lp.configfile
-
-        creds = credopts.get_credentials(lp)
-
-        creds.set_kerberos_state(DONT_USE_KERBEROS)
 
         if dns_forwarder is not None:
             suggested_forwarder = dns_forwarder
@@ -379,11 +398,22 @@ class cmd_domain_provision(Command):
 
         if eadb:
             self.logger.info("not using extended attributes to store ACLs and other metadata. If you intend to use this provision in production, rerun the script as root on a system supporting xattrs.")
+        if ldap_backend_type == "existing":
+            if ldap_backend_forced_uri is not None:
+                self.logger.warn("You have specified to use an existing LDAP server as the backend, please make sure an LDAP server is running at %s" % ldap_backend_forced_uri)
+            else:
+                self.logger.info("You have specified to use an existing LDAP server as the backend, please make sure an LDAP server is running at the default location")
+        else:
+            if ldap_backend_forced_uri is not None:
+                self.logger.warn("You have specified to use an fixed URI %s for connecting to your LDAP server backend.  This is NOT RECOMMENDED, as our default communiation over ldapi:// is more secure and much less")
+
+        if domain_sid is not None:
+            domain_sid = security.dom_sid(domain_sid)
 
         session = system_session()
         try:
             result = provision(self.logger,
-                  session, creds, smbconf=smbconf, targetdir=targetdir,
+                  session, smbconf=smbconf, targetdir=targetdir,
                   samdb_fill=samdb_fill, realm=realm, domain=domain,
                   domainguid=domain_guid, domainsid=domain_sid,
                   hostname=host_name,
@@ -396,9 +426,13 @@ class cmd_domain_provision(Command):
                   users=users,
                   serverrole=server_role, dom_for_fun_level=dom_for_fun_level,
                   backend_type=ldap_backend_type,
-                  ldapadminpass=ldapadminpass, ol_mmr_urls=ol_mmr_urls,
+                  ldapadminpass=ldapadminpass, ol_mmr_urls=ol_mmr_urls, slapd_path=slapd_path,
                   useeadb=eadb, next_rid=next_rid, lp=lp, use_ntvfs=use_ntvfs,
-                  use_rfc2307=use_rfc2307, skip_sysvolacl=False)
+                  use_rfc2307=use_rfc2307, skip_sysvolacl=False,
+                  ldap_backend_extra_port=ldap_backend_extra_port,
+                  ldap_backend_forced_uri=ldap_backend_forced_uri,
+                  nosync=ldap_backend_nosync, ldap_dryrun_mode=ldap_dryrun_mode)
+
         except ProvisioningError, e:
             raise CommandError("Provision failed", e)
 
@@ -455,15 +489,18 @@ class cmd_domain_dcpromo(Command):
                help="The DNS server backend. SAMBA_INTERNAL is the builtin name server (default), "
                    "BIND9_DLZ uses samba4 AD to store zone information, "
                    "NONE skips the DNS setup entirely (this DC will not be a DNS server)",
-               default="SAMBA_INTERNAL")
-       ]
+               default="SAMBA_INTERNAL"),
+        Option("--quiet", help="Be quiet", action="store_true"),
+        Option("--verbose", help="Be verbose", action="store_true")
+        ]
 
     takes_args = ["domain", "role?"]
 
     def run(self, domain, role=None, sambaopts=None, credopts=None,
             versionopts=None, server=None, site=None, targetdir=None,
             domain_critical_only=False, parent_domain=None, machinepass=None,
-            use_ntvfs=False, dns_backend=None):
+            use_ntvfs=False, dns_backend=None,
+            quiet=False, verbose=False):
         lp = sambaopts.get_loadparm()
         creds = credopts.get_credentials(lp)
         net = Net(creds, lp, server=credopts.ipaddress)
@@ -471,20 +508,28 @@ class cmd_domain_dcpromo(Command):
         if site is None:
             site = "Default-First-Site-Name"
 
+        logger = self.get_logger()
+        if verbose:
+            logger.setLevel(logging.DEBUG)
+        elif quiet:
+            logger.setLevel(logging.WARNING)
+        else:
+            logger.setLevel(logging.INFO)
+
         netbios_name = lp.get("netbios name")
 
         if not role is None:
             role = role.upper()
 
         if role == "DC":
-            join_DC(server=server, creds=creds, lp=lp, domain=domain,
+            join_DC(logger=logger, server=server, creds=creds, lp=lp, domain=domain,
                     site=site, netbios_name=netbios_name, targetdir=targetdir,
                     domain_critical_only=domain_critical_only,
                     machinepass=machinepass, use_ntvfs=use_ntvfs,
                     dns_backend=dns_backend,
                     promote_existing=True)
         elif role == "RODC":
-            join_RODC(server=server, creds=creds, lp=lp, domain=domain,
+            join_RODC(logger=logger, server=server, creds=creds, lp=lp, domain=domain,
                       site=site, netbios_name=netbios_name, targetdir=targetdir,
                       domain_critical_only=domain_critical_only,
                       machinepass=machinepass, use_ntvfs=use_ntvfs, dns_backend=dns_backend,
@@ -514,6 +559,8 @@ class cmd_domain_join(Command):
                action="store_true"),
         Option("--machinepass", type=str, metavar="PASSWORD",
                help="choose machine password (otherwise random)"),
+        Option("--adminpass", type="string", metavar="PASSWORD",
+               help="choose adminstrator password when joining as a subdomain (otherwise random)"),
         Option("--use-ntvfs", help="Use NTVFS for the fileserver (default = no)",
                action="store_true"),
         Option("--dns-backend", type="choice", metavar="NAMESERVER-BACKEND",
@@ -521,7 +568,9 @@ class cmd_domain_join(Command):
                help="The DNS server backend. SAMBA_INTERNAL is the builtin name server (default), "
                    "BIND9_DLZ uses samba4 AD to store zone information, "
                    "NONE skips the DNS setup entirely (this DC will not be a DNS server)",
-               default="SAMBA_INTERNAL")
+               default="SAMBA_INTERNAL"),
+        Option("--quiet", help="Be quiet", action="store_true"),
+        Option("--verbose", help="Be verbose", action="store_true")
        ]
 
     takes_args = ["domain", "role?"]
@@ -529,13 +578,22 @@ class cmd_domain_join(Command):
     def run(self, domain, role=None, sambaopts=None, credopts=None,
             versionopts=None, server=None, site=None, targetdir=None,
             domain_critical_only=False, parent_domain=None, machinepass=None,
-            use_ntvfs=False, dns_backend=None):
+            use_ntvfs=False, dns_backend=None, adminpass=None,
+            quiet=False, verbose=False):
         lp = sambaopts.get_loadparm()
         creds = credopts.get_credentials(lp)
         net = Net(creds, lp, server=credopts.ipaddress)
 
         if site is None:
             site = "Default-First-Site-Name"
+
+        logger = self.get_logger()
+        if verbose:
+            logger.setLevel(logging.DEBUG)
+        elif quiet:
+            logger.setLevel(logging.WARNING)
+        else:
+            logger.setLevel(logging.INFO)
 
         netbios_name = lp.get("netbios name")
 
@@ -549,25 +607,29 @@ class cmd_domain_join(Command):
 
             self.errf.write("Joined domain %s (%s)\n" % (domain_name, sid))
         elif role == "DC":
-            join_DC(server=server, creds=creds, lp=lp, domain=domain,
+            join_DC(logger=logger, server=server, creds=creds, lp=lp, domain=domain,
                     site=site, netbios_name=netbios_name, targetdir=targetdir,
                     domain_critical_only=domain_critical_only,
                     machinepass=machinepass, use_ntvfs=use_ntvfs, dns_backend=dns_backend)
         elif role == "RODC":
-            join_RODC(server=server, creds=creds, lp=lp, domain=domain,
+            join_RODC(logger=logger, server=server, creds=creds, lp=lp, domain=domain,
                       site=site, netbios_name=netbios_name, targetdir=targetdir,
                       domain_critical_only=domain_critical_only,
                       machinepass=machinepass, use_ntvfs=use_ntvfs,
                       dns_backend=dns_backend)
         elif role == "SUBDOMAIN":
+            if not adminpass:
+                logger.info("Administrator password will be set randomly!")
+
             netbios_domain = lp.get("workgroup")
             if parent_domain is None:
                 parent_domain = ".".join(domain.split(".")[1:])
-            join_subdomain(server=server, creds=creds, lp=lp, dnsdomain=domain,
-                    parent_domain=parent_domain, site=site,
-                    netbios_name=netbios_name, netbios_domain=netbios_domain,
-                    targetdir=targetdir, machinepass=machinepass,
-                    use_ntvfs=use_ntvfs, dns_backend=dns_backend)
+            join_subdomain(logger=logger, server=server, creds=creds, lp=lp, dnsdomain=domain,
+                           parent_domain=parent_domain, site=site,
+                           netbios_name=netbios_name, netbios_domain=netbios_domain,
+                           targetdir=targetdir, machinepass=machinepass,
+                           use_ntvfs=use_ntvfs, dns_backend=dns_backend,
+                           adminpass=adminpass)
         else:
             raise CommandError("Invalid role '%s' (possible values: MEMBER, DC, RODC, SUBDOMAIN)" % role)
 
@@ -630,7 +692,7 @@ class cmd_domain_demote(Command):
                         server)
         (drsuapiBind, drsuapi_handle, supportedExtensions) = drsuapi_connect(server, lp, creds)
 
-        self.errf.write("Desactivating inbound replication\n")
+        self.errf.write("Deactivating inbound replication\n")
 
         nmsg = ldb.Message()
         nmsg.dn = msg[0].dn
@@ -792,7 +854,7 @@ class cmd_domain_demote(Command):
             remote_samdb.rename(newdn, dc_dn)
             raise CommandError("Error while sending a removeDsServer", e)
 
-        for s in ("CN=Entreprise,CN=Microsoft System Volumes,CN=System,CN=Configuration",
+        for s in ("CN=Enterprise,CN=Microsoft System Volumes,CN=System,CN=Configuration",
                   "CN=%s,CN=Microsoft System Volumes,CN=System,CN=Configuration" % lp.get("realm"),
                   "CN=Domain System Volumes (SYSVOL share),CN=File Replication Service,CN=System"):
             try:
@@ -801,7 +863,7 @@ class cmd_domain_demote(Command):
             except ldb.LdbError, l:
                 pass
 
-        for s in ("CN=Entreprise,CN=NTFRS Subscriptions",
+        for s in ("CN=Enterprise,CN=NTFRS Subscriptions",
                   "CN=%s, CN=NTFRS Subscriptions" % lp.get("realm"),
                   "CN=Domain system Volumes (SYSVOL Share), CN=NTFRS Subscriptions",
                   "CN=NTFRS Subscriptions"):
@@ -1021,8 +1083,11 @@ class cmd_domain_level(Command):
 class cmd_domain_passwordsettings(Command):
     """Set password settings.
 
-    Password complexity, history length, minimum password length, the minimum
-    and maximum password age) on a Samba4 server.
+    Password complexity, password lockout policy, history length,
+    minimum password length, the minimum and maximum password age) on
+    a Samba AD DC server.
+
+    Use against a Windows DC is possible, but group policy will override it.
     """
 
     synopsis = "%prog (show|set <options>) [options]"
@@ -1049,13 +1114,20 @@ class cmd_domain_passwordsettings(Command):
           help="The minimum password age (<integer in days> | default).  Default is 1.", type=str),
         Option("--max-pwd-age",
           help="The maximum password age (<integer in days> | default).  Default is 43.", type=str),
+        Option("--account-lockout-duration",
+          help="The the length of time an account is locked out after exeeding the limit on bad password attempts (<integer in mins> | default).  Default is 30 mins.", type=str),
+        Option("--account-lockout-threshold",
+          help="The number of bad password attempts allowed before locking out the account (<integer> | default).  Default is 0 (never lock out).", type=str),
+        Option("--reset-account-lockout-after",
+          help="After this time is elapsed, the recorded number of attempts restarts from zero (<integer> | default).  Default is 30.", type=str),
           ]
 
     takes_args = ["subcommand"]
 
     def run(self, subcommand, H=None, min_pwd_age=None, max_pwd_age=None,
             quiet=False, complexity=None, store_plaintext=None, history_length=None,
-            min_pwd_length=None, credopts=None, sambaopts=None,
+            min_pwd_length=None, account_lockout_duration=None, account_lockout_threshold=None,
+            reset_account_lockout_after=None, credopts=None, sambaopts=None,
             versionopts=None):
         lp = sambaopts.get_loadparm()
         creds = credopts.get_credentials(lp)
@@ -1066,7 +1138,8 @@ class cmd_domain_passwordsettings(Command):
         domain_dn = samdb.domain_dn()
         res = samdb.search(domain_dn, scope=ldb.SCOPE_BASE,
           attrs=["pwdProperties", "pwdHistoryLength", "minPwdLength",
-                 "minPwdAge", "maxPwdAge"])
+                 "minPwdAge", "maxPwdAge", "lockoutDuration", "lockoutThreshold",
+                 "lockOutObservationWindow"])
         assert(len(res) == 1)
         try:
             pwd_props = int(res[0]["pwdProperties"][0])
@@ -1078,6 +1151,13 @@ class cmd_domain_passwordsettings(Command):
                 cur_max_pwd_age = 0
             else:
                 cur_max_pwd_age = int(abs(int(res[0]["maxPwdAge"][0])) / (1e7 * 60 * 60 * 24))
+            cur_account_lockout_threshold = int(res[0]["lockoutThreshold"][0])
+            # ticks -> mins
+            if int(res[0]["lockoutDuration"][0]) == -0x8000000000000000:
+                cur_account_lockout_duration = 0
+            else:
+                cur_account_lockout_duration = abs(int(res[0]["lockoutDuration"][0])) / (1e7 * 60)
+            cur_reset_account_lockout_after = abs(int(res[0]["lockOutObservationWindow"][0])) / (1e7 * 60)
         except Exception, e:
             raise CommandError("Could not retrieve password properties!", e)
 
@@ -1096,6 +1176,9 @@ class cmd_domain_passwordsettings(Command):
             self.message("Minimum password length: %d" % cur_min_pwd_len)
             self.message("Minimum password age (days): %d" % cur_min_pwd_age)
             self.message("Maximum password age (days): %d" % cur_max_pwd_age)
+            self.message("Account lockout duration (mins): %d" % cur_account_lockout_duration)
+            self.message("Account lockout threshold (attempts): %d" % cur_account_lockout_threshold)
+            self.message("Reset account lockout after (mins): %d" % cur_reset_account_lockout_after)
         elif subcommand == "set":
             msgs = []
             m = ldb.Message()
@@ -1181,6 +1264,54 @@ class cmd_domain_passwordsettings(Command):
                 m["maxPwdAge"] = ldb.MessageElement(str(max_pwd_age_ticks),
                   ldb.FLAG_MOD_REPLACE, "maxPwdAge")
                 msgs.append("Maximum password age changed!")
+
+            if account_lockout_duration is not None:
+                if account_lockout_duration == "default":
+                    account_lockout_duration = 30
+                else:
+                    account_lockout_duration = int(account_lockout_duration)
+
+                if account_lockout_duration < 0 or account_lockout_duration > 99999:
+                    raise CommandError("Maximum password age must be in the range of 0 to 99999!")
+
+                # days -> ticks
+                if account_lockout_duration == 0:
+                    account_lockout_duration_ticks = -0x8000000000000000
+                else:
+                    account_lockout_duration_ticks = -int(account_lockout_duration * (60 * 1e7))
+
+                m["lockoutDuration"] = ldb.MessageElement(str(account_lockout_duration_ticks),
+                  ldb.FLAG_MOD_REPLACE, "lockoutDuration")
+                msgs.append("Account lockout duration changed!")
+
+            if account_lockout_threshold is not None:
+                if account_lockout_threshold == "default":
+                    account_lockout_threshold = 0
+                else:
+                    account_lockout_threshold = int(account_lockout_threshold)
+
+                m["lockoutThreshold"] = ldb.MessageElement(str(account_lockout_threshold),
+                  ldb.FLAG_MOD_REPLACE, "lockoutThreshold")
+                msgs.append("Account lockout threshold changed!")
+
+            if reset_account_lockout_after is not None:
+                if reset_account_lockout_after == "default":
+                    reset_account_lockout_after = 30
+                else:
+                    reset_account_lockout_after = int(reset_account_lockout_after)
+
+                if reset_account_lockout_after < 0 or reset_account_lockout_after > 99999:
+                    raise CommandError("Maximum password age must be in the range of 0 to 99999!")
+
+                # days -> ticks
+                if reset_account_lockout_after == 0:
+                    reset_account_lockout_after_ticks = -0x8000000000000000
+                else:
+                    reset_account_lockout_after_ticks = -int(reset_account_lockout_after * (60 * 1e7))
+
+                m["lockOutObservationWindow"] = ldb.MessageElement(str(reset_account_lockout_after_ticks),
+                  ldb.FLAG_MOD_REPLACE, "lockOutObservationWindow")
+                msgs.append("Duration to reset account lockout after changed!")
 
             if max_pwd_age > 0 and min_pwd_age >= max_pwd_age:
                 raise CommandError("Maximum password age (%d) must be greater than minimum password age (%d)!" % (max_pwd_age, min_pwd_age))

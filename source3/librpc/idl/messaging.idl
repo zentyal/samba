@@ -67,7 +67,7 @@ interface messaging
 		MSG_SMB_UNLOCK			= 0x0305,
 		MSG_SMB_BREAK_REQUEST		= 0x0306,
 		/* MSG_SMB_BREAK_RESPONSE	= 0x0307,  Obsoleted */
-		MSG_SMB_ASYNC_LEVEL2_BREAK	= 0x0308,
+		/* MSG_SMB_ASYNC_LEVEL2_BREAK	= 0x0308,  Obsoleted */
 		/* MSG_SMB_OPEN_RETRY		= 0x0309,  Obsoleted */
 		MSG_SMB_KERNEL_BREAK		= 0x030A,
 		MSG_SMB_FILE_RENAME		= 0x030B,
@@ -88,6 +88,13 @@ interface messaging
 		/* Trigger a notify cleanup run */
 		MSG_SMB_NOTIFY_CLEANUP		= 0x0314,
 		MSG_SMB_SCAVENGER		= 0x0315,
+
+		/* shutdown connection for given client */
+		MSG_SMB_KILL_CLIENT_IP		= 0x0316,
+
+		/* Tell number of child processes */
+		MSG_SMB_TELL_NUM_CHILDREN       = 0x0317,
+		MSG_SMB_NUM_CHILDREN            = 0x0318,
 
 		/* winbind messages */
 		MSG_WINBIND_FINISHED		= 0x0401,
@@ -111,7 +118,7 @@ interface messaging
 
 		/* dbwrap messages 4001-4999 (0x0FA0 - 0x1387) */
 		/* MSG_DBWRAP_TDB2_CHANGES		= 4001, */
-		MSG_DBWRAP_G_LOCK_RETRY		= 4002,
+		/* MSG_DBWRAP_G_LOCK_RETRY		= 4002, */
 		MSG_DBWRAP_MODIFIED		= 4003
 	} messaging_type;
 
@@ -123,10 +130,7 @@ interface messaging
 		server_id dest;
 		server_id src;
 		DATA_BLOB buf;
+		uint8 num_fds;
+		dlong fds[num_fds];
 	} messaging_rec;
-
-	typedef [public] struct {
-		uint32 num_messages;
-		messaging_rec messages[num_messages];
-	} messaging_array;
 }

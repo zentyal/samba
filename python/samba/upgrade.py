@@ -26,7 +26,8 @@ import pwd
 
 from samba import Ldb, registry
 from samba.param import LoadParm
-from samba.provision import provision, FILL_FULL, ProvisioningError, setsysvolacl
+from samba.provision import provision, ProvisioningError, setsysvolacl
+from samba.provision.common import FILL_FULL
 from samba.samba3 import passdb
 from samba.samba3 import param as s3param
 from samba.dcerpc import lsa, samr, security
@@ -370,139 +371,6 @@ def import_wins(samba4_winsdb, samba3_winsdb):
                        "maxVersion": str(version_id)})
 
 
-def enable_samba3sam(samdb, ldapurl):
-    """Enable Samba 3 LDAP URL database.
-
-    :param samdb: SAM Database.
-    :param ldapurl: Samba 3 LDAP URL
-    """
-    samdb.modify_ldif("""
-dn: @MODULES
-changetype: modify
-replace: @LIST
-@LIST: samldb,operational,objectguid,rdn_name,samba3sam
-""")
-
-    samdb.add({"dn": "@MAP=samba3sam", "@MAP_URL": ldapurl})
-
-
-smbconf_keep = [
-    "dos charset",
-    "unix charset",
-    "display charset",
-    "comment",
-    "path",
-    "directory",
-    "workgroup",
-    "realm",
-    "netbios name",
-    "netbios aliases",
-    "netbios scope",
-    "server string",
-    "interfaces",
-    "bind interfaces only",
-    "security",
-    "auth methods",
-    "encrypt passwords",
-    "null passwords",
-    "obey pam restrictions",
-    "password server",
-    "smb passwd file",
-    "private dir",
-    "passwd chat",
-    "lanman auth",
-    "ntlm auth",
-    "client NTLMv2 auth",
-    "client lanman auth",
-    "client plaintext auth",
-    "read only",
-    "hosts allow",
-    "hosts deny",
-    "log level",
-    "debuglevel",
-    "log file",
-    "smb ports",
-    "large readwrite",
-    "max protocol",
-    "min protocol",
-    "unicode",
-    "read raw",
-    "write raw",
-    "disable netbios",
-    "nt status support",
-    "max mux",
-    "max xmit",
-    "name resolve order",
-    "max wins ttl",
-    "min wins ttl",
-    "time server",
-    "unix extensions",
-    "use spnego",
-    "server signing",
-    "client signing",
-    "max connections",
-    "paranoid server security",
-    "socket options",
-    "strict sync",
-    "max print jobs",
-    "printable",
-    "print ok",
-    "printer name",
-    "printer",
-    "map system",
-    "map hidden",
-    "map archive",
-    "preferred master",
-    "prefered master",
-    "local master",
-    "browseable",
-    "browsable",
-    "wins server",
-    "wins support",
-    "csc policy",
-    "strict locking",
-    "preload",
-    "auto services",
-    "lock dir",
-    "lock directory",
-    "pid directory",
-    "socket address",
-    "copy",
-    "include",
-    "available",
-    "volume",
-    "fstype",
-    "panic action",
-    "msdfs root",
-    "host msdfs",
-    "winbind separator"]
-
-
-def upgrade_smbconf(oldconf, mark):
-    """Remove configuration variables not present in Samba4
-
-    :param oldconf: Old configuration structure
-    :param mark: Whether removed configuration variables should be
-        kept in the new configuration as "samba3:<name>"
-    """
-    data = oldconf.data()
-    newconf = LoadParm()
-
-    for s in data:
-        for p in data[s]:
-            keep = False
-            for k in smbconf_keep:
-                if smbconf_keep[k] == p:
-                    keep = True
-                    break
-
-            if keep:
-                newconf.set(s, p, oldconf.get(s, p))
-            elif mark:
-                newconf.set(s, "samba3:" + p, oldconf.get(s, p))
-
-    return newconf
-
 SAMBA3_PREDEF_NAMES = {
         'HKLM': registry.HKEY_LOCAL_MACHINE,
 }
@@ -798,7 +666,7 @@ Please fix this account before attempting to upgrade again
             try:
                 ldb_object = Ldb(url, credentials=creds)
             except ldb.LdbError, e:
-                raise ProvisiongError("Could not open ldb connection to %s, the error message is: %s" % (url, e))
+                raise ProvisioningError("Could not open ldb connection to %s, the error message is: %s" % (url, e))
             else:
                 break
     logger.info("Exporting posix attributes")
@@ -855,9 +723,9 @@ Please fix this account before attempting to upgrade again
         adminpass = None
 
     # Do full provision
-    result = provision(logger, session_info, None,
+    result = provision(logger, session_info,
                        targetdir=targetdir, realm=realm, domain=domainname,
-                       domainsid=str(domainsid), next_rid=next_rid,
+                       domainsid=domainsid, next_rid=next_rid,
                        dc_rid=machinerid, adminpass = adminpass,
                        dom_for_fun_level=dsdb.DS_DOMAIN_FUNCTION_2003,
                        hostname=netbiosname.lower(), machinepass=machinepass,
@@ -909,7 +777,7 @@ Please fix this account before attempting to upgrade again
         result.samdb.transaction_cancel()
         raise
 
-    logger.info("Commiting 'add groups' transaction to disk")
+    logger.info("Committing 'add groups' transaction to disk")
     result.samdb.transaction_commit()
 
     logger.info("Adding users")
@@ -943,7 +811,7 @@ Please fix this account before attempting to upgrade again
         result.samdb.transaction_cancel()
         raise
 
-    logger.info("Commiting 'add users' transaction to disk")
+    logger.info("Committing 'add users' transaction to disk")
     result.samdb.transaction_commit()
 
     logger.info("Adding users to groups")
@@ -960,7 +828,7 @@ Please fix this account before attempting to upgrade again
         result.samdb.transaction_cancel()
         raise
 
-    logger.info("Commiting 'add users to groups' transaction to disk")
+    logger.info("Committing 'add users to groups' transaction to disk")
     result.samdb.transaction_commit()
 
     # Set password for administrator

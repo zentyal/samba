@@ -25,6 +25,7 @@
 #include "winbindd.h"
 #include "idmap.h"
 #include "lib/util_sid_passdb.h"
+#include "passdb.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_IDMAP
@@ -185,45 +186,9 @@ static struct idmap_domain *idmap_init_domain(TALLOC_CTX *mem_ctx,
 	}
 
 	/*
-	 * load ranges and read only information from the config
+	 * Check whether the requested backend module exists and
+	 * load the methods.
 	 */
-
-	config_option = talloc_asprintf(result, "idmap config %s",
-					result->name);
-	if (config_option == NULL) {
-		DEBUG(0, ("Out of memory!\n"));
-		goto fail;
-	}
-
-	range = lp_parm_const_string(-1, config_option, "range", NULL);
-	if (range == NULL) {
-		if (check_range) {
-			DEBUG(1, ("idmap range not specified for domain %s\n",
-				  result->name));
-			goto fail;
-		}
-	} else if (sscanf(range, "%u - %u", &result->low_id,
-			  &result->high_id) != 2)
-	{
-		DEBUG(1, ("invalid range '%s' specified for domain "
-			  "'%s'\n", range, result->name));
-		if (check_range) {
-			goto fail;
-		}
-	}
-
-	result->read_only = lp_parm_bool(-1, config_option, "read only", false);
-
-	talloc_free(config_option);
-
-	if (result->low_id > result->high_id) {
-		DEBUG(1, ("Error: invalid idmap range detected: %lu - %lu\n",
-			  (unsigned long)result->low_id,
-			  (unsigned long)result->high_id));
-		if (check_range) {
-			goto fail;
-		}
-	}
 
 	result->methods = get_methods(modulename);
 	if (result->methods == NULL) {
@@ -241,6 +206,45 @@ static struct idmap_domain *idmap_init_domain(TALLOC_CTX *mem_ctx,
 	if (result->methods == NULL) {
 		DEBUG(1, ("idmap backend %s not found\n", modulename));
 		goto fail;
+	}
+
+	/*
+	 * load ranges and read only information from the config
+	 */
+
+	config_option = talloc_asprintf(result, "idmap config %s",
+					result->name);
+	if (config_option == NULL) {
+		DEBUG(0, ("Out of memory!\n"));
+		goto fail;
+	}
+
+	result->read_only = lp_parm_bool(-1, config_option, "read only", false);
+	range = lp_parm_const_string(-1, config_option, "range", NULL);
+
+	talloc_free(config_option);
+
+	if (range == NULL) {
+		if (check_range) {
+			DEBUG(1, ("idmap range not specified for domain %s\n",
+				  result->name));
+			goto fail;
+		}
+	} else if (sscanf(range, "%u - %u", &result->low_id,
+			  &result->high_id) != 2)
+	{
+		DEBUG(1, ("invalid range '%s' specified for domain "
+			  "'%s'\n", range, result->name));
+		if (check_range) {
+			goto fail;
+		}
+	} else if (result->low_id > result->high_id) {
+		DEBUG(1, ("Error: invalid idmap range detected: %lu - %lu\n",
+			  (unsigned long)result->low_id,
+			  (unsigned long)result->high_id));
+		if (check_range) {
+			goto fail;
+		}
 	}
 
 	status = result->methods->init(result);
@@ -330,21 +334,23 @@ static struct idmap_domain *idmap_passdb_domain(TALLOC_CTX *mem_ctx)
 {
 	idmap_init();
 
-	/*
-	 * Always init the default domain, we can't go without one
-	 */
-	if (default_idmap_domain == NULL) {
-		default_idmap_domain = idmap_init_default_domain(NULL);
-	}
-	if (default_idmap_domain == NULL) {
-		return NULL;
+	if (!pdb_is_responsible_for_everything_else()) {
+		/*
+		 * Always init the default domain, we can't go without one
+		 */
+		if (default_idmap_domain == NULL) {
+			default_idmap_domain = idmap_init_default_domain(NULL);
+		}
+		if (default_idmap_domain == NULL) {
+			return NULL;
+		}
 	}
 
 	if (passdb_idmap_domain != NULL) {
 		return passdb_idmap_domain;
 	}
 
-	passdb_idmap_domain = idmap_init_domain(NULL, get_global_sam_name(),
+	passdb_idmap_domain = idmap_init_domain(mem_ctx, get_global_sam_name(),
 						"passdb", false);
 	if (passdb_idmap_domain == NULL) {
 		DEBUG(1, ("Could not init passdb idmap domain\n"));

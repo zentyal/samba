@@ -693,7 +693,8 @@ static int partition_search(struct ldb_module *module, struct ldb_request *req)
 
 				/* Initialise the referrals list */
 				if (ac->referrals == NULL) {
-					ac->referrals = (const char **) str_list_make_empty(ac);
+					char **l = str_list_make_empty(ac);
+					ac->referrals = discard_const_p(const char *, l);
 					if (ac->referrals == NULL) {
 						return ldb_oom(ldb);
 					}
@@ -811,7 +812,7 @@ static int partition_start_trans(struct ldb_module *module)
 	/* Look at base DN */
 	/* Figure out which partition it is under */
 	/* Skip the lot if 'data' isn't here yet (initialization) */
-	if ((module && ldb_module_flags(ldb_module_get_ctx(module)) & LDB_FLG_ENABLE_TRACING)) {
+	if (ldb_module_flags(ldb_module_get_ctx(module)) & LDB_FLG_ENABLE_TRACING) {
 		ldb_debug(ldb_module_get_ctx(module), LDB_DEBUG_TRACE, "partition_start_trans() -> (metadata partition)");
 	}
 	ret = ldb_next_start_trans(module);

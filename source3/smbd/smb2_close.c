@@ -83,15 +83,15 @@ static void smbd_smb2_request_close_done(struct tevent_req *subreq)
 		tevent_req_callback_data(subreq,
 		struct smbd_smb2_request);
 	DATA_BLOB outbody;
-	uint16_t out_flags;
+	uint16_t out_flags = 0;
 	connection_struct *conn = req->tcon->compat;
 	struct timespec out_creation_ts = { 0, };
 	struct timespec out_last_access_ts = { 0, };
 	struct timespec out_last_write_ts = { 0, };
 	struct timespec out_change_ts = { 0, };
-	uint64_t out_allocation_size;
-	uint64_t out_end_of_file;
-	uint32_t out_file_attributes;
+	uint64_t out_allocation_size = 0;
+	uint64_t out_end_of_file = 0;
+	uint32_t out_file_attributes = 0;
 	NTSTATUS status;
 	NTSTATUS error;
 
@@ -108,18 +108,18 @@ static void smbd_smb2_request_close_done(struct tevent_req *subreq)
 	if (!NT_STATUS_IS_OK(status)) {
 		error = smbd_smb2_request_error(req, status);
 		if (!NT_STATUS_IS_OK(error)) {
-			smbd_server_connection_terminate(req->sconn,
+			smbd_server_connection_terminate(req->xconn,
 							 nt_errstr(error));
 			return;
 		}
 		return;
 	}
 
-	outbody = data_blob_talloc(req->out.vector, NULL, 0x3C);
+	outbody = smbd_smb2_generate_outbody(req, 0x3C);
 	if (outbody.data == NULL) {
 		error = smbd_smb2_request_error(req, NT_STATUS_NO_MEMORY);
 		if (!NT_STATUS_IS_OK(error)) {
-			smbd_server_connection_terminate(req->sconn,
+			smbd_server_connection_terminate(req->xconn,
 							 nt_errstr(error));
 			return;
 		}
@@ -143,7 +143,7 @@ static void smbd_smb2_request_close_done(struct tevent_req *subreq)
 
 	error = smbd_smb2_request_done(req, outbody, NULL);
 	if (!NT_STATUS_IS_OK(error)) {
-		smbd_server_connection_terminate(req->sconn,
+		smbd_server_connection_terminate(req->xconn,
 						 nt_errstr(error));
 		return;
 	}

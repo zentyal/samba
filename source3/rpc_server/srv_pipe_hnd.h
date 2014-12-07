@@ -32,6 +32,7 @@ NTSTATUS np_open(TALLOC_CTX *mem_ctx, const char *name,
 		 const struct tsocket_address *local_address,
 		 const struct tsocket_address *remote_address,
 		 struct auth_session_info *session_info,
+		 struct tevent_context *ev_ctx,
 		 struct messaging_context *msg_ctx,
 		 struct fake_file_handle **phandle);
 bool np_read_in_progress(struct fake_file_handle *handle);
@@ -44,7 +45,5 @@ struct tevent_req *np_read_send(TALLOC_CTX *mem_ctx, struct tevent_context *ev,
 				uint8_t *data, size_t len);
 NTSTATUS np_read_recv(struct tevent_req *req, ssize_t *nread,
 		      bool *is_data_outstanding);
-
-ssize_t process_incoming_data(struct pipes_struct *p, const char *data, size_t n);
 
 #endif /* _RPC_SERVER_SRV_PIPE_HND_H_ */

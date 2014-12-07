@@ -304,23 +304,27 @@ def CHECK_FUNCS(conf, list, link=True, lib=None, headers=None):
 
 
 @conf
-def CHECK_SIZEOF(conf, vars, headers=None, define=None):
+def CHECK_SIZEOF(conf, vars, headers=None, define=None, critical=True):
     '''check the size of a type'''
-    ret = True
     for v in TO_LIST(vars):
         v_define = define
+        ret = False
         if v_define is None:
             v_define = 'SIZEOF_%s' % v.upper().replace(' ', '_')
-        if not CHECK_CODE(conf,
-                          'printf("%%u", (unsigned)sizeof(%s))' % v,
-                          define=v_define,
-                          execute=True,
-                          define_ret=True,
-                          quote=False,
-                          headers=headers,
-                          local_include=False,
-                          msg="Checking size of %s" % v):
-            ret = False
+        for size in list((1, 2, 4, 8, 16, 32)):
+            if CHECK_CODE(conf,
+                      'static int test_array[1 - 2 * !(((long int)(sizeof(%s))) <= %d)];' % (v, size),
+                      define=v_define,
+                      quote=False,
+                      headers=headers,
+                      local_include=False,
+                      msg="Checking if size of %s == %d" % (v, size)):
+                conf.DEFINE(v_define, size)
+                ret = True
+                break
+        if not ret and critical:
+            Logs.error("Couldn't determine size of '%s'" % v)
+            sys.exit(1)
     return ret
 
 @conf
@@ -495,6 +499,14 @@ def CONFIG_SET(conf, option):
     if v == ():
         return False
     return True
+
+@conf
+def CONFIG_RESET(conf, option):
+    if option not in conf.env:
+        return
+    del conf.env[option]
+
+Build.BuildContext.CONFIG_RESET = CONFIG_RESET
 Build.BuildContext.CONFIG_SET = CONFIG_SET
 Build.BuildContext.CONFIG_GET = CONFIG_GET
 
@@ -559,7 +571,7 @@ int foo()
                 if set_target:
                     SET_TARGET_TYPE(conf, lib, 'EMPTY')
         else:
-            conf.define('HAVE_LIB%s' % lib.upper().replace('-','_'), 1)
+            conf.define('HAVE_LIB%s' % lib.upper().replace('-','_').replace('.','_'), 1)
             conf.env['LIB_' + lib.upper()] = lib
             if set_target:
                 conf.SET_TARGET_TYPE(lib, 'SYSLIB')
@@ -635,16 +647,32 @@ def SAMBA_CONFIG_H(conf, path=None):
         return
 
     if Options.options.debug:
-        conf.ADD_CFLAGS('-g',
-                        testflags=True)
+        conf.ADD_CFLAGS('-g', testflags=True)
 
     if Options.options.developer:
-        # we add these here to ensure that -Wstrict-prototypes is not set during configure
-        conf.ADD_CFLAGS('-Wall -g -Wshadow -Werror=strict-prototypes -Wstrict-prototypes -Werror=pointer-arith -Wpointer-arith -Wcast-align -Werror=write-strings -Wwrite-strings -Werror-implicit-function-declaration -Wformat=2 -Wno-format-y2k -Wmissing-prototypes -fno-common -Werror=address',
-                        testflags=True)
-        conf.ADD_CFLAGS('-Wcast-qual', testflags=True)
         conf.env.DEVELOPER_MODE = True
 
+        conf.ADD_CFLAGS('-g', testflags=True)
+        conf.ADD_CFLAGS('-Wall', testflags=True)
+        conf.ADD_CFLAGS('-Wshadow', testflags=True)
+        conf.ADD_CFLAGS('-Wmissing-prototypes', testflags=True)
+        conf.ADD_CFLAGS('-Wcast-align -Wcast-qual', testflags=True)
+        conf.ADD_CFLAGS('-fno-common', testflags=True)
+
+        conf.ADD_CFLAGS('-Werror=address', testflags=True)
+        # we add these here to ensure that -Wstrict-prototypes is not set during configure
+        conf.ADD_CFLAGS('-Werror=strict-prototypes -Wstrict-prototypes',
+                        testflags=True)
+        conf.ADD_CFLAGS('-Werror=write-strings -Wwrite-strings',
+                        testflags=True)
+        conf.ADD_CFLAGS('-Werror-implicit-function-declaration',
+                        testflags=True)
+        conf.ADD_CFLAGS('-Werror=pointer-arith -Wpointer-arith',
+                        testflags=True)
+        conf.ADD_CFLAGS('-Werror=declaration-after-statement -Wdeclaration-after-statement',
+                        testflags=True)
+
+        conf.ADD_CFLAGS('-Wformat=2 -Wno-format-y2k', testflags=True)
         # This check is because for ldb_search(), a NULL format string
         # is not an error, but some compilers complain about that.
         if CHECK_CFLAGS(conf, ["-Werror=format", "-Wformat=2"], '''
@@ -661,7 +689,7 @@ int main(void) {
             conf.env['EXTRA_CFLAGS'].extend(TO_LIST("-Werror=format"))
 
     if Options.options.picky_developer:
-        conf.ADD_CFLAGS('-Werror', testflags=True)
+        conf.ADD_NAMED_CFLAGS('PICKY_CFLAGS', '-Werror', testflags=True)
 
     if Options.options.fatal_errors:
         conf.ADD_CFLAGS('-Wfatal-errors', testflags=True)
@@ -686,7 +714,7 @@ def CONFIG_PATH(conf, name, default):
             conf.env[name] = conf.env['PREFIX'] + default
 
 @conf
-def ADD_CFLAGS(conf, flags, testflags=False):
+def ADD_NAMED_CFLAGS(conf, name, flags, testflags=False):
     '''add some CFLAGS to the command line
        optionally set testflags to ensure all the flags work
     '''
@@ -696,9 +724,16 @@ def ADD_CFLAGS(conf, flags, testflags=False):
             if CHECK_CFLAGS(conf, f):
                 ok_flags.append(f)
         flags = ok_flags
-    if not 'EXTRA_CFLAGS' in conf.env:
-        conf.env['EXTRA_CFLAGS'] = []
-    conf.env['EXTRA_CFLAGS'].extend(TO_LIST(flags))
+    if not name in conf.env:
+        conf.env[name] = []
+    conf.env[name].extend(TO_LIST(flags))
+
+@conf
+def ADD_CFLAGS(conf, flags, testflags=False):
+    '''add some CFLAGS to the command line
+       optionally set testflags to ensure all the flags work
+    '''
+    ADD_NAMED_CFLAGS(conf, 'EXTRA_CFLAGS', flags, testflags=testflags)
 
 @conf
 def ADD_LDFLAGS(conf, flags, testflags=False):
@@ -728,14 +763,17 @@ def ADD_EXTRA_INCLUDES(conf, includes):
 
 
 
-def CURRENT_CFLAGS(bld, target, cflags, hide_symbols=False):
+def CURRENT_CFLAGS(bld, target, cflags, allow_warnings=True, hide_symbols=False):
     '''work out the current flags. local flags are added first'''
+    ret = TO_LIST(cflags)
     if not 'EXTRA_CFLAGS' in bld.env:
         list = []
     else:
         list = bld.env['EXTRA_CFLAGS'];
-    ret = TO_LIST(cflags)
     ret.extend(list)
+    if not allow_warnings and 'PICKY_CFLAGS' in bld.env:
+        list = bld.env['PICKY_CFLAGS'];
+        ret.extend(list)
     if hide_symbols and bld.env.HAVE_VISIBILITY_ATTR:
         ret.append('-fvisibility=hidden')
     return ret

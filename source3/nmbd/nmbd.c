@@ -26,6 +26,7 @@
 #include "serverid.h"
 #include "messages.h"
 #include "../lib/util/pidfile.h"
+#include "util_cluster.h"
 
 int ClientNMB       = -1;
 int ClientDGRAM     = -1;
@@ -71,7 +72,7 @@ static void terminate(struct messaging_context *msg)
 	gencache_stabilize();
 	serverid_deregister(messaging_server_id(msg));
 
-	pidfile_unlink(lp_piddir(), "nmbd");
+	pidfile_unlink(lp_pid_directory(), "nmbd");
 
 	exit(0);
 }
@@ -395,7 +396,7 @@ static bool reload_nmbd_services(bool test)
 	set_remote_machine_name("nmbd", False);
 
 	if ( lp_loaded() ) {
-		char *fname = lp_configfile(talloc_tos());
+		char *fname = lp_next_configfile(talloc_tos());
 		if (file_exist(fname) && !strcsequal(fname,get_dyn_CONFIGFILE())) {
 			set_dyn_CONFIGFILE(fname);
 			test = False;
@@ -924,6 +925,10 @@ static bool open_sockets(bool isdaemon, int port)
 		exit(1);
 	}
 
+	if (!cluster_probe_ok()) {
+		exit(1);
+	}
+
 	msg = messaging_init(NULL, server_event_context());
 	if (msg == NULL) {
 		return 1;
@@ -945,12 +950,12 @@ static bool open_sockets(bool isdaemon, int port)
 	set_samba_nb_type();
 
 	if (!is_daemon && !is_a_socket(0)) {
-		DEBUG(0,("standard input is not a socket, assuming -D option\n"));
+		DEBUG(3, ("standard input is not a socket, assuming -D option\n"));
 		is_daemon = True;
 	}
 
 	if (is_daemon && !opt_interactive) {
-		DEBUG( 2, ( "Becoming a daemon.\n" ) );
+		DEBUG(3, ("Becoming a daemon.\n"));
 		become_daemon(Fork, no_process_group, log_stdout);
 	}
 
@@ -971,17 +976,17 @@ static bool open_sockets(bool isdaemon, int port)
 	}
 #endif
 
-	ok = directory_create_or_exist(lp_lockdir(), geteuid(), 0755);
+	ok = directory_create_or_exist(lp_lock_directory(), 0755);
 	if (!ok) {
 		exit_daemon("Failed to create directory for lock files, check 'lock directory'", errno);
 	}
 
-	ok = directory_create_or_exist(lp_piddir(), geteuid(), 0755);
+	ok = directory_create_or_exist(lp_pid_directory(), 0755);
 	if (!ok) {
 		exit_daemon("Failed to create directory for pid files, check 'pid directory'", errno);
 	}
 
-	pidfile_create(lp_piddir(), "nmbd");
+	pidfile_create(lp_pid_directory(), "nmbd");
 
 	status = reinit_after_fork(msg, nmbd_event_context(),
 				   false);
@@ -1006,6 +1011,10 @@ static bool open_sockets(bool isdaemon, int port)
 		exit_daemon("NMBD failed to setup stdin handler", EINVAL);
 	if (!nmbd_setup_sig_hup_handler(msg))
 		exit_daemon("NMBD failed to setup SIGHUP handler", EINVAL);
+
+	if (!messaging_parent_dgm_cleanup_init(msg)) {
+		exit(1);
+	}
 
 	/* get broadcast messages */
 

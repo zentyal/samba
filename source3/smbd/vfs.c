@@ -393,28 +393,6 @@ ssize_t vfs_read_data(files_struct *fsp, char *buf, size_t byte_count)
 	return (ssize_t)total;
 }
 
-ssize_t vfs_pread_data(files_struct *fsp, char *buf,
-                size_t byte_count, off_t offset)
-{
-	size_t total=0;
-
-	while (total < byte_count)
-	{
-		ssize_t ret = SMB_VFS_PREAD(fsp, buf + total,
-					byte_count - total, offset + total);
-
-		if (ret == 0) return total;
-		if (ret == -1) {
-			if (errno == EINTR)
-				continue;
-			else
-				return -1;
-		}
-		total += ret;
-	}
-	return (ssize_t)total;
-}
-
 /****************************************************************************
  Write data to a fd on the vfs.
 ****************************************************************************/
@@ -428,7 +406,7 @@ ssize_t vfs_write_data(struct smb_request *req,
 	ssize_t ret;
 
 	if (req && req->unread_bytes) {
-		int sockfd = req->sconn->sock;
+		int sockfd = req->xconn->transport.sock;
 		int old_flags;
 		SMB_ASSERT(req->unread_bytes == N);
 		/* VFS_RECVFILE must drain the socket
@@ -472,25 +450,52 @@ ssize_t vfs_pwrite_data(struct smb_request *req,
 	ssize_t ret;
 
 	if (req && req->unread_bytes) {
-		int sockfd = req->sconn->sock;
-		int old_flags;
+		int sockfd = req->xconn->transport.sock;
 		SMB_ASSERT(req->unread_bytes == N);
 		/* VFS_RECVFILE must drain the socket
 		 * before returning. */
 		req->unread_bytes = 0;
-		/* Ensure the socket is blocking. */
-		old_flags = fcntl(sockfd, F_GETFL, 0);
-		if (set_blocking(sockfd, true) == -1) {
-			return (ssize_t)-1;
+		/*
+		 * Leave the socket non-blocking and
+		 * use SMB_VFS_RECVFILE. If it returns
+		 * EAGAIN || EWOULDBLOCK temporarily set
+		 * the socket blocking and retry
+		 * the RECVFILE.
+		 */
+		while (total < N) {
+			ret = SMB_VFS_RECVFILE(sockfd,
+						fsp,
+						offset + total,
+						N - total);
+			if (ret == 0 || (ret == -1 &&
+					 (errno == EAGAIN ||
+					  errno == EWOULDBLOCK))) {
+				int old_flags;
+				/* Ensure the socket is blocking. */
+				old_flags = fcntl(sockfd, F_GETFL, 0);
+				if (set_blocking(sockfd, true) == -1) {
+					return (ssize_t)-1;
+				}
+				ret = SMB_VFS_RECVFILE(sockfd,
+							fsp,
+							offset + total,
+							N - total);
+				if (fcntl(sockfd, F_SETFL, old_flags) == -1) {
+					return (ssize_t)-1;
+				}
+				if (ret == -1) {
+					return (ssize_t)-1;
+				}
+				total += ret;
+				return (ssize_t)total;
+			}
+			/* Any other error case. */
+			if (ret == -1) {
+				return ret;
+			}
+			total += ret;
 		}
-		ret = SMB_VFS_RECVFILE(sockfd,
-					fsp,
-					offset,
-					N);
-		if (fcntl(sockfd, F_SETFL, old_flags) == -1) {
-			return (ssize_t)-1;
-		}
-		return ret;
+		return (ssize_t)total;
 	}
 
 	while (total < N) {
@@ -551,7 +556,7 @@ int vfs_allocate_file_space(files_struct *fsp, uint64_t len)
 
 		contend_level2_oplocks_begin(fsp, LEVEL2_CONTEND_ALLOC_SHRINK);
 
-		flush_write_cache(fsp, SIZECHANGE_FLUSH);
+		flush_write_cache(fsp, SAMBA_SIZECHANGE_FLUSH);
 		if ((ret = SMB_VFS_FTRUNCATE(fsp, (off_t)len)) != -1) {
 			set_filelen_write_cache(fsp, len);
 		}
@@ -561,16 +566,17 @@ int vfs_allocate_file_space(files_struct *fsp, uint64_t len)
 		return ret;
 	}
 
-	if (!lp_strict_allocate(SNUM(fsp->conn)))
-		return 0;
-
 	/* Grow - we need to test if we have enough space. */
 
 	contend_level2_oplocks_begin(fsp, LEVEL2_CONTEND_ALLOC_GROW);
 
-	/* See if we have a syscall that will allocate beyond end-of-file
-	   without changing EOF. */
-	ret = SMB_VFS_FALLOCATE(fsp, VFS_FALLOCATE_KEEP_SIZE, 0, len);
+	if (lp_strict_allocate(SNUM(fsp->conn))) {
+		/* See if we have a syscall that will allocate beyond
+		   end-of-file without changing EOF. */
+		ret = SMB_VFS_FALLOCATE(fsp, VFS_FALLOCATE_KEEP_SIZE, 0, len);
+	} else {
+		ret = 0;
+	}
 
 	contend_level2_oplocks_end(fsp, LEVEL2_CONTEND_ALLOC_GROW);
 
@@ -615,7 +621,7 @@ int vfs_set_filelen(files_struct *fsp, off_t len)
 
 	DEBUG(10,("vfs_set_filelen: ftruncate %s to len %.0f\n",
 		  fsp_str_dbg(fsp), (double)len));
-	flush_write_cache(fsp, SIZECHANGE_FLUSH);
+	flush_write_cache(fsp, SAMBA_SIZECHANGE_FLUSH);
 	if ((ret = SMB_VFS_FTRUNCATE(fsp, len)) != -1) {
 		set_filelen_write_cache(fsp, len);
 		notify_fname(fsp->conn, NOTIFY_ACTION_MODIFIED,
@@ -704,7 +710,7 @@ int vfs_fill_sparse(files_struct *fsp, off_t len)
 
 	contend_level2_oplocks_begin(fsp, LEVEL2_CONTEND_FILL_SPARSE);
 
-	flush_write_cache(fsp, SIZECHANGE_FLUSH);
+	flush_write_cache(fsp, SAMBA_SIZECHANGE_FLUSH);
 
 	offset = fsp->fsp_name->st.st_ex_size;
 	num_to_write = len - fsp->fsp_name->st.st_ex_size;
@@ -827,7 +833,7 @@ int vfs_ChDir(connection_struct *conn, const char *path)
 		LastDir = SMB_STRDUP("");
 	}
 
-	if (strcsequal(path,".")) {
+	if (ISDOT(path)) {
 		return 0;
 	}
 
@@ -1204,7 +1210,7 @@ NTSTATUS check_reduced_name(connection_struct *conn, const char *fname)
 	}
 
 	allow_widelinks = lp_widelinks(SNUM(conn));
-	allow_symlinks = lp_symlinks(SNUM(conn));
+	allow_symlinks = lp_follow_symlinks(SNUM(conn));
 
 	/* Common widelinks and symlinks checks. */
 	if (!allow_widelinks || !allow_symlinks) {
@@ -1533,6 +1539,7 @@ NTSTATUS smb_vfs_call_create_file(struct vfs_handle_struct *handle,
 				  uint32_t create_options,
 				  uint32_t file_attributes,
 				  uint32_t oplock_request,
+				  struct smb2_lease *lease,
 				  uint64_t allocation_size,
 				  uint32_t private_flags,
 				  struct security_descriptor *sd,
@@ -1544,7 +1551,7 @@ NTSTATUS smb_vfs_call_create_file(struct vfs_handle_struct *handle,
 	return handle->fns->create_file_fn(
 		handle, req, root_dir_fid, smb_fname, access_mask,
 		share_access, create_disposition, create_options,
-		file_attributes, oplock_request, allocation_size,
+		file_attributes, oplock_request, lease, allocation_size,
 		private_flags, sd, ea_list,
 		result, pinfo);
 }
@@ -2197,6 +2204,27 @@ NTSTATUS smb_vfs_call_copy_chunk_recv(struct vfs_handle_struct *handle,
 {
 	VFS_FIND(copy_chunk_recv);
 	return handle->fns->copy_chunk_recv_fn(handle, req, copied);
+}
+
+NTSTATUS smb_vfs_call_get_compression(vfs_handle_struct *handle,
+				      TALLOC_CTX *mem_ctx,
+				      struct files_struct *fsp,
+				      struct smb_filename *smb_fname,
+				      uint16_t *_compression_fmt)
+{
+	VFS_FIND(get_compression);
+	return handle->fns->get_compression_fn(handle, mem_ctx, fsp, smb_fname,
+					       _compression_fmt);
+}
+
+NTSTATUS smb_vfs_call_set_compression(vfs_handle_struct *handle,
+				      TALLOC_CTX *mem_ctx,
+				      struct files_struct *fsp,
+				      uint16_t compression_fmt)
+{
+	VFS_FIND(set_compression);
+	return handle->fns->set_compression_fn(handle, mem_ctx, fsp,
+					       compression_fmt);
 }
 
 NTSTATUS smb_vfs_call_fget_nt_acl(struct vfs_handle_struct *handle,

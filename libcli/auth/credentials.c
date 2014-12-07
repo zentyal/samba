@@ -344,7 +344,29 @@ struct netlogon_creds_CredentialState *netlogon_creds_client_init_session_key(TA
 void netlogon_creds_client_authenticator(struct netlogon_creds_CredentialState *creds,
 				struct netr_Authenticator *next)
 {
+	uint32_t t32n = (uint32_t)time(NULL);
+
+	/*
+	 * we always increment and ignore an overflow here
+	 */
 	creds->sequence += 2;
+
+	if (t32n > creds->sequence) {
+		/*
+		 * we may increment more
+		 */
+		creds->sequence = t32n;
+	} else {
+		uint32_t d = creds->sequence - t32n;
+
+		if (d >= INT32_MAX) {
+			/*
+			 * got an overflow of time_t vs. uint32_t
+			 */
+			creds->sequence = t32n;
+		}
+	}
+
 	netlogon_creds_step(creds);
 
 	next->cred = creds->client;
@@ -473,13 +495,11 @@ NTSTATUS netlogon_creds_server_step_check(struct netlogon_creds_CredentialState 
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
-	/* TODO: this may allow the a replay attack on a non-signed
-	   connection. Should we check that this is increasing? */
 	creds->sequence = received_authenticator->timestamp;
 	netlogon_creds_step(creds);
 	if (netlogon_creds_server_check_internal(creds, &received_authenticator->cred)) {
 		return_authenticator->cred = creds->server;
-		return_authenticator->timestamp = creds->sequence;
+		return_authenticator->timestamp = 0;
 		return NT_STATUS_OK;
 	} else {
 		ZERO_STRUCTP(return_authenticator);
@@ -490,11 +510,15 @@ NTSTATUS netlogon_creds_server_step_check(struct netlogon_creds_CredentialState 
 static void netlogon_creds_crypt_samlogon_validation(struct netlogon_creds_CredentialState *creds,
 						     uint16_t validation_level,
 						     union netr_Validation *validation,
-						     bool encrypt)
+						     bool do_encrypt)
 {
 	static const char zeros[16];
-
 	struct netr_SamBaseInfo *base = NULL;
+
+	if (validation == NULL) {
+		return;
+	}
+
 	switch (validation_level) {
 	case 2:
 		if (validation->sam2) {
@@ -527,7 +551,7 @@ static void netlogon_creds_crypt_samlogon_validation(struct netlogon_creds_Crede
 		/* Don't crypt an all-zero key, it would give away the NETLOGON pipe session key */
 		if (memcmp(base->key.key, zeros,
 			   sizeof(base->key.key)) != 0) {
-			if (encrypt) {
+			if (do_encrypt) {
 				netlogon_creds_aes_encrypt(creds,
 					    base->key.key,
 					    sizeof(base->key.key));
@@ -540,7 +564,7 @@ static void netlogon_creds_crypt_samlogon_validation(struct netlogon_creds_Crede
 
 		if (memcmp(base->LMSessKey.key, zeros,
 			   sizeof(base->LMSessKey.key)) != 0) {
-			if (encrypt) {
+			if (do_encrypt) {
 				netlogon_creds_aes_encrypt(creds,
 					    base->LMSessKey.key,
 					    sizeof(base->LMSessKey.key));
@@ -570,7 +594,7 @@ static void netlogon_creds_crypt_samlogon_validation(struct netlogon_creds_Crede
 		/* Don't crypt an all-zero key, it would give away the NETLOGON pipe session key */
 		if (memcmp(base->LMSessKey.key, zeros,
 			   sizeof(base->LMSessKey.key)) != 0) {
-			if (encrypt) {
+			if (do_encrypt) {
 				netlogon_creds_des_encrypt_LMKey(creds,
 						&base->LMSessKey);
 			} else {
@@ -595,6 +619,197 @@ void netlogon_creds_encrypt_samlogon_validation(struct netlogon_creds_Credential
 {
 	netlogon_creds_crypt_samlogon_validation(creds, validation_level,
 							validation, true);
+}
+
+static void netlogon_creds_crypt_samlogon_logon(struct netlogon_creds_CredentialState *creds,
+						enum netr_LogonInfoClass level,
+						union netr_LogonLevel *logon,
+						bool do_encrypt)
+{
+	static const char zeros[16];
+
+	if (logon == NULL) {
+		return;
+	}
+
+	switch (level) {
+	case NetlogonInteractiveInformation:
+	case NetlogonInteractiveTransitiveInformation:
+	case NetlogonServiceInformation:
+	case NetlogonServiceTransitiveInformation:
+		if (logon->password == NULL) {
+			return;
+		}
+
+		if (creds->negotiate_flags & NETLOGON_NEG_SUPPORTS_AES) {
+			uint8_t *h;
+
+			h = logon->password->lmpassword.hash;
+			if (memcmp(h, zeros, 16) != 0) {
+				if (do_encrypt) {
+					netlogon_creds_aes_encrypt(creds, h, 16);
+				} else {
+					netlogon_creds_aes_decrypt(creds, h, 16);
+				}
+			}
+
+			h = logon->password->ntpassword.hash;
+			if (memcmp(h, zeros, 16) != 0) {
+				if (do_encrypt) {
+					netlogon_creds_aes_encrypt(creds, h, 16);
+				} else {
+					netlogon_creds_aes_decrypt(creds, h, 16);
+				}
+			}
+		} else if (creds->negotiate_flags & NETLOGON_NEG_ARCFOUR) {
+			uint8_t *h;
+
+			h = logon->password->lmpassword.hash;
+			if (memcmp(h, zeros, 16) != 0) {
+				netlogon_creds_arcfour_crypt(creds, h, 16);
+			}
+
+			h = logon->password->ntpassword.hash;
+			if (memcmp(h, zeros, 16) != 0) {
+				netlogon_creds_arcfour_crypt(creds, h, 16);
+			}
+		} else {
+			struct samr_Password *p;
+
+			p = &logon->password->lmpassword;
+			if (memcmp(p->hash, zeros, 16) != 0) {
+				if (do_encrypt) {
+					netlogon_creds_des_encrypt(creds, p);
+				} else {
+					netlogon_creds_des_decrypt(creds, p);
+				}
+			}
+			p = &logon->password->ntpassword;
+			if (memcmp(p->hash, zeros, 16) != 0) {
+				if (do_encrypt) {
+					netlogon_creds_des_encrypt(creds, p);
+				} else {
+					netlogon_creds_des_decrypt(creds, p);
+				}
+			}
+		}
+		break;
+
+	case NetlogonNetworkInformation:
+	case NetlogonNetworkTransitiveInformation:
+		break;
+
+	case NetlogonGenericInformation:
+		if (logon->generic == NULL) {
+			return;
+		}
+
+		if (creds->negotiate_flags & NETLOGON_NEG_SUPPORTS_AES) {
+			if (do_encrypt) {
+				netlogon_creds_aes_encrypt(creds,
+						logon->generic->data,
+						logon->generic->length);
+			} else {
+				netlogon_creds_aes_decrypt(creds,
+						logon->generic->data,
+						logon->generic->length);
+			}
+		} else if (creds->negotiate_flags & NETLOGON_NEG_ARCFOUR) {
+			netlogon_creds_arcfour_crypt(creds,
+						     logon->generic->data,
+						     logon->generic->length);
+		} else {
+			/* Using DES to verify kerberos tickets makes no sense */
+		}
+		break;
+	}
+}
+
+void netlogon_creds_decrypt_samlogon_logon(struct netlogon_creds_CredentialState *creds,
+					   enum netr_LogonInfoClass level,
+					   union netr_LogonLevel *logon)
+{
+	netlogon_creds_crypt_samlogon_logon(creds, level, logon, false);
+}
+
+void netlogon_creds_encrypt_samlogon_logon(struct netlogon_creds_CredentialState *creds,
+					   enum netr_LogonInfoClass level,
+					   union netr_LogonLevel *logon)
+{
+	netlogon_creds_crypt_samlogon_logon(creds, level, logon, true);
+}
+
+union netr_LogonLevel *netlogon_creds_shallow_copy_logon(TALLOC_CTX *mem_ctx,
+					enum netr_LogonInfoClass level,
+					const union netr_LogonLevel *in)
+{
+	union netr_LogonLevel *out;
+
+	if (in == NULL) {
+		return NULL;
+	}
+
+	out = talloc(mem_ctx, union netr_LogonLevel);
+	if (out == NULL) {
+		return NULL;
+	}
+
+	*out = *in;
+
+	switch (level) {
+	case NetlogonInteractiveInformation:
+	case NetlogonInteractiveTransitiveInformation:
+	case NetlogonServiceInformation:
+	case NetlogonServiceTransitiveInformation:
+		if (in->password == NULL) {
+			return out;
+		}
+
+		out->password = talloc(out, struct netr_PasswordInfo);
+		if (out->password == NULL) {
+			talloc_free(out);
+			return NULL;
+		}
+		*out->password = *in->password;
+
+		return out;
+
+	case NetlogonNetworkInformation:
+	case NetlogonNetworkTransitiveInformation:
+		break;
+
+	case NetlogonGenericInformation:
+		if (in->generic == NULL) {
+			return out;
+		}
+
+		out->generic = talloc(out, struct netr_GenericInfo);
+		if (out->generic == NULL) {
+			talloc_free(out);
+			return NULL;
+		}
+		*out->generic = *in->generic;
+
+		if (in->generic->data == NULL) {
+			return out;
+		}
+
+		if (in->generic->length == 0) {
+			return out;
+		}
+
+		out->generic->data = talloc_memdup(out->generic,
+						   in->generic->data,
+						   in->generic->length);
+		if (out->generic->data == NULL) {
+			talloc_free(out);
+			return NULL;
+		}
+
+		return out;
+	}
+
+	return out;
 }
 
 /*

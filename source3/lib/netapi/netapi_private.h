@@ -30,6 +30,7 @@
 	return fn ## _r(ctx, r);
 
 struct dcerpc_binding_handle;
+struct ndr_interface_table;
 
 struct libnetapi_private_ctx {
 	struct {
@@ -60,11 +61,11 @@ NET_API_STATUS libnetapi_get_debuglevel(struct libnetapi_ctx *ctx, char **debugl
 WERROR libnetapi_shutdown_cm(struct libnetapi_ctx *ctx);
 WERROR libnetapi_open_pipe(struct libnetapi_ctx *ctx,
 			   const char *server_name,
-			   const struct ndr_syntax_id *interface,
+			   const struct ndr_interface_table *table,
 			   struct rpc_pipe_client **presult);
 WERROR libnetapi_get_binding_handle(struct libnetapi_ctx *ctx,
 				    const char *server_name,
-				    const struct ndr_syntax_id *interface,
+				    const struct ndr_interface_table *table,
 				    struct dcerpc_binding_handle **binding_handle);
 WERROR libnetapi_samr_open_domain(struct libnetapi_ctx *mem_ctx,
 				  struct rpc_pipe_client *pipe_cli,

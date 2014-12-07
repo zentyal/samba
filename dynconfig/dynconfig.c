@@ -19,7 +19,6 @@
 */
 
 #include "includes.h"
-#include "nsswitch/winbind_struct_protocol.h"
 
 /**
  * @file dynconfig.c
@@ -83,7 +82,6 @@ const char *set_dyn_##name(const char *newpath) \
 	return dyn_##name;\
 }
 
-/* these are in common with s3 */
 DEFINE_DYN_CONFIG_PARAM(SBINDIR)
 DEFINE_DYN_CONFIG_PARAM(BINDIR)
 DEFINE_DYN_CONFIG_PARAM(CONFIGFILE) /**< Location of smb.conf file. **/
@@ -105,7 +103,6 @@ DEFINE_DYN_CONFIG_PARAM(NMBDSOCKETDIR)
 DEFINE_DYN_CONFIG_PARAM(DATADIR)
 DEFINE_DYN_CONFIG_PARAM(SETUPDIR)
 DEFINE_DYN_CONFIG_PARAM(WINBINDD_SOCKET_DIR) /* from winbind_struct_protocol.h in s3 autoconf */
-
 DEFINE_DYN_CONFIG_PARAM(WINBINDD_PRIVILEGED_SOCKET_DIR)
 DEFINE_DYN_CONFIG_PARAM(NTP_SIGND_SOCKET_DIR)
 DEFINE_DYN_CONFIG_PARAM(PYTHONDIR)

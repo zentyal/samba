@@ -36,12 +36,18 @@
 #include "gen_ndr/server_id.h"
 #include "messaging/messaging.h"
 #include "lib/cmdline/popt_common.h"
+#include "lib/util/dlinklist.h"
 #include "dlz_minimal.h"
 #include "dns_server/dnsserver_common.h"
 
 struct b9_options {
 	const char *url;
 	const char *debug;
+};
+
+struct b9_zone {
+	char *name;
+	struct b9_zone *prev, *next;
 };
 
 struct dlz_bind9_data {
@@ -51,6 +57,7 @@ struct dlz_bind9_data {
 	struct loadparm_context *lp;
 	int *transaction_token;
 	uint32_t soa_serial;
+	struct b9_zone *zonelist;
 
 	/* Used for dynamic update */
 	struct smb_krb5_context *smb_krb5_ctx;
@@ -203,7 +210,7 @@ static bool b9_format(struct dlz_bind9_data *state,
 	}
 
 	default:
-		state->log(ISC_LOG_ERROR, "samba b9_putrr: unhandled record type %u",
+		state->log(ISC_LOG_ERROR, "samba_dlz b9_format: unhandled record type %u",
 			   rec->wType);
 		return false;
 	}
@@ -372,14 +379,14 @@ static bool b9_parse(struct dlz_bind9_data *state,
 		break;
 
 	default:
-		state->log(ISC_LOG_ERROR, "samba b9_parse: unhandled record type %u",
+		state->log(ISC_LOG_ERROR, "samba_dlz b9_parse: unhandled record type %u",
 			   rec->wType);
 		return false;
 	}
 
 	/* we should be at the end of the buffer now */
 	if (strtok_r(NULL, "\t ", &saveptr) != NULL) {
-		state->log(ISC_LOG_ERROR, "samba b9_parse: unexpected data at end of string for '%s'",
+		state->log(ISC_LOG_ERROR, "samba_dlz b9_parse: unexpected data at end of string for '%s'",
 		           rdatastr);
 		return false;
 	}
@@ -1070,6 +1077,42 @@ static bool b9_has_soa(struct dlz_bind9_data *state, struct ldb_dn *dn, const ch
 	return false;
 }
 
+static bool b9_zone_add(struct dlz_bind9_data *state, const char *name)
+{
+	struct b9_zone *zone;
+
+	zone = talloc_zero(state, struct b9_zone);
+	if (zone == NULL) {
+		return false;
+	}
+
+	zone->name = talloc_strdup(zone, name);
+	if (zone->name == NULL) {
+		talloc_free(zone);
+		return false;
+	}
+
+	DLIST_ADD(state->zonelist, zone);
+	return true;
+}
+
+static bool b9_zone_exists(struct dlz_bind9_data *state, const char *name)
+{
+	struct b9_zone *zone = state->zonelist;
+	bool found = false;
+
+	while (zone != NULL) {
+		if (strcasecmp(name, zone->name) == 0) {
+			found = true;
+			break;
+		}
+		zone = zone->next;
+	}
+
+	return found;
+}
+
+
 /*
   configure a writeable zone
  */
@@ -1132,6 +1175,18 @@ _PUBLIC_ isc_result_t dlz_configure(dns_view_t *view, void *dbdata)
 			if (!b9_has_soa(state, zone_dn, zone)) {
 				continue;
 			}
+
+			if (b9_zone_exists(state, zone)) {
+				state->log(ISC_LOG_WARNING, "samba_dlz: Ignoring duplicate zone '%s' from '%s'",
+					   zone, ldb_dn_get_linearized(zone_dn));
+				continue;
+			}
+
+			if (!b9_zone_add(state, zone)) {
+				talloc_free(tmp_ctx);
+				return ISC_R_NOMEMORY;
+			}
+
 			result = state->writeable_zone(view, zone);
 			if (result != ISC_R_SUCCESS) {
 				state->log(ISC_LOG_ERROR, "samba_dlz: Failed to configure zone '%s'",
@@ -1227,7 +1282,7 @@ _PUBLIC_ isc_boolean_t dlz_ssumatch(const char *signer, const char *name, const 
 		return ISC_FALSE;
 	}
 
-	nt_status = gensec_update(gensec_ctx, tmp_ctx, state->ev_ctx, ap_req, &ap_req);
+	nt_status = gensec_update_ev(gensec_ctx, tmp_ctx, state->ev_ctx, ap_req, &ap_req);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		state->log(ISC_LOG_ERROR, "samba_dlz: spnego update failed");
 		talloc_free(tmp_ctx);
@@ -1316,6 +1371,8 @@ static bool b9_record_match(struct dlz_bind9_data *state,
 {
 	bool status;
 	int i;
+	struct in6_addr rec1_in_addr6;
+	struct in6_addr rec2_in_addr6;
 
 	if (rec1->wType != rec2->wType) {
 		return false;
@@ -1330,7 +1387,9 @@ static bool b9_record_match(struct dlz_bind9_data *state,
 	case DNS_TYPE_A:
 		return strcmp(rec1->data.ipv4, rec2->data.ipv4) == 0;
 	case DNS_TYPE_AAAA:
-		return strcmp(rec1->data.ipv6, rec2->data.ipv6) == 0;
+		inet_pton(AF_INET6, rec1->data.ipv6, &rec1_in_addr6);
+		inet_pton(AF_INET6, rec2->data.ipv6, &rec2_in_addr6);
+		return memcmp(&rec1_in_addr6, &rec2_in_addr6, sizeof(rec1_in_addr6)) == 0;
 	case DNS_TYPE_CNAME:
 		return dns_name_equal(rec1->data.cname, rec2->data.cname);
 	case DNS_TYPE_TXT:
@@ -1368,7 +1427,7 @@ static bool b9_record_match(struct dlz_bind9_data *state,
 			rec1->data.soa.expire == rec2->data.soa.expire &&
 			rec1->data.soa.minimum == rec2->data.soa.minimum;
 	default:
-		state->log(ISC_LOG_ERROR, "samba b9_putrr: unhandled record type %u",
+		state->log(ISC_LOG_ERROR, "samba_dlz b9_record_match: unhandled record type %u",
 			   rec1->wType);
 		break;
 	}

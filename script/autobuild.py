@@ -16,6 +16,7 @@ os.environ['TDB_NO_FSYNC'] = '1'
 cleanup_list = []
 
 builddirs = {
+    "ctdb"    : "ctdb",
     "samba"  : ".",
     "samba-ctdb" : ".",
     "samba-libs"  : ".",
@@ -31,11 +32,19 @@ builddirs = {
     "retry"   : "."
     }
 
-defaulttasks = [ "samba", "samba-ctdb", "samba-libs", "ldb", "tdb", "ntdb", "talloc", "replace", "tevent", "pidl" ]
+defaulttasks = [ "ctdb", "samba", "samba-ctdb", "samba-libs", "ldb", "tdb", "ntdb", "talloc", "replace", "tevent", "pidl" ]
 
 tasks = {
+    "ctdb" : [ ("random-sleep", "../script/random-sleep.sh 60 600", "text/plain"),
+               ("configure", "./configure ${PREFIX}", "text/plain"),
+               ("make", "make all", "text/plain"),
+               ("install", "make install", "text/plain"),
+               ("test", "make autotest", "text/plain"),
+               ("check-clean-tree", "../script/clean-source-tree.sh", "text/plain"),
+               ("clean", "make clean", "text/plain") ],
+
     # We have 'test' before 'install' because, 'test' should work without 'install'
-    "samba" : [ ("configure", "./configure.developer ${PREFIX} ${PERL_VENDOR_LIB} --with-selftest-prefix=./bin/ab", "text/plain"),
+    "samba" : [ ("configure", "./configure.developer ${PREFIX} --with-selftest-prefix=./bin/ab", "text/plain"),
                 ("make", "make -j", "text/plain"),
                 ("test", "make test FAIL_IMMEDIATELY=1", "text/plain"),
                 ("install", "make install", "text/plain"),
@@ -49,16 +58,22 @@ tasks = {
                      ("tdb-make", "cd lib/tdb && make", "text/plain"),
                      ("tdb-install", "cd lib/tdb && make install", "text/plain"),
 
-                     # install the ctdb headers under the prefix:
-                     ("ctdb-header-install", "cp ./ctdb/include/* ${PREFIX_DIR}/include", "text/plain"),
+                     # build and install ctdb:
+                     ("ctdb-configure", "cd ./ctdb && PKG_CONFIG_PATH=${PREFIX_DIR}/lib/pkgconfig:${PKG_CONFIG_PATH} ./configure ${PREFIX} --bundled-libraries=!tdb", "text/plain"),
+                     ("ctdb-make", "cd ./ctdb && make all", "text/plain"),
+                     ("ctdb-install", "cd ./ctdb && make install", "text/plain"),
                      ("ctdb-header-ls", "ls ${PREFIX_DIR}/include/ctdb.h", "text/plain"),
 
-                     ("configure", "PYTHONPATH=${PYTHON_PREFIX}/site-packages:$PYTHONPATH PKG_CONFIG_PATH=$PKG_CONFIG_PATH:${PREFIX_DIR}/lib/pkgconfig ./configure.developer ${PREFIX} ${PERL_VENDOR_LIB} --with-selftest-prefix=./bin/ab --with-cluster-support --with-ctdb-dir=${PREFIX_DIR} --bundled-libraries=!tdb", "text/plain"),
-                     ("make", "make", "text/plain"),
-                     ("check", "./bin/smbd -b | grep CLUSTER_SUPPORT", "text/plain"),
-                     ("install", "make install", "text/plain"),
+                     # build samba with cluster support against this ctdb:
+                     ("samba-configure", "PYTHONPATH=${PYTHON_PREFIX}/site-packages:$PYTHONPATH PKG_CONFIG_PATH=${PREFIX_DIR}/lib/pkgconfig:${PKG_CONFIG_PATH} ./configure.developer ${PREFIX} --with-selftest-prefix=./bin/ab --with-cluster-support --with-ctdb-dir=${PREFIX_DIR} --bundled-libraries=!tdb", "text/plain"),
+                     ("samba-make", "make", "text/plain"),
+                     ("samba-check", "./bin/smbd -b | grep CLUSTER_SUPPORT", "text/plain"),
+                     ("samba-install", "make install", "text/plain"),
+
+                     # clean up:
                      ("check-clean-tree", "script/clean-source-tree.sh", "text/plain"),
-                     ("clean", "make clean", "text/plain") ],
+                     ("clean", "make clean", "text/plain"),
+                     ("ctdb-clean", "cd ./ctdb && make clean", "text/plain") ],
 
     "samba-libs" : [
                       ("random-sleep", "script/random-sleep.sh 60 600", "text/plain"),
@@ -82,9 +97,10 @@ tasks = {
                       ("ldb-make", "cd lib/ldb && make", "text/plain"),
                       ("ldb-install", "cd lib/ldb && make install", "text/plain"),
 
-                      ("configure", "PYTHONPATH=${PYTHON_PREFIX}/site-packages:$PYTHONPATH PKG_CONFIG_PATH=$PKG_CONFIG_PATH:${PREFIX_DIR}/lib/pkgconfig ./configure --bundled-libraries=!talloc,!tdb,!pytdb,!ntdb,!pyntdb,!ldb,!pyldb,!tevent,!pytevent --abi-check --enable-debug -C ${PREFIX} ${PERL_VENDOR_LIB}", "text/plain"),
+                      ("configure", "PYTHONPATH=${PYTHON_PREFIX}/site-packages:$PYTHONPATH PKG_CONFIG_PATH=$PKG_CONFIG_PATH:${PREFIX_DIR}/lib/pkgconfig ./configure --bundled-libraries=!talloc,!tdb,!pytdb,!ntdb,!pyntdb,!ldb,!pyldb,!tevent,!pytevent --abi-check --enable-debug -C ${PREFIX}", "text/plain"),
                       ("make", "make", "text/plain"),
-                      ("install", "make install", "text/plain")],
+                      ("install", "make install", "text/plain"),
+                      ("dist", "make dist", "text/plain")],
 
     "ldb" : [
               ("random-sleep", "../../script/random-sleep.sh 60 600", "text/plain"),
@@ -212,9 +228,6 @@ class builder(object):
         self.cmd = self.cmd.replace("${PYTHON_PREFIX}", get_python_lib(standard_lib=1, prefix=self.prefix))
         self.cmd = self.cmd.replace("${PREFIX}", "--prefix=%s" % self.prefix)
         self.cmd = self.cmd.replace("${PREFIX_DIR}", "%s" % self.prefix)
-        perl_vendor_lib = "--with-perl-arch-install-dir=%s/share/perl5 " % self.prefix
-        perl_vendor_lib += "--with-perl-lib-install-dir=%s/lib/perl5" % self.prefix
-        self.cmd = self.cmd.replace("${PERL_VENDOR_LIB}", perl_vendor_lib)
 #        if self.output_mime_type == "text/x-subunit":
 #            self.cmd += " | %s --immediate" % (os.path.join(os.path.dirname(__file__), "selftest/format-subunit"))
         print '%s: [%s] Running %s' % (self.name, self.stage, self.cmd)

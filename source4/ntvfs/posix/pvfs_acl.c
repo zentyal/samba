@@ -151,7 +151,6 @@ static NTSTATUS pvfs_default_acl(struct pvfs_state *pvfs,
 	struct security_ace ace;
 	mode_t mode;
 	struct id_map *ids;
-	struct composite_context *ctx;
 
 	*psd = security_descriptor_initialise(req);
 	if (*psd == NULL) {
@@ -170,10 +169,7 @@ static NTSTATUS pvfs_default_acl(struct pvfs_state *pvfs,
 	ids[1].xid.type = ID_TYPE_GID;
 	ids[1].sid = NULL;
 
-	ctx = wbc_xids_to_sids_send(pvfs->wbc_ctx, ids, 2, ids);
-	NT_STATUS_HAVE_NO_MEMORY(ctx);
-
-	status = wbc_xids_to_sids_recv(ctx, &ids);
+	status = wbc_xids_to_sids(pvfs->ntvfs->ctx->event_ctx, ids, 2);
 	NT_STATUS_NOT_OK_RETURN(status);
 
 	sd->owner_sid = talloc_steal(sd, ids[0].sid);
@@ -270,6 +266,23 @@ static void normalise_sd_flags(struct security_descriptor *sd, uint32_t secinfo_
 	}
 }
 
+static bool pvfs_privileged_access(uid_t uid)
+{
+	uid_t euid;
+
+	if (uid_wrapper_enabled()) {
+		setenv("UID_WRAPPER_MYUID", "1", 1);
+	}
+
+	euid = geteuid();
+
+	if (uid_wrapper_enabled()) {
+		unsetenv("UID_WRAPPER_MYUID");
+	}
+
+	return (uid == euid);
+}
+
 /*
   answer a setfileinfo for an ACL
 */
@@ -287,7 +300,6 @@ NTSTATUS pvfs_acl_set(struct pvfs_state *pvfs,
 	uid_t new_uid = -1;
 	gid_t new_gid = -1;
 	struct id_map *ids;
-	struct composite_context *ctx;
 
 	if (pvfs->acl_ops != NULL) {
 		status = pvfs->acl_ops->acl_load(pvfs, name, fd, req, &sd);
@@ -318,9 +330,8 @@ NTSTATUS pvfs_acl_set(struct pvfs_state *pvfs,
 		}
 		if (!dom_sid_equal(sd->owner_sid, new_sd->owner_sid)) {
 			ids->sid = new_sd->owner_sid;
-			ctx = wbc_sids_to_xids_send(pvfs->wbc_ctx, ids, 1, ids);
-			NT_STATUS_HAVE_NO_MEMORY(ctx);
-			status = wbc_sids_to_xids_recv(ctx, &ids);
+			status = wbc_sids_to_xids(pvfs->ntvfs->ctx->event_ctx,
+						  ids, 1);
 			NT_STATUS_NOT_OK_RETURN(status);
 
 			if (ids->xid.type == ID_TYPE_BOTH ||
@@ -337,9 +348,8 @@ NTSTATUS pvfs_acl_set(struct pvfs_state *pvfs,
 		}
 		if (!dom_sid_equal(sd->group_sid, new_sd->group_sid)) {
 			ids->sid = new_sd->group_sid;
-			ctx = wbc_sids_to_xids_send(pvfs->wbc_ctx, ids, 1, ids);
-			NT_STATUS_HAVE_NO_MEMORY(ctx);
-			status = wbc_sids_to_xids_recv(ctx, &ids);
+			status = wbc_sids_to_xids(pvfs->ntvfs->ctx->event_ctx,
+						  ids, 1);
 			NT_STATUS_NOT_OK_RETURN(status);
 
 			if (ids->xid.type == ID_TYPE_BOTH ||
@@ -402,7 +412,7 @@ NTSTATUS pvfs_acl_set(struct pvfs_state *pvfs,
 			ret = fchown(fd, new_uid, new_gid);
 		}
 		if (errno == EPERM) {
-			if (uwrap_enabled()) {
+			if (pvfs_privileged_access(name->st.st_uid)) {
 				ret = 0;
 			} else {
 				/* try again as root if we have SEC_PRIV_RESTORE or
@@ -497,7 +507,7 @@ static bool pvfs_group_member(struct pvfs_state *pvfs, gid_t gid)
 		return true;
 	}
 	ngroups = getgroups(0, NULL);
-	if (ngroups == 0) {
+	if (ngroups <= 0) {
 		return false;
 	}
 	groups = talloc_array(pvfs, gid_t, ngroups);
@@ -528,7 +538,6 @@ static NTSTATUS pvfs_access_check_unix(struct pvfs_state *pvfs,
 				       struct pvfs_filename *name,
 				       uint32_t *access_mask)
 {
-	uid_t uid = geteuid();
 	uint32_t max_bits = 0;
 	struct security_token *token = req->session_info->security_token;
 
@@ -538,7 +547,7 @@ static NTSTATUS pvfs_access_check_unix(struct pvfs_state *pvfs,
 
 	if (name == NULL) {
 		max_bits |= SEC_RIGHTS_FILE_ALL | SEC_STD_ALL;
-	} else if (uid == name->st.st_uid || uwrap_enabled()) {
+	} else if (pvfs_privileged_access(name->st.st_uid)) {
 		/* use the IxUSR bits */
 		if ((name->st.st_mode & S_IWUSR)) {
 			max_bits |= SEC_RIGHTS_FILE_ALL | SEC_STD_ALL;
@@ -928,20 +937,25 @@ NTSTATUS pvfs_acl_inherited_sd(struct pvfs_state *pvfs,
 	NTSTATUS status;
 	struct security_descriptor *parent_sd, *sd;
 	struct id_map *ids;
-	struct composite_context *ctx;
 	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
 
 	*ret_sd = NULL;
 
 	acl = talloc(req, struct xattr_NTACL);
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(acl, tmp_ctx);
+	if (acl == NULL) {
+		TALLOC_FREE(tmp_ctx);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	status = pvfs_acl_load(pvfs, parent, -1, acl);
 	if (NT_STATUS_EQUAL(status, NT_STATUS_NOT_FOUND)) {
 		talloc_free(tmp_ctx);
 		return NT_STATUS_OK;
 	}
-	NT_STATUS_NOT_OK_RETURN_AND_FREE(status, tmp_ctx);
+	if (!NT_STATUS_IS_OK(status)) {
+		TALLOC_FREE(tmp_ctx);
+		return status;
+	}
 
 	switch (acl->version) {
 	case 1:
@@ -962,10 +976,16 @@ NTSTATUS pvfs_acl_inherited_sd(struct pvfs_state *pvfs,
 
 	/* create the new sd */
 	sd = security_descriptor_initialise(req);
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(sd, tmp_ctx);
+	if (sd == NULL) {
+		TALLOC_FREE(tmp_ctx);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	ids = talloc_array(sd, struct id_map, 2);
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(ids, tmp_ctx);
+	if (ids == NULL) {
+		TALLOC_FREE(tmp_ctx);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	ids[0].xid.id = geteuid();
 	ids[0].xid.type = ID_TYPE_UID;
@@ -977,11 +997,11 @@ NTSTATUS pvfs_acl_inherited_sd(struct pvfs_state *pvfs,
 	ids[1].sid = NULL;
 	ids[1].status = ID_UNKNOWN;
 
-	ctx = wbc_xids_to_sids_send(pvfs->wbc_ctx, ids, 2, ids);
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(ctx, tmp_ctx);
-
-	status = wbc_xids_to_sids_recv(ctx, &ids);
-	NT_STATUS_NOT_OK_RETURN_AND_FREE(status, tmp_ctx);
+	status = wbc_xids_to_sids(pvfs->ntvfs->ctx->event_ctx, ids, 2);
+	if (!NT_STATUS_IS_OK(status)) {
+		TALLOC_FREE(tmp_ctx);
+		return status;
+	}
 
 	sd->owner_sid = talloc_steal(sd, ids[0].sid);
 	sd->group_sid = talloc_steal(sd, ids[1].sid);
@@ -990,7 +1010,10 @@ NTSTATUS pvfs_acl_inherited_sd(struct pvfs_state *pvfs,
 
 	/* fill in the aces from the parent */
 	status = pvfs_acl_inherit_aces(pvfs, parent_sd, sd, container);
-	NT_STATUS_NOT_OK_RETURN_AND_FREE(status, tmp_ctx);
+	if (!NT_STATUS_IS_OK(status)) {
+		TALLOC_FREE(tmp_ctx);
+		return status;
+	}
 
 	/* if there is nothing to inherit then we fallback to the
 	   default acl */

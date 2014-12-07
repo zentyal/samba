@@ -2,12 +2,12 @@
 .\"     Title: smbclient
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 10/20/2014
+.\"      Date: 10/15/2014
 .\"    Manual: User Commands
-.\"    Source: Samba 4.0
+.\"    Source: Samba 4.2
 .\"  Language: English
 .\"
-.TH "SMBCLIENT" "1" "10/20/2014" "Samba 4\&.0" "User Commands"
+.TH "SMBCLIENT" "1" "10/15/2014" "Samba 4\&.2" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -420,7 +420,7 @@ command inside smbclient\&.
 .RS 4
 smbclient may be used to create
 tar(1)
-compatible backups of all the files on an SMB/CIFS share\&. The secondary tar flags that can be given to this option are :
+compatible backups of all the files on an SMB/CIFS share\&. The secondary tar flags that can be given to this option are:
 .sp
 .RS 4
 .ie n \{\
@@ -431,7 +431,7 @@ compatible backups of all the files on an SMB/CIFS share\&. The secondary tar fl
 .IP \(bu 2.3
 .\}
 \fIc\fR
-\- Create a tar file on UNIX\&. Must be followed by the name of a tar file, tape device or "\-" for standard output\&. If using standard output you must turn the log level to its lowest value \-d0 to avoid corrupting your tar file\&. This flag is mutually exclusive with the
+\- Create a tar backup archive on the local system\&. Must be followed by the name of a tar file, tape device or "\-" for standard output\&. If using standard output you must turn the log level to its lowest value \-d0 to avoid corrupting your tar file\&. This flag is mutually exclusive with the
 \fIx\fR
 flag\&.
 .RE
@@ -473,7 +473,7 @@ below\&.
 .IP \(bu 2.3
 .\}
 \fIX\fR
-\- Exclude files and directories\&. Causes files to be excluded from an extract or create\&. See example below\&. Filename globbing works in one of two ways now\&. See
+\- Exclude files and directories\&. Causes files to be excluded from an extract or create\&. See example below\&. Filename globbing works in one of two ways\&. See
 \fIr\fR
 below\&.
 .RE
@@ -503,7 +503,7 @@ below\&.
 .IP \(bu 2.3
 .\}
 \fIb\fR
-\- Blocksize\&. Must be followed by a valid (greater than zero) blocksize\&. Causes tar file to be written out in blocksize*TBLOCK (usually 512 byte) blocks\&.
+\- Blocksize\&. Must be followed by a valid (greater than zero) blocksize\&. Causes tar file to be written out in blocksize*TBLOCK (512 byte) blocks\&.
 .RE
 .sp
 .RS 4
@@ -541,7 +541,7 @@ flag\&.
 .IP \(bu 2.3
 .\}
 \fIr\fR
-\- Regular expression include or exclude\&. Uses regular expression matching for excluding or excluding files if compiled with HAVE_REGEX_H\&. However this mode can be very slow\&. If not compiled with HAVE_REGEX_H, does a limited wildcard match on \*(Aq*\*(Aq and \*(Aq?\*(Aq\&.
+\- Use wildcard matching to include or exclude\&. Deprecated\&.
 .RE
 .sp
 .RS 4
@@ -1010,19 +1010,38 @@ This command depends on the server supporting the CIFS UNIX extensions and will 
 tar <c|x>[IXbgNa]
 .RS 4
 Performs a tar operation \- see the
-\fI\-T \fR
+\fI\-T\fR
 command line option above\&. Behavior may be affected by the tarmode command (see below)\&. Using g (incremental) and N (newer) will affect tarmode settings\&. Note that using the "\-" option with tar x may not work \- use the command line option instead\&.
 .RE
 .PP
 blocksize <blocksize>
 .RS 4
 Blocksize\&. Must be followed by a valid (greater than zero) blocksize\&. Causes tar file to be written out in
-\fIblocksize\fR*TBLOCK (usually 512 byte) blocks\&.
+\fIblocksize\fR*TBLOCK (512 byte) blocks\&.
 .RE
 .PP
-tarmode <full|inc|reset|noreset>
+tarmode <full|inc|reset|noreset|system|nosystem|hidden|nohidden>
 .RS 4
-Changes tar\*(Aqs behavior with regard to archive bits\&. In full mode, tar will back up everything regardless of the archive bit setting (this is the default mode)\&. In incremental mode, tar will only back up files with the archive bit set\&. In reset mode, tar will reset the archive bit on all files it backs up (implies read/write share)\&.
+Changes tar\*(Aqs behavior with regard to DOS attributes\&. There are 4 modes which can be turned on or off\&.
+.sp
+Incremental mode (default off)\&. When off (using
+full) tar will back up everything regardless of the
+\fIarchive\fR
+bit setting\&. When on (using
+inc), tar will only back up files with the archive bit set\&.
+.sp
+Reset mode (default off)\&. When on (using
+reset), tar will remove the archive bit on all files it backs up (implies read/write share)\&. Use
+noreset
+to turn off\&.
+.sp
+System mode (default on)\&. When off, tar will not backup system files\&. Use
+nosystem
+to turn off\&.
+.sp
+Hidden mode (default on)\&. When off, tar will not backup hidden files\&. Use
+nohidden
+to turn off\&.
 .RE
 .PP
 timeout <per\-operation timeout in seconds>

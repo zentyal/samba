@@ -30,11 +30,8 @@
 #include "includes.h"
 #include "system/filesys.h"
 #include "srv_pipe_internal.h"
-#include "../librpc/gen_ndr/ndr_schannel.h"
 #include "../librpc/gen_ndr/dcerpc.h"
 #include "../librpc/rpc/rpc_common.h"
-#include "../libcli/auth/schannel.h"
-#include "../libcli/auth/spnego.h"
 #include "dcesrv_auth_generic.h"
 #include "rpc_server.h"
 #include "rpc_dce.h"
@@ -44,9 +41,14 @@
 #include "rpc_server/srv_pipe.h"
 #include "rpc_server/rpc_contexts.h"
 #include "lib/param/param.h"
+#include "librpc/ndr/ndr_table.h"
+#include "auth/gensec/gensec.h"
+#include "librpc/ndr/ndr_dcerpc.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_RPC_SRV
+
+static NTSTATUS pipe_auth_verify_final(struct pipes_struct *p);
 
 /**
  * Dump everything from the start of the end up of the provided data
@@ -339,7 +341,8 @@ static bool check_bind_req(struct pipes_struct *p,
 	bool ok;
 
 	DEBUG(3,("check_bind_req for %s\n",
-		 get_pipe_name_from_syntax(talloc_tos(), abstract)));
+		 ndr_interface_name(&abstract->uuid,
+				    abstract->if_version)));
 
 	/* we have to check all now since win2k introduced a new UUID on the lsaprpc pipe */
 	if (rpc_srv_pipe_exists_by_id(abstract) &&
@@ -415,131 +418,15 @@ bool is_known_pipename(const char *pipename, struct ndr_syntax_id *syntax)
 }
 
 /*******************************************************************
- Handle an schannel bind auth.
-*******************************************************************/
-
-static bool pipe_schannel_auth_bind(struct pipes_struct *p,
-				    TALLOC_CTX *mem_ctx,
-				    struct dcerpc_auth *auth_info,
-				    DATA_BLOB *response)
-{
-	struct NL_AUTH_MESSAGE neg;
-	struct NL_AUTH_MESSAGE reply;
-	bool ret;
-	NTSTATUS status;
-	struct netlogon_creds_CredentialState *creds;
-	enum ndr_err_code ndr_err;
-	struct schannel_state *schannel_auth;
-	struct loadparm_context *lp_ctx;
-
-	ndr_err = ndr_pull_struct_blob(
-			&auth_info->credentials, mem_ctx, &neg,
-			(ndr_pull_flags_fn_t)ndr_pull_NL_AUTH_MESSAGE);
-	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-		DEBUG(0,("pipe_schannel_auth_bind: Could not unmarshal SCHANNEL auth neg\n"));
-		return false;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_DEBUG(NL_AUTH_MESSAGE, &neg);
-	}
-
-	if (!(neg.Flags & NL_FLAG_OEM_NETBIOS_COMPUTER_NAME)) {
-		DEBUG(0,("pipe_schannel_auth_bind: Did not receive netbios computer name\n"));
-		return false;
-	}
-
-	lp_ctx = loadparm_init_s3(p, loadparm_s3_helpers());
-	if (!lp_ctx) {
-		DEBUG(0,("pipe_schannel_auth_bind: loadparm_init_s3() failed!\n"));
-		return false;
-	}
-
-	/*
-	 * The neg.oem_netbios_computer.a key here must match the remote computer name
-	 * given in the DOM_CLNT_SRV.uni_comp_name used on all netlogon pipe
-	 * operations that use credentials.
-	 */
-
-	become_root();
-	status = schannel_get_creds_state(p, lp_ctx,
-					    neg.oem_netbios_computer.a, &creds);
-	unbecome_root();
-	
-	talloc_unlink(p, lp_ctx);
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0, ("pipe_schannel_auth_bind: Attempt to bind using schannel without successful serverauth2\n"));
-		return False;
-	}
-
-	schannel_auth = talloc_zero(p, struct schannel_state);
-	if (!schannel_auth) {
-		TALLOC_FREE(creds);
-		return False;
-	}
-
-	schannel_auth->state = SCHANNEL_STATE_START;
-	schannel_auth->initiator = false;
-	schannel_auth->creds = creds;
-
-	/*
-	 * JRA. Should we also copy the schannel session key into the pipe session key p->session_key
-	 * here ? We do that for NTLMSSP, but the session key is already set up from the vuser
-	 * struct of the person who opened the pipe. I need to test this further. JRA.
-	 *
-	 * VL. As we are mapping this to guest set the generic key
-	 * "SystemLibraryDTC" key here. It's a bit difficult to test against
-	 * W2k3, as it does not allow schannel binds against SAMR and LSA
-	 * anymore.
-	 */
-
-	ret = session_info_set_session_key(p->session_info, generic_session_key());
-
-	if (!ret) {
-		DEBUG(0, ("session_info_set_session_key failed\n"));
-		return false;
-	}
-
-	/*** SCHANNEL verifier ***/
-
-	reply.MessageType			= NL_NEGOTIATE_RESPONSE;
-	reply.Flags				= 0;
-	reply.Buffer.dummy			= 5; /* ??? actually I don't think
-						      * this has any meaning
-						      * here - gd */
-
-	ndr_err = ndr_push_struct_blob(response, mem_ctx, &reply,
-		       (ndr_push_flags_fn_t)ndr_push_NL_AUTH_MESSAGE);
-	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
-		DEBUG(0,("Failed to marshall NL_AUTH_MESSAGE.\n"));
-		return false;
-	}
-
-	if (DEBUGLEVEL >= 10) {
-		NDR_PRINT_DEBUG(NL_AUTH_MESSAGE, &reply);
-	}
-
-	DEBUG(10,("pipe_schannel_auth_bind: schannel auth: domain [%s] myname [%s]\n",
-		neg.oem_netbios_domain.a, neg.oem_netbios_computer.a));
-
-	/* We're finished with this bind - no more packets. */
-	p->auth.auth_ctx = schannel_auth;
-	p->auth.auth_type = DCERPC_AUTH_TYPE_SCHANNEL;
-
-	p->pipe_bound = True;
-
-	return True;
-}
-
-/*******************************************************************
  Handle an NTLMSSP bind auth.
 *******************************************************************/
 
 static bool pipe_auth_generic_bind(struct pipes_struct *p,
-				   TALLOC_CTX *mem_ctx,
+				   struct ncacn_packet *pkt,
 				   struct dcerpc_auth *auth_info,
 				   DATA_BLOB *response)
 {
+	TALLOC_CTX *mem_ctx = pkt;
 	struct gensec_security *gensec_security = NULL;
         NTSTATUS status;
 
@@ -550,9 +437,11 @@ static bool pipe_auth_generic_bind(struct pipes_struct *p,
 						    response,
 						    p->remote_address,
 						    &gensec_security);
-	if (!NT_STATUS_EQUAL(status, NT_STATUS_OK)) {
-		DEBUG(0, (__location__ ": auth_generic_server_authtype_start failed: %s\n",
-			  nt_errstr(status)));
+	if (!NT_STATUS_IS_OK(status) &&
+	    !NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED))
+	{
+		DEBUG(0, (__location__ ": auth_generic_server_authtype_start[%u/%u] failed: %s\n",
+			  auth_info->auth_type, auth_info->auth_level, nt_errstr(status)));
 		return false;
 	}
 
@@ -561,6 +450,28 @@ static bool pipe_auth_generic_bind(struct pipes_struct *p,
 
 	p->auth.auth_ctx = gensec_security;
 	p->auth.auth_type = auth_info->auth_type;
+
+	if (pkt->pfc_flags & DCERPC_PFC_FLAG_SUPPORT_HEADER_SIGN) {
+		p->auth.client_hdr_signing = true;
+		p->auth.hdr_signing = gensec_have_feature(gensec_security,
+						GENSEC_FEATURE_SIGN_PKT_HEADER);
+	}
+
+	if (p->auth.hdr_signing) {
+		gensec_want_feature(gensec_security,
+				    GENSEC_FEATURE_SIGN_PKT_HEADER);
+	}
+
+	if (NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
+		return true;
+	}
+
+	status = pipe_auth_verify_final(p);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("pipe_auth_verify_final failed: %s\n",
+			  nt_errstr(status)));
+		return false;
+	}
 
 	return true;
 }
@@ -612,6 +523,11 @@ static bool pipe_auth_generic_verify_final(TALLOC_CTX *mem_ctx,
 		return false;
 	}
 
+	if ((*session_info)->unix_token == NULL) {
+		DEBUG(1, ("Auth module failed to provide unix_token\n"));
+		return false;
+	}
+
 	/*
 	 * We're an authenticated bind over smb, so the session key needs to
 	 * be set to "SystemLibraryDTC". Weird, but this is what Windows
@@ -630,22 +546,19 @@ static bool pipe_auth_generic_verify_final(TALLOC_CTX *mem_ctx,
 static NTSTATUS pipe_auth_verify_final(struct pipes_struct *p)
 {
 	struct gensec_security *gensec_security;
+	bool ok;
 
-	switch (p->auth.auth_type) {
-	case DCERPC_AUTH_TYPE_NTLMSSP:
-	case DCERPC_AUTH_TYPE_KRB5:
-	case DCERPC_AUTH_TYPE_SPNEGO:
-		gensec_security = talloc_get_type_abort(p->auth.auth_ctx,
-							struct gensec_security);
-		if (!pipe_auth_generic_verify_final(p, gensec_security,
-						p->auth.auth_level,
-						&p->session_info)) {
-			return NT_STATUS_ACCESS_DENIED;
-		}
-		break;
-	default:
-		DEBUG(0, (__location__ ": incorrect auth type (%u).\n",
-			  (unsigned int)p->auth.auth_type));
+	if (p->auth.auth_type == DCERPC_AUTH_TYPE_NONE) {
+		p->pipe_bound = true;
+		return NT_STATUS_OK;
+	}
+
+	gensec_security = p->auth.auth_ctx;
+
+	ok = pipe_auth_generic_verify_final(p, gensec_security,
+					    p->auth.auth_level,
+					    &p->session_info);
+	if (!ok) {
 		return NT_STATUS_ACCESS_DENIED;
 	}
 
@@ -666,10 +579,12 @@ static bool api_pipe_bind_req(struct pipes_struct *p,
 	unsigned int auth_type = DCERPC_AUTH_TYPE_NONE;
 	NTSTATUS status;
 	struct ndr_syntax_id id;
+	uint8_t pfc_flags = 0;
 	union dcerpc_payload u;
 	struct dcerpc_ack_ctx bind_ack_ctx;
 	DATA_BLOB auth_resp = data_blob_null;
 	DATA_BLOB auth_blob = data_blob_null;
+	const struct ndr_interface_table *table;
 
 	/* No rebinds on a bound pipe - use alter context. */
 	if (p->pipe_bound) {
@@ -687,27 +602,34 @@ static bool api_pipe_bind_req(struct pipes_struct *p,
 	 * that this is a pipe name we support.
 	 */
 	id = pkt->u.bind.ctx_list[0].abstract_syntax;
+
+	table = ndr_table_by_uuid(&id.uuid);
+	if (table == NULL) {
+		DEBUG(0,("unknown interface\n"));
+		return false;
+	}
+
 	if (rpc_srv_pipe_exists_by_id(&id)) {
 		DEBUG(3, ("api_pipe_bind_req: %s -> %s rpc service\n",
 			  rpc_srv_get_pipe_cli_name(&id),
 			  rpc_srv_get_pipe_srv_name(&id)));
 	} else {
 		status = smb_probe_module(
-			"rpc", get_pipe_name_from_syntax(
-				talloc_tos(),
-				&id));
+			"rpc", dcerpc_default_transport_endpoint(pkt,
+				NCACN_NP, table));
 
 		if (NT_STATUS_IS_ERR(status)) {
 			DEBUG(3,("api_pipe_bind_req: Unknown rpc service name "
                                  "%s in bind request.\n",
-				 get_pipe_name_from_syntax(talloc_tos(), &id)));
+				 ndr_interface_name(&id.uuid,
+						    id.if_version)));
 
 			return setup_bind_nak(p, pkt);
 		}
 
 		if (rpc_srv_get_pipe_interface_by_cli_name(
-				get_pipe_name_from_syntax(talloc_tos(),
-							  &id),
+				dcerpc_default_transport_endpoint(pkt,
+					NCACN_NP, table),
 				&id)) {
 			DEBUG(3, ("api_pipe_bind_req: %s -> %s rpc service\n",
 				  rpc_srv_get_pipe_cli_name(&id),
@@ -715,8 +637,10 @@ static bool api_pipe_bind_req(struct pipes_struct *p,
 		} else {
 			DEBUG(0, ("module %s doesn't provide functions for "
 				  "pipe %s!\n",
-				  get_pipe_name_from_syntax(talloc_tos(), &id),
-				  get_pipe_name_from_syntax(talloc_tos(), &id)));
+				  ndr_interface_name(&id.uuid,
+						     id.if_version),
+				  ndr_interface_name(&id.uuid,
+						     id.if_version)));
 			return setup_bind_nak(p, pkt);
 		}
 	}
@@ -745,13 +669,13 @@ static bool api_pipe_bind_req(struct pipes_struct *p,
 			pkt->u.bind.ctx_list[0].context_id)) {
 
 		bind_ack_ctx.result = 0;
-		bind_ack_ctx.reason = 0;
+		bind_ack_ctx.reason.value = 0;
 		bind_ack_ctx.syntax = pkt->u.bind.ctx_list[0].transfer_syntaxes[0];
 	} else {
 		p->pipe_bound = False;
 		/* Rejection reason: abstract syntax not supported */
 		bind_ack_ctx.result = DCERPC_BIND_PROVIDER_REJECT;
-		bind_ack_ctx.reason = DCERPC_BIND_REASON_ASYNTAX;
+		bind_ack_ctx.reason.value = DCERPC_BIND_REASON_ASYNTAX;
 		bind_ack_ctx.syntax = ndr_syntax_id_null;
 	}
 
@@ -803,56 +727,15 @@ static bool api_pipe_bind_req(struct pipes_struct *p,
 		}
 
 		switch (auth_type) {
-		case DCERPC_AUTH_TYPE_NTLMSSP:
-			if (!pipe_auth_generic_bind(p, pkt,
-						    &auth_info, &auth_resp)) {
-				goto err_exit;
-			}
-			assoc_gid = 0x7a77;
-			break;
-
-		case DCERPC_AUTH_TYPE_SCHANNEL:
-			if (!pipe_schannel_auth_bind(p, pkt,
-						&auth_info, &auth_resp)) {
-				goto err_exit;
-			}
-			break;
-
-		case DCERPC_AUTH_TYPE_SPNEGO:
-		case DCERPC_AUTH_TYPE_KRB5:
-			if (!pipe_auth_generic_bind(p, pkt,
-						    &auth_info, &auth_resp)) {
-				goto err_exit;
-			}
-			break;
-
-		case DCERPC_AUTH_TYPE_NCALRPC_AS_SYSTEM:
-			if (p->transport == NCALRPC && p->ncalrpc_as_system) {
-				TALLOC_FREE(p->session_info);
-
-				status = make_session_info_system(p,
-								  &p->session_info);
-				if (!NT_STATUS_IS_OK(status)) {
-					goto err_exit;
-				}
-
-				auth_resp = data_blob_talloc(pkt,
-							     "NCALRPC_AUTH_OK",
-							     15);
-
-				p->auth.auth_type = DCERPC_AUTH_TYPE_NCALRPC_AS_SYSTEM;
-				p->pipe_bound = true;
-			} else {
-				goto err_exit;
-			}
-			break;
-
 		case DCERPC_AUTH_TYPE_NONE:
 			break;
 
 		default:
-			DEBUG(0, ("Unknown auth type %x requested.\n", auth_type));
-			goto err_exit;
+			if (!pipe_auth_generic_bind(p, pkt,
+						    &auth_info, &auth_resp)) {
+				goto err_exit;
+			}
+			break;
 		}
 	}
 
@@ -895,10 +778,15 @@ static bool api_pipe_bind_req(struct pipes_struct *p,
 	 * header and are never sending more than one PDU here.
 	 */
 
+	pfc_flags = DCERPC_PFC_FLAG_FIRST | DCERPC_PFC_FLAG_LAST;
+
+	if (p->auth.hdr_signing) {
+		pfc_flags |= DCERPC_PFC_FLAG_SUPPORT_HEADER_SIGN;
+	}
+
 	status = dcerpc_push_ncacn_packet(p->mem_ctx,
 					  DCERPC_PKT_BIND_ACK,
-					  DCERPC_PFC_FLAG_FIRST |
-						DCERPC_PFC_FLAG_LAST,
+					  pfc_flags,
 					  auth_resp.length,
 					  pkt->call_id,
 					  &u,
@@ -1006,21 +894,11 @@ bool api_pipe_bind_auth3(struct pipes_struct *p, struct ncacn_packet *pkt)
 		goto err;
 	}
 
-	switch (auth_info.auth_type) {
-	case DCERPC_AUTH_TYPE_NTLMSSP:
-	case DCERPC_AUTH_TYPE_KRB5:
-	case DCERPC_AUTH_TYPE_SPNEGO:
-		gensec_security = talloc_get_type_abort(p->auth.auth_ctx,
-						    struct gensec_security);
-		status = auth_generic_server_step(gensec_security,
-					     pkt, &auth_info.credentials,
-					     &response);
-		break;
-	default:
-		DEBUG(1, (__location__ ": incorrect auth type (%u).\n",
-			  (unsigned int)auth_info.auth_type));
-		return false;
-	}
+	gensec_security = p->auth.auth_ctx;
+
+	status = auth_generic_server_step(gensec_security,
+					  pkt, &auth_info.credentials,
+					  &response);
 
 	if (NT_STATUS_EQUAL(status,
 			    NT_STATUS_MORE_PROCESSING_REQUIRED) ||
@@ -1093,13 +971,13 @@ static bool api_pipe_alter_context(struct pipes_struct *p,
 			pkt->u.bind.ctx_list[0].context_id)) {
 
 		bind_ack_ctx.result = 0;
-		bind_ack_ctx.reason = 0;
+		bind_ack_ctx.reason.value = 0;
 		bind_ack_ctx.syntax = pkt->u.bind.ctx_list[0].transfer_syntaxes[0];
 	} else {
 		p->pipe_bound = False;
 		/* Rejection reason: abstract syntax not supported */
 		bind_ack_ctx.result = DCERPC_BIND_PROVIDER_REJECT;
-		bind_ack_ctx.reason = DCERPC_BIND_REASON_ASYNTAX;
+		bind_ack_ctx.reason.value = DCERPC_BIND_REASON_ASYNTAX;
 		bind_ack_ctx.syntax = ndr_syntax_id_null;
 	}
 
@@ -1142,26 +1020,11 @@ static bool api_pipe_alter_context(struct pipes_struct *p,
 			goto err_exit;
 		}
 
-
-		switch (auth_info.auth_type) {
-		case DCERPC_AUTH_TYPE_SPNEGO:
-		case DCERPC_AUTH_TYPE_KRB5:
-		case DCERPC_AUTH_TYPE_NTLMSSP:
-			gensec_security = talloc_get_type_abort(p->auth.auth_ctx,
-						    struct gensec_security);
-			status = auth_generic_server_step(gensec_security,
-						     pkt,
-						     &auth_info.credentials,
-						     &auth_resp);
-			break;
-
-		default:
-			DEBUG(3, (__location__ ": Usupported auth type (%d) "
-				  "in alter-context call\n",
-				  auth_info.auth_type));
-			goto err_exit;
-		}
-
+		gensec_security = p->auth.auth_ctx;
+		status = auth_generic_server_step(gensec_security,
+						  pkt,
+						  &auth_info.credentials,
+						  &auth_resp);
 		if (NT_STATUS_IS_OK(status)) {
 			/* third leg of auth, verify auth info */
 			status = pipe_auth_verify_final(p);
@@ -1288,6 +1151,41 @@ static bool api_rpcTNP(struct pipes_struct *p, struct ncacn_packet *pkt,
 		       const struct api_struct *api_rpc_cmds, int n_cmds,
 		       const struct ndr_syntax_id *syntax);
 
+static bool srv_pipe_check_verification_trailer(struct pipes_struct *p,
+						struct ncacn_packet *pkt,
+						struct pipe_rpc_fns *pipe_fns)
+{
+	TALLOC_CTX *frame = talloc_stackframe();
+	struct dcerpc_sec_verification_trailer *vt = NULL;
+	const uint32_t bitmask1 =
+		p->auth.client_hdr_signing ? DCERPC_SEC_VT_CLIENT_SUPPORTS_HEADER_SIGNING : 0;
+	const struct dcerpc_sec_vt_pcontext pcontext = {
+		.abstract_syntax = pipe_fns->syntax,
+		.transfer_syntax = ndr_transfer_syntax_ndr,
+	};
+	const struct dcerpc_sec_vt_header2 header2 =
+	       dcerpc_sec_vt_header2_from_ncacn_packet(pkt);
+	struct ndr_pull *ndr;
+	enum ndr_err_code ndr_err;
+	bool ret = false;
+
+	ndr = ndr_pull_init_blob(&p->in_data.data, frame);
+	if (ndr == NULL) {
+		goto done;
+	}
+
+	ndr_err = ndr_pop_dcerpc_sec_verification_trailer(ndr, frame, &vt);
+	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
+		goto done;
+	}
+
+	ret = dcerpc_sec_verification_trailer_check(vt, &bitmask1,
+						    &pcontext, &header2);
+done:
+	TALLOC_FREE(frame);
+	return ret;
+}
+
 /****************************************************************************
  Find the correct RPC function to call for this request.
  If the pipe is authenticated then become the correct UNIX user
@@ -1297,45 +1195,53 @@ static bool api_rpcTNP(struct pipes_struct *p, struct ncacn_packet *pkt,
 static bool api_pipe_request(struct pipes_struct *p,
 				struct ncacn_packet *pkt)
 {
+	TALLOC_CTX *frame = talloc_stackframe();
 	bool ret = False;
 	struct pipe_rpc_fns *pipe_fns;
 
 	if (!p->pipe_bound) {
 		DEBUG(1, ("Pipe not bound!\n"));
 		data_blob_free(&p->out_data.rdata);
+		TALLOC_FREE(frame);
 		return false;
+	}
+
+	/* get the set of RPC functions for this context */
+	pipe_fns = find_pipe_fns_by_context(p->contexts,
+					    pkt->u.request.context_id);
+	if (pipe_fns == NULL) {
+		DEBUG(0, ("No rpc function table associated with context "
+			  "[%d]\n",
+			  pkt->u.request.context_id));
+		data_blob_free(&p->out_data.rdata);
+		TALLOC_FREE(frame);
+		return false;
+	}
+
+	if (!srv_pipe_check_verification_trailer(p, pkt, pipe_fns)) {
+		DEBUG(1, ("srv_pipe_check_verification_trailer: failed\n"));
+		setup_fault_pdu(p, NT_STATUS(DCERPC_FAULT_ACCESS_DENIED));
+		data_blob_free(&p->out_data.rdata);
+		TALLOC_FREE(frame);
+		return true;
 	}
 
 	if (!become_authenticated_pipe_user(p->session_info)) {
 		DEBUG(1, ("Failed to become pipe user!\n"));
 		data_blob_free(&p->out_data.rdata);
+		TALLOC_FREE(frame);
 		return false;
 	}
 
-	/* get the set of RPC functions for this context */
+	DEBUG(5, ("Requested %s rpc service\n",
+		  ndr_interface_name(&pipe_fns->syntax.uuid,
+				     pipe_fns->syntax.if_version)));
 
-	pipe_fns = find_pipe_fns_by_context(p->contexts,
-					    pkt->u.request.context_id);
-
-	if ( pipe_fns ) {
-		TALLOC_CTX *frame = talloc_stackframe();
-
-		DEBUG(5, ("Requested %s rpc service\n",
-			  get_pipe_name_from_syntax(talloc_tos(), &pipe_fns->syntax)));
-
-		ret = api_rpcTNP(p, pkt, pipe_fns->cmds, pipe_fns->n_cmds,
-				 &pipe_fns->syntax);
-
-		TALLOC_FREE(frame);
-	}
-	else {
-		DEBUG(0, ("No rpc function table associated with context "
-			  "[%d]\n",
-			  pkt->u.request.context_id));
-	}
-
+	ret = api_rpcTNP(p, pkt, pipe_fns->cmds, pipe_fns->n_cmds,
+			 &pipe_fns->syntax);
 	unbecome_authenticated_pipe_user();
 
+	TALLOC_FREE(frame);
 	return ret;
 }
 
@@ -1349,16 +1255,23 @@ static bool api_rpcTNP(struct pipes_struct *p, struct ncacn_packet *pkt,
 {
 	int fn_num;
 	uint32_t offset1;
+	const struct ndr_interface_table *table;
 
 	/* interpret the command */
 	DEBUG(4,("api_rpcTNP: %s op 0x%x - ",
-		 get_pipe_name_from_syntax(talloc_tos(), syntax),
+		 ndr_interface_name(&syntax->uuid, syntax->if_version),
 		 pkt->u.request.opnum));
+
+	table = ndr_table_by_uuid(&syntax->uuid);
+	if (table == NULL) {
+		DEBUG(0,("unknown interface\n"));
+		return false;
+	}
 
 	if (DEBUGLEVEL >= 50) {
 		fstring name;
 		slprintf(name, sizeof(name)-1, "in_%s",
-			 get_pipe_name_from_syntax(talloc_tos(), syntax));
+			 dcerpc_default_transport_endpoint(pkt, NCACN_NP, table));
 		dump_pdu_region(name, pkt->u.request.opnum,
 				&p->in_data.data, 0,
 				p->in_data.data.length);
@@ -1391,7 +1304,7 @@ static bool api_rpcTNP(struct pipes_struct *p, struct ncacn_packet *pkt,
 	/* do the actual command */
 	if(!api_rpc_cmds[fn_num].fn(p)) {
 		DEBUG(0,("api_rpcTNP: %s: %s failed.\n",
-			 get_pipe_name_from_syntax(talloc_tos(), syntax),
+			 ndr_interface_name(&syntax->uuid, syntax->if_version),
 			 api_rpc_cmds[fn_num].name));
 		data_blob_free(&p->out_data.rdata);
 		return False;
@@ -1407,14 +1320,14 @@ static bool api_rpcTNP(struct pipes_struct *p, struct ncacn_packet *pkt,
 	if (DEBUGLEVEL >= 50) {
 		fstring name;
 		slprintf(name, sizeof(name)-1, "out_%s",
-			 get_pipe_name_from_syntax(talloc_tos(), syntax));
+			 dcerpc_default_transport_endpoint(pkt, NCACN_NP, table));
 		dump_pdu_region(name, pkt->u.request.opnum,
 				&p->out_data.rdata, offset1,
 				p->out_data.rdata.length);
 	}
 
 	DEBUG(5,("api_rpcTNP: called %s successfully\n",
-		 get_pipe_name_from_syntax(talloc_tos(), syntax)));
+		 ndr_interface_name(&syntax->uuid, syntax->if_version)));
 
 	/* Check for buffer underflow in rpc parsing */
 	if ((DEBUGLEVEL >= 10) &&
@@ -1509,11 +1422,22 @@ static bool process_request_pdu(struct pipes_struct *p, struct ncacn_packet *pkt
 {
 	NTSTATUS status;
 	DATA_BLOB data;
+	struct dcerpc_sec_vt_header2 hdr2;
 
 	if (!p->pipe_bound) {
 		DEBUG(0,("process_request_pdu: rpc request with no bind.\n"));
 		set_incoming_fault(p);
 		return False;
+	}
+
+	hdr2 = dcerpc_sec_vt_header2_from_ncacn_packet(pkt);
+	if (pkt->pfc_flags & DCERPC_PFC_FLAG_FIRST) {
+		p->header2 = hdr2;
+	} else {
+		if (!dcerpc_sec_vt_header2_equal(&hdr2, &p->header2)) {
+			set_incoming_fault(p);
+			return false;
+		}
 	}
 
 	/* Store the opnum */
@@ -1573,45 +1497,9 @@ static bool process_request_pdu(struct pipes_struct *p, struct ncacn_packet *pkt
 	return api_pipe_request(p, pkt);
 }
 
-/****************************************************************************
- Processes a finished PDU stored in p->in_data.pdu.
-****************************************************************************/
-
-void process_complete_pdu(struct pipes_struct *p)
+void process_complete_pdu(struct pipes_struct *p, struct ncacn_packet *pkt)
 {
-	struct ncacn_packet *pkt = NULL;
-	NTSTATUS status;
-	bool reply = False;
-
-	if(p->fault_state) {
-		DEBUG(10,("RPC connection in fault state.\n"));
-		goto done;
-	}
-
-	pkt = talloc(p->mem_ctx, struct ncacn_packet);
-	if (!pkt) {
-		DEBUG(0, ("Out of memory!\n"));
-		goto done;
-	}
-
-	/*
-	 * Ensure we're using the corrent endianness for both the
-	 * RPC header flags and the raw data we will be reading from.
-	 */
-	if (dcerpc_get_endian_flag(&p->in_data.pdu) & DCERPC_DREP_LE) {
-		p->endian = RPC_LITTLE_ENDIAN;
-	} else {
-		p->endian = RPC_BIG_ENDIAN;
-	}
-	DEBUG(10, ("PDU is in %s Endian format!\n", p->endian?"Big":"Little"));
-
-	status = dcerpc_pull_ncacn_packet(pkt, &p->in_data.pdu,
-					  pkt, p->endian);
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0, ("Failed to unmarshal rpc packet: %s!\n",
-			  nt_errstr(status)));
-		goto done;
-	}
+	bool reply = false;
 
 	/* Store the call_id */
 	p->call_id = pkt->call_id;
@@ -1734,16 +1622,7 @@ done:
 		DEBUG(3,("DCE/RPC fault sent!"));
 		set_incoming_fault(p);
 		setup_fault_pdu(p, NT_STATUS(DCERPC_FAULT_OP_RNG_ERROR));
-		TALLOC_FREE(pkt);
-	} else {
-		/*
-		 * Reset the lengths. We're ready for a new pdu.
-		 */
-		TALLOC_FREE(p->in_data.pdu.data);
-		p->in_data.pdu_needed_len = 0;
-		p->in_data.pdu.length = 0;
 	}
-
-	TALLOC_FREE(pkt);
+	/* pkt and p->in_data.pdu.data freed by caller */
 }
 

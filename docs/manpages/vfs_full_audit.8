@@ -2,12 +2,12 @@
 .\"     Title: vfs_full_audit
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 10/20/2014
+.\"      Date: 10/15/2014
 .\"    Manual: System Administration tools
-.\"    Source: Samba 4.0
+.\"    Source: Samba 4.2
 .\"  Language: English
 .\"
-.TH "VFS_FULL_AUDIT" "8" "10/20/2014" "Samba 4\&.0" "System Administration tools"
+.TH "VFS_FULL_AUDIT" "8" "10/15/2014" "Samba 4\&.2" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -118,6 +118,9 @@ fsync
 ftruncate
 .RE
 .RS 4
+get_compression
+.RE
+.RS 4
 get_nt_acl
 .RE
 .RS 4
@@ -203,6 +206,9 @@ seekdir
 .RE
 .RS 4
 sendfile
+.RE
+.RS 4
+set_compression
 .RE
 .RS 4
 set_nt_acl
@@ -323,7 +329,7 @@ FILE
 This module is stackable\&.
 .SH "OPTIONS"
 .PP
-vfs_full_audit:prefix = STRING
+full_audit:prefix = STRING
 .RS 4
 Prepend audit messages with STRING\&. STRING is processed for standard substitution variables listed in
 \fBsmb.conf\fR(5)\&. The default prefix is "%u|%I"\&.
@@ -351,6 +357,16 @@ full_audit:priority = PRIORITY
 Log messages with the named
 \fBsyslog\fR(3)
 priority\&.
+.RE
+.PP
+full_audit:syslog = true/false
+.RS 4
+Log messages to syslog (default) or as a debug level 1 message\&.
+.RE
+.PP
+full_audit:log_secdesc = true/false
+.RS 4
+Log an sddl form of the security descriptor coming in when a client sets an acl\&. Defaults to false\&.
 .RE
 .SH "EXAMPLES"
 .PP

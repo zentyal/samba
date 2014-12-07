@@ -18,8 +18,17 @@ DC_PASSWORD="$9"
 echo called with: $1 $2 $3 $4 $5 $6 $7 $8 $9
 
 wbinfo="$VALGRIND $BINDIR/wbinfo"
-ldbadd="$BINDIR/ldbadd"
-ldbdel="$BINDIR/ldbdel"
+
+ldbadd="ldbadd"
+if [ -x "$BINDIR/ldbadd" ]; then
+	ldbadd="$BINDIR/ldbadd"
+fi
+
+ldbdel="ldbdel"
+if [ -x "$BINDIR/ldbdel" ]; then
+	ldbdel="$BINDIR/ldbdel"
+fi
+
 failed=0
 
 . `dirname $0`/../../testprogs/blackbox/subunit.sh
@@ -65,24 +74,24 @@ testit "add ldap group mapping record" $VALGRIND $ldbadd -H ldap://$DC_SERVER -U
 
 rm -f $PREFIX/tmpldbmodify
 
-testit "wbinfo --name-to-sid" $wbinfo --name-to-sid "$DOMAIN\\$USERNAME" || failed=$(expr $failed + 1)
-user_sid=$($wbinfo -n "$DOMAIN\\$USERNAME" | cut -d " " -f1)
-echo "$DOMAIN\\$USERNAME resolved to $user_sid"
+testit "wbinfo --name-to-sid" $wbinfo --name-to-sid "$DOMAIN/$USERNAME" || failed=$(expr $failed + 1)
+user_sid=$($wbinfo -n "$DOMAIN/$USERNAME" | cut -d " " -f1)
+echo "$DOMAIN/$USERNAME resolved to $user_sid"
 
 testit "wbinfo --sid-to-uid=$user_sid" $wbinfo --sid-to-uid=$user_sid || failed=$(expr $failed + 1)
 user_uid=$($wbinfo --sid-to-uid=$user_sid | cut -d " " -f1)
-echo "$DOMAIN\\$USERNAME resolved to $user_uid"
+echo "$DOMAIN/$USERNAME resolved to $user_uid"
 
 testit "test $user_uid -eq $USERUID" test $user_uid -eq $USERUID || failed=$(expr $failed + 1)
 
 # Not sure how to get group names with spaces to resolve through testit
-#testit "wbinfo --name-to-sid" $wbinfo --name-to-sid="$DOMAIN\\$GROUPNAME" || failed=$(expr $failed + 1)
-group_sid=$($wbinfo --name-to-sid="$DOMAIN\\$GROUPNAME" | cut -d " " -f1)
-echo "$DOMAIN\\$GROUPNAME resolved to $group_sid"
+#testit "wbinfo --name-to-sid" $wbinfo --name-to-sid="$DOMAIN/$GROUPNAME" || failed=$(expr $failed + 1)
+group_sid=$($wbinfo --name-to-sid="$DOMAIN/$GROUPNAME" | cut -d " " -f1)
+echo "$DOMAIN/$GROUPNAME resolved to $group_sid"
 
 testit "wbinfo --sid-to-gid=$group_sid" $wbinfo --sid-to-gid=$group_sid || failed=$(expr $failed + 1)
 group_gid=$($wbinfo --sid-to-gid=$group_sid | cut -d " " -f1)
-echo "$DOMAIN\\$GROUPNAME resolved to $group_gid"
+echo "$DOMAIN/$GROUPNAME resolved to $group_gid"
 
 testit "test $group_gid -eq $GROUPGID" test $group_gid -eq $GROUPGID || failed=$(expr $failed + 1)
 

@@ -296,9 +296,6 @@ static void continue_srv_auth2(struct tevent_req *subreq)
 		return;
 	}
 
-	/* setup current netlogon credentials */
-	cli_credentials_set_netlogon_creds(s->credentials, s->creds);
-
 	composite_done(c);
 }
 
@@ -306,7 +303,7 @@ static void continue_srv_auth2(struct tevent_req *subreq)
   Initiate establishing a schannel key using netlogon challenge
   on a secondary pipe
 */
-struct composite_context *dcerpc_schannel_key_send(TALLOC_CTX *mem_ctx,
+static struct composite_context *dcerpc_schannel_key_send(TALLOC_CTX *mem_ctx,
 						   struct dcerpc_pipe *p,
 						   struct cli_credentials *credentials,
 						   struct loadparm_context *lp_ctx)
@@ -315,7 +312,8 @@ struct composite_context *dcerpc_schannel_key_send(TALLOC_CTX *mem_ctx,
 	struct schannel_key_state *s;
 	struct composite_context *epm_map_req;
 	enum netr_SchannelType schannel_type = cli_credentials_get_secure_channel_type(credentials);
-	
+	struct cli_credentials *epm_creds = NULL;
+
 	/* composite context allocation and setup */
 	c = composite_create(mem_ctx, p->conn->event_ctx);
 	if (c == NULL) return NULL;
@@ -348,15 +346,17 @@ struct composite_context *dcerpc_schannel_key_send(TALLOC_CTX *mem_ctx,
 		s->local_negotiate_flags |= NETLOGON_NEG_RODC_PASSTHROUGH;
 	}
 
-	/* allocate binding structure */
-	s->binding = talloc_zero(c, struct dcerpc_binding);
-	if (composite_nomem(s->binding, c)) return c;
+	epm_creds = cli_credentials_init_anon(s);
+	if (composite_nomem(epm_creds, c)) return c;
 
-	*s->binding = *s->pipe->binding;
+	/* allocate binding structure */
+	s->binding = dcerpc_binding_dup(s, s->pipe->binding);
+	if (composite_nomem(s->binding, c)) return c;
 
 	/* request the netlogon endpoint mapping */
 	epm_map_req = dcerpc_epm_map_binding_send(c, s->binding,
 						  &ndr_table_netlogon,
+						  epm_creds,
 						  s->pipe->conn->event_ctx,
 						  lp_ctx);
 	if (composite_nomem(epm_map_req, c)) return c;
@@ -369,10 +369,19 @@ struct composite_context *dcerpc_schannel_key_send(TALLOC_CTX *mem_ctx,
 /*
   Receive result of schannel key request
  */
-NTSTATUS dcerpc_schannel_key_recv(struct composite_context *c)
+static NTSTATUS dcerpc_schannel_key_recv(struct composite_context *c,
+				TALLOC_CTX *mem_ctx,
+				struct netlogon_creds_CredentialState **creds)
 {
 	NTSTATUS status = composite_wait(c);
-	
+
+	if (NT_STATUS_IS_OK(status)) {
+		struct schannel_key_state *s =
+			talloc_get_type_abort(c->private_data,
+			struct schannel_key_state);
+		*creds = talloc_move(mem_ctx, &s->creds);
+	}
+
 	talloc_free(c);
 	return status;
 }
@@ -385,6 +394,7 @@ struct auth_schannel_state {
 	struct loadparm_context *lp_ctx;
 	uint8_t auth_level;
 	struct netlogon_creds_CredentialState *creds_state;
+	struct netlogon_creds_CredentialState save_creds_state;
 	struct netr_Authenticator auth;
 	struct netr_Authenticator return_auth;
 	union netr_Capabilities capabilities;
@@ -409,13 +419,15 @@ static void continue_schannel_key(struct composite_context *ctx)
 	NTSTATUS status;
 
 	/* receive schannel key */
-	status = c->status = dcerpc_schannel_key_recv(ctx);
+	status = c->status = dcerpc_schannel_key_recv(ctx, s, &s->creds_state);
 	if (!composite_is_ok(c)) {
 		DEBUG(1, ("Failed to setup credentials: %s\n", nt_errstr(status)));
 		return;
 	}
 
 	/* send bind auth request with received creds */
+	cli_credentials_set_netlogon_creds(s->credentials, s->creds_state);
+
 	auth_req = dcerpc_bind_auth_send(c, s->pipe, s->table, s->credentials, 
 					 lpcfg_gensec_settings(c, s->lp_ctx),
 					 DCERPC_AUTH_TYPE_SCHANNEL, s->auth_level,
@@ -446,10 +458,8 @@ static void continue_bind_auth(struct composite_context *ctx)
 				&ndr_table_netlogon.syntax_id)) {
 		ZERO_STRUCT(s->return_auth);
 
-		s->creds_state = cli_credentials_get_netlogon_creds(s->credentials);
-		if (composite_nomem(s->creds_state, c)) return;
-
-		netlogon_creds_client_authenticator(s->creds_state, &s->auth);
+		s->save_creds_state = *s->creds_state;
+		netlogon_creds_client_authenticator(&s->save_creds_state, &s->auth);
 
 		s->c.in.server_name = talloc_asprintf(c,
 						      "\\\\%s",
@@ -519,11 +529,14 @@ static void continue_get_capabilities(struct tevent_req *subreq)
 	}
 
 	/* verify credentials */
-	if (!netlogon_creds_client_check(s->creds_state,
+	if (!netlogon_creds_client_check(&s->save_creds_state,
 					 &s->c.out.return_authenticator->cred)) {
 		composite_error(c, NT_STATUS_UNSUCCESSFUL);
 		return;
 	}
+
+	*s->creds_state = s->save_creds_state;
+	cli_credentials_set_netlogon_creds(s->credentials, s->creds_state);
 
 	if (!NT_STATUS_IS_OK(s->c.out.result)) {
 		composite_error(c, s->c.out.result);

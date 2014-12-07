@@ -77,8 +77,8 @@ struct test_spoolss_context {
 	union spoolss_PortInfo *ports[3];
 
 	/* for EnumPrinterDrivers */
-	uint32_t driver_count[8];
-	union spoolss_DriverInfo *drivers[8];
+	uint32_t driver_count[9];
+	union spoolss_DriverInfo *drivers[9];
 
 	/* for EnumMonitors */
 	uint32_t monitor_count[3];
@@ -513,30 +513,36 @@ static bool test_GetPrinterDriverDirectory(struct torture_context *tctx,
 	return true;
 }
 
-static bool test_EnumPrinterDrivers_args(struct torture_context *tctx,
-					 struct dcerpc_binding_handle *b,
-					 const char *server_name,
-					 const char *environment,
-					 uint32_t level,
-					 uint32_t *count_p,
-					 union spoolss_DriverInfo **info_p)
+static bool test_EnumPrinterDrivers_buffers(struct torture_context *tctx,
+					    struct dcerpc_binding_handle *b,
+					    const char *server_name,
+					    const char *environment,
+					    uint32_t level,
+					    uint32_t offered,
+					    uint32_t *count_p,
+					    union spoolss_DriverInfo **info_p)
 {
 	struct spoolss_EnumPrinterDrivers r;
 	uint32_t needed;
 	uint32_t count;
 	union spoolss_DriverInfo *info;
+	DATA_BLOB buffer;
+
+	if (offered > 0) {
+		buffer = data_blob_talloc_zero(tctx, offered);
+	}
 
 	r.in.server		= server_name;
 	r.in.environment	= environment;
 	r.in.level		= level;
-	r.in.buffer		= NULL;
-	r.in.offered		= 0;
+	r.in.buffer		= offered ? &buffer : NULL;
+	r.in.offered		= offered;
 	r.out.needed		= &needed;
 	r.out.count		= &count;
 	r.out.info		= &info;
 
-	torture_comment(tctx, "Testing EnumPrinterDrivers(%s) level %u\n",
-		r.in.environment, r.in.level);
+	torture_comment(tctx, "Testing EnumPrinterDrivers(%s) level %u, offered: %u\n",
+		r.in.environment, r.in.level, r.in.offered);
 
 	torture_assert_ntstatus_ok(tctx,
 		dcerpc_spoolss_EnumPrinterDrivers_r(b, tctx, &r),
@@ -567,6 +573,20 @@ static bool test_EnumPrinterDrivers_args(struct torture_context *tctx,
 
 }
 
+
+static bool test_EnumPrinterDrivers_args(struct torture_context *tctx,
+					 struct dcerpc_binding_handle *b,
+					 const char *server_name,
+					 const char *environment,
+					 uint32_t level,
+					 uint32_t *count_p,
+					 union spoolss_DriverInfo **info_p)
+{
+	return test_EnumPrinterDrivers_buffers(tctx, b, server_name,
+					       environment, level, 0,
+					       count_p, info_p);
+}
+
 static bool test_EnumPrinterDrivers_findone(struct torture_context *tctx,
 					    struct dcerpc_binding_handle *b,
 					    const char *server_name,
@@ -585,7 +605,7 @@ static bool test_EnumPrinterDrivers_findone(struct torture_context *tctx,
 		"failed to enumerate printer drivers");
 
 	for (i=0; i < count; i++) {
-		const char *driver_name_ret;
+		const char *driver_name_ret = "";
 		switch (level) {
 		case 1:
 			driver_name_ret = info[i].info1.driver_name;
@@ -642,6 +662,7 @@ static bool test_EnumPrinterDrivers(struct torture_context *tctx,
 	struct dcerpc_pipe *p = ctx->spoolss_pipe;
 	struct dcerpc_binding_handle *b = p->binding_handle;
 	uint16_t levels[] = { 1, 2, 3, 4, 5, 6, 8 };
+	uint16_t buffer_sizes[] = { 0, 1024, 6040, 0xffff };
 	int i, j, a;
 
 	/* FIXME: gd, come back and fix "" as server, and handle
@@ -654,6 +675,15 @@ static bool test_EnumPrinterDrivers(struct torture_context *tctx,
 	environments[1] = ctx->environment;
 
 	for (a=0;a<ARRAY_SIZE(environments);a++) {
+
+	for (i=0;i<ARRAY_SIZE(buffer_sizes);i++) {
+		torture_assert(tctx,
+			test_EnumPrinterDrivers_buffers(tctx, b, server_name,
+							environments[a], 3,
+							buffer_sizes[i],
+							NULL, NULL),
+			"failed to enumerate drivers");
+	}
 
 	for (i=0;i<ARRAY_SIZE(levels);i++) {
 		int level = levels[i];
@@ -681,7 +711,7 @@ static bool test_EnumPrinterDrivers(struct torture_context *tctx,
 
 		for (j=0;j<ctx->driver_count[level - 1];j++) {
 			union spoolss_DriverInfo *cur = &ctx->drivers[level - 1][j];
-			union spoolss_DriverInfo *ref = &ctx->drivers[8][j];
+			union spoolss_DriverInfo *ref = &ctx->drivers[7][j];
 
 			switch (level) {
 			case 1:
@@ -1439,8 +1469,6 @@ static bool test_PrinterInfo(struct torture_context *tctx,
 	bool ret = true;
 	int i;
 
-	torture_skip(tctx, "Printer Info test is currently broken, skipping");
-
 	uint32_t status_list[] = {
 		/* these do not stick
 		PRINTER_STATUS_PAUSED,
@@ -1518,6 +1546,9 @@ static bool test_PrinterInfo(struct torture_context *tctx,
 		0x40000000,
 		0x80000000 */
 	};
+
+	torture_skip(tctx, "Printer Info test is currently broken, skipping");
+
 
 	ZERO_STRUCT(devmode_ctr);
 	ZERO_STRUCT(secdesc_ctr);
@@ -1623,11 +1654,13 @@ static bool test_PrinterInfo(struct torture_context *tctx,
 		}
 
 #define TEST_PRINTERINFO_STRING_EXP_ERR(lvl1, field1, lvl2, field2, value, err) do { \
+		void *p; \
 		torture_comment(tctx, "field test %d/%s vs %d/%s\n", lvl1, #field1, lvl2, #field2); \
 		q.in.level = lvl1; \
 		TESTGETCALL(GetPrinter, q) \
 		info_ctr.level = lvl1; \
-		info_ctr.info.info ## lvl1 = (struct spoolss_SetPrinterInfo ## lvl1 *)(void *)&q.out.info->info ## lvl1; \
+		p = (void *)&q.out.info->info ## lvl1; \
+		info_ctr.info.info ## lvl1 = (struct spoolss_SetPrinterInfo ## lvl1 *)p; \
 		info_ctr.info.info ## lvl1->field1 = value;\
 		TESTSETCALL_EXP(SetPrinter, s, err) \
 		info_ctr.info.info ## lvl1->field1 = ""; \
@@ -1636,7 +1669,8 @@ static bool test_PrinterInfo(struct torture_context *tctx,
 		STRING_EQUAL(info_ctr.info.info ## lvl1->field1, value, field1); \
 		q.in.level = lvl2; \
 		TESTGETCALL(GetPrinter, q) \
-		info_ctr.info.info ## lvl2 = (struct spoolss_SetPrinterInfo ## lvl2 *)(void *)&q.out.info->info ## lvl2; \
+		p = (void *)&q.out.info->info ## lvl2; \
+		info_ctr.info.info ## lvl2 = (struct spoolss_SetPrinterInfo ## lvl2 *)p; \
 		STRING_EQUAL(info_ctr.info.info ## lvl2->field2, value, field2); \
 	} while (0)
 
@@ -1645,20 +1679,24 @@ static bool test_PrinterInfo(struct torture_context *tctx,
 	} while (0);
 
 #define TEST_PRINTERINFO_INT_EXP(lvl1, field1, lvl2, field2, value, exp_value) do { \
+		void *p; \
 		torture_comment(tctx, "field test %d/%s vs %d/%s\n", lvl1, #field1, lvl2, #field2); \
 		q.in.level = lvl1; \
 		TESTGETCALL(GetPrinter, q) \
 		info_ctr.level = lvl1; \
-		info_ctr.info.info ## lvl1 = (struct spoolss_SetPrinterInfo ## lvl1 *)(void *)&q.out.info->info ## lvl1; \
+		p = (void *)&q.out.info->info ## lvl1; \
+		info_ctr.info.info ## lvl1 = (struct spoolss_SetPrinterInfo ## lvl1 *)p; \
 		info_ctr.info.info ## lvl1->field1 = value; \
 		TESTSETCALL(SetPrinter, s) \
 		info_ctr.info.info ## lvl1->field1 = 0; \
 		TESTGETCALL(GetPrinter, q) \
-		info_ctr.info.info ## lvl1 = (struct spoolss_SetPrinterInfo ## lvl1 *)(void *)&q.out.info->info ## lvl1; \
+		p = (void *)&q.out.info->info ## lvl1; \
+		info_ctr.info.info ## lvl1 = (struct spoolss_SetPrinterInfo ## lvl1 *)p; \
 		INT_EQUAL(info_ctr.info.info ## lvl1->field1, exp_value, field1); \
 		q.in.level = lvl2; \
 		TESTGETCALL(GetPrinter, q) \
-		info_ctr.info.info ## lvl2 = (struct spoolss_SetPrinterInfo ## lvl2 *)(void *)&q.out.info->info ## lvl2; \
+		p = (void *)&q.out.info->info ## lvl2; \
+		info_ctr.info.info ## lvl2 = (struct spoolss_SetPrinterInfo ## lvl2 *)p; \
 		INT_EQUAL(info_ctr.info.info ## lvl2->field2, exp_value, field1); \
 	} while (0)
 
@@ -1866,13 +1904,14 @@ static bool test_sd_set_level(struct torture_context *tctx,
 	struct spoolss_DevmodeContainer devmode_ctr;
 	struct sec_desc_buf secdesc_ctr;
 	union spoolss_SetPrinterInfo sinfo;
+	union spoolss_PrinterInfo info;
+	struct spoolss_SetPrinterInfo3 info3;
 
 	ZERO_STRUCT(devmode_ctr);
 	ZERO_STRUCT(secdesc_ctr);
 
 	switch (level) {
 	case 2: {
-		union spoolss_PrinterInfo info;
 		torture_assert(tctx, test_GetPrinter_level(tctx, b, handle, 2, &info), "");
 		torture_assert(tctx, PrinterInfo_to_SetPrinterInfo(tctx, &info, 2, &sinfo), "");
 
@@ -1882,7 +1921,6 @@ static bool test_sd_set_level(struct torture_context *tctx,
 		break;
 	}
 	case 3: {
-		struct spoolss_SetPrinterInfo3 info3;
 
 		info3.sec_desc_ptr = NULL;
 
@@ -2132,7 +2170,6 @@ static bool test_devicemode_full(struct torture_context *tctx,
 {
 	struct spoolss_SetPrinter s;
 	struct spoolss_GetPrinter q;
-	struct spoolss_GetPrinter q0;
 	struct spoolss_SetPrinterInfoCtr info_ctr;
 	struct spoolss_SetPrinterInfo8 info8;
 	union spoolss_PrinterInfo info;
@@ -2148,7 +2185,8 @@ static bool test_devicemode_full(struct torture_context *tctx,
 		TESTGETCALL(GetPrinter, q) \
 		info_ctr.level = lvl1; \
 		if (lvl1 == 2) {\
-			info_ctr.info.info ## lvl1 = (struct spoolss_SetPrinterInfo ## lvl1 *)(void *)&q.out.info->info ## lvl1; \
+			void *p = (void *)&q.out.info->info ## lvl1; \
+			info_ctr.info.info ## lvl1 = (struct spoolss_SetPrinterInfo ## lvl1 *)p; \
 		} else if (lvl1 == 8) {\
 			info_ctr.info.info ## lvl1 = &info8; \
 		}\
@@ -2184,7 +2222,6 @@ static bool test_devicemode_full(struct torture_context *tctx,
 
 	q.in.handle = handle;
 	q.out.info = &info;
-	q0 = q;
 
 #if 0
 	const char *devicename;/* [charset(UTF16)] */
@@ -3110,6 +3147,7 @@ static bool test_GetJob_args(struct torture_context *tctx,
 	return true;
 }
 
+#if 0
 static bool test_GetJob(struct torture_context *tctx,
 			struct dcerpc_binding_handle *b,
 			struct policy_handle *handle,
@@ -3126,6 +3164,7 @@ static bool test_GetJob(struct torture_context *tctx,
 
 	return true;
 }
+#endif
 
 static bool test_SetJob(struct torture_context *tctx,
 			struct dcerpc_binding_handle *b,
@@ -3368,11 +3407,11 @@ static bool test_JobPropertyDelete(struct torture_context *tctx,
 	return true;
 }
 
-
-static bool test_DoPrintTest_add_one_job(struct torture_context *tctx,
+static bool test_DoPrintTest_add_one_job_common(struct torture_context *tctx,
 					 struct dcerpc_binding_handle *b,
 					 struct policy_handle *handle,
 					 const char *document_name,
+					 const char *datatype,
 					 uint32_t *job_id)
 {
 	NTSTATUS status;
@@ -3394,7 +3433,7 @@ static bool test_DoPrintTest_add_one_job(struct torture_context *tctx,
 
 	info1.document_name	= document_name;
 	info1.output_file	= NULL;
-	info1.datatype		= "RAW";
+	info1.datatype		= datatype;
 
 	info_ctr.level		= 1;
 	info_ctr.info.info1	= &info1;
@@ -3442,6 +3481,29 @@ static bool test_DoPrintTest_add_one_job(struct torture_context *tctx,
 
 	return true;
 }
+
+static bool test_DoPrintTest_add_one_job(struct torture_context *tctx,
+					 struct dcerpc_binding_handle *b,
+					 struct policy_handle *handle,
+					 const char *document_name,
+					 uint32_t *job_id)
+{
+	test_DoPrintTest_add_one_job_common(tctx, b, handle, document_name, "RAW", job_id);
+
+	return true;
+}
+
+static bool test_DoPrintTest_add_one_job_v4(struct torture_context *tctx,
+					 struct dcerpc_binding_handle *b,
+					 struct policy_handle *handle,
+					 const char *document_name,
+					 uint32_t *job_id)
+{
+	test_DoPrintTest_add_one_job_common(tctx, b, handle, document_name, "XPS_PASS", job_id);
+
+	return true;
+}
+
 
 static bool test_DoPrintTest_check_jobs(struct torture_context *tctx,
 					struct dcerpc_binding_handle *b,
@@ -3539,6 +3601,14 @@ static bool test_DoPrintTest(struct torture_context *tctx,
 
 	for (i=0; i < num_jobs; i++) {
 		ret &= test_DoPrintTest_add_one_job(tctx, b, handle, "TorturePrintJob", &job_ids[i]);
+	}
+
+	for (i=0; i < num_jobs; i++) {
+		ret &= test_SetJob(tctx, b, handle, job_ids[i], NULL, SPOOLSS_JOB_CONTROL_DELETE);
+	}
+
+	for (i=0; i < num_jobs; i++) {
+		ret &= test_DoPrintTest_add_one_job_v4(tctx, b, handle, "TorturePrintJob v4", &job_ids[i]);
 	}
 
 	for (i=0; i < num_jobs; i++) {
@@ -3806,6 +3876,37 @@ static bool test_ResumePrinter(struct torture_context *tctx,
 
 	torture_assert_ntstatus_ok(tctx, status, "SetPrinter failed");
 
+	torture_assert_werr_ok(tctx, r.out.result, "SetPrinter failed");
+
+	return true;
+}
+
+static bool test_printer_purge(struct torture_context *tctx,
+			       struct dcerpc_binding_handle *b,
+			       struct policy_handle *handle)
+{
+	NTSTATUS status;
+	struct spoolss_SetPrinter r;
+	struct spoolss_SetPrinterInfoCtr info_ctr;
+	struct spoolss_DevmodeContainer devmode_ctr;
+	struct sec_desc_buf secdesc_ctr;
+
+	info_ctr.level = 0;
+	info_ctr.info.info0 = NULL;
+
+	ZERO_STRUCT(devmode_ctr);
+	ZERO_STRUCT(secdesc_ctr);
+
+	r.in.handle		= handle;
+	r.in.info_ctr		= &info_ctr;
+	r.in.devmode_ctr	= &devmode_ctr;
+	r.in.secdesc_ctr	= &secdesc_ctr;
+	r.in.command		= SPOOLSS_PRINTER_CONTROL_PURGE;
+
+	torture_comment(tctx, "Testing SetPrinter: SPOOLSS_PRINTER_CONTROL_PURGE\n");
+
+	status = dcerpc_spoolss_SetPrinter_r(b, tctx, &r);
+	torture_assert_ntstatus_ok(tctx, status, "SetPrinter failed");
 	torture_assert_werr_ok(tctx, r.out.result, "SetPrinter failed");
 
 	return true;
@@ -4943,7 +5044,7 @@ static bool test_GetDriverInfo_winreg(struct torture_context *tctx,
 				      struct policy_handle *hive_handle,
 				      const char *server_name_slash)
 {
-	WERROR result;
+	WERROR result = WERR_OK;
 	union spoolss_DriverInfo info;
 	const char *driver_key;
 	struct policy_handle key_handle;
@@ -4959,6 +5060,8 @@ static bool test_GetDriverInfo_winreg(struct torture_context *tctx,
 
 	const char *driver_version;
 	const char *inbox_driver_version;
+
+	ZERO_STRUCT(key_handle);
 
 	torture_comment(tctx, "Testing Driver Info and winreg consistency\n");
 
@@ -6093,7 +6196,7 @@ static bool test_SecondaryClosePrinter(struct torture_context *tctx,
 				       struct policy_handle *handle)
 {
 	NTSTATUS status;
-	struct dcerpc_binding *b;
+	const struct dcerpc_binding *binding2;
 	struct dcerpc_pipe *p2;
 	struct spoolss_ClosePrinter cp;
 
@@ -6104,10 +6207,8 @@ static bool test_SecondaryClosePrinter(struct torture_context *tctx,
 
 	torture_comment(tctx, "Testing close on secondary pipe\n");
 
-	status = dcerpc_parse_binding(tctx, p->conn->binding_string, &b);
-	torture_assert_ntstatus_ok(tctx, status, "Failed to parse dcerpc binding");
-
-	status = dcerpc_secondary_connection(p, &p2, b);
+	binding2 = p->binding;
+	status = dcerpc_secondary_connection(p, &p2, binding2);
 	torture_assert_ntstatus_ok(tctx, status, "Failed to create secondary connection");
 
 	status = dcerpc_bind_auth_none(p2, &ndr_table_spoolss);
@@ -6901,7 +7002,7 @@ static bool test_EnumPrinters_servername(struct torture_context *tctx,
 	return true;
 }
 
-
+#if 0
 static bool test_GetPrinterDriver(struct torture_context *tctx,
 				  struct dcerpc_binding_handle *b,
 				  struct policy_handle *handle,
@@ -6936,6 +7037,7 @@ static bool test_GetPrinterDriver(struct torture_context *tctx,
 
 	return true;
 }
+#endif
 
 static bool test_GetPrinterDriver2_level(struct torture_context *tctx,
 					 struct dcerpc_binding_handle *b,
@@ -7636,6 +7738,7 @@ static bool compose_local_driver_directory(struct torture_context *tctx,
 	return true;
 }
 
+#if 0
 static struct spoolss_DeviceMode *torture_devicemode(TALLOC_CTX *mem_ctx,
 						     const char *devicename)
 {
@@ -7676,6 +7779,7 @@ static struct spoolss_DeviceMode *torture_devicemode(TALLOC_CTX *mem_ctx,
 
 	return r;
 }
+#endif
 
 static bool test_architecture_buffer(struct torture_context *tctx,
 				     void *private_data)
@@ -8007,6 +8111,7 @@ static bool torture_rpc_spoolss_printerexwkn_setup(struct torture_context *tctx,
 	return torture_rpc_spoolss_printer_setup_common(tctx, t);
 }
 
+#if 0
 static bool torture_rpc_spoolss_printerdm_setup(struct torture_context *tctx, void **data)
 {
 	struct torture_printer_context *t;
@@ -8020,6 +8125,7 @@ static bool torture_rpc_spoolss_printerdm_setup(struct torture_context *tctx, vo
 
 	return torture_rpc_spoolss_printer_setup_common(tctx, t);
 }
+#endif
 
 static bool torture_rpc_spoolss_printer_teardown_common(struct torture_context *tctx, struct torture_printer_context *t)
 {
@@ -8173,18 +8279,17 @@ static bool test_print_test_smbd(struct torture_context *tctx,
 	torture_comment(tctx, "Testing smbd job spooling\n");
 	lpcfg_smbcli_options(tctx->lp_ctx, &options);
 
-	status = smb2_connect_ext(mem_ctx,
-				  torture_setting_string(tctx, "host", NULL),
-				  lpcfg_smb_ports(tctx->lp_ctx),
-				  share,
-				  lpcfg_resolve_context(tctx->lp_ctx),
-				  credentials,
-				  0,
-				  &tree,
-				  tctx->ev,
-				  &options,
-				  lpcfg_socket_options(tctx->lp_ctx),
-				  lpcfg_gensec_settings(tctx, tctx->lp_ctx));
+	status = smb2_connect(mem_ctx,
+			      torture_setting_string(tctx, "host", NULL),
+			      lpcfg_smb_ports(tctx->lp_ctx),
+			      share,
+			      lpcfg_resolve_context(tctx->lp_ctx),
+			      credentials,
+			      &tree,
+			      tctx->ev,
+			      &options,
+			      lpcfg_socket_options(tctx->lp_ctx),
+			      lpcfg_gensec_settings(tctx, tctx->lp_ctx));
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("Failed to connect to SMB2 printer %s - %s\n",
 		       share, nt_errstr(status));
@@ -8215,6 +8320,58 @@ static bool test_print_test_smbd(struct torture_context *tctx,
 
 	/* disconnect from printer share */
 	talloc_free(mem_ctx);
+
+	return true;
+}
+
+static bool test_print_test_purge(struct torture_context *tctx,
+				  void *private_data)
+{
+	struct torture_printer_context *t =
+	   (struct torture_printer_context *)talloc_get_type_abort(private_data,
+						struct torture_printer_context);
+	struct dcerpc_pipe *p = t->spoolss_pipe;
+	struct dcerpc_binding_handle *b = p->binding_handle;
+	uint32_t num_jobs = 8;
+	uint32_t *job_ids;
+	int i;
+	bool ret = true;
+	uint32_t count;
+	union spoolss_JobInfo *info;
+
+	torture_assert(tctx,
+		test_PausePrinter(tctx, b, &t->handle),
+		"failed to pause printer");
+
+	job_ids = talloc_zero_array(tctx, uint32_t, num_jobs);
+	for (i=0; i < num_jobs; i++) {
+		ret = test_DoPrintTest_add_one_job(tctx, b, &t->handle,
+						   "TorturePrintJob",
+						   &job_ids[i]);
+		torture_assert(tctx, ret, "failed to add print job");
+	}
+
+	torture_assert(tctx,
+		test_EnumJobs_args(tctx, b, &t->handle, 1, &count, &info),
+		"EnumJobs level 1 failed");
+
+	torture_assert_int_equal(tctx, count, num_jobs,
+				 "unexpected number of jobs in queue");
+
+	torture_assert(tctx,
+		test_printer_purge(tctx, b, &t->handle),
+		"failed to purge printer");
+
+	torture_assert(tctx,
+		test_EnumJobs_args(tctx, b, &t->handle, 1, &count, &info),
+		"EnumJobs level 1 failed");
+
+	torture_assert_int_equal(tctx, count, 0,
+				 "unexpected number of jobs in queue");
+
+	torture_assert(tctx,
+		test_ResumePrinter(tctx, b, &t->handle),
+		"failed to resume printer");
 
 	return true;
 }
@@ -8694,6 +8851,7 @@ void torture_tcase_printer(struct torture_tcase *tcase)
 	torture_tcase_add_simple_test(tcase, "print_test_extended", test_print_test_extended);
 	torture_tcase_add_simple_test(tcase, "print_test_smbd", test_print_test_smbd);
 	torture_tcase_add_simple_test(tcase, "print_test_properties", test_print_test_properties);
+	torture_tcase_add_simple_test(tcase, "print_test_purge", test_print_test_purge);
 	torture_tcase_add_simple_test(tcase, "printer_info", test_printer_info);
 	torture_tcase_add_simple_test(tcase, "sd", test_printer_sd);
 	torture_tcase_add_simple_test(tcase, "dm", test_printer_dm);

@@ -69,5 +69,12 @@ struct db_context {
 	void *stored_callback_private_data;
 };
 
+#define DBWRAP_LOCK_ORDER_MIN DBWRAP_LOCK_ORDER_1
+#define DBWRAP_LOCK_ORDER_MAX DBWRAP_LOCK_ORDER_3
+
+#define DBWRAP_LOCK_ORDER_VALID(order) \
+	(((order) >= DBWRAP_LOCK_ORDER_MIN) && \
+	 ((order) <= DBWRAP_LOCK_ORDER_MAX))
+
 #endif /* __DBWRAP_PRIVATE_H__ */
 

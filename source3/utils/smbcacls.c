@@ -96,7 +96,7 @@ static NTSTATUS cli_lsa_lookup_sid(struct cli_state *cli,
 		goto tcon_fail;
 	}
 
-	status = cli_rpc_pipe_open_noauth(cli, &ndr_table_lsarpc.syntax_id,
+	status = cli_rpc_pipe_open_noauth(cli, &ndr_table_lsarpc,
 					  &p);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto fail;
@@ -146,7 +146,7 @@ static NTSTATUS cli_lsa_lookup_name(struct cli_state *cli,
 		goto tcon_fail;
 	}
 
-	status = cli_rpc_pipe_open_noauth(cli, &ndr_table_lsarpc.syntax_id,
+	status = cli_rpc_pipe_open_noauth(cli, &ndr_table_lsarpc,
 					  &p);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto fail;
@@ -187,14 +187,13 @@ static NTSTATUS cli_lsa_lookup_domain_sid(struct cli_state *cli,
 	struct policy_handle handle;
 	NTSTATUS status, result;
 	TALLOC_CTX *frame = talloc_stackframe();
-	const struct ndr_syntax_id *lsarpc_syntax = &ndr_table_lsarpc.syntax_id;
 
 	status = cli_tree_connect(cli, "IPC$", "?????", "", 0);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto done;
 	}
 
-	status = cli_rpc_pipe_open_noauth(cli, lsarpc_syntax, &rpc_pipe);
+	status = cli_rpc_pipe_open_noauth(cli, &ndr_table_lsarpc, &rpc_pipe);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto tdis;
 	}
@@ -1014,7 +1013,7 @@ static int owner_set(struct cli_state *cli, enum chown_mode change_mode,
 
 static int ace_compare(struct security_ace *ace1, struct security_ace *ace2)
 {
-	if (sec_ace_equal(ace1, ace2))
+	if (security_ace_equal(ace1, ace2))
 		return 0;
 
 	if ((ace1->flags & SEC_ACE_FLAG_INHERITED_ACE) &&
@@ -1053,7 +1052,8 @@ static void sort_acl(struct security_acl *the_acl)
 	TYPESAFE_QSORT(the_acl->aces, the_acl->num_aces, ace_compare);
 
 	for (i=1;i<the_acl->num_aces;) {
-		if (sec_ace_equal(&the_acl->aces[i-1], &the_acl->aces[i])) {
+		if (security_ace_equal(&the_acl->aces[i-1],
+				       &the_acl->aces[i])) {
 			int j;
 			for (j=i; j<the_acl->num_aces-1; j++) {
 				the_acl->aces[j] = the_acl->aces[j+1];
@@ -1099,8 +1099,8 @@ static int cacl_set(struct cli_state *cli, const char *filename,
 			bool found = False;
 
 			for (j=0;old->dacl && j<old->dacl->num_aces;j++) {
-				if (sec_ace_equal(&sd->dacl->aces[i],
-						  &old->dacl->aces[j])) {
+				if (security_ace_equal(&sd->dacl->aces[i],
+						       &old->dacl->aces[j])) {
 					uint32 k;
 					for (k=j; k<old->dacl->num_aces-1;k++) {
 						old->dacl->aces[k] = old->dacl->aces[k+1];
@@ -1356,8 +1356,9 @@ static struct cli_state *connect_one(struct user_auth_info *auth_info,
 /****************************************************************************
   main program
 ****************************************************************************/
- int main(int argc, const char *argv[])
+int main(int argc, char *argv[])
 {
+	const char **argv_const = discard_const_p(const char *, argv);
 	char *share;
 	int opt;
 	enum acl_mode mode = SMB_ACL_SET;
@@ -1407,8 +1408,6 @@ static struct cli_state *connect_one(struct user_auth_info *auth_info,
 
 	setlinebuf(stdout);
 
-	lp_load_global(get_dyn_CONFIGFILE());
-	load_interfaces();
 
 	auth_info = user_auth_info_init(frame);
 	if (auth_info == NULL) {
@@ -1416,7 +1415,7 @@ static struct cli_state *connect_one(struct user_auth_info *auth_info,
 	}
 	popt_common_set_auth_info(auth_info);
 
-	pc = poptGetContext("smbcacls", argc, argv, long_options, 0);
+	pc = poptGetContext("smbcacls", argc, argv_const, long_options, 0);
 
 	poptSetOtherOptionHelp(pc, "//server1/share1 filename\nACLs look like: "
 		"'ACL:user:[ALLOWED|DENIED]/flags/permissions'");
@@ -1478,6 +1477,9 @@ static struct cli_state *connect_one(struct user_auth_info *auth_info,
 		poptPrintUsage(pc, stderr, 0);
 		return -1;
 	}
+
+	lp_load_global(get_dyn_CONFIGFILE());
+	load_interfaces();
 
 	filename = talloc_strdup(frame, poptGetArg(pc));
 	if (!filename) {

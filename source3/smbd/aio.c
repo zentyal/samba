@@ -196,7 +196,7 @@ NTSTATUS schedule_aio_read_and_X(connection_struct *conn,
 	/* The following is safe from integer wrap as we've already checked
 	   smb_maxcnt is 128k or less. Wct is 12 for read replies */
 
-	bufsize = smb_size + 12 * 2 + smb_maxcnt;
+	bufsize = smb_size + 12 * 2 + smb_maxcnt + 1 /* padding byte */;
 
 	if ((aio_ex = create_aio_extra(NULL, fsp, bufsize)) == NULL) {
 		DEBUG(10,("schedule_aio_read_and_X: malloc fail.\n"));
@@ -206,6 +206,7 @@ NTSTATUS schedule_aio_read_and_X(connection_struct *conn,
 	construct_reply_common_req(smbreq, (char *)aio_ex->outbuf.data);
 	srv_set_message((char *)aio_ex->outbuf.data, 12, 0, True);
 	SCVAL(aio_ex->outbuf.data,smb_vwv0,0xFF); /* Never a chained reply. */
+	SCVAL(smb_buf(aio_ex->outbuf.data), 0, 0); /* padding byte */
 
 	init_strict_lock_struct(fsp, (uint64_t)smbreq->smbpid,
 		(uint64_t)startpos, (uint64_t)smb_maxcnt, READ_LOCK,
@@ -221,7 +222,8 @@ NTSTATUS schedule_aio_read_and_X(connection_struct *conn,
 	aio_ex->offset = startpos;
 
 	req = SMB_VFS_PREAD_SEND(aio_ex, fsp->conn->sconn->ev_ctx,
-				 fsp, smb_buf(aio_ex->outbuf.data),
+				 fsp,
+				 smb_buf(aio_ex->outbuf.data) + 1 /* pad */,
 				 smb_maxcnt, startpos);
 	if (req == NULL) {
 		DEBUG(0,("schedule_aio_read_and_X: aio_read failed. "
@@ -256,7 +258,7 @@ static void aio_pread_smb1_done(struct tevent_req *req)
 	files_struct *fsp = aio_ex->fsp;
 	int outsize;
 	char *outbuf = (char *)aio_ex->outbuf.data;
-	char *data = smb_buf(outbuf);
+	char *data = smb_buf(outbuf) + 1 /* padding byte */;
 	ssize_t nread;
 	int err;
 
@@ -285,7 +287,8 @@ static void aio_pread_smb1_done(struct tevent_req *req)
 		ERROR_NT(map_nt_error_from_unix(err));
 		outsize = srv_set_message(outbuf,0,0,true);
 	} else {
-		outsize = srv_set_message(outbuf, 12, nread, False);
+		outsize = srv_set_message(outbuf, 12,
+					  nread + 1 /* padding byte */, false);
 		SSVAL(outbuf,smb_vwv2, 0xFFFF); /* Remaining - must be * -1. */
 		SSVAL(outbuf,smb_vwv5, nread);
 		SSVAL(outbuf,smb_vwv6, smb_offset(data,outbuf));
@@ -302,7 +305,7 @@ static void aio_pread_smb1_done(struct tevent_req *req)
 	}
 	smb_setlen(outbuf, outsize - 4);
 	show_msg(outbuf);
-	if (!srv_send_smb(aio_ex->smbreq->sconn, outbuf,
+	if (!srv_send_smb(aio_ex->smbreq->xconn, outbuf,
 			  true, aio_ex->smbreq->seqnum+1,
 			  IS_CONN_ENCRYPTED(fsp->conn), NULL)) {
 		exit_server_cleanly("handle_aio_read_complete: srv_send_smb "
@@ -371,7 +374,7 @@ static void pwrite_fsync_write_done(struct tevent_req *subreq)
 	}
 
 	do_sync = (lp_strict_sync(SNUM(conn)) &&
-		   (lp_syncalways(SNUM(conn)) || state->write_through));
+		   (lp_sync_always(SNUM(conn)) || state->write_through));
 	if (!do_sync) {
 		tevent_req_done(req);
 		return;
@@ -512,14 +515,14 @@ NTSTATUS schedule_aio_write_and_X(connection_struct *conn,
 	contend_level2_oplocks_begin(fsp, LEVEL2_CONTEND_WRITE);
 	contend_level2_oplocks_end(fsp, LEVEL2_CONTEND_WRITE);
 
-	if (!aio_ex->write_through && !lp_syncalways(SNUM(fsp->conn))
+	if (!aio_ex->write_through && !lp_sync_always(SNUM(fsp->conn))
 	    && fsp->aio_write_behind) {
 		/* Lie to the client and immediately claim we finished the
 		 * write. */
 	        SSVAL(aio_ex->outbuf.data,smb_vwv2,numtowrite);
                 SSVAL(aio_ex->outbuf.data,smb_vwv4,(numtowrite>>16)&1);
 		show_msg((char *)aio_ex->outbuf.data);
-		if (!srv_send_smb(aio_ex->smbreq->sconn,
+		if (!srv_send_smb(aio_ex->smbreq->xconn,
 				(char *)aio_ex->outbuf.data,
 				true, aio_ex->smbreq->seqnum+1,
 				IS_CONN_ENCRYPTED(fsp->conn),
@@ -621,7 +624,7 @@ static void aio_pwrite_smb1_done(struct tevent_req *req)
 	}
 
 	show_msg(outbuf);
-	if (!srv_send_smb(aio_ex->smbreq->sconn, outbuf,
+	if (!srv_send_smb(aio_ex->smbreq->xconn, outbuf,
 			  true, aio_ex->smbreq->seqnum+1,
 			  IS_CONN_ENCRYPTED(fsp->conn),
 			  NULL)) {

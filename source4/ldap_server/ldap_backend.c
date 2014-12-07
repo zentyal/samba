@@ -23,6 +23,7 @@
 #include "../lib/util/dlinklist.h"
 #include "auth/credentials/credentials.h"
 #include "auth/gensec/gensec.h"
+#include "auth/gensec/gensec_internal.h" /* TODO: remove this */
 #include "param/param.h"
 #include "smbd/service_stream.h"
 #include "dsdb/samdb/samdb.h"
@@ -191,8 +192,8 @@ NTSTATUS ldapsrv_backend_Init(struct ldapsrv_connection *conn)
 
 	if (conn->server_credentials) {
 		char **sasl_mechs = NULL;
-		struct gensec_security_ops **backends = gensec_security_all();
-		struct gensec_security_ops **ops
+		const struct gensec_security_ops * const *backends = gensec_security_all();
+		const struct gensec_security_ops **ops
 			= gensec_use_kerberos_mechs(conn, backends, conn->server_credentials);
 		unsigned int i, j = 0;
 		for (i = 0; ops && ops[i]; i++) {
@@ -284,7 +285,7 @@ static NTSTATUS ldapsrv_unwilling(struct ldapsrv_call *call, int error)
 static int ldapsrv_add_with_controls(struct ldapsrv_call *call,
 				     const struct ldb_message *message,
 				     struct ldb_control **controls,
-				     void *context)
+				     struct ldb_result *res)
 {
 	struct ldb_context *ldb = call->conn->ldb;
 	struct ldb_request *req;
@@ -298,7 +299,7 @@ static int ldapsrv_add_with_controls(struct ldapsrv_call *call,
 	ret = ldb_build_add_req(&req, ldb, ldb,
 					message,
 					controls,
-					context,
+					res,
 					ldb_modify_default_callback,
 					NULL);
 
@@ -340,7 +341,7 @@ static int ldapsrv_add_with_controls(struct ldapsrv_call *call,
 static int ldapsrv_mod_with_controls(struct ldapsrv_call *call,
 				     const struct ldb_message *message,
 				     struct ldb_control **controls,
-				     void *context)
+				     struct ldb_result *res)
 {
 	struct ldb_context *ldb = call->conn->ldb;
 	struct ldb_request *req;
@@ -354,7 +355,7 @@ static int ldapsrv_mod_with_controls(struct ldapsrv_call *call,
 	ret = ldb_build_mod_req(&req, ldb, ldb,
 					message,
 					controls,
-					context,
+					res,
 					ldb_modify_default_callback,
 					NULL);
 
@@ -398,7 +399,7 @@ static int ldapsrv_mod_with_controls(struct ldapsrv_call *call,
 static int ldapsrv_del_with_controls(struct ldapsrv_call *call,
 				     struct ldb_dn *dn,
 				     struct ldb_control **controls,
-				     void *context)
+				     struct ldb_result *res)
 {
 	struct ldb_context *ldb = call->conn->ldb;
 	struct ldb_request *req;
@@ -407,7 +408,7 @@ static int ldapsrv_del_with_controls(struct ldapsrv_call *call,
 	ret = ldb_build_del_req(&req, ldb, ldb,
 					dn,
 					controls,
-					context,
+					res,
 					ldb_modify_default_callback,
 					NULL);
 
@@ -449,7 +450,7 @@ static int ldapsrv_rename_with_controls(struct ldapsrv_call *call,
 					struct ldb_dn *olddn,
 					struct ldb_dn *newdn,
 					struct ldb_control **controls,
-					void *context)
+					struct ldb_result *res)
 {
 	struct ldb_context *ldb = call->conn->ldb;
 	struct ldb_request *req;
@@ -459,7 +460,7 @@ static int ldapsrv_rename_with_controls(struct ldapsrv_call *call,
 					olddn,
 					newdn,
 					NULL,
-					context,
+					res,
 					ldb_modify_default_callback,
 					NULL);
 

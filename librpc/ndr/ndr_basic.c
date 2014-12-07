@@ -1,20 +1,20 @@
-/* 
+/*
    Unix SMB/CIFS implementation.
 
    routines for marshalling/unmarshalling basic types
 
    Copyright (C) Andrew Tridgell 2003
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
@@ -31,6 +31,8 @@
 #define NDR_SIVAL(ndr, ofs, v) do { if (NDR_BE(ndr))  { RSIVAL(ndr->data,ofs,v); } else SIVAL(ndr->data,ofs,v); } while (0)
 #define NDR_SIVALS(ndr, ofs, v) do { if (NDR_BE(ndr))  { RSIVALS(ndr->data,ofs,v); } else SIVALS(ndr->data,ofs,v); } while (0)
 
+
+static void ndr_dump_data(struct ndr_print *ndr, const uint8_t *buf, int len);
 
 /*
   check for data leaks from the server by looking for non-zero pad bytes
@@ -167,7 +169,8 @@ _PUBLIC_ enum ndr_err_code ndr_pull_uint3264(struct ndr_pull *ndr, int ndr_flags
 	if (unlikely(v64 != *v)) {
 		DEBUG(0,(__location__ ": non-zero upper 32 bits 0x%016llx\n",
 			 (unsigned long long)v64));
-		return NDR_ERR_NDR64;
+		return ndr_pull_error(ndr, NDR_ERR_NDR64, __location__ ": non-zero upper 32 bits 0x%016llx\n",
+			 (unsigned long long)v64);
 	}
 	return err;
 }
@@ -1002,7 +1005,7 @@ _PUBLIC_ void ndr_print_null(struct ndr_print *ndr)
 	ndr->print(ndr, "UNEXPECTED NULL POINTER");
 }
 
-_PUBLIC_ void ndr_print_enum(struct ndr_print *ndr, const char *name, const char *type, 
+_PUBLIC_ void ndr_print_enum(struct ndr_print *ndr, const char *name, const char *type,
 		    const char *val, uint32_t value)
 {
 	if (ndr->flags & LIBNDR_PRINT_ARRAY_HEX) {
@@ -1014,13 +1017,17 @@ _PUBLIC_ void ndr_print_enum(struct ndr_print *ndr, const char *name, const char
 
 _PUBLIC_ void ndr_print_bitmap_flag(struct ndr_print *ndr, size_t size, const char *flag_name, uint32_t flag, uint32_t value)
 {
+	if (flag == 0) {
+		return;
+	}
+
 	/* this is an attempt to support multi-bit bitmap masks */
 	value &= flag;
 
 	while (!(flag & 1)) {
 		flag >>= 1;
 		value >>= 1;
-	}	
+	}
 	if (flag == 1) {
 		ndr->print(ndr, "   %d: %-25s", value, flag_name);
 	} else {
@@ -1158,18 +1165,19 @@ _PUBLIC_ void ndr_print_bad_level(struct ndr_print *ndr, const char *name, uint1
 	ndr->print(ndr, "UNKNOWN LEVEL %u", level);
 }
 
-_PUBLIC_ void ndr_print_array_uint8(struct ndr_print *ndr, const char *name, 
+_PUBLIC_ void ndr_print_array_uint8(struct ndr_print *ndr, const char *name,
 			   const uint8_t *data, uint32_t count)
 {
 	int i;
+#define _ONELINE_LIMIT 32
 
 	if (data == NULL) {
 		ndr->print(ndr, "%s: ARRAY(%d) : NULL", name, count);
 		return;
 	}
 
-	if (count <= 600 && (ndr->flags & LIBNDR_PRINT_ARRAY_HEX)) {
-		char s[1202];
+	if (count <= _ONELINE_LIMIT && (ndr->flags & LIBNDR_PRINT_ARRAY_HEX)) {
+		char s[(_ONELINE_LIMIT + 1) * 2];
 		for (i=0;i<count;i++) {
 			snprintf(&s[i*2], 3, "%02x", data[i]);
 		}
@@ -1179,6 +1187,11 @@ _PUBLIC_ void ndr_print_array_uint8(struct ndr_print *ndr, const char *name,
 	}
 
 	ndr->print(ndr, "%s: ARRAY(%d)", name, count);
+	if (count > _ONELINE_LIMIT && (ndr->flags & LIBNDR_PRINT_ARRAY_HEX)) {
+		ndr_dump_data(ndr, data, count);
+		return;
+	}
+
 	ndr->depth++;
 	for (i=0;i<count;i++) {
 		char *idx=NULL;
@@ -1187,7 +1200,8 @@ _PUBLIC_ void ndr_print_array_uint8(struct ndr_print *ndr, const char *name,
 			free(idx);
 		}
 	}
-	ndr->depth--;	
+	ndr->depth--;
+#undef _ONELINE_LIMIT
 }
 
 static void ndr_print_asc(struct ndr_print *ndr, const uint8_t *buf, int len)
@@ -1253,7 +1267,7 @@ _PUBLIC_ void ndr_print_DATA_BLOB(struct ndr_print *ndr, const char *name, DATA_
  *    current ndr offset.
  * 2) When called with the LIBNDR_FLAG_REMAINING flag, push the byte array to
  *    the ndr buffer.
- * 3) Otherwise, push a uint32 length _and_ a corresponding byte array to the
+ * 3) Otherwise, push a uint3264 length _and_ a corresponding byte array to the
  *    ndr buffer.
  */
 _PUBLIC_ enum ndr_err_code ndr_push_DATA_BLOB(struct ndr_push *ndr, int ndr_flags, DATA_BLOB blob)
@@ -1271,7 +1285,7 @@ _PUBLIC_ enum ndr_err_code ndr_push_DATA_BLOB(struct ndr_push *ndr, int ndr_flag
 		NDR_PUSH_ALLOC_SIZE(ndr, blob.data, blob.length);
 		data_blob_clear(&blob);
 	} else {
-		NDR_CHECK(ndr_push_uint32(ndr, NDR_SCALARS, blob.length));
+		NDR_CHECK(ndr_push_uint3264(ndr, NDR_SCALARS, blob.length));
 	}
 	NDR_CHECK(ndr_push_bytes(ndr, blob.data, blob.length));
 	return NDR_ERR_SUCCESS;
@@ -1284,7 +1298,7 @@ _PUBLIC_ enum ndr_err_code ndr_push_DATA_BLOB(struct ndr_push *ndr, int ndr_flag
  *    current ndr offset.
  * 2) When called with the LIBNDR_FLAG_REMAINING flag, pull all remaining bytes
  *    from the ndr buffer.
- * 3) Otherwise, pull a uint32 length _and_ a corresponding byte array from the
+ * 3) Otherwise, pull a uint3264 length _and_ a corresponding byte array from the
  *    ndr buffer.
  */
 _PUBLIC_ enum ndr_err_code ndr_pull_DATA_BLOB(struct ndr_pull *ndr, int ndr_flags, DATA_BLOB *blob)
@@ -1305,7 +1319,7 @@ _PUBLIC_ enum ndr_err_code ndr_pull_DATA_BLOB(struct ndr_pull *ndr, int ndr_flag
 			length = ndr->data_size - ndr->offset;
 		}
 	} else {
-		NDR_CHECK(ndr_pull_uint32(ndr, NDR_SCALARS, &length));
+		NDR_CHECK(ndr_pull_uint3264(ndr, NDR_SCALARS, &length));
 	}
 	NDR_PULL_NEED_BYTES(ndr, length);
 	*blob = data_blob_talloc(ndr->current_mem_ctx, ndr->data+ndr->offset, length);

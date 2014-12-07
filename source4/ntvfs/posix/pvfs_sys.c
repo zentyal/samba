@@ -196,9 +196,11 @@ static struct pvfs_sys_ctx *pvfs_sys_pushdir(struct pvfs_state *pvfs,
 		talloc_free(ctx);
 		return NULL;
 	}
+
 	ctx->old_wd = talloc_strdup(ctx, cwd);
+	free(cwd);
+
 	if (ctx->old_wd == NULL) {
-		free(cwd);
 		talloc_free(ctx);
 		return NULL;
 	}
@@ -539,6 +541,7 @@ int pvfs_sys_mkdir(struct pvfs_state *pvfs, const char *dirname, mode_t mode, bo
 	}
 
 	talloc_free(ctx);
+	errno = orig_errno;
 	return ret;
 }
 

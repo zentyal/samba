@@ -22,7 +22,6 @@
 #include "dbwrap/dbwrap.h"
 #include "dbwrap_watch.h"
 #include "dbwrap_open.h"
-#include "msg_channel.h"
 #include "lib/util/util_tdb.h"
 #include "lib/util/tevent_ntstatus.h"
 
@@ -34,7 +33,8 @@ static struct db_context *dbwrap_record_watchers_db(void)
 		watchers_db = db_open(
 			NULL, lock_path("dbwrap_watchers.tdb"),	0,
 			TDB_CLEAR_IF_FIRST | TDB_INCOMPATIBLE_HASH,
-			O_RDWR|O_CREAT, 0600, DBWRAP_LOCK_ORDER_3);
+			O_RDWR|O_CREAT, 0600, DBWRAP_LOCK_ORDER_3,
+			DBWRAP_FLAG_NONE);
 	}
 	return watchers_db;
 }
@@ -231,11 +231,12 @@ struct dbwrap_record_watch_state {
 	struct db_context *db;
 	struct tevent_req *req;
 	struct messaging_context *msg;
-	struct msg_channel *channel;
 	TDB_DATA key;
 	TDB_DATA w_key;
 };
 
+static bool dbwrap_record_watch_filter(struct messaging_rec *rec,
+				       void *private_data);
 static void dbwrap_record_watch_done(struct tevent_req *subreq);
 static int dbwrap_record_watch_state_destructor(
 	struct dbwrap_record_watch_state *state);
@@ -249,7 +250,6 @@ struct tevent_req *dbwrap_record_watch_send(TALLOC_CTX *mem_ctx,
 	struct dbwrap_record_watch_state *state;
 	struct db_context *watchers_db;
 	NTSTATUS status;
-	int ret;
 
 	req = tevent_req_create(mem_ctx, &state,
 				struct dbwrap_record_watch_state);
@@ -273,12 +273,12 @@ struct tevent_req *dbwrap_record_watch_send(TALLOC_CTX *mem_ctx,
 		return tevent_req_post(req, ev);
 	}
 
-	ret = msg_channel_init(state, state->msg, MSG_DBWRAP_MODIFIED,
-			       &state->channel);
-	if (ret != 0) {
-		tevent_req_nterror(req, map_nt_error_from_unix(ret));
+	subreq = messaging_filtered_read_send(
+		state, ev, state->msg, dbwrap_record_watch_filter, state);
+	if (tevent_req_nomem(subreq, req)) {
 		return tevent_req_post(req, ev);
 	}
+	tevent_req_set_callback(subreq, dbwrap_record_watch_done, req);
 
 	status = dbwrap_record_add_watcher(
 		state->w_key, messaging_server_id(state->msg));
@@ -287,12 +287,25 @@ struct tevent_req *dbwrap_record_watch_send(TALLOC_CTX *mem_ctx,
 	}
 	talloc_set_destructor(state, dbwrap_record_watch_state_destructor);
 
-	subreq = msg_read_send(state, state->ev, state->channel);
-	if (tevent_req_nomem(subreq, req)) {
-		return tevent_req_post(req, ev);
-	}
-	tevent_req_set_callback(subreq, dbwrap_record_watch_done, req);
 	return req;
+}
+
+static bool dbwrap_record_watch_filter(struct messaging_rec *rec,
+				       void *private_data)
+{
+	struct dbwrap_record_watch_state *state = talloc_get_type_abort(
+		private_data, struct dbwrap_record_watch_state);
+
+	if (rec->msg_type != MSG_DBWRAP_MODIFIED) {
+		return false;
+	}
+	if (rec->num_fds != 0) {
+		return false;
+	}
+	if (rec->buf.length != state->w_key.dsize) {
+		return false;
+	}
+	return memcmp(rec->buf.data, state->w_key.dptr,	rec->buf.length) == 0;
 }
 
 static int dbwrap_record_watch_state_destructor(
@@ -314,7 +327,6 @@ static void dbwrap_watch_record_stored(struct db_context *db,
 	struct server_id *ids = NULL;
 	size_t num_ids = 0;
 	TDB_DATA w_key = { 0, };
-	DATA_BLOB w_blob;
 	NTSTATUS status;
 	uint32_t i;
 
@@ -333,12 +345,10 @@ static void dbwrap_watch_record_stored(struct db_context *db,
 		DEBUG(1, ("dbwrap_record_watchers_key failed\n"));
 		goto done;
 	}
-	w_blob.data = w_key.dptr;
-	w_blob.length = w_key.dsize;
 
 	for (i=0; i<num_ids; i++) {
-		status = messaging_send(msg, ids[i], MSG_DBWRAP_MODIFIED,
-					&w_blob);
+		status = messaging_send_buf(msg, ids[i], MSG_DBWRAP_MODIFIED,
+					    w_key.dptr, w_key.dsize);
 		if (!NT_STATUS_IS_OK(status)) {
 			char *str = procid_str_static(&ids[i]);
 			DEBUG(1, ("messaging_send to %s failed: %s\n",
@@ -361,32 +371,16 @@ static void dbwrap_record_watch_done(struct tevent_req *subreq)
 {
 	struct tevent_req *req = tevent_req_callback_data(
 		subreq, struct tevent_req);
-	struct dbwrap_record_watch_state *state = tevent_req_data(
-		req, struct dbwrap_record_watch_state);
 	struct messaging_rec *rec;
 	int ret;
 
-	ret = msg_read_recv(subreq, talloc_tos(), &rec);
+	ret = messaging_filtered_read_recv(subreq, talloc_tos(), &rec);
 	TALLOC_FREE(subreq);
 	if (ret != 0) {
 		tevent_req_nterror(req, map_nt_error_from_unix(ret));
 		return;
 	}
-
-	if ((rec->buf.length == state->w_key.dsize) &&
-	    (memcmp(rec->buf.data, state->w_key.dptr, rec->buf.length) == 0)) {
-		tevent_req_done(req);
-		return;
-	}
-
-	/*
-	 * Not our record, wait for the next one
-	 */
-	subreq = msg_read_send(state, state->ev, state->channel);
-	if (tevent_req_nomem(subreq, req)) {
-		return;
-	}
-	tevent_req_set_callback(subreq, dbwrap_record_watch_done, req);
+	tevent_req_done(req);
 }
 
 NTSTATUS dbwrap_record_watch_recv(struct tevent_req *req,

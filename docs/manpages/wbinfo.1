@@ -2,12 +2,12 @@
 .\"     Title: wbinfo
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 10/20/2014
+.\"      Date: 10/15/2014
 .\"    Manual: User Commands
-.\"    Source: Samba 4.0
+.\"    Source: Samba 4.2
 .\"  Language: English
 .\"
-.TH "WBINFO" "1" "10/20/2014" "Samba 4\&.0" "User Commands"
+.TH "WBINFO" "1" "10/15/2014" "Samba 4\&.2" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -114,10 +114,7 @@ Displays information about the current domain controller for a domain\&.
 .RS 4
 This parameter sets the domain on which any specified operations will performed\&. If special domain name \*(Aq\&.\*(Aq is used to represent the current domain to which
 \fBwinbindd\fR(8)
-belongs\&. Currently only the
-\fB\-u\fR, and
-\fB\-g\fR
-options honor this parameter\&.
+belongs\&. A \*(Aq*\*(Aq as the domain name means to enumerate over all domains (NOTE: This can take a long time and use a lot of memory)\&.
 .RE
 .PP
 \-D|\-\-domain\-info \fIdomain\fR
@@ -144,7 +141,7 @@ Get group info from group name\&.
 .RS 4
 This option will list all groups available in the Windows NT domain for which the
 \fBsamba\fR(7)
-daemon is operating in\&. Groups in all trusted domains will also be listed\&. Note that this operation does not assign group ids to any groups that have not already been seen by
+daemon is operating in\&. Groups in all trusted domains can be listed with the \-\-domain=\*(Aq*\*(Aq option\&. Note that this operation does not assign group ids to any groups that have not already been seen by
 \fBwinbindd\fR(8)\&.
 .RE
 .PP
@@ -372,7 +369,7 @@ in order to verify interdomain trust accounts\&.
 .RS 4
 This option will list all users available in the Windows NT domain for which the
 \fBwinbindd\fR(8)
-daemon is operating in\&. Users in all trusted domains will also be listed\&. Note that this operation does not assign user ids to any users that have not already been seen by
+daemon is operating in\&. Users in all trusted domains can be listed with the \-\-domain=\*(Aq*\*(Aq option\&. Note that this operation does not assign user ids to any users that have not already been seen by
 \fBwinbindd\fR(8)
 \&.
 .RE

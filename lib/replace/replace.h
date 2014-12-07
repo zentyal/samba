@@ -41,6 +41,10 @@
 #include <stdarg.h>
 #include <errno.h>
 
+#ifndef HAVE_DECL_EWOULDBLOCK
+#define EWOULDBLOCK EAGAIN
+#endif
+
 #if defined(_MSC_VER) || defined(__MINGW32__)
 #include "win32_replace.h"
 #endif
@@ -898,6 +902,11 @@ int usleep(useconds_t);
 #define setproctitle rep_setproctitle
 void rep_setproctitle(const char *fmt, ...) PRINTF_ATTRIBUTE(1, 2);
 #endif
+
+bool nss_wrapper_enabled(void);
+bool nss_wrapper_hosts_enabled(void);
+bool socket_wrapper_enabled(void);
+bool uid_wrapper_enabled(void);
 
 /* Needed for Solaris atomic_add_XX functions. */
 #if defined(HAVE_SYS_ATOMIC_H)

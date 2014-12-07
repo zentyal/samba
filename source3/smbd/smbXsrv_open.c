@@ -64,7 +64,8 @@ NTSTATUS smbXsrv_open_global_init(void)
 			 TDB_CLEAR_IF_FIRST |
 			 TDB_INCOMPATIBLE_HASH,
 			 O_RDWR | O_CREAT, 0600,
-			 DBWRAP_LOCK_ORDER_1);
+			 DBWRAP_LOCK_ORDER_1,
+			 DBWRAP_FLAG_NONE);
 	if (db_ctx == NULL) {
 		NTSTATUS status;
 
@@ -152,6 +153,7 @@ static NTSTATUS smbXsrv_open_table_init(struct smbXsrv_connection *conn,
 					uint32_t highest_id,
 					uint32_t max_opens)
 {
+	struct smbXsrv_client *client = conn->client;
 	struct smbXsrv_open_table *table;
 	NTSTATUS status;
 	uint64_t max_range;
@@ -168,7 +170,7 @@ static NTSTATUS smbXsrv_open_table_init(struct smbXsrv_connection *conn,
 		return NT_STATUS_INTERNAL_ERROR;
 	}
 
-	table = talloc_zero(conn, struct smbXsrv_open_table);
+	table = talloc_zero(client, struct smbXsrv_open_table);
 	if (table == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -190,7 +192,7 @@ static NTSTATUS smbXsrv_open_table_init(struct smbXsrv_connection *conn,
 
 	table->global.db_ctx = smbXsrv_open_global_db_ctx;
 
-	conn->open_table = table;
+	client->open_table = table;
 	return NT_STATUS_OK;
 }
 
@@ -443,7 +445,9 @@ static NTSTATUS smbXsrv_open_local_lookup(struct smbXsrv_open_table *table,
 		return NT_STATUS_FILE_CLOSED;
 	}
 
-	state.op->idle_time = now;
+	if (now != 0) {
+		state.op->idle_time = now;
+	}
 
 	*_open = state.op;
 	return state.op->status;
@@ -577,6 +581,7 @@ static void smbXsrv_open_global_verify_record(struct db_record *db_rec,
 
 	val = dbwrap_record_get_value(db_rec);
 	if (val.dsize == 0) {
+		DEBUG(10, ("%s: empty value\n", __func__));
 		TALLOC_FREE(frame);
 		*is_free = true;
 		if (was_free) {
@@ -600,7 +605,7 @@ static void smbXsrv_open_global_verify_record(struct db_record *db_rec,
 	}
 
 	DEBUG(10,("smbXsrv_open_global_verify_record\n"));
-	if (DEBUGLVL(10)) {
+	if (CHECK_DEBUGLVL(10)) {
 		NDR_PRINT_DEBUG(smbXsrv_open_globalB, &global_blob);
 	}
 
@@ -626,7 +631,7 @@ static void smbXsrv_open_global_verify_record(struct db_record *db_rec,
 			 "key '%s' server_id %s does not exist.\n",
 			 hex_encode_talloc(frame, key.dptr, key.dsize),
 			 server_id_str(frame, &global->server_id)));
-		if (DEBUGLVL(2)) {
+		if (CHECK_DEBUGLVL(2)) {
 			NDR_PRINT_DEBUG(smbXsrv_open_globalB, &global_blob);
 		}
 		TALLOC_FREE(frame);
@@ -692,7 +697,7 @@ static NTSTATUS smbXsrv_open_global_store(struct smbXsrv_open_global0 *global)
 		return status;
 	}
 
-	if (DEBUGLVL(10)) {
+	if (CHECK_DEBUGLVL(10)) {
 		DEBUG(10,("smbXsrv_open_global_store: key '%s' stored\n",
 			 hex_encode_talloc(global->db_rec, key.dptr, key.dsize)));
 		NDR_PRINT_DEBUG(smbXsrv_open_globalB, &global_blob);
@@ -737,6 +742,7 @@ static NTSTATUS smbXsrv_open_global_lookup(struct smbXsrv_open_table *table,
 					  mem_ctx,
 					  _global);
 	if (is_free) {
+		DEBUG(10, ("%s: is_free=true\n", __func__));
 		talloc_free(global_rec);
 		return NT_STATUS_OBJECT_NAME_NOT_FOUND;
 	}
@@ -769,7 +775,7 @@ NTSTATUS smbXsrv_open_create(struct smbXsrv_connection *conn,
 			     NTTIME now,
 			     struct smbXsrv_open **_open)
 {
-	struct smbXsrv_open_table *table = conn->open_table;
+	struct smbXsrv_open_table *table = conn->client->open_table;
 	struct db_record *local_rec = NULL;
 	struct smbXsrv_open *op = NULL;
 	void *ptr = NULL;
@@ -859,7 +865,7 @@ NTSTATUS smbXsrv_open_create(struct smbXsrv_connection *conn,
 		return status;
 	}
 
-	if (DEBUGLVL(10)) {
+	if (CHECK_DEBUGLVL(10)) {
 		struct smbXsrv_openB open_blob;
 
 		ZERO_STRUCT(open_blob);
@@ -930,7 +936,7 @@ NTSTATUS smbXsrv_open_update(struct smbXsrv_open *op)
 		return status;
 	}
 
-	if (DEBUGLVL(10)) {
+	if (CHECK_DEBUGLVL(10)) {
 		struct smbXsrv_openB open_blob;
 
 		ZERO_STRUCT(open_blob);
@@ -1008,7 +1014,7 @@ NTSTATUS smbXsrv_open_close(struct smbXsrv_open *op, NTTIME now)
 			error = status;
 		}
 
-		if (NT_STATUS_IS_OK(status) && DEBUGLVL(10)) {
+		if (NT_STATUS_IS_OK(status) && CHECK_DEBUGLVL(10)) {
 			struct smbXsrv_openB open_blob;
 
 			ZERO_STRUCT(open_blob);
@@ -1098,7 +1104,7 @@ NTSTATUS smb1srv_open_table_init(struct smbXsrv_connection *conn)
 	 *
 	 * 0 and 0xFFFF are no valid ids.
 	 */
-	max_opens = conn->sconn->real_max_open_files;
+	max_opens = conn->client->sconn->real_max_open_files;
 	max_opens = MIN(max_opens, UINT16_MAX - 1);
 
 	return smbXsrv_open_table_init(conn, 1, UINT16_MAX - 1, max_opens);
@@ -1108,7 +1114,7 @@ NTSTATUS smb1srv_open_lookup(struct smbXsrv_connection *conn,
 			     uint16_t fnum, NTTIME now,
 			     struct smbXsrv_open **_open)
 {
-	struct smbXsrv_open_table *table = conn->open_table;
+	struct smbXsrv_open_table *table = conn->client->open_table;
 	uint32_t local_id = fnum;
 	uint32_t global_id = 0;
 
@@ -1132,7 +1138,7 @@ NTSTATUS smb2srv_open_table_init(struct smbXsrv_connection *conn)
 	 * transport connection (as we still have a 1:1 mapping
 	 * between process and transport connection).
 	 */
-	max_opens = conn->sconn->real_max_open_files;
+	max_opens = conn->client->sconn->real_max_open_files;
 	max_opens = MIN(max_opens, UINT16_MAX - 1);
 
 	return smbXsrv_open_table_init(conn, 1, UINT32_MAX - 1, max_opens);
@@ -1144,7 +1150,7 @@ NTSTATUS smb2srv_open_lookup(struct smbXsrv_connection *conn,
 			     NTTIME now,
 			     struct smbXsrv_open **_open)
 {
-	struct smbXsrv_open_table *table = conn->open_table;
+	struct smbXsrv_open_table *table = conn->client->open_table;
 	uint32_t local_id = volatile_id & UINT32_MAX;
 	uint64_t local_zeros = volatile_id & 0xFFFFFFFF00000000LLU;
 	uint32_t global_id = persistent_id & UINT32_MAX;
@@ -1168,11 +1174,11 @@ NTSTATUS smb2srv_open_lookup(struct smbXsrv_connection *conn,
 NTSTATUS smb2srv_open_recreate(struct smbXsrv_connection *conn,
 			       struct auth_session_info *session_info,
 			       uint64_t persistent_id,
-			       struct GUID create_guid,
+			       const struct GUID *create_guid,
 			       NTTIME now,
 			       struct smbXsrv_open **_open)
 {
-	struct smbXsrv_open_table *table = conn->open_table;
+	struct smbXsrv_open_table *table = conn->client->open_table;
 	struct db_record *local_rec = NULL;
 	struct smbXsrv_open *op = NULL;
 	void *ptr = NULL;
@@ -1183,15 +1189,18 @@ NTSTATUS smb2srv_open_recreate(struct smbXsrv_connection *conn,
 	struct security_token *current_token = NULL;
 
 	if (session_info == NULL) {
+		DEBUG(10, ("session_info=NULL\n"));
 		return NT_STATUS_INVALID_HANDLE;
 	}
 	current_token = session_info->security_token;
 
 	if (current_token == NULL) {
+		DEBUG(10, ("current_token=NULL\n"));
 		return NT_STATUS_INVALID_HANDLE;
 	}
 
 	if (global_zeros != 0) {
+		DEBUG(10, ("global_zeros!=0\n"));
 		return NT_STATUS_OBJECT_NAME_NOT_FOUND;
 	}
 
@@ -1204,10 +1213,20 @@ NTSTATUS smb2srv_open_recreate(struct smbXsrv_connection *conn,
 	status = smbXsrv_open_global_lookup(table, global_id, op, &op->global);
 	if (!NT_STATUS_IS_OK(status)) {
 		TALLOC_FREE(op);
+		DEBUG(10, ("smbXsrv_open_global_lookup returned %s\n",
+			   nt_errstr(status)));
 		return status;
 	}
 
-	if (!GUID_equal(&op->global->create_guid, &create_guid)) {
+	/*
+	 * If the provided create_guid is NULL, this means that
+	 * the reconnect request was a v1 request. In that case
+	 * we should skipt the create GUID verification, since
+	 * it is valid to v1-reconnect a v2-opened handle.
+	 */
+	if ((create_guid != NULL) &&
+	    !GUID_equal(&op->global->create_guid, create_guid))
+	{
 		TALLOC_FREE(op);
 		return NT_STATUS_OBJECT_NAME_NOT_FOUND;
 	}
@@ -1262,7 +1281,7 @@ NTSTATUS smb2srv_open_recreate(struct smbXsrv_connection *conn,
 		return status;
 	}
 
-	if (DEBUGLVL(10)) {
+	if (CHECK_DEBUGLVL(10)) {
 		struct smbXsrv_openB open_blob;
 
 		ZERO_STRUCT(open_blob);
@@ -1375,11 +1394,12 @@ NTSTATUS smbXsrv_open_global_traverse(
 
 NTSTATUS smbXsrv_open_cleanup(uint64_t persistent_id)
 {
-	NTSTATUS status;
+	NTSTATUS status = NT_STATUS_OK;
 	TALLOC_CTX *frame = talloc_stackframe();
 	struct smbXsrv_open_global0 *op = NULL;
 	uint8_t key_buf[SMBXSRV_OPEN_GLOBAL_TDB_KEY_SIZE];
 	TDB_DATA key;
+	TDB_DATA val;
 	struct db_record *rec;
 	bool delete_open = false;
 	uint32_t global_id = persistent_id & UINT32_MAX;
@@ -1392,6 +1412,14 @@ NTSTATUS smbXsrv_open_cleanup(uint64_t persistent_id)
 			  "failed to fetch record from %s - %s\n",
 			   global_id, dbwrap_name(smbXsrv_open_global_db_ctx),
 			   nt_errstr(status)));
+		goto done;
+	}
+
+	val = dbwrap_record_get_value(rec);
+	if (val.dsize == 0) {
+		DEBUG(10, ("smbXsrv_open_cleanup[global: 0x%08x] "
+			  "empty record in %s, skipping...\n",
+			   global_id, dbwrap_name(smbXsrv_open_global_db_ctx)));
 		goto done;
 	}
 

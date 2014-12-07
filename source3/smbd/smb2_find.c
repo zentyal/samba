@@ -153,7 +153,7 @@ static void smbd_smb2_request_find_done(struct tevent_req *subreq)
 	if (!NT_STATUS_IS_OK(status)) {
 		error = smbd_smb2_request_error(req, status);
 		if (!NT_STATUS_IS_OK(error)) {
-			smbd_server_connection_terminate(req->sconn,
+			smbd_server_connection_terminate(req->xconn,
 							 nt_errstr(error));
 			return;
 		}
@@ -162,11 +162,11 @@ static void smbd_smb2_request_find_done(struct tevent_req *subreq)
 
 	out_output_buffer_offset = SMB2_HDR_BODY + 0x08;
 
-	outbody = data_blob_talloc(req->out.vector, NULL, 0x08);
+	outbody = smbd_smb2_generate_outbody(req, 0x08);
 	if (outbody.data == NULL) {
 		error = smbd_smb2_request_error(req, NT_STATUS_NO_MEMORY);
 		if (!NT_STATUS_IS_OK(error)) {
-			smbd_server_connection_terminate(req->sconn,
+			smbd_server_connection_terminate(req->xconn,
 							 nt_errstr(error));
 			return;
 		}
@@ -186,7 +186,7 @@ static void smbd_smb2_request_find_done(struct tevent_req *subreq)
 
 	error = smbd_smb2_request_done(req, outbody, &outdyn);
 	if (!NT_STATUS_IS_OK(error)) {
-		smbd_server_connection_terminate(req->sconn,
+		smbd_server_connection_terminate(req->xconn,
 						 nt_errstr(error));
 		return;
 	}
@@ -207,6 +207,7 @@ static struct tevent_req *smbd_smb2_find_send(TALLOC_CTX *mem_ctx,
 					      uint32_t in_output_buffer_length,
 					      const char *in_file_name)
 {
+	struct smbXsrv_connection *xconn = smb2req->xconn;
 	struct tevent_req *req;
 	struct smbd_smb2_find_state *state;
 	struct smb_request *smbreq;
@@ -273,11 +274,11 @@ static struct tevent_req *smbd_smb2_find_send(TALLOC_CTX *mem_ctx,
 		return tevent_req_post(req, ev);
 	}
 
-	if (in_output_buffer_length > smb2req->sconn->smb2.max_trans) {
+	if (in_output_buffer_length > xconn->smb2.server.max_trans) {
 		DEBUG(2,("smbd_smb2_find_send: "
 			 "client ignored max trans:%s: 0x%08X: 0x%08X\n",
 			 __location__, in_output_buffer_length,
-			 smb2req->sconn->smb2.max_trans));
+			 xconn->smb2.server.max_trans));
 		tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
 		return tevent_req_post(req, ev);
 	}
@@ -330,17 +331,23 @@ static struct tevent_req *smbd_smb2_find_send(TALLOC_CTX *mem_ctx,
 	if (!wcard_has_wild) {
 		struct smb_filename *smb_fname = NULL;
 		const char *fullpath;
+		char tmpbuf[PATH_MAX];
+		char *to_free = NULL;
 
 		if (ISDOT(fsp->fsp_name->base_name)) {
 			fullpath = in_file_name;
 		} else {
-			fullpath = talloc_asprintf(state,
-					"%s/%s",
-					fsp->fsp_name->base_name,
-					in_file_name);
-		}
-		if (tevent_req_nomem(fullpath, req)) {
-			return tevent_req_post(req, ev);
+			size_t len;
+			char *tmp;
+
+			len = full_path_tos(
+				fsp->fsp_name->base_name, in_file_name,
+				tmpbuf, sizeof(tmpbuf), &tmp, &to_free);
+			if (len == -1) {
+				tevent_req_oom(req);
+				return tevent_req_post(req, ev);
+			}
+			fullpath = tmp;
 		}
 		status = filename_convert(state,
 				conn,
@@ -350,8 +357,9 @@ static struct tevent_req *smbd_smb2_find_send(TALLOC_CTX *mem_ctx,
 				&wcard_has_wild,
 				&smb_fname);
 
-		if (!NT_STATUS_IS_OK(status)) {
-			tevent_req_nterror(req, status);
+		TALLOC_FREE(to_free);
+
+		if (tevent_req_nterror(req, status)) {
 			return tevent_req_post(req, ev);
 		}
 
@@ -412,9 +420,9 @@ static struct tevent_req *smbd_smb2_find_send(TALLOC_CTX *mem_ctx,
 
 	DEBUG(8,("smbd_smb2_find_send: dirpath=<%s> dontdescend=<%s>, "
 		"in_output_buffer_length = %u\n",
-		fsp->fsp_name->base_name, lp_dontdescend(talloc_tos(), SNUM(conn)),
+		fsp->fsp_name->base_name, lp_dont_descend(talloc_tos(), SNUM(conn)),
 		(unsigned int)in_output_buffer_length ));
-	if (in_list(fsp->fsp_name->base_name,lp_dontdescend(talloc_tos(), SNUM(conn)),
+	if (in_list(fsp->fsp_name->base_name,lp_dont_descend(talloc_tos(), SNUM(conn)),
 			conn->case_sensitive)) {
 		dont_descend = true;
 	}
@@ -424,14 +432,12 @@ static struct tevent_req *smbd_smb2_find_send(TALLOC_CTX *mem_ctx,
 				     true);
 
 	while (true) {
-		bool ok;
 		bool got_exact_match = false;
-		bool out_of_space = false;
 		int space_remaining = in_output_buffer_length - off;
 
 		SMB_ASSERT(space_remaining >= 0);
 
-		ok = smbd_dirptr_lanman2_entry(state,
+		status = smbd_dirptr_lanman2_entry(state,
 					       conn,
 					       fsp->dptr,
 					       smbreq->flags2,
@@ -447,19 +453,24 @@ static struct tevent_req *smbd_smb2_find_send(TALLOC_CTX *mem_ctx,
 					       base_data,
 					       end_data,
 					       space_remaining,
-					       &out_of_space,
 					       &got_exact_match,
 					       &last_entry_off,
 					       NULL);
 
 		off = (int)PTR_DIFF(pdata, base_data);
 
-		if (!ok) {
-			if (num > 0) {
+		if (!NT_STATUS_IS_OK(status)) {
+			if (NT_STATUS_EQUAL(status, NT_STATUS_ILLEGAL_CHARACTER)) {
+				/*
+				 * Bad character conversion on name. Ignore this
+				 * entry.
+				 */
+				continue;
+			} else if (num > 0) {
 				SIVAL(state->out_output_buffer.data, last_entry_off, 0);
 				tevent_req_done(req);
 				return tevent_req_post(req, ev);
-			} else if (out_of_space) {
+			} else if (NT_STATUS_EQUAL(status, STATUS_MORE_ENTRIES)) {
 				tevent_req_nterror(req, NT_STATUS_INFO_LENGTH_MISMATCH);
 				return tevent_req_post(req, ev);
 			} else {

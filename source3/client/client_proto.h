@@ -38,15 +38,6 @@ NTSTATUS do_list(const char *mask,
 			bool dirs);
 int cmd_iosize(void);
 
-/* The following definitions come from client/clitar.c  */
-
-int cmd_block(void);
-int cmd_tarmode(void);
-int cmd_setmode(void);
-int cmd_tar(void);
-int process_tar(void);
-int tar_parseargs(int argc, char *argv[], const char *Optarg, int Optind);
-
 /* The following definitions come from client/dnsbrowse.c  */
 
 int do_smb_browse(void);

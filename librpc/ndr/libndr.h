@@ -123,6 +123,20 @@ struct ndr_print {
 #define LIBNDR_FLAG_STR_RAW8		(1<<13)
 #define LIBNDR_STRING_FLAGS		(0x7FFC)
 
+/*
+ * don't debug NDR_ERR_BUFSIZE failures,
+ * as the available buffer might be incomplete.
+ *
+ * return NDR_ERR_INCOMPLETE_BUFFER instead.
+ */
+#define LIBNDR_FLAG_INCOMPLETE_BUFFER (1<<16)
+
+/*
+ * This lets ndr_pull_subcontext_end() return
+ * NDR_ERR_UNREAD_BYTES.
+ */
+#define LIBNDR_FLAG_SUBCONTEXT_NO_UNREAD_BYTES (1<<17)
+
 /* set if relative pointers should *not* be marshalled in reverse order */
 #define LIBNDR_FLAG_NO_RELATIVE_REVERSE	(1<<18)
 
@@ -200,7 +214,8 @@ enum ndr_err_code {
 	NDR_ERR_INVALID_POINTER,
 	NDR_ERR_UNREAD_BYTES,
 	NDR_ERR_NDR64,
-	NDR_ERR_FLAGS
+	NDR_ERR_FLAGS,
+	NDR_ERR_INCOMPLETE_BUFFER
 };
 
 #define NDR_ERR_CODE_IS_SUCCESS(x) (x == NDR_ERR_SUCCESS)
@@ -259,6 +274,11 @@ enum ndr_compression_alg {
 
 #define NDR_PULL_NEED_BYTES(ndr, n) do { \
 	if (unlikely((n) > ndr->data_size || ndr->offset + (n) > ndr->data_size)) { \
+		if (ndr->flags & LIBNDR_FLAG_INCOMPLETE_BUFFER) { \
+			uint32_t _available = ndr->data_size - ndr->offset; \
+			uint32_t _missing = n - _available; \
+			ndr->relative_highest_offset = _missing; \
+		} \
 		return ndr_pull_error(ndr, NDR_ERR_BUFSIZE, "Pull bytes %u (%s)", (unsigned)n, __location__); \
 	} \
 } while(0)
@@ -275,6 +295,10 @@ enum ndr_compression_alg {
 		ndr->offset = (ndr->offset + (n-1)) & ~(n-1); \
 	} \
 	if (unlikely(ndr->offset > ndr->data_size)) {			\
+		if (ndr->flags & LIBNDR_FLAG_INCOMPLETE_BUFFER) { \
+			uint32_t _missing = ndr->offset - ndr->data_size; \
+			ndr->relative_highest_offset = _missing; \
+		} \
 		return ndr_pull_error(ndr, NDR_ERR_BUFSIZE, "Pull align %u", (unsigned)n); \
 	} \
 } while(0)
@@ -434,6 +458,8 @@ size_t ndr_size_dom_sid0(const struct dom_sid *sid, int flags);
 void ndr_print_GUID(struct ndr_print *ndr, const char *name, const struct GUID *guid);
 void ndr_print_sockaddr_storage(struct ndr_print *ndr, const char *name, const struct sockaddr_storage *ss);
 bool ndr_syntax_id_equal(const struct ndr_syntax_id *i1, const struct ndr_syntax_id *i2); 
+char *ndr_syntax_id_to_string(TALLOC_CTX *mem_ctx, const struct ndr_syntax_id *id);
+bool ndr_syntax_id_from_string(const char *s, struct ndr_syntax_id *id);
 enum ndr_err_code ndr_push_struct_blob(DATA_BLOB *blob, TALLOC_CTX *mem_ctx, const void *p, ndr_push_flags_fn_t fn);
 enum ndr_err_code ndr_push_union_blob(DATA_BLOB *blob, TALLOC_CTX *mem_ctx, void *p, uint32_t level, ndr_push_flags_fn_t fn);
 size_t ndr_size_struct(const void *p, int flags, ndr_push_flags_fn_t push);
@@ -456,6 +482,8 @@ enum ndr_err_code ndr_pull_relative_ptr2(struct ndr_pull *ndr, const void *p);
 enum ndr_err_code ndr_pull_relative_ptr_short(struct ndr_pull *ndr, uint16_t *v);
 size_t ndr_align_size(uint32_t offset, size_t n);
 struct ndr_pull *ndr_pull_init_blob(const DATA_BLOB *blob, TALLOC_CTX *mem_ctx);
+enum ndr_err_code ndr_pull_append(struct ndr_pull *ndr, DATA_BLOB *blob);
+enum ndr_err_code ndr_pull_pop(struct ndr_pull *ndr);
 enum ndr_err_code ndr_pull_advance(struct ndr_pull *ndr, uint32_t size);
 struct ndr_push *ndr_push_init_ctx(TALLOC_CTX *mem_ctx);
 DATA_BLOB ndr_push_blob(struct ndr_push *ndr);

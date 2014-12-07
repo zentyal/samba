@@ -25,6 +25,18 @@ struct smbXcli_session;
 struct cli_state;
 struct file_info;
 
+struct tevent_req *cli_smb2_create_fnum_send(TALLOC_CTX *mem_ctx,
+					     struct tevent_context *ev,
+					     struct cli_state *cli,
+					     const char *fname,
+					     uint32_t create_flags,
+					     uint32_t desired_access,
+					     uint32_t file_attributes,
+					     uint32_t share_access,
+					     uint32_t create_disposition,
+					     uint32_t create_options);
+NTSTATUS cli_smb2_create_fnum_recv(struct tevent_req *req, uint16_t *pfnum,
+				   struct smb_create_returns *cr);
 NTSTATUS cli_smb2_create_fnum(struct cli_state *cli,
 			const char *fname,
 			uint32_t create_flags,
@@ -36,6 +48,11 @@ NTSTATUS cli_smb2_create_fnum(struct cli_state *cli,
 			uint16_t *pfid,
 			struct smb_create_returns *cr);
 
+struct tevent_req *cli_smb2_close_fnum_send(TALLOC_CTX *mem_ctx,
+					    struct tevent_context *ev,
+					    struct cli_state *cli,
+					    uint16_t fnum);
+NTSTATUS cli_smb2_close_fnum_recv(struct tevent_req *req);
 NTSTATUS cli_smb2_close_fnum(struct cli_state *cli, uint16_t fnum);
 NTSTATUS cli_smb2_mkdir(struct cli_state *cli, const char *dirname);
 NTSTATUS cli_smb2_rmdir(struct cli_state *cli, const char *dirname);
@@ -100,9 +117,9 @@ NTSTATUS cli_smb2_setattrE(struct cli_state *cli,
                         time_t access_time,
                         time_t write_time);
 NTSTATUS cli_smb2_dskattr(struct cli_state *cli,
-			int *bsize,
-			int *total,
-			int *avail);
+			uint64_t *bsize,
+			uint64_t *total,
+			uint64_t *avail);
 NTSTATUS cli_smb2_query_security_descriptor(struct cli_state *cli,
 			uint16_t fnum,
 			uint32_t sec_info,

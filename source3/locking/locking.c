@@ -103,6 +103,7 @@ void init_strict_lock_struct(files_struct *fsp,
 
 bool strict_lock_default(files_struct *fsp, struct lock_struct *plock)
 {
+	struct byte_range_lock *br_lck;
 	int strict_locking = lp_strict_locking(fsp->conn->params);
 	bool ret = False;
 
@@ -115,50 +116,43 @@ bool strict_lock_default(files_struct *fsp, struct lock_struct *plock)
 	}
 
 	if (strict_locking == Auto) {
-		if  (EXCLUSIVE_OPLOCK_TYPE(fsp->oplock_type) && (plock->lock_type == READ_LOCK || plock->lock_type == WRITE_LOCK)) {
-			DEBUG(10,("is_locked: optimisation - exclusive oplock on file %s\n", fsp_str_dbg(fsp)));
-			ret = True;
-		} else if ((fsp->oplock_type == LEVEL_II_OPLOCK) &&
-			   (plock->lock_type == READ_LOCK)) {
-			DEBUG(10,("is_locked: optimisation - level II oplock on file %s\n", fsp_str_dbg(fsp)));
-			ret = True;
-		} else {
-			struct byte_range_lock *br_lck;
-
-			br_lck = brl_get_locks_readonly(fsp);
-			if (!br_lck) {
-				return True;
-			}
-			ret = brl_locktest(br_lck,
-					plock->context.smblctx,
-					plock->context.pid,
-					plock->start,
-					plock->size,
-					plock->lock_type,
-					plock->lock_flav);
+		if  (EXCLUSIVE_OPLOCK_TYPE(fsp->oplock_type) &&
+		     (plock->lock_type == READ_LOCK ||
+		      plock->lock_type == WRITE_LOCK)) {
+			DEBUG(10, ("is_locked: optimisation - exclusive oplock "
+				   "on file %s\n", fsp_str_dbg(fsp)));
+			return true;
 		}
-	} else {
-		struct byte_range_lock *br_lck;
-
-		br_lck = brl_get_locks_readonly(fsp);
-		if (!br_lck) {
-			return True;
+		if ((fsp->oplock_type == LEVEL_II_OPLOCK) &&
+		    (plock->lock_type == READ_LOCK)) {
+			DEBUG(10, ("is_locked: optimisation - level II oplock "
+				   "on file %s\n", fsp_str_dbg(fsp)));
+			return true;
 		}
-		ret = brl_locktest(br_lck,
-				plock->context.smblctx,
-				plock->context.pid,
-				plock->start,
-				plock->size,
-				plock->lock_type,
-				plock->lock_flav);
 	}
 
-	DEBUG(10,("strict_lock_default: flavour = %s brl start=%.0f "
-			"len=%.0f %s for fnum %llu file %s\n",
-			lock_flav_name(plock->lock_flav),
-			(double)plock->start, (double)plock->size,
-			ret ? "unlocked" : "locked",
-			(unsigned long long)plock->fnum, fsp_str_dbg(fsp)));
+	br_lck = brl_get_locks_readonly(fsp);
+	if (!br_lck) {
+		return true;
+	}
+	ret = brl_locktest(br_lck, plock);
+
+	if (!ret) {
+		/*
+		 * We got a lock conflict. Retry with rw locks to enable
+		 * autocleanup. This is the slow path anyway.
+		 */
+		br_lck = brl_get_locks(talloc_tos(), fsp);
+		ret = brl_locktest(br_lck, plock);
+		TALLOC_FREE(br_lck);
+	}
+
+	DEBUG(10, ("strict_lock_default: flavour = %s brl start=%ju "
+		   "len=%ju %s for fnum %ju file %s\n",
+		   lock_flav_name(plock->lock_flav),
+		   (uintmax_t)plock->start, (uintmax_t)plock->size,
+		   ret ? "unlocked" : "locked",
+		   (uintmax_t)plock->fnum, fsp_str_dbg(fsp)));
 
 	return ret;
 }
@@ -243,8 +237,7 @@ struct byte_range_lock *do_lock(struct messaging_context *msg_ctx,
 			enum brl_flavour lock_flav,
 			bool blocking_lock,
 			NTSTATUS *perr,
-			uint64_t *psmblctx,
-			struct blocking_lock_record *blr)
+			uint64_t *psmblctx)
 {
 	struct byte_range_lock *br_lck = NULL;
 
@@ -266,10 +259,10 @@ struct byte_range_lock *do_lock(struct messaging_context *msg_ctx,
 
 	/* NOTE! 0 byte long ranges ARE allowed and should be stored  */
 
-	DEBUG(10,("do_lock: lock flavour %s lock type %s start=%.0f len=%.0f "
+	DEBUG(10,("do_lock: lock flavour %s lock type %s start=%ju len=%ju "
 		"blocking_lock=%s requested for %s file %s\n",
 		lock_flav_name(lock_flav), lock_type_name(lock_type),
-		(double)offset, (double)count, blocking_lock ? "true" :
+		(uintmax_t)offset, (uintmax_t)count, blocking_lock ? "true" :
 		"false", fsp_fnum_dbg(fsp), fsp_str_dbg(fsp)));
 
 	br_lck = brl_get_locks(talloc_tos(), fsp);
@@ -287,8 +280,7 @@ struct byte_range_lock *do_lock(struct messaging_context *msg_ctx,
 			lock_type,
 			lock_flav,
 			blocking_lock,
-			psmblctx,
-			blr);
+			psmblctx);
 
 	DEBUG(10, ("do_lock: returning status=%s\n", nt_errstr(*perr)));
 
@@ -318,9 +310,9 @@ NTSTATUS do_unlock(struct messaging_context *msg_ctx,
 		return NT_STATUS_OK;
 	}
 
-	DEBUG(10,("do_unlock: unlock start=%.0f len=%.0f requested for %s file %s\n",
-		  (double)offset, (double)count, fsp_fnum_dbg(fsp),
-		  fsp_str_dbg(fsp)));
+	DEBUG(10, ("do_unlock: unlock start=%ju len=%ju requested for %s file "
+		   "%s\n", (uintmax_t)offset, (uintmax_t)count,
+		   fsp_fnum_dbg(fsp), fsp_str_dbg(fsp)));
 
 	br_lck = brl_get_locks(talloc_tos(), fsp);
 	if (!br_lck) {
@@ -354,8 +346,7 @@ NTSTATUS do_lock_cancel(files_struct *fsp,
 			uint64 smblctx,
 			uint64_t count,
 			uint64_t offset,
-			enum brl_flavour lock_flav,
-			struct blocking_lock_record *blr)
+			enum brl_flavour lock_flav)
 {
 	bool ok = False;
 	struct byte_range_lock *br_lck = NULL;
@@ -369,9 +360,9 @@ NTSTATUS do_lock_cancel(files_struct *fsp,
 		return NT_STATUS_DOS(ERRDOS, ERRcancelviolation);
 	}
 
-	DEBUG(10,("do_lock_cancel: cancel start=%.0f len=%.0f requested for %s file %s\n",
-		  (double)offset, (double)count, fsp_fnum_dbg(fsp),
-		  fsp_str_dbg(fsp)));
+	DEBUG(10, ("do_lock_cancel: cancel start=%ju len=%ju requested for "
+		   "%s file %s\n", (uintmax_t)offset, (uintmax_t)count,
+		   fsp_fnum_dbg(fsp), fsp_str_dbg(fsp)));
 
 	br_lck = brl_get_locks(talloc_tos(), fsp);
 	if (!br_lck) {
@@ -383,8 +374,7 @@ NTSTATUS do_lock_cancel(files_struct *fsp,
 			messaging_server_id(fsp->conn->sconn->msg_ctx),
 			offset,
 			count,
-			lock_flav,
-			blr);
+			lock_flav);
 
 	TALLOC_FREE(br_lck);
 
@@ -411,7 +401,7 @@ void locking_close_file(struct messaging_context *msg_ctx,
 		return;
 	}
 
-	/* If we have not outstanding locks or pending
+	/* If we have no outstanding locks or pending
 	 * locks then we don't need to look in the lock db.
 	 */
 
@@ -468,6 +458,7 @@ struct share_mode_lock *get_existing_share_mode_lock(TALLOC_CTX *mem_ctx,
 
 bool rename_share_filename(struct messaging_context *msg_ctx,
 			struct share_mode_lock *lck,
+			struct file_id id,
 			const char *servicepath,
 			uint32_t orig_name_hash,
 			uint32_t new_name_hash,
@@ -523,7 +514,7 @@ bool rename_share_filename(struct messaging_context *msg_ctx,
 		return False;
 	}
 
-	push_file_id_24(frm, &d->id);
+	push_file_id_24(frm, &id);
 
 	DEBUG(10,("rename_share_filename: msg_len = %u\n", (unsigned int)msg_len ));
 
@@ -565,7 +556,7 @@ bool rename_share_filename(struct messaging_context *msg_ctx,
 			  "pid %s file_id %s sharepath %s base_name %s "
 			  "stream_name %s\n",
 			  procid_str_static(&se->pid),
-			  file_id_string_tos(&d->id),
+			  file_id_string_tos(&id),
 			  d->servicepath, d->base_name,
 			has_stream ? d->stream_name : ""));
 
@@ -600,14 +591,7 @@ void get_file_infos(struct file_id id,
 	}
 
 	if (write_time) {
-		struct timespec wt;
-
-		wt = lck->data->changed_write_time;
-		if (null_timespec(wt)) {
-			wt = lck->data->old_write_time;
-		}
-
-		*write_time = wt;
+		*write_time = get_share_mode_write_time(lck);
 	}
 
 	TALLOC_FREE(lck);
@@ -636,7 +620,7 @@ bool is_valid_share_mode_entry(const struct share_mode_entry *e)
  * being used, we need to make sure the corresponding process still
  * exists.
  */
-bool share_mode_stale_pid(struct share_mode_data *d, unsigned idx)
+bool share_mode_stale_pid(struct share_mode_data *d, uint32_t idx)
 {
 	struct share_mode_entry *e;
 
@@ -646,6 +630,12 @@ bool share_mode_stale_pid(struct share_mode_data *d, unsigned idx)
 		return false;
 	}
 	e = &d->share_modes[idx];
+	if (e->stale) {
+		/*
+		 * Checked before
+		 */
+		return true;
+	}
 	if (serverid_exists(&e->pid)) {
 		DEBUG(10, ("PID %s (index %u out of %u) still exists\n",
 			   procid_str_static(&e->pid), idx,
@@ -687,14 +677,38 @@ bool share_mode_stale_pid(struct share_mode_data *d, unsigned idx)
 	return true;
 }
 
-/*******************************************************************
- Fill a share mode entry.
-********************************************************************/
-
-static void fill_share_mode_entry(struct share_mode_entry *e,
-				  files_struct *fsp,
-				  uid_t uid, uint64_t mid, uint16 op_type)
+void remove_stale_share_mode_entries(struct share_mode_data *d)
 {
+	uint32_t i;
+
+	i = 0;
+	while (i < d->num_share_modes) {
+		if (d->share_modes[i].stale) {
+			struct share_mode_entry *m = d->share_modes;
+			m[i] = m[d->num_share_modes-1];
+			d->num_share_modes -= 1;
+		} else {
+			i += 1;
+		}
+	}
+}
+
+bool set_share_mode(struct share_mode_lock *lck, files_struct *fsp,
+		    uid_t uid, uint64_t mid, uint16 op_type)
+{
+	struct share_mode_data *d = lck->data;
+	struct share_mode_entry *tmp, *e;
+
+	tmp = talloc_realloc(d, d->share_modes, struct share_mode_entry,
+			     d->num_share_modes+1);
+	if (tmp == NULL) {
+		return false;
+	}
+	d->share_modes = tmp;
+	e = &d->share_modes[d->num_share_modes];
+	d->num_share_modes += 1;
+	d->modified = true;
+
 	ZERO_STRUCTP(e);
 	e->pid = messaging_server_id(fsp->conn->sconn->msg_ctx);
 	e->share_access = fsp->share_access;
@@ -709,55 +723,35 @@ static void fill_share_mode_entry(struct share_mode_entry *e,
 	e->uid = (uint32)uid;
 	e->flags = fsp->posix_open ? SHARE_MODE_FLAG_POSIX_OPEN : 0;
 	e->name_hash = fsp->name_hash;
+
+	return true;
 }
 
-static void add_share_mode_entry(struct share_mode_data *d,
-				 const struct share_mode_entry *entry)
+static struct share_mode_entry *find_share_mode_entry(
+	struct share_mode_lock *lck, files_struct *fsp)
 {
-	ADD_TO_ARRAY(d, struct share_mode_entry, *entry,
-		     &d->share_modes, &d->num_share_modes);
-	d->modified = True;
-}
-
-void set_share_mode(struct share_mode_lock *lck, files_struct *fsp,
-		    uid_t uid, uint64_t mid, uint16 op_type)
-{
-	struct share_mode_entry entry;
-	fill_share_mode_entry(&entry, fsp, uid, mid, op_type);
-	add_share_mode_entry(lck->data, &entry);
-}
-
-/*******************************************************************
- Check if two share mode entries are identical, ignoring oplock 
- and mid info and desired_access. (Removed paranoia test - it's
- not automatically a logic error if they are identical. JRA.)
-********************************************************************/
-
-static bool share_modes_identical(struct share_mode_entry *e1,
-				  struct share_mode_entry *e2)
-{
-	/* We used to check for e1->share_access == e2->share_access here
-	   as well as the other fields but 2 different DOS or FCB opens
-	   sharing the same share mode entry may validly differ in
-	   fsp->share_access field. */
-
-	return (serverid_equal(&e1->pid, &e2->pid) &&
-		file_id_equal(&e1->id, &e2->id) &&
-		e1->share_file_id == e2->share_file_id );
-}
-
-static struct share_mode_entry *find_share_mode_entry(struct share_mode_data *d,
-						      struct share_mode_entry *entry)
-{
+	struct share_mode_data *d = lck->data;
+	struct server_id pid;
 	int i;
+
+	pid = messaging_server_id(fsp->conn->sconn->msg_ctx);
 
 	for (i=0; i<d->num_share_modes; i++) {
 		struct share_mode_entry *e = &d->share_modes[i];
-		if (is_valid_share_mode_entry(entry) &&
-		    is_valid_share_mode_entry(e) &&
-		    share_modes_identical(e, entry)) {
-			return e;
+
+		if (!is_valid_share_mode_entry(e)) {
+			continue;
 		}
+		if (!serverid_equal(&pid, &e->pid)) {
+			continue;
+		}
+		if (!file_id_equal(&fsp->file_id, &e->id)) {
+			continue;
+		}
+		if (fsp->fh->gen_id != e->share_file_id) {
+			continue;
+		}
+		return e;
 	}
 	return NULL;
 }
@@ -769,12 +763,9 @@ static struct share_mode_entry *find_share_mode_entry(struct share_mode_data *d,
 
 bool del_share_mode(struct share_mode_lock *lck, files_struct *fsp)
 {
-	struct share_mode_entry entry, *e;
+	struct share_mode_entry *e;
 
-	/* Don't care about the pid owner being correct here - just a search. */
-	fill_share_mode_entry(&entry, fsp, (uid_t)-1, 0, NO_OPLOCK);
-
-	e = find_share_mode_entry(lck->data, &entry);
+	e = find_share_mode_entry(lck, fsp);
 	if (e == NULL) {
 		return False;
 	}
@@ -787,7 +778,7 @@ bool del_share_mode(struct share_mode_lock *lck, files_struct *fsp)
 bool mark_share_mode_disconnected(struct share_mode_lock *lck,
 				  struct files_struct *fsp)
 {
-	struct share_mode_entry entry, *e;
+	struct share_mode_entry *e;
 
 	if (lck->data->num_share_modes != 1) {
 		return false;
@@ -800,10 +791,7 @@ bool mark_share_mode_disconnected(struct share_mode_lock *lck,
 		return false;
 	}
 
-	/* Don't care about the pid owner being correct here - just a search. */
-	fill_share_mode_entry(&entry, fsp, (uid_t)-1, 0, NO_OPLOCK);
-
-	e = find_share_mode_entry(lck->data, &entry);
+	e = find_share_mode_entry(lck, fsp);
 	if (e == NULL) {
 		return false;
 	}
@@ -828,29 +816,14 @@ bool mark_share_mode_disconnected(struct share_mode_lock *lck,
 
 bool remove_share_oplock(struct share_mode_lock *lck, files_struct *fsp)
 {
-	struct share_mode_entry entry, *e;
+	struct share_mode_entry *e;
 
-	/* Don't care about the pid owner being correct here - just a search. */
-	fill_share_mode_entry(&entry, fsp, (uid_t)-1, 0, NO_OPLOCK);
-
-	e = find_share_mode_entry(lck->data, &entry);
+	e = find_share_mode_entry(lck, fsp);
 	if (e == NULL) {
 		return False;
 	}
 
-	if (EXCLUSIVE_OPLOCK_TYPE(e->op_type)) {
-		/*
-		 * Going from exclusive or batch,
- 		 * we always go through FAKE_LEVEL_II
- 		 * first.
- 		 */
-		if (!EXCLUSIVE_OPLOCK_TYPE(fsp->oplock_type)) {
-			smb_panic("remove_share_oplock: logic error");
-		}
-		e->op_type = FAKE_LEVEL_II_OPLOCK;
-	} else {
-		e->op_type = NO_OPLOCK;
-	}
+	e->op_type = NO_OPLOCK;
 	lck->data->modified = True;
 	return True;
 }
@@ -861,12 +834,9 @@ bool remove_share_oplock(struct share_mode_lock *lck, files_struct *fsp)
 
 bool downgrade_share_oplock(struct share_mode_lock *lck, files_struct *fsp)
 {
-	struct share_mode_entry entry, *e;
+	struct share_mode_entry *e;
 
-	/* Don't care about the pid owner being correct here - just a search. */
-	fill_share_mode_entry(&entry, fsp, (uid_t)-1, 0, NO_OPLOCK);
-
-	e = find_share_mode_entry(lck->data, &entry);
+	e = find_share_mode_entry(lck, fsp);
 	if (e == NULL) {
 		return False;
 	}
@@ -1101,4 +1071,14 @@ bool set_write_time(struct file_id fileid, struct timespec write_time)
 
 	TALLOC_FREE(lck);
 	return True;
+}
+
+struct timespec get_share_mode_write_time(struct share_mode_lock *lck)
+{
+	struct share_mode_data *d = lck->data;
+
+	if (!null_timespec(d->changed_write_time)) {
+		return d->changed_write_time;
+	}
+	return d->old_write_time;
 }

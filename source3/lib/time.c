@@ -172,7 +172,7 @@ void put_long_date_timespec(enum timestamp_set_resolution res, char *p, struct t
 {
 	NTTIME nt;
 	round_timespec(res, &ts);
-	unix_timespec_to_nt_time(&nt, ts);
+	nt = unix_timespec_to_nt_time(ts);
 	SBVAL(p, 0, nt);
 }
 
@@ -243,14 +243,14 @@ time_t srv_make_unix_date3(const void *date_ptr)
 struct timespec interpret_long_date(const char *p)
 {
 	NTTIME nt;
-	nt = IVAL(p,0) + ((uint64_t)IVAL(p,4) << 32);
+	nt = BVAL(p, 0);
 	if (nt == (uint64_t)-1) {
 		struct timespec ret;
 		ret.tv_sec = (time_t)-1;
 		ret.tv_nsec = 0;
 		return ret;
 	}
-	return nt_time_to_unix_timespec(&nt);
+	return nt_time_to_unix_timespec(nt);
 }
 
 /*******************************************************************

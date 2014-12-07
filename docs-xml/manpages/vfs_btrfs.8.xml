@@ -7,7 +7,7 @@
 	<manvolnum>8</manvolnum>
 	<refmiscinfo class="source">Samba</refmiscinfo>
 	<refmiscinfo class="manual">System Administration tools</refmiscinfo>
-	<refmiscinfo class="version">4.0</refmiscinfo>
+	<refmiscinfo class="version">4.2</refmiscinfo>
 </refmeta>
 
 
@@ -43,6 +43,11 @@
 		module maps the request to a Btrfs clone range IOCTL, instead
 		of performing reads and writes required by a traditional copy.
 		Doing so saves storage capacity and greatly reduces disk IO.
+	</para>
+
+	<para>
+		This module also exposes Btrfs per-file compression support to
+		SMB clients via the get/set compression fsctls.
 	</para>
 
 	<para>

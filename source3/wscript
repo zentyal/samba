@@ -23,7 +23,7 @@ def set_options(opt):
                    action="store", dest='shared_modules', default=None)
 
     opt.SAMBA3_ADD_OPTION('winbind')
-    opt.SAMBA3_ADD_OPTION('ads', default=None) # None means autodetection
+    opt.SAMBA3_ADD_OPTION('ads')
     opt.SAMBA3_ADD_OPTION('ldap')
     opt.SAMBA3_ADD_OPTION('cups', with_name="enable", without_name="disable")
     opt.SAMBA3_ADD_OPTION('iprint', with_name="enable", without_name="disable")
@@ -43,10 +43,14 @@ def set_options(opt):
     opt.SAMBA3_ADD_OPTION('dmapi', default=None) # None means autodetection
     opt.SAMBA3_ADD_OPTION('fam', default=None) # None means autodetection
     opt.SAMBA3_ADD_OPTION('profiling-data', default=False)
+    opt.SAMBA3_ADD_OPTION('libarchive', default=None)
 
     opt.SAMBA3_ADD_OPTION('cluster-support', default=None)
 
     opt.SAMBA3_ADD_OPTION('regedit', default=None)
+
+    opt.SAMBA3_ADD_OPTION('fake-kaserver',
+                          help=("Include AFS fake-kaserver support"), default=False)
 
     opt.add_option('--with-ctdb-dir',
                    help=("Directory under which ctdb is installed"),
@@ -60,6 +64,10 @@ def set_options(opt):
                    action="store", dest='libcephfs_dir', default=None)
 
     opt.SAMBA3_ADD_OPTION('glusterfs', with_name="enable", without_name="disable", default=True)
+
+    opt.add_option('--enable-vxfs',
+                  help=("enable support for VxFS (default=no)"),
+                  action="store_true", dest='enable_vxfs', default=False)
 
 
 def configure(conf):
@@ -104,9 +112,6 @@ def configure(conf):
     conf.CHECK_FUNCS_IN('dn_expand', 'inet')
     conf.CHECK_DECLS('fdatasync', reverse=True)
     conf.CHECK_DECLS('readahead', reverse=True, headers='fcntl.h')
-
-    if conf.CONFIG_SET('HAVE_LONG_LONG'):
-        conf.DEFINE('HAVE_LONGLONG', 1)
 
     if conf.CHECK_CODE('''
 #if defined(HAVE_UNISTD_H)
@@ -192,6 +197,17 @@ main() {
             conf.fatal('FAM support requested, but no suitable FAM library found')
         elif check_for_fam:
             Logs.warn('no suitable FAM library found')
+
+    # check for libarchive (tar command in smbclient)
+    # None means autodetect, True/False means enable/disable
+    conf.env['archive_lib'] = ''
+    if Options.options.with_libarchive is not False:
+        libarchive_mandatory = Options.options.with_libarchive == True
+        Logs.info("Checking for libarchive existence")
+        if conf.CHECK_BUNDLED_SYSTEM('libarchive', minversion='3.1.2'):
+            conf.env['archive_lib'] = 'libarchive'
+        elif libarchive_mandatory:
+            conf.fatal('libarchive support requested, but no suitable pkgconfig found')
 
     # check for DMAPI libs
     if Options.options.with_dmapi == False:
@@ -281,18 +297,20 @@ int main(int argc, char **argv)
                                 headers='sys/types.h sys/stat.h unistd.h')
 
     if "HAVE_BLKCNT_T" in conf.env:
-	conf.CHECK_CODE('''
-	return sizeof(blkcnt_t) == 4 ? 0 : 1''',
-		'SIZEOF_BLKCNT_T_4', execute=True,
-		headers='replace.h sys/types.h sys/stat.h unistd.h',
-		msg="Checking whether blkcnt_t is 32 bit")
+        conf.CHECK_CODE('''
+        static int test_array[1 - 2 * !(((long int)(sizeof(blkcnt_t))) <= 4)];''',
+                'SIZEOF_BLKCNT_T_4',
+                headers='replace.h sys/types.h sys/stat.h unistd.h',
+                msg="Checking whether blkcnt_t is 32 bit")
 
+    # If sizeof is 4 it can't be 8
     if "HAVE_BLKCNT_T" in conf.env:
-	conf.CHECK_CODE('''
-	return sizeof(blkcnt_t) == 8 ? 0 : 1''',
-		'SIZEOF_BLKCNT_T_8', execute=True,
-		headers='replace.h sys/types.h sys/stat.h unistd.h',
-		msg="Checking whether blkcnt_t is 64 bit")
+        if not conf.CONFIG_SET('SIZEOF_BLKCNT_T_4'):
+            conf.CHECK_CODE('''
+            static int test_array[1 - 2 * !(((long int)(sizeof(blkcnt_t))) <= 8)];''',
+                    'SIZEOF_BLKCNT_T_8',
+                    headers='replace.h sys/types.h sys/stat.h unistd.h',
+                    msg="Checking whether blkcnt_t is 64 bit")
 
     # Check for POSIX capability support
     conf.CHECK_FUNCS_IN('cap_get_proc', 'cap', headers='sys/capability.h')
@@ -402,7 +420,7 @@ utimensat vsyslog _write __write __xstat
         conf.DEFINE('FREEBSD', 1)
         if conf.CHECK_HEADERS('sunacl.h'):
             conf.DEFINE('HAVE_FREEBSD_SUNACL_H', '1')
-            conf.CHECK_FUNCS_IN('acl', 'sunacl')
+            conf.CHECK_FUNCS_IN(['acl'], 'sunacl')
         conf.DEFINE('STAT_ST_BLOCKSIZE', '512')
     elif (host_os.rfind('irix') > -1):
         conf.DEFINE('IRIX', 1)
@@ -422,15 +440,7 @@ utimensat vsyslog _write __write __xstat
         conf.DEFINE('STAT_ST_BLOCKSIZE', '512')
 
     if Options.options.with_acl_support:
-	if (host_os.rfind('sysv5') > -1) and conf.CHECK_FUNCS_IN('sec', 'facl', checklibc=True):
-		Logs.info('Using UnixWare ACLs')
-                conf.DEFINE('HAVE_UNIXWARE_ACLS',1)
-                default_static_modules.extend(TO_LIST('vfs_solarisacl'))
-	elif (host_os.rfind('solaris') > -1) and conf.CHECK_FUNCS_IN('sec', 'facl'):
-		Logs.info('Using solaris ACLs')
-                conf.DEFINE('HAVE_SOLARIS_ACLS',1)
-                default_static_modules.extend(TO_LIST('vfs_solarisacl'))
-	elif (host_os.rfind('hpux') > -1):
+        if (host_os.rfind('hpux') > -1):
 		Logs.info('Using HPUX ACLs')
                 conf.DEFINE('HAVE_HPUX_ACLS',1)
                 conf.DEFINE('POSIX_ACL_NEEDS_MASK',1)
@@ -439,14 +449,15 @@ utimensat vsyslog _write __write __xstat
 		Logs.info('Using AIX ACLs')
                 conf.DEFINE('HAVE_AIX_ACLS',1)
                 default_static_modules.extend(TO_LIST('vfs_aixacl vfs_aixacl2'))
-	elif (host_os.rfind('osf') > -1) and conf.CHECK_FUNCS_IN('pacl', 'acl_get_fd'):
-		Logs.info('Using Tru64 ACLs')
-                conf.DEFINE('HAVE_TRU64_ACLS',1)
-                default_static_modules.extend(TO_LIST('vfs_tru64acl'))
         elif (host_os.rfind('darwin') > -1):
-            Logs.warn('ACLs on Dwarwin currently not supported')
+            Logs.warn('ACLs on Darwin currently not supported')
+            conf.fatal("ACL support not available on Darwin/MacOS. "
+                       "Use --without-acl-support for building without "
+                       "ACL support. "
+                       "ACL support is required to change permissions "
+                       "from Windows clients.")
         else:
-            conf.CHECK_FUNCS_IN('acl_get_file', 'acl')
+            conf.CHECK_FUNCS_IN(['acl_get_file'], 'acl')
             if conf.CHECK_CODE('''
 acl_t acl;
 int entry_id;
@@ -465,7 +476,21 @@ return acl_get_perm_np(permset_d, perm);
                         headers='sys/types.h sys/acl.h', link=True,
                         msg="Checking whether acl_get_perm_np() is available")
                 default_static_modules.extend(TO_LIST('vfs_posixacl'))
-
+            elif conf.CHECK_FUNCS_IN(['facl'], 'sec'):
+                Logs.info('Using solaris or UnixWare ACLs')
+                conf.DEFINE('HAVE_SOLARIS_UNIXWARE_ACLS',1)
+                default_static_modules.extend(TO_LIST('vfs_solarisacl'))
+            elif conf.CHECK_FUNCS_IN(['acl_get_fd'], 'pacl'):
+                Logs.info('Using Tru64 ACLs')
+                conf.DEFINE('HAVE_TRU64_ACLS',1)
+                default_static_modules.extend(TO_LIST('vfs_tru64acl'))
+            else:
+                conf.fatal("ACL support not found. Try installing libacl1-dev "
+                           "or libacl-devel.  "
+                           "Otherwise, use --without-acl-support to build "
+                           "without ACL support. "
+                           "ACL support is required to change permissions from "
+                           "Windows clients.")
 
     if conf.CHECK_FUNCS('dirfd'):
         conf.DEFINE('HAVE_DIRFD_DECL', 1)
@@ -547,17 +572,17 @@ union {
 msg.msg_control = control_un.control;
 msg.msg_controllen = sizeof(control_un.control);
 ''',
-        'HAVE_MSGHDR_MSG_CONTROL',
+        'HAVE_STRUCT_MSGHDR_MSG_CONTROL',
         msg='Checking if we can use msg_control for passing file descriptors',
         headers='sys/types.h stdlib.h stddef.h sys/socket.h sys/un.h')
     conf.CHECK_CODE('''
 struct msghdr msg;
 int fd;
-msg.msg_acctrights = (caddr_t) &fd;
-msg.msg_acctrightslen = sizeof(fd);
+msg.msg_accrights = (caddr_t) &fd;
+msg.msg_accrightslen = sizeof(fd);
 ''',
-        'HAVE_MSGHDR_MSG_ACCTRIGHTS',
-        msg='Checking if we can use msg_acctrights for passing file descriptors',
+        'HAVE_STRUCT_MSGHDR_MSG_ACCRIGHTS',
+        msg='Checking if we can use msg_accrights for passing file descriptors',
         headers='sys/types.h stdlib.h stddef.h sys/socket.h sys/un.h')
 
     if Options.options.with_winbind:
@@ -565,7 +590,6 @@ msg.msg_acctrightslen = sizeof(fd);
         conf.DEFINE('WITH_WINBIND', '1')
 
     conf.find_program('awk', var='AWK')
-    conf.find_program('perl', var='PERL')
 
     conf.CHECK_HEADERS('asm/types.h')
 
@@ -664,6 +688,15 @@ msg.msg_acctrightslen = sizeof(fd);
             if conf.CONFIG_SET('HAVE_BER_SOCKBUF_ADD_IO') and \
                     conf.CONFIG_SET('HAVE_LDAP_OPT_SOCKBUF'):
                 conf.DEFINE('HAVE_LDAP_SASL_WRAPPING', '1')
+        else:
+            conf.fatal("LDAP support not found. "
+                       "Try installing libldap2-dev or openldap-devel. "
+                       "Otherwise, use --without-ldap to build without "
+                       "LDAP support. "
+                       "LDAP support is required for the LDAP passdb backend, "
+                       "LDAP idmap backends and ADS. "
+                       "ADS support improves communication with "
+                       "Active Directory domain controllers.")
     else:
         conf.SET_TARGET_TYPE('ldap', 'EMPTY')
         conf.SET_TARGET_TYPE('lber', 'EMPTY')
@@ -762,9 +795,12 @@ msg.msg_acctrightslen = sizeof(fd);
         if not use_ads_krb5:
             Logs.warn("Active Directory support not available: krb5 libs don't have all required features")
         if not use_ads_ldap:
-            Logs.warn("Active Directory support not available: LDAP support ist not available.")
+            Logs.warn("Active Directory support not available: LDAP support is not available.")
         if Options.options.with_ads:
-            conf.fatal("Active Directory support not found. Use --without-ads for building without Active Directory support.")
+            conf.fatal("Active Directory support not found. Use --without-ads "
+                       "for building without Active Directory support. "
+                       "ADS support improves communication with "
+                       "Active Directory domain controllers.")
         else:
             # this is the auto-mode case
             Logs.warn("Building without Active Directory support.")
@@ -798,7 +834,7 @@ msg.msg_acctrightslen = sizeof(fd);
                         'PUTUTLINE_RETURNS_UTMP', headers='utmp.h',
                         msg="Checking whether pututline returns pointer")
         conf.CHECK_SIZEOF(['((struct utmp *)NULL)->ut_line'], headers='utmp.h',
-                          define='SIZEOF_UTMP_UT_LINE')
+                          define='SIZEOF_UTMP_UT_LINE', critical=False)
         if not conf.CONFIG_SET('SIZEOF_UTMP_UT_LINE'):
             conf.env.with_utmp = False
         elif int(conf.env.SIZEOF_UTMP_UT_LINE) < 15:
@@ -1423,8 +1459,9 @@ main() {
 
     else:
 
-        if Options.options.ctdb_dir:
-            conf.ADD_EXTRA_INCLUDES(Options.options.ctdb_dir + '/include')
+        have_cluster_support = True
+        ctdb_broken = ""
+        CTDB_CFLAGS = ""
 
         srcdir = os.path.realpath(conf.srcdir)
         if 'EXTRA_INCLUDES' in conf.env:
@@ -1432,16 +1469,19 @@ main() {
         else:
             includes = ''
 
+        if Options.options.ctdb_dir:
+            CTDB_INCLUDE = Options.options.ctdb_dir + '/include'
+        else:
+            CTDB_INCLUDE = conf.srcdir + '/ctdb/include'
+        includes = includes + ' ' + CTDB_INCLUDE
+
         if not conf.env.USING_SYSTEM_TDB:
             includes = includes + ' ' + srcdir + '/lib/tdb/include'
 
         if not conf.env.USING_SYSTEM_TALLOC:
             includes = includes + ' ' + srcdir + '/lib/talloc'
 
-        have_cluster_support = True
-        ctdb_broken = ""
-
-        conf.CHECK_CODE('''
+        ok = conf.CHECK_CODE('''
             #define NO_CONFIG_H
             #include "replace.h"
             #include "system/wait.h"
@@ -1456,17 +1496,19 @@ main() {
                 return 0;
             }
             ''',
-            'HAVE_CTDB_H',
+            'HAVE_CTDB_CHECK_CODE',
             addmain=False,
             includes=includes,
             msg='Checking for header ctdb.h')
-
-        if not conf.CONFIG_SET('HAVE_CTDB_H'):
+        if ok:
+            CTDB_CFLAGS += ' -DHAVE_CTDB_H=1'
+        else:
             have_cluster_support = False
             ctdb_broken = "ctdb.h is required for cluster support"
 
+        conf.CONFIG_RESET('HAVE_CTDB_CHECK_CODE')
         if have_cluster_support:
-            conf.CHECK_CODE('''
+            ok = conf.CHECK_CODE('''
                 #define NO_CONFIG_H
                 #include "replace.h"
                 #include "system/wait.h"
@@ -1482,17 +1524,19 @@ main() {
                     return 0;
                 }
                 ''',
-                'HAVE_CTDB_PRIVATE_H',
+                'HAVE_CTDB_CHECK_CODE',
                 addmain=False,
                 includes=includes,
                 msg='Checking for header ctdb_private.h')
-
-            if not conf.CONFIG_SET('HAVE_CTDB_PRIVATE_H'):
+            if ok:
+                CTDB_CFLAGS += ' -DHAVE_CTDB_PRIVATE_H=1'
+            else:
                 have_cluster_support = False
                 ctdb_broken = "ctdb_private.h is required for cluster support"
 
+        conf.CONFIG_RESET('HAVE_CTDB_CHECK_CODE')
         if have_cluster_support:
-            conf.CHECK_CODE('''
+            ok = conf.CHECK_CODE('''
                 #define NO_CONFIG_H
                 #include "replace.h"
                 #include "system/wait.h"
@@ -1508,13 +1552,16 @@ main() {
                     return 0;
                 }
                 ''',
-                'HAVE_CTDB_PROTOCOL_H',
+                'HAVE_CTDB_CHECK_CODE',
                 addmain=False,
                 includes=includes,
                 msg='Checking for header ctdb_protocol.h')
+            if ok:
+                CTDB_CFLAGS += ' -DHAVE_CTDB_PROTOCOL_H=1'
 
+        conf.CONFIG_RESET('HAVE_CTDB_CHECK_CODE')
         if have_cluster_support:
-            conf.CHECK_CODE('''
+            ok = conf.CHECK_CODE('''
                 #define NO_CONFIG_H
                 #include "replace.h"
                 #include "system/wait.h"
@@ -1530,17 +1577,19 @@ main() {
                    return 0;
                 }
                 ''',
-                'HAVE_CTDB_CONTROL_TRANS3_COMMIT_DECL',
+                'HAVE_CTDB_CHECK_CODE',
                 addmain=False,
                 includes=includes,
                 msg='Checking for transaction support (TRANS3_COMMIT control)')
-
-            if not conf.CONFIG_SET('HAVE_CTDB_CONTROL_TRANS3_COMMIT_DECL'):
+            if ok:
+                CTDB_CFLAGS += ' -DHAVE_CTDB_CONTROL_TRANS3_COMMIT_DECL=1'
+            else:
                 have_cluster_support = False
                 ctdb_broken = "ctdb transaction support missing or too old"
 
+        conf.CONFIG_RESET('HAVE_CTDB_CHECK_CODE')
         if have_cluster_support:
-            conf.CHECK_CODE('''
+            ok = conf.CHECK_CODE('''
                 #define NO_CONFIG_H
                 #include "replace.h"
                 #include "system/wait.h"
@@ -1556,20 +1605,22 @@ main() {
                     return 0;
                 }
                 ''',
-                'HAVE_CTDB_CONTROL_SCHEDULE_FOR_DELETION_DECL',
+                'HAVE_CTDB_CHECK_CODE',
                 addmain=False,
                 includes=includes,
                 msg='Checking for SCHEDULE_FOR_DELETION control')
-
-            if not conf.CONFIG_SET('HAVE_CTDB_CONTROL_SCHEDULE_FOR_DELETION_DECL'):
+            if ok:
+                CTDB_CFLAGS += ' -DHAVE_CTDB_CONTROL_SCHEDULE_FOR_DELETION_DECL=1'
+            else:
                 if not Options.options.enable_old_ctdb:
                     have_cluster_support = False
                     ctdb_broken = "SCHEDULE_FOR_DELETION control missing"
                 else:
                     Logs.warn("ignoring missing SCHEDULE_FOR_DELETION control (--enable-old-ctdb)")
 
+        conf.CONFIG_RESET('HAVE_CTDB_CHECK_CODE')
         if have_cluster_support:
-            conf.CHECK_CODE('''
+            ok = conf.CHECK_CODE('''
                #define NO_CONFIG_H
                #include "replace.h"
                #include "system/wait.h"
@@ -1584,20 +1635,22 @@ main() {
                    return 0;
                }
                ''',
-               'HAVE_CTDB_WANT_READONLY_DECL',
+               'HAVE_CTDB_CHECK_CODE',
                addmain=False,
                includes=includes,
                msg='Checking for CTDB readonly records support')
-
-            if not conf.CONFIG_SET('HAVE_CTDB_WANT_READONLY_DECL'):
+            if ok:
+                CTDB_CFLAGS += ' -DHAVE_CTDB_WANT_READONLY_DECL=1'
+            else:
                 if not Options.options.enable_old_ctdb:
                     have_cluster_support = False
                     ctdb_broken = "support for CTDB readonly records missing"
                 else:
                     Logs.warn("ignoring missing READONLY support (--enable-old-ctdb)")
 
+        conf.CONFIG_RESET('HAVE_CTDB_CHECK_CODE')
         if have_cluster_support:
-            conf.CHECK_CODE('''
+            ok = conf.CHECK_CODE('''
                 #define NO_CONFIG_H
                 #include "replace.h"
                 #include "system/wait.h"
@@ -1613,17 +1666,19 @@ main() {
                     return 0;
                 }
                 ''',
-                'HAVE_STRUCT_CTDB_CONTROL_TCP',
+                'HAVE_CTDB_CHECK_CODE',
                 addmain=False,
                 includes=includes,
                 msg='Checking for ctdb ipv4 support')
-
-            if not conf.CONFIG_SET('HAVE_STRUCT_CTDB_CONTROL_TCP'):
+            if ok:
+                CTDB_CFLAGS += ' -DHAVE_STRUCT_CTDB_CONTROL_TCP=1'
+            else:
                 have_cluster_support = False
                 ctdb_broken = "missing struct ctdb_control_tcp"
 
+        conf.CONFIG_RESET('HAVE_CTDB_CHECK_CODE')
         if have_cluster_support:
-            conf.CHECK_CODE('''
+            ok = conf.CHECK_CODE('''
                 #define NO_CONFIG_H
                 #include "replace.h"
                 #include "system/wait.h"
@@ -1639,13 +1694,16 @@ main() {
                     return 0;
                 }
                 ''',
-                'HAVE_STRUCT_CTDB_CONTROL_TCP_ADDR',
+                'HAVE_CTDB_CHECK_CODE',
                 addmain=False,
                 includes=includes,
                 msg='Checking for ctdb ipv6 support')
+            if ok:
+                CTDB_CFLAGS += ' -DHAVE_STRUCT_CTDB_CONTROL_TCP_ADDR=1'
 
+        conf.CONFIG_RESET('HAVE_CTDB_CHECK_CODE')
         if have_cluster_support:
-            conf.CHECK_CODE('''
+            ok = conf.CHECK_CODE('''
                 #define NO_CONFIG_H
                 #include "replace.h"
                 #include "system/wait.h"
@@ -1661,21 +1719,25 @@ main() {
                     return 0;
                 }
                 ''',
-                'HAVE_CTDB_CONTROL_CHECK_SRVIDS_DECL',
+                'HAVE_CTDB_CHECK_CODE',
                 addmain=False,
                 includes=includes,
                 msg='Checking for CHECK_SRVIDS control')
-
-            if not conf.CONFIG_SET('HAVE_CTDB_CONTROL_CHECK_SRVIDS_DECL'):
+            if ok:
+                CTDB_CFLAGS += ' -DHAVE_CTDB_CONTROL_CHECK_SRVIDS_DECL=1'
+            else:
                 if not Options.options.enable_old_ctdb:
                     have_cluster_support = False
                     ctdb_broken = "CHECK_SRVIDS control missing"
                 else:
                     Logs.warn("ignoring missing CHECK_SRVIDS control (--enable-old-ctdb)")
 
+    conf.CONFIG_RESET('HAVE_CTDB_CHECK_CODE')
+    conf.undefine('HAVE_CTDB_CHECK_CODE')
     if have_cluster_support:
         Logs.info("building with cluster support")
-        conf.DEFINE('CLUSTER_SUPPORT', 1);
+        conf.env['CTDB_CFLAGS'] = CTDB_CFLAGS
+        conf.env['CTDB_INCLUDE'] = CTDB_INCLUDE
     else:
         if Options.options.with_cluster_support == False:
             Logs.info("building without cluster support (--without-cluster-support)")
@@ -1684,7 +1746,7 @@ main() {
             conf.fatal("Cluster support not found, but --with-cluster-support was specified")
         else:
             Logs.info("building without cluster support: " + ctdb_broken)
-        conf.undefine('CLUSTER_SUPPORT')
+        conf.env['CTDB_CFLAGS'] = ''
 
 
     conf.CHECK_CODE('__attribute__((destructor)) static void cleanup(void) { }',
@@ -1701,38 +1763,6 @@ main() {
     if Options.options.with_profiling_data:
         conf.DEFINE('WITH_PROFILE', 1);
 
-    PTHREAD_CFLAGS='error'
-    PTHREAD_LDFLAGS='error'
-
-    if PTHREAD_LDFLAGS == 'error':
-        if conf.CHECK_FUNCS_IN('pthread_attr_init', 'pthread'):
-            PTHREAD_CFLAGS='-D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS'
-            PTHREAD_LDFLAGS='-lpthread'
-    if PTHREAD_LDFLAGS == 'error':
-        if conf.CHECK_FUNCS_IN('pthread_attr_init', 'pthreads'):
-            PTHREAD_CFLAGS='-D_THREAD_SAFE'
-            PTHREAD_LDFLAGS='-lpthreads'
-    if PTHREAD_LDFLAGS == 'error':
-        if conf.CHECK_FUNCS_IN('pthread_attr_init', 'c_r'):
-            PTHREAD_CFLAGS='-D_THREAD_SAFE -pthread'
-            PTHREAD_LDFLAGS='-pthread'
-    if PTHREAD_LDFLAGS == 'error':
-        if conf.CHECK_FUNCS('pthread_attr_init'):
-            PTHREAD_CFLAGS='-D_REENTRANT'
-            PTHREAD_LDFLAGS='-lpthread'
-    # especially for HP-UX, where the CHECK_FUNC macro fails to test for
-    # pthread_attr_init. On pthread_mutex_lock it works there...
-    if PTHREAD_LDFLAGS == 'error':
-        if conf.CHECK_FUNCS_IN('pthread_mutex_lock', 'pthread'):
-            PTHREAD_CFLAGS='-D_REENTRANT'
-            PTHREAD_LDFLAGS='-lpthread'
-
-    if PTHREAD_CFLAGS != 'error' and PTHREAD_LDFLAGS != 'error':
-        conf.ADD_CFLAGS(PTHREAD_CFLAGS)
-        conf.ADD_LDFLAGS(PTHREAD_LDFLAGS)
-        conf.CHECK_HEADERS('pthread.h')
-        conf.DEFINE('HAVE_PTHREAD', '1')
-
     if Options.options.with_pthreadpool:
         if conf.CONFIG_SET('HAVE_PTHREAD'):
             conf.DEFINE('WITH_PTHREADPOOL', '1')
@@ -1743,7 +1773,8 @@ main() {
     if conf.CHECK_HEADERS('gpfs_gpl.h'):
         conf.DEFINE('HAVE_GPFS', '1')
 
-    if conf.CHECK_HEADERS('linux/ioctl.h sys/ioctl.h'):
+    if (conf.CHECK_HEADERS('linux/ioctl.h sys/ioctl.h linux/fs.h') and
+	conf.CHECK_DECLS('FS_IOC_GETFLAGS FS_COMPR_FL', headers='linux/fs.h')):
 	    conf.DEFINE('HAVE_LINUX_IOCTL', '1')
 
     conf.env['CCFLAGS_CEPHFS'] = "-D_FILE_OFFSET_BITS=64"
@@ -1769,6 +1800,15 @@ main() {
         conf.SET_TARGET_TYPE('gfapi', 'EMPTY')
         conf.undefine('HAVE_GLUSTERFS')
 
+    if Options.options.enable_vxfs:
+	conf.DEFINE('HAVE_VXFS', '1')
+
+    if conf.check_cfg(package='dbus-1', args='--cflags --libs',
+                      msg='Checking for dbus', uselib_store="DBUS-1"):
+        if (conf.CHECK_HEADERS('dbus/dbus.h', lib='dbus-1')
+                                      and conf.CHECK_LIB('dbus-1', shlib=True)):
+            conf.DEFINE('HAVE_DBUS', '1')
+
     conf.env.build_regedit = False
     if not Options.options.with_regedit == False:
         conf.PROCESS_SEPARATE_RULE('system_ncurses')
@@ -1786,6 +1826,16 @@ main() {
         else:
             Logs.info("ncurses not available, not building regedit")
 
+    conf.CHECK_FUNCS_IN('DES_pcbc_encrypt', 'crypto')
+    if Options.options.with_fake_kaserver == True:
+        conf.CHECK_HEADERS('afs/param.h afs/stds.h', together=True)
+        conf.CHECK_HEADERS('afs/param.h afs/stds.h', together=True)
+        if (conf.CONFIG_SET('HAVE_AFS_PARAM_H') and conf.CONFIG_SET('HAVE_AFS_STDS_H') and conf.CONFIG_SET('HAVE_DES_PCBC_ENCRYPT')):
+            conf.DEFINE('WITH_FAKE_KASERVER', '1')
+        else:
+            conf.fatal('AFS headers not available, but --with-fake-kaserver was specified')
+
+
 
     default_static_modules.extend(TO_LIST('''pdb_smbpasswd pdb_tdbsam pdb_wbc_sam
                                       auth_sam auth_unix auth_winbind auth_wbc
@@ -1799,10 +1849,12 @@ main() {
                                       auth_script vfs_readahead vfs_xattr_tdb vfs_posix_eadb
                                       vfs_streams_xattr vfs_streams_depot vfs_acl_xattr vfs_acl_tdb
                                       vfs_smb_traffic_analyzer vfs_preopen vfs_catia vfs_scannedonly
-				      vfs_media_harmony
+				      vfs_media_harmony vfs_fruit
 				      vfs_commit
+				      vfs_worm
                                       vfs_crossrename vfs_linux_xfs_sgid
                                       vfs_time_audit idmap_autorid idmap_tdb2
+                                      idmap_ad
                                       idmap_rid idmap_hash idmap_rfc2307'''))
 
     if Options.options.developer:
@@ -1827,7 +1879,7 @@ main() {
     if conf.CONFIG_SET('HAVE_STATFS_F_FSID'):
         default_shared_modules.extend(TO_LIST('vfs_fileid'))
 
-    if (conf.CONFIG_SET('HAVE_MSGHDR_MSG_CONTROL') or conf.CONFIG_SET('HAVE_MSGHDR_MSG_ACCTRIGHTS')):
+    if (conf.CONFIG_SET('HAVE_STRUCT_MSGHDR_MSG_CONTROL') or conf.CONFIG_SET('HAVE_STRUCT_MSGHDR_MSG_ACCRIGHTS')):
         default_shared_modules.extend(TO_LIST('vfs_aio_fork'))
 
     if Options.options.with_pthreadpool:
@@ -1859,6 +1911,12 @@ main() {
 
     if conf.CONFIG_SET('HAVE_GLUSTERFS'):
         default_shared_modules.extend(TO_LIST('vfs_glusterfs'))
+
+    if conf.CONFIG_SET('HAVE_VXFS'):
+        default_shared_modules.extend(TO_LIST('vfs_vxfs'))
+
+    if conf.CONFIG_SET('HAVE_DBUS'):
+	default_shared_modules.extend(TO_LIST('vfs_snapper'))
 
     explicit_shared_modules = TO_LIST(Options.options.shared_modules, delimiter=',')
     explicit_static_modules = TO_LIST(Options.options.static_modules, delimiter=',')

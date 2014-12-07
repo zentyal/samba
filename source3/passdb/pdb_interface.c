@@ -35,6 +35,7 @@
 #include "../lib/util/util_pw.h"
 #include "passdb/pdb_secrets.h"
 #include "lib/util_sid_passdb.h"
+#include "idmap_cache.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_PASSDB
@@ -367,7 +368,7 @@ static bool guest_user_info( struct samu *user )
 {
 	struct passwd *pwd;
 	NTSTATUS result;
-	const char *guestname = lp_guestaccount();
+	const char *guestname = lp_guest_account();
 
 	pwd = Get_Pwnam_alloc(talloc_tos(), guestname);
 	if (pwd == NULL) {
@@ -459,9 +460,9 @@ static NTSTATUS pdb_default_create_user(struct pdb_methods *methods,
 		fstring name2;
 
 		if ((acb_info & ACB_NORMAL) && name[strlen(name)-1] != '$') {
-			add_script = lp_adduser_script(tmp_ctx);
+			add_script = lp_add_user_script(tmp_ctx);
 		} else {
-			add_script = lp_addmachine_script(tmp_ctx);
+			add_script = lp_add_machine_script(tmp_ctx);
 		}
 
 		if (!add_script || add_script[0] == '\0') {
@@ -557,7 +558,7 @@ static int smb_delete_user(const char *unix_user)
 		return -1;
 	}
 
-	del_script = lp_deluser_script(talloc_tos());
+	del_script = lp_delete_user_script(talloc_tos());
 	if (!del_script || !*del_script) {
 		return -1;
 	}
@@ -1206,25 +1207,54 @@ bool pdb_get_seq_num(time_t *seq_num)
 bool pdb_uid_to_sid(uid_t uid, struct dom_sid *sid)
 {
 	struct pdb_methods *pdb = pdb_get_methods();
-	return pdb->uid_to_sid(pdb, uid, sid);
+	bool ret;
+
+	ret = pdb->uid_to_sid(pdb, uid, sid);
+
+	if (ret == true) {
+		struct unixid id;
+		id.id = uid;
+		id.type = ID_TYPE_UID;
+		idmap_cache_set_sid2unixid(sid, &id);
+	}
+
+	return ret;
 }
 
 bool pdb_gid_to_sid(gid_t gid, struct dom_sid *sid)
 {
 	struct pdb_methods *pdb = pdb_get_methods();
-	return pdb->gid_to_sid(pdb, gid, sid);
+	bool ret;
+
+	ret = pdb->gid_to_sid(pdb, gid, sid);
+
+	if (ret == true) {
+		struct unixid id;
+		id.id = gid;
+		id.type = ID_TYPE_GID;
+		idmap_cache_set_sid2unixid(sid, &id);
+	}
+
+	return ret;
 }
 
 bool pdb_sid_to_id(const struct dom_sid *sid, struct unixid *id)
 {
 	struct pdb_methods *pdb = pdb_get_methods();
+	bool ret;
 
 	/* only ask the backend if it is responsible */
 	if (!sid_check_object_is_for_passdb(sid)) {
 		return false;
 	}
 
-	return pdb->sid_to_id(pdb, sid, id);
+	ret = pdb->sid_to_id(pdb, sid, id);
+
+	if (ret == true) {
+		idmap_cache_set_sid2unixid(sid, id);
+	}
+
+	return ret;
 }
 
 uint32_t pdb_capabilities(void)
@@ -1489,12 +1519,16 @@ static bool pdb_default_sid_to_id(struct pdb_methods *methods,
 				id->id = uid;
 				break;
 			default:
-				DEBUG(5, ("SID %s is our domain, but is not mapped to a user or group (got %d)\n",
+				DEBUG(5, ("SID %s belongs to our domain, and "
+					  "an object exists in the database, "
+					   "but it is neither a user nor a "
+					   "group (got type %d).\n",
 					  sid_string_dbg(sid), type));
 				ret = false;
 			}
 		} else {
-			DEBUG(5, ("SID %s is or domain, but is unmapped\n",
+			DEBUG(5, ("SID %s belongs to our domain, but there is "
+				  "no corresponding object in the database.\n",
 				  sid_string_dbg(sid)));
 		}
 		goto done;
@@ -2413,6 +2447,12 @@ static bool pdb_default_is_responsible_for_unix_groups(
 	return true;
 }
 
+static bool pdb_default_is_responsible_for_everything_else(
+					struct pdb_methods *methods)
+{
+	return false;
+}
+
 bool pdb_is_responsible_for_our_sam(void)
 {
 	struct pdb_methods *pdb = pdb_get_methods();
@@ -2441,6 +2481,12 @@ bool pdb_is_responsible_for_unix_groups(void)
 {
 	struct pdb_methods *pdb = pdb_get_methods();
 	return pdb->is_responsible_for_unix_groups(pdb);
+}
+
+bool pdb_is_responsible_for_everything_else(void)
+{
+	struct pdb_methods *pdb = pdb_get_methods();
+	return pdb->is_responsible_for_everything_else(pdb);
 }
 
 /*******************************************************************
@@ -2603,6 +2649,8 @@ NTSTATUS make_pdb_method( struct pdb_methods **methods )
 				pdb_default_is_responsible_for_unix_users;
 	(*methods)->is_responsible_for_unix_groups =
 				pdb_default_is_responsible_for_unix_groups;
+	(*methods)->is_responsible_for_everything_else =
+				pdb_default_is_responsible_for_everything_else;
 
 	return NT_STATUS_OK;
 }

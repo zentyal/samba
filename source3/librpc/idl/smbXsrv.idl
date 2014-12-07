@@ -77,6 +77,43 @@ interface smbXsrv
 		[in] smbXsrv_version_globalB blob
 		);
 
+	/* client */
+
+	typedef struct {
+		[ignore] struct tevent_context		*ev_ctx;
+		[ignore] struct messaging_context	*msg_ctx;
+
+		/*
+		 * There's just one 'sconn' per client.
+		 * It holds the FSA layer details, which are global
+		 * per client (process).
+		 */
+		[ignore] struct smbd_server_connection	*sconn;
+
+		/*
+		 * this session_table is used for SMB1 and SMB2,
+		 */
+		[ignore] struct smbXsrv_session_table	*session_table;
+		[ignore] hyper				last_session_id;
+		/*
+		 * this tcon_table is only used for SMB1.
+		 */
+		[ignore] struct smbXsrv_tcon_table	*tcon_table;
+		/*
+		 * this open_table is used for SMB1 and SMB2,
+		 * because we have a global sconn->real_max_open_files
+		 * limit.
+		 */
+		[ignore] struct smbXsrv_open_table	*open_table;
+
+		/*
+		 * For now this is only one connection!
+		 * With multi-channel support we'll get more than
+		 * one in future.
+		 */
+		[ignore] struct smbXsrv_connection	*connections;
+	} smbXsrv_client;
+
 	/* sessions */
 
 	typedef struct {
@@ -86,6 +123,7 @@ interface smbXsrv
 		[charset(UTF8),string] char		remote_name[];
 		[noprint] DATA_BLOB			signing_key;
 		uint32					auth_session_info_seqnum;
+		[ignore] smbXsrv_connection		*connection;
 	} smbXsrv_channel_global0;
 
 	typedef struct {
@@ -98,6 +136,7 @@ interface smbXsrv
 		 * auth_session is NULL until the
 		 * session is valid for the first time.
 		 */
+		NTTIME					auth_time;
 		uint32					auth_session_info_seqnum;
 		auth_session_info			*auth_session_info;
 		uint16					connection_dialect;
@@ -141,7 +180,7 @@ interface smbXsrv
 	typedef struct {
 		[ignore] smbXsrv_session_table		*table;
 		[ignore] db_record 			*db_rec;
-		[ignore] smbXsrv_connection		*connection;
+		[ignore] smbXsrv_client			*client;
 		uint32					local_id;
 		[ref] smbXsrv_session_global0		*global;
 		NTSTATUS				status;

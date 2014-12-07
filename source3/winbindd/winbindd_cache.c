@@ -28,7 +28,7 @@
 #include "winbindd.h"
 #include "tdb_validate.h"
 #include "../libcli/auth/libcli_auth.h"
-#include "../librpc/gen_ndr/ndr_wbint.h"
+#include "../librpc/gen_ndr/ndr_winbind.h"
 #include "ads.h"
 #include "nss_info.h"
 #include "../libcli/security/security.h"
@@ -120,17 +120,20 @@ static struct winbind_cache *get_cache(struct winbindd_domain *domain)
 
 	if (domain->internal) {
 		domain->backend = &builtin_passdb_methods;
-		domain->initialized = True;
+	}
+
+	if (dom_sid_equal(&domain->sid, &global_sid_Builtin)) {
+		domain->initialized = true;
 	}
 
 	if (strequal(domain->name, get_global_sam_name()) &&
 	    sid_check_is_our_sam(&domain->sid)) {
 		domain->backend = &sam_passdb_methods;
-		domain->initialized = True;
 	}
 
 	if ( !domain->initialized ) {
-		init_dc_connection( domain );
+		/* We do not need a connection to an RW DC for cache operation */
+		init_dc_connection(domain, false);
 	}
 
 	/* 
@@ -886,7 +889,8 @@ static void centry_put_time(struct cache_entry *centry, time_t t)
 /*
   start a centry for output. When finished, call centry_end()
 */
-struct cache_entry *centry_start(struct winbindd_domain *domain, NTSTATUS status)
+static struct cache_entry *centry_start(struct winbindd_domain *domain,
+					NTSTATUS status)
 {
 	struct cache_entry *centry;
 
@@ -2090,6 +2094,7 @@ static NTSTATUS rids_to_names(struct winbindd_domain *domain,
 		} else {
 			/* something's definitely wrong */
 			result = centry->status;
+			centry_free(centry);
 			goto error;
 		}
 
@@ -2307,6 +2312,40 @@ NTSTATUS wcache_query_user(struct winbindd_domain *domain,
 
 	centry_free(centry);
 	return status;
+}
+
+
+/**
+* @brief Query a fullname from the username cache (for further gecos processing)
+*
+* @param domain		A pointer to the winbindd_domain struct.
+* @param mem_ctx	The talloc context.
+* @param user_sid	The user sid.
+* @param full_name	A pointer to the full_name string.
+*
+* @return NTSTATUS code
+*/
+NTSTATUS wcache_query_user_fullname(struct winbindd_domain *domain,
+				    TALLOC_CTX *mem_ctx,
+				    const struct dom_sid *user_sid,
+				    const char **full_name)
+{
+	NTSTATUS status;
+	struct wbint_userinfo info;
+
+	status = wcache_query_user(domain, mem_ctx, user_sid, &info);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	if (info.full_name != NULL) {
+		*full_name = talloc_strdup(mem_ctx, info.full_name);
+		if (*full_name == NULL) {
+			return NT_STATUS_NO_MEMORY;
+		}
+	}
+
+	return NT_STATUS_OK;
 }
 
 /* Lookup user information from a rid */

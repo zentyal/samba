@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include "pthreadpool.h"
 
 static int test_init(void)
@@ -69,8 +71,8 @@ static int test_jobs(int num_threads, int num_jobs)
 
 	for (i=0; i<num_jobs; i++) {
 		int jobid = -1;
-		ret = pthreadpool_finished_job(p, &jobid);
-		if ((ret != 0) || (jobid >= num_jobs)) {
+		ret = pthreadpool_finished_jobs(p, &jobid, 1);
+		if ((ret != 1) || (jobid >= num_jobs)) {
 			fprintf(stderr, "invalid job number %d\n", jobid);
 			return -1;
 		}
@@ -282,8 +284,8 @@ static int test_threaded_addjob(int num_pools, int num_threads, int poolsize,
 				continue;
 			}
 
-			ret = pthreadpool_finished_job(pools[j], &jobid);
-			if ((ret != 0) || (jobid >= num_jobs * num_threads)) {
+			ret = pthreadpool_finished_jobs(pools[j], &jobid, 1);
+			if ((ret != 1) || (jobid >= num_jobs * num_threads)) {
 				fprintf(stderr, "invalid job number %d\n",
 					jobid);
 				return -1;
@@ -318,6 +320,46 @@ static int test_threaded_addjob(int num_pools, int num_threads, int poolsize,
 	return 0;
 }
 
+static int test_fork(void)
+{
+	struct pthreadpool *p;
+	pid_t child, waited;
+	int status, ret;
+
+	ret = pthreadpool_init(1, &p);
+	if (ret != 0) {
+		fprintf(stderr, "pthreadpool_init failed: %s\n",
+			strerror(ret));
+		return -1;
+	}
+	ret = pthreadpool_destroy(p);
+	if (ret != 0) {
+		fprintf(stderr, "pthreadpool_destroy failed: %s\n",
+			strerror(ret));
+		return -1;
+	}
+
+	child = fork();
+	if (child < 0) {
+		perror("fork failed");
+		return -1;
+	}
+	if (child == 0) {
+		exit(0);
+	}
+	waited = wait(&status);
+	if (waited == -1) {
+		perror("wait failed");
+		return -1;
+	}
+	if (waited != child) {
+		fprintf(stderr, "expected child %d, got %d\n",
+			(int)child, (int)waited);
+		return -1;
+	}
+	return 0;
+}
+
 int main(void)
 {
 	int ret;
@@ -325,6 +367,12 @@ int main(void)
 	ret = test_init();
 	if (ret != 0) {
 		fprintf(stderr, "test_init failed\n");
+		return 1;
+	}
+
+	ret = test_fork();
+	if (ret != 0) {
+		fprintf(stderr, "test_fork failed\n");
 		return 1;
 	}
 

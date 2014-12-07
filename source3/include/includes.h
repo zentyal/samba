@@ -411,9 +411,6 @@ typedef char fstring[FSTRING_LEN];
 #define SIGRTMIN NSIG
 #endif
 
-#if defined(HAVE_PUTPRPWNAM) && defined(AUTH_CLEARTEXT_SEG_CHARS)
-#define OSF1_ENH_SEC 1
-#endif
 
 #if defined(HAVE_CRYPT16) && defined(HAVE_GETAUTHUID)
 #define ULTRIX_AUTH 1
@@ -447,9 +444,6 @@ int fdprintf(int , const char *, ...) PRINTF_ATTRIBUTE(2,3);
 int d_printf(const char *, ...) PRINTF_ATTRIBUTE(1,2);
 /*PRINTFLIKE2 */
 int d_fprintf(FILE *f, const char *, ...) PRINTF_ATTRIBUTE(2,3);
-
-/* PRINTFLIKE2 */
-void sys_adminlog(int priority, const char *format_str, ...) PRINTF_ATTRIBUTE(2,3);
 
 /* PRINTFLIKE2 */
 int fstr_sprintf(fstring s, const char *fmt, ...) PRINTF_ATTRIBUTE(2,3);

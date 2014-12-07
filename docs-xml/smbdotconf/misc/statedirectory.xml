@@ -2,6 +2,7 @@
                  context="G"
                  advanced="1" developer="1"
 		 type="string"
+		 constant="1"
                  xmlns:samba="http://www.samba.org/samba/DTD/samba-doc">
 <description>
 	<para>Usually, most of the TDB files are stored in the
@@ -17,6 +18,6 @@
 	</para>
 </description>
 
-<value type="default">${prefix}/var/locks</value>
+<value type="default">&pathconfig.STATEDIR;</value>
 <value type="example">/var/run/samba/locks/state</value>
 </samba:parameter>

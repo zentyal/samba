@@ -26,11 +26,18 @@ struct db_record;
 struct db_context;
 
 enum dbwrap_lock_order {
+	DBWRAP_LOCK_ORDER_NONE = 0, /* Don't check lock orders for this db. */
+	/*
+	 * We only allow orders 1, 2, 3:
+	 * These are the orders that CTDB currently supports.
+	 */
 	DBWRAP_LOCK_ORDER_1 = 1,
 	DBWRAP_LOCK_ORDER_2 = 2,
 	DBWRAP_LOCK_ORDER_3 = 3
 };
-#define DBWRAP_LOCK_ORDER_MAX DBWRAP_LOCK_ORDER_3
+
+#define DBWRAP_FLAG_NONE                     0x0000000000000000ULL
+#define DBWRAP_FLAG_OPTIMIZE_READONLY_ACCESS 0x0000000000000001ULL
 
 /* The following definitions come from lib/dbwrap.c  */
 
@@ -157,6 +164,7 @@ struct db_context *dbwrap_local_open(TALLOC_CTX *mem_ctx,
 				     const char *name,
 				     int hash_size, int tdb_flags,
 				     int open_flags, mode_t mode,
-				     enum dbwrap_lock_order lock_order);
+				     enum dbwrap_lock_order lock_order,
+				     uint64_t dbwrap_flags);
 
 #endif /* __DBWRAP_H__ */

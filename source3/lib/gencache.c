@@ -25,6 +25,7 @@
 #include "system/filesys.h"
 #include "system/glob.h"
 #include "util_tdb.h"
+#include "../lib/util/memcache.h"
 
 #undef  DBGC_CLASS
 #define DBGC_CLASS DBGC_TDB
@@ -37,6 +38,7 @@
 
 static struct tdb_context *cache;
 static struct tdb_context *cache_notrans;
+static int cache_notrans_seqnum;
 
 /**
  * @file gencache.c
@@ -112,6 +114,7 @@ static bool gencache_init(void)
 	cache_notrans = tdb_open_log(cache_fname, 0,
 				     TDB_CLEAR_IF_FIRST|
 				     TDB_INCOMPATIBLE_HASH|
+				     TDB_SEQNUM|
 				     TDB_NOSYNC,
 				     open_flags, 0644);
 	if (cache_notrans == NULL) {
@@ -368,7 +371,8 @@ bool gencache_del(const char *keystr)
 	 * element.
 	 */
 
-	exists = gencache_get_data_blob(keystr, &value, NULL, &was_expired);
+	exists = gencache_get_data_blob(keystr, NULL, &value, NULL,
+					&was_expired);
 
 	if (!exists && was_expired) {
 		/*
@@ -412,6 +416,7 @@ static bool gencache_pull_timeout(char *val, time_t *pres, char **pendptr)
 struct gencache_parse_state {
 	void (*parser)(time_t timeout, DATA_BLOB blob, void *private_data);
 	void *private_data;
+	bool is_memcache;
 };
 
 static int gencache_parse_fn(TDB_DATA key, TDB_DATA data, void *private_data)
@@ -433,6 +438,13 @@ static int gencache_parse_fn(TDB_DATA key, TDB_DATA data, void *private_data)
 	blob = data_blob_const(
 		endptr+1, data.dsize - PTR_DIFF(endptr+1, data.dptr));
 	state->parser(t, blob, state->private_data);
+
+	if (!state->is_memcache) {
+		memcache_add(NULL, GENCACHE_RAM,
+			     data_blob_const(key.dptr, key.dsize),
+			     data_blob_const(data.dptr, data.dsize));
+	}
+
 	return 0;
 }
 
@@ -442,23 +454,47 @@ bool gencache_parse(const char *keystr,
 		    void *private_data)
 {
 	struct gencache_parse_state state;
-	TDB_DATA key;
+	TDB_DATA key = string_term_tdb_data(keystr);
+	DATA_BLOB memcache_val;
 	int ret;
 
 	if (keystr == NULL) {
 		return false;
 	}
-	if (tdb_data_cmp(string_term_tdb_data(keystr),
-			 last_stabilize_key()) == 0) {
+	if (tdb_data_cmp(key, last_stabilize_key()) == 0) {
 		return false;
 	}
 	if (!gencache_init()) {
 		return false;
 	}
 
-	key = string_term_tdb_data(keystr);
 	state.parser = parser;
 	state.private_data = private_data;
+
+	if (memcache_lookup(NULL, GENCACHE_RAM,
+			    data_blob_const(key.dptr, key.dsize),
+			    &memcache_val)) {
+		/*
+		 * Make sure that nobody has changed the gencache behind our
+		 * back.
+		 */
+		int current_seqnum = tdb_get_seqnum(cache_notrans);
+		if (current_seqnum == cache_notrans_seqnum) {
+			/*
+			 * Ok, our memcache is still current, use it without
+			 * going to the tdb files.
+			 */
+			state.is_memcache = true;
+			gencache_parse_fn(key, make_tdb_data(memcache_val.data,
+							     memcache_val.length),
+					  &state);
+			return true;
+		}
+		memcache_flush(NULL, GENCACHE_RAM);
+		cache_notrans_seqnum = current_seqnum;
+	}
+
+	state.is_memcache = false;
 
 	ret = tdb_parse_record(cache_notrans, key, gencache_parse_fn, &state);
 	if (ret == 0) {
@@ -469,6 +505,7 @@ bool gencache_parse(const char *keystr,
 }
 
 struct gencache_get_data_blob_state {
+	TALLOC_CTX *mem_ctx;
 	DATA_BLOB *blob;
 	time_t timeout;
 	bool result;
@@ -491,7 +528,8 @@ static void gencache_get_data_blob_parser(time_t timeout, DATA_BLOB blob,
 		return;
 	}
 
-	*state->blob = data_blob(blob.data, blob.length);
+	*state->blob = data_blob_talloc(state->mem_ctx, blob.data,
+					blob.length);
 	if (state->blob->data == NULL) {
 		state->result = false;
 		return;
@@ -511,13 +549,15 @@ static void gencache_get_data_blob_parser(time_t timeout, DATA_BLOB blob,
  * @retval False for failure
  **/
 
-bool gencache_get_data_blob(const char *keystr, DATA_BLOB *blob,
+bool gencache_get_data_blob(const char *keystr, TALLOC_CTX *mem_ctx,
+			    DATA_BLOB *blob,
 			    time_t *timeout, bool *was_expired)
 {
 	struct gencache_get_data_blob_state state;
 	bool expired = false;
 
 	state.result = false;
+	state.mem_ctx = mem_ctx;
 	state.blob = blob;
 
 	if (!gencache_parse(keystr, gencache_get_data_blob_parser, &state)) {
@@ -700,30 +740,31 @@ static int stabilize_fn(struct tdb_context *tdb, TDB_DATA key, TDB_DATA val,
  * @retval False for failure
  **/
 
-bool gencache_get(const char *keystr, char **value, time_t *ptimeout)
+bool gencache_get(const char *keystr, TALLOC_CTX *mem_ctx, char **value,
+		  time_t *ptimeout)
 {
 	DATA_BLOB blob;
 	bool ret = False;
 
-	ret = gencache_get_data_blob(keystr, &blob, ptimeout, NULL);
+	ret = gencache_get_data_blob(keystr, mem_ctx, &blob, ptimeout, NULL);
 	if (!ret) {
 		return false;
 	}
 	if ((blob.data == NULL) || (blob.length == 0)) {
-		SAFE_FREE(blob.data);
+		data_blob_free(&blob);
 		return false;
 	}
 	if (blob.data[blob.length-1] != '\0') {
 		/* Not NULL terminated, can't be a string */
-		SAFE_FREE(blob.data);
+		data_blob_free(&blob);
 		return false;
 	}
 	if (value) {
-		*value = SMB_STRDUP((char *)blob.data);
-		data_blob_free(&blob);
-		if (*value == NULL) {
-			return false;
-		}
+		/*
+		 * talloc_move generates a type-punned warning here. As we
+		 * leave the function immediately, do a simple talloc_steal.
+		 */
+		*value = (char *)talloc_steal(mem_ctx, blob.data);
 		return true;
 	}
 	data_blob_free(&blob);
@@ -777,8 +818,11 @@ static int gencache_iterate_blobs_fn(struct tdb_context *tdb, TDB_DATA key,
 		keystr = (char *)key.dptr;
 	} else {
 		/* ensure 0-termination */
-		keystr = SMB_STRNDUP((char *)key.dptr, key.dsize);
+		keystr = talloc_strndup(talloc_tos(), (char *)key.dptr, key.dsize);
 		free_key = keystr;
+		if (keystr == NULL) {
+			goto done;
+		}
 	}
 
 	if (!gencache_pull_timeout((char *)data.dptr, &timeout, &endptr)) {
@@ -800,7 +844,7 @@ static int gencache_iterate_blobs_fn(struct tdb_context *tdb, TDB_DATA key,
 		  timeout, state->private_data);
 
  done:
-	SAFE_FREE(free_key);
+	TALLOC_FREE(free_key);
 	return 0;
 }
 
@@ -856,8 +900,11 @@ static void gencache_iterate_fn(const char *key, DATA_BLOB value,
 		valstr = (char *)value.data;
 	} else {
 		/* ensure 0-termination */
-		valstr = SMB_STRNDUP((char *)value.data, value.length);
+		valstr = talloc_strndup(talloc_tos(), (char *)value.data, value.length);
 		free_val = valstr;
+		if (valstr == NULL) {
+			goto done;
+		}
 	}
 
 	DEBUG(10, ("Calling function with arguments "
@@ -866,7 +913,9 @@ static void gencache_iterate_fn(const char *key, DATA_BLOB value,
 
 	state->fn(key, valstr, timeout, state->private_data);
 
-	SAFE_FREE(free_val);
+  done:
+
+	TALLOC_FREE(free_val);
 }
 
 void gencache_iterate(void (*fn)(const char *key, const char *value,

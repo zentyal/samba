@@ -105,21 +105,32 @@ NTSTATUS torture_rpc_connection_transport(struct torture_context *tctx,
 	NTSTATUS status;
 	struct dcerpc_binding *binding;
 
+	*p = NULL;
+
 	status = torture_rpc_binding(tctx, &binding);
-	if (NT_STATUS_IS_ERR(status))
+	if (!NT_STATUS_IS_OK(status)) {
 		return status;
-
-	binding->transport = transport;
-	binding->assoc_group_id = assoc_group_id;
-
-	status = dcerpc_pipe_connect_b(tctx, p, binding, table,
-				       cmdline_credentials, tctx->ev, tctx->lp_ctx);
-					   
-	if (NT_STATUS_IS_ERR(status)) {
-		*p = NULL;
 	}
 
-        return status;
+	status = dcerpc_binding_set_transport(binding, transport);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	status = dcerpc_binding_set_assoc_group_id(binding, assoc_group_id);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	status = dcerpc_pipe_connect_b(tctx, p, binding, table,
+				       cmdline_credentials,
+				       tctx->ev, tctx->lp_ctx);
+	if (!NT_STATUS_IS_OK(status)) {
+		*p = NULL;
+		return status;
+	}
+
+	return NT_STATUS_OK;
 }
 
 static bool torture_rpc_setup_machine_workstation(struct torture_context *tctx,
@@ -515,7 +526,6 @@ NTSTATUS torture_rpc_init(void)
 	torture_suite_add_simple_test(suite, "scanner", torture_rpc_scanner);
 	torture_suite_add_simple_test(suite, "autoidl", torture_rpc_autoidl);
 	torture_suite_add_simple_test(suite, "countcalls", torture_rpc_countcalls);
-	torture_suite_add_simple_test(suite, "multibind", torture_multi_bind);
 	torture_suite_add_simple_test(suite, "authcontext", torture_bind_authcontext);
 	torture_suite_add_suite(suite, torture_rpc_samba3(suite));
 	torture_rpc_drsuapi_tcase(suite);

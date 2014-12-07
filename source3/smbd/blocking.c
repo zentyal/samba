@@ -25,10 +25,6 @@
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_LOCKING
 
-/****************************************************************************
- Determine if this is a secondary element of a chained SMB.
-  **************************************************************************/
-
 static void received_unlock_msg(struct messaging_context *msg,
 				void *private_data,
 				uint32_t msg_type,
@@ -111,7 +107,7 @@ static bool recalc_brl_timeout(struct smbd_server_connection *sconn)
 		return True;
 	}
 
-	/* 
+	/*
 	 to account for unclean shutdowns by clients we need a
 	 maximum timeout that we use for checking pending locks. If
 	 we have any pending locks at all, then check if the pending
@@ -217,7 +213,7 @@ bool push_blocking_lock_request( struct byte_range_lock *br_lck,
 	blr->lock_type = lock_type;
 	blr->offset = offset;
 	blr->count = count;
-      
+
 	/* Specific brl_lock() implementations can fill this in. */
 	blr->blr_private = NULL;
 
@@ -231,8 +227,7 @@ bool push_blocking_lock_request( struct byte_range_lock *br_lck,
 			lock_type == READ_LOCK ? PENDING_READ_LOCK : PENDING_WRITE_LOCK,
 			blr->lock_flav,
 			True,
-			NULL,
-			blr);
+			NULL);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0,("push_blocking_lock_request: failed to add PENDING_LOCK record.\n"));
@@ -282,7 +277,7 @@ static void reply_lockingX_success(struct blocking_lock_record *blr)
 	 * that here and must set up the chain info manually.
 	 */
 
-	if (!srv_send_smb(req->sconn,
+	if (!srv_send_smb(req->xconn,
 			(char *)req->outbuf,
 			true, req->seqnum+1,
 			IS_CONN_ENCRYPTED(req->conn)||req->encrypted,
@@ -323,7 +318,7 @@ static void generic_blocking_lock_error(struct blocking_lock_record *blr, NTSTAT
 	}
 
 	reply_nterror(blr->req, status);
-	if (!srv_send_smb(blr->req->sconn, (char *)blr->req->outbuf,
+	if (!srv_send_smb(blr->req->xconn, (char *)blr->req->outbuf,
 			  true, blr->req->seqnum+1,
 			  blr->req->encrypted, NULL)) {
 		exit_server_cleanly("generic_blocking_lock_error: srv_send_smb failed.");
@@ -332,7 +327,7 @@ static void generic_blocking_lock_error(struct blocking_lock_record *blr, NTSTAT
 }
 
 /****************************************************************************
- Return a lock fail error for a lockingX call. Undo all the locks we have 
+ Return a lock fail error for a lockingX call. Undo all the locks we have
  obtained first.
 *****************************************************************************/
 
@@ -350,7 +345,7 @@ static void undo_locks_obtained(struct blocking_lock_record *blr)
 	data = discard_const_p(uint8_t, blr->req->buf)
 		+ ((large_file_format ? 20 : 10)*num_ulocks);
 
-	/* 
+	/*
 	 * Data now points at the beginning of the list
 	 * of smb_lkrng structs.
 	 */
@@ -362,11 +357,10 @@ static void undo_locks_obtained(struct blocking_lock_record *blr)
 	 */
 
 	for(i = blr->lock_num - 1; i >= 0; i--) {
-		bool err;
 
 		smblctx = get_lock_pid( data, i, large_file_format);
 		count = get_lock_count( data, i, large_file_format);
-		offset = get_lock_offset( data, i, large_file_format, &err);
+		offset = get_lock_offset( data, i, large_file_format);
 
 		/*
 		 * We know err cannot be set as if it was the lock
@@ -413,7 +407,7 @@ static void blocking_lock_reply_error(struct blocking_lock_record *blr, NTSTATUS
 		 */
 		SCVAL(blr->req->outbuf,smb_com,SMBtrans2);
 
-		if (!srv_send_smb(blr->req->sconn,
+		if (!srv_send_smb(blr->req->xconn,
 				  (char *)blr->req->outbuf,
 				  true, blr->req->seqnum+1,
 				  IS_CONN_ENCRYPTED(blr->fsp->conn),
@@ -467,14 +461,13 @@ static bool process_lockingX(struct blocking_lock_record *blr)
 	data = discard_const_p(uint8_t, blr->req->buf)
 		+ ((large_file_format ? 20 : 10)*num_ulocks);
 
-	/* 
+	/*
 	 * Data now points at the beginning of the list
 	 * of smb_lkrng structs.
 	 */
 
 	for(; blr->lock_num < num_locks; blr->lock_num++) {
 		struct byte_range_lock *br_lck = NULL;
-		bool err;
 
 		/*
 		 * Ensure the blr record gets updated with
@@ -483,7 +476,7 @@ static bool process_lockingX(struct blocking_lock_record *blr)
 
 		blr->smblctx = get_lock_pid( data, blr->lock_num, large_file_format);
 		blr->count = get_lock_count( data, blr->lock_num, large_file_format);
-		blr->offset = get_lock_offset( data, blr->lock_num, large_file_format, &err);
+		blr->offset = get_lock_offset( data, blr->lock_num, large_file_format);
 
 		/*
 		 * We know err cannot be set as if it was the lock
@@ -500,8 +493,7 @@ static bool process_lockingX(struct blocking_lock_record *blr)
 				WINDOWS_LOCK,
 				True,
 				&status,
-				&blr->blocking_smblctx,
-				blr);
+				&blr->blocking_smblctx);
 
 		if (ERROR_WAS_LOCK_DENIED(status) && !lock_timeout) {
 			/*
@@ -522,8 +514,7 @@ static bool process_lockingX(struct blocking_lock_record *blr)
 						PENDING_WRITE_LOCK,
 						blr->lock_flav,
 					true, /* Blocking lock. */
-					NULL,
-					blr);
+					NULL);
 
 			if (!NT_STATUS_IS_OK(status1)) {
 				DEBUG(0,("failed to add PENDING_LOCK "
@@ -602,8 +593,7 @@ static bool process_trans2(struct blocking_lock_record *blr)
 						blr->lock_flav,
 						True,
 						&status,
-						&blr->blocking_smblctx,
-						blr);
+						&blr->blocking_smblctx);
 	if (ERROR_WAS_LOCK_DENIED(status) && !lock_timeout) {
 		/*
 		 * If we didn't timeout, but still need to wait,
@@ -623,8 +613,7 @@ static bool process_trans2(struct blocking_lock_record *blr)
 					PENDING_WRITE_LOCK,
 				blr->lock_flav,
 				true, /* Blocking lock. */
-				NULL,
-				blr);
+				NULL);
 
 		if (!NT_STATUS_IS_OK(status1)) {
 			DEBUG(0,("failed to add PENDING_LOCK record.\n"));
@@ -646,7 +635,7 @@ static bool process_trans2(struct blocking_lock_record *blr)
 			}
 			/* Still can't get the lock, just keep waiting. */
 			return False;
-		}	
+		}
 		/*
 		 * We have other than a "can't get lock"
 		 * error. Send an error and return True so we get dequeued.
@@ -734,8 +723,7 @@ void smbd_cancel_pending_lock_requests_by_fid(files_struct *fsp,
 				messaging_server_id(sconn->msg_ctx),
 				blr->offset,
 				blr->count,
-				blr->lock_flav,
-				blr);
+				blr->lock_flav);
 
 		/* We're closing the file fsp here, so ensure
 		 * we don't have a dangling pointer. */
@@ -777,8 +765,7 @@ void remove_pending_lock_requests_by_mid_smb1(
 					messaging_server_id(sconn->msg_ctx),
 					blr->offset,
 					blr->count,
-					blr->lock_flav,
-					blr);
+					blr->lock_flav);
 			TALLOC_FREE(br_lck);
 		}
 
@@ -876,8 +863,7 @@ void process_blocking_lock_queue(struct smbd_server_connection *sconn)
 				messaging_server_id(sconn->msg_ctx),
 				blr->offset,
 				blr->count,
-				blr->lock_flav,
-				blr);
+				blr->lock_flav);
 		}
 		TALLOC_FREE(br_lck);
 

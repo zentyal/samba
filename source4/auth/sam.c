@@ -47,7 +47,8 @@
 	"dBCSPwd",				\
 	"unicodePwd",				\
 						\
-	"userAccountControl",			\
+	"userAccountControl",	                \
+	"msDS-User-Account-Control-Computed",	\
 	"objectSid",				\
 						\
 	"pwdLastSet",				\
@@ -66,6 +67,12 @@ const char *user_attrs[] = {
 
 	"logonHours",
 
+	/*
+	 * To allow us to zero the badPwdCount and lockoutTime on
+	 * successful logon, without database churn
+	 */
+	"lockoutTime",
+
 	/* check 'allowed workstations' */
 	"userWorkstations",
 		       
@@ -82,6 +89,9 @@ const char *user_attrs[] = {
 	"logonCount",
 	"primaryGroupID",
 	"memberOf",
+	"badPasswordTime",
+	"lmPwdHistory",
+	"ntPwdHistory",
 	NULL,
 };
 
@@ -165,11 +175,12 @@ _PUBLIC_ NTSTATUS authsam_account_ok(TALLOC_CTX *mem_ctx,
 	const char *workstation_list;
 	NTTIME acct_expiry;
 	NTTIME must_change_time;
+	struct timeval tv_now = timeval_current();
+	NTTIME now = timeval_to_nttime(&tv_now);
 
-	NTTIME now;
 	DEBUG(4,("authsam_account_ok: Checking SMB password for user %s\n", name_for_logs));
 
-	acct_flags = samdb_result_acct_flags(sam_ctx, mem_ctx, msg, domain_dn);
+	acct_flags = samdb_result_acct_flags(msg, "msDS-User-Account-Control-Computed");
 	
 	acct_expiry = samdb_result_account_expires(msg);
 
@@ -193,7 +204,6 @@ _PUBLIC_ NTSTATUS authsam_account_ok(TALLOC_CTX *mem_ctx,
 	}
 
 	/* Test account expire time */
-	unix_to_nt_time(&now, time(NULL));
 	if (now > acct_expiry) {
 		DEBUG(2,("authsam_account_ok: Account for user '%s' has expired.\n", name_for_logs));
 		DEBUG(3,("authsam_account_ok: Account expired at '%s'.\n", 
@@ -221,8 +231,8 @@ _PUBLIC_ NTSTATUS authsam_account_ok(TALLOC_CTX *mem_ctx,
 	if (logon_workstation && workstation_list && *workstation_list) {
 		bool invalid_ws = true;
 		int i;
-		const char **workstations = (const char **)str_list_make(mem_ctx, workstation_list, ",");
-		
+		char **workstations = str_list_make(mem_ctx, workstation_list, ",");
+
 		for (i = 0; workstations && workstations[i]; i++) {
 			DEBUG(10,("sam_account_ok: checking for workstation match '%s' and '%s'\n",
 				  workstations[i], logon_workstation));
@@ -298,15 +308,24 @@ _PUBLIC_ NTSTATUS authsam_make_user_info_dc(TALLOC_CTX *mem_ctx,
 	NT_STATUS_HAVE_NO_MEMORY(user_info_dc);
 
 	tmp_ctx = talloc_new(user_info_dc);
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(user_info_dc, user_info_dc);
+	if (user_info_dc == NULL) {
+		TALLOC_FREE(user_info_dc);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	sids = talloc_array(user_info_dc, struct dom_sid, 2);
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(sids, user_info_dc);
+	if (sids == NULL) {
+		TALLOC_FREE(user_info_dc);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	num_sids = 2;
 
 	account_sid = samdb_result_dom_sid(user_info_dc, msg, "objectSid");
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(account_sid, user_info_dc);
+	if (account_sid == NULL) {
+		TALLOC_FREE(user_info_dc);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	status = dom_sid_split_rid(tmp_ctx, account_sid, &domain_sid, NULL);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -322,13 +341,22 @@ _PUBLIC_ NTSTATUS authsam_make_user_info_dc(TALLOC_CTX *mem_ctx,
 	 * for builtin groups later, and not include them in the PAC
 	 * on SamLogon validation info */
 	filter = talloc_asprintf(tmp_ctx, "(&(objectClass=group)(!(groupType:1.2.840.113556.1.4.803:=%u))(groupType:1.2.840.113556.1.4.803:=%u))", GROUP_TYPE_BUILTIN_LOCAL_GROUP, GROUP_TYPE_SECURITY_ENABLED);
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(filter, user_info_dc);
+	if (filter == NULL) {
+		TALLOC_FREE(user_info_dc);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	primary_group_string = dom_sid_string(tmp_ctx, &sids[PRIMARY_GROUP_SID_INDEX]);
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(primary_group_string, user_info_dc);
+	if (primary_group_string == NULL) {
+		TALLOC_FREE(user_info_dc);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	primary_group_dn = talloc_asprintf(tmp_ctx, "<SID=%s>", primary_group_string);
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(primary_group_dn, user_info_dc);
+	if (primary_group_dn == NULL) {
+		TALLOC_FREE(user_info_dc);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	primary_group_blob = data_blob_string_const(primary_group_dn);
 
@@ -372,35 +400,51 @@ _PUBLIC_ NTSTATUS authsam_make_user_info_dc(TALLOC_CTX *mem_ctx,
 		ldb_msg_find_attr_as_string(msg, "sAMAccountName", NULL));
 
 	info->domain_name = talloc_strdup(info, domain_name);
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(info->domain_name,
-		user_info_dc);
+	if (info->domain_name == NULL) {
+		TALLOC_FREE(user_info_dc);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	str = ldb_msg_find_attr_as_string(msg, "displayName", "");
 	info->full_name = talloc_strdup(info, str);
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(info->full_name, user_info_dc);
+	if (info->full_name == NULL) {
+		TALLOC_FREE(user_info_dc);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	str = ldb_msg_find_attr_as_string(msg, "scriptPath", "");
 	info->logon_script = talloc_strdup(info, str);
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(info->logon_script,
-		user_info_dc);
+	if (info->logon_script == NULL) {
+		TALLOC_FREE(user_info_dc);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	str = ldb_msg_find_attr_as_string(msg, "profilePath", "");
 	info->profile_path = talloc_strdup(info, str);
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(info->profile_path,
-		user_info_dc);
+	if (info->profile_path == NULL) {
+		TALLOC_FREE(user_info_dc);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	str = ldb_msg_find_attr_as_string(msg, "homeDirectory", "");
 	info->home_directory = talloc_strdup(info, str);
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(info->home_directory,
-		user_info_dc);
+	if (info->home_directory == NULL) {
+		TALLOC_FREE(user_info_dc);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	str = ldb_msg_find_attr_as_string(msg, "homeDrive", "");
 	info->home_drive = talloc_strdup(info, str);
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(info->home_drive, user_info_dc);
+	if (info->home_drive == NULL) {
+		TALLOC_FREE(user_info_dc);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	info->logon_server = talloc_strdup(info, netbios_name);
-	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(info->logon_server,
-		user_info_dc);
+	if (info->logon_server == NULL) {
+		TALLOC_FREE(user_info_dc);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	info->last_logon = samdb_result_nttime(msg, "lastLogon", 0);
 	info->last_logoff = samdb_result_last_logoff(msg);
@@ -417,22 +461,25 @@ _PUBLIC_ NTSTATUS authsam_make_user_info_dc(TALLOC_CTX *mem_ctx,
 	info->bad_password_count = ldb_msg_find_attr_as_uint(msg, "badPwdCount",
 		0);
 
-	info->acct_flags = samdb_result_acct_flags(sam_ctx, mem_ctx,
-							  msg, domain_dn);
+	info->acct_flags = samdb_result_acct_flags(msg, "msDS-User-Account-Control-Computed");
 
 	user_info_dc->user_session_key = data_blob_talloc(user_info_dc,
 							 user_sess_key.data,
 							 user_sess_key.length);
 	if (user_sess_key.data) {
-		NT_STATUS_HAVE_NO_MEMORY_AND_FREE(user_info_dc->user_session_key.data,
-						  user_info_dc);
+		if (user_info_dc->user_session_key.data == NULL) {
+			TALLOC_FREE(user_info_dc);
+			return NT_STATUS_NO_MEMORY;
+		}
 	}
 	user_info_dc->lm_session_key = data_blob_talloc(user_info_dc,
 						       lm_sess_key.data,
 						       lm_sess_key.length);
 	if (lm_sess_key.data) {
-		NT_STATUS_HAVE_NO_MEMORY_AND_FREE(user_info_dc->lm_session_key.data,
-						  user_info_dc);
+		if (user_info_dc->lm_session_key.data == NULL) {
+			TALLOC_FREE(user_info_dc);
+			return NT_STATUS_NO_MEMORY;
+		}
 	}
 
 	if (info->acct_flags & ACB_SVRTRUST) {
@@ -442,7 +489,10 @@ _PUBLIC_ NTSTATUS authsam_make_user_info_dc(TALLOC_CTX *mem_ctx,
 						   user_info_dc->sids,
 						   struct dom_sid,
 						   user_info_dc->num_sids+1);
-		NT_STATUS_HAVE_NO_MEMORY_AND_FREE(user_info_dc->sids, user_info_dc);
+		if (user_info_dc->sids == NULL) {
+			TALLOC_FREE(user_info_dc);
+			return NT_STATUS_NO_MEMORY;
+		}
 		user_info_dc->sids[user_info_dc->num_sids] = global_sid_Enterprise_DCs;
 		user_info_dc->num_sids++;
 	}
@@ -454,7 +504,10 @@ _PUBLIC_ NTSTATUS authsam_make_user_info_dc(TALLOC_CTX *mem_ctx,
 						   user_info_dc->sids,
 						   struct dom_sid,
 						   user_info_dc->num_sids+1);
-		NT_STATUS_HAVE_NO_MEMORY_AND_FREE(user_info_dc->sids, user_info_dc);
+		if (user_info_dc->sids == NULL) {
+			TALLOC_FREE(user_info_dc);
+			return NT_STATUS_NO_MEMORY;
+		}
 		user_info_dc->sids[user_info_dc->num_sids] = *domain_sid;
 		sid_append_rid(&user_info_dc->sids[user_info_dc->num_sids],
 			    DOMAIN_RID_ENTERPRISE_READONLY_DCS);
@@ -504,6 +557,80 @@ NTSTATUS sam_get_results_principal(struct ldb_context *sam_ctx,
 	talloc_steal(mem_ctx, *domain_dn);
 	talloc_free(tmp_ctx);
 	
+	return NT_STATUS_OK;
+}
+
+NTSTATUS sam_get_results_trust(struct ldb_context *sam_ctx,
+			       TALLOC_CTX *mem_ctx, const char *domain,
+			       const char *realm, const char * const *attrs,
+			       struct ldb_message **msg)
+{
+	TALLOC_CTX *frame = talloc_stackframe();
+	int lret;
+	struct ldb_dn *system_dn;
+	char *filter;
+	struct ldb_result *res = NULL;
+	char *domain_encoded;
+
+	system_dn = ldb_dn_copy(frame, ldb_get_default_basedn(sam_ctx));
+	if (system_dn == NULL) {
+		TALLOC_FREE(frame);
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	if (!ldb_dn_add_child_fmt(system_dn, "CN=System")) {
+		TALLOC_FREE(frame);
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	domain_encoded = ldb_binary_encode_string(mem_ctx, domain);
+	if (!domain_encoded) {
+		TALLOC_FREE(frame);
+		return NT_STATUS_NO_MEMORY;
+	}
+	if (realm == NULL) {
+		filter = talloc_asprintf(mem_ctx,
+				"(&(objectClass=trustedDomain)(flatname=%s))",
+				domain_encoded);
+		if (!filter) {
+			TALLOC_FREE(frame);
+			return NT_STATUS_NO_MEMORY;
+		}
+	} else {
+		char *realm_encoded = ldb_binary_encode_string(mem_ctx, realm);
+		if (!realm_encoded) {
+			TALLOC_FREE(frame);
+			return NT_STATUS_NO_MEMORY;
+		}
+
+		filter = talloc_asprintf(mem_ctx,
+				"(&(objectClass=trustedDomain)"
+				  "(|(trustPartner=%s)(flatname=%s))"
+				")",
+				realm_encoded, domain_encoded);
+		if (!filter) {
+			TALLOC_FREE(frame);
+			return NT_STATUS_NO_MEMORY;
+		}
+	}
+
+	lret = dsdb_search(sam_ctx, frame, &res,
+			   system_dn,
+			   LDB_SCOPE_ONELEVEL, attrs,
+			   DSDB_SEARCH_NO_GLOBAL_CATALOG|DSDB_SEARCH_ONE_ONLY,
+			   "%s", filter);
+	if (lret == LDB_ERR_NO_SUCH_OBJECT) {
+		DEBUG(3, ("Failed to find result for %s: %s\n", filter, ldb_errstring(sam_ctx)));
+		TALLOC_FREE(frame);
+		return NT_STATUS_NOT_FOUND;
+	} else if (lret != LDB_SUCCESS) {
+		DEBUG(3, ("Failed to search for %s: %s\n", filter, ldb_errstring(sam_ctx)));
+		TALLOC_FREE(frame);
+		return NT_STATUS_INTERNAL_DB_CORRUPTION;
+	}
+	talloc_steal(mem_ctx, res->msgs);
+	*msg = res->msgs[0];
+	TALLOC_FREE(frame);
 	return NT_STATUS_OK;
 }
 
@@ -588,5 +715,107 @@ NTSTATUS authsam_get_user_info_dc_principal(TALLOC_CTX *mem_ctx,
 	talloc_steal(mem_ctx, *user_info_dc);
 	talloc_free(tmp_ctx);
 
+	return NT_STATUS_OK;
+}
+
+NTSTATUS authsam_update_bad_pwd_count(struct ldb_context *sam_ctx,
+				      struct ldb_message *msg,
+				      struct ldb_dn *domain_dn)
+{
+	const char *attrs[] = { "lockoutThreshold",
+				"lockOutObservationWindow",
+				"lockoutDuration",
+				"pwdProperties",
+				NULL };
+	int ret;
+	NTSTATUS status;
+	struct ldb_result *domain_res;
+	struct ldb_message *msg_mod = NULL;
+	TALLOC_CTX *mem_ctx;
+
+	mem_ctx = talloc_new(msg);
+	if (mem_ctx == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	ret = dsdb_search_dn(sam_ctx, mem_ctx, &domain_res, domain_dn, attrs, 0);
+	if (ret != LDB_SUCCESS) {
+		TALLOC_FREE(mem_ctx);
+		return NT_STATUS_INTERNAL_DB_CORRUPTION;
+	}
+
+	status = dsdb_update_bad_pwd_count(mem_ctx, sam_ctx,
+					   msg, domain_res->msgs[0], &msg_mod);
+	if (!NT_STATUS_IS_OK(status)) {
+		TALLOC_FREE(mem_ctx);
+		return status;
+	}
+
+	if (msg_mod != NULL) {
+		ret = dsdb_modify(sam_ctx, msg_mod, 0);
+		if (ret != LDB_SUCCESS) {
+			DEBUG(0, ("Failed to update badPwdCount, badPasswordTime or set lockoutTime on %s: %s\n",
+				  ldb_dn_get_linearized(msg_mod->dn), ldb_errstring(sam_ctx)));
+			TALLOC_FREE(mem_ctx);
+			return NT_STATUS_INTERNAL_ERROR;
+		}
+	}
+
+	TALLOC_FREE(mem_ctx);
+	return NT_STATUS_OK;
+}
+
+NTSTATUS authsam_zero_bad_pwd_count(struct ldb_context *sam_ctx,
+				    const struct ldb_message *msg)
+{
+	int ret;
+	int badPwdCount;
+	int64_t lockoutTime;
+	struct ldb_message *msg_mod;
+	TALLOC_CTX *mem_ctx;
+
+	lockoutTime = ldb_msg_find_attr_as_int64(msg, "lockoutTime", 0);
+	badPwdCount = ldb_msg_find_attr_as_int(msg, "badPwdCount", 0);
+	if (lockoutTime == 0 && badPwdCount == 0) {
+		return NT_STATUS_OK;
+	}
+
+	mem_ctx = talloc_new(msg);
+	if (mem_ctx == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	msg_mod = ldb_msg_new(mem_ctx);
+	if (msg_mod == NULL) {
+		TALLOC_FREE(mem_ctx);
+		return NT_STATUS_NO_MEMORY;
+	}
+	msg_mod->dn = msg->dn;
+
+	if (lockoutTime != 0) {
+		/*
+		 * This implies "badPwdCount" = 0, see samldb_lockout_time()
+		 */
+		ret = samdb_msg_add_int(sam_ctx, msg_mod, msg_mod, "lockoutTime", 0);
+		if (ret != LDB_SUCCESS) {
+			TALLOC_FREE(mem_ctx);
+			return NT_STATUS_NO_MEMORY;
+		}
+	} else {
+		ret = samdb_msg_add_int(sam_ctx, msg_mod, msg_mod, "badPwdCount", 0);
+		if (ret != LDB_SUCCESS) {
+			TALLOC_FREE(mem_ctx);
+			return NT_STATUS_NO_MEMORY;
+		}
+	}
+
+	ret = dsdb_replace(sam_ctx, msg_mod, 0);
+	if (ret != LDB_SUCCESS) {
+		DEBUG(0, ("Failed to set badPwdCount and lockoutTime to 0 on %s: %s\n",
+			  ldb_dn_get_linearized(msg_mod->dn), ldb_errstring(sam_ctx)));
+		TALLOC_FREE(mem_ctx);
+		return NT_STATUS_INTERNAL_ERROR;
+	}
+
+	TALLOC_FREE(mem_ctx);
 	return NT_STATUS_OK;
 }

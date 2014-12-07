@@ -25,7 +25,7 @@
 #include "librpc/rpc/dcerpc_proto.h"
 #include "librpc/gen_ndr/ndr_lsa_c.h"
 #include "librpc/gen_ndr/ndr_samr.h"
-
+#include "auth/credentials/credentials.h"
 
 struct rpc_connect_srv_state {
 	struct libnet_context *ctx;
@@ -79,7 +79,8 @@ static struct composite_context* libnet_RpcConnectSrv_send(struct libnet_context
 		s->binding = talloc_asprintf(s, "ncacn_np:%s", r->in.name);
 		break;
 	case LIBNET_RPC_CONNECT_SERVER_ADDRESS:
-		s->binding = talloc_asprintf(s, "ncacn_np:%s", r->in.address);
+		s->binding = talloc_asprintf(s, "ncacn_np:%s[target_hostname=%s]",
+					     r->in.address, r->in.name);
 		break;
 
 	case LIBNET_RPC_CONNECT_BINDING:
@@ -108,7 +109,8 @@ static struct composite_context* libnet_RpcConnectSrv_send(struct libnet_context
 	switch (r->level) {
 	case LIBNET_RPC_CONNECT_SERVER:
 	case LIBNET_RPC_CONNECT_SERVER_ADDRESS:
-		b->flags = r->in.dcerpc_flags;
+		c->status = dcerpc_binding_set_flags(b, r->in.dcerpc_flags, 0);
+		if (!composite_is_ok(c)) return c;
 		break;
 	default:
 		/* other types have already been checked before */
@@ -116,14 +118,8 @@ static struct composite_context* libnet_RpcConnectSrv_send(struct libnet_context
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		b->flags |= DCERPC_DEBUG_PRINT_BOTH;
-	}
-
-	if (r->level == LIBNET_RPC_CONNECT_SERVER_ADDRESS) {
-		b->target_hostname = talloc_strdup(b, r->in.name);
-		if (composite_nomem(b->target_hostname, c)) {
-			return c;
-		}
+		c->status = dcerpc_binding_set_flags(b, DCERPC_DEBUG_PRINT_BOTH, 0);
+		if (!composite_is_ok(c)) return c;
 	}
 
 	/* connect to remote dcerpc pipe */
@@ -155,14 +151,14 @@ static void continue_pipe_connect(struct composite_context *ctx)
 	if (s->monitor_fn) {
 		struct monitor_msg msg;
 		struct msg_net_rpc_connect data;
-		struct dcerpc_binding *binding = s->r.out.dcerpc_pipe->binding;
-		
+		const struct dcerpc_binding *b = s->r.out.dcerpc_pipe->binding;
+
 		/* prepare monitor message and post it */
-		data.host        = binding->host;
-		data.endpoint    = binding->endpoint;
-		data.transport   = binding->transport;
-		data.domain_name = binding->target_hostname;
-		
+		data.host        = dcerpc_binding_get_string_option(b, "host");
+		data.endpoint    = dcerpc_binding_get_string_option(b, "endpoint");
+		data.transport   = dcerpc_binding_get_transport(b);
+		data.domain_name = dcerpc_binding_get_string_option(b, "target_hostname");
+
 		msg.type      = mon_NetRpcConnect;
 		msg.data      = (void*)&data;
 		msg.data_size = sizeof(data);
@@ -203,9 +199,11 @@ static NTSTATUS libnet_RpcConnectSrv_recv(struct composite_context *c,
 		   mem_ctx is freed */
 		if (r->in.dcerpc_iface == &ndr_table_samr) {
 			ctx->samr.pipe = talloc_reference(ctx, r->out.dcerpc_pipe);
+			ctx->samr.samr_handle = ctx->samr.pipe->binding_handle;
 
 		} else if (r->in.dcerpc_iface == &ndr_table_lsarpc) {
 			ctx->lsa.pipe = talloc_reference(ctx, r->out.dcerpc_pipe);
+			ctx->lsa.lsa_handle = ctx->lsa.pipe->binding_handle;
 		}
 
 		r->out.error_string = talloc_strdup(mem_ctx, "Success");
@@ -369,13 +367,13 @@ static void continue_rpc_connect(struct composite_context *ctx)
 	if (s->monitor_fn) {
 		struct monitor_msg msg;
 		struct msg_net_rpc_connect data;
-		struct dcerpc_binding *binding = s->r.out.dcerpc_pipe->binding;
+		const struct dcerpc_binding *b = s->r.out.dcerpc_pipe->binding;
 
-		data.host        = binding->host;
-		data.endpoint    = binding->endpoint;
-		data.transport   = binding->transport;
-		data.domain_name = binding->target_hostname;
-		
+		data.host        = dcerpc_binding_get_string_option(b, "host");
+		data.endpoint    = dcerpc_binding_get_string_option(b, "endpoint");
+		data.transport   = dcerpc_binding_get_transport(b);
+		data.domain_name = dcerpc_binding_get_string_option(b, "target_hostname");
+
 		msg.type      = mon_NetRpcConnect;
 		msg.data      = (void*)&data;
 		msg.data_size = sizeof(data);
@@ -424,9 +422,10 @@ static NTSTATUS libnet_RpcConnectDC_recv(struct composite_context *c,
 		   mem_ctx is freed */
 		if (r->in.dcerpc_iface == &ndr_table_samr) {
 			ctx->samr.pipe = talloc_reference(ctx, r->out.dcerpc_pipe);
-
+			ctx->samr.samr_handle = ctx->samr.pipe->binding_handle;
 		} else if (r->in.dcerpc_iface == &ndr_table_lsarpc) {
 			ctx->lsa.pipe = talloc_reference(ctx, r->out.dcerpc_pipe);
+			ctx->lsa.lsa_handle = ctx->lsa.pipe->binding_handle;
 		}
 
 	} else {
@@ -536,6 +535,7 @@ static void continue_dci_rpc_connect(struct composite_context *ctx)
 	struct composite_context *c;
 	struct rpc_connect_dci_state *s;
 	struct tevent_req *subreq;
+	enum dcerpc_transport_t transport;
 
 	c = talloc_get_type(ctx->async.private_data, struct composite_context);
 	s = talloc_get_type(c->private_data, struct rpc_connect_dci_state);
@@ -550,12 +550,12 @@ static void continue_dci_rpc_connect(struct composite_context *ctx)
 	if (s->monitor_fn) {
 		struct monitor_msg msg;
 		struct msg_net_rpc_connect data;
-		struct dcerpc_binding *binding = s->r.out.dcerpc_pipe->binding;
+		const struct dcerpc_binding *b = s->r.out.dcerpc_pipe->binding;
 
-		data.host        = binding->host;
-		data.endpoint    = binding->endpoint;
-		data.transport   = binding->transport;
-		data.domain_name = binding->target_hostname;
+		data.host        = dcerpc_binding_get_string_option(b, "host");
+		data.endpoint    = dcerpc_binding_get_string_option(b, "endpoint");
+		data.transport   = dcerpc_binding_get_transport(b);
+		data.domain_name = dcerpc_binding_get_string_option(b, "target_hostname");
 
 		msg.type      = mon_NetRpcConnect;
 		msg.data      = (void*)&data;
@@ -573,7 +573,8 @@ static void continue_dci_rpc_connect(struct composite_context *ctx)
 
 	s->attr.sec_qos = &s->qos;
 
-	if (s->lsa_pipe->binding->transport == NCACN_IP_TCP) {
+	transport = dcerpc_binding_get_transport(s->lsa_pipe->binding);
+	if (transport == NCACN_IP_TCP) {
 		/*
 		 * Skip to creating the actual connection. We can't open a
 		 * policy handle over tcpip.
@@ -782,18 +783,20 @@ static void continue_epm_map_binding_send(struct composite_context *c)
 {
 	struct rpc_connect_dci_state *s;
 	struct composite_context *epm_map_req;
+	struct cli_credentials *epm_creds = NULL;
+
 	s = talloc_get_type(c->private_data, struct rpc_connect_dci_state);
 
 	/* prepare to get endpoint mapping for the requested interface */
-	s->final_binding = talloc_zero(s, struct dcerpc_binding);
+	s->final_binding = dcerpc_binding_dup(s, s->lsa_pipe->binding);
 	if (composite_nomem(s->final_binding, c)) return;
-	
-	*s->final_binding = *s->lsa_pipe->binding;
-	/* Ensure we keep hold of the member elements */
-	if (composite_nomem(talloc_reference(s->final_binding, s->lsa_pipe->binding), c)) return;
+
+	epm_creds = cli_credentials_init_anon(s);
+	if (composite_nomem(epm_creds, c)) return;
 
 	epm_map_req = dcerpc_epm_map_binding_send(c, s->final_binding, s->r.in.dcerpc_iface,
-						  s->lsa_pipe->conn->event_ctx, s->ctx->lp_ctx);
+						  epm_creds,
+						  s->ctx->event_ctx, s->ctx->lp_ctx);
 	if (composite_nomem(epm_map_req, c)) return;
 
 	composite_continue(c, epm_map_req, continue_epm_map_binding, c);
@@ -857,14 +860,14 @@ static void continue_secondary_conn(struct composite_context *ctx)
 	if (s->monitor_fn) {
 		struct monitor_msg msg;
 		struct msg_net_rpc_connect data;
-		struct dcerpc_binding *binding = s->r.out.dcerpc_pipe->binding;
-		
+		const struct dcerpc_binding *b = s->r.out.dcerpc_pipe->binding;
+
 		/* prepare monitor message and post it */
-		data.host        = binding->host;
-		data.endpoint    = binding->endpoint;
-		data.transport   = binding->transport;
-		data.domain_name = binding->target_hostname;
-		
+		data.host        = dcerpc_binding_get_string_option(b, "host");
+		data.endpoint    = dcerpc_binding_get_string_option(b, "endpoint");
+		data.transport   = dcerpc_binding_get_transport(b);
+		data.domain_name = dcerpc_binding_get_string_option(b, "target_hostname");
+
 		msg.type      = mon_NetRpcConnect;
 		msg.data      = (void*)&data;
 		msg.data_size = sizeof(data);

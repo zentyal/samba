@@ -25,7 +25,8 @@
 
 #include "nsswitch/winbind_struct_protocol.h"
 #include "nsswitch/libwbclient/wbclient.h"
-#include "librpc/gen_ndr/wbint.h"
+#include "librpc/gen_ndr/dcerpc.h"
+#include "librpc/gen_ndr/winbind.h"
 
 #include "talloc_dict.h"
 
@@ -66,10 +67,6 @@ struct winbindd_cli_state {
 	struct winbindd_request *request;         /* Request from client */
 	struct tevent_queue *out_queue;
 	struct winbindd_response *response;        /* Respose to client */
-	bool getpwent_initialized;                /* Has getpwent_state been
-						   * initialized? */
-	bool getgrent_initialized;                /* Has getgrent_state been
-						   * initialized? */
 
 	struct getpwent_state *pwent_state; /* State for getpwent() */
 	struct getgrent_state *grent_state; /* State for getgrent() */
@@ -105,6 +102,8 @@ struct getpwent_user {
 struct winbindd_cm_conn {
 	struct cli_state *cli;
 
+	enum dcerpc_AuthLevel auth_level;
+
 	struct rpc_pipe_client *samr_pipe;
 	struct policy_handle sam_connect_handle, sam_domain_handle;
 
@@ -113,6 +112,9 @@ struct winbindd_cm_conn {
 	struct policy_handle lsa_policy;
 
 	struct rpc_pipe_client *netlogon_pipe;
+	struct netlogon_creds_cli_context *netlogon_creds;
+	uint32_t netlogon_flags;
+	bool netlogon_force_reauth;
 };
 
 /* Async child */
@@ -158,20 +160,12 @@ struct winbindd_domain {
 	bool active_directory;                 /* is this a win2k active directory ? */
 	bool primary;                          /* is this our primary domain ? */
 	bool internal;                         /* BUILTIN and member SAM */
+	bool rodc;                             /* Are we an RODC for this AD domain? (do some operations locally) */
 	bool online;			       /* is this domain available ? */
 	time_t startup_time;		       /* When we set "startup" true. monotonic clock */
 	bool startup;                          /* are we in the first 30 seconds after startup_time ? */
 
-	bool can_do_samlogon_ex; /* Due to the lack of finer control what type
-				  * of DC we have, let us try to do a
-				  * credential-chain less samlogon_ex call
-				  * with AD and schannel. If this fails with
-				  * DCERPC_FAULT_OP_RNG_ERROR, then set this
-				  * to False. This variable is around so that
-				  * we don't have to try _ex every time. */
-
 	bool can_do_ncacn_ip_tcp;
-	bool can_do_validation6;
 
 	/* Lookup methods for this domain (LDAP or RPC) */
 	struct winbindd_methods *methods;

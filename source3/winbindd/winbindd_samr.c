@@ -39,42 +39,6 @@
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
 
-static NTSTATUS open_internal_samr_pipe(TALLOC_CTX *mem_ctx,
-					struct rpc_pipe_client **samr_pipe)
-{
-	struct rpc_pipe_client *cli = NULL;
-	struct auth_session_info *session_info = NULL;
-	NTSTATUS status;
-
-	if (session_info == NULL) {
-		status = make_session_info_system(mem_ctx, &session_info);
-		if (!NT_STATUS_IS_OK(status)) {
-			DEBUG(0, ("open_samr_pipe: Could not create auth_session_info: %s\n",
-				  nt_errstr(status)));
-			return status;
-		}
-	}
-
-	/* create a samr connection */
-	status = rpc_pipe_open_internal(mem_ctx,
-					&ndr_table_samr.syntax_id,
-					session_info,
-					NULL,
-					winbind_messaging_context(),
-					&cli);
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0, ("open_samr_pipe: Could not connect to samr_pipe: %s\n",
-			  nt_errstr(status)));
-		return status;
-	}
-
-	if (samr_pipe) {
-		*samr_pipe = cli;
-	}
-
-	return NT_STATUS_OK;
-}
-
 NTSTATUS open_internal_samr_conn(TALLOC_CTX *mem_ctx,
 				 struct winbindd_domain *domain,
 				 struct rpc_pipe_client **samr_pipe,
@@ -84,7 +48,7 @@ NTSTATUS open_internal_samr_conn(TALLOC_CTX *mem_ctx,
 	struct policy_handle samr_connect_hnd;
 	struct dcerpc_binding_handle *b;
 
-	status = open_internal_samr_pipe(mem_ctx, samr_pipe);
+	status = wb_open_internal_pipe(mem_ctx, &ndr_table_samr, samr_pipe);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
@@ -116,49 +80,13 @@ NTSTATUS open_internal_samr_conn(TALLOC_CTX *mem_ctx,
 	return result;
 }
 
-static NTSTATUS open_internal_lsa_pipe(TALLOC_CTX *mem_ctx,
-				       struct rpc_pipe_client **lsa_pipe)
-{
-	struct rpc_pipe_client *cli = NULL;
-	struct auth_session_info *session_info = NULL;
-	NTSTATUS status;
-
-	if (session_info == NULL) {
-		status = make_session_info_system(mem_ctx, &session_info);
-		if (!NT_STATUS_IS_OK(status)) {
-			DEBUG(0, ("open_lsa_pipe: Could not create auth_session_info: %s\n",
-				  nt_errstr(status)));
-			return status;
-		}
-	}
-
-	/* create a lsa connection */
-	status = rpc_pipe_open_internal(mem_ctx,
-					&ndr_table_lsarpc.syntax_id,
-					session_info,
-					NULL,
-					winbind_messaging_context(),
-					&cli);
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0, ("open_lsa_pipe: Could not connect to lsa_pipe: %s\n",
-			  nt_errstr(status)));
-		return status;
-	}
-
-	if (lsa_pipe) {
-		*lsa_pipe = cli;
-	}
-
-	return NT_STATUS_OK;
-}
-
 static NTSTATUS open_internal_lsa_conn(TALLOC_CTX *mem_ctx,
 				       struct rpc_pipe_client **lsa_pipe,
 				       struct policy_handle *lsa_hnd)
 {
 	NTSTATUS status;
 
-	status = open_internal_lsa_pipe(mem_ctx, lsa_pipe);
+	status = wb_open_internal_pipe(mem_ctx, &ndr_table_lsarpc, lsa_pipe);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
@@ -684,7 +612,9 @@ static NTSTATUS sam_sid_to_name(struct winbindd_domain *domain,
 
 	/* Paranoia check */
 	if (!sid_check_is_in_builtin(sid) &&
+	    !sid_check_is_builtin(sid) &&
 	    !sid_check_is_in_our_sam(sid) &&
+	    !sid_check_is_our_sam(sid) &&
 	    !sid_check_is_in_unix_users(sid) &&
 	    !sid_check_is_unix_users(sid) &&
 	    !sid_check_is_in_unix_groups(sid) &&

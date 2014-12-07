@@ -23,6 +23,7 @@
 #include "includes.h"
 #include "system/filesys.h"
 #include "popt_common.h"
+#include "lib/param/param.h"
 
 /* Handle command line options:
  *		-d,--debuglevel 
@@ -99,12 +100,22 @@ static void popt_common_callback(poptContext con,
 
 	switch(opt->val) {
 	case OPT_OPTION:
-		if (!lp_set_option(arg)) {
+	{
+		struct loadparm_context *lp_ctx;
+
+		lp_ctx = loadparm_init_s3(talloc_tos(), loadparm_s3_helpers());
+		if (lp_ctx == NULL) {
+			fprintf(stderr, "loadparm_init_s3() failed!\n");
+			exit(1);
+		}
+
+		if (!lpcfg_set_option(lp_ctx, arg)) {
 			fprintf(stderr, "Error setting option '%s'\n", arg);
 			exit(1);
 		}
+		TALLOC_FREE(lp_ctx);
 		break;
-
+	}
 	case 'd':
 		if (arg) {
 			lp_set_cmdline("log level", arg);
@@ -117,7 +128,7 @@ static void popt_common_callback(poptContext con,
 
 	case 'O':
 		if (arg) {
-			lp_do_parameter(-1, "socket options", arg);
+			lp_set_cmdline("socket options", arg);
 		}
 		break;
 
@@ -197,151 +208,6 @@ struct poptOption popt_common_debuglevel[] = {
 struct poptOption popt_common_option[] = {
 	{ NULL, 0, POPT_ARG_CALLBACK|POPT_CBFLAG_POST, (void *)popt_common_callback },
 	{ "option",         0, POPT_ARG_STRING, NULL, OPT_OPTION, "Set smb.conf option from command line", "name=value" },
-	POPT_TABLEEND
-};
-
-/* Handle command line options:
- *		--sbindir
- *		--bindir
- *		--lmhostsfile
- *		--libdir
- *		--modulesdir
- *		--shlibext
- *		--lockdir
- *		--statedir
- *		--cachedir
- *		--piddir
- *		--smb-passwd-file
- *		--private-dir
- */
-
-enum dyn_item{
-	DYN_SBINDIR = 1,
-	DYN_BINDIR,
-	DYN_LMHOSTSFILE,
-	DYN_LIBDIR,
-	DYN_MODULESDIR,
-	DYN_SHLIBEXT,
-	DYN_LOCKDIR,
-	DYN_STATEDIR,
-	DYN_CACHEDIR,
-	DYN_PIDDIR,
-	DYN_SMB_PASSWD_FILE,
-	DYN_PRIVATE_DIR,
-};
-
-
-static void popt_dynconfig_callback(poptContext con,
-			   enum poptCallbackReason reason,
-			   const struct poptOption *opt,
-			   const char *arg, const void *data)
-{
-
-	switch (opt->val) {
-	case DYN_SBINDIR:
-		if (arg) {
-			set_dyn_SBINDIR(arg);
-		}
-		break;
-
-	case DYN_BINDIR:
-		if (arg) {
-			set_dyn_BINDIR(arg);
-		}
-		break;
-
-	case DYN_LMHOSTSFILE:
-		if (arg) {
-			set_dyn_LMHOSTSFILE(arg);
-		}
-		break;
-
-	case DYN_LIBDIR:
-		if (arg) {
-			set_dyn_LIBDIR(arg);
-		}
-		break;
-
-	case DYN_MODULESDIR:
-		if (arg) {
-			set_dyn_MODULESDIR(arg);
-		}
-		break;
-
-	case DYN_SHLIBEXT:
-		if (arg) {
-			set_dyn_SHLIBEXT(arg);
-		}
-		break;
-
-	case DYN_LOCKDIR:
-		if (arg) {
-			set_dyn_LOCKDIR(arg);
-		}
-		break;
-
-	case DYN_STATEDIR:
-		if (arg) {
-			set_dyn_STATEDIR(arg);
-		}
-		break;
-
-	case DYN_CACHEDIR:
-		if (arg) {
-			set_dyn_CACHEDIR(arg);
-		}
-		break;
-
-	case DYN_PIDDIR:
-		if (arg) {
-			set_dyn_PIDDIR(arg);
-		}
-		break;
-
-	case DYN_SMB_PASSWD_FILE:
-		if (arg) {
-			set_dyn_SMB_PASSWD_FILE(arg);
-		}
-		break;
-
-	case DYN_PRIVATE_DIR:
-		if (arg) {
-			set_dyn_PRIVATE_DIR(arg);
-		}
-		break;
-
-	}
-}
-
-const struct poptOption popt_common_dynconfig[] = {
-
-	{ NULL, '\0', POPT_ARG_CALLBACK, (void *)popt_dynconfig_callback },
-
-	{ "sbindir", '\0' , POPT_ARG_STRING, NULL, DYN_SBINDIR,
-	    "Path to sbin directory", "SBINDIR" },
-	{ "bindir", '\0' , POPT_ARG_STRING, NULL, DYN_BINDIR,
-	    "Path to bin directory", "BINDIR" },
-	{ "lmhostsfile", '\0' , POPT_ARG_STRING, NULL, DYN_LMHOSTSFILE,
-	    "Path to lmhosts file", "LMHOSTSFILE" },
-	{ "libdir", '\0' , POPT_ARG_STRING, NULL, DYN_LIBDIR,
-	    "Path to shared library directory", "LIBDIR" },
-	{ "modulesdir", '\0' , POPT_ARG_STRING, NULL, DYN_MODULESDIR,
-	    "Path to shared modules directory", "MODULESDIR" },
-	{ "shlibext", '\0' , POPT_ARG_STRING, NULL, DYN_SHLIBEXT,
-	    "Shared library extension", "SHLIBEXT" },
-	{ "lockdir", '\0' , POPT_ARG_STRING, NULL, DYN_LOCKDIR,
-	    "Path to lock file directory", "LOCKDIR" },
-	{ "statedir", '\0' , POPT_ARG_STRING, NULL, DYN_STATEDIR,
-	    "Path to persistent state file directory", "STATEDIR" },
-	{ "cachedir", '\0' , POPT_ARG_STRING, NULL, DYN_CACHEDIR,
-	    "Path to temporary cache file directory", "CACHEDIR" },
-	{ "piddir", '\0' , POPT_ARG_STRING, NULL, DYN_PIDDIR,
-	    "Path to PID file directory", "PIDDIR" },
-	{ "smb-passwd-file", '\0' , POPT_ARG_STRING, NULL, DYN_SMB_PASSWD_FILE,
-	    "Path to smbpasswd file", "SMB_PASSWD_FILE" },
-	{ "private-dir", '\0' , POPT_ARG_STRING, NULL, DYN_PRIVATE_DIR,
-	    "Path to private data directory", "PRIVATE_DIR" },
-
 	POPT_TABLEEND
 };
 

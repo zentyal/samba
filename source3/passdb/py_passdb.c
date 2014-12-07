@@ -33,10 +33,6 @@ typedef inquiry lenfunc;
 typedef intargfunc ssizeargfunc;
 #endif
 
-#ifndef Py_RETURN_NONE
-#define Py_RETURN_NONE	return Py_INCREF(Py_None), Py_None
-#endif
-
 #ifndef Py_TYPE /* Py_TYPE is only available on Python > 2.6 */
 #define Py_TYPE(ob)             (((PyObject*)(ob))->ob_type)
 #endif
@@ -2487,7 +2483,6 @@ static PyObject *py_pdb_set_account_policy(pytalloc_Object *self, PyObject *args
 static PyObject *py_pdb_search_users(pytalloc_Object *self, PyObject *args)
 {
 	TALLOC_CTX *frame = talloc_stackframe();
-	NTSTATUS status;
 	struct pdb_methods *methods;
 	unsigned int acct_flags;
 	struct pdb_search *search;
@@ -2509,9 +2504,7 @@ static PyObject *py_pdb_search_users(pytalloc_Object *self, PyObject *args)
 	}
 
 	if (!methods->search_users(methods, search, acct_flags)) {
-		PyErr_Format(py_pdb_error, "Unable to search users, (%d,%s)",
-				NT_STATUS_V(status),
-				get_friendly_nt_error_msg(status));
+		PyErr_Format(py_pdb_error, "Unable to search users");
 		talloc_free(frame);
 		return NULL;
 	}
@@ -2554,7 +2547,6 @@ static PyObject *py_pdb_search_users(pytalloc_Object *self, PyObject *args)
 static PyObject *py_pdb_search_groups(pytalloc_Object *self)
 {
 	TALLOC_CTX *frame = talloc_stackframe();
-	NTSTATUS status;
 	struct pdb_methods *methods;
 	struct pdb_search *search;
 	struct samr_displayentry *entry;
@@ -2570,9 +2562,7 @@ static PyObject *py_pdb_search_groups(pytalloc_Object *self)
 	}
 
 	if (!methods->search_groups(methods, search)) {
-		PyErr_Format(py_pdb_error, "Unable to search groups, (%d,%s)",
-				NT_STATUS_V(status),
-				get_friendly_nt_error_msg(status));
+		PyErr_Format(py_pdb_error, "Unable to search groups");
 		talloc_free(frame);
 		return NULL;
 	}

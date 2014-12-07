@@ -76,7 +76,9 @@ struct composite_context* libnet_CreateGroup_send(struct libnet_context *ctx,
 	s->group_add.in.domain_handle = ctx->samr.handle;
 
 	/* send the request */
-	create_req = libnet_rpc_groupadd_send(ctx->samr.pipe, s, &s->group_add, monitor);
+	create_req = libnet_rpc_groupadd_send(s, s->ctx->event_ctx,
+					      ctx->samr.samr_handle,
+					      &s->group_add, monitor);
 	if (composite_nomem(create_req, c)) return c;
 
 	composite_continue(c, create_req, continue_rpc_group_added, c);
@@ -101,8 +103,9 @@ static void continue_domain_opened(struct composite_context *ctx)
 	s->group_add.in.domain_handle = s->ctx->samr.handle;
 
 	/* send the request */
-	create_req = libnet_rpc_groupadd_send(s->ctx->samr.pipe, s, &s->group_add,
-					      s->monitor_fn);
+	create_req = libnet_rpc_groupadd_send(s, s->ctx->event_ctx,
+					      s->ctx->samr.samr_handle,
+					      &s->group_add, s->monitor_fn);
 	if (composite_nomem(create_req, c)) return;
 
 	composite_continue(c, create_req, continue_rpc_group_added, c);
@@ -257,7 +260,9 @@ struct composite_context* libnet_GroupInfo_send(struct libnet_context *ctx,
 		s->info.in.level         = GROUPINFOALL;
 
 		/* send the request */
-		info_req = libnet_rpc_groupinfo_send(s->ctx->samr.pipe, s, &s->info, s->monitor_fn);
+		info_req = libnet_rpc_groupinfo_send(s, s->ctx->event_ctx,
+						     s->ctx->samr.samr_handle,
+						     &s->info, s->monitor_fn);
 		if (composite_nomem(info_req, c)) return c;
 
 		/* set the next stage */
@@ -306,7 +311,9 @@ static void continue_domain_open_info(struct composite_context *ctx)
 		s->info.in.level         = GROUPINFOALL;
 
 		/* send the request */
-		info_req = libnet_rpc_groupinfo_send(s->ctx->samr.pipe, s, &s->info, s->monitor_fn);
+		info_req = libnet_rpc_groupinfo_send(s, s->ctx->event_ctx,
+						     s->ctx->samr.samr_handle,
+						     &s->info, s->monitor_fn);
 		if (composite_nomem(info_req, c)) return;
 
 		/* set the next stage */
@@ -348,7 +355,9 @@ static void continue_name_found(struct composite_context *ctx)
 	s->info.in.level         = GROUPINFOALL;
 
 	/* send the request */
-	info_req = libnet_rpc_groupinfo_send(s->ctx->samr.pipe, s, &s->info, s->monitor_fn);
+	info_req = libnet_rpc_groupinfo_send(s, s->ctx->event_ctx,
+					     s->ctx->samr.samr_handle,
+					     &s->info, s->monitor_fn);
 	if (composite_nomem(info_req, c)) return;
 
 	/* set the next stage */

@@ -28,6 +28,7 @@
 
 #include "includes.h"
 #include "utils/net.h"
+#include "utils/net_conf_util.h"
 #include "rpc_client/cli_pipe.h"
 #include "../librpc/gen_ndr/ndr_samr_c.h"
 #include "rpc_client/init_samr.h"
@@ -174,27 +175,6 @@ static int rpc_conf_delincludes_usage(struct net_context *c, int argc,
  * helper functions
  *
  **********************************************************/
-
-static bool rpc_conf_reg_valname_forbidden(const char * valname)
-{
-	const char *forbidden_valnames[] = {
-		"lock directory",
-		"lock dir",
-		"config backend",
-		"include",
-		"includes", /* this has a special meaning internally */
-		NULL
-	};
-	const char **forbidden = NULL;
-
-	for (forbidden = forbidden_valnames; *forbidden != NULL; forbidden++) {
-		if (strwicmp(valname, *forbidden) == 0) {
-			return true;
-		}
-	}
-	return false;
-
-}
 
 /*
  * The function deletes a registry value with the name 'value' from the share
@@ -1760,8 +1740,7 @@ static NTSTATUS rpc_conf_setparm_internal(struct net_context *c,
 	struct winreg_String key, keyclass;
 	enum winreg_CreateAction action = 0;
 
-	const char *canon_valname;
-	const char *canon_valstr;
+	const char *service_name, *param_name, *valstr;
 
 	ZERO_STRUCT(hive_hnd);
 	ZERO_STRUCT(key_hnd);
@@ -1791,7 +1770,11 @@ static NTSTATUS rpc_conf_setparm_internal(struct net_context *c,
 		goto error;
 	}
 
-	key.name = argv[0];
+	service_name = argv[0];
+	param_name = argv[1];
+	valstr = argv[2];
+
+	key.name = service_name;
 	keyclass.name = "";
 
 	status = dcerpc_winreg_CreateKey(b, frame, &key_hnd, key, keyclass,
@@ -1800,13 +1783,13 @@ static NTSTATUS rpc_conf_setparm_internal(struct net_context *c,
 
 	if (!(NT_STATUS_IS_OK(status))) {
 		d_fprintf(stderr, _("ERROR: Could not create share key '%s'\n%s\n"),
-				argv[0], nt_errstr(status));
+			  service_name, nt_errstr(status));
 		goto error;
 	}
 
 	if (!W_ERROR_IS_OK(werr)) {
 		d_fprintf(stderr, _("ERROR: Could not create share key '%s'\n%s\n"),
-				argv[0], win_errstr(werr));
+			  service_name, win_errstr(werr));
 		goto error;
 	}
 
@@ -1814,22 +1797,23 @@ static NTSTATUS rpc_conf_setparm_internal(struct net_context *c,
 		case REG_ACTION_NONE:
 			werr = WERR_CREATE_FAILED;
 			d_fprintf(stderr, _("ERROR: Could not create share key '%s'\n%s\n"),
-				argv[0], win_errstr(werr));
+				  service_name, win_errstr(werr));
 			goto error;
 		case REG_CREATED_NEW_KEY:
 			DEBUG(5, ("net rpc conf setparm:"
-					"createkey created %s\n", argv[0]));
+				  "createkey created %s\n", service_name));
 			break;
 		case REG_OPENED_EXISTING_KEY:
 			DEBUG(5, ("net rpc conf setparm:"
-					"createkey opened existing %s\n", argv[0]));
+				  "createkey opened existing %s\n",
+				  service_name));
 
 			/* delete posibly existing value */
 			status = rpc_conf_del_value(frame,
 						    b,
 						    &key_hnd,
-						    argv[0],
-						    argv[1],
+						    service_name,
+						    param_name,
 						    &werr);
 
 			if (!(NT_STATUS_IS_OK(status))) {
@@ -1843,54 +1827,30 @@ static NTSTATUS rpc_conf_setparm_internal(struct net_context *c,
 			break;
 	}
 
-	/* check if parameter is valid for writing */
-	if (!lp_canonicalize_parameter_with_value(argv[1], argv[2],
-						  &canon_valname,
-						  &canon_valstr))
-	{
-		if (canon_valname == NULL) {
-			d_fprintf(stderr, "invalid parameter '%s' given\n",
-				  argv[1]);
-		} else {
-			d_fprintf(stderr, "invalid value '%s' given for "
-				  "parameter '%s'\n", argv[1], argv[2]);
-		}
-		werr = WERR_INVALID_PARAM;
-		goto error;
-	}
+	/*
+	 * check if parameter is valid for writing
+	 */
 
-	if (rpc_conf_reg_valname_forbidden(canon_valname)) {
-		d_fprintf(stderr, "Parameter '%s' not allowed in registry.\n",
-			  canon_valname);
-		werr = WERR_INVALID_PARAM;
-		goto error;
-	}
-
-	if (!strequal(argv[0], "global") &&
-	    lp_parameter_is_global(argv[1]))
-	{
-		d_fprintf(stderr, "Global parameter '%s' not allowed in "
-			  "service definition ('%s').\n", canon_valname,
-			  argv[0]);
+	if (!net_conf_param_valid(service_name, param_name, valstr)) {
 		werr = WERR_INVALID_PARAM;
 		goto error;
 	}
 
 	/* set the parameter */
 	status = dcerpc_winreg_set_sz(frame, b, &share_hnd,
-					argv[1], argv[2], &werr);
+				      param_name, valstr, &werr);
 
 	if (!(NT_STATUS_IS_OK(status))) {
 		d_fprintf(stderr, "ERROR: Could not set parameter '%s'"
 				" with value %s\n %s\n",
-				argv[1], argv[2], nt_errstr(status));
+				param_name, valstr, nt_errstr(status));
 		goto error;
 	}
 
 	if (!(W_ERROR_IS_OK(werr))) {
 		d_fprintf(stderr, "ERROR: Could not set parameter '%s'"
 				" with value %s\n %s\n",
-				argv[1], argv[2], win_errstr(werr));
+				param_name, valstr, win_errstr(werr));
 		goto error;
 	}
 

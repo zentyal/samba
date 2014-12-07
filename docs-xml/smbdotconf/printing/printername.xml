@@ -2,6 +2,7 @@
                  context="S"
 		 print="1"
 		 type="string"
+                 function="_printername"
                  xmlns:samba="http://www.samba.org/samba/DTD/samba-doc">
  <synonym>printer</synonym>
 <description>
@@ -21,6 +22,6 @@
 	</para>
 </description>
 
-<value type="default">none</value>
+<value type="default"></value>
 <value type="example">laserwriter</value>
 </samba:parameter>

@@ -2,6 +2,7 @@
                  context="G"
                  advanced="1" developer="1"
 				 type="string"
+                 constant="1"
                  xmlns:samba="http://www.samba.org/samba/DTD/samba-doc">
 <synonym>lock dir</synonym>
 <description>
@@ -16,6 +17,6 @@
 	</para>
 </description>
 
-<value type="default">${prefix}/var/locks</value>
+<value type="default">&pathconfig.LOCKDIR;</value>
 <value type="example">/var/run/samba/locks</value>
 </samba:parameter>

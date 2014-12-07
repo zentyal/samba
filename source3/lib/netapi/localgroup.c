@@ -185,7 +185,7 @@ WERROR NetLocalGroupAdd_r(struct libnetapi_ctx *ctx,
 	}
 
 	werr = libnetapi_open_pipe(ctx, r->in.server_name,
-				   &ndr_table_samr.syntax_id,
+				   &ndr_table_samr,
 				   &pipe_cli);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
@@ -319,7 +319,7 @@ WERROR NetLocalGroupDel_r(struct libnetapi_ctx *ctx,
 	ZERO_STRUCT(alias_handle);
 
 	werr = libnetapi_open_pipe(ctx, r->in.server_name,
-				   &ndr_table_samr.syntax_id,
+				   &ndr_table_samr,
 				   &pipe_cli);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
@@ -499,7 +499,7 @@ WERROR NetLocalGroupGetInfo_r(struct libnetapi_ctx *ctx,
 	ZERO_STRUCT(alias_handle);
 
 	werr = libnetapi_open_pipe(ctx, r->in.server_name,
-				   &ndr_table_samr.syntax_id,
+				   &ndr_table_samr,
 				   &pipe_cli);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
@@ -678,7 +678,7 @@ WERROR NetLocalGroupSetInfo_r(struct libnetapi_ctx *ctx,
 	ZERO_STRUCT(alias_handle);
 
 	werr = libnetapi_open_pipe(ctx, r->in.server_name,
-				   &ndr_table_samr.syntax_id,
+				   &ndr_table_samr,
 				   &pipe_cli);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
@@ -828,7 +828,7 @@ WERROR NetLocalGroupEnum_r(struct libnetapi_ctx *ctx,
 	ZERO_STRUCT(alias_handle);
 
 	werr = libnetapi_open_pipe(ctx, r->in.server_name,
-				   &ndr_table_samr.syntax_id,
+				   &ndr_table_samr,
 				   &pipe_cli);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;
@@ -1141,7 +1141,7 @@ static WERROR NetLocalGroupModifyMembers_r(struct libnetapi_ctx *ctx,
 
 	if (r->in.level == 3) {
 		werr = libnetapi_open_pipe(ctx, r->in.server_name,
-					   &ndr_table_lsarpc.syntax_id,
+					   &ndr_table_lsarpc,
 					   &lsa_pipe);
 		if (!W_ERROR_IS_OK(werr)) {
 			goto done;
@@ -1160,7 +1160,7 @@ static WERROR NetLocalGroupModifyMembers_r(struct libnetapi_ctx *ctx,
 	}
 
 	werr = libnetapi_open_pipe(ctx, r->in.server_name,
-				   &ndr_table_samr.syntax_id,
+				   &ndr_table_samr,
 				   &pipe_cli);
 	if (!W_ERROR_IS_OK(werr)) {
 		goto done;

@@ -38,6 +38,7 @@ static NTSTATUS smbd_smb2_write_recv(struct tevent_req *req,
 static void smbd_smb2_request_write_done(struct tevent_req *subreq);
 NTSTATUS smbd_smb2_request_process_write(struct smbd_smb2_request *req)
 {
+	struct smbXsrv_connection *xconn = req->xconn;
 	NTSTATUS status;
 	const uint8_t *inbody;
 	uint16_t in_data_offset;
@@ -48,6 +49,8 @@ NTSTATUS smbd_smb2_request_process_write(struct smbd_smb2_request *req)
 	uint64_t in_file_id_volatile;
 	struct files_struct *in_fsp;
 	uint32_t in_flags;
+	size_t in_dyn_len = 0;
+	uint8_t *in_dyn_ptr = NULL;
 	struct tevent_req *subreq;
 
 	status = smbd_smb2_request_verify_sizes(req, 0x31);
@@ -67,19 +70,30 @@ NTSTATUS smbd_smb2_request_process_write(struct smbd_smb2_request *req)
 		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
 	}
 
-	if (in_data_length > SMBD_SMB2_IN_DYN_LEN(req)) {
+	if (req->smb1req != NULL && req->smb1req->unread_bytes > 0) {
+		in_dyn_ptr = NULL;
+		in_dyn_len = req->smb1req->unread_bytes;
+	} else {
+		in_dyn_ptr = SMBD_SMB2_IN_DYN_PTR(req);
+		in_dyn_len = SMBD_SMB2_IN_DYN_LEN(req);
+	}
+
+	if (in_data_length > in_dyn_len) {
 		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
 	}
 
 	/* check the max write size */
-	if (in_data_length > req->sconn->smb2.max_write) {
+	if (in_data_length > xconn->smb2.server.max_write) {
 		DEBUG(2,("smbd_smb2_request_process_write : "
 			"client ignored max write :%s: 0x%08X: 0x%08X\n",
-			__location__, in_data_length, req->sconn->smb2.max_write));
+			__location__, in_data_length, xconn->smb2.server.max_write));
 		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
 	}
 
-	in_data_buffer.data = SMBD_SMB2_IN_DYN_PTR(req);
+	/*
+	 * Note: that in_dyn_ptr is NULL for the recvfile case.
+	 */
+	in_data_buffer.data = in_dyn_ptr;
 	in_data_buffer.length = in_data_length;
 
 	status = smbd_smb2_request_verify_creditcharge(req, in_data_length);
@@ -120,18 +134,18 @@ static void smbd_smb2_request_write_done(struct tevent_req *subreq)
 	if (!NT_STATUS_IS_OK(status)) {
 		error = smbd_smb2_request_error(req, status);
 		if (!NT_STATUS_IS_OK(error)) {
-			smbd_server_connection_terminate(req->sconn,
+			smbd_server_connection_terminate(req->xconn,
 							 nt_errstr(error));
 			return;
 		}
 		return;
 	}
 
-	outbody = data_blob_talloc(req->out.vector, NULL, 0x10);
+	outbody = smbd_smb2_generate_outbody(req, 0x10);
 	if (outbody.data == NULL) {
 		error = smbd_smb2_request_error(req, NT_STATUS_NO_MEMORY);
 		if (!NT_STATUS_IS_OK(error)) {
-			smbd_server_connection_terminate(req->sconn,
+			smbd_server_connection_terminate(req->xconn,
 							 nt_errstr(error));
 			return;
 		}
@@ -149,7 +163,7 @@ static void smbd_smb2_request_write_done(struct tevent_req *subreq)
 
 	error = smbd_smb2_request_done(req, outbody, &outdyn);
 	if (!NT_STATUS_IS_OK(error)) {
-		smbd_server_connection_terminate(req->sconn, nt_errstr(error));
+		smbd_server_connection_terminate(req->xconn, nt_errstr(error));
 		return;
 	}
 }
@@ -340,6 +354,9 @@ static struct tevent_req *smbd_smb2_write_send(TALLOC_CTX *mem_ctx,
 		return tevent_req_post(req, ev);
 	}
 
+	/*
+	 * Note: in_data.data is NULL for the recvfile case.
+	 */
 	nwritten = write_file(smbreq, fsp,
 			      (const char *)in_data.data,
 			      in_offset,

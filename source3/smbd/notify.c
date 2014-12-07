@@ -24,6 +24,12 @@
 #include "smbd/globals.h"
 #include "../librpc/gen_ndr/ndr_notify.h"
 
+struct notify_change_event {
+	struct timespec when;
+	uint32_t action;
+	const char *name;
+};
+
 struct notify_change_buf {
 	/*
 	 * If no requests are pending, changes are queued here. Simple array,
@@ -35,7 +41,7 @@ struct notify_change_buf {
 	 * asked we just return NT_STATUS_OK without specific changes.
 	 */
 	int num_changes;
-	struct notify_change *changes;
+	struct notify_change_event *changes;
 
 	/*
 	 * If no changes are around requests are queued here. Using a linked
@@ -57,7 +63,8 @@ struct notify_change_request {
 	void *backend_data;
 };
 
-static void notify_fsp(files_struct *fsp, uint32 action, const char *name);
+static void notify_fsp(files_struct *fsp, struct timespec when,
+		       uint32 action, const char *name);
 
 bool change_notify_fsp_has_changes(struct files_struct *fsp)
 {
@@ -87,8 +94,8 @@ struct notify_mid_map {
 	uint64_t mid;
 };
 
-static bool notify_change_record_identical(struct notify_change *c1,
-					struct notify_change *c2)
+static bool notify_change_record_identical(struct notify_change_event *c1,
+					   struct notify_change_event *c2)
 {
 	/* Note this is deliberately case sensitive. */
 	if (c1->action == c2->action &&
@@ -98,9 +105,17 @@ static bool notify_change_record_identical(struct notify_change *c1,
 	return False;
 }
 
+static int compare_notify_change_events(const void *p1, const void *p2)
+{
+	const struct notify_change_event *e1 = p1;
+	const struct notify_change_event *e2 = p2;
+
+	return timespec_compare(&e1->when, &e2->when);
+}
+
 static bool notify_marshall_changes(int num_changes,
 				uint32 max_offset,
-				struct notify_change *changes,
+				struct notify_change_event *changes,
 				DATA_BLOB *final_blob)
 {
 	int i;
@@ -109,9 +124,17 @@ static bool notify_marshall_changes(int num_changes,
 		return false;
 	}
 
+	/*
+	 * Sort the notifies by timestamp when the event happened to avoid
+	 * coalescing and thus dropping events.
+	 */
+
+	qsort(changes, num_changes,
+	      sizeof(*changes), compare_notify_change_events);
+
 	for (i=0; i<num_changes; i++) {
 		enum ndr_err_code ndr_err;
-		struct notify_change *c;
+		struct notify_change_event *c;
 		struct FILE_NOTIFY_INFORMATION m;
 		DATA_BLOB blob;
 
@@ -204,11 +227,12 @@ void change_notify_reply(struct smb_request *req,
 	notify_buf->num_changes = 0;
 }
 
-static void notify_callback(void *private_data, const struct notify_event *e)
+static void notify_callback(void *private_data, struct timespec when,
+			    const struct notify_event *e)
 {
 	files_struct *fsp = (files_struct *)private_data;
 	DEBUG(10, ("notify_callback called for %s\n", fsp_str_dbg(fsp)));
-	notify_fsp(fsp, e->action, e->path);
+	notify_fsp(fsp, when, e->action, e->path);
 }
 
 static void sys_notify_callback(struct sys_notify_context *ctx,
@@ -217,7 +241,7 @@ static void sys_notify_callback(struct sys_notify_context *ctx,
 {
 	files_struct *fsp = (files_struct *)private_data;
 	DEBUG(10, ("sys_notify_callback called for %s\n", fsp_str_dbg(fsp)));
-	notify_fsp(fsp, e->action, e->path);
+	notify_fsp(fsp, timespec_current(), e->action, e->path);
 }
 
 NTSTATUS change_notify_create(struct files_struct *fsp, uint32 filter,
@@ -418,24 +442,27 @@ void notify_fname(connection_struct *conn, uint32 action, uint32 filter,
 		  const char *path)
 {
 	struct notify_context *notify_ctx = conn->sconn->notify_ctx;
-	char *fullpath;
+	char *fullpath, *to_free;
+	char tmpbuf[PATH_MAX];
+	ssize_t len;
 
 	if (path[0] == '.' && path[1] == '/') {
 		path += 2;
 	}
-	fullpath = talloc_asprintf(talloc_tos(), "%s/%s", conn->connectpath,
-				   path);
-	if (fullpath == NULL) {
-		DEBUG(0, ("asprintf failed\n"));
+	len = full_path_tos(conn->connectpath, path, tmpbuf, sizeof(tmpbuf),
+			    &fullpath, &to_free);
+	if (len == -1) {
+		DEBUG(0, ("full_path_tos failed\n"));
 		return;
 	}
 	notify_trigger(notify_ctx, action, filter, fullpath);
-	TALLOC_FREE(fullpath);
+	TALLOC_FREE(to_free);
 }
 
-static void notify_fsp(files_struct *fsp, uint32 action, const char *name)
+static void notify_fsp(files_struct *fsp, struct timespec when,
+		       uint32 action, const char *name)
 {
-	struct notify_change *change, *changes;
+	struct notify_change_event *change, *changes;
 	char *tmp;
 
 	if (fsp->notify == NULL) {
@@ -481,7 +508,8 @@ static void notify_fsp(files_struct *fsp, uint32 action, const char *name)
 
 	if (!(changes = talloc_realloc(
 		      fsp->notify, fsp->notify->changes,
-		      struct notify_change, fsp->notify->num_changes+1))) {
+		      struct notify_change_event,
+		      fsp->notify->num_changes+1))) {
 		DEBUG(0, ("talloc_realloc failed\n"));
 		return;
 	}
@@ -498,6 +526,7 @@ static void notify_fsp(files_struct *fsp, uint32 action, const char *name)
 	string_replace(tmp, '/', '\\');
 	change->name = tmp;	
 
+	change->when = when;
 	change->action = action;
 	fsp->notify->num_changes += 1;
 

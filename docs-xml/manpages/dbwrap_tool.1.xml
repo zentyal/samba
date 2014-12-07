@@ -7,7 +7,7 @@
 	<manvolnum>1</manvolnum>
 	<refmiscinfo class="source">Samba</refmiscinfo>
 	<refmiscinfo class="manual">System Administration tools</refmiscinfo>
-	<refmiscinfo class="version">4.0</refmiscinfo>
+	<refmiscinfo class="version">4.2</refmiscinfo>
 </refmeta>
 
 
@@ -19,7 +19,8 @@
 <refsynopsisdiv>
 	<cmdsynopsis>
 		<command>dbwrap_tool</command>
-		<arg choice="opt">-p|--persistent</arg>
+		<arg choice="opt">--persistent</arg>
+		<arg choice="opt">--non-persistent</arg>
 		<arg choice="opt">-d &lt;debug level&gt;</arg>
 		<arg choice="opt">-s &lt;config file&gt;</arg>
 		<arg choice="opt">-l &lt;log file base&gt;</arg>
@@ -29,9 +30,7 @@
 		<arg choice="req">&lt;operation&gt;</arg>
 		<arg choice="opt">&lt;key&gt;
 			<arg choice="opt">&lt;type&gt;
-				<arg choice="opt">&lt;value&gt;</arg>
-			</arg>
-		</arg>
+				<arg choice="opt">&lt;value&gt;</arg></arg></arg>
 	</cmdsynopsis>
 </refsynopsisdiv>
 
@@ -70,10 +69,25 @@
 
 	<variablelist>
 		<varlistentry>
-			<term>-p|--persistent</term>
+			<term>--persistent</term>
 			<listitem><para>Open the database as a persistent database.
-			If this option is not specified, the database is opened as
-			non-persistent.
+			</para>
+			<para>
+			Exactly one of --persistent and --non-persistent must be
+			specified.
+			</para></listitem>
+		</varlistentry>
+		<varlistentry>
+			<term>--non-persistent</term>
+			<listitem><para>Open the database as a non-persistent database.
+			</para>
+			<para>
+			Caveat: opening a database as non-persistent when there
+			is currently no other opener will wipe the database.
+			</para>
+			<para>
+			Exactly one of --persistent and --non-persistent must be
+			specified.
 			</para></listitem>
 		</varlistentry>
 		&popt.common.samba.client;

@@ -29,14 +29,13 @@
   form a security_unix_token from the current security_token
 */
 NTSTATUS security_token_to_unix_token(TALLOC_CTX *mem_ctx,
-				      struct wbc_context *wbc_ctx,
+				      struct tevent_context *ev,
 				      struct security_token *token,
 				      struct security_unix_token **sec)
 {
 	uint32_t s, g;
 	NTSTATUS status;
 	struct id_map *ids;
-	struct composite_context *ctx;
 
 	/* we can't do unix security without a user and group */
 	if (token->num_sids < 2) {
@@ -56,10 +55,7 @@ NTSTATUS security_token_to_unix_token(TALLOC_CTX *mem_ctx,
 		ids[s].status = ID_UNKNOWN;
 	}
 
-	ctx = wbc_sids_to_xids_send(wbc_ctx, ids, token->num_sids, ids);
-	NT_STATUS_HAVE_NO_MEMORY(ctx);
-
-	status = wbc_sids_to_xids_recv(ctx, &ids);
+	status = wbc_sids_to_xids(ev, ids, token->num_sids);
 	NT_STATUS_NOT_OK_RETURN(status);
 
 	g = token->num_sids;
@@ -125,14 +121,14 @@ NTSTATUS security_token_to_unix_token(TALLOC_CTX *mem_ctx,
 /*
   Fill in the auth_user_info_unix and auth_unix_token elements in a struct session_info
 */
-NTSTATUS auth_session_info_fill_unix(struct wbc_context *wbc_ctx,
+NTSTATUS auth_session_info_fill_unix(struct tevent_context *ev,
 				     struct loadparm_context *lp_ctx,
 				     const char *original_user_name,
 				     struct auth_session_info *session_info)
 {
 	char *su;
 	size_t len;
-	NTSTATUS status = security_token_to_unix_token(session_info, wbc_ctx,
+	NTSTATUS status = security_token_to_unix_token(session_info, ev,
 						       session_info->security_token,
 						       &session_info->unix_token);
 	if (!NT_STATUS_IS_OK(status)) {

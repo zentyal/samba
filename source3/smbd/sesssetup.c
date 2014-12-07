@@ -46,10 +46,14 @@ static int push_signature(uint8 **outbuf)
 {
 	char *lanman;
 	int result, tmp;
+	fstring native_os;
 
 	result = 0;
 
-	tmp = message_push_string(outbuf, "Unix", STR_TERMINATE);
+	fstr_sprintf(native_os, "Windows %d.%d", SAMBA_MAJOR_NBT_ANNOUNCE_VERSION,
+		SAMBA_MINOR_NBT_ANNOUNCE_VERSION);
+
+	tmp = message_push_string(outbuf, native_os, STR_TERMINATE);
 
 	if (tmp == -1) return -1;
 	result += tmp;
@@ -96,14 +100,14 @@ static NTSTATUS check_guest_password(const struct tsocket_address *remote_addres
 	auth_context->get_ntlm_challenge(auth_context,
 					 chal);
 
-	if (!make_user_info_guest(remote_address, &user_info)) {
+	if (!make_user_info_guest(talloc_tos(), remote_address, &user_info)) {
 		TALLOC_FREE(auth_context);
 		return NT_STATUS_NO_MEMORY;
 	}
 
 	nt_status = auth_check_password_session_info(auth_context, 
 						     mem_ctx, user_info, session_info);
-	free_user_info(&user_info);
+	TALLOC_FREE(user_info);
 	TALLOC_FREE(auth_context);
 	return nt_status;
 }
@@ -123,11 +127,11 @@ static void reply_sesssetup_and_X_spnego(struct smb_request *req)
 	const char *native_os;
 	const char *native_lanman;
 	const char *primary_domain;
-	const char *p2;
 	uint16 data_blob_len = SVAL(req->vwv+7, 0);
 	enum remote_arch_types ra_type = get_remote_arch();
 	uint64_t vuid = req->vuid;
 	NTSTATUS status = NT_STATUS_OK;
+	struct smbXsrv_connection *xconn = req->xconn;
 	struct smbd_server_connection *sconn = req->sconn;
 	uint16_t action = 0;
 	NTTIME now = timeval_to_nttime(&req->request_time);
@@ -137,7 +141,7 @@ static void reply_sesssetup_and_X_spnego(struct smb_request *req)
 
 	DEBUG(3,("Doing spnego session setup\n"));
 
-	if (!sconn->smb1.sessions.done_sesssetup) {
+	if (!xconn->smb1.sessions.done_sesssetup) {
 		global_client_caps = client_caps;
 
 		if (!(global_client_caps & CAP_STATUS32)) {
@@ -161,17 +165,17 @@ static void reply_sesssetup_and_X_spnego(struct smb_request *req)
 	file_save("negotiate.dat", in_blob.data, in_blob.length);
 #endif
 
-	p2 = (const char *)req->buf + in_blob.length;
+	p = req->buf + in_blob.length;
 
-	p2 += srvstr_pull_req_talloc(talloc_tos(), req, &tmp, p2,
+	p += srvstr_pull_req_talloc(talloc_tos(), req, &tmp, p,
 				     STR_TERMINATE);
 	native_os = tmp ? tmp : "";
 
-	p2 += srvstr_pull_req_talloc(talloc_tos(), req, &tmp, p2,
+	p += srvstr_pull_req_talloc(talloc_tos(), req, &tmp, p,
 				     STR_TERMINATE);
 	native_lanman = tmp ? tmp : "";
 
-	p2 += srvstr_pull_req_talloc(talloc_tos(), req, &tmp, p2,
+	p += srvstr_pull_req_talloc(talloc_tos(), req, &tmp, p,
 				     STR_TERMINATE);
 	primary_domain = tmp ? tmp : "";
 
@@ -199,7 +203,7 @@ static void reply_sesssetup_and_X_spnego(struct smb_request *req)
 	}
 
 	if (vuid != 0) {
-		status = smb1srv_session_lookup(sconn->conn,
+		status = smb1srv_session_lookup(xconn,
 						vuid, now,
 						&session);
 		if (NT_STATUS_EQUAL(status, NT_STATUS_USER_SESSION_DELETED)) {
@@ -222,7 +226,7 @@ static void reply_sesssetup_and_X_spnego(struct smb_request *req)
 
 	if (session == NULL) {
 		/* create a new session */
-		status = smbXsrv_session_create(sconn->conn,
+		status = smbXsrv_session_create(xconn,
 					        now, &session);
 		if (!NT_STATUS_IS_OK(status)) {
 			reply_nterror(req, nt_status_squash(status));
@@ -231,7 +235,7 @@ static void reply_sesssetup_and_X_spnego(struct smb_request *req)
 	}
 
 	if (!session->gensec) {
-		status = auth_generic_prepare(session, sconn->remote_address,
+		status = auth_generic_prepare(session, xconn->remote_address,
 					      &session->gensec);
 		if (!NT_STATUS_IS_OK(status)) {
 			TALLOC_FREE(session);
@@ -254,7 +258,7 @@ static void reply_sesssetup_and_X_spnego(struct smb_request *req)
 
 	become_root();
 	status = gensec_update(session->gensec,
-			       talloc_tos(), NULL,
+			       talloc_tos(),
 			       in_blob, &out_blob);
 	unbecome_root();
 	if (!NT_STATUS_IS_OK(status) &&
@@ -327,7 +331,7 @@ static void reply_sesssetup_and_X_spnego(struct smb_request *req)
 				register_homes_share(session_info->unix_info->unix_name);
 		}
 
-		if (srv_is_signing_negotiated(sconn) &&
+		if (srv_is_signing_negotiated(xconn) &&
 		    action == 0 &&
 		    session->global->signing_key.length > 0)
 		{
@@ -335,7 +339,7 @@ static void reply_sesssetup_and_X_spnego(struct smb_request *req)
 			 * Try and turn on server signing on the first non-guest
 			 * sessionsetup.
 			 */
-			srv_set_signing(sconn,
+			srv_set_signing(xconn,
 				session->global->signing_key,
 				data_blob_null);
 		}
@@ -350,6 +354,7 @@ static void reply_sesssetup_and_X_spnego(struct smb_request *req)
 		session->global->auth_session_info_seqnum += 1;
 		session->global->channels[0].auth_session_info_seqnum =
 			session->global->auth_session_info_seqnum;
+		session->global->auth_time = now;
 		if (client_caps & CAP_DYNAMIC_REAUTH) {
 			session->global->expiration_time =
 				gensec_expire_time(session->gensec);
@@ -378,13 +383,13 @@ static void reply_sesssetup_and_X_spnego(struct smb_request *req)
 			return;
 		}
 
-		if (!sconn->smb1.sessions.done_sesssetup) {
+		if (!xconn->smb1.sessions.done_sesssetup) {
 			if (smb_bufsize < SMB_BUFFER_SIZE_MIN) {
 				reply_force_doserror(req, ERRSRV, ERRerror);
 				return;
 			}
-			sconn->smb1.sessions.max_send = smb_bufsize;
-			sconn->smb1.sessions.done_sesssetup = true;
+			xconn->smb1.sessions.max_send = smb_bufsize;
+			xconn->smb1.sessions.done_sesssetup = true;
 		}
 
 		/* current_user_info is changed on new vuid */
@@ -437,6 +442,7 @@ static void reply_sesssetup_and_X_spnego(struct smb_request *req)
 		session->global->auth_session_info_seqnum += 1;
 		session->global->channels[0].auth_session_info_seqnum =
 			session->global->auth_session_info_seqnum;
+		session->global->auth_time = now;
 		if (client_caps & CAP_DYNAMIC_REAUTH) {
 			session->global->expiration_time =
 				gensec_expire_time(session->gensec);
@@ -587,11 +593,10 @@ void reply_sesssetup_and_X(struct smb_request *req)
 	uint16_t action = 0;
 	NTTIME now = timeval_to_nttime(&req->request_time);
 	struct smbXsrv_session *session = NULL;
-
 	NTSTATUS nt_status;
+	struct smbXsrv_connection *xconn = req->xconn;
 	struct smbd_server_connection *sconn = req->sconn;
-
-	bool doencrypt = sconn->smb1.negprot.encrypted_passwords;
+	bool doencrypt = xconn->smb1.negprot.encrypted_passwords;
 	bool signing_allowed = false;
 	bool signing_mandatory = false;
 
@@ -615,7 +620,7 @@ void reply_sesssetup_and_X(struct smb_request *req)
 	 * It finds out when it needs to turn into a noop
 	 * itself.
 	 */
-	srv_set_signing_negotiated(req->sconn,
+	srv_set_signing_negotiated(xconn,
 				   signing_allowed,
 				   signing_mandatory);
 
@@ -624,7 +629,7 @@ void reply_sesssetup_and_X(struct smb_request *req)
 	if (req->wct == 12 &&
 	    (req->flags2 & FLAGS2_EXTENDED_SECURITY)) {
 
-		if (!sconn->smb1.negprot.spnego) {
+		if (!xconn->smb1.negprot.spnego) {
 			DEBUG(0,("reply_sesssetup_and_X:  Rejecting attempt "
 				 "at SPNEGO session setup when it was not "
 				 "negotiated.\n"));
@@ -681,7 +686,7 @@ void reply_sesssetup_and_X(struct smb_request *req)
 		const uint8_t *save_p = req->buf;
 		uint16 byte_count;
 
-		if (!sconn->smb1.sessions.done_sesssetup) {
+		if (!xconn->smb1.sessions.done_sesssetup) {
 			global_client_caps = IVAL(req->vwv+11, 0);
 
 			if (!(global_client_caps & CAP_STATUS32)) {
@@ -834,7 +839,7 @@ void reply_sesssetup_and_X(struct smb_request *req)
 				domain, user, get_remote_machine_name()));
 
 	if (*user) {
-		if (sconn->smb1.negprot.spnego) {
+		if (xconn->smb1.negprot.spnego) {
 
 			/* This has to be here, because this is a perfectly
 			 * valid behaviour for guest logons :-( */
@@ -862,7 +867,7 @@ void reply_sesssetup_and_X(struct smb_request *req)
 
 	} else if (doencrypt) {
 		struct auth4_context *negprot_auth_context = NULL;
-		negprot_auth_context = sconn->smb1.negprot.auth_context;
+		negprot_auth_context = xconn->smb1.negprot.auth_context;
 		if (!negprot_auth_context) {
 			DEBUG(0, ("reply_sesssetup_and_X:  Attempted encrypted "
 				"session setup without negprot denied!\n"));
@@ -871,10 +876,11 @@ void reply_sesssetup_and_X(struct smb_request *req)
 			END_PROFILE(SMBsesssetupX);
 			return;
 		}
-		nt_status = make_user_info_for_reply_enc(&user_info, user,
-						domain,
-						sconn->remote_address,
-						lm_resp, nt_resp);
+		nt_status = make_user_info_for_reply_enc(talloc_tos(),
+							 &user_info, user,
+							 domain,
+							 sconn->remote_address,
+							 lm_resp, nt_resp);
 		if (NT_STATUS_IS_OK(nt_status)) {
 			nt_status = auth_check_password_session_info(negprot_auth_context, 
 								     req, user_info, &session_info);
@@ -891,7 +897,8 @@ void reply_sesssetup_and_X(struct smb_request *req)
 			plaintext_auth_context->get_ntlm_challenge(
 					plaintext_auth_context, chal);
 
-			if (!make_user_info_for_reply(&user_info,
+			if (!make_user_info_for_reply(talloc_tos(),
+						      &user_info,
 						      user, domain,
 						      sconn->remote_address,
 						      chal,
@@ -907,7 +914,7 @@ void reply_sesssetup_and_X(struct smb_request *req)
 		}
 	}
 
-	free_user_info(&user_info);
+	TALLOC_FREE(user_info);
 
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		data_blob_free(&nt_resp);
@@ -937,7 +944,7 @@ void reply_sesssetup_and_X(struct smb_request *req)
 	/* register the name and uid as being validated, so further connections
 	   to a uid can get through without a password, on the same VC */
 
-	nt_status = smbXsrv_session_create(sconn->conn,
+	nt_status = smbXsrv_session_create(xconn,
 					   now, &session);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		data_blob_free(&nt_resp);
@@ -1024,7 +1031,7 @@ void reply_sesssetup_and_X(struct smb_request *req)
 			register_homes_share(session_info->unix_info->unix_name);
 	}
 
-	if (srv_is_signing_negotiated(sconn) &&
+	if (srv_is_signing_negotiated(xconn) &&
 	    action == 0 &&
 	    session->global->signing_key.length > 0)
 	{
@@ -1032,7 +1039,7 @@ void reply_sesssetup_and_X(struct smb_request *req)
 		 * Try and turn on server signing on the first non-guest
 		 * sessionsetup.
 		 */
-		srv_set_signing(sconn,
+		srv_set_signing(xconn,
 			session->global->signing_key,
 			nt_resp.data ? nt_resp : lm_resp);
 	}
@@ -1047,6 +1054,7 @@ void reply_sesssetup_and_X(struct smb_request *req)
 	session->global->auth_session_info_seqnum += 1;
 	session->global->channels[0].auth_session_info_seqnum =
 		session->global->auth_session_info_seqnum;
+	session->global->auth_time = now;
 	session->global->expiration_time = GENSEC_EXPIRE_TIME_INFINITY;
 
 	nt_status = smbXsrv_session_update(session);
@@ -1086,14 +1094,14 @@ void reply_sesssetup_and_X(struct smb_request *req)
 	SSVAL(discard_const_p(char, req->inbuf),smb_uid,sess_vuid);
 	req->vuid = sess_vuid;
 
-	if (!sconn->smb1.sessions.done_sesssetup) {
+	if (!xconn->smb1.sessions.done_sesssetup) {
 		if (smb_bufsize < SMB_BUFFER_SIZE_MIN) {
 			reply_force_doserror(req, ERRSRV, ERRerror);
 			END_PROFILE(SMBsesssetupX);
 			return;
 		}
-		sconn->smb1.sessions.max_send = smb_bufsize;
-		sconn->smb1.sessions.done_sesssetup = true;
+		xconn->smb1.sessions.max_send = smb_bufsize;
+		xconn->smb1.sessions.done_sesssetup = true;
 	}
 
 	END_PROFILE(SMBsesssetupX);

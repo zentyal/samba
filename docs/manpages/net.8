@@ -2,12 +2,12 @@
 .\"     Title: net
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 10/20/2014
+.\"      Date: 10/15/2014
 .\"    Manual: System Administration tools
-.\"    Source: Samba 4.0
+.\"    Source: Samba 4.2
 .\"  Language: English
 .\"
-.TH "NET" "8" "10/20/2014" "Samba 4\&.0" "System Administration tools"
+.TH "NET" "8" "10/15/2014" "Samba 4\&.2" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -977,6 +977,39 @@ Example:
 .SS "ADS WORKGROUP"
 .PP
 Print out workgroup name for specified kerberos realm\&.
+.SS "ADS ENCTYPES"
+.PP
+List, modify or delete the value of the "msDS\-SupportedEncryptionTypes" attribute of an account in AD\&.
+.PP
+This attribute allows to control which Kerberos encryption types are used for the generation of initial and service tickets\&. The value consists of an integer bitmask with the following values:
+.PP
+0x00000001 DES\-CBC\-CRC
+.PP
+0x00000002 DES\-CBC\-MD5
+.PP
+0x00000004 RC4\-HMAC
+.PP
+0x00000008 AES128\-CTS\-HMAC\-SHA1\-96
+.PP
+0x00000010 AES256\-CTS\-HMAC\-SHA1\-96
+.SS "ADS ENCTYPES LIST \fI<ACCOUNTNAME>\fR"
+.PP
+List the value of the "msDS\-SupportedEncryptionTypes" attribute of a given account\&.
+.PP
+Example:
+\fBnet ads enctypes list Computername\fR
+.SS "ADS ENCTYPES SET \fI<ACCOUNTNAME>\fR \fI[enctypes]\fR"
+.PP
+Set the value of the "msDS\-SupportedEncryptionTypes" attribute of the LDAP object of ACCOUNTNAME to a given value\&. If the value is ommitted, the value is set to 31 which enables all the currently supported encryption types\&.
+.PP
+Example:
+\fBnet ads enctypes set Computername 24\fR
+.SS "ADS ENCTYPES DELETE \fI<ACCOUNTNAME>\fR"
+.PP
+Deletes the "msDS\-SupportedEncryptionTypes" attribute of the LDAP object of ACCOUNTNAME\&.
+.PP
+Example:
+\fBnet ads enctypes set Computername 24\fR
 .SS "SAM CREATEBUILTINGROUP <NAME>"
 .PP
 (Re)Create a BUILTIN group\&. Only a wellknown set of BUILTIN groups can be created with this command\&. This is the list of currently recognized group names: Administrators, Users, Guests, Power Users, Account Operators, Server Operators, Print Operators, Backup Operators, Replicator, RAS Servers, Pre\-Windows 2000 compatible Access\&. This command requires a running Winbindd with idmap allocation properly configured\&. The group gid will be allocated out of the winbindd range\&.
@@ -1070,16 +1103,37 @@ Dumps the mappings contained in the local tdb file specified\&. This command is 
 .SS "IDMAP RESTORE [input file]"
 .PP
 Restore the mappings from the specified file or stdin\&.
-.SS "IDMAP SECRET <DOMAIN> <secret>"
+.SS "IDMAP SET SECRET <DOMAIN> <secret>"
 .PP
 Store a secret for the specified domain, used primarily for domains that use idmap_ldap as a backend\&. In this case the secret is used as the password for the user DN used to bind to the ldap server\&.
-.SS "IDMAP DELETE [\-f] [\-\-db=<DB>] <ID>"
+.SS "IDMAP SET RANGE <RANGE> <SID> [index] [\-\-db=<DB>]"
+.PP
+Store a domain\-range mapping for a given domain (and index) in autorid database\&.
+.SS "IDMAP SET CONFIG <config> [\-\-db=<DB>]"
+.PP
+Update CONFIG entry in autorid database\&.
+.SS "IDMAP GET RANGE <SID> [index] [\-\-db=<DB>]"
+.PP
+Get the range for a given domain and index from autorid database\&.
+.SS "IDMAP GET RANGES [<SID>] [\-\-db=<DB>]"
+.PP
+Get ranges for all domains or for one identified by given SID\&.
+.SS "IDMAP GET CONFIG [\-\-db=<DB>]"
+.PP
+Get CONFIG entry from autorid database\&.
+.SS "IDMAP DELETE MAPPING [\-f] [\-\-db=<DB>] <ID>"
 .PP
 Delete a mapping sid <\-> gid or sid <\-> uid from the IDMAP database\&. The mapping is given by <ID> which may either be a sid: S\-x\-\&.\&.\&., a gid: "GID number" or a uid: "UID number"\&. Use \-f to delete an invalid partial mapping <ID> \-> xx
 .PP
 Use "smbcontrol all idmap \&.\&.\&." to notify running smbd instances\&. See the
 \fBsmbcontrol\fR(1)
 manpage for details\&.
+.SS "IDMAP DELETE RANGE [\-f] [\-\-db=<TDB>] <RANGE>|(<SID> [<INDEX>])"
+.PP
+Delete a domain range mapping identified by \*(AqRANGE\*(Aq or "domain SID and INDEX" from autorid database\&. Use \-f to delete invalid mappings\&.
+.SS "IDMAP DELETE RANGES [\-f] [\-\-db=<TDB>] <SID>"
+.PP
+Delete all domain range mappings for a domain identified by SID\&. Use \-f to delete invalid mappings\&.
 .SS "IDMAP CHECK [\-v] [\-r] [\-a] [\-T] [\-f] [\-l] [\-\-db=<DB>]"
 .PP
 Check and repair the IDMAP database\&. If no option is given a read only check of the database is done\&. Among others an interactive or automatic repair mode may be chosen with one of the following options:

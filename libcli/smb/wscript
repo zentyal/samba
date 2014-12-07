@@ -6,8 +6,8 @@ def build(bld):
         source='''
             read_smb.c
         ''',
-        deps='errors LIBASYNC_REQ',
-        public_deps='talloc tevent samba-util',
+        deps='LIBASYNC_REQ',
+        public_deps='talloc tevent',
         private_library=True,
         public_headers='''
             read_smb.h
@@ -23,7 +23,12 @@ def build(bld):
 		smbXcli_base.c
 		smb1cli_trans.c
 		smb1cli_echo.c
+                smb1cli_create.c
+                smb1cli_close.c
+                smb1cli_write.c
+                smb1cli_read.c
 		smb2cli_session.c
+		smb2cli_tcon.c
                 smb2cli_create.c
                 smb2cli_close.c
 		smb2cli_read.c
@@ -34,8 +39,12 @@ def build(bld):
 		smb2cli_query_directory.c
 		smb2cli_ioctl.c
 		smb2cli_echo.c
+                tstream_smbXcli_np.c
 	''',
-	deps='LIBCRYPTO errors gensec krb5samba smb_transport',
+	deps='''
+                LIBCRYPTO NDR_SMB2_LEASE_STRUCT errors gensec krb5samba
+                smb_transport
+        ''',
 	public_deps='talloc samba-util',
 	private_library=True,
 	public_headers='''
@@ -45,5 +54,6 @@ def build(bld):
 		smb2_lease.h
 		smb_util.h
 		smb_unix_ext.h
+                tstream_smbXcli_np.h
 	''',
 	)

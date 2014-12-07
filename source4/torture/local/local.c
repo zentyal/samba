@@ -47,12 +47,6 @@
 	torture_local_genrand, 
 	torture_local_iconv,
 	torture_local_socket, 
-#ifdef SOCKET_WRAPPER
-	torture_local_socket_wrapper, 
-#endif
-#ifdef NSS_WRAPPER
-	torture_local_nss_wrapper,
-#endif
 	torture_pac, 
 	torture_local_resolve,
 	torture_local_sddl,
@@ -74,6 +68,7 @@
 	torture_dsdb_dn,
 	torture_dsdb_syntax,
 	torture_registry,
+	torture_local_verif_trailer,
 	NULL
 };
 

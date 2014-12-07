@@ -26,6 +26,7 @@
 #include "../librpc/gen_ndr/ndr_netlogon_c.h"
 #include "rpc_client/cli_netlogon.h"
 #include "secrets.h"
+#include "../libcli/auth/netlogon_creds_cli.h"
 
 static WERROR cmd_netlogon_logon_ctrl2(struct rpc_pipe_client *cli,
 				       TALLOC_CTX *mem_ctx, int argc,
@@ -630,8 +631,19 @@ static NTSTATUS cmd_netlogon_sam_sync(struct rpc_pipe_client *cli,
 
 	do {
 		struct netr_DELTA_ENUM_ARRAY *delta_enum_array = NULL;
+		struct netlogon_creds_CredentialState *creds = NULL;
 
-		netlogon_creds_client_authenticator(cli->dc, &credential);
+		if (rpcclient_netlogon_creds == NULL) {
+			return NT_STATUS_UNSUCCESSFUL;
+		}
+
+		status = netlogon_creds_cli_lock(rpcclient_netlogon_creds,
+						 mem_ctx, &creds);
+		if (!NT_STATUS_IS_OK(status)) {
+			return status;
+		}
+
+		netlogon_creds_client_authenticator(creds, &credential);
 
 		status = dcerpc_netr_DatabaseSync2(b, mem_ctx,
 						   logon_server,
@@ -645,15 +657,18 @@ static NTSTATUS cmd_netlogon_sam_sync(struct rpc_pipe_client *cli,
 						   0xffff,
 						   &result);
 		if (!NT_STATUS_IS_OK(status)) {
+			TALLOC_FREE(creds);
 			return status;
 		}
 
 		/* Check returned credentials. */
-		if (!netlogon_creds_client_check(cli->dc,
+		if (!netlogon_creds_client_check(creds,
 						 &return_authenticator.cred)) {
 			DEBUG(0,("credentials chain check failed\n"));
+			TALLOC_FREE(creds);
 			return NT_STATUS_ACCESS_DENIED;
 		}
+		TALLOC_FREE(creds);
 
 		if (NT_STATUS_IS_ERR(result)) {
 			break;
@@ -699,8 +714,19 @@ static NTSTATUS cmd_netlogon_sam_deltas(struct rpc_pipe_client *cli,
 
 	do {
 		struct netr_DELTA_ENUM_ARRAY *delta_enum_array = NULL;
+		struct netlogon_creds_CredentialState *creds = NULL;
 
-		netlogon_creds_client_authenticator(cli->dc, &credential);
+		if (rpcclient_netlogon_creds == NULL) {
+			return NT_STATUS_UNSUCCESSFUL;
+		}
+
+		status = netlogon_creds_cli_lock(rpcclient_netlogon_creds,
+						 mem_ctx, &creds);
+		if (!NT_STATUS_IS_OK(status)) {
+			return status;
+		}
+
+		netlogon_creds_client_authenticator(creds, &credential);
 
 		status = dcerpc_netr_DatabaseDeltas(b, mem_ctx,
 						    logon_server,
@@ -713,15 +739,18 @@ static NTSTATUS cmd_netlogon_sam_deltas(struct rpc_pipe_client *cli,
 						    0xffff,
 						    &result);
 		if (!NT_STATUS_IS_OK(status)) {
+			TALLOC_FREE(creds);
 			return status;
 		}
 
 		/* Check returned credentials. */
-		if (!netlogon_creds_client_check(cli->dc,
+		if (!netlogon_creds_client_check(creds,
 						 &return_authenticator.cred)) {
 			DEBUG(0,("credentials chain check failed\n"));
+			TALLOC_FREE(creds);
 			return NT_STATUS_ACCESS_DENIED;
 		}
+		TALLOC_FREE(creds);
 
 		if (NT_STATUS_IS_ERR(result)) {
 			break;
@@ -747,15 +776,15 @@ static NTSTATUS cmd_netlogon_sam_logon(struct rpc_pipe_client *cli,
 	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
 	int logon_type = NetlogonNetworkInformation;
 	const char *username, *password;
-	uint16_t validation_level = 3;
 	uint32 logon_param = 0;
 	const char *workstation = NULL;
+	struct netr_SamInfo3 *info3 = NULL;
 
 	/* Check arguments */
 
-	if (argc < 3 || argc > 7) {
+	if (argc < 3 || argc > 6) {
 		fprintf(stderr, "Usage: samlogon <username> <password> [workstation]"
-			"[logon_type (1 or 2)] [auth level (2 or 3)] [logon_parameter]\n");
+			"[logon_type (1 or 2)] [logon_parameter]\n");
 		return NT_STATUS_OK;
 	}
 
@@ -768,16 +797,21 @@ static NTSTATUS cmd_netlogon_sam_logon(struct rpc_pipe_client *cli,
 	if (argc >= 5)
 		sscanf(argv[4], "%i", &logon_type);
 
-	if (argc >= 6)
-		validation_level = atoi(argv[5]);
-
-	if (argc == 7)
-		sscanf(argv[6], "%x", &logon_param);
+	if (argc == 6)
+		sscanf(argv[5], "%x", &logon_param);
 
 	/* Perform the sam logon */
 
-	result = rpccli_netlogon_sam_logon(cli, mem_ctx, logon_param, lp_workgroup(), username, password, workstation, validation_level, logon_type);
-
+	result = rpccli_netlogon_password_logon(rpcclient_netlogon_creds,
+						cli->binding_handle,
+						mem_ctx,
+						logon_param,
+						lp_workgroup(),
+						username,
+						password,
+						workstation,
+						logon_type,
+						&info3);
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
 
@@ -800,11 +834,11 @@ static NTSTATUS cmd_netlogon_change_trust_pw(struct rpc_pipe_client *cli,
                 return NT_STATUS_OK;
         }
 
-        /* Perform the sam logon */
-
-	result = trust_pw_find_change_and_store_it(cli, mem_ctx,
-						   lp_workgroup());
-
+	result = trust_pw_change(rpcclient_netlogon_creds,
+				 rpcclient_msg_ctx,
+				 cli->binding_handle,
+				 lp_workgroup(),
+				 true); /* force */
 	if (!NT_STATUS_IS_OK(result))
 		goto done;
 
@@ -1120,14 +1154,12 @@ static NTSTATUS cmd_netlogon_database_redo(struct rpc_pipe_client *cli,
 	NTSTATUS status = NT_STATUS_UNSUCCESSFUL;
 	NTSTATUS result;
 	const char *server_name = cli->desthost;
-	uint32_t neg_flags = NETLOGON_NEG_AUTH2_ADS_FLAGS;
 	struct netr_Authenticator clnt_creds, srv_cred;
 	struct netr_DELTA_ENUM_ARRAY *delta_enum_array = NULL;
-	unsigned char trust_passwd_hash[16];
-	enum netr_SchannelType sec_channel_type = 0;
 	struct netr_ChangeLogEntry e;
 	uint32_t rid = 500;
 	struct dcerpc_binding_handle *b = cli->binding_handle;
+	struct netlogon_creds_CredentialState *creds = NULL;
 
 	if (argc > 2) {
 		fprintf(stderr, "Usage: %s <user rid>\n", argv[0]);
@@ -1138,26 +1170,17 @@ static NTSTATUS cmd_netlogon_database_redo(struct rpc_pipe_client *cli,
 		sscanf(argv[1], "%d", &rid);
 	}
 
-	if (!secrets_fetch_trust_account_password(lp_workgroup(),
-						  trust_passwd_hash,
-						  NULL, &sec_channel_type)) {
+	if (rpcclient_netlogon_creds == NULL) {
 		return NT_STATUS_UNSUCCESSFUL;
 	}
 
-	status = rpccli_netlogon_setup_creds(cli,
-					     server_name, /* server name */
-					     lp_workgroup(), /* domain */
-					     lp_netbios_name(), /* client name */
-					     lp_netbios_name(), /* machine account name */
-					     trust_passwd_hash,
-					     sec_channel_type,
-					     &neg_flags);
-
+	status = netlogon_creds_cli_lock(rpcclient_netlogon_creds,
+					 mem_ctx, &creds);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
 
-	netlogon_creds_client_authenticator(cli->dc, &clnt_creds);
+	netlogon_creds_client_authenticator(creds, &clnt_creds);
 
 	ZERO_STRUCT(e);
 
@@ -1175,13 +1198,16 @@ static NTSTATUS cmd_netlogon_database_redo(struct rpc_pipe_client *cli,
 					  &delta_enum_array,
 					  &result);
 	if (!NT_STATUS_IS_OK(status)) {
+		TALLOC_FREE(creds);
 		return status;
 	}
 
-	if (!netlogon_creds_client_check(cli->dc, &srv_cred.cred)) {
+	if (!netlogon_creds_client_check(creds, &srv_cred.cred)) {
 		DEBUG(0,("credentials chain check failed\n"));
+		TALLOC_FREE(creds);
 		return NT_STATUS_ACCESS_DENIED;
 	}
+	TALLOC_FREE(creds);
 
 	return result;
 }
@@ -1197,6 +1223,7 @@ static NTSTATUS cmd_netlogon_capabilities(struct rpc_pipe_client *cli,
 	union netr_Capabilities capabilities;
 	uint32_t level = 1;
 	struct dcerpc_binding_handle *b = cli->binding_handle;
+	struct netlogon_creds_CredentialState *creds = NULL;
 
 	if (argc > 2) {
 		fprintf(stderr, "Usage: %s <level>\n", argv[0]);
@@ -1209,7 +1236,17 @@ static NTSTATUS cmd_netlogon_capabilities(struct rpc_pipe_client *cli,
 
 	ZERO_STRUCT(return_authenticator);
 
-	netlogon_creds_client_authenticator(cli->dc, &credential);
+	if (rpcclient_netlogon_creds == NULL) {
+		return NT_STATUS_UNSUCCESSFUL;
+	}
+
+	status = netlogon_creds_cli_lock(rpcclient_netlogon_creds,
+					 mem_ctx, &creds);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	netlogon_creds_client_authenticator(creds, &credential);
 
 	status = dcerpc_netr_LogonGetCapabilities(b, mem_ctx,
 						  cli->desthost,
@@ -1220,14 +1257,17 @@ static NTSTATUS cmd_netlogon_capabilities(struct rpc_pipe_client *cli,
 						  &capabilities,
 						  &result);
 	if (!NT_STATUS_IS_OK(status)) {
+		TALLOC_FREE(creds);
 		return status;
 	}
 
-	if (!netlogon_creds_client_check(cli->dc,
+	if (!netlogon_creds_client_check(creds,
 					 &return_authenticator.cred)) {
 		DEBUG(0,("credentials chain check failed\n"));
+		TALLOC_FREE(creds);
 		return NT_STATUS_ACCESS_DENIED;
 	}
+	TALLOC_FREE(creds);
 
 	printf("capabilities: 0x%08x\n", capabilities.server_capabilities);
 

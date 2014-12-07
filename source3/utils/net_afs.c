@@ -22,6 +22,10 @@
 #include "utils/net_afs.h"
 #include "secrets.h"
 #include "system/filesys.h"
+#include "lib/afs/afs_funcs.h"
+#include "lib/afs/afs_settoken.h"
+
+#ifdef WITH_FAKE_KASERVER
 
 int net_afs_usage(struct net_context *c, int argc, const char **argv)
 {
@@ -118,3 +122,4 @@ int net_afs(struct net_context *c, int argc, const char **argv)
 	return net_run_function(c, argc, argv, "net afs", func);
 }
 
+#endif /* WITH_FAKE_KASERVER */

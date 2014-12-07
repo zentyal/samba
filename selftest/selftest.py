@@ -86,7 +86,7 @@ def handle_signal(sig, frame):
     sys.stderr.write("Exiting early because of signal %s.\n" % sig)
     sys.exit(1)
 
-for sig in (signal.SIGINT, signal.SIGQUIT, signal.SIGTERm, signal.SIGPIPE):
+for sig in (signal.SIGINT, signal.SIGQUIT, signal.SIGTERM, signal.SIGPIPE):
     signal.signal(sig, handle_signal)
 
 def skip(name):
@@ -153,7 +153,7 @@ tests = args
 # quick hack to disable rpc validation when using valgrind - it is way too slow
 if not os.environ.get("VALGRIND"):
     os.environ["VALIDATE"] = "validate"
-    os.environ["MALLOC_CHECK_"] = "2"
+    os.environ["MALLOC_CHECK_"] = "3"
 
 # make all our python scripts unbuffered
 os.environ["PYTHONUNBUFFERED"] = "1"

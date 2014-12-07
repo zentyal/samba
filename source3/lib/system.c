@@ -62,11 +62,8 @@ ssize_t sys_read(int fd, void *buf, size_t count)
 
 	do {
 		ret = read(fd, buf, count);
-#if defined(EWOULDBLOCK)
 	} while (ret == -1 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK));
-#else
-	} while (ret == -1 && (errno == EINTR || errno == EAGAIN));
-#endif
+
 	return ret;
 }
 
@@ -80,11 +77,8 @@ ssize_t sys_write(int fd, const void *buf, size_t count)
 
 	do {
 		ret = write(fd, buf, count);
-#if defined(EWOULDBLOCK)
 	} while (ret == -1 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK));
-#else
-	} while (ret == -1 && (errno == EINTR || errno == EAGAIN));
-#endif
+
 	return ret;
 }
 
@@ -109,11 +103,8 @@ ssize_t sys_writev(int fd, const struct iovec *iov, int iovcnt)
 
 	do {
 		ret = writev(fd, iov, iovcnt);
-#if defined(EWOULDBLOCK)
 	} while (ret == -1 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK));
-#else
-	} while (ret == -1 && (errno == EINTR || errno == EAGAIN));
-#endif
+
 	return ret;
 }
 
@@ -159,11 +150,8 @@ ssize_t sys_send(int s, const void *msg, size_t len, int flags)
 
 	do {
 		ret = send(s, msg, len, flags);
-#if defined(EWOULDBLOCK)
 	} while (ret == -1 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK));
-#else
-	} while (ret == -1 && (errno == EINTR || errno == EAGAIN));
-#endif
+
 	return ret;
 }
 
@@ -782,6 +770,10 @@ static bool set_process_capability(enum smbd_capability capability,
 			cap_vals[num_cap_vals++] = CAP_LEASE;
 #endif
 			break;
+		case DAC_OVERRIDE_CAPABILITY:
+#ifdef CAP_DAC_OVERRIDE
+			cap_vals[num_cap_vals++] = CAP_DAC_OVERRIDE;
+#endif
 	}
 
 	SMB_ASSERT(num_cap_vals <= ARRAY_SIZE(cap_vals));
@@ -1300,31 +1292,6 @@ int sys_pclose(int fd)
 	if (wait_pid == -1)
 		return -1;
 	return wstatus;
-}
-
-/**************************************************************************
- Wrapper for Admin Logs.
-****************************************************************************/
-
- void sys_adminlog(int priority, const char *format_str, ...) 
-{
-	va_list ap;
-	int ret;
-	char *msgbuf = NULL;
-
-	va_start( ap, format_str );
-	ret = vasprintf( &msgbuf, format_str, ap );
-	va_end( ap );
-
-	if (ret == -1)
-		return;
-
-#if defined(HAVE_SYSLOG)
-	syslog( priority, "%s", msgbuf );
-#else
-	DEBUG(0,("%s", msgbuf ));
-#endif
-	SAFE_FREE(msgbuf);
 }
 
 /****************************************************************************

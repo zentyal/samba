@@ -753,7 +753,7 @@ kdc_check_flags(krb5_context context,
 	if (client->flags.locked_out) {
 	    kdc_log(context, config, 0,
 		    "Client (%s) is locked out", client_name);
-	    return KRB5KDC_ERR_POLICY;
+	    return KRB5KDC_ERR_CLIENT_REVOKED;
 	}
 
 	if (client->flags.invalid) {
@@ -1175,6 +1175,14 @@ _kdc_as_rep(krb5_context context,
 	}
     ts_enc:
 #endif
+
+	if (client->entry.flags.locked_out) {
+	    ret = KRB5KDC_ERR_CLIENT_REVOKED;
+	    kdc_log(context, config, 0,
+		    "Client (%s) is locked out", client_name);
+	    goto out;
+	}
+
 	kdc_log(context, config, 5, "Looking for ENC-TS pa-data -- %s",
 		client_name);
 
@@ -1440,10 +1448,6 @@ _kdc_as_rep(krb5_context context,
 	goto out;
     }
 
-    if (clientdb->hdb_auth_status)
-	(clientdb->hdb_auth_status)(context, clientdb, client,
-				    HDB_AUTH_SUCCESS);
-
     /*
      * Verify flags after the user been required to prove its identity
      * with in a preauth mech.
@@ -1454,6 +1458,10 @@ _kdc_as_rep(krb5_context context,
 			    req, &e_data);
     if(ret)
 	goto out;
+
+    if (clientdb->hdb_auth_status)
+	(clientdb->hdb_auth_status)(context, clientdb, client,
+				    HDB_AUTH_SUCCESS);
 
     /*
      * Selelct the best encryption type for the KDC with out regard to

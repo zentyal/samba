@@ -66,70 +66,106 @@ static int do_global_checks(void)
 {
 	int ret = 0;
 	SMB_STRUCT_STAT st;
+	const char *socket_options;
 
-	if (lp_security() >= SEC_DOMAIN && !lp_encrypted_passwords()) {
-		fprintf(stderr, "ERROR: in 'security=domain' mode the 'encrypt passwords' parameter must always be set to 'true'.\n");
+	if (lp_security() >= SEC_DOMAIN && !lp_encrypt_passwords()) {
+		fprintf(stderr, "ERROR: in 'security=domain' mode the "
+				"'encrypt passwords' parameter must always be "
+				"set to 'true'.\n\n");
 		ret = 1;
 	}
 
 	if (lp_we_are_a_wins_server() && lp_wins_server_list()) {
-		fprintf(stderr, "ERROR: both 'wins support = true' and 'wins server = <server list>' \
-cannot be set in the smb.conf file. nmbd will abort with this setting.\n");
+		fprintf(stderr, "ERROR: both 'wins support = true' and "
+				"'wins server = <server list>' cannot be set in "
+				"the smb.conf file. nmbd will abort with this "
+				"setting.\n\n");
 		ret = 1;
 	}
 
 	if (strequal(lp_workgroup(), lp_netbios_name())) {
-		fprintf(stderr, "WARNING: 'workgroup' and 'netbios name' " \
-			"must differ.\n");
-		ret = 1;
+		fprintf(stderr, "WARNING: 'workgroup' and 'netbios name' "
+				"must differ.\n\n");
 	}
 
-	if (!directory_exist_stat(lp_lockdir(), &st)) {
-		fprintf(stderr, "ERROR: lock directory %s does not exist\n",
-		       lp_lockdir());
+	if (!directory_exist_stat(lp_lock_directory(), &st)) {
+		fprintf(stderr, "ERROR: lock directory %s does not exist\n\n",
+		       lp_lock_directory());
 		ret = 1;
 	} else if ((st.st_ex_mode & 0777) != 0755) {
-		fprintf(stderr, "WARNING: lock directory %s should have permissions 0755 for browsing to work\n",
-		       lp_lockdir());
-		ret = 1;
+		fprintf(stderr, "WARNING: lock directory %s should have "
+				"permissions 0755 for browsing to work\n\n",
+		       lp_lock_directory());
 	}
 
-	if (!directory_exist_stat(lp_statedir(), &st)) {
-		fprintf(stderr, "ERROR: state directory %s does not exist\n",
-		       lp_statedir());
+	if (!directory_exist_stat(lp_state_directory(), &st)) {
+		fprintf(stderr, "ERROR: state directory %s does not exist\n\n",
+		       lp_state_directory());
 		ret = 1;
 	} else if ((st.st_ex_mode & 0777) != 0755) {
-		fprintf(stderr, "WARNING: state directory %s should have permissions 0755 for browsing to work\n",
-		       lp_statedir());
-		ret = 1;
+		fprintf(stderr, "WARNING: state directory %s should have "
+				"permissions 0755 for browsing to work\n\n",
+		       lp_state_directory());
 	}
 
-	if (!directory_exist_stat(lp_cachedir(), &st)) {
-		fprintf(stderr, "ERROR: cache directory %s does not exist\n",
-		       lp_cachedir());
+	if (!directory_exist_stat(lp_cache_directory(), &st)) {
+		fprintf(stderr, "ERROR: cache directory %s does not exist\n\n",
+		       lp_cache_directory());
 		ret = 1;
 	} else if ((st.st_ex_mode & 0777) != 0755) {
-		fprintf(stderr, "WARNING: cache directory %s should have permissions 0755 for browsing to work\n",
-		       lp_cachedir());
-		ret = 1;
+		fprintf(stderr, "WARNING: cache directory %s should have "
+				"permissions 0755 for browsing to work\n\n",
+		       lp_cache_directory());
 	}
 
-	if (!directory_exist_stat(lp_piddir(), &st)) {
-		fprintf(stderr, "ERROR: pid directory %s does not exist\n",
-		       lp_piddir());
+	if (!directory_exist_stat(lp_pid_directory(), &st)) {
+		fprintf(stderr, "ERROR: pid directory %s does not exist\n\n",
+		       lp_pid_directory());
 		ret = 1;
 	}
 
 	if (lp_passdb_expand_explicit()) {
 		fprintf(stderr, "WARNING: passdb expand explicit = yes is "
-			"deprecated\n");
+				"deprecated\n\n");
+	}
+
+	/*
+	 * Socket options.
+	 */
+	socket_options = lp_socket_options();
+	if (socket_options != NULL &&
+	    (strstr(socket_options, "SO_SNDBUF") ||
+	     strstr(socket_options, "SO_RCVBUF") ||
+	     strstr(socket_options, "SO_SNDLOWAT") ||
+	     strstr(socket_options, "SO_RCVLOWAT")))
+	{
+		fprintf(stderr,
+			"WARNING: socket options = %s\n"
+			"This warning is printed because you set one of the\n"
+			"following options: SO_SNDBUF, SO_RCVBUF, SO_SNDLOWAT,\n"
+			"SO_RCVLOWAT\n"
+			"Modern server operating systems are tuned for\n"
+			"high network performance in the majority of situations;\n"
+			"when you set 'socket options' you are overriding those\n"
+			"settings.\n"
+			"Linux in particular has an auto-tuning mechanism for\n"
+			"buffer sizes (SO_SNDBUF, SO_RCVBUF) that will be\n"
+			"disabled if you specify a socket buffer size. This can\n"
+			"potentially cripple your TCP/IP stack.\n\n"
+			"Getting the 'socket options' correct can make a big\n"
+			"difference to your performance, but getting them wrong\n"
+			"can degrade it by just as much. As with any other low\n"
+			"level setting, if you must make changes to it, make\n "
+			"small changes and test the effect before making any\n"
+			"large changes.\n\n",
+			socket_options);
 	}
 
 	/*
 	 * Password server sanity checks.
 	 */
 
-	if((lp_security() >= SEC_DOMAIN) && !*lp_passwordserver()) {
+	if((lp_security() >= SEC_DOMAIN) && !*lp_password_server()) {
 		const char *sec_setting;
 		if(lp_security() == SEC_DOMAIN)
 			sec_setting = "domain";
@@ -138,12 +174,14 @@ cannot be set in the smb.conf file. nmbd will abort with this setting.\n");
 		else
 			sec_setting = "";
 
-		fprintf(stderr, "ERROR: The setting 'security=%s' requires the 'password server' parameter be set\n"
-			"to the default value * or a valid password server.\n", sec_setting );
+		fprintf(stderr, "ERROR: The setting 'security=%s' requires the "
+				"'password server' parameter be set to the "
+				"default value * or a valid password server.\n\n",
+				sec_setting );
 		ret = 1;
 	}
 
-	if((lp_security() >= SEC_DOMAIN) && (strcmp(lp_passwordserver(), "*") != 0)) {
+	if((lp_security() >= SEC_DOMAIN) && (strcmp(lp_password_server(), "*") != 0)) {
 		const char *sec_setting;
 		if(lp_security() == SEC_DOMAIN)
 			sec_setting = "domain";
@@ -152,8 +190,12 @@ cannot be set in the smb.conf file. nmbd will abort with this setting.\n");
 		else
 			sec_setting = "";
 
-		fprintf(stderr, "WARNING: The setting 'security=%s' should NOT be combined with the 'password server' parameter.\n"
-			"(by default Samba will discover the correct DC to contact automatically).\n", sec_setting );
+		fprintf(stderr, "WARNING: The setting 'security=%s' should NOT "
+				"be combined with the 'password server' "
+				"parameter.\n"
+				"(by default Samba will discover the correct DC "
+				"to contact automatically).\n\n",
+				sec_setting );
 	}
 
 	/*
@@ -173,8 +215,10 @@ cannot be set in the smb.conf file. nmbd will abort with this setting.\n");
 			if((lp_passwd_program(talloc_tos()) == NULL) ||
 			   (strlen(lp_passwd_program(talloc_tos())) == 0))
 			{
-				fprintf( stderr, "ERROR: the 'unix password sync' parameter is set and there is no valid 'passwd program' \
-parameter.\n" );
+				fprintf(stderr,
+					"ERROR: the 'unix password sync' "
+					"parameter is set and there is no valid "
+					"'passwd program' parameter.\n\n");
 				ret = 1;
 			} else {
 				const char *passwd_prog;
@@ -187,8 +231,13 @@ parameter.\n" );
 						&p,
 						&truncated_prog, NULL);
 				if (truncated_prog && access(truncated_prog, F_OK) == -1) {
-					fprintf(stderr, "ERROR: the 'unix password sync' parameter is set and the 'passwd program' (%s) \
-cannot be executed (error was %s).\n", truncated_prog, strerror(errno) );
+					fprintf(stderr,
+						"ERROR: the 'unix password sync' "
+						"parameter is set and the "
+						"'passwd program' (%s) cannot be "
+						"executed (error was %s).\n\n",
+						truncated_prog,
+						strerror(errno));
 					ret = 1;
 				}
 			}
@@ -198,8 +247,10 @@ cannot be executed (error was %s).\n", truncated_prog, strerror(errno) );
 #endif
 
 		if(lp_passwd_chat(talloc_tos()) == NULL) {
-			fprintf(stderr, "ERROR: the 'unix password sync' parameter is set and there is no valid 'passwd chat' \
-parameter.\n");
+			fprintf(stderr,
+				"ERROR: the 'unix password sync' parameter is "
+				"set and there is no valid 'passwd chat' "
+				"parameter.\n\n");
 			ret = 1;
 		}
 
@@ -208,7 +259,10 @@ parameter.\n");
 		{
 			/* check if there's a %u parameter present */
 			if(strstr_m(lp_passwd_program(talloc_tos()), "%u") == NULL) {
-				fprintf(stderr, "ERROR: the 'passwd program' (%s) requires a '%%u' parameter.\n", lp_passwd_program(talloc_tos()));
+				fprintf(stderr,
+					"ERROR: the 'passwd program' (%s) "
+					"requires a '%%u' parameter.\n\n",
+					lp_passwd_program(talloc_tos()));
 				ret = 1;
 			}
 		}
@@ -218,50 +272,61 @@ parameter.\n");
 		 * been written to expect the old password.
 		 */
 
-		if(lp_encrypted_passwords()) {
+		if(lp_encrypt_passwords()) {
 			if(strstr_m( lp_passwd_chat(talloc_tos()), "%o")!=NULL) {
-				fprintf(stderr, "ERROR: the 'passwd chat' script [%s] expects to use the old plaintext password \
-via the %%o substitution. With encrypted passwords this is not possible.\n", lp_passwd_chat(talloc_tos()) );
+				fprintf(stderr,
+					"ERROR: the 'passwd chat' script [%s] "
+					"expects to use the old plaintext "
+					"password via the %%o substitution. With "
+					"encrypted passwords this is not "
+					"possible.\n\n",
+					lp_passwd_chat(talloc_tos()) );
 				ret = 1;
 			}
 		}
 	}
 
 	if (strlen(lp_winbind_separator()) != 1) {
-		fprintf(stderr,"ERROR: the 'winbind separator' parameter must be a single character.\n");
+		fprintf(stderr, "ERROR: the 'winbind separator' parameter must "
+				"be a single character.\n\n");
 		ret = 1;
 	}
 
 	if (*lp_winbind_separator() == '+') {
-		fprintf(stderr,"'winbind separator = +' might cause problems with group membership.\n");
+		fprintf(stderr, "'winbind separator = +' might cause problems "
+				"with group membership.\n\n");
 	}
 
 	if (lp_algorithmic_rid_base() < BASE_RID) {
 		/* Try to prevent admin foot-shooting, we can't put algorithmic
 		   rids below 1000, that's the 'well known RIDs' on NT */
-		fprintf(stderr,"'algorithmic rid base' must be equal to or above %lu\n", BASE_RID);
+		fprintf(stderr, "'algorithmic rid base' must be equal to or "
+				"above %lu\n\n", BASE_RID);
 	}
 
 	if (lp_algorithmic_rid_base() & 1) {
-		fprintf(stderr,"'algorithmic rid base' must be even.\n");
+		fprintf(stderr, "'algorithmic rid base' must be even.\n\n");
 	}
 
 #ifndef HAVE_DLOPEN
 	if (lp_preload_modules()) {
-		fprintf(stderr,"WARNING: 'preload modules = ' set while loading plugins not supported.\n");
+		fprintf(stderr, "WARNING: 'preload modules = ' set while loading "
+				"plugins not supported.\n\n");
 	}
 #endif
 
 	if (!lp_passdb_backend()) {
-		fprintf(stderr,"ERROR: passdb backend must have a value or be left out\n");
+		fprintf(stderr, "ERROR: passdb backend must have a value or be "
+				"left out\n\n");
 	}
 	
 	if (lp_os_level() > 255) {
-		fprintf(stderr,"WARNING: Maximum value for 'os level' is 255!\n");	
+		fprintf(stderr, "WARNING: Maximum value for 'os level' is "
+				"255!\n\n");
 	}
 
 	if (strequal(lp_dos_charset(), "UTF8") || strequal(lp_dos_charset(), "UTF-8")) {
-		fprintf(stderr, "ERROR: 'dos charset' must not be UTF8\n");
+		fprintf(stderr, "ERROR: 'dos charset' must not be UTF8\n\n");
 		ret = 1;
 	}
 
@@ -273,8 +338,8 @@ via the %%o substitution. With encrypted passwords this is not possible.\n", lp_
  */
 static void do_per_share_checks(int s)
 {
-	const char **deny_list = lp_hostsdeny(s);
-	const char **allow_list = lp_hostsallow(s);
+	const char **deny_list = lp_hosts_deny(s);
+	const char **allow_list = lp_hosts_allow(s);
 	int i;
 
 	if(deny_list) {
@@ -282,8 +347,12 @@ static void do_per_share_checks(int s)
 			char *hasstar = strchr_m(deny_list[i], '*');
 			char *hasquery = strchr_m(deny_list[i], '?');
 			if(hasstar || hasquery) {
-				fprintf(stderr,"Invalid character %c in hosts deny list (%s) for service %s.\n",
-					hasstar ? *hasstar : *hasquery, deny_list[i], lp_servicename(talloc_tos(), s) );
+				fprintf(stderr,
+					"Invalid character %c in hosts deny list "
+					"(%s) for service %s.\n\n",
+					hasstar ? *hasstar : *hasquery,
+					deny_list[i],
+					lp_servicename(talloc_tos(), s));
 			}
 		}
 	}
@@ -293,50 +362,64 @@ static void do_per_share_checks(int s)
 			char *hasstar = strchr_m(allow_list[i], '*');
 			char *hasquery = strchr_m(allow_list[i], '?');
 			if(hasstar || hasquery) {
-				fprintf(stderr,"Invalid character %c in hosts allow list (%s) for service %s.\n",
-					hasstar ? *hasstar : *hasquery, allow_list[i], lp_servicename(talloc_tos(), s) );
+				fprintf(stderr,
+					"Invalid character %c in hosts allow "
+					"list (%s) for service %s.\n\n",
+					hasstar ? *hasstar : *hasquery,
+					allow_list[i],
+					lp_servicename(talloc_tos(), s));
 			}
 		}
 	}
 
 	if(lp_level2_oplocks(s) && !lp_oplocks(s)) {
-		fprintf(stderr,"Invalid combination of parameters for service %s. \
-			   Level II oplocks can only be set if oplocks are also set.\n",
-			lp_servicename(talloc_tos(), s) );
+		fprintf(stderr, "Invalid combination of parameters for service "
+				"%s. Level II oplocks can only be set if oplocks "
+				"are also set.\n\n",
+				lp_servicename(talloc_tos(), s));
 	}
 
 	if (!lp_store_dos_attributes(s) && lp_map_hidden(s)
 	    && !(lp_create_mask(s) & S_IXOTH))
 	{
-		fprintf(stderr,"Invalid combination of parameters for service "
-			"%s. Map hidden can only work if create mask includes "
-			"octal 01 (S_IXOTH).\n", lp_servicename(talloc_tos(), s));
+		fprintf(stderr,
+			"Invalid combination of parameters for service %s. Map "
+			"hidden can only work if create mask includes octal "
+			"01 (S_IXOTH).\n\n",
+			lp_servicename(talloc_tos(), s));
 	}
 	if (!lp_store_dos_attributes(s) && lp_map_hidden(s)
 	    && (lp_force_create_mode(s) & S_IXOTH))
 	{
-		fprintf(stderr,"Invalid combination of parameters for service "
+		fprintf(stderr,
+			"Invalid combination of parameters for service "
 			"%s. Map hidden can only work if force create mode "
-			"excludes octal 01 (S_IXOTH).\n", lp_servicename(talloc_tos(), s));
+			"excludes octal 01 (S_IXOTH).\n\n",
+			lp_servicename(talloc_tos(), s));
 	}
 	if (!lp_store_dos_attributes(s) && lp_map_system(s)
 	    && !(lp_create_mask(s) & S_IXGRP))
 	{
-		fprintf(stderr,"Invalid combination of parameters for service "
+		fprintf(stderr,
+			"Invalid combination of parameters for service "
 			"%s. Map system can only work if create mask includes "
-			"octal 010 (S_IXGRP).\n", lp_servicename(talloc_tos(), s));
+			"octal 010 (S_IXGRP).\n\n",
+			lp_servicename(talloc_tos(), s));
 	}
 	if (!lp_store_dos_attributes(s) && lp_map_system(s)
 	    && (lp_force_create_mode(s) & S_IXGRP))
 	{
-		fprintf(stderr,"Invalid combination of parameters for service "
+		fprintf(stderr,
+			"Invalid combination of parameters for service "
 			"%s. Map system can only work if force create mode "
-			"excludes octal 010 (S_IXGRP).\n", lp_servicename(talloc_tos(), s));
+			"excludes octal 010 (S_IXGRP).\n\n",
+			lp_servicename(talloc_tos(), s));
 	}
-	if (lp_printing(s) == PRINT_CUPS && *(lp_printcommand(talloc_tos(), s)) != '\0') {
-		 fprintf(stderr,"Warning: Service %s defines a print command, but \
-rameter is ignored when using CUPS libraries.\n",
-			   lp_servicename(talloc_tos(), s) );
+	if (lp_printing(s) == PRINT_CUPS && *(lp_print_command(talloc_tos(), s)) != '\0') {
+		fprintf(stderr,
+			"Warning: Service %s defines a print command, but "
+			"parameter is ignored when using CUPS libraries.\n\n",
+			lp_servicename(talloc_tos(), s));
 	}
 }
 
@@ -438,7 +521,9 @@ rameter is ignored when using CUPS libraries.\n",
 
 
 	if (!section_name && !parameter_name) {
-		fprintf(stderr,"Server role: %s\n", server_role_str(lp_server_role()));
+		fprintf(stderr,
+			"Server role: %s\n\n",
+			server_role_str(lp_server_role()));
 	}
 
 	if (!cname) {
@@ -484,8 +569,8 @@ rameter is ignored when using CUPS libraries.\n",
 		/* this is totally ugly, a real `quick' hack */
 		for (s=0;s<1000;s++) {
 			if (VALID_SNUM(s)) {
-				if (allow_access(lp_hostsdeny(-1), lp_hostsallow(-1), cname, caddr)
-				    && allow_access(lp_hostsdeny(s), lp_hostsallow(s), cname, caddr)) {
+				if (allow_access(lp_hosts_deny(-1), lp_hosts_allow(-1), cname, caddr)
+				    && allow_access(lp_hosts_deny(s), lp_hosts_allow(s), cname, caddr)) {
 					fprintf(stderr,"Allow connection from %s (%s) to %s\n",
 						   cname,caddr,lp_servicename(talloc_tos(), s));
 				} else {

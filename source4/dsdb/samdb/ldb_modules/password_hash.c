@@ -43,6 +43,7 @@
 #include "librpc/gen_ndr/ndr_drsblobs.h"
 #include "../lib/crypto/crypto.h"
 #include "param/param.h"
+#include "lib/krb5_wrap/krb5_samba.h"
 
 /* If we have decided there is a reason to work on this request, then
  * setup all the password hash types correctly.
@@ -645,7 +646,7 @@ static int setup_kerberos_keys(struct setup_password_fields_io *io)
 {
 	struct ldb_context *ldb;
 	krb5_error_code krb5_ret;
-	Principal *salt_principal;
+	krb5_principal salt_principal;
 	krb5_salt salt;
 	krb5_keyblock key;
 	krb5_data cleartext_data;
@@ -680,7 +681,7 @@ static int setup_kerberos_keys(struct setup_password_fields_io *io)
 			return ldb_oom(ldb);
 		}
 		
-		krb5_ret = krb5_make_principal(io->smb_krb5_context->krb5_context,
+		krb5_ret = smb_krb5_make_principal(io->smb_krb5_context->krb5_context,
 					       &salt_principal,
 					       io->ac->status->domain_data.realm,
 					       "host", saltbody, NULL);
@@ -698,12 +699,12 @@ static int setup_kerberos_keys(struct setup_password_fields_io *io)
 			p[0] = '\0';
 		}
 
-		krb5_ret = krb5_make_principal(io->smb_krb5_context->krb5_context,
+		krb5_ret = smb_krb5_make_principal(io->smb_krb5_context->krb5_context,
 					       &salt_principal,
 					       io->ac->status->domain_data.realm,
 					       user_principal_name, NULL);
 	} else {
-		krb5_ret = krb5_make_principal(io->smb_krb5_context->krb5_context,
+		krb5_ret = smb_krb5_make_principal(io->smb_krb5_context->krb5_context,
 					       &salt_principal,
 					       io->ac->status->domain_data.realm,
 					       io->u.sAMAccountName, NULL);
@@ -1872,6 +1873,112 @@ static int setup_password_fields(struct setup_password_fields_io *io)
 	return LDB_SUCCESS;
 }
 
+static int make_error_and_update_badPwdCount(struct setup_password_fields_io *io)
+{
+	struct ldb_context *ldb = ldb_module_get_ctx(io->ac->module);
+	struct ldb_message *mod_msg = NULL;
+	NTSTATUS status;
+	int ret;
+
+	status = dsdb_update_bad_pwd_count(io->ac, ldb,
+					   io->ac->search_res->message,
+					   io->ac->dom_res->message,
+					   &mod_msg);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto done;
+	}
+
+	if (mod_msg == NULL) {
+		goto done;
+	}
+
+	/*
+	 * OK, horrible semantics ahead.
+	 *
+	 * - We need to abort any existing transaction
+	 * - create a transaction arround the badPwdCount update
+	 * - re-open the transaction so the upper layer
+	 *   doesn't know what happened.
+	 *
+	 * This is needed because returning an error to the upper
+	 * layer will cancel the transaction and undo the badPwdCount
+	 * update.
+	 */
+
+	/*
+	 * Checking errors here is a bit pointless.
+	 * What can we do if we can't end the transaction?
+	 */
+	ret = ldb_next_del_trans(io->ac->module);
+	if (ret != LDB_SUCCESS) {
+		ldb_debug(ldb, LDB_DEBUG_FATAL,
+			  "Failed to abort transaction prior to update of badPwdCount of %s: %s",
+			  ldb_dn_get_linearized(io->ac->search_res->message->dn),
+			  ldb_errstring(ldb));
+		/*
+		 * just return the original error
+		 */
+		goto done;
+	}
+
+	/* Likewise, what should we do if we can't open a new transaction? */
+	ret = ldb_next_start_trans(io->ac->module);
+	if (ret != LDB_SUCCESS) {
+		ldb_debug(ldb, LDB_DEBUG_ERROR,
+			  "Failed to open transaction to update badPwdCount of %s: %s",
+			  ldb_dn_get_linearized(io->ac->search_res->message->dn),
+			  ldb_errstring(ldb));
+		/*
+		 * just return the original error
+		 */
+		goto done;
+	}
+
+	ret = dsdb_module_modify(io->ac->module, mod_msg,
+				 DSDB_FLAG_NEXT_MODULE,
+				 io->ac->req);
+	if (ret != LDB_SUCCESS) {
+		ldb_debug(ldb, LDB_DEBUG_ERROR,
+			  "Failed to update badPwdCount of %s: %s",
+			  ldb_dn_get_linearized(io->ac->search_res->message->dn),
+			  ldb_errstring(ldb));
+		/*
+		 * We can only ignore this...
+		 */
+	}
+
+	ret = ldb_next_end_trans(io->ac->module);
+	if (ret != LDB_SUCCESS) {
+		ldb_debug(ldb, LDB_DEBUG_ERROR,
+			  "Failed to close transaction to update badPwdCount of %s: %s",
+			  ldb_dn_get_linearized(io->ac->search_res->message->dn),
+			  ldb_errstring(ldb));
+		/*
+		 * We can only ignore this...
+		 */
+	}
+
+	ret = ldb_next_start_trans(io->ac->module);
+	if (ret != LDB_SUCCESS) {
+		ldb_debug(ldb, LDB_DEBUG_ERROR,
+			  "Failed to open transaction after update of badPwdCount of %s: %s",
+			  ldb_dn_get_linearized(io->ac->search_res->message->dn),
+			  ldb_errstring(ldb));
+		/*
+		 * We can only ignore this...
+		 */
+	}
+
+done:
+	ret = LDB_ERR_CONSTRAINT_VIOLATION;
+	ldb_asprintf_errstring(ldb,
+			       "%08X: %s - check_password_restrictions: "
+			       "The old password specified doesn't match!",
+			       W_ERROR_V(WERR_INVALID_PASSWORD),
+			       ldb_strerror(ret));
+	return ret;
+}
+
 static int check_password_restrictions(struct setup_password_fields_io *io)
 {
 	struct ldb_context *ldb;
@@ -1895,25 +2002,8 @@ static int check_password_restrictions(struct setup_password_fields_io *io)
 		/* The password modify through the NT hash is encouraged and
 		   has no problems at all */
 		if (io->og.nt_hash) {
-			if (!io->o.nt_hash) {
-				ret = LDB_ERR_CONSTRAINT_VIOLATION;
-				ldb_asprintf_errstring(ldb,
-					"%08X: %s - check_password_restrictions: "
-					"There's no old nt_hash, which is needed "
-					"in order to change your password!",
-					W_ERROR_V(WERR_INVALID_PASSWORD),
-					ldb_strerror(ret));
-				return ret;
-			}
-
-			if (memcmp(io->og.nt_hash->hash, io->o.nt_hash->hash, 16) != 0) {
-				ret = LDB_ERR_CONSTRAINT_VIOLATION;
-				ldb_asprintf_errstring(ldb,
-					"%08X: %s - check_password_restrictions: "
-					"The old password specified doesn't match!",
-					W_ERROR_V(WERR_INVALID_PASSWORD),
-					ldb_strerror(ret));
-				return ret;
+			if (!io->o.nt_hash || memcmp(io->og.nt_hash->hash, io->o.nt_hash->hash, 16) != 0) {
+				return make_error_and_update_badPwdCount(io);
 			}
 
 			nt_hash_checked = true;
@@ -1924,26 +2014,9 @@ static int check_password_restrictions(struct setup_password_fields_io *io)
 		 * the NT hash was already checked - otherwise it's mandatory.
 		 * (as the SAMR operations request it). */
 		if (io->og.lm_hash) {
-			if (!io->o.lm_hash && !nt_hash_checked) {
-				ret = LDB_ERR_CONSTRAINT_VIOLATION;
-				ldb_asprintf_errstring(ldb,
-					"%08X: %s - check_password_restrictions: "
-					"There's no old lm_hash, which is needed "
-					"in order to change your password!",
-					W_ERROR_V(WERR_INVALID_PASSWORD),
-					ldb_strerror(ret));
-				return ret;
-			}
-
-			if (io->o.lm_hash &&
-			    memcmp(io->og.lm_hash->hash, io->o.lm_hash->hash, 16) != 0) {
-				ret = LDB_ERR_CONSTRAINT_VIOLATION;
-				ldb_asprintf_errstring(ldb,
-					"%08X: %s - check_password_restrictions: "
-					"The old password specified doesn't match!",
-					W_ERROR_V(WERR_INVALID_PASSWORD),
-					ldb_strerror(ret));
-				return ret;
+			if ((!io->o.lm_hash && !nt_hash_checked)
+			    || (io->o.lm_hash && memcmp(io->og.lm_hash->hash, io->o.lm_hash->hash, 16) != 0)) {
+				return make_error_and_update_badPwdCount(io);
 			}
 		}
 	}
@@ -2613,7 +2686,7 @@ static int get_domain_data_callback(struct ldb_request *req,
 	struct ldb_context *ldb;
 	struct ph_context *ac;
 	struct loadparm_context *lp_ctx;
-	int ret;
+	int ret = LDB_SUCCESS;
 
 	ac = talloc_get_type(req->context, struct ph_context);
 	ldb = ldb_module_get_ctx(ac->module);
@@ -2662,8 +2735,6 @@ static int get_domain_data_callback(struct ldb_request *req,
 		ac->status->domain_data.store_cleartext =
 			ac->status->domain_data.pwdProperties & DOMAIN_PASSWORD_STORE_CLEARTEXT;
 
-		talloc_free(ares);
-
 		/* For a domain DN, this puts things in dotted notation */
 		/* For builtin domains, this will give details for the host,
 		 * but that doesn't really matter, as it's just used for salt
@@ -2678,6 +2749,15 @@ static int get_domain_data_callback(struct ldb_request *req,
 
 		ac->status->reject_reason = SAM_PWD_CHANGE_NO_ERROR;
 
+		if (ac->dom_res != NULL) {
+			talloc_free(ares);
+
+			ldb_set_errstring(ldb, "Too many results");
+			ret = LDB_ERR_OPERATIONS_ERROR;
+			goto done;
+		}
+
+		ac->dom_res = talloc_steal(ac, ares);
 		ret = LDB_SUCCESS;
 		break;
 
@@ -2745,6 +2825,8 @@ static int build_domain_data_request(struct ph_context *ac)
 					      "maxPwdAge",
 					      "minPwdAge",
 					      "minPwdLength",
+					      "lockoutThreshold",
+					      "lockOutObservationWindow",
 					      NULL };
 	int ret;
 
@@ -3150,7 +3232,7 @@ static int ph_mod_search_callback(struct ldb_request *req, struct ldb_reply *are
 {
 	struct ldb_context *ldb;
 	struct ph_context *ac;
-	int ret;
+	int ret = LDB_SUCCESS;
 
 	ac = talloc_get_type(req->context, struct ph_context);
 	ldb = ldb_module_get_ctx(ac->module);
@@ -3230,6 +3312,7 @@ static int password_hash_mod_search_self(struct ph_context *ac)
 	struct ldb_context *ldb;
 	static const char * const attrs[] = { "objectClass",
 					      "userAccountControl",
+					      "msDS-User-Account-Control-Computed",
 					      "pwdLastSet",
 					      "sAMAccountName",
 					      "objectSid",
@@ -3239,6 +3322,9 @@ static int password_hash_mod_search_self(struct ph_context *ac)
 					      "ntPwdHistory",
 					      "dBCSPwd",
 					      "unicodePwd",
+					      "badPasswordTime",
+					      "badPwdCount",
+					      "lockoutTime",
 					      NULL };
 	struct ldb_request *search_req;
 	int ret;
@@ -3292,12 +3378,34 @@ static int password_hash_mod_do_mod(struct ph_context *ac)
 		return ret;
 	}
 	
-	/* Get the old password from the database */
-	status = samdb_result_passwords(io.ac,
-					lp_ctx,
-					discard_const_p(struct ldb_message, searched_msg),
-					&io.o.lm_hash, &io.o.nt_hash);
+	if (io.ac->pwd_reset) {
+		/* Get the old password from the database */
+		status = samdb_result_passwords_no_lockout(io.ac,
+							   lp_ctx,
+							   discard_const_p(struct ldb_message, searched_msg),
+							   &io.o.lm_hash,
+							   &io.o.nt_hash);
+	} else {
+		/* Get the old password from the database */
+		status = samdb_result_passwords(io.ac,
+						lp_ctx,
+						discard_const_p(struct ldb_message, searched_msg),
+						&io.o.lm_hash, &io.o.nt_hash);
+	}
+
+	if (NT_STATUS_EQUAL(status, NT_STATUS_ACCOUNT_LOCKED_OUT)) {
+		ldb_asprintf_errstring(ldb,
+				       "%08X: check_password: "
+				       "Password change not permitted, account locked out!",
+				       W_ERROR_V(WERR_ACCOUNT_LOCKED_OUT));
+		return LDB_ERR_CONSTRAINT_VIOLATION;
+	}
+
 	if (!NT_STATUS_IS_OK(status)) {
+		/*
+		 * This only happens if the database has gone weird,
+		 * not if we are just missing the passwords
+		 */
 		return ldb_operr(ldb);
 	}
 

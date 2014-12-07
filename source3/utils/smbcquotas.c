@@ -58,7 +58,7 @@ static bool cli_open_policy_hnd(void)
 		NTSTATUS ret;
 		cli_ipc = connect_one("IPC$");
 		ret = cli_rpc_pipe_open_noauth(cli_ipc,
-					       &ndr_table_lsarpc.syntax_id,
+					       &ndr_table_lsarpc,
 					       &global_pipe_hnd);
 		if (!NT_STATUS_IS_OK(ret)) {
 				return False;
@@ -553,8 +553,9 @@ static struct cli_state *connect_one(const char *share)
 /****************************************************************************
   main program
 ****************************************************************************/
- int main(int argc, const char *argv[])
+int main(int argc, char *argv[])
 {
+	const char **argv_const = discard_const_p(const char *, argv);
 	char *share;
 	int opt;
 	int result;
@@ -609,7 +610,7 @@ FSQFLAGS:QUOTA_ENABLED/DENY_DISK/LOG_SOFTLIMIT/LOG_HARD_LIMIT", "SETSTRING" },
 	}
 	popt_common_set_auth_info(smbcquotas_auth_info);
 
-	pc = poptGetContext("smbcquotas", argc, argv, long_options, 0);
+	pc = poptGetContext("smbcquotas", argc, argv_const, long_options, 0);
 
 	poptSetOtherOptionHelp(pc, "//server1/share1");
 

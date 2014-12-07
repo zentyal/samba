@@ -1573,9 +1573,10 @@ static void becomeDC_drsuapi_connect_send(struct libnet_BecomeDC_state *s,
 		{
 			print_str = "print,";
 		}
-		binding_str = talloc_asprintf(s, "ncacn_ip_tcp:%s[%s%sseal]",
-					      s->source_dsa.dns_name,
-					      krb5_str, print_str);
+		binding_str = talloc_asprintf(s, "ncacn_ip_tcp:%s[%s%sseal,target_hostname=%s]",
+					      s->source_dsa.address,
+					      krb5_str, print_str,
+					      s->source_dsa.dns_name);
 		if (composite_nomem(binding_str, c)) return;
 		c->status = dcerpc_parse_binding(s, binding_str, &drsuapi->binding);
 		talloc_free(binding_str);
@@ -1583,7 +1584,10 @@ static void becomeDC_drsuapi_connect_send(struct libnet_BecomeDC_state *s,
 	}
 
 	if (DEBUGLEVEL >= 10) {
-		drsuapi->binding->flags |= DCERPC_DEBUG_PRINT_BOTH;
+		c->status = dcerpc_binding_set_flags(drsuapi->binding,
+						     DCERPC_DEBUG_PRINT_BOTH,
+						     0);
+		if (!composite_is_ok(c)) return;
 	}
 
 	creq = dcerpc_pipe_connect_b_send(s, drsuapi->binding, &ndr_table_drsuapi,
@@ -1699,6 +1703,19 @@ static WERROR becomeDC_drsuapi_bind_recv(struct libnet_BecomeDC_state *s,
 			drsuapi->remote_info28.repl_epoch		= 0;
 			break;
 		}
+		case 28: {
+			drsuapi->remote_info28 = drsuapi->bind_r.out.bind_info->info.info28;
+			break;
+		}
+		case 32: {
+			struct drsuapi_DsBindInfo32 *info32;
+			info32 = &drsuapi->bind_r.out.bind_info->info.info32;
+			drsuapi->remote_info28.supported_extensions	= info32->supported_extensions;
+			drsuapi->remote_info28.site_guid		= info32->site_guid;
+			drsuapi->remote_info28.pid			= info32->pid;
+			drsuapi->remote_info28.repl_epoch		= info32->repl_epoch;
+			break;
+		}
 		case 48: {
 			struct drsuapi_DsBindInfo48 *info48;
 			info48 = &drsuapi->bind_r.out.bind_info->info.info48;
@@ -1708,8 +1725,18 @@ static WERROR becomeDC_drsuapi_bind_recv(struct libnet_BecomeDC_state *s,
 			drsuapi->remote_info28.repl_epoch		= info48->repl_epoch;
 			break;
 		}
-		case 28:
-			drsuapi->remote_info28 = drsuapi->bind_r.out.bind_info->info.info28;
+		case 52: {
+			struct drsuapi_DsBindInfo52 *info52;
+			info52 = &drsuapi->bind_r.out.bind_info->info.info52;
+			drsuapi->remote_info28.supported_extensions	= info52->supported_extensions;
+			drsuapi->remote_info28.site_guid		= info52->site_guid;
+			drsuapi->remote_info28.pid			= info52->pid;
+			drsuapi->remote_info28.repl_epoch		= info52->repl_epoch;
+			break;
+		}
+		default:
+			DEBUG(1, ("Warning: invalid info length in bind info: %d\n",
+					drsuapi->bind_r.out.bind_info->length));
 			break;
 		}
 	}
@@ -2276,6 +2303,7 @@ static void becomeDC_drsuapi1_add_entry_recv(struct tevent_req *subreq)
 	struct drsuapi_DsAddEntry *r = talloc_get_type_abort(s->ndr_struct_ptr,
 				       struct drsuapi_DsAddEntry);
 	char *binding_str;
+	uint32_t assoc_group_id;
 
 	s->ndr_struct_ptr = NULL;
 
@@ -2457,11 +2485,16 @@ static void becomeDC_drsuapi1_add_entry_recv(struct tevent_req *subreq)
 	if (!composite_is_ok(c)) return;
 
 	if (DEBUGLEVEL >= 10) {
-		s->drsuapi2.binding->flags |= DCERPC_DEBUG_PRINT_BOTH;
+		c->status = dcerpc_binding_set_flags(s->drsuapi2.binding,
+						     DCERPC_DEBUG_PRINT_BOTH,
+						     0);
+		if (!composite_is_ok(c)) return;
 	}
 
 	/* w2k3 uses the same assoc_group_id as on the first connection, so we do */
-	s->drsuapi2.binding->assoc_group_id	= s->drsuapi1.pipe->assoc_group_id;
+	assoc_group_id = dcerpc_binding_get_assoc_group_id(s->drsuapi1.pipe->binding);
+	c->status = dcerpc_binding_set_assoc_group_id(s->drsuapi2.binding, assoc_group_id);
+	if (!composite_is_ok(c)) return;
 
 	becomeDC_drsuapi_connect_send(s, &s->drsuapi2, becomeDC_drsuapi2_connect_recv);
 }
@@ -2507,6 +2540,7 @@ static void becomeDC_drsuapi2_bind_recv(struct tevent_req *subreq)
 					  struct libnet_BecomeDC_state);
 	struct composite_context *c = s->creq;
 	char *binding_str;
+	uint32_t assoc_group_id;
 	WERROR status;
 
 	c->status = dcerpc_drsuapi_DsBind_r_recv(subreq, s);
@@ -2528,13 +2562,21 @@ static void becomeDC_drsuapi2_bind_recv(struct tevent_req *subreq)
 	if (!composite_is_ok(c)) return;
 
 	if (DEBUGLEVEL >= 10) {
-		s->drsuapi3.binding->flags |= DCERPC_DEBUG_PRINT_BOTH;
+		c->status = dcerpc_binding_set_flags(s->drsuapi3.binding,
+						     DCERPC_DEBUG_PRINT_BOTH,
+						     0);
+		if (!composite_is_ok(c)) return;
 	}
 
 	/* w2k3 uses the same assoc_group_id as on the first connection, so we do */
-	s->drsuapi3.binding->assoc_group_id	= s->drsuapi1.pipe->assoc_group_id;
+	assoc_group_id = dcerpc_binding_get_assoc_group_id(s->drsuapi1.pipe->binding);
+	c->status = dcerpc_binding_set_assoc_group_id(s->drsuapi3.binding, assoc_group_id);
+	if (!composite_is_ok(c)) return;
 	/* w2k3 uses the concurrent multiplex feature on the 3rd connection, so we do */
-	s->drsuapi3.binding->flags		|= DCERPC_CONCURRENT_MULTIPLEX;
+	c->status = dcerpc_binding_set_flags(s->drsuapi3.binding,
+					     DCERPC_CONCURRENT_MULTIPLEX,
+					     0);
+	if (!composite_is_ok(c)) return;
 
 	becomeDC_drsuapi_connect_send(s, &s->drsuapi3, becomeDC_drsuapi3_connect_recv);
 }

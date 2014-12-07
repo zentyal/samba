@@ -43,9 +43,9 @@ const char *trust_type_strings[] = {"External",
 
 static enum trust_type get_trust_type(struct winbindd_tdc_domain *domain)
 {
-	if (domain->trust_attribs == NETR_TRUST_ATTRIBUTE_QUARANTINED_DOMAIN)	
+	if (domain->trust_attribs == LSA_TRUST_ATTRIBUTE_QUARANTINED_DOMAIN)
 		return EXTERNAL;
-	else if (domain->trust_attribs == NETR_TRUST_ATTRIBUTE_FOREST_TRANSITIVE)
+	else if (domain->trust_attribs == LSA_TRUST_ATTRIBUTE_FOREST_TRANSITIVE)
 		return FOREST;
 	else if (((domain->trust_flags & NETR_TRUST_FLAG_IN_FOREST) == NETR_TRUST_FLAG_IN_FOREST) &&
 	    ((domain->trust_flags & NETR_TRUST_FLAG_PRIMARY) == 0x0))
@@ -78,9 +78,9 @@ static bool trust_is_outbound(struct winbindd_tdc_domain *domain)
 
 static bool trust_is_transitive(struct winbindd_tdc_domain *domain)
 {
-	if ((domain->trust_attribs == NETR_TRUST_ATTRIBUTE_NON_TRANSITIVE) ||         
-	    (domain->trust_attribs == NETR_TRUST_ATTRIBUTE_QUARANTINED_DOMAIN) ||
-	    (domain->trust_attribs == NETR_TRUST_ATTRIBUTE_TREAT_AS_EXTERNAL))
+	if ((domain->trust_attribs == LSA_TRUST_ATTRIBUTE_NON_TRANSITIVE) ||
+	    (domain->trust_attribs == LSA_TRUST_ATTRIBUTE_QUARANTINED_DOMAIN) ||
+	    (domain->trust_attribs == LSA_TRUST_ATTRIBUTE_TREAT_AS_EXTERNAL))
 		return False;
 	return True;
 }
@@ -391,8 +391,8 @@ void winbindd_info(struct winbindd_cli_state *state)
 
 void winbindd_interface_version(struct winbindd_cli_state *state)
 {
-	DEBUG(3, ("[%5lu]: request interface version\n",
-		  (unsigned long)state->pid));
+	DEBUG(3, ("[%5lu]: request interface version (version = %d)\n",
+		  (unsigned long)state->pid, WINBIND_INTERFACE_VERSION));
 
 	state->response->data.interface_version = WINBIND_INTERFACE_VERSION;
 	request_ok(state);

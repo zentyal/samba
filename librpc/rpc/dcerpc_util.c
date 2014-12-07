@@ -27,6 +27,7 @@
 #include "librpc/rpc/dcerpc.h"
 #include "librpc/gen_ndr/ndr_dcerpc.h"
 #include "rpc_common.h"
+#include "lib/util/bitmap.h"
 
 /* we need to be able to get/set the fragment length without doing a full
    decode */
@@ -209,15 +210,21 @@ static int dcerpc_read_ncacn_packet_next_vector(struct tstream_context *stream,
 	off_t ofs = 0;
 
 	if (state->buffer.length == 0) {
-		/* first get enough to read the fragment length */
+		/*
+		 * first get enough to read the fragment length
+		 *
+		 * We read the full fixed ncacn_packet header
+		 * in order to make wireshark happy with
+		 * pcap files from socket_wrapper.
+		 */
 		ofs = 0;
-		state->buffer.length = DCERPC_FRAG_LEN_OFFSET + 2;
+		state->buffer.length = DCERPC_NCACN_PAYLOAD_OFFSET;
 		state->buffer.data = talloc_array(state, uint8_t,
 						  state->buffer.length);
 		if (!state->buffer.data) {
 			return -1;
 		}
-	} else if (state->buffer.length == (DCERPC_FRAG_LEN_OFFSET + 2)) {
+	} else if (state->buffer.length == DCERPC_NCACN_PAYLOAD_OFFSET) {
 		/* now read the fragment length and allocate the full buffer */
 		size_t frag_len = dcerpc_get_frag_length(&state->buffer);
 
@@ -331,4 +338,317 @@ NTSTATUS dcerpc_read_ncacn_packet_recv(struct tevent_req *req,
 
 	tevent_req_received(req);
 	return NT_STATUS_OK;
+}
+
+const char *dcerpc_default_transport_endpoint(TALLOC_CTX *mem_ctx,
+					      enum dcerpc_transport_t transport,
+					      const struct ndr_interface_table *table)
+{
+	NTSTATUS status;
+	const char *p = NULL;
+	const char *endpoint = NULL;
+	int i;
+	struct dcerpc_binding *default_binding = NULL;
+	TALLOC_CTX *frame = talloc_stackframe();
+
+	/* Find one of the default pipes for this interface */
+
+	for (i = 0; i < table->endpoints->count; i++) {
+		enum dcerpc_transport_t dtransport;
+		const char *dendpoint;
+
+		status = dcerpc_parse_binding(frame, table->endpoints->names[i],
+					      &default_binding);
+		if (!NT_STATUS_IS_OK(status)) {
+			continue;
+		}
+
+		dtransport = dcerpc_binding_get_transport(default_binding);
+		dendpoint = dcerpc_binding_get_string_option(default_binding,
+							     "endpoint");
+		if (dendpoint == NULL) {
+			TALLOC_FREE(default_binding);
+			continue;
+		}
+
+		if (transport == NCA_UNKNOWN) {
+			transport = dtransport;
+		}
+
+		if (transport != dtransport) {
+			TALLOC_FREE(default_binding);
+			continue;
+		}
+
+		p = dendpoint;
+		break;
+	}
+
+	if (p == NULL) {
+		goto done;
+	}
+
+	/*
+	 * extract the pipe name without \\pipe from for example
+	 * ncacn_np:[\\pipe\\epmapper]
+	 */
+	if (transport == NCACN_NP) {
+		if (strncasecmp(p, "\\pipe\\", 6) == 0) {
+			p += 6;
+		}
+		if (strncmp(p, "\\", 1) == 0) {
+			p += 1;
+		}
+	}
+
+	endpoint = talloc_strdup(mem_ctx, p);
+
+ done:
+	talloc_free(frame);
+	return endpoint;
+}
+
+struct dcerpc_sec_vt_header2 dcerpc_sec_vt_header2_from_ncacn_packet(const struct ncacn_packet *pkt)
+{
+	struct dcerpc_sec_vt_header2 ret;
+
+	ZERO_STRUCT(ret);
+	ret.ptype = pkt->ptype;
+	memcpy(&ret.drep, pkt->drep, sizeof(ret.drep));
+	ret.call_id = pkt->call_id;
+
+	switch (pkt->ptype) {
+	case DCERPC_PKT_REQUEST:
+		ret.context_id = pkt->u.request.context_id;
+		ret.opnum      = pkt->u.request.opnum;
+		break;
+
+	case DCERPC_PKT_RESPONSE:
+		ret.context_id = pkt->u.response.context_id;
+		break;
+
+	case DCERPC_PKT_FAULT:
+		ret.context_id = pkt->u.fault.context_id;
+		break;
+
+	default:
+		break;
+	}
+
+	return ret;
+}
+
+bool dcerpc_sec_vt_header2_equal(const struct dcerpc_sec_vt_header2 *v1,
+				 const struct dcerpc_sec_vt_header2 *v2)
+{
+	if (v1->ptype != v2->ptype) {
+		return false;
+	}
+
+	if (memcmp(v1->drep, v2->drep, sizeof(v1->drep)) != 0) {
+		return false;
+	}
+
+	if (v1->call_id != v2->call_id) {
+		return false;
+	}
+
+	if (v1->context_id != v2->context_id) {
+		return false;
+	}
+
+	if (v1->opnum != v2->opnum) {
+		return false;
+	}
+
+	return true;
+}
+
+static bool dcerpc_sec_vt_is_valid(const struct dcerpc_sec_verification_trailer *r)
+{
+	bool ret = false;
+	TALLOC_CTX *frame = talloc_stackframe();
+	struct bitmap *commands_seen;
+	int i;
+
+	if (r->count.count == 0) {
+		ret = true;
+		goto done;
+	}
+
+	if (memcmp(r->magic, DCERPC_SEC_VT_MAGIC, sizeof(r->magic)) != 0) {
+		goto done;
+	}
+
+	commands_seen = bitmap_talloc(frame, DCERPC_SEC_VT_COMMAND_ENUM + 1);
+	if (commands_seen == NULL) {
+		goto done;
+	}
+
+	for (i=0; i < r->count.count; i++) {
+		enum dcerpc_sec_vt_command_enum cmd =
+			r->commands[i].command & DCERPC_SEC_VT_COMMAND_ENUM;
+
+		if (bitmap_query(commands_seen, cmd)) {
+			/* Each command must appear at most once. */
+			goto done;
+		}
+		bitmap_set(commands_seen, cmd);
+
+		switch (cmd) {
+		case DCERPC_SEC_VT_COMMAND_BITMASK1:
+		case DCERPC_SEC_VT_COMMAND_PCONTEXT:
+		case DCERPC_SEC_VT_COMMAND_HEADER2:
+			break;
+		default:
+			if ((r->commands[i].u._unknown.length % 4) != 0) {
+				goto done;
+			}
+			break;
+		}
+	}
+	ret = true;
+done:
+	TALLOC_FREE(frame);
+	return ret;
+}
+
+static bool dcerpc_sec_vt_bitmask_check(const uint32_t *bitmask1,
+					struct dcerpc_sec_vt *c)
+{
+	if (bitmask1 == NULL) {
+		if (c->command & DCERPC_SEC_VT_MUST_PROCESS) {
+			DEBUG(10, ("SEC_VT check Bitmask1 must_process_command "
+				   "failed\n"));
+			return false;
+		}
+
+		return true;
+	}
+
+	if ((c->u.bitmask1 & DCERPC_SEC_VT_CLIENT_SUPPORTS_HEADER_SIGNING)
+	 && (!(*bitmask1 & DCERPC_SEC_VT_CLIENT_SUPPORTS_HEADER_SIGNING))) {
+		DEBUG(10, ("SEC_VT check Bitmask1 client_header_signing "
+			   "failed\n"));
+		return false;
+	}
+	return true;
+}
+
+static bool dcerpc_sec_vt_pctx_check(const struct dcerpc_sec_vt_pcontext *pcontext,
+				     struct dcerpc_sec_vt *c)
+{
+	TALLOC_CTX *mem_ctx;
+	bool ok;
+
+	if (pcontext == NULL) {
+		if (c->command & DCERPC_SEC_VT_MUST_PROCESS) {
+			DEBUG(10, ("SEC_VT check Pcontext must_process_command "
+				   "failed\n"));
+			return false;
+		}
+
+		return true;
+	}
+
+	mem_ctx = talloc_stackframe();
+	ok = ndr_syntax_id_equal(&pcontext->abstract_syntax,
+				 &c->u.pcontext.abstract_syntax);
+	if (!ok) {
+		DEBUG(10, ("SEC_VT check pcontext abstract_syntax failed: "
+			   "%s vs. %s\n",
+			   ndr_syntax_id_to_string(mem_ctx,
+					&pcontext->abstract_syntax),
+			   ndr_syntax_id_to_string(mem_ctx,
+					&c->u.pcontext.abstract_syntax)));
+		goto err_ctx_free;
+	}
+	ok = ndr_syntax_id_equal(&pcontext->transfer_syntax,
+				 &c->u.pcontext.transfer_syntax);
+	if (!ok) {
+		DEBUG(10, ("SEC_VT check pcontext transfer_syntax failed: "
+			   "%s vs. %s\n",
+			   ndr_syntax_id_to_string(mem_ctx,
+					&pcontext->transfer_syntax),
+			   ndr_syntax_id_to_string(mem_ctx,
+					&c->u.pcontext.transfer_syntax)));
+		goto err_ctx_free;
+	}
+
+	ok = true;
+err_ctx_free:
+	talloc_free(mem_ctx);
+	return ok;
+}
+
+static bool dcerpc_sec_vt_hdr2_check(const struct dcerpc_sec_vt_header2 *header2,
+				     struct dcerpc_sec_vt *c)
+{
+	if (header2 == NULL) {
+		if (c->command & DCERPC_SEC_VT_MUST_PROCESS) {
+			DEBUG(10, ("SEC_VT check Header2 must_process_command failed\n"));
+			return false;
+		}
+
+		return true;
+	}
+
+	if (!dcerpc_sec_vt_header2_equal(header2, &c->u.header2)) {
+		DEBUG(10, ("SEC_VT check Header2 failed\n"));
+		return false;
+	}
+
+	return true;
+}
+
+bool dcerpc_sec_verification_trailer_check(
+		const struct dcerpc_sec_verification_trailer *vt,
+		const uint32_t *bitmask1,
+		const struct dcerpc_sec_vt_pcontext *pcontext,
+		const struct dcerpc_sec_vt_header2 *header2)
+{
+	size_t i;
+
+	if (!dcerpc_sec_vt_is_valid(vt)) {
+		return false;
+	}
+
+	for (i=0; i < vt->count.count; i++) {
+		bool ok;
+		struct dcerpc_sec_vt *c = &vt->commands[i];
+
+		switch (c->command & DCERPC_SEC_VT_COMMAND_ENUM) {
+		case DCERPC_SEC_VT_COMMAND_BITMASK1:
+			ok = dcerpc_sec_vt_bitmask_check(bitmask1, c);
+			if (!ok) {
+				return false;
+			}
+			break;
+
+		case DCERPC_SEC_VT_COMMAND_PCONTEXT:
+			ok = dcerpc_sec_vt_pctx_check(pcontext, c);
+			if (!ok) {
+				return false;
+			}
+			break;
+
+		case DCERPC_SEC_VT_COMMAND_HEADER2: {
+			ok = dcerpc_sec_vt_hdr2_check(header2, c);
+			if (!ok) {
+				return false;
+			}
+			break;
+		}
+
+		default:
+			if (c->command & DCERPC_SEC_VT_MUST_PROCESS) {
+				DEBUG(10, ("SEC_VT check Unknown must_process_command failed\n"));
+				return false;
+			}
+
+			break;
+		}
+	}
+
+	return true;
 }

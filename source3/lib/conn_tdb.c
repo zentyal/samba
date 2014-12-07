@@ -39,8 +39,8 @@ struct connections_forall_state {
 struct connections_forall_session {
 	uid_t uid;
 	gid_t gid;
-	char machine[FSTRING_LEN];
-	char addr[FSTRING_LEN];
+	fstring machine;
+	fstring addr;
 };
 
 static int collect_sessions_fn(struct smbXsrv_session_global0 *global,
@@ -60,8 +60,8 @@ static int collect_sessions_fn(struct smbXsrv_session_global0 *global,
 		sess.uid = global->auth_session_info->unix_token->uid;
 		sess.gid = global->auth_session_info->unix_token->gid;
 	}
-	strncpy(sess.machine, global->channels[0].remote_name, sizeof(sess.machine));
-	strncpy(sess.addr, global->channels[0].remote_address, sizeof(sess.addr));
+	fstrcpy(sess.machine, global->channels[0].remote_name);
+	fstrcpy(sess.addr, global->channels[0].remote_address);
 
 	status = dbwrap_store(state->session_by_pid,
 			      make_tdb_data((void*)&id, sizeof(id)),
@@ -116,12 +116,12 @@ static int traverse_tcon_fn(struct smbXsrv_tcon_global0 *global,
 
 	key.pid = data.pid = global->server_id;
 	key.cnum = data.cnum = global->tcon_global_id;
-	strncpy(key.name, global->share_name, sizeof(key.name));
-	strncpy(data.servicename, global->share_name, sizeof(data.servicename));
+	fstrcpy(key.name, global->share_name);
+	fstrcpy(data.servicename, global->share_name);
 	data.uid = sess.uid;
 	data.gid = sess.gid;
-	strncpy(data.addr, sess.addr, sizeof(data.addr));
-	strncpy(data.machine, sess.machine, sizeof(data.machine));
+	fstrcpy(data.addr, sess.addr);
+	fstrcpy(data.machine, sess.machine);
 	data.start = nt_time_to_unix(global->creation_time);
 
 	state->count++;

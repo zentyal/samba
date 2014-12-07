@@ -40,18 +40,7 @@ enum dcerpc_transport_t {
 	NCADG_UNIX_DGRAM, NCACN_HTTP, NCADG_IPX, NCACN_SPX, NCACN_INTERNAL };
 
 /** this describes a binding to a particular transport/pipe */
-struct dcerpc_binding {
-	enum dcerpc_transport_t transport;
-	struct ndr_syntax_id object;
-	const char *host;
-	const char *target_hostname;
-	const char *target_principal;
-	const char *endpoint;
-	const char **options;
-	const char *localaddress;
-	uint32_t flags;
-	uint32_t assoc_group_id;
-};
+struct dcerpc_binding;
 
 /* dcerpc pipe flags */
 #define DCERPC_DEBUG_PRINT_IN          (1<<0)
@@ -98,20 +87,20 @@ struct dcerpc_binding {
 /* this triggers the DCERPC_PFC_FLAG_CONC_MPX flag in the bind request */
 #define DCERPC_CONCURRENT_MULTIPLEX     (1<<19)
 
-/* this triggers the DCERPC_PFC_FLAG_SUPPORT_HEADER_SIGN flag in the bind request */
+/* this indicates DCERPC_PFC_FLAG_SUPPORT_HEADER_SIGN flag was negotiated */
 #define DCERPC_HEADER_SIGNING          (1<<20)
 
 /* use NDR64 transport */
 #define DCERPC_NDR64                   (1<<21)
-
-/* specify binding interface */
-#define	DCERPC_LOCALADDRESS            (1<<22)
 
 /* handle upgrades or downgrades automatically */
 #define DCERPC_SCHANNEL_AUTO           (1<<23)
 
 /* use aes schannel with hmac-sh256 session key */
 #define DCERPC_SCHANNEL_AES            (1<<24)
+
+/* this triggers the DCERPC_PFC_FLAG_SUPPORT_HEADER_SIGN flag in the bind request */
+#define DCERPC_PROPOSE_HEADER_SIGNING          (1<<25)
 
 /* The following definitions come from ../librpc/rpc/dcerpc_error.c  */
 
@@ -121,7 +110,7 @@ NTSTATUS dcerpc_fault_to_nt_status(uint32_t fault_code);
 /* The following definitions come from ../librpc/rpc/binding.c  */
 
 const char *epm_floor_string(TALLOC_CTX *mem_ctx, struct epm_floor *epm_floor);
-const char *dcerpc_floor_get_rhs_data(TALLOC_CTX *mem_ctx, struct epm_floor *epm_floor);
+char *dcerpc_floor_get_rhs_data(TALLOC_CTX *mem_ctx, struct epm_floor *epm_floor);
 enum dcerpc_transport_t dcerpc_transport_by_endpoint_protocol(int prot);
 struct dcerpc_binding *dcerpc_binding_dup(TALLOC_CTX *mem_ctx,
 					  const struct dcerpc_binding *b);
@@ -133,8 +122,36 @@ NTSTATUS dcerpc_binding_from_tower(TALLOC_CTX *mem_ctx,
 				   struct dcerpc_binding **b_out);
 NTSTATUS dcerpc_parse_binding(TALLOC_CTX *mem_ctx, const char *s, struct dcerpc_binding **b_out);
 char *dcerpc_binding_string(TALLOC_CTX *mem_ctx, const struct dcerpc_binding *b);
+struct GUID dcerpc_binding_get_object(const struct dcerpc_binding *b);
+NTSTATUS dcerpc_binding_set_object(struct dcerpc_binding *b,
+				   struct GUID object);
+enum dcerpc_transport_t dcerpc_binding_get_transport(const struct dcerpc_binding *b);
+NTSTATUS dcerpc_binding_set_transport(struct dcerpc_binding *b,
+				      enum dcerpc_transport_t transport);
+void dcerpc_binding_get_auth_info(const struct dcerpc_binding *b,
+				  enum dcerpc_AuthType *_auth_type,
+				  enum dcerpc_AuthLevel *_auth_level);
+uint32_t dcerpc_binding_get_assoc_group_id(const struct dcerpc_binding *b);
+NTSTATUS dcerpc_binding_set_assoc_group_id(struct dcerpc_binding *b,
+					   uint32_t assoc_group_id);
+struct ndr_syntax_id dcerpc_binding_get_abstract_syntax(const struct dcerpc_binding *b);
+NTSTATUS dcerpc_binding_set_abstract_syntax(struct dcerpc_binding *b,
+					    const struct ndr_syntax_id *syntax);
+const char *dcerpc_binding_get_string_option(const struct dcerpc_binding *b,
+					     const char *name);
+char *dcerpc_binding_copy_string_option(TALLOC_CTX *mem_ctx,
+					const struct dcerpc_binding *b,
+					const char *name);
+NTSTATUS dcerpc_binding_set_string_option(struct dcerpc_binding *b,
+					  const char *name,
+					  const char *value);
+uint32_t dcerpc_binding_get_flags(const struct dcerpc_binding *b);
+NTSTATUS dcerpc_binding_set_flags(struct dcerpc_binding *b,
+				  uint32_t additional,
+				  uint32_t clear);
 NTSTATUS dcerpc_floor_get_lhs_data(const struct epm_floor *epm_floor, struct ndr_syntax_id *syntax);
 const char *derpc_transport_string_by_transport(enum dcerpc_transport_t t);
+enum dcerpc_transport_t dcerpc_transport_by_name(const char *name);
 enum dcerpc_transport_t dcerpc_transport_by_tower(const struct epm_tower *tower);
 
 /* The following definitions come from ../librpc/rpc/dcerpc_util.c  */
@@ -143,6 +160,9 @@ void dcerpc_set_frag_length(DATA_BLOB *blob, uint16_t v);
 uint16_t dcerpc_get_frag_length(const DATA_BLOB *blob);
 void dcerpc_set_auth_length(DATA_BLOB *blob, uint16_t v);
 uint8_t dcerpc_get_endian_flag(DATA_BLOB *blob);
+const char *dcerpc_default_transport_endpoint(TALLOC_CTX *mem_ctx,
+					      enum dcerpc_transport_t transport,
+					      const struct ndr_interface_table *table);
 
 /**
 * @brief	Pull a dcerpc_auth structure, taking account of any auth
@@ -185,6 +205,10 @@ struct dcerpc_binding_handle_ops {
 	bool (*is_connected)(struct dcerpc_binding_handle *h);
 	uint32_t (*set_timeout)(struct dcerpc_binding_handle *h,
 				uint32_t timeout);
+
+	void (*auth_info)(struct dcerpc_binding_handle *h,
+			  enum dcerpc_AuthType *auth_type,
+			  enum dcerpc_AuthLevel *auth_level);
 
 	struct tevent_req *(*raw_call_send)(TALLOC_CTX *mem_ctx,
 					    struct tevent_context *ev,
@@ -256,6 +280,10 @@ bool dcerpc_binding_handle_is_connected(struct dcerpc_binding_handle *h);
 uint32_t dcerpc_binding_handle_set_timeout(struct dcerpc_binding_handle *h,
 					   uint32_t timeout);
 
+void dcerpc_binding_handle_auth_info(struct dcerpc_binding_handle *h,
+				     enum dcerpc_AuthType *auth_type,
+				     enum dcerpc_AuthLevel *auth_level);
+
 struct tevent_req *dcerpc_binding_handle_raw_call_send(TALLOC_CTX *mem_ctx,
 						struct tevent_context *ev,
 						struct dcerpc_binding_handle *h,
@@ -300,5 +328,46 @@ NTSTATUS dcerpc_binding_handle_call(struct dcerpc_binding_handle *h,
 				    uint32_t opnum,
 				    TALLOC_CTX *r_mem,
 				    void *r_ptr);
+
+/**
+ * Extract header information from a ncacn_packet
+ * as a dcerpc_sec_vt_header2 as used by the security verification trailer.
+ *
+ * @param[in] pkt a packet
+ *
+ * @return a dcerpc_sec_vt_header2
+ */
+struct dcerpc_sec_vt_header2 dcerpc_sec_vt_header2_from_ncacn_packet(const struct ncacn_packet *pkt);
+
+
+/**
+ * Test if two dcerpc_sec_vt_header2 structures are equal
+ * without consideration of reserved fields.
+ *
+ * @param v1 a pointer to a dcerpc_sec_vt_header2 structure
+ * @param v2 a pointer to a dcerpc_sec_vt_header2 structure
+ *
+ * @retval true if *v1 equals *v2
+ */
+bool dcerpc_sec_vt_header2_equal(const struct dcerpc_sec_vt_header2 *v1,
+				 const struct dcerpc_sec_vt_header2 *v2);
+
+/**
+ * Check for consistency of the security verification trailer with the PDU header.
+ * See <a href="http://msdn.microsoft.com/en-us/library/cc243559.aspx">MS-RPCE 2.2.2.13</a>.
+ * A check with an empty trailer succeeds.
+ *
+ * @param[in] vt a pointer to the security verification trailer.
+ * @param[in] bitmask1 which flags were negotiated on the connection.
+ * @param[in] pcontext the syntaxes negotiatied for the presentation context.
+ * @param[in] header2 some fields from the PDU header.
+ *
+ * @retval true on success.
+ */
+bool dcerpc_sec_verification_trailer_check(
+		const struct dcerpc_sec_verification_trailer *vt,
+		const uint32_t *bitmask1,
+		const struct dcerpc_sec_vt_pcontext *pcontext,
+		const struct dcerpc_sec_vt_header2 *header2);
 
 #endif /* __DEFAULT_LIBRPC_RPCCOMMON_H__ */

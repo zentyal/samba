@@ -23,7 +23,9 @@
 #include "ldb.h"
 #include "ldb_wrap.h"
 #include "lib/cmdline/popt_common.h"
+#include "libcli/ldap/ldap_client.h"
 #include "torture/torture.h"
+#include "torture/ldap/proto.h"
 
 #define torture_assert_res(torture_ctx,expr,cmt,_res) \
 	if (!(expr)) { \
@@ -58,11 +60,13 @@ static int nested_search_callback(struct ldb_request *req,
 		"defaultNamingContext",
 		NULL
 	};
+	enum ldb_reply_type type;
 
 	sctx = talloc_get_type(req->context, struct nested_search_context);
 
+	type = ares->type;
 	/* sanity check */
-	switch (ares->type) {
+	switch (type) {
 	case LDB_REPLY_ENTRY:
 		torture_comment(sctx->tctx, "nested_search_callback: LDB_REPLY_ENTRY\n");
 		ldb_msg = ares->message;
@@ -87,7 +91,7 @@ static int nested_search_callback(struct ldb_request *req,
 	}
 
 	/* not a search reply, then get out */
-	if (ares->type != LDB_REPLY_ENTRY) {
+	if (type != LDB_REPLY_ENTRY) {
 		return res;
 	}
 

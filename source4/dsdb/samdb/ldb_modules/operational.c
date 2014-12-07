@@ -606,6 +606,197 @@ static int construct_msds_keyversionnumber(struct ldb_module *module,
 
 }
 
+#define _UF_TRUST_ACCOUNTS ( \
+	UF_WORKSTATION_TRUST_ACCOUNT | \
+	UF_SERVER_TRUST_ACCOUNT | \
+	UF_INTERDOMAIN_TRUST_ACCOUNT \
+)
+#define _UF_NO_EXPIRY_ACCOUNTS ( \
+	UF_SMARTCARD_REQUIRED | \
+	UF_DONT_EXPIRE_PASSWD | \
+	_UF_TRUST_ACCOUNTS \
+)
+
+/*
+  calculate msDS-UserPasswordExpiryTimeComputed
+*/
+static NTTIME get_msds_user_password_expiry_time_computed(struct ldb_module *module,
+						struct ldb_message *msg,
+						struct ldb_dn *domain_dn)
+{
+	int64_t pwdLastSet, maxPwdAge;
+	uint32_t userAccountControl;
+	NTTIME ret;
+
+	userAccountControl = ldb_msg_find_attr_as_uint(msg,
+					"userAccountControl",
+					0);
+	if (userAccountControl & _UF_NO_EXPIRY_ACCOUNTS) {
+		return 0x7FFFFFFFFFFFFFFFULL;
+	}
+
+	pwdLastSet = ldb_msg_find_attr_as_int64(msg, "pwdLastSet", 0);
+	if (pwdLastSet == 0) {
+		return 0;
+	}
+
+	if (pwdLastSet <= -1) {
+		/*
+		 * This can't really happen...
+		 */
+		return 0x7FFFFFFFFFFFFFFFULL;
+	}
+
+	if (pwdLastSet >= 0x7FFFFFFFFFFFFFFFULL) {
+		/*
+		 * Somethings wrong with the clock...
+		 */
+		return 0x7FFFFFFFFFFFFFFFULL;
+	}
+
+	/*
+	 * Note that maxPwdAge is a stored as negative value.
+	 *
+	 * Possible values are in the range of:
+	 *
+	 * maxPwdAge: -864000000001
+	 * to
+	 * maxPwdAge: -9223372036854775808 (-0x8000000000000000ULL)
+	 *
+	 */
+	maxPwdAge = samdb_search_int64(ldb_module_get_ctx(module), msg, 0,
+				       domain_dn, "maxPwdAge", NULL);
+	if (maxPwdAge >= -864000000000) {
+		/*
+		 * This is not really possible...
+		 */
+		return 0x7FFFFFFFFFFFFFFFULL;
+	}
+
+	if (maxPwdAge == -0x8000000000000000ULL) {
+		return 0x7FFFFFFFFFFFFFFFULL;
+	}
+
+	/*
+	 * Note we already catched maxPwdAge == -0x8000000000000000ULL
+	 * and pwdLastSet >= 0x7FFFFFFFFFFFFFFFULL above.
+	 *
+	 * Remember maxPwdAge is a negative number,
+	 * so it results in the following.
+	 *
+	 * 0x7FFFFFFFFFFFFFFEULL + 0x7FFFFFFFFFFFFFFFULL
+	 * =
+	 * 0xFFFFFFFFFFFFFFFFULL
+	 */
+	ret = pwdLastSet - maxPwdAge;
+	if (ret >= 0x7FFFFFFFFFFFFFFFULL) {
+		return 0x7FFFFFFFFFFFFFFFULL;
+	}
+
+	return ret;
+}
+
+
+/*
+  construct msDS-User-Account-Control-Computed attr
+*/
+static int construct_msds_user_account_control_computed(struct ldb_module *module,
+							struct ldb_message *msg, enum ldb_scope scope,
+							struct ldb_request *parent)
+{
+	uint32_t userAccountControl;
+	uint32_t msDS_User_Account_Control_Computed = 0;
+	struct ldb_context *ldb = ldb_module_get_ctx(module);
+	NTTIME now;
+	struct ldb_dn *nc_root;
+	int ret;
+
+	ret = dsdb_find_nc_root(ldb, msg, msg->dn, &nc_root);
+	if (ret != 0) {
+		ldb_asprintf_errstring(ldb,
+				       "Failed to find NC root of DN: %s: %s",
+				       ldb_dn_get_linearized(msg->dn),
+				       ldb_errstring(ldb_module_get_ctx(module)));
+		return ret;
+	}
+	if (ldb_dn_compare(nc_root, ldb_get_default_basedn(ldb)) != 0) {
+		/* Only calculate this on our default NC */
+		return 0;
+	}
+	/* Test account expire time */
+	unix_to_nt_time(&now, time(NULL));
+
+	userAccountControl = ldb_msg_find_attr_as_uint(msg,
+						       "userAccountControl",
+						       0);
+	if (!(userAccountControl & _UF_TRUST_ACCOUNTS)) {
+
+		int64_t lockoutTime = ldb_msg_find_attr_as_int64(msg, "lockoutTime", 0);
+		if (lockoutTime != 0) {
+			int64_t lockoutDuration = samdb_search_int64(ldb,
+								     msg, 0, nc_root,
+								     "lockoutDuration", NULL);
+			if (lockoutDuration >= 0) {
+				msDS_User_Account_Control_Computed |= UF_LOCKOUT;
+			} else if (lockoutTime - lockoutDuration >= now) {
+				msDS_User_Account_Control_Computed |= UF_LOCKOUT;
+			}
+		}
+	}
+
+	if (!(userAccountControl & _UF_NO_EXPIRY_ACCOUNTS)) {
+		NTTIME must_change_time
+			= get_msds_user_password_expiry_time_computed(module,
+								      msg, nc_root);
+		/* check for expired password */
+		if (must_change_time < now) {
+			msDS_User_Account_Control_Computed |= UF_PASSWORD_EXPIRED;
+		}
+	}
+
+	return samdb_msg_add_int64(ldb,
+				   msg->elements, msg,
+				   "msDS-User-Account-Control-Computed",
+				   msDS_User_Account_Control_Computed);
+}
+
+/*
+  construct msDS-UserPasswordExpiryTimeComputed
+*/
+static int construct_msds_user_password_expiry_time_computed(struct ldb_module *module,
+							     struct ldb_message *msg, enum ldb_scope scope,
+							     struct ldb_request *parent)
+{
+	struct ldb_context *ldb = ldb_module_get_ctx(module);
+	struct ldb_dn *nc_root;
+	int64_t password_expiry_time;
+	int ret;
+
+	ret = dsdb_find_nc_root(ldb, msg, msg->dn, &nc_root);
+	if (ret != 0) {
+		ldb_asprintf_errstring(ldb,
+				       "Failed to find NC root of DN: %s: %s",
+				       ldb_dn_get_linearized(msg->dn),
+				       ldb_errstring(ldb));
+		return ret;
+	}
+
+	if (ldb_dn_compare(nc_root, ldb_get_default_basedn(ldb)) != 0) {
+		/* Only calculate this on our default NC */
+		return 0;
+	}
+
+	password_expiry_time
+		= get_msds_user_password_expiry_time_computed(module, msg,
+							      nc_root);
+
+	return samdb_msg_add_int64(ldb,
+				   msg->elements, msg,
+				   "msDS-UserPasswordExpiryTimeComputed",
+				   password_expiry_time);
+}
+
+
 struct op_controls_flags {
 	bool sd;
 	bool bypassoperational;
@@ -634,9 +825,39 @@ static const struct {
 struct op_attributes_replace {
 	const char *attr;
 	const char *replace;
-	const char *extra_attr;
+	const char * const *extra_attrs;
 	int (*constructor)(struct ldb_module *, struct ldb_message *, enum ldb_scope, struct ldb_request *);
 };
+
+
+static const char *objectSid_attr[] =
+{
+	"objectSid",
+	NULL
+};
+
+
+static const char *objectCategory_attr[] =
+{
+	"objectCategory",
+	NULL
+};
+
+
+static const char *user_account_control_computed_attrs[] =
+{
+	"lockoutTime",
+	"pwdLastSet",
+	NULL
+};
+
+
+static const char *user_password_expiry_time_computed_attrs[] =
+{
+	"pwdLastSet",
+	NULL
+};
+
 
 /*
   a list of attribute names that are hidden, but can be searched for
@@ -647,12 +868,16 @@ static const struct op_attributes_replace search_sub[] = {
 	{ "modifyTimeStamp", "whenChanged", NULL , construct_modifyTimeStamp},
 	{ "structuralObjectClass", "objectClass", NULL , NULL },
 	{ "canonicalName", NULL, NULL , construct_canonical_name },
-	{ "primaryGroupToken", "objectClass", "objectSid", construct_primary_group_token },
-	{ "tokenGroups", "primaryGroupID", "objectSid", construct_token_groups },
+	{ "primaryGroupToken", "objectClass", objectSid_attr, construct_primary_group_token },
+	{ "tokenGroups", "primaryGroupID", objectSid_attr, construct_token_groups },
 	{ "parentGUID", NULL, NULL, construct_parent_guid },
 	{ "subSchemaSubEntry", NULL, NULL, construct_subschema_subentry },
-	{ "msDS-isRODC", "objectClass", "objectCategory", construct_msds_isrodc },
-	{ "msDS-KeyVersionNumber", "replPropertyMetaData", NULL, construct_msds_keyversionnumber }
+	{ "msDS-isRODC", "objectClass", objectCategory_attr, construct_msds_isrodc },
+	{ "msDS-KeyVersionNumber", "replPropertyMetaData", NULL, construct_msds_keyversionnumber },
+	{ "msDS-User-Account-Control-Computed", "userAccountControl", user_account_control_computed_attrs,
+	  construct_msds_user_account_control_computed },
+	{ "msDS-UserPasswordExpiryTimeComputed", "userAccountControl", user_password_expiry_time_computed_attrs,
+	  construct_msds_user_password_expiry_time_computed }
 };
 
 
@@ -745,9 +970,13 @@ static int operational_search_post_process(struct ldb_module *module,
 			    !ldb_attr_in_list(attrs_from_user, list_replace[i].replace)) {
 				ldb_msg_remove_attr(msg, list_replace[i].replace);
 			}
-			if (list_replace[i].extra_attr != NULL &&
-			    !ldb_attr_in_list(attrs_from_user, list_replace[i].extra_attr)) {
-				ldb_msg_remove_attr(msg, list_replace[i].extra_attr);
+			if (list_replace[i].extra_attrs != NULL) {
+				unsigned int j;
+				for (j=0; list_replace[i].extra_attrs[j]; j++) {
+					if (!ldb_attr_in_list(attrs_from_user, list_replace[i].extra_attrs[j])) {
+						ldb_msg_remove_attr(msg, list_replace[i].extra_attrs[j]);
+					}
+				}
 			}
 		}
 	}
@@ -950,25 +1179,30 @@ static int operational_search(struct ldb_module *module, struct ldb_request *req
 		}
 		for (i=0;i<ARRAY_SIZE(search_sub);i++) {
 
-			if (ldb_attr_cmp(ac->attrs[a], search_sub[i].attr) == 0 ) {
-				ac->attrs_to_replace = talloc_realloc(ac,
-								      ac->attrs_to_replace,
-								      struct op_attributes_replace,
-								      ac->attrs_to_replace_size + 1);
+			if (ldb_attr_cmp(ac->attrs[a], search_sub[i].attr) != 0 ) {
+				continue;
+			}
 
-				ac->attrs_to_replace[ac->attrs_to_replace_size] = search_sub[i];
-				ac->attrs_to_replace_size++;
-				if (!search_sub[i].replace) {
-					continue;
-				}
+			ac->attrs_to_replace = talloc_realloc(ac,
+							      ac->attrs_to_replace,
+							      struct op_attributes_replace,
+							      ac->attrs_to_replace_size + 1);
 
-				if (search_sub[i].extra_attr) {
-					const char **search_attrs2;
-					/* Only adds to the end of the list */
+			ac->attrs_to_replace[ac->attrs_to_replace_size] = search_sub[i];
+			ac->attrs_to_replace_size++;
+			if (!search_sub[i].replace) {
+				continue;
+			}
+
+			if (search_sub[i].extra_attrs && search_sub[i].extra_attrs[0]) {
+				unsigned int j;
+				const char **search_attrs2;
+				/* Only adds to the end of the list */
+				for (j = 0; search_sub[i].extra_attrs[j]; j++) {
 					search_attrs2 = ldb_attr_list_copy_add(req, search_attrs
 									       ? search_attrs
 									       : ac->attrs, 
-									       search_sub[i].extra_attr);
+									       search_sub[i].extra_attrs[j]);
 					if (search_attrs2 == NULL) {
 						return ldb_operr(ldb);
 					}
@@ -976,16 +1210,16 @@ static int operational_search(struct ldb_module *module, struct ldb_request *req
 					talloc_free(search_attrs);
 					search_attrs = search_attrs2;
 				}
-
-				if (!search_attrs) {
-					search_attrs = ldb_attr_list_copy(req, ac->attrs);
-					if (search_attrs == NULL) {
-						return ldb_operr(ldb);
-					}
-				}
-				/* Despite the ldb_attr_list_copy_add, this is safe as that fn only adds to the end */
-				search_attrs[a] = search_sub[i].replace;
 			}
+
+			if (!search_attrs) {
+				search_attrs = ldb_attr_list_copy(req, ac->attrs);
+				if (search_attrs == NULL) {
+					return ldb_operr(ldb);
+				}
+			}
+			/* Despite the ldb_attr_list_copy_add, this is safe as that fn only adds to the end */
+			search_attrs[a] = search_sub[i].replace;
 		}
 	}
 	ac->list_operations = operation_get_op_list(ac, ac->attrs,

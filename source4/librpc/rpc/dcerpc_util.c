@@ -117,7 +117,7 @@ struct epm_map_binding_state {
 	const struct ndr_interface_table *table;
 	struct dcerpc_pipe *pipe;
 	struct policy_handle handle;
-	struct GUID guid;
+	struct GUID object;
 	struct epm_twr_t twr;
 	struct epm_twr_t *twr_r;
 	uint32_t num_towers;
@@ -145,14 +145,11 @@ static void continue_epm_recv_binding(struct composite_context *ctx)
 	c->status = dcerpc_pipe_connect_b_recv(ctx, c, &s->pipe);
 	if (!composite_is_ok(c)) return;
 
-	/* prepare requested binding parameters */
-	s->binding->object         = s->table->syntax_id;
-
 	c->status = dcerpc_binding_build_tower(s->pipe, s->binding, &s->twr.tower);
 	if (!composite_is_ok(c)) return;
 	
 	/* with some nice pretty paper around it of course */
-	s->r.in.object        = &s->guid;
+	s->r.in.object        = &s->object;
 	s->r.in.map_tower     = &s->twr;
 	s->r.in.entry_handle  = &s->handle;
 	s->r.in.max_towers    = 1;
@@ -178,6 +175,7 @@ static void continue_epm_map(struct tevent_req *subreq)
 				      struct composite_context);
 	struct epm_map_binding_state *s = talloc_get_type(c->private_data,
 							  struct epm_map_binding_state);
+	const char *endpoint;
 
 	/* receive result of a rpc request */
 	c->status = dcerpc_epm_Map_r_recv(subreq, s);
@@ -203,9 +201,15 @@ static void continue_epm_map(struct tevent_req *subreq)
 	}
 
 	/* get received endpoint */
-	s->binding->endpoint = talloc_reference(s->binding,
-						dcerpc_floor_get_rhs_data(c, &s->twr_r->tower.floors[3]));
-	if (composite_nomem(s->binding->endpoint, c)) return;
+	endpoint = dcerpc_floor_get_rhs_data(s, &s->twr_r->tower.floors[3]);
+	if (composite_nomem(endpoint, c)) return;
+
+	c->status = dcerpc_binding_set_string_option(s->binding,
+						     "endpoint",
+						     endpoint);
+	if (!composite_is_ok(c)) {
+		return;
+	}
 
 	composite_done(c);
 }
@@ -218,14 +222,13 @@ static void continue_epm_map(struct tevent_req *subreq)
 struct composite_context *dcerpc_epm_map_binding_send(TALLOC_CTX *mem_ctx,
 						      struct dcerpc_binding *binding,
 						      const struct ndr_interface_table *table,
+						      struct cli_credentials *creds,
 						      struct tevent_context *ev,
 						      struct loadparm_context *lp_ctx)
 {
 	struct composite_context *c;
 	struct epm_map_binding_state *s;
 	struct composite_context *pipe_connect_req;
-	struct cli_credentials *anon_creds;
-
 	NTSTATUS status;
 	struct dcerpc_binding *epmapper_binding;
 	int i;
@@ -245,57 +248,92 @@ struct composite_context *dcerpc_epm_map_binding_send(TALLOC_CTX *mem_ctx,
 	c->private_data = s;
 
 	s->binding = binding;
+	s->object  = dcerpc_binding_get_object(binding);
 	s->table   = table;
 
-	/* anonymous credentials for rpc connection used to get endpoint mapping */
-	anon_creds = cli_credentials_init(mem_ctx);
-	cli_credentials_set_anonymous(anon_creds);
+	c->status = dcerpc_binding_set_abstract_syntax(binding,
+						       &table->syntax_id);
+	if (!composite_is_ok(c)) {
+		return c;
+	}
 
 	/*
 	  First, check if there is a default endpoint specified in the IDL
 	*/
-	if (table != NULL) {
+	for (i = 0; i < table->endpoints->count; i++) {
 		struct dcerpc_binding *default_binding;
+		enum dcerpc_transport_t transport;
+		enum dcerpc_transport_t dtransport;
+		const char *dendpoint = NULL;
 
-		/* Find one of the default pipes for this interface */
-		for (i = 0; i < table->endpoints->count; i++) {
-			status = dcerpc_parse_binding(mem_ctx, table->endpoints->names[i], &default_binding);
-
-			if (NT_STATUS_IS_OK(status)) {
-				if (binding->transport == NCA_UNKNOWN) 
-					binding->transport = default_binding->transport;
-				if (default_binding->transport == binding->transport && 
-					default_binding->endpoint) {
-					binding->endpoint = talloc_reference(binding, default_binding->endpoint);
-					talloc_free(default_binding);
-
-					composite_done(c);
-					return c;
-
-				} else {
-					talloc_free(default_binding);
-				}
-			}
+		status = dcerpc_parse_binding(s,
+					      table->endpoints->names[i],
+					      &default_binding);
+		if (!NT_STATUS_IS_OK(status)) {
+			continue;
 		}
+
+		transport = dcerpc_binding_get_transport(binding);
+		dtransport = dcerpc_binding_get_transport(default_binding);
+		if (transport == NCA_UNKNOWN) {
+			c->status = dcerpc_binding_set_transport(binding,
+								 dtransport);
+			if (!composite_is_ok(c)) {
+				return c;
+			}
+			transport = dtransport;
+		}
+
+		if (transport != dtransport) {
+			TALLOC_FREE(default_binding);
+			continue;
+		}
+
+		dendpoint = dcerpc_binding_get_string_option(default_binding,
+							     "endpoint");
+		if (dendpoint == NULL) {
+			TALLOC_FREE(default_binding);
+			continue;
+		}
+
+		c->status = dcerpc_binding_set_string_option(binding,
+							     "endpoint",
+							     dendpoint);
+		if (!composite_is_ok(c)) {
+			return c;
+		}
+
+		TALLOC_FREE(default_binding);
+		composite_done(c);
+		return c;
 	}
 
-	epmapper_binding = talloc_zero(c, struct dcerpc_binding);
+	epmapper_binding = dcerpc_binding_dup(s, binding);
 	if (composite_nomem(epmapper_binding, c)) return c;
 
 	/* basic endpoint mapping data */
-	epmapper_binding->transport		= binding->transport;
-	epmapper_binding->host			= talloc_reference(epmapper_binding, binding->host);
-	epmapper_binding->target_hostname       = epmapper_binding->host;
-	epmapper_binding->options		= NULL;
-	epmapper_binding->localaddress          = talloc_reference(epmapper_binding, binding->localaddress);
-	epmapper_binding->flags			= 0;
-	epmapper_binding->assoc_group_id	= 0;
-	epmapper_binding->endpoint		= NULL;
+	c->status = dcerpc_binding_set_string_option(epmapper_binding,
+						     "endpoint", NULL);
+	if (!composite_is_ok(c)) {
+		return c;
+	}
+	c->status = dcerpc_binding_set_flags(epmapper_binding, 0, UINT32_MAX);
+	if (!composite_is_ok(c)) {
+		return c;
+	}
+	c->status = dcerpc_binding_set_assoc_group_id(epmapper_binding, 0);
+	if (!composite_is_ok(c)) {
+		return c;
+	}
+	c->status = dcerpc_binding_set_object(epmapper_binding, GUID_zero());
+	if (!composite_is_ok(c)) {
+		return c;
+	}
 
 	/* initiate rpc pipe connection */
-	pipe_connect_req = dcerpc_pipe_connect_b_send(c, epmapper_binding, 
+	pipe_connect_req = dcerpc_pipe_connect_b_send(s, epmapper_binding,
 						      &ndr_table_epmapper,
-						      anon_creds, c->event_ctx,
+						      creds, c->event_ctx,
 						      lp_ctx);
 	if (composite_nomem(pipe_connect_req, c)) return c;
 	
@@ -324,15 +362,25 @@ _PUBLIC_ NTSTATUS dcerpc_epm_map_binding(TALLOC_CTX *mem_ctx, struct dcerpc_bind
 				struct loadparm_context *lp_ctx)
 {
 	struct composite_context *c;
+	struct cli_credentials *epm_creds;
 
-	c = dcerpc_epm_map_binding_send(mem_ctx, binding, table, ev, lp_ctx);
+	epm_creds = cli_credentials_init_anon(mem_ctx);
+	if (epm_creds == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+	c = dcerpc_epm_map_binding_send(mem_ctx, binding, table, epm_creds, ev, lp_ctx);
+	if (c == NULL) {
+		talloc_free(epm_creds);
+		return NT_STATUS_NO_MEMORY;
+	}
+	talloc_steal(c, epm_creds);
 	return dcerpc_epm_map_binding_recv(c);
 }
 
 
 struct pipe_auth_state {
 	struct dcerpc_pipe *pipe;
-	struct dcerpc_binding *binding;
+	const struct dcerpc_binding *binding;
 	const struct ndr_interface_table *table;
 	struct loadparm_context *lp_ctx;
 	struct cli_credentials *credentials;
@@ -404,6 +452,7 @@ static void continue_auth_auto(struct composite_context *ctx)
 		  NT_STATUS_UNSUCCESSFUL on a authentication error on RPC
 		 */
 		const char *principal;
+		const char *endpoint;
 
 		principal = gensec_get_target_principal(s->pipe->conn->security_state.generic_state);
 		if (principal == NULL) {
@@ -414,9 +463,11 @@ static void continue_auth_auto(struct composite_context *ctx)
 			}
 		}
 
+		endpoint = dcerpc_binding_get_string_option(s->binding, "endpoint");
+
 		if ((cli_credentials_failed_kerberos_login(s->credentials, principal, &s->logon_retries) ||
 		     cli_credentials_wrong_password(s->credentials)) &&
-		    s->binding->endpoint != NULL) {
+		    endpoint != NULL) {
 			/*
 			 * Retry SPNEGO with a better password
 			 * send a request for secondary rpc connection
@@ -544,7 +595,7 @@ static void continue_auth_none(struct composite_context *ctx)
   is determined using credentials passed and binding flags.
 */
 struct composite_context *dcerpc_pipe_auth_send(struct dcerpc_pipe *p, 
-						struct dcerpc_binding *binding,
+						const struct dcerpc_binding *binding,
 						const struct ndr_interface_table *table,
 						struct cli_credentials *credentials,
 						struct loadparm_context *lp_ctx)
@@ -573,14 +624,11 @@ struct composite_context *dcerpc_pipe_auth_send(struct dcerpc_pipe *p,
 	s->lp_ctx       = lp_ctx;
 
 	conn = s->pipe->conn;
-	conn->flags = binding->flags;
+	conn->flags = dcerpc_binding_get_flags(binding);
 
 	if (DEBUGLVL(100)) {
 		conn->flags |= DCERPC_DEBUG_PRINT_BOTH;
 	}
-	
-	/* remember the binding string for possible secondary connections */
-	conn->binding_string = dcerpc_binding_string(p, binding);
 
 	if (cli_credentials_is_anonymous(s->credentials)) {
 		auth_none_req = dcerpc_bind_auth_none_send(c, s->pipe, s->table);
@@ -588,7 +636,7 @@ struct composite_context *dcerpc_pipe_auth_send(struct dcerpc_pipe *p,
 		return c;
 	}
 
-	if ((binding->flags & DCERPC_SCHANNEL) &&
+	if ((conn->flags & DCERPC_SCHANNEL) &&
 	    !cli_credentials_get_netlogon_creds(s->credentials)) {
 		/* If we don't already have netlogon credentials for
 		 * the schannel bind, then we have to get these
@@ -605,7 +653,7 @@ struct composite_context *dcerpc_pipe_auth_send(struct dcerpc_pipe *p,
 	 * if not doing sign or seal
 	 */
 	if (conn->transport.transport == NCACN_NP &&
-	    !(s->binding->flags & (DCERPC_SIGN|DCERPC_SEAL))) {
+	    !(conn->flags & (DCERPC_SIGN|DCERPC_SEAL))) {
 		auth_none_req = dcerpc_bind_auth_none_send(c, s->pipe, s->table);
 		composite_continue(c, auth_none_req, continue_auth_none, c);
 		return c;
@@ -625,16 +673,16 @@ struct composite_context *dcerpc_pipe_auth_send(struct dcerpc_pipe *p,
 		conn->flags |= DCERPC_CONNECT;
 	}
 
-	if (s->binding->flags & DCERPC_AUTH_SPNEGO) {
+	if (conn->flags & DCERPC_AUTH_SPNEGO) {
 		auth_type = DCERPC_AUTH_TYPE_SPNEGO;
 
-	} else if (s->binding->flags & DCERPC_AUTH_KRB5) {
+	} else if (conn->flags & DCERPC_AUTH_KRB5) {
 		auth_type = DCERPC_AUTH_TYPE_KRB5;
 
-	} else if (s->binding->flags & DCERPC_SCHANNEL) {
+	} else if (conn->flags & DCERPC_SCHANNEL) {
 		auth_type = DCERPC_AUTH_TYPE_SCHANNEL;
 
-	} else if (s->binding->flags & DCERPC_AUTH_NTLM) {
+	} else if (conn->flags & DCERPC_AUTH_NTLM) {
 		auth_type = DCERPC_AUTH_TYPE_NTLMSSP;
 
 	} else {
@@ -697,7 +745,7 @@ NTSTATUS dcerpc_pipe_auth_recv(struct composite_context *c, TALLOC_CTX *mem_ctx,
 */
 _PUBLIC_ NTSTATUS dcerpc_pipe_auth(TALLOC_CTX *mem_ctx,
 			  struct dcerpc_pipe **p, 
-			  struct dcerpc_binding *binding,
+			  const struct dcerpc_binding *binding,
 			  const struct ndr_interface_table *table,
 			  struct cli_credentials *credentials,
 			  struct loadparm_context *lp_ctx)
@@ -756,10 +804,11 @@ _PUBLIC_ void dcerpc_log_packet(const char *lockdir,
 
 	for (i=0;i<num_examples;i++) {
 		char *name=NULL;
-		asprintf(&name, "%s/rpclog/%s-%u.%d.%s", 
-			 lockdir, ndr->name, opnum, i,
-			 (flags&NDR_IN)?"in":"out");
-		if (name == NULL) {
+		int ret;
+		ret = asprintf(&name, "%s/rpclog/%s-%u.%d.%s",
+			       lockdir, ndr->name, opnum, i,
+			       (flags&NDR_IN)?"in":"out");
+		if (ret == -1) {
 			return;
 		}
 		if (!file_exist(name)) {
@@ -800,7 +849,11 @@ _PUBLIC_ NTSTATUS dcerpc_secondary_context(struct dcerpc_pipe *p,
 
 	p2->transfer_syntax = p->transfer_syntax;
 
-	p2->binding = talloc_reference(p2, p->binding);
+	p2->binding = dcerpc_binding_dup(p2, p->binding);
+	if (p2->binding == NULL) {
+		talloc_free(p2);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	p2->binding_handle = dcerpc_pipe_binding_handle(p2);
 	if (p2->binding_handle == NULL) {

@@ -49,7 +49,8 @@ struct db_context *open_schannel_session_store(TALLOC_CTX *mem_ctx,
 
 	db_sc = dbwrap_local_open(mem_ctx, lp_ctx, fname, 0,
 				  TDB_CLEAR_IF_FIRST|TDB_NOSYNC, O_RDWR|O_CREAT,
-				  0600, 0);
+				  0600, DBWRAP_LOCK_ORDER_NONE,
+				  DBWRAP_FLAG_NONE);
 
 	if (!db_sc) {
 		DEBUG(0,("open_schannel_session_store: Failed to open %s - %s\n",
@@ -77,6 +78,14 @@ NTSTATUS schannel_store_session_key_tdb(struct db_context *db_sc,
 	char *keystr;
 	char *name_upper;
 	NTSTATUS status;
+
+	if (strlen(creds->computer_name) > 15) {
+		/*
+		 * We may want to check for a completely
+		 * valid netbios name.
+		 */
+		return STATUS_BUFFER_OVERFLOW;
+	}
 
 	name_upper = strupper_talloc(mem_ctx, creds->computer_name);
 	if (!name_upper) {
@@ -284,7 +293,6 @@ NTSTATUS schannel_check_creds_state(TALLOC_CTX *mem_ctx,
 	struct db_context *db_sc;
 	struct netlogon_creds_CredentialState *creds;
 	NTSTATUS status;
-	int ret;
 	char *name_upper = NULL;
 	char *keystr = NULL;
 	struct db_record *record;

@@ -513,15 +513,7 @@ static NTSTATUS password_check(const char *username, const char *password,
 {
 	bool ret;
 
-#ifdef WITH_AFS
-	if (afs_auth(username, password))
-		return NT_STATUS_OK;
-#endif /* WITH_AFS */
 
-#ifdef WITH_DFS
-	if (dfs_auth(username, password))
-		return NT_STATUS_OK;
-#endif /* WITH_DFS */
 
 #ifdef OSF1_ENH_SEC
 	
@@ -550,34 +542,7 @@ static NTSTATUS password_check(const char *username, const char *password,
 	
 #endif /* ULTRIX_AUTH */
 	
-#ifdef LINUX_BIGCRYPT
-	ret = (linux_bigcrypt(password, salt, crypted));
-        if (ret) {
-		return NT_STATUS_OK;
-	} else {
-		return NT_STATUS_WRONG_PASSWORD;
-	}
-#endif /* LINUX_BIGCRYPT */
 	
-#if defined(HAVE_BIGCRYPT) && defined(HAVE_CRYPT) && defined(USE_BOTH_CRYPT_CALLS)
-	
-	/*
-	 * Some systems have bigcrypt in the C library but might not
-	 * actually use it for the password hashes (HPUX 10.20) is
-	 * a noteable example. So we try bigcrypt first, followed
-	 * by crypt.
-	 */
-
-	if (strcmp(bigcrypt(password, salt), crypted) == 0)
-		return NT_STATUS_OK;
-	else
-		ret = (strcmp((char *)crypt(password, salt), crypted) == 0);
-	if (ret) {
-		return NT_STATUS_OK;
-	} else {
-		return NT_STATUS_WRONG_PASSWORD;
-	}
-#else /* HAVE_BIGCRYPT && HAVE_CRYPT && USE_BOTH_CRYPT_CALLS */
 	
 #ifdef HAVE_BIGCRYPT
 	ret = (strcmp(bigcrypt(password, salt), crypted) == 0);
@@ -599,7 +564,6 @@ static NTSTATUS password_check(const char *username, const char *password,
 		return NT_STATUS_WRONG_PASSWORD;
 	}
 #endif /* HAVE_CRYPT */
-#endif /* HAVE_BIGCRYPT && HAVE_CRYPT && USE_BOTH_CRYPT_CALLS */
 }
 
 static NTSTATUS check_unix_password(TALLOC_CTX *ctx, struct loadparm_context *lp_ctx,
@@ -658,15 +622,6 @@ static NTSTATUS check_unix_password(TALLOC_CTX *ctx, struct loadparm_context *lp
 	}
 #endif
 
-#ifdef HAVE_GETPRPWNAM
-	{
-		struct pr_passwd *pr_pw = getprpwnam(pws->pw_name);
-		if (pr_pw && pr_pw->ufld.fd_encrypt) {
-			crypted = talloc_strdup(ctx, pr_pw->ufld.fd_encrypt);
-			NT_STATUS_HAVE_NO_MEMORY(crypted);
-		}
-	}
-#endif
 
 #ifdef HAVE_GETPWANAM
 	{
@@ -706,11 +661,6 @@ static NTSTATUS check_unix_password(TALLOC_CTX *ctx, struct loadparm_context *lp
 	}
 #endif
 
-#if defined(HAVE_TRUNCATED_SALT)
-	/* crypt on some platforms (HPUX in particular)
-	   won't work with more than 2 salt characters. */
-	salt[2] = 0;
-#endif
 
 	if (crypted[0] == '\0') {
 		if (!lpcfg_null_passwords(lp_ctx)) {

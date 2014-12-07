@@ -117,7 +117,7 @@ static bool samu_correct(struct samu *s1, struct samu *s2)
 		DEBUG(0, ("Password history is not set\n"));
 	} else if (d1_buf == NULL) {
 		/* Do nothing */
-	} else if (s1_len != s1_len) {
+	} else if (s1_len != s2_len) {
 		DEBUG(0, ("Password history not written correctly, lengths differ, want %d, got %d\n",
 					s1_len, s2_len));
 		ret = False;
@@ -277,7 +277,8 @@ static bool test_auth(TALLOC_CTX *mem_ctx, struct samu *pdb_entry)
 		return False;
 	}
 	
-	status = make_user_info(&user_info, pdb_get_username(pdb_entry), pdb_get_username(pdb_entry), 
+	status = make_user_info(mem_ctx,
+				&user_info, pdb_get_username(pdb_entry), pdb_get_username(pdb_entry),
 				pdb_get_domain(pdb_entry), pdb_get_domain(pdb_entry), lp_netbios_name(), 
 				tsocket_address, NULL, &nt_resp, NULL, NULL, NULL, 
 				AUTH_PASSWORD_RESPONSE);
@@ -304,7 +305,10 @@ static bool test_auth(TALLOC_CTX *mem_ctx, struct samu *pdb_entry)
 		return False;
 	}
 	
-	status = auth_check_ntlm_password(auth_context, user_info, &server_info);
+	status = auth_check_ntlm_password(mem_ctx,
+					  auth_context,
+					  user_info,
+					  &server_info);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("Failed to test authentication with auth module: %s\n", nt_errstr(status)));
@@ -429,7 +433,7 @@ static bool test_trusted_domains(TALLOC_CTX *ctx,
 }
 
 
-int main(int argc, char **argv)
+int main(int argc, const char **argv)
 {
 	TALLOC_CTX *ctx;
 	struct samu *out = NULL;
@@ -457,8 +461,7 @@ int main(int argc, char **argv)
 
 	load_case_tables();
 
-	pc = poptGetContext("pdbtest", argc, (const char **) argv,
-			    long_options, 0);
+	pc = poptGetContext("pdbtest", argc, argv, long_options, 0);
 
 	poptSetOtherOptionHelp(pc, "backend[:settings] username");
 

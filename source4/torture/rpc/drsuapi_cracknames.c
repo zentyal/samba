@@ -199,6 +199,10 @@ static bool test_DsCrackNamesMatrix(struct torture_context *tctx,
 
 	for (i = 0; i < ARRAY_SIZE(formats); i++) {
 		for (j = 0; j < ARRAY_SIZE(formats); j++) {
+			torture_comment(tctx, "Converting %s (format %d)"
+						" to %d gave %s\n",
+						n_from[i], formats[i],
+						formats[j], n_matrix[i][j]);
 			if (n_matrix[i][j] == n_from[j]) {
 				
 			/* We don't have a from name for these yet (and we can't map to them to find it out) */
@@ -935,13 +939,14 @@ bool test_DsCrackNames(struct torture_context *tctx,
 		int i;
 		
 		for (i=0; i < ARRAY_SIZE(crack); i++) {
+			const char *comment;
+
 			torture_comment(tctx, "Testing DsCrackNames with name '%s'"
 					" offered format: %d desired format:%d\n",
 					crack[i].str,
 					crack[i].format_offered,
 					crack[i].format_desired);
 
-			const char *comment;
 			r.in.req->req1.format_flags   = crack[i].flags;
 			r.in.req->req1.format_offered = crack[i].format_offered;
 			r.in.req->req1.format_desired = crack[i].format_desired;

@@ -40,7 +40,7 @@ static time_t reload_last_pcap_time = 0;
 
 bool snum_is_shared_printer(int snum)
 {
-	return (lp_browseable(snum) && lp_snum_ok(snum) && lp_print_ok(snum));
+	return (lp_browseable(snum) && lp_snum_ok(snum) && lp_printable(snum));
 }
 
 /**
@@ -123,10 +123,11 @@ bool reload_services(struct smbd_server_connection *sconn,
 		     bool (*snumused) (struct smbd_server_connection *, int),
 		     bool test)
 {
+	struct smbXsrv_connection *xconn = NULL;
 	bool ret;
 
 	if (lp_loaded()) {
-		char *fname = lp_configfile(talloc_tos());
+		char *fname = lp_next_configfile(talloc_tos());
 		if (file_exist(fname) &&
 		    !strcsequal(fname, get_dyn_CONFIGFILE())) {
 			set_dyn_CONFIGFILE(fname);
@@ -157,9 +158,12 @@ bool reload_services(struct smbd_server_connection *sconn,
 
 	load_interfaces();
 
-	if (sconn != NULL) {
-		set_socket_options(sconn->sock, "SO_KEEPALIVE");
-		set_socket_options(sconn->sock, lp_socket_options());
+	if (sconn != NULL && sconn->client != NULL) {
+		xconn = sconn->client->connections;
+	}
+	for (;xconn != NULL; xconn = xconn->next) {
+		set_socket_options(xconn->transport.sock, "SO_KEEPALIVE");
+		set_socket_options(xconn->transport.sock, lp_socket_options());
 	}
 
 	mangle_reset_cache();

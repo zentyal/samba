@@ -38,7 +38,6 @@ struct irpc_message {
 	struct imessaging_context *msg_ctx;
 	struct irpc_list *irpc;
 	void *data;
-	struct tevent_context *ev;
 };
 
 /* don't allow calls to take too long */
@@ -63,18 +62,21 @@ NTSTATUS irpc_register(struct imessaging_context *msg_ctx,
 		       int call, irpc_function_t fn, void *private_data);
 
 struct dcerpc_binding_handle *irpc_binding_handle(TALLOC_CTX *mem_ctx,
-					struct imessaging_context *msg_ctx,
-					struct server_id server_id,
-					const struct ndr_interface_table *table);
+						  struct imessaging_context *msg_ctx,
+						  struct server_id server_id,
+						  const struct ndr_interface_table *table);
 struct dcerpc_binding_handle *irpc_binding_handle_by_name(TALLOC_CTX *mem_ctx,
-					struct imessaging_context *msg_ctx,
-					const char *dest_task,
-					const struct ndr_interface_table *table);
+							  struct imessaging_context *msg_ctx,
+							  const char *dest_task,
+							  const struct ndr_interface_table *table);
 void irpc_binding_handle_add_security_token(struct dcerpc_binding_handle *h,
 					    struct security_token *token);
 
 NTSTATUS irpc_add_name(struct imessaging_context *msg_ctx, const char *name);
-struct server_id *irpc_servers_byname(struct imessaging_context *msg_ctx, TALLOC_CTX *mem_ctx, const char *name);
+NTSTATUS irpc_servers_byname(struct imessaging_context *msg_ctx,
+			     TALLOC_CTX *mem_ctx, const char *name,
+			     unsigned *num_servers,
+			     struct server_id **servers);
 struct irpc_name_records *irpc_all_servers(struct imessaging_context *msg_ctx,
 					   TALLOC_CTX *mem_ctx);
 void irpc_remove_name(struct imessaging_context *msg_ctx, const char *name);

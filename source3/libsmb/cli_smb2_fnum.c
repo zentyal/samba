@@ -30,7 +30,6 @@
 #include "client.h"
 #include "async_smb.h"
 #include "../libcli/smb/smbXcli_base.h"
-#include "smb2cli.h"
 #include "cli_smb2_fnum.h"
 #include "trans2.h"
 #include "clirap.h"
@@ -151,32 +150,42 @@ static uint8_t flags_to_smb2_oplock(uint32_t create_flags)
 
 /***************************************************************
  Small wrapper that allows SMB2 create to return a uint16_t fnum.
- Synchronous only.
 ***************************************************************/
 
-NTSTATUS cli_smb2_create_fnum(struct cli_state *cli,
-			const char *fname,
-			uint32_t create_flags,
-			uint32_t desired_access,
-			uint32_t file_attributes,
-			uint32_t share_access,
-			uint32_t create_disposition,
-			uint32_t create_options,
-			uint16_t *pfid,
-			struct smb_create_returns *cr)
-{
-	NTSTATUS status;
-	struct smb2_hnd h;
+struct cli_smb2_create_fnum_state {
+	struct cli_state *cli;
+	struct smb_create_returns cr;
+	uint16_t fnum;
+	struct tevent_req *subreq;
+};
 
-	if (smbXcli_conn_has_async_calls(cli->conn)) {
-		/*
-		 * Can't use sync call while an async call is in flight
-		 */
-		return NT_STATUS_INVALID_PARAMETER;
+static void cli_smb2_create_fnum_done(struct tevent_req *subreq);
+static bool cli_smb2_create_fnum_cancel(struct tevent_req *req);
+
+struct tevent_req *cli_smb2_create_fnum_send(TALLOC_CTX *mem_ctx,
+					     struct tevent_context *ev,
+					     struct cli_state *cli,
+					     const char *fname,
+					     uint32_t create_flags,
+					     uint32_t desired_access,
+					     uint32_t file_attributes,
+					     uint32_t share_access,
+					     uint32_t create_disposition,
+					     uint32_t create_options)
+{
+	struct tevent_req *req, *subreq;
+	struct cli_smb2_create_fnum_state *state;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct cli_smb2_create_fnum_state);
+	if (req == NULL) {
+		return NULL;
 	}
+	state->cli = cli;
 
 	if (smbXcli_conn_protocol(cli->conn) < PROTOCOL_SMB2_02) {
-		return NT_STATUS_INVALID_PARAMETER;
+		tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
+		return tevent_req_post(req, ev);
 	}
 
 	if (cli->backup_intent) {
@@ -189,71 +198,228 @@ NTSTATUS cli_smb2_create_fnum(struct cli_state *cli,
 		fname++;
 	}
 
-	status = smb2cli_create(cli->conn,
-				cli->timeout,
-				cli->smb2.session,
-				cli->smb2.tcon,
-				fname,
-				flags_to_smb2_oplock(create_flags),
-				SMB2_IMPERSONATION_IMPERSONATION,
-				desired_access,
-				file_attributes,
-				share_access,
-				create_disposition,
-				create_options,
-				NULL,
-				&h.fid_persistent,
-				&h.fid_volatile,
-				cr);
-
-	if (NT_STATUS_IS_OK(status)) {
-		status = map_smb2_handle_to_fnum(cli, &h, pfid);
+	subreq = smb2cli_create_send(state, ev,
+				     cli->conn,
+				     cli->timeout,
+				     cli->smb2.session,
+				     cli->smb2.tcon,
+				     fname,
+				     flags_to_smb2_oplock(create_flags),
+				     SMB2_IMPERSONATION_IMPERSONATION,
+				     desired_access,
+				     file_attributes,
+				     share_access,
+				     create_disposition,
+				     create_options,
+				     NULL);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
 	}
+	tevent_req_set_callback(subreq, cli_smb2_create_fnum_done, req);
 
-	return status;
+	state->subreq = subreq;
+	tevent_req_set_cancel_fn(req, cli_smb2_create_fnum_cancel);
+
+	return req;
 }
 
-/***************************************************************
- Small wrapper that allows SMB2 close to use a uint16_t fnum.
- Synchronous only.
-***************************************************************/
-
-NTSTATUS cli_smb2_close_fnum(struct cli_state *cli, uint16_t fnum)
+static void cli_smb2_create_fnum_done(struct tevent_req *subreq)
 {
-	struct smb2_hnd *ph = NULL;
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct cli_smb2_create_fnum_state *state = tevent_req_data(
+		req, struct cli_smb2_create_fnum_state);
+	struct smb2_hnd h;
 	NTSTATUS status;
+
+	status = smb2cli_create_recv(subreq, &h.fid_persistent,
+				     &h.fid_volatile, &state->cr, NULL, NULL);
+	TALLOC_FREE(subreq);
+	if (tevent_req_nterror(req, status)) {
+		return;
+	}
+
+	status = map_smb2_handle_to_fnum(state->cli, &h, &state->fnum);
+	if (tevent_req_nterror(req, status)) {
+		return;
+	}
+	tevent_req_done(req);
+}
+
+static bool cli_smb2_create_fnum_cancel(struct tevent_req *req)
+{
+	struct cli_smb2_create_fnum_state *state = tevent_req_data(
+		req, struct cli_smb2_create_fnum_state);
+	return tevent_req_cancel(state->subreq);
+}
+
+NTSTATUS cli_smb2_create_fnum_recv(struct tevent_req *req, uint16_t *pfnum,
+				   struct smb_create_returns *cr)
+{
+	struct cli_smb2_create_fnum_state *state = tevent_req_data(
+		req, struct cli_smb2_create_fnum_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		return status;
+	}
+	if (pfnum != NULL) {
+		*pfnum = state->fnum;
+	}
+	if (cr != NULL) {
+		*cr = state->cr;
+	}
+	return NT_STATUS_OK;
+}
+
+NTSTATUS cli_smb2_create_fnum(struct cli_state *cli,
+			const char *fname,
+			uint32_t create_flags,
+			uint32_t desired_access,
+			uint32_t file_attributes,
+			uint32_t share_access,
+			uint32_t create_disposition,
+			uint32_t create_options,
+			uint16_t *pfid,
+			struct smb_create_returns *cr)
+{
+	TALLOC_CTX *frame = talloc_stackframe();
+	struct tevent_context *ev;
+	struct tevent_req *req;
+	NTSTATUS status = NT_STATUS_NO_MEMORY;
 
 	if (smbXcli_conn_has_async_calls(cli->conn)) {
 		/*
 		 * Can't use sync call while an async call is in flight
 		 */
-		return NT_STATUS_INVALID_PARAMETER;
+		status = NT_STATUS_INVALID_PARAMETER;
+		goto fail;
 	}
+	ev = samba_tevent_context_init(frame);
+	if (ev == NULL) {
+		goto fail;
+	}
+	req = cli_smb2_create_fnum_send(frame, ev, cli, fname, create_flags,
+					desired_access, file_attributes,
+					share_access, create_disposition,
+					create_options);
+	if (req == NULL) {
+		goto fail;
+	}
+	if (!tevent_req_poll_ntstatus(req, ev, &status)) {
+		goto fail;
+	}
+	status = cli_smb2_create_fnum_recv(req, pfid, cr);
+ fail:
+	TALLOC_FREE(frame);
+	return status;
+}
+
+/***************************************************************
+ Small wrapper that allows SMB2 close to use a uint16_t fnum.
+***************************************************************/
+
+struct cli_smb2_close_fnum_state {
+	struct cli_state *cli;
+	uint16_t fnum;
+	struct smb2_hnd *ph;
+};
+
+static void cli_smb2_close_fnum_done(struct tevent_req *subreq);
+
+struct tevent_req *cli_smb2_close_fnum_send(TALLOC_CTX *mem_ctx,
+					    struct tevent_context *ev,
+					    struct cli_state *cli,
+					    uint16_t fnum)
+{
+	struct tevent_req *req, *subreq;
+	struct cli_smb2_close_fnum_state *state;
+	NTSTATUS status;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct cli_smb2_close_fnum_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->cli = cli;
+	state->fnum = fnum;
 
 	if (smbXcli_conn_protocol(cli->conn) < PROTOCOL_SMB2_02) {
-		return NT_STATUS_INVALID_PARAMETER;
+		tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
+		return tevent_req_post(req, ev);
 	}
 
-	status = map_fnum_to_smb2_handle(cli,
-					fnum,
-					&ph);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
+	status = map_fnum_to_smb2_handle(cli, fnum, &state->ph);
+	if (tevent_req_nterror(req, status)) {
+		return tevent_req_post(req, ev);
 	}
 
-	status = smb2cli_close(cli->conn,
-				cli->timeout,
-				cli->smb2.session,
-				cli->smb2.tcon,
-				0,
-				ph->fid_persistent,
-				ph->fid_volatile);
+	subreq = smb2cli_close_send(state, ev, cli->conn, cli->timeout,
+				    cli->smb2.session, cli->smb2.tcon,
+				    0, state->ph->fid_persistent,
+				    state->ph->fid_volatile);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq, cli_smb2_close_fnum_done, req);
+	return req;
+}
+
+static void cli_smb2_close_fnum_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(
+		subreq, struct tevent_req);
+	struct cli_smb2_close_fnum_state *state = tevent_req_data(
+		req, struct cli_smb2_close_fnum_state);
+	NTSTATUS status;
+
+	status = smb2cli_close_recv(subreq);
+	if (tevent_req_nterror(req, status)) {
+		return;
+	}
 
 	/* Delete the fnum -> handle mapping. */
-	if (NT_STATUS_IS_OK(status)) {
-		status = delete_smb2_handle_mapping(cli, &ph, fnum);
+	status = delete_smb2_handle_mapping(state->cli, &state->ph,
+					    state->fnum);
+	if (tevent_req_nterror(req, status)) {
+		return;
 	}
+	tevent_req_done(req);
+}
 
+NTSTATUS cli_smb2_close_fnum_recv(struct tevent_req *req)
+{
+	return tevent_req_simple_recv_ntstatus(req);
+}
+
+NTSTATUS cli_smb2_close_fnum(struct cli_state *cli, uint16_t fnum)
+{
+	TALLOC_CTX *frame = talloc_stackframe();
+	struct tevent_context *ev;
+	struct tevent_req *req;
+	NTSTATUS status = NT_STATUS_NO_MEMORY;
+
+	if (smbXcli_conn_has_async_calls(cli->conn)) {
+		/*
+		 * Can't use sync call while an async call is in flight
+		 */
+		status = NT_STATUS_INVALID_PARAMETER;
+		goto fail;
+	}
+	ev = samba_tevent_context_init(frame);
+	if (ev == NULL) {
+		goto fail;
+	}
+	req = cli_smb2_close_fnum_send(frame, ev, cli, fnum);
+	if (req == NULL) {
+		goto fail;
+	}
+	if (!tevent_req_poll_ntstatus(req, ev, &status)) {
+		goto fail;
+	}
+	status = cli_smb2_close_fnum_recv(req);
+ fail:
+	TALLOC_FREE(frame);
 	return status;
 }
 
@@ -719,9 +885,9 @@ NTSTATUS cli_smb2_qpathinfo_basic(struct cli_state *cli,
 
 	ZERO_STRUCTP(sbuf);
 
-	sbuf->st_ex_atime = nt_time_to_unix_timespec(&cr.last_access_time);
-	sbuf->st_ex_mtime = nt_time_to_unix_timespec(&cr.last_write_time);
-	sbuf->st_ex_ctime = nt_time_to_unix_timespec(&cr.change_time);
+	sbuf->st_ex_atime = nt_time_to_unix_timespec(cr.last_access_time);
+	sbuf->st_ex_mtime = nt_time_to_unix_timespec(cr.last_write_time);
+	sbuf->st_ex_ctime = nt_time_to_unix_timespec(cr.change_time);
 	sbuf->st_ex_size = cr.end_of_file;
 	*attributes = cr.file_attributes;
 
@@ -1411,7 +1577,7 @@ NTSTATUS cli_smb2_setattrE(struct cli_state *cli,
  Synchronous only.
 ***************************************************************/
 
-NTSTATUS cli_smb2_dskattr(struct cli_state *cli, int *bsize, int *total, int *avail)
+NTSTATUS cli_smb2_dskattr(struct cli_state *cli, uint64_t *bsize, uint64_t *total, uint64_t *avail)
 {
 	NTSTATUS status;
 	uint16_t fnum = 0xffff;
@@ -1492,13 +1658,13 @@ NTSTATUS cli_smb2_dskattr(struct cli_state *cli, int *bsize, int *total, int *av
 	bytes_per_sector = IVAL(outbuf.data, 20);
 
 	if (bsize) {
-		*bsize = (int)(sectors_per_unit * bytes_per_sector);
+		*bsize = (uint64_t)sectors_per_unit * (uint64_t)bytes_per_sector;
 	}
 	if (total) {
-		*total = (int)total_size;
+		*total = total_size;
 	}
 	if (avail) {
-		*avail = (int)size_free;
+		*avail = size_free;
 	}
 
 	status = NT_STATUS_OK;

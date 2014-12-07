@@ -919,9 +919,7 @@ char *cldap_netlogon_create_filter(TALLOC_CTX *mem_ctx,
 	}
 	if (io->in.domain_sid) {
 		struct dom_sid *sid = dom_sid_parse_talloc(mem_ctx, io->in.domain_sid);
-		if (filter == NULL) {
-			return NULL;
-		}
+
 		filter = talloc_asprintf_append_buffer(filter, "(domainSid=%s)",
 						ldap_encode_ndr_dom_sid(mem_ctx, sid));
 		if (filter == NULL) {
@@ -930,11 +928,8 @@ char *cldap_netlogon_create_filter(TALLOC_CTX *mem_ctx,
 	}
 	if (io->in.domain_guid) {
 		struct GUID guid;
-		NTSTATUS status;
-		status = GUID_from_string(io->in.domain_guid, &guid);
-		if (filter == NULL) {
-			return NULL;
-		}
+		GUID_from_string(io->in.domain_guid, &guid);
+
 		filter = talloc_asprintf_append_buffer(filter, "(DomainGuid=%s)",
 						ldap_encode_ndr_GUID(mem_ctx, &guid));
 		if (filter == NULL) {

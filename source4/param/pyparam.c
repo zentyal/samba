@@ -279,13 +279,55 @@ static PyObject *py_lp_dump(PyObject *self, PyObject *args)
 
 	f = PyFile_AsFile(py_stream);
 	if (f == NULL) {
-		PyErr_SetString(PyExc_TypeError, "Not a file stream");
 		return NULL;
 	}
 
 	lpcfg_dump(lp_ctx, f, show_defaults, lpcfg_numservices(lp_ctx));
 
 	Py_RETURN_NONE;
+}
+
+static PyObject *py_lp_dump_a_parameter(PyObject *self, PyObject *args)
+{
+	PyObject *py_stream;
+	char *param_name;
+	const char *section_name = NULL;
+	FILE *f;
+	struct loadparm_context *lp_ctx = PyLoadparmContext_AsLoadparmContext(self);
+	struct loadparm_service *service;
+	bool ret;
+
+	if (!PyArg_ParseTuple(args, "Os|z", &py_stream, &param_name, &section_name))
+		return NULL;
+
+	f = PyFile_AsFile(py_stream);
+	if (f == NULL) {
+		return NULL;
+	}
+
+	if (section_name != NULL && strwicmp(section_name, GLOBAL_NAME) &&
+		strwicmp(section_name, GLOBAL_NAME2)) {
+		/* it's a share parameter */
+		service = lpcfg_service(lp_ctx, section_name);
+		if (service == NULL) {
+			PyErr_Format(PyExc_RuntimeError, "Unknown section %s", section_name);
+			return NULL;
+		}
+	} else {
+		/* it's global */
+		service = NULL;
+		section_name = "global";
+	}
+
+	ret = lpcfg_dump_a_parameter(lp_ctx, service, param_name, f);
+
+	if (!ret) {
+		PyErr_Format(PyExc_RuntimeError, "Parameter %s unknown for section %s", param_name, section_name);
+		return NULL;
+	}
+
+	Py_RETURN_NONE;
+
 }
 
 static PyObject *py_samdb_url(PyObject *self)
@@ -323,6 +365,8 @@ static PyMethodDef py_lp_ctx_methods[] = {
 		"Get the server role." },
 	{ "dump", (PyCFunction)py_lp_dump, METH_VARARGS, 
 		"S.dump(stream, show_defaults=False)" },
+	{ "dump_a_parameter", (PyCFunction)py_lp_dump_a_parameter, METH_VARARGS,
+		"S.dump_a_parameter(stream, name, service_name)" },
 	{ "samdb_url", (PyCFunction)py_samdb_url, METH_NOARGS,
 	        "S.samdb_url() -> string\n"
 	        "Returns the current URL for sam.ldb." },
@@ -420,7 +464,6 @@ static PyObject *py_lp_service_dump(PyObject *self, PyObject *args)
 
 	f = PyFile_AsFile(py_stream);
 	if (f == NULL) {
-		PyErr_SetString(PyExc_TypeError, "Not a file stream");
 		return NULL;
 	}
 

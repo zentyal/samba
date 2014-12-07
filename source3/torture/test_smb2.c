@@ -22,11 +22,11 @@
 #include "client.h"
 #include "trans2.h"
 #include "../libcli/smb/smbXcli_base.h"
-#include "libsmb/smb2cli.h"
 #include "libcli/security/security.h"
 #include "libsmb/proto.h"
 #include "auth/gensec/gensec.h"
 #include "auth_generic.h"
+#include "../librpc/ndr/libndr.h"
 
 extern fstring host, workgroup, share, password, username, myname;
 
@@ -84,7 +84,7 @@ bool run_smb2_basic(int dummy)
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
 			&fid_volatile,
-			NULL);
+			NULL, NULL, NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("smb2cli_create returned %s\n", nt_errstr(status));
 		return false;
@@ -147,7 +147,7 @@ bool run_smb2_basic(int dummy)
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
 			&fid_volatile,
-			NULL);
+			NULL, NULL, NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("smb2cli_create returned %s\n", nt_errstr(status));
 		return false;
@@ -180,7 +180,10 @@ bool run_smb2_basic(int dummy)
 				0, /* flags */
 				0, /* capabilities */
 				0  /* maximal_access */);
-	status = smb2cli_tdis(cli);
+	status = smb2cli_tdis(cli->conn,
+			      cli->timeout,
+			      cli->smb2.session,
+			      cli->smb2.tcon);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("smb2cli_tdis returned %s\n", nt_errstr(status));
 		return false;
@@ -188,7 +191,10 @@ bool run_smb2_basic(int dummy)
 	talloc_free(cli->smb2.tcon);
 	cli->smb2.tcon = saved_tcon;
 
-	status = smb2cli_tdis(cli);
+	status = smb2cli_tdis(cli->conn,
+			      cli->timeout,
+			      cli->smb2.session,
+			      cli->smb2.tcon);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_NETWORK_NAME_DELETED)) {
 		printf("2nd smb2cli_tdis returned %s\n", nt_errstr(status));
 		return false;
@@ -255,6 +261,9 @@ bool run_smb2_negprot(int dummy)
 		break;
 	case PROTOCOL_SMB3_00:
 		name = "SMB3_00";
+		break;
+	case PROTOCOL_SMB3_02:
+		name = "SMB3_02";
 		break;
 	default:
 		break;
@@ -344,7 +353,7 @@ bool run_smb2_session_reconnect(int dummy)
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
 			&fid_volatile,
-			NULL);
+			NULL, NULL, NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("smb2cli_create on cli1 %s\n", nt_errstr(status));
 		return false;
@@ -437,7 +446,8 @@ bool run_smb2_session_reconnect(int dummy)
 		return false;
 	}
 
-	status = gensec_update(auth_generic_state->gensec_security, talloc_tos(), ev, data_blob_null, &in_blob);
+	status = gensec_update(auth_generic_state->gensec_security,
+			       talloc_tos(), data_blob_null, &in_blob);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
 		printf("gensec_update returned %s\n", nt_errstr(status));
 		return false;
@@ -474,7 +484,8 @@ bool run_smb2_session_reconnect(int dummy)
 		return false;
 	}
 
-	status = gensec_update(auth_generic_state->gensec_security, talloc_tos(), ev, out_blob, &in_blob);
+	status = gensec_update(auth_generic_state->gensec_security,
+			       talloc_tos(), out_blob, &in_blob);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("auth_generic_update returned %s\n", nt_errstr(status));
 		return false;
@@ -579,7 +590,7 @@ bool run_smb2_session_reconnect(int dummy)
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
 			&fid_volatile,
-			NULL);
+			NULL, NULL, NULL);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_ACCESS_DENIED) &&
 	    !NT_STATUS_EQUAL(status, NT_STATUS_NETWORK_NAME_DELETED)) {
 		printf("smb2cli_create on cli2 %s\n", nt_errstr(status));
@@ -640,7 +651,7 @@ bool run_smb2_session_reconnect(int dummy)
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
 			&fid_volatile,
-			NULL);
+			NULL, NULL, NULL);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_NETWORK_NAME_DELETED) &&
 	    !NT_STATUS_EQUAL(status, NT_STATUS_NETWORK_NAME_DELETED))
 	{
@@ -668,7 +679,7 @@ bool run_smb2_session_reconnect(int dummy)
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
 			&fid_volatile,
-			NULL);
+			NULL, NULL, NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("smb2cli_create on cli2 %s\n", nt_errstr(status));
 		return false;
@@ -764,7 +775,7 @@ bool run_smb2_tcon_dependence(int dummy)
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
 			&fid_volatile,
-			NULL);
+			NULL, NULL, NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("smb2cli_create on cli %s\n", nt_errstr(status));
 		return false;
@@ -851,8 +862,11 @@ bool run_smb2_multi_channel(int dummy)
 	const char *hello = "Hello, world\n";
 	uint8_t *result;
 	uint32_t nread;
+	struct GUID saved_guid = cli_state_client_guid;
 
 	printf("Starting SMB2-MULTI-CHANNEL\n");
+
+	cli_state_client_guid = GUID_random();
 
 	if (!torture_init_connection(&cli1)) {
 		return false;
@@ -865,6 +879,8 @@ bool run_smb2_multi_channel(int dummy)
 	if (!torture_init_connection(&cli3)) {
 		return false;
 	}
+
+	cli_state_client_guid = saved_guid;
 
 	status = smbXcli_negprot(cli1->conn, cli1->timeout,
 				 PROTOCOL_SMB2_22, PROTOCOL_LATEST);
@@ -950,7 +966,8 @@ bool run_smb2_multi_channel(int dummy)
 		return false;
 	}
 
-	status = gensec_update(auth_generic_state->gensec_security, talloc_tos(), ev, data_blob_null, &in_blob);
+	status = gensec_update(auth_generic_state->gensec_security,
+			       talloc_tos(), data_blob_null, &in_blob);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
 		printf("gensec_update returned %s\n", nt_errstr(status));
 		return false;
@@ -984,7 +1001,8 @@ bool run_smb2_multi_channel(int dummy)
 		return false;
 	}
 
-	status = gensec_update(auth_generic_state->gensec_security, talloc_tos(), ev, out_blob, &in_blob);
+	status = gensec_update(auth_generic_state->gensec_security,
+			       talloc_tos(), out_blob, &in_blob);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("auth_generic_update returned %s\n", nt_errstr(status));
 		return false;
@@ -1076,7 +1094,8 @@ bool run_smb2_multi_channel(int dummy)
 		return false;
 	}
 
-	status = gensec_update(auth_generic_state->gensec_security, talloc_tos(), ev, data_blob_null, &in_blob);
+	status = gensec_update(auth_generic_state->gensec_security,
+			       talloc_tos(), data_blob_null, &in_blob);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
 		printf("gensec_update returned %s\n", nt_errstr(status));
 		return false;
@@ -1110,7 +1129,8 @@ bool run_smb2_multi_channel(int dummy)
 		return false;
 	}
 
-	status = gensec_update(auth_generic_state->gensec_security, talloc_tos(), ev, out_blob, &in_blob);
+	status = gensec_update(auth_generic_state->gensec_security,
+			       talloc_tos(), out_blob, &in_blob);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("auth_generic_update returned %s\n", nt_errstr(status));
 		return false;
@@ -1172,7 +1192,7 @@ bool run_smb2_multi_channel(int dummy)
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
 			&fid_volatile,
-			NULL);
+			NULL, NULL, NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("smb2cli_create on cli2 %s\n", nt_errstr(status));
 		return false;
@@ -1260,7 +1280,8 @@ bool run_smb2_multi_channel(int dummy)
 		return false;
 	}
 
-	status = gensec_update(auth_generic_state->gensec_security, talloc_tos(), ev, data_blob_null, &in_blob);
+	status = gensec_update(auth_generic_state->gensec_security,
+			       talloc_tos(), data_blob_null, &in_blob);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
 		printf("gensec_update returned %s\n", nt_errstr(status));
 		return false;
@@ -1294,7 +1315,8 @@ bool run_smb2_multi_channel(int dummy)
 		return false;
 	}
 
-	status = gensec_update(auth_generic_state->gensec_security, talloc_tos(), ev, out_blob, &in_blob);
+	status = gensec_update(auth_generic_state->gensec_security,
+			       talloc_tos(), out_blob, &in_blob);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("auth_generic_update returned %s\n", nt_errstr(status));
 		return false;
@@ -1333,7 +1355,7 @@ bool run_smb2_multi_channel(int dummy)
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
 			&fid_volatile,
-			NULL);
+			NULL, NULL, NULL);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_INVALID_HANDLE)) {
 		printf("smb2cli_create %s\n", nt_errstr(status));
 		return false;
@@ -1351,7 +1373,7 @@ bool run_smb2_multi_channel(int dummy)
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
 			&fid_volatile,
-			NULL);
+			NULL, NULL, NULL);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_INVALID_HANDLE)) {
 		printf("smb2cli_create %s\n", nt_errstr(status));
 		return false;
@@ -1369,7 +1391,7 @@ bool run_smb2_multi_channel(int dummy)
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
 			&fid_volatile,
-			NULL);
+			NULL, NULL, NULL);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_INVALID_HANDLE)) {
 		printf("smb2cli_create %s\n", nt_errstr(status));
 		return false;
@@ -1501,7 +1523,7 @@ bool run_smb2_session_reauth(int dummy)
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
 			&fid_volatile,
-			NULL);
+			NULL, NULL, NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("smb2cli_create %s\n", nt_errstr(status));
 		return false;
@@ -1521,7 +1543,7 @@ bool run_smb2_session_reauth(int dummy)
 			NULL, /* smb2_create_blobs *blobs */
 			&dir_persistent,
 			&dir_volatile,
-			NULL);
+			NULL, NULL, NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("smb2cli_create returned %s\n", nt_errstr(status));
 		return false;
@@ -1575,7 +1597,8 @@ bool run_smb2_session_reauth(int dummy)
 		return false;
 	}
 
-	status = gensec_update(auth_generic_state->gensec_security, talloc_tos(), ev, data_blob_null, &in_blob);
+	status = gensec_update(auth_generic_state->gensec_security,
+			       talloc_tos(), data_blob_null, &in_blob);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
 		printf("gensec_update returned %s\n", nt_errstr(status));
 		return false;
@@ -1609,7 +1632,8 @@ bool run_smb2_session_reauth(int dummy)
 		return false;
 	}
 
-	status = gensec_update(auth_generic_state->gensec_security, talloc_tos(), ev, out_blob, &in_blob);
+	status = gensec_update(auth_generic_state->gensec_security,
+			       talloc_tos(), out_blob, &in_blob);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("auth_generic_update returned %s\n", nt_errstr(status));
 		return false;
@@ -1705,7 +1729,7 @@ bool run_smb2_session_reauth(int dummy)
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
 			&fid_volatile,
-			NULL);
+			NULL, NULL, NULL);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_INVALID_HANDLE)) {
 		printf("smb2cli_create %s\n", nt_errstr(status));
 		return false;
@@ -1725,7 +1749,7 @@ bool run_smb2_session_reauth(int dummy)
 			NULL, /* smb2_create_blobs *blobs */
 			&dir_persistent,
 			&dir_volatile,
-			NULL);
+			NULL, NULL, NULL);
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_INVALID_HANDLE)) {
 		printf("smb2cli_create returned %s\n", nt_errstr(status));
 		return false;
@@ -1881,7 +1905,7 @@ bool run_smb2_session_reauth(int dummy)
 			NULL, /* smb2_create_blobs *blobs */
 			&fid_persistent,
 			&fid_volatile,
-			NULL);
+			NULL, NULL, NULL);
 	if (!NT_STATUS_IS_OK(status)) {
 		printf("smb2cli_create %s\n", nt_errstr(status));
 		return false;

@@ -25,6 +25,7 @@
 #include "source4/libcli/raw/smb.h"
 #include "../libcli/smb/smb_common.h"
 #include "librpc/gen_ndr/misc.h" /* for struct GUID */
+#include "librpc/gen_ndr/smb2_lease_struct.h"
 
 /* this structure is just a wrapper for a string, the only reason we
    bother with this is that it allows us to check the length provided
@@ -1808,6 +1809,8 @@ union smb_read {
 			uint16_t remaining;
 			uint16_t compaction_mode;
 			uint32_t nread;
+			uint16_t flags2;
+			uint16_t data_offset;
 		} out;
 	} readx, generic;
 

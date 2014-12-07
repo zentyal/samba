@@ -20,17 +20,19 @@
 #include "includes.h"
 #include "librpc/gen_ndr/server_id.h"
 
+bool server_id_same_process(const struct server_id *p1,
+			    const struct server_id *p2)
+{
+	return ((p1->pid == p2->pid) && (p1->vnn == p2->vnn));
+}
+
 bool server_id_equal(const struct server_id *p1, const struct server_id *p2)
 {
-	if (p1->pid != p2->pid) {
+	if (!server_id_same_process(p1, p2)) {
 		return false;
 	}
 
 	if (p1->task_id != p2->task_id) {
-		return false;
-	}
-
-	if (p1->vnn != p2->vnn) {
 		return false;
 	}
 
@@ -41,31 +43,43 @@ bool server_id_equal(const struct server_id *p1, const struct server_id *p2)
 	return true;
 }
 
+char *server_id_str_buf(struct server_id id, struct server_id_buf *dst)
+{
+	if (server_id_is_disconnected(&id)) {
+		strlcpy(dst->buf, "disconnected", sizeof(dst->buf));
+	} else if ((id.vnn == NONCLUSTER_VNN) && (id.task_id == 0)) {
+		snprintf(dst->buf, sizeof(dst->buf), "%llu",
+			 (unsigned long long)id.pid);
+	} else if (id.vnn == NONCLUSTER_VNN) {
+		snprintf(dst->buf, sizeof(dst->buf), "%llu.%u",
+			 (unsigned long long)id.pid, (unsigned)id.task_id);
+	} else if (id.task_id == 0) {
+		snprintf(dst->buf, sizeof(dst->buf), "%u:%llu",
+			 (unsigned)id.vnn, (unsigned long long)id.pid);
+	} else {
+		snprintf(dst->buf, sizeof(dst->buf), "%u:%llu.%u",
+			 (unsigned)id.vnn,
+			 (unsigned long long)id.pid,
+			 (unsigned)id.task_id);
+	}
+	return dst->buf;
+}
+
 char *server_id_str(TALLOC_CTX *mem_ctx, const struct server_id *id)
 {
-	if (server_id_is_disconnected(id)) {
-		return talloc_strdup(mem_ctx, "disconnected");
-	} else if (id->vnn == NONCLUSTER_VNN && id->task_id == 0) {
-		return talloc_asprintf(mem_ctx,
-				       "%llu",
-				       (unsigned long long)id->pid);
-	} else if (id->vnn == NONCLUSTER_VNN) {
-		return talloc_asprintf(mem_ctx,
-				       "%llu.%u",
-				       (unsigned long long)id->pid,
-				       (unsigned)id->task_id);
-	} else if (id->task_id == 0) {
-		return talloc_asprintf(mem_ctx,
-				       "%u:%llu",
-				       (unsigned)id->vnn,
-				       (unsigned long long)id->pid);
-	} else {
-		return talloc_asprintf(mem_ctx,
-				       "%u:%llu.%u",
-				       (unsigned)id->vnn,
-				       (unsigned long long)id->pid,
-				       (unsigned)id->task_id);
+	struct server_id_buf tmp;
+	char *result;
+
+	result = talloc_strdup(mem_ctx, server_id_str_buf(*id, &tmp));
+	if (result == NULL) {
+		return NULL;
 	}
+
+	/*
+	 * beautify the talloc_report output
+	 */
+	talloc_set_name_const(result, result);
+	return result;
 }
 
 struct server_id server_id_from_string(uint32_t local_vnn,

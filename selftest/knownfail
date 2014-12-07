@@ -33,15 +33,6 @@
 # see bug 8412
 ^samba3.smb2.rename.*.simple_nodelete
 ^samba3.smb2.rename.*.no_share_delete_no_delete_access
-#These rpcclient combinations (pipe-level authentication but without sign or seal) need fixing in s3
-^samba3.blackbox.rpcclient over ncacn_np with \[spnego\]
-^samba3.blackbox.rpcclient over ncacn_np with \[spnego,bigendian\]
-^samba3.blackbox.rpcclient over ncacn_np with \[spnego,connect\]
-^samba3.blackbox.rpcclient over ncacn_np with \[spnego,connect,bigendian\]
-^samba3.blackbox.rpcclient over ncacn_np with \[spnego,smb2\]
-^samba3.blackbox.rpcclient over ncacn_np with \[spnego,smb2,bigendian\]
-^samba3.blackbox.rpcclient over ncacn_np with \[spnego,connect,smb2\]
-^samba3.blackbox.rpcclient over ncacn_np with \[spnego,connect,smb2,bigendian\]
 ^samba3.blackbox.smbclient_machine_auth.plain \(s3dc:local\)# the S3dc does not currently set up a self-join
 ^samba3.raw.samba3hide.samba3hide\((s3dc|plugin_s4_dc)\) # This test fails against an smbd environment with NT ACLs enabled
 ^samba3.raw.samba3closeerr.samba3closeerr\(s3dc\) # This test fails against an smbd environment with NT ACLs enabled
@@ -93,7 +84,6 @@
 ^samba4.rpc.lsalookup with seal,padcheck
 ^samba4.rpc.lsalookup with validate
 ^samba4.rpc.lsalookup with bigendian
-^samba4.rpc.cracknames
 ^samba4.rpc.netlogon.*.LogonUasLogon
 ^samba4.rpc.netlogon.*.LogonUasLogoff
 ^samba4.rpc.netlogon.*.DatabaseSync
@@ -106,9 +96,6 @@
 ^samba4.rpc.netlogon.*.GetTrustPasswords
 ^samba4.rpc.netlogon.*.DatabaseRedo
 ^samba4.rpc.netlogon.*.ServerGetTrustInfo
-^samba4.rpc.netlogon.*.invalidAuthenticate2
-^samba4.rpc.samr.passwords.badpwdcount # Not provided by Samba 4 yet
-^samba4.rpc.samr.passwords.lockout
 ^samba4.base.charset.*.Testing partial surrogate
 ^samba4.*.base.maximum_allowed		# broken until we implement NTCREATEX_OPTIONS_BACKUP_INTENT
 .*net.api.delshare.*				# DelShare isn't implemented yet
@@ -124,9 +111,11 @@
 ^samba4.smb2.rename.share_delete_no_delete_access\(.*\)$
 ^samba4.smb2.rename.no_share_delete_no_delete_access\(.*\)$
 ^samba4.smb2.rename.msword
+^samba4.smb2.rename.rename_dir_bench\(dc\)
+^samba4.smb2.oplock.doc
 ^samba4.smb2.compound.related3
 ^samba4.smb2.compound.compound-break
-^samba4.winbind.struct.*.show_sequence     # Not yet working in winbind
+^samba4.smb2.lock.valid-request
 ^samba4.*base.delaywrite.*update of write time and SMBwrite truncate\(.*\)$
 ^samba4.*base.delaywrite.*update of write time and SMBwrite truncate expand\(.*\)$
 ^samba4.*base.delaywrite.*delayed update of write time 3a\(.*\)$
@@ -141,6 +130,10 @@
 ^samba4.smb2.lock.*.multiple-unlock # bug 6959
 ^samba4.raw.sfileinfo.*.end-of-file\(.*\)$ # bug 6962
 ^samba4.raw.oplock.*.batch22 # bug 6963
+^samba4.raw.oplock.*.doc1
+^samba4.raw.oplock.*.exclusive5
+^samba4.raw.oplock.*.exclusive9
+^samba4.raw.oplock.*.level_ii_1
 ^samba4.raw.lock.*.zerobyteread # bug 6974
 ^samba4.smb2.lock.*.zerobyteread # bug 6974
 ^samba4.raw.streams.*.delete
@@ -151,6 +144,7 @@
 ^samba4.raw.acls.*.create_dir
 ^samba4.raw.acls.*.create_file
 ^samba4.smb2.create.*.acldir
+^samba4.smb2.create.*.impersonation
 ^samba4.smb2.acls.*.generic
 ^samba4.smb2.acls.*.inheritflags
 ^samba4.smb2.acls.*.owner
@@ -158,10 +152,10 @@
 #^samba4.ldap.dirsync.python.dc..__main__.ExtendedDirsyncTests.*
 ^samba4.libsmbclient.opendir.opendir # This requires netbios browsing
 ^samba4.rpc.drsuapi.*.drsuapi.DsGetDomainControllerInfo\(.*\)$
-^samba4.rpc.drsuapi.*.drsuapi.DsCrackNames\(.*\)$
 ^samba4.smb2.oplock.exclusive2\(.*\)$ # samba 4 oplocks are a mess
 ^samba4.smb2.oplock.exclusive5\(.*\)$ # samba 4 oplocks are a mess
 ^samba4.smb2.oplock.exclusive6\(.*\)$ # samba 4 oplocks are a mess
+^samba4.smb2.oplock.exclusive9\(.*\)$
 ^samba4.smb2.oplock.brl3\(.*\)$ # samba 4 oplocks are a mess
 ^samba4.smb2.oplock.levelii500\(.*\)$ # samba 4 oplocks are a mess
 ^samba4.smb2.oplock.brl1\(.*\)$ # samba 4 oplocks are a mess
@@ -174,23 +168,26 @@
 ^samba4.smb2.oplock.batch9\(.*\)$ # samba 4 oplocks are a mess
 ^samba4.smb2.oplock.batch10\(.*\)$ # samba 4 oplocks are a mess
 ^samba4.smb2.oplock.batch20\(.*\)$ # samba 4 oplocks are a mess
+^samba4.smb2.oplock.batch26\(.*\)$
 ^samba4.smb2.oplock.stream1 # samba 4 oplocks are a mess
-^samba4.smb2.getinfo.getinfo # streams on directories does not work
+^samba4.smb2.getinfo.complex # streams on directories does not work
+^samba4.smb2.getinfo.qfs_buffercheck # S4 does not do the INFO_LENGTH_MISMATCH/BUFFER_OVERFLOW thingy
+^samba4.smb2.getinfo.qfile_buffercheck # S4 does not do the INFO_LENGTH_MISMATCH/BUFFER_OVERFLOW thingy
+^samba4.smb2.getinfo.qsec_buffercheck # S4 does not do the BUFFER_TOO_SMALL thingy
 ^samba4.ntvfs.cifs.krb5.base.createx_access.createx_access\(.*\)$
 ^samba4.rpc.lsa.forest.trust #Not fully provided by Samba4
 ^samba4.blackbox.kinit\(.*\).kinit with user password for expired password\(.*\) # We need to work out why this fails only during the pw change
 ^samba4.blackbox.upgradeprovision.alpha13.ldapcmp_sd\(none\) # Due to something rewriting the NT ACL on DNS objects
 ^samba4.blackbox.upgradeprovision.alpha13.ldapcmp_full_sd\(none\) # Due to something rewriting the NT ACL on DNS objects
 ^samba4.blackbox.upgradeprovision.release-4-0-0.ldapcmp_sd\(none\) # Due to something rewriting the NT ACL on DNS objects
+^samba4.raw.read.readx\(dc\) # fails readx 16bit alignment requirement
 ^samba3.smb2.create.gentest
 ^samba3.smb2.create.blob
 ^samba3.smb2.create.open
-^samba3.smb2.create.leading-slash
 ^samba3.smb2.notify.valid-req
 ^samba3.smb2.notify.dir
 ^samba3.smb2.notify.rec
 ^samba3.smb2.durable-open.lock-lease
-^samba3.smb2.durable-open.reopen4
 ^samba3.smb2.durable-open.delete_on_close2
 ^samba3.smb2.durable-v2-open.open-lease
 ^samba3.smb2.durable-v2-open.persistent-open-lease
@@ -205,17 +202,28 @@
 ^samba3.smb2.lease.oplock
 ^samba3.smb2.lease.multibreak
 ^samba3.smb2.lease.v2_request
-^samba3.smb2.oplock.exclusive5
-^samba3.smb2.oplock.batch12
+^samba3.smb2.lease.v2_request_parent
+^samba3.smb2.lease.break_twice
+^samba3.smb2.lease.nobreakself
+^samba3.smb2.lease.v2_epoch1
 ^samba3.smb2.oplock.batch20
+^samba3.smb2.oplock.stream1
 ^samba3.smb2.streams.rename
 ^samba3.smb2.streams.rename2
 ^samba3.smb2.streams.attributes
-^samba3.smb2.getinfo.getinfo
+^samba3.smb2.getinfo.complex
+^samba3.smb2.getinfo.fsinfo # quotas don't work yet
 ^samba3.smb2.setinfo.setinfo
 ^samba3.smb2.session.*reauth5 # some special anonymous checks?
 ^samba3.smb2.compound.interim2 # wrong return code (STATUS_CANCELLED)
+^samba3.smb2.replay.replay1
+^samba3.smb2.replay.replay2
+^samba3.smb2.replay.replay3
+^samba3.smb2.replay.replay4
+^samba3.smb2.lock.*replay
 ^samba3.raw.session.*reauth2 # maybe fix this?
+^samba3.rpc.samr.passwords.badpwdcount.samr.badPwdCount\(s3dc\) # We fail this test currently
+^samba3.rpc.samr.passwords.lockout.*\(s3dc\)$ # We fail this test currently
 ^samba3.rpc.spoolss.printer.addprinter.driver_info_winreg # knownfail or flapping?
 ^samba3.rpc.spoolss.printer.addprinterex.driver_info_winreg # knownfail or flapping?
 ^samba3.rpc.spoolss.printer.*.publish_toggle\(.*\)$ # needs spoolss AD member env
@@ -245,16 +253,57 @@
 #
 # The Samba4 winbind does not cover the full winbind protocol, so these are expected
 #
-^samba3.winbind.struct.info\(plugin_s4_dc\)
-^samba3.winbind.struct.show_sequence\(plugin_s4_dc\)
-^samba3.winbind.wbclient.wbcPingDc\(plugin_s4_dc\)
-^samba3.winbind.wbclient.wbcPingDc2\(plugin_s4_dc\)
-^samba3.winbind.wbclient.wbcListTrusts\(plugin_s4_dc\)
-^samba3.winbind.wbclient.wbcLookupDomainController\(plugin_s4_dc\)
-^samba3.winbind.wbclient.wbcLookupDomainControllerEx\(plugin_s4_dc\)
-^samba3.winbind.wbclient.wbcResolveWinsByName\(plugin_s4_dc\)
-^samba3.winbind.wbclient.wbcResolveWinsByIP\(plugin_s4_dc\)
-^samba3.winbind.wbclient.wbcLookupRids\(plugin_s4_dc\)
-^samba3.winbind.wbclient.wbcGetSidAliases\(plugin_s4_dc\)
-^samba3.winbind.wbclient.wbcLogonUser\(plugin_s4_dc\)
-^samba3.winbind.wbclient.wbcChangeUserPassword\(plugin_s4_dc\)
+^samba4.winbind.struct.show_sequence\(plugin_s4_dc\)
+^samba.blackbox.wbinfo\(dc:local\).wbinfo -N against dc
+^samba.blackbox.wbinfo\(dc:local\).wbinfo -I against dc
+^samba.blackbox.wbinfo\(dc:local\).wbinfo  --trusted-domains against dc
+^samba.blackbox.wbinfo\(dc:local\).wbinfo --all-domains against dc
+#
+# This makes less sense when not running against an AD DC
+#
+^samba.blackbox.wbinfo\(s3member:local\).wbinfo -U against s3member
+^samba.blackbox.wbinfo\(s3member:local\).wbinfo -G against s3member
+^samba.blackbox.wbinfo\(s3member:local\).wbinfo -U check for sane mapping
+^samba.blackbox.wbinfo\(s3member:local\).wbinfo -G check for sane mapping
+^samba4.winbind.struct.show_sequence\(dc\)
+^samba.wbinfo_simple.\(dc:local\).--allocate-uid
+^samba.wbinfo_simple.\(dc:local\).--allocate-gid
+^samba.wbinfo_simple.\(s4member:local\).--allocate-uid
+^samba.wbinfo_simple.\(s4member:local\).--allocate-gid
+^samba.wbinfo_simple.\(plugin_s4_dc:local\).--allocate-uid
+^samba.wbinfo_simple.\(plugin_s4_dc:local\).--allocate-gid
+#
+# These do not work against winbindd in member mode for unknown reasons
+#
+^samba4.winbind.struct.domain_info\(s4member:local\)
+^samba4.winbind.struct.getdcname\(s4member:local\)
+^samba4.winbind.struct.lookup_name_sid\(s4member:local\)
+^samba.blackbox.wbinfo\(s4member:local\).wbinfo -r against s4member\(s4member:local\)
+^samba.blackbox.wbinfo\(s4member:local\).wbinfo --user-sids against s4member\(s4member:local\)
+^samba4.winbind.struct.getpwent\(plugin_s4_dc:local\)
+^samba.wbinfo_simple.\(s4member:local\).--user-groups
+^samba.nss.test using winbind\(s4member\)
+#
+# These just happen to fail for some reason (probably because they run against the s4 winbind)
+#
+^samba4.winbind.struct.getdcname\(s3member:local\)
+^samba4.winbind.struct.lookup_name_sid\(s3member:local\)
+^samba.wbinfo_simple.\(dc:local\).--all-domains.wbinfo\(dc:local\)
+^samba.wbinfo_simple.\(dc:local\).--trusted-domains.wbinfo\(dc:local\)
+^samba.wbinfo_simple.\(dc:local\).--online-status.wbinfo\(dc:local\)
+^samba.wbinfo_simple.\(dc:local\).--online-status --domain=BUILTIN.wbinfo\(dc:local\)
+^samba.wbinfo_simple.\(dc:local\).--online-status --domain=SAMBADOMAIN.wbinfo\(dc:local\)
+^samba.wbinfo_simple.\(dc:local\).--change-secret --domain=SAMBADOMAIN.wbinfo\(dc:local\)
+^samba.wbinfo_simple.\(dc:local\).--online-status --domain=SAMBADOMAIN.wbinfo\(dc:local\)
+^samba.blackbox.wbinfo\(dc:local\).wbinfo -I against dc\(dc:local\)
+^samba.blackbox.wbinfo\(dc:local\).wbinfo  --trusted-domains against dc\(dc:local\)
+^samba.blackbox.wbinfo\(dc:local\).wbinfo --all-domains against dc\(dc:local\)
+#
+# These do not work against winbindd in member mode for unknown reasons
+#
+^samba.blackbox.wbinfo\(s3member:local\).wbinfo -U against s3member\(s3member:local\)
+^samba.blackbox.wbinfo\(s3member:local\).wbinfo -U check for sane mapping\(s3member:local\)
+^samba.blackbox.wbinfo\(s3member:local\).wbinfo -G against s3member\(s3member:local\)
+^samba.blackbox.wbinfo\(s3member:local\).wbinfo -G check for sane mapping\(s3member:local\)
+^samba.ntlm_auth.\(dc:local\).ntlm_auth against winbindd with failed require-membership-of
+^samba.ntlm_auth.\(dc:local\).ntlm_auth with NTLMSSP gss-spnego-client and gss-spnego server against winbind with failed require-membership-of

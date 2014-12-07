@@ -25,6 +25,10 @@
 #include "krb5_samba.h"
 #include "lib/util/asn1.h"
 
+#ifdef HAVE_COM_ERR_H
+#include <com_err.h>
+#endif /* HAVE_COM_ERR_H */
+
 #ifndef KRB5_AUTHDATA_WIN2K_PAC
 #define KRB5_AUTHDATA_WIN2K_PAC 128
 #endif
@@ -134,51 +138,116 @@ bool setup_kaddr( krb5_address *pkaddr, struct sockaddr_storage *paddr)
 #error UNKNOWN_ADDRTYPE
 #endif
 
-#if defined(HAVE_KRB5_PRINCIPAL2SALT) && defined(HAVE_KRB5_C_STRING_TO_KEY)
-/* MIT */
-int create_kerberos_key_from_string_direct(krb5_context context,
-						  krb5_principal host_princ,
-						  krb5_data *password,
-						  krb5_keyblock *key,
-						  krb5_enctype enctype)
+/**
+* @brief Create a keyblock based on input parameters
+*
+* @param context	The krb5_context
+* @param host_princ	The krb5_principal to use
+* @param salt		The optional salt, if ommitted, salt is calculated with
+*			the provided principal.
+* @param password	The krb5_data containing the password
+* @param enctype	The krb5_enctype to use for the keyblock generation
+* @param key		The returned krb5_keyblock, caller needs to free with
+*			krb5_free_keyblock().
+*
+* @return krb5_error_code
+*/
+int smb_krb5_create_key_from_string(krb5_context context,
+				    krb5_principal *host_princ,
+				    krb5_data *salt,
+				    krb5_data *password,
+				    krb5_enctype enctype,
+				    krb5_keyblock *key)
 {
 	int ret = 0;
-	krb5_data salt;
 
-	ret = krb5_principal2salt(context, host_princ, &salt);
-	if (ret) {
-		DEBUG(1,("krb5_principal2salt failed (%s)\n", error_message(ret)));
-		return ret;
+	if (host_princ == NULL && salt == NULL) {
+		return -1;
 	}
-	ret = krb5_c_string_to_key(context, enctype, password, &salt, key);
-	SAFE_FREE(salt.data);
 
-	return ret;
+#if defined(HAVE_KRB5_PRINCIPAL2SALT) && defined(HAVE_KRB5_C_STRING_TO_KEY)
+{/* MIT */
+	krb5_data _salt;
+
+	if (salt == NULL) {
+		ret = krb5_principal2salt(context, *host_princ, &_salt);
+		if (ret) {
+			DEBUG(1,("krb5_principal2salt failed (%s)\n", error_message(ret)));
+			return ret;
+		}
+	} else {
+		_salt = *salt;
+	}
+	ret = krb5_c_string_to_key(context, enctype, password, &_salt, key);
+	if (salt == NULL) {
+		SAFE_FREE(_salt.data);
+	}
 }
 #elif defined(HAVE_KRB5_GET_PW_SALT) && defined(HAVE_KRB5_STRING_TO_KEY_SALT)
+{/* Heimdal */
+	krb5_salt _salt;
+
+	if (salt == NULL) {
+		ret = krb5_get_pw_salt(context, *host_princ, &_salt);
+		if (ret) {
+			DEBUG(1,("krb5_get_pw_salt failed (%s)\n", error_message(ret)));
+			return ret;
+		}
+	} else {
+		_salt.saltvalue = *salt;
+		_salt.salttype = KRB5_PW_SALT;
+	}
+
+	ret = krb5_string_to_key_salt(context, enctype, (const char *)password->data, _salt, key);
+	if (salt == NULL) {
+		krb5_free_salt(context, _salt);
+	}
+}
+#else
+#error UNKNOWN_CREATE_KEY_FUNCTIONS
+#endif
+	return ret;
+}
+
+/**
+* @brief Create a salt for a given principal
+*
+* @param context	The initialized krb5_context
+* @param host_princ	The krb5_principal to create the salt for
+* @param psalt		A pointer to a krb5_data struct
+*
+* caller has to free the contents of psalt with kerberos_free_data_contents
+* when function has succeeded
+*
+* @return krb5_error_code, returns 0 on success, error code otherwise
+*/
+
+int smb_krb5_get_pw_salt(krb5_context context,
+			 krb5_principal host_princ,
+			 krb5_data *psalt)
+#if defined(HAVE_KRB5_GET_PW_SALT)
 /* Heimdal */
-int create_kerberos_key_from_string_direct(krb5_context context,
-						  krb5_principal host_princ,
-						  krb5_data *password,
-						  krb5_keyblock *key,
-						  krb5_enctype enctype)
 {
 	int ret;
 	krb5_salt salt;
 
 	ret = krb5_get_pw_salt(context, host_princ, &salt);
 	if (ret) {
-		DEBUG(1,("krb5_get_pw_salt failed (%s)\n", error_message(ret)));
 		return ret;
 	}
 
-	ret = krb5_string_to_key_salt(context, enctype, (const char *)password->data, salt, key);
-	krb5_free_salt(context, salt);
+	psalt->data = salt.saltvalue.data;
+	psalt->length = salt.saltvalue.length;
 
 	return ret;
 }
+#elif defined(HAVE_KRB5_PRINCIPAL2SALT)
+/* MIT */
+{
+	return krb5_principal2salt(context, host_princ, psalt);
+}
 #else
-#error UNKNOWN_CREATE_KEY_FUNCTIONS
+#error UNKNOWN_SALT_FUNCTIONS
 #endif
 
 #if defined(HAVE_KRB5_GET_PERMITTED_ENCTYPES)
@@ -227,23 +296,22 @@ bool unwrap_edata_ntstatus(TALLOC_CTX *mem_ctx,
 		return false;
 	}
 
-	asn1_load(data, *edata);
-	asn1_start_tag(data, ASN1_SEQUENCE(0));
-	asn1_start_tag(data, ASN1_CONTEXT(1));
-	asn1_read_Integer(data, &edata_type);
+	if (!asn1_load(data, *edata)) goto err;
+	if (!asn1_start_tag(data, ASN1_SEQUENCE(0))) goto err;
+	if (!asn1_start_tag(data, ASN1_CONTEXT(1))) goto err;
+	if (!asn1_read_Integer(data, &edata_type)) goto err;
 
 	if (edata_type != KRB5_PADATA_PW_SALT) {
 		DEBUG(0,("edata is not of required type %d but of type %d\n",
 			KRB5_PADATA_PW_SALT, edata_type));
-		asn1_free(data);
-		return false;
+		goto err;
 	}
 
-	asn1_start_tag(data, ASN1_CONTEXT(2));
-	asn1_read_OctetString(data, talloc_tos(), &edata_contents);
-	asn1_end_tag(data);
-	asn1_end_tag(data);
-	asn1_end_tag(data);
+	if (!asn1_start_tag(data, ASN1_CONTEXT(2))) goto err;
+	if (!asn1_read_OctetString(data, talloc_tos(), &edata_contents)) goto err;
+	if (!asn1_end_tag(data)) goto err;
+	if (!asn1_end_tag(data)) goto err;
+	if (!asn1_end_tag(data)) goto err;
 	asn1_free(data);
 
 	*edata_out = data_blob_talloc(mem_ctx, edata_contents.data, edata_contents.length);
@@ -251,6 +319,11 @@ bool unwrap_edata_ntstatus(TALLOC_CTX *mem_ctx,
 	data_blob_free(&edata_contents);
 
 	return true;
+
+  err:
+
+	asn1_free(data);
+	return false;
 }
 
 
@@ -670,6 +743,39 @@ void kerberos_free_data_contents(krb5_context context, krb5_data *pdata)
 }
 
 /*
+ * @brief copy a buffer into a krb5_data struct
+ *
+ * @param[in] p			The krb5_data
+ * @param[in] data		The data to copy
+ * @param[in] length		The length of the data to copy
+ * @return krb5_error_code
+ *
+ * Caller has to free krb5_data with kerberos_free_data_contents().
+ */
+
+krb5_error_code krb5_copy_data_contents(krb5_data *p,
+					const void *data,
+					size_t len)
+{
+#if defined(HAVE_KRB5_DATA_COPY)
+	return krb5_data_copy(p, data, len);
+#else
+	if (len) {
+		p->data = malloc(len);
+		if (p->data == NULL) {
+			return ENOMEM;
+		}
+		memmove(p->data, data, len);
+	} else {
+		p->data = NULL;
+	}
+	p->length = len;
+	p->magic = KV5M_DATA;
+	return 0;
+#endif
+}
+
+/*
   get a kerberos5 ticket for the given service
 */
 int cli_krb5_get_ticket(TALLOC_CTX *mem_ctx,
@@ -805,6 +911,43 @@ done:
 	return &kdata;
 }
 #endif
+
+/*
+ * @brief Get talloced string component of a principal
+ *
+ * @param[in] mem_ctx		The TALLOC_CTX
+ * @param[in] context		The krb5_context
+ * @param[in] principal		The principal
+ * @param[in] component		The component
+ * @return string component
+ *
+ * Caller must talloc_free if the return value is not NULL.
+ *
+ */
+
+/* caller has to free returned string with free() */
+char *smb_krb5_principal_get_comp_string(TALLOC_CTX *mem_ctx,
+					 krb5_context context,
+					 krb5_const_principal principal,
+					 unsigned int component)
+{
+#if defined(HAVE_KRB5_PRINCIPAL_GET_COMP_STRING)
+	return talloc_strdup(mem_ctx, krb5_principal_get_comp_string(context, principal, component));
+#else
+	krb5_data *data;
+
+	if (component >= krb5_princ_size(context, principal)) {
+		return NULL;
+	}
+
+	data = krb5_princ_component(context, principal, component);
+	if (data == NULL) {
+		return NULL;
+	}
+
+	return talloc_strndup(mem_ctx, data->data, data->length);
+#endif
+}
 
 /* Prototypes */
 
@@ -1334,6 +1477,15 @@ static krb5_error_code smb_krb5_get_credentials_for_user_opt(krb5_context contex
 #endif /* HAVE_KRB5_GET_CREDS_OPT_SET_IMPERSONATE */
 
 #ifdef HAVE_KRB5_GET_CREDENTIALS_FOR_USER
+
+#if !HAVE_DECL_KRB5_GET_CREDENTIALS_FOR_USER
+krb5_error_code KRB5_CALLCONV
+krb5_get_credentials_for_user(krb5_context context, krb5_flags options,
+                              krb5_ccache ccache, krb5_creds *in_creds,
+                              krb5_data *subject_cert,
+                              krb5_creds **out_creds);
+#endif /* !HAVE_DECL_KRB5_GET_CREDENTIALS_FOR_USER */
+
 static krb5_error_code smb_krb5_get_credentials_for_user(krb5_context context,
 							 krb5_ccache ccache,
 							 krb5_principal me,
@@ -1343,14 +1495,6 @@ static krb5_error_code smb_krb5_get_credentials_for_user(krb5_context context,
 {
 	krb5_error_code ret;
 	krb5_creds in_creds;
-
-#if !HAVE_DECL_KRB5_GET_CREDENTIALS_FOR_USER
-krb5_error_code KRB5_CALLCONV
-krb5_get_credentials_for_user(krb5_context context, krb5_flags options,
-                              krb5_ccache ccache, krb5_creds *in_creds,
-                              krb5_data *subject_cert,
-                              krb5_creds **out_creds);
-#endif /* !HAVE_DECL_KRB5_GET_CREDENTIALS_FOR_USER */
 
 	ZERO_STRUCT(in_creds);
 
@@ -2161,21 +2305,67 @@ krb5_error_code smb_krb5_make_pac_checksum(TALLOC_CTX *mem_ctx,
  * @param[in] principal		The principal
  * @return pointer to the realm
  *
+ * Caller must free if the return value is not NULL.
+ *
  */
 
 char *smb_krb5_principal_get_realm(krb5_context context,
-				   krb5_principal principal)
+				   krb5_const_principal principal)
 {
 #ifdef HAVE_KRB5_PRINCIPAL_GET_REALM /* Heimdal */
-	return discard_const_p(char, krb5_principal_get_realm(context, principal));
+	return strdup(discard_const_p(char, krb5_principal_get_realm(context, principal)));
 #elif defined(krb5_princ_realm) /* MIT */
 	krb5_data *realm;
 	realm = krb5_princ_realm(context, principal);
-	return discard_const_p(char, realm->data);
+	return strndup(realm->data, realm->length);
 #else
-	return NULL;
+#error UNKNOWN_GET_PRINC_REALM_FUNCTIONS
 #endif
 }
+
+/*
+ * smb_krb5_principal_set_realm
+ *
+ * @brief Get realm of a principal
+ *
+ * @param[in] context		The krb5_context
+ * @param[in] principal		The principal
+ * @param[in] realm		The realm
+ * @return			0 on success, a krb5_error_code on error.
+ *
+ */
+
+krb5_error_code smb_krb5_principal_set_realm(krb5_context context,
+					     krb5_principal principal,
+					     const char *realm)
+{
+#ifdef HAVE_KRB5_PRINCIPAL_SET_REALM /* Heimdal */
+	return krb5_principal_set_realm(context, principal, realm);
+#elif defined(krb5_princ_realm) && defined(krb5_princ_set_realm) /* MIT */
+	krb5_error_code ret;
+	krb5_data data;
+	krb5_data *old_data;
+
+	old_data = krb5_princ_realm(context, principal);
+
+	ret = krb5_copy_data_contents(&data,
+				      realm,
+				      strlen(realm));
+	if (ret) {
+		return ret;
+	}
+
+	/* free realm before setting */
+	free(old_data->data);
+
+	krb5_princ_set_realm(context, principal, &data);
+
+	return ret;
+#else
+#error UNKNOWN_PRINC_SET_REALM_FUNCTION
+#endif
+}
+
 
 /************************************************************************
  Routine to get the default realm from the kerberos credentials cache.
@@ -2338,6 +2528,101 @@ char *smb_get_krb5_error_message(krb5_context context,
 	ret = talloc_strdup(mem_ctx, error_message(code));
 	return ret;
 }
+
+
+/**
+* @brief Return the kerberos library setting for "libdefaults:allow_weak_crypto"
+*
+* @param context	The krb5_context
+*
+* @return krb5_boolean
+*
+* Function returns true if weak crypto is allowd, false if not
+*/
+
+krb5_boolean smb_krb5_get_allowed_weak_crypto(krb5_context context)
+#if defined(HAVE_KRB5_CONFIG_GET_BOOL_DEFAULT)
+{
+	return krb5_config_get_bool_default(context,
+					    NULL,
+					    FALSE,
+					    "libdefaults",
+					    "allow_weak_crypto",
+					    NULL);
+}
+#elif defined(HAVE_PROFILE_H) && defined(HAVE_KRB5_GET_PROFILE)
+{
+#include <profile.h>
+	krb5_error_code ret;
+	krb5_boolean ret_default = false;
+	profile_t profile;
+	int ret_profile;
+
+	ret = krb5_get_profile(context,
+			       &profile);
+	if (ret) {
+		return ret_default;
+	}
+
+	ret = profile_get_boolean(profile,
+				  "libdefaults",
+				  "allow_weak_crypto",
+				  NULL, /* subsubname */
+				  ret_default, /* def_val */
+				  &ret_profile /* *ret_default */);
+	if (ret) {
+		return ret_default;
+	}
+
+	profile_release(profile);
+
+	return ret_profile;
+}
+#else
+#error UNKNOWN_KRB5_CONFIG_ROUTINES
+#endif
+
+/**
+* @brief Return the type of a krb5_principal
+*
+* @param context	The krb5_context
+* @param principal	The const krb5_principal
+*
+* @return integer type of the principal
+*/
+int smb_krb5_principal_get_type(krb5_context context,
+				krb5_const_principal principal)
+{
+#ifdef HAVE_KRB5_PRINCIPAL_GET_TYPE /* Heimdal */
+	return krb5_principal_get_type(context, principal);
+#elif defined(krb5_princ_type) /* MIT */
+	return krb5_princ_type(context, principal);
+#else
+#error	UNKNOWN_PRINC_GET_TYPE_FUNCTION
+#endif
+}
+
+/**
+* @brief Generate a krb5 warning, forwarding to com_err
+*
+* @param context	The krb5_context
+* @param fmt		The message format
+* @param ...		The message arguments
+*
+* @return
+*/
+#if !defined(HAVE_KRB5_WARNX)
+krb5_error_code krb5_warnx(krb5_context context, const char *fmt, ...)
+{
+	va_list args;
+
+	va_start(args, fmt);
+	com_err_va("kdb_samba", errno, fmt, args);
+	va_end(args);
+
+	return 0;
+}
+#endif
 
 #else /* HAVE_KRB5 */
  /* this saves a few linking headaches */

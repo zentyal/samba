@@ -2,12 +2,12 @@
 .\"     Title: smb.conf
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 10/20/2014
+.\"      Date: 10/15/2014
 .\"    Manual: File Formats and Conventions
-.\"    Source: Samba 4.0
+.\"    Source: Samba 4.2
 .\"  Language: English
 .\"
-.TH "SMB\&.CONF" "5" "10/20/2014" "Samba 4\&.0" "File Formats and Conventions"
+.TH "SMB\&.CONF" "5" "10/15/2014" "Samba 4\&.2" "File Formats and Conventions"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -452,7 +452,7 @@ the Internet name of the client machine\&.
 .PP
 %R
 .RS 4
-the selected protocol level after protocol negotiation\&. It can be one of CORE, COREPLUS, LANMAN1, LANMAN2, NT1, SMB2_02, SMB2_10, SMB2_22, SMB2_24, SMB3_00 or SMB2_FF\&.
+the selected protocol level after protocol negotiation\&. It can be one of CORE, COREPLUS, LANMAN1, LANMAN2, NT1, SMB2_02, SMB2_10, SMB2_22, SMB2_24, SMB3_00, SMB3_02 or SMB2_FF\&.
 .RE
 .PP
 %d
@@ -709,7 +709,7 @@ when receiving a protocol request of "open for execution" from a Windows client\
 If this parameter is set to "True", Samba does not check execute permissions on "open for execution", thus re\-establishing the behaviour of Samba 3\&.6\&. This can be useful to smoothen upgrades from older Samba versions to 4\&.0 and newer\&. This setting is not meant to be used as a permanent setting, but as a temporary relief: It is recommended to fix the permissions in the ACLs and reset this parameter to the default after a certain transition period\&.
 .sp
 Default:
-\fI\fIacl allow execute always\fR\fR\fI = \fR\fIFalse\fR\fI \fR
+\fI\fIacl allow execute always\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
 acl check permissions (S)
@@ -719,12 +719,13 @@ acl check permissions (S)
 Please note this parameter is now deprecated in Samba 3\&.6\&.2 and will be removed in a future version of Samba\&.
 .sp
 This boolean parameter controls what
-\fBsmbd\fR(8)does on receiving a protocol request of "open for delete" from a Windows client\&. If a Windows client doesn\*(Aqt have permissions to delete a file then they expect this to be denied at open time\&. POSIX systems normally only detect restrictions on delete by actually attempting to delete the file or directory\&. As Windows clients can (and do) "back out" a delete request by unsetting the "delete on close" bit Samba cannot delete the file immediately on "open for delete" request as we cannot restore such a deleted file\&. With this parameter set to true (the default) then smbd checks the file system permissions directly on "open for delete" and denies the request without actually deleting the file if the file system permissions would seem to deny it\&. This is not perfect, as it\*(Aqs possible a user could have deleted a file without Samba being able to check the permissions correctly, but it is close enough to Windows semantics for mostly correct behaviour\&. Samba will correctly check POSIX ACL semantics in this case\&.
+\fBsmbd\fR(8)
+does on receiving a protocol request of "open for delete" from a Windows client\&. If a Windows client doesn\*(Aqt have permissions to delete a file then they expect this to be denied at open time\&. POSIX systems normally only detect restrictions on delete by actually attempting to delete the file or directory\&. As Windows clients can (and do) "back out" a delete request by unsetting the "delete on close" bit Samba cannot delete the file immediately on "open for delete" request as we cannot restore such a deleted file\&. With this parameter set to true (the default) then smbd checks the file system permissions directly on "open for delete" and denies the request without actually deleting the file if the file system permissions would seem to deny it\&. This is not perfect, as it\*(Aqs possible a user could have deleted a file without Samba being able to check the permissions correctly, but it is close enough to Windows semantics for mostly correct behaviour\&. Samba will correctly check POSIX ACL semantics in this case\&.
 .sp
 If this parameter is set to "false" Samba doesn\*(Aqt check permissions on "open for delete" and allows the open\&. If the user doesn\*(Aqt have permission to delete the file this will only be discovered at close time, which is too late for the Windows user tools to display an error message to the user\&. The symptom of this is files that appear to have been deleted "magically" re\-appearing on a Windows explorer refresh\&. This is an extremely advanced protocol option which should not need to be changed\&. This parameter was introduced in its final form in 3\&.0\&.21, an earlier version with slightly different semantics was introduced in 3\&.0\&.20\&. That older version is not documented here\&.
 .sp
 Default:
-\fI\fIacl check permissions\fR\fR\fI = \fR\fITrue\fR\fI \fR
+\fI\fIacl check permissions\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
 
 acl group control (S)
@@ -762,7 +763,7 @@ This boolean parameter controls whether
 maps a POSIX ACE entry of "rwx" (read/write/execute), the maximum allowed POSIX permission set, into a Windows ACL of "FULL CONTROL"\&. If this parameter is set to true any POSIX ACE entry of "rwx" will be returned in a Windows ACL as "FULL CONTROL", is this parameter is set to false any POSIX ACE entry of "rwx" will be returned as the specific Windows ACL bits representing read, write and execute\&.
 .sp
 Default:
-\fI\fIacl map full control\fR\fR\fI = \fR\fITrue\fR\fI \fR
+\fI\fIacl map full control\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
 
 add group script (G)
@@ -1317,6 +1318,24 @@ Default:
 \fI\fIallow insecure wide links\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
+allow nt4 crypto (G)
+.\" allow nt4 crypto
+.PP
+.RS 4
+This option controls whether the netlogon server (currently only in \*(Aqactive directory domain controller\*(Aq mode), will reject clients which does not support NETLOGON_NEG_STRONG_KEYS nor NETLOGON_NEG_SUPPORTS_AES\&.
+.sp
+This option was added with Samba 4\&.2\&.0\&. It may lock out clients which worked fine with Samba versions up to 4\&.1\&.x\&. as the effective default was "yes" there, while it is "no" now\&.
+.sp
+If you have clients without RequireStrongKey = 1 in the registry, you may need to set "allow nt4 crypto = yes", until you have fixed all clients\&.
+.sp
+"allow nt4 crypto = yes" allows weak crypto to be negotiated, maybe via downgrade attacks\&.
+.sp
+This option yields precedence to the \*(Aqreject md5 clients\*(Aq option\&.
+.sp
+Default:
+\fI\fIallow nt4 crypto\fR\fR\fI = \fR\fIno\fR\fI \fR
+.RE
+
 allow trusted domains (G)
 .\" allow trusted domains
 .PP
@@ -1544,7 +1563,7 @@ options\&.
 This option specifies the directory where TDB files containing non\-persistent data will be stored\&.
 .sp
 Default:
-\fI\fIcache directory\fR\fR\fI = \fR\fI${prefix}/var/locks\fR\fI \fR
+\fI\fIcache directory\fR\fR\fI = \fR\fI${prefix}/var/cache\fR\fI \fR
 .sp
 Example:
 \fI\fIcache directory\fR\fR\fI = \fR\fI/var/run/samba/locks/cache\fR\fI \fR
@@ -1602,7 +1621,7 @@ When executed,
 smbd
 will automatically invoke the
 \fIchange share command\fR
-with five parameters\&.
+with six parameters\&.
 .sp
 .RS 4
 .ie n \{\
@@ -1666,6 +1685,18 @@ file\&.
 Number of maximum simultaneous connections to this share\&.
 .RE
 .sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fICSC policy\fR
+\- client side caching policy in string form\&. Valid values are: manual, documents, programs, disable\&.
+.RE
+.sp
 .RE
 This parameter is only used to modify existing file share definitions\&. To modify printer shares, use the "Printers\&.\&.\&." folder as seen when browsing the Samba host\&.
 .sp
@@ -1689,7 +1720,7 @@ crackcheck
 that uses cracklib to check the password quality\&.
 .sp
 Default:
-\fI\fIcheck password script\fR\fR\fI = \fR\fIDisabled\fR\fI \fR
+\fI\fIcheck password script\fR\fR\fI = \fR\fI # Disabled\fR\fI \fR
 .sp
 Example:
 \fI\fIcheck password script\fR\fR\fI = \fR\fI/usr/local/sbin/crackcheck\fR\fI \fR
@@ -1756,14 +1787,11 @@ is just an alias for
 \fIseal\fR\&.
 .sp
 The default value is
-\fIplain\fR
-which is not irritable to KRB5 clock skew errors\&. That implies synchronizing the time with the KDC in the case of using
-\fIsign\fR
-or
-\fIseal\fR\&.
+\fIsign\fR\&. That implies synchronizing the time with the KDC in the case of using
+\fIKerberos\fR\&.
 .sp
 Default:
-\fI\fIclient ldap sasl wrapping\fR\fR\fI = \fR\fIplain\fR\fI \fR
+\fI\fIclient ldap sasl wrapping\fR\fR\fI = \fR\fIsign\fR\fI \fR
 .RE
 
 client max protocol (G)
@@ -1910,6 +1938,17 @@ By default SMB2 selects the SMB2_10 variant\&.
 \fBSMB3_00\fR: Windows 8 SMB3 version\&. (mostly the same as SMB2_24)
 .RE
 .sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBSMB3_02\fR: Windows 8\&.1 SMB3 version\&.
+.RE
+.sp
 .RE
 By default SMB3 selects the SMB3_00 variant\&.
 .RE
@@ -1918,7 +1957,7 @@ By default SMB3 selects the SMB3_00 variant\&.
 Normally this option should not be set as the automatic negotiation phase in the SMB protocol takes care of choosing the appropriate protocol\&.
 .sp
 Default:
-\fI\fIclient max protocol\fR\fR\fI = \fR\fISMB3\fR\fI \fR
+\fI\fIclient max protocol\fR\fR\fI = \fR\fINT1\fR\fI \fR
 .sp
 Example:
 \fI\fIclient max protocol\fR\fR\fI = \fR\fILANMAN1\fR\fI \fR
@@ -1934,7 +1973,7 @@ Normally this option should not be set as the automatic negotiation phase in the
 .sp
 See
 Related command: \m[blue]\fBclient max protocol\fR\m[]
-for a full list of avaiable protocols
+for a full list of available protocols\&.
 .sp
 Default:
 \fI\fIclient min protocol\fR\fR\fI = \fR\fICORE\fR\fI \fR
@@ -1990,6 +2029,13 @@ offers the schannel but does not enforce it, and
 \m[blue]\fBclient schannel = yes\fR\m[]
 denies access if the server is not able to speak netlogon schannel\&.
 .sp
+Note that for active directory domains this is hardcoded to
+\m[blue]\fBclient schannel = yes\fR\m[]\&.
+.sp
+This option yields precedence to the
+\m[blue]\fBrequire strong key\fR\m[]
+option\&.
+.sp
 Default:
 \fI\fIclient schannel\fR\fR\fI = \fR\fIauto\fR\fI \fR
 .sp
@@ -2007,10 +2053,10 @@ This controls whether the client is allowed or required to use SMB signing\&. Po
 and
 \fIdisabled\fR\&.
 .sp
-When set to auto, SMB signing is offered, but not enforced\&. When set to mandatory, SMB signing is required and if set to disabled, SMB signing is not offered either\&.
+When set to auto or default, SMB signing is offered, but not enforced\&. When set to mandatory, SMB signing is required and if set to disabled, SMB signing is not offered either\&.
 .sp
 Default:
-\fI\fIclient signing\fR\fR\fI = \fR\fIauto\fR\fI \fR
+\fI\fIclient signing\fR\fR\fI = \fR\fIdefault\fR\fI \fR
 .RE
 
 client use spnego principal (G)
@@ -2297,7 +2343,7 @@ and
 When set to auto we will try to do a TLS handshake on each CUPS connection setup\&. If that fails, we will fall back to unencrypted operation\&.
 .sp
 Default:
-\fI\fIcups encrypt\fR\fR\fI = \fR\fI"no"\fR\fI \fR
+\fI\fIcups encrypt\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
 cups options (S)
@@ -2356,10 +2402,10 @@ dcerpc endpoint servers (G)
 Specifies which DCE/RPC endpoint servers should be run\&.
 .sp
 Default:
-\fI\fIdcerpc endpoint servers\fR\fR\fI = \fR\fIrpcecho\fR\fI \fR
+\fI\fIdcerpc endpoint servers\fR\fR\fI = \fR\fIepmapper, wkssvc, rpcecho, samr, netlogon, lsarpc, spoolss, drsuapi, dssetup, unixinfo, browser, eventlog6, backupkey, dnsserver\fR\fI \fR
 .sp
 Example:
-\fI\fIdcerpc endpoint servers\fR\fR\fI = \fR\fIepmapper wkssvc rpcecho samr netlogon lsarpc spoolss drsuapi dssetup unixinfo browser eventlog6 backupkey\fR\fI \fR
+\fI\fIdcerpc endpoint servers\fR\fR\fI = \fR\fIrpcecho\fR\fI \fR
 .RE
 
 deadtime (G)
@@ -2571,7 +2617,7 @@ UNIX by default does not have this behaviour\&.
 There should be no reason to turn off this parameter, as it is designed to enable Samba to more correctly emulate Windows\&.
 .sp
 Default:
-\fI\fIdefer sharing violations\fR\fR\fI = \fR\fITrue\fR\fI \fR
+\fI\fIdefer sharing violations\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
 
 delete group script (G)
@@ -2980,7 +3026,7 @@ dns update command (G)
 This option sets the command that is called when there are DNS updates\&. It should update the local machines DNS names using TSIG\-GSS\&.
 .sp
 Default:
-\fI\fIdns update command\fR\fR\fI = \fR\fI$prefix/sbin/samba_dnsupdate\fR\fI \fR
+\fI\fIdns update command\fR\fR\fI = \fR\fI${prefix}/sbin/samba_dnsupdate\fR\fI \fR
 .sp
 Example:
 \fI\fIdns update command\fR\fR\fI = \fR\fI/usr/local/sbin/dnsupdate\fR\fI \fR
@@ -3337,7 +3383,7 @@ parameter is applied\&.
 The example below would force all newly created files to have read and execute permissions set for \*(Aqgroup\*(Aq and \*(Aqother\*(Aq as well as the read/write/execute bits set for the \*(Aquser\*(Aq\&.
 .sp
 Default:
-\fI\fIforce create mode\fR\fR\fI = \fR\fI000\fR\fI \fR
+\fI\fIforce create mode\fR\fR\fI = \fR\fI0000\fR\fI \fR
 .sp
 Example:
 \fI\fIforce create mode\fR\fR\fI = \fR\fI0755\fR\fI \fR
@@ -3356,7 +3402,7 @@ is applied\&.
 The example below would force all created directories to have read and execute permissions set for \*(Aqgroup\*(Aq and \*(Aqother\*(Aq as well as the read/write/execute bits set for the \*(Aquser\*(Aq\&.
 .sp
 Default:
-\fI\fIforce directory mode\fR\fR\fI = \fR\fI000\fR\fI \fR
+\fI\fIforce directory mode\fR\fR\fI = \fR\fI0000\fR\fI \fR
 .sp
 Example:
 \fI\fIforce directory mode\fR\fR\fI = \fR\fI0755\fR\fI \fR
@@ -4049,10 +4095,10 @@ idmap cache time (G)
 .\" idmap cache time
 .PP
 .RS 4
-This parameter specifies the number of seconds that Winbind\*(Aqs idmap interface will cache positive SID/uid/gid query results\&.
+This parameter specifies the number of seconds that Winbind\*(Aqs idmap interface will cache positive SID/uid/gid query results\&. By default, Samba will cache these results for one week\&.
 .sp
 Default:
-\fI\fIidmap cache time\fR\fR\fI = \fR\fI604800 (one week)\fR\fI \fR
+\fI\fIidmap cache time\fR\fR\fI = \fR\fI604800\fR\fI \fR
 .RE
 
 idmap config:OPTION (G)
@@ -4475,7 +4521,7 @@ When the kerberos method is in "dedicated keytab" mode,
 must be set to specify the location of the keytab file\&.
 .sp
 Default:
-\fI\fIkerberos method\fR\fR\fI = \fR\fIsecrets only\fR\fI \fR
+\fI\fIkerberos method\fR\fR\fI = \fR\fIdefault\fR\fI \fR
 .RE
 
 kernel change notify (S)
@@ -5225,7 +5271,7 @@ option\&.
 Note: This option can not be set inside registry configurations\&.
 .sp
 Default:
-\fI\fIlock directory\fR\fR\fI = \fR\fI${prefix}/var/locks\fR\fI \fR
+\fI\fIlock directory\fR\fR\fI = \fR\fI${prefix}/var/lock\fR\fI \fR
 .sp
 Example:
 \fI\fIlock directory\fR\fR\fI = \fR\fI/var/run/samba/locks\fR\fI \fR
@@ -5253,7 +5299,8 @@ is not really recommended even in this case\&.
 .sp
 Be careful about disabling locking either globally or in a specific service, as lack of locking may result in data corruption\&. You should never need to set this parameter\&.
 .sp
-\fINo default\fR
+Default:
+\fI\fIlocking\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
 
 lock spin time (G)
@@ -5738,8 +5785,19 @@ option is added to the lpq command, the job will show up with the correct status
 .sp
 Note that it is good practice to include the absolute path in the lppause command as the PATH may not be available to the server\&.
 .sp
+Currently no default value is given to this string, unless the value of the
+\m[blue]\fBprinting\fR\m[]
+parameter is
+\fBSYSV\fR, in which case the default is :
+lp \-i %p\-%j \-H hold
+or if the value of the
+\fIprinting\fR
+parameter is
+\fBSOFTQ\fR, then the default is:
+qstat \-s \-j%j \-h\&.
+.sp
 Default:
-\fI\fIlppause command\fR\fR\fI = \fR\fI # Currently no default value is given to this string, unless the value of the \m[blue]\fBprinting\fR\m[] parameter is \fBSYSV\fR, in which case the default is : lp \-i %p\-%j \-H hold or if the value of the \fIprinting\fR parameter is \fBSOFTQ\fR, then the default is: qstat \-s \-j%j \-h\&. \fR\fI \fR
+\fI\fIlppause command\fR\fR\fI = \fR\fI # determined by printing parameter\fR\fI \fR
 .sp
 Example:
 \fI\fIlppause command\fR\fR\fI = \fR\fI/usr/bin/lpalt %p\-%j \-p0\fR\fI \fR
@@ -5806,7 +5864,7 @@ may not be available to the server\&. When compiled with the CUPS libraries, no
 is needed because smbd will make a library call to obtain the print queue listing\&.
 .sp
 Default:
-\fI\fIlpq command\fR\fR\fI = \fR\fI\fR\fI \fR
+\fI\fIlpq command\fR\fR\fI = \fR\fI # determined by printing parameter\fR\fI \fR
 .sp
 Example:
 \fI\fIlpq command\fR\fR\fI = \fR\fI/usr/bin/lpq \-P%p\fR\fI \fR
@@ -5850,7 +5908,8 @@ parameter is
 .sp
 qstat \-s \-j%j \-r
 .sp
-\fINo default\fR
+Default:
+\fI\fIlpresume command\fR\fR\fI = \fR\fI # determined by printing parameter\fR\fI \fR
 .sp
 Example:
 \fI\fIlpresume command\fR\fR\fI = \fR\fI/usr/bin/lpalt %p\-%j \-p2\fR\fI \fR
@@ -5891,7 +5950,7 @@ lprm command = /usr/bin/cancel %p\-%j
 .\}
 .sp
 Default:
-\fI\fIlprm command\fR\fR\fI = \fR\fI determined by printing parameter\fR\fI \fR
+\fI\fIlprm command\fR\fR\fI = \fR\fI # determined by printing parameter\fR\fI \fR
 .RE
 
 machine password timeout (G)
@@ -5939,7 +5998,7 @@ in the same directory the output file content is undefined\&.
 .sp .5v
 .RE
 Default:
-\fI\fImagic output\fR\fR\fI = \fR\fI<magic script name>\&.out\fR\fI \fR
+\fI\fImagic output\fR\fR\fI = \fR\fI # <magic script name>\&.out\fR\fI \fR
 .sp
 Example:
 \fI\fImagic output\fR\fR\fI = \fR\fImyfile\&.txt\fR\fI \fR
@@ -6126,7 +6185,8 @@ to be set such that the world execute bit is not masked out (i\&.e\&. it must in
 \m[blue]\fBcreate mask\fR\m[]
 for details\&.
 .sp
-\fINo default\fR
+Default:
+\fI\fImap hidden\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
 map readonly (S)
@@ -6384,12 +6444,12 @@ max open files (G)
 .RS 4
 This parameter limits the maximum number of open files that one
 \fBsmbd\fR(8)
-file serving process may have open for a client at any one time\&. The This parameter can be set very high (16404) as Samba uses only one bit per unopened file\&. Setting this parameter lower than 16404 will cause Samba to complain and set this value back to the minimum of 16404, as Windows 7 depends on this number of open file handles being available\&.
+file serving process may have open for a client at any one time\&. This parameter can be set very high (16384) as Samba uses only one bit per unopened file\&. Setting this parameter lower than 16384 will cause Samba to complain and set this value back to the minimum of 16384, as Windows 7 depends on this number of open file handles being available\&.
 .sp
 The limit of the number of open files is usually set by the UNIX per\-process file descriptor limit rather than this parameter so you should never need to touch this parameter\&.
 .sp
 Default:
-\fI\fImax open files\fR\fR\fI = \fR\fI16404\fR\fI \fR
+\fI\fImax open files\fR\fR\fI = \fR\fI16384\fR\fI \fR
 .RE
 
 max print jobs (S)
@@ -6643,7 +6703,7 @@ msdfs proxy (S)
 .\" msdfs proxy
 .PP
 .RS 4
-This parameter indicates that the share is a stand\-in for another CIFS share whose location is specified by the value of the parameter\&. When clients attempt to connect to this share, they are redirected to the proxied share using the SMB\-Dfs protocol\&.
+This parameter indicates that the share is a stand\-in for another CIFS share whose location is specified by the value of the parameter\&. When clients attempt to connect to this share, they are redirected to one or multiple, comma separated proxied shares using the SMB\-Dfs protocol\&.
 .sp
 Only Dfs roots can act as proxy shares\&. Take a look at the
 \m[blue]\fBmsdfs root\fR\m[]
@@ -6654,7 +6714,7 @@ options to find out how to set up a Dfs root share\&.
 \fINo default\fR
 .sp
 Example:
-\fI\fImsdfs proxy\fR\fR\fI = \fR\fI\eotherserver\esomeshare\fR\fI \fR
+\fI\fImsdfs proxy\fR\fR\fI = \fR\fI\eotherserver\esomeshare,\eotherserver2\esomeshare\fR\fI \fR
 .RE
 
 msdfs root (S)
@@ -6825,7 +6885,7 @@ This directory will hold a series of named pipes to allow RPC over inter\-proces
 This will allow Samba and other unix processes to interact over DCE/RPC without using TCP/IP\&. Additionally a sub\-directory \*(Aqnp\*(Aq has restricted permissions, and allows a trusted communication channel between Samba processes
 .sp
 Default:
-\fI\fIncalrpc dir\fR\fR\fI = \fR\fI${prefix}/var/ncalrpc\fR\fI \fR
+\fI\fIncalrpc dir\fR\fR\fI = \fR\fI${prefix}/var/run/ncalrpc\fR\fI \fR
 .sp
 Example:
 \fI\fIncalrpc dir\fR\fR\fI = \fR\fI/var/run/samba/ncalrpc\fR\fI \fR
@@ -6850,8 +6910,8 @@ netbios name (G)
 .RS 4
 This sets the NetBIOS name by which a Samba server is known\&. By default it is the same as the first component of the host\*(Aqs DNS name\&. If a machine is a browse server or logon server this name (or the first component of the hosts DNS name) will be the name that these services are advertised under\&.
 .sp
-There is a bug in Samba\-3 that breaks operation of browsing and access to shares if the netbios name is set to the literal name
-PIPE\&. To avoid this problem, do not name your Samba\-3 server
+There is a bug in Samba that breaks operation of browsing and access to shares if the netbios name is set to the literal name
+PIPE\&. To avoid this problem, do not name your Samba server
 PIPE\&.
 .sp
 Default:
@@ -6869,6 +6929,20 @@ This sets the NetBIOS scope that Samba will operate under\&. This should not be 
 .sp
 Default:
 \fI\fInetbios scope\fR\fR\fI = \fR\fI\fR\fI \fR
+.RE
+
+neutralize nt4 emulation (G)
+.\" neutralize nt4 emulation
+.PP
+.RS 4
+This option controls whether winbindd sends the NETLOGON_NEG_NEUTRALIZE_NT4_EMULATION flag in order to bypass the NT4 emulation of a domain controller\&.
+.sp
+Typically you should not need set this\&. It can be useful for upgrades from NT4 to AD domains\&.
+.sp
+The behavior can be controlled per netbios domain by using \*(Aqneutralize nt4 emulation:NETBIOSDOMAIN = yes\*(Aq as option\&.
+.sp
+Default:
+\fI\fIneutralize nt4 emulation\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
 NIS homedir (G)
@@ -6912,7 +6986,7 @@ nsupdate
 command which is used for GSS\-TSIG dynamic DNS updates\&.
 .sp
 Default:
-\fI\fInsupdate command\fR\fR\fI = \fR\fI$prefix/sbin/nsupdate \-g\fR\fI \fR
+\fI\fInsupdate command\fR\fR\fI = \fR\fI/usr/bin/nsupdate \-g\fR\fI \fR
 .RE
 
 nt acl support (S)
@@ -6969,7 +7043,7 @@ directive in
 ntp\&.conf\&.
 .sp
 Default:
-\fI\fIntp signd socket directory\fR\fR\fI = \fR\fI$prefix/run/samba/ntp_signd\fR\fI \fR
+\fI\fIntp signd socket directory\fR\fR\fI = \fR\fI${prefix}/var/lib/ntp_signd\fR\fI \fR
 .RE
 
 nt status support (G)
@@ -7075,7 +7149,7 @@ print: Allows printing over SMB\&. This is LANMAN\-style printing, not the be co
 Note that this option is only used when the NTVFS file server is in use\&. It is not used with the (default) s3fs file server\&.
 .sp
 Default:
-\fI\fIntvfs handler\fR\fR\fI = \fR\fIunixuid default\fR\fI \fR
+\fI\fIntvfs handler\fR\fR\fI = \fR\fIunixuid, default\fR\fI \fR
 .RE
 
 null passwords (G)
@@ -7100,6 +7174,20 @@ When Samba 3\&.0 is configured to enable PAM support (i\&.e\&. \-\-with\-pam), t
 .sp
 Default:
 \fI\fIobey pam restrictions\fR\fR\fI = \fR\fIno\fR\fI \fR
+.RE
+
+old password allowed period (G)
+.\" old password allowed period
+.PP
+.RS 4
+Number of minutes to permit an NTLM login after a password change or reset using the old password\&. This allows the user to re\-cache the new password on multiple clients without disrupting a network reconnection in the meantime\&.
+.sp
+This parameter only applies when
+\m[blue]\fBserver role\fR\m[]
+is set to Active Directory Domain Controller
+.sp
+Default:
+\fI\fIold password allowed period\fR\fR\fI = \fR\fI60\fR\fI \fR
 .RE
 
 only user (S)
@@ -7430,7 +7518,7 @@ parameter is set to
 \fByes\fR, the chat pairs may be matched in any order, and success is determined by the PAM result, not any particular output\&. The \en macro is ignored for PAM conversions\&.
 .sp
 Default:
-\fI\fIpasswd chat\fR\fR\fI = \fR\fI*new*password* %n\en*new*password* %n\en *changed*\fR\fI \fR
+\fI\fIpasswd chat\fR\fR\fI = \fR\fI*new*password* %n\en *new*password* %n\en *changed*\fR\fI \fR
 .sp
 Example:
 \fI\fIpasswd chat\fR\fR\fI = \fR\fI"*Enter NEW password*" %n\en "*Reenter NEW password*" %n\en "*Password changed*"\fR\fI \fR
@@ -7560,7 +7648,7 @@ pid directory (G)
 This option specifies the directory where pid files will be placed\&.
 .sp
 Default:
-\fI\fIpid directory\fR\fR\fI = \fR\fI${prefix}/var/locks\fR\fI \fR
+\fI\fIpid directory\fR\fR\fI = \fR\fI${prefix}/var/run\fR\fI \fR
 .sp
 Example:
 \fI\fIpid directory\fR\fR\fI = \fR\fI/var/run/\fR\fI \fR
@@ -7940,7 +8028,7 @@ lp
 on many systems\&.
 .sp
 Default:
-\fI\fIprinter name\fR\fR\fI = \fR\fInone\fR\fI \fR
+\fI\fIprinter name\fR\fR\fI = \fR\fI\fR\fI \fR
 .sp
 Example:
 \fI\fIprinter name\fR\fR\fI = \fR\fIlaserwriter\fR\fI \fR
@@ -7985,8 +8073,12 @@ See also the discussion in the
 [printers]
 section\&.
 .sp
+See
+testparm \-v\&.
+for the default value on your system
+.sp
 Default:
-\fI\fIprinting\fR\fR\fI = \fR\fIDepends on the operating system, see testparm \-v\&.\fR\fI \fR
+\fI\fIprinting\fR\fR\fI = \fR\fI # Depends on the operating system\fR\fI \fR
 .RE
 
 printjob username (S)
@@ -8006,14 +8098,10 @@ print notify backchannel (S)
 .\" print notify backchannel
 .PP
 .RS 4
-Windows print clients can update print queue status by expecting the server to open a backchannel SMB connection to them\&. Due to client firewall settings this can cause considerable timeouts and will often fail, as there is no guarantee the client is even running an SMB server\&. By setting this parameter to
-\fBno\fR
-the Samba print server will not try to connect back to clients and treat corresponding requests as if the connection back to the client failed\&. The default setting of
-\fByes\fR
-causes smbd to attempt this connection\&.
+Windows print clients can update print queue status by expecting the server to open a backchannel SMB connection to them\&. Due to client firewall settings this can cause considerable timeouts and will often fail, as there is no guarantee the client is even running an SMB server\&. By default, the Samba print server will not try to connect back to clients, and will treat corresponding requests as if the connection back to the client failed\&.
 .sp
 Default:
-\fI\fIprint notify backchannel\fR\fR\fI = \fR\fIyes\fR\fI \fR
+\fI\fIprint notify backchannel\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
 private directory
@@ -8071,7 +8159,8 @@ is given then the printer name is put in its place\&. Otherwise it is placed at 
 .sp
 Note that it is good practice to include the absolute path in the command as the PATH may not be available to the server\&.
 .sp
-\fINo default\fR
+Default:
+\fI\fIqueuepause command\fR\fR\fI = \fR\fI # determined by printing parameter\fR\fI \fR
 .sp
 Example:
 \fI\fIqueuepause command\fR\fR\fI = \fR\fIdisable %p\fR\fI \fR
@@ -8094,7 +8183,7 @@ is given then the printer name is put in its place\&. Otherwise it is placed at 
 Note that it is good practice to include the absolute path in the command as the PATH may not be available to the server\&.
 .sp
 Default:
-\fI\fIqueueresume command\fR\fR\fI = \fR\fI\fR\fI \fR
+\fI\fIqueueresume command\fR\fR\fI = \fR\fI # determined by printing parameter\fR\fI \fR
 .sp
 Example:
 \fI\fIqueueresume command\fR\fR\fI = \fR\fIenable %p\fR\fI \fR
@@ -8147,9 +8236,11 @@ read raw (G)
 .\" read raw
 .PP
 .RS 4
-This parameter controls whether or not the server will support the raw read SMB requests when transferring data to clients\&.
+This is ignored if
+\m[blue]\fBasync echo handler\fR\m[]
+is set, because this feature is incompatible with raw read SMB requests
 .sp
-If enabled, raw reads allow reads of 65535 bytes in one packet\&. This typically provides a major performance benefit\&.
+If enabled, raw reads allow reads of 65535 bytes in one packet\&. This typically provides a major performance benefit for some very, very old clients\&.
 .sp
 However, some clients either negotiate the allowable block size incorrectly or are incapable of supporting larger block sizes, and for these clients you may need to disable raw reads\&.
 .sp
@@ -8194,6 +8285,40 @@ Default:
 .sp
 Example:
 \fI\fIregistry shares\fR\fR\fI = \fR\fIyes\fR\fI \fR
+.RE
+
+reject md5 clients (G)
+.\" reject md5 clients
+.PP
+.RS 4
+This option controls whether the netlogon server (currently only in \*(Aqactive directory domain controller\*(Aq mode), will reject clients which does not support NETLOGON_NEG_SUPPORTS_AES\&.
+.sp
+You can set this to yes if all domain members support aes\&. This will prevent downgrade attacks\&.
+.sp
+This option takes precedence to the \*(Aqallow nt4 crypto\*(Aq option\&.
+.sp
+Default:
+\fI\fIreject md5 clients\fR\fR\fI = \fR\fIno\fR\fI \fR
+.RE
+
+reject md5 servers (G)
+.\" reject md5 servers
+.PP
+.RS 4
+This option controls whether winbindd requires support for aes support for the netlogon secure channel\&.
+.sp
+The following flags will be required NETLOGON_NEG_ARCFOUR, NETLOGON_NEG_SUPPORTS_AES, NETLOGON_NEG_PASSWORD_SET2 and NETLOGON_NEG_AUTHENTICATED_RPC\&.
+.sp
+You can set this to yes if all domain controllers support aes\&. This will prevent downgrade attacks\&.
+.sp
+The behavior can be controlled per netbios domain by using \*(Aqreject md5 servers:NETBIOSDOMAIN = yes\*(Aq as option\&.
+.sp
+This option takes precedence to the
+\m[blue]\fBrequire strong key\fR\m[]
+option\&.
+.sp
+Default:
+\fI\fIreject md5 servers\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
 remote announce (G)
@@ -8296,7 +8421,33 @@ The script has all responsibility to rename all the necessary data that is acces
 .sp .5v
 .RE
 Default:
-\fI\fIrename user script\fR\fR\fI = \fR\fIno\fR\fI \fR
+\fI\fIrename user script\fR\fR\fI = \fR\fI\fR\fI \fR
+.RE
+
+require strong key (G)
+.\" require strong key
+.PP
+.RS 4
+This option controls whether winbindd requires support for md5 strong key support for the netlogon secure channel\&.
+.sp
+The following flags will be required NETLOGON_NEG_STRONG_KEYS, NETLOGON_NEG_ARCFOUR and NETLOGON_NEG_AUTHENTICATED_RPC\&.
+.sp
+You can set this to no if some domain controllers only support des\&. This might allows weak crypto to be negotiated, may via downgrade attacks\&.
+.sp
+The behavior can be controlled per netbios domain by using \*(Aqrequire strong key:NETBIOSDOMAIN = no\*(Aq as option\&.
+.sp
+Note for active directory domain this option is hardcoded to \*(Aqyes\*(Aq
+.sp
+This option yields precedence to the
+\m[blue]\fBreject md5 servers\fR\m[]
+option\&.
+.sp
+This option takes precedence to the
+\m[blue]\fBclient schannel\fR\m[]
+option\&.
+.sp
+Default:
+\fI\fIrequire strong key\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
 
 reset on zero vc (G)
@@ -8406,7 +8557,7 @@ tree\&. In particular you will need to mirror
 (or a subset of it), and any binaries or configuration files needed for printing (if required)\&. The set of files that must be mirrored is operating system dependent\&.
 .sp
 Default:
-\fI\fIroot directory\fR\fR\fI = \fR\fI/\fR\fI \fR
+\fI\fIroot directory\fR\fR\fI = \fR\fI\fR\fI \fR
 .sp
 Example:
 \fI\fIroot directory\fR\fR\fI = \fR\fI/homes/smb\fR\fI \fR
@@ -8459,7 +8610,7 @@ If it is disabled, data will be transferred in little endian\&.
 The behaviour is independent of the endianness of the host machine\&.
 .sp
 Default:
-\fI\fIrpc big endian\fR\fR\fI = \fR\fIFalse\fR\fI \fR
+\fI\fIrpc big endian\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
 rpc_daemon:DAEMON (G)
@@ -8778,7 +8929,7 @@ samba_kcc
 was installed in a non\-default location\&.
 .sp
 Default:
-\fI\fIsamba kcc command\fR\fR\fI = \fR\fI$prefix/sbin/samba_kcc\fR\fI \fR
+\fI\fIsamba kcc command\fR\fR\fI = \fR\fI${prefix}/sbin/samba_kcc\fR\fI \fR
 .sp
 Example:
 \fI\fIsamba kcc command\fR\fR\fI = \fR\fI/usr/local/bin/kcc\fR\fI \fR
@@ -8897,10 +9048,16 @@ In this mode, Samba will act as a domain member in an ADS realm\&. To operate in
 .sp
 Note that this mode does NOT make Samba operate as a Active Directory Domain Controller\&.
 .sp
+Note that this forces
+\m[blue]\fBrequire strong key = yes\fR\m[]
+and
+\m[blue]\fBclient schannel = yes\fR\m[]
+for the primary domain\&.
+.sp
 Read the chapter about Domain Membership in the HOWTO for details\&.
 .sp
 Default:
-\fI\fIsecurity\fR\fR\fI = \fR\fIUSER\fR\fI \fR
+\fI\fIsecurity\fR\fR\fI = \fR\fIAUTO\fR\fI \fR
 .sp
 Example:
 \fI\fIsecurity\fR\fR\fI = \fR\fIDOMAIN\fR\fI \fR
@@ -9200,10 +9357,10 @@ or
 \fB\-\fR\&.
 .sp
 Default:
-\fI\fIserver services\fR\fR\fI = \fR\fIs3fs rpc nbt wrepl ldap cldap kdc drepl winbind ntp_signd kcc dnsupdate dns\fR\fI \fR
+\fI\fIserver services\fR\fR\fI = \fR\fIs3fs, rpc, nbt, wrepl, ldap, cldap, kdc, drepl, winbindd, ntp_signd, kcc, dnsupdate, dns\fR\fI \fR
 .sp
 Example:
-\fI\fIserver services\fR\fR\fI = \fR\fI\-s3fs +smb\fR\fI \fR
+\fI\fIserver services\fR\fR\fI = \fR\fI\-s3fs, +smb\fR\fI \fR
 .RE
 
 server signing (G)
@@ -9211,10 +9368,18 @@ server signing (G)
 .PP
 .RS 4
 This controls whether the client is allowed or required to use SMB1 and SMB2 signing\&. Possible values are
+\fIdefault\fR,
 \fIauto\fR,
 \fImandatory\fR
 and
 \fIdisabled\fR\&.
+.sp
+By default, and when smb signing is set to
+\fIdefault\fR, smb signing enabled when
+\m[blue]\fBserver role\fR\m[]
+is
+\fIactive directory domain controller\fR
+and disabled otherwise\&.
 .sp
 When set to auto, SMB1 signing is offered, but not enforced\&. When set to mandatory, SMB1 signing is required and if set to disabled, SMB signing is not offered either\&.
 .sp
@@ -9225,7 +9390,7 @@ For the SMB2 protocol, by design, signing cannot be disabled\&. In the case wher
 will still require SMB2 clients to use signing\&.
 .sp
 Default:
-\fI\fIserver signing\fR\fR\fI = \fR\fIDisabled\fR\fI \fR
+\fI\fIserver signing\fR\fR\fI = \fR\fIdefault\fR\fI \fR
 .RE
 
 server string (G)
@@ -9627,12 +9792,12 @@ This option specifies the protocol value that
 \fBsmbd\fR(8)
 will return to a client, informing the client of the largest size that may be returned by a single SMB2 read call\&.
 .sp
-The maximum is 1048576 bytes (1MiB), which is the same as a Windows Server 2008 r2\&.
+The maximum is 8388608 bytes (8MiB), which is the same as a Windows Server 2012 r2\&.
 .sp
-Please note that the default is 1MiB, but it\*(Aqs limit is based on the smb2 dialect (64KiB for SMB2\&.0, 1MiB for SMB2\&.1 with LargeMTU)\&. Large MTU is not supported over NBT (tcp port 139)\&.
+Please note that the default is 8MiB, but it\*(Aqs limit is based on the smb2 dialect (64KiB for SMB == 2\&.0, 8MiB for SMB >= 2\&.1 with LargeMTU)\&. Large MTU is not supported over NBT (tcp port 139)\&.
 .sp
 Default:
-\fI\fIsmb2 max read\fR\fR\fI = \fR\fI1048576\fR\fI \fR
+\fI\fIsmb2 max read\fR\fR\fI = \fR\fI8388608\fR\fI \fR
 .RE
 
 smb2 max trans (G)
@@ -9643,12 +9808,12 @@ This option specifies the protocol value that
 \fBsmbd\fR(8)
 will return to a client, informing the client of the largest size of buffer that may be used in querying file meta\-data via QUERY_INFO and related SMB2 calls\&.
 .sp
-The maximum is 1048576 bytes (1MiB), which is the same as a Windows Server 2008 r2\&.
+The maximum is 8388608 bytes (8MiB), which is the same as a Windows Server 2012 r2\&.
 .sp
-Please note that the default is 1MiB, but it\*(Aqs limit is based on the smb2 dialect (64KiB for SMB2\&.0, 1MiB for SMB2\&.1 with LargeMTU)\&. Large MTU is not supported over NBT (tcp port 139)\&.
+Please note that the default is 8MiB, but it\*(Aqs limit is based on the smb2 dialect (64KiB for SMB == 2\&.0, 1MiB for SMB >= 2\&.1 with LargeMTU)\&. Large MTU is not supported over NBT (tcp port 139)\&.
 .sp
 Default:
-\fI\fIsmb2 max trans\fR\fR\fI = \fR\fI1048576\fR\fI \fR
+\fI\fIsmb2 max trans\fR\fR\fI = \fR\fI8388608\fR\fI \fR
 .RE
 
 smb2 max write (G)
@@ -9659,12 +9824,12 @@ This option specifies the protocol value that
 \fBsmbd\fR(8)
 will return to a client, informing the client of the largest size that may be sent to the server by a single SMB2 write call\&.
 .sp
-The maximum is 1048576 bytes (1MiB), which is the same as a Windows Server 2008 r2\&.
+The maximum is 8388608 bytes (8MiB), which is the same as a Windows Server 2012 r2\&.
 .sp
-Please note that the default is 1MiB, but it\*(Aqs limit is based on the smb2 dialect (64KiB for SMB2\&.0, 1MiB for SMB2\&.1 with LargeMTU)\&. Large MTU is not supported over NBT (tcp port 139)\&.
+Please note that the default is 8MiB, but it\*(Aqs limit is based on the smb2 dialect (64KiB for SMB == 2\&.0, 8MiB for SMB => 2\&.1 with LargeMTU)\&. Large MTU is not supported over NBT (tcp port 139)\&.
 .sp
 Default:
-\fI\fIsmb2 max write\fR\fR\fI = \fR\fI1048576\fR\fI \fR
+\fI\fIsmb2 max write\fR\fR\fI = \fR\fI8388608\fR\fI \fR
 .RE
 
 smb encrypt (S)
@@ -9685,10 +9850,10 @@ If SMB encryption is selected, Windows style SMB signing (see the
 \m[blue]\fBserver signing\fR\m[]
 option) is no longer necessary, as the GSSAPI flags use select both signing and sealing of the data\&.
 .sp
-When set to auto, SMB encryption is offered, but not enforced\&. When set to mandatory, SMB encryption is required and if set to disabled, SMB encryption can not be negotiated\&.
+When set to auto or default, SMB encryption is offered, but not enforced\&. When set to mandatory, SMB encryption is required and if set to disabled, SMB encryption can not be negotiated\&.
 .sp
 Default:
-\fI\fIsmb encrypt\fR\fR\fI = \fR\fIauto\fR\fI \fR
+\fI\fIsmb encrypt\fR\fR\fI = \fR\fIdefault\fR\fI \fR
 .RE
 
 smb passwd file (G)
@@ -9907,7 +10072,7 @@ This option sets the command that for updating servicePrincipalName names from
 spn_update_list\&.
 .sp
 Default:
-\fI\fIspn update command\fR\fR\fI = \fR\fI$prefix/sbin/samba_spnupdate\fR\fI \fR
+\fI\fIspn update command\fR\fR\fI = \fR\fI${prefix}/sbin/samba_spnupdate\fR\fI \fR
 .sp
 Example:
 \fI\fIspn update command\fR\fR\fI = \fR\fI/usr/local/sbin/spnupdate\fR\fI \fR
@@ -9924,6 +10089,45 @@ Default:
 .sp
 Example:
 \fI\fIspoolss: architecture\fR\fR\fI = \fR\fIWindows x64\fR\fI \fR
+.RE
+
+spoolss: os_major (G)
+.\" spoolss: os_major
+.PP
+.RS 4
+Windows might require a new os version number\&. This option allows to modify the build number\&. The complete default version number is: 5\&.0\&.2195 (Windows 2000)\&. The example is 6\&.1\&.7601 (Windows 2008 R2)\&.
+.sp
+Default:
+\fI\fIspoolss: os_major\fR\fR\fI = \fR\fI5\fR\fI \fR
+.sp
+Example:
+\fI\fIspoolss: os_major\fR\fR\fI = \fR\fI6\fR\fI \fR
+.RE
+
+spoolss: os_minor (G)
+.\" spoolss: os_minor
+.PP
+.RS 4
+Windows might require a new os version number\&. This option allows to modify the build number\&. The complete default version number is: 5\&.0\&.2195 (Windows 2000)\&. The example is 6\&.1\&.7601 (Windows 2008 R2)\&.
+.sp
+Default:
+\fI\fIspoolss: os_minor\fR\fR\fI = \fR\fI0\fR\fI \fR
+.sp
+Example:
+\fI\fIspoolss: os_minor\fR\fR\fI = \fR\fI1\fR\fI \fR
+.RE
+
+spoolss: os_build (G)
+.\" spoolss: os_build
+.PP
+.RS 4
+Windows might require a new os version number\&. This option allows to modify the build number\&. The complete default version number is: 5\&.0\&.2195 (Windows 2000)\&. The example is 6\&.1\&.7601 (Windows 2008 R2)\&.
+.sp
+Default:
+\fI\fIspoolss: os_build\fR\fR\fI = \fR\fI2195\fR\fI \fR
+.sp
+Example:
+\fI\fIspoolss: os_build\fR\fR\fI = \fR\fI7601\fR\fI \fR
 .RE
 
 stat cache (G)
@@ -10123,7 +10327,8 @@ When filling out the user information for a Windows NT user, the
 \fBwinbindd\fR(8)
 daemon uses this parameter to fill in the login shell for that user\&.
 .sp
-\fINo default\fR
+Default:
+\fI\fItemplate shell\fR\fR\fI = \fR\fI/bin/false\fR\fI \fR
 .RE
 
 time server (G)
@@ -10144,8 +10349,12 @@ tls cafile (G)
 .RS 4
 This option can be set to a file (PEM format) containing CA certificates of root CAs to trust to sign certificates or intermediate CA certificates\&.
 .sp
+This path is relative to
+\m[blue]\fBprivate dir\fR\m[]
+if the path does not start with a /\&.
+.sp
 Default:
-\fI\fItls cafile\fR\fR\fI = \fR\fI\fR\fI \fR
+\fI\fItls cafile\fR\fR\fI = \fR\fItls/ca\&.pem\fR\fI \fR
 .RE
 
 tls certfile (G)
@@ -10154,8 +10363,12 @@ tls certfile (G)
 .RS 4
 This option can be set to a file (PEM format) containing the RSA certificate\&.
 .sp
+This path is relative to
+\m[blue]\fBprivate dir\fR\m[]
+if the path does not start with a /\&.
+.sp
 Default:
-\fI\fItls certfile\fR\fR\fI = \fR\fI\fR\fI \fR
+\fI\fItls certfile\fR\fR\fI = \fR\fItls/cert\&.pem\fR\fI \fR
 .RE
 
 tls crlfile (G)
@@ -10163,6 +10376,10 @@ tls crlfile (G)
 .PP
 .RS 4
 This option can be set to a file containing a certificate revocation list (CRL)\&.
+.sp
+This path is relative to
+\m[blue]\fBprivate dir\fR\m[]
+if the path does not start with a /\&.
 .sp
 Default:
 \fI\fItls crlfile\fR\fR\fI = \fR\fI\fR\fI \fR
@@ -10173,6 +10390,10 @@ tls dh params file (G)
 .PP
 .RS 4
 This option can be set to a file with Diffie\-Hellman parameters which will be used with EDH ciphers\&.
+.sp
+This path is relative to
+\m[blue]\fBprivate dir\fR\m[]
+if the path does not start with a /\&.
 .sp
 Default:
 \fI\fItls dh params file\fR\fR\fI = \fR\fI\fR\fI \fR
@@ -10195,8 +10416,12 @@ tls keyfile (G)
 .RS 4
 This option can be set to a file (PEM format) containing the RSA private key\&. This file must be accessible without a pass\-phrase, i\&.e\&. it must not be encrypted\&.
 .sp
+This path is relative to
+\m[blue]\fBprivate dir\fR\m[]
+if the path does not start with a /\&.
+.sp
 Default:
-\fI\fItls keyfile\fR\fR\fI = \fR\fI\fR\fI \fR
+\fI\fItls keyfile\fR\fR\fI = \fR\fItls/key\&.pem\fR\fI \fR
 .RE
 
 unicode (G)
@@ -10208,7 +10433,7 @@ Specifies whether the server and client should support unicode\&.
 If this option is set to false, the use of ASCII will be forced\&.
 .sp
 Default:
-\fI\fIunicode\fR\fR\fI = \fR\fITrue\fR\fI \fR
+\fI\fIunicode\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
 
 unix charset (G)
@@ -10220,7 +10445,7 @@ Specifies the charset the unix machine Samba runs on uses\&. Samba needs to know
 This is also the charset Samba will use when specifying arguments to scripts that it invokes\&.
 .sp
 Default:
-\fI\fIunix charset\fR\fR\fI = \fR\fIUTF8\fR\fI \fR
+\fI\fIunix charset\fR\fR\fI = \fR\fIUTF\-8\fR\fI \fR
 .sp
 Example:
 \fI\fIunix charset\fR\fR\fI = \fR\fIASCII\fR\fI \fR
@@ -10304,7 +10529,7 @@ file exists, it will automatically be converted to NTDB and renamed to
 .sp
 Filenames explicitly specified in
 smb\&.conf
-will be respected (ie\&. the format will depend on the
+will be respected (i\&.e\&. the format will depend on the
 \&.ntdb
 or
 \&.tdb
@@ -10558,7 +10783,7 @@ usershare owner only (G)
 This parameter controls whether the pathname exported by a user defined shares must be owned by the user creating the user defined share or not\&. If set to True (the default) then smbd checks that the directory path being shared is owned by the user who owns the usershare file defining this share and refuses to create the share if not\&. If set to False then no such check is performed and any directory path may be exported regardless of who owns it\&.
 .sp
 Default:
-\fI\fIusershare owner only\fR\fR\fI = \fR\fITrue\fR\fI \fR
+\fI\fIusershare owner only\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
 
 usershare path (G)
@@ -10584,7 +10809,7 @@ For example, a valid usershare directory might be /usr/local/samba/lib/usershare
 In this case, only members of the group "power_users" can create user defined shares\&.
 .sp
 Default:
-\fI\fIusershare path\fR\fR\fI = \fR\fISTATEDIR/usershare\fR\fI \fR
+\fI\fIusershare path\fR\fR\fI = \fR\fI${prefix}/var/locks/usershares\fR\fI \fR
 .RE
 
 usershare prefix allow list (G)
@@ -10596,7 +10821,7 @@ This parameter specifies a list of absolute pathnames the root of which are allo
 If there is a "usershare prefix deny list" and also a "usershare prefix allow list" the deny list is processed first, followed by the allow list, thus leading to the most restrictive interpretation\&.
 .sp
 Default:
-\fI\fIusershare prefix allow list\fR\fR\fI = \fR\fINULL\fR\fI \fR
+\fI\fIusershare prefix allow list\fR\fR\fI = \fR\fI\fR\fI \fR
 .sp
 Example:
 \fI\fIusershare prefix allow list\fR\fR\fI = \fR\fI/home /data /space\fR\fI \fR
@@ -10611,7 +10836,7 @@ This parameter specifies a list of absolute pathnames the root of which are NOT 
 If there is a "usershare prefix deny list" and also a "usershare prefix allow list" the deny list is processed first, followed by the allow list, thus leading to the most restrictive interpretation\&.
 .sp
 Default:
-\fI\fIusershare prefix deny list\fR\fR\fI = \fR\fINULL\fR\fI \fR
+\fI\fIusershare prefix deny list\fR\fR\fI = \fR\fI\fR\fI \fR
 .sp
 Example:
 \fI\fIusershare prefix deny list\fR\fR\fI = \fR\fI/etc /dev /private\fR\fI \fR
@@ -10626,7 +10851,7 @@ User defined shares only have limited possible parameters such as path, guest ok
 The target share may be set to be invalid for real file sharing by setting the parameter "\-valid = False" on the template share definition\&. This causes it not to be seen as a real exported share but to be able to be used as a template for usershares\&.
 .sp
 Default:
-\fI\fIusershare template share\fR\fR\fI = \fR\fINULL\fR\fI \fR
+\fI\fIusershare template share\fR\fR\fI = \fR\fI\fR\fI \fR
 .sp
 Example:
 \fI\fIusershare template share\fR\fR\fI = \fR\fItemplate_share\fR\fI \fR
@@ -10642,7 +10867,7 @@ If this parameter is
 system call is supported by the underlying operating system, then some SMB read calls (mainly ReadAndX and ReadRaw) will use the more efficient sendfile system call for files that are exclusively oplocked\&. This may make more efficient use of the system CPU\*(Aqs and cause Samba to be faster\&. Samba automatically turns this off for clients that use protocol levels lower than NT LM 0\&.12 and when it detects a client is Windows 9x (using sendfile from Linux will cause these clients to fail)\&.
 .sp
 Default:
-\fI\fIuse sendfile\fR\fR\fI = \fR\fIfalse\fR\fI \fR
+\fI\fIuse sendfile\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
 use spnego (G)
@@ -10771,7 +10996,7 @@ veto files = /\&.AppleDouble/\&.bin/\&.AppleDesktop/Network Trash Folder/
 .\}
 .sp
 Default:
-\fI\fIveto files\fR\fR\fI = \fR\fINo files or directories are vetoed\&.\fR\fI \fR
+\fI\fIveto files\fR\fR\fI = \fR\fI # No files or directories are vetoed\fR\fI \fR
 .RE
 
 veto oplock files (S)
@@ -10888,7 +11113,7 @@ winbindd privileged socket directory (G)
 This setting controls the location of the winbind daemon\*(Aqs privileged socket\&.
 .sp
 Default:
-\fI\fIwinbindd privileged socket directory\fR\fR\fI = \fR\fI$prefix/lib/winbindd_privileged\fR\fI \fR
+\fI\fIwinbindd privileged socket directory\fR\fR\fI = \fR\fI${prefix}/var/lib/winbindd_privileged\fR\fI \fR
 .RE
 
 winbindd socket directory (G)
@@ -10897,8 +11122,10 @@ winbindd socket directory (G)
 .RS 4
 This setting controls the location of the winbind daemon\*(Aqs socket\&.
 .sp
+Except within automated test scripts, this should not be altered, as the client tools (nss_winbind etc) do not honour this parameter\&. Client tools must then be advised of the altered path with the WINBINDD_SOCKET_DIR environment varaible\&.
+.sp
 Default:
-\fI\fIwinbindd socket directory\fR\fR\fI = \fR\fI$prefix/run/samba/winbindd\fR\fI \fR
+\fI\fIwinbindd socket directory\fR\fR\fI = \fR\fI${prefix}/var/run/winbindd\fR\fI \fR
 .RE
 
 winbind enum groups (G)
@@ -10983,8 +11210,10 @@ option which implements the Windows NT4 model of local group nesting\&. The "win
 .sp
 Be aware that a high value for this parameter can result in system slowdown as the main parent winbindd daemon must perform the group unrolling and will be unable to answer incoming NSS or authentication requests during this time\&.
 .sp
+The default value was changed from 1 to 0 with Samba 4\&.2\&. Some broken applications calculate the group memberships of users by traversing groups, such applications will require "winbind expand groups = 1"\&. But the new default makes winbindd more reliable as it doesn\*(Aqt require SAMR access to domain controllers of trusted domains\&.
+.sp
 Default:
-\fI\fIwinbind expand groups\fR\fR\fI = \fR\fI1\fR\fI \fR
+\fI\fIwinbind expand groups\fR\fR\fI = \fR\fI0\fR\fI \fR
 .RE
 
 winbind max clients (G)
@@ -11097,10 +11326,10 @@ This parameter is designed to control whether Winbind should allow to login with
 module using Cached Credentials\&. If enabled, winbindd will store user credentials from successful logins encrypted in a local cache\&.
 .sp
 Default:
-\fI\fIwinbind offline logon\fR\fR\fI = \fR\fIfalse\fR\fI \fR
+\fI\fIwinbind offline logon\fR\fR\fI = \fR\fIno\fR\fI \fR
 .sp
 Example:
-\fI\fIwinbind offline logon\fR\fR\fI = \fR\fItrue\fR\fI \fR
+\fI\fIwinbind offline logon\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
 
 winbind reconnect delay (G)
@@ -11124,10 +11353,10 @@ This parameter is designed to control whether Winbind should refresh Kerberos Ti
 module\&.
 .sp
 Default:
-\fI\fIwinbind refresh tickets\fR\fR\fI = \fR\fIfalse\fR\fI \fR
+\fI\fIwinbind refresh tickets\fR\fR\fI = \fR\fIno\fR\fI \fR
 .sp
 Example:
-\fI\fIwinbind refresh tickets\fR\fR\fI = \fR\fItrue\fR\fI \fR
+\fI\fIwinbind refresh tickets\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
 
 winbind request timeout (G)
@@ -11158,9 +11387,9 @@ winbind sealed pipes (G)
 .\" winbind sealed pipes
 .PP
 .RS 4
-This option controls whether any requests made over the Samba 4 winbind pipe will be sealed\&. Disabling sealing can be useful for debugging purposes\&.
+This option controls whether any requests from winbindd to domain controllers pipe will be sealed\&. Disabling sealing can be useful for debugging purposes\&.
 .sp
-Note that this option only applies to the Samba 4 winbind and not to the standard winbind\&.
+The behavior can be controlled per netbios domain by using \*(Aqwinbind sealed pipes:NETBIOSDOMAIN = no\*(Aq as option\&.
 .sp
 Default:
 \fI\fIwinbind sealed pipes\fR\fR\fI = \fR\fIyes\fR\fI \fR
@@ -11180,7 +11409,7 @@ modules for UNIX services\&.
 Please note that setting this parameter to + causes problems with group membership at least on glibc systems, as the character + is used as a special character for NIS in /etc/group\&.
 .sp
 Default:
-\fI\fIwinbind separator\fR\fR\fI = \fR\fI\*(Aq\e\*(Aq\fR\fI \fR
+\fI\fIwinbind separator\fR\fR\fI = \fR\fI\e\fR\fI \fR
 .sp
 Example:
 \fI\fIwinbind separator\fR\fR\fI = \fR\fI+\fR\fI \fR
@@ -11438,7 +11667,15 @@ write raw (G)
 .\" write raw
 .PP
 .RS 4
-This parameter controls whether or not the server will support raw write SMB\*(Aqs when transferring data from clients\&. You should never need to change this parameter\&.
+This is ignored if
+\m[blue]\fBasync echo handler\fR\m[]
+is set, because this feature is incompatible with raw write SMB requests
+.sp
+If enabled, raw writes allow writes of 65535 bytes in one packet\&. This typically provides a major performance benefit for some very, very old clients\&.
+.sp
+However, some clients either negotiate the allowable block size incorrectly or are incapable of supporting larger block sizes, and for these clients you may need to disable raw writes\&.
+.sp
+In general this parameter should be viewed as a system tuning tool and left severely alone\&.
 .sp
 Default:
 \fI\fIwrite raw\fR\fR\fI = \fR\fIyes\fR\fI \fR

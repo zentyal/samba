@@ -10,6 +10,7 @@
 #include "../common/check.c"
 #include "../common/hash.c"
 #include "../common/rescue.c"
+#include "../common/mutex.c"
 #include "tap-interface.h"
 #include <stdlib.h>
 #include "logging.h"
@@ -29,7 +30,7 @@ static inline bool tdb_deq(TDB_DATA a, TDB_DATA b)
 static inline TDB_DATA tdb_mkdata(const void *p, size_t len)
 {
 	TDB_DATA d;
-	d.dptr = (void *)p;
+	d.dptr = discard_const_p(uint8_t, p);
 	d.dsize = len;
 	return d;
 }
@@ -53,7 +54,7 @@ static void count_records(TDB_DATA key, TDB_DATA data, void *_wd)
 	struct walk_data *wd = _wd;
 
 	if (!tdb_deq(key, wd->key) || !tdb_deq(data, wd->data))
-		diag("%.*s::%.*s\n",
+		diag("%.*s::%.*s",
 		     (int)key.dsize, key.dptr, (int)data.dsize, data.dptr);
 	wd->count++;
 }
@@ -76,9 +77,9 @@ int main(int argc, char *argv[])
 			  O_CREAT|O_TRUNC|O_RDWR, 0600, &log_ctx, NULL);
 
 	wd.key.dsize = strlen("hi");
-	wd.key.dptr = (void *)"hi";
+	wd.key.dptr = discard_const_p(uint8_t, "hi");
 	wd.data.dsize = strlen("world");
-	wd.data.dptr = (void *)"world";
+	wd.data.dptr = discard_const_p(uint8_t, "world");
 	wd.count = 0;
 	wd.fail = false;
 

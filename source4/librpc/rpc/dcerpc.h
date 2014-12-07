@@ -36,12 +36,15 @@ struct tevent_context;
 struct tevent_req;
 struct dcerpc_binding_handle;
 struct tstream_context;
+struct ndr_interface_table;
+struct resolve_context;
 
 /*
   this defines a generic security context for signed/sealed dcerpc pipes.
 */
 struct dcecli_connection;
 struct gensec_settings;
+struct cli_credentials;
 struct dcecli_security {
 	struct dcerpc_auth *auth_info;
 	struct gensec_security *generic_state;
@@ -60,7 +63,6 @@ struct dcecli_connection {
 	uint32_t srv_max_recv_frag;
 	uint32_t flags;
 	struct dcecli_security security_state;
-	const char *binding_string;
 	struct tevent_context *event_ctx;
 
 	struct tevent_immediate *io_trigger;
@@ -76,22 +78,16 @@ struct dcecli_connection {
 		enum dcerpc_transport_t transport;
 		void *private_data;
 
-		NTSTATUS (*shutdown_pipe)(struct dcecli_connection *, NTSTATUS status);
-
-		const char *(*peer_name)(struct dcecli_connection *);
-
-		const char *(*target_hostname)(struct dcecli_connection *);
-
-		/* send a request to the server */
-		NTSTATUS (*send_request)(struct dcecli_connection *, DATA_BLOB *, bool trigger_read);
-
-		/* send a read request to the server */
-		NTSTATUS (*send_read)(struct dcecli_connection *);
-
-		/* a callback to the dcerpc code when a full fragment
-		   has been received */
-		void (*recv_data)(struct dcecli_connection *, DATA_BLOB *, NTSTATUS status);
+		struct tstream_context *stream;
+		/** to serialize write events */
+		struct tevent_queue *write_queue;
+		/** the current active read request if any */
+		struct tevent_req *read_subreq;
+		/** number of read requests other than the current active */
+		uint32_t pending_reads;
 	} transport;
+
+	const char *server_name;
 
 	/* Requests that have been sent, waiting for a reply */
 	struct rpc_request *pending;
@@ -111,13 +107,11 @@ struct dcerpc_pipe {
 
 	uint32_t context_id;
 
-	uint32_t assoc_group_id;
-
 	struct ndr_syntax_id syntax;
 	struct ndr_syntax_id transfer_syntax;
 
 	struct dcecli_connection *conn;
-	struct dcerpc_binding *binding;
+	const struct dcerpc_binding *binding;
 
 	/** the last fault code from a DCERPC fault */
 	uint32_t last_fault_code;
@@ -137,22 +131,16 @@ struct dcerpc_pipe {
 /* default timeout for all rpc requests, in seconds */
 #define DCERPC_REQUEST_TIMEOUT 60
 
-
-struct dcerpc_pipe_connect {
-	struct dcerpc_pipe *pipe;
-	struct dcerpc_binding *binding;
-	const char *pipe_name;
-	const struct ndr_interface_table *interface;
-	struct cli_credentials *creds;
-	struct resolve_context *resolve_ctx;
-};
-
-
 struct epm_tower;
 struct epm_floor;
 
 struct smbcli_tree;
 struct smb2_tree;
+struct smbXcli_conn;
+struct smbXcli_session;
+struct smbXcli_tcon;
+struct roh_connection;
+struct tstream_tls_params;
 struct socket_address;
 
 NTSTATUS dcerpc_pipe_connect(TALLOC_CTX *parent_ctx, 
@@ -167,6 +155,9 @@ struct dcerpc_pipe *dcerpc_pipe_init(TALLOC_CTX *mem_ctx, struct tevent_context 
 NTSTATUS dcerpc_pipe_open_smb(struct dcerpc_pipe *p,
 			      struct smbcli_tree *tree,
 			      const char *pipe_name);
+NTSTATUS dcerpc_pipe_open_smb2(struct dcerpc_pipe *p,
+			       struct smb2_tree *tree,
+			       const char *pipe_name);
 NTSTATUS dcerpc_bind_auth_none(struct dcerpc_pipe *p,
 			       const struct ndr_interface_table *table);
 NTSTATUS dcerpc_fetch_session_key(struct dcerpc_pipe *p,
@@ -176,7 +167,7 @@ NTSTATUS dcerpc_secondary_connection_recv(struct composite_context *c,
 					  struct dcerpc_pipe **p2);
 
 struct composite_context* dcerpc_pipe_connect_b_send(TALLOC_CTX *parent_ctx,
-						     struct dcerpc_binding *binding,
+						     const struct dcerpc_binding *binding,
 						     const struct ndr_interface_table *table,
 						     struct cli_credentials *credentials,
 						     struct tevent_context *ev,
@@ -187,7 +178,7 @@ NTSTATUS dcerpc_pipe_connect_b_recv(struct composite_context *c, TALLOC_CTX *mem
 
 NTSTATUS dcerpc_pipe_connect_b(TALLOC_CTX *parent_ctx,
 			       struct dcerpc_pipe **pp,
-			       struct dcerpc_binding *binding,
+			       const struct dcerpc_binding *binding,
 			       const struct ndr_interface_table *table,
 			       struct cli_credentials *credentials,
 			       struct tevent_context *ev,
@@ -195,23 +186,24 @@ NTSTATUS dcerpc_pipe_connect_b(TALLOC_CTX *parent_ctx,
 
 NTSTATUS dcerpc_pipe_auth(TALLOC_CTX *mem_ctx,
 			  struct dcerpc_pipe **p, 
-			  struct dcerpc_binding *binding,
+			  const struct dcerpc_binding *binding,
 			  const struct ndr_interface_table *table,
 			  struct cli_credentials *credentials,
 			  struct loadparm_context *lp_ctx);
 NTSTATUS dcerpc_secondary_connection(struct dcerpc_pipe *p,
 				     struct dcerpc_pipe **p2,
-				     struct dcerpc_binding *b);
+				     const struct dcerpc_binding *b);
 NTSTATUS dcerpc_bind_auth_schannel(TALLOC_CTX *tmp_ctx, 
 				   struct dcerpc_pipe *p,
 				   const struct ndr_interface_table *table,
 				   struct cli_credentials *credentials,
 				   struct loadparm_context *lp_ctx,
 				   uint8_t auth_level);
-struct tevent_context *dcerpc_event_context(struct dcerpc_pipe *p);
 NTSTATUS dcerpc_init(void);
-struct smbcli_tree *dcerpc_smb_tree(struct dcecli_connection *c);
-uint16_t dcerpc_smb_fnum(struct dcecli_connection *c);
+struct composite_context *dcerpc_secondary_smb_send(struct dcecli_connection *c1,
+						    struct dcecli_connection *c2,
+						    const char *pipe_name);
+NTSTATUS dcerpc_secondary_smb_recv(struct composite_context *c);
 NTSTATUS dcerpc_secondary_context(struct dcerpc_pipe *p, 
 				  struct dcerpc_pipe **pp2,
 				  const struct ndr_interface_table *table);
@@ -239,7 +231,7 @@ NTSTATUS dcerpc_epm_map_binding(TALLOC_CTX *mem_ctx, struct dcerpc_binding *bind
 				const struct ndr_interface_table *table, struct tevent_context *ev,
 				struct loadparm_context *lp_ctx);
 struct composite_context* dcerpc_secondary_auth_connection_send(struct dcerpc_pipe *p,
-								struct dcerpc_binding *binding,
+								const struct dcerpc_binding *binding,
 								const struct ndr_interface_table *table,
 								struct cli_credentials *credentials,
 								struct loadparm_context *lp_ctx);
@@ -248,15 +240,10 @@ NTSTATUS dcerpc_secondary_auth_connection_recv(struct composite_context *c,
 					       struct dcerpc_pipe **p);
 
 struct composite_context* dcerpc_secondary_connection_send(struct dcerpc_pipe *p,
-							   struct dcerpc_binding *b);
+							   const struct dcerpc_binding *b);
 void dcerpc_log_packet(const char *lockdir, 
 		       const struct ndr_interface_table *ndr,
 		       uint32_t opnum, uint32_t flags,
 		       const DATA_BLOB *pkt);
-
-
-enum dcerpc_transport_t dcerpc_transport_by_endpoint_protocol(int prot);
-
-const char *dcerpc_floor_get_rhs_data(TALLOC_CTX *mem_ctx, struct epm_floor *epm_floor);
 
 #endif /* __S4_DCERPC_H__ */

@@ -143,7 +143,7 @@ static krb5_error_code salt_principal(TALLOC_CTX *parent_ctx,
 		return ENOMEM;
 	}
 
-	machine_username = talloc_strdup(tmp_ctx, samAccountName);
+	machine_username = strlower_talloc(tmp_ctx, samAccountName);
 	if (!machine_username) {
 		*error_string = "Cannot duplicate samAccountName";
 		talloc_free(tmp_ctx);
@@ -210,10 +210,12 @@ static krb5_error_code keytab_add_keys(TALLOC_CTX *parent_ctx,
 
 		ZERO_STRUCT(entry);
 
-		ret = create_kerberos_key_from_string_direct(context,
-						salt_princ, &password,
-						KRB5_KT_KEY(&entry),
-						enctypes[i]);
+		ret = smb_krb5_create_key_from_string(context,
+						      &salt_princ,
+						      NULL,
+						      &password,
+						      enctypes[i],
+						      KRB5_KT_KEY(&entry));
 		if (ret != 0) {
 			return ret;
 		}
@@ -277,7 +279,8 @@ static krb5_error_code create_keytab(TALLOC_CTX *parent_ctx,
 
 	mem_ctx = talloc_new(parent_ctx);
 	if (!mem_ctx) {
-		*error_string = "unable to allocate tmp_ctx for create_keytab";
+		*error_string = talloc_strdup(parent_ctx,
+			"unable to allocate tmp_ctx for create_keytab");
 		return ENOMEM;
 	}
 
@@ -304,6 +307,7 @@ static krb5_error_code create_keytab(TALLOC_CTX *parent_ctx,
 			      salt_princ, kvno, new_secret,
 			      context, enctypes, keytab, error_string);
 	if (ret) {
+		talloc_steal(parent_ctx, *error_string);
 		goto done;
 	}
 
@@ -311,6 +315,9 @@ static krb5_error_code create_keytab(TALLOC_CTX *parent_ctx,
 		ret = keytab_add_keys(mem_ctx, principals,
 				      salt_princ, kvno - 1, old_secret,
 				      context, enctypes, keytab, error_string);
+		if (ret) {
+			talloc_steal(parent_ctx, *error_string);
+		}
 	}
 
 done:

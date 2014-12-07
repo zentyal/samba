@@ -21,6 +21,7 @@
 #include "includes.h"
 #include "system/filesys.h"
 #include "librpc/gen_ndr/ndr_xattr.h"
+#include "librpc/gen_ndr/ioctl.h"
 #include "../libcli/security/security.h"
 #include "smbd/smbd.h"
 #include "lib/param/loadparm.h"
@@ -29,6 +30,38 @@ static NTSTATUS get_file_handle_for_metadata(connection_struct *conn,
 				struct smb_filename *smb_fname,
 				files_struct **ret_fsp,
 				bool *need_close);
+
+static void dos_mode_debug_print(uint32_t mode)
+{
+	DEBUG(8,("dos_mode returning "));
+
+	if (mode & FILE_ATTRIBUTE_HIDDEN) {
+		DEBUG(8, ("h"));
+	}
+	if (mode & FILE_ATTRIBUTE_READONLY) {
+		DEBUG(8, ("r"));
+	}
+	if (mode & FILE_ATTRIBUTE_SYSTEM) {
+		DEBUG(8, ("s"));
+	}
+	if (mode & FILE_ATTRIBUTE_DIRECTORY) {
+		DEBUG(8, ("d"));
+	}
+	if (mode & FILE_ATTRIBUTE_ARCHIVE) {
+		DEBUG(8, ("a"));
+	}
+	if (mode & FILE_ATTRIBUTE_SPARSE) {
+		DEBUG(8, ("[sparse]"));
+	}
+	if (mode & FILE_ATTRIBUTE_OFFLINE) {
+		DEBUG(8, ("[offline]"));
+	}
+	if (mode & FILE_ATTRIBUTE_COMPRESSED) {
+		DEBUG(8, ("[compressed]"));
+	}
+
+	DEBUG(8,("\n"));
+}
 
 static uint32_t filter_mode_by_protocol(uint32_t mode)
 {
@@ -88,7 +121,7 @@ mode_t unix_mode(connection_struct *conn, int dosmode,
 		result &= ~(S_IWUSR | S_IWGRP | S_IWOTH);
 	}
 
-	if ((inherit_from_dir != NULL) && lp_inherit_perms(SNUM(conn))) {
+	if ((inherit_from_dir != NULL) && lp_inherit_permissions(SNUM(conn))) {
 		struct smb_filename *smb_fname_parent;
 
 		DEBUG(2, ("unix_mode(%s) inheriting from %s\n",
@@ -134,9 +167,9 @@ mode_t unix_mode(connection_struct *conn, int dosmode,
 			result |= (S_IXUSR | S_IXGRP | S_IXOTH);                 
 
 			/* Apply directory mask */
-			result &= lp_dir_mask(SNUM(conn));
+			result &= lp_directory_mask(SNUM(conn));
 			/* Add in force bits */
-			result |= lp_force_dir_mode(SNUM(conn));
+			result |= lp_force_directory_mode(SNUM(conn));
 		}
 	} else { 
 		if (lp_map_archive(SNUM(conn)) && IS_DOS_ARCHIVE(dosmode))
@@ -286,7 +319,7 @@ static bool get_ea_dos_attribute(connection_struct *conn,
 			if (!null_nttime(dosattrib.info.info1.create_time)) {
 				struct timespec create_time =
 					nt_time_to_unix_timespec(
-						&dosattrib.info.info1.create_time);
+						dosattrib.info.info1.create_time);
 
 				update_stat_ex_create_time(&smb_fname->st,
 							create_time);
@@ -308,7 +341,7 @@ static bool get_ea_dos_attribute(connection_struct *conn,
 					!null_nttime(dosattrib.info.info3.create_time)) {
 				struct timespec create_time =
 					nt_time_to_unix_timespec(
-						&dosattrib.info.info3.create_time);
+						dosattrib.info.info3.create_time);
 
 				update_stat_ex_create_time(&smb_fname->st,
 							create_time);
@@ -366,7 +399,7 @@ static bool set_ea_dos_attribute(connection_struct *conn,
 	dosattrib.info.info3.valid_flags = XATTR_DOSINFO_ATTRIB|
 					XATTR_DOSINFO_CREATE_TIME;
 	dosattrib.info.info3.attrib = dosmode;
-	unix_timespec_to_nt_time(&dosattrib.info.info3.create_time,
+	dosattrib.info.info3.create_time = unix_timespec_to_nt_time(
 				smb_fname->st.st_ex_btime);
 
 	DEBUG(10,("set_ea_dos_attributes: set attribute 0x%x, btime = %s on file %s\n",
@@ -519,114 +552,39 @@ uint32 dos_mode_msdfs(connection_struct *conn,
 	return(result);
 }
 
-#ifdef HAVE_STAT_DOS_FLAGS
-/****************************************************************************
- Convert dos attributes (FILE_ATTRIBUTE_*) to dos stat flags (UF_*)
-****************************************************************************/
-
-int dos_attributes_to_stat_dos_flags(uint32_t dosmode)
+/*
+ * check whether a file or directory is flagged as compressed.
+ */
+static NTSTATUS dos_mode_check_compressed(connection_struct *conn,
+					  struct smb_filename *smb_fname,
+					  bool *is_compressed)
 {
-	uint32_t dos_stat_flags = 0;
-
-	if (dosmode & FILE_ATTRIBUTE_ARCHIVE)
-		dos_stat_flags |= UF_DOS_ARCHIVE;
-	if (dosmode & FILE_ATTRIBUTE_HIDDEN)
-		dos_stat_flags |= UF_DOS_HIDDEN;
-	if (dosmode & FILE_ATTRIBUTE_READONLY)
-		dos_stat_flags |= UF_DOS_RO;
-	if (dosmode & FILE_ATTRIBUTE_SYSTEM)
-		dos_stat_flags |= UF_DOS_SYSTEM;
-	if (dosmode & FILE_ATTRIBUTE_NONINDEXED)
-		dos_stat_flags |= UF_DOS_NOINDEX;
-
-	return dos_stat_flags;
-}
-
-/****************************************************************************
- Gets DOS attributes, accessed via st_ex_flags in the stat struct.
-****************************************************************************/
-
-static bool get_stat_dos_flags(connection_struct *conn,
-			       const struct smb_filename *smb_fname,
-			       uint32_t *dosmode)
-{
-	SMB_ASSERT(VALID_STAT(smb_fname->st));
-	SMB_ASSERT(dosmode);
-
-	if (!lp_store_dos_attributes(SNUM(conn))) {
-		return false;
+	NTSTATUS status;
+	uint16_t compression_fmt;
+	TALLOC_CTX *tmp_ctx = talloc_new(NULL);
+	if (tmp_ctx == NULL) {
+		status = NT_STATUS_NO_MEMORY;
+		goto err_out;
 	}
 
-	DEBUG(5, ("Getting stat dos attributes for %s.\n",
-		  smb_fname_str_dbg(smb_fname)));
-
-	if (smb_fname->st.st_ex_flags & UF_DOS_ARCHIVE)
-		*dosmode |= FILE_ATTRIBUTE_ARCHIVE;
-	if (smb_fname->st.st_ex_flags & UF_DOS_HIDDEN)
-		*dosmode |= FILE_ATTRIBUTE_HIDDEN;
-	if (smb_fname->st.st_ex_flags & UF_DOS_RO)
-		*dosmode |= FILE_ATTRIBUTE_READONLY;
-	if (smb_fname->st.st_ex_flags & UF_DOS_SYSTEM)
-		*dosmode |= FILE_ATTRIBUTE_SYSTEM;
-	if (smb_fname->st.st_ex_flags & UF_DOS_NOINDEX)
-		*dosmode |= FILE_ATTRIBUTE_NONINDEXED;
-	if (smb_fname->st.st_ex_flags & FILE_ATTRIBUTE_SPARSE)
-		*dosmode |= FILE_ATTRIBUTE_SPARSE;
-	if (S_ISDIR(smb_fname->st.st_ex_mode))
-		*dosmode |= FILE_ATTRIBUTE_DIRECTORY;
-
-	*dosmode |= set_link_read_only_flag(&smb_fname->st);
-
-	return true;
-}
-
-/****************************************************************************
- Sets DOS attributes, stored in st_ex_flags of the inode.
-****************************************************************************/
-
-static bool set_stat_dos_flags(connection_struct *conn,
-			       const struct smb_filename *smb_fname,
-			       uint32_t dosmode,
-			       bool *attributes_changed)
-{
-	uint32_t new_flags = 0;
-	int error = 0;
-
-	SMB_ASSERT(VALID_STAT(smb_fname->st));
-	SMB_ASSERT(attributes_changed);
-
-	*attributes_changed = false;
-
-	if (!lp_store_dos_attributes(SNUM(conn))) {
-		return false;
+	status = SMB_VFS_GET_COMPRESSION(conn, tmp_ctx, NULL, smb_fname,
+					 &compression_fmt);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto err_ctx_free;
 	}
 
-	DEBUG(5, ("Setting stat dos attributes for %s.\n",
-		  smb_fname_str_dbg(smb_fname)));
-
-	new_flags = (smb_fname->st.st_ex_flags & ~UF_DOS_FLAGS) |
-		     dos_attributes_to_stat_dos_flags(dosmode);
-
-	/* Return early if no flags changed. */
-	if (new_flags == smb_fname->st.st_ex_flags)
-		return true;
-
-	DEBUG(5, ("Setting stat dos attributes=0x%x, prev=0x%x\n", new_flags,
-		  smb_fname->st.st_ex_flags));
-
-	/* Set new flags with chflags. */
-	error = SMB_VFS_CHFLAGS(conn, smb_fname->base_name, new_flags);
-	if (error) {
-		DEBUG(0, ("Failed setting new stat dos attributes (0x%x) on "
-			  "file %s! errno=%d\n", new_flags,
-			  smb_fname_str_dbg(smb_fname), errno));
-		return false;
+	if (compression_fmt == COMPRESSION_FORMAT_LZNT1) {
+		*is_compressed = true;
+	} else {
+		*is_compressed = false;
 	}
+	status = NT_STATUS_OK;
 
-	*attributes_changed = true;
-	return true;
+err_ctx_free:
+	talloc_free(tmp_ctx);
+err_out:
+	return status;
 }
-#endif /* HAVE_STAT_DOS_FLAGS */
 
 /****************************************************************************
  Change a unix mode to a dos mode.
@@ -637,7 +595,7 @@ static bool set_stat_dos_flags(connection_struct *conn,
 uint32 dos_mode(connection_struct *conn, struct smb_filename *smb_fname)
 {
 	uint32 result = 0;
-	bool offline, used_stat_dos_flags = false;
+	bool offline;
 
 	DEBUG(8,("dos_mode: %s\n", smb_fname_str_dbg(smb_fname)));
 
@@ -662,19 +620,23 @@ uint32 dos_mode(connection_struct *conn, struct smb_filename *smb_fname)
 		}
 	}
 
-#ifdef HAVE_STAT_DOS_FLAGS
-	used_stat_dos_flags = get_stat_dos_flags(conn, smb_fname, &result);
-#endif
-	if (!used_stat_dos_flags) {
-		/* Get the DOS attributes from an EA by preference. */
-		if (!get_ea_dos_attribute(conn, smb_fname, &result)) {
-			result |= dos_mode_from_sbuf(conn, smb_fname);
-		}
+	/* Get the DOS attributes from an EA by preference. */
+	if (!get_ea_dos_attribute(conn, smb_fname, &result)) {
+		result |= dos_mode_from_sbuf(conn, smb_fname);
 	}
 
 	offline = SMB_VFS_IS_OFFLINE(conn, smb_fname, &smb_fname->st);
 	if (S_ISREG(smb_fname->st.st_ex_mode) && offline) {
 		result |= FILE_ATTRIBUTE_OFFLINE;
+	}
+
+	if (conn->fs_capabilities & FILE_FILE_COMPRESSION) {
+		bool compressed = false;
+		NTSTATUS status = dos_mode_check_compressed(conn, smb_fname,
+							    &compressed);
+		if (NT_STATUS_IS_OK(status) && compressed) {
+			result |= FILE_ATTRIBUTE_COMPRESSED;
+		}
 	}
 
 	/* Optimization : Only call is_hidden_path if it's not already
@@ -690,19 +652,9 @@ uint32 dos_mode(connection_struct *conn, struct smb_filename *smb_fname)
 
 	result = filter_mode_by_protocol(result);
 
-	DEBUG(8,("dos_mode returning "));
+	dos_mode_debug_print(result);
 
-	if (result & FILE_ATTRIBUTE_HIDDEN) DEBUG(8, ("h"));
-	if (result & FILE_ATTRIBUTE_READONLY ) DEBUG(8, ("r"));
-	if (result & FILE_ATTRIBUTE_SYSTEM) DEBUG(8, ("s"));
-	if (result & FILE_ATTRIBUTE_DIRECTORY   ) DEBUG(8, ("d"));
-	if (result & FILE_ATTRIBUTE_ARCHIVE  ) DEBUG(8, ("a"));
-	if (result & FILE_ATTRIBUTE_SPARSE ) DEBUG(8, ("[sparse]"));
-	if (result & FILE_ATTRIBUTE_OFFLINE ) DEBUG(8, ("[offline]"));
-
-	DEBUG(8,("\n"));
-
-	return(result);
+	return result;
 }
 
 /*******************************************************************
@@ -774,23 +726,6 @@ int file_set_dosmode(connection_struct *conn, struct smb_filename *smb_fname,
 
 	smb_fname->st.st_ex_btime = new_create_timespec;
 
-#ifdef HAVE_STAT_DOS_FLAGS
-	{
-		bool attributes_changed;
-
-		if (set_stat_dos_flags(conn, smb_fname, dosmode,
-				       &attributes_changed))
-		{
-			if (!newfile && attributes_changed) {
-				notify_fname(conn, NOTIFY_ACTION_MODIFIED,
-				    FILE_NOTIFY_CHANGE_ATTRIBUTES,
-				    smb_fname->base_name);
-			}
-			smb_fname->st.st_ex_mode = unixmode;
-			return 0;
-		}
-	}
-#endif
 	/* Store the DOS attributes in an EA by preference. */
 	if (lp_store_dos_attributes(SNUM(conn))) {
 		/*
@@ -1206,6 +1141,7 @@ static NTSTATUS get_file_handle_for_metadata(connection_struct *conn,
 		0,                                      /* create_options */
 		0,                                      /* file_attributes */
 		INTERNAL_OPEN_ONLY,                     /* oplock_request */
+		NULL,					/* lease */
                 0,                                      /* allocation_size */
 		0,                                      /* private_flags */
 		NULL,                                   /* sd */

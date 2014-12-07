@@ -48,7 +48,8 @@ bool run_dbwrap_watch1(int dummy)
 		goto fail;
 	}
 	db = db_open(msg, "test_watch.tdb", 0, TDB_DEFAULT,
-		     O_CREAT|O_RDWR, 0644, DBWRAP_LOCK_ORDER_1);
+		     O_CREAT|O_RDWR, 0644, DBWRAP_LOCK_ORDER_1,
+		     DBWRAP_FLAG_NONE);
 	if (db == NULL) {
 		fprintf(stderr, "db_open failed: %s\n", strerror(errno));
 		goto fail;
@@ -65,6 +66,13 @@ bool run_dbwrap_watch1(int dummy)
 		goto fail;
 	}
 	TALLOC_FREE(rec);
+
+	status = dbwrap_store_int32_bystring(db, "different_key", 1);
+	if (!NT_STATUS_IS_OK(status)) {
+		fprintf(stderr, "dbwrap_store_int32 failed: %s\n",
+			nt_errstr(status));
+		goto fail;
+	}
 
 	status = dbwrap_store_int32_bystring(db, keystr, 1);
 	if (!NT_STATUS_IS_OK(status)) {

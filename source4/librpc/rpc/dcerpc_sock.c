@@ -22,238 +22,39 @@
 */
 
 #include "includes.h"
+#include "system/filesys.h"
 #include "lib/events/events.h"
 #include "lib/socket/socket.h"
-#include "lib/stream/packet.h"
+#include "lib/tsocket/tsocket.h"
 #include "libcli/composite/composite.h"
 #include "librpc/rpc/dcerpc.h"
 #include "librpc/rpc/dcerpc_proto.h"
 #include "libcli/resolve/resolve.h"
 #include "librpc/rpc/rpc_common.h"
 
-/* transport private information used by general socket pipe transports */
-struct sock_private {
-	struct tevent_fd *fde;
-	struct socket_context *sock;
-	char *server_name;
-
-	struct packet_context *packet;
-	uint32_t pending_reads;
-
-	const char *path; /* For ncacn_unix_sock and ncalrpc */
-};
-
-
-/*
-  mark the socket dead
-*/
-static void sock_dead(struct dcecli_connection *p, NTSTATUS status)
-{
-	struct sock_private *sock = (struct sock_private *)p->transport.private_data;
-
-	if (!sock) return;
-
-	if (sock->packet) {
-		packet_recv_disable(sock->packet);
-		packet_set_fde(sock->packet, NULL);
-		packet_set_socket(sock->packet, NULL);
-	}
-
-	if (sock->fde) {
-		talloc_free(sock->fde);
-		sock->fde = NULL;
-	}
-
-	if (sock->sock) {
-		talloc_free(sock->sock);
-		sock->sock = NULL;
-	}
-
-	if (NT_STATUS_EQUAL(NT_STATUS_UNSUCCESSFUL, status)) {
-		status = NT_STATUS_UNEXPECTED_NETWORK_ERROR;
-	}
-
-	if (NT_STATUS_EQUAL(NT_STATUS_OK, status)) {
-		status = NT_STATUS_END_OF_FILE;
-	}
-
-	if (p->transport.recv_data) {
-		p->transport.recv_data(p, NULL, status);
-	}
-}
-
-
-/*
-  handle socket recv errors
-*/
-static void sock_error_handler(void *private_data, NTSTATUS status)
-{
-	struct dcecli_connection *p = talloc_get_type(private_data,
-						      struct dcecli_connection);
-	sock_dead(p, status);
-}
-
-/*
-  check if a blob is a complete packet
-*/
-static NTSTATUS sock_complete_packet(void *private_data, DATA_BLOB blob, size_t *size)
-{
-	if (blob.length < DCERPC_FRAG_LEN_OFFSET+2) {
-		return STATUS_MORE_ENTRIES;
-	}
-	*size = dcerpc_get_frag_length(&blob);
-	if (*size < blob.length) {
-		/*
-		 * something is wrong, let the caller deal with it
-		 */
-		*size = blob.length;
-	}
-	if (*size > blob.length) {
-		return STATUS_MORE_ENTRIES;
-	}
-	return NT_STATUS_OK;
-}
-
-/*
-  process recv requests
-*/
-static NTSTATUS sock_process_recv(void *private_data, DATA_BLOB blob)
-{
-	struct dcecli_connection *p = talloc_get_type(private_data,
-						      struct dcecli_connection);
-	struct sock_private *sock = (struct sock_private *)p->transport.private_data;
-	sock->pending_reads--;
-	if (sock->pending_reads == 0) {
-		packet_recv_disable(sock->packet);
-	}
-	p->transport.recv_data(p, &blob, NT_STATUS_OK);
-	return NT_STATUS_OK;
-}
-
-/*
-  called when a IO is triggered by the events system
-*/
-static void sock_io_handler(struct tevent_context *ev, struct tevent_fd *fde, 
-			    uint16_t flags, void *private_data)
-{
-	struct dcecli_connection *p = talloc_get_type(private_data,
-						      struct dcecli_connection);
-	struct sock_private *sock = (struct sock_private *)p->transport.private_data;
-
-	if (flags & TEVENT_FD_WRITE) {
-		packet_queue_run(sock->packet);
-		return;
-	}
-
-	if (sock->sock == NULL) {
-		return;
-	}
-
-	if (flags & TEVENT_FD_READ) {
-		packet_recv(sock->packet);
-	}
-}
-
-/* 
-   initiate a read request - not needed for dcerpc sockets
-*/
-static NTSTATUS sock_send_read(struct dcecli_connection *p)
-{
-	struct sock_private *sock = (struct sock_private *)p->transport.private_data;
-	sock->pending_reads++;
-	if (sock->pending_reads == 1) {
-		packet_recv_enable(sock->packet);
-	}
-	return NT_STATUS_OK;
-}
-
-/* 
-   send an initial pdu in a multi-pdu sequence
-*/
-static NTSTATUS sock_send_request(struct dcecli_connection *p, DATA_BLOB *data, 
-				  bool trigger_read)
-{
-	struct sock_private *sock = (struct sock_private *)p->transport.private_data;
-	DATA_BLOB blob;
-	NTSTATUS status;
-
-	if (sock->sock == NULL) {
-		return NT_STATUS_CONNECTION_DISCONNECTED;
-	}
-
-	blob = data_blob_talloc(sock->packet, data->data, data->length);
-	if (blob.data == NULL) {
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	status = packet_send(sock->packet, blob);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	if (trigger_read) {
-		sock_send_read(p);
-	}
-
-	return NT_STATUS_OK;
-}
-
-/* 
-   shutdown sock pipe connection
-*/
-static NTSTATUS sock_shutdown_pipe(struct dcecli_connection *p, NTSTATUS status)
-{
-	struct sock_private *sock = (struct sock_private *)p->transport.private_data;
-
-	if (sock && sock->sock) {
-		sock_dead(p, status);
-	}
-
-	return status;
-}
-
-/*
-  return sock server name
-*/
-static const char *sock_peer_name(struct dcecli_connection *p)
-{
-	struct sock_private *sock = talloc_get_type(p->transport.private_data, struct sock_private);
-	return sock->server_name;
-}
-
-/*
-  return remote name we make the actual connection (good for kerberos) 
-*/
-static const char *sock_target_hostname(struct dcecli_connection *p)
-{
-	struct sock_private *sock = talloc_get_type(p->transport.private_data, struct sock_private);
-	return sock->server_name;
-}
-
-
 struct pipe_open_socket_state {
 	struct dcecli_connection *conn;
 	struct socket_context *socket_ctx;
-	struct sock_private *sock;
 	struct socket_address *localaddr;
 	struct socket_address *server;
 	const char *target_hostname;
 	enum dcerpc_transport_t transport;
+	struct socket_address *client;
 };
 
 
 static void continue_socket_connect(struct composite_context *ctx)
 {
 	struct dcecli_connection *conn;
-	struct sock_private *sock;
-	struct composite_context *c = talloc_get_type(ctx->async.private_data,
-						      struct composite_context);
-	struct pipe_open_socket_state *s = talloc_get_type(c->private_data,
-							   struct pipe_open_socket_state);
+	struct composite_context *c = talloc_get_type_abort(
+		ctx->async.private_data, struct composite_context);
+	struct pipe_open_socket_state *s = talloc_get_type_abort(
+		c->private_data, struct pipe_open_socket_state);
+	int rc;
+	int sock_fd;
 
 	/* make it easier to write a function calls */
 	conn = s->conn;
-	sock = s->sock;
 
 	c->status = socket_connect_recv(ctx);
 	if (!NT_STATUS_IS_OK(c->status)) {
@@ -264,45 +65,47 @@ static void continue_socket_connect(struct composite_context *ctx)
 		return;
 	}
 
+	s->client = socket_get_my_addr(s->socket_ctx, s);
+	if (s->client == NULL) {
+		TALLOC_FREE(s->socket_ctx);
+		composite_error(c, NT_STATUS_NO_MEMORY);
+		return;
+	}
+	sock_fd = socket_get_fd(s->socket_ctx);
+	socket_set_flags(s->socket_ctx, SOCKET_FLAG_NOCLOSE);
+	TALLOC_FREE(s->socket_ctx);
+
 	/*
 	  fill in the transport methods
 	*/
 	conn->transport.transport       = s->transport;
 	conn->transport.private_data    = NULL;
 
-	conn->transport.send_request    = sock_send_request;
-	conn->transport.send_read       = sock_send_read;
-	conn->transport.recv_data       = NULL;
+	/*
+	 * Windows uses 5840 for ncacn_ip_tcp,
+	 * so we also use it (for every transport which uses bsd sockets)
+	 */
+	conn->srv_max_xmit_frag = 5840;
+	conn->srv_max_recv_frag = 5840;
 
-	conn->transport.shutdown_pipe   = sock_shutdown_pipe;
-	conn->transport.peer_name       = sock_peer_name;
-	conn->transport.target_hostname = sock_target_hostname;
+	conn->transport.pending_reads = 0;
+	conn->server_name   = strupper_talloc(conn, s->target_hostname);
 
-	sock->sock          = s->socket_ctx;
-	sock->pending_reads = 0;
-	sock->server_name   = strupper_talloc(sock, s->target_hostname);
-
-	sock->fde = tevent_add_fd(conn->event_ctx, sock->sock, socket_get_fd(sock->sock),
-				 TEVENT_FD_READ, sock_io_handler, conn);
-	
-	conn->transport.private_data = sock;
-
-	sock->packet = packet_init(sock);
-	if (sock->packet == NULL) {
-		talloc_free(sock);
+	rc = tstream_bsd_existing_socket(conn, sock_fd,
+					 &conn->transport.stream);
+	if (rc < 0) {
+		close(sock_fd);
 		composite_error(c, NT_STATUS_NO_MEMORY);
 		return;
 	}
 
-	packet_set_private(sock->packet, conn);
-	packet_set_socket(sock->packet, sock->sock);
-	packet_set_callback(sock->packet, sock_process_recv);
-	packet_set_full_request(sock->packet, sock_complete_packet);
-	packet_set_error_handler(sock->packet, sock_error_handler);
-	packet_set_event_context(sock->packet, conn->event_ctx);
-	packet_set_fde(sock->packet, sock->fde);
-	packet_set_serialise(sock->packet);
-	packet_set_initial_read(sock->packet, 16);
+	conn->transport.write_queue =
+		tevent_queue_create(conn, "dcerpc sock write queue");
+	if (conn->transport.write_queue == NULL) {
+		TALLOC_FREE(conn->transport.stream);
+		composite_error(c, NT_STATUS_NO_MEMORY);
+		return;
+	}
 
 	/* ensure we don't get SIGPIPE */
 	BlockSignals(true, SIGPIPE);
@@ -333,22 +136,20 @@ static struct composite_context *dcerpc_pipe_open_socket_send(TALLOC_CTX *mem_ct
 	s->conn      = cn;
 	s->transport = transport;
 	if (localaddr) {
-		s->localaddr = talloc_reference(c, localaddr);
+		s->localaddr = socket_address_copy(s, localaddr);
 		if (composite_nomem(s->localaddr, c)) return c;
 	}
-	s->server    = talloc_reference(c, server);
+	s->server = socket_address_copy(s, server);
 	if (composite_nomem(s->server, c)) return c;
-	s->target_hostname = talloc_reference(s, target_hostname);
-
-	s->sock = talloc(cn, struct sock_private);
-	if (composite_nomem(s->sock, c)) return c;
+	if (target_hostname) {
+		s->target_hostname = talloc_strdup(s, target_hostname);
+		if (composite_nomem(s->target_hostname, c)) return c;
+	}
 
 	c->status = socket_create(server->family, SOCKET_TYPE_STREAM, &s->socket_ctx, 0);
 	if (!composite_is_ok(c)) return c;
 
-	talloc_steal(s->sock, s->socket_ctx);
-
-	s->sock->path = talloc_reference(s->sock, full_path);
+	talloc_steal(s, s->socket_ctx);
 
 	conn_req = socket_connect_send(s->socket_ctx, s->localaddr, s->server, 0,
 				       c->event_ctx);
@@ -356,10 +157,21 @@ static struct composite_context *dcerpc_pipe_open_socket_send(TALLOC_CTX *mem_ct
 	return c;
 }
 
-
-static NTSTATUS dcerpc_pipe_open_socket_recv(struct composite_context *c)
+static NTSTATUS dcerpc_pipe_open_socket_recv(struct composite_context *c,
+					     TALLOC_CTX *mem_ctx,
+					     struct socket_address **localaddr)
 {
 	NTSTATUS status = composite_wait(c);
+
+	if (NT_STATUS_IS_OK(status)) {
+		struct pipe_open_socket_state *s =
+			talloc_get_type_abort(c->private_data,
+			struct pipe_open_socket_state);
+
+		if (localaddr != NULL) {
+			*localaddr = talloc_move(mem_ctx, &s->client);
+		}
+	}
 
 	talloc_free(c);
 	return status;
@@ -375,6 +187,8 @@ struct pipe_tcp_state {
 	struct socket_address *srvaddr;
 	struct resolve_context *resolve_ctx;
 	struct dcecli_connection *conn;
+	char *local_address;
+	char *remote_address;
 };
 
 
@@ -383,10 +197,10 @@ static void continue_ip_resolve_name(struct composite_context *ctx);
 
 static void continue_ip_resolve_name(struct composite_context *ctx)
 {
-	struct composite_context *c = talloc_get_type(ctx->async.private_data,
-						      struct composite_context);
-	struct pipe_tcp_state *s = talloc_get_type(c->private_data,
-						   struct pipe_tcp_state);
+	struct composite_context *c = talloc_get_type_abort(
+		ctx->async.private_data, struct composite_context);
+	struct pipe_tcp_state *s = talloc_get_type_abort(
+		c->private_data, struct pipe_tcp_state);
 	struct composite_context *sock_ip_req;
 
 	c->status = resolve_name_multiple_recv(ctx, s, &s->addresses);
@@ -411,13 +225,14 @@ static void continue_ip_resolve_name(struct composite_context *ctx)
 */
 static void continue_ip_open_socket(struct composite_context *ctx)
 {
-	struct composite_context *c = talloc_get_type(ctx->async.private_data,
-						      struct composite_context);
-	struct pipe_tcp_state *s = talloc_get_type(c->private_data,
-						   struct pipe_tcp_state);
-	
+	struct composite_context *c = talloc_get_type_abort(
+		ctx->async.private_data, struct composite_context);
+	struct pipe_tcp_state *s = talloc_get_type_abort(
+		c->private_data, struct pipe_tcp_state);
+	struct socket_address *localaddr = NULL;
+
 	/* receive result socket open request */
-	c->status = dcerpc_pipe_open_socket_recv(ctx);
+	c->status = dcerpc_pipe_open_socket_recv(ctx, s, &localaddr);
 	if (!NT_STATUS_IS_OK(c->status)) {
 		/* something went wrong... */
 		DEBUG(0, ("Failed to connect host %s (%s) on port %d - %s.\n",
@@ -443,6 +258,11 @@ static void continue_ip_open_socket(struct composite_context *ctx)
 			return;
 		}
 	}
+
+	s->local_address = talloc_strdup(s, localaddr->addr);
+	if (composite_nomem(s->local_address, c)) return;
+	s->remote_address = talloc_strdup(s, s->addresses[s->index - 1]);
+	if (composite_nomem(s->remote_address, c)) return;
 
 	composite_done(c);
 }
@@ -497,10 +317,25 @@ struct composite_context* dcerpc_pipe_open_tcp_send(struct dcecli_connection *co
 /*
   Receive result of pipe open request on tcp/ip
 */
-NTSTATUS dcerpc_pipe_open_tcp_recv(struct composite_context *c)
+NTSTATUS dcerpc_pipe_open_tcp_recv(struct composite_context *c,
+				   TALLOC_CTX *mem_ctx,
+				   char **localaddr,
+				   char **remoteaddr)
 {
 	NTSTATUS status;
 	status = composite_wait(c);
+
+	if (NT_STATUS_IS_OK(status)) {
+		struct pipe_tcp_state *s = talloc_get_type_abort(
+			c->private_data, struct pipe_tcp_state);
+
+		if (localaddr != NULL) {
+			*localaddr = talloc_move(mem_ctx, &s->local_address);
+		}
+		if (remoteaddr != NULL) {
+			*remoteaddr = talloc_move(mem_ctx, &s->remote_address);
+		}
+	}
 
 	talloc_free(c);
 	return status;
@@ -520,10 +355,10 @@ struct pipe_unix_state {
 */
 static void continue_unix_open_socket(struct composite_context *ctx)
 {
-	struct composite_context *c = talloc_get_type(ctx->async.private_data,
-						      struct composite_context);
+	struct composite_context *c = talloc_get_type_abort(
+		ctx->async.private_data, struct composite_context);
 
-	c->status = dcerpc_pipe_open_socket_recv(ctx);
+	c->status = dcerpc_pipe_open_socket_recv(ctx, NULL, NULL);
 	if (NT_STATUS_IS_OK(c->status)) {
 		composite_done(c);
 		return;
@@ -587,10 +422,10 @@ NTSTATUS dcerpc_pipe_open_unix_stream_recv(struct composite_context *c)
 */
 static void continue_np_open_socket(struct composite_context *ctx)
 {
-	struct composite_context *c = talloc_get_type(ctx->async.private_data,
-						      struct composite_context);
+	struct composite_context *c = talloc_get_type_abort(
+		ctx->async.private_data, struct composite_context);
 
-	c->status = dcerpc_pipe_open_socket_recv(ctx);
+	c->status = dcerpc_pipe_open_socket_recv(ctx, NULL, NULL);
 	if (!composite_is_ok(c)) return;
 
 	composite_done(c);
@@ -658,16 +493,3 @@ NTSTATUS dcerpc_pipe_open_pipe(struct dcecli_connection *conn, const char *ncalr
 	struct composite_context *c = dcerpc_pipe_open_pipe_send(conn, ncalrpc_dir, identifier);
 	return dcerpc_pipe_open_pipe_recv(c);
 }
-
-const char *dcerpc_unix_socket_path(struct dcecli_connection *p)
-{
-	struct sock_private *sock = (struct sock_private *)p->transport.private_data;
-	return sock->path;
-}
-
-struct socket_address *dcerpc_socket_peer_addr(struct dcecli_connection *p, TALLOC_CTX *mem_ctx)
-{
-	struct sock_private *sock = (struct sock_private *)p->transport.private_data;
-	return socket_get_peer_addr(sock->sock, mem_ctx);
-}
-

@@ -32,6 +32,7 @@
 #include "librpc/crypto/gse.h"
 #include "auth/credentials/credentials.h"
 #include "lib/param/loadparm.h"
+#include "librpc/gen_ndr/dcerpc.h"
 
 static NTSTATUS auth3_generate_session_info_pac(struct auth4_context *auth_ctx,
 						TALLOC_CTX *mem_ctx,
@@ -44,6 +45,7 @@ static NTSTATUS auth3_generate_session_info_pac(struct auth4_context *auth_ctx,
 {
 	TALLOC_CTX *tmp_ctx;
 	struct PAC_LOGON_INFO *logon_info = NULL;
+	struct netr_SamInfo3 *info3_copy = NULL;
 	bool is_mapped;
 	bool is_guest;
 	char *ntuser;
@@ -101,7 +103,13 @@ static NTSTATUS auth3_generate_session_info_pac(struct auth4_context *auth_ctx,
 
 	/* save the PAC data if we have it */
 	if (logon_info) {
-		netsamlogon_cache_store(ntuser, &logon_info->info3);
+		status = create_info3_from_pac_logon_info(tmp_ctx,
+					logon_info,
+					&info3_copy);
+		if (!NT_STATUS_IS_OK(status)) {
+			goto done;
+		}
+		netsamlogon_cache_store(ntuser, info3_copy);
 	}
 
 	/* setup the string used by %U */
@@ -112,7 +120,7 @@ static NTSTATUS auth3_generate_session_info_pac(struct auth4_context *auth_ctx,
 
 	status = make_session_info_krb5(mem_ctx,
 					ntuser, ntdomain, username, pw,
-					logon_info, is_guest, is_mapped, NULL /* No session key for now, caller will sort it out */,
+					info3_copy, is_guest, is_mapped, NULL /* No session key for now, caller will sort it out */,
 					session_info);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(1, ("Failed to map kerberos pac to server info (%s)\n",
@@ -162,7 +170,7 @@ NTSTATUS make_auth4_context(TALLOC_CTX *mem_ctx, struct auth4_context **auth4_co
 	}
 
 	if (auth_context->make_auth4_context) {
-		nt_status = auth_context->make_auth4_context(mem_ctx, auth4_context_out);
+		nt_status = auth_context->make_auth4_context(auth_context, mem_ctx, auth4_context_out);
 		TALLOC_FREE(tmp_ctx);
 		return nt_status;
 
@@ -196,13 +204,14 @@ NTSTATUS auth_generic_prepare(TALLOC_CTX *mem_ctx,
 	}
 
 	if (auth_context->prepare_gensec) {
-		nt_status = auth_context->prepare_gensec(tmp_ctx,
+		nt_status = auth_context->prepare_gensec(auth_context, tmp_ctx,
 							 &gensec_security);
 		if (!NT_STATUS_IS_OK(nt_status)) {
 			TALLOC_FREE(tmp_ctx);
 			return nt_status;
 		}
 	} else {
+		const struct gensec_security_ops **backends = NULL;
 		struct gensec_settings *gensec_settings;
 		struct loadparm_context *lp_ctx;
 		size_t idx = 0;
@@ -259,24 +268,28 @@ NTSTATUS auth_generic_prepare(TALLOC_CTX *mem_ctx,
 			return NT_STATUS_NO_MEMORY;
 		}
 
-		gensec_settings->backends = talloc_zero_array(gensec_settings,
-						struct gensec_security_ops *, 4);
-		if (gensec_settings->backends == NULL) {
+		backends = talloc_zero_array(gensec_settings,
+					     const struct gensec_security_ops *, 6);
+		if (backends == NULL) {
 			TALLOC_FREE(tmp_ctx);
 			return NT_STATUS_NO_MEMORY;
 		}
+		gensec_settings->backends = backends;
 
 		gensec_init();
 
 		/* These need to be in priority order, krb5 before NTLMSSP */
 #if defined(HAVE_KRB5)
-		gensec_settings->backends[idx++] = &gensec_gse_krb5_security_ops;
+		backends[idx++] = &gensec_gse_krb5_security_ops;
 #endif
 
-		gensec_settings->backends[idx++] = gensec_security_by_oid(NULL, GENSEC_OID_NTLMSSP);
+		backends[idx++] = gensec_security_by_oid(NULL, GENSEC_OID_NTLMSSP);
 
-		gensec_settings->backends[idx++] = gensec_security_by_oid(NULL,
-							GENSEC_OID_SPNEGO);
+		backends[idx++] = gensec_security_by_oid(NULL, GENSEC_OID_SPNEGO);
+
+		backends[idx++] = gensec_security_by_auth_type(NULL, DCERPC_AUTH_TYPE_SCHANNEL);
+
+		backends[idx++] = gensec_security_by_auth_type(NULL, DCERPC_AUTH_TYPE_NCALRPC_AS_SYSTEM);
 
 		/*
 		 * This is anonymous for now, because we just use it

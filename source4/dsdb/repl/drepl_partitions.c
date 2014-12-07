@@ -153,10 +153,10 @@ static bool dreplsrv_spn_exists(struct ldb_context *samdb, struct ldb_dn *accoun
 /*
   work out the principal to use for DRS replication connections
  */
-NTSTATUS dreplsrv_get_target_principal(struct dreplsrv_service *s,
-				       TALLOC_CTX *mem_ctx,
-				       const struct repsFromTo1 *rft,
-				       const char **target_principal)
+static NTSTATUS dreplsrv_get_target_principal(struct dreplsrv_service *s,
+					      TALLOC_CTX *mem_ctx,
+					      const struct repsFromTo1 *rft,
+					      char **target_principal)
 {
 	TALLOC_CTX *tmp_ctx;
 	struct ldb_result *res;
@@ -270,9 +270,9 @@ NTSTATUS dreplsrv_get_target_principal(struct dreplsrv_service *s,
 
 	if (dnsdomain != NULL) {
 		*target_principal = talloc_asprintf(mem_ctx,
-						    "E3514235-4B06-11D1-AB04-00C04FC2DCD2/%s/%s",
+						    "E3514235-4B06-11D1-AB04-00C04FC2DCD2/%s/%s@%s",
 						    GUID_string(tmp_ctx, &rft->source_dsa_obj_guid),
-						    dnsdomain);
+						    dnsdomain, dnsdomain);
 	}
 
 	talloc_free(tmp_ctx);
@@ -297,8 +297,15 @@ WERROR dreplsrv_out_connection_attach(struct dreplsrv_service *s,
 
 	hostname = rft->other_info->dns_name;
 
-	for (cur = s->connections; cur; cur = cur->next) {		
-		if (strcmp(cur->binding->host, hostname) == 0) {
+	for (cur = s->connections; cur; cur = cur->next) {
+		const char *host;
+
+		host = dcerpc_binding_get_string_option(cur->binding, "host");
+		if (host == NULL) {
+			continue;
+		}
+
+		if (strcmp(host, hostname) == 0) {
 			conn = cur;
 			break;
 		}
@@ -307,6 +314,7 @@ WERROR dreplsrv_out_connection_attach(struct dreplsrv_service *s,
 	if (!conn) {
 		NTSTATUS nt_status;
 		char *binding_str;
+		char *target_principal = NULL;
 
 		conn = talloc_zero(s, struct dreplsrv_out_connection);
 		W_ERROR_HAVE_NO_MEMORY(conn);
@@ -324,16 +332,24 @@ WERROR dreplsrv_out_connection_attach(struct dreplsrv_service *s,
 
 		/* use the GC principal for DRS replication */
 		nt_status = dreplsrv_get_target_principal(s, conn->binding,
-							  rft, &conn->binding->target_principal);
+							  rft, &target_principal);
+		if (!NT_STATUS_IS_OK(nt_status)) {
+			return ntstatus_to_werror(nt_status);
+		}
+
+		nt_status = dcerpc_binding_set_string_option(conn->binding,
+							     "target_principal",
+							     target_principal);
+		TALLOC_FREE(target_principal);
 		if (!NT_STATUS_IS_OK(nt_status)) {
 			return ntstatus_to_werror(nt_status);
 		}
 
 		DLIST_ADD_END(s->connections, conn, struct dreplsrv_out_connection *);
 
-		DEBUG(4,("dreplsrv_out_connection_attach(%s): create\n", conn->binding->host));
+		DEBUG(4,("dreplsrv_out_connection_attach(%s): create\n", hostname));
 	} else {
-		DEBUG(4,("dreplsrv_out_connection_attach(%s): attach\n", conn->binding->host));
+		DEBUG(4,("dreplsrv_out_connection_attach(%s): attach\n", hostname));
 	}
 
 	*_conn = conn;
@@ -348,7 +364,7 @@ static struct dreplsrv_partition_source_dsa *dreplsrv_find_source_dsa(struct dre
 {
 	struct dreplsrv_partition_source_dsa *s;
 	for (s=list; s; s=s->next) {
-		if (GUID_compare(&s->repsFrom1->source_dsa_obj_guid, guid) == 0) {
+		if (GUID_equal(&s->repsFrom1->source_dsa_obj_guid, guid)) {
 			return s;
 		}
 	}
@@ -399,8 +415,8 @@ static WERROR dreplsrv_partition_add_source_dsa(struct dreplsrv_service *s,
 
 	/* re-use an existing source if found */
 	for (s2=*listp; s2; s2=s2->next) {
-		if (GUID_compare(&s2->repsFrom1->source_dsa_obj_guid, 
-				 &source->repsFrom1->source_dsa_obj_guid) == 0) {
+		if (GUID_equal(&s2->repsFrom1->source_dsa_obj_guid,
+				 &source->repsFrom1->source_dsa_obj_guid)) {
 			talloc_free(s2->repsFrom1->other_info);
 			*s2->repsFrom1 = *source->repsFrom1;
 			talloc_steal(s2, s2->repsFrom1->other_info);

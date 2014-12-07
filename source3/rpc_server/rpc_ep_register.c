@@ -35,10 +35,9 @@ static NTSTATUS rpc_ep_try_register(TALLOC_CTX *mem_ctx,
 				    const struct dcerpc_binding_vector *v,
 				    struct dcerpc_binding_handle **pbh);
 
-struct rpc_ep_regsiter_state {
+struct rpc_ep_register_state {
 	struct dcerpc_binding_handle *h;
 
-	TALLOC_CTX *mem_ctx;
 	struct tevent_context *ev_ctx;
 	struct messaging_context *msg_ctx;
 
@@ -53,20 +52,11 @@ NTSTATUS rpc_ep_register(struct tevent_context *ev_ctx,
 			 const struct ndr_interface_table *iface,
 			 const struct dcerpc_binding_vector *v)
 {
-	struct rpc_ep_regsiter_state *state;
+	struct rpc_ep_register_state *state;
 	struct tevent_req *req;
 
-	state = talloc(ev_ctx, struct rpc_ep_regsiter_state);
+	state = talloc(ev_ctx, struct rpc_ep_register_state);
 	if (state == NULL) {
-		return NT_STATUS_NO_MEMORY;
-	}
-
-	state->mem_ctx = talloc_named(state,
-				      0,
-				      "ep %s %p",
-				      iface->name, state);
-	if (state->mem_ctx == NULL) {
-		talloc_free(state);
 		return NT_STATUS_NO_MEMORY;
 	}
 
@@ -80,10 +70,10 @@ NTSTATUS rpc_ep_register(struct tevent_context *ev_ctx,
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	req = tevent_wakeup_send(state->mem_ctx,
+	req = tevent_wakeup_send(state,
 				 state->ev_ctx,
 				 timeval_current_ofs(1, 0));
-	if (tevent_req_nomem(state->mem_ctx, req)) {
+	if (req == NULL) {
 		talloc_free(state);
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -98,8 +88,8 @@ static void rpc_ep_monitor_loop(struct tevent_req *subreq);
 
 static void rpc_ep_register_loop(struct tevent_req *subreq)
 {
-	struct rpc_ep_regsiter_state *state =
-		tevent_req_callback_data(subreq, struct rpc_ep_regsiter_state);
+	struct rpc_ep_register_state *state =
+		tevent_req_callback_data(subreq, struct rpc_ep_register_state);
 	NTSTATUS status;
 	bool ok;
 
@@ -110,7 +100,7 @@ static void rpc_ep_register_loop(struct tevent_req *subreq)
 		return;
 	}
 
-	status = rpc_ep_try_register(state->mem_ctx,
+	status = rpc_ep_try_register(state,
 				     state->ev_ctx,
 				     state->msg_ctx,
 				     state->iface,
@@ -118,10 +108,10 @@ static void rpc_ep_register_loop(struct tevent_req *subreq)
 				     &state->h);
 	if (NT_STATUS_IS_OK(status)) {
 		/* endpoint registered, monitor the connnection. */
-		subreq = tevent_wakeup_send(state->mem_ctx,
+		subreq = tevent_wakeup_send(state,
 					    state->ev_ctx,
 					    timeval_current_ofs(MONITOR_WAIT_TIME, 0));
-		if (tevent_req_nomem(state->mem_ctx, subreq)) {
+		if (subreq == NULL) {
 			talloc_free(state);
 			return;
 		}
@@ -137,10 +127,10 @@ static void rpc_ep_register_loop(struct tevent_req *subreq)
 		state->wait_time = 16;
 	}
 
-	subreq = tevent_wakeup_send(state->mem_ctx,
+	subreq = tevent_wakeup_send(state,
 				    state->ev_ctx,
 				    timeval_current_ofs(state->wait_time, 0));
-	if (tevent_req_nomem(state->mem_ctx, subreq)) {
+	if (subreq == NULL) {
 		talloc_free(state);
 		return;
 	}
@@ -178,10 +168,10 @@ static NTSTATUS rpc_ep_try_register(TALLOC_CTX *mem_ctx,
  */
 static void rpc_ep_monitor_loop(struct tevent_req *subreq)
 {
-	struct rpc_ep_regsiter_state *state =
-		tevent_req_callback_data(subreq, struct rpc_ep_regsiter_state);
+	struct rpc_ep_register_state *state =
+		tevent_req_callback_data(subreq, struct rpc_ep_register_state);
 	struct policy_handle entry_handle;
-	struct dcerpc_binding map_binding;
+	struct dcerpc_binding *map_binding;
 	struct epm_twr_p_t towers[10];
 	struct epm_twr_t *map_tower;
 	uint32_t num_towers = 0;
@@ -203,15 +193,26 @@ static void rpc_ep_monitor_loop(struct tevent_req *subreq)
 	ok = tevent_wakeup_recv(subreq);
 	TALLOC_FREE(subreq);
 	if (!ok) {
+		talloc_free(tmp_ctx);
 		talloc_free(state);
 		return;
 	}
 
 	/* Create map tower */
-	map_binding.transport = NCACN_NP;
-	map_binding.object = state->iface->syntax_id;
-	map_binding.host = "";
-	map_binding.endpoint = "";
+	status = dcerpc_parse_binding(tmp_ctx, "ncacn_np:", &map_binding);
+	if (!NT_STATUS_IS_OK(status)) {
+		talloc_free(tmp_ctx);
+		talloc_free(state);
+		return;
+	}
+
+	status = dcerpc_binding_set_abstract_syntax(map_binding,
+						&state->iface->syntax_id);
+	if (!NT_STATUS_IS_OK(status)) {
+		talloc_free(tmp_ctx);
+		talloc_free(state);
+		return;
+	}
 
 	map_tower = talloc_zero(tmp_ctx, struct epm_twr_t);
 	if (map_tower == NULL) {
@@ -220,7 +221,7 @@ static void rpc_ep_monitor_loop(struct tevent_req *subreq)
 		return;
 	}
 
-	status = dcerpc_binding_build_tower(map_tower, &map_binding,
+	status = dcerpc_binding_build_tower(map_tower, map_binding,
 					    &map_tower->tower);
 	if (!NT_STATUS_IS_OK(status)) {
 		talloc_free(tmp_ctx);
@@ -255,10 +256,10 @@ static void rpc_ep_monitor_loop(struct tevent_req *subreq)
 				    &result);
 	talloc_free(tmp_ctx);
 
-	subreq = tevent_wakeup_send(state->mem_ctx,
+	subreq = tevent_wakeup_send(state,
 				    state->ev_ctx,
 				    timeval_current_ofs(MONITOR_WAIT_TIME, 0));
-	if (tevent_req_nomem(state->mem_ctx, subreq)) {
+	if (subreq == NULL) {
 		talloc_free(state);
 		return;
 	}

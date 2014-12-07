@@ -31,9 +31,11 @@ struct smb2cli_create_state {
 	uint64_t fid_volatile;
 	struct smb_create_returns cr;
 	struct smb2_create_blobs blobs;
+	struct tevent_req *subreq;
 };
 
 static void smb2cli_create_done(struct tevent_req *subreq);
+static bool smb2cli_create_cancel(struct tevent_req *req);
 
 struct tevent_req *smb2cli_create_send(
 	TALLOC_CTX *mem_ctx,
@@ -159,7 +161,18 @@ struct tevent_req *smb2cli_create_send(
 		return tevent_req_post(req, ev);
 	}
 	tevent_req_set_callback(subreq, smb2cli_create_done, req);
+
+	state->subreq = subreq;
+	tevent_req_set_cancel_fn(req, smb2cli_create_cancel);
+
 	return req;
+}
+
+static bool smb2cli_create_cancel(struct tevent_req *req)
+{
+	struct smb2cli_create_state *state = tevent_req_data(req,
+		struct smb2cli_create_state);
+	return tevent_req_cancel(state->subreq);
 }
 
 static void smb2cli_create_done(struct tevent_req *subreq)
@@ -225,7 +238,9 @@ static void smb2cli_create_done(struct tevent_req *subreq)
 NTSTATUS smb2cli_create_recv(struct tevent_req *req,
 			     uint64_t *fid_persistent,
 			     uint64_t *fid_volatile,
-			     struct smb_create_returns *cr)
+			     struct smb_create_returns *cr,
+			     TALLOC_CTX *mem_ctx,
+			     struct smb2_create_blobs *blobs)
 {
 	struct smb2cli_create_state *state =
 		tevent_req_data(req,
@@ -239,6 +254,10 @@ NTSTATUS smb2cli_create_recv(struct tevent_req *req,
 	*fid_volatile = state->fid_volatile;
 	if (cr) {
 		*cr = state->cr;
+	}
+	if (blobs) {
+		blobs->num_blobs = state->blobs.num_blobs;
+		blobs->blobs = talloc_move(mem_ctx, &state->blobs.blobs);
 	}
 	return NT_STATUS_OK;
 }
@@ -258,7 +277,9 @@ NTSTATUS smb2cli_create(struct smbXcli_conn *conn,
 			struct smb2_create_blobs *blobs,
 			uint64_t *fid_persistent,
 			uint64_t *fid_volatile,
-			struct smb_create_returns *cr)
+			struct smb_create_returns *cr,
+			TALLOC_CTX *mem_ctx,
+			struct smb2_create_blobs *ret_blobs)
 {
 	TALLOC_CTX *frame = talloc_stackframe();
 	struct tevent_context *ev;
@@ -289,7 +310,8 @@ NTSTATUS smb2cli_create(struct smbXcli_conn *conn,
 	if (!tevent_req_poll_ntstatus(req, ev, &status)) {
 		goto fail;
 	}
-	status = smb2cli_create_recv(req, fid_persistent, fid_volatile, cr);
+	status = smb2cli_create_recv(req, fid_persistent, fid_volatile, cr,
+				     mem_ctx, ret_blobs);
  fail:
 	TALLOC_FREE(frame);
 	return status;

@@ -94,7 +94,7 @@ static void smbd_smb2_request_oplock_break_done(struct tevent_req *subreq)
 	if (!NT_STATUS_IS_OK(status)) {
 		error = smbd_smb2_request_error(req, status);
 		if (!NT_STATUS_IS_OK(error)) {
-			smbd_server_connection_terminate(req->sconn,
+			smbd_server_connection_terminate(req->xconn,
 							 nt_errstr(error));
 			return;
 		}
@@ -106,11 +106,11 @@ static void smbd_smb2_request_oplock_break_done(struct tevent_req *subreq)
 	in_file_id_persistent	= BVAL(inbody, 0x08);
 	in_file_id_volatile	= BVAL(inbody, 0x10);
 
-	outbody = data_blob_talloc(req->out.vector, NULL, 0x18);
+	outbody = smbd_smb2_generate_outbody(req, 0x18);
 	if (outbody.data == NULL) {
 		error = smbd_smb2_request_error(req, NT_STATUS_NO_MEMORY);
 		if (!NT_STATUS_IS_OK(error)) {
-			smbd_server_connection_terminate(req->sconn,
+			smbd_server_connection_terminate(req->xconn,
 							 nt_errstr(error));
 			return;
 		}
@@ -129,7 +129,7 @@ static void smbd_smb2_request_oplock_break_done(struct tevent_req *subreq)
 
 	error = smbd_smb2_request_done(req, outbody, NULL);
 	if (!NT_STATUS_IS_OK(error)) {
-		smbd_server_connection_terminate(req->sconn,
+		smbd_server_connection_terminate(req->xconn,
 						 nt_errstr(error));
 		return;
 	}
@@ -233,11 +233,19 @@ void send_break_message_smb2(files_struct *fsp, int level)
 				SMB2_OPLOCK_LEVEL_II :
 				SMB2_OPLOCK_LEVEL_NONE;
 	NTSTATUS status;
+	struct smbXsrv_connection *xconn = NULL;
 	struct smbXsrv_session *session = NULL;
 	struct timeval tv = timeval_current();
 	NTTIME now = timeval_to_nttime(&tv);
 
-	status = smb2srv_session_lookup(fsp->conn->sconn->conn,
+	/*
+	 * TODO: in future we should have a better algorithm
+	 * to find the correct connection for a break message.
+	 * Then we also need some retries if a channel gets disconnected.
+	 */
+	xconn = fsp->conn->sconn->client->connections;
+
+	status = smb2srv_session_lookup(xconn,
 					fsp->vuid,
 					now,
 					&session);
@@ -260,13 +268,14 @@ void send_break_message_smb2(files_struct *fsp, int level)
 		fsp_fnum_dbg(fsp),
 		(unsigned int)smb2_oplock_level ));
 
-	status = smbd_smb2_send_oplock_break(fsp->conn->sconn,
+	status = smbd_smb2_send_oplock_break(xconn,
 					     session,
 					     fsp->conn->tcon,
 					     fsp->op,
 					     smb2_oplock_level);
 	if (!NT_STATUS_IS_OK(status)) {
-		smbd_server_connection_terminate(fsp->conn->sconn,
-				 nt_errstr(status));
+		smbd_server_connection_terminate(xconn,
+						 nt_errstr(status));
+		return;
 	}
 }

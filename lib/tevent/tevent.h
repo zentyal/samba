@@ -319,6 +319,8 @@ void _tevent_schedule_immediate(struct tevent_immediate *im,
  *
  * @note To cancel a signal handler, call talloc_free() on the event returned
  * from this function.
+ *
+ * @see tevent_num_signals, tevent_sa_info_queue_count
  */
 struct tevent_signal *tevent_add_signal(struct tevent_context *ev,
                      TALLOC_CTX *mem_ctx,
@@ -339,6 +341,31 @@ struct tevent_signal *_tevent_add_signal(struct tevent_context *ev,
 	_tevent_add_signal(ev, mem_ctx, signum, sa_flags, handler, private_data, \
 			   #handler, __location__)
 #endif
+
+/**
+ * @brief the number of supported signals
+ *
+ * This returns value of the configure time TEVENT_NUM_SIGNALS constant.
+ *
+ * The 'signum' argument of tevent_add_signal() must be less than
+ * TEVENT_NUM_SIGNALS.
+ *
+ * @see tevent_add_signal
+ */
+size_t tevent_num_signals(void);
+
+/**
+ * @brief the number of pending realtime signals
+ *
+ * This returns value of TEVENT_SA_INFO_QUEUE_COUNT.
+ *
+ * The tevent internals remember the last TEVENT_SA_INFO_QUEUE_COUNT
+ * siginfo_t structures for SA_SIGINFO signals. If the system generates
+ * more some signals get lost.
+ *
+ * @see tevent_add_signal
+ */
+size_t tevent_sa_info_queue_count(void);
 
 #ifdef DOXYGEN
 /**
@@ -907,6 +934,41 @@ bool _tevent_req_cancel(struct tevent_req *req, const char *location);
 	_tevent_req_cancel(req, __location__)
 #endif
 
+/**
+ * @brief A typedef for a cleanup function for a tevent request.
+ *
+ * @param[in]  req       The tevent request calling this function.
+ *
+ * @param[in]  req_state The current tevent_req_state.
+ *
+ */
+typedef void (*tevent_req_cleanup_fn)(struct tevent_req *req,
+				      enum tevent_req_state req_state);
+
+/**
+ * @brief This function sets a cleanup function for the given tevent request.
+ *
+ * This function can be used to setup a cleanup function for the given request.
+ * This will be triggered when the tevent_req_done() or tevent_req_error()
+ * function was called, before notifying the callers callback function,
+ * and also before scheduling the deferred trigger.
+ *
+ * This might be useful if more than one tevent_req belong together
+ * and need to finish both requests at the same time.
+ *
+ * The cleanup function is able to call tevent_req_done() or tevent_req_error()
+ * recursively, the cleanup function is only triggered the first time.
+ *
+ * The cleanup function is also called by tevent_req_received()
+ * (possibly triggered from tevent_req_destructor()) before destroying
+ * the private data of the tevent_req.
+ *
+ * @param[in]  req      The request to use.
+ *
+ * @param[in]  fn       A pointer to the cancel function.
+ */
+void tevent_req_set_cleanup_fn(struct tevent_req *req, tevent_req_cleanup_fn fn);
+
 #ifdef DOXYGEN
 /**
  * @brief Create an async tevent request.
@@ -919,9 +981,9 @@ bool _tevent_req_cancel(struct tevent_req *req, const char *location);
  * req = tevent_req_create(mem_ctx, &state, struct computation_state);
  * @endcode
  *
- * Tevent_req_create() creates the state variable as a talloc child of
- * its result. The state variable should be used as the talloc parent
- * for all temporary variables that are allocated during the async
+ * Tevent_req_create() allocates and zeros the state variable as a talloc
+ * child of its result. The state variable should be used as the talloc
+ * parent for all temporary variables that are allocated during the async
  * computation. This way, when the user of the async computation frees
  * the request, the state as a talloc child will be free'd along with
  * all the temporary variables hanging off the state.
@@ -1591,6 +1653,39 @@ size_t tevent_queue_length(struct tevent_queue *queue);
  * @return              Wether the queue is running or not..
  */
 bool tevent_queue_running(struct tevent_queue *queue);
+
+/**
+ * @brief Create a tevent subrequest that waits in a tevent_queue
+ *
+ * The idea is that always the same syntax for tevent requests.
+ *
+ * @param[in]  mem_ctx  The talloc memory context to use.
+ *
+ * @param[in]  ev       The event handle to setup the request.
+ *
+ * @param[in]  queue    The queue to wait in.
+ *
+ * @return              The new subrequest, NULL on error.
+ *
+ * @see tevent_queue_wait_recv()
+ */
+struct tevent_req *tevent_queue_wait_send(TALLOC_CTX *mem_ctx,
+					  struct tevent_context *ev,
+					  struct tevent_queue *queue);
+
+/**
+ * @brief Check if we no longer need to wait in the queue.
+ *
+ * This function needs to be called in the callback function set after calling
+ * tevent_queue_wait_send().
+ *
+ * @param[in]  req      The tevent request to check.
+ *
+ * @return              True on success, false otherwise.
+ *
+ * @see tevent_queue_wait_send()
+ */
+bool tevent_queue_wait_recv(struct tevent_req *req);
 
 typedef int (*tevent_nesting_hook)(struct tevent_context *ev,
 				   void *private_data,

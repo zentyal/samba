@@ -87,10 +87,6 @@ static NTSTATUS idmap_rid_id_to_sid(struct idmap_domain *dom, struct id_map *map
 
 	sid_compose(map->sid, &domain->sid, map->xid.id - dom->low_id + ctx->base_rid);
 
-	/* We **really** should have some way of validating 
-	   the SID exists and is the correct type here.  But 
-	   that is a deficiency in the idmap_rid design. */
-
 	map->status = ID_MAPPED;
 	map->xid.type = ID_TYPE_BOTH;
 
@@ -189,7 +185,7 @@ static struct idmap_methods rid_methods = {
 	.sids_to_unixids = idmap_rid_sids_to_unixids,
 };
 
-NTSTATUS samba_init_module(void)
+NTSTATUS idmap_rid_init(void)
 {
 	return smb_register_idmap(SMB_IDMAP_INTERFACE_VERSION, "rid", &rid_methods);
 }

@@ -26,6 +26,7 @@
 #include "../libcli/security/security.h"
 #include "../libcli/auth/pam_errors.h"
 #include "passdb/machine_sid.h"
+#include "passdb.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
@@ -498,8 +499,8 @@ static void rescan_forest_trusts( void )
 			continue;
 
 		if ( (flags & NETR_TRUST_FLAG_INBOUND) &&
-		     (type == NETR_TRUST_TYPE_UPLEVEL) &&
-		     (attribs == NETR_TRUST_ATTRIBUTE_FOREST_TRANSITIVE) )
+		     (type == LSA_TRUST_TYPE_UPLEVEL) &&
+		     (attribs == LSA_TRUST_ATTRIBUTE_FOREST_TRANSITIVE) )
 		{
 			/* add the trusted domain if we don't know
 			   about it */
@@ -576,11 +577,7 @@ enum winbindd_result winbindd_dual_init_connection(struct winbindd_domain *domai
 		fstrcpy(domain->dcname, state->request->data.init_conn.dcname);
 	}
 
-	if (domain->internal) {
-		domain->initialized = true;
-	} else {
-		init_dc_connection(domain);
-	}
+	init_dc_connection(domain, false);
 
 	if (!domain->initialized) {
 		/* If we return error here we can't do any cached authentication,
@@ -621,9 +618,39 @@ bool init_domain_list(void)
 
 	/* Local SAM */
 
-	(void)add_trusted_domain(get_global_sam_name(), NULL,
-				    &cache_methods, get_global_sam_sid());
+	if ( role == ROLE_ACTIVE_DIRECTORY_DC ) {
+		struct winbindd_domain *domain;
+		enum netr_SchannelType sec_chan_type;
+		const char *account_name;
+		struct samr_Password current_nt_hash;
+		bool ok;
 
+		domain = add_trusted_domain(get_global_sam_name(), lp_dnsdomain(),
+					    &cache_methods, get_global_sam_sid());
+		if (domain == NULL) {
+			DEBUG(0, ("Failed to add our own, local AD domain to winbindd's internal list\n"));
+			return false;
+		}
+
+		/*
+		 * We need to call this to find out if we are an RODC
+		 */
+		ok = get_trust_pw_hash(domain->name,
+				       current_nt_hash.hash,
+				       &account_name,
+				       &sec_chan_type);
+		if (!ok) {
+			DEBUG(0, ("Failed to fetch our own, local AD domain join password for winbindd's internal use\n"));
+			return false;
+		}
+		if (sec_chan_type == SEC_CHAN_RODC) {
+			domain->rodc = true;
+		}
+
+	} else {
+		(void)add_trusted_domain(get_global_sam_name(), NULL,
+					 &cache_methods, get_global_sam_sid());
+	}
 	/* Add ourselves as the first entry. */
 
 	if ( role == ROLE_DOMAIN_MEMBER ) {
@@ -692,7 +719,7 @@ struct winbindd_domain *find_domain_from_name(const char *domain_name)
 		return NULL;
 
 	if (!domain->initialized)
-		init_dc_connection(domain);
+		init_dc_connection(domain, false);
 
 	return domain;
 }
@@ -727,7 +754,7 @@ struct winbindd_domain *find_domain_from_sid(const struct dom_sid *sid)
 		return NULL;
 
 	if (!domain->initialized)
-		init_dc_connection(domain);
+		init_dc_connection(domain, false);
 
 	return domain;
 }

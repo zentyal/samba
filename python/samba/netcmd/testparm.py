@@ -105,7 +105,7 @@ class cmd_testparm(Command):
                     lp[section_name].dump(sys.stdout, lp.default_service,
                             verbose)
                 else:
-                    self.outf.write(lp.get(parameter_name, section_name)+"\n")
+                    lp.dump_a_parameter(sys.stdout, parameter_name, section_name)
             else:
                 if not suppress_prompt:
                     self.outf.write("Press enter to see a dump of your service definitions\n")
@@ -155,6 +155,14 @@ class cmd_testparm(Command):
                 "'winbind separator = +' might cause problems with group "
                 "membership.")
             valid = False
+
+        role = lp.get("server role")
+        charset = lp.get("unix charset").upper()
+
+        if role in ["active directory domain controller", "domain controller", "dc"] and charset not in ["UTF-8", "UTF8"]:
+            logger.warning(
+                "When acting as Active Directory domain controller, "
+                "unix charset is expected to be UTF-8.")
 
         return valid
 

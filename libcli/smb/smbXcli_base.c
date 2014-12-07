@@ -48,6 +48,8 @@ struct smbXcli_conn {
 	struct tevent_req **pending;
 	struct tevent_req *read_smb_req;
 
+	enum protocol_types min_protocol;
+	enum protocol_types max_protocol;
 	enum protocol_types protocol;
 	bool allow_signing;
 	bool desire_signing;
@@ -140,6 +142,7 @@ struct smb2cli_session {
 	uint64_t nonce_high;
 	uint64_t nonce_low;
 	uint16_t channel_sequence;
+	bool replay_active;
 };
 
 struct smbXcli_session {
@@ -185,6 +188,7 @@ struct smbXcli_tcon {
 		uint32_t flags;
 		uint32_t capabilities;
 		uint32_t maximal_access;
+		bool should_sign;
 		bool should_encrypt;
 	} smb2;
 };
@@ -337,6 +341,8 @@ struct smbXcli_conn *smbXcli_conn_create(TALLOC_CTX *mem_ctx,
 	}
 	conn->pending = NULL;
 
+	conn->min_protocol = PROTOCOL_NONE;
+	conn->max_protocol = PROTOCOL_NONE;
 	conn->protocol = PROTOCOL_NONE;
 
 	switch (signing_state) {
@@ -785,7 +791,7 @@ void smbXcli_req_unset_pending(struct tevent_req *req)
 		return;
 	}
 
-	talloc_set_destructor(req, NULL);
+	tevent_req_set_cleanup_fn(req, NULL);
 
 	if (num_pending == 1) {
 		/*
@@ -828,19 +834,25 @@ void smbXcli_req_unset_pending(struct tevent_req *req)
 	return;
 }
 
-static int smbXcli_req_destructor(struct tevent_req *req)
+static void smbXcli_req_cleanup(struct tevent_req *req,
+				enum tevent_req_state req_state)
 {
 	struct smbXcli_req_state *state =
 		tevent_req_data(req,
 		struct smbXcli_req_state);
 
-	/*
-	 * Make sure we really remove it from
-	 * the pending array on destruction.
-	 */
-	state->smb1.mid = 0;
-	smbXcli_req_unset_pending(req);
-	return 0;
+	switch (req_state) {
+	case TEVENT_REQ_RECEIVED:
+		/*
+		 * Make sure we really remove it from
+		 * the pending array on destruction.
+		 */
+		state->smb1.mid = 0;
+		smbXcli_req_unset_pending(req);
+		return;
+	default:
+		return;
+	}
 }
 
 static bool smb1cli_req_cancel(struct tevent_req *req);
@@ -893,7 +905,7 @@ bool smbXcli_req_set_pending(struct tevent_req *req)
 	}
 	pending[num_pending] = req;
 	conn->pending = pending;
-	talloc_set_destructor(req, smbXcli_req_destructor);
+	tevent_req_set_cleanup_fn(req, smbXcli_req_cleanup);
 	tevent_req_set_cancel_fn(req, smbXcli_req_cancel);
 
 	if (!smbXcli_conn_receive_next(conn)) {
@@ -1608,8 +1620,7 @@ static void smbXcli_conn_received(struct tevent_req *subreq)
 	if (subreq != conn->read_smb_req) {
 		DEBUG(1, ("Internal error: cli_smb_received called with "
 			  "unexpected subreq\n"));
-		status = NT_STATUS_INTERNAL_ERROR;
-		smbXcli_conn_disconnect(conn, status);
+		smbXcli_conn_disconnect(conn, NT_STATUS_INTERNAL_ERROR);
 		TALLOC_FREE(frame);
 		return;
 	}
@@ -1633,7 +1644,9 @@ static void smbXcli_conn_received(struct tevent_req *subreq)
 		 * tevent_req_done().
 		 */
 		return;
-	} else if (!NT_STATUS_EQUAL(status, NT_STATUS_RETRY)) {
+	}
+
+	if (!NT_STATUS_EQUAL(status, NT_STATUS_RETRY)) {
 		/*
 		 * We got an error, so notify all pending requests
 		 */
@@ -2625,6 +2638,7 @@ struct tevent_req *smb2cli_req_create(TALLOC_CTX *mem_ctx,
 	uint64_t uid = 0;
 	bool use_channel_sequence = false;
 	uint16_t channel_sequence = 0;
+	bool use_replay_flag = false;
 
 	req = tevent_req_create(mem_ctx, &state,
 				struct smbXcli_req_state);
@@ -2643,11 +2657,19 @@ struct tevent_req *smb2cli_req_create(TALLOC_CTX *mem_ctx,
 		use_channel_sequence = true;
 	}
 
+	if (smbXcli_conn_protocol(conn) >= PROTOCOL_SMB3_00) {
+		use_replay_flag = true;
+	}
+
 	if (session) {
 		uid = session->smb2->session_id;
 
 		if (use_channel_sequence) {
 			channel_sequence = session->smb2->channel_sequence;
+		}
+
+		if (use_replay_flag && session->smb2->replay_active) {
+			additional_flags |= SMB2_HDR_FLAG_REPLAY_OPERATION;
 		}
 
 		state->smb2.should_sign = session->smb2->should_sign;
@@ -2662,11 +2684,24 @@ struct tevent_req *smb2cli_req_create(TALLOC_CTX *mem_ctx,
 		    session->smb2_channel.signing_key.length == 0) {
 			state->smb2.should_encrypt = false;
 		}
+
+		if (additional_flags & SMB2_HDR_FLAG_SIGNED) {
+			if (session->smb2_channel.signing_key.length == 0) {
+				tevent_req_nterror(req, NT_STATUS_NO_USER_SESSION_KEY);
+				return req;
+			}
+
+			additional_flags &= ~SMB2_HDR_FLAG_SIGNED;
+			state->smb2.should_sign = true;
+		}
 	}
 
 	if (tcon) {
 		tid = tcon->smb2.tcon_id;
 
+		if (tcon->smb2.should_sign) {
+			state->smb2.should_sign = true;
+		}
 		if (tcon->smb2.should_encrypt) {
 			state->smb2.should_encrypt = true;
 		}
@@ -3342,8 +3377,6 @@ static NTSTATUS smb2cli_conn_dispatch_incoming(struct smbXcli_conn *conn,
 		}
 		state = tevent_req_data(req, struct smbXcli_req_state);
 
-		state->smb2.got_async = false;
-
 		req_opcode = SVAL(state->smb2.hdr, SMB2_HDR_OPCODE);
 		if (opcode != req_opcode) {
 			return NT_STATUS_INVALID_NETWORK_RESPONSE;
@@ -3359,6 +3392,12 @@ static NTSTATUS smb2cli_conn_dispatch_incoming(struct smbXcli_conn *conn,
 		    NT_STATUS_EQUAL(status, STATUS_PENDING)) {
 			uint64_t async_id = BVAL(inhdr, SMB2_HDR_ASYNC_ID);
 
+			if (state->smb2.got_async) {
+				/* We only expect one STATUS_PENDING response */
+				return NT_STATUS_INVALID_NETWORK_RESPONSE;
+			}
+			state->smb2.got_async = true;
+
 			/*
 			 * async interim responses are not signed,
 			 * even if the SMB2_HDR_FLAG_SIGNED flag
@@ -3369,7 +3408,6 @@ static NTSTATUS smb2cli_conn_dispatch_incoming(struct smbXcli_conn *conn,
 			SBVAL(state->smb2.hdr, SMB2_HDR_ASYNC_ID, async_id);
 
 			if (state->smb2.notify_async) {
-				state->smb2.got_async = true;
 				tevent_req_defer_callback(req, state->ev);
 				tevent_req_notify_callback(req);
 			}
@@ -3614,7 +3652,7 @@ NTSTATUS smb2cli_req_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx,
 		*piov = NULL;
 	}
 
-	if (state->smb2.got_async) {
+	if (tevent_req_is_in_progress(req) && state->smb2.got_async) {
 		return STATUS_PENDING;
 	}
 
@@ -3709,14 +3747,13 @@ static const struct {
 	{PROTOCOL_SMB2_22,	SMB2_DIALECT_REVISION_222},
 	{PROTOCOL_SMB2_24,	SMB2_DIALECT_REVISION_224},
 	{PROTOCOL_SMB3_00,	SMB3_DIALECT_REVISION_300},
+	{PROTOCOL_SMB3_02,	SMB3_DIALECT_REVISION_302},
 };
 
 struct smbXcli_negprot_state {
 	struct smbXcli_conn *conn;
 	struct tevent_context *ev;
 	uint32_t timeout_msec;
-	enum protocol_types min_protocol;
-	enum protocol_types max_protocol;
 
 	struct {
 		uint8_t fixed[36];
@@ -3751,8 +3788,6 @@ struct tevent_req *smbXcli_negprot_send(TALLOC_CTX *mem_ctx,
 	state->conn = conn;
 	state->ev = ev;
 	state->timeout_msec = timeout_msec;
-	state->min_protocol = min_protocol;
-	state->max_protocol = max_protocol;
 
 	if (min_protocol == PROTOCOL_NONE) {
 		tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER_MIX);
@@ -3768,6 +3803,10 @@ struct tevent_req *smbXcli_negprot_send(TALLOC_CTX *mem_ctx,
 		tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER_MIX);
 		return tevent_req_post(req, ev);
 	}
+
+	conn->min_protocol = min_protocol;
+	conn->max_protocol = max_protocol;
+	conn->protocol = PROTOCOL_NONE;
 
 	if ((min_protocol < PROTOCOL_SMB2_02) &&
 	    (max_protocol < PROTOCOL_SMB2_02)) {
@@ -3848,11 +3887,11 @@ static struct tevent_req *smbXcli_negprot_smb1_subreq(struct smbXcli_negprot_sta
 		uint8_t c = 2;
 		bool ok;
 
-		if (smb1cli_prots[i].proto < state->min_protocol) {
+		if (smb1cli_prots[i].proto < state->conn->min_protocol) {
 			continue;
 		}
 
-		if (smb1cli_prots[i].proto > state->max_protocol) {
+		if (smb1cli_prots[i].proto > state->conn->max_protocol) {
 			continue;
 		}
 
@@ -3873,7 +3912,7 @@ static struct tevent_req *smbXcli_negprot_smb1_subreq(struct smbXcli_negprot_sta
 		}
 	}
 
-	smb1cli_req_flags(state->max_protocol,
+	smb1cli_req_flags(state->conn->max_protocol,
 			  state->conn->smb1.client.capabilities,
 			  SMBnegprot,
 			  0, 0, &flags,
@@ -3968,11 +4007,11 @@ static void smbXcli_negprot_smb1_done(struct tevent_req *subreq)
 	protnum = SVAL(vwv, 0);
 
 	for (i=0; i < ARRAY_SIZE(smb1cli_prots); i++) {
-		if (smb1cli_prots[i].proto < state->min_protocol) {
+		if (smb1cli_prots[i].proto < state->conn->min_protocol) {
 			continue;
 		}
 
-		if (smb1cli_prots[i].proto > state->max_protocol) {
+		if (smb1cli_prots[i].proto > state->conn->max_protocol) {
 			continue;
 		}
 
@@ -4288,11 +4327,11 @@ static struct tevent_req *smbXcli_negprot_smb2_subreq(struct smbXcli_negprot_sta
 
 	buf = state->smb2.dyn;
 	for (i=0; i < ARRAY_SIZE(smb2cli_prots); i++) {
-		if (smb2cli_prots[i].proto < state->min_protocol) {
+		if (smb2cli_prots[i].proto < state->conn->min_protocol) {
 			continue;
 		}
 
-		if (smb2cli_prots[i].proto > state->max_protocol) {
+		if (smb2cli_prots[i].proto > state->conn->max_protocol) {
 			continue;
 		}
 
@@ -4305,12 +4344,12 @@ static struct tevent_req *smbXcli_negprot_smb2_subreq(struct smbXcli_negprot_sta
 	SSVAL(buf, 2, dialect_count);
 	SSVAL(buf, 4, state->conn->smb2.client.security_mode);
 	SSVAL(buf, 6, 0);	/* Reserved */
-	if (state->max_protocol >= PROTOCOL_SMB2_22) {
+	if (state->conn->max_protocol >= PROTOCOL_SMB2_22) {
 		SIVAL(buf, 8, state->conn->smb2.client.capabilities);
 	} else {
 		SIVAL(buf, 8, 0); 	/* Capabilities */
 	}
-	if (state->max_protocol >= PROTOCOL_SMB2_10) {
+	if (state->conn->max_protocol >= PROTOCOL_SMB2_10) {
 		NTSTATUS status;
 		DATA_BLOB blob;
 
@@ -4370,11 +4409,11 @@ static void smbXcli_negprot_smb2_done(struct tevent_req *subreq)
 	dialect_revision = SVAL(body, 4);
 
 	for (i=0; i < ARRAY_SIZE(smb2cli_prots); i++) {
-		if (smb2cli_prots[i].proto < state->min_protocol) {
+		if (smb2cli_prots[i].proto < state->conn->min_protocol) {
 			continue;
 		}
 
-		if (smb2cli_prots[i].proto > state->max_protocol) {
+		if (smb2cli_prots[i].proto > state->conn->max_protocol) {
 			continue;
 		}
 
@@ -4387,7 +4426,7 @@ static void smbXcli_negprot_smb2_done(struct tevent_req *subreq)
 	}
 
 	if (conn->protocol == PROTOCOL_NONE) {
-		if (state->min_protocol >= PROTOCOL_SMB2_02) {
+		if (state->conn->min_protocol >= PROTOCOL_SMB2_02) {
 			tevent_req_nterror(req, NT_STATUS_INVALID_NETWORK_RESPONSE);
 			return;
 		}
@@ -4398,7 +4437,7 @@ static void smbXcli_negprot_smb2_done(struct tevent_req *subreq)
 		}
 
 		/* make sure we do not loop forever */
-		state->min_protocol = PROTOCOL_SMB2_02;
+		state->conn->min_protocol = PROTOCOL_SMB2_02;
 
 		/*
 		 * send a SMB2 negprot, in order to negotiate
@@ -4552,6 +4591,224 @@ NTSTATUS smbXcli_negprot(struct smbXcli_conn *conn,
 	return status;
 }
 
+struct smb2cli_validate_negotiate_info_state {
+	struct smbXcli_conn *conn;
+	DATA_BLOB in_input_buffer;
+	DATA_BLOB in_output_buffer;
+	DATA_BLOB out_input_buffer;
+	DATA_BLOB out_output_buffer;
+	uint16_t dialect;
+};
+
+static void smb2cli_validate_negotiate_info_done(struct tevent_req *subreq);
+
+struct tevent_req *smb2cli_validate_negotiate_info_send(TALLOC_CTX *mem_ctx,
+						struct tevent_context *ev,
+						struct smbXcli_conn *conn,
+						uint32_t timeout_msec,
+						struct smbXcli_session *session,
+						struct smbXcli_tcon *tcon)
+{
+	struct tevent_req *req;
+	struct smb2cli_validate_negotiate_info_state *state;
+	uint8_t *buf;
+	uint16_t dialect_count = 0;
+	struct tevent_req *subreq;
+	bool _save_should_sign;
+	size_t i;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct smb2cli_validate_negotiate_info_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->conn = conn;
+
+	state->in_input_buffer = data_blob_talloc_zero(state,
+					4 + 16 + 1 + 1 + 2);
+	if (tevent_req_nomem(state->in_input_buffer.data, req)) {
+		return tevent_req_post(req, ev);
+	}
+	buf = state->in_input_buffer.data;
+
+	if (state->conn->max_protocol >= PROTOCOL_SMB2_22) {
+		SIVAL(buf, 0, conn->smb2.client.capabilities);
+	} else {
+		SIVAL(buf, 0, 0); /* Capabilities */
+	}
+	if (state->conn->max_protocol >= PROTOCOL_SMB2_10) {
+		NTSTATUS status;
+		DATA_BLOB blob;
+
+		status = GUID_to_ndr_blob(&conn->smb2.client.guid,
+					  state, &blob);
+		if (!NT_STATUS_IS_OK(status)) {
+			return NULL;
+		}
+		memcpy(buf+4, blob.data, 16); /* ClientGuid */
+	} else {
+		memset(buf+4, 0, 16);	/* ClientGuid */
+	}
+	if (state->conn->min_protocol >= PROTOCOL_SMB2_02) {
+		SCVAL(buf, 20, conn->smb2.client.security_mode);
+	} else {
+		SCVAL(buf, 20, 0);
+	}
+	SCVAL(buf, 21, 0); /* reserved */
+
+	for (i=0; i < ARRAY_SIZE(smb2cli_prots); i++) {
+		bool ok;
+		size_t ofs;
+
+		if (smb2cli_prots[i].proto < state->conn->min_protocol) {
+			continue;
+		}
+
+		if (smb2cli_prots[i].proto > state->conn->max_protocol) {
+			continue;
+		}
+
+		if (smb2cli_prots[i].proto == state->conn->protocol) {
+			state->dialect = smb2cli_prots[i].smb2_dialect;
+		}
+
+		ofs = state->in_input_buffer.length;
+		ok = data_blob_realloc(state, &state->in_input_buffer,
+				       ofs + 2);
+		if (!ok) {
+			tevent_req_oom(req);
+			return tevent_req_post(req, ev);
+		}
+
+		buf = state->in_input_buffer.data;
+		SSVAL(buf, ofs, smb2cli_prots[i].smb2_dialect);
+
+		dialect_count++;
+	}
+	buf = state->in_input_buffer.data;
+	SSVAL(buf, 22, dialect_count);
+
+	_save_should_sign = smb2cli_tcon_is_signing_on(tcon);
+	smb2cli_tcon_should_sign(tcon, true);
+	subreq = smb2cli_ioctl_send(state, ev, conn,
+				    timeout_msec, session, tcon,
+				    UINT64_MAX, /* in_fid_persistent */
+				    UINT64_MAX, /* in_fid_volatile */
+				    FSCTL_VALIDATE_NEGOTIATE_INFO,
+				    0, /* in_max_input_length */
+				    &state->in_input_buffer,
+				    24, /* in_max_output_length */
+				    &state->in_output_buffer,
+				    SMB2_IOCTL_FLAG_IS_FSCTL);
+	smb2cli_tcon_should_sign(tcon, _save_should_sign);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq,
+				smb2cli_validate_negotiate_info_done,
+				req);
+
+	return req;
+}
+
+static void smb2cli_validate_negotiate_info_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req =
+		tevent_req_callback_data(subreq,
+		struct tevent_req);
+	struct smb2cli_validate_negotiate_info_state *state =
+		tevent_req_data(req,
+		struct smb2cli_validate_negotiate_info_state);
+	NTSTATUS status;
+	const uint8_t *buf;
+	uint32_t capabilities;
+	DATA_BLOB guid_blob;
+	struct GUID server_guid;
+	uint16_t security_mode;
+	uint16_t dialect;
+
+	status = smb2cli_ioctl_recv(subreq, state,
+				    &state->out_input_buffer,
+				    &state->out_output_buffer);
+	TALLOC_FREE(subreq);
+	if (NT_STATUS_EQUAL(status, NT_STATUS_FILE_CLOSED)) {
+		/*
+		 * The response was signed, but not supported
+		 *
+		 * Older Windows and Samba releases return
+		 * NT_STATUS_FILE_CLOSED.
+		 */
+		tevent_req_done(req);
+		return;
+	}
+	if (NT_STATUS_EQUAL(status, NT_STATUS_INVALID_DEVICE_REQUEST)) {
+		/*
+		 * The response was signed, but not supported
+		 *
+		 * This is returned by the NTVFS based Samba 4.x file server
+		 * for file shares.
+		 */
+		tevent_req_done(req);
+		return;
+	}
+	if (NT_STATUS_EQUAL(status, NT_STATUS_FS_DRIVER_REQUIRED)) {
+		/*
+		 * The response was signed, but not supported
+		 *
+		 * This is returned by the NTVFS based Samba 4.x file server
+		 * for ipc shares.
+		 */
+		tevent_req_done(req);
+		return;
+	}
+	if (tevent_req_nterror(req, status)) {
+		return;
+	}
+
+	if (state->out_output_buffer.length != 24) {
+		tevent_req_nterror(req, NT_STATUS_INVALID_NETWORK_RESPONSE);
+		return;
+	}
+
+	buf = state->out_output_buffer.data;
+
+	capabilities = IVAL(buf, 0);
+	guid_blob = data_blob_const(buf + 4, 16);
+	status = GUID_from_data_blob(&guid_blob, &server_guid);
+	if (tevent_req_nterror(req, status)) {
+		return;
+	}
+	security_mode = CVAL(buf, 20);
+	dialect = SVAL(buf, 22);
+
+	if (capabilities != state->conn->smb2.server.capabilities) {
+		tevent_req_nterror(req, NT_STATUS_ACCESS_DENIED);
+		return;
+	}
+
+	if (!GUID_equal(&server_guid, &state->conn->smb2.server.guid)) {
+		tevent_req_nterror(req, NT_STATUS_ACCESS_DENIED);
+		return;
+	}
+
+	if (security_mode != state->conn->smb2.server.security_mode) {
+		tevent_req_nterror(req, NT_STATUS_ACCESS_DENIED);
+		return;
+	}
+
+	if (dialect != state->dialect) {
+		tevent_req_nterror(req, NT_STATUS_ACCESS_DENIED);
+		return;
+	}
+
+	tevent_req_done(req);
+}
+
+NTSTATUS smb2cli_validate_negotiate_info_recv(struct tevent_req *req)
+{
+	return tevent_req_simple_recv_ntstatus(req);
+}
+
 static int smbXcli_session_destructor(struct smbXcli_session *session)
 {
 	if (session->conn == NULL) {
@@ -4610,6 +4867,30 @@ struct smbXcli_session *smbXcli_session_copy(TALLOC_CTX *mem_ctx,
 	return session;
 }
 
+bool smbXcli_session_is_authenticated(struct smbXcli_session *session)
+{
+	const DATA_BLOB *application_key;
+
+	if (session->conn == NULL) {
+		return false;
+	}
+
+	/*
+	 * If we have an application key we had a session key negotiated
+	 * at auth time.
+	 */
+	if (session->conn->protocol >= PROTOCOL_SMB2_02) {
+		application_key = &session->smb2->application_key;
+	} else {
+		application_key = &session->smb1.application_key;
+	}
+
+	if (application_key->length == 0) {
+		return false;
+	}
+
+	return true;
+}
 
 NTSTATUS smbXcli_session_application_key(struct smbXcli_session *session,
 					 TALLOC_CTX *mem_ctx,
@@ -4756,6 +5037,27 @@ void smb2cli_session_set_id_and_flags(struct smbXcli_session *session,
 void smb2cli_session_increment_channel_sequence(struct smbXcli_session *session)
 {
 	session->smb2->channel_sequence += 1;
+}
+
+uint16_t smb2cli_session_reset_channel_sequence(struct smbXcli_session *session,
+						uint16_t channel_sequence)
+{
+	uint16_t prev_cs;
+
+	prev_cs = session->smb2->channel_sequence;
+	session->smb2->channel_sequence = channel_sequence;
+
+	return prev_cs;
+}
+
+void smb2cli_session_start_replay(struct smbXcli_session *session)
+{
+	session->smb2->replay_active = true;
+}
+
+void smb2cli_session_stop_replay(struct smbXcli_session *session)
+{
+	session->smb2->replay_active = false;
 }
 
 NTSTATUS smb2cli_session_set_session_key(struct smbXcli_session *session,
@@ -5138,15 +5440,43 @@ void smb2cli_tcon_set_values(struct smbXcli_tcon *tcon,
 	tcon->smb2.capabilities = capabilities;
 	tcon->smb2.maximal_access = maximal_access;
 
+	tcon->smb2.should_sign = false;
 	tcon->smb2.should_encrypt = false;
 
 	if (session == NULL) {
 		return;
 	}
 
+	tcon->smb2.should_sign = session->smb2->should_sign;
 	tcon->smb2.should_encrypt = session->smb2->should_encrypt;
 
 	if (flags & SMB2_SHAREFLAG_ENCRYPT_DATA) {
 		tcon->smb2.should_encrypt = true;
 	}
+}
+
+void smb2cli_tcon_should_sign(struct smbXcli_tcon *tcon,
+			      bool should_sign)
+{
+	tcon->smb2.should_sign = should_sign;
+}
+
+bool smb2cli_tcon_is_signing_on(struct smbXcli_tcon *tcon)
+{
+	if (tcon->smb2.should_encrypt) {
+		return true;
+	}
+
+	return tcon->smb2.should_sign;
+}
+
+void smb2cli_tcon_should_encrypt(struct smbXcli_tcon *tcon,
+				 bool should_encrypt)
+{
+	tcon->smb2.should_encrypt = should_encrypt;
+}
+
+bool smb2cli_tcon_is_encryption_on(struct smbXcli_tcon *tcon)
+{
+	return tcon->smb2.should_encrypt;
 }

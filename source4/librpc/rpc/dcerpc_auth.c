@@ -154,7 +154,7 @@ static void bind_auth_next_step(struct composite_context *c)
 	state->pipe->inhibit_timeout_processing = true;
 	state->pipe->timed_out = false;
 
-	c->status = gensec_update(sec->generic_state, state,
+	c->status = gensec_update_ev(sec->generic_state, state,
 				  state->pipe->conn->event_ctx,
 				  sec->auth_info->credentials,
 				  &state->credentials);
@@ -172,10 +172,6 @@ static void bind_auth_next_step(struct composite_context *c)
 	}
 
 	if (!composite_is_ok(c)) return;
-
-	if (state->pipe->conn->flags & DCERPC_HEADER_SIGNING) {
-		gensec_want_feature(sec->generic_state, GENSEC_FEATURE_SIGN_PKT_HEADER);
-	}
 
 	if (state->credentials.length == 0) {
 		composite_done(c);
@@ -234,6 +230,12 @@ static void bind_auth_recv_bindreply(struct tevent_req *subreq)
 	TALLOC_FREE(subreq);
 	if (!composite_is_ok(c)) return;
 
+	if (state->pipe->conn->flags & DCERPC_HEADER_SIGNING) {
+		struct dcecli_security *sec = &state->pipe->conn->security_state;
+
+		gensec_want_feature(sec->generic_state, GENSEC_FEATURE_SIGN_PKT_HEADER);
+	}
+
 	if (!state->more_processing) {
 		/* The first gensec_update has not requested a second run, so
 		 * we're done here. */
@@ -269,8 +271,8 @@ struct composite_context *dcerpc_bind_auth_send(TALLOC_CTX *mem_ctx,
 	struct bind_auth_state *state;
 	struct dcecli_security *sec;
 	struct tevent_req *subreq;
-
 	struct ndr_syntax_id syntax, transfer_syntax;
+	const char *target_principal = NULL;
 
 	/* composite context allocation and setup */
 	c = composite_create(mem_ctx, p->conn->event_ctx);
@@ -307,7 +309,7 @@ struct composite_context *dcerpc_bind_auth_send(TALLOC_CTX *mem_ctx,
 	}
 
 	c->status = gensec_set_target_hostname(sec->generic_state,
-					       p->conn->transport.target_hostname(p->conn));
+					       dcerpc_server_name(p));
 	if (!NT_STATUS_IS_OK(c->status)) {
 		DEBUG(1, ("Failed to set GENSEC target hostname: %s\n", 
 			  nt_errstr(c->status)));
@@ -326,12 +328,16 @@ struct composite_context *dcerpc_bind_auth_send(TALLOC_CTX *mem_ctx,
 		}
 	}
 
-	if (p->binding && p->binding->target_principal) {
+	if (p->binding != NULL) {
+		target_principal = dcerpc_binding_get_string_option(p->binding,
+							"target_principal");
+	}
+	if (target_principal != NULL) {
 		c->status = gensec_set_target_principal(sec->generic_state,
-							p->binding->target_principal);
+							target_principal);
 		if (!NT_STATUS_IS_OK(c->status)) {
 			DEBUG(1, ("Failed to set GENSEC target principal to %s: %s\n",
-				  p->binding->target_principal, nt_errstr(c->status)));
+				  target_principal, nt_errstr(c->status)));
 			composite_error(c, c->status);
 			return c;
 		}
@@ -369,7 +375,7 @@ struct composite_context *dcerpc_bind_auth_send(TALLOC_CTX *mem_ctx,
 
 	state->pipe->inhibit_timeout_processing = true;
 	state->pipe->timed_out = false;
-	c->status = gensec_update(sec->generic_state, state,
+	c->status = gensec_update_ev(sec->generic_state, state,
 				  p->conn->event_ctx,
 				  sec->auth_info->credentials,
 				  &state->credentials);
@@ -394,6 +400,12 @@ struct composite_context *dcerpc_bind_auth_send(TALLOC_CTX *mem_ctx,
 	}
 
 	sec->auth_info->credentials = state->credentials;
+
+	if (gensec_have_feature(sec->generic_state, GENSEC_FEATURE_SIGN_PKT_HEADER)) {
+		if (auth_level >= DCERPC_AUTH_LEVEL_INTEGRITY) {
+			state->pipe->conn->flags |= DCERPC_PROPOSE_HEADER_SIGNING;
+		}
+	}
 
 	/* The first request always is a dcerpc_bind. The subsequent ones
 	 * depend on gensec results */

@@ -106,11 +106,19 @@ bool run_cleanup2(int dummy);
 bool run_cleanup3(int dummy);
 bool run_cleanup4(int dummy);
 bool run_ctdb_conn(int dummy);
-bool run_msg_test(int dummy);
 bool run_notify_bench2(int dummy);
 bool run_notify_bench3(int dummy);
 bool run_dbwrap_watch1(int dummy);
 bool run_idmap_tdb_common_test(int dummy);
 bool run_local_dbwrap_ctdb(int dummy);
+bool run_qpathinfo_bufsize(int dummy);
+bool run_bench_pthreadpool(int dummy);
+bool run_messaging_read1(int dummy);
+bool run_messaging_read2(int dummy);
+bool run_messaging_read3(int dummy);
+bool run_messaging_read4(int dummy);
+bool run_messaging_fdpass1(int dummy);
+bool run_messaging_fdpass2(int dummy);
+bool run_oplock_cancel(int dummy);
 
 #endif /* __TORTURE_H__ */

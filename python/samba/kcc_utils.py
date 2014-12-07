@@ -502,7 +502,7 @@ class DirectoryServiceAgent(object):
         """Is dsa at minimum windows level greater than or equal to (version)
 
         :param version: Windows version to test against
-            (e.g. DS_BEHAVIOR_WIN2008)
+            (e.g. DS_DOMAIN_FUNCTION_2008)
         """
         if self.dsa_behavior >= version:
             return True
@@ -903,7 +903,7 @@ class NTDSConnection(object):
 
         if "transportType" in msg:
             dsdn = dsdb_Dn(samdb, msg["tranportType"][0])
-            self.load_connection_transport(str(dsdn.dn))
+            self.load_connection_transport(samdb, str(dsdn.dn))
 
         if "schedule" in msg:
             self.schedule = ndr_unpack(drsblobs.replSchedule, msg["schedule"][0])
@@ -916,7 +916,7 @@ class NTDSConnection(object):
             self.from_dnstr = str(dsdn.dn)
             assert self.from_dnstr is not None
 
-    def load_connection_transport(self, tdnstr):
+    def load_connection_transport(self, samdb, tdnstr):
         """Given a NTDSConnection object which enumerates a transport
         DN, load the transport information for the connection object
 
@@ -932,6 +932,7 @@ class NTDSConnection(object):
                             (tdnstr, estr))
 
         if "objectGUID" in res[0]:
+            msg = res[0]
             self.transport_dnstr = tdnstr
             self.transport_guid = \
                 misc.GUID(samdb.schema_format_value("objectGUID",

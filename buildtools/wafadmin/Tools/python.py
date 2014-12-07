@@ -10,6 +10,7 @@ import TaskGen, Utils, Options
 from Logs import debug, warn, info
 from TaskGen import extension, before, after, feature
 from Configure import conf
+from config_c import parse_flags
 
 EXT_PY = ['.py']
 FRAG_2 = '''
@@ -192,6 +193,19 @@ MACOSX_DEPLOYMENT_TARGET = %r
 """ % (python, python_prefix, python_SO, python_SYSLIBS, python_LDFLAGS, python_SHLIBS,
 	python_LIBDIR, python_LIBPL, INCLUDEPY, Py_ENABLE_SHARED, python_MACOSX_DEPLOYMENT_TARGET))
 
+	# Allow some python overrides from env vars for cross-compiling
+	os_env = dict(os.environ)
+
+	override_python_LDFLAGS = os_env.get('python_LDFLAGS', None)
+	if override_python_LDFLAGS is not None:
+		conf.log.write("python_LDFLAGS override from environment = %r\n" % (override_python_LDFLAGS))
+		python_LDFLAGS = override_python_LDFLAGS
+
+	override_python_LIBDIR = os_env.get('python_LIBDIR', None)
+	if override_python_LIBDIR is not None:
+		conf.log.write("python_LIBDIR override from environment = %r\n" % (override_python_LIBDIR))
+		python_LIBDIR = override_python_LIBDIR
+
 	if python_MACOSX_DEPLOYMENT_TARGET:
 		conf.env['MACOSX_DEPLOYMENT_TARGET'] = python_MACOSX_DEPLOYMENT_TARGET
 		conf.environ['MACOSX_DEPLOYMENT_TARGET'] = python_MACOSX_DEPLOYMENT_TARGET
@@ -213,7 +227,7 @@ MACOSX_DEPLOYMENT_TARGET = %r
 				env.append_value('LINKFLAGS_PYEMBED', lib)
 
 	if Options.platform != 'darwin' and python_LDFLAGS:
-		env.append_value('LINKFLAGS_PYEMBED', python_LDFLAGS.split())
+		parse_flags(python_LDFLAGS, 'PYEMBED', env)
 
 	result = False
 	name = 'python' + env['PYTHON_VERSION']

@@ -64,6 +64,16 @@
 #define AP_OPTS_USE_SUBKEY 0
 #endif
 
+#ifndef KRB5_PW_SALT
+#define KRB5_PW_SALT 3
+#endif
+
+/* CKSUMTYPE_HMAC_MD5 in Heimdal
+   CKSUMTYPE_HMAC_MD5_ARCFOUR in MIT */
+#if defined(CKSUMTYPE_HMAC_MD5_ARCFOUR) && !defined(CKSUMTYPE_HMAC_MD5)
+#define CKSUMTYPE_HMAC_MD5 CKSUMTYPE_HMAC_MD5_ARCFOUR
+#endif
+
 typedef struct {
 #if defined(HAVE_MAGIC_IN_KRB5_ADDRESS) && defined(HAVE_ADDRTYPE_IN_KRB5_ADDRESS) /* MIT */
 	krb5_address **addrs;
@@ -134,11 +144,6 @@ int create_kerberos_key_from_string(krb5_context context,
 				    krb5_keyblock *key,
 				    krb5_enctype enctype,
 				    bool no_salt);
-int create_kerberos_key_from_string_direct(krb5_context context,
-					   krb5_principal host_princ,
-					   krb5_data *password,
-					   krb5_keyblock *key,
-					   krb5_enctype enctype);
 
 krb5_error_code get_kerberos_allowed_etypes(krb5_context context, krb5_enctype **enctypes);
 bool get_krb5_smb_session_key(TALLOC_CTX *mem_ctx,
@@ -156,7 +161,6 @@ bool smb_krb5_principal_compare_any_realm(krb5_context context,
 					  krb5_const_principal princ1,
 					  krb5_const_principal princ2);
 krb5_error_code smb_krb5_renew_ticket(const char *ccache_string, const char *client_string, const char *service_string, time_t *expire_time);
-krb5_error_code kpasswd_err_to_krb5_err(krb5_error_code res_code);
 krb5_error_code smb_krb5_gen_netbios_krb5_address(smb_krb5_addresses **kerb_addr,
 						  const char *netbios_name);
 krb5_error_code smb_krb5_free_addresses(krb5_context context, smb_krb5_addresses *addr);
@@ -257,7 +261,11 @@ krb5_error_code smb_krb5_make_pac_checksum(TALLOC_CTX *mem_ctx,
 					   DATA_BLOB *sig_blob);
 
 char *smb_krb5_principal_get_realm(krb5_context context,
-				   krb5_principal principal);
+				   krb5_const_principal principal);
+
+krb5_error_code smb_krb5_principal_set_realm(krb5_context context,
+					     krb5_principal principal,
+					     const char *realm);
 
 char *kerberos_get_principal_from_service_hostname(TALLOC_CTX *mem_ctx,
 						   const char *service,
@@ -300,6 +308,42 @@ krb5_enctype ms_suptype_to_ietf_enctype(uint32_t enctype_bitmap);
 krb5_error_code ms_suptypes_to_ietf_enctypes(TALLOC_CTX *mem_ctx,
 					     uint32_t enctype_bitmap,
 					     krb5_enctype **enctypes);
+int smb_krb5_get_pw_salt(krb5_context context,
+			 krb5_principal host_princ,
+			 krb5_data *psalt);
+
+int smb_krb5_create_key_from_string(krb5_context context,
+				    krb5_principal *host_princ,
+				    krb5_data *salt,
+				    krb5_data *password,
+				    krb5_enctype enctype,
+				    krb5_keyblock *key);
+
+krb5_boolean smb_krb5_get_allowed_weak_crypto(krb5_context context);
+
+#ifndef krb5_princ_size
+#if defined(HAVE_KRB5_PRINCIPAL_GET_NUM_COMP)
+#define krb5_princ_size krb5_principal_get_num_comp
+#else
+#error krb5_princ_size unavailable
+#endif
+#endif
+
+char *smb_krb5_principal_get_comp_string(TALLOC_CTX *mem_ctx,
+					 krb5_context context,
+					 krb5_const_principal principal,
+					 unsigned int component);
+
+krb5_error_code krb5_copy_data_contents(krb5_data *p,
+					const void *data,
+					size_t len);
+
+int smb_krb5_principal_get_type(krb5_context context,
+				krb5_const_principal principal);
+
+#if !defined(HAVE_KRB5_WARNX)
+krb5_error_code krb5_warnx(krb5_context context, const char *fmt, ...);
+#endif
 
 #endif /* HAVE_KRB5 */
 

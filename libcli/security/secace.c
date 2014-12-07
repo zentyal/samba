@@ -70,32 +70,6 @@ void init_sec_ace(struct security_ace *t, const struct dom_sid *sid, enum securi
 }
 
 /*******************************************************************
- adds new SID with its permissions to ACE list
-********************************************************************/
-
-NTSTATUS sec_ace_add_sid(TALLOC_CTX *ctx, struct security_ace **pp_new, struct security_ace *old, unsigned *num, const struct dom_sid *sid, uint32_t mask)
-{
-	unsigned int i = 0;
-	
-	if (!ctx || !pp_new || !old || !sid || !num)  return NT_STATUS_INVALID_PARAMETER;
-
-	*num += 1;
-	
-	if((pp_new[0] = talloc_zero_array(ctx, struct security_ace, *num )) == 0)
-		return NT_STATUS_NO_MEMORY;
-
-	for (i = 0; i < *num - 1; i ++)
-		sec_ace_copy(&(*pp_new)[i], &old[i]);
-
-	(*pp_new)[i].type  = SEC_ACE_TYPE_ACCESS_ALLOWED;
-	(*pp_new)[i].flags = 0;
-	(*pp_new)[i].size  = SEC_ACE_HEADER_SIZE + ndr_size_dom_sid(sid, 0);
-	(*pp_new)[i].access_mask = mask;
-	(*pp_new)[i].trustee = *sid;
-	return NT_STATUS_OK;
-}
-
-/*******************************************************************
   modify SID's permissions at ACL 
 ********************************************************************/
 
@@ -112,70 +86,6 @@ NTSTATUS sec_ace_mod_sid(struct security_ace *ace, size_t num, const struct dom_
 		}
 	}
 	return NT_STATUS_NOT_FOUND;
-}
-
-/*******************************************************************
- delete SID from ACL
-********************************************************************/
-
-NTSTATUS sec_ace_del_sid(TALLOC_CTX *ctx, struct security_ace **pp_new, struct security_ace *old, uint32_t *num, const struct dom_sid *sid)
-{
-	unsigned int i     = 0;
-	unsigned int n_del = 0;
-
-	if (!ctx || !pp_new || !old || !sid || !num)  return NT_STATUS_INVALID_PARAMETER;
-
-	if (*num) {
-		if((pp_new[0] = talloc_zero_array(ctx, struct security_ace, *num )) == 0)
-			return NT_STATUS_NO_MEMORY;
-	} else {
-		pp_new[0] = NULL;
-	}
-
-	for (i = 0; i < *num; i ++) {
-		if (!dom_sid_equal(&old[i].trustee, sid))
-			sec_ace_copy(&(*pp_new)[i], &old[i]);
-		else
-			n_del ++;
-	}
-	if (n_del == 0)
-		return NT_STATUS_NOT_FOUND;
-	else {
-		*num -= n_del;
-		return NT_STATUS_OK;
-	}
-}
-
-/*******************************************************************
- Compares two struct security_ace structures
-********************************************************************/
-
-bool sec_ace_equal(const struct security_ace *s1, const struct security_ace *s2)
-{
-	/* Trivial case */
-
-	if (!s1 && !s2) {
-		return true;
-	}
-
-	if (!s1 || !s2) {
-		return false;
-	}
-
-	/* Check top level stuff */
-
-	if (s1->type != s2->type || s1->flags != s2->flags ||
-	    s1->access_mask != s2->access_mask) {
-		return false;
-	}
-
-	/* Check SID */
-
-	if (!dom_sid_equal(&s1->trustee, &s2->trustee)) {
-		return false;
-	}
-
-	return true;
 }
 
 int nt_ace_inherit_comp(const struct security_ace *a1, const struct security_ace *a2)

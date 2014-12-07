@@ -362,7 +362,7 @@ NTSTATUS rpc_sid_to_name(TALLOC_CTX *mem_ctx,
 
 	map_status = normalize_name_map(mem_ctx,
 					domain,
-					*pname,
+					names[0],
 					&mapped_name);
 	if (NT_STATUS_IS_OK(map_status) ||
 	    NT_STATUS_EQUAL(map_status, NT_STATUS_FILE_RENAMED)) {
@@ -371,7 +371,7 @@ NTSTATUS rpc_sid_to_name(TALLOC_CTX *mem_ctx,
 	} else {
 		*pname = talloc_strdup(mem_ctx, names[0]);
 	}
-	if (*pname == NULL) {
+	if ((names[0] != NULL) && (*pname == NULL)) {
 		return NT_STATUS_NO_MEMORY;
 	}
 
@@ -1041,12 +1041,20 @@ NTSTATUS rpc_trusted_domains(TALLOC_CTX *mem_ctx,
 								  &dom_list_ex.domains[i].netbios_name.string);
 				trust->dns_name = talloc_move(array,
 							      &dom_list_ex.domains[i].domain_name.string);
-
+				if (dom_list_ex.domains[i].sid == NULL) {
+					DEBUG(0, ("Trusted Domain %s has no SID, aborting!\n", trust->dns_name));
+					return NT_STATUS_INVALID_NETWORK_RESPONSE;
+				}
 				sid_copy(sid, dom_list_ex.domains[i].sid);
 			} else {
 				trust->netbios_name = talloc_move(array,
 								  &dom_list.domains[i].name.string);
 				trust->dns_name = NULL;
+
+				if (dom_list.domains[i].sid == NULL) {
+					DEBUG(0, ("Trusted Domain %s has no SID, aborting!\n", trust->netbios_name));
+					return NT_STATUS_INVALID_NETWORK_RESPONSE;
+				}
 
 				sid_copy(sid, dom_list.domains[i].sid);
 			}

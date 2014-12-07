@@ -35,9 +35,6 @@ struct select_event_context {
 
 	/* the maximum file descriptor number in fd_events */
 	int maxfd;
-
-	/* information for exiting from the event loop */
-	int exit_code;
 };
 
 /*
@@ -91,8 +88,8 @@ static int select_event_fd_destructor(struct tevent_fd *fde)
 	struct select_event_context *select_ev = NULL;
 
 	if (ev) {
-		select_ev = talloc_get_type(ev->additional_data,
-					    struct select_event_context);
+		select_ev = talloc_get_type_abort(ev->additional_data,
+						  struct select_event_context);
 
 		if (select_ev->maxfd == fde->fd) {
 			select_ev->maxfd = EVENT_INVALID_MAXFD;
@@ -113,8 +110,9 @@ static struct tevent_fd *select_event_add_fd(struct tevent_context *ev, TALLOC_C
 					     const char *handler_name,
 					     const char *location)
 {
-	struct select_event_context *select_ev = talloc_get_type(ev->additional_data,
-							   struct select_event_context);
+	struct select_event_context *select_ev =
+		talloc_get_type_abort(ev->additional_data,
+		struct select_event_context);
 	struct tevent_fd *fde;
 
 	if (fd < 0 || fd >= FD_SETSIZE) {
@@ -197,7 +195,7 @@ static int select_event_loop_select(struct select_event_context *select_ev, stru
 		   fatal error. */
 		tevent_debug(select_ev->ev, TEVENT_DEBUG_FATAL,
 			     "ERROR: EBADF on select_event_loop_once\n");
-		select_ev->exit_code = EBADF;
+		errno = select_errno;
 		return -1;
 	}
 
@@ -236,8 +234,9 @@ static int select_event_loop_select(struct select_event_context *select_ev, stru
 */
 static int select_event_loop_once(struct tevent_context *ev, const char *location)
 {
-	struct select_event_context *select_ev = talloc_get_type(ev->additional_data,
-		 					   struct select_event_context);
+	struct select_event_context *select_ev =
+		talloc_get_type_abort(ev->additional_data,
+		struct select_event_context);
 	struct timeval tval;
 
 	if (ev->signal_events &&

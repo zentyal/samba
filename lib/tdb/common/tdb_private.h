@@ -53,6 +53,7 @@ typedef uint32_t tdb_off_t;
 #define TDB_RECOVERY_MAGIC (0xf53bc0e7U)
 #define TDB_RECOVERY_INVALID_MAGIC (0x0)
 #define TDB_HASH_RWLOCK_MAGIC (0xbad1a51U)
+#define TDB_FEATURE_FLAG_MAGIC (0xbad1a52U)
 #define TDB_ALIGNMENT 4
 #define DEFAULT_HASH_SIZE 131
 #define FREELIST_TOP (sizeof(struct tdb_header))
@@ -67,6 +68,12 @@ typedef uint32_t tdb_off_t;
 #define TDB_SEQNUM_OFS    offsetof(struct tdb_header, sequence_number)
 #define TDB_PAD_BYTE 0x42
 #define TDB_PAD_U32  0x42424242
+
+#define TDB_FEATURE_FLAG_MUTEX 0x00000001
+
+#define TDB_SUPPORTED_FEATURE_FLAGS ( \
+	TDB_FEATURE_FLAG_MUTEX | \
+	0)
 
 /* NB assumes there is a local variable called "tdb" that is the
  * current context, also takes doubly-parenthesized print-style
@@ -152,7 +159,9 @@ struct tdb_header {
 	tdb_off_t sequence_number; /* used when TDB_SEQNUM is set */
 	uint32_t magic1_hash; /* hash of TDB_MAGIC_FOOD. */
 	uint32_t magic2_hash; /* hash of TDB_MAGIC. */
-	tdb_off_t reserved[27];
+	uint32_t feature_flags;
+	tdb_len_t mutex_size; /* set if TDB_FEATURE_FLAG_MUTEX is set */
+	tdb_off_t reserved[25];
 };
 
 struct tdb_lock_type {
@@ -186,6 +195,8 @@ struct tdb_methods {
 	int (*tdb_expand_file)(struct tdb_context *, tdb_off_t , tdb_off_t );
 };
 
+struct tdb_mutexes;
+
 struct tdb_context {
 	char *name; /* the name of the database */
 	void *map_ptr; /* where it is currently mapped */
@@ -197,8 +208,14 @@ struct tdb_context {
 	struct tdb_lock_type allrecord_lock; /* .offset == upgradable */
 	int num_lockrecs;
 	struct tdb_lock_type *lockrecs; /* only real locks, all with count>0 */
+	int lockrecs_array_length;
+
+	tdb_off_t hdr_ofs; /* this is 0 or header.mutex_size */
+	struct tdb_mutexes *mutexes; /* mmap of the mutex area */
+
 	enum TDB_ERROR ecode; /* error code for last tdb error */
 	uint32_t hash_size;
+	uint32_t feature_flags;
 	uint32_t flags; /* the flags passed to tdb_open */
 	struct tdb_traverse_lock travlocks; /* current traversal locks */
 	struct tdb_context *next; /* all tdbs to avoid multiple opens */
@@ -254,7 +271,8 @@ int tdb_ofs_read(struct tdb_context *tdb, tdb_off_t offset, tdb_off_t *d);
 int tdb_ofs_write(struct tdb_context *tdb, tdb_off_t offset, tdb_off_t *d);
 void *tdb_convert(void *buf, uint32_t size);
 int tdb_free(struct tdb_context *tdb, tdb_off_t offset, struct tdb_record *rec);
-tdb_off_t tdb_allocate(struct tdb_context *tdb, tdb_len_t length, struct tdb_record *rec);
+tdb_off_t tdb_allocate(struct tdb_context *tdb, int hash, tdb_len_t length,
+		       struct tdb_record *rec);
 int tdb_ofs_read(struct tdb_context *tdb, tdb_off_t offset, tdb_off_t *d);
 int tdb_ofs_write(struct tdb_context *tdb, tdb_off_t offset, tdb_off_t *d);
 int tdb_lock_record(struct tdb_context *tdb, tdb_off_t off);
@@ -271,6 +289,10 @@ int tdb_parse_data(struct tdb_context *tdb, TDB_DATA key,
 		   void *private_data);
 tdb_off_t tdb_find_lock_hash(struct tdb_context *tdb, TDB_DATA key, uint32_t hash, int locktype,
 			   struct tdb_record *rec);
+tdb_off_t tdb_find_dead(struct tdb_context *tdb, uint32_t hash,
+			struct tdb_record *r, tdb_len_t length,
+			tdb_off_t *p_last_ptr);
+int tdb_purge_dead(struct tdb_context *tdb, uint32_t hash);
 void tdb_io_init(struct tdb_context *tdb);
 int tdb_expand(struct tdb_context *tdb, tdb_off_t size);
 tdb_off_t tdb_expand_adjust(tdb_off_t map_size, tdb_off_t size, int page_size);
@@ -286,4 +308,20 @@ bool tdb_add_off_t(tdb_off_t a, tdb_off_t b, tdb_off_t *pret);
 
 /* tdb_off_t and tdb_len_t right now are both uint32_t */
 #define tdb_add_len_t tdb_add_off_t
+
+size_t tdb_mutex_size(struct tdb_context *tdb);
+bool tdb_have_mutexes(struct tdb_context *tdb);
+int tdb_mutex_init(struct tdb_context *tdb);
+int tdb_mutex_mmap(struct tdb_context *tdb);
+int tdb_mutex_munmap(struct tdb_context *tdb);
+bool tdb_mutex_lock(struct tdb_context *tdb, int rw, off_t off, off_t len,
+		    bool waitflag, int *pret);
+bool tdb_mutex_unlock(struct tdb_context *tdb, int rw, off_t off, off_t len,
+		      int *pret);
+int tdb_mutex_allrecord_lock(struct tdb_context *tdb, int ltype,
+			     enum tdb_lock_flags flags);
+int tdb_mutex_allrecord_unlock(struct tdb_context *tdb);
+int tdb_mutex_allrecord_upgrade(struct tdb_context *tdb);
+void tdb_mutex_allrecord_downgrade(struct tdb_context *tdb);
+
 #endif /* TDB_PRIVATE_H */

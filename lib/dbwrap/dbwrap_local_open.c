@@ -103,7 +103,8 @@ static bool tdb_to_ntdb(TALLOC_CTX *ctx, struct loadparm_context *lp_ctx,
 		return false;
 	}
 	tdb = db_open_tdb(ctx, lp_ctx, tdbname, 0,
-			  TDB_DEFAULT, O_RDONLY, 0, 0);
+			  TDB_DEFAULT, O_RDONLY, 0, DBWRAP_LOCK_ORDER_NONE,
+			  DBWRAP_FLAG_NONE);
 	if (!tdb) {
 		DEBUG(0, ("tdb_to_ntdb: could not open %s: %s\n",
 			  tdbname, strerror(errno)));
@@ -111,7 +112,8 @@ static bool tdb_to_ntdb(TALLOC_CTX *ctx, struct loadparm_context *lp_ctx,
 	}
 	ntdb = db_open_ntdb(ctx, lp_ctx, ntdbname, dbwrap_hash_size(tdb),
 			    TDB_DEFAULT, O_RDWR|O_CREAT|O_EXCL,
-			    st.st_mode & 0777, 0);
+			    st.st_mode & 0777, DBWRAP_LOCK_ORDER_NONE,
+			    DBWRAP_FLAG_NONE);
 	if (!ntdb) {
 		DEBUG(0, ("tdb_to_ntdb: could not create %s: %s\n",
 			  ntdbname, strerror(errno)));
@@ -160,7 +162,8 @@ struct db_context *dbwrap_local_open(TALLOC_CTX *mem_ctx,
 				     const char *name,
 				     int hash_size, int tdb_flags,
 				     int open_flags, mode_t mode,
-				     enum dbwrap_lock_order lock_order)
+				     enum dbwrap_lock_order lock_order,
+				     uint64_t dbwrap_flags)
 {
 	TALLOC_CTX *tmp_ctx = talloc_new(mem_ctx);
 	const char *ntdbname, *tdbname;
@@ -204,7 +207,8 @@ struct db_context *dbwrap_local_open(TALLOC_CTX *mem_ctx,
 			}
 		}
 		db = db_open_ntdb(mem_ctx, lp_ctx, ntdbname, hash_size,
-				  ntdb_flags, open_flags, mode, lock_order);
+				  ntdb_flags, open_flags, mode, lock_order,
+				  dbwrap_flags);
 	} else {
 		if (!streq(ntdbname, tdbname) && file_exist(ntdbname)) {
 			DEBUG(0, ("Refusing to open '%s' when '%s' exists\n",
@@ -213,7 +217,7 @@ struct db_context *dbwrap_local_open(TALLOC_CTX *mem_ctx,
 		}
 		db = db_open_tdb(mem_ctx, lp_ctx, tdbname, hash_size,
 				 tdb_flags, open_flags, mode,
-				 lock_order);
+				 lock_order, dbwrap_flags);
 	}
 out:
 	talloc_free(tmp_ctx);

@@ -20,7 +20,7 @@
 
 #include "includes.h"
 #include "winbindd.h"
-#include "librpc/gen_ndr/ndr_wbint_c.h"
+#include "librpc/gen_ndr/ndr_winbind_c.h"
 
 struct winbindd_change_machine_acct_state {
 	uint8_t dummy;
@@ -52,6 +52,10 @@ struct tevent_req *winbindd_change_machine_acct_send(TALLOC_CTX *mem_ctx,
 		/*
 		 * Internal domains are passdb based, we can always
 		 * contact them.
+		 *
+		 * This also protects us from changing the password on
+		 * the AD DC without updating all the right databases.
+		 * Do not remove this until that code is fixed.
 		 */
 		tevent_req_done(req);
 		return tevent_req_post(req, ev);

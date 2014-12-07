@@ -21,11 +21,20 @@ shift 7
 failed=0
 
 samba4bindir="$BINDIR"
-samba4kinit="$samba4bindir/samba4kinit"
+samba4kinit=kinit
+if test -x $BINDIR/samba4kinit; then
+	samba4kinit=$BINDIR/samba4kinit
+fi
+
 samba_tool="$samba4bindir/samba-tool"
+net_tool="$samba4bindir/net"
 smbpasswd="$samba4bindir/smbpasswd"
-rkpty="$samba4bindir/rkpty"
-samba4kpasswd="$samba4bindir/samba4kpasswd"
+texpect="$samba4bindir/texpect"
+samba4kpasswd=kpasswd
+if test -x $BINDIR/samba4kpasswd; then
+	samba4kpasswd=$BINDIR/samba4kpasswd
+fi
+
 newuser="$samba_tool user create"
 
 . `dirname $0`/subunit.sh
@@ -46,6 +55,21 @@ test_smbclient() {
 	return $status
 }
 
+do_kinit() {
+	file="$1"
+	password="$2"
+	shift
+	shift
+	if test -x $BINDIR/samba4kinit; then
+		$samba4kinit --password-file=$file --request-pac $@
+	else
+		echo $password | $samba4kinit $@
+	fi
+}
+
+UID_WRAPPER_ROOT=1
+export UID_WRAPPER_ROOT
+
 CONFIG="--configfile=$PREFIX/dc/etc/smb.conf"
 export CONFIG
 
@@ -60,7 +84,7 @@ export KRB5CCNAME
 
 echo $USERPASS > $PREFIX/tmpuserpassfile
 
-testit "kinit with user password" $samba4kinit --password-file=$PREFIX/tmpuserpassfile --request-pac nettestuser@$REALM   || failed=`expr $failed + 1`
+testit "kinit with user password" do_kinit $PREFIX/tmpuserpassfile $USERPASS nettestuser@$REALM   || failed=`expr $failed + 1`
 
 test_smbclient "Test login with user kerberos ccache" 'ls' -k yes || failed=`expr $failed + 1`
 
@@ -68,7 +92,7 @@ NEWUSERPASS=testPaSS@01%
 testit "change user password with 'samba-tool user password' (unforced)" $VALGRIND $samba_tool user password -W$DOMAIN -U$DOMAIN/nettestuser%$USERPASS  -k no --newpassword=$NEWUSERPASS $@ || failed=`expr $failed + 1`
 
 echo $NEWUSERPASS > ./tmpuserpassfile
-testit "kinit with user password" $samba4kinit --password-file=./tmpuserpassfile --request-pac nettestuser@$REALM   || failed=`expr $failed + 1`
+testit "kinit with user password" do_kinit ./tmpuserpassfile $NEWUSERPASS nettestuser@$REALM   || failed=`expr $failed + 1`
 
 test_smbclient "Test login with user kerberos ccache" 'ls' -k yes || failed=`expr $failed + 1`
 
@@ -97,7 +121,7 @@ NEWUSERPASS=testPaSS@02%
 #expect password mismatch
 #EOF
 #
-#testit "change user password with kpasswd" $rkpty ./tmpkpasswdscript $samba4kpasswd nettestuser@$REALM || failed=`expr $failed + 1`
+#testit "change user password with kpasswd" $texpect ./tmpkpasswdscript $samba4kpasswd nettestuser@$REALM || failed=`expr $failed + 1`
 
 
 echo "check that a weak password is rejected"
@@ -111,7 +135,7 @@ send ${WEAKPASS}\n
 expect Password does not meet complexity requirements
 EOF
 
-testit "change to weak user password with kpasswd" $rkpty ./tmpkpasswdscript $samba4kpasswd nettestuser@$REALM || failed=`expr $failed + 1`
+testit "change to weak user password with kpasswd" $texpect ./tmpkpasswdscript $samba4kpasswd nettestuser@$REALM || failed=`expr $failed + 1`
 
 echo "check that a short password is rejected"
 cat > ./tmpkpasswdscript <<EOF
@@ -124,7 +148,7 @@ send xx1\n
 expect Password too short
 EOF
 
-testit "change to short user password with kpasswd" $rkpty ./tmpkpasswdscript $samba4kpasswd nettestuser@$REALM || failed=`expr $failed + 1`
+testit "change to short user password with kpasswd" $texpect ./tmpkpasswdscript $samba4kpasswd nettestuser@$REALM || failed=`expr $failed + 1`
 
 
 echo "check that a strong new password is accepted"
@@ -138,7 +162,7 @@ send ${NEWUSERPASS}\n
 expect Success
 EOF
 
-testit "change user password with kpasswd" $rkpty ./tmpkpasswdscript $samba4kpasswd nettestuser@$REALM || failed=`expr $failed + 1`
+testit "change user password with kpasswd" $texpect ./tmpkpasswdscript $samba4kpasswd nettestuser@$REALM || failed=`expr $failed + 1`
 
 test_smbclient "Test login with user kerberos (unforced)" 'ls' -k yes -Unettestuser@$REALM%$NEWUSERPASS || failed=`expr $failed + 1`
 
@@ -152,7 +176,7 @@ expect Retype new SMB password:
 send ${NEWUSERPASS}\n
 EOF
 
-testit "set user password with smbpasswd" $rkpty ./tmpsmbpasswdscript $smbpasswd -L -c $PREFIX/dc/etc/smb.conf nettestuser || failed=`expr $failed + 1`
+testit "set user password with smbpasswd" $texpect ./tmpsmbpasswdscript $smbpasswd -L -c $PREFIX/dc/etc/smb.conf nettestuser || failed=`expr $failed + 1`
 USERPASS=$NEWUSERPASS
 
 test_smbclient "Test login with user (ntlm)" 'ls' -k no -Unettestuser@$REALM%$NEWUSERPASS || failed=`expr $failed + 1`
@@ -182,7 +206,7 @@ send ${NEWUSERPASS}\n
 expect Success
 EOF
 
-testit "change user password with kpasswd (after must change flag set)" $rkpty ./tmpkpasswdscript $samba4kpasswd nettestuser@$REALM || failed=`expr $failed + 1`
+testit "change user password with kpasswd (after must change flag set)" $texpect ./tmpkpasswdscript $samba4kpasswd nettestuser@$REALM || failed=`expr $failed + 1`
 USERPASS=$NEWUSERPASS
 
 test_smbclient "Test login with user kerberos" 'ls' -k yes -Unettestuser@$REALM%$NEWUSERPASS || failed=`expr $failed + 1`
@@ -202,7 +226,7 @@ expect Retype new SMB password:
 send ${NEWUSERPASS}\n
 EOF
 
-testit "change user password with smbpasswd (after must change flag set)" $rkpty ./tmpsmbpasswdscript $smbpasswd -r $SERVER  -c $PREFIX/dc/etc/smb.conf -U nettestuser || failed=`expr $failed + 1`
+testit "change user password with smbpasswd (after must change flag set)" $texpect ./tmpsmbpasswdscript $smbpasswd -r $SERVER  -c $PREFIX/dc/etc/smb.conf -U nettestuser || failed=`expr $failed + 1`
 
 USERPASS=$NEWUSERPASS
 
@@ -225,6 +249,20 @@ testit "allow short passwords (length 1)" $VALGRIND $samba_tool domain passwords
 
 testit "try to set a short password (command should succeed)" $VALGRIND $samba_tool user password -W$DOMAIN "-U$DOMAIN/nettestuser%$USERPASS" -k no --newpassword="$NEWUSERPASS" $@ || failed=`expr $failed + 1`
 USERPASS="$NEWUSERPASS"
+
+# test kpasswd via net ads password (change variant)
+NEWUSERPASS="testPaSS@10%"
+testit "change user password with 'net ads password', admin: $DOMAIN/nettestuser, target: nettestuser@$REALM" $VALGRIND $net_tool ads password -W$DOMAIN -Unettestuser@$REALM%$USERPASS nettestuser@$REALM "$NEWUSERPASS" $@ || failed=`expr $failed + 1`
+USERPASS="$NEWUSERPASS"
+
+test_smbclient "Test login with smbclient" 'ls' -k no -Unettestuser@$REALM%$NEWUSERPASS || failed=`expr $failed + 1`
+
+# test kpasswd via net ads password (admin set variant)
+NEWUSERPASS="testPaSS@11%"
+testit "set user password with 'net ads password', admin: $DOMAIN/$USERNAME, target: nettestuser@$REALM" $VALGRIND $net_tool ads password -W$DOMAIN -U$USERNAME@$REALM%$PASSWORD nettestuser@$REALM "$NEWUSERPASS" $@ || failed=`expr $failed + 1`
+USERPASS="$NEWUSERPASS"
+
+test_smbclient "Test login with smbclient" 'ls' -k no -Unettestuser@$REALM%$NEWUSERPASS || failed=`expr $failed + 1`
 
 testit "require minimum password age of 1 day" $VALGRIND $samba_tool domain passwordsettings $CONFIG set --min-pwd-age=1 || failed=`expr $failed + 1`
 

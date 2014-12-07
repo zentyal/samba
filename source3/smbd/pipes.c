@@ -67,6 +67,7 @@ NTSTATUS open_np_file(struct smb_request *smb_req, const char *name,
 			 conn->sconn->local_address,
 			 conn->sconn->remote_address,
 			 conn->session_info,
+			 conn->sconn->ev_ctx,
 			 conn->sconn->msg_ctx,
 			 &fsp->fake_file_handle);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -245,7 +246,7 @@ static void pipe_write_done(struct tevent_req *subreq)
 	DEBUG(3,("write-IPC nwritten=%d\n", (int)nwritten));
 
  send:
-	if (!srv_send_smb(req->sconn, (char *)req->outbuf,
+	if (!srv_send_smb(req->xconn, (char *)req->outbuf,
 			  true, req->seqnum+1,
 			  IS_CONN_ENCRYPTED(req->conn)||req->encrypted,
 			  &req->pcd)) {
@@ -421,11 +422,12 @@ void reply_pipe_read_and_X(struct smb_request *req)
 	state->smb_maxcnt = SVAL(req->vwv+5, 0);
 	state->smb_mincnt = SVAL(req->vwv+6, 0);
 
-	reply_outbuf(req, 12, state->smb_maxcnt);
+	reply_outbuf(req, 12, state->smb_maxcnt + 1 /* padding byte */);
 	SSVAL(req->outbuf, smb_vwv0, 0xff); /* andx chain ends */
 	SSVAL(req->outbuf, smb_vwv1, 0);    /* no andx offset */
+	SCVAL(smb_buf(req->outbuf), 0, 0); /* padding byte */
 
-	data = (uint8_t *)smb_buf(req->outbuf);
+	data = (uint8_t *)smb_buf(req->outbuf) + 1 /* padding byte */;
 
 	/*
 	 * We have to tell the upper layers that we're async.
@@ -466,7 +468,8 @@ static void pipe_read_andx_done(struct tevent_req *subreq)
 	req->outbuf = state->outbuf;
 	state->outbuf = NULL;
 
-	srv_set_message((char *)req->outbuf, 12, nread, False);
+	srv_set_message((char *)req->outbuf, 12, nread + 1 /* padding byte */,
+			false);
 
 #if 0
 	/*
@@ -487,7 +490,8 @@ static void pipe_read_andx_done(struct tevent_req *subreq)
 	      (smb_wct - 4)	/* offset from smb header to wct */
 	      + 1 		/* the wct field */
 	      + 12 * sizeof(uint16_t) /* vwv */
-	      + 2);		/* the buflen field */
+	      + 2		/* the buflen field */
+	      + 1);		/* padding byte */
 	SSVAL(req->outbuf,smb_vwv11,state->smb_maxcnt);
 
 	DEBUG(3,("readX-IPC min=%d max=%d nread=%d\n",

@@ -169,6 +169,7 @@ static NTSTATUS skel_create_file(struct vfs_handle_struct *handle,
 				 uint32_t create_options,
 				 uint32_t file_attributes,
 				 uint32_t oplock_request,
+				 struct smb2_lease *lease,
 				 uint64_t allocation_size,
 				 uint32_t private_flags,
 				 struct security_descriptor *sd,
@@ -528,6 +529,23 @@ static NTSTATUS skel_copy_chunk_recv(struct vfs_handle_struct *handle,
 	return NT_STATUS_OK;
 }
 
+static NTSTATUS skel_get_compression(struct vfs_handle_struct *handle,
+				     TALLOC_CTX *mem_ctx,
+				     struct files_struct *fsp,
+				     struct smb_filename *smb_fname,
+				     uint16_t *_compression_fmt)
+{
+	return NT_STATUS_INVALID_DEVICE_REQUEST;
+}
+
+static NTSTATUS skel_set_compression(struct vfs_handle_struct *handle,
+				     TALLOC_CTX *mem_ctx,
+				     struct files_struct *fsp,
+				     uint16_t compression_fmt)
+{
+	return NT_STATUS_INVALID_DEVICE_REQUEST;
+}
+
 static NTSTATUS skel_streaminfo(struct vfs_handle_struct *handle,
 				struct files_struct *fsp,
 				const char *fname,
@@ -557,8 +575,7 @@ static const char *skel_connectpath(struct vfs_handle_struct *handle,
 static NTSTATUS skel_brl_lock_windows(struct vfs_handle_struct *handle,
 				      struct byte_range_lock *br_lck,
 				      struct lock_struct *plock,
-				      bool blocking_lock,
-				      struct blocking_lock_record *blr)
+				      bool blocking_lock)
 {
 	return NT_STATUS_NOT_IMPLEMENTED;
 }
@@ -574,8 +591,7 @@ static bool skel_brl_unlock_windows(struct vfs_handle_struct *handle,
 
 static bool skel_brl_cancel_windows(struct vfs_handle_struct *handle,
 				    struct byte_range_lock *br_lck,
-				    struct lock_struct *plock,
-				    struct blocking_lock_record *blr)
+				    struct lock_struct *plock)
 {
 	errno = ENOSYS;
 	return false;
@@ -867,6 +883,8 @@ struct vfs_fn_pointers skel_opaque_fns = {
 	.file_id_create_fn = skel_file_id_create,
 	.copy_chunk_send_fn = skel_copy_chunk_send,
 	.copy_chunk_recv_fn = skel_copy_chunk_recv,
+	.get_compression_fn = skel_get_compression,
+	.set_compression_fn = skel_set_compression,
 
 	.streaminfo_fn = skel_streaminfo,
 	.get_real_filename_fn = skel_get_real_filename,

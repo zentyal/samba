@@ -29,6 +29,7 @@
 #include "../librpc/gen_ndr/ndr_security.h"
 #include "../librpc/gen_ndr/open_files.h"
 #include "../librpc/gen_ndr/idmap.h"
+#include "../librpc/gen_ndr/ioctl.h"
 #include "passdb/lookup_sid.h"
 #include "auth.h"
 #include "serverid.h"
@@ -359,7 +360,7 @@ NTSTATUS fd_open(struct connection_struct *conn,
 	 * client should be doing this.
 	 */
 
-	if (fsp->posix_open || !lp_symlinks(SNUM(conn))) {
+	if (fsp->posix_open || !lp_follow_symlinks(SNUM(conn))) {
 		flags |= O_NOFOLLOW;
 	}
 #endif
@@ -900,7 +901,7 @@ static NTSTATUS open_file(files_struct *fsp,
 			   in the stat struct in fsp->fsp_name. */
 
 			/* Inherit the ACL if required */
-			if (lp_inherit_perms(SNUM(conn))) {
+			if (lp_inherit_permissions(SNUM(conn))) {
 				inherit_access_posix_acl(conn, parent_dir,
 							 smb_fname->base_name,
 							 unx_mode);
@@ -1127,14 +1128,6 @@ static void validate_my_share_entries(struct smbd_server_connection *sconn,
 			  "share entry with an open file\n");
 	}
 
-	if ((share_entry->op_type == NO_OPLOCK) &&
-	    (fsp->oplock_type == FAKE_LEVEL_II_OPLOCK))
-	{
-		/* Someone has already written to it, but I haven't yet
-		 * noticed */
-		return;
-	}
-
 	if (((uint16)fsp->oplock_type) != share_entry->op_type) {
 		goto panic;
 	}
@@ -1168,42 +1161,40 @@ bool is_stat_open(uint32 access_mask)
 		((access_mask & ~stat_open_bits) == 0));
 }
 
+static bool has_delete_on_close(struct share_mode_lock *lck,
+				uint32_t name_hash)
+{
+	struct share_mode_data *d = lck->data;
+	uint32_t i;
+
+	if (d->num_share_modes == 0) {
+		return false;
+	}
+	if (!is_delete_on_close_set(lck, name_hash)) {
+		return false;
+	}
+	for (i=0; i<d->num_share_modes; i++) {
+		if (!share_mode_stale_pid(d, i)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 /****************************************************************************
  Deal with share modes
- Invarient: Share mode must be locked on entry and exit.
+ Invariant: Share mode must be locked on entry and exit.
  Returns -1 on error, or number of share modes on success (may be zero).
 ****************************************************************************/
 
 static NTSTATUS open_mode_check(connection_struct *conn,
 				struct share_mode_lock *lck,
-				uint32_t name_hash,
 				uint32 access_mask,
-				uint32 share_access,
-				uint32 create_options,
-				bool *file_existed)
+				uint32 share_access)
 {
 	int i;
 
 	if(lck->data->num_share_modes == 0) {
-		return NT_STATUS_OK;
-	}
-
-	/* A delete on close prohibits everything */
-
-	if (is_delete_on_close_set(lck, name_hash)) {
-		/*
-		 * Check the delete on close token
-		 * is valid. It could have been left
-		 * after a server crash.
-		 */
-		for(i = 0; i < lck->data->num_share_modes; i++) {
-			if (!share_mode_stale_pid(lck->data, i)) {
-
-				*file_existed = true;
-
-				return NT_STATUS_DELETE_PENDING;
-			}
-		}
 		return NT_STATUS_OK;
 	}
 
@@ -1240,14 +1231,8 @@ static NTSTATUS open_mode_check(connection_struct *conn,
 				continue;
 			}
 
-			*file_existed = true;
-
 			return NT_STATUS_SHARING_VIOLATION;
 		}
-	}
-
-	if (lck->data->num_share_modes != 0) {
-		*file_existed = true;
 	}
 
 	return NT_STATUS_OK;
@@ -1258,33 +1243,25 @@ static NTSTATUS open_mode_check(connection_struct *conn,
  * our client.
  */
 
-static NTSTATUS send_break_message(files_struct *fsp,
-					struct share_mode_entry *exclusive,
-					uint64_t mid,
-					int oplock_request)
+static NTSTATUS send_break_message(struct messaging_context *msg_ctx,
+				   const struct share_mode_entry *exclusive,
+				   uint16_t break_to)
 {
 	NTSTATUS status;
 	char msg[MSG_SMB_SHARE_MODE_ENTRY_SIZE];
 
 	DEBUG(10, ("Sending break request to PID %s\n",
 		   procid_str_static(&exclusive->pid)));
-	exclusive->op_mid = mid;
 
 	/* Create the message. */
 	share_mode_entry_to_message(msg, exclusive);
 
-	/* Add in the FORCE_OPLOCK_BREAK_TO_NONE bit in the message if set. We
-	   don't want this set in the share mode struct pointed to by lck. */
+	/* Overload entry->op_type */
+	SSVAL(msg,OP_BREAK_MSG_OP_TYPE_OFFSET, break_to);
 
-	if (oplock_request & FORCE_OPLOCK_BREAK_TO_NONE) {
-		SSVAL(msg,OP_BREAK_MSG_OP_TYPE_OFFSET,
-			exclusive->op_type | FORCE_OPLOCK_BREAK_TO_NONE);
-	}
-
-	status = messaging_send_buf(fsp->conn->sconn->msg_ctx, exclusive->pid,
+	status = messaging_send_buf(msg_ctx, exclusive->pid,
 				    MSG_SMB_BREAK_REQUEST,
-				    (uint8 *)msg,
-				    MSG_SMB_SHARE_MODE_ENTRY_SIZE);
+				    (uint8 *)msg, sizeof(msg));
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(3, ("Could not send oplock break message: %s\n",
 			  nt_errstr(status)));
@@ -1294,39 +1271,21 @@ static NTSTATUS send_break_message(files_struct *fsp,
 }
 
 /*
- * Return share_mode_entry pointers for :
- * 1). Batch oplock entry.
- * 2). Batch or exclusive oplock entry (may be identical to #1).
- * bool have_level2_oplock
- * bool have_no_oplock.
  * Do internal consistency checks on the share mode for a file.
  */
 
-static void find_oplock_types(files_struct *fsp,
-				int oplock_request,
-				const struct share_mode_lock *lck,
-				struct share_mode_entry **pp_batch,
-				struct share_mode_entry **pp_ex_or_batch,
-				bool *got_level2,
-				bool *got_no_oplock)
+static bool validate_oplock_types(struct share_mode_lock *lck)
 {
-	int i;
+	struct share_mode_data *d = lck->data;
+	bool batch = false;
+	bool ex_or_batch = false;
+	bool level2 = false;
+	bool no_oplock = false;
+	uint32_t num_non_stat_opens = 0;
+	uint32_t i;
 
-	*pp_batch = NULL;
-	*pp_ex_or_batch = NULL;
-	*got_level2 = false;
-	*got_no_oplock = false;
-
-	/* Ignore stat or internal opens, as is done in
-		delay_for_batch_oplocks() and
-		delay_for_exclusive_oplocks().
-	 */
-	if ((oplock_request & INTERNAL_OPEN_ONLY) || is_stat_open(fsp->access_mask)) {
-		return;
-	}
-
-	for (i=0; i<lck->data->num_share_modes; i++) {
-		struct share_mode_entry *e = &lck->data->share_modes[i];
+	for (i=0; i<d->num_share_modes; i++) {
+		struct share_mode_entry *e = &d->share_modes[i];
 
 		if (!is_valid_share_mode_entry(e)) {
 			continue;
@@ -1344,69 +1303,120 @@ static void find_oplock_types(files_struct *fsp,
 			continue;
 		}
 
+		num_non_stat_opens += 1;
+
 		if (BATCH_OPLOCK_TYPE(e->op_type)) {
 			/* batch - can only be one. */
-			if (share_mode_stale_pid(lck->data, i)) {
+			if (share_mode_stale_pid(d, i)) {
 				DEBUG(10, ("Found stale batch oplock\n"));
 				continue;
 			}
-			if (*pp_ex_or_batch || *pp_batch || *got_level2 || *got_no_oplock) {
-				smb_panic("Bad batch oplock entry.");
+			if (ex_or_batch || batch || level2 || no_oplock) {
+				DEBUG(0, ("Bad batch oplock entry %u.",
+					  (unsigned)i));
+				return false;
 			}
-			*pp_batch = e;
+			batch = true;
 		}
 
 		if (EXCLUSIVE_OPLOCK_TYPE(e->op_type)) {
-			if (share_mode_stale_pid(lck->data, i)) {
+			if (share_mode_stale_pid(d, i)) {
 				DEBUG(10, ("Found stale duplicate oplock\n"));
 				continue;
 			}
 			/* Exclusive or batch - can only be one. */
-			if (*pp_ex_or_batch || *got_level2 || *got_no_oplock) {
-				smb_panic("Bad exclusive or batch oplock entry.");
+			if (ex_or_batch || level2 || no_oplock) {
+				DEBUG(0, ("Bad exclusive or batch oplock "
+					  "entry %u.", (unsigned)i));
+				return false;
 			}
-			*pp_ex_or_batch = e;
+			ex_or_batch = true;
 		}
 
 		if (LEVEL_II_OPLOCK_TYPE(e->op_type)) {
-			if (*pp_batch || *pp_ex_or_batch) {
-				if (share_mode_stale_pid(lck->data, i)) {
+			if (batch || ex_or_batch) {
+				if (share_mode_stale_pid(d, i)) {
 					DEBUG(10, ("Found stale LevelII "
 						   "oplock\n"));
 					continue;
 				}
-				smb_panic("Bad levelII oplock entry.");
+				DEBUG(0, ("Bad levelII oplock entry %u.",
+					  (unsigned)i));
+				return false;
 			}
-			*got_level2 = true;
+			level2 = true;
 		}
 
 		if (e->op_type == NO_OPLOCK) {
-			if (*pp_batch || *pp_ex_or_batch) {
-				if (share_mode_stale_pid(lck->data, i)) {
+			if (batch || ex_or_batch) {
+				if (share_mode_stale_pid(d, i)) {
 					DEBUG(10, ("Found stale NO_OPLOCK "
 						   "entry\n"));
 					continue;
 				}
-				smb_panic("Bad no oplock entry.");
+				DEBUG(0, ("Bad no oplock entry %u.",
+					  (unsigned)i));
+				return false;
 			}
-			*got_no_oplock = true;
+			no_oplock = true;
 		}
 	}
+
+	remove_stale_share_mode_entries(d);
+
+	if ((batch || ex_or_batch) && (num_non_stat_opens != 1)) {
+		DEBUG(1, ("got batch (%d) or ex (%d) non-exclusively (%d)\n",
+			  (int)batch, (int)ex_or_batch,
+			  (int)d->num_share_modes));
+		return false;
+	}
+
+	return true;
 }
 
-static bool delay_for_batch_oplocks(files_struct *fsp,
-					uint64_t mid,
-					int oplock_request,
-					struct share_mode_entry *batch_entry)
+static bool delay_for_oplock(files_struct *fsp,
+			     int oplock_request,
+			     struct share_mode_lock *lck,
+			     bool have_sharing_violation,
+			     uint32_t create_disposition)
 {
+	struct share_mode_data *d = lck->data;
+	struct share_mode_entry *entry;
+	uint32_t num_non_stat_opens = 0;
+	uint32_t i;
+	uint16_t break_to;
+
 	if ((oplock_request & INTERNAL_OPEN_ONLY) || is_stat_open(fsp->access_mask)) {
 		return false;
 	}
-	if (batch_entry == NULL) {
+	for (i=0; i<d->num_share_modes; i++) {
+		struct share_mode_entry *e = &d->share_modes[i];
+		if (e->op_type == NO_OPLOCK && is_stat_open(e->access_mask)) {
+			continue;
+		}
+		num_non_stat_opens += 1;
+
+		/*
+		 * We found the a non-stat open, which in the exclusive/batch
+		 * case will be inspected further down.
+		 */
+		entry = e;
+	}
+	if (num_non_stat_opens == 0) {
+		/*
+		 * Nothing to wait for around
+		 */
+		return false;
+	}
+	if (num_non_stat_opens != 1) {
+		/*
+		 * More than one open around. There can't be any exclusive or
+		 * batch left, this is all level2.
+		 */
 		return false;
 	}
 
-	if (server_id_is_disconnected(&batch_entry->pid)) {
+	if (server_id_is_disconnected(&entry->pid)) {
 		/*
 		 * TODO: clean up.
 		 * This could be achieved by sending a break message
@@ -1419,33 +1429,52 @@ static bool delay_for_batch_oplocks(files_struct *fsp,
 		return false;
 	}
 
-	/* Found a batch oplock */
-	send_break_message(fsp, batch_entry, mid, oplock_request);
-	return true;
-}
-
-static bool delay_for_exclusive_oplocks(files_struct *fsp,
-					uint64_t mid,
-					int oplock_request,
-					struct share_mode_entry *ex_entry)
-{
-	if ((oplock_request & INTERNAL_OPEN_ONLY) || is_stat_open(fsp->access_mask)) {
-		return false;
-	}
-	if (ex_entry == NULL) {
-		return false;
+	switch (create_disposition) {
+	case FILE_SUPERSEDE:
+	case FILE_OVERWRITE_IF:
+		break_to = NO_OPLOCK;
+		break;
+	default:
+		break_to = LEVEL_II_OPLOCK;
+		break;
 	}
 
-	if (server_id_is_disconnected(&ex_entry->pid)) {
+	if (have_sharing_violation && (entry->op_type & BATCH_OPLOCK)) {
+		if (share_mode_stale_pid(d, 0)) {
+			return false;
+		}
+		send_break_message(fsp->conn->sconn->msg_ctx, entry, break_to);
+		return true;
+	}
+	if (have_sharing_violation) {
 		/*
-		 * since only durable handles can get disconnected,
-		 * and we can only get durable handles with batch oplocks,
-		 * this should actually never be reached...
+		 * Non-batch exclusive is not broken if we have a sharing
+		 * violation
 		 */
 		return false;
 	}
+	if (LEVEL_II_OPLOCK_TYPE(entry->op_type) &&
+	    (break_to == NO_OPLOCK)) {
+		if (share_mode_stale_pid(d, 0)) {
+			return false;
+		}
+		DEBUG(10, ("Asynchronously breaking level2 oplock for "
+			   "create_disposition=%u\n",
+			   (unsigned)create_disposition));
+		send_break_message(fsp->conn->sconn->msg_ctx, entry, break_to);
+		return false;
+	}
+	if (!EXCLUSIVE_OPLOCK_TYPE(entry->op_type)) {
+		/*
+		 * No break for NO_OPLOCK or LEVEL2_OPLOCK oplocks
+		 */
+		return false;
+	}
+	if (share_mode_stale_pid(d, 0)) {
+		return false;
+	}
 
-	send_break_message(fsp, ex_entry, mid, oplock_request);
+	send_break_message(fsp->conn->sconn->msg_ctx, entry, break_to);
 	return true;
 }
 
@@ -1457,16 +1486,17 @@ static bool file_has_brlocks(files_struct *fsp)
 	if (!br_lck)
 		return false;
 
-	return br_lck->num_locks > 0 ? true : false;
+	return (brl_num_locks(br_lck) > 0);
 }
 
 static void grant_fsp_oplock_type(files_struct *fsp,
-				int oplock_request,
-				bool got_level2_oplock,
-				bool got_a_none_oplock)
+				  struct share_mode_lock *lck,
+				  int oplock_request)
 {
 	bool allow_level2 = (global_client_caps & CAP_LEVEL_II_OPLOCKS) &&
 		            lp_level2_oplocks(SNUM(fsp->conn));
+	bool got_level2_oplock, got_a_none_oplock;
+	uint32_t i;
 
 	/* Start by granting what the client asked for,
 	   but ensure no SAMBA_PRIVATE bits can be set. */
@@ -1493,28 +1523,28 @@ static void grant_fsp_oplock_type(files_struct *fsp,
 		return;
 	}
 
+	got_level2_oplock = false;
+	got_a_none_oplock = false;
+
+	for (i=0; i<lck->data->num_share_modes; i++) {
+		int op_type = lck->data->share_modes[i].op_type;
+
+		if (LEVEL_II_OPLOCK_TYPE(op_type)) {
+			got_level2_oplock = true;
+		}
+		if (op_type == NO_OPLOCK) {
+			got_a_none_oplock = true;
+		}
+	}
+
 	/*
 	 * Match what was requested (fsp->oplock_type) with
  	 * what was found in the existing share modes.
  	 */
 
-	if (got_a_none_oplock) {
-		fsp->oplock_type = NO_OPLOCK;
-	} else if (got_level2_oplock) {
-		if (fsp->oplock_type == NO_OPLOCK ||
-				fsp->oplock_type == FAKE_LEVEL_II_OPLOCK) {
-			/* Store a level2 oplock, but don't tell the client */
-			fsp->oplock_type = FAKE_LEVEL_II_OPLOCK;
-		} else {
+	if (got_level2_oplock || got_a_none_oplock) {
+		if (EXCLUSIVE_OPLOCK_TYPE(fsp->oplock_type)) {
 			fsp->oplock_type = LEVEL_II_OPLOCK;
-		}
-	} else {
-		/* All share_mode_entries are placeholders or deferred.
-		 * Silently upgrade to fake levelII if the client didn't
-		 * ask for an oplock. */
-		if (fsp->oplock_type == NO_OPLOCK) {
-			/* Store a level2 oplock, but don't tell the client */
-			fsp->oplock_type = FAKE_LEVEL_II_OPLOCK;
 		}
 	}
 
@@ -1523,7 +1553,20 @@ static void grant_fsp_oplock_type(files_struct *fsp,
 	 * or if we've turned them off.
 	 */
 	if (fsp->oplock_type == LEVEL_II_OPLOCK && !allow_level2) {
-		fsp->oplock_type = FAKE_LEVEL_II_OPLOCK;
+		fsp->oplock_type = NO_OPLOCK;
+	}
+
+	if (fsp->oplock_type == LEVEL_II_OPLOCK && !got_level2_oplock) {
+		/*
+		 * We're the first level2 oplock. Indicate that in brlock.tdb.
+		 */
+		struct byte_range_lock *brl;
+
+		brl = brl_get_locks(talloc_tos(), fsp);
+		if (brl != NULL) {
+			brl_set_have_read_oplocks(brl, true);
+			TALLOC_FREE(brl);
+		}
 	}
 
 	DEBUG(10,("grant_fsp_oplock_type: oplock type 0x%x on file %s\n",
@@ -1540,7 +1583,7 @@ static bool request_timed_out(struct timeval request_time,
 }
 
 struct defer_open_state {
-	struct smbd_server_connection *sconn;
+	struct smbXsrv_connection *xconn;
 	uint64_t mid;
 };
 
@@ -1556,27 +1599,32 @@ static void defer_open(struct share_mode_lock *lck,
 		       struct smb_request *req,
 		       struct deferred_open_record *state)
 {
+	struct deferred_open_record *open_rec;
+
 	DEBUG(10,("defer_open_sharing_error: time [%u.%06u] adding deferred "
 		  "open entry for mid %llu\n",
 		  (unsigned int)request_time.tv_sec,
 		  (unsigned int)request_time.tv_usec,
 		  (unsigned long long)req->mid));
 
-	if (!push_deferred_open_message_smb(req, request_time, timeout,
-				       state->id, (char *)state, sizeof(*state))) {
+	open_rec = talloc(NULL, struct deferred_open_record);
+	if (open_rec == NULL) {
 		TALLOC_FREE(lck);
-		exit_server("push_deferred_open_message_smb failed");
+		exit_server("talloc failed");
 	}
+
+	*open_rec = *state;
+
 	if (lck) {
 		struct defer_open_state *watch_state;
 		struct tevent_req *watch_req;
 		bool ret;
 
-		watch_state = talloc(req->sconn, struct defer_open_state);
+		watch_state = talloc(open_rec, struct defer_open_state);
 		if (watch_state == NULL) {
 			exit_server("talloc failed");
 		}
-		watch_state->sconn = req->sconn;
+		watch_state->xconn = req->xconn;
 		watch_state->mid = req->mid;
 
 		DEBUG(10, ("defering mid %llu\n",
@@ -1595,6 +1643,12 @@ static void defer_open(struct share_mode_lock *lck,
 			watch_req, req->sconn->ev_ctx,
 			timeval_sum(&request_time, &timeout));
 		SMB_ASSERT(ret);
+	}
+
+	if (!push_deferred_open_message_smb(req, request_time, timeout,
+					    state->id, open_rec)) {
+		TALLOC_FREE(lck);
+		exit_server("push_deferred_open_message_smb failed");
 	}
 }
 
@@ -1618,7 +1672,7 @@ static void defer_open_done(struct tevent_req *req)
 
 	DEBUG(10, ("scheduling mid %llu\n", (unsigned long long)state->mid));
 
-	ret = schedule_deferred_open_message_smb(state->sconn, state->mid);
+	ret = schedule_deferred_open_message_smb(state->xconn, state->mid);
 	SMB_ASSERT(ret);
 	TALLOC_FREE(state);
 }
@@ -1735,6 +1789,7 @@ static NTSTATUS fcb_or_dos_open(struct smb_request *req,
 }
 
 static void schedule_defer_open(struct share_mode_lock *lck,
+				struct file_id id,
 				struct timeval request_time,
 				struct smb_request *req)
 {
@@ -1765,7 +1820,7 @@ static void schedule_defer_open(struct share_mode_lock *lck,
 
 	state.delayed_for_oplocks = True;
 	state.async_open = false;
-	state.id = lck->data->id;
+	state.id = id;
 
 	if (!request_timed_out(request_time, timeout)) {
 		defer_open(lck, request_time, timeout, req, &state);
@@ -1921,11 +1976,9 @@ NTSTATUS smbd_calculate_access_mask(connection_struct *conn,
  Return true if this is a state pointer to an asynchronous create.
 ****************************************************************************/
 
-bool is_deferred_open_async(const void *ptr)
+bool is_deferred_open_async(const struct deferred_open_record *rec)
 {
-	const struct deferred_open_record *state = (const struct deferred_open_record *)ptr;
-
-	return state->async_open;
+	return rec->async_open;
 }
 
 static bool clear_ads(uint32_t create_disposition)
@@ -2008,10 +2061,7 @@ static int calculate_open_access_flags(uint32_t access_mask,
 	 * mean the same thing under DOS and Unix.
 	 */
 
-	need_write =
-		((access_mask & (FILE_WRITE_DATA | FILE_APPEND_DATA)) ||
-		 (oplock_request & FORCE_OPLOCK_BREAK_TO_NONE));
-
+	need_write = (access_mask & (FILE_WRITE_DATA | FILE_APPEND_DATA));
 	if (!need_write) {
 		return O_RDONLY;
 	}
@@ -2043,6 +2093,7 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
 			    uint32 create_options,	/* options such as delete on close. */
 			    uint32 new_dos_attributes,	/* attributes used for new file. */
 			    int oplock_request, 	/* internal Samba oplock codes. */
+			    struct smb2_lease *lease,
 				 			/* Information (FILE_EXISTS etc.) */
 			    uint32_t private_flags,     /* Samba specific flags. */
 			    int *pinfo,
@@ -2067,10 +2118,6 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
 	NTSTATUS status;
 	char *parent_dir;
 	SMB_STRUCT_STAT saved_stat = smb_fname->st;
-	struct share_mode_entry *batch_entry = NULL;
-	struct share_mode_entry *exclusive_entry = NULL;
-	bool got_level2_oplock = false;
-	bool got_a_none_oplock = false;
 	struct timespec old_write_time;
 	struct file_id id;
 
@@ -2141,10 +2188,10 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
 	 */
 
 	if (req) {
-		void *ptr;
+		struct deferred_open_record *open_rec;
 		if (get_deferred_open_message_state(req,
 				&request_time,
-				&ptr)) {
+				&open_rec)) {
 			/* Remember the absolute time of the original
 			   request with this mid. We'll use it later to
 			   see if this has timed out. */
@@ -2152,13 +2199,13 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
 			/* If it was an async create retry, the file
 			   didn't exist. */
 
-			if (is_deferred_open_async(ptr)) {
+			if (is_deferred_open_async(open_rec)) {
 				SET_STAT_INVALID(smb_fname->st);
 				file_existed = false;
 			}
 
 			/* Ensure we don't reprocess this message. */
-			remove_deferred_open_message_smb(req->sconn, req->mid);
+			remove_deferred_open_message_smb(req->xconn, req->mid);
 
 			first_open_attempt = false;
 		}
@@ -2278,7 +2325,7 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
 
 	open_access_mask = access_mask;
 
-	if ((flags2 & O_TRUNC) || (oplock_request & FORCE_OPLOCK_BREAK_TO_NONE)) {
+	if (flags2 & O_TRUNC) {
 		open_access_mask |= FILE_WRITE_DATA; /* This will cause oplock breaks. */
 	}
 
@@ -2414,13 +2461,12 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
 			return NT_STATUS_SHARING_VIOLATION;
 		}
 
-		find_oplock_types(fsp, 0, lck, &batch_entry, &exclusive_entry,
-				  &got_level2_oplock, &got_a_none_oplock);
+		if (!validate_oplock_types(lck)) {
+			smb_panic("validate_oplock_types failed");
+		}
 
-		if (delay_for_batch_oplocks(fsp, req->mid, 0, batch_entry) ||
-		    delay_for_exclusive_oplocks(fsp, req->mid, 0,
-						exclusive_entry)) {
-			schedule_defer_open(lck, request_time, req);
+		if (delay_for_oplock(fsp, 0, lck, false, create_disposition)) {
+			schedule_defer_open(lck, fsp->file_id, request_time, req);
 			TALLOC_FREE(lck);
 			DEBUG(10, ("Sent oplock break request to kernel "
 				   "oplock holder\n"));
@@ -2433,7 +2479,7 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
 		 */
 		state.delayed_for_oplocks = false;
 		state.async_open = false;
-		state.id = lck->data->id;
+		state.id = fsp->file_id;
 		defer_open(lck, request_time, timeval_set(0, 0), req, &state);
 		TALLOC_FREE(lck);
 		DEBUG(10, ("No Samba oplock around after EWOULDBLOCK. "
@@ -2445,7 +2491,6 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
 		if (NT_STATUS_EQUAL(fsp_open, NT_STATUS_RETRY)) {
 			schedule_async_open(request_time, req);
 		}
-		TALLOC_FREE(lck);
 		return fsp_open;
 	}
 
@@ -2470,7 +2515,6 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
 		 * just fail the open to prevent creating any problems
 		 * in the open file db having the wrong dev/ino key.
 		 */
-		TALLOC_FREE(lck);
 		fd_close(fsp);
 		DEBUG(1,("open_file_ntcreate: file %s - dev/ino mismatch. "
 			"Old (dev=0x%llu, ino =0x%llu). "
@@ -2516,53 +2560,40 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
 	}
 
 	/* Get the types we need to examine. */
-	find_oplock_types(fsp,
-			  oplock_request,
-			  lck,
-			  &batch_entry,
-			  &exclusive_entry,
-			  &got_level2_oplock,
-			  &got_a_none_oplock);
+	if (!validate_oplock_types(lck)) {
+		smb_panic("validate_oplock_types failed");
+	}
 
-	/* First pass - send break only on batch oplocks. */
+	if (has_delete_on_close(lck, fsp->name_hash)) {
+		TALLOC_FREE(lck);
+		fd_close(fsp);
+		return NT_STATUS_DELETE_PENDING;
+	}
+
+	status = open_mode_check(conn, lck,
+				 access_mask, share_access);
+
+	if (NT_STATUS_EQUAL(status, NT_STATUS_SHARING_VIOLATION) ||
+	    (lck->data->num_share_modes > 0)) {
+		/*
+		 * This comes from ancient times out of open_mode_check. I
+		 * have no clue whether this is still necessary. I can't think
+		 * of a case where this would actually matter further down in
+		 * this function. I leave it here for further investigation
+		 * :-)
+		 */
+		file_existed = true;
+	}
+
 	if ((req != NULL) &&
-	    delay_for_batch_oplocks(fsp,
-				    req->mid,
-				    oplock_request,
-				    batch_entry)) {
-		schedule_defer_open(lck, request_time, req);
+	    delay_for_oplock(
+		    fsp, oplock_request, lck,
+		    NT_STATUS_EQUAL(status, NT_STATUS_SHARING_VIOLATION),
+		    create_disposition)) {
+		schedule_defer_open(lck, fsp->file_id, request_time, req);
 		TALLOC_FREE(lck);
 		fd_close(fsp);
 		return NT_STATUS_SHARING_VIOLATION;
-	}
-
-	status = open_mode_check(conn, lck, fsp->name_hash,
-				 access_mask, share_access,
-				 create_options, &file_existed);
-
-	if (NT_STATUS_IS_OK(status)) {
-		/* We might be going to allow this open. Check oplock
-		 * status again. */
-		/* Second pass - send break for both batch or
-		 * exclusive oplocks. */
-		if ((req != NULL) &&
-		    delay_for_exclusive_oplocks(
-			    fsp,
-			    req->mid,
-			    oplock_request,
-			    exclusive_entry)) {
-			schedule_defer_open(lck, request_time, req);
-			TALLOC_FREE(lck);
-			fd_close(fsp);
-			return NT_STATUS_SHARING_VIOLATION;
-		}
-	}
-
-	if (NT_STATUS_EQUAL(status, NT_STATUS_DELETE_PENDING)) {
-		/* DELETE_PENDING is not deferred for a second */
-		TALLOC_FREE(lck);
-		fd_close(fsp);
-		return status;
 	}
 
 	if (!NT_STATUS_IS_OK(status)) {
@@ -2707,10 +2738,7 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
 		}
 	}
 
-	grant_fsp_oplock_type(fsp,
-			      oplock_request,
-			      got_level2_oplock,
-			      got_a_none_oplock);
+	grant_fsp_oplock_type(fsp, lck, oplock_request);
 
 	/*
 	 * We have the share entry *locked*.....
@@ -2796,18 +2824,21 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
 	 * file structs.
 	 */
 
-	status = set_file_oplock(fsp, fsp->oplock_type);
+	status = set_file_oplock(fsp);
 	if (!NT_STATUS_IS_OK(status)) {
 		/*
-		 * Could not get the kernel oplock or there are byte-range
-		 * locks on the file.
+		 * Could not get the kernel oplock
 		 */
 		fsp->oplock_type = NO_OPLOCK;
 	}
 
-	set_share_mode(lck, fsp, get_current_uid(conn),
-			req ? req->mid : 0,
-		       fsp->oplock_type);
+	if (!set_share_mode(lck, fsp, get_current_uid(conn),
+			    req ? req->mid : 0,
+			    fsp->oplock_type)) {
+		TALLOC_FREE(lck);
+		fd_close(fsp);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	/* Handle strange delete on close create semantics. */
 	if (create_options & FILE_DELETE_ON_CLOSE) {
@@ -2894,6 +2925,17 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
 				  (unsigned int)new_unx_mode));
 	}
 
+	{
+		/*
+		 * Deal with other opens having a modified write time.
+		 */
+		struct timespec write_time = get_share_mode_write_time(lck);
+
+		if (!null_timespec(write_time)) {
+			update_stat_ex_mtime(&fsp->fsp_name->st, write_time);
+		}
+	}
+
 	TALLOC_FREE(lck);
 
 	return NT_STATUS_OK;
@@ -2967,7 +3009,7 @@ static NTSTATUS mkdir_internal(connection_struct *conn,
 		}
 	}
 
-	if (lp_inherit_perms(SNUM(conn))) {
+	if (lp_inherit_permissions(SNUM(conn))) {
 		inherit_access_posix_acl(conn, parent_dir,
 					 smb_dname->base_name, mode);
 		need_re_stat = true;
@@ -3216,19 +3258,30 @@ static NTSTATUS open_directory(connection_struct *conn,
 	*/
 	ZERO_STRUCT(mtimespec);
 
+	if (access_mask & (FILE_LIST_DIRECTORY|
+			   FILE_ADD_FILE|
+			   FILE_ADD_SUBDIRECTORY|
+			   FILE_TRAVERSE|
+			   DELETE_ACCESS|
+			   FILE_DELETE_CHILD)) {
 #ifdef O_DIRECTORY
-	status = fd_open(conn, fsp, O_RDONLY|O_DIRECTORY, 0);
+		status = fd_open(conn, fsp, O_RDONLY|O_DIRECTORY, 0);
 #else
-	/* POSIX allows us to open a directory with O_RDONLY. */
-	status = fd_open(conn, fsp, O_RDONLY, 0);
+		/* POSIX allows us to open a directory with O_RDONLY. */
+		status = fd_open(conn, fsp, O_RDONLY, 0);
 #endif
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(5, ("open_directory: Could not open fd for "
-			"%s (%s)\n",
-			smb_fname_str_dbg(smb_dname),
-			nt_errstr(status)));
-		file_free(req, fsp);
-		return status;
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(5, ("open_directory: Could not open fd for "
+				"%s (%s)\n",
+				smb_fname_str_dbg(smb_dname),
+				nt_errstr(status)));
+			file_free(req, fsp);
+			return status;
+		}
+	} else {
+		fsp->fh->fd = -1;
+		DEBUG(10, ("Not opening Directory %s\n",
+			smb_fname_str_dbg(smb_dname)));
 	}
 
 	status = vfs_stat_fsp(fsp);
@@ -3260,9 +3313,15 @@ static NTSTATUS open_directory(connection_struct *conn,
 		return NT_STATUS_SHARING_VIOLATION;
 	}
 
-	status = open_mode_check(conn, lck, fsp->name_hash,
-				access_mask, share_access,
-				 create_options, &dir_existed);
+	if (has_delete_on_close(lck, fsp->name_hash)) {
+		TALLOC_FREE(lck);
+		fd_close(fsp);
+		file_free(req, fsp);
+		return NT_STATUS_DELETE_PENDING;
+	}
+
+	status = open_mode_check(conn, lck,
+				 access_mask, share_access);
 
 	if (!NT_STATUS_IS_OK(status)) {
 		TALLOC_FREE(lck);
@@ -3271,14 +3330,20 @@ static NTSTATUS open_directory(connection_struct *conn,
 		return status;
 	}
 
-	set_share_mode(lck, fsp, get_current_uid(conn),
-			req ? req->mid : 0, NO_OPLOCK);
+	if (!set_share_mode(lck, fsp, get_current_uid(conn),
+			    req ? req->mid : 0, NO_OPLOCK)) {
+		TALLOC_FREE(lck);
+		fd_close(fsp);
+		file_free(req, fsp);
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	/* For directories the delete on close bit at open time seems
 	   always to be honored on close... See test 19 in Samba4 BASE-DELETE. */
 	if (create_options & FILE_DELETE_ON_CLOSE) {
 		status = can_set_delete_on_close(fsp, 0);
 		if (!NT_STATUS_IS_OK(status) && !NT_STATUS_EQUAL(status, NT_STATUS_DIRECTORY_NOT_EMPTY)) {
+			del_share_mode(lck, fsp);
 			TALLOC_FREE(lck);
 			fd_close(fsp);
 			file_free(req, fsp);
@@ -3289,6 +3354,18 @@ static NTSTATUS open_directory(connection_struct *conn,
 			/* Note that here we set the *inital* delete on close flag,
 			   not the regular one. The magic gets handled in close. */
 			fsp->initial_delete_on_close = True;
+		}
+	}
+
+	{
+		/*
+		 * Deal with other opens having a modified write time. Is this
+		 * possible for directories?
+		 */
+		struct timespec write_time = get_share_mode_write_time(lck);
+
+		if (!null_timespec(write_time)) {
+			update_stat_ex_mtime(&fsp->fsp_name->st, write_time);
 		}
 	}
 
@@ -3319,6 +3396,7 @@ NTSTATUS create_directory(connection_struct *conn, struct smb_request *req,
 		FILE_DIRECTORY_FILE,			/* create_options */
 		FILE_ATTRIBUTE_DIRECTORY,		/* file_attributes */
 		0,					/* oplock_request */
+		NULL,					/* lease */
 		0,					/* allocation_size */
 		0,					/* private_flags */
 		NULL,					/* sd */
@@ -3497,6 +3575,7 @@ NTSTATUS open_streams_for_delete(connection_struct *conn,
 			 0, 			/* create_options */
 			 FILE_ATTRIBUTE_NORMAL,	/* file_attributes */
 			 0,			/* oplock_request */
+			 NULL,			/* lease */
 			 0,			/* allocation_size */
 			 NTCREATEX_OPTIONS_PRIVATE_STREAM_DELETE, /* private_flags */
 			 NULL,			/* sd */
@@ -3749,6 +3828,7 @@ static NTSTATUS create_file_unixpath(connection_struct *conn,
 				     uint32_t create_options,
 				     uint32_t file_attributes,
 				     uint32_t oplock_request,
+				     struct smb2_lease *lease,
 				     uint64_t allocation_size,
 				     uint32_t private_flags,
 				     struct security_descriptor *sd,
@@ -3874,7 +3954,7 @@ static NTSTATUS create_file_unixpath(connection_struct *conn,
 					      | FILE_SHARE_WRITE
 					      | FILE_SHARE_DELETE,
 					      base_create_disposition,
-					      0, 0, 0, 0, 0, NULL, NULL,
+					      0, 0, 0, NULL, 0, 0, NULL, NULL,
 					      &base_fsp, NULL);
 		TALLOC_FREE(smb_fname_base);
 
@@ -3884,7 +3964,7 @@ static NTSTATUS create_file_unixpath(connection_struct *conn,
 				   nt_errstr(status)));
 			goto fail;
 		}
-		/* we don't need to low level fd */
+		/* we don't need the low level fd */
 		fd_close(base_fsp);
 	}
 
@@ -3955,6 +4035,7 @@ static NTSTATUS create_file_unixpath(connection_struct *conn,
 					    create_options,
 					    file_attributes,
 					    oplock_request,
+					    lease,
 					    private_flags,
 					    &info,
 					    fsp);
@@ -4076,6 +4157,17 @@ static NTSTATUS create_file_unixpath(connection_struct *conn,
 					fsp_str_dbg(fsp),
 					nt_errstr(status) ));
 			}
+		}
+	}
+
+	if ((conn->fs_capabilities & FILE_FILE_COMPRESSION)
+	 && (create_options & FILE_NO_COMPRESSION)
+	 && (info == FILE_WAS_CREATED)) {
+		status = SMB_VFS_SET_COMPRESSION(conn, fsp, fsp,
+						 COMPRESSION_FORMAT_NONE);
+		if (!NT_STATUS_IS_OK(status)) {
+			DEBUG(1, ("failed to disable compression: %s\n",
+				  nt_errstr(status)));
 		}
 	}
 
@@ -4240,6 +4332,7 @@ NTSTATUS create_file_default(connection_struct *conn,
 			     uint32_t create_options,
 			     uint32_t file_attributes,
 			     uint32_t oplock_request,
+			     struct smb2_lease *lease,
 			     uint64_t allocation_size,
 			     uint32_t private_flags,
 			     struct security_descriptor *sd,
@@ -4346,7 +4439,7 @@ NTSTATUS create_file_default(connection_struct *conn,
 	status = create_file_unixpath(
 		conn, req, smb_fname, access_mask, share_access,
 		create_disposition, create_options, file_attributes,
-		oplock_request, allocation_size, private_flags,
+		oplock_request, lease, allocation_size, private_flags,
 		sd, ea_list,
 		&fsp, &info);
 

@@ -39,6 +39,7 @@ static NTSTATUS smbd_smb2_setinfo_recv(struct tevent_req *req);
 static void smbd_smb2_request_setinfo_done(struct tevent_req *subreq);
 NTSTATUS smbd_smb2_request_process_setinfo(struct smbd_smb2_request *req)
 {
+	struct smbXsrv_connection *xconn = req->xconn;
 	NTSTATUS status;
 	const uint8_t *inbody;
 	uint8_t in_info_type;
@@ -81,11 +82,11 @@ NTSTATUS smbd_smb2_request_process_setinfo(struct smbd_smb2_request *req)
 	in_input_buffer.data = SMBD_SMB2_IN_DYN_PTR(req);
 	in_input_buffer.length = in_input_buffer_length;
 
-	if (in_input_buffer.length > req->sconn->smb2.max_trans) {
+	if (in_input_buffer.length > xconn->smb2.server.max_trans) {
 		DEBUG(2,("smbd_smb2_request_process_setinfo: "
 			 "client ignored max trans: %s: 0x%08X: 0x%08X\n",
 			 __location__, (unsigned)in_input_buffer.length,
-			 (unsigned)req->sconn->smb2.max_trans));
+			 (unsigned)xconn->smb2.server.max_trans));
 		return smbd_smb2_request_error(req, NT_STATUS_INVALID_PARAMETER);
 	}
 
@@ -127,18 +128,18 @@ static void smbd_smb2_request_setinfo_done(struct tevent_req *subreq)
 	if (!NT_STATUS_IS_OK(status)) {
 		error = smbd_smb2_request_error(req, status);
 		if (!NT_STATUS_IS_OK(error)) {
-			smbd_server_connection_terminate(req->sconn,
+			smbd_server_connection_terminate(req->xconn,
 							 nt_errstr(error));
 			return;
 		}
 		return;
 	}
 
-	outbody = data_blob_talloc(req->out.vector, NULL, 0x02);
+	outbody = smbd_smb2_generate_outbody(req, 0x02);
 	if (outbody.data == NULL) {
 		error = smbd_smb2_request_error(req, NT_STATUS_NO_MEMORY);
 		if (!NT_STATUS_IS_OK(error)) {
-			smbd_server_connection_terminate(req->sconn,
+			smbd_server_connection_terminate(req->xconn,
 							 nt_errstr(error));
 			return;
 		}
@@ -149,7 +150,7 @@ static void smbd_smb2_request_setinfo_done(struct tevent_req *subreq)
 
 	error = smbd_smb2_request_done(req, outbody, NULL);
 	if (!NT_STATUS_IS_OK(error)) {
-		smbd_server_connection_terminate(req->sconn,
+		smbd_server_connection_terminate(req->xconn,
 						 nt_errstr(error));
 		return;
 	}

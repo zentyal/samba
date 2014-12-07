@@ -225,7 +225,7 @@ static bool do_idmap(struct tevent_context *ev,
 #if defined(HAVE_LIBUNWIND_PTRACE) && defined(HAVE_LINUX_PTRACE)
 
 /* Return the name of a process given it's PID. This will only work on Linux,
- * but that's probably moot since this whole stack tracing implementatino is
+ * but that's probably moot since this whole stack tracing implementation is
  * Linux-specific anyway.
  */
 static const char * procname(pid_t pid, char * buf, size_t bufsz)
@@ -790,6 +790,27 @@ static bool do_closeshare(struct tevent_context *ev_ctx,
 			    strlen(argv[1]) + 1);
 }
 
+/* Kill a client by IP address */
+static bool do_kill_client_by_ip(struct tevent_context *ev_ctx,
+				 struct messaging_context *msg_ctx,
+				 const struct server_id pid,
+				 const int argc, const char **argv)
+{
+	if (argc != 2) {
+		fprintf(stderr, "Usage: smbcontrol <dest> kill-client-ip "
+			"<IP address>\n");
+		return false;
+	}
+
+	if (!is_ipaddress_v4(argv[1]) && !is_ipaddress_v6(argv[1])) {
+		fprintf(stderr, "%s is not a valid IP address!\n", argv[1]);
+		return false;
+	}
+
+	return send_message(msg_ctx, pid, MSG_SMB_KILL_CLIENT_IP,
+			    argv[1], strlen(argv[1]) + 1);
+}
+
 /* Tell winbindd an IP got dropped */
 
 static bool do_ip_dropped(struct tevent_context *ev_ctx,
@@ -898,6 +919,68 @@ static bool do_dmalloc_changed(struct tevent_context *ev_ctx,
 
 	return send_message(msg_ctx, pid, MSG_REQ_DMALLOC_LOG_CHANGED,
 			    NULL, 0);
+}
+
+static void print_uint32_cb(struct messaging_context *msg, void *private_data,
+			    uint32_t msg_type, struct server_id pid,
+			    DATA_BLOB *data)
+{
+	uint32_t num_children;
+
+	if (data->length != sizeof(uint32_t)) {
+		printf("Invalid response: %d bytes long\n",
+		       (int)data->length);
+		goto done;
+	}
+	num_children = IVAL(data->data, 0);
+	printf("%u children\n", (unsigned)num_children);
+done:
+	num_replies++;
+}
+
+static bool do_num_children(struct tevent_context *ev_ctx,
+			    struct messaging_context *msg_ctx,
+			    const struct server_id pid,
+			    const int argc, const char **argv)
+{
+	if (argc != 1) {
+		fprintf(stderr, "Usage: smbcontrol <dest> num-children\n");
+		return False;
+	}
+
+	messaging_register(msg_ctx, NULL, MSG_SMB_NUM_CHILDREN,
+			   print_uint32_cb);
+
+	/* Send a message and register our interest in a reply */
+
+	if (!send_message(msg_ctx, pid, MSG_SMB_TELL_NUM_CHILDREN, NULL, 0))
+		return false;
+
+	wait_replies(ev_ctx, msg_ctx, procid_to_pid(&pid) == 0);
+
+	/* No replies were received within the timeout period */
+
+	if (num_replies == 0)
+		printf("No replies received\n");
+
+	messaging_deregister(msg_ctx, MSG_SMB_NUM_CHILDREN, NULL);
+
+	return num_replies;
+}
+
+static bool do_msg_cleanup(struct tevent_context *ev_ctx,
+			   struct messaging_context *msg_ctx,
+			   const struct server_id pid,
+			   const int argc, const char **argv)
+{
+	int ret;
+
+	ret = messaging_cleanup(msg_ctx, pid.pid);
+
+	printf("cleanup(%u) returned %s\n", (unsigned)pid.pid,
+	       ret ? strerror(ret) : "ok");
+
+	return (ret == 0);
 }
 
 /* Shutdown a server process */
@@ -1287,6 +1370,8 @@ static const struct {
 	{ "debuglevel", do_debuglevel, "Display current debuglevels" },
 	{ "printnotify", do_printnotify, "Send a print notify message" },
 	{ "close-share", do_closeshare, "Forcibly disconnect a share" },
+	{ "kill-client-ip", do_kill_client_by_ip,
+	  "Forcibly disconnect a client with a specific IP address" },
 	{ "ip-dropped", do_ip_dropped, "Tell winbind that an IP got dropped" },
 	{ "lockretry", do_lockretry, "Force a blocking lock retry" },
 	{ "brl-revalidate", do_brl_revalidate, "Revalidate all brl entries" },
@@ -1306,6 +1391,9 @@ static const struct {
 	  "Validate winbind's credential cache" },
 	{ "dump-domain-list", do_winbind_dump_domain_list, "Dump winbind domain list"},
 	{ "notify-cleanup", do_notify_cleanup },
+	{ "num-children", do_num_children,
+	  "Print number of smbd child processes" },
+	{ "msg-cleanup", do_msg_cleanup },
 	{ "noop", do_noop, "Do nothing" },
 	{ NULL }
 };
@@ -1369,7 +1457,7 @@ static struct server_id parse_dest(struct messaging_context *msg,
 
 	/* Look up other destinations in pidfile directory */
 
-	if ((pid = pidfile_pid(lp_piddir(), dest)) != 0) {
+	if ((pid = pidfile_pid(lp_pid_directory(), dest)) != 0) {
 		return pid_to_procid(pid);
 	}
 
@@ -1508,6 +1596,7 @@ int main(int argc, const char **argv)
 	}
 
 	ret = !do_command(evt_ctx, msg_ctx, argc, argv);
+	TALLOC_FREE(msg_ctx);
 	TALLOC_FREE(frame);
 	return ret;
 }

@@ -11,7 +11,7 @@ bld.SAMBA_MODULE('gensec_krb5',
 	init_function='gensec_krb5_init',
 	deps='samba-credentials authkrb5 com_err gensec_util',
 	internal_module=False,
-        enabled=bld.AD_DC_BUILD_IS_ENABLED()
+        enabled=bld.AD_DC_BUILD_IS_ENABLED() and bld.CONFIG_SET('SAMBA4_USES_HEIMDAL')
 	)
 
 
@@ -19,6 +19,7 @@ bld.SAMBA_MODULE('gensec_gssapi',
 	source='gensec_gssapi.c',
 	subsystem='gensec',
 	init_function='gensec_gssapi_init',
+	allow_warnings=True,
 	deps='gssapi samba-credentials authkrb5 com_err gensec_util'
 	)
 
@@ -28,17 +29,8 @@ bld.SAMBA_MODULE('cyrus_sasl',
 	subsystem='gensec',
 	init_function='gensec_sasl_init',
 	deps='samba-credentials sasl2',
+	allow_warnings=True,
 	enabled=bld.CONFIG_SET('HAVE_SASL')
-	)
-
-
-bld.SAMBA_MODULE('gensec_schannel',
-	source='schannel.c',
-	subsystem='gensec',
-	deps='COMMON_SCHANNEL NDR_SCHANNEL samba-credentials ndr auth_session',
-	internal_module=True,
-	autoproto='schannel_proto.h',
-	init_function='gensec_schannel_init'
 	)
 
 

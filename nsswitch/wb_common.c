@@ -22,8 +22,6 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#define UID_WRAPPER_NOT_REPLACE
-
 #include "replace.h"
 #include "system/select.h"
 #include "winbind_client.h"
@@ -170,6 +168,31 @@ static int make_safe_fd(int fd)
 	return new_fd;
 }
 
+/**
+ * @internal
+ *
+ * @brief Check if we talk to the priviliged pipe which should be owned by root.
+ *
+ * This checks if we have uid_wrapper running and if this is the case it will
+ * allow to connect to the winbind privileged pipe even it is not owned by root.
+ *
+ * @param[in]  uid      The uid to check if we can safely talk to the pipe.
+ *
+ * @return              If we have access it returns true, else false.
+ */
+static bool winbind_privileged_pipe_is_root(uid_t uid)
+{
+	if (uid == 0) {
+		return true;
+	}
+
+	if (uid_wrapper_enabled()) {
+		return true;
+	}
+
+	return false;
+}
+
 /* Connect to winbindd socket */
 
 static int winbind_named_pipe_sock(const char *dir)
@@ -188,8 +211,12 @@ static int winbind_named_pipe_sock(const char *dir)
 		return -1;
 	}
 
+	/*
+	 * This tells us that the pipe is owned by a privileged
+	 * process, as we will be sending passwords to it.
+	 */
 	if (!S_ISDIR(st.st_mode) ||
-	    (st.st_uid != 0 && st.st_uid != geteuid())) {
+	    !winbind_privileged_pipe_is_root(st.st_uid)) {
 		errno = ENOENT;
 		return -1;
 	}
@@ -217,8 +244,12 @@ static int winbind_named_pipe_sock(const char *dir)
 	SAFE_FREE(path);
 	/* Check permissions on unix socket file */
 
+	/*
+	 * This tells us that the pipe is owned by a privileged
+	 * process, as we will be sending passwords to it.
+	 */
 	if (!S_ISSOCK(st.st_mode) ||
-	    (st.st_uid != 0 && st.st_uid != geteuid())) {
+	    !winbind_privileged_pipe_is_root(st.st_uid)) {
 		errno = ENOENT;
 		return -1;
 	}
@@ -288,14 +319,14 @@ static int winbind_named_pipe_sock(const char *dir)
 
 static const char *winbindd_socket_dir(void)
 {
-#ifdef SOCKET_WRAPPER
-	const char *env_dir;
+	if (nss_wrapper_enabled()) {
+		const char *env_dir;
 
-	env_dir = getenv(WINBINDD_SOCKET_DIR_ENVVAR);
-	if (env_dir) {
-		return env_dir;
+		env_dir = getenv("SELFTEST_WINBINDD_SOCKET_DIR");
+		if (env_dir != NULL) {
+			return env_dir;
+		}
 	}
-#endif
 
 	return WINBINDD_SOCKET_DIR;
 }
@@ -345,6 +376,13 @@ static int winbind_open_pipe_sock(int recursing, int need_priv)
 	/* try and get priv pipe */
 
 	request.wb_flags = WBFLAG_RECURSE;
+
+	/* Note that response needs to be initialized to avoid
+	 * crashing on clean up after WINBINDD_PRIV_PIPE_DIR call failed
+	 * as interface version (from the first request) returned as a fstring,
+	 * thus response.extra_data.data will not be NULL even though
+	 * winbindd response did not write over it due to a failure */
+	ZERO_STRUCT(response);
 	if (winbindd_request_response(WINBINDD_PRIV_PIPE_DIR, &request, &response) == NSS_STATUS_SUCCESS) {
 		int fd;
 		if ((fd = winbind_named_pipe_sock((char *)response.extra_data.data)) != -1) {

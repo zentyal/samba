@@ -78,6 +78,7 @@ static struct dcerpc_binding *init_domain_binding(struct init_domain_state *stat
 						  const struct ndr_interface_table *table) 
 {
 	struct dcerpc_binding *binding;
+	enum dcerpc_transport_t transport;
 	char *s;
 	NTSTATUS status;
 
@@ -85,10 +86,14 @@ static struct dcerpc_binding *init_domain_binding(struct init_domain_state *stat
 	if ((lpcfg_server_role(state->service->task->lp_ctx) != ROLE_DOMAIN_MEMBER) &&
 	    dom_sid_equal(state->domain->info->sid, state->service->primary_sid) &&
 	    state->service->sec_channel_type != SEC_CHAN_RODC) {
-		s = talloc_asprintf(state, "ncalrpc:%s", state->domain->dc_name);
+		s = talloc_asprintf(state, "ncalrpc:%s[target_hostname=%s]",
+				    state->domain->dc_address,
+				    state->domain->dc_name);
 		if (s == NULL) return NULL;
 	} else {
-		s = talloc_asprintf(state, "ncacn_np:%s", state->domain->dc_name);
+		s = talloc_asprintf(state, "ncacn_np:%s[target_hostname=%s]",
+				    state->domain->dc_address,
+				    state->domain->dc_name);
 		if (s == NULL) return NULL;
 
 	}
@@ -98,11 +103,8 @@ static struct dcerpc_binding *init_domain_binding(struct init_domain_state *stat
 		return NULL;
 	}
 
-	/* Alter binding to contain hostname, but also address (so we don't look it up twice) */
-	binding->target_hostname = state->domain->dc_name;
-	binding->host = state->domain->dc_address;
-
-	if (binding->transport == NCALRPC) {
+	transport = dcerpc_binding_get_transport(binding);
+	if (transport == NCALRPC) {
 		return binding;
 	}
 
@@ -135,6 +137,8 @@ struct composite_context *wb_init_domain_send(TALLOC_CTX *mem_ctx,
 
 	state->domain = talloc(state, struct wbsrv_domain);
 	if (state->domain == NULL) goto failed;
+
+	state->domain->service = service;
 
 	state->domain->info = talloc_reference(state->domain, dom_info);
 	if (state->domain->info == NULL) goto failed;
@@ -174,14 +178,17 @@ struct composite_context *wb_init_domain_send(TALLOC_CTX *mem_ctx,
 	     (lpcfg_server_role(service->task->lp_ctx) == ROLE_ACTIVE_DIRECTORY_DC)) &&
 	    (dom_sid_equal(state->domain->info->sid,
 			   state->service->primary_sid))) {
-		state->domain->netlogon_binding->flags |= DCERPC_SCHANNEL | DCERPC_SCHANNEL_AUTO;
+		uint32_t flags = DCERPC_SCHANNEL | DCERPC_SCHANNEL_AUTO;
 
 		/* For debugging, it can be a real pain if all the traffic is encrypted */
 		if (lpcfg_winbind_sealed_pipes(service->task->lp_ctx)) {
-			state->domain->netlogon_binding->flags |= (DCERPC_SIGN | DCERPC_SEAL );
+			flags |= DCERPC_SIGN | DCERPC_SEAL;
 		} else {
-			state->domain->netlogon_binding->flags |= (DCERPC_SIGN);
+			flags |= DCERPC_SIGN;
 		}
+		state->ctx->status = dcerpc_binding_set_flags(state->domain->netlogon_binding,
+							      flags, 0);
+		if (!NT_STATUS_IS_OK(state->ctx->status)) goto failed;
 	}
 
 	/* No encryption on anonymous pipes */
@@ -211,6 +218,7 @@ static void init_domain_recv_netlogonpipe(struct composite_context *ctx)
 	struct init_domain_state *state =
 		talloc_get_type(ctx->async.private_data,
 				struct init_domain_state);
+	uint32_t flags;
 
 	state->ctx->status = dcerpc_pipe_connect_b_recv(ctx, state->domain, 
 						   &state->domain->netlogon_pipe);
@@ -227,12 +235,18 @@ static void init_domain_recv_netlogonpipe(struct composite_context *ctx)
 
 	/* For debugging, it can be a real pain if all the traffic is encrypted */
 	if (lpcfg_winbind_sealed_pipes(state->service->task->lp_ctx)) {
-		state->domain->lsa_binding->flags |= (DCERPC_SIGN | DCERPC_SEAL );
+		flags = DCERPC_SIGN | DCERPC_SEAL;
 	} else {
-		state->domain->lsa_binding->flags |= (DCERPC_SIGN);
+		flags = DCERPC_SIGN;
+	}
+	state->ctx->status = dcerpc_binding_set_flags(state->domain->lsa_binding,
+						      flags, 0);
+	if (!composite_is_ok(state->ctx)) {
+		return;
 	}
 
 	state->domain->libnet_ctx->lsa.pipe = NULL;
+	state->domain->libnet_ctx->lsa.lsa_handle = NULL;
 
 	/* this will make the secondary connection on the same IPC$ share, 
 	   secured with SPNEGO or NTLMSSP */
@@ -251,15 +265,24 @@ static bool retry_with_schannel(struct init_domain_state *state,
 				void (*continuation)(struct composite_context *))
 {
 	struct composite_context *ctx;
+	uint32_t nflags;
+	uint32_t bflags;
+
 	state->ctx->status = NT_STATUS_OK;
-	if (state->domain->netlogon_binding->flags & DCERPC_SCHANNEL 
-	    && !(binding->flags & DCERPC_SCHANNEL)) {
+
+	nflags = dcerpc_binding_get_flags(state->domain->netlogon_binding);
+	bflags = dcerpc_binding_get_flags(binding);
+
+	if ((nflags & DCERPC_SCHANNEL) && !(bflags & DCERPC_SCHANNEL)) {
 		/* Opening a policy handle failed, perhaps it was
 		 * because we don't get a 'wrong password' error on
 		 * NTLMSSP binds */
 
 		/* Try again with schannel */
-		binding->flags |= DCERPC_SCHANNEL | DCERPC_SCHANNEL_AUTO;
+		bflags |= DCERPC_SCHANNEL | DCERPC_SCHANNEL_AUTO;
+
+		state->ctx->status = dcerpc_binding_set_flags(binding, bflags, 0);
+		if (!composite_is_ok(state->ctx)) return true;
 
 		/* Try again, likewise on the same IPC$ share, 
 		   secured with SCHANNEL */
@@ -297,6 +320,8 @@ static void init_domain_recv_lsa_pipe(struct composite_context *ctx)
 
 	talloc_steal(state->domain->libnet_ctx, state->domain->libnet_ctx->lsa.pipe);
 	talloc_reparent(state, state->domain->libnet_ctx->lsa.pipe, state->domain->lsa_binding);
+	state->domain->libnet_ctx->lsa.lsa_handle =
+		state->domain->libnet_ctx->lsa.pipe->binding_handle;
 	state->domain->libnet_ctx->lsa.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 	state->domain->libnet_ctx->lsa.name = state->domain->info->name;
 
@@ -362,6 +387,7 @@ static void init_domain_recv_queryinfo(struct tevent_req *subreq)
 		struct init_domain_state);
 	struct lsa_DomainInfo *dominfo;
 	struct composite_context *ctx;
+	uint32_t lflags;
 
 	state->ctx->status = dcerpc_lsa_QueryInfoPolicy_r_recv(subreq, state);
 	TALLOC_FREE(subreq);
@@ -395,9 +421,13 @@ static void init_domain_recv_queryinfo(struct tevent_req *subreq)
 
 	/* We want to use the same flags as the LSA pipe did (so, if
 	 * it needed schannel, then we need that here too) */
-	state->domain->samr_binding->flags = state->domain->lsa_binding->flags;
+	lflags = dcerpc_binding_get_flags(state->domain->lsa_binding);
+	state->ctx->status = dcerpc_binding_set_flags(state->domain->samr_binding,
+						      lflags, 0);
+	if (!composite_is_ok(state->ctx)) return;
 
 	state->domain->libnet_ctx->samr.pipe = NULL;
+	state->domain->libnet_ctx->samr.samr_handle = NULL;
 
 	ctx = wb_connect_samr_send(state, state->domain);
 	composite_continue(state->ctx, ctx, init_domain_recv_samr, state);
@@ -419,6 +449,8 @@ static void init_domain_recv_samr(struct composite_context *ctx)
 	if (!composite_is_ok(state->ctx)) return;
 
 	talloc_reparent(state, state->domain->libnet_ctx->samr.pipe, state->domain->samr_binding);
+	state->domain->libnet_ctx->samr.samr_handle =
+		state->domain->libnet_ctx->samr.pipe->binding_handle;
 	state->domain->libnet_ctx->samr.access_mask = SEC_FLAG_MAXIMUM_ALLOWED;
 	state->domain->libnet_ctx->samr.name = state->domain->info->name;
 	state->domain->libnet_ctx->samr.sid = dom_sid_dup(

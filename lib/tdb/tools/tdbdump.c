@@ -99,15 +99,23 @@ static int dump_tdb(const char *fname, const char *keyname, bool emergency)
 	TDB_CONTEXT *tdb;
 	TDB_DATA key, value;
 	struct tdb_logging_context logfn = { log_stderr };
+	int tdb_flags = TDB_DEFAULT;
 
-	tdb = tdb_open_ex(fname, 0, 0, O_RDONLY, 0, &logfn, NULL);
+	/*
+	 * Note: that O_RDONLY implies TDB_NOLOCK, but we want to make it
+	 * explicit as it's important when working on databases which were
+	 * created with mutex locking.
+	 */
+	tdb_flags |= TDB_NOLOCK;
+
+	tdb = tdb_open_ex(fname, 0, tdb_flags, O_RDONLY, 0, &logfn, NULL);
 	if (!tdb) {
 		printf("Failed to open %s\n", fname);
 		return 1;
 	}
 
 	if (emergency) {
-		return tdb_rescue(tdb, emergency_walk, keyname) == 0;
+		return tdb_rescue(tdb, emergency_walk, discard_const(keyname)) == 0;
 	}
 	if (!keyname) {
 		return tdb_traverse(tdb, traverse_fn, NULL) == -1 ? 1 : 0;

@@ -35,17 +35,23 @@ static bool test_num_calls(struct torture_context *tctx,
 {
 	struct dcerpc_pipe *p;
 	NTSTATUS status;
-	int i;
+	unsigned int i;
 	DATA_BLOB stub_in, stub_out;
-	int idl_calls;
-	struct ndr_interface_table tbl;
+	struct ndr_interface_table _tbl;
+	const struct ndr_interface_table *tbl;
 
 	/* FIXME: This should be fixed when torture_rpc_connection 
 	 * takes a ndr_syntax_id */
-	tbl.name = iface->name;
-	tbl.syntax_id = *id;
+	tbl = ndr_table_by_syntax(id);
+	if (tbl == NULL) {
+		_tbl = *iface;
+		_tbl.name = "__unknown__";
+		_tbl.syntax_id = *id;
+		_tbl.num_calls = UINT32_MAX;
+		tbl = &_tbl;
+	}
 
-	status = torture_rpc_connection(tctx, &p, iface);
+	status = torture_rpc_connection(tctx, &p, tbl);
 	if (!NT_STATUS_IS_OK(status)) {
 		char *uuid_str = GUID_string(mem_ctx, &id->uuid);
 		printf("Failed to connect to '%s' on '%s' - %s\n", 
@@ -59,7 +65,9 @@ static bool test_num_calls(struct torture_context *tctx,
 	memset(stub_in.data, 0xFF, stub_in.length);
 
 	for (i=0;i<200;i++) {
+		bool ok;
 		uint32_t out_flags = 0;
+
 		status = dcerpc_binding_handle_raw_call(p->binding_handle,
 							NULL, i,
 							0, /* in_flags */
@@ -69,26 +77,32 @@ static bool test_num_calls(struct torture_context *tctx,
 							&stub_out.data,
 							&stub_out.length,
 							&out_flags);
+		ok = dcerpc_binding_handle_is_connected(p->binding_handle);
+		if (!ok) {
+			printf("\tpipe disconnected at %u\n", i);
+			goto done;
+		}
+
 		if (NT_STATUS_EQUAL(status, NT_STATUS_RPC_PROCNUM_OUT_OF_RANGE)) {
 			break;
 		}
 
 		if (NT_STATUS_EQUAL(status, NT_STATUS_ACCESS_DENIED)) {
-			printf("\tpipe disconnected at %d\n", i);
+			printf("\taccess denied at %u\n", i);
 			goto done;
 		}
 
 		if (NT_STATUS_EQUAL(status, NT_STATUS_RPC_PROTOCOL_ERROR)) {
-			printf("\tprotocol error at %d\n", i);
+			printf("\tprotocol error at %u\n", i);
 		}
 	}
 
 	printf("\t%d calls available\n", i);
-	idl_calls = ndr_interface_num_calls(&id->uuid, id->if_version);
-	if (idl_calls == -1) {
+	if (tbl->num_calls == UINT32_MAX) {
 		printf("\tinterface not known in local IDL\n");
-	} else if (i != idl_calls) {
-		printf("\tWARNING: local IDL defines %u calls\n", idl_calls);
+	} else if (tbl->num_calls != i) {
+		printf("\tWARNING: local IDL defines %u calls\n",
+			(unsigned int)tbl->num_calls);
 	} else {
 		printf("\tOK: matches num_calls in local IDL\n");
 	}
@@ -108,11 +122,13 @@ bool torture_rpc_scanner(struct torture_context *torture)
 	bool ret = true;
 	const struct ndr_interface_list *l;
 	struct dcerpc_binding *b;
+	enum dcerpc_transport_t transport;
 
 	status = torture_rpc_binding(torture, &b);
 	if (!NT_STATUS_IS_OK(status)) {
 		return false;
 	}
+	transport = dcerpc_binding_get_transport(b);
 
 	for (l=ndr_table_list();l;l=l->next) {		
 		loop_ctx = talloc_named(torture, 0, "torture_rpc_scanner loop context");
@@ -125,8 +141,10 @@ bool torture_rpc_scanner(struct torture_context *torture)
 
 		printf("\nTesting pipe '%s'\n", l->table->name);
 
-		if (b->transport == NCACN_IP_TCP) {
-			status = dcerpc_epm_map_binding(torture, b, l->table, NULL, torture->lp_ctx);
+		if (transport == NCACN_IP_TCP) {
+			status = dcerpc_epm_map_binding(torture, b, l->table,
+							torture->ev,
+							torture->lp_ctx);
 			if (!NT_STATUS_IS_OK(status)) {
 				printf("Failed to map port for uuid %s\n", 
 					   GUID_string(loop_ctx, &l->table->syntax_id.uuid));
@@ -134,7 +152,20 @@ bool torture_rpc_scanner(struct torture_context *torture)
 				continue;
 			}
 		} else {
-			b->endpoint = talloc_strdup(b, l->table->name);
+			status = dcerpc_binding_set_string_option(b, "endpoint",
+								  l->table->name);
+			if (!NT_STATUS_IS_OK(status)) {
+				talloc_free(loop_ctx);
+				ret = false;
+				continue;
+			}
+			status = dcerpc_binding_set_abstract_syntax(b,
+							&l->table->syntax_id);
+			if (!NT_STATUS_IS_OK(status)) {
+				talloc_free(loop_ctx);
+				ret = false;
+				continue;
+			}
 		}
 
 		lpcfg_set_cmdline(torture->lp_ctx, "torture:binding", dcerpc_binding_string(torture, b));

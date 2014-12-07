@@ -203,7 +203,7 @@ bool print_backend_init(struct messaging_context *msg_ctx)
 		return false;
 	}
 
-	ok = directory_create_or_exist(cache_path("printing"), geteuid(), 0755);
+	ok = directory_create_or_exist(cache_path("printing"), 0755);
 	if (!ok) {
 		return false;
 	}
@@ -214,7 +214,7 @@ bool print_backend_init(struct messaging_context *msg_ctx)
 
 	for (snum = 0; snum < services; snum++) {
 		struct tdb_print_db *pdb;
-		if (!lp_print_ok(snum))
+		if (!lp_printable(snum))
 			continue;
 
 		pdb = get_print_db_byname(lp_const_servicename(snum));
@@ -547,7 +547,7 @@ uint32 sysjob_to_jobid(int unix_jobid)
 
 	for (snum = 0; snum < services; snum++) {
 		struct tdb_print_db *pdb;
-		if (!lp_print_ok(snum))
+		if (!lp_printable(snum))
 			continue;
 		pdb = get_print_db_byname(lp_const_servicename(snum));
 		if (!pdb) {
@@ -1155,7 +1155,7 @@ static void set_updating_pid(const fstring sharename, bool updating)
 	slprintf(keystr, sizeof(keystr)-1, "UPDATING/%s", sharename);
     	key = string_tdb_data(keystr);
 
-	DEBUG(5, ("set_updating_pid: %s updating lpq cache for print share %s\n",
+	DEBUG(5, ("set_updating_pid: %supdating lpq cache for print share %s\n",
 		updating ? "" : "not ",
 		sharename ));
 
@@ -1203,7 +1203,7 @@ static int printjob_comp(print_queue_struct *j1, print_queue_struct *j2)
 static void store_queue_struct(struct tdb_print_db *pdb, struct traverse_struct *pts)
 {
 	TDB_DATA data;
-	int max_reported_jobs = lp_max_reported_jobs(pts->snum);
+	int max_reported_jobs = lp_max_reported_print_jobs(pts->snum);
 	print_queue_struct *queue = pts->queue;
 	size_t len;
 	size_t i;
@@ -1316,7 +1316,7 @@ static bool print_cache_expired(const char *sharename, bool check_pending)
 	 */
 
 	if (last_qscan_time == ((time_t)-1)
-		|| (time_now - last_qscan_time) >= lp_lpqcachetime()
+		|| (time_now - last_qscan_time) >= lp_lpq_cache_time()
 		|| last_qscan_time > (time_now + MAX_CACHE_VALID_TIME))
 	{
 		uint32 u;
@@ -1325,7 +1325,7 @@ static bool print_cache_expired(const char *sharename, bool check_pending)
 		DEBUG(4, ("print_cache_expired: cache expired for queue %s "
 			"(last_qscan_time = %d, time now = %d, qcachetime = %d)\n",
 			sharename, (int)last_qscan_time, (int)time_now,
-			(int)lp_lpqcachetime() ));
+			(int)lp_lpq_cache_time() ));
 
 		/* check if another smbd has already sent a message to update the
 		   queue.  Give the pending message one minute to clear and
@@ -1665,7 +1665,7 @@ static void print_queue_update(struct messaging_context *msg_ctx,
 	/* don't strip out characters like '$' from the printername */
 
 	lpqcommand = talloc_string_sub2(ctx,
-			lp_lpqcommand(talloc_tos(), snum),
+			lp_lpq_command(talloc_tos(), snum),
 			"%p",
 			lp_printername(talloc_tos(), snum),
 			false, false, false);
@@ -1685,7 +1685,7 @@ static void print_queue_update(struct messaging_context *msg_ctx,
 	}
 
 	lprmcommand = talloc_string_sub2(ctx,
-			lp_lprmcommand(talloc_tos(), snum),
+			lp_lprm_command(talloc_tos(), snum),
 			"%p",
 			lp_printername(talloc_tos(), snum),
 			false, false, false);
@@ -1800,7 +1800,7 @@ bool print_notify_register_pid(int snum)
 		int idx;
 
 		for ( idx=0; idx<num_services; idx++ ) {
-			if (lp_snum_ok(idx) && lp_print_ok(idx) )
+			if (lp_snum_ok(idx) && lp_printable(idx) )
 				print_notify_register_pid(idx);
 		}
 
@@ -1890,7 +1890,7 @@ bool print_notify_deregister_pid(int snum)
 		int idx;
 
 		for ( idx=0; idx<num_services; idx++ ) {
-			if ( lp_snum_ok(idx) && lp_print_ok(idx) )
+			if ( lp_snum_ok(idx) && lp_printable(idx) )
 				print_notify_deregister_pid(idx);
 		}
 
@@ -2147,7 +2147,7 @@ static bool print_job_delete1(struct tevent_context *ev,
 	{
 		result = (*(current_printif->job_delete))(
 			lp_printername(talloc_tos(), snum),
-			lp_lprmcommand(talloc_tos(), snum),
+			lp_lprm_command(talloc_tos(), snum),
 			pjob);
 
 		/* Delete the tdb entry if the delete succeeded or the job hasn't
@@ -2226,17 +2226,12 @@ WERROR print_job_delete(const struct auth_session_info *server_info,
 	   owns their job. */
 
 	if (!owner &&
-	    !print_access_check(server_info, msg_ctx, snum,
-				JOB_ACCESS_ADMINISTER)) {
-		DEBUG(3, ("delete denied by security descriptor\n"));
-
-		/* BEGIN_ADMIN_LOG */
-		sys_adminlog( LOG_ERR,
-			      "Permission denied-- user not allowed to delete, \
-pause, or resume print job. User name: %s. Printer name: %s.",
-			      uidtoname(server_info->unix_token->uid),
-			      lp_printername(talloc_tos(), snum) );
-		/* END_ADMIN_LOG */
+	    !W_ERROR_IS_OK(print_access_check(server_info, msg_ctx, snum,
+					      JOB_ACCESS_ADMINISTER))) {
+		DEBUG(0, ("print job delete denied."
+			  "User name: %s, Printer name: %s.",
+			  uidtoname(server_info->unix_token->uid),
+			  lp_printername(tmp_ctx, snum)));
 
 		werr = WERR_ACCESS_DENIED;
 		goto err_out;
@@ -2316,17 +2311,12 @@ WERROR print_job_pause(const struct auth_session_info *server_info,
 	}
 
 	if (!is_owner(server_info, lp_const_servicename(snum), jobid) &&
-	    !print_access_check(server_info, msg_ctx, snum,
-				JOB_ACCESS_ADMINISTER)) {
-		DEBUG(3, ("pause denied by security descriptor\n"));
-
-		/* BEGIN_ADMIN_LOG */
-		sys_adminlog( LOG_ERR,
-			"Permission denied-- user not allowed to delete, \
-pause, or resume print job. User name: %s. Printer name: %s.",
-			      uidtoname(server_info->unix_token->uid),
-			      lp_printername(talloc_tos(), snum) );
-		/* END_ADMIN_LOG */
+	    !W_ERROR_IS_OK(print_access_check(server_info, msg_ctx, snum,
+					      JOB_ACCESS_ADMINISTER))) {
+		DEBUG(0, ("print job pause denied."
+			  "User name: %s, Printer name: %s.",
+			  uidtoname(server_info->unix_token->uid),
+			  lp_printername(tmp_ctx, snum)));
 
 		werr = WERR_ACCESS_DENIED;
 		goto err_out;
@@ -2388,17 +2378,13 @@ WERROR print_job_resume(const struct auth_session_info *server_info,
 	}
 
 	if (!is_owner(server_info, lp_const_servicename(snum), jobid) &&
-	    !print_access_check(server_info, msg_ctx, snum,
-				JOB_ACCESS_ADMINISTER)) {
-		DEBUG(3, ("resume denied by security descriptor\n"));
+	    !W_ERROR_IS_OK(print_access_check(server_info, msg_ctx, snum,
+					      JOB_ACCESS_ADMINISTER))) {
+		DEBUG(0, ("print job resume denied."
+			  "User name: %s, Printer name: %s.",
+			  uidtoname(server_info->unix_token->uid),
+			  lp_printername(tmp_ctx, snum)));
 
-		/* BEGIN_ADMIN_LOG */
-		sys_adminlog( LOG_ERR,
-			 "Permission denied-- user not allowed to delete, \
-pause, or resume print job. User name: %s. Printer name: %s.",
-			      uidtoname(server_info->unix_token->uid),
-			      lp_printername(talloc_tos(), snum) );
-		/* END_ADMIN_LOG */
 		werr = WERR_ACCESS_DENIED;
 		goto err_out;
 	}
@@ -2654,8 +2640,8 @@ static WERROR print_job_checks(const struct auth_session_info *server_info,
 	uint64_t minspace;
 	int ret;
 
-	if (!print_access_check(server_info, msg_ctx, snum,
-				PRINTER_ACCESS_USE)) {
+	if (!W_ERROR_IS_OK(print_access_check(server_info, msg_ctx, snum,
+					      PRINTER_ACCESS_USE))) {
 		DEBUG(3, ("print_job_checks: "
 			  "job start denied by security descriptor\n"));
 		return WERR_ACCESS_DENIED;
@@ -2668,9 +2654,9 @@ static WERROR print_job_checks(const struct auth_session_info *server_info,
 	}
 
 	/* see if we have sufficient disk space */
-	if (lp_minprintspace(snum)) {
-		minspace = lp_minprintspace(snum);
-		ret = sys_fsusage(lp_pathname(talloc_tos(), snum), &dspace, &dsize);
+	if (lp_min_print_space(snum)) {
+		minspace = lp_min_print_space(snum);
+		ret = sys_fsusage(lp_path(talloc_tos(), snum), &dspace, &dsize);
 		if (ret == 0 && dspace < 2*minspace) {
 			DEBUG(3, ("print_job_checks: "
 				  "disk space check failed.\n"));
@@ -2716,7 +2702,7 @@ static WERROR print_job_spool_file(int snum, uint32_t jobid,
 	 * Verify that the file name is ok, within path, and it is
 	 * already already there */
 	if (output_file) {
-		path = lp_pathname(talloc_tos(), snum);
+		path = lp_path(talloc_tos(), snum);
 		len = strlen(path);
 		if (strncmp(output_file, path, len) == 0 &&
 		    (output_file[len - 1] == '/' || output_file[len] == '/')) {
@@ -2745,7 +2731,7 @@ static WERROR print_job_spool_file(int snum, uint32_t jobid,
 	}
 
 	slprintf(pjob->filename, sizeof(pjob->filename)-1,
-		 "%s/%sXXXXXX", lp_pathname(talloc_tos(), snum),
+		 "%s/%sXXXXXX", lp_path(talloc_tos(), snum),
 		 PRINT_SPOOL_PREFIX);
 	mask = umask(S_IRWXO | S_IRWXG);
 	pjob->fd = mkstemp(pjob->filename);
@@ -2792,7 +2778,7 @@ WERROR print_job_start(const struct auth_session_info *server_info,
 		return WERR_INTERNAL_DB_CORRUPTION;
 	}
 
-	path = lp_pathname(talloc_tos(), snum);
+	path = lp_path(talloc_tos(), snum);
 
 	werr = print_job_checks(server_info, msg_ctx, snum, &njobs);
 	if (!W_ERROR_IS_OK(werr)) {
@@ -2982,7 +2968,7 @@ NTSTATUS print_job_end(struct messaging_context *msg_ctx, int snum,
 
 	/* don't strip out characters like '$' from the printername */
 	lpq_cmd = talloc_string_sub2(tmp_ctx,
-				     lp_lpqcommand(talloc_tos(), snum),
+				     lp_lpq_command(talloc_tos(), snum),
 				     "%p",
 				     lp_printername(talloc_tos(), snum),
 				     false, false, false);
@@ -3050,7 +3036,7 @@ static bool get_stored_queue_info(struct messaging_context *msg_ctx,
 	int total_count = 0;
 	size_t len = 0;
 	uint32 i;
-	int max_reported_jobs = lp_max_reported_jobs(snum);
+	int max_reported_jobs = lp_max_reported_print_jobs(snum);
 	bool ret = false;
 	const char* sharename = lp_servicename(talloc_tos(), snum);
 	TALLOC_CTX *tmp_ctx = talloc_new(msg_ctx);
@@ -3285,8 +3271,8 @@ WERROR print_queue_pause(const struct auth_session_info *server_info,
 	int ret;
 	struct printif *current_printif = get_printer_fns( snum );
 
-	if (!print_access_check(server_info, msg_ctx, snum,
-				PRINTER_ACCESS_ADMINISTER)) {
+	if (!W_ERROR_IS_OK(print_access_check(server_info, msg_ctx, snum,
+					      PRINTER_ACCESS_ADMINISTER))) {
 		return WERR_ACCESS_DENIED;
 	}
 
@@ -3322,8 +3308,8 @@ WERROR print_queue_resume(const struct auth_session_info *server_info,
 	int ret;
 	struct printif *current_printif = get_printer_fns( snum );
 
-	if (!print_access_check(server_info, msg_ctx, snum,
-				PRINTER_ACCESS_ADMINISTER)) {
+	if (!W_ERROR_IS_OK(print_access_check(server_info, msg_ctx, snum,
+					      PRINTER_ACCESS_ADMINISTER))) {
 		return WERR_ACCESS_DENIED;
 	}
 
@@ -3364,10 +3350,10 @@ WERROR print_queue_purge(const struct auth_session_info *server_info,
 	/* Force and update so the count is accurate (i.e. not a cached count) */
 	print_queue_update(msg_ctx, snum, True);
 
-	can_job_admin = print_access_check(server_info,
-					   msg_ctx,
-					   snum,
-					   JOB_ACCESS_ADMINISTER);
+	can_job_admin = W_ERROR_IS_OK(print_access_check(server_info,
+							 msg_ctx,
+							 snum,
+							JOB_ACCESS_ADMINISTER));
 	njobs = print_queue_status(msg_ctx, snum, &queue, &status);
 
 	if ( can_job_admin )

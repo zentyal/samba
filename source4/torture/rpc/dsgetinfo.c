@@ -67,7 +67,7 @@ struct DsGetinfoTest {
  */
 static const char *torture_get_ldap_base_dn(struct torture_context *tctx, struct dcerpc_pipe *p)
 {
-	const char *hostname = p->binding->host;
+	const char *hostname = dcerpc_binding_get_string_option(p->binding, "host");
 	struct ldb_context *ldb;
 	const char *ldap_url = talloc_asprintf(p, "ldap://%s", hostname);
 	const char *attrs[] = { "defaultNamingContext", NULL };
@@ -127,7 +127,11 @@ static struct DsGetinfoTest *test_create_context(struct torture_context *tctx)
 		printf("Bad binding string %s\n", binding);
 		return NULL;
 	}
-	ctx->drsuapi_binding->flags |= DCERPC_SIGN | DCERPC_SEAL;
+	status = dcerpc_binding_set_flags(ctx->drsuapi_binding, DCERPC_SIGN | DCERPC_SEAL, 0);
+	if (!NT_STATUS_IS_OK(status)) {
+		printf("dcerpc_binding_set_flags - %s\n", nt_errstr(status));
+		return NULL;
+	}
 
 	/* ctx->admin ...*/
 	ctx->admin.credentials				= cmdline_credentials;
@@ -191,6 +195,19 @@ static bool _test_DsBind(struct torture_context *tctx,
 			b->peer_bind_info28.repl_epoch		= 0;
 			break;
 		}
+		case 28: {
+			b->peer_bind_info28 = b->req.out.bind_info->info.info28;
+			break;
+		}
+		case 32: {
+			struct drsuapi_DsBindInfo32 *info32;
+			info32 = &b->req.out.bind_info->info.info32;
+			b->peer_bind_info28.supported_extensions= info32->supported_extensions;
+			b->peer_bind_info28.site_guid		= info32->site_guid;
+			b->peer_bind_info28.pid			= info32->pid;
+			b->peer_bind_info28.repl_epoch		= info32->repl_epoch;
+			break;
+		}
 		case 48: {
 			struct drsuapi_DsBindInfo48 *info48;
 			info48 = &b->req.out.bind_info->info.info48;
@@ -200,9 +217,15 @@ static bool _test_DsBind(struct torture_context *tctx,
 			b->peer_bind_info28.repl_epoch		= info48->repl_epoch;
 			break;
 		}
-		case 28:
-			b->peer_bind_info28 = b->req.out.bind_info->info.info28;
+		case 52: {
+			struct drsuapi_DsBindInfo52 *info52;
+			info52 = &b->req.out.bind_info->info.info52;
+			b->peer_bind_info28.supported_extensions= info52->supported_extensions;
+			b->peer_bind_info28.site_guid		= info52->site_guid;
+			b->peer_bind_info28.pid			= info52->pid;
+			b->peer_bind_info28.repl_epoch		= info52->repl_epoch;
 			break;
+		}
 		default:
 			printf("DsBind - warning: unknown BindInfo length: %u\n",
 			       b->req.out.bind_info->length);
@@ -418,14 +441,12 @@ static bool torture_dsgetinfo_tcase_teardown(struct torture_context *tctx, void 
 void torture_drs_rpc_dsgetinfo_tcase(struct torture_suite *suite)
 {
 	typedef bool (*run_func) (struct torture_context *test, void *tcase_data);
-
-	struct torture_test *test;
 	struct torture_tcase *tcase = torture_suite_add_tcase(suite, "dsgetinfo");
 
 	torture_tcase_set_fixture(tcase,
 				  torture_dsgetinfo_tcase_setup,
 				  torture_dsgetinfo_tcase_teardown);
 
-	test = torture_tcase_add_simple_test(tcase, "DsGetReplicaInfo", (run_func)test_getinfo);
+	torture_tcase_add_simple_test(tcase, "DsGetReplicaInfo", (run_func)test_getinfo);
 }
 

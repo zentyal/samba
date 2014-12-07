@@ -1,6 +1,6 @@
 <samba:parameter name="dns update command"
                  context="G"
-                 type="string"
+                 type="list"
                  advanced="1"
                  xmlns:samba="http://www.samba.org/samba/DTD/samba-doc">
 <description>
@@ -10,6 +10,6 @@
 	</para>
 </description>
 
-<value type="default">$prefix/sbin/samba_dnsupdate</value>
+<value type="default">&pathconfig.SCRIPTSBINDIR;/samba_dnsupdate</value>
 <value type="example">/usr/local/sbin/dnsupdate</value>
 </samba:parameter>

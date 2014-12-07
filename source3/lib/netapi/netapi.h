@@ -1233,6 +1233,19 @@ struct SHARE_INFO_501 {
 	uint32_t shi501_flags;
 };
 
+struct SHARE_INFO_502 {
+	const char * shi502_netname;
+	uint32_t shi502_type;
+	const char * shi502_remark;
+	uint32_t shi502_permissions;
+	uint32_t shi502_max_uses;
+	uint32_t shi502_current_uses;
+	const char * shi502_path;
+	const char * shi502_passwd;
+	uint32_t shi502_reserved;
+	struct security_descriptor * shi502_security_descriptor;
+};
+
 struct SHARE_INFO_1004 {
 	const char * shi1004_remark;
 };
@@ -1614,6 +1627,23 @@ NET_API_STATUS NetServerSetInfo(const char * server_name /* [in] */,
 				uint32_t level /* [in] */,
 				uint8_t *buffer /* [in] [ref] */,
 				uint32_t *parm_error /* [out] [ref] */);
+
+/************************************************************//**
+ *
+ * NetWkstaGetInfo
+ *
+ * @brief Get Information on a workstation
+ *
+ * @param[in] wksta_name The workstation name to connect to
+ * @param[in] level The level to define which information is requested
+ * @param[out] buffer The returned buffer carrying the WKSTA_INFO structure
+ * @return NET_API_STATUS
+ *
+ ***************************************************************/
+
+NET_API_STATUS NetWkstaGetInfo(const char * wksta_name /* [in] */,
+				uint32_t level /* [in] */,
+				uint8_t **buffer /* [out] [ref] */);
 
 /************************************************************//**
  *

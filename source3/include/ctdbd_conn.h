@@ -30,6 +30,7 @@ NTSTATUS ctdbd_messaging_connection(TALLOC_CTX *mem_ctx,
 				    struct ctdbd_connection **pconn);
 
 uint32_t ctdbd_vnn(const struct ctdbd_connection *conn);
+const char *lp_ctdbd_socket(void);
 
 NTSTATUS ctdbd_register_msg_ctx(struct ctdbd_connection *conn,
 				struct messaging_context *msg_ctx);
@@ -49,6 +50,7 @@ bool ctdbd_process_exists(struct ctdbd_connection *conn, uint32_t vnn,
 bool ctdb_processes_exist(struct ctdbd_connection *conn,
 			  const struct server_id *pids, int num_pids,
 			  bool *results);
+bool ctdb_serverids_exist_supported(struct ctdbd_connection *conn);
 bool ctdb_serverids_exist(struct ctdbd_connection *conn,
 			  const struct server_id *pids, unsigned num_pids,
 			  bool *results);
@@ -89,5 +91,6 @@ NTSTATUS ctdbd_control_local(struct ctdbd_connection *conn, uint32_t opcode,
 NTSTATUS ctdb_watch_us(struct ctdbd_connection *conn);
 NTSTATUS ctdb_unwatch(struct ctdbd_connection *conn);
 NTSTATUS register_with_ctdbd(struct ctdbd_connection *conn, uint64_t srvid);
+NTSTATUS ctdbd_probe(void);
 
 #endif /* _CTDBD_CONN_H */

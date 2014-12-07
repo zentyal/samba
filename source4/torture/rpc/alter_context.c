@@ -30,8 +30,6 @@ bool torture_rpc_alter_context(struct torture_context *torture)
 	struct dcerpc_pipe *p, *p2, *p3;
 	struct policy_handle *handle;
 	struct ndr_interface_table tmptbl;
-	struct ndr_syntax_id syntax;
-	struct ndr_syntax_id transfer_syntax;
 	bool ret = true;
 
 	torture_comment(torture, "opening LSA connection\n");
@@ -72,9 +70,6 @@ bool torture_rpc_alter_context(struct torture_context *torture)
 		ret &= test_lsa_Close(p->binding_handle, torture, handle);
 	}
 
-	syntax = p->syntax;
-	transfer_syntax = p->transfer_syntax;
-
 	torture_comment(torture, "Testing change of primary context\n");
 	status = dcerpc_alter_context(p, torture, &p->syntax, &p->transfer_syntax);
 	torture_assert_ntstatus_ok(torture, status, "dcerpc_alter_context failed");
@@ -90,7 +85,11 @@ bool torture_rpc_alter_context(struct torture_context *torture)
 	if (NT_STATUS_EQUAL(status, NT_STATUS_RPC_PROTOCOL_ERROR)) {
 
 		ret &= test_lsa_OpenPolicy2_ex(p->binding_handle, torture, &handle,
-					       NT_STATUS_PIPE_DISCONNECTED);
+					       NT_STATUS_IO_DEVICE_ERROR);
+
+		torture_assert(torture, !dcerpc_binding_handle_is_connected(p->binding_handle),
+			       "dcerpc disonnected");
+
 		return ret;
 	}
 	torture_assert_ntstatus_ok(torture, status, "dcerpc_alter_context failed");

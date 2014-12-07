@@ -89,13 +89,13 @@ static bool print_driver_directories_init(void)
 		return true;
 	}
 
-	driver_path = lp_pathname(mem_ctx, service);
+	driver_path = lp_path(mem_ctx, service);
 	if (driver_path == NULL) {
 		talloc_free(mem_ctx);
 		return false;
 	}
 
-	ok = directory_create_or_exist(driver_path, sec_initial_uid(), 0755);
+	ok = directory_create_or_exist(driver_path, 0755);
 	if (!ok) {
 		DEBUG(1, ("Failed to create printer driver directory %s\n",
 			  driver_path));
@@ -115,9 +115,7 @@ static bool print_driver_directories_init(void)
 			return false;
 		}
 
-		ok = directory_create_or_exist(arch_path,
-					       sec_initial_uid(),
-					       0755);
+		ok = directory_create_or_exist(arch_path, 0755);
 		if (!ok) {
 			DEBUG(1, ("Failed to create printer driver "
 				  "architecture directory %s\n",
@@ -533,6 +531,7 @@ static int file_version_is_newer(connection_struct *conn, fstring new_file, fstr
 		0,					/* create_options */
 		FILE_ATTRIBUTE_NORMAL,			/* file_attributes */
 		INTERNAL_OPEN_ONLY,			/* oplock_request */
+		NULL,					/* lease */
 		0,					/* allocation_size */
 		0,					/* private_flags */
 		NULL,					/* sd */
@@ -586,6 +585,7 @@ static int file_version_is_newer(connection_struct *conn, fstring new_file, fstr
 		0,					/* create_options */
 		FILE_ATTRIBUTE_NORMAL,			/* file_attributes */
 		INTERNAL_OPEN_ONLY,			/* oplock_request */
+		NULL,					/* lease */
 		0,					/* allocation_size */
 		0,					/* private_flags */
 		NULL,					/* sd */
@@ -707,7 +707,7 @@ static uint32 get_correct_cversion(struct auth_session_info *session_info,
 					   server_messaging_context(),
 					   &conn,
 					   printdollar_snum,
-					   lp_pathname(talloc_tos(), printdollar_snum),
+					   lp_path(talloc_tos(), printdollar_snum),
 					   session_info, &oldcwd);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(0,("get_correct_cversion: create_conn_struct "
@@ -764,6 +764,7 @@ static uint32 get_correct_cversion(struct auth_session_info *session_info,
 		0,					/* create_options */
 		FILE_ATTRIBUTE_NORMAL,			/* file_attributes */
 		INTERNAL_OPEN_ONLY,			/* oplock_request */
+		NULL,					/* lease */
 		0,					/* private_flags */
 		0,					/* allocation_size */
 		NULL,					/* sd */
@@ -1094,7 +1095,7 @@ WERROR move_driver_to_download_area(struct auth_session_info *session_info,
 					   server_messaging_context(),
 					   &conn,
 					   printdollar_snum,
-					   lp_pathname(talloc_tos(), printdollar_snum),
+					   lp_path(talloc_tos(), printdollar_snum),
 					   session_info, &oldcwd);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(0,("move_driver_to_download_area: create_conn_struct "
@@ -1287,7 +1288,7 @@ bool printer_driver_in_use(TALLOC_CTX *mem_ctx,
 	/* loop through the printers.tdb and check for the drivername */
 
 	for (snum=0; snum<n_services && !in_use; snum++) {
-		if (!lp_snum_ok(snum) || !lp_print_ok(snum)) {
+		if (!lp_snum_ok(snum) || !lp_printable(snum)) {
 			continue;
 		}
 
@@ -1629,7 +1630,7 @@ bool delete_driver_files(const struct auth_session_info *session_info,
 					   server_messaging_context(),
 					   &conn,
 					   printdollar_snum,
-					   lp_pathname(talloc_tos(), printdollar_snum),
+					   lp_path(talloc_tos(), printdollar_snum),
 					   session_info, &oldcwd);
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(0,("delete_driver_files: create_conn_struct "
@@ -1790,9 +1791,9 @@ void map_job_permissions(struct security_descriptor *sd)
     3)  "printer admins" (may result in numerous calls to winbind)
 
  ****************************************************************************/
-bool print_access_check(const struct auth_session_info *session_info,
-			struct messaging_context *msg_ctx, int snum,
-			int access_type)
+WERROR print_access_check(const struct auth_session_info *session_info,
+			  struct messaging_context *msg_ctx, int snum,
+			  int access_type)
 {
 	struct spoolss_security_descriptor *secdesc = NULL;
 	uint32 access_granted;
@@ -1806,9 +1807,10 @@ bool print_access_check(const struct auth_session_info *session_info,
 
 	/* Always allow root or SE_PRINT_OPERATROR to do anything */
 
-	if (session_info->unix_token->uid == sec_initial_uid()
-	    || security_token_has_privilege(session_info->security_token, SEC_PRIV_PRINT_OPERATOR)) {
-		return True;
+	if ((session_info->unix_token->uid == sec_initial_uid())
+	    || security_token_has_privilege(session_info->security_token,
+					    SEC_PRIV_PRINT_OPERATOR)) {
+		return WERR_OK;
 	}
 
 	/* Get printer name */
@@ -1816,15 +1818,13 @@ bool print_access_check(const struct auth_session_info *session_info,
 	pname = lp_printername(talloc_tos(), snum);
 
 	if (!pname || !*pname) {
-		errno = EACCES;
-		return False;
+		return WERR_ACCESS_DENIED;
 	}
 
 	/* Get printer security descriptor */
 
 	if(!(mem_ctx = talloc_init("print_access_check"))) {
-		errno = ENOMEM;
-		return False;
+		return WERR_NOMEM;
 	}
 
 	result = winreg_get_printer_secdesc_internal(mem_ctx,
@@ -1834,8 +1834,7 @@ bool print_access_check(const struct auth_session_info *session_info,
 					    &secdesc);
 	if (!W_ERROR_IS_OK(result)) {
 		talloc_destroy(mem_ctx);
-		errno = ENOMEM;
-		return False;
+		return WERR_NOMEM;
 	}
 
 	if (access_type == JOB_ACCESS_ADMINISTER) {
@@ -1853,8 +1852,7 @@ bool print_access_check(const struct auth_session_info *session_info,
 						 false);
 		if (!NT_STATUS_IS_OK(status)) {
 			talloc_destroy(mem_ctx);
-			errno = map_errno_from_nt_status(status);
-			return False;
+			return ntstatus_to_werror(status);
 		}
 
 		map_job_permissions(secdesc);
@@ -1870,11 +1868,7 @@ bool print_access_check(const struct auth_session_info *session_info,
 
 	talloc_destroy(mem_ctx);
 
-	if (!NT_STATUS_IS_OK(status)) {
-		errno = EACCES;
-	}
-
-	return NT_STATUS_IS_OK(status);
+	return ntstatus_to_werror(status);
 }
 
 /****************************************************************************

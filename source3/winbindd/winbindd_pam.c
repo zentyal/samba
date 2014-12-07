@@ -41,6 +41,7 @@
 #include "auth/kerberos/pac_utils.h"
 #include "auth/gensec/gensec.h"
 #include "librpc/crypto/gse_krb5.h"
+#include "lib/afs/afs_funcs.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_WINBIND
@@ -576,6 +577,10 @@ static NTSTATUS winbindd_raw_kerberos_login(TALLOC_CTX *mem_ctx,
 	time_t time_offset = 0;
 	const char *user_ccache_file;
 	struct PAC_LOGON_INFO *logon_info = NULL;
+	struct PAC_DATA *pac_data = NULL;
+	struct PAC_DATA_CTR *pac_data_ctr = NULL;
+	const char *local_service;
+	int i;
 
 	*info3 = NULL;
 
@@ -632,6 +637,13 @@ static NTSTATUS winbindd_raw_kerberos_login(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_NO_MEMORY;
 	}
 
+	local_service = talloc_asprintf(mem_ctx, "%s$@%s",
+					lp_netbios_name(), lp_realm());
+	if (local_service == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+
 	/* if this is a user ccache, we need to act as the user to let the krb5
 	 * library handle the chown, etc. */
 
@@ -653,7 +665,8 @@ static NTSTATUS winbindd_raw_kerberos_login(TALLOC_CTX *mem_ctx,
 				     true,
 				     WINBINDD_PAM_AUTH_KRB5_RENEW_TIME,
 				     NULL,
-				     &logon_info);
+				     local_service,
+				     &pac_data_ctr);
 	if (user_ccache_file != NULL) {
 		gain_root_privilege();
 	}
@@ -662,6 +675,29 @@ static NTSTATUS winbindd_raw_kerberos_login(TALLOC_CTX *mem_ctx,
 
 	if (!NT_STATUS_IS_OK(result)) {
 		goto failed;
+	}
+
+	if (pac_data_ctr == NULL) {
+		goto failed;
+	}
+
+	pac_data = pac_data_ctr->pac_data;
+	if (pac_data == NULL) {
+		goto failed;
+	}
+
+	for (i=0; i < pac_data->num_buffers; i++) {
+
+		if (pac_data->buffers[i].type != PAC_TYPE_LOGON_INFO) {
+			continue;
+		}
+
+		logon_info = pac_data->buffers[i].info->logon_info.info;
+		if (!logon_info) {
+			return NT_STATUS_INVALID_PARAMETER;
+		}
+
+		break;
 	}
 
 	*info3 = &logon_info->info3;
@@ -959,7 +995,7 @@ static NTSTATUS winbindd_dual_pam_auth_cached(struct winbindd_domain *domain,
 #ifdef HAVE_KRB5
 		if ((state->request->flags & WBFLAG_PAM_KRB5) &&
 		    ((tdc_domain = wcache_tdc_fetch_domain(state->mem_ctx, name_domain)) != NULL) &&
-		    ((tdc_domain->trust_type & NETR_TRUST_TYPE_UPLEVEL) ||
+		    ((tdc_domain->trust_type & LSA_TRUST_TYPE_UPLEVEL) ||
 		    /* used to cope with the case winbindd starting without network. */
 		    !strequal(tdc_domain->domain_name, tdc_domain->dns_name))) {
 
@@ -1149,7 +1185,7 @@ static NTSTATUS winbindd_dual_pam_auth_kerberos(struct winbindd_domain *domain,
 	}
 
 	if (!contact_domain->initialized) {
-		init_dc_connection(contact_domain);
+		init_dc_connection(contact_domain, false);
 	}
 
 	if (!contact_domain->active_directory) {
@@ -1176,36 +1212,78 @@ static NTSTATUS winbindd_dual_auth_passdb(TALLOC_CTX *mem_ctx,
 					  const DATA_BLOB *nt_resp,
 					  struct netr_SamInfo3 **pinfo3)
 {
+	struct auth_context *auth_context;
+	struct auth_serversupplied_info *server_info;
 	struct auth_usersupplied_info *user_info = NULL;
 	struct tsocket_address *local;
+	struct netr_SamInfo3 *info3;
 	NTSTATUS status;
 	int rc;
+	TALLOC_CTX *frame = talloc_stackframe();
 
-	rc = tsocket_address_inet_from_strings(mem_ctx,
+	rc = tsocket_address_inet_from_strings(frame,
 					       "ip",
 					       "127.0.0.1",
 					       0,
 					       &local);
 	if (rc < 0) {
+		TALLOC_FREE(frame);
 		return NT_STATUS_NO_MEMORY;
 	}
-	status = make_user_info(&user_info, user, user, domain, domain,
+	status = make_user_info(frame, &user_info, user, user, domain, domain,
 				lp_netbios_name(), local, lm_resp, nt_resp, NULL, NULL,
 				NULL, AUTH_PASSWORD_RESPONSE);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(10, ("make_user_info failed: %s\n", nt_errstr(status)));
+		TALLOC_FREE(frame);
 		return status;
 	}
+
 	user_info->logon_parameters = logon_parameters;
 
 	/* We don't want any more mapping of the username */
 	user_info->mapped_state = True;
 
-	status = check_sam_security_info3(challenge, talloc_tos(), user_info,
-					  pinfo3);
-	free_user_info(&user_info);
+	/* We don't want to come back to winbindd or to do PAM account checks */
+	user_info->flags |= USER_INFO_LOCAL_SAM_ONLY | USER_INFO_INFO3_AND_NO_AUTHZ;
+
+	status = make_auth_context_fixed(frame, &auth_context, challenge->data);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("Failed to test authentication with check_sam_security_info3: %s\n", nt_errstr(status)));
+		TALLOC_FREE(frame);
+		return status;
+	}
+
+	status = auth_check_ntlm_password(mem_ctx,
+					  auth_context,
+					  user_info,
+					  &server_info);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		TALLOC_FREE(frame);
+		return status;
+	}
+
+	info3 = talloc_zero(mem_ctx, struct netr_SamInfo3);
+	if (info3 == NULL) {
+		TALLOC_FREE(frame);
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	status = serverinfo_to_SamInfo3(server_info, info3);
+	if (!NT_STATUS_IS_OK(status)) {
+		TALLOC_FREE(frame);
+		TALLOC_FREE(info3);
+		DEBUG(0, ("serverinfo_to_SamInfo3 failed: %s\n",
+			  nt_errstr(status)));
+		return status;
+	}
+
+	*pinfo3 = info3;
 	DEBUG(10, ("Authenticaticating user %s\\%s returned %s\n", domain,
 		   user, nt_errstr(status)));
+	TALLOC_FREE(frame);
 	return status;
 }
 
@@ -1214,11 +1292,13 @@ static NTSTATUS winbind_samlogon_retry_loop(struct winbindd_domain *domain,
 					    uint32_t logon_parameters,
 					    const char *server,
 					    const char *username,
+					    const char *password,
 					    const char *domainname,
 					    const char *workstation,
 					    const uint8_t chal[8],
 					    DATA_BLOB lm_response,
 					    DATA_BLOB nt_response,
+					    bool interactive,
 					    struct netr_SamInfo3 **info3)
 {
 	int attempts = 0;
@@ -1228,8 +1308,8 @@ static NTSTATUS winbind_samlogon_retry_loop(struct winbindd_domain *domain,
 
 	do {
 		struct rpc_pipe_client *netlogon_pipe;
-		const struct pipe_auth_data *auth;
-		uint32_t neg_flags = 0;
+		uint8_t authoritative = 0;
+		uint32_t flags = 0;
 
 		ZERO_STRUCTP(info3);
 		retry = false;
@@ -1278,124 +1358,31 @@ static NTSTATUS winbind_samlogon_retry_loop(struct winbindd_domain *domain,
 		}
 		netr_attempts = 0;
 
-		auth = netlogon_pipe->auth;
-		if (netlogon_pipe->dc) {
-			neg_flags = netlogon_pipe->dc->negotiate_flags;
-		}
-
-		/* It is really important to try SamLogonEx here,
-		 * because in a clustered environment, we want to use
-		 * one machine account from multiple physical
-		 * computers.
-		 *
-		 * With a normal SamLogon call, we must keep the
-		 * credentials chain updated and intact between all
-		 * users of the machine account (which would imply
-		 * cross-node communication for every NTLM logon).
-		 *
-		 * (The credentials chain is not per NETLOGON pipe
-		 * connection, but globally on the server/client pair
-		 * by machine name).
-		 *
-		 * When using SamLogonEx, the credentials are not
-		 * supplied, but the session key is implied by the
-		 * wrapping SamLogon context.
-		 *
-		 *  -- abartlet 21 April 2008
-		 *
-		 * It's also important to use NetlogonValidationSamInfo4 (6),
-		 * because it relies on the rpc transport encryption
-		 * and avoids using the global netlogon schannel
-		 * session key to en/decrypt secret information
-		 * like the user_session_key for network logons.
-		 *
-		 * [MS-APDS] 3.1.5.2 NTLM Network Logon
-		 * says NETLOGON_NEG_CROSS_FOREST_TRUSTS and
-		 * NETLOGON_NEG_AUTHENTICATED_RPC set together
-		 * are the indication that the server supports
-		 * NetlogonValidationSamInfo4 (6). And it must only
-		 * be used if "SealSecureChannel" is used.
-		 *
-		 * -- metze 4 February 2011
-		 */
-
-		if (auth == NULL) {
-			domain->can_do_validation6 = false;
-		} else if (auth->auth_type != DCERPC_AUTH_TYPE_SCHANNEL) {
-			domain->can_do_validation6 = false;
-		} else if (auth->auth_level != DCERPC_AUTH_LEVEL_PRIVACY) {
-			domain->can_do_validation6 = false;
-		} else if (!(neg_flags & NETLOGON_NEG_CROSS_FOREST_TRUSTS)) {
-			domain->can_do_validation6 = false;
-		} else if (!(neg_flags & NETLOGON_NEG_AUTHENTICATED_RPC)) {
-			domain->can_do_validation6 = false;
-		}
-
-		if (domain->can_do_samlogon_ex && domain->can_do_validation6) {
-			result = rpccli_netlogon_sam_network_logon_ex(
-					netlogon_pipe,
-					mem_ctx,
-					logon_parameters,
-					server,		/* server name */
-					username,	/* user name */
-					domainname,	/* target domain */
-					workstation,	/* workstation */
-					chal,
-					6,
-					lm_response,
-					nt_response,
-					info3);
+		if (interactive && username != NULL && password != NULL) {
+			result = rpccli_netlogon_password_logon(domain->conn.netlogon_creds,
+								netlogon_pipe->binding_handle,
+								mem_ctx,
+								logon_parameters,
+								domainname,
+								username,
+								password,
+								workstation,
+								NetlogonInteractiveInformation,
+								info3);
 		} else {
-			result = rpccli_netlogon_sam_network_logon(
-					netlogon_pipe,
-					mem_ctx,
-					logon_parameters,
-					server,		/* server name */
-					username,	/* user name */
-					domainname,	/* target domain */
-					workstation,	/* workstation */
-					chal,
-					domain->can_do_validation6 ? 6 : 3,
-					lm_response,
-					nt_response,
-					info3);
-		}
-
-		if (NT_STATUS_EQUAL(result, NT_STATUS_RPC_PROCNUM_OUT_OF_RANGE)) {
-
-			/*
-			 * It's likely that the server also does not support
-			 * validation level 6
-			 */
-			domain->can_do_validation6 = false;
-
-			if (domain->can_do_samlogon_ex) {
-				DEBUG(3, ("Got a DC that can not do NetSamLogonEx, "
-					  "retrying with NetSamLogon\n"));
-				domain->can_do_samlogon_ex = false;
-				retry = true;
-				continue;
-			}
-
-
-			/* Got DCERPC_FAULT_OP_RNG_ERROR for SamLogon
-			 * (no Ex). This happens against old Samba
-			 * DCs. Drop the connection.
-			 */
-			invalidate_cm_connection(&domain->conn);
-			result = NT_STATUS_LOGON_FAILURE;
-			break;
-		}
-
-		if (domain->can_do_validation6 &&
-		    (NT_STATUS_EQUAL(result, NT_STATUS_INVALID_INFO_CLASS) ||
-		     NT_STATUS_EQUAL(result, NT_STATUS_INVALID_PARAMETER) ||
-		     NT_STATUS_EQUAL(result, NT_STATUS_BUFFER_TOO_SMALL))) {
-			DEBUG(3,("Got a DC that can not do validation level 6, "
-				  "retrying with level 3\n"));
-			domain->can_do_validation6 = false;
-			retry = true;
-			continue;
+			result = rpccli_netlogon_network_logon(domain->conn.netlogon_creds,
+							netlogon_pipe->binding_handle,
+							mem_ctx,
+							logon_parameters,
+							username,
+							domainname,
+							workstation,
+							chal,
+							lm_response,
+							nt_response,
+							&authoritative,
+							&flags,
+							info3);
 		}
 
 		/*
@@ -1426,6 +1413,30 @@ static NTSTATUS winbind_samlogon_retry_loop(struct winbindd_domain *domain,
 				domainname));
 			invalidate_cm_connection(&domain->conn);
 			retry = true;
+		}
+
+		if (NT_STATUS_EQUAL(result, NT_STATUS_RPC_PROCNUM_OUT_OF_RANGE)) {
+			/*
+			 * Got DCERPC_FAULT_OP_RNG_ERROR for SamLogon
+			 * (no Ex). This happens against old Samba
+			 * DCs, if LogonSamLogonEx() fails with an error
+			 * e.g. NT_STATUS_NO_SUCH_USER or NT_STATUS_WRONG_PASSWORD.
+			 *
+			 * The server will log something like this:
+			 * api_net_sam_logon_ex: Failed to marshall NET_R_SAM_LOGON_EX.
+			 *
+			 * This sets the whole connection into a fault_state mode
+			 * and all following request get NT_STATUS_RPC_PROCNUM_OUT_OF_RANGE.
+			 *
+			 * This also happens to our retry with LogonSamLogonWithFlags()
+			 * and LogonSamLogon().
+			 *
+			 * In order to recover from this situation, we need to
+			 * drop the connection.
+			 */
+			invalidate_cm_connection(&domain->conn);
+			result = NT_STATUS_LOGON_FAILURE;
+			break;
 		}
 
 	} while ( (attempts < 2) && retry );
@@ -1505,7 +1516,13 @@ static NTSTATUS winbindd_dual_pam_auth_samlogon(TALLOC_CTX *mem_ctx,
 		result = winbindd_dual_auth_passdb(
 			mem_ctx, 0, name_domain, name_user,
 			&chal_blob, &lm_resp, &nt_resp, info3);
-		goto done;
+
+		/* 
+		 * We need to try the remote NETLOGON server if this is NOT_IMPLEMENTED 
+		 */
+		if (!NT_STATUS_EQUAL(result, NT_STATUS_NOT_IMPLEMENTED)) {
+			goto done;
+		}
 	}
 
 	/* check authentication loop */
@@ -1515,11 +1532,13 @@ static NTSTATUS winbindd_dual_pam_auth_samlogon(TALLOC_CTX *mem_ctx,
 					     0,
 					     domain->dcname,
 					     name_user,
+					     pass,
 					     name_domain,
 					     lp_netbios_name(),
 					     chal,
 					     lm_resp,
 					     nt_resp,
+					     true, /* interactive */
 					     &my_info3);
 	if (!NT_STATUS_IS_OK(result)) {
 		goto done;
@@ -1539,7 +1558,7 @@ static NTSTATUS winbindd_dual_pam_auth_samlogon(TALLOC_CTX *mem_ctx,
 		uint32 acct_flags;
 		struct dcerpc_binding_handle *b;
 
-		status_tmp = cm_connect_sam(domain, mem_ctx,
+		status_tmp = cm_connect_sam(domain, mem_ctx, false,
 					    &samr_pipe, &samr_domain_handle);
 
 		if (!NT_STATUS_IS_OK(status_tmp)) {
@@ -1662,7 +1681,7 @@ enum winbindd_result winbindd_dual_pam_auth(struct winbindd_domain *domain,
 				"request in startup mode.\n", domain->name ));
 
 			winbindd_flush_negative_conn_cache(domain);
-			result = init_dc_connection(domain);
+			result = init_dc_connection(domain, false);
 		}
 	}
 
@@ -1785,6 +1804,26 @@ process_result:
 		sid_compose(&user_sid, info3->base.domain_sid,
 			    info3->base.rid);
 
+		if (info3->base.full_name.string == NULL) {
+			struct netr_SamInfo3 *cached_info3;
+
+			cached_info3 = netsamlogon_cache_get(state->mem_ctx,
+							     &user_sid);
+			if (cached_info3 != NULL &&
+			    cached_info3->base.full_name.string != NULL) {
+				info3->base.full_name.string =
+					talloc_strdup(info3,
+						      cached_info3->base.full_name.string);
+			} else {
+
+				/* this might fail so we dont check the return code */
+				wcache_query_user_fullname(domain,
+						info3,
+						&user_sid,
+						&info3->base.full_name.string);
+			}
+		}
+
 		wcache_invalidate_samlogon(find_domain_from_name(name_domain),
 					   &user_sid);
 		netsamlogon_cache_store(name_user, info3);
@@ -1870,6 +1909,105 @@ done:
 	return NT_STATUS_IS_OK(result) ? WINBINDD_OK : WINBINDD_ERROR;
 }
 
+NTSTATUS winbind_dual_SamLogon(struct winbindd_domain *domain,
+			       TALLOC_CTX *mem_ctx,
+			       uint32_t logon_parameters,
+			       const char *name_user,
+			       const char *name_domain,
+			       const char *workstation,
+			       const uint8_t chal[8],
+			       DATA_BLOB lm_response,
+			       DATA_BLOB nt_response,
+			       struct netr_SamInfo3 **info3)
+{
+	NTSTATUS result;
+
+	if (strequal(name_domain, get_global_sam_name())) {
+		DATA_BLOB chal_blob = data_blob_const(
+			chal, 8);
+
+		result = winbindd_dual_auth_passdb(
+			mem_ctx,
+			logon_parameters,
+			name_domain, name_user,
+			&chal_blob, &lm_response, &nt_response, info3);
+
+		/* 
+		 * We need to try the remote NETLOGON server if this is NOT_IMPLEMENTED 
+		 */
+		if (!NT_STATUS_EQUAL(result, NT_STATUS_NOT_IMPLEMENTED)) {
+			goto process_result;
+		}
+	}
+
+	result = winbind_samlogon_retry_loop(domain,
+					     mem_ctx,
+					     logon_parameters,
+					     domain->dcname,
+					     name_user,
+					     NULL, /* password */
+					     name_domain,
+					     /* Bug #3248 - found by Stefan Burkei. */
+					     workstation, /* We carefully set this above so use it... */
+					     chal,
+					     lm_response,
+					     nt_response,
+					     false, /* interactive */
+					     info3);
+	if (!NT_STATUS_IS_OK(result)) {
+		goto done;
+	}
+
+process_result:
+
+	if (NT_STATUS_IS_OK(result)) {
+		struct dom_sid user_sid;
+
+		sid_compose(&user_sid, (*info3)->base.domain_sid,
+			    (*info3)->base.rid);
+
+		if ((*info3)->base.full_name.string == NULL) {
+			struct netr_SamInfo3 *cached_info3;
+
+			cached_info3 = netsamlogon_cache_get(mem_ctx,
+							     &user_sid);
+			if (cached_info3 != NULL &&
+			    cached_info3->base.full_name.string != NULL) {
+				(*info3)->base.full_name.string =
+					talloc_strdup(*info3,
+						      cached_info3->base.full_name.string);
+			} else {
+
+				/* this might fail so we dont check the return code */
+				wcache_query_user_fullname(domain,
+						*info3,
+						&user_sid,
+						&(*info3)->base.full_name.string);
+			}
+		}
+
+		wcache_invalidate_samlogon(find_domain_from_name(name_domain),
+					   &user_sid);
+		netsamlogon_cache_store(name_user, *info3);
+	}
+
+done:
+
+	/* give us a more useful (more correct?) error code */
+	if ((NT_STATUS_EQUAL(result, NT_STATUS_DOMAIN_CONTROLLER_NOT_FOUND) ||
+	    (NT_STATUS_EQUAL(result, NT_STATUS_UNSUCCESSFUL)))) {
+		result = NT_STATUS_NO_LOGON_SERVERS;
+	}
+
+	DEBUG(NT_STATUS_IS_OK(result) ? 5 : 2,
+	      ("NTLM CRAP authentication for user [%s]\\[%s] returned %s\n",
+	       name_domain,
+	       name_user,
+	       nt_errstr(result)));
+
+	return result;
+}
+
 enum winbindd_result winbindd_dual_pam_auth_crap(struct winbindd_domain *domain,
 						 struct winbindd_cli_state *state)
 {
@@ -1920,46 +2058,22 @@ enum winbindd_result winbindd_dual_pam_auth_crap(struct winbindd_domain *domain,
 					   state->request->data.auth_crap.nt_resp_len);
 	}
 
-	if (strequal(name_domain, get_global_sam_name())) {
-		DATA_BLOB chal_blob = data_blob_const(
-			state->request->data.auth_crap.chal,
-			sizeof(state->request->data.auth_crap.chal));
-
-		result = winbindd_dual_auth_passdb(
-			state->mem_ctx,
-			state->request->data.auth_crap.logon_parameters,
-			name_domain, name_user,
-			&chal_blob, &lm_resp, &nt_resp, &info3);
-		goto process_result;
-	}
-
-	result = winbind_samlogon_retry_loop(domain,
-					     state->mem_ctx,
-					     state->request->data.auth_crap.logon_parameters,
-					     domain->dcname,
-					     name_user,
-					     name_domain,
-					     /* Bug #3248 - found by Stefan Burkei. */
-					     workstation, /* We carefully set this above so use it... */
-					     state->request->data.auth_crap.chal,
-					     lm_resp,
-					     nt_resp,
-					     &info3);
+	result = winbind_dual_SamLogon(domain,
+				       state->mem_ctx,
+				       state->request->data.auth_crap.logon_parameters,
+				       name_user,
+				       name_domain,
+				       /* Bug #3248 - found by Stefan Burkei. */
+				       workstation, /* We carefully set this above so use it... */
+				       state->request->data.auth_crap.chal,
+				       lm_resp,
+				       nt_resp,
+				       &info3);
 	if (!NT_STATUS_IS_OK(result)) {
 		goto done;
 	}
 
-process_result:
-
 	if (NT_STATUS_IS_OK(result)) {
-		struct dom_sid user_sid;
-
-		sid_compose(&user_sid, info3->base.domain_sid,
-			    info3->base.rid);
-		wcache_invalidate_samlogon(find_domain_from_name(name_domain),
-					   &user_sid);
-		netsamlogon_cache_store(name_user, info3);
-
 		/* Check if the user is in the right group */
 
 		result = check_info3_in_group(
@@ -1983,24 +2097,11 @@ process_result:
 
 done:
 
-	/* give us a more useful (more correct?) error code */
-	if ((NT_STATUS_EQUAL(result, NT_STATUS_DOMAIN_CONTROLLER_NOT_FOUND) ||
-	    (NT_STATUS_EQUAL(result, NT_STATUS_UNSUCCESSFUL)))) {
-		result = NT_STATUS_NO_LOGON_SERVERS;
-	}
-
 	if (state->request->flags & WBFLAG_PAM_NT_STATUS_SQUASH) {
 		result = nt_status_squash(result);
 	}
 
 	set_auth_errors(state->response, result);
-
-	DEBUG(NT_STATUS_IS_OK(result) ? 5 : 2,
-	      ("NTLM CRAP authentication for user [%s]\\[%s] returned %s (PAM: %d)\n",
-	       name_domain,
-	       name_user,
-	       state->response->data.auth.nt_status_string,
-	       state->response->data.auth.pam_error));
 
 	return NT_STATUS_IS_OK(result) ? WINBINDD_OK : WINBINDD_ERROR;
 }
@@ -2038,7 +2139,7 @@ enum winbindd_result winbindd_dual_pam_chauthtok(struct winbindd_domain *contact
 
 	/* Get sam handle */
 
-	result = cm_connect_sam(contact_domain, state->mem_ctx, &cli,
+	result = cm_connect_sam(contact_domain, state->mem_ctx, true, &cli,
 				&dom_pol);
 	if (!NT_STATUS_IS_OK(result)) {
 		DEBUG(1, ("could not get SAM handle on DC for %s\n", domain));
@@ -2311,7 +2412,7 @@ enum winbindd_result winbindd_dual_pam_chng_pswd_auth_crap(struct winbindd_domai
 
 	/* Get sam handle */
 
-	result = cm_connect_sam(contact_domain, state->mem_ctx, &cli, &dom_pol);
+	result = cm_connect_sam(contact_domain, state->mem_ctx, true, &cli, &dom_pol);
 	if (!NT_STATUS_IS_OK(result)) {
 		DEBUG(1, ("could not get SAM handle on DC for %s\n", domain));
 		goto done;
@@ -2421,6 +2522,7 @@ NTSTATUS winbindd_pam_auth_pac_send(struct winbindd_cli_state *state,
 	struct winbindd_request *req = state->request;
 	DATA_BLOB pac_blob;
 	struct PAC_LOGON_INFO *logon_info = NULL;
+	struct netr_SamInfo3 *info3_copy = NULL;
 	NTSTATUS result;
 
 	pac_blob = data_blob_const(req->extra_data.data, req->extra_len);
@@ -2434,7 +2536,13 @@ NTSTATUS winbindd_pam_auth_pac_send(struct winbindd_cli_state *state,
 
 	if (logon_info) {
 		/* Signature verification succeeded, trust the PAC */
-		netsamlogon_cache_store(NULL, &logon_info->info3);
+		result = create_info3_from_pac_logon_info(state->mem_ctx,
+							logon_info,
+							&info3_copy);
+		if (!NT_STATUS_IS_OK(result)) {
+			return result;
+		}
+		netsamlogon_cache_store(NULL, info3_copy);
 
 	} else {
 		/* Try without signature verification */
@@ -2446,9 +2554,22 @@ NTSTATUS winbindd_pam_auth_pac_send(struct winbindd_cli_state *state,
 				   nt_errstr(result)));
 			return result;
 		}
+		if (logon_info) {
+			/*
+			 * Don't strictly need to copy here,
+			 * but it makes it explicit we're
+			 * returning a copy talloc'ed off
+			 * the state->mem_ctx.
+			 */
+			info3_copy = copy_netr_SamInfo3(state->mem_ctx,
+					&logon_info->info3);
+			if (info3_copy == NULL) {
+				return NT_STATUS_NO_MEMORY;
+			}
+		}
 	}
 
-	*info3 = &logon_info->info3;
+	*info3 = info3_copy;
 
 	return NT_STATUS_OK;
 }

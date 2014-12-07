@@ -133,8 +133,9 @@ static void tevent_queue_immediate_trigger(struct tevent_context *ev,
 					   struct tevent_immediate *im,
 					   void *private_data)
 {
-	struct tevent_queue *q = talloc_get_type(private_data,
-				  struct tevent_queue);
+	struct tevent_queue *q =
+		talloc_get_type_abort(private_data,
+		struct tevent_queue);
 
 	if (!q->running) {
 		return;
@@ -301,4 +302,56 @@ size_t tevent_queue_length(struct tevent_queue *queue)
 bool tevent_queue_running(struct tevent_queue *queue)
 {
 	return queue->running;
+}
+
+struct tevent_queue_wait_state {
+	uint8_t dummy;
+};
+
+static void tevent_queue_wait_trigger(struct tevent_req *req,
+				      void *private_data);
+
+struct tevent_req *tevent_queue_wait_send(TALLOC_CTX *mem_ctx,
+					  struct tevent_context *ev,
+					  struct tevent_queue *queue)
+{
+	struct tevent_req *req;
+	struct tevent_queue_wait_state *state;
+	bool ok;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct tevent_queue_wait_state);
+	if (req == NULL) {
+		return NULL;
+	}
+
+	ok = tevent_queue_add(queue, ev, req,
+			      tevent_queue_wait_trigger,
+			      NULL);
+	if (!ok) {
+		tevent_req_oom(req);
+		return tevent_req_post(req, ev);
+	}
+
+	return req;
+}
+
+static void tevent_queue_wait_trigger(struct tevent_req *req,
+					 void *private_data)
+{
+	tevent_req_done(req);
+}
+
+bool tevent_queue_wait_recv(struct tevent_req *req)
+{
+	enum tevent_req_state state;
+	uint64_t err;
+
+	if (tevent_req_is_error(req, &state, &err)) {
+		tevent_req_received(req);
+		return false;
+	}
+
+	tevent_req_received(req);
+	return true;
 }

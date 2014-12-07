@@ -20,6 +20,7 @@ static int ftruncate_check(int fd, off_t length);
 #include "../common/open.c"
 #include "../common/check.c"
 #include "../common/hash.c"
+#include "../common/mutex.c"
 #include "tap-interface.h"
 #include <stdlib.h>
 #include <stdbool.h>
@@ -153,7 +154,7 @@ int main(int argc, char *argv[])
 	unlock_callback = after_unlock;
 	for (i = 0; i < sizeof(flags)/sizeof(flags[0]); i++) {
 		clear_if_first = (flags[i] & TDB_CLEAR_IF_FIRST);
-		diag("Test with %s and %s\n",
+		diag("Test with %s and %s",
 		     clear_if_first ? "CLEAR" : "DEFAULT",
 		     (flags[i] & TDB_NOMMAP) ? "no mmap" : "mmap");
 		unlink(TEST_DBNAME);
@@ -165,8 +166,8 @@ int main(int argc, char *argv[])
 		opened = true;
 		ok1(tdb_transaction_start(tdb) == 0);
 		key.dsize = strlen("hi");
-		key.dptr = (void *)"hi";
-		data.dptr = (void *)"world";
+		key.dptr = discard_const_p(uint8_t, "hi");
+		data.dptr = discard_const_p(uint8_t, "world");
 		data.dsize = strlen("world");
 
 		ok1(tdb_store(tdb, key, data, TDB_INSERT) == 0);

@@ -364,8 +364,9 @@ sub ElementLevel($$$$$$$$)
 		}
 		my $num_bits = ($l->{HEADER_SIZE}*8);
 		my $hf2 = $self->register_hf_field($hf."_", "Subcontext length", "$ifname.$pn.$_->{NAME}subcontext", "FT_UINT$num_bits", "BASE_HEX", "NULL", 0, "");
+		$num_bits = 3264 if ($num_bits == 32);
 		$self->{hf_used}->{$hf2} = 1;
-		$self->pidl_code("dcerpc_info *di = pinfo->private_data;");
+		$self->pidl_code("dcerpc_info *di = (dcerpc_info*)pinfo->private_data;");
 		$self->pidl_code("guint$num_bits size;");
 		$self->pidl_code("int conformant = di->conformant_run;");
 		$self->pidl_code("tvbuff_t *subtvb;");
@@ -374,7 +375,12 @@ sub ElementLevel($$$$$$$$)
 		# and conformant run skips the dissections of scalars ...
 		$self->pidl_code("if (!conformant) {");
 		$self->indent;
+		$self->pidl_code("guint32 saved_flags = di->call_data->flags;");
 		$self->pidl_code("offset = dissect_ndr_uint$num_bits(tvb, offset, pinfo, tree, drep, $hf2, &size);");
+		# This is a subcontext, there is normally no such thing as
+		# 64 bit NDR is subcontext so we clear the flag so that we can
+		# continue to dissect handmarshalled stuff with pidl
+		$self->pidl_code("di->call_data->flags &= ~DCERPC_IS_NDR64;");
 
 		$self->pidl_code("subtvb = tvb_new_subset(tvb, offset, size, -1);");
 		if ($param ne 0) {
@@ -383,6 +389,7 @@ sub ElementLevel($$$$$$$$)
 			$self->pidl_code("$myname\_(subtvb, 0, pinfo, tree, drep);");
 		}
 		$self->pidl_code("offset += size;");
+		$self->pidl_code("di->call_data->flags = saved_flags;");
 		$self->deindent;
 		$self->pidl_code("}");
 	} else {
@@ -527,12 +534,12 @@ sub Function($$$)
 	if (not defined($fn->{RETURN_TYPE})) {
 	} elsif ($fn->{RETURN_TYPE} eq "NTSTATUS") {
 		$self->pidl_code("offset = dissect_ntstatus(tvb, offset, pinfo, tree, drep, hf\_$ifname\_status, &status);\n");
-		$self->pidl_code("if (status != 0 && check_col(pinfo->cinfo, COL_INFO))");
+		$self->pidl_code("if (status != 0)");
 		$self->pidl_code("\tcol_append_fstr(pinfo->cinfo, COL_INFO, \", Error: %s\", val_to_str(status, NT_errors, \"Unknown NT status 0x%08x\"));\n");
 		$return_types{$ifname}->{"status"} = ["NTSTATUS", "NT Error"];
 	} elsif ($fn->{RETURN_TYPE} eq "WERROR") {
 		$self->pidl_code("offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf\_$ifname\_werror, &status);\n");
-		$self->pidl_code("if (status != 0 && check_col(pinfo->cinfo, COL_INFO))");
+		$self->pidl_code("if (status != 0)");
 		$self->pidl_code("\tcol_append_fstr(pinfo->cinfo, COL_INFO, \", Error: %s\", val_to_str(status, WERR_errors, \"Unknown DOS error 0x%08x\"));\n");
 		
 		$return_types{$ifname}->{"werror"} = ["WERROR", "Windows Error"];
@@ -542,12 +549,12 @@ sub Function($$$)
 			my $return_dissect = "dissect_ndr_" .Parse::Pidl::Typelist::enum_type_fn($type->{DATA});
 
 			$self->pidl_code("offset = $return_dissect(tvb, offset, pinfo, tree, drep, hf\_$ifname\_$fn->{RETURN_TYPE}_status, &status);");
-			$self->pidl_code("if (status != 0 && check_col(pinfo->cinfo, COL_INFO))");
+			$self->pidl_code("if (status != 0)");
 			$self->pidl_code("\tcol_append_fstr(pinfo->cinfo, COL_INFO, \", Status: %s\", val_to_str(status, $ifname\_$fn->{RETURN_TYPE}\_vals, \"Unknown " . $fn->{RETURN_TYPE} . " error 0x%08x\"));\n");
 			$return_types{$ifname}->{$fn->{RETURN_TYPE}."_status"} = [$fn->{RETURN_TYPE}, $fn->{RETURN_TYPE}];
 		} elsif ($type->{DATA}->{TYPE} eq "SCALAR") {
 			$self->pidl_code("offset = dissect_ndr_$fn->{RETURN_TYPE}(tvb, offset, pinfo, tree, drep, hf\_$ifname\_$fn->{RETURN_TYPE}_status, &status);");
-			$self->pidl_code("if (status != 0 && check_col(pinfo->cinfo, COL_INFO))");
+			$self->pidl_code("if (status != 0)");
 			$self->pidl_code("\tcol_append_fstr(pinfo->cinfo, COL_INFO, \", Status: %d\", status);\n");
 			$return_types{$ifname}->{$fn->{RETURN_TYPE}."_status"} = [$fn->{RETURN_TYPE}, $fn->{RETURN_TYPE}];
 		}
@@ -634,7 +641,7 @@ sub Struct($$$$)
 	$self->pidl_code("proto_item *item = NULL;");
 	$self->pidl_code("proto_tree *tree = NULL;");
 	if ($e->{ALIGN} > 1) {
-		$self->pidl_code("dcerpc_info *di = pinfo->private_data;");
+		$self->pidl_code("dcerpc_info *di = (dcerpc_info *)pinfo->private_data;");
 	}
 	$self->pidl_code("int old_offset;");
 	$self->pidl_code("");
@@ -972,6 +979,7 @@ sub Initialize($$)
 		$self->register_type("int$bits", "offset = PIDL_dissect_uint$bits(tvb, offset, pinfo, tree, drep, \@HF\@, \@PARAM\@);", "FT_INT$bits", "BASE_DEC", 0, "NULL", $bytes);
 	}
 		
+	$self->register_type("uint3264", "offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, drep, \@HF\@, NULL);", "FT_UINT32", "BASE_DEC", 0, "NULL", 8);
 	$self->register_type("hyper", "offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, drep, \@HF\@, NULL);", "FT_UINT64", "BASE_DEC", 0, "NULL", 8);
 	$self->register_type("udlong", "offset = dissect_ndr_duint32(tvb, offset, pinfo, tree, drep, \@HF\@, NULL);", "FT_UINT64", "BASE_DEC", 0, "NULL", 4);
 	$self->register_type("bool8", "offset = PIDL_dissect_uint8(tvb, offset, pinfo, tree, drep, \@HF\@, \@PARAM\@);","FT_INT8", "BASE_DEC", 0, "NULL", 1);
@@ -1013,10 +1021,12 @@ sub Parse($$$$$)
 	This filter was automatically generated
 	from $idl_file and $cnf_file.
 	
-	Pidl is a perl based IDL compiler for DCE/RPC idl files. 
+	Pidl is a perl based IDL compiler for DCE/RPC idl files.
 	It is maintained by the Samba team, not the Wireshark team.
-	Instructions on how to download and install Pidl can be 
+	Instructions on how to download and install Pidl can be
 	found at http://wiki.wireshark.org/Pidl
+
+	\$Id\$
 */
 
 ";
@@ -1024,9 +1034,7 @@ sub Parse($$$$$)
 	$self->pidl_hdr($notice);
 
 	$self->{res}->{headers} = "\n";
-	$self->{res}->{headers} .= "#ifdef HAVE_CONFIG_H\n";
 	$self->{res}->{headers} .= "#include \"config.h\"\n";
-	$self->{res}->{headers} .= "#endif\n\n";
 
 	$self->{res}->{headers} .= "#ifdef _MSC_VER\n";
 	$self->{res}->{headers} .= "#pragma warning(disable:4005)\n";
@@ -1184,7 +1192,7 @@ sub DumpHfList($)
 
 	foreach (values %{$self->{conformance}->{header_fields}}) 
 	{
-		$res .= "\t{ &$_->{INDEX}, 
+		$res .= "\t{ &$_->{INDEX},
 	  { ".make_str($_->{NAME}).", ".make_str($_->{FILTER}).", $_->{FT_TYPE}, $_->{BASE_TYPE}, $_->{VALSSTRING}, $_->{MASK}, ".make_str_or_null($_->{BLURB}).", HFILL }},
 ";
 	}

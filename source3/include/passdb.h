@@ -414,9 +414,10 @@ enum pdb_policy_type {
  * Changed to 20, pdb_secret calls
  * Changed to 21, set/enum_upn_suffixes. AB.
  * Changed to 22, idmap control functions
+ * Changed to 23, new idmap control functions
  */
 
-#define PASSDB_INTERFACE_VERSION 22
+#define PASSDB_INTERFACE_VERSION 23
 
 struct pdb_methods 
 {
@@ -630,6 +631,7 @@ struct pdb_methods
 	bool (*is_responsible_for_wellknown)(struct pdb_methods *methods);
 	bool (*is_responsible_for_unix_users)(struct pdb_methods *methods);
 	bool (*is_responsible_for_unix_groups)(struct pdb_methods *methods);
+	bool (*is_responsible_for_everything_else)(struct pdb_methods *methods);
 
 	void *private_data;  /* Private data of some kind */
 
@@ -713,6 +715,11 @@ bool get_trust_pw_clear(const char *domain, char **ret_pwd,
 bool get_trust_pw_hash(const char *domain, uint8_t ret_pwd[16],
 		       const char **account_name,
 		       enum netr_SchannelType *channel);
+struct cli_credentials;
+NTSTATUS pdb_get_trust_credentials(const char *netbios_domain,
+				   const char *dns_domain, /* optional */
+				   TALLOC_CTX *mem_ctx,
+				   struct cli_credentials **_creds);
 
 /* The following definitions come from passdb/pdb_compat.c  */
 
@@ -939,6 +946,7 @@ bool pdb_is_responsible_for_builtin(void);
 bool pdb_is_responsible_for_wellknown(void);
 bool pdb_is_responsible_for_unix_users(void);
 bool pdb_is_responsible_for_unix_groups(void);
+bool pdb_is_responsible_for_everything_else(void);
 
 /* The following definitions come from passdb/pdb_util.c  */
 

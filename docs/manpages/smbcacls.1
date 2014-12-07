@@ -2,12 +2,12 @@
 .\"     Title: smbcacls
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 10/20/2014
+.\"      Date: 10/15/2014
 .\"    Manual: User Commands
-.\"    Source: Samba 4.0
+.\"    Source: Samba 4.2
 .\"  Language: English
 .\"
-.TH "SMBCACLS" "1" "10/20/2014" "Samba 4\&.0" "User Commands"
+.TH "SMBCACLS" "1" "10/15/2014" "Samba 4\&.2" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -31,7 +31,7 @@
 smbcacls \- Set or get ACLs on an NT file or directory names
 .SH "SYNOPSIS"
 .HP \w'\ 'u
-smbcacls {//server/share} {/filename} [\-D|\-\-delete\ acls] [\-M|\-\-modify\ acls] [\-a|\-\-add\ acls] [\-S|\-\-set\ acls] [\-C|\-\-chown\ name] [\-G|\-\-chgrp\ name] [\-I\ allow|romove|copy] [\-\-numeric] [\-t] [\-U\ username] [\-d] [\-e] [\-m|\-\-max\-protocol\ LEVEL] [\-\-query\-security\-info\ FLAGS] [\-\-set\-security\-info\ FLAGS] [\-\-sddl] [\-\-domain\-sid\ SID]
+smbcacls {//server/share} {/filename} [\-D|\-\-delete\ acl] [\-M|\-\-modify\ acl] [\-a|\-\-add\ acl] [\-S|\-\-set\ acl] [\-C|\-\-chown\ name] [\-G|\-\-chgrp\ name] [\-I\ allow|remove|copy] [\-\-numeric] [\-t] [\-U\ username] [\-d] [\-e] [\-m|\-\-max\-protocol\ LEVEL] [\-\-query\-security\-info\ FLAGS] [\-\-set\-security\-info\ FLAGS] [\-\-sddl] [\-\-domain\-sid\ SID]
 .SH "DESCRIPTION"
 .PP
 This tool is part of the
@@ -40,31 +40,31 @@ suite\&.
 .PP
 The
 smbcacls
-program manipulates NT Access Control Lists (ACLs) on SMB file shares\&.
+program manipulates NT Access Control Lists (ACLs) on SMB file shares\&. An ACL is comprised zero or more Access Control Entries (ACEs), which define access restrictions for a specific user or group\&.
 .SH "OPTIONS"
 .PP
 The following options are available to the
 smbcacls
 program\&. The format of ACLs is described in the section ACL FORMAT
 .PP
-\-a|\-\-add acls
+\-a|\-\-add acl
 .RS 4
-Add the ACLs specified to the ACL list\&. Existing access control entries are unchanged\&.
+Add the entries specified to the ACL\&. Existing access control entries are unchanged\&.
 .RE
 .PP
-\-M|\-\-modify acls
+\-M|\-\-modify acl
 .RS 4
-Modify the mask value (permissions) for the ACLs specified on the command line\&. An error will be printed for each ACL specified that was not already present in the ACL list
+Modify the mask value (permissions) for the ACEs specified on the command line\&. An error will be printed for each ACE specified that was not already present in the object\*(Aqs ACL\&.
 .RE
 .PP
-\-D|\-\-delete acls
+\-D|\-\-delete acl
 .RS 4
-Delete any ACLs specified on the command line\&. An error will be printed for each ACL specified that was not already present in the ACL list\&.
+Delete any ACEs specified on the command line\&. An error will be printed for each ACE specified that was not already present in the object\*(Aqs ACL\&.
 .RE
 .PP
-\-S|\-\-set acls
+\-S|\-\-set acl
 .RS 4
-This command sets the ACLs on the file with only the ones specified on the command line\&. All other ACLs are erased\&. Note that the ACL specified must contain at least a revision, type, owner and group for the call to succeed\&.
+This command sets the ACL on the object with only what is specified on the command line\&. Any existing ACL is erased\&. Note that the ACL specified must contain at least a revision, type, owner and group for the call to succeed\&.
 .RE
 .PP
 \-C|\-\-chown name
@@ -292,7 +292,7 @@ Display brief usage message\&.
 .RE
 .SH "ACL FORMAT"
 .PP
-The format of an ACL is one or more ACL entries separated by either commas or newlines\&. An ACL entry is one of the following:
+The format of an ACL is one or more entries separated by either commas or newlines\&. An ACL entry is one of the following:
 .PP
 .if n \{\
 .RS 4
@@ -312,9 +312,9 @@ The revision of the ACL specifies the internal Windows NT ACL revision for the s
 .PP
 The owner and group specify the owner and group sids for the object\&. If a SID in the format S\-1\-x\-y\-z is specified this is used, otherwise the name specified is resolved using the server on which the file or directory resides\&.
 .PP
-ACLs specify permissions granted to the SID\&. This SID again can be specified in S\-1\-x\-y\-z format or as a name in which case it is resolved against the server on which the file or directory resides\&. The type, flags and mask values determine the type of access granted to the SID\&.
+ACEs are specified with an "ACL:" prefix, and define permissions granted to an SID\&. The SID again can be specified in S\-1\-x\-y\-z format or as a name in which case it is resolved against the server on which the file or directory resides\&. The type, flags and mask values determine the type of access granted to the SID\&.
 .PP
-The type can be either ALLOWED or DENIED to allow/deny access to the SID\&. The flags values are generally zero for file ACLs and either 9 or 2 for directory ACLs\&. Some common flags are:
+The type can be either ALLOWED or DENIED to allow/deny access to the SID\&. The flags values are generally zero for file ACEs and either 9 or 2 for directory ACEs\&. Some common flags are:
 .sp
 .RS 4
 .ie n \{\
@@ -362,7 +362,7 @@ The type can be either ALLOWED or DENIED to allow/deny access to the SID\&. The 
 .sp
 .RE
 .PP
-At present flags can only be specified as decimal or hexadecimal values\&.
+At present, flags can only be specified as decimal or hexadecimal values\&.
 .PP
 The mask is a value which expresses the access right granted to the SID\&. It can be given as a decimal or hexadecimal value, or by using one of the following text strings which map to the NT file permissions of the same name\&.
 .sp
@@ -488,7 +488,7 @@ smbcacls
 couldn\*(Aqt connect to the specified server, or there was an error getting or setting the ACLs, an exit status of 1 is returned\&. If there was an error parsing any command line arguments, an exit status of 2 is returned\&.
 .SH "VERSION"
 .PP
-This man page is correct for version 3 of the Samba suite\&.
+This man page is correct for version 4 of the Samba suite\&.
 .SH "AUTHOR"
 .PP
 The original Samba software and related utilities were created by Andrew Tridgell\&. Samba is now developed by the Samba Team as an Open Source project similar to the way the Linux kernel is developed\&.

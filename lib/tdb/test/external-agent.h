@@ -13,10 +13,13 @@ enum operation {
 	CHECK,
 	NEEDS_RECOVERY,
 	CLOSE,
+	PING,
+	UNMAP,
 };
 
 /* Do this before doing any tdb stuff.  Return handle, or -1. */
 struct agent *prepare_external_agent(void);
+void shutdown_agent(struct agent *agent);
 
 enum agent_return {
 	SUCCESS,

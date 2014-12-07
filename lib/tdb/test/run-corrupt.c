@@ -9,6 +9,7 @@
 #include "../common/open.c"
 #include "../common/check.c"
 #include "../common/hash.c"
+#include "../common/mutex.c"
 #include "tap-interface.h"
 #include <stdlib.h>
 #include "logging.h"
@@ -60,9 +61,9 @@ static void check_test(struct tdb_context *tdb)
 
 	ok1(tdb_check(tdb, NULL, NULL) == 0);
 
-	key.dptr = (void *)"hello";
+	key.dptr = discard_const_p(uint8_t, "hello");
 	data.dsize = strlen("world");
-	data.dptr = (void *)"world";
+	data.dptr = discard_const_p(uint8_t, "world");
 
 	/* Key and data size respectively. */
 	dsize = ksize = 0;

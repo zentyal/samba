@@ -61,7 +61,8 @@ _PUBLIC_ const char *tmpdir(void)
 **/
 int create_unlink_tmp(const char *dir)
 {
-	char *fname;
+	size_t len = strlen(dir);
+	char fname[len+25];
 	int fd;
 	mode_t mask;
 
@@ -69,8 +70,8 @@ int create_unlink_tmp(const char *dir)
 		dir = tmpdir();
 	}
 
-	fname = talloc_asprintf(talloc_tos(), "%s/listenerlock_XXXXXX", dir);
-	if (fname == NULL) {
+	len = snprintf(fname, sizeof(fname), "%s/listenerlock_XXXXXX", dir);
+	if (len >= sizeof(fname)) {
 		errno = ENOMEM;
 		return -1;
 	}
@@ -78,17 +79,14 @@ int create_unlink_tmp(const char *dir)
 	fd = mkstemp(fname);
 	umask(mask);
 	if (fd == -1) {
-		TALLOC_FREE(fname);
 		return -1;
 	}
 	if (unlink(fname) == -1) {
 		int sys_errno = errno;
 		close(fd);
-		TALLOC_FREE(fname);
 		errno = sys_errno;
 		return -1;
 	}
-	TALLOC_FREE(fname);
 	return fd;
 }
 
@@ -146,7 +144,7 @@ _PUBLIC_ bool file_check_permissions(const char *fname,
 		return false;
 	}
 
-	if (pst->st_uid != uid && !uwrap_enabled()) {
+	if (pst->st_uid != uid && !uid_wrapper_enabled()) {
 		DEBUG(0, ("invalid ownership of file '%s': "
 			 "owned by uid %u, should be %u\n",
 			 fname, (unsigned int)pst->st_uid,
@@ -187,44 +185,44 @@ _PUBLIC_ bool directory_exist(const char *dname)
 /**
  * Try to create the specified directory if it didn't exist.
  *
- * @retval true if the directory already existed and has the right permissions 
+ * @retval true if the directory already existed
  * or was successfully created.
  */
 _PUBLIC_ bool directory_create_or_exist(const char *dname,
-					uid_t uid,
 					mode_t dir_perms)
 {
 	int ret;
 	struct stat st;
+	mode_t old_umask;
+
+	ret = lstat(dname, &st);
+	if (ret == 0) {
+		return true;
+	}
+
+	if (errno != ENOENT) {
+		DEBUG(0, ("lstat failed on directory %s: %s\n",
+			  dname, strerror(errno)));
+		return false;
+	}
+
+	/* Create directory */
+	old_umask = umask(0);
+	ret = mkdir(dname, dir_perms);
+	if (ret == -1 && errno != EEXIST) {
+		DEBUG(0, ("mkdir failed on directory "
+			  "%s: %s\n", dname,
+			  strerror(errno)));
+		umask(old_umask);
+		return false;
+	}
+	umask(old_umask);
 
 	ret = lstat(dname, &st);
 	if (ret == -1) {
-		mode_t old_umask;
-
-		if (errno != ENOENT) {
-			DEBUG(0, ("lstat failed on directory %s: %s\n",
-				  dname, strerror(errno)));
-			return false;
-		}
-
-		/* Create directory */
-		old_umask = umask(0);
-		ret = mkdir(dname, dir_perms);
-		if (ret == -1 && errno != EEXIST) {
-			DEBUG(0, ("mkdir failed on directory "
-				  "%s: %s\n", dname,
-				  strerror(errno)));
-			umask(old_umask);
-			return false;
-		}
-		umask(old_umask);
-
-		ret = lstat(dname, &st);
-		if (ret == -1) {
-			DEBUG(0, ("lstat failed on created directory %s: %s\n",
-				  dname, strerror(errno)));
-			return false;
-		}
+		DEBUG(0, ("lstat failed on created directory %s: %s\n",
+			  dname, strerror(errno)));
+		return false;
 	}
 
 	return true;
@@ -234,7 +232,7 @@ _PUBLIC_ bool directory_create_or_exist(const char *dname,
  * @brief Try to create a specified directory if it doesn't exist.
  *
  * The function creates a directory with the given uid and permissions if it
- * doesn't exixt. If it exists it makes sure the uid and permissions are
+ * doesn't exist. If it exists it makes sure the uid and permissions are
  * correct and it will fail if they are different.
  *
  * @param[in]  dname  The directory to create.
@@ -253,7 +251,7 @@ _PUBLIC_ bool directory_create_or_exist_strict(const char *dname,
 	bool ok;
 	int rc;
 
-	ok = directory_create_or_exist(dname, uid, dir_perms);
+	ok = directory_create_or_exist(dname, dir_perms);
 	if (!ok) {
 		return false;
 	}
@@ -271,7 +269,7 @@ _PUBLIC_ bool directory_create_or_exist_strict(const char *dname,
 			dname));
 		return false;
 	}
-	if (st.st_uid != uid && !uwrap_enabled()) {
+	if (st.st_uid != uid && !uid_wrapper_enabled()) {
 		DEBUG(0, ("invalid ownership on directory "
 			  "%s\n", dname));
 		return false;
@@ -986,207 +984,6 @@ _PUBLIC_ size_t ascii_len_n(const char *src, size_t n)
 	}
 
 	return len;
-}
-
-/**
- Set a boolean variable from the text value stored in the passed string.
- Returns true in success, false if the passed string does not correctly 
- represent a boolean.
-**/
-
-_PUBLIC_ bool set_boolean(const char *boolean_string, bool *boolean)
-{
-	if (strwicmp(boolean_string, "yes") == 0 ||
-	    strwicmp(boolean_string, "true") == 0 ||
-	    strwicmp(boolean_string, "on") == 0 ||
-	    strwicmp(boolean_string, "1") == 0) {
-		*boolean = true;
-		return true;
-	} else if (strwicmp(boolean_string, "no") == 0 ||
-		   strwicmp(boolean_string, "false") == 0 ||
-		   strwicmp(boolean_string, "off") == 0 ||
-		   strwicmp(boolean_string, "0") == 0) {
-		*boolean = false;
-		return true;
-	}
-	return false;
-}
-
-/**
-return the number of bytes occupied by a buffer in CH_UTF16 format
-the result includes the null termination
-**/
-_PUBLIC_ size_t utf16_len(const void *buf)
-{
-	size_t len;
-
-	for (len = 0; SVAL(buf,len); len += 2) ;
-
-	return len + 2;
-}
-
-/**
-return the number of bytes occupied by a buffer in CH_UTF16 format
-the result includes the null termination
-limited by 'n' bytes
-**/
-_PUBLIC_ size_t utf16_len_n(const void *src, size_t n)
-{
-	size_t len;
-
-	for (len = 0; (len+2 < n) && SVAL(src, len); len += 2) ;
-
-	if (len+2 <= n) {
-		len += 2;
-	}
-
-	return len;
-}
-
-/**
- * @file
- * @brief String utilities.
- **/
-
-static bool next_token_internal_talloc(TALLOC_CTX *ctx,
-				const char **ptr,
-                                char **pp_buff,
-                                const char *sep,
-                                bool ltrim)
-{
-	const char *s;
-	const char *saved_s;
-	char *pbuf;
-	bool quoted;
-	size_t len=1;
-
-	*pp_buff = NULL;
-	if (!ptr) {
-		return(false);
-	}
-
-	s = *ptr;
-
-	/* default to simple separators */
-	if (!sep) {
-		sep = " \t\n\r";
-	}
-
-	/* find the first non sep char, if left-trimming is requested */
-	if (ltrim) {
-		while (*s && strchr_m(sep,*s)) {
-			s++;
-		}
-	}
-
-	/* nothing left? */
-	if (!*s) {
-		return false;
-	}
-
-	/* When restarting we need to go from here. */
-	saved_s = s;
-
-	/* Work out the length needed. */
-	for (quoted = false; *s &&
-			(quoted || !strchr_m(sep,*s)); s++) {
-		if (*s == '\"') {
-			quoted = !quoted;
-		} else {
-			len++;
-		}
-	}
-
-	/* We started with len = 1 so we have space for the nul. */
-	*pp_buff = talloc_array(ctx, char, len);
-	if (!*pp_buff) {
-		return false;
-	}
-
-	/* copy over the token */
-	pbuf = *pp_buff;
-	s = saved_s;
-	for (quoted = false; *s &&
-			(quoted || !strchr_m(sep,*s)); s++) {
-		if ( *s == '\"' ) {
-			quoted = !quoted;
-		} else {
-			*pbuf++ = *s;
-		}
-	}
-
-	*ptr = (*s) ? s+1 : s;
-	*pbuf = 0;
-
-	return true;
-}
-
-bool next_token_talloc(TALLOC_CTX *ctx,
-			const char **ptr,
-			char **pp_buff,
-			const char *sep)
-{
-	return next_token_internal_talloc(ctx, ptr, pp_buff, sep, true);
-}
-
-/*
- * Get the next token from a string, return false if none found.  Handles
- * double-quotes.  This version does not trim leading separator characters
- * before looking for a token.
- */
-
-bool next_token_no_ltrim_talloc(TALLOC_CTX *ctx,
-			const char **ptr,
-			char **pp_buff,
-			const char *sep)
-{
-	return next_token_internal_talloc(ctx, ptr, pp_buff, sep, false);
-}
-
-/**
- * Get the next token from a string, return False if none found.
- * Handles double-quotes.
- *
- * Based on a routine by GJC@VILLAGE.COM.
- * Extensively modified by Andrew.Tridgell@anu.edu.au
- **/
-_PUBLIC_ bool next_token(const char **ptr,char *buff, const char *sep, size_t bufsize)
-{
-	const char *s;
-	bool quoted;
-	size_t len=1;
-
-	if (!ptr)
-		return false;
-
-	s = *ptr;
-
-	/* default to simple separators */
-	if (!sep)
-		sep = " \t\n\r";
-
-	/* find the first non sep char */
-	while (*s && strchr_m(sep,*s))
-		s++;
-
-	/* nothing left? */
-	if (!*s)
-		return false;
-
-	/* copy over the token */
-	for (quoted = false; len < bufsize && *s && (quoted || !strchr_m(sep,*s)); s++) {
-		if (*s == '\"') {
-			quoted = !quoted;
-		} else {
-			len++;
-			*buff++ = *s;
-		}
-	}
-
-	*ptr = (*s) ? s+1 : s;
-	*buff = 0;
-
-	return true;
 }
 
 struct anonymous_shared_header {

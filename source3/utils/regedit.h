@@ -33,7 +33,8 @@ WERROR reg_openhive_wrap(TALLOC_CTX *ctx, const char *hive,
 WERROR reg_openkey_wrap(TALLOC_CTX *ctx, struct samba3_registry_key *parent,
 		        const char *name, struct samba3_registry_key *key);
 WERROR reg_enumvalue_wrap(TALLOC_CTX *ctx, struct samba3_registry_key *key,
-	uint32 idx, char **name, uint32_t *type, DATA_BLOB *data);
+			  uint32 idx, char **name, uint32_t *type,
+			  DATA_BLOB *data);
 WERROR reg_queryvalue_wrap(TALLOC_CTX *ctx, struct samba3_registry_key *key,
 			   const char *name, uint32_t *type, DATA_BLOB *data);
 WERROR reg_enumkey_wrap(TALLOC_CTX *ctx, struct samba3_registry_key *key,
@@ -57,5 +58,20 @@ WERROR reg_init_wrap(void);
 WERROR reg_open_samba3(TALLOC_CTX *mem_ctx, struct registry_context **ctx);
 
 int regedit_getch(void);
+
+typedef bool (*regedit_search_match_fn_t)(const char *, const char *);
+
+struct regedit_search_opts {
+	const char *query;
+	regedit_search_match_fn_t match;
+	bool search_key;
+	bool search_value;
+	bool search_recursive;
+	bool search_case;
+};
+
+#define PAIR_YELLOW_CYAN 1
+#define PAIR_BLACK_CYAN 2
+#define PAIR_YELLOW_BLUE 3
 
 #endif

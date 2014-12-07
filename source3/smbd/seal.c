@@ -45,8 +45,7 @@ static uint16_t srv_enc_ctx(const struct smb_trans_enc_state *es)
  Is this an incoming encrypted packet ?
 ******************************************************************************/
 
-bool is_encrypted_packet(struct smbd_server_connection *sconn,
-			 const uint8_t *inbuf)
+bool is_encrypted_packet(const uint8_t *inbuf)
 {
 	NTSTATUS status;
 	uint16_t enc_num;
@@ -135,7 +134,7 @@ static NTSTATUS make_srv_encryption_context(const struct tsocket_address *remote
  Free an encryption-allocated buffer.
 ******************************************************************************/
 
-void srv_free_enc_buffer(struct smbd_server_connection *sconn, char *buf)
+void srv_free_enc_buffer(struct smbXsrv_connection *xconn, char *buf)
 {
 	/* We know this is an smb buffer, and we
 	 * didn't malloc, only copy, for a keepalive,
@@ -154,7 +153,7 @@ void srv_free_enc_buffer(struct smbd_server_connection *sconn, char *buf)
  Decrypt an incoming buffer.
 ******************************************************************************/
 
-NTSTATUS srv_decrypt_buffer(struct smbd_server_connection *sconn, char *buf)
+NTSTATUS srv_decrypt_buffer(struct smbXsrv_connection *xconn, char *buf)
 {
 	/* Ignore non-session messages. */
 	if(CVAL(buf,0)) {
@@ -172,7 +171,7 @@ NTSTATUS srv_decrypt_buffer(struct smbd_server_connection *sconn, char *buf)
  Encrypt an outgoing buffer. Return the encrypted pointer in buf_out.
 ******************************************************************************/
 
-NTSTATUS srv_encrypt_buffer(struct smbd_server_connection *sconn, char *buf,
+NTSTATUS srv_encrypt_buffer(struct smbXsrv_connection *xconn, char *buf,
 			    char **buf_out)
 {
 	*buf_out = buf;
@@ -225,7 +224,7 @@ NTSTATUS srv_request_encryption_setup(connection_struct *conn,
 	/* Second step. */
 	become_root();
 	status = gensec_update(es->gensec_security,
-			       talloc_tos(), NULL,
+			       talloc_tos(),
 			       blob, &response);
 	unbecome_root();
 	if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED) &&
@@ -303,7 +302,7 @@ NTSTATUS srv_encryption_start(connection_struct *conn)
  Shutdown all server contexts.
 ******************************************************************************/
 
-void server_encryption_shutdown(struct smbd_server_connection *sconn)
+void server_encryption_shutdown(struct smbXsrv_connection *xconn)
 {
 	TALLOC_FREE(partial_srv_trans_enc_ctx);
 	TALLOC_FREE(srv_trans_enc_ctx);

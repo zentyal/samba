@@ -23,55 +23,48 @@
 #ifndef _RPC_CLIENT_CLI_NETLOGON_H_
 #define _RPC_CLIENT_CLI_NETLOGON_H_
 
+struct cli_state;
+struct messaging_context;
+struct netlogon_creds_cli_context;
+struct dcerpc_binding_handle;
+
 /* The following definitions come from rpc_client/cli_netlogon.c  */
 
-NTSTATUS rpccli_netlogon_setup_creds(struct rpc_pipe_client *cli,
-				     const char *server_name,
-				     const char *domain,
-				     const char *clnt_name,
-				     const char *machine_account,
-				     const unsigned char machine_pwd[16],
-				     enum netr_SchannelType sec_chan_type,
-				     uint32_t *neg_flags_inout);
-NTSTATUS rpccli_netlogon_sam_logon(struct rpc_pipe_client *cli,
-				   TALLOC_CTX *mem_ctx,
-				   uint32 logon_parameters,
-				   const char *domain,
-				   const char *username,
-				   const char *password,
-				   const char *workstation,
-				   uint16_t validation_level,
-				   int logon_type);
-NTSTATUS rpccli_netlogon_sam_network_logon(struct rpc_pipe_client *cli,
-					   TALLOC_CTX *mem_ctx,
-					   uint32 logon_parameters,
-					   const char *server,
-					   const char *username,
-					   const char *domain,
-					   const char *workstation,
-					   const uint8 chal[8],
-					   uint16_t validation_level,
-					   DATA_BLOB lm_response,
-					   DATA_BLOB nt_response,
-					   struct netr_SamInfo3 **info3);
-NTSTATUS rpccli_netlogon_sam_network_logon_ex(struct rpc_pipe_client *cli,
-					      TALLOC_CTX *mem_ctx,
-					      uint32 logon_parameters,
-					      const char *server,
-					      const char *username,
-					      const char *domain,
-					      const char *workstation,
-					      const uint8 chal[8],
-					      uint16_t validation_level,
-					      DATA_BLOB lm_response,
-					      DATA_BLOB nt_response,
-					      struct netr_SamInfo3 **info3);
-NTSTATUS rpccli_netlogon_set_trust_password(struct rpc_pipe_client *cli,
-					    TALLOC_CTX *mem_ctx,
-					    const char *account_name,
-					    const unsigned char orig_trust_passwd_hash[16],
-					    const char *new_trust_pwd_cleartext,
-					    const unsigned char new_trust_passwd_hash[16],
-					    enum netr_SchannelType sec_channel_type);
+NTSTATUS rpccli_pre_open_netlogon_creds(void);
+NTSTATUS rpccli_create_netlogon_creds(const char *server_computer,
+				      const char *server_netbios_domain,
+				      const char *client_account,
+				      enum netr_SchannelType sec_chan_type,
+				      struct messaging_context *msg_ctx,
+				      TALLOC_CTX *mem_ctx,
+				      struct netlogon_creds_cli_context **netlogon_creds);
+NTSTATUS rpccli_setup_netlogon_creds(struct cli_state *cli,
+				     struct netlogon_creds_cli_context *netlogon_creds,
+				     bool force_reauth,
+				     struct samr_Password current_nt_hash,
+				     const struct samr_Password *previous_nt_hash);
+NTSTATUS rpccli_netlogon_password_logon(struct netlogon_creds_cli_context *creds,
+					struct dcerpc_binding_handle *binding_handle,
+					TALLOC_CTX *mem_ctx,
+					uint32_t logon_parameters,
+					const char *domain,
+					const char *username,
+					const char *password,
+					const char *workstation,
+					enum netr_LogonInfoClass logon_type,
+					struct netr_SamInfo3 **info3);
+NTSTATUS rpccli_netlogon_network_logon(struct netlogon_creds_cli_context *creds,
+				       struct dcerpc_binding_handle *binding_handle,
+				       TALLOC_CTX *mem_ctx,
+				       uint32_t logon_parameters,
+				       const char *username,
+				       const char *domain,
+				       const char *workstation,
+				       const uint8 chal[8],
+				       DATA_BLOB lm_response,
+				       DATA_BLOB nt_response,
+				       uint8_t *authoritative,
+				       uint32_t *flags,
+				       struct netr_SamInfo3 **info3);
 
 #endif /* _RPC_CLIENT_CLI_NETLOGON_H_ */

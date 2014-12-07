@@ -60,49 +60,19 @@
 
 #include "librpc/gen_ndr/server_id.h"
 
-#ifdef CLUSTER_SUPPORT
 #define MSG_BROADCAST_PID_STR	"0:0"
-#else
-#define MSG_BROADCAST_PID_STR	"0"
-#endif
 
 struct messaging_context;
 struct messaging_rec;
 
-/*
- * struct messaging_context belongs to messages.c, but because we still have
- * messaging_dispatch, we need it here. Once we get rid of signals for
- * notifying processes, this will go.
- */
-
-struct messaging_context {
-	struct server_id id;
-	struct tevent_context *event_ctx;
-	struct messaging_callback *callbacks;
-
-	struct messaging_backend *local;
-	struct messaging_backend *remote;
-};
-
 struct messaging_backend {
-	NTSTATUS (*send_fn)(struct messaging_context *msg_ctx,
-			    struct server_id pid, int msg_type,
-			    const DATA_BLOB *data,
-			    struct messaging_backend *backend);
+	int (*send_fn)(struct server_id src,
+		       struct server_id pid, int msg_type,
+		       const struct iovec *iov, int iovlen,
+		       const int *fds, size_t num_fds,
+		       struct messaging_backend *backend);
 	void *private_data;
 };
-
-NTSTATUS messaging_tdb_init(struct messaging_context *msg_ctx,
-			    TALLOC_CTX *mem_ctx,
-			    struct messaging_backend **presult);
-
-bool messaging_tdb_parent_init(TALLOC_CTX *mem_ctx);
-
-void *messaging_tdb_event(TALLOC_CTX *mem_ctx, struct messaging_context *msg,
-			  struct tevent_context *ev);
-
-NTSTATUS messaging_tdb_cleanup(struct messaging_context *msg_ctx,
-			struct server_id pid);
 
 NTSTATUS messaging_ctdbd_init(struct messaging_context *msg_ctx,
 			      TALLOC_CTX *mem_ctx,
@@ -117,6 +87,8 @@ struct messaging_context *messaging_init(TALLOC_CTX *mem_ctx,
 					 struct tevent_context *ev);
 
 struct server_id messaging_server_id(const struct messaging_context *msg_ctx);
+struct tevent_context *messaging_tevent_context(
+	struct messaging_context *msg_ctx);
 
 /*
  * re-init after a fork
@@ -133,18 +105,48 @@ NTSTATUS messaging_register(struct messaging_context *msg_ctx,
 				       DATA_BLOB *data));
 void messaging_deregister(struct messaging_context *ctx, uint32_t msg_type,
 			  void *private_data);
+
+/**
+ * CAVEAT:
+ *
+ * While the messaging_send*() functions are synchronuous by API,
+ * they trigger a tevent-based loop upon sending bigger messages.
+ *
+ * Hence callers should not use these in purely synchonous code,
+ * but run a tevent_loop instead.
+ */
 NTSTATUS messaging_send(struct messaging_context *msg_ctx,
 			struct server_id server, 
 			uint32_t msg_type, const DATA_BLOB *data);
 
 NTSTATUS messaging_send_buf(struct messaging_context *msg_ctx,
 			    struct server_id server, uint32_t msg_type,
-			    const uint8 *buf, size_t len);
+			    const uint8_t *buf, size_t len);
+NTSTATUS messaging_send_iov(struct messaging_context *msg_ctx,
+			    struct server_id server, uint32_t msg_type,
+			    const struct iovec *iov, int iovlen,
+			    const int *fds, size_t num_fds);
 void messaging_dispatch_rec(struct messaging_context *msg_ctx,
 			    struct messaging_rec *rec);
 
-void messaging_cleanup_server(struct messaging_context *msg_ctx,
-				struct server_id pid);
+struct tevent_req *messaging_filtered_read_send(
+	TALLOC_CTX *mem_ctx, struct tevent_context *ev,
+	struct messaging_context *msg_ctx,
+	bool (*filter)(struct messaging_rec *rec, void *private_data),
+	void *private_data);
+int messaging_filtered_read_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx,
+				 struct messaging_rec **presult);
+
+struct tevent_req *messaging_read_send(TALLOC_CTX *mem_ctx,
+				       struct tevent_context *ev,
+				       struct messaging_context *msg,
+				       uint32_t msg_type);
+int messaging_read_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx,
+			struct messaging_rec **presult);
+
+int messaging_cleanup(struct messaging_context *msg_ctx, pid_t pid);
+
+bool messaging_parent_dgm_cleanup_init(struct messaging_context *msg);
 
 #include "librpc/gen_ndr/ndr_messaging.h"
 

@@ -19,7 +19,7 @@
 
 #include "includes.h"
 #include "winbindd.h"
-#include "librpc/gen_ndr/ndr_wbint_c.h"
+#include "librpc/gen_ndr/ndr_winbind_c.h"
 
 struct wb_dsgetdcname_state {
 	struct netr_DsRGetDCNameInfo *dcinfo;
@@ -45,16 +45,26 @@ struct tevent_req *wb_dsgetdcname_send(TALLOC_CTX *mem_ctx,
 		return NULL;
 	}
 
-	if (strequal(domain_name, "BUILTIN")
-	    || strequal(domain_name, get_global_sam_name())) {
+	if (strequal(domain_name, "BUILTIN")) {
 		/*
-		 * Two options here: Give back our own address, or say there's
-		 * nobody around. Right now opting for the latter, one measure
-		 * to prevent the loopback connects. This might change if
-		 * needed.
+		 * This makes no sense
 		 */
 		tevent_req_nterror(req, NT_STATUS_DOMAIN_CONTROLLER_NOT_FOUND);
 		return tevent_req_post(req, ev);
+	}
+
+	if (strequal(domain_name, get_global_sam_name())) {
+		int role = lp_server_role();
+		if ( role != ROLE_ACTIVE_DIRECTORY_DC ) {
+			/*
+			 * Two options here: Give back our own address, or say there's
+			 * nobody around. Right now opting for the latter, one measure
+			 * to prevent the loopback connects. This might change if
+			 * needed.
+			 */
+			tevent_req_nterror(req, NT_STATUS_DOMAIN_CONTROLLER_NOT_FOUND);
+			return tevent_req_post(req, ev);
+		}
 	}
 
 	if (IS_DC) {

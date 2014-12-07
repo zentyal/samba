@@ -247,6 +247,16 @@ double timeval_elapsed2(const struct timeval *tv1, const struct timeval *tv2);
 double timeval_elapsed(const struct timeval *tv);
 
 /**
+  return the number of seconds elapsed between two times
+*/
+double timespec_elapsed2(const struct timespec *ts1,
+			 const struct timespec *ts2);
+/**
+  return the number of seconds elapsed since a given time
+*/
+double timespec_elapsed(const struct timespec *ts);
+
+/**
   return the lesser of two timevals
 */
 struct timeval timeval_min(const struct timeval *tv1,
@@ -288,7 +298,7 @@ bool nt_time_equal(NTTIME *t1, NTTIME *t2);
 
 void interpret_dos_date(uint32_t date,int *year,int *month,int *day,int *hour,int *minute,int *second);
 
-struct timespec nt_time_to_unix_timespec(NTTIME *nt);
+struct timespec nt_time_to_unix_timespec(NTTIME nt);
 
 time_t convert_timespec_to_time_t(struct timespec ts);
 
@@ -304,6 +314,6 @@ struct timespec timespec_min(const struct timespec *ts1,
 int timespec_compare(const struct timespec *ts1, const struct timespec *ts2);
 void round_timespec_to_sec(struct timespec *ts);
 void round_timespec_to_usec(struct timespec *ts);
-void unix_timespec_to_nt_time(NTTIME *nt, struct timespec ts);
+NTTIME unix_timespec_to_nt_time(struct timespec ts);
 
 #endif /* _SAMBA_TIME_H_ */

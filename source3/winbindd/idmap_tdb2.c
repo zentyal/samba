@@ -114,7 +114,7 @@ static NTSTATUS idmap_tdb2_open_db(struct idmap_domain *dom)
 
 	/* Open idmap repository */
 	ctx->db = db_open(ctx, db_path, 0, TDB_DEFAULT, O_RDWR|O_CREAT, 0644,
-			  DBWRAP_LOCK_ORDER_1);
+			  DBWRAP_LOCK_ORDER_1, DBWRAP_FLAG_NONE);
 	TALLOC_FREE(db_path);
 
 	if (ctx->db == NULL) {
@@ -609,7 +609,7 @@ static struct idmap_methods db_methods = {
 	.allocate_id     = idmap_tdb_common_get_new_id
 };
 
-NTSTATUS samba_init_module(void)
+NTSTATUS idmap_tdb2_init(void)
 {
 	return smb_register_idmap(SMB_IDMAP_INTERFACE_VERSION, "tdb2", &db_methods);
 }

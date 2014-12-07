@@ -27,19 +27,10 @@
 
 #define BASEDIR "\\test_mux"
 
-#define CHECK_STATUS(status, correct) do { \
-	if (!NT_STATUS_EQUAL(status, correct)) { \
-		printf("(%s) Incorrect status %s - should be %s\n", \
-		       __location__, nt_errstr(status), nt_errstr(correct)); \
-		ret = false; \
-		goto done; \
-	}} while (0)
-
-
 /*
   test the delayed reply to a open that leads to a sharing violation
 */
-static bool test_mux_open(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
+static bool test_mux_open(struct torture_context *tctx, struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 {
 	union smb_open io;
 	NTSTATUS status;
@@ -49,9 +40,9 @@ static bool test_mux_open(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 	struct timeval tv;
 	double d;
 
-	printf("Testing multiplexed open/open/close\n");
+	torture_comment(tctx, "Testing multiplexed open/open/close\n");
 
-	printf("send first open\n");
+	torture_comment(tctx, "send first open\n");
 	io.generic.level = RAW_OPEN_NTCREATEX;
 	io.ntcreatex.in.root_fid.fnum = 0;
 	io.ntcreatex.in.flags = 0;
@@ -65,76 +56,75 @@ static bool test_mux_open(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 	io.ntcreatex.in.security_flags = 0;
 	io.ntcreatex.in.fname = BASEDIR "\\open.dat";
 	status = smb_raw_open(cli->tree, mem_ctx, &io);
-	CHECK_STATUS(status, NT_STATUS_OK);
+	torture_assert_ntstatus_equal(tctx, status, NT_STATUS_OK, "send first open");
 	fnum1 = io.ntcreatex.out.file.fnum;
 
-	printf("send 2nd open, non-conflicting\n");
+	torture_comment(tctx, "send 2nd open, non-conflicting\n");
 	io.ntcreatex.in.open_disposition = NTCREATEX_DISP_OPEN;
 	status = smb_raw_open(cli->tree, mem_ctx, &io);
-	CHECK_STATUS(status, NT_STATUS_OK);
+	torture_assert_ntstatus_equal(tctx, status, NT_STATUS_OK, "send 2nd open, non-conflicting");
 	fnum2 = io.ntcreatex.out.file.fnum;
 
 	tv = timeval_current();
 
-	printf("send 3rd open, conflicting\n");
+	torture_comment(tctx, "send 3rd open, conflicting\n");
 	io.ntcreatex.in.share_access = 0;
 	status = smb_raw_open(cli->tree, mem_ctx, &io);
-	CHECK_STATUS(status, NT_STATUS_SHARING_VIOLATION);
+	torture_assert_ntstatus_equal(tctx, status, NT_STATUS_SHARING_VIOLATION, "send 3rd open, conflicting");
 
 	d = timeval_elapsed(&tv);
 	if (d < 0.5 || d > 1.5) {
-		printf("bad timeout for conflict - %.2f should be 1.0\n", d);
+		torture_comment(tctx, "bad timeout for conflict - %.2f should be 1.0\n", d);
 	} else {
-		printf("open delay %.2f\n", d);
+		torture_comment(tctx, "open delay %.2f\n", d);
 	}
 
-	printf("send async open, conflicting\n");
+	torture_comment(tctx, "send async open, conflicting\n");
 	tv = timeval_current();
 	req1 = smb_raw_open_send(cli->tree, &io);
 
-	printf("send 2nd async open, conflicting\n");
+	torture_comment(tctx, "send 2nd async open, conflicting\n");
 	tv = timeval_current();
 	req2 = smb_raw_open_send(cli->tree, &io);
 	
-	printf("close first sync open\n");
+	torture_comment(tctx, "close first sync open\n");
 	smbcli_close(cli->tree, fnum1);
 
-	printf("cancel 2nd async open (should be ignored)\n");
+	torture_comment(tctx, "cancel 2nd async open (should be ignored)\n");
 	smb_raw_ntcancel(req2);
 
 	d = timeval_elapsed(&tv);
 	if (d > 0.25) {
-		printf("bad timeout after cancel - %.2f should be <0.25\n", d);
-		ret = false;
+		torture_comment(tctx, "bad timeout after cancel - %.2f should be <0.25\n", d);
+		torture_assert(tctx, d <= 0.25, "bad timeout after cancel");
 	}
 
-	printf("close the 2nd sync open\n");
+	torture_comment(tctx, "close the 2nd sync open\n");
 	smbcli_close(cli->tree, fnum2);
 
-	printf("see if the 1st async open now succeeded\n");
+	torture_comment(tctx, "see if the 1st async open now succeeded\n");
 	status = smb_raw_open_recv(req1, mem_ctx, &io);
-	CHECK_STATUS(status, NT_STATUS_OK);
+	torture_assert_ntstatus_equal(tctx, status, NT_STATUS_OK, "see if the 1st async open now succeeded");
 
 	d = timeval_elapsed(&tv);
 	if (d > 0.25) {
-		printf("bad timeout for async conflict - %.2f should be <0.25\n", d);
-		ret = false;
+		torture_comment(tctx, "bad timeout for async conflict - %.2f should be <0.25\n", d);
+		torture_assert(tctx, d <= 0.25, "bad timeout for async conflict");
 	} else {
-		printf("async open delay %.2f\n", d);
+		torture_comment(tctx, "async open delay %.2f\n", d);
 	}
 
-	printf("2nd async open should have timed out\n");
+	torture_comment(tctx, "2nd async open should have timed out\n");
 	status = smb_raw_open_recv(req2, mem_ctx, &io);
-	CHECK_STATUS(status, NT_STATUS_SHARING_VIOLATION);
+	torture_assert_ntstatus_equal(tctx, status, NT_STATUS_SHARING_VIOLATION, "2nd async open should have timed out");
 	d = timeval_elapsed(&tv);
 	if (d < 0.8) {
-		printf("bad timeout for async conflict - %.2f should be 1.0\n", d);
+		torture_comment(tctx, "bad timeout for async conflict - %.2f should be 1.0\n", d);
 	}
 
-	printf("close the 1st async open\n");
+	torture_comment(tctx, "close the 1st async open\n");
 	smbcli_close(cli->tree, io.ntcreatex.out.file.fnum);
 
-done:
 	return ret;
 }
 
@@ -142,7 +132,7 @@ done:
 /*
   test a write that hits a byte range lock and send the close after the write
 */
-static bool test_mux_write(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
+static bool test_mux_write(struct torture_context *tctx, struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 {
 	union smb_write io;
 	NTSTATUS status;
@@ -150,22 +140,21 @@ static bool test_mux_write(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 	bool ret = true;
 	struct smbcli_request *req;
 
-	printf("Testing multiplexed lock/write/close\n");
+	torture_comment(tctx, "Testing multiplexed lock/write/close\n");
 
 	fnum = smbcli_open(cli->tree, BASEDIR "\\write.dat", O_RDWR | O_CREAT, DENY_NONE);
 	if (fnum == -1) {
-		printf("open failed in mux_write - %s\n", smbcli_errstr(cli->tree));
-		ret = false;
-		goto done;
+		torture_comment(tctx, "open failed in mux_write - %s\n", smbcli_errstr(cli->tree));
+		torture_assert(tctx, fnum != -1, "open failed in mux_write");
 	}
 
 	cli->session->pid = 1;
 
+	status = smbcli_lock(cli->tree, fnum, 0, 4, 0, WRITE_LOCK);
+
 	/* lock a range */
-	if (NT_STATUS_IS_ERR(smbcli_lock(cli->tree, fnum, 0, 4, 0, WRITE_LOCK))) {
-		printf("lock failed in mux_write - %s\n", smbcli_errstr(cli->tree));
-		ret = false;
-		goto done;
+	if (NT_STATUS_IS_ERR(status)) {
+		torture_assert_ntstatus_ok(tctx, status, "lock failed in mux_write");
 	}
 
 	cli->session->pid = 2;
@@ -186,11 +175,10 @@ static bool test_mux_write(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 
 	/* and recv the async write reply */
 	status = smb_raw_write_recv(req, &io);
-	CHECK_STATUS(status, NT_STATUS_FILE_LOCK_CONFLICT);
+	torture_assert_ntstatus_equal(tctx, status, NT_STATUS_FILE_LOCK_CONFLICT, "recv the async write reply");
 
 	smbcli_close(cli->tree, fnum);
 
-done:
 	return ret;
 }
 
@@ -198,7 +186,7 @@ done:
 /*
   test a lock that conflicts with an existing lock
 */
-static bool test_mux_lock(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
+static bool test_mux_lock(struct torture_context *tctx, struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 {
 	union smb_lock io;
 	NTSTATUS status;
@@ -208,16 +196,15 @@ static bool test_mux_lock(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 	struct smb_lock_entry lock[1];
 	struct timeval t;
 
-	printf("TESTING MULTIPLEXED LOCK/LOCK/UNLOCK\n");
+	torture_comment(tctx, "TESTING MULTIPLEXED LOCK/LOCK/UNLOCK\n");
 
 	fnum = smbcli_open(cli->tree, BASEDIR "\\write.dat", O_RDWR | O_CREAT, DENY_NONE);
 	if (fnum == -1) {
-		printf("open failed in mux_write - %s\n", smbcli_errstr(cli->tree));
-		ret = false;
-		goto done;
+		torture_comment(tctx, "open failed in mux_lock - %s\n", smbcli_errstr(cli->tree));
+		torture_assert(tctx, fnum != -1, "open failed in mux_lock");
 	}
 
-	printf("establishing a lock\n");
+	torture_comment(tctx, "establishing a lock\n");
 	io.lockx.level = RAW_LOCK_LOCKX;
 	io.lockx.in.file.fnum = fnum;
 	io.lockx.in.mode = 0;
@@ -230,41 +217,38 @@ static bool test_mux_lock(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 	io.lockx.in.locks = &lock[0];
 
 	status = smb_raw_lock(cli->tree, &io);
-	CHECK_STATUS(status, NT_STATUS_OK);
+	torture_assert_ntstatus_equal(tctx, status, NT_STATUS_OK, "establishing a lock");
 
-	printf("the second lock will conflict with the first\n");
+	torture_comment(tctx, "the second lock will conflict with the first\n");
 	lock[0].pid = 2;
 	io.lockx.in.timeout = 1000;
 	status = smb_raw_lock(cli->tree, &io);
-	CHECK_STATUS(status, NT_STATUS_FILE_LOCK_CONFLICT);
+	torture_assert_ntstatus_equal(tctx, status, NT_STATUS_FILE_LOCK_CONFLICT, "the second lock will conflict with the first");
 
-	printf("this will too, but we'll unlock while waiting\n");
+	torture_comment(tctx, "this will too, but we'll unlock while waiting\n");
 	t = timeval_current();
 	req = smb_raw_lock_send(cli->tree, &io);
 
-	printf("unlock the first range\n");
+	torture_comment(tctx, "unlock the first range\n");
 	lock[0].pid = 1;
 	io.lockx.in.ulock_cnt = 1;
 	io.lockx.in.lock_cnt = 0;
 	io.lockx.in.timeout = 0;
 	status = smb_raw_lock(cli->tree, &io);
-	CHECK_STATUS(status, NT_STATUS_OK);
+	torture_assert_ntstatus_equal(tctx, status, NT_STATUS_OK, "unlock the first range");
 
-	printf("recv the async reply\n");
+	torture_comment(tctx, "recv the async reply\n");
 	status = smbcli_request_simple_recv(req);
-	CHECK_STATUS(status, NT_STATUS_OK);	
+	torture_assert_ntstatus_equal(tctx, status, NT_STATUS_OK, "recv the async reply");
 
-	printf("async lock took %.2f msec\n", timeval_elapsed(&t) * 1000);
-	if (timeval_elapsed(&t) > 0.1) {
-		printf("failed to trigger early lock retry\n");
-		return false;		
-	}
+	torture_comment(tctx, "async lock took %.2f msec\n", timeval_elapsed(&t) * 1000);
+	torture_assert(tctx, timeval_elapsed(&t) <= 0.1, "failed to trigger early lock retry\n");
 
-	printf("reopening with an exit\n");
+	torture_comment(tctx, "reopening with an exit\n");
 	smb_raw_exit(cli->session);
 	fnum = smbcli_open(cli->tree, BASEDIR "\\write.dat", O_RDWR | O_CREAT, DENY_NONE);
 
-	printf("Now trying with a cancel\n");
+	torture_comment(tctx, "Now trying with a cancel\n");
 
 	io.lockx.level = RAW_LOCK_LOCKX;
 	io.lockx.in.file.fnum = fnum;
@@ -278,43 +262,43 @@ static bool test_mux_lock(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 	io.lockx.in.locks = &lock[0];
 
 	status = smb_raw_lock(cli->tree, &io);
-	CHECK_STATUS(status, NT_STATUS_OK);
+	torture_assert_ntstatus_equal(tctx, status, NT_STATUS_OK, "Now trying with a cancel");
 
 	lock[0].pid = 2;
 	io.lockx.in.timeout = 1000;
 	status = smb_raw_lock(cli->tree, &io);
-	CHECK_STATUS(status, NT_STATUS_FILE_LOCK_CONFLICT);
+	torture_assert_ntstatus_equal(tctx, status, NT_STATUS_FILE_LOCK_CONFLICT, "Now trying with a cancel pid 2");
 
 	req = smb_raw_lock_send(cli->tree, &io);
 
 	/* cancel the blocking lock */
 	smb_raw_ntcancel(req);
 
-	printf("sending 2nd cancel\n");
+	torture_comment(tctx, "sending 2nd cancel\n");
 	/* the 2nd cancel is totally harmless, but tests the server trying to 
 	   cancel an already cancelled request */
 	smb_raw_ntcancel(req);
 
-	printf("sent 2nd cancel\n");
+	torture_comment(tctx, "sent 2nd cancel\n");
 
 	lock[0].pid = 1;
 	io.lockx.in.ulock_cnt = 1;
 	io.lockx.in.lock_cnt = 0;
 	io.lockx.in.timeout = 0;
 	status = smb_raw_lock(cli->tree, &io);
-	CHECK_STATUS(status, NT_STATUS_OK);
+	torture_assert_ntstatus_equal(tctx, status, NT_STATUS_OK, "clear lock");
 
 	status = smbcli_request_simple_recv(req);
-	CHECK_STATUS(status, NT_STATUS_FILE_LOCK_CONFLICT);	
+	torture_assert_ntstatus_equal(tctx, status, NT_STATUS_FILE_LOCK_CONFLICT, "recv 2nd cancel");
 
-	printf("cancel a lock using exit to close file\n");
+	torture_comment(tctx, "cancel a lock using exit to close file\n");
 	lock[0].pid = 1;
 	io.lockx.in.ulock_cnt = 0;
 	io.lockx.in.lock_cnt = 1;
 	io.lockx.in.timeout = 1000;
 
 	status = smb_raw_lock(cli->tree, &io);
-	CHECK_STATUS(status, NT_STATUS_OK);
+	torture_assert_ntstatus_equal(tctx, status, NT_STATUS_OK, "cancel a lock using exit to close file");
 
 	t = timeval_current();
 	lock[0].pid = 2;
@@ -325,16 +309,12 @@ static bool test_mux_lock(struct smbcli_state *cli, TALLOC_CTX *mem_ctx)
 	smb_raw_exit(cli->session);
 	smb_raw_exit(cli->session);
 
-	printf("recv the async reply\n");
+	torture_comment(tctx, "recv the async reply\n");
 	status = smbcli_request_simple_recv(req);
-	CHECK_STATUS(status, NT_STATUS_RANGE_NOT_LOCKED);
-	printf("async lock exit took %.2f msec\n", timeval_elapsed(&t) * 1000);
-	if (timeval_elapsed(&t) > 0.1) {
-		printf("failed to trigger early lock failure\n");
-		return false;		
-	}
+	torture_assert_ntstatus_equal(tctx, status, NT_STATUS_RANGE_NOT_LOCKED, "recv the async reply");
+	torture_comment(tctx, "async lock exit took %.2f msec\n", timeval_elapsed(&t) * 1000);
+	torture_assert(tctx, timeval_elapsed(&t) <= 0.1, "failed to trigger early lock failure\n");
 
-done:
 	return ret;
 }
 
@@ -346,14 +326,17 @@ done:
 bool torture_raw_mux(struct torture_context *torture, struct smbcli_state *cli)
 {
 	bool ret = true;
-		
-	torture_assert(torture, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
+	TALLOC_CTX *frame;
 
-	ret &= test_mux_open(cli, torture);
-	ret &= test_mux_write(cli, torture);
-	ret &= test_mux_lock(cli, torture);
+	torture_assert(torture, torture_setup_dir(cli, BASEDIR), "Failed to setup up test directory: " BASEDIR);
+	frame = talloc_stackframe();
+
+	ret &= test_mux_open(torture, cli, frame);
+	ret &= test_mux_write(torture, cli, frame);
+	ret &= test_mux_lock(torture, cli, frame);
 
 	smb_raw_exit(cli->session);
 	smbcli_deltree(cli->tree, BASEDIR);
+	TALLOC_FREE(frame);
 	return ret;
 }

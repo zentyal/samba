@@ -165,6 +165,7 @@ NTSTATUS cli_set_domain(struct cli_state *cli, const char *domain);
 NTSTATUS cli_set_username(struct cli_state *cli, const char *username);
 NTSTATUS cli_set_password(struct cli_state *cli, const char *password);
 NTSTATUS cli_init_creds(struct cli_state *cli, const char *username, const char *domain, const char *password);
+extern struct GUID cli_state_client_guid;
 struct cli_state *cli_state_create(TALLOC_CTX *mem_ctx,
 				   int fd,
 				   const char *remote_name,
@@ -516,6 +517,7 @@ struct tevent_req *cli_dskattr_send(TALLOC_CTX *mem_ctx,
 NTSTATUS cli_dskattr_recv(struct tevent_req *req, int *bsize, int *total,
 			  int *avail);
 NTSTATUS cli_dskattr(struct cli_state *cli, int *bsize, int *total, int *avail);
+NTSTATUS cli_disk_size(struct cli_state *cli, uint64_t *bsize, uint64_t *total, uint64_t *avail);
 struct tevent_req *cli_ctemp_send(TALLOC_CTX *mem_ctx,
 				struct tevent_context *ev,
 				struct cli_state *cli,

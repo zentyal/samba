@@ -26,13 +26,10 @@
 #include "dbwrap/dbwrap_ctdb.h"
 #include "lib/param/param.h"
 #include "util_tdb.h"
-#ifdef CLUSTER_SUPPORT
-#include "ctdb_private.h"
-#endif
+#include "ctdbd_conn.h"
 
 bool db_is_local(const char *name)
 {
-#ifdef CLUSTER_SUPPORT
 	const char *sockname = lp_ctdbd_socket();
 
 	if (lp_clustering() && socket_exist(sockname)) {
@@ -49,7 +46,7 @@ bool db_is_local(const char *name)
 			return false;
 		}
 	}
-#endif
+
 	return true;
 }
 
@@ -60,27 +57,61 @@ struct db_context *db_open(TALLOC_CTX *mem_ctx,
 			   const char *name,
 			   int hash_size, int tdb_flags,
 			   int open_flags, mode_t mode,
-			   enum dbwrap_lock_order lock_order)
+			   enum dbwrap_lock_order lock_order,
+			   uint64_t dbwrap_flags)
 {
 	struct db_context *result = NULL;
-#ifdef CLUSTER_SUPPORT
 	const char *sockname;
-#endif
 
-	switch (lock_order) {
-	case DBWRAP_LOCK_ORDER_1:
-	case DBWRAP_LOCK_ORDER_2:
-	case DBWRAP_LOCK_ORDER_3:
-		break;
-	default:
-		/*
-		 * Only allow the 3 levels ctdb gives us.
-		 */
+	if (!DBWRAP_LOCK_ORDER_VALID(lock_order)) {
 		errno = EINVAL;
 		return NULL;
 	}
 
-#ifdef CLUSTER_SUPPORT
+	if (tdb_flags & TDB_CLEAR_IF_FIRST) {
+		const char *base;
+		bool try_readonly = false;
+
+		base = strrchr_m(name, '/');
+		if (base != NULL) {
+			base += 1;
+		} else {
+			base = name;
+		}
+
+		if (dbwrap_flags & DBWRAP_FLAG_OPTIMIZE_READONLY_ACCESS) {
+			try_readonly = true;
+		}
+
+		try_readonly = lp_parm_bool(-1, "dbwrap_optimize_readonly", "*", try_readonly);
+		try_readonly = lp_parm_bool(-1, "dbwrap_optimize_readonly", base, try_readonly);
+
+		if (try_readonly) {
+			dbwrap_flags |= DBWRAP_FLAG_OPTIMIZE_READONLY_ACCESS;
+		} else {
+			dbwrap_flags &= ~DBWRAP_FLAG_OPTIMIZE_READONLY_ACCESS;
+		}
+	}
+
+	if (tdb_flags & TDB_CLEAR_IF_FIRST) {
+		const char *base;
+		bool try_mutex = false;
+
+		base = strrchr_m(name, '/');
+		if (base != NULL) {
+			base += 1;
+		} else {
+			base = name;
+		}
+
+		try_mutex = lp_parm_bool(-1, "dbwrap_tdb_mutexes", "*", try_mutex);
+		try_mutex = lp_parm_bool(-1, "dbwrap_tdb_mutexes", base, try_mutex);
+
+		if (try_mutex && tdb_runtime_check_for_robust_mutexes()) {
+			tdb_flags |= TDB_MUTEX_LOCKING;
+		}
+	}
+
 	sockname = lp_ctdbd_socket();
 
 	if (lp_clustering()) {
@@ -103,7 +134,7 @@ struct db_context *db_open(TALLOC_CTX *mem_ctx,
 		if (lp_parm_bool(-1, "ctdb", partname, True)) {
 			result = db_open_ctdb(mem_ctx, partname, hash_size,
 					      tdb_flags, open_flags, mode,
-					      lock_order);
+					      lock_order, dbwrap_flags);
 			if (result == NULL) {
 				DEBUG(0,("failed to attach to ctdb %s\n",
 					 partname));
@@ -115,13 +146,11 @@ struct db_context *db_open(TALLOC_CTX *mem_ctx,
 		}
 	}
 
-#endif
-
 	if (result == NULL) {
 		struct loadparm_context *lp_ctx = loadparm_init_s3(mem_ctx, loadparm_s3_helpers());
 		result = dbwrap_local_open(mem_ctx, lp_ctx, name, hash_size,
 					   tdb_flags, open_flags, mode,
-					   lock_order);
+					   lock_order, dbwrap_flags);
 		talloc_unlink(mem_ctx, lp_ctx);
 	}
 	return result;

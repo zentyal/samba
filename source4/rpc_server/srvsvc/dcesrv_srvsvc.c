@@ -622,7 +622,7 @@ static WERROR dcesrv_srvsvc_fiel_ShareInfo(struct dcesrv_call_state *dce_call, T
 		info->info1->name	= talloc_strdup(mem_ctx, scfg->name);
 		W_ERROR_HAVE_NO_MEMORY(info->info1->name);
 		info->info1->type	= dcesrv_common_get_share_type(mem_ctx, dce_ctx, scfg);
-		info->info1->comment	= talloc_strdup(mem_ctx, share_string_option(scfg, SHARE_COMMENT, ""));
+		info->info1->comment	= share_string_option(mem_ctx, scfg, SHARE_COMMENT, "");
 		W_ERROR_HAVE_NO_MEMORY(info->info1->comment);
 
 		return WERR_OK;
@@ -632,14 +632,14 @@ static WERROR dcesrv_srvsvc_fiel_ShareInfo(struct dcesrv_call_state *dce_call, T
 		info->info2->name		= talloc_strdup(mem_ctx, scfg->name);
 		W_ERROR_HAVE_NO_MEMORY(info->info2->name);
 		info->info2->type		= dcesrv_common_get_share_type(mem_ctx, dce_ctx, scfg);
-		info->info2->comment		= talloc_strdup(mem_ctx, share_string_option(scfg, SHARE_COMMENT, ""));
+		info->info2->comment		= share_string_option(mem_ctx, scfg, SHARE_COMMENT, "");
 		W_ERROR_HAVE_NO_MEMORY(info->info2->comment);
 		info->info2->permissions 	= dcesrv_common_get_share_permissions(mem_ctx, dce_ctx, scfg);
 		info->info2->max_users		= share_int_option(scfg, SHARE_MAX_CONNECTIONS, SHARE_MAX_CONNECTIONS_DEFAULT);
 		info->info2->current_users	= dcesrv_common_get_share_current_users(mem_ctx, dce_ctx, scfg);
 		info->info2->path		= dcesrv_common_get_share_path(mem_ctx, dce_ctx, scfg);
 		W_ERROR_HAVE_NO_MEMORY(info->info2->path);
-		info->info2->password		= talloc_strdup(mem_ctx, share_string_option(scfg, SHARE_PASSWORD, NULL));
+		info->info2->password		= share_string_option(mem_ctx, scfg, SHARE_PASSWORD, NULL);
 
 		return WERR_OK;
 	}
@@ -648,7 +648,7 @@ static WERROR dcesrv_srvsvc_fiel_ShareInfo(struct dcesrv_call_state *dce_call, T
 		info->info501->name		= talloc_strdup(mem_ctx, scfg->name);
 		W_ERROR_HAVE_NO_MEMORY(info->info501->name);
 		info->info501->type		= dcesrv_common_get_share_type(mem_ctx, dce_ctx, scfg);
-		info->info501->comment		= talloc_strdup(mem_ctx, share_string_option(scfg, SHARE_COMMENT, ""));
+		info->info501->comment		= share_string_option(mem_ctx, scfg, SHARE_COMMENT, "");
 		W_ERROR_HAVE_NO_MEMORY(info->info501->comment);
 		info->info501->csc_policy	= share_int_option(scfg, SHARE_CSC_POLICY, SHARE_CSC_POLICY_DEFAULT);
 
@@ -659,14 +659,14 @@ static WERROR dcesrv_srvsvc_fiel_ShareInfo(struct dcesrv_call_state *dce_call, T
 		info->info502->name		= talloc_strdup(mem_ctx, scfg->name);
 		W_ERROR_HAVE_NO_MEMORY(info->info502->name);
 		info->info502->type		= dcesrv_common_get_share_type(mem_ctx, dce_ctx, scfg);
-		info->info502->comment		= talloc_strdup(mem_ctx, share_string_option(scfg, SHARE_COMMENT, ""));
+		info->info502->comment		= share_string_option(mem_ctx, scfg, SHARE_COMMENT, "");
 		W_ERROR_HAVE_NO_MEMORY(info->info502->comment);
 		info->info502->permissions	= dcesrv_common_get_share_permissions(mem_ctx, dce_ctx, scfg);
 		info->info502->max_users	= share_int_option(scfg, SHARE_MAX_CONNECTIONS, SHARE_MAX_CONNECTIONS_DEFAULT);
 		info->info502->current_users	= dcesrv_common_get_share_current_users(mem_ctx, dce_ctx, scfg);
 		info->info502->path		= dcesrv_common_get_share_path(mem_ctx, dce_ctx, scfg);
 		W_ERROR_HAVE_NO_MEMORY(info->info502->path);
-		info->info502->password		= talloc_strdup(mem_ctx, share_string_option(scfg, SHARE_PASSWORD, NULL));
+		info->info502->password		= share_string_option(mem_ctx, scfg, SHARE_PASSWORD, NULL);
 		info->info502->sd_buf.sd	= dcesrv_common_get_security_descriptor(mem_ctx, dce_ctx, scfg);
 
 		return WERR_OK;
@@ -1396,11 +1396,11 @@ static WERROR dcesrv_srvsvc_NetShareCheck(struct dcesrv_call_state *dce_call, TA
 		if (!NT_STATUS_IS_OK(nterr)) {
 			return ntstatus_to_werror(nterr);
 		}
-		path = share_string_option(scfg, SHARE_PATH, NULL);
+		path = share_string_option(mem_ctx, scfg, SHARE_PATH, NULL);
 		if (!path) continue;
 
-		if (strcmp(device, path) == 0) {		
-			type = share_string_option(scfg, SHARE_TYPE, NULL);
+		if (strcmp(device, path) == 0) {
+			type = share_string_option(mem_ctx, scfg, SHARE_TYPE, NULL);
 			if (!type) continue;
 
 			if (strcmp(type, "DISK") == 0) {
@@ -1464,7 +1464,7 @@ static WERROR dcesrv_srvsvc_NetSrvGetInfo(struct dcesrv_call_state *dce_call, TA
 		info101->version_major	= server_info->version_major;
 		info101->version_minor	= server_info->version_minor;
 		info101->server_type	= dcesrv_common_get_server_type(mem_ctx, dce_call->event_ctx, dce_ctx);
-		info101->comment	= talloc_strdup(mem_ctx, lpcfg_serverstring(dce_ctx->lp_ctx));
+		info101->comment	= lpcfg_server_string(dce_ctx->lp_ctx, mem_ctx);
 		W_ERROR_HAVE_NO_MEMORY(info101->comment);
 
 		r->out.info->info101 = info101;
@@ -1484,7 +1484,7 @@ static WERROR dcesrv_srvsvc_NetSrvGetInfo(struct dcesrv_call_state *dce_call, TA
 		info102->version_major	= server_info->version_major;
 		info102->version_minor	= server_info->version_minor;
 		info102->server_type	= dcesrv_common_get_server_type(mem_ctx, dce_call->event_ctx, dce_ctx);
-		info102->comment	= talloc_strdup(mem_ctx, lpcfg_serverstring(dce_ctx->lp_ctx));
+		info102->comment	= lpcfg_server_string(dce_ctx->lp_ctx, mem_ctx);
 		W_ERROR_HAVE_NO_MEMORY(info102->comment);
 
 		info102->users		= dcesrv_common_get_users(mem_ctx, dce_ctx);

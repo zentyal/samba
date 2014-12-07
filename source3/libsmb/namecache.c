@@ -37,10 +37,10 @@
  *         type number
  */
 
-static char* namecache_key(const char *name,
+static char *namecache_key(const char *name,
 				int name_type)
 {
-	char *keystr;
+	char *keystr = NULL;
 	asprintf_strupper_m(&keystr, NBTKEY_FMT, name, name_type);
 
 	return keystr;
@@ -156,7 +156,7 @@ bool namecache_fetch(const char *name,
 		return False;
 	}
 
-	if (!gencache_get(key, &value, &timeout)) {
+	if (!gencache_get(key, talloc_tos(), &value, &timeout)) {
 		DEBUG(5, ("no entry for %s#%02X found.\n", name, name_type));
 		SAFE_FREE(key);
 		return False;
@@ -170,7 +170,7 @@ bool namecache_fetch(const char *name,
 	*num_names = ipstr_list_parse(value, ip_list);
 
 	SAFE_FREE(key);
-	SAFE_FREE(value);
+	TALLOC_FREE(value);
 
 	return *num_names > 0; /* true only if some ip has been fetched */
 }
@@ -239,7 +239,7 @@ static char *namecache_status_record_key(const char *name,
 				const struct sockaddr_storage *keyip)
 {
 	char addr[INET6_ADDRSTRLEN];
-	char *keystr;
+	char *keystr = NULL;
 
 	print_sockaddr(addr, sizeof(addr), keyip);
 	asprintf_strupper_m(&keystr, "NBT/%s#%02X.%02X.%s", name,
@@ -294,7 +294,7 @@ bool namecache_status_fetch(const char *keyname,
 	if (!key)
 		return False;
 
-	if (!gencache_get(key, &value, &timeout)) {
+	if (!gencache_get(key, talloc_tos(), &value, &timeout)) {
 		DEBUG(5, ("namecache_status_fetch: no entry for %s found.\n",
 					key));
 		SAFE_FREE(key);
@@ -306,6 +306,6 @@ bool namecache_status_fetch(const char *keyname,
 
 	strlcpy(srvname_out, value, 16);
 	SAFE_FREE(key);
-	SAFE_FREE(value);
+	TALLOC_FREE(value);
 	return True;
 }

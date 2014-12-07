@@ -48,7 +48,23 @@ struct enum_list {
 };
 
 struct loadparm_service;
-struct loadparm_context;
+struct loadparm_context {
+	const char *szConfigFile;
+	struct loadparm_global *globals;
+	struct loadparm_service **services;
+	struct loadparm_service *sDefault;
+	struct smb_iconv_handle *iconv_handle;
+	int iNumServices;
+	struct loadparm_service *currentService;
+	bool bInGlobalSection;
+	struct file_lists *file_lists;
+	unsigned int *flags;
+	bool loaded;
+	bool refuse_free;
+	bool global; /* Is this the global context, which may set
+		      * global variables such as debug level etc? */
+	const struct loadparm_s3_helpers *s3_fns;
+};
 
 struct parm_struct {
 	const char *label;
@@ -56,7 +72,7 @@ struct parm_struct {
 	parm_class p_class;
 	offset_t offset;
 	bool (*special)(struct loadparm_context *lpcfg_ctx,
-			int snum, const char *, char **);
+			struct loadparm_service *, const char *, char **);
 	const struct enum_list *enum_list;
 	unsigned flags;
 	union {
@@ -66,6 +82,15 @@ struct parm_struct {
 		char cvalue;
 		char **lvalue;
 	} def;
+};
+
+extern struct parm_struct parm_table[];
+
+struct file_lists {
+	struct file_lists *next;
+	char *name;
+	char *subfname;
+	time_t modtime;
 };
 
 /* The following flags are used in SWAT */
@@ -203,6 +228,17 @@ enum case_handling {CASE_LOWER,CASE_UPPER};
 #define PRINT_MAX_JOBID 10000
 #endif
 
+/* the default guest account - allow override via CFLAGS */
+#ifndef GUEST_ACCOUNT
+#define GUEST_ACCOUNT "nobody"
+#endif
+
+/* SMB2 defaults */
+#define DEFAULT_SMB2_MAX_READ (8*1024*1024)
+#define DEFAULT_SMB2_MAX_WRITE (8*1024*1024)
+#define DEFAULT_SMB2_MAX_TRANSACT (8*1024*1024)
+#define DEFAULT_SMB2_MAX_CREDITS 8192
+
 #define LOADPARM_EXTRA_LOCALS						\
 	bool valid;						        \
 	int usershare;							\
@@ -219,9 +255,37 @@ enum case_handling {CASE_LOWER,CASE_UPPER};
 
 #include "lib/param/param_local.h"
 
+#define LOADPARM_EXTRA_GLOBALS \
+	struct parmlist_entry *param_opt;				\
+	char *realm_original;						\
+	int iminreceivefile;						\
+	char *szPrintcapname;						\
+	int CupsEncrypt;						\
+	int  iPreferredMaster;						\
+	char *szLdapMachineSuffix;					\
+	char *szLdapUserSuffix;						\
+	char *szLdapIdmapSuffix;					\
+	char *szLdapGroupSuffix;					\
+	char *szIdmapUID;						\
+	char *szIdmapGID;						\
+	char *szIdmapBackend;						\
+	int winbindMaxDomainConnections;				\
+	int ismb2_max_credits;
+
 const char* server_role_str(uint32_t role);
 int lp_find_server_role(int server_role, int security, int domain_logons, int domain_master);
 int lp_find_security(int server_role, int security);
 bool lp_is_security_and_server_role_valid(int server_role, int security);
+
+struct loadparm_global * get_globals(void);
+unsigned int * get_flags(void);
+char * lp_string(TALLOC_CTX *, const char *);
+int getservicebyname(const char *, struct loadparm_service *);
+bool lp_include(struct loadparm_context *, struct loadparm_service *,
+	       	const char *, char **);
+bool lp_do_section(const char *pszSectionName, void *userdata);
+bool store_lp_set_cmdline(const char *pszParmName, const char *pszParmValue);
+
+int num_parameters(void);
 
 #endif /* _LOADPARM_H */

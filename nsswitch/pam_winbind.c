@@ -10,9 +10,18 @@
    <sopwith@redhat.com> (see copyright below for full details)
 */
 
-#define UID_WRAPPER_NOT_REPLACE
-
 #include "pam_winbind.h"
+
+enum pam_winbind_request_type 
+{
+	PAM_WINBIND_AUTHENTICATE,
+	PAM_WINBIND_SETCRED,
+	PAM_WINBIND_ACCT_MGMT,
+	PAM_WINBIND_OPEN_SESSION,
+	PAM_WINBIND_CLOSE_SESSION,
+	PAM_WINBIND_CHAUTHTOK,
+	PAM_WINBIND_CLEANUP
+};
 
 static int wbc_error_to_pam_error(wbcErr status)
 {
@@ -140,7 +149,7 @@ static const char *_pam_error_code_str(int err)
 #define _PAM_LOG_FUNCTION_LEAVE(function, ctx, retval) \
 	do { \
 		_pam_log_debug(ctx, LOG_DEBUG, "[pamh: %p] LEAVE: " \
-			       function " returning %d (%s)", ctx->pamh, retval, \
+			       function " returning %d (%s)", ctx ? ctx->pamh : NULL, retval, \
 			       _pam_error_code_str(retval)); \
 		_pam_log_state(ctx); \
 	} while (0)
@@ -261,7 +270,7 @@ static void _pam_log_debug(struct pwb_context *r, int err, const char *format, .
 {
 	va_list args;
 
-	if (!_pam_log_is_debug_enabled(r->ctrl)) {
+	if (!r || !_pam_log_is_debug_enabled(r->ctrl)) {
 		return;
 	}
 
@@ -330,10 +339,29 @@ static void _pam_log_state_datum(struct pwb_context *ctx,
 #define _PAM_LOG_STATE_ITEM_PASSWORD(ctx, item_type) \
 	_pam_log_state_datum(ctx, item_type, #item_type, \
 			     _LOG_PASSWORD_AS_STRING)
+/*
+ * wrapper to preserve old behaviour of iniparser which ignored
+ * key values that had no value assigned like
+ *    key =
+ * for a key like above newer iniparser will return a zero-length
+ * string, previously iniparser would return NULL
+ *
+ * JRA: For compatibility, tiniparser behaves like iniparser.
+ */
+static const char *tiniparser_getstring_nonempty(struct tiniparser_dictionary *d,
+			const char *key,
+			const char *def)
+{
+	const char *ret = tiniparser_getstring(d, key, def);
+	if (ret && strlen(ret) == 0) {
+		ret = NULL;
+	}
+	return ret;
+}
 
 static void _pam_log_state(struct pwb_context *ctx)
 {
-	if (!_pam_log_is_debug_state_enabled(ctx->ctrl)) {
+	if (!ctx || !_pam_log_is_debug_state_enabled(ctx->ctrl)) {
 		return;
 	}
 
@@ -369,13 +397,14 @@ static int _pam_parse(const pam_handle_t *pamh,
 		      int flags,
 		      int argc,
 		      const char **argv,
-		      dictionary **result_d)
+		      enum pam_winbind_request_type type,
+		      struct tiniparser_dictionary **result_d)
 {
 	int ctrl = 0;
 	const char *config_file = NULL;
 	int i;
 	const char **v;
-	dictionary *d = NULL;
+	struct tiniparser_dictionary *d = NULL;
 
 	if (flags & PAM_SILENT) {
 		ctrl |= WINBIND_SILENT;
@@ -393,51 +422,51 @@ static int _pam_parse(const pam_handle_t *pamh,
 		config_file = PAM_WINBIND_CONFIG_FILE;
 	}
 
-	d = iniparser_load(discard_const_p(char, config_file));
+	d = tiniparser_load(config_file);
 	if (d == NULL) {
 		goto config_from_pam;
 	}
 
-	if (iniparser_getboolean(d, discard_const_p(char, "global:debug"), false)) {
+	if (tiniparser_getboolean(d, "global:debug", false)) {
 		ctrl |= WINBIND_DEBUG_ARG;
 	}
 
-	if (iniparser_getboolean(d, discard_const_p(char, "global:debug_state"), false)) {
+	if (tiniparser_getboolean(d, "global:debug_state", false)) {
 		ctrl |= WINBIND_DEBUG_STATE;
 	}
 
-	if (iniparser_getboolean(d, discard_const_p(char, "global:cached_login"), false)) {
+	if (tiniparser_getboolean(d, "global:cached_login", false)) {
 		ctrl |= WINBIND_CACHED_LOGIN;
 	}
 
-	if (iniparser_getboolean(d, discard_const_p(char, "global:krb5_auth"), false)) {
+	if (tiniparser_getboolean(d, "global:krb5_auth", false)) {
 		ctrl |= WINBIND_KRB5_AUTH;
 	}
 
-	if (iniparser_getboolean(d, discard_const_p(char, "global:silent"), false)) {
+	if (tiniparser_getboolean(d, "global:silent", false)) {
 		ctrl |= WINBIND_SILENT;
 	}
 
-	if (iniparser_getstring(d, discard_const_p(char, "global:krb5_ccache_type"), NULL) != NULL) {
+	if (tiniparser_getstring_nonempty(d, "global:krb5_ccache_type", NULL) != NULL) {
 		ctrl |= WINBIND_KRB5_CCACHE_TYPE;
 	}
 
-	if ((iniparser_getstring(d, discard_const_p(char, "global:require-membership-of"), NULL)
+	if ((tiniparser_getstring_nonempty(d, "global:require-membership-of", NULL)
 	     != NULL) ||
-	    (iniparser_getstring(d, discard_const_p(char, "global:require_membership_of"), NULL)
+	    (tiniparser_getstring_nonempty(d, "global:require_membership_of", NULL)
 	     != NULL)) {
 		ctrl |= WINBIND_REQUIRED_MEMBERSHIP;
 	}
 
-	if (iniparser_getboolean(d, discard_const_p(char, "global:try_first_pass"), false)) {
+	if (tiniparser_getboolean(d, "global:try_first_pass", false)) {
 		ctrl |= WINBIND_TRY_FIRST_PASS_ARG;
 	}
 
-	if (iniparser_getint(d, discard_const_p(char, "global:warn_pwd_expire"), 0)) {
+	if (tiniparser_getint(d, "global:warn_pwd_expire", 0)) {
 		ctrl |= WINBIND_WARN_PWD_EXPIRE;
 	}
 
-	if (iniparser_getboolean(d, discard_const_p(char, "global:mkhomedir"), false)) {
+	if (tiniparser_getboolean(d, "global:mkhomedir", false)) {
 		ctrl |= WINBIND_MKHOMEDIR;
 	}
 
@@ -460,11 +489,15 @@ config_from_pam:
 			ctrl |= WINBIND_TRY_FIRST_PASS_ARG;
 		else if (!strcasecmp(*v, "unknown_ok"))
 			ctrl |= WINBIND_UNKNOWN_OK_ARG;
-		else if (!strncasecmp(*v, "require_membership_of",
-				      strlen("require_membership_of")))
+		else if ((type == PAM_WINBIND_AUTHENTICATE
+			  || type == PAM_WINBIND_SETCRED) 
+			 && !strncasecmp(*v, "require_membership_of",
+					 strlen("require_membership_of")))
 			ctrl |= WINBIND_REQUIRED_MEMBERSHIP;
-		else if (!strncasecmp(*v, "require-membership-of",
-				      strlen("require-membership-of")))
+		else if ((type == PAM_WINBIND_AUTHENTICATE 
+			  || type == PAM_WINBIND_SETCRED) 
+			 && !strncasecmp(*v, "require-membership-of",
+					 strlen("require-membership-of")))
 			ctrl |= WINBIND_REQUIRED_MEMBERSHIP;
 		else if (!strcasecmp(*v, "krb5_auth"))
 			ctrl |= WINBIND_KRB5_AUTH;
@@ -475,7 +508,7 @@ config_from_pam:
 			ctrl |= WINBIND_CACHED_LOGIN;
 		else if (!strcasecmp(*v, "mkhomedir"))
 			ctrl |= WINBIND_MKHOMEDIR;
-		else {
+		else if (type != PAM_WINBIND_CLEANUP) {
 			__pam_log(pamh, ctrl, LOG_ERR,
 				 "pam_parse: unknown option: %s", *v);
 			return -1;
@@ -487,7 +520,7 @@ config_from_pam:
 		*result_d = d;
 	} else {
 		if (d) {
-			iniparser_freedict(d);
+			tiniparser_freedict(d);
 		}
 	}
 
@@ -501,7 +534,7 @@ static int _pam_winbind_free_context(struct pwb_context *ctx)
 	}
 
 	if (ctx->dict) {
-		iniparser_freedict(ctx->dict);
+		tiniparser_freedict(ctx->dict);
 	}
 
 	return 0;
@@ -511,6 +544,7 @@ static int _pam_winbind_init_context(pam_handle_t *pamh,
 				     int flags,
 				     int argc,
 				     const char **argv,
+				     enum pam_winbind_request_type type,
 				     struct pwb_context **ctx_p)
 {
 	struct pwb_context *r = NULL;
@@ -530,7 +564,7 @@ static int _pam_winbind_init_context(pam_handle_t *pamh,
 	r->flags = flags;
 	r->argc = argc;
 	r->argv = argv;
-	r->ctrl = _pam_parse(pamh, flags, argc, argv, &r->dict);
+	r->ctrl = _pam_parse(pamh, flags, argc, argv, type, &r->dict);
 	if (r->ctrl == -1) {
 		TALLOC_FREE(r);
 		return PAM_SYSTEM_ERR;
@@ -545,7 +579,7 @@ static void _pam_winbind_cleanup_func(pam_handle_t *pamh,
 				      void *data,
 				      int error_status)
 {
-	int ctrl = _pam_parse(pamh, 0, 0, NULL, NULL);
+	int ctrl = _pam_parse(pamh, 0, 0, NULL, PAM_WINBIND_CLEANUP, NULL);
 	if (_pam_log_is_debug_state_enabled(ctrl)) {
 		__pam_log_debug(pamh, ctrl, LOG_DEBUG,
 			       "[pamh: %p] CLEAN: cleaning up PAM data %p "
@@ -1028,15 +1062,9 @@ static bool safe_append_string(char *dest,
 			       const char *src,
 			       int dest_buffer_size)
 {
-	int dest_length = strlen(dest);
-	int src_length = strlen(src);
-
-	if (dest_length + src_length + 1 > dest_buffer_size) {
-		return false;
-	}
-
-	memcpy(dest + dest_length, src, src_length + 1);
-	return true;
+	size_t len;
+	len = strlcat(dest, src, dest_buffer_size);
+	return (len < dest_buffer_size);
 }
 
 /**
@@ -2268,7 +2296,7 @@ static const char *get_conf_item_string(struct pwb_context *ctx,
 			goto out;
 		}
 
-		parm_opt = iniparser_getstring(ctx->dict, key, NULL);
+		parm_opt = tiniparser_getstring_nonempty(ctx->dict, key, NULL);
 		TALLOC_FREE(key);
 
 		_pam_log_debug(ctx, LOG_INFO, "CONFIG file: %s '%s'\n",
@@ -2316,7 +2344,7 @@ static int get_config_item_int(struct pwb_context *ctx,
 			goto out;
 		}
 
-		parm_opt = iniparser_getint(ctx->dict, key, -1);
+		parm_opt = tiniparser_getint(ctx->dict, key, -1);
 		TALLOC_FREE(key);
 
 		_pam_log_debug(ctx, LOG_INFO,
@@ -2440,7 +2468,8 @@ static char* winbind_upn_to_username(struct pwb_context *ctx,
 }
 
 static int _pam_delete_cred(pam_handle_t *pamh, int flags,
-			 int argc, const char **argv)
+			    int argc, enum pam_winbind_request_type type, 
+			    const char **argv)
 {
 	int retval = PAM_SUCCESS;
 	struct pwb_context *ctx = NULL;
@@ -2451,7 +2480,7 @@ static int _pam_delete_cred(pam_handle_t *pamh, int flags,
 
 	ZERO_STRUCT(logoff);
 
-	retval = _pam_winbind_init_context(pamh, flags, argc, argv, &ctx);
+	retval = _pam_winbind_init_context(pamh, flags, argc, argv, type, &ctx);
 	if (retval) {
 		goto out;
 	}
@@ -2586,7 +2615,8 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags,
 	char *real_username = NULL;
 	struct pwb_context *ctx = NULL;
 
-	retval = _pam_winbind_init_context(pamh, flags, argc, argv, &ctx);
+	retval = _pam_winbind_init_context(pamh, flags, argc, argv,
+					   PAM_WINBIND_AUTHENTICATE, &ctx);
 	if (retval) {
 		goto out;
 	}
@@ -2723,10 +2753,9 @@ out:
 		_pam_free_data_info3(pamh);
 	}
 
-	if (ctx != NULL) {
-		_PAM_LOG_FUNCTION_LEAVE("pam_sm_authenticate", ctx, retval);
-		TALLOC_FREE(ctx);
-	}
+	_PAM_LOG_FUNCTION_LEAVE("pam_sm_authenticate", ctx, retval);
+
+	TALLOC_FREE(ctx);
 
 	return retval;
 }
@@ -2738,7 +2767,8 @@ int pam_sm_setcred(pam_handle_t *pamh, int flags,
 	int ret = PAM_SYSTEM_ERR;
 	struct pwb_context *ctx = NULL;
 
-	ret = _pam_winbind_init_context(pamh, flags, argc, argv, &ctx);
+	ret = _pam_winbind_init_context(pamh, flags, argc, argv,
+					PAM_WINBIND_SETCRED, &ctx);
 	if (ret) {
 		goto out;
 	}
@@ -2748,7 +2778,8 @@ int pam_sm_setcred(pam_handle_t *pamh, int flags,
 	switch (flags & ~PAM_SILENT) {
 
 		case PAM_DELETE_CRED:
-			ret = _pam_delete_cred(pamh, flags, argc, argv);
+			ret = _pam_delete_cred(pamh, flags, argc,
+					       PAM_WINBIND_SETCRED, argv);
 			break;
 		case PAM_REFRESH_CRED:
 			_pam_log_debug(ctx, LOG_WARNING,
@@ -2792,7 +2823,8 @@ int pam_sm_acct_mgmt(pam_handle_t *pamh, int flags,
 	const char *tmp = NULL;
 	struct pwb_context *ctx = NULL;
 
-	ret = _pam_winbind_init_context(pamh, flags, argc, argv, &ctx);
+	ret = _pam_winbind_init_context(pamh, flags, argc, argv,
+					PAM_WINBIND_ACCT_MGMT, &ctx);
 	if (ret) {
 		goto out;
 	}
@@ -2887,7 +2919,8 @@ int pam_sm_open_session(pam_handle_t *pamh, int flags,
 	int ret = PAM_SUCCESS;
 	struct pwb_context *ctx = NULL;
 
-	ret = _pam_winbind_init_context(pamh, flags, argc, argv, &ctx);
+	ret = _pam_winbind_init_context(pamh, flags, argc, argv,
+					PAM_WINBIND_OPEN_SESSION, &ctx);
 	if (ret) {
 		goto out;
 	}
@@ -2913,7 +2946,8 @@ int pam_sm_close_session(pam_handle_t *pamh, int flags,
 	int ret = PAM_SUCCESS;
 	struct pwb_context *ctx = NULL;
 
-	ret = _pam_winbind_init_context(pamh, flags, argc, argv, &ctx);
+	ret = _pam_winbind_init_context(pamh, flags, argc, argv,
+					PAM_WINBIND_CLOSE_SESSION, &ctx);
 	if (ret) {
 		goto out;
 	}
@@ -2999,7 +3033,8 @@ int pam_sm_chauthtok(pam_handle_t * pamh, int flags,
 	struct wbcAuthErrorInfo *error = NULL;
 	struct pwb_context *ctx = NULL;
 
-	ret = _pam_winbind_init_context(pamh, flags, argc, argv, &ctx);
+	ret = _pam_winbind_init_context(pamh, flags, argc, argv,
+					PAM_WINBIND_CHAUTHTOK, &ctx);
 	if (ret) {
 		goto out;
 	}

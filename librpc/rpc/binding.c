@@ -7,6 +7,7 @@
    Copyright (C) Jelmer Vernooij 2004
    Copyright (C) Andrew Bartlett <abartlet@samba.org> 2005
    Copyright (C) Rafal Szczesniak 2006
+   Copyright (C) Stefan Metzmacher 2014
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -33,6 +34,20 @@
 #undef strncasecmp
 
 #define MAX_PROTSEQ		10
+
+struct dcerpc_binding {
+	enum dcerpc_transport_t transport;
+	struct GUID object;
+	const char *object_string;
+	const char *host;
+	const char *target_hostname;
+	const char *target_principal;
+	const char *endpoint;
+	const char **options;
+	uint32_t flags;
+	uint32_t assoc_group_id;
+	char assoc_group_string[11]; /* 0x3456789a + '\0' */
+};
 
 static const struct {
 	const char *name;
@@ -73,7 +88,7 @@ static const struct {
 	},
 };
 
-static const struct {
+static const struct ncacn_option {
 	const char *name;
 	uint32_t flag;
 } ncacn_options[] = {
@@ -83,15 +98,32 @@ static const struct {
 	{"spnego", DCERPC_AUTH_SPNEGO},
 	{"ntlm", DCERPC_AUTH_NTLM},
 	{"krb5", DCERPC_AUTH_KRB5},
+	{"schannel", DCERPC_SCHANNEL},
 	{"validate", DCERPC_DEBUG_VALIDATE_BOTH},
 	{"print", DCERPC_DEBUG_PRINT_BOTH},
 	{"padcheck", DCERPC_DEBUG_PAD_CHECK},
 	{"bigendian", DCERPC_PUSH_BIGENDIAN},
 	{"smb2", DCERPC_SMB2},
-	{"hdrsign", DCERPC_HEADER_SIGNING},
 	{"ndr64", DCERPC_NDR64},
-	{"localaddress", DCERPC_LOCALADDRESS}
 };
+
+static const struct ncacn_option *ncacn_option_by_name(const char *name)
+{
+	size_t i;
+
+	for (i=0; i<ARRAY_SIZE(ncacn_options); i++) {
+		int ret;
+
+		ret = strcasecmp(ncacn_options[i].name, name);
+		if (ret != 0) {
+			continue;
+		}
+
+		return &ncacn_options[i];
+	}
+
+	return NULL;
+}
 
 const char *epm_floor_string(TALLOC_CTX *mem_ctx, struct epm_floor *epm_floor)
 {
@@ -178,63 +210,147 @@ const char *epm_floor_string(TALLOC_CTX *mem_ctx, struct epm_floor *epm_floor)
 _PUBLIC_ char *dcerpc_binding_string(TALLOC_CTX *mem_ctx, const struct dcerpc_binding *b)
 {
 	char *s = talloc_strdup(mem_ctx, "");
+	char *o = s;
 	int i;
 	const char *t_name = NULL;
+	bool option_section = false;
+	const char *target_hostname = NULL;
 
 	if (b->transport != NCA_UNKNOWN) {
 		t_name = derpc_transport_string_by_transport(b->transport);
 		if (!t_name) {
+			talloc_free(o);
 			return NULL;
 		}
 	}
 
-	if (!GUID_all_zero(&b->object.uuid)) { 
-		s = talloc_asprintf(s, "%s@",
-				    GUID_string(mem_ctx, &b->object.uuid));
+	if (!GUID_all_zero(&b->object)) {
+		o = s;
+		s = talloc_asprintf_append_buffer(s, "%s@",
+				    GUID_string(mem_ctx, &b->object));
+		if (s == NULL) {
+			talloc_free(o);
+			return NULL;
+		}
 	}
 
 	if (t_name != NULL) {
+		o = s;
 		s = talloc_asprintf_append_buffer(s, "%s:", t_name);
 		if (s == NULL) {
+			talloc_free(o);
 			return NULL;
 		}
 	}
 
 	if (b->host) {
+		o = s;
 		s = talloc_asprintf_append_buffer(s, "%s", b->host);
-	}
-
-	if (!b->endpoint && !b->options && !b->flags) {
-		return s;
-	}
-
-	s = talloc_asprintf_append_buffer(s, "[");
-
-	if (b->endpoint) {
-		s = talloc_asprintf_append_buffer(s, "%s", b->endpoint);
-	}
-
-	/* this is a *really* inefficent way of dealing with strings,
-	   but this is rarely called and the strings are always short,
-	   so I don't care */
-	for (i=0;b->options && b->options[i];i++) {
-		s = talloc_asprintf_append_buffer(s, ",%s", b->options[i]);
-		if (!s) return NULL;
-	}
-
-	for (i=0;i<ARRAY_SIZE(ncacn_options);i++) {
-		if (b->flags & ncacn_options[i].flag) {
-			if (ncacn_options[i].flag == DCERPC_LOCALADDRESS && b->localaddress) {
-				s = talloc_asprintf_append_buffer(s, ",%s=%s", ncacn_options[i].name,
-								  b->localaddress);
-			} else {
-				s = talloc_asprintf_append_buffer(s, ",%s", ncacn_options[i].name);
-			}
-			if (!s) return NULL;
+		if (s == NULL) {
+			talloc_free(o);
+			return NULL;
 		}
 	}
 
+	target_hostname = b->target_hostname;
+	if (target_hostname != NULL && b->host != NULL) {
+		if (strcmp(target_hostname, b->host) == 0) {
+			target_hostname = NULL;
+		}
+	}
+
+	if (b->endpoint) {
+		option_section = true;
+	} else if (target_hostname) {
+		option_section = true;
+	} else if (b->target_principal) {
+		option_section = true;
+	} else if (b->assoc_group_id != 0) {
+		option_section = true;
+	} else if (b->options) {
+		option_section = true;
+	} else if (b->flags) {
+		option_section = true;
+	}
+
+	if (!option_section) {
+		return s;
+	}
+
+	o = s;
+	s = talloc_asprintf_append_buffer(s, "[");
+	if (s == NULL) {
+		talloc_free(o);
+		return NULL;
+	}
+
+	if (b->endpoint) {
+		o = s;
+		s = talloc_asprintf_append_buffer(s, "%s", b->endpoint);
+		if (s == NULL) {
+			talloc_free(o);
+			return NULL;
+		}
+	}
+
+	for (i=0;i<ARRAY_SIZE(ncacn_options);i++) {
+		if (!(b->flags & ncacn_options[i].flag)) {
+			continue;
+		}
+
+		o = s;
+		s = talloc_asprintf_append_buffer(s, ",%s", ncacn_options[i].name);
+		if (s == NULL) {
+			talloc_free(o);
+			return NULL;
+		}
+	}
+
+	if (target_hostname) {
+		o = s;
+		s = talloc_asprintf_append_buffer(s, ",target_hostname=%s",
+						  b->target_hostname);
+		if (s == NULL) {
+			talloc_free(o);
+			return NULL;
+		}
+	}
+
+	if (b->target_principal) {
+		o = s;
+		s = talloc_asprintf_append_buffer(s, ",target_principal=%s",
+						  b->target_principal);
+		if (s == NULL) {
+			talloc_free(o);
+			return NULL;
+		}
+	}
+
+	if (b->assoc_group_id != 0) {
+		o = s;
+		s = talloc_asprintf_append_buffer(s, ",assoc_group_id=0x%08x",
+						  b->assoc_group_id);
+		if (s == NULL) {
+			talloc_free(o);
+			return NULL;
+		}
+	}
+
+	for (i=0;b->options && b->options[i];i++) {
+		o = s;
+		s = talloc_asprintf_append_buffer(s, ",%s", b->options[i]);
+		if (s == NULL) {
+			talloc_free(o);
+			return NULL;
+		}
+	}
+
+	o = s;
 	s = talloc_asprintf_append_buffer(s, "]");
+	if (s == NULL) {
+		talloc_free(o);
+		return NULL;
+	}
 
 	return s;
 }
@@ -242,148 +358,609 @@ _PUBLIC_ char *dcerpc_binding_string(TALLOC_CTX *mem_ctx, const struct dcerpc_bi
 /*
   parse a binding string into a dcerpc_binding structure
 */
-_PUBLIC_ NTSTATUS dcerpc_parse_binding(TALLOC_CTX *mem_ctx, const char *s, struct dcerpc_binding **b_out)
+_PUBLIC_ NTSTATUS dcerpc_parse_binding(TALLOC_CTX *mem_ctx, const char *_s, struct dcerpc_binding **b_out)
 {
+	char *_t;
 	struct dcerpc_binding *b;
-	char *options;
+	char *s;
+	char *options = NULL;
 	char *p;
-	int i, j, comma_count;
+	size_t i;
+	NTSTATUS status;
 
 	b = talloc_zero(mem_ctx, struct dcerpc_binding);
 	if (!b) {
 		return NT_STATUS_NO_MEMORY;
 	}
 
+	_t = talloc_strdup(b, _s);
+	if (_t == NULL) {
+		talloc_free(b);
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	s = _t;
+
+	p = strchr(s, '[');
+	if (p) {
+		*p = '\0';
+		options = p + 1;
+		if (options[strlen(options)-1] != ']') {
+			talloc_free(b);
+			return NT_STATUS_INVALID_PARAMETER_MIX;
+		}
+		options[strlen(options)-1] = 0;
+	}
+
 	p = strchr(s, '@');
 
 	if (p && PTR_DIFF(p, s) == 36) { /* 36 is the length of a UUID */
-		NTSTATUS status;
-		DATA_BLOB blob = data_blob(s, 36);
-		status = GUID_from_data_blob(&blob, &b->object.uuid);
+		*p = '\0';
 
-		if (NT_STATUS_IS_ERR(status)) {
-			DEBUG(0, ("Failed parsing UUID\n"));
+		status = dcerpc_binding_set_string_option(b, "object", s);
+		if (!NT_STATUS_IS_OK(status)) {
+			talloc_free(b);
 			return status;
 		}
 
 		s = p + 1;
-	} else {
-		ZERO_STRUCT(b->object);
 	}
-
-	b->object.if_version = 0;
 
 	p = strchr(s, ':');
 
 	if (p == NULL) {
 		b->transport = NCA_UNKNOWN;
+	} else if (is_ipaddress_v6(s)) {
+		b->transport = NCA_UNKNOWN;
 	} else {
-		char *type = talloc_strndup(mem_ctx, s, PTR_DIFF(p, s));
-		if (!type) {
-			return NT_STATUS_NO_MEMORY;
+		*p = '\0';
+
+		status = dcerpc_binding_set_string_option(b, "transport", s);
+		if (!NT_STATUS_IS_OK(status)) {
+			talloc_free(b);
+			return status;
 		}
 
-		for (i=0;i<ARRAY_SIZE(transports);i++) {
-			if (strcasecmp(type, transports[i].name) == 0) {
-				b->transport = transports[i].transport;
-				break;
+		s = p + 1;
+	}
+
+	if (strlen(s) > 0) {
+		status = dcerpc_binding_set_string_option(b, "host", s);
+		if (!NT_STATUS_IS_OK(status)) {
+			talloc_free(b);
+			return status;
+		}
+
+		b->target_hostname = talloc_strdup(b, b->host);
+		if (b->target_hostname == NULL) {
+			talloc_free(b);
+			return NT_STATUS_NO_MEMORY;
+		}
+	}
+
+	for (i=0; options != NULL; i++) {
+		const char *name = options;
+		const char *value = NULL;
+
+		p = strchr(options, ',');
+		if (p != NULL) {
+			*p = '\0';
+			options = p+1;
+		} else {
+			options = NULL;
+		}
+
+		p = strchr(name, '=');
+		if (p != NULL) {
+			*p = '\0';
+			value = p + 1;
+		}
+
+		if (value == NULL) {
+			/*
+			 * If it's not a key=value pair
+			 * it might be a ncacn_option
+			 * or if it's the first option
+			 * it's the endpoint.
+			 */
+			const struct ncacn_option *no = NULL;
+
+			value = name;
+
+			no = ncacn_option_by_name(name);
+			if (no == NULL) {
+				if (i > 0) {
+					/*
+					 * we don't allow unknown options
+					 */
+					return NT_STATUS_INVALID_PARAMETER_MIX;
+				}
+
+				/*
+				 * This is the endpoint
+				 */
+				name = "endpoint";
+				if (strlen(value) == 0) {
+					value = NULL;
+				}
 			}
 		}
 
-		if (i==ARRAY_SIZE(transports)) {
-			DEBUG(0,("Unknown dcerpc transport '%s'\n", type));
-			return NT_STATUS_INVALID_PARAMETER;
+		status = dcerpc_binding_set_string_option(b, name, value);
+		if (!NT_STATUS_IS_OK(status)) {
+			talloc_free(b);
+			return status;
 		}
-
-		talloc_free(type);
-
-		s = p+1;
 	}
 
-	p = strchr(s, '[');
-	if (p) {
-		b->host = talloc_strndup(b, s, PTR_DIFF(p, s));
-		options = talloc_strdup(mem_ctx, p+1);
-		if (options[strlen(options)-1] != ']') {
-			return NT_STATUS_INVALID_PARAMETER;
-		}
-		options[strlen(options)-1] = 0;
-	} else {
-		b->host = talloc_strdup(b, s);
-		options = NULL;
-	}
-	if (!b->host) {
-		return NT_STATUS_NO_MEMORY;
-	}
+	talloc_free(_t);
+	*b_out = b;
+	return NT_STATUS_OK;
+}
 
-	b->target_hostname = b->host;
+_PUBLIC_ struct GUID dcerpc_binding_get_object(const struct dcerpc_binding *b)
+{
+	return b->object;
+}
 
-	b->options = NULL;
-	b->flags = 0;
-	b->assoc_group_id = 0;
-	b->endpoint = NULL;
-	b->localaddress = NULL;
+_PUBLIC_ NTSTATUS dcerpc_binding_set_object(struct dcerpc_binding *b,
+					    struct GUID object)
+{
+	char *tmp = discard_const_p(char, b->object_string);
 
-	if (!options) {
-		*b_out = b;
+	if (GUID_all_zero(&object)) {
+		talloc_free(tmp);
+		b->object_string = NULL;
+		ZERO_STRUCT(b->object);
 		return NT_STATUS_OK;
 	}
 
-	comma_count = count_chars(options, ',');
+	b->object_string = GUID_string(b, &object);
+	if (b->object_string == NULL) {
+		b->object_string = tmp;
+		return NT_STATUS_NO_MEMORY;
+	}
+	talloc_free(tmp);
 
-	b->options = talloc_array(b, const char *, comma_count+2);
-	if (!b->options) {
+	b->object = object;
+	return NT_STATUS_OK;
+}
+
+_PUBLIC_ enum dcerpc_transport_t dcerpc_binding_get_transport(const struct dcerpc_binding *b)
+{
+	return b->transport;
+}
+
+_PUBLIC_ NTSTATUS dcerpc_binding_set_transport(struct dcerpc_binding *b,
+					       enum dcerpc_transport_t transport)
+{
+	NTSTATUS status;
+
+	/*
+	 * TODO: we may want to check the transport value is
+	 * wellknown.
+	 */
+	if (b->transport == transport) {
+		return NT_STATUS_OK;
+	}
+
+	/*
+	 * This implicitly resets the endpoint
+	 * as the endpoint is transport specific.
+	 *
+	 * It also resets the assoc group as it's
+	 * also endpoint specific.
+	 *
+	 * TODO: in future we may reset more options
+	 * here.
+	 */
+	status = dcerpc_binding_set_string_option(b, "endpoint", NULL);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	b->assoc_group_id = 0;
+
+	b->transport = transport;
+	return NT_STATUS_OK;
+}
+
+_PUBLIC_ void dcerpc_binding_get_auth_info(const struct dcerpc_binding *b,
+					   enum dcerpc_AuthType *_auth_type,
+					   enum dcerpc_AuthLevel *_auth_level)
+{
+	enum dcerpc_AuthType auth_type;
+	enum dcerpc_AuthLevel auth_level;
+
+	if (b->flags & DCERPC_AUTH_SPNEGO) {
+		auth_type = DCERPC_AUTH_TYPE_SPNEGO;
+	} else if (b->flags & DCERPC_AUTH_KRB5) {
+		auth_type = DCERPC_AUTH_TYPE_KRB5;
+	} else if (b->flags & DCERPC_SCHANNEL) {
+		auth_type = DCERPC_AUTH_TYPE_SCHANNEL;
+	} else if (b->flags & DCERPC_AUTH_NTLM) {
+		auth_type = DCERPC_AUTH_TYPE_NTLMSSP;
+	} else {
+		auth_type = DCERPC_AUTH_TYPE_NONE;
+	}
+
+	if (b->flags & DCERPC_SEAL) {
+		auth_level = DCERPC_AUTH_LEVEL_PRIVACY;
+	} else if (b->flags & DCERPC_SIGN) {
+		auth_level = DCERPC_AUTH_LEVEL_INTEGRITY;
+	} else if (b->flags & DCERPC_CONNECT) {
+		auth_level = DCERPC_AUTH_LEVEL_CONNECT;
+	} else if (auth_type != DCERPC_AUTH_TYPE_NONE) {
+		auth_level = DCERPC_AUTH_LEVEL_CONNECT;
+	} else {
+		auth_level = DCERPC_AUTH_LEVEL_NONE;
+	}
+
+	if (_auth_type == NULL) {
+		*_auth_type = auth_type;
+	}
+
+	if (_auth_level == NULL) {
+		*_auth_level = auth_level;
+	}
+}
+
+_PUBLIC_ uint32_t dcerpc_binding_get_assoc_group_id(const struct dcerpc_binding *b)
+{
+	return b->assoc_group_id;
+}
+
+_PUBLIC_ NTSTATUS dcerpc_binding_set_assoc_group_id(struct dcerpc_binding *b,
+						    uint32_t assoc_group_id)
+{
+	b->assoc_group_id = assoc_group_id;
+	return NT_STATUS_OK;
+}
+
+_PUBLIC_ struct ndr_syntax_id dcerpc_binding_get_abstract_syntax(const struct dcerpc_binding *b)
+{
+	const char *s = dcerpc_binding_get_string_option(b, "abstract_syntax");
+	bool ok;
+	struct ndr_syntax_id id;
+
+	if (s == NULL) {
+		return ndr_syntax_id_null;
+	}
+
+	ok = ndr_syntax_id_from_string(s, &id);
+	if (!ok) {
+		return ndr_syntax_id_null;
+	}
+
+	return id;
+}
+
+_PUBLIC_ NTSTATUS dcerpc_binding_set_abstract_syntax(struct dcerpc_binding *b,
+						     const struct ndr_syntax_id *syntax)
+{
+	NTSTATUS status;
+	char *s = NULL;
+
+	if (syntax == NULL) {
+		status = dcerpc_binding_set_string_option(b, "abstract_syntax", NULL);
+		if (!NT_STATUS_IS_OK(status)) {
+			return status;
+		}
+
+		return NT_STATUS_OK;
+	}
+
+	if (ndr_syntax_id_equal(&ndr_syntax_id_null, syntax)) {
+		status = dcerpc_binding_set_string_option(b, "abstract_syntax", NULL);
+		if (!NT_STATUS_IS_OK(status)) {
+			return status;
+		}
+
+		return NT_STATUS_OK;
+	}
+
+	s = ndr_syntax_id_to_string(b, syntax);
+	if (s == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
 
-	for (i=0; (p = strchr(options, ',')); i++) {
-		b->options[i] = talloc_strndup(b, options, PTR_DIFF(p, options));
-		if (!b->options[i]) {
-			return NT_STATUS_NO_MEMORY;
-		}
-		options = p+1;
+	status = dcerpc_binding_set_string_option(b, "abstract_syntax", s);
+	TALLOC_FREE(s);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
 	}
-	b->options[i] = options;
-	b->options[i+1] = NULL;
 
-	/* some options are pre-parsed for convenience */
-	for (i=0;b->options[i];i++) {
-		for (j=0;j<ARRAY_SIZE(ncacn_options);j++) {
-			size_t opt_len = strlen(ncacn_options[j].name);
-			if (strncasecmp(ncacn_options[j].name, b->options[i], opt_len) == 0) {
-				int k;
-				char c = b->options[i][opt_len];
+	return NT_STATUS_OK;
+}
 
-				if (ncacn_options[j].flag == DCERPC_LOCALADDRESS && c == '=') {
-					b->localaddress = talloc_strdup(b, &b->options[i][opt_len+1]);
-				} else if (c != 0) {
-					continue;
-				}
+_PUBLIC_ const char *dcerpc_binding_get_string_option(const struct dcerpc_binding *b,
+						      const char *name)
+{
+	struct {
+		const char *name;
+		const char *value;
+#define _SPECIAL(x) { .name = #x, .value = b->x, }
+	} specials[] = {
+		{ .name = "object", .value = b->object_string, },
+		_SPECIAL(host),
+		_SPECIAL(endpoint),
+		_SPECIAL(target_hostname),
+		_SPECIAL(target_principal),
+#undef _SPECIAL
+	};
+	const struct ncacn_option *no = NULL;
+	size_t name_len = strlen(name);
+	size_t i;
+	int ret;
 
-				b->flags |= ncacn_options[j].flag;
-				for (k=i;b->options[k];k++) {
-					b->options[k] = b->options[k+1];
-				}
-				i--;
-				break;
+	ret = strcmp(name, "transport");
+	if (ret == 0) {
+		return derpc_transport_string_by_transport(b->transport);
+	}
+
+	ret = strcmp(name, "assoc_group_id");
+	if (ret == 0) {
+		char *tmp = discard_const_p(char, b->assoc_group_string);
+
+		if (b->assoc_group_id == 0) {
+			return NULL;
+		}
+
+		snprintf(tmp, sizeof(b->assoc_group_string),
+			 "0x%08x", b->assoc_group_id);
+		return (const char *)b->assoc_group_string;
+	}
+
+	for (i=0; i < ARRAY_SIZE(specials); i++) {
+		ret = strcmp(specials[i].name, name);
+		if (ret != 0) {
+			continue;
+		}
+
+		return specials[i].value;
+	}
+
+	no = ncacn_option_by_name(name);
+	if (no != NULL) {
+		if (b->flags & no->flag) {
+			return no->name;
+		}
+
+		return NULL;
+	}
+
+	if (b->options == NULL) {
+		return NULL;
+	}
+
+	for (i=0; b->options[i]; i++) {
+		const char *o = b->options[i];
+		const char *vs = NULL;
+
+		ret = strncmp(name, o, name_len);
+		if (ret != 0) {
+			continue;
+		}
+
+		if (o[name_len] != '=') {
+			continue;
+		}
+
+		vs = &o[name_len + 1];
+
+		return vs;
+	}
+
+	return NULL;
+}
+
+_PUBLIC_ char *dcerpc_binding_copy_string_option(TALLOC_CTX *mem_ctx,
+						 const struct dcerpc_binding *b,
+						 const char *name)
+{
+	const char *c = dcerpc_binding_get_string_option(b, name);
+	char *v;
+
+	if (c == NULL) {
+		errno = ENOENT;
+		return NULL;
+	}
+
+	v = talloc_strdup(mem_ctx, c);
+	if (v == NULL) {
+		errno = ENOMEM;
+		return NULL;
+	}
+
+	return v;
+}
+
+_PUBLIC_ NTSTATUS dcerpc_binding_set_string_option(struct dcerpc_binding *b,
+						   const char *name,
+						   const char *value)
+{
+	struct {
+		const char *name;
+		const char **ptr;
+#define _SPECIAL(x) { .name = #x, .ptr = &b->x, }
+	} specials[] = {
+		_SPECIAL(host),
+		_SPECIAL(endpoint),
+		_SPECIAL(target_hostname),
+		_SPECIAL(target_principal),
+#undef _SPECIAL
+	};
+	const struct ncacn_option *no = NULL;
+	size_t name_len = strlen(name);
+	const char *opt = NULL;
+	char *tmp;
+	size_t i;
+	int ret;
+
+	/*
+	 * Note: value == NULL, means delete it.
+	 * value != NULL means add or reset.
+	 */
+
+	ret = strcmp(name, "transport");
+	if (ret == 0) {
+		enum dcerpc_transport_t t = dcerpc_transport_by_name(value);
+
+		if (t == NCA_UNKNOWN && value != NULL) {
+			return NT_STATUS_INVALID_PARAMETER_MIX;
+		}
+
+		return dcerpc_binding_set_transport(b, t);
+	}
+
+	ret = strcmp(name, "object");
+	if (ret == 0) {
+		NTSTATUS status;
+		struct GUID uuid = GUID_zero();
+
+		if (value != NULL) {
+			DATA_BLOB blob;
+			blob = data_blob_string_const(value);
+			if (blob.length != 36) {
+				return NT_STATUS_INVALID_PARAMETER_MIX;
+			}
+
+			status = GUID_from_data_blob(&blob, &uuid);
+			if (!NT_STATUS_IS_OK(status)) {
+				return status;
 			}
 		}
+
+		return dcerpc_binding_set_object(b, uuid);
 	}
 
-	if (b->options[0]) {
-		/* Endpoint is first option */
-		b->endpoint = b->options[0];
-		if (strlen(b->endpoint) == 0) b->endpoint = NULL;
+	ret = strcmp(name, "assoc_group_id");
+	if (ret == 0) {
+		uint32_t assoc_group_id = 0;
 
-		for (i=0;b->options[i];i++) {
+		if (value != NULL) {
+			char c;
+
+			ret = sscanf(value, "0x%08x%c", &assoc_group_id, &c);
+			if (ret != 1) {
+				return NT_STATUS_INVALID_PARAMETER_MIX;
+			}
+		}
+
+		return dcerpc_binding_set_assoc_group_id(b, assoc_group_id);
+	}
+
+	for (i=0; i < ARRAY_SIZE(specials); i++) {
+		ret = strcmp(specials[i].name, name);
+		if (ret != 0) {
+			continue;
+		}
+
+		tmp = discard_const_p(char, *specials[i].ptr);
+
+		if (value == NULL) {
+			talloc_free(tmp);
+			*specials[i].ptr = NULL;
+			return NT_STATUS_OK;
+		}
+
+		if (value[0] == '\0') {
+			return NT_STATUS_INVALID_PARAMETER_MIX;
+		}
+
+		*specials[i].ptr = talloc_strdup(b, value);
+		if (*specials[i].ptr == NULL) {
+			*specials[i].ptr = tmp;
+			return NT_STATUS_NO_MEMORY;
+		}
+		talloc_free(tmp);
+
+		return NT_STATUS_OK;
+	}
+
+	no = ncacn_option_by_name(name);
+	if (no != NULL) {
+		if (value == NULL) {
+			b->flags &= ~no->flag;
+			return NT_STATUS_OK;
+		}
+
+		ret = strcasecmp(no->name, value);
+		if (ret != 0) {
+			return NT_STATUS_INVALID_PARAMETER_MIX;
+		}
+
+		b->flags |= no->flag;
+		return NT_STATUS_OK;
+	}
+
+	for (i=0; b->options && b->options[i]; i++) {
+		const char *o = b->options[i];
+
+		ret = strncmp(name, o, name_len);
+		if (ret != 0) {
+			continue;
+		}
+
+		if (o[name_len] != '=') {
+			continue;
+		}
+
+		opt = o;
+		break;
+	}
+
+	if (opt == NULL) {
+		const char **n;
+
+		if (value == NULL) {
+			return NT_STATUS_OK;
+		}
+
+		n = talloc_realloc(b, b->options, const char *, i + 2);
+		if (n == NULL) {
+			return NT_STATUS_NO_MEMORY;
+		}
+		n[i] = NULL;
+		n[i + 1] = NULL;
+		b->options = n;
+	}
+
+	tmp = discard_const_p(char, opt);
+
+	if (value == NULL) {
+		for (;b->options[i];i++) {
 			b->options[i] = b->options[i+1];
 		}
+		talloc_free(tmp);
+		return NT_STATUS_OK;
 	}
 
-	if (b->options[0] == NULL)
-		b->options = NULL;
+	b->options[i] = talloc_asprintf(b->options, "%s=%s",
+					name, value);
+	if (b->options[i] == NULL) {
+		b->options[i] = tmp;
+		return NT_STATUS_NO_MEMORY;
+	}
 
-	*b_out = b;
+	return NT_STATUS_OK;
+}
+
+_PUBLIC_ uint32_t dcerpc_binding_get_flags(const struct dcerpc_binding *b)
+{
+	return b->flags;
+}
+
+_PUBLIC_ NTSTATUS dcerpc_binding_set_flags(struct dcerpc_binding *b,
+					   uint32_t additional,
+					   uint32_t clear)
+{
+	/*
+	 * TODO: in future we may want to reject invalid combinations
+	 */
+	b->flags &= ~clear;
+	b->flags |= additional;
+
 	return NT_STATUS_OK;
 }
 
@@ -475,7 +1052,7 @@ static bool dcerpc_floor_pack_rhs_if_version_data(
 	return true;
 }
 
-const char *dcerpc_floor_get_rhs_data(TALLOC_CTX *mem_ctx, struct epm_floor *epm_floor)
+char *dcerpc_floor_get_rhs_data(TALLOC_CTX *mem_ctx, struct epm_floor *epm_floor)
 {
 	switch (epm_floor->lhs.protocol) {
 	case EPM_PROTOCOL_TCP:
@@ -542,6 +1119,10 @@ static NTSTATUS dcerpc_floor_set_rhs_data(TALLOC_CTX *mem_ctx,
 					  struct epm_floor *epm_floor,  
 					  const char *data)
 {
+	if (data == NULL) {
+		data = "";
+	}
+
 	switch (epm_floor->lhs.protocol) {
 	case EPM_PROTOCOL_TCP:
 		epm_floor->rhs.tcp.port = atoi(data);
@@ -556,6 +1137,9 @@ static NTSTATUS dcerpc_floor_set_rhs_data(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_OK;
 
 	case EPM_PROTOCOL_IP:
+		if (!is_ipaddress_v4(data)) {
+			data = "0.0.0.0";
+		}
 		epm_floor->rhs.ip.ipaddr = talloc_strdup(mem_ctx, data);
 		NT_STATUS_HAVE_NO_MEMORY(epm_floor->rhs.ip.ipaddr);
 		return NT_STATUS_OK;
@@ -669,12 +1253,33 @@ _PUBLIC_ const char *derpc_transport_string_by_transport(enum dcerpc_transport_t
 	return NULL;
 }
 
+_PUBLIC_ enum dcerpc_transport_t dcerpc_transport_by_name(const char *name)
+{
+	size_t i;
+
+	if (name == NULL) {
+		return NCA_UNKNOWN;
+	}
+
+	for (i=0; i<ARRAY_SIZE(transports);i++) {
+		if (strcasecmp(name, transports[i].name) == 0) {
+			return transports[i].transport;
+		}
+	}
+
+	return NCA_UNKNOWN;
+}
+
 _PUBLIC_ NTSTATUS dcerpc_binding_from_tower(TALLOC_CTX *mem_ctx,
 					    struct epm_tower *tower,
 					    struct dcerpc_binding **b_out)
 {
 	NTSTATUS status;
-	struct dcerpc_binding *binding;
+	struct dcerpc_binding *b;
+	enum dcerpc_transport_t transport;
+	struct ndr_syntax_id abstract_syntax;
+	char *endpoint = NULL;
+	char *host = NULL;
 
 	/*
 	 * A tower needs to have at least 4 floors to carry useful
@@ -685,48 +1290,80 @@ _PUBLIC_ NTSTATUS dcerpc_binding_from_tower(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 
-	binding = talloc_zero(mem_ctx, struct dcerpc_binding);
-	NT_STATUS_HAVE_NO_MEMORY(binding);
+	status = dcerpc_parse_binding(mem_ctx, "", &b);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
 
-	ZERO_STRUCT(binding->object);
-	binding->options = NULL;
-	binding->host = NULL;
-	binding->target_hostname = NULL;
-	binding->flags = 0;
-	binding->assoc_group_id = 0;
-
-	binding->transport = dcerpc_transport_by_tower(tower);
-
-	if (binding->transport == (unsigned int)-1) {
+	transport = dcerpc_transport_by_tower(tower);
+	if (transport == NCA_UNKNOWN) {
+		talloc_free(b);
 		return NT_STATUS_NOT_SUPPORTED;
 	}
 
-	/* Set object uuid */
-	status = dcerpc_floor_get_lhs_data(&tower->floors[0], &binding->object);
-
+	status = dcerpc_binding_set_transport(b, transport);
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(1, ("Error pulling object uuid and version: %s", nt_errstr(status)));
+		talloc_free(b);
+		return status;
+	}
+
+	/* Set abstract syntax */
+	status = dcerpc_floor_get_lhs_data(&tower->floors[0], &abstract_syntax);
+	if (!NT_STATUS_IS_OK(status)) {
+		talloc_free(b);
+		return status;
+	}
+
+	status = dcerpc_binding_set_abstract_syntax(b, &abstract_syntax);
+	if (!NT_STATUS_IS_OK(status)) {
+		talloc_free(b);
 		return status;
 	}
 
 	/* Ignore floor 1, it contains the NDR version info */
 
-	binding->options = NULL;
-
 	/* Set endpoint */
+	errno = 0;
 	if (tower->num_floors >= 4) {
-		binding->endpoint = dcerpc_floor_get_rhs_data(binding, &tower->floors[3]);
-	} else {
-		binding->endpoint = NULL;
+		endpoint = dcerpc_floor_get_rhs_data(b, &tower->floors[3]);
 	}
+	if (errno != 0) {
+		int saved_errno = errno;
+		talloc_free(b);
+		return map_nt_error_from_unix_common(saved_errno);
+	}
+
+	status = dcerpc_binding_set_string_option(b, "endpoint", endpoint);
+	if (!NT_STATUS_IS_OK(status)) {
+		talloc_free(b);
+		return status;
+	}
+	TALLOC_FREE(endpoint);
 
 	/* Set network address */
+	errno = 0;
 	if (tower->num_floors >= 5) {
-		binding->host = dcerpc_floor_get_rhs_data(binding, &tower->floors[4]);
-		NT_STATUS_HAVE_NO_MEMORY(binding->host);
-		binding->target_hostname = binding->host;
+		host = dcerpc_floor_get_rhs_data(b, &tower->floors[4]);
 	}
-	*b_out = binding;
+	if (errno != 0) {
+		int saved_errno = errno;
+		talloc_free(b);
+		return map_nt_error_from_unix_common(saved_errno);
+	}
+
+	status = dcerpc_binding_set_string_option(b, "host", host);
+	if (!NT_STATUS_IS_OK(status)) {
+		talloc_free(b);
+		return status;
+	}
+	status = dcerpc_binding_set_string_option(b, "target_hostname", host);
+	if (!NT_STATUS_IS_OK(status)) {
+		talloc_free(b);
+		return status;
+	}
+	TALLOC_FREE(host);
+
+	*b_out = b;
 	return NT_STATUS_OK;
 }
 
@@ -746,6 +1383,13 @@ _PUBLIC_ struct dcerpc_binding *dcerpc_binding_dup(TALLOC_CTX *mem_ctx,
 	n->flags = b->flags;
 	n->assoc_group_id = b->assoc_group_id;
 
+	if (b->object_string != NULL) {
+		n->object_string = talloc_strdup(n, b->object_string);
+		if (n->object_string == NULL) {
+			talloc_free(n);
+			return NULL;
+		}
+	}
 	if (b->host != NULL) {
 		n->host = talloc_strdup(n, b->host);
 		if (n->host == NULL) {
@@ -765,14 +1409,6 @@ _PUBLIC_ struct dcerpc_binding *dcerpc_binding_dup(TALLOC_CTX *mem_ctx,
 	if (b->target_principal != NULL) {
 		n->target_principal = talloc_strdup(n, b->target_principal);
 		if (n->target_principal == NULL) {
-			talloc_free(n);
-			return NULL;
-		}
-	}
-
-	if (b->localaddress != NULL) {
-		n->localaddress = talloc_strdup(n, b->localaddress);
-		if (n->localaddress == NULL) {
 			talloc_free(n);
 			return NULL;
 		}
@@ -816,6 +1452,7 @@ _PUBLIC_ NTSTATUS dcerpc_binding_build_tower(TALLOC_CTX *mem_ctx,
 {
 	const enum epm_protocol *protseq = NULL;
 	int num_protocols = -1, i;
+	struct ndr_syntax_id abstract_syntax;
 	NTSTATUS status;
 
 	/* Find transport */
@@ -838,10 +1475,12 @@ _PUBLIC_ NTSTATUS dcerpc_binding_build_tower(TALLOC_CTX *mem_ctx,
 	/* Floor 0 */
 	tower->floors[0].lhs.protocol = EPM_PROTOCOL_UUID;
 
-	tower->floors[0].lhs.lhs_data = dcerpc_floor_pack_lhs_data(tower->floors, &binding->object);
+	abstract_syntax = dcerpc_binding_get_abstract_syntax(binding);
+	tower->floors[0].lhs.lhs_data = dcerpc_floor_pack_lhs_data(tower->floors,
+								   &abstract_syntax);
 
 	if (!dcerpc_floor_pack_rhs_if_version_data(
-		    tower->floors, &binding->object,
+		    tower->floors, &abstract_syntax,
 		    &tower->floors[0].rhs.uuid.unknown)) {
 		return NT_STATUS_NO_MEMORY;
 	}
@@ -857,35 +1496,32 @@ _PUBLIC_ NTSTATUS dcerpc_binding_build_tower(TALLOC_CTX *mem_ctx,
 	/* Floor 2 to num_protocols */
 	for (i = 0; i < num_protocols; i++) {
 		tower->floors[2 + i].lhs.protocol = protseq[i];
-		tower->floors[2 + i].lhs.lhs_data = data_blob_talloc(tower->floors, NULL, 0);
+		tower->floors[2 + i].lhs.lhs_data = data_blob_null;
 		ZERO_STRUCT(tower->floors[2 + i].rhs);
-		dcerpc_floor_set_rhs_data(tower->floors, &tower->floors[2 + i], "");
+		status = dcerpc_floor_set_rhs_data(tower->floors,
+						   &tower->floors[2 + i],
+						   NULL);
+		if (!NT_STATUS_IS_OK(status)) {
+			return status;
+		}
 	}
 
 	/* The 4th floor contains the endpoint */
 	if (num_protocols >= 2 && binding->endpoint) {
-		status = dcerpc_floor_set_rhs_data(tower->floors, &tower->floors[3], binding->endpoint);
-		if (NT_STATUS_IS_ERR(status)) {
+		status = dcerpc_floor_set_rhs_data(tower->floors,
+						   &tower->floors[3],
+						   binding->endpoint);
+		if (!NT_STATUS_IS_OK(status)) {
 			return status;
 		}
 	}
 
 	/* The 5th contains the network address */
 	if (num_protocols >= 3 && binding->host) {
-		if (is_ipaddress(binding->host) ||
-		    (binding->host[0] == '\\' && binding->host[1] == '\\')) {
-			status = dcerpc_floor_set_rhs_data(tower->floors, &tower->floors[4], 
-							   binding->host);
-		} else {
-			/* note that we don't attempt to resolve the
-			   name here - when we get a hostname here we
-			   are in the client code, and want to put in
-			   a wildcard all-zeros IP for the server to
-			   fill in */
-			status = dcerpc_floor_set_rhs_data(tower->floors, &tower->floors[4], 
-							   "0.0.0.0");
-		}
-		if (NT_STATUS_IS_ERR(status)) {
+		status = dcerpc_floor_set_rhs_data(tower->floors,
+						   &tower->floors[4],
+						   binding->host);
+		if (!NT_STATUS_IS_OK(status)) {
 			return status;
 		}
 	}

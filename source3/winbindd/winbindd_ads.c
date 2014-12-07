@@ -73,12 +73,25 @@ static void ads_cached_connection_reuse(ADS_STRUCT **adsp)
 	}
 }
 
+/**
+ * @brief Establish a connection to a DC
+ *
+ * @param[out]   adsp             ADS_STRUCT that will be created
+ * @param[in]    target_realm     Realm of domain to connect to
+ * @param[in]    target_dom_name  'workgroup' name of domain to connect to
+ * @param[in]    ldap_server      DNS name of server to connect to
+ * @param[in]    password         Our machine acount secret
+ * @param[in]    auth_realm       Realm of local domain for creating krb token
+ * @param[in]    renewable        Renewable ticket time
+ *
+ * @return ADS_STATUS
+ */
 static ADS_STATUS ads_cached_connection_connect(ADS_STRUCT **adsp,
-						const char *dom_name_alt,
-						const char *dom_name,
+						const char *target_realm,
+						const char *target_dom_name,
 						const char *ldap_server,
 						char *password,
-						char *realm,
+						char *auth_realm,
 						time_t renewable)
 {
 	ADS_STRUCT *ads;
@@ -86,16 +99,16 @@ static ADS_STATUS ads_cached_connection_connect(ADS_STRUCT **adsp,
 	struct sockaddr_storage dc_ss;
 	fstring dc_name;
 
-	if (realm == NULL) {
+	if (auth_realm == NULL) {
 		return ADS_ERROR_NT(NT_STATUS_UNSUCCESSFUL);
 	}
 
 	/* we don't want this to affect the users ccache */
 	setenv("KRB5CCNAME", WINBIND_CCACHE_NAME, 1);
 
-	ads = ads_init(dom_name_alt, dom_name, ldap_server);
+	ads = ads_init(target_realm, target_dom_name, ldap_server);
 	if (!ads) {
-		DEBUG(1,("ads_init for domain %s failed\n", dom_name));
+		DEBUG(1,("ads_init for domain %s failed\n", target_dom_name));
 		return ADS_ERROR(LDAP_NO_MEMORY);
 	}
 
@@ -105,7 +118,7 @@ static ADS_STATUS ads_cached_connection_connect(ADS_STRUCT **adsp,
 	ads->auth.renewable = renewable;
 	ads->auth.password = password;
 
-	ads->auth.realm = SMB_STRDUP(realm);
+	ads->auth.realm = SMB_STRDUP(auth_realm);
 	if (!strupper_m(ads->auth.realm)) {
 		ads_destroy(&ads);
 		return ADS_ERROR_NT(NT_STATUS_INTERNAL_ERROR);
@@ -119,7 +132,7 @@ static ADS_STATUS ads_cached_connection_connect(ADS_STRUCT **adsp,
 	status = ads_connect(ads);
 	if (!ADS_ERR_OK(status)) {
 		DEBUG(1,("ads_connect for domain %s failed: %s\n",
-			 dom_name, ads_errstr(status)));
+			 target_dom_name, ads_errstr(status)));
 		ads_destroy(&ads);
 		return status;
 	}
@@ -151,7 +164,7 @@ ADS_STATUS ads_idmap_cached_connection(ADS_STRUCT **adsp, const char *dom_name)
 	 * Check if we can get server nam and realm from SAF cache
 	 * and the domain list.
 	 */
-	ldap_server = saf_fetch(dom_name);
+	ldap_server = saf_fetch(talloc_tos(), dom_name);
 	DEBUG(10, ("ldap_server from saf cache: '%s'\n",
 		   ldap_server ? ldap_server : ""));
 
@@ -165,6 +178,7 @@ ADS_STATUS ads_idmap_cached_connection(ADS_STRUCT **adsp, const char *dom_name)
 			  " domain '%s'\n", wb_dom->alt_name, dom_name));
 
 	if (!get_trust_pw_clear(dom_name, &password, NULL, NULL)) {
+		TALLOC_FREE(ldap_server);
 		return ADS_ERROR_NT(NT_STATUS_CANT_ACCESS_DOMAIN_INFO);
 	}
 
@@ -198,6 +212,7 @@ ADS_STATUS ads_idmap_cached_connection(ADS_STRUCT **adsp, const char *dom_name)
 		0);			/* renewable ticket time. */
 
 	SAFE_FREE(realm);
+	TALLOC_FREE(ldap_server);
 
 	return status;
 }
@@ -303,9 +318,9 @@ static NTSTATUS query_user_list(struct winbindd_domain *domain,
 	if (!ADS_ERR_OK(rc)) {
 		DEBUG(1,("query_user_list ads_search: %s\n", ads_errstr(rc)));
 		status = ads_ntstatus(rc);
+		goto done;
 	} else if (!res) {
 		DEBUG(1,("query_user_list ads_search returned NULL res\n"));
-
 		goto done;
 	}
 
@@ -335,7 +350,10 @@ static NTSTATUS query_user_list(struct winbindd_domain *domain,
 		}
 
 		info->acct_name = ads_pull_username(ads, mem_ctx, msg);
-		info->full_name = ads_pull_string(ads, mem_ctx, msg, "name");
+		info->full_name = ads_pull_string(ads, mem_ctx, msg, "displayName");
+		if (info->full_name == NULL) {
+			info->full_name = ads_pull_string(ads, mem_ctx, msg, "name");
+		}
 		info->homedir = NULL;
 		info->shell = NULL;
 		info->primary_gid = (gid_t)-1;
@@ -600,7 +618,7 @@ static NTSTATUS query_user(struct winbindd_domain *domain,
 	struct netr_SamInfo3 *user = NULL;
 	gid_t gid = -1;
 	int ret;
-	char *ads_name;
+	char *full_name;
 
 	DEBUG(3,("ads: query_user\n"));
 
@@ -626,6 +644,14 @@ static NTSTATUS query_user(struct winbindd_domain *domain,
 		info->primary_gid = gid;
 
 		TALLOC_FREE(user);
+
+		if (info->full_name == NULL) {
+			/* this might fail so we dont check the return code */
+			wcache_query_user_fullname(domain,
+						   mem_ctx,
+						   sid,
+						   &info->full_name);
+		}
 
 		return NT_STATUS_OK;
 	}
@@ -704,7 +730,10 @@ static NTSTATUS query_user(struct winbindd_domain *domain,
 	 * nss_get_info_cached call. nss_get_info_cached might destroy
 	 * the ads struct, potentially invalidating the ldap message.
 	 */
-	ads_name = ads_pull_string(ads, mem_ctx, msg, "name");
+	full_name = ads_pull_string(ads, mem_ctx, msg, "displayName");
+	if (full_name == NULL) {
+		full_name = ads_pull_string(ads, mem_ctx, msg, "name");
+	}
 
 	ads_msgfree(ads, msg);
 	msg = NULL;
@@ -720,9 +749,9 @@ static NTSTATUS query_user(struct winbindd_domain *domain,
 	}
 
 	if (info->full_name == NULL) {
-		info->full_name = ads_name;
+		info->full_name = full_name;
 	} else {
-		TALLOC_FREE(ads_name);
+		TALLOC_FREE(full_name);
 	}
 
 	status = NT_STATUS_OK;
@@ -1484,7 +1513,7 @@ static NTSTATUS trusted_domains(struct winbindd_domain *domain,
 		 */
 
 		if ((trust->trust_attributes
-		     == NETR_TRUST_ATTRIBUTE_QUARANTINED_DOMAIN) &&
+		     == LSA_TRUST_ATTRIBUTE_QUARANTINED_DOMAIN) &&
 		    !domain->primary )
 		{
 			DEBUG(10,("trusted_domains: Skipping external trusted "

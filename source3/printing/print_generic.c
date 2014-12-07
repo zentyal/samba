@@ -118,7 +118,7 @@ static int generic_job_pause(int snum, struct printjob *pjob)
 	/* need to pause the spooled entry */
 	slprintf(jobstr, sizeof(jobstr)-1, "%d", pjob->sysjob);
 	return print_run_command(snum, lp_printername(talloc_tos(), snum), True,
-				 lp_lppausecommand(talloc_tos(), snum), NULL,
+				 lp_lppause_command(talloc_tos(), snum), NULL,
 				 "%j", jobstr,
 				 NULL);
 }
@@ -133,7 +133,7 @@ static int generic_job_resume(int snum, struct printjob *pjob)
 	/* need to pause the spooled entry */
 	slprintf(jobstr, sizeof(jobstr)-1, "%d", pjob->sysjob);
 	return print_run_command(snum, lp_printername(talloc_tos(), snum), True,
-				 lp_lpresumecommand(talloc_tos(), snum), NULL,
+				 lp_lpresume_command(talloc_tos(), snum), NULL,
 				 "%j", jobstr,
 				 NULL);
 }
@@ -255,7 +255,7 @@ static int generic_job_submit(int snum, struct printjob *pjob,
 
 	/* send it to the system spooler */
 	ret = print_run_command(snum, lp_printername(talloc_tos(), snum), True,
-			lp_printcommand(talloc_tos(), snum), NULL,
+			lp_print_command(talloc_tos(), snum), NULL,
 			"%s", p,
 			"%J", jobname,
 			"%f", p,
@@ -308,7 +308,7 @@ static int generic_job_submit(int snum, struct printjob *pjob,
 static int generic_queue_pause(int snum)
 {
 	return print_run_command(snum, lp_printername(talloc_tos(), snum), True,
-				 lp_queuepausecommand(talloc_tos(), snum), NULL, NULL);
+				 lp_queuepause_command(talloc_tos(), snum), NULL, NULL);
 }
 
 /****************************************************************************
@@ -317,7 +317,7 @@ static int generic_queue_pause(int snum)
 static int generic_queue_resume(int snum)
 {
 	return print_run_command(snum, lp_printername(talloc_tos(), snum), True,
-				 lp_queueresumecommand(talloc_tos(), snum), NULL, NULL);
+				 lp_queueresume_command(talloc_tos(), snum), NULL, NULL);
 }
 
 /****************************************************************************

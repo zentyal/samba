@@ -53,10 +53,11 @@ static NTSTATUS libnet_JoinADSDomain(struct libnet_context *ctx, struct libnet_J
 
 	const char *realm = r->out.realm;
 
-	struct dcerpc_binding *samr_binding = r->out.samr_binding;
+	const struct dcerpc_binding *samr_binding = r->out.samr_binding;
 
 	struct dcerpc_pipe *drsuapi_pipe;
 	struct dcerpc_binding *drsuapi_binding;
+	enum dcerpc_transport_t transport;
 	struct drsuapi_DsBind r_drsuapi_bind;
 	struct drsuapi_DsCrackNames r_crack_names;
 	struct drsuapi_DsNameString names[1];
@@ -93,22 +94,45 @@ static NTSTATUS libnet_JoinADSDomain(struct libnet_context *ctx, struct libnet_J
 		r->out.error_string = NULL;
 		return NT_STATUS_NO_MEMORY;
 	}
-	                                           
-	drsuapi_binding = talloc_zero(tmp_ctx, struct dcerpc_binding);
+
+	drsuapi_binding = dcerpc_binding_dup(tmp_ctx, samr_binding);
 	if (!drsuapi_binding) {
 		r->out.error_string = NULL;
 		talloc_free(tmp_ctx);
 		return NT_STATUS_NO_MEMORY;
 	}
-	
-	*drsuapi_binding = *samr_binding;
+
+	transport = dcerpc_binding_get_transport(drsuapi_binding);
 
 	/* DRSUAPI is only available on IP_TCP, and locally on NCALRPC */
-	if (drsuapi_binding->transport != NCALRPC) {
-		drsuapi_binding->transport = NCACN_IP_TCP;
+	if (transport != NCALRPC) {
+		status = dcerpc_binding_set_transport(drsuapi_binding, NCACN_IP_TCP);
+		if (!NT_STATUS_IS_OK(status)) {
+			r->out.error_string = talloc_asprintf(r,
+						"dcerpc_binding_set_transport failed: %s",
+						nt_errstr(status));
+			talloc_free(tmp_ctx);
+			return status;
+		}
 	}
-	drsuapi_binding->endpoint = NULL;
-	drsuapi_binding->flags |= DCERPC_SEAL;
+
+	status = dcerpc_binding_set_string_option(drsuapi_binding, "endpoint", NULL);
+	if (!NT_STATUS_IS_OK(status)) {
+		r->out.error_string = talloc_asprintf(r,
+					"dcerpc_binding_set_string_option failed: %s",
+					nt_errstr(status));
+		talloc_free(tmp_ctx);
+		return status;
+	}
+
+	status = dcerpc_binding_set_flags(drsuapi_binding, DCERPC_SEAL, 0);
+	if (!NT_STATUS_IS_OK(status)) {
+		r->out.error_string = talloc_asprintf(r,
+					"dcerpc_binding_set_flags failed: %s",
+					nt_errstr(status));
+		talloc_free(tmp_ctx);
+		return status;
+	}
 
 	status = dcerpc_pipe_connect_b(tmp_ctx, 
 				       &drsuapi_pipe,
@@ -219,7 +243,7 @@ static NTSTATUS libnet_JoinADSDomain(struct libnet_context *ctx, struct libnet_J
 	/* Now we know the user's DN, open with LDAP, read and modify a few things */
 
 	remote_ldb_url = talloc_asprintf(tmp_ctx, "ldap://%s", 
-					 drsuapi_binding->target_hostname);
+		dcerpc_binding_get_string_option(drsuapi_binding, "target_hostname"));
 	if (!remote_ldb_url) {
 		r->out.error_string = NULL;
 		talloc_free(tmp_ctx);
@@ -887,7 +911,6 @@ NTSTATUS libnet_JoinDomain(struct libnet_context *ctx, TALLOC_CTX *mem_ctx, stru
 	r->out.samr_pipe = samr_pipe;
 	talloc_reparent(tmp_ctx, mem_ctx, samr_pipe);
 	r->out.samr_binding = samr_pipe->binding;
-	talloc_steal(mem_ctx, r->out.samr_binding);
 	r->out.user_handle = u_handle;
 	talloc_steal(mem_ctx, u_handle);
 	r->out.error_string = r2.samr_handle.out.error_string;

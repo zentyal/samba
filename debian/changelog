@@ -1,3 +1,10 @@
+samba (2:4.1.13+dfsg-4) UNRELEASED; urgency=medium
+
+  * Revert previous patch, since ldb has an active module version check.
+    Instead, just depend on ldb 1.1.18. Closes: #771991
+
+ -- Jelmer Vernooij <jelmer@debian.org>  Wed, 10 Dec 2014 18:13:42 +0000
+
 samba (2:4.1.13+dfsg-3) unstable; urgency=medium
 
   * Update debian/rules to allow support for multiple upstream ldb

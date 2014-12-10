@@ -1,4 +1,4 @@
-samba (2:4.1.13+dfsg-4) UNRELEASED; urgency=medium
+samba (2:4.1.13+dfsg-4) unstable; urgency=medium
 
   * Revert previous patch, since ldb has an active module version check.
     Instead, just depend on ldb 1.1.18. Closes: #771991

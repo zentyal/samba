@@ -1,0 +1,20 @@
+--- a/source4/dsdb/repl/drepl_out_helpers.c
++++ b/source4/dsdb/repl/drepl_out_helpers.c
+@@ -473,7 +473,7 @@
+ 		r->in.req->req8.highwatermark		= highwatermark;
+ 		r->in.req->req8.uptodateness_vector	= uptodateness_vector;
+ 		r->in.req->req8.replica_flags		= replica_flags;
+-		r->in.req->req8.max_object_count	= 133;
++		r->in.req->req8.max_object_count	= 1150;
+ 		r->in.req->req8.max_ndr_size		= 1336811;
+ 		r->in.req->req8.extended_op		= state->op->extended_op;
+ 		r->in.req->req8.fsmo_info		= state->op->fsmo_info;
+@@ -489,7 +489,7 @@
+ 		r->in.req->req5.highwatermark		= highwatermark;
+ 		r->in.req->req5.uptodateness_vector	= uptodateness_vector;
+ 		r->in.req->req5.replica_flags		= replica_flags;
+-		r->in.req->req5.max_object_count	= 133;
++		r->in.req->req5.max_object_count	= 1150;
+ 		r->in.req->req5.max_ndr_size		= 1336770;
+ 		r->in.req->req5.extended_op		= state->op->extended_op;
+ 		r->in.req->req5.fsmo_info		= state->op->fsmo_info;

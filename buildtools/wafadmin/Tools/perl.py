@@ -98,53 +98,12 @@ def check_perl_ext_devel(conf):
 	conf.env.EXTUTILS_TYPEMAP  = read_out('print "$Config{privlib}/ExtUtils/typemap"')
 	conf.env.perlext_PATTERN   = '%s.' + read_out('print $Config{dlext}')[0]
 
-	def try_any(keys):
-		for k in keys:
-			conf.start_msg("Checking for perl $Config{%s}:" % k)
-			try:
-				v = read_out('print $Config{%s}' % k)[0]
-				conf.end_msg("'%s'" % (v), 'GREEN')
-				return v
-			except IndexError:
-				conf.end_msg(False, 'YELLOW')
-				pass
-		return None
-
-	perl_arch_install_dir = None
-	if getattr(Options.options, 'perl_arch_install_dir', None):
-		perl_arch_install_dir = Options.options.perl_arch_install_dir
-	if perl_arch_install_dir is None:
-		perl_arch_install_dir = try_any(['vendorarch', 'sitearch', 'archlib'])
-	if perl_arch_install_dir is None:
-		conf.fatal('No perl arch install directory autodetected.' +
-			   'Please define it with --with-perl-arch-install-dir.')
-	conf.start_msg("PERL_ARCH_INSTALL_DIR: ")
-	conf.end_msg("'%s'" % (perl_arch_install_dir), 'GREEN')
-	conf.env.PERL_ARCH_INSTALL_DIR = perl_arch_install_dir
-
-	perl_lib_install_dir = None
-	if getattr(Options.options, 'perl_lib_install_dir', None):
-		perl_lib_install_dir = Options.options.perl_lib_install_dir
-	if perl_lib_install_dir is None:
-		perl_lib_install_dir = try_any(['vendorlib', 'sitelib', 'privlib'])
-	if perl_lib_install_dir is None:
-		conf.fatal('No perl lib install directory autodetected. ' +
-			   'Please define it with --with-perl-lib-install-dir.')
-	conf.start_msg("PERL_LIB_INSTALL_DIR: ")
-	conf.end_msg("'%s'" % (perl_lib_install_dir), 'GREEN')
-	conf.env.PERL_LIB_INSTALL_DIR = perl_lib_install_dir
+	if getattr(Options.options, 'perlarchdir', None):
+		conf.env.ARCHDIR_PERL = Options.options.perlarchdir
+	else:
+		conf.env.ARCHDIR_PERL = read_out('print $Config{sitearch}')[0]
 
 def set_options(opt):
 	opt.add_option("--with-perl-binary", type="string", dest="perlbinary", help = 'Specify alternate perl binary', default=None)
+	opt.add_option("--with-perl-archdir", type="string", dest="perlarchdir", help = 'Specify directory where to install arch specific files', default=None)
 
-	opt.add_option("--with-perl-arch-install-dir",
-		       type="string",
-		       dest="perl_arch_install_dir",
-		       help = ('Specify directory where to install arch specific files'),
-		       default=None)
-
-	opt.add_option("--with-perl-lib-install-dir",
-		       type="string",
-		       dest="perl_lib_install_dir",
-		       help = ('Specify directory where to install vendor specific files'),
-		       default=None)

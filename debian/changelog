@@ -3,6 +3,7 @@ samba (2:4.1.16+dfsg-1) UNRELEASED; urgency=medium
   * New upstream release. Fixes:
   - CVE-2014-8143: Elevation of privilege to Active Directory Domain
                    Controller
+  * Refresh patch add-so-version-to-private-libraries.
 
  -- Ivo De Decker <ivodd@debian.org>  Sun, 22 Feb 2015 19:53:54 +0100
 

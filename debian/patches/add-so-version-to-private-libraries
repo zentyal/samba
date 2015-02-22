@@ -7,9 +7,11 @@ We also want dpkg-shlibdeps to generate correct dependency information
 for the private libraries in our binary packages, but dpkg-shlibdeps
 only works when the library has a version number.
 
---- a/buildtools/wafsamba/wafsamba.py
-+++ b/buildtools/wafsamba/wafsamba.py
-@@ -207,6 +207,9 @@
+Index: samba/buildtools/wafsamba/wafsamba.py
+===================================================================
+--- samba.orig/buildtools/wafsamba/wafsamba.py
++++ samba/buildtools/wafsamba/wafsamba.py
+@@ -209,6 +209,9 @@ def SAMBA_LIBRARY(bld, libname, source,
              raise Utils.WafError("public library '%s' must have header files" %
                         libname)
  
@@ -17,5 +19,5 @@ only works when the library has a version number.
 +        vnum = '0'
 +
      if target_type == 'PYTHON' or realname or not private_library:
-         bundled_name = libname.replace('_', '-')
-     else:
+         if keep_underscore:
+             bundled_name = libname

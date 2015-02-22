@@ -26,12 +26,9 @@ def check_system_perl_module(conf, module, version=None):
     return True
 
 def set_options(opt):
-    opt.tool_options('perl')
+    return
 
 def configure(conf):
-    conf.check_tool('perl')
-    conf.check_perl_ext_devel()
-
     # Check if perl(Parse::Yapp::Driver) is available.
     check_system_perl_module(conf, "Parse::Yapp::Driver", 1.05)
 
@@ -46,7 +43,7 @@ def configure(conf):
     conf.find_program('pod2man', var='POD2MAN')
 
 def build(bld):
-    bld.INSTALL_FILES('${BINDIR}', 'pidl', chmod=MODE_755)
+    bld.INSTALL_FILES('${BINDIR}', 'pidl', chmod=MODE_755, perl_fixup=True)
 
     bld.RECURSE('lib')
 

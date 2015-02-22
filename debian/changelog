@@ -1,3 +1,11 @@
+samba (2:4.1.16+dfsg-1) UNRELEASED; urgency=medium
+
+  * New upstream release. Fixes:
+  - CVE-2014-8143: Elevation of privilege to Active Directory Domain
+                   Controller
+
+ -- Ivo De Decker <ivodd@debian.org>  Sun, 22 Feb 2015 19:53:54 +0100
+
 samba (2:4.1.13+dfsg-4) unstable; urgency=medium
 
   * Revert previous patch, since ldb has an active module version check.

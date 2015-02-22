@@ -1,3 +1,9 @@
+samba (2:3.6.6-6+deb7u5~bpo60+1) UNRELEASED; urgency=medium
+
+  * Rebuild for squeeze-backports.
+
+ -- Ivo De Decker <ivodd@debian.org>  Sun, 22 Feb 2015 21:46:42 +0100
+
 samba (2:3.6.6-6+deb7u5) wheezy-security; urgency=high
 
   * Security update

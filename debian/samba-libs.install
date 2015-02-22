@@ -22,7 +22,7 @@ usr/lib/*/libsmbldap.so.0
 usr/lib/*/libtevent-util.so.*
 usr/lib/*/samba/auth/
 usr/lib/*/samba/bind9/dlz_bind9.so
-usr/lib/*/samba/bind9/dlz_bind9_9.so
+usr/lib/*/samba/bind9/dlz_bind9_*.so
 usr/lib/*/samba/gensec/*.so
 usr/lib/*/samba/libCHARSET3.so.*
 usr/lib/*/samba/libLIBWBCLIENT_OLD.so.*

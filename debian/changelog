@@ -1,3 +1,9 @@
+samba (2:4.1.17+dfsg-1~bpo70+1) UNRELEASED; urgency=medium
+
+  * Rebuild for wheezy-backports.
+
+ -- Ivo De Decker <ivodd@debian.org>  Mon, 23 Feb 2015 21:03:09 +0100
+
 samba (2:4.1.17+dfsg-1) unstable; urgency=high
 
   * New upstream release. Fixes:

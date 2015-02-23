@@ -91,6 +91,62 @@ struct DNS_ADDR_ARRAY *ip4_array_to_dns_addr_array(TALLOC_CTX *mem_ctx,
 	return ret;
 }
 
+struct IP4_ARRAY *dns_addr_array_to_ip4_array(TALLOC_CTX *mem_ctx,
+					      struct DNS_ADDR_ARRAY *ip)
+{
+	struct IP4_ARRAY *ret;
+	int i, count, curr;
+
+	if (ip == NULL) {
+		return NULL;
+	}
+	/* We must only return IPv4 addresses.
+	   The passed DNS_ADDR_ARRAY may contain:
+	   - only ipv4 addresses
+	   - only ipv6 addresses
+	   - a mixture of both
+	   - an empty array
+	*/
+	ret = talloc_zero(mem_ctx, struct IP4_ARRAY);
+	if (!ret) {
+		return ret;
+	}
+	if (ip->AddrCount == 0 || ip->Family == AF_INET6) {
+		ret->AddrCount = 0;
+		return ret;
+	}
+	/* Now only ipv4 addresses or a mixture are left */
+	count = 0;
+	for (i = 0; i < ip->AddrCount; i++) {
+		if (ip->AddrArray[i].MaxSa[0] == 0x02) {
+			/* Is ipv4 */
+			count++;
+		}
+	}
+	if (count == 0) {
+		/* should not happen */
+		ret->AddrCount = 0;
+		return ret;
+	}
+	ret->AddrArray = talloc_zero_array(mem_ctx, uint32_t, count);
+	if (ret->AddrArray) {
+		curr = 0;
+		for (i = 0; i < ip->AddrCount; i++) {
+			if (ip->AddrArray[i].MaxSa[0] == 0x02) {
+				/* Is ipv4 */
+				memcpy(&ret->AddrArray[curr],
+				       &ip->AddrArray[i].MaxSa[4],
+				       sizeof(uint32_t));
+				curr++;
+			}
+		}
+	} else {
+		talloc_free(ret);
+		return NULL;
+	}
+	ret->AddrCount = curr;
+	return ret;
+}
 
 struct DNS_ADDR_ARRAY *dns_addr_array_copy(TALLOC_CTX *mem_ctx,
 						struct DNS_ADDR_ARRAY *addr)
@@ -798,6 +854,15 @@ WERROR dns_fill_records_array(TALLOC_CTX *mem_ctx,
 			if (select_flag & DNS_RPC_VIEW_AUTHORITY_DATA) {
 				if (dnsp_rec.rank == DNS_RANK_ZONE) {
 					found = true;
+				} else if (dnsp_rec.rank == DNS_RANK_NS_GLUE) {
+					/*
+					 * If branch_name is NULL, we're
+					 * explicitly asked to also return
+					 * DNS_RANK_NS_GLUE records
+					 */
+					if (branch_name == NULL) {
+						found = true;
+					}
 				}
 			}
 			if (select_flag & DNS_RPC_VIEW_CACHE_DATA) {
@@ -806,7 +871,7 @@ WERROR dns_fill_records_array(TALLOC_CTX *mem_ctx,
 				}
 			}
 			if (select_flag & DNS_RPC_VIEW_GLUE_DATA) {
-				if (dnsp_rec.rank == DNS_RANK_NS_GLUE) {
+				if (dnsp_rec.rank == DNS_RANK_GLUE) {
 					found = true;
 				}
 			}

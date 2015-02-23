@@ -22,7 +22,7 @@ usr/lib/*/libsmbldap.so.0
 usr/lib/*/libtevent-util.so.*
 usr/lib/*/samba/auth/
 usr/lib/*/samba/bind9/dlz_bind9.so
-usr/lib/*/samba/bind9/dlz_bind9_9.so
+usr/lib/*/samba/bind9/dlz_bind9_*.so
 usr/lib/*/samba/gensec/*.so
 usr/lib/*/samba/libCHARSET3.so.*
 usr/lib/*/samba/libLIBWBCLIENT_OLD.so.*
@@ -48,6 +48,7 @@ usr/lib/*/samba/libdbwrap.so.*
 usr/lib/*/samba/libdcerpc-samba.so.*
 usr/lib/*/samba/libdcerpc-samba4.so.*
 usr/lib/*/samba/libdfs_server_ad.so.*
+usr/lib/*/samba/libdnsserver_common.so.*
 usr/lib/*/samba/libdsdb-module.so.*
 usr/lib/*/samba/liberrors.so.*
 usr/lib/*/samba/libevents.so.*
@@ -66,6 +67,7 @@ usr/lib/*/samba/libndr-samba.so.*
 usr/lib/*/samba/libndr-samba4.so.*
 usr/lib/*/samba/libnet_keytab.so.*
 usr/lib/*/samba/libnetif.so.*
+usr/lib/*/samba/libnon_posix_acls.so.0
 usr/lib/*/samba/libnpa_tstream.so.*
 usr/lib/*/samba/libntvfs.so.*
 usr/lib/*/samba/libpopt_samba3.so.*
@@ -94,10 +96,9 @@ usr/lib/*/samba/libtdb-wrap.so.*
 usr/lib/*/samba/libtdb_compat.so.*
 usr/lib/*/samba/libtrusts_util.so.*
 usr/lib/*/samba/libutil_cmdline.so.*
+usr/lib/*/samba/libutil_ntdb.so.0
 usr/lib/*/samba/libutil_reg.so.*
 usr/lib/*/samba/libutil_setid.so.*
 usr/lib/*/samba/libutil_tdb.so.*
 usr/lib/*/samba/libxattr_tdb.so.*
-usr/lib/*/samba/libnon_posix_acls.so.0
-usr/lib/*/samba/libutil_ntdb.so.0
 usr/share/man/man8/idmap_rfc2307.8

@@ -1530,6 +1530,18 @@ static uint64_t vfswrap_get_alloc_size(vfs_handle_struct *handle,
 #else
 #error SIZEOF_BLKCNT_T_NOT_A_SUPPORTED_VALUE
 #endif
+	if (result == 0) {
+		/*
+		 * Some file systems do not allocate a block for very
+		 * small files. But for non-empty file should report a
+		 * positive size.
+		 */
+
+		uint64_t filesize = get_file_size_stat(sbuf);
+		if (filesize > 0) {
+			result = MIN((uint64_t)STAT_ST_BLOCKSIZE, filesize);
+		}
+	}
 #else
 	result = get_file_size_stat(sbuf);
 #endif
@@ -1807,15 +1819,14 @@ static int strict_allocate_ftruncate(vfs_handle_struct *handle, files_struct *fs
 	   return ENOTSUP or EINVAL in cases like that. */
 	ret = SMB_VFS_FALLOCATE(fsp, VFS_FALLOCATE_EXTEND_SIZE,
 				pst->st_ex_size, space_to_write);
-	if (ret == ENOSPC) {
-		errno = ENOSPC;
+	if (ret == -1 && errno == ENOSPC) {
 		return -1;
 	}
 	if (ret == 0) {
 		return 0;
 	}
 	DEBUG(10,("strict_allocate_ftruncate: SMB_VFS_FALLOCATE failed with "
-		"error %d. Falling back to slow manual allocation\n", ret));
+		"error %d. Falling back to slow manual allocation\n", errno));
 
 	/* available disk space is enough or not? */
 	space_avail = get_dfree_info(fsp->conn,
@@ -1831,8 +1842,7 @@ static int strict_allocate_ftruncate(vfs_handle_struct *handle, files_struct *fs
 	/* Write out the real space on disk. */
 	ret = vfs_slow_fallocate(fsp, pst->st_ex_size, space_to_write);
 	if (ret != 0) {
-		errno = ret;
-		ret = -1;
+		return -1;
 	}
 
 	return 0;
@@ -1917,6 +1927,15 @@ static int vfswrap_fallocate(vfs_handle_struct *handle,
 	START_PROFILE(syscall_fallocate);
 	if (mode == VFS_FALLOCATE_EXTEND_SIZE) {
 		result = sys_posix_fallocate(fsp->fh->fd, offset, len);
+		/*
+		 * posix_fallocate returns 0 on success, errno on error
+		 * and doesn't set errno. Make it behave like fallocate()
+		 * which returns -1, and sets errno on failure.
+		 */
+		if (result != 0) {
+			errno = result;
+			result = -1;
+		}
 	} else if (mode == VFS_FALLOCATE_KEEP_SIZE) {
 		result = sys_fallocate(fsp->fh->fd, mode, offset, len);
 	} else {

@@ -196,8 +196,10 @@ static WERROR dnsserver_query_server(struct dnsserver_state *dsstate,
 			r->ServerInfoW2K->fDsAvailable = serverinfo->fDsAvailable;
 			r->ServerInfoW2K->pszServerName = talloc_strdup(mem_ctx, serverinfo->pszServerName);
 			r->ServerInfoW2K->pszDsContainer = talloc_strdup(mem_ctx, serverinfo->pszDsContainer);
-			r->ServerInfoW2K->aipServerAddrs = ip4_array_copy(mem_ctx, serverinfo->aipServerAddrs);
-			r->ServerInfoW2K->aipListenAddrs = ip4_array_copy(mem_ctx, serverinfo->aipListenAddrs);
+			r->ServerInfoW2K->aipServerAddrs = dns_addr_array_to_ip4_array(mem_ctx,
+										       serverinfo->aipServerAddrs);
+			r->ServerInfoW2K->aipListenAddrs = dns_addr_array_to_ip4_array(mem_ctx,
+										       serverinfo->aipListenAddrs);
 			r->ServerInfoW2K->aipForwarders = ip4_array_copy(mem_ctx, serverinfo->aipForwarders);
 			r->ServerInfoW2K->dwLogLevel = serverinfo->dwLogLevel;
 			r->ServerInfoW2K->dwDebugLevel = serverinfo->dwDebugLevel;
@@ -238,8 +240,10 @@ static WERROR dnsserver_query_server(struct dnsserver_state *dsstate,
 			r->ServerInfoDotNet->fDsAvailable = serverinfo->fDsAvailable;
 			r->ServerInfoDotNet->pszServerName = talloc_strdup(mem_ctx, serverinfo->pszServerName);
 			r->ServerInfoDotNet->pszDsContainer = talloc_strdup(mem_ctx, serverinfo->pszDsContainer);
-			r->ServerInfoDotNet->aipServerAddrs = ip4_array_copy(mem_ctx, serverinfo->aipServerAddrs);
-			r->ServerInfoDotNet->aipListenAddrs = ip4_array_copy(mem_ctx, serverinfo->aipListenAddrs);
+			r->ServerInfoDotNet->aipServerAddrs = dns_addr_array_to_ip4_array(mem_ctx,
+											  serverinfo->aipServerAddrs);
+			r->ServerInfoDotNet->aipListenAddrs = dns_addr_array_to_ip4_array(mem_ctx,
+											  serverinfo->aipListenAddrs);
 			r->ServerInfoDotNet->aipForwarders = ip4_array_copy(mem_ctx, serverinfo->aipForwarders);
 			r->ServerInfoDotNet->aipLogFilter = ip4_array_copy(mem_ctx, serverinfo->aipLogFilter);
 			r->ServerInfoDotNet->pwszLogFilePath = talloc_strdup(mem_ctx, serverinfo->pwszLogFilePath);
@@ -293,8 +297,8 @@ static WERROR dnsserver_query_server(struct dnsserver_state *dsstate,
 			r->ServerInfo->fDsAvailable = serverinfo->fDsAvailable;
 			r->ServerInfo->pszServerName = talloc_strdup(mem_ctx, serverinfo->pszServerName);
 			r->ServerInfo->pszDsContainer = talloc_strdup(mem_ctx, serverinfo->pszDsContainer);
-			r->ServerInfo->aipServerAddrs = ip4_array_to_dns_addr_array(mem_ctx, serverinfo->aipServerAddrs);
-			r->ServerInfo->aipListenAddrs = ip4_array_to_dns_addr_array(mem_ctx, serverinfo->aipListenAddrs);
+			r->ServerInfo->aipServerAddrs = serverinfo->aipServerAddrs;
+			r->ServerInfo->aipListenAddrs = serverinfo->aipListenAddrs;
 			r->ServerInfo->aipForwarders = ip4_array_to_dns_addr_array(mem_ctx, serverinfo->aipForwarders);
 			r->ServerInfo->aipLogFilter = ip4_array_to_dns_addr_array(mem_ctx, serverinfo->aipLogFilter);
 			r->ServerInfo->pwszLogFilePath = talloc_strdup(mem_ctx, serverinfo->pwszLogFilePath);
@@ -694,9 +698,9 @@ static WERROR dnsserver_query_server(struct dnsserver_state *dsstate,
 		is_addresses = 1;
 	} else if (strcasecmp(operation, "ListenAddresses") == 0) {
 		if (client_version == DNS_CLIENT_VERSION_LONGHORN) {
-			answer_addrarray = ip4_array_to_dns_addr_array(mem_ctx, serverinfo->aipListenAddrs);
+			answer_addrarray = serverinfo->aipListenAddrs;
 		} else {
-			answer_iparray = ip4_array_copy(mem_ctx, serverinfo->aipListenAddrs);
+			answer_iparray = dns_addr_array_to_ip4_array(mem_ctx, serverinfo->aipListenAddrs);
 		}
 		is_addresses = 1;
 	} else if (strcasecmp(operation, "BreakOnReceiveFrom") == 0) {
@@ -1625,7 +1629,8 @@ static WERROR dnsserver_enumerate_root_records(struct dnsserver_state *dsstate,
 	}
 
 	ret = ldb_search(dsstate->samdb, tmp_ctx, &res, z->zone_dn,
-				LDB_SCOPE_ONELEVEL, attrs, "(&(objectClass=dnsNode)(name=@))");
+			 LDB_SCOPE_ONELEVEL, attrs,
+			 "(&(objectClass=dnsNode)(name=@)(!(dNSTombstoned=TRUE)))");
 	if (ret != LDB_SUCCESS) {
 		talloc_free(tmp_ctx);
 		return WERR_INTERNAL_DB_ERROR;
@@ -1657,8 +1662,9 @@ static WERROR dnsserver_enumerate_root_records(struct dnsserver_state *dsstate,
 	if (select_flag & DNS_RPC_VIEW_ADDITIONAL_DATA) {
 		for (i=0; i<add_count; i++) {
 			ret = ldb_search(dsstate->samdb, tmp_ctx, &res, z->zone_dn,
-					LDB_SCOPE_ONELEVEL, attrs,
-					"(&(objectClass=dnsNode)(name=%s))", add_names[i]);
+					 LDB_SCOPE_ONELEVEL, attrs,
+					 "(&(objectClass=dnsNode)(name=%s)(!(dNSTombstoned=TRUE)))",
+					add_names[i]);
 			if (ret != LDB_SUCCESS || res->count == 0) {
 				talloc_free(res);
 				continue;
@@ -1722,11 +1728,12 @@ static WERROR dnsserver_enumerate_records(struct dnsserver_state *dsstate,
 	/* search all records under parent tree */
 	if (strcasecmp(name, z->name) == 0) {
 		ret = ldb_search(dsstate->samdb, tmp_ctx, &res, z->zone_dn,
-				LDB_SCOPE_ONELEVEL, attrs, "(objectClass=dnsNode)");
+				 LDB_SCOPE_ONELEVEL, attrs,
+				 "(&(objectClass=dnsNode)(!(dNSTombstoned=TRUE)))");
 	} else {
 		ret = ldb_search(dsstate->samdb, tmp_ctx, &res, z->zone_dn,
-				LDB_SCOPE_ONELEVEL, attrs,
-				"(&(objectClass=dnsNode)(|(name=%s)(name=*.%s)))",
+				 LDB_SCOPE_ONELEVEL, attrs,
+				 "(&(objectClass=dnsNode)(|(name=%s)(name=*.%s))(!(dNSTombstoned=TRUE)))",
 				name, name);
 	}
 	if (ret != LDB_SUCCESS) {
@@ -1801,7 +1808,8 @@ static WERROR dnsserver_enumerate_records(struct dnsserver_state *dsstate,
 				name = dns_split_node_name(tmp_ctx, add_names[i], z2->name);
 				ret = ldb_search(dsstate->samdb, tmp_ctx, &res, z2->zone_dn,
 						LDB_SCOPE_ONELEVEL, attrs,
-						"(&(objectClass=dnsNode)(name=%s))", name);
+						"(&(objectClass=dnsNode)(name=%s)(!(dNSTombstoned=TRUE)))",
+						name);
 				talloc_free(name);
 				if (ret != LDB_SUCCESS) {
 					continue;
@@ -1853,7 +1861,9 @@ static WERROR dnsserver_update_record(struct dnsserver_state *dsstate,
 	W_ERROR_HAVE_NO_MEMORY(tmp_ctx);
 
 	/* If node_name is @ or zone name, dns record is @ */
-	if (strcmp(node_name, "@") == 0 || strcasecmp(node_name, z->name) == 0) {
+	if (strcmp(node_name, "@") == 0 ||
+	    strcmp(node_name, ".") == 0 ||
+	    strcasecmp(node_name, z->name) == 0) {
 		name = talloc_strdup(tmp_ctx, "@");
 	} else {
 		name = dns_split_node_name(tmp_ctx, node_name, z->name);

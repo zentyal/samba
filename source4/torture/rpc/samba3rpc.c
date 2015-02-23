@@ -1015,6 +1015,7 @@ static bool auth2(struct torture_context *tctx,
 	creds_state = netlogon_creds_client_init(mem_ctx,
 						 a.in.account_name,
 						 a.in.computer_name,
+						 a.in.secure_channel_type,
 						 r.in.credentials,
 						 r.out.return_credentials, &mach_pw,
 						 &netr_cred, negotiate_flags);
@@ -2146,6 +2147,7 @@ static bool torture_samba3_rpc_randomauth2(struct torture_context *torture)
 	creds_state = netlogon_creds_client_init(mem_ctx,
 						 a.in.account_name,
 						 a.in.computer_name,
+						 a.in.secure_channel_type,
 						 r.in.credentials,
 						 r.out.return_credentials, &mach_pw,
 						 &netr_cred, negotiate_flags);
@@ -2621,7 +2623,7 @@ static bool rap_get_servername(struct torture_context *tctx,
 static bool find_printers(struct torture_context *tctx,
 			  struct dcerpc_pipe *p,
 			  const char ***printers,
-			  int *num_printers)
+			  size_t *num_printers)
 {
 	struct srvsvc_NetShareEnum r;
 	struct srvsvc_NetShareInfoCtr info_ctr;
@@ -2758,7 +2760,7 @@ static bool torture_samba3_rpc_spoolss(struct torture_context *torture)
 	struct dcerpc_binding_handle *b;
 	struct policy_handle server_handle, printer_handle;
 	const char **printers;
-	int num_printers;
+	size_t num_printers;
 	struct spoolss_UserLevel1 userlevel1;
 	char *servername;
 

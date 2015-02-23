@@ -68,7 +68,7 @@ sub nss_wrapper_winbind_so_path($) {
         my ($object) = @_;
 	my $ret = $ENV{NSS_WRAPPER_WINBIND_SO_PATH};
         if (not defined($ret)) {
-	    $ret = bindir_path($object, "default/nsswitch/libnss-winbind.so");
+	    $ret = bindir_path($object, "shared/libnss_wrapper_winbind.so.2");
 	}
 	return $ret;
 }
@@ -188,7 +188,12 @@ sub get_interface($)
 sub cleanup_child($$)
 {
     my ($pid, $name) = @_;
-    my $childpid = waitpid($pid, WNOHANG);
+    my $childpid = -1;
+
+    if (defined($pid)) {
+        $childpid = waitpid($pid, WNOHANG);
+    }
+
     if ($childpid == 0) {
     } elsif ($childpid < 0) {
 	printf STDERR "%s child process %d isn't here any more\n",

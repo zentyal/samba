@@ -5,6 +5,8 @@ samba (2:4.1.17+dfsg-1) UNRELEASED; urgency=medium
                    Controller. Closes: #776993
   - CVE-2015-0240: Unexpected code execution in smbd. Closes: #779033
   * Refresh patch add-so-version-to-private-libraries.
+  * Add new smbtorture test rpc.schannel_anon_setpw to detect the conditions
+    leading to CVE-2015-0240.
 
  -- Ivo De Decker <ivodd@debian.org>  Sun, 22 Feb 2015 19:53:54 +0100
 

@@ -8,6 +8,7 @@ samba (2:4.1.17+dfsg-1) UNRELEASED; urgency=medium
   * Add new smbtorture test rpc.schannel_anon_setpw to detect the conditions
     leading to CVE-2015-0240.
   * Add breaks on qtsmbstatus-server (<< 2.2.1-3~). Closes: #775041
+  * Build-depend on reverted ldb version (with increased epoch).
 
  -- Ivo De Decker <ivodd@debian.org>  Sun, 22 Feb 2015 19:53:54 +0100
 

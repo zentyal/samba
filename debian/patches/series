@@ -33,7 +33,6 @@ xsltproc_dont_build_smb.conf.5.patch
 48-vfs-recycle-inherit-nt-acls.patch
 s4-auth-krb-Fix-talloc-access-after-free-in-smb_krb5.patch
 49-dlz-bind9-skip-loading-duplicated-zones
-50-idl-drsuapi-Manage-all-possible-lengths-of-drsuapi_D.patch
 51-Order-switch-statements.patch
 s4-auth-ntlm-Add-config-key-to-allow-users-with-email-address-format.patch
 getncchanges_max_obj_count.patch

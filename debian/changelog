@@ -2,7 +2,7 @@ samba (3:4.1.17+dfsg-1~zentyal1) unstable; urgency=medium
 
   *  New upstream release
 
- -- Julio J. García Martín <jenkins@zentyal.com>  Tue, 24 Feb 2015 12:59:02 +0100
+ -- Jenkins Zentyal (Zentyal GPG) <jenkins@zentyal.com>  Tue, 24 Feb 2015 12:59:02 +0100
 
 samba (2:4.1.17+dfsg-1) unstable; urgency=high
 

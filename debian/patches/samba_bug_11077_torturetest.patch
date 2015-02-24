@@ -19,9 +19,9 @@ Signed-off-by: Guenther Deschner <gd@samba.org>
 
 Index: samba/selftest/target/Samba.pm
 ===================================================================
---- samba.orig/selftest/target/Samba.pm
-+++ samba/selftest/target/Samba.pm
-@@ -156,6 +156,7 @@ sub get_interface($)
+--- samba.orig/selftest/target/Samba.pm	2015-02-24 18:30:43.803471643 +0100
++++ samba/selftest/target/Samba.pm	2015-02-24 18:30:43.795471643 +0100
+@@ -156,6 +156,7 @@
  
      $interfaces{"localktest6"} = 7;
      $interfaces{"maptoguest"} = 8;
@@ -31,9 +31,9 @@ Index: samba/selftest/target/Samba.pm
  
 Index: samba/selftest/target/Samba3.pm
 ===================================================================
---- samba.orig/selftest/target/Samba3.pm
-+++ samba/selftest/target/Samba3.pm
-@@ -153,6 +153,8 @@ sub setup_env($$$)
+--- samba.orig/selftest/target/Samba3.pm	2015-02-24 18:30:43.803471643 +0100
++++ samba/selftest/target/Samba3.pm	2015-02-24 18:30:43.795471643 +0100
+@@ -153,6 +153,8 @@
  
  	if ($envname eq "s3dc") {
  		return $self->setup_s3dc("$path/s3dc");
@@ -42,7 +42,7 @@ Index: samba/selftest/target/Samba3.pm
  	} elsif ($envname eq "simpleserver") {
  		return $self->setup_simpleserver("$path/simpleserver");
  	} elsif ($envname eq "maptoguest") {
-@@ -216,6 +218,54 @@ sub setup_s3dc($$)
+@@ -216,6 +218,54 @@
  
  	return $vars;
  }
@@ -99,9 +99,9 @@ Index: samba/selftest/target/Samba3.pm
  {
 Index: samba/source3/selftest/tests.py
 ===================================================================
---- samba.orig/source3/selftest/tests.py
-+++ samba/source3/selftest/tests.py
-@@ -274,7 +274,7 @@ rpc = ["rpc.authcontext", "rpc.samba3.bi
+--- samba.orig/source3/selftest/tests.py	2015-02-24 18:30:43.803471643 +0100
++++ samba/source3/selftest/tests.py	2015-02-24 18:30:43.795471643 +0100
+@@ -274,7 +274,7 @@
         "rpc.samr.passwords.pwdlastset", "rpc.samr.large-dc", "rpc.samr.machine.auth",
         "rpc.samr.priv", "rpc.samr.passwords.validate",
         "rpc.netlogon.admin",
@@ -110,7 +110,7 @@ Index: samba/source3/selftest/tests.py
  
  local = ["local.nss-wrapper", "local.ndr"]
  
-@@ -358,6 +358,10 @@ for t in tests:
+@@ -361,6 +361,10 @@
  # test the dirsort module.
          plansmbtorture4testsuite(t, "s3dc", '//$SERVER_IP/tmpsort -U$USERNAME%$PASSWORD')
          plansmbtorture4testsuite(t, "plugin_s4_dc", '//$SERVER/tmp -U$USERNAME%$PASSWORD')
@@ -123,9 +123,9 @@ Index: samba/source3/selftest/tests.py
          plansmbtorture4testsuite(t, "plugin_s4_dc", '//$SERVER/tmp -U$USERNAME%$PASSWORD')
 Index: samba/source4/torture/rpc/rpc.c
 ===================================================================
---- samba.orig/source4/torture/rpc/rpc.c
-+++ samba/source4/torture/rpc/rpc.c
-@@ -496,6 +496,7 @@ NTSTATUS torture_rpc_init(void)
+--- samba.orig/source4/torture/rpc/rpc.c	2015-02-24 18:30:43.803471643 +0100
++++ samba/source4/torture/rpc/rpc.c	2015-02-24 18:30:43.795471643 +0100
+@@ -496,6 +496,7 @@
  	torture_suite_add_simple_test(suite, "schannel", torture_rpc_schannel);
  	torture_suite_add_simple_test(suite, "schannel2", torture_rpc_schannel2);
  	torture_suite_add_simple_test(suite, "bench-schannel1", torture_rpc_schannel_bench1);
@@ -135,9 +135,9 @@ Index: samba/source4/torture/rpc/rpc.c
  	torture_suite_add_suite(suite, torture_rpc_samr_accessmask(suite));
 Index: samba/source4/torture/rpc/schannel.c
 ===================================================================
---- samba.orig/source4/torture/rpc/schannel.c
-+++ samba/source4/torture/rpc/schannel.c
-@@ -543,6 +543,83 @@ static bool test_schannel(struct torture
+--- samba.orig/source4/torture/rpc/schannel.c	2015-02-24 18:30:43.803471643 +0100
++++ samba/source4/torture/rpc/schannel.c	2015-02-24 18:30:43.795471643 +0100
+@@ -543,6 +543,83 @@
  	return true;
  }
  
@@ -221,7 +221,7 @@ Index: samba/source4/torture/rpc/schannel.c
  
  
  /*
-@@ -584,6 +661,35 @@ bool torture_rpc_schannel(struct torture
+@@ -584,6 +661,35 @@
  	}
  
  	return ret;

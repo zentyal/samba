@@ -1,8 +1,8 @@
-Index: samba-4.1.3+dfsg/dynconfig/wscript
+Index: samba/dynconfig/wscript
 ===================================================================
---- samba-4.1.3+dfsg.orig/dynconfig/wscript	2014-02-04 10:54:13.096817176 +0100
-+++ samba-4.1.3+dfsg/dynconfig/wscript	2014-02-04 10:54:13.092817176 +0100
-@@ -376,7 +376,7 @@
+--- samba.orig/dynconfig/wscript	2015-02-24 18:28:57.575474014 +0100
++++ samba/dynconfig/wscript	2015-02-24 18:28:57.571474014 +0100
+@@ -415,7 +415,7 @@
      bld.SAMBA_SUBSYSTEM('DYNCONFIG',
                          'dynconfig.c',
                          deps='replace talloc',

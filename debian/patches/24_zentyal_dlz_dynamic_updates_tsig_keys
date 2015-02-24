@@ -1,7 +1,7 @@
 Index: samba/source4/dns_server/dlz_bind9.c
 ===================================================================
---- samba.orig/source4/dns_server/dlz_bind9.c	2014-11-06 12:56:45.120067917 +0100
-+++ samba/source4/dns_server/dlz_bind9.c	2014-11-06 13:11:12.616022909 +0100
+--- samba.orig/source4/dns_server/dlz_bind9.c	2015-02-24 19:27:53.207395124 +0100
++++ samba/source4/dns_server/dlz_bind9.c	2015-02-25 09:26:17.000000000 +0100
 @@ -38,6 +38,7 @@
  #include "lib/cmdline/popt_common.h"
  #include "dlz_minimal.h"
@@ -19,7 +19,7 @@ Index: samba/source4/dns_server/dlz_bind9.c
  	struct ldb_context *samdb;
  	struct tevent_context *ev_ctx;
  	struct loadparm_context *lp;
-@@ -464,6 +467,7 @@
+@@ -498,6 +501,7 @@
  {
  	int opt;
  	poptContext pc;
@@ -27,7 +27,7 @@ Index: samba/source4/dns_server/dlz_bind9.c
  	struct poptOption long_options[] = {
  		{ "url", 'H', POPT_ARG_STRING, &options->url, 0, "database URL", "URL" },
  		{ "debug", 'd', POPT_ARG_STRING, &options->debug, 0, "debug level", "DEBUG" },
-@@ -484,6 +488,42 @@
+@@ -518,6 +522,42 @@
  	return ISC_R_SUCCESS;
  }
  
@@ -70,7 +70,7 @@ Index: samba/source4/dns_server/dlz_bind9.c
  
  /*
   * Create session info from PAC
-@@ -623,6 +663,11 @@
+@@ -657,6 +697,11 @@
  		lpcfg_do_global_parameter(state->lp, "log level", "0");
  	}
  
@@ -82,7 +82,7 @@ Index: samba/source4/dns_server/dlz_bind9.c
  	if (smb_krb5_init_context(state, state->lp, &state->smb_krb5_ctx) != 0) {
  		result = ISC_R_NOMEMORY;
  		goto failed;
-@@ -1147,75 +1192,66 @@
+@@ -1200,75 +1245,66 @@
  	return ISC_R_SUCCESS;
  }
  
@@ -195,7 +195,7 @@ Index: samba/source4/dns_server/dlz_bind9.c
  	}
  
  	gensec_set_credentials(gensec_ctx, server_credentials);
-@@ -1223,24 +1259,114 @@
+@@ -1276,24 +1312,114 @@
  	nt_status = gensec_start_mech_by_name(gensec_ctx, "spnego");
  	if (!NT_STATUS_IS_OK(nt_status)) {
  		state->log(ISC_LOG_ERROR, "samba_dlz: failed to start spnego");
@@ -317,21 +317,23 @@ Index: samba/source4/dns_server/dlz_bind9.c
  	if (result != ISC_R_SUCCESS) {
 Index: samba/source4/dns_server/dlz_minimal.h
 ===================================================================
---- samba.orig/source4/dns_server/dlz_minimal.h	2014-11-06 12:56:45.120067917 +0100
-+++ samba/source4/dns_server/dlz_minimal.h	2014-11-06 12:56:45.112067933 +0100
-@@ -22,6 +22,9 @@
-   external DLZ driver, please copy this header into your own source
-   tree.
-  */
-+#ifndef __DLZ_MINIMAL_H__
-+#define __DLZ_MINIMAL_H__
+--- samba.orig/source4/dns_server/dlz_minimal.h	2015-02-24 19:27:53.207395124 +0100
++++ samba/source4/dns_server/dlz_minimal.h	2015-02-24 19:27:53.199395124 +0100
+@@ -23,6 +23,11 @@
+ #ifndef DLZ_MINIMAL_H
+ #define DLZ_MINIMAL_H 1
+ 
++#include <sys/types.h>
++#include <sys/socket.h>
++#include <sys/un.h>
++#include <netinet/in.h>
 +
- typedef unsigned int isc_result_t;
  #ifdef BIND_VERSION_9_8
- typedef bool isc_boolean_t;
-@@ -58,6 +61,30 @@
- #define ISC_LOG_ERROR		(-4)
+ #define DLZ_DLOPEN_VERSION 1
+ #elif BIND_VERSION_9_9
+@@ -72,6 +77,30 @@
  #define ISC_LOG_CRITICAL	(-5)
+ #define ISC_LOG_DEBUG(level)	(level)
  
 +/* DST algorithm codes */
 +#define DST_ALG_UNKNOWN     0
@@ -357,19 +359,22 @@ Index: samba/source4/dns_server/dlz_minimal.h
 +#define DST_ALG_EXPAND      255
 +#define DST_MAX_ALGS        255
 +
- /* some opaque structures */
+ /* opaque structures */
  typedef void *dns_sdlzlookup_t;
  typedef void *dns_sdlzallnodes_t;
-@@ -182,3 +209,5 @@
-   support dynamic updates
+@@ -223,7 +252,7 @@
+ isc_result_t
+ dlz_newversion(const char *zone, void *dbdata, void **versionp);
+ 
+-/* 
++/*
+  * dlz_closeversion() is optional, but must be supplied if you supply a
+  * dlz_newversion() function
   */
- isc_result_t dlz_delrdataset(const char *name, const char *type, void *dbdata, void *version);
-+
-+#endif
 Index: samba/source4/dns_server/wscript_build
 ===================================================================
---- samba.orig/source4/dns_server/wscript_build	2014-11-06 12:56:45.120067917 +0100
-+++ samba/source4/dns_server/wscript_build	2014-11-06 12:56:45.112067933 +0100
+--- samba.orig/source4/dns_server/wscript_build	2015-02-24 19:27:53.207395124 +0100
++++ samba/source4/dns_server/wscript_build	2015-02-25 09:26:47.735146955 +0100
 @@ -18,7 +18,7 @@
  
  # a bind9 dlz module giving access to the Samba DNS SAM
@@ -391,6 +396,15 @@ Index: samba/source4/dns_server/wscript_build
 @@ -38,7 +38,7 @@
                    enabled=bld.AD_DC_BUILD_IS_ENABLED())
  
+ bld.SAMBA_LIBRARY('dlz_bind9_10',
+-                  source='dlz_bind9.c',
++                  source='dlz_bind9.c k_parser.c k_lexer.c',
+                   cflags='-DBIND_VERSION_9_10',
+                   private_library=True,
+                   link_name='modules/bind9/dlz_bind9_10.so',
+@@ -48,7 +48,7 @@
+                   enabled=bld.AD_DC_BUILD_IS_ENABLED())
+ 
  bld.SAMBA_LIBRARY('dlz_bind9_for_torture',
 -                  source='dlz_bind9.c',
 +                  source='dlz_bind9.c k_parser.c k_lexer.c',
@@ -400,7 +414,7 @@ Index: samba/source4/dns_server/wscript_build
 Index: samba/source4/dns_server/keys_parser.l
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ samba/source4/dns_server/keys_parser.l	2014-11-06 12:56:45.112067933 +0100
++++ samba/source4/dns_server/keys_parser.l	2015-02-24 19:27:53.199395124 +0100
 @@ -0,0 +1,59 @@
 +%{
 +#include "keys_parser.h"
@@ -464,7 +478,7 @@ Index: samba/source4/dns_server/keys_parser.l
 Index: samba/source4/dns_server/k_lexer.c
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ samba/source4/dns_server/k_lexer.c	2014-11-06 12:56:45.116067926 +0100
++++ samba/source4/dns_server/k_lexer.c	2015-02-24 19:27:53.199395124 +0100
 @@ -0,0 +1,2176 @@
 +#line 2 "k_lexer.c"
 +
@@ -2645,7 +2659,7 @@ Index: samba/source4/dns_server/k_lexer.c
 Index: samba/source4/dns_server/k_lexer.h
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ samba/source4/dns_server/k_lexer.h	2014-11-06 12:56:45.116067926 +0100
++++ samba/source4/dns_server/k_lexer.h	2015-02-24 19:27:53.199395124 +0100
 @@ -0,0 +1,355 @@
 +#ifndef yyHEADER_H
 +#define yyHEADER_H 1
@@ -3005,7 +3019,7 @@ Index: samba/source4/dns_server/k_lexer.h
 Index: samba/source4/dns_server/k_parser.c
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ samba/source4/dns_server/k_parser.c	2014-11-06 12:56:45.116067926 +0100
++++ samba/source4/dns_server/k_parser.c	2015-02-24 19:27:53.203395124 +0100
 @@ -0,0 +1,1882 @@
 +/* A Bison parser, made by GNU Bison 2.5.  */
 +
@@ -4892,7 +4906,7 @@ Index: samba/source4/dns_server/k_parser.c
 Index: samba/source4/dns_server/k_parser.h
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ samba/source4/dns_server/k_parser.h	2014-11-06 12:56:45.116067926 +0100
++++ samba/source4/dns_server/k_parser.h	2015-02-24 19:27:53.203395124 +0100
 @@ -0,0 +1,86 @@
 +/* A Bison parser, made by GNU Bison 2.5.  */
 +
@@ -4983,7 +4997,7 @@ Index: samba/source4/dns_server/k_parser.h
 Index: samba/source4/dns_server/keys_parser.h
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ samba/source4/dns_server/keys_parser.h	2014-11-06 12:56:45.116067926 +0100
++++ samba/source4/dns_server/keys_parser.h	2015-02-24 19:27:53.203395124 +0100
 @@ -0,0 +1,21 @@
 +#ifndef __KEYS_PARSER_H__
 +#define __KEYS_PARSER_H__
@@ -5009,7 +5023,7 @@ Index: samba/source4/dns_server/keys_parser.h
 Index: samba/source4/dns_server/keys_parser.y
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ samba/source4/dns_server/keys_parser.y	2014-11-06 12:56:45.116067926 +0100
++++ samba/source4/dns_server/keys_parser.y	2015-02-24 19:27:53.203395124 +0100
 @@ -0,0 +1,234 @@
 +%{
 +#include <stdio.h>
@@ -5247,8 +5261,8 @@ Index: samba/source4/dns_server/keys_parser.y
 +
 Index: samba/lib/param/param_table.c
 ===================================================================
---- samba.orig/lib/param/param_table.c	2014-11-06 12:56:45.120067917 +0100
-+++ samba/lib/param/param_table.c	2014-11-06 12:56:45.120067917 +0100
+--- samba.orig/lib/param/param_table.c	2015-02-24 19:27:53.207395124 +0100
++++ samba/lib/param/param_table.c	2015-02-24 19:27:53.203395124 +0100
 @@ -4208,6 +4208,24 @@
  		.enum_list	= enum_dns_update_settings,
  		.flags		= FLAG_ADVANCED,
@@ -5276,8 +5290,8 @@ Index: samba/lib/param/param_table.c
  		.type		= P_STRING,
 Index: samba/lib/param/loadparm.c
 ===================================================================
---- samba.orig/lib/param/loadparm.c	2014-11-06 12:56:45.120067917 +0100
-+++ samba/lib/param/loadparm.c	2014-11-06 12:56:45.120067917 +0100
+--- samba.orig/lib/param/loadparm.c	2015-02-24 19:27:53.207395124 +0100
++++ samba/lib/param/loadparm.c	2015-02-24 19:27:53.203395124 +0100
 @@ -1,4 +1,4 @@
 -/* 
 +/*
@@ -5380,8 +5394,8 @@ Index: samba/lib/param/loadparm.c
      }
 Index: samba/lib/param/param.h
 ===================================================================
---- samba.orig/lib/param/param.h	2014-11-06 12:56:45.120067917 +0100
-+++ samba/lib/param/param.h	2014-11-06 12:56:45.120067917 +0100
+--- samba.orig/lib/param/param.h	2015-02-24 19:27:53.207395124 +0100
++++ samba/lib/param/param.h	2015-02-24 19:27:53.207395124 +0100
 @@ -1,24 +1,24 @@
 -/* 
 +/*
@@ -5454,8 +5468,8 @@ Index: samba/lib/param/param.h
  
 Index: samba/lib/param/param_functions.c
 ===================================================================
---- samba.orig/lib/param/param_functions.c	2014-11-06 12:56:45.120067917 +0100
-+++ samba/lib/param/param_functions.c	2014-11-06 12:56:45.120067917 +0100
+--- samba.orig/lib/param/param_functions.c	2015-02-24 19:27:53.207395124 +0100
++++ samba/lib/param/param_functions.c	2015-02-24 19:27:53.207395124 +0100
 @@ -268,6 +268,8 @@
  FN_GLOBAL_INTEGER(afs_token_lifetime, iAfsTokenLifetime)
  FN_GLOBAL_INTEGER(algorithmic_rid_base, AlgorithmicRidBase)

@@ -4,9 +4,11 @@ Bug-Debian: http://bugs.debian.org/705449
 Forwarded: TODO
 Last-Update: 20130518
 
---- a/dynconfig/wscript
-+++ b/dynconfig/wscript
-@@ -244,6 +244,8 @@
+Index: samba/dynconfig/wscript
+===================================================================
+--- samba.orig/dynconfig/wscript	2015-02-24 18:24:44.707479656 +0100
++++ samba/dynconfig/wscript	2015-02-24 18:24:44.703479656 +0100
+@@ -254,6 +254,8 @@
      'SMB_PASSWD_FILE' : {
           'STD-PATH':  '${PRIVATE_DIR}/smbpasswd',
           'FHS-PATH':  '${PRIVATE_DIR}/smbpasswd',

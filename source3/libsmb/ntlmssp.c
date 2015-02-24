@@ -383,6 +383,15 @@ static NTSTATUS ntlmssp3_client_challenge(struct ntlmssp_state *ntlmssp_state,
 		wbcErr wbc_status;
 		int i;
 
+		/*
+		 * We need to set the netbios name or we are not able to connect
+		 *  a Windows DC.
+		 */
+		if (ntlmssp_state->server.netbios_domain == NULL ||
+		    ntlmssp_state->server.netbios_domain[0] == '\0') {
+			ntlmssp_state->server.netbios_domain = ntlmssp_state->domain;
+		}
+
 		params.account_name = ntlmssp_state->user;
 		params.domain_name = ntlmssp_state->domain;
 		params.level = WBC_CREDENTIAL_CACHE_LEVEL_NTLMSSP;
@@ -413,9 +422,12 @@ static NTSTATUS ntlmssp3_client_challenge(struct ntlmssp_state *ntlmssp_state,
 			goto noccache;
 		}
 
-		*next_request = data_blob(wbc_next->data, wbc_next->length);
-		ntlmssp_state->session_key = data_blob(
-			wbc_session_key->data, wbc_session_key->length);
+		*next_request = data_blob_talloc(ntlmssp_state,
+						 wbc_next->data,
+						 wbc_next->length);
+		ntlmssp_state->session_key = data_blob_talloc(ntlmssp_state,
+							      wbc_session_key->data,
+							      wbc_session_key->length);
 
 		wbcFreeMemory(info);
 		goto done;

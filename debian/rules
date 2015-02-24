@@ -9,11 +9,12 @@ PYVERS=$(shell pyversions -vr)
 
 DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 LDB_VERSION = $(shell pkg-config --modversion ldb)
+LDB_EPOCH = $(shell dpkg-query -f '$${Version}' -W libldb-dev | sed 's/:.*//')
 LDB_NEXT_VERSION = $(shell python -c "x = '$(LDB_VERSION)'.split('.'); x[-1] = str(int(x[-1])+1); print '.'.join(x)")
 # samba ships ldb modules, which are specific to the ldb version, so we need a
 # strict dependency on the upstream ldb version
 # this also mean samba needs a rebuild when the upstream ldb version changes
-LDB_DEPENDS = "libldb1 (<< 1:$(LDB_NEXT_VERSION)~), libldb1 (>> 1:$(LDB_VERSION)~)"
+LDB_DEPENDS = "libldb1 (<< $(LDB_EPOCH):$(LDB_NEXT_VERSION)~), libldb1 (>> $(LDB_EPOCH):$(LDB_VERSION)~)"
 export PYSHORT=$(shell pyversions -d)
 export PYTHON=$(shell which $(PYSHORT))
 export PYTHON_CONFIG="$(PYTHON)-config"

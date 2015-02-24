@@ -397,7 +397,7 @@ NTSTATUS _netr_NetrEnumerateTrustedDomains(struct pipes_struct *p,
 	NTSTATUS status;
 	NTSTATUS result = NT_STATUS_OK;
 	DATA_BLOB blob;
-	int num_domains = 0;
+	size_t num_domains = 0;
 	const char **trusted_domains = NULL;
 	struct lsa_DomainList domain_list;
 	struct dcerpc_binding_handle *h = NULL;
@@ -1101,6 +1101,10 @@ static NTSTATUS netr_creds_server_step_check(struct pipes_struct *p,
 	bool schannel_global_required = (lp_server_schannel() == true) ? true:false;
 	struct loadparm_context *lp_ctx;
 
+	if (creds_out != NULL) {
+		*creds_out = NULL;
+	}
+
 	if (schannel_global_required) {
 		status = schannel_check_required(&p->auth,
 						 computer_name,
@@ -1258,7 +1262,7 @@ NTSTATUS _netr_ServerPasswordSet(struct pipes_struct *p,
 {
 	NTSTATUS status = NT_STATUS_OK;
 	int i;
-	struct netlogon_creds_CredentialState *creds;
+	struct netlogon_creds_CredentialState *creds = NULL;
 
 	DEBUG(5,("_netr_ServerPasswordSet: %d\n", __LINE__));
 
@@ -1271,9 +1275,14 @@ NTSTATUS _netr_ServerPasswordSet(struct pipes_struct *p,
 	unbecome_root();
 
 	if (!NT_STATUS_IS_OK(status)) {
+		const char *computer_name = "<unknown>";
+
+		if (creds != NULL && creds->computer_name != NULL) {
+			computer_name = creds->computer_name;
+		}
 		DEBUG(2,("_netr_ServerPasswordSet: netlogon_creds_server_step failed. Rejecting auth "
 			"request from client %s machine account %s\n",
-			r->in.computer_name, creds->computer_name));
+			r->in.computer_name, computer_name));
 		TALLOC_FREE(creds);
 		return status;
 	}

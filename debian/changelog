@@ -1,10 +1,10 @@
-samba (2:4.1.17+dfsg-1~bpo70+1) UNRELEASED; urgency=medium
+samba (2:4.1.17+dfsg-1~bpo70+1) wheezy-backports; urgency=high
 
   * Rebuild for wheezy-backports.
   * Revert build-dependency on libldb 2:1.1.17~ with higher epoch to version
     1:1.1.17~, which is available in wheezy-backports.
 
- -- Ivo De Decker <ivodd@debian.org>  Mon, 23 Feb 2015 21:03:09 +0100
+ -- Ivo De Decker <ivodd@debian.org>  Tue, 24 Feb 2015 19:58:43 +0100
 
 samba (2:4.1.17+dfsg-1) unstable; urgency=high
 

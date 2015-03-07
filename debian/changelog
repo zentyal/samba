@@ -1,3 +1,12 @@
+samba (2:4.1.17+dfsg-2) UNRELEASED; urgency=medium
+
+  * Add samba.preinst to temporarily deactivate the old qtsmbstatusd
+    initscript which has dependencies incompatible with the new samba
+    initscript. This will ensure a clean upgrade path for samba if the
+    qtsmbstatus-server package was installed previously.  (Closes: #779666)
+
+ -- Andreas Beckmann <anbe@debian.org>  Wed, 04 Mar 2015 12:12:57 +0100
+
 samba (2:4.1.17+dfsg-1) unstable; urgency=high
 
   * New upstream release. Fixes:

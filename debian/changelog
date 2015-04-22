@@ -1,3 +1,9 @@
+samba (3:4.1.17+dfsg-1~zentyal2) trusty; urgency=medium
+
+  *  Dcerpc Notifications patch
+
+ -- Jenkins Zentyal (Zentyal GPG) <jenkins@zentyal.com>  Wed, 22 Apr 2015 17:11:55 +0200
+
 samba (3:4.1.17+dfsg-1~zentyal1) unstable; urgency=medium
 
   *  New upstream release

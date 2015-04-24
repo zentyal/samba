@@ -1,3 +1,9 @@
+samba (3:4.1.17+dfsg-1~zentyal3) trusty; urgency=medium
+
+  * [PATCH] Fix crash when querying for unknown endpoints
+
+ -- Jenkins Zentyal (Zentyal GPG) <jenkins@zentyal.com>  Fri, 24 Apr 2015 13:32:48 +0200
+
 samba (3:4.1.17+dfsg-1~zentyal2) trusty; urgency=medium
 
   *  Dcerpc Notifications patch

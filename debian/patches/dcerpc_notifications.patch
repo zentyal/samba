@@ -1,7 +1,7 @@
 Index: samba/source4/rpc_server/dcerpc_server.c
 ===================================================================
---- samba.orig/source4/rpc_server/dcerpc_server.c	2015-04-22 16:31:13.000000000 +0200
-+++ samba/source4/rpc_server/dcerpc_server.c	2015-04-22 17:38:11.109162981 +0200
+--- samba.orig/source4/rpc_server/dcerpc_server.c	2015-04-24 13:29:56.803570042 +0200
++++ samba/source4/rpc_server/dcerpc_server.c	2015-04-24 13:31:03.199573895 +0200
 @@ -500,6 +500,7 @@
  
  	if (c->iface && c->iface->unbind) {
@@ -39,13 +39,13 @@ Index: samba/source4/rpc_server/dcerpc_server.c
  		reason = DCERPC_BIND_REASON_ASYNTAX;
  	}
  
-+	if ((call->pkt.pfc_flags & DCERPC_PFC_FLAG_CONC_MPX)) {
++	if ((result == 0 && call->pkt.pfc_flags & DCERPC_PFC_FLAG_CONC_MPX)) {
 +                if (call->context->conn->state_flags & DCESRV_CALL_STATE_FLAG_MULTIPLEXED) {
 +                        extra_flags |= DCERPC_PFC_FLAG_CONC_MPX;
 +                }
 +        }
 +
-+        if (call->state_flags & DCESRV_CALL_STATE_FLAG_PROCESS_PENDING_CALL) {
++        if (result == 0 && call->state_flags & DCESRV_CALL_STATE_FLAG_PROCESS_PENDING_CALL) {
 +                call->context->conn->state_flags |= DCESRV_CALL_STATE_FLAG_PROCESS_PENDING_CALL;
 +        }
 +
@@ -80,8 +80,8 @@ Index: samba/source4/rpc_server/dcerpc_server.c
  }
 Index: samba/source4/rpc_server/dcerpc_server.h
 ===================================================================
---- samba.orig/source4/rpc_server/dcerpc_server.h	2015-04-22 16:31:13.000000000 +0200
-+++ samba/source4/rpc_server/dcerpc_server.h	2015-04-22 17:33:54.373168710 +0200
+--- samba.orig/source4/rpc_server/dcerpc_server.h	2015-04-24 13:29:56.803570042 +0200
++++ samba/source4/rpc_server/dcerpc_server.h	2015-04-24 13:29:56.799570042 +0200
 @@ -102,6 +102,8 @@
  #define DCESRV_CALL_STATE_FLAG_ASYNC (1<<0)
  #define DCESRV_CALL_STATE_FLAG_MAY_ASYNC (1<<1)

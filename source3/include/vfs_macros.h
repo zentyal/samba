@@ -136,13 +136,15 @@
 	smb_vfs_call_open((handle)->next, (fname), (fsp), (flags), (mode))
 
 #define SMB_VFS_CREATE_FILE(conn, req, root_dir_fid, smb_fname, access_mask, share_access, create_disposition, \
-	create_options, file_attributes, oplock_request, lease, allocation_size, private_flags, sd, ea_list, result, pinfo) \
-	smb_vfs_call_create_file((conn)->vfs_handles, (req), (root_dir_fid), (smb_fname), (access_mask), (share_access), (create_disposition), \
-	(create_options), (file_attributes), (oplock_request), (lease), (allocation_size), (private_flags), (sd), (ea_list), (result), (pinfo))
+        create_options, file_attributes, oplock_request, lease, allocation_size, private_flags, sd, ea_list, result, pinfo, in_context_blobs, out_context_blobs) \
+        smb_vfs_call_create_file((conn)->vfs_handles, (req), (root_dir_fid), (smb_fname), (access_mask), (share_access), (create_disposition), \
+        (create_options), (file_attributes), (oplock_request), (lease), (allocation_size), (private_flags), (sd), (ea_list), (result), (pinfo), \
+	(in_context_blobs), (out_context_blobs))
 #define SMB_VFS_NEXT_CREATE_FILE(handle, req, root_dir_fid, smb_fname, access_mask, share_access, create_disposition, \
-	create_options, file_attributes, oplock_request, lease, allocation_size, private_flags, sd, ea_list, result, pinfo) \
+	create_options, file_attributes, oplock_request, lease, allocation_size, private_flags, sd, ea_list, result, pinfo, in_context_blobs, out_context_blobs) \
 	smb_vfs_call_create_file((handle)->next, (req), (root_dir_fid), (smb_fname), (access_mask), (share_access), (create_disposition), \
-	(create_options), (file_attributes), (oplock_request), (lease), (allocation_size), (private_flags), (sd), (ea_list), (result), (pinfo))
+        (create_options), (file_attributes), (oplock_request), (lease), (allocation_size), (private_flags), (sd), (ea_list), (result), (pinfo), \
+	(in_context_blobs), (out_context_blobs))
 
 #define SMB_VFS_CLOSE(fsp) \
 	smb_vfs_call_close((fsp)->conn->vfs_handles, (fsp))
@@ -564,5 +566,10 @@
 	smb_vfs_call_durable_reconnect((handle)->next, \
 					(smb1req), (op), (old_cookie), \
 					(mem_ctx), (fsp), (new_cookie))
+
+#define SMB_VFS_READDIR_ATTR(conn, fname, mem_ctx, attr_data) \
+	smb_vfs_call_readdir_attr((conn)->vfs_handles, (fname), (mem_ctx), (attr_data))
+#define SMB_VFS_NEXT_READDIR_ATTR(conn, fname, mem_ctx, attr_data) \
+	smb_vfs_call_readdir_attr((handle)->next, (fname), (mem_ctx), (attr_data))
 
 #endif /* _VFS_MACROS_H */

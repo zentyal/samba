@@ -359,12 +359,13 @@ static NTSTATUS ntlmssp3_client_challenge(struct ntlmssp_state *ntlmssp_state,
 				         TALLOC_CTX *out_mem_ctx, /* Unused at this time */
 					 const DATA_BLOB reply, DATA_BLOB *next_request)
 {
-	uint32_t chal_flags, ntlmssp_command, unkn1, unkn2;
+	uint32_t chal_flags, ntlmssp_command, unkn1 = 0, unkn2 = 0;
 	DATA_BLOB server_domain_blob;
 	DATA_BLOB challenge_blob;
 	DATA_BLOB struct_blob = data_blob_null;
 	char *server_domain;
 	const char *chal_parse_string;
+	const char *chal_parse_string_short = NULL;
 	const char *auth_gen_string;
 	DATA_BLOB lm_response = data_blob_null;
 	DATA_BLOB nt_response = data_blob_null;
@@ -382,6 +383,15 @@ static NTSTATUS ntlmssp3_client_challenge(struct ntlmssp_state *ntlmssp_state,
 		struct wbcBlob *wbc_session_key = NULL;
 		wbcErr wbc_status;
 		int i;
+
+		/*
+		 * We need to set the netbios name or we are not able to connect
+		 *  a Windows DC.
+		 */
+		if (ntlmssp_state->server.netbios_domain == NULL ||
+		    ntlmssp_state->server.netbios_domain[0] == '\0') {
+			ntlmssp_state->server.netbios_domain = ntlmssp_state->domain;
+		}
 
 		params.account_name = ntlmssp_state->user;
 		params.domain_name = ntlmssp_state->domain;
@@ -413,9 +423,12 @@ static NTSTATUS ntlmssp3_client_challenge(struct ntlmssp_state *ntlmssp_state,
 			goto noccache;
 		}
 
-		*next_request = data_blob(wbc_next->data, wbc_next->length);
-		ntlmssp_state->session_key = data_blob(
-			wbc_session_key->data, wbc_session_key->length);
+		*next_request = data_blob_talloc(ntlmssp_state,
+						 wbc_next->data,
+						 wbc_next->length);
+		ntlmssp_state->session_key = data_blob_talloc(ntlmssp_state,
+							      wbc_session_key->data,
+							      wbc_session_key->length);
 
 		wbcFreeMemory(info);
 		goto done;
@@ -462,6 +475,7 @@ noccache:
 			chal_parse_string = "CdUdbddB";
 		} else {
 			chal_parse_string = "CdUdbdd";
+			chal_parse_string_short = "CdUdb";
 		}
 		auth_gen_string = "CdBBUUUBd";
 	} else {
@@ -469,6 +483,7 @@ noccache:
 			chal_parse_string = "CdAdbddB";
 		} else {
 			chal_parse_string = "CdAdbdd";
+			chal_parse_string_short = "CdAdb";
 		}
 
 		auth_gen_string = "CdBBAAABd";
@@ -485,9 +500,38 @@ noccache:
 			 &challenge_blob, 8,
 			 &unkn1, &unkn2,
 			 &struct_blob)) {
+
+		bool ok = false;
+
 		DEBUG(1, ("Failed to parse the NTLMSSP Challenge: (#2)\n"));
-		dump_data(2, reply.data, reply.length);
-		return NT_STATUS_INVALID_PARAMETER;
+
+		if (chal_parse_string_short != NULL) {
+			/*
+			 * In the case where NTLMSSP_NEGOTIATE_TARGET_INFO
+			 * is not used, some NTLMSSP servers don't return
+			 * the unused unkn1 and unkn2 fields.
+			 * See bug:
+			 * https://bugzilla.samba.org/show_bug.cgi?id=10016
+			 * for packet traces.
+			 * Try and parse again without them.
+			 */
+			ok = msrpc_parse(ntlmssp_state, &reply,
+				chal_parse_string_short,
+				"NTLMSSP",
+				&ntlmssp_command,
+				&server_domain,
+				&chal_flags,
+				&challenge_blob, 8);
+			if (!ok) {
+				DEBUG(1, ("Failed to short parse "
+					"the NTLMSSP Challenge: (#2)\n"));
+			}
+		}
+
+		if (!ok) {
+			dump_data(2, reply.data, reply.length);
+			return NT_STATUS_INVALID_PARAMETER;
+		}
 	}
 
 	if (chal_flags & NTLMSSP_TARGET_TYPE_SERVER) {

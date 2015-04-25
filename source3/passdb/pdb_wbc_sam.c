@@ -40,6 +40,7 @@
 #include "passdb.h"
 #include "lib/winbind_util.h"
 #include "passdb/pdb_wbc_sam.h"
+#include "idmap.h"
 
 /***************************************************************************
   Default implementations of some functions.
@@ -72,16 +73,19 @@ static NTSTATUS pdb_wbc_sam_getsampwsid(struct pdb_methods *methods, struct samu
 	return _pdb_wbc_sam_getsampw(methods, user, winbind_getpwsid(sid));
 }
 
-static bool pdb_wbc_sam_uid_to_sid(struct pdb_methods *methods, uid_t uid,
-				   struct dom_sid *sid)
+static bool pdb_wbc_sam_id_to_sid(struct pdb_methods *methods, struct unixid *id,
+				  struct dom_sid *sid)
 {
-	return winbind_uid_to_sid(sid, uid);
-}
+	switch (id->type) {
+	case ID_TYPE_UID:
+		return winbind_uid_to_sid(sid, id->id);
 
-static bool pdb_wbc_sam_gid_to_sid(struct pdb_methods *methods, gid_t gid,
-				   struct dom_sid *sid)
-{
-	return winbind_gid_to_sid(sid, gid);
+	case ID_TYPE_GID:
+		return winbind_gid_to_sid(sid, id->id);
+
+	default:
+		return false;
+	}
 }
 
 static NTSTATUS pdb_wbc_sam_enum_group_members(struct pdb_methods *methods,
@@ -135,18 +139,21 @@ static NTSTATUS pdb_wbc_sam_lookup_rids(struct pdb_methods *methods,
 					enum lsa_SidType *attrs)
 {
 	NTSTATUS result = NT_STATUS_OK;
+	const char *p = NULL;
+	const char **pp = NULL;
 	char *domain = NULL;
 	char **account_names = NULL;
 	enum lsa_SidType *attr_list = NULL;
 	int i;
 
 	if (!winbind_lookup_rids(talloc_tos(), domain_sid, num_rids, rids,
-				 (const char **)&domain,
-				 (const char ***)&account_names, &attr_list))
+				 &p, &pp, &attr_list))
 	{
 		result = NT_STATUS_NONE_MAPPED;
 		goto done;
 	}
+	domain = discard_const_p(char, p);
+	account_names = discard_const_p(char *, pp);
 
 	memcpy(attrs, attr_list, num_rids * sizeof(enum lsa_SidType));
 
@@ -243,16 +250,18 @@ static NTSTATUS pdb_wbc_sam_getgrsid(struct pdb_methods *methods, GROUP_MAP *map
 				 struct dom_sid sid)
 {
 	NTSTATUS result = NT_STATUS_OK;
+	const char *p1 = NULL, *p2 = NULL;
 	char *name = NULL;
 	char *domain = NULL;
 	enum lsa_SidType name_type;
 	gid_t gid;
 
-	if (!winbind_lookup_sid(talloc_tos(), &sid, (const char **)&domain,
-				(const char **) &name, &name_type)) {
+	if (!winbind_lookup_sid(talloc_tos(), &sid, &p1, &p2, &name_type)) {
 		result = NT_STATUS_NO_SUCH_GROUP;
 		goto done;
 	}
+	domain = discard_const_p(char, p1);
+	name = discard_const_p(char, p2);
 
 	if ((name_type != SID_NAME_DOM_GRP) &&
 	    (name_type != SID_NAME_DOMAIN) &&
@@ -282,6 +291,7 @@ static NTSTATUS pdb_wbc_sam_getgrgid(struct pdb_methods *methods, GROUP_MAP *map
 				 gid_t gid)
 {
 	NTSTATUS result = NT_STATUS_OK;
+	const char *p1 = NULL, *p2 = NULL;
 	char *name = NULL;
 	char *domain = NULL;
 	struct dom_sid sid;
@@ -292,11 +302,12 @@ static NTSTATUS pdb_wbc_sam_getgrgid(struct pdb_methods *methods, GROUP_MAP *map
 		goto done;
 	}
 
-	if (!winbind_lookup_sid(talloc_tos(), &sid, (const char **)&domain,
-				(const char **)&name, &name_type)) {
+	if (!winbind_lookup_sid(talloc_tos(), &sid, &p1, &p2, &name_type)) {
 		result = NT_STATUS_NO_SUCH_GROUP;
 		goto done;
 	}
+	domain = discard_const_p(char, p1);
+	name = discard_const_p(char, p2);
 
 	if ((name_type != SID_NAME_DOM_GRP) &&
 	    (name_type != SID_NAME_DOMAIN) &&
@@ -419,8 +430,7 @@ static NTSTATUS pdb_init_wbc_sam(struct pdb_methods **pdb_method, const char *lo
 	(*pdb_method)->lookup_rids = pdb_wbc_sam_lookup_rids;
 	(*pdb_method)->get_account_policy = pdb_wbc_sam_get_account_policy;
 	(*pdb_method)->set_account_policy = pdb_wbc_sam_set_account_policy;
-	(*pdb_method)->uid_to_sid = pdb_wbc_sam_uid_to_sid;
-	(*pdb_method)->gid_to_sid = pdb_wbc_sam_gid_to_sid;
+	(*pdb_method)->id_to_sid = pdb_wbc_sam_id_to_sid;
 
 	(*pdb_method)->search_groups = pdb_wbc_sam_search_groups;
 	(*pdb_method)->search_aliases = pdb_wbc_sam_search_aliases;

@@ -30,15 +30,12 @@ from decimal import Decimal
 
 sys.path.insert(0, "bin/python")
 import samba
-samba.ensure_external_module("testtools", "testtools")
-samba.ensure_external_module("subunit", "subunit/python")
+from samba.tests.subunitrun import TestProgram, SubunitOptions
 
 import samba.getopt as options
 
-from ldb import (
-            SCOPE_BASE, SCOPE_SUBTREE, LdbError, ERR_NO_SUCH_OBJECT,
-                ERR_UNWILLING_TO_PERFORM, ERR_INSUFFICIENT_ACCESS_RIGHTS)
-from samba.ndr import ndr_pack, ndr_unpack
+from ldb import SCOPE_BASE, SCOPE_SUBTREE
+from samba.ndr import ndr_unpack
 from samba.dcerpc import security
 
 from samba.auth import system_session
@@ -47,18 +44,17 @@ from samba.samdb import SamDB
 from samba.credentials import Credentials
 import samba.tests
 from samba.tests import delete_force
-from subunit.run import SubunitTestRunner
-import unittest
 
 parser = optparse.OptionParser("speedtest.py [options] <host>")
 sambaopts = options.SambaOptions(parser)
 parser.add_option_group(sambaopts)
 parser.add_option_group(options.VersionOptions(parser))
 
-
 # use command line creds if available
 credopts = options.CredentialsOptions(parser)
 parser.add_option_group(credopts)
+subunitopts = SubunitOptions(parser)
+parser.add_option_group(subunitopts)
 opts, args = parser.parse_args()
 
 if len(args) < 1:
@@ -232,10 +228,4 @@ if not "://" in host:
 ldb_options = ["modules:paged_searches"]
 ldb = SamDB(host, credentials=creds, session_info=system_session(), lp=lp, options=ldb_options)
 
-runner = SubunitTestRunner()
-rc = 0
-if not runner.run(unittest.makeSuite(SpeedTestAddDel)).wasSuccessful():
-    rc = 1
-if not runner.run(unittest.makeSuite(AclSearchSpeedTest)).wasSuccessful():
-    rc = 1
-sys.exit(rc)
+TestProgram(module=__name__, opts=subunitopts)

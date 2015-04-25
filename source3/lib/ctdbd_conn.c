@@ -201,7 +201,7 @@ const char *lp_ctdbd_socket(void)
 		return ret;
 	}
 
-	return CTDB_PATH;
+	return CTDB_SOCKET;
 }
 
 /*
@@ -767,7 +767,7 @@ NTSTATUS ctdbd_messaging_send_blob(struct ctdbd_connection *conn,
 
 	r.hdr.length = offsetof(struct ctdb_req_message, data) + buflen;
 	r.hdr.ctdb_magic = CTDB_MAGIC;
-	r.hdr.ctdb_version = CTDB_VERSION;
+	r.hdr.ctdb_version = CTDB_PROTOCOL;
 	r.hdr.generation = 1;
 	r.hdr.operation  = CTDB_REQ_MESSAGE;
 	r.hdr.destnode   = dst_vnn;
@@ -826,7 +826,7 @@ static NTSTATUS ctdbd_control(struct ctdbd_connection *conn,
 	ZERO_STRUCT(req);
 	req.hdr.length = offsetof(struct ctdb_req_control, data) + data.dsize;
 	req.hdr.ctdb_magic   = CTDB_MAGIC;
-	req.hdr.ctdb_version = CTDB_VERSION;
+	req.hdr.ctdb_version = CTDB_PROTOCOL;
 	req.hdr.operation    = CTDB_REQ_CONTROL;
 	req.hdr.reqid        = ctdbd_next_reqid(conn);
 	req.hdr.destnode     = vnn;
@@ -947,7 +947,7 @@ bool ctdb_processes_exist(struct ctdbd_connection *conn,
 		req.hdr.length = offsetof(struct ctdb_req_control, data);
 		req.hdr.length += sizeof(pid);
 		req.hdr.ctdb_magic   = CTDB_MAGIC;
-		req.hdr.ctdb_version = CTDB_VERSION;
+		req.hdr.ctdb_version = CTDB_PROTOCOL;
 		req.hdr.operation    = CTDB_REQ_CONTROL;
 		req.hdr.reqid        = reqids[i];
 		req.hdr.destnode     = pids[i].vnn;
@@ -1110,20 +1110,13 @@ fail:
 
 bool ctdb_serverids_exist_supported(struct ctdbd_connection *conn)
 {
-#ifndef HAVE_CTDB_CONTROL_CHECK_SRVIDS_DECL
-	return false;
-#else /* HAVE_CTDB_CONTROL_CHECK_SRVIDS_DECL */
 	return true;
-#endif /* HAVE_CTDB_CONTROL_CHECK_SRVIDS_DECL */
 }
 
 bool ctdb_serverids_exist(struct ctdbd_connection *conn,
 			  const struct server_id *pids, unsigned num_pids,
 			  bool *results)
 {
-#ifndef HAVE_CTDB_CONTROL_CHECK_SRVIDS_DECL
-	return false;
-#else /* HAVE_CTDB_CONTROL_CHECK_SRVIDS_DECL */
 	unsigned i, num_received;
 	NTSTATUS status;
 	struct ctdb_vnn_list *vnns = NULL;
@@ -1150,7 +1143,7 @@ bool ctdb_serverids_exist(struct ctdbd_connection *conn,
 
 		req.hdr.length = offsetof(struct ctdb_req_control, data);
 		req.hdr.ctdb_magic   = CTDB_MAGIC;
-		req.hdr.ctdb_version = CTDB_VERSION;
+		req.hdr.ctdb_version = CTDB_PROTOCOL;
 		req.hdr.operation    = CTDB_REQ_CONTROL;
 		req.hdr.reqid        = vnn->reqid;
 		req.hdr.destnode     = vnn->vnn;
@@ -1267,7 +1260,6 @@ bool ctdb_serverids_exist(struct ctdbd_connection *conn,
 fail:
 	cluster_fatal("serverids_exist failed");
 	return false;
-#endif /* HAVE_CTDB_CONTROL_CHECK_SRVIDS_DECL */
 }
 
 /*
@@ -1362,7 +1354,7 @@ NTSTATUS ctdbd_migrate(struct ctdbd_connection *conn, uint32_t db_id,
 
 	req.hdr.length = offsetof(struct ctdb_req_call, data) + key.dsize;
 	req.hdr.ctdb_magic   = CTDB_MAGIC;
-	req.hdr.ctdb_version = CTDB_VERSION;
+	req.hdr.ctdb_version = CTDB_PROTOCOL;
 	req.hdr.operation    = CTDB_REQ_CALL;
 	req.hdr.reqid        = ctdbd_next_reqid(conn);
 	req.flags            = CTDB_IMMEDIATE_MIGRATION;
@@ -1421,17 +1413,13 @@ NTSTATUS ctdbd_parse(struct ctdbd_connection *conn, uint32_t db_id,
 	NTSTATUS status;
 	uint32_t flags;
 
-#ifdef HAVE_CTDB_WANT_READONLY_DECL
 	flags = local_copy ? CTDB_WANT_READONLY : 0;
-#else
-	flags = 0;
-#endif
 
 	ZERO_STRUCT(req);
 
 	req.hdr.length = offsetof(struct ctdb_req_call, data) + key.dsize;
 	req.hdr.ctdb_magic   = CTDB_MAGIC;
-	req.hdr.ctdb_version = CTDB_VERSION;
+	req.hdr.ctdb_version = CTDB_PROTOCOL;
 	req.hdr.operation    = CTDB_REQ_CALL;
 	req.hdr.reqid        = ctdbd_next_reqid(conn);
 	req.flags            = flags;
@@ -1633,9 +1621,7 @@ NTSTATUS ctdbd_register_ips(struct ctdbd_connection *conn,
 	 * versions at runtime
 	 */
 	struct ctdb_control_tcp p4;
-#ifdef HAVE_STRUCT_CTDB_CONTROL_TCP_ADDR
 	struct ctdb_control_tcp_addr p;
-#endif
 	TDB_DATA data;
 	NTSTATUS status;
 	struct sockaddr_storage client;
@@ -1656,14 +1642,12 @@ NTSTATUS ctdbd_register_ips(struct ctdbd_connection *conn,
 		data.dptr = (uint8_t *)&p4;
 		data.dsize = sizeof(p4);
 		break;
-#ifdef HAVE_STRUCT_CTDB_CONTROL_TCP_ADDR
 	case AF_INET6:
 		memcpy(&p.dest.ip6, &server, sizeof(p.dest.ip6));
 		memcpy(&p.src.ip6, &client, sizeof(p.src.ip6));
 		data.dptr = (uint8_t *)&p;
 		data.dsize = sizeof(p);
 		break;
-#endif
 	default:
 		return NT_STATUS_INTERNAL_ERROR;
 	}

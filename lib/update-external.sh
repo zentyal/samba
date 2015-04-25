@@ -25,4 +25,19 @@ git clone git://github.com/jcrocholl/pep8 "$WORKDIR/pep8"
 rm -rf "$WORKDIR/pep8/.git"
 rsync -avz --delete "$WORKDIR/pep8/" "$TARGETDIR/pep8/"
 
+echo "Updating extra..."
+git clone git://github.com/testing-cabal/extras "$WORKDIR/extras"
+rm -rf "$WORKDIR/extras/.git"
+rsync -avz --delete "$WORKDIR/extras/" "$LIBDIR/extras/"
+
+echo "Updating extra..."
+git clone git://github.com/testing-cabal/extras "$WORKDIR/extras"
+rm -rf "$WORKDIR/extras/.git"
+rsync -avz --delete "$WORKDIR/extras/" "$LIBDIR/extras/"
+
+echo "Updating mimeparse..."
+svn co http://mimeparse.googlecode.com/svn/trunk/ "$WORKDIR/mimeparse"
+rm -rf "$WORKDIR/mimeparse/.svn"
+rsync -avz --delete "$WORKDIR/mimeparse/" "$LIBDIR/mimeparse/"
+
 rm -rf "$WORKDIR"

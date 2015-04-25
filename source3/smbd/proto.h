@@ -91,6 +91,7 @@ NTSTATUS schedule_aio_smb2_write(connection_struct *conn,
 				DATA_BLOB in_data,
 				bool write_through);
 bool cancel_smb2_aio(struct smb_request *smbreq);
+bool aio_add_req_to_fsp(files_struct *fsp, struct tevent_req *req);
 
 /* The following definitions come from smbd/blocking.c  */
 
@@ -369,6 +370,9 @@ files_struct *file_find_dif(struct smbd_server_connection *sconn,
 files_struct *file_find_di_first(struct smbd_server_connection *sconn,
 				 struct file_id id);
 files_struct *file_find_di_next(files_struct *start_fsp);
+struct files_struct *file_find_one_fsp_from_lease_key(
+	struct smbd_server_connection *sconn,
+	const struct smb2_lease_key *lease_key);
 bool file_find_subpath(files_struct *dir_fsp);
 void file_sync_all(connection_struct *conn);
 void fsp_free(files_struct *fsp);
@@ -387,6 +391,8 @@ NTSTATUS file_name_hash(connection_struct *conn,
 			const char *name, uint32_t *p_name_hash);
 NTSTATUS fsp_set_smb_fname(struct files_struct *fsp,
 			   const struct smb_filename *smb_fname_in);
+const struct GUID *fsp_client_guid(const files_struct *fsp);
+uint32_t fsp_lease_type(struct files_struct *fsp);
 
 /* The following definitions come from smbd/ipc.c  */
 
@@ -610,6 +616,9 @@ NTSTATUS change_dir_owner_to_parent(connection_struct *conn,
 				    const char *fname,
 				    SMB_STRUCT_STAT *psbuf);
 bool is_stat_open(uint32 access_mask);
+NTSTATUS send_break_message(struct messaging_context *msg_ctx,
+				const struct share_mode_entry *exclusive,
+				uint16_t break_to);
 struct deferred_open_record;
 bool is_deferred_open_async(const struct deferred_open_record *rec);
 NTSTATUS create_directory(connection_struct *conn, struct smb_request *req,
@@ -621,6 +630,13 @@ void msg_file_was_renamed(struct messaging_context *msg,
 			  DATA_BLOB *data);
 NTSTATUS open_streams_for_delete(connection_struct *conn,
 				 const char *fname);
+int find_share_mode_lease(struct share_mode_data *d,
+			  const struct GUID *client_guid,
+			  const struct smb2_lease_key *key);
+struct share_mode_lease;
+struct fsp_lease *find_fsp_lease(files_struct *new_fsp,
+				 const struct smb2_lease_key *key,
+				 const struct share_mode_lease *l);
 NTSTATUS create_file_default(connection_struct *conn,
 			     struct smb_request *req,
 			     uint16_t root_dir_fid,
@@ -636,9 +652,11 @@ NTSTATUS create_file_default(connection_struct *conn,
 			     uint32_t private_flags,
 			     struct security_descriptor *sd,
 			     struct ea_list *ea_list,
-
 			     files_struct **result,
-			     int *pinfo);
+			     int *pinfo,
+			     const struct smb2_create_blobs *in_context_blobs,
+			     struct smb2_create_blobs *out_context_blobs);
+
 NTSTATUS get_relative_fid_filename(connection_struct *conn,
 				   struct smb_request *req,
 				   uint16_t root_dir_fid,
@@ -647,10 +665,22 @@ NTSTATUS get_relative_fid_filename(connection_struct *conn,
 
 /* The following definitions come from smbd/oplock.c  */
 
+uint32_t map_oplock_to_lease_type(uint16_t op_type);
+uint32_t get_lease_type(struct share_mode_data *d, struct share_mode_entry *e);
+bool update_num_read_oplocks(files_struct *fsp, struct share_mode_lock *lck);
+
 void break_kernel_oplock(struct messaging_context *msg_ctx, files_struct *fsp);
 NTSTATUS set_file_oplock(files_struct *fsp);
 bool remove_oplock(files_struct *fsp);
 bool downgrade_oplock(files_struct *fsp);
+bool fsp_lease_update(struct share_mode_lock *lck,
+		      const struct GUID *client_guid,
+		      struct fsp_lease *lease);
+NTSTATUS downgrade_lease(struct smbXsrv_connection *xconn,
+			uint32_t num_file_ids,
+			const struct file_id *ids,
+			const struct smb2_lease_key *key,
+			uint32_t lease_state);
 void contend_level2_oplocks_begin(files_struct *fsp,
 				  enum level2_contention_type type);
 void contend_level2_oplocks_end(files_struct *fsp,

@@ -25,6 +25,7 @@
 #include "smbd/globals.h"
 #include "../libcli/smb/smb_common.h"
 #include "../librpc/gen_ndr/ndr_security.h"
+#include "../librpc/gen_ndr/ndr_smb2_lease_struct.h"
 #include "../lib/util/tevent_ntstatus.h"
 #include "messages.h"
 
@@ -40,9 +41,7 @@ int map_smb2_oplock_levels_to_samba(uint8_t in_oplock_level)
 	case SMB2_OPLOCK_LEVEL_BATCH:
 		return BATCH_OPLOCK;
 	case SMB2_OPLOCK_LEVEL_LEASE:
-		DEBUG(2,("map_smb2_oplock_levels_to_samba: "
-			"LEASE_OPLOCK_REQUESTED\n"));
-		return NO_OPLOCK;
+		return LEASE_OPLOCK;
 	default:
 		DEBUG(2,("map_smb2_oplock_levels_to_samba: "
 			"unknown level %u\n",
@@ -59,6 +58,8 @@ static uint8_t map_samba_oplock_levels_to_smb2(int oplock_type)
 		return SMB2_OPLOCK_LEVEL_EXCLUSIVE;
 	} else if (oplock_type == LEVEL_II_OPLOCK) {
 		return SMB2_OPLOCK_LEVEL_II;
+	} else if (oplock_type == LEASE_OPLOCK) {
+		return SMB2_OPLOCK_LEVEL_LEASE;
 	} else {
 		return SMB2_OPLOCK_LEVEL_NONE;
 	}
@@ -241,13 +242,7 @@ NTSTATUS smbd_smb2_request_process_create(struct smbd_smb2_request *smb2req)
 	}
 	tevent_req_set_callback(tsubreq, smbd_smb2_request_create_done, smb2req);
 
-	/*
-	 * For now we keep the logic that we do not send STATUS_PENDING
-	 * for sharing violations, so we just wait 2 seconds.
-	 *
-	 * TODO: we need more tests for this.
-	 */
-	return smbd_smb2_request_pending_queue(smb2req, tsubreq, 2000000);
+	return smbd_smb2_request_pending_queue(smb2req, tsubreq, 500);
 }
 
 static uint64_t get_mid_from_smb2req(struct smbd_smb2_request *smb2req)
@@ -374,6 +369,62 @@ static void smbd_smb2_request_create_done(struct tevent_req *tsubreq)
 	}
 }
 
+static bool smb2_lease_key_valid(const struct smb2_lease_key *key)
+{
+	return ((key->data[0] != 0) || (key->data[1] != 0));
+}
+
+static NTSTATUS smbd_smb2_create_durable_lease_check(
+	const char *requested_filename, const struct files_struct *fsp,
+	const struct smb2_lease *lease_ptr)
+{
+	struct smb_filename *smb_fname = NULL;
+	NTSTATUS status;
+
+	if (lease_ptr == NULL) {
+		if (fsp->oplock_type != LEASE_OPLOCK) {
+			return NT_STATUS_OK;
+		}
+		DEBUG(10, ("Reopened file has lease, but no lease "
+			   "requested\n"));
+		return NT_STATUS_OBJECT_NAME_NOT_FOUND;
+	}
+
+	if (fsp->oplock_type != LEASE_OPLOCK) {
+		DEBUG(10, ("Lease requested, but reopened file has no "
+			   "lease\n"));
+		return NT_STATUS_OBJECT_NAME_NOT_FOUND;
+	}
+
+	if (!smb2_lease_key_equal(&lease_ptr->lease_key,
+				  &fsp->lease->lease.lease_key)) {
+		DEBUG(10, ("Different lease key requested than found "
+			   "in reopened file\n"));
+		return NT_STATUS_OBJECT_NAME_NOT_FOUND;
+	}
+
+	status = filename_convert(talloc_tos(), fsp->conn, false,
+				  requested_filename, UCF_PREP_CREATEFILE,
+				  NULL, &smb_fname);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(10, ("filename_convert returned %s\n",
+			   nt_errstr(status)));
+		return status;
+	}
+
+	if (!strequal(fsp->fsp_name->base_name, smb_fname->base_name)) {
+		DEBUG(10, ("Lease requested for file %s, reopened file "
+			   "is named %s\n", smb_fname->base_name,
+			   fsp->fsp_name->base_name));
+		TALLOC_FREE(smb_fname);
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	TALLOC_FREE(smb_fname);
+
+	return NT_STATUS_OK;
+}
+
 struct smbd_smb2_create_state {
 	struct smbd_smb2_request *smb2req;
 	struct smb_request *smb1req;
@@ -394,7 +445,7 @@ struct smbd_smb2_create_state {
 	uint32_t out_file_attributes;
 	uint64_t out_file_id_persistent;
 	uint64_t out_file_id_volatile;
-	struct smb2_create_blobs out_context_blobs;
+	struct smb2_create_blobs *out_context_blobs;
 };
 
 static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
@@ -416,15 +467,13 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 	struct smb_request *smb1req = NULL;
 	files_struct *result = NULL;
 	int info;
-	struct smb2_create_blobs out_context_blobs;
 	int requested_oplock_level;
 	struct smb2_create_blob *dhnc = NULL;
 	struct smb2_create_blob *dh2c = NULL;
 	struct smb2_create_blob *dhnq = NULL;
 	struct smb2_create_blob *dh2q = NULL;
+	struct smb2_create_blob *rqls = NULL;
 	struct smbXsrv_open *op = NULL;
-
-	ZERO_STRUCT(out_context_blobs);
 
 	if(lp_fake_oplocks(SNUM(smb2req->tcon->compat))) {
 		requested_oplock_level = SMB2_OPLOCK_LEVEL_NONE;
@@ -456,8 +505,14 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 		state = tevent_req_data(req,
 				struct smbd_smb2_create_state);
 		smb1req = state->smb1req;
+		TALLOC_FREE(state->out_context_blobs);
 		DEBUG(10,("smbd_smb2_create_send: reentrant for file %s\n",
 			in_name ));
+	}
+
+	state->out_context_blobs = talloc_zero(state, struct smb2_create_blobs);
+	if (tevent_req_nomem(state->out_context_blobs, req)) {
+		return tevent_req_post(req, ev);
 	}
 
 	dhnq = smb2_create_blob_find(&in_context_blobs,
@@ -468,6 +523,10 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 				     SMB2_CREATE_TAG_DH2Q);
 	dh2c = smb2_create_blob_find(&in_context_blobs,
 				     SMB2_CREATE_TAG_DH2C);
+	if (smb2req->xconn->smb2.server.capabilities & SMB2_CAP_LEASING) {
+		rqls = smb2_create_blob_find(&in_context_blobs,
+					     SMB2_CREATE_TAG_RQLS);
+	}
 
 	if ((dhnc && dh2c) || (dhnc && dh2q) || (dh2c && dhnq) ||
 	    (dh2q && dh2c))
@@ -507,6 +566,10 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 			num_blobs_allowed = 1;
 		}
 
+		if (rqls != NULL) {
+			num_blobs_allowed += 1;
+		}
+
 		if (in_context_blobs.num_blobs != num_blobs_allowed) {
 			tevent_req_nterror(req, NT_STATUS_OBJECT_NAME_NOT_FOUND);
 			return tevent_req_post(req, ev);
@@ -538,6 +601,10 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 		 */
 
 		num_blobs_allowed = 1;
+
+		if (rqls != NULL) {
+			num_blobs_allowed += 1;
+		}
 
 		if (in_context_blobs.num_blobs != num_blobs_allowed) {
 			tevent_req_nterror(req, NT_STATUS_OBJECT_NAME_NOT_FOUND);
@@ -605,6 +672,9 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 		uint32_t durable_timeout_msec = 0;
 		bool do_durable_reconnect = false;
 		uint64_t persistent_id = 0;
+		struct smb2_lease lease;
+		struct smb2_lease *lease_ptr = NULL;
+		ssize_t lease_len = -1;
 
 		exta = smb2_create_blob_find(&in_context_blobs,
 					     SMB2_CREATE_TAG_EXTA);
@@ -804,6 +874,34 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 			}
 		}
 
+		if (rqls) {
+			lease_len = smb2_lease_pull(
+				rqls->data.data, rqls->data.length, &lease);
+			if (lease_len == -1) {
+				tevent_req_nterror(
+					req, NT_STATUS_INVALID_PARAMETER);
+				return tevent_req_post(req, ev);
+			}
+			lease_ptr = &lease;
+
+			if (DEBUGLEVEL >= 10) {
+				DEBUG(10, ("Got lease request size %d\n",
+					   (int)lease_len));
+				NDR_PRINT_DEBUG(smb2_lease, lease_ptr);
+			}
+
+			if (!smb2_lease_key_valid(&lease.lease_key)) {
+				lease_ptr = NULL;
+				requested_oplock_level = SMB2_OPLOCK_LEVEL_NONE;
+			}
+
+			if ((smb2req->xconn->protocol < PROTOCOL_SMB3_00) &&
+			    (lease.lease_version != 1)) {
+				DEBUG(10, ("v2 lease key only for SMB3\n"));
+				lease_ptr = NULL;
+			}
+		}
+
 		/* these are ignored for SMB2 */
 		in_create_options &= ~(0x10);/* NTCREATEX_OPTIONS_SYNC_ALERT */
 		in_create_options &= ~(0x20);/* NTCREATEX_OPTIONS_ASYNC_ALERT */
@@ -863,6 +961,17 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 				return tevent_req_post(req, ev);
 			}
 
+			DEBUG(10, ("result->oplock_type=%u, lease_ptr==%p\n",
+				   (unsigned)result->oplock_type, lease_ptr));
+
+			status = smbd_smb2_create_durable_lease_check(
+				fname, result, lease_ptr);
+			if (!NT_STATUS_IS_OK(status)) {
+				close_file(smb1req, result, SHUTDOWN_CLOSE);
+				tevent_req_nterror(req, status);
+				return tevent_req_post(req, ev);
+			}
+
 			data_blob_free(&op->global->backend_cookie);
 			op->global->backend_cookie = new_cookie;
 
@@ -877,6 +986,14 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 			info = FILE_WAS_OPENED;
 		} else {
 			struct smb_filename *smb_fname = NULL;
+
+			if (requested_oplock_level == SMB2_OPLOCK_LEVEL_LEASE) {
+				if (lease_ptr == NULL) {
+					requested_oplock_level = SMB2_OPLOCK_LEVEL_NONE;
+				}
+			} else {
+				lease_ptr = NULL;
+			}
 
 			/*
 			 * For a DFS path the function parse_dfs_path()
@@ -948,13 +1065,15 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 						     in_create_options,
 						     in_file_attributes,
 						     map_smb2_oplock_levels_to_samba(requested_oplock_level),
-						     NULL,
+						     lease_ptr,
 						     allocation_size,
 						     0, /* private_flags */
 						     sec_desc,
 						     ea_list,
 						     &result,
-						     &info);
+						     &info,
+						     &in_context_blobs,
+						     state->out_context_blobs);
 			if (!NT_STATUS_IS_OK(status)) {
 				if (open_was_deferred(smb1req->xconn, smb1req->mid)) {
 					return req;
@@ -991,10 +1110,11 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 				SIVAL(p, 0, NT_STATUS_V(status));
 				SIVAL(p, 4, max_access_granted);
 
-				status = smb2_create_blob_add(state,
-							&out_context_blobs,
-							SMB2_CREATE_TAG_MXAC,
-							blob);
+				status = smb2_create_blob_add(
+				    state->out_context_blobs,
+				    state->out_context_blobs,
+				    SMB2_CREATE_TAG_MXAC,
+				    blob);
 				if (!NT_STATUS_IS_OK(status)) {
 					tevent_req_nterror(req, status);
 					return tevent_req_post(req, ev);
@@ -1003,7 +1123,7 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 		}
 
 		if (durable_requested &&
-		    BATCH_OPLOCK_TYPE(result->oplock_type))
+		    (fsp_lease_type(result) & SMB2_LEASE_HANDLE))
 		{
 			status = SMB_VFS_DURABLE_COOKIE(result,
 						op,
@@ -1036,8 +1156,8 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 			uint8_t p[8] = { 0, };
 			DATA_BLOB blob = data_blob_const(p, sizeof(p));
 
-			status = smb2_create_blob_add(state,
-						      &out_context_blobs,
+			status = smb2_create_blob_add(state->out_context_blobs,
+						      state->out_context_blobs,
 						      SMB2_CREATE_TAG_DHNQ,
 						      blob);
 			if (!NT_STATUS_IS_OK(status)) {
@@ -1054,7 +1174,8 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 			SIVAL(p, 0, op->global->durable_timeout_msec);
 			SIVAL(p, 4, durable_v2_response_flags);
 
-			status = smb2_create_blob_add(state, &out_context_blobs,
+			status = smb2_create_blob_add(state->out_context_blobs,
+						      state->out_context_blobs,
 						      SMB2_CREATE_TAG_DH2Q,
 						      blob);
 			if (!NT_STATUS_IS_OK(status)) {
@@ -1078,9 +1199,36 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 			SBVAL(p, 0, file_index);
 			SIVAL(p, 8, result->fsp_name->st.st_ex_dev);/* FileIndexHigh */
 
-			status = smb2_create_blob_add(state, &out_context_blobs,
+			status = smb2_create_blob_add(state->out_context_blobs,
+						      state->out_context_blobs,
 						      SMB2_CREATE_TAG_QFID,
 						      blob);
+			if (!NT_STATUS_IS_OK(status)) {
+				tevent_req_nterror(req, status);
+				return tevent_req_post(req, ev);
+			}
+		}
+
+		if ((rqls != NULL) && (result->oplock_type == LEASE_OPLOCK)) {
+			uint8_t buf[52];
+
+			lease = result->lease->lease;
+
+			lease_len = sizeof(buf);
+			if (lease.lease_version == 1) {
+				lease_len = 32;
+			}
+
+			if (!smb2_lease_push(&lease, buf, lease_len)) {
+				tevent_req_nterror(
+					req, NT_STATUS_INTERNAL_ERROR);
+				return tevent_req_post(req, ev);
+			}
+
+			status = smb2_create_blob_add(
+				state, state->out_context_blobs,
+				SMB2_CREATE_TAG_RQLS,
+				data_blob_const(buf, lease_len));
 			if (!NT_STATUS_IS_OK(status)) {
 				tevent_req_nterror(req, status);
 				return tevent_req_post(req, ev);
@@ -1120,7 +1268,6 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 	}
 	state->out_file_id_persistent = result->op->global->open_persistent_id;
 	state->out_file_id_volatile = result->op->global->open_volatile_id;
-	state->out_context_blobs = out_context_blobs;
 
 	DEBUG(10,("smbd_smb2_create_send: %s - %s\n",
 		  fsp_str_dbg(result), fsp_fnum_dbg(result)));
@@ -1164,9 +1311,9 @@ static NTSTATUS smbd_smb2_create_recv(struct tevent_req *req,
 	*out_file_attributes	= state->out_file_attributes;
 	*out_file_id_persistent	= state->out_file_id_persistent;
 	*out_file_id_volatile	= state->out_file_id_volatile;
-	*out_context_blobs	= state->out_context_blobs;
+	*out_context_blobs	= *(state->out_context_blobs);
 
-	talloc_steal(mem_ctx, state->out_context_blobs.blobs);
+	talloc_steal(mem_ctx, state->out_context_blobs->blobs);
 
 	tevent_req_received(req);
 	return NT_STATUS_OK;

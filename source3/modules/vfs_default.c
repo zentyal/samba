@@ -403,6 +403,14 @@ static struct dirent *vfswrap_readdir(vfs_handle_struct *handle,
 	return result;
 }
 
+static NTSTATUS vfswrap_readdir_attr(struct vfs_handle_struct *handle,
+				     const struct smb_filename *fname,
+				     TALLOC_CTX *mem_ctx,
+				     struct readdir_attr_data **attr_data)
+{
+	return NT_STATUS_NOT_SUPPORTED;
+}
+
 static void vfswrap_seekdir(vfs_handle_struct *handle, DIR *dirp, long offset)
 {
 	START_PROFILE(syscall_seekdir);
@@ -523,7 +531,9 @@ static NTSTATUS vfswrap_create_file(vfs_handle_struct *handle,
 				    struct security_descriptor *sd,
 				    struct ea_list *ea_list,
 				    files_struct **result,
-				    int *pinfo)
+				    int *pinfo,
+				    const struct smb2_create_blobs *in_context_blobs,
+				    struct smb2_create_blobs *out_context_blobs)
 {
 	return create_file_default(handle->conn, req, root_dir_fid, smb_fname,
 				   access_mask, share_access,
@@ -531,7 +541,7 @@ static NTSTATUS vfswrap_create_file(vfs_handle_struct *handle,
 				   file_attributes, oplock_request, lease,
 				   allocation_size, private_flags,
 				   sd, ea_list, result,
-				   pinfo);
+				   pinfo, in_context_blobs, out_context_blobs);
 }
 
 static int vfswrap_close(vfs_handle_struct *handle, files_struct *fsp)
@@ -1843,15 +1853,14 @@ static int strict_allocate_ftruncate(vfs_handle_struct *handle, files_struct *fs
 	   return ENOTSUP or EINVAL in cases like that. */
 	ret = SMB_VFS_FALLOCATE(fsp, VFS_FALLOCATE_EXTEND_SIZE,
 				pst->st_ex_size, space_to_write);
-	if (ret == ENOSPC) {
-		errno = ENOSPC;
+	if (ret == -1 && errno == ENOSPC) {
 		return -1;
 	}
 	if (ret == 0) {
 		return 0;
 	}
 	DEBUG(10,("strict_allocate_ftruncate: SMB_VFS_FALLOCATE failed with "
-		"error %d. Falling back to slow manual allocation\n", ret));
+		"error %d. Falling back to slow manual allocation\n", errno));
 
 	/* available disk space is enough or not? */
 	space_avail = get_dfree_info(fsp->conn,
@@ -1867,8 +1876,7 @@ static int strict_allocate_ftruncate(vfs_handle_struct *handle, files_struct *fs
 	/* Write out the real space on disk. */
 	ret = vfs_slow_fallocate(fsp, pst->st_ex_size, space_to_write);
 	if (ret != 0) {
-		errno = ret;
-		ret = -1;
+		return -1;
 	}
 
 	return 0;
@@ -1953,6 +1961,15 @@ static int vfswrap_fallocate(vfs_handle_struct *handle,
 	START_PROFILE(syscall_fallocate);
 	if (mode == VFS_FALLOCATE_EXTEND_SIZE) {
 		result = sys_posix_fallocate(fsp->fh->fd, offset, len);
+		/*
+		 * posix_fallocate returns 0 on success, errno on error
+		 * and doesn't set errno. Make it behave like fallocate()
+		 * which returns -1, and sets errno on failure.
+		 */
+		if (result != 0) {
+			errno = result;
+			result = -1;
+		}
 	} else if (mode == VFS_FALLOCATE_KEEP_SIZE) {
 		result = sys_fallocate(fsp->fh->fd, mode, offset, len);
 	} else {
@@ -2511,6 +2528,7 @@ static struct vfs_fn_pointers vfs_default_fns = {
 	.opendir_fn = vfswrap_opendir,
 	.fdopendir_fn = vfswrap_fdopendir,
 	.readdir_fn = vfswrap_readdir,
+	.readdir_attr_fn = vfswrap_readdir_attr,
 	.seekdir_fn = vfswrap_seekdir,
 	.telldir_fn = vfswrap_telldir,
 	.rewind_dir_fn = vfswrap_rewinddir,

@@ -55,21 +55,6 @@ bld.SAMBA3_LIBRARY('netapi',
                     pc_files='libnet/netapi.pc',
                     vnum='0')
 
-bld.SAMBA3_LIBRARY('smbsharemodes',
-                    source='libsmb/smb_share_modes.c',
-                    public_deps='''talloc tdb_compat''',
-                    deps='''ccan-hash''',
-                    public_headers='include/smb_share_modes.h',
-                    pc_files='libsmb/smbsharemodes.pc',
-                    vnum='0')
-
-bld.SAMBA3_LIBRARY('nss_wins',
-                  source='../nsswitch/wins.c',
-                  deps='''param libsmb LIBTSOCKET''',
-                  realname='libnss_wins.so.2',
-                  soname='libnss_wins.so',
-                  vnum='2')
-
 bld.SAMBA3_LIBRARY('gse',
                    source='librpc/crypto/gse_krb5.c librpc/crypto/gse.c',
                    deps='krb5samba gensec param KRBCLIENT secrets3',
@@ -144,7 +129,22 @@ private_pdb_match = private_pdb_match + ldapsam_pdb_match
 
 private_pdb_match = private_pdb_match + map(lambda x: '!pdb_%s_init' % x, static_pdb_match)
 
-bld.SAMBA3_LIBRARY('pdb',
+bld.SAMBA3_LIBRARY('samba-passdb',
+                   source='',
+                   deps='pdb',
+                   private_library=False,
+                   grouping_library=True,
+                   pc_files=[],
+                   public_headers_install=True,
+                   public_headers='''
+                   include/passdb.h
+                   passdb/machine_sid.h
+                   passdb/lookup_sid.h''',
+                   abi_match=private_pdb_match,
+                   abi_directory='passdb/ABI',
+                   vnum='0.24.1')
+
+bld.SAMBA3_SUBSYSTEM('pdb',
                    source='''passdb/pdb_get_set.c
                    passdb/passdb.c
                    lib/util_wellknown.c
@@ -162,17 +162,7 @@ bld.SAMBA3_LIBRARY('pdb',
                    passdb/pdb_interface.c
                    passdb/pdb_secrets.c
                    passdb/pdb_unixid.c''',
-                   deps='secrets3 GROUPDB SERVER_MUTEX wbclient LIBCLI_AUTH flag_mapping samba-credentials',
-                   private_library=False,
-                   pc_files=[],
-                   public_headers_install=True,
-                   public_headers='''
-                   include/passdb.h
-                   passdb/machine_sid.h
-                   passdb/lookup_sid.h''',
-                   abi_match=private_pdb_match,
-                   abi_directory='passdb/ABI',
-                   vnum='0.1.2')
+                   deps='secrets3 GROUPDB SERVER_MUTEX wbclient LIBCLI_AUTH flag_mapping samba-credentials')
 
 bld.SAMBA3_LIBRARY('smbldaphelper',
                    source='passdb/pdb_ldap_schema.c passdb/pdb_ldap_util.c',
@@ -618,6 +608,7 @@ bld.SAMBA3_LIBRARY('smbd_base',
                    LIBAFS
                    RPC_SERVICE
                    NDR_SMBXSRV
+                   LEASES_DB
                    LIBASYS
                    sysquotas
                    ccan-hash
@@ -635,12 +626,22 @@ bld.SAMBA3_SUBSYSTEM('LOCKING',
                     deps='''
                     tdb_compat
                     talloc
+                    LEASES_DB
                     NDR_OPEN_FILES
                     FNAME_UTIL''')
 
-bld.SAMBA3_SUBSYSTEM('PROFILE',
-                    source='profile/profile.c',
-                    deps='samba-util')
+bld.SAMBA3_SUBSYSTEM('LEASES_DB',
+                    source='locking/leases_db.c',
+                    deps='NDR_LEASES_DB')
+
+if bld.CONFIG_GET("WITH_PROFILE"):
+    bld.SAMBA3_SUBSYSTEM('PROFILE',
+                         source='profile/profile.c',
+                         deps='samba-util')
+else:
+    bld.SAMBA3_SUBSYSTEM('PROFILE',
+                         source='profile/profile_dummy.c',
+                         deps='')
 
 bld.SAMBA3_SUBSYSTEM('PRINTBASE',
                     source='''printing/notify.c printing/printing_db.c''',
@@ -755,7 +756,7 @@ bld.SAMBA3_SUBSYSTEM('DCUTIL',
 
 bld.SAMBA3_LIBRARY('trusts_util',
                    source='libsmb/trusts_util.c',
-                   deps='libcli_netlogon3 msrpc3 pdb',
+                   deps='libcli_netlogon3 msrpc3 samba-passdb',
                    private_library=True)
 
 bld.SAMBA3_SUBSYSTEM('tdb-wrap3',
@@ -1164,10 +1165,15 @@ bld.SAMBA3_BINARY('smbta-util',
                  secrets3
                  param''')
 
+smbstatus_source = 'utils/status.c smbd/notify_internal.c'
+
+if bld.CONFIG_GET("WITH_PROFILE"):
+    smbstatus_source += ' utils/status_profile.c'
+else:
+    smbstatus_source += ' utils/status_profile_dummy.c'
+
 bld.SAMBA3_BINARY('smbstatus',
-                 source='''utils/status.c
-                 utils/status_profile.c
-                 smbd/notify_internal.c''',
+                 source=smbstatus_source,
                  deps='''
                  talloc
                  param

@@ -1,12 +1,167 @@
-Release Announcements
-=====================
+                   =============================
+                   Release Notes for Samba 4.2.1
+                           April 15, 2015
+                   =============================
 
-This is the second release candidate of Samba 4.2.  This is *not*
-intended for production environments and is designed for testing
-purposes only.  Please report any defects via the Samba bug reporting
-system at https://bugzilla.samba.org/.
+
+This is the latest stable release of Samba 4.2.
+
+
+Changes since 4.2.0:
+--------------------
+
+o   Michael Adam <obnox@samba.org>
+    * BUG 8905: s3:winbind:grent: Don't stop group enumeration when a group has
+      no gid.
+    * BUG 10476: build:wafadmin: Fix use of spaces instead of tabs.
+    * BUG 11143: s3-winbind: Fix cached user group lookup of trusted domains.
+
+
+o   Jeremy Allison <jra@samba.org>
+    * BUG 10016: s3: lib: ntlmssp: If NTLMSSP_NEGOTIATE_TARGET_INFO isn't set,
+      cope with servers that don't send the 2 unused fields.
+    * BUG 10888: s3: client: "client use spnego principal = yes" code checks
+      wrong name.
+    * BUG 11079: s3: lib: libsmbclient: If reusing a server struct, check every
+      cli->timout miliseconds if it's still valid before use.
+    * BUG 11173: s3: libcli: smb1: Ensure we correctly finish a tevent req if
+      the writev fails in the SMB1 case.
+    * BUG 11175: Fix lots of winbindd zombie processes on Solaris platform.
+    * BUG 11177: s3: libsmbclient: Add missing talloc stackframe.
+
+
+o   Andrew Bartlett <abartlet@samba.org>
+    * BUG 11135: backupkey: Explicitly link to gnutls and gcrypt.
+    * BUG 11174: backupkey: Use ndr_pull_struct_blob_all().
+
+
+o   Ralph Boehme <slow@samba.org>
+    * BUG 11125: vfs_fruit: Enhance handling of malformed AppleDouble files.
+
+
+o   Samuel Cabrero <samuelcabrero@kernevil.me>
+    * BUG 9791: Initialize dwFlags field of DNS_RPC_NODE structure.
+
+
+o   David Disseldorp <ddiss@samba.org>
+    * BUG 11169: docs/idmap_rid: Remove deprecated base_rid from example.
+
+
+o   Volker Lendecke <vl@samba.org>
+    * BUG 10476: waf: Fix the build on openbsd.
+
+
+o   Stefan Metzmacher <metze@samba.org>
+    * BUG 11144: talloc: Version 2.1.2.
+    * BUG 11164: s4:auth/gensec_gssapi: Let gensec_gssapi_update() return
+      NT_STATUS_LOGON_FAILURE for unknown errors.
+
+
+o   Matthew Newton <matthew-git@newtoncomputing.co.uk>
+    * BUG 11149: Update libwbclient version to 0.12.
+
+
+o   Andreas Schneider <asn@samba.org>
+    * BUG 11018: spoolss: Retrieve published printer GUID if not in registry.
+    * BUG 11135: replace: Remove superfluous check for gcrypt header.
+    * BUG 11180: s4-process_model: Do not close random fds while forking.
+    * BUG 11185: s3-passdb: Fix 'force user' with winbind default domain.
+
+
+o   Christof Schmitt <cs@samba.org>
+    * BUG 11153: brlock: Use 0 instead of empty initializer list.
+
+
+o   Thomas Schulz <schulz@adi.com>
+    * BUG 11092: lib: texpect: Fix the build on Solaris.
+    * BUG 11140: libcli/auth: Match Declaration of
+      netlogon_creds_cli_context_tmp with implementation.
+
+
+o   Jelmer Vernooij <jelmer@samba.org>
+    * BUG 11137: Backport subunit changes.
+
+
+#######################################
+Reporting bugs & Development Discussion
+#######################################
+
+Please discuss this release on the samba-technical mailing list or by
+joining the #samba-technical IRC channel on irc.freenode.net.
+
+If you do report problems then please try to send high quality
+feedback. If you don't provide vital information to help us track down
+the problem then you will probably be ignored.  All bug reports should
+be filed under the Samba 4.2 product in the project's Bugzilla
+database (https://bugzilla.samba.org/).
+
+
+======================================================================
+== Our Code, Our Bugs, Our Responsibility.
+== The Samba Team
+======================================================================
+
+
+Release notes for older releases follow:
+----------------------------------------
+
+======================================================================
+
+
+                   =============================
+                   Release Notes for Samba 4.2.0
+                           March 04, 2015
+                   =============================
+
+
+This is is the first stable release of Samba 4.2.
 
 Samba 4.2 will be the next version of the Samba suite.
+
+
+Samba User Survey 2015
+======================
+
+https://www.surveygizmo.com/s3/2020369/Samba-User-Survey-2015
+
+Please take our survey. It will help us improve Samba by understanding
+your knowledge and needs. The survey runs until end of March 2015 and
+won't ask for any personal info. The full results will be shared with
+the Samba Team, and statistical summaries will be shared with the
+Samba community after the SambaXP conference (http://sambaxp.org).
+
+
+IMPORTANT NOTE ABOUT THE SUPPORT END OF SAMBA 3
+=================================================
+
+With the final release of Samba 4.2, the last series of Samba 3 has
+been discontinued! People still running 3.6.x or earlier,should
+consider moving to a more recent and maintained version (4.0 - 4.2).
+One of the common misconceptions is that Samba 4.x automatically
+means "Active Directory only": This is wrong!
+
+Acting as an Active Directory Domain Controller is just one of the
+enhancements included in Samba 4.0 and later. Version 4.0 was just the
+next release after the 3.6 series and contains all the features of the
+previous ones - including the NT4-style (classic) domain support. This
+means you can update a Samba 3.x NT4-style PDC to 4.x, just as you've
+updated in the past (e.g. from 3.4.x to 3.5.x). You don't have to move
+your NT4-style domain to an Active Directory!
+
+And of course the possibility remains unchanged, to setup a new NT4-style
+PDC with Samba 4.x, like done in the past (e.g. with openLDAP backend).
+Active Directory support in Samba 4 is additional and does not replace
+any of these features. We do understand the difficulty presented by
+existing LDAP structures and for that reason there isn't a plan to
+decommission the classic PDC support. It remains tested by the continuous
+integration system.
+
+The code that supports the classic Domain Controller is also the same
+code that supports the internal 'Domain' of standalone servers and
+Domain Member Servers. This means that we still use this code, even
+when not acting as an AD Domain Controller. It is also the basis for
+some of the features of FreeIPA and so it gets development attention
+from that direction as well.
 
 
 UPGRADING
@@ -44,10 +199,6 @@ to (other) domain controllers was rewritten in order to maintain
 global state in a netlogon_creds_cli.tdb. This is the proper fix
 for a large number of bugs:
 
-
-
-o   Volker Lendecke <vl@samba.org>
-    * BUG 10860: registry: Don't leave dangling transactions.
   https://bugzilla.samba.org/show_bug.cgi?id=6563
   https://bugzilla.samba.org/show_bug.cgi?id=7944
   https://bugzilla.samba.org/show_bug.cgi?id=7945
@@ -116,6 +267,19 @@ The default values for "smb2 max read", "smb2 max write" and "smb2 max trans"
 have been changed to 8388608 (8MiB) in order to match the default of
 Windows 2012R2.
 
+SMB2 leases
+===========
+
+The SMB2 protocol allows clients to aggressively cache files
+locally above and beyond the caching allowed by SMB1 and SMB2 oplocks.
+
+Called SMB2 leases, this can greatly reduce traffic on an SMB2
+connection. Samba 4.2 now implements SMB2 leases.
+
+It can be turned on by setting the parameter "smb2 leases = yes"
+in the [global] section of your smb.conf. This parameter is set
+to off by default until the SMB2 leasing code is declared fully stable.
+
 Improved DCERPC man in the middle detection
 ===========================================
 
@@ -163,16 +327,9 @@ versions as existed previously.
 
 To build the Samba file server with cluster support, use the configure
 command line option --with-cluster-support.  This will build clustered
-file server against the in-tree ctdb.  Building clustered samba with
-previous versions of CTDB is no longer supported.
-
-CTDB is built separately from the ctdb/ sub-directory.  To build CTDB,
-use the following steps:
-
-  $ cd ctdb
-  $ ./configure
-  $ make
-  # make install
+file server against the in-tree CTDB and will also build CTDB.
+Building clustered samba with previous versions of CTDB is no longer
+supported.
 
 Samba Registry Editor
 =====================
@@ -250,11 +407,36 @@ The module does not provide complete WORM functions, like some archiving
 products do! It is not audit-proof, because the WORM function is only
 available on the client side, when accessing a share through SMB! If
 the same folder is shared by other services like NFS, the access only
-depents on the underlaying filesystem ACLs. Equally if you access the
+depends on the underlying filesystem ACLs. Equally if you access the
 content directly on the server.
 
 For additional information, see
 https://wiki.samba.org/index.php/VFS/vfs_worm
+
+vfs_fruit, a VFS module for OS X clients
+========================================
+
+A new VFS module that provides enhanced compatibility with Apple SMB
+clients and interoperability with a Netatalk 3 AFP fileserver.
+
+The module features enhanced performance with reliable named streams
+support, interoperability with special characters commonly used by OS
+X client (eg '*', '/'), integrated file locking and Mac metadata
+access with Netatalk 3 and enhanced performance by implementing
+Apple's SMB2 extension codenamed "AAPL".
+
+The modules behaviour is fully configurable, please refer to the
+manpage vfs_fruit for further details.
+
+smbclient archival improvements
+===============================
+
+Archive creation and extraction support in smbclient has been rewritten
+to use libarchive. This fixes a number of outstanding bugs in Samba's
+previous custom tar implementation and also adds support for the
+extraction of zipped archives.
+smbclient archive support can be enabled or disabled at build time with
+corresponding --with[out]-libarchive configure parameters.
 
 
 ######################################################################
@@ -276,6 +458,292 @@ smb.conf changes
    smb2 max write                       Changed default 8388608
    smb2 max trans                       Changed default 8388608
    winbind expand groups                Changed default 0
+
+
+CHANGES SINCE 4.2.0rc5
+======================
+
+o   Michael Adam <obnox@samba.org>
+    * BUG 11117: doc:man:vfs_glusterfs: improve the configuration section.
+
+
+o   Jeremy Allison <jra@samba.org>
+    * BUG 11118: tevent: Ignore unexpected signal events in the same way the
+      epoll backend does.
+
+
+o   Andrew Bartlett <abartlet@samba.org>
+    * BUG 11100: debug: Set close-on-exec for the main log file FD.
+    * BUG 11097: Fix Win8.1 Credentials Manager issue after KB2992611 on Samba
+      domain.
+
+
+o   Ira Cooper <ira@samba.org>
+    * BUG 1115: smbd: Stop using vfs_Chdir after SMB_VFS_DISCONNECT.
+
+
+o   Günther Deschner <gd@samba.org>
+    * BUG 11088: vfs: Add a brief vfs_ceph manpage.
+
+
+o   David Disseldorp <ddiss@samba.org>
+    * BUG 11118: tevent: version 0.9.24.
+
+
+o   Amitay Isaacs <amitay@gmail.com>
+    * BUG 11124: ctdb-io: Do not use sys_write to write to client sockets.
+
+
+o   Volker Lendecke <vl@samba.org>
+    * BUG 11119: snprintf: Try to support %j.
+
+
+o   Garming Sam <garming@catalyst.net.nz>
+    * BUG 11097: Fix Win8.1 Credentials Manager issue after KB2992611 on Samba
+      domain.
+
+
+o   Andreas Schneider <asn@samba.org>
+    * BUG 11127: doc-xml: Add 'sharesec' reference to 'access based share
+      enum'.
+
+
+CHANGES SINCE 4.2.0rc4
+======================
+
+o   Michael Adam <obnox@samba.org>
+    * BUG 11032: Enable mutexes in gencache_notrans.tdb.
+    * BUG 11058: cli_connect_nb_send: Don't segfault on host == NULL.
+
+
+o   Jeremy Allison <jra@samba.org>
+    * BUG 10849: s3: lib, s3: modules: Fix compilation on Solaris.
+    * BUG 11044: Fix authentication using Kerberos (not AD).
+    * BUG 11077: CVE-2015-0240: s3: netlogon: Ensure we don't call talloc_free
+      on an uninitialized pointer.
+    * BUG 11094: s3: smbclient: Allinfo leaves the file handle open.
+    * BUG 11102: s3: smbd: leases - losen paranoia check. Stat opens can grant
+      leases.
+    * BUG 11104: s3: smbd: SMB2 close. If a file has delete on close, store the
+      return info before deleting.
+
+
+o   Ira Cooper <ira@samba.org>
+    * BUG 11069: vfs_glusterfs: Add comments to the pipe(2) code.
+
+
+o   Günther Deschner <gd@samba.org>
+    * BUG 11070: s3-vfs: Fix developer build of vfs_ceph module.
+
+
+o   David Disseldorp <ddiss@samba.org>
+    * BUG 10808: printing/cups: Pack requested-attributes with IPP_TAG_KEYWORD.
+    * BUG 11055: vfs_snapper: Correctly handles multi-byte DBus strings.
+    * BUG 11059: libsmb: Provide authinfo domain for encrypted session
+      referrals.
+
+
+o   Poornima G <pgurusid@redhat.com>
+    * BUG 11069: vfs_glusterfs: Implement AIO support.
+
+
+o   Volker Lendecke <vl@samba.org>
+    * BUG 11032: Enable mutexes in gencache_notrans.tdb.
+
+
+o   Stefan Metzmacher <metze@samba.org>
+    * BUG 9299: nsswitch: Fix soname of linux nss_*.so.2 modules.
+    * BUG 9702: s3:smb2_server: protect against integer wrap with "smb2 max
+      credits = 65535".
+    * BUG 9810: Make validate_ldb of String(Generalized-Time) accept
+      millisecond format ".000Z".
+    * BUG 10112: Use -R linker flag on Solaris, not -rpath.
+
+
+o   Marc Muehlfeld <mmuehlfeld@samba.org>
+    * BUG 10909: samba-tool: Create NIS enabled users and unixHomeDirectory
+      attribute.
+
+
+o   Garming Sam <garming@catalyst.net.nz>
+    * BUG 11022: Make Sharepoint search show user documents.
+
+
+o   Christof Schmitt <cs@samba.org>
+    * BUG 11032: Enable mutexes in gencache_notrans.tdb.
+
+
+o   Andreas Schneider <asn@samba.org>
+    * BUG 11058: utils: Fix 'net time' segfault.
+    * BUG 11066: s3-pam_smbpass: Fix memory leak in pam_sm_authenticate().
+    * BUG 11077: CVE-2015-0240: s3-netlogon: Make sure we do not deference a
+      NULL pointer.
+
+
+o   Raghavendra Talur <raghavendra.talur@gmail.com>
+    * BUG 11069: vfs/glusterfs: Change xattr key to match gluster key.
+
+
+CHANGES SINCE 4.2.0rc3
+======================
+
+o   Andrew Bartlett <abartlet@samba.org>
+    * BUG 10993: CVE-2014-8143: dsdb-samldb: Check for extended access
+      rights before we allow changes to userAccountControl.
+
+
+o   Günther Deschner <gd@samba.org>
+    * BUG 10240: vfs: Add glusterfs manpage.
+
+
+o   David Disseldorp <ddiss@samba.org>
+    * BUG 10984: Fix spoolss IDL response marshalling when returning error
+      without clearing info.
+
+
+o   Amitay Isaacs <amitay@gmail.com>
+    * BUG 11000: ctdb-daemon: Use correct tdb flags when enabling robust mutex
+      support.
+
+
+o   Volker Lendecke <vl@samba.org>
+    * BUG 11032: tdb_wrap: Make mutexes easier to use.
+    * BUG 11039: vfs_fruit: Fix base_fsp name conversion.
+    * BUG 11040: vfs_fruit: mmap under FreeBSD needs PROT_READ.
+    * BUG 11051: net: Fix sam addgroupmem.
+
+
+o   Stefan Metzmacher <metze@samba.org>
+    * BUG 10940: s3:passdb: fix logic in pdb_set_pw_history().
+    * BUG 11004: tdb: version 1.3.4.
+
+
+o   Christof Schmitt <cs@samba.org>
+    * BUG 11034: winbind: Retry after SESSION_EXPIRED error in ping-dc.
+
+
+o   Andreas Schneider <asn@samba.org>
+    * BUG 11008: s3-util: Fix authentication with long hostnames.
+    * BUG 11026: nss_wrapper: check for nss.h.
+    * BUG 11033: lib/util: Avoid collision which alread defined consumer DEBUG
+      macro.
+    * BUG 11037: s3-libads: Fix a possible segfault in kerberos_fetch_pac().
+
+
+CHANGES SINCE 4.2.0rc2
+======================
+
+o   Michael Adam <obnox@samba.org>
+    * BUG 10892: Integrate CTDB into top-level Samba build.
+
+
+o   Jeremy Allison <jra@samba.org>
+    * BUG 10851: lib: uid_wrapper: Fix setgroups and syscall detection on a
+      system without native uid_wrapper library.
+    * BUG 10896: s3-nmbd: Fix netbios name truncation.
+    * BUG 10904: Fix smbclient loops doing a directory listing against Mac OS X 10
+      server with a non-wildcard path.
+    * BUG 10911: Add support for SMB2 leases.
+    * BUG 10920: s3: nmbd: Ensure NetBIOS names are only 15 characters stored.
+    * BUG 10966: libcli: SMB2: Pure SMB2-only negprot fix to make us behave as a
+      Windows client does.
+    * BUG 10982: s3: smbd: Fix *allocate* calls to follow POSIX error return
+      convention.
+
+
+o   Christian Ambach <ambi@samba.org>
+    * BUG 9629: Make 'profiles' work again.
+
+
+o   Björn Baumbach <bb@sernet.de>
+    * BUG 11014: ctdb-build: Fix build without xsltproc.
+
+
+o   Ralph Boehme <slow@samba.org>
+    * BUG 10834: Don't build vfs_snapper on FreeBSD.
+    * BUG 10971: vfs_streams_xattr: Check stream type.
+    * BUG 10983: vfs_fruit: Add support for AAPL.
+    * BUG 11005: vfs_streams_xattr: Add missing call to SMB_VFS_NEXT_CONNECT.
+
+
+o   Günther Deschner <gd@samba.org>
+    * BUG 9056: pam_winbind: fix warn_pwd_expire implementation.
+    * BUG 10942: Cleanup add_string_to_array and usage.
+
+
+o   David Disseldorp <ddiss@samba.org>
+    * BUG 10898: spoolss: Fix handling of bad EnumJobs levels.
+    * BUG 10905: Fix print job enumeration.
+
+
+o   Amitay Isaacs <amitay@gmail.com>
+    * BUG 10620: s4-dns: Add support for BIND 9.10.
+    * BUG 10892: Integrate CTDB into top-level Samba build.
+    * BUG 10996: Fix IPv6 support in CTDB.
+    * BUG 11014: packaging: Include CTDB man pages in the tarball.
+
+
+o   Björn Jacke <bj@sernet.de>
+    * BUG 10835: nss_winbind: Add getgroupmembership for FreeBSD.
+
+
+o   Guenter Kukkukk <linux@kukkukk.com>
+    * BUG 10952: Fix 'samba-tool dns serverinfo <server>' for IPv6.
+
+
+o   Volker Lendecke <vl@samba.org>
+    * BUG 10932: pdb_tdb: Fix a TALLOC/SAFE_FREE mixup.
+    * BUG 10942: dbwrap_ctdb: Pass on mutex flags to tdb_open.
+
+
+o   Justin Maggard <jmaggard10@gmail.com>
+    * BUG 10852: winbind3: Fix pwent variable substitution.
+
+
+o   Kamen Mazdrashki <kamenim@samba.org>
+    * BUG 10975: ldb: version 1.1.18
+
+
+o   Stefan Metzmacher <metze@samba.org>
+    * BUG 10781: tdb: version 1.3.3
+    * BUG 10911: Add support for SMB2 leases.
+    * BUG 10921: s3:smbd: Fix file corruption using "write cache size != 0".
+    * BUG 10949: Fix RootDSE search with extended dn control.
+    * BUG 10958: libcli/smb: only force signing of smb2 session setups when
+      binding a new session.
+    * BUG 10975: ldb: version 1.1.18
+    * BUG 11016: pdb_get_trusteddom_pw() fails with non valid UTF16 random
+      passwords.
+
+
+o   Marc Muehlfeld <mmuehlfeld@samba.org>
+    * BUG 10895: samba-tool group add: Add option '--nis-domain' and '--gid'.
+
+
+o   Noel Power <noel.power@suse.com>
+    * BUG 10918: btrfs: Don't leak opened directory handle.
+
+
+o   Matt Rogers <mrogers@redhat.com>
+    * BUG 10933: s3-keytab: fix keytab array NULL termination.
+
+
+o   Garming Sam <garming@catalyst.net.nz>
+    * BUG 10355: pdb: Fix build issues with shared modules.
+    * BUG 10720: idmap: Return the correct id type to *id_to_sid methods.
+    * BUG 10864: Fix testparm to show hidden share defaults.
+
+
+o   Andreas Schneider <asn@samba.org>
+    * BUG 10279: Make 'smbclient' use cached creds.
+    * BUG 10960: s3-smbclient: Return success if we listed the shares.
+    * BUG 10961: s3-smbstatus: Fix exit code of profile output.
+    * BUG 10965: socket_wrapper: Add missing prototype check for eventfd.
+
+
+o   Martin Schwenke <martin@meltin.net>
+    * BUG 10892: Integrate CTDB into top-level Samba build.
+    * BUG 10996: Fix IPv6 support in CTDB.
 
 
 CHANGES SINCE 4.2.0rc1

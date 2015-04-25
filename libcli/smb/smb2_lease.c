@@ -43,6 +43,7 @@ ssize_t smb2_lease_pull(const uint8_t *buf, size_t len,
 	lease->lease_state = IVAL(buf, 16);
 	lease->lease_flags = IVAL(buf, 20);
 	lease->lease_duration = BVAL(buf, 24);
+	lease->lease_version = version;
 
 	switch (version) {
 	case 1:
@@ -84,4 +85,18 @@ bool smb2_lease_push(const struct smb2_lease *lease, uint8_t *buf, size_t len)
 	}
 
 	return true;
+}
+
+bool smb2_lease_key_equal(const struct smb2_lease_key *k1,
+			  const struct smb2_lease_key *k2)
+{
+	return ((k1->data[0] == k2->data[0]) && (k1->data[1] == k2->data[1]));
+}
+
+bool smb2_lease_equal(const struct GUID *g1,
+		      const struct smb2_lease_key *k1,
+		      const struct GUID *g2,
+		      const struct smb2_lease_key *k2)
+{
+	return GUID_equal(g1, g2) && smb2_lease_key_equal(k1, k2);
 }

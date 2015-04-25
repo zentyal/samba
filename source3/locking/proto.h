@@ -30,9 +30,9 @@ void brl_shutdown(void);
 
 unsigned int brl_num_locks(const struct byte_range_lock *brl);
 struct files_struct *brl_fsp(struct byte_range_lock *brl);
-bool brl_have_read_oplocks(const struct byte_range_lock *brl);
-void brl_set_have_read_oplocks(struct byte_range_lock *brl,
-			       bool have_read_oplocks);
+uint32_t brl_num_read_oplocks(const struct byte_range_lock *brl);
+void brl_set_num_read_oplocks(struct byte_range_lock *brl,
+			      uint32_t num_read_oplocks);
 
 NTSTATUS brl_lock_windows_default(struct byte_range_lock *br_lck,
 		struct lock_struct *plock,
@@ -166,14 +166,21 @@ void get_file_infos(struct file_id id,
 		    struct timespec *write_time);
 bool is_valid_share_mode_entry(const struct share_mode_entry *e);
 bool share_mode_stale_pid(struct share_mode_data *d, uint32_t idx);
-bool set_share_mode(struct share_mode_lock *lck, files_struct *fsp,
-		    uid_t uid, uint64_t mid, uint16 op_type);
+bool set_share_mode(struct share_mode_lock *lck, struct files_struct *fsp,
+		    uid_t uid, uint64_t mid, uint16_t op_type,
+		    uint32_t lease_idx);
 void remove_stale_share_mode_entries(struct share_mode_data *d);
 bool del_share_mode(struct share_mode_lock *lck, files_struct *fsp);
 bool mark_share_mode_disconnected(struct share_mode_lock *lck,
 				  struct files_struct *fsp);
 bool remove_share_oplock(struct share_mode_lock *lck, files_struct *fsp);
 bool downgrade_share_oplock(struct share_mode_lock *lck, files_struct *fsp);
+struct share_mode_lease;
+NTSTATUS downgrade_share_lease(struct smbd_server_connection *sconn,
+			       struct share_mode_lock *lck,
+			       const struct smb2_lease_key *key,
+			       uint32_t new_lease_state,
+			       struct share_mode_lease **_l);
 bool get_delete_on_close_token(struct share_mode_lock *lck,
 				uint32_t name_hash,
 				const struct security_token **pp_nt_tok,
@@ -190,7 +197,11 @@ bool is_delete_on_close_set(struct share_mode_lock *lck, uint32_t name_hash);
 bool set_sticky_write_time(struct file_id fileid, struct timespec write_time);
 bool set_write_time(struct file_id fileid, struct timespec write_time);
 struct timespec get_share_mode_write_time(struct share_mode_lock *lck);
-int share_mode_forall(void (*fn)(const struct share_mode_entry *, const char *,
+int share_mode_forall(int (*fn)(struct file_id fid,
+				const struct share_mode_data *data,
+				void *private_data),
+		      void *private_data);
+int share_entry_forall(int (*fn)(const struct share_mode_entry *, const char *,
 				 const char *, void *),
 		      void *private_data);
 bool share_mode_cleanup_disconnected(struct file_id id,

@@ -502,7 +502,9 @@ static NTSTATUS smb_time_audit_create_file(vfs_handle_struct *handle,
 					   struct security_descriptor *sd,
 					   struct ea_list *ea_list,
 					   files_struct **result_fsp,
-					   int *pinfo)
+					   int *pinfo,
+					   const struct smb2_create_blobs *in_context_blobs,
+					   struct smb2_create_blobs *out_context_blobs)
 {
 	NTSTATUS result;
 	struct timespec ts1,ts2;
@@ -526,7 +528,8 @@ static NTSTATUS smb_time_audit_create_file(vfs_handle_struct *handle,
 		sd,					/* sd */
 		ea_list,				/* ea_list */
 		result_fsp,				/* result */
-		pinfo);
+		pinfo,
+		in_context_blobs, out_context_blobs);   /* create context */
 	clock_gettime_mono(&ts2);
 	timediff = nsec_time_diff(&ts2,&ts1)*1.0e-9;
 
@@ -1213,18 +1216,24 @@ static int smb_time_audit_fallocate(vfs_handle_struct *handle,
 				    off_t len)
 {
 	int result;
+	int saved_errno = 0;
 	struct timespec ts1,ts2;
 	double timediff;
 
 	clock_gettime_mono(&ts1);
 	result = SMB_VFS_NEXT_FALLOCATE(handle, fsp, mode, offset, len);
+	if (result == -1) {
+		saved_errno = errno;
+	}
 	clock_gettime_mono(&ts2);
 	timediff = nsec_time_diff(&ts2,&ts1)*1.0e-9;
 
 	if (timediff > audit_timeout) {
 		smb_time_audit_log_fsp("fallocate", timediff, fsp);
 	}
-
+	if (result == -1) {
+		errno = saved_errno;
+	}
 	return result;
 }
 
@@ -1800,6 +1809,27 @@ static NTSTATUS smb_time_audit_set_compression(vfs_handle_struct *handle,
 	}
 
 	return result;
+}
+
+static NTSTATUS smb_time_audit_readdir_attr(struct vfs_handle_struct *handle,
+					    const struct smb_filename *fname,
+					    TALLOC_CTX *mem_ctx,
+					    struct readdir_attr_data **pattr_data)
+{
+	NTSTATUS status;
+	struct timespec ts1,ts2;
+	double timediff;
+
+	clock_gettime_mono(&ts1);
+	status = SMB_VFS_NEXT_READDIR_ATTR(handle, fname, mem_ctx, pattr_data);
+	clock_gettime_mono(&ts2);
+	timediff = nsec_time_diff(&ts2,&ts1)*1.0e-9;
+
+	if (timediff > audit_timeout) {
+		smb_time_audit_log_smb_fname("readdir_attr", timediff, fname);
+	}
+
+	return status;
 }
 
 static NTSTATUS smb_time_audit_fget_nt_acl(vfs_handle_struct *handle,
@@ -2423,6 +2453,7 @@ static struct vfs_fn_pointers vfs_time_audit_fns = {
 	.copy_chunk_recv_fn = smb_time_audit_copy_chunk_recv,
 	.get_compression_fn = smb_time_audit_get_compression,
 	.set_compression_fn = smb_time_audit_set_compression,
+	.readdir_attr_fn = smb_time_audit_readdir_attr,
 	.fget_nt_acl_fn = smb_time_audit_fget_nt_acl,
 	.get_nt_acl_fn = smb_time_audit_get_nt_acl,
 	.fset_nt_acl_fn = smb_time_audit_fset_nt_acl,

@@ -88,7 +88,7 @@ fi
 export CC
 
 CFLAGS="$RPM_OPT_FLAGS $EXTRA -D_GNU_SOURCE" ./buildtools/bin/waf configure \
-	--builtin-libraries=replace,popt \
+	--builtin-libraries=replace,popt,samba-debug,socket-blocking,tdb-wrap \
 	--bundled-libraries=!talloc,!tevent,!tdb \
 	--minimum-library-version=talloc:%libtalloc_version,tdb:%libtdb_version,tevent:%libtevent_version \
 %if %with_pcp_pmda
@@ -225,6 +225,7 @@ development libraries for ctdb
 %{_includedir}/ctdb_protocol.h
 %{_includedir}/ctdb_private.h
 %{_includedir}/ctdb_typesafe_cb.h
+%{_includedir}/ctdb_version.h
 
 %package tests
 Summary: CTDB test suite

@@ -36,16 +36,16 @@ void initldb(void);
 static PyObject *PyLdbMessage_FromMessage(struct ldb_message *msg);
 static PyObject *PyExc_LdbError;
 
-staticforward PyTypeObject PyLdbControl;
-staticforward PyTypeObject PyLdbResult;
-staticforward PyTypeObject PyLdbMessage;
+static PyTypeObject PyLdbControl;
+static PyTypeObject PyLdbResult;
+static PyTypeObject PyLdbMessage;
 #define PyLdbMessage_Check(ob) PyObject_TypeCheck(ob, &PyLdbMessage)
-staticforward PyTypeObject PyLdbModule;
-staticforward PyTypeObject PyLdbDn;
+static PyTypeObject PyLdbModule;
+static PyTypeObject PyLdbDn;
 #define pyldb_Dn_Check(ob) PyObject_TypeCheck(ob, &PyLdbDn)
-staticforward PyTypeObject PyLdb;
+static PyTypeObject PyLdb;
 #define PyLdb_Check(ob) PyObject_TypeCheck(ob, &PyLdb)
-staticforward PyTypeObject PyLdbMessageElement;
+static PyTypeObject PyLdbMessageElement;
 #define pyldb_MessageElement_Check(ob) PyObject_TypeCheck(ob, &PyLdbMessageElement)
 
 staticforward PyTypeObject PyLdbTree;
@@ -1624,15 +1624,24 @@ static PyObject *py_ldb_schema_format_value(PyLdbObject *self, PyObject *args)
 	if (!PyArg_ParseTuple(args, "sO", &element_name, &val))
 		return NULL;
 
-	mem_ctx = talloc_new(NULL);
-
 	old_val.data = (uint8_t *)PyString_AsString(val);
 	old_val.length = PyString_Size(val);
+
+	if (old_val.data == NULL) {
+		PyErr_SetString(PyExc_RuntimeError, "Failed to convert passed value to String");
+		return NULL;
+	}
 
 	a = ldb_schema_attribute_by_name(pyldb_Ldb_AsLdbContext(self), element_name);
 
 	if (a == NULL) {
 		Py_RETURN_NONE;
+	}
+
+	mem_ctx = talloc_new(NULL);
+	if (mem_ctx == NULL) {
+		PyErr_NoMemory();
+		return NULL;
 	}
 
 	if (a->syntax->ldif_write_fn(pyldb_Ldb_AsLdbContext(self), mem_ctx, &old_val, &new_val) != 0) {
@@ -2343,6 +2352,8 @@ static struct ldb_message_element *PyObject_AsMessageElement(
 				(uint8_t *)PyString_AsString(obj), me->values[i].length+1);
 		}
 	} else {
+		PyErr_Format(PyExc_TypeError,
+			     "String or List type expected for '%s' attribute", attr_name);
 		talloc_free(me);
 		me = NULL;
 	}
@@ -2764,20 +2775,38 @@ static PyObject *py_ldb_msg_add(PyLdbMessageObject *self, PyObject *args)
 {
 	struct ldb_message *msg = pyldb_Message_AsMessage(self);
 	PyLdbMessageElementObject *py_element;
-	int ret;
+	int i, ret;
 	struct ldb_message_element *el;
+	struct ldb_message_element *el_new;
 
 	if (!PyArg_ParseTuple(args, "O!", &PyLdbMessageElement, &py_element))
 		return NULL;
 
-	el = talloc_reference(msg, py_element->el);
+	el = py_element->el;
 	if (el == NULL) {
-		PyErr_NoMemory();
+		PyErr_SetString(PyExc_ValueError, "Invalid MessageElement object");
 		return NULL;
 	}
 
-	ret = ldb_msg_add(msg, el, el->flags);
+	ret = ldb_msg_add_empty(msg, el->name, el->flags, &el_new);
 	PyErr_LDB_ERROR_IS_ERR_RAISE(PyExc_LdbError, ret, NULL);
+
+	/* now deep copy all attribute values */
+	el_new->values = talloc_array(msg->elements, struct ldb_val, el->num_values);
+	if (el_new->values == NULL) {
+		PyErr_NoMemory();
+		return NULL;
+	}
+	el_new->num_values = el->num_values;
+
+	for (i = 0; i < el->num_values; i++) {
+		el_new->values[i] = ldb_val_dup(el_new->values, &el->values[i]);
+		if (el_new->values[i].data == NULL
+				&& el->values[i].length != 0) {
+			PyErr_NoMemory();
+			return NULL;
+		}
+	}
 
 	Py_RETURN_NONE;
 }
@@ -2802,7 +2831,7 @@ static PyMethodDef py_ldb_msg_methods[] = {
 	{ "items", (PyCFunction)py_ldb_msg_items, METH_NOARGS, NULL },
 	{ "elements", (PyCFunction)py_ldb_msg_elements, METH_NOARGS, NULL },
 	{ "add", (PyCFunction)py_ldb_msg_add, METH_VARARGS,
-		"S.append(element)\n\n"
+		"S.add(element)\n\n"
 		"Add an element to this message." },
 	{ NULL },
 };
@@ -2834,8 +2863,9 @@ static int py_ldb_msg_setitem(PyLdbMessageObject *self, PyObject *name, PyObject
 		int ret;
 		struct ldb_message_element *el = PyObject_AsMessageElement(self->msg,
 									   value, 0, attr_name);
-		if (el == NULL)
+		if (el == NULL) {
 			return -1;
+		}
 		ldb_msg_remove_attr(pyldb_Message_AsMessage(self), attr_name);
 		ret = ldb_msg_add(pyldb_Message_AsMessage(self), el, el->flags);
 		if (ret != LDB_SUCCESS) {

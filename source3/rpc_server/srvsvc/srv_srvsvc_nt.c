@@ -79,9 +79,9 @@ struct share_conn_stat {
 /*******************************************************************
 ********************************************************************/
 
-static void enum_file_fn( const struct share_mode_entry *e,
-                          const char *sharepath, const char *fname,
-			  void *private_data )
+static int enum_file_fn(const struct share_mode_entry *e,
+			const char *sharepath, const char *fname,
+			void *private_data)
 {
 	struct file_enum_count *fenum =
 		(struct file_enum_count *)private_data;
@@ -98,21 +98,21 @@ static void enum_file_fn( const struct share_mode_entry *e,
 	/* If the pid was not found delete the entry from connections.tdb */
 
 	if ( !process_exists(e->pid) ) {
-		return;
+		return 0;
 	}
 
 	username = uidtoname(e->uid);
 
 	if ((fenum->username != NULL)
 	    && !strequal(username, fenum->username)) {
-		return;
+		return 0;
 	}
 
 	f = talloc_realloc(fenum->ctx, fenum->ctr3->array,
 				 struct srvsvc_NetFileInfo3, i+1);
 	if ( !f ) {
 		DEBUG(0,("conn_enum_fn: realloc failed for %d items\n", i+1));
-		return;
+		return 0;
 	}
 	fenum->ctr3->array = f;
 
@@ -133,7 +133,7 @@ static void enum_file_fn( const struct share_mode_entry *e,
 				sharepath, fname );
 	}
 	if (!fullpath) {
-		return;
+		return 0;
 	}
 	string_replace( fullpath, '/', '\\' );
 
@@ -150,6 +150,8 @@ static void enum_file_fn( const struct share_mode_entry *e,
 	fenum->ctr3->array[i].user		= username;
 
 	fenum->ctr3->count++;
+
+	return 0;
 }
 
 /*******************************************************************
@@ -166,7 +168,7 @@ static WERROR net_enum_files(TALLOC_CTX *ctx,
 	f_enum_cnt.username = username;
 	f_enum_cnt.ctr3 = *ctr3;
 
-	share_mode_forall( enum_file_fn, (void *)&f_enum_cnt );
+	share_entry_forall( enum_file_fn, (void *)&f_enum_cnt );
 
 	*ctr3 = f_enum_cnt.ctr3;
 
@@ -826,9 +828,9 @@ static WERROR init_srv_sess_info_0(struct pipes_struct *p,
  * find out the session on which this file is open and bump up its count
  **********************************************************************/
 
-static void count_sess_files_fn(const struct share_mode_entry *e,
-				const char *sharepath, const char *fname,
-				void *data)
+static int count_sess_files_fn(const struct share_mode_entry *e,
+			       const char *sharepath, const char *fname,
+			       void *data)
 {
 	struct sess_file_info *info = data;
 	uint32_t rh = info->resume_handle;
@@ -846,9 +848,10 @@ static void count_sess_files_fn(const struct share_mode_entry *e,
 		     serverid_equal(&e->pid, &sess->pid)) {
 
 			info->ctr->array[i].num_open++;
-			return;
+			return 0;
 		}
 	}
+	return 0;
 }
 
 /*******************************************************************
@@ -867,7 +870,7 @@ static void net_count_files_for_all_sess(struct srvsvc_NetSessCtr1 *ctr1,
 	s_file_info.resume_handle = resume_handle;
 	s_file_info.num_entries = num_entries;
 
-	share_mode_forall(count_sess_files_fn, &s_file_info);
+	share_entry_forall(count_sess_files_fn, &s_file_info);
 }
 
 /*******************************************************************
@@ -950,9 +953,9 @@ static WERROR init_srv_sess_info_1(struct pipes_struct *p,
  find the share connection on which this open exists.
  ********************************************************************/
 
-static void share_file_fn(const struct share_mode_entry *e,
-			  const char *sharepath, const char *fname,
-			  void *data)
+static int share_file_fn(const struct share_mode_entry *e,
+			 const char *sharepath, const char *fname,
+			 void *data)
 {
 	struct share_file_stat *sfs = data;
 	uint32_t i;
@@ -962,10 +965,11 @@ static void share_file_fn(const struct share_mode_entry *e,
 		for (i=0; i < sfs->resp_entries; i++) {
 			if (serverid_equal(&e->pid, &sfs->svrid_arr[offset + i])) {
 				sfs->netconn_arr[i].num_open ++;
-				return;
+				return 0;
 			}
 		}
 	}
+	return 0;
 }
 
 /*******************************************************************
@@ -984,7 +988,7 @@ static void count_share_opens(struct srvsvc_NetConnInfo1 *arr,
 	sfs.resp_entries = resp_entries;
 	sfs.total_entries = total_entries;
 
-	share_mode_forall(share_file_fn, &sfs);
+	share_entry_forall(share_file_fn, &sfs);
 }
 
 /****************************************************************************
@@ -2365,7 +2369,8 @@ WERROR _srvsvc_NetGetFileSecurity(struct pipes_struct *p,
 		NULL,					/* sd */
 		NULL,					/* ea_list */
 		&fsp,					/* result */
-		NULL);					/* pinfo */
+		NULL,					/* pinfo */
+		NULL, NULL);				/* create context */
 
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(3,("_srvsvc_NetGetFileSecurity: can't open %s\n",
@@ -2513,7 +2518,8 @@ WERROR _srvsvc_NetSetFileSecurity(struct pipes_struct *p,
 		NULL,					/* sd */
 		NULL,					/* ea_list */
 		&fsp,					/* result */
-		NULL);					/* pinfo */
+		NULL,					/* pinfo */
+		NULL, NULL);				/* create context */
 
 	if (!NT_STATUS_IS_OK(nt_status)) {
 		DEBUG(3,("_srvsvc_NetSetFileSecurity: can't open %s\n",
@@ -2690,9 +2696,9 @@ struct enum_file_close_state {
 	struct messaging_context *msg_ctx;
 };
 
-static void enum_file_close_fn( const struct share_mode_entry *e,
-                          const char *sharepath, const char *fname,
-			  void *private_data )
+static int enum_file_close_fn(const struct share_mode_entry *e,
+			      const char *sharepath, const char *fname,
+			      void *private_data)
 {
 	char msg[MSG_SMB_SHARE_MODE_ENTRY_SIZE];
 	struct enum_file_close_state *state =
@@ -2700,11 +2706,11 @@ static void enum_file_close_fn( const struct share_mode_entry *e,
 	uint32_t fid = (((uint32_t)(procid_to_pid(&e->pid))<<16) | e->share_file_id);
 
 	if (fid != state->r->in.fid) {
-		return; /* Not this file. */
+		return 0; /* Not this file. */
 	}
 
 	if (!process_exists(e->pid) ) {
-		return;
+		return 0;
 	}
 
 	/* Ok - send the close message. */
@@ -2718,6 +2724,8 @@ static void enum_file_close_fn( const struct share_mode_entry *e,
 		messaging_send_buf(state->msg_ctx,
 				e->pid, MSG_SMB_CLOSE_FILE,
 				(uint8 *)msg, sizeof(msg)));
+
+	return 0;
 }
 
 /********************************************************************
@@ -2744,7 +2752,7 @@ WERROR _srvsvc_NetFileClose(struct pipes_struct *p,
 	r->out.result = WERR_BADFILE;
 	state.r = r;
 	state.msg_ctx = p->msg_ctx;
-	share_mode_forall(enum_file_close_fn, &state);
+	share_entry_forall(enum_file_close_fn, &state);
 	return r->out.result;
 }
 

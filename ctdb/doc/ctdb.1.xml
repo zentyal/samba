@@ -137,7 +137,31 @@
       <listitem>
 	<para>
 	  Produce output in machine readable form for easier parsing
-	  by scripts. Not all commands support this option.
+	  by scripts. This uses a field delimiter of ':'.  Not all
+	  commands support this option.
+	</para>
+      </listitem>
+      </varlistentry>
+
+      <varlistentry><term>-x <parameter>SEPARATOR</parameter></term>
+      <listitem>
+	<para>
+	  Use SEPARATOR to delimit fields in machine readable output.
+	  This implies -Y.
+	</para>
+      </listitem>
+      </varlistentry>
+
+      <varlistentry><term>-X</term>
+      <listitem>
+	<para>
+	  Produce output in machine readable form for easier parsing
+	  by scripts. This uses a field delimiter of '|'.  Not all
+	  commands support this option.
+	</para>
+	<para>
+	  This is equivalent to "-x|" and avoids some shell quoting
+	  issues.
 	</para>
       </listitem>
       </varlistentry>
@@ -511,12 +535,12 @@ name:eth4 link:down references:0
 name:eth3 link:up references:1
 name:eth2 link:up references:1
 
-# ctdb ifaces -Y
-:Name:LinkStatus:References:
-:eth5:1:2
-:eth4:0:0
-:eth3:1:1
-:eth2:1:1
+# ctdb -X ifaces
+|Name|LinkStatus|References|
+|eth5|1|2|
+|eth4|0|0|
+|eth3|1|1|
+|eth2|1|1|
 	</screen>
       </refsect3>
     </refsect2>
@@ -529,7 +553,7 @@ name:eth2 link:up references:1
       <refsect3>
 	<title>Example</title>
 	<screen>
-# ctdb ip
+# ctdb ip -v
 Public IPs on node 0
 172.31.91.82 node[1] active[] available[eth2,eth3] configured[eth2,eth3]
 172.31.91.83 node[0] active[eth3] available[eth2,eth3] configured[eth2,eth3]
@@ -540,16 +564,16 @@ Public IPs on node 0
 172.31.92.84 node[1] active[] available[eth5] configured[eth4,eth5]
 172.31.92.85 node[0] active[eth5] available[eth5] configured[eth4,eth5]
 
-# ctdb ip -Y
-:Public IP:Node:ActiveInterface:AvailableInterfaces:ConfiguredInterfaces:
-:172.31.91.82:1::eth2,eth3:eth2,eth3:
-:172.31.91.83:0:eth3:eth2,eth3:eth2,eth3:
-:172.31.91.84:1::eth2,eth3:eth2,eth3:
-:172.31.91.85:0:eth2:eth2,eth3:eth2,eth3:
-:172.31.92.82:1::eth5:eth4,eth5:
-:172.31.92.83:0:eth5:eth5:eth4,eth5:
-:172.31.92.84:1::eth5:eth4,eth5:
-:172.31.92.85:0:eth5:eth5:eth4,eth5:
+# ctdb -X ip -v
+|Public IP|Node|ActiveInterface|AvailableInterfaces|ConfiguredInterfaces|
+|172.31.91.82|1||eth2,eth3|eth2,eth3|
+|172.31.91.83|0|eth3|eth2,eth3|eth2,eth3|
+|172.31.91.84|1||eth2,eth3|eth2,eth3|
+|172.31.91.85|0|eth2|eth2,eth3|eth2,eth3|
+|172.31.92.82|1||eth5|eth4,eth5|
+|172.31.92.83|0|eth5|eth5|eth4,eth5|
+|172.31.92.84|1||eth5|eth4,eth5|
+|172.31.92.85|0|eth5|eth5|eth4,eth5|
 	</screen>
       </refsect3>
     </refsect2>
@@ -1148,9 +1172,9 @@ dbid:0x7bbbd26c name:passdb.tdb path:/var/ctdb/persistent/passdb.tdb.0 PERSISTEN
 Number of databases:1
 dbid:0xb775fff6 name:secrets.tdb path:/var/ctdb/persistent/secrets.tdb.0 PERSISTENT UNHEALTHY
 
-# ctdb -Y getdbmap
-:ID:Name:Path:Persistent:Unhealthy:
-:0x7bbbd26c:passdb.tdb:/var/ctdb/persistent/passdb.tdb.0:1:0:
+# ctdb -X getdbmap
+|ID|Name|Path|Persistent|Unhealthy|
+|0x7bbbd26c|passdb.tdb|/var/ctdb/persistent/passdb.tdb.0|1|0|
 	</screen>
       </refsect3>
     </refsect2>
@@ -1181,44 +1205,6 @@ dbid:0xb775fff6 name:secrets.tdb path:/var/ctdb/persistent/secrets.tdb.0 PERSIST
 	be restored back into the same database as it was created
 	from. By specifying dbname you can restore the data into a
 	different database.
-      </para>
-    </refsect2>
-
-    <refsect2>
-      <title>getlog [<parameter>LEVEL</parameter>] [recoverd]</title>
-      <para>
-	In addition to the normal logging to a log file, CTDB also
-	keeps a in-memory ringbuffer containing the most recent log
-	entries for all log levels (except DEBUG).
-      </para>
-      <para>
-	This is useful since it allows for keeping continuous logs to a file
-	at a reasonable non-verbose level, but shortly after an incident has
-	occured, a much more detailed log can be pulled from memory. This
-	can allow you to avoid having to reproduce an issue due to the
-	on-disk logs being of insufficient detail.
-      </para>
-      <para>
-	This command extracts all messages of level or lower log level
-	from memory and prints it to the screen.  The level is not
-	specified it defaults to NOTICE.
-      </para>
-      <para>
-	By default, logs are extracted from the main CTDB daemon.  If
-	the recoverd option is given then logs are extracted from the
-	recovery daemon.
-      </para>
-    </refsect2>
-
-    <refsect2>
-      <title>clearlog [recoverd]</title>
-      <para>
-	This command clears the in-memory logging ringbuffer.
-      </para>
-      <para>
-	By default, logs are cleared in the main CTDB daemon.  If the
-	recoverd option is given then logs are cleared in the recovery
-	daemon.
       </para>
     </refsect2>
 

@@ -231,6 +231,43 @@ _PUBLIC_ NTSTATUS cli_credentials_set_secrets(struct cli_credentials *cred,
 _PUBLIC_ NTSTATUS cli_credentials_set_machine_account(struct cli_credentials *cred,
 						      struct loadparm_context *lp_ctx)
 {
+	struct db_context *db_ctx;
+	char *secrets_tdb_path;
+
+	secrets_tdb_path = lpcfg_private_db_path(cred, lp_ctx, "secrets");
+	if (secrets_tdb_path == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	db_ctx = dbwrap_local_open(cred, lp_ctx, secrets_tdb_path, 0,
+				   TDB_DEFAULT, O_RDWR, 0600,
+				   DBWRAP_LOCK_ORDER_1,
+				   DBWRAP_FLAG_NONE);
+	TALLOC_FREE(secrets_tdb_path);
+
+	/*
+	 * We do not check for errors here, we might not have a
+	 * secrets.tdb at all, and so we just need to check the
+	 * secrets.ldb
+	 */
+	return cli_credentials_set_machine_account_db_ctx(cred, lp_ctx, db_ctx);
+}
+
+/**
+ * Fill in credentials for the machine trust account, from the
+ * secrets.ldb or passed in handle to secrets.tdb (perhaps in CTDB).
+ *
+ * This version is used in parts of the code that can link in the
+ * CTDB dbwrap backend, by passing down the already open handle.
+ *
+ * @param cred Credentials structure to fill in
+ * @param db_ctx dbwrap context for secrets.tdb
+ * @retval NTSTATUS error detailing any failure
+ */
+_PUBLIC_ NTSTATUS cli_credentials_set_machine_account_db_ctx(struct cli_credentials *cred,
+							     struct loadparm_context *lp_ctx,
+							     struct db_context *db_ctx)
+{
 	NTSTATUS status;
 	char *filter;
 	char *error_string;
@@ -239,24 +276,14 @@ _PUBLIC_ NTSTATUS cli_credentials_set_machine_account(struct cli_credentials *cr
 	time_t secrets_tdb_lct = 0;
 	char *secrets_tdb_password = NULL;
 	char *secrets_tdb_old_password = NULL;
+	uint32_t secrets_tdb_secure_channel_type = SEC_CHAN_NULL;
 	char *keystr;
 	char *keystr_upper = NULL;
-	char *secrets_tdb;
-	struct db_context *db_ctx;
 	TALLOC_CTX *tmp_ctx = talloc_named(cred, 0, "cli_credentials_set_secrets from ldb");
 	if (!tmp_ctx) {
 		return NT_STATUS_NO_MEMORY;
 	}
-	secrets_tdb = lpcfg_private_db_path(cred, lp_ctx, "secrets");
-	if (!secrets_tdb) {
-		TALLOC_FREE(tmp_ctx);
-		return NT_STATUS_NO_MEMORY;
-	}
-		
-	db_ctx = dbwrap_local_open(cred, lp_ctx, secrets_tdb, 0,
-				   TDB_DEFAULT, O_RDWR, 0600,
-				   DBWRAP_LOCK_ORDER_1,
-				   DBWRAP_FLAG_NONE);
+
 	/* Bleh, nasty recursion issues: We are setting a machine
 	 * account here, so we don't want the 'pending' flag around
 	 * any more */
@@ -287,6 +314,7 @@ _PUBLIC_ NTSTATUS cli_credentials_set_machine_account(struct cli_credentials *cr
 		if (NT_STATUS_IS_OK(status)) {
 			secrets_tdb_password = (char *)dbuf.dptr;
 		}
+
 		keystr = talloc_asprintf(tmp_ctx, "%s/%s",
 					 SECRETS_MACHINE_PASSWORD_PREV,
 					 domain);
@@ -295,6 +323,16 @@ _PUBLIC_ NTSTATUS cli_credentials_set_machine_account(struct cli_credentials *cr
 				      &dbuf);
 		if (NT_STATUS_IS_OK(status)) {
 			secrets_tdb_old_password = (char *)dbuf.dptr;
+		}
+
+		keystr = talloc_asprintf(tmp_ctx, "%s/%s",
+					 SECRETS_MACHINE_SEC_CHANNEL_TYPE,
+					 domain);
+		keystr_upper = strupper_talloc(tmp_ctx, keystr);
+		status = dbwrap_fetch(db_ctx, tmp_ctx, string_tdb_data(keystr_upper),
+				      &dbuf);
+		if (NT_STATUS_IS_OK(status) && dbuf.dsize == 4) {
+			secrets_tdb_secure_channel_type = IVAL(dbuf.dptr,0);
 		}
 	}
 
@@ -321,20 +359,35 @@ _PUBLIC_ NTSTATUS cli_credentials_set_machine_account(struct cli_credentials *cr
 		cli_credentials_set_password(cred, secrets_tdb_password, CRED_SPECIFIED);
 		cli_credentials_set_old_password(cred, secrets_tdb_old_password, CRED_SPECIFIED);
 		cli_credentials_set_domain(cred, domain, CRED_SPECIFIED);
+		if (strequal(domain, lpcfg_workgroup(lp_ctx))) {
+			cli_credentials_set_realm(cred, lpcfg_realm(lp_ctx), CRED_SPECIFIED);
+		}
 		cli_credentials_set_username(cred, machine_account, CRED_SPECIFIED);
 		cli_credentials_set_password_last_changed_time(cred, secrets_tdb_lct);
+		cli_credentials_set_secure_channel_type(cred, secrets_tdb_secure_channel_type);
 		status = NT_STATUS_OK;
 	} else if (!NT_STATUS_IS_OK(status)) {
 		if (db_ctx) {
-			error_string = talloc_asprintf(cred,
-						       "Failed to fetch machine account password from "
-						       "secrets.ldb: %s and failed to fetch %s from %s",
-						       error_string, keystr_upper, secrets_tdb);
+			error_string
+				= talloc_asprintf(cred,
+						  "Failed to fetch machine account password for %s from both "
+						  "secrets.ldb (%s) and from %s",
+						  domain, error_string,
+						  dbwrap_name(db_ctx));
 		} else {
+			char *secrets_tdb_path;
+
+			secrets_tdb_path = lpcfg_private_db_path(tmp_ctx,
+								 lp_ctx,
+								 "secrets");
+			if (secrets_tdb_path == NULL) {
+				return NT_STATUS_NO_MEMORY;
+			}
+
 			error_string = talloc_asprintf(cred,
 						       "Failed to fetch machine account password from "
 						       "secrets.ldb: %s and failed to open %s",
-						       error_string, secrets_tdb);
+						       error_string, secrets_tdb_path);
 		}
 		DEBUG(1, ("Could not find machine account in secrets database: %s: %s\n", 
 			  error_string, nt_errstr(status)));

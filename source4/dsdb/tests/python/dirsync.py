@@ -2,7 +2,7 @@
 #
 # Unit tests for dirsync control
 # Copyright (C) Matthieu Patou <mat@matws.net> 2011
-#
+# Copyright (C) Jelmer Vernooij <jelmer@samba.org> 2014
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,8 +22,7 @@ import optparse
 import sys
 sys.path.insert(0, "bin/python")
 import samba
-samba.ensure_external_module("testtools", "testtools")
-samba.ensure_external_module("subunit", "subunit/python")
+from samba.tests.subunitrun import TestProgram, SubunitOptions
 
 import samba.getopt as options
 import base64
@@ -40,8 +39,6 @@ from samba.samdb import SamDB
 from samba.credentials import Credentials, DONT_USE_KERBEROS
 import samba.tests
 from samba.tests import delete_force
-from subunit.run import SubunitTestRunner
-import unittest
 
 parser = optparse.OptionParser("dirsync.py [options] <host>")
 sambaopts = options.SambaOptions(parser)
@@ -51,13 +48,15 @@ parser.add_option_group(options.VersionOptions(parser))
 # use command line creds if available
 credopts = options.CredentialsOptions(parser)
 parser.add_option_group(credopts)
+subunitopts = SubunitOptions(parser)
+parser.add_option_group(subunitopts)
 opts, args = parser.parse_args()
 
 if len(args) < 1:
     parser.print_usage()
     sys.exit(1)
 
-host = args[0]
+host = args.pop()
 if not "://" in host:
     ldaphost = "ldap://%s" % host
     ldapshost = "ldaps://%s" % host
@@ -77,12 +76,12 @@ class DirsyncBaseTests(samba.tests.TestCase):
 
     def setUp(self):
         super(DirsyncBaseTests, self).setUp()
-        self.ldb_admin = ldb
-        self.base_dn = ldb.domain_dn()
-        self.domain_sid = security.dom_sid(ldb.get_domain_sid())
+        self.ldb_admin = SamDB(ldapshost, credentials=creds, session_info=system_session(lp), lp=lp)
+        self.base_dn = self.ldb_admin.domain_dn()
+        self.domain_sid = security.dom_sid(self.ldb_admin.get_domain_sid())
         self.user_pass = "samba123@AAA"
         self.configuration_dn = self.ldb_admin.get_config_basedn().get_linearized()
-        self.sd_utils = sd_utils.SDUtils(ldb)
+        self.sd_utils = sd_utils.SDUtils(self.ldb_admin)
         #used for anonymous login
         print "baseDN: %s" % self.base_dn
 
@@ -141,7 +140,6 @@ class SimpleDirsyncTests(DirsyncBaseTests):
             pass
 
     #def test_dirsync_errors(self):
-
 
     def test_dirsync_supported(self):
         """Test the basic of the dirsync is supported"""
@@ -221,9 +219,6 @@ class SimpleDirsyncTests(DirsyncBaseTests):
         except LdbError,l:
             print l
             self.assertTrue(str(l).find("LDAP_UNWILLING_TO_PERFORM") != -1)
-
-
-
 
     def test_dirsync_attributes(self):
         """Check behavior with some attributes """
@@ -590,7 +585,9 @@ class SimpleDirsyncTests(DirsyncBaseTests):
                                     expression="(&(objectClass=organizationalUnit)(!(isDeleted=*)))",
                                     controls=controls)
 
+
 class ExtendedDirsyncTests(SimpleDirsyncTests):
+
     def test_dirsync_linkedattributes(self):
         flag_incr_linked = 2147483648
         self.ldb_simple = self.get_ldb_connection(self.simple_user, self.user_pass)
@@ -698,14 +695,9 @@ class ExtendedDirsyncTests(SimpleDirsyncTests):
         self.assertEqual(str(res[0].dn), "")
 
 
-ldb = SamDB(ldapshost, credentials=creds, session_info=system_session(lp), lp=lp)
+if not getattr(opts, "listtests", False):
+    lp = sambaopts.get_loadparm()
+    samba.tests.cmdline_credentials = credopts.get_credentials(lp)
 
-runner = SubunitTestRunner()
-rc = 0
-#
-if not runner.run(unittest.makeSuite(SimpleDirsyncTests)).wasSuccessful():
-    rc = 1
-if not runner.run(unittest.makeSuite(ExtendedDirsyncTests)).wasSuccessful():
-    rc = 1
 
-sys.exit(rc)
+TestProgram(module=__name__, opts=subunitopts)

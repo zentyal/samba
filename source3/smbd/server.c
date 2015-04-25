@@ -47,6 +47,7 @@
 #include "../lib/util/pidfile.h"
 #include "lib/smbd_shim.h"
 #include "scavenger.h"
+#include "locking/leases_db.h"
 
 struct smbd_open_socket;
 struct smbd_child_pid;
@@ -1304,7 +1305,6 @@ extern void build_options(bool screen);
 
 	init_structs();
 
-#ifdef WITH_PROFILE
 	if (!profile_setup(msg_ctx, False)) {
 		DEBUG(0,("ERROR: failed to setup profiling\n"));
 		return -1;
@@ -1317,7 +1317,6 @@ extern void build_options(bool screen);
 		src.pid = getpid();
 		set_profile_level(pl, src);
 	}
-#endif
 
 	if (!is_daemon && !is_a_socket(0)) {
 		if (!interactive) {
@@ -1451,6 +1450,10 @@ extern void build_options(bool screen);
 
 	if (!locking_init())
 		exit_daemon("Samba cannot init locking", EACCES);
+
+	if (!leases_db_init(false)) {
+		exit_daemon("Samba cannot init leases", EACCES);
+	}
 
 	if (!smbd_parent_notify_init(NULL, msg_ctx, ev_ctx)) {
 		exit_daemon("Samba cannot init notification", EACCES);

@@ -22,9 +22,9 @@
 
 /* location of daemon socket, set at configure time */
 #ifdef SOCKPATH
-#define CTDB_PATH 	SOCKPATH
+#define CTDB_SOCKET 	SOCKPATH
 #else
-#define CTDB_PATH 	"/var/run/ctdb/ctdbd.socket"
+#define CTDB_SOCKET 	"/var/run/ctdb/ctdbd.socket"
 #endif
 
 /* default ctdb port number */
@@ -272,7 +272,7 @@ enum ctdb_operation {
 };
 
 #define CTDB_MAGIC 0x43544442 /* CTDB */
-#define CTDB_VERSION 1
+#define CTDB_PROTOCOL 1
 
 enum ctdb_controls {CTDB_CONTROL_PROCESS_EXISTS          = 0,
 		    CTDB_CONTROL_STATISTICS              = 1,
@@ -386,8 +386,8 @@ enum ctdb_controls {CTDB_CONTROL_PROCESS_EXISTS          = 0,
 		    CTDB_CONTROL_REGISTER_NOTIFY         = 114,
 		    CTDB_CONTROL_DEREGISTER_NOTIFY       = 115,
 		    CTDB_CONTROL_TRANS2_ACTIVE           = 116, /* obsolete */
-		    CTDB_CONTROL_GET_LOG		 = 117,
-		    CTDB_CONTROL_CLEAR_LOG		 = 118,
+		    CTDB_CONTROL_GET_LOG		 = 117, /* obsolete */
+		    CTDB_CONTROL_CLEAR_LOG		 = 118, /* obsolete */
 		    CTDB_CONTROL_TRANS3_COMMIT           = 119,
 		    CTDB_CONTROL_GET_DB_SEQNUM           = 120,
 		    CTDB_CONTROL_DB_SET_HEALTHY		 = 121,
@@ -717,6 +717,9 @@ struct ctdb_db_statistics {
 		struct latency_counter latency;
 		uint32_t buckets[MAX_COUNT_BUCKETS];
 	} locks;
+	struct {
+		struct latency_counter latency;
+	} vacuum;
 	uint32_t db_ro_delegations;
 	uint32_t db_ro_revokes;
 	uint32_t hop_count_bucket[MAX_COUNT_BUCKETS];

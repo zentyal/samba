@@ -317,12 +317,8 @@ static int delete_marshall_traverse_first(void *param, void *data)
 	uint32_t hash = ctdb_hash(&(dd->key));
 	int res;
 
-	res = tdb_chainlock(ctdb_db->ltdb->tdb, dd->key);
+	res = tdb_chainlock_nonblock(ctdb_db->ltdb->tdb, dd->key);
 	if (res != 0) {
-		DEBUG(DEBUG_ERR,
-		      (__location__ " Error getting chainlock on record with "
-		       "key hash [0x%08x] on database db[%s].\n",
-		       hash, ctdb_db->db_name));
 		recs->vdata->count.delete_list.skipped++;
 		recs->vdata->count.delete_list.left--;
 		talloc_free(dd);
@@ -446,12 +442,8 @@ static int delete_queue_traverse(void *param, void *data)
 
 	vdata->count.delete_queue.total++;
 
-	res = tdb_chainlock(ctdb_db->ltdb->tdb, dd->key);
+	res = tdb_chainlock_nonblock(ctdb_db->ltdb->tdb, dd->key);
 	if (res != 0) {
-		DEBUG(DEBUG_ERR,
-		      (__location__ " Error getting chainlock on record with "
-		       "key hash [0x%08x] on database db[%s].\n",
-		       hash, ctdb_db->db_name));
 		vdata->count.delete_queue.error++;
 		return 0;
 	}
@@ -1364,6 +1356,7 @@ static int vacuum_child_destructor(struct ctdb_vacuum_child_context *child_ctx)
 	struct ctdb_db_context *ctdb_db = child_ctx->vacuum_handle->ctdb_db;
 	struct ctdb_context *ctdb = ctdb_db->ctdb;
 
+	CTDB_UPDATE_DB_LATENCY(ctdb_db, "vacuum", vacuum.latency, l);
 	DEBUG(DEBUG_INFO,("Vacuuming took %.3f seconds for database %s\n", l, ctdb_db->db_name));
 
 	if (child_ctx->child_pid != -1) {
@@ -1447,6 +1440,17 @@ ctdb_vacuum_event(struct event_context *ev, struct timed_event *te,
 		event_add_timed(ctdb->ev, vacuum_handle,
 			timeval_current_ofs(get_vacuum_interval(ctdb_db), 0),
 			ctdb_vacuum_event, vacuum_handle);
+		return;
+	}
+
+	/* Do not allow multiple vacuuming child processes to be active at the
+	 * same time.  If there is vacuuming child process active, delay
+	 * new vacuuming event to stagger vacuuming events.
+	 */
+	if (ctdb->vacuumers != NULL) {
+		event_add_timed(ctdb->ev, vacuum_handle,
+				timeval_current_ofs(0, 500*1000),
+				ctdb_vacuum_event, vacuum_handle);
 		return;
 	}
 

@@ -114,6 +114,12 @@ static NTSTATUS streams_xattr_get_name(vfs_handle_struct *handle,
 
 	stype = strchr_m(stream_name + 1, ':');
 
+	if (stype) {
+		if (strcasecmp_m(stype, ":$DATA") != 0) {
+			return NT_STATUS_INVALID_PARAMETER;
+		}
+	}
+
 	*xattr_name = talloc_asprintf(ctx, "%s%s",
 				      config->prefix,
 				      stream_name + 1);
@@ -533,7 +539,7 @@ static int streams_xattr_unlink(vfs_handle_struct *handle,
 {
 	NTSTATUS status;
 	int ret = -1;
-	char *xattr_name;
+	char *xattr_name = NULL;
 
 	if (!is_ntfs_stream_smb_fname(smb_fname)) {
 		return SMB_VFS_NEXT_UNLINK(handle, smb_fname);
@@ -687,11 +693,26 @@ static NTSTATUS walk_xattr_streams(vfs_handle_struct *handle, files_struct *fsp,
 	for (i=0; i<num_names; i++) {
 		struct ea_struct ea;
 
+		/*
+		 * We want to check with samba_private_attr_name()
+		 * whether the xattr name is a private one,
+		 * unfortunately it flags xattrs that begin with the
+		 * default streams prefix as private.
+		 *
+		 * By only calling samba_private_attr_name() in case
+		 * the xattr does NOT begin with the default prefix,
+		 * we know that if it returns 'true' it definitely one
+		 * of our internal xattr like "user.DOSATTRIB".
+		 */
+		if (strncasecmp_m(names[i], SAMBA_XATTR_DOSSTREAM_PREFIX,
+				  strlen(SAMBA_XATTR_DOSSTREAM_PREFIX)) != 0) {
+			if (samba_private_attr_name(names[i])) {
+				continue;
+			}
+		}
+
 		if (strncmp(names[i], config->prefix,
 			    config->prefix_len) != 0) {
-			continue;
-		}
-		if (samba_private_attr_name(names[i])) {
 			continue;
 		}
 
@@ -858,6 +879,12 @@ static int streams_xattr_connect(vfs_handle_struct *handle,
 	struct streams_xattr_config *config;
 	const char *default_prefix = SAMBA_XATTR_DOSSTREAM_PREFIX;
 	const char *prefix;
+	int rc;
+
+	rc = SMB_VFS_NEXT_CONNECT(handle, service, user);
+	if (rc != 0) {
+		return rc;
+	}
 
 	config = talloc_zero(handle->conn, struct streams_xattr_config);
 	if (config == NULL) {
@@ -1082,11 +1109,12 @@ static int streams_xattr_fallocate(struct vfs_handle_struct *handle,
 	}
 
 	if (!streams_xattr_recheck(sio)) {
-		return errno;
+		return -1;
 	}
 
 	/* Let the pwrite code path handle it. */
-	return ENOSYS;
+	errno = ENOSYS;
+	return -1;
 }
 
 

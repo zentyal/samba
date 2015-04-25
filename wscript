@@ -43,6 +43,7 @@ def set_options(opt):
     opt.RECURSE('pidl')
     opt.RECURSE('source3')
     opt.RECURSE('lib/util')
+    opt.RECURSE('ctdb')
 
     opt.add_option('--with-system-mitkrb5',
                    help='enable system MIT krb5 build (includes Samba 4 client and Samba 3 code base).'+
@@ -166,6 +167,8 @@ def configure(conf):
     conf.RECURSE('selftest')
     conf.RECURSE('source3')
     conf.RECURSE('lib/texpect')
+    if conf.env.with_ctdb:
+        conf.RECURSE('ctdb')
 
     conf.SAMBA_CHECK_UNDEFINED_SYMBOL_FLAGS()
 
@@ -301,6 +304,9 @@ def wafdocs(ctx):
 def dist():
     '''makes a tarball for distribution'''
     sambaversion = samba_version.load_version(env=None)
+
+    os.system("make -C ctdb/doc")
+    samba_dist.DIST_FILES('ctdb/doc:ctdb/doc', extend=True)
 
     os.system(srcdir + "/release-scripts/build-manpages-nogit")
     samba_dist.DIST_FILES('bin/docs:docs', extend=True)

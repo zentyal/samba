@@ -158,6 +158,9 @@
 
 /* Bump to version 32 - Samba 4.2 will ship with that. */
 /* Version 32 - Add "lease" to CREATE_FILE operation */
+/* Version 32 - Add "lease" to struct files_struct */
+/* Version 32 - Add SMB_VFS_READDIR_ATTR() */
+/* Version 32 - Add in and our create context blobs to create_file */
 
 #define SMB_VFS_INTERFACE_VERSION 32
 
@@ -202,6 +205,13 @@ struct fd_handle {
 	unsigned long gen_id;
 };
 
+struct fsp_lease {
+	size_t ref_count;
+	struct smbd_server_connection *sconn;
+	struct tevent_timer *timeout;
+	struct smb2_lease lease;
+};
+
 typedef struct files_struct {
 	struct files_struct *next, *prev;
 	uint64_t fnum;
@@ -225,6 +235,7 @@ typedef struct files_struct {
 	bool write_time_forced;
 
 	int oplock_type;
+	struct fsp_lease *lease; /* Not yet used. Placeholder for leases. */
 	int sent_oplock_break;
 	struct tevent_timer *oplock_timeout;
 	struct lock_struct last_lock_failure;
@@ -543,7 +554,9 @@ struct vfs_fn_pointers {
 				   struct security_descriptor *sd,
 				   struct ea_list *ea_list,
 				   files_struct **result,
-				   int *pinfo);
+				   int *pinfo,
+				   const struct smb2_create_blobs *in_context_blobs,
+				   struct smb2_create_blobs *out_context_blobs);
 	int (*close_fn)(struct vfs_handle_struct *handle, struct files_struct *fsp);
 	ssize_t (*read_fn)(struct vfs_handle_struct *handle, struct files_struct *fsp, void *data, size_t n);
 	ssize_t (*pread_fn)(struct vfs_handle_struct *handle, struct files_struct *fsp, void *data, size_t n, off_t offset);
@@ -780,6 +793,11 @@ struct vfs_fn_pointers {
 					 TALLOC_CTX *mem_ctx,
 					 struct files_struct **fsp,
 					 DATA_BLOB *new_cookie);
+
+	NTSTATUS (*readdir_attr_fn)(struct vfs_handle_struct *handle,
+				    const struct smb_filename *fname,
+				    TALLOC_CTX *mem_ctx,
+				    struct readdir_attr_data **attr_data);
 };
 
 /*
@@ -949,7 +967,9 @@ NTSTATUS smb_vfs_call_create_file(struct vfs_handle_struct *handle,
 				  struct security_descriptor *sd,
 				  struct ea_list *ea_list,
 				  files_struct **result,
-				  int *pinfo);
+				  int *pinfo,
+				  const struct smb2_create_blobs *in_context_blobs,
+				  struct smb2_create_blobs *out_context_blobs);
 int smb_vfs_call_close(struct vfs_handle_struct *handle,
 		       struct files_struct *fsp);
 ssize_t smb_vfs_call_read(struct vfs_handle_struct *handle,
@@ -1225,6 +1245,10 @@ NTSTATUS smb_vfs_call_durable_reconnect(struct vfs_handle_struct *handle,
 					TALLOC_CTX *mem_ctx,
 					struct files_struct **fsp,
 					DATA_BLOB *new_cookie);
+NTSTATUS smb_vfs_call_readdir_attr(struct vfs_handle_struct *handle,
+				   const struct smb_filename *fname,
+				   TALLOC_CTX *mem_ctx,
+				   struct readdir_attr_data **attr_data);
 
 NTSTATUS smb_register_vfs(int version, const char *name,
 			  const struct vfs_fn_pointers *fns);

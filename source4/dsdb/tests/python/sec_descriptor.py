@@ -10,8 +10,8 @@ import random
 
 sys.path.insert(0, "bin/python")
 import samba
-samba.ensure_external_module("testtools", "testtools")
-samba.ensure_external_module("subunit", "subunit/python")
+
+from samba.tests.subunitrun import SubunitOptions, TestProgram
 
 import samba.getopt as options
 
@@ -29,10 +29,8 @@ from samba.auth import system_session
 from samba.dsdb import DS_DOMAIN_FUNCTION_2008
 from samba.dcerpc.security import (
     SECINFO_OWNER, SECINFO_GROUP, SECINFO_DACL, SECINFO_SACL)
-from subunit.run import SubunitTestRunner
 import samba.tests
 from samba.tests import delete_force
-import unittest
 
 parser = optparse.OptionParser("sec_descriptor.py [options] <host>")
 sambaopts = options.SambaOptions(parser)
@@ -42,6 +40,9 @@ parser.add_option_group(options.VersionOptions(parser))
 # use command line creds if available
 credopts = options.CredentialsOptions(parser)
 parser.add_option_group(credopts)
+subunitopts = SubunitOptions(parser)
+parser.add_option_group(subunitopts)
+
 opts, args = parser.parse_args()
 
 if len(args) < 1:
@@ -142,12 +143,13 @@ showInAdvancedViewOnly: TRUE
 
     def setUp(self):
         super(DescriptorTests, self).setUp()
-        self.ldb_admin = ldb
-        self.base_dn = ldb.domain_dn()
+        self.ldb_admin = SamDB(host, credentials=creds, session_info=system_session(lp), lp=lp,
+            options=ldb_options)
+        self.base_dn = self.ldb_admin.domain_dn()
         self.configuration_dn = self.ldb_admin.get_config_basedn().get_linearized()
         self.schema_dn = self.ldb_admin.get_schema_basedn().get_linearized()
         self.domain_sid = security.dom_sid(self.ldb_admin.get_domain_sid())
-        self.sd_utils = sd_utils.SDUtils(ldb)
+        self.sd_utils = sd_utils.SDUtils(self.ldb_admin)
         print "baseDN: %s" % self.base_dn
 
     ################################################################################################
@@ -2173,22 +2175,4 @@ if not "://" in host:
 if host.lower().startswith("ldap://"):
     ldb_options = ["modules:paged_searches"]
 
-ldb = SamDB(host,
-            credentials=creds,
-            session_info=system_session(lp),
-            lp=lp,
-            options=ldb_options)
-
-runner = SubunitTestRunner()
-rc = 0
-if not runner.run(unittest.makeSuite(OwnerGroupDescriptorTests)).wasSuccessful():
-    rc = 1
-if not runner.run(unittest.makeSuite(DaclDescriptorTests)).wasSuccessful():
-    rc = 1
-if not runner.run(unittest.makeSuite(SdFlagsDescriptorTests)).wasSuccessful():
-    rc = 1
-if not runner.run(unittest.makeSuite(RightsAttributesTests)).wasSuccessful():
-    rc = 1
-if not runner.run(unittest.makeSuite(SdAutoInheritTests)).wasSuccessful():
-    rc = 1
-sys.exit(rc)
+TestProgram(module=__name__, opts=subunitopts)

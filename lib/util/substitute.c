@@ -21,7 +21,14 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "includes.h"
+#include "replace.h"
+#include "debug.h"
+#ifndef SAMBA_UTIL_CORE_ONLY
+#include "charset/charset.h"
+#else
+#include "charset_compat.h"
+#endif
+#include "substitute.h"
 
 /**
  * @file
@@ -146,7 +153,11 @@ _PUBLIC_ char *string_sub_talloc(TALLOC_CTX *mem_ctx, const char *s,
 	if (ret == NULL)
 		return NULL;
 
-	SMB_ASSERT(ret[len] == '\0');
+	if (ret[len] != '\0') {
+		DEBUG(0,("Internal error at %s(%d): string not terminated\n",
+			 __FILE__, __LINE__));
+		abort();
+	}
 
 	talloc_set_name_const(ret, ret);
 

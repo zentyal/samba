@@ -57,6 +57,7 @@ struct smb2_handle {
 
 struct smb2_lease_break {
 	struct smb2_lease current_lease;
+	uint16_t new_epoch; /* only for v2 leases */
 	uint32_t break_flags;
 	uint32_t new_lease_state;
 	uint32_t break_reason; /* should be 0 */
@@ -2739,6 +2740,7 @@ union smb_search_data {
 		uint32_t  attrib;
 		uint32_t  ea_size;
 		uint64_t file_id;
+		uint8_t short_name_buf[24];
 		struct smb_wire_string short_name;
 		struct smb_wire_string name;
 	} id_both_directory_info;

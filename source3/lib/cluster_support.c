@@ -20,17 +20,8 @@
 #include <tdb.h>
 #include "cluster_support.h"
 
-#ifdef HAVE_CTDB_H
-#include <ctdb.h>
-#define CLUSTER_SUPPORT 1
-#endif
-
-#ifdef HAVE_CTDB_PROTOCOL_H
+#ifdef CLUSTER_SUPPORT
 #include <ctdb_protocol.h>
-#else
-#ifdef HAVE_CTDB_PRIVATE_H
-#include <ctdb_private.h>
-#endif
 #endif
 
 bool cluster_support_available(void)
@@ -53,38 +44,11 @@ const char *cluster_support_features(void)
 #else
 	"   NONE\n"
 #endif
-#ifdef HAVE_CTDB_H
-	_LINE_DEF(HAVE_CTDB_H)
+#ifdef CTDB_SOCKET
+	_LINE_STR(CTDB_SOCKET)
 #endif
-#ifdef HAVE_CTDB_PRIVATE_H
-	_LINE_DEF(HAVE_CTDB_PRIVATE_H)
-#endif
-#ifdef HAVE_CTDB_PROTOCOL_H
-	_LINE_DEF(HAVE_CTDB_PROTOCOL_H)
-#endif
-#ifdef HAVE_CTDB_CONTROL_TRANS3_COMMIT_DECL
-	_LINE_DEF(HAVE_CTDB_CONTROL_TRANS3_COMMIT_DECL)
-#endif
-#ifdef HAVE_CTDB_CONTROL_SCHEDULE_FOR_DELETION_DECL
-	_LINE_DEF(HAVE_CTDB_CONTROL_SCHEDULE_FOR_DELETION_DECL)
-#endif
-#ifdef HAVE_CTDB_WANT_READONLY_DECL
-	_LINE_DEF(HAVE_CTDB_WANT_READONLY_DECL)
-#endif
-#ifdef HAVE_STRUCT_CTDB_CONTROL_TCP
-	_LINE_DEF(HAVE_STRUCT_CTDB_CONTROL_TCP)
-#endif
-#ifdef HAVE_STRUCT_CTDB_CONTROL_TCP_ADDR
-	_LINE_DEF(HAVE_STRUCT_CTDB_CONTROL_TCP_ADDR)
-#endif
-#ifdef HAVE_CTDB_CONTROL_CHECK_SRVIDS_DECL
-	_LINE_DEF(HAVE_CTDB_CONTROL_CHECK_SRVIDS_DECL)
-#endif
-#ifdef CTDB_PATH
-	_LINE_STR(CTDB_PATH)
-#endif
-#ifdef CTDB_VERSION
-	_LINE_INT(CTDB_VERSION)
+#ifdef CTDB_PROTOCOL
+	_LINE_INT(CTDB_PROTOCOL)
 #endif
 	"";
 

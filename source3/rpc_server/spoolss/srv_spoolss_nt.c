@@ -4237,7 +4237,25 @@ static WERROR construct_printer_info7(TALLOC_CTX *mem_ctx,
 		werr = nt_printer_guid_get(tmp_ctx, session_info, msg_ctx,
 					   printer, &guid);
 		if (!W_ERROR_IS_OK(werr)) {
-			goto out_tmp_free;
+			/*
+			 * If we do not have a GUID entry in the registry, then
+			 * try to retrieve it from AD and store it now.
+			 */
+			werr = nt_printer_guid_retrieve(tmp_ctx, printer,
+							&guid);
+			if (!W_ERROR_IS_OK(werr)) {
+				DEBUG(1, ("Failed to retrieve GUID for "
+					  "printer [%s] from AD - "
+					  "Is the the printer still "
+					  "published ?\n", printer));
+				goto out_tmp_free;
+			}
+
+			werr = nt_printer_guid_store(msg_ctx, printer, guid);
+			if (!W_ERROR_IS_OK(werr)) {
+				DEBUG(3, ("failed to store printer %s guid\n",
+					  printer));
+			}
 		}
 		r->guid = talloc_strdup_upper(mem_ctx, GUID_string2(mem_ctx, &guid));
 		r->action = DSPRINT_PUBLISH;
@@ -4778,17 +4796,20 @@ WERROR _spoolss_GetPrinter(struct pipes_struct *p,
 	/* that's an [in out] buffer */
 
 	if (!r->in.buffer && (r->in.offered != 0)) {
-		return WERR_INVALID_PARAM;
+		result = WERR_INVALID_PARAM;
+		goto err_info_free;
 	}
 
 	*r->out.needed = 0;
 
 	if (Printer == NULL) {
-		return WERR_BADFID;
+		result = WERR_BADFID;
+		goto err_info_free;
 	}
 
 	if (!get_printer_snum(p, r->in.handle, &snum, NULL)) {
-		return WERR_BADFID;
+		result = WERR_BADFID;
+		goto err_info_free;
 	}
 
 	result = winreg_get_printer_internal(p->mem_ctx,
@@ -4797,7 +4818,7 @@ WERROR _spoolss_GetPrinter(struct pipes_struct *p,
 				    lp_const_servicename(snum),
 				    &info2);
 	if (!W_ERROR_IS_OK(result)) {
-		goto out;
+		goto err_info_free;
 	}
 
 	switch (r->in.level) {
@@ -4857,12 +4878,10 @@ WERROR _spoolss_GetPrinter(struct pipes_struct *p,
 	}
 	TALLOC_FREE(info2);
 
- out:
 	if (!W_ERROR_IS_OK(result)) {
 		DEBUG(0, ("_spoolss_GetPrinter: failed to construct printer info level %d - %s\n",
 			  r->in.level, win_errstr(result)));
-		TALLOC_FREE(r->out.info);
-		return result;
+		goto err_info_free;
 	}
 
 	*r->out.needed	= SPOOLSS_BUFFER_UNION(spoolss_PrinterInfo,
@@ -4870,6 +4889,10 @@ WERROR _spoolss_GetPrinter(struct pipes_struct *p,
 	r->out.info	= SPOOLSS_BUFFER_OK(r->out.info, NULL);
 
 	return SPOOLSS_BUFFER_OK(WERR_OK, WERR_INSUFFICIENT_BUFFER);
+
+err_info_free:
+	TALLOC_FREE(r->out.info);
+	return result;
 }
 
 /********************************************************************
@@ -4902,7 +4925,8 @@ static WERROR string_array_from_driver_info(TALLOC_CTX *mem_ctx,
 						  const char *arch,
 						  int version)
 {
-	int i, num_strings = 0;
+	int i;
+	size_t num_strings = 0;
 	const char **array = NULL;
 
 	if (string_array == NULL) {
@@ -5685,14 +5709,16 @@ WERROR _spoolss_GetPrinterDriver2(struct pipes_struct *p,
 	/* that's an [in out] buffer */
 
 	if (!r->in.buffer && (r->in.offered != 0)) {
-		return WERR_INVALID_PARAM;
+		result = WERR_INVALID_PARAM;
+		goto err_info_free;
 	}
 
 	DEBUG(4,("_spoolss_GetPrinterDriver2\n"));
 
 	if (!(printer = find_printer_index_by_hnd(p, r->in.handle))) {
 		DEBUG(0,("_spoolss_GetPrinterDriver2: invalid printer handle!\n"));
-		return WERR_INVALID_PRINTER_NAME;
+		result = WERR_INVALID_PRINTER_NAME;
+		goto err_info_free;
 	}
 
 	*r->out.needed = 0;
@@ -5700,7 +5726,8 @@ WERROR _spoolss_GetPrinterDriver2(struct pipes_struct *p,
 	*r->out.server_minor_version = 0;
 
 	if (!get_printer_snum(p, r->in.handle, &snum, NULL)) {
-		return WERR_BADFID;
+		result = WERR_BADFID;
+		goto err_info_free;
 	}
 
 	if (r->in.client_major_version == SPOOLSS_DRIVER_VERSION_2012) {
@@ -5717,8 +5744,7 @@ WERROR _spoolss_GetPrinterDriver2(struct pipes_struct *p,
 						     r->in.architecture,
 						     version);
 	if (!W_ERROR_IS_OK(result)) {
-		TALLOC_FREE(r->out.info);
-		return result;
+		goto err_info_free;
 	}
 
 	*r->out.needed	= SPOOLSS_BUFFER_UNION(spoolss_DriverInfo,
@@ -5726,6 +5752,10 @@ WERROR _spoolss_GetPrinterDriver2(struct pipes_struct *p,
 	r->out.info	= SPOOLSS_BUFFER_OK(r->out.info, NULL);
 
 	return SPOOLSS_BUFFER_OK(WERR_OK, WERR_INSUFFICIENT_BUFFER);
+
+err_info_free:
+	TALLOC_FREE(r->out.info);
+	return result;
 }
 
 
@@ -7057,6 +7087,7 @@ fill_job_info1
 static WERROR fill_job_info1(TALLOC_CTX *mem_ctx,
 			     struct spoolss_JobInfo1 *r,
 			     const print_queue_struct *queue,
+			     uint32_t jobid,
 			     int position, int snum,
 			     struct spoolss_PrinterInfo2 *pinfo2)
 {
@@ -7064,7 +7095,7 @@ static WERROR fill_job_info1(TALLOC_CTX *mem_ctx,
 
 	t = gmtime(&queue->time);
 
-	r->job_id		= queue->sysjob;
+	r->job_id		= jobid;
 
 	r->printer_name		= lp_servicename(mem_ctx, snum);
 	W_ERROR_HAVE_NO_MEMORY(r->printer_name);
@@ -7097,6 +7128,7 @@ fill_job_info2
 static WERROR fill_job_info2(TALLOC_CTX *mem_ctx,
 			     struct spoolss_JobInfo2 *r,
 			     const print_queue_struct *queue,
+			     uint32_t jobid,
 			     int position, int snum,
 			     struct spoolss_PrinterInfo2 *pinfo2,
 			     struct spoolss_DeviceMode *devmode)
@@ -7105,7 +7137,7 @@ static WERROR fill_job_info2(TALLOC_CTX *mem_ctx,
 
 	t = gmtime(&queue->time);
 
-	r->job_id		= queue->sysjob;
+	r->job_id		= jobid;
 
 	r->printer_name		= lp_servicename(mem_ctx, snum);
 	W_ERROR_HAVE_NO_MEMORY(r->printer_name);
@@ -7148,27 +7180,6 @@ static WERROR fill_job_info2(TALLOC_CTX *mem_ctx,
 }
 
 /****************************************************************************
-fill_job_info3
-****************************************************************************/
-
-static WERROR fill_job_info3(TALLOC_CTX *mem_ctx,
-			     struct spoolss_JobInfo3 *r,
-			     const print_queue_struct *queue,
-			     const print_queue_struct *next_queue,
-			     int position, int snum,
-			     struct spoolss_PrinterInfo2 *pinfo2)
-{
-	r->job_id		= queue->sysjob;
-	r->next_job_id		= 0;
-	if (next_queue) {
-		r->next_job_id	= next_queue->sysjob;
-	}
-	r->reserved		= 0;
-
-	return WERR_OK;
-}
-
-/****************************************************************************
  Enumjobs at level 1.
 ****************************************************************************/
 
@@ -7182,34 +7193,56 @@ static WERROR enumjobs_level1(TALLOC_CTX *mem_ctx,
 	union spoolss_JobInfo *info;
 	int i;
 	WERROR result = WERR_OK;
+	uint32_t num_filled;
+	struct tdb_print_db *pdb;
 
 	info = talloc_array(mem_ctx, union spoolss_JobInfo, num_queues);
-	W_ERROR_HAVE_NO_MEMORY(info);
+	if (info == NULL) {
+		result = WERR_NOMEM;
+		goto err_out;
+	}
 
-	*count = num_queues;
+	pdb = get_print_db_byname(pinfo2->sharename);
+	if (pdb == NULL) {
+		result = WERR_INVALID_PARAM;
+		goto err_info_free;
+	}
 
-	for (i=0; i<*count; i++) {
+	num_filled = 0;
+	for (i = 0; i < num_queues; i++) {
+		uint32_t jobid = sysjob_to_jobid_pdb(pdb, queue[i].sysjob);
+		if (jobid == (uint32_t)-1) {
+			DEBUG(4, ("skipping sysjob %d\n", queue[i].sysjob));
+			continue;
+		}
+
 		result = fill_job_info1(info,
-					&info[i].info1,
+					&info[num_filled].info1,
 					&queue[i],
+					jobid,
 					i,
 					snum,
 					pinfo2);
 		if (!W_ERROR_IS_OK(result)) {
-			goto out;
+			goto err_pdb_drop;
 		}
+
+		num_filled++;
 	}
 
- out:
-	if (!W_ERROR_IS_OK(result)) {
-		TALLOC_FREE(info);
-		*count = 0;
-		return result;
-	}
-
+	release_print_db(pdb);
 	*info_p = info;
+	*count = num_filled;
 
 	return WERR_OK;
+
+err_pdb_drop:
+	release_print_db(pdb);
+err_info_free:
+	TALLOC_FREE(info);
+err_out:
+	*count = 0;
+	return result;
 }
 
 /****************************************************************************
@@ -7226,45 +7259,65 @@ static WERROR enumjobs_level2(TALLOC_CTX *mem_ctx,
 	union spoolss_JobInfo *info;
 	int i;
 	WERROR result = WERR_OK;
+	uint32_t num_filled;
+	struct tdb_print_db *pdb;
 
 	info = talloc_array(mem_ctx, union spoolss_JobInfo, num_queues);
-	W_ERROR_HAVE_NO_MEMORY(info);
+	if (info == NULL) {
+		result = WERR_NOMEM;
+		goto err_out;
+	}
 
-	*count = num_queues;
+	pdb = get_print_db_byname(pinfo2->sharename);
+	if (pdb == NULL) {
+		result = WERR_INVALID_PARAM;
+		goto err_info_free;
+	}
 
-	for (i=0; i<*count; i++) {
+	num_filled = 0;
+	for (i = 0; i< num_queues; i++) {
 		struct spoolss_DeviceMode *devmode;
+		uint32_t jobid = sysjob_to_jobid_pdb(pdb, queue[i].sysjob);
+		if (jobid == (uint32_t)-1) {
+			DEBUG(4, ("skipping sysjob %d\n", queue[i].sysjob));
+			continue;
+		}
 
 		result = spoolss_create_default_devmode(info,
 							pinfo2->printername,
 							&devmode);
 		if (!W_ERROR_IS_OK(result)) {
 			DEBUG(3, ("Can't proceed w/o a devmode!"));
-			goto out;
+			goto err_pdb_drop;
 		}
 
 		result = fill_job_info2(info,
-					&info[i].info2,
+					&info[num_filled].info2,
 					&queue[i],
+					jobid,
 					i,
 					snum,
 					pinfo2,
 					devmode);
 		if (!W_ERROR_IS_OK(result)) {
-			goto out;
+			goto err_pdb_drop;
 		}
+		num_filled++;
 	}
 
- out:
-	if (!W_ERROR_IS_OK(result)) {
-		TALLOC_FREE(info);
-		*count = 0;
-		return result;
-	}
-
+	release_print_db(pdb);
 	*info_p = info;
+	*count = num_filled;
 
 	return WERR_OK;
+
+err_pdb_drop:
+	release_print_db(pdb);
+err_info_free:
+	TALLOC_FREE(info);
+err_out:
+	*count = 0;
+	return result;
 }
 
 /****************************************************************************
@@ -7281,41 +7334,51 @@ static WERROR enumjobs_level3(TALLOC_CTX *mem_ctx,
 	union spoolss_JobInfo *info;
 	int i;
 	WERROR result = WERR_OK;
+	uint32_t num_filled;
+	struct tdb_print_db *pdb;
 
 	info = talloc_array(mem_ctx, union spoolss_JobInfo, num_queues);
-	W_ERROR_HAVE_NO_MEMORY(info);
-
-	*count = num_queues;
-
-	for (i=0; i<*count; i++) {
-		const print_queue_struct *next_queue = NULL;
-
-		if (i+1 < *count) {
-			next_queue = &queue[i+1];
-		}
-
-		result = fill_job_info3(info,
-					&info[i].info3,
-					&queue[i],
-					next_queue,
-					i,
-					snum,
-					pinfo2);
-		if (!W_ERROR_IS_OK(result)) {
-			goto out;
-		}
+	if (info == NULL) {
+		result = WERR_NOMEM;
+		goto err_out;
 	}
 
- out:
-	if (!W_ERROR_IS_OK(result)) {
-		TALLOC_FREE(info);
-		*count = 0;
-		return result;
+	pdb = get_print_db_byname(pinfo2->sharename);
+	if (pdb == NULL) {
+		result = WERR_INVALID_PARAM;
+		goto err_info_free;
 	}
 
+	num_filled = 0;
+	for (i = 0; i < num_queues; i++) {
+		uint32_t jobid = sysjob_to_jobid_pdb(pdb, queue[i].sysjob);
+		if (jobid == (uint32_t)-1) {
+			DEBUG(4, ("skipping sysjob %d\n", queue[i].sysjob));
+			continue;
+		}
+
+		info[num_filled].info3.job_id = jobid;
+		/* next_job_id is overwritten on next iteration */
+		info[num_filled].info3.next_job_id = 0;
+		info[num_filled].info3.reserved = 0;
+
+		if (num_filled > 0) {
+			info[num_filled - 1].info3.next_job_id = jobid;
+		}
+		num_filled++;
+	}
+
+	release_print_db(pdb);
 	*info_p = info;
+	*count = num_filled;
 
 	return WERR_OK;
+
+err_info_free:
+	TALLOC_FREE(info);
+err_out:
+	*count = 0;
+	return result;
 }
 
 /****************************************************************
@@ -7336,6 +7399,11 @@ WERROR _spoolss_EnumJobs(struct pipes_struct *p,
 
 	if (!r->in.buffer && (r->in.offered != 0)) {
 		return WERR_INVALID_PARAM;
+	}
+
+	if ((r->in.level != 1) && (r->in.level != 2) && (r->in.level != 3)) {
+		DEBUG(4, ("EnumJobs level %d not supported\n", r->in.level));
+		return WERR_UNKNOWN_LEVEL;
 	}
 
 	DEBUG(4,("_spoolss_EnumJobs\n"));
@@ -7383,7 +7451,7 @@ WERROR _spoolss_EnumJobs(struct pipes_struct *p,
 					 pinfo2, r->out.info, r->out.count);
 		break;
 	default:
-		result = WERR_UNKNOWN_LEVEL;
+		SMB_ASSERT(false);	/* level checked on entry */
 		break;
 	}
 
@@ -7808,6 +7876,7 @@ WERROR _spoolss_GetForm(struct pipes_struct *p,
 	/* that's an [in out] buffer */
 
 	if (!r->in.buffer && (r->in.offered != 0)) {
+		TALLOC_FREE(r->out.info);
 		return WERR_INVALID_PARAM;
 	}
 
@@ -8498,6 +8567,7 @@ WERROR _spoolss_GetPrinterDriverDirectory(struct pipes_struct *p,
 	/* that's an [in out] buffer */
 
 	if (!r->in.buffer && (r->in.offered != 0)) {
+		TALLOC_FREE(r->out.info);
 		return WERR_INVALID_PARAM;
 	}
 
@@ -9342,13 +9412,14 @@ static WERROR getjob_level_1(TALLOC_CTX *mem_ctx,
 			     int count, int snum,
 			     struct spoolss_PrinterInfo2 *pinfo2,
 			     uint32_t jobid,
+			     int sysjob,
 			     struct spoolss_JobInfo1 *r)
 {
 	int i = 0;
 	bool found = false;
 
 	for (i=0; i<count; i++) {
-		if (queue[i].sysjob == (int)jobid) {
+		if (queue[i].sysjob == sysjob) {
 			found = true;
 			break;
 		}
@@ -9362,6 +9433,7 @@ static WERROR getjob_level_1(TALLOC_CTX *mem_ctx,
 	return fill_job_info1(mem_ctx,
 			      r,
 			      &queue[i],
+			      jobid,
 			      i,
 			      snum,
 			      pinfo2);
@@ -9375,6 +9447,7 @@ static WERROR getjob_level_2(TALLOC_CTX *mem_ctx,
 			     int count, int snum,
 			     struct spoolss_PrinterInfo2 *pinfo2,
 			     uint32_t jobid,
+			     int sysjob,
 			     struct spoolss_JobInfo2 *r)
 {
 	int i = 0;
@@ -9383,7 +9456,7 @@ static WERROR getjob_level_2(TALLOC_CTX *mem_ctx,
 	WERROR result;
 
 	for (i=0; i<count; i++) {
-		if (queue[i].sysjob == (int)jobid) {
+		if (queue[i].sysjob == sysjob) {
 			found = true;
 			break;
 		}
@@ -9415,6 +9488,7 @@ static WERROR getjob_level_2(TALLOC_CTX *mem_ctx,
 	return fill_job_info2(mem_ctx,
 			      r,
 			      &queue[i],
+			      jobid,
 			      i,
 			      snum,
 			      pinfo2,
@@ -9430,15 +9504,19 @@ WERROR _spoolss_GetJob(struct pipes_struct *p,
 {
 	WERROR result = WERR_OK;
 	struct spoolss_PrinterInfo2 *pinfo2 = NULL;
+	const char *svc_name;
+	int sysjob;
 	int snum;
 	int count;
+	struct tdb_print_db *pdb;
 	print_queue_struct 	*queue = NULL;
 	print_status_struct prt_status;
 
 	/* that's an [in out] buffer */
 
 	if (!r->in.buffer && (r->in.offered != 0)) {
-		return WERR_INVALID_PARAM;
+		result = WERR_INVALID_PARAM;
+		goto err_jinfo_free;
 	}
 
 	DEBUG(5,("_spoolss_GetJob\n"));
@@ -9446,16 +9524,38 @@ WERROR _spoolss_GetJob(struct pipes_struct *p,
 	*r->out.needed = 0;
 
 	if (!get_printer_snum(p, r->in.handle, &snum, NULL)) {
-		return WERR_BADFID;
+		result = WERR_BADFID;
+		goto err_jinfo_free;
+	}
+
+	svc_name = lp_const_servicename(snum);
+	if (svc_name == NULL) {
+		result = WERR_INVALID_PARAM;
+		goto err_jinfo_free;
 	}
 
 	result = winreg_get_printer_internal(p->mem_ctx,
 				    get_session_info_system(),
 				    p->msg_ctx,
-				    lp_const_servicename(snum),
+				    svc_name,
 				    &pinfo2);
 	if (!W_ERROR_IS_OK(result)) {
-		return result;
+		goto err_jinfo_free;
+	}
+
+	pdb = get_print_db_byname(svc_name);
+	if (pdb == NULL) {
+		DEBUG(3, ("failed to get print db for svc %s\n", svc_name));
+		result = WERR_INVALID_PARAM;
+		goto err_pinfo_free;
+	}
+
+	sysjob = jobid_to_sysjob_pdb(pdb, r->in.job_id);
+	release_print_db(pdb);
+	if (sysjob == -1) {
+		DEBUG(3, ("no sysjob for spoolss jobid %u\n", r->in.job_id));
+		result = WERR_INVALID_PARAM;
+		goto err_pinfo_free;
 	}
 
 	count = print_queue_status(p->msg_ctx, snum, &queue, &prt_status);
@@ -9467,12 +9567,14 @@ WERROR _spoolss_GetJob(struct pipes_struct *p,
 	case 1:
 		result = getjob_level_1(p->mem_ctx,
 					queue, count, snum, pinfo2,
-					r->in.job_id, &r->out.info->info1);
+					r->in.job_id, sysjob,
+					&r->out.info->info1);
 		break;
 	case 2:
 		result = getjob_level_2(p->mem_ctx,
 					queue, count, snum, pinfo2,
-					r->in.job_id, &r->out.info->info2);
+					r->in.job_id, sysjob,
+					&r->out.info->info2);
 		break;
 	default:
 		result = WERR_UNKNOWN_LEVEL;
@@ -9483,8 +9585,7 @@ WERROR _spoolss_GetJob(struct pipes_struct *p,
 	TALLOC_FREE(pinfo2);
 
 	if (!W_ERROR_IS_OK(result)) {
-		TALLOC_FREE(r->out.info);
-		return result;
+		goto err_jinfo_free;
 	}
 
 	*r->out.needed	= SPOOLSS_BUFFER_UNION(spoolss_JobInfo, r->out.info,
@@ -9492,6 +9593,12 @@ WERROR _spoolss_GetJob(struct pipes_struct *p,
 	r->out.info	= SPOOLSS_BUFFER_OK(r->out.info, NULL);
 
 	return SPOOLSS_BUFFER_OK(WERR_OK, WERR_INSUFFICIENT_BUFFER);
+
+err_pinfo_free:
+	TALLOC_FREE(pinfo2);
+err_jinfo_free:
+	TALLOC_FREE(r->out.info);
+	return result;
 }
 
 /****************************************************************
@@ -10063,7 +10170,8 @@ WERROR _spoolss_GetPrintProcessorDirectory(struct pipes_struct *p,
 	/* that's an [in out] buffer */
 
 	if (!r->in.buffer && (r->in.offered != 0)) {
-		return WERR_INVALID_PARAM;
+		result = WERR_INVALID_PARAM;
+		goto err_info_free;
 	}
 
 	DEBUG(5,("_spoolss_GetPrintProcessorDirectory: level %d\n",
@@ -10079,7 +10187,8 @@ WERROR _spoolss_GetPrintProcessorDirectory(struct pipes_struct *p,
 
 	snum = find_service(talloc_tos(), "prnproc$", &prnproc_share);
 	if (!prnproc_share) {
-		return WERR_NOMEM;
+		result = WERR_NOMEM;
+		goto err_info_free;
 	}
 	if (snum != -1) {
 		prnproc_share_exists = true;
@@ -10090,8 +10199,7 @@ WERROR _spoolss_GetPrintProcessorDirectory(struct pipes_struct *p,
 						    r->in.environment,
 						    &r->out.info->info1);
 	if (!W_ERROR_IS_OK(result)) {
-		TALLOC_FREE(r->out.info);
-		return result;
+		goto err_info_free;
 	}
 
 	*r->out.needed	= SPOOLSS_BUFFER_UNION(spoolss_PrintProcessorDirectoryInfo,
@@ -10099,6 +10207,10 @@ WERROR _spoolss_GetPrintProcessorDirectory(struct pipes_struct *p,
 	r->out.info	= SPOOLSS_BUFFER_OK(r->out.info, NULL);
 
 	return SPOOLSS_BUFFER_OK(WERR_OK, WERR_INSUFFICIENT_BUFFER);
+
+err_info_free:
+	TALLOC_FREE(r->out.info);
+	return result;
 }
 
 /*******************************************************************

@@ -936,7 +936,7 @@ static NTSTATUS cm_prepare_connection(const struct winbindd_domain *domain,
 
 	result = smbXcli_negprot((*cli)->conn, (*cli)->timeout,
 				 lp_client_min_protocol(),
-				 lp_client_max_protocol());
+				 lp_winbindd_max_protocol());
 
 	if (!NT_STATUS_IS_OK(result)) {
 		DEBUG(1, ("cli_negprot failed: %s\n", nt_errstr(result)));
@@ -1468,7 +1468,7 @@ static bool find_new_dc(TALLOC_CTX *mem_ctx,
 	int num_dcs = 0;
 
 	const char **dcnames = NULL;
-	int num_dcnames = 0;
+	size_t num_dcnames = 0;
 
 	struct sockaddr_storage *addrs = NULL;
 	int num_addrs = 0;

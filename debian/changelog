@@ -1,4 +1,4 @@
-samba (2:4.2.0~rc2+dfsg-1) UNRELEASED; urgency=medium
+samba (2:4.2.1+dfsg-1) UNRELEASED; urgency=medium
 
   * New upstream release.
    + Drop patch do-not-install-smbclient4-and-nmbclient4: applied upstream.

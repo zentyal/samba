@@ -12,4 +12,3 @@ VERSION.patch
 waf_smbpasswd_location
 add-so-version-to-private-libraries
 xsltproc_dont_build_smb.conf.5.patch
-samba_bug_11077_torturetest.patch

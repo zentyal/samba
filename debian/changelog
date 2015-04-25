@@ -7,6 +7,7 @@ samba (2:4.2.1+dfsg-1) UNRELEASED; urgency=medium
      present upstream.
    + Refresh patch 26_heimdal_compat.26_heimdal_compat.
    + Add build-dependency on libarchive-dev.
+  * Drop samba_bug_11077_torturetest.patch: applied upstream.
 
  -- Jelmer Vernooij <jelmer@debian.org>  Sun, 07 Dec 2014 15:34:36 +0000
 

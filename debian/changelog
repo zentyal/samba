@@ -8,6 +8,7 @@ samba (2:4.2.1+dfsg-1) UNRELEASED; urgency=medium
    + Refresh patch 26_heimdal_compat.26_heimdal_compat.
    + Add build-dependency on libarchive-dev.
   * Drop samba_bug_11077_torturetest.patch: applied upstream.
+  * Drop dependency on ctdb - now bundled with Samba.
 
  -- Jelmer Vernooij <jelmer@debian.org>  Sun, 07 Dec 2014 15:34:36 +0000
 

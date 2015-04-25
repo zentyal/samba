@@ -58,7 +58,7 @@ conf_args = \
 		--with-statedir=/var/lib/samba \
 		--with-cachedir=/var/cache/samba \
 		--disable-avahi \
-		--with-ctdb=/usr --with-cluster-support \
+		--with-cluster-support \
 		--disable-rpath \
 		--disable-rpath-install \
 		--bundled-libraries=NONE,pytevent,iniparser \

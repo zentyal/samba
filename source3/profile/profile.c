@@ -25,16 +25,22 @@
 #include "messages.h"
 #include "smbprofile.h"
 
-#ifdef WITH_PROFILE
-#define IPC_PERMS ((S_IRUSR | S_IWUSR) | S_IRGRP | S_IROTH)
-#endif /* WITH_PROFILE */
+#define PROF_SHMEM_KEY ((key_t)0x07021999)
+#define PROF_SHM_MAGIC 0x6349985
+#define PROF_SHM_VERSION 13
 
-#ifdef WITH_PROFILE
+#define IPC_PERMS ((S_IRUSR | S_IWUSR) | S_IRGRP | S_IROTH)
+
 static int shm_id;
 static bool read_only;
-#endif
 
-struct profile_header *profile_h;
+struct profile_header {
+	int prof_shm_magic;
+	int prof_shm_version;
+	struct profile_stats stats;
+};
+
+static struct profile_header *profile_h;
 struct profile_stats *profile_p;
 
 bool do_profile_flag = False;
@@ -45,7 +51,6 @@ Set a profiling level.
 ****************************************************************************/
 void set_profile_level(int level, struct server_id src)
 {
-#ifdef WITH_PROFILE
 	switch (level) {
 	case 0:		/* turn off profiling */
 		do_profile_flag = False;
@@ -71,12 +76,7 @@ void set_profile_level(int level, struct server_id src)
 			 (int)procid_to_pid(&src)));
 		break;
 	}
-#else /* WITH_PROFILE */
-	DEBUG(1,("INFO: Profiling support unavailable in this build.\n"));
-#endif /* WITH_PROFILE */
 }
-
-#ifdef WITH_PROFILE
 
 /****************************************************************************
 receive a set profile level message
@@ -109,11 +109,8 @@ static void reqprofile_message(struct messaging_context *msg_ctx,
 {
         int level;
 
-#ifdef WITH_PROFILE
 	level = 1 + (do_profile_flag?2:0) + (do_profile_times?4:0);
-#else
-	level = 0;
-#endif
+
 	DEBUG(1,("INFO: Received REQ_PROFILELEVEL message from PID %u\n",
 		 (unsigned int)procid_to_pid(&src)));
 	messaging_send_buf(msg_ctx, src, MSG_PROFILELEVEL,
@@ -403,5 +400,3 @@ bool profile_setup(struct messaging_context *msg_ctx, bool rdonly)
 	SMB_ASSERT(val < PR_VALUE_MAX);
 	return valnames[val];
 }
-
-#endif /* WITH_PROFILE */

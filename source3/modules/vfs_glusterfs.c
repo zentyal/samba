@@ -26,8 +26,6 @@
  * @brief  Samba VFS module for glusterfs
  *
  * @todo
- *   - AIO support\n
- *     See, for example \c vfs_aio_linux.c in the \c sourc3/modules directory
  *   - sendfile/recvfile support
  *
  * A Samba VFS module for GlusterFS, based on Gluster's libgfapi.
@@ -42,8 +40,15 @@
 #include <stdio.h>
 #include "api/glfs.h"
 #include "lib/util/dlinklist.h"
+#include "lib/util/tevent_unix.h"
+#include "lib/tevent/tevent_internal.h"
+#include "smbd/globals.h"
 
 #define DEFAULT_VOLFILE_SERVER "localhost"
+
+static int read_fd = -1;
+static int write_fd = -1;
+static struct tevent_fd *aio_read_event = NULL;
 
 /**
  * Helper to convert struct stat to struct stat_ex.
@@ -78,13 +83,14 @@ static void smb_stat_ex_from_stat(struct stat_ex *dst, const struct stat *src)
 
 static struct glfs_preopened {
 	char *volume;
+	char *connectpath;
 	glfs_t *fs;
 	int ref;
 	struct glfs_preopened *next, *prev;
 } *glfs_preopened;
 
 
-static int glfs_set_preopened(const char *volume, glfs_t *fs)
+static int glfs_set_preopened(const char *volume, const char *connectpath, glfs_t *fs)
 {
 	struct glfs_preopened *entry = NULL;
 
@@ -101,6 +107,13 @@ static int glfs_set_preopened(const char *volume, glfs_t *fs)
 		return -1;
 	}
 
+	entry->connectpath = talloc_strdup(entry, connectpath);
+	if (entry->connectpath == NULL) {
+		talloc_free(entry);
+		errno = ENOMEM;
+		return -1;
+	}
+
 	entry->fs = fs;
 	entry->ref = 1;
 
@@ -109,12 +122,14 @@ static int glfs_set_preopened(const char *volume, glfs_t *fs)
 	return 0;
 }
 
-static glfs_t *glfs_find_preopened(const char *volume)
+static glfs_t *glfs_find_preopened(const char *volume, const char *connectpath)
 {
 	struct glfs_preopened *entry = NULL;
 
 	for (entry = glfs_preopened; entry; entry = entry->next) {
-		if (strcmp(entry->volume, volume) == 0) {
+		if (strcmp(entry->volume, volume) == 0 &&
+		    strcmp(entry->connectpath, connectpath) == 0)
+		{
 			entry->ref++;
 			return entry->fs;
 		}
@@ -176,7 +191,7 @@ static int vfs_gluster_connect(struct vfs_handle_struct *handle,
 		volume = service;
 	}
 
-	fs = glfs_find_preopened(volume);
+	fs = glfs_find_preopened(volume, handle->conn->connectpath);
 	if (fs) {
 		goto done;
 	}
@@ -200,6 +215,17 @@ static int vfs_gluster_connect(struct vfs_handle_struct *handle,
 		goto done;
 	}
 
+
+	ret = glfs_set_xlator_option(fs, "*-snapview-client",
+				     "snapdir-entry-path",
+				     handle->conn->connectpath);
+	if (ret < 0) {
+		DEBUG(0, ("%s: Failed to set xlator option:"
+			  " snapdir-entry-path\n", volume));
+		glfs_fini(fs);
+		return -1;
+	}
+
 	ret = glfs_set_logging(fs, logfile, loglevel);
 	if (ret < 0) {
 		DEBUG(0, ("%s: Failed to set logfile %s loglevel %d\n",
@@ -214,7 +240,7 @@ static int vfs_gluster_connect(struct vfs_handle_struct *handle,
 		goto done;
 	}
 
-	ret = glfs_set_preopened(volume, fs);
+	ret = glfs_set_preopened(volume, handle->conn->connectpath, fs);
 	if (ret < 0) {
 		DEBUG(0, ("%s: Failed to register volume (%s)\n",
 			  volume, strerror(errno)));
@@ -461,20 +487,157 @@ static ssize_t vfs_gluster_pread(struct vfs_handle_struct *handle,
 	return glfs_pread(*(glfs_fd_t **)VFS_FETCH_FSP_EXTENSION(handle, fsp), data, n, offset, 0);
 }
 
+struct glusterfs_aio_state {
+	ssize_t ret;
+	int err;
+};
+
+/*
+ * This function is the callback that will be called on glusterfs
+ * threads once the async IO submitted is complete. To notify
+ * Samba of the completion we use a pipe based queue.
+ */
+static void aio_glusterfs_done(glfs_fd_t *fd, ssize_t ret, void *data)
+{
+	struct tevent_req *req = NULL;
+	struct glusterfs_aio_state *state = NULL;
+	int sts = 0;
+
+	req = talloc_get_type_abort(data, struct tevent_req);
+	state = tevent_req_data(req, struct glusterfs_aio_state);
+
+	if (ret < 0) {
+		state->ret = -1;
+		state->err = errno;
+	} else {
+		state->ret = ret;
+		state->err = 0;
+	}
+
+	/*
+	 * Write the pointer to each req that needs to be completed
+	 * by calling tevent_req_done(). tevent_req_done() cannot
+	 * be called here, as it is not designed to be executed
+	 * in the multithread environment, tevent_req_done() must be
+	 * executed from the smbd main thread.
+	 *
+	 * write(2) on pipes with sizes under _POSIX_PIPE_BUF
+	 * in size is atomic, without this, the use op pipes in this
+	 * code would not work.
+	 *
+	 * sys_write is a thin enough wrapper around write(2)
+	 * that we can trust it here.
+	 */
+
+	sts = sys_write(write_fd, &req, sizeof(struct tevent_req *));
+	if (sts < 0) {
+		DEBUG(0,("\nWrite to pipe failed (%s)", strerror(errno)));
+	}
+
+	return;
+}
+
+/*
+ * Read each req off the pipe and process it.
+ */
+static void aio_tevent_fd_done(struct tevent_context *event_ctx,
+				struct tevent_fd *fde,
+				uint16 flags, void *data)
+{
+	struct tevent_req *req = NULL;
+	int sts = 0;
+
+	/*
+	 * read(2) on pipes is atomic if the needed data is available
+	 * in the pipe, per SUS and POSIX.  Because we always write
+	 * to the pipe in sizeof(struct tevent_req *) chunks, we can
+	 * always read in those chunks, atomically.
+	 *
+	 * sys_read is a thin enough wrapper around read(2) that we
+	 * can trust it here.
+	 */
+
+	sts = sys_read(read_fd, &req, sizeof(struct tevent_req *));
+	if (sts < 0) {
+		DEBUG(0,("\nRead from pipe failed (%s)", strerror(errno)));
+	}
+
+	if (req) {
+		tevent_req_done(req);
+	}
+	return;
+}
+
+static bool init_gluster_aio(struct vfs_handle_struct *handle)
+{
+	int fds[2];
+	int ret = -1;
+
+	if (read_fd != -1) {
+		/*
+		 * Already initialized.
+		 */
+		return true;
+	}
+
+	ret = pipe(fds);
+	if (ret == -1) {
+		goto fail;
+	}
+
+	read_fd = fds[0];
+	write_fd = fds[1];
+
+	aio_read_event = tevent_add_fd(handle->conn->sconn->ev_ctx,
+					NULL,
+					read_fd,
+					TEVENT_FD_READ,
+					aio_tevent_fd_done,
+					NULL);
+	if (aio_read_event == NULL) {
+		goto fail;
+	}
+
+	return true;
+fail:
+	TALLOC_FREE(aio_read_event);
+	if (read_fd != -1) {
+		close(read_fd);
+		close(write_fd);
+		read_fd = -1;
+		write_fd = -1;
+	}
+	return false;
+}
+
 static struct tevent_req *vfs_gluster_pread_send(struct vfs_handle_struct
 						 *handle, TALLOC_CTX *mem_ctx,
 						 struct tevent_context *ev,
 						 files_struct *fsp, void *data,
 						 size_t n, off_t offset)
 {
-	errno = ENOTSUP;
-	return NULL;
-}
+	struct tevent_req *req = NULL;
+	struct glusterfs_aio_state *state = NULL;
+	int ret = 0;
 
-static ssize_t vfs_gluster_pread_recv(struct tevent_req *req, int *err)
-{
-	errno = ENOTSUP;
-	return -1;
+	req = tevent_req_create(mem_ctx, &state, struct glusterfs_aio_state);
+	if (req == NULL) {
+		return NULL;
+	}
+
+	if (!init_gluster_aio(handle)) {
+		tevent_req_error(req, EIO);
+		return tevent_req_post(req, ev);
+	}
+	ret = glfs_pread_async(*(glfs_fd_t **)VFS_FETCH_FSP_EXTENSION(handle,
+				fsp), data, n, offset, 0, aio_glusterfs_done,
+				req);
+	if (ret < 0) {
+		tevent_req_error(req, -ret);
+		return tevent_req_post(req, ev);
+	}
+
+	return req;
 }
 
 static ssize_t vfs_gluster_write(struct vfs_handle_struct *handle,
@@ -497,14 +660,44 @@ static struct tevent_req *vfs_gluster_pwrite_send(struct vfs_handle_struct
 						  const void *data, size_t n,
 						  off_t offset)
 {
-	errno = ENOTSUP;
-	return NULL;
+	struct tevent_req *req = NULL;
+	struct glusterfs_aio_state *state = NULL;
+	int ret = 0;
+
+	req = tevent_req_create(mem_ctx, &state, struct glusterfs_aio_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	if (!init_gluster_aio(handle)) {
+		tevent_req_error(req, EIO);
+		return tevent_req_post(req, ev);
+	}
+	ret = glfs_pwrite_async(*(glfs_fd_t **)VFS_FETCH_FSP_EXTENSION(handle,
+				fsp), data, n, offset, 0, aio_glusterfs_done,
+				req);
+	if (ret < 0) {
+		tevent_req_error(req, -ret);
+		return tevent_req_post(req, ev);
+	}
+	return req;
 }
 
-static ssize_t vfs_gluster_pwrite_recv(struct tevent_req *req, int *err)
+static ssize_t vfs_gluster_recv(struct tevent_req *req, int *err)
 {
-	errno = ENOTSUP;
-	return -1;
+	struct glusterfs_aio_state *state = NULL;
+
+	state = tevent_req_data(req, struct glusterfs_aio_state);
+	if (state == NULL) {
+		return -1;
+	}
+
+	if (tevent_req_is_unix_error(req, err)) {
+		return -1;
+	}
+	if (state->ret == -1) {
+		*err = state->err;
+	}
+	return state->ret;
 }
 
 static off_t vfs_gluster_lseek(struct vfs_handle_struct *handle,
@@ -549,14 +742,33 @@ static struct tevent_req *vfs_gluster_fsync_send(struct vfs_handle_struct
 						 struct tevent_context *ev,
 						 files_struct *fsp)
 {
-	errno = ENOTSUP;
-	return NULL;
+	struct tevent_req *req = NULL;
+	struct glusterfs_aio_state *state = NULL;
+	int ret = 0;
+
+	req = tevent_req_create(mem_ctx, &state, struct glusterfs_aio_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	if (!init_gluster_aio(handle)) {
+		tevent_req_error(req, EIO);
+		return tevent_req_post(req, ev);
+	}
+	ret = glfs_fsync_async(*(glfs_fd_t **)VFS_FETCH_FSP_EXTENSION(handle,
+				fsp), aio_glusterfs_done, req);
+	if (ret < 0) {
+		tevent_req_error(req, -ret);
+		return tevent_req_post(req, ev);
+	}
+	return req;
 }
 
 static int vfs_gluster_fsync_recv(struct tevent_req *req, int *err)
 {
-	errno = ENOTSUP;
-	return -1;
+	/*
+	 * Use implicit conversion ssize_t->int
+	 */
+	return vfs_gluster_recv(req, err);
 }
 
 static int vfs_gluster_stat(struct vfs_handle_struct *handle,
@@ -859,7 +1071,7 @@ static int vfs_gluster_get_real_filename(struct vfs_handle_struct *handle,
 	}
 
 	snprintf(key_buf, NAME_MAX + 64,
-		 "user.glusterfs.get_real_filename:%s", name);
+		 "glusterfs.get_real_filename:%s", name);
 
 	ret = glfs_getxattr(handle->data, path, key_buf, val_buf, NAME_MAX + 1);
 	if (ret == -1) {
@@ -1005,6 +1217,41 @@ static int vfs_gluster_set_offline(struct vfs_handle_struct *handle,
 
 #define GLUSTER_ACL_HEADER_SIZE    4
 #define GLUSTER_ACL_ENTRY_SIZE     8
+
+#define GLUSTER_ACL_SIZE(n)       (GLUSTER_ACL_HEADER_SIZE + (n * GLUSTER_ACL_ENTRY_SIZE))
+
+static SMB_ACL_T mode_to_smb_acls(const struct stat *mode, TALLOC_CTX *mem_ctx)
+{
+	struct smb_acl_t *result;
+	int count;
+
+	count = 3;
+	result = sys_acl_init(mem_ctx);
+	if (!result) {
+		errno = ENOMEM;
+		return NULL;
+	}
+
+	result->acl = talloc_array(result, struct smb_acl_entry, count);
+	if (!result->acl) {
+		errno = ENOMEM;
+		talloc_free(result);
+		return NULL;
+	}
+
+	result->count = count;
+
+	result->acl[0].a_type = SMB_ACL_USER_OBJ;
+	result->acl[0].a_perm = (mode->st_mode & S_IRWXU) >> 6;;
+
+	result->acl[1].a_type = SMB_ACL_GROUP_OBJ;
+	result->acl[1].a_perm = (mode->st_mode & S_IRWXG) >> 3;;
+
+	result->acl[2].a_type = SMB_ACL_OTHER;
+	result->acl[2].a_perm = mode->st_mode & S_IRWXO;;
+
+	return result;
+}
 
 static SMB_ACL_T gluster_to_smb_acl(const char *buf, size_t xattr_size,
 				    TALLOC_CTX *mem_ctx)
@@ -1273,9 +1520,10 @@ static SMB_ACL_T vfs_gluster_sys_acl_get_file(struct vfs_handle_struct *handle,
 					      TALLOC_CTX *mem_ctx)
 {
 	struct smb_acl_t *result;
+	struct stat st;
 	char *buf;
 	const char *key;
-	ssize_t ret;
+	ssize_t ret, size = GLUSTER_ACL_SIZE(20);
 
 	switch (type) {
 	case SMB_ACL_TYPE_ACCESS:
@@ -1289,13 +1537,34 @@ static SMB_ACL_T vfs_gluster_sys_acl_get_file(struct vfs_handle_struct *handle,
 		return NULL;
 	}
 
-	ret = glfs_getxattr(handle->data, path_p, key, 0, 0);
-	if (ret <= 0) {
+	buf = alloca(size);
+	if (!buf) {
 		return NULL;
 	}
 
-	buf = alloca(ret);
-	ret = glfs_getxattr(handle->data, path_p, key, buf, ret);
+	ret = glfs_getxattr(handle->data, path_p, key, buf, size);
+	if (ret == -1 && errno == ERANGE) {
+		ret = glfs_getxattr(handle->data, path_p, key, 0, 0);
+		if (ret > 0) {
+			buf = alloca(ret);
+			if (!buf) {
+				return NULL;
+			}
+			ret = glfs_getxattr(handle->data, path_p, key, buf, ret);
+		}
+	}
+
+	/* retrieving the ACL from the xattr has finally failed, do a
+	 * mode-to-acl mapping */
+
+	if (ret == -1 && errno == ENODATA) {
+		ret = glfs_stat(handle->data, path_p, &st);
+		if (ret == 0) {
+			result = mode_to_smb_acls(&st, mem_ctx);
+			return result;
+		}
+	}
+
 	if (ret <= 0) {
 		return NULL;
 	}
@@ -1310,18 +1579,42 @@ static SMB_ACL_T vfs_gluster_sys_acl_get_fd(struct vfs_handle_struct *handle,
 					    TALLOC_CTX *mem_ctx)
 {
 	struct smb_acl_t *result;
-	int ret;
+	struct stat st;
+	ssize_t ret, size = GLUSTER_ACL_SIZE(20);
 	char *buf;
 	glfs_fd_t *glfd;
 
 	glfd = *(glfs_fd_t **)VFS_FETCH_FSP_EXTENSION(handle, fsp);
-	ret = glfs_fgetxattr(glfd, "system.posix_acl_access", 0, 0);
-	if (ret <= 0) {
+
+	buf = alloca(size);
+	if (!buf) {
 		return NULL;
 	}
 
-	buf = alloca(ret);
-	ret = glfs_fgetxattr(glfd, "system.posix_acl_access", buf, ret);
+	ret = glfs_fgetxattr(glfd, "system.posix_acl_access", buf, size);
+	if (ret == -1 && errno == ERANGE) {
+		ret = glfs_fgetxattr(glfd, "system.posix_acl_access", 0, 0);
+		if (ret > 0) {
+			buf = alloca(ret);
+			if (!buf) {
+				return NULL;
+			}
+			ret = glfs_fgetxattr(glfd, "system.posix_acl_access",
+					     buf, ret);
+		}
+	}
+
+	/* retrieving the ACL from the xattr has finally failed, do a
+	 * mode-to-acl mapping */
+
+	if (ret == -1 && errno == ENODATA) {
+		ret = glfs_fstat(glfd, &st);
+		if (ret == 0) {
+			result = mode_to_smb_acls(&st, mem_ctx);
+			return result;
+		}
+	}
+
 	if (ret <= 0) {
 		return NULL;
 	}
@@ -1428,11 +1721,11 @@ static struct vfs_fn_pointers glusterfs_fns = {
 	.read_fn = vfs_gluster_read,
 	.pread_fn = vfs_gluster_pread,
 	.pread_send_fn = vfs_gluster_pread_send,
-	.pread_recv_fn = vfs_gluster_pread_recv,
+	.pread_recv_fn = vfs_gluster_recv,
 	.write_fn = vfs_gluster_write,
 	.pwrite_fn = vfs_gluster_pwrite,
 	.pwrite_send_fn = vfs_gluster_pwrite_send,
-	.pwrite_recv_fn = vfs_gluster_pwrite_recv,
+	.pwrite_recv_fn = vfs_gluster_recv,
 	.lseek_fn = vfs_gluster_lseek,
 	.sendfile_fn = vfs_gluster_sendfile,
 	.recvfile_fn = vfs_gluster_recvfile,

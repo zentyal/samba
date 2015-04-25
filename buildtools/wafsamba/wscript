@@ -211,6 +211,8 @@ def configure(conf):
 
     conf.check_tool('compiler_cc')
 
+    conf.CHECK_STANDARD_LIBPATH()
+
     # we need git for 'waf dist'
     conf.find_program('git', var='GIT')
 
@@ -295,6 +297,23 @@ def configure(conf):
                     headers='stdio.h',
                     msg='Checking simple C program')
 
+    # Try to find the right extra flags for -Werror behaviour
+    for f in ["-Werror",       # GCC
+              "-errwarn=%all", # Sun Studio
+              "-qhalt=w",     # IBM xlc
+              "-w2",           # Tru64
+             ]:
+        if conf.CHECK_CFLAGS([f], '''
+'''):
+            if not 'WERROR_CFLAGS' in conf.env:
+                conf.env['WERROR_CFLAGS'] = []
+            conf.env['WERROR_CFLAGS'].extend([f])
+            break
+
+    # check which compiler/linker flags are needed for rpath support
+    if not conf.CHECK_LDFLAGS(['-Wl,-rpath,.']) and conf.CHECK_LDFLAGS(['-Wl,-R,.']):
+        conf.env['RPATH_ST'] = '-Wl,-R,%s'
+
     # check for rpath
     if conf.CHECK_LIBRARY_SUPPORT(rpath=True):
         support_rpath = True
@@ -323,6 +342,13 @@ def configure(conf):
         conf.env.HAVE_LD_VERSION_SCRIPT = True
     else:
         conf.env.HAVE_LD_VERSION_SCRIPT = False
+
+    if conf.CHECK_CFLAGS(['-fvisibility=hidden'] + conf.env.WERROR_CFLAGS):
+        conf.env.VISIBILITY_CFLAGS = '-fvisibility=hidden'
+        conf.CHECK_CODE('''int main(void) { return 0; }
+                           __attribute__((visibility("default"))) void vis_foo2(void) {}''',
+                        cflags=conf.env.VISIBILITY_CFLAGS,
+                        define='HAVE_VISIBILITY_ATTR', addmain=False)
 
     if sys.platform.startswith('aix'):
         conf.DEFINE('_ALL_SOURCE', 1, add_to_cflags=True)
@@ -358,6 +384,27 @@ def configure(conf):
 
     conf.DEFINE('_GNU_SOURCE', 1, add_to_cflags=True)
     conf.DEFINE('_XOPEN_SOURCE_EXTENDED', 1, add_to_cflags=True)
+
+    # on Tru64 certain features are only available with _OSF_SOURCE set to 1
+    # and _XOPEN_SOURCE set to 600
+    if conf.env['SYSTEM_UNAME_SYSNAME'] == 'OSF1':
+        conf.DEFINE('_OSF_SOURCE', 1, add_to_cflags=True)
+        conf.DEFINE('_XOPEN_SOURCE', 600, add_to_cflags=True)
+
+    # SCM_RIGHTS is only avail if _XOPEN_SOURCE iѕ defined on IRIX
+    if conf.env['SYSTEM_UNAME_SYSNAME'] == 'IRIX':
+        conf.DEFINE('_XOPEN_SOURCE', 600, add_to_cflags=True)
+        conf.DEFINE('_BSD_TYPES', 1, add_to_cflags=True)
+
+    # Try to find the right extra flags for C99 initialisers
+    for f in ["", "-AC99", "-qlanglvl=extc99", "-qlanglvl=stdc99", "-c99"]:
+        if conf.CHECK_CFLAGS([f], '''
+struct foo {int x;char y;};
+struct foo bar = { .y = 'X', .x = 1 };
+'''):
+            if f != "":
+                conf.ADD_CFLAGS(f)
+            break
 
     # get the base headers we'll use for the rest of the tests
     conf.CHECK_HEADERS('stdio.h sys/types.h sys/stat.h stdlib.h stddef.h memory.h string.h',

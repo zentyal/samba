@@ -750,9 +750,10 @@ static int cephwrap_ntimes(struct vfs_handle_struct *handle,
 			 struct smb_file_time *ft)
 {
 	struct utimbuf buf;
+	int result;
 	buf.actime = ft->atime.tv_sec;
 	buf.modtime = ft->mtime.tv_sec;
-	int result = ceph_utime(handle->data, smb_fname->base_name, &buf);
+	result = ceph_utime(handle->data, smb_fname->base_name, &buf);
 	DEBUG(10, ("[CEPH] ntimes(%p, %s, {%ld, %ld, %ld, %ld}) = %d\n", handle, smb_fname_str_dbg(smb_fname),
 				ft->mtime.tv_sec, ft->atime.tv_sec, ft->ctime.tv_sec,
 				ft->create_time.tv_sec, result));
@@ -795,15 +796,14 @@ static int strict_allocate_ftruncate(struct vfs_handle_struct *handle, files_str
 	   return ENOTSUP or EINVAL in cases like that. */
 	ret = SMB_VFS_FALLOCATE(fsp, VFS_FALLOCATE_EXTEND_SIZE,
 				pst->st_ex_size, space_to_write);
-	if (ret == ENOSPC) {
-		errno = ENOSPC;
+	if (ret == -1 && errno == ENOSPC) {
 		return -1;
 	}
 	if (ret == 0) {
 		return 0;
 	}
 	DEBUG(10,("[CEPH] strict_allocate_ftruncate: SMB_VFS_FALLOCATE failed with "
-		"error %d. Falling back to slow manual allocation\n", ret));
+		"error %d. Falling back to slow manual allocation\n", errno));
 
 	/* available disk space is enough or not? */
 	space_avail = get_dfree_info(fsp->conn,
@@ -817,13 +817,7 @@ static int strict_allocate_ftruncate(struct vfs_handle_struct *handle, files_str
 	}
 
 	/* Write out the real space on disk. */
-	ret = vfs_slow_fallocate(fsp, pst->st_ex_size, space_to_write);
-	if (ret != 0) {
-		errno = ret;
-		ret = -1;
-	}
-
-	return 0;
+	return vfs_slow_fallocate(fsp, pst->st_ex_size, space_to_write);
 }
 
 static int cephwrap_ftruncate(struct vfs_handle_struct *handle, files_struct *fsp, off_t len)
@@ -1057,8 +1051,9 @@ static const char *cephwrap_connectpath(struct vfs_handle_struct *handle,
 
 static ssize_t cephwrap_getxattr(struct vfs_handle_struct *handle,const char *path, const char *name, void *value, size_t size)
 {
+	int ret;
 	DEBUG(10, ("[CEPH] getxattr(%p, %s, %s, %p, %llu)\n", handle, path, name, value, llu(size)));
-	int ret = ceph_getxattr(handle->data, path, name, value, size);
+	ret = ceph_getxattr(handle->data, path, name, value, size);
 	DEBUG(10, ("[CEPH] getxattr(...) = %d\n", ret));
 	if (ret < 0) {
 		WRAP_RETURN(ret);
@@ -1069,8 +1064,9 @@ static ssize_t cephwrap_getxattr(struct vfs_handle_struct *handle,const char *pa
 
 static ssize_t cephwrap_fgetxattr(struct vfs_handle_struct *handle, struct files_struct *fsp, const char *name, void *value, size_t size)
 {
+	int ret;
 	DEBUG(10, ("[CEPH] fgetxattr(%p, %p, %s, %p, %llu)\n", handle, fsp, name, value, llu(size)));
-	int ret = ceph_getxattr(handle->data, fsp->fsp_name->base_name, name, value, size);
+	ret = ceph_getxattr(handle->data, fsp->fsp_name->base_name, name, value, size);
 	DEBUG(10, ("[CEPH] fgetxattr(...) = %d\n", ret));
 	if (ret < 0) {
 		WRAP_RETURN(ret);
@@ -1081,8 +1077,9 @@ static ssize_t cephwrap_fgetxattr(struct vfs_handle_struct *handle, struct files
 
 static ssize_t cephwrap_listxattr(struct vfs_handle_struct *handle, const char *path, char *list, size_t size)
 {
+	int ret;
 	DEBUG(10, ("[CEPH] listxattr(%p, %s, %p, %llu)\n", handle, path, list, llu(size)));
-	int ret = ceph_listxattr(handle->data, path, list, size);
+	ret = ceph_listxattr(handle->data, path, list, size);
 	DEBUG(10, ("[CEPH] listxattr(...) = %d\n", ret));
 	if (ret < 0) {
 		WRAP_RETURN(ret);
@@ -1094,8 +1091,9 @@ static ssize_t cephwrap_listxattr(struct vfs_handle_struct *handle, const char *
 #if 0
 static ssize_t cephwrap_llistxattr(struct vfs_handle_struct *handle, const char *path, char *list, size_t size)
 {
+	int ret;
 	DEBUG(10, ("[CEPH] llistxattr(%p, %s, %p, %llu)\n", handle, path, list, llu(size)));
-	int ret = ceph_llistxattr(handle->data, path, list, size);
+	ret = ceph_llistxattr(handle->data, path, list, size);
 	DEBUG(10, ("[CEPH] listxattr(...) = %d\n", ret));
 	if (ret < 0) {
 		WRAP_RETURN(ret);
@@ -1107,8 +1105,9 @@ static ssize_t cephwrap_llistxattr(struct vfs_handle_struct *handle, const char 
 
 static ssize_t cephwrap_flistxattr(struct vfs_handle_struct *handle, struct files_struct *fsp, char *list, size_t size)
 {
+	int ret;
 	DEBUG(10, ("[CEPH] flistxattr(%p, %p, %s, %llu)\n", handle, fsp, list, llu(size)));
-	int ret = ceph_listxattr(handle->data, fsp->fsp_name->base_name, list, size);
+	ret = ceph_listxattr(handle->data, fsp->fsp_name->base_name, list, size);
 	DEBUG(10, ("[CEPH] flistxattr(...) = %d\n", ret));
 	if (ret < 0) {
 		WRAP_RETURN(ret);
@@ -1119,32 +1118,36 @@ static ssize_t cephwrap_flistxattr(struct vfs_handle_struct *handle, struct file
 
 static int cephwrap_removexattr(struct vfs_handle_struct *handle, const char *path, const char *name)
 {
+	int ret;
 	DEBUG(10, ("[CEPH] removexattr(%p, %s, %s)\n", handle, path, name));
-	int ret = ceph_removexattr(handle->data, path, name);
+	ret = ceph_removexattr(handle->data, path, name);
 	DEBUG(10, ("[CEPH] removexattr(...) = %d\n", ret));
 	WRAP_RETURN(ret);
 }
 
 static int cephwrap_fremovexattr(struct vfs_handle_struct *handle, struct files_struct *fsp, const char *name)
 {
+	int ret;
 	DEBUG(10, ("[CEPH] fremovexattr(%p, %p, %s)\n", handle, fsp, name));
-	int ret = ceph_removexattr(handle->data, fsp->fsp_name->base_name, name);
+	ret = ceph_removexattr(handle->data, fsp->fsp_name->base_name, name);
 	DEBUG(10, ("[CEPH] fremovexattr(...) = %d\n", ret));
 	WRAP_RETURN(ret);
 }
 
 static int cephwrap_setxattr(struct vfs_handle_struct *handle, const char *path, const char *name, const void *value, size_t size, int flags)
 {
+	int ret;
 	DEBUG(10, ("[CEPH] setxattr(%p, %s, %s, %p, %llu, %d)\n", handle, path, name, value, llu(size), flags));
-	int ret = ceph_setxattr(handle->data, path, name, value, size, flags);
+	ret = ceph_setxattr(handle->data, path, name, value, size, flags);
 	DEBUG(10, ("[CEPH] setxattr(...) = %d\n", ret));
 	WRAP_RETURN(ret);
 }
 
 static int cephwrap_fsetxattr(struct vfs_handle_struct *handle, struct files_struct *fsp, const char *name, const void *value, size_t size, int flags)
 {
+	int ret;
 	DEBUG(10, ("[CEPH] fsetxattr(%p, %p, %s, %p, %llu, %d)\n", handle, fsp, name, value, llu(size), flags));
-	int ret = ceph_setxattr(handle->data, fsp->fsp_name->base_name, name, value, size, flags);
+	ret = ceph_setxattr(handle->data, fsp->fsp_name->base_name, name, value, size, flags);
 	DEBUG(10, ("[CEPH] fsetxattr(...) = %d\n", ret));
 	WRAP_RETURN(ret);
 }

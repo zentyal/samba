@@ -322,7 +322,8 @@ files_struct *file_find_dif(struct smbd_server_connection *sconn,
 			}
 			/* Paranoia check. */
 			if ((fsp->fh->fd == -1) &&
-			    (fsp->oplock_type != NO_OPLOCK)) {
+			    (fsp->oplock_type != NO_OPLOCK &&
+			     fsp->oplock_type != LEASE_OPLOCK)) {
 				DEBUG(0,("file_find_dif: file %s file_id = "
 					 "%s, gen = %u oplock_type = %u is a "
 					 "stat open with oplock type !\n",
@@ -384,6 +385,24 @@ files_struct *file_find_di_next(files_struct *start_fsp)
 		}
 	}
 
+	return NULL;
+}
+
+struct files_struct *file_find_one_fsp_from_lease_key(
+	struct smbd_server_connection *sconn,
+	const struct smb2_lease_key *lease_key)
+{
+	struct files_struct *fsp;
+
+	for (fsp = sconn->files; fsp; fsp=fsp->next) {
+		if ((fsp->lease != NULL) &&
+		    (fsp->lease->lease.lease_key.data[0] ==
+		     lease_key->data[0]) &&
+		    (fsp->lease->lease.lease_key.data[1] ==
+		     lease_key->data[1])) {
+			return fsp;
+		}
+	}
 	return NULL;
 }
 
@@ -470,6 +489,14 @@ void fsp_free(files_struct *fsp)
 		TALLOC_FREE(fsp->fh);
 	} else {
 		fsp->fh->ref_count--;
+	}
+
+	if (fsp->lease != NULL) {
+		if (fsp->lease->ref_count == 1) {
+			TALLOC_FREE(fsp->lease);
+		} else {
+			fsp->lease->ref_count--;
+		}
 	}
 
 	fsp->conn->num_files_open--;
@@ -739,4 +766,17 @@ NTSTATUS fsp_set_smb_fname(struct files_struct *fsp,
 	return file_name_hash(fsp->conn,
 			smb_fname_str_dbg(fsp->fsp_name),
 			&fsp->name_hash);
+}
+
+const struct GUID *fsp_client_guid(const files_struct *fsp)
+{
+	return &fsp->conn->sconn->client->connections->smb2.client.guid;
+}
+
+uint32_t fsp_lease_type(struct files_struct *fsp)
+{
+	if (fsp->oplock_type == LEASE_OPLOCK) {
+		return fsp->lease->lease.lease_state;
+	}
+	return map_oplock_to_lease_type(fsp->oplock_type);
 }

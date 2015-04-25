@@ -250,6 +250,12 @@ NTSTATUS smbd_smb2_send_oplock_break(struct smbXsrv_connection *xconn,
 				     struct smbXsrv_tcon *tcon,
 				     struct smbXsrv_open *op,
 				     uint8_t oplock_level);
+NTSTATUS smbd_smb2_send_lease_break(struct smbXsrv_connection *xconn,
+				    uint16_t new_epoch,
+				    uint32_t lease_flags,
+				    struct smb2_lease_key *lease_key,
+				    uint32_t current_lease_state,
+				    uint32_t new_lease_state);
 
 NTSTATUS smbd_smb2_request_pending_queue(struct smbd_smb2_request *req,
 					 struct tevent_req *subreq,
@@ -298,7 +304,9 @@ void smbd_smb2_request_dispatch_immediate(struct tevent_context *ctx,
 struct deferred_open_record;
 
 /* SMB1 -> SMB2 glue. */
-void send_break_message_smb2(files_struct *fsp, int level);
+void send_break_message_smb2(files_struct *fsp,
+			     uint32_t break_from,
+			     uint32_t break_to);
 struct blocking_lock_record *get_pending_smb2req_blr(struct smbd_smb2_request *smb2req);
 bool push_blocking_lock_request_smb2( struct byte_range_lock *br_lck,
 				struct smb_request *req,

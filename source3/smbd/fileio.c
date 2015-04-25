@@ -339,18 +339,21 @@ ssize_t write_file(struct smb_request *req,
 	if (!fsp->modified &&
 	    EXCLUSIVE_OPLOCK_TYPE(fsp->oplock_type) &&
 	    (wcp == NULL)) {
+		/*
+		 * Note: no write cache with leases!
+		 * as the handles would have to share the write cache
+		 * that's possible but an improvement for another day...
+		 */
 		setup_write_cache(fsp, fsp->fsp_name->st.st_ex_size);
 		wcp = fsp->wcp;
 	}
 
 	mark_file_modified(fsp);
 
-#ifdef WITH_PROFILE
 	DO_PROFILE_INC(writecache_total_writes);
 	if (!fsp->oplock_type) {
 		DO_PROFILE_INC(writecache_non_oplock_writes);
 	}
-#endif
 
 	/*
 	 * If this file is level II oplocked then we need
@@ -363,31 +366,6 @@ ssize_t write_file(struct smb_request *req,
 	/* This should actually be improved to span the write. */
 	contend_level2_oplocks_begin(fsp, LEVEL2_CONTEND_WRITE);
 	contend_level2_oplocks_end(fsp, LEVEL2_CONTEND_WRITE);
-
-#ifdef WITH_PROFILE
-	if (profile_p && profile_p->writecache_total_writes % 500 == 0) {
-		DEBUG(3,("WRITECACHE: initwrites=%u abutted=%u total=%u \
-nonop=%u allocated=%u active=%u direct=%u perfect=%u readhits=%u\n",
-			profile_p->writecache_init_writes,
-			profile_p->writecache_abutted_writes,
-			profile_p->writecache_total_writes,
-			profile_p->writecache_non_oplock_writes,
-			profile_p->writecache_allocated_write_caches,
-			profile_p->writecache_num_write_caches,
-			profile_p->writecache_direct_writes,
-			profile_p->writecache_num_perfect_writes,
-			profile_p->writecache_read_hits ));
-
-		DEBUG(3,("WRITECACHE: Flushes SEEK=%d, READ=%d, WRITE=%d, READRAW=%d, OPLOCK=%d, CLOSE=%d, SYNC=%d\n",
-			profile_p->writecache_flushed_writes[SAMBA_SEEK_FLUSH],
-			profile_p->writecache_flushed_writes[SAMBA_READ_FLUSH],
-			profile_p->writecache_flushed_writes[SAMBA_WRITE_FLUSH],
-			profile_p->writecache_flushed_writes[SAMBA_READRAW_FLUSH],
-			profile_p->writecache_flushed_writes[SAMBA_OPLOCK_RELEASE_FLUSH],
-			profile_p->writecache_flushed_writes[SAMBA_CLOSE_FLUSH],
-			profile_p->writecache_flushed_writes[SAMBA_SYNC_FLUSH] ));
-	}
-#endif
 
 	if (wcp && req->unread_bytes) {
 		/* If we're using receivefile don't
@@ -826,13 +804,11 @@ n = %u, wcp->offset=%.0f, wcp->data_size=%u\n",
 	 */
 
 	if (n) {
-#ifdef WITH_PROFILE
 		if (wcp->data_size) {
 			DO_PROFILE_INC(writecache_abutted_writes);
 		} else {
 			DO_PROFILE_INC(writecache_init_writes);
 		}
-#endif
 
 		if ((wcp->data_size == 0)
 		    && (pos > wcp->file_size)
@@ -997,11 +973,9 @@ ssize_t flush_write_cache(files_struct *fsp, enum flush_reason_enum reason)
 	DEBUG(9,("flushing write cache: fd = %d, off=%.0f, size=%u\n",
 		fsp->fh->fd, (double)wcp->offset, (unsigned int)data_size));
 
-#ifdef WITH_PROFILE
 	if(data_size == wcp->alloc_size) {
 		DO_PROFILE_INC(writecache_num_perfect_writes);
 	}
-#endif
 
 	ret = real_write_file(NULL, fsp, wcp->data, wcp->offset, data_size);
 

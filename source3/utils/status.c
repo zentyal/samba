@@ -115,15 +115,15 @@ static bool Ucrit_addPid( struct server_id pid )
 	return True;
 }
 
-static void print_share_mode(const struct share_mode_entry *e,
-			     const char *sharepath,
-			     const char *fname,
-			     void *dummy)
+static int print_share_mode(const struct share_mode_entry *e,
+			    const char *sharepath,
+			    const char *fname,
+			    void *dummy)
 {
 	static int count;
 
 	if (do_checks && !is_valid_share_mode_entry(e)) {
-		return;
+		return 0;
 	}
 
 	if (count==0) {
@@ -135,7 +135,7 @@ static void print_share_mode(const struct share_mode_entry *e,
 
 	if (do_checks && !serverid_exists(&e->pid)) {
 		/* the process for this entry does not exist any more */
-		return;
+		return 0;
 	}
 
 	if (Ucrit_checkPid(e->pid)) {
@@ -177,12 +177,23 @@ static void print_share_mode(const struct share_mode_entry *e,
 			d_printf("BATCH           ");
 		} else if (e->op_type & LEVEL_II_OPLOCK) {
 			d_printf("LEVEL_II        ");
+		} else if (e->op_type == LEASE_OPLOCK) {
+			uint32_t lstate = e->lease->current_state;
+			d_printf("LEASE(%s%s%s)%s%s%s      ",
+				 (lstate & SMB2_LEASE_READ)?"R":"",
+				 (lstate & SMB2_LEASE_WRITE)?"W":"",
+				 (lstate & SMB2_LEASE_HANDLE)?"H":"",
+				 (lstate & SMB2_LEASE_READ)?"":" ",
+				 (lstate & SMB2_LEASE_WRITE)?"":" ",
+				 (lstate & SMB2_LEASE_HANDLE)?"":" ");
 		} else {
 			d_printf("NONE            ");
 		}
 
 		d_printf(" %s   %s   %s",sharepath, fname, time_to_asc((time_t)e->time.tv_sec));
 	}
+
+	return 0;
 }
 
 static void print_brl(struct file_id id,
@@ -363,6 +374,7 @@ int main(int argc, const char *argv[])
 	TALLOC_CTX *frame = talloc_stackframe();
 	int ret = 0;
 	struct messaging_context *msg_ctx;
+	bool ok;
 
 	sec_init();
 	load_case_tables();
@@ -462,10 +474,12 @@ int main(int argc, const char *argv[])
 	switch (profile_only) {
 		case 'P':
 			/* Dump profile data */
-			return status_profile_dump(verbose);
+			ok = status_profile_dump(verbose);
+			return ok ? 0 : 1;
 		case 'R':
 			/* Continuously display rate-converted data */
-			return status_profile_rates(verbose);
+			ok = status_profile_rates(verbose);
+			return ok ? 0 : 1;
 		default:
 			break;
 	}
@@ -526,7 +540,7 @@ int main(int argc, const char *argv[])
 			goto done;
 		}
 
-		result = share_mode_forall(print_share_mode, NULL);
+		result = share_entry_forall(print_share_mode, NULL);
 
 		if (result == 0) {
 			d_printf("No locked files\n");

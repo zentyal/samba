@@ -646,6 +646,10 @@ def SAMBA_CONFIG_H(conf, path=None):
     if not IN_LAUNCH_DIR(conf):
         return
 
+    if conf.CHECK_CFLAGS(['-fstack-protector']) and conf.CHECK_LDFLAGS(['-fstack-protector']):
+        conf.ADD_CFLAGS('-fstack-protector')
+        conf.ADD_LDFLAGS('-fstack-protector')
+
     if Options.options.debug:
         conf.ADD_CFLAGS('-g', testflags=True)
 
@@ -670,6 +674,8 @@ def SAMBA_CONFIG_H(conf, path=None):
         conf.ADD_CFLAGS('-Werror=pointer-arith -Wpointer-arith',
                         testflags=True)
         conf.ADD_CFLAGS('-Werror=declaration-after-statement -Wdeclaration-after-statement',
+                        testflags=True)
+        conf.ADD_CFLAGS('-Werror=return-type -Wreturn-type',
                         testflags=True)
 
         conf.ADD_CFLAGS('-Wformat=2 -Wno-format-y2k', testflags=True)
@@ -696,6 +702,19 @@ int main(void) {
 
     if Options.options.pedantic:
         conf.ADD_CFLAGS('-W', testflags=True)
+
+
+    # Let people pass an additional ADDITIONAL_{CFLAGS,LDFLAGS}
+    # environment variables which are only used the for final build.
+    #
+    # The CFLAGS and LDFLAGS environment variables are also
+    # used for the configure checks which might impact their results.
+    conf.add_os_flags('ADDITIONAL_CFLAGS')
+    if conf.env.ADDITIONAL_CFLAGS and conf.CHECK_CFLAGS(conf.env['ADDITIONAL_CFLAGS']):
+        conf.env['EXTRA_CFLAGS'].extend(conf.env['ADDITIONAL_CFLAGS'])
+    conf.add_os_flags('ADDITIONAL_LDFLAGS')
+    if conf.env.ADDITIONAL_LDFLAGS and conf.CHECK_LDFLAGS(conf.env['ADDITIONAL_LDFLAGS']):
+        conf.env['EXTRA_LDFLAGS'].extend(conf.env['ADDITIONAL_LDFLAGS'])
 
     if path is None:
         conf.write_config_header('config.h', top=True)
@@ -775,7 +794,7 @@ def CURRENT_CFLAGS(bld, target, cflags, allow_warnings=True, hide_symbols=False)
         list = bld.env['PICKY_CFLAGS'];
         ret.extend(list)
     if hide_symbols and bld.env.HAVE_VISIBILITY_ATTR:
-        ret.append('-fvisibility=hidden')
+        ret.append(bld.env.VISIBILITY_CFLAGS)
     return ret
 
 

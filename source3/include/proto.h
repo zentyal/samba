@@ -702,9 +702,6 @@ int ipstr_list_parse(const char *ipstr_list, struct ip_service **ip_list);
 void ipstr_list_free(char* ipstr_list);
 uint64_t STR_TO_SMB_BIG_UINT(const char *nptr, const char **entptr);
 uint64_t conv_str_size(const char * str);
-bool add_string_to_array(TALLOC_CTX *mem_ctx,
-			 const char *str, const char ***strings,
-			 int *num);
 void sprintf_append(TALLOC_CTX *mem_ctx, char **string, ssize_t *len,
 		    size_t *bufsize, const char *fmt, ...);
 int asprintf_strupper_m(char **strp, const char *fmt, ...);
@@ -990,6 +987,8 @@ bool lp_idmap_default_range(uint32_t *low, uint32_t *high);
 const char *lp_idmap_backend(const char *domain_name);
 const char *lp_idmap_default_backend (void);
 int lp_security(void);
+int lp_client_max_protocol(void);
+int lp_winbindd_max_protocol(void);
 int lp_smb2_max_credits(void);
 int lp_cups_encrypt(void);
 bool lp_widelinks(int );

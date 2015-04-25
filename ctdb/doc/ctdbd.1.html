@@ -1,0 +1,250 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>ctdbd</title><meta name="generator" content="DocBook XSL Stylesheets V1.78.1"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry"><a name="ctdbd.1"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>ctdbd &#8212; The CTDB cluster daemon</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="command">ctdbd</code>  [<em class="replaceable"><code>OPTION</code></em>...]</p></div></div><div class="refsect1"><a name="idp54835024"></a><h2>DESCRIPTION</h2><p>
+      ctdbd is the main CTDB daemon.
+    </p><p>
+      Note that ctdbd is not usually invoked directly.  It is invoked
+      via <span class="citerefentry"><span class="refentrytitle">ctdbd_wrapper</span>(1)</span> or via the initscript.
+    </p><p>
+      See <span class="citerefentry"><span class="refentrytitle">ctdb</span>(7)</span> for an overview of CTDB.
+    </p></div><div class="refsect1"><a name="idp54188000"></a><h2>GENERAL OPTIONS</h2><div class="variablelist"><dl class="variablelist"><dt><span class="term">-d, --debug=<em class="parameter"><code>DEBUGLEVEL</code></em></span></dt><dd><p>
+	    This option sets the debug level to DEBUGLEVEL, which
+	    controls what will be written to the logfile. The default is
+	    0 which will only log important events and errors. A larger
+	    number will provide additional logging.
+	  </p><p>
+	    See the <em class="citetitle">DEBUG LEVELS</em> section in
+	    <span class="citerefentry"><span class="refentrytitle">ctdb</span>(7)</span> for more
+	    information.
+	  </p></dd><dt><span class="term">--dbdir=<em class="parameter"><code>DIRECTORY</code></em></span></dt><dd><p>
+	    DIRECTORY on local storage where ctdbd keeps a local copy of
+	    TDB databases.  This directory is local for each node and
+	    should not be stored on the shared cluster filesystem.
+	  </p><p>
+	    This directory would usually be <code class="filename">/var/lib/ctdb</code>
+	  </p></dd><dt><span class="term">--dbdir-persistent=<em class="parameter"><code>DIRECTORY</code></em></span></dt><dd><p>
+	    DIRECTORY on local storage where ctdbd keeps a local copy of
+	    persistent TDB databases.  This directory is local for each
+	    node and should not be stored on the shared cluster
+	    filesystem.
+	  </p><p>
+	    This directory would usually be
+	    <code class="filename">/var/lib/ctdb/persistent</code>
+	  </p></dd><dt><span class="term">--dbdir-state=<em class="parameter"><code>DIRECTORY</code></em></span></dt><dd><p>
+	    DIRECTORY on local storage where ctdbd keep internal state
+	    TDB files.  This directory is local for each node and
+	    should not be stored on the shared cluster filesystem.
+	  </p><p>
+	    This directory would usually be
+	    <code class="filename">/var/lib/ctdb/state</code>
+	  </p></dd><dt><span class="term">--event-script-dir=<em class="parameter"><code>DIRECTORY</code></em></span></dt><dd><p>
+	    DIRECTORY where the CTDB event scripts are stored.  See the
+	    <em class="citetitle">EVENT SCRIPTS</em> section in
+	    <span class="citerefentry"><span class="refentrytitle">ctdb</span>(7)</span> for more information.
+	  </p><p>
+	    Default is <code class="envar">CTDB_BASE</code>/events.d, so usually
+	    <code class="filename">/etc/ctdb/events.d</code>, which is part of
+	    the CTDB installation.
+	  </p></dd><dt><span class="term">--logfile=<em class="parameter"><code>FILENAME</code></em></span></dt><dd><p>
+	    FILENAME where ctdbd will write its log. This is usually
+	    <code class="filename">/var/log/log.ctdb</code>.
+	  </p></dd><dt><span class="term">--lvs</span></dt><dd><p>
+	    This option is used to activate the LVS capability on a CTDB
+	    node.  Please see the <em class="citetitle">LVS</em> section in
+	    <span class="citerefentry"><span class="refentrytitle">ctdb</span>(7)</span> for more
+	    information.
+	  </p></dd><dt><span class="term">--max-persistent-check-errors=<em class="parameter"><code>NUM</code></em></span></dt><dd><p>
+	    NUM specifies the maximum number of health check failures
+	    allowed for persistent databases during startup.
+	  </p><p>
+	    The default value is 0.  Setting this to non-zero allows a
+	    node with unhealthy persistent databases to startup and
+	    join the cluster as long as there is another node with
+	    healthy persistent databases.
+	  </p></dd><dt><span class="term">--nlist=<em class="parameter"><code>FILENAME</code></em></span></dt><dd><p>
+	    FILENAME containing a list of the private IP addresses, one
+	    per line, for each node in the cluster.  This file
+	    <span class="emphasis"><em>must be the same on each node</em></span> in the
+	    cluster.
+	  </p><p>
+	    Default is <code class="envar">CTDB_BASE</code>/nodes, so usually
+	    <code class="filename">/etc/ctdb/nodes</code>.
+	  </p></dd><dt><span class="term">--no-lmaster</span></dt><dd><p>
+	    This argument specifies that this node can NOT become an lmaster
+	    for records in the database. This means that it will never show up
+	    in the vnnmap. This feature is primarily used for making a cluster
+	    span across a WAN link and use CTDB as a WAN-accelerator.
+	  </p><p>
+	    Please see the <em class="citetitle">REMOTE CLUSTER NODES</em>
+	    section in <span class="citerefentry"><span class="refentrytitle">ctdb</span>(7)</span> for more
+	    information.
+	  </p></dd><dt><span class="term">--no-recmaster</span></dt><dd><p>
+	    This argument specifies that this node can NOT become a recmaster
+	    for the database. This feature is primarily used for making a cluster
+	    span across a WAN link and use CTDB as a WAN-accelerator.
+	  </p><p>
+	    Please see the <em class="citetitle">REMOTE CLUSTER NODES</em>
+	    section in <span class="citerefentry"><span class="refentrytitle">ctdb</span>(7)</span> for more
+	    information.
+	  </p></dd><dt><span class="term">--notification-script=<em class="parameter"><code>FILENAME</code></em></span></dt><dd><p>
+	    FILENAME specifying a script to be invoked by ctdbd when
+	    certain state changes occur.
+	  </p><p>
+	    This file is usually
+	    <code class="filename">/etc/ctdb/notify.sh</code>.
+	  </p><p>
+	    Please see the <em class="citetitle">NOTIFICATION SCRIPT</em>
+	    section in <span class="citerefentry"><span class="refentrytitle">ctdb</span>(7)</span> for more
+	    information.
+	  </p></dd><dt><span class="term">--pidfile=<em class="parameter"><code>FILENAME</code></em></span></dt><dd><p>
+	    FILENAME for file containing process ID of main CTDB
+	    daemon.  This file is automatically created and removed by
+	    CTDB.
+	  </p><p>
+	    The default is to not create a PID file.
+	  </p></dd><dt><span class="term">--public_addresses=<em class="parameter"><code>FILENAME</code></em></span></dt><dd><p>
+	    FILENAME specifying a file containing the public IP
+	    addresses to use on the cluster when CTDB should use IP
+	    takeover. This file contains a list of IP addresses,
+	    netmasks and interfaces.  CTDB will distribute these public
+	    IP addresses appropriately across the available nodes.
+	  </p><p>
+	    The IP addresses specified in this file can differ across
+	    nodes.
+	  </p><p>
+	    This is usually the file
+	    <code class="filename">/etc/ctdb/public_addresses</code>
+	  </p></dd><dt><span class="term">--public-interface=<em class="parameter"><code>INTERFACE</code></em></span></dt><dd><p>
+	    INTERFACE on which to attach public IP addresses or on which
+	    to attach the single-public-ip when used.
+	  </p><p>
+	    When using public IP addresses, this is only required if
+	    interfaces are not explicitly specified in the public
+	    addresses file.
+	  </p></dd><dt><span class="term">--reclock=<em class="parameter"><code>FILENAME</code></em></span></dt><dd><p>
+	    FILENAME is the name of the recovery lock file stored in
+	    <span class="emphasis"><em>shared storage</em></span> that ctdbd uses to
+	    prevent split brains from occuring.
+	  </p><p>
+	    It is possible to run CTDB without a recovery lock file, but
+	    then there will be no protection against split brain if the
+	    cluster/network becomes partitioned. Using CTDB without a
+	    reclock file is strongly discouraged.
+	  </p></dd><dt><span class="term">--single-public-ip=<em class="parameter"><code>IPADDR</code></em></span></dt><dd><p>
+	    IPADDR specifies the single IP that CTDB will use in
+	    conjuction with LVS.
+	  </p><p>
+	    Please see the <em class="citetitle">LVS</em> section in
+	    <span class="citerefentry"><span class="refentrytitle">ctdb</span>(7)</span> for more
+	    information.
+	  </p></dd><dt><span class="term">--start-as-disabled</span></dt><dd><p>
+	    This makes ctdbd start in the DISABLED state.
+	  </p><p>
+	    To allow the node to host public IP addresses and
+	    services, it must be manually enabled using the
+	    <span class="command"><strong>ctdb enable</strong></span> command.
+	  </p><p>
+	    Please see the <em class="citetitle">NODE STATES</em> section
+	    in <span class="citerefentry"><span class="refentrytitle">ctdb</span>(7)</span> for more
+	    information about the DISABLED state.
+	  </p></dd><dt><span class="term">--start-as-stopped</span></dt><dd><p>
+	    This makes ctdbd start in the STOPPED state.
+	  </p><p>
+	    To allow the node to take part in the cluster it must be
+	    manually continued with the the <span class="command"><strong>ctdb
+	    enable</strong></span> command.
+	  </p><p>
+	    Please see the <em class="citetitle">NODE STATES</em> section
+	    in <span class="citerefentry"><span class="refentrytitle">ctdb</span>(7)</span> for more
+	    information about the STOPPED state.
+	  </p></dd><dt><span class="term">--syslog</span></dt><dd><p>
+	    Send log messages to syslog instead of the CTDB logfile.
+	    This option overrides --logfile.  The default is to log to
+	    a file.
+	  </p></dd><dt><span class="term">--transport=tcp|infiniband</span></dt><dd><p>
+	    This option specifies which transport to use for ctdbd
+	    internode communications. The default is "tcp".
+	  </p><p>
+	    The "infiniband" support is not regularly tested.
+	  </p></dd><dt><span class="term">-?, --help</span></dt><dd><p>
+	    Display a summary of options.
+	  </p></dd></dl></div></div><div class="refsect1"><a name="idp55033472"></a><h2>DEBUGGING OPTIONS</h2><div class="variablelist"><dl class="variablelist"><dt><span class="term">-i, --interactive</span></dt><dd><p>
+	    Enable interactive mode.  This will make ctdbd run in the
+	    foreground and not detach from the terminal.  By default
+	    ctdbd will detach itself and run in the background as a
+	    daemon.
+	  </p></dd><dt><span class="term">--listen=<em class="parameter"><code>IPADDR</code></em></span></dt><dd><p>
+	    This specifies which IP address that ctdbd will bind to.
+	  </p><p>
+	    By default ctdbd will bind to the first address it finds in
+	    the <code class="filename">/etc/ctdb/nodes</code> file that is also
+	    present on the local system.
+	  </p><p>
+	    This option is only required when you want to run multiple
+	    ctdbd daemons/nodes on the same physical host in which case
+	    there would be multiple entries in
+	    <code class="filename">/etc/ctdb/nodes</code> that would match a
+	    local interface.
+	  </p></dd><dt><span class="term">--nopublicipcheck</span></dt><dd><p>
+	    This option is used when testing with multiple local
+	    daemons on a single machine.  It disables checks related
+	    to public IP addresses.
+	  </p></dd><dt><span class="term">--nosetsched</span></dt><dd><p>
+	    This is a debugging option. This option is only used when
+	    debugging ctdbd.
+	  </p><p>
+	    Normally ctdbd will change its scheduler to run as a
+	    real-time process. This is the default mode for a normal
+	    ctdbd operation to gurarantee that ctdbd always gets the CPU
+	    cycles that it needs.
+	  </p><p>
+	    This option is used to tell ctdbd to
+	    <span class="emphasis"><em>not</em></span> run as a real-time process and
+	    instead run ctdbd as a normal userspace process.  This is
+	    useful for debugging and when you want to run ctdbd under
+	    valgrind or gdb. (You don't want to attach valgrind or gdb
+	    to a real-time process.)
+	  </p></dd><dt><span class="term">--socket=<em class="parameter"><code>FILENAME</code></em></span></dt><dd><p>
+	    FILENAME specifies the name of the Unix domain socket that
+	    ctdbd will create. This socket is used by local clients to
+	    communicate with ctdbd.
+	  </p><p>
+	    The default is <code class="filename">/tmp/ctdb.socket</code> . You
+	    only need to use this option if you plan to run multiple
+	    ctdbd daemons on the same physical host, usually for
+	    testing.
+	  </p></dd><dt><span class="term">--script-log-level=<em class="parameter"><code>DEBUGLEVEL</code></em></span></dt><dd><p>
+	    This option sets the debug level of event script output to
+	    DEBUGLEVEL.  The default is ERR (0).
+	  </p><p>
+	    See the <em class="citetitle">DEBUG LEVELS</em> section in
+	    <span class="citerefentry"><span class="refentrytitle">ctdb</span>(7)</span> for more
+	    information.
+	  </p></dd><dt><span class="term">--sloppy-start</span></dt><dd><p>
+	    This is debugging option.  This speeds up the initial
+	    recovery during startup at the expense of some consistency
+	    checking.  <span class="emphasis"><em>Don't use this option in
+	    production</em></span>.
+	  </p></dd><dt><span class="term">--torture</span></dt><dd><p>
+	    This option is only used for development and testing of
+	    CTDB.  It adds artificial errors and failures to the
+	    common codepaths in ctdbd to verify that ctdbd can recover
+	    correctly from failures.
+	  </p><p>
+	    <span class="emphasis"><em>Do not use this option</em></span> unless you are
+	    developing and testing new functionality in CTDB.
+	  </p></dd><dt><span class="term">--valgrinding</span></dt><dd><p>
+	    This is a debugging option. This option is only used when
+	    debugging ctdbd.  This enables additional debugging
+	    capabilities and implies --nosetsched.
+	  </p></dd></dl></div></div><div class="refsect1"><a name="idp55059200"></a><h2>SEE ALSO</h2><p>
+      <span class="citerefentry"><span class="refentrytitle">ctdb</span>(1)</span>,
+
+      <span class="citerefentry"><span class="refentrytitle">ctdbd_wrapper</span>(1)</span>,
+
+      <span class="citerefentry"><span class="refentrytitle">onnode</span>(1)</span>,
+
+      <span class="citerefentry"><span class="refentrytitle">ctdb</span>(7)</span>,
+
+      <span class="citerefentry"><span class="refentrytitle">ctdb-tunables</span>(7)</span>,
+
+      <a class="ulink" href="http://ctdb.samba.org/" target="_top">http://ctdb.samba.org/</a>
+    </p></div></div></body></html>

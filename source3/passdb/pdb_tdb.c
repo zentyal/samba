@@ -329,15 +329,21 @@ static bool tdbsam_upgrade_next_rid(struct db_context *db)
 	uint32 rid;
 	bool ok = false;
 	NTSTATUS status;
+	char *db_path;
 
 	status = dbwrap_fetch_uint32_bystring(db, NEXT_RID_STRING, &rid);
 	if (NT_STATUS_IS_OK(status)) {
 		return true;
 	}
 
-	tdb = tdb_open_log(state_path("winbindd_idmap.tdb"), 0,
-			   TDB_DEFAULT, O_RDONLY, 0644);
+	db_path = state_path("winbindd_idmap.tdb");
+	if (db_path == NULL) {
+		return false;
+	}
 
+	tdb = tdb_open_log(db_path, 0,
+			   TDB_DEFAULT, O_RDONLY, 0644);
+	TALLOC_FREE(db_path);
 	if (tdb) {
 		ok = tdb_fetch_uint32(tdb, "RID_COUNTER", &rid);
 		if (!ok) {
@@ -596,11 +602,17 @@ static NTSTATUS tdbsam_getsampwnam (struct pdb_methods *my_methods,
 		return NT_STATUS_NO_SUCH_USER;
 	}
 
+	if (data.dsize == 0) {
+		DEBUG(5, ("%s: Got 0-sized record for key %s\n", __func__,
+			  keystr));
+		return NT_STATUS_NO_SUCH_USER;
+	}
+
   	/* unpack the buffer */
 
 	if (!init_samu_from_buffer(user, SAMU_BUFFER_LATEST, data.dptr, data.dsize)) {
 		DEBUG(0,("pdb_getsampwent: Bad struct samu entry returned from TDB!\n"));
-		SAFE_FREE(data.dptr);
+		TALLOC_FREE(data.dptr);
 		return NT_STATUS_NO_MEMORY;
 	}
 

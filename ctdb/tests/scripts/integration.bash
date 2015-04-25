@@ -163,13 +163,13 @@ all_ips_on_node()
 {
     local node="$1"
     try_command_on_node $node \
-	"$CTDB ip -Y | awk -F: 'NR > 1 { print \$2, \$3 }'"
+	"$CTDB ip -X | awk -F'|' 'NR > 1 { print \$2, \$3 }'"
 }
 
 _select_test_node_and_ips ()
 {
     try_command_on_node any \
-	"$CTDB ip -Y -n all | awk -F: 'NR > 1 { print \$2, \$3 }'"
+	"$CTDB ip -X -n all | awk -F'|' 'NR > 1 { print \$2, \$3 }'"
 
     test_node=""  # this matches no PNN
     test_node_ips=""
@@ -185,6 +185,11 @@ _select_test_node_and_ips ()
 
     echo "Selected node ${test_node} with IPs: ${test_node_ips}."
     test_ip="${test_node_ips%% *}"
+
+    case "$test_ip" in
+	*:*) test_prefix="${test_ip}/128" ;;
+	*)   test_prefix="${test_ip}/32"  ;;
+    esac
 
     [ -n "$test_node" ] || return 1
 }
@@ -209,7 +214,7 @@ select_test_node_and_ips ()
 get_test_ip_mask_and_iface ()
 {
     # Find the interface
-    try_command_on_node $test_node "$CTDB ip -v -Y | awk -F: -v ip=$test_ip '\$2 == ip { print \$4 }'"
+    try_command_on_node $test_node "$CTDB ip -v -X | awk -F'|' -v ip=$test_ip '\$2 == ip { print \$4 }'"
     iface="$out"
 
     if [ -z "$TEST_LOCAL_DAEMONS" ] ; then
@@ -334,16 +339,16 @@ node_has_status ()
 
     local bits fpat mpat rpat
     case "$status" in
-	(unhealthy)    bits="?:?:?:1:*" ;;
-	(healthy)      bits="?:?:?:0:*" ;;
-	(disconnected) bits="1:*" ;;
-	(connected)    bits="0:*" ;;
-	(banned)       bits="?:1:*" ;;
-	(unbanned)     bits="?:0:*" ;;
-	(disabled)     bits="?:?:1:*" ;;
-	(enabled)      bits="?:?:0:*" ;;
-	(stopped)      bits="?:?:?:?:1:*" ;;
-	(notstopped)   bits="?:?:?:?:0:*" ;;
+	(unhealthy)    bits="?|?|?|1|*" ;;
+	(healthy)      bits="?|?|?|0|*" ;;
+	(disconnected) bits="1|*" ;;
+	(connected)    bits="0|*" ;;
+	(banned)       bits="?|1|*" ;;
+	(unbanned)     bits="?|0|*" ;;
+	(disabled)     bits="?|?|1|*" ;;
+	(enabled)      bits="?|?|0|*" ;;
+	(stopped)      bits="?|?|?|?|1|*" ;;
+	(notstopped)   bits="?|?|?|?|0|*" ;;
 	(frozen)       fpat='^[[:space:]]+frozen[[:space:]]+1$' ;;
 	(unfrozen)     fpat='^[[:space:]]+frozen[[:space:]]+0$' ;;
 	(monon)        mpat='^Monitoring mode:ACTIVE \(0\)$' ;;
@@ -357,13 +362,13 @@ node_has_status ()
     if [ -n "$bits" ] ; then
 	local out x line
 
-	out=$($CTDB -Y status 2>&1) || return 1
+	out=$($CTDB -X status 2>&1) || return 1
 
 	{
             read x
             while read line ; do
 		# This needs to be done in 2 steps to avoid false matches.
-		local line_bits="${line#:${pnn}:*:}"
+		local line_bits="${line#|${pnn}|*|}"
 		[ "$line_bits" = "$line" ] && continue
 		[ "${line_bits#${bits}}" != "$line_bits" ] && return 0
             done
@@ -566,7 +571,7 @@ restart_ctdb ()
 	# Cluster is still healthy.  Good, we're done!
 	if ! onnode 0 $CTDB_TEST_WRAPPER _cluster_is_healthy ; then
 	    echo "Cluster became UNHEALTHY again [$(date)]"
-	    onnode -p all ctdb status -Y 2>&1
+	    onnode -p all ctdb status -X 2>&1
 	    onnode -p all ctdb scriptstatus 2>&1
 	    echo "Restarting..."
 	    continue
@@ -580,7 +585,7 @@ restart_ctdb ()
     done
 
     echo "Cluster UNHEALTHY...  too many attempts..."
-    onnode -p all ctdb status -Y 2>&1
+    onnode -p all ctdb status -X 2>&1
     onnode -p all ctdb scriptstatus 2>&1
 
     # Try to make the calling test fail
@@ -669,7 +674,7 @@ nfs_test_setup ()
 
     echo "Mounting ${test_ip}:${nfs_first_export} on ${nfs_mnt_d} ..."
     mount -o timeo=1,hard,intr,vers=3 \
-	${test_ip}:${nfs_first_export} ${nfs_mnt_d}
+	"[${test_ip}]:${nfs_first_export}" ${nfs_mnt_d}
 }
 
 nfs_test_cleanup ()
@@ -678,6 +683,44 @@ nfs_test_cleanup ()
     umount -f "$nfs_mnt_d"
     rmdir "$nfs_mnt_d"
     onnode -q $test_node rmdir "$nfs_test_dir"
+}
+
+#######################################
+
+# If the given IP is hosted then print 2 items: maskbits and iface
+ip_maskbits_iface ()
+{
+    _addr="$1"
+
+    case "$_addr" in
+	*:*) _family="inet6" ; _bits=128 ;;
+	*)   _family="inet"  ; _bits=32  ;;
+    esac
+
+    ip addr show to "${_addr}/${_bits}" 2>/dev/null | \
+	awk -v family="${_family}" \
+	    'NR == 1 { iface = gensub(":$", "", 1, $2) } \
+             $1 ~ /inet/ { print gensub(".*/", "", 1, $2), iface, family }'
+}
+
+drop_ip ()
+{
+    _addr="${1%/*}"  # Remove optional maskbits
+
+    set -- $(ip_maskbits_iface $_addr)
+    if [ -n "$1" ] ; then
+	_maskbits="$1"
+	_iface="$2"
+	echo "Removing public address $_addr/$_maskbits from device $_iface"
+	ip addr del "$_ip/$_maskbits" dev "$_iface" >/dev/null 2>&1 || true
+    fi
+}
+
+drop_ips ()
+{
+    for _ip ; do
+	drop_ip "$_ip"
+    done
 }
 
 #######################################

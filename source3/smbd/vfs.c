@@ -586,6 +586,10 @@ int vfs_allocate_file_space(files_struct *fsp, uint64_t len)
 		return 0;
 	}
 
+	if (ret == -1 && errno == ENOSPC) {
+		return -1;
+	}
+
 	len -= fsp->fsp_name->st.st_ex_size;
 	len /= 1024; /* Len is now number of 1k blocks needed. */
 	space_avail = get_dfree_info(conn, fsp->fsp_name->base_name, false,
@@ -640,7 +644,7 @@ int vfs_set_filelen(files_struct *fsp, off_t len)
  fails. Needs to be outside of the default version of SMB_VFS_FALLOCATE
  as this is also called from the default SMB_VFS_FTRUNCATE code.
  Always extends the file size.
- Returns 0 on success, errno on failure.
+ Returns 0 on success, -1 on failure.
 ****************************************************************************/
 
 #define SPARSE_BUF_WRITE_SIZE (32*1024)
@@ -654,7 +658,7 @@ int vfs_slow_fallocate(files_struct *fsp, off_t offset, off_t len)
 		sparse_buf = SMB_CALLOC_ARRAY(char, SPARSE_BUF_WRITE_SIZE);
 		if (!sparse_buf) {
 			errno = ENOMEM;
-			return ENOMEM;
+			return -1;
 		}
 	}
 
@@ -663,10 +667,12 @@ int vfs_slow_fallocate(files_struct *fsp, off_t offset, off_t len)
 
 		pwrite_ret = SMB_VFS_PWRITE(fsp, sparse_buf, curr_write_size, offset + total);
 		if (pwrite_ret == -1) {
+			int saved_errno = errno;
 			DEBUG(10,("vfs_slow_fallocate: SMB_VFS_PWRITE for file "
 				  "%s failed with error %s\n",
-				  fsp_str_dbg(fsp), strerror(errno)));
-			return errno;
+				  fsp_str_dbg(fsp), strerror(saved_errno)));
+			errno = saved_errno;
+			return -1;
 		}
 		total += pwrite_ret;
 	}
@@ -724,9 +730,7 @@ int vfs_fill_sparse(files_struct *fsp, off_t len)
 		 * return ENOTSUP or EINVAL in cases like that. */
 		ret = SMB_VFS_FALLOCATE(fsp, VFS_FALLOCATE_EXTEND_SIZE,
 				offset, num_to_write);
-		if (ret == ENOSPC) {
-			errno = ENOSPC;
-			ret = -1;
+		if (ret == -1 && errno == ENOSPC) {
 			goto out;
 		}
 		if (ret == 0) {
@@ -737,10 +741,6 @@ int vfs_fill_sparse(files_struct *fsp, off_t len)
 	}
 
 	ret = vfs_slow_fallocate(fsp, offset, num_to_write);
-	if (ret != 0) {
-		errno = ret;
-		ret = -1;
-	}
 
  out:
 
@@ -1545,7 +1545,9 @@ NTSTATUS smb_vfs_call_create_file(struct vfs_handle_struct *handle,
 				  struct security_descriptor *sd,
 				  struct ea_list *ea_list,
 				  files_struct **result,
-				  int *pinfo)
+				  int *pinfo,
+				  const struct smb2_create_blobs *in_context_blobs,
+				  struct smb2_create_blobs *out_context_blobs)
 {
 	VFS_FIND(create_file);
 	return handle->fns->create_file_fn(
@@ -1553,7 +1555,7 @@ NTSTATUS smb_vfs_call_create_file(struct vfs_handle_struct *handle,
 		share_access, create_disposition, create_options,
 		file_attributes, oplock_request, lease, allocation_size,
 		private_flags, sd, ea_list,
-		result, pinfo);
+		result, pinfo, in_context_blobs, out_context_blobs);
 }
 
 int smb_vfs_call_close(struct vfs_handle_struct *handle,
@@ -2460,4 +2462,13 @@ NTSTATUS smb_vfs_call_durable_reconnect(struct vfs_handle_struct *handle,
 	return handle->fns->durable_reconnect_fn(handle, smb1req, op,
 					         old_cookie, mem_ctx, fsp,
 					         new_cookie);
+}
+
+NTSTATUS smb_vfs_call_readdir_attr(struct vfs_handle_struct *handle,
+				   const struct smb_filename *fname,
+				   TALLOC_CTX *mem_ctx,
+				   struct readdir_attr_data **attr_data)
+{
+	VFS_FIND(readdir_attr);
+	return handle->fns->readdir_attr_fn(handle, fname, mem_ctx, attr_data);
 }

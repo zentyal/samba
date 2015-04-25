@@ -21,7 +21,12 @@
 #ifndef _SAMBA_UTIL_H_
 #define _SAMBA_UTIL_H_
 
+#ifndef SAMBA_UTIL_CORE_ONLY
 #include "lib/util/charset/charset.h"
+#else
+#include "charset_compat.h"
+#endif
+
 #include "lib/util/attr.h"
 
 /* for TALLOC_CTX */
@@ -45,18 +50,6 @@ extern const char *panic_action;
 #include "lib/util/byteorder.h"
 #include "lib/util/talloc_stack.h"
 
-/**
- * assert macros 
- */
-#define SMB_ASSERT(b) \
-do { \
-	if (!(b)) { \
-		DEBUG(0,("PANIC: assert failed at %s(%d): %s\n", \
-			 __FILE__, __LINE__, #b)); \
-		smb_panic("assert failed: " #b); \
-	} \
-} while(0)
-
 #ifndef ABS
 #define ABS(a) ((a)>0?(a):(-(a)))
 #endif
@@ -66,22 +59,14 @@ do { \
 #include "../libcli/util/ntstatus.h"
 #include "lib/util/string_wrappers.h"
 
+#include "fault.h"
+
 /**
  * Write backtrace to debug log
  */
 _PUBLIC_ void call_backtrace(void);
 
-/**
- Something really nasty happened - panic !
-**/
-typedef void (*smb_panic_handler_t)(const char *why);
-
-_PUBLIC_ void fault_configure(smb_panic_handler_t panic_handler);
-_PUBLIC_ void fault_setup(void);
-_PUBLIC_ void fault_setup_disable(void);
 _PUBLIC_ void dump_core_setup(const char *progname, const char *logfile);
-_PUBLIC_ _NORETURN_ void smb_panic(const char *reason);
-
 
 /**
   register a fault handler. 
@@ -89,31 +74,7 @@ _PUBLIC_ _NORETURN_ void smb_panic(const char *reason);
 */
 _PUBLIC_ bool register_fault_handler(const char *name, void (*fault_handler)(int sig));
 
-/* The following definitions come from lib/util/signal.c  */
-
-
-/**
- Block sigs.
-**/
-void BlockSignals(bool block, int signum);
-
-/**
- Catch a signal. This should implement the following semantics:
-
- 1) The handler remains installed after being called.
- 2) The signal should be blocked during handler execution.
-**/
-void (*CatchSignal(int signum,void (*handler)(int )))(int);
-
-/**
- Ignore SIGCLD via whatever means is necessary for this OS.
-**/
-void (*CatchChild(void))(int);
-
-/**
- Catch SIGCLD but leave the child around so it's status can be reaped.
-**/
-void (*CatchChildLeaveStatus(void))(int);
+#include "lib/util/signal.h" /* Avoid /usr/include/signal.h */
 
 struct sockaddr;
 
@@ -253,32 +214,7 @@ _PUBLIC_ void hex_encode(const unsigned char *buff_in, size_t len, char **out_he
  */
 _PUBLIC_ char *hex_encode_talloc(TALLOC_CTX *mem_ctx, const unsigned char *buff_in, size_t len);
 
-/**
- Substitute a string for a pattern in another string. Make sure there is 
- enough room!
-
- This routine looks for pattern in s and replaces it with 
- insert. It may do multiple replacements.
-
- Any of " ; ' $ or ` in the insert string are replaced with _
- if len==0 then the string cannot be extended. This is different from the old
- use of len==0 which was for no length checks to be done.
-**/
-_PUBLIC_ void string_sub(char *s,const char *pattern, const char *insert, size_t len);
-
-_PUBLIC_ void string_sub_once(char *s, const char *pattern,
-			      const char *insert, size_t len);
-
-_PUBLIC_ char *string_sub_talloc(TALLOC_CTX *mem_ctx, const char *s, 
-				const char *pattern, const char *insert);
-
-/**
- Similar to string_sub() but allows for any character to be substituted. 
- Use with caution!
- if len==0 then the string cannot be extended. This is different from the old
- use of len==0 which was for no length checks to be done.
-**/
-_PUBLIC_ void all_string_sub(char *s,const char *pattern,const char *insert, size_t len);
+#include "substitute.h"
 
 /**
  Unescape a URL encoded string, in place.
@@ -317,7 +253,7 @@ _PUBLIC_ char *rfc1738_escape_part(TALLOC_CTX *mem_ctx, const char *url);
  * number of elements in strings. It will be updated by this function.
  */
 _PUBLIC_ bool add_string_to_array(TALLOC_CTX *mem_ctx,
-			 const char *str, const char ***strings, int *num);
+			 const char *str, const char ***strings, size_t *num);
 
 /**
   varient of strcmp() that handles NULL ptrs
@@ -649,18 +585,7 @@ _PUBLIC_ bool directory_create_or_exist_strict(const char *dname,
 					       uid_t uid,
 					       mode_t dir_perms);
 
-/**
- Set a fd into blocking/nonblocking mode. Uses POSIX O_NONBLOCK if available,
- else
-  if SYSV use O_NDELAY
-  if BSD use FNDELAY
-**/
-_PUBLIC_ int set_blocking(int fd, bool set);
-
-/**
-   set close on exec on a file descriptor if available
- **/
-_PUBLIC_ bool smb_set_close_on_exec(int fd);
+#include "blocking.h"
 
 /**
  Sleep for a specified number of milliseconds.

@@ -32,12 +32,18 @@ samba_dist.DIST_DIRS('''ctdb:. lib/replace:lib/replace lib/talloc:lib/talloc
                         lib/tevent:lib/tevent lib/tdb:lib/tdb
                         lib/socket_wrapper:lib/socket_wrapper
                         third_party/popt:third_party/popt
+                        lib/util:lib/util lib/tdb_wrap:lib/tdb_wrap
+                        lib/ccan:lib/ccan libcli/util:libcli/util
                         buildtools:buildtools''')
 
 
 def set_options(opt):
     opt.PRIVATE_EXTENSION_DEFAULT('ctdb')
+
     opt.RECURSE('lib/replace')
+
+    opt.RECURSE('lib/util')
+
     opt.RECURSE('lib/talloc')
     opt.RECURSE('lib/tevent')
     opt.RECURSE('lib/tdb')
@@ -64,9 +70,17 @@ def configure(conf):
 
     # No need to build python bindings for talloc/tevent/tdb
     if conf.IN_LAUNCH_DIR():
+        conf.env.standalone_ctdb = True
         Options.options.disable_python = True
 
     conf.RECURSE('lib/replace')
+
+    if conf.env.standalone_ctdb:
+        conf.SAMBA_CHECK_PERL(mandatory=True)
+
+        conf.SAMBA_CHECK_PYTHON(mandatory=True, version=(2,5,0))
+        conf.SAMBA_CHECK_PYTHON_HEADERS(mandatory=True)
+
     if conf.CHECK_FOR_THIRD_PARTY():
         conf.RECURSE('third_party/popt')
     else:
@@ -74,6 +88,8 @@ def configure(conf):
             raise Utils.WafError('popt development packages have not been found\nIf third_party is installed, check that it is in the proper place.')
         else:
             conf.define('USING_SYSTEM_POPT', 1)
+
+    conf.RECURSE('lib/util')
 
     conf.RECURSE('lib/talloc')
     conf.RECURSE('lib/tevent')
@@ -163,7 +179,7 @@ def configure(conf):
         conf.env.CTDB_SOCKPATH = os.path.join(conf.env.CTDB_RUNDIR,
                                               'ctdbd.socket')
 
-    conf.ADD_CFLAGS('''-DBINDIR=\"%s\"
+    conf.ADD_CFLAGS('''-DCTDB_HELPER_BINDIR=\"%s\"
                        -DLOGDIR=\"%s\"
                        -DSOCKPATH=\"%s\"
                        -DCTDB_ETCDIR=\"%s\"
@@ -180,22 +196,57 @@ def configure(conf):
                                               'share/ctdb-tests')
     conf.env.CTDB_TEST_LIBDIR = os.path.join(conf.env.LIBDIR, 'ctdb-tests')
 
-    # Allow separate compilation of utilities to find includes
-    if srcdir == '.':
-        # Building from tarball
-        conf.ADD_EXTRA_INCLUDES('#include')
-        conf.ADD_EXTRA_INCLUDES('#include/internal')
-    else:
-        # Building standalone CTDB from within Samba tree
+    # Allow unified compilation and separate compilation of utilities
+    # to find includes
+    if not conf.env.standalone_ctdb:
         conf.ADD_EXTRA_INCLUDES('#ctdb/include')
-        conf.ADD_EXTRA_INCLUDES('#ctdb/include/internal')
-        conf.ADD_EXTRA_INCLUDES('#ctdb')
+    else:
+        if srcdir == '.':
+            # Building from tarball
+            conf.ADD_EXTRA_INCLUDES('#include')
+            conf.ADD_EXTRA_INCLUDES('#include/internal')
+        else:
+            # Building standalone CTDB from within Samba tree
+            conf.ADD_EXTRA_INCLUDES('#ctdb/include')
+            conf.ADD_EXTRA_INCLUDES('#ctdb/include/internal')
+            conf.ADD_EXTRA_INCLUDES('#ctdb')
+        conf.ADD_EXTRA_INCLUDES('#lib #lib/replace')
 
-    conf.DEFINE('HAVE_CONFIG_H', 1, add_to_cflags=True)
-    conf.SAMBA_CONFIG_H()
+        conf.SET_TARGET_TYPE('systemd-daemon', 'EMPTY')
+
+        del(conf.env.defines['PYTHONDIR'])
+        del(conf.env.defines['PYTHONARCHDIR'])
+
+        conf.DEFINE('HAVE_CONFIG_H', 1, add_to_cflags=True)
+        conf.DEFINE('SAMBA_UTIL_CORE_ONLY', 1, add_to_cflags=True)
+        conf.SAMBA_CONFIG_H()
 
 
 def build(bld):
+    if bld.env.standalone_ctdb:
+        # enable building of public headers in the build tree
+        bld.env.build_public_headers = 'include/public'
+
+    if bld.env.standalone_ctdb:
+        ctdb_mkversion = '../packaging/mkversion.sh'
+    else:
+        ctdb_mkversion = '../ctdb/packaging/mkversion.sh'
+    t = bld.SAMBA_GENERATOR('ctdb-version-header',
+                            target='include/ctdb_version.h',
+                            rule='%s ${TGT} %s' % (ctdb_mkversion, VERSION),
+                            dep_vars=['VERSION'])
+    t.env.VERSION = VERSION
+
+    if bld.env.standalone_ctdb:
+        version_h = samba_utils.os_path_relpath(os.path.join(Options.launch_dir,
+                                                             "version.h"),
+                                                bld.curdir)
+        t.bld.SAMBA_GENERATOR('ctdb-samba-version-header',
+                              target=version_h,
+                              rule='printf "#include \\"ctdb_version.h\\" \\n#define SAMBA_VERSION_STRING CTDB_VERSION_STRING\\n" > ${TGT}',
+                              dep_vars=['VERSION'])
+        t.env.VERSION = VERSION
+
     bld.RECURSE('lib/replace')
     if bld.CHECK_FOR_THIRD_PARTY():
         bld.RECURSE('third_party/popt')
@@ -208,11 +259,15 @@ def build(bld):
     bld.RECURSE('lib/tdb')
     bld.RECURSE('lib/socket_wrapper')
 
-    t = bld.SAMBA_GENERATOR('ctdb-version-header',
-                            target='include/ctdb_version.h',
-                            rule='../packaging/mkversion.sh ${TGT} %s' % (VERSION),
-                            dep_vars=['VERSION'])
-    t.env.VERSION = VERSION
+    if bld.env.standalone_ctdb:
+        # In a combined build is implemented, CTDB will wanted to
+        # build against samba-util rather than samba-util-core.
+        # Similarly, other Samba subsystems expect samba-util.  So,
+        # for a standalone build, just define a fake samba-util
+        # subsystem that pulls in samba-util-core.
+        bld.SAMBA_SUBSYSTEM('samba-util',
+                            source='',
+                            deps='samba-util-core')
 
     bld.SAMBA_SUBSYSTEM('ctdb-tcp',
                         source=bld.SUBDIR('tcp',
@@ -267,7 +322,7 @@ def build(bld):
                         includes='include include/internal',
                         public_headers='include/ctdb_client.h',
                         deps='''replace popt talloc tevent tdb
-                                ctdb-util tdb-wrap''')
+                                samba-util tdb-wrap''')
 
     bld.SAMBA_SUBSYSTEM('ctdb-server',
                         source='server/ctdbd.c ' +
@@ -286,7 +341,8 @@ def build(bld):
                                              ctdb_update_record.c
                                              ctdb_lock.c'''),
                         includes='include include/internal',
-                        public_headers='''include/ctdb.h
+                        public_headers='''include/ctdb_version.h
+                                          include/ctdb.h
                                           include/ctdb_private.h
                                           include/ctdb_protocol.h
                                           include/ctdb_typesafe_cb.h''',
@@ -317,14 +373,14 @@ def build(bld):
 
     bld.SAMBA_BINARY('ctdb_lock_helper',
                      source='server/ctdb_lock_helper.c',
-                     deps='ctdb-util ctdb-common-util talloc tdb',
+                     deps='samba-util ctdb-common-util talloc tdb',
                      includes='include include/internal',
                      install_path='${BINDIR}')
 
     bld.SAMBA_BINARY('ctdb_event_helper',
                      source='server/ctdb_event_helper.c',
                      includes='include include/internal',
-                     deps='ctdb-util ctdb-common-util replace tdb',
+                     deps='samba-util ctdb-common-util replace tdb',
                      install_path='${BINDIR}')
 
     bld.SAMBA_GENERATOR('ctdb-smnotify-h',
@@ -377,9 +433,10 @@ def build(bld):
         bld.INSTALL_FILES('${CTDB_PMDADIR}', 'utils/pmda/README',
                           destname='README')
 
-    bld.MANPAGES('''doc/onnode.1 doc/ctdbd_wrapper.1 doc/ctdbd.conf.5
-                    doc/ctdb.7 doc/ctdb-statistics.7 doc/ctdb-tunables.7''',
-                 True)
+    if 'XSLTPROC_MANPAGES' in bld.env and bld.env['XSLTPROC_MANPAGES']:
+        bld.MANPAGES('''doc/onnode.1 doc/ctdbd_wrapper.1 doc/ctdbd.conf.5
+                        doc/ctdb.7 doc/ctdb-statistics.7 doc/ctdb-tunables.7''',
+                     True)
 
     bld.INSTALL_FILES('${BINDIR}', 'tools/onnode',
                       destname='onnode', chmod=0755)
@@ -395,7 +452,7 @@ def build(bld):
                 continue
             mode = os.lstat(fl).st_mode & 0777
             if arg['trim_path']:
-                    fl = samba_utils.os_path_relpath(fl, arg['trim_path'])
+                fl = samba_utils.os_path_relpath(fl, arg['trim_path'])
             arg['file_list'].append([fl, mode])
 
     def SUBDIR_MODE(path, trim_path=None):
@@ -408,8 +465,13 @@ def build(bld):
         'nfs-rpc-checks.d'
     ]
 
+    if bld.env.standalone_ctdb:
+        configdir = 'config'
+    else:
+        configdir = 'ctdb/config'
+
     for t in etc_subdirs:
-        files = SUBDIR_MODE('config/%s' % t, trim_path='config')
+        files = SUBDIR_MODE('%s/%s' % (configdir, t), trim_path=configdir)
         for fmode in files:
             bld.INSTALL_FILES(bld.env.CTDB_ETCDIR, 'config/%s' % fmode[0],
                               destname=fmode[0], chmod=fmode[1])
@@ -427,7 +489,7 @@ def build(bld):
     ]
 
     for t in etc_scripts:
-        bld.INSTALL_FILES(bld.env.CTDB_ETCDIR, 'config/' + t,
+        bld.INSTALL_FILES(bld.env.CTDB_ETCDIR, 'config/%s' % t,
                           destname=t, chmod=0755)
 
     bld.INSTALL_FILES('${SYSCONFDIR}/sudoers.d', 'config/ctdb.sudoers',
@@ -482,7 +544,7 @@ def build(bld):
     bld.SAMBA_BINARY('ctdb_takeover_tests',
                      source='tests/src/ctdb_takeover_tests.c',
                      deps='''replace popt tdb tevent talloc ctdb-system
-                             ctdb-util tdb-wrap''' +
+                             samba-util tdb-wrap''' +
                           ib_deps,
                      includes='include include/internal',
                      install_path='${CTDB_TEST_LIBDIR}')
@@ -490,14 +552,14 @@ def build(bld):
     bld.SAMBA_BINARY('ctdb_functest',
                      source='tests/src/ctdb_functest.c',
                      deps='''replace tdb tevent talloc popt ctdb-system
-                             ctdb-util tdb-wrap''',
+                             samba-util tdb-wrap''',
                      includes='include include/internal',
                      install_path='${CTDB_TEST_LIBDIR}')
 
     bld.SAMBA_BINARY('ctdb_stubtest',
                      source='tests/src/ctdb_test.c',
                      deps='''replace tdb tevent talloc popt ctdb-system
-                             ctdb-util tdb-wrap''',
+                             samba-util tdb-wrap''',
                      includes='include include/internal',
                      install_path='${CTDB_TEST_LIBDIR}')
 

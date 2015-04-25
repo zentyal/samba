@@ -69,7 +69,8 @@ else:
 python = os.getenv("PYTHON", "python")
 
 # Set a default value, overridden if we find a working one on the system
-tap2subunit = "PYTHONPATH=%s/lib/subunit/python:%s/lib/testtools %s %s/lib/subunit/filters/tap2subunit" % (srcdir(), srcdir(), python, srcdir())
+tap2subunit = "PYTHONPATH=%s/lib/subunit/python:%s/lib/testtools:%s/lib/extras:%s/lib/mimeparse %s %s/lib/subunit/filters/tap2subunit" % (srcdir(), srcdir(), srcdir(), srcdir(), python, srcdir())
+subunit2to1 = "PYTHONPATH=%s/lib/subunit/python:%s/lib/testtools:%s/lib/extras:%s/lib/mimeparse %s %s/lib/subunit/filters/subunit-2to1" % (srcdir(), srcdir(), srcdir(), srcdir(), python, srcdir())
 
 sub = subprocess.Popen("tap2subunit", stdin=subprocess.PIPE,
     stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
@@ -82,6 +83,12 @@ if sub.returncode == 0:
     if sub.returncode == 0:
         tap2subunit = "tap2subunit"
 
+def to_subunit1(subunit_version):
+    if subunit_version == 1:
+        return ""
+    return " | " + subunit2to1
+
+
 def valgrindify(cmdline):
     """Run a command under valgrind, if $VALGRIND was set."""
     valgrind = os.getenv("VALGRIND")
@@ -90,7 +97,7 @@ def valgrindify(cmdline):
     return valgrind + " " + cmdline
 
 
-def plantestsuite(name, env, cmdline, allow_empty_output=False):
+def plantestsuite(name, env, cmdline, subunit_version=1):
     """Plan a test suite.
 
     :param name: Testsuite name
@@ -102,17 +109,9 @@ def plantestsuite(name, env, cmdline, allow_empty_output=False):
     print env
     if isinstance(cmdline, list):
         cmdline = " ".join(cmdline)
-    filter_subunit_args = []
-    if not allow_empty_output:
-        filter_subunit_args.append("--fail-on-empty")
     if "$LISTOPT" in cmdline:
-        filter_subunit_args.append("$LISTOPT")
-    print "%s 2>&1 | %s/selftest/filter-subunit %s --prefix=\"%s.\" --suffix=\"(%s)\"" % (cmdline,
-                                                                        srcdir(),
-                                                                        " ".join(filter_subunit_args),
-                                                                        name, env)
-    if allow_empty_output:
-        print >>sys.stderr, "WARNING: allowing empty subunit output from %s" % name
+        raise AssertionError("test %s supports --list, but not --load-list" % name)
+    print cmdline + " 2>&1 " + to_subunit1(subunit_version) + " | " + add_prefix(name, env)
 
 
 def add_prefix(prefix, env, support_list=False):
@@ -123,7 +122,7 @@ def add_prefix(prefix, env, support_list=False):
     return "%s/selftest/filter-subunit %s--fail-on-empty --prefix=\"%s.\" --suffix=\"(%s)\"" % (srcdir(), listopt, prefix, env)
 
 
-def plantestsuite_loadlist(name, env, cmdline):
+def plantestsuite_loadlist(name, env, cmdline, subunit_version=1):
     print "-- TEST-LOADLIST --"
     if env == "none":
         fullname = name
@@ -134,20 +133,12 @@ def plantestsuite_loadlist(name, env, cmdline):
     if isinstance(cmdline, list):
         cmdline = " ".join(cmdline)
     support_list = ("$LISTOPT" in cmdline)
-    print "%s $LOADLIST 2>&1 | %s" % (cmdline, add_prefix(name, env, support_list))
-
-
-def plantestsuite_idlist(name, env, cmdline):
-    print "-- TEST-IDLIST --"
-    if env == "none":
-        fullname = name
-    else:
-        fullname = "%s(%s)" % (name, env)
-    print fullname
-    print env
-    if isinstance(cmdline, list):
-        cmdline = " ".join(cmdline)
-    print cmdline
+    if not "$LISTOPT" in cmdline:
+        raise AssertionError("loadlist test %s does not support not --list" % name)
+    if not "$LOADLIST" in cmdline:
+        raise AssertionError("loadlist test %s does not support --load-list" % name)
+    print ("%s | %s" % (cmdline.replace("$LOADLIST", ""), add_prefix(name, env, support_list))).replace("$LISTOPT", "--list")
+    print cmdline.replace("$LISTOPT", "") + " 2>&1 " + to_subunit1(subunit_version) + " | " + add_prefix(name, env, False)
 
 
 def skiptestsuite(name, reason):
@@ -177,12 +168,15 @@ def planpythontestsuite(env, module, name=None, extra_path=[]):
         name = module
     pypath = list(extra_path)
     if not has_system_subunit_run:
-        pypath.extend(["%s/lib/subunit/python" % srcdir(),
-            "%s/lib/testtools" % srcdir()])
-    args = [python, "-m", "subunit.run", "$LISTOPT", module]
+        pypath.extend([
+            "%s/lib/subunit/python" % srcdir(),
+            "%s/lib/testtools" % srcdir(),
+            "%s/lib/extras" % srcdir(),
+            "%s/lib/mimeparse" % srcdir()])
+    args = [python, "-m", "subunit.run", "$LISTOPT", "$LOADLIST", module]
     if pypath:
         args.insert(0, "PYTHONPATH=%s" % ":".join(["$PYTHONPATH"] + pypath))
-    plantestsuite_idlist(name, env, args)
+    plantestsuite_loadlist(name, env, args)
 
 
 def get_env_torture_options():
@@ -216,7 +210,7 @@ def plansmbtorture4testsuite(name, env, options, target, modname=None):
     if isinstance(options, list):
         options = " ".join(options)
     options = " ".join(smbtorture4_options + ["--target=%s" % target]) + " " + options
-    cmdline = "%s $LISTOPT %s %s" % (valgrindify(smbtorture4), options, name)
+    cmdline = "%s $LISTOPT $LOADLIST %s %s" % (valgrindify(smbtorture4), options, name)
     plantestsuite_loadlist(modname, env, cmdline)
 
 

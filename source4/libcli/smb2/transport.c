@@ -55,6 +55,14 @@ struct smb2_transport *smb2_transport_init(struct smbcli_socket *sock,
 	transport->ev = sock->event.ctx;
 	transport->options = *options;
 
+	if (transport->options.max_protocol == PROTOCOL_DEFAULT) {
+		transport->options.max_protocol = PROTOCOL_LATEST;
+	}
+
+	if (transport->options.max_protocol < PROTOCOL_SMB2_02) {
+		transport->options.max_protocol = PROTOCOL_LATEST;
+	}
+
 	TALLOC_FREE(sock->event.fde);
 	TALLOC_FREE(sock->event.te);
 
@@ -390,6 +398,7 @@ static void smb2_transport_break_handler(struct tevent_req *subreq)
 		struct smb2_lease_break lb;
 
 		ZERO_STRUCT(lb);
+		lb.new_epoch =			SVAL(body, 0x2);
 		lb.break_flags =		SVAL(body, 0x4);
 		memcpy(&lb.current_lease.lease_key, body+0x8,
 		    sizeof(struct smb2_lease_key));

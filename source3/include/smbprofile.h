@@ -21,12 +21,10 @@
 
 */
 
+#ifdef WITH_PROFILE
+
 /* this file defines the profile structure in the profile shared
    memory area */
-
-#define PROF_SHMEM_KEY ((key_t)0x07021999)
-#define PROF_SHM_MAGIC 0x6349985
-#define PROF_SHM_VERSION 13
 
 /* time values in the following structure are in microseconds */
 
@@ -835,7 +833,7 @@ enum profile_stats_values
 #define smb2_break_count __profile_stats_value(PR_VALUE_SMB2_BREAK, count)
 #define smb2_break_time __profile_stats_value(PR_VALUE_SMB2_BREAK, time)
 
-	/* This mist remain the last value. */
+	/* This must remain the last value. */
 	PR_VALUE_MAX
 }; /* enum profile_stats_values */
 
@@ -876,22 +874,13 @@ struct profile_stats {
 	unsigned writecache_allocated_write_caches;
 };
 
-struct profile_header {
-	int prof_shm_magic;
-	int prof_shm_version;
-	struct profile_stats stats;
-};
-
-extern struct profile_header *profile_h;
 extern struct profile_stats *profile_p;
 extern bool do_profile_flag;
 extern bool do_profile_times;
 
-#ifdef WITH_PROFILE
-
 /* these are helper macros - do not call them directly in the code
  * use the DO_PROFILE_* START_PROFILE and END_PROFILE ones
- * below which test for the profile flage first
+ * below which test for the profile flags first
  */
 #define INC_PROFILE_COUNT(x) profile_p->x++
 #define DEC_PROFILE_COUNT(x) profile_p->x--
@@ -975,6 +964,7 @@ static inline uint64_t profile_timestamp(void)
 #define START_PROFILE_BYTES(x,n)
 #define END_PROFILE_STAMP(x, _stamp)
 #define END_PROFILE(x)
+
 #endif /* WITH_PROFILE */
 
 /* The following definitions come from profile/profile.c  */

@@ -108,14 +108,14 @@ static int32_t ctdb_control_dispatch(struct ctdb_context *ctdb,
 
 	case CTDB_CONTROL_SET_DEBUG: {
 		CHECK_CONTROL_DATA_SIZE(sizeof(int32_t));
-		LogLevel = *(int32_t *)indata.dptr;
+		DEBUGLEVEL = *(int32_t *)indata.dptr;
 		return 0;
 	}
 
 	case CTDB_CONTROL_GET_DEBUG: {
 		CHECK_CONTROL_DATA_SIZE(0);
-		outdata->dptr = (uint8_t *)&LogLevel;
-		outdata->dsize = sizeof(LogLevel);
+		outdata->dptr = (uint8_t *)&(DEBUGLEVEL);
+		outdata->dsize = sizeof(DEBUGLEVEL);
 		return 0;
 	}
 
@@ -619,11 +619,10 @@ static int32_t ctdb_control_dispatch(struct ctdb_context *ctdb,
 		return ctdb_control_deregister_notify(ctdb, client_id, indata);
 
 	case CTDB_CONTROL_GET_LOG:
-		CHECK_CONTROL_DATA_SIZE(sizeof(struct ctdb_get_log_addr));
-		return ctdb_control_get_log(ctdb, indata);
+		return control_not_implemented("GET_LOG", NULL);
 
 	case CTDB_CONTROL_CLEAR_LOG:
-		return ctdb_control_clear_log(ctdb);
+		return control_not_implemented("CLEAR_LOG", NULL);
 
 	case CTDB_CONTROL_GET_DB_SEQNUM:
 		CHECK_CONTROL_DATA_SIZE(sizeof(uint64_t));

@@ -566,17 +566,21 @@ sub read_testlist($)
 	open(IN, $filename) or die("Unable to open $filename: $!");
 
 	while (<IN>) {
-		if (/-- TEST(-LOADLIST|-IDLIST|) --\n/) {
+		if (/-- TEST(-LOADLIST|) --\n/) {
 			my $supports_loadlist = (defined($1) and $1 eq "-LOADLIST");
-			my $supports_idlist = (defined($1) and $1 eq "-IDLIST");
 			my $name = <IN>;
 			$name =~ s/\n//g;
 			my $env = <IN>;
 			$env =~ s/\n//g;
+			my $loadlist;
+			if ($supports_loadlist) {
+				$loadlist = <IN>;
+				$loadlist =~ s/\n//g;
+			}
 			my $cmdline = <IN>;
 			$cmdline =~ s/\n//g;
 			if (should_run_test($name) == 1) {
-				push (@ret, [$name, $env, $cmdline, $supports_loadlist, $supports_idlist]);
+				push (@ret, [$name, $env, $cmdline, $loadlist]);
 			}
 		} else {
 			print;
@@ -821,7 +825,6 @@ sub setup_env($$)
 		}
 	}
 
-	
 	return undef unless defined($testenv_vars);
 
 	$running_envs{$envname} = $testenv_vars;
@@ -937,23 +940,22 @@ $envvarstr
 	teardown_env($testenv_name);
 } elsif ($opt_list) {
 	foreach (@todo) {
-		my $cmd = $$_[2];
 		my $name = $$_[0];
 		my $envname = $$_[1];
+		my $cmd = $$_[2];
+		my $listcmd = $$_[3];
 
-		unless($cmd =~ /\$LISTOPT/) {
+		unless (defined($listcmd)) {
 			warn("Unable to list tests in $name");
 			next;
 		}
 
-		$cmd =~ s/\$LISTOPT/--list/g;
-
-		system($cmd);
+		system($listcmd);
 
 		if ($? == -1) {
-			die("Unable to run $cmd: $!");
+			die("Unable to run $listcmd: $!");
 		} elsif ($? & 127) {
-			die(sprintf("%s died with signal %d, %s coredump\n", $cmd, ($? & 127),  ($? & 128) ? 'with' : 'without'));
+			die(sprintf("%s died with signal %d, %s coredump\n", $listcmd, ($? & 127),  ($? & 128) ? 'with' : 'without'));
 		}
 
 		my $exitcode = $? >> 8;
@@ -990,9 +992,8 @@ $envvarstr
 					print $fh substr($test, length($name)+1) . "\n";
 				}
 				$cmd =~ s/\$LOADLIST/--load-list=$listid_file/g;
-			} elsif ($$_[4]) {
-				$cmd =~ s/\s+[^\s]+\s*$//;
-				$cmd .= " " . join(' ', @{$individual_tests->{$name}});
+			} else {
+				warn("Unable to run individual tests in $name, it does not support --loadlist.");
 			}
 		}
 

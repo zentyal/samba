@@ -876,6 +876,12 @@ sub provision($$$$$$)
 	my $badnames_shrdir="$shrdir/badnames";
 	push(@dirs,$badnames_shrdir);
 
+	my $lease1_shrdir="$shrdir/SMB2_10";
+	push(@dirs,$lease1_shrdir);
+
+	my $lease2_shrdir="$shrdir/SMB3_00";
+	push(@dirs,$lease2_shrdir);
+
 	# this gets autocreated by winbindd
 	my $wbsockdir="$prefix_abs/winbindd";
 	my $wbsockprivdir="$lockdir/winbindd_privileged";
@@ -1048,6 +1054,7 @@ sub provision($$$$$$)
 
 	kernel oplocks = no
 	kernel change notify = no
+	smb2 leases = yes
 
 	syslog = no
 	printing = bsd
@@ -1073,6 +1080,7 @@ sub provision($$$$$$)
 	store dos attributes = yes
 	create mask = 755
 	dos filemode = yes
+	strict rename = yes
 	vfs objects = acl_xattr fake_acls xattr_tdb streams_depot
 
 	printing = vlp
@@ -1128,6 +1136,10 @@ sub provision($$$$$$)
 	path = $shrdir
         force user = $unix_name
         guest ok = yes
+[forceuser_unixonly]
+	path = $shrdir
+	force user = pdbtest
+	guest ok = yes
 [forcegroup]
 	path = $shrdir
         force group = nogroup
@@ -1218,6 +1230,10 @@ sub provision($$$$$$)
 
 [badname-tmp]
 	path = $badnames_shrdir
+	guest ok = yes
+
+[dynamic_share]
+	path = $shrdir/%R
 	guest ok = yes
 	";
 	close(CONF);

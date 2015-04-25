@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 APPNAME = 'tdb'
-VERSION = '1.3.1'
+VERSION = '1.3.4'
 
 blddir = 'bin'
 
@@ -46,6 +46,7 @@ tdb1_unit_tests = [
     'run-mutex-allrecord-bench',
     'run-mutex-allrecord-trylock',
     'run-mutex-allrecord-block',
+    'run-mutex-transaction1',
     'run-mutex-die',
     'run-mutex1',
 ]

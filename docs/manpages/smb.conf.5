@@ -2,12 +2,12 @@
 .\"     Title: smb.conf
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 10/15/2014
+.\"      Date: 04/15/2015
 .\"    Manual: File Formats and Conventions
 .\"    Source: Samba 4.2
 .\"  Language: English
 .\"
-.TH "SMB\&.CONF" "5" "10/15/2014" "Samba 4\&.2" "File Formats and Conventions"
+.TH "SMB\&.CONF" "5" "04/15/2015" "Samba 4\&.2" "File Formats and Conventions"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -692,7 +692,9 @@ access based share enum (S)
 .RS 4
 If this parameter is
 \fByes\fR
-for a service, then the share hosted by the service will only be visible to users who have read or write access to the share during share enumeration (for example net view \e\esambaserver)\&. This has parallels to access based enumeration, the main difference being that only share permissions are evaluated, and security descriptors on files contained on the share are not used in computing enumeration access rights\&.
+for a service, then the share hosted by the service will only be visible to users who have read or write access to the share during share enumeration (for example net view \e\esambaserver)\&. The share ACLs which allow or deny the access to the share can be modified using for example the
+sharesec
+command or using the appropriate Windows tools\&. This has parallels to access based enumeration, the main difference being that only share permissions are evaluated, and security descriptors on files contained on the share are not used in computing enumeration access rights\&.
 .sp
 Default:
 \fI\fIaccess based share enum\fR\fR\fI = \fR\fIno\fR\fI \fR
@@ -1956,8 +1958,16 @@ By default SMB3 selects the SMB3_00 variant\&.
 .RE
 Normally this option should not be set as the automatic negotiation phase in the SMB protocol takes care of choosing the appropriate protocol\&.
 .sp
+The value
+\fBdefault\fR
+refers to the default protocol in each part of the code, currently
+\fBNT1\fR
+in the client tools and
+\fBSMB3_02\fR
+in winbindd\&.
+.sp
 Default:
-\fI\fIclient max protocol\fR\fR\fI = \fR\fINT1\fR\fI \fR
+\fI\fIclient max protocol\fR\fR\fI = \fR\fIdefault\fR\fI \fR
 .sp
 Example:
 \fI\fIclient max protocol\fR\fR\fI = \fR\fILANMAN1\fR\fI \fR
@@ -2069,9 +2079,13 @@ and other samba components acting as a client will attempt to use the server\-su
 .sp
 If enabled, Samba can attempt to use Kerberos to contact servers known only by IP address\&. Kerberos relies on names, so ordinarily cannot function in this situation\&.
 .sp
+This is a VERY BAD IDEA for security reasons, and so this parameter SHOULD NOT BE USED\&. It will be removed in a future version of Samba\&.
+.sp
 If disabled, Samba will use the name used to look up the server when asking the KDC for a ticket\&. This avoids situations where a server may impersonate another, soliciting authentication as one principal while being known on the network as another\&.
 .sp
 Note that Windows XP SP2 and later versions already follow this behaviour, and Windows Vista and later servers no longer supply this \*(Aqrfc4178 hint\*(Aq principal on the server side\&.
+.sp
+This parameter is deprecated in Samba 4\&.2\&.1 and will be removed (along with the functionality) in a later release of Samba\&.
 .sp
 Default:
 \fI\fIclient use spnego principal\fR\fR\fI = \fR\fIno\fR\fI \fR
@@ -9770,6 +9784,27 @@ Example:
 \fI\fIshutdown script\fR\fR\fI = \fR\fI/usr/local/samba/sbin/shutdown %m %t %r %f\fR\fI \fR
 .RE
 
+smb2 leases (G)
+.\" smb2 leases
+.PP
+.RS 4
+This boolean option tells
+smbd
+whether to globally negotiate SMB2 leases on file open requests\&. Leasing is an SMB2\-only feature which allows clients to aggressively cache files locally above and beyond the caching allowed by SMB1 oplocks\&. This (experimental) parameter is set to off by default until the SMB2 leasing code is declared fully stable\&.
+.sp
+This is only available with
+\m[blue]\fBoplocks = yes\fR\m[]
+and
+\m[blue]\fBkernel oplocks = no\fR\m[]\&.
+.sp
+Note that the write cache won\*(Aqt be used for file handles with a smb2 write lease\&.
+.sp
+The Samba implementation of leases is currently marked as experimental!
+.sp
+Default:
+\fI\fIsmb2 leases\fR\fR\fI = \fR\fIno\fR\fI \fR
+.RE
+
 smb2 max credits (G)
 .\" smb2 max credits
 .PP
@@ -10218,6 +10253,20 @@ is acceptable\&.
 .sp
 Default:
 \fI\fIstrict locking\fR\fR\fI = \fR\fIAuto\fR\fI \fR
+.RE
+
+strict rename (S)
+.\" strict rename
+.PP
+.RS 4
+By default a Windows SMB server prevents directory renames when there are open file or directory handles below it in the filesystem hierarchy\&. Historically Samba has always allowed this as POSIX filesystem semantics require it\&.
+.sp
+This boolean parameter allows Samba to match the Windows behavior\&. Setting this to "yes" is a very expensive change, as it forces Samba to travers the entire open file handle database on every directory rename request\&. In a clustered Samba system the cost is even greater than the non\-clustered case\&.
+.sp
+For this reason the default is "no", and it is recommended to be left that way unless a specific Windows application requires it to be changed\&.
+.sp
+Default:
+\fI\fIstrict rename\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
 strict sync (S)
@@ -11638,6 +11687,8 @@ do this for non\-oplocked files)\&. All writes that the client does not request 
 This cache allows Samba to batch client writes into a more efficient write size for RAID disks (i\&.e\&. writes may be tuned to be the RAID stripe size) and can improve performance on systems where the disk subsystem is a bottleneck but there is free memory for userspace programs\&.
 .sp
 The integer parameter specifies the size of this cache (per oplocked file) in bytes\&.
+.sp
+Note that the write cache won\*(Aqt be used for file handles with a smb2 write lease\&.
 .sp
 Default:
 \fI\fIwrite cache size\fR\fR\fI = \fR\fI0\fR\fI \fR

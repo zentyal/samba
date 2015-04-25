@@ -802,6 +802,7 @@ static void smb2_set_operation_credit(struct smbXsrv_connection *xconn,
 
 	cmd = SVAL(inhdr, SMB2_HDR_OPCODE);
 	credits_requested = SVAL(inhdr, SMB2_HDR_CREDIT);
+	credits_requested = MAX(credits_requested, 1);
 	out_flags = IVAL(outhdr, SMB2_HDR_FLAGS);
 	out_status = NT_STATUS(IVAL(outhdr, SMB2_HDR_STATUS));
 
@@ -820,7 +821,9 @@ static void smb2_set_operation_credit(struct smbXsrv_connection *xconn,
 		 * credits on the final response.
 		 */
 		credits_granted = 0;
-	} else if (credits_requested > 0) {
+	} else {
+		uint16_t additional_possible =
+			xconn->smb2.credits.max - credit_charge;
 		uint16_t additional_max = 0;
 		uint16_t additional_credits = credits_requested - 1;
 
@@ -846,14 +849,10 @@ static void smb2_set_operation_credit(struct smbXsrv_connection *xconn,
 			break;
 		}
 
+		additional_max = MIN(additional_max, additional_possible);
 		additional_credits = MIN(additional_credits, additional_max);
 
 		credits_granted = credit_charge + additional_credits;
-	} else if (xconn->smb2.credits.granted == 0) {
-		/*
-		 * Make sure the client has always at least one credit
-		 */
-		credits_granted = 1;
 	}
 
 	/*
@@ -1987,11 +1986,6 @@ NTSTATUS smbd_smb2_request_dispatch(struct smbd_smb2_request *req)
 	if (x != NULL) {
 		signing_required = x->global->signing_required;
 		encryption_required = x->global->encryption_required;
-
-		if (opcode == SMB2_OP_SESSSETUP &&
-		    x->global->signing_key.length > 0) {
-			signing_required = true;
-		}
 	}
 
 	req->do_signing = false;
@@ -2760,14 +2754,19 @@ static NTSTATUS smbd_smb2_send_break(struct smbXsrv_connection *xconn,
 				     size_t body_len)
 {
 	struct smbd_smb2_send_break_state *state;
-	bool do_encryption = session->global->encryption_required;
+	bool do_encryption = false;
+	uint64_t session_wire_id = 0;
 	uint64_t nonce_high = 0;
 	uint64_t nonce_low = 0;
 	NTSTATUS status;
 	size_t statelen;
 
-	if (tcon->global->encryption_required) {
-		do_encryption = true;
+	if (session != NULL) {
+		session_wire_id = session->global->session_wire_id;
+		do_encryption = session->global->encryption_required;
+		if (tcon->global->encryption_required) {
+			do_encryption = true;
+		}
 	}
 
 	statelen = offsetof(struct smbd_smb2_send_break_state, body) +
@@ -2793,7 +2792,7 @@ static NTSTATUS smbd_smb2_send_break(struct smbXsrv_connection *xconn,
 	SIVAL(state->tf, SMB2_TF_PROTOCOL_ID, SMB2_TF_MAGIC);
 	SBVAL(state->tf, SMB2_TF_NONCE+0, nonce_low);
 	SBVAL(state->tf, SMB2_TF_NONCE+8, nonce_high);
-	SBVAL(state->tf, SMB2_TF_SESSION_ID, session->global->session_wire_id);
+	SBVAL(state->tf, SMB2_TF_SESSION_ID, session_wire_id);
 
 	SIVAL(state->hdr, 0,				SMB2_MAGIC);
 	SSVAL(state->hdr, SMB2_HDR_LENGTH,		SMB2_HDR_BODY);
@@ -2886,6 +2885,29 @@ NTSTATUS smbd_smb2_send_oplock_break(struct smbXsrv_connection *xconn,
 	SBVAL(body, 0x10, op->global->open_volatile_id);
 
 	return smbd_smb2_send_break(xconn, session, tcon, body, sizeof(body));
+}
+
+NTSTATUS smbd_smb2_send_lease_break(struct smbXsrv_connection *xconn,
+				    uint16_t new_epoch,
+				    uint32_t lease_flags,
+				    struct smb2_lease_key *lease_key,
+				    uint32_t current_lease_state,
+				    uint32_t new_lease_state)
+{
+	uint8_t body[0x2c];
+
+	SSVAL(body, 0x00, sizeof(body));
+	SSVAL(body, 0x02, new_epoch);
+	SIVAL(body, 0x04, lease_flags);
+	SBVAL(body, 0x08, lease_key->data[0]);
+	SBVAL(body, 0x10, lease_key->data[1]);
+	SIVAL(body, 0x18, current_lease_state);
+	SIVAL(body, 0x1c, new_lease_state);
+	SIVAL(body, 0x20, 0);		/* BreakReason, MUST be 0 */
+	SIVAL(body, 0x24, 0);		/* AccessMaskHint, MUST be 0 */
+	SIVAL(body, 0x28, 0);		/* ShareMaskHint, MUST be 0 */
+
+	return smbd_smb2_send_break(xconn, NULL, NULL, body, sizeof(body));
 }
 
 static bool is_smb2_recvfile_write(struct smbd_smb2_request_read_state *state)

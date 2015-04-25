@@ -54,7 +54,7 @@ struct ctdb_req_header *_ctdbd_allocate_pkt(struct ctdb_context *ctdb,
 	hdr->length       = length;
 	hdr->operation    = operation;
 	hdr->ctdb_magic   = CTDB_MAGIC;
-	hdr->ctdb_version = CTDB_VERSION;
+	hdr->ctdb_version = CTDB_PROTOCOL;
 	hdr->srcnode      = ctdb->pnn;
 	if (ctdb->vnn_map) {
 		hdr->generation = ctdb->vnn_map->generation;
@@ -216,7 +216,7 @@ void ctdb_client_read_cb(uint8_t *data, size_t cnt, void *args)
 		goto done;
 	}
 
-	if (hdr->ctdb_version != CTDB_VERSION) {
+	if (hdr->ctdb_version != CTDB_PROTOCOL) {
 		ctdb_set_error(ctdb, "Bad CTDB version 0x%x rejected in client\n", hdr->ctdb_version);
 		goto done;
 	}
@@ -1928,7 +1928,7 @@ int ctdb_ctrl_createdb(struct ctdb_context *ctdb, struct timeval timeout, uint32
 
 #ifdef TDB_MUTEX_LOCKING
 	if (!persistent && ctdb->tunable.mutex_enabled == 1) {
-		tdb_flags |= TDB_MUTEX_LOCKING;
+		tdb_flags |= (TDB_MUTEX_LOCKING | TDB_CLEAR_IF_FIRST);
 	}
 #endif
 
@@ -2055,6 +2055,9 @@ struct ctdb_db_context *ctdb_attach(struct ctdb_context *ctdb,
 	TDB_DATA data;
 	int ret;
 	int32_t res;
+#ifdef TDB_MUTEX_LOCKING
+	uint32_t mutex_enabled = 0;
+#endif
 
 	ctdb_db = ctdb_db_handle(ctdb, name);
 	if (ctdb_db) {
@@ -2080,8 +2083,18 @@ struct ctdb_db_context *ctdb_attach(struct ctdb_context *ctdb,
 	}
 
 #ifdef TDB_MUTEX_LOCKING
-	if (!persistent && ctdb->tunable.mutex_enabled == 1) {
-		tdb_flags |= TDB_MUTEX_LOCKING;
+	if (!persistent) {
+		ret = ctdb_ctrl_get_tunable(ctdb, timeval_current_ofs(3,0),
+					    CTDB_CURRENT_NODE,
+					    "TDBMutexEnabled",
+					    &mutex_enabled);
+		if (ret != 0) {
+			DEBUG(DEBUG_WARNING, ("Assuming no mutex support.\n"));
+		}
+
+		if (mutex_enabled == 1) {
+			tdb_flags |= (TDB_MUTEX_LOCKING | TDB_CLEAR_IF_FIRST);
+		}
 	}
 #endif
 
@@ -2105,7 +2118,16 @@ struct ctdb_db_context *ctdb_attach(struct ctdb_context *ctdb,
 		return NULL;
 	}
 
-	tdb_flags = persistent?TDB_DEFAULT:TDB_NOSYNC;
+	if (persistent) {
+		tdb_flags = TDB_DEFAULT;
+	} else {
+		tdb_flags = TDB_NOSYNC;
+#ifdef TDB_MUTEX_LOCKING
+		if (mutex_enabled) {
+			tdb_flags |= (TDB_MUTEX_LOCKING | TDB_CLEAR_IF_FIRST);
+		}
+#endif
+	}
 	if (ctdb->valgrinding) {
 		tdb_flags |= TDB_NOMMAP;
 	}
@@ -3375,7 +3397,7 @@ struct ctdb_context *ctdb_init(struct event_context *ev)
 	ctdb->lastid = INT_MAX-200;
 	CTDB_NO_MEMORY_NULL(ctdb, ctdb->idr);
 
-	ret = ctdb_set_socketname(ctdb, CTDB_PATH);
+	ret = ctdb_set_socketname(ctdb, CTDB_SOCKET);
 	if (ret != 0) {
 		DEBUG(DEBUG_ERR,(__location__ " ctdb_set_socketname failed.\n"));
 		talloc_free(ctdb);

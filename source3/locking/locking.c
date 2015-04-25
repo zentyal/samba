@@ -46,6 +46,7 @@
 #include "messages.h"
 #include "util_tdb.h"
 #include "../librpc/gen_ndr/ndr_open_files.h"
+#include "locking/leases_db.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_LOCKING
@@ -470,7 +471,7 @@ bool rename_share_filename(struct messaging_context *msg_ctx,
 	size_t sn_len;
 	size_t msg_len;
 	char *frm = NULL;
-	int i;
+	uint32_t i;
 	bool strip_two_chars = false;
 	bool has_stream = smb_fname_dst->stream_name != NULL;
 	struct server_id self_pid = messaging_server_id(msg_ctx);
@@ -564,6 +565,30 @@ bool rename_share_filename(struct messaging_context *msg_ctx,
 				   (uint8 *)frm, msg_len);
 	}
 
+	for (i=0; i<d->num_leases; i++) {
+		/* Update the filename in leases_db. */
+		NTSTATUS status;
+		struct share_mode_lease *l;
+
+		l = &d->leases[i];
+
+		status = leases_db_rename(&l->client_guid,
+					&l->lease_key,
+					&id,
+					d->servicepath,
+					d->base_name,
+					d->stream_name);
+		if (!NT_STATUS_IS_OK(status)) {
+			/* Any error recovery possible here ? */
+			DEBUG(1,("Failed to rename lease key for "
+				"renamed file %s:%s. %s\n",
+				d->base_name,
+				d->stream_name,
+				nt_errstr(status)));
+			continue;
+		}
+	}
+
 	return True;
 }
 
@@ -608,11 +633,92 @@ bool is_valid_share_mode_entry(const struct share_mode_entry *e)
 	num_props += ((e->op_type == NO_OPLOCK) ? 1 : 0);
 	num_props += (EXCLUSIVE_OPLOCK_TYPE(e->op_type) ? 1 : 0);
 	num_props += (LEVEL_II_OPLOCK_TYPE(e->op_type) ? 1 : 0);
+	num_props += (e->op_type == LEASE_OPLOCK);
 
 	if ((num_props > 1) && serverid_exists(&e->pid)) {
 		smb_panic("Invalid share mode entry");
 	}
 	return (num_props != 0);
+}
+
+/*
+ * See if we need to remove a lease being referred to by a
+ * share mode that is being marked stale or deleted.
+ */
+
+static void remove_share_mode_lease(struct share_mode_data *d,
+				    struct share_mode_entry *e)
+{
+	struct GUID client_guid;
+	struct smb2_lease_key lease_key;
+	uint16_t op_type;
+	uint32_t lease_idx;
+	uint32_t i;
+
+	op_type = e->op_type;
+	e->op_type = NO_OPLOCK;
+
+	d->modified = true;
+
+	if (op_type != LEASE_OPLOCK) {
+		return;
+	}
+
+	/*
+	 * This used to reference a lease. If there's no other one referencing
+	 * it, remove it.
+	 */
+
+	lease_idx = e->lease_idx;
+	e->lease_idx = UINT32_MAX;
+
+	for (i=0; i<d->num_share_modes; i++) {
+		if (d->share_modes[i].stale) {
+			continue;
+		}
+		if (e == &d->share_modes[i]) {
+			/* Not ourselves. */
+			continue;
+		}
+		if (d->share_modes[i].lease_idx == lease_idx) {
+			break;
+		}
+	}
+	if (i < d->num_share_modes) {
+		/*
+		 * Found another one
+		 */
+		return;
+	}
+
+	memcpy(&client_guid,
+		&d->leases[lease_idx].client_guid,
+		sizeof(client_guid));
+	lease_key = d->leases[lease_idx].lease_key;
+
+	d->num_leases -= 1;
+	d->leases[lease_idx] = d->leases[d->num_leases];
+
+	/*
+	 * We changed the lease array. Fix all references to it.
+	 */
+	for (i=0; i<d->num_share_modes; i++) {
+		if (d->share_modes[i].lease_idx == d->num_leases) {
+			d->share_modes[i].lease_idx = lease_idx;
+			d->share_modes[i].lease = &d->leases[lease_idx];
+		}
+	}
+
+	{
+		NTSTATUS status;
+
+		status = leases_db_del(&client_guid,
+					&lease_key,
+					&e->id);
+
+		DEBUG(10, ("%s: leases_db_del returned %s\n", __func__,
+			   nt_errstr(status)));
+	}
 }
 
 /*
@@ -673,6 +779,8 @@ bool share_mode_stale_pid(struct share_mode_data *d, uint32_t idx)
 		}
 	}
 
+	remove_share_mode_lease(d, e);
+
 	d->modified = true;
 	return true;
 }
@@ -693,11 +801,21 @@ void remove_stale_share_mode_entries(struct share_mode_data *d)
 	}
 }
 
-bool set_share_mode(struct share_mode_lock *lck, files_struct *fsp,
-		    uid_t uid, uint64_t mid, uint16 op_type)
+bool set_share_mode(struct share_mode_lock *lck, struct files_struct *fsp,
+		    uid_t uid, uint64_t mid, uint16_t op_type,
+		    uint32_t lease_idx)
 {
 	struct share_mode_data *d = lck->data;
 	struct share_mode_entry *tmp, *e;
+	struct share_mode_lease *lease = NULL;
+
+	if (lease_idx == UINT32_MAX) {
+		lease = NULL;
+	} else if (lease_idx >= d->num_leases) {
+		return false;
+	} else {
+		lease = &d->leases[lease_idx];
+	}
 
 	tmp = talloc_realloc(d, d->share_modes, struct share_mode_entry,
 			     d->num_share_modes+1);
@@ -716,6 +834,8 @@ bool set_share_mode(struct share_mode_lock *lck, files_struct *fsp,
 	e->access_mask = fsp->access_mask;
 	e->op_mid = mid;
 	e->op_type = op_type;
+	e->lease_idx = lease_idx;
+	e->lease = lease;
 	e->time.tv_sec = fsp->open_time.tv_sec;
 	e->time.tv_usec = fsp->open_time.tv_usec;
 	e->id = fsp->file_id;
@@ -769,6 +889,7 @@ bool del_share_mode(struct share_mode_lock *lck, files_struct *fsp)
 	if (e == NULL) {
 		return False;
 	}
+	remove_share_mode_lease(lck->data, e);
 	*e = lck->data->share_modes[lck->data->num_share_modes-1];
 	lck->data->num_share_modes -= 1;
 	lck->data->modified = True;
@@ -816,6 +937,7 @@ bool mark_share_mode_disconnected(struct share_mode_lock *lck,
 
 bool remove_share_oplock(struct share_mode_lock *lck, files_struct *fsp)
 {
+	struct share_mode_data *d = lck->data;
 	struct share_mode_entry *e;
 
 	e = find_share_mode_entry(lck, fsp);
@@ -823,9 +945,9 @@ bool remove_share_oplock(struct share_mode_lock *lck, files_struct *fsp)
 		return False;
 	}
 
-	e->op_type = NO_OPLOCK;
-	lck->data->modified = True;
-	return True;
+	remove_share_mode_lease(d, e);
+	d->modified = True;
+	return true;
 }
 
 /*******************************************************************
@@ -844,6 +966,86 @@ bool downgrade_share_oplock(struct share_mode_lock *lck, files_struct *fsp)
 	e->op_type = LEVEL_II_OPLOCK;
 	lck->data->modified = True;
 	return True;
+}
+
+NTSTATUS downgrade_share_lease(struct smbd_server_connection *sconn,
+			       struct share_mode_lock *lck,
+			       const struct smb2_lease_key *key,
+			       uint32_t new_lease_state,
+			       struct share_mode_lease **_l)
+{
+	struct share_mode_data *d = lck->data;
+	struct share_mode_lease *l;
+	uint32_t i;
+
+	*_l = NULL;
+
+	for (i=0; i<d->num_leases; i++) {
+		if (smb2_lease_equal(&sconn->client->connections->smb2.client.guid,
+				     key,
+				     &d->leases[i].client_guid,
+				     &d->leases[i].lease_key)) {
+			break;
+		}
+	}
+	if (i == d->num_leases) {
+		DEBUG(10, ("lease not found\n"));
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	l = &d->leases[i];
+
+	if (!l->breaking) {
+		DEBUG(1, ("Attempt to break from %d to %d - but we're not in breaking state\n",
+			   (int)l->current_state, (int)new_lease_state));
+		return NT_STATUS_UNSUCCESSFUL;
+	}
+
+	/*
+	 * Can't upgrade anything: l->breaking_to_requested (and l->current_state)
+	 * must be a strict bitwise superset of new_lease_state
+	 */
+	if ((new_lease_state & l->breaking_to_requested) != new_lease_state) {
+		DEBUG(1, ("Attempt to upgrade from %d to %d - expected %d\n",
+			   (int)l->current_state, (int)new_lease_state,
+			   (int)l->breaking_to_requested));
+		return NT_STATUS_REQUEST_NOT_ACCEPTED;
+	}
+
+	if (l->current_state != new_lease_state) {
+		l->current_state = new_lease_state;
+		d->modified = true;
+	}
+
+	if ((new_lease_state & ~l->breaking_to_required) != 0) {
+		DEBUG(5, ("lease state %d not fully broken from %d to %d\n",
+			   (int)new_lease_state,
+			   (int)l->current_state,
+			   (int)l->breaking_to_required));
+		l->breaking_to_requested = l->breaking_to_required;
+		if (l->current_state & (~SMB2_LEASE_READ)) {
+			/*
+			 * Here we break in steps, as windows does
+			 * see the breaking3 and v2_breaking3 tests.
+			 */
+			l->breaking_to_requested |= SMB2_LEASE_READ;
+		}
+		d->modified = true;
+		*_l = l;
+		return NT_STATUS_OPLOCK_BREAK_IN_PROGRESS;
+	}
+
+	DEBUG(10, ("breaking from %d to %d - expected %d\n",
+		   (int)l->current_state, (int)new_lease_state,
+		   (int)l->breaking_to_requested));
+
+	l->breaking_to_requested = 0;
+	l->breaking_to_required = 0;
+	l->breaking = false;
+
+	d->modified = true;
+
+	return NT_STATUS_OK;
 }
 
 /****************************************************************************

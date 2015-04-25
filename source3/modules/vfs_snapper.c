@@ -25,7 +25,9 @@
  */
 
 #include <dbus/dbus.h>
+#ifdef HAVE_LINUX_IOCTL_H
 #include <linux/ioctl.h>
+#endif
 #include <sys/ioctl.h>
 #include <dirent.h>
 #include <libgen.h>
@@ -87,6 +89,130 @@ static NTSTATUS snapper_err_ntstatus_map(const char *snapper_err_str)
 	DEBUG(2, ("no explicit mapping for dbus error: %s\n", snapper_err_str));
 
 	return NT_STATUS_UNSUCCESSFUL;
+}
+
+/*
+ * Strings are UTF-8. Other characters must be encoded hexadecimal as "\x??".
+ * As a consequence "\" must be encoded as "\\".
+ */
+static NTSTATUS snapper_dbus_str_encode(TALLOC_CTX *mem_ctx, const char *in_str,
+					char **_out_str)
+{
+	size_t in_len;
+	char *out_str;
+	int i;
+	int out_off;
+	int out_len;
+
+	if (in_str == NULL) {
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	in_len = strlen(in_str);
+
+	/* output can be max 4 times the length of @in_str, +1 for terminator */
+	out_len = (in_len * 4) + 1;
+
+	out_str = talloc_array(mem_ctx, char, out_len);
+	if (out_str == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	out_off = 0;
+	for (i = 0; i < in_len; i++) {
+		size_t pushed;
+
+		if (in_str[i] == '\\') {
+			pushed = snprintf(out_str + out_off, out_len - out_off,
+					  "\\\\");
+		} else if ((unsigned char)in_str[i] > 127) {
+			pushed = snprintf(out_str + out_off, out_len - out_off,
+					  "\\x%02x", (unsigned char)in_str[i]);
+		} else {
+			/* regular character */
+			*(out_str + out_off) = in_str[i];
+			pushed = sizeof(char);
+		}
+		if (pushed >= out_len - out_off) {
+			/* truncated, should never happen */
+			talloc_free(out_str);
+			return NT_STATUS_INTERNAL_ERROR;
+		}
+		out_off += pushed;
+	}
+
+	*(out_str + out_off) = '\0';
+	*_out_str = out_str;
+
+	return NT_STATUS_OK;
+}
+
+static NTSTATUS snapper_dbus_str_decode(TALLOC_CTX *mem_ctx, const char *in_str,
+					char **_out_str)
+{
+	size_t in_len;
+	char *out_str;
+	int i;
+	int out_off;
+	int out_len;
+
+	if (in_str == NULL) {
+		return NT_STATUS_INVALID_PARAMETER;
+	}
+
+	in_len = strlen(in_str);
+
+	/* output cannot be larger than input, +1 for terminator */
+	out_len = in_len + 1;
+
+	out_str = talloc_array(mem_ctx, char, out_len);
+	if (out_str == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	out_off = 0;
+	for (i = 0; i < in_len; i++) {
+		int j;
+		char hex_buf[3];
+		unsigned int non_ascii_byte;
+
+		if (in_str[i] != '\\') {
+			out_str[out_off] = in_str[i];
+			out_off++;
+			continue;
+		}
+
+		i++;
+		if (in_str[i] == '\\') {
+			out_str[out_off] = '\\';
+			out_off++;
+			continue;
+		} else if (in_str[i] != 'x') {
+			goto err_invalid_src_encoding;
+		}
+
+		/* non-ASCII, encoded as two hex chars */
+		for (j = 0; j < 2; j++) {
+			i++;
+			if ((in_str[i] == '\0') || !isxdigit(in_str[i])) {
+				goto err_invalid_src_encoding;
+			}
+			hex_buf[j] = in_str[i];
+		}
+		hex_buf[2] = '\0';
+
+		sscanf(hex_buf, "%x", &non_ascii_byte);
+		out_str[out_off] = (unsigned char)non_ascii_byte;
+		out_off++;
+	}
+
+	out_str[out_off] = '\0';
+	*_out_str = out_str;
+
+	return NT_STATUS_OK;
+err_invalid_src_encoding:
+	DEBUG(0, ("invalid encoding %s\n", in_str));
+	return NT_STATUS_INVALID_PARAMETER;
 }
 
 static DBusConnection *snapper_dbus_conn_create(void)
@@ -193,12 +319,15 @@ static NTSTATUS snapper_type_check_get(DBusMessageIter *iter,
 	return NT_STATUS_OK;
 }
 
-static NTSTATUS snapper_dict_unpack(DBusMessageIter *iter,
+static NTSTATUS snapper_dict_unpack(TALLOC_CTX *mem_ctx,
+				    DBusMessageIter *iter,
 				    struct snapper_dict *dict_out)
 
 {
 	NTSTATUS status;
 	DBusMessageIter dct_iter;
+	char *key_encoded;
+	char *val_encoded;
 
 	status = snapper_type_check(iter, DBUS_TYPE_DICT_ENTRY);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -207,15 +336,25 @@ static NTSTATUS snapper_dict_unpack(DBusMessageIter *iter,
 	dbus_message_iter_recurse(iter, &dct_iter);
 
 	status = snapper_type_check_get(&dct_iter, DBUS_TYPE_STRING,
-					&dict_out->key);
+					&key_encoded);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+	status = snapper_dbus_str_decode(mem_ctx, key_encoded, &dict_out->key);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
 
 	dbus_message_iter_next(&dct_iter);
 	status = snapper_type_check_get(&dct_iter, DBUS_TYPE_STRING,
-					&dict_out->val);
+					&val_encoded);
 	if (!NT_STATUS_IS_OK(status)) {
+		talloc_free(dict_out->key);
+		return status;
+	}
+	status = snapper_dbus_str_decode(mem_ctx, val_encoded, &dict_out->val);
+	if (!NT_STATUS_IS_OK(status)) {
+		talloc_free(dict_out->key);
 		return status;
 	}
 
@@ -258,7 +397,7 @@ static NTSTATUS snapper_dict_array_unpack(TALLOC_CTX *mem_ctx,
 		if (dicts == NULL)
 			abort();
 
-		status = snapper_dict_unpack(&array_iter,
+		status = snapper_dict_unpack(mem_ctx, &array_iter,
 					     &dicts[num_dicts - 1]);
 		if (!NT_STATUS_IS_OK(status)) {
 			talloc_free(dicts);
@@ -298,6 +437,8 @@ static NTSTATUS snapper_conf_unpack(TALLOC_CTX *mem_ctx,
 {
 	NTSTATUS status;
 	DBusMessageIter st_iter;
+	char *name_encoded;
+	char *mnt_encoded;
 
 	status = snapper_type_check(iter, DBUS_TYPE_STRUCT);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -306,15 +447,29 @@ static NTSTATUS snapper_conf_unpack(TALLOC_CTX *mem_ctx,
 	dbus_message_iter_recurse(iter, &st_iter);
 
 	status = snapper_type_check_get(&st_iter, DBUS_TYPE_STRING,
-					&conf_out->name);
+					&name_encoded);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	status = snapper_dbus_str_decode(mem_ctx, name_encoded,
+					 &conf_out->name);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
 
 	dbus_message_iter_next(&st_iter);
 	status = snapper_type_check_get(&st_iter, DBUS_TYPE_STRING,
-					&conf_out->mnt);
+					&mnt_encoded);
 	if (!NT_STATUS_IS_OK(status)) {
+		talloc_free(conf_out->name);
+		return status;
+	}
+
+	status = snapper_dbus_str_decode(mem_ctx, mnt_encoded,
+					 &conf_out->mnt);
+	if (!NT_STATUS_IS_OK(status)) {
+		talloc_free(conf_out->name);
 		return status;
 	}
 
@@ -322,8 +477,13 @@ static NTSTATUS snapper_conf_unpack(TALLOC_CTX *mem_ctx,
 	status = snapper_dict_array_unpack(mem_ctx, &st_iter,
 					   &conf_out->num_attrs,
 					   &conf_out->attrs);
+	if (!NT_STATUS_IS_OK(status)) {
+		talloc_free(conf_out->mnt);
+		talloc_free(conf_out->name);
+		return status;
+	}
 
-	return status;
+	return NT_STATUS_OK;
 }
 
 static struct snapper_conf *snapper_conf_array_base_find(int32_t num_confs,
@@ -451,11 +611,14 @@ static NTSTATUS snapper_list_confs_unpack(TALLOC_CTX *mem_ctx,
 	return NT_STATUS_OK;
 }
 
-static NTSTATUS snapper_list_snaps_pack(char *snapper_conf,
+static NTSTATUS snapper_list_snaps_pack(TALLOC_CTX *mem_ctx,
+					char *snapper_conf,
 					DBusMessage **req_msg_out)
 {
 	DBusMessage *msg;
 	DBusMessageIter args;
+	char *conf_encoded;
+	NTSTATUS status;
 
 	msg = dbus_message_new_method_call("org.opensuse.Snapper", /* target for the method call */
 					   "/org/opensuse/Snapper", /* object to call on */
@@ -466,10 +629,18 @@ static NTSTATUS snapper_list_snaps_pack(char *snapper_conf,
 		return NT_STATUS_NO_MEMORY;
 	}
 
+	status = snapper_dbus_str_encode(mem_ctx, snapper_conf, &conf_encoded);
+	if (!NT_STATUS_IS_OK(status)) {
+		dbus_message_unref(msg);
+		return status;
+	}
+
 	/* append arguments */
 	dbus_message_iter_init_append(msg, &args);
 	if (!dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING,
-					    &snapper_conf)) {
+					    &conf_encoded)) {
+		talloc_free(conf_encoded);
+		dbus_message_unref(msg);
 		return NT_STATUS_NO_MEMORY;
 	}
 
@@ -484,6 +655,8 @@ static NTSTATUS snapper_snap_struct_unpack(TALLOC_CTX *mem_ctx,
 {
 	NTSTATUS status;
 	DBusMessageIter st_iter;
+	char *desc_encoded;
+	char *cleanup_encoded;
 
 	status = snapper_type_check(iter, DBUS_TYPE_STRUCT);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -527,15 +700,29 @@ static NTSTATUS snapper_snap_struct_unpack(TALLOC_CTX *mem_ctx,
 
 	dbus_message_iter_next(&st_iter);
 	status = snapper_type_check_get(&st_iter, DBUS_TYPE_STRING,
-					&snap_out->desc);
+					&desc_encoded);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	status = snapper_dbus_str_decode(mem_ctx, desc_encoded,
+					 &snap_out->desc);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
 
 	dbus_message_iter_next(&st_iter);
 	status = snapper_type_check_get(&st_iter, DBUS_TYPE_STRING,
-					&snap_out->cleanup);
+					&cleanup_encoded);
 	if (!NT_STATUS_IS_OK(status)) {
+		talloc_free(snap_out->desc);
+		return status;
+	}
+
+	status = snapper_dbus_str_decode(mem_ctx, cleanup_encoded,
+					 &snap_out->cleanup);
+	if (!NT_STATUS_IS_OK(status)) {
+		talloc_free(snap_out->desc);
 		return status;
 	}
 
@@ -543,8 +730,13 @@ static NTSTATUS snapper_snap_struct_unpack(TALLOC_CTX *mem_ctx,
 	status = snapper_dict_array_unpack(mem_ctx, &st_iter,
 					   &snap_out->num_user_data,
 					   &snap_out->user_data);
+	if (!NT_STATUS_IS_OK(status)) {
+		talloc_free(snap_out->cleanup);
+		talloc_free(snap_out->desc);
+		return status;
+	}
 
-	return status;
+	return NT_STATUS_OK;
 }
 
 static void snapper_snap_array_print(int32_t num_snaps,
@@ -668,13 +860,16 @@ static NTSTATUS snapper_list_snaps_unpack(TALLOC_CTX *mem_ctx,
 	return NT_STATUS_OK;
 }
 
-static NTSTATUS snapper_list_snaps_at_time_pack(const char *snapper_conf,
+static NTSTATUS snapper_list_snaps_at_time_pack(TALLOC_CTX *mem_ctx,
+						const char *snapper_conf,
 						time_t time_lower,
 						time_t time_upper,
 						DBusMessage **req_msg_out)
 {
 	DBusMessage *msg;
 	DBusMessageIter args;
+	char *conf_encoded;
+	NTSTATUS status;
 
 	msg = dbus_message_new_method_call("org.opensuse.Snapper",
 					   "/org/opensuse/Snapper",
@@ -685,19 +880,31 @@ static NTSTATUS snapper_list_snaps_at_time_pack(const char *snapper_conf,
 		return NT_STATUS_NO_MEMORY;
 	}
 
+	status = snapper_dbus_str_encode(mem_ctx, snapper_conf, &conf_encoded);
+	if (!NT_STATUS_IS_OK(status)) {
+		dbus_message_unref(msg);
+		return status;
+	}
+
 	dbus_message_iter_init_append(msg, &args);
 	if (!dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING,
-					    &snapper_conf)) {
+					    &conf_encoded)) {
+		talloc_free(conf_encoded);
+		dbus_message_unref(msg);
 		return NT_STATUS_NO_MEMORY;
 	}
 
 	if (!dbus_message_iter_append_basic(&args, DBUS_TYPE_INT64,
 					    &time_lower)) {
+		talloc_free(conf_encoded);
+		dbus_message_unref(msg);
 		return NT_STATUS_NO_MEMORY;
 	}
 
 	if (!dbus_message_iter_append_basic(&args, DBUS_TYPE_INT64,
 					    &time_upper)) {
+		talloc_free(conf_encoded);
+		dbus_message_unref(msg);
 		return NT_STATUS_NO_MEMORY;
 	}
 
@@ -845,7 +1052,7 @@ static int snapper_get_shadow_copy_data(struct vfs_handle_struct *handle,
 		goto err_conn_free;
 	}
 
-	status = snapper_list_snaps_pack(conf_name, &req_msg);
+	status = snapper_list_snaps_pack(tmp_ctx, conf_name, &req_msg);
 	if (!NT_STATUS_IS_OK(status)) {
 		goto err_conn_free;
 	}
@@ -1011,7 +1218,8 @@ static NTSTATUS snapper_get_snap_at_time_call(TALLOC_CTX *mem_ctx,
 	struct snapper_snap *snaps;
 	char *snap_path;
 
-	status = snapper_list_snaps_at_time_pack(conf_name,
+	status = snapper_list_snaps_at_time_pack(mem_ctx,
+						 conf_name,
 						 snaptime,
 						 snaptime,
 						 &req_msg);

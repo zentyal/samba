@@ -8,8 +8,8 @@ import base64
 import re
 sys.path.insert(0, "bin/python")
 import samba
-samba.ensure_external_module("testtools", "testtools")
-samba.ensure_external_module("subunit", "subunit/python")
+
+from samba.tests.subunitrun import SubunitOptions, TestProgram
 
 import samba.getopt as options
 from samba.join import dc_join
@@ -29,8 +29,6 @@ from samba.samdb import SamDB
 from samba.credentials import Credentials, DONT_USE_KERBEROS
 import samba.tests
 from samba.tests import delete_force
-from subunit.run import SubunitTestRunner
-import unittest
 import samba.dsdb
 
 parser = optparse.OptionParser("acl.py [options] <host>")
@@ -41,6 +39,9 @@ parser.add_option_group(options.VersionOptions(parser))
 # use command line creds if available
 credopts = options.CredentialsOptions(parser)
 parser.add_option_group(credopts)
+subunitopts = SubunitOptions(parser)
+parser.add_option_group(subunitopts)
+
 opts, args = parser.parse_args()
 
 if len(args) < 1:
@@ -67,12 +68,12 @@ class AclTests(samba.tests.TestCase):
 
     def setUp(self):
         super(AclTests, self).setUp()
-        self.ldb_admin = ldb
-        self.base_dn = ldb.domain_dn()
-        self.domain_sid = security.dom_sid(ldb.get_domain_sid())
+        self.ldb_admin = SamDB(ldaphost, credentials=creds, session_info=system_session(lp), lp=lp)
+        self.base_dn = self.ldb_admin.domain_dn()
+        self.domain_sid = security.dom_sid(self.ldb_admin.get_domain_sid())
         self.user_pass = "samba123@"
         self.configuration_dn = self.ldb_admin.get_config_basedn().get_linearized()
-        self.sd_utils = sd_utils.SDUtils(ldb)
+        self.sd_utils = sd_utils.SDUtils(self.ldb_admin)
         #used for anonymous login
         self.creds_tmp = Credentials()
         self.creds_tmp.set_username("")
@@ -620,6 +621,19 @@ class AclSearchTests(AclTests):
 
     def setUp(self):
         super(AclSearchTests, self).setUp()
+        # Get the old "dSHeuristics" if it was set
+        dsheuristics = self.ldb_admin.get_dsheuristics()
+        # Reset the "dSHeuristics" as they were before
+        self.addCleanup(self.ldb_admin.set_dsheuristics, dsheuristics)
+        # Set the "dSHeuristics" to activate the correct "userPassword" behaviour
+        self.ldb_admin.set_dsheuristics("000000001")
+        # Get the old "minPwdAge"
+        minPwdAge = self.ldb_admin.get_minPwdAge()
+        # Reset the "minPwdAge" as it was before
+        self.addCleanup(self.ldb_admin.set_minPwdAge, minPwdAge)
+        # Set it temporarely to "0"
+        self.ldb_admin.set_minPwdAge("0")
+
         self.u1 = "search_u1"
         self.u2 = "search_u2"
         self.u3 = "search_u3"
@@ -1281,6 +1295,20 @@ class AclCARTests(AclTests):
 
     def setUp(self):
         super(AclCARTests, self).setUp()
+
+        # Get the old "dSHeuristics" if it was set
+        dsheuristics = self.ldb_admin.get_dsheuristics()
+        # Reset the "dSHeuristics" as they were before
+        self.addCleanup(self.ldb_admin.set_dsheuristics, dsheuristics)
+        # Set the "dSHeuristics" to activate the correct "userPassword" behaviour
+        self.ldb_admin.set_dsheuristics("000000001")
+        # Get the old "minPwdAge"
+        minPwdAge = self.ldb_admin.get_minPwdAge()
+        # Reset the "minPwdAge" as it was before
+        self.addCleanup(self.ldb_admin.set_minPwdAge, minPwdAge)
+        # Set it temporarely to "0"
+        self.ldb_admin.set_minPwdAge("0")
+
         self.user_with_wp = "acl_car_user1"
         self.user_with_pc = "acl_car_user2"
         self.ldb_admin.newuser(self.user_with_wp, self.user_pass)
@@ -1875,36 +1903,4 @@ class AclSPNTests(AclTests):
 
 ldb = SamDB(ldaphost, credentials=creds, session_info=system_session(lp), lp=lp)
 
-runner = SubunitTestRunner()
-rc = 0
-if not runner.run(unittest.makeSuite(AclAddTests)).wasSuccessful():
-    rc = 1
-if not runner.run(unittest.makeSuite(AclModifyTests)).wasSuccessful():
-    rc = 1
-if not runner.run(unittest.makeSuite(AclDeleteTests)).wasSuccessful():
-    rc = 1
-if not runner.run(unittest.makeSuite(AclRenameTests)).wasSuccessful():
-    rc = 1
-
-# Get the old "dSHeuristics" if it was set
-dsheuristics = ldb.get_dsheuristics()
-# Set the "dSHeuristics" to activate the correct "userPassword" behaviour
-ldb.set_dsheuristics("000000001")
-# Get the old "minPwdAge"
-minPwdAge = ldb.get_minPwdAge()
-# Set it temporarely to "0"
-ldb.set_minPwdAge("0")
-if not runner.run(unittest.makeSuite(AclCARTests)).wasSuccessful():
-    rc = 1
-if not runner.run(unittest.makeSuite(AclSearchTests)).wasSuccessful():
-    rc = 1
-# Reset the "dSHeuristics" as they were before
-ldb.set_dsheuristics(dsheuristics)
-# Reset the "minPwdAge" as it was before
-ldb.set_minPwdAge(minPwdAge)
-
-if not runner.run(unittest.makeSuite(AclExtendedTests)).wasSuccessful():
-    rc = 1
-if not runner.run(unittest.makeSuite(AclSPNTests)).wasSuccessful():
-    rc = 1
-sys.exit(rc)
+TestProgram(module=__name__, opts=subunitopts)

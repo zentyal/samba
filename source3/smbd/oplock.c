@@ -142,7 +142,82 @@ static void downgrade_file_oplock(files_struct *fsp)
 	sconn->oplocks.level_II_open++;
 	fsp->sent_oplock_break = NO_BREAK_SENT;
 
+	flush_write_cache(fsp, SAMBA_OPLOCK_RELEASE_FLUSH);
+	delete_write_cache(fsp);
+
 	TALLOC_FREE(fsp->oplock_timeout);
+}
+
+uint32_t map_oplock_to_lease_type(uint16_t op_type)
+{
+	uint32_t ret;
+
+	switch(op_type) {
+	case BATCH_OPLOCK:
+	case BATCH_OPLOCK|EXCLUSIVE_OPLOCK:
+		ret = SMB2_LEASE_READ|SMB2_LEASE_WRITE|SMB2_LEASE_HANDLE;
+		break;
+	case EXCLUSIVE_OPLOCK:
+		ret = SMB2_LEASE_READ|SMB2_LEASE_WRITE;
+		break;
+	case LEVEL_II_OPLOCK:
+		ret = SMB2_LEASE_READ;
+		break;
+	default:
+		ret = SMB2_LEASE_NONE;
+		break;
+	}
+	return ret;
+}
+
+uint32_t get_lease_type(struct share_mode_data *d, struct share_mode_entry *e)
+{
+	if (e->op_type == LEASE_OPLOCK) {
+		return d->leases[e->lease_idx].current_state;
+	}
+	return map_oplock_to_lease_type(e->op_type);
+}
+
+bool update_num_read_oplocks(files_struct *fsp, struct share_mode_lock *lck)
+{
+	struct share_mode_data *d = lck->data;
+	struct byte_range_lock *br_lck;
+	uint32_t num_read_oplocks = 0;
+	uint32_t i;
+
+	if (EXCLUSIVE_OPLOCK_TYPE(fsp->oplock_type)) {
+		/*
+		 * If we're the only one, we don't need a brlock entry
+		 */
+		SMB_ASSERT(d->num_share_modes == 1);
+		SMB_ASSERT(EXCLUSIVE_OPLOCK_TYPE(d->share_modes[0].op_type));
+		return true;
+	}
+
+	for (i=0; i<d->num_share_modes; i++) {
+		struct share_mode_entry *e = &d->share_modes[i];
+		uint32_t e_lease_type = get_lease_type(d, e);
+
+		if (e_lease_type & SMB2_LEASE_READ) {
+			num_read_oplocks += 1;
+		}
+	}
+
+	br_lck = brl_get_locks_readonly(fsp);
+	if (br_lck == NULL) {
+		return false;
+	}
+	if (brl_num_read_oplocks(br_lck) == num_read_oplocks) {
+		return true;
+	}
+
+	br_lck = brl_get_locks(talloc_tos(), fsp);
+	if (br_lck == NULL) {
+		return false;
+	}
+	brl_set_num_read_oplocks(br_lck, num_read_oplocks);
+	TALLOC_FREE(br_lck);
+	return true;
 }
 
 /****************************************************************************
@@ -167,44 +242,6 @@ bool remove_oplock(files_struct *fsp)
 		return False;
 	}
 
-	if (fsp->oplock_type == LEVEL_II_OPLOCK) {
-
-		/*
-		 * If we're the only LEVEL_II holder, we have to remove the
-		 * have_read_oplocks from the brlock entry
-		 */
-
-		struct share_mode_data *data = lck->data;
-		uint32_t i, num_level2;
-
-		num_level2 = 0;
-		for (i=0; i<data->num_share_modes; i++) {
-			if (data->share_modes[i].op_type == LEVEL_II_OPLOCK) {
-				num_level2 += 1;
-			}
-			if (num_level2 > 1) {
-				/*
-				 * No need to count them all...
-				 */
-				break;
-			}
-		}
-
-		if (num_level2 == 1) {
-			/*
-			 * That's only us. We are dropping that level2 oplock,
-			 * so remove the brlock flag.
-			 */
-			struct byte_range_lock *brl;
-
-			brl = brl_get_locks(talloc_tos(), fsp);
-			if (brl) {
-				brl_set_have_read_oplocks(brl, false);
-				TALLOC_FREE(brl);
-			}
-		}
-	}
-
 	ret = remove_share_oplock(lck, fsp);
 	if (!ret) {
 		DEBUG(0,("remove_oplock: failed to remove share oplock for "
@@ -213,6 +250,15 @@ bool remove_oplock(files_struct *fsp)
 			 file_id_string_tos(&fsp->file_id)));
 	}
 	release_file_oplock(fsp);
+
+	ret = update_num_read_oplocks(fsp, lck);
+	if (!ret) {
+		DEBUG(0, ("%s: update_num_read_oplocks failed for "
+			 "file %s, %s, %s\n",
+			  __func__, fsp_str_dbg(fsp), fsp_fnum_dbg(fsp),
+			 file_id_string_tos(&fsp->file_id)));
+	}
+
 	TALLOC_FREE(lck);
 	return ret;
 }
@@ -224,7 +270,6 @@ bool downgrade_oplock(files_struct *fsp)
 {
 	bool ret;
 	struct share_mode_lock *lck;
-	struct byte_range_lock *brl;
 
 	DEBUG(10, ("downgrade_oplock called for %s\n",
 		   fsp_str_dbg(fsp)));
@@ -242,17 +287,313 @@ bool downgrade_oplock(files_struct *fsp)
 			 fsp_str_dbg(fsp), fsp_fnum_dbg(fsp),
 			 file_id_string_tos(&fsp->file_id)));
 	}
-
 	downgrade_file_oplock(fsp);
 
-	brl = brl_get_locks(talloc_tos(), fsp);
-	if (brl != NULL) {
-		brl_set_have_read_oplocks(brl, true);
-		TALLOC_FREE(brl);
+	ret = update_num_read_oplocks(fsp, lck);
+	if (!ret) {
+		DEBUG(0, ("%s: update_num_read_oplocks failed for "
+			 "file %s, %s, %s\n",
+			  __func__, fsp_str_dbg(fsp), fsp_fnum_dbg(fsp),
+			 file_id_string_tos(&fsp->file_id)));
 	}
 
 	TALLOC_FREE(lck);
 	return ret;
+}
+
+static void lease_timeout_handler(struct tevent_context *ctx,
+				  struct tevent_timer *te,
+				  struct timeval now,
+				  void *private_data)
+{
+	struct fsp_lease *lease =
+		talloc_get_type_abort(private_data,
+		struct fsp_lease);
+	struct files_struct *fsp;
+	struct share_mode_lock *lck;
+	uint16_t old_epoch = lease->lease.lease_epoch;
+
+	fsp = file_find_one_fsp_from_lease_key(lease->sconn,
+					       &lease->lease.lease_key);
+	if (fsp == NULL) {
+		/* race? */
+		TALLOC_FREE(lease->timeout);
+		return;
+	}
+
+	lck = get_existing_share_mode_lock(
+			talloc_tos(), fsp->file_id);
+	if (lck == NULL) {
+		/* race? */
+		TALLOC_FREE(lease->timeout);
+		return;
+	}
+
+	fsp_lease_update(lck, fsp_client_guid(fsp), lease);
+
+	if (lease->lease.lease_epoch != old_epoch) {
+		/*
+		 * If the epoch changed we need to wait for
+		 * the next timeout to happen.
+		 */
+		DEBUG(10, ("lease break timeout race (epoch) for file %s - ignoring\n",
+			   fsp_str_dbg(fsp)));
+		TALLOC_FREE(lck);
+		return;
+	}
+
+	if (!(lease->lease.lease_flags & SMB2_LEASE_FLAG_BREAK_IN_PROGRESS)) {
+		/*
+		 * If the epoch changed we need to wait for
+		 * the next timeout to happen.
+		 */
+		DEBUG(10, ("lease break timeout race (flags) for file %s - ignoring\n",
+			   fsp_str_dbg(fsp)));
+		TALLOC_FREE(lck);
+		return;
+	}
+
+	DEBUG(1, ("lease break timed out for file %s -- replying anyway\n",
+		  fsp_str_dbg(fsp)));
+	(void)downgrade_lease(lease->sconn->client->connections,
+			1,
+			&fsp->file_id,
+			&lease->lease.lease_key,
+			SMB2_LEASE_NONE);
+
+	TALLOC_FREE(lck);
+}
+
+bool fsp_lease_update(struct share_mode_lock *lck,
+		      const struct GUID *client_guid,
+		      struct fsp_lease *lease)
+{
+	struct share_mode_data *d = lck->data;
+	int idx;
+	struct share_mode_lease *l = NULL;
+
+	idx = find_share_mode_lease(d, client_guid, &lease->lease.lease_key);
+	if (idx != -1) {
+		l = &d->leases[idx];
+	}
+
+	if (l == NULL) {
+		DEBUG(1, ("%s: Could not find lease entry\n", __func__));
+		TALLOC_FREE(lease->timeout);
+		lease->lease.lease_state = SMB2_LEASE_NONE;
+		lease->lease.lease_epoch += 1;
+		lease->lease.lease_flags = 0;
+		return false;
+	}
+
+	DEBUG(10,("%s: refresh lease state\n", __func__));
+
+	/* Ensure we're in sync with current lease state. */
+	if (lease->lease.lease_epoch != l->epoch) {
+		DEBUG(10,("%s: cancel outdated timeout\n", __func__));
+		TALLOC_FREE(lease->timeout);
+	}
+	lease->lease.lease_epoch = l->epoch;
+	lease->lease.lease_state = l->current_state;
+
+	if (l->breaking) {
+		lease->lease.lease_flags |= SMB2_LEASE_FLAG_BREAK_IN_PROGRESS;
+
+		if (lease->timeout == NULL) {
+			struct timeval t = timeval_current_ofs(OPLOCK_BREAK_TIMEOUT, 0);
+
+			DEBUG(10,("%s: setup timeout handler\n", __func__));
+
+			lease->timeout = tevent_add_timer(lease->sconn->ev_ctx,
+							  lease, t,
+							  lease_timeout_handler,
+							  lease);
+			if (lease->timeout == NULL) {
+				DEBUG(0, ("%s: Could not add lease timeout handler\n",
+					  __func__));
+			}
+		}
+	} else {
+		lease->lease.lease_flags &= ~SMB2_LEASE_FLAG_BREAK_IN_PROGRESS;
+		TALLOC_FREE(lease->timeout);
+	}
+
+	return true;
+}
+
+struct downgrade_lease_additional_state {
+	struct tevent_immediate *im;
+	struct smbXsrv_connection *xconn;
+	uint32_t break_flags;
+	struct smb2_lease_key lease_key;
+	uint32_t break_from;
+	uint32_t break_to;
+	uint16_t new_epoch;
+};
+
+static void downgrade_lease_additional_trigger(struct tevent_context *ev,
+					       struct tevent_immediate *im,
+					       void *private_data)
+{
+	struct downgrade_lease_additional_state *state =
+		talloc_get_type_abort(private_data,
+		struct downgrade_lease_additional_state);
+	struct smbXsrv_connection *xconn = state->xconn;
+	NTSTATUS status;
+
+	status = smbd_smb2_send_lease_break(xconn,
+					    state->new_epoch,
+					    state->break_flags,
+					    &state->lease_key,
+					    state->break_from,
+					    state->break_to);
+	TALLOC_FREE(state);
+	if (!NT_STATUS_IS_OK(status)) {
+		smbd_server_connection_terminate(xconn,
+						 nt_errstr(status));
+		return;
+	}
+}
+
+struct downgrade_lease_fsps_state {
+	struct file_id id;
+	struct share_mode_lock *lck;
+	const struct smb2_lease_key *key;
+};
+
+static struct files_struct *downgrade_lease_fsps(struct files_struct *fsp,
+						 void *private_data)
+{
+	struct downgrade_lease_fsps_state *state =
+		(struct downgrade_lease_fsps_state *)private_data;
+
+	if (fsp->oplock_type != LEASE_OPLOCK) {
+		return NULL;
+	}
+	if (!smb2_lease_key_equal(&fsp->lease->lease.lease_key, state->key)) {
+		return NULL;
+	}
+	if (!file_id_equal(&fsp->file_id, &state->id)) {
+		return NULL;
+	}
+
+	fsp_lease_update(state->lck, fsp_client_guid(fsp), fsp->lease);
+
+	return NULL;
+}
+
+NTSTATUS downgrade_lease(struct smbXsrv_connection *xconn,
+			 uint32_t num_file_ids,
+			 const struct file_id *ids,
+			 const struct smb2_lease_key *key,
+			 uint32_t lease_state)
+{
+	struct smbd_server_connection *sconn = xconn->client->sconn;
+	struct share_mode_lock *lck;
+	struct share_mode_lease *l = NULL;
+	const struct file_id id = ids[0];
+	uint32_t i;
+	NTSTATUS status;
+
+	DEBUG(10, ("%s: Downgrading %s to %x\n", __func__,
+		   file_id_string_tos(&id), (unsigned)lease_state));
+
+	lck = get_existing_share_mode_lock(talloc_tos(), id);
+	if (lck == NULL) {
+		return NT_STATUS_OBJECT_NAME_NOT_FOUND;
+	}
+	status = downgrade_share_lease(sconn, lck, key, lease_state, &l);
+
+	DEBUG(10, ("%s: Downgrading %s to %x => %s\n", __func__,
+		   file_id_string_tos(&id), (unsigned)lease_state, nt_errstr(status)));
+
+	if (NT_STATUS_EQUAL(status, NT_STATUS_OPLOCK_BREAK_IN_PROGRESS)) {
+		struct downgrade_lease_additional_state *state;
+
+		state = talloc_zero(xconn,
+				    struct downgrade_lease_additional_state);
+		if (state == NULL) {
+			TALLOC_FREE(lck);
+			return NT_STATUS_NO_MEMORY;
+		}
+
+		state->im = tevent_create_immediate(state);
+		if (state->im == NULL) {
+			TALLOC_FREE(state);
+			TALLOC_FREE(lck);
+			return NT_STATUS_NO_MEMORY;
+		}
+
+		state->xconn = xconn;
+		if (l->current_state & (~SMB2_LEASE_READ)) {
+			state->break_flags = SMB2_NOTIFY_BREAK_LEASE_FLAG_ACK_REQUIRED;
+		}
+		state->lease_key = l->lease_key;
+		state->break_from = l->current_state;
+		state->break_to = l->breaking_to_requested;
+		if (l->lease_version > 1) {
+			state->new_epoch = l->epoch;
+		}
+
+		if (state->break_flags == 0) {
+			/*
+			 * This is an async break without
+			 * SMB2_NOTIFY_BREAK_LEASE_FLAG_ACK_REQUIRED
+			 *
+			 * we need to store NONE state in the
+			 * database.
+			 */
+			l->current_state = 0;
+			l->breaking_to_requested = 0;
+			l->breaking_to_required = 0;
+			l->breaking = false;
+
+			lck->data->modified = true;
+		}
+
+		tevent_schedule_immediate(state->im, xconn->ev_ctx,
+					  downgrade_lease_additional_trigger,
+					  state);
+	}
+
+	{
+		struct downgrade_lease_fsps_state state = {
+			.id = id, .lck = lck, .key = key,
+		};
+
+		files_forall(sconn, downgrade_lease_fsps, &state);
+	}
+
+	TALLOC_FREE(lck);
+	DEBUG(10, ("%s: Downgrading %s to %x => %s\n", __func__,
+		   file_id_string_tos(&id), (unsigned)lease_state, nt_errstr(status)));
+
+	/*
+	 * Dynamic share case. Ensure other opens are copies.
+	 * This will only be breaking to NONE.
+	 */
+
+	for (i = 1; i < num_file_ids; i++) {
+		lck = get_existing_share_mode_lock(talloc_tos(), ids[i]);
+		if (lck == NULL) {
+			return NT_STATUS_OBJECT_NAME_NOT_FOUND;
+		}
+
+		{
+			struct downgrade_lease_fsps_state state = {
+				.id = ids[i], .lck = lck, .key = key,
+			};
+
+			files_forall(sconn, downgrade_lease_fsps, &state);
+		}
+
+		DEBUG(10, ("%s: Downgrading %s to %x => %s\n", __func__,
+			file_id_string_tos(&ids[i]), (unsigned)lease_state, nt_errstr(status)));
+
+		TALLOC_FREE(lck);
+	}
+
+	return status;
 }
 
 /****************************************************************************
@@ -426,14 +767,15 @@ static void process_oplock_break_message(struct messaging_context *msg_ctx,
 {
 	struct share_mode_entry msg;
 	files_struct *fsp;
-	bool break_to_level2 = False;
 	bool use_kernel;
 	struct smbd_server_connection *sconn =
 		talloc_get_type_abort(private_data,
 		struct smbd_server_connection);
 	struct server_id self = messaging_server_id(sconn->msg_ctx);
 	struct kernel_oplocks *koplocks = sconn->oplocks.kernel_ops;
+	uint16_t break_from;
 	uint16_t break_to;
+	bool break_needed = true;
 
 	if (data->data == NULL) {
 		DEBUG(0, ("Got NULL buffer\n"));
@@ -463,27 +805,118 @@ static void process_oplock_break_message(struct messaging_context *msg_ctx,
 		return;
 	}
 
-	if (fsp->sent_oplock_break != NO_BREAK_SENT) {
-		/*
-		 * Nothing to do anymore
-		 */
+	break_from = fsp_lease_type(fsp);
+
+	if (fsp->oplock_type != LEASE_OPLOCK) {
+		if (fsp->sent_oplock_break != NO_BREAK_SENT) {
+			/*
+			 * Nothing to do anymore
+			 */
+			DEBUG(10, ("fsp->sent_oplock_break = %d\n",
+				   fsp->sent_oplock_break));
+			return;
+		}
+	}
+
+	if (!(global_client_caps & CAP_LEVEL_II_OPLOCKS)) {
+		DEBUG(10, ("client_caps without level2 oplocks\n"));
+		break_to &= ~SMB2_LEASE_READ;
+	}
+
+	use_kernel = lp_kernel_oplocks(SNUM(fsp->conn)) && koplocks;
+	if (use_kernel && !(koplocks->flags & KOPLOCKS_LEVEL2_SUPPORTED)) {
+		DEBUG(10, ("Kernel oplocks don't allow level2\n"));
+		break_to &= ~SMB2_LEASE_READ;
+	}
+
+	if (!lp_level2_oplocks(SNUM(fsp->conn))) {
+		DEBUG(10, ("no level2 oplocks by config\n"));
+		break_to &= ~SMB2_LEASE_READ;
+	}
+
+	if (fsp->oplock_type == LEASE_OPLOCK) {
+		struct share_mode_lock *lck;
+		int idx;
+
+		lck = get_existing_share_mode_lock(
+			talloc_tos(), fsp->file_id);
+		if (lck == NULL) {
+			/*
+			 * We hit a race here. Break messages are sent, and
+			 * before we get to process this message, we have closed
+			 * the file.
+			 */
+			DEBUG(3, ("Did not find share_mode\n"));
+			return;
+		}
+
+		idx = find_share_mode_lease(
+			lck->data,
+			fsp_client_guid(fsp),
+			&fsp->lease->lease.lease_key);
+		if (idx != -1) {
+			struct share_mode_lease *l;
+			l = &lck->data->leases[idx];
+
+			break_from = l->current_state;
+			break_to &= l->current_state;
+
+			if (l->breaking) {
+				break_to &= l->breaking_to_required;
+				if (l->breaking_to_required != break_to) {
+					/*
+					 * Note we don't increment the epoch
+					 * here, which might be a bug in
+					 * Windows too...
+					 */
+					l->breaking_to_required = break_to;
+					lck->data->modified = true;
+				}
+				break_needed = false;
+			} else if (l->current_state == break_to) {
+				break_needed = false;
+			} else if (l->current_state == SMB2_LEASE_READ) {
+				l->current_state = SMB2_LEASE_NONE;
+				/* Need to increment the epoch */
+				l->epoch += 1;
+				lck->data->modified = true;
+			} else {
+				l->breaking = true;
+				l->breaking_to_required = break_to;
+				l->breaking_to_requested = break_to;
+				/* Need to increment the epoch */
+				l->epoch += 1;
+				lck->data->modified = true;
+			}
+
+			/* Ensure we're in sync with current lease state. */
+			fsp_lease_update(lck, fsp_client_guid(fsp), fsp->lease);
+		}
+
+		TALLOC_FREE(lck);
+	}
+
+	if (!break_needed) {
+		DEBUG(10,("%s: skip break\n", __func__));
 		return;
 	}
 
-	if (break_to == fsp->oplock_type) {
-		DEBUG(3, ("Already downgraded oplock on %s: %s\n",
+	if ((break_from == SMB2_LEASE_NONE) && !break_needed) {
+		DEBUG(3, ("Already downgraded oplock to none on %s: %s\n",
 			  file_id_string_tos(&fsp->file_id),
 			  fsp_str_dbg(fsp)));
 		return;
 	}
 
-	use_kernel = lp_kernel_oplocks(SNUM(fsp->conn)) && koplocks;
+	DEBUG(10, ("break_from=%u, break_to=%u\n",
+		   (unsigned)break_from, (unsigned)break_to));
 
-	if ((global_client_caps & CAP_LEVEL_II_OPLOCKS) &&
-	    (break_to != NO_OPLOCK) &&
-	    !(use_kernel && !(koplocks->flags & KOPLOCKS_LEVEL2_SUPPORTED)) &&
-	    lp_level2_oplocks(SNUM(fsp->conn))) {
-		break_to_level2 = True;
+	if ((break_from == break_to) && !break_needed) {
+		DEBUG(3, ("Already downgraded oplock to %u on %s: %s\n",
+			  (unsigned)break_to,
+			  file_id_string_tos(&fsp->file_id),
+			  fsp_str_dbg(fsp)));
+		return;
 	}
 
 	/* Need to wait before sending a break
@@ -493,21 +926,31 @@ static void process_oplock_break_message(struct messaging_context *msg_ctx,
 	}
 
 	if (sconn->using_smb2) {
-		send_break_message_smb2(fsp, break_to_level2 ?
-			OPLOCKLEVEL_II : OPLOCKLEVEL_NONE);
+		send_break_message_smb2(fsp, break_from, break_to);
 	} else {
-		send_break_message_smb1(fsp, break_to_level2 ?
-			OPLOCKLEVEL_II : OPLOCKLEVEL_NONE);
+		send_break_message_smb1(fsp, (break_to & SMB2_LEASE_READ) ?
+					OPLOCKLEVEL_II : OPLOCKLEVEL_NONE);
 	}
 
-	if ((fsp->oplock_type == LEVEL_II_OPLOCK) && (break_to == NO_OPLOCK)) {
+	if ((break_from == SMB2_LEASE_READ) &&
+	    (break_to == SMB2_LEASE_NONE)) {
 		/*
 		 * This is an async break without a reply and thus no timeout
+		 *
+		 * leases are handled above.
 		 */
-		remove_oplock(fsp);
+		if (fsp->oplock_type != LEASE_OPLOCK) {
+			remove_oplock(fsp);
+		}
 		return;
 	}
-	fsp->sent_oplock_break = break_to_level2 ? LEVEL_II_BREAK_SENT:BREAK_TO_NONE_SENT;
+	if (fsp->oplock_type == LEASE_OPLOCK) {
+		return;
+	}
+
+	fsp->sent_oplock_break = (break_to & SMB2_LEASE_READ) ?
+		LEVEL_II_BREAK_SENT:BREAK_TO_NONE_SENT;
+
 	add_oplock_timeout_handler(fsp);
 }
 
@@ -562,7 +1005,7 @@ static void process_kernel_oplock_break(struct messaging_context *msg_ctx,
 	}
 
 	if (sconn->using_smb2) {
-		send_break_message_smb2(fsp, OPLOCKLEVEL_NONE);
+		send_break_message_smb2(fsp, 0, OPLOCKLEVEL_NONE);
 	} else {
 		send_break_message_smb1(fsp, OPLOCKLEVEL_NONE);
 	}
@@ -575,6 +1018,8 @@ static void process_kernel_oplock_break(struct messaging_context *msg_ctx,
 struct break_to_none_state {
 	struct smbd_server_connection *sconn;
 	struct file_id id;
+	struct smb2_lease_key lease_key;
+	struct GUID client_guid;
 };
 static void do_break_to_none(struct tevent_context *ctx,
 			     struct tevent_immediate *im,
@@ -593,6 +1038,7 @@ static void contend_level2_oplocks_begin_default(files_struct *fsp,
 	struct tevent_immediate *im;
 	struct break_to_none_state *state;
 	struct byte_range_lock *brl;
+	uint32_t num_read_oplocks = 0;
 
 	/*
 	 * If this file is level II oplocked then we need
@@ -610,7 +1056,13 @@ static void contend_level2_oplocks_begin_default(files_struct *fsp,
 	}
 
 	brl = brl_get_locks_readonly(fsp);
-	if ((brl != NULL) && !brl_have_read_oplocks(brl)) {
+	if (brl != NULL) {
+		num_read_oplocks = brl_num_read_oplocks(brl);
+	}
+
+	DEBUG(10, ("num_read_oplocks = %"PRIu32"\n", num_read_oplocks));
+
+	if (num_read_oplocks == 0) {
 		DEBUG(10, ("No read oplocks around\n"));
 		return;
 	}
@@ -622,13 +1074,21 @@ static void contend_level2_oplocks_begin_default(files_struct *fsp,
 	 * anyway, so we postpone this into an immediate event.
 	 */
 
-	state = talloc(sconn, struct break_to_none_state);
+	state = talloc_zero(sconn, struct break_to_none_state);
 	if (state == NULL) {
 		DEBUG(1, ("talloc failed\n"));
 		return;
 	}
 	state->sconn = sconn;
 	state->id = fsp->file_id;
+
+	if (fsp->oplock_type == LEASE_OPLOCK) {
+		state->client_guid = *fsp_client_guid(fsp);
+		state->lease_key = fsp->lease->lease.lease_key;
+		DEBUG(10, ("Breaking through lease key %"PRIu64"/%"PRIu64"\n",
+			   state->lease_key.data[0],
+			   state->lease_key.data[1]));
+	}
 
 	im = tevent_create_immediate(state);
 	if (im == NULL) {
@@ -639,14 +1099,28 @@ static void contend_level2_oplocks_begin_default(files_struct *fsp,
 	tevent_schedule_immediate(im, sconn->ev_ctx, do_break_to_none, state);
 }
 
+static void send_break_to_none(struct messaging_context *msg_ctx,
+			       const struct share_mode_entry *e)
+{
+	char msg[MSG_SMB_SHARE_MODE_ENTRY_SIZE];
+
+	share_mode_entry_to_message(msg, e);
+	/* Overload entry->op_type */
+	SSVAL(msg, OP_BREAK_MSG_OP_TYPE_OFFSET, NO_OPLOCK);
+
+	messaging_send_buf(msg_ctx, e->pid, MSG_SMB_BREAK_REQUEST,
+			   (uint8 *)msg, sizeof(msg));
+}
+
 static void do_break_to_none(struct tevent_context *ctx,
 			     struct tevent_immediate *im,
 			     void *private_data)
 {
 	struct break_to_none_state *state = talloc_get_type_abort(
 		private_data, struct break_to_none_state);
-	int i;
+	uint32_t i;
 	struct share_mode_lock *lck;
+	struct share_mode_data *d;
 
 	lck = get_existing_share_mode_lock(talloc_tos(), state->id);
 	if (lck == NULL) {
@@ -654,15 +1128,63 @@ static void do_break_to_none(struct tevent_context *ctx,
 			  __func__, file_id_string_tos(&state->id)));
 		goto done;
 	}
+	d = lck->data;
 
-	DEBUG(10,("%s: num_share_modes = %d\n", __func__,
-		  lck->data->num_share_modes ));
+	/*
+	 * Walk leases and oplocks separately: We have to send one break per
+	 * lease. If we have multiple share_mode_entry having a common lease,
+	 * we would break the lease twice if we don't walk the leases list
+	 * separately.
+	 */
 
-	for(i = 0; i < lck->data->num_share_modes; i++) {
-		struct share_mode_entry *share_entry = &lck->data->share_modes[i];
-		char msg[MSG_SMB_SHARE_MODE_ENTRY_SIZE];
+	for (i=0; i<d->num_leases; i++) {
+		struct share_mode_lease *l = &d->leases[i];
+		struct share_mode_entry *e;
+		uint32_t j;
 
-		if (!is_valid_share_mode_entry(share_entry)) {
+		if ((l->current_state & SMB2_LEASE_READ) == 0) {
+			continue;
+		}
+		if (smb2_lease_equal(&state->client_guid,
+				     &state->lease_key,
+				     &l->client_guid,
+				     &l->lease_key)) {
+			DEBUG(10, ("Don't break our own lease\n"));
+			continue;
+		}
+
+		for (j=0; j<d->num_share_modes; j++) {
+			e = &d->share_modes[j];
+
+			if (!is_valid_share_mode_entry(e)) {
+				continue;
+			}
+			if (e->lease_idx == i) {
+				break;
+			}
+		}
+		if (j == d->num_share_modes) {
+			DEBUG(0, ("leases[%"PRIu32"] has no share mode\n",
+				  i));
+			continue;
+		}
+
+		DEBUG(10, ("Breaking lease# %"PRIu32" with share_entry# "
+			   "%"PRIu32"\n", i, j));
+
+		send_break_to_none(state->sconn->msg_ctx, e);
+	}
+
+	for(i = 0; i < d->num_share_modes; i++) {
+		struct share_mode_entry *e = &d->share_modes[i];
+
+		if (!is_valid_share_mode_entry(e)) {
+			continue;
+		}
+		if (e->op_type == LEASE_OPLOCK) {
+			/*
+			 * Took care of those in the loop above
+			 */
 			continue;
 		}
 
@@ -677,15 +1199,15 @@ static void do_break_to_none(struct tevent_context *ctx,
 		 * NO_OPLOCK states. JRA.
 		 */
 
-		DEBUG(10,("%s: share_entry[%i]->op_type == %d\n", __func__,
-			  i, share_entry->op_type ));
+		DEBUG(10, ("%s: share_entry[%i]->op_type == %d\n", __func__,
+			   i, e->op_type ));
 
-		if (share_entry->op_type == NO_OPLOCK) {
+		if (e->op_type == NO_OPLOCK) {
 			continue;
 		}
 
 		/* Paranoia .... */
-		if (EXCLUSIVE_OPLOCK_TYPE(share_entry->op_type)) {
+		if (EXCLUSIVE_OPLOCK_TYPE(e->op_type)) {
 			DEBUG(0,("%s: PANIC. "
 				 "share mode entry %d is an exlusive "
 				 "oplock !\n", __func__, i ));
@@ -693,13 +1215,7 @@ static void do_break_to_none(struct tevent_context *ctx,
 			abort();
 		}
 
-		share_mode_entry_to_message(msg, share_entry);
-		/* Overload entry->op_type */
-		SSVAL(msg,OP_BREAK_MSG_OP_TYPE_OFFSET, NO_OPLOCK);
-
-		messaging_send_buf(state->sconn->msg_ctx, share_entry->pid,
-				   MSG_SMB_BREAK_REQUEST,
-				   (uint8 *)msg, sizeof(msg));
+		send_break_to_none(state->sconn->msg_ctx, e);
 	}
 
 	/* We let the message receivers handle removing the oplock state

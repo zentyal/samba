@@ -1,4 +1,4 @@
-samba (2:4.1.17+dfsg-4) UNRELEASED; urgency=medium
+samba (2:4.1.17+dfsg-4) unstable; urgency=medium
 
   * Add pidl_reproducible.patch: Make pidl output reproducible.
 

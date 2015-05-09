@@ -61,7 +61,7 @@ conf_args = \
 		--with-cluster-support \
 		--disable-rpath \
 		--disable-rpath-install \
-		--bundled-libraries=NONE,pytevent,iniparser \
+		--bundled-libraries=NONE,pytevent,iniparser,roken,wind,hx509,asn1,heimbase,hcrypto,krb5,gssapi,heimntlm,hdb,kdc \
 		--builtin-libraries=replace,ccan \
 		--minimum-library-version="$(shell ./debian/autodeps.py --minimum-library-version)"
 

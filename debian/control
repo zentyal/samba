@@ -15,11 +15,6 @@ Build-Depends: bison,
                docbook-xsl,
                faketime,
                flex,
-               heimdal-dev,
-# heimdal-multidev is pulled in by heimdal-dev, but it's listed here for when
-# heimdal-dev is removed because other build-deps pull in libkrb5-dev (like
-# libcups2-dev did in the past)
-               heimdal-multidev (>= 1.6~),
                libacl1-dev,
                libaio-dev [linux-any],
                libarchive-dev,

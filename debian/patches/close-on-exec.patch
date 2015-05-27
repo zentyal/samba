@@ -1,0 +1,28 @@
+Index: samba/lib/util/debug.c
+===================================================================
+--- samba.orig/lib/util/debug.c	2015-05-27 18:47:50.638838534 +0200
++++ samba/lib/util/debug.c	2015-05-27 18:47:50.634838534 +0200
+@@ -598,6 +598,7 @@
+ 		log_overflow = false;
+ 		ret = false;
+ 	} else {
++		smb_set_close_on_exec(new_fd);
+ 		old_fd = state.fd;
+ 		state.fd = new_fd;
+ 		debug_close_fd(old_fd);
+@@ -731,6 +732,7 @@
+ 		 */
+ 		int fd = open( "/dev/console", O_WRONLY, 0);
+ 		if (fd != -1) {
++			smb_set_close_on_exec(fd);
+ 			state.fd = fd;
+ 			DEBUG(0,("check_log_size: open of debug file %s failed - using console.\n",
+ 					state.debugf ));
+@@ -793,6 +795,7 @@
+ 				errno = old_errno;
+ 				goto done;
+ 			}
++			smb_set_close_on_exec(fd);
+ 			state.fd = fd;
+ 		}
+ 	}

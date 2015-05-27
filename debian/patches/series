@@ -38,3 +38,4 @@ s4-auth-ntlm-Add-config-key-to-allow-users-with-email-address-format.patch
 getncchanges_max_obj_count.patch
 samba_bug_11077_torturetest.patch
 dcerpc_notifications.patch
+close-on-exec.patch

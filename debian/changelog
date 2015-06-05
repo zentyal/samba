@@ -11,6 +11,8 @@ samba (2:4.2.1+dfsg-1) UNRELEASED; urgency=medium
   * Drop dependency on ctdb - now bundled with Samba.
   * Use bundled Heimdal as the system Heimdal doesn't contain the
     changes required for Samba.
+  * Add patch heimdal-rfc3454.txt: patch in truncated rfc3454.txt for
+    building bundled heimdal.
 
  -- Jelmer Vernooij <jelmer@debian.org>  Sun, 07 Dec 2014 15:34:36 +0000
 

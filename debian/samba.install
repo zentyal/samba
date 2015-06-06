@@ -15,7 +15,6 @@ usr/sbin/samba_upgradedns
 usr/sbin/smbd
 usr/lib/*/samba/process_model/*.so
 usr/lib/*/samba/service/*.so
-usr/lib/*/samba/libHDB_SAMBA4.so.*
 usr/lib/*/samba/libdb-glue.so.*
 usr/lib/*/samba/libpac.so.*
 usr/share/man/man1/log2pcap.1
@@ -31,3 +30,9 @@ usr/share/man/man8/samba.8
 usr/share/man/man8/smbd.8
 usr/share/man/man8/smbta-util.8
 usr/share/samba/setup
+usr/share/man/man8/vfs_worm.8
+usr/share/man/man8/vfs_snapper.8
+usr/share/man/man8/vfs_glusterfs.8
+usr/share/man/man8/vfs_ceph.8
+usr/share/man/man8/vfs_fruit.8
+

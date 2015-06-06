@@ -3,8 +3,6 @@ usr/bin/wbinfo
 usr/lib/*/plugin/krb5/winbind_krb5_locator.so
 usr/lib/*/samba/idmap
 usr/lib/*/samba/libidmap.so.*
-usr/lib/*/samba/libnss_info.so.*
-usr/lib/*/samba/nss_info
 usr/sbin/winbindd
 usr/share/man/man1/ntlm_auth.1
 usr/share/man/man1/wbinfo.1
@@ -18,3 +16,7 @@ usr/share/man/man8/idmap_rid.8
 usr/share/man/man8/idmap_tdb.8
 usr/share/man/man8/idmap_tdb2.8
 usr/share/man/man8/winbindd.8
+usr/lib/*/samba/nss_info/rfc2307.so
+usr/lib/*/samba/nss_info/sfu20.so
+usr/lib/*/samba/nss_info/sfu.so
+usr/lib/*/samba/nss_info/hash.so

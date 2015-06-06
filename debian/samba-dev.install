@@ -116,7 +116,6 @@ usr/lib/*/libndr-nbt.so
 usr/lib/*/libndr-standard.so
 usr/lib/*/libndr.so
 usr/lib/*/libnetapi.so
-usr/lib/*/libpdb.so
 usr/lib/*/libregistry.so
 usr/lib/*/libsamba-credentials.so
 usr/lib/*/libsamba-hostconfig.so
@@ -146,3 +145,14 @@ usr/lib/*/pkgconfig/samba-util.pc
 usr/lib/*/pkgconfig/samdb.pc
 usr/lib/*/pkgconfig/smbclient-raw.pc
 usr/lib/*/pkgconfig/torture.pc
+usr/include/samba-4.0/tstream_smbXcli_np.h
+usr/include/samba-4.0/smb2_lease_struct.h
+usr/include/samba-4.0/util/idtree.h
+usr/include/samba-4.0/util/signal.h
+usr/include/samba-4.0/util/blocking.h
+usr/include/samba-4.0/util/idtree_random.h
+usr/include/samba-4.0/util/substitute.h
+usr/include/samba-4.0/util/fault.h
+usr/include/samba-4.0/core/hresult.h
+usr/include/samba-4.0/ndr/ndr_dcerpc.h
+usr/lib/*/libsamba-passdb.so

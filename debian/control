@@ -437,31 +437,6 @@ Description: development files for libsmbclient
  enables client applications to talk to Microsoft Windows and Samba servers
  using the SMB/CIFS protocol.
 
-Package: libsmbsharemodes0
-Section: libs
-Priority: optional
-Architecture: any
-Multi-Arch: same
-Pre-Depends: dpkg (>= 1.15.6~), ${misc:Pre-Depends}
-Depends: ${misc:Depends}, ${shlibs:Depends}
-Description: shared library for non-samba access to the samba 'share modes' database
- This package provides libsmbsharemodes, a library that
- enables server applications to honour or apply the share modes that are used
- over CIFS.
-
-Package: libsmbsharemodes-dev
-Section: libdevel
-Priority: extra
-Architecture: any
-Multi-Arch: same
-Depends: libsmbsharemodes0 (= ${binary:Version}), ${misc:Depends}
-Pre-Depends: dpkg (>= 1.15.6~)
-Description: development files for libsmbsharemodes
- This package provides the development files (headers)
- required for building applications against libsmbsharemodes, a library that
- enables server applications to honour or apply the share modes that are used
- over CIFS.
-
 Package: winbind
 Pre-Depends: ${misc:Pre-Depends}
 Architecture: any

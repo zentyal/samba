@@ -1,6 +1,7 @@
 libwbclient.so.0 libwbclient0 #MINVER#
  WBCLIENT_0.10@WBCLIENT_0.10 2:4.0.3+dfsg1
  WBCLIENT_0.11@WBCLIENT_0.11 2:4.0.3+dfsg1
+ WBCLIENT_0.12@WBCLIENT_0.12 2:4.2.1+dfsg
  WBCLIENT_0.9@WBCLIENT_0.9 2:4.0.3+dfsg1
  wbcAddNamedBlob@WBCLIENT_0.9 2:4.0.3+dfsg1
  wbcAllocateGid@WBCLIENT_0.9 2:4.0.3+dfsg1
@@ -15,6 +16,59 @@ libwbclient.so.0 libwbclient0 #MINVER#
  wbcCheckTrustCredentials@WBCLIENT_0.9 2:4.0.3+dfsg1
  wbcCredentialCache@WBCLIENT_0.9 2:4.0.3+dfsg1
  wbcCredentialSave@WBCLIENT_0.9 2:4.0.3+dfsg1
+ wbcCtxAllocateGid@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxAllocateUid@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxAuthenticateUser@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxAuthenticateUserEx@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxChangeTrustCredentials@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxChangeUserPassword@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxChangeUserPasswordEx@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxCheckTrustCredentials@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxCreate@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxCredentialCache@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxCredentialSave@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxDcInfo@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxDomainInfo@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxEndgrent@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxEndpwent@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxFree@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxGetDisplayName@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxGetGroups@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxGetSidAliases@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxGetgrent@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxGetgrgid@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxGetgrlist@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxGetgrnam@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxGetpwent@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxGetpwnam@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxGetpwsid@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxGetpwuid@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxGidToSid@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxInterfaceDetails@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxListGroups@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxListTrusts@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxListUsers@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxLogoffUser@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxLogoffUserEx@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxLogonUser@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxLookupDomainController@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxLookupDomainControllerEx@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxLookupName@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxLookupRids@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxLookupSid@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxLookupSids@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxLookupUserSids@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxPing@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxPingDc2@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxPingDc@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxResolveWinsByIP@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxResolveWinsByName@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxSetgrent@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxSetpwent@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxSidToGid@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxSidToUid@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxSidsToUnixIds@WBCLIENT_0.12 2:4.2.1+dfsg
+ wbcCtxUidToSid@WBCLIENT_0.12 2:4.2.1+dfsg
  wbcDcInfo@WBCLIENT_0.9 2:4.0.3+dfsg1
  wbcDomainInfo@WBCLIENT_0.9 2:4.0.3+dfsg1
  wbcEndgrent@WBCLIENT_0.9 2:4.0.3+dfsg1
@@ -22,6 +76,7 @@ libwbclient.so.0 libwbclient0 #MINVER#
  wbcErrorString@WBCLIENT_0.9 2:4.0.3+dfsg1
  wbcFreeMemory@WBCLIENT_0.9 2:4.0.3+dfsg1
  wbcGetDisplayName@WBCLIENT_0.9 2:4.0.3+dfsg1
+ wbcGetGlobalCtx@WBCLIENT_0.12 2:4.2.1+dfsg
  wbcGetGroups@WBCLIENT_0.9 2:4.0.3+dfsg1
  wbcGetSidAliases@WBCLIENT_0.9 2:4.0.3+dfsg1
  wbcGetgrent@WBCLIENT_0.9 2:4.0.3+dfsg1

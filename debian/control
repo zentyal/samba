@@ -9,7 +9,6 @@ Uploaders: Steve Langasek <vorlon@debian.org>,
 Homepage: http://www.samba.org
 Standards-Version: 3.9.6
 Build-Depends: bison,
-               comerr-dev,
                debhelper (>> 9),
                docbook-xml,
                docbook-xsl,

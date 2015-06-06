@@ -15,7 +15,6 @@ usr/sbin/samba_upgradedns
 usr/sbin/smbd
 usr/lib/*/samba/process_model/*.so
 usr/lib/*/samba/service/*.so
-usr/lib/*/samba/hdb/hdb_samba4.so
 usr/lib/*/samba/libHDB_SAMBA4.so.*
 usr/lib/*/samba/libdb-glue.so.*
 usr/lib/*/samba/libpac.so.*

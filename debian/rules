@@ -58,7 +58,6 @@ conf_args = \
 		--with-statedir=/var/lib/samba \
 		--with-cachedir=/var/cache/samba \
 		--disable-avahi \
-		--with-cluster-support \
 		--disable-rpath \
 		--disable-rpath-install \
 		--bundled-libraries=NONE,pytevent,iniparser,roken,wind,hx509,asn1,heimbase,hcrypto,krb5,gssapi,heimntlm,hdb,kdc,com_err,compile_et,asn1_compile \

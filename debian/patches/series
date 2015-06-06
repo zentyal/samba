@@ -1,7 +1,5 @@
 05_share_ldb_module
 07_private_lib
-25_heimdal_api_changes
-26_heimdal_compat
 bug_221618_precise-64bit-prototype.patch
 bug_601406_fix-perl-path-in-example.patch
 pam-examples.patch

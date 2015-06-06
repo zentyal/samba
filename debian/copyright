@@ -3,7 +3,7 @@ Upstream-Name: samba
 Upstream-Contact: Samba Developers <samba-technical@lists.samba.org>
 Source: http://www.samba.org/
 Files-Excluded:
-  source4/heimdal/lib/wind/*.txt
+  source4/heimdal/lib/wind/rfc*.txt
   source4/ldap_server/devdocs
   lib/zlib/contrib/dotzlib/DotZLib.chm
 

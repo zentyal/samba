@@ -2,3 +2,4 @@
 *~
 .lock-wscript
 bin
+*.debhelper.log

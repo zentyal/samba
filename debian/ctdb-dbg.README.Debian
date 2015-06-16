@@ -1,0 +1,10 @@
+Running the testsuite
+---------------------
+
+* Add /usr/lib/ctdb/tests/bin to the PATH, in /root/.bashrc on all nodes:
+ PATH="$PATH:/usr/lib/ctdb/tests/bin"
+
+* On one node, change dir to /usr/share/ctdb/tests:
+ cd /usr/share/ctdb/tests
+ 
+* And follow instructions from /usr/share/ctdb/tests/README

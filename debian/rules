@@ -32,6 +32,15 @@ ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
 WAF += -j $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
 endif
 
+ctdb_conf_args = \
+		--prefix=/usr \
+		--libdir=/usr/lib/$(DEB_HOST_MULTIARCH) \
+		--sysconfdir=/etc \
+		--localstatedir=/var \
+		--with-socketpath=/var/run/ctdb/ctdbd.socket \
+		--with-logdir=/var/log/ctdb \
+		--enable-pmda
+
 conf_args = \
 		--prefix=/usr \
 		--enable-fhs \
@@ -65,28 +74,48 @@ conf_args = \
 		--minimum-library-version="$(shell ./debian/autodeps.py --minimum-library-version)"
 
 %:
-	dh $* --with python2
+	dh $* --with python2 --with systemd
 
 override_dh_auto_configure:
+	cd ctdb; $(shell dpkg-buildflags --export=configure) ./configure $(ctdb_conf_args)
 	$(shell dpkg-buildflags --export=configure) $(WAF) configure \
 		$(conf_args)
 
 override_dh_auto_clean:
 	-$(WAF) clean
+	dh_auto_clean --sourcedirectory=ctdb
 	find . -name "*.pyc" | xargs rm -f
 	rm -rf buildtools/bin/.waf-*
 	rm -rf bin
 	rm -f .lock-wscript
 
 override_dh_auto_install:
+	dh_auto_install --sourcedirectory=ctdb
 	DESTDIR="$(DESTDIR)" $(WAF) install
 
 override_dh_auto_build:
+	dh_auto_build --sourcedirectory=ctdb
 	DESTDIR="$(DESTDIR)" $(WAF)
 
 override_dh_auto_test:
 	# Running make test requires configuration with --enable-selftest, which
 	# we don't want to do for production systems.
+
+override_dh_systemd_start:
+	dh_systemd_start -pctdb --no-start --no-restart-on-upgrade
+
+override_dh_installdocs:
+	cp ctdb/config/events.d/README ctdb/README.eventscripts
+	cp ctdb/config/notify.d.README ctdb/README.notify.d
+	dh_installdocs
+ifeq ($(DEB_BUILD_ARCH_OS), hurd)
+	dh_installdocs -pctdb debian/ctdb.README.hurd
+endif
+ifeq ($(DEB_BUILD_ARCH_OS), kfreebsd)
+	dh_installdocs -pctdb debian/ctdb.README.kfreebsd
+endif
+	#patch doc
+	sed -i 's|/etc/sysconfig/|/etc/default/|' $(CURDIR)/debian/ctdb/usr/share/doc/ctdb/web/*.html
 
 override_dh_install:
 	# get list of files in build log
@@ -137,6 +166,17 @@ override_dh_install:
 	# this is a temporary workaround for #750593 in xsltproc
 	[ -e $(DESTIDR)/usr/share/man/man5/smb.conf.5 ] || \
 	   cp docs/manpages/smb.conf.5 $(DESTDIR)/usr/share/man/man5/smb.conf.5
+	# Remove ctdb dev files
+	rm $(DESTDIR)/usr/include/ctdb.h
+	rm $(DESTDIR)/usr/include/ctdb_client.h
+	rm $(DESTDIR)/usr/include/ctdb_private.h
+	rm $(DESTDIR)/usr/include/ctdb_protocol.h
+	rm $(DESTDIR)/usr/include/ctdb_version.h
+	rm $(DESTDIR)/usr/include/ctdb_typesafe_cb.h
+	rm $(DESTDIR)/usr/lib/*/pkgconfig/ctdb.pc
+	# Install ctdb conffiles
+	mkdir -p $(DESTDIR)/lib/systemd/system/
+	install -m 0644 ctdb/config/ctdb.service $(DESTDIR)/lib/systemd/system/
 	dh_install --sourcedir=$(DESTDIR) --list-missing --fail-missing
 
 override_dh_python2:
@@ -164,6 +204,16 @@ ifneq (,$(filter samba, $(shell dh_listpackages)))
 endif
 ifneq (,$(filter winbind, $(shell dh_listpackages)))
 	dh_installinit -pwinbind
+endif
+ifneq (,$(filter ctdb, $(shell dh_listpackages)))
+	# Install /etc/default/ctdb
+	mkdir -p $(CURDIR)/debian/ctdb/etc/default
+	install -m644 ctdb/config/ctdb.sysconfig $(CURDIR)/debian/ctdb/etc/default/ctdb
+	# Install /etc/init.d/ctdb
+	mkdir -p $(CURDIR)/debian/ctdb/etc/init.d
+	install -m755 ctdb/config/ctdb.init $(CURDIR)/debian/ctdb/etc/init.d/ctdb
+	# Install dh scripts
+	dh_installinit -pctdb --no-start --no-restart-on-upgrade --onlyscripts
 endif
 
 override_dh_shlibdeps:

@@ -1,0 +1,7 @@
+Document: ctdb-web
+Title: CTDB website
+Section: Network/File Transfer
+
+Format: HTML
+Index: /usr/share/doc/ctdb/web/index.html
+Files: /usr/share/doc/ctdb/web/*

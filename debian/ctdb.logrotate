@@ -1,0 +1,8 @@
+/var/log/ctdb/log.ctdb {
+	weekly
+	missingok
+	rotate 7
+	copytruncate
+	compress
+	notifempty
+}

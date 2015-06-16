@@ -1,0 +1,14 @@
+CTDB has the following limitations on Debian/kFreeBSD:
+
+- The pid of a peer is not get from the socket [1]. As a consequence, the peer
+  process is not killed when releasing IP [2].
+
+- network interfaces are always considered present [3]
+
+- Some other functions are not yet supported [4]
+
+[1]: ctdb_get_peer_pid() in common/system_kfreebsd.c
+[2]: release_kill_clients() in server/ctdb_takeover.c
+[3]: ctdb_sys_check_iface_exists() in common/system_kfreebsd.c
+[4]: See FIXME in common/system_kfreebsd.c (ctdb_sys_send_arp(),
+     ctdb_get_process_name(), ctdb_get_lock_info(), ctdb_get_blocker_pid())

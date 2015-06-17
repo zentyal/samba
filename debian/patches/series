@@ -12,3 +12,4 @@ add-so-version-to-private-libraries
 xsltproc_dont_build_smb.conf.5.patch
 heimdal-rfc3454.txt
 no_wrapper
+ctdb_sockpath.patch

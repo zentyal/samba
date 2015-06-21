@@ -70,9 +70,12 @@ bld.RECURSE('source4/lib/messaging')
 bld.RECURSE('source4/lib/events')
 bld.RECURSE('source4/lib/cmdline')
 bld.RECURSE('source4/lib/http')
-bld.RECURSE('lib/socket_wrapper')
-bld.RECURSE('lib/nss_wrapper')
-bld.RECURSE('lib/uid_wrapper')
+if bld.CONFIG_GET('SOCKET_WRAPPER'):
+    bld.RECURSE('lib/socket_wrapper')
+if bld.CONFIG_GET('NSS_WRAPPER'):
+    bld.RECURSE('lib/nss_wrapper')
+if bld.CONFIG_GET('UID_WRAPPER'):
+    bld.RECURSE('lib/uid_wrapper')
 if bld.CHECK_FOR_THIRD_PARTY():
     bld.RECURSE('third_party/zlib')
     bld.RECURSE('third_party/popt')

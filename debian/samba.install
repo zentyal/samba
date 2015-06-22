@@ -35,4 +35,10 @@ usr/share/man/man8/vfs_snapper.8
 usr/share/man/man8/vfs_glusterfs.8
 usr/share/man/man8/vfs_ceph.8
 usr/share/man/man8/vfs_fruit.8
-
+usr/lib/*/samba/libhdb-samba4.so.11.0.2
+usr/lib/*/samba/libkdc-samba4.so.2.0.0
+usr/lib/*/samba/libHDB-SAMBA4.so.0
+usr/lib/*/samba/libkdc-samba4.so.2
+usr/lib/*/samba/libprocess-model.so.0
+usr/lib/*/samba/libsmbd-base.so.0
+usr/lib/*/samba/libhdb-samba4.so.11

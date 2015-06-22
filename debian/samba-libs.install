@@ -72,18 +72,15 @@ usr/share/man/man8/idmap_rfc2307.8
 usr/lib/*/libsamba-passdb.so.0
 usr/lib/*/libsamba-passdb.so.0.24.1
 usr/lib/*/samba/libheimbase-samba4.so.1
-usr/lib/*/samba/libhdb-samba4.so.11.0.2
 usr/lib/*/samba/libgssapi-samba4.so.2
 usr/lib/*/samba/libpopt-samba3.so.0
 usr/lib/*/samba/libhcrypto-samba4.so.5
 usr/lib/*/samba/libasn1-samba4.so.8
 usr/lib/*/samba/libsamba-python.so.0
-usr/lib/*/samba/libkdc-samba4.so.2.0.0
 usr/lib/*/samba/libutil-reg.so.0
 usr/lib/*/samba/libsamba-cluster-support.so.0
 usr/lib/*/samba/libutil-cmdline.so.0
 usr/lib/*/samba/libcli-spoolss.so.0
-usr/lib/*/samba/libHDB-SAMBA4.so.0
 usr/lib/*/samba/libroken-samba4.so.19.0.1
 usr/lib/*/samba/libauth-sam-reply.so.0
 usr/lib/*/samba/libcli-smb-common.so.0
@@ -99,7 +96,6 @@ usr/lib/*/samba/libcli-cldap.so.0
 usr/lib/*/samba/libutil-setid.so.0
 usr/lib/*/samba/libcom_err-samba4.so.0
 usr/lib/*/samba/libsmb-transport.so.0
-usr/lib/*/samba/libdlz-bind9-for-torture.so.0
 usr/lib/*/samba/libdnsserver-common.so.0
 usr/lib/*/samba/libdfs-server-ad.so.0
 usr/lib/*/samba/libhttp.so.0
@@ -109,7 +105,6 @@ usr/lib/*/samba/libhcrypto-samba4.so.5.0.1
 usr/lib/*/samba/libutil-ntdb.so.0
 usr/lib/*/samba/libnpa-tstream.so.0
 usr/lib/*/samba/liblibcli-netlogon3.so.0
-usr/lib/*/samba/libkdc-samba4.so.2
 usr/lib/*/samba/libflag-mapping.so.0
 usr/lib/*/samba/libkrb5-samba4.so.26.0.0
 usr/lib/*/samba/libwind-samba4.so.0.0.0
@@ -120,7 +115,6 @@ usr/lib/*/samba/libLIBWBCLIENT-OLD.so.0
 usr/lib/*/samba/libkrb5-samba4.so.26
 usr/lib/*/samba/libsamba-debug.so.0
 usr/lib/*/samba/libheimntlm-samba4.so.1.0.1
-usr/lib/*/samba/libprocess-model.so.0
 usr/lib/*/samba/libtrusts-util.so.0
 usr/lib/*/samba/libgssapi-samba4.so.2.0.0
 usr/lib/*/samba/libauth-unix-token.so.0
@@ -129,7 +123,5 @@ usr/lib/*/samba/libnon-posix-acls.so.0
 usr/lib/*/samba/libheimntlm-samba4.so.1
 usr/lib/*/samba/libwind-samba4.so.0
 usr/lib/*/samba/libhx509-samba4.so.5.0.0
-usr/lib/*/samba/libsmbd-base.so.0
 usr/lib/*/samba/libnss-info.so.0
 usr/lib/*/samba/libroken-samba4.so.19
-usr/lib/*/samba/libhdb-samba4.so.11

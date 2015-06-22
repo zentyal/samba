@@ -1,7 +1,5 @@
 usr/bin
 usr/sbin
-var/lib/samba
-var/lib/samba/private
 var/lib/samba/printers/COLOR
 var/lib/samba/printers/IA64
 var/lib/samba/printers/W32ALPHA

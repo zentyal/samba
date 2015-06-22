@@ -19,6 +19,8 @@ samba (2:4.2.1+dfsg-1) UNRELEASED; urgency=medium
   * Add patch no_wrapper: avoid dependencies on
     {nss,uid,socket}_wrapper.
   * Move some libraries around.
+  * Move ownership of var/lib/samba and var/lib/samba/private to samba-
+    common, remove obsolete samba4.dirs. Closes: #793866
 
   [ Mathieu Parent ]
   * Merge ctdb source package

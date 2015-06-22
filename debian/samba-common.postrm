@@ -2,6 +2,13 @@
 
 set -e
 if [ "$1" = purge ]; then
+
+	# Remove Samba's state files, both volatile and non-volatile
+	rm -Rf /var/run/samba/ /var/cache/samba/ /var/lib/samba
+
+	# Remove log files
+	rm -Rf /var/log/samba/
+
 	rm -rf /etc/samba/ /var/cache/samba/ /var/lib/samba/ /var/run/samba/
 	if [ -x "`which ucf 2>/dev/null`" ]; then
 		ucf --purge /etc/samba/smb.conf

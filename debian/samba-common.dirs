@@ -2,3 +2,4 @@ etc/samba
 var/cache/samba
 var/lib/samba
 var/log/samba
+var/lib/samba/private

@@ -614,7 +614,7 @@ Description: clustered database to store temporary data
 Package: ctdb-dbg
 Section: debug
 Architecture: any
-Depends: ctdb (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Depends: ctdb (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}, python
 Description: clustered database to store temporary data -- debugging symbols and test suite
  CTDB is a cluster implementation of the TDB database used by Samba and other
  projects to store temporary data. If an application is already using TDB for

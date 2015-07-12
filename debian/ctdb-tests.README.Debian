@@ -6,5 +6,5 @@ Running the testsuite
 
 * On one node, change dir to /usr/share/ctdb/tests:
  cd /usr/share/ctdb/tests
- 
+
 * And follow instructions from /usr/share/ctdb/tests/README

@@ -611,8 +611,7 @@ Description: clustered database to store temporary data
     applications that depend on network or filesystem resources to be managed in
     a highly available manner on a cluster.
 
-Package: ctdb-dbg
-Section: debug
+Package: ctdb-tests
 Architecture: any
 Depends: ctdb (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}, python
 Description: clustered database to store temporary data -- debugging symbols and test suite

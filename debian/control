@@ -582,7 +582,7 @@ Architecture: any
 Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends}, lsb-base, iproute2 [linux-any], psmisc, tdb-tools, time, sudo
 Recommends: ethtool [linux-any]
-Suggests: logrotate, lsof, libctdb-dev
+Suggests: logrotate, lsof
 Description: clustered database to store temporary data
  CTDB is a cluster implementation of the TDB database used by Samba and other
  projects to store temporary data. If an application is already using TDB for

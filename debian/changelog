@@ -1,5 +1,6 @@
 samba (2:4.2.1+dfsg-1) UNRELEASED; urgency=medium
 
+  [ Jelmer Vernooij ]
   * New upstream release.
    + Drop patch do-not-install-smbclient4-and-nmbclient4: applied upstream.
    + Drop patch
@@ -17,6 +18,16 @@ samba (2:4.2.1+dfsg-1) UNRELEASED; urgency=medium
   * Disable cluster support; it breaks the build.
   * Add patch no_wrapper: avoid dependencies on
     {nss,uid,socket}_wrapper.
+  * Move some libraries around.
+
+  [ Mathieu Parent ]
+  * Merge ctdb source package
+    - initial merge
+    - libctdb-dev has been dropped
+    - ctdb-dbg renamed to ctdb-tests, debug files moved to samba-dbg
+    - ctdb-tests depends on python
+  * Fix CTDB socketpath parsing
+  * Fix CTDB build with PMDA
 
  -- Jelmer Vernooij <jelmer@debian.org>  Sun, 07 Dec 2014 15:34:36 +0000
 

@@ -14,3 +14,4 @@ heimdal-rfc3454.txt
 no_wrapper
 ctdb_sockpath.patch
 Fix-CTDB-build-with-PMDA.patch
+Fix-privacy-breach-on-google.com.patch

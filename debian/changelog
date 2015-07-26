@@ -28,6 +28,7 @@ samba (2:4.2.1+dfsg-1) UNRELEASED; urgency=medium
     - ctdb-tests depends on python
   * Fix CTDB socketpath parsing
   * Fix CTDB build with PMDA
+  * ctdb: Fix privacy breach on google.com (from documentation)
 
  -- Jelmer Vernooij <jelmer@debian.org>  Sun, 07 Dec 2014 15:34:36 +0000
 

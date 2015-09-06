@@ -39,7 +39,6 @@ ctdb_conf_args = \
 		--localstatedir=/var \
 		--with-socketpath=/var/run/ctdb/ctdbd.socket \
 		--with-logdir=/var/log/ctdb \
-		--enable-pmda
 
 conf_args = \
 		--prefix=/usr \

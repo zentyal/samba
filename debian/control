@@ -33,8 +33,6 @@ Build-Depends: bison,
                libpam0g-dev,
                libparse-yapp-perl,
                libpcap-dev [hurd-i386 kfreebsd-any],
-               libpcp-pmda3-dev,
-               libpcp3-dev,
                libpopt-dev,
                libreadline-dev,
                libsubunit-dev,
@@ -610,17 +608,3 @@ Description: clustered database to store temporary data
   * CTDB supports a system of application specific management scripts, allowing
     applications that depend on network or filesystem resources to be managed in
     a highly available manner on a cluster.
-
-Package: ctdb-pcp-pmda
-Architecture: any
-Depends: ctdb (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
-Description: clustered database to store temporary data -- PDM PMDA
- CTDB is a cluster implementation of the TDB database used by Samba and other
- projects to store temporary data. If an application is already using TDB for
- temporary data it is very easy to convert that application to be cluster aware
- and use CTDB instead.
- .
- More detailed description can be found in the ctdb package.
- .
- This package provides PCP-PMDA (Performance Co-Pilot - Performance Metric
- Domain Agents) support for CTDB.

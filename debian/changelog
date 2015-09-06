@@ -21,8 +21,9 @@ samba (2:4.2.1+dfsg-1) UNRELEASED; urgency=medium
   * Move some libraries around.
   * Move ownership of var/lib/samba and var/lib/samba/private to samba-
     common, remove obsolete samba4.dirs. Closes: #793866
-  * Remove ctdb-tests package as it problems and unclear what it is useful
-    for.
+  * Remove ctdb-tests and ctdb-pcp-pmda packages as they contain problems
+    and unclear what they are useful for, now ctdb now longer provides
+    an external API.
 
   [ Mathieu Parent ]
   * Merge ctdb source package

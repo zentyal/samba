@@ -1,4 +1,0 @@
-usr/bin/ctdb_run_tests
-usr/bin/ctdb_run_cluster_tests
-usr/lib/*/ctdb-tests
-usr/share/ctdb-tests

@@ -174,6 +174,11 @@ override_dh_install:
 	rm $(DESTDIR)/usr/include/ctdb_version.h
 	rm $(DESTDIR)/usr/include/ctdb_typesafe_cb.h
 	rm $(DESTDIR)/usr/lib/*/pkgconfig/ctdb.pc
+	# Remove ctdb tests
+	rm $(DESTDIR)/usr/bin/ctdb_run_tests
+	rm $(DESTDIR)/usr/bin/ctdb_run_cluster_tests
+	rm -rf $(DESTDIR)/usr/lib/*/ctdb-tests
+	rm -rf $(DESTDIR)/usr/share/ctdb-tests
 	# Install ctdb conffiles
 	mkdir -p $(DESTDIR)/lib/systemd/system/
 	install -m 0644 ctdb/config/ctdb.service $(DESTDIR)/lib/systemd/system/

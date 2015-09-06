@@ -1,4 +1,4 @@
-samba (2:4.2.1+dfsg-1) UNRELEASED; urgency=medium
+samba (2:4.2.1+dfsg-1) experimental; urgency=medium
 
   [ Jelmer Vernooij ]
   * New upstream release.

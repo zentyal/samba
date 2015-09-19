@@ -102,7 +102,6 @@ usr/lib/*/samba/libhttp.so.0
 usr/lib/*/samba/libnet-keytab.so.0
 usr/lib/*/samba/libsocket-blocking.so.0
 usr/lib/*/samba/libhcrypto-samba4.so.5.0.1
-usr/lib/*/samba/libutil-ntdb.so.0
 usr/lib/*/samba/libnpa-tstream.so.0
 usr/lib/*/samba/liblibcli-netlogon3.so.0
 usr/lib/*/samba/libflag-mapping.so.0
@@ -110,7 +109,6 @@ usr/lib/*/samba/libkrb5-samba4.so.26.0.0
 usr/lib/*/samba/libwind-samba4.so.0.0.0
 usr/lib/*/samba/libasn1-samba4.so.8.0.0
 usr/lib/*/samba/libprinting-migrate.so.0
-usr/lib/*/samba/libtdb-compat.so.0
 usr/lib/*/samba/libLIBWBCLIENT-OLD.so.0
 usr/lib/*/samba/libkrb5-samba4.so.26
 usr/lib/*/samba/libsamba-debug.so.0
@@ -125,3 +123,12 @@ usr/lib/*/samba/libwind-samba4.so.0
 usr/lib/*/samba/libhx509-samba4.so.5.0.0
 usr/lib/*/samba/libnss-info.so.0
 usr/lib/*/samba/libroken-samba4.so.19
+usr/lib/*/samba/libserver-id-db.so.0
+usr/lib/*/samba/libmessages-dgm.so.0
+usr/lib/*/samba/libiov-buf.so.0
+usr/lib/*/samba/libtalloc-report.so.0
+usr/lib/*/samba/libtime-basic.so.0
+usr/lib/*/samba/libmsghdr.so.0
+usr/lib/*/samba/libsys-rw.so.0
+usr/lib/*/samba/libgenrand.so.0
+usr/lib/*/samba/libmessages-util.so.0

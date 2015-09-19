@@ -153,6 +153,7 @@ usr/include/samba-4.0/util/blocking.h
 usr/include/samba-4.0/util/idtree_random.h
 usr/include/samba-4.0/util/substitute.h
 usr/include/samba-4.0/util/fault.h
+usr/include/samba-4.0/util/genrand.h
 usr/include/samba-4.0/core/hresult.h
 usr/include/samba-4.0/ndr/ndr_dcerpc.h
 usr/lib/*/libsamba-passdb.so

@@ -3,6 +3,7 @@
 .lock-wscript
 bin
 *.debhelper.log
+debian/ctdb/
 debian/samba-libs/
 debian/tmp/
 debian/samba/

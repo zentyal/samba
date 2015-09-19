@@ -119,13 +119,9 @@ endif
 override_dh_install:
 	# get list of files in build log
 	find ${DESTDIR}
-	# MIT plugin not required, we are using Heimdal
-	rm $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/mit_samba.so
 	# Included in python-tevent
 	rm $(DESTDIR)/usr/lib/python*/*-packages/_tevent.so
 	rm $(DESTDIR)/usr/lib/python*/*-packages/tevent.py
-	# Already included in various system packages
-	rm -r $(DESTDIR)/usr/lib/python*/*-packages/samba/external
 	# Already documented in debian/copyright
 	-rm $(DESTDIR)/usr/share/samba/setup/ad-schema/licence.txt
 	# System ldb loads its modules from a different path

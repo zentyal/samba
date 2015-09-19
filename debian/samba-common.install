@@ -1,6 +1,5 @@
 etc/dhcp/
 etc/samba/
 etc/samba/gdbcommands
-usr/share/samba/codepages/*.dat
 usr/share/samba/panic-action
 usr/share/samba/smb.conf*

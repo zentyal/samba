@@ -88,25 +88,25 @@ static TDB_DATA make_printers_secdesc_tdbkey(TALLOC_CTX *ctx,
 
 static bool upgrade_to_version_3(void)
 {
-	TDB_DATA kbuf, dbuf;
+	TDB_DATA kbuf, newkey, dbuf;
 
 	DEBUG(0,("upgrade_to_version_3: upgrading print tdb's to version 3\n"));
 
-	for (kbuf = tdb_firstkey_compat(tdb_drivers); kbuf.dptr;
-			kbuf = tdb_nextkey_compat(tdb_drivers, kbuf)) {
+	for (kbuf = tdb_firstkey(tdb_drivers); kbuf.dptr;
+	     newkey = tdb_nextkey(tdb_drivers, kbuf), free(kbuf.dptr), kbuf=newkey) {
 
-		dbuf = tdb_fetch_compat(tdb_drivers, kbuf);
+		dbuf = tdb_fetch(tdb_drivers, kbuf);
 
 		if (strncmp((const char *)kbuf.dptr, FORMS_PREFIX, strlen(FORMS_PREFIX)) == 0) {
 			DEBUG(0,("upgrade_to_version_3:moving form\n"));
 			if (tdb_store(tdb_forms, kbuf, dbuf, TDB_REPLACE) != 0) {
 				SAFE_FREE(dbuf.dptr);
-				DEBUG(0,("upgrade_to_version_3: failed to move form. Error (%s).\n", tdb_errorstr_compat(tdb_forms)));
+				DEBUG(0,("upgrade_to_version_3: failed to move form. Error (%s).\n", tdb_errorstr(tdb_forms)));
 				return False;
 			}
 			if (tdb_delete(tdb_drivers, kbuf) != 0) {
 				SAFE_FREE(dbuf.dptr);
-				DEBUG(0,("upgrade_to_version_3: failed to delete form. Error (%s)\n", tdb_errorstr_compat(tdb_drivers)));
+				DEBUG(0,("upgrade_to_version_3: failed to delete form. Error (%s)\n", tdb_errorstr(tdb_drivers)));
 				return False;
 			}
 		}
@@ -115,12 +115,12 @@ static bool upgrade_to_version_3(void)
 			DEBUG(0,("upgrade_to_version_3:moving printer\n"));
 			if (tdb_store(tdb_printers, kbuf, dbuf, TDB_REPLACE) != 0) {
 				SAFE_FREE(dbuf.dptr);
-				DEBUG(0,("upgrade_to_version_3: failed to move printer. Error (%s)\n", tdb_errorstr_compat(tdb_printers)));
+				DEBUG(0,("upgrade_to_version_3: failed to move printer. Error (%s)\n", tdb_errorstr(tdb_printers)));
 				return False;
 			}
 			if (tdb_delete(tdb_drivers, kbuf) != 0) {
 				SAFE_FREE(dbuf.dptr);
-				DEBUG(0,("upgrade_to_version_3: failed to delete printer. Error (%s)\n", tdb_errorstr_compat(tdb_drivers)));
+				DEBUG(0,("upgrade_to_version_3: failed to delete printer. Error (%s)\n", tdb_errorstr(tdb_drivers)));
 				return False;
 			}
 		}
@@ -129,12 +129,12 @@ static bool upgrade_to_version_3(void)
 			DEBUG(0,("upgrade_to_version_3:moving secdesc\n"));
 			if (tdb_store(tdb_printers, kbuf, dbuf, TDB_REPLACE) != 0) {
 				SAFE_FREE(dbuf.dptr);
-				DEBUG(0,("upgrade_to_version_3: failed to move secdesc. Error (%s)\n", tdb_errorstr_compat(tdb_printers)));
+				DEBUG(0,("upgrade_to_version_3: failed to move secdesc. Error (%s)\n", tdb_errorstr(tdb_printers)));
 				return False;
 			}
 			if (tdb_delete(tdb_drivers, kbuf) != 0) {
 				SAFE_FREE(dbuf.dptr);
-				DEBUG(0,("upgrade_to_version_3: failed to delete secdesc. Error (%s)\n", tdb_errorstr_compat(tdb_drivers)));
+				DEBUG(0,("upgrade_to_version_3: failed to delete secdesc. Error (%s)\n", tdb_errorstr(tdb_drivers)));
 				return False;
 			}
 		}
@@ -339,17 +339,39 @@ static bool upgrade_to_version_5(void)
 
 bool nt_printing_tdb_upgrade(void)
 {
-	const char *drivers_path = state_path("ntdrivers.tdb");
-	const char *printers_path = state_path("ntprinters.tdb");
-	const char *forms_path = state_path("ntforms.tdb");
-	bool drivers_exists = file_exist(drivers_path);
-	bool printers_exists = file_exist(printers_path);
-	bool forms_exists = file_exist(forms_path);
+	char *drivers_path;
+	char *printers_path;
+	char *forms_path;
+	bool drivers_exists;
+	bool printers_exists;
+	bool forms_exists;
 	const char *vstring = "INFO/version";
 	int32_t vers_id;
+	bool ret;
+
+	drivers_path = state_path("ntdrivers.tdb");
+	if (drivers_path == NULL) {
+		ret = false;
+		goto err_out;
+	}
+	printers_path = state_path("ntprinters.tdb");
+	if (printers_path == NULL) {
+		ret = false;
+		goto err_drvdb_free;
+	}
+	forms_path = state_path("ntforms.tdb");
+	if (forms_path == NULL) {
+		ret = false;
+		goto err_prdb_free;
+	}
+
+	drivers_exists = file_exist(drivers_path);
+	printers_exists = file_exist(printers_path);
+	forms_exists = file_exist(forms_path);
 
 	if (!drivers_exists && !printers_exists && !forms_exists) {
-		return true;
+		ret = true;
+		goto err_formsdb_free;
 	}
 
 	tdb_drivers = tdb_open_log(drivers_path,
@@ -361,7 +383,8 @@ bool nt_printing_tdb_upgrade(void)
 		DEBUG(0,("nt_printing_init: Failed to open nt drivers "
 			 "database %s (%s)\n",
 			 drivers_path, strerror(errno)));
-		return false;
+		ret = false;
+		goto err_formsdb_free;
 	}
 
 	tdb_printers = tdb_open_log(printers_path,
@@ -373,7 +396,8 @@ bool nt_printing_tdb_upgrade(void)
 		DEBUG(0,("nt_printing_init: Failed to open nt printers "
 			 "database %s (%s)\n",
 			 printers_path, strerror(errno)));
-		return false;
+		ret = false;
+		goto err_drvdb_close;
 	}
 
 	tdb_forms = tdb_open_log(forms_path,
@@ -385,7 +409,8 @@ bool nt_printing_tdb_upgrade(void)
 		DEBUG(0,("nt_printing_init: Failed to open nt forms "
 			 "database %s (%s)\n",
 			 forms_path, strerror(errno)));
-		return false;
+		ret = false;
+		goto err_prdb_close;
 	}
 
 	/* Samba upgrade */
@@ -400,7 +425,8 @@ bool nt_printing_tdb_upgrade(void)
 		if ((vers_id == NTDRIVERS_DATABASE_VERSION_1) ||
 		    (IREV(vers_id) == NTDRIVERS_DATABASE_VERSION_1)) {
 			if (!upgrade_to_version_3()) {
-				return false;
+				ret = false;
+				goto err_formsdb_close;
 			}
 
 			tdb_store_int32(tdb_drivers, vstring, NTDRIVERS_DATABASE_VERSION_3);
@@ -420,7 +446,8 @@ bool nt_printing_tdb_upgrade(void)
 
 		if (vers_id == NTDRIVERS_DATABASE_VERSION_3) {
 			if (!upgrade_to_version_4()) {
-				return false;
+				ret = false;
+				goto err_formsdb_close;
 			}
 			tdb_store_int32(tdb_drivers, vstring, NTDRIVERS_DATABASE_VERSION_4);
 			vers_id = NTDRIVERS_DATABASE_VERSION_4;
@@ -428,7 +455,8 @@ bool nt_printing_tdb_upgrade(void)
 
 		if (vers_id == NTDRIVERS_DATABASE_VERSION_4 ) {
 			if (!upgrade_to_version_5()) {
-				return false;
+				ret = false;
+				goto err_formsdb_close;
 			}
 			tdb_store_int32(tdb_drivers, vstring, NTDRIVERS_DATABASE_VERSION_5);
 			vers_id = NTDRIVERS_DATABASE_VERSION_5;
@@ -436,24 +464,33 @@ bool nt_printing_tdb_upgrade(void)
 
 		if (vers_id != NTDRIVERS_DATABASE_VERSION_5) {
 			DEBUG(0,("nt_printing_init: Unknown printer database version [%d]\n", vers_id));
-			return false;
+			ret = false;
+			goto err_formsdb_close;
 		}
 	}
+	ret = true;
 
-	if (tdb_drivers) {
-		tdb_close(tdb_drivers);
-		tdb_drivers = NULL;
-	}
-
-	if (tdb_printers) {
-		tdb_close(tdb_printers);
-		tdb_printers = NULL;
-	}
-
+err_formsdb_close:
 	if (tdb_forms) {
 		tdb_close(tdb_forms);
 		tdb_forms = NULL;
 	}
-
-	return true;
+err_prdb_close:
+	if (tdb_printers) {
+		tdb_close(tdb_printers);
+		tdb_printers = NULL;
+	}
+err_drvdb_close:
+	if (tdb_drivers) {
+		tdb_close(tdb_drivers);
+		tdb_drivers = NULL;
+	}
+err_formsdb_free:
+	talloc_free(forms_path);
+err_prdb_free:
+	talloc_free(printers_path);
+err_drvdb_free:
+	talloc_free(drivers_path);
+err_out:
+	return ret;
 }

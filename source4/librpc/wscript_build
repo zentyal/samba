@@ -19,7 +19,6 @@ bld.SAMBA_SUBSYSTEM('NDR_IRPC',
 
 bld.SAMBA_SUBSYSTEM('NDR_SASL_HELPERS',
 	source='gen_ndr/ndr_sasl_helpers.c',
-	allow_warnings=True,
 	public_deps='ndr'
 	)
 
@@ -27,7 +26,6 @@ bld.SAMBA_SUBSYSTEM('NDR_SASL_HELPERS',
 
 bld.SAMBA_SUBSYSTEM('NDR_WINSIF',
 	source='gen_ndr/ndr_winsif.c',
-	allow_warnings=True,
 	public_deps='ndr'
 	)
 
@@ -46,7 +44,6 @@ bld.SAMBA_SUBSYSTEM('NDR_NTP_SIGND',
 
 bld.SAMBA_SUBSYSTEM('NDR_WINSREPL',
 	source='gen_ndr/ndr_winsrepl.c',
-	allow_warnings=True,
 	public_deps='ndr ndr_nbt'
 	)
 
@@ -82,7 +79,8 @@ bld.SAMBA_SUBSYSTEM('ndr-table',
         NDR_SASL_HELPERS NDR_NOTIFY NDR_WINBIND NDR_FRSRPC NDR_FRSAPI
         NDR_FRSTRANS NDR_NFS4ACL NDR_NTP_SIGND NDR_DCOM NDR_WMI
         NDR_NAMED_PIPE_AUTH NDR_NTLMSSP NDR_DFSBLOBS NDR_DNSP
-        NDR_NTPRINTING NDR_DNS NDR_BACKUPKEY NDR_PREG''',
+        NDR_NTPRINTING NDR_DNS NDR_BACKUPKEY NDR_PREG NDR_BKUPBLOBS NDR_FSCC
+        NDR_FRSBLOBS NDR_CLUSAPI''',
         depends_on='GEN_NDR_TABLES'
         )
 
@@ -125,7 +123,6 @@ bld.SAMBA_LIBRARY('dcerpc',
 	rpc/dcerpc_connect.c rpc/dcerpc_secondary.c''',
 	pc_files='dcerpc.pc',
 	deps='samba_socket LIBCLI_RESOLVE LIBCLI_SMB LIBCLI_SMB2 ndr NDR_DCERPC RPC_NDR_EPMAPPER NDR_SCHANNEL RPC_NDR_NETLOGON RPC_NDR_MGMT gensec LIBCLI_AUTH smbclient-raw LP_RESOLVE tevent-util dcerpc-binding param_options http',
-	allow_warnings=True,
 	autoproto='rpc/dcerpc_proto.h',
 	public_deps='samba-credentials tevent talloc',
 	public_headers='''rpc/dcerpc.h ../../librpc/gen_ndr/mgmt.h

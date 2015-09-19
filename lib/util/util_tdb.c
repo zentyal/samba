@@ -426,3 +426,93 @@ NTSTATUS map_nt_error_from_tdb(enum TDB_ERROR err)
 	};
 	return result;
 }
+
+int map_unix_error_from_tdb(enum TDB_ERROR err)
+{
+	int result = EINVAL;
+
+	switch (err) {
+	case TDB_SUCCESS:
+		result = 0;
+		break;
+	case TDB_ERR_CORRUPT:
+		result = EILSEQ;
+		break;
+	case TDB_ERR_IO:
+		result = EIO;
+		break;
+	case TDB_ERR_OOM:
+		result = ENOMEM;
+		break;
+	case TDB_ERR_EXISTS:
+		result = EEXIST;
+		break;
+
+	case TDB_ERR_LOCK:
+		/*
+		 * TDB_ERR_LOCK is very broad, we could for example
+		 * distinguish between fcntl locks and invalid lock
+		 * sequences. EWOULDBLOCK is wrong, but there is no real
+		 * generic lock error code in errno.h
+		 */
+		result = EWOULDBLOCK;
+		break;
+
+	case TDB_ERR_NOLOCK:
+	case TDB_ERR_LOCK_TIMEOUT:
+		/*
+		 * These two ones in the enum are not actually used
+		 */
+		result = ENOLCK;
+		break;
+	case TDB_ERR_NOEXIST:
+		result = ENOENT;
+		break;
+	case TDB_ERR_EINVAL:
+		result = EINVAL;
+		break;
+	case TDB_ERR_RDONLY:
+		result = EROFS;
+		break;
+	case TDB_ERR_NESTING:
+		/*
+		 * Well, this db is already busy...
+		 */
+		result = EBUSY;
+		break;
+	};
+	return result;
+}
+
+struct tdb_fetch_talloc_state {
+	TALLOC_CTX *mem_ctx;
+	uint8_t *buf;
+};
+
+static int tdb_fetch_talloc_parser(TDB_DATA key, TDB_DATA data,
+                                   void *private_data)
+{
+	struct tdb_fetch_talloc_state *state = private_data;
+	state->buf = talloc_memdup(state->mem_ctx, data.dptr, data.dsize);
+	return 0;
+}
+
+int tdb_fetch_talloc(struct tdb_context *tdb, TDB_DATA key,
+		     TALLOC_CTX *mem_ctx, uint8_t **buf)
+{
+	struct tdb_fetch_talloc_state state = { .mem_ctx = mem_ctx };
+	int ret;
+
+	ret = tdb_parse_record(tdb, key, tdb_fetch_talloc_parser, &state);
+	if (ret == -1) {
+		enum TDB_ERROR err = tdb_error(tdb);
+		return map_unix_error_from_tdb(err);
+	}
+
+	if (state.buf == NULL) {
+		return ENOMEM;
+	}
+
+	*buf = state.buf;
+	return 0;
+}

@@ -75,9 +75,13 @@ _PUBLIC_ const struct gensec_security_ops **gensec_use_kerberos_mechs(TALLOC_CTX
 	const struct gensec_security_ops **new_gensec_list;
 	int i, j, num_mechs_in;
 	enum credentials_use_kerberos use_kerberos = CRED_AUTO_USE_KERBEROS;
+	bool keep_schannel = false;
 
 	if (creds) {
 		use_kerberos = cli_credentials_get_kerberos_state(creds);
+		if (cli_credentials_get_netlogon_creds(creds) != NULL) {
+			keep_schannel = true;
+		}
 	}
 
 	for (num_mechs_in=0; old_gensec_list && old_gensec_list[num_mechs_in]; num_mechs_in++) {
@@ -101,6 +105,10 @@ _PUBLIC_ const struct gensec_security_ops **gensec_use_kerberos_mechs(TALLOC_CTX
 				keep = true;
 				break;
 			}
+		}
+
+		if (old_gensec_list[i]->auth_type == DCERPC_AUTH_TYPE_SCHANNEL) {
+			keep = keep_schannel;
 		}
 
 		switch (use_kerberos) {
@@ -716,6 +724,12 @@ _PUBLIC_ NTSTATUS gensec_start_mech_by_authtype(struct gensec_security *gensec_s
 		return NT_STATUS_INVALID_PARAMETER;
 	}
 	gensec_security->dcerpc_auth_level = auth_level;
+	/*
+	 * We need to reset sign/seal in order to reset it.
+	 * We may got some default features inherited by the credentials
+	 */
+	gensec_security->want_features &= ~GENSEC_FEATURE_SIGN;
+	gensec_security->want_features &= ~GENSEC_FEATURE_SEAL;
 	gensec_want_feature(gensec_security, GENSEC_FEATURE_DCE_STYLE);
 	gensec_want_feature(gensec_security, GENSEC_FEATURE_ASYNC_REPLIES);
 	if (auth_level == DCERPC_AUTH_LEVEL_INTEGRITY) {

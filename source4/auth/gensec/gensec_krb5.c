@@ -27,7 +27,6 @@
 #include "system/kerberos.h"
 #include "auth/kerberos/kerberos.h"
 #include "auth/auth.h"
-#include "lib/socket/socket.h"
 #include "lib/tsocket/tsocket.h"
 #include "librpc/gen_ndr/dcerpc.h"
 #include "auth/credentials/credentials.h"
@@ -591,6 +590,16 @@ static NTSTATUS gensec_krb5_update(struct gensec_security *gensec_security,
 			return NT_STATUS_CANT_ACCESS_DOMAIN_INFO;
 		}
 
+		if (keytab->password_based || obtained < CRED_SPECIFIED) {
+			/* 
+			 * Use match-by-key in this case (matches
+			 * cli_credentials_get_server_gss_creds()
+			 * behaviour).  No need to free the memory,
+			 * this is handled with a talloc destructor.
+			 */
+			server_in_keytab = NULL;
+		}
+
 		/* Parse the GSSAPI wrapping, if it's there... (win2k3 allows it to be omited) */
 		if (gensec_krb5_state->gssapi
 		    && gensec_gssapi_parse_krb5_wrap(out_mem_ctx, &in, &unwrapped_in, tok_id)) {
@@ -903,7 +912,7 @@ _PUBLIC_ NTSTATUS gensec_krb5_init(void)
 	ret = gensec_register(&gensec_fake_gssapi_krb5_security_ops);
 	if (!NT_STATUS_IS_OK(ret)) {
 		DEBUG(0,("Failed to register '%s' gensec backend!\n",
-			gensec_krb5_security_ops.name));
+			gensec_fake_gssapi_krb5_security_ops.name));
 		return ret;
 	}
 

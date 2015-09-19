@@ -296,7 +296,7 @@ static bool test_ldap_netlogon_flags(struct torture_context *tctx,
 	NTSTATUS status;
 	struct cldap_netlogon search;
 	struct netlogon_samlogon_response n1;
-	uint32_t server_type;
+	uint32_t server_type = 0;
 
 	printf("Printing out netlogon server type flags: %s\n", dest);
 
@@ -341,6 +341,10 @@ static bool test_ldap_netlogon_flags(struct torture_context *tctx,
 		printf("NBT_SERVER_SELECT_SECRET_DOMAIN_6");
 	if (server_type & NBT_SERVER_FULL_SECRET_DOMAIN_6)
 		printf("NBT_SERVER_FULL_SECRET_DOMAIN_6");
+	if (server_type & NBT_SERVER_ADS_WEB_SERVICE)
+		printf("NBT_SERVER_ADS_WEB_SERVICE ");
+	if (server_type & NBT_SERVER_DS_8)
+		printf("NBT_SERVER_DS_8 ");
 	if (server_type & DS_DNS_CONTROLLER)
 		printf("DS_DNS_CONTROLLER ");
 	if (server_type & DS_DNS_DOMAIN)

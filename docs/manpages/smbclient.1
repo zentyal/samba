@@ -2,12 +2,12 @@
 .\"     Title: smbclient
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 04/15/2015
+.\"      Date: 09/08/2015
 .\"    Manual: User Commands
-.\"    Source: Samba 4.2
+.\"    Source: Samba 4.3
 .\"  Language: English
 .\"
-.TH "SMBCLIENT" "1" "04/15/2015" "Samba 4\&.2" "User Commands"
+.TH "SMBCLIENT" "1" "09/08/2015" "Samba 4\&.3" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -882,6 +882,15 @@ smbclient
 are binary\&.
 .RE
 .PP
+notify <dir name>
+.RS 4
+Query a directory for change notifications\&. This command issues a recursive filechangenotify call for all possible changes\&. As changes come in will print one line per change\&. See
+https://msdn\&.microsoft\&.com/en\-us/library/dn392331\&.aspx
+for a description of the action numbers that this command prints\&.
+.sp
+This command never ends, it waits for event indefinitely\&.
+.RE
+.PP
 posix
 .RS 4
 Query the remote server to see if it supports the CIFS UNIX extensions and prints out the list of capabilities supported\&. If so, turn on POSIX pathname processing and large file read/writes (if available),\&.
@@ -981,6 +990,11 @@ from the current working directory on the server\&.
 rmdir <directory name>
 .RS 4
 Remove the specified directory (user access privileges permitting) from the server\&.
+.RE
+.PP
+scopy <source filename> <destination filename>
+.RS 4
+Attempt to copy a file on the server using the most efficient server\-side copy calls\&. Falls back to using read then write if server doesn\*(Aqt support server\-side copy\&.
 .RE
 .PP
 setmode <filename> <perm=[+|\e\-]rsha>

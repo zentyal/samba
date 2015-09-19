@@ -1,4 +1,4 @@
-/* 
+/*
    ctdb logging code
 
    Copyright (C) Andrew Tridgell  2008
@@ -7,12 +7,12 @@
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
@@ -24,334 +24,77 @@
 #include "system/time.h"
 #include "system/filesys.h"
 #include "lib/util/debug.h"
+#include "lib/util/dlinklist.h"
 
-struct syslog_message {
-	uint32_t level;
-	uint32_t len;
-	char message[1];
+struct ctdb_log_backend {
+	struct ctdb_log_backend *prev, *next;
+	const char *prefix;
+	ctdb_log_setup_fn_t setup;
 };
-
-
-struct ctdb_syslog_state {
-	int syslog_fd;
-	int fd[2];
-};
-
-static int syslogd_is_started = 0;
-
-/* called when child is finished
- * this is for the syslog daemon, we can not use DEBUG here
- */
-static void ctdb_syslog_handler(struct event_context *ev, struct fd_event *fde, 
-				      uint16_t flags, void *p)
-{
-	struct ctdb_syslog_state *state = talloc_get_type(p, struct ctdb_syslog_state);
-
-	int count;
-	char str[65536];
-	struct syslog_message *msg;
-
-	if (state == NULL) {
-		return;
-	}
-
-	count = recv(state->syslog_fd, str, sizeof(str), 0);
-	if (count < sizeof(struct syslog_message)) {
-		return;
-	}
-	msg = (struct syslog_message *)str;
-	if (msg->len >= (sizeof(str) - offsetof(struct syslog_message, message))) {
-		msg->len = (sizeof(str)-1) - offsetof(struct syslog_message, message);
-	}
-	msg->message[msg->len] = '\0';
-
-	syslog(msg->level, "%s", msg->message);
-}
-
-
-/* called when the pipe from the main daemon has closed
- * this is for the syslog daemon, we can not use DEBUG here
- */
-static void ctdb_syslog_terminate_handler(struct event_context *ev, struct fd_event *fde, 
-				      uint16_t flags, void *p)
-{
-	syslog(LOG_ERR, "Shutting down SYSLOG daemon with pid:%d", (int)getpid());
-	_exit(0);
-}
-
-
-
-/*
- * this is for the syslog daemon, we can not use DEBUG here
- */
-int start_syslog_daemon(struct ctdb_context *ctdb)
-{
-	struct sockaddr_in syslog_sin;
-	struct ctdb_syslog_state *state;
-	struct tevent_fd *fde;
-	int startup_fd[2];
-	int ret = -1;
-
-	state = talloc(ctdb, struct ctdb_syslog_state);
-	CTDB_NO_MEMORY(ctdb, state);
-
-	if (pipe(state->fd) != 0) {
-		printf("Failed to create syslog pipe\n");
-		talloc_free(state);
-		return -1;
-	}
-	
-	if (pipe(startup_fd) != 0) {
-		printf("Failed to create syslog startup pipe\n");
-		close(state->fd[0]);
-		close(state->fd[1]);
-		talloc_free(state);
-		return -1;
-	}
-	
-	ctdb->syslogd_pid = ctdb_fork(ctdb);
-	if (ctdb->syslogd_pid == (pid_t)-1) {
-		printf("Failed to create syslog child process\n");
-		close(state->fd[0]);
-		close(state->fd[1]);
-		close(startup_fd[0]);
-		close(startup_fd[1]);
-		talloc_free(state);
-		return -1;
-	}
-
-	if (ctdb->syslogd_pid != 0) {
-		ssize_t n;
-		int dummy;
-
-		DEBUG(DEBUG_ERR,("Starting SYSLOG child process with pid:%d\n", (int)ctdb->syslogd_pid));
-
-		close(state->fd[1]);
-		set_close_on_exec(state->fd[0]);
-
-		close(startup_fd[1]);
-		n = sys_read(startup_fd[0], &dummy, sizeof(dummy));
-		close(startup_fd[0]);
-		if (n < sizeof(dummy)) {
-			return -1;
-		}
-
-		syslogd_is_started = 1;
-		return 0;
-	}
-
-	debug_extra = talloc_asprintf(NULL, "syslogd:");
-	talloc_free(ctdb->ev);
-	ctdb->ev = event_context_init(NULL);
-
-	syslog(LOG_ERR, "Starting SYSLOG daemon with pid:%d", (int)getpid());
-	ctdb_set_process_name("ctdb_syslogd");
-
-	close(state->fd[0]);
-	close(startup_fd[0]);
-	set_close_on_exec(state->fd[1]);
-	set_close_on_exec(startup_fd[1]);
-	fde = event_add_fd(ctdb->ev, state, state->fd[1], EVENT_FD_READ,
-		     ctdb_syslog_terminate_handler, state);
-	tevent_fd_set_auto_close(fde);
-
-	state->syslog_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (state->syslog_fd == -1) {
-		printf("Failed to create syslog socket\n");
-		close(startup_fd[1]);
-		return ret;
-	}
-
-	set_close_on_exec(state->syslog_fd);
-
-	syslog_sin.sin_family = AF_INET;
-	syslog_sin.sin_port   = htons(CTDB_PORT);
-	syslog_sin.sin_addr.s_addr = htonl(INADDR_LOOPBACK);	
-
-	if (bind(state->syslog_fd, (struct sockaddr *)&syslog_sin,
-		 sizeof(syslog_sin)) == -1)
-	{
-		printf("syslog daemon failed to bind to socket. errno:%d(%s)\n", errno, strerror(errno));
-		close(startup_fd[1]);
-		_exit(10);
-	}
-
-
-	fde = event_add_fd(ctdb->ev, state, state->syslog_fd, EVENT_FD_READ,
-		     ctdb_syslog_handler, state);
-	tevent_fd_set_auto_close(fde);
-
-	/* Tell parent that we're up */
-	ret = 0;
-	sys_write(startup_fd[1], &ret, sizeof(ret));
-	close(startup_fd[1]);
-
-	event_loop_wait(ctdb->ev);
-
-	/* this should not happen */
-	_exit(10);
-}
 
 struct ctdb_log_state {
-	struct ctdb_context *ctdb;
 	const char *prefix;
 	int fd, pfd;
 	char buf[1024];
 	uint16_t buf_used;
-	bool use_syslog;
 	void (*logfn)(const char *, uint16_t, void *);
 	void *logfn_private;
+	struct ctdb_log_backend *backends;
 };
 
-/* we need this global to keep the DEBUG() syntax */
+/* Used by ctdb_set_child_logging() */
 static struct ctdb_log_state *log_state;
 
-/*
-  syslog logging function
- */
-static void ctdb_syslog_log(void *private_ptr, int dbglevel, const char *s)
+void ctdb_log_register_backend(const char *prefix, ctdb_log_setup_fn_t setup)
 {
-	struct syslog_message *msg;
-	int level = LOG_DEBUG;
-	int len;
-	int syslog_fd;
-	struct sockaddr_in syslog_sin;
+	struct ctdb_log_backend *b;
 
-	switch (dbglevel) {
-	case DEBUG_EMERG: 
-		level = LOG_EMERG; 
-		break;
-	case DEBUG_ALERT: 
-		level = LOG_ALERT; 
-		break;
-	case DEBUG_CRIT: 
-		level = LOG_CRIT; 
-		break;
-	case DEBUG_ERR: 
-		level = LOG_ERR; 
-		break;
-	case DEBUG_WARNING: 
-		level = LOG_WARNING; 
-		break;
-	case DEBUG_NOTICE: 
-		level = LOG_NOTICE;
-		break;
-	case DEBUG_INFO: 
-		level = LOG_INFO;
-		break;
-	default:
-		level = LOG_DEBUG;
-		break;		
-	}
-
-	len = offsetof(struct syslog_message, message) + strlen(debug_extra) + strlen(s) + 1;
-	msg = malloc(len);
-	if (msg == NULL) {
+	b = talloc_zero(log_state, struct ctdb_log_backend);
+	if (b == NULL) {
+		printf("Failed to register backend \"%s\" - no memory\n",
+		       prefix);
 		return;
 	}
-	msg->level = level;
-	msg->len   = strlen(debug_extra) + strlen(s);
-	strcpy(msg->message, debug_extra);
-	strcat(msg->message, s);
 
-	if (syslogd_is_started == 0) {
-		syslog(msg->level, "%s", msg->message);
-	} else {
-		syslog_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-		if (syslog_fd == -1) {
-			printf("Failed to create syslog socket\n");
-			free(msg);
-			return;
-		}
+	b->prefix = prefix;
+	b->setup = setup;
 
-		syslog_sin.sin_family = AF_INET;
-		syslog_sin.sin_port   = htons(CTDB_PORT);
-		syslog_sin.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-
-		(void) sendto(syslog_fd, msg, len, 0,
-			      (struct sockaddr *)&syslog_sin,
-			      sizeof(syslog_sin));
-		/* no point in checking here since we cant log an error */
-
-		close(syslog_fd);
-	}
-
-	free(msg);
+	DLIST_ADD_END(log_state->backends, b, NULL);
 }
 
 
-/*
-  log file logging function
- */
-static void ctdb_logfile_log(void *private_ptr, int dbglevel, const char *s)
+/* Initialise logging */
+bool ctdb_logging_init(TALLOC_CTX *mem_ctx, const char *logging)
 {
-	struct timeval t;
-	struct tm *tm;
-	char tbuf[100];
-	char *s2 = NULL;
+	struct ctdb_log_backend *b;
 	int ret;
 
-	t = timeval_current();
-	tm = localtime(&t.tv_sec);
-
-	strftime(tbuf,sizeof(tbuf)-1,"%Y/%m/%d %H:%M:%S", tm);
-
-	ret = asprintf(&s2, "%s.%06u [%s%5u]: %s\n",
-		       tbuf, (unsigned)t.tv_usec,
-		       debug_extra, (unsigned)getpid(), s);
-	if (ret == -1) {
-		const char *errstr = "asprintf failed\n";
-		sys_write(log_state->fd, errstr, strlen(errstr));
-		return;
-	}
-	if (s2) {
-		sys_write(log_state->fd, s2, strlen(s2));
-		free(s2);
-	}
-}
-
-/*
-  choose the logfile location
-*/
-int ctdb_set_logfile(struct ctdb_context *ctdb, const char *logfile, bool use_syslog)
-{
-	debug_callback_fn callback;
-	int ret;
-
-	ctdb->log = talloc_zero(ctdb, struct ctdb_log_state);
-	if (ctdb->log == NULL) {
+	log_state = talloc_zero(mem_ctx, struct ctdb_log_state);
+	if (log_state == NULL) {
 		printf("talloc_zero failed\n");
 		abort();
 	}
 
-	ctdb->log->ctdb = ctdb;
-	log_state = ctdb->log;
+	ctdb_log_init_file();
+	ctdb_log_init_syslog();
 
-	if (use_syslog) {
-		callback = ctdb_syslog_log;
-		ctdb->log->use_syslog = true;
-	} else if (logfile == NULL || strcmp(logfile, "-") == 0) {
-		callback = ctdb_logfile_log;
-		ctdb->log->fd = 1;
-		/* also catch stderr of subcommands to stdout */
-		ret = dup2(1, 2);
-		if (ret == -1) {
-			printf("dup2 failed: %s\n", strerror(errno));
-			abort();
-		}
-	} else {
-		callback = ctdb_logfile_log;
-
-		ctdb->log->fd = open(logfile, O_WRONLY|O_APPEND|O_CREAT, 0666);
-		if (ctdb->log->fd == -1) {
-			printf("Failed to open logfile %s\n", logfile);
-			abort();
+	for (b = log_state->backends; b != NULL; b = b->next) {
+		size_t l = strlen(b->prefix);
+		/* Exact match with prefix or prefix followed by ':' */
+		if (strncmp(b->prefix, logging, l) == 0 &&
+		    (logging[l] == '\0' || logging[l] == ':')) {
+			ret = b->setup(mem_ctx, logging, "ctdbd");
+			if (ret == 0) {
+				return true;
+			}
+			printf("Log init for \"%s\" failed with \"%s\"\n",
+			       logging, strerror(ret));
+			return false;
 		}
 	}
 
-	debug_set_callback(NULL, callback);
-
-	return 0;
+	printf("Unable to find log backend for \"%s\"\n", logging);
+	return false;
 }
 
 /* Note that do_debug always uses the global log state. */
@@ -374,8 +117,9 @@ static void write_to_log(struct ctdb_log_state *log,
 /*
   called when log data comes in from a child process
  */
-static void ctdb_log_handler(struct event_context *ev, struct fd_event *fde, 
-			     uint16_t flags, void *private)
+static void ctdb_child_log_handler(struct event_context *ev,
+				   struct fd_event *fde,
+				   uint16_t flags, void *private)
 {
 	struct ctdb_log_state *log = talloc_get_type(private, struct ctdb_log_state);
 	char *p;
@@ -447,7 +191,6 @@ struct ctdb_log_state *ctdb_vfork_with_logging(TALLOC_CTX *mem_ctx,
 	log = talloc_zero(mem_ctx, struct ctdb_log_state);
 	CTDB_NO_MEMORY_NULL(ctdb, log);
 
-	log->ctdb = ctdb;
 	log->prefix = log_prefix;
 	log->logfn = logfn;
 	log->logfn_private = logfn_private;
@@ -493,7 +236,7 @@ struct ctdb_log_state *ctdb_vfork_with_logging(TALLOC_CTX *mem_ctx,
 	set_close_on_exec(log->pfd);
 	talloc_set_destructor(log, log_context_destructor);
 	fde = tevent_add_fd(ctdb->ev, log, log->pfd, EVENT_FD_READ,
-			    ctdb_log_handler, log);
+			    ctdb_child_log_handler, log);
 	tevent_fd_set_auto_close(fde);
 
 	return log;
@@ -513,7 +256,7 @@ int ctdb_set_child_logging(struct ctdb_context *ctdb)
 	int old_stdout, old_stderr;
 	struct tevent_fd *fde;
 
-	if (ctdb->log->fd == STDOUT_FILENO) {
+	if (log_state->fd == STDOUT_FILENO) {
 		/* not needed for stdout logging */
 		return 0;
 	}
@@ -549,11 +292,11 @@ int ctdb_set_child_logging(struct ctdb_context *ctdb)
 	close(old_stdout);
 	close(old_stderr);
 
-	fde = event_add_fd(ctdb->ev, ctdb->log, p[0],
-			   EVENT_FD_READ, ctdb_log_handler, ctdb->log);
+	fde = event_add_fd(ctdb->ev, log_state, p[0],
+			   EVENT_FD_READ, ctdb_child_log_handler, log_state);
 	tevent_fd_set_auto_close(fde);
 
-	ctdb->log->pfd = p[0];
+	log_state->pfd = p[0];
 
 	DEBUG(DEBUG_DEBUG, (__location__ " Created PIPE FD:%d for logging\n", p[0]));
 
@@ -564,6 +307,10 @@ int ctdb_set_child_logging(struct ctdb_context *ctdb)
 /*
  * set up a log handler to catch logging from TEVENT
  */
+static void ctdb_tevent_logging(void *private_data,
+				enum tevent_debug_level level,
+				const char *fmt,
+				va_list ap) PRINTF_ATTRIBUTE(3, 0);
 static void ctdb_tevent_logging(void *private_data,
 				enum tevent_debug_level level,
 				const char *fmt,
@@ -587,7 +334,7 @@ static void ctdb_tevent_logging(void *private_data,
 	}
 
 	if (lvl <= DEBUGLEVEL) {
-		dbgtext(fmt, ap);
+		dbgtext_va(fmt, ap);
 	}
 }
 
@@ -597,6 +344,6 @@ int ctdb_init_tevent_logging(struct ctdb_context *ctdb)
 
 	ret = tevent_set_debug(ctdb->ev,
 			ctdb_tevent_logging,
-		     	ctdb);
+			ctdb);
 	return ret;
 }

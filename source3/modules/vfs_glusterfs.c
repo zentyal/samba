@@ -43,6 +43,7 @@
 #include "lib/util/tevent_unix.h"
 #include "lib/tevent/tevent_internal.h"
 #include "smbd/globals.h"
+#include "lib/sys_rw.h"
 
 #define DEFAULT_VOLFILE_SERVER "localhost"
 
@@ -270,9 +271,8 @@ static void vfs_gluster_disconnect(struct vfs_handle_struct *handle)
 }
 
 static uint64_t vfs_gluster_disk_free(struct vfs_handle_struct *handle,
-				      const char *path, bool small_query,
-				      uint64_t *bsize_p, uint64_t *dfree_p,
-				      uint64_t *dsize_p)
+				      const char *path, uint64_t *bsize_p,
+				      uint64_t *dfree_p, uint64_t *dsize_p)
 {
 	struct statvfs statvfs = { 0, };
 	int ret;
@@ -355,7 +355,7 @@ static uint32_t vfs_gluster_fs_capabilities(struct vfs_handle_struct *handle,
 
 static DIR *vfs_gluster_opendir(struct vfs_handle_struct *handle,
 				const char *path, const char *mask,
-				uint32 attributes)
+				uint32_t attributes)
 {
 	glfs_fd_t *fd;
 
@@ -370,7 +370,7 @@ static DIR *vfs_gluster_opendir(struct vfs_handle_struct *handle,
 
 static DIR *vfs_gluster_fdopendir(struct vfs_handle_struct *handle,
 				  files_struct *fsp, const char *mask,
-				  uint32 attributes)
+				  uint32_t attributes)
 {
 	return (DIR *) *(glfs_fd_t **)VFS_FETCH_FSP_EXTENSION(handle, fsp);
 }
@@ -542,7 +542,7 @@ static void aio_glusterfs_done(glfs_fd_t *fd, ssize_t ret, void *data)
  */
 static void aio_tevent_fd_done(struct tevent_context *event_ctx,
 				struct tevent_fd *fde,
-				uint16 flags, void *data)
+				uint16_t flags, void *data)
 {
 	struct tevent_req *req = NULL;
 	int sts = 0;
@@ -927,9 +927,10 @@ static int vfs_gluster_ftruncate(struct vfs_handle_struct *handle,
 
 static int vfs_gluster_fallocate(struct vfs_handle_struct *handle,
 				 struct files_struct *fsp,
-				 enum vfs_fallocate_mode mode,
+				 uint32_t mode,
 				 off_t offset, off_t len)
 {
+	/* TODO: add support using glfs_fallocate() and glfs_zerofill() */
 	errno = ENOTSUP;
 	return -1;
 }
@@ -973,7 +974,7 @@ static bool vfs_gluster_lock(struct vfs_handle_struct *handle,
 }
 
 static int vfs_gluster_kernel_flock(struct vfs_handle_struct *handle,
-				    files_struct *fsp, uint32 share_mode,
+				    files_struct *fsp, uint32_t share_mode,
 				    uint32_t access_mask)
 {
 	errno = ENOSYS;
@@ -1036,18 +1037,6 @@ static int vfs_gluster_mknod(struct vfs_handle_struct *handle, const char *path,
 			     mode_t mode, SMB_DEV_T dev)
 {
 	return glfs_mknod(handle->data, path, mode, dev);
-}
-
-static NTSTATUS vfs_gluster_notify_watch(struct vfs_handle_struct *handle,
-					 struct sys_notify_context *ctx,
-					 const char *path, uint32_t *filter,
-					 uint32_t *subdir_filter,
-					 void (*callback) (struct sys_notify_context *ctx,
-							   void *private_data,
-							   struct notify_event *ev),
-					 void *private_data, void *handle_p)
-{
-	return NT_STATUS_NOT_IMPLEMENTED;
 }
 
 static int vfs_gluster_chflags(struct vfs_handle_struct *handle,
@@ -1759,7 +1748,6 @@ static struct vfs_fn_pointers glusterfs_fns = {
 	.link_fn = vfs_gluster_link,
 	.mknod_fn = vfs_gluster_mknod,
 	.realpath_fn = vfs_gluster_realpath,
-	.notify_watch_fn = vfs_gluster_notify_watch,
 	.chflags_fn = vfs_gluster_chflags,
 	.file_id_create_fn = NULL,
 	.copy_chunk_send_fn = NULL,

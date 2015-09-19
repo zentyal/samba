@@ -333,7 +333,7 @@ NTSTATUS nbt_name_reply_send(struct nbt_name_socket *nbtsock,
 			     struct nbt_name_packet *request);
 
 
-NDR_SCALAR_PROTO(wrepl_nbt_name, const struct nbt_name *)
+NDR_SCALAR_PTR_PROTO(wrepl_nbt_name, struct nbt_name)
 NDR_BUFFER_PROTO(nbt_name, struct nbt_name)
 NTSTATUS nbt_rcode_to_ntstatus(uint8_t rcode);
 
@@ -369,11 +369,5 @@ NTSTATUS resolve_lmhosts_file_as_sockaddr(const char *lmhosts_file,
 					  TALLOC_CTX *mem_ctx, 
 					  struct sockaddr_storage **return_iplist,
 					  int *return_count);
-
-NTSTATUS resolve_dns_hosts_file_as_sockaddr(const char *dns_hosts_file, 
-					    const char *name, bool srv_lookup,
-					    TALLOC_CTX *mem_ctx, 
-					    struct sockaddr_storage **return_iplist,
-					    int *return_count);
 
 #endif /* __LIBNBT_H__ */

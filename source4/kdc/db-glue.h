@@ -39,19 +39,19 @@ krb5_error_code samba_kdc_nextkey(krb5_context context,
 krb5_error_code
 samba_kdc_check_s4u2self(krb5_context context,
 			 struct samba_kdc_db_context *kdc_db_ctx,
-			 hdb_entry_ex *entry,
+			 struct samba_kdc_entry *skdc_entry,
 			 krb5_const_principal target_principal);
 
 krb5_error_code
 samba_kdc_check_pkinit_ms_upn_match(krb5_context context,
 				    struct samba_kdc_db_context *kdc_db_ctx,
-				    hdb_entry_ex *entry,
+				    struct samba_kdc_entry *skdc_entry,
 				    krb5_const_principal certificate_principal);
 
 krb5_error_code
 samba_kdc_check_s4u2proxy(krb5_context context,
 			  struct samba_kdc_db_context *kdc_db_ctx,
-			  hdb_entry_ex *entry,
+			  struct samba_kdc_entry *skdc_entry,
 			  krb5_const_principal target_principal);
 
 NTSTATUS samba_kdc_setup_db_ctx(TALLOC_CTX *mem_ctx, struct samba_kdc_base_context *base_ctx,

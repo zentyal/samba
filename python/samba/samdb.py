@@ -39,6 +39,7 @@ class SamDB(samba.Ldb):
     """The SAM database."""
 
     hash_oid_name = {}
+    hash_well_known = {}
 
     def __init__(self, url=None, lp=None, modules_dir=None, session_info=None,
                  credentials=None, flags=0, options=None, global_schema=True,
@@ -191,8 +192,6 @@ pwdLastSet: 0
             "sAMAccountName": groupname,
             "objectClass": "group"}
 
-        ldbmessage["msSFU30Name"] = groupname
-
         if grouptype is not None:
             ldbmessage["groupType"] = normalise_int32(grouptype)
 
@@ -209,6 +208,7 @@ pwdLastSet: 0
             ldbmessage["gidNumber"] = normalise_int32(gidnumber)
 
         if nisdomain is not None:
+            ldbmessage["msSFU30Name"] = groupname
             ldbmessage["msSFU30NisDomain"] = nisdomain
 
         if sd is not None:
@@ -271,7 +271,7 @@ changetype: modify
                     ldb.binary_encode(member), ldb.binary_encode(member)), attrs=[])
 
                 if len(targetmember) != 1:
-                    continue
+                    raise Exception('Unable to find "%s". Operation cancelled.' % member)
 
                 if add_members_operation is True and (targetgroup[0].get('member') is None or str(targetmember[0].dn) not in targetgroup[0]['member']):
                     modified = True
@@ -794,7 +794,19 @@ accountExpires: %u
         return dsdb._dsdb_get_nc_root(self, dn)
 
     def get_wellknown_dn(self, nc_root, wkguid):
-        return dsdb._dsdb_get_wellknown_dn(self, nc_root, wkguid)
+        h_nc = self.hash_well_known.get(str(nc_root))
+        dn = None
+        if h_nc is not None:
+            dn = h_nc.get(wkguid)
+        if dn is None:
+            dn = dsdb._dsdb_get_wellknown_dn(self, nc_root, wkguid)
+            if dn is None:
+                return dn
+            if h_nc is None:
+                self.hash_well_known[str(nc_root)] = {}
+                h_nc = self.hash_well_known[str(nc_root)]
+            h_nc[wkguid] = dn
+        return dn
 
     def set_minPwdAge(self, value):
         m = ldb.Message()

@@ -2,12 +2,12 @@
 .\"     Title: smb.conf
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 04/15/2015
+.\"      Date: 09/08/2015
 .\"    Manual: File Formats and Conventions
-.\"    Source: Samba 4.2
+.\"    Source: Samba 4.3
 .\"  Language: English
 .\"
-.TH "SMB\&.CONF" "5" "04/15/2015" "Samba 4\&.2" "File Formats and Conventions"
+.TH "SMB\&.CONF" "5" "09/08/2015" "Samba 4\&.3" "File Formats and Conventions"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -452,7 +452,7 @@ the Internet name of the client machine\&.
 .PP
 %R
 .RS 4
-the selected protocol level after protocol negotiation\&. It can be one of CORE, COREPLUS, LANMAN1, LANMAN2, NT1, SMB2_02, SMB2_10, SMB2_22, SMB2_24, SMB3_00, SMB3_02 or SMB2_FF\&.
+the selected protocol level after protocol negotiation\&. It can be one of CORE, COREPLUS, LANMAN1, LANMAN2, NT1, SMB2_02, SMB2_10, SMB2_22, SMB2_24, SMB3_00, SMB3_02, SMB3_10, SMB3_11 or SMB2_FF\&.
 .RE
 .PP
 %d
@@ -1590,7 +1590,7 @@ Default:
 \fI\fIcase sensitive\fR\fR\fI = \fR\fIauto\fR\fI \fR
 .RE
 
-change notify (S)
+change notify (G)
 .\" change notify
 .PP
 .RS 4
@@ -1951,8 +1951,30 @@ By default SMB2 selects the SMB2_10 variant\&.
 \fBSMB3_02\fR: Windows 8\&.1 SMB3 version\&.
 .RE
 .sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBSMB3_10\fR: early Windows 10 technical preview SMB3 version\&.
 .RE
-By default SMB3 selects the SMB3_00 variant\&.
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBSMB3_11\fR: Windows 10 technical preview SMB3 version (maybe final)\&.
+.RE
+.sp
+.RE
+By default SMB3 selects the SMB3_11 variant\&.
 .RE
 .sp
 .RE
@@ -2063,7 +2085,9 @@ This controls whether the client is allowed or required to use SMB signing\&. Po
 and
 \fIdisabled\fR\&.
 .sp
-When set to auto or default, SMB signing is offered, but not enforced\&. When set to mandatory, SMB signing is required and if set to disabled, SMB signing is not offered either\&.
+When set to auto or default, SMB signing is offered, but not enforced, except in winbindd, where it is enforced to Active Directory Domain Controllers\&.
+.sp
+When set to mandatory, SMB signing is required and if set to disabled, SMB signing is not offered either\&.
 .sp
 Default:
 \fI\fIclient signing\fR\fR\fI = \fR\fIdefault\fR\fI \fR
@@ -2307,7 +2331,7 @@ ctdb timeout (G)
 .\" ctdb timeout
 .PP
 .RS 4
-This parameter specifies a timeout in seconds for the connection between Samba and ctdb\&. It is only valid if you have compiled Samba with clustering and if you have set
+This parameter specifies a timeout in milliseconds for the connection between Samba and ctdb\&. It is only valid if you have compiled Samba with clustering and if you have set
 \fIclustering=yes\fR\&.
 .sp
 When something in the cluster blocks, it can happen that we wait indefinitely long for ctdb, just adding to the blocking condition\&. In a well\-running cluster this should never happen, but there are too many components in a cluster that might have hickups\&. Choosing the right balance for this value is very tricky, because on a busy cluster long service times to transfer something across the cluster might be valid\&. Setting it too short will degrade the service your cluster presents, setting it too long might make the cluster itself not recover from something severely broken for too long\&.
@@ -2316,7 +2340,7 @@ Be aware that if you set this parameter, this needs to be in the file smb\&.conf
 .sp
 Setting
 \fIctdb timeout\fR
-to n makes any process waiting longer than n seconds for a reply by the cluster panic\&. Setting it to 0 (the default) makes Samba block forever, which is the highly recommended default\&.
+to n makes any process waiting longer than n milliseconds for a reply by the cluster panic\&. Setting it to 0 (the default) makes Samba block forever, which is the highly recommended default\&.
 .sp
 Default:
 \fI\fIctdb timeout\fR\fR\fI = \fR\fI0\fR\fI \fR
@@ -3524,6 +3548,32 @@ Example:
 \fI\fIforce user\fR\fR\fI = \fR\fIauser\fR\fI \fR
 .RE
 
+fss: prune stale (G)
+.\" fss: prune stale
+.PP
+.RS 4
+When enabled, Samba\*(Aqs File Server Remove VSS Protocol (FSRVP) server checks all FSRVP initiated snapshots on startup, and removes any corresponding state (including share definitions) for nonexistent snapshot paths\&.
+.sp
+Default:
+\fI\fIfss: prune stale\fR\fR\fI = \fR\fIno\fR\fI \fR
+.sp
+Example:
+\fI\fIfss: prune stale\fR\fR\fI = \fR\fIyes\fR\fI \fR
+.RE
+
+fss: sequence timeout (G)
+.\" fss: sequence timeout
+.PP
+.RS 4
+The File Server Remove VSS Protocol (FSRVP) server includes a message sequence timer to ensure cleanup on unexpected client disconnect\&. This parameter overrides the default timeout between FSRVP operations\&. FSRVP timeouts can be completely disabled via a value of 0\&.
+.sp
+Default:
+\fI\fIfss: sequence timeout\fR\fR\fI = \fR\fI180 or 1800, depending on operation\fR\fI \fR
+.sp
+Example:
+\fI\fIfss: sequence timeout\fR\fR\fI = \fR\fI0\fR\fI \fR
+.RE
+
 fstype (S)
 .\" fstype
 .PP
@@ -4314,6 +4364,17 @@ Default:
 \fI\fIinherit permissions\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
+init logon delay (G)
+.\" init logon delay
+.PP
+.RS 4
+This parameter specifies a delay in milliseconds for the hosts configured for delayed initial samlogon with
+\m[blue]\fBinit logon delayed hosts\fR\m[]\&.
+.sp
+Default:
+\fI\fIinit logon delay\fR\fR\fI = \fR\fI100\fR\fI \fR
+.RE
+
 init logon delayed hosts (G)
 .\" init logon delayed hosts
 .PP
@@ -4329,17 +4390,6 @@ Default:
 .sp
 Example:
 \fI\fIinit logon delayed hosts\fR\fR\fI = \fR\fI150\&.203\&.5\&. myhost\&.mynet\&.de\fR\fI \fR
-.RE
-
-init logon delay (G)
-.\" init logon delay
-.PP
-.RS 4
-This parameter specifies a delay in milliseconds for the hosts configured for delayed initial samlogon with
-\m[blue]\fBinit logon delayed hosts\fR\m[]\&.
-.sp
-Default:
-\fI\fIinit logon delay\fR\fR\fI = \fR\fI100\fR\fI \fR
 .RE
 
 interfaces (G)
@@ -4491,7 +4541,7 @@ Valid options are:
 .sp -1
 .IP \(bu 2.3
 .\}
-secrets only \- use only the secrets\&.(n)tdb for ticket verification (default)
+secrets only \- use only the secrets\&.tdb for ticket verification (default)
 .RE
 .sp
 .RS 4
@@ -4524,7 +4574,7 @@ dedicated keytab \- use a dedicated keytab for ticket verification
 .sp -1
 .IP \(bu 2.3
 .\}
-secrets and keytab \- use the secrets\&.(n)tdb first, then the system keytab
+secrets and keytab \- use the secrets\&.tdb first, then the system keytab
 .RE
 .sp
 .RE
@@ -4538,7 +4588,7 @@ Default:
 \fI\fIkerberos method\fR\fR\fI = \fR\fIdefault\fR\fI \fR
 .RE
 
-kernel change notify (S)
+kernel change notify (G)
 .\" kernel change notify
 .PP
 .RS 4
@@ -4664,8 +4714,7 @@ defines the Distinguished Name (DN) name used by Samba to contact the ldap serve
 \m[blue]\fBldap admin dn\fR\m[]
 is used in conjunction with the admin dn password stored in the
 private/secrets\&.tdb
-(or
-private/secrets\&.ntdb) file\&. See the
+file\&. See the
 \fBsmbpasswd\fR(8)
 man page for more information on how to accomplish this\&.
 .sp
@@ -5022,26 +5071,6 @@ Default:
 \fI\fIldapsam:trusted\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
-ldap ssl ads (G)
-.\" ldap ssl ads
-.PP
-.RS 4
-This option is used to define whether or not Samba should use SSL when connecting to the ldap server using
-\fIads\fR
-methods\&. Rpc methods are not affected by this parameter\&. Please note, that this parameter won\*(Aqt have any effect if
-\m[blue]\fBldap ssl\fR\m[]
-is set to
-\fIno\fR\&.
-.sp
-See
-smb\&.conf(5)
-for more information on
-\m[blue]\fBldap ssl\fR\m[]\&.
-.sp
-Default:
-\fI\fIldap ssl ads\fR\fR\fI = \fR\fIno\fR\fI \fR
-.RE
-
 ldap ssl (G)
 .\" ldap ssl
 .PP
@@ -5103,6 +5132,26 @@ for more information on
 .sp
 Default:
 \fI\fIldap ssl\fR\fR\fI = \fR\fIstart tls\fR\fI \fR
+.RE
+
+ldap ssl ads (G)
+.\" ldap ssl ads
+.PP
+.RS 4
+This option is used to define whether or not Samba should use SSL when connecting to the ldap server using
+\fIads\fR
+methods\&. Rpc methods are not affected by this parameter\&. Please note, that this parameter won\*(Aqt have any effect if
+\m[blue]\fBldap ssl\fR\m[]
+is set to
+\fIno\fR\&.
+.sp
+See
+smb\&.conf(5)
+for more information on
+\m[blue]\fBldap ssl\fR\m[]\&.
+.sp
+Default:
+\fI\fIldap ssl ads\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
 ldap suffix (G)
@@ -5341,6 +5390,91 @@ This option takes the standard substitutions, allowing you to have separate log 
 .sp
 Example:
 \fI\fIlog file\fR\fR\fI = \fR\fI/usr/local/samba/var/log\&.%m\fR\fI \fR
+.RE
+
+logging (G)
+.\" logging
+.PP
+.RS 4
+This parameter configures logging backends\&. Multiple backends can be specified at the same time, with different log levels for each backend\&. The parameter is a list of backends, where each backend is specified as backend[:option][@loglevel]\&.
+.sp
+The \*(Aqoption\*(Aq parameter can be used to pass backend\-specific options\&.
+.sp
+The log level for a backend is optional, if it is not set for a backend, all messages are sent to this backend\&. The parameter
+\m[blue]\fBlog level\fR\m[]
+determines overall log levels, while the log levels specified here define what is sent to the individual backends\&.
+.sp
+When
+\m[blue]\fBlogging\fR\m[]
+is set, it overrides the
+\m[blue]\fBsyslog\fR\m[]
+and
+\m[blue]\fBsyslog only\fR\m[]
+parameters\&.
+.sp
+Some backends are only available when Samba has been compiled with the additional libraries\&. The overall list of logging backends:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fIsyslog\fR
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fIfile\fR
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fIsystemd\fR
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fIlttng\fR
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fIgpfs\fR
+.RE
+.sp
+.RE
+Default:
+\fI\fIlogging\fR\fR\fI = \fR\fI\fR\fI \fR
+.sp
+Example:
+\fI\fIlogging\fR\fR\fI = \fR\fIsyslog@1 file\fR\fI \fR
 .RE
 
 debuglevel
@@ -5974,9 +6108,7 @@ machine password timeout (G)
 If a Samba server is a member of a Windows NT Domain (see the
 \m[blue]\fBsecurity = domain\fR\m[]
 parameter) then periodically a running smbd process will try and change the MACHINE ACCOUNT PASSWORD stored in the TDB called
-private/secrets\&.tdb
-(or
-private/secrets\&.ntdb)\&. This parameter specifies how often this password will be changed, in seconds\&. The default is one week (expressed in seconds), the same as a Windows NT Domain member server\&.
+private/secrets\&.tdb\&. This parameter specifies how often this password will be changed, in seconds\&. The default is one week (expressed in seconds), the same as a Windows NT Domain member server\&.
 .sp
 See also
 \fBsmbpasswd\fR(8), and the
@@ -6744,6 +6876,17 @@ Default:
 \fI\fImsdfs root\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
+msdfs shuffle referrals (S)
+.\" msdfs shuffle referrals
+.PP
+.RS 4
+If set to
+\fByes\fR, Samba will shuffle Dfs referrals for a given Dfs link if multiple are available, allowing for load balancing across clients\&. For more information on setting up a Dfs tree on Samba, refer to the MSDFS chapter in the Samba3\-HOWTO book\&.
+.sp
+Default:
+\fI\fImsdfs shuffle referrals\fR\fR\fI = \fR\fIno\fR\fI \fR
+.RE
+
 multicast dns register (G)
 .\" multicast dns register
 .PP
@@ -6923,6 +7066,8 @@ netbios name (G)
 .PP
 .RS 4
 This sets the NetBIOS name by which a Samba server is known\&. By default it is the same as the first component of the host\*(Aqs DNS name\&. If a machine is a browse server or logon server this name (or the first component of the hosts DNS name) will be the name that these services are advertised under\&.
+.sp
+Note that the maximum length for a NetBIOS name is 15 charactars\&.
 .sp
 There is a bug in Samba that breaks operation of browsing and access to shares if the netbios name is set to the literal name
 PIPE\&. To avoid this problem, do not name your Samba server
@@ -7459,40 +7604,6 @@ Default:
 \fI\fIpassdb expand explicit\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
-passwd chat debug (G)
-.\" passwd chat debug
-.PP
-.RS 4
-This boolean specifies if the passwd chat script parameter is run in
-\fIdebug\fR
-mode\&. In this mode the strings passed to and received from the passwd chat are printed in the
-\fBsmbd\fR(8)
-log with a
-\m[blue]\fBdebug level\fR\m[]
-of 100\&. This is a dangerous option as it will allow plaintext passwords to be seen in the
-smbd
-log\&. It is available to help Samba admins debug their
-\fIpasswd chat\fR
-scripts when calling the
-\fIpasswd program\fR
-and should be turned off after this has been done\&. This option has no effect if the
-\m[blue]\fBpam password change\fR\m[]
-parameter is set\&. This parameter is off by default\&.
-.sp
-Default:
-\fI\fIpasswd chat debug\fR\fR\fI = \fR\fIno\fR\fI \fR
-.RE
-
-passwd chat timeout (G)
-.\" passwd chat timeout
-.PP
-.RS 4
-This integer specifies the number of seconds smbd will wait for an initial answer from a passwd chat script being run\&. Once the initial answer is received the subsequent answers must be received in one tenth of this time\&. The default it two seconds\&.
-.sp
-Default:
-\fI\fIpasswd chat timeout\fR\fR\fI = \fR\fI2\fR\fI \fR
-.RE
-
 passwd chat (G)
 .\" passwd chat
 .PP
@@ -7536,6 +7647,40 @@ Default:
 .sp
 Example:
 \fI\fIpasswd chat\fR\fR\fI = \fR\fI"*Enter NEW password*" %n\en "*Reenter NEW password*" %n\en "*Password changed*"\fR\fI \fR
+.RE
+
+passwd chat debug (G)
+.\" passwd chat debug
+.PP
+.RS 4
+This boolean specifies if the passwd chat script parameter is run in
+\fIdebug\fR
+mode\&. In this mode the strings passed to and received from the passwd chat are printed in the
+\fBsmbd\fR(8)
+log with a
+\m[blue]\fBdebug level\fR\m[]
+of 100\&. This is a dangerous option as it will allow plaintext passwords to be seen in the
+smbd
+log\&. It is available to help Samba admins debug their
+\fIpasswd chat\fR
+scripts when calling the
+\fIpasswd program\fR
+and should be turned off after this has been done\&. This option has no effect if the
+\m[blue]\fBpam password change\fR\m[]
+parameter is set\&. This parameter is off by default\&.
+.sp
+Default:
+\fI\fIpasswd chat debug\fR\fR\fI = \fR\fIno\fR\fI \fR
+.RE
+
+passwd chat timeout (G)
+.\" passwd chat timeout
+.PP
+.RS 4
+This integer specifies the number of seconds smbd will wait for an initial answer from a passwd chat script being run\&. Once the initial answer is received the subsequent answers must be received in one tenth of this time\&. The default it two seconds\&.
+.sp
+Default:
+\fI\fIpasswd chat timeout\fR\fR\fI = \fR\fI2\fR\fI \fR
 .RE
 
 passwd program (G)
@@ -7697,18 +7842,6 @@ Example:
 \fI\fIpostexec\fR\fR\fI = \fR\fIecho \e"%u disconnected from %S from %m (%I)\e" >> /tmp/log\fR\fI \fR
 .RE
 
-preexec close (S)
-.\" preexec close
-.PP
-.RS 4
-This boolean option controls whether a non\-zero return code from
-\m[blue]\fBpreexec\fR\m[]
-should close the service being connected to\&.
-.sp
-Default:
-\fI\fIpreexec close\fR\fR\fI = \fR\fIno\fR\fI \fR
-.RE
-
 exec
 .\" exec
 .PP
@@ -7741,6 +7874,18 @@ Example:
 \fI\fIpreexec\fR\fR\fI = \fR\fIecho \e"%u connected to %S from %m (%I)\e" >> /tmp/log\fR\fI \fR
 .RE
 
+preexec close (S)
+.\" preexec close
+.PP
+.RS 4
+This boolean option controls whether a non\-zero return code from
+\m[blue]\fBpreexec\fR\m[]
+should close the service being connected to\&.
+.sp
+Default:
+\fI\fIpreexec close\fR\fR\fI = \fR\fIno\fR\fI \fR
+.RE
+
 prefered master
 .\" prefered master
 .PP
@@ -7771,19 +7916,6 @@ Default:
 \fI\fIpreferred master\fR\fR\fI = \fR\fIauto\fR\fI \fR
 .RE
 
-preload modules (G)
-.\" preload modules
-.PP
-.RS 4
-This is a list of paths to modules that should be loaded into smbd before a client connects\&. This improves the speed of smbd when reacting to new connections somewhat\&.
-.sp
-Default:
-\fI\fIpreload modules\fR\fR\fI = \fR\fI\fR\fI \fR
-.sp
-Example:
-\fI\fIpreload modules\fR\fR\fI = \fR\fI/usr/lib/samba/passdb/mysql\&.so\fR\fI \fR
-.RE
-
 auto services
 .\" auto services
 .PP
@@ -7807,6 +7939,19 @@ Default:
 .sp
 Example:
 \fI\fIpreload\fR\fR\fI = \fR\fIfred lp colorlp\fR\fI \fR
+.RE
+
+preload modules (G)
+.\" preload modules
+.PP
+.RS 4
+This is a list of paths to modules that should be loaded into smbd before a client connects\&. This improves the speed of smbd when reacting to new connections somewhat\&.
+.sp
+Default:
+\fI\fIpreload modules\fR\fR\fI = \fR\fI\fR\fI \fR
+.sp
+Example:
+\fI\fIpreload modules\fR\fR\fI = \fR\fI/usr/lib/samba/passdb/mysql\&.so\fR\fI \fR
 .RE
 
 preserve case (S)
@@ -8133,9 +8278,7 @@ private dir (G)
 This parameters defines the directory smbd will use for storing such files as
 smbpasswd
 and
-secrets\&.tdb
-(or
-secrets\&.ntdb)\&.
+secrets\&.tdb\&.
 .sp
 Default:
 \fI\fIprivate dir\fR\fR\fI = \fR\fI${prefix}/private\fR\fI \fR
@@ -8589,18 +8732,6 @@ Default:
 \fI\fIroot postexec\fR\fR\fI = \fR\fI\fR\fI \fR
 .RE
 
-root preexec close (S)
-.\" root preexec close
-.PP
-.RS 4
-This is the same as the
-\fIpreexec close \fR
-parameter except that the command is run as root\&.
-.sp
-Default:
-\fI\fIroot preexec close\fR\fR\fI = \fR\fIno\fR\fI \fR
-.RE
-
 root preexec (S)
 .\" root preexec
 .PP
@@ -8611,6 +8742,18 @@ parameter except that the command is run as root\&. This is useful for mounting 
 .sp
 Default:
 \fI\fIroot preexec\fR\fR\fI = \fR\fI\fR\fI \fR
+.RE
+
+root preexec close (S)
+.\" root preexec close
+.PP
+.RS 4
+This is the same as the
+\fIpreexec close \fR
+parameter except that the command is run as root\&.
+.sp
+Default:
+\fI\fIroot preexec close\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
 rpc big endian (G)
@@ -8686,7 +8829,7 @@ To set one of these options use the follwing syntax:
 .RE
 .\}
 .sp
-Samba includes separate daemons for spoolss and the lsarpc/lsass, netlogon and samr pipes\&. Currently three daemons are available and they are called:
+Samba includes separate daemons for spoolss, lsarpc/lsass, netlogon, samr, FSRVP and mdssvc(Spotlight)\&. Currently five daemons are available and they are called:
 .sp
 .if n \{\
 .RS 4
@@ -8695,6 +8838,8 @@ Samba includes separate daemons for spoolss and the lsarpc/lsass, netlogon and s
 		epmd
 		lsasd
 		spoolssd
+		fssd
+		mdssd
 	
 .fi
 .if n \{\
@@ -8880,6 +9025,17 @@ eventlog \- Event Logger
 initshutdown \- Init Shutdown Service
 .RE
 .sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+mdssvc \- Spotlight
+.RE
+.sp
 .RE
 Three possible values currently supported are:
 embeddedexternaldisabled
@@ -8892,7 +9048,7 @@ Choosing the
 \fIexternal\fR
 option allows to run a separate daemon or even a completely independent (3rd party) server capable of interfacing with samba via the MS\-RPC interface over named pipes\&.
 .sp
-Currently in Samba3 we support three daemons, spoolssd, epmd and lsasd\&. These daemons can be enabled using the
+Currently in Samba3 we support four daemons, spoolssd, epmd, lsasd and mdssd\&. These daemons can be enabled using the
 \fIrpc_daemon\fR
 option\&. For spoolssd you have to enable the daemon and proxy the named pipe with:
 .sp
@@ -8909,6 +9065,9 @@ Examples:
 
 			rpc_server:spoolss = external
 			rpc_server:epmapper = disabled
+
+			rpc_daemon:mdssd = fork
+			rpc_server:mdssvc = external
 		
 .fi
 .if n \{\
@@ -8947,15 +9106,6 @@ Default:
 .sp
 Example:
 \fI\fIsamba kcc command\fR\fR\fI = \fR\fI/usr/local/bin/kcc\fR\fI \fR
-.RE
-
-security mask (S)
-.\" security mask
-.PP
-.RS 4
-This parameter has been removed for Samba 4\&.0\&.0\&.
-.sp
-\fINo default\fR
 .RE
 
 security (G)
@@ -9075,6 +9225,15 @@ Default:
 .sp
 Example:
 \fI\fIsecurity\fR\fR\fI = \fR\fIDOMAIN\fR\fI \fR
+.RE
+
+security mask (S)
+.\" security mask
+.PP
+.RS 4
+This parameter has been removed for Samba 4\&.0\&.0\&.
+.sp
+\fINo default\fR
 .RE
 
 max protocol
@@ -9215,8 +9374,41 @@ By default SMB2 selects the SMB2_10 variant\&.
 \fBSMB3_00\fR: Windows 8 SMB3 version\&. (mostly the same as SMB2_24)
 .RE
 .sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBSMB3_02\fR: Windows 8\&.1 SMB3 version\&.
 .RE
-By default SMB3 selects the SMB3_00 variant\&.
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBSMB3_10\fR: early Windows 10 technical preview SMB3 version\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBSMB3_11\fR: Windows 10 technical preview SMB3 version (maybe final)\&.
+.RE
+.sp
+.RE
+By default SMB3 selects the SMB3_11 variant\&.
 .RE
 .sp
 .RE
@@ -9867,17 +10059,75 @@ Default:
 \fI\fIsmb2 max write\fR\fR\fI = \fR\fI8388608\fR\fI \fR
 .RE
 
+smbd profiling level (G)
+.\" smbd profiling level
+.PP
+.RS 4
+This parameter allows the administrator to enable profiling support\&.
+.sp
+Possible values are
+\fBoff\fR,
+\fBcount\fR
+and
+\fBon\fR\&.
+.sp
+Default:
+\fI\fIsmbd profiling level\fR\fR\fI = \fR\fIoff\fR\fI \fR
+.sp
+Example:
+\fI\fIsmbd profiling level\fR\fR\fI = \fR\fIon\fR\fI \fR
+.RE
+
 smb encrypt (S)
 .\" smb encrypt
 .PP
 .RS 4
-This is a new feature introduced with Samba 3\&.2 and above\&. It is an extension to the SMB/CIFS protocol negotiated as part of the UNIX extensions\&. SMB encryption uses the GSSAPI (SSPI on Windows) ability to encrypt and sign every request/response in a SMB protocol stream\&. When enabled it provides a secure method of SMB/CIFS communication, similar to an ssh protected session, but using SMB/CIFS authentication to negotiate encryption and signing keys\&. Currently this is only supported by Samba 3\&.2 smbclient, and hopefully soon Linux CIFSFS and MacOS/X clients\&. Windows clients do not support this feature\&.
+This parameter controls whether a remote client is allowed or required to use SMB encryption\&. It has different effects depending on whether the connection uses SMB1 or SMB2 and newer:
 .sp
-This controls whether the remote client is allowed or required to use SMB encryption\&. Possible values are
-\fIauto\fR,
-\fImandatory\fR
-and
-\fIdisabled\fR\&. This may be set on a per\-share basis, but clients may chose to encrypt the entire session, not just traffic to a specific share\&. If this is set to mandatory then all traffic to a share
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+If the connection uses SMB1, then this option controls the use of a Samba\-specific extension to the SMB protocol introduced in Samba 3\&.2 that makes use of the Unix extensions\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+If the connection uses SMB2 or newer, then this option controls the use of the SMB\-level encryption that is supported in SMB version 3\&.0 and above and available in Windows 8 and newer\&.
+.RE
+.sp
+.RE
+This parameter can be set globally and on a per\-share bases\&. Possible values are
+\fIoff\fR
+(or
+\fIdisabled\fR),
+\fIenabled\fR
+(or
+\fIauto\fR, or
+\fIif_required\fR),
+\fIdesired\fR, and
+\fIrequired\fR
+(or
+\fImandatory\fR)\&. A special value is
+\fIdefault\fR
+which is the implicit default setting of
+\fIenabled\fR\&.
+.PP
+\fIEffects for SMB1\fR
+.RS 4
+The Samba\-specific encryption of SMB1 connections is an extension to the SMB protocol negotiated as part of the UNIX extensions\&. SMB encryption uses the GSSAPI (SSPI on Windows) ability to encrypt and sign every request/response in a SMB protocol stream\&. When enabled it provides a secure method of SMB/CIFS communication, similar to an ssh protected session, but using SMB/CIFS authentication to negotiate encryption and signing keys\&. Currently this is only supported smbclient of by Samba 3\&.2 and newer, and hopefully soon Linux CIFSFS and MacOS/X clients\&. Windows clients do not support this feature\&.
+.sp
+This may be set on a per\-share basis, but clients may chose to encrypt the entire session, not just traffic to a specific share\&. If this is set to mandatory then all traffic to a share
 \fImust\fR
 be encrypted once the connection has been made to the share\&. The server would return "access denied" to all non\-encrypted requests on such a share\&. Selecting encrypted traffic reduces throughput as smaller packet sizes must be used (no huge UNIX style read/writes allowed) as well as the overhead of encrypting and signing all the data\&.
 .sp
@@ -9886,6 +10136,174 @@ If SMB encryption is selected, Windows style SMB signing (see the
 option) is no longer necessary, as the GSSAPI flags use select both signing and sealing of the data\&.
 .sp
 When set to auto or default, SMB encryption is offered, but not enforced\&. When set to mandatory, SMB encryption is required and if set to disabled, SMB encryption can not be negotiated\&.
+.RE
+.PP
+\fIEffects for SMB2\fR
+.RS 4
+Native SMB transport encryption is available in SMB version 3\&.0 or newer\&. It is only offered by Samba if
+\fIserver max protocol\fR
+is set to
+\fISMB3\fR
+or newer\&. Clients supporting this type of encryption include Windows 8 and newer, Windows server 2012 and newer, and smbclient of Samba 4\&.1 and newer\&.
+.sp
+The protocol implementation offers various options:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+The capability to perform SMB encryption can be negotiated during protocol negotiation\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Data encryption can be enabled globally\&. In that case, an encryption\-capable connection will have all traffic in all its sessions encrypted\&. In particular all share connections will be encrypted\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Data encryption can also be enabled per share if not enabled globally\&. For an encryption\-capable connection, all connections to an encryption\-enabled share will be encrypted\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Encryption can be enforced\&. This means that session setups will be denied on non\-encryption\-capable connections if data encryption has been enabled globally\&. And tree connections will be denied for non\-encryption capable connections to shares with data encryption enabled\&.
+.RE
+.sp
+.RE
+These features can be controlled with settings of
+\fIsmb encrypt\fR
+as follows:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Leaving it as default, explicitly setting
+\fIdefault\fR, or setting it to
+\fIenabled\fR
+globally will enable negotiation of encryption but will not turn on data encryption globally or per share\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Setting it to
+\fIdesired\fR
+globally will enable negotiation and will turn on data encryption on sessions and share connections for those clients that support it\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Setting it to
+\fIrequired\fR
+globally will enable negotiation and turn on data encryption on sessions and share connections\&. Clients that do not support encryption will be denied access to the server\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Setting it to
+\fIoff\fR
+globally will completely disable the encryption feature\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Setting it to
+\fIdesired\fR
+on a share will turn on data encryption for this share for clients that support encryption if negotiation has been enabled globally\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Setting it to
+\fIrequired\fR
+on a share will enforce data encryption for this share if negotiation has been enabled globally\&. I\&.e\&. clients that do not support encryption will be denied access to the share\&.
+.sp
+Note that this allows per\-share enforcing to be controlled in Samba differently from Windows: In Windows,
+\fIRejectUnencryptedAccess\fR
+is a global setting, and if it is set, all shares with data encryption turned on are automatically enforcing encryption\&. In order to achieve the same effect in Samba, one has to globally set
+\fIsmb encrypt\fR
+to
+\fIenabled\fR, and then set all shares that should be encrypted to
+\fIrequired\fR\&. Additionally, it is possible in Samba to have some shares with encryption
+\fIrequired\fR
+and some other shares with encryption only
+\fIdesired\fR, which is not possible in Windows\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Setting it to
+\fIoff\fR
+or
+\fIenabled\fR
+for a share has no effect\&.
+.RE
+.sp
+.RE
+.RE
 .sp
 Default:
 \fI\fIsmb encrypt\fR\fR\fI = \fR\fIdefault\fR\fI \fR
@@ -9956,7 +10374,7 @@ man setsockopt
 will help)\&.
 .sp
 You may find that on some systems Samba will say "Unknown socket option" when you supply an option\&. This means you either incorrectly typed it or you need to add an include file to includes\&.h for your OS\&. If the latter is the case please send the patch to
-samba\-technical@samba\&.org\&.
+samba\-technical@lists\&.samba\&.org\&.
 .sp
 Any of the supported socket options may be combined in any way you like, as long as your OS allows it\&.
 .sp
@@ -10014,6 +10432,39 @@ TCP_NODELAY
 .sp -1
 .IP \(bu 2.3
 .\}
+TCP_KEEPCNT *
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+TCP_KEEPIDLE *
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+TCP_KEEPINTVL *
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 IPTOS_LOWDELAY
 .RE
 .sp
@@ -10026,6 +10477,17 @@ IPTOS_LOWDELAY
 .IP \(bu 2.3
 .\}
 IPTOS_THROUGHPUT
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+SO_REUSEPORT
 .RE
 .sp
 .RS 4
@@ -10070,6 +10532,94 @@ SO_SNDLOWAT *
 .IP \(bu 2.3
 .\}
 SO_RCVLOWAT *
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+SO_SNDTIMEO *
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+SO_RCVTIMEO *
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+TCP_FASTACK *
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+TCP_QUICKACK
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+TCP_NODELAYACK
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+TCP_KEEPALIVE_THRESHOLD *
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+TCP_KEEPALIVE_ABORT_THRESHOLD *
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+TCP_DEFER_ACCEPT *
 .RE
 .sp
 .RE
@@ -10163,6 +10713,84 @@ Default:
 .sp
 Example:
 \fI\fIspoolss: os_build\fR\fR\fI = \fR\fI7601\fR\fI \fR
+.RE
+
+spotlight (S)
+.\" spotlight
+.PP
+.RS 4
+This parameter controls whether Samba allows Spotlight queries on a share\&. For controlling indexing of filesystems you also have to use Tracker\*(Aqs own configuration system\&.
+.sp
+Spotlight has several prerequisites:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Samba must be configured and built with Spotlight support\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+The
+\fImdssvc\fR
+RPC service must be enabled, see below\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Tracker intergration must be setup and the share must be indexed by Tracker\&.
+.RE
+.sp
+.RE
+For a detailed set of instructions please see
+https://wiki\&.samba\&.org/index\&.php/Spotlight\&.
+.sp
+The Spotlight RPC service can either be enabled as embedded RPC service:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+\fI[Global]\fR
+\m[blue]\fBrpc_server:mdsvc = embedded\fR\m[]
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+Or it can be run in a seperate RPC service daemon:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+\fI[Global]\fR
+\m[blue]\fBrpc_server:mdssd = fork\fR\m[]
+\m[blue]\fBrpc_server:mdsvc = external\fR\m[]
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+Default:
+\fI\fIspotlight\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
 stat cache (G)
@@ -10322,18 +10950,6 @@ Default:
 \fI\fIsync always\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
-syslog only (G)
-.\" syslog only
-.PP
-.RS 4
-If this parameter is set then Samba debug messages are logged into the system syslog only, and not to the debug log files\&. There still will be some logging to log\&.[sn]mbd even if
-\fIsyslog only\fR
-is enabled\&.
-.sp
-Default:
-\fI\fIsyslog only\fR\fR\fI = \fR\fIno\fR\fI \fR
-.RE
-
 syslog (G)
 .\" syslog
 .PP
@@ -10348,8 +10964,36 @@ This parameter sets the threshold for sending messages to syslog\&. Only message
 \fIsyslog only\fR
 is enabled\&.
 .sp
+The
+\m[blue]\fBlogging\fR\m[]
+parameter should be used instead\&. When
+\m[blue]\fBlogging\fR\m[]
+is set, it overrides the
+\m[blue]\fBsyslog\fR\m[]
+parameter\&.
+.sp
 Default:
 \fI\fIsyslog\fR\fR\fI = \fR\fI1\fR\fI \fR
+.RE
+
+syslog only (G)
+.\" syslog only
+.PP
+.RS 4
+If this parameter is set then Samba debug messages are logged into the system syslog only, and not to the debug log files\&. There still will be some logging to log\&.[sn]mbd even if
+\fIsyslog only\fR
+is enabled\&.
+.sp
+The
+\m[blue]\fBlogging\fR\m[]
+parameter should be used instead\&. When
+\m[blue]\fBlogging\fR\m[]
+is set, it overrides the
+\m[blue]\fBsyslog only\fR\m[]
+parameter\&.
+.sp
+Default:
+\fI\fIsyslog only\fR\fR\fI = \fR\fIno\fR\fI \fR
 .RE
 
 template homedir (G)
@@ -10473,6 +11117,21 @@ Default:
 \fI\fItls keyfile\fR\fR\fI = \fR\fItls/key\&.pem\fR\fI \fR
 .RE
 
+tls priority (G)
+.\" tls priority
+.PP
+.RS 4
+This option can be set to a string describing the TLS protocols to be supported in the parts of Samba that use GnuTLS, specifically the AD DC\&.
+.sp
+The default turns off SSLv3, as this protocol is no longer considered secure after CVE\-2014\-3566 (otherwise known as POODLE) impacted SSLv3 use in HTTPS applications\&.
+.sp
+The valid options are described in the
+GNUTLS Priority\-Strings documentation at http://gnutls\&.org/manual/html_node/Priority\-Strings\&.html
+.sp
+Default:
+\fI\fItls priority\fR\fR\fI = \fR\fINORMAL:\-VERS\-SSL3\&.0\fR\fI \fR
+.RE
+
 unicode (G)
 .\" unicode
 .PP
@@ -10562,30 +11221,42 @@ Default:
 \fI\fIuse mmap\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
 
-use ntdb (G)
-.\" use ntdb
+user
+.\" user
 .PP
 .RS 4
-Beginning in Samba 4\&.1, a growing number of databases can use the NTDB format rather than TDB\&.
+This parameter is a synonym for
+username\&.
+.RE
+
+users
+.\" users
+.PP
+.RS 4
+This parameter is a synonym for
+username\&.
+.RE
+
+username (S)
+.\" username
+.PP
+.RS 4
+To restrict a service to a particular set of users you can use the
+\m[blue]\fBvalid users\fR\m[]
+parameter\&.
 .sp
-If you enable this option these databases will default to a
-\&.ntdb
-extension rather than
-\&.tdb\&. If the
-\&.tdb
-file exists, it will automatically be converted to NTDB and renamed to
-\&.tdb\&.bak\&.
+This parameter is deprecated
 .sp
-Filenames explicitly specified in
-smb\&.conf
-will be respected (i\&.e\&. the format will depend on the
-\&.ntdb
-or
-\&.tdb
-extension)\&.
+However, it currently operates only in conjunction with
+\m[blue]\fBonly user\fR\m[]\&. The supported way to restrict a service to a particular set of users is the
+\m[blue]\fBvalid users\fR\m[]
+parameter\&.
 .sp
 Default:
-\fI\fIuse ntdb\fR\fR\fI = \fR\fIno\fR\fI \fR
+\fI\fIusername\fR\fR\fI = \fR\fI # The guest account if a guest service, else <empty string>\&.\fR\fI \fR
+.sp
+Example:
+\fI\fIusername\fR\fR\fI = \fR\fIfred, mary, jack, jane, @users, @pcgroup\fR\fI \fR
 .RE
 
 username level (G)
@@ -10604,44 +11275,6 @@ Default:
 .sp
 Example:
 \fI\fIusername level\fR\fR\fI = \fR\fI5\fR\fI \fR
-.RE
-
-username map cache time (G)
-.\" username map cache time
-.PP
-.RS 4
-Mapping usernames with the
-\m[blue]\fBusername map\fR\m[]
-or
-\m[blue]\fBusername map script\fR\m[]
-features of Samba can be relatively expensive\&. During login of a user, the mapping is done several times\&. In particular, calling the
-\m[blue]\fBusername map script\fR\m[]
-can slow down logins if external databases have to be queried from the script being called\&.
-.sp
-The parameter
-\m[blue]\fBusername map cache time\fR\m[]
-controls a mapping cache\&. It specifies the number of seconds a mapping from the username map file or script is to be efficiently cached\&. The default of 0 means no caching is done\&.
-.sp
-Default:
-\fI\fIusername map cache time\fR\fR\fI = \fR\fI0\fR\fI \fR
-.sp
-Example:
-\fI\fIusername map cache time\fR\fR\fI = \fR\fI60\fR\fI \fR
-.RE
-
-username map script (G)
-.\" username map script
-.PP
-.RS 4
-This script is a mutually exclusive alternative to the
-\m[blue]\fBusername map\fR\m[]
-parameter\&. This parameter specifies and external program or script that must accept a single command line option (the username transmitted in the authentication request) and return a line on standard output (the name to which the account should mapped)\&. In this way, it is possible to store username map tables in an LDAP or NIS directory services\&.
-.sp
-Default:
-\fI\fIusername map script\fR\fR\fI = \fR\fI\fR\fI \fR
-.sp
-Example:
-\fI\fIusername map script\fR\fR\fI = \fR\fI/etc/samba/scripts/mapusers\&.sh\fR\fI \fR
 .RE
 
 username map (G)
@@ -10765,42 +11398,42 @@ Default:
 \fI\fIusername map\fR\fR\fI = \fR\fI # no username map\fR\fI \fR
 .RE
 
-user
-.\" user
+username map cache time (G)
+.\" username map cache time
 .PP
 .RS 4
-This parameter is a synonym for
-username\&.
-.RE
-
-users
-.\" users
-.PP
-.RS 4
-This parameter is a synonym for
-username\&.
-.RE
-
-username (S)
-.\" username
-.PP
-.RS 4
-To restrict a service to a particular set of users you can use the
-\m[blue]\fBvalid users\fR\m[]
-parameter\&.
+Mapping usernames with the
+\m[blue]\fBusername map\fR\m[]
+or
+\m[blue]\fBusername map script\fR\m[]
+features of Samba can be relatively expensive\&. During login of a user, the mapping is done several times\&. In particular, calling the
+\m[blue]\fBusername map script\fR\m[]
+can slow down logins if external databases have to be queried from the script being called\&.
 .sp
-This parameter is deprecated
-.sp
-However, it currently operates only in conjunction with
-\m[blue]\fBonly user\fR\m[]\&. The supported way to restrict a service to a particular set of users is the
-\m[blue]\fBvalid users\fR\m[]
-parameter\&.
+The parameter
+\m[blue]\fBusername map cache time\fR\m[]
+controls a mapping cache\&. It specifies the number of seconds a mapping from the username map file or script is to be efficiently cached\&. The default of 0 means no caching is done\&.
 .sp
 Default:
-\fI\fIusername\fR\fR\fI = \fR\fI # The guest account if a guest service, else <empty string>\&.\fR\fI \fR
+\fI\fIusername map cache time\fR\fR\fI = \fR\fI0\fR\fI \fR
 .sp
 Example:
-\fI\fIusername\fR\fR\fI = \fR\fIfred, mary, jack, jane, @users, @pcgroup\fR\fI \fR
+\fI\fIusername map cache time\fR\fR\fI = \fR\fI60\fR\fI \fR
+.RE
+
+username map script (G)
+.\" username map script
+.PP
+.RS 4
+This script is a mutually exclusive alternative to the
+\m[blue]\fBusername map\fR\m[]
+parameter\&. This parameter specifies and external program or script that must accept a single command line option (the username transmitted in the authentication request) and return a line on standard output (the name to which the account should mapped)\&. In this way, it is possible to store username map tables in an LDAP or NIS directory services\&.
+.sp
+Default:
+\fI\fIusername map script\fR\fR\fI = \fR\fI\fR\fI \fR
+.sp
+Example:
+\fI\fIusername map script\fR\fR\fI = \fR\fI/etc/samba/scripts/mapusers\&.sh\fR\fI \fR
 .RE
 
 usershare allow guests (G)
@@ -10931,6 +11564,21 @@ Default:
 \fI\fIuse spnego\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
 
+utmp (G)
+.\" utmp
+.PP
+.RS 4
+This boolean parameter is only available if Samba has been configured and compiled with the option
+\-\-with\-utmp\&. If set to
+\fByes\fR
+then Samba will attempt to add utmp or utmpx records (depending on the UNIX system) whenever a connection is made to a Samba server\&. Sites may use this to record the user connecting to a Samba share\&.
+.sp
+Due to the requirements of the utmp record, we are required to create a unique identifier for the incoming user\&. Enabling this option creates an n^2 algorithm to find this number\&. This may impede performance on large installations\&.
+.sp
+Default:
+\fI\fIutmp\fR\fR\fI = \fR\fIno\fR\fI \fR
+.RE
+
 utmp directory (G)
 .\" utmp directory
 .PP
@@ -10947,19 +11595,16 @@ Example:
 \fI\fIutmp directory\fR\fR\fI = \fR\fI/var/run/utmp\fR\fI \fR
 .RE
 
-utmp (G)
-.\" utmp
+\-valid (S)
+.\" -valid
 .PP
 .RS 4
-This boolean parameter is only available if Samba has been configured and compiled with the option
-\-\-with\-utmp\&. If set to
-\fByes\fR
-then Samba will attempt to add utmp or utmpx records (depending on the UNIX system) whenever a connection is made to a Samba server\&. Sites may use this to record the user connecting to a Samba share\&.
+This parameter indicates whether a share is valid and thus can be used\&. When this parameter is set to false, the share will be in no way visible nor accessible\&.
 .sp
-Due to the requirements of the utmp record, we are required to create a unique identifier for the incoming user\&. Enabling this option creates an n^2 algorithm to find this number\&. This may impede performance on large installations\&.
+This option should not be used by regular users but might be of help to developers\&. Samba uses this option internally to mark shares as deleted\&.
 .sp
 Default:
-\fI\fIutmp\fR\fR\fI = \fR\fIno\fR\fI \fR
+\fI\fI\-valid\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
 
 valid users (S)
@@ -10988,18 +11633,6 @@ Default:
 .sp
 Example:
 \fI\fIvalid users\fR\fR\fI = \fR\fIgreg, @pcusers\fR\fI \fR
-.RE
-
-\-valid (S)
-.\" -valid
-.PP
-.RS 4
-This parameter indicates whether a share is valid and thus can be used\&. When this parameter is set to false, the share will be in no way visible nor accessible\&.
-.sp
-This option should not be used by regular users but might be of help to developers\&. Samba uses this option internally to mark shares as deleted\&.
-.sp
-Default:
-\fI\fI\-valid\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
 
 veto files (S)
@@ -11271,7 +11904,9 @@ winbind max clients (G)
 .RS 4
 This parameter specifies the maximum number of clients the
 \fBwinbindd\fR(8)
-daemon can connect with\&.
+daemon can connect with\&. The parameter is not a hard limit\&. The
+\fBwinbindd\fR(8)
+daemon configures itself to be able to accept at least that many connections, and if the limit is reached, an attempt is made to disconnect idle clients\&.
 .sp
 Default:
 \fI\fIwinbind max clients\fR\fR\fI = \fR\fI200\fR\fI \fR

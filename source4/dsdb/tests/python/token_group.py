@@ -21,7 +21,6 @@ from samba.ndr import ndr_unpack
 from samba import gensec
 from samba.credentials import Credentials, DONT_USE_KERBEROS
 from samba.dsdb import GTYPE_SECURITY_GLOBAL_GROUP, GTYPE_SECURITY_UNIVERSAL_GROUP
-
 import samba.tests
 from samba.tests import delete_force
 
@@ -494,7 +493,5 @@ if not "://" in url:
         url = "tdb://%s" % url
     else:
         url = "ldap://%s" % url
-
-samdb = SamDB(url, credentials=creds, session_info=system_session(lp), lp=lp)
 
 TestProgram(module=__name__, opts=subunitopts)

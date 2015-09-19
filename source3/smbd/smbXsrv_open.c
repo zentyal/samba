@@ -29,7 +29,6 @@
 #include "messages.h"
 #include "lib/util/util_tdb.h"
 #include "librpc/gen_ndr/ndr_smbXsrv.h"
-#include <ccan/hash/hash.h>
 #include "serverid.h"
 
 struct smbXsrv_open_table {
@@ -49,7 +48,7 @@ static struct db_context *smbXsrv_open_global_db_ctx = NULL;
 
 NTSTATUS smbXsrv_open_global_init(void)
 {
-	const char *global_path = NULL;
+	char *global_path = NULL;
 	struct db_context *db_ctx = NULL;
 
 	if (smbXsrv_open_global_db_ctx != NULL) {
@@ -57,6 +56,9 @@ NTSTATUS smbXsrv_open_global_init(void)
 	}
 
 	global_path = lock_path("smbXsrv_open_global.tdb");
+	if (global_path == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
 
 	db_ctx = db_open(NULL, global_path,
 			 0, /* hash_size */
@@ -66,6 +68,7 @@ NTSTATUS smbXsrv_open_global_init(void)
 			 O_RDWR | O_CREAT, 0600,
 			 DBWRAP_LOCK_ORDER_1,
 			 DBWRAP_FLAG_NONE);
+	TALLOC_FREE(global_path);
 	if (db_ctx == NULL) {
 		NTSTATUS status;
 
@@ -627,10 +630,11 @@ static void smbXsrv_open_global_verify_record(struct db_record *db_rec,
 		exists = serverid_exists(&global->server_id);
 	}
 	if (!exists) {
+		struct server_id_buf idbuf;
 		DEBUG(2,("smbXsrv_open_global_verify_record: "
 			 "key '%s' server_id %s does not exist.\n",
 			 hex_encode_talloc(frame, key.dptr, key.dsize),
-			 server_id_str(frame, &global->server_id)));
+			 server_id_str_buf(global->server_id, &idbuf)));
 		if (CHECK_DEBUGLVL(2)) {
 			NDR_PRINT_DEBUG(smbXsrv_open_globalB, &global_blob);
 		}
@@ -885,12 +889,14 @@ uint32_t smbXsrv_open_hash(struct smbXsrv_open *_open)
 {
 	uint8_t buf[8+8+8];
 	uint32_t ret;
+	TDB_DATA key;
 
 	SBVAL(buf,  0, _open->global->open_persistent_id);
 	SBVAL(buf,  8, _open->global->open_volatile_id);
 	SBVAL(buf, 16, _open->global->open_time);
 
-	ret = hash(buf, sizeof(buf), 0);
+	key = (TDB_DATA) { .dptr = buf, .dsize = sizeof(buf) };
+	ret = tdb_jenkins_hash(&key);
 
 	if (ret == 0) {
 		ret = 1;
@@ -1448,9 +1454,11 @@ NTSTATUS smbXsrv_open_cleanup(uint64_t persistent_id)
 			   op->durable_timeout_msec / 1000,
 			   delete_open ? "" : " not"));
 	} else if (!serverid_exists(&op->server_id)) {
+		struct server_id_buf idbuf;
 		DEBUG(10, ("smbXsrv_open_cleanup[global: 0x%08x] "
 			   "server[%s] does not exist\n",
-			   global_id, server_id_str(frame, &op->server_id)));
+			   global_id,
+			   server_id_str_buf(op->server_id, &idbuf)));
 		delete_open = true;
 	}
 

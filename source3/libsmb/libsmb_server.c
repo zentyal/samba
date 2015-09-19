@@ -267,7 +267,7 @@ SMBC_server_internal(TALLOC_CTX *ctx,
 	struct cli_state *c = NULL;
 	const char *server_n = server;
         int is_ipc = (share != NULL && strcmp(share, "IPC$") == 0);
-	uint32 fs_attrs = 0;
+	uint32_t fs_attrs = 0;
         const char *username_used;
  	NTSTATUS status;
 	char *newserver, *newshare;
@@ -502,14 +502,6 @@ SMBC_server_internal(TALLOC_CTX *ctx,
                         errno = EPERM;
                         return NULL;
                 }
-	}
-
-	status = cli_init_creds(c, username_used,
-				*pp_workgroup, *pp_password);
-	if (!NT_STATUS_IS_OK(status)) {
-		errno = map_errno_from_nt_status(status);
-		cli_shutdown(c);
-		return NULL;
 	}
 
 	DEBUG(4,(" session setup ok\n"));

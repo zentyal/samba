@@ -26,6 +26,7 @@
 #include "printing.h"
 #include "printing/pcap.h"
 #include "librpc/gen_ndr/ndr_printcap.h"
+#include "lib/sys_rw.h"
 
 #ifdef HAVE_CUPS
 #include <cups/cups.h>
@@ -147,7 +148,7 @@ static http_t *cups_connect(TALLOC_CTX *frame)
         alarm(0);
 
 	if (http == NULL) {
-		DEBUG(0,("Unable to connect to CUPS server %s:%d - %s\n",
+		DEBUG(3,("Unable to connect to CUPS server %s:%d - %s\n",
 			 server, port, strerror(errno)));
 	}
 
@@ -497,7 +498,7 @@ struct cups_async_cb_args {
 
 static void cups_async_callback(struct tevent_context *event_ctx,
 				struct tevent_fd *event,
-				uint16 flags,
+				uint16_t flags,
 				void *p)
 {
 	TALLOC_CTX *frame = talloc_stackframe();
@@ -525,7 +526,7 @@ static void cups_async_callback(struct tevent_context *event_ctx,
 	}
 
 	if (!NT_STATUS_IS_OK(pcap_data.status)) {
-		DEBUG(0,("failed to retrieve printer list: %s\n",
+		DEBUG(3,("failed to retrieve printer list: %s\n",
 			 nt_errstr(pcap_data.status)));
 		goto err_out;
 	}

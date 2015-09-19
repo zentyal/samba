@@ -18,6 +18,7 @@
  */
 
 #include "includes.h"
+#include "lib/sys_rw.h"
 
 /**
  Load from a pipe into memory.
@@ -69,7 +70,7 @@ static char *file_pload(const char *syscmd, size_t *size)
 
 /**
  Load a pipe into memory and return an array of pointers to lines in the data
- must be freed with file_lines_free(). 
+ must be freed with TALLOC_FREE.
 **/
 
 char **file_lines_pload(const char *syscmd, int *numlines)

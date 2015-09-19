@@ -24,10 +24,6 @@ import os
 import re
 import warnings
 
-import samba
-samba.ensure_external_module("pep8", "pep8")
-import pep8
-
 from samba.tests import (
     TestCase,
     )
@@ -98,10 +94,9 @@ class TestSource(TestCase):
                 incorrect.append((fname, 'no copyright line found\n'))
 
         if incorrect:
-            help_text = ["Some files have missing or incorrect copyright"
-                         " statements.",
-                         "",
-                        ]
+            help_text = [
+                "Some files have missing or incorrect copyright"
+                " statements.", ""]
             for fname, comment in incorrect:
                 help_text.append(fname)
                 help_text.append((' ' * 4) + comment)
@@ -131,6 +126,10 @@ class TestSource(TestCase):
         for fname, text in get_source_file_contents():
             if "wafsamba" in fname:
                 # FIXME: License to wafsamba hasn't been clarified yet
+                continue
+            if fname.endswith("/python/samba/subunit/run.py"):
+                # Imported from subunit/testtools, which are dual
+                # Apache2/BSD-3.
                 continue
             if not gpl_re.search(text):
                 incorrect.append(fname)
@@ -208,57 +207,7 @@ class TestSource(TestCase):
                 self._push_file(files_without_shebang, fname, line_no)
         if files_with_shebang:
             self.fail(self._format_message(files_with_shebang,
-                'Files with shebang line that are not executable:'))
+                      'Files with shebang line that are not executable:'))
         if files_without_shebang:
             self.fail(self._format_message(files_without_shebang,
-                'Files without shebang line that are executable:'))
-
-    pep8_ignore = [
-        'E401',      # multiple imports on one line
-        'E501',      # line too long
-        'E251',      # no spaces around keyword / parameter equals
-        'E201',      # whitespace after '['
-        'E202',      # whitespace before ')'
-        'E302',      # expected 2 blank lines, found 1
-        'E231',      # missing whitespace after ','
-        'E225',      # missing whitespace around operator
-        'E111',      # indentation is not a multiple of four
-        'E261',      # at least two spaces before inline comment
-        'E702',      # multiple statements on one line (semicolon)
-        'E221',      # multiple spaces before operator
-        'E303',      # too many blank lines (2)
-        'E203',      # whitespace before ':'
-        'E222',      # multiple spaces after operator
-        'E301',      # expected 1 blank line, found 0
-        'E211',      # whitespace before '('
-        'E701',      # multiple statements on one line (colon)
-        ]
-
-    def test_pep8(self):
-        pep8.process_options()
-        pep8.options.repeat = True
-        pep8_errors = []
-        pep8_warnings = []
-        for fname, text in get_source_file_contents():
-            def report_error(line_number, offset, text, check):
-                code = text[:4]
-                if code in self.pep8_ignore:
-                    code = 'W' + code[1:]
-                text = code + text[4:]
-                print "%s:%s: %s" % (fname, line_number, text)
-                summary = (fname, line_number, offset, text, check)
-                if code[0] == 'W':
-                    pep8_warnings.append(summary)
-                else:
-                    pep8_errors.append(summary)
-            lines = text.splitlines(True)
-            checker = pep8.Checker(fname, lines)
-            checker.report_error = report_error
-            checker.check_all()
-        if len(pep8_errors) > 0:
-            d = {}
-            for (fname, line_no, offset, text, check) in pep8_errors:
-                d.setdefault(fname, []).append(line_no - 1)
-            self.fail(self._format_message(d,
-                'There were %d PEP8 errors:' % len(pep8_errors)))
-
+                      'Files without shebang line that are executable:'))

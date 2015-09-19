@@ -666,7 +666,7 @@ static int converse(const pam_handle_t *pamh,
 	retval = pam_get_item(pamh, PAM_CONV, (const void **) &conv);
 	if (retval == PAM_SUCCESS) {
 		retval = conv->conv(nargs,
-				    (const struct pam_message **)message,
+				    discard_const_p(const struct pam_message *, message),
 				    response, conv->appdata_ptr);
 	}
 
@@ -2001,7 +2001,7 @@ static int winbind_chauthtok_request(struct pwb_context *ctx,
 		}
 
 		/* FIXME: avoid to send multiple PAM messages after another */
-		switch (reject_reason) {
+		switch ((int)reject_reason) {
 			case -1:
 				break;
 			case WBC_PWD_CHANGE_NO_ERROR:
@@ -2421,7 +2421,7 @@ static char winbind_get_separator(struct pwb_context *ctx)
  * Convert a upn to a name.
  *
  * @param ctx PAM winbind context.
- * @param upn  USer UPN to be trabslated.
+ * @param upn  User UPN to be translated.
  *
  * @return converted name. NULL pointer on failure. Caller needs to free.
  */
@@ -2436,6 +2436,7 @@ static char* winbind_upn_to_username(struct pwb_context *ctx,
 	char *domain = NULL;
 	char *name;
 	char *p;
+	char *result;
 
 	/* This cannot work when the winbind separator = @ */
 
@@ -2467,7 +2468,10 @@ static char* winbind_upn_to_username(struct pwb_context *ctx,
 		return NULL;
 	}
 
-	return talloc_asprintf(ctx, "%s%c%s", domain, sep, name);
+	result = talloc_asprintf(ctx, "%s%c%s", domain, sep, name);
+	wbcFreeMemory(domain);
+	wbcFreeMemory(name);
+	return result;
 }
 
 static int _pam_delete_cred(pam_handle_t *pamh, int flags,

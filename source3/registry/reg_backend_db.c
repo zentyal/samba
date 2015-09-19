@@ -153,10 +153,10 @@ static const char *builtin_registry_paths[] = {
 struct builtin_regkey_value {
 	const char *path;
 	const char *valuename;
-	uint32 type;
+	uint32_t type;
 	union {
 		const char *string;
-		uint32 dw_value;
+		uint32_t dw_value;
 	} data;
 };
 
@@ -286,7 +286,7 @@ static void regdb_ctr_add_value(struct regval_ctr *ctr,
 	case REG_DWORD:
 		regval_ctr_addvalue(ctr, value->valuename, REG_DWORD,
 				    (uint8_t *)&value->data.dw_value,
-				    sizeof(uint32));
+				    sizeof(uint32_t));
 		break;
 
 	case REG_SZ:
@@ -547,7 +547,7 @@ static bool tdb_data_is_cstr(TDB_DATA d) {
 	if (tdb_data_is_empty(d) || (d.dptr[d.dsize-1] != '\0')) {
 		return false;
 	}
-	return strchr((char *)d.dptr, '\0') == (char *)&d.dptr[d.dsize-1];
+	return strlen((char *)d.dptr) == (d.dsize-1);
 }
 
 static bool upgrade_v2_to_v3_check_subkeylist(struct db_context *db,
@@ -722,6 +722,7 @@ WERROR regdb_init(void)
 	int32_t vers_id;
 	WERROR werr;
 	NTSTATUS status;
+	char *db_path;
 
 	if (regdb) {
 		DEBUG(10, ("regdb_init: incrementing refcount (%d->%d)\n",
@@ -730,17 +731,23 @@ WERROR regdb_init(void)
 		return WERR_OK;
 	}
 
-	regdb = db_open(NULL, state_path("registry.tdb"), 0,
+	db_path = state_path("registry.tdb");
+	if (db_path == NULL) {
+		return WERR_NOMEM;
+	}
+
+	regdb = db_open(NULL, db_path, 0,
 			REG_TDB_FLAGS, O_RDWR, 0600,
 			DBWRAP_LOCK_ORDER_1, REG_DBWRAP_FLAGS);
 	if (!regdb) {
-		regdb = db_open(NULL, state_path("registry.tdb"), 0,
+		regdb = db_open(NULL, db_path, 0,
 				REG_TDB_FLAGS, O_RDWR|O_CREAT, 0600,
 				DBWRAP_LOCK_ORDER_1, REG_DBWRAP_FLAGS);
 		if (!regdb) {
 			werr = ntstatus_to_werror(map_nt_error_from_unix(errno));
 			DEBUG(1,("regdb_init: Failed to open registry %s (%s)\n",
-				state_path("registry.tdb"), strerror(errno) ));
+				db_path, strerror(errno) ));
+			TALLOC_FREE(db_path);
 			return werr;
 		}
 
@@ -748,11 +755,13 @@ WERROR regdb_init(void)
 		if (!W_ERROR_IS_OK(werr)) {
 			DEBUG(1, ("regdb_init: Failed to store version: %s\n",
 				  win_errstr(werr)));
+			TALLOC_FREE(db_path);
 			return werr;
 		}
 
 		DEBUG(10,("regdb_init: Successfully created registry tdb\n"));
 	}
+	TALLOC_FREE(db_path);
 
 	regdb_refcount = 1;
 	DEBUG(10, ("regdb_init: registry db openend. refcount reset (%d)\n",
@@ -840,6 +849,8 @@ WERROR regdb_init(void)
 WERROR regdb_open( void )
 {
 	WERROR result = WERR_OK;
+	char *db_path;
+	int saved_errno;
 
 	if ( regdb ) {
 		DEBUG(10, ("regdb_open: incrementing refcount (%d->%d)\n",
@@ -848,24 +859,32 @@ WERROR regdb_open( void )
 		return WERR_OK;
 	}
 
-	become_root();
-
-	regdb = db_open(NULL, state_path("registry.tdb"), 0,
-			REG_TDB_FLAGS, O_RDWR, 0600,
-			DBWRAP_LOCK_ORDER_1, REG_DBWRAP_FLAGS);
-	if ( !regdb ) {
-		result = ntstatus_to_werror( map_nt_error_from_unix( errno ) );
-		DEBUG(0,("regdb_open: Failed to open %s! (%s)\n",
-			state_path("registry.tdb"), strerror(errno) ));
+	db_path = state_path("registry.tdb");
+	if (db_path == NULL) {
+		return WERR_NOMEM;
 	}
 
+	become_root();
+
+	regdb = db_open(NULL, db_path, 0,
+			REG_TDB_FLAGS, O_RDWR, 0600,
+			DBWRAP_LOCK_ORDER_1, REG_DBWRAP_FLAGS);
+	saved_errno = errno;
 	unbecome_root();
+	if ( !regdb ) {
+		result = ntstatus_to_werror(map_nt_error_from_unix(saved_errno));
+		DEBUG(0,("regdb_open: Failed to open %s! (%s)\n",
+			 db_path, strerror(saved_errno)));
+		TALLOC_FREE(db_path);
+		return result;
+	}
+	TALLOC_FREE(db_path);
 
 	regdb_refcount = 1;
 	DEBUG(10, ("regdb_open: registry db opened. refcount reset (%d)\n",
 		   regdb_refcount));
 
-	return result;
+	return WERR_OK;
 }
 
 /***********************************************************************
@@ -1016,10 +1035,10 @@ static WERROR regdb_store_keys_internal2(struct db_context *db,
 					 struct regsubkey_ctr *ctr)
 {
 	TDB_DATA dbuf;
-	uint8 *buffer = NULL;
+	uint8_t *buffer = NULL;
 	int i = 0;
-	uint32 len, buflen;
-	uint32 num_subkeys = regsubkey_ctr_numkeys(ctr);
+	uint32_t len, buflen;
+	uint32_t num_subkeys = regsubkey_ctr_numkeys(ctr);
 	char *keyname = NULL;
 	TALLOC_CTX *ctx = talloc_stackframe();
 	WERROR werr;
@@ -1043,7 +1062,7 @@ static WERROR regdb_store_keys_internal2(struct db_context *db,
 
 	/* allocate some initial memory */
 
-	buffer = (uint8 *)SMB_MALLOC(1024);
+	buffer = (uint8_t *)SMB_MALLOC(1024);
 	if (buffer == NULL) {
 		werr = WERR_NOMEM;
 		goto done;
@@ -1711,8 +1730,8 @@ static WERROR regdb_fetch_keys_internal(struct db_context *db, const char *key,
 {
 	WERROR werr;
 	uint32_t num_items;
-	uint8 *buf;
-	uint32 buflen, len;
+	uint8_t *buf;
+	uint32_t buflen, len;
 	int i;
 	fstring subkeyname;
 	TALLOC_CTX *frame = talloc_stackframe();
@@ -1801,14 +1820,14 @@ static int regdb_fetch_keys(const char *key, struct regsubkey_ctr *ctr)
  Unpack a list of registry values frem the TDB
  ***************************************************************************/
 
-static int regdb_unpack_values(struct regval_ctr *values, uint8 *buf, int buflen)
+static int regdb_unpack_values(struct regval_ctr *values, uint8_t *buf, int buflen)
 {
 	int 		len = 0;
-	uint32		type;
+	uint32_t	type;
 	fstring valuename;
-	uint32		size;
-	uint8		*data_p;
-	uint32 		num_values = 0;
+	uint32_t	size;
+	uint8_t		*data_p;
+	uint32_t 	num_values = 0;
 	int 		i;
 
 	/* loop and unpack the rest of the registry values */
@@ -1843,7 +1862,7 @@ static int regdb_unpack_values(struct regval_ctr *values, uint8 *buf, int buflen
  Pack all values in all printer keys
  ***************************************************************************/
 
-static int regdb_pack_values(struct regval_ctr *values, uint8 *buf, int buflen)
+static int regdb_pack_values(struct regval_ctr *values, uint8_t *buf, int buflen)
 {
 	int 		len = 0;
 	int 		i;
@@ -1985,7 +2004,7 @@ static NTSTATUS regdb_store_values_internal(struct db_context *db,
 		goto done;
 	}
 
-	data.dptr = talloc_array(ctx, uint8, len);
+	data.dptr = talloc_array(ctx, uint8_t, len);
 	data.dsize = len;
 
 	len = regdb_pack_values(values, data.dptr, data.dsize);
@@ -2096,7 +2115,7 @@ static WERROR regdb_get_secdesc(TALLOC_CTX *mem_ctx, const char *key,
 		goto done;
 	}
 
-	status = unmarshall_sec_desc(mem_ctx, (uint8 *)data.dptr, data.dsize,
+	status = unmarshall_sec_desc(mem_ctx, (uint8_t *)data.dptr, data.dsize,
 				     psecdesc);
 
 	if (NT_STATUS_EQUAL(status, NT_STATUS_NO_MEMORY)) {

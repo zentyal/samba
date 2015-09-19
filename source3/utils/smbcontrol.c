@@ -66,7 +66,7 @@ static bool send_message(struct messaging_context *msg_ctx,
 	if (procid_to_pid(&pid) != 0)
 		return NT_STATUS_IS_OK(
 			messaging_send_buf(msg_ctx, pid, msg_type,
-					   (const uint8 *)buf, len));
+					   (const uint8_t *)buf, len));
 
 	ret = message_send_all(msg_ctx, msg_type, buf, len, &n_sent);
 	DEBUG(10,("smbcontrol/send_message: broadcast message to "
@@ -121,12 +121,10 @@ static void print_pid_string_cb(struct messaging_context *msg,
 				struct server_id pid,
 				DATA_BLOB *data)
 {
-	char *pidstr;
+	struct server_id_buf pidstr;
 
-	pidstr = server_id_str(talloc_tos(), &pid);
-	printf("PID %s: %.*s", pidstr, (int)data->length,
-	       (const char *)data->data);
-	TALLOC_FREE(pidstr);
+	printf("PID %s: %.*s", server_id_str_buf(pid, &pidstr),
+	       (int)data->length, (const char *)data->data);
 	num_replies++;
 }
 
@@ -442,9 +440,8 @@ static void pong_cb(struct messaging_context *msg,
 		    struct server_id pid,
 		    DATA_BLOB *data)
 {
-	char *src_string = server_id_str(NULL, &pid);
-	printf("PONG from pid %s\n", src_string);
-	TALLOC_FREE(src_string);
+	struct server_id_buf src_string;
+	printf("PONG from pid %s\n", server_id_str_buf(pid, &src_string));
 	num_replies++;
 }
 
@@ -738,7 +735,7 @@ static bool do_printnotify(struct tevent_context *ev_ctx,
 		goto send;
 
 	} else if (strcmp(cmd, "printer") == 0) {
-		uint32 attribute;
+		uint32_t attribute;
 
 		if (argc != 5) {
 			fprintf(stderr, "Usage: smbcontrol <dest> printnotify "
@@ -1021,22 +1018,30 @@ static bool do_winbind_online(struct tevent_context *ev_ctx,
 			      const int argc, const char **argv)
 {
 	TDB_CONTEXT *tdb;
+	char *db_path;
 
 	if (argc != 1) {
 		fprintf(stderr, "Usage: smbcontrol winbindd online\n");
 		return False;
 	}
 
+	db_path = state_path("winbindd_cache.tdb");
+	if (db_path == NULL) {
+		return false;
+	}
+
 	/* Remove the entry in the winbindd_cache tdb to tell a later
 	   starting winbindd that we're online. */
 
-	tdb = tdb_open_log(state_path("winbindd_cache.tdb"), 0, TDB_DEFAULT, O_RDWR, 0600);
+	tdb = tdb_open_log(db_path, 0, TDB_DEFAULT, O_RDWR, 0600);
 	if (!tdb) {
 		fprintf(stderr, "Cannot open the tdb %s for writing.\n",
-			state_path("winbindd_cache.tdb"));
+			db_path);
+		TALLOC_FREE(db_path);
 		return False;
 	}
 
+	TALLOC_FREE(db_path);
 	tdb_delete_bystring(tdb, "WINBINDD_OFFLINE");
 	tdb_close(tdb);
 
@@ -1051,26 +1056,34 @@ static bool do_winbind_offline(struct tevent_context *ev_ctx,
 	TDB_CONTEXT *tdb;
 	bool ret = False;
 	int retry = 0;
+	char *db_path;
 
 	if (argc != 1) {
 		fprintf(stderr, "Usage: smbcontrol winbindd offline\n");
 		return False;
 	}
 
+	db_path = state_path("winbindd_cache.tdb");
+	if (db_path == NULL) {
+		return false;
+	}
+
 	/* Create an entry in the winbindd_cache tdb to tell a later
 	   starting winbindd that we're offline. We may actually create
 	   it here... */
 
-	tdb = tdb_open_log(state_path("winbindd_cache.tdb"),
+	tdb = tdb_open_log(db_path,
 				WINBINDD_CACHE_TDB_DEFAULT_HASH_SIZE,
 				TDB_DEFAULT|TDB_INCOMPATIBLE_HASH /* TDB_CLEAR_IF_FIRST */,
 				O_RDWR|O_CREAT, 0600);
 
 	if (!tdb) {
 		fprintf(stderr, "Cannot open the tdb %s for writing.\n",
-			state_path("winbindd_cache.tdb"));
+			db_path);
+		TALLOC_FREE(db_path);
 		return False;
 	}
+	TALLOC_FREE(db_path);
 
 	/* There's a potential race condition that if a child
 	   winbindd detects a domain is online at the same time
@@ -1080,14 +1093,10 @@ static bool do_winbind_offline(struct tevent_context *ev_ctx,
 	   5 times. */
 
 	for (retry = 0; retry < 5; retry++) {
-		TDB_DATA d;
-		uint8 buf[4];
-
-		ZERO_STRUCT(d);
+		uint8_t buf[4];
+		TDB_DATA d = { .dptr = buf, .dsize = sizeof(buf) };
 
 		SIVAL(buf, 0, time(NULL));
-		d.dptr = buf;
-		d.dsize = 4;
 
 		tdb_store_bystring(tdb, "WINBINDD_OFFLINE", d, TDB_INSERT);
 
@@ -1219,10 +1228,10 @@ static void winbind_validate_cache_cb(struct messaging_context *msg,
 				      struct server_id pid,
 				      DATA_BLOB *data)
 {
-	char *src_string = server_id_str(NULL, &pid);
+	struct server_id_buf src_string;
 	printf("Winbindd cache is %svalid. (answer from pid %s)\n",
-	       (*(data->data) == 0 ? "" : "NOT "), src_string);
-	TALLOC_FREE(src_string);
+	       (*(data->data) == 0 ? "" : "NOT "),
+	       server_id_str_buf(pid, &src_string));
 	num_replies++;
 }
 
@@ -1541,9 +1550,10 @@ int main(int argc, const char **argv)
 	TALLOC_CTX *frame = talloc_stackframe();
 	int ret = 0;
 
-	load_case_tables();
+	smb_init_locale();
 
 	setup_logging(argv[0], DEBUG_STDOUT);
+	lp_set_cmdline("log level", "0");
 
 	/* Parse command line arguments using popt */
 

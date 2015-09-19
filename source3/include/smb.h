@@ -30,7 +30,7 @@
 #include "libds/common/roles.h"
 
 /* logged when starting the various Samba daemons */
-#define COPYRIGHT_STARTUP_MESSAGE	"Copyright Andrew Tridgell and the Samba Team 1992-2014"
+#define COPYRIGHT_STARTUP_MESSAGE	"Copyright Andrew Tridgell and the Samba Team 1992-2015"
 
 #define SAFETY_MARGIN 1024
 #define LARGE_WRITEX_HDR_SIZE 65
@@ -191,20 +191,20 @@ struct interface {
 
 Offset  Data			length.
 0	struct server_id pid	4
-4	uint16 op_mid		8
-12	uint16 op_type		2
-14	uint32 access_mask	4
-18	uint32 share_access	4
-22	uint32 private_options	4
-26	uint32 time sec		4
-30	uint32 time usec	4
-34	uint64 dev		8 bytes
-42	uint64 inode		8 bytes
-50	uint64 extid		8 bytes
+4	uint16_t op_mid		8
+12	uint16_t op_type	2
+14	uint32_t access_mask	4
+18	uint32_t share_access	4
+22	uint32_t private_options	4
+26	uint32_t time sec		4
+30	uint32_t time usec	4
+34	uint64_t dev		8 bytes
+42	uint64_t inode		8 bytes
+50	uint64_t extid		8 bytes
 58	unsigned long file_id	4 bytes
-62	uint32 uid		4 bytes
-66	uint16 flags		2 bytes
-68	uint32 name_hash	4 bytes
+62	uint32_t uid		4 bytes
+66	uint16_t flags		2 bytes
+68	uint32_t name_hash	4 bytes
 72
 
 */
@@ -757,7 +757,7 @@ struct ip_service {
 };
 
 struct ea_struct {
-	uint8 flags;
+	uint8_t flags;
 	char *name;
 	DATA_BLOB value;
 };
@@ -801,9 +801,9 @@ enum file_close_type {NORMAL_CLOSE=0,SHUTDOWN_CLOSE,ERROR_CLOSE};
 #define SAMBA_EXTENDED_INFO_MAGIC 0x536d4261 /* "SmBa" */
 #define SAMBA_EXTENDED_INFO_VERSION_STRING_LENGTH 28
 struct smb_extended_info {
-	uint32 samba_magic;		/* Always SAMBA_EXTRA_INFO_MAGIC */
-	uint32 samba_version;		/* Major/Minor/Release/Revision */
-	uint32 samba_subversion;	/* Prerelease/RC/Vendor patch */
+	uint32_t samba_magic;		/* Always SAMBA_EXTRA_INFO_MAGIC */
+	uint32_t samba_version;		/* Major/Minor/Release/Revision */
+	uint32_t samba_subversion;	/* Prerelease/RC/Vendor patch */
 	NTTIME samba_gitcommitdate;
 	char   samba_version_string[SAMBA_EXTENDED_INFO_VERSION_STRING_LENGTH];
 };
@@ -821,7 +821,6 @@ enum flush_reason_enum {
     SAMBA_CLOSE_FLUSH,
     SAMBA_SYNC_FLUSH,
     SAMBA_SIZECHANGE_FLUSH,
-    /* NUM_FLUSH_REASONS must remain the last value in the enumeration. */
-    SAMBA_NUM_FLUSH_REASONS};
+};
 
 #endif /* _SMB_H */

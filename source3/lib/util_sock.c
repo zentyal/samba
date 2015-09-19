@@ -28,6 +28,8 @@
 #include "../lib/util/tevent_unix.h"
 #include "../lib/util/tevent_ntstatus.h"
 #include "../lib/tsocket/tsocket.h"
+#include "lib/sys_rw.h"
+#include "lib/sys_rw_data.h"
 
 const char *client_addr(int fd, char *addr, size_t addrlen)
 {
@@ -196,132 +198,9 @@ NTSTATUS read_fd_with_timeout(int fd, char *buf,
  on socket calls.
 ****************************************************************************/
 
-NTSTATUS read_data(int fd, char *buffer, size_t N)
+NTSTATUS read_data_ntstatus(int fd, char *buffer, size_t N)
 {
 	return read_fd_with_timeout(fd, buffer, N, N, 0, NULL);
-}
-
-ssize_t iov_buflen(const struct iovec *iov, int iovcnt)
-{
-	size_t buflen = 0;
-	int i;
-
-	for (i=0; i<iovcnt; i++) {
-		size_t thislen = iov[i].iov_len;
-		size_t tmp = buflen + thislen;
-
-		if ((tmp < buflen) || (tmp < thislen)) {
-			/* overflow */
-			return -1;
-		}
-		buflen = tmp;
-	}
-	return buflen;
-}
-
-uint8_t *iov_buf(TALLOC_CTX *mem_ctx, const struct iovec *iov, int iovcnt)
-{
-	int i;
-	ssize_t buflen;
-	uint8_t *buf, *p;
-
-	buflen = iov_buflen(iov, iovcnt);
-	if (buflen == -1) {
-		return NULL;
-	}
-	buf = talloc_array(mem_ctx, uint8_t, buflen);
-	if (buf == NULL) {
-		return NULL;
-	}
-
-	p = buf;
-	for (i=0; i<iovcnt; i++) {
-		size_t len = iov[i].iov_len;
-
-		memcpy(p, iov[i].iov_base, len);
-		p += len;
-	}
-	return buf;
-}
-
-/****************************************************************************
- Write all data from an iov array
- NB. This can be called with a non-socket fd, don't add dependencies
- on socket calls.
-****************************************************************************/
-
-ssize_t write_data_iov(int fd, const struct iovec *orig_iov, int iovcnt)
-{
-	ssize_t to_send;
-	ssize_t thistime;
-	size_t sent;
-	struct iovec iov_copy[iovcnt];
-	struct iovec *iov;
-
-	to_send = iov_buflen(orig_iov, iovcnt);
-	if (to_send == -1) {
-		errno = EINVAL;
-		return -1;
-	}
-
-	thistime = sys_writev(fd, orig_iov, iovcnt);
-	if ((thistime <= 0) || (thistime == to_send)) {
-		return thistime;
-	}
-	sent = thistime;
-
-	/*
-	 * We could not send everything in one call. Make a copy of iov that
-	 * we can mess with. We keep a copy of the array start in iov_copy for
-	 * the TALLOC_FREE, because we're going to modify iov later on,
-	 * discarding elements.
-	 */
-
-	memcpy(iov_copy, orig_iov, sizeof(struct iovec) * iovcnt);
-	iov = iov_copy;
-
-	while (sent < to_send) {
-		/*
-		 * We have to discard "thistime" bytes from the beginning
-		 * iov array, "thistime" contains the number of bytes sent
-		 * via writev last.
-		 */
-		while (thistime > 0) {
-			if (thistime < iov[0].iov_len) {
-				char *new_base =
-					(char *)iov[0].iov_base + thistime;
-				iov[0].iov_base = (void *)new_base;
-				iov[0].iov_len -= thistime;
-				break;
-			}
-			thistime -= iov[0].iov_len;
-			iov += 1;
-			iovcnt -= 1;
-		}
-
-		thistime = sys_writev(fd, iov, iovcnt);
-		if (thistime <= 0) {
-			break;
-		}
-		sent += thistime;
-	}
-
-	return sent;
-}
-
-/****************************************************************************
- Write data to a fd.
- NB. This can be called with a non-socket fd, don't add dependencies
- on socket calls.
-****************************************************************************/
-
-ssize_t write_data(int fd, const char *buffer, size_t N)
-{
-	struct iovec iov;
-
-	iov.iov_base = discard_const_p(void, buffer);
-	iov.iov_len = N;
-	return write_data_iov(fd, &iov, 1);
 }
 
 /****************************************************************************
@@ -539,16 +418,34 @@ struct open_socket_out_state {
 	socklen_t salen;
 	uint16_t port;
 	int wait_usec;
+	struct tevent_req *connect_subreq;
 };
 
 static void open_socket_out_connected(struct tevent_req *subreq);
 
-static int open_socket_out_state_destructor(struct open_socket_out_state *s)
+static void open_socket_out_cleanup(struct tevent_req *req,
+				    enum tevent_req_state req_state)
 {
-	if (s->fd != -1) {
-		close(s->fd);
+	struct open_socket_out_state *state =
+		tevent_req_data(req, struct open_socket_out_state);
+
+	/*
+	 * Make sure that the async_connect_send subreq has a chance to reset
+	 * fcntl before the socket goes away.
+	 */
+	TALLOC_FREE(state->connect_subreq);
+
+	if (req_state == TEVENT_REQ_DONE) {
+		/*
+		 * we keep the socket open for the caller to use
+		 */
+		return;
 	}
-	return 0;
+
+	if (state->fd != -1) {
+		close(state->fd);
+		state->fd = -1;
+	}
 }
 
 /****************************************************************************
@@ -562,7 +459,7 @@ struct tevent_req *open_socket_out_send(TALLOC_CTX *mem_ctx,
 					int timeout)
 {
 	char addr[INET6_ADDRSTRLEN];
-	struct tevent_req *result, *subreq;
+	struct tevent_req *result;
 	struct open_socket_out_state *state;
 	NTSTATUS status;
 
@@ -582,7 +479,8 @@ struct tevent_req *open_socket_out_send(TALLOC_CTX *mem_ctx,
 		status = map_nt_error_from_unix(errno);
 		goto post_status;
 	}
-	talloc_set_destructor(state, open_socket_out_state_destructor);
+
+	tevent_req_set_cleanup_fn(result, open_socket_out_cleanup);
 
 	if (!tevent_req_set_endtime(
 		    result, ev, timeval_current_ofs_msec(timeout))) {
@@ -616,16 +514,17 @@ struct tevent_req *open_socket_out_send(TALLOC_CTX *mem_ctx,
 	print_sockaddr(addr, sizeof(addr), &state->ss);
 	DEBUG(3,("Connecting to %s at port %u\n", addr,	(unsigned int)port));
 
-	subreq = async_connect_send(state, state->ev, state->fd,
-				    (struct sockaddr *)&state->ss,
-				    state->salen, NULL, NULL, NULL);
-	if ((subreq == NULL)
+	state->connect_subreq = async_connect_send(
+		state, state->ev, state->fd, (struct sockaddr *)&state->ss,
+		state->salen, NULL, NULL, NULL);
+	if ((state->connect_subreq == NULL)
 	    || !tevent_req_set_endtime(
-		    subreq, state->ev,
+		    state->connect_subreq, state->ev,
 		    timeval_current_ofs(0, state->wait_usec))) {
 		goto fail;
 	}
-	tevent_req_set_callback(subreq, open_socket_out_connected, result);
+	tevent_req_set_callback(state->connect_subreq,
+				open_socket_out_connected, result);
 	return result;
 
  post_status:
@@ -647,6 +546,7 @@ static void open_socket_out_connected(struct tevent_req *subreq)
 
 	ret = async_connect_recv(subreq, &sys_errno);
 	TALLOC_FREE(subreq);
+	state->connect_subreq = NULL;
 	if (ret == 0) {
 		tevent_req_done(req);
 		return;
@@ -680,6 +580,7 @@ static void open_socket_out_connected(struct tevent_req *subreq)
 			tevent_req_nterror(req, NT_STATUS_NO_MEMORY);
 			return;
 		}
+		state->connect_subreq = subreq;
 		tevent_req_set_callback(subreq, open_socket_out_connected, req);
 		return;
 	}
@@ -702,10 +603,12 @@ NTSTATUS open_socket_out_recv(struct tevent_req *req, int *pfd)
 	NTSTATUS status;
 
 	if (tevent_req_is_nterror(req, &status)) {
+		tevent_req_received(req);
 		return status;
 	}
 	*pfd = state->fd;
 	state->fd = -1;
+	tevent_req_received(req);
 	return NT_STATUS_OK;
 }
 
@@ -1484,7 +1387,7 @@ struct tevent_req *getaddrinfo_send(TALLOC_CTX *mem_ctx,
 static void getaddrinfo_do(void *private_data)
 {
 	struct getaddrinfo_state *state =
-		(struct getaddrinfo_state *)private_data;
+		talloc_get_type_abort(private_data, struct getaddrinfo_state);
 
 	state->ret = getaddrinfo(state->node, state->service, state->hints,
 				 &state->res);

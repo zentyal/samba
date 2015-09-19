@@ -89,7 +89,6 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags,
 	char *p = NULL;
 
 	/* Samba initialization. */
-	load_case_tables_library();
 
 	ctrl = set_ctrl(pamh, flags, argc, argv);
 
@@ -212,9 +211,6 @@ static int _smb_add_user(pam_handle_t *pamh, unsigned int ctrl,
 	if (retval != PAM_SUCCESS) {
 		_log_err(pamh, LOG_ALERT
 			, "pam_get_item returned error to pam_sm_authenticate" );
-		TALLOC_FREE(frame);
-		return PAM_AUTHTOK_RECOVER_ERR;
-	} else if (pass == NULL) {
 		TALLOC_FREE(frame);
 		return PAM_AUTHTOK_RECOVER_ERR;
 	}

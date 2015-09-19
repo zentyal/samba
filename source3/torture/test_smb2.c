@@ -265,6 +265,12 @@ bool run_smb2_negprot(int dummy)
 	case PROTOCOL_SMB3_02:
 		name = "SMB3_02";
 		break;
+	case PROTOCOL_SMB3_10:
+		name = "SMB3_10";
+		break;
+	case PROTOCOL_SMB3_11:
+		name = "SMB3_11";
+		break;
 	default:
 		break;
 	}

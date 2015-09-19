@@ -69,6 +69,7 @@
 #include "dbwrap/dbwrap.h"
 #include "dbwrap/dbwrap_rbt.h"
 #include "../lib/util/bitmap.h"
+#include "librpc/gen_ndr/nbt.h"
 
 #ifdef HAVE_SYS_SYSCTL_H
 #include <sys/sysctl.h>
@@ -184,6 +185,7 @@ static struct loadparm_service sDefault =
 	.access_based_share_enum = false,
 	.bAvailable = true,
 	.read_only = true,
+	.spotlight = false,
 	.guest_only = false,
 	.administrative_share = false,
 	.guest_ok = false,
@@ -222,6 +224,7 @@ static struct loadparm_service sDefault =
 	.inherit_acls = false,
 	.inherit_owner = false,
 	.msdfs_root = false,
+	.msdfs_shuffle_referrals = false,
 	.use_client_driver = false,
 	.default_devmode = true,
 	.force_printername = false,
@@ -236,8 +239,6 @@ static struct loadparm_service sDefault =
 	.acl_map_full_control = true,
 	.acl_group_control = false,
 	.acl_allow_execute_always = false,
-	.change_notify = true,
-	.kernel_change_notify = true,
 	.allocation_roundup_size = SMB_ROUNDUP_ALLOCATION_SIZE,
 	.aio_read_size = 0,
 	.aio_write_size = 0,
@@ -559,7 +560,7 @@ static void init_globals(struct loadparm_context *lp_ctx, bool reinit_globals)
 
 	init_printer_values(lp_ctx, Globals.ctx, &sDefault);
 
-	sDefault.ntvfs_handler = (const char **)str_list_make_v3(NULL, "unixuid default", NULL);
+	sDefault.ntvfs_handler = str_list_make_v3_const(NULL, "unixuid default", NULL);
 
 	DEBUG(3, ("Initialising global parameters\n"));
 
@@ -617,7 +618,7 @@ static void init_globals(struct loadparm_context *lp_ctx, bool reinit_globals)
 	string_set(Globals.ctx, &Globals.logon_home, "\\\\%N\\%U");
 	string_set(Globals.ctx, &Globals.logon_path, "\\\\%N\\%U\\profile");
 
-	Globals.name_resolve_order = (const char **)str_list_make_v3(NULL, "lmhosts wins host bcast", NULL);
+	Globals.name_resolve_order = str_list_make_v3_const(NULL, "lmhosts wins host bcast", NULL);
 	string_set(Globals.ctx, &Globals.password_server, "*");
 
 	Globals.algorithmic_rid_base = BASE_RID;
@@ -641,7 +642,7 @@ static void init_globals(struct loadparm_context *lp_ctx, bool reinit_globals)
 	Globals.large_readwrite = true;
 	Globals.max_log_size = 5000;
 	Globals.max_open_files = max_open_files();
-	Globals.server_max_protocol = PROTOCOL_SMB3_00;
+	Globals.server_max_protocol = PROTOCOL_SMB3_11;
 	Globals.server_min_protocol = PROTOCOL_LANMAN1;
 	Globals._client_max_protocol = PROTOCOL_DEFAULT;
 	Globals.client_min_protocol = PROTOCOL_CORE;
@@ -688,6 +689,7 @@ static void init_globals(struct loadparm_context *lp_ctx, bool reinit_globals)
 	Globals.passwd_chat_timeout = 2; /* 2 second default. */
 	Globals.nt_pipe_support = true;	/* Do NT pipes by default. */
 	Globals.nt_status_support = true; /* Use NT status by default. */
+	Globals.smbd_profiling_level = 0;
 	Globals.stat_cache = true;	/* use stat cache by default */
 	Globals.max_stat_cache_size = 256; /* 256k by default */
 	Globals.restrict_anonymous = 0;
@@ -717,6 +719,9 @@ static void init_globals(struct loadparm_context *lp_ctx, bool reinit_globals)
 	/* hostname lookups can be very expensive and are broken on
 	   a large number of sites (tridge) */
 	Globals.hostname_lookups = false;
+
+	Globals.change_notify = true,
+	Globals.kernel_change_notify = true,
 
 	string_set(Globals.ctx, &Globals.passdb_backend, "tdbsam");
 	string_set(Globals.ctx, &Globals.ldap_suffix, "");
@@ -802,7 +807,7 @@ static void init_globals(struct loadparm_context *lp_ctx, bool reinit_globals)
 	Globals.winbind_trusted_domains_only = false;
 	Globals.winbind_nested_groups = true;
 	Globals.winbind_expand_groups = 0;
-	Globals.winbind_nss_info = (const char **)str_list_make_v3(NULL, "template", NULL);
+	Globals.winbind_nss_info = str_list_make_v3_const(NULL, "template", NULL);
 	Globals.winbind_refresh_tickets = false;
 	Globals.winbind_offline_logon = false;
 
@@ -820,7 +825,7 @@ static void init_globals(struct loadparm_context *lp_ctx, bool reinit_globals)
 	Globals.server_signing = SMB_SIGNING_DEFAULT;
 
 	Globals.defer_sharing_violations = true;
-	Globals.smb_ports = (const char **)str_list_make_v3(NULL, SMB_PORTS, NULL);
+	Globals.smb_ports = str_list_make_v3_const(NULL, SMB_PORTS, NULL);
 
 	Globals.enable_privileges = true;
 	Globals.host_msdfs        = true;
@@ -858,15 +863,16 @@ static void init_globals(struct loadparm_context *lp_ctx, bool reinit_globals)
 
 	string_set(Globals.ctx, &Globals.ncalrpc_dir, get_dyn_NCALRPCDIR());
 
-	Globals.server_services = (const char **)str_list_make_v3(NULL, "s3fs rpc nbt wrepl ldap cldap kdc drepl winbindd ntp_signd kcc dnsupdate dns", NULL);
+	Globals.server_services = str_list_make_v3_const(NULL, "s3fs rpc nbt wrepl ldap cldap kdc drepl winbindd ntp_signd kcc dnsupdate dns", NULL);
 
-	Globals.dcerpc_endpoint_servers = (const char **)str_list_make_v3(NULL, "epmapper wkssvc rpcecho samr netlogon lsarpc spoolss drsuapi dssetup unixinfo browser eventlog6 backupkey dnsserver", NULL);
+	Globals.dcerpc_endpoint_servers = str_list_make_v3_const(NULL, "epmapper wkssvc rpcecho samr netlogon lsarpc spoolss drsuapi dssetup unixinfo browser eventlog6 backupkey dnsserver", NULL);
 
 	Globals.tls_enabled = true;
 
 	string_set(Globals.ctx, &Globals._tls_keyfile, "tls/key.pem");
 	string_set(Globals.ctx, &Globals._tls_certfile, "tls/cert.pem");
 	string_set(Globals.ctx, &Globals._tls_cafile, "tls/ca.pem");
+	string_set(Globals.ctx, &Globals.tls_priority, "NORMAL:-VERS-SSL3.0");
 
 	string_set(Globals.ctx, &Globals.share_backend, "classic");
 
@@ -882,32 +888,32 @@ static void init_globals(struct loadparm_context *lp_ctx, bool reinit_globals)
 	if (s == NULL) {
 		smb_panic("init_globals: ENOMEM");
 	}
-	Globals.samba_kcc_command = (const char **)str_list_make_v3(NULL, s, NULL);
+	Globals.samba_kcc_command = str_list_make_v3_const(NULL, s, NULL);
 	TALLOC_FREE(s);
 
 	s = talloc_asprintf(talloc_tos(), "%s/samba_dnsupdate", get_dyn_SCRIPTSBINDIR());
 	if (s == NULL) {
 		smb_panic("init_globals: ENOMEM");
 	}
-	Globals.dns_update_command = (const char **)str_list_make_v3(NULL, s, NULL);
+	Globals.dns_update_command = str_list_make_v3_const(NULL, s, NULL);
 	TALLOC_FREE(s);
 
 	s = talloc_asprintf(talloc_tos(), "%s/samba_spnupdate", get_dyn_SCRIPTSBINDIR());
 	if (s == NULL) {
 		smb_panic("init_globals: ENOMEM");
 	}
-	Globals.spn_update_command = (const char **)str_list_make_v3(NULL, s, NULL);
+	Globals.spn_update_command = str_list_make_v3_const(NULL, s, NULL);
 	TALLOC_FREE(s);
 
-	Globals.nsupdate_command = (const char **)str_list_make_v3(NULL, "/usr/bin/nsupdate -g", NULL);
+	Globals.nsupdate_command = str_list_make_v3_const(NULL, "/usr/bin/nsupdate -g", NULL);
 
-	Globals.rndc_command = (const char **)str_list_make_v3(NULL, "/usr/sbin/rndc", NULL);
+	Globals.rndc_command = str_list_make_v3_const(NULL, "/usr/sbin/rndc", NULL);
 
 	Globals.cldap_port = 389;
 
-	Globals.dgram_port = 138;
+	Globals.dgram_port = NBT_DGRAM_SERVICE_PORT;
 
-	Globals.nbt_port = 137;
+	Globals.nbt_port = NBT_NAME_SERVICE_PORT;
 
 	Globals.krb5_port = 88;
 
@@ -1093,6 +1099,79 @@ static struct parmlist_entry *get_parametrics(int snum, const char *type,
 	}
 }
 
+static void discard_whitespace(char *str)
+{
+	size_t len = strlen(str);
+	size_t i = 0;
+
+	while (i < len) {
+		if (isspace(str[i])) {
+			memmove(&str[i], &str[i+1], len-i);
+			len -= 1;
+			continue;
+		}
+		i += 1;
+	}
+}
+
+/**
+ * @brief Go through all global parametric parameters
+ *
+ * @param regex_str	A regular expression to scan param for
+ * @param max_matches   Max number of submatches the regexp expects
+ * @param cb		Function to call on match. Should return true
+ *                      when it wants wi_scan_global_parametrics to stop
+ *                      scanning
+ * @param private_data  Anonymous pointer passed to cb
+ *
+ * @return              0: success, regcomp/regexec return value on error.
+ *                      See "man regexec" for possible errors
+ */
+
+int lp_wi_scan_global_parametrics(
+	const char *regex_str, size_t max_matches,
+	bool (*cb)(const char *string, regmatch_t matches[],
+		   void *private_data),
+	void *private_data)
+{
+	struct parmlist_entry *data;
+	regex_t regex;
+	int ret;
+
+	ret = regcomp(&regex, regex_str, REG_ICASE);
+	if (ret != 0) {
+		return ret;
+	}
+
+	for (data = Globals.param_opt; data != NULL; data = data->next) {
+		size_t keylen = strlen(data->key);
+		char key[keylen+1];
+		regmatch_t matches[max_matches];
+		bool stop;
+
+		memcpy(key, data->key, sizeof(key));
+		discard_whitespace(key);
+
+		ret = regexec(&regex, key, max_matches, matches, 0);
+		if (ret == REG_NOMATCH) {
+			continue;
+		}
+		if (ret != 0) {
+			goto fail;
+		}
+
+		stop = cb(key, matches, private_data);
+		if (stop) {
+			break;
+		}
+	}
+
+	ret = 0;
+fail:
+	regfree(&regex);
+	return ret;
+}
+
 
 #define MISSING_PARAMETER(name) \
     DEBUG(0, ("%s(): value is NULL or empty!\n", #name))
@@ -1164,7 +1243,7 @@ const char **lp_parm_string_list(int snum, const char *type, const char *option,
 		data->list = str_list_make_v3(NULL, data->value, NULL);
 	}
 
-	return (const char **)data->list;
+	return discard_const_p(const char *, data->list);
 }
 
 /* Return parametric option from a given service. Type is a part of option before ':' */
@@ -1392,7 +1471,7 @@ static bool hash_a_service(const char *name, int idx)
 	canon_name = canonicalize_servicename(talloc_tos(), name );
 
 	dbwrap_store_bystring(ServiceHash, canon_name,
-			      make_tdb_data((uint8 *)&idx, sizeof(idx)),
+			      make_tdb_data((uint8_t *)&idx, sizeof(idx)),
 			      TDB_REPLACE);
 
 	TALLOC_FREE(canon_name);
@@ -1565,22 +1644,6 @@ bool lp_parameter_is_global(const char *pszParmName)
 }
 
 /**************************************************************************
- Check whether the given name is the canonical name of a parameter.
- Returns false if it is not a valid parameter Name.
- For parametric options, true is returned.
-**************************************************************************/
-
-bool lp_parameter_is_canonical(const char *parm_name)
-{
-	if (!lp_parameter_is_valid(parm_name)) {
-		return false;
-	}
-
-	return (lpcfg_map_parameter(parm_name) ==
-		map_parameter_canonical(parm_name, NULL));
-}
-
-/**************************************************************************
  Determine the canonical name for a parameter.
  Indicate when it is an inverse (boolean) synonym instead of a
  "usual" synonym.
@@ -1665,7 +1728,7 @@ static int map_parameter_canonical(const char *pszParmName, bool *inverse)
 	bool loc_inverse = false;
 
 	parm_num = lpcfg_map_parameter(pszParmName);
-	if ((parm_num < 0) || !(parm_table[parm_num].flags & FLAG_HIDE)) {
+	if ((parm_num < 0) || !(parm_table[parm_num].flags & FLAG_SYNONYM)) {
 		/* invalid, parametric or no canidate for synonyms ... */
 		goto done;
 	}
@@ -1695,8 +1758,8 @@ static bool is_synonym_of(int parm1, int parm2, bool *inverse)
 {
 	if ((parm_table[parm1].offset == parm_table[parm2].offset) &&
 	    (parm_table[parm1].p_class == parm_table[parm2].p_class) &&
-	    (parm_table[parm1].flags & FLAG_HIDE) &&
-	    !(parm_table[parm2].flags & FLAG_HIDE))
+	    (parm_table[parm1].flags & FLAG_SYNONYM) &&
+	    !(parm_table[parm2].flags & FLAG_SYNONYM))
 	{
 		if (inverse != NULL) {
 			if ((parm_table[parm1].type == P_BOOLREV) &&
@@ -1726,13 +1789,9 @@ static void show_parameter(int parmIndex)
 	bool inverse;
 	const char *type[] = { "P_BOOL", "P_BOOLREV", "P_CHAR", "P_INTEGER",
 		"P_OCTAL", "P_LIST", "P_STRING", "P_USTRING",
-		"P_ENUM", "P_SEP"};
-	unsigned flags[] = { FLAG_BASIC, FLAG_SHARE, FLAG_PRINT, FLAG_GLOBAL,
-		FLAG_WIZARD, FLAG_ADVANCED, FLAG_DEVELOPER, FLAG_DEPRECATED,
-		FLAG_HIDE};
-	const char *flag_names[] = { "FLAG_BASIC", "FLAG_SHARE", "FLAG_PRINT",
-		"FLAG_GLOBAL", "FLAG_WIZARD", "FLAG_ADVANCED", "FLAG_DEVELOPER",
-		"FLAG_DEPRECATED", "FLAG_HIDE", NULL};
+		"P_ENUM", "P_BYTES", "P_CMDLIST" };
+	unsigned flags[] = { FLAG_DEPRECATED, FLAG_SYNONYM };
+	const char *flag_names[] = { "FLAG_DEPRECATED", "FLAG_SYNONYM", NULL};
 
 	printf("%s=%s", parm_table[parmIndex].label,
 	       type[parm_table[parmIndex].type]);
@@ -2837,8 +2896,6 @@ static void lp_save_defaults(void)
 				parm_table[i].def.ivalue =
 					*(int *)lp_parm_ptr(NULL, &parm_table[i]);
 				break;
-			case P_SEP:
-				break;
 		}
 	}
 
@@ -3624,6 +3681,22 @@ static bool lp_is_in_client(void)
     return in_client;
 }
 
+static void lp_enforce_ad_dc_settings(void)
+{
+	lp_do_parameter(GLOBAL_SECTION_SNUM, "passdb backend", "samba_dsdb");
+	lp_do_parameter(GLOBAL_SECTION_SNUM,
+			"winbindd:use external pipes", "true");
+	lp_do_parameter(GLOBAL_SECTION_SNUM, "rpc_server:default", "external");
+	lp_do_parameter(GLOBAL_SECTION_SNUM, "rpc_server:svcctl", "embedded");
+	lp_do_parameter(GLOBAL_SECTION_SNUM, "rpc_server:srvsvc", "embedded");
+	lp_do_parameter(GLOBAL_SECTION_SNUM, "rpc_server:eventlog", "embedded");
+	lp_do_parameter(GLOBAL_SECTION_SNUM, "rpc_server:ntsvcs", "embedded");
+	lp_do_parameter(GLOBAL_SECTION_SNUM, "rpc_server:winreg", "embedded");
+	lp_do_parameter(GLOBAL_SECTION_SNUM, "rpc_server:spoolss", "embedded");
+	lp_do_parameter(GLOBAL_SECTION_SNUM, "rpc_daemon:spoolssd", "embedded");
+	lp_do_parameter(GLOBAL_SECTION_SNUM, "rpc_server:tcpip", "no");
+}
+
 /***************************************************************************
  Load the services array from the services file. Return true on success,
  false on failure.
@@ -3633,7 +3706,7 @@ static bool lp_load_ex(const char *pszFname,
 		       bool global_only,
 		       bool save_defaults,
 		       bool add_ipc,
-		       bool initialize_globals,
+		       bool reinit_globals,
 		       bool allow_include_registry,
 		       bool load_all_shares)
 {
@@ -3652,7 +3725,7 @@ static bool lp_load_ex(const char *pszFname,
 
 	lp_ctx = setup_lp_context(talloc_tos());
 
-	init_globals(lp_ctx, initialize_globals);
+	init_globals(lp_ctx, reinit_globals);
 
 	free_file_list();
 
@@ -3661,7 +3734,7 @@ static bool lp_load_ex(const char *pszFname,
 		lp_save_defaults();
 	}
 
-	if (!initialize_globals) {
+	if (!reinit_globals) {
 		free_param_opts(&Globals.param_opt);
 		apply_lp_set_cmdline();
 	}
@@ -3712,7 +3785,7 @@ static bool lp_load_ex(const char *pszFname,
 
 			lp_kill_all_services();
 			ok = lp_load_ex(pszFname, global_only, save_defaults,
-					add_ipc, initialize_globals,
+					add_ipc, reinit_globals,
 					allow_include_registry,
 					load_all_shares);
 			TALLOC_FREE(frame);
@@ -3771,23 +3844,11 @@ static bool lp_load_ex(const char *pszFname,
 	/*
 	 * We run this check once the whole smb.conf is parsed, to
 	 * force some settings for the standard way a AD DC is
-	 * operated.  We may changed these as our code evolves, which
+	 * operated.  We may change these as our code evolves, which
 	 * is why we force these settings.
 	 */
 	if (lp_server_role() == ROLE_ACTIVE_DIRECTORY_DC) {
-		lp_do_parameter(-1, "passdb backend", "samba_dsdb");
-
-		lp_do_parameter(-1, "winbindd:use external pipes", "true");
-
-		lp_do_parameter(-1, "rpc_server:default", "external");
-		lp_do_parameter(-1, "rpc_server:svcctl", "embedded");
-		lp_do_parameter(-1, "rpc_server:srvsvc", "embedded");
-		lp_do_parameter(-1, "rpc_server:eventlog", "embedded");
-		lp_do_parameter(-1, "rpc_server:ntsvcs", "embedded");
-		lp_do_parameter(-1, "rpc_server:winreg", "embedded");
-		lp_do_parameter(-1, "rpc_server:spoolss", "embedded");
-		lp_do_parameter(-1, "rpc_daemon:spoolssd", "embedded");
-		lp_do_parameter(-1, "rpc_server:tcpip", "no");
+		lp_enforce_ad_dc_settings();
 	}
 
 	bAllowIncludeRegistry = true;
@@ -3796,17 +3857,17 @@ static bool lp_load_ex(const char *pszFname,
 	return (bRetval);
 }
 
-bool lp_load(const char *pszFname,
-	     bool global_only,
-	     bool save_defaults,
-	     bool add_ipc,
-	     bool initialize_globals)
+static bool lp_load(const char *pszFname,
+		    bool global_only,
+		    bool save_defaults,
+		    bool add_ipc,
+		    bool reinit_globals)
 {
 	return lp_load_ex(pszFname,
 			  global_only,
 			  save_defaults,
 			  add_ipc,
-			  initialize_globals,
+			  reinit_globals,
 			  true,   /* allow_include_registry */
 			  false); /* load_all_shares*/
 }
@@ -3815,9 +3876,9 @@ bool lp_load_initial_only(const char *pszFname)
 {
 	return lp_load_ex(pszFname,
 			  true,   /* global only */
-			  false,  /* save_defaults */
+			  true,   /* save_defaults */
 			  false,  /* add_ipc */
-			  true,   /* initialize_globals */
+			  true,   /* reinit_globals */
 			  false,  /* allow_include_registry */
 			  false); /* load_all_shares*/
 }
@@ -3827,13 +3888,25 @@ bool lp_load_initial_only(const char *pszFname)
  */
 bool lp_load_global(const char *file_name)
 {
-	return lp_load_ex(file_name,
-			  true,   /* global_only */
-			  false,  /* save_defaults */
-			  false,  /* add_ipc */
-			  true,   /* initialize_globals */
-			  true,   /* allow_include_registry */
-			  false); /* load_all_shares*/
+	return lp_load(file_name,
+		       true,   /* global_only */
+		       false,  /* save_defaults */
+		       false,  /* add_ipc */
+		       true);  /* reinit_globals */
+}
+
+/**
+ * The typical lp_load wrapper with shares, loads global and
+ * shares, including IPC, but does not force immediate
+ * loading of all shares from registry.
+ */
+bool lp_load_with_shares(const char *file_name)
+{
+	return lp_load(file_name,
+		       false,  /* global_only */
+		       false,  /* save_defaults */
+		       true,   /* add_ipc */
+		       true);  /* reinit_globals */
 }
 
 /**
@@ -3853,14 +3926,27 @@ bool lp_load_client(const char *file_name)
  */
 bool lp_load_global_no_reinit(const char *file_name)
 {
-	return lp_load_ex(file_name,
-			  true,   /* global_only */
-			  false,  /* save_defaults */
-			  false,  /* add_ipc */
-			  false,  /* initialize_globals */
-			  true,   /* allow_include_registry */
-			  false); /* load_all_shares*/
+	return lp_load(file_name,
+		       true,   /* global_only */
+		       false,  /* save_defaults */
+		       false,  /* add_ipc */
+		       false); /* reinit_globals */
 }
+
+/**
+ * lp_load wrapper, loading globals and shares,
+ * intended for subsequent calls, i.e. not reinitializing
+ * the globals to default values.
+ */
+bool lp_load_no_reinit(const char *file_name)
+{
+	return lp_load(file_name,
+		       false,  /* global_only */
+		       false,  /* save_defaults */
+		       false,  /* add_ipc */
+		       false); /* reinit_globals */
+}
+
 
 /**
  * lp_load wrapper, especially for clients, no reinitialization
@@ -3872,17 +3958,13 @@ bool lp_load_client_no_reinit(const char *file_name)
 	return lp_load_global_no_reinit(file_name);
 }
 
-bool lp_load_with_registry_shares(const char *pszFname,
-				  bool global_only,
-				  bool save_defaults,
-				  bool add_ipc,
-				  bool initialize_globals)
+bool lp_load_with_registry_shares(const char *pszFname)
 {
 	return lp_load_ex(pszFname,
-			  global_only,
-			  save_defaults,
-			  add_ipc,
-			  initialize_globals,
+			  false, /* global_only */
+			  true,  /* save_defaults */
+			  false, /* add_ipc */
+			  false, /* reinit_globals */
 			  true,  /* allow_include_registry */
 			  true); /* load_all_shares*/
 }
@@ -3956,7 +4038,7 @@ int lp_servicenumber(const char *pszServiceName)
 	for (iService = iNumServices - 1; iService >= 0; iService--) {
 		if (VALID(iService) && ServicePtrs[iService]->szService) {
 			/*
-			 * The substitution here is used to support %U is
+			 * The substitution here is used to support %U in
 			 * service names
 			 */
 			fstrcpy(serviceName, ServicePtrs[iService]->szService);
@@ -4157,7 +4239,7 @@ const char *lp_printcapname(void)
 	return PRINTCAP_NAME;
 }
 
-static uint32 spoolss_state;
+static uint32_t spoolss_state;
 
 bool lp_disable_spoolss( void )
 {
@@ -4167,14 +4249,14 @@ bool lp_disable_spoolss( void )
 	return spoolss_state == SVCCTL_STOPPED ? true : false;
 }
 
-void lp_set_spoolss_state( uint32 state )
+void lp_set_spoolss_state( uint32_t state )
 {
 	SMB_ASSERT( (state == SVCCTL_STOPPED) || (state == SVCCTL_RUNNING) );
 
 	spoolss_state = state;
 }
 
-uint32 lp_get_spoolss_state( void )
+uint32_t lp_get_spoolss_state( void )
 {
 	return lp_disable_spoolss() ? SVCCTL_STOPPED : SVCCTL_RUNNING;
 }

@@ -675,6 +675,7 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 		struct smb2_lease lease;
 		struct smb2_lease *lease_ptr = NULL;
 		ssize_t lease_len = -1;
+		struct smb2_create_blob *svhdx = NULL;
 
 		exta = smb2_create_blob_find(&in_context_blobs,
 					     SMB2_CREATE_TAG_EXTA);
@@ -688,6 +689,13 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 					     SMB2_CREATE_TAG_TWRP);
 		qfid = smb2_create_blob_find(&in_context_blobs,
 					     SMB2_CREATE_TAG_QFID);
+		if (smb2req->xconn->protocol >= PROTOCOL_SMB3_02) {
+			/*
+			 * This was introduced with SMB3_02
+			 */
+			svhdx = smb2_create_blob_find(&in_context_blobs,
+						      SVHDX_OPEN_DEVICE_CONTEXT);
+		}
 
 		fname = talloc_strdup(state, in_name);
 		if (tevent_req_nomem(fname, req)) {
@@ -902,6 +910,13 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 			}
 		}
 
+		if (svhdx != NULL) {
+			/* SharedVHD is not yet supported */
+			tevent_req_nterror(
+				req, NT_STATUS_INVALID_DEVICE_REQUEST);
+			return tevent_req_post(req, ev);
+		}
+
 		/* these are ignored for SMB2 */
 		in_create_options &= ~(0x10);/* NTCREATEX_OPTIONS_SYNC_ALERT */
 		in_create_options &= ~(0x20);/* NTCREATEX_OPTIONS_ASYNC_ALERT */
@@ -1076,6 +1091,7 @@ static struct tevent_req *smbd_smb2_create_send(TALLOC_CTX *mem_ctx,
 						     state->out_context_blobs);
 			if (!NT_STATUS_IS_OK(status)) {
 				if (open_was_deferred(smb1req->xconn, smb1req->mid)) {
+					SMBPROFILE_IOBYTES_ASYNC_SET_IDLE(smb2req->profile);
 					return req;
 				}
 				tevent_req_nterror(req, status);

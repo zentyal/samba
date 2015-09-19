@@ -40,7 +40,7 @@ extern const struct generic_mapping file_generic_mapping;
 #define SMB_ACE4_INT_MAGIC 0x76F8A967
 typedef struct _SMB_ACE4_INT_T
 {
-	uint32	magic;
+	uint32_t magic;
 	SMB_ACE4PROP_T	prop;
 	void	*next;
 } SMB_ACE4_INT_T;
@@ -48,9 +48,9 @@ typedef struct _SMB_ACE4_INT_T
 #define SMB_ACL4_INT_MAGIC 0x29A3E792
 typedef struct _SMB_ACL4_INT_T
 {
-	uint32	magic;
+	uint32_t magic;
 	uint16_t controlflags;
-	uint32	naces;
+	uint32_t naces;
 	SMB_ACE4_INT_T	*first;
 	SMB_ACE4_INT_T	*last;
 } SMB_ACL4_INT_T;
@@ -281,7 +281,7 @@ SMB4ACE_T *smb_first_ace4(SMB4ACL_T *theacl)
 	return (SMB4ACE_T *)aclint->first;
 }
 
-uint32 smb_get_naces(SMB4ACL_T *theacl)
+uint32_t smb_get_naces(SMB4ACL_T *theacl)
 {
 	SMB_ACL4_INT_T *aclint = get_validated_aclint(theacl);
 	if (aclint==NULL)
@@ -316,9 +316,9 @@ static int smbacl4_GetFileOwner(struct connection_struct *conn,
 	memset(psbuf, 0, sizeof(SMB_STRUCT_STAT));
 
 	/* Get the stat struct for the owner info. */
-	if (vfs_stat_smb_fname(conn, filename, psbuf) != 0)
+	if (vfs_stat_smb_basename(conn, filename, psbuf) != 0)
 	{
-		DEBUG(8, ("vfs_stat_smb_fname failed with error %s\n",
+		DEBUG(8, ("vfs_stat_smb_basename failed with error %s\n",
 			strerror(errno)));
 		return -1;
 	}
@@ -359,7 +359,7 @@ static bool smbacl4_nfs42win(TALLOC_CTX *mem_ctx,
 	struct security_ace *nt_ace_list = NULL;
 	int good_aces = 0;
 
-	DEBUG(10, ("smbacl_nfs42win entered\n"));
+	DEBUG(10, ("%s entered\n", __func__));
 
 	aclint = get_validated_aclint(theacl);
 	/* We do not check for theacl being NULL here
@@ -525,7 +525,7 @@ static bool smbacl4_nfs42win(TALLOC_CTX *mem_ctx,
 
 static NTSTATUS smb_get_nt_acl_nfs4_common(const SMB_STRUCT_STAT *sbuf,
 					   smbacl4_vfs_params *params,
-					   uint32 security_info,
+					   uint32_t security_info,
 					   TALLOC_CTX *mem_ctx,
 					   struct security_descriptor **ppdesc,
 					   SMB4ACL_T *theacl)
@@ -583,7 +583,7 @@ static NTSTATUS smb_get_nt_acl_nfs4_common(const SMB_STRUCT_STAT *sbuf,
 }
 
 NTSTATUS smb_fget_nt_acl_nfs4(files_struct *fsp,
-			      uint32 security_info,
+			      uint32_t security_info,
 			      TALLOC_CTX *mem_ctx,
 			      struct security_descriptor **ppdesc,
 			      SMB4ACL_T *theacl)
@@ -608,7 +608,7 @@ NTSTATUS smb_fget_nt_acl_nfs4(files_struct *fsp,
 
 NTSTATUS smb_get_nt_acl_nfs4(struct connection_struct *conn,
 			     const char *name,
-			     uint32 security_info,
+			     uint32_t security_info,
 			     TALLOC_CTX *mem_ctx,
 			     struct security_descriptor **ppdesc,
 			     SMB4ACL_T *theacl)
@@ -915,7 +915,7 @@ static SMB4ACL_T *smbacl4_win2nfs4(
 )
 {
 	SMB4ACL_T *theacl;
-	uint32	i;
+	uint32_t i;
 	const char *filename = fsp->fsp_name->base_name;
 
 	DEBUG(10, ("smbacl4_win2nfs4 invoked\n"));
@@ -959,7 +959,7 @@ static SMB4ACL_T *smbacl4_win2nfs4(
 }
 
 NTSTATUS smb_set_nt_acl_nfs4(vfs_handle_struct *handle, files_struct *fsp,
-	uint32 security_info_sent,
+	uint32_t security_info_sent,
 	const struct security_descriptor *psd,
 	set_nfs4acl_native_fn_t set_nfs4_native)
 {

@@ -164,10 +164,13 @@ static int32_t ctdb_control_dispatch(struct ctdb_context *ctdb,
 		return ctdb_control_getdbmap(ctdb, opcode, indata, outdata);
 
 	case CTDB_CONTROL_GET_NODEMAPv4:
-		return ctdb_control_getnodemapv4(ctdb, opcode, indata, outdata);
+		return control_not_implemented("GET_NODEMAPv4", "GET_NODEMAP");
 
 	case CTDB_CONTROL_GET_NODEMAP:
 		return ctdb_control_getnodemap(ctdb, opcode, indata, outdata);
+
+	case CTDB_CONTROL_GET_NODES_FILE:
+		return ctdb_control_getnodesfile(ctdb, opcode, indata, outdata);
 
 	case CTDB_CONTROL_RELOAD_NODES_FILE:
 		CHECK_CONTROL_DATA_SIZE(0);
@@ -267,12 +270,8 @@ static int32_t ctdb_control_dispatch(struct ctdb_context *ctdb,
 	case CTDB_CONTROL_DB_ATTACH_PERSISTENT:
 	  return ctdb_control_db_attach(ctdb, indata, outdata, srvid, true, client_id, c, async_reply);
 
-	case CTDB_CONTROL_SET_CALL: {
-		struct ctdb_control_set_call *sc = 
-			(struct ctdb_control_set_call *)indata.dptr;
-		CHECK_CONTROL_DATA_SIZE(sizeof(struct ctdb_control_set_call));
-		return ctdb_daemon_set_call(ctdb, sc->db_id, sc->fn, sc->id);
-	}
+	case CTDB_CONTROL_SET_CALL:
+		return control_not_implemented("SET_CALL", NULL);
 
 	case CTDB_CONTROL_TRAVERSE_START:
 		CHECK_CONTROL_DATA_SIZE(sizeof(struct ctdb_traverse_start));
@@ -348,16 +347,14 @@ static int32_t ctdb_control_dispatch(struct ctdb_context *ctdb,
 		return 0;
 
 	case CTDB_CONTROL_TAKEOVER_IPv4:
-		CHECK_CONTROL_DATA_SIZE(sizeof(struct ctdb_public_ipv4));
-		return ctdb_control_takeover_ipv4(ctdb, c, indata, async_reply);
+		return control_not_implemented("TAKEOVER_IPv4", "TAKEOVER_IP");
 
 	case CTDB_CONTROL_TAKEOVER_IP:
 		CHECK_CONTROL_DATA_SIZE(sizeof(struct ctdb_public_ip));
 		return ctdb_control_takeover_ip(ctdb, c, indata, async_reply);
 
 	case CTDB_CONTROL_RELEASE_IPv4:
-		CHECK_CONTROL_DATA_SIZE(sizeof(struct ctdb_public_ipv4));
-		return ctdb_control_release_ipv4(ctdb, c, indata, async_reply);
+		return control_not_implemented("RELEASE_IPv4", "RELEASE_IP");
 
 	case CTDB_CONTROL_RELEASE_IP:
 		CHECK_CONTROL_DATA_SIZE(sizeof(struct ctdb_public_ip));
@@ -368,14 +365,15 @@ static int32_t ctdb_control_dispatch(struct ctdb_context *ctdb,
 		return ctdb_control_ipreallocated(ctdb, c, async_reply);
 
 	case CTDB_CONTROL_GET_PUBLIC_IPSv4:
-		CHECK_CONTROL_DATA_SIZE(0);
-		return ctdb_control_get_public_ipsv4(ctdb, c, outdata);
+		return control_not_implemented("GET_PUBLIC_IPSv4",
+					       "GET_PUBLIC_IPS");
 
 	case CTDB_CONTROL_GET_PUBLIC_IPS:
 		CHECK_CONTROL_DATA_SIZE(0);
 		return ctdb_control_get_public_ips(ctdb, c, outdata);
 
-	case CTDB_CONTROL_TCP_CLIENT: 
+	case CTDB_CONTROL_TCP_CLIENT:
+		CHECK_CONTROL_DATA_SIZE(sizeof(struct ctdb_control_tcp_addr));
 		return ctdb_control_tcp_client(ctdb, client_id, indata);
 
 	case CTDB_CONTROL_STARTUP: 
@@ -519,17 +517,36 @@ static int32_t ctdb_control_dispatch(struct ctdb_context *ctdb,
 			outdata->dsize = strlen(ctdb->recovery_lock_file) + 1;
 		}
 		return 0;
-	case CTDB_CONTROL_SET_RECLOCK_FILE:
-		ctdb->tunable.verify_recovery_lock = 0;
-		if (ctdb->recovery_lock_file != NULL) {
-			talloc_free(ctdb->recovery_lock_file);
-			ctdb->recovery_lock_file = NULL;
+	case CTDB_CONTROL_SET_RECLOCK_FILE: {
+		char *t;
+
+		if (indata.dsize == 0) {
+			TALLOC_FREE(ctdb->recovery_lock_file);
+			return 0;
 		}
-		if (indata.dsize > 0) {
-			ctdb->recovery_lock_file = talloc_strdup(ctdb, discard_const(indata.dptr));
-			ctdb->tunable.verify_recovery_lock = 1;
+
+		/* Return silent success if unchanged.  Recovery
+		 * master updates all nodes on each recovery - we
+		 * don't need the extra memory allocation or log
+		 * message each time. */
+		if (ctdb->recovery_lock_file != NULL &&
+		    strcmp(discard_const(indata.dptr),
+			   ctdb->recovery_lock_file) == 0) {
+			return 0;
 		}
+
+		t = talloc_strdup(ctdb, discard_const(indata.dptr));
+		if (t == NULL) {
+			DEBUG(DEBUG_ERR, ("Out of memory in SET_RECLOCK_FILE\n"));
+			return -1;
+		}
+
+		talloc_free(ctdb->recovery_lock_file);
+		ctdb->recovery_lock_file = t;
+		DEBUG(DEBUG_NOTICE, ("Updated recovery lock file to %s\n", t));
+
 		return 0;
+	}
 
 	case CTDB_CONTROL_STOP_NODE:
 		CHECK_CONTROL_DATA_SIZE(0);

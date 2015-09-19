@@ -498,10 +498,10 @@ NTSTATUS contact_winbind_auth_crap(const char *username,
 				   const DATA_BLOB *challenge,
 				   const DATA_BLOB *lm_response,
 				   const DATA_BLOB *nt_response,
-				   uint32 flags,
-				   uint32 extra_logon_parameters,
-				   uint8 lm_key[8],
-				   uint8 user_session_key[16],
+				   uint32_t flags,
+				   uint32_t extra_logon_parameters,
+				   uint8_t lm_key[8],
+				   uint8_t user_session_key[16],
 				   char **error_string,
 				   char **unix_name)
 {
@@ -879,8 +879,8 @@ static NTSTATUS winbind_pw_check(struct auth4_context *auth4_context,
 	static const char zeros[16] = { 0, };
 	NTSTATUS nt_status;
 	char *error_string = NULL;
-	uint8 lm_key[8]; 
-	uint8 user_sess_key[16]; 
+	uint8_t lm_key[8]; 
+	uint8_t user_sess_key[16]; 
 	char *unix_name = NULL;
 
 	nt_status = contact_winbind_auth_crap(user_info->client.account_name, user_info->client.domain_name, 
@@ -1027,9 +1027,9 @@ static struct auth4_context *make_auth4_context_ntlm_auth(TALLOC_CTX *mem_ctx, b
 	return auth4_context;
 }
 
-static NTSTATUS ntlm_auth_start_ntlmssp_server(TALLOC_CTX *mem_ctx,
-					       struct loadparm_context *lp_ctx,
-					       struct gensec_security **gensec_security_out)
+static NTSTATUS ntlm_auth_prepare_gensec_server(TALLOC_CTX *mem_ctx,
+						struct loadparm_context *lp_ctx,
+						struct gensec_security **gensec_security_out)
 {
 	struct gensec_security *gensec_security;
 	NTSTATUS nt_status;
@@ -1111,7 +1111,7 @@ static NTSTATUS ntlm_auth_start_ntlmssp_server(TALLOC_CTX *mem_ctx,
 	
 	cli_credentials_set_conf(server_credentials, lp_ctx);
 	
-	if (lp_security() == SEC_ADS || USE_KERBEROS_KEYTAB) {
+	if (lp_server_role() == ROLE_ACTIVE_DIRECTORY_DC || lp_security() == SEC_ADS || USE_KERBEROS_KEYTAB) {
 		cli_credentials_set_kerberos_state(server_credentials, CRED_AUTO_USE_KERBEROS);
 	} else {
 		cli_credentials_set_kerberos_state(server_credentials, CRED_DONT_USE_KERBEROS);
@@ -1135,12 +1135,6 @@ static NTSTATUS ntlm_auth_start_ntlmssp_server(TALLOC_CTX *mem_ctx,
 	talloc_unlink(tmp_ctx, gensec_settings);
 	talloc_unlink(tmp_ctx, auth4_context);
 
-	nt_status = gensec_start_mech_by_oid(gensec_security, GENSEC_OID_NTLMSSP);
-	if (!NT_STATUS_IS_OK(nt_status)) {
-		TALLOC_FREE(tmp_ctx);
-		return nt_status;
-	}
-	
 	*gensec_security_out = talloc_steal(mem_ctx, gensec_security);
 	TALLOC_FREE(tmp_ctx);
 	return NT_STATUS_OK;
@@ -1541,8 +1535,8 @@ static void manage_gensec_request(enum stdio_helper_mode stdio_helper_mode,
 		case GSS_SPNEGO_SERVER:
 		case SQUID_2_5_NTLMSSP:
 		{
-			nt_status = ntlm_auth_start_ntlmssp_server(state, lp_ctx,
-								   &state->gensec_state);
+			nt_status = ntlm_auth_prepare_gensec_server(state, lp_ctx,
+								    &state->gensec_state);
 			if (!NT_STATUS_IS_OK(nt_status)) {
 				x_fprintf(x_stdout, "BH GENSEC mech failed to start: %s\n", nt_errstr(nt_status));
 				talloc_free(mem_ctx);
@@ -2175,7 +2169,7 @@ static void manage_ntlm_server_1_request(enum stdio_helper_mode stdio_helper_mod
 			char *error_string = NULL;
 			uchar lm_key[8];
 			uchar user_session_key[16];
-			uint32 flags = 0;
+			uint32_t flags = 0;
 
 			if (full_username && !username) {
 				fstring fstr_user;
@@ -2645,13 +2639,13 @@ static void squid_stream(enum stdio_helper_mode stdio_mode,
 static bool check_auth_crap(void)
 {
 	NTSTATUS nt_status;
-	uint32 flags = 0;
+	uint32_t flags = 0;
 	char lm_key[8];
 	char user_session_key[16];
 	char *hex_lm_key;
 	char *hex_user_session_key;
 	char *error_string;
-	static uint8 zeros[16];
+	static uint8_t zeros[16];
 
 	x_setbuf(x_stdout, NULL);
 
@@ -2765,11 +2759,12 @@ enum {
 		{ "target-hostname", 0, POPT_ARG_STRING, &opt_target_hostname, OPT_TARGET_HOSTNAME, "Target hostname" },
 		POPT_COMMON_CONFIGFILE
 		POPT_COMMON_VERSION
+		POPT_COMMON_OPTION
 		POPT_TABLEEND
 	};
 
 	/* Samba client initialisation */
-	load_case_tables();
+	smb_init_locale();
 
 	setup_logging("ntlm_auth", DEBUG_STDERR);
 

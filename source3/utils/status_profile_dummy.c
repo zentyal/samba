@@ -19,6 +19,7 @@
 
 #include "includes.h"
 #include "smbprofile.h"
+#include "status_profile.h"
 
 bool status_profile_dump(bool be_verbose)
 {

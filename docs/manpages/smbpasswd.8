@@ -2,12 +2,12 @@
 .\"     Title: smbpasswd
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 04/15/2015
+.\"      Date: 09/08/2015
 .\"    Manual: System Administration tools
-.\"    Source: Samba 4.2
+.\"    Source: Samba 4.3
 .\"  Language: English
 .\"
-.TH "SMBPASSWD" "8" "04/15/2015" "Samba 4\&.2" "System Administration tools"
+.TH "SMBPASSWD" "8" "09/08/2015" "Samba 4\&.3" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -260,8 +260,7 @@ This parameter is only available if Samba has been compiled with LDAP support\&.
 switch is used to specify the password to be used with the
 \m[blue]\fBldap admin dn\fR\m[]\&. Note that the password is stored in the
 secrets\&.tdb
-(or
-secrets\&.ntdb) and is keyed off of the admin\*(Aqs DN\&. This means that if the value of
+and is keyed off of the admin\*(Aqs DN\&. This means that if the value of
 \fIldap admin dn\fR
 ever changes, the password will need to be manually updated as well\&.
 .RE
@@ -276,8 +275,7 @@ This parameter is only available if Samba has been compiled with LDAP support\&.
 switch is used to specify the password to be used with the
 \m[blue]\fBldap admin dn\fR\m[]\&. Note that the password is stored in the
 secrets\&.tdb
-(or
-secrets\&.ntdb) and is keyed off of the admin\*(Aqs DN\&. This means that if the value of
+and is keyed off of the admin\*(Aqs DN\&. This means that if the value of
 \fIldap admin dn\fR
 ever changes, the password will need to be manually updated as well\&.
 .RE

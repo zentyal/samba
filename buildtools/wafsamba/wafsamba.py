@@ -139,9 +139,12 @@ def SAMBA_LIBRARY(bld, libname, source,
                   private_library=False,
                   grouping_library=False,
                   allow_undefined_symbols=False,
-                  allow_warnings=True,
+                  allow_warnings=False,
                   enabled=True):
     '''define a Samba library'''
+
+    if pyembed and bld.env['IS_EXTRA_PYTHON']:
+        public_headers = pc_files = None
 
     if LIB_MUST_BE_PRIVATE(bld, libname):
         private_library=True
@@ -217,10 +220,10 @@ def SAMBA_LIBRARY(bld, libname, source,
         if vnum is None and soname is None:
             raise Utils.WafError("public library '%s' must have a vnum" %
                     libname)
-        if pc_files is None:
+        if pc_files is None and not bld.env['IS_EXTRA_PYTHON']:
             raise Utils.WafError("public library '%s' must have pkg-config file" %
                        libname)
-        if public_headers is None:
+        if public_headers is None and not bld.env['IS_EXTRA_PYTHON']:
             raise Utils.WafError("public library '%s' must have header files" %
                        libname)
 
@@ -242,6 +245,8 @@ def SAMBA_LIBRARY(bld, libname, source,
                                     bundled_extension, private_library)
 
     ldflags = TO_LIST(ldflags)
+    if bld.env['ENABLE_RELRO'] is True:
+        ldflags.extend(TO_LIST('-Wl,-z,relro,-z,now'))
 
     features = 'cc cshlib symlink_lib install_lib'
     if pyext:
@@ -444,7 +449,7 @@ def SAMBA_MODULE(bld, modname, source,
                  pyembed=False,
                  manpages=None,
                  allow_undefined_symbols=False,
-                 allow_warnings=True
+                 allow_warnings=False
                  ):
     '''define a Samba module.'''
 
@@ -546,7 +551,7 @@ def SAMBA_SUBSYSTEM(bld, modname, source,
                     vars=None,
                     subdir=None,
                     hide_symbols=False,
-                    allow_warnings=True,
+                    allow_warnings=False,
                     pyext=False,
                     pyembed=False):
     '''define a Samba subsystem'''
@@ -641,7 +646,7 @@ def SAMBA_GENERATOR(bld, name, rule, source='', target='',
         source=bld.EXPAND_VARIABLES(source, vars=vars),
         target=target,
         shell=isinstance(rule, str),
-        on_results=True,
+        update_outputs=True,
         before='cc',
         ext_out='.c',
         samba_type='GENERATOR',
@@ -889,7 +894,8 @@ def SAMBAMANPAGES(bld, manpages, extra_source=None):
     '''build and install manual pages'''
     bld.env.SAMBA_EXPAND_XSL = bld.srcnode.abspath() + '/docs-xml/xslt/expand-sambadoc.xsl'
     bld.env.SAMBA_MAN_XSL = bld.srcnode.abspath() + '/docs-xml/xslt/man.xsl'
-    bld.env.SAMBA_CATALOGS = 'file:///etc/xml/catalog file:///usr/local/share/xml/catalog file://' + bld.srcnode.abspath() + '/bin/default/docs-xml/build/catalog.xml'
+    bld.env.SAMBA_CATALOG = bld.srcnode.abspath() + '/bin/default/docs-xml/build/catalog.xml'
+    bld.env.SAMBA_CATALOGS = 'file:///etc/xml/catalog file:///usr/local/share/xml/catalog file://' + bld.env.SAMBA_CATALOG
 
     for m in manpages.split():
         source = m + '.xml'
@@ -899,6 +905,7 @@ def SAMBAMANPAGES(bld, manpages, extra_source=None):
                             source=source,
                             target=m,
                             group='final',
+                            dep_vars=['SAMBA_MAN_XSL', 'SAMBA_EXPAND_XSL', 'SAMBA_CATALOG'],
                             rule='''XML_CATALOG_FILES="${SAMBA_CATALOGS}"
                                     export XML_CATALOG_FILES
                                     ${XSLTPROC} --xinclude --stringparam noreference 0 -o ${TGT}.xml --nonet ${SAMBA_EXPAND_XSL} ${SRC[0].abspath(env)}

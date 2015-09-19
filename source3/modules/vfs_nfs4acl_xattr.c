@@ -88,10 +88,10 @@ static NTSTATUS nfs4_get_nfs4_acl_common(TALLOC_CTX *mem_ctx,
 	for(i=0; i<nfs4acl->a_count; i++) {
 		SMB_ACE4PROP_T aceprop;
 
-		aceprop.aceType  = (uint32) nfs4acl->ace[i].e_type;
-		aceprop.aceFlags = (uint32) nfs4acl->ace[i].e_flags;
-		aceprop.aceMask  = (uint32) nfs4acl->ace[i].e_mask;
-		aceprop.who.id   = (uint32) nfs4acl->ace[i].e_id;
+		aceprop.aceType  = (uint32_t) nfs4acl->ace[i].e_type;
+		aceprop.aceFlags = (uint32_t) nfs4acl->ace[i].e_flags;
+		aceprop.aceMask  = (uint32_t) nfs4acl->ace[i].e_mask;
+		aceprop.who.id   = (uint32_t) nfs4acl->ace[i].e_id;
 		if (!strcmp(nfs4acl->ace[i].e_who,
 			    NFS4ACL_XATTR_OWNER_WHO)) {
 			aceprop.flags = SMB_ACE4_ID_SPECIAL;
@@ -333,7 +333,7 @@ static bool nfs4acl_xattr_fset_smb4acl(vfs_handle_struct *handle,
  * using the NFSv4 format conversion
  */
 static NTSTATUS nfs4_set_nt_acl(vfs_handle_struct *handle, files_struct *fsp,
-			   uint32 security_info_sent,
+			   uint32_t security_info_sent,
 			   const struct security_descriptor *psd)
 {
 	return smb_set_nt_acl_nfs4(handle, fsp, security_info_sent, psd,
@@ -344,11 +344,15 @@ static SMB4ACL_T *nfs4acls_defaultacl(TALLOC_CTX *mem_ctx)
 {
 	SMB4ACL_T *pacl = NULL;
 	SMB4ACE_T *pace;
-	SMB_ACE4PROP_T ace = { SMB_ACE4_ID_SPECIAL,
-		SMB_ACE4_WHO_EVERYONE,
-		SMB_ACE4_ACCESS_ALLOWED_ACE_TYPE,
-		0,
-		SMB_ACE4_ALL_MASKS };
+	SMB_ACE4PROP_T ace = {
+		.flags = SMB_ACE4_ID_SPECIAL,
+		.who = {
+			.id = SMB_ACE4_WHO_EVERYONE,
+		},
+		.aceType = SMB_ACE4_ACCESS_ALLOWED_ACE_TYPE,
+		.aceFlags = 0,
+		.aceMask = SMB_ACE4_ALL_MASKS,
+	};
 
 	DEBUG(10, ("Building default full access acl\n"));
 
@@ -467,8 +471,8 @@ static SMB4ACL_T *nfs4acls_inheritacl(vfs_handle_struct *handle,
 	     pace = smb_next_ace4(pace)) {
 		SMB4ACE_T *pchildace;
 		ace = *smb_get_ace4(pace);
-		if (isdir && !(ace.aceFlags & SMB_ACE4_DIRECTORY_INHERIT_ACE)
-		    || !isdir && !(ace.aceFlags & SMB_ACE4_FILE_INHERIT_ACE)) {
+		if ((isdir && !(ace.aceFlags & SMB_ACE4_DIRECTORY_INHERIT_ACE)) ||
+		    (!isdir && !(ace.aceFlags & SMB_ACE4_FILE_INHERIT_ACE))) {
 			DEBUG(10, ("non inheriting ace type: %d, iflags: %x, "
 				   "flags: %x, mask: %x, who: %d\n",
 				   ace.aceType, ace.flags, ace.aceFlags,
@@ -480,9 +484,7 @@ static SMB4ACL_T *nfs4acls_inheritacl(vfs_handle_struct *handle,
 			   ace.aceType, ace.flags, ace.aceFlags,
 			   ace.aceMask, ace.who.id));
 		ace.aceFlags |= SMB_ACE4_INHERITED_ACE;
-		if ((isdir && (ace.aceFlags & SMB_ACE4_DIRECTORY_INHERIT_ACE)
-		     || !isdir && (ace.aceFlags & SMB_ACE4_FILE_INHERIT_ACE))
-		    && ace.aceFlags & SMB_ACE4_INHERIT_ONLY_ACE) {
+		if (ace.aceFlags & SMB_ACE4_INHERIT_ONLY_ACE) {
 			ace.aceFlags &= ~SMB_ACE4_INHERIT_ONLY_ACE;
 		}
 		if (ace.aceFlags & SMB_ACE4_NO_PROPAGATE_INHERIT_ACE) {
@@ -515,7 +517,7 @@ static SMB4ACL_T *nfs4acls_inheritacl(vfs_handle_struct *handle,
 
 static NTSTATUS nfs4acl_xattr_fget_nt_acl(struct vfs_handle_struct *handle,
 				   struct files_struct *fsp,
-				   uint32 security_info,
+				   uint32_t security_info,
 				   TALLOC_CTX *mem_ctx,
 				   struct security_descriptor **ppdesc)
 {
@@ -539,7 +541,7 @@ static NTSTATUS nfs4acl_xattr_fget_nt_acl(struct vfs_handle_struct *handle,
 }
 
 static NTSTATUS nfs4acl_xattr_get_nt_acl(struct vfs_handle_struct *handle,
-				  const char *name, uint32 security_info,
+				  const char *name, uint32_t security_info,
 				  TALLOC_CTX *mem_ctx,
 				  struct security_descriptor **ppdesc)
 {
@@ -565,7 +567,7 @@ static NTSTATUS nfs4acl_xattr_get_nt_acl(struct vfs_handle_struct *handle,
 
 static NTSTATUS nfs4acl_xattr_fset_nt_acl(vfs_handle_struct *handle,
 			 files_struct *fsp,
-			 uint32 security_info_sent,
+			 uint32_t security_info_sent,
 			 const struct security_descriptor *psd)
 {
 	return nfs4_set_nt_acl(handle, fsp, security_info_sent, psd);

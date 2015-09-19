@@ -2,12 +2,12 @@
 .\"     Title: vfs_snapper
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 04/15/2015
+.\"      Date: 09/08/2015
 .\"    Manual: System Administration tools
-.\"    Source: Samba 4.2
+.\"    Source: Samba 4.3
 .\"  Language: English
 .\"
-.TH "VFS_SNAPPER" "8" "04/15/2015" "Samba 4\&.2" "System Administration tools"
+.TH "VFS_SNAPPER" "8" "09/08/2015" "Samba 4\&.3" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -42,6 +42,8 @@ The
 vfs_snapper
 VFS module exposes snapshots managed by snapper for use by Samba\&. This provides the ability for remote SMB clients to access shadow\-copies via Windows Explorer using the "previous versions" dialog\&.
 .PP
+Snapshots can also be created and remove remotely, using the File Server Remote VSS Protocol (FSRVP)\&. Snapshot creation and deletion requests are forwarded to snapper via DBus\&.
+.PP
 This module is stackable\&.
 .SH "CONFIGURATION"
 .PP
@@ -58,12 +60,32 @@ The underlying share path must have a corresponding snapper configuration file\&
 .if n \{\
 .RE
 .\}
+.PP
+For remote snapshot creation and deletion, Samba\*(Aqs FSRVP server must be configured in the [global] section:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+		\fI[global]\fR
+		\m[blue]\fBrpc_daemon:fssd = fork\fR\m[]
+		\m[blue]\fBregistry shares = yes\fR\m[]
+		\m[blue]\fBinclude = registry\fR\m[]
+	
+.fi
+.if n \{\
+.RE
+.\}
 .SH "PERMISSIONS"
 .PP
 Snapper stores snapshots under a \&.snapshots subdirectory\&. This directory must permit traversal for any users wishing to access snapshots via the Windows Explorer previous versions dialog\&. By default, traversal is forbidden for all non\-root users\&. Additionally, users must be granted permission to list snapshots managed by snapper, via snapper\*(Aqs ALLOW_USERS or ALLOW_GROUPS options\&. Snapper can grant these users and groups \&.snapshots traversal access automatically via the SYNC_ACL option\&.
+.PP
+Remote snapshot creation and deletion is only permitted by Samba for Active Directory administrators, backup operators, or users explicitly granted SeBackupPrivilege\&. Snapper must also permit creation and deletion for the appropriate user, via snapper\*(Aqs ALLOW_USERS or ALLOW_GROUPS options\&.
+.PP
+The DiskShadow\&.exe FSRVP client initially authenticates as the Active Directory computer account\&. This account must therefore be granted the same permissions as the user account issuing the snapshot creation and deletion requests\&.
 .SH "VERSION"
 .PP
-This man page is correct for version 4\&.2\&.0 of the Samba suite\&.
+This man page is correct for version 4\&.3\&.0 of the Samba suite\&.
 .SH "AUTHOR"
 .PP
 The original Samba software and related utilities were created by Andrew Tridgell\&. Samba is now developed by the Samba Team as an Open Source project similar to the way the Linux kernel is developed\&.

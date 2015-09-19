@@ -3255,6 +3255,7 @@ static bool test_EnumJobs_args(struct torture_context *tctx,
 			       struct dcerpc_binding_handle *b,
 			       struct policy_handle *handle,
 			       uint32_t level,
+			       WERROR werr_expected,
 			       uint32_t *count_p,
 			       union spoolss_JobInfo **info_p)
 {
@@ -3288,13 +3289,15 @@ static bool test_EnumJobs_args(struct torture_context *tctx,
 		status = dcerpc_spoolss_EnumJobs_r(b, tctx, &r);
 
 		torture_assert_ntstatus_ok(tctx, status, "EnumJobs failed");
-		torture_assert_werr_ok(tctx, r.out.result, "EnumJobs failed");
+		torture_assert_werr_equal(tctx, r.out.result, werr_expected,
+					  "EnumJobs failed");
 		torture_assert(tctx, info, "No jobs returned");
 
 		CHECK_NEEDED_SIZE_ENUM_LEVEL(spoolss_EnumJobs, *r.out.info, r.in.level, count, needed, 4);
 
 	} else {
-		torture_assert_werr_ok(tctx, r.out.result, "EnumJobs failed");
+		torture_assert_werr_equal(tctx, r.out.result, werr_expected,
+					  "EnumJobs failed");
 	}
 
 	if (count_p) {
@@ -3443,6 +3446,9 @@ static bool test_DoPrintTest_add_one_job_common(struct torture_context *tctx,
 	torture_assert_werr_ok(tctx, s.out.result, "StartDocPrinter failed");
 
 	for (i=1; i < 4; i++) {
+		union spoolss_JobInfo ginfo;
+		bool ok;
+
 		torture_comment(tctx, "Testing StartPagePrinter: Page[%d], JobId[%d]\n", i, *job_id);
 
 		sp.in.handle		= handle;
@@ -3451,6 +3457,11 @@ static bool test_DoPrintTest_add_one_job_common(struct torture_context *tctx,
 		torture_assert_ntstatus_ok(tctx, status,
 					   "dcerpc_spoolss_StartPagePrinter failed");
 		torture_assert_werr_ok(tctx, sp.out.result, "StartPagePrinter failed");
+
+		ok = test_GetJob_args(tctx, b, handle, *job_id, 1, &ginfo);
+		if (!ok) {
+			torture_comment(tctx, "test_GetJob failed for JobId[%d]\n", *job_id);
+		}
 
 		torture_comment(tctx, "Testing WritePrinter: Page[%d], JobId[%d]\n", i, *job_id);
 
@@ -3520,7 +3531,7 @@ static bool test_DoPrintTest_check_jobs(struct torture_context *tctx,
 		"AddJob failed");
 
 	torture_assert(tctx,
-		test_EnumJobs_args(tctx, b, handle, 1, &count, &info),
+		test_EnumJobs_args(tctx, b, handle, 1, WERR_OK, &count, &info),
 		"EnumJobs level 1 failed");
 
 	torture_assert_int_equal(tctx, count, num_jobs, "unexpected number of jobs in queue");
@@ -4107,9 +4118,12 @@ static bool test_GetPrinterData_list(struct torture_context *tctx,
 	int i;
 
 	for (i=0; i < ARRAY_SIZE(list); i++) {
-		enum winreg_Type type, type_ex;
-		uint8_t *data, *data_ex;
-		uint32_t needed, needed_ex;
+		enum winreg_Type type = REG_NONE;
+		enum winreg_Type type_ex= REG_NONE;
+		uint8_t *data;
+		uint8_t *data_ex = NULL;
+		uint32_t needed;
+		uint32_t needed_ex = 0;
 
 		torture_assert(tctx, test_GetPrinterData(tctx, b, &ctx->server_handle, list[i], &type, &data, &needed),
 			talloc_asprintf(tctx, "GetPrinterData failed on %s\n", list[i]));
@@ -6053,9 +6067,9 @@ static bool test_GetChangeID_PrinterDataEx(struct torture_context *tctx,
 					   struct policy_handle *handle,
 					   uint32_t *change_id)
 {
-	enum winreg_Type type;
-	uint8_t *data;
-	uint32_t needed;
+	enum winreg_Type type = REG_NONE;
+	uint8_t *data = NULL;
+	uint32_t needed = 0;
 
 	torture_assert(tctx,
 		test_GetPrinterDataEx(tctx, p, handle, "PrinterDriverData", "ChangeID", &type, &data, &needed),
@@ -6196,6 +6210,7 @@ static bool test_SecondaryClosePrinter(struct torture_context *tctx,
 				       struct policy_handle *handle)
 {
 	NTSTATUS status;
+	struct cli_credentials *anon_creds;
 	const struct dcerpc_binding *binding2;
 	struct dcerpc_pipe *p2;
 	struct spoolss_ClosePrinter cp;
@@ -6207,12 +6222,14 @@ static bool test_SecondaryClosePrinter(struct torture_context *tctx,
 
 	torture_comment(tctx, "Testing close on secondary pipe\n");
 
-	binding2 = p->binding;
-	status = dcerpc_secondary_connection(p, &p2, binding2);
-	torture_assert_ntstatus_ok(tctx, status, "Failed to create secondary connection");
+	anon_creds = cli_credentials_init_anon(tctx);
+	torture_assert(tctx, anon_creds != NULL, "cli_credentials_init_anon failed");
 
-	status = dcerpc_bind_auth_none(p2, &ndr_table_spoolss);
-	torture_assert_ntstatus_ok(tctx, status, "Failed to create bind on secondary connection");
+	binding2 = p->binding;
+	status = dcerpc_secondary_auth_connection(p, binding2, &ndr_table_spoolss,
+						  anon_creds, tctx->lp_ctx,
+						  tctx, &p2);
+	torture_assert_ntstatus_ok(tctx, status, "Failed to create secondary connection");
 
 	cp.in.handle = handle;
 	cp.out.handle = handle;
@@ -8305,7 +8322,8 @@ static bool test_print_test_smbd(struct torture_context *tctx,
 
 	/* check back end spoolss job was created */
 	torture_assert(tctx,
-		test_EnumJobs_args(tctx, b, &t->handle, 1, &count, &info),
+		test_EnumJobs_args(tctx, b, &t->handle, 1, WERR_OK,
+				   &count, &info),
 		"EnumJobs level 1 failed");
 
 	for (i = 0; i < count; i++) {
@@ -8352,7 +8370,8 @@ static bool test_print_test_purge(struct torture_context *tctx,
 	}
 
 	torture_assert(tctx,
-		test_EnumJobs_args(tctx, b, &t->handle, 1, &count, &info),
+		test_EnumJobs_args(tctx, b, &t->handle, 1, WERR_OK,
+				   &count, &info),
 		"EnumJobs level 1 failed");
 
 	torture_assert_int_equal(tctx, count, num_jobs,
@@ -8363,7 +8382,8 @@ static bool test_print_test_purge(struct torture_context *tctx,
 		"failed to purge printer");
 
 	torture_assert(tctx,
-		test_EnumJobs_args(tctx, b, &t->handle, 1, &count, &info),
+		test_EnumJobs_args(tctx, b, &t->handle, 1, WERR_OK,
+				   &count, &info),
 		"EnumJobs level 1 failed");
 
 	torture_assert_int_equal(tctx, count, 0,
@@ -8843,6 +8863,86 @@ static bool test_driver_info_winreg(struct torture_context *tctx,
 	return true;
 }
 
+static bool test_print_job_enum(struct torture_context *tctx,
+				void *private_data)
+{
+	struct torture_printer_context *t =
+		(struct torture_printer_context *)talloc_get_type_abort(private_data, struct torture_printer_context);
+	struct dcerpc_pipe *p = t->spoolss_pipe;
+	struct dcerpc_binding_handle *b = p->binding_handle;
+	bool ret = true;
+	uint32_t num_jobs = 8;
+	uint32_t *job_ids;
+	int i;
+	union spoolss_JobInfo *info = NULL;
+	uint32_t count;
+
+	torture_assert(tctx,
+		test_PausePrinter(tctx, b, &t->handle),
+		"failed to pause printer");
+
+	/* purge in case of any jobs from previous tests */
+	torture_assert(tctx,
+		test_printer_purge(tctx, b, &t->handle),
+		"failed to purge printer");
+
+	/* enum before jobs, valid level */
+	torture_assert(tctx,
+		       test_EnumJobs_args(tctx, b, &t->handle, 1, WERR_OK,
+					  &count, &info),
+		       "EnumJobs with valid level");
+	torture_assert_int_equal(tctx, count, 0, "EnumJobs count");
+	torture_assert(tctx,
+		       test_EnumJobs_args(tctx, b, &t->handle, 2, WERR_OK,
+					  &count, &info),
+		       "EnumJobs with valid level");
+	torture_assert_int_equal(tctx, count, 0, "EnumJobs count");
+	/* enum before jobs, invalid level - expect failure */
+	torture_assert(tctx,
+		       test_EnumJobs_args(tctx, b, &t->handle, 100,
+					  WERR_INVALID_LEVEL,
+					  &count, &info),
+		       "EnumJobs with invalid level");
+
+	job_ids = talloc_zero_array(tctx, uint32_t, num_jobs);
+
+	for (i = 0; i < num_jobs; i++) {
+		ret = test_DoPrintTest_add_one_job(tctx, b, &t->handle,
+						    "TorturePrintJob",
+						    &job_ids[i]);
+		torture_assert(tctx, ret, "failed to add print job");
+	}
+
+	/* enum after jobs, valid level */
+	torture_assert(tctx,
+		       test_EnumJobs_args(tctx, b, &t->handle, 1, WERR_OK,
+					  &count, &info),
+		       "EnumJobs with valid level");
+	torture_assert_int_equal(tctx, count, num_jobs, "EnumJobs count");
+	torture_assert(tctx,
+		       test_EnumJobs_args(tctx, b, &t->handle, 2, WERR_OK,
+					  &count, &info),
+		       "EnumJobs with valid level");
+	torture_assert_int_equal(tctx, count, num_jobs, "EnumJobs count");
+	/* enum after jobs, invalid level - expect failure */
+	torture_assert(tctx,
+		       test_EnumJobs_args(tctx, b, &t->handle, 100,
+					  WERR_INVALID_LEVEL,
+					  &count, &info),
+		       "EnumJobs with invalid level");
+
+	for (i = 0; i < num_jobs; i++) {
+		test_SetJob(tctx, b, &t->handle, job_ids[i], NULL,
+			    SPOOLSS_JOB_CONTROL_DELETE);
+	}
+
+	torture_assert(tctx,
+		test_ResumePrinter(tctx, b, &t->handle),
+		"failed to resume printer");
+
+	return true;
+}
+
 void torture_tcase_printer(struct torture_tcase *tcase)
 {
 	torture_tcase_add_simple_test(tcase, "openprinter", test_openprinter_wrap);
@@ -8870,6 +8970,7 @@ void torture_tcase_printer(struct torture_tcase *tcase)
 	torture_tcase_add_simple_test(tcase, "bidi", test_printer_bidi);
 	torture_tcase_add_simple_test(tcase, "publish_toggle",
 				      test_printer_publish_toggle);
+	torture_tcase_add_simple_test(tcase, "print_job_enum", test_print_job_enum);
 }
 
 struct torture_suite *torture_rpc_spoolss_printer(TALLOC_CTX *mem_ctx)

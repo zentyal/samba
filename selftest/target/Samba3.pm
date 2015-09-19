@@ -49,10 +49,9 @@ sub get_fs_specific_conf($$)
 }
 
 sub new($$) {
-	my ($classname, $bindir, $binary_mapping, $srcdir, $server_maxtime) = @_;
+	my ($classname, $bindir, $srcdir, $server_maxtime) = @_;
 	my $self = { vars => {},
 		     bindir => $bindir,
-		     binary_mapping => $binary_mapping,
 		     srcdir => $srcdir,
 		     server_maxtime => $server_maxtime
 	};
@@ -173,33 +172,37 @@ sub setup_env($$$)
 	        return $self->{vars}->{$envname};
 	}
 
-	if ($envname eq "s3dc") {
-		return $self->setup_s3dc("$path/s3dc");
+	if ($envname eq "nt4_dc") {
+		return $self->setup_nt4_dc("$path/nt4_dc");
+	} elsif ($envname eq "nt4_dc_schannel") {
+		return $self->setup_nt4_dc_schannel("$path/nt4_dc_schannel");
 	} elsif ($envname eq "simpleserver") {
 		return $self->setup_simpleserver("$path/simpleserver");
+	} elsif ($envname eq "fileserver") {
+		return $self->setup_fileserver("$path/fileserver");
 	} elsif ($envname eq "maptoguest") {
 		return $self->setup_maptoguest("$path/maptoguest");
 	} elsif ($envname eq "ktest") {
 		return $self->setup_ktest("$path/ktest");
-	} elsif ($envname eq "member") {
-		if (not defined($self->{vars}->{s3dc})) {
-			if (not defined($self->setup_s3dc("$path/s3dc"))) {
+	} elsif ($envname eq "nt4_member") {
+		if (not defined($self->{vars}->{nt4_dc})) {
+			if (not defined($self->setup_nt4_dc("$path/nt4_dc"))) {
 			        return undef;
 			}
 		}
-		return $self->setup_member("$path/member", $self->{vars}->{s3dc});
+		return $self->setup_nt4_member("$path/nt4_member", $self->{vars}->{nt4_dc});
 	} else {
 		return "UNKNOWN";
 	}
 }
 
-sub setup_s3dc($$)
+sub setup_nt4_dc($$)
 {
 	my ($self, $path) = @_;
 
-	print "PROVISIONING S3DC...";
+	print "PROVISIONING NT4 DC...";
 
-	my $s3dc_options = "
+	my $nt4_dc_options = "
 	domain master = yes
 	domain logons = yes
 	lanman auth = yes
@@ -210,16 +213,19 @@ sub setup_s3dc($$)
 	rpc_server:samr = external
 	rpc_server:netlogon = external
 	rpc_server:register_embedded_np = yes
+	rpc_server:FssagentRpc = external
 
 	rpc_daemon:epmd = fork
 	rpc_daemon:spoolssd = fork
 	rpc_daemon:lsasd = fork
+	rpc_daemon:fssd = fork
+	fss: sequence timeout = 1
 ";
 
 	my $vars = $self->provision($path,
-				    "LOCALS3DC2",
-				    "locals3dc2pass",
-				    $s3dc_options);
+				    "LOCALNT4DC2",
+				    "localntdc2pass",
+				    $nt4_dc_options);
 
 	$vars or return undef;
 
@@ -234,14 +240,64 @@ sub setup_s3dc($$)
 	$vars->{DC_USERNAME} = $vars->{USERNAME};
 	$vars->{DC_PASSWORD} = $vars->{PASSWORD};
 
-	$self->{vars}->{s3dc} = $vars;
+	$self->{vars}->{nt4_dc} = $vars;
 
 	return $vars;
 }
 
-sub setup_member($$$)
+sub setup_nt4_dc_schannel($$)
 {
-	my ($self, $prefix, $s3dcvars) = @_;
+	my ($self, $path) = @_;
+
+	print "PROVISIONING NT4 DC WITH SERVER SCHANNEL ...";
+
+	my $pdc_options = "
+	domain master = yes
+	domain logons = yes
+	lanman auth = yes
+
+	rpc_server:epmapper = external
+	rpc_server:spoolss = external
+	rpc_server:lsarpc = external
+	rpc_server:samr = external
+	rpc_server:netlogon = external
+	rpc_server:register_embedded_np = yes
+
+	rpc_daemon:epmd = fork
+	rpc_daemon:spoolssd = fork
+	rpc_daemon:lsasd = fork
+
+	server schannel = yes
+";
+
+	my $vars = $self->provision($path,
+				    "LOCALNT4DC9",
+				    "localntdc9pass",
+				    $pdc_options);
+
+	$vars or return undef;
+
+	if (not $self->check_or_start($vars, "yes", "yes", "yes")) {
+	       return undef;
+	}
+
+	$vars->{DC_SERVER} = $vars->{SERVER};
+	$vars->{DC_SERVER_IP} = $vars->{SERVER_IP};
+	$vars->{DC_SERVER_IPV6} = $vars->{SERVER_IPV6};
+	$vars->{DC_NETBIOSNAME} = $vars->{NETBIOSNAME};
+	$vars->{DC_USERNAME} = $vars->{USERNAME};
+	$vars->{DC_PASSWORD} = $vars->{PASSWORD};
+
+	$self->{vars}->{nt4_dc_schannel} = $vars;
+
+	return $vars;
+}
+
+sub setup_nt4_member($$$)
+{
+	my ($self, $prefix, $nt4_dc_vars) = @_;
+	my $count = 0;
+	my $rc;
 
 	print "PROVISIONING MEMBER...";
 
@@ -251,17 +307,32 @@ sub setup_member($$$)
 	dbwrap_tdb_mutexes:* = yes
 ";
 	my $ret = $self->provision($prefix,
-				   "LOCALMEMBER3",
-				   "localmember3pass",
+				   "LOCALNT4MEMBER3",
+				   "localnt4member3pass",
 				   $member_options);
 
 	$ret or return undef;
 
+	my $nmblookup = Samba::bindir_path($self, "nmblookup");
+	do {
+		print "Waiting for the LOGON SERVER registration ...\n";
+		$rc = system("$nmblookup $ret->{CONFIGURATION} $ret->{DOMAIN}\#1c");
+		if ($rc != 0) {
+			sleep(1);
+		}
+		$count++;
+	} while ($rc != 0 && $count < 10);
+	if ($count == 10) {
+		print "NMBD not reachable after 10 retries\n";
+		teardown_env($self, $ret);
+		return 0;
+	}
+
 	my $net = Samba::bindir_path($self, "net");
 	my $cmd = "";
 	$cmd .= "SOCKET_WRAPPER_DEFAULT_IFACE=\"$ret->{SOCKET_WRAPPER_DEFAULT_IFACE}\" ";
-	$cmd .= "$net join $ret->{CONFIGURATION} $s3dcvars->{DOMAIN} member";
-	$cmd .= " -U$s3dcvars->{USERNAME}\%$s3dcvars->{PASSWORD}";
+	$cmd .= "$net join $ret->{CONFIGURATION} $nt4_dc_vars->{DOMAIN} member";
+	$cmd .= " -U$nt4_dc_vars->{USERNAME}\%$nt4_dc_vars->{PASSWORD}";
 
 	if (system($cmd) != 0) {
 	    warn("Join failed\n$cmd");
@@ -272,12 +343,12 @@ sub setup_member($$$)
 	       return undef;
 	}
 
-	$ret->{DC_SERVER} = $s3dcvars->{SERVER};
-	$ret->{DC_SERVER_IP} = $s3dcvars->{SERVER_IP};
-	$ret->{DC_SERVER_IPV6} = $s3dcvars->{SERVER_IPV6};
-	$ret->{DC_NETBIOSNAME} = $s3dcvars->{NETBIOSNAME};
-	$ret->{DC_USERNAME} = $s3dcvars->{USERNAME};
-	$ret->{DC_PASSWORD} = $s3dcvars->{PASSWORD};
+	$ret->{DC_SERVER} = $nt4_dc_vars->{SERVER};
+	$ret->{DC_SERVER_IP} = $nt4_dc_vars->{SERVER_IP};
+	$ret->{DC_SERVER_IPV6} = $nt4_dc_vars->{SERVER_IPV6};
+	$ret->{DC_NETBIOSNAME} = $nt4_dc_vars->{NETBIOSNAME};
+	$ret->{DC_USERNAME} = $nt4_dc_vars->{USERNAME};
+	$ret->{DC_PASSWORD} = $nt4_dc_vars->{PASSWORD};
 
 	return $ret;
 }
@@ -303,7 +374,9 @@ sub setup_admember($$$$)
 	my $ret = $self->provision($prefix,
 				   "LOCALADMEMBER",
 				   "loCalMemberPass",
-				   $member_options);
+				   $member_options,
+				   $dcvars->{SERVER_IP},
+				   $dcvars->{SERVER_IPV6});
 
 	$ret or return undef;
 
@@ -319,6 +392,7 @@ sub setup_admember($$$$)
 	$ctx->{realm} = $dcvars->{REALM};
 	$ctx->{dnsname} = lc($dcvars->{REALM});
 	$ctx->{kdc_ipv4} = $dcvars->{SERVER_IP};
+	$ctx->{kdc_ipv6} = $dcvars->{SERVER_IPV6};
 	Samba::mk_krb5_conf($ctx, "");
 
 	$ret->{KRB5_CONFIG} = $ctx->{krb5_conf};
@@ -326,6 +400,11 @@ sub setup_admember($$$$)
 	my $net = Samba::bindir_path($self, "net");
 	my $cmd = "";
 	$cmd .= "SOCKET_WRAPPER_DEFAULT_IFACE=\"$ret->{SOCKET_WRAPPER_DEFAULT_IFACE}\" ";
+	if (defined($ret->{RESOLV_WRAPPER_CONF})) {
+		$cmd .= "RESOLV_WRAPPER_CONF=\"$ret->{RESOLV_WRAPPER_CONF}\" ";
+	} else {
+		$cmd .= "RESOLV_WRAPPER_HOSTS=\"$ret->{RESOLV_WRAPPER_HOSTS}\" ";
+	}
 	$cmd .= "KRB5_CONFIG=\"$ret->{KRB5_CONFIG}\" ";
 	$cmd .= "$net join $ret->{CONFIGURATION}";
 	$cmd .= " -U$dcvars->{USERNAME}\%$dcvars->{PASSWORD}";
@@ -383,7 +462,9 @@ sub setup_admember_rfc2307($$$$)
 	my $ret = $self->provision($prefix,
 				   "RFC2307MEMBER",
 				   "loCalMemberPass",
-				   $member_options);
+				   $member_options,
+				   $dcvars->{SERVER_IP},
+				   $dcvars->{SERVER_IPV6});
 
 	$ret or return undef;
 
@@ -399,6 +480,7 @@ sub setup_admember_rfc2307($$$$)
 	$ctx->{realm} = $dcvars->{REALM};
 	$ctx->{dnsname} = lc($dcvars->{REALM});
 	$ctx->{kdc_ipv4} = $dcvars->{SERVER_IP};
+	$ctx->{kdc_ipv6} = $dcvars->{SERVER_IPV6};
 	Samba::mk_krb5_conf($ctx, "");
 
 	$ret->{KRB5_CONFIG} = $ctx->{krb5_conf};
@@ -406,6 +488,11 @@ sub setup_admember_rfc2307($$$$)
 	my $net = Samba::bindir_path($self, "net");
 	my $cmd = "";
 	$cmd .= "SOCKET_WRAPPER_DEFAULT_IFACE=\"$ret->{SOCKET_WRAPPER_DEFAULT_IFACE}\" ";
+	if (defined($ret->{RESOLV_WRAPPER_CONF})) {
+		$cmd .= "RESOLV_WRAPPER_CONF=\"$ret->{RESOLV_WRAPPER_CONF}\" ";
+	} else {
+		$cmd .= "RESOLV_WRAPPER_HOSTS=\"$ret->{RESOLV_WRAPPER_HOSTS}\" ";
+	}
 	$cmd .= "KRB5_CONFIG=\"$ret->{KRB5_CONFIG}\" ";
 	$cmd .= "$net join $ret->{CONFIGURATION}";
 	$cmd .= " -U$dcvars->{USERNAME}\%$dcvars->{PASSWORD}";
@@ -441,13 +528,14 @@ sub setup_simpleserver($$)
 {
 	my ($self, $path) = @_;
 
-	print "PROVISIONING server with security=share...";
+	print "PROVISIONING simple server...";
 
 	my $prefix_abs = abs_path($path);
 
 	my $simpleserver_options = "
 	lanman auth = yes
 	vfs objects = xattr_tdb streams_depot
+	change notify = no
 
 [vfs_aio_fork]
 	path = $prefix_abs/share
@@ -468,6 +556,106 @@ sub setup_simpleserver($$)
 	}
 
 	$self->{vars}->{simpleserver} = $vars;
+
+	return $vars;
+}
+
+sub setup_fileserver($$)
+{
+	my ($self, $path) = @_;
+	my $prefix_abs = abs_path($path);
+	my $srcdir_abs = abs_path($self->{srcdir});
+
+	print "PROVISIONING file server ...\n";
+
+	my @dirs = ();
+
+	mkdir($prefix_abs, 0777);
+
+	my $share_dir="$prefix_abs/share";
+
+	# Create share directory structure
+	my $lower_case_share_dir="$share_dir/lower-case";
+	push(@dirs, $lower_case_share_dir);
+
+	my $lower_case_share_dir_30000="$share_dir/lower-case-30000";
+	push(@dirs, $lower_case_share_dir_30000);
+
+	my $dfree_share_dir="$share_dir/dfree";
+	push(@dirs, $dfree_share_dir);
+
+	my $fileserver_options = "
+[lowercase]
+	path = $lower_case_share_dir
+	comment = smb username is [%U]
+	case sensitive = True
+	default case = lower
+	preserve case = no
+	short preserve case = no
+[lowercase-30000]
+	path = $lower_case_share_dir_30000
+	comment = smb username is [%U]
+	case sensitive = True
+	default case = lower
+	preserve case = no
+	short preserve case = no
+[dfree]
+	path = $dfree_share_dir
+	comment = smb username is [%U]
+	dfree command = $srcdir_abs/testprogs/blackbox/dfree.sh
+	";
+
+	my $vars = $self->provision($path,
+				    "FILESERVER",
+				    "fileserver_secret",
+				    $fileserver_options,
+				    undef,
+				    undef,
+				    1);
+
+	$vars or return undef;
+
+	if (not $self->check_or_start($vars, "yes", "no", "yes")) {
+	       return undef;
+	}
+
+	$self->{vars}->{fileserver} = $vars;
+
+	mkdir($_, 0777) foreach(@dirs);
+
+	## Create case sensitive lower case share dir
+	foreach my $file ('a'..'z') {
+		my $full_path = $lower_case_share_dir . '/' . $file;
+		open my $fh, '>', $full_path;
+		# Add some content to file
+		print $fh $full_path;
+		close $fh;
+	}
+
+	for (my $file = 1; $file < 51; ++$file) {
+		my $full_path = $lower_case_share_dir . '/' . $file;
+		open my $fh, '>', $full_path;
+		# Add some content to file
+		print $fh $full_path;
+		close $fh;
+	}
+
+	# Create content for 30000 share
+	foreach my $file ('a'..'z') {
+		my $full_path = $lower_case_share_dir_30000 . '/' . $file;
+		open my $fh, '>', $full_path;
+		# Add some content to file
+		print $fh $full_path;
+		close $fh;
+	}
+
+	for (my $file = 1; $file < 30001; ++$file) {
+		my $full_path = $lower_case_share_dir_30000 . '/' . $file;
+		open my $fh, '>', $full_path;
+		# Add some content to file
+		print $fh $full_path;
+		close $fh;
+	}
 
 	return $vars;
 }
@@ -506,6 +694,7 @@ sub setup_ktest($$$)
 	$ctx->{realm} = "KTEST.SAMBA.EXAMPLE.COM";
 	$ctx->{dnsname} = lc($ctx->{realm});
 	$ctx->{kdc_ipv4} = "0.0.0.0";
+	$ctx->{kdc_ipv6} = "::";
 	Samba::mk_krb5_conf($ctx, "");
 
 	$ret->{KRB5_CONFIG} = $ctx->{krb5_conf};
@@ -647,6 +836,7 @@ sub check_or_start($$$$$) {
 		$ENV{NSS_WRAPPER_PASSWD} = $env_vars->{NSS_WRAPPER_PASSWD};
 		$ENV{NSS_WRAPPER_GROUP} = $env_vars->{NSS_WRAPPER_GROUP};
 		$ENV{NSS_WRAPPER_HOSTS} = $env_vars->{NSS_WRAPPER_HOSTS};
+		$ENV{NSS_WRAPPER_HOSTNAME} = $env_vars->{NSS_WRAPPER_HOSTNAME};
 		$ENV{NSS_WRAPPER_MODULE_SO_PATH} = $env_vars->{NSS_WRAPPER_MODULE_SO_PATH};
 		$ENV{NSS_WRAPPER_MODULE_FN_PREFIX} = $env_vars->{NSS_WRAPPER_MODULE_FN_PREFIX};
 
@@ -704,8 +894,14 @@ sub check_or_start($$$$$) {
 		$ENV{NSS_WRAPPER_PASSWD} = $env_vars->{NSS_WRAPPER_PASSWD};
 		$ENV{NSS_WRAPPER_GROUP} = $env_vars->{NSS_WRAPPER_GROUP};
 		$ENV{NSS_WRAPPER_HOSTS} = $env_vars->{NSS_WRAPPER_HOSTS};
+		$ENV{NSS_WRAPPER_HOSTNAME} = $env_vars->{NSS_WRAPPER_HOSTNAME};
 		$ENV{NSS_WRAPPER_MODULE_SO_PATH} = $env_vars->{NSS_WRAPPER_MODULE_SO_PATH};
 		$ENV{NSS_WRAPPER_MODULE_FN_PREFIX} = $env_vars->{NSS_WRAPPER_MODULE_FN_PREFIX};
+		if (defined($env_vars->{RESOLV_WRAPPER_CONF})) {
+			$ENV{RESOLV_WRAPPER_CONF} = $env_vars->{RESOLV_WRAPPER_CONF};
+		} else {
+			$ENV{RESOLV_WRAPPER_HOSTS} = $env_vars->{RESOLV_WRAPPER_HOSTS};
+		}
 
 		$ENV{ENVNAME} = "$ENV{ENVNAME}.winbindd";
 
@@ -761,8 +957,14 @@ sub check_or_start($$$$$) {
 		$ENV{NSS_WRAPPER_PASSWD} = $env_vars->{NSS_WRAPPER_PASSWD};
 		$ENV{NSS_WRAPPER_GROUP} = $env_vars->{NSS_WRAPPER_GROUP};
 		$ENV{NSS_WRAPPER_HOSTS} = $env_vars->{NSS_WRAPPER_HOSTS};
+		$ENV{NSS_WRAPPER_HOSTNAME} = $env_vars->{NSS_WRAPPER_HOSTNAME};
 		$ENV{NSS_WRAPPER_MODULE_SO_PATH} = $env_vars->{NSS_WRAPPER_MODULE_SO_PATH};
 		$ENV{NSS_WRAPPER_MODULE_FN_PREFIX} = $env_vars->{NSS_WRAPPER_MODULE_FN_PREFIX};
+		if (defined($env_vars->{RESOLV_WRAPPER_CONF})) {
+			$ENV{RESOLV_WRAPPER_CONF} = $env_vars->{RESOLV_WRAPPER_CONF};
+		} else {
+			$ENV{RESOLV_WRAPPER_HOSTS} = $env_vars->{RESOLV_WRAPPER_HOSTS};
+		}
 
 		$ENV{ENVNAME} = "$ENV{ENVNAME}.smbd";
 
@@ -807,9 +1009,9 @@ sub check_or_start($$$$$) {
 	return $self->wait_for_start($env_vars, $nmbd, $winbindd, $smbd);
 }
 
-sub provision($$$$$$)
+sub provision($$$$$$$$)
 {
-	my ($self, $prefix, $server, $password, $extra_options, $no_delete_prefix) = @_;
+	my ($self, $prefix, $server, $password, $extra_options, $dc_server_ip, $dc_server_ipv6, $no_delete_prefix) = @_;
 
 	##
 	## setup the various environment variables we need
@@ -829,8 +1031,6 @@ sub provision($$$$$$)
 
 	my $prefix_abs = abs_path($prefix);
 	my $bindir_abs = abs_path($self->{bindir});
-
-	my $dns_host_file = "$ENV{SELFTEST_PREFIX}/dns_host_file";
 
 	my @dirs = ();
 
@@ -882,6 +1082,9 @@ sub provision($$$$$$)
 	my $lease2_shrdir="$shrdir/SMB3_00";
 	push(@dirs,$lease2_shrdir);
 
+	my $manglenames_shrdir="$shrdir/manglenames";
+	push(@dirs,$manglenames_shrdir);
+
 	# this gets autocreated by winbindd
 	my $wbsockdir="$prefix_abs/winbindd";
 	my $wbsockprivdir="$lockdir/winbindd_privileged";
@@ -931,7 +1134,8 @@ sub provision($$$$$$)
 	}
 	close(MSDFS_TARGET);
 	chmod 0666, $msdfs_target;
-	symlink "msdfs:$server_ip\\ro-tmp", "$msdfs_shrdir/msdfs-src1";
+	symlink "msdfs:$server_ip\\ro-tmp,$server_ipv6\\ro-tmp",
+		"$msdfs_shrdir/msdfs-src1";
 	symlink "msdfs:$server_ipv6\\ro-tmp", "$msdfs_shrdir/deeppath/msdfs-src2";
 
 	##
@@ -964,14 +1168,24 @@ sub provision($$$$$$)
         close(BADNAME_TARGET);
         chmod 0666, $badname_target;
 
+	##
+	## create mangleable directory names in $manglenames_shrdir
+	##
+        my $manglename_target = "$manglenames_shrdir/foo:bar";
+	mkdir($manglename_target, 0777);
+
 	my $conffile="$libdir/server.conf";
 
 	my $nss_wrapper_pl = "$ENV{PERL} $self->{srcdir}/lib/nss_wrapper/nss_wrapper.pl";
 	my $nss_wrapper_passwd = "$privatedir/passwd";
 	my $nss_wrapper_group = "$privatedir/group";
 	my $nss_wrapper_hosts = "$ENV{SELFTEST_PREFIX}/hosts";
+	my $resolv_conf = "$privatedir/resolv.conf";
+	my $dns_host_file = "$ENV{SELFTEST_PREFIX}/dns_host_file";
 
 	my $mod_printer_pl = "$ENV{PERL} $self->{srcdir}/source3/script/tests/printing/modprinter.pl";
+
+	my $fake_snap_pl = "$ENV{PERL} $self->{srcdir}/source3/script/tests/fake_snap.pl";
 
 	my @eventlog_list = ("dns server", "application");
 
@@ -1056,7 +1270,7 @@ sub provision($$$$$$)
 	kernel change notify = no
 	smb2 leases = yes
 
-	syslog = no
+	logging = file
 	printing = bsd
 	printcap name = /dev/null
 
@@ -1095,11 +1309,21 @@ sub provision($$$$$$)
 	print notify backchannel = yes
 
 	ncalrpc dir = $prefix_abs/ncalrpc
-        resolv:host file = $dns_host_file
 
         # The samba3.blackbox.smbclient_s3 test uses this to test that
         # sending messages works, and that the %m sub works.
         message command = mv %s $shrdir/message.%m
+
+	# fsrvp server requires registry shares
+	registry shares = yes
+
+	# Used by RPC SRVSVC tests
+	add share command = $bindir_abs/smbaddshare
+	change share command = $bindir_abs/smbchangeshare
+	delete share command = $bindir_abs/smbdeleteshare
+
+	# fruit:copyfile is a global option
+	fruit:copyfile = yes
 
 	# Begin extra options
 	$extra_options
@@ -1157,6 +1381,7 @@ sub provision($$$$$$)
 [msdfs-share]
 	path = $msdfs_shrdir
 	msdfs root = yes
+	msdfs shuffle referrals = yes
 	guest ok = yes
 [hideunread]
 	copy = tmp
@@ -1222,7 +1447,8 @@ sub provision($$$$$$)
 
 [vfs_fruit]
 	path = $shrdir
-	vfs objects = catia fruit streams_xattr
+	vfs objects = catia fruit streams_xattr acl_xattr
+	ea support = yes
 	fruit:ressource = file
 	fruit:metadata = netatalk
 	fruit:locking = netatalk
@@ -1232,9 +1458,23 @@ sub provision($$$$$$)
 	path = $badnames_shrdir
 	guest ok = yes
 
+[manglenames_share]
+	path = $manglenames_shrdir
+	guest ok = yes
+
 [dynamic_share]
 	path = $shrdir/%R
 	guest ok = yes
+
+[fsrvp_share]
+	path = $shrdir
+	comment = fake shapshots using rsync
+	vfs objects = shell_snap shadow_copy2
+	shell_snap:check path command = $fake_snap_pl --check
+	shell_snap:create command = $fake_snap_pl --create
+	shell_snap:delete command = $fake_snap_pl --delete
+	# a relative path here fails, the snapshot dir is no longer found
+	shadow:snapdir = $shrdir/.snapshots
 	";
 	close(CONF);
 
@@ -1284,6 +1524,23 @@ domadmins:X:$gid_domadmins:
 	print HOSTS "${server_ipv6} ${hostname}.samba.example.com ${hostname}\n";
 	close(HOSTS);
 
+	## hosts
+	unless (open(RESOLV_CONF, ">$resolv_conf")) {
+		warn("Unable to open $resolv_conf");
+		return undef;
+	}
+	if (defined($dc_server_ip) or defined($dc_server_ipv6)) {
+		if (defined($dc_server_ip)) {
+			print RESOLV_CONF "nameserver $dc_server_ip\n";
+		}
+		if (defined($dc_server_ipv6)) {
+			print RESOLV_CONF "nameserver $dc_server_ipv6\n";
+		}
+	} else {
+		print RESOLV_CONF "nameserver ${server_ip}\n";
+		print RESOLV_CONF "nameserver ${server_ipv6}\n";
+	}
+	close(RESOLV_CONF);
 
 	foreach my $evlog (@eventlog_list) {
 		my $evlogtdb = "$eventlogdir/$evlog.tdb";
@@ -1294,6 +1551,12 @@ domadmins:X:$gid_domadmins:
 	$ENV{NSS_WRAPPER_PASSWD} = $nss_wrapper_passwd;
 	$ENV{NSS_WRAPPER_GROUP} = $nss_wrapper_group;
 	$ENV{NSS_WRAPPER_HOSTS} = $nss_wrapper_hosts;
+	$ENV{NSS_WRAPPER_HOSTNAME} = "${hostname}.samba.example.com";
+	if ($ENV{SAMBA_DNS_FAKING}) {
+		$ENV{RESOLV_WRAPPER_CONF} = $resolv_conf;
+	} else {
+		$ENV{RESOLV_WRAPPER_HOSTS} = $dns_host_file;
+	}
 
         my $cmd = "UID_WRAPPER_ROOT=1 " . Samba::bindir_path($self, "smbpasswd")." -c $conffile -L -s -a $unix_name > /dev/null";
 	unless (open(PWD, "|$cmd")) {
@@ -1311,10 +1574,6 @@ domadmins:X:$gid_domadmins:
 	print DNS_UPDATE_LIST "A $server. $server_ip\n";
 	print DNS_UPDATE_LIST "AAAA $server. $server_ipv6\n";
 	close(DNS_UPDATE_LIST);
-
-        if (system("$ENV{SRCDIR_ABS}/source4/scripting/bin/samba_dnsupdate --all-interfaces --use-file=$dns_host_file -s $conffile --update-list=$prefix/dns_update_list --update-cache=$prefix/dns_update_cache --no-substiutions --no-credentials") != 0) {
-                die "Unable to update hostname into $dns_host_file";
-        }
 
 	$ret{SERVER_IP} = $server_ip;
 	$ret{SERVER_IPV6} = $server_ipv6;
@@ -1340,8 +1599,14 @@ domadmins:X:$gid_domadmins:
 	$ret{NSS_WRAPPER_PASSWD} = $nss_wrapper_passwd;
 	$ret{NSS_WRAPPER_GROUP} = $nss_wrapper_group;
 	$ret{NSS_WRAPPER_HOSTS} = $nss_wrapper_hosts;
+	$ret{NSS_WRAPPER_HOSTNAME} = "${hostname}.samba.example.com";
 	$ret{NSS_WRAPPER_MODULE_SO_PATH} = Samba::nss_wrapper_winbind_so_path($self);
 	$ret{NSS_WRAPPER_MODULE_FN_PREFIX} = "winbind";
+	if ($ENV{SAMBA_DNS_FAKING}) {
+		$ret{RESOLV_WRAPPER_HOSTS} = $dns_host_file;
+	} else {
+		$ret{RESOLV_WRAPPER_CONF} = $resolv_conf;
+	}
 	$ret{LOCAL_PATH} = "$shrdir";
         $ret{LOGDIR} = $logdir;
 
@@ -1404,7 +1669,7 @@ sub wait_for_start($$$$$)
 
 	    my $count = 0;
 	    do {
-		$ret = system(Samba::bindir_path($self, "smbclient3") ." $envvars->{CONFIGURATION} -L $envvars->{SERVER} -U% -p 139");
+		$ret = system(Samba::bindir_path($self, "smbclient") ." $envvars->{CONFIGURATION} -L $envvars->{SERVER} -U% -p 139");
 		if ($ret != 0) {
 		    sleep(2);
 		}

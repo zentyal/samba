@@ -82,7 +82,7 @@ struct afs_keyfile {
 
 /* The following definitions come from passdb/secrets.c  */
 
-bool secrets_init_path(const char *private_dir, bool use_ntdb);
+bool secrets_init_path(const char *private_dir);
 bool secrets_init(void);
 struct db_context *secrets_db_ctx(void);
 void secrets_shutdown(void);
@@ -97,7 +97,6 @@ bool secrets_store_domain_sid(const char *domain, const struct dom_sid  *sid);
 bool secrets_fetch_domain_sid(const char *domain, struct dom_sid  *sid);
 bool secrets_store_domain_guid(const char *domain, struct GUID *guid);
 bool secrets_fetch_domain_guid(const char *domain, struct GUID *guid);
-void *secrets_get_trust_account_lock(TALLOC_CTX *mem_ctx, const char *domain);
 enum netr_SchannelType get_default_sec_channel(void);
 bool secrets_fetch_trust_account_password_legacy(const char *domain,
 						 uint8_t ret_pwd[16],

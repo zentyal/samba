@@ -31,3 +31,5 @@ debian/*.substvars
 debian/samba-dbg/
 debian/samba-doc/
 debian/files
+ctdb/README.eventscripts
+ctdb/README.notify.d

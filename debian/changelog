@@ -3,6 +3,7 @@ samba (2:4.3.0+dfsg-1) UNRELEASED; urgency=medium
   * Fix watch file.
   * New upstream release.
   * Drop no_wrapper patch: applied upstream.
+  * Drop patch ctdb_sockpath.patch: applied upstream.
 
  -- Jelmer Vernooij <jelmer@debian.org>  Sat, 19 Sep 2015 01:59:36 +0000
 

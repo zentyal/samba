@@ -66,6 +66,9 @@ static bool gencache_init(void)
 	if (cache) return True;
 
 	cache_fname = cache_path("gencache.tdb");
+	if (cache_fname == NULL) {
+		return false;
+	}
 
 	DEBUG(5, ("Opening cache file at %s\n", cache_fname));
 
@@ -105,6 +108,7 @@ static bool gencache_init(void)
 			DEBUG(5, ("gencache_init: Opening cache file %s read-only.\n", cache_fname));
 		}
 	}
+	TALLOC_FREE(cache_fname);
 
 	if (!cache) {
 		DEBUG(5, ("Attempt to open gencache.tdb has failed.\n"));
@@ -112,6 +116,10 @@ static bool gencache_init(void)
 	}
 
 	cache_fname = lock_path("gencache_notrans.tdb");
+	if (cache_fname == NULL) {
+		TALLOC_FREE(cache);
+		return false;
+	}
 
 	DEBUG(5, ("Opening cache file at %s\n", cache_fname));
 
@@ -125,9 +133,11 @@ static bool gencache_init(void)
 	if (cache_notrans == NULL) {
 		DEBUG(5, ("Opening %s failed: %s\n", cache_fname,
 			  strerror(errno)));
+		TALLOC_FREE(cache_fname);
 		TALLOC_FREE(cache);
 		return false;
 	}
+	TALLOC_FREE(cache_fname);
 
 	return True;
 }
@@ -263,7 +273,7 @@ static int last_stabilize_parser(TDB_DATA key, TDB_DATA data,
  * @param blob DATA_BLOB value being cached
  * @param timeout time when the value is expired
  *
- * @retval true when entry is successfuly stored
+ * @retval true when entry is successfully stored
  * @retval false on failure
  **/
 
@@ -644,7 +654,7 @@ bool gencache_stabilize(void)
 		}
 
 		DEBUG(10, ("Could not start transaction on gencache.tdb: "
-			   "%s\n", tdb_errorstr_compat(cache->tdb)));
+			   "%s\n", tdb_errorstr(cache->tdb)));
 		return false;
 	}
 
@@ -653,7 +663,7 @@ bool gencache_stabilize(void)
 		tdb_transaction_cancel(cache->tdb);
 		DEBUG(10, ("Could not get allrecord lock on "
 			   "gencache_notrans.tdb: %s\n",
-			   tdb_errorstr_compat(cache_notrans->tdb)));
+			   tdb_errorstr(cache_notrans->tdb)));
 		return false;
 	}
 
@@ -675,16 +685,16 @@ bool gencache_stabilize(void)
 	res = tdb_transaction_commit(cache->tdb);
 	if (res != 0) {
 		DEBUG(10, ("tdb_transaction_commit on gencache.tdb failed: "
-			   "%s\n", tdb_errorstr_compat(cache->tdb)));
+			   "%s\n", tdb_errorstr(cache->tdb)));
 		tdb_unlockall(cache_notrans->tdb);
 		return false;
 	}
 
 	res = tdb_traverse(cache_notrans->tdb, wipe_fn, NULL);
-	if (res != 0) {
+	if (res < 0) {
 		DEBUG(10, ("tdb_traverse with wipe_fn on gencache_notrans.tdb "
 			  "failed: %s\n",
-			   tdb_errorstr_compat(cache_notrans->tdb)));
+			   tdb_errorstr(cache_notrans->tdb)));
 		tdb_unlockall(cache_notrans->tdb);
 		return false;
 	}
@@ -692,7 +702,7 @@ bool gencache_stabilize(void)
 	res = tdb_unlockall(cache_notrans->tdb);
 	if (res != 0) {
 		DEBUG(10, ("tdb_unlockall on gencache.tdb failed: "
-			   "%s\n", tdb_errorstr_compat(cache->tdb)));
+			   "%s\n", tdb_errorstr(cache->tdb)));
 		return false;
 	}
 
@@ -737,7 +747,7 @@ static int stabilize_fn(struct tdb_context *tdb, TDB_DATA key, TDB_DATA val,
 
 	if (res != 0) {
 		DEBUG(10, ("Transfer to gencache.tdb failed: %s\n",
-			   tdb_errorstr_compat(cache->tdb)));
+			   tdb_errorstr(cache->tdb)));
 		return -1;
 	}
 
@@ -765,7 +775,7 @@ static int wipe_fn(struct tdb_context *tdb, TDB_DATA key, TDB_DATA val,
 	res = tdb_delete(tdb, key);
 	if (res != 0) {
 		DEBUG(10, ("tdb_delete from gencache_notrans.tdb failed: "
-			   "%s\n", tdb_errorstr_compat(cache_notrans->tdb)));
+			   "%s\n", tdb_errorstr(cache_notrans->tdb)));
 		return -1;
 	}
 

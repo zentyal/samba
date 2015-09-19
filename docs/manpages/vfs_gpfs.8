@@ -2,12 +2,12 @@
 .\"     Title: vfs_gpfs
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 04/15/2015
+.\"      Date: 09/08/2015
 .\"    Manual: System Administration tools
-.\"    Source: Samba 4.2
+.\"    Source: Samba 4.3
 .\"  Language: English
 .\"
-.TH "VFS_GPFS" "8" "04/15/2015" "Samba 4\&.2" "System Administration tools"
+.TH "VFS_GPFS" "8" "09/08/2015" "Samba 4\&.3" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -385,7 +385,7 @@ yes
 .PP
 gpfs:dfreequota = [ yes | no ]
 .RS 4
-Adjust reporting of the size and free space of a share according to quotas\&. If this setting is "yes", a request for size and free space will also evaluate the user quota of the user requesting the data, the group quota of the primary group of the user and the fileset quota for the fileset containing the top level directory of the share\&.
+Adjust reporting of the size and free space of a share according to quotas\&. If this setting is "yes", a request for size and free space will also evaluate the user quota of the user requesting the data and the group quota of the primary group of the user\&. Fileset quotas are not queried, since GPFS already provides the option \-\-dfreequota to reflect the fileset quota in the free space query\&. Please use that option to include fileset quotas in the reported disk space\&.
 .sp
 If any of the soft or hard quota limits has been reached, the free space will be reported as 0\&. If a quota is in place, but the limits have not been reached, the free space will be reported according to the space left in the quota\&. If more than one quota applies the free space will be reported as the smallest space left in those quotas\&. The size of the share will be reported according to the quota usage\&. If more than one quota applies, the smallest size will be reported for the share size according to these quotas\&.
 .sp

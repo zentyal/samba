@@ -58,11 +58,13 @@ struct byte_range_lock {
 
 static void print_lock_struct(unsigned int i, const struct lock_struct *pls)
 {
+	struct server_id_buf tmp;
+
 	DEBUG(10,("[%u]: smblctx = %llu, tid = %u, pid = %s, ",
 			i,
 			(unsigned long long)pls->context.smblctx,
 			(unsigned int)pls->context.tid,
-			server_id_str(talloc_tos(), &pls->context.pid) ));
+			server_id_str_buf(pls->context.pid, &tmp) ));
 
 	DEBUG(10, ("start = %ju, size = %ju, fnum = %ju, %s %s\n",
 		   (uintmax_t)pls->start,
@@ -342,6 +344,7 @@ static NTSTATUS brl_lock_failed(files_struct *fsp,
 void brl_init(bool read_only)
 {
 	int tdb_flags;
+	char *db_path;
 
 	if (brlock_db) {
 		return;
@@ -358,15 +361,23 @@ void brl_init(bool read_only)
 		tdb_flags |= TDB_SEQNUM;
 	}
 
-	brlock_db = db_open(NULL, lock_path("brlock.tdb"),
+	db_path = lock_path("brlock.tdb");
+	if (db_path == NULL) {
+		DEBUG(0, ("out of memory!\n"));
+		return;
+	}
+
+	brlock_db = db_open(NULL, db_path,
 			    SMB_OPEN_DATABASE_TDB_HASH_SIZE, tdb_flags,
 			    read_only?O_RDONLY:(O_RDWR|O_CREAT), 0644,
 			    DBWRAP_LOCK_ORDER_2, DBWRAP_FLAG_NONE);
 	if (!brlock_db) {
 		DEBUG(0,("Failed to open byte range locking database %s\n",
-			lock_path("brlock.tdb")));
+			 db_path));
+		TALLOC_FREE(db_path);
 		return;
 	}
+	TALLOC_FREE(db_path);
 }
 
 /****************************************************************************
@@ -960,8 +971,12 @@ static NTSTATUS brl_lock_posix(struct messaging_context *msg_ctx,
 
 			if (pend_lock->lock_type == PENDING_READ_LOCK &&
 					brl_pending_overlap(plock, pend_lock)) {
-				DEBUG(10,("brl_lock_posix: sending unlock message to pid %s\n",
-					procid_str_static(&pend_lock->context.pid )));
+				struct server_id_buf tmp;
+
+				DEBUG(10, ("brl_lock_posix: sending unlock "
+					   "message to pid %s\n",
+					   server_id_str_buf(pend_lock->context.pid,
+							     &tmp)));
 
 				messaging_send(msg_ctx, pend_lock->context.pid,
 					       MSG_SMB_UNLOCK, &data_blob_null);
@@ -1146,8 +1161,12 @@ bool brl_unlock_windows_default(struct messaging_context *msg_ctx,
 
 		/* We could send specific lock info here... */
 		if (brl_pending_overlap(plock, pend_lock)) {
-			DEBUG(10,("brl_unlock: sending unlock message to pid %s\n",
-				procid_str_static(&pend_lock->context.pid )));
+			struct server_id_buf tmp;
+
+			DEBUG(10, ("brl_unlock: sending unlock message to "
+				   "pid %s\n",
+				   server_id_str_buf(pend_lock->context.pid,
+						     &tmp)));
 
 			messaging_send(msg_ctx, pend_lock->context.pid,
 				       MSG_SMB_UNLOCK, &data_blob_null);
@@ -1303,8 +1322,12 @@ static bool brl_unlock_posix(struct messaging_context *msg_ctx,
 
 		/* We could send specific lock info here... */
 		if (brl_pending_overlap(plock, pend_lock)) {
-			DEBUG(10,("brl_unlock: sending unlock message to pid %s\n",
-				procid_str_static(&pend_lock->context.pid )));
+			struct server_id_buf tmp;
+
+			DEBUG(10, ("brl_unlock: sending unlock message to "
+				   "pid %s\n",
+				   server_id_str_buf(pend_lock->context.pid,
+						     &tmp)));
 
 			messaging_send(msg_ctx, pend_lock->context.pid,
 				       MSG_SMB_UNLOCK, &data_blob_null);
@@ -1953,7 +1976,7 @@ struct byte_range_lock *brl_get_locks(TALLOC_CTX *mem_ctx, files_struct *fsp)
 
 	br_lck->fsp = fsp;
 
-	key.dptr = (uint8 *)&fsp->file_id;
+	key.dptr = (uint8_t *)&fsp->file_id;
 	key.dsize = sizeof(struct file_id);
 
 	br_lck->record = dbwrap_fetch_locked(brlock_db, br_lck, key);
@@ -2092,7 +2115,7 @@ struct byte_range_lock *brl_get_locks_readonly(files_struct *fsp)
 
 struct brl_revalidate_state {
 	ssize_t array_size;
-	uint32 num_pids;
+	uint32_t num_pids;
 	struct server_id *pids;
 };
 
@@ -2148,7 +2171,7 @@ void brl_revalidate(struct messaging_context *msg_ctx,
 		    DATA_BLOB *data)
 {
 	struct brl_revalidate_state *state;
-	uint32 i;
+	uint32_t i;
 	struct server_id last_pid;
 
 	if (!(state = talloc_zero(NULL, struct brl_revalidate_state))) {
@@ -2222,10 +2245,11 @@ bool brl_cleanup_disconnected(struct file_id fid, uint64_t open_persistent_id)
 		struct lock_context *ctx = &lock[n].context;
 
 		if (!server_id_is_disconnected(&ctx->pid)) {
+			struct server_id_buf tmp;
 			DEBUG(5, ("brl_cleanup_disconnected: byte range lock "
 				  "%s used by server %s, do not cleanup\n",
 				  file_id_string(frame, &fid),
-				  server_id_str(frame, &ctx->pid)));
+				  server_id_str_buf(ctx->pid, &tmp)));
 			goto done;
 		}
 

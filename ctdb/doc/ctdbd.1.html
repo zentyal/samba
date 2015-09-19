@@ -1,15 +1,14 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>ctdbd</title><meta name="generator" content="DocBook XSL Stylesheets V1.78.1"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry"><a name="ctdbd.1"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>ctdbd &#8212; The CTDB cluster daemon</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="command">ctdbd</code>  [<em class="replaceable"><code>OPTION</code></em>...]</p></div></div><div class="refsect1"><a name="idp54835024"></a><h2>DESCRIPTION</h2><p>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>ctdbd</title><meta name="generator" content="DocBook XSL Stylesheets V1.78.1"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry"><a name="ctdbd.1"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>ctdbd &#8212; The CTDB cluster daemon</p></div><div class="refsynopsisdiv"><h2>Synopsis</h2><div class="cmdsynopsis"><p><code class="command">ctdbd</code>  [<em class="replaceable"><code>OPTION</code></em>...]</p></div></div><div class="refsect1"><a name="idp54014560"></a><h2>DESCRIPTION</h2><p>
       ctdbd is the main CTDB daemon.
     </p><p>
       Note that ctdbd is not usually invoked directly.  It is invoked
       via <span class="citerefentry"><span class="refentrytitle">ctdbd_wrapper</span>(1)</span> or via the initscript.
     </p><p>
       See <span class="citerefentry"><span class="refentrytitle">ctdb</span>(7)</span> for an overview of CTDB.
-    </p></div><div class="refsect1"><a name="idp54188000"></a><h2>GENERAL OPTIONS</h2><div class="variablelist"><dl class="variablelist"><dt><span class="term">-d, --debug=<em class="parameter"><code>DEBUGLEVEL</code></em></span></dt><dd><p>
+    </p></div><div class="refsect1"><a name="idp52119744"></a><h2>GENERAL OPTIONS</h2><div class="variablelist"><dl class="variablelist"><dt><span class="term">-d, --debug=<em class="parameter"><code>DEBUGLEVEL</code></em></span></dt><dd><p>
 	    This option sets the debug level to DEBUGLEVEL, which
-	    controls what will be written to the logfile. The default is
-	    0 which will only log important events and errors. A larger
-	    number will provide additional logging.
+	    controls what will be written by the logging
+	    subsystem.  The default is 2.
 	  </p><p>
 	    See the <em class="citetitle">DEBUG LEVELS</em> section in
 	    <span class="citerefentry"><span class="refentrytitle">ctdb</span>(7)</span> for more
@@ -43,10 +42,60 @@
 	    Default is <code class="envar">CTDB_BASE</code>/events.d, so usually
 	    <code class="filename">/etc/ctdb/events.d</code>, which is part of
 	    the CTDB installation.
-	  </p></dd><dt><span class="term">--logfile=<em class="parameter"><code>FILENAME</code></em></span></dt><dd><p>
-	    FILENAME where ctdbd will write its log. This is usually
-	    <code class="filename">/var/log/log.ctdb</code>.
-	  </p></dd><dt><span class="term">--lvs</span></dt><dd><p>
+	  </p></dd><dt><span class="term">--listen=<em class="parameter"><code>IPADDR</code></em></span></dt><dd><p>
+	    IPADDR is the private IP address that ctdbd will bind to.
+	  </p><p>
+	    By default ctdbd will select the first address from the
+	    nodes list that in can bind to.  See also
+	    <em class="citetitle">--nlist</em>.
+	  </p><p>
+	    This option is only required when automatic address
+	    detection can not be used.  This can be the case when
+	    running multiple ctdbd daemons/nodes on the same physical
+	    host (usually for testing), using InfiniBand for the
+	    private network or on Linux when sysctl
+	    net.ipv4.ip_nonlocal_bind=1.
+	  </p></dd><dt><span class="term">--logging=<em class="parameter"><code>STRING</code></em></span></dt><dd><p>
+	    STRING specifies where ctdbd will write its log. The
+	    default is file:<code class="filename">/var/log/log.ctdb</code> or
+	    similar - the prefix may differ depending on how CTDB was
+	    built.
+	  </p><p>
+	    Valid values are:
+	  </p><div class="variablelist"><dl class="variablelist"><dt><span class="term">file:<em class="parameter"><code>FILENAME</code></em></span></dt><dd><p>
+		  FILENAME where ctdbd will write its log. This is usually
+		  <code class="filename">/var/log/log.ctdb</code>.
+		</p></dd><dt><span class="term">syslog[<span class="optional">:<em class="parameter"><code>METHOD</code></em></span>]</span></dt><dd><p>
+		  CTDB will log to syslog.  By default this will use
+		  the syslog(3) API.
+                </p><p>
+		  Under heavy loads syslog(3) can block if the syslog
+		  daemon processes messages too slowly.  This can
+		  cause CTDB to block when logging.
+		</p><p>
+		  If METHOD is specified then it specifies an
+		  extension that causes logging to be done in a
+		  non-blocking mode.  Note that <span class="emphasis"><em>this may
+		  cause messages to be dropped</em></span>.  METHOD
+		  must be one of:
+		</p><div class="variablelist"><dl class="variablelist"><dt><span class="term">nonblocking</span></dt><dd><p>
+			CTDB will log to syslog via
+			<code class="filename">/dev/log</code> in non-blocking
+			mode.
+		      </p></dd><dt><span class="term">udp</span></dt><dd><p>
+			CTDB will log to syslog via UDP to
+			localhost:514.  The syslog daemon must be
+			configured to listen on (at least)
+			localhost:514.  Most syslog daemons will log
+			the messages with hostname "localhost" - this
+			is a limitation of the implementation, for
+			compatibility with more syslog daemons.
+		      </p></dd><dt><span class="term">udp-rfc5424</span></dt><dd><p>
+			As with "udp" but messages are sent in RFC5424
+			format.  This method will log the correct
+			hostname but is not as widely implemented in
+			syslog daemons.
+		      </p></dd></dl></div></dd></dl></div></dd><dt><span class="term">--lvs</span></dt><dd><p>
 	    This option is used to activate the LVS capability on a CTDB
 	    node.  Please see the <em class="citetitle">LVS</em> section in
 	    <span class="citerefentry"><span class="refentrytitle">ctdb</span>(7)</span> for more
@@ -119,15 +168,14 @@
 	    When using public IP addresses, this is only required if
 	    interfaces are not explicitly specified in the public
 	    addresses file.
-	  </p></dd><dt><span class="term">--reclock=<em class="parameter"><code>FILENAME</code></em></span></dt><dd><p>
-	    FILENAME is the name of the recovery lock file stored in
-	    <span class="emphasis"><em>shared storage</em></span> that ctdbd uses to
-	    prevent split brains from occuring.
+	  </p></dd><dt><span class="term">--reclock=<em class="parameter"><code>FILE</code></em></span></dt><dd><p>
+	    FILE is the name of the recovery lock file, stored in
+	    <span class="emphasis"><em>shared storage</em></span>, that CTDB uses to
+	    prevent split brains.
 	  </p><p>
-	    It is possible to run CTDB without a recovery lock file, but
-	    then there will be no protection against split brain if the
-	    cluster/network becomes partitioned. Using CTDB without a
-	    reclock file is strongly discouraged.
+	    For information about the recovery lock please see the
+	    <em class="citetitle">RECOVERY LOCK</em> section in
+	    <span class="citerefentry"><span class="refentrytitle">ctdb</span>(7)</span>.
 	  </p></dd><dt><span class="term">--single-public-ip=<em class="parameter"><code>IPADDR</code></em></span></dt><dd><p>
 	    IPADDR specifies the single IP that CTDB will use in
 	    conjuction with LVS.
@@ -166,23 +214,11 @@
 	    The "infiniband" support is not regularly tested.
 	  </p></dd><dt><span class="term">-?, --help</span></dt><dd><p>
 	    Display a summary of options.
-	  </p></dd></dl></div></div><div class="refsect1"><a name="idp55033472"></a><h2>DEBUGGING OPTIONS</h2><div class="variablelist"><dl class="variablelist"><dt><span class="term">-i, --interactive</span></dt><dd><p>
+	  </p></dd></dl></div></div><div class="refsect1"><a name="idp54951424"></a><h2>DEBUGGING OPTIONS</h2><div class="variablelist"><dl class="variablelist"><dt><span class="term">-i, --interactive</span></dt><dd><p>
 	    Enable interactive mode.  This will make ctdbd run in the
 	    foreground and not detach from the terminal.  By default
 	    ctdbd will detach itself and run in the background as a
 	    daemon.
-	  </p></dd><dt><span class="term">--listen=<em class="parameter"><code>IPADDR</code></em></span></dt><dd><p>
-	    This specifies which IP address that ctdbd will bind to.
-	  </p><p>
-	    By default ctdbd will bind to the first address it finds in
-	    the <code class="filename">/etc/ctdb/nodes</code> file that is also
-	    present on the local system.
-	  </p><p>
-	    This option is only required when you want to run multiple
-	    ctdbd daemons/nodes on the same physical host in which case
-	    there would be multiple entries in
-	    <code class="filename">/etc/ctdb/nodes</code> that would match a
-	    local interface.
 	  </p></dd><dt><span class="term">--nopublicipcheck</span></dt><dd><p>
 	    This option is used when testing with multiple local
 	    daemons on a single machine.  It disables checks related
@@ -235,7 +271,7 @@
 	    This is a debugging option. This option is only used when
 	    debugging ctdbd.  This enables additional debugging
 	    capabilities and implies --nosetsched.
-	  </p></dd></dl></div></div><div class="refsect1"><a name="idp55059200"></a><h2>SEE ALSO</h2><p>
+	  </p></dd></dl></div></div><div class="refsect1"><a name="idp54972912"></a><h2>SEE ALSO</h2><p>
       <span class="citerefentry"><span class="refentrytitle">ctdb</span>(1)</span>,
 
       <span class="citerefentry"><span class="refentrytitle">ctdbd_wrapper</span>(1)</span>,

@@ -99,7 +99,9 @@ static int net_ads_cldap_netlogon(struct net_context *c, ADS_STRUCT *ads)
 		   "\tHas a hardware clock:                       %s\n"
 		   "\tIs a non-domain NC serviced by LDAP server: %s\n"
 		   "\tIs NT6 DC that has some secrets:            %s\n"
-		   "\tIs NT6 DC that has all secrets:             %s\n"),
+		   "\tIs NT6 DC that has all secrets:             %s\n"
+		   "\tRuns Active Directory Web Services:         %s\n"
+		   "\tRuns on Windows 2012 or later:              %s\n"),
 		   (reply.server_type & NBT_SERVER_PDC) ? _("yes") : _("no"),
 		   (reply.server_type & NBT_SERVER_GC) ? _("yes") : _("no"),
 		   (reply.server_type & NBT_SERVER_LDAP) ? _("yes") : _("no"),
@@ -111,7 +113,9 @@ static int net_ads_cldap_netlogon(struct net_context *c, ADS_STRUCT *ads)
 		   (reply.server_type & NBT_SERVER_GOOD_TIMESERV) ? _("yes") : _("no"),
 		   (reply.server_type & NBT_SERVER_NDNC) ? _("yes") : _("no"),
 		   (reply.server_type & NBT_SERVER_SELECT_SECRET_DOMAIN_6) ? _("yes") : _("no"),
-		   (reply.server_type & NBT_SERVER_FULL_SECRET_DOMAIN_6) ? _("yes") : _("no"));
+		   (reply.server_type & NBT_SERVER_FULL_SECRET_DOMAIN_6) ? _("yes") : _("no"),
+		   (reply.server_type & NBT_SERVER_ADS_WEB_SERVICE) ? _("yes") : _("no"),
+		   (reply.server_type & NBT_SERVER_DS_8) ? _("yes") : _("no"));
 
 
 	printf(_("Forest:\t\t\t%s\n"), reply.forest);
@@ -226,7 +230,7 @@ static void use_in_memory_ccache(void) {
 }
 
 static ADS_STATUS ads_startup_int(struct net_context *c, bool only_own_domain,
-				  uint32 auth_flags, ADS_STRUCT **ads_ret)
+				  uint32_t auth_flags, ADS_STRUCT **ads_ret)
 {
 	ADS_STRUCT *ads = NULL;
 	ADS_STATUS status;
@@ -1139,7 +1143,6 @@ static NTSTATUS net_update_dns_internal(struct net_context *c,
 	NTSTATUS status = NT_STATUS_UNSUCCESSFUL;
 	DNS_ERROR dns_err;
 	fstring dns_server;
-	const char *dns_hosts_file;
 	const char *dnsdomain = NULL;
 	char *root_domain = NULL;
 
@@ -1151,9 +1154,10 @@ static NTSTATUS net_update_dns_internal(struct net_context *c,
 	}
 	dnsdomain++;
 
-	dns_hosts_file = lp_parm_const_string(-1, "resolv", "host file", NULL);
-	status = ads_dns_lookup_ns(ctx, dns_hosts_file,
-				   dnsdomain, &nameservers, &ns_count);
+	status = ads_dns_lookup_ns(ctx,
+				   dnsdomain,
+				   &nameservers,
+				   &ns_count);
 	if ( !NT_STATUS_IS_OK(status) || (ns_count == 0)) {
 		/* Child domains often do not have NS records.  Look
 		   for the NS record for the forest root domain
@@ -1191,8 +1195,10 @@ static NTSTATUS net_update_dns_internal(struct net_context *c,
 
 		/* try again for NS servers */
 
-		status = ads_dns_lookup_ns(ctx, dns_hosts_file, root_domain,
-					   &nameservers, &ns_count);
+		status = ads_dns_lookup_ns(ctx,
+					   root_domain,
+					   &nameservers,
+					   &ns_count);
 
 		if ( !NT_STATUS_IS_OK(status) || (ns_count == 0)) {
 			DEBUG(3,("net_update_dns_internal: Failed to find name server for the %s "
@@ -1323,6 +1329,9 @@ static int net_ads_join_usage(struct net_context *c, int argc, const char **argv
 		   "                          Also, the operatingSystemService attribute is also set when along with\n"
 		   "                          the two other attributes.\n"));
 
+	d_printf(_("   osServicePack=string Set the operatingSystemServicePack "
+		   "attribute during the join. Note: if not specified then by "
+		   "default the samba version string is used instead.\n"));
 	return -1;
 }
 
@@ -1428,7 +1437,9 @@ int net_ads_join(struct net_context *c, int argc, const char **argv)
 	int i;
 	const char *os_name = NULL;
 	const char *os_version = NULL;
+	const char *os_servicepack = NULL;
 	bool modify_config = lp_config_backend_is_registry();
+	enum libnetjoin_JoinDomNameType domain_name_type = JoinDomNameTypeDNS;
 
 	if (c->display_usage)
 		return net_ads_join_usage(c, argc, argv);
@@ -1485,6 +1496,13 @@ int net_ads_join(struct net_context *c, int argc, const char **argv)
 				goto fail;
 			}
 		}
+		else if ( !strncasecmp_m(argv[i], "osServicePack", strlen("osServicePack")) ) {
+			if ( (os_servicepack = get_string_param(argv[i])) == NULL ) {
+				d_fprintf(stderr, _("Please supply a valid servicepack identifier.\n"));
+				werr = WERR_INVALID_PARAM;
+				goto fail;
+			}
+		}
 		else if ( !strncasecmp_m(argv[i], "machinepass", strlen("machinepass")) ) {
 			if ( (machine_password = get_string_param(argv[i])) == NULL ) {
 				d_fprintf(stderr, _("Please supply a valid password to set as trust account password.\n"));
@@ -1494,6 +1512,11 @@ int net_ads_join(struct net_context *c, int argc, const char **argv)
 		}
 		else {
 			domain = argv[i];
+			if (strchr(domain, '.') == NULL) {
+				domain_name_type = JoinDomNameTypeUnknown;
+			} else {
+				domain_name_type = JoinDomNameTypeDNS;
+			}
 		}
 	}
 
@@ -1513,11 +1536,13 @@ int net_ads_join(struct net_context *c, int argc, const char **argv)
 	/* Do the domain join here */
 
 	r->in.domain_name	= domain;
+	r->in.domain_name_type	= domain_name_type;
 	r->in.create_upn	= createupn;
 	r->in.upn		= machineupn;
 	r->in.account_ou	= create_in_ou;
 	r->in.os_name		= os_name;
 	r->in.os_version	= os_version;
+	r->in.os_servicepack	= os_servicepack;
 	r->in.dc_name		= c->opt_host;
 	r->in.admin_account	= c->opt_user_name;
 	r->in.admin_password	= net_prompt_pass(c, c->opt_user_name);
@@ -1534,6 +1559,7 @@ int net_ads_join(struct net_context *c, int argc, const char **argv)
 	if (W_ERROR_EQUAL(werr, WERR_DCNOTFOUND) &&
 	    strequal(domain, lp_realm())) {
 		r->in.domain_name = lp_workgroup();
+		r->in.domain_name_type = JoinDomNameTypeNBT;
 		werr = libnet_Join(ctx, r);
 	}
 	if (!W_ERROR_IS_OK(werr)) {
@@ -2916,11 +2942,10 @@ static int net_ads_enctype_lookup_account(struct net_context *c,
 static void net_ads_enctype_dump_enctypes(const char *username,
 					  const char *enctype_str)
 {
-	int enctypes;
+	int enctypes = atoi(enctype_str);
 
-	d_printf(_("'%s' uses \"msDS-SupportedEncryptionTypes\":\n"), username);
-
-	enctypes = atoi(enctype_str);
+	d_printf(_("'%s' uses \"msDS-SupportedEncryptionTypes\": %d (0x%08x)\n"),
+		username, enctypes, enctypes);
 
 	printf("[%s] 0x%08x DES-CBC-CRC\n",
 		enctypes & ENC_CRC32 ? "X" : " ",

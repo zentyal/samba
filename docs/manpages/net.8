@@ -2,12 +2,12 @@
 .\"     Title: net
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 04/15/2015
+.\"      Date: 09/08/2015
 .\"    Manual: System Administration tools
-.\"    Source: Samba 4.2
+.\"    Source: Samba 4.3
 .\"  Language: English
 .\"
-.TH "NET" "8" "04/15/2015" "Samba 4\&.2" "System Administration tools"
+.TH "NET" "8" "09/08/2015" "Samba 4\&.3" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -270,7 +270,7 @@ Output database file (used in "net registry check")\&.
 .PP
 \-\-wipe
 .RS 4
-Createa a new database from scratch (used in "net registry check")\&.
+Create a new database from scratch (used in "net registry check")\&.
 .RE
 .PP
 \-\-precheck PRECHECK_DB_FILENAME
@@ -939,9 +939,7 @@ Dump remote SAM database to local LDIF file or standard output\&.
 .SS "RPC GETSID"
 .PP
 Fetch domain SID and store it in the local
-secrets\&.tdb
-(or
-secrets\&.ntdb)\&.
+secrets\&.tdb\&.
 .SS "ADS LEAVE"
 .PP
 Make the remote host leave the domain it is part of\&.

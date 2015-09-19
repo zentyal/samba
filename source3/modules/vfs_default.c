@@ -32,6 +32,7 @@
 #include "lib/util/tevent_unix.h"
 #include "lib/asys/asys.h"
 #include "lib/util/tevent_ntstatus.h"
+#include "lib/sys_rw.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_VFS
@@ -53,12 +54,13 @@ static void vfswrap_disconnect(vfs_handle_struct *handle)
 
 /* Disk operations */
 
-static uint64_t vfswrap_disk_free(vfs_handle_struct *handle, const char *path, bool small_query, uint64_t *bsize,
-			       uint64_t *dfree, uint64_t *dsize)
+static uint64_t vfswrap_disk_free(vfs_handle_struct *handle, const char *path,
+				  uint64_t *bsize, uint64_t *dfree,
+				  uint64_t *dsize)
 {
 	uint64_t result;
 
-	result = sys_disk_free(handle->conn, path, small_query, bsize, dfree, dsize);
+	result = sys_disk_free(handle->conn, path, bsize, dfree, dsize);
 	return result;
 }
 
@@ -222,8 +224,7 @@ static NTSTATUS vfswrap_get_dfs_referrals(struct vfs_handle_struct *handle,
 		pathnamep[consumedcnt] = '\0';
 
 		if (DEBUGLVL(3)) {
-			dbgtext("setup_dfs_referral: Path %s to "
-				"alternate path(s):",
+			dbgtext("Path %s to alternate path(s):",
 				pathnamep);
 			for (i=0; i < junction->referral_count; i++) {
 				dbgtext(" %s",
@@ -329,8 +330,7 @@ static NTSTATUS vfswrap_get_dfs_referrals(struct vfs_handle_struct *handle,
 		}
 		break;
 	default:
-		DEBUG(0,("setup_dfs_referral: Invalid dfs referral "
-			"version: %d\n",
+		DEBUG(0,("Invalid dfs referral version: %d\n",
 			max_referral_level));
 		return NT_STATUS_INVALID_LEVEL;
 	}
@@ -342,9 +342,36 @@ static NTSTATUS vfswrap_get_dfs_referrals(struct vfs_handle_struct *handle,
 	return NT_STATUS_OK;
 }
 
+static NTSTATUS vfswrap_snap_check_path(struct vfs_handle_struct *handle,
+					TALLOC_CTX *mem_ctx,
+					const char *service_path,
+					char **base_volume)
+{
+	return NT_STATUS_NOT_SUPPORTED;
+}
+
+static NTSTATUS vfswrap_snap_create(struct vfs_handle_struct *handle,
+				    TALLOC_CTX *mem_ctx,
+				    const char *base_volume,
+				    time_t *tstamp,
+				    bool rw,
+				    char **base_path,
+				    char **snap_path)
+{
+	return NT_STATUS_NOT_SUPPORTED;
+}
+
+static NTSTATUS vfswrap_snap_delete(struct vfs_handle_struct *handle,
+				    TALLOC_CTX *mem_ctx,
+				    char *base_path,
+				    char *snap_path)
+{
+	return NT_STATUS_NOT_SUPPORTED;
+}
+
 /* Directory operations */
 
-static DIR *vfswrap_opendir(vfs_handle_struct *handle, const char *fname, const char *mask, uint32 attr)
+static DIR *vfswrap_opendir(vfs_handle_struct *handle, const char *fname, const char *mask, uint32_t attr)
 {
 	DIR *result;
 
@@ -357,7 +384,7 @@ static DIR *vfswrap_opendir(vfs_handle_struct *handle, const char *fname, const 
 static DIR *vfswrap_fdopendir(vfs_handle_struct *handle,
 			files_struct *fsp,
 			const char *mask,
-			uint32 attr)
+			uint32_t attr)
 {
 	DIR *result;
 
@@ -560,7 +587,7 @@ static ssize_t vfswrap_read(vfs_handle_struct *handle, files_struct *fsp, void *
 
 	START_PROFILE_BYTES(syscall_read, n);
 	result = sys_read(fsp->fh->fd, data, n);
-	END_PROFILE(syscall_read);
+	END_PROFILE_BYTES(syscall_read);
 	return result;
 }
 
@@ -572,7 +599,7 @@ static ssize_t vfswrap_pread(vfs_handle_struct *handle, files_struct *fsp, void 
 #if defined(HAVE_PREAD) || defined(HAVE_PREAD64)
 	START_PROFILE_BYTES(syscall_pread, n);
 	result = sys_pread(fsp->fh->fd, data, n, offset);
-	END_PROFILE(syscall_pread);
+	END_PROFILE_BYTES(syscall_pread);
 
 	if (result == -1 && errno == ESPIPE) {
 		/* Maintain the fiction that pipes can be seeked (sought?) on. */
@@ -614,7 +641,7 @@ static ssize_t vfswrap_write(vfs_handle_struct *handle, files_struct *fsp, const
 
 	START_PROFILE_BYTES(syscall_write, n);
 	result = sys_write(fsp->fh->fd, data, n);
-	END_PROFILE(syscall_write);
+	END_PROFILE_BYTES(syscall_write);
 	return result;
 }
 
@@ -626,7 +653,7 @@ static ssize_t vfswrap_pwrite(vfs_handle_struct *handle, files_struct *fsp, cons
 #if defined(HAVE_PWRITE) || defined(HAVE_PRWITE64)
 	START_PROFILE_BYTES(syscall_pwrite, n);
 	result = sys_pwrite(fsp->fh->fd, data, n, offset);
-	END_PROFILE(syscall_pwrite);
+	END_PROFILE_BYTES(syscall_pwrite);
 
 	if (result == -1 && errno == ESPIPE) {
 		/* Maintain the fiction that pipes can be sought on. */
@@ -677,7 +704,11 @@ static bool vfswrap_init_asys_ctx(struct smbd_server_connection *conn)
 
 	fd = asys_signalfd(conn->asys_ctx);
 
-	set_blocking(fd, false);
+	ret = set_blocking(fd, false);
+	if (ret != 0) {
+		DBG_WARNING("set_blocking failed: %s\n", strerror(ret));
+		goto fail;
+	}
 
 	conn->asys_fde = tevent_add_fd(conn->ev_ctx, conn, fd,
 				       TEVENT_FD_READ,
@@ -685,11 +716,14 @@ static bool vfswrap_init_asys_ctx(struct smbd_server_connection *conn)
 				       conn->asys_ctx);
 	if (conn->asys_fde == NULL) {
 		DEBUG(1, ("tevent_add_fd failed\n"));
-		asys_context_destroy(conn->asys_ctx);
-		conn->asys_ctx = NULL;
-		return false;
+		goto fail;
 	}
 	return true;
+
+fail:
+	asys_context_destroy(conn->asys_ctx);
+	conn->asys_ctx = NULL;
+	return false;
 }
 
 struct vfswrap_asys_state {
@@ -697,6 +731,8 @@ struct vfswrap_asys_state {
 	struct tevent_req *req;
 	ssize_t ret;
 	int err;
+	SMBPROFILE_BASIC_ASYNC_STATE(profile_basic);
+	SMBPROFILE_BYTES_ASYNC_STATE(profile_bytes);
 };
 
 static int vfswrap_asys_state_destructor(struct vfswrap_asys_state *s)
@@ -727,6 +763,8 @@ static struct tevent_req *vfswrap_pread_send(struct vfs_handle_struct *handle,
 	state->asys_ctx = handle->conn->sconn->asys_ctx;
 	state->req = req;
 
+	SMBPROFILE_BYTES_ASYNC_START(syscall_asys_pread, profile_p,
+				     state->profile_bytes, n);
 	ret = asys_pread(state->asys_ctx, fsp->fh->fd, data, n, offset, req);
 	if (ret != 0) {
 		tevent_req_error(req, ret);
@@ -759,6 +797,8 @@ static struct tevent_req *vfswrap_pwrite_send(struct vfs_handle_struct *handle,
 	state->asys_ctx = handle->conn->sconn->asys_ctx;
 	state->req = req;
 
+	SMBPROFILE_BYTES_ASYNC_START(syscall_asys_pwrite, profile_p,
+				     state->profile_bytes, n);
 	ret = asys_pwrite(state->asys_ctx, fsp->fh->fd, data, n, offset, req);
 	if (ret != 0) {
 		tevent_req_error(req, ret);
@@ -789,6 +829,8 @@ static struct tevent_req *vfswrap_fsync_send(struct vfs_handle_struct *handle,
 	state->asys_ctx = handle->conn->sconn->asys_ctx;
 	state->req = req;
 
+	SMBPROFILE_BASIC_ASYNC_START(syscall_asys_fsync, profile_p,
+				     state->profile_basic);
 	ret = asys_fsync(state->asys_ctx, fsp->fh->fd, req);
 	if (ret != 0) {
 		tevent_req_error(req, ret);
@@ -832,6 +874,8 @@ static void vfswrap_asys_finished(struct tevent_context *ev,
 
 		talloc_set_destructor(state, NULL);
 
+		SMBPROFILE_BASIC_ASYNC_END(state->profile_basic);
+		SMBPROFILE_BYTES_ASYNC_END(state->profile_bytes);
 		state->ret = result->ret;
 		state->err = result->err;
 		tevent_req_defer_callback(req, ev);
@@ -896,7 +940,7 @@ static ssize_t vfswrap_sendfile(vfs_handle_struct *handle, int tofd, files_struc
 
 	START_PROFILE_BYTES(syscall_sendfile, n);
 	result = sys_sendfile(tofd, fromfsp->fh->fd, hdr, offset, n);
-	END_PROFILE(syscall_sendfile);
+	END_PROFILE_BYTES(syscall_sendfile);
 	return result;
 }
 
@@ -910,7 +954,7 @@ static ssize_t vfswrap_recvfile(vfs_handle_struct *handle,
 
 	START_PROFILE_BYTES(syscall_recvfile, n);
 	result = sys_recvfile(fromfd, tofsp->fh->fd, offset, n);
-	END_PROFILE(syscall_recvfile);
+	END_PROFILE_BYTES(syscall_recvfile);
 	return result;
 }
 
@@ -1104,8 +1148,8 @@ static NTSTATUS vfswrap_fsctl(struct vfs_handle_struct *handle,
 		 */
 		struct shadow_copy_data *shadow_data = NULL;
 		bool labels = False;
-		uint32 labels_data_count = 0;
-		uint32 i;
+		uint32_t labels_data_count = 0;
+		uint32_t i;
 		char *cur_pdata = NULL;
 
 		if (max_out_len < 16) {
@@ -1358,7 +1402,7 @@ static NTSTATUS vfswrap_fsctl(struct vfs_handle_struct *handle,
 
 struct vfs_cc_state {
 	off_t copied;
-	uint8_t buf[65536];
+	uint8_t *buf;
 };
 
 static struct tevent_req *vfswrap_copy_chunk_send(struct vfs_handle_struct *handle,
@@ -1380,6 +1424,12 @@ static struct tevent_req *vfswrap_copy_chunk_send(struct vfs_handle_struct *hand
 	req = tevent_req_create(mem_ctx, &vfs_cc_state, struct vfs_cc_state);
 	if (req == NULL) {
 		return NULL;
+	}
+
+	vfs_cc_state->buf = talloc_array(vfs_cc_state, uint8_t,
+					 MIN(num, 8*1024*1024));
+	if (tevent_req_nomem(vfs_cc_state->buf, req)) {
+		return tevent_req_post(req, ev);
 	}
 
 	status = vfs_stat_fsp(src_fsp);
@@ -1407,7 +1457,7 @@ static struct tevent_req *vfswrap_copy_chunk_send(struct vfs_handle_struct *hand
 		struct lock_struct lck;
 		int saved_errno;
 
-		off_t this_num = MIN(sizeof(vfs_cc_state->buf),
+		off_t this_num = MIN(talloc_array_length(vfs_cc_state->buf),
 				     num - vfs_cc_state->copied);
 
 		if (src_fsp->op == NULL) {
@@ -1851,8 +1901,7 @@ static int strict_allocate_ftruncate(vfs_handle_struct *handle, files_struct *fs
 	   emulation is being done by the libc (like on AIX with JFS1). In that
 	   case we do our own emulation. fallocate implementations can
 	   return ENOTSUP or EINVAL in cases like that. */
-	ret = SMB_VFS_FALLOCATE(fsp, VFS_FALLOCATE_EXTEND_SIZE,
-				pst->st_ex_size, space_to_write);
+	ret = SMB_VFS_FALLOCATE(fsp, 0, pst->st_ex_size, space_to_write);
 	if (ret == -1 && errno == ENOSPC) {
 		return -1;
 	}
@@ -1864,8 +1913,8 @@ static int strict_allocate_ftruncate(vfs_handle_struct *handle, files_struct *fs
 
 	/* available disk space is enough or not? */
 	space_avail = get_dfree_info(fsp->conn,
-				     fsp->fsp_name->base_name, false,
-				     &bsize,&dfree,&dsize);
+				     fsp->fsp_name->base_name,
+				     &bsize, &dfree, &dsize);
 	/* space_avail is 1k blocks */
 	if (space_avail == (uint64_t)-1 ||
 			((uint64_t)space_to_write/1024 > space_avail) ) {
@@ -1904,8 +1953,6 @@ static int vfswrap_ftruncate(vfs_handle_struct *handle, files_struct *fsp, off_t
 	   ftruncate extend but ext2 can. */
 
 	result = ftruncate(fsp->fh->fd, len);
-	if (result == 0)
-		goto done;
 
 	/* According to W. R. Stevens advanced UNIX prog. Pure 4.3 BSD cannot
 	   extend a file with ftruncate. Provide alternate implementation
@@ -1919,6 +1966,12 @@ static int vfswrap_ftruncate(vfs_handle_struct *handle, files_struct *fsp, off_t
 	if (!NT_STATUS_IS_OK(status)) {
 		goto done;
 	}
+
+	/* We need to update the files_struct after successful ftruncate */
+	if (result == 0) {
+		goto done;
+	}
+
 	pst = &fsp->fsp_name->st;
 
 #ifdef S_ISFIFO
@@ -1952,14 +2005,14 @@ static int vfswrap_ftruncate(vfs_handle_struct *handle, files_struct *fsp, off_t
 
 static int vfswrap_fallocate(vfs_handle_struct *handle,
 			files_struct *fsp,
-			enum vfs_fallocate_mode mode,
+			uint32_t mode,
 			off_t offset,
 			off_t len)
 {
 	int result;
 
 	START_PROFILE(syscall_fallocate);
-	if (mode == VFS_FALLOCATE_EXTEND_SIZE) {
+	if (mode == 0) {
 		result = sys_posix_fallocate(fsp->fh->fd, offset, len);
 		/*
 		 * posix_fallocate returns 0 on success, errno on error
@@ -1970,11 +2023,9 @@ static int vfswrap_fallocate(vfs_handle_struct *handle,
 			errno = result;
 			result = -1;
 		}
-	} else if (mode == VFS_FALLOCATE_KEEP_SIZE) {
-		result = sys_fallocate(fsp->fh->fd, mode, offset, len);
 	} else {
-		errno = EINVAL;
-		result = -1;
+		/* sys_fallocate handles filtering of unsupported mode flags */
+		result = sys_fallocate(fsp->fh->fd, mode, offset, len);
 	}
 	END_PROFILE(syscall_fallocate);
 	return result;
@@ -1991,7 +2042,7 @@ static bool vfswrap_lock(vfs_handle_struct *handle, files_struct *fsp, int op, o
 }
 
 static int vfswrap_kernel_flock(vfs_handle_struct *handle, files_struct *fsp,
-				uint32 share_mode, uint32 access_mask)
+				uint32_t share_mode, uint32_t access_mask)
 {
 	START_PROFILE(syscall_kernel_flock);
 	kernel_flock(fsp->fh->fd, share_mode, access_mask);
@@ -2086,36 +2137,6 @@ static char *vfswrap_realpath(vfs_handle_struct *handle, const char *path)
 #endif
 	END_PROFILE(syscall_realpath);
 	return result;
-}
-
-static NTSTATUS vfswrap_notify_watch(vfs_handle_struct *vfs_handle,
-				     struct sys_notify_context *ctx,
-				     const char *path,
-				     uint32_t *filter,
-				     uint32_t *subdir_filter,
-				     void (*callback)(struct sys_notify_context *ctx, 
-						      void *private_data,
-						      struct notify_event *ev),
-				     void *private_data, void *handle)
-{
-	/*
-	 * So far inotify is the only supported default notify mechanism. If
-	 * another platform like the the BSD's or a proprietary Unix comes
-	 * along and wants another default, we can play the same trick we
-	 * played with Posix ACLs.
-	 *
-	 * Until that is the case, hard-code inotify here.
-	 */
-#ifdef HAVE_INOTIFY
-	if (lp_kernel_change_notify(vfs_handle->conn->params)) {
-		return inotify_watch(ctx, path, filter, subdir_filter,
-				     callback, private_data, handle);
-	}
-#endif
-	/*
-	 * Do nothing, leave everything to notify_internal.c
-	 */
-	return NT_STATUS_OK;
 }
 
 static int vfswrap_chflags(vfs_handle_struct *handle, const char *path,
@@ -2281,7 +2302,7 @@ static void vfswrap_strict_unlock(struct vfs_handle_struct *handle,
 
 static NTSTATUS vfswrap_fget_nt_acl(vfs_handle_struct *handle,
 				    files_struct *fsp,
-				    uint32 security_info,
+				    uint32_t security_info,
 				    TALLOC_CTX *mem_ctx,
 				    struct security_descriptor **ppdesc)
 {
@@ -2296,7 +2317,7 @@ static NTSTATUS vfswrap_fget_nt_acl(vfs_handle_struct *handle,
 
 static NTSTATUS vfswrap_get_nt_acl(vfs_handle_struct *handle,
 				   const char *name,
-				   uint32 security_info,
+				   uint32_t security_info,
 				   TALLOC_CTX *mem_ctx,
 				   struct security_descriptor **ppdesc)
 {
@@ -2309,7 +2330,7 @@ static NTSTATUS vfswrap_get_nt_acl(vfs_handle_struct *handle,
 	return result;
 }
 
-static NTSTATUS vfswrap_fset_nt_acl(vfs_handle_struct *handle, files_struct *fsp, uint32 security_info_sent, const struct security_descriptor *psd)
+static NTSTATUS vfswrap_fset_nt_acl(vfs_handle_struct *handle, files_struct *fsp, uint32_t security_info_sent, const struct security_descriptor *psd)
 {
 	NTSTATUS result;
 
@@ -2522,6 +2543,9 @@ static struct vfs_fn_pointers vfs_default_fns = {
 	.statvfs_fn = vfswrap_statvfs,
 	.fs_capabilities_fn = vfswrap_fs_capabilities,
 	.get_dfs_referrals_fn = vfswrap_get_dfs_referrals,
+	.snap_check_path_fn = vfswrap_snap_check_path,
+	.snap_create_fn = vfswrap_snap_create,
+	.snap_delete_fn = vfswrap_snap_delete,
 
 	/* Directory operations */
 
@@ -2581,7 +2605,6 @@ static struct vfs_fn_pointers vfs_default_fns = {
 	.link_fn = vfswrap_link,
 	.mknod_fn = vfswrap_mknod,
 	.realpath_fn = vfswrap_realpath,
-	.notify_watch_fn = vfswrap_notify_watch,
 	.chflags_fn = vfswrap_chflags,
 	.file_id_create_fn = vfswrap_file_id_create,
 	.streaminfo_fn = vfswrap_streaminfo,

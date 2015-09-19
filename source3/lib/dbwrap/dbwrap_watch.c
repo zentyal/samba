@@ -30,11 +30,17 @@ static struct db_context *dbwrap_record_watchers_db(void)
 	static struct db_context *watchers_db;
 
 	if (watchers_db == NULL) {
+		char *db_path = lock_path("dbwrap_watchers.tdb");
+		if (db_path == NULL) {
+			return NULL;
+		}
+
 		watchers_db = db_open(
-			NULL, lock_path("dbwrap_watchers.tdb"),	0,
+			NULL, db_path,	0,
 			TDB_CLEAR_IF_FIRST | TDB_INCOMPATIBLE_HASH,
 			O_RDWR|O_CREAT, 0600, DBWRAP_LOCK_ORDER_3,
 			DBWRAP_FLAG_NONE);
+		TALLOC_FREE(db_path);
 	}
 	return watchers_db;
 }
@@ -350,10 +356,10 @@ static void dbwrap_watch_record_stored(struct db_context *db,
 		status = messaging_send_buf(msg, ids[i], MSG_DBWRAP_MODIFIED,
 					    w_key.dptr, w_key.dsize);
 		if (!NT_STATUS_IS_OK(status)) {
-			char *str = procid_str_static(&ids[i]);
+			struct server_id_buf tmp;
 			DEBUG(1, ("messaging_send to %s failed: %s\n",
-				  str, nt_errstr(status)));
-			TALLOC_FREE(str);
+				  server_id_str_buf(ids[i], &tmp),
+				  nt_errstr(status)));
 		}
 	}
 done:

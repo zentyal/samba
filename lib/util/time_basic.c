@@ -40,7 +40,7 @@ _PUBLIC_ void GetTimeOfDay(struct timeval *tval)
  Return the date and time as a string
 ****************************************************************************/
 
-char *timeval_str_buf(const struct timeval *tp, bool hires,
+char *timeval_str_buf(const struct timeval *tp, bool rfc5424, bool hires,
 		      struct timeval_buf *dst)
 {
 	time_t t;
@@ -62,18 +62,36 @@ char *timeval_str_buf(const struct timeval *tp, bool hires,
 		return dst->buf;
 	}
 
-#ifdef HAVE_STRFTIME
-	len = strftime(dst->buf, sizeof(dst->buf), "%Y/%m/%d %H:%M:%S", tm);
-#else
-	{
-		const char *asct = asctime(tm);
-		len = strlcpy(dst->buf, sizeof(dst->buf),
-			      asct ? asct : "unknown");
+	len = snprintf(dst->buf, sizeof(dst->buf),
+		       (rfc5424 ?
+			"%04d-%02d-%02dT%02d:%02d:%02d" :
+			"%04d/%02d/%02d %02d:%02d:%02d"),
+		       1900 + tm->tm_year, tm->tm_mon + 1, tm->tm_mday,
+		       tm->tm_hour, tm->tm_min, tm->tm_sec);
+
+	if ((rfc5424 || hires) && (len < sizeof(dst->buf))) {
+		len += snprintf(dst->buf + len, sizeof(dst->buf) - len,
+				".%06ld", (long)tp->tv_usec);
 	}
-#endif
-	if (hires && (len < sizeof(dst->buf))) {
+
+	if (rfc5424 && (len < sizeof(dst->buf))) {
+		struct tm tm_utc, tm_local;
+		int offset;
+
+		tm_local = *tm;
+		/* It is reasonable to assume that if localtime()
+		 * worked above, then gmtime() should also work
+		 * without error. */
+		tm_utc = *gmtime(&t);
+
+		offset = (tm_local.tm_hour - tm_utc.tm_hour) * 60 +
+			(tm_local.tm_min - tm_utc.tm_min);
+
 		snprintf(dst->buf + len, sizeof(dst->buf) - len,
-			 ".%06ld", (long)tp->tv_usec);
+			 "%c%02d:%02d",
+			 (offset >=0 ? '+' : '-'),
+			 abs(offset) / 60,
+			 abs(offset) % 60);
 	}
 
 	return dst->buf;

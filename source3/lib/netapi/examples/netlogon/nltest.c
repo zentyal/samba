@@ -149,7 +149,10 @@ static void print_dc_info_flags(uint32_t flags)
 		printf("CLOSE_SITE ");
 	if (flags & DS_FULL_SECRET_DOMAIN_6_FLAG)
 		printf("FULL_SECRET ");
-	/* "WS" */
+	if (flags & DS_WS_FLAG)
+		printf("WS ");
+	if (flags & DS_DS_8_FLAG)
+		printf("DS_8 ");
 	printf("\n");
 }
 
@@ -286,7 +289,7 @@ int main(int argc, const char **argv)
 			status = I_NetLogonControl2(opt_server,
 						    NETLOGON_CONTROL_SET_DBFLAG,
 						    query_level,
-						    (uint8_t *)opt_dbflag,
+						    (uint8_t *)&opt_dbflag,
 						    &buffer);
 			if (status != 0) {
 				fprintf(stderr, "I_NetlogonControl failed: Status = %d 0x%x %s\n",

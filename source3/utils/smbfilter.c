@@ -22,6 +22,7 @@
 #include "system/select.h"
 #include "../lib/util/select.h"
 #include "libsmb/nmblib.h"
+#include "lib/sys_rw_data.h"
 
 #define SECURITY_MASK 0
 #define SECURITY_SET  0
@@ -84,7 +85,8 @@ static void filter_request(char *buf, size_t buf_len)
 	int type = CVAL(buf,smb_com);
 	unsigned x;
 	fstring name1,name2;
-	int name_len1, name_len2;
+	int name_len1 = 0;
+	int name_len2;
 	int name_type1, name_type2;
 
 	if (msg_type) {
@@ -321,7 +323,7 @@ int main(int argc, char *argv[])
 	const char *configfile;
 	TALLOC_CTX *frame = talloc_stackframe();
 
-	load_case_tables();
+	smb_init_locale();
 
 	setup_logging(argv[0], DEBUG_STDOUT);
 

@@ -120,7 +120,7 @@ NTSTATUS rpc_query_user_list(TALLOC_CTX *mem_ctx,
 
 			dst->homedir = NULL;
 			dst->shell = NULL;
-
+			dst->primary_gid = (gid_t)-1;
 			sid_compose(&dst->user_sid, domain_sid, rid);
 
 			/* For the moment we set the primary group for
@@ -190,10 +190,12 @@ NTSTATUS rpc_enum_dom_groups(TALLOC_CTX *mem_ctx,
 		}
 
 		for (g = 0; g < count; g++) {
-			fstrcpy(info[num_info + g].acct_name,
-				sam_array->entries[g].name.string);
+			struct wb_acct_info *i = &info[num_info + g];
 
-			info[num_info + g].rid = sam_array->entries[g].idx;
+			fstrcpy(i->acct_name,
+				sam_array->entries[g].name.string);
+			fstrcpy(i->acct_desc, "");
+			i->rid = sam_array->entries[g].idx;
 		}
 
 		num_info += count;
@@ -250,9 +252,12 @@ NTSTATUS rpc_enum_local_groups(TALLOC_CTX *mem_ctx,
 		}
 
 		for (g = 0; g < count; g++) {
-			fstrcpy(info[num_info + g].acct_name,
+			struct wb_acct_info *i = &info[num_info + g];
+
+			fstrcpy(i->acct_name,
 				sam_array->entries[g].name.string);
-			info[num_info + g].rid = sam_array->entries[g].idx;
+			fstrcpy(i->acct_desc, "");
+			i->rid = sam_array->entries[g].idx;
 		}
 
 		num_info += count;
@@ -277,6 +282,7 @@ NTSTATUS rpc_name_to_sid(TALLOC_CTX *mem_ctx,
 	enum lsa_SidType *types = NULL;
 	struct dom_sid *sids = NULL;
 	char *full_name = NULL;
+	const char *names[1];
 	char *mapped_name = NULL;
 	NTSTATUS status;
 
@@ -302,6 +308,8 @@ NTSTATUS rpc_name_to_sid(TALLOC_CTX *mem_ctx,
 	DEBUG(3,("name_to_sid: %s for domain %s\n",
 		 full_name ? full_name : "", domain_name ));
 
+	names[0] = full_name;
+
 	/*
 	 * We don't run into deadlocks here, cause winbind_off() is
 	 * called in the main function.
@@ -310,7 +318,7 @@ NTSTATUS rpc_name_to_sid(TALLOC_CTX *mem_ctx,
 					 mem_ctx,
 					 lsa_policy,
 					 1, /* num_names */
-					 (const char **) &full_name,
+					 names,
 					 NULL, /* domains */
 					 1, /* level */
 					 &sids,
@@ -1078,7 +1086,7 @@ static NTSTATUS rpc_try_lookup_sids3(TALLOC_CTX *mem_ctx,
 {
 	struct lsa_TransNameArray2 lsa_names2;
 	struct lsa_TransNameArray *names = *pnames;
-	uint32_t i, count;
+	uint32_t i, count = 0;
 	NTSTATUS status, result;
 
 	ZERO_STRUCT(lsa_names2);

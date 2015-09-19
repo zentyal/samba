@@ -24,6 +24,7 @@
 #define _CLI_PIPE_H
 
 #include "rpc_client/rpc_client.h"
+#include "auth/credentials/credentials.h"
 
 /* The following definitions come from rpc_client/cli_pipe.c  */
 
@@ -71,9 +72,25 @@ NTSTATUS cli_rpc_pipe_open_noauth_transport(struct cli_state *cli,
 					    const struct ndr_interface_table *table,
 					    struct rpc_pipe_client **presult);
 
+/****************************************************************************
+ Open a named pipe to an SMB server and bind using the mech specified
+
+ This routine steals the creds pointer that is passed in
+ ****************************************************************************/
+
+NTSTATUS cli_rpc_pipe_open_with_creds(struct cli_state *cli,
+				      const struct ndr_interface_table *table,
+				      enum dcerpc_transport_t transport,
+				      enum dcerpc_AuthType auth_type,
+				      enum dcerpc_AuthLevel auth_level,
+				      const char *server,
+				      struct cli_credentials *creds,
+				      struct rpc_pipe_client **presult);
+
 NTSTATUS cli_rpc_pipe_open_generic_auth(struct cli_state *cli,
 					const struct ndr_interface_table *table,
 					enum dcerpc_transport_t transport,
+					enum credentials_use_kerberos use_kerberos,
 					enum dcerpc_AuthType auth_type,
 					enum dcerpc_AuthLevel auth_level,
 					const char *server,
@@ -82,29 +99,17 @@ NTSTATUS cli_rpc_pipe_open_generic_auth(struct cli_state *cli,
 					const char *password,
 					struct rpc_pipe_client **presult);
 
-NTSTATUS cli_rpc_pipe_open_spnego(struct cli_state *cli,
-				  const struct ndr_interface_table *table,
-				  enum dcerpc_transport_t transport,
-				  const char *oid,
-				  enum dcerpc_AuthLevel auth_level,
-				  const char *server,
-				  const char *domain,
-				  const char *username,
-				  const char *password,
-				  struct rpc_pipe_client **presult);
-
-NTSTATUS cli_rpc_pipe_open_schannel_with_key(struct cli_state *cli,
-					     const struct ndr_interface_table *table,
-					     enum dcerpc_transport_t transport,
-					     const char *domain,
-					     struct netlogon_creds_cli_context *netlogon_creds,
-					     struct rpc_pipe_client **presult);
+NTSTATUS cli_rpc_pipe_open_schannel_with_creds(struct cli_state *cli,
+					       const struct ndr_interface_table *table,
+					       enum dcerpc_transport_t transport,
+					       struct cli_credentials *cli_creds,
+					       struct netlogon_creds_cli_context *netlogon_creds,
+					       struct rpc_pipe_client **_rpccli);
 
 NTSTATUS cli_rpc_pipe_open_schannel(struct cli_state *cli,
 				    struct messaging_context *msg_ctx,
 				    const struct ndr_interface_table *table,
 				    enum dcerpc_transport_t transport,
-				    enum dcerpc_AuthLevel auth_level,
 				    const char *domain,
 				    struct rpc_pipe_client **presult,
 				    TALLOC_CTX *mem_ctx,

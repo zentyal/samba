@@ -204,9 +204,8 @@
 /* Maximum size of RPC data we will accept for one call. */
 #define MAX_RPC_DATA_SIZE (15*1024*1024)
 
-#define CLIENT_NDR_PADDING_SIZE 8
-#define SERVER_NDR_PADDING_SIZE 8
-
-#define WINDOWS_CLIENT_PURE_SMB2_NEGPROT_INITIAL_CREDIT_ASK	31
-
+/* A guestimate of how many domains winbindd will be contacting */
+#ifndef WINBIND_MAX_DOMAINS_HINT
+#define WINBIND_MAX_DOMAINS_HINT 10
+#endif
 #endif

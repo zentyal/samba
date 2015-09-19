@@ -25,7 +25,7 @@
 #include "includes.h"
 #include "lib/param/loadparm.h"
 
-const char toupper_ascii_fast_table[128] = {
+static const char toupper_ascii_fast_table[128] = {
 	0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf,
 	0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
 	0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f,
@@ -559,14 +559,14 @@ bool strupper_m(char *s)
 	   (ie. they match for the first 128 chars) */
 
 	while (*s && !(((unsigned char)s[0]) & 0x80)) {
-		*s = toupper_ascii_fast((unsigned char)*s);
+		*s = toupper_ascii_fast_table[(unsigned char)s[0]];
 		s++;
 	}
 
 	if (!*s)
 		return true;
 
-	/* I assume that lowercased string takes the same number of bytes
+	/* I assume that uppercased string takes the same number of bytes
 	 * as source string even in multibyte encoding. (VIV) */
 	len = strlen(s) + 1;
 	ret = unix_strupper(s,len,s,len);
@@ -910,7 +910,7 @@ uint64_t conv_str_size(const char * str)
 }
 
 /* Append an sprintf'ed string. Double buffer size on demand. Usable without
- * error checking in between. The indiation that something weird happened is
+ * error checking in between. The indication that something weird happened is
  * string==NULL */
 
 void sprintf_append(TALLOC_CTX *mem_ctx, char **string, ssize_t *len,

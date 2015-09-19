@@ -48,41 +48,36 @@ _kdc_db_fetch(krb5_context context,
     krb5_error_code ret = HDB_ERR_NOENTRY;
     int i;
     unsigned kvno = 0;
+    krb5_principal enterprise_principal = NULL;
+    krb5_const_principal princ;
+
+    *h = NULL;
 
     if (kvno_ptr) {
 	    kvno = *kvno_ptr;
 	    flags |= HDB_F_KVNO_SPECIFIED;
     }
 
-    ent = calloc (1, sizeof (*ent));
-    if (ent == NULL) {
-	krb5_set_error_message(context, ENOMEM, "malloc: out of memory");
-	return ENOMEM;
+    ent = calloc(1, sizeof (*ent));
+    if (ent == NULL)
+        return krb5_enomem(context);
+
+    if (principal->name.name_type == KRB5_NT_ENTERPRISE_PRINCIPAL) {
+        if (principal->name.name_string.len != 1) {
+            ret = KRB5_PARSE_MALFORMED;
+            krb5_set_error_message(context, ret,
+                                   "malformed request: "
+                                   "enterprise name with %d name components",
+                                   principal->name.name_string.len);
+            goto out;
+        }
+        ret = krb5_parse_name(context, principal->name.name_string.val[0],
+                              &enterprise_principal);
+        if (ret)
+            goto out;
     }
 
-    for(i = 0; i < config->num_db; i++) {
-	krb5_principal enterprise_principal = NULL;
-	if (!(config->db[i]->hdb_capability_flags & HDB_CAP_F_HANDLE_ENTERPRISE_PRINCIPAL)
-	    && principal->name.name_type == KRB5_NT_ENTERPRISE_PRINCIPAL) {
-	    if (principal->name.name_string.len != 1) {
-		ret = KRB5_PARSE_MALFORMED;
-		krb5_set_error_message(context, ret,
-				       "malformed request: "
-				       "enterprise name with %d name components",
-				       principal->name.name_string.len);
-		free(ent);
-		return ret;
-	    }
-	    ret = krb5_parse_name(context, principal->name.name_string.val[0],
-				  &enterprise_principal);
-	    if (ret) {
-		free(ent);
-		return ret;
-	    }
-
-	    principal = enterprise_principal;
-	}
-
+    for (i = 0; i < config->num_db; i++) {
 	ret = config->db[i]->hdb_open(context, config->db[i], O_RDONLY, 0);
 	if (ret) {
 	    const char *msg = krb5_get_error_message(context, ret);
@@ -91,26 +86,55 @@ _kdc_db_fetch(krb5_context context,
 	    continue;
 	}
 
+        princ = principal;
+        if (!(config->db[i]->hdb_capability_flags & HDB_CAP_F_HANDLE_ENTERPRISE_PRINCIPAL) && enterprise_principal)
+            princ = enterprise_principal;
+
 	ret = config->db[i]->hdb_fetch_kvno(context,
 					    config->db[i],
-					    principal,
+					    princ,
 					    flags | HDB_F_DECRYPT,
 					    kvno,
 					    ent);
-
-	krb5_free_principal(context, enterprise_principal);
-
 	config->db[i]->hdb_close(context, config->db[i]);
-	if(ret == 0) {
+
+	switch (ret) {
+	case HDB_ERR_WRONG_REALM:
+	    /*
+	     * the ent->entry.principal just contains hints for the client
+	     * to retry. This is important for enterprise principal routing
+	     * between trusts.
+	     */
+	    /* fall through */
+	case 0:
 	    if (db)
 		*db = config->db[i];
 	    *h = ent;
-	    return 0;
+            ent = NULL;
+            goto out;
+
+	case HDB_ERR_NOENTRY:
+	    /* Check the other databases */
+	    continue;
+
+	default:
+	    /* 
+	     * This is really important, because errors like
+	     * HDB_ERR_NOT_FOUND_HERE (used to indicate to Samba that
+	     * the RODC on which this code is running does not have
+	     * the key we need, and so a proxy to the KDC is required)
+	     * have specific meaning, and need to be propogated up.
+	     */
+	    goto out;
 	}
     }
+
+    if (ret == HDB_ERR_NOENTRY) {
+	krb5_set_error_message(context, ret, "no such entry found in hdb");
+    }
+out:
+    krb5_free_principal(context, enterprise_principal);
     free(ent);
-    krb5_set_error_message(context, ret,
-			   "no such entry found in hdb");
     return ret;
 }
 

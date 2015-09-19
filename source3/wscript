@@ -62,6 +62,7 @@ def set_options(opt):
                   help=("enable support for VxFS (default=no)"),
                   action="store_true", dest='enable_vxfs', default=False)
 
+    opt.SAMBA3_ADD_OPTION('spotlight', with_name="enable", without_name="disable", default=False)
 
 def configure(conf):
     from samba_utils import TO_LIST
@@ -83,7 +84,7 @@ def configure(conf):
     conf.CHECK_FUNCS('strtol strchr strupr chflags')
     conf.CHECK_FUNCS('getrlimit fsync fdatasync setpgid')
     conf.CHECK_FUNCS('setsid glob strpbrk crypt16 getauthuid')
-    conf.CHECK_FUNCS('sigprocmask sigblock sigaction sigset innetgr')
+    conf.CHECK_FUNCS('innetgr')
     conf.CHECK_FUNCS('initgroups select poll rdchk getgrnam getgrent pathconf')
     conf.CHECK_FUNCS('setpriv setgidx setuidx setgroups syscall sysconf')
     conf.CHECK_FUNCS('atexit grantpt posix_openpt fallocate posix_fallocate')
@@ -320,34 +321,34 @@ int main(int argc, char **argv)
                         headers='sys/capability.h',
                         msg="Checking whether POSIX capabilities are available")
 
-    # Check for int16, uint16, int32 and uint32 in rpc/types.h included from
-    # rpc/rpc.h. This is *really* broken but some systems (DEC OSF1) do this.
-    # -- JRA.
-    if conf.CONFIG_SET("HAVE_RPC_RPC_H"):
-        conf.CHECK_TYPE('int16', headers='rpc/rpc.h',
-                        define='HAVE_INT16_FROM_RPC_RPC_H',
-                        msg="Checking for int16 typedef included by rpc/rpc.h")
-        conf.CHECK_CODE('uint16 testvar;', 'HAVE_INT16_FROM_RPC_RPC_H',
-                        headers='sys/types.h rpc/rpc.h',
-                        msg="Checking for uint16 typedef included by rpc/rpc.h")
-        conf.CHECK_CODE('int32 testvar;', 'HAVE_INT16_FROM_RPC_RPC_H',
-                        headers='sys/types.h rpc/rpc.h',
-                        msg="Checking for int32 typedef included by rpc/rpc.h")
-        conf.CHECK_CODE('uint32 testvar;', 'HAVE_INT16_FROM_RPC_RPC_H',
-                        headers='sys/types.h rpc/rpc.h',
-                        msg="Checking for uint32 typedef included by rpc/rpc.h")
     conf.CHECK_CODE('int i;', 'BROKEN_NISPLUS_INCLUDE_FILES',
                     headers='sys/types.h sys/acl.h rpcsvc/nis.h',
                     msg="Checking for broken nisplus include files")
 
     # Check if the compiler will optimize out functions
     conf.CHECK_CODE('''
-if (0) {
-    this_function_does_not_exist();
-} else {
-    return 1;
+#include <sys/types.h>
+size_t __unsafe_string_function_usage_here_size_t__(void);
+#define CHECK_STRING_SIZE(d, len) (sizeof(d) != (len) && sizeof(d) != sizeof(char *))
+static size_t push_string_check_fn(void *dest, const char *src, size_t dest_len) {
+	return 0;
+}
+
+#define push_string_check(dest, src, dest_len) \
+    (CHECK_STRING_SIZE(dest, dest_len) \
+    ? __unsafe_string_function_usage_here_size_t__()	\
+    : push_string_check_fn(dest, src, dest_len))
+
+int main(int argc, char **argv) {
+    char outbuf[1024];
+    char *p = outbuf;
+    const char *foo = "bar";
+    p += 31 + push_string_check(p + 31, foo, sizeof(outbuf) - (p + 31 - outbuf));
+    return 0;
 }''', 'HAVE_COMPILER_WILL_OPTIMIZE_OUT_FNS',
-        msg="Checking if the compiler will optimize out functions")
+            addmain=False,
+            add_headers=False,
+            msg="Checking if the compiler will optimize out functions")
 
     # Check if the compiler supports the LL suffix on long long integers
     # AIX needs this
@@ -380,7 +381,7 @@ rdchk _read __read _readdir __readdir
 _seekdir __seekdir
 select setenv setgidx setgroups setlocale setluid
 setmntent setpgid setpriv setsid setuidx
-shmget shm_open sigaction sigblock sigprocmask sigset
+shmget shm_open
 _stat __stat statvfs
 strcasecmp strchr strpbrk strsignal strtol strupr sysconf sysctl sysctlbyname
 __sys_llseek syslog _telldir __telldir timegm
@@ -469,6 +470,7 @@ return acl_get_perm_np(permset_d, perm);
                         headers='sys/types.h sys/acl.h', link=True,
                         msg="Checking whether acl_get_perm_np() is available")
                 default_static_modules.extend(TO_LIST('vfs_posixacl'))
+                conf.CHECK_VARIABLE('ACL_EVERYONE', headers='sys/acl.h')
             elif conf.CHECK_FUNCS_IN(['facl'], 'sec'):
                 Logs.info('Using solaris or UnixWare ACLs')
                 conf.DEFINE('HAVE_SOLARIS_UNIXWARE_ACLS',1)
@@ -500,6 +502,19 @@ return acl_get_perm_np(permset_d, perm);
                 'HAVE_LINUX_FALLOCATE',
                 msg="Checking whether the Linux 'fallocate' function is available",
                 headers='unistd.h sys/types.h fcntl.h linux/falloc.h')
+        conf.CHECK_CODE('''
+                int ret = fallocate(0, FALLOC_FL_PUNCH_HOLE, 0, 10);''',
+                'HAVE_FALLOC_FL_PUNCH_HOLE',
+                msg="Checking whether Linux 'fallocate' supports hole-punching",
+                headers='unistd.h sys/types.h fcntl.h linux/falloc.h')
+
+    conf.CHECK_CODE('''
+            int ret = lseek(0, 0, SEEK_HOLE);
+            ret = lseek(0, 0, SEEK_DATA);''',
+            'HAVE_LSEEK_HOLE_DATA',
+            msg="Checking whether lseek supports hole/data seeking",
+            headers='unistd.h sys/types.h')
+
     conf.CHECK_CODE('''
                 ssize_t err = readahead(0,0,0x80000);''',
                 'HAVE_LINUX_READAHEAD',
@@ -624,7 +639,7 @@ msg.msg_accrightslen = sizeof(fd);
             # we would normally use --libs here, but cups-config incorrectly adds
             # gssapi_krb5 and other libraries to its --libs output. That breaks the use
             # of an in-tree heimdal kerberos
-            conf.check_cfg(path=conf.env.CUPS_CONFIG, args="--cflags --ldflags",
+            conf.CHECK_CFG(path=conf.env.CUPS_CONFIG, args="--cflags --ldflags",
                            package="", uselib_store="CUPS")
         conf.CHECK_HEADERS('cups/cups.h cups/language.h', lib='cups')
         conf.CHECK_FUNCS_IN('httpConnect httpConnectEncrypt', 'cups')
@@ -1467,6 +1482,7 @@ main() {
 
     if Options.options.with_profiling_data:
         conf.DEFINE('WITH_PROFILE', 1);
+        conf.CHECK_FUNCS('getrusage', headers="sys/time.h sys/resource.h")
 
     if Options.options.with_pthreadpool:
         if conf.CONFIG_SET('HAVE_PTHREAD'):
@@ -1474,9 +1490,6 @@ main() {
         else:
             Logs.warn("pthreadpool support cannot be enabled when pthread support was not found")
             conf.undefine('WITH_PTHREADPOOL')
-
-    if conf.CHECK_HEADERS('gpfs_gpl.h'):
-        conf.DEFINE('HAVE_GPFS', '1')
 
     if (conf.CHECK_HEADERS('linux/ioctl.h sys/ioctl.h linux/fs.h') and
 	conf.CHECK_DECLS('FS_IOC_GETFLAGS FS_COMPR_FL', headers='linux/fs.h')):
@@ -1491,7 +1504,7 @@ main() {
         conf.DEFINE('HAVE_CEPH', '1')
 
     if Options.options.with_glusterfs:
-        conf.check_cfg(package='glusterfs-api', args='"glusterfs-api >= 4" --cflags --libs',
+        conf.CHECK_CFG(package='glusterfs-api', args='"glusterfs-api >= 4" --cflags --libs',
                        msg='Checking for glusterfs-api >= 4', uselib_store="GFAPI")
         conf.CHECK_HEADERS('api/glfs.h', lib='gfapi')
         conf.CHECK_LIB('gfapi', shlib=True)
@@ -1508,7 +1521,7 @@ main() {
     if Options.options.enable_vxfs:
 	conf.DEFINE('HAVE_VXFS', '1')
 
-    if conf.check_cfg(package='dbus-1', args='--cflags --libs',
+    if conf.CHECK_CFG(package='dbus-1', args='--cflags --libs',
                       msg='Checking for dbus', uselib_store="DBUS-1"):
         if (conf.CHECK_HEADERS('dbus/dbus.h', lib='dbus-1')
                                       and conf.CHECK_LIB('dbus-1', shlib=True)):
@@ -1540,7 +1553,24 @@ main() {
         else:
             conf.fatal('AFS headers not available, but --with-fake-kaserver was specified')
 
+    conf.env['libtracker']=''
+    conf.env.with_spotlight = False
+    if Options.options.with_spotlight:
+        versions = ['1.0', '0.16', '0.14']
+        for version in versions:
+            testlib = 'tracker-sparql-' + version
+            if conf.check_cfg(package=testlib,
+                              args='--cflags --libs',
+                              mandatory=False):
+                conf.SET_TARGET_TYPE(testlib, 'SYSLIB')
+                conf.env['libtracker'] = testlib
+                conf.env.with_spotlight = True
+                conf.DEFINE('WITH_SPOTLIGHT', '1')
+                break
 
+        if not conf.env.with_spotlight:
+            conf.fatal("Spotlight support requested but tracker-sparql library missing")
+        Logs.info("building with Spotlight support")
 
     default_static_modules.extend(TO_LIST('''pdb_smbpasswd pdb_tdbsam pdb_wbc_sam
                                       auth_sam auth_unix auth_winbind auth_wbc
@@ -1554,12 +1584,13 @@ main() {
                                       auth_script vfs_readahead vfs_xattr_tdb vfs_posix_eadb
                                       vfs_streams_xattr vfs_streams_depot vfs_acl_xattr vfs_acl_tdb
                                       vfs_smb_traffic_analyzer vfs_preopen vfs_catia vfs_scannedonly
-				      vfs_media_harmony vfs_fruit
+				      vfs_media_harmony vfs_unityed_media vfs_fruit vfs_shell_snap
 				      vfs_commit
 				      vfs_worm
                                       vfs_crossrename vfs_linux_xfs_sgid
                                       vfs_time_audit idmap_autorid idmap_tdb2
                                       idmap_ad
+				      idmap_script
                                       idmap_rid idmap_hash idmap_rfc2307'''))
 
     if Options.options.developer:
@@ -1603,9 +1634,10 @@ main() {
         default_static_modules.extend(TO_LIST('charset_macosxfs'))
 
     if conf.CONFIG_SET('HAVE_GPFS'):
-	default_shared_modules.extend(TO_LIST('vfs_gpfs'))
+        default_shared_modules.extend(TO_LIST('vfs_gpfs'))
 
-    if conf.CONFIG_SET('HAVE_LINUX_IOCTL'):
+    if (conf.CONFIG_SET('HAVE_LINUX_IOCTL')
+      and conf.CONFIG_SET('HAVE_BASENAME') and conf.CONFIG_SET('HAVE_DIRNAME')):
 	default_shared_modules.extend(TO_LIST('vfs_btrfs'))
 
     if conf.CONFIG_SET('SAMBA_FAM_LIBS'):

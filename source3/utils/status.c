@@ -44,6 +44,8 @@
 #include "librpc/gen_ndr/notify.h"
 #include "lib/conn_tdb.h"
 #include "serverid.h"
+#include "status_profile.h"
+#include "smbd/notifyd/notifyd.h"
 
 #define SMB_MAXPIDS		2048
 static uid_t 		Ucrit_uid = 0;               /* added by OH */
@@ -60,9 +62,6 @@ static bool numeric_only;
 static bool do_checks = true;
 
 const char *username = NULL;
-
-extern bool status_profile_dump(bool be_verbose);
-extern bool status_profile_rates(bool be_verbose);
 
 /* added by OH */
 static void Ucrit_addUid(uid_t uid)
@@ -139,7 +138,8 @@ static int print_share_mode(const struct share_mode_entry *e,
 	}
 
 	if (Ucrit_checkPid(e->pid)) {
-		d_printf("%-11s  ",procid_str_static(&e->pid));
+		struct server_id_buf tmp;
+		d_printf("%-11s  ", server_id_str_buf(e->pid, &tmp));
 		d_printf("%-9u  ", (unsigned int)e->uid);
 		switch (map_share_mode_to_deny_mode(e->share_access,
 						    e->private_options)) {
@@ -220,6 +220,7 @@ static void print_brl(struct file_id id,
 	const char *sharepath = "";
 	char *fname = NULL;
 	struct share_mode_lock *share_mode;
+	struct server_id_buf tmp;
 
 	if (count==0) {
 		d_printf("Byte range locks:\n");
@@ -252,7 +253,7 @@ static void print_brl(struct file_id id,
 	}
 
 	d_printf("%-10s %-15s %-4s %-9jd %-9jd %-24s %-24s\n",
-		 procid_str_static(&pid), file_id_string_tos(&id),
+		 server_id_str_buf(pid, &tmp), file_id_string_tos(&id),
 		 desc,
 		 (intmax_t)start, (intmax_t)size,
 		 sharepath, fname);
@@ -265,6 +266,8 @@ static int traverse_connections(const struct connections_key *key,
 				const struct connections_data *crec,
 				void *state)
 {
+	struct server_id_buf tmp;
+
 	if (crec->cnum == TID_FIELD_INVALID)
 		return 0;
 
@@ -274,7 +277,7 @@ static int traverse_connections(const struct connections_key *key,
 	}
 
 	d_printf("%-10s   %s   %-12s  %s",
-		 crec->servicename,procid_str_static(&crec->pid),
+		 crec->servicename, server_id_str_buf(crec->pid, &tmp),
 		 crec->machine,
 		 time_to_asc(crec->start));
 
@@ -285,6 +288,7 @@ static int traverse_sessionid(const char *key, struct sessionid *session,
 			      void *private_data)
 {
 	fstring uid_str, gid_str;
+	struct server_id_buf tmp;
 
 	if (do_checks &&
 	    (!process_exists(session->pid) ||
@@ -315,7 +319,7 @@ static int traverse_sessionid(const char *key, struct sessionid *session,
 	}
 
 	d_printf("%-7s   %-12s  %-12s  %-12s (%s) %-12s\n",
-		 procid_str_static(&session->pid),
+		 server_id_str_buf(session->pid, &tmp),
 		 uid_str, gid_str,
 		 session->remote_machine, session->hostname, session->protocol_ver);
 
@@ -323,28 +327,17 @@ static int traverse_sessionid(const char *key, struct sessionid *session,
 }
 
 
-static void print_notify_recs(const char *path,
-			      struct notify_db_entry *entries,
-			      size_t num_entries,
-			      time_t deleted_time, void *private_data)
+static bool print_notify_rec(const char *path, struct server_id server,
+			     const struct notify_instance *instance,
+			     void *private_data)
 {
-	size_t i;
-	d_printf("%s\n", path);
+	struct server_id_buf idbuf;
 
-	if (num_entries == 0) {
-		d_printf("deleted %s\n", time_to_asc(deleted_time));
-	}
+	d_printf("%s\\%s\\%x\\%x\n", path, server_id_str_buf(server, &idbuf),
+		 (unsigned)instance->filter,
+		 (unsigned)instance->subdir_filter);
 
-	for (i=0; i<num_entries; i++) {
-		struct notify_db_entry *e = &entries[i];
-		char *str;
-
-		str = server_id_str(talloc_tos(), &e->server);
-		printf("%s %x %x\n", str, (unsigned)e->filter,
-		       (unsigned)e->subdir_filter);
-		TALLOC_FREE(str);
-	}
-	printf("\n");
+	return true;
 }
 
 int main(int argc, const char *argv[])
@@ -373,19 +366,28 @@ int main(int argc, const char *argv[])
 	};
 	TALLOC_CTX *frame = talloc_stackframe();
 	int ret = 0;
-	struct messaging_context *msg_ctx;
+	struct messaging_context *msg_ctx = NULL;
+	char *db_path;
 	bool ok;
 
 	sec_init();
-	load_case_tables();
+	smb_init_locale();
 
 	setup_logging(argv[0], DEBUG_STDERR);
+	lp_set_cmdline("log level", "0");
 
 	if (getuid() != geteuid()) {
 		d_printf("smbstatus should not be run setuid\n");
 		ret = 1;
 		goto done;
 	}
+
+	if (getuid() != 0) {
+		d_printf("smbstatus only works as root!\n");
+		ret = 1;
+		goto done;
+	}
+
 
 	pc = poptGetContext(NULL, argc, argv, long_options,
 			    POPT_CONTEXT_KEEP_FIRST);
@@ -498,7 +500,14 @@ int main(int argc, const char *argv[])
 
 	if ( show_shares ) {
 		if (verbose) {
-			d_printf("Opened %s\n", lock_path("connections.tdb"));
+			db_path = lock_path("connections.tdb");
+			if (db_path == NULL) {
+				d_printf("Out of memory - exiting\n");
+				ret = -1;
+				goto done;
+			}
+			d_printf("Opened %s\n", db_path);
+			TALLOC_FREE(db_path);
 		}
 
 		if (brief) {
@@ -520,18 +529,27 @@ int main(int argc, const char *argv[])
 	if ( show_locks ) {
 		int result;
 		struct db_context *db;
-		db = db_open(NULL, lock_path("locking.tdb"), 0,
+
+		db_path = lock_path("locking.tdb");
+		if (db_path == NULL) {
+			d_printf("Out of memory - exiting\n");
+			ret = -1;
+			goto done;
+		}
+
+		db = db_open(NULL, db_path, 0,
 			     TDB_CLEAR_IF_FIRST|TDB_INCOMPATIBLE_HASH, O_RDONLY, 0,
 			     DBWRAP_LOCK_ORDER_1, DBWRAP_FLAG_NONE);
 
 		if (!db) {
-			d_printf("%s not initialised\n",
-				 lock_path("locking.tdb"));
+			d_printf("%s not initialised\n", db_path);
 			d_printf("This is normal if an SMB client has never "
 				 "connected to your server.\n");
+			TALLOC_FREE(db_path);
 			exit(0);
 		} else {
 			TALLOC_FREE(db);
+			TALLOC_FREE(db_path);
 		}
 
 		if (!locking_init_readonly()) {
@@ -560,11 +578,22 @@ int main(int argc, const char *argv[])
 	if (show_notify) {
 		struct notify_context *n;
 
-		n = notify_init(talloc_tos(), NULL, NULL);
+		if (msg_ctx == NULL) {
+			msg_ctx = messaging_init(
+				NULL, samba_tevent_context_init(NULL));
+			if (msg_ctx == NULL) {
+				fprintf(stderr, "messaging_init failed\n");
+				ret = -1;
+				goto done;
+			}
+		}
+
+		n = notify_init(talloc_tos(), msg_ctx,
+				messaging_tevent_context(msg_ctx));
 		if (n == NULL) {
 			goto done;
 		}
-		notify_walk(n, print_notify_recs, NULL);
+		notify_walk(n, print_notify_rec, NULL);
 		TALLOC_FREE(n);
 	}
 

@@ -129,7 +129,7 @@ static PyObject *py_net_change_password(py_net_Object *self, PyObject *args, PyO
 static const char py_net_change_password_doc[] = "change_password(newpassword) -> True\n\n" \
 "Change password for a user. You must supply credential with enough rights to do this.\n\n" \
 "Sample usage is:\n" \
-"net.set_password(newpassword=<new_password>\n";
+"net.change_password(newpassword=<new_password>)\n";
 
 
 static PyObject *py_net_set_password(py_net_Object *self, PyObject *args, PyObject *kwargs)
@@ -178,9 +178,7 @@ static PyObject *py_net_set_password(py_net_Object *self, PyObject *args, PyObje
 static const char py_net_set_password_doc[] = "set_password(account_name, domain_name, newpassword) -> True\n\n" \
 "Set password for a user. You must supply credential with enough rights to do this.\n\n" \
 "Sample usage is:\n" \
-"net.set_password(account_name=<account_name>,\n" \
-"                domain_name=domain_name,\n" \
-"                newpassword=new_pass)\n";
+"net.set_password(account_name=account_name, domain_name=domain_name, newpassword=new_pass)\n";
 
 
 static PyObject *py_net_time(py_net_Object *self, PyObject *args, PyObject *kwargs)
@@ -562,7 +560,7 @@ static PyObject *py_net_finddc(py_net_Object *self, PyObject *args, PyObject *kw
 	PyObject *ret;
 	const char * const kwnames[] = { "flags", "domain", "address", NULL };
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "I|ss",
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "I|zz",
 					 discard_const_p(char *, kwnames),
 					 &server_type, &domain, &address)) {
 		return NULL;

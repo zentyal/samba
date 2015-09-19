@@ -1,6 +1,8 @@
 #include "idl_types.h"
 
 import "misc.idl";
+import "fscc.idl";
+import "bkupblobs.idl";
 
 [
   uuid("f5cc59b4-4264-101a-8c59-08002b2f8426"),
@@ -12,6 +14,7 @@ import "misc.idl";
 ] 
 interface frsrpc
 {
+
 	/*****************/
 	/* Function 0x00 */
 
@@ -33,6 +36,7 @@ interface frsrpc
 		FRSRPC_CO_FLAG_ONLIST		= 0x00000010,
 		FRSRPC_CO_FLAG_LOCALCO		= 0x00000020,
 		FRSRPC_CO_FLAG_RETRY		= 0x00000040,
+		FRSRPC_CO_FLAG_INST_INCOMPLETE	= 0x00000080,
 		FRSRPC_CO_FLAG_OUT_OF_ORDER	= 0x00000200,
 		FRSRPC_CO_FLAG_NEW_FILE		= 0x00000400,
 		FRSRPC_CO_FLAG_CONTROL		= 0x00001000,
@@ -47,6 +51,9 @@ interface frsrpc
 	} frsrpc_CommPktCoCmdFlags;
 
 	const uint32 FRSRPC_CO_IFLAG_NONE = 0x0000000;
+
+	const string FRSRPC_COMPRESSION_GUID = "64d2f7d2-2695-436d-8830-8d3c58701e15";
+
 
 	typedef [bitmap32bit,flag(NDR_PAHEX)] bitmap {
 		FRSRPC_CO_IFLAG_VVRETIRE_EXEC	= 0x00000001,
@@ -115,7 +122,7 @@ interface frsrpc
 		FRSRPC_CO_LOCATION_DIR_NO_CMD	= 0x0000000e | 0x00000001
 	} frsrpc_CommPktCoCmdLocationCmd;
 
-	typedef struct {
+	[public] typedef struct {
 		uint32 sequence_number;
 		frsrpc_CommPktCoCmdFlags flags;
 		frsrpc_CommPktCoCmdIFlags iflags;
@@ -202,7 +209,7 @@ interface frsrpc
 		frsrpc_CommPktCoRecordExtensionMajor major;
 		[value(0x0002)] uint16 offset_count;
 		[value(0x00000018)] uint32 offset0;
-		[value(0x00000030)] uint32 offset1;/*TODO: is this correct??? */
+		[value(0x00000030)] uint32 offset1;
 		[value(0)] uint32 offset_last;
 		[value(0)] uint32 not_used;
 		frsrpc_CommPktDataExtensionChecksum data_checksum;
@@ -220,7 +227,7 @@ interface frsrpc
 		FRSRPC_COMMAND_JOINING			= 0x00000130,
 		FRSRPC_COMMAND_JOINED			= 0x00000128,
 		FRSRPC_COMMAND_UNJOIN_REMOTE		= 0x00000148,
-		FRSRPC_COMMAND_WJOIN_DONE		= 0x00000136,
+		FRSRPC_COMMAND_VVJOIN_DONE		= 0x00000136,
 		FRSRPC_COMMAND_SEND_STAGE		= 0x00000228
 	} frsrpc_CommPktCommand;
 
@@ -281,7 +288,7 @@ interface frsrpc
 		[case(FRSRPC_COMM_PKT_CHUNK_COMPRESSION_GUID)]
 			GUID compression_guid;
 		[case(FRSRPC_COMM_PKT_CHUNK_BLOCK)]
-			[flag(NDR_REMAINING)] DATA_BLOB block;
+			DATA_BLOB block;
 		[case(FRSRPC_COMM_PKT_CHUNK_BLOCK_SIZE)]
 			hyper block_size;
 		[case(FRSRPC_COMM_PKT_CHUNK_FILE_SIZE)]
@@ -293,7 +300,7 @@ interface frsrpc
 		[case(FRSRPC_COMM_PKT_CHUNK_CO_GUID)][subcontext(4)]
 			GUID co_guid;
 		[case(FRSRPC_COMM_PKT_CHUNK_CO_SEQUENCE_NUMBER)]
-			uint32 co_sequnence_number;
+			uint32 co_sequence_number;
 		[case(FRSRPC_COMM_PKT_CHUNK_REMOTE_CO)][subcontext(4)]
 			frsrpc_CommPktChangeOrderCommand remote_co;
 		[case(FRSRPC_COMM_PKT_CHUNK_CO_EXT_WIN2K)][subcontext(4)]
@@ -331,7 +338,7 @@ interface frsrpc
 		FRSRPC_COMM_PKT_MINOR_9	= 0x00000009
 	} frsrpc_CommPktMinor;
 
-	typedef struct {
+	[public] typedef struct {
 		frsrpc_CommPktMajor major;
 		frsrpc_CommPktMinor minor;
 		[value(1)] uint32 cs_id;
@@ -388,35 +395,64 @@ interface frsrpc
 			GUID *parent_guid
 	);
 
+	typedef [public,flag(NDR_NOALIGN)] struct {
+		uint32 major;
+		uint32 minor;
+		uint32 dataHigh;
+		uint32 dataLow;
+		uint16 compression;
+		uint8 unused[6];
+		fscc_FileNetworkOpenInformation attributes;
+		frsrpc_CommPktChangeOrderCommand command;
+		fscc_FileObjectIdBuffer_2 fileObjId;
+		frsrpc_CommPktCoRecordExtensionWin2k cocExt;
+		GUID compressionGuid;
+		uint32 encDataHigh;
+		uint32 encDataLow;
+		hyper dataSize;
+		uint32 reparseDataPresent;
+		uint32 reparseDataHigh;
+		uint32 reparseDataLow;
+		uint32 padding2;
+	} frsrpc_StageHeader;
+
 	/*****************/
 	/* Function 0x03 */
 	WERROR frsrpc_FrsNOP();
 
+	/*
+	 *For Op from 4 to 10 Microsoft use
+	 *the notation OpnumxxNotUsedOnWire
+	 *where xx is the number of the OP.
+	 *They are only declared in the IDL of MS-FRS1.pdf.
+	 *Not in the core of the document.
+	 */
+
 	/*****************/
 	/* Function 0x04 */
-	[todo] void FRSRPC_BACKUP_COMPLETE();
+	/*[todo] void FRSRPC_BACKUP_COMPLETE();*/
 
 	/*****************/
 	/* Function 0x05 */
-	[todo] void FRSRPC_BACKUP_COMPLETE_5();
+	/*[todo] void FRSRPC_BACKUP_COMPLETE_5();*/
 
 	/*****************/
 	/* Function 0x06 */
-	[todo] void FRSRPC_BACKUP_COMPLETE_6();
+	/*[todo] void FRSRPC_BACKUP_COMPLETE_6();*/
 
 	/*****************/
 	/* Function 0x07 */
-	[todo] void FRSRPC_BACKUP_COMPLETE_7();
+	/*[todo] void FRSRPC_BACKUP_COMPLETE_7();*/
 
 	/*****************/
 	/* Function 0x08 */
-	[todo] void FRSRPC_BACKUP_COMPLETE_8();
+	/*[todo] void FRSRPC_BACKUP_COMPLETE_8();*/
 
 	/*****************/
 	/* Function 0x09 */
-	[todo] void FRSRPC_BACKUP_COMPLETE_9();
+	/*[todo] void FRSRPC_BACKUP_COMPLETE_9();*/
 
 	/*****************/
 	/* Function 0x0a */
-	[todo] void FRSRPC_VERIFY_PROMOTION_PARENT_EX();
+	/*[todo] void FRSRPC_VERIFY_PROMOTION_PARENT_EX();*/
 }

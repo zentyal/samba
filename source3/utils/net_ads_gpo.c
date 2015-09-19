@@ -34,11 +34,12 @@ static int net_ads_gpo_refresh(struct net_context *c, int argc, const char **arg
 	const char *dn = NULL;
 	struct GROUP_POLICY_OBJECT *gpo_list = NULL;
 	struct GROUP_POLICY_OBJECT *read_list = NULL;
-	uint32 uac = 0;
-	uint32 flags = 0;
+	uint32_t uac = 0;
+	uint32_t flags = 0;
 	struct GROUP_POLICY_OBJECT *gpo;
 	NTSTATUS result;
 	struct security_token *token = NULL;
+	char *gpo_cache_path;
 
 	if (argc < 1 || c->display_usage) {
 		d_printf("%s\n%s\n%s",
@@ -99,10 +100,17 @@ static int net_ads_gpo_refresh(struct net_context *c, int argc, const char **arg
 	d_printf(_("finished\n"));
 
 	d_printf(_("* Refreshing Group Policy Data "));
-	if (!NT_STATUS_IS_OK(result = check_refresh_gpo_list(ads, mem_ctx,
-	                                                     cache_path(GPO_CACHE_DIR),
-							     flags,
-							     gpo_list))) {
+	gpo_cache_path = cache_path(GPO_CACHE_DIR);
+	if (gpo_cache_path == NULL) {
+		d_printf(_("failed: %s\n"), nt_errstr(NT_STATUS_NO_MEMORY));
+		goto out;
+	}
+	result = check_refresh_gpo_list(ads, mem_ctx,
+					gpo_cache_path,
+					flags,
+					gpo_list);
+	TALLOC_FREE(gpo_cache_path);
+	if (!NT_STATUS_IS_OK(result)) {
 		d_printf(_("failed: %s\n"), nt_errstr(result));
 		goto out;
 	}
@@ -297,8 +305,8 @@ static int net_ads_gpo_list(struct net_context *c, int argc, const char **argv)
 	LDAPMessage *res = NULL;
 	TALLOC_CTX *mem_ctx;
 	const char *dn = NULL;
-	uint32 uac = 0;
-	uint32 flags = 0;
+	uint32_t uac = 0;
+	uint32_t flags = 0;
 	struct GROUP_POLICY_OBJECT *gpo_list;
 	struct security_token *token = NULL;
 
@@ -368,8 +376,8 @@ static int net_ads_gpo_apply(struct net_context *c, int argc, const char **argv)
 	ADS_STATUS status;
 	const char *dn = NULL;
 	struct GROUP_POLICY_OBJECT *gpo_list;
-	uint32 uac = 0;
-	uint32 flags = 0;
+	uint32_t uac = 0;
+	uint32_t flags = 0;
 	struct security_token *token = NULL;
 	const char *filter = NULL;
 
@@ -493,7 +501,7 @@ static int net_ads_gpo_link_add(struct net_context *c, int argc, const char **ar
 {
 	ADS_STRUCT *ads;
 	ADS_STATUS status;
-	uint32 gpo_opt = 0;
+	uint32_t gpo_opt = 0;
 	TALLOC_CTX *mem_ctx;
 
 	if (argc < 2 || c->display_usage) {

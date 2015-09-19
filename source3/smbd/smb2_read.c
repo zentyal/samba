@@ -26,11 +26,13 @@
 #include "libcli/security/security.h"
 #include "../lib/util/tevent_ntstatus.h"
 #include "rpc_server/srv_pipe_hnd.h"
+#include "lib/sys_rw_data.h"
 
 static struct tevent_req *smbd_smb2_read_send(TALLOC_CTX *mem_ctx,
 					      struct tevent_context *ev,
 					      struct smbd_smb2_request *smb2req,
 					      struct files_struct *in_fsp,
+					      uint8_t in_flags,
 					      uint32_t in_length,
 					      uint64_t in_offset,
 					      uint32_t in_minimum,
@@ -46,6 +48,7 @@ NTSTATUS smbd_smb2_request_process_read(struct smbd_smb2_request *req)
 	struct smbXsrv_connection *xconn = req->xconn;
 	NTSTATUS status;
 	const uint8_t *inbody;
+	uint8_t in_flags;
 	uint32_t in_length;
 	uint64_t in_offset;
 	uint64_t in_file_id_persistent;
@@ -61,6 +64,11 @@ NTSTATUS smbd_smb2_request_process_read(struct smbd_smb2_request *req)
 	}
 	inbody = SMBD_SMB2_IN_BODY_PTR(req);
 
+	if (xconn->protocol >= PROTOCOL_SMB3_02) {
+		in_flags		= CVAL(inbody, 0x03);
+	} else {
+		in_flags		= 0;
+	}
 	in_length		= IVAL(inbody, 0x04);
 	in_offset		= BVAL(inbody, 0x08);
 	in_file_id_persistent	= BVAL(inbody, 0x10);
@@ -88,6 +96,7 @@ NTSTATUS smbd_smb2_request_process_read(struct smbd_smb2_request *req)
 
 	subreq = smbd_smb2_read_send(req, req->sconn->ev_ctx,
 				     req, in_fsp,
+				     in_flags,
 				     in_length,
 				     in_offset,
 				     in_minimum_count,
@@ -164,6 +173,7 @@ struct smbd_smb2_read_state {
 	struct smbd_smb2_request *smb2req;
 	struct smb_request *smbreq;
 	files_struct *fsp;
+	uint8_t in_flags;
 	uint32_t in_length;
 	uint64_t in_offset;
 	uint32_t in_minimum;
@@ -421,6 +431,7 @@ static struct tevent_req *smbd_smb2_read_send(TALLOC_CTX *mem_ctx,
 					      struct tevent_context *ev,
 					      struct smbd_smb2_request *smb2req,
 					      struct files_struct *fsp,
+					      uint8_t in_flags,
 					      uint32_t in_length,
 					      uint64_t in_offset,
 					      uint32_t in_minimum,
@@ -441,6 +452,7 @@ static struct tevent_req *smbd_smb2_read_send(TALLOC_CTX *mem_ctx,
 		return NULL;
 	}
 	state->smb2req = smb2req;
+	state->in_flags = in_flags;
 	state->in_length = in_length;
 	state->in_offset = in_offset;
 	state->in_minimum = in_minimum;

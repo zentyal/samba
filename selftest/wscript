@@ -8,27 +8,31 @@ from samba_utils import *
 from samba_autoconf import *
 import types
 
+DEFAULT_SELFTEST_PREFIX="./st"
+
 def set_options(opt):
 
     opt.add_option('--enable-selftest',
                    help=("enable options necessary for selftest (default=no)"),
                    action="store_true", dest='enable_selftest', default=False)
     opt.add_option('--enable-coverage',
-                   help=("enable options necessary for code coverage reporting on selftest (default=no)"),
+                   help=("enable options necessary for code coverage "
+                         "reporting on selftest (default=no)"),
                    action="store_true", dest='enable_coverage', default=False)
     opt.add_option('--with-selftest-prefix',
-                   help=("specify location of selftest directory (default=./st)"),
-                   action="store", dest='SELFTEST_PREFIX', default='./st')
+                   help=("specify location of selftest directory "
+                         "(default=%s)" % DEFAULT_SELFTEST_PREFIX),
+                   action="store", dest='SELFTEST_PREFIX', default=DEFAULT_SELFTEST_PREFIX)
 
     opt.ADD_COMMAND('test', cmd_test)
     opt.ADD_COMMAND('testonly', cmd_testonly)
 
     gr = opt.add_option_group('test options')
 
-    gr.add_option('--load-list', 
+    gr.add_option('--load-list',
                   help=("Load a test id list from a text file"),
                   action="store", dest='LOAD_LIST', default=None)
-    gr.add_option('--list', 
+    gr.add_option('--list',
                   help=("List available tests"),
                   action="store_true", dest='LIST', default=False)
     gr.add_option('--tests',
@@ -43,6 +47,9 @@ def set_options(opt):
     gr.add_option('--slow',
                   help=("enable the really slow tests"),
                   action="store_true", dest='SLOWTEST', default=False)
+    gr.add_option('--nb-slowest',
+                  help=("Show the n slowest tests (default=10)"),
+                  type=int, default=10, dest='NB_SLOWEST')
     gr.add_option('--testenv',
                   help=("start a terminal with the test environment setup"),
                   action="store_true", dest='TESTENV', default=False)
@@ -89,6 +96,9 @@ def cmd_testonly(opt):
     env = LOAD_ENVIRONMENT()
     opt.env = env
 
+    if Options.options.SELFTEST_PREFIX != DEFAULT_SELFTEST_PREFIX:
+        env.SELFTEST_PREFIX = Options.options.SELFTEST_PREFIX
+
     if (not CONFIG_SET(opt, 'NSS_WRAPPER') or
         not CONFIG_SET(opt, 'UID_WRAPPER') or
         not CONFIG_SET(opt, 'SOCKET_WRAPPER')):
@@ -120,15 +130,7 @@ def cmd_testonly(opt):
                     and not issubclass(type(val), types.MethodType):
                 os.environ['TESTENV_%s' % o.upper()] = str(getattr(Options.options, o, ''))
 
-
-    binary_mapping = ('nmblookup3:nmblookup,' +
-                      'nmblookup4:nmblookup4,' +
-                      'smbclient3:smbclient,' +
-                      'smbclient4:smbclient4,' +
-                      'smbtorture4:smbtorture,' + 
-                      'ntlm_auth3:ntlm_auth')
-
-    env.OPTIONS = '--binary-mapping=%s' % binary_mapping 
+    env.OPTIONS = ''
     if not Options.options.SLOWTEST:
         env.OPTIONS += ' --exclude=${srcdir}/selftest/slow'
     if Options.options.QUICKTEST:
@@ -196,15 +198,24 @@ def cmd_testonly(opt):
                      '--testlist="${PYTHON} ${srcdir}/source4/selftest/tests.py|"')
 
     if CONFIG_SET(opt, 'AD_DC_BUILD_IS_ENABLED'):
-        env.SELFTEST_TARGET="samba"
+        env.SELFTEST_TARGET = "samba"
     else:
-        env.SELFTEST_TARGET="samba3"
+        env.SELFTEST_TARGET = "samba3"
 
     env.OPTIONS += " --nss_wrapper_so_path=" + CONFIG_GET(opt, 'LIBNSS_WRAPPER_SO_PATH')
+    env.OPTIONS += " --resolv_wrapper_so_path=" + CONFIG_GET(opt, 'LIBRESOLV_WRAPPER_SO_PATH')
     env.OPTIONS += " --socket_wrapper_so_path=" + CONFIG_GET(opt, 'LIBSOCKET_WRAPPER_SO_PATH')
     env.OPTIONS += " --uid_wrapper_so_path=" + CONFIG_GET(opt, 'LIBUID_WRAPPER_SO_PATH')
 
-    # We use the full path rather than relative path because it cause problems on some plateforms (ie. solaris 8).
+    #if unversioned_sys_platform in ('freebsd', 'netbsd', 'openbsd', 'sunos'):
+    #    env.OPTIONS += " --use-dns-faking"
+
+    # FIXME REMOVE ME!
+    env.OPTIONS += " --use-dns-faking"
+
+
+    subunit_cache = None
+    # We use the full path rather than relative path to avoid problems on some platforms (ie. solaris 8).
     env.CORE_COMMAND = '${PERL} ${srcdir}/selftest/selftest.pl --target=${SELFTEST_TARGET} --prefix=${SELFTEST_PREFIX} --srcdir=${srcdir} --exclude=${srcdir}/selftest/skip ${TESTLISTS} ${OPTIONS} ${TESTS}'
     if Options.options.LIST:
         cmd = '${CORE_COMMAND} --list'
@@ -213,7 +224,8 @@ def cmd_testonly(opt):
         cmd = '(${CORE_COMMAND} && touch ${SELFTEST_PREFIX}/st_done) | ${FILTER_OPTIONS}'
         if (os.environ.get('RUN_FROM_BUILD_FARM') is None and
             not Options.options.FILTERED_SUBUNIT):
-            cmd += ' | tee ${SELFTEST_PREFIX}/subunit | ${FORMAT_TEST_OUTPUT}'
+            subunit_cache = os.path.join(env.SELFTEST_PREFIX, "subunit")
+            cmd += ' | tee %s | ${FORMAT_TEST_OUTPUT}' % subunit_cache
         else:
             cmd += ' | ${FILTER_OPTIONS}'
     runcmd = EXPAND_VARIABLES(opt, cmd)
@@ -221,9 +233,18 @@ def cmd_testonly(opt):
     print("test: running %s" % runcmd)
     ret = RUN_COMMAND(cmd, env=env)
 
-    if os.path.exists(".testrepository") and not Options.options.LIST:
-        testrcmd = 'testr load -q < ${SELFTEST_PREFIX}/subunit > /dev/null'
+    if (os.path.exists(".testrepository") and
+        not Options.options.LIST and
+        not Options.options.LOAD_LIST and
+        subunit_cache is not None):
+        testrcmd = 'testr load -q < %s > /dev/null' % subunit_cache
         runcmd = EXPAND_VARIABLES(opt, testrcmd)
+        RUN_COMMAND(runcmd, env=env)
+
+    if subunit_cache is not None:
+        nb = Options.options.NB_SLOWEST
+        cmd = "./script/show_testsuite_time %s %d" % (subunit_cache, nb)
+        runcmd = EXPAND_VARIABLES(opt, cmd)
         RUN_COMMAND(runcmd, env=env)
 
     if ret != 0:
@@ -243,8 +264,5 @@ def cmd_test(opt):
     # if running all tests, then force a symbol check
     env = LOAD_ENVIRONMENT()
     CHECK_MAKEFLAGS(env)
-    if not Options.options.TESTS and not Options.options.TESTENV:
-        Options.options.DUP_SYMBOLCHECK = True
-
     Scripting.commands.append('build')
     Scripting.commands.append('testonly')

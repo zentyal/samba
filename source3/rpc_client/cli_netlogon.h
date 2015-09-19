@@ -25,8 +25,10 @@
 
 struct cli_state;
 struct messaging_context;
+struct cli_credentials;
 struct netlogon_creds_cli_context;
 struct dcerpc_binding_handle;
+#include "librpc/rpc/rpc_common.h"
 
 /* The following definitions come from rpc_client/cli_netlogon.c  */
 
@@ -38,11 +40,22 @@ NTSTATUS rpccli_create_netlogon_creds(const char *server_computer,
 				      struct messaging_context *msg_ctx,
 				      TALLOC_CTX *mem_ctx,
 				      struct netlogon_creds_cli_context **netlogon_creds);
+NTSTATUS rpccli_create_netlogon_creds_with_creds(struct cli_credentials *creds,
+						 const char *server_computer,
+						 struct messaging_context *msg_ctx,
+						 TALLOC_CTX *mem_ctx,
+						 struct netlogon_creds_cli_context **netlogon_creds);
 NTSTATUS rpccli_setup_netlogon_creds(struct cli_state *cli,
+				     enum dcerpc_transport_t transport,
 				     struct netlogon_creds_cli_context *netlogon_creds,
 				     bool force_reauth,
 				     struct samr_Password current_nt_hash,
 				     const struct samr_Password *previous_nt_hash);
+NTSTATUS rpccli_setup_netlogon_creds_with_creds(struct cli_state *cli,
+						enum dcerpc_transport_t transport,
+						struct netlogon_creds_cli_context *netlogon_creds,
+						bool force_reauth,
+						struct cli_credentials *creds);
 NTSTATUS rpccli_netlogon_password_logon(struct netlogon_creds_cli_context *creds,
 					struct dcerpc_binding_handle *binding_handle,
 					TALLOC_CTX *mem_ctx,
@@ -60,7 +73,7 @@ NTSTATUS rpccli_netlogon_network_logon(struct netlogon_creds_cli_context *creds,
 				       const char *username,
 				       const char *domain,
 				       const char *workstation,
-				       const uint8 chal[8],
+				       const uint8_t chal[8],
 				       DATA_BLOB lm_response,
 				       DATA_BLOB nt_response,
 				       uint8_t *authoritative,

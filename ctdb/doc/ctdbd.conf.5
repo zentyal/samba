@@ -2,12 +2,12 @@
 .\"     Title: ctdbd.conf
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 04/15/2015
+.\"      Date: 09/08/2015
 .\"    Manual: CTDB - clustered TDB database
 .\"    Source: ctdb
 .\"  Language: English
 .\"
-.TH "CTDBD\&.CONF" "5" "04/15/2015" "ctdb" "CTDB \- clustered TDB database"
+.TH "CTDBD\&.CONF" "5" "09/08/2015" "ctdb" "CTDB \- clustered TDB database"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -126,7 +126,7 @@ Defaults to
 .PP
 CTDB_DEBUGLEVEL=\fIDEBUGLEVEL\fR
 .RS 4
-Default is ERR (0)\&. Corresponds to
+Default is NOTICE (2)\&. Corresponds to
 \fB\-d\fR
 or
 \fB\-\-debug\fR\&.
@@ -140,12 +140,43 @@ Default is
 \fB\-\-event\-script\-dir\fR\&.
 .RE
 .PP
-CTDB_LOGFILE=\fIFILENAME\fR
+CTDB_LOGGING=\fISTRING\fR
 .RS 4
-Defaults to
-/var/log/log\&.ctdb\&. Corresponds to
-\fB\-\-logfile\fR\&. See also
-CTDB_SYSLOG\&.
+STRING specifies where ctdbd will write its log\&. The default is file:/var/log/log\&.ctdb
+or similar \- the prefix may differ depending on how CTDB was built\&. Corresponds to
+\fB\-\-logging\fR\&.
+.sp
+Valid values are:
+.PP
+file:\fIFILENAME\fR
+.RS 4
+FILENAME where ctdbd will write its log\&. This is usually
+/var/log/log\&.ctdb\&.
+.RE
+.PP
+syslog[:\fIMETHOD\fR]
+.RS 4
+CTDB will log to syslog\&. By default this will use the syslog(3) API\&.
+.sp
+If METHOD is specified then it specifies an extension that causes logging to be done in a non\-blocking fashion\&. This can be useful under heavy loads that might cause the syslog daemon to dequeue messages too slowly, which would otherwise cause CTDB to block when logging\&. METHOD must be one of:
+.PP
+nonblocking
+.RS 4
+CTDB will log to syslog via
+/dev/log
+in non\-blocking mode\&.
+.RE
+.PP
+udp
+.RS 4
+CTDB will log to syslog via UDP to localhost:514\&. The syslog daemon must be configured to listen on (at least) localhost:514\&. Most implementations will log the messages against hostname "localhost" \- this is a limit of the implementation for compatibility with more syslog daemon implementations\&.
+.RE
+.PP
+udp\-rfc5424
+.RS 4
+As with "udp" but messages are sent in RFC5424 format\&. This method will log the correct hostname but is not as widely implemented in syslog daemons\&.
+.RE
+.RE
 .RE
 .PP
 CTDB_LVS_PUBLIC_IP=\fIIPADDR\fR
@@ -174,6 +205,17 @@ Default 0\&. Corresponds to
 \fB\-\-max\-persistent\-check\-errors\fR\&.
 .RE
 .PP
+CTDB_NODE_ADDRESS=\fIFILENAME\fR
+.RS 4
+IPADDR is the private IP address that ctdbd will bind to\&. Corresponds to
+\fB\-\-listen\fR\&.
+.sp
+By default ctdbd will select the first address from the nodes list that in can bind to\&. See also
+CTDB_NODES\&.
+.sp
+This option is only required when automatic address detection can not be used\&. This can be the case when running multiple ctdbd daemons/nodes on the same physical host (usually for testing), using InfiniBand for the private network or on Linux when sysctl net\&.ipv4\&.ip_nonlocal_bind=1\&.
+.RE
+.PP
 CTDB_PUBLIC_ADDRESSES=\fIFILENAME\fR
 .RS 4
 No default, usually
@@ -192,6 +234,11 @@ CTDB_RECOVERY_LOCK=\fIFILENAME\fR
 Defaults to
 /some/place/on/shared/storage, which should be change to a useful value\&. Corresponds to
 \fB\-\-reclock\fR\&.
+.sp
+For information about the recovery lock please see the
+RECOVERY LOCK
+section in
+\fBctdb\fR(7)\&.
 .RE
 .PP
 CTDB_SCRIPT_LOG_LEVEL=\fIDEBUGLEVEL\fR
@@ -222,12 +269,6 @@ CTDB_START_AS_STOPPED=yes|no
 .RS 4
 Default is no\&. Corresponds to
 \fB\-\-start\-as\-stopped\fR\&.
-.RE
-.PP
-CTDB_SYSLOG=yes|no
-.RS 4
-Default is no\&. Corresponds to
-\fB\-\-syslog\fR\&.
 .RE
 .PP
 CTDB_TRANSPORT=tcp|infiniband
@@ -555,22 +596,19 @@ Default is "winbind"\&.
 .RE
 .SS "NFS"
 .PP
-This includes parameters for the kernel NFS server and the user\-space
-\m[blue]\fBNFS\-Ganesha\fR\m[]\&\s-2\u[1]\d\s+2
-server\&.
+This includes parameters for the kernel NFS server\&. Alternative NFS subsystems (such as
+\m[blue]\fBNFS\-Ganesha\fR\m[]\&\s-2\u[1]\d\s+2) can be integrated using
+\fICTDB_NFS_CALLOUT\fR\&.
 .sp
 .it 1 an-trap
 .nr an-no-space-flag 1
 .nr an-break-flag 1
 .br
 .ps +1
-\fBEventscripts\fR
+\fBEventscript\fR
 .RS 4
 .RS 4
 60\&.nfs
-.RE
-.RS 4
-60\&.ganesha
 .RE
 .RE
 .PP
@@ -581,15 +619,6 @@ The type of cluster filesystem to use with NFS\-ganesha\&. Currently only "gpfs"
 Default is "gpfs"\&.
 .RE
 .PP
-CTDB_GANESHA_REC_SUBDIR\fISUBDIR\fR
-.RS 4
-SUBDIR is the name of a top\-level subdirectory in the first cluster filesystem\&. This subdirectory is used to allow communication between NFS\-Ganesha and the
-60\&.ganesha
-script\&.
-.sp
-Default is "\&.ganesha"\&.
-.RE
-.PP
 CTDB_MANAGES_NFS=yes|no
 .RS 4
 Should CTDB manage NFS?
@@ -597,43 +626,12 @@ Should CTDB manage NFS?
 Default is no\&.
 .RE
 .PP
-CTDB_MONITOR_NFS_THREAD_COUNT=yes|no
+CTDB_NFS_CALLOUT=\fICOMMAND\fR
 .RS 4
-Whether to monitor the NFS kernel server thread count\&.
+COMMAND specifies the path to a callout to handle interactions with the configured NFS system, including startup, shutdown, monitoring\&.
 .sp
-This works around a limitation in some NFS initscripts where some threads can be stuck in host filesystem calls (perhaps due to slow storage), a restart occurs, some threads don\*(Aqt exit, the start only adds the missing number of threads, the stuck threads exit, and the result is a lower than expected thread count\&. Note that if you must also set
-\fIRPCNFSDCOUNT\fR
-(RedHat/Debian) or
-\fIUSE_KERNEL_NFSD_NUMBER\fR
-(SUSE) in your NFS configuration so the monitoring code knows how many threads there should be \- if neither of these are set then this option will be ignored\&.
-.sp
-Default is no\&.
-.RE
-.PP
-CTDB_NFS_DUMP_STUCK_THREADS=\fINUM\fR
-.RS 4
-NUM is the number of NFS kernel server threads to dump stack traces for if some are still alive after stopping NFS during a restart\&.
-.sp
-Default is 5\&. Set this to 0 to disable this feature\&.
-.RE
-.PP
-CTDB_NFS_SERVER_MODE=kernel|ganesha
-.RS 4
-Selects which NFS server to be managed\&.
-.sp
-This replaces the deprecated variable
-\fINFS_SERVER_MODE\fR\&.
-.sp
-Default is "kernel"\&.
-.RE
-.PP
-CTDB_NFS_SKIP_KNFSD_ALIVE_CHECK=yes|no
-.RS 4
-During monitoring, should CTDB skip the
-\fBrpcinfo\fR
-check that is used to see if the NFS kernel server is functional\&.
-.sp
-Default is no\&.
+Default is the included
+\fBnfs\-linux\-kernel\-callout\fR\&.
 .RE
 .PP
 CTDB_NFS_SKIP_SHARE_CHECK=yes|no
@@ -649,16 +647,20 @@ IPADDR or HOSTNAME indicates the address that
 \fBrpcinfo\fR
 should connect to when doing
 \fBrpcinfo\fR
-check on RPC service during monitoring\&. Optimally this would be "localhost"\&. However, this can add some performance overheads\&.
+check on IPv4 RPC service during monitoring\&. Optimally this would be "localhost"\&. However, this can add some performance overheads\&.
 .sp
 Default is "127\&.0\&.0\&.1"\&.
 .RE
 .PP
-CTDB_SKIP_GANESHA_NFSD_CHECK=yes|no
+CTDB_RPCINFO_LOCALHOST6=\fIIPADDR\fR|\fIHOSTNAME\fR
 .RS 4
-As part of monitoring, should CTDB skip the check for the existence of each directory exported via NFS\-Ganesha\&. This may be desirable if there is a large number of exports\&.
+IPADDR or HOSTNAME indicates the address that
+\fBrpcinfo\fR
+should connect to when doing
+\fBrpcinfo\fR
+check on IPv6 RPC service during monitoring\&. Optimally this would be "localhost6" (or similar)\&. However, this can add some performance overheads\&.
 .sp
-Default is no\&.
+Default is "::1"\&.
 .RE
 .SS "APACHE HTTPD"
 .PP
@@ -919,10 +921,10 @@ No default\&. Messages go to stdout/stderr and are logged to the same place as o
 .PP
 CTDB_DEBUG_HUNG_SCRIPT_STACKPAT=\fIREGEXP\fR
 .RS 4
-REGEXP specifies interesting processes for which stack traces should be logged when debugging hung eventscripts and those processes are matched in pstree output\&. See also
+REGEXP specifies interesting processes for which stack traces should be logged when debugging hung eventscripts and those processes are matched in pstree output\&. REGEXP is an extended regexp so choices are separated by pipes (\*(Aq|\*(Aq)\&. However, REGEXP should not contain parentheses\&. See also
 CTDB_DEBUG_HUNG_SCRIPT\&.
 .sp
-Default is "exportfs\e|rpcinfo"\&.
+Default is "exportfs|rpcinfo"\&.
 .RE
 .PP
 CTDB_DEBUG_LOCKS=\fIFILENAME\fR
@@ -956,6 +958,13 @@ CTDB_MAX_CORRUPT_DB_BACKUPS=\fINUM\fR
 NUM is the maximum number of volatile TDB database backups to be kept (for each database) when a corrupt database is found during startup\&. Volatile TDBs are zeroed during startup so backups are needed to debug any corruption that occurs before a restart\&.
 .sp
 Default is 10\&.
+.RE
+.PP
+CTDB_MAX_OPEN_FILES=\fINUM\fR
+.RS 4
+NUM is the maximum number of open files\&.
+.sp
+There is no default\&.
 .RE
 .PP
 CTDB_RC_LOCAL=\fIFILENAME\fR

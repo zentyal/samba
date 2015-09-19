@@ -52,9 +52,10 @@
 	} \
 } while(0)
 
+#undef _STRUCT_NOOP
+#define _STRUCT_NOOP do {} while(0);
 #define DO_STRUCT_REQ_REP(op,req,rep) do { \
-	bool __noop = false; \
-	DO_STRUCT_REQ_REP_EXT(op,req,rep,NSS_STATUS_SUCCESS,true,__noop=true,NULL); \
+	DO_STRUCT_REQ_REP_EXT(op,req,rep,NSS_STATUS_SUCCESS,true, _STRUCT_NOOP, NULL); \
 } while (0)
 
 static bool torture_winbind_struct_interface_version(struct torture_context *torture)
@@ -284,11 +285,10 @@ static bool get_trusted_domains(struct torture_context *torture,
 	DO_STRUCT_REQ_REP(WINBINDD_LIST_TRUSTDOM, &req, &rep);
 
 	extra_data = (char *)rep.extra_data.data;
-	if (!extra_data) {
-		return true;
-	}
-
-	torture_assert(torture, extra_data, "NULL trust list");
+	torture_assert(torture, extra_data != NULL,
+		       "Trust list was NULL: the list of trusted domain "
+		       "should be returned, with at least 2 entries "
+		       "(BUILTIN, and the local domain)");
 
 	while (next_token(&extra_data, line, "\n", sizeof(line))) {
 		char *p, *lp;
@@ -323,7 +323,8 @@ static bool get_trusted_domains(struct torture_context *torture,
 	SAFE_FREE(rep.extra_data.data);
 
 	torture_assert(torture, dcount >= 2,
-		       "The list of trusted domain should contain 2 entries");
+		       "The list of trusted domain should contain 2 entries "
+		       "(BUILTIN, and the local domain)");
 
 	*_d = d;
 	return true;
@@ -428,22 +429,6 @@ static bool torture_winbind_struct_domain_info(struct torture_context *torture)
 
 		DO_STRUCT_REQ_REP(WINBINDD_DOMAIN_INFO, &req, &rep);
 
-		torture_assert_str_equal(torture,
-					 rep.data.domain_info.name,
-					 listd[i].netbios_name,
-					 "Netbios domain name doesn't match");
-
-		torture_assert_str_equal(torture,
-					 rep.data.domain_info.alt_name,
-					 listd[i].dns_name,
-					 "DNS domain name doesn't match");
-
-		sid = dom_sid_parse_talloc(torture, rep.data.domain_info.sid);
-		torture_assert(torture, sid, "Failed to parse SID");
-
-		ok = dom_sid_equal(listd[i].sid, sid);
-		torture_assert(torture, ok, "SID's doesn't match");
-
 		if (rep.data.domain_info.primary) {
 			flagstr = talloc_strdup_append(flagstr, "PR ");
 		}
@@ -462,10 +447,27 @@ static bool torture_winbind_struct_domain_info(struct torture_context *torture)
 			flagstr = talloc_strdup_append(flagstr, "NA ");
 		}
 
-		torture_comment(torture, "DOMAIN '%s' => '%s' [%s]\n",
+		torture_comment(torture, "DOMAIN '%s' => '%s' [%s] [%s]\n",
 				rep.data.domain_info.name,
 				rep.data.domain_info.alt_name,
-				flagstr);
+				flagstr,
+				rep.data.domain_info.sid);
+
+		sid = dom_sid_parse_talloc(torture, rep.data.domain_info.sid);
+		torture_assert(torture, sid, "Failed to parse SID");
+
+		ok = dom_sid_equal(listd[i].sid, sid);
+		torture_assert(torture, ok, "SID's doesn't match");
+
+		torture_assert_str_equal(torture,
+					 rep.data.domain_info.name,
+					 listd[i].netbios_name,
+					 "Netbios domain name doesn't match");
+
+		torture_assert_str_equal(torture,
+					 rep.data.domain_info.alt_name,
+					 listd[i].dns_name,
+					 "DNS domain name doesn't match");
 	}
 
 	return true;
@@ -852,9 +854,8 @@ static bool torture_winbind_struct_getpwent(struct torture_context *torture)
 	ZERO_STRUCT(rep);
 	req.data.num_entries = 1;
 	if (torture_setting_bool(torture, "samba3", false)) {
-		bool __noop = false;
 		DO_STRUCT_REQ_REP_EXT(WINBINDD_GETPWENT, &req, &rep,
-				      NSS_STATUS_SUCCESS, false, __noop=true,
+				      NSS_STATUS_SUCCESS, false, _STRUCT_NOOP,
 				      NULL);
 	} else {
 		DO_STRUCT_REQ_REP(WINBINDD_GETPWENT, &req, &rep);
@@ -895,7 +896,7 @@ static bool parse_domain_user(struct torture_context *torture,
 			      fstring user)
 {
 	char *p = strchr(domuser, winbind_separator(torture));
-	char *dom;
+	char *dom = NULL;
 
 	if (!p) {
 		/* Maybe it was a UPN? */
@@ -928,8 +929,8 @@ static bool lookup_name_sid_list(struct torture_context *torture, char **list)
 		char *sid;
 		char *name;
 		const char *domain_name = torture_setting_string(torture,
-						"winbindd_netbios_domain",
-						lpcfg_workgroup(torture->lp_ctx));
+						"winbindd_domain_without_prefix",
+						NULL);
 
 		ZERO_STRUCT(req);
 		ZERO_STRUCT(rep);
@@ -948,7 +949,9 @@ static bool lookup_name_sid_list(struct torture_context *torture, char **list)
 
 		DO_STRUCT_REQ_REP(WINBINDD_LOOKUPSID, &req, &rep);
 
-		if (strequal(rep.data.name.dom_name, domain_name)) {
+		if (domain_name != NULL &&
+		    strequal(rep.data.name.dom_name, domain_name))
+		{
 			name = talloc_asprintf(torture, "%s",
 					       rep.data.name.name);
 		} else {
@@ -973,7 +976,7 @@ static bool lookup_name_sid_list(struct torture_context *torture, char **list)
 	return true;
 }
 
-static bool name_is_in_list(const char *name, const char **list)
+static bool name_is_in_list(const char *name, char **list)
 {
 	uint32_t count;
 
@@ -990,7 +993,7 @@ static bool torture_winbind_struct_lookup_name_sid(struct torture_context *tortu
 	struct winbindd_request req;
 	struct winbindd_response rep;
 	const char *invalid_sid = "S-0-0-7";
-	char *domain;
+	char *domain = NULL;
 	const char *invalid_user = "noone";
 	char *invalid_name;
 	bool strict = torture_setting_bool(torture, "strict mode", false);
@@ -1037,8 +1040,8 @@ static bool torture_winbind_struct_lookup_name_sid(struct torture_context *tortu
 		invalid_name = talloc_asprintf(torture, "%s/%s%u",
 					       domain,
 					       invalid_user, count);
-	} while(name_is_in_list(invalid_name, (const char **)users) ||
-		name_is_in_list(invalid_name, (const char **)groups));
+	} while(name_is_in_list(invalid_name, users) ||
+		name_is_in_list(invalid_name, groups));
 
 	fstrcpy(req.data.name.dom_name, domain);
 	fstrcpy(req.data.name.name,

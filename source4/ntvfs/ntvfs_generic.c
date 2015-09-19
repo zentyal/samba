@@ -664,6 +664,22 @@ static NTSTATUS ntvfs_map_fsinfo_finish(struct ntvfs_module_context *ntvfs,
 		ZERO_STRUCT(fs->objectid_information.out.unknown);
 		return NT_STATUS_OK;
 
+	case RAW_QFS_SECTOR_SIZE_INFORMATION:
+		fs->sector_size_info.out.logical_bytes_per_sector
+						= fs2->generic.out.block_size;
+		fs->sector_size_info.out.phys_bytes_per_sector_atomic
+						= fs2->generic.out.block_size;
+		fs->sector_size_info.out.phys_bytes_per_sector_perf
+						= fs2->generic.out.block_size;
+		fs->sector_size_info.out.fs_effective_phys_bytes_per_sector_atomic
+						= fs2->generic.out.block_size;
+		fs->sector_size_info.out.flags
+					= QFS_SSINFO_FLAGS_ALIGNED_DEVICE
+				| QFS_SSINFO_FLAGS_PARTITION_ALIGNED_ON_DEVICE;
+		fs->sector_size_info.out.byte_off_sector_align = 0;
+		fs->sector_size_info.out.byte_off_partition_align = 0;
+		return NT_STATUS_OK;
+
 	case RAW_QFS_GENERIC:
 	case RAW_QFS_UNIX_INFO:
 		return NT_STATUS_INVALID_LEVEL;
@@ -908,8 +924,10 @@ NTSTATUS ntvfs_map_fileinfo(TALLOC_CTX *mem_ctx,
 		info->alignment_information.out.alignment_requirement =
 			info2->generic.out.alignment_requirement;
 		return NT_STATUS_OK;
-#if 0	
 	case RAW_FILEINFO_UNIX_BASIC:
+#if 1
+		return NT_STATUS_INVALID_LEVEL;
+#else
 		info->unix_basic_info.out.end_of_file = info2->generic.out.end_of_file;
 		info->unix_basic_info.out.num_bytes = info2->generic.out.size;
 		info->unix_basic_info.out.status_change_time = info2->generic.out.change_time;
@@ -924,8 +942,11 @@ NTSTATUS ntvfs_map_fileinfo(TALLOC_CTX *mem_ctx,
 		info->unix_basic_info.out.permissions = info2->generic.out.permissions;
 		info->unix_basic_info.out.nlink = info2->generic.out.nlink;
 		return NT_STATUS_OK;
-		
+#endif
 	case RAW_FILEINFO_UNIX_LINK:
+#if 1
+		return NT_STATUS_INVALID_LEVEL;
+#else
 		info->unix_link_info.out.link_dest = info2->generic.out.link_dest;
 		return NT_STATUS_OK;
 #endif

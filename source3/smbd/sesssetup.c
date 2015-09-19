@@ -42,7 +42,7 @@
  Add the standard 'Samba' signature to the end of the session setup.
 ****************************************************************************/
 
-static int push_signature(uint8 **outbuf)
+static int push_signature(uint8_t **outbuf)
 {
 	char *lanman;
 	int result, tmp;
@@ -119,7 +119,7 @@ static NTSTATUS check_guest_password(const struct tsocket_address *remote_addres
 
 static void reply_sesssetup_and_X_spnego(struct smb_request *req)
 {
-	const uint8 *p;
+	const uint8_t *p;
 	DATA_BLOB in_blob;
 	DATA_BLOB out_blob = data_blob_null;
 	size_t bufrem;
@@ -127,7 +127,7 @@ static void reply_sesssetup_and_X_spnego(struct smb_request *req)
 	const char *native_os;
 	const char *native_lanman;
 	const char *primary_domain;
-	uint16 data_blob_len = SVAL(req->vwv+7, 0);
+	uint16_t data_blob_len = SVAL(req->vwv+7, 0);
 	enum remote_arch_types ra_type = get_remote_arch();
 	uint64_t vuid = req->vuid;
 	NTSTATUS status = NT_STATUS_OK;
@@ -511,9 +511,10 @@ static int shutdown_other_smbds(struct smbXsrv_session_global0 *session,
 	struct server_id self_pid = messaging_server_id(state->msg_ctx);
 	struct server_id pid = session->channels[0].server_id;
 	const char *addr = session->channels[0].remote_address;
+	struct server_id_buf tmp;
 
 	DEBUG(10, ("shutdown_other_smbds: %s, %s\n",
-		   server_id_str(talloc_tos(), &pid), addr));
+		   server_id_str_buf(pid, &tmp), addr));
 
 	if (!process_exists(pid)) {
 		DEBUG(10, ("process does not exist\n"));
@@ -589,7 +590,7 @@ void reply_sesssetup_and_X(struct smb_request *req)
 	const char *primary_domain;
 	struct auth_usersupplied_info *user_info = NULL;
 	struct auth_session_info *session_info = NULL;
-	uint16 smb_flag2 = req->flags2;
+	uint16_t smb_flag2 = req->flags2;
 	uint16_t action = 0;
 	NTTIME now = timeval_to_nttime(&req->request_time);
 	struct smbXsrv_session *session = NULL;
@@ -651,7 +652,7 @@ void reply_sesssetup_and_X(struct smb_request *req)
 	smb_bufsize = SVAL(req->vwv+2, 0);
 
 	if (get_Protocol() < PROTOCOL_NT1) {
-		uint16 passlen1 = SVAL(req->vwv+7, 0);
+		uint16_t passlen1 = SVAL(req->vwv+7, 0);
 
 		/* Never do NT status codes with protocols before NT1 as we
 		 * don't get client caps. */
@@ -679,12 +680,12 @@ void reply_sesssetup_and_X(struct smb_request *req)
 		domain = "";
 
 	} else {
-		uint16 passlen1 = SVAL(req->vwv+7, 0);
-		uint16 passlen2 = SVAL(req->vwv+8, 0);
+		uint16_t passlen1 = SVAL(req->vwv+7, 0);
+		uint16_t passlen2 = SVAL(req->vwv+8, 0);
 		enum remote_arch_types ra_type = get_remote_arch();
 		const uint8_t *p = req->buf;
 		const uint8_t *save_p = req->buf;
-		uint16 byte_count;
+		uint16_t byte_count;
 
 		if (!xconn->smb1.sessions.done_sesssetup) {
 			global_client_caps = IVAL(req->vwv+11, 0);

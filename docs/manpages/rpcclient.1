@@ -2,12 +2,12 @@
 .\"     Title: rpcclient
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 04/15/2015
+.\"      Date: 09/08/2015
 .\"    Manual: User Commands
-.\"    Source: Samba 4.2
+.\"    Source: Samba 4.3
 .\"  Language: English
 .\"
-.TH "RPCCLIENT" "1" "04/15/2015" "Samba 4\&.2" "User Commands"
+.TH "RPCCLIENT" "1" "09/08/2015" "Samba 4\&.3" "User Commands"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -364,6 +364,26 @@ netshareenum
 Enumerate shares
 .RE
 .PP
+netshareenumall
+.RS 4
+Enumerate all shares
+.RE
+.PP
+netsharegetinfo
+.RS 4
+Get Share Info
+.RE
+.PP
+netsharesetinfo
+.RS 4
+Set Share Info
+.RE
+.PP
+netsharesetdfsflags
+.RS 4
+Set DFS flags
+.RE
+.PP
 netfileenum
 .RS 4
 Enumerate open files
@@ -372,6 +392,46 @@ Enumerate open files
 netremotetod
 .RS 4
 Fetch remote time of day
+.RE
+.PP
+netnamevalidate
+.RS 4
+Validate sharename
+.RE
+.PP
+netfilegetsec
+.RS 4
+Get File security
+.RE
+.PP
+netsessdel
+.RS 4
+Delete Session
+.RE
+.PP
+netsessenum
+.RS 4
+Enumerate Sessions
+.RE
+.PP
+netdiskenum
+.RS 4
+Enumerate Disks
+.RE
+.PP
+netconnenum
+.RS 4
+Enumerate Connections
+.RE
+.PP
+netshareadd
+.RS 4
+Add share
+.RE
+.PP
+netsharedel
+.RS 4
+Delete share
 .RE
 .SS "SAMR"
 .PP

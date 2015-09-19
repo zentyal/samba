@@ -1,442 +1,267 @@
                    =============================
-                   Release Notes for Samba 4.2.1
-                           April 15, 2015
+                   Release Notes for Samba 4.3.0
+                           September 8, 2015
                    =============================
 
 
-This is the latest stable release of Samba 4.2.
-
-
-Changes since 4.2.0:
---------------------
-
-o   Michael Adam <obnox@samba.org>
-    * BUG 8905: s3:winbind:grent: Don't stop group enumeration when a group has
-      no gid.
-    * BUG 10476: build:wafadmin: Fix use of spaces instead of tabs.
-    * BUG 11143: s3-winbind: Fix cached user group lookup of trusted domains.
-
-
-o   Jeremy Allison <jra@samba.org>
-    * BUG 10016: s3: lib: ntlmssp: If NTLMSSP_NEGOTIATE_TARGET_INFO isn't set,
-      cope with servers that don't send the 2 unused fields.
-    * BUG 10888: s3: client: "client use spnego principal = yes" code checks
-      wrong name.
-    * BUG 11079: s3: lib: libsmbclient: If reusing a server struct, check every
-      cli->timout miliseconds if it's still valid before use.
-    * BUG 11173: s3: libcli: smb1: Ensure we correctly finish a tevent req if
-      the writev fails in the SMB1 case.
-    * BUG 11175: Fix lots of winbindd zombie processes on Solaris platform.
-    * BUG 11177: s3: libsmbclient: Add missing talloc stackframe.
-
-
-o   Andrew Bartlett <abartlet@samba.org>
-    * BUG 11135: backupkey: Explicitly link to gnutls and gcrypt.
-    * BUG 11174: backupkey: Use ndr_pull_struct_blob_all().
-
-
-o   Ralph Boehme <slow@samba.org>
-    * BUG 11125: vfs_fruit: Enhance handling of malformed AppleDouble files.
-
-
-o   Samuel Cabrero <samuelcabrero@kernevil.me>
-    * BUG 9791: Initialize dwFlags field of DNS_RPC_NODE structure.
-
-
-o   David Disseldorp <ddiss@samba.org>
-    * BUG 11169: docs/idmap_rid: Remove deprecated base_rid from example.
-
-
-o   Volker Lendecke <vl@samba.org>
-    * BUG 10476: waf: Fix the build on openbsd.
-
-
-o   Stefan Metzmacher <metze@samba.org>
-    * BUG 11144: talloc: Version 2.1.2.
-    * BUG 11164: s4:auth/gensec_gssapi: Let gensec_gssapi_update() return
-      NT_STATUS_LOGON_FAILURE for unknown errors.
-
-
-o   Matthew Newton <matthew-git@newtoncomputing.co.uk>
-    * BUG 11149: Update libwbclient version to 0.12.
-
-
-o   Andreas Schneider <asn@samba.org>
-    * BUG 11018: spoolss: Retrieve published printer GUID if not in registry.
-    * BUG 11135: replace: Remove superfluous check for gcrypt header.
-    * BUG 11180: s4-process_model: Do not close random fds while forking.
-    * BUG 11185: s3-passdb: Fix 'force user' with winbind default domain.
-
-
-o   Christof Schmitt <cs@samba.org>
-    * BUG 11153: brlock: Use 0 instead of empty initializer list.
-
-
-o   Thomas Schulz <schulz@adi.com>
-    * BUG 11092: lib: texpect: Fix the build on Solaris.
-    * BUG 11140: libcli/auth: Match Declaration of
-      netlogon_creds_cli_context_tmp with implementation.
-
-
-o   Jelmer Vernooij <jelmer@samba.org>
-    * BUG 11137: Backport subunit changes.
-
-
-#######################################
-Reporting bugs & Development Discussion
-#######################################
-
-Please discuss this release on the samba-technical mailing list or by
-joining the #samba-technical IRC channel on irc.freenode.net.
-
-If you do report problems then please try to send high quality
-feedback. If you don't provide vital information to help us track down
-the problem then you will probably be ignored.  All bug reports should
-be filed under the Samba 4.2 product in the project's Bugzilla
-database (https://bugzilla.samba.org/).
-
-
-======================================================================
-== Our Code, Our Bugs, Our Responsibility.
-== The Samba Team
-======================================================================
-
-
-Release notes for older releases follow:
-----------------------------------------
-
-======================================================================
-
-
-                   =============================
-                   Release Notes for Samba 4.2.0
-                           March 04, 2015
-                   =============================
-
-
-This is is the first stable release of Samba 4.2.
-
-Samba 4.2 will be the next version of the Samba suite.
-
-
-Samba User Survey 2015
-======================
-
-https://www.surveygizmo.com/s3/2020369/Samba-User-Survey-2015
-
-Please take our survey. It will help us improve Samba by understanding
-your knowledge and needs. The survey runs until end of March 2015 and
-won't ask for any personal info. The full results will be shared with
-the Samba Team, and statistical summaries will be shared with the
-Samba community after the SambaXP conference (http://sambaxp.org).
-
-
-IMPORTANT NOTE ABOUT THE SUPPORT END OF SAMBA 3
-=================================================
-
-With the final release of Samba 4.2, the last series of Samba 3 has
-been discontinued! People still running 3.6.x or earlier,should
-consider moving to a more recent and maintained version (4.0 - 4.2).
-One of the common misconceptions is that Samba 4.x automatically
-means "Active Directory only": This is wrong!
-
-Acting as an Active Directory Domain Controller is just one of the
-enhancements included in Samba 4.0 and later. Version 4.0 was just the
-next release after the 3.6 series and contains all the features of the
-previous ones - including the NT4-style (classic) domain support. This
-means you can update a Samba 3.x NT4-style PDC to 4.x, just as you've
-updated in the past (e.g. from 3.4.x to 3.5.x). You don't have to move
-your NT4-style domain to an Active Directory!
-
-And of course the possibility remains unchanged, to setup a new NT4-style
-PDC with Samba 4.x, like done in the past (e.g. with openLDAP backend).
-Active Directory support in Samba 4 is additional and does not replace
-any of these features. We do understand the difficulty presented by
-existing LDAP structures and for that reason there isn't a plan to
-decommission the classic PDC support. It remains tested by the continuous
-integration system.
-
-The code that supports the classic Domain Controller is also the same
-code that supports the internal 'Domain' of standalone servers and
-Domain Member Servers. This means that we still use this code, even
-when not acting as an AD Domain Controller. It is also the basis for
-some of the features of FreeIPA and so it gets development attention
-from that direction as well.
+This is the first stable release of Samba 4.3.
 
 
 UPGRADING
 =========
 
-Read the "Winbindd/Netlogon improvements" section (below) carefully!
+Read the "New FileChangeNotify subsystem" and "smb.conf changes" sections
+(below).
 
 
 NEW FEATURES
 ============
 
-Transparent File Compression
-============================
-
-Samba 4.2.0 adds support for the manipulation of file and folder
-compression flags on the Btrfs filesystem.
-With the Btrfs Samba VFS module enabled, SMB2+ compression flags can
-be set remotely from the Windows Explorer File->Properties->Advanced
-dialog. Files flagged for compression are transparently compressed
-and uncompressed when accessed or modified.
-
-Previous File Versions with Snapper
-===================================
+Logging
+-------
+
+The logging code now supports logging to multiple backends.  In
+addition to the previously available syslog and file backends, the
+backends for logging to the systemd-journal, lttng and gpfs have been
+added. Please consult the section for the 'logging' parameter in the
+smb.conf manpage for details.
 
-The newly added Snapper VFS module exposes snapshots managed by
-Snapper for use by Samba. This provides the ability for remote
-clients to access shadow-copies via Windows Explorer using the
-"previous versions" dialog.
+Spotlight
+---------
 
-Winbindd/Netlogon improvements
-==============================
+Support for Apple's Spotlight has been added by integrating with Gnome
+Tracker.
 
-The whole concept of maintaining the netlogon secure channel
-to (other) domain controllers was rewritten in order to maintain
-global state in a netlogon_creds_cli.tdb. This is the proper fix
-for a large number of bugs:
+For detailed instructions how to build and setup Samba for Spotlight,
+please see the Samba wiki: <https://wiki.samba.org/index.php/Spotlight>
 
-  https://bugzilla.samba.org/show_bug.cgi?id=6563
-  https://bugzilla.samba.org/show_bug.cgi?id=7944
-  https://bugzilla.samba.org/show_bug.cgi?id=7945
-  https://bugzilla.samba.org/show_bug.cgi?id=7568
-  https://bugzilla.samba.org/show_bug.cgi?id=8599
+New FileChangeNotify subsystem
+------------------------------
 
-In addition a strong session key is now required by default,
-which means that communication to older servers or clients
-might be rejected by default.
+Samba now contains a new subsystem to do FileChangeNotify. The
+previous system used a central database, notify_index.tdb, to store
+all notification requests. In particular in a cluster this turned out
+to be a major bottleneck, because some hot records need to be bounced
+back and forth between nodes on every change event like a new created
+file.
 
-For the client side we have the following new options:
-"require strong key" (yes by default), "reject md5 servers" (no by default).
-E.g. for Samba 3.0.37 you need "require strong key = no" and
-for NT4 DCs you need "require strong key = no" and "client NTLMv2 auth = no",
-
-On the server side (as domain controller) we have the following new options:
-"allow nt4 crypto" (no by default), "reject md5 client" (no by default).
-E.g. in order to allow Samba < 3.0.27 or NT4 members to work
-you need "allow nt4 crypto = yes"
-
-winbindd does not list group memberships for display purposes
-(e.g. getent group <domain\<group>) anymore by default.
-The new default is "winbind expand groups = 0" now,
-the reason for this is the same as for "winbind enum users = no"
-and "winbind enum groups = no". Providing this information is not always
-reliably possible, e.g. if there are trusted domains.
-
-Please consult the smb.conf manpage for more details on these new options.
-
-Winbindd use on the Samba AD DC
-===============================
-
-Winbindd is now used on the Samba AD DC by default, replacing the
-partial rewrite used for winbind operations in Samba 4.0 and 4.1.
-
-This allows more code to be shared, more options to be honoured, and
-paves the way for support for trusted domains in the AD DC.
-
-If required the old internal winbind can be activated by setting
-'server services = +winbind -winbindd'.  Upgrading users with a server
-services parameter specified should ensure they change 'winbind' to
-'winbindd' to obtain the new functionality.
-
-The 'samba' binary still manages the starting of this service, there
-is no need to start the winbindd binary manually.
-
-Winbind now requires secured connections
-========================================
-
-To improve protection against rogue domain controllers we now require
-that when we connect to an AD DC in our forest, that the connection be
-signed using SMB Signing.  Set 'client signing = off' in the smb.conf
-to disable.
-
-Also and DCE/RPC pipes must be sealed, set 'require strong key =
-false' and 'winbind sealed pipes = false' to disable.
-
-Finally, the default for 'client ldap sasl wrapping' has been set to
-'sign', to ensure the integrity of LDAP connections.  Set 'client ldap
-sasl wrapping = plain' to disable.
-
-Larger IO sizes for SMB2/3 by default
-=====================================
-
-The default values for "smb2 max read", "smb2 max write" and "smb2 max trans"
-have been changed to 8388608 (8MiB) in order to match the default of
-Windows 2012R2.
-
-SMB2 leases
-===========
-
-The SMB2 protocol allows clients to aggressively cache files
-locally above and beyond the caching allowed by SMB1 and SMB2 oplocks.
-
-Called SMB2 leases, this can greatly reduce traffic on an SMB2
-connection. Samba 4.2 now implements SMB2 leases.
-
-It can be turned on by setting the parameter "smb2 leases = yes"
-in the [global] section of your smb.conf. This parameter is set
-to off by default until the SMB2 leasing code is declared fully stable.
-
-Improved DCERPC man in the middle detection
-===========================================
-
-The DCERPC header signing has been implemented
-in addition to the dcerpc_sec_verification_trailer
-protection.
-
-Overhauled "net idmap" command
-==============================
-
-The command line interface of the "net idmap" command has been
-made systematic, and subcommands for reading and writing the autorid idmap
-database have been added. Note that the writing commands should be
-used with great care. See the net(8) manual page for details.
-
-tdb improvements
-================
-
-The tdb library, our core mechanism to store Samba-specific data on disk and
-share it between processes, has been improved to support process shared robust
-mutexes on Linux. These mutexes are available on Linux and Solaris and
-significantly reduce the overhead involved with tdb. To enable mutexes for
-tdb, set
-
-dbwrap_tdb_mutexes:* = yes
-
-in the [global] section of your smb.conf.
-
-Tdb file space management has also been made more efficient. This
-will lead to smaller and less fragmented databases.
-
-Messaging improvements
-======================
-
-Our internal messaging subsystem, used for example for things like oplock
-break messages between smbds or setting a process debug level dynamically, has
-been rewritten to use unix domain datagram messages.
-
-Clustering support
-==================
-
-Samba's file server clustering component CTDB is now integrated in the
-Samba tree.  This avoids the confusion of compatibility of Samba and CTDB
-versions as existed previously.
-
-To build the Samba file server with cluster support, use the configure
-command line option --with-cluster-support.  This will build clustered
-file server against the in-tree CTDB and will also build CTDB.
-Building clustered samba with previous versions of CTDB is no longer
-supported.
-
-Samba Registry Editor
-=====================
-
-The utitlity to browse the samba registry has been overhauled by our Google
-Summer of Code student Chris Davis. Now samba-regedit has a
-Midnight-Commander-like theme and UI experience. You can browse keys and edit
-the diffent value types. For a data value type a hexeditor has been
-implemented.
-
-Bad Password Lockout in the AD DC
-=================================
-
-Samba's AD DC now implements bad password lockout (on a per-DC basis).
-
-That is, incorrect password attempts are tracked, and accounts locked
-out if too many bad passwords are submitted.  There is also a grace
-period of 60 minutes on the previous password when used for NTLM
-authentication (matching Windows 2003 SP1: https://support2.microsoft.com/kb/906305).
-
-The relevant settings can be seen using 'samba-tool domain
-passwordsettings show' (the new settings being highlighted):
-
-Password informations for domain 'DC=samba,DC=example,DC=com'
-
-Password complexity: on
-Store plaintext passwords: off
-Password history length: 24
-Minimum password length: 7
-Minimum password age (days): 1
-Maximum password age (days): 42
-* Account lockout duration (mins): 30     *
-* Account lockout threshold (attempts): 0 *
-* Reset account lockout after (mins): 30  *
-
-These values can be set using 'samba-tool domain passwordsettings set'.
-
-Correct defaults in the smb.conf manpages
-=========================================
-
-The default values for smb.conf parameters are now correctly specified
-in the smb.conf manpage, even when they refer to build-time specified
-paths.  Provided Samba is built on a system with the right tools
-(xsltproc in particular) required to generate our man pages, then
-these will be built with the exact same embedded paths as used by the
-configuration parser at runtime.  Additionally, the default values
-read from the smb.conf manpage are checked by our test suite to match
-the values seen in testparm and used by the running binaries.
-
-Consistent behaviour between samba-tool testparm and testparm
-=============================================================
-
-With the exception of the registry backend, which remains only
-available in the file server, the behaviour of the smb.conf parser and
-the tools 'samba-tool testparm' and 'testparm' is now consistent,
-particularly with regard to default values.  Except with regard to
-registry shares, it is no longer needed to use one tool on the AD
-DC, and another on the file server.
-
-VFS WORM module
-===============
-
-A VFS module for basic WORM (Write once read many) support has been
-added. It allows an additional layer on top of a Samba share, that provides
-a basic set of WORM functionality on the client side, to control the
-writeability of files and folders.
-
-As the module is simply an additional layer, share access and permissions
-work like expected - only WORM functionality is added on top. Removing the
-module from the share configuration, removes this layer again. The
-filesystem ACLs are not affected in any way from the module and treated
-as usual.
-
-The module does not provide complete WORM functions, like some archiving
-products do! It is not audit-proof, because the WORM function is only
-available on the client side, when accessing a share through SMB! If
-the same folder is shared by other services like NFS, the access only
-depends on the underlying filesystem ACLs. Equally if you access the
-content directly on the server.
-
-For additional information, see
-https://wiki.samba.org/index.php/VFS/vfs_worm
-
-vfs_fruit, a VFS module for OS X clients
-========================================
-
-A new VFS module that provides enhanced compatibility with Apple SMB
-clients and interoperability with a Netatalk 3 AFP fileserver.
-
-The module features enhanced performance with reliable named streams
-support, interoperability with special characters commonly used by OS
-X client (eg '*', '/'), integrated file locking and Mac metadata
-access with Netatalk 3 and enhanced performance by implementing
-Apple's SMB2 extension codenamed "AAPL".
-
-The modules behaviour is fully configurable, please refer to the
-manpage vfs_fruit for further details.
-
-smbclient archival improvements
-===============================
-
-Archive creation and extraction support in smbclient has been rewritten
-to use libarchive. This fixes a number of outstanding bugs in Samba's
-previous custom tar implementation and also adds support for the
-extraction of zipped archives.
-smbclient archive support can be enabled or disabled at build time with
-corresponding --with[out]-libarchive configure parameters.
+The new FileChangeNotify subsystem works with a central daemon per
+node. Every FileChangeNotify request and every event are handled by an
+asynchronous message from smbd to the notify daemon. The notify daemon
+maintains a database of all FileChangeNotify requests in memory and
+will distribute the notify events accordingly. This database is
+asynchronously distributed in the cluster by the notify daemons.
+
+The notify daemon is supposed to scale a lot better than the previous
+implementation. The functional advantage is cross-node kernel change
+notify: Files created via NFS will be seen by SMB clients on other
+nodes per FileChangeNotify, despite the fact that popular cluster file
+systems do not offer cross-node inotify.
+
+Two changes to the configuration were required for this new subsystem:
+The parameters "change notify" and "kernel change notify" are not
+per-share anymore but must be set globally. So it is no longer
+possible to enable or disable notify per share, the notify daemon has
+no notion of a share, it only works on absolute paths.
+
+New SMB profiling code
+----------------------
+
+The code for SMB (SMB1, SMB2 and SMB3) profiling uses a tdb instead
+of sysv IPC shared memory. This avoids performance problems and NUMA
+effects. The profile stats are a bit more detailed than before.
+
+Improved DCERPC man in the middle detection for kerberos
+--------------------------------------------------------
+
+The gssapi based kerberos backends for gensec have support for
+DCERPC header signing when using DCERPC_AUTH_LEVEL_PRIVACY.
+
+SMB signing required in winbindd by default
+-------------------------------------------
+
+The effective value for "client signing" is required
+by default for winbindd, if the primary domain uses active directory.
+
+Experimental NTDB was removed
+-----------------------------
+
+The experimental NTDB library introduced in Samba 4.0 has been
+removed again.
+
+Improved support for trusted domains (as AD DC)
+-----------------------------------------------
+
+The support for trusted domains/forests has improved a lot.
+
+samba-tool got "domain trust" subcommands to manage trusts:
+
+  create      - Create a domain or forest trust.
+  delete      - Delete a domain trust.
+  list        - List domain trusts.
+  namespaces  - Manage forest trust namespaces.
+  show        - Show trusted domain details.
+  validate    - Validate a domain trust.
+
+External trusts between individual domains work in both ways
+(inbound and outbound). The same applies to root domains of
+a forest trust. The transitive routing into the other forest
+is fully functional for kerberos, but not yet supported for NTLMSSP.
+
+While a lot of things are working fine, there are currently a few limitations:
+
+  - Both sides of the trust need to fully trust each other!
+  - No SID filtering rules are applied at all!
+  - This means DCs of domain A can grant domain admin rights
+    in domain B.
+  - It's not possible to add users/groups of a trusted domain
+    into domain groups.
+
+SMB 3.1.1 supported
+-------------------
+
+Both client and server have support for SMB 3.1.1 now.
+
+This is the dialect introduced with Windows 10, it improves the secure
+negotiation of SMB dialects and features.
+
+There's also a new optinal encryption algorithm aes-gcm-128,
+but for now this is only selected as fallback and aes-ccm-128
+is preferred because of the better performance. This might change
+in future versions when hardware encryption will be supported.
+See https://bugzilla.samba.org/show_bug.cgi?id=11451.
+
+New smbclient subcommands
+-------------------------
+
+  - Query a directory for change notifications: notify <dir name>
+  - Server side copy: scopy <source filename> <destination filename>
+
+New rpcclient subcommands
+-------------------------
+
+  netshareenumall 	- Enumerate all shares
+  netsharegetinfo 	- Get Share Info
+  netsharesetinfo 	- Set Share Info
+  netsharesetdfsflags	- Set DFS flags
+  netfileenum		- Enumerate open files
+  netnamevalidate	- Validate sharename
+  netfilegetsec		- Get File security
+  netsessdel		- Delete Session
+  netsessenum		- Enumerate Sessions
+  netdiskenum		- Enumerate Disks
+  netconnenum		- Enumerate Connections
+  netshareadd		- Add share
+  netsharedel		- Delete share
+
+New modules
+-----------
+
+  idmap_script 		- see 'man 8 idmap_script'
+  vfs_unityed_media	- see 'man 8 vfs_unityed_media'
+  vfs_shell_snap	- see 'man 8 vfs_shell_snap'
+
+New sparsely connected replia graph (Improved KCC)
+--------------------------------------------------
+
+The Knowledge Consistency Checker (KCC) maintains a replication graph
+for DCs across an AD network. The existing Samba KCC uses a fully
+connected graph, so that each DC replicates from all the others, which
+does not scale well with large networks. In 4.3 there is an
+experimental new KCC that creates a sparsely connected replication
+graph and closely follows Microsoft's specification. It is turned off
+by default. To use the new KCC, set "kccsrv:samba_kcc=true" in
+smb.conf and let us know how it goes. You should consider doing this
+if you are making a large new network. For small networks there is
+little benefit and you can always switch over at a later date.
+
+Configurable TLS protocol support, with better defaults
+-------------------------------------------------------
+
+The "tls priority" option can be used to change the supported TLS
+protocols. The default is to disable SSLv3, which is no longer
+considered secure.
+
+Samba-tool now supports all 7 FSMO roles
+-------------------------------------------------------
+
+Previously "samba-tool fsmo" could only show, transfer or seize the
+five well-known FSMO roles:
+
+	Schema Master
+	Domain Naming Master
+	RID Master
+	PDC Emulator
+	Infrastructure Master
+
+It can now also show, transfer or seize the DNS infrastructure roles:
+
+	DomainDnsZones Infrastructure Master
+	ForestDnsZones Infrastructure Master
+
+CTDB logging changes
+--------------------
+
+The destination for CTDB logging is now set via a single new
+configuration variable CTDB_LOGGING.  This replaces CTDB_LOGFILE and
+CTDB_SYSLOG, which have both been removed.  See ctdbd.conf(5) for
+details of CTDB_LOGGING.
+
+CTDB no longer runs a separate logging daemon.
+
+CTDB NFS support changes
+------------------------
+
+CTDB's NFS service management has been combined into a single 60.nfs
+event script.  This updated 60.nfs script now uses a call-out to
+interact with different NFS implementations.  See the CTDB_NFS_CALLOUT
+option in the ctdbd.conf(5) manual page for details.  A default
+call-out is provided to interact with the Linux kernel NFS
+implementation.  The 60.ganesha event script has been removed - a
+sample call-out is provided for NFS Ganesha, based on this script.
+
+The method of configuring NFS RPC checks has been improved.  See
+ctdb/config/nfs-checks.d/README for details.
+
+Improved Cross-Compiling Support
+--------------------------------
+
+A new "hybrid" build configuration mode is added to improve
+cross-compilation support.
+
+A common challenge in cross-compilation is that of obtaining the results
+of tests that have to run on the target, during the configuration
+phase of the build. The Samba build system already supports the following
+means to do so:
+
+  - Executing configure tests using the --cross-execute parameter
+  - Obtaining the results from an answers file using the --cross-answers
+    parameter
+
+The first method has the drawback of inaccurate results if the tests are
+run using an emulator, or a need to be connected to a running target
+while building, if the tests are to be run on an actual target. The
+second method presents a challenge of figuring out the test results.
+
+The new hybrid mode runs the tests and records the result in an answer file.
+To activate this mode, use both --cross-execute and --cross-answers in the
+same configure invocation. This mode can be activated once against a
+running target, and then the generated answers file can be used in
+subsequent builds.
+
+Also supplied is an example script that can be used as the
+cross-execute program. This script copies the test to a running target
+and runs the test on the target, obtaining the result. The obtained
+results are more accurate than running the test with an emulator, because
+they reflect the exact kernel and system libraries that exist on the
+target.
+
+Improved Sparse File Support
+----------------------------
+Support for the FSCTL_SET_ZERO_DATA and FSCTL_QUERY_ALLOCATED_RANGES
+SMB2 requests has been added to the smbd file server.
+This allows for clients to deallocate (hole punch) regions within a
+sparse file, and check which portions of a file are allocated.
 
 
 ######################################################################
@@ -446,336 +271,124 @@ Changes
 smb.conf changes
 ----------------
 
-   Parameter Name			Description	Default
-   --------------			-----------	-------
+  Parameter Name		Description		Default
+  --------------		-----------		-------
+  logging			New			(empty)
+  msdfs shuffle referrals	New			no
+  smbd profiling level		New			off
+  spotlight			New			no
+  tls priority			New 			NORMAL:-VERS-SSL3.0
+  use ntdb			Removed
+  change notify			Changed to [global]
+  kernel change notify		Changed to [global]
+  client max protocol		Changed	default		SMB3_11
+  server max protocol		Changed default		SMB3_11
 
-   allow nt4 crypto                     New             no
-   neutralize nt4 emulation             New             no
-   reject md5 client                    New             no
-   reject md5 servers                   New             no
-   require strong key                   New             yes
-   smb2 max read                        Changed default 8388608
-   smb2 max write                       Changed default 8388608
-   smb2 max trans                       Changed default 8388608
-   winbind expand groups                Changed default 0
+Removed modules
+---------------
 
-
-CHANGES SINCE 4.2.0rc5
-======================
-
-o   Michael Adam <obnox@samba.org>
-    * BUG 11117: doc:man:vfs_glusterfs: improve the configuration section.
+vfs_notify_fam - see section 'New FileChangeNotify subsystem'.
 
 
-o   Jeremy Allison <jra@samba.org>
-    * BUG 11118: tevent: Ignore unexpected signal events in the same way the
-      epoll backend does.
+KNOWN ISSUES
+============
 
-
-o   Andrew Bartlett <abartlet@samba.org>
-    * BUG 11100: debug: Set close-on-exec for the main log file FD.
-    * BUG 11097: Fix Win8.1 Credentials Manager issue after KB2992611 on Samba
-      domain.
-
-
-o   Ira Cooper <ira@samba.org>
-    * BUG 1115: smbd: Stop using vfs_Chdir after SMB_VFS_DISCONNECT.
-
-
-o   Günther Deschner <gd@samba.org>
-    * BUG 11088: vfs: Add a brief vfs_ceph manpage.
-
-
-o   David Disseldorp <ddiss@samba.org>
-    * BUG 11118: tevent: version 0.9.24.
-
-
-o   Amitay Isaacs <amitay@gmail.com>
-    * BUG 11124: ctdb-io: Do not use sys_write to write to client sockets.
-
-
-o   Volker Lendecke <vl@samba.org>
-    * BUG 11119: snprintf: Try to support %j.
-
-
-o   Garming Sam <garming@catalyst.net.nz>
-    * BUG 11097: Fix Win8.1 Credentials Manager issue after KB2992611 on Samba
-      domain.
-
-
-o   Andreas Schneider <asn@samba.org>
-    * BUG 11127: doc-xml: Add 'sharesec' reference to 'access based share
-      enum'.
+Currently none.
 
 
 CHANGES SINCE 4.2.0rc4
 ======================
 
-o   Michael Adam <obnox@samba.org>
-    * BUG 11032: Enable mutexes in gencache_notrans.tdb.
-    * BUG 11058: cli_connect_nb_send: Don't segfault on host == NULL.
+o   Andrew Bartlett <abartlet@samba.org>
+    * Bug 10973: No objectClass found in replPropertyMetaData on ordinary
+      objects (non-deleted)
+    * Bug 11429: Python bindings don't check integer types
+    * Bug 11430: Python bindings don't check array sizes
 
-
-o   Jeremy Allison <jra@samba.org>
-    * BUG 10849: s3: lib, s3: modules: Fix compilation on Solaris.
-    * BUG 11044: Fix authentication using Kerberos (not AD).
-    * BUG 11077: CVE-2015-0240: s3: netlogon: Ensure we don't call talloc_free
-      on an uninitialized pointer.
-    * BUG 11094: s3: smbclient: Allinfo leaves the file handle open.
-    * BUG 11102: s3: smbd: leases - losen paranoia check. Stat opens can grant
-      leases.
-    * BUG 11104: s3: smbd: SMB2 close. If a file has delete on close, store the
-      return info before deleting.
-
-
-o   Ira Cooper <ira@samba.org>
-    * BUG 11069: vfs_glusterfs: Add comments to the pipe(2) code.
-
-
-o   Günther Deschner <gd@samba.org>
-    * BUG 11070: s3-vfs: Fix developer build of vfs_ceph module.
-
-
-o   David Disseldorp <ddiss@samba.org>
-    * BUG 10808: printing/cups: Pack requested-attributes with IPP_TAG_KEYWORD.
-    * BUG 11055: vfs_snapper: Correctly handles multi-byte DBus strings.
-    * BUG 11059: libsmb: Provide authinfo domain for encrypted session
-      referrals.
-
-
-o   Poornima G <pgurusid@redhat.com>
-    * BUG 11069: vfs_glusterfs: Implement AIO support.
-
+o   Ralph Boehme <slow@samba.org>
+    * Bug 11467: Handling of 0 byte resource fork stream
 
 o   Volker Lendecke <vl@samba.org>
-    * BUG 11032: Enable mutexes in gencache_notrans.tdb.
-
+    * Bug 11488: AD samr GetGroupsForUser fails for users with "()" in
+      their name
 
 o   Stefan Metzmacher <metze@samba.org>
-    * BUG 9299: nsswitch: Fix soname of linux nss_*.so.2 modules.
-    * BUG 9702: s3:smb2_server: protect against integer wrap with "smb2 max
-      credits = 65535".
-    * BUG 9810: Make validate_ldb of String(Generalized-Time) accept
-      millisecond format ".000Z".
-    * BUG 10112: Use -R linker flag on Solaris, not -rpath.
+    * Bug 11429: Python bindings don't check integer types
 
-
-o   Marc Muehlfeld <mmuehlfeld@samba.org>
-    * BUG 10909: samba-tool: Create NIS enabled users and unixHomeDirectory
-      attribute.
-
-
-o   Garming Sam <garming@catalyst.net.nz>
-    * BUG 11022: Make Sharepoint search show user documents.
-
-
-o   Christof Schmitt <cs@samba.org>
-    * BUG 11032: Enable mutexes in gencache_notrans.tdb.
-
-
-o   Andreas Schneider <asn@samba.org>
-    * BUG 11058: utils: Fix 'net time' segfault.
-    * BUG 11066: s3-pam_smbpass: Fix memory leak in pam_sm_authenticate().
-    * BUG 11077: CVE-2015-0240: s3-netlogon: Make sure we do not deference a
-      NULL pointer.
-
-
-o   Raghavendra Talur <raghavendra.talur@gmail.com>
-    * BUG 11069: vfs/glusterfs: Change xattr key to match gluster key.
+o   Matthieu Patou <mat@matws.net>
+    * Bug 10973: No objectClass found in replPropertyMetaData on ordinary
+      objects (non-deleted)
 
 
 CHANGES SINCE 4.2.0rc3
 ======================
 
-o   Andrew Bartlett <abartlet@samba.org>
-    * BUG 10993: CVE-2014-8143: dsdb-samldb: Check for extended access
-      rights before we allow changes to userAccountControl.
-
+o   Ralph Boehme <slow@samba.org>
+    * Bug 11444: Crash in notify_remove caused by change notify = no
 
 o   Günther Deschner <gd@samba.org>
-    * BUG 10240: vfs: Add glusterfs manpage.
-
-
-o   David Disseldorp <ddiss@samba.org>
-    * BUG 10984: Fix spoolss IDL response marshalling when returning error
-      without clearing info.
-
-
-o   Amitay Isaacs <amitay@gmail.com>
-    * BUG 11000: ctdb-daemon: Use correct tdb flags when enabling robust mutex
-      support.
-
+    * Bug 11411: smbtorture does not build when configured --with-system-mitkrb5
 
 o   Volker Lendecke <vl@samba.org>
-    * BUG 11032: tdb_wrap: Make mutexes easier to use.
-    * BUG 11039: vfs_fruit: Fix base_fsp name conversion.
-    * BUG 11040: vfs_fruit: mmap under FreeBSD needs PROT_READ.
-    * BUG 11051: net: Fix sam addgroupmem.
+    * Bug 11455: fix recursion problem in rep_strtoll in lib/replace/replace.c
+    * Bug 11464: xid2sid gives inconsistent results
+    * Bug 11465: ctdb: Fix the build on FreeBSD 10.1
 
+o   Roel van Meer <roel@1afa.com>
+    * Bug 11427: nmbd incorrectly matches netbios names as own name
 
 o   Stefan Metzmacher <metze@samba.org>
-    * BUG 10940: s3:passdb: fix logic in pdb_set_pw_history().
-    * BUG 11004: tdb: version 1.3.4.
-
-
-o   Christof Schmitt <cs@samba.org>
-    * BUG 11034: winbind: Retry after SESSION_EXPIRED error in ping-dc.
-
+    * Bug 11451: Poor SMB3 encryption performance with AES-GCM
+    * Bug 11458: --bundled-libraries=!ldb,!pyldb,!pyldb-util doesn't
+      disable ldb build and install
 
 o   Andreas Schneider <asn@samba.org>
-    * BUG 11008: s3-util: Fix authentication with long hostnames.
-    * BUG 11026: nss_wrapper: check for nss.h.
-    * BUG 11033: lib/util: Avoid collision which alread defined consumer DEBUG
-      macro.
-    * BUG 11037: s3-libads: Fix a possible segfault in kerberos_fetch_pac().
+    * Bug 9862: Samba "map to guest = Bad uid" doesn't work
 
 
-CHANGES SINCE 4.2.0rc2
+CHANGES SINCE 4.3.0rc2
 ======================
 
-o   Michael Adam <obnox@samba.org>
-    * BUG 10892: Integrate CTDB into top-level Samba build.
-
-
-o   Jeremy Allison <jra@samba.org>
-    * BUG 10851: lib: uid_wrapper: Fix setgroups and syscall detection on a
-      system without native uid_wrapper library.
-    * BUG 10896: s3-nmbd: Fix netbios name truncation.
-    * BUG 10904: Fix smbclient loops doing a directory listing against Mac OS X 10
-      server with a non-wildcard path.
-    * BUG 10911: Add support for SMB2 leases.
-    * BUG 10920: s3: nmbd: Ensure NetBIOS names are only 15 characters stored.
-    * BUG 10966: libcli: SMB2: Pure SMB2-only negprot fix to make us behave as a
-      Windows client does.
-    * BUG 10982: s3: smbd: Fix *allocate* calls to follow POSIX error return
-      convention.
-
-
-o   Christian Ambach <ambi@samba.org>
-    * BUG 9629: Make 'profiles' work again.
-
-
-o   Björn Baumbach <bb@sernet.de>
-    * BUG 11014: ctdb-build: Fix build without xsltproc.
-
+o   Andrew Bartlett <abartlet@samba.org>
+    * Bug 11436: samba-tool uncaught exception error
+    * Bug 10493: revert LDAP extended rule 1.2.840.113556.1.4.1941
+                 LDAP_MATCHING_RULE_IN_CHAIN changes
 
 o   Ralph Boehme <slow@samba.org>
-    * BUG 10834: Don't build vfs_snapper on FreeBSD.
-    * BUG 10971: vfs_streams_xattr: Check stream type.
-    * BUG 10983: vfs_fruit: Add support for AAPL.
-    * BUG 11005: vfs_streams_xattr: Add missing call to SMB_VFS_NEXT_CONNECT.
-
-
-o   Günther Deschner <gd@samba.org>
-    * BUG 9056: pam_winbind: fix warn_pwd_expire implementation.
-    * BUG 10942: Cleanup add_string_to_array and usage.
-
-
-o   David Disseldorp <ddiss@samba.org>
-    * BUG 10898: spoolss: Fix handling of bad EnumJobs levels.
-    * BUG 10905: Fix print job enumeration.
-
+    * Bug 11278: Stream names with colon don't work with
+                 fruit:encoding = native
+    * Bug 11426: net share allowedusers crashes
 
 o   Amitay Isaacs <amitay@gmail.com>
-    * BUG 10620: s4-dns: Add support for BIND 9.10.
-    * BUG 10892: Integrate CTDB into top-level Samba build.
-    * BUG 10996: Fix IPv6 support in CTDB.
-    * BUG 11014: packaging: Include CTDB man pages in the tarball.
-
-
-o   Björn Jacke <bj@sernet.de>
-    * BUG 10835: nss_winbind: Add getgroupmembership for FreeBSD.
-
-
-o   Guenter Kukkukk <linux@kukkukk.com>
-    * BUG 10952: Fix 'samba-tool dns serverinfo <server>' for IPv6.
-
-
-o   Volker Lendecke <vl@samba.org>
-    * BUG 10932: pdb_tdb: Fix a TALLOC/SAFE_FREE mixup.
-    * BUG 10942: dbwrap_ctdb: Pass on mutex flags to tdb_open.
-
-
-o   Justin Maggard <jmaggard10@gmail.com>
-    * BUG 10852: winbind3: Fix pwent variable substitution.
-
-
-o   Kamen Mazdrashki <kamenim@samba.org>
-    * BUG 10975: ldb: version 1.1.18
-
+    * Bug 11432: Fix crash in nested ctdb banning
+    * Bug 11434: Cannot build ctdbpmda
+    * Bug 11431: CTDB's eventscript error handling is broken
 
 o   Stefan Metzmacher <metze@samba.org>
-    * BUG 10781: tdb: version 1.3.3
-    * BUG 10911: Add support for SMB2 leases.
-    * BUG 10921: s3:smbd: Fix file corruption using "write cache size != 0".
-    * BUG 10949: Fix RootDSE search with extended dn control.
-    * BUG 10958: libcli/smb: only force signing of smb2 session setups when
-      binding a new session.
-    * BUG 10975: ldb: version 1.1.18
-    * BUG 11016: pdb_get_trusteddom_pw() fails with non valid UTF16 random
-      passwords.
+    * Bug 11451: Poor SMB3 encryption performance with AES-GCM (part1)
+    * Bug 11316: tevent_fd needs to be destroyed before closing the fd
 
-
-o   Marc Muehlfeld <mmuehlfeld@samba.org>
-    * BUG 10895: samba-tool group add: Add option '--nis-domain' and '--gid'.
-
-
-o   Noel Power <noel.power@suse.com>
-    * BUG 10918: btrfs: Don't leak opened directory handle.
-
-
-o   Matt Rogers <mrogers@redhat.com>
-    * BUG 10933: s3-keytab: fix keytab array NULL termination.
-
-
-o   Garming Sam <garming@catalyst.net.nz>
-    * BUG 10355: pdb: Fix build issues with shared modules.
-    * BUG 10720: idmap: Return the correct id type to *id_to_sid methods.
-    * BUG 10864: Fix testparm to show hidden share defaults.
-
-
-o   Andreas Schneider <asn@samba.org>
-    * BUG 10279: Make 'smbclient' use cached creds.
-    * BUG 10960: s3-smbclient: Return success if we listed the shares.
-    * BUG 10961: s3-smbstatus: Fix exit code of profile output.
-    * BUG 10965: socket_wrapper: Add missing prototype check for eventfd.
-
+o   Arvid Requate <requate@univention.de>
+    * Bug 11291: NetApp joined to a Samba/ADDC cannot resolve SIDs
 
 o   Martin Schwenke <martin@meltin.net>
-    * BUG 10892: Integrate CTDB into top-level Samba build.
-    * BUG 10996: Fix IPv6 support in CTDB.
+    * Bug 11432: Fix crash in nested ctdb banning
 
 
-CHANGES SINCE 4.2.0rc1
+CHANGES SINCE 4.3.0rc1
 ======================
 
 o   Jeremy Allison <jra@samba.org>
-    * BUG 10848: s3: smb2cli: query info return length check was reversed.
-
+    * BUG 11359: strsep is not available on Solaris
 
 o   Björn Baumbach <bb@sernet.de>
-    * BUG 10862: build: Do not install 'texpect' binary anymore.
+    * BUG 11421: Build with GPFS support is broken
 
+o   Justin Maggard <jmaggard@netgear.com>
+    * BUG 11320: "force group" with local group not working
 
-o   Chris Davis <cd.rattan@gmail.com>
-    * BUG 10859: Improve samba-regedit.
-
-
-o   Jakub Hrozek <jakub.hrozek@gmail.com>
-    * BUG 10861: Fix build of socket_wrapper on systems without SO_PROTOCOL.
-
-
-o   Volker Lendecke <vl@samba.org>
-    * BUG 10860: registry: Don't leave dangling transactions.
-
-
-o   Stefan Metzmacher <metze@samba.org>
-    * BUG 10866: libcli/smb: Fix smb2cli_validate_negotiate_info with
-      min=PROTOCOL_NT1 max=PROTOCOL_SMB2_02.
-
-
-o   Christof Schmitt <cs@samba.org>
-    * BUG 10837: idmap_rfc2307: Fix a crash after connection problem to DC.
+o   Martin Schwenke <martin@meltin.net
+    * BUG 11424: Build broken with --disable-python
 
 
 #######################################
@@ -788,7 +401,7 @@ joining the #samba-technical IRC channel on irc.freenode.net.
 If you do report problems then please try to send high quality
 feedback. If you don't provide vital information to help us track down
 the problem then you will probably be ignored.  All bug reports should
-be filed under the Samba 4.2 product in the project's Bugzilla
+be filed under the "Samba 4.1 and newer" product in the project's Bugzilla
 database (https://bugzilla.samba.org/).
 
 

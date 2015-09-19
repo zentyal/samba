@@ -17,6 +17,7 @@ def build(bld):
     bld.SAMBA_LIBRARY('cli_smb_common',
 	source='''
 		smb_signing.c smb_seal.c
+        smb2_negotiate_context.c
 		smb2_create_blob.c smb2_signing.c
                 smb2_lease.c
 		util.c
@@ -45,7 +46,7 @@ def build(bld):
                 LIBCRYPTO NDR_SMB2_LEASE_STRUCT errors gensec krb5samba
                 smb_transport
         ''',
-	public_deps='talloc samba-util',
+	public_deps='talloc samba-util iov_buf',
 	private_library=True,
 	public_headers='''
 		smb_common.h smb2_constants.h smb_constants.h

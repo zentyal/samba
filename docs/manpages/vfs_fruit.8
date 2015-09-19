@@ -2,12 +2,12 @@
 .\"     Title: vfs_fruit
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 04/15/2015
+.\"      Date: 09/08/2015
 .\"    Manual: System Administration tools
-.\"    Source: Samba 4.2
+.\"    Source: Samba 4.3
 .\"  Language: English
 .\"
-.TH "VFS_FRUIT" "8" "04/15/2015" "Samba 4\&.2" "System Administration tools"
+.TH "VFS_FRUIT" "8" "09/08/2015" "Samba 4\&.3" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -268,6 +268,33 @@ readdir_attr:aapl_max_access = true | false
 .RE
 .sp
 .RE
+.RE
+.PP
+fruit:nfs_aces = yes | no
+.RS 4
+Whether support for querying and modifying the UNIX mode of directory entries via NFS ACEs is enabled, default
+\fIyes\fR\&.
+.RE
+.PP
+fruit:veto_appledouble = yes | no
+.RS 4
+Whether \&._ AppleDouble files are vetoed which prevents the client from seing and accessing internal AppleDouble files created by vfs_fruit itself for the purpose of storing a Mac resource fork\&.
+.sp
+Vetoing \&._ files may break some applications, eg extracting Mac ZIP archives from Mac clients failes, because they contain \&._ files\&. Setting this option to false will fix this, but the abstraction leak of exposing the internally created \&._ files may have other unknown side effects\&.
+.sp
+The default is
+\fIyes\fR\&.
+.RE
+.PP
+fruit:copyfile = yes | no
+.RS 4
+Whether to enable OS X specific copychunk ioctl that requests a copy of a whole file along with all attached metadata\&.
+.sp
+WARNING: the copyfile request is blocking the client while the server does the copy\&.
+.sp
+\&.
+	      The default is
+\fIno\fR\&.
 .RE
 .SH "EXAMPLES"
 .sp

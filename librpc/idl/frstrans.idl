@@ -58,7 +58,7 @@ interface frstrans
 		FRSTRANS_UPDATE_STATUS_MORE		= 0x0003
 	} frstrans_UpdateStatus;
 
-	typedef struct {
+	typedef [public] struct {
 		GUID db_guid;
 		hyper low;
 		hyper high;
@@ -185,7 +185,9 @@ interface frstrans
 
 	/*****************/
 	/* Function 0x0c */
-	[todo] void FRSTRANS_RDC_CLOSE();
+	WERROR frstrans_RdcClose(
+		[in,out,ref] policy_handle *server_context
+		);
 
 	/*****************/
 	/* Function 0x0d */

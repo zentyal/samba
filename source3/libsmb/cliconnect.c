@@ -279,10 +279,6 @@ static void cli_session_setup_lanman2_done(struct tevent_req *subreq)
 	}
 	p += ret;
 
-	status = cli_set_username(cli, state->user);
-	if (tevent_req_nterror(req, status)) {
-		return;
-	}
 	tevent_req_done(req);
 }
 
@@ -486,11 +482,6 @@ static void cli_session_setup_guest_done(struct tevent_req *subreq)
 	}
 	p += ret;
 
-	status = cli_set_username(cli, "");
-	if (!NT_STATUS_IS_OK(status)) {
-		tevent_req_nterror(req, status);
-		return;
-	}
 	tevent_req_done(req);
 }
 
@@ -649,11 +640,6 @@ static void cli_session_setup_plain_done(struct tevent_req *subreq)
 		return;
 	}
 	p += ret;
-
-	status = cli_set_username(cli, state->user);
-	if (tevent_req_nterror(req, status)) {
-		return;
-	}
 
 	tevent_req_done(req);
 }
@@ -963,10 +949,6 @@ static void cli_session_setup_nt1_done(struct tevent_req *subreq)
 	}
 	p += ret;
 
-	status = cli_set_username(cli, state->user);
-	if (tevent_req_nterror(req, status)) {
-		return;
-	}
 	if (smb1cli_conn_activate_signing(cli->conn, state->session_key, state->response)
 	    && !smb1cli_conn_check_signing(cli->conn, (uint8_t *)in, 1)) {
 		tevent_req_nterror(req, NT_STATUS_ACCESS_DENIED);
@@ -1320,11 +1302,18 @@ static struct tevent_req *cli_session_setup_kerberos_send(
 	rc = spnego_gen_krb5_negTokenInit(state, principal, 0, &state->negTokenTarg,
 				     &state->session_key_krb5, 0, NULL, NULL);
 	if (rc) {
-		DEBUG(1, ("cli_session_setup_kerberos: "
-			  "spnego_gen_krb5_negTokenInit failed: %s\n",
-			  error_message(rc)));
+		NTSTATUS status;
+
 		state->ads_status = ADS_ERROR_KRB5(rc);
-		tevent_req_nterror(req, NT_STATUS_UNSUCCESSFUL);
+		status = ads_ntstatus(state->ads_status);
+		if (NT_STATUS_EQUAL(status, NT_STATUS_UNSUCCESSFUL)) {
+			status = NT_STATUS_LOGON_FAILURE;
+			state->ads_status = ADS_ERROR_NT(status);
+		}
+		DEBUG(1, ("cli_session_setup_kerberos: "
+			  "spnego_gen_krb5_negTokenInit failed: %s - %s\n",
+			  error_message(rc), nt_errstr(status)));
+		tevent_req_nterror(req, status);
 		return tevent_req_post(req, ev);
 	}
 
@@ -1402,9 +1391,18 @@ static ADS_STATUS cli_session_setup_kerberos_recv(struct tevent_req *req)
 	NTSTATUS status;
 
 	if (tevent_req_is_nterror(req, &status)) {
-		return ADS_ERROR_NT(status);
+		ADS_STATUS ads = state->ads_status;
+
+		if (!ADS_ERR_OK(state->ads_status)) {
+			ads = state->ads_status;
+		} else {
+			ads = ADS_ERROR_NT(status);
+		}
+		tevent_req_received(req);
+		return ads;
 	}
-	return state->ads_status;
+	tevent_req_received(req);
+	return ADS_SUCCESS;
 }
 
 #endif	/* HAVE_KRB5 */
@@ -1750,7 +1748,6 @@ static struct tevent_req *cli_session_setup_spnego_send(
 	char *OIDs[ASN1_MAX_OIDS];
 	int i;
 	const DATA_BLOB *server_blob;
-	NTSTATUS status;
 
 	req = tevent_req_create(mem_ctx, &state,
 				struct cli_session_setup_spnego_state);
@@ -1811,13 +1808,6 @@ static struct tevent_req *cli_session_setup_spnego_send(
 
 	DEBUG(3,("got principal=%s\n", principal ? principal : "<null>"));
 
-	status = cli_set_username(cli, user);
-	if (!NT_STATUS_IS_OK(status)) {
-		state->result = ADS_ERROR_NT(status);
-		tevent_req_done(req);
-		return tevent_req_post(req, ev);
-	}
-
 #ifdef HAVE_KRB5
 	/* If password is set we reauthenticate to kerberos server
 	 * and do not store results */
@@ -1826,6 +1816,12 @@ static struct tevent_req *cli_session_setup_spnego_send(
 		const char *remote_name = smbXcli_conn_remote_name(cli->conn);
 		char *tmp;
 
+
+		tmp = cli_session_setup_get_principal(
+			talloc_tos(), principal, remote_name, dest_realm);
+		TALLOC_FREE(principal);
+		principal = tmp;
+
 		if (pass && *pass) {
 			int ret;
 
@@ -1833,8 +1829,8 @@ static struct tevent_req *cli_session_setup_spnego_send(
 			ret = kerberos_kinit_password(user, pass, 0 /* no time correction for now */, NULL);
 
 			if (ret){
+				DEBUG(0, ("Kinit for %s to access %s failed: %s\n", user, principal, error_message(ret)));
 				TALLOC_FREE(principal);
-				DEBUG(0, ("Kinit failed: %s\n", error_message(ret)));
 				if (cli->fallback_after_kerberos)
 					goto ntlmssp;
 				state->result = ADS_ERROR_KRB5(ret);
@@ -1842,11 +1838,6 @@ static struct tevent_req *cli_session_setup_spnego_send(
 				return tevent_req_post(req, ev);
 			}
 		}
-
-		tmp = cli_session_setup_get_principal(
-			talloc_tos(), principal, remote_name, dest_realm);
-		TALLOC_FREE(principal);
-		principal = tmp;
 
 		if (principal) {
 			subreq = cli_session_setup_kerberos_send(
@@ -2410,7 +2401,7 @@ struct tevent_req *cli_tcon_andx_create(TALLOC_CTX *mem_ctx,
 			 * Non-encrypted passwords - convert to DOS codepage
 			 * before using.
 			 */
-			tmp_pass = talloc_array(talloc_tos(), uint8, 0);
+			tmp_pass = talloc_array(talloc_tos(), uint8_t, 0);
 			if (tevent_req_nomem(tmp_pass, req)) {
 				return tevent_req_post(req, ev);
 			}
@@ -2637,7 +2628,7 @@ static struct tevent_req *cli_raw_tcon_send(
 	TALLOC_CTX *mem_ctx, struct tevent_context *ev, struct cli_state *cli,
 	const char *service, const char *pass, const char *dev);
 static NTSTATUS cli_raw_tcon_recv(struct tevent_req *req,
-				  uint16 *max_xmit, uint16 *tid);
+				  uint16_t *max_xmit, uint16_t *tid);
 
 static void cli_tree_connect_smb2_done(struct tevent_req *subreq);
 static void cli_tree_connect_andx_done(struct tevent_req *subreq);
@@ -3396,11 +3387,6 @@ static void cli_full_connection_sess_set_up(struct tevent_req *subreq)
 		return;
 	}
 
-	status = cli_init_creds(state->cli, state->user, state->domain,
-				state->password);
-	if (tevent_req_nterror(req, status)) {
-		return;
-	}
 	tevent_req_done(req);
 }
 
@@ -3408,8 +3394,6 @@ static void cli_full_connection_done(struct tevent_req *subreq)
 {
 	struct tevent_req *req = tevent_req_callback_data(
 		subreq, struct tevent_req);
-	struct cli_full_connection_state *state = tevent_req_data(
-		req, struct cli_full_connection_state);
 	NTSTATUS status;
 
 	status = cli_tree_connect_recv(subreq);
@@ -3417,11 +3401,7 @@ static void cli_full_connection_done(struct tevent_req *subreq)
 	if (tevent_req_nterror(req, status)) {
 		return;
 	}
-	status = cli_init_creds(state->cli, state->user, state->domain,
-				state->password);
-	if (tevent_req_nterror(req, status)) {
-		return;
-	}
+
 	tevent_req_done(req);
 }
 
@@ -3543,7 +3523,7 @@ static void cli_raw_tcon_done(struct tevent_req *subreq)
 }
 
 static NTSTATUS cli_raw_tcon_recv(struct tevent_req *req,
-				  uint16 *max_xmit, uint16 *tid)
+				  uint16_t *max_xmit, uint16_t *tid)
 {
 	struct cli_raw_tcon_state *state = tevent_req_data(
 		req, struct cli_raw_tcon_state);
@@ -3559,7 +3539,7 @@ static NTSTATUS cli_raw_tcon_recv(struct tevent_req *req,
 
 NTSTATUS cli_raw_tcon(struct cli_state *cli,
 		      const char *service, const char *pass, const char *dev,
-		      uint16 *max_xmit, uint16 *tid)
+		      uint16_t *max_xmit, uint16_t *tid)
 {
 	struct tevent_context *ev;
 	struct tevent_req *req;

@@ -122,7 +122,7 @@ bool run_messaging_read1(int dummy)
 		goto fail;
 	}
 
-	for (i=0; i<2; i++) {
+	for (i=0; i<3; i++) {
 		if (tevent_loop_once(ev) != 0) {
 			fprintf(stderr, "tevent_loop_once failed\n");
 			goto fail;
@@ -506,7 +506,7 @@ static bool read4_child(int ready_fd)
 
 	printf("child: telling parent we're ready to receive messages\n");
 
-	/* Tell the parent we are ready to receive mesages. */
+	/* Tell the parent we are ready to receive messages. */
 	bytes = write(ready_fd, &c, 1);
 	if (bytes != 1) {
 		perror("child: failed to write to ready_fd");

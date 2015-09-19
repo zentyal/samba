@@ -2,12 +2,12 @@
 .\"     Title: ctdb
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 04/15/2015
+.\"      Date: 09/08/2015
 .\"    Manual: CTDB - clustered TDB database
 .\"    Source: ctdb
 .\"  Language: English
 .\"
-.TH "CTDB" "1" "04/15/2015" "ctdb" "CTDB \- clustered TDB database"
+.TH "CTDB" "1" "09/08/2015" "ctdb" "CTDB \- clustered TDB database"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -108,7 +108,7 @@ Print useage information to the screen\&.
 .PP
 \-d \-\-debug=\fIDEBUGLEVEL\fR
 .RS 4
-Change the debug level for the command\&. Default is ERR (0)\&.
+Change the debug level for the command\&. Default is NOTICE (2)\&.
 .RE
 .PP
 \-\-socket=\fIFILENAME\fR
@@ -621,7 +621,6 @@ RecdFailCount           = 10
 LogLatencyMs            = 0
 RecLockLatencyMs        = 1000
 RecoveryDropAllIPs      = 120
-VerifyRecoveryLock      = 1
 VacuumInterval          = 10
 VacuumMaxRunTime        = 30
 RepackLimit             = 10000
@@ -819,7 +818,7 @@ DB Statistics: locking\&.tdb
 .RE
 .SS "getreclock"
 .PP
-This command is used to show the filename of the reclock file that is used\&.
+Show the name of the recovery lock file, if any\&.
 .PP
 Example output:
 .sp
@@ -827,19 +826,33 @@ Example output:
 .RS 4
 .\}
 .nf
-	Reclock file:/gpfs/\&.ctdb/shared
+	Reclock file:/clusterfs/\&.ctdb/recovery\&.lock
       
 .fi
 .if n \{\
 .RE
 .\}
-.SS "setreclock [filename]"
+.SS "setreclock [\fIFILE\fR]"
 .PP
-This command is used to modify, or clear, the file that is used as the reclock file at runtime\&. When this command is used, the reclock file checks are disabled\&. To re\-enable the checks the administrator needs to activate the "VerifyRecoveryLock" tunable using "ctdb setvar"\&.
+FILE specifies the name of the recovery lock file\&. If the recovery lock file is changed at run\-time then this will cause a recovery, which in turn causes the recovery lock to be retaken\&.
 .PP
-If run with no parameter this will remove the reclock file completely\&. If run with a parameter the parameter specifies the new filename to use for the recovery lock\&.
+If no FILE is specified then a recovery lock file will no longer be used\&.
 .PP
-This command only affects the runtime settings of a ctdb node and will be lost when ctdb is restarted\&. For persistent changes to the reclock file setting you must edit /etc/sysconfig/ctdb\&.
+This command only affects the run\-time setting of a single CTDB node\&. This setting
+\fImust\fR
+be changed on all nodes simultaneously by specifying
+\fB\-n all\fR
+(or similar)\&. For information about configuring the recovery lock file please see the
+CTDB_RECOVERY_LOCK
+entry in
+\fBctdbd.conf\fR(5)
+and the
+\-\-reclock
+entry in
+\fBctdbd\fR(1)\&. For information about the recovery lock please see the
+RECOVERY LOCK
+section in
+\fBctdb\fR(7)\&.
 .SS "getdebug"
 .PP
 Get the current debug level for the node\&. the debug level controls what information is written to the log file\&.
@@ -848,12 +861,12 @@ The debug levels are mapped to the corresponding syslog levels\&. When a debug l
 .PP
 The list of debug levels from highest to lowest are :
 .PP
-EMERG ALERT CRIT ERR WARNING NOTICE INFO DEBUG
+ERR WARNING NOTICE INFO DEBUG
 .SS "setdebug \fIDEBUGLEVEL\fR"
 .PP
 Set the debug level of a node\&. This controls what information will be logged\&.
 .PP
-The debuglevel is one of EMERG ALERT CRIT ERR WARNING NOTICE INFO DEBUG
+The debuglevel is one of ERR WARNING NOTICE INFO DEBUG
 .SS "getpid"
 .PP
 This command will return the process id of the ctdb daemon\&.

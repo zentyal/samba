@@ -21,9 +21,7 @@
 
 import samba
 import samba.tests
-from samba.tests import TestSkipped, TestCaseInTempDir
 
-import errno
 import os
 import re
 import subprocess
@@ -35,6 +33,7 @@ class TestCase(samba.tests.TestCaseInTempDir):
         parameters = list(parameters)
         parameters.sort()
         return message + '\n\n    %s' % ('\n    '.join(parameters))
+
 
 def get_documented_parameters(sourcedir):
     path = os.path.join(sourcedir, "bin", "default", "docs-xml", "smbdotconf")
@@ -73,8 +72,6 @@ def get_implementation_parameters(sourcedir):
             if re.match("^\s*\}\;\s*$", l):
                 break
             # pull in the param names only
-            if re.match(".*P_SEPARATOR.*", l):
-                continue
             m = re.match("\s*\.label\s*=\s*\"(.*)\".*", l)
             if not m:
                 continue
@@ -131,7 +128,8 @@ class SmbDotConfTests(TestCase):
                          'ctdbd socket', 'printing', 'printcap name', 'queueresume command',
                          'queuepause command','lpresume command', 'lppause command',
                          'lprm command', 'lpq command', 'print command', 'template homedir',
-                         'spoolss: os_major', 'spoolss: os_minor', 'spoolss: os_build'])
+                         'spoolss: os_major', 'spoolss: os_minor', 'spoolss: os_build',
+                         'max open files', 'fss: prune stale', 'fss: sequence timeout'])
 
     def setUp(self):
         super(SmbDotConfTests, self).setUp()

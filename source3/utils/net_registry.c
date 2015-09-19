@@ -48,7 +48,7 @@
  * split given path into hive and remaining path and open the hive key
  */
 static WERROR open_hive(TALLOC_CTX *ctx, const char *path,
-			uint32 desired_access,
+			uint32_t desired_access,
 			struct registry_key **hive,
 			char **subkeyname)
 {
@@ -91,7 +91,7 @@ done:
 }
 
 static WERROR open_key(TALLOC_CTX *ctx, const char *path,
-		       uint32 desired_access,
+		       uint32_t desired_access,
 		       struct registry_key **key)
 {
 	WERROR werr;
@@ -274,7 +274,7 @@ static int net_registry_createkey(struct net_context *c, int argc,
 {
 	WERROR werr;
 	enum winreg_CreateAction action;
-	char *subkeyname;
+	char *subkeyname = NULL;
 	struct registry_key *hivekey = NULL;
 	struct registry_key *subkey = NULL;
 	TALLOC_CTX *ctx = talloc_stackframe();
@@ -333,7 +333,7 @@ static int net_registry_deletekey_internal(struct net_context *c, int argc,
 					   bool recursive)
 {
 	WERROR werr;
-	char *subkeyname;
+	char *subkeyname = NULL;
 	struct registry_key *hivekey = NULL;
 	TALLOC_CTX *ctx = talloc_stackframe();
 	int ret = -1;
@@ -1484,8 +1484,9 @@ static int net_registry_convert(struct net_context *c, int argc,
 static int net_registry_check(struct net_context *c, int argc,
 			      const char **argv)
 {
-	const char *dbfile;
+	char *dbfile;
 	struct check_options opts;
+	int ret;
 
 	if (argc > 1|| c->display_usage) {
 		d_printf("%s\n%s",
@@ -1505,9 +1506,13 @@ static int net_registry_check(struct net_context *c, int argc,
 		return c->display_usage ? 0 : -1;
 	}
 
-	dbfile = c->opt_db ? c->opt_db : (
-		(argc > 0) ? argv[0] :
-		state_path("registry.tdb"));
+	if (c->opt_db != NULL) {
+		dbfile = talloc_strdup(talloc_tos(), c->opt_db);
+	} else if (argc > 0) {
+		dbfile = talloc_strdup(talloc_tos(), argv[0]);
+	} else {
+		dbfile = state_path("registry.tdb");
+	}
 	if (dbfile == NULL) {
 		return -1;
 	}
@@ -1525,7 +1530,9 @@ static int net_registry_check(struct net_context *c, int argc,
 		.implicit_db = (c->opt_db == NULL) && (argc == 0),
 	};
 
-	return net_registry_check_db(dbfile, &opts);
+	ret = net_registry_check_db(dbfile, &opts);
+	talloc_free(dbfile);
+	return ret;
 }
 
 

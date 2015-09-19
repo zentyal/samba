@@ -253,7 +253,7 @@ static DATA_BLOB hbin_alloc(struct regf_data *data, uint32_t size,
 	ret.data = hbin->data + rel_offset + 0x4; /* Skip past length */
 	ret.length = size - 0x4;
 	if (offset) {
-		uint32_t new_rel_offset;
+		uint32_t new_rel_offset = 0;
 		*offset = hbin->offset_from_first + rel_offset + 0x20;
 		SMB_ASSERT(hbin_by_offset(data, *offset, &new_rel_offset) == hbin);
 		SMB_ASSERT(new_rel_offset == rel_offset);
@@ -1720,18 +1720,21 @@ static WERROR regf_del_key(TALLOC_CTX *mem_ctx, const struct hive_key *parent,
 	}
 
 	if (key->nk->subkeys_offset != -1) {
-		char *sk_name;
 		struct hive_key *sk = (struct hive_key *)key;
 		unsigned int i = key->nk->num_subkeys;
 		while (i--) {
+			char *sk_name;
+			const char *p = NULL;
+
 			/* Get subkey information. */
 			error = regf_get_subkey_by_index(parent_nk, sk, 0,
-							 (const char **)&sk_name,
+							 &p,
 							 NULL, NULL);
 			if (!W_ERROR_IS_OK(error)) {
 				DEBUG(0, ("Can't retrieve subkey by index.\n"));
 				return error;
 			}
+			sk_name = discard_const_p(char, p);
 
 			/* Delete subkey. */
 			error = regf_del_key(NULL, sk, sk_name);
@@ -1745,19 +1748,22 @@ static WERROR regf_del_key(TALLOC_CTX *mem_ctx, const struct hive_key *parent,
 	}
 
 	if (key->nk->values_offset != -1) {
-		char *val_name;
 		struct hive_key *sk = (struct hive_key *)key;
 		DATA_BLOB data;
 		unsigned int i = key->nk->num_values;
 		while (i--) {
+			char *val_name;
+			const char *p = NULL;
+
 			/* Get value information. */
 			error = regf_get_value(parent_nk, sk, 0,
-					       (const char **)&val_name,
+					       &p,
 					       NULL, &data);
 			if (!W_ERROR_IS_OK(error)) {
 				DEBUG(0, ("Can't retrieve value by index.\n"));
 				return error;
 			}
+			val_name = discard_const_p(char, p);
 
 			/* Delete value. */
 			error = regf_del_value(NULL, sk, val_name);
@@ -1865,7 +1871,7 @@ static WERROR regf_set_value(struct hive_key *key, const char *name,
 	struct vk_block vk;
 	uint32_t i;
 	uint32_t tmp_vk_offset, vk_offset, old_vk_offset = (uint32_t) -1;
-	DATA_BLOB values;
+	DATA_BLOB values = {0};
 
 	ZERO_STRUCT(vk);
 

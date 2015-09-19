@@ -46,24 +46,36 @@ static bool mapping_switch(const char *ldb_path);
 ****************************************************************************/
 static bool init_group_mapping(void)
 {
-	const char *ldb_path;
+	char *tdb_path;
+	char *ldb_path;
 
 	if (db != NULL) {
 		return true;
 	}
 
-	db = db_open(NULL, state_path("group_mapping.tdb"), 0,
+	tdb_path = state_path("group_mapping.tdb");
+	if (tdb_path == NULL) {
+		return false;
+	}
+	db = db_open(NULL, tdb_path, 0,
 		     TDB_DEFAULT, O_RDWR|O_CREAT, 0600,
 		     DBWRAP_LOCK_ORDER_1, DBWRAP_FLAG_NONE);
 	if (db == NULL) {
 		DEBUG(0, ("Failed to open group mapping database: %s\n",
 			  strerror(errno)));
+		talloc_free(tdb_path);
 		return false;
 	}
 
 	ldb_path = state_path("group_mapping.ldb");
+	if (ldb_path == NULL) {
+		talloc_free(tdb_path);
+		return false;
+	}
 	if (file_exist(ldb_path) && !mapping_switch(ldb_path)) {
-		unlink(state_path("group_mapping.tdb"));
+		unlink(tdb_path);
+		talloc_free(tdb_path);
+		talloc_free(ldb_path);
 		return false;
 
 	} else {
@@ -89,7 +101,7 @@ static bool init_group_mapping(void)
 			vers_id = DATABASE_VERSION_V2;
 		}
 
-		/* if its an unknown version we remove everthing in the db */
+		/* if its an unknown version we remove everything in the db */
 
 		if (vers_id != DATABASE_VERSION_V2) {
 			tdb_wipe_all(tdb);
@@ -114,6 +126,8 @@ static bool init_group_mapping(void)
 		}
 #endif
 	}
+	talloc_free(tdb_path);
+	talloc_free(ldb_path);
 	return true;
 }
 
@@ -151,7 +165,7 @@ static bool add_mapping_entry(GROUP_MAP *map, int flag)
 		TALLOC_FREE(key);
 		return false;
 	}
-	len = tdb_pack((uint8 *)buf, len, "ddff", map->gid,
+	len = tdb_pack((uint8_t *)buf, len, "ddff", map->gid,
 		       map->sid_name_use, map->nt_name, map->comment);
 
 	status = dbwrap_trans_store(

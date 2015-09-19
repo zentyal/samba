@@ -45,6 +45,11 @@ struct socket_context *tls_init_server(struct tls_params *parms,
 				    struct tevent_fd *fde,
 				    const char *plain_chars);
 
+void tls_cert_generate(TALLOC_CTX *mem_ctx,
+		       const char *hostname,
+		       const char *keyfile, const char *certfile,
+		       const char *cafile);
+
 /*
   call tls_init_client() on each new client connection
 */
@@ -66,6 +71,7 @@ struct tstream_tls_params;
 NTSTATUS tstream_tls_params_client(TALLOC_CTX *mem_ctx,
 				   const char *ca_file,
 				   const char *crl_file,
+				   const char *tls_priority,
 				   struct tstream_tls_params **_tlsp);
 
 NTSTATUS tstream_tls_params_server(TALLOC_CTX *mem_ctx,
@@ -76,6 +82,7 @@ NTSTATUS tstream_tls_params_server(TALLOC_CTX *mem_ctx,
 				   const char *ca_file,
 				   const char *crl_file,
 				   const char *dhp_file,
+				   const char *tls_priority,
 				   struct tstream_tls_params **_params);
 
 bool tstream_tls_params_enabled(struct tstream_tls_params *params);
@@ -85,7 +92,7 @@ struct tevent_req *_tstream_tls_connect_send(TALLOC_CTX *mem_ctx,
 					     struct tstream_context *plain_stream,
 					     struct tstream_tls_params *tls_params,
 					     const char *location);
-#define tstream_tls_connect_send(mem_ctx, ev, plain_stream, tls_params); \
+#define tstream_tls_connect_send(mem_ctx, ev, plain_stream, tls_params) \
 	_tstream_tls_connect_send(mem_ctx, ev, plain_stream, tls_params, __location__)
 
 int tstream_tls_connect_recv(struct tevent_req *req,

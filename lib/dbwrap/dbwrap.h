@@ -20,6 +20,9 @@
 #ifndef __DBWRAP_H__
 #define __DBWRAP_H__
 
+#include "replace.h"
+#include <talloc.h>
+#include "libcli/util/ntstatus.h"
 #include "tdb.h"
 
 struct db_record;
@@ -152,12 +155,17 @@ NTSTATUS dbwrap_store_bystring_upper(struct db_context *db, const char *key,
 NTSTATUS dbwrap_fetch_bystring_upper(struct db_context *db, TALLOC_CTX *mem_ctx,
 				     const char *key, TDB_DATA *value);
 
+size_t dbwrap_marshall(struct db_context *db, uint8_t *buf, size_t bufsize);
+NTSTATUS dbwrap_parse_marshall_buf(const uint8_t *buf, size_t buflen,
+				   bool (*fn)(TDB_DATA key, TDB_DATA value,
+					      void *private_data),
+				   void *private_data);
+NTSTATUS dbwrap_unmarshall(struct db_context *db, const uint8_t *buf,
+			   size_t buflen);
+
+
 /**
- * This opens an ntdb or tdb file: you can hand it a .ntdb or .tdb extension
- * and it will decide (based on parameter settings, or else what exists) which
- * to use.
- *
- * For backwards compatibility, it takes tdb-style open flags, not ntdb!
+ * This opens a tdb file
  */
 struct db_context *dbwrap_local_open(TALLOC_CTX *mem_ctx,
 				     struct loadparm_context *lp_ctx,

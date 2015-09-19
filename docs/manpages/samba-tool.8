@@ -2,12 +2,12 @@
 .\"     Title: samba-tool
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 04/15/2015
+.\"      Date: 09/08/2015
 .\"    Manual: System Administration tools
-.\"    Source: Samba 4.2
+.\"    Source: Samba 4.3
 .\"  Language: English
 .\"
-.TH "SAMBA\-TOOL" "8" "04/15/2015" "Samba 4\&.2" "System Administration tools"
+.TH "SAMBA\-TOOL" "8" "09/08/2015" "Samba 4\&.3" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -210,6 +210,27 @@ Show/set password settings\&.
 .SS "domain provision"
 .PP
 Promote an existing domain member or NT4 PDC to an AD DC\&.
+.SS "domain trust"
+.PP
+Domain and forest trust management\&.
+.SS "domain trust create DOMAIN options [options]"
+.PP
+Create a domain or forest trust\&.
+.SS "domain trust delete DOMAIN options [options]"
+.PP
+Delete a domain trust\&.
+.SS "domain trust list options [options]"
+.PP
+List domain trusts\&.
+.SS "domain trust namespaces [DOMAIN] options [options]"
+.PP
+Manage forest trust namespaces\&.
+.SS "domain trust show DOMAIN options [options]"
+.PP
+Show trusted domain details\&.
+.SS "domain trust validate DOMAIN options [options]"
+.PP
+Validate a domain trust\&.
 .SS "drs"
 .PP
 Manage Directory Replication Services (DRS)\&.
@@ -340,7 +361,7 @@ Manage sites\&.
 Create a new site\&.
 .SS "sites remove site [options]"
 .PP
-Delete an esxisting site\&.
+Delete an existing site\&.
 .SS "spn"
 .PP
 Manage Service Principal Names (SPN)\&.

@@ -23,7 +23,6 @@
 #include "includes.h"
 #include "../librpc/gen_ndr/svcctl.h"
 #include "nmbd/nmbd.h"
-#include "smbprofile.h"
 
 extern bool found_lm_clients;
 
@@ -100,14 +99,12 @@ void process_host_announce(struct subnet_record *subrec, struct packet_struct *p
 	struct dgram_packet *dgram = &p->packet.dgram;
 	int ttl = IVAL(buf,1)/1000;
 	unstring announce_name;
-	uint32 servertype = IVAL(buf,23);
+	uint32_t servertype = IVAL(buf,23);
 	fstring comment;
 	struct work_record *work;
 	struct server_record *servrec;
 	unstring work_name;
 	unstring source_name;
-
-	START_PROFILE(host_announce);
 
 	pull_ascii_fstring(comment, buf+31);
   
@@ -187,8 +184,7 @@ void process_host_announce(struct subnet_record *subrec, struct packet_struct *p
 
 	subrec->work_changed = True;
 done:
-
-	END_PROFILE(host_announce);
+	return;
 }
 
 /*******************************************************************
@@ -201,12 +197,10 @@ void process_workgroup_announce(struct subnet_record *subrec, struct packet_stru
 	int ttl = IVAL(buf,1)/1000;
 	unstring workgroup_announce_name;
 	unstring master_name;
-	uint32 servertype = IVAL(buf,23);
+	uint32_t servertype = IVAL(buf,23);
 	struct work_record *work;
 	unstring source_name;
 	unstring dest_name;
-
-	START_PROFILE(workgroup_announce);
 
 	pull_ascii_nstring(workgroup_announce_name,sizeof(workgroup_announce_name),buf+5);
 	pull_ascii_nstring(master_name,sizeof(master_name),buf+31);
@@ -244,8 +238,7 @@ void process_workgroup_announce(struct subnet_record *subrec, struct packet_stru
 	subrec->work_changed = True;
 
 done:
-
-	END_PROFILE(workgroup_announce);
+	return;
 }
 
 /*******************************************************************
@@ -257,14 +250,12 @@ void process_local_master_announce(struct subnet_record *subrec, struct packet_s
 	struct dgram_packet *dgram = &p->packet.dgram;
 	int ttl = IVAL(buf,1)/1000;
 	unstring server_name;
-	uint32 servertype = IVAL(buf,23);
+	uint32_t servertype = IVAL(buf,23);
 	fstring comment;
 	unstring work_name;
 	struct work_record *work = NULL;
 	struct server_record *servrec;
 	unstring source_name;
-
-	START_PROFILE(local_master_announce);
 
 	pull_ascii_nstring(server_name,sizeof(server_name),buf+5);
 	pull_ascii_fstring(comment, buf+31);
@@ -336,12 +327,25 @@ a local master browser for workgroup %s and we think we are master. Forcing elec
 				ttl, comment);
 		} else {
 			/* Update the record. */
-			servrec->serv.type = servertype|SV_TYPE_LOCAL_LIST_ONLY;
+			if (servrec->serv.type !=
+					(servertype|SV_TYPE_LOCAL_LIST_ONLY)) {
+				servrec->serv.type =
+					servertype|SV_TYPE_LOCAL_LIST_ONLY;
+				subrec->work_changed = true;
+			}
+			if (!strequal(servrec->serv.comment,comment)) {
+				strlcpy(servrec->serv.comment,
+					comment,
+					sizeof(servrec->serv.comment));
+				subrec->work_changed = true;
+			}
 			update_server_ttl(servrec, ttl);
-			strlcpy(servrec->serv.comment,comment,sizeof(servrec->serv.comment));
 		}
-	
-		set_workgroup_local_master_browser_name( work, server_name );
+
+		if (!strequal(work->local_master_browser_name, server_name)) {
+			set_workgroup_local_master_browser_name( work, server_name );
+			subrec->work_changed = true;
+		}
 	} else {
 		/*
 		 * This server is announcing it is going down. Remove it from the
@@ -353,10 +357,8 @@ a local master browser for workgroup %s and we think we are master. Forcing elec
 		}
 	}
 
-	subrec->work_changed = True;
 done:
-
-	END_PROFILE(local_master_announce);
+	return;
 }
 
 /*******************************************************************
@@ -372,8 +374,6 @@ void process_master_browser_announce(struct subnet_record *subrec,
 	unstring local_master_name;
 	struct work_record *work;
 	struct browse_cache_record *browrec;
-
-	START_PROFILE(master_browser_announce);
 
 	pull_ascii_nstring(local_master_name,sizeof(local_master_name),buf);
   
@@ -410,8 +410,7 @@ master - ignoring master announce.\n"));
 	}
 
 done:
-
-	END_PROFILE(master_browser_announce);
+	return;
 }
 
 /*******************************************************************
@@ -421,7 +420,7 @@ done:
 void process_lm_host_announce(struct subnet_record *subrec, struct packet_struct *p, const char *buf, int len)
 {
 	struct dgram_packet *dgram = &p->packet.dgram;
-	uint32 servertype = IVAL(buf,1);
+	uint32_t servertype = IVAL(buf,1);
 	int osmajor=CVAL(buf,5);           /* major version of node software */
 	int osminor=CVAL(buf,6);           /* minor version of node software */
 	int ttl = SVAL(buf,7);
@@ -433,7 +432,6 @@ void process_lm_host_announce(struct subnet_record *subrec, struct packet_struct
 	fstring comment;
 	char *s = get_safe_str_ptr(buf,len,discard_const_p(char, buf),9);
 
-	START_PROFILE(lm_host_announce);
 	if (!s) {
 		goto done;
 	}
@@ -529,8 +527,7 @@ originate from OS/2 Warp client. Ignoring packet.\n"));
 	found_lm_clients = True;
 
 done:
-
-	END_PROFILE(lm_host_announce);
+	return;
 }
 
 /****************************************************************************
@@ -541,7 +538,7 @@ static void send_backup_list_response(struct subnet_record *subrec,
 				      struct work_record *work,
 				      struct nmb_name *send_to_name,
 				      unsigned char max_number_requested,
-				      uint32 token, struct in_addr sendto_ip,
+				      uint32_t token, struct in_addr sendto_ip,
 				      int port)
 {
 	char outbuf[1024];
@@ -649,12 +646,11 @@ void process_get_backup_list_request(struct subnet_record *subrec,
 	struct dgram_packet *dgram = &p->packet.dgram;
 	struct work_record *work;
 	unsigned char max_number_requested = CVAL(buf,0);
-	uint32 token = IVAL(buf,1); /* Sender's key index for the workgroup. */
+	uint32_t token = IVAL(buf,1); /* Sender's key index for the workgroup. */
 	int name_type = dgram->dest_name.name_type;
 	unstring workgroup_name;
 	struct subnet_record *search_subrec = subrec;
 
-	START_PROFILE(get_backup_list);
 	pull_ascii_nstring(workgroup_name, sizeof(workgroup_name), dgram->dest_name.name);
 
 	DEBUG(3,("process_get_backup_list_request: request from %s IP %s to %s.\n",
@@ -712,8 +708,7 @@ and I am not a local master browser.\n", workgroup_name));
 			max_number_requested, token, p->ip, p->port);
 
 done:
-
-	END_PROFILE(get_backup_list);
+	return;
 }
 
 /*******************************************************************
@@ -732,8 +727,6 @@ void process_reset_browser(struct subnet_record *subrec,
 	struct dgram_packet *dgram = &p->packet.dgram;
 	int state = CVAL(buf,0);
 	struct subnet_record *sr;
-
-	START_PROFILE(reset_browser);
 
 	DEBUG(1,("process_reset_browser: received diagnostic browser reset \
 request from %s IP %s state=0x%X\n",
@@ -767,8 +760,6 @@ request from %s IP %s state=0x%X\n",
 	/* Request to stop browsing altogether. */
 	if (state & 0x4)
 		DEBUG(1,("process_reset_browser: ignoring request to stop being a browser.\n"));
-
-	END_PROFILE(reset_browser);
 }
 
 /*******************************************************************
@@ -785,8 +776,6 @@ void process_announce_request(struct subnet_record *subrec, struct packet_struct
 	struct work_record *work;
 	unstring workgroup_name;
  
-	START_PROFILE(announce_request);
-
 	pull_ascii_nstring(workgroup_name, sizeof(workgroup_name), dgram->dest_name.name);
 	DEBUG(3,("process_announce_request: Announce request from %s IP %s to %s.\n",
 		nmb_namestr(&dgram->source_name), inet_ntoa(p->ip),
@@ -807,8 +796,7 @@ void process_announce_request(struct subnet_record *subrec, struct packet_struct
 
 	work->needannounce = True;
 done:
-
-	END_PROFILE(announce_request);
+	return;
 }
 
 /*******************************************************************
@@ -824,8 +812,6 @@ void process_lm_announce_request(struct subnet_record *subrec, struct packet_str
 {
 	struct dgram_packet *dgram = &p->packet.dgram;
 	unstring workgroup_name;
-
-	START_PROFILE(lm_announce_request);
 
 	pull_ascii_nstring(workgroup_name, sizeof(workgroup_name), dgram->dest_name.name);
 	DEBUG(3,("process_lm_announce_request: Announce request from %s IP %s to %s.\n",
@@ -848,6 +834,5 @@ void process_lm_announce_request(struct subnet_record *subrec, struct packet_str
 	found_lm_clients = True;
 
 done:
-
-	END_PROFILE(lm_announce_request);
+	return;
 }

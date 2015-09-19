@@ -42,14 +42,22 @@ struct serverid_data {
 static struct db_context *serverid_db(void)
 {
 	static struct db_context *db;
+	char *db_path;
 
 	if (db != NULL) {
 		return db;
 	}
-	db = db_open(NULL, lock_path("serverid.tdb"), 0,
+
+	db_path = lock_path("serverid.tdb");
+	if (db_path == NULL) {
+		return NULL;
+	}
+
+	db = db_open(NULL, db_path, 0,
 		     TDB_DEFAULT|TDB_CLEAR_IF_FIRST|TDB_INCOMPATIBLE_HASH,
 		     O_RDWR|O_CREAT, 0644, DBWRAP_LOCK_ORDER_2,
 		     DBWRAP_FLAG_NONE);
+	TALLOC_FREE(db_path);
 	return db;
 }
 
@@ -115,7 +123,8 @@ bool serverid_register(const struct server_id id, uint32_t msg_flags)
 	if (lp_clustering() &&
 	    ctdb_serverids_exist_supported(messaging_ctdbd_connection()))
 	{
-		register_with_ctdbd(messaging_ctdbd_connection(), id.unique_id);
+		register_with_ctdbd(messaging_ctdbd_connection(), id.unique_id,
+				    NULL, NULL);
 	}
 
 	ret = true;

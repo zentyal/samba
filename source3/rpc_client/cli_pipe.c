@@ -56,9 +56,9 @@ static const char *rpccli_pipe_txt(TALLOC_CTX *mem_ctx,
  Rpc pipe call id.
  ********************************************************************/
 
-static uint32 get_rpc_call_id(void)
+static uint32_t get_rpc_call_id(void)
 {
-	static uint32 call_id = 0;
+	static uint32_t call_id = 0;
 	return ++call_id;
 }
 
@@ -1039,14 +1039,14 @@ static NTSTATUS create_generic_auth_rpc_bind_req(struct rpc_pipe_client *cli,
 
 static NTSTATUS create_bind_or_alt_ctx_internal(TALLOC_CTX *mem_ctx,
 						enum dcerpc_pkt_type ptype,
-						uint32 rpc_call_id,
+						uint32_t rpc_call_id,
 						const struct ndr_syntax_id *abstract,
 						const struct ndr_syntax_id *transfer,
 						const DATA_BLOB *auth_info,
 						bool client_hdr_signing,
 						DATA_BLOB *blob)
 {
-	uint16 auth_len = auth_info->length;
+	uint16_t auth_len = auth_info->length;
 	NTSTATUS status;
 	union dcerpc_payload u;
 	struct dcerpc_ctx_list ctx_list;
@@ -1093,7 +1093,7 @@ static NTSTATUS create_bind_or_alt_ctx_internal(TALLOC_CTX *mem_ctx,
 static NTSTATUS create_rpc_bind_req(TALLOC_CTX *mem_ctx,
 				    struct rpc_pipe_client *cli,
 				    struct pipe_auth_data *auth,
-				    uint32 rpc_call_id,
+				    uint32_t rpc_call_id,
 				    const struct ndr_syntax_id *abstract,
 				    const struct ndr_syntax_id *transfer,
 				    DATA_BLOB *rpc_out)
@@ -1398,7 +1398,6 @@ static NTSTATUS prepare_next_frag(struct rpc_api_pipe_req_state *state,
 	status = dcerpc_guess_sizes(state->cli->auth,
 				    DCERPC_REQUEST_LENGTH, total_left,
 				    state->cli->max_xmit_frag,
-				    CLIENT_NDR_PADDING_SIZE,
 				    &total_thistime,
 				    &frag_len, &auth_len, &pad_len);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -1629,7 +1628,7 @@ static bool check_bind_response(const struct dcerpc_bind_ack *r,
 
 static NTSTATUS create_rpc_bind_auth3(TALLOC_CTX *mem_ctx,
 				struct rpc_pipe_client *cli,
-				uint32 rpc_call_id,
+				uint32_t rpc_call_id,
 				enum dcerpc_AuthType auth_type,
 				enum dcerpc_AuthLevel auth_level,
 				DATA_BLOB *pauth_blob,
@@ -1676,7 +1675,7 @@ static NTSTATUS create_rpc_bind_auth3(TALLOC_CTX *mem_ctx,
 static NTSTATUS create_rpc_alter_context(TALLOC_CTX *mem_ctx,
 					enum dcerpc_AuthType auth_type,
 					enum dcerpc_AuthLevel auth_level,
-					uint32 rpc_call_id,
+					uint32_t rpc_call_id,
 					const struct ndr_syntax_id *abstract,
 					const struct ndr_syntax_id *transfer,
 					const DATA_BLOB *pauth_blob, /* spnego auth blob already created. */
@@ -1984,8 +1983,7 @@ NTSTATUS rpc_pipe_bind(struct rpc_pipe_client *cli,
 		goto fail;
 	}
 
-	if (!tevent_req_poll(req, ev)) {
-		status = map_nt_error_from_unix(errno);
+	if (!tevent_req_poll_ntstatus(req, ev, &status)) {
 		goto fail;
 	}
 
@@ -2391,6 +2389,63 @@ static NTSTATUS rpccli_generic_bind_data(TALLOC_CTX *mem_ctx,
 
 	cli_credentials_set_kerberos_state(auth_generic_ctx->credentials, use_kerberos);
 	cli_credentials_set_netlogon_creds(auth_generic_ctx->credentials, creds);
+
+	status = auth_generic_client_start_by_authtype(auth_generic_ctx, auth_type, auth_level);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto fail;
+	}
+
+	result->auth_ctx = talloc_move(result, &auth_generic_ctx->gensec_security);
+	talloc_free(auth_generic_ctx);
+	*presult = result;
+	return NT_STATUS_OK;
+
+ fail:
+	TALLOC_FREE(result);
+	return status;
+}
+
+/* This routine steals the creds pointer that is passed in */
+static NTSTATUS rpccli_generic_bind_data_from_creds(TALLOC_CTX *mem_ctx,
+						    enum dcerpc_AuthType auth_type,
+						    enum dcerpc_AuthLevel auth_level,
+						    const char *server,
+						    const char *target_service,
+						    struct cli_credentials *creds,
+						    struct pipe_auth_data **presult)
+{
+	struct auth_generic_state *auth_generic_ctx;
+	struct pipe_auth_data *result;
+	NTSTATUS status;
+
+	result = talloc_zero(mem_ctx, struct pipe_auth_data);
+	if (result == NULL) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
+	result->auth_type = auth_type;
+	result->auth_level = auth_level;
+
+	status = auth_generic_client_prepare(result,
+					     &auth_generic_ctx);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto fail;
+	}
+
+	status = auth_generic_set_creds(auth_generic_ctx, creds);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto fail;
+	}
+
+	status = gensec_set_target_service(auth_generic_ctx->gensec_security, target_service);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto fail;
+	}
+
+	status = gensec_set_target_hostname(auth_generic_ctx->gensec_security, server);
+	if (!NT_STATUS_IS_OK(status)) {
+		goto fail;
+	}
 
 	status = auth_generic_client_start_by_authtype(auth_generic_ctx, auth_type, auth_level);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -2940,11 +2995,71 @@ NTSTATUS cli_rpc_pipe_open_noauth(struct cli_state *cli,
 
 /****************************************************************************
  Open a named pipe to an SMB server and bind using the mech specified
+
+ This routine references the creds pointer that is passed in
+ ****************************************************************************/
+
+NTSTATUS cli_rpc_pipe_open_with_creds(struct cli_state *cli,
+				      const struct ndr_interface_table *table,
+				      enum dcerpc_transport_t transport,
+				      enum dcerpc_AuthType auth_type,
+				      enum dcerpc_AuthLevel auth_level,
+				      const char *server,
+				      struct cli_credentials *creds,
+				      struct rpc_pipe_client **presult)
+{
+	struct rpc_pipe_client *result;
+	struct pipe_auth_data *auth = NULL;
+	const char *target_service = table->authservices->names[0];
+
+	NTSTATUS status;
+
+	status = cli_rpc_pipe_open(cli, transport, table, &result);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	status = rpccli_generic_bind_data_from_creds(result,
+						     auth_type, auth_level,
+						     server, target_service,
+						     creds,
+						     &auth);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("rpccli_generic_bind_data returned %s\n",
+			  nt_errstr(status)));
+		goto err;
+	}
+
+	status = rpc_pipe_bind(result, auth);
+	if (!NT_STATUS_IS_OK(status)) {
+		DEBUG(0, ("cli_rpc_pipe_open_generic_auth: cli_rpc_pipe_bind failed with error %s\n",
+			nt_errstr(status) ));
+		goto err;
+	}
+
+	DEBUG(10,("cli_rpc_pipe_open_generic_auth: opened pipe %s to "
+		"machine %s and bound as user %s.\n", table->name,
+		  result->desthost, cli_credentials_get_unparsed_name(creds, talloc_tos())));
+
+	*presult = result;
+	return NT_STATUS_OK;
+
+  err:
+
+	TALLOC_FREE(result);
+	return status;
+}
+
+/****************************************************************************
+ Open a named pipe to an SMB server and bind using the mech specified
+
+ This routine steals the creds pointer that is passed in
  ****************************************************************************/
 
 NTSTATUS cli_rpc_pipe_open_generic_auth(struct cli_state *cli,
 					const struct ndr_interface_table *table,
 					enum dcerpc_transport_t transport,
+					enum credentials_use_kerberos use_kerberos,
 					enum dcerpc_AuthType auth_type,
 					enum dcerpc_AuthLevel auth_level,
 					const char *server,
@@ -2997,27 +3112,19 @@ NTSTATUS cli_rpc_pipe_open_generic_auth(struct cli_state *cli,
 	return status;
 }
 
-/****************************************************************************
- External interface.
- Open a named pipe to an SMB server and bind using schannel (bind type 68)
- using session_key. sign and seal.
-
- The *pdc will be stolen onto this new pipe
- ****************************************************************************/
-
-NTSTATUS cli_rpc_pipe_open_schannel_with_key(struct cli_state *cli,
-					     const struct ndr_interface_table *table,
-					     enum dcerpc_transport_t transport,
-					     const char *domain,
-					     struct netlogon_creds_cli_context *netlogon_creds,
-					     struct rpc_pipe_client **_rpccli)
+NTSTATUS cli_rpc_pipe_open_schannel_with_creds(struct cli_state *cli,
+					       const struct ndr_interface_table *table,
+					       enum dcerpc_transport_t transport,
+					       struct cli_credentials *cli_creds,
+					       struct netlogon_creds_cli_context *netlogon_creds,
+					       struct rpc_pipe_client **_rpccli)
 {
 	struct rpc_pipe_client *rpccli;
 	struct pipe_auth_data *rpcauth;
-	struct netlogon_creds_CredentialState *creds = NULL;
+	const char *target_service = table->authservices->names[0];
+	struct netlogon_creds_CredentialState *ncreds = NULL;
 	enum dcerpc_AuthLevel auth_level;
 	NTSTATUS status;
-	const char *target_service = table->authservices->names[0];
 	int rpc_pipe_bind_dbglvl = 0;
 
 	status = cli_rpc_pipe_open(cli, transport, table, &rpccli);
@@ -3025,7 +3132,7 @@ NTSTATUS cli_rpc_pipe_open_schannel_with_key(struct cli_state *cli,
 		return status;
 	}
 
-	status = netlogon_creds_cli_lock(netlogon_creds, rpccli, &creds);
+	status = netlogon_creds_cli_lock(netlogon_creds, rpccli, &ncreds);
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(0, ("netlogon_creds_cli_get returned %s\n",
 			  nt_errstr(status)));
@@ -3035,39 +3142,37 @@ NTSTATUS cli_rpc_pipe_open_schannel_with_key(struct cli_state *cli,
 
 	auth_level = netlogon_creds_cli_auth_level(netlogon_creds);
 
-	status = rpccli_generic_bind_data(rpccli,
-					  DCERPC_AUTH_TYPE_SCHANNEL,
-					  auth_level,
-					  NULL,
-					  target_service,
-					  domain,
-					  creds->computer_name,
-					  NULL,
-					  CRED_AUTO_USE_KERBEROS,
-					  creds,
-					  &rpcauth);
+	cli_credentials_set_netlogon_creds(cli_creds, ncreds);
+
+	status = rpccli_generic_bind_data_from_creds(rpccli,
+						     DCERPC_AUTH_TYPE_SCHANNEL,
+						     auth_level,
+						     rpccli->desthost,
+						     target_service,
+						     cli_creds,
+						     &rpcauth);
 	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0, ("rpccli_generic_bind_data returned %s\n",
+		DEBUG(0, ("rpccli_generic_bind_data_from_creds returned %s\n",
 			  nt_errstr(status)));
 		TALLOC_FREE(rpccli);
 		return status;
 	}
 
 	status = rpc_pipe_bind(rpccli, rpcauth);
+	cli_credentials_set_netlogon_creds(cli_creds, NULL);
 	if (NT_STATUS_EQUAL(status, NT_STATUS_NETWORK_ACCESS_DENIED)) {
 		rpc_pipe_bind_dbglvl = 1;
-		netlogon_creds_cli_delete(netlogon_creds, &creds);
+		netlogon_creds_cli_delete(netlogon_creds, &ncreds);
 	}
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(rpc_pipe_bind_dbglvl,
-		      ("cli_rpc_pipe_open_schannel_with_key: "
-		       "rpc_pipe_bind failed with error %s\n",
-		       nt_errstr(status)));
+		      ("%s: rpc_pipe_bind failed with error %s\n",
+		       __func__, nt_errstr(status)));
 		TALLOC_FREE(rpccli);
 		return status;
 	}
 
-	TALLOC_FREE(creds);
+	TALLOC_FREE(ncreds);
 
 	if (!ndr_syntax_id_equal(&table->syntax_id, &ndr_table_netlogon.syntax_id)) {
 		goto done;
@@ -3084,76 +3189,13 @@ NTSTATUS cli_rpc_pipe_open_schannel_with_key(struct cli_state *cli,
 
 
 done:
-	DEBUG(10,("cli_rpc_pipe_open_schannel_with_key: opened pipe %s to machine %s "
+	DEBUG(10,("%s: opened pipe %s to machine %s "
 		  "for domain %s and bound using schannel.\n",
-		  table->name,
-		  rpccli->desthost, domain));
+		  __func__, table->name,
+		  rpccli->desthost, cli_credentials_get_domain(cli_creds)));
 
 	*_rpccli = rpccli;
 	return NT_STATUS_OK;
-}
-
-NTSTATUS cli_rpc_pipe_open_spnego(struct cli_state *cli,
-				  const struct ndr_interface_table *table,
-				  enum dcerpc_transport_t transport,
-				  const char *oid,
-				  enum dcerpc_AuthLevel auth_level,
-				  const char *server,
-				  const char *domain,
-				  const char *username,
-				  const char *password,
-				  struct rpc_pipe_client **presult)
-{
-	struct rpc_pipe_client *result;
-	struct pipe_auth_data *auth = NULL;
-	const char *target_service = table->authservices->names[0];
-	
-	NTSTATUS status;
-	enum credentials_use_kerberos use_kerberos;
-
-	if (strcmp(oid, GENSEC_OID_KERBEROS5) == 0) {
-		use_kerberos = CRED_MUST_USE_KERBEROS;
-	} else if (strcmp(oid, GENSEC_OID_NTLMSSP) == 0) {
-		use_kerberos = CRED_DONT_USE_KERBEROS;
-	} else {
-		return NT_STATUS_INVALID_PARAMETER;
-	}
-
-	status = cli_rpc_pipe_open(cli, transport, table, &result);
-	if (!NT_STATUS_IS_OK(status)) {
-		return status;
-	}
-
-	status = rpccli_generic_bind_data(result,
-					  DCERPC_AUTH_TYPE_SPNEGO, auth_level,
-					  server, target_service,
-					  domain, username, password, 
-					  use_kerberos, NULL,
-					  &auth);
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0, ("rpccli_generic_bind_data returned %s\n",
-			  nt_errstr(status)));
-		goto err;
-	}
-
-	status = rpc_pipe_bind(result, auth);
-	if (!NT_STATUS_IS_OK(status)) {
-		DEBUG(0, ("cli_rpc_pipe_open_spnego: cli_rpc_pipe_bind failed with error %s\n",
-			nt_errstr(status) ));
-		goto err;
-	}
-
-	DEBUG(10,("cli_rpc_pipe_open_spnego: opened pipe %s to "
-		  "machine %s.\n", table->name,
-		  result->desthost));
-
-	*presult = result;
-	return NT_STATUS_OK;
-
-  err:
-
-	TALLOC_FREE(result);
-	return status;
 }
 
 NTSTATUS cli_get_session_key(TALLOC_CTX *mem_ctx,

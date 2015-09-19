@@ -22,7 +22,6 @@
 
 #include "includes.h"
 #include "nmbd/nmbd.h"
-#include "smbprofile.h"
 
 /* Election parameters. */
 extern time_t StartupTime;
@@ -32,7 +31,7 @@ extern time_t StartupTime;
 **************************************************************************/
 
 static void send_election_dgram(struct subnet_record *subrec, const char *workgroup_name,
-                                uint32 criterion, int timeup,const char *server_name)
+                                uint32_t criterion, int timeup,const char *server_name)
 {
 	char outbuf[1024];
 	unstring srv_name;
@@ -167,11 +166,8 @@ void run_elections(time_t t)
   
 	struct subnet_record *subrec;
   
-	START_PROFILE(run_elections);
-
 	/* Send election packets once every 2 seconds - note */
 	if (lastime && (t - lastime < 2)) {
-		END_PROFILE(run_elections);
 		return;
 	}
   
@@ -211,7 +207,6 @@ yet registered on subnet %s\n", nmb_namestr(&nmbname), subrec->subnet_name ));
 			}
 		}
 	}
-	END_PROFILE(run_elections);
 }
 
 /*******************************************************************
@@ -219,10 +214,10 @@ yet registered on subnet %s\n", nmb_namestr(&nmbname), subrec->subnet_name ));
 ******************************************************************/
 
 static bool win_election(struct work_record *work, int version,
-                         uint32 criterion, int timeup, const char *server_name)
+                         uint32_t criterion, int timeup, const char *server_name)
 {  
 	int mytimeup = time(NULL) - StartupTime;
-	uint32 mycriterion = work->ElectionCriterion;
+	uint32_t mycriterion = work->ElectionCriterion;
 
 	/* If local master is false then never win in election broadcasts. */
 	if(!lp_local_master()) {
@@ -265,13 +260,11 @@ void process_election(struct subnet_record *subrec, struct packet_struct *p, con
 {
 	struct dgram_packet *dgram = &p->packet.dgram;
 	int version = CVAL(buf,0);
-	uint32 criterion = IVAL(buf,1);
+	uint32_t criterion = IVAL(buf,1);
 	int timeup = IVAL(buf,5)/1000;
 	unstring server_name;
 	struct work_record *work;
 	unstring workgroup_name;
-
-	START_PROFILE(election);
 
 	pull_ascii_nstring(server_name, sizeof(server_name), buf+13);
 	pull_ascii_nstring(workgroup_name, sizeof(workgroup_name), dgram->dest_name.name);
@@ -319,8 +312,7 @@ is not my workgroup.\n", work->work_group, subrec->subnet_name ));
 		}
 	}
 done:
-
-	END_PROFILE(election);
+	return;
 }
 
 /****************************************************************************

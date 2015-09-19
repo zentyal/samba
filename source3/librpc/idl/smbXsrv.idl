@@ -79,7 +79,7 @@ interface smbXsrv
 
 	/* client */
 
-	typedef struct {
+	typedef [public] struct {
 		[ignore] struct tevent_context		*ev_ctx;
 		[ignore] struct messaging_context	*msg_ctx;
 
@@ -185,11 +185,15 @@ interface smbXsrv
 		[ref] smbXsrv_session_global0		*global;
 		NTSTATUS				status;
 		NTTIME					idle_time;
+		hyper					nonce_high_random;
+		hyper					nonce_high_max;
 		hyper					nonce_high;
 		hyper					nonce_low;
 		[ignore] gensec_security		*gensec;
 		[ignore] user_struct			*compat;
 		[ignore] smbXsrv_tcon_table		*tcon_table;
+		[ignore] smbXsrv_preauth		*preauth;
+		boolean8				encryption_desired;
 	} smbXsrv_session;
 
 	typedef union {
@@ -284,6 +288,7 @@ interface smbXsrv
 		NTSTATUS				status;
 		NTTIME					idle_time;
 		[ignore] connection_struct		*compat;
+		boolean8				encryption_desired;
 	} smbXsrv_tcon;
 
 	typedef union {

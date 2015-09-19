@@ -2,12 +2,12 @@
 .\"     Title: vfs_btrfs
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 04/15/2015
+.\"      Date: 09/08/2015
 .\"    Manual: System Administration tools
-.\"    Source: Samba 4.2
+.\"    Source: Samba 4.3
 .\"  Language: English
 .\"
-.TH "VFS_BTRFS" "8" "04/15/2015" "Samba 4\&.2" "System Administration tools"
+.TH "VFS_BTRFS" "8" "09/08/2015" "Samba 4\&.3" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -46,11 +46,23 @@ Btrfs allows for multiple files to share the same on\-disk data through the use 
 .PP
 This module also exposes Btrfs per\-file compression support to SMB clients via the get/set compression fsctls\&.
 .PP
+Btrfs snapshots can be manipulated by Samba\*(Aqs FSRVP server\&. Snapshot manipulation using this module is currently considered experimental, and is therefore disabled by default\&. The
+vfs_snapper
+module is instead recommended for this purpose\&.
+.PP
 This module is stackable\&.
+.SH "OPTIONS"
+.PP
+btrfs: manipulate snapshots = [yes|no]
+.RS 4
+When set to
+\fIyes\fR, experimental support for the creation and deletion of snapshots via corresponding Btrfs IOCTLs will be enabled\&. The default is
+\fIno\fR, which means that such requests are passed through to any underlying VFS module\&.
+.RE
 .SH "CONFIGURATION"
 .PP
 vfs_btrfs
-requires that the underlying share path is a Btrfs filesystem\&.
+requires that the underlying share path is a Btrfs subvolume\&.
 .sp
 .if n \{\
 .RS 4
@@ -58,6 +70,33 @@ requires that the underlying share path is a Btrfs filesystem\&.
 .nf
 		\fI[share]\fR
 		\m[blue]\fBvfs objects = btrfs\fR\m[]
+		\m[blue]\fBbtrfs: manipulate snapshots = no\fR\m[]
+	
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+To use the experimental snapshot manipulation functionality provided by this module, it must be explicity enabled, and Samba\*(Aqs FSRVP server must be running\&.
+.PP
+The
+vfs_shadow_copy
+module can be used to expose snapshots created by
+vfs_btrfs
+to Windows Explorer as file / directory "previous versions"\&.
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+		\fI[global]\fR
+		\m[blue]\fBrpc_daemon:fssd = fork\fR\m[]
+		\m[blue]\fBregistry shares = yes\fR\m[]
+		\m[blue]\fBinclude = registry\fR\m[]
+
+		\fI[share]\fR
+		\m[blue]\fBvfs objects = btrfs shadow_copy\fR\m[]
+		\m[blue]\fBbtrfs: manipulate snapshots = yes\fR\m[]
 	
 .fi
 .if n \{\
@@ -65,7 +104,7 @@ requires that the underlying share path is a Btrfs filesystem\&.
 .\}
 .SH "VERSION"
 .PP
-This man page is correct for version 4\&.1\&.0 of the Samba suite\&.
+This man page is correct for version 4\&.3\&.0 of the Samba suite\&.
 .SH "AUTHOR"
 .PP
 The original Samba software and related utilities were created by Andrew Tridgell\&. Samba is now developed by the Samba Team as an Open Source project similar to the way the Linux kernel is developed\&.

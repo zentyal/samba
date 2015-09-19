@@ -2,12 +2,12 @@
 .\"     Title: ctdbd
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 04/15/2015
+.\"      Date: 09/08/2015
 .\"    Manual: CTDB - clustered TDB database
 .\"    Source: ctdb
 .\"  Language: English
 .\"
-.TH "CTDBD" "1" "04/15/2015" "ctdb" "CTDB \- clustered TDB database"
+.TH "CTDBD" "1" "09/08/2015" "ctdb" "CTDB \- clustered TDB database"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -47,7 +47,7 @@ for an overview of CTDB\&.
 .PP
 \-d, \-\-debug=\fIDEBUGLEVEL\fR
 .RS 4
-This option sets the debug level to DEBUGLEVEL, which controls what will be written to the logfile\&. The default is 0 which will only log important events and errors\&. A larger number will provide additional logging\&.
+This option sets the debug level to DEBUGLEVEL, which controls what will be written by the logging subsystem\&. The default is 2\&.
 .sp
 See the
 DEBUG LEVELS
@@ -93,10 +93,55 @@ Default is
 /etc/ctdb/events\&.d, which is part of the CTDB installation\&.
 .RE
 .PP
-\-\-logfile=\fIFILENAME\fR
+\-\-listen=\fIIPADDR\fR
+.RS 4
+IPADDR is the private IP address that ctdbd will bind to\&.
+.sp
+By default ctdbd will select the first address from the nodes list that in can bind to\&. See also
+\-\-nlist\&.
+.sp
+This option is only required when automatic address detection can not be used\&. This can be the case when running multiple ctdbd daemons/nodes on the same physical host (usually for testing), using InfiniBand for the private network or on Linux when sysctl net\&.ipv4\&.ip_nonlocal_bind=1\&.
+.RE
+.PP
+\-\-logging=\fISTRING\fR
+.RS 4
+STRING specifies where ctdbd will write its log\&. The default is file:/var/log/log\&.ctdb
+or similar \- the prefix may differ depending on how CTDB was built\&.
+.sp
+Valid values are:
+.PP
+file:\fIFILENAME\fR
 .RS 4
 FILENAME where ctdbd will write its log\&. This is usually
 /var/log/log\&.ctdb\&.
+.RE
+.PP
+syslog[:\fIMETHOD\fR]
+.RS 4
+CTDB will log to syslog\&. By default this will use the syslog(3) API\&.
+.sp
+Under heavy loads syslog(3) can block if the syslog daemon processes messages too slowly\&. This can cause CTDB to block when logging\&.
+.sp
+If METHOD is specified then it specifies an extension that causes logging to be done in a non\-blocking mode\&. Note that
+\fIthis may cause messages to be dropped\fR\&. METHOD must be one of:
+.PP
+nonblocking
+.RS 4
+CTDB will log to syslog via
+/dev/log
+in non\-blocking mode\&.
+.RE
+.PP
+udp
+.RS 4
+CTDB will log to syslog via UDP to localhost:514\&. The syslog daemon must be configured to listen on (at least) localhost:514\&. Most syslog daemons will log the messages with hostname "localhost" \- this is a limitation of the implementation, for compatibility with more syslog daemons\&.
+.RE
+.PP
+udp\-rfc5424
+.RS 4
+As with "udp" but messages are sent in RFC5424 format\&. This method will log the correct hostname but is not as widely implemented in syslog daemons\&.
+.RE
+.RE
 .RE
 .PP
 \-\-lvs
@@ -186,13 +231,15 @@ INTERFACE on which to attach public IP addresses or on which to attach the singl
 When using public IP addresses, this is only required if interfaces are not explicitly specified in the public addresses file\&.
 .RE
 .PP
-\-\-reclock=\fIFILENAME\fR
+\-\-reclock=\fIFILE\fR
 .RS 4
-FILENAME is the name of the recovery lock file stored in
-\fIshared storage\fR
-that ctdbd uses to prevent split brains from occuring\&.
+FILE is the name of the recovery lock file, stored in
+\fIshared storage\fR, that CTDB uses to prevent split brains\&.
 .sp
-It is possible to run CTDB without a recovery lock file, but then there will be no protection against split brain if the cluster/network becomes partitioned\&. Using CTDB without a reclock file is strongly discouraged\&.
+For information about the recovery lock please see the
+RECOVERY LOCK
+section in
+\fBctdb\fR(7)\&.
 .RE
 .PP
 \-\-single\-public\-ip=\fIIPADDR\fR
@@ -257,19 +304,6 @@ Display a summary of options\&.
 \-i, \-\-interactive
 .RS 4
 Enable interactive mode\&. This will make ctdbd run in the foreground and not detach from the terminal\&. By default ctdbd will detach itself and run in the background as a daemon\&.
-.RE
-.PP
-\-\-listen=\fIIPADDR\fR
-.RS 4
-This specifies which IP address that ctdbd will bind to\&.
-.sp
-By default ctdbd will bind to the first address it finds in the
-/etc/ctdb/nodes
-file that is also present on the local system\&.
-.sp
-This option is only required when you want to run multiple ctdbd daemons/nodes on the same physical host in which case there would be multiple entries in
-/etc/ctdb/nodes
-that would match a local interface\&.
 .RE
 .PP
 \-\-nopublicipcheck

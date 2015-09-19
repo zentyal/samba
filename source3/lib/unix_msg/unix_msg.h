@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __UNIX_DGRAM_H__
-#define __UNIX_DGRAM_H__
+#ifndef __UNIX_MSG_H__
+#define __UNIX_MSG_H__
 
 #include "replace.h"
 #include "poll_funcs/poll_funcs.h"
@@ -75,7 +75,6 @@ struct unix_msg_ctx;
  * @param[in] path The socket path
  * @param[in] ev_funcs The event callback functions to use
  * @param[in] fragment_size Maximum datagram size to send/receive
- * @param[in] cookie Random number to identify this context
  * @param[in] recv_callback Function called when a message is received
  * @param[in] private_data Private pointer for recv_callback
  * @param[out] result The new struct unix_msg_ctx
@@ -85,7 +84,7 @@ struct unix_msg_ctx;
 
 int unix_msg_init(const struct sockaddr_un *addr,
 		  const struct poll_funcs *ev_funcs,
-		  size_t fragment_size, uint64_t cookie,
+		  size_t fragment_size,
 		  void (*recv_callback)(struct unix_msg_ctx *ctx,
 					uint8_t *msg, size_t msg_len,
 					int *fds, size_t num_fds,

@@ -303,6 +303,15 @@ uint32_t smb2cli_conn_max_read_size(struct smbXcli_conn *conn);
 uint32_t smb2cli_conn_max_write_size(struct smbXcli_conn *conn);
 void smb2cli_conn_set_max_credits(struct smbXcli_conn *conn,
 				  uint16_t max_credits);
+uint8_t smb2cli_conn_get_io_priority(struct smbXcli_conn *conn);
+void smb2cli_conn_set_io_priority(struct smbXcli_conn *conn,
+				  uint8_t io_priority);
+uint32_t smb2cli_conn_cc_chunk_len(struct smbXcli_conn *conn);
+void smb2cli_conn_set_cc_chunk_len(struct smbXcli_conn *conn,
+				   uint32_t chunk_len);
+uint32_t smb2cli_conn_cc_max_chunks(struct smbXcli_conn *conn);
+void smb2cli_conn_set_cc_max_chunks(struct smbXcli_conn *conn,
+				    uint32_t max_chunks);
 
 struct tevent_req *smb2cli_req_create(TALLOC_CTX *mem_ctx,
 				      struct tevent_context *ev,
@@ -346,6 +355,16 @@ NTSTATUS smb2cli_req_recv(struct tevent_req *req, TALLOC_CTX *mem_ctx,
 			  struct iovec **piov,
 			  const struct smb2cli_req_expected_response *expected,
 			  size_t num_expected);
+
+/*
+ * This expects an iov[3] array, that is filled with references to
+ * the buffers used for the sending the requests into the socket.
+ *
+ * This can only be called after smb2cli_req_recv(subreq) before
+ * the TALLOC_FREE(subreq).
+ */
+NTSTATUS smb2cli_req_get_sent_iov(struct tevent_req *req,
+				  struct iovec *sent_iov);
 
 struct tevent_req *smbXcli_negprot_send(TALLOC_CTX *mem_ctx,
 					struct tevent_context *ev,
@@ -393,6 +412,8 @@ uint16_t smb2cli_session_reset_channel_sequence(struct smbXcli_session *session,
 						uint16_t channel_sequence);
 void smb2cli_session_start_replay(struct smbXcli_session *session);
 void smb2cli_session_stop_replay(struct smbXcli_session *session);
+NTSTATUS smb2cli_session_update_preauth(struct smbXcli_session *session,
+					const struct iovec *iov);
 NTSTATUS smb2cli_session_set_session_key(struct smbXcli_session *session,
 					 const DATA_BLOB session_key,
 					 const struct iovec *recv_iov);

@@ -121,6 +121,10 @@ typedef nss_status_t NSS_STATUS;
 #define __location__ __FILE__ ":" __LINESTR__
 #endif
 
+#ifndef DNS_NAME_MAX
+#define DNS_NAME_MAX 255
+#endif
+
 /* GCC have printf type attribute check. */
 #ifdef HAVE_ATTRIBUTE_PRINTF_FORMAT
 #define PRINTF_ATTRIBUTE(a,b) __attribute__ ((__format__ (__printf__, a, b)))
@@ -562,10 +566,6 @@ static void *nwrap_load_lib_handle(enum nwrap_lib lib)
 	void *handle = NULL;
 	int i;
 
-#ifdef HAVE_APPLE
-	return RTLD_NEXT;
-#endif
-
 #ifdef RTLD_DEEPBIND
 	flags |= RTLD_DEEPBIND;
 #endif
@@ -619,10 +619,17 @@ static void *nwrap_load_lib_handle(enum nwrap_lib lib)
 	}
 
 	if (handle == NULL) {
+#ifdef RTLD_NEXT
+		handle = nwrap_main_global->libc->handle
+		       = nwrap_main_global->libc->sock_handle
+		       = nwrap_main_global->libc->nsl_handle
+		       = RTLD_NEXT;
+#else
 		NWRAP_LOG(NWRAP_LOG_ERROR,
 			  "Failed to dlopen library: %s\n",
 			  dlerror());
 		exit(-1);
+#endif
 	}
 
 	return handle;
@@ -2348,9 +2355,17 @@ static void nwrap_files_endgrent(struct nwrap_backend *b)
 static struct hostent *nwrap_files_gethostbyname(const char *name, int af)
 {
 	struct hostent *he;
+	char canon_name[DNS_NAME_MAX] = { 0 };
+	size_t name_len;
 	int i;
 
 	nwrap_files_cache_reload(nwrap_he_global.cache);
+
+	name_len = strlen(name);
+	if (name_len < sizeof(canon_name) && name[name_len - 1] == '.') {
+		strncpy(canon_name, name, name_len - 1);
+		name = canon_name;
+	}
 
 	for (i = 0; i < nwrap_he_global.num; i++) {
 		int j;
@@ -3842,13 +3857,20 @@ static int nwrap_getaddrinfo(const char *node,
 	struct addrinfo *p = NULL;
 	unsigned short port = 0;
 	struct hostent *he;
-	struct in_addr in;
-	bool is_addr_ipv4 = false;
-	bool is_addr_ipv6 = false;
+	struct {
+		int family;
+		union {
+			struct in_addr v4;
+#ifdef HAVE_IPV6
+			struct in6_addr v6;
+		} in;
+#endif
+	} addr = {
+		.family = AF_UNSPEC,
+	};
 	int eai = EAI_SYSTEM;
 	int ret;
 	int rc;
-	int af;
 
 	if (node == NULL && service == NULL) {
 		return EAI_NONAME;
@@ -3900,32 +3922,25 @@ static int nwrap_getaddrinfo(const char *node,
 		}
 	}
 
-	af = hints->ai_family;
-	if (af == AF_UNSPEC) {
-		af = AF_INET;
+	rc = 0;
+	if (hints->ai_family == AF_UNSPEC || hints->ai_family == AF_INET) {
+		rc = inet_pton(AF_INET, node, &addr.in.v4);
 	}
-
-	rc = inet_pton(af, node, &in);
 	if (rc == 1) {
-		is_addr_ipv4 = true;
-		if (af == AF_UNSPEC) {
-			af = AF_INET;
-		}
+		addr.family = AF_INET;
 #ifdef HAVE_IPV6
 	} else {
-		struct in6_addr in6;
-
-		af = AF_INET6;
-
-		rc = inet_pton(af, node, &in6);
+		rc = inet_pton(AF_INET6, node, &addr.in.v6);
 		if (rc == 1) {
-			is_addr_ipv6 = true;
+			addr.family = AF_INET6;
 		}
 #endif
 	}
 
-	if (is_addr_ipv4) {
-		he = nwrap_files_gethostbyaddr(&in, sizeof(struct in_addr), af);
+	if (addr.family == AF_INET) {
+		he = nwrap_files_gethostbyaddr(&addr.in.v4,
+					       sizeof(struct in_addr),
+					       addr.family);
 		if (he != NULL) {
 			rc = nwrap_convert_he_ai(he, port, hints, &ai);
 		} else {
@@ -3933,18 +3948,10 @@ static int nwrap_getaddrinfo(const char *node,
 			rc = -1;
 		}
 #ifdef HAVE_IPV6
-	} else if (is_addr_ipv6) {
-		struct in6_addr in6;
-
-		rc =  inet_pton(af, node, &in6);
-		if (rc <= 0) {
-			eai = EAI_ADDRFAMILY;
-			return ret == 0 ? 0 : eai;
-		}
-
-		he = nwrap_files_gethostbyaddr(&in6,
+	} else if (addr.family == AF_INET6) {
+		he = nwrap_files_gethostbyaddr(&addr.in.v6,
 					       sizeof(struct in6_addr),
-					       af);
+					       addr.family);
 		if (he != NULL) {
 			rc = nwrap_convert_he_ai(he, port, hints, &ai);
 			eai = rc;

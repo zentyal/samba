@@ -2,6 +2,8 @@ libsmbclient.so.0 libsmbclient #MINVER#
  SMBCLIENT_0.1.0@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  SMBCLIENT_0.2.0@SMBCLIENT_0.2.0 2:4.0.3+dfsg1
  SMBCLIENT_0.2.1@SMBCLIENT_0.2.1 2:4.1.1
+ SMBCLIENT_0.2.2@SMBCLIENT_0.2.2 2:4.3.0+dfsg
+ SMBCLIENT_0.2.3@SMBCLIENT_0.2.3 2:4.3.0+dfsg
  smbc_chmod@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_close@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_closedir@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
@@ -35,6 +37,7 @@ libsmbclient.so.0 libsmbclient #MINVER#
  smbc_getFunctionLseek@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_getFunctionLseekdir@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_getFunctionMkdir@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
+ smbc_getFunctionNotify@SMBCLIENT_0.2.3 2:4.3.0+dfsg
  smbc_getFunctionOpen@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_getFunctionOpenPrintJob@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_getFunctionOpendir@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
@@ -48,6 +51,7 @@ libsmbclient.so.0 libsmbclient #MINVER#
  smbc_getFunctionRename@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_getFunctionRmdir@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_getFunctionSetxattr@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
+ smbc_getFunctionSplice@SMBCLIENT_0.2.2 2:4.3.0+dfsg
  smbc_getFunctionStat@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_getFunctionStatVFS@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_getFunctionTelldir@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
@@ -89,6 +93,7 @@ libsmbclient.so.0 libsmbclient #MINVER#
  smbc_lsetxattr@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_mkdir@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_new_context@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
+ smbc_notify@SMBCLIENT_0.2.3 2:4.3.0+dfsg
  smbc_open@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_open_print_job@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_opendir@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
@@ -121,6 +126,7 @@ libsmbclient.so.0 libsmbclient #MINVER#
  smbc_setFunctionLseek@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_setFunctionLseekdir@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_setFunctionMkdir@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
+ smbc_setFunctionNotify@SMBCLIENT_0.2.3 2:4.3.0+dfsg
  smbc_setFunctionOpen@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_setFunctionOpenPrintJob@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_setFunctionOpendir@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
@@ -134,6 +140,7 @@ libsmbclient.so.0 libsmbclient #MINVER#
  smbc_setFunctionRename@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_setFunctionRmdir@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_setFunctionSetxattr@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
+ smbc_setFunctionSplice@SMBCLIENT_0.2.2 2:4.3.0+dfsg
  smbc_setFunctionStat@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_setFunctionStatVFS@SMBCLIENT_0.1.0 2:4.0.3+dfsg1
  smbc_setFunctionTelldir@SMBCLIENT_0.1.0 2:4.0.3+dfsg1

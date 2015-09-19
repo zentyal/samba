@@ -11,5 +11,4 @@ waf_smbpasswd_location
 add-so-version-to-private-libraries
 xsltproc_dont_build_smb.conf.5.patch
 heimdal-rfc3454.txt
-Fix-CTDB-build-with-PMDA.patch
 Fix-privacy-breach-on-google.com.patch

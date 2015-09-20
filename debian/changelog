@@ -1,3 +1,9 @@
+samba (2:4.1.17+dfsg-5) UNRELEASED; urgency=medium
+
+  * Rebuild against new ldb. Closes: #799569
+
+ -- Jelmer Vernooij <jelmer@debian.org>  Sun, 20 Sep 2015 13:20:53 +0000
+
 samba (2:4.1.17+dfsg-4) unstable; urgency=medium
 
   * Add pidl_reproducible.patch: Make pidl output reproducible.

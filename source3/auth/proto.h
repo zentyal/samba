@@ -232,7 +232,7 @@ NTSTATUS make_server_info_info3(TALLOC_CTX *mem_ctx,
 				const char *sent_nt_username,
 				const char *domain,
 				struct auth_serversupplied_info **server_info,
-				struct netr_SamInfo3 *info3);
+				const struct netr_SamInfo3 *info3);
 struct wbcAuthUserInfo;
 NTSTATUS make_server_info_wbcAuthUserInfo(TALLOC_CTX *mem_ctx,
 					  const char *sent_nt_username,
@@ -281,13 +281,16 @@ NTSTATUS serverinfo_to_SamInfo3(const struct auth_serversupplied_info *server_in
 				struct netr_SamInfo3 *sam3);
 NTSTATUS serverinfo_to_SamInfo6(struct auth_serversupplied_info *server_info,
 				struct netr_SamInfo6 *sam6);
+NTSTATUS create_info3_from_pac_logon_info(TALLOC_CTX *mem_ctx,
+                                        const struct PAC_LOGON_INFO *logon_info,
+                                        struct netr_SamInfo3 **pp_info3);
 NTSTATUS samu_to_SamInfo3(TALLOC_CTX *mem_ctx,
 			  struct samu *samu,
 			  const char *login_server,
 			  struct netr_SamInfo3 **_info3,
 			  struct extra_auth_info *extra);
 struct netr_SamInfo3 *copy_netr_SamInfo3(TALLOC_CTX *mem_ctx,
-					 struct netr_SamInfo3 *orig);
+					 const struct netr_SamInfo3 *orig);
 struct netr_SamInfo3 *wbcAuthUserInfo_to_netr_SamInfo3(TALLOC_CTX *mem_ctx,
 					const struct wbcAuthUserInfo *info);
 
@@ -357,7 +360,7 @@ NTSTATUS make_session_info_krb5(TALLOC_CTX *mem_ctx,
 				char *ntdomain,
 				char *username,
 				struct passwd *pw,
-				struct PAC_LOGON_INFO *logon_info,
+				const struct netr_SamInfo3 *info3,
 				bool mapped_to_guest, bool username_was_mapped,
 				DATA_BLOB *session_key,
 				struct auth_session_info **session_info);

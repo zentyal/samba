@@ -354,6 +354,12 @@ struct smbXcli_conn *smbXcli_conn_create(TALLOC_CTX *mem_ctx,
 		conn->desire_signing = false;
 		conn->mandatory_signing = false;
 		break;
+	case SMB_SIGNING_DESIRED:
+		/* if the server desires it */
+		conn->allow_signing = true;
+		conn->desire_signing = true;
+		conn->mandatory_signing = false;
+		break;
 	case SMB_SIGNING_REQUIRED:
 		/* always */
 		conn->allow_signing = true;
@@ -1580,6 +1586,7 @@ static void smb1cli_req_writev_done(struct tevent_req *subreq)
 	if (nwritten == -1) {
 		NTSTATUS status = map_nt_error_from_unix_common(err);
 		smbXcli_conn_disconnect(state->conn, status);
+		tevent_req_nterror(req, status);
 		return;
 	}
 

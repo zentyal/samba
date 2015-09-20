@@ -101,6 +101,7 @@ static const struct enum_list enum_smb_signing_vals[] = {
 	{SMB_SIGNING_IF_REQUIRED, "On"},
 	{SMB_SIGNING_IF_REQUIRED, "enabled"},
 	{SMB_SIGNING_IF_REQUIRED, "auto"},
+	{SMB_SIGNING_DESIRED, "desired"},
 	{SMB_SIGNING_REQUIRED, "required"},
 	{SMB_SIGNING_REQUIRED, "mandatory"},
 	{SMB_SIGNING_REQUIRED, "force"},
@@ -739,7 +740,7 @@ static struct parm_struct parm_table[] = {
 		.offset		= GLOBAL_VAR(client_use_spnego_principal),
 		.special	= NULL,
 		.enum_list	= NULL,
-		.flags		= FLAG_ADVANCED,
+		.flags		= FLAG_ADVANCED | FLAG_DEPRECATED,
 	},
 	{
 		.label		= "username",

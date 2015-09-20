@@ -28,9 +28,8 @@
 #include "../lib/tsocket/tsocket.h"
 #include "../libcli/security/security.h"
 #include "../lib/util/tevent_ntstatus.h"
-#include "lib/smbd_tevent_queue.h"
 
-static struct tevent_req *smbd_smb2_session_setup_send(TALLOC_CTX *mem_ctx,
+static struct tevent_req *smbd_smb2_session_setup_wrap_send(TALLOC_CTX *mem_ctx,
 					struct tevent_context *ev,
 					struct smbd_smb2_request *smb2req,
 					uint64_t in_session_id,
@@ -38,7 +37,7 @@ static struct tevent_req *smbd_smb2_session_setup_send(TALLOC_CTX *mem_ctx,
 					uint8_t in_security_mode,
 					uint64_t in_previous_session_id,
 					DATA_BLOB in_security_buffer);
-static NTSTATUS smbd_smb2_session_setup_recv(struct tevent_req *req,
+static NTSTATUS smbd_smb2_session_setup_wrap_recv(struct tevent_req *req,
 					uint16_t *out_session_flags,
 					TALLOC_CTX *mem_ctx,
 					DATA_BLOB *out_security_buffer,
@@ -88,14 +87,14 @@ NTSTATUS smbd_smb2_request_process_sesssetup(struct smbd_smb2_request *smb2req)
 	in_security_buffer.data = SMBD_SMB2_IN_DYN_PTR(smb2req);
 	in_security_buffer.length = in_security_length;
 
-	subreq = smbd_smb2_session_setup_send(smb2req,
-					      smb2req->sconn->ev_ctx,
-					      smb2req,
-					      in_session_id,
-					      in_flags,
-					      in_security_mode,
-					      in_previous_session_id,
-					      in_security_buffer);
+	subreq = smbd_smb2_session_setup_wrap_send(smb2req,
+						   smb2req->sconn->ev_ctx,
+						   smb2req,
+						   in_session_id,
+						   in_flags,
+						   in_security_mode,
+						   in_previous_session_id,
+						   in_security_buffer);
 	if (subreq == NULL) {
 		return smbd_smb2_request_error(smb2req, NT_STATUS_NO_MEMORY);
 	}
@@ -119,11 +118,11 @@ static void smbd_smb2_request_sesssetup_done(struct tevent_req *subreq)
 	NTSTATUS status;
 	NTSTATUS error; /* transport error */
 
-	status = smbd_smb2_session_setup_recv(subreq,
-					      &out_session_flags,
-					      smb2req,
-					      &out_security_buffer,
-					      &out_session_id);
+	status = smbd_smb2_session_setup_wrap_recv(subreq,
+						   &out_session_flags,
+						   smb2req,
+						   &out_security_buffer,
+						   &out_session_id);
 	TALLOC_FREE(subreq);
 	if (!NT_STATUS_IS_OK(status) &&
 	    !NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
@@ -191,7 +190,13 @@ static NTSTATUS smbd_smb2_auth_generic_return(struct smbXsrv_session *session,
 		x->global->signing_required = true;
 	}
 
+	if ((lp_smb_encrypt(-1) >= SMB_SIGNING_DESIRED) &&
+	    (conn->smb2.client.capabilities & SMB2_CAP_ENCRYPTION)) {
+		x->encryption_desired = true;
+	}
+
 	if (lp_smb_encrypt(-1) == SMB_SIGNING_REQUIRED) {
+		x->encryption_desired = true;
 		x->global->encryption_required = true;
 	}
 
@@ -218,7 +223,7 @@ static NTSTATUS smbd_smb2_auth_generic_return(struct smbXsrv_session *session,
 		}
 	}
 
-	if (x->global->encryption_required) {
+	if (x->encryption_desired) {
 		*out_session_flags |= SMB2_SESSION_FLAG_ENCRYPT_DATA;
 	}
 
@@ -363,7 +368,6 @@ static NTSTATUS smbd_smb2_auth_generic_return(struct smbXsrv_session *session,
 	 * we attach the session to the request
 	 * so that the response can be signed
 	 */
-	smb2req->session = session;
 	if (!guest) {
 		smb2req->do_signing = true;
 	}
@@ -444,52 +448,10 @@ struct smbd_smb2_session_setup_state {
 	uint16_t out_session_flags;
 	DATA_BLOB out_security_buffer;
 	uint64_t out_session_id;
-	/* The following pointer is owned by state->session. */
-	struct smbd_smb2_session_setup_state **pp_self_ref;
 };
-
-static int pp_self_ref_destructor(struct smbd_smb2_session_setup_state **pp_state)
-{
-	(*pp_state)->session = NULL;
-	/*
-	 * To make things clearer, ensure the pp_self_ref
-	 * pointer is nulled out. We're never going to
-	 * access this again.
-	 */
-	(*pp_state)->pp_self_ref = NULL;
-	return 0;
-}
-
-static int smbd_smb2_session_setup_state_destructor(struct smbd_smb2_session_setup_state *state)
-{
-	/*
-	 * if state->session is not NULL,
-	 * we remove the session on failure
-	 */
-	TALLOC_FREE(state->session);
-	return 0;
-}
 
 static void smbd_smb2_session_setup_gensec_done(struct tevent_req *subreq);
 static void smbd_smb2_session_setup_previous_done(struct tevent_req *subreq);
-
-/************************************************************************
- We have to tag the state->session pointer with memory talloc'ed
- on it to ensure it gets NULL'ed out if the underlying struct smbXsrv_session
- is deleted by shutdown whilst this request is in flight.
-************************************************************************/
-
-static NTSTATUS tag_state_session_ptr(struct smbd_smb2_session_setup_state *state)
-{
-	state->pp_self_ref = talloc_zero(state->session,
-			struct smbd_smb2_session_setup_state *);
-	if (state->pp_self_ref == NULL) {
-		return NT_STATUS_NO_MEMORY;
-	}
-	*state->pp_self_ref = state;
-	talloc_set_destructor(state->pp_self_ref, pp_self_ref_destructor);
-	return NT_STATUS_OK;
-}
 
 static struct tevent_req *smbd_smb2_session_setup_send(TALLOC_CTX *mem_ctx,
 					struct tevent_context *ev,
@@ -532,8 +494,6 @@ static struct tevent_req *smbd_smb2_session_setup_send(TALLOC_CTX *mem_ctx,
 		return tevent_req_post(req, ev);
 	}
 
-	talloc_set_destructor(state, smbd_smb2_session_setup_state_destructor);
-
 	if (state->in_session_id == 0) {
 		/* create a new session */
 		status = smbXsrv_session_create(state->smb2req->sconn->conn,
@@ -541,6 +501,7 @@ static struct tevent_req *smbd_smb2_session_setup_send(TALLOC_CTX *mem_ctx,
 		if (tevent_req_nterror(req, status)) {
 			return tevent_req_post(req, ev);
 		}
+		smb2req->session = state->session;
 	} else {
 		status = smb2srv_session_lookup(state->smb2req->sconn->conn,
 						state->in_session_id, now,
@@ -557,11 +518,6 @@ static struct tevent_req *smbd_smb2_session_setup_send(TALLOC_CTX *mem_ctx,
 			tevent_req_nterror(req, status);
 			return tevent_req_post(req, ev);
 		}
-	}
-
-	status = tag_state_session_ptr(state);
-	if (tevent_req_nterror(req, status)) {
-		return tevent_req_post(req, ev);
 	}
 
 	if (state->session->gensec == NULL) {
@@ -618,8 +574,6 @@ static void smbd_smb2_session_setup_gensec_done(struct tevent_req *subreq)
 
 	if (NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
 		state->out_session_id = state->session->global->session_wire_id;
-		/* we want to keep the session */
-		TALLOC_FREE(state->pp_self_ref);
 		tevent_req_nterror(req, status);
 		return;
 	}
@@ -658,8 +612,6 @@ static void smbd_smb2_session_setup_gensec_done(struct tevent_req *subreq)
 		if (tevent_req_nterror(req, status)) {
 			return;
 		}
-		/* we want to keep the session */
-		TALLOC_FREE(state->pp_self_ref);
 		tevent_req_done(req);
 		return;
 	}
@@ -674,8 +626,6 @@ static void smbd_smb2_session_setup_gensec_done(struct tevent_req *subreq)
 		return;
 	}
 
-	/* we want to keep the session */
-	TALLOC_FREE(state->pp_self_ref);
 	tevent_req_done(req);
 	return;
 }
@@ -705,8 +655,6 @@ static void smbd_smb2_session_setup_previous_done(struct tevent_req *subreq)
 		if (tevent_req_nterror(req, status)) {
 			return;
 		}
-		/* we want to keep the session */
-		TALLOC_FREE(state->pp_self_ref);
 		tevent_req_done(req);
 		return;
 	}
@@ -721,8 +669,6 @@ static void smbd_smb2_session_setup_previous_done(struct tevent_req *subreq)
 		return;
 	}
 
-	/* we want to keep the session */
-	TALLOC_FREE(state->pp_self_ref);
 	tevent_req_done(req);
 	return;
 }
@@ -736,6 +682,162 @@ static NTSTATUS smbd_smb2_session_setup_recv(struct tevent_req *req,
 	struct smbd_smb2_session_setup_state *state =
 		tevent_req_data(req,
 		struct smbd_smb2_session_setup_state);
+	NTSTATUS status;
+
+	if (tevent_req_is_nterror(req, &status)) {
+		if (!NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
+			tevent_req_received(req);
+			return nt_status_squash(status);
+		}
+	} else {
+		status = NT_STATUS_OK;
+	}
+
+	*out_session_flags = state->out_session_flags;
+	*out_security_buffer = state->out_security_buffer;
+	*out_session_id = state->out_session_id;
+
+	talloc_steal(mem_ctx, out_security_buffer->data);
+	tevent_req_received(req);
+	return status;
+}
+
+struct smbd_smb2_session_setup_wrap_state {
+	struct tevent_context *ev;
+	struct smbd_smb2_request *smb2req;
+	uint64_t in_session_id;
+	uint8_t in_flags;
+	uint8_t in_security_mode;
+	uint64_t in_previous_session_id;
+	DATA_BLOB in_security_buffer;
+	uint16_t out_session_flags;
+	DATA_BLOB out_security_buffer;
+	uint64_t out_session_id;
+	NTSTATUS error;
+};
+
+static void smbd_smb2_session_setup_wrap_setup_done(struct tevent_req *subreq);
+static void smbd_smb2_session_setup_wrap_shutdown_done(struct tevent_req *subreq);
+
+static struct tevent_req *smbd_smb2_session_setup_wrap_send(TALLOC_CTX *mem_ctx,
+					struct tevent_context *ev,
+					struct smbd_smb2_request *smb2req,
+					uint64_t in_session_id,
+					uint8_t in_flags,
+					uint8_t in_security_mode,
+					uint64_t in_previous_session_id,
+					DATA_BLOB in_security_buffer)
+{
+	struct tevent_req *req;
+	struct smbd_smb2_session_setup_wrap_state *state;
+	struct tevent_req *subreq;
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct smbd_smb2_session_setup_wrap_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->ev = ev;
+	state->smb2req = smb2req;
+	state->in_session_id = in_session_id;
+	state->in_flags = in_flags;
+	state->in_security_mode = in_security_mode;
+	state->in_previous_session_id = in_previous_session_id;
+	state->in_security_buffer = in_security_buffer;
+
+	subreq = smbd_smb2_session_setup_send(state, state->ev,
+					      state->smb2req,
+					      state->in_session_id,
+					      state->in_flags,
+					      state->in_security_mode,
+					      state->in_previous_session_id,
+					      state->in_security_buffer);
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq,
+				smbd_smb2_session_setup_wrap_setup_done, req);
+
+	return req;
+}
+
+static void smbd_smb2_session_setup_wrap_setup_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req =
+		tevent_req_callback_data(subreq,
+		struct tevent_req);
+	struct smbd_smb2_session_setup_wrap_state *state =
+		tevent_req_data(req,
+		struct smbd_smb2_session_setup_wrap_state);
+	NTSTATUS status;
+
+	status = smbd_smb2_session_setup_recv(subreq,
+					      &state->out_session_flags,
+					      state,
+					      &state->out_security_buffer,
+					      &state->out_session_id);
+	TALLOC_FREE(subreq);
+	if (NT_STATUS_IS_OK(status)) {
+		tevent_req_done(req);
+		return;
+	}
+	if (NT_STATUS_EQUAL(status, NT_STATUS_MORE_PROCESSING_REQUIRED)) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	if (state->smb2req->session == NULL) {
+		tevent_req_nterror(req, status);
+		return;
+	}
+
+	state->error = status;
+
+	subreq = smb2srv_session_shutdown_send(state, state->ev,
+					       state->smb2req->session,
+					       state->smb2req);
+	if (tevent_req_nomem(subreq, req)) {
+		return;
+	}
+	tevent_req_set_callback(subreq,
+				smbd_smb2_session_setup_wrap_shutdown_done,
+				req);
+}
+
+static void smbd_smb2_session_setup_wrap_shutdown_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req =
+		tevent_req_callback_data(subreq,
+		struct tevent_req);
+	struct smbd_smb2_session_setup_wrap_state *state =
+		tevent_req_data(req,
+		struct smbd_smb2_session_setup_wrap_state);
+	NTSTATUS status;
+
+	status = smb2srv_session_shutdown_recv(subreq);
+	TALLOC_FREE(subreq);
+	if (tevent_req_nterror(req, status)) {
+		return;
+	}
+
+	/*
+	 * we may need to sign the response, so we need to keep
+	 * the session until the response is sent to the wire.
+	 */
+	talloc_steal(state->smb2req, state->smb2req->session);
+
+	tevent_req_nterror(req, state->error);
+}
+
+static NTSTATUS smbd_smb2_session_setup_wrap_recv(struct tevent_req *req,
+					uint16_t *out_session_flags,
+					TALLOC_CTX *mem_ctx,
+					DATA_BLOB *out_security_buffer,
+					uint64_t *out_session_id)
+{
+	struct smbd_smb2_session_setup_wrap_state *state =
+		tevent_req_data(req,
+		struct smbd_smb2_session_setup_wrap_state);
 	NTSTATUS status;
 
 	if (tevent_req_is_nterror(req, &status)) {
@@ -828,94 +930,50 @@ static void smbd_smb2_request_logoff_done(struct tevent_req *subreq)
 	}
 }
 
-struct smbd_smb2_logout_state {
+struct smbd_smb2_logoff_state {
 	struct smbd_smb2_request *smb2req;
-	struct tevent_queue *wait_queue;
 };
 
-static void smbd_smb2_logoff_wait_done(struct tevent_req *subreq);
+static void smbd_smb2_logoff_shutdown_done(struct tevent_req *subreq);
 
 static struct tevent_req *smbd_smb2_logoff_send(TALLOC_CTX *mem_ctx,
 					struct tevent_context *ev,
 					struct smbd_smb2_request *smb2req)
 {
 	struct tevent_req *req;
-	struct smbd_smb2_logout_state *state;
+	struct smbd_smb2_logoff_state *state;
 	struct tevent_req *subreq;
-	struct smbd_smb2_request *preq;
 
 	req = tevent_req_create(mem_ctx, &state,
-			struct smbd_smb2_logout_state);
+			struct smbd_smb2_logoff_state);
 	if (req == NULL) {
 		return NULL;
 	}
 	state->smb2req = smb2req;
 
-	state->wait_queue = tevent_queue_create(state, "logoff_wait_queue");
-	if (tevent_req_nomem(state->wait_queue, req)) {
-		return tevent_req_post(req, ev);
-	}
-
-	/*
-	 * Make sure that no new request will be able to use this session.
-	 */
-	smb2req->session->status = NT_STATUS_USER_SESSION_DELETED;
-
-	for (preq = smb2req->sconn->smb2.requests; preq != NULL; preq = preq->next) {
-		if (preq == smb2req) {
-			/* Can't cancel current request. */
-			continue;
-		}
-		if (preq->session != smb2req->session) {
-			/* Request on different session. */
-			continue;
-		}
-
-		/*
-		 * Never cancel anything in a compound
-		 * request. Way too hard to deal with
-		 * the result.
-		 */
-		if (!preq->compound_related && preq->subreq != NULL) {
-			tevent_req_cancel(preq->subreq);
-		}
-
-		/*
-		 * Now wait until the request is finished.
-		 *
-		 * We don't set a callback, as we just want to block the
-		 * wait queue and the talloc_free() of the request will
-		 * remove the item from the wait queue.
-		 */
-		subreq = smbd_tevent_queue_wait_send(preq, ev, state->wait_queue);
-		if (tevent_req_nomem(subreq, req)) {
-			return tevent_req_post(req, ev);
-		}
-	}
-
-	/*
-	 * Now we add our own waiter to the end of the queue,
-	 * this way we get notified when all pending requests are finished
-	 * and send to the socket.
-	 */
-	subreq = smbd_tevent_queue_wait_send(state, ev, state->wait_queue);
+	subreq = smb2srv_session_shutdown_send(state, ev,
+					       smb2req->session,
+					       smb2req);
 	if (tevent_req_nomem(subreq, req)) {
 		return tevent_req_post(req, ev);
 	}
-	tevent_req_set_callback(subreq, smbd_smb2_logoff_wait_done, req);
+	tevent_req_set_callback(subreq, smbd_smb2_logoff_shutdown_done, req);
 
 	return req;
 }
 
-static void smbd_smb2_logoff_wait_done(struct tevent_req *subreq)
+static void smbd_smb2_logoff_shutdown_done(struct tevent_req *subreq)
 {
 	struct tevent_req *req = tevent_req_callback_data(
 		subreq, struct tevent_req);
-	struct smbd_smb2_logout_state *state = tevent_req_data(
-		req, struct smbd_smb2_logout_state);
+	struct smbd_smb2_logoff_state *state = tevent_req_data(
+		req, struct smbd_smb2_logoff_state);
 	NTSTATUS status;
 
-	smbd_tevent_queue_wait_recv(subreq);
+	status = smb2srv_session_shutdown_recv(subreq);
+	if (tevent_req_nterror(req, status)) {
+		return;
+	}
 	TALLOC_FREE(subreq);
 
 	/*

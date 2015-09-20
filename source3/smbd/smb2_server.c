@@ -777,6 +777,7 @@ static void smb2_set_operation_credit(struct smbd_server_connection *sconn,
 
 	cmd = SVAL(inhdr, SMB2_HDR_OPCODE);
 	credits_requested = SVAL(inhdr, SMB2_HDR_CREDIT);
+	credits_requested = MAX(credits_requested, 1);
 	out_flags = IVAL(outhdr, SMB2_HDR_FLAGS);
 	out_status = NT_STATUS(IVAL(outhdr, SMB2_HDR_STATUS));
 
@@ -795,7 +796,9 @@ static void smb2_set_operation_credit(struct smbd_server_connection *sconn,
 		 * credits on the final response.
 		 */
 		credits_granted = 0;
-	} else if (credits_requested > 0) {
+	} else {
+		uint16_t additional_possible =
+			sconn->smb2.max_credits - credit_charge;
 		uint16_t additional_max = 0;
 		uint16_t additional_credits = credits_requested - 1;
 
@@ -821,14 +824,10 @@ static void smb2_set_operation_credit(struct smbd_server_connection *sconn,
 			break;
 		}
 
+		additional_max = MIN(additional_max, additional_possible);
 		additional_credits = MIN(additional_credits, additional_max);
 
 		credits_granted = credit_charge + additional_credits;
-	} else if (sconn->smb2.credits_granted == 0) {
-		/*
-		 * Make sure the client has always at least one credit
-		 */
-		credits_granted = 1;
 	}
 
 	/*
@@ -1281,12 +1280,11 @@ NTSTATUS smbd_smb2_request_pending_queue(struct smbd_smb2_request *req,
 
 	if (req->in.vector_count > req->current_idx + SMBD_SMB2_NUM_IOV_PER_REQ) {
 		/*
-		 * We're trying to go async in a compound
-		 * request chain.
-		 * This is only allowed for opens that
-		 * cause an oplock break, otherwise it
-		 * is not allowed. See [MS-SMB2].pdf
-		 * note <194> on Section 3.3.5.2.7.
+		 * We're trying to go async in a compound request
+		 * chain. This is only allowed for opens that cause an
+		 * oplock break or for the last operation in the
+		 * chain, otherwise it is not allowed. See
+		 * [MS-SMB2].pdf note <206> on Section 3.3.5.2.7.
 		 */
 		const uint8_t *inhdr = SMBD_SMB2_IN_HDR_PTR(req);
 
@@ -1864,6 +1862,7 @@ NTSTATUS smbd_smb2_request_dispatch(struct smbd_smb2_request *req)
 	NTSTATUS return_value;
 	struct smbXsrv_session *x = NULL;
 	bool signing_required = false;
+	bool encryption_desired = false;
 	bool encryption_required = false;
 
 	inhdr = SMBD_SMB2_IN_HDR_PTR(req);
@@ -1909,11 +1908,13 @@ NTSTATUS smbd_smb2_request_dispatch(struct smbd_smb2_request *req)
 	x = req->session;
 	if (x != NULL) {
 		signing_required = x->global->signing_required;
+		encryption_desired = x->encryption_desired;
 		encryption_required = x->global->encryption_required;
 	}
 
 	req->do_signing = false;
 	req->do_encryption = false;
+	req->was_encrypted = false;
 	if (intf_v->iov_len == SMB2_TF_HDR_SIZE) {
 		const uint8_t *intf = SMBD_SMB2_IN_TF_PTR(req);
 		uint64_t tf_session_id = BVAL(intf, SMB2_TF_SESSION_ID);
@@ -1935,10 +1936,10 @@ NTSTATUS smbd_smb2_request_dispatch(struct smbd_smb2_request *req)
 					NT_STATUS_ACCESS_DENIED);
 		}
 
-		req->do_encryption = true;
+		req->was_encrypted = true;
 	}
 
-	if (encryption_required && !req->do_encryption) {
+	if (encryption_required && !req->was_encrypted) {
 		return smbd_smb2_request_error(req,
 				NT_STATUS_ACCESS_DENIED);
 	}
@@ -1970,14 +1971,14 @@ NTSTATUS smbd_smb2_request_dispatch(struct smbd_smb2_request *req)
 		req->compat_chain_fsp = NULL;
 	}
 
-	if (req->do_encryption) {
+	if (req->was_encrypted) {
 		signing_required = false;
-	} else if (flags & SMB2_HDR_FLAG_SIGNED) {
+	} else if (signing_required || (flags & SMB2_HDR_FLAG_SIGNED)) {
 		DATA_BLOB signing_key;
 
 		if (x == NULL) {
 			return smbd_smb2_request_error(
-				req, NT_STATUS_ACCESS_DENIED);
+				req, NT_STATUS_USER_SESSION_DELETED);
 		}
 
 		signing_key = x->global->channels[0].signing_key;
@@ -2041,13 +2042,20 @@ NTSTATUS smbd_smb2_request_dispatch(struct smbd_smb2_request *req)
 		if (!NT_STATUS_IS_OK(status)) {
 			return smbd_smb2_request_error(req, status);
 		}
+		if (req->tcon->encryption_desired) {
+			encryption_desired = true;
+		}
 		if (req->tcon->global->encryption_required) {
 			encryption_required = true;
 		}
-		if (encryption_required && !req->do_encryption) {
+		if (encryption_required && !req->was_encrypted) {
 			return smbd_smb2_request_error(req,
 				NT_STATUS_ACCESS_DENIED);
 		}
+	}
+
+	if (req->was_encrypted || encryption_desired) {
+		req->do_encryption = true;
 	}
 
 	if (call->fileid_ofs != 0) {
@@ -2519,8 +2527,13 @@ NTSTATUS smbd_smb2_request_done_ex(struct smbd_smb2_request *req,
 		outdyn_v->iov_len = 0;
 	}
 
-	/* see if we need to recalculate the offset to the next response */
-	if (next_command_ofs > 0) {
+	/*
+	 * See if we need to recalculate the offset to the next response
+	 *
+	 * Note that all responses may require padding (including the very last
+	 * one).
+	 */
+	if (req->out.vector_count >= (2 * SMBD_SMB2_NUM_IOV_PER_REQ)) {
 		next_command_ofs  = SMB2_HDR_BODY;
 		next_command_ofs += SMBD_SMB2_OUT_BODY_LEN(req);
 		next_command_ofs += SMBD_SMB2_OUT_DYN_LEN(req);
@@ -2574,8 +2587,11 @@ NTSTATUS smbd_smb2_request_done_ex(struct smbd_smb2_request *req,
 		next_command_ofs += pad_size;
 	}
 
-	SIVAL(outhdr, SMB2_HDR_NEXT_COMMAND, next_command_ofs);
-
+	if ((req->current_idx + SMBD_SMB2_NUM_IOV_PER_REQ) >= req->out.vector_count) {
+		SIVAL(outhdr, SMB2_HDR_NEXT_COMMAND, 0);
+	} else {
+		SIVAL(outhdr, SMB2_HDR_NEXT_COMMAND, next_command_ofs);
+	}
 	return smbd_smb2_request_reply(req);
 }
 
@@ -2669,12 +2685,12 @@ NTSTATUS smbd_smb2_send_oplock_break(struct smbd_server_connection *sconn,
 	size_t body_len;
 	uint8_t *dyn;
 	size_t dyn_len;
-	bool do_encryption = session->global->encryption_required;
+	bool do_encryption = session->encryption_desired;
 	uint64_t nonce_high = 0;
 	uint64_t nonce_low = 0;
 	NTSTATUS status;
 
-	if (tcon->global->encryption_required) {
+	if (tcon->encryption_desired) {
 		do_encryption = true;
 	}
 

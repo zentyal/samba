@@ -761,7 +761,11 @@ type *talloc_get_type(const void *ptr, #type);
  */
 void *talloc_get_type_abort(const void *ptr, #type);
 #else
+#ifdef TALLOC_GET_TYPE_ABORT_NOOP
+#define talloc_get_type_abort(ptr, type) (type *)(ptr)
+#else
 #define talloc_get_type_abort(ptr, type) (type *)_talloc_get_type_abort(ptr, #type, __location__)
+#endif
 void *_talloc_get_type_abort(const void *ptr, const char *name, const char *location);
 #endif
 
@@ -839,14 +843,50 @@ void *talloc_find_parent_bytype(const void *ptr, #type);
  * talloc pool to a talloc parent outside the pool, the whole pool memory is
  * not free(3)'ed until that moved chunk is also talloc_free()ed.
  *
- * @param[in]  context  The talloc context to hang the result off (must not
- *			be another pool).
+ * @param[in]  context  The talloc context to hang the result off.
  *
  * @param[in]  size     Size of the talloc pool.
  *
  * @return              The allocated talloc pool, NULL on error.
  */
 void *talloc_pool(const void *context, size_t size);
+
+#ifdef DOXYGEN
+/**
+ * @brief Allocate a talloc object as/with an additional pool.
+ *
+ * This is like talloc_pool(), but's it's more flexible
+ * and allows an object to be a pool for its children.
+ *
+ * @param[in] ctx                   The talloc context to hang the result off.
+ *
+ * @param[in] type                  The type that we want to allocate.
+ *
+ * @param[in] num_subobjects        The expected number of subobjects, which will
+ *                                  be allocated within the pool. This allocates
+ *                                  space for talloc_chunk headers.
+ *
+ * @param[in] total_subobjects_size The size that all subobjects can use in total.
+ *
+ *
+ * @return              The allocated talloc object, NULL on error.
+ */
+void *talloc_pooled_object(const void *ctx, #type,
+			   unsigned num_subobjects,
+			   size_t total_subobjects_size);
+#else
+#define talloc_pooled_object(_ctx, _type, \
+			     _num_subobjects, \
+			     _total_subobjects_size) \
+	(_type *)_talloc_pooled_object((_ctx), sizeof(_type), #_type, \
+					(_num_subobjects), \
+					(_total_subobjects_size))
+void *_talloc_pooled_object(const void *ctx,
+			    size_t type_size,
+			    const char *type_name,
+			    unsigned num_subobjects,
+			    size_t total_subobjects_size);
+#endif
 
 /**
  * @brief Free a talloc chunk and NULL out the pointer.
@@ -857,7 +897,7 @@ void *talloc_pool(const void *context, size_t size);
  *
  * @param[in]  ctx      The chunk to be freed.
  */
-#define TALLOC_FREE(ctx) do { talloc_free(ctx); ctx=NULL; } while(0)
+#define TALLOC_FREE(ctx) do { if (ctx != NULL) { talloc_free(ctx); ctx=NULL; } } while(0)
 
 /* @} ******************************************************************/
 
@@ -925,6 +965,10 @@ size_t talloc_reference_count(const void *ptr);
  * @return              The original pointer 'ptr', NULL if talloc ran out of
  *                      memory in creating the reference.
  *
+ * @warning You should try to avoid using this interface. It turns a beautiful
+ *          talloc-tree into a graph. It is often really hard to debug if you
+ *          screw something up by accident.
+ *
  * Example:
  * @code
  *      unsigned int *a, *b, *c;
@@ -964,6 +1008,10 @@ void *_talloc_reference_loc(const void *context, const void *ptr, const char *lo
  * @note If the parent has already been removed using talloc_free() then
  * this function will fail and will return -1.  Likewise, if ptr is NULL,
  * then the function will make no modifications and return -1.
+ *
+ * @warning You should try to avoid using this interface. It turns a beautiful
+ *          talloc-tree into a graph. It is often really hard to debug if you
+ *          screw something up by accident.
  *
  * Example:
  * @code

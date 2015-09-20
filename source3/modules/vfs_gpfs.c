@@ -66,6 +66,16 @@ static int vfs_gpfs_kernel_flock(vfs_handle_struct *handle, files_struct *fsp,
 		return 0;
 	}
 
+	/*
+	 * A named stream fsp will have the basefile open in the fsp
+	 * fd, so lacking a distinct fd for the stream we have to skip
+	 * kernel_flock and set_gpfs_sharemode for stream.
+	 */
+	if (!is_ntfs_default_stream_smb_fname(fsp->fsp_name)) {
+		DEBUG(2,("%s: kernel_flock on stream\n", fsp_str_dbg(fsp)));
+		return 0;
+	}
+
 	START_PROFILE(syscall_kernel_flock);
 
 	kernel_flock(fsp->fh->fd, share_mode, access_mask);
@@ -105,8 +115,12 @@ static int vfs_gpfs_setlease(vfs_handle_struct *handle, files_struct *fsp,
 				struct gpfs_config_data,
 				return -1);
 
-	if (linux_set_lease_sighandler(fsp->fh->fd) == -1)
-		return -1;
+	START_PROFILE(syscall_linux_setlease);
+
+	if (linux_set_lease_sighandler(fsp->fh->fd) == -1) {
+		ret = -1;
+		goto failure;
+	}
 
 	START_PROFILE(syscall_linux_setlease);
 
@@ -120,6 +134,7 @@ static int vfs_gpfs_setlease(vfs_handle_struct *handle, files_struct *fsp,
 		unbecome_root();
 	}
 
+failure:
 	END_PROFILE(syscall_linux_setlease);
 
 	return ret;

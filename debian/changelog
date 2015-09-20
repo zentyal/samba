@@ -1,6 +1,7 @@
 samba (2:4.1.20+dfsg-1) UNRELEASED; urgency=medium
 
   * New upstream release (last compatible with current OpenChange).
+  * samba_bug_11077_torturetest.patch: refresh.
 
  -- Jelmer Vernooij <jelmer@debian.org>  Sun, 20 Sep 2015 17:48:59 +0000
 

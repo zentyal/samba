@@ -17,10 +17,10 @@ Signed-off-by: Guenther Deschner <gd@samba.org>
  source4/torture/rpc/schannel.c | 109 +++++++++++++++++++++++++++++++++++++++++
  5 files changed, 166 insertions(+), 1 deletion(-)
 
-Index: samba/selftest/target/Samba.pm
-===================================================================
---- samba.orig/selftest/target/Samba.pm
-+++ samba/selftest/target/Samba.pm
+diff --git a/selftest/target/Samba.pm b/selftest/target/Samba.pm
+index 217511a..2674c7f 100644
+--- a/selftest/target/Samba.pm
++++ b/selftest/target/Samba.pm
 @@ -156,6 +156,7 @@ sub get_interface($)
  
      $interfaces{"localktest6"} = 7;
@@ -29,10 +29,10 @@ Index: samba/selftest/target/Samba.pm
  
      # 11-16 used by selftest.pl for client interfaces
  
-Index: samba/selftest/target/Samba3.pm
-===================================================================
---- samba.orig/selftest/target/Samba3.pm
-+++ samba/selftest/target/Samba3.pm
+diff --git a/selftest/target/Samba3.pm b/selftest/target/Samba3.pm
+index ba01154..a63c1dc 100755
+--- a/selftest/target/Samba3.pm
++++ b/selftest/target/Samba3.pm
 @@ -153,6 +153,8 @@ sub setup_env($$$)
  
  	if ($envname eq "s3dc") {
@@ -42,11 +42,10 @@ Index: samba/selftest/target/Samba3.pm
  	} elsif ($envname eq "simpleserver") {
  		return $self->setup_simpleserver("$path/simpleserver");
  	} elsif ($envname eq "maptoguest") {
-@@ -216,6 +218,54 @@ sub setup_s3dc($$)
- 
+@@ -217,6 +219,54 @@ sub setup_s3dc($$)
  	return $vars;
  }
-+
+ 
 +sub setup_s3dc_schannel($$)
 +{
 +	my ($self, $path) = @_;
@@ -94,14 +93,15 @@ Index: samba/selftest/target/Samba3.pm
 +
 +	return $vars;
 +}
- 
++
  sub setup_member($$$)
  {
-Index: samba/source3/selftest/tests.py
-===================================================================
---- samba.orig/source3/selftest/tests.py
-+++ samba/source3/selftest/tests.py
-@@ -274,7 +274,7 @@ rpc = ["rpc.authcontext", "rpc.samba3.bi
+ 	my ($self, $prefix, $s3dcvars) = @_;
+diff --git a/source3/selftest/tests.py b/source3/selftest/tests.py
+index 786b52a..fbc1e11 100755
+--- a/source3/selftest/tests.py
++++ b/source3/selftest/tests.py
+@@ -274,7 +274,7 @@ rpc = ["rpc.authcontext", "rpc.samba3.bind", "rpc.samba3.srvsvc", "rpc.samba3.sh
         "rpc.samr.passwords.pwdlastset", "rpc.samr.large-dc", "rpc.samr.machine.auth",
         "rpc.samr.priv", "rpc.samr.passwords.validate",
         "rpc.netlogon.admin",
@@ -110,10 +110,10 @@ Index: samba/source3/selftest/tests.py
  
  local = ["local.nss-wrapper", "local.ndr"]
  
-@@ -358,6 +358,10 @@ for t in tests:
- # test the dirsort module.
-         plansmbtorture4testsuite(t, "s3dc", '//$SERVER_IP/tmpsort -U$USERNAME%$PASSWORD')
-         plansmbtorture4testsuite(t, "plugin_s4_dc", '//$SERVER/tmp -U$USERNAME%$PASSWORD')
+@@ -361,6 +361,10 @@ for t in tests:
+     elif t == "smb2.notify":
+         plansmbtorture4testsuite(t, "s3dc", '//$SERVER_IP/tmp -U$USERNAME%$PASSWORD --signing=required')
+         plansmbtorture4testsuite(t, "plugin_s4_dc", '//$SERVER/tmp -U$USERNAME%$PASSWORD --signing=required')
 +    elif t == "rpc.schannel_anon_setpw":
 +        plansmbtorture4testsuite(t, "s3dc", '//$SERVER_IP/tmp -U$%', description="anonymous password set")
 +        plansmbtorture4testsuite(t, "s3dc_schannel", '//$SERVER_IP/tmp -U$%', description="anonymous password set (schannel enforced server-side)")
@@ -121,10 +121,10 @@ Index: samba/source3/selftest/tests.py
      else:
          plansmbtorture4testsuite(t, "s3dc", '//$SERVER_IP/tmp -U$USERNAME%$PASSWORD')
          plansmbtorture4testsuite(t, "plugin_s4_dc", '//$SERVER/tmp -U$USERNAME%$PASSWORD')
-Index: samba/source4/torture/rpc/rpc.c
-===================================================================
---- samba.orig/source4/torture/rpc/rpc.c
-+++ samba/source4/torture/rpc/rpc.c
+diff --git a/source4/torture/rpc/rpc.c b/source4/torture/rpc/rpc.c
+index 2ec55b6..f20e0e9 100644
+--- a/source4/torture/rpc/rpc.c
++++ b/source4/torture/rpc/rpc.c
 @@ -496,6 +496,7 @@ NTSTATUS torture_rpc_init(void)
  	torture_suite_add_simple_test(suite, "schannel", torture_rpc_schannel);
  	torture_suite_add_simple_test(suite, "schannel2", torture_rpc_schannel2);
@@ -133,11 +133,11 @@ Index: samba/source4/torture/rpc/rpc.c
  	torture_suite_add_suite(suite, torture_rpc_srvsvc(suite));
  	torture_suite_add_suite(suite, torture_rpc_svcctl(suite));
  	torture_suite_add_suite(suite, torture_rpc_samr_accessmask(suite));
-Index: samba/source4/torture/rpc/schannel.c
-===================================================================
---- samba.orig/source4/torture/rpc/schannel.c
-+++ samba/source4/torture/rpc/schannel.c
-@@ -543,6 +543,83 @@ static bool test_schannel(struct torture
+diff --git a/source4/torture/rpc/schannel.c b/source4/torture/rpc/schannel.c
+index e0862d2..057c517 100644
+--- a/source4/torture/rpc/schannel.c
++++ b/source4/torture/rpc/schannel.c
+@@ -543,6 +543,83 @@ static bool test_schannel(struct torture_context *tctx,
  	return true;
  }
  
@@ -221,12 +221,10 @@ Index: samba/source4/torture/rpc/schannel.c
  
  
  /*
-@@ -584,6 +661,35 @@ bool torture_rpc_schannel(struct torture
- 	}
- 
+@@ -586,6 +663,35 @@ bool torture_rpc_schannel(struct torture_context *torture)
  	return ret;
-+}
-+
+ }
+ 
 +bool torture_rpc_schannel_anon_setpw(struct torture_context *torture)
 +{
 +	bool ret = true;
@@ -254,6 +252,8 @@ Index: samba/source4/torture/rpc/schannel.c
 +	}
 +
 +	return ret;
- }
- 
++}
++
  /*
+   test two schannel connections
+  */

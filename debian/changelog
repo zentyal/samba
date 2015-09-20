@@ -1,4 +1,4 @@
-samba (2:4.1.17+dfsg-5) UNRELEASED; urgency=medium
+samba (2:4.1.17+dfsg-5) unstable; urgency=medium
 
   * Rebuild against new ldb. Closes: #799569
 

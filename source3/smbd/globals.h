@@ -258,6 +258,9 @@ NTSTATUS smbd_smb2_request_verify_creditcharge(struct smbd_smb2_request *req,
 NTSTATUS smbd_smb2_request_verify_sizes(struct smbd_smb2_request *req,
 					size_t expected_body_size);
 
+enum protocol_types smbd_smb2_protocol_dialect_match(const uint8_t *indyn,
+					const int dialect_count,
+					uint16_t *dialect);
 NTSTATUS smbd_smb2_request_process_negprot(struct smbd_smb2_request *req);
 NTSTATUS smbd_smb2_request_process_sesssetup(struct smbd_smb2_request *req);
 NTSTATUS smbd_smb2_request_process_logoff(struct smbd_smb2_request *req);
@@ -391,6 +394,11 @@ NTSTATUS smbXsrv_session_create(struct smbXsrv_connection *conn,
 				NTTIME now,
 				struct smbXsrv_session **_session);
 NTSTATUS smbXsrv_session_update(struct smbXsrv_session *session);
+struct tevent_req *smb2srv_session_shutdown_send(TALLOC_CTX *mem_ctx,
+					struct tevent_context *ev,
+					struct smbXsrv_session *session,
+					struct smbd_smb2_request *current_req);
+NTSTATUS smb2srv_session_shutdown_recv(struct tevent_req *req);
 NTSTATUS smbXsrv_session_logoff(struct smbXsrv_session *session);
 NTSTATUS smbXsrv_session_logoff_all(struct smbXsrv_connection *conn);
 NTSTATUS smb1srv_session_table_init(struct smbXsrv_connection *conn);
@@ -495,6 +503,9 @@ struct smbd_smb2_request {
 
 	int current_idx;
 	bool do_signing;
+	/* Was the request encrypted? */
+	bool was_encrypted;
+	/* Should we encrypt? */
 	bool do_encryption;
 	struct tevent_timer *async_te;
 	bool compound_related;

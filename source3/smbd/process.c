@@ -172,6 +172,7 @@ bool srv_send_smb(struct smbd_server_connection *sconn, char *buffer,
 			DEBUG(0, ("send_smb: SMB encryption failed "
 				"on outgoing packet! Error %s\n",
 				nt_errstr(status) ));
+			ret = -1;
 			goto out;
 		}
 	}
@@ -3291,36 +3292,41 @@ NTSTATUS smbXsrv_connection_init_tables(struct smbXsrv_connection *conn,
 {
 	NTSTATUS status;
 
-	set_Protocol(protocol);
 	conn->protocol = protocol;
 
 	if (protocol >= PROTOCOL_SMB2_02) {
 		status = smb2srv_session_table_init(conn);
 		if (!NT_STATUS_IS_OK(status)) {
+			conn->protocol = PROTOCOL_NONE;
 			return status;
 		}
 
 		status = smb2srv_open_table_init(conn);
 		if (!NT_STATUS_IS_OK(status)) {
+			conn->protocol = PROTOCOL_NONE;
 			return status;
 		}
 	} else {
 		status = smb1srv_session_table_init(conn);
 		if (!NT_STATUS_IS_OK(status)) {
+			conn->protocol = PROTOCOL_NONE;
 			return status;
 		}
 
 		status = smb1srv_tcon_table_init(conn);
 		if (!NT_STATUS_IS_OK(status)) {
+			conn->protocol = PROTOCOL_NONE;
 			return status;
 		}
 
 		status = smb1srv_open_table_init(conn);
 		if (!NT_STATUS_IS_OK(status)) {
+			conn->protocol = PROTOCOL_NONE;
 			return status;
 		}
 	}
 
+	set_Protocol(protocol);
 	return NT_STATUS_OK;
 }
 

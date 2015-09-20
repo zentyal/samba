@@ -1,3 +1,9 @@
+samba (2:4.1.20+dfsg-1) UNRELEASED; urgency=medium
+
+  * New upstream release (last compatible with current OpenChange).
+
+ -- Jelmer Vernooij <jelmer@debian.org>  Sun, 20 Sep 2015 17:48:59 +0000
+
 samba (2:4.1.17+dfsg-5) unstable; urgency=medium
 
   * Rebuild against new ldb. Closes: #799569

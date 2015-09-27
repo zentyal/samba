@@ -1,3 +1,9 @@
+samba (2:4.1.20+dfsg-2) UNRELEASED; urgency=medium
+
+  * Fix epoch for dependency on ldb. Closes: #800331
+
+ -- Jelmer Vernooij <jelmer@debian.org>  Sun, 27 Sep 2015 21:56:30 +0000
+
 samba (2:4.1.20+dfsg-1) unstable; urgency=medium
 
   * New upstream release (last compatible with current OpenChange).

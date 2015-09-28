@@ -70,7 +70,8 @@ conf_args = \
 		--disable-rpath-install \
 		--bundled-libraries=NONE,pytevent,iniparser,roken,wind,hx509,asn1,heimbase,hcrypto,krb5,gssapi,heimntlm,hdb,kdc,com_err,compile_et,asn1_compile \
 		--builtin-libraries=replace,ccan \
-		--minimum-library-version="$(shell ./debian/autodeps.py --minimum-library-version)"
+		--minimum-library-version="$(shell ./debian/autodeps.py --minimum-library-version)" \
+		--with-cluster-support
 
 %:
 	dh $* --with python2 --with systemd

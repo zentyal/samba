@@ -1,4 +1,4 @@
-samba (2:4.3.0+dfsg-2) UNRELEASED; urgency=medium
+samba (2:4.3.0+dfsg-2) experimental; urgency=medium
 
   * Re-enable cluster support.
    + Build samba-cluster-support as built-in library, since its dependencies

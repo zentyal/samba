@@ -163,12 +163,8 @@ override_dh_install:
 	[ -e $(DESTIDR)/usr/share/man/man5/smb.conf.5 ] || \
 	   cp docs/manpages/smb.conf.5 $(DESTDIR)/usr/share/man/man5/smb.conf.5
 	# Remove ctdb dev files
-	rm $(DESTDIR)/usr/include/ctdb.h
-	rm $(DESTDIR)/usr/include/ctdb_client.h
-	rm $(DESTDIR)/usr/include/ctdb_private.h
-	rm $(DESTDIR)/usr/include/ctdb_protocol.h
-	rm $(DESTDIR)/usr/include/ctdb_version.h
-	rm $(DESTDIR)/usr/include/ctdb_typesafe_cb.h
+	rm $(DESTDIR)/usr/include/samba-4.0/ctdb*.h
+	rm $(DESTDIR)/usr/include/ctdb*.h
 	rm $(DESTDIR)/usr/lib/*/pkgconfig/ctdb.pc
 	# Remove ctdb tests
 	rm $(DESTDIR)/usr/bin/ctdb_run_tests

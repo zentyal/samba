@@ -78,7 +78,6 @@ usr/lib/*/samba/libhcrypto-samba4.so.5
 usr/lib/*/samba/libasn1-samba4.so.8
 usr/lib/*/samba/libsamba-python.so.0
 usr/lib/*/samba/libutil-reg.so.0
-usr/lib/*/samba/libsamba-cluster-support.so.0
 usr/lib/*/samba/libutil-cmdline.so.0
 usr/lib/*/samba/libcli-spoolss.so.0
 usr/lib/*/samba/libroken-samba4.so.19.0.1

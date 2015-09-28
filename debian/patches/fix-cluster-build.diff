@@ -1,0 +1,13 @@
+diff --git a/source3/wscript_build b/source3/wscript_build
+index ace4b99..c6e35dd 100755
+--- a/source3/wscript_build
++++ b/source3/wscript_build
+@@ -209,7 +209,7 @@ bld.SAMBA3_LIBRARY('smbregistry',
+                    registry/reg_init_basic.c''',
+                    deps='''smbd_shim tdb-wrap3 NDR_SECURITY util_tdb talloc
+                    replace util_reg samba-util samba-security
+-                   errors3 dbwrap samba3-util''',
++                   errors3 dbwrap samba3-util samba3util''',
+                    allow_undefined_symbols=True,
+                    private_library=True)
+ 

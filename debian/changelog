@@ -1,6 +1,8 @@
 samba (2:4.3.0+dfsg-2) UNRELEASED; urgency=medium
 
   * Re-enable cluster support.
+   + Build samba-cluster-support as built-in library, since its dependencies
+     are broken.
 
  -- Jelmer Vernooij <jelmer@debian.org>  Mon, 28 Sep 2015 00:34:51 +0000
 

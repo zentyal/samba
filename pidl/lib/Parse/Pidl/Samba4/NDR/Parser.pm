@@ -81,6 +81,17 @@ sub has_fast_array($$)
 }
 
 
+sub get_charset($)
+{
+	my ($e) = @_;
+
+	my $charset = $e->{PROPERTIES}->{charset};
+	if ($charset eq 'ANY') {
+		$charset = 'UNIX';
+	}
+	return $charset;
+}
+
 ####################################
 # pidl() is our basic output routine
 sub pidl($$)
@@ -194,7 +205,8 @@ sub ParseArrayPushHeader($$$$$$)
 
 	if ($l->{IS_ZERO_TERMINATED}) {
 		if (has_property($e, "charset")) {
-			$size = $length = "ndr_charset_length($var_name, CH_$e->{PROPERTIES}->{charset})";
+			my $charset = get_charset($e);
+			$size = $length = "ndr_charset_length($var_name, CH_$charset)";
 		} else {
 			$size = $length = "ndr_string_length($var_name, sizeof(*$var_name))";
 		}
@@ -617,7 +629,8 @@ sub ParseElementPushLevel
 
 			# Allow speedups for arrays of scalar types
 			if (is_charset_array($e,$l)) {
-				$self->pidl("NDR_CHECK(ndr_push_charset($ndr, $ndr_flags, $var_name, $length, sizeof(" . mapTypeName($nl->{DATA_TYPE}) . "), CH_$e->{PROPERTIES}->{charset}));");
+				my $charset = get_charset($e);
+				$self->pidl("NDR_CHECK(ndr_push_charset($ndr, $ndr_flags, $var_name, $length, sizeof(" . mapTypeName($nl->{DATA_TYPE}) . "), CH_$charset));");
 				return;
 			} elsif (has_fast_array($e,$l)) {
 				$self->pidl("NDR_CHECK(ndr_push_array_$nl->{DATA_TYPE}($ndr, $ndr_flags, $var_name, $length));");
@@ -1121,13 +1134,14 @@ sub ParseElementPullLevel
 			my $nl = GetNextLevel($e, $l);
 
 			if (is_charset_array($e,$l)) {
+				my $charset = get_charset($e);
 				if ($l->{IS_ZERO_TERMINATED}) {
 					$self->CheckStringTerminator($ndr, $e, $l, $length);
 				}
 				if ($l->{IS_TO_NULL}) {
-					$self->pidl("NDR_CHECK(ndr_pull_charset_to_null($ndr, $ndr_flags, ".get_pointer_to($var_name).", $length, sizeof(" . mapTypeName($nl->{DATA_TYPE}) . "), CH_$e->{PROPERTIES}->{charset}));");
+					$self->pidl("NDR_CHECK(ndr_pull_charset_to_null($ndr, $ndr_flags, ".get_pointer_to($var_name).", $length, sizeof(" . mapTypeName($nl->{DATA_TYPE}) . "), CH_$charset));");
 				} else {
-					$self->pidl("NDR_CHECK(ndr_pull_charset($ndr, $ndr_flags, ".get_pointer_to($var_name).", $length, sizeof(" . mapTypeName($nl->{DATA_TYPE}) . "), CH_$e->{PROPERTIES}->{charset}));");
+					$self->pidl("NDR_CHECK(ndr_pull_charset($ndr, $ndr_flags, ".get_pointer_to($var_name).", $length, sizeof(" . mapTypeName($nl->{DATA_TYPE}) . "), CH_$charset));");
 				}
 				return;
 			} elsif (has_fast_array($e, $l)) {
@@ -1349,7 +1363,8 @@ sub ParseStructPushPrimitives($$$$$)
 			
 			if ($e->{LEVELS}[0]->{IS_ZERO_TERMINATED}) {
 				if (has_property($e, "charset")) {
-					$size = "ndr_charset_length($varname->$e->{NAME}, CH_$e->{PROPERTIES}->{charset})";
+					my $charset = get_charset($e);
+					$size = "ndr_charset_length($varname->$e->{NAME}, CH_$charset)";
 				} else {
 					$size = "ndr_string_length($varname->$e->{NAME}, sizeof(*$varname->$e->{NAME}))";
 				}

@@ -86,6 +86,11 @@ sub ParserElement($$$$)
 		my $len = ParseExpr(@{$e->{ARRAY_LEN}}[0], $env, $e);
 		if ($len eq "*") { $len = "-1"; }
 		$name = ", mem_ctx" if ($t eq "pull");
+
+		if (($e->{PROPERTIES}->{charset} eq 'ANY')) {
+		    return;
+		}
+
 		$self->pidl("TDR_CHECK(tdr_$t\_charset(tdr$name, &v->$e->{NAME}, $len, sizeof($e->{TYPE}_t), CH_$e->{PROPERTIES}->{charset}));");
 		return;
 	}

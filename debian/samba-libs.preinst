@@ -5,8 +5,6 @@
 set -e
 
 # Move files to private subdir now fhs patch is finally gone
-# this code is also present in libpam-smbpass.preinst (and should be kept in
-# sync)
 if [ "$1" = "install" ]
 then
 	for file in passdb.tdb secrets.tdb schannel_store.tdb idmap2.tdb

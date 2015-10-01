@@ -130,7 +130,6 @@ override_dh_install:
 	ln -sf ../../../samba/ldb $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/ldb/modules/ldb/samba
 	# pam stuff
 	mkdir -p $(DESTDIR)/usr/share/pam-configs
-	install -m 0644 debian/libpam-smbpass.pam-config $(DESTDIR)/usr/share/pam-configs/smbpasswd-migrate
 	install -m 0644 debian/winbind.pam-config $(DESTDIR)/usr/share/pam-configs/winbind
 	mv $(DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/libnss_* $(DESTDIR)/lib/$(DEB_HOST_MULTIARCH)/
 	# we don't ship the symlinks
@@ -171,6 +170,8 @@ override_dh_install:
 	rm $(DESTDIR)/usr/bin/ctdb_run_cluster_tests
 	rm -rf $(DESTDIR)/usr/lib/*/ctdb-tests
 	rm -rf $(DESTDIR)/usr/share/ctdb-tests
+	# Remove libpam-smbpass, which is broken and slated for removal upstream.
+	rm -f $(DESTDIR)/lib/*/security/pam_smbpass.so
 	# Install ctdb conffiles
 	mkdir -p $(DESTDIR)/lib/systemd/system/
 	install -m 0644 ctdb/config/ctdb.service $(DESTDIR)/lib/systemd/system/
@@ -186,10 +187,7 @@ get-packaged-orig-source:
 	./debian/build-orig.sh
 
 override_dh_installchangelogs:
-	dh_installchangelogs -Nlibpam-smbpass
-ifneq (,$(filter libpam-smbpass, $(shell dh_listpackages)))
-	dh_installchangelogs -plibpam-smbpass source3/pam_smbpass/CHANGELOG
-endif
+	dh_installchangelogs
 
 override_dh_installinit:
 ifneq (,$(filter samba, $(shell dh_listpackages)))

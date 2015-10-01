@@ -394,25 +394,6 @@ Description: Samba Virtual FileSystem plugins
  .
  This package contains plugins for the Samba server Virtual FileSystem.
 
-Package: libpam-smbpass
-Section: admin
-Priority: extra
-Architecture: any
-Multi-Arch: same
-Depends: libpam-runtime (>= 1.0.1-6),
-         samba-common (= ${source:Version}),
-         ${misc:Depends},
-         ${shlibs:Depends}
-Pre-Depends: dpkg (>= 1.15.6~)
-Suggests: samba
-Description: pluggable authentication module for Samba
- This is a module for PAM that enables a system administrator to migrate
- user passwords from the Unix password database to the SMB password
- database as used by Samba, and to subsequently keep the two databases in
- sync.  Unlike other solutions, it does this without needing users to log
- in to Samba using cleartext passwords, or requiring them to change their
- existing passwords.
-
 Package: libsmbclient
 Section: libs
 Priority: optional

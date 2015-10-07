@@ -1,5 +1,7 @@
---- a/source4/dns_server/dlz_minimal.h
-+++ b/source4/dns_server/dlz_minimal.h
+Index: samba/source4/dns_server/dlz_minimal.h
+===================================================================
+--- samba.orig/source4/dns_server/dlz_minimal.h	2015-10-07 10:53:07.135448931 -0700
++++ samba/source4/dns_server/dlz_minimal.h	2015-10-07 10:53:07.123449004 -0700
 @@ -23,6 +23,11 @@
  #ifndef DLZ_MINIMAL_H
  #define DLZ_MINIMAL_H 1
@@ -12,7 +14,7 @@
  #ifdef BIND_VERSION_9_8
  #define DLZ_DLOPEN_VERSION 1
  #elif BIND_VERSION_9_9
-@@ -72,6 +77,30 @@ typedef uint32_t dns_ttl_t;
+@@ -72,6 +77,30 @@
  #define ISC_LOG_CRITICAL	(-5)
  #define ISC_LOG_DEBUG(level)	(level)
  
@@ -43,7 +45,7 @@
  /* opaque structures */
  typedef void *dns_sdlzlookup_t;
  typedef void *dns_sdlzallnodes_t;
-@@ -223,7 +252,7 @@ dlz_allnodes(const char *zone, void *dbd
+@@ -223,7 +252,7 @@
  isc_result_t
  dlz_newversion(const char *zone, void *dbdata, void **versionp);
  
@@ -52,9 +54,11 @@
   * dlz_closeversion() is optional, but must be supplied if you supply a
   * dlz_newversion() function
   */
---- a/source4/dns_server/wscript_build
-+++ b/source4/dns_server/wscript_build
-@@ -18,7 +18,7 @@ bld.SAMBA_MODULE('service_dns',
+Index: samba/source4/dns_server/wscript_build
+===================================================================
+--- samba.orig/source4/dns_server/wscript_build	2015-10-07 10:53:07.135448931 -0700
++++ samba/source4/dns_server/wscript_build	2015-10-07 10:53:07.123449004 -0700
+@@ -18,7 +18,7 @@
  
  # a bind9 dlz module giving access to the Samba DNS SAM
  bld.SAMBA_LIBRARY('dlz_bind9',
@@ -63,7 +67,7 @@
                    cflags='-DBIND_VERSION_9_8',
                    private_library=True,
                    link_name='modules/bind9/dlz_bind9.so',
-@@ -28,7 +28,7 @@ bld.SAMBA_LIBRARY('dlz_bind9',
+@@ -28,7 +28,7 @@
                    enabled=bld.AD_DC_BUILD_IS_ENABLED())
  
  bld.SAMBA_LIBRARY('dlz_bind9_9',
@@ -72,7 +76,7 @@
                    cflags='-DBIND_VERSION_9_9',
                    private_library=True,
                    link_name='modules/bind9/dlz_bind9_9.so',
-@@ -38,7 +38,7 @@ bld.SAMBA_LIBRARY('dlz_bind9_9',
+@@ -38,7 +38,7 @@
                    enabled=bld.AD_DC_BUILD_IS_ENABLED())
  
  bld.SAMBA_LIBRARY('dlz_bind9_10',
@@ -81,7 +85,7 @@
                    cflags='-DBIND_VERSION_9_10',
                    private_library=True,
                    link_name='modules/bind9/dlz_bind9_10.so',
-@@ -48,7 +48,7 @@ bld.SAMBA_LIBRARY('dlz_bind9_10',
+@@ -48,7 +48,7 @@
                    enabled=bld.AD_DC_BUILD_IS_ENABLED())
  
  bld.SAMBA_LIBRARY('dlz_bind9_for_torture',
@@ -90,8 +94,10 @@
                    cflags='-DBIND_VERSION_9_8',
                    private_library=True,
                    deps='samba-hostconfig samdb-common gensec popt dnsserver_common',
---- /dev/null
-+++ b/source4/dns_server/keys_parser.l
+Index: samba/source4/dns_server/keys_parser.l
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ samba/source4/dns_server/keys_parser.l	2015-10-07 10:53:07.123449004 -0700
 @@ -0,0 +1,59 @@
 +%{
 +#include "keys_parser.h"
@@ -152,8 +158,10 @@
 +    return 0;
 +}
 +#endif
---- /dev/null
-+++ b/source4/dns_server/k_lexer.c
+Index: samba/source4/dns_server/k_lexer.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ samba/source4/dns_server/k_lexer.c	2015-10-07 10:53:07.123449004 -0700
 @@ -0,0 +1,2176 @@
 +#line 2 "k_lexer.c"
 +
@@ -2331,8 +2339,10 @@
 +}
 +#endif
 +
---- /dev/null
-+++ b/source4/dns_server/k_lexer.h
+Index: samba/source4/dns_server/k_lexer.h
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ samba/source4/dns_server/k_lexer.h	2015-10-07 10:53:07.127448966 -0700
 @@ -0,0 +1,355 @@
 +#ifndef yyHEADER_H
 +#define yyHEADER_H 1
@@ -2689,8 +2699,10 @@
 +#line 354 "k_lexer.h"
 +#undef yyIN_HEADER
 +#endif /* yyHEADER_H */
---- /dev/null
-+++ b/source4/dns_server/k_parser.c
+Index: samba/source4/dns_server/k_parser.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ samba/source4/dns_server/k_parser.c	2015-10-07 10:53:07.127448966 -0700
 @@ -0,0 +1,1882 @@
 +/* A Bison parser, made by GNU Bison 2.5.  */
 +
@@ -4574,8 +4586,10 @@
 +
 +
 +
---- /dev/null
-+++ b/source4/dns_server/k_parser.h
+Index: samba/source4/dns_server/k_parser.h
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ samba/source4/dns_server/k_parser.h	2015-10-07 10:53:07.127448966 -0700
 @@ -0,0 +1,86 @@
 +/* A Bison parser, made by GNU Bison 2.5.  */
 +
@@ -4663,8 +4677,10 @@
 +
 +
 +
---- /dev/null
-+++ b/source4/dns_server/keys_parser.h
+Index: samba/source4/dns_server/keys_parser.h
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ samba/source4/dns_server/keys_parser.h	2015-10-07 10:53:07.127448966 -0700
 @@ -0,0 +1,21 @@
 +#ifndef __KEYS_PARSER_H__
 +#define __KEYS_PARSER_H__
@@ -4687,8 +4703,10 @@
 +struct key_list *getAST(const char *fpath);
 +
 +#endif
---- /dev/null
-+++ b/source4/dns_server/keys_parser.y
+Index: samba/source4/dns_server/keys_parser.y
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ samba/source4/dns_server/keys_parser.y	2015-10-07 10:53:07.127448966 -0700
 @@ -0,0 +1,234 @@
 +%{
 +#include <stdio.h>
@@ -4924,9 +4942,11 @@
 +}
 +
 +
---- a/lib/param/param_table.c
-+++ b/lib/param/param_table.c
-@@ -4006,6 +4006,22 @@ struct parm_struct parm_table[] = {
+Index: samba/lib/param/param_table.c
+===================================================================
+--- samba.orig/lib/param/param_table.c	2015-10-07 10:53:07.135448931 -0700
++++ samba/lib/param/param_table.c	2015-10-07 10:53:07.127448966 -0700
+@@ -4005,6 +4005,22 @@
  		.special	= NULL,
  		.enum_list	= NULL
  	},
@@ -4949,9 +4969,11 @@
  	{
  		.label		= "tls priority",
  		.type		= P_STRING,
---- a/lib/param/loadparm.c
-+++ b/lib/param/loadparm.c
-@@ -2547,8 +2547,10 @@ struct loadparm_context *loadparm_init(T
+Index: samba/lib/param/loadparm.c
+===================================================================
+--- samba.orig/lib/param/loadparm.c	2015-10-07 10:53:07.135448931 -0700
++++ samba/lib/param/loadparm.c	2015-10-07 10:53:07.131448945 -0700
+@@ -2547,8 +2547,10 @@
  	lpcfg_do_global_parameter(lp_ctx, "rndc command", "/usr/sbin/rndc");
  	lpcfg_do_global_parameter(lp_ctx, "nsupdate command", "/usr/bin/nsupdate -g");
  
@@ -4964,8 +4986,10 @@
  
  	lpcfg_do_global_parameter(lp_ctx, "ldap privileged socket mode", "0750");
  
---- a/source4/dns_server/dlz_bind9.c
-+++ b/source4/dns_server/dlz_bind9.c
+Index: samba/source4/dns_server/dlz_bind9.c
+===================================================================
+--- samba.orig/source4/dns_server/dlz_bind9.c	2015-10-07 10:53:07.135448931 -0700
++++ samba/source4/dns_server/dlz_bind9.c	2015-10-07 10:53:07.131448945 -0700
 @@ -39,6 +39,7 @@
  #include "lib/util/dlinklist.h"
  #include "dlz_minimal.h"
@@ -4974,7 +4998,7 @@
  
  struct b9_options {
  	const char *url;
-@@ -52,6 +53,7 @@ struct b9_zone {
+@@ -52,6 +53,7 @@
  
  struct dlz_bind9_data {
  	struct b9_options options;
@@ -4982,7 +5006,7 @@
  	struct ldb_context *samdb;
  	struct tevent_context *ev_ctx;
  	struct loadparm_context *lp;
-@@ -525,6 +527,40 @@ static isc_result_t parse_options(struct
+@@ -525,6 +527,40 @@
  	return ISC_R_SUCCESS;
  }
  
@@ -5023,7 +5047,7 @@
  
  /*
   * Create session info from PAC
-@@ -664,6 +700,11 @@ _PUBLIC_ isc_result_t dlz_create(const c
+@@ -664,6 +700,11 @@
  		lpcfg_do_global_parameter(state->lp, "log level", "0");
  	}
  
@@ -5035,7 +5059,7 @@
  	if (smb_krb5_init_context(state, state->lp, &state->smb_krb5_ctx) != 0) {
  		result = ISC_R_NOMEMORY;
  		goto failed;
-@@ -1254,75 +1295,64 @@ _PUBLIC_ isc_result_t dlz_configure(dns_
+@@ -1254,75 +1295,64 @@
  	return ISC_R_SUCCESS;
  }
  
@@ -5144,7 +5168,7 @@
  	}
  
  	gensec_set_credentials(gensec_ctx, server_credentials);
-@@ -1330,24 +1360,113 @@ _PUBLIC_ isc_boolean_t dlz_ssumatch(cons
+@@ -1330,24 +1360,113 @@
  	nt_status = gensec_start_mech_by_name(gensec_ctx, "spnego");
  	if (!NT_STATUS_IS_OK(nt_status)) {
  		state->log(ISC_LOG_ERROR, "samba_dlz: failed to start spnego");
@@ -5264,8 +5288,10 @@
  	/* Get the DN from name */
  	result = b9_find_name_dn(state, name, tmp_ctx, &dn);
  	if (result != ISC_R_SUCCESS) {
---- /dev/null
-+++ b/docs-xml/smbdotconf/domain/allowdnsupdateskeysfile.xml
+Index: samba/docs-xml/smbdotconf/domain/allowdnsupdateskeysfile.xml
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ samba/docs-xml/smbdotconf/domain/allowdnsupdateskeysfile.xml	2015-10-07 10:53:07.131448945 -0700
 @@ -0,0 +1,15 @@
 +<samba:parameter name="allow dns updates keys file"
 +                 context="G"
@@ -5282,8 +5308,10 @@
 +
 +<value type="default">/etc/bind/keys</value>
 +</samba:parameter>
---- /dev/null
-+++ b/docs-xml/smbdotconf/domain/allowdnsupdatessessionkeyfile.xml
+Index: samba/docs-xml/smbdotconf/domain/allowdnsupdatessessionkeyfile.xml
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ samba/docs-xml/smbdotconf/domain/allowdnsupdatessessionkeyfile.xml	2015-10-07 10:53:07.131448945 -0700
 @@ -0,0 +1,15 @@
 +<samba:parameter name="allow dns updates session key file"
 +                 context="G"

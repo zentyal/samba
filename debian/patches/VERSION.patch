@@ -2,12 +2,14 @@ Description: Add "Zentyal" as vendor suffix
 Author:Samuel Cabrero <scabrero@zentyal.com>
 Forwarded: not-needed
 
---- samba-4.0.3+dfsg1.orig/VERSION
-+++ samba-4.0.3+dfsg1/VERSION
-@@ -123,5 +123,5 @@ SAMBA_VERSION_RELEASE_NICKNAME=
+Index: samba/VERSION
+===================================================================
+--- samba.orig/VERSION	2015-10-07 10:47:41.323889403 -0700
++++ samba/VERSION	2015-10-07 10:47:55.415876375 -0700
+@@ -123,5 +123,5 @@
  #  ->  "3.0.0rc2-VendorVersion"                        #
  #                                                      #
  ########################################################
--SAMBA_VERSION_VENDOR_SUFFIX=
-+SAMBA_VERSION_VENDOR_SUFFIX="Zentyal"
+-SAMBA_VERSION_VENDOR_SUFFIX=Debian
++SAMBA_VERSION_VENDOR_SUFFIX=Zentyal
  SAMBA_VERSION_VENDOR_PATCH=

@@ -3,27 +3,20 @@ Author: Samuel Cabrero Alamán <scabrero@zentyal.com>
 Status: not suitable for upstream in current form, as it also needs to support older Heimdal.
 Last-Updated: 2012-12-16
 
---- a/source4/kdc/wdc-samba4.c
-+++ b/source4/kdc/wdc-samba4.c
-@@ -142,7 +142,7 @@ static krb5_error_code samba_wdc_reget_p
- 			talloc_free(mem_ctx);
- 			return EINVAL;
- 		}
--		
-+
- 		if (is_in_db) {
- 			/* Now check the KDC signature, fetching the correct key based on the enc type */
- 			ret = kdc_check_pac(context, pac_srv_sig->signature, pac_kdc_sig, krbtgt);
-@@ -272,7 +272,7 @@ static krb5_error_code samba_wdc_check_c
+Index: samba/source4/kdc/wdc-samba4.c
+===================================================================
+--- samba.orig/source4/kdc/wdc-samba4.c	2015-10-07 10:40:16.212243785 -0700
++++ samba/source4/kdc/wdc-samba4.c	2015-10-07 10:43:31.328125035 -0700
+@@ -272,7 +272,7 @@
  						     hdb_entry_ex *client_ex, const char *client_name,
  						     hdb_entry_ex *server_ex, const char *server_name,
  						     KDC_REQ *req,
 -						     krb5_data *e_data)
-+                             METHOD_DATA *md)
++						     METHOD_DATA *md)
  {
  	struct samba_kdc_entry *kdc_entry;
  	bool password_change;
-@@ -294,11 +294,19 @@ static krb5_error_code samba_wdc_check_c
+@@ -294,11 +294,19 @@
  			return ENOMEM;
  		}
  

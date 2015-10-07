@@ -1,0 +1,13 @@
+Index: samba/dynconfig/wscript
+===================================================================
+--- samba.orig/dynconfig/wscript	2015-02-24 18:28:57.575474014 +0100
++++ samba/dynconfig/wscript	2015-02-24 18:28:57.571474014 +0100
+@@ -415,7 +415,7 @@
+     bld.SAMBA_SUBSYSTEM('DYNCONFIG',
+                         'dynconfig.c',
+                         deps='replace talloc',
+-                        public_headers=os_path_relpath(os.path.join(Options.launch_dir, version_header), bld.curdir),
++                        public_headers=os_path_relpath(os.path.join(Options.launch_dir, version_header), bld.curdir) + ' dynconfig.h',
+                         header_path='samba',
+                         cflags=cflags)
+ 

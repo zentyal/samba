@@ -1,0 +1,126 @@
+From 23c4d3446e7c02534c0c68f6cb49dcc61642ba32 Mon Sep 17 00:00:00 2001
+From: Samuel Cabrero <scabrero@zentyal.com>
+Date: Wed, 30 Oct 2013 00:24:25 +0100
+Subject: [PATCH] auth: Fallback to guest account if user not found in SAM and
+ guest is enabled
+
+---
+ source4/auth/ntlm/auth_sam.c | 64 +++++++++++++++++++++++++++++++++++++++-----
+ source4/auth/sam.c           | 13 +++++++--
+ 2 files changed, 69 insertions(+), 8 deletions(-)
+
+--- a/source4/auth/ntlm/auth_sam.c
++++ b/source4/auth/ntlm/auth_sam.c
+@@ -58,14 +58,58 @@ static NTSTATUS authsam_search_account(T
+ 			      "(&(sAMAccountName=%s)(objectclass=user))",
+ 			      ldb_binary_encode_string(mem_ctx, account_name));
+ 	if (ret == LDB_ERR_NO_SUCH_OBJECT) {
+-		DEBUG(3,("sam_search_user: Couldn't find user [%s] in samdb, under %s\n", 
+-			 account_name, ldb_dn_get_linearized(domain_dn)));
+-		return NT_STATUS_NO_SUCH_USER;		
++		const struct dom_sid *domain_sid;
++		struct dom_sid *guest_sid;
++
++		DEBUG(3,("%s: Couldn't find user [%s] in samdb, under %s\n",
++			 __func__, account_name,
++			 ldb_dn_get_linearized(domain_dn)));
++
++		/* If the domain guest account is enabled, map to it */
++		domain_sid = samdb_domain_sid(sam_ctx);
++		if (domain_sid == NULL) {
++			return NT_STATUS_INTERNAL_DB_CORRUPTION;
++		}
++
++		guest_sid = dom_sid_add_rid(mem_ctx, domain_sid, DOMAIN_RID_GUEST);
++		if (guest_sid == NULL) {
++			return NT_STATUS_NO_MEMORY;
++		}
++
++		/* pull the user attributes */
++		ret = dsdb_search_one(sam_ctx, mem_ctx, ret_msg, domain_dn,
++			LDB_SCOPE_SUBTREE,
++			user_attrs,
++			DSDB_SEARCH_SHOW_EXTENDED_DN,
++			"(&(objectSID=%s)(objectclass=user))",
++			ldap_encode_ndr_dom_sid(mem_ctx, guest_sid));
++		if (ret != LDB_SUCCESS) {
++			return NT_STATUS_INTERNAL_DB_CORRUPTION;
++		}
++		if (ret == LDB_ERR_NO_SUCH_OBJECT) {
++			DEBUG(3,("%s: Couldn't find guest user in samdb, under %s\n",
++				__func__,
++				ldb_dn_get_linearized(domain_dn)));
++			return NT_STATUS_NO_SUCH_USER;
++		}
++		/* Return no such user if the account is disabled */
++		uint16_t acct_flags = samdb_result_acct_flags(*ret_msg, NULL);
++
++		if (acct_flags & ACB_DISABLED) {
++			DEBUG(3,("%s: Account for guest user is disabled.\n",
++					__func__));
++			return NT_STATUS_NO_SUCH_USER;
++		}
++		/* Guest account exists and is enabled */
++		DEBUG(3, ("%s: Domain guest account is enabled, "
++			  "allowing guest access\n", __func__));
++
++		return NT_STATUS_OK;
+ 	}
+ 	if (ret != LDB_SUCCESS) {
+ 		return NT_STATUS_INTERNAL_DB_CORRUPTION;
+ 	}
+-	
++
+ 	return NT_STATUS_OK;
+ }
+ 
+@@ -223,6 +267,13 @@ static NTSTATUS authsam_password_check_a
+ 	}
+ 
+ 	if (lm_pwd == NULL && nt_pwd == NULL) {
++		if (acct_flags & ACB_PWNOTREQ) {
++			DEBUG(3,("Account for user '%s' has no password and null passwords are allowed.\n",
++				user_info->mapped.account_name));
++			*user_sess_key = data_blob(NULL, 0);
++			*lm_sess_key = data_blob(NULL, 0);
++			return NT_STATUS_OK;
++		}
+ 		bool am_rodc;
+ 		if (samdb_rodc(auth_context->sam_ctx, &am_rodc) == LDB_SUCCESS && am_rodc) {
+ 			/*
+--- a/source4/auth/sam.c
++++ b/source4/auth/sam.c
+@@ -293,7 +293,7 @@ _PUBLIC_ NTSTATUS authsam_make_user_info
+ 	struct auth_user_info *info;
+ 	const char *str, *filter;
+ 	/* SIDs for the account and his primary group */
+-	struct dom_sid *account_sid;
++	struct dom_sid *account_sid, *domain_guest_sid;
+ 	const char *primary_group_string;
+ 	const char *primary_group_dn;
+ 	DATA_BLOB primary_group_blob;
+@@ -333,6 +333,9 @@ _PUBLIC_ NTSTATUS authsam_make_user_info
+ 		return status;
+ 	}
+ 
++	domain_guest_sid = dom_sid_add_rid(tmp_ctx, domain_sid, DOMAIN_RID_GUEST);
++	NT_STATUS_HAVE_NO_MEMORY_AND_FREE(domain_guest_sid, user_info_dc);
++
+ 	sids[PRIMARY_USER_SID_INDEX] = *account_sid;
+ 	sids[PRIMARY_GROUP_SID_INDEX] = *domain_sid;
+ 	sid_append_rid(&sids[PRIMARY_GROUP_SID_INDEX], ldb_msg_find_attr_as_uint(msg, "primaryGroupID", ~0));
+@@ -514,7 +517,13 @@ _PUBLIC_ NTSTATUS authsam_make_user_info
+ 		user_info_dc->num_sids++;
+ 	}
+ 
+-	info->authenticated = true;
++	/* Authenticated users S-1-5-11 does not include guest even if guest
++	 * account has a password.
++	 * http://technet.microsoft.com/en-us/library/cc780850(v=ws.10).aspx
++	 */
++	if (!dom_sid_equal(domain_guest_sid, account_sid)) {
++		info->authenticated = true;
++	}
+ 
+ 	talloc_free(tmp_ctx);
+ 	*_user_info_dc = user_info_dc;

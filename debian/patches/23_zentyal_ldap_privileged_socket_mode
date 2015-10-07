@@ -1,0 +1,69 @@
+--- a/lib/param/param_table.c
++++ b/lib/param/param_table.c
+@@ -982,6 +982,14 @@ struct parm_struct parm_table[] = {
+ 		.special	= NULL,
+ 		.enum_list	= NULL,
+ 	},
++    {
++        .label      = "ldap privileged socket mode",
++        .type       = P_OCTAL,
++        .p_class    = P_GLOBAL,
++        .offset     = GLOBAL_VAR(ldap_privileged_socket_mode),
++        .special    = NULL,
++        .enum_list  = NULL,
++    },
+
+ 	{
+ 		.label		= "guest ok",
+--- a/lib/param/loadparm.c
++++ b/lib/param/loadparm.c
+@@ -2550,6 +2550,8 @@ struct loadparm_context *loadparm_init(T
+         lpcfg_do_global_parameter(lp_ctx, "allow dns updates", "secure only");
+         lpcfg_do_global_parameter(lp_ctx, "dns forwarder", "");
+ 
++	lpcfg_do_global_parameter(lp_ctx, "ldap privileged socket mode", "0750");
++
+ 	lpcfg_do_global_parameter(lp_ctx, "algorithmic rid base", "1000");
+ 
+ 	lpcfg_do_global_parameter(lp_ctx, "enhanced browsing", "True");
+--- a/source4/ldap_server/ldap_server.c
++++ b/source4/ldap_server/ldap_server.c
+@@ -890,6 +890,7 @@ static void ldapsrv_task_init(struct tas
+ 	char *ldapi_path;
+ #ifdef WITH_LDAPI_PRIV_SOCKET
+ 	char *priv_dir;
++	mode_t ldap_priv_mode;
+ #endif
+ 	const char *dns_host_name;
+ 	struct ldapsrv_service *ldap_service;
+@@ -1008,6 +1009,17 @@ static void ldapsrv_task_init(struct tas
+ 	 * Make sure the directory for the privileged ldapi socket exists, and
+ 	 * is of the correct permissions
+ 	 */
++	ldap_priv_mode = lpcfg_ldap_priv_socket_mode(task->lp_ctx);
++	if (directory_exist(priv_dir)) {
++		if (chmod(priv_dir, ldap_priv_mode)) {
++			DEBUG(0, ("chmod failed on directory %s: %s\n",
++			          priv_dir, strerror(errno)));
++			task_server_terminate(task, "Cannot set ldap privileged ldapi "
++			                      "directory permissions", true);
++			return;
++		}
++	}
++
+ 	if (!directory_create_or_exist(priv_dir, 0750)) {
+ 		task_server_terminate(task, "Cannot create ldap "
+ 				      "privileged ldapi directory", true);
+--- /dev/null
++++ b/docs-xml/smbdotconf/ldap/ldapprivilegedsocketmode.xml
+@@ -0,0 +1,10 @@
++<samba:parameter name="ldap privileged socket mode"
++                 context="G"
++                 type="integer"
++                 xmlns:samba="http://www.samba.org/samba/DTD/samba-doc">
++<description>
++    <para>Permissions for ldap privileged socket</para>
++</description>
++
++<value type="default">0750</value>
++</samba:parameter>

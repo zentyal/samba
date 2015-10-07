@@ -1,0 +1,38 @@
+--- a/source4/dsdb/repl/drepl_out_helpers.c
++++ b/source4/dsdb/repl/drepl_out_helpers.c
+@@ -418,6 +418,7 @@ static void dreplsrv_op_pull_source_get_
+ 	struct drsuapi_DsPartialAttributeSet *pas = NULL;
+ 	NTSTATUS status;
+ 	uint32_t replica_flags;
++	uint32_t max_objects;
+ 	struct drsuapi_DsReplicaHighWaterMark highwatermark;
+ 	struct ldb_dn *schema_dn = ldb_get_schema_basedn(service->samdb);
+ 
+@@ -504,6 +505,9 @@ static void dreplsrv_op_pull_source_get_
+ 		uptodateness_vector = NULL;
+ 	}
+ 
++	max_objects = lpcfg_parm_int(service->task->lp_ctx, NULL,
++				     "drs", "max object sync", 133);
++
+ 	r->in.bind_handle	= &drsuapi->bind_handle;
+ 	if (drsuapi->remote_info28.supported_extensions & DRSUAPI_SUPPORTED_EXTENSION_GETCHGREQ_V8) {
+ 		r->in.level				= 8;
+@@ -513,7 +517,7 @@ static void dreplsrv_op_pull_source_get_
+ 		r->in.req->req8.highwatermark		= highwatermark;
+ 		r->in.req->req8.uptodateness_vector	= uptodateness_vector;
+ 		r->in.req->req8.replica_flags		= replica_flags;
+-		r->in.req->req8.max_object_count	= 133;
++		r->in.req->req8.max_object_count	= max_objects;
+ 		r->in.req->req8.max_ndr_size		= 1336811;
+ 		r->in.req->req8.extended_op		= state->op->extended_op;
+ 		r->in.req->req8.fsmo_info		= state->op->fsmo_info;
+@@ -529,7 +533,7 @@ static void dreplsrv_op_pull_source_get_
+ 		r->in.req->req5.highwatermark		= highwatermark;
+ 		r->in.req->req5.uptodateness_vector	= uptodateness_vector;
+ 		r->in.req->req5.replica_flags		= replica_flags;
+-		r->in.req->req5.max_object_count	= 133;
++		r->in.req->req5.max_object_count	= max_objects;
+ 		r->in.req->req5.max_ndr_size		= 1336770;
+ 		r->in.req->req5.extended_op		= state->op->extended_op;
+ 		r->in.req->req5.fsmo_info		= state->op->fsmo_info;

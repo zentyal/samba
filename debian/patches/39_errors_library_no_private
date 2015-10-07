@@ -1,0 +1,292 @@
+--- /dev/null
++++ b/libcli/util/samba-errors.pc.in
+@@ -0,0 +1,10 @@
++prefix=@prefix@
++exec_prefix=@exec_prefix@
++libdir=@libdir@
++includedir=@includedir@
++
++Name: samba-errors
++Description: Samba Errors
++Version: @PACKAGE_VERSION@
++Libs: @LIB_RPATH@ -L${libdir} -lsamba-errors
++Cflags: -I${includedir} -DHAVE_IMMEDIATE_STRUCTURES=1
+--- a/auth/credentials/wscript_build
++++ b/auth/credentials/wscript_build
+@@ -5,7 +5,7 @@ bld.SAMBA_LIBRARY('samba-credentials',
+ 	autoproto='credentials_proto.h',
+ 	public_headers='credentials.h',
+ 	pc_files='samba-credentials.pc',
+-	deps='LIBCRYPTO errors events LIBCLI_AUTH samba-security CREDENTIALS_SECRETS CREDENTIALS_KRB5',
++	deps='LIBCRYPTO samba-errors events LIBCLI_AUTH samba-security CREDENTIALS_SECRETS CREDENTIALS_KRB5',
+ 	vnum='0.0.1'
+ 	)
+ 
+--- a/libcli/auth/wscript_build
++++ b/libcli/auth/wscript_build
+@@ -2,7 +2,7 @@
+ 
+ bld.SAMBA_LIBRARY('cliauth',
+                   source='',
+-                  deps='MSRPC_PARSE LIBCLI_AUTH COMMON_SCHANNEL PAM_ERRORS SPNEGO_PARSE krb5samba errors NTLM_CHECK UTIL_LSARPC',
++                  deps='MSRPC_PARSE LIBCLI_AUTH COMMON_SCHANNEL PAM_ERRORS SPNEGO_PARSE krb5samba samba-errors NTLM_CHECK UTIL_LSARPC',
+                   private_library=True,
+                   grouping_library=True)
+ 
+--- a/libcli/ldap/wscript_build
++++ b/libcli/ldap/wscript_build
+@@ -2,7 +2,7 @@
+ 
+ bld.SAMBA_LIBRARY('cli-ldap-common',
+                   source='ldap_message.c ldap_ndr.c',
+-                  public_deps='errors talloc ldb',
++                  public_deps='samba-errors talloc ldb',
+                   public_headers='ldap_message.h ldap_errors.h ldap_ndr.h',
+                   deps='samba-util asn1util NDR_SECURITY tevent',
+                   private_library=True
+--- a/librpc/wscript_build
++++ b/librpc/wscript_build
+@@ -311,7 +311,7 @@ bld.SAMBA_SUBSYSTEM('NDR_INITSHUTDOWN',
+ 
+ bld.SAMBA_SUBSYSTEM('NDR_COMPRESSION',
+     source='ndr/ndr_compression.c',
+-    public_deps='errors ndr',
++    public_deps='samba-errors ndr',
+     deps='z LZXPRESS'
+     )
+ 
+@@ -700,7 +700,7 @@ bld.SAMBA_LIBRARY('dcerpc-samba',
+ bld.SAMBA_LIBRARY('ndr',
+     source='ndr/ndr_string.c ndr/ndr_basic.c ndr/uuid.c ndr/ndr.c ndr/ndr_misc.c gen_ndr/ndr_misc.c ndr/util.c',
+     pc_files='ndr.pc',
+-    public_deps='errors talloc samba-util',
++    public_deps='samba-errors talloc samba-util',
+     public_headers='gen_ndr/misc.h gen_ndr/ndr_misc.h ndr/libndr.h:ndr.h',
+     header_path= [('*gen_ndr*', 'gen_ndr')],
+     vnum='0.0.5',
+--- a/source4/auth/kerberos/wscript_build
++++ b/source4/auth/kerberos/wscript_build
+@@ -9,7 +9,7 @@ bld.SAMBA_LIBRARY('authkrb5',
+                   source='kerberos_pac.c',
+                   autoproto='proto.h',
+                   public_deps='ndr-krb5pac krb5samba samba_socket LIBCLI_RESOLVE asn1',
+-                  deps='auth_sam_reply tevent LIBPACKET ndr ldb krb5samba KRB_INIT_CTX KRB5_PAC errors',
++                  deps='auth_sam_reply tevent LIBPACKET ndr ldb krb5samba KRB_INIT_CTX KRB5_PAC samba-errors',
+                   private_library=True
+                   )
+ 
+--- a/source4/dsdb/wscript_build
++++ b/source4/dsdb/wscript_build
+@@ -9,7 +9,7 @@ bld.SAMBA_LIBRARY('samdb',
+ 	public_deps='krb5',
+ 	public_headers='',
+ 	vnum='0.0.1',
+-	deps='ndr NDR_DRSUAPI NDR_DRSBLOBS auth_system_session LIBCLI_AUTH ndr SAMDB_SCHEMA ldbsamba samdb-common LIBCLI_DRSUAPI cli-ldap-common samba-util com_err authkrb5 samba-credentials ldbwrap errors krb5samba',
++	deps='ndr NDR_DRSUAPI NDR_DRSBLOBS auth_system_session LIBCLI_AUTH ndr SAMDB_SCHEMA ldbsamba samdb-common LIBCLI_DRSUAPI cli-ldap-common samba-util com_err authkrb5 samba-credentials ldbwrap samba-errors krb5samba',
+ 	)
+ 
+ bld.SAMBA_LIBRARY('samdb-common',
+@@ -53,7 +53,7 @@ bld.SAMBA_MODULE('service_dns_update',
+ 	source='dns/dns_update.c',
+ 	subsystem='service',
+ 	init_function='server_service_dnsupdate_init',
+-	deps='samdb UTIL_RUNCMD samba-util ldb samdb-common errors talloc auth_system_session samba-hostconfig',
++	deps='samdb UTIL_RUNCMD samba-util ldb samdb-common samba-errors talloc auth_system_session samba-hostconfig',
+ 	internal_module=False,
+ 	enabled=bld.AD_DC_BUILD_IS_ENABLED()
+ 	)
+--- a/source4/lib/socket/wscript_build
++++ b/source4/lib/socket/wscript_build
+@@ -10,7 +10,7 @@ bld.SAMBA_LIBRARY('netif',
+ bld.SAMBA_MODULE('socket_ip',
+     source='socket_ip.c',
+     subsystem='samba_socket',
+-    deps='errors',
++    deps='samba-errors',
+     internal_module=True
+     )
+ 
+--- a/source4/libcli/wscript_build
++++ b/source4/libcli/wscript_build
+@@ -76,7 +76,7 @@ bld.SAMBA_SUBSYSTEM('LIBCLI_FINDDCS',
+ bld.SAMBA_SUBSYSTEM('LIBCLI_SMB',
+ 	source='clireadwrite.c cliconnect.c clifile.c clilist.c clitrans2.c climessage.c clideltree.c',
+ 	public_headers='libcli.h:smb_cli.h',
+-	public_deps='smbclient-raw errors LIBCLI_AUTH LIBCLI_SMB_COMPOSITE cli-nbt samba-security LIBCLI_RESOLVE LIBCLI_DGRAM LIBCLI_SMB2 LIBCLI_FINDDCS samba_socket'
++	public_deps='smbclient-raw samba-errors LIBCLI_AUTH LIBCLI_SMB_COMPOSITE cli-nbt samba-security LIBCLI_RESOLVE LIBCLI_DGRAM LIBCLI_SMB2 LIBCLI_FINDDCS samba_socket'
+ 	)
+ 
+ 
+@@ -84,7 +84,7 @@ bld.SAMBA_LIBRARY('smbclient-raw',
+ 	source='raw/rawfile.c raw/smb_signing.c raw/clisocket.c raw/clitransport.c raw/clisession.c raw/clitree.c raw/clierror.c raw/rawrequest.c raw/rawreadwrite.c raw/rawsearch.c raw/rawsetfileinfo.c raw/raweas.c raw/rawtrans.c raw/clioplock.c raw/rawnegotiate.c raw/rawfsinfo.c raw/rawfileinfo.c raw/rawnotify.c raw/rawioctl.c raw/rawacl.c raw/rawdate.c raw/rawlpq.c raw/rawshadow.c',
+ 	autoproto='raw/raw_proto.h',
+ 	public_deps='samba_socket LIBPACKET LIBCRYPTO',
+-	deps='cli_composite param_options LP_RESOLVE LIBCLI_RESOLVE samba-security ndr samba-util errors charset talloc LIBCLI_SMB_COMPOSITE tevent cli_smb_common',
++	deps='cli_composite param_options LP_RESOLVE LIBCLI_RESOLVE samba-security ndr samba-util samba-errors charset talloc LIBCLI_SMB_COMPOSITE tevent cli_smb_common',
+ 	public_headers='raw/request.h:smb_request.h raw/signing.h:smb_raw_signing.h raw/libcliraw.h:smb_cliraw.h raw/interfaces.h:smb_raw_interfaces.h raw/smb.h:smb_raw.h raw/trans2.h:smb_raw_trans2.h',
+ 	private_library=False,
+ 	pc_files='raw/smbclient-raw.pc',
+--- a/source3/wscript_build
++++ b/source3/wscript_build
+@@ -811,7 +811,7 @@ bld.SAMBA3_LIBRARY('CHARSET3',
+ 
+ bld.SAMBA3_SUBSYSTEM('errors3',
+                      source='libsmb/errormap.c libsmb/smberr.c lib/errmap_unix.c',
+-                     deps='errors')
++                     deps='samba-errors')
+ 
+ bld.SAMBA3_SUBSYSTEM('LIBCLI_SAMR',
+                     source='rpc_client/cli_samr.c',
+--- a/source4/torture/drs/wscript_build
++++ b/source4/torture/drs/wscript_build
+@@ -5,7 +5,7 @@ bld.SAMBA_MODULE('TORTURE_DRS',
+ 	autoproto='proto.h',
+ 	subsystem='smbtorture',
+ 	init_function='torture_drs_init',
+-	deps='samba-util ldb POPT_SAMBA errors torture ldbsamba talloc dcerpc ndr NDR_DRSUAPI gensec samba-hostconfig RPC_NDR_DRSUAPI DSDB_MODULE_HELPERS asn1util samdb NDR_DRSBLOBS samba-credentials samdb-common LIBCLI_RESOLVE LP_RESOLVE torturemain',
++	deps='samba-util ldb POPT_SAMBA samba-errors torture ldbsamba talloc dcerpc ndr NDR_DRSUAPI gensec samba-hostconfig RPC_NDR_DRSUAPI DSDB_MODULE_HELPERS asn1util samdb NDR_DRSBLOBS samba-credentials samdb-common LIBCLI_RESOLVE LP_RESOLVE torturemain',
+ 	internal_module=True
+ 	)
+ 
+--- a/source4/dns_server/wscript_build
++++ b/source4/dns_server/wscript_build
+@@ -2,7 +2,7 @@
+ 
+ bld.SAMBA_LIBRARY('dnsserver_common',
+         source='dnsserver_common.c',
+-        deps='samba-util errors ldbsamba clidns',
++        deps='samba-util samba-errors ldbsamba clidns',
+         private_library=True,
+         enabled=bld.AD_DC_BUILD_IS_ENABLED())
+ 
+--- a/libcli/util/wscript_build
++++ b/libcli/util/wscript_build
+@@ -1,11 +1,13 @@
+ #!/usr/bin/env python
+ 
+ 
+-bld.SAMBA_LIBRARY('errors',
++bld.SAMBA_LIBRARY('samba-errors',
+                   public_headers='error.h ntstatus.h doserr.h werror.h hresult.h',
+                   header_path='core',
+                   source='doserr.c errormap.c nterr.c errmap_unix.c hresult.c',
+                   public_deps='talloc samba-debug',
+-                  private_library=True
++                  private_library=False,
++                  pc_files='samba-errors.pc',
++                  vnum='0.0.1',
+                   )
+ 
+--- a/auth/gensec/wscript_build
++++ b/auth/gensec/wscript_build
+@@ -3,7 +3,7 @@ bld.SAMBA_LIBRARY('gensec',
+ 	source='gensec.c gensec_start.c gensec_util.c',
+ 	pc_files='gensec.pc',
+ 	autoproto='gensec_toplevel_proto.h',
+-	public_deps='tevent-util samba-util errors auth_system_session samba-modules gensec_util asn1util',
++	public_deps='tevent-util samba-util samba-errors auth_system_session samba-modules gensec_util asn1util',
+ 	public_headers='gensec.h',
+ 	deps='com_err',
+ 	vnum='0.0.1'
+--- a/lib/dbwrap/wscript_build
++++ b/lib/dbwrap/wscript_build
+@@ -1,6 +1,6 @@
+ SRC = '''dbwrap.c dbwrap_util.c dbwrap_rbt.c dbwrap_cache.c dbwrap_tdb.c
+          dbwrap_local_open.c'''
+-DEPS= '''samba-util util_tdb errors tdb tdb-wrap samba-hostconfig'''
++DEPS= '''samba-util util_tdb samba-errors tdb tdb-wrap samba-hostconfig'''
+ 
+ bld.SAMBA_LIBRARY('dbwrap',
+                   source=SRC,
+--- a/lib/ldb-samba/wscript_build
++++ b/lib/ldb-samba/wscript_build
+@@ -8,7 +8,7 @@ bld.SAMBA_LIBRARY('ldbsamba',
+                   source='ldif_handlers.c',
+                   autoproto='ldif_handlers_proto.h',
+                   public_deps='ldb',
+-                  deps='samba-security ndr NDR_DRSBLOBS NDR_DNSP ldbwrap samdb-common SAMDB_SCHEMA tdb errors',
++                  deps='samba-security ndr NDR_DRSBLOBS NDR_DNSP ldbwrap samdb-common SAMDB_SCHEMA tdb samba-errors',
+                   private_library=True
+                   )
+ 
+--- a/lib/torture/wscript_build
++++ b/lib/torture/wscript_build
+@@ -4,6 +4,6 @@ bld.SAMBA_LIBRARY('torture',
+ 	source='torture.c subunit.c simple.c',
+ 	vnum='0.0.1',
+ 	pc_files='torture.pc',
+-	public_deps='samba-hostconfig samba-util errors talloc tevent',
++	public_deps='samba-hostconfig samba-util samba-errors talloc tevent',
+ 	public_headers='torture.h'
+ 	)
+--- a/lib/util/wscript_build
++++ b/lib/util/wscript_build
+@@ -93,7 +93,7 @@ if not bld.env.SAMBA_UTIL_CORE_ONLY:
+ 
+     bld.SAMBA_LIBRARY('samba-modules',
+                       source='modules.c',
+-                      deps='errors samba-util',
++                      deps='samba-errors samba-util',
+                       local_include=False,
+                       private_library=True)
+ 
+@@ -129,7 +129,7 @@ if not bld.env.SAMBA_UTIL_CORE_ONLY:
+     bld.SAMBA_LIBRARY('tevent-util',
+                       source='tevent_unix.c tevent_ntstatus.c tevent_werror.c',
+                       local_include=False,
+-                      public_deps='tevent errors',
++                      public_deps='tevent samba-errors',
+                       public_headers='tevent_ntstatus.h tevent_unix.h tevent_werror.h',
+                       header_path=[ ('*', 'util') ],
+                       pc_files=[],
+--- a/libcli/smb/wscript
++++ b/libcli/smb/wscript
+@@ -6,7 +6,7 @@ def build(bld):
+         source='''
+             read_smb.c
+         ''',
+-        deps='LIBASYNC_REQ',
++        deps='samba-errors LIBASYNC_REQ',
+         public_deps='talloc tevent',
+         private_library=True,
+         public_headers='''
+@@ -43,7 +43,7 @@ def build(bld):
+                 tstream_smbXcli_np.c
+ 	''',
+ 	deps='''
+-                LIBCRYPTO NDR_SMB2_LEASE_STRUCT errors gensec krb5samba
++                LIBCRYPTO NDR_SMB2_LEASE_STRUCT samba-errors gensec krb5samba
+                 smb_transport
+         ''',
+ 	public_deps='talloc samba-util iov_buf',
+--- a/librpc/tools/wscript_build
++++ b/librpc/tools/wscript_build
+@@ -3,5 +3,5 @@
+ bld.SAMBA_BINARY('ndrdump',
+ 	source='ndrdump.c',
+ 	manpages='ndrdump.1',
+-	deps='samba-hostconfig samba-util popt POPT_SAMBA ndr-table errors NDR_DCERPC'
++	deps='samba-hostconfig samba-util popt POPT_SAMBA ndr-table samba-errors NDR_DCERPC'
+ 	)
+--- a/source4/libcli/ldap/wscript_build
++++ b/source4/libcli/ldap/wscript_build
+@@ -3,7 +3,7 @@
+ bld.SAMBA_LIBRARY('cli-ldap',
+                   source='ldap_client.c ldap_bind.c ldap_ildap.c ldap_controls.c',
+                   autoproto='ldap_proto.h',
+-                  public_deps='errors tevent',
++                  public_deps='samba-errors tevent',
+                   public_headers='libcli_ldap.h:ldap-util.h',
+                   deps='cli_composite LIBSAMBA_TSOCKET samba_socket NDR_SAMR LIBTLS ndr LP_RESOLVE gensec cli-ldap-common',
+                   private_library=True
+--- a/source4/libcli/wbclient/wscript_build
++++ b/source4/libcli/wbclient/wscript_build
+@@ -2,7 +2,7 @@
+ 
+ bld.SAMBA_LIBRARY('LIBWBCLIENT_OLD',
+                   source='wbclient.c',
+-                  public_deps='errors events',
++                  public_deps='samba-errors events',
+                   cflags='-DWINBINDD_SOCKET_DIR=\"%s\"' % bld.env.WINBINDD_SOCKET_DIR,
+                   deps='WB_REQTRANS NDR_WINBIND MESSAGING RPC_NDR_WINBIND',
+                   private_library=True

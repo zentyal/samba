@@ -1,0 +1,12 @@
+--- a/source4/dns_server/dlz_bind9.c
++++ b/source4/dns_server/dlz_bind9.c
+@@ -1252,7 +1252,8 @@ _PUBLIC_ isc_result_t dlz_configure(dns_
+ 			}
+ 			/* Ignore zones that are not handled in BIND */
+ 			if ((strcmp(zone, "RootDNSServers") == 0) ||
+-			    (strcmp(zone, "..TrustAnchors") == 0)) {
++			    (strcmp(zone, "..TrustAnchors") == 0) ||
++			    (strncmp(zone, "..InProgress", 12) == 0)) {
+ 				continue;
+ 			}
+ 			zone_dn = ldb_dn_copy(tmp_ctx, dn);

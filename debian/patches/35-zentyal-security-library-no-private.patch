@@ -1,0 +1,85 @@
+--- a/libcli/security/dom_sid.h
++++ b/libcli/security/dom_sid.h
+@@ -23,7 +23,7 @@
+ #ifndef _DOM_SID_H_
+ #define _DOM_SID_H_
+ 
+-#include "librpc/gen_ndr/security.h"
++#include <gen_ndr/security.h>
+ 
+ /* Some well-known SIDs */
+ extern const struct dom_sid global_sid_World_Domain;
+--- /dev/null
++++ b/libcli/security/samba-security.pc.in
+@@ -0,0 +1,10 @@
++prefix=@prefix@
++exec_prefix=@exec_prefix@
++libdir=@libdir@
++includedir=@includedir@
++
++Name: samba-security
++Description: Samba Security
++Version: @PACKAGE_VERSION@
++Libs: @LIB_RPATH@ -L${libdir} -lsamba-security
++Cflags: -I${includedir} -DHAVE_IMMEDIATE_STRUCTURES=1
+--- a/libcli/security/sddl.h
++++ b/libcli/security/sddl.h
+@@ -21,7 +21,7 @@
+ #ifndef __SDDL_H__
+ #define __SDDL_H__
+ 
+-#include "librpc/gen_ndr/security.h"
++#include <gen_ndr/security.h>
+ 
+ struct security_descriptor *sddl_decode(TALLOC_CTX *mem_ctx, const char *sddl,
+ 					const struct dom_sid *domain_sid);
+--- a/libcli/security/secace.h
++++ b/libcli/security/secace.h
+@@ -21,7 +21,7 @@
+ #ifndef _ACE_H_
+ #define _ACE_H_
+ 
+-#include "librpc/gen_ndr/security.h"
++#include <gen_ndr/security.h>
+ 
+ bool sec_ace_object(uint8_t type);
+ void sec_ace_copy(struct security_ace *ace_dest, const struct security_ace *ace_src);
+--- a/libcli/security/security_descriptor.h
++++ b/libcli/security/security_descriptor.h
+@@ -21,7 +21,7 @@
+ #ifndef __SECURITY_DESCRIPTOR_H__
+ #define __SECURITY_DESCRIPTOR_H__
+ 
+-#include "librpc/gen_ndr/security.h"
++#include <gen_ndr/security.h>
+ 
+ struct security_descriptor *security_descriptor_initialise(TALLOC_CTX *mem_ctx);
+ struct security_descriptor *security_descriptor_copy(TALLOC_CTX *mem_ctx, 
+--- a/libcli/security/wscript_build
++++ b/libcli/security/wscript_build
+@@ -3,8 +3,12 @@
+ 
+ bld.SAMBA_LIBRARY('samba-security',
+                   source='dom_sid.c display_sec.c secace.c secacl.c security_descriptor.c sddl.c privileges.c security_token.c access_check.c object_tree.c create_descriptor.c util_sid.c session.c secdesc.c',
+-                  private_library=True,
+-                  deps='talloc ndr NDR_SECURITY'
++                  private_library=False,
++                  deps='talloc ndr NDR_SECURITY',
++                  public_headers='security_descriptor.h sddl.h dom_sid.h secace.h secdesc.h',
++                  header_path='security',
++	              pc_files='samba-security.pc',
++	              vnum='0.0.1',
+                   )
+ 
+ bld.SAMBA_PYTHON('pysecurity',
+--- a/libcli/security/secdesc.h
++++ b/libcli/security/secdesc.h
+@@ -24,7 +24,7 @@
+ #define _SECDESC_H_
+ 
+ /* The following definitions come from libcli/security/secdesc.c  */
+-#include "librpc/gen_ndr/security.h"
++#include <gen_ndr/security.h>
+ 
+ /*******************************************************************
+  Given a security_descriptor return the sec_info.

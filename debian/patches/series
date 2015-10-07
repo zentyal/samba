@@ -4,7 +4,6 @@ README_nosmbldap-tools.patch
 VERSION.patch
 23_zentyal_ldap_privileged_socket_mode
 24_zentyal_dlz_dynamic_updates_tsig_keys
-26_heimdal_compat
 26_zentyal_scannedonly
 34-zentyal-publish-dynconfig-header.patch
 35-zentyal-security-library-no-private.patch

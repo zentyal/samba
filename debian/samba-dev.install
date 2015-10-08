@@ -139,6 +139,7 @@ usr/lib/*/pkgconfig/ndr_standard.pc
 usr/lib/*/pkgconfig/netapi.pc
 usr/lib/*/pkgconfig/registry.pc
 usr/lib/*/pkgconfig/samba-credentials.pc
+usr/lib/*/pkgconfig/samba-errors.pc
 usr/lib/*/pkgconfig/samba-hostconfig.pc
 usr/lib/*/pkgconfig/samba-policy.pc
 usr/lib/*/pkgconfig/samba-util.pc

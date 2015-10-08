@@ -11,6 +11,7 @@ usr/lib/*/libndr.so.*
 usr/lib/*/libnetapi.so.0
 usr/lib/*/libregistry.so.*
 usr/lib/*/libsamba-credentials.so.0*
+usr/lib/*/libsamba-errors.so*
 usr/lib/*/libsamba-hostconfig.so.*
 usr/lib/*/libsamba-policy.so.*
 usr/lib/*/libsamba-util.so.*
@@ -41,7 +42,6 @@ usr/lib/*/samba/libdbwrap.so.*
 usr/lib/*/samba/libdcerpc-samba.so.*
 usr/lib/*/samba/libdcerpc-samba4.so.*
 usr/lib/*/samba/libdsdb-module.so.*
-usr/lib/*/samba/liberrors.so.*
 usr/lib/*/samba/libevents.so.*
 usr/lib/*/samba/libgpo.so.*
 usr/lib/*/samba/libgse.so.*

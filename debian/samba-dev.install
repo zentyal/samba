@@ -142,6 +142,7 @@ usr/lib/*/pkgconfig/samba-credentials.pc
 usr/lib/*/pkgconfig/samba-errors.pc
 usr/lib/*/pkgconfig/samba-hostconfig.pc
 usr/lib/*/pkgconfig/samba-policy.pc
+usr/lib/*/pkgconfig/samba-security.pc
 usr/lib/*/pkgconfig/samba-util.pc
 usr/lib/*/pkgconfig/samdb.pc
 usr/lib/*/pkgconfig/smbclient-raw.pc

@@ -74,7 +74,7 @@ conf_args = \
 		--with-cluster-support
 
 %:
-	dh $* --with python2 --with systemd
+	dh $* --with python2
 
 override_dh_auto_configure:
 	cd ctdb; $(shell dpkg-buildflags --export=configure) ./configure $(ctdb_conf_args)

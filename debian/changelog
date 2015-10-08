@@ -1,4 +1,4 @@
-samba (2:4.3.0+dfsg-2~zentyal1) trusty; urgency=medium
+samba (3:4.3.0+zentyal1) trusty; urgency=medium
 
   * Add zentyal patches
 

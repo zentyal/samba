@@ -176,6 +176,12 @@ override_dh_install:
 	mkdir -p $(DESTDIR)/lib/systemd/system/
 	install -m 0644 ctdb/config/ctdb.service $(DESTDIR)/lib/systemd/system/
 	dh_install --sourcedir=$(DESTDIR) --list-missing --fail-missing
+	# Ubuntu things
+	mkdir -p $(DESTDIR)/etc/ufw/applications.d
+	install -m644 debian/samba.ufw.profile $(DESTDIR)/etc/ufw/applications.d/samba 
+	mkdir -p $(DESTDIR)/usr/share/apport/package-hooks
+	install -D -m 644 debian/source_samba.py $(DESTDIR)/usr/share/apport/package-hooks/source_samba.py 
+
 
 override_dh_python2:
 	dh_python2 --no-guessing-versions

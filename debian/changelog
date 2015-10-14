@@ -1,3 +1,9 @@
+samba (3:4.3.0+zentyal2) trusty; urgency=medium
+
+  * Working
+
+ -- Jesús García Sáez <jgarcia@zentyal.com>  Wed, 14 Oct 2015 18:12:48 +0000
+
 samba (3:4.3.0+zentyal1) trusty; urgency=medium
 
   * Add zentyal patches

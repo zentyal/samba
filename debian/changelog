@@ -1,3 +1,9 @@
+samba (3:4.3.1-zentyal) trusty; urgency=medium
+
+  * New upstream release
+
+ -- Carlos Pérez-Aradros Herce <cperez@zentyal.com>  Tue, 20 Oct 2015 15:29:26 +0200
+
 samba (3:4.3.0+zentyal2) trusty; urgency=medium
 
   * Working

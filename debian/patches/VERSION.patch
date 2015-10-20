@@ -4,12 +4,12 @@ Forwarded: not-needed
 
 Index: samba/VERSION
 ===================================================================
---- samba.orig/VERSION	2015-10-07 10:47:41.323889403 -0700
-+++ samba/VERSION	2015-10-07 10:47:55.415876375 -0700
+--- samba.orig/VERSION	2015-10-20 15:28:34.794345130 +0200
++++ samba/VERSION	2015-10-20 15:28:48.151392656 +0200
 @@ -123,5 +123,5 @@
  #  ->  "3.0.0rc2-VendorVersion"                        #
  #                                                      #
  ########################################################
--SAMBA_VERSION_VENDOR_SUFFIX=Debian
+-SAMBA_VERSION_VENDOR_SUFFIX=
 +SAMBA_VERSION_VENDOR_SUFFIX=Zentyal
  SAMBA_VERSION_VENDOR_PATCH=

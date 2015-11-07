@@ -62,6 +62,31 @@ samba (2:4.2.1+dfsg-1) experimental; urgency=medium
 
  -- Jelmer Vernooij <jelmer@debian.org>  Sun, 07 Dec 2014 15:34:36 +0000
 
+samba (2:4.1.20+dfsg-1) unstable; urgency=medium
+
+  * New upstream release (last compatible with current OpenChange).
+  * samba_bug_11077_torturetest.patch: refresh.
+
+ -- Jelmer Vernooij <jelmer@debian.org>  Sun, 20 Sep 2015 17:48:59 +0000
+
+samba (2:4.1.17+dfsg-5) unstable; urgency=medium
+
+  * Rebuild against new ldb. Closes: #799569
+
+ -- Jelmer Vernooij <jelmer@debian.org>  Sun, 20 Sep 2015 13:20:53 +0000
+
+samba (2:4.1.17+dfsg-4) unstable; urgency=medium
+
+  * Add pidl_reproducible.patch: Make pidl output reproducible.
+
+ -- Jelmer Vernooij <jelmer@debian.org>  Tue, 28 Apr 2015 00:10:21 +0000
+
+samba (2:4.1.17+dfsg-3) unstable; urgency=medium
+
+  * Rebuild against new ldb. Closes: #783424
+
+ -- Jelmer Vernooij <jelmer@debian.org>  Mon, 27 Apr 2015 00:09:50 +0000
+
 samba (2:4.1.17+dfsg-2) unstable; urgency=medium
 
   [ Andreas Beckmann ]

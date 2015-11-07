@@ -1,0 +1,224 @@
+commit 4986359816704f38d4fad3ddd0d07a0f0a25b335
+Author: Matthieu Patou <mat@matws.net>
+Date:   Mon Sep 22 21:52:14 2014 -0700
+
+    pidl: Make the compilation of PIDL producing the same results if the content hasn't change
+    
+    Newer perl versions don't generate stable results anymore.
+    
+    Pair-Programmed-With: Stefan Metzmacher <metze@samba.org>
+    
+    Change-Id: I2fb1e12da392ca85bfd0fb8b50b69851076144ee
+    Signed-off-by: Matthieu Patou <mat@matws.net>
+    Signed-off-by: Stefan Metzmacher <metze@samba.org>
+
+diff --git a/pidl/lib/Parse/Pidl/Dump.pm b/pidl/lib/Parse/Pidl/Dump.pm
+index bf5811c..4e623db 100644
+--- a/pidl/lib/Parse/Pidl/Dump.pm
++++ b/pidl/lib/Parse/Pidl/Dump.pm
+@@ -39,7 +39,7 @@ sub DumpProperties($)
+     my $res = "";
+ 
+     foreach my $d ($props) {
+-	foreach my $k (keys %{$d}) {
++	foreach my $k (sort(keys %{$d})) {
+ 	    if ($k eq "in") {
+ 		$res .= "[in] ";
+ 		next;
+@@ -244,7 +244,7 @@ sub DumpInterfaceProperties($)
+     my($res);
+ 
+     $res .= "[\n";
+-    foreach my $k (keys %{$data}) {
++    foreach my $k (sort(keys %{$data})) {
+ 	    $first || ($res .= ",\n"); $first = 0;
+ 	    $res .= "$k($data->{$k})";
+     }
+diff --git a/pidl/lib/Parse/Pidl/Samba3/ClientNDR.pm b/pidl/lib/Parse/Pidl/Samba3/ClientNDR.pm
+index 8142b35..aa913f1 100644
+--- a/pidl/lib/Parse/Pidl/Samba3/ClientNDR.pm
++++ b/pidl/lib/Parse/Pidl/Samba3/ClientNDR.pm
+@@ -59,7 +59,7 @@ sub HeaderProperties($$)
+ 	my($props,$ignores) = @_;
+ 	my $ret = "";
+ 
+-	foreach my $d (keys %{$props}) {
++	foreach my $d (sort(keys %{$props})) {
+ 		next if (grep(/^$d$/, @$ignores));
+ 		if($props->{$d} ne "1") {
+ 			$ret.= "$d($props->{$d}),";
+diff --git a/pidl/lib/Parse/Pidl/Samba4/Header.pm b/pidl/lib/Parse/Pidl/Samba4/Header.pm
+index 49c5afa..e9b7bee 100644
+--- a/pidl/lib/Parse/Pidl/Samba4/Header.pm
++++ b/pidl/lib/Parse/Pidl/Samba4/Header.pm
+@@ -38,7 +38,7 @@ sub HeaderProperties($$)
+ 	my($props,$ignores) = @_;
+ 	my $ret = "";
+ 
+-	foreach my $d (keys %{$props}) {
++	foreach my $d (sort(keys %{$props})) {
+ 		next if (grep(/^$d$/, @$ignores));
+ 		if($props->{$d} ne "1") {
+ 			$ret.= "$d($props->{$d}),";
+diff --git a/pidl/lib/Parse/Pidl/Samba4/NDR/Client.pm b/pidl/lib/Parse/Pidl/Samba4/NDR/Client.pm
+index fed94cd..11954f0 100644
+--- a/pidl/lib/Parse/Pidl/Samba4/NDR/Client.pm
++++ b/pidl/lib/Parse/Pidl/Samba4/NDR/Client.pm
+@@ -259,7 +259,7 @@ sub HeaderProperties($$)
+ 	my($props,$ignores) = @_;
+ 	my $ret = "";
+ 
+-	foreach my $d (keys %{$props}) {
++	foreach my $d (sort(keys %{$props})) {
+ 		next if (grep(/^$d$/, @$ignores));
+ 		if($props->{$d} ne "1") {
+ 			$ret.= "$d($props->{$d}),";
+diff --git a/pidl/lib/Parse/Pidl/Samba4/Python.pm b/pidl/lib/Parse/Pidl/Samba4/Python.pm
+index 39884ab..95c680b 100644
+--- a/pidl/lib/Parse/Pidl/Samba4/Python.pm
++++ b/pidl/lib/Parse/Pidl/Samba4/Python.pm
+@@ -22,9 +22,11 @@ $VERSION = '0.01';
+ 
+ sub new($) {
+ 	my ($class) = @_;
+-	my $self = { res => "", res_hdr => "", tabs => "", constants => {},
++	my $self = { res => "", res_hdr => "", tabs => "",
++				 constants => [], constants_uniq => {},
+ 	             module_methods => [], module_objects => [], ready_types => [],
+-				 module_imports => {}, type_imports => {},
++				 module_imports => [], module_imports_uniq => {},
++				 type_imports => [], type_imports_uniq => {},
+ 				 patch_type_calls => [], prereadycode => [],
+ 			 	 postreadycode => []};
+ 	bless($self, $class);
+@@ -94,7 +96,11 @@ sub register_constant($$$$)
+ {
+ 	my ($self, $name, $type, $value) = @_;
+ 
+-	$self->{constants}->{$name} = [$type, $value];
++	unless (defined $self->{constants_uniq}->{$name}) {
++		my $h = {"key" => $name, "val" => [$type, $value]};
++		push @{$self->{constants}}, $h;
++		$self->{constants_uniq}->{$name} = $h;
++	}
+ }
+ 
+ sub EnumAndBitmapConsts($$$)
+@@ -805,8 +811,11 @@ sub register_module_import($$)
+ 	$var_name =~ s/\./_/g;
+ 	$var_name = "dep_$var_name";
+ 
+-	$self->{module_imports}->{$var_name} = $module_path;
+-
++	unless (defined $self->{module_imports_uniq}->{$var_name}) {
++		my $h = { "key" => $var_name, "val" => $module_path};
++		push @{$self->{module_imports}}, $h;
++		$self->{module_imports_uniq}->{$var_name} = $h;
++	}
+ 	return $var_name;
+ }
+ 
+@@ -815,8 +824,10 @@ sub import_type_variable($$$)
+ 	my ($self, $module, $name) = @_;
+ 
+ 	$self->register_module_import($module);
+-	unless (defined($self->{type_imports}->{$name})) {
+-		$self->{type_imports}->{$name} = $module;
++	unless (defined $self->{type_imports_uniq}->{$name}) {
++		my $h = { "key" => $name, "val" => $module};
++		push @{$self->{type_imports}}, $h;
++		$self->{type_imports_uniq}->{$name} = $h;
+ 	}
+ 	return "$name\_Type";
+ }
+@@ -1366,25 +1377,25 @@ sub Parse($$$$$)
+ 	$self->pidl("{");
+ 	$self->indent;
+ 	$self->pidl("PyObject *m;");
+-	foreach (keys %{$self->{module_imports}}) {
+-		$self->pidl("PyObject *$_;");
++	foreach my $h (@{$self->{module_imports}}) {
++		$self->pidl("PyObject *$h->{'key'};");
+ 	}
+ 	$self->pidl("");
+ 
+-	foreach (keys %{$self->{module_imports}}) {
+-		my $var_name = $_;
+-		my $module_path = $self->{module_imports}->{$var_name};
++	foreach my $h (@{$self->{module_imports}}) {
++		my $var_name = $h->{'key'};
++		my $module_path = $h->{'val'};
+ 		$self->pidl("$var_name = PyImport_ImportModule(\"$module_path\");");
+ 		$self->pidl("if ($var_name == NULL)");
+ 		$self->pidl("\treturn;");
+ 		$self->pidl("");
+ 	}
+ 
+-	foreach (keys %{$self->{type_imports}}) {
+-		my $type_var = "$_\_Type";
+-		my $module_path = $self->{type_imports}->{$_};
++	foreach my $h (@{$self->{type_imports}}) {
++		my $type_var = "$h->{'key'}\_Type";
++		my $module_path = $h->{'val'};
+ 		$self->pidl_hdr("static PyTypeObject *$type_var;\n");
+-		my $pretty_name = PrettifyTypeName($_, $module_path);
++		my $pretty_name = PrettifyTypeName($h->{'key'}, $module_path);
+ 		my $module_var = "dep_$module_path";
+ 		$module_var =~ s/\./_/g;
+ 		$self->pidl("$type_var = (PyTypeObject *)PyObject_GetAttrString($module_var, \"$pretty_name\");");
+@@ -1415,9 +1426,10 @@ sub Parse($$$$$)
+ 	$self->pidl("if (m == NULL)");
+ 	$self->pidl("\treturn;");
+ 	$self->pidl("");
+-	foreach my $name (keys %{$self->{constants}}) {
++	foreach my $h (@{$self->{constants}}) {
++		my $name = $h->{'key'};
+ 		my $py_obj;
+-		my ($ctype, $cvar) = @{$self->{constants}->{$name}};
++		my ($ctype, $cvar) = @{$h->{'val'}};
+ 		if ($cvar =~ /^[0-9]+$/ or $cvar =~ /^0x[0-9a-fA-F]+$/) {
+ 			$py_obj = "PyInt_FromLong($cvar)";
+ 		} elsif ($cvar =~ /^".*"$/) {
+diff --git a/pidl/lib/Parse/Pidl/Util.pm b/pidl/lib/Parse/Pidl/Util.pm
+index 006718d..421cb8f 100644
+--- a/pidl/lib/Parse/Pidl/Util.pm
++++ b/pidl/lib/Parse/Pidl/Util.pm
+@@ -43,6 +43,7 @@ unless we actually need it
+ sub MyDumper($)
+ {
+ 	require Data::Dumper;
++	$Data::Dumper::Sortkeys = 1;
+ 	my $s = shift;
+ 	return Data::Dumper::Dumper($s);
+ }
+diff --git a/pidl/lib/Parse/Pidl/Wireshark/NDR.pm b/pidl/lib/Parse/Pidl/Wireshark/NDR.pm
+index 1aa44c3..6f8e58b 100644
+--- a/pidl/lib/Parse/Pidl/Wireshark/NDR.pm
++++ b/pidl/lib/Parse/Pidl/Wireshark/NDR.pm
+@@ -916,7 +916,7 @@ sub ProcessInterface($$)
+ 	$self->Interface($x);
+ 	$self->pidl_code("\n".DumpFunctionTable($x));
+ 
+-	foreach (keys %{$return_types{$x->{NAME}}}) {
++	foreach (sort(keys %{$return_types{$x->{NAME}}})) {
+ 		my ($type, $desc) = @{$return_types{$x->{NAME}}->{$_}};
+ 		my $dt = $self->find_type($type);
+ 		$dt or die("Unable to find information about return type `$type'");
+@@ -1155,7 +1155,7 @@ sub DumpHfDeclaration($)
+ 
+ 	$res = "\n/* Header field declarations */\n";
+ 
+-	foreach (keys %{$self->{conformance}->{header_fields}}) 
++	foreach (sort(keys %{$self->{conformance}->{header_fields}}))
+ 	{
+ 		$res .= "static gint $_ = -1;\n";
+ 	}
+@@ -1182,7 +1182,7 @@ sub DumpHfList($)
+ 	my ($self) = @_;
+ 	my $res = "\tstatic hf_register_info hf[] = {\n";
+ 
+-	foreach (values %{$self->{conformance}->{header_fields}}) 
++	foreach (sort {$a->{INDEX} cmp $b->{INDEX}} values %{$self->{conformance}->{header_fields}})
+ 	{
+ 		$res .= "\t{ &$_->{INDEX}, 
+ 	  { ".make_str($_->{NAME}).", ".make_str($_->{FILTER}).", $_->{FT_TYPE}, $_->{BASE_TYPE}, $_->{VALSSTRING}, $_->{MASK}, ".make_str_or_null($_->{BLURB}).", HFILL }},

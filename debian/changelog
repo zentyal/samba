@@ -2,6 +2,8 @@ samba (2:4.3.0+dfsg-3) UNRELEASED; urgency=medium
 
   * Remove libpam-smbpasswd, which is broken and slated for removal
     upstream. Closes: #799840
+  * Remove lib/zlib/contrib/dotzlib/DotZLib.chm from excluded files in
+    copyright; no longer shipped upstream.
 
  -- Jelmer Vernooij <jelmer@debian.org>  Thu, 01 Oct 2015 21:37:48 +0000
 

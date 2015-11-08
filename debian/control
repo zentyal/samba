@@ -307,7 +307,8 @@ Replaces: libdcerpc-dev (<< 2:4.0.9),
           libsmbclient-raw-dev (<< 2:4.0.9),
           libsmbd-dev (<< 2:4.0.9),
           libtorture-dev (<< 2:4.0.9),
-          samba4-dev
+          samba4-dev,
+          samba-doc
 Breaks: libdcerpc-dev (<< 2:4.0.9),
         libdcerpc-server-dev (<< 2:4.0.9),
         libgensec-dev (<< 2:4.0.9),

@@ -111,7 +111,7 @@ License: LGPL-3+
 Files: source4/setup/ad-schema/*.txt
 Comment: part of the Microsoft protocol documentation
 Copyright: Microsoft Corporation
-License:
+License: MS-ADSL
  License for the Active Directory schemas:
  .
  Intellectual Property Rights Notice for Protocol Documentation.

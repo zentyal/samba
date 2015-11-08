@@ -35,7 +35,6 @@ Build-Depends: bison,
                libpcap-dev [hurd-i386 kfreebsd-any],
                libpopt-dev,
                libreadline-dev,
-               libsubunit-dev,
                libtalloc-dev (>= 2.1.3~),
                libtdb-dev (>= 1.3.7~),
                libtevent-dev (>= 0.9.25~),
@@ -52,7 +51,6 @@ Build-Depends: bison,
                python-tdb (>= 1.3.7~),
                python-testtools,
                python3,
-               subunit (>= 0.0.6),
                xsltproc,
                zlib1g-dev (>= 1:1.2.3)
 Vcs-Browser: http://anonscm.debian.org/gitweb/?p=pkg-samba/samba.git
@@ -238,7 +236,7 @@ Description: command-line SMB/CIFS clients for Unix
 
 Package: samba-testsuite
 Architecture: any
-Recommends: subunit
+Suggests: subunit
 Replaces: samba-doc (<< 2:4.0.5~), samba-tools, samba4-testsuite, samba-libs (<< 2:4.0.10+dfsg-4)
 Conflicts: samba-doc (<< 2:4.0.5~), samba-libs (<< 2:4.0.10+dfsg-4)
 Depends: samba-common-bin, ${misc:Depends}, ${shlibs:Depends}

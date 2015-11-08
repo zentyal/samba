@@ -1,6 +1,7 @@
 samba (2:4.3.1+dfsg-1) UNRELEASED; urgency=medium
 
   * New upstream release.
+   + Drop subunit dependency, no longer used.
   * Remove libpam-smbpasswd, which is broken and slated for removal
     upstream. Closes: #799840
   * Remove lib/zlib/contrib/dotzlib/DotZLib.chm from excluded files in

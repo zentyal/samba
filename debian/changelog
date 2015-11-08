@@ -6,6 +6,8 @@ samba (2:4.3.1+dfsg-1) UNRELEASED; urgency=medium
   * Remove lib/zlib/contrib/dotzlib/DotZLib.chm from excluded files in
     copyright; no longer shipped upstream.
   * Remove wins2dns.awk example script.
+  * Remove the samba-doc package, and move examples files from it to
+    relevant other packages.
 
  -- Jelmer Vernooij <jelmer@debian.org>  Thu, 01 Oct 2015 21:37:48 +0000
 

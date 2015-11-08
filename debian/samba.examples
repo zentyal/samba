@@ -1,1 +1,4 @@
 examples/LDAP
+examples/logon
+source3/smbadduser.in
+examples/printing

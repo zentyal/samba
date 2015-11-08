@@ -307,8 +307,7 @@ Replaces: libdcerpc-dev (<< 2:4.0.9),
           libsmbclient-raw-dev (<< 2:4.0.9),
           libsmbd-dev (<< 2:4.0.9),
           libtorture-dev (<< 2:4.0.9),
-          samba4-dev,
-          samba-doc
+          samba4-dev
 Breaks: libdcerpc-dev (<< 2:4.0.9),
         libdcerpc-server-dev (<< 2:4.0.9),
         libgensec-dev (<< 2:4.0.9),
@@ -332,20 +331,6 @@ Description: tools for extending Samba
  .
  This package contains include files shared by the various Samba-based
  libraries.
-
-Package: samba-doc
-Section: doc
-Architecture: all
-Multi-Arch: foreign
-Depends: ${misc:Depends}
-Pre-Depends: dpkg (>= 1.15.6~)
-Description: Samba documentation
- Samba is an implementation of the SMB/CIFS protocol for Unix systems,
- providing support for cross-platform file and printer sharing with
- Microsoft Windows, OS X, and other Unix systems.
- .
- This package contains all the manpage documentation for the Samba
- suite.
 
 Package: python-samba
 Pre-Depends: ${misc:Pre-Depends}

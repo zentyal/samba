@@ -1,4 +1,4 @@
-samba (2:4.1.21+dfsg-1) UNRELEASED; urgency=medium
+samba (2:4.1.21+dfsg-1) unstable; urgency=medium
 
   * New upstream release.
   * Fix epoch for dependency on ldb. Closes: #800331

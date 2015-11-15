@@ -274,7 +274,7 @@ rpc = ["rpc.authcontext", "rpc.samba3.bind", "rpc.samba3.srvsvc", "rpc.samba3.sh
        "rpc.samr.passwords.pwdlastset", "rpc.samr.large-dc", "rpc.samr.machine.auth",
        "rpc.samr.priv", "rpc.samr.passwords.validate",
        "rpc.netlogon.admin",
-       "rpc.schannel", "rpc.schannel2", "rpc.bench-schannel1", "rpc.join", "rpc.bind"]
+       "rpc.schannel", "rpc.schannel2", "rpc.bench-schannel1", "rpc.schannel_anon_setpw", "rpc.join", "rpc.bind"]
 
 local = ["local.nss-wrapper", "local.ndr"]
 
@@ -361,6 +361,10 @@ for t in tests:
     elif t == "smb2.notify":
         plansmbtorture4testsuite(t, "s3dc", '//$SERVER_IP/tmp -U$USERNAME%$PASSWORD --signing=required')
         plansmbtorture4testsuite(t, "plugin_s4_dc", '//$SERVER/tmp -U$USERNAME%$PASSWORD --signing=required')
+    elif t == "rpc.schannel_anon_setpw":
+        plansmbtorture4testsuite(t, "s3dc", '//$SERVER_IP/tmp -U$%', description="anonymous password set")
+        plansmbtorture4testsuite(t, "s3dc_schannel", '//$SERVER_IP/tmp -U$%', description="anonymous password set (schannel enforced server-side)")
+        plansmbtorture4testsuite(t, "plugin_s4_dc", '//$SERVER/tmp -U$%', description="anonymous password set")
     else:
         plansmbtorture4testsuite(t, "s3dc", '//$SERVER_IP/tmp -U$USERNAME%$PASSWORD')
         plansmbtorture4testsuite(t, "plugin_s4_dc", '//$SERVER/tmp -U$USERNAME%$PASSWORD')

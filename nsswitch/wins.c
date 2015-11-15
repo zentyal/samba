@@ -52,7 +52,7 @@ static void nss_wins_init(void)
 	lp_set_cmdline("log level", "0");
 
 	TimeInit();
-	setup_logging("nss_wins",False);
+	setup_logging(NULL,False);
 	lp_load(get_dyn_CONFIGFILE(),True,False,False,True);
 	load_interfaces();
 }

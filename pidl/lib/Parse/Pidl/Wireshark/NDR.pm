@@ -916,7 +916,7 @@ sub ProcessInterface($$)
 	$self->Interface($x);
 	$self->pidl_code("\n".DumpFunctionTable($x));
 
-	foreach (keys %{$return_types{$x->{NAME}}}) {
+	foreach (sort(keys %{$return_types{$x->{NAME}}})) {
 		my ($type, $desc) = @{$return_types{$x->{NAME}}->{$_}};
 		my $dt = $self->find_type($type);
 		$dt or die("Unable to find information about return type `$type'");
@@ -1155,7 +1155,7 @@ sub DumpHfDeclaration($)
 
 	$res = "\n/* Header field declarations */\n";
 
-	foreach (keys %{$self->{conformance}->{header_fields}}) 
+	foreach (sort(keys %{$self->{conformance}->{header_fields}}))
 	{
 		$res .= "static gint $_ = -1;\n";
 	}
@@ -1182,7 +1182,7 @@ sub DumpHfList($)
 	my ($self) = @_;
 	my $res = "\tstatic hf_register_info hf[] = {\n";
 
-	foreach (values %{$self->{conformance}->{header_fields}}) 
+	foreach (sort {$a->{INDEX} cmp $b->{INDEX}} values %{$self->{conformance}->{header_fields}})
 	{
 		$res .= "\t{ &$_->{INDEX}, 
 	  { ".make_str($_->{NAME}).", ".make_str($_->{FILTER}).", $_->{FT_TYPE}, $_->{BASE_TYPE}, $_->{VALSSTRING}, $_->{MASK}, ".make_str_or_null($_->{BLURB}).", HFILL }},

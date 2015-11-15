@@ -128,7 +128,7 @@ static krb5_error_code samba_wdc_reget_pac(void *priv, krb5_context context,
 			talloc_free(mem_ctx);
 			return EINVAL;
 		}
-		
+
 		if (is_in_db) {
 			/* Now check the KDC signature, fetching the correct key based on the enc type */
 			ret = kdc_check_pac(context, pac_srv_sig->signature, pac_kdc_sig, krbtgt);
@@ -217,7 +217,7 @@ static krb5_error_code samba_wdc_check_client_access(void *priv,
 						     hdb_entry_ex *client_ex, const char *client_name,
 						     hdb_entry_ex *server_ex, const char *server_name,
 						     KDC_REQ *req,
-						     krb5_data *e_data)
+                             METHOD_DATA *md)
 {
 	struct samba_kdc_entry *kdc_entry;
 	bool password_change;
@@ -239,11 +239,19 @@ static krb5_error_code samba_wdc_check_client_access(void *priv,
 			return ENOMEM;
 		}
 
-		if (e_data) {
+		if (md) {
+			int ret;
+			krb5_data kd;
 			DATA_BLOB data;
 
 			samba_kdc_build_edata_reply(nt_status, &data);
-			*e_data = fill_krb5_data(data.data, data.length);
+			kd = fill_krb5_data(data.data, data.length);
+			ret = krb5_padata_add(context, md,
+				KRB5_PADATA_FX_ERROR,
+				kd.data, kd.length);
+			if (ret) {
+				krb5_data_free(&kd);
+			}
 		}
 
 		return samba_kdc_map_policy_err(nt_status);

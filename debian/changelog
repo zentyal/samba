@@ -2,6 +2,7 @@ samba (2:4.1.21+dfsg-1) UNRELEASED; urgency=medium
 
   * New upstream release.
   * Fix epoch for dependency on ldb. Closes: #800331
+  * Rebuild aginst newer ldb. Closes: #805176
 
  -- Jelmer Vernooij <jelmer@debian.org>  Sun, 27 Sep 2015 21:56:30 +0000
 

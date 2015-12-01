@@ -839,7 +839,7 @@ static void init_globals(struct loadparm_context *lp_ctx, bool reinit_globals)
 	string_set(Globals.ctx, &Globals.usershare_path, s);
 	TALLOC_FREE(s);
 	string_set(Globals.ctx, &Globals.usershare_template_share, "");
-	Globals.usershare_max_shares = 100;
+	Globals.usershare_max_shares = 0;
 	/* By default disallow sharing of directories not owned by the sharer. */
 	Globals.usershare_owner_only = true;
 	/* By default disallow guest access to usershares. */

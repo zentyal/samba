@@ -14,9 +14,11 @@ Signed-off-by: Samuel Cabrero <scabrero@zentyal.com>
  5 files changed, 80 insertions(+), 3 deletions(-)
  create mode 100644 source4/torture/raw/case_sensitive.c
 
---- a/source3/selftest/tests.py
-+++ b/source3/selftest/tests.py
-@@ -263,7 +263,7 @@ raw = ["raw.acls", "raw.chkpath", "raw.c
+Index: samba/source3/selftest/tests.py
+===================================================================
+--- samba.orig/source3/selftest/tests.py
++++ samba/source3/selftest/tests.py
+@@ -266,7 +266,7 @@ raw = ["raw.acls", "raw.chkpath", "raw.c
         "raw.qfileinfo", "raw.qfsinfo", "raw.read", "raw.rename", "raw.search", "raw.seek",
         "raw.sfileinfo.base", "raw.sfileinfo.bug", "raw.streams", "raw.unlink", "raw.write",
         "raw.samba3hide", "raw.samba3badpath", "raw.sfileinfo.rename", "raw.session",
@@ -25,8 +27,10 @@ Signed-off-by: Samuel Cabrero <scabrero@zentyal.com>
         "raw.samba3rootdirfid", "raw.sfileinfo.end-of-file",
         "raw.bench-oplock", "raw.bench-lock", "raw.bench-open", "raw.bench-tcon",
         "raw.samba3checkfsp", "raw.samba3closeerr", "raw.samba3oplocklogoff", "raw.samba3badnameblob"]
---- a/source4/selftest/tests.py
-+++ b/source4/selftest/tests.py
+Index: samba/source4/selftest/tests.py
+===================================================================
+--- samba.orig/source4/selftest/tests.py
++++ samba/source4/selftest/tests.py
 @@ -238,7 +238,7 @@ ntvfsargs = ["--option=torture:sharedela
  smb2 = filter(lambda x: "smb2.change_notify_disabled" not in x, smbtorture4_testsuites("smb2."))
  
@@ -36,8 +40,10 @@ Signed-off-by: Samuel Cabrero <scabrero@zentyal.com>
  base = smbtorture4_testsuites("base.")
  
  netapi = smbtorture4_testsuites("netapi.")
+Index: samba/source4/torture/raw/case_sensitive.c
+===================================================================
 --- /dev/null
-+++ b/source4/torture/raw/case_sensitive.c
++++ samba/source4/torture/raw/case_sensitive.c
 @@ -0,0 +1,76 @@
 +/* 
 +   Unix SMB/CIFS implementation.
@@ -115,8 +121,10 @@ Signed-off-by: Samuel Cabrero <scabrero@zentyal.com>
 +
 +	return ret;
 +}
---- a/source4/torture/raw/raw.c
-+++ b/source4/torture/raw/raw.c
+Index: samba/source4/torture/raw/raw.c
+===================================================================
+--- samba.orig/source4/torture/raw/raw.c
++++ samba/source4/torture/raw/raw.c
 @@ -76,6 +76,7 @@ NTSTATUS torture_raw_init(void)
  	torture_suite_add_1smb_test(suite, "samba3posixtimedlock",
  				      torture_samba3_posixtimedlock);
@@ -125,8 +133,10 @@ Signed-off-by: Samuel Cabrero <scabrero@zentyal.com>
  
  	suite->description = talloc_strdup(suite, "Tests for the raw SMB interface");
  
---- a/source4/torture/wscript_build
-+++ b/source4/torture/wscript_build
+Index: samba/source4/torture/wscript_build
+===================================================================
+--- samba.orig/source4/torture/wscript_build
++++ samba/source4/torture/wscript_build
 @@ -19,7 +19,7 @@ bld.SAMBA_MODULE('TORTURE_BASIC',
  
  

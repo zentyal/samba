@@ -1,8 +1,8 @@
-diff --git a/source4/auth/ntlm/auth.c b/source4/auth/ntlm/auth.c
-index 263dc80..60c2d6c 100644
---- a/source4/auth/ntlm/auth.c
-+++ b/source4/auth/ntlm/auth.c
-@@ -279,7 +279,7 @@ _PUBLIC_ struct tevent_req *auth_check_password_send(TALLOC_CTX *mem_ctx,
+Index: samba/source4/auth/ntlm/auth.c
+===================================================================
+--- samba.orig/source4/auth/ntlm/auth.c
++++ samba/source4/auth/ntlm/auth.c
+@@ -279,7 +279,7 @@ _PUBLIC_ struct tevent_req *auth_check_p
  	state->user_info	= user_info;
  
  	if (!user_info->mapped_state) {
@@ -11,11 +11,11 @@ index 263dc80..60c2d6c 100644
  					  user_info, &user_info_tmp);
  		if (tevent_req_nterror(req, nt_status)) {
  			return tevent_req_post(req, ev);
-diff --git a/source4/auth/ntlm/auth_util.c b/source4/auth/ntlm/auth_util.c
-index 16977fa..fd58d0d 100644
---- a/source4/auth/ntlm/auth_util.c
-+++ b/source4/auth/ntlm/auth_util.c
-@@ -43,6 +43,7 @@ NTSTATUS auth_get_challenge_not_implemented(struct auth_method_context *ctx, TAL
+Index: samba/source4/auth/ntlm/auth_util.c
+===================================================================
+--- samba.orig/source4/auth/ntlm/auth_util.c
++++ samba/source4/auth/ntlm/auth_util.c
+@@ -43,6 +43,7 @@ NTSTATUS auth_get_challenge_not_implemen
  ****************************************************************************/
  static NTSTATUS map_user_info_cracknames(struct ldb_context *sam_ctx,
  					 TALLOC_CTX *mem_ctx,
@@ -23,7 +23,7 @@ index 16977fa..fd58d0d 100644
  					 const char *default_domain,
  					 const struct auth_usersupplied_info *user_info,
  					 struct auth_usersupplied_info **user_info_mapped)
-@@ -64,7 +65,8 @@ static NTSTATUS map_user_info_cracknames(struct ldb_context *sam_ctx,
+@@ -64,7 +65,8 @@ static NTSTATUS map_user_info_cracknames
  
  	/* use cracknames to work out what domain is being
  	   asked for */
@@ -33,7 +33,7 @@ index 16977fa..fd58d0d 100644
  		werr = DsCrackNameOneName(sam_ctx, tmp_ctx, 0,
  					  DRSUAPI_DS_NAME_FORMAT_USER_PRINCIPAL,
  					  DRSUAPI_DS_NAME_FORMAT_NT4_ACCOUNT,
-@@ -222,6 +224,7 @@ static NTSTATUS map_user_info_cracknames(struct ldb_context *sam_ctx,
+@@ -222,6 +224,7 @@ static NTSTATUS map_user_info_cracknames
  ****************************************************************************/
  NTSTATUS map_user_info(struct ldb_context *sam_ctx,
  		       TALLOC_CTX *mem_ctx,
@@ -41,7 +41,7 @@ index 16977fa..fd58d0d 100644
  		       const char *default_domain,
  		       const struct auth_usersupplied_info *user_info,
  		       struct auth_usersupplied_info **user_info_mapped)
-@@ -234,7 +237,7 @@ NTSTATUS map_user_info(struct ldb_context *sam_ctx,
+@@ -234,7 +237,7 @@ NTSTATUS map_user_info(struct ldb_contex
  	if (sam_ctx != NULL) {
  		/* if possible, use cracknames to parse the
  		   domain/account */

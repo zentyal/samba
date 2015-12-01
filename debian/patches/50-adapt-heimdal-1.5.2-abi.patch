@@ -1,8 +1,8 @@
 Index: samba/source4/heimdal/kdc/default_config.c
 ===================================================================
---- samba.orig/source4/heimdal/kdc/default_config.c	2015-10-04 19:43:27.223833533 +0200
-+++ samba/source4/heimdal/kdc/default_config.c	2015-10-04 19:44:58.189226386 +0200
-@@ -51,9 +51,9 @@
+--- samba.orig/source4/heimdal/kdc/default_config.c
++++ samba/source4/heimdal/kdc/default_config.c
+@@ -51,9 +51,9 @@ krb5_kdc_get_config(krb5_context context
      c->require_preauth = TRUE;
      c->kdc_warn_pwexpire = 0;
      c->encode_as_rep_as_tgs_rep = FALSE;
@@ -14,7 +14,7 @@ Index: samba/source4/heimdal/kdc/default_config.c
      c->use_strongest_server_key = TRUE;
      c->check_ticket_addresses = TRUE;
      c->allow_null_ticket_addresses = TRUE;
-@@ -120,9 +120,9 @@
+@@ -120,9 +120,9 @@ krb5_kdc_get_config(krb5_context context
      }
  #endif
  
@@ -26,7 +26,7 @@ Index: samba/source4/heimdal/kdc/default_config.c
  				     "kdc",
  				     "as-use-strongest-session-key", NULL);
      c->preauth_use_strongest_session_key =
-@@ -130,9 +130,9 @@
+@@ -130,9 +130,9 @@ krb5_kdc_get_config(krb5_context context
  				     c->preauth_use_strongest_session_key,
  				     "kdc",
  				     "preauth-use-strongest-session-key", NULL);
@@ -40,9 +40,9 @@ Index: samba/source4/heimdal/kdc/default_config.c
      c->use_strongest_server_key =
 Index: samba/source4/heimdal/kdc/kdc.h
 ===================================================================
---- samba.orig/source4/heimdal/kdc/kdc.h	2015-10-04 19:43:27.223833533 +0200
-+++ samba/source4/heimdal/kdc/kdc.h	2015-10-04 19:44:58.189226386 +0200
-@@ -59,9 +59,9 @@
+--- samba.orig/source4/heimdal/kdc/kdc.h
++++ samba/source4/heimdal/kdc/kdc.h
+@@ -59,9 +59,9 @@ typedef struct krb5_kdc_configuration {
  
      krb5_boolean encode_as_rep_as_tgs_rep; /* bug compatibility */
  
@@ -56,9 +56,9 @@ Index: samba/source4/heimdal/kdc/kdc.h
      krb5_boolean check_ticket_addresses;
 Index: samba/source4/heimdal/kdc/kerberos5.c
 ===================================================================
---- samba.orig/source4/heimdal/kdc/kerberos5.c	2015-10-04 19:43:27.224833537 +0200
-+++ samba/source4/heimdal/kdc/kerberos5.c	2015-10-04 19:44:58.190226390 +0200
-@@ -1118,7 +1118,7 @@
+--- samba.orig/source4/heimdal/kdc/kerberos5.c
++++ samba/source4/heimdal/kdc/kerberos5.c
+@@ -1118,7 +1118,7 @@ _kdc_as_rep(krb5_context context,
       * enctype that an older version of a KDC in the same realm can't
       * decrypt.
       */
@@ -69,9 +69,9 @@ Index: samba/source4/heimdal/kdc/kerberos5.c
      if (ret) {
 Index: samba/source4/heimdal/kdc/krb5tgs.c
 ===================================================================
---- samba.orig/source4/heimdal/kdc/krb5tgs.c	2015-10-04 19:43:27.224833537 +0200
-+++ samba/source4/heimdal/kdc/krb5tgs.c	2015-10-04 19:44:58.190226390 +0200
-@@ -1726,7 +1726,7 @@
+--- samba.orig/source4/heimdal/kdc/krb5tgs.c
++++ samba/source4/heimdal/kdc/krb5tgs.c
+@@ -1726,7 +1726,7 @@ server_lookup:
  	    Key *skey;
  
  	    ret = _kdc_find_etype(context,
@@ -82,9 +82,9 @@ Index: samba/source4/heimdal/kdc/krb5tgs.c
  	    if(ret) {
 Index: samba/source4/kdc/kdc.c
 ===================================================================
---- samba.orig/source4/kdc/kdc.c	2015-10-04 19:43:27.225833542 +0200
-+++ samba/source4/kdc/kdc.c	2015-10-04 19:44:58.191226394 +0200
-@@ -957,8 +957,8 @@
+--- samba.orig/source4/kdc/kdc.c
++++ samba/source4/kdc/kdc.c
+@@ -957,8 +957,8 @@ static void kdc_task_init(struct task_se
  	 * s4:heimdal: import lorikeet-heimdal-201107150856
  	 * (commit 48936803fae4a2fb362c79365d31f420c917b85b)
  	 *
@@ -95,7 +95,7 @@ Index: samba/source4/kdc/kdc.c
  	 * _kdc_find_etype() function. The old bahavior is in
  	 * the use_strongest_session_key=FALSE code path.
  	 * (The only remaining difference in _kdc_find_etype()
-@@ -967,9 +967,9 @@
+@@ -967,9 +967,9 @@ static void kdc_task_init(struct task_se
  	 * The old behavior in the _kdc_get_preferred_key()
  	 * function is use_strongest_server_key=TRUE.
  	 */

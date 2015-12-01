@@ -1,5 +1,7 @@
---- a/source4/dsdb/repl/drepl_out_helpers.c
-+++ b/source4/dsdb/repl/drepl_out_helpers.c
+Index: samba/source4/dsdb/repl/drepl_out_helpers.c
+===================================================================
+--- samba.orig/source4/dsdb/repl/drepl_out_helpers.c
++++ samba/source4/dsdb/repl/drepl_out_helpers.c
 @@ -418,6 +418,7 @@ static void dreplsrv_op_pull_source_get_
  	struct drsuapi_DsPartialAttributeSet *pas = NULL;
  	NTSTATUS status;

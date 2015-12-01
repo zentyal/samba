@@ -1,7 +1,7 @@
 Index: samba/source3/modules/vfs_recycle.c
 ===================================================================
---- samba.orig/source3/modules/vfs_recycle.c	2014-05-21 17:24:30.599077758 +0200
-+++ samba/source3/modules/vfs_recycle.c	2014-05-22 01:25:23.198303532 +0200
+--- samba.orig/source3/modules/vfs_recycle.c
++++ samba/source3/modules/vfs_recycle.c
 @@ -26,6 +26,11 @@
  #include "smbd/smbd.h"
  #include "system/filesys.h"
@@ -14,7 +14,7 @@ Index: samba/source3/modules/vfs_recycle.c
  #include "auth.h"
  
  #define ALLOC_CHECK(ptr, label) do { if ((ptr) == NULL) { DEBUG(0, ("recycle.bin: out of memory!\n")); errno = ENOMEM; goto label; } } while(0)
-@@ -167,6 +172,16 @@
+@@ -167,6 +172,16 @@ static mode_t recycle_directory_mode(vfs
  	return (mode_t)dirmode;
  }
  
@@ -31,7 +31,7 @@ Index: samba/source3/modules/vfs_recycle.c
  static mode_t recycle_subdir_mode(vfs_handle_struct *handle)
  {
  	int dirmode;
-@@ -249,6 +264,261 @@
+@@ -249,6 +264,261 @@ static off_t recycle_get_file_size(vfs_h
  	return size;
  }
  
@@ -293,7 +293,7 @@ Index: samba/source3/modules/vfs_recycle.c
  /**
   * Create directory tree
   * @param conn connection
-@@ -263,10 +533,15 @@
+@@ -263,10 +533,15 @@ static bool recycle_create_dir(vfs_handl
  	char *tmp_str = NULL;
  	char *token;
  	char *tok_str;
@@ -309,7 +309,7 @@ Index: samba/source3/modules/vfs_recycle.c
  
  	tmp_str = SMB_STRDUP(dname);
  	ALLOC_CHECK(tmp_str, done);
-@@ -298,15 +573,25 @@
+@@ -298,15 +573,25 @@ static bool recycle_create_dir(vfs_handl
  				ret = False;
  				goto done;
  			}

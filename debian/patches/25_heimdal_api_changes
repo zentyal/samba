@@ -5,9 +5,9 @@ Last-Updated: 2012-12-16
 
 Index: samba/source4/kdc/wdc-samba4.c
 ===================================================================
---- samba.orig/source4/kdc/wdc-samba4.c	2015-10-07 10:40:16.212243785 -0700
-+++ samba/source4/kdc/wdc-samba4.c	2015-10-07 10:43:31.328125035 -0700
-@@ -272,7 +272,7 @@
+--- samba.orig/source4/kdc/wdc-samba4.c
++++ samba/source4/kdc/wdc-samba4.c
+@@ -272,7 +272,7 @@ static krb5_error_code samba_wdc_check_c
  						     hdb_entry_ex *client_ex, const char *client_name,
  						     hdb_entry_ex *server_ex, const char *server_name,
  						     KDC_REQ *req,
@@ -16,7 +16,7 @@ Index: samba/source4/kdc/wdc-samba4.c
  {
  	struct samba_kdc_entry *kdc_entry;
  	bool password_change;
-@@ -294,11 +294,19 @@
+@@ -294,11 +294,19 @@ static krb5_error_code samba_wdc_check_c
  			return ENOMEM;
  		}
  

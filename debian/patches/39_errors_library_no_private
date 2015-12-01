@@ -1,5 +1,7 @@
+Index: samba/libcli/util/samba-errors.pc.in
+===================================================================
 --- /dev/null
-+++ b/libcli/util/samba-errors.pc.in
++++ samba/libcli/util/samba-errors.pc.in
 @@ -0,0 +1,10 @@
 +prefix=@prefix@
 +exec_prefix=@exec_prefix@
@@ -11,8 +13,10 @@
 +Version: @PACKAGE_VERSION@
 +Libs: @LIB_RPATH@ -L${libdir} -lsamba-errors
 +Cflags: -I${includedir} -DHAVE_IMMEDIATE_STRUCTURES=1
---- a/auth/credentials/wscript_build
-+++ b/auth/credentials/wscript_build
+Index: samba/auth/credentials/wscript_build
+===================================================================
+--- samba.orig/auth/credentials/wscript_build
++++ samba/auth/credentials/wscript_build
 @@ -5,7 +5,7 @@ bld.SAMBA_LIBRARY('samba-credentials',
  	autoproto='credentials_proto.h',
  	public_headers='credentials.h',
@@ -22,8 +26,10 @@
  	vnum='0.0.1'
  	)
  
---- a/libcli/auth/wscript_build
-+++ b/libcli/auth/wscript_build
+Index: samba/libcli/auth/wscript_build
+===================================================================
+--- samba.orig/libcli/auth/wscript_build
++++ samba/libcli/auth/wscript_build
 @@ -2,7 +2,7 @@
  
  bld.SAMBA_LIBRARY('cliauth',
@@ -33,8 +39,10 @@
                    private_library=True,
                    grouping_library=True)
  
---- a/libcli/ldap/wscript_build
-+++ b/libcli/ldap/wscript_build
+Index: samba/libcli/ldap/wscript_build
+===================================================================
+--- samba.orig/libcli/ldap/wscript_build
++++ samba/libcli/ldap/wscript_build
 @@ -2,7 +2,7 @@
  
  bld.SAMBA_LIBRARY('cli-ldap-common',
@@ -44,8 +52,10 @@
                    public_headers='ldap_message.h ldap_errors.h ldap_ndr.h',
                    deps='samba-util asn1util NDR_SECURITY tevent',
                    private_library=True
---- a/librpc/wscript_build
-+++ b/librpc/wscript_build
+Index: samba/librpc/wscript_build
+===================================================================
+--- samba.orig/librpc/wscript_build
++++ samba/librpc/wscript_build
 @@ -311,7 +311,7 @@ bld.SAMBA_SUBSYSTEM('NDR_INITSHUTDOWN',
  
  bld.SAMBA_SUBSYSTEM('NDR_COMPRESSION',
@@ -64,8 +74,10 @@
      public_headers='gen_ndr/misc.h gen_ndr/ndr_misc.h ndr/libndr.h:ndr.h',
      header_path= [('*gen_ndr*', 'gen_ndr')],
      vnum='0.0.5',
---- a/source4/auth/kerberos/wscript_build
-+++ b/source4/auth/kerberos/wscript_build
+Index: samba/source4/auth/kerberos/wscript_build
+===================================================================
+--- samba.orig/source4/auth/kerberos/wscript_build
++++ samba/source4/auth/kerberos/wscript_build
 @@ -9,7 +9,7 @@ bld.SAMBA_LIBRARY('authkrb5',
                    source='kerberos_pac.c',
                    autoproto='proto.h',
@@ -75,8 +87,10 @@
                    private_library=True
                    )
  
---- a/source4/dsdb/wscript_build
-+++ b/source4/dsdb/wscript_build
+Index: samba/source4/dsdb/wscript_build
+===================================================================
+--- samba.orig/source4/dsdb/wscript_build
++++ samba/source4/dsdb/wscript_build
 @@ -9,7 +9,7 @@ bld.SAMBA_LIBRARY('samdb',
  	public_deps='krb5',
  	public_headers='',
@@ -95,8 +109,10 @@
  	internal_module=False,
  	enabled=bld.AD_DC_BUILD_IS_ENABLED()
  	)
---- a/source4/lib/socket/wscript_build
-+++ b/source4/lib/socket/wscript_build
+Index: samba/source4/lib/socket/wscript_build
+===================================================================
+--- samba.orig/source4/lib/socket/wscript_build
++++ samba/source4/lib/socket/wscript_build
 @@ -10,7 +10,7 @@ bld.SAMBA_LIBRARY('netif',
  bld.SAMBA_MODULE('socket_ip',
      source='socket_ip.c',
@@ -106,8 +122,10 @@
      internal_module=True
      )
  
---- a/source4/libcli/wscript_build
-+++ b/source4/libcli/wscript_build
+Index: samba/source4/libcli/wscript_build
+===================================================================
+--- samba.orig/source4/libcli/wscript_build
++++ samba/source4/libcli/wscript_build
 @@ -76,7 +76,7 @@ bld.SAMBA_SUBSYSTEM('LIBCLI_FINDDCS',
  bld.SAMBA_SUBSYSTEM('LIBCLI_SMB',
  	source='clireadwrite.c cliconnect.c clifile.c clilist.c clitrans2.c climessage.c clideltree.c',
@@ -126,8 +144,10 @@
  	public_headers='raw/request.h:smb_request.h raw/signing.h:smb_raw_signing.h raw/libcliraw.h:smb_cliraw.h raw/interfaces.h:smb_raw_interfaces.h raw/smb.h:smb_raw.h raw/trans2.h:smb_raw_trans2.h',
  	private_library=False,
  	pc_files='raw/smbclient-raw.pc',
---- a/source3/wscript_build
-+++ b/source3/wscript_build
+Index: samba/source3/wscript_build
+===================================================================
+--- samba.orig/source3/wscript_build
++++ samba/source3/wscript_build
 @@ -811,7 +811,7 @@ bld.SAMBA3_LIBRARY('CHARSET3',
  
  bld.SAMBA3_SUBSYSTEM('errors3',
@@ -137,8 +157,10 @@
  
  bld.SAMBA3_SUBSYSTEM('LIBCLI_SAMR',
                      source='rpc_client/cli_samr.c',
---- a/source4/torture/drs/wscript_build
-+++ b/source4/torture/drs/wscript_build
+Index: samba/source4/torture/drs/wscript_build
+===================================================================
+--- samba.orig/source4/torture/drs/wscript_build
++++ samba/source4/torture/drs/wscript_build
 @@ -5,7 +5,7 @@ bld.SAMBA_MODULE('TORTURE_DRS',
  	autoproto='proto.h',
  	subsystem='smbtorture',
@@ -148,8 +170,10 @@
  	internal_module=True
  	)
  
---- a/source4/dns_server/wscript_build
-+++ b/source4/dns_server/wscript_build
+Index: samba/source4/dns_server/wscript_build
+===================================================================
+--- samba.orig/source4/dns_server/wscript_build
++++ samba/source4/dns_server/wscript_build
 @@ -2,7 +2,7 @@
  
  bld.SAMBA_LIBRARY('dnsserver_common',
@@ -159,8 +183,10 @@
          private_library=True,
          enabled=bld.AD_DC_BUILD_IS_ENABLED())
  
---- a/libcli/util/wscript_build
-+++ b/libcli/util/wscript_build
+Index: samba/libcli/util/wscript_build
+===================================================================
+--- samba.orig/libcli/util/wscript_build
++++ samba/libcli/util/wscript_build
 @@ -1,11 +1,13 @@
  #!/usr/bin/env python
  
@@ -177,8 +203,10 @@
 +                  vnum='0.0.1',
                    )
  
---- a/auth/gensec/wscript_build
-+++ b/auth/gensec/wscript_build
+Index: samba/auth/gensec/wscript_build
+===================================================================
+--- samba.orig/auth/gensec/wscript_build
++++ samba/auth/gensec/wscript_build
 @@ -3,7 +3,7 @@ bld.SAMBA_LIBRARY('gensec',
  	source='gensec.c gensec_start.c gensec_util.c',
  	pc_files='gensec.pc',
@@ -188,8 +216,10 @@
  	public_headers='gensec.h',
  	deps='com_err',
  	vnum='0.0.1'
---- a/lib/dbwrap/wscript_build
-+++ b/lib/dbwrap/wscript_build
+Index: samba/lib/dbwrap/wscript_build
+===================================================================
+--- samba.orig/lib/dbwrap/wscript_build
++++ samba/lib/dbwrap/wscript_build
 @@ -1,6 +1,6 @@
  SRC = '''dbwrap.c dbwrap_util.c dbwrap_rbt.c dbwrap_cache.c dbwrap_tdb.c
           dbwrap_local_open.c'''
@@ -198,8 +228,10 @@
  
  bld.SAMBA_LIBRARY('dbwrap',
                    source=SRC,
---- a/lib/ldb-samba/wscript_build
-+++ b/lib/ldb-samba/wscript_build
+Index: samba/lib/ldb-samba/wscript_build
+===================================================================
+--- samba.orig/lib/ldb-samba/wscript_build
++++ samba/lib/ldb-samba/wscript_build
 @@ -8,7 +8,7 @@ bld.SAMBA_LIBRARY('ldbsamba',
                    source='ldif_handlers.c',
                    autoproto='ldif_handlers_proto.h',
@@ -209,8 +241,10 @@
                    private_library=True
                    )
  
---- a/lib/torture/wscript_build
-+++ b/lib/torture/wscript_build
+Index: samba/lib/torture/wscript_build
+===================================================================
+--- samba.orig/lib/torture/wscript_build
++++ samba/lib/torture/wscript_build
 @@ -4,6 +4,6 @@ bld.SAMBA_LIBRARY('torture',
  	source='torture.c subunit.c simple.c',
  	vnum='0.0.1',
@@ -219,8 +253,10 @@
 +	public_deps='samba-hostconfig samba-util samba-errors talloc tevent',
  	public_headers='torture.h'
  	)
---- a/lib/util/wscript_build
-+++ b/lib/util/wscript_build
+Index: samba/lib/util/wscript_build
+===================================================================
+--- samba.orig/lib/util/wscript_build
++++ samba/lib/util/wscript_build
 @@ -93,7 +93,7 @@ if not bld.env.SAMBA_UTIL_CORE_ONLY:
  
      bld.SAMBA_LIBRARY('samba-modules',
@@ -239,8 +275,10 @@
                        public_headers='tevent_ntstatus.h tevent_unix.h tevent_werror.h',
                        header_path=[ ('*', 'util') ],
                        pc_files=[],
---- a/libcli/smb/wscript
-+++ b/libcli/smb/wscript
+Index: samba/libcli/smb/wscript
+===================================================================
+--- samba.orig/libcli/smb/wscript
++++ samba/libcli/smb/wscript
 @@ -6,7 +6,7 @@ def build(bld):
          source='''
              read_smb.c
@@ -259,8 +297,10 @@
                  smb_transport
          ''',
  	public_deps='talloc samba-util iov_buf',
---- a/librpc/tools/wscript_build
-+++ b/librpc/tools/wscript_build
+Index: samba/librpc/tools/wscript_build
+===================================================================
+--- samba.orig/librpc/tools/wscript_build
++++ samba/librpc/tools/wscript_build
 @@ -3,5 +3,5 @@
  bld.SAMBA_BINARY('ndrdump',
  	source='ndrdump.c',
@@ -268,8 +308,10 @@
 -	deps='samba-hostconfig samba-util popt POPT_SAMBA ndr-table errors NDR_DCERPC'
 +	deps='samba-hostconfig samba-util popt POPT_SAMBA ndr-table samba-errors NDR_DCERPC'
  	)
---- a/source4/libcli/ldap/wscript_build
-+++ b/source4/libcli/ldap/wscript_build
+Index: samba/source4/libcli/ldap/wscript_build
+===================================================================
+--- samba.orig/source4/libcli/ldap/wscript_build
++++ samba/source4/libcli/ldap/wscript_build
 @@ -3,7 +3,7 @@
  bld.SAMBA_LIBRARY('cli-ldap',
                    source='ldap_client.c ldap_bind.c ldap_ildap.c ldap_controls.c',
@@ -279,8 +321,10 @@
                    public_headers='libcli_ldap.h:ldap-util.h',
                    deps='cli_composite LIBSAMBA_TSOCKET samba_socket NDR_SAMR LIBTLS ndr LP_RESOLVE gensec cli-ldap-common',
                    private_library=True
---- a/source4/libcli/wbclient/wscript_build
-+++ b/source4/libcli/wbclient/wscript_build
+Index: samba/source4/libcli/wbclient/wscript_build
+===================================================================
+--- samba.orig/source4/libcli/wbclient/wscript_build
++++ samba/source4/libcli/wbclient/wscript_build
 @@ -2,7 +2,7 @@
  
  bld.SAMBA_LIBRARY('LIBWBCLIENT_OLD',

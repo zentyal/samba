@@ -9,8 +9,10 @@ Signed-off-by: Samuel Cabrero <scabrero@zentyal.com>
  source4/libcli/pysmb.c | 7 ++-----
  1 file changed, 2 insertions(+), 5 deletions(-)
 
---- a/source4/libcli/pysmb.c
-+++ b/source4/libcli/pysmb.c
+Index: samba/source4/libcli/pysmb.c
+===================================================================
+--- samba.orig/source4/libcli/pysmb.c
++++ samba/source4/libcli/pysmb.c
 @@ -541,12 +541,9 @@ static PyObject *py_smb_case_sensitive(p
  
  	spdata = self->ptr;

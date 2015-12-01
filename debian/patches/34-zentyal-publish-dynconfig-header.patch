@@ -1,8 +1,8 @@
 Index: samba/dynconfig/wscript
 ===================================================================
---- samba.orig/dynconfig/wscript	2015-02-24 18:28:57.575474014 +0100
-+++ samba/dynconfig/wscript	2015-02-24 18:28:57.571474014 +0100
-@@ -415,7 +415,7 @@
+--- samba.orig/dynconfig/wscript
++++ samba/dynconfig/wscript
+@@ -413,7 +413,7 @@ def build(bld):
      bld.SAMBA_SUBSYSTEM('DYNCONFIG',
                          'dynconfig.c',
                          deps='replace talloc',

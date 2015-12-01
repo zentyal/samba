@@ -17,8 +17,10 @@ Signed-off-by: Samuel Cabrero <scabrero@zentyal.com>
  source4/param/loadparm.c          |  1 +
  9 files changed, 110 insertions(+), 2 deletions(-)
 
---- a/source4/libcli/cliconnect.c
-+++ b/source4/libcli/cliconnect.c
+Index: samba/source4/libcli/cliconnect.c
+===================================================================
+--- samba.orig/source4/libcli/cliconnect.c
++++ samba/source4/libcli/cliconnect.c
 @@ -277,5 +277,26 @@ bool smbcli_parse_unc(const char *unc_na
  	return false;
  }
@@ -46,8 +48,10 @@ Signed-off-by: Samuel Cabrero <scabrero@zentyal.com>
 +	return NT_STATUS_OK;
 +}
  
---- a/source4/libcli/libcli.h
-+++ b/source4/libcli/libcli.h
+Index: samba/source4/libcli/libcli.h
+===================================================================
+--- samba.orig/source4/libcli/libcli.h
++++ samba/source4/libcli/libcli.h
 @@ -125,6 +125,11 @@ bool smbcli_parse_unc(const char *unc_na
  		      char **hostname, char **sharename);
  
@@ -60,8 +64,10 @@ Signed-off-by: Samuel Cabrero <scabrero@zentyal.com>
   Symlink a file (UNIX extensions).
  ****************************************************************************/
  NTSTATUS smbcli_unix_symlink(struct smbcli_tree *tree, const char *fname_src, 
---- a/source4/libcli/pysmb.c
-+++ b/source4/libcli/pysmb.c
+Index: samba/source4/libcli/pysmb.c
+===================================================================
+--- samba.orig/source4/libcli/pysmb.c
++++ samba/source4/libcli/pysmb.c
 @@ -524,6 +524,31 @@ static PyObject *py_close_file(pytalloc_
  	Py_RETURN_NONE;
  }
@@ -104,8 +110,10 @@ Signed-off-by: Samuel Cabrero <scabrero@zentyal.com>
  	{ NULL },
  };
  
---- a/source4/libcli/raw/clitransport.c
-+++ b/source4/libcli/raw/clitransport.c
+Index: samba/source4/libcli/raw/clitransport.c
+===================================================================
+--- samba.orig/source4/libcli/raw/clitransport.c
++++ samba/source4/libcli/raw/clitransport.c
 @@ -236,6 +236,15 @@ struct tevent_req *smbcli_transport_setu
  	clear_flags = ~additional_flags;
  	clear_flags2 = ~additional_flags2;
@@ -122,8 +130,10 @@ Signed-off-by: Samuel Cabrero <scabrero@zentyal.com>
  	if (req->session) {
  		session = req->session->smbXcli;
  	}
---- a/source4/libcli/raw/libcliraw.h
-+++ b/source4/libcli/raw/libcliraw.h
+Index: samba/source4/libcli/raw/libcliraw.h
+===================================================================
+--- samba.orig/source4/libcli/raw/libcliraw.h
++++ samba/source4/libcli/raw/libcliraw.h
 @@ -95,6 +95,7 @@ struct smbcli_options {
  	unsigned int use_spnego:1;
  	unsigned int unicode:1;
@@ -132,8 +142,10 @@ Signed-off-by: Samuel Cabrero <scabrero@zentyal.com>
  	int max_protocol;
  	uint32_t max_xmit;
  	uint16_t max_mux;
---- a/source4/libcli/raw/rawrequest.c
-+++ b/source4/libcli/raw/rawrequest.c
+Index: samba/source4/libcli/raw/rawrequest.c
+===================================================================
+--- samba.orig/source4/libcli/raw/rawrequest.c
++++ samba/source4/libcli/raw/rawrequest.c
 @@ -116,7 +116,15 @@ struct smbcli_request *smbcli_request_se
  	memcpy(req->out.hdr, "\377SMB", 4);
  	SCVAL(req->out.hdr,HDR_COM,command);
@@ -168,8 +180,10 @@ Signed-off-by: Samuel Cabrero <scabrero@zentyal.com>
  	SSVAL(req->out.hdr,HDR_FLG2, 0);
  
  	/* copy the pid, uid and mid to the request */
---- a/source4/libcli/raw/rawtrans.c
-+++ b/source4/libcli/raw/rawtrans.c
+Index: samba/source4/libcli/raw/rawtrans.c
+===================================================================
+--- samba.orig/source4/libcli/raw/rawtrans.c
++++ samba/source4/libcli/raw/rawtrans.c
 @@ -66,6 +66,15 @@ static struct smbcli_request *smb_raw_tr
  	clear_flags = ~additional_flags;
  	clear_flags2 = ~additional_flags2;
@@ -202,8 +216,10 @@ Signed-off-by: Samuel Cabrero <scabrero@zentyal.com>
  	timeout_msec = req->transport->options.request_timeout * 1000;
  
  	memcpy(req->out.vwv,
---- a/source4/libcli/smb2/transport.c
-+++ b/source4/libcli/smb2/transport.c
+Index: samba/source4/libcli/smb2/transport.c
+===================================================================
+--- samba.orig/source4/libcli/smb2/transport.c
++++ samba/source4/libcli/smb2/transport.c
 @@ -175,6 +175,15 @@ void smb2_transport_send(struct smb2_req
  		additional_flags |= SMB2_HDR_FLAG_CHAINED;
  	}
@@ -220,8 +236,10 @@ Signed-off-by: Samuel Cabrero <scabrero@zentyal.com>
  	hdr_ofs = PTR_DIFF(req->out.hdr, req->out.buffer);
  	pdu_len = req->out.size - hdr_ofs;
  	body.data = req->out.body;
---- a/source4/param/loadparm.c
-+++ b/source4/param/loadparm.c
+Index: samba/source4/param/loadparm.c
+===================================================================
+--- samba.orig/source4/param/loadparm.c
++++ samba/source4/param/loadparm.c
 @@ -44,6 +44,7 @@ void lpcfg_smbcli_options(struct loadpar
  	options->unicode = lpcfg_unicode(lp_ctx);
  	options->use_oplocks = true;

@@ -1,3 +1,9 @@
+samba (4:4.3.2-zentyal1) trusty; urgency=medium
+
+  * Upstream
+
+ -- Jesús García Sáez <jgarcia@zentyal.com>  Wed, 02 Dec 2015 14:16:33 +0100
+
 samba (4:4.3.1-zentyal2) trusty; urgency=medium
 
   * Working

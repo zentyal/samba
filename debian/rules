@@ -175,6 +175,8 @@ override_dh_install:
 	# Install ctdb conffiles
 	mkdir -p $(DESTDIR)/lib/systemd/system/
 	install -m 0644 ctdb/config/ctdb.service $(DESTDIR)/lib/systemd/system/
+	# Test is not needed
+	rm $(DESTDIR)/usr/bin/async_connect_send_test
 	dh_install --sourcedir=$(DESTDIR) --list-missing --fail-missing
 	# Ubuntu things
 	mkdir -p $(DESTDIR)/etc/ufw/applications.d

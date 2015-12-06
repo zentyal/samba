@@ -2,12 +2,12 @@
 .\"     Title: smb.conf
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 10/20/2015
+.\"      Date: 12/01/2015
 .\"    Manual: File Formats and Conventions
 .\"    Source: Samba 4.3
 .\"  Language: English
 .\"
-.TH "SMB\&.CONF" "5" "10/20/2015" "Samba 4\&.3" "File Formats and Conventions"
+.TH "SMB\&.CONF" "5" "12/01/2015" "Samba 4\&.3" "File Formats and Conventions"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -748,7 +748,7 @@ option and also on a share containing directories with the UNIX
 \fIsetgid bit\fR
 set on them, which causes new files and directories created within it to inherit the group ownership from the containing directory\&.
 .sp
-This is parameter has been was deprecated in Samba 3\&.0\&.23, but re\-activated in Samba 3\&.0\&.31 and above, as it now only controls permission changes if the user is in the owning primary group\&. It is now no longer equivalent to the
+This parameter was deprecated in Samba 3\&.0\&.23, but re\-activated in Samba 3\&.0\&.31 and above, as it now only controls permission changes if the user is in the owning primary group\&. It is now no longer equivalent to the
 \fIdos filemode\fR
 option\&.
 .sp

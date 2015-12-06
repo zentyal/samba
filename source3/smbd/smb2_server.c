@@ -1704,11 +1704,12 @@ static NTSTATUS smbd_smb2_request_process_cancel(struct smbd_smb2_request *req)
 	search_async_id = BVAL(inhdr, SMB2_HDR_PID);
 
 	/*
-	 * we don't need the request anymore
-	 * cancel requests never have a response
+	 * We don't need the request anymore cancel requests never
+	 * have a response.
+	 *
+	 * We defer the TALLOC_FREE(req) to the caller.
 	 */
 	DLIST_REMOVE(xconn->smb2.requests, req);
-	TALLOC_FREE(req);
 
 	for (cur = xconn->smb2.requests; cur; cur = cur->next) {
 		const uint8_t *outhdr;
@@ -2350,6 +2351,16 @@ NTSTATUS smbd_smb2_request_dispatch(struct smbd_smb2_request *req)
 					       req->profile, _INBYTES(req));
 		return_value = smbd_smb2_request_process_cancel(req);
 		SMBPROFILE_IOBYTES_ASYNC_END(req->profile, 0);
+
+		/*
+		 * We don't need the request anymore cancel requests never
+		 * have a response.
+		 *
+		 * smbd_smb2_request_process_cancel() already called
+		 * DLIST_REMOVE(xconn->smb2.requests, req);
+		 */
+		TALLOC_FREE(req);
+
 		break;
 
 	case SMB2_OP_KEEPALIVE:
@@ -2976,7 +2987,7 @@ NTSTATUS smbd_smb2_send_oplock_break(struct smbXsrv_connection *xconn,
 	SBVAL(body, 0x08, op->global->open_persistent_id);
 	SBVAL(body, 0x10, op->global->open_volatile_id);
 
-	return smbd_smb2_send_break(xconn, session, tcon, body, sizeof(body));
+	return smbd_smb2_send_break(xconn, NULL, NULL, body, sizeof(body));
 }
 
 NTSTATUS smbd_smb2_send_lease_break(struct smbXsrv_connection *xconn,

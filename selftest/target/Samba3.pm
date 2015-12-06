@@ -172,6 +172,13 @@ sub setup_env($$$)
 	        return $self->{vars}->{$envname};
 	}
 
+	#
+	# Avoid hitting system krb5.conf -
+	# An env that needs Kerberos will reset this to the real
+	# value.
+	#
+	$ENV{KRB5_CONFIG} = "$path/no_krb5.conf";
+
 	if ($envname eq "nt4_dc") {
 		return $self->setup_nt4_dc("$path/nt4_dc");
 	} elsif ($envname eq "nt4_dc_schannel") {
@@ -1195,7 +1202,9 @@ sub provision($$$$$$$$)
 
 	my ($max_uid, $max_gid);
 	my ($uid_nobody, $uid_root, $uid_pdbtest, $uid_pdbtest2);
+	my ($uid_pdbtest_wkn);
 	my ($gid_nobody, $gid_nogroup, $gid_root, $gid_domusers, $gid_domadmins);
+	my ($gid_everyone);
 
 	if ($unix_uid < 0xffff - 4) {
 		$max_uid = 0xffff;
@@ -1207,8 +1216,9 @@ sub provision($$$$$$$$)
 	$uid_nobody = $max_uid - 2;
 	$uid_pdbtest = $max_uid - 3;
 	$uid_pdbtest2 = $max_uid - 4;
+	$uid_pdbtest_wkn = $max_uid - 6;
 
-	if ($unix_gids[0] < 0xffff - 5) {
+	if ($unix_gids[0] < 0xffff - 7) {
 		$max_gid = 0xffff;
 	} else {
 		$max_gid = $unix_gids[0];
@@ -1219,6 +1229,7 @@ sub provision($$$$$$$$)
 	$gid_root = $max_gid - 3;
 	$gid_domusers = $max_gid - 4;
 	$gid_domadmins = $max_gid - 5;
+	$gid_everyone = $max_gid - 7;
 
 	##
 	## create conffile
@@ -1361,8 +1372,14 @@ sub provision($$$$$$$$)
         force user = $unix_name
         guest ok = yes
 [forceuser_unixonly]
+	comment = force a user with unix user SID and group SID
 	path = $shrdir
 	force user = pdbtest
+	guest ok = yes
+[forceuser_wkngroup]
+	comment = force a user with well-known group SID
+	path = $shrdir
+	force user = pdbtest_wkn
 	guest ok = yes
 [forcegroup]
 	path = $shrdir
@@ -1490,6 +1507,7 @@ sub provision($$$$$$$$)
 $unix_name:x:$unix_uid:$unix_gids[0]:$unix_name gecos:$prefix_abs:/bin/false
 pdbtest:x:$uid_pdbtest:$gid_nogroup:pdbtest gecos:$prefix_abs:/bin/false
 pdbtest2:x:$uid_pdbtest2:$gid_nogroup:pdbtest gecos:$prefix_abs:/bin/false
+pdbtest_wkn:x:$uid_pdbtest_wkn:$gid_everyone:pdbtest_wkn gecos:$prefix_abs:/bin/false
 ";
 	if ($unix_uid != 0) {
 		print PASSWD "root:x:$uid_root:$gid_root:root gecos:$prefix_abs:/bin/false
@@ -1506,6 +1524,7 @@ nogroup:x:$gid_nogroup:nobody
 $unix_name-group:x:$unix_gids[0]:
 domusers:X:$gid_domusers:
 domadmins:X:$gid_domadmins:
+everyone:x:$gid_everyone:
 ";
 	if ($unix_gids[0] != 0) {
 		print GROUP "root:x:$gid_root:
@@ -1610,6 +1629,13 @@ domadmins:X:$gid_domadmins:
 	$ret{LOCAL_PATH} = "$shrdir";
         $ret{LOGDIR} = $logdir;
 
+	#
+	# Avoid hitting system krb5.conf -
+	# An env that needs Kerberos will reset this to the real
+	# value.
+	#
+	$ret{KRB5_CONFIG} = abs_path($prefix) . "/no_krb5.conf";
+
 	return \%ret;
 }
 
@@ -1688,6 +1714,10 @@ sub wait_for_start($$$$$)
 	    return 1;
 	}
 	$ret = system(Samba::bindir_path($self, "net") ." $envvars->{CONFIGURATION} groupmap add rid=512 unixgroup=domadmins type=domain");
+	if ($ret != 0) {
+	    return 1;
+	}
+	$ret = system(Samba::bindir_path($self, "net") ." $envvars->{CONFIGURATION} groupmap add sid=S-1-1-0 unixgroup=everyone type=builtin");
 	if ($ret != 0) {
 	    return 1;
 	}

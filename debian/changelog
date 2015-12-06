@@ -1,4 +1,4 @@
-samba (2:4.3.1+dfsg-1) UNRELEASED; urgency=medium
+samba (2:4.3.2-1) UNRELEASED; urgency=medium
 
   * New upstream release.
    + Drop subunit dependency, no longer used.
@@ -10,8 +10,9 @@ samba (2:4.3.1+dfsg-1) UNRELEASED; urgency=medium
   * Remove wins2dns.awk example script.
   * Remove the samba-doc package, and move examples files from it to
     relevant other packages. Closes: #769385
+  * New upstream release.
 
- -- Jelmer Vernooij <jelmer@debian.org>  Thu, 01 Oct 2015 21:37:48 +0000
+ -- Jelmer Vernooij <jelmer@debian.org>  Sun, 06 Dec 2015 09:47:05 +0000
 
 samba (2:4.3.0+dfsg-2) experimental; urgency=medium
 

@@ -8,6 +8,3 @@ samba: init.d-script-does-not-source-init-functions etc/init.d/samba
 # empty prerm script to allow upgrades from earlier version with broken prerm
 # script (bug introduced in 2:4.0.10+dfsg-3, fixed in 2:4.0.13+dfsg-1)
 samba: maintainer-script-ignores-errors prerm
-# winbind talks over a unix domain socket, so non-arch specific dependencies are fine.
-samba: dependency-is-not-multi-archified libnss-winbind depends on winbind (multi-arch: no)
-samba: dependency-is-not-multi-archified libpam-winbind depends on winbind (multi-arch: no)

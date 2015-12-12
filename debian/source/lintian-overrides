@@ -1,0 +1,3 @@
+# winbind talks over a unix domain socket, so non-arch specific dependencies are fine.
+samba source: dependency-is-not-multi-archified libnss-winbind depends on winbind (multi-arch: no)
+samba source: dependency-is-not-multi-archified libpam-winbind depends on winbind (multi-arch: no)

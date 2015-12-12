@@ -24,3 +24,5 @@ libwbclient0/
 samba-dbg/
 samba-doc/
 files
+*.debhelper
+*.debhelper.log

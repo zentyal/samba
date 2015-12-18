@@ -132,3 +132,4 @@ usr/lib/*/samba/libsys-rw.so.0
 usr/lib/*/samba/libgenrand.so.0
 usr/lib/*/samba/libmessages-util.so.0
 usr/lib/*/samba/libprocess-model.so.0
+usr/lib/*/samba/libsmbd-base.so.0

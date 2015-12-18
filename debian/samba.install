@@ -33,5 +33,4 @@ usr/lib/*/samba/libhdb-samba4.so.11.0.2
 usr/lib/*/samba/libkdc-samba4.so.2.0.0
 usr/lib/*/samba/libHDB-SAMBA4.so.0
 usr/lib/*/samba/libkdc-samba4.so.2
-usr/lib/*/samba/libsmbd-base.so.0
 usr/lib/*/samba/libhdb-samba4.so.11

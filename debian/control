@@ -59,7 +59,6 @@ Package: samba
 Architecture: any
 Pre-Depends: dpkg (>= 1.15.6~), ${misc:Pre-Depends}
 Depends: adduser,
-         heimdal-hdb-api-8,
          libpam-modules,
          libpam-runtime (>= 1.0.1-11),
          lsb-base (>= 4.1+Debian),
@@ -69,13 +68,12 @@ Depends: adduser,
          python-samba,
          samba-common (= ${source:Version}),
          samba-common-bin (=${binary:Version}),
-         samba-dsdb-modules,
          tdb-tools,
          update-inetd,
          ${misc:Depends},
          ${python:Depends},
          ${shlibs:Depends}
-Recommends: attr, logrotate, samba-vfs-modules
+Recommends: attr, logrotate, samba-vfs-modules, samba-dsdb-modules
 Suggests: bind9 (>= 1:9.5.1),
           bind9utils,
           ctdb,

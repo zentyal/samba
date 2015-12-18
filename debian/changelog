@@ -20,6 +20,8 @@ samba (2:4.3.3-1) UNRELEASED; urgency=medium
   * Remove wins2dns.awk example script.
   * Remove the samba-doc package, and move examples files from it to
     relevant other packages. Closes: #769385
+  * Move samba-dsdb-modules back from Depends to Recommends, as using
+    Samba as a standalone server doesn't require the dsdb modules.
 
  -- Jelmer Vernooij <jelmer@debian.org>  Fri, 18 Dec 2015 01:18:42 +0000
 

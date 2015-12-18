@@ -1,6 +1,6 @@
 samba (2:4.3.3-1) UNRELEASED; urgency=medium
 
-  * New upstream release.
+  * New upstream release. Closes: #808133.
    + Drop subunit dependency, no longer used.
    + Drop ntdb dependencies, no longer used.
    + Fixes:

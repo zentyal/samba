@@ -1,4 +1,4 @@
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>ctdbd.conf</title><meta name="generator" content="DocBook XSL Stylesheets V1.78.1"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry"><a name="ctdbd.conf.5"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>ctdbd.conf &#8212; CTDB daemon configuration file</p></div><div class="refsect1"><a name="idp52417760"></a><h2>DESCRIPTION</h2><p>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>ctdbd.conf</title><meta name="generator" content="DocBook XSL Stylesheets V1.78.1"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="refentry"><a name="ctdbd.conf.5"></a><div class="titlepage"></div><div class="refnamediv"><h2>Name</h2><p>ctdbd.conf &#8212; CTDB daemon configuration file</p></div><div class="refsect1"><a name="idp51979744"></a><h2>DESCRIPTION</h2><p>
       This file contains CTDB configuration variables that are affect
       the operation of CTDB.  The default location of this file is
       <code class="filename">/etc/ctdb/ctdbd.conf</code>.
@@ -17,7 +17,7 @@
       A historical alternative is
       <code class="filename">/etc/ctdb/sysconfig/ctdb</code> - this is
       deprecated.
-    </p></div><div class="refsect1"><a name="idp50202560"></a><h2>
+    </p></div><div class="refsect1"><a name="idp51478896"></a><h2>
       INITSCRIPT CONFIGURATION
     </h2><p>
       Some options must be available to the initscript so they need to
@@ -32,7 +32,7 @@
 	  </p><p>
 	    Default is <code class="filename">/var/run/ctdb/ctdbd.pid</code>.
 	    Corresponds to <code class="option">--pidfile</code>.
-	  </p></dd></dl></div></div><div class="refsect1"><a name="idp54722304"></a><h2>
+	  </p></dd></dl></div></div><div class="refsect1"><a name="idp49232048"></a><h2>
       GLOBAL CONFIGURATION
     </h2><p>
       These options may be used in the initscripts, daemon and
@@ -46,7 +46,7 @@
 	    Defaults to <code class="filename">/var/ctdb</code>, unless
 	    <code class="filename">/var/lib/ctdb</code> already exists in which
 	    case it is used.
-	  </p></dd></dl></div></div><div class="refsect1"><a name="idp54730016"></a><h2>
+	  </p></dd></dl></div></div><div class="refsect1"><a name="idp53889648"></a><h2>
       DAEMON CONFIGURATION
     </h2><p>
       Variables in this section are processed by
@@ -202,7 +202,7 @@
 	    "setup" event before this timeout then it is killed.
 	  </p><p>
 	    Defaults is 10.
-	  </p></dd></dl></div></div><div class="refsect1"><a name="idp55902528"></a><h2>NETWORK CONFIGURATION</h2><div class="refsect2"><a name="idp55903168"></a><h3>NAT GATEWAY</h3><p>
+	  </p></dd></dl></div></div><div class="refsect1"><a name="idp55060688"></a><h2>NETWORK CONFIGURATION</h2><div class="refsect2"><a name="idp55061328"></a><h3>NAT GATEWAY</h3><p>
 	NAT gateway is used to configure fallback routing for nodes
 	when they do not host any public IP addresses.  For example,
 	it allows unhealthy nodes to reliably communicate with
@@ -285,7 +285,7 @@
 	      route to avoid this.
 	    </p><p>
 	      No default.
-	    </p></dd></dl></div><div class="refsect3"><a name="idp55930016"></a><h4>Example</h4><pre class="screen">
+	    </p></dd></dl></div><div class="refsect3"><a name="idp55088176"></a><h4>Example</h4><pre class="screen">
 CTDB_NATGW_NODES=/etc/ctdb/natgw_nodes
 CTDB_NATGW_PRIVATE_NETWORK=192.168.1.0/24
 CTDB_NATGW_DEFAULT_GATEWAY=10.0.0.1
@@ -304,7 +304,7 @@ CTDB_NATGW_STATIC_ROUTES=10.0.0.0/24
 	</pre><p>
 	  Note that <code class="varname">CTDB_NATGW_DEFAULT_GATEWAY</code> is
 	  not specified.
-	</p></div></div><div class="refsect2"><a name="idp55933904"></a><h3>POLICY ROUTING</h3><p>
+	</p></div></div><div class="refsect2"><a name="idp55092064"></a><h3>POLICY ROUTING</h3><p>
 	A node running CTDB may be a component of a complex network
 	topology.  In particular, public addresses may be spread
 	across several different networks (or VLANs) and it may not be
@@ -368,12 +368,12 @@ CTDB_NATGW_STATIC_ROUTES=10.0.0.0/24
 	      manipulate).
 	    </p><p>
 	      No default, usually 1000 and 9000.
-	    </p></dd></dl></div><div class="refsect3"><a name="idp55955840"></a><h4>Example</h4><pre class="screen">
+	    </p></dd></dl></div><div class="refsect3"><a name="idp55114000"></a><h4>Example</h4><pre class="screen">
 CTDB_PER_IP_ROUTING_CONF=/etc/ctdb/policy_routing
 CTDB_PER_IP_ROUTING_RULE_PREF=100
 CTDB_PER_IP_ROUTING_TABLE_ID_LOW=1000
 CTDB_PER_IP_ROUTING_TABLE_ID_HIGH=9000
-	</pre></div></div><div class="refsect2"><a name="idp55957536"></a><h3>MISCELLANEOUS NETWORK CONFIGURATION</h3><div class="variablelist"><dl class="variablelist"><dt><span class="term">CTDB_PARTIALLY_ONLINE_INTERFACES=yes|no</span></dt><dd><p>
+	</pre></div></div><div class="refsect2"><a name="idp55115696"></a><h3>MISCELLANEOUS NETWORK CONFIGURATION</h3><div class="variablelist"><dl class="variablelist"><dt><span class="term">CTDB_PARTIALLY_ONLINE_INTERFACES=yes|no</span></dt><dd><p>
 	      Whether one or more offline interfaces should cause a
 	      monitor event to fail if there are other interfaces that
 	      are up.  If this is "yes" and a node has some interfaces
@@ -381,7 +381,7 @@ CTDB_PER_IP_ROUTING_TABLE_ID_HIGH=9000
 	      display the node as "PARTIALLYONLINE".
 	    </p><p>
 	      Default is "no".
-	    </p></dd></dl></div></div></div><div class="refsect1"><a name="idp55961680"></a><h2>SERVICE CONFIGURATION</h2><p>
+	    </p></dd></dl></div></div></div><div class="refsect1"><a name="idp55119760"></a><h2>SERVICE CONFIGURATION</h2><p>
       CTDB can be configured to manage and/or monitor various NAS (and
       other) services via its eventscripts.
     </p><p>
@@ -390,7 +390,7 @@ CTDB_PER_IP_ROUTING_TABLE_ID_HIGH=9000
       monitor the service and CTDB will do any required
       reconfiguration of the service when public IP addresses are
       failed over.
-    </p><div class="refsect2"><a name="idp55963536"></a><h3>SAMBA</h3><div class="refsect3"><a name="idp55964176"></a><h4>Eventscripts</h4><table border="0" summary="Simple list" class="simplelist"><tr><td><code class="filename">49.winbind</code></td></tr><tr><td><code class="filename">50.samba</code></td></tr></table></div><div class="variablelist"><dl class="variablelist"><dt><span class="term">CTDB_MANAGES_SAMBA=yes|no</span></dt><dd><p>
+    </p><div class="refsect2"><a name="idp55121616"></a><h3>SAMBA</h3><div class="refsect3"><a name="idp55122256"></a><h4>Eventscripts</h4><table border="0" summary="Simple list" class="simplelist"><tr><td><code class="filename">49.winbind</code></td></tr><tr><td><code class="filename">50.samba</code></td></tr></table></div><div class="variablelist"><dl class="variablelist"><dt><span class="term">CTDB_MANAGES_SAMBA=yes|no</span></dt><dd><p>
 	      Should CTDB manage Samba?
 	    </p><p>
 	      Default is no.
@@ -422,11 +422,11 @@ CTDB_PER_IP_ROUTING_TABLE_ID_HIGH=9000
 	      Distribution specific SERVICE for managing winbindd.
 	    </p><p>
 	      Default is "winbind".
-	    </p></dd></dl></div></div><div class="refsect2"><a name="idp55983680"></a><h3>NFS</h3><p>
+	    </p></dd></dl></div></div><div class="refsect2"><a name="idp55141680"></a><h3>NFS</h3><p>
 	This includes parameters for the kernel NFS server.
 	Alternative NFS subsystems (such as <a class="ulink" href="https://github.com/nfs-ganesha/nfs-ganesha/wiki" target="_top">NFS-Ganesha</a>)
 	can be integrated using <code class="varname">CTDB_NFS_CALLOUT</code>.
-      </p><div class="refsect3"><a name="idp55985824"></a><h4>Eventscript</h4><table border="0" summary="Simple list" class="simplelist"><tr><td><code class="filename">60.nfs</code></td></tr></table></div><div class="variablelist"><dl class="variablelist"><dt><span class="term">CTDB_CLUSTER_FILESYSTEM_TYPE=gpfs</span></dt><dd><p>
+      </p><div class="refsect3"><a name="idp55143824"></a><h4>Eventscript</h4><table border="0" summary="Simple list" class="simplelist"><tr><td><code class="filename">60.nfs</code></td></tr></table></div><div class="variablelist"><dl class="variablelist"><dt><span class="term">CTDB_CLUSTER_FILESYSTEM_TYPE=gpfs</span></dt><dd><p>
 	      The type of cluster filesystem to use with NFS-ganesha.
 	      Currently only "gpfs" is supported.
 	    </p><p>
@@ -465,16 +465,16 @@ CTDB_PER_IP_ROUTING_TABLE_ID_HIGH=9000
 	      overheads.
 	    </p><p>
 	      Default is "::1".
-	    </p></dd></dl></div></div><div class="refsect2"><a name="idp56006896"></a><h3>APACHE HTTPD</h3><p>
+	    </p></dd></dl></div></div><div class="refsect2"><a name="idp55164896"></a><h3>APACHE HTTPD</h3><p>
 	CTDB can manage the Apache web server.
-      </p><div class="refsect3"><a name="idp56007920"></a><h4>Eventscript</h4><table border="0" summary="Simple list" class="simplelist"><tr><td><code class="filename">41.httpd</code></td></tr></table></div><div class="variablelist"><dl class="variablelist"><dt><span class="term">CTDB_MANAGES_HTTPD=yes|no</span></dt><dd><p>
+      </p><div class="refsect3"><a name="idp55165920"></a><h4>Eventscript</h4><table border="0" summary="Simple list" class="simplelist"><tr><td><code class="filename">41.httpd</code></td></tr></table></div><div class="variablelist"><dl class="variablelist"><dt><span class="term">CTDB_MANAGES_HTTPD=yes|no</span></dt><dd><p>
 	      Should CTDB manage the Apache web server?
 	    </p><p>
 	      Default is no.
-	    </p></dd></dl></div></div><div class="refsect2"><a name="idp56012496"></a><h3>CLAMAV</h3><p>
+	    </p></dd></dl></div></div><div class="refsect2"><a name="idp55170496"></a><h3>CLAMAV</h3><p>
 	CTDB has support to manage the popular anti-virus daemon
 	ClamAV.
-      </p><div class="refsect3"><a name="idp56013616"></a><h4>Eventscript</h4><table border="0" summary="Simple list" class="simplelist"><tr><td><code class="filename">31.clamd</code></td></tr></table><p>
+      </p><div class="refsect3"><a name="idp55171616"></a><h4>Eventscript</h4><table border="0" summary="Simple list" class="simplelist"><tr><td><code class="filename">31.clamd</code></td></tr></table><p>
 	  This eventscript is not enabled by default.  Use
 	  <span class="command"><strong>ctdb enablescript</strong></span> to enable it.
 	</p></div><div class="variablelist"><dl class="variablelist"><dt><span class="term">CTDB_MANAGES_CLAMD=yes|no</span></dt><dd><p>
@@ -485,9 +485,9 @@ CTDB_PER_IP_ROUTING_TABLE_ID_HIGH=9000
 	      FILENAME is the socket to monitor ClamAV.
 	    </p><p>
 	      No default.
-	    </p></dd></dl></div></div><div class="refsect2"><a name="idp56021696"></a><h3>ISCSI</h3><p>
+	    </p></dd></dl></div></div><div class="refsect2"><a name="idp55179696"></a><h3>ISCSI</h3><p>
 	CTDB has support for managing the Linux iSCSI tgtd service.
-      </p><div class="refsect3"><a name="idp56022800"></a><h4>Eventscript</h4><table border="0" summary="Simple list" class="simplelist"><tr><td><code class="filename">70.iscsi</code></td></tr></table></div><div class="variablelist"><dl class="variablelist"><dt><span class="term">CTDB_MANAGES_ISCSI=yes|no</span></dt><dd><p>
+      </p><div class="refsect3"><a name="idp55180800"></a><h4>Eventscript</h4><table border="0" summary="Simple list" class="simplelist"><tr><td><code class="filename">70.iscsi</code></td></tr></table></div><div class="variablelist"><dl class="variablelist"><dt><span class="term">CTDB_MANAGES_ISCSI=yes|no</span></dt><dd><p>
 	      Should CTDB manage iSCSI tgtd?
 	    </p><p>
 	      Default is no.
@@ -496,30 +496,30 @@ CTDB_PER_IP_ROUTING_TABLE_ID_HIGH=9000
 	      tgtd for each public IP address.
 	    </p><p>
 	      No default.
-	    </p></dd></dl></div></div><div class="refsect2"><a name="idp56029920"></a><h3>MULTIPATHD</h3><p>
+	    </p></dd></dl></div></div><div class="refsect2"><a name="idp55187920"></a><h3>MULTIPATHD</h3><p>
 	CTDB can monitor multipath devices to ensure that active paths
 	are available.
-      </p><div class="refsect3"><a name="idp56031040"></a><h4>Eventscript</h4><table border="0" summary="Simple list" class="simplelist"><tr><td><code class="filename">20.multipathd</code></td></tr></table><p>
+      </p><div class="refsect3"><a name="idp55189040"></a><h4>Eventscript</h4><table border="0" summary="Simple list" class="simplelist"><tr><td><code class="filename">20.multipathd</code></td></tr></table><p>
 	  This eventscript is not enabled by default.  Use
 	  <span class="command"><strong>ctdb enablescript</strong></span> to enable it.
 	</p></div><div class="variablelist"><dl class="variablelist"><dt><span class="term">CTDB_MONITOR_MPDEVICES=<em class="parameter"><code>MP-DEVICE-LIST</code></em></span></dt><dd><p>
 	      MP-DEVICE-LIST is a list of multipath devices for CTDB to monitor?
 	    </p><p>
 	      No default.
-	    </p></dd></dl></div></div><div class="refsect2"><a name="idp56037296"></a><h3>VSFTPD</h3><p>
+	    </p></dd></dl></div></div><div class="refsect2"><a name="idp55195296"></a><h3>VSFTPD</h3><p>
 	CTDB can manage the vsftpd FTP server.
-      </p><div class="refsect3"><a name="idp56038320"></a><h4>Eventscript</h4><table border="0" summary="Simple list" class="simplelist"><tr><td><code class="filename">40.vsftpd</code></td></tr></table></div><div class="variablelist"><dl class="variablelist"><dt><span class="term">CTDB_MANAGES_VSFTPD=yes|no</span></dt><dd><p>
+      </p><div class="refsect3"><a name="idp55196320"></a><h4>Eventscript</h4><table border="0" summary="Simple list" class="simplelist"><tr><td><code class="filename">40.vsftpd</code></td></tr></table></div><div class="variablelist"><dl class="variablelist"><dt><span class="term">CTDB_MANAGES_VSFTPD=yes|no</span></dt><dd><p>
 	      Should CTDB manage the vsftpd FTP server?
 	    </p><p>
 	      Default is no.
-	    </p></dd></dl></div></div><div class="refsect2"><a name="idp56042896"></a><h3>
+	    </p></dd></dl></div></div><div class="refsect2"><a name="idp55200896"></a><h3>
 	SYSTEM RESOURCE MONITORING CONFIGURATION
       </h3><p>
 	CTDB can experience seemingly random (performance and other)
 	issues if system resources become too contrained.  Options in
 	this section can be enabled to allow certain system resources to
 	be checked.
-      </p><div class="refsect3"><a name="idp56044144"></a><h4>Eventscripts</h4><table border="0" summary="Simple list" class="simplelist"><tr><td><code class="filename">00.ctdb</code></td></tr><tr><td><code class="filename">40.fs_use</code></td></tr></table><p>
+      </p><div class="refsect3"><a name="idp55202144"></a><h4>Eventscripts</h4><table border="0" summary="Simple list" class="simplelist"><tr><td><code class="filename">00.ctdb</code></td></tr><tr><td><code class="filename">40.fs_use</code></td></tr></table><p>
 	  Filesystem usage monitoring is in
 	  <code class="filename">40.fs_use</code>.  This eventscript is not
 	  enabled by default.  Use <span class="command"><strong>ctdb
@@ -555,7 +555,7 @@ CTDB_PER_IP_ROUTING_TABLE_ID_HIGH=9000
 	      logged.
 	    </p><p>
 	      No default.
-	    </p></dd></dl></div></div><div class="refsect2"><a name="idp56062144"></a><h3>MISCELLANEOUS SERVICE-RELATED CONFIGURATION</h3><div class="variablelist"><dl class="variablelist"><dt><span class="term">CTDB_MANAGED_SERVICES=<em class="parameter"><code>SERVICE-LIST</code></em></span></dt><dd><p>
+	    </p></dd></dl></div></div><div class="refsect2"><a name="idp55220144"></a><h3>MISCELLANEOUS SERVICE-RELATED CONFIGURATION</h3><div class="variablelist"><dl class="variablelist"><dt><span class="term">CTDB_MANAGED_SERVICES=<em class="parameter"><code>SERVICE-LIST</code></em></span></dt><dd><p>
 	      SERVICE-LIST is a space-separated list of SERVICEs that
 	      CTDB should manage.  This can be used as an alternative
 	      to the
@@ -568,7 +568,7 @@ CTDB_PER_IP_ROUTING_TABLE_ID_HIGH=9000
 	      managed or unmanaged.
 	    </p><p>
 	      Default is no.
-	    </p></dd></dl></div></div></div><div class="refsect1"><a name="idp56068672"></a><h2>
+	    </p></dd></dl></div></div></div><div class="refsect1"><a name="idp55226672"></a><h2>
       TUNABLES CONFIGURATION
     </h2><p>
       CTDB tunables (see
@@ -584,7 +584,7 @@ CTDB_SET_<em class="replaceable"><code>TUNABLE</code></em>=<em class="replaceabl
       </p><pre class="screen">
 CTDB_SET_MonitorInterval=20
       </pre><p>
-    </p></div><div class="refsect1"><a name="idp56073456"></a><h2>
+    </p></div><div class="refsect1"><a name="idp55231456"></a><h2>
       DEBUG AND TEST
     </h2><p>
       Variable in this section are for debugging and testing CTDB.
@@ -686,7 +686,7 @@ CTDB_SET_MonitorInterval=20
 	    option is passed to <span class="command"><strong>ctdbd</strong></span>.
 	  </p><p>
 	    Default is no.
-	  </p></dd></dl></div></div><div class="refsect1"><a name="idp56118736"></a><h2>FILES</h2><table border="0" summary="Simple list" class="simplelist"><tr><td><code class="filename">/etc/ctdb/ctdbd.conf</code></td></tr><tr><td><code class="filename">/etc/sysconfig/ctdb</code></td></tr><tr><td><code class="filename">/etc/default/ctdb</code></td></tr><tr><td><code class="filename">/etc/ctdb/sysconfig/ctdb</code></td></tr></table></div><div class="refsect1"><a name="idp56123136"></a><h2>SEE ALSO</h2><p>
+	  </p></dd></dl></div></div><div class="refsect1"><a name="idp55276736"></a><h2>FILES</h2><table border="0" summary="Simple list" class="simplelist"><tr><td><code class="filename">/etc/ctdb/ctdbd.conf</code></td></tr><tr><td><code class="filename">/etc/sysconfig/ctdb</code></td></tr><tr><td><code class="filename">/etc/default/ctdb</code></td></tr><tr><td><code class="filename">/etc/ctdb/sysconfig/ctdb</code></td></tr></table></div><div class="refsect1"><a name="idp55281136"></a><h2>SEE ALSO</h2><p>
       <span class="citerefentry"><span class="refentrytitle">ctdbd</span>(1)</span>,
 
       <span class="citerefentry"><span class="refentrytitle">ctdbd_wrapper</span>(1)</span>,

@@ -1,8 +1,18 @@
-samba (2:4.3.2-1) UNRELEASED; urgency=medium
+samba (2:4.3.3-1) UNRELEASED; urgency=medium
 
   * New upstream release.
    + Drop subunit dependency, no longer used.
    + Drop ntdb dependencies, no longer used.
+   + Fixes:
+    - CVE-2015-5252: Insufficient symlink verification in smbd
+    - CVE-2015-5296: Samba client requesting encryption vulnerable
+                     downgrade attack
+    - CVE-2015-5299: Missing access control check in shadow copy code
+    - CVE-2015-7540: Remote DoS in Samba (AD) LDAP server
+    - CVE-2015-8467: Denial of service attack against Windows Active Directory
+                     server
+    - CVE-2015-3223: Denial of service in Samba Active Directory server
+    - CVE-2015-5330: Remote memory read in Samba LDAP server
   * Remove libpam-smbpasswd, which is broken and slated for removal
     upstream. Closes: #799840
   * Remove lib/zlib/contrib/dotzlib/DotZLib.chm from excluded files in
@@ -10,9 +20,8 @@ samba (2:4.3.2-1) UNRELEASED; urgency=medium
   * Remove wins2dns.awk example script.
   * Remove the samba-doc package, and move examples files from it to
     relevant other packages. Closes: #769385
-  * New upstream release.
 
- -- Jelmer Vernooij <jelmer@debian.org>  Sun, 06 Dec 2015 09:47:05 +0000
+ -- Jelmer Vernooij <jelmer@debian.org>  Fri, 18 Dec 2015 01:18:42 +0000
 
 samba (2:4.3.0+dfsg-2) experimental; urgency=medium
 

@@ -172,6 +172,7 @@ override_dh_install:
 	rm -rf $(DESTDIR)/usr/share/ctdb-tests
 	# Remove libpam-smbpass, which is broken and slated for removal upstream.
 	rm -f $(DESTDIR)/lib/*/security/pam_smbpass.so
+	rm -f $(DESTDIR)/usr/bin/async_connect_send_test
 	# Install ctdb conffiles
 	mkdir -p $(DESTDIR)/lib/systemd/system/
 	install -m 0644 ctdb/config/ctdb.service $(DESTDIR)/lib/systemd/system/

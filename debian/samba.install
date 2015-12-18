@@ -13,7 +13,6 @@ usr/sbin/samba_dnsupdate
 usr/sbin/samba_spnupdate
 usr/sbin/samba_upgradedns
 usr/sbin/smbd
-usr/lib/*/samba/process_model/*.so
 usr/lib/*/samba/service/*.so
 usr/lib/*/samba/libdb-glue.so.*
 usr/lib/*/samba/libpac.so.*
@@ -34,6 +33,5 @@ usr/lib/*/samba/libhdb-samba4.so.11.0.2
 usr/lib/*/samba/libkdc-samba4.so.2.0.0
 usr/lib/*/samba/libHDB-SAMBA4.so.0
 usr/lib/*/samba/libkdc-samba4.so.2
-usr/lib/*/samba/libprocess-model.so.0
 usr/lib/*/samba/libsmbd-base.so.0
 usr/lib/*/samba/libhdb-samba4.so.11

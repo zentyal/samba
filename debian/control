@@ -146,7 +146,8 @@ Replaces: libdcerpc-server0 (<< 2:4.0.9),
           libsamdb0 (<< 2:4.0.9),
           libsmbclient-raw0 (<< 2:4.0.9),
           libsmbd0 (<< 2:4.0.9),
-          libtorture0 (<< 2:4.0.9)
+          libtorture0 (<< 2:4.0.9),
+          samba (<< 2:4.3.3+dfsg-1)
 # these conflicts can NOT be replaced by 'Breaks'
 # the old 3.6 packages should be removed before the new samba-libs is
 # unpacked, to avoid any code referencing the old location of the tdb files

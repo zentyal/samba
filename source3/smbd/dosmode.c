@@ -279,18 +279,9 @@ static bool get_ea_dos_attribute(connection_struct *conn,
 				   SAMBA_XATTR_DOS_ATTRIB, attrstr,
 				   sizeof(attrstr));
 	if (sizeret == -1) {
-		if (errno == ENOSYS
-#if defined(ENOTSUP)
-			|| errno == ENOTSUP) {
-#else
-				) {
-#endif
-			DEBUG(1,("get_ea_dos_attribute: Cannot get attribute "
-				 "from EA on file %s: Error = %s\n",
-				 smb_fname_str_dbg(smb_fname),
-				 strerror(errno)));
-			set_store_dos_attributes(SNUM(conn), False);
-		}
+		DBG_INFO("get_ea_dos_attribute: Cannot get attribute "
+			 "from EA on file %s: Error = %s\n",
+			 smb_fname_str_dbg(smb_fname), strerror(errno));
 		return False;
 	}
 
@@ -365,7 +356,7 @@ static bool get_ea_dos_attribute(connection_struct *conn,
 		dosattr |= FILE_ATTRIBUTE_DIRECTORY;
 	}
 	/* FILE_ATTRIBUTE_SPARSE is valid on get but not on set. */
-	*pattr = (uint32_t)(dosattr & (SAMBA_ATTRIBUTES_MASK|FILE_ATTRIBUTE_SPARSE));
+	*pattr |= (uint32_t)(dosattr & (SAMBA_ATTRIBUTES_MASK|FILE_ATTRIBUTE_SPARSE));
 
 	DEBUG(8,("get_ea_dos_attribute returning (0x%x)", dosattr));
 
@@ -430,18 +421,9 @@ static bool set_ea_dos_attribute(connection_struct *conn,
 		files_struct *fsp = NULL;
 
 		if((errno != EPERM) && (errno != EACCES)) {
-			if (errno == ENOSYS
-#if defined(ENOTSUP)
-				|| errno == ENOTSUP) {
-#else
-				) {
-#endif
-				DEBUG(1,("set_ea_dos_attributes: Cannot set "
-					 "attribute EA on file %s: Error = %s\n",
-					 smb_fname_str_dbg(smb_fname),
-					 strerror(errno) ));
-				set_store_dos_attributes(SNUM(conn), False);
-			}
+			DBG_INFO("set_ea_dos_attributes: Cannot set "
+				 "attribute EA on file %s: Error = %s\n",
+				 smb_fname_str_dbg(smb_fname), strerror(errno));
 			return false;
 		}
 

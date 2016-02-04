@@ -1076,15 +1076,32 @@ NTSTATUS check_reduced_name_with_privilege(connection_struct *conn,
 	}
 
 	rootdir_len = strlen(conn_rootdir);
-	if (strncmp(conn_rootdir, resolved_name, rootdir_len) != 0) {
-		DEBUG(2, ("check_reduced_name_with_privilege: Bad access "
-			"attempt: %s is a symlink outside the "
-			"share path\n",
-			dir_name));
-		DEBUGADD(2, ("conn_rootdir =%s\n", conn_rootdir));
-		DEBUGADD(2, ("resolved_name=%s\n", resolved_name));
-		status = NT_STATUS_ACCESS_DENIED;
-		goto err;
+
+	/*
+	 * In the case of rootdir_len == 1, we know that conn_rootdir is
+	 * "/", and we also know that resolved_name starts with a slash.
+	 * So, in this corner case, resolved_name is automatically a
+	 * sub-directory of the conn_rootdir. Thus we can skip the string
+	 * comparison and the next character checks (which are even
+	 * wrong in this case).
+	 */
+	if (rootdir_len != 1) {
+		bool matched;
+
+		matched = (strncmp(conn_rootdir, resolved_name,
+				rootdir_len) == 0);
+
+		if (!matched || (resolved_name[rootdir_len] != '/' &&
+				 resolved_name[rootdir_len] != '\0')) {
+			DEBUG(2, ("check_reduced_name_with_privilege: Bad "
+				"access attempt: %s is a symlink outside the "
+				"share path\n",
+				dir_name));
+			DEBUGADD(2, ("conn_rootdir =%s\n", conn_rootdir));
+			DEBUGADD(2, ("resolved_name=%s\n", resolved_name));
+			status = NT_STATUS_ACCESS_DENIED;
+			goto err;
+		}
 	}
 
 	/* Now ensure that the last component either doesn't
@@ -1226,15 +1243,33 @@ NTSTATUS check_reduced_name(connection_struct *conn, const char *fname)
 		}
 
 		rootdir_len = strlen(conn_rootdir);
-		if (strncmp(conn_rootdir, resolved_name,
-				rootdir_len) != 0) {
-			DEBUG(2, ("check_reduced_name: Bad access "
-				"attempt: %s is a symlink outside the "
-				"share path\n", fname));
-			DEBUGADD(2, ("conn_rootdir =%s\n", conn_rootdir));
-			DEBUGADD(2, ("resolved_name=%s\n", resolved_name));
-			SAFE_FREE(resolved_name);
-			return NT_STATUS_ACCESS_DENIED;
+
+		/*
+		 * In the case of rootdir_len == 1, we know that
+		 * conn_rootdir is "/", and we also know that
+		 * resolved_name starts with a slash.  So, in this
+		 * corner case, resolved_name is automatically a
+		 * sub-directory of the conn_rootdir. Thus we can skip
+		 * the string comparison and the next character checks
+		 * (which are even wrong in this case).
+		 */
+		if (rootdir_len != 1) {
+			bool matched;
+
+			matched = (strncmp(conn_rootdir, resolved_name,
+					rootdir_len) == 0);
+			if (!matched || (resolved_name[rootdir_len] != '/' &&
+					 resolved_name[rootdir_len] != '\0')) {
+				DEBUG(2, ("check_reduced_name: Bad access "
+					"attempt: %s is a symlink outside the "
+					"share path\n", fname));
+				DEBUGADD(2, ("conn_rootdir =%s\n",
+					     conn_rootdir));
+				DEBUGADD(2, ("resolved_name=%s\n",
+					     resolved_name));
+				SAFE_FREE(resolved_name);
+				return NT_STATUS_ACCESS_DENIED;
+			}
 		}
 
 		/* Extra checks if all symlinks are disallowed. */
@@ -1309,7 +1344,7 @@ NTSTATUS vfs_stat_fsp(files_struct *fsp)
 	int ret;
 
 	if(fsp->fh->fd == -1) {
-		if (fsp->posix_open) {
+		if (fsp->posix_flags & FSP_POSIX_FLAGS_OPEN) {
 			ret = SMB_VFS_LSTAT(fsp->conn, fsp->fsp_name);
 		} else {
 			ret = SMB_VFS_STAT(fsp->conn, fsp->fsp_name);
@@ -1939,7 +1974,7 @@ NTSTATUS vfs_chown_fsp(files_struct *fsp, uid_t uid, gid_t gid)
                 path = fsp->fsp_name->base_name;
         }
 
-	if (fsp->posix_open || as_root) {
+	if ((fsp->posix_flags & FSP_POSIX_FLAGS_OPEN) || as_root) {
 		ret = SMB_VFS_LCHOWN(fsp->conn,
 			path,
 			uid, gid);

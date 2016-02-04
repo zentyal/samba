@@ -104,11 +104,12 @@ static int vfs_fruit_debug_level = DBGC_VFS;
  * REVIEW:
  * This is hokey, but what else can we do?
  */
+#define NETATALK_META_XATTR "org.netatalk.Metadata"
 #if defined(HAVE_ATTROPEN) || defined(FREEBSD)
-#define AFPINFO_EA_NETATALK "org.netatalk.Metadata"
+#define AFPINFO_EA_NETATALK NETATALK_META_XATTR
 #define AFPRESOURCE_EA_NETATALK "org.netatalk.ResourceFork"
 #else
-#define AFPINFO_EA_NETATALK "user.org.netatalk.Metadata"
+#define AFPINFO_EA_NETATALK "user." NETATALK_META_XATTR
 #define AFPRESOURCE_EA_NETATALK "user.org.netatalk.ResourceFork"
 #endif
 
@@ -124,7 +125,8 @@ struct fruit_config_data {
 	enum fruit_meta meta;
 	enum fruit_locking locking;
 	enum fruit_encoding encoding;
-	bool use_aapl;
+	bool use_aapl;		/* config from smb.conf */
+	bool nego_aapl;		/* client negotiated AAPL */
 	bool use_copyfile;
 	bool readdir_attr_enabled;
 	bool unix_info_enabled;
@@ -1522,6 +1524,37 @@ static bool add_fruit_stream(TALLOC_CTX *mem_ctx, unsigned int *num_streams,
 	return true;
 }
 
+static bool del_fruit_stream(TALLOC_CTX *mem_ctx, unsigned int *num_streams,
+			     struct stream_struct **streams,
+			     const char *name)
+{
+	struct stream_struct *tmp = *streams;
+	int i;
+
+	if (*num_streams == 0) {
+		return true;
+	}
+
+	for (i = 0; i < *num_streams; i++) {
+		if (strequal_m(tmp[i].name, name)) {
+			break;
+		}
+	}
+
+	if (i == *num_streams) {
+		return true;
+	}
+
+	TALLOC_FREE(tmp[i].name);
+	if (*num_streams - 1 > i) {
+		memmove(&tmp[i], &tmp[i+1],
+			(*num_streams - i - 1) * sizeof(struct stream_struct));
+	}
+
+	*num_streams -= 1;
+	return true;
+}
+
 static bool empty_finderinfo(const struct adouble *ad)
 {
 
@@ -1894,6 +1927,9 @@ static NTSTATUS check_aapl(vfs_handle_struct *handle,
 				      out_context_blobs,
 				      SMB2_CREATE_TAG_AAPL,
 				      blob);
+	if (NT_STATUS_IS_OK(status)) {
+		config->nego_aapl = true;
+	}
 
 	return status;
 }
@@ -2419,7 +2455,7 @@ static int fruit_unlink(vfs_handle_struct *handle,
 		}
 
 		/* FIXME: direct unlink(), missing smb_fname */
-		DEBUG(1,("fruit_unlink: %s\n", adp));
+		DBG_DEBUG("fruit_unlink: %s\n", adp);
 		rc = unlink(adp);
 		if ((rc == -1) && (errno == ENOENT)) {
 			rc = 0;
@@ -2442,27 +2478,8 @@ static int fruit_unlink(vfs_handle_struct *handle,
 	}
 
 	if (is_afpresource_stream(smb_fname)) {
-		if (config->rsrc == FRUIT_RSRC_ADFILE) {
-			char *adp = NULL;
-
-			rc = adouble_path(talloc_tos(),
-					  smb_fname->base_name, &adp);
-			if (rc != 0) {
-				return -1;
-			}
-			/* FIXME: direct unlink(), missing smb_fname */
-			rc = unlink(adp);
-			if ((rc == -1) && (errno == ENOENT)) {
-				rc = 0;
-			}
-			TALLOC_FREE(adp);
-		} else {
-			rc = SMB_VFS_REMOVEXATTR(handle->conn,
-						 smb_fname->base_name,
-						 AFPRESOURCE_EA_NETATALK);
-		}
-
-		return rc;
+		/* OS X ignores deletes on the AFP_Resource stream */
+		return 0;
 	}
 
 	return SMB_VFS_NEXT_UNLINK(handle, smb_fname);
@@ -2664,13 +2681,19 @@ static ssize_t fruit_pread(vfs_handle_struct *handle,
 		char afpinfo_buf[AFP_INFO_SIZE];
 		size_t to_return;
 
-		if ((offset < 0) || (offset >= AFP_INFO_SIZE)) {
+		/*
+		 * OS X has a off-by-1 error in the offset calculation, so we're
+		 * bug compatible here. It won't hurt, as any relevant real
+		 * world read requests from the AFP_AfpInfo stream will be
+		 * offset=0 n=60. offset is ignored anyway, see below.
+		 */
+		if ((offset < 0) || (offset >= AFP_INFO_SIZE + 1)) {
 			len = 0;
 			rc = 0;
 			goto exit;
 		}
 
-		to_return = AFP_INFO_SIZE - offset;
+		to_return = MIN(n, AFP_INFO_SIZE);
 
 		ai = afpinfo_new(talloc_tos());
 		if (ai == NULL) {
@@ -2693,7 +2716,10 @@ static ssize_t fruit_pread(vfs_handle_struct *handle,
 			goto exit;
 		}
 
-		memcpy(data, afpinfo_buf + offset, to_return);
+		/*
+		 * OS X ignores offset when reading from AFP_AfpInfo stream!
+		 */
+		memcpy(data, afpinfo_buf, to_return);
 		len = to_return;
 	} else {
 		len = SMB_VFS_NEXT_PREAD(
@@ -2784,6 +2810,23 @@ static ssize_t fruit_pwrite(vfs_handle_struct *handle,
 		}
 		memcpy(ad_entry(ad, ADEID_FINDERI),
 		       &ai->afpi_FinderInfo[0], ADEDLEN_FINDERI);
+		if (empty_finderinfo(ad)) {
+			/* Discard metadata */
+			if (config->meta == FRUIT_META_STREAM) {
+				rc = SMB_VFS_FTRUNCATE(fsp, 0);
+			} else {
+				rc = SMB_VFS_REMOVEXATTR(handle->conn,
+							 fsp->fsp_name->base_name,
+							 AFPINFO_EA_NETATALK);
+			}
+			if (rc != 0 && errno != ENOENT && errno != ENOATTR) {
+				DBG_WARNING("Can't delete metadata for %s: %s\n",
+					    fsp->fsp_name->base_name, strerror(errno));
+				goto exit;
+			}
+			rc = 0;
+			goto exit;
+		}
 		rc = ad_write(ad, name);
 	} else {
 		len = SMB_VFS_NEXT_PWRITE(handle, fsp, data, n,
@@ -2842,6 +2885,17 @@ static int fruit_stat_meta(vfs_handle_struct *handle,
 			   struct smb_filename *smb_fname,
 			   bool follow_links)
 {
+	struct adouble *ad = NULL;
+
+	ad = ad_get(talloc_tos(), handle, smb_fname->base_name, ADOUBLE_META);
+	if (ad == NULL) {
+		DBG_INFO("fruit_stat_meta %s: %s\n",
+			 smb_fname_str_dbg(smb_fname), strerror(errno));
+		errno = ENOENT;
+		return -1;
+	}
+	TALLOC_FREE(ad);
+
 	/* Populate the stat struct with info from the base file. */
 	if (fruit_stat_base(handle, smb_fname, follow_links) == -1) {
 		return -1;
@@ -3095,6 +3149,7 @@ static NTSTATUS fruit_streaminfo(vfs_handle_struct *handle,
 	struct fruit_config_data *config = NULL;
 	struct smb_filename *smb_fname = NULL;
 	struct adouble *ad = NULL;
+	NTSTATUS status;
 
 	SMB_VFS_HANDLE_GET_DATA(handle, config, struct fruit_config_data,
 				return NT_STATUS_UNSUCCESSFUL);
@@ -3143,8 +3198,23 @@ static NTSTATUS fruit_streaminfo(vfs_handle_struct *handle,
 
 	TALLOC_FREE(smb_fname);
 
-	return SMB_VFS_NEXT_STREAMINFO(handle, fsp, fname, mem_ctx,
-				       pnum_streams, pstreams);
+	status = SMB_VFS_NEXT_STREAMINFO(handle, fsp, fname, mem_ctx,
+					 pnum_streams, pstreams);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+
+	if (config->meta == FRUIT_META_NETATALK) {
+		/* Remove the Netatalk xattr from the list */
+		if (!del_fruit_stream(mem_ctx, pnum_streams, pstreams,
+				      ":" NETATALK_META_XATTR ":$DATA")) {
+				TALLOC_FREE(ad);
+				TALLOC_FREE(smb_fname);
+				return NT_STATUS_NO_MEMORY;
+		}
+	}
+
+	return NT_STATUS_OK;
 }
 
 static int fruit_ntimes(vfs_handle_struct *handle,
@@ -3208,19 +3278,23 @@ static int fruit_ftruncate_meta(struct vfs_handle_struct *handle,
 				off_t offset,
 				struct adouble *ad)
 {
-	/*
-	 * As this request hasn't been seen in the wild,
-	 * the only sensible use I can imagine is the client
-	 * truncating the stream to 0 bytes size.
-	 * We simply remove the metadata on such a request.
-	 */
-	if (offset != 0) {
+	struct fruit_config_data *config;
+
+	SMB_VFS_HANDLE_GET_DATA(handle, config,
+				struct fruit_config_data, return -1);
+
+	if (offset > 60) {
 		DBG_WARNING("ftruncate %s to %jd",
 			    fsp_str_dbg(fsp), (intmax_t)offset);
+		/* OS X returns NT_STATUS_ALLOTTED_SPACE_EXCEEDED  */
+		errno = EOVERFLOW;
 		return -1;
 	}
 
-	return SMB_VFS_FREMOVEXATTR(fsp, AFPRESOURCE_EA_NETATALK);
+	DBG_WARNING("ignoring ftruncate %s to %jd",
+		    fsp_str_dbg(fsp), (intmax_t)offset);
+	/* OS X returns success but does nothing  */
+	return 0;
 }
 
 static int fruit_ftruncate_rsrc(struct vfs_handle_struct *handle,
@@ -3267,8 +3341,8 @@ static int fruit_ftruncate(struct vfs_handle_struct *handle,
         struct adouble *ad =
 		(struct adouble *)VFS_FETCH_FSP_EXTENSION(handle, fsp);
 
-	DEBUG(10, ("streams_xattr_ftruncate called for file %s offset %.0f\n",
-		   fsp_str_dbg(fsp), (double)offset));
+	DBG_DEBUG("fruit_ftruncate called for file %s offset %.0f\n",
+		   fsp_str_dbg(fsp), (double)offset);
 
 	if (ad == NULL) {
 		return SMB_VFS_NEXT_FTRUNCATE(handle, fsp, offset);
@@ -3338,16 +3412,27 @@ static NTSTATUS fruit_create_file(vfs_handle_struct *handle,
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
 	}
+
 	fsp = *result;
 
-	if (config->copyfile_enabled) {
-		/*
-		 * Set a flag in the fsp. Gets used in copychunk to
-		 * check whether the special Apple copyfile semantics
-		 * for copychunk should be allowed in a copychunk
-		 * request with a count of 0.
-		 */
-		fsp->aapl_copyfile_supported = true;
+	if (config->nego_aapl) {
+		if (config->copyfile_enabled) {
+			/*
+			 * Set a flag in the fsp. Gets used in
+			 * copychunk to check whether the special
+			 * Apple copyfile semantics for copychunk
+			 * should be allowed in a copychunk request
+			 * with a count of 0.
+			 */
+			fsp->aapl_copyfile_supported = true;
+		}
+
+		if (fsp->is_directory) {
+			/*
+			 * Enable POSIX directory rename behaviour
+			 */
+			fsp->posix_flags |= FSP_POSIX_FLAGS_RENAME;
+		}
 	}
 
 	/*
@@ -3538,7 +3623,7 @@ static NTSTATUS fruit_fset_nt_acl(vfs_handle_struct *handle,
 	mode_t ms_nfs_mode;
 	int result;
 
-	DEBUG(1, ("fruit_fset_nt_acl: %s\n", fsp_str_dbg(fsp)));
+	DBG_DEBUG("fruit_fset_nt_acl: %s\n", fsp_str_dbg(fsp));
 
 	status = check_ms_nfs(handle, fsp, psd, &ms_nfs_mode, &do_chmod);
 	if (!NT_STATUS_IS_OK(status)) {
@@ -3554,10 +3639,8 @@ static NTSTATUS fruit_fset_nt_acl(vfs_handle_struct *handle,
 
 	if (do_chmod) {
 		if (fsp->fh->fd != -1) {
-			DEBUG(1, ("fchmod: %s\n", fsp_str_dbg(fsp)));
 			result = SMB_VFS_FCHMOD(fsp, ms_nfs_mode);
 		} else {
-			DEBUG(1, ("chmod: %s\n", fsp_str_dbg(fsp)));
 			result = SMB_VFS_CHMOD(fsp->conn,
 					       fsp->fsp_name->base_name,
 					       ms_nfs_mode);

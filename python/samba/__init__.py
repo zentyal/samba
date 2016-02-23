@@ -362,6 +362,30 @@ def dn_from_dns_name(dnsdomain):
 def current_unix_time():
     return int(time.time())
 
+def string_to_byte_array(string):
+    blob = [0] * len(string)
+
+    for i in range(len(string)):
+        blob[i] = ord(string[i])
+
+    return blob
+
+def arcfour_encrypt(key, data):
+    try:
+        from Crypto.Cipher import ARC4
+        c = ARC4.new(key)
+        return c.encrypt(data)
+    except ImportError as e:
+        pass
+    try:
+        from M2Crypto.RC4 import RC4
+        c = RC4(key)
+        return c.update(data)
+    except ImportError as e:
+        pass
+    raise Exception("arcfour_encrypt() requires " +
+                    "python*-crypto or python*-m2crypto or m2crypto")
+
 import _glue
 version = _glue.version
 interface_ips = _glue.interface_ips

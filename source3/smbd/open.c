@@ -3167,8 +3167,8 @@ static NTSTATUS open_file_ntcreate(connection_struct *conn,
 	}
 
 	if (info != FILE_WAS_OPENED) {
-		/* Files should be initially set as archive */
-		if (lp_map_archive(SNUM(conn)) ||
+		/* Overwritten files should be initially set as archive */
+		if ((info == FILE_WAS_OVERWRITTEN && lp_map_archive(SNUM(conn))) ||
 		    lp_store_dos_attributes(SNUM(conn))) {
 			if (!posix_open) {
 				if (file_set_dosmode(conn, smb_fname,
@@ -4706,15 +4706,11 @@ static NTSTATUS create_file_unixpath(connection_struct *conn,
 
 	/* Save the requested allocation size. */
 	if ((info == FILE_WAS_CREATED) || (info == FILE_WAS_OVERWRITTEN)) {
-		if (allocation_size
-		    && (allocation_size > fsp->fsp_name->st.st_ex_size)) {
+		if ((allocation_size > fsp->fsp_name->st.st_ex_size)
+		    && !(fsp->is_directory))
+		{
 			fsp->initial_allocation_size = smb_roundup(
 				fsp->conn, allocation_size);
-			if (fsp->is_directory) {
-				/* Can't set allocation size on a directory. */
-				status = NT_STATUS_ACCESS_DENIED;
-				goto fail;
-			}
 			if (vfs_allocate_file_space(
 				    fsp, fsp->initial_allocation_size) == -1) {
 				status = NT_STATUS_DISK_FULL;

@@ -2683,6 +2683,7 @@ NTSTATUS cm_connect_sam(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 	NTSTATUS status, result;
 	struct netlogon_creds_cli_context *p_creds;
 	struct cli_credentials *creds = NULL;
+	bool retry = false; /* allow one retry attempt for expired session */
 
 	if (sid_check_is_our_sam(&domain->sid)) {
 		if (domain->rodc == false || need_rw_dc == false) {
@@ -2690,6 +2691,7 @@ NTSTATUS cm_connect_sam(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 		}
 	}
 
+retry:
 	status = init_dc_connection_rpc(domain, need_rw_dc);
 	if (!NT_STATUS_IS_OK(status)) {
 		return status;
@@ -2733,6 +2735,14 @@ NTSTATUS cm_connect_sam(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 					      smbXcli_conn_remote_name(conn->cli->conn),
 					      creds,
 					      &conn->samr_pipe);
+
+	if (NT_STATUS_EQUAL(status, NT_STATUS_NETWORK_SESSION_EXPIRED)
+	    && !retry) {
+		invalidate_cm_connection(domain);
+		retry = true;
+		goto retry;
+	}
+
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(10,("cm_connect_sam: failed to connect to SAMR "
 			  "pipe for domain %s using NTLMSSP "
@@ -2753,6 +2763,14 @@ NTSTATUS cm_connect_sam(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 				      SEC_FLAG_MAXIMUM_ALLOWED,
 				      &conn->sam_connect_handle,
 				      &result);
+
+	if (NT_STATUS_EQUAL(status, NT_STATUS_IO_DEVICE_ERROR) && !retry) {
+		invalidate_cm_connection(domain);
+		TALLOC_FREE(conn->samr_pipe);
+		retry = true;
+		goto retry;
+	}
+
 	if (NT_STATUS_IS_OK(status) && NT_STATUS_IS_OK(result)) {
 		goto open_domain;
 	}
@@ -2790,6 +2808,13 @@ NTSTATUS cm_connect_sam(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 		(conn->cli, &ndr_table_samr, NCACN_NP,
 		 creds, p_creds, &conn->samr_pipe);
 
+	if (NT_STATUS_EQUAL(status, NT_STATUS_NETWORK_SESSION_EXPIRED)
+	    && !retry) {
+		invalidate_cm_connection(domain);
+		retry = true;
+		goto retry;
+	}
+
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(10,("cm_connect_sam: failed to connect to SAMR pipe for "
 			  "domain %s using schannel. Error was %s\n",
@@ -2804,6 +2829,14 @@ NTSTATUS cm_connect_sam(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 				      SEC_FLAG_MAXIMUM_ALLOWED,
 				      &conn->sam_connect_handle,
 				      &result);
+
+	if (NT_STATUS_EQUAL(status, NT_STATUS_IO_DEVICE_ERROR) && !retry) {
+		invalidate_cm_connection(domain);
+		TALLOC_FREE(conn->samr_pipe);
+		retry = true;
+		goto retry;
+	}
+
 	if (NT_STATUS_IS_OK(status) && NT_STATUS_IS_OK(result)) {
 		goto open_domain;
 	}
@@ -2830,6 +2863,13 @@ NTSTATUS cm_connect_sam(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 	status = cli_rpc_pipe_open_noauth(conn->cli, &ndr_table_samr,
 					  &conn->samr_pipe);
 
+	if (NT_STATUS_EQUAL(status, NT_STATUS_NETWORK_SESSION_EXPIRED)
+	    && !retry) {
+		invalidate_cm_connection(domain);
+		retry = true;
+		goto retry;
+	}
+
 	if (!NT_STATUS_IS_OK(status)) {
 		goto done;
 	}
@@ -2839,6 +2879,14 @@ NTSTATUS cm_connect_sam(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 				      SEC_FLAG_MAXIMUM_ALLOWED,
 				      &conn->sam_connect_handle,
 				      &result);
+
+	if (NT_STATUS_EQUAL(status, NT_STATUS_IO_DEVICE_ERROR) && !retry) {
+		invalidate_cm_connection(domain);
+		TALLOC_FREE(conn->samr_pipe);
+		retry = true;
+		goto retry;
+	}
+
 	if (!NT_STATUS_IS_OK(status)) {
 		DEBUG(10,("cm_connect_sam: rpccli_samr_Connect2 failed "
 			  "for domain %s Error was %s\n",
@@ -2960,7 +3008,9 @@ NTSTATUS cm_connect_lsa(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 	NTSTATUS result = NT_STATUS_UNSUCCESSFUL;
 	struct netlogon_creds_cli_context *p_creds;
 	struct cli_credentials *creds = NULL;
+	bool retry = false; /* allow one retry attempt for expired session */
 
+retry:
 	result = init_dc_connection_rpc(domain, false);
 	if (!NT_STATUS_IS_OK(result))
 		return result;
@@ -2995,6 +3045,14 @@ NTSTATUS cm_connect_lsa(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 		 smbXcli_conn_remote_name(conn->cli->conn),
 		 creds,
 		 &conn->lsa_pipe);
+
+	if (NT_STATUS_EQUAL(result, NT_STATUS_NETWORK_SESSION_EXPIRED)
+	    && !retry) {
+		invalidate_cm_connection(domain);
+		retry = true;
+		goto retry;
+	}
+
 	if (!NT_STATUS_IS_OK(result)) {
 		DEBUG(10,("cm_connect_lsa: failed to connect to LSA pipe for "
 			  "domain %s using NTLMSSP authenticated pipe: user "
@@ -3012,6 +3070,13 @@ NTSTATUS cm_connect_lsa(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 	result = rpccli_lsa_open_policy(conn->lsa_pipe, mem_ctx, True,
 					SEC_FLAG_MAXIMUM_ALLOWED,
 					&conn->lsa_policy);
+	if (NT_STATUS_EQUAL(result, NT_STATUS_IO_DEVICE_ERROR) && !retry) {
+		invalidate_cm_connection(domain);
+		TALLOC_FREE(conn->lsa_pipe);
+		retry = true;
+		goto retry;
+	}
+
 	if (NT_STATUS_IS_OK(result)) {
 		goto done;
 	}
@@ -3047,6 +3112,13 @@ NTSTATUS cm_connect_lsa(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 		(conn->cli, &ndr_table_lsarpc, NCACN_NP,
 		 creds, p_creds, &conn->lsa_pipe);
 
+	if (NT_STATUS_EQUAL(result, NT_STATUS_NETWORK_SESSION_EXPIRED)
+	    && !retry) {
+		invalidate_cm_connection(domain);
+		retry = true;
+		goto retry;
+	}
+
 	if (!NT_STATUS_IS_OK(result)) {
 		DEBUG(10,("cm_connect_lsa: failed to connect to LSA pipe for "
 			  "domain %s using schannel. Error was %s\n",
@@ -3059,6 +3131,14 @@ NTSTATUS cm_connect_lsa(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 	result = rpccli_lsa_open_policy(conn->lsa_pipe, mem_ctx, True,
 					SEC_FLAG_MAXIMUM_ALLOWED,
 					&conn->lsa_policy);
+
+	if (NT_STATUS_EQUAL(result, NT_STATUS_IO_DEVICE_ERROR) && !retry) {
+		invalidate_cm_connection(domain);
+		TALLOC_FREE(conn->lsa_pipe);
+		retry = true;
+		goto retry;
+	}
+
 	if (NT_STATUS_IS_OK(result)) {
 		goto done;
 	}
@@ -3083,6 +3163,14 @@ NTSTATUS cm_connect_lsa(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 	result = cli_rpc_pipe_open_noauth(conn->cli,
 					  &ndr_table_lsarpc,
 					  &conn->lsa_pipe);
+
+	if (NT_STATUS_EQUAL(result, NT_STATUS_NETWORK_SESSION_EXPIRED)
+	    && !retry) {
+		invalidate_cm_connection(domain);
+		retry = true;
+		goto retry;
+	}
+
 	if (!NT_STATUS_IS_OK(result)) {
 		goto done;
 	}
@@ -3090,6 +3178,14 @@ NTSTATUS cm_connect_lsa(struct winbindd_domain *domain, TALLOC_CTX *mem_ctx,
 	result = rpccli_lsa_open_policy(conn->lsa_pipe, mem_ctx, True,
 					SEC_FLAG_MAXIMUM_ALLOWED,
 					&conn->lsa_policy);
+
+	if (NT_STATUS_EQUAL(result, NT_STATUS_IO_DEVICE_ERROR) && !retry) {
+		invalidate_cm_connection(domain);
+		TALLOC_FREE(conn->lsa_pipe);
+		retry = true;
+		goto retry;
+	}
+
  done:
 	if (!NT_STATUS_IS_OK(result)) {
 		invalidate_cm_connection(domain);
@@ -3312,6 +3408,14 @@ NTSTATUS cm_connect_netlogon(struct winbindd_domain *domain,
 	}
 
 	status = cm_connect_netlogon_transport(domain, NCACN_NP, cli);
+	if (NT_STATUS_EQUAL(status, NT_STATUS_NETWORK_SESSION_EXPIRED)) {
+		/*
+		 * SMB2 session expired, needs reauthentication. Drop
+		 * connection and retry.
+		 */
+		invalidate_cm_connection(domain);
+		status = cm_connect_netlogon_transport(domain, NCACN_NP, cli);
+	}
 
 	return status;
 }

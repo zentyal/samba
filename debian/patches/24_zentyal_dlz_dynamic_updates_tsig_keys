@@ -1,5 +1,7 @@
---- a/source4/dns_server/dlz_minimal.h
-+++ b/source4/dns_server/dlz_minimal.h
+Index: samba/source4/dns_server/dlz_minimal.h
+===================================================================
+--- samba.orig/source4/dns_server/dlz_minimal.h
++++ samba/source4/dns_server/dlz_minimal.h
 @@ -23,6 +23,11 @@
  #ifndef DLZ_MINIMAL_H
  #define DLZ_MINIMAL_H 1
@@ -52,8 +54,10 @@
   * dlz_closeversion() is optional, but must be supplied if you supply a
   * dlz_newversion() function
   */
---- a/source4/dns_server/wscript_build
-+++ b/source4/dns_server/wscript_build
+Index: samba/source4/dns_server/wscript_build
+===================================================================
+--- samba.orig/source4/dns_server/wscript_build
++++ samba/source4/dns_server/wscript_build
 @@ -18,7 +18,7 @@ bld.SAMBA_MODULE('service_dns',
  
  # a bind9 dlz module giving access to the Samba DNS SAM
@@ -90,8 +94,10 @@
                    cflags='-DBIND_VERSION_9_8',
                    private_library=True,
                    deps='samba-hostconfig samdb-common gensec popt dnsserver_common',
+Index: samba/source4/dns_server/keys_parser.l
+===================================================================
 --- /dev/null
-+++ b/source4/dns_server/keys_parser.l
++++ samba/source4/dns_server/keys_parser.l
 @@ -0,0 +1,59 @@
 +%{
 +#include "keys_parser.h"
@@ -152,8 +158,10 @@
 +    return 0;
 +}
 +#endif
+Index: samba/source4/dns_server/k_lexer.c
+===================================================================
 --- /dev/null
-+++ b/source4/dns_server/k_lexer.c
++++ samba/source4/dns_server/k_lexer.c
 @@ -0,0 +1,2176 @@
 +#line 2 "k_lexer.c"
 +
@@ -2331,8 +2339,10 @@
 +}
 +#endif
 +
+Index: samba/source4/dns_server/k_lexer.h
+===================================================================
 --- /dev/null
-+++ b/source4/dns_server/k_lexer.h
++++ samba/source4/dns_server/k_lexer.h
 @@ -0,0 +1,355 @@
 +#ifndef yyHEADER_H
 +#define yyHEADER_H 1
@@ -2689,8 +2699,10 @@
 +#line 354 "k_lexer.h"
 +#undef yyIN_HEADER
 +#endif /* yyHEADER_H */
+Index: samba/source4/dns_server/k_parser.c
+===================================================================
 --- /dev/null
-+++ b/source4/dns_server/k_parser.c
++++ samba/source4/dns_server/k_parser.c
 @@ -0,0 +1,1882 @@
 +/* A Bison parser, made by GNU Bison 2.5.  */
 +
@@ -4574,8 +4586,10 @@
 +
 +
 +
+Index: samba/source4/dns_server/k_parser.h
+===================================================================
 --- /dev/null
-+++ b/source4/dns_server/k_parser.h
++++ samba/source4/dns_server/k_parser.h
 @@ -0,0 +1,86 @@
 +/* A Bison parser, made by GNU Bison 2.5.  */
 +
@@ -4663,8 +4677,10 @@
 +
 +
 +
+Index: samba/source4/dns_server/keys_parser.h
+===================================================================
 --- /dev/null
-+++ b/source4/dns_server/keys_parser.h
++++ samba/source4/dns_server/keys_parser.h
 @@ -0,0 +1,21 @@
 +#ifndef __KEYS_PARSER_H__
 +#define __KEYS_PARSER_H__
@@ -4687,8 +4703,10 @@
 +struct key_list *getAST(const char *fpath);
 +
 +#endif
+Index: samba/source4/dns_server/keys_parser.y
+===================================================================
 --- /dev/null
-+++ b/source4/dns_server/keys_parser.y
++++ samba/source4/dns_server/keys_parser.y
 @@ -0,0 +1,234 @@
 +%{
 +#include <stdio.h>
@@ -4924,9 +4942,11 @@
 +}
 +
 +
---- a/lib/param/param_table.c
-+++ b/lib/param/param_table.c
-@@ -4005,6 +4005,22 @@ struct parm_struct parm_table[] = {
+Index: samba/lib/param/param_table.c
+===================================================================
+--- samba.orig/lib/param/param_table.c
++++ samba/lib/param/param_table.c
+@@ -4048,6 +4048,22 @@ struct parm_struct parm_table[] = {
  		.special	= NULL,
  		.enum_list	= NULL
  	},
@@ -4949,9 +4969,11 @@
  	{
  		.label		= "tls priority",
  		.type		= P_STRING,
---- a/lib/param/loadparm.c
-+++ b/lib/param/loadparm.c
-@@ -2547,8 +2547,10 @@ struct loadparm_context *loadparm_init(T
+Index: samba/lib/param/loadparm.c
+===================================================================
+--- samba.orig/lib/param/loadparm.c
++++ samba/lib/param/loadparm.c
+@@ -2589,8 +2589,10 @@ struct loadparm_context *loadparm_init(T
  	lpcfg_do_global_parameter(lp_ctx, "rndc command", "/usr/sbin/rndc");
  	lpcfg_do_global_parameter(lp_ctx, "nsupdate command", "/usr/bin/nsupdate -g");
  
@@ -4964,8 +4986,10 @@
  
  	lpcfg_do_global_parameter(lp_ctx, "ldap privileged socket mode", "0750");
  
---- a/source4/dns_server/dlz_bind9.c
-+++ b/source4/dns_server/dlz_bind9.c
+Index: samba/source4/dns_server/dlz_bind9.c
+===================================================================
+--- samba.orig/source4/dns_server/dlz_bind9.c
++++ samba/source4/dns_server/dlz_bind9.c
 @@ -39,6 +39,7 @@
  #include "lib/util/dlinklist.h"
  #include "dlz_minimal.h"
@@ -5268,8 +5292,10 @@
  	/* Get the DN from name */
  	result = b9_find_name_dn(state, name, tmp_ctx, &dn);
  	if (result != ISC_R_SUCCESS) {
+Index: samba/docs-xml/smbdotconf/domain/allowdnsupdateskeysfile.xml
+===================================================================
 --- /dev/null
-+++ b/docs-xml/smbdotconf/domain/allowdnsupdateskeysfile.xml
++++ samba/docs-xml/smbdotconf/domain/allowdnsupdateskeysfile.xml
 @@ -0,0 +1,15 @@
 +<samba:parameter name="allow dns updates keys file"
 +                 context="G"
@@ -5286,8 +5312,10 @@
 +
 +<value type="default">/etc/bind/keys</value>
 +</samba:parameter>
+Index: samba/docs-xml/smbdotconf/domain/allowdnsupdatessessionkeyfile.xml
+===================================================================
 --- /dev/null
-+++ b/docs-xml/smbdotconf/domain/allowdnsupdatessessionkeyfile.xml
++++ samba/docs-xml/smbdotconf/domain/allowdnsupdatessessionkeyfile.xml
 @@ -0,0 +1,15 @@
 +<samba:parameter name="allow dns updates session key file"
 +                 context="G"

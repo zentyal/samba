@@ -7,9 +7,11 @@ Bug-Debian: http://bugs.debian.org/443230
 Bug-Ubuntu: https://bugs.launchpad.net/ubuntu/+source/samba/+bug/128548
 Forwarded: not-needed
 
---- a/docs/manpages/net.8
-+++ b/docs/manpages/net.8
-@@ -944,9 +944,9 @@
+Index: samba/docs/manpages/net.8
+===================================================================
+--- samba.orig/docs/manpages/net.8
++++ samba/docs/manpages/net.8
+@@ -1196,9 +1196,9 @@ Something we failed to parse\&. Default
  .RE
  .SS "USERSHARE"
  .PP
@@ -21,11 +23,11 @@ Forwarded: not-needed
  .PP
  The usershare commands are:
  .RS 4
-diff --git a/source3/param/loadparm.c b/source3/param/loadparm.c
-index c576b22..ef37e7a 100644
---- a/source3/param/loadparm.c
-+++ b/source3/param/loadparm.c
-@@ -833,7 +833,7 @@ static void init_globals(struct loadparm_context *lp_ctx, bool reinit_globals)
+Index: samba/source3/param/loadparm.c
+===================================================================
+--- samba.orig/source3/param/loadparm.c
++++ samba/source3/param/loadparm.c
+@@ -843,7 +843,7 @@ static void init_globals(struct loadparm
  	lpcfg_string_set(Globals.ctx, &Globals.usershare_path, s);
  	TALLOC_FREE(s);
  	lpcfg_string_set(Globals.ctx, &Globals.usershare_template_share, "");

@@ -7,7 +7,7 @@ Index: samba/source3/include/libsmbclient.h
 ===================================================================
 --- samba.orig/source3/include/libsmbclient.h
 +++ samba/source3/include/libsmbclient.h
-@@ -79,6 +79,16 @@
+@@ -80,6 +80,16 @@ extern "C" {
  #include <fcntl.h>
  #include <utime.h>
  

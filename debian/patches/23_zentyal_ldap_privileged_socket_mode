@@ -1,6 +1,8 @@
---- a/lib/param/param_table.c
-+++ b/lib/param/param_table.c
-@@ -982,6 +982,14 @@ struct parm_struct parm_table[] = {
+Index: samba/lib/param/param_table.c
+===================================================================
+--- samba.orig/lib/param/param_table.c
++++ samba/lib/param/param_table.c
+@@ -1017,6 +1017,14 @@ struct parm_struct parm_table[] = {
  		.special	= NULL,
  		.enum_list	= NULL,
  	},
@@ -12,12 +14,14 @@
 +        .special    = NULL,
 +        .enum_list  = NULL,
 +    },
-
+ 
  	{
  		.label		= "guest ok",
---- a/lib/param/loadparm.c
-+++ b/lib/param/loadparm.c
-@@ -2550,6 +2550,8 @@ struct loadparm_context *loadparm_init(T
+Index: samba/lib/param/loadparm.c
+===================================================================
+--- samba.orig/lib/param/loadparm.c
++++ samba/lib/param/loadparm.c
+@@ -2592,6 +2592,8 @@ struct loadparm_context *loadparm_init(T
          lpcfg_do_global_parameter(lp_ctx, "allow dns updates", "secure only");
          lpcfg_do_global_parameter(lp_ctx, "dns forwarder", "");
  
@@ -26,9 +30,11 @@
  	lpcfg_do_global_parameter(lp_ctx, "algorithmic rid base", "1000");
  
  	lpcfg_do_global_parameter(lp_ctx, "enhanced browsing", "True");
---- a/source4/ldap_server/ldap_server.c
-+++ b/source4/ldap_server/ldap_server.c
-@@ -890,6 +890,7 @@ static void ldapsrv_task_init(struct tas
+Index: samba/source4/ldap_server/ldap_server.c
+===================================================================
+--- samba.orig/source4/ldap_server/ldap_server.c
++++ samba/source4/ldap_server/ldap_server.c
+@@ -896,6 +896,7 @@ static void ldapsrv_task_init(struct tas
  	char *ldapi_path;
  #ifdef WITH_LDAPI_PRIV_SOCKET
  	char *priv_dir;
@@ -36,7 +42,7 @@
  #endif
  	const char *dns_host_name;
  	struct ldapsrv_service *ldap_service;
-@@ -1008,6 +1009,17 @@ static void ldapsrv_task_init(struct tas
+@@ -1014,6 +1015,17 @@ static void ldapsrv_task_init(struct tas
  	 * Make sure the directory for the privileged ldapi socket exists, and
  	 * is of the correct permissions
  	 */
@@ -54,8 +60,10 @@
  	if (!directory_create_or_exist(priv_dir, 0750)) {
  		task_server_terminate(task, "Cannot create ldap "
  				      "privileged ldapi directory", true);
+Index: samba/docs-xml/smbdotconf/ldap/ldapprivilegedsocketmode.xml
+===================================================================
 --- /dev/null
-+++ b/docs-xml/smbdotconf/ldap/ldapprivilegedsocketmode.xml
++++ samba/docs-xml/smbdotconf/ldap/ldapprivilegedsocketmode.xml
 @@ -0,0 +1,10 @@
 +<samba:parameter name="ldap privileged socket mode"
 +                 context="G"

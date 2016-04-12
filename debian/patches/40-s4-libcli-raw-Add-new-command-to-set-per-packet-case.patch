@@ -129,9 +129,9 @@ Signed-off-by: Samuel Cabrero <scabrero@zentyal.com>
  	unsigned int unicode:1;
  	unsigned int ntstatus_support:1;
 +	unsigned int case_sensitive:1;
+ 	int min_protocol;
  	int max_protocol;
  	uint32_t max_xmit;
- 	uint16_t max_mux;
 --- a/source4/libcli/raw/rawrequest.c
 +++ b/source4/libcli/raw/rawrequest.c
 @@ -116,7 +116,15 @@ struct smbcli_request *smbcli_request_se

@@ -8,9 +8,11 @@ Subject: [PATCH] Test guest access in domain member environment
  source4/torture/unix/guest.c | 185 ++++++++++++++++++++++++++-----------------
  2 files changed, 116 insertions(+), 72 deletions(-)
 
---- a/source3/selftest/tests.py
-+++ b/source3/selftest/tests.py
-@@ -322,7 +322,8 @@ for t in tests:
+Index: samba/source3/selftest/tests.py
+===================================================================
+--- samba.orig/source3/selftest/tests.py
++++ samba/source3/selftest/tests.py
+@@ -329,7 +329,8 @@ for t in tests:
              plansmbtorture4testsuite(t, env, '//$SERVER/tmp -k yes -U$DC_USERNAME@$REALM%$DC_PASSWORD --option=torture:addc=$DC_SERVER', description='kerberos connection')
              plansmbtorture4testsuite(t, env, '//$SERVER/tmpguest -U% --option=torture:addc=$DC_SERVER', description='anonymous connection')
      elif t == "unix.guest":
@@ -20,8 +22,10 @@ Subject: [PATCH] Test guest access in domain member environment
      elif t == "raw.samba3posixtimedlock":
          plansmbtorture4testsuite(t, "nt4_dc", '//$SERVER_IP/tmpguest -U$USERNAME%$PASSWORD --option=torture:localdir=$SELFTEST_PREFIX/nt4_dc/share')
          plansmbtorture4testsuite(t, "ad_dc", '//$SERVER_IP/tmpguest -U$USERNAME%$PASSWORD --option=torture:localdir=$SELFTEST_PREFIX/ad_dc/share')
---- a/source4/torture/unix/guest.c
-+++ b/source4/torture/unix/guest.c
+Index: samba/source4/torture/unix/guest.c
+===================================================================
+--- samba.orig/source4/torture/unix/guest.c
++++ samba/source4/torture/unix/guest.c
 @@ -19,6 +19,7 @@
  
  #include "includes.h"

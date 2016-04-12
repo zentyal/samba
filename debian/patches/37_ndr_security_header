@@ -4,10 +4,12 @@ Date:   Tue Aug 13 20:28:32 2013 +0200
 
     Add ndr_security.h to public headers
 
---- a/librpc/wscript_build
-+++ b/librpc/wscript_build
+Index: samba/librpc/wscript_build
+===================================================================
+--- samba.orig/librpc/wscript_build
++++ samba/librpc/wscript_build
 @@ -374,7 +374,7 @@ bld.SAMBA_LIBRARY('ndr-standard',
-     NDR_ECHO security NDR_DNS NDR_ATSVC NDR_SPOOLSS NDR_DSSETUP
+     NDR_ECHO security NDR_DNS NDR_DNSP NDR_ATSVC NDR_SPOOLSS NDR_DSSETUP
      NDR_SERVER_ID NDR_NOTIFY''',
      public_deps='ndr',
 -    public_headers='gen_ndr/samr.h gen_ndr/ndr_samr.h gen_ndr/lsa.h gen_ndr/netlogon.h gen_ndr/atsvc.h gen_ndr/ndr_atsvc.h gen_ndr/ndr_svcctl.h gen_ndr/svcctl.h',

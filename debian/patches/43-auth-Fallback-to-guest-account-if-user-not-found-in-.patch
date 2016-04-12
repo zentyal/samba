@@ -9,8 +9,10 @@ Subject: [PATCH] auth: Fallback to guest account if user not found in SAM and
  source4/auth/sam.c           | 13 +++++++--
  2 files changed, 69 insertions(+), 8 deletions(-)
 
---- a/source4/auth/ntlm/auth_sam.c
-+++ b/source4/auth/ntlm/auth_sam.c
+Index: samba/source4/auth/ntlm/auth_sam.c
+===================================================================
+--- samba.orig/source4/auth/ntlm/auth_sam.c
++++ samba/source4/auth/ntlm/auth_sam.c
 @@ -58,14 +58,58 @@ static NTSTATUS authsam_search_account(T
  			      "(&(sAMAccountName=%s)(objectclass=user))",
  			      ldb_binary_encode_string(mem_ctx, account_name));
@@ -88,9 +90,11 @@ Subject: [PATCH] auth: Fallback to guest account if user not found in SAM and
  		bool am_rodc;
  		if (samdb_rodc(auth_context->sam_ctx, &am_rodc) == LDB_SUCCESS && am_rodc) {
  			/*
---- a/source4/auth/sam.c
-+++ b/source4/auth/sam.c
-@@ -293,7 +293,7 @@ _PUBLIC_ NTSTATUS authsam_make_user_info
+Index: samba/source4/auth/sam.c
+===================================================================
+--- samba.orig/source4/auth/sam.c
++++ samba/source4/auth/sam.c
+@@ -294,7 +294,7 @@ _PUBLIC_ NTSTATUS authsam_make_user_info
  	struct auth_user_info *info;
  	const char *str, *filter;
  	/* SIDs for the account and his primary group */
@@ -99,7 +103,7 @@ Subject: [PATCH] auth: Fallback to guest account if user not found in SAM and
  	const char *primary_group_string;
  	const char *primary_group_dn;
  	DATA_BLOB primary_group_blob;
-@@ -333,6 +333,9 @@ _PUBLIC_ NTSTATUS authsam_make_user_info
+@@ -334,6 +334,9 @@ _PUBLIC_ NTSTATUS authsam_make_user_info
  		return status;
  	}
  
@@ -109,7 +113,7 @@ Subject: [PATCH] auth: Fallback to guest account if user not found in SAM and
  	sids[PRIMARY_USER_SID_INDEX] = *account_sid;
  	sids[PRIMARY_GROUP_SID_INDEX] = *domain_sid;
  	sid_append_rid(&sids[PRIMARY_GROUP_SID_INDEX], ldb_msg_find_attr_as_uint(msg, "primaryGroupID", ~0));
-@@ -514,7 +517,13 @@ _PUBLIC_ NTSTATUS authsam_make_user_info
+@@ -515,7 +518,13 @@ _PUBLIC_ NTSTATUS authsam_make_user_info
  		user_info_dc->num_sids++;
  	}
  

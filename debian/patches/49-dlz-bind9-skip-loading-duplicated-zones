@@ -1,6 +1,8 @@
---- a/source4/dns_server/dlz_bind9.c
-+++ b/source4/dns_server/dlz_bind9.c
-@@ -1252,7 +1252,8 @@ _PUBLIC_ isc_result_t dlz_configure(dns_
+Index: samba/source4/dns_server/dlz_bind9.c
+===================================================================
+--- samba.orig/source4/dns_server/dlz_bind9.c
++++ samba/source4/dns_server/dlz_bind9.c
+@@ -1256,7 +1256,8 @@ _PUBLIC_ isc_result_t dlz_configure(dns_
  			}
  			/* Ignore zones that are not handled in BIND */
  			if ((strcmp(zone, "RootDNSServers") == 0) ||

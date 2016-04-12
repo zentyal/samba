@@ -5,6 +5,7 @@ usr/bin/smbclient
 usr/bin/smbcquotas
 usr/bin/smbget
 usr/bin/smbspool
+usr/bin/smbspool_krb5_wrapper
 usr/bin/smbtar
 usr/bin/smbtree
 usr/share/man/man1/findsmb.1
@@ -17,3 +18,4 @@ usr/share/man/man1/smbtar.1
 usr/share/man/man1/smbtree.1
 usr/share/man/man5/smbgetrc.5
 usr/share/man/man8/smbspool.8
+usr/share/man/man8/smbspool_krb5_wrapper.8

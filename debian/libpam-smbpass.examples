@@ -1,0 +1,5 @@
+source3/pam_smbpass/samples/README
+source3/pam_smbpass/samples/kdc-pdc
+source3/pam_smbpass/samples/password-mature
+source3/pam_smbpass/samples/password-migration
+source3/pam_smbpass/samples/password-sync

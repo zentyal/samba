@@ -79,8 +79,9 @@ def find_version(path):
     v = open(path, 'r')
     try:
         for l in v.readlines():
-            if l.startswith("VERSION = '"):
-                return tuple([int(x) for x in l.strip()[len("VERSION = '"):-1].split(".")])
+            if l.startswith("VERSION = '") or l.startswith("SYSTEM_VERSION = '"):
+                (key, value) = l.split('=')
+                return tuple([int(x) for x in value.strip().strip("'").split(".")])
         raise KeyError
     finally:
         v.close()

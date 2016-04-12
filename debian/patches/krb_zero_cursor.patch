@@ -1,0 +1,14 @@
+Index: samba-4.1.6+dfsg/source3/librpc/crypto/gse_krb5.c
+===================================================================
+--- samba-4.1.6+dfsg.orig/source3/librpc/crypto/gse_krb5.c	2014-04-29 16:05:42.045043324 -0500
++++ samba-4.1.6+dfsg/source3/librpc/crypto/gse_krb5.c	2014-04-29 16:05:42.041043324 -0500
+@@ -414,6 +414,9 @@ static krb5_error_code fill_mem_keytab_f
+ 	if (ret) {
+ 		DEBUG(1, (__location__ ": krb5_kt_start_seq_get failed (%s)\n",
+ 			  error_message(ret)));
++		// if krb5_kt_start_seq_get fails, kt_cursor does not hold any resources,
++		// but might no be "zeroed", (probably containing an invalid fd, see heimdal's keytab_file.c)
++		ZERO_STRUCT(kt_cursor);
+ 		goto out;
+ 	}
+ 

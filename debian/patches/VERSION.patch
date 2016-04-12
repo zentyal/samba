@@ -1,15 +1,14 @@
-Description: Add "Zentyal" as vendor suffix
-Author:Samuel Cabrero <scabrero@zentyal.com>
+Description: Add "Ubuntu" as vednor suffix.
+Author: Chuck Short <zulcss@ubuntu.com>
 Forwarded: not-needed
 
-Index: samba/VERSION
-===================================================================
---- samba.orig/VERSION	2015-10-07 10:47:41.323889403 -0700
-+++ samba/VERSION	2015-10-07 10:47:55.415876375 -0700
-@@ -123,5 +123,5 @@
+diff -Naupr samba-4.0.10.orig/VERSION samba-4.0.10/VERSION
+--- samba-4.0.10.orig/VERSION	2013-10-07 16:49:10.000000000 +0800
++++ samba-4.0.10/VERSION	2013-11-08 13:45:37.582025148 +0800
+@@ -123,5 +123,5 @@ SAMBA_VERSION_RELEASE_NICKNAME=
  #  ->  "3.0.0rc2-VendorVersion"                        #
  #                                                      #
  ########################################################
--SAMBA_VERSION_VENDOR_SUFFIX=Debian
-+SAMBA_VERSION_VENDOR_SUFFIX=Zentyal
+-SAMBA_VERSION_VENDOR_SUFFIX=
++SAMBA_VERSION_VENDOR_SUFFIX="Ubuntu"
  SAMBA_VERSION_VENDOR_PATCH=

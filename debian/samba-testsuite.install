@@ -4,9 +4,9 @@ usr/bin/masktest
 usr/bin/ndrdump
 usr/bin/smbtorture
 usr/lib/*/libtorture.so.*
+usr/lib/*/samba/libdlz-bind9-for-torture.so.0
 usr/share/man/man1/gentest.1
 usr/share/man/man1/locktest.1
 usr/share/man/man1/masktest.1
 usr/share/man/man1/ndrdump.1
 usr/share/man/man1/smbtorture.1
-usr/lib/*/samba/libdlz-bind9-for-torture.so.0

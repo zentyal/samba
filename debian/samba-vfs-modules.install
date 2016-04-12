@@ -1,2 +1,3 @@
+usr/lib/*/samba/libnon-posix-acls.so.0
 usr/lib/*/samba/vfs/*.so
 usr/share/man/man8/vfs_*.8

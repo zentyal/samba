@@ -1,0 +1,62 @@
+From 553ceb45f47be46aacd04a8fef36890de5cc6acf Mon Sep 17 00:00:00 2001
+From: Alexander Bokovoy <abokovoy@redhat.com>
+Date: Tue, 12 Apr 2016 09:36:12 +0300
+Subject: [PATCH] s3-winbind: make sure domain member can talk to trusted
+ domains DCs
+
+  Allow cm_connect_netlogon() to talk to trusted domains' DCs when
+  running in a domain member configuration.
+
+  BUG: https://bugzilla.samba.org/show_bug.cgi?id=11830
+
+Signed-off-by: Alexander Bokovoy <ab@samba.org>
+---
+ source3/winbindd/winbindd_cm.c | 15 +++++++++------
+ 1 file changed, 9 insertions(+), 6 deletions(-)
+
+diff --git a/source3/winbindd/winbindd_cm.c b/source3/winbindd/winbindd_cm.c
+index 075a818..7911495 100644
+--- a/source3/winbindd/winbindd_cm.c
++++ b/source3/winbindd/winbindd_cm.c
+@@ -2851,9 +2851,10 @@ retry:
+  anonymous:
+ 
+ 	/* Finally fall back to anonymous. */
+-	if (lp_winbind_sealed_pipes() || lp_require_strong_key()) {
++	if ((lp_winbind_sealed_pipes() || lp_require_strong_key()) &&
++	    (IS_DC || domain->primary)) {
+ 		status = NT_STATUS_DOWNGRADE_DETECTED;
+-		DEBUG(1, ("Unwilling to make SAMR connection to domain %s"
++		DEBUG(1, ("Unwilling to make SAMR connection to domain %s "
+ 			  "without connection level security, "
+ 			  "must set 'winbind sealed pipes = false' and "
+ 			  "'require strong key = false' to proceed: %s\n",
+@@ -3150,9 +3151,10 @@ retry:
+ 
+  anonymous:
+ 
+-	if (lp_winbind_sealed_pipes() || lp_require_strong_key()) {
++	if ((lp_winbind_sealed_pipes() || lp_require_strong_key()) &&
++	    (IS_DC || domain->primary)) {
+ 		result = NT_STATUS_DOWNGRADE_DETECTED;
+-		DEBUG(1, ("Unwilling to make LSA connection to domain %s"
++		DEBUG(1, ("Unwilling to make LSA connection to domain %s "
+ 			  "without connection level security, "
+ 			  "must set 'winbind sealed pipes = false' and "
+ 			  "'require strong key = false' to proceed: %s\n",
+@@ -3326,9 +3328,10 @@ static NTSTATUS cm_connect_netlogon_transport(struct winbindd_domain *domain,
+ 
+  no_schannel:
+ 	if (!(conn->netlogon_flags & NETLOGON_NEG_AUTHENTICATED_RPC)) {
+-		if (lp_winbind_sealed_pipes() || lp_require_strong_key()) {
++		if ((lp_winbind_sealed_pipes() || lp_require_strong_key()) &&
++		    (IS_DC || domain->primary)) {
+ 			result = NT_STATUS_DOWNGRADE_DETECTED;
+-			DEBUG(1, ("Unwilling to make connection to domain %s"
++			DEBUG(1, ("Unwilling to make connection to domain %s "
+ 				  "without connection level security, "
+ 				  "must set 'winbind sealed pipes = false' and "
+ 				  "'require strong key = false' to proceed: %s\n",
+-- 
+2.5.5
+

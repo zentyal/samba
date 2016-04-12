@@ -20,3 +20,4 @@ usr/share/man/man8/samba-tool.8
 usr/share/man/man8/smbpasswd.8
 usr/share/samba/addshare.py
 usr/share/samba/setoption.py
+usr/share/apport/package-hooks/source_samba.py

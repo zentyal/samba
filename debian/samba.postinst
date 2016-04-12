@@ -10,55 +10,40 @@ set -e
 #	them to be readable only by root.
 umask 022
 
-case "$1" in
-    triggered)
-        /sbin/restart samba-ad-dc
-    ;;
-
-    configure)
-		if dpkg --compare-versions "$2" gt 2:4.0 &&
-			dpkg --compare-versions "$2" lt-nl 2:4.0.11+dfsg ; then
-			# CVE-2013-4475
-			KEYFILE=/var/lib/samba/private/tls/key.pem
-			if [ -e $KEYFILE ]
-			then
-				KEYPERMS=`stat -c %a $KEYFILE`
-				if [ "$KEYPERMS" != "600" ]
-				then
-					echo "moving world readable public key to /var/lib/samba/private/tls/CVE-2013-4475"
-					mkdir -m 700 /var/lib/samba/private/tls/CVE-2013-4475
-					mv -n /var/lib/samba/private/tls/*pem /var/lib/samba/private/tls/CVE-2013-4475
-				fi
-			fi
+if dpkg --compare-versions "$2" gt 2:4.0 &&
+	dpkg --compare-versions "$2" lt-nl 2:4.0.11+dfsg ; then
+	# CVE-2013-4475
+	KEYFILE=/var/lib/samba/private/tls/key.pem
+	if [ -e $KEYFILE ]
+	then
+		KEYPERMS=`stat -c %a $KEYFILE`
+		if [ "$KEYPERMS" != "600" ]
+		then
+			echo "moving world readable public key to /var/lib/samba/private/tls/CVE-2013-4475"
+			mkdir -m 700 /var/lib/samba/private/tls/CVE-2013-4475
+			mv -n /var/lib/samba/private/tls/*pem /var/lib/samba/private/tls/CVE-2013-4475
 		fi
+	fi
+fi
 
-		if dpkg --compare-versions "$2" lt-nl 2:3.6.15-2; then
-			if [ -e /etc/default/samba ]; then
-				# this config file's one setting is now obsolete; remove it
-				# unconditionally
-				rm -f /etc/default/samba
-			fi
+if dpkg --compare-versions "$2" lt-nl 2:3.6.15-2; then
+	if [ -e /etc/default/samba ]; then
+		# this config file's one setting is now obsolete; remove it
+		# unconditionally
+		rm -f /etc/default/samba
+	fi
 
-			# Remove NetBIOS entries from /etc/inetd.conf
-			if [ -x /usr/sbin/update-inetd ]; then
-				update-inetd --remove netbios-ssn
-			fi
-		fi
+	# Remove NetBIOS entries from /etc/inetd.conf
+	if [ -x /usr/sbin/update-inetd ]; then
+		update-inetd --remove netbios-ssn
+	fi
+fi
 
-		if dpkg --compare-versions "$2" lt-nl 2:4.0.12+dfsg-2~; then
-			if update-alternatives --list smbstatus >/dev/null 2>&1; then
-				update-alternatives --remove-all smbstatus
-			fi
-		fi
-
-		if dpkg --compare-versions "$2" lt-nl 2:4.1.13+dfsg-2~; then
-			# on upgrades from wheezy to jessie, the samba init script should not stay
-			# active, see #766690
-			update-rc.d samba remove
-		fi
-    ;;
-esac
-
+if dpkg --compare-versions "$2" lt-nl 2:4.0.12+dfsg-2~; then
+	if update-alternatives --list smbstatus >/dev/null 2>&1; then
+		update-alternatives --remove-all smbstatus
+	fi
+fi
 
 # add the sambashare group
 if ! getent group sambashare > /dev/null 2>&1

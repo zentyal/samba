@@ -5,11 +5,11 @@ Forwarded: http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=221618#27
 
 Index: samba/source3/include/libsmbclient.h
 ===================================================================
---- samba.orig/source3/include/libsmbclient.h	2015-10-07 10:43:50.648110191 -0700
-+++ samba/source3/include/libsmbclient.h	2015-10-07 10:43:50.640110196 -0700
-@@ -90,6 +90,16 @@
- #endif
- #define _FILE_OFFSET_BITS 64
+--- samba.orig/source3/include/libsmbclient.h
++++ samba/source3/include/libsmbclient.h
+@@ -79,6 +79,16 @@
+ #include <fcntl.h>
+ #include <utime.h>
  
 +  /* Debian bug #221618 */
 +#ifdef _LARGEFILE64_SOURCE

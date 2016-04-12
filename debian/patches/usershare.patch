@@ -22,13 +22,13 @@ Forwarded: not-needed
  The usershare commands are:
  .RS 4
 diff --git a/source3/param/loadparm.c b/source3/param/loadparm.c
-index 5ab0de7..6ae18d2 100644
+index c576b22..ef37e7a 100644
 --- a/source3/param/loadparm.c
 +++ b/source3/param/loadparm.c
 @@ -833,7 +833,7 @@ static void init_globals(struct loadparm_context *lp_ctx, bool reinit_globals)
- 	string_set(Globals.ctx, &Globals.usershare_path, s);
+ 	lpcfg_string_set(Globals.ctx, &Globals.usershare_path, s);
  	TALLOC_FREE(s);
- 	string_set(Globals.ctx, &Globals.usershare_template_share, "");
+ 	lpcfg_string_set(Globals.ctx, &Globals.usershare_template_share, "");
 -	Globals.usershare_max_shares = 0;
 +	Globals.usershare_max_shares = 100;
  	/* By default disallow sharing of directories not owned by the sharer. */

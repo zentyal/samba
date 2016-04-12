@@ -1,13 +1,13 @@
 '\" t
-.\"     Title: vfs_time_audit
+.\"     Title: smbspool_krb5_wrapper
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
 .\"      Date: 04/11/2016
 .\"    Manual: System Administration tools
-.\"    Source: Samba 4.3
+.\"    Source: Samba 4.4
 .\"  Language: English
 .\"
-.TH "VFS_TIME_AUDIT" "8" "04/11/2016" "Samba 4\&.3" "System Administration tools"
+.TH "SMBSPOOL_KRB5_WRAPPE" "8" "04/11/2016" "Samba 4\&.4" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -28,53 +28,22 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-vfs_time_audit \- samba vfs module to log slow VFS operations
+smbspool_krb5_wrapper \- This is a CUPS printing backend which calls smbspool
 .SH "SYNOPSIS"
 .HP \w'\ 'u
-vfs objects = time_audit
+smbspool_krb5_wrapper {job} {user} {title} {copies} {options} [filename]
 .SH "DESCRIPTION"
 .PP
-This VFS module is part of the
+This tool is part of the
 \fBsamba\fR(7)
 suite\&.
 .PP
-The
-time_audit
-VFS module logs system calls that take longer than the number of milliseconds defined by the variable
-time_audit:timeout\&. It will log the calls and the time spent in it\&.
+smbspool_krb5_wrapper is a tool that can be used to print using Kerberos credentials\&. To get this working smbspool_krb5_wrapper needs to be the smb backend of CUPS\&. It needs to be owned by root and the permissions for the binary need to be 0700\&. Once smbspool_krb5_wrapper switched to the user trying to print it executes smbspool\&. It should not be called by a user\&.
+.SH "SEE ALSO"
 .PP
-It\*(Aqs kind of comparable with
-strace \-T
-and is helpful to reveal performance problems with the underlying file and storage subsystems\&.
-.PP
-This module is stackable\&.
-.SH "OPTIONS"
-.PP
-time_audit:timeout = number of milliseconds
-.RS 4
-VFS calls that take longer than the defined number of milliseconds that should be logged\&. The default is 10000 (10s)\&.
-.RE
-.SH "EXAMPLES"
-.PP
-This would log VFS calls that take longer than 3 seconds:
-.sp
-.if n \{\
-.RS 4
-.\}
-.nf
-        \fI[sample_share]\fR
-	\m[blue]\fBpath = /test/sample_share\fR\m[]
-	\m[blue]\fBvfs objects = time_audit\fR\m[]
-	\m[blue]\fBtime_audit:timeout = 3000\fR\m[]
-.fi
-.if n \{\
-.RE
-.\}
-.SH "VERSION"
-.PP
-This man page is correct for version 4\&.0\&.0 of the Samba suite\&.
+\fBsmbspool\fR(8)\&.
 .SH "AUTHOR"
 .PP
 The original Samba software and related utilities were created by Andrew Tridgell\&. Samba is now developed by the Samba Team as an Open Source project similar to the way the Linux kernel is developed\&.
 .PP
-The time_audit VFS module was created with contributions from Abhidnya Chirmule\&.
+The smbspool_krb5_wrapper manpage was written by Andreas Schneider\&.

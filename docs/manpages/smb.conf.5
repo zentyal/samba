@@ -2,12 +2,12 @@
 .\"     Title: smb.conf
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 09/08/2015
+.\"      Date: 04/11/2016
 .\"    Manual: File Formats and Conventions
 .\"    Source: Samba 4.3
 .\"  Language: English
 .\"
-.TH "SMB\&.CONF" "5" "09/08/2015" "Samba 4\&.3" "File Formats and Conventions"
+.TH "SMB\&.CONF" "5" "04/11/2016" "Samba 4\&.3" "File Formats and Conventions"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -748,7 +748,7 @@ option and also on a share containing directories with the UNIX
 \fIsetgid bit\fR
 set on them, which causes new files and directories created within it to inherit the group ownership from the containing directory\&.
 .sp
-This is parameter has been was deprecated in Samba 3\&.0\&.23, but re\-activated in Samba 3\&.0\&.31 and above, as it now only controls permission changes if the user is in the owning primary group\&. It is now no longer equivalent to the
+This parameter was deprecated in Samba 3\&.0\&.23, but re\-activated in Samba 3\&.0\&.31 and above, as it now only controls permission changes if the user is in the owning primary group\&. It is now no longer equivalent to the
 \fIdos filemode\fR
 option\&.
 .sp
@@ -1275,6 +1275,28 @@ Example:
 \fI\fIallocation roundup size\fR\fR\fI = \fR\fI0 # (to disable roundups)\fR\fI \fR
 .RE
 
+allow dcerpc auth level connect (G)
+.\" allow dcerpc auth level connect
+.PP
+.RS 4
+This option controls whether DCERPC services are allowed to be used with DCERPC_AUTH_LEVEL_CONNECT, which provides authentication, but no per message integrity nor privacy protection\&.
+.sp
+Some interfaces like samr, lsarpc and netlogon have a hard\-coded default of
+\fBno\fR
+and epmapper, mgmt and rpcecho have a hard\-coded default of
+\fByes\fR\&.
+.sp
+The behavior can be overwritten per interface name (e\&.g\&. lsarpc, netlogon, samr, srvsvc, winreg, wkssvc \&.\&.\&.) by using \*(Aqallow dcerpc auth level connect:interface = yes\*(Aq as option\&.
+.sp
+This option yields precedence to the implementation specific restrictions\&. E\&.g\&. the drsuapi and backupkey protocols require DCERPC_AUTH_LEVEL_PRIVACY\&. The dnsserver protocol requires DCERPC_AUTH_LEVEL_INTEGRITY\&.
+.sp
+Default:
+\fI\fIallow dcerpc auth level connect\fR\fR\fI = \fR\fIno\fR\fI \fR
+.sp
+Example:
+\fI\fIallow dcerpc auth level connect\fR\fR\fI = \fR\fIyes\fR\fI \fR
+.RE
+
 allow dns updates (G)
 .\" allow dns updates
 .PP
@@ -1741,6 +1763,76 @@ Example:
 \fI\fIcldap port\fR\fR\fI = \fR\fI3389\fR\fI \fR
 .RE
 
+client ipc max protocol (G)
+.\" client ipc max protocol
+.PP
+.RS 4
+The value of the parameter (a string) is the highest protocol level that will be supported for IPC$ connections as DCERPC transport\&.
+.sp
+Normally this option should not be set as the automatic negotiation phase in the SMB protocol takes care of choosing the appropriate protocol\&.
+.sp
+The value
+\fBdefault\fR
+refers to the latest supported protocol, currently
+\fBSMB3_11\fR\&.
+.sp
+See
+\m[blue]\fBclient max protocol\fR\m[]
+for a full list of available protocols\&. The values CORE, COREPLUS, LANMAN1, LANMAN2 are silently upgraded to NT1\&.
+.sp
+Default:
+\fI\fIclient ipc max protocol\fR\fR\fI = \fR\fIdefault\fR\fI \fR
+.sp
+Example:
+\fI\fIclient ipc max protocol\fR\fR\fI = \fR\fISMB2_10\fR\fI \fR
+.RE
+
+client ipc min protocol (G)
+.\" client ipc min protocol
+.PP
+.RS 4
+This setting controls the minimum protocol version that the will be attempted to use for IPC$ connections as DCERPC transport\&.
+.sp
+Normally this option should not be set as the automatic negotiation phase in the SMB protocol takes care of choosing the appropriate protocol\&.
+.sp
+The value
+\fBdefault\fR
+refers to the higher value of
+\fBNT1\fR
+and the effective value of
+\m[blue]\fBclient min protocol\fR\m[]\&.
+.sp
+See
+\m[blue]\fBclient max protocol\fR\m[]
+for a full list of available protocols\&. The values CORE, COREPLUS, LANMAN1, LANMAN2 are silently upgraded to NT1\&.
+.sp
+Default:
+\fI\fIclient ipc min protocol\fR\fR\fI = \fR\fIdefault\fR\fI \fR
+.sp
+Example:
+\fI\fIclient ipc min protocol\fR\fR\fI = \fR\fISMB3_11\fR\fI \fR
+.RE
+
+client ipc signing (G)
+.\" client ipc signing
+.PP
+.RS 4
+This controls whether the client is allowed or required to use SMB signing for IPC$ connections as DCERPC transport\&. Possible values are
+\fIauto\fR,
+\fImandatory\fR
+and
+\fIdisabled\fR\&.
+.sp
+When set to mandatory or default, SMB signing is required\&.
+.sp
+When set to auto, SMB signing is offered, but not enforced and if set to disabled, SMB signing is not offered either\&.
+.sp
+Connections from winbindd to Active Directory Domain Controllers always enforce signing\&.
+.sp
+Default:
+\fI\fIclient ipc signing\fR\fR\fI = \fR\fIdefault\fR\fI \fR
+.RE
+
 client lanman auth (G)
 .\" client lanman auth
 .PP
@@ -1982,11 +2074,12 @@ Normally this option should not be set as the automatic negotiation phase in the
 .sp
 The value
 \fBdefault\fR
-refers to the default protocol in each part of the code, currently
-\fBNT1\fR
-in the client tools and
-\fBSMB3_02\fR
-in winbindd\&.
+refers to
+\fBNT1\fR\&.
+.sp
+IPC$ connections for DCERPC e\&.g\&. in winbindd, are handled by the
+\m[blue]\fBclient ipc max protocol\fR\m[]
+option\&.
 .sp
 Default:
 \fI\fIclient max protocol\fR\fR\fI = \fR\fIdefault\fR\fI \fR
@@ -2006,6 +2099,10 @@ Normally this option should not be set as the automatic negotiation phase in the
 See
 Related command: \m[blue]\fBclient max protocol\fR\m[]
 for a full list of available protocols\&.
+.sp
+IPC$ connections for DCERPC e\&.g\&. in winbindd, are handled by the
+\m[blue]\fBclient ipc min protocol\fR\m[]
+option\&.
 .sp
 Default:
 \fI\fIclient min protocol\fR\fR\fI = \fR\fICORE\fR\fI \fR
@@ -2034,6 +2131,12 @@ If disabled, an NTLM response (and possibly a LANMAN response) will be sent by t
 client lanman auth\&.
 .sp
 Note that Windows Vista and later versions already use NTLMv2 by default, and some sites (particularly those following \*(Aqbest practice\*(Aq security polices) only allow NTLMv2 responses, and not the weaker LM or NTLM\&.
+.sp
+When
+\m[blue]\fBclient use spnego\fR\m[]
+is also set to
+\fByes\fR
+extended security (SPNEGO) is required in order to use NTLMv2 only within NTLMSSP\&. This behavior was introduced with the patches for CVE\-2016\-2111\&.
 .sp
 Default:
 \fI\fIclient NTLMv2 auth\fR\fR\fI = \fR\fIyes\fR\fI \fR
@@ -2085,9 +2188,13 @@ This controls whether the client is allowed or required to use SMB signing\&. Po
 and
 \fIdisabled\fR\&.
 .sp
-When set to auto or default, SMB signing is offered, but not enforced, except in winbindd, where it is enforced to Active Directory Domain Controllers\&.
+When set to auto or default, SMB signing is offered, but not enforced\&.
 .sp
 When set to mandatory, SMB signing is required and if set to disabled, SMB signing is not offered either\&.
+.sp
+IPC$ connections for DCERPC e\&.g\&. in winbindd, are handled by the
+\m[blue]\fBclient ipc signing\fR\m[]
+option\&.
 .sp
 Default:
 \fI\fIclient signing\fR\fR\fI = \fR\fIdefault\fR\fI \fR
@@ -2120,6 +2227,12 @@ client use spnego (G)
 .PP
 .RS 4
 This variable controls whether Samba clients will try to use Simple and Protected NEGOciation (as specified by rfc2478) with supporting servers (including WindowsXP, Windows2000 and Samba 3\&.0) to agree upon an authentication mechanism\&. This enables Kerberos authentication in particular\&.
+.sp
+When
+\m[blue]\fBclient NTLMv2 auth\fR\m[]
+is also set to
+\fByes\fR
+extended security (SPNEGO) is required in order to use NTLMv2 only within NTLMSSP\&. This behavior was introduced with the patches for CVE\-2016\-2111\&.
 .sp
 Default:
 \fI\fIclient use spnego\fR\fR\fI = \fR\fIyes\fR\fI \fR
@@ -4181,9 +4294,9 @@ There are three general options available:
 .PP
 backend = backend_name
 .RS 4
-This specifies the name of the idmap plugin to use as the SID/uid/gid backend for this domain\&. The standard backends are tdb (\fBidmap_tdb\fR(8)), tdb2 (\fBidmap_tdb2\fR(8)), ldap (\fBidmap_ldap\fR(8)), , rid (\fBidmap_rid\fR(8)), , hash (\fBidmap_hash\fR(8)), , autorid (\fBidmap_autorid\fR(8)), , ad (\fBidmap_ad\fR(8)), , and nss\&. (\fBidmap_nss\fR(8)), The corresponding manual pages contain the details, but here is a summary\&.
+This specifies the name of the idmap plugin to use as the SID/uid/gid backend for this domain\&. The standard backends are tdb (\fBidmap_tdb\fR(8)), tdb2 (\fBidmap_tdb2\fR(8)), ldap (\fBidmap_ldap\fR(8)), rid (\fBidmap_rid\fR(8)), hash (\fBidmap_hash\fR(8)), autorid (\fBidmap_autorid\fR(8)), ad (\fBidmap_ad\fR(8)) and nss (\fBidmap_nss\fR(8))\&. The corresponding manual pages contain the details, but here is a summary\&.
 .sp
-The first three of these create mappings of their own using internal unixid counters and store the mappings in a database\&. These are suitable for use in the default idmap configuration\&. The rid and hash backends use a pure algorithmic calculation to determine the unixid for a SID\&. The autorid module is a mixture of the tdb and rid backend\&. It creates ranges for each domain encountered and then uses the rid algorithm for each of these automatically configured domains individually\&. The ad backend usees unix IDs stored in Active Directory via the standard schema extensions\&. The nss backend reverses the standard winbindd setup and gets the unixids via names from nsswitch which can be useful in an ldap setup\&.
+The first three of these create mappings of their own using internal unixid counters and store the mappings in a database\&. These are suitable for use in the default idmap configuration\&. The rid and hash backends use a pure algorithmic calculation to determine the unixid for a SID\&. The autorid module is a mixture of the tdb and rid backend\&. It creates ranges for each domain encountered and then uses the rid algorithm for each of these automatically configured domains individually\&. The ad backend uses unix ids stored in Active Directory via the standard schema extensions\&. The nss backend reverses the standard winbindd setup and gets the unix ids via names from nsswitch which can be useful in an ldap setup\&.
 .RE
 .PP
 range = low \- high
@@ -5069,6 +5182,34 @@ can be activated and Samba can bypass the NSS system to query user group members
 .sp
 Default:
 \fI\fIldapsam:trusted\fR\fR\fI = \fR\fIno\fR\fI \fR
+.RE
+
+ldap server require strong auth (G)
+.\" ldap server require strong auth
+.PP
+.RS 4
+The
+\m[blue]\fBldap server require strong auth\fR\m[]
+defines whether the ldap server requires ldap traffic to be signed or signed and encrypted (sealed)\&. Possible values are
+\fIno\fR,
+\fIallow_sasl_over_tls\fR
+and
+\fIyes\fR\&.
+.sp
+A value of
+\fIno\fR
+allows simple and sasl binds over all transports\&.
+.sp
+A value of
+\fIallow_sasl_over_tls\fR
+allows simple and sasl binds (without sign or seal) over TLS encrypted connections\&. Unencrypted connections only allow sasl binds with sign or seal\&.
+.sp
+A value of
+\fIyes\fR
+allows only simple binds over TLS encrypted connections\&. Unencrypted connections only allow sasl binds with sign or seal\&.
+.sp
+Default:
+\fI\fIldap server require strong auth\fR\fR\fI = \fR\fIyes\fR\fI \fR
 .RE
 
 ldap ssl (G)
@@ -8346,6 +8487,24 @@ Example:
 \fI\fIqueueresume command\fR\fR\fI = \fR\fIenable %p\fR\fI \fR
 .RE
 
+raw NTLMv2 auth (G)
+.\" raw NTLMv2 auth
+.PP
+.RS 4
+This parameter determines whether or not
+\fBsmbd\fR(8)
+will allow SMB1 clients without extended security (without SPNEGO) to use NTLMv2 authentication\&.
+.sp
+If this option,
+lanman auth
+and
+ntlm auth
+are all disabled, then only clients with SPNEGO support will be permitted\&. That means NTLMv2 is only supported within NTLMSSP\&.
+.sp
+Default:
+\fI\fIraw NTLMv2 auth\fR\fR\fI = \fR\fIno\fR\fI \fR
+.RE
+
 read list (S)
 .\" read list
 .PP
@@ -9581,7 +9740,7 @@ and
 \fIdisabled\fR\&.
 .sp
 By default, and when smb signing is set to
-\fIdefault\fR, smb signing enabled when
+\fIdefault\fR, smb signing is required when
 \m[blue]\fBserver role\fR\m[]
 is
 \fIactive directory domain controller\fR
@@ -11130,6 +11289,56 @@ GNUTLS Priority\-Strings documentation at http://gnutls\&.org/manual/html_node/P
 .sp
 Default:
 \fI\fItls priority\fR\fR\fI = \fR\fINORMAL:\-VERS\-SSL3\&.0\fR\fI \fR
+.RE
+
+tls verify peer (G)
+.\" tls verify peer
+.PP
+.RS 4
+This controls if and how strict the client will verify the peer\*(Aqs certificate and name\&. Possible values are (in increasing order):
+\fBno_check\fR,
+\fBca_only\fR,
+\fBca_and_name_if_available\fR,
+\fBca_and_name\fR
+and
+\fBas_strict_as_possible\fR\&.
+.sp
+When set to
+\fBno_check\fR
+the certificate is not verified at all, which allows trivial man in the middle attacks\&.
+.sp
+When set to
+\fBca_only\fR
+the certificate is verified to be signed from a ca specified in the
+\m[blue]\fBtls ca file\fR\m[]
+option\&. Setting
+\m[blue]\fBtls ca file\fR\m[]
+to a valid file is required\&. The certificate lifetime is also verified\&. If the
+\m[blue]\fBtls crl file\fR\m[]
+option is configured, the certificate is also verified against the ca crl\&.
+.sp
+When set to
+\fBca_and_name_if_available\fR
+all checks from
+\fBca_only\fR
+are performed\&. In addition, the peer hostname is verified against the certificate\*(Aqs name, if it is provided by the application layer and not given as an ip address string\&.
+.sp
+When set to
+\fBca_and_name\fR
+all checks from
+\fBca_and_name_if_available\fR
+are performed\&. In addition the peer hostname needs to be provided and even an ip address is checked against the certificate\*(Aqs name\&.
+.sp
+When set to
+\fBas_strict_as_possible\fR
+all checks from
+\fBca_and_name\fR
+are performed\&. In addition the
+\m[blue]\fBtls crl file\fR\m[]
+needs to be configured\&. Future versions of Samba may implement additional checks\&.
+.sp
+Default:
+\fI\fItls verify peer\fR\fR\fI = \fR\fIas_strict_as_possible\fR\fI \fR
 .RE
 
 unicode (G)

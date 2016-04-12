@@ -94,8 +94,7 @@ def configure(conf):
     conf.RECURSE('lib/talloc')
     conf.RECURSE('lib/tevent')
     conf.RECURSE('lib/tdb')
-    if conf.CONFIG_GET('ENABLE_SELFTEST'):
-        conf.RECURSE('lib/socket_wrapper')
+    conf.RECURSE('lib/socket_wrapper')
 
     conf.CHECK_HEADERS('sched.h')
     conf.CHECK_HEADERS('procinfo.h')
@@ -257,8 +256,7 @@ def build(bld):
     bld.RECURSE('lib/talloc')
     bld.RECURSE('lib/tevent')
     bld.RECURSE('lib/tdb')
-    if bld.CONFIG_GET('ENABLE_SELFTEST'):
-        bld.RECURSE('lib/socket_wrapper')
+    bld.RECURSE('lib/socket_wrapper')
 
     if bld.env.standalone_ctdb:
         # In a combined build is implemented, CTDB will wanted to

@@ -2,12 +2,12 @@
 .\"     Title: vfs_gpfs
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 09/08/2015
+.\"      Date: 04/11/2016
 .\"    Manual: System Administration tools
 .\"    Source: Samba 4.3
 .\"  Language: English
 .\"
-.TH "VFS_GPFS" "8" "09/08/2015" "Samba 4\&.3" "System Administration tools"
+.TH "VFS_GPFS" "8" "04/11/2016" "Samba 4\&.3" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -79,11 +79,11 @@ Lease support on GPFS
 .sp
 .RE
 .PP
-NOTE:This module follows the posix\-acl behaviour and hence allows permission stealing via chown\&. Samba might allow at a later point in time, to restrict the chown via this module as such restrictions are the responsibility of the underlying filesystem than of Samba\&.
+NOTE:
+This module follows the posix\-acl behaviour and hence allows permission stealing via chown\&. Samba might allow at a later point in time, to restrict the chown via this module as such restrictions are the responsibility of the underlying filesystem than of Samba\&.
 .PP
 This module makes use of the smb\&.conf parameter
-\m[blue]\fBacl map full control = acl map full control\fR\m[]
-When set to yes (the default), this parameter will add in the FILE_DELETE_CHILD bit on a returned ACE entry for a file (not a directory) that already contains all file permissions except for FILE_DELETE and FILE_DELETE_CHILD\&. This can prevent Windows applications that request GENERIC_ALL access from getting ACCESS_DENIED errors when running against a filesystem with NFSv4 compatible ACLs\&.
+\m[blue]\fBacl map full control\fR\m[]\&. When set to yes (the default), this parameter will add in the FILE_DELETE_CHILD bit on a returned ACE entry for a file (not a directory) that already contains all file permissions except for FILE_DELETE and FILE_DELETE_CHILD\&. This can prevent Windows applications that request GENERIC_ALL access from getting ACCESS_DENIED errors when running against a filesystem with NFSv4 compatible ACLs\&.
 .PP
 This module is stackable\&.
 .PP
@@ -670,7 +670,7 @@ library was open source and could be used at run time\&.
 .PP
 At build time, only the header file
 gpfs_gpl\&.h
-is required , which is a symlink to
+is required, which is a symlink to
 gpfs\&.h
 in gpfs versions newer than 3\&.2\&.1 PTF8\&.
 .SH "VERSION"

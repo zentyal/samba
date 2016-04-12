@@ -1,3 +1,9 @@
+samba (4:4.3.8-zentyal1) trusty; urgency=medium
+
+  * Upstream
+
+ -- José A. Calvo <jacalvo@zentyal.com>  Tue, 12 Apr 2016 19:28:03 +0200
+
 samba (4:4.3.5-zentyal1) trusty; urgency=medium
 
   * Upstream

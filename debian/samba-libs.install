@@ -15,6 +15,7 @@ usr/lib/*/libsamba-hostconfig.so.*
 usr/lib/*/libsamba-passdb.so.0
 usr/lib/*/libsamba-passdb.so.0.24.1
 usr/lib/*/libsamba-policy.so.*
+usr/lib/*/libsamba-security.so*
 usr/lib/*/libsamba-util.so.*
 usr/lib/*/libsamdb.so.*
 usr/lib/*/libsmbclient-raw.so.0*

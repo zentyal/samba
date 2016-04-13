@@ -34,6 +34,7 @@ usr/include/samba-4.0/gen_ndr/ndr_misc.h
 usr/include/samba-4.0/gen_ndr/ndr_nbt.h
 usr/include/samba-4.0/gen_ndr/ndr_samr.h
 usr/include/samba-4.0/gen_ndr/ndr_samr_c.h
+usr/include/samba-4.0/gen_ndr/ndr_security.h
 usr/include/samba-4.0/gen_ndr/ndr_svcctl.h
 usr/include/samba-4.0/gen_ndr/ndr_svcctl_c.h
 usr/include/samba-4.0/gen_ndr/netlogon.h
@@ -41,6 +42,12 @@ usr/include/samba-4.0/gen_ndr/samr.h
 usr/include/samba-4.0/gen_ndr/security.h
 usr/include/samba-4.0/gen_ndr/server_id.h
 usr/include/samba-4.0/gen_ndr/svcctl.h
+usr/include/samba-4.0/security/security_descriptor.h
+usr/include/samba-4.0/security/secace.h
+usr/include/samba-4.0/security/sddl.h
+usr/include/samba-4.0/security/secdesc.h
+usr/include/samba-4.0/security/dom_sid.h
+usr/include/samba-4.0/samba/dynconfig.h
 usr/include/samba-4.0/gensec.h
 usr/include/samba-4.0/ldap-util.h
 usr/include/samba-4.0/ldap_errors.h
